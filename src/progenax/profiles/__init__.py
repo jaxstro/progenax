@@ -8,7 +8,8 @@ Implements the SpatialProfile protocol with these density models:
 - EFFProfile: Elson-Fall-Freeman (1987) truncated power-law
 
 Mass segregation transforms:
-- apply_mass_segregation: Primordial mass segregation
+- apply_mass_segregation: Primordial mass segregation (radial scaling)
+- apply_mass_segregation_baumgardt: Energy-ranked orbit assignment (Baumgardt+2008)
 - compute_mass_segregation_ratio: MSR diagnostic
 
 All profiles provide:
@@ -19,7 +20,11 @@ All profiles provide:
 from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.profiles.eff import EFFProfile
-from progenax.profiles.mass_segregation import apply_mass_segregation, compute_mass_segregation_ratio
+from progenax.profiles.mass_segregation import (
+    apply_mass_segregation,
+    apply_mass_segregation_baumgardt,
+    compute_mass_segregation_ratio,
+)
 
 __all__ = [
     "PlummerProfile",
@@ -27,5 +32,6 @@ __all__ = [
     "solve_king_profile",
     "EFFProfile",
     "apply_mass_segregation",
+    "apply_mass_segregation_baumgardt",
     "compute_mass_segregation_ratio",
 ]
