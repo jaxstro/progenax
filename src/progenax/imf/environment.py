@@ -25,20 +25,16 @@ from jaxtyping import Array, Float, PRNGKeyArray
 from .power_law import PowerLawIMF
 
 # ============================================================================
-# Physical Constants (CGS)
+# Physical Constants (from jaxstro core)
 # ============================================================================
 
-# Gravitational constant [cm³ g⁻¹ s⁻²]
-G_CGS = 6.674e-8
+from jaxstro import constants as C
 
-# Boltzmann constant [erg K⁻¹]
-K_B_CGS = 1.381e-16
-
-# Proton mass [g]
-M_P_CGS = 1.673e-24
-
-# Solar mass [g]
-M_SUN_CGS = 1.989e33
+# Re-export jaxstro constants for local use (CGS units)
+G_CGS = C.G_CGS          # Gravitational constant [cm³ g⁻¹ s⁻²]
+K_B_CGS = C.K_B          # Boltzmann constant [erg K⁻¹]
+M_P_CGS = C.M_P          # Proton mass [g]
+M_SUN_CGS = C.MSUN_G     # Solar mass [g]
 
 # Mean molecular weight for molecular cloud (H₂ dominated)
 MU_MOL = 2.33

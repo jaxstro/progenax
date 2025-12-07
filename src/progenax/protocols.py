@@ -65,6 +65,7 @@ class VelocityDF(Protocol):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
+        G: float = 1.0,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from distribution function.
@@ -73,6 +74,7 @@ class VelocityDF(Protocol):
             positions: Particle positions (N, 3)
             masses: Particle masses (N,)
             key: JAX random key
+            G: Gravitational constant (default: 1.0)
 
         Returns:
             Cartesian velocities (N, 3) in velocity units

@@ -119,10 +119,10 @@ class KeplerElements(eqx.Module):
 
         # Perifocal velocities
         # Mean motion: n = sqrt(GM/a^3)
-        n = jnp.sqrt(G * M_total / (self.a**3 + 1e-20))
+        n = jnp.sqrt(G * M_total / jnp.maximum(self.a**3, 1e-12))
 
         # dE/dt = n/(1 - e*cos E)
-        E_dot = n / jnp.maximum(1.0 - self.e * cos_E, 1e-20)
+        E_dot = n / jnp.maximum(1.0 - self.e * cos_E, 1e-12)
 
         vx_p = -self.a * sin_E * E_dot
         vy_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 0.0)) * cos_E * E_dot
@@ -411,7 +411,7 @@ class KeplerElements(eqx.Module):
             """One Newton-Raphson iteration."""
             f = E_prev - e * jnp.sin(E_prev) - M_wrapped
             f_prime = 1.0 - e * jnp.cos(E_prev)
-            E_new = E_prev - f / jnp.maximum(jnp.abs(f_prime), 1e-20)
+            E_new = E_prev - f / jnp.maximum(jnp.abs(f_prime), 1e-12)
             return E_new, None
 
         # Use scan for fixed iterations (differentiable)

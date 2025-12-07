@@ -216,6 +216,12 @@ def apply_fractal_overlay_radial(
     References:
         Kupper et al. (2011) MNRAS 417, 2300 - McLuster implementation
 
+    Warning:
+        This function is NOT differentiable due to sorting operations
+        (jnp.argsort blocks gradient flow). For gradient-based optimization,
+        use apply_fractal_overlay_blend() instead, noting that it modifies
+        the radial density profile.
+
     Note:
         This is the recommended method for most applications as it preserves
         the physics-motivated radial density profile (Plummer, King, etc.)
