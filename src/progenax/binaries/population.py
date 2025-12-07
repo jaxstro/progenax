@@ -19,7 +19,7 @@ from typing import Tuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, Bool, Float, PRNGKeyArray
 
 
 class LogUniformPeriod(eqx.Module):
@@ -223,3 +223,85 @@ def sample_isotropic_orientations(
     M_anom = jax.random.uniform(key4, (n,), minval=0.0, maxval=2.0 * jnp.pi)
 
     return inclination, Omega, omega, M_anom
+
+
+# =============================================================================
+# Radially Varying Binary Fraction
+# =============================================================================
+
+
+class RadialBinaryFraction(eqx.Module):
+    """Radially varying binary fraction.
+
+    Implements spatially varying binary fraction following the power-law model:
+
+        f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α))
+
+    where:
+        - A > 0: core-enhanced (more binaries in center)
+        - A < 0: core-depleted (fewer binaries in center)
+        - A = 0: constant binary fraction everywhere
+
+    The result is clipped to [0, 1] to ensure valid binary fractions.
+
+    References:
+        Raghavan et al. (2010) ApJS 190, 1 - Solar neighborhood binary census
+        Sana et al. (2012) Science 337, 444 - O-star binary fraction
+        Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+
+    Parameters:
+        fb0: Baseline binary fraction (default: 0.5)
+        A: Amplitude of radial variation (default: 0.5 for core-enhanced)
+        alpha: Power-law index (default: 1.0)
+        r_scale: Scale radius for radial variation (default: 1.0)
+
+    Examples:
+        >>> # Core-enhanced: more binaries in center
+        >>> rbf = RadialBinaryFraction(fb0=0.5, A=0.5, alpha=1.0, r_scale=1.0)
+        >>> radii = jnp.array([0.1, 1.0, 5.0])
+        >>> fb_r = rbf.compute(radii)  # Higher at r=0.1, lower at r=5.0
+        >>>
+        >>> # Sample binary membership
+        >>> key = jax.random.PRNGKey(42)
+        >>> is_binary = rbf.sample_membership(radii, key)
+    """
+
+    fb0: float = 0.5
+    A: float = 0.5
+    alpha: float = 1.0
+    r_scale: float = 1.0
+
+    def compute(self, radii: Float[Array, "N"]) -> Float[Array, "N"]:
+        """Compute binary fraction at given radii.
+
+        Args:
+            radii: Radial distances (shape N,)
+
+        Returns:
+            Binary fraction at each radius, clipped to [0, 1] (shape N,)
+        """
+        # f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α))
+        r_normalized = radii / self.r_scale
+        fb_r = self.fb0 * (1.0 + self.A * jnp.power(r_normalized, -self.alpha))
+
+        # Clip to valid range [0, 1]
+        return jnp.clip(fb_r, 0.0, 1.0)
+
+    def sample_membership(
+        self, radii: Float[Array, "N"], key: PRNGKeyArray
+    ) -> Bool[Array, "N"]:
+        """Sample binary membership based on radial binary fraction.
+
+        Each particle becomes a binary with probability f_b(r) where r is its radius.
+
+        Args:
+            radii: Radial distances for each particle (shape N,)
+            key: JAX random key
+
+        Returns:
+            Boolean array indicating binary membership (shape N,)
+            True = particle is a binary, False = single star
+        """
+        fb_r = self.compute(radii)
+        u = jax.random.uniform(key, radii.shape)
+        return u < fb_r

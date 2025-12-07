@@ -204,3 +204,107 @@ class TestIsotropicOrientations:
         result2 = sample_isotropic_orientations(key, 100)
         for a1, a2 in zip(result1, result2):
             assert jnp.allclose(a1, a2)
+
+
+class TestRadialBinaryFraction:
+    """Tests for radially varying binary fraction."""
+
+    def test_compute_shape(self):
+        """Output has same shape as input radii."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=0.3, alpha=1.0, r_scale=1.0)
+        radii = jnp.array([0.1, 0.5, 1.0, 2.0, 5.0])
+        fb_r = rbf.compute(radii)
+        assert fb_r.shape == radii.shape
+
+    def test_fb_in_range(self):
+        """Binary fraction clipped to [0, 1]."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        # Test with large A that could push fb > 1
+        rbf = RadialBinaryFraction(fb0=0.8, A=2.0, alpha=1.0, r_scale=1.0)
+        radii = jnp.linspace(0.01, 5.0, 100)
+        fb_r = rbf.compute(radii)
+        assert jnp.all(fb_r >= 0.0)
+        assert jnp.all(fb_r <= 1.0)
+
+    def test_A_positive_core_enhanced(self):
+        """A > 0 gives higher fb at small radii (core-enhanced)."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=0.5, alpha=1.0, r_scale=1.0)
+        r_center = jnp.array([0.1])
+        r_outer = jnp.array([5.0])
+
+        fb_center = rbf.compute(r_center)
+        fb_outer = rbf.compute(r_outer)
+
+        # Core should have MORE binaries
+        assert fb_center[0] > fb_outer[0]
+
+    def test_A_negative_core_depleted(self):
+        """A < 0 gives lower fb at small radii (core-depleted)."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=-0.5, alpha=1.0, r_scale=1.0)
+        r_center = jnp.array([0.1])
+        r_outer = jnp.array([5.0])
+
+        fb_center = rbf.compute(r_center)
+        fb_outer = rbf.compute(r_outer)
+
+        # Core should have FEWER binaries
+        assert fb_center[0] < fb_outer[0]
+
+    def test_A_zero_constant(self):
+        """A = 0 gives constant binary fraction everywhere."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.6, A=0.0, alpha=1.0, r_scale=1.0)
+        radii = jnp.linspace(0.01, 10.0, 50)
+        fb_r = rbf.compute(radii)
+
+        # All should equal fb0
+        assert jnp.allclose(fb_r, 0.6, atol=1e-6)
+
+    def test_sample_membership_shape(self):
+        """Sample membership returns boolean array of correct shape."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=0.3, alpha=1.0, r_scale=1.0)
+        radii = jnp.linspace(0.1, 3.0, 100)
+        key = jax.random.PRNGKey(42)
+
+        is_binary = rbf.sample_membership(radii, key)
+        assert is_binary.shape == radii.shape
+        assert is_binary.dtype == jnp.bool_
+
+    def test_sample_membership_statistics(self):
+        """Sample membership statistics match theoretical fb(r)."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=0.0, alpha=1.0, r_scale=1.0)
+        radii = jnp.ones(10000) * 1.0  # All at same radius
+        key = jax.random.PRNGKey(42)
+
+        is_binary = rbf.sample_membership(radii, key)
+        fb_measured = jnp.mean(is_binary)
+        fb_expected = rbf.compute(jnp.array([1.0]))[0]
+
+        # Should be close for large N
+        assert jnp.abs(fb_measured - fb_expected) < 0.02
+
+    def test_jit_compatible(self):
+        """RadialBinaryFraction works under JIT."""
+        from progenax.binaries.population import RadialBinaryFraction
+
+        rbf = RadialBinaryFraction(fb0=0.5, A=0.3, alpha=1.0, r_scale=1.0)
+
+        @jax.jit
+        def compute_fb(r):
+            return rbf.compute(r)
+
+        radii = jnp.array([0.5, 1.0, 2.0])
+        fb_r = compute_fb(radii)
+        assert fb_r.shape == (3,)

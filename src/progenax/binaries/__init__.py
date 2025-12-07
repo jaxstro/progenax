@@ -31,6 +31,7 @@ from .population import (
     ThermalEccentricity,
     UniformEccentricity,
     sample_isotropic_orientations,
+    RadialBinaryFraction,
 )
 
 __all__ = [
@@ -51,6 +52,7 @@ __all__ = [
     "ThermalEccentricity",
     "UniformEccentricity",
     "sample_isotropic_orientations",
+    "RadialBinaryFraction",
     # Backwards compatibility
     "KeplerElements_IC",
 ]
