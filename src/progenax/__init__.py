@@ -46,6 +46,11 @@ from .tidal import (
     apply_tidal_truncation,
     fill_factor_to_r_h,
 )
+from .substructure import (
+    generate_fractal_positions,
+    apply_fractal_overlay_radial,
+    apply_fractal_overlay_blend,
+)
 
 __version__ = "0.1.0"
 
@@ -98,4 +103,8 @@ __all__ = [
     "jacobi_radius_isothermal",
     "apply_tidal_truncation",
     "fill_factor_to_r_h",
+    # Fractal substructure
+    "generate_fractal_positions",
+    "apply_fractal_overlay_radial",
+    "apply_fractal_overlay_blend",
 ]
