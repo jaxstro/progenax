@@ -6,6 +6,7 @@ Part of the jaxstro ecosystem.
 
 from .protocols import SpatialProfile, VelocityDF, IMFProtocol
 from .profiles import PlummerProfile, KingProfile, EFFProfile, solve_king_profile
+from .kinematics import PlummerVelocityDF, KingVelocityDF, EFFVelocityDF
 
 __version__ = "0.1.0"
 
@@ -19,4 +20,8 @@ __all__ = [
     "KingProfile",
     "EFFProfile",
     "solve_king_profile",
+    # Velocity distribution functions
+    "PlummerVelocityDF",
+    "KingVelocityDF",
+    "EFFVelocityDF",
 ]
