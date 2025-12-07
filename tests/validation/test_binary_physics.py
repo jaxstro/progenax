@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from jaxstro.units import PLANETARY
 from progenax.binaries import (
     KeplerElements,
     BinaryOrbitalState,
@@ -20,13 +21,17 @@ from progenax.binaries import (
     period_to_semimajor_axis,
 )
 
+# Use planetary/binary units for orbital mechanics tests
+G = PLANETARY.G  # ≈ 39.478 [AU³ Msun⁻¹ yr⁻²] = 4π²
+
 
 class TestKeplerThirdLaw:
     """Verify Kepler's Third Law: T^2 = (4π^2/GM) a^3."""
 
     def test_period_formula_circular(self):
         """Period formula correct for circular orbit."""
-        a, M_total, G = 1.0, 1.0, 1.0
+        a = 1.0
+        M_total = 1.0
 
         period = compute_period(a, M_total, G)
         expected = 2.0 * jnp.pi * jnp.sqrt(a**3 / (G * M_total))
@@ -37,7 +42,7 @@ class TestKeplerThirdLaw:
     @pytest.mark.parametrize("a", [0.5, 1.0, 2.0, 5.0, 10.0])
     def test_period_scales_as_a_cubed(self, a):
         """Period scales as T ∝ a^(3/2)."""
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         period_1 = compute_period(1.0, M_total, G)
         period_a = compute_period(a, M_total, G)
@@ -51,7 +56,7 @@ class TestKeplerThirdLaw:
     def test_period_semimajor_axis_roundtrip(self):
         """period_to_semimajor_axis is inverse of compute_period."""
         a_original = 2.5
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         period = compute_period(a_original, M_total, G)
         a_recovered = period_to_semimajor_axis(period, M_total, G)
@@ -66,7 +71,7 @@ class TestKeplerEquation:
     def test_circular_orbit_mean_equals_eccentric(self):
         """For e=0: E = M (mean anomaly equals eccentric anomaly)."""
         elements = KeplerElements(a=1.0, e=0.0, M0=jnp.pi/4)
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         state = elements.to_state(M_total, G)
 
@@ -83,7 +88,7 @@ class TestKeplerEquation:
         e = 0.5
         a = 2.0
         elements = KeplerElements(a=a, e=e, M0=0.0)
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         state = elements.to_state(M_total, G)
         r = jnp.linalg.norm(state['position'])
@@ -97,7 +102,7 @@ class TestKeplerEquation:
         e = 0.5
         a = 2.0
         elements = KeplerElements(a=a, e=e, M0=jnp.pi)
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         state = elements.to_state(M_total, G)
         r = jnp.linalg.norm(state['position'])
@@ -114,7 +119,6 @@ class TestBinaryMomentumConservation:
         """Binary center of mass is at origin."""
         m1, m2 = 1.0, 0.5
         M_total = m1 + m2
-        G = 1.0
 
         # Create binary orbital state and get resolved positions
         binary_state = BinaryOrbitalState.from_semi_major_axis(
@@ -131,7 +135,6 @@ class TestBinaryMomentumConservation:
     def test_momentum_zero(self):
         """Total momentum is zero (no bulk motion)."""
         m1, m2 = 2.0, 1.0
-        G = 1.0
 
         binary_state = BinaryOrbitalState.from_semi_major_axis(
             m1=m1, m2=m2, a=1.0, e=0.3, M_anom=1.0, G=G
@@ -151,7 +154,7 @@ class TestOrbitalEnergy:
     def test_orbital_energy_formula(self):
         """Orbital energy matches analytical formula."""
         m1, m2 = 1.0, 1.0
-        a, G = 2.0, 1.0
+        a = 2.0
 
         binary_state = BinaryOrbitalState.from_semi_major_axis(
             m1=m1, m2=m2, a=a, e=0.0, M_anom=0.0, G=G
@@ -183,7 +186,7 @@ class TestOrbitalVelocity:
         """Circular orbit velocity: v = √(GM/a)."""
         m1, m2 = 1.0, 1.0
         M_total = m1 + m2
-        a, G = 1.0, 1.0
+        a = 1.0
 
         binary_state = BinaryOrbitalState.from_semi_major_axis(
             m1=m1, m2=m2, a=a, e=0.0, M_anom=0.0, G=G
@@ -203,7 +206,8 @@ class TestOrbitalVelocity:
         """Velocity at periapsis is maximum for eccentric orbit."""
         m1, m2 = 1.0, 1.0
         M_total = m1 + m2
-        a, e, G = 1.0, 0.5, 1.0
+        a = 1.0
+        e = 0.5
 
         # At periapsis (M0=0)
         elements_peri = KeplerElements(a=a, e=e, M0=0.0)
@@ -225,7 +229,7 @@ class TestInclinationAndOrientation:
     def test_equatorial_orbit_in_xy_plane(self):
         """i=0 orbit lies in xy-plane."""
         elements = KeplerElements(a=1.0, e=0.3, i=0.0, M0=1.0)
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         state = elements.to_state(M_total, G)
         r = state['position']
@@ -238,7 +242,7 @@ class TestInclinationAndOrientation:
     def test_polar_orbit_passes_poles(self):
         """i=π/2 orbit passes through poles."""
         elements = KeplerElements(a=1.0, e=0.0, i=jnp.pi/2, Omega=0.0, omega=0.0, M0=0.0)
-        M_total, G = 1.0, 1.0
+        M_total = 1.0
 
         state = elements.to_state(M_total, G)
         r = state['position']
@@ -255,7 +259,7 @@ class TestDifferentiability:
         """Gradient flows through Kepler equation solver."""
         def energy_from_a(a):
             elements = KeplerElements(a=a, e=0.3, M0=1.0)
-            state = elements.to_state(M_total=1.0, G=1.0)
+            state = elements.to_state(M_total=1.0, G=G)
             return jnp.sum(state['velocity']**2)
 
         grad_fn = jax.grad(energy_from_a)

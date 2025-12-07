@@ -4,11 +4,15 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from jaxstro.units import STELLAR
 from progenax.profiles.mass_segregation import (
     apply_mass_segregation,
     compute_mass_segregation_ratio,
     apply_mass_segregation_baumgardt,
 )
+
+# Use stellar dynamics units for star cluster tests
+G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
 
 class TestMassSegregation:
@@ -148,7 +152,7 @@ class TestBaumgardtMassSegregation:
         masses = jax.random.uniform(jax.random.PRNGKey(2), (N,), minval=0.1, maxval=10.0)
 
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.5, key=key, G=1.0
+            positions, velocities, masses, s=0.5, key=key, G=G
         )
 
         assert pos_out.shape == (N, 3)
@@ -177,7 +181,7 @@ class TestBaumgardtMassSegregation:
         masses = jnp.linspace(0.5, 5.0, N)
 
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.0, key=key, G=1.0
+            positions, velocities, masses, s=0.0, key=key, G=G
         )
 
         # Compute correlation between mass and binding energy
@@ -215,7 +219,7 @@ class TestBaumgardtMassSegregation:
         masses = jnp.linspace(0.5, 5.0, N)
 
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=1.0, key=key, G=1.0
+            positions, velocities, masses, s=1.0, key=key, G=G
         )
 
         # Compute binding energies
@@ -250,7 +254,7 @@ class TestBaumgardtMassSegregation:
 
         # Test s=0.5
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.5, key=key, G=1.0
+            positions, velocities, masses, s=0.5, key=key, G=G
         )
 
         r_out = jnp.linalg.norm(pos_out, axis=1)
@@ -274,7 +278,7 @@ class TestBaumgardtMassSegregation:
         total_mass_before = jnp.sum(masses)
 
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.7, key=key, G=1.0
+            positions, velocities, masses, s=0.7, key=key, G=G
         )
 
         # Mass array is not returned (positions/velocities are just reassigned)
@@ -292,7 +296,7 @@ class TestBaumgardtMassSegregation:
 
         # JIT compile
         jit_fn = jax.jit(
-            lambda p, v, m, k: apply_mass_segregation_baumgardt(p, v, m, s=0.5, key=k, G=1.0)
+            lambda p, v, m, k: apply_mass_segregation_baumgardt(p, v, m, s=0.5, key=k, G=G)
         )
 
         pos_out, vel_out = jit_fn(positions, velocities, masses, key)

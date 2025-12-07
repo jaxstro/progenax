@@ -80,6 +80,7 @@ uv pip install -e ".[dev]"
 ```python
 import jax
 import jax.numpy as jnp
+from jaxstro.units import STELLAR
 from progenax.profiles import PlummerProfile
 from progenax.kinematics import PlummerVelocityDF
 
@@ -89,12 +90,12 @@ velocity_df = PlummerVelocityDF(r_h=1.0)
 
 # Sample positions and velocities
 N = 1000
-masses = jnp.ones(N)
+masses = jnp.ones(N)  # 1000 Msun total
 key = jax.random.PRNGKey(42)
 key_pos, key_vel = jax.random.split(key)
 
 positions = profile.sample_positions(masses, key_pos)
-velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=1.0)
+velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
 ### IMF Sampling
@@ -111,10 +112,11 @@ masses = imf.sample(key, n_samples=1000)  # Sample 1000 stellar masses
 ### Analytical Test Case
 
 ```python
+from jaxstro.units import PLANETARY
 from progenax.analytical import CircularOrbit
 
-# Create two-body circular orbit
-orbit = CircularOrbit(m1=1.0, m2=1.0, separation=1.0, G=1.0)
+# Create two-body circular orbit (binary/planetary uses PLANETARY.G)
+orbit = CircularOrbit(m1=1.0, m2=1.0, separation=1.0, G=PLANETARY.G)
 positions, velocities, masses = orbit.get_state()
 ```
 
@@ -167,12 +169,18 @@ pytest tests/unit/imf/ -v
 
 ## Key Patterns
 
-### Explicit G Parameter
+### Unit System with jaxstro.units
 
-All physics functions take an explicit `G` parameter (no global state):
+All physics functions use jaxstro unit systems (no global state):
 
 ```python
-velocities = velocity_df.sample_velocities(positions, masses, key, G=1.0)
+from jaxstro.units import STELLAR, PLANETARY
+
+# Star clusters use STELLAR.G (~0.00450 pc³ Msun⁻¹ Myr⁻²)
+velocities = velocity_df.sample_velocities(positions, masses, key, G=STELLAR.G)
+
+# Binaries/planets use PLANETARY.G (~39.478 AU³ Msun⁻¹ yr⁻²)
+orbit = CircularOrbit(m1=1.0, m2=1.0, separation=1.0, G=PLANETARY.G)
 ```
 
 ### Protocol Composition

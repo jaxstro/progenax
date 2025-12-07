@@ -13,9 +13,13 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from jaxstro.units import STELLAR
 from progenax.profiles import PlummerProfile, EFFProfile
 from progenax.kinematics import PlummerVelocityDF, EFFVelocityDF
 from progenax.imf import PowerLawIMF, ChabrierIMF
+
+# Use stellar dynamics units for star cluster tests
+G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
 
 # =============================================================================
@@ -101,8 +105,7 @@ class TestVelocityDFJITCompatibility:
         N = 100
         positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
         masses = jnp.ones(N)
-        G = 1.0
-
+        
         @jax.jit
         def sample(key):
             return df.sample_velocities(positions, masses, key, G=G)
@@ -117,8 +120,7 @@ class TestVelocityDFJITCompatibility:
         N = 100
         positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3)) * 0.5
         masses = jnp.ones(N)
-        G = 1.0
-
+        
         @jax.jit
         def sample(key):
             return df.sample_velocities(positions, masses, key, G=G)
@@ -140,7 +142,7 @@ class TestVelocityDFGradCompatibility:
             positions = jnp.ones((N, 3)) * 0.5  # Fixed positions
             masses = jnp.ones(N)
             key = jax.random.PRNGKey(42)
-            velocities = df.sample_velocities(positions, masses, key, G=1.0)
+            velocities = df.sample_velocities(positions, masses, key, G=G)
             return jnp.mean(jnp.sum(velocities**2, axis=1))
 
         grad_fn = jax.grad(loss)
@@ -311,7 +313,7 @@ class TestPipelineDifferentiability:
             key_pos, key_vel = jax.random.split(key)
 
             positions = profile.sample_positions(masses, key_pos)
-            velocities = df.sample_velocities(positions, masses, key_vel, G=1.0)
+            velocities = df.sample_velocities(positions, masses, key_vel, G=G)
 
             # Loss: total kinetic energy
             return 0.5 * jnp.sum(masses * jnp.sum(velocities**2, axis=1))

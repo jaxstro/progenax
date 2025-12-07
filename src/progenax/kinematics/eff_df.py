@@ -53,7 +53,8 @@ class EFFVelocityDF(eqx.Module):
         >>> key_pos, key_vel = jax.random.split(key)
         >>>
         >>> positions = profile.sample_positions(masses, key_pos)
-        >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=1.0)
+        >>> from jaxstro.units import STELLAR
+        >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
     """
 
     a: Float[Array, ""]
@@ -79,7 +80,7 @@ class EFFVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float = 1.0,
+        G: float | None = None,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from isotropic Gaussian distribution.
@@ -94,7 +95,8 @@ class EFFVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [mass units]
             key: JAX random key for reproducible sampling
-            G: Gravitational constant (default: 1.0)
+            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+               (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
             Cartesian velocities (N, 3) [velocity units]
@@ -104,6 +106,10 @@ class EFFVelocityDF(eqx.Module):
             - All velocities are finite
             - Mean velocity is zero (no bulk motion)
         """
+        if G is None:
+            from jaxstro.units import DEFAULT
+            G = DEFAULT.G
+
         N = len(masses)
         M_total = jnp.sum(masses)
 

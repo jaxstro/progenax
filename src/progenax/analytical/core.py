@@ -404,7 +404,7 @@ def three_body_figure_eight(mass: float = 1.0, scale: float = 1.0, G: float = 1.
     Args:
         mass: Mass of each particle [Msun] (default: 1.0)
         scale: Spatial scale factor (default: 1.0)
-        G: Gravitational constant [appropriate units] (default: 1.0)
+        G: Gravitational constant (default: 1.0, dimensionless)
 
     Returns:
         AnalyticalIC with 3 equal masses in figure-8 orbit
@@ -416,14 +416,19 @@ def three_body_figure_eight(mass: float = 1.0, scale: float = 1.0, G: float = 1.
         - Symmetry: 3-fold rotational symmetry
 
     Example:
-        >>> G = 1.0
-        >>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=G)
+        >>> # Dimensionless units (default, for mathematical testing)
+        >>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=1.0)
         >>> # Integrate for 1 period: t_end = 6.3259
 
+        >>> # Physical units (use jaxstro.units for consistent G)
+        >>> from jaxstro.units import STELLAR
+        >>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=STELLAR.G)
+
     Notes:
-        - Uses dimensionless initial conditions from Chenciner & Montgomery
-        - Scaled to current unit system via 'scale' parameter
-        - Period is T ≈ 6.3259 in dimensionless units (G=1, m=1, scale=1)
+        - **Uses dimensionless units by default** (G=1, m=1, scale=1)
+        - This is a mathematical test problem with known exact solution
+        - For physical units, pass G from jaxstro.units (STELLAR or PLANETARY)
+        - Period scales as T ∝ sqrt(scale³ / G) from dimensionless T₀ = 6.3259
         - Works best with zero softening (pure Newtonian)
 
     References:

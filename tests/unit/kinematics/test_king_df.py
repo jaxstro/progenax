@@ -9,7 +9,11 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from jaxstro.units import STELLAR
 from progenax.kinematics.king_df import KingVelocityDF
+
+# Use stellar dynamics units for star cluster tests
+G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
 
 class TestKingVelocityDFInit:
@@ -43,7 +47,7 @@ class TestKingVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         assert velocities.shape == (N, 3)
 
@@ -57,7 +61,7 @@ class TestKingVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         # All velocity magnitudes should be finite
         v_mag = jnp.linalg.norm(velocities, axis=1)
@@ -74,7 +78,7 @@ class TestKingVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         # Check isotropy: <vx²> ≈ <vy²> ≈ <vz²>
         vx2_mean = jnp.mean(velocities[:, 0]**2)
@@ -96,7 +100,7 @@ class TestKingVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         # Mean velocity should be close to zero
         mean_vel = jnp.mean(velocities, axis=0)
@@ -115,8 +119,8 @@ class TestKingVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities1 = df.sample_velocities(positions, masses, key, G=1.0)
-        velocities2 = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities1 = df.sample_velocities(positions, masses, key, G=G)
+        velocities2 = df.sample_velocities(positions, masses, key, G=G)
 
         assert jnp.allclose(velocities1, velocities2)
 
@@ -128,8 +132,8 @@ class TestKingVelocityDFSampling:
         positions = jnp.stack([radii, jnp.zeros(N), jnp.zeros(N)], axis=1)
         masses = jnp.ones(N)
 
-        velocities1 = df.sample_velocities(positions, masses, jax.random.PRNGKey(42), G=1.0)
-        velocities2 = df.sample_velocities(positions, masses, jax.random.PRNGKey(43), G=1.0)
+        velocities1 = df.sample_velocities(positions, masses, jax.random.PRNGKey(42), G=G)
+        velocities2 = df.sample_velocities(positions, masses, jax.random.PRNGKey(43), G=G)
 
         assert not jnp.allclose(velocities1, velocities2)
 
@@ -151,8 +155,8 @@ class TestKingVelocityDFStatistics:
 
         key_inner, key_outer = jax.random.split(jax.random.PRNGKey(42))
 
-        velocities_inner = df.sample_velocities(positions_inner, masses, key_inner, G=1.0)
-        velocities_outer = df.sample_velocities(positions_outer, masses, key_outer, G=1.0)
+        velocities_inner = df.sample_velocities(positions_inner, masses, key_inner, G=G)
+        velocities_outer = df.sample_velocities(positions_outer, masses, key_outer, G=G)
 
         # Velocity dispersion (1D)
         sigma_inner = jnp.std(velocities_inner[:, 0])

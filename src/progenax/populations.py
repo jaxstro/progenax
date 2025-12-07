@@ -123,14 +123,15 @@ def generate_two_component_cluster(
         ... )
         >>>
         >>> # Generate cluster (random assignment)
+        >>> from jaxstro.units import STELLAR
         >>> positions, velocities, pop_id = generate_two_component_cluster(
-        ...     masses, config, key, G=1.0
+        ...     masses, config, key, G=STELLAR.G
         ... )
         >>>
         >>> # Generate cluster (custom assignment - most massive in core)
         >>> pop_mask = masses > jnp.median(masses)  # Heavy stars in core (pop B)
         >>> positions, velocities, pop_id = generate_two_component_cluster(
-        ...     masses, config, key, G=1.0, pop_mask=~pop_mask
+        ...     masses, config, key, G=STELLAR.G, pop_mask=~pop_mask
         ... )
 
     Notes:

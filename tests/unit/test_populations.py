@@ -14,9 +14,13 @@ Tests:
 import jax
 import jax.numpy as jnp
 import pytest
+from jaxstro.units import STELLAR
 from progenax.populations import TwoComponentConfig, generate_two_component_cluster
 from progenax.profiles import PlummerProfile
 from progenax.kinematics import PlummerVelocityDF
+
+# Use stellar dynamics units for star cluster tests
+G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
 
 class TestTwoComponentConfig:
@@ -85,7 +89,7 @@ class TestGenerateTwoComponentCluster:
         )
 
         positions, velocities, pop_id = generate_two_component_cluster(
-            masses, config, key, G=1.0
+            masses, config, key, G=G
         )
 
         assert positions.shape == (N, 3)
@@ -111,7 +115,7 @@ class TestGenerateTwoComponentCluster:
             velocity_df_B=df_B,
         )
 
-        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=1.0)
+        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=G)
 
         # Count population A (pop_id == 0)
         n_A = jnp.sum(pop_id == 0)
@@ -141,7 +145,7 @@ class TestGenerateTwoComponentCluster:
         )
 
         positions, _, pop_id = generate_two_component_cluster(
-            masses, config, key, G=1.0
+            masses, config, key, G=G
         )
 
         # Compute mean radius for each population
@@ -177,7 +181,7 @@ class TestGenerateTwoComponentCluster:
         pop_mask = jnp.arange(N) < 20
 
         positions, velocities, pop_id = generate_two_component_cluster(
-            masses, config, key, G=1.0, pop_mask=pop_mask
+            masses, config, key, G=G, pop_mask=pop_mask
         )
 
         # Verify pop_id matches pop_mask
@@ -204,7 +208,7 @@ class TestGenerateTwoComponentCluster:
             velocity_df_B=df_B,
         )
 
-        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=1.0)
+        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=G)
 
         # All values should be 0 or 1
         assert jnp.all((pop_id == 0) | (pop_id == 1))
@@ -260,8 +264,8 @@ class TestGenerateTwoComponentCluster:
         key1 = jax.random.PRNGKey(42)
         key2 = jax.random.PRNGKey(123)
 
-        pos1, vel1, pop1 = generate_two_component_cluster(masses, config, key1, G=1.0)
-        pos2, vel2, pop2 = generate_two_component_cluster(masses, config, key2, G=1.0)
+        pos1, vel1, pop1 = generate_two_component_cluster(masses, config, key1, G=G)
+        pos2, vel2, pop2 = generate_two_component_cluster(masses, config, key2, G=G)
 
         # Should not be identical
         assert not jnp.allclose(pos1, pos2)
@@ -286,8 +290,8 @@ class TestGenerateTwoComponentCluster:
             velocity_df_B=df_B,
         )
 
-        pos1, vel1, pop1 = generate_two_component_cluster(masses, config, key, G=1.0)
-        pos2, vel2, pop2 = generate_two_component_cluster(masses, config, key, G=1.0)
+        pos1, vel1, pop1 = generate_two_component_cluster(masses, config, key, G=G)
+        pos2, vel2, pop2 = generate_two_component_cluster(masses, config, key, G=G)
 
         assert jnp.allclose(pos1, pos2)
         assert jnp.allclose(vel1, vel2)
@@ -312,7 +316,7 @@ class TestGenerateTwoComponentCluster:
             velocity_df_B=df_B,
         )
 
-        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=1.0)
+        _, _, pop_id = generate_two_component_cluster(masses, config, key, G=G)
 
         # Both populations should be present
         assert jnp.any(pop_id == 0)  # Pop A exists

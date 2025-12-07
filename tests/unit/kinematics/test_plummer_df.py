@@ -9,7 +9,11 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from jaxstro.units import STELLAR
 from progenax.kinematics.plummer_df import PlummerVelocityDF
+
+# Use stellar dynamics units for star cluster tests
+G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
 
 class TestPlummerVelocityDFInit:
@@ -43,7 +47,7 @@ class TestPlummerVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         assert velocities.shape == (N, 3)
 
@@ -55,7 +59,6 @@ class TestPlummerVelocityDFSampling:
         positions = 0.1 * jax.random.normal(jax.random.PRNGKey(0), (N, 3))
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
-        G = 1.0
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
 
@@ -76,7 +79,7 @@ class TestPlummerVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         # Check isotropy: <vx²> ≈ <vy²> ≈ <vz²>
         vx2_mean = jnp.mean(velocities[:, 0]**2)
@@ -96,7 +99,7 @@ class TestPlummerVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         # Mean velocity should be close to zero
         mean_vel = jnp.mean(velocities, axis=0)
@@ -114,8 +117,8 @@ class TestPlummerVelocityDFSampling:
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
 
-        velocities1 = df.sample_velocities(positions, masses, key, G=1.0)
-        velocities2 = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities1 = df.sample_velocities(positions, masses, key, G=G)
+        velocities2 = df.sample_velocities(positions, masses, key, G=G)
 
         assert jnp.allclose(velocities1, velocities2)
 
@@ -126,8 +129,8 @@ class TestPlummerVelocityDFSampling:
         positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
         masses = jnp.ones(N)
 
-        velocities1 = df.sample_velocities(positions, masses, jax.random.PRNGKey(42), G=1.0)
-        velocities2 = df.sample_velocities(positions, masses, jax.random.PRNGKey(43), G=1.0)
+        velocities1 = df.sample_velocities(positions, masses, jax.random.PRNGKey(42), G=G)
+        velocities2 = df.sample_velocities(positions, masses, jax.random.PRNGKey(43), G=G)
 
         assert not jnp.allclose(velocities1, velocities2)
 
@@ -150,7 +153,6 @@ class TestPlummerVelocityDFStatistics:
         positions = jnp.array([[r, 0.0, 0.0]] * N)
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
-        G = 1.0
         M_total = N
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
@@ -177,7 +179,6 @@ class TestPlummerVelocityDFStatistics:
         positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
-        G = 1.0
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
 
@@ -202,7 +203,7 @@ class TestPlummerVelocityDFStatistics:
         key = jax.random.PRNGKey(42)
 
         # sample_velocities is already @jax.jit decorated
-        velocities = df.sample_velocities(positions, masses, key, G=1.0)
+        velocities = df.sample_velocities(positions, masses, key, G=G)
 
         assert velocities.shape == (N, 3)
 

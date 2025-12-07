@@ -29,16 +29,21 @@ pytest tests/integration/test_physics_validation.py -v -s  # Physics validation
 
 ## Key Patterns
 
-### Explicit G Parameter (MANDATORY)
+### jaxstro Unit Systems (MANDATORY)
 
-All physics functions take explicit `G` parameter - NO `get_G()` calls:
+All physics functions use jaxstro unit systems:
 
 ```python
-# CORRECT
-velocities = df.sample_velocities(positions, masses, key, G=1.0)
+from jaxstro.units import STELLAR, PLANETARY
 
-# WRONG - do not use
-velocities = df.sample_velocities(positions, masses, key)  # No default G!
+# Star clusters use STELLAR.G (~0.00450 pc³ Msun⁻¹ Myr⁻²)
+velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+
+# Binaries/planets use PLANETARY.G (~39.478 AU³ Msun⁻¹ yr⁻²)
+orbit = CircularOrbit(m1=1.0, m2=1.0, separation=1.0, G=PLANETARY.G)
+
+# If G=None passed, defaults to jaxstro.units.DEFAULT.G (= STELLAR.G)
+velocities = df.sample_velocities(positions, masses, key)  # Uses STELLAR.G
 ```
 
 ### Equinox Modules

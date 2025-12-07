@@ -64,7 +64,8 @@ class PlummerVelocityDF(eqx.Module):
         >>> key_pos, key_vel = jax.random.split(key)
         >>>
         >>> positions = profile.sample_positions(masses, key_pos)
-        >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=1.0)
+        >>> from jaxstro.units import STELLAR
+        >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
     """
 
     r_h: Float[Array, ""]
@@ -90,7 +91,7 @@ class PlummerVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float = 1.0,
+        G: float | None = None,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from Plummer distribution function.
@@ -102,7 +103,8 @@ class PlummerVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M☉]
             key: JAX random key
-            G: Gravitational constant (default: 1.0)
+            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+               (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
             Cartesian velocities (N, 3) [velocity units]
@@ -112,6 +114,10 @@ class PlummerVelocityDF(eqx.Module):
             - All velocities satisfy v < v_esc (bound particles)
             - Statistical properties match Plummer (1911) exactly
         """
+        if G is None:
+            from jaxstro.units import DEFAULT
+            G = DEFAULT.G
+
         N = positions.shape[0]
         key_mag, key_theta, key_phi = jax.random.split(key, 3)
 
