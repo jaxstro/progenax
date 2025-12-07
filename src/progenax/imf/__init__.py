@@ -10,6 +10,20 @@ from .power_law import (
 )
 from .smooth import Maschberger, TaperedPowerLaw, Schechter
 from .chabrier import ChabrierIMF
+from .environment import (
+    GasEnvironment,
+    jeans_mass,
+    characteristic_mass_from_jeans,
+    alpha_bounded,
+    bonnor_ebert_mass,
+    alpha_marks2012,
+    alpha_jerabkova2018,
+    alpha_from_sfr,
+    EnvironmentIMF,
+    CustomEnvironmentIMF,
+    is_top_heavy,
+    massive_star_fraction,
+)
 
 __all__ = [
     "BaseIMF",
@@ -23,4 +37,17 @@ __all__ = [
     "TaperedPowerLaw",
     "Schechter",
     "ChabrierIMF",
+    # Environment-conditioned IMFs
+    "GasEnvironment",
+    "jeans_mass",
+    "characteristic_mass_from_jeans",
+    "alpha_bounded",
+    "bonnor_ebert_mass",
+    "alpha_marks2012",
+    "alpha_jerabkova2018",
+    "alpha_from_sfr",
+    "EnvironmentIMF",
+    "CustomEnvironmentIMF",
+    "is_top_heavy",
+    "massive_star_fraction",
 ]
