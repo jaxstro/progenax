@@ -99,6 +99,69 @@ class TestVirialScale:
 
         assert jnp.abs(Q - 1.0) < 0.01  # Within 1%
 
+    def test_q_one_equilibrium(self):
+        """Q = 1.0 gives virial equilibrium: system is dynamically stable."""
+        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+
+        # Create a Plummer-like configuration
+        positions = jnp.array([
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+        ])
+        # Initially cold velocities
+        velocities = jnp.array([
+            [0.0, 0.1, 0.0],
+            [0.0, -0.1, 0.0],
+            [0.1, 0.0, 0.0],
+            [-0.1, 0.0, 0.0],
+        ])
+        masses = jnp.ones(4)
+        G = 1.0
+
+        # Scale to Q = 1.0
+        vel_scaled = virial_scale(positions, velocities, masses, Q_target=1.0, G=G)
+
+        # Verify Q_target = 1.0 achieved
+        T = compute_kinetic_energy(vel_scaled, masses)
+        V = compute_potential_energy(positions, masses, G=G)
+        Q = 2.0 * T / jnp.abs(V)
+
+        assert jnp.abs(Q - 1.0) < 0.02
+        assert Q > 0.98  # Slightly less than 1.0 is acceptable
+
+    def test_q_less_than_one_collapsing(self):
+        """Q < 1.0 gives sub-virial (cold) system that will collapse."""
+        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+
+        # Create a configuration
+        positions = jnp.array([
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+        ])
+        velocities = jnp.array([
+            [0.0, 0.1, 0.0],
+            [0.0, -0.1, 0.0],
+            [0.1, 0.0, 0.0],
+            [-0.1, 0.0, 0.0],
+        ])
+        masses = jnp.ones(4)
+        G = 1.0
+
+        # Scale to Q = 0.5 (sub-virial)
+        vel_scaled = virial_scale(positions, velocities, masses, Q_target=0.5, G=G)
+
+        # Verify Q_target = 0.5 achieved
+        T = compute_kinetic_energy(vel_scaled, masses)
+        V = compute_potential_energy(positions, masses, G=G)
+        Q = 2.0 * T / jnp.abs(V)
+
+        assert Q < 1.0  # Sub-virial
+        assert jnp.abs(Q - 0.5) < 0.05  # Close to target
+
 
 class TestBuildSpatialIC:
     """Test main IC builder."""

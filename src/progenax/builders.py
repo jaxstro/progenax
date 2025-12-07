@@ -179,6 +179,11 @@ def virial_scale(
     """
     Scale velocities to achieve target virial ratio Q = 2T/|V|.
 
+    Physical interpretation:
+        - Q < 1.0: Sub-virial (cold), system will collapse
+        - Q = 1.0: Virial equilibrium (stable)
+        - Q > 1.0: Super-virial (hot), system will expand/unbind
+
     Args:
         positions: Particle positions (N, 3)
         velocities: Particle velocities (N, 3)
@@ -189,6 +194,10 @@ def virial_scale(
 
     Returns:
         Scaled velocities
+
+    References:
+        Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
+        Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
     """
     T = compute_kinetic_energy(velocities, masses)
     V = compute_potential_energy(positions, masses, G=G, softening=softening)
