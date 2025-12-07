@@ -1,0 +1,271 @@
+"""
+Base infrastructure for Initial Mass Functions (IMFs).
+
+Provides the core protocol and abstract base class for all IMF
+implementations, enabling differentiable sampling with multiple modes.
+
+The key innovation is the custom_jvp Newton solver for inverse CDF,
+which provides exact gradients via the implicit function theorem.
+"""
+
+from abc import abstractmethod
+from functools import partial
+from typing import Protocol, runtime_checkable
+
+import equinox as eqx
+import jax
+import jax.numpy as jnp
+from jaxtyping import Array, Float, PRNGKeyArray
+
+
+# ============================================================================
+# PPF Newton Solver with custom_jvp
+# ============================================================================
+
+
+@partial(jax.custom_jvp, nondiff_argnums=(0,))
+def _ppf_newton(imf: "BaseIMF", u: Float[Array, "..."]) -> Float[Array, "..."]:
+    """
+    Inverse CDF via fixed Newton iteration (forward pass).
+
+    Uses Newton's method with fixed iterations (JIT-safe, no convergence loops).
+    Initial guess uses linear interpolation in log-mass space.
+
+    Args:
+        imf: IMF instance (non-differentiable argument)
+        u: Uniform samples in [0, 1]
+
+    Returns:
+        Mass values m such that CDF(m) ≈ u
+    """
+    # Initial guess: linear interpolation in log-mass space
+    log_m_min = jnp.log(jnp.maximum(imf.m_min, 1e-10))
+    log_m_max = jnp.log(imf.m_max)
+    log_m0 = log_m_min + u * (log_m_max - log_m_min)
+    m0 = jnp.exp(log_m0)
+
+    def newton_step(_, m):
+        """Single Newton iteration: m_new = m - f(m)/f'(m)."""
+        residual = imf.cdf(m) - u
+        pdf = jnp.exp(imf.logpdf(m))
+        m_new = m - residual / (pdf + 1e-30)
+        return jnp.clip(m_new, imf.m_min, imf.m_max)
+
+    # Fixed 20 iterations (JIT-safe, no while_loop)
+    return jax.lax.fori_loop(0, 20, newton_step, m0)
+
+
+@_ppf_newton.defjvp
+def _ppf_newton_jvp(imf, primals, tangents):
+    """
+    Custom JVP using implicit function theorem: dm/du = 1/pdf(m).
+
+    By the implicit function theorem, for CDF(m) = u:
+        d(CDF)/dm * dm/du = du/du = 1
+        => dm/du = 1 / (d(CDF)/dm) = 1 / pdf(m)
+
+    This provides exact gradients without backpropagating through Newton iterations.
+    """
+    (u,) = primals
+    (u_dot,) = tangents
+
+    # Forward pass
+    m = _ppf_newton(imf, u)
+
+    # Gradient via implicit function theorem
+    pdf_at_m = jnp.exp(imf.logpdf(m))
+    m_dot = u_dot / (pdf_at_m + 1e-30)
+
+    return m, m_dot
+
+
+# ============================================================================
+# BaseIMF Abstract Class
+# ============================================================================
+
+
+class BaseIMF(eqx.Module):
+    """
+    Abstract base for all IMFs with shared PPF solver and sampling modes.
+
+    Provides automatic normalization, Newton PPF solver with custom gradients,
+    and four sampling modes (N, M_total, M_total_packed, fixed-N).
+
+    Subclasses must implement:
+        - _logpdf_unnorm(m): Unnormalized log-PDF (shape function)
+        - _cdf_unnorm(m): Unnormalized CDF (integral of unnormalized PDF)
+
+    The base class handles normalization automatically via _log_norm property.
+
+    Attributes:
+        m_min: Minimum mass [M_sun] (default: 0.0)
+        m_max: Maximum mass [M_sun] (default: inf)
+    """
+
+    m_min: float = 0.0
+    m_max: float = jnp.inf
+
+    @abstractmethod
+    def _logpdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Unnormalized log-PDF (shape function). Override in subclass."""
+        ...
+
+    @abstractmethod
+    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Unnormalized CDF. Override in subclass."""
+        ...
+
+    @property
+    def _log_norm(self) -> float:
+        """Log normalization constant over [m_min, m_max]."""
+        F_min = self._cdf_unnorm(self.m_min)
+        F_max = self._cdf_unnorm(self.m_max)
+        return jnp.log(F_max - F_min + 1e-30)
+
+    def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Normalized log-PDF."""
+        return self._logpdf_unnorm(m) - self._log_norm
+
+    def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Normalized CDF."""
+        F_min = self._cdf_unnorm(self.m_min)
+        F_max = self._cdf_unnorm(self.m_max)
+        return (self._cdf_unnorm(m) - F_min) / (F_max - F_min + 1e-30)
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Inverse CDF via Newton solver."""
+        return _ppf_newton(self, u)
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n masses via reparameterization trick."""
+        u = jax.random.uniform(key, (n,))
+        return self.ppf(u)
+
+    def mean_mass(self) -> float:
+        """Expected mass E[m]. Override for analytical formula."""
+        m_grid = jnp.linspace(self.m_min, self.m_max, 1000)
+        pdf_grid = jnp.exp(self.logpdf(m_grid))
+        return jnp.trapezoid(m_grid * pdf_grid, m_grid)
+
+    # ========================================================================
+    # Sampling Modes
+    # ========================================================================
+
+    def sample_n(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """N mode: exactly n masses, M_total varies."""
+        return self.sample(key, n)
+
+    def sample_m_total(
+        self,
+        key: PRNGKeyArray,
+        m_total: float,
+        n_max: int | None = None,
+    ) -> tuple[Float[Array, "n_max"], int]:
+        """
+        M_total mode (simple): hard cutoff, NOT differentiable w.r.t. m_total.
+
+        Samples masses until cumulative sum exceeds m_total, then pads with zeros.
+        """
+        if n_max is None:
+            n_max = int(m_total / self.mean_mass() * 2.0) + 100
+
+        u = jax.random.uniform(key, (n_max,))
+        masses_all = self.ppf(u)
+        cumsum = jnp.cumsum(masses_all)
+
+        n_live = jnp.searchsorted(cumsum, m_total) + 1
+        n_live = jnp.minimum(n_live, n_max)
+        mask = jnp.arange(n_max) < n_live
+        masses_padded = jnp.where(mask, masses_all, 0.0)
+
+        return masses_padded, int(n_live)
+
+    def sample_m_total_packed(
+        self,
+        key: PRNGKeyArray,
+        m_total: float,
+        n_max: int,
+    ) -> tuple[Float[Array, "n_max"], Float[Array, ""]]:
+        """
+        M_total mode (packed): differentiable via fractional boundary mass.
+
+        Uses fractional mass for boundary particle to hit m_total exactly.
+        """
+        u = jax.random.uniform(key, (n_max,))
+        masses_all = self.ppf(u)
+        cumsum = jnp.cumsum(masses_all)
+
+        over_threshold = cumsum >= m_total
+        k = jnp.argmax(over_threshold)
+        k = jnp.where(jnp.any(over_threshold), k, n_max - 1)
+
+        cumsum_prev = jnp.where(k > 0, cumsum[k - 1], 0.0)
+        deficit = m_total - cumsum_prev
+        fractional_mass = jnp.clip(deficit, 0.0, masses_all[k])
+
+        indices = jnp.arange(n_max)
+        masses_packed = jnp.where(
+            indices < k,
+            masses_all,
+            jnp.where(indices == k, fractional_mass, 0.0),
+        )
+
+        n_live_float = k + fractional_mass / (masses_all[k] + 1e-30)
+
+        return masses_packed, n_live_float
+
+    def sample_fixed_n(
+        self,
+        key: PRNGKeyArray,
+        n: int,
+        m_total: float,
+        max_steps: int = 50,
+    ) -> Float[Array, "n"]:
+        """
+        Fixed-N mode: exactly n masses summing to m_total via quantile stretching.
+
+        Uses stratified quantile sampling with stretching factor q* solved to
+        hit target total mass. Differentiable w.r.t. m_total.
+        """
+        u_base = (jnp.arange(n) + 0.5) / n
+
+        q_star = self._solve_q_for_m_total(u_base, m_total, max_steps)
+
+        u_random = jax.random.uniform(key, (n,))
+        u_stretched = u_base * q_star + u_random * (1 - q_star) / n
+        u_stretched = jnp.clip(u_stretched, 0.0, 1.0)
+
+        return self.ppf(u_stretched)
+
+    def _solve_q_for_m_total(
+        self,
+        u_base: Float[Array, "n"],
+        m_total: float,
+        max_steps: int = 50,
+    ) -> Float[Array, ""]:
+        """Newton solver for quantile stretch factor."""
+        m_total_arr = jnp.asarray(m_total)
+
+        def total_mass_from_q(q):
+            return jnp.sum(self.ppf(u_base * q))
+
+        M_max = total_mass_from_q(1.0)
+        M_min = total_mass_from_q(0.1)
+        q0 = jnp.clip(
+            0.1 + 0.9 * (m_total_arr - M_min) / (M_max - M_min + 1e-12),
+            0.05,
+            0.99,
+        )
+
+        def newton_step(_, q):
+            M_q = total_mass_from_q(q)
+            residual = M_q - m_total_arr
+            eps = 1e-6
+            dMdq = (total_mass_from_q(q + eps) - M_q) / eps + 1e-12
+            q_new = jnp.clip(q - 0.8 * residual / dMdq, 1e-6, 1.0 - 1e-6)
+            return q_new
+
+        return jax.lax.fori_loop(0, max_steps, newton_step, q0)
+
+
+__all__ = ["BaseIMF", "_ppf_newton"]
