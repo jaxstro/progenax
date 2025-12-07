@@ -32,6 +32,10 @@ from .population import (
     UniformEccentricity,
     sample_isotropic_orientations,
     RadialBinaryFraction,
+    SanaOBPeriod,
+    MoeEccentricity,
+    MassDependentBinaryConfig,
+    sample_mass_dependent_orbits,
 )
 
 __all__ = [
@@ -53,6 +57,11 @@ __all__ = [
     "UniformEccentricity",
     "sample_isotropic_orientations",
     "RadialBinaryFraction",
+    # Mass-dependent prescriptions
+    "SanaOBPeriod",
+    "MoeEccentricity",
+    "MassDependentBinaryConfig",
+    "sample_mass_dependent_orbits",
     # Backwards compatibility
     "KeplerElements_IC",
 ]

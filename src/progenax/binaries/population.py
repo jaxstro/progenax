@@ -14,6 +14,7 @@ References:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Tuple
 
 import equinox as eqx
@@ -230,6 +231,123 @@ def sample_isotropic_orientations(
 # =============================================================================
 
 
+class SanaOBPeriod(eqx.Module):
+    """Sana+2012 period distribution for O/B stars.
+
+    Power-law distribution in log-space:
+        p(log P) ∝ (log P)^(-0.55)
+
+    for log P in [0.3, 3.5] (P in days).
+
+    This corresponds to shorter periods than solar-type binaries,
+    consistent with observations of massive star binaries.
+
+    Reference:
+        Sana et al. (2012) Science 337, 444 - O-star binary survey
+
+    Parameters:
+        log_P_min: Minimum log10(P/days) (default: 0.3 = ~2 days)
+        log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days)
+        power: Power-law index (default: -0.55 from Sana+2012)
+    """
+
+    log_P_min: float = 0.3
+    log_P_max: float = 3.5
+    power: float = -0.55
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n periods [days] from power-law distribution.
+
+        Uses inverse transform sampling:
+            p(log P) ∝ (log P)^α  =>  CDF: F(log P) = [(log P)^(α+1) - min^(α+1)] / [max^(α+1) - min^(α+1)]
+        """
+        u = jax.random.uniform(key, (n,))
+
+        # Power-law CDF inversion
+        # For p(x) ∝ x^α with x ∈ [a, b]:
+        # F(x) = [x^(α+1) - a^(α+1)] / [b^(α+1) - a^(α+1)]
+        # F^(-1)(u) = [u × (b^(α+1) - a^(α+1)) + a^(α+1)]^(1/(α+1))
+
+        alpha = self.power
+        a = self.log_P_min
+        b = self.log_P_max
+
+        # Special case: α = -1 (log-uniform)
+        is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
+
+        # General power-law case
+        a_pow = a ** (alpha + 1.0)
+        b_pow = b ** (alpha + 1.0)
+        log_P_general = jnp.power(
+            u * (b_pow - a_pow) + a_pow,
+            1.0 / (alpha + 1.0)
+        )
+
+        # Log-uniform case (α = -1)
+        log_P_log_uniform = a + u * (b - a)
+
+        # Select appropriate formula
+        log_P = jnp.where(is_log_uniform, log_P_log_uniform, log_P_general)
+
+        return 10.0 ** log_P
+
+
+class MoeEccentricity(eqx.Module):
+    """Moe+2017 period-dependent eccentricity distribution.
+
+    Implements period-dependent eccentricity following Moe & Di Stefano (2017):
+    - Short periods (P < P_circ ~ 10d): Tidally circularized, e ≈ 0
+    - Intermediate periods: Smooth transition
+    - Long periods (P > P_thermal ~ 1000d): Thermal-like distribution f(e) = 2e
+
+    The transition uses a smooth logistic function to ensure differentiability.
+
+    Reference:
+        Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+
+    Parameters:
+        P_circ: Circularization period [days] (default: 10.0)
+        P_thermal: Thermalization period [days] (default: 1000.0)
+        e_max: Maximum eccentricity (default: 0.99)
+        transition_width: Width of transition region in log10(P) (default: 0.5)
+    """
+
+    P_circ: float = 10.0
+    P_thermal: float = 1000.0
+    e_max: float = 0.99
+    transition_width: float = 0.5
+
+    def sample(
+        self,
+        periods: Float[Array, "N"],
+        key: PRNGKeyArray
+    ) -> Float[Array, "N"]:
+        """Sample eccentricities given periods.
+
+        Args:
+            periods: Orbital periods [days] (shape N,)
+            key: JAX random key
+
+        Returns:
+            Eccentricities (shape N,), period-dependent
+        """
+        # Sample thermal eccentricities (f(e) = 2e)
+        u = jax.random.uniform(key, periods.shape)
+        e_thermal = self.e_max * jnp.sqrt(u)
+
+        # Compute blending factor based on period
+        # For P < P_circ: blend ≈ 0 (circular)
+        # For P > P_thermal: blend ≈ 1 (thermal)
+        log_P = jnp.log10(periods)
+        log_P_mid = jnp.log10(jnp.sqrt(self.P_circ * self.P_thermal))
+
+        # Smooth transition via logistic function
+        blend = 1.0 / (1.0 + jnp.exp(-(log_P - log_P_mid) / self.transition_width))
+
+        # Blend: e = blend × e_thermal
+        return blend * e_thermal
+
+
 class RadialBinaryFraction(eqx.Module):
     """Radially varying binary fraction.
 
@@ -305,3 +423,109 @@ class RadialBinaryFraction(eqx.Module):
         fb_r = self.compute(radii)
         u = jax.random.uniform(key, radii.shape)
         return u < fb_r
+
+
+# =============================================================================
+# Mass-Dependent Binary Prescriptions
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class MassDependentBinaryConfig:
+    """Configuration for mass-dependent binary orbital parameter sampling.
+
+    Routes stars to different period/eccentricity distributions based on mass:
+    - Low-mass stars (M < m_break): Solar-type binaries (Duquennoy & Mayor)
+    - High-mass stars (M >= m_break): O/B-type binaries (Sana+2012, Moe+2017)
+
+    References:
+        Sana et al. (2012) Science 337, 444 - O-star binary fraction
+        Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+        Duquennoy & Mayor (1991) A&A 248, 485 - Solar-type binary periods
+
+    Parameters:
+        m_break: Mass threshold [Msun] separating low/high-mass prescriptions (default: 8.0)
+        low_mass_period: Period distribution for M < m_break
+        high_mass_period: Period distribution for M >= m_break
+        low_mass_eccentricity: Eccentricity distribution for M < m_break
+        high_mass_eccentricity: Eccentricity distribution for M >= m_break
+
+    Example:
+        >>> config = MassDependentBinaryConfig(
+        ...     m_break=8.0,
+        ...     low_mass_period=LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3),
+        ...     high_mass_period=SanaOBPeriod(),
+        ...     low_mass_eccentricity=ThermalEccentricity(),
+        ...     high_mass_eccentricity=MoeEccentricity(),
+        ... )
+        >>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
+        >>> key = jax.random.PRNGKey(42)
+        >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
+    """
+
+    m_break: float
+    low_mass_period: LogNormalPeriod | LogUniformPeriod
+    high_mass_period: SanaOBPeriod
+    low_mass_eccentricity: ThermalEccentricity | UniformEccentricity
+    high_mass_eccentricity: MoeEccentricity
+
+
+def sample_mass_dependent_orbits(
+    masses: Float[Array, "N"],
+    config: MassDependentBinaryConfig,
+    key: PRNGKeyArray,
+) -> Tuple[Float[Array, "N"], Float[Array, "N"]]:
+    """Sample orbital parameters with mass-dependent prescriptions.
+
+    Routes each star to appropriate period/eccentricity distribution based on mass:
+    - M < m_break: Low-mass prescription (e.g., solar-type binaries)
+    - M >= m_break: High-mass prescription (e.g., O/B-type binaries)
+
+    Uses JAX-native branching (jnp.where) for JIT compatibility.
+
+    Args:
+        masses: Stellar masses [Msun] (shape N,)
+        config: Mass-dependent binary configuration
+        key: JAX random key
+
+    Returns:
+        Tuple of:
+            - periods: Orbital periods [days] (shape N,)
+            - eccentricities: Orbital eccentricities (shape N,)
+
+    Example:
+        >>> config = MassDependentBinaryConfig(
+        ...     m_break=8.0,
+        ...     low_mass_period=LogNormalPeriod(),
+        ...     high_mass_period=SanaOBPeriod(),
+        ...     low_mass_eccentricity=ThermalEccentricity(),
+        ...     high_mass_eccentricity=MoeEccentricity(),
+        ... )
+        >>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
+        >>> key = jax.random.PRNGKey(42)
+        >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
+    """
+    N = masses.shape[0]
+    key_period, key_ecc = jax.random.split(key)
+
+    # Sample from both distributions (always sample both for JIT)
+    key_p_low, key_p_high, key_e_low, key_e_high = jax.random.split(key_period, 4)
+
+    # Sample periods from both distributions
+    periods_low = config.low_mass_period.sample(key_p_low, N)
+    periods_high = config.high_mass_period.sample(key_p_high, N)
+
+    # Sample eccentricities from both distributions
+    # Note: MoeEccentricity depends on period, so we need to handle carefully
+    # For now, sample eccentricities based on high-mass periods for high-mass stars
+    ecc_low = config.low_mass_eccentricity.sample(key_e_low, N)
+    ecc_high = config.high_mass_eccentricity.sample(periods_high, key_e_high)
+
+    # Route based on mass threshold
+    is_high_mass = masses >= config.m_break
+
+    # Select appropriate distribution
+    periods = jnp.where(is_high_mass, periods_high, periods_low)
+    eccentricities = jnp.where(is_high_mass, ecc_high, ecc_low)
+
+    return periods, eccentricities

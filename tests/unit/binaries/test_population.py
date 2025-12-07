@@ -308,3 +308,296 @@ class TestRadialBinaryFraction:
         radii = jnp.array([0.5, 1.0, 2.0])
         fb_r = compute_fb(radii)
         assert fb_r.shape == (3,)
+
+
+class TestSanaOBPeriod:
+    """Tests for Sana+2012 O/B star period distribution."""
+
+    def test_sample_shape(self):
+        """Samples have correct shape."""
+        from progenax.binaries.population import SanaOBPeriod
+
+        dist = SanaOBPeriod()
+        key = jax.random.PRNGKey(42)
+        samples = dist.sample(key, 1000)
+        assert samples.shape == (1000,)
+
+    def test_samples_in_range(self):
+        """All samples within Sana+2012 range: log P in [0.3, 3.5]."""
+        from progenax.binaries.population import SanaOBPeriod
+
+        dist = SanaOBPeriod()
+        key = jax.random.PRNGKey(42)
+        samples = dist.sample(key, 10000)
+        log_samples = jnp.log10(samples)
+        # Allow small numerical tolerance
+        assert jnp.all(log_samples >= 0.3 - 1e-3)
+        assert jnp.all(log_samples <= 3.5 + 1e-3)
+
+    def test_mean_shorter_than_solar_type(self):
+        """O/B stars have shorter periods on average than solar-type stars."""
+        from progenax.binaries.population import SanaOBPeriod
+
+        sana_dist = SanaOBPeriod()
+        solar_dist = LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3)
+
+        key = jax.random.PRNGKey(42)
+        key1, key2 = jax.random.split(key)
+
+        sana_samples = sana_dist.sample(key1, 50000)
+        solar_samples = solar_dist.sample(key2, 50000)
+
+        mean_sana = jnp.median(sana_samples)
+        mean_solar = jnp.median(solar_samples)
+
+        # O/B stars should have shorter periods
+        assert mean_sana < mean_solar
+
+    def test_jit_compatible(self):
+        """SanaOBPeriod works under JIT."""
+        from progenax.binaries.population import SanaOBPeriod
+
+        dist = SanaOBPeriod()
+
+        @jax.jit
+        def sample_periods(key):
+            return dist.sample(key, 100)
+
+        key = jax.random.PRNGKey(42)
+        periods = sample_periods(key)
+        assert periods.shape == (100,)
+
+
+class TestMoeEccentricity:
+    """Tests for Moe+2017 period-dependent eccentricity distribution."""
+
+    def test_sample_shape(self):
+        """Samples have correct shape."""
+        from progenax.binaries.population import MoeEccentricity
+
+        dist = MoeEccentricity()
+        key = jax.random.PRNGKey(42)
+        periods = jnp.array([1.0, 10.0, 100.0, 1000.0])
+        samples = dist.sample(periods, key)
+        assert samples.shape == periods.shape
+
+    def test_samples_in_range(self):
+        """All samples in [0, 1)."""
+        from progenax.binaries.population import MoeEccentricity
+
+        dist = MoeEccentricity()
+        key = jax.random.PRNGKey(42)
+        periods = jnp.logspace(0, 4, 1000)
+        samples = dist.sample(periods, key)
+        assert jnp.all(samples >= 0.0)
+        assert jnp.all(samples < 1.0)
+
+    def test_short_periods_more_circular(self):
+        """Short periods (P < 10d) are more circular than long periods (P > 1000d)."""
+        from progenax.binaries.population import MoeEccentricity
+
+        dist = MoeEccentricity()
+        key = jax.random.PRNGKey(42)
+
+        # Short periods: P ~ 1-10 days (tidally circularized)
+        periods_short = jnp.full(10000, 5.0)
+        e_short = dist.sample(periods_short, key)
+
+        # Long periods: P ~ 1000-10000 days (thermal-like)
+        key = jax.random.PRNGKey(43)
+        periods_long = jnp.full(10000, 5000.0)
+        e_long = dist.sample(periods_long, key)
+
+        mean_e_short = jnp.mean(e_short)
+        mean_e_long = jnp.mean(e_long)
+
+        # Short periods should be more circular (lower e)
+        assert mean_e_short < mean_e_long
+
+    def test_jit_compatible(self):
+        """MoeEccentricity works under JIT."""
+        from progenax.binaries.population import MoeEccentricity
+
+        dist = MoeEccentricity()
+
+        @jax.jit
+        def sample_ecc(periods, key):
+            return dist.sample(periods, key)
+
+        key = jax.random.PRNGKey(42)
+        periods = jnp.array([10.0, 100.0, 1000.0])
+        eccentricities = sample_ecc(periods, key)
+        assert eccentricities.shape == (3,)
+
+
+class TestMassDependentBinaryConfig:
+    """Tests for mass-dependent binary configuration."""
+
+    def test_config_defaults(self):
+        """Config can be created with default distributions."""
+        from progenax.binaries.population import (
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        assert config.m_break == 8.0
+        assert isinstance(config.low_mass_period, LogNormalPeriod)
+        assert isinstance(config.high_mass_period, SanaOBPeriod)
+        assert isinstance(config.low_mass_eccentricity, ThermalEccentricity)
+        assert isinstance(config.high_mass_eccentricity, MoeEccentricity)
+
+    def test_config_custom_parameters(self):
+        """Config can be created with custom distribution parameters."""
+        from progenax.binaries.population import (
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=10.0,
+            low_mass_period=LogNormalPeriod(mu_log_P=5.0, sigma_log_P=1.5),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(e_max=0.95),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        assert config.m_break == 10.0
+        assert config.low_mass_period.mu_log_P == 5.0
+
+
+class TestSampleMassDependentOrbits:
+    """Tests for mass-dependent orbital parameter sampling."""
+
+    def test_output_shapes(self):
+        """Output periods and eccentricities have correct shapes."""
+        from progenax.binaries.population import (
+            sample_mass_dependent_orbits,
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        masses = jnp.array([1.0, 5.0, 10.0, 20.0, 50.0])
+        key = jax.random.PRNGKey(42)
+
+        periods, eccentricities = sample_mass_dependent_orbits(masses, config, key)
+
+        assert periods.shape == masses.shape
+        assert eccentricities.shape == masses.shape
+
+    def test_routes_by_mass(self):
+        """Low-mass and high-mass stars get different distributions."""
+        from progenax.binaries.population import (
+            sample_mass_dependent_orbits,
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        # Create many low-mass and high-mass stars
+        masses_low = jnp.full(5000, 1.0)  # 1 Msun (solar-type)
+        masses_high = jnp.full(5000, 20.0)  # 20 Msun (O-star)
+
+        key = jax.random.PRNGKey(42)
+        key1, key2 = jax.random.split(key)
+
+        periods_low, _ = sample_mass_dependent_orbits(masses_low, config, key1)
+        periods_high, _ = sample_mass_dependent_orbits(masses_high, config, key2)
+
+        median_period_low = jnp.median(periods_low)
+        median_period_high = jnp.median(periods_high)
+
+        # High-mass stars (Sana) should have shorter periods than low-mass (log-normal)
+        assert median_period_high < median_period_low
+
+    def test_jit_compatible(self):
+        """sample_mass_dependent_orbits works under JIT."""
+        from progenax.binaries.population import (
+            sample_mass_dependent_orbits,
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        @jax.jit
+        def sample_orbits(masses, key):
+            return sample_mass_dependent_orbits(masses, config, key)
+
+        masses = jnp.array([1.0, 5.0, 10.0, 20.0])
+        key = jax.random.PRNGKey(42)
+
+        periods, eccentricities = sample_orbits(masses, key)
+        assert periods.shape == (4,)
+        assert eccentricities.shape == (4,)
+
+    def test_all_positive_periods(self):
+        """All sampled periods are positive."""
+        from progenax.binaries.population import (
+            sample_mass_dependent_orbits,
+            MassDependentBinaryConfig,
+            LogNormalPeriod,
+            SanaOBPeriod,
+            ThermalEccentricity,
+            MoeEccentricity,
+        )
+
+        config = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+
+        masses = jnp.logspace(-1, 2, 100)  # 0.1 to 100 Msun
+        key = jax.random.PRNGKey(42)
+
+        periods, eccentricities = sample_mass_dependent_orbits(masses, config, key)
+
+        assert jnp.all(periods > 0)
+        assert jnp.all(eccentricities >= 0.0)
+        assert jnp.all(eccentricities < 1.0)
