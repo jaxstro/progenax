@@ -9,6 +9,7 @@ from progenax.binaries.population import (
     LogNormalPeriod,
     ThermalEccentricity,
     UniformEccentricity,
+    sample_isotropic_orientations,
 )
 
 
@@ -147,3 +148,59 @@ class TestUniformEccentricity:
         samples = dist.sample(key, 100000)
         mean_e = jnp.mean(samples)
         assert jnp.abs(mean_e - 0.5) < 0.01
+
+
+class TestIsotropicOrientations:
+    """Tests for isotropic orbital orientation sampling."""
+
+    def test_output_shape(self):
+        """Returns correct shapes for all angles."""
+        key = jax.random.PRNGKey(42)
+        inc, Omega, omega, M_anom = sample_isotropic_orientations(key, 1000)
+        assert inc.shape == (1000,)
+        assert Omega.shape == (1000,)
+        assert omega.shape == (1000,)
+        assert M_anom.shape == (1000,)
+
+    def test_inclination_range(self):
+        """Inclination in [0, π]."""
+        key = jax.random.PRNGKey(42)
+        inc, _, _, _ = sample_isotropic_orientations(key, 10000)
+        assert jnp.all(inc >= 0.0)
+        assert jnp.all(inc <= jnp.pi)
+
+    def test_inclination_isotropic(self):
+        """cos(i) is uniformly distributed for isotropic orientations."""
+        key = jax.random.PRNGKey(42)
+        inc, _, _, _ = sample_isotropic_orientations(key, 100000)
+        cos_inc = jnp.cos(inc)
+        # For isotropic: cos(i) ~ U(-1, 1), so mean = 0
+        mean_cos_inc = jnp.mean(cos_inc)
+        assert jnp.abs(mean_cos_inc) < 0.02
+
+    def test_angles_in_range(self):
+        """Ω, ω, M₀ all in [0, 2π)."""
+        key = jax.random.PRNGKey(42)
+        _, Omega, omega, M_anom = sample_isotropic_orientations(key, 10000)
+
+        for angle in [Omega, omega, M_anom]:
+            assert jnp.all(angle >= 0.0)
+            assert jnp.all(angle < 2 * jnp.pi)
+
+    def test_angles_uniform(self):
+        """Ω, ω, M₀ are uniformly distributed."""
+        key = jax.random.PRNGKey(42)
+        _, Omega, omega, M_anom = sample_isotropic_orientations(key, 100000)
+
+        expected_mean = jnp.pi  # Mean of U(0, 2π)
+        for angle in [Omega, omega, M_anom]:
+            mean_angle = jnp.mean(angle)
+            assert jnp.abs(mean_angle - expected_mean) < 0.05
+
+    def test_reproducibility(self):
+        """Same key gives same results."""
+        key = jax.random.PRNGKey(42)
+        result1 = sample_isotropic_orientations(key, 100)
+        result2 = sample_isotropic_orientations(key, 100)
+        for a1, a2 in zip(result1, result2):
+            assert jnp.allclose(a1, a2)

@@ -6,6 +6,7 @@ All functions take explicit G parameter (NO get_G() defaults).
 Modules:
     kepler: KeplerElements, period conversions
     orbital_state: BinaryOrbitalState, batch operations
+    population: Period, eccentricity, and orientation distributions
 """
 
 from .kepler import (
@@ -24,6 +25,14 @@ from .orbital_state import (
     KeplerElements_IC,
 )
 
+from .population import (
+    LogUniformPeriod,
+    LogNormalPeriod,
+    ThermalEccentricity,
+    UniformEccentricity,
+    sample_isotropic_orientations,
+)
+
 __all__ = [
     # Kepler mechanics
     "KeplerElements",
@@ -36,6 +45,12 @@ __all__ = [
     "batch_elements_to_resolved",
     "elements_to_com_and_internal",
     "batch_elements_to_com_and_internal",
+    # Population distributions
+    "LogUniformPeriod",
+    "LogNormalPeriod",
+    "ThermalEccentricity",
+    "UniformEccentricity",
+    "sample_isotropic_orientations",
     # Backwards compatibility
     "KeplerElements_IC",
 ]
