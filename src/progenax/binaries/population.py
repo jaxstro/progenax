@@ -102,3 +102,77 @@ class LogNormalPeriod(eqx.Module):
         z = jnp.sqrt(2.0) * jax.scipy.special.erfinv(2.0 * u - 1.0)
         log_P = self.mu_log_P + self.sigma_log_P * z
         return 10.0 ** log_P
+
+
+# =============================================================================
+# Eccentricity Distributions
+# =============================================================================
+
+
+class ThermalEccentricity(eqx.Module):
+    """Thermal eccentricity distribution f(e) = 2e.
+
+    Arises from energy equipartition in dynamically relaxed systems.
+    CDF: F(e) = e²  =>  PPF: e = √u
+
+    Reference:
+        Heggie (1975) MNRAS 173, 729
+        Jeans (1919) "Problems of Cosmogony and Stellar Dynamics"
+
+    Parameters:
+        e_max: Maximum eccentricity (default: 0.99, avoids singularity)
+    """
+
+    e_max: float = 0.99
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n eccentricities from f(e) = 2e."""
+        u = jax.random.uniform(key, (n,))
+        return self.e_max * jnp.sqrt(u)
+
+    def pdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """PDF: p(e) = 2e / e_max²."""
+        in_range = (e >= 0.0) & (e <= self.e_max)
+        return jnp.where(in_range, 2.0 * e / self.e_max**2, 0.0)
+
+    def cdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """CDF: F(e) = e² / e_max²."""
+        cdf_val = (e / self.e_max) ** 2
+        return jnp.clip(cdf_val, 0.0, 1.0)
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Inverse CDF: e = e_max × √u."""
+        return self.e_max * jnp.sqrt(u)
+
+
+class UniformEccentricity(eqx.Module):
+    """Uniform eccentricity distribution.
+
+    Simple uniform distribution, useful for circular-dominated populations.
+
+    Parameters:
+        e_min: Minimum eccentricity (default: 0.0)
+        e_max: Maximum eccentricity (default: 0.9)
+    """
+
+    e_min: float = 0.0
+    e_max: float = 0.9
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n eccentricities uniformly."""
+        u = jax.random.uniform(key, (n,))
+        return self.e_min + u * (self.e_max - self.e_min)
+
+    def pdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Uniform PDF."""
+        in_range = (e >= self.e_min) & (e <= self.e_max)
+        return jnp.where(in_range, 1.0 / (self.e_max - self.e_min), 0.0)
+
+    def cdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Uniform CDF."""
+        cdf_val = (e - self.e_min) / (self.e_max - self.e_min)
+        return jnp.clip(cdf_val, 0.0, 1.0)
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Inverse CDF."""
+        return self.e_min + u * (self.e_max - self.e_min)
