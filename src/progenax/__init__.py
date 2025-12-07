@@ -40,6 +40,12 @@ from .binaries import (
     BinaryOrbitalState,
     batch_elements_to_resolved,
 )
+from .tidal import (
+    jacobi_radius,
+    jacobi_radius_isothermal,
+    apply_tidal_truncation,
+    fill_factor_to_r_h,
+)
 
 __version__ = "0.1.0"
 
@@ -87,4 +93,9 @@ __all__ = [
     "period_to_semimajor_axis",
     "BinaryOrbitalState",
     "batch_elements_to_resolved",
+    # Tidal physics
+    "jacobi_radius",
+    "jacobi_radius_isothermal",
+    "apply_tidal_truncation",
+    "fill_factor_to_r_h",
 ]
