@@ -9,6 +9,7 @@ from .power_law import (
     estimate_pool_size,
 )
 from .smooth import Maschberger, TaperedPowerLaw, Schechter
+from .chabrier import ChabrierIMF
 
 __all__ = [
     "BaseIMF",
@@ -21,4 +22,5 @@ __all__ = [
     "Maschberger",
     "TaperedPowerLaw",
     "Schechter",
+    "ChabrierIMF",
 ]
