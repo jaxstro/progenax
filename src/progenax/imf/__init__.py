@@ -24,6 +24,16 @@ from .environment import (
     is_top_heavy,
     massive_star_fraction,
 )
+from .binary import (
+    MassRatioProtocol,
+    FlatMassRatio,
+    PowerLawMassRatio,
+    TwinPeakedMassRatio,
+    MoeDiStefano2017,
+    ConstantBinaryFraction,
+    MassDependentBinaryFraction,
+    BinaryIMF,
+)
 
 __all__ = [
     "BaseIMF",
@@ -50,4 +60,13 @@ __all__ = [
     "CustomEnvironmentIMF",
     "is_top_heavy",
     "massive_star_fraction",
+    # Binary IMFs
+    "MassRatioProtocol",
+    "FlatMassRatio",
+    "PowerLawMassRatio",
+    "TwinPeakedMassRatio",
+    "MoeDiStefano2017",
+    "ConstantBinaryFraction",
+    "MassDependentBinaryFraction",
+    "BinaryIMF",
 ]
