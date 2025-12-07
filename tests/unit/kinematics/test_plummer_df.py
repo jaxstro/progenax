@@ -19,15 +19,16 @@ class TestPlummerVelocityDFInit:
         """Test default initialization (r_h=1.0)."""
         df = PlummerVelocityDF()
         assert df.r_h == 1.0
-        # Check scale radius: a = r_h / sqrt(2^(2/3) - 1)
-        expected_a = 1.0 / jnp.sqrt(2**(2/3) - 1)
+        # Check scale radius: a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
+        expected_a = 1.0 * jnp.sqrt(2**(2/3) - 1)
         assert jnp.allclose(df.a, expected_a)
 
     def test_init_custom_r_h(self):
         """Test initialization with custom r_h."""
         df = PlummerVelocityDF(r_h=2.5)
         assert df.r_h == 2.5
-        expected_a = 2.5 / jnp.sqrt(2**(2/3) - 1)
+        # a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
+        expected_a = 2.5 * jnp.sqrt(2**(2/3) - 1)
         assert jnp.allclose(df.a, expected_a)
 
 

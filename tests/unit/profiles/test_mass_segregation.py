@@ -319,6 +319,5 @@ class TestBaumgardtMassSegregation:
         grad_fn = jax.grad(loss)
         gradient = grad_fn(1.0)
 
-        # Gradient should be finite and non-zero
+        # Gradient should be finite (may be small due to loss being kinetic energy)
         assert jnp.isfinite(gradient)
-        # Note: gradient might be small but should exist

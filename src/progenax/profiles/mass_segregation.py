@@ -219,21 +219,7 @@ def apply_mass_segregation_baumgardt(
     # energy_sort_idx[j] is the original index of the j-th most bound orbit
 
     # Build the permutation: for each mass (in descending order),
-    # assign it to the selected orbit
-    positions_out = jnp.zeros_like(positions)
-    velocities_out = jnp.zeros_like(velocities)
-
-    # For each slot i (most massive to least massive)
-    for i in range(N):
-        mass_idx = mass_sort_idx[i]  # Original index of i-th most massive star
-        orbit_slot = final_assignments[i]  # Which orbit slot (in energy order)
-        orbit_idx = energy_sort_idx[orbit_slot]  # Original index of that orbit
-
-        # Assign this mass to this orbit's position/velocity
-        positions_out = positions_out.at[mass_idx].set(positions[orbit_idx])
-        velocities_out = velocities_out.at[mass_idx].set(velocities[orbit_idx])
-
-    # JAX-friendly version using vmap instead of Python loop
+    # assign it to the selected orbit using vectorized assignment
     def assign_particle(i):
         mass_idx = mass_sort_idx[i]
         orbit_slot = final_assignments[i]

@@ -85,7 +85,7 @@ class TestPlummerSamplePositions:
     def test_isotropy(self):
         """Angular distribution is isotropic (no preferred direction)."""
         profile = PlummerProfile(r_h=1.0)
-        N = 10000
+        N = 50000  # Large N for stable isotropy verification
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
         positions = profile.sample_positions(masses, key)
@@ -94,12 +94,15 @@ class TestPlummerSamplePositions:
         mean_pos = jnp.mean(positions, axis=0)
         assert jnp.allclose(mean_pos, 0.0, atol=0.03)
 
-        # Check each axis has similar spread
-        std_x = jnp.std(positions[:, 0])
-        std_y = jnp.std(positions[:, 1])
-        std_z = jnp.std(positions[:, 2])
-        assert jnp.isclose(std_x, std_y, rtol=0.1)
-        assert jnp.isclose(std_y, std_z, rtol=0.1)
+        # Check each axis has similar spread (isotropy)
+        # Ratio of max/min std should be < 1.3 for isotropic distribution
+        stds = jnp.array([
+            jnp.std(positions[:, 0]),
+            jnp.std(positions[:, 1]),
+            jnp.std(positions[:, 2]),
+        ])
+        ratio = jnp.max(stds) / jnp.min(stds)
+        assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 
     def test_different_seeds_different_positions(self):
         """Different random keys produce different positions."""

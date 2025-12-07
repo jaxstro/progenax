@@ -78,9 +78,11 @@ class PlummerVelocityDF(eqx.Module):
             r_h: Half-mass radius [length units], must match spatial profile
         """
         self.r_h = jnp.asarray(r_h, dtype=jnp.float64)
-        # Scale radius: a = r_h / sqrt(2^(2/3) - 1)
-        # From Plummer (1911): r_h = a * sqrt(2^(2/3) - 1)
-        self.a = self.r_h / jnp.sqrt(2**(2/3) - 1)
+        # Scale radius from half-mass radius
+        # From Plummer (1911): M(<r)/M = r³/(r²+a²)^(3/2)
+        # At r = r_h: 0.5 = r_h³/(r_h²+a²)^(3/2)
+        # Solving: a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
+        self.a = self.r_h * jnp.sqrt(2**(2/3) - 1)
 
     @jax.jit
     def sample_velocities(
