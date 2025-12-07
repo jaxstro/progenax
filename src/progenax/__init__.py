@@ -51,6 +51,10 @@ from .substructure import (
     apply_fractal_overlay_radial,
     apply_fractal_overlay_blend,
 )
+from .populations import (
+    TwoComponentConfig,
+    generate_two_component_cluster,
+)
 
 __version__ = "0.1.0"
 
@@ -107,4 +111,7 @@ __all__ = [
     "generate_fractal_positions",
     "apply_fractal_overlay_radial",
     "apply_fractal_overlay_blend",
+    # Two-component populations
+    "TwoComponentConfig",
+    "generate_two_component_cluster",
 ]
