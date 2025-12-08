@@ -40,6 +40,7 @@ from .differentiable import (
     sample_masses_from_params,
     individual_mass_nll,
 )
+from .environment_v2 import BirthEnvironment, env_to_imf_params
 
 __all__ = [
     "IMFProtocol",
@@ -76,9 +77,11 @@ __all__ = [
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
-    # Differentiable IMF inference
+    # Differentiable IMF inference (v0.1 + v0.2)
     "IMFParams",
     "log_prob_masses",
     "sample_masses_from_params",
     "individual_mass_nll",
+    "BirthEnvironment",
+    "env_to_imf_params",
 ]

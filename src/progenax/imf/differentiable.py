@@ -244,3 +244,47 @@ def individual_mass_nll(
 
 
 __all__ = ["log_prob_masses", "sample_masses_from_params", "individual_mass_nll"]
+
+
+# =============================================================================
+# TODO: Future Likelihood Functions (v0.3+)
+# =============================================================================
+#
+# def mass_histogram_nll(
+#     observed_counts: Float[Array, "N_bins"],
+#     bin_edges: Float[Array, "N_bins+1"],
+#     params: IMFParams,
+#     total_mass: float,
+# ) -> Float[Array, ""]:
+#     """Poisson likelihood for binned mass function.
+#
+#     log L = Σⱼ (kⱼ log λⱼ - λⱼ - log(kⱼ!))
+#
+#     where λⱼ = expected count in bin j from IMF.
+#     """
+#     raise NotImplementedError("Histogram likelihood deferred to v0.3")
+#
+#
+# def luminosity_function_nll(...):
+#     """Likelihood for luminosity function data.
+#
+#     Requires integration over mass-luminosity relation and IMF.
+#     """
+#     raise NotImplementedError("LF likelihood deferred to v0.3+")
+#
+#
+# =============================================================================
+# TODO: Inference Harness (v0.3+)
+# =============================================================================
+#
+# class InferenceProblem(eqx.Module):
+#     """Defines what to infer and how."""
+#     free_params: tuple[str, ...]
+#     fixed_params: dict[str, float]
+#     priors: dict[str, Distribution]
+#     env_model: str | None = None
+#
+#
+# def build_log_posterior(problem, data) -> Callable:
+#     """Build log posterior for HMC/NUTS."""
+#     raise NotImplementedError("Inference harness deferred to v0.3+")
