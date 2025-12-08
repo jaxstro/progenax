@@ -202,14 +202,25 @@ class PowerLawIMF(eqx.Module):
         return cum_before + within_segment
 
     def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized log-PDF."""
+        """Normalized log-PDF. Returns -inf outside [m_min, m_max]."""
+        m_arr = jnp.asarray(m)
+        in_domain = (m_arr >= self.m_min) & (m_arr <= self.m_max)
         Z = jnp.sum(self._segment_integrals)
-        return self._logpdf_unnorm(m) - jnp.log(Z)
+        lp = self._logpdf_unnorm(m_arr) - jnp.log(Z)
+        return jnp.where(in_domain, lp, -jnp.inf)
 
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized CDF."""
+        """Normalized CDF. Returns 0 below m_min, 1 above m_max."""
+        m_arr = jnp.asarray(m)
         Z = jnp.sum(self._segment_integrals)
-        return self._cdf_unnorm(m) / Z
+        # Clamp m to valid range before computing CDF
+        m_clamped = jnp.clip(m_arr, self.m_min, self.m_max)
+        raw = self._cdf_unnorm(m_clamped) / Z
+        return jnp.where(
+            m_arr <= self.m_min,
+            0.0,
+            jnp.where(m_arr >= self.m_max, 1.0, raw),
+        )
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF (exact analytical)."""
