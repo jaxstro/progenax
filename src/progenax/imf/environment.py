@@ -604,8 +604,9 @@ class CustomEnvironmentIMF(eqx.Module):
 
     environment: GasEnvironment
     # Store precomputed values since functions can't be PyTree leaves
-    _alpha_high: float
-    _m_char: float
+    # These are static because they're computed once at init and don't need gradients
+    _alpha_high: float = eqx.field(static=True)
+    _m_char: float = eqx.field(static=True)
     m_min: float = eqx.field(static=True, default=0.01)
     m_max: float = eqx.field(static=True, default=100.0)
 
@@ -628,25 +629,28 @@ class CustomEnvironmentIMF(eqx.Module):
             m_min: Minimum stellar mass [M_sun]
             m_max: Maximum stellar mass [M_sun]
         """
-        self.environment = environment
-        self.m_min = m_min
-        self.m_max = m_max
-
         # Compute alpha using provided function or default
         if alpha_fn is not None:
-            self._alpha_high = float(alpha_fn(environment))
+            alpha_high = float(alpha_fn(environment))
         else:
-            self._alpha_high = float(
+            alpha_high = float(
                 alpha_jerabkova2018(environment.Z, environment.log_n)
             )
 
         # Compute characteristic mass using provided function or default
         if char_mass_fn is not None:
-            self._m_char = float(char_mass_fn(environment))
+            m_char = float(char_mass_fn(environment))
         else:
-            self._m_char = float(
+            m_char = float(
                 characteristic_mass_from_jeans(environment.n_H, environment.T_gas)
             )
+
+        # Use object.__setattr__ for frozen equinox module
+        object.__setattr__(self, 'environment', environment)
+        object.__setattr__(self, 'm_min', m_min)
+        object.__setattr__(self, 'm_max', m_max)
+        object.__setattr__(self, '_alpha_high', alpha_high)
+        object.__setattr__(self, '_m_char', m_char)
 
     @property
     def alpha_high(self) -> float:
@@ -660,10 +664,12 @@ class CustomEnvironmentIMF(eqx.Module):
 
     def _get_underlying_imf(self) -> PowerLawIMF:
         """Build PowerLawIMF with custom parameters."""
-        m_c = jnp.clip(self._m_char, 0.1, 2.0)
+        # Clip m_char to valid range (already Python float from __init__)
+        # Use Python min/max to avoid JAX tracer issues in JIT
+        m_c = max(0.1, min(2.0, self._m_char))
 
         alphas = [0.3, 1.3, self._alpha_high]
-        breaks = [0.08, float(m_c)]
+        breaks = [0.08, m_c]
 
         return PowerLawIMF(alphas, breaks, self.m_min, self.m_max)
 

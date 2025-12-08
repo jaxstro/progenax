@@ -247,6 +247,36 @@ class TestCustomEnvironmentIMF:
         assert masses.shape == (1000,)
         assert jnp.all(masses >= imf.m_min)
 
+    def test_is_pytree_compatible(self):
+        """CustomEnvironmentIMF should be a valid equinox PyTree."""
+        env = GasEnvironment.solar_neighborhood()
+        imf = CustomEnvironmentIMF(env)
+
+        # Should be able to flatten/unflatten as PyTree
+        leaves, treedef = jax.tree_util.tree_flatten(imf)
+        imf_restored = jax.tree_util.tree_unflatten(treedef, leaves)
+
+        # Restored IMF should have same properties
+        assert imf_restored.alpha_high == pytest.approx(imf.alpha_high)
+        assert imf_restored.m_char == pytest.approx(imf.m_char)
+        assert imf_restored.m_min == imf.m_min
+        assert imf_restored.m_max == imf.m_max
+
+    def test_jit_compatibility(self):
+        """CustomEnvironmentIMF should work in JIT-compiled functions."""
+        env = GasEnvironment.solar_neighborhood()
+        imf = CustomEnvironmentIMF(env)
+
+        @jax.jit
+        def sample_fn(imf, key):
+            return imf.sample(key, 100)
+
+        key = jax.random.PRNGKey(42)
+        masses = sample_fn(imf, key)
+        assert masses.shape == (100,)
+        assert jnp.all(masses >= imf.m_min)
+        assert jnp.all(masses <= imf.m_max)
+
 
 # ============================================================================
 # Utility Tests
