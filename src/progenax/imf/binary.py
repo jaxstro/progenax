@@ -501,12 +501,19 @@ class MoeDiStefano2017(eqx.Module):
 
         q_powerlaw = jax.vmap(sample_powerlaw)(gamma, u_pl)
 
-        # Sample twin component (truncated Gaussian at q=1)
-        # Use rejection sampling for simplicity
-        q_twin_raw = 1.0 - jnp.abs(
-            jax.random.normal(key3, (n,)) * self.sigma_twin
-        )
-        q_twin = jnp.clip(q_twin_raw, self.q_min, 1.0)
+        # Sample twin component (truncated Gaussian centered at q=1, truncated to [q_min, 1])
+        # Use inverse CDF sampling for correct distribution
+        z_min = (self.q_min - 1.0) / self.sigma_twin
+        z_max = 0.0  # (1.0 - 1.0) / sigma = 0
+        # CDF values at boundaries
+        cdf_min = 0.5 * (1.0 + jax.scipy.special.erf(z_min / jnp.sqrt(2.0)))
+        cdf_max = 0.5  # Φ(0) = 0.5
+        # Sample uniform in [cdf_min, cdf_max], then inverse CDF
+        u_twin = jax.random.uniform(key3, (n,))
+        u_scaled = cdf_min + u_twin * (cdf_max - cdf_min)
+        # Inverse CDF: Φ^(-1)(u) = √2 * erfinv(2u - 1)
+        z_samples = jnp.sqrt(2.0) * jax.scipy.special.erfinv(2.0 * u_scaled - 1.0)
+        q_twin = 1.0 + z_samples * self.sigma_twin
 
         # Select based on component
         q = jnp.where(is_twin, q_twin, q_powerlaw)

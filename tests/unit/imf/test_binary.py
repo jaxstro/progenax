@@ -117,6 +117,28 @@ class TestMoeDiStefano2017:
 
         assert jnp.abs(jnp.mean(q_low) - jnp.mean(q_high)) > 0.02
 
+    def test_twin_sampling_matches_pdf(self):
+        """Twin component sampling produces distribution matching PDF."""
+        moe = MoeDiStefano2017(q_min=0.1, sigma_twin=0.03)
+        key = jax.random.PRNGKey(42)
+
+        # Sample many twins at fixed primary mass (solar-type for high f_twin)
+        m1 = jnp.ones(50000) * 1.0  # Solar-type primary
+        q_samples = moe.sample_given_primary(key, m1)
+
+        # Histogram of samples
+        hist, bin_edges = jnp.histogram(q_samples, bins=50, range=(0.1, 1.0), density=True)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+        # Compare histogram to PDF - they should match within statistical noise
+        pdf_at_bins = moe.pdf_given_primary(jnp.array(bin_centers), m1=1.0)
+        relative_error = jnp.abs(hist - pdf_at_bins) / (pdf_at_bins + 1e-10)
+
+        # Most bins should be within 30% (allowing for statistical noise)
+        # Use 70% of bins passing as threshold for robustness
+        assert jnp.mean(relative_error < 0.3) > 0.7, \
+            f"Sampling doesn't match PDF: mean relative error = {jnp.mean(relative_error):.3f}"
+
 
 # =============================================================================
 # Test Binary Fraction Models
