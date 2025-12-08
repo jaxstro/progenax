@@ -34,9 +34,12 @@ from .binary import (
     MassDependentBinaryFraction,
     BinaryIMF,
 )
-# IGIMF is experimental (galaxy-scale only, known issues)
-# Import directly from progenax.imf.igimf if needed:
-#   from progenax.imf.igimf import IGIMF, EmbeddedClusterMassFunction, ...
+from .params import IMFParams
+from .differentiable import (
+    log_prob_masses,
+    sample_masses_from_params,
+    individual_mass_nll,
+)
 
 __all__ = [
     "IMFProtocol",
@@ -73,5 +76,9 @@ __all__ = [
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
-    # IGIMF - EXPERIMENTAL (not exported, import from progenax.imf.igimf if needed)
+    # Differentiable IMF inference
+    "IMFParams",
+    "log_prob_masses",
+    "sample_masses_from_params",
+    "individual_mass_nll",
 ]

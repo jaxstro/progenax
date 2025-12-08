@@ -300,3 +300,18 @@ class TestIndividualMassNLL:
         nll = compute_nll(masses, params)
 
         assert jnp.isfinite(nll)
+
+
+def test_public_api_exports():
+    """All new symbols are exported from progenax.imf."""
+    from progenax.imf import (
+        IMFParams,
+        log_prob_masses,
+        sample_masses_from_params,
+        individual_mass_nll,
+    )
+
+    assert IMFParams is not None
+    assert log_prob_masses is not None
+    assert sample_masses_from_params is not None
+    assert individual_mass_nll is not None
