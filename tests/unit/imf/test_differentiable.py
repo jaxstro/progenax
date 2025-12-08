@@ -109,3 +109,110 @@ class TestLogProbMasses:
         result = compute_log_prob(masses, params)
 
         assert jnp.all(jnp.isfinite(result))
+
+
+class TestSampleMassesFromParams:
+    """Test inverse CDF sampling."""
+
+    def test_returns_correct_shape(self):
+        """Output shape matches input uniform samples."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        params = IMFParams.kroupa()
+        u = jnp.array([0.1, 0.5, 0.9])
+
+        masses = sample_masses_from_params(params, u)
+
+        assert masses.shape == (3,)
+
+    def test_masses_in_valid_range(self):
+        """All masses are within [m_min, m_max]."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        params = IMFParams.kroupa()
+        key = jax.random.PRNGKey(42)
+        u = jax.random.uniform(key, (1000,))
+
+        masses = sample_masses_from_params(params, u)
+
+        assert jnp.all(masses >= params.m_min)
+        assert jnp.all(masses <= params.m_max)
+
+    def test_monotonic_in_u(self):
+        """Masses increase monotonically with u (inverse CDF property)."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        params = IMFParams.kroupa()
+        u = jnp.linspace(0.01, 0.99, 100)
+
+        masses = sample_masses_from_params(params, u)
+
+        assert jnp.all(jnp.diff(masses) > 0)
+
+    def test_distribution_matches_pdf(self):
+        """Sampled masses follow the IMF PDF (KS-style test)."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params, log_prob_masses
+
+        params = IMFParams.kroupa()
+        key = jax.random.PRNGKey(42)
+        u = jax.random.uniform(key, (10000,))
+
+        masses = sample_masses_from_params(params, u)
+
+        # Check high-mass slope via histogram
+        high_mass = masses[masses > 1.0]
+        log_m = jnp.log10(high_mass)
+        hist, edges = jnp.histogram(log_m, bins=20)
+        centers = 0.5 * (edges[:-1] + edges[1:])
+
+        # Fit slope to histogram
+        valid = hist > 10
+        x = centers[valid]
+        y = jnp.log10(hist[valid].astype(float))
+        slope = jnp.sum((x - jnp.mean(x)) * (y - jnp.mean(y))) / jnp.sum((x - jnp.mean(x))**2)
+
+        # For dn/d(log m) ∝ m^(1-α), histogram slope should be ~(1-α) = 1-2.3 = -1.3
+        assert jnp.isclose(slope, -1.3, atol=0.2)
+
+    def test_gradient_through_params(self):
+        """Can compute gradient through sampled masses."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        def loss(alpha_high):
+            params = IMFParams(
+                alpha_low=jnp.array(0.3),
+                alpha_mid=jnp.array(1.3),
+                alpha_high=alpha_high,
+            )
+            u = jnp.array([0.5, 0.9, 0.99])  # Fixed uniforms
+            masses = sample_masses_from_params(params, u)
+            return jnp.mean(masses)
+
+        grad_fn = jax.grad(loss)
+        gradient = grad_fn(jnp.array(2.3))
+
+        assert jnp.isfinite(gradient)
+        # Steeper slope → fewer high-mass stars → lower mean mass
+        # So d(mean)/d(alpha_high) should be negative
+        assert gradient < 0
+
+    def test_jit_compatible(self):
+        """sample_masses_from_params works with JIT."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        @jax.jit
+        def sample(params, u):
+            return sample_masses_from_params(params, u)
+
+        params = IMFParams.kroupa()
+        u = jnp.array([0.1, 0.5, 0.9])
+
+        masses = sample(params, u)
+
+        assert jnp.all(jnp.isfinite(masses))
