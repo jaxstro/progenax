@@ -115,11 +115,12 @@ def validate_plummer(output_dir: str):
     def plummer_cdf(r):
         return r**3 / (r**2 + a**2)**1.5
 
-    ks_stat, ks_pvalue = ks_test(radii, plummer_cdf, 10 * r_h)
-
+    # CDF deviation metrics (more interpretable than KS test for large N)
     sorted_r, ecdf = compute_empirical_cdf(radii)
     theoretical_cdf = plummer_cdf(sorted_r)
-    max_cdf_deviation = float(jnp.max(jnp.abs(ecdf - theoretical_cdf)))
+    cdf_deviations = jnp.abs(ecdf - theoretical_cdf)
+    max_cdf_deviation = float(jnp.max(cdf_deviations))
+    mean_cdf_deviation = float(jnp.mean(cdf_deviations))
 
     passed = r_h_error < 1.0 and max_cdf_deviation < 0.02
 
@@ -187,7 +188,7 @@ def validate_plummer(output_dir: str):
         f"Validation Metrics:\n"
         f"$r_h$ error: {r_h_error:.2f}%\n"
         f"Max CDF dev: {max_cdf_deviation:.4f}\n"
-        f"KS stat: {ks_stat:.4f}"
+        f"Mean CDF dev: {mean_cdf_deviation:.4f}"
     )
     ax.text(0.98, 0.35, metrics_text, transform=ax.transAxes, fontsize=9,
             verticalalignment='top', horizontalalignment='right',
@@ -214,15 +215,13 @@ def validate_plummer(output_dir: str):
     print(f"  Median sampled radius:      {median_r:.4f}")
     print(f"  r_h error:                  {r_h_error:.2f}%  (target < 1%)")
     print(f"  Max CDF deviation:          {max_cdf_deviation:.4f}  (target < 0.02)")
-    print(f"  KS statistic:               {ks_stat:.4f}")
-    print(f"  KS p-value:                 {ks_pvalue:.4f}  (sensitive for large N)")
+    print(f"  Mean CDF deviation:         {mean_cdf_deviation:.4f}")
     print(f"  Overall:                    {'PASS' if passed else 'FAIL'}")
 
     return {
         'r_h_error': r_h_error,
         'max_cdf_deviation': max_cdf_deviation,
-        'ks_stat': ks_stat,
-        'ks_pvalue': ks_pvalue,
+        'mean_cdf_deviation': mean_cdf_deviation,
         'passed': passed
     }
 
@@ -254,6 +253,14 @@ def validate_king(output_dir: str):
     r_t = float(profile.r_t)
     truncation_ok = max_r <= r_t * 1.001  # Allow 0.1% numerical tolerance
     c_measured = np.log10(r_t / r_c)
+
+    # CDF deviation metrics using precomputed CDF
+    sorted_r, ecdf = compute_empirical_cdf(radii)
+    # Interpolate theoretical CDF at sampled radii
+    theoretical_cdf = jnp.interp(sorted_r, profile._r_grid, profile._cdf_grid)
+    cdf_deviations = jnp.abs(ecdf - theoretical_cdf)
+    max_cdf_deviation = float(jnp.max(cdf_deviations))
+    mean_cdf_deviation = float(jnp.mean(cdf_deviations))
 
     # -------------------------------------------------------------------------
     # Figure 1: King ODE Solution & Density
@@ -319,11 +326,12 @@ def validate_king(output_dir: str):
     # Add metrics text box
     metrics_text = (
         f"Validation Metrics:\n"
+        f"Max CDF dev: {max_cdf_deviation:.4f}\n"
+        f"Mean CDF dev: {mean_cdf_deviation:.4f}\n"
         f"$c = \\log_{{10}}(r_t/r_c)$: {c_measured:.3f}\n"
-        f"Max $r$: {max_r:.2f} (< $r_t$={r_t:.2f})\n"
         f"Truncation: {'OK' if truncation_ok else 'FAIL'}"
     )
-    ax.text(0.98, 0.55, metrics_text, transform=ax.transAxes, fontsize=8,
+    ax.text(0.98, 0.60, metrics_text, transform=ax.transAxes, fontsize=8,
             verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
@@ -356,21 +364,28 @@ def validate_king(output_dir: str):
     # -------------------------------------------------------------------------
     # Print results (metrics already computed above)
     # -------------------------------------------------------------------------
+    passed = truncation_ok and max_cdf_deviation < 0.02
+
     print(f"\n  Quantitative Results:")
     print(f"  ---------------------")
     print(f"  W0:                         {W0:.1f}")
     print(f"  Core radius (r_c):          {r_c:.4f}")
     print(f"  Tidal radius (r_t):         {r_t:.4f}")
     print(f"  Concentration c:            {c_measured:.3f}")
+    print(f"  Max CDF deviation:          {max_cdf_deviation:.4f}  (target < 0.02)")
+    print(f"  Mean CDF deviation:         {mean_cdf_deviation:.4f}")
     print(f"  Max sampled radius:         {max_r:.4f}")
     print(f"  Truncation test:            {'PASS' if truncation_ok else 'FAIL'}")
+    print(f"  Overall:                    {'PASS' if passed else 'FAIL'}")
 
     return {
         'W0': W0,
         'r_t': r_t,
         'concentration': c_measured,
+        'max_cdf_deviation': max_cdf_deviation,
+        'mean_cdf_deviation': mean_cdf_deviation,
         'truncation_ok': truncation_ok,
-        'passed': truncation_ok
+        'passed': passed
     }
 
 
@@ -401,6 +416,14 @@ def validate_eff(output_dir: str):
     max_r = float(jnp.max(radii))
     truncation_ok = max_r <= r_t * 1.001
 
+    # CDF deviation metrics using precomputed CDF
+    sorted_r, ecdf = compute_empirical_cdf(radii)
+    # Interpolate theoretical CDF at sampled radii
+    theoretical_cdf = jnp.interp(sorted_r, profile._r_grid, profile._cdf_grid)
+    cdf_deviations = jnp.abs(ecdf - theoretical_cdf)
+    max_cdf_deviation = float(jnp.max(cdf_deviations))
+    mean_cdf_deviation = float(jnp.mean(cdf_deviations))
+
     # Power-law slope verification (at r >> a, rho ~ r^(-gamma))
     r_grid_for_slope = jnp.linspace(0.01, r_t * 0.99, 200)
     r_outer = r_grid_for_slope[r_grid_for_slope > 3 * a]
@@ -411,7 +434,7 @@ def validate_eff(output_dir: str):
                   jnp.sum((log_r - jnp.mean(log_r))**2))
     measured_gamma = -slope
     gamma_error = abs(measured_gamma - gamma) / gamma * 100
-    passed = truncation_ok and gamma_error < 5.0
+    passed = truncation_ok and max_cdf_deviation < 0.02
 
     # -------------------------------------------------------------------------
     # Figure 1: EFF Density & Parameter Effects
@@ -488,12 +511,12 @@ def validate_eff(output_dir: str):
     # Add metrics text box
     metrics_text = (
         f"Validation Metrics:\n"
-        f"$\\gamma$ (expected): {gamma:.1f}\n"
-        f"$\\gamma$ (measured): {measured_gamma:.2f}\n"
-        f"Error: {gamma_error:.1f}%\n"
+        f"Max CDF dev: {max_cdf_deviation:.4f}\n"
+        f"Mean CDF dev: {mean_cdf_deviation:.4f}\n"
+        f"$\\gamma$ slope: {measured_gamma:.2f}\n"
         f"Truncation: {'OK' if truncation_ok else 'FAIL'}"
     )
-    ax.text(0.98, 0.35, metrics_text, transform=ax.transAxes, fontsize=8,
+    ax.text(0.98, 0.40, metrics_text, transform=ax.transAxes, fontsize=8,
             verticalalignment='top', horizontalalignment='right',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
@@ -516,17 +539,22 @@ def validate_eff(output_dir: str):
     print(f"  Scale radius (a):           {a:.4f}")
     print(f"  Power-law index (gamma):    {gamma:.1f}")
     print(f"  Tidal radius (r_t):         {r_t:.4f}")
+    print(f"  Max CDF deviation:          {max_cdf_deviation:.4f}  (target < 0.02)")
+    print(f"  Mean CDF deviation:         {mean_cdf_deviation:.4f}")
     print(f"  Measured outer slope:       {measured_gamma:.2f}")
     print(f"  Gamma error:                {gamma_error:.1f}%")
     print(f"  Max sampled radius:         {max_r:.4f}")
     print(f"  Truncation test:            {'PASS' if truncation_ok else 'FAIL'}")
+    print(f"  Overall:                    {'PASS' if passed else 'FAIL'}")
 
     return {
         'gamma': gamma,
         'measured_gamma': measured_gamma,
         'gamma_error': gamma_error,
+        'max_cdf_deviation': max_cdf_deviation,
+        'mean_cdf_deviation': mean_cdf_deviation,
         'truncation_ok': truncation_ok,
-        'passed': truncation_ok and gamma_error < 20
+        'passed': passed
     }
 
 
@@ -735,7 +763,7 @@ def main():
     print("├─────────────────────────────────────────────────────────────────┤")
 
     print(f"│ King Profile:                                                   │")
-    print(f"│   W0:                  {king_results['W0']:6.1f}                                   │")
+    print(f"│   Max CDF deviation:   {king_results['max_cdf_deviation']:6.4f}   (target < 0.02)           │")
     print(f"│   Concentration c:     {king_results['concentration']:6.3f}                                  │")
     print(f"│   Truncation:          {'✓ OK' if king_results['truncation_ok'] else '✗ FAIL'}                                     │")
     print(f"│   Status:              {'✓ PASS' if king_results['passed'] else '✗ FAIL'}                                   │")
@@ -743,8 +771,8 @@ def main():
     print("├─────────────────────────────────────────────────────────────────┤")
 
     print(f"│ EFF Profile:                                                    │")
-    print(f"│   gamma:               {eff_results['gamma']:6.1f}                                   │")
-    print(f"│   Measured slope:      {eff_results['measured_gamma']:6.2f}   (error: {eff_results['gamma_error']:.1f}%)             │")
+    print(f"│   Max CDF deviation:   {eff_results['max_cdf_deviation']:6.4f}   (target < 0.02)           │")
+    print(f"│   gamma slope:         {eff_results['measured_gamma']:6.2f}   (expected: {eff_results['gamma']:.1f})            │")
     print(f"│   Truncation:          {'✓ OK' if eff_results['truncation_ok'] else '✗ FAIL'}                                     │")
     print(f"│   Status:              {'✓ PASS' if eff_results['passed'] else '✗ FAIL'}                                   │")
 
