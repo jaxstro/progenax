@@ -216,3 +216,87 @@ class TestSampleMassesFromParams:
         masses = sample(params, u)
 
         assert jnp.all(jnp.isfinite(masses))
+
+
+class TestIndividualMassNLL:
+    """Test negative log-likelihood for individual masses."""
+
+    def test_returns_scalar(self):
+        """NLL returns a scalar."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import individual_mass_nll
+
+        params = IMFParams.kroupa()
+        masses = jnp.array([0.5, 1.0, 10.0])
+
+        nll = individual_mass_nll(masses, params)
+
+        assert nll.shape == ()
+        assert jnp.isfinite(nll)
+
+    def test_nll_positive(self):
+        """NLL is positive (log probs are negative for normalized PDF)."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import individual_mass_nll
+
+        params = IMFParams.kroupa()
+        masses = jnp.array([0.5, 1.0, 10.0])
+
+        nll = individual_mass_nll(masses, params)
+
+        assert nll > 0
+
+    def test_more_data_higher_nll(self):
+        """More observations → higher NLL (more terms in sum)."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import individual_mass_nll
+
+        params = IMFParams.kroupa()
+        masses_small = jnp.array([1.0, 10.0])
+        masses_large = jnp.array([1.0, 10.0, 1.0, 10.0])
+
+        nll_small = individual_mass_nll(masses_small, params)
+        nll_large = individual_mass_nll(masses_large, params)
+
+        assert nll_large > nll_small
+
+    def test_gradient_wrt_alpha_high(self):
+        """Gradient of NLL wrt alpha_high is computable and sensible."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import individual_mass_nll
+
+        # Generate "observed" masses from a top-heavy IMF
+        true_alpha = 2.0  # Top-heavy
+        masses = jnp.array([5.0, 10.0, 20.0, 50.0])  # Heavy masses
+
+        def loss(alpha_high):
+            params = IMFParams(
+                alpha_low=jnp.array(0.3),
+                alpha_mid=jnp.array(1.3),
+                alpha_high=alpha_high,
+            )
+            return individual_mass_nll(masses, params)
+
+        grad_fn = jax.grad(loss)
+
+        # At alpha=2.3 (standard), gradient should push toward lower alpha
+        # (to better fit the heavy masses)
+        grad_at_23 = grad_fn(jnp.array(2.3))
+        assert jnp.isfinite(grad_at_23)
+        assert grad_at_23 > 0  # Gradient positive → decrease alpha to reduce loss
+
+    def test_jit_compatible(self):
+        """individual_mass_nll works with JIT."""
+        from progenax.imf.params import IMFParams
+        from progenax.imf.differentiable import individual_mass_nll
+
+        @jax.jit
+        def compute_nll(masses, params):
+            return individual_mass_nll(masses, params)
+
+        params = IMFParams.kroupa()
+        masses = jnp.array([0.5, 1.0, 10.0])
+
+        nll = compute_nll(masses, params)
+
+        assert jnp.isfinite(nll)

@@ -216,4 +216,31 @@ def sample_masses_from_params(
     return masses
 
 
-__all__ = ["log_prob_masses", "sample_masses_from_params"]
+def individual_mass_nll(
+    masses: Float[Array, "N"],
+    params: IMFParams,
+) -> Float[Array, ""]:
+    """Compute negative log-likelihood for individual resolved masses.
+
+    NLL = -Σᵢ log p(mᵢ | params)
+
+    This is the simplest likelihood for gradient-based IMF inference.
+
+    Args:
+        masses: Observed stellar masses [M☉], shape (N,)
+        params: IMF parameters to evaluate
+
+    Returns:
+        Negative log-likelihood (scalar)
+
+    Example:
+        >>> params = IMFParams.kroupa()
+        >>> masses = jnp.array([0.5, 1.0, 10.0, 50.0])
+        >>> nll = individual_mass_nll(masses, params)
+        >>> # Minimize NLL to fit params to data
+    """
+    log_probs = log_prob_masses(masses, params)
+    return -jnp.sum(log_probs)
+
+
+__all__ = ["log_prob_masses", "sample_masses_from_params", "individual_mass_nll"]
