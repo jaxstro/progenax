@@ -154,10 +154,11 @@ class TestChabrierParameters:
         imf = ChabrierIMF()  # m_min=0.08, m_max=100
         mean = float(imf.mean_mass())
 
-        # For Chabrier with m_min=0.08 (H-burning limit), mean is ~0.1-0.3 M_sun
-        # (dominated by lognormal peak near m_c=0.08)
-        assert 0.10 < mean < 0.40, \
-            f"Chabrier mean mass = {mean:.3f} M_sun (expected 0.10-0.40)"
+        # For Chabrier (2003) system IMF with log10-based formulas,
+        # mean mass is ~0.4-0.8 M_sun (higher than old ln-based approximation
+        # due to correct Jacobian factor 1/(m ln 10))
+        assert 0.40 < mean < 0.80, \
+            f"Chabrier mean mass = {mean:.3f} M_sun (expected 0.40-0.80)"
 
         # Verify sample mean matches
         masses = imf.sample(key, 10000)
