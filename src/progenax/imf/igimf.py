@@ -361,6 +361,19 @@ class IGIMF(eqx.Module):
         M_ecl_max: Maximum cluster mass [M☉] (default: None, computed from SFR)
         m_max_model: m_max(M_ecl) model ('weidner04', 'analytical', 'sorted')
 
+    Note:
+        **JAX Limitations:**
+        - `sample()`, `sample_cluster()` are NOT fully JIT-compatible due to
+          dynamic array sizes (uses Python `int()` for shapes)
+        - `logpdf()` uses KDE approximation and re-samples internally (expensive)
+        - `effective_slope_high_mass()` and `mean_mass()` are sample-based approximations
+        - For gradient-based inference, use the underlying stellar IMF directly
+
+        **Reproducibility:**
+        Analysis methods (`mean_mass`, `effective_slope_high_mass`, `logpdf`) accept
+        optional `key` parameter. Without explicit key, results use fixed seeds for
+        reproducibility between calls.
+
     Examples:
         >>> from progenax.imf import PowerLawIMF
         >>> from progenax.imf.igimf import IGIMF
@@ -527,7 +540,10 @@ class IGIMF(eqx.Module):
         return shuffled[:n]
 
     def effective_slope_high_mass(
-        self, m_range: Tuple[float, float] = (10.0, 100.0)
+        self,
+        m_range: Tuple[float, float] = (10.0, 100.0),
+        key: Optional[PRNGKeyArray] = None,
+        n_samples: int = 100000,
     ) -> Float[Array, ""]:
         """Estimate effective power-law slope at high masses.
 
@@ -535,15 +551,22 @@ class IGIMF(eqx.Module):
         This method estimates the effective slope by fitting a power-law
         to sampled masses in the given range.
 
+        Note:
+            This method is NOT JIT-compatible due to sample-based estimation.
+            Results are stochastic; pass explicit key for reproducibility.
+
         Args:
             m_range: Mass range for slope estimation [M☉]
+            key: JAX random key (default: PRNGKey(12345) for reproducibility)
+            n_samples: Number of samples (default: 100000)
 
         Returns:
             Effective power-law slope α_eff (positive, so IMF ∝ m^(-α))
         """
         # Sample many masses
-        key = jax.random.PRNGKey(12345)
-        masses = self.sample(key, 100000)
+        if key is None:
+            key = jax.random.PRNGKey(12345)
+        masses = self.sample(key, n_samples)
 
         # Filter to mass range
         in_range = (masses >= m_range[0]) & (masses <= m_range[1])
@@ -575,25 +598,53 @@ class IGIMF(eqx.Module):
         # α = 1 - slope
         return 1.0 - slope
 
-    def mean_mass(self) -> Float[Array, ""]:
+    def mean_mass(
+        self,
+        key: Optional[PRNGKeyArray] = None,
+        n_samples: int = 50000,
+    ) -> Float[Array, ""]:
         """Mean stellar mass from IGIMF.
+
+        Note:
+            This is a sample-based approximation, NOT an analytical value.
+
+        Args:
+            key: JAX random key (default: PRNGKey(0) for reproducibility)
+            n_samples: Number of samples (default: 50000)
 
         Returns:
             E[m] in solar masses
         """
-        key = jax.random.PRNGKey(0)
-        masses = self.sample(key, 50000)
+        if key is None:
+            key = jax.random.PRNGKey(0)
+        masses = self.sample(key, n_samples)
         return jnp.mean(masses[masses > 0])
 
-    def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Approximate log-PDF of IGIMF via kernel density estimation.
+    def logpdf(
+        self,
+        m: Float[Array, "..."],
+        key: Optional[PRNGKeyArray] = None,
+        n_samples: int = 50000,
+    ) -> Float[Array, "..."]:
+        """Approximate log-PDF via kernel density estimation.
 
-        Note: This is an approximation from sampling. For exact IGIMF PDF,
-        numerical integration over the cluster mass function is required.
+        Warning:
+            This is a KDE approximation, NOT an analytical PDF.
+            Each call samples n_samples masses internally.
+            Pass explicit key for reproducibility.
+
+        Args:
+            m: Mass values to evaluate
+            key: JAX random key (default: PRNGKey(42) for reproducibility)
+            n_samples: Number of samples for KDE (default: 50000)
+
+        Returns:
+            Approximate log-PDF at each mass
         """
         # Sample reference distribution
-        key = jax.random.PRNGKey(42)
-        samples = self.sample(key, 50000)
+        if key is None:
+            key = jax.random.PRNGKey(42)
+        samples = self.sample(key, n_samples)
         samples = samples[samples > 0]
 
         # KDE with log-space bandwidth
