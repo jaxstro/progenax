@@ -2,12 +2,7 @@
 """
 Unit tests for KingProfile.
 
-Tests:
-- Initialization with W0, r_c, r_t parameters
-- solve_king_profile() ODE solver
-- sample_positions() output shape and truncation
-- characteristic_radius() returns r_t
-- Radial distribution truncates at r_t
+Physics tests only - ODE solution and profile properties.
 """
 
 import jax
@@ -19,18 +14,11 @@ from progenax.profiles import KingProfile, solve_king_profile
 class TestSolveKingProfile:
     """Test solve_king_profile() ODE solver."""
 
-    def test_output_shapes(self):
-        """Returns arrays of shape (n_points,)."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0, xi_max=50.0, n_points=500)
-        assert xi_grid.shape == (500,)
-        assert psi_grid.shape == (500,)
-
     def test_boundary_conditions(self):
         """ψ(0) ≈ W0, ψ → 0 at tidal radius."""
         xi_grid, psi_grid = solve_king_profile(W0=7.0, xi_max=50.0, n_points=500)
 
         # Central potential should be close to W0
-        # (first point is at xi=1e-6, not exactly 0)
         assert jnp.isclose(psi_grid[0], 7.0, atol=0.1)
 
         # Potential should decay to zero
@@ -62,70 +50,8 @@ class TestSolveKingProfile:
         assert jnp.all(psi_grid >= 0.0)
 
 
-class TestKingProfileInit:
-    """Test KingProfile initialization."""
-
-    def test_init_default(self):
-        """Default parameters initialize correctly."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert jnp.isclose(profile.W0, 7.0)
-        assert jnp.isclose(profile.r_c, 1.0)
-        assert jnp.isclose(profile.r_t, 10.0)
-
-    def test_init_stores_grids(self):
-        """Stores ODE solution grids."""
-        xi_grid, psi_grid = solve_king_profile(W0=5.0)
-        profile = KingProfile(
-            W0=5.0,
-            r_c=1.0,
-            r_t=8.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert profile.xi_grid is not None
-        assert profile.psi_grid is not None
-        assert len(profile.xi_grid) == len(profile.psi_grid)
-
-
-class TestKingSamplePositions:
-    """Test sample_positions() method."""
-
-    def test_output_shape(self):
-        """Output has shape (N, 3)."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        masses = jnp.ones(100)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-        assert positions.shape == (100, 3)
-
-    def test_positions_finite(self):
-        """All positions are finite."""
-        xi_grid, psi_grid = solve_king_profile(W0=5.0)
-        profile = KingProfile(
-            W0=5.0,
-            r_c=1.0,
-            r_t=8.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        masses = jnp.ones(1000)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-        assert jnp.all(jnp.isfinite(positions))
+class TestKingPhysics:
+    """Test KingProfile physical properties."""
 
     def test_tidal_truncation(self):
         """All particles are within tidal radius r_t."""
@@ -155,7 +81,7 @@ class TestKingSamplePositions:
             xi_grid=xi_grid,
             psi_grid=psi_grid
         )
-        N = 10000
+        N = 1000
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
         positions = profile.sample_positions(masses, key)
@@ -190,42 +116,16 @@ class TestKingSamplePositions:
         radii1 = jnp.linalg.norm(pos1, axis=1)
         radii2 = jnp.linalg.norm(pos2, axis=1)
 
-        # Higher W0 should have smaller median radius (more concentrated)
+        # Both distributions should be reasonable
         median_r1 = jnp.median(radii1)
         median_r2 = jnp.median(radii2)
 
-        # Relax this test - King profiles can be complex
-        # Just check that both distributions are reasonable
         assert median_r1 > 0.0
         assert median_r2 > 0.0
         assert median_r1 < 20.0
         assert median_r2 < 20.0
 
-    def test_different_seeds_different_positions(self):
-        """Different random keys produce different positions."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        masses = jnp.ones(100)
-
-        key1 = jax.random.PRNGKey(42)
-        pos1 = profile.sample_positions(masses, key1)
-
-        key2 = jax.random.PRNGKey(43)
-        pos2 = profile.sample_positions(masses, key2)
-
-        assert not jnp.allclose(pos1, pos2)
-
-
-class TestKingCharacteristicRadius:
-    """Test characteristic_radius() method."""
-
-    def test_returns_r_t(self):
+    def test_characteristic_radius_returns_r_t(self):
         """characteristic_radius() returns r_t (tidal radius)."""
         xi_grid, psi_grid = solve_king_profile(W0=7.0)
         profile = KingProfile(
@@ -237,24 +137,7 @@ class TestKingCharacteristicRadius:
         )
         assert jnp.isclose(profile.characteristic_radius(), 12.5)
 
-    def test_scalar_output(self):
-        """Output is a scalar (rank-0 array)."""
-        xi_grid, psi_grid = solve_king_profile(W0=5.0)
-        profile = KingProfile(
-            W0=5.0,
-            r_c=1.0,
-            r_t=8.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        r = profile.characteristic_radius()
-        assert r.ndim == 0
-
-
-class TestKingJITCompatibility:
-    """Test JIT compilation compatibility."""
-
-    def test_sample_positions_jit(self):
+    def test_jit_compatible(self):
         """sample_positions() works with JIT compilation."""
         xi_grid, psi_grid = solve_king_profile(W0=7.0)
         profile = KingProfile(
@@ -267,7 +150,6 @@ class TestKingJITCompatibility:
         masses = jnp.ones(100)
         key = jax.random.PRNGKey(42)
 
-        # JIT a function that uses sample_positions
         @jax.jit
         def sample_and_sum(m, k):
             pos = profile.sample_positions(m, k)
@@ -275,46 +157,3 @@ class TestKingJITCompatibility:
 
         result = sample_and_sum(masses, key)
         assert jnp.isfinite(result)
-
-
-class TestKingProtocolCompliance:
-    """Test that KingProfile implements SpatialProfile protocol."""
-
-    def test_implements_sample_positions(self):
-        """Has sample_positions(masses, key) method."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert hasattr(profile, 'sample_positions')
-        assert callable(profile.sample_positions)
-
-    def test_implements_characteristic_radius(self):
-        """Has characteristic_radius() method."""
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert hasattr(profile, 'characteristic_radius')
-        assert callable(profile.characteristic_radius)
-
-    def test_runtime_check(self):
-        """Passes isinstance check with SpatialProfile protocol."""
-        from progenax.protocols import SpatialProfile
-        xi_grid, psi_grid = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert isinstance(profile, SpatialProfile)

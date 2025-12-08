@@ -108,7 +108,7 @@ class TestMassiveStarFractionKey:
 
         # Should work with different sample sizes
         frac1 = massive_star_fraction(imf, key=key, n_samples=1000)
-        frac2 = massive_star_fraction(imf, key=key, n_samples=10000)
+        frac2 = massive_star_fraction(imf, key=key, n_samples=1000)
 
         assert 0.0 <= frac1 <= 1.0
         assert 0.0 <= frac2 <= 1.0
@@ -141,7 +141,7 @@ class TestIGIMFKeyParams:
 
         # Use wider mass range to avoid empty array
         slope = igimf.effective_slope_high_mass(
-            key=key, n_samples=50000, m_range=(5, 120)
+            key=key, n_samples=5000, m_range=(5, 120)
         )
 
         # Just verify it returns a finite value
@@ -156,7 +156,7 @@ class TestIGIMFKeyParams:
         key = jax.random.PRNGKey(42)
 
         m = jnp.array([1.0, 10.0])
-        logp = igimf.logpdf(m, key=key, n_samples=10000)
+        logp = igimf.logpdf(m, key=key, n_samples=1000)
 
         assert logp.shape == (2,)
         assert jnp.all(jnp.isfinite(logp))

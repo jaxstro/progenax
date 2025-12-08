@@ -10,7 +10,7 @@ from progenax.imf import PowerLawIMF
 from progenax.builders import virial_scale, to_com_frame, compute_kinetic_energy, compute_potential_energy
 from progenax.kinematics.anisotropy import apply_osipkov_merritt
 from progenax.kinematics.rotation import apply_solid_body_rotation
-from progenax.profiles.mass_segregation import apply_mass_segregation
+from progenax.profiles.mass_segregation import apply_mass_segregation_baumgardt
 from progenax.tidal import apply_tidal_truncation
 from progenax.binaries.population import (
     LogNormalPeriod,
@@ -43,12 +43,13 @@ class TestKnobsPipeline:
         velocity_df = PlummerVelocityDF(r_h=r_h)
         velocities = velocity_df.sample_velocities(positions, masses, keys[2], G=G)
 
-        # 4. Apply mass segregation
-        m_ref = jnp.median(masses)
-        positions = apply_mass_segregation(positions, masses, eta=0.3, m_ref=m_ref)
+        # 4. Apply mass segregation (Baumgardt energy-ranked orbit assignment)
+        positions, velocities = apply_mass_segregation_baumgardt(
+            positions, velocities, masses, s=0.3, key=keys[3], G=G
+        )
 
         # 5. Apply Osipkov-Merritt anisotropy
-        velocities = apply_osipkov_merritt(velocities, positions, keys[3], r_a=r_h)
+        velocities = apply_osipkov_merritt(velocities, positions, keys[4], r_a=r_h)
 
         # 6. Apply rotation
         velocities = apply_solid_body_rotation(
@@ -104,15 +105,19 @@ class TestKnobsPipeline:
 
     def test_jit_compatibility(self):
         """All knobs work under JIT compilation."""
+        G = 0.00450  # Stellar units
+
         @jax.jit
         def apply_all_knobs(positions, velocities, masses, key):
             keys = jax.random.split(key, 3)
 
-            # Mass segregation
-            positions = apply_mass_segregation(positions, masses, eta=0.3, m_ref=1.0)
+            # Mass segregation (Baumgardt energy-ranked orbit assignment)
+            positions, velocities = apply_mass_segregation_baumgardt(
+                positions, velocities, masses, s=0.3, key=keys[0], G=G
+            )
 
             # Anisotropy
-            velocities = apply_osipkov_merritt(velocities, positions, keys[0], r_a=1.0)
+            velocities = apply_osipkov_merritt(velocities, positions, keys[1], r_a=1.0)
 
             # Rotation
             velocities = apply_solid_body_rotation(
@@ -133,15 +138,19 @@ class TestKnobsPipeline:
 
     def test_gradient_flow_through_knobs(self):
         """Gradients flow through all differentiable knobs."""
-        def loss_fn(eta, r_a, omega):
+        G = 0.00450  # Stellar units
+
+        def loss_fn(s_param, r_a, omega):
             key = jax.random.PRNGKey(42)
             positions = jax.random.normal(key, (50, 3))
             velocities = jax.random.normal(jax.random.PRNGKey(0), (50, 3))
             masses = jnp.ones(50)
 
-            # Apply knobs
-            positions = apply_mass_segregation(positions, masses, eta=eta, m_ref=1.0)
-            velocities = apply_osipkov_merritt(velocities, positions, jax.random.PRNGKey(1), r_a=r_a)
+            # Apply knobs (Baumgardt segregation with s parameter)
+            positions, velocities = apply_mass_segregation_baumgardt(
+                positions, velocities, masses, s=s_param, key=jax.random.PRNGKey(1), G=G
+            )
+            velocities = apply_osipkov_merritt(velocities, positions, jax.random.PRNGKey(2), r_a=r_a)
             velocities = apply_solid_body_rotation(
                 velocities, positions, omega=omega, axis=jnp.array([0., 0., 1.])
             )
@@ -160,17 +169,21 @@ class TestKnobsPipeline:
     def test_knobs_preserve_particle_count(self):
         """Non-truncation knobs preserve particle count."""
         N = 200
+        G = 0.00450  # Stellar units
         key = jax.random.PRNGKey(42)
         positions = jax.random.normal(key, (N, 3))
         velocities = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
         masses = jnp.ones(N)
 
-        # Mass segregation preserves count
-        pos_seg = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
+        # Mass segregation preserves count (Baumgardt returns positions AND velocities)
+        pos_seg, vel_seg = apply_mass_segregation_baumgardt(
+            positions, velocities, masses, s=0.5, key=jax.random.PRNGKey(1), G=G
+        )
         assert pos_seg.shape[0] == N
+        assert vel_seg.shape[0] == N
 
         # Anisotropy preserves count
-        vel_aniso = apply_osipkov_merritt(velocities, positions, jax.random.PRNGKey(1), r_a=1.0)
+        vel_aniso = apply_osipkov_merritt(velocities, positions, jax.random.PRNGKey(2), r_a=1.0)
         assert vel_aniso.shape[0] == N
 
         # Rotation preserves count

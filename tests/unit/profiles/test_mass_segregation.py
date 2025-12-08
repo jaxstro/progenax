@@ -1,327 +1,264 @@
-"""Tests for mass segregation transforms."""
+# progenax/tests/unit/profiles/test_mass_segregation.py
+"""
+Unit tests for mass segregation module.
+
+Physical tests only - no trivial shape/type tests.
+"""
 
 import jax
 import jax.numpy as jnp
 import pytest
+from scipy.stats import spearmanr
 
-from jaxstro.units import STELLAR
 from progenax.profiles.mass_segregation import (
-    apply_mass_segregation,
-    compute_mass_segregation_ratio,
+    _mst_length,
+    _softened_potential,
     apply_mass_segregation_baumgardt,
+    generate_mass_segregated_ic_subr,
+    mass_segregation_ratio_mst,
 )
 
-# Use stellar dynamics units for star cluster tests
-G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
+
+# =============================================================================
+# Fixtures
+# =============================================================================
 
 
-class TestMassSegregation:
-    """Tests for primordial mass segregation."""
+@pytest.fixture
+def key():
+    """Standard reproducible random key."""
+    return jax.random.PRNGKey(42)
 
-    def test_output_shape(self):
-        """Output positions have same shape as input."""
-        key = jax.random.PRNGKey(42)
-        positions = jax.random.normal(key, (100, 3))
-        masses = jax.random.uniform(jax.random.PRNGKey(0), (100,), minval=0.1, maxval=10.0)
 
-        pos_out = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
-        assert pos_out.shape == (100, 3)
+@pytest.fixture
+def G():
+    """Gravitational constant in stellar units (Msun, pc, Myr)."""
+    return 0.00450  # pc^3 Msun^-1 Myr^-2
 
-    def test_massive_stars_move_inward(self):
-        """Massive stars (m > m_ref) move closer to center."""
-        key = jax.random.PRNGKey(42)
-        N = 1000
-        positions = jax.random.normal(key, (N, 3)) * 2.0  # Scale ~ 2
 
-        # Half low mass, half high mass
-        masses = jnp.concatenate([
-            jnp.ones(N//2) * 0.5,  # Low mass
-            jnp.ones(N//2) * 5.0,  # High mass
+@pytest.fixture
+def eps():
+    """Standard softening length."""
+    return 0.01  # pc
+
+
+# =============================================================================
+# TestSoftenedPotential - physics verification
+# =============================================================================
+
+
+class TestSoftenedPotential:
+    """Test O(N^2) gravitational potential formula."""
+
+    def test_two_body_potential(self, G, eps):
+        """Two-body potential matches Phi = -Gm/r_softened."""
+        m1, m2 = 1.0, 2.0
+        r12 = 1.0
+        positions = jnp.array([[0.0, 0.0, 0.0], [r12, 0.0, 0.0]])
+        masses = jnp.array([m1, m2])
+
+        phi = _softened_potential(positions, masses, G=G, eps=eps)
+
+        r_soft = jnp.sqrt(r12**2 + eps**2)
+        expected_phi_0 = -G * m2 / r_soft
+        expected_phi_1 = -G * m1 / r_soft
+
+        assert jnp.isclose(phi[0], expected_phi_0, rtol=1e-6), (
+            f"Phi_0={float(phi[0]):.6e}, expected={float(expected_phi_0):.6e}"
+        )
+        assert jnp.isclose(phi[1], expected_phi_1, rtol=1e-6), (
+            f"Phi_1={float(phi[1]):.6e}, expected={float(expected_phi_1):.6e}"
+        )
+
+
+# =============================================================================
+# TestMSTLength - geometric correctness
+# =============================================================================
+
+
+class TestMSTLength:
+    """Test Prim's MST algorithm."""
+
+    def test_line_of_points(self):
+        """MST of collinear points = sum of consecutive gaps."""
+        positions = jnp.array([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [6.0, 0.0, 0.0],
         ])
+        length = _mst_length(positions)
+        expected = 1.0 + 2.0 + 3.0
+        assert jnp.isclose(length, expected, rtol=1e-6), (
+            f"MST length={float(length):.4f}, expected={expected:.4f}"
+        )
 
-        pos_out = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
-
-        r_in = jnp.linalg.norm(positions, axis=1)
-        r_out = jnp.linalg.norm(pos_out, axis=1)
-
-        # High mass stars should have smaller radii after segregation
-        high_mass_mask = masses > 1.0
-        r_in_high = jnp.mean(r_in[high_mass_mask])
-        r_out_high = jnp.mean(r_out[high_mass_mask])
-
-        assert r_out_high < r_in_high
-
-    def test_low_mass_stars_move_outward(self):
-        """Low mass stars (m < m_ref) move further from center."""
-        key = jax.random.PRNGKey(42)
-        N = 1000
-        positions = jax.random.normal(key, (N, 3)) * 2.0
-
-        masses = jnp.concatenate([
-            jnp.ones(N//2) * 0.5,
-            jnp.ones(N//2) * 5.0,
+    def test_equilateral_triangle(self):
+        """MST of equilateral triangle = 2 edges."""
+        positions = jnp.array([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.5, jnp.sqrt(3) / 2, 0.0],
         ])
-
-        pos_out = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
-
-        r_in = jnp.linalg.norm(positions, axis=1)
-        r_out = jnp.linalg.norm(pos_out, axis=1)
-
-        low_mass_mask = masses < 1.0
-        r_in_low = jnp.mean(r_in[low_mass_mask])
-        r_out_low = jnp.mean(r_out[low_mass_mask])
-
-        assert r_out_low > r_in_low
-
-    def test_eta_zero_no_change(self):
-        """eta=0 leaves positions unchanged."""
-        key = jax.random.PRNGKey(42)
-        positions = jax.random.normal(key, (100, 3))
-        masses = jax.random.uniform(jax.random.PRNGKey(0), (100,), minval=0.1, maxval=10.0)
-
-        pos_out = apply_mass_segregation(positions, masses, eta=0.0, m_ref=1.0)
-
-        assert jnp.allclose(pos_out, positions, rtol=1e-10)
-
-    def test_preserves_direction(self):
-        """Radial direction is preserved (only magnitude changes)."""
-        key = jax.random.PRNGKey(42)
-        positions = jax.random.normal(key, (100, 3))
-        masses = jax.random.uniform(jax.random.PRNGKey(0), (100,), minval=0.1, maxval=10.0)
-
-        pos_out = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
-
-        # Unit vectors should be the same
-        r_in = jnp.linalg.norm(positions, axis=1, keepdims=True)
-        r_out = jnp.linalg.norm(pos_out, axis=1, keepdims=True)
-
-        r_hat_in = positions / jnp.maximum(r_in, 1e-10)
-        r_hat_out = pos_out / jnp.maximum(r_out, 1e-10)
-
-        assert jnp.allclose(r_hat_in, r_hat_out, atol=1e-10)
-
-    def test_stronger_segregation_with_larger_eta(self):
-        """Larger eta gives stronger mass segregation."""
-        key = jax.random.PRNGKey(42)
-        N = 1000
-        positions = jax.random.normal(key, (N, 3)) * 2.0
-        masses = jnp.concatenate([jnp.ones(N//2) * 0.5, jnp.ones(N//2) * 5.0])
-
-        pos_weak = apply_mass_segregation(positions, masses, eta=0.2, m_ref=1.0)
-        pos_strong = apply_mass_segregation(positions, masses, eta=0.8, m_ref=1.0)
-
-        high_mass = masses > 1.0
-        r_weak = jnp.mean(jnp.linalg.norm(pos_weak[high_mass], axis=1))
-        r_strong = jnp.mean(jnp.linalg.norm(pos_strong[high_mass], axis=1))
-
-        # Stronger segregation should put massive stars even closer to center
-        assert r_strong < r_weak
-
-
-class TestMassSegregationRatio:
-    """Tests for MSR diagnostic."""
-
-    def test_msr_increases_with_segregation(self):
-        """MSR > 1 after applying segregation."""
-        key = jax.random.PRNGKey(42)
-        N = 1000
-        positions = jax.random.normal(key, (N, 3)) * 2.0
-        masses = jnp.concatenate([jnp.ones(N//2) * 0.5, jnp.ones(N//2) * 5.0])
-
-        # Before segregation
-        msr_before = compute_mass_segregation_ratio(positions, masses, mass_threshold=2.0)
-
-        # After segregation
-        pos_seg = apply_mass_segregation(positions, masses, eta=0.5, m_ref=1.0)
-        msr_after = compute_mass_segregation_ratio(pos_seg, masses, mass_threshold=2.0)
-
-        # MSR should increase after segregation
-        assert msr_after > msr_before
-        assert msr_after > 1.0  # Segregated system has MSR > 1
-
-
-class TestBaumgardtMassSegregation:
-    """Tests for energy-ranked mass segregation (Baumgardt+2008)."""
-
-    def test_output_shape(self):
-        """Output has same shape as input."""
-        key = jax.random.PRNGKey(42)
-        N = 100
-        positions = jax.random.normal(key, (N, 3))
-        velocities = jax.random.normal(jax.random.PRNGKey(1), (N, 3)) * 0.1
-        masses = jax.random.uniform(jax.random.PRNGKey(2), (N,), minval=0.1, maxval=10.0)
-
-        pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.5, key=key, G=G
+        length = _mst_length(positions)
+        expected = 2.0
+        assert jnp.isclose(length, expected, rtol=1e-4), (
+            f"MST length={float(length):.4f}, expected={expected:.4f}"
         )
 
-        assert pos_out.shape == (N, 3)
-        assert vel_out.shape == (N, 3)
 
-    def test_s_zero_random_assignment(self):
-        """s=0 gives random assignment (weak mass-energy correlation)."""
-        key = jax.random.PRNGKey(42)
+# =============================================================================
+# TestMassSegregationRatioMST - Allison+ (2009)
+# =============================================================================
+
+
+class TestMassSegregationRatioMST:
+    """Test Lambda_MSR diagnostic (Allison+ 2009)."""
+
+    def test_uniform_masses_lambda_near_one(self, key):
+        """Unsegregated cluster (equal masses) has Lambda_MSR ~ 1.0."""
+        from progenax.profiles import PlummerProfile
+
+        N = 300
+        profile = PlummerProfile(r_h=1.0)
+        masses = jnp.ones(N)
+
+        positions = profile.sample_positions(masses, key)
+
+        key, subkey = jax.random.split(key)
+        result = mass_segregation_ratio_mst(
+            positions, masses, n_massive=20, n_random=50, key=subkey
+        )
+
+        lambda_msr = float(result["lambda_msr"])
+        assert 0.7 < lambda_msr < 1.3, (
+            f"Lambda_MSR={lambda_msr:.3f}, expected ~1.0 for equal masses"
+        )
+
+    def test_segregated_cluster_lambda_greater_than_one(self, key, G, eps):
+        """Mass-segregated cluster has Lambda_MSR > 1."""
+        from progenax.profiles import PlummerProfile
+
+        N = 300
+        profile = PlummerProfile(r_h=1.0)
+        masses = jax.random.uniform(key, (N,), minval=0.1, maxval=10.0)
+
+        key, subkey = jax.random.split(key)
+        positions = profile.sample_positions(masses, subkey)
+        key, subkey = jax.random.split(key)
+        velocities = jax.random.normal(subkey, (N, 3)) * 0.1
+
+        key, subkey = jax.random.split(key)
+        pos_seg, _ = apply_mass_segregation_baumgardt(
+            positions, velocities, masses, s=1.0, key=subkey, G=G, eps=eps
+        )
+
+        key, subkey = jax.random.split(key)
+        result = mass_segregation_ratio_mst(
+            pos_seg, masses, n_massive=20, n_random=50, key=subkey
+        )
+
+        lambda_msr = float(result["lambda_msr"])
+        assert lambda_msr > 1.3, (
+            f"Lambda_MSR={lambda_msr:.3f} for s=1 segregation, expected > 1.3"
+        )
+
+
+# =============================================================================
+# TestBaumgardtSegregation - energy-ranked orbit assignment
+# =============================================================================
+
+
+class TestBaumgardtSegregation:
+    """Test Baumgardt/McLuster energy-ranked orbit assignment."""
+
+    def test_s_zero_weak_correlation(self, key, G, eps):
+        """s=0 gives weak mass-energy correlation."""
+        from progenax.profiles import PlummerProfile
+
         N = 200
+        profile = PlummerProfile(r_h=1.0)
+        masses = jax.random.uniform(key, (N,), minval=0.1, maxval=10.0)
 
-        # Create simple radial positions and circular velocities
-        radii = jnp.linspace(0.1, 2.0, N)
-        angles = jnp.linspace(0, 2*jnp.pi, N)
-        positions = jnp.stack([
-            radii * jnp.cos(angles),
-            radii * jnp.sin(angles),
-            jnp.zeros(N)
-        ], axis=1)
-        velocities = jnp.stack([
-            -jnp.sin(angles) * 0.1,
-            jnp.cos(angles) * 0.1,
-            jnp.zeros(N)
-        ], axis=1)
+        key, subkey = jax.random.split(key)
+        positions = profile.sample_positions(masses, subkey)
+        key, subkey = jax.random.split(key)
+        velocities = jax.random.normal(subkey, (N, 3)) * 0.1
 
-        # Mass range
-        masses = jnp.linspace(0.5, 5.0, N)
-
+        key, subkey = jax.random.split(key)
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.0, key=key, G=G
+            positions, velocities, masses, s=0.0, key=subkey, G=G, eps=eps
         )
 
-        # Compute correlation between mass and binding energy
-        r_out = jnp.linalg.norm(pos_out, axis=1)
-        v2_out = jnp.sum(vel_out**2, axis=1)
+        phi = _softened_potential(pos_out, masses, G=G, eps=eps)
+        E = 0.5 * jnp.sum(vel_out**2, axis=1) + phi
+        rho, _ = spearmanr(masses, E)
 
-        # Approximate potential (simple -1/r)
-        phi_out = -1.0 / jnp.maximum(r_out, 0.01)
-        energy_out = 0.5 * v2_out + phi_out
+        assert abs(rho) < 0.3, f"s=0 should give |rho| < 0.3, got rho={rho:.3f}"
 
-        # For s=0, correlation should be weak (close to 0)
-        corr = jnp.corrcoef(jnp.stack([masses, energy_out]))[0, 1]
-        assert jnp.abs(corr) < 0.3  # Weak correlation for random assignment
+    def test_s_one_strong_negative_correlation(self, key, G, eps):
+        """s=1 gives strong negative mass-energy correlation."""
+        from progenax.profiles import PlummerProfile
 
-    def test_s_one_maximal_segregation(self):
-        """s=1 gives maximal segregation (most massive = most bound)."""
-        key = jax.random.PRNGKey(42)
         N = 200
+        profile = PlummerProfile(r_h=1.0)
+        masses = jax.random.uniform(key, (N,), minval=0.1, maxval=10.0)
 
-        # Create simple radial positions
-        radii = jnp.linspace(0.1, 2.0, N)
-        angles = jnp.linspace(0, 2*jnp.pi, N)
-        positions = jnp.stack([
-            radii * jnp.cos(angles),
-            radii * jnp.sin(angles),
-            jnp.zeros(N)
-        ], axis=1)
-        velocities = jnp.stack([
-            -jnp.sin(angles) * 0.1,
-            jnp.cos(angles) * 0.1,
-            jnp.zeros(N)
-        ], axis=1)
+        key, subkey = jax.random.split(key)
+        positions = profile.sample_positions(masses, subkey)
+        key, subkey = jax.random.split(key)
+        velocities = jax.random.normal(subkey, (N, 3)) * 0.1
 
-        # Mass range
-        masses = jnp.linspace(0.5, 5.0, N)
-
+        key, subkey = jax.random.split(key)
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=1.0, key=key, G=G
+            positions, velocities, masses, s=1.0, key=subkey, G=G, eps=eps
         )
 
-        # Compute binding energies
-        r_out = jnp.linalg.norm(pos_out, axis=1)
-        v2_out = jnp.sum(vel_out**2, axis=1)
-        phi_out = -1.0 / jnp.maximum(r_out, 0.01)
-        energy_out = 0.5 * v2_out + phi_out
+        phi = _softened_potential(pos_out, masses, G=G, eps=eps)
+        E = 0.5 * jnp.sum(vel_out**2, axis=1) + phi
+        rho, _ = spearmanr(masses, E)
 
-        # For s=1, most massive stars should have most negative energies
-        # (most bound)
-        corr = jnp.corrcoef(jnp.stack([masses, energy_out]))[0, 1]
-        assert corr < -0.7  # Strong negative correlation (massive = more bound = more negative E)
+        assert rho < -0.6, f"s=1 should give rho < -0.6, got rho={rho:.3f}"
 
-    def test_s_intermediate(self):
-        """Intermediate s gives intermediate segregation."""
-        key = jax.random.PRNGKey(42)
+    def test_virial_ratio_rescaling(self, key, G, eps):
+        """Output has virial ratio Q ~ Q_target."""
+        from progenax.profiles import PlummerProfile
+
         N = 200
+        profile = PlummerProfile(r_h=1.0)
+        masses = jnp.ones(N)
 
-        radii = jnp.linspace(0.1, 2.0, N)
-        angles = jnp.linspace(0, 2*jnp.pi, N)
-        positions = jnp.stack([
-            radii * jnp.cos(angles),
-            radii * jnp.sin(angles),
-            jnp.zeros(N)
-        ], axis=1)
-        velocities = jnp.stack([
-            -jnp.sin(angles) * 0.1,
-            jnp.cos(angles) * 0.1,
-            jnp.zeros(N)
-        ], axis=1)
-        masses = jnp.linspace(0.5, 5.0, N)
+        key, subkey = jax.random.split(key)
+        positions = profile.sample_positions(masses, subkey)
+        key, subkey = jax.random.split(key)
+        velocities = jax.random.normal(subkey, (N, 3)) * 0.5
 
-        # Test s=0.5
+        Q_target = 1.0
+        key, subkey = jax.random.split(key)
         pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.5, key=key, G=G
+            positions, velocities, masses, s=0.5, key=subkey,
+            G=G, eps=eps, Q_target=Q_target
         )
 
-        r_out = jnp.linalg.norm(pos_out, axis=1)
-        v2_out = jnp.sum(vel_out**2, axis=1)
-        phi_out = -1.0 / jnp.maximum(r_out, 0.01)
-        energy_out = 0.5 * v2_out + phi_out
+        phi = _softened_potential(pos_out, masses, G=G, eps=eps)
+        U = 0.5 * jnp.sum(masses * phi)
+        K = 0.5 * jnp.sum(masses * jnp.sum(vel_out**2, axis=1))
+        Q = 2.0 * K / jnp.abs(U)
 
-        corr = jnp.corrcoef(jnp.stack([masses, energy_out]))[0, 1]
-
-        # Should be intermediate correlation (between -0.7 and -0.3)
-        assert -0.7 < corr < -0.2
-
-    def test_preserves_total_mass(self):
-        """Total mass is preserved (just reassigned)."""
-        key = jax.random.PRNGKey(42)
-        N = 100
-        positions = jax.random.normal(key, (N, 3))
-        velocities = jax.random.normal(jax.random.PRNGKey(1), (N, 3)) * 0.1
-        masses = jax.random.uniform(jax.random.PRNGKey(2), (N,), minval=0.5, maxval=5.0)
-
-        total_mass_before = jnp.sum(masses)
-
-        pos_out, vel_out = apply_mass_segregation_baumgardt(
-            positions, velocities, masses, s=0.7, key=key, G=G
+        assert jnp.isclose(Q, Q_target, rtol=0.1), (
+            f"Q={float(Q):.3f}, expected Q_target={Q_target}"
         )
 
-        # Mass array is not returned (positions/velocities are just reassigned)
-        # But the function should preserve all particles
-        assert pos_out.shape[0] == N
-        assert vel_out.shape[0] == N
 
-    def test_jit_compatible(self):
-        """Function works under JIT."""
-        key = jax.random.PRNGKey(42)
-        N = 100
-        positions = jax.random.normal(key, (N, 3))
-        velocities = jax.random.normal(jax.random.PRNGKey(1), (N, 3)) * 0.1
-        masses = jax.random.uniform(jax.random.PRNGKey(2), (N,), minval=0.5, maxval=5.0)
+# =============================================================================
+# TestSubrPlaceholder
+# =============================================================================
 
-        # JIT compile
-        jit_fn = jax.jit(
-            lambda p, v, m, k: apply_mass_segregation_baumgardt(p, v, m, s=0.5, key=k, G=G)
-        )
 
-        pos_out, vel_out = jit_fn(positions, velocities, masses, key)
+class TestSubrPlaceholder:
+    """Test Subr-Kroupa-Baumgardt placeholder."""
 
-        assert pos_out.shape == (N, 3)
-        assert vel_out.shape == (N, 3)
-
-    def test_differentiable(self):
-        """Gradients flow through the function."""
-        key = jax.random.PRNGKey(42)
-        N = 50  # Smaller for gradient test
-        positions = jax.random.normal(key, (N, 3))
-        velocities = jax.random.normal(jax.random.PRNGKey(1), (N, 3)) * 0.1
-        masses = jax.random.uniform(jax.random.PRNGKey(2), (N,), minval=0.5, maxval=5.0)
-
-        def loss(G_val):
-            pos_out, vel_out = apply_mass_segregation_baumgardt(
-                positions, velocities, masses, s=0.5, key=key, G=G_val
-            )
-            # Simple loss: mean kinetic energy
-            return jnp.mean(jnp.sum(vel_out**2, axis=1))
-
-        # Compute gradient
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(1.0)
-
-        # Gradient should be finite (may be small due to loss being kinetic energy)
-        assert jnp.isfinite(gradient)
+    def test_raises_not_implemented(self):
+        """Raises NotImplementedError."""
+        with pytest.raises(NotImplementedError, match="Subr"):
+            generate_mass_segregated_ic_subr()

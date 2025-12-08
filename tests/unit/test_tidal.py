@@ -104,23 +104,6 @@ class TestTidalTruncation:
         assert jnp.sum(mask) == N  # All preserved
         assert jnp.allclose(pos_out, positions)
 
-    def test_returns_mask(self):
-        """Returns boolean mask indicating kept particles."""
-        positions = jnp.array([
-            [1.0, 0.0, 0.0],  # r = 1, keep
-            [5.0, 0.0, 0.0],  # r = 5, remove
-            [0.0, 2.0, 0.0],  # r = 2, keep
-        ])
-        velocities = jnp.zeros((3, 3))
-        masses = jnp.ones(3)
-
-        r_t = 3.0
-        _, _, _, mask = apply_tidal_truncation(positions, velocities, masses, r_t)
-
-        expected_mask = jnp.array([True, False, True])
-        assert jnp.all(mask == expected_mask)
-
-
 class TestFillFactor:
     """Tests for fill factor to half-mass radius conversion."""
 

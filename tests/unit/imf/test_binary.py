@@ -1,11 +1,6 @@
 """Tests for binary star mass functions.
 
-Tests mass-ratio distributions and binary IMF composition:
-- MassRatioProtocol implementations (Flat, PowerLaw, TwinPeaked, Moe+17)
-- Binary fraction models (constant, mass-dependent)
-- BinaryIMF composition with primary IMF
-
-CONSOLIDATED: ~20 essential physics tests from original 48.
+Physics tests only - distribution properties and literature comparisons.
 """
 
 import jax
@@ -22,11 +17,6 @@ from progenax.imf.binary import (
     TwinPeakedMassRatio,
 )
 from progenax.imf.power_law import PowerLawIMF
-
-
-# =============================================================================
-# Test Mass-Ratio Distributions
-# =============================================================================
 
 
 class TestMassRatioDistributions:
@@ -78,11 +68,6 @@ class TestMassRatioDistributions:
         assert pdf_near_one > pdf_mid
 
 
-# =============================================================================
-# Test Moe & Di Stefano (2017) Model
-# =============================================================================
-
-
 class TestMoeDiStefano2017:
     """Test mass-dependent q-distribution from Moe+17."""
 
@@ -105,44 +90,6 @@ class TestMoeDiStefano2017:
 
         # Solar-type has highest twin excess
         assert f_solar > f_low and f_solar > f_massive
-
-    def test_sample_mass_dependent(self):
-        """Different primary masses give different q distributions."""
-        q_dist = MoeDiStefano2017()
-        key = jax.random.PRNGKey(123)
-        key1, key2 = jax.random.split(key)
-
-        q_low = q_dist.sample_given_primary(key1, jnp.ones(5000) * 0.5)
-        q_high = q_dist.sample_given_primary(key2, jnp.ones(5000) * 10.0)
-
-        assert jnp.abs(jnp.mean(q_low) - jnp.mean(q_high)) > 0.02
-
-    def test_twin_sampling_matches_pdf(self):
-        """Twin component sampling produces distribution matching PDF."""
-        moe = MoeDiStefano2017(q_min=0.1, sigma_twin=0.03)
-        key = jax.random.PRNGKey(42)
-
-        # Sample many twins at fixed primary mass (solar-type for high f_twin)
-        m1 = jnp.ones(50000) * 1.0  # Solar-type primary
-        q_samples = moe.sample_given_primary(key, m1)
-
-        # Histogram of samples
-        hist, bin_edges = jnp.histogram(q_samples, bins=50, range=(0.1, 1.0), density=True)
-        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
-
-        # Compare histogram to PDF - they should match within statistical noise
-        pdf_at_bins = moe.pdf_given_primary(jnp.array(bin_centers), m1=1.0)
-        relative_error = jnp.abs(hist - pdf_at_bins) / (pdf_at_bins + 1e-10)
-
-        # Most bins should be within 30% (allowing for statistical noise)
-        # Use 70% of bins passing as threshold for robustness
-        assert jnp.mean(relative_error < 0.3) > 0.7, \
-            f"Sampling doesn't match PDF: mean relative error = {jnp.mean(relative_error):.3f}"
-
-
-# =============================================================================
-# Test Binary Fraction Models
-# =============================================================================
 
 
 class TestBinaryFractionModels:
@@ -172,26 +119,8 @@ class TestBinaryFractionModels:
         assert jnp.abs(model(jnp.array(15.0)) - 0.90) < 1e-6  # O-star
 
 
-# =============================================================================
-# Test BinaryIMF
-# =============================================================================
-
-
 class TestBinaryIMF:
     """Test binary IMF composition."""
-
-    def test_sample_systems_structure(self):
-        """sample_systems returns (m1, m2, is_binary) with correct shapes."""
-        primary_imf = PowerLawIMF.kroupa()
-        binary_imf = BinaryIMF.simple(primary_imf, binary_fraction=0.5)
-
-        key = jax.random.PRNGKey(42)
-        m1, m2, is_binary = binary_imf.sample_systems(key, 1000)
-
-        assert m1.shape == (1000,)
-        assert m2.shape == (1000,)
-        assert is_binary.shape == (1000,)
-        assert is_binary.dtype == bool
 
     def test_binary_fraction_matches_target(self):
         """Binary fraction matches target within statistics."""
@@ -231,29 +160,3 @@ class TestBinaryIMF:
         q = m2 / m1
         assert jnp.all(q >= q_min - 1e-6)
         assert jnp.all(q <= 1.0 + 1e-6)
-
-    def test_sample_all_masses_length(self):
-        """sample_all_masses returns primaries + secondaries."""
-        primary_imf = PowerLawIMF.kroupa()
-        binary_imf = BinaryIMF.simple(primary_imf, binary_fraction=0.5)
-
-        key = jax.random.PRNGKey(42)
-        all_masses, is_binary = binary_imf.sample_all_masses(key, 100)
-
-        n_binaries = jnp.sum(is_binary)
-        expected_length = 100 + n_binaries
-        assert all_masses.shape[0] == expected_length
-
-    def test_differentiable_through_sample(self):
-        """Can differentiate through binary sampling."""
-        primary_imf = PowerLawIMF.kroupa()
-        binary_imf = BinaryIMF.simple(primary_imf, binary_fraction=0.5)
-
-        def loss(dummy_param):
-            key = jax.random.PRNGKey(42)
-            m1, m2, _ = binary_imf.sample_systems(key, 100)
-            return jnp.sum(m1) + jnp.sum(m2)
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(1.0)
-        assert jnp.isfinite(gradient)

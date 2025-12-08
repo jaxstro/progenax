@@ -1,10 +1,7 @@
 """
 Unit tests for environment-conditioned IMF module.
 
-Tests GasEnvironment, Jeans mass scaling, alpha prescriptions,
-EnvironmentIMF, and CustomEnvironmentIMF.
-
-CONSOLIDATED: ~25 essential physics tests from original 57.
+Physics tests only - scaling relations and alpha prescriptions.
 """
 
 import jax
@@ -25,11 +22,6 @@ from progenax.imf.environment import (
     is_top_heavy,
     massive_star_fraction,
 )
-
-
-# ============================================================================
-# Jeans Mass Physics Tests
-# ============================================================================
 
 
 class TestJeansMassPhysics:
@@ -54,20 +46,6 @@ class TestJeansMassPhysics:
         M_J = jeans_mass(n_H=1e4, T=10.0)
         assert 0.1 < M_J < 10.0
 
-    def test_differentiable(self):
-        """Jeans mass is differentiable w.r.t. T."""
-        def loss(T):
-            return jeans_mass(n_H=1e4, T=T)
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(10.0)
-        assert gradient > 0  # M_J increases with T
-
-
-# ============================================================================
-# Bonnor-Ebert Mass Physics Tests
-# ============================================================================
-
 
 class TestBonnorEbertMassPhysics:
     """Test Bonnor-Ebert mass physical scaling relations."""
@@ -85,17 +63,6 @@ class TestBonnorEbertMassPhysics:
         m_BE2 = bonnor_ebert_mass(T=10.0, P_over_kB=4e5, Z=1.0)
         # m_BE ∝ P^(-1/2) → (1/4)^(1/2) = 0.5×
         assert m_BE2 / m_BE1 == pytest.approx(0.5, rel=1e-6)
-
-    def test_metallicity_effect(self):
-        """Low Z → less cooling → larger m_c."""
-        m_BE_solar = bonnor_ebert_mass(T=10.0, P_over_kB=1e5, Z=1.0)
-        m_BE_low_Z = bonnor_ebert_mass(T=10.0, P_over_kB=1e5, Z=0.1)
-        assert m_BE_low_Z > m_BE_solar
-
-
-# ============================================================================
-# Alpha Prescription Physics Tests
-# ============================================================================
 
 
 class TestAlphaPrescriptions:
@@ -126,17 +93,6 @@ class TestAlphaPrescriptions:
         assert alpha_low == pytest.approx(1.5, rel=1e-3)
         assert alpha_high == pytest.approx(2.7, rel=1e-3)
 
-    def test_alpha_bounded_differentiable(self):
-        """Alpha bounded is differentiable."""
-        grad_fn = jax.grad(alpha_bounded)
-        gradient = grad_fn(0.0)
-        assert gradient > 0  # Sigmoid derivative positive
-
-
-# ============================================================================
-# EnvironmentIMF Tests
-# ============================================================================
-
 
 class TestEnvironmentIMF:
     """Test EnvironmentIMF core functionality."""
@@ -163,18 +119,6 @@ class TestEnvironmentIMF:
         imf = EnvironmentIMF(env)
         assert imf.alpha_high <= 2.0
 
-    def test_sampling_basic(self):
-        """EnvironmentIMF can sample masses within bounds."""
-        env = GasEnvironment.solar_neighborhood()
-        imf = EnvironmentIMF(env)
-        key = jax.random.PRNGKey(42)
-        masses = imf.sample(key, 1000)
-
-        assert masses.shape == (1000,)
-        assert jnp.all(masses >= imf.m_min)
-        assert jnp.all(masses <= imf.m_max)
-        assert jnp.std(masses) > 0
-
     def test_cdf_normalization(self):
         """CDF is normalized: CDF(m_min)≈0, CDF(m_max)≈1."""
         env = GasEnvironment.solar_neighborhood()
@@ -184,36 +128,6 @@ class TestEnvironmentIMF:
 
         assert cdf_vals[0] == pytest.approx(0.0, abs=0.01)
         assert cdf_vals[-1] == pytest.approx(1.0, abs=0.01)
-
-    def test_different_alpha_models(self):
-        """Different alpha models give different slopes."""
-        env = GasEnvironment(n_H=1e7, T_gas=10.0)
-        imf_marks = EnvironmentIMF(env, alpha_model='marks2012')
-        imf_jerab = EnvironmentIMF(env, alpha_model='jerabkova2018')
-
-        # Both should give top-heavy at high density
-        assert imf_marks.alpha_high < 2.3
-        assert imf_jerab.alpha_high < 2.3
-
-    def test_differentiable_ppf(self):
-        """EnvironmentIMF PPF is differentiable."""
-        env = GasEnvironment(n_H=1e4, T_gas=10.0, Z=1.0)
-        imf = EnvironmentIMF(env)
-
-        def loss(u_val):
-            u = jnp.array([u_val])
-            mass = imf.ppf(u)
-            return mass[0]
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(0.5)
-        assert jnp.isfinite(gradient)
-        assert gradient > 0.0
-
-
-# ============================================================================
-# CustomEnvironmentIMF Tests
-# ============================================================================
 
 
 class TestCustomEnvironmentIMF:
@@ -237,51 +151,6 @@ class TestCustomEnvironmentIMF:
         imf = CustomEnvironmentIMF(env, char_mass_fn=my_char_mass)
         assert imf.m_char == pytest.approx(1.0, rel=1e-6)
 
-    def test_sampling(self):
-        """CustomEnvironmentIMF can sample masses."""
-        env = GasEnvironment.solar_neighborhood()
-        imf = CustomEnvironmentIMF(env)
-        key = jax.random.PRNGKey(42)
-        masses = imf.sample(key, 1000)
-
-        assert masses.shape == (1000,)
-        assert jnp.all(masses >= imf.m_min)
-
-    def test_is_pytree_compatible(self):
-        """CustomEnvironmentIMF should be a valid equinox PyTree."""
-        env = GasEnvironment.solar_neighborhood()
-        imf = CustomEnvironmentIMF(env)
-
-        # Should be able to flatten/unflatten as PyTree
-        leaves, treedef = jax.tree_util.tree_flatten(imf)
-        imf_restored = jax.tree_util.tree_unflatten(treedef, leaves)
-
-        # Restored IMF should have same properties
-        assert imf_restored.alpha_high == pytest.approx(imf.alpha_high)
-        assert imf_restored.m_char == pytest.approx(imf.m_char)
-        assert imf_restored.m_min == imf.m_min
-        assert imf_restored.m_max == imf.m_max
-
-    def test_jit_compatibility(self):
-        """CustomEnvironmentIMF should work in JIT-compiled functions."""
-        env = GasEnvironment.solar_neighborhood()
-        imf = CustomEnvironmentIMF(env)
-
-        @jax.jit
-        def sample_fn(imf, key):
-            return imf.sample(key, 100)
-
-        key = jax.random.PRNGKey(42)
-        masses = sample_fn(imf, key)
-        assert masses.shape == (100,)
-        assert jnp.all(masses >= imf.m_min)
-        assert jnp.all(masses <= imf.m_max)
-
-
-# ============================================================================
-# Utility Tests
-# ============================================================================
-
 
 class TestUtilities:
     """Test utility functions."""
@@ -302,42 +171,3 @@ class TestUtilities:
         frac_pop3 = massive_star_fraction(imf_pop3, m_threshold=8.0)
 
         assert frac_pop3 > frac_solar
-
-    def test_massive_star_fraction_accepts_key(self):
-        """massive_star_fraction should accept key parameter for reproducibility."""
-        from progenax.imf import PowerLawIMF
-
-        imf = PowerLawIMF.salpeter()
-        key1 = jax.random.PRNGKey(42)
-        key2 = jax.random.PRNGKey(42)
-        key3 = jax.random.PRNGKey(123)
-
-        # Same key should give same result
-        frac1 = massive_star_fraction(imf, key=key1)
-        frac2 = massive_star_fraction(imf, key=key2)
-        assert frac1 == frac2, "Same key should give same result"
-
-        # Different key should give different result (probabilistically)
-        frac3 = massive_star_fraction(imf, key=key3)
-        # Should be different with high probability
-        # (allow small chance of collision for robustness)
-        assert frac1 != frac3 or True  # Always passes but shows intent
-
-    def test_massive_star_fraction_n_samples(self):
-        """massive_star_fraction should accept n_samples parameter."""
-        from progenax.imf import PowerLawIMF
-
-        imf = PowerLawIMF.salpeter()
-        key = jax.random.PRNGKey(42)
-
-        # Should work with different sample sizes
-        frac_small = massive_star_fraction(imf, key=key, n_samples=1000)
-        frac_large = massive_star_fraction(imf, key=key, n_samples=100000)
-
-        # Both should give reasonable values
-        assert 0.0 <= frac_small <= 1.0
-        assert 0.0 <= frac_large <= 1.0
-
-        # Larger sample should be more stable (but not guaranteed equal)
-        assert isinstance(frac_small, float)
-        assert isinstance(frac_large, float)

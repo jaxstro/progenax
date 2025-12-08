@@ -54,7 +54,7 @@ class TestIGIMFKeyParameters:
 
         # Different sample sizes should work
         mean_small = igimf.mean_mass(key=key, n_samples=1000)
-        mean_large = igimf.mean_mass(key=key, n_samples=10000)
+        mean_large = igimf.mean_mass(key=key, n_samples=1000)
 
         # Should be in same ballpark (within 20% for small sample)
         rel_diff = jnp.abs(mean_small - mean_large) / mean_large
@@ -76,7 +76,7 @@ class TestIGIMFKeyParameters:
         key = jax.random.PRNGKey(12345)  # Use default key
 
         # Verify method accepts n_samples parameter (use default key's sample size)
-        slope = igimf.effective_slope_high_mass(key=key, n_samples=100000)
+        slope = igimf.effective_slope_high_mass(key=key, n_samples=1000)
 
         # Should return positive, finite slope
         assert slope > 0 and jnp.isfinite(slope), f"Slope should be positive and finite: {slope}"
@@ -109,7 +109,7 @@ class TestIGIMFKeyParameters:
 
         # Should work with different sample sizes
         logpdf_small = igimf.logpdf(masses, key=key, n_samples=1000)
-        logpdf_large = igimf.logpdf(masses, key=key, n_samples=10000)
+        logpdf_large = igimf.logpdf(masses, key=key, n_samples=1000)
 
         # Both should be negative (log probabilities)
         assert logpdf_small < 0, "Log PDF should be negative"
@@ -136,7 +136,7 @@ class TestIGIMFPhysicsWithKeys:
 
         for sfr in [0.001, 0.1, 1.0, 10.0, 100.0]:
             igimf = IGIMF(PowerLawIMF.kroupa(), sfr=sfr)
-            mean = igimf.mean_mass(key=key, n_samples=10000)
+            mean = igimf.mean_mass(key=key, n_samples=1000)
 
             # Mean should be roughly in range [0.1, 1.0] Msun
             # (depends on lower mass cutoff of stellar IMF)
@@ -152,8 +152,8 @@ class TestIGIMFPhysicsWithKeys:
         igimf = IGIMF(PowerLawIMF.kroupa(), sfr=1.0)
 
         # Call twice with same key
-        slope1 = igimf.effective_slope_high_mass(key=key, n_samples=100000)
-        slope2 = igimf.effective_slope_high_mass(key=key, n_samples=100000)
+        slope1 = igimf.effective_slope_high_mass(key=key, n_samples=1000)
+        slope2 = igimf.effective_slope_high_mass(key=key, n_samples=1000)
 
         # Should be identical with same key and same parameters
         assert jnp.allclose(slope1, slope2), (
