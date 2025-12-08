@@ -7,10 +7,10 @@ Implements the SpatialProfile protocol with these density models:
 - KingProfile: King (1966) lowered isothermal model
 - EFFProfile: Elson-Fall-Freeman (1987) truncated power-law
 
-Mass segregation transforms:
-- apply_mass_segregation: Primordial mass segregation (radial scaling)
+Mass segregation:
 - apply_mass_segregation_baumgardt: Energy-ranked orbit assignment (Baumgardt+2008)
-- compute_mass_segregation_ratio: MSR diagnostic
+- mass_segregation_ratio_mst: MST-based Λ_MSR diagnostic (Allison+2009)
+- generate_mass_segregated_ic_subr: Subr+2008 placeholder (not yet implemented)
 
 All profiles provide:
 - sample_positions(masses, key) -> (N, 3) positions
@@ -21,9 +21,9 @@ from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.profiles.eff import EFFProfile
 from progenax.profiles.mass_segregation import (
-    apply_mass_segregation,
     apply_mass_segregation_baumgardt,
-    compute_mass_segregation_ratio,
+    generate_mass_segregated_ic_subr,
+    mass_segregation_ratio_mst,
 )
 
 __all__ = [
@@ -31,7 +31,7 @@ __all__ = [
     "KingProfile",
     "solve_king_profile",
     "EFFProfile",
-    "apply_mass_segregation",
     "apply_mass_segregation_baumgardt",
-    "compute_mass_segregation_ratio",
+    "generate_mass_segregated_ic_subr",
+    "mass_segregation_ratio_mst",
 ]
