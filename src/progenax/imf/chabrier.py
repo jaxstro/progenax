@@ -243,7 +243,7 @@ class ChabrierIMF(eqx.Module):
         return jnp.log(Z + 1e-30)
 
     def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized log-PDF.
+        """Normalized log-PDF. Returns -inf outside [m_min, m_max].
 
         Args:
             m: Mass values [M☉]
@@ -251,10 +251,13 @@ class ChabrierIMF(eqx.Module):
         Returns:
             Normalized log-PDF values
         """
-        return self._logpdf_unnorm(m) - self._log_norm
+        m_arr = jnp.asarray(m)
+        in_domain = (m_arr >= self.m_min) & (m_arr <= self.m_max)
+        lp = self._logpdf_unnorm(m_arr) - self._log_norm
+        return jnp.where(in_domain, lp, -jnp.inf)
 
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized CDF.
+        """Normalized CDF. Returns 0 below m_min, 1 above m_max.
 
         Args:
             m: Mass values [M☉]
@@ -262,8 +265,14 @@ class ChabrierIMF(eqx.Module):
         Returns:
             CDF values in [0, 1]
         """
+        m_arr = jnp.asarray(m)
         _, _, Z = self._compute_normalization()
-        return self._cdf_unnorm(m) / (Z + 1e-30)
+        raw = self._cdf_unnorm(m_arr) / (Z + 1e-30)
+        return jnp.where(
+            m_arr <= self.m_min,
+            0.0,
+            jnp.where(m_arr >= self.m_max, 1.0, raw),
+        )
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF (percent point function) via Newton iteration.
