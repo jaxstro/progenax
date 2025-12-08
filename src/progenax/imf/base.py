@@ -159,11 +159,20 @@ class BaseIMF(eqx.Module):
         key: PRNGKeyArray,
         m_total: float,
         n_max: int | None = None,
-    ) -> tuple[Float[Array, "n_max"], int]:
+    ) -> tuple[Float[Array, "n_max"], Float[Array, ""]]:
         """
         M_total mode (simple): hard cutoff, NOT differentiable w.r.t. m_total.
 
         Samples masses until cumulative sum exceeds m_total, then pads with zeros.
+
+        Args:
+            key: JAX PRNG key
+            m_total: Target total mass
+            n_max: Maximum number of particles (default: auto-estimate from mean mass)
+
+        Returns:
+            masses_padded: Padded mass array of length n_max
+            n_live: Number of live particles (JAX scalar array, not Python int)
         """
         if n_max is None:
             n_max = int(m_total / self.mean_mass() * 2.0) + 100
@@ -177,7 +186,7 @@ class BaseIMF(eqx.Module):
         mask = jnp.arange(n_max) < n_live
         masses_padded = jnp.where(mask, masses_all, 0.0)
 
-        return masses_padded, int(n_live)
+        return masses_padded, n_live
 
     def sample_m_total_packed(
         self,
