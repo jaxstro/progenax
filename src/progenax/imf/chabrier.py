@@ -63,22 +63,17 @@ class ChabrierIMF(eqx.Module):
     A_ln: float = 0.158  # Chabrier (2003) lognormal coefficient
 
     @property
-    def A_pl(self) -> float:
-        """Power-law coefficient computed for continuity at m_trans.
+    def A_pl(self) -> Float[Array, ""]:
+        """Power-law coefficient for continuity at m_trans.
 
-        For the IMF to be continuous at m_trans, we require:
-            ξ_ln(m_trans) = ξ_pl(m_trans)
+        For continuity: ξ_ln(m_trans) = ξ_pl(m_trans)
 
-        Which gives:
-            A_pl = A_ln × m_trans^(α-1) × exp[-(log m_trans - log m_c)²/(2σ²)]
-
-        Note: This differs from Chabrier (2003) Table 1 value (0.044) which
-        was an empirical fit that does NOT ensure continuity.
+        Using log₁₀-based lognormal:
+            A_pl = ξ_ln(m_trans) × m_trans^α
         """
-        log_m_trans = jnp.log(self.m_trans)
-        log_m_c = jnp.log(self.m_c)
-        exp_factor = jnp.exp(-((log_m_trans - log_m_c) ** 2) / (2 * self.sigma**2))
-        return self.A_ln * (self.m_trans ** (self.alpha - 1)) * exp_factor
+        m_t = jnp.asarray(self.m_trans)
+        xi_ln_mt = self._lognormal_pdf_unnorm(m_t)
+        return xi_ln_mt * jnp.power(m_t, self.alpha)
 
     def __check_init__(self):
         """Validate parameters."""
@@ -102,18 +97,28 @@ class ChabrierIMF(eqx.Module):
     # Internal helpers for lognormal + power-law
     # ==========================================================================
 
+    def _log10(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Safe log₁₀ computation."""
+        return jnp.log10(jnp.maximum(m, 1e-30))
+
     def _lognormal_pdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Unnormalized lognormal PDF component with Chabrier coefficient.
+        """Unnormalized lognormal PDF in mass space (dN/dm).
 
-        ξ_ln(m) = A_ln × (1/m) × exp[-(log m - log m_c)² / (2σ²)]
+        Chabrier (2003) Eq. 8 for system IMF:
+        ξ(m) = A_ln / (m × ln 10) × exp[-(log₁₀ m - log₁₀ m_c)² / (2σ²)]
 
-        This is ξ(log m) / m where ξ(log m) is the Chabrier (2003) IMF.
+        The 1/(m × ln 10) is the Jacobian from log₁₀ space to mass space.
         """
-        log_m = jnp.log(m + 1e-30)
-        log_m_c = jnp.log(self.m_c)
-        return self.A_ln * (1.0 / (m + 1e-30)) * jnp.exp(
-            -((log_m - log_m_c) ** 2) / (2 * self.sigma**2)
-        )
+        log10_m = self._log10(m)
+        log10_mc = self._log10(self.m_c)
+
+        # Gaussian in log₁₀ space
+        quad = -((log10_m - log10_mc) ** 2) / (2.0 * self.sigma ** 2)
+
+        # Jacobian: 1 / (m × ln 10)
+        jacobian = 1.0 / (m * jnp.log(10.0) + 1e-30)
+
+        return self.A_ln * jacobian * jnp.exp(quad)
 
     def _powerlaw_pdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
         """Unnormalized power-law PDF component with Chabrier coefficient.
@@ -125,23 +130,36 @@ class ChabrierIMF(eqx.Module):
         """
         return self.A_pl * (m + 1e-30) ** (-self.alpha)
 
-    def _lognormal_integral(self, m_lo: float, m_hi: float) -> float:
-        """Integral of lognormal component from m_lo to m_hi.
+    def _lognormal_integral(self, m_lo: float, m_hi: float) -> Float[Array, ""]:
+        """Analytical integral of lognormal using log₁₀ form.
 
-        For ξ_ln(m) = A_ln × (1/m) × exp[-(log m - log m_c)²/(2σ²)]:
-        ∫ξ_ln(m) dm = A_ln × σ√(π/2) × [erf(...)] evaluated at bounds
+        For ξ(m) = A_ln / (m × ln 10) × exp[-(log₁₀ m - log₁₀ m_c)² / (2σ²)]:
 
-        Derivation: substitution x = (log m - log m_c)/(σ√2), dx = 1/(σ√2 × m) dm
+        ∫ ξ(m) dm = A_ln × σ × √(π/2) × [erf(x_hi) - erf(x_lo)]
+
+        where x = (log₁₀ m - log₁₀ m_c) / (σ × √2)
+
+        Derivation: Let y = log₁₀ m, then dy = 1/(m ln 10) dm
+        ∫ ξ(m) dm = ∫ A_ln × exp[-(y - y_c)²/(2σ²)] dy
+
+        Substituting t = (y - y_c)/(σ√2):
+        ∫ A_ln × exp(-t²) × σ√2 dt = A_ln × σ√2 × √π/2 × [erf(x_hi) - erf(x_lo)]
+                                    = A_ln × σ × √(π/2) × [erf(x_hi) - erf(x_lo)]
         """
-        log_m_c = jnp.log(self.m_c)
+        m_lo = jnp.asarray(m_lo)
+        m_hi = jnp.asarray(m_hi)
+
+        log10_mc = self._log10(self.m_c)
         sqrt_2_sigma = jnp.sqrt(2.0) * self.sigma
 
-        erf_lo = jax.scipy.special.erf((jnp.log(m_lo) - log_m_c) / sqrt_2_sigma)
-        erf_hi = jax.scipy.special.erf((jnp.log(m_hi) - log_m_c) / sqrt_2_sigma)
+        x_lo = (self._log10(m_lo) - log10_mc) / sqrt_2_sigma
+        x_hi = (self._log10(m_hi) - log10_mc) / sqrt_2_sigma
 
-        # The integral is: A_ln × σ√(π/2) × (erf_hi - erf_lo)
-        factor = self.A_ln * self.sigma * jnp.sqrt(jnp.pi / 2)
-        return factor * (erf_hi - erf_lo)
+        erf_lo = jax.scipy.special.erf(x_lo)
+        erf_hi = jax.scipy.special.erf(x_hi)
+
+        # Correct integral: A_ln × σ × √(π/2)
+        return self.A_ln * self.sigma * jnp.sqrt(jnp.pi / 2.0) * (erf_hi - erf_lo)
 
     def _powerlaw_integral(self, m_lo: float, m_hi: float) -> float:
         """Integral of power-law component from m_lo to m_hi.
@@ -301,21 +319,21 @@ class ChabrierIMF(eqx.Module):
         I_ln, I_pl, Z = self._compute_normalization()
         p_ln = I_ln / Z  # Probability in lognormal (m < m_trans)
 
-        # Lognormal initial guess parameters
-        log_m_c = jnp.log(self.m_c)
+        # Lognormal initial guess parameters (using log₁₀)
+        log10_mc = self._log10(self.m_c)
         sqrt_2_sigma = jnp.sqrt(2.0) * self.sigma
 
         # Lognormal erf bounds (within [m_min, m_trans])
         m_ln_max = jnp.minimum(self.m_trans, self.m_max)
-        erf_min = jax.scipy.special.erf((jnp.log(self.m_min) - log_m_c) / sqrt_2_sigma)
-        erf_max = jax.scipy.special.erf((jnp.log(m_ln_max) - log_m_c) / sqrt_2_sigma)
+        erf_min = jax.scipy.special.erf((self._log10(self.m_min) - log10_mc) / sqrt_2_sigma)
+        erf_max = jax.scipy.special.erf((self._log10(m_ln_max) - log10_mc) / sqrt_2_sigma)
 
         # Lognormal initial guess: for u in [0, p_ln]
         # Scale u to [0, 1] within lognormal region
         u_ln_scaled = jnp.clip(u / p_ln, 0.0, 1.0)
         erf_target = erf_min + u_ln_scaled * (erf_max - erf_min)
-        log_m_ln = log_m_c + sqrt_2_sigma * jax.scipy.special.erfinv(erf_target)
-        m0_ln = jnp.clip(jnp.exp(log_m_ln), self.m_min, m_ln_max)
+        log10_m_ln = log10_mc + sqrt_2_sigma * jax.scipy.special.erfinv(erf_target)
+        m0_ln = jnp.clip(jnp.power(10.0, log10_m_ln), self.m_min, m_ln_max)
 
         # Power-law initial guess: for u in [p_ln, 1]
         # Scale u to [0, 1] within power-law region
