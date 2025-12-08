@@ -717,7 +717,12 @@ def is_top_heavy(alpha_high: float, threshold: float = 2.0) -> bool:
     return alpha_high < threshold
 
 
-def massive_star_fraction(imf, m_threshold: float = 8.0) -> float:
+def massive_star_fraction(
+    imf,
+    m_threshold: float = 8.0,
+    key: Optional[PRNGKeyArray] = None,
+    n_samples: int = 100000,
+) -> float:
     """Fraction of mass in stars above threshold.
 
     Useful diagnostic for top-heavy IMFs. Higher fraction = more top-heavy.
@@ -725,13 +730,15 @@ def massive_star_fraction(imf, m_threshold: float = 8.0) -> float:
     Args:
         imf: Any IMF with sample() method
         m_threshold: Mass threshold [M_sun] (default: 8.0, core-collapse limit)
+        key: JAX random key (default: PRNGKey(0) for reproducibility)
+        n_samples: Number of samples for estimation (default: 100000)
 
     Returns:
         Fraction of total mass in stars with m > m_threshold
     """
-    # Sample a large population
-    key = jax.random.PRNGKey(42)
-    masses = imf.sample(key, 100000)
+    if key is None:
+        key = jax.random.PRNGKey(0)
+    masses = imf.sample(key, n_samples)
 
     # Compute mass fractions
     total_mass = jnp.sum(masses)

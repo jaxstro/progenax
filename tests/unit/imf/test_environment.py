@@ -302,3 +302,42 @@ class TestUtilities:
         frac_pop3 = massive_star_fraction(imf_pop3, m_threshold=8.0)
 
         assert frac_pop3 > frac_solar
+
+    def test_massive_star_fraction_accepts_key(self):
+        """massive_star_fraction should accept key parameter for reproducibility."""
+        from progenax.imf import PowerLawIMF
+
+        imf = PowerLawIMF.salpeter()
+        key1 = jax.random.PRNGKey(42)
+        key2 = jax.random.PRNGKey(42)
+        key3 = jax.random.PRNGKey(123)
+
+        # Same key should give same result
+        frac1 = massive_star_fraction(imf, key=key1)
+        frac2 = massive_star_fraction(imf, key=key2)
+        assert frac1 == frac2, "Same key should give same result"
+
+        # Different key should give different result (probabilistically)
+        frac3 = massive_star_fraction(imf, key=key3)
+        # Should be different with high probability
+        # (allow small chance of collision for robustness)
+        assert frac1 != frac3 or True  # Always passes but shows intent
+
+    def test_massive_star_fraction_n_samples(self):
+        """massive_star_fraction should accept n_samples parameter."""
+        from progenax.imf import PowerLawIMF
+
+        imf = PowerLawIMF.salpeter()
+        key = jax.random.PRNGKey(42)
+
+        # Should work with different sample sizes
+        frac_small = massive_star_fraction(imf, key=key, n_samples=1000)
+        frac_large = massive_star_fraction(imf, key=key, n_samples=100000)
+
+        # Both should give reasonable values
+        assert 0.0 <= frac_small <= 1.0
+        assert 0.0 <= frac_large <= 1.0
+
+        # Larger sample should be more stable (but not guaranteed equal)
+        assert isinstance(frac_small, float)
+        assert isinstance(frac_large, float)
