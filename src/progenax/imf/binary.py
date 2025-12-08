@@ -53,7 +53,7 @@ from typing import Callable, Protocol, Tuple, Union, runtime_checkable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, Bool, Float, PRNGKeyArray
 
 from .base import BaseIMF
 
@@ -766,7 +766,7 @@ class BinaryIMF(eqx.Module):
 
     def sample_systems(
         self, key: PRNGKeyArray, n: int
-    ) -> Tuple[Float[Array, "n"], Float[Array, "n"], Float[Array, "n"]]:
+    ) -> Tuple[Float[Array, "n"], Float[Array, "n"], Bool[Array, "n"]]:
         """Sample n stellar systems (singles + binaries).
 
         Returns:
@@ -794,7 +794,7 @@ class BinaryIMF(eqx.Module):
 
     def sample_all_masses(
         self, key: PRNGKeyArray, n: int
-    ) -> Tuple[Float[Array, "..."], Float[Array, "n"]]:
+    ) -> Tuple[Float[Array, "..."], Bool[Array, "n"]]:
         """Sample n systems and return all stellar masses.
 
         Returns:
