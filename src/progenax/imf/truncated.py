@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from .base import BaseIMF
+from .base import IMFProtocol
 
 
 class TruncatedIMF(eqx.Module):
@@ -31,11 +31,11 @@ class TruncatedIMF(eqx.Module):
         >>> masses = truncated.sample(key, 1000)
     """
 
-    inner: BaseIMF
+    inner: IMFProtocol
     m_min: float
     m_max: float
 
-    def __init__(self, inner: BaseIMF, m_min: float, m_max: float):
+    def __init__(self, inner: IMFProtocol, m_min: float, m_max: float):
         """
         Create truncated IMF.
 
@@ -68,14 +68,23 @@ class TruncatedIMF(eqx.Module):
         return self.inner.cdf(jnp.asarray(self.m_max))
 
     def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized log-PDF over truncated domain."""
+        """Normalized log-PDF. Returns -inf outside [m_min, m_max]."""
+        m_arr = jnp.asarray(m)
+        in_domain = (m_arr >= self.m_min) & (m_arr <= self.m_max)
         log_norm = jnp.log(self._cdf_max - self._cdf_min + 1e-30)
-        return self.inner.logpdf(m) - log_norm
+        lp = self.inner.logpdf(m_arr) - log_norm
+        return jnp.where(in_domain, lp, -jnp.inf)
 
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """CDF rescaled to [0, 1] over truncated domain."""
-        raw_cdf = self.inner.cdf(m)
-        return (raw_cdf - self._cdf_min) / (self._cdf_max - self._cdf_min + 1e-30)
+        """CDF rescaled to [0, 1]. Returns 0 below m_min, 1 above m_max."""
+        m_arr = jnp.asarray(m)
+        raw_cdf = self.inner.cdf(m_arr)
+        cdf_trunc = (raw_cdf - self._cdf_min) / (self._cdf_max - self._cdf_min + 1e-30)
+        return jnp.where(
+            m_arr <= self.m_min,
+            0.0,
+            jnp.where(m_arr >= self.m_max, 1.0, cdf_trunc),
+        )
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF over truncated domain."""

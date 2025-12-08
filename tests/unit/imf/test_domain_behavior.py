@@ -1,7 +1,7 @@
 """Tests for domain behavior of IMF logpdf and cdf."""
 import jax.numpy as jnp
 import pytest
-from progenax.imf import ChabrierIMF, PowerLawIMF
+from progenax.imf import ChabrierIMF, PowerLawIMF, TruncatedIMF
 
 
 class TestLogPDFDomain:
@@ -94,3 +94,40 @@ class TestPowerLawDomain:
         cdf_vals = imf.cdf(m_above)
         assert jnp.allclose(cdf_vals, 1.0, atol=1e-6), \
             f"cdf should be 1 at/above m_max, got {cdf_vals}"
+
+
+class TestTruncatedDomain:
+    """TruncatedIMF domain behavior."""
+
+    def test_truncated_logpdf_below_m_min(self):
+        """logpdf returns -inf for m below truncated m_min."""
+        inner = ChabrierIMF()
+        imf = TruncatedIMF(inner, m_min=0.1, m_max=50.0)
+
+        m_below = jnp.array([0.05, 0.08, 0.09])
+        logpdf_vals = imf.logpdf(m_below)
+        assert jnp.all(jnp.isneginf(logpdf_vals)), \
+            f"logpdf should be -inf below m_min, got {logpdf_vals}"
+
+    def test_truncated_logpdf_above_m_max(self):
+        """logpdf returns -inf for m above truncated m_max."""
+        inner = ChabrierIMF()
+        imf = TruncatedIMF(inner, m_min=0.1, m_max=50.0)
+
+        m_above = jnp.array([51.0, 60.0, 100.0])
+        logpdf_vals = imf.logpdf(m_above)
+        assert jnp.all(jnp.isneginf(logpdf_vals)), \
+            f"logpdf should be -inf above m_max, got {logpdf_vals}"
+
+    def test_truncated_cdf_boundaries(self):
+        """cdf returns 0/1 at truncated boundaries."""
+        inner = ChabrierIMF()
+        imf = TruncatedIMF(inner, m_min=0.1, m_max=50.0)
+
+        # Below truncated m_min
+        assert jnp.allclose(imf.cdf(jnp.array(0.05)), 0.0, atol=1e-6)
+        assert jnp.allclose(imf.cdf(jnp.array(0.1)), 0.0, atol=1e-6)
+
+        # Above truncated m_max
+        assert jnp.allclose(imf.cdf(jnp.array(50.0)), 1.0, atol=1e-6)
+        assert jnp.allclose(imf.cdf(jnp.array(100.0)), 1.0, atol=1e-6)
