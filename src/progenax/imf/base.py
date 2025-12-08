@@ -19,6 +19,28 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 
 # ============================================================================
+# IMFProtocol - Runtime-checkable Protocol for Type-Safe Composition
+# ============================================================================
+
+
+@runtime_checkable
+class IMFProtocol(Protocol):
+    """Protocol for all IMF implementations.
+
+    Any class with these attributes and methods can be used as an IMF,
+    enabling TruncatedIMF to wrap any compatible IMF.
+    """
+    m_min: float
+    m_max: float
+
+    def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]: ...
+    def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]: ...
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]: ...
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]: ...
+    def mean_mass(self) -> float: ...
+
+
+# ============================================================================
 # PPF Newton Solver with custom_jvp
 # ============================================================================
 
@@ -268,4 +290,4 @@ class BaseIMF(eqx.Module):
         return jax.lax.fori_loop(0, max_steps, newton_step, q0)
 
 
-__all__ = ["BaseIMF", "_ppf_newton"]
+__all__ = ["IMFProtocol", "BaseIMF", "_ppf_newton"]

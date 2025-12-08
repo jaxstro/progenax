@@ -1,6 +1,6 @@
 """Initial Mass Functions (IMFs) for stellar population synthesis."""
 
-from .base import BaseIMF, _ppf_newton
+from .base import IMFProtocol, BaseIMF, _ppf_newton
 from .truncated import TruncatedIMF
 from .power_law import (
     PowerLawIMF,
@@ -43,6 +43,7 @@ from .igimf import (
 )
 
 __all__ = [
+    "IMFProtocol",
     "BaseIMF",
     "_ppf_newton",
     "TruncatedIMF",
