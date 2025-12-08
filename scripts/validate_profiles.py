@@ -107,6 +107,23 @@ def validate_plummer(output_dir: str):
     a = profile.a
 
     # -------------------------------------------------------------------------
+    # Compute metrics FIRST (needed for plot annotations)
+    # -------------------------------------------------------------------------
+    median_r = float(jnp.median(radii))
+    r_h_error = abs(median_r - r_h) / r_h * 100
+
+    def plummer_cdf(r):
+        return r**3 / (r**2 + a**2)**1.5
+
+    ks_stat, ks_pvalue = ks_test(radii, plummer_cdf, 10 * r_h)
+
+    sorted_r, ecdf = compute_empirical_cdf(radii)
+    theoretical_cdf = plummer_cdf(sorted_r)
+    max_cdf_deviation = float(jnp.max(jnp.abs(ecdf - theoretical_cdf)))
+
+    passed = r_h_error < 1.0 and max_cdf_deviation < 0.02
+
+    # -------------------------------------------------------------------------
     # Figure 1: Density Profile
     # -------------------------------------------------------------------------
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -116,7 +133,6 @@ def validate_plummer(output_dir: str):
     r_grid = jnp.linspace(0.01, 5 * r_h, 200)
 
     # Analytical Plummer density (normalized)
-    a = profile.a
     rho_analytical = (1 + (r_grid / a)**2)**(-2.5)
     rho_analytical = rho_analytical / rho_analytical[0]  # Normalize to central density
 
@@ -137,11 +153,11 @@ def validate_plummer(output_dir: str):
     rho_hist = hist / shell_volume
     # Normalize by matching to analytical curve at bin centers (robust median scaling)
     rho_analytical_at_bins = np.interp(bin_centers, np.array(r_grid / r_h), np.array(rho_analytical))
-    valid = (rho_hist > 0) & (rho_analytical_at_bins > 1e-10)
-    if np.any(valid):
-        scale = np.median(rho_analytical_at_bins[valid] / rho_hist[valid])
+    valid_bins = (rho_hist > 0) & (rho_analytical_at_bins > 1e-10)
+    if np.any(valid_bins):
+        scale = np.median(rho_analytical_at_bins[valid_bins] / rho_hist[valid_bins])
         rho_hist = rho_hist * scale
-    ax.semilogy(bin_centers[valid], rho_hist[valid], 'go', ms=4, alpha=0.6, label=f'Samples (N={N_SAMPLES})')
+    ax.semilogy(bin_centers[valid_bins], rho_hist[valid_bins], 'go', ms=4, alpha=0.6, label=f'Samples (N={N_SAMPLES})')
 
     ax.set_xlabel('$r / r_h$')
     ax.set_ylabel('$\\rho(r) / \\rho_0$')
@@ -158,9 +174,6 @@ def validate_plummer(output_dir: str):
     # Analytical Plummer CDF: M(<r)/M = r^3 / (r^2 + a^2)^(3/2)
     cdf_analytical = r_grid**3 / (r_grid**2 + a**2)**1.5
 
-    # Empirical CDF from samples
-    sorted_r, ecdf = compute_empirical_cdf(radii)
-
     ax.plot(r_grid / r_h, cdf_analytical, 'b-', lw=2, label='Analytical CDF')
     ax.plot(sorted_r[::100] / r_h, ecdf[::100], 'r.', ms=2, alpha=0.5, label='Empirical CDF')
 
@@ -168,6 +181,17 @@ def validate_plummer(output_dir: str):
     ax.axhline(0.5, color='gray', ls='--', alpha=0.5)
     ax.axvline(1.0, color='gray', ls='--', alpha=0.5)
     ax.plot(1.0, 0.5, 'ko', ms=10, mfc='none', mew=2, label='Half-mass radius')
+
+    # Add metrics text box
+    metrics_text = (
+        f"Validation Metrics:\n"
+        f"$r_h$ error: {r_h_error:.2f}%\n"
+        f"Max CDF dev: {max_cdf_deviation:.4f}\n"
+        f"KS stat: {ks_stat:.4f}"
+    )
+    ax.text(0.98, 0.35, metrics_text, transform=ax.transAxes, fontsize=9,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
     ax.set_xlabel('$r / r_h$')
     ax.set_ylabel('$M(<r) / M_{total}$')
@@ -182,28 +206,8 @@ def validate_plummer(output_dir: str):
     print("  ✓ Plummer density plot saved")
 
     # -------------------------------------------------------------------------
-    # Quantitative Verification
+    # Print results (metrics already computed above)
     # -------------------------------------------------------------------------
-
-    # Half-mass radius test
-    median_r = float(jnp.median(radii))
-    r_h_error = abs(median_r - r_h) / r_h * 100
-
-    # KS test for radial distribution
-    def plummer_cdf(r):
-        return r**3 / (r**2 + a**2)**1.5
-
-    ks_stat, ks_pvalue = ks_test(radii, plummer_cdf, 10 * r_h)
-
-    # Max CDF deviation (more meaningful for large N than p-value)
-    sorted_r, ecdf = compute_empirical_cdf(radii)
-    theoretical_cdf = plummer_cdf(sorted_r)
-    max_cdf_deviation = float(jnp.max(jnp.abs(ecdf - theoretical_cdf)))
-
-    # Note: For large N, KS test is overly sensitive. Focus on physical metrics.
-    # r_h_error < 1% and max_cdf_deviation < 2% are excellent results.
-    passed = r_h_error < 1.0 and max_cdf_deviation < 0.02
-
     print(f"\n  Quantitative Results:")
     print(f"  ---------------------")
     print(f"  Half-mass radius (r_h):     {r_h:.4f}")
@@ -242,6 +246,14 @@ def validate_king(output_dir: str):
     masses = jnp.ones(N_SAMPLES)
     positions = profile.sample_positions(masses, key)
     radii = jnp.linalg.norm(positions, axis=1)
+
+    # -------------------------------------------------------------------------
+    # Compute metrics FIRST (needed for plot annotations)
+    # -------------------------------------------------------------------------
+    max_r = float(jnp.max(radii))
+    r_t = float(profile.r_t)
+    truncation_ok = max_r <= r_t * 1.001  # Allow 0.1% numerical tolerance
+    c_measured = np.log10(r_t / r_c)
 
     # -------------------------------------------------------------------------
     # Figure 1: King ODE Solution & Density
@@ -304,6 +316,17 @@ def validate_king(output_dir: str):
     ax.legend(loc='upper right', fontsize=9)
     ax.grid(True, alpha=0.3)
 
+    # Add metrics text box
+    metrics_text = (
+        f"Validation Metrics:\n"
+        f"$c = \\log_{{10}}(r_t/r_c)$: {c_measured:.3f}\n"
+        f"Max $r$: {max_r:.2f} (< $r_t$={r_t:.2f})\n"
+        f"Truncation: {'OK' if truncation_ok else 'FAIL'}"
+    )
+    ax.text(0.98, 0.55, metrics_text, transform=ax.transAxes, fontsize=8,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
     # Panel C: Concentration effect
     ax = axes[2]
     W0_values = [3, 5, 7, 9]
@@ -331,17 +354,8 @@ def validate_king(output_dir: str):
     print("  ✓ King density plot saved")
 
     # -------------------------------------------------------------------------
-    # Quantitative Verification
+    # Print results (metrics already computed above)
     # -------------------------------------------------------------------------
-
-    # Tidal truncation test
-    max_r = float(jnp.max(radii))
-    r_t = float(profile.r_t)
-    truncation_ok = max_r <= r_t * 1.001  # Allow 0.1% numerical tolerance
-
-    # Concentration ratio c = log10(r_t / r_c)
-    c_measured = np.log10(r_t / r_c)
-
     print(f"\n  Quantitative Results:")
     print(f"  ---------------------")
     print(f"  W0:                         {W0:.1f}")
@@ -380,6 +394,24 @@ def validate_eff(output_dir: str):
     masses = jnp.ones(N_SAMPLES)
     positions = profile.sample_positions(masses, key)
     radii = jnp.linalg.norm(positions, axis=1)
+
+    # -------------------------------------------------------------------------
+    # Compute metrics FIRST (needed for plot annotations)
+    # -------------------------------------------------------------------------
+    max_r = float(jnp.max(radii))
+    truncation_ok = max_r <= r_t * 1.001
+
+    # Power-law slope verification (at r >> a, rho ~ r^(-gamma))
+    r_grid_for_slope = jnp.linspace(0.01, r_t * 0.99, 200)
+    r_outer = r_grid_for_slope[r_grid_for_slope > 3 * a]
+    rho_outer = profile.density(r_outer)
+    log_r = jnp.log10(r_outer)
+    log_rho = jnp.log10(rho_outer + 1e-30)
+    slope = float(jnp.sum((log_r - jnp.mean(log_r)) * (log_rho - jnp.mean(log_rho))) /
+                  jnp.sum((log_r - jnp.mean(log_r))**2))
+    measured_gamma = -slope
+    gamma_error = abs(measured_gamma - gamma) / gamma * 100
+    passed = truncation_ok and gamma_error < 5.0
 
     # -------------------------------------------------------------------------
     # Figure 1: EFF Density & Parameter Effects
@@ -453,6 +485,18 @@ def validate_eff(output_dir: str):
     ax.plot(profile._r_grid / a, profile._cdf_grid, 'b-', lw=2, label='Precomputed CDF')
     ax.plot(sorted_r[::100] / a, ecdf[::100], 'r.', ms=2, alpha=0.5, label='Empirical CDF')
 
+    # Add metrics text box
+    metrics_text = (
+        f"Validation Metrics:\n"
+        f"$\\gamma$ (expected): {gamma:.1f}\n"
+        f"$\\gamma$ (measured): {measured_gamma:.2f}\n"
+        f"Error: {gamma_error:.1f}%\n"
+        f"Truncation: {'OK' if truncation_ok else 'FAIL'}"
+    )
+    ax.text(0.98, 0.35, metrics_text, transform=ax.transAxes, fontsize=8,
+            verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
     ax.set_xlabel('$r / a$')
     ax.set_ylabel('$M(<r) / M_{total}$')
     ax.set_title('EFF Cumulative Mass Distribution')
@@ -465,25 +509,8 @@ def validate_eff(output_dir: str):
     print("  ✓ EFF density plot saved")
 
     # -------------------------------------------------------------------------
-    # Quantitative Verification
+    # Print results (metrics already computed above)
     # -------------------------------------------------------------------------
-
-    # Tidal truncation test
-    max_r = float(jnp.max(radii))
-    truncation_ok = max_r <= r_t * 1.001
-
-    # Power-law slope verification (at r >> a, rho ~ r^(-gamma))
-    r_outer = r_grid[r_grid > 3 * a]
-    rho_outer = profile.density(r_outer)
-    log_r = jnp.log10(r_outer)
-    log_rho = jnp.log10(rho_outer + 1e-30)
-
-    # Linear fit to log-log
-    slope = float(jnp.sum((log_r - jnp.mean(log_r)) * (log_rho - jnp.mean(log_rho))) /
-                  jnp.sum((log_r - jnp.mean(log_r))**2))
-    measured_gamma = -slope
-    gamma_error = abs(measured_gamma - gamma) / gamma * 100
-
     print(f"\n  Quantitative Results:")
     print(f"  ---------------------")
     print(f"  Scale radius (a):           {a:.4f}")
