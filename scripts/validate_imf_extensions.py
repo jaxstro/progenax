@@ -187,7 +187,7 @@ def plot_igimf_vs_stellar(output_dir: str):
     ax = axes[0]
 
     # Sample from stellar IMF
-    m_stellar = stellar_imf.sample(key, 100000)
+    m_stellar = stellar_imf.sample(key, 50000)
 
     # Sample from IGIMF at different SFRs
     sfr_values = [0.001, 0.1, 1.0, 100.0]
@@ -205,7 +205,7 @@ def plot_igimf_vs_stellar(output_dir: str):
     for sfr, color in zip(sfr_values, colors):
         igimf = IGIMF(stellar_imf=stellar_imf, sfr=sfr)
         key, subkey = jax.random.split(key)
-        m_igimf = igimf.sample(subkey, 50000)
+        m_igimf = igimf.sample(subkey, 20000)
         m_igimf = m_igimf[m_igimf > 0]  # Remove zeros
 
         counts, _ = np.histogram(np.array(m_igimf), bins=log_bins, density=True)
@@ -219,26 +219,35 @@ def plot_igimf_vs_stellar(output_dir: str):
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0.01, 100)
 
-    # Right: Effective slope vs SFR
+    # Right: Effective slope vs SFR (Weidner & Kroupa 2005)
     ax = axes[1]
 
-    sfr_range = np.logspace(-4, 3, 30)
+    # Use more SFR points for smoother curve (need 50k+ samples for reliable slope)
+    sfr_range = np.logspace(-3, 3, 20)
     slopes = []
 
     for sfr in sfr_range:
         igimf = IGIMF(stellar_imf=stellar_imf, sfr=sfr)
         key, subkey = jax.random.split(key)
-        slope = igimf.effective_slope_high_mass(key=subkey, n_samples=20000)
+        # Need many samples for reliable slope estimation in [10,100] M_sun range
+        slope = igimf.effective_slope_high_mass(key=subkey, n_samples=50000)
         slopes.append(float(slope))
 
-    ax.semilogx(sfr_range, slopes, 'b-', lw=2, marker='o', ms=4)
+    ax.semilogx(sfr_range, slopes, 'b-', lw=2, marker='o', ms=4, label='IGIMF measured')
     ax.axhline(2.3, color='gray', ls='--', label='Stellar IMF α=2.3')
-    ax.axhline(3.3, color='red', ls=':', label='IGIMF limit α=3.3')
+    ax.axhline(3.3, color='red', ls=':', label='IGIMF limit α≈3.3')
+
+    # Mark literature SFR values (Weidner & Kroupa 2005)
+    lit_sfrs = [0.001, 0.2, 1.9, 10.0, 100.0]  # Dwarf, LMC, MW, M82, ULIRG
+    lit_labels = ['Dwarf', 'LMC', 'MW', 'M82', 'ULIRG']
+    for sfr, label in zip(lit_sfrs, lit_labels):
+        ax.axvline(sfr, color='green', ls=':', alpha=0.5)
+        ax.annotate(label, xy=(sfr, 2.05), fontsize=8, ha='center', color='green')
 
     ax.set_xlabel('Star Formation Rate [M$_\\odot$/yr]', fontsize=12)
     ax.set_ylabel('Effective High-Mass Slope α', fontsize=12)
-    ax.set_title('IGIMF Slope vs SFR', fontsize=14)
-    ax.legend(fontsize=10)
+    ax.set_title('IGIMF Slope vs SFR (Weidner & Kroupa 2005)', fontsize=14)
+    ax.legend(fontsize=10, loc='upper right')
     ax.grid(True, alpha=0.3)
     ax.set_ylim(2.0, 3.5)
 
@@ -249,7 +258,12 @@ def plot_igimf_vs_stellar(output_dir: str):
 
 
 def plot_igimf_galaxy_types(output_dir: str):
-    """Compare IGIMF for different galaxy types."""
+    """Compare IGIMF for different galaxy types using literature SFR values.
+
+    References:
+        Weidner & Kroupa (2005) ApJ 625, 754
+        Pflamm-Altenburg et al. (2007) ApJ 671, 1550
+    """
     print("\n4. IGIMF Galaxy Types:")
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -257,19 +271,21 @@ def plot_igimf_galaxy_types(output_dir: str):
     key = jax.random.PRNGKey(42)
     stellar_imf = PowerLawIMF.kroupa()
 
+    # Literature-based SFR values (Weidner & Kroupa 2005)
     galaxy_types = {
-        "Dwarf Galaxy": IGIMF.dwarf_galaxy(stellar_imf),
-        "Milky Way": IGIMF.milky_way(stellar_imf),
-        "Starburst": IGIMF.starburst(stellar_imf),
+        "Dwarf (Fornax)": IGIMF(stellar_imf=stellar_imf, sfr=0.001),   # ~10^-3 M☉/yr
+        "LMC": IGIMF(stellar_imf=stellar_imf, sfr=0.2),                 # ~0.2 M☉/yr
+        "Milky Way": IGIMF(stellar_imf=stellar_imf, sfr=1.9),           # ~1.9 M☉/yr
+        "Starburst (M82)": IGIMF(stellar_imf=stellar_imf, sfr=10.0),    # ~10 M☉/yr
     }
 
-    colors = ['blue', 'green', 'red']
+    colors = ['blue', 'cyan', 'green', 'red']
     log_bins = np.logspace(-2, 2, 50)
     bin_centers = np.sqrt(log_bins[:-1] * log_bins[1:])
 
     for (name, igimf), color in zip(galaxy_types.items(), colors):
         key, subkey = jax.random.split(key)
-        masses = igimf.sample(subkey, 50000)
+        masses = igimf.sample(subkey, 20000)
         masses = masses[masses > 0]
 
         counts, _ = np.histogram(np.array(masses), bins=log_bins, density=True)
@@ -284,8 +300,8 @@ def plot_igimf_galaxy_types(output_dir: str):
 
     ax.set_xlabel('Mass [M$_\\odot$]', fontsize=12)
     ax.set_ylabel('m × ξ(m)', fontsize=12)
-    ax.set_title('IGIMF by Galaxy Type', fontsize=14)
-    ax.legend(fontsize=10)
+    ax.set_title('IGIMF by Galaxy Type (Weidner & Kroupa 2005)', fontsize=14)
+    ax.legend(fontsize=10, loc='upper right')
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0.01, 100)
 

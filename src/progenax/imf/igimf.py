@@ -338,6 +338,17 @@ def max_cluster_mass_from_sfr(
 class IGIMF(eqx.Module):
     """Integrated Galactic Initial Mass Function.
 
+    .. warning::
+        **EXPERIMENTAL - GALAXY SCALE ONLY**
+
+        This module is for galaxy-wide population synthesis, NOT star clusters.
+        For cluster work, use ``PowerLawIMF.kroupa()`` or ``ChabrierIMF`` directly.
+
+        Known issues:
+        - Slope estimation does not match Weidner & Kroupa (2005) predictions
+        - Slow performance (not JIT-compatible, Python int() calls)
+        - Not differentiable
+
     The IGIMF emerges from integrating the stellar IMF over all star-forming
     clusters in a galaxy, accounting for:
     1. The cluster mass function (ECMF)
@@ -424,7 +435,8 @@ class IGIMF(eqx.Module):
     ) -> Float[Array, "..."]:
         """Sample stars from a single cluster of mass M_ecl.
 
-        Stars are sampled from the stellar IMF, truncated at m_max(M_ecl).
+        Stars are sampled from the stellar IMF TRUNCATED at m_max(M_ecl),
+        using proper inverse CDF sampling (not clamping).
 
         Args:
             key: JAX random key
@@ -435,32 +447,43 @@ class IGIMF(eqx.Module):
         """
         # Get maximum stellar mass for this cluster
         m_max_relation = self._get_m_max_relation()
-        m_max = m_max_relation(jnp.asarray(M_ecl))
+        m_max = float(m_max_relation(jnp.asarray(M_ecl)))
 
-        # Sample from stellar IMF (we need to sample enough to fill cluster)
-        # Use Poisson estimate: N_stars ≈ M_ecl / mean_stellar_mass
+        # Sample from TRUNCATED stellar IMF using inverse CDF
+        # CDF range: [cdf(m_min), cdf(m_max)]
+        stellar_m_min = self.stellar_imf.m_min
+        cdf_min = float(self.stellar_imf.cdf(jnp.asarray(stellar_m_min)))
+        cdf_max = float(self.stellar_imf.cdf(jnp.asarray(m_max)))
+
+        # Estimate number of stars needed
         mean_mass = self.stellar_imf.mean_mass()
-        n_expected = int(M_ecl / mean_mass) + 10  # Add buffer
+        n_expected = int(M_ecl / mean_mass) + 10
 
         key1, key2 = jax.random.split(key)
-        masses_raw = self.stellar_imf.sample(key1, n_expected)
 
-        # Truncate at m_max
-        masses_truncated = jnp.minimum(masses_raw, m_max)
+        # Sample uniform in [cdf_min, cdf_max], then transform via ppf
+        u = jax.random.uniform(key1, (n_expected,))
+        u_scaled = cdf_min + u * (cdf_max - cdf_min)
+        masses = self.stellar_imf.ppf(u_scaled)
 
-        # Accept stars until we reach cluster mass (stochastic truncation)
-        cumsum = jnp.cumsum(masses_truncated)
+        # Ensure masses are within truncation bounds (numerical safety)
+        masses = jnp.clip(masses, stellar_m_min, m_max)
+
+        # Accept stars until we reach cluster mass
+        cumsum = jnp.cumsum(masses)
         mask = cumsum <= M_ecl
 
-        return masses_truncated * mask
+        return masses * mask
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n stellar masses from the IGIMF.
 
-        This is the main sampling method that:
-        1. Samples cluster masses from ECMF
-        2. For each cluster, samples stars truncated at m_max(M_ecl)
-        3. Collects all stars up to desired count
+        Algorithm following Weidner & Kroupa (2005):
+        1. Sample cluster masses with MASS WEIGHTING (not number)
+           - Massive clusters are rare by number but contribute most stars
+        2. For each cluster, sample from TRUNCATED stellar IMF [m_min, m_max(M_ecl)]
+           - Uses proper inverse CDF sampling, not clamping
+        3. Number of stars per cluster scales with cluster mass
 
         Args:
             key: JAX random key
@@ -472,72 +495,91 @@ class IGIMF(eqx.Module):
         ecmf = self._get_ecmf()
         m_max_relation = self._get_m_max_relation()
 
-        # Strategy: Sample many clusters, collect stars, subsample to n
-        # Need to estimate how many clusters to sample
-        mean_cluster_mass = ecmf.mean_mass()
-        mean_stellar_mass = self.stellar_imf.mean_mass()
-        stars_per_cluster = max(mean_cluster_mass / mean_stellar_mass, 1.0)
+        key1, key2, key3, key4 = jax.random.split(key, 4)
 
-        # Sample enough clusters to get ~3n stars (with buffer)
-        n_clusters = int(3 * n / stars_per_cluster) + 20
+        # Step 1: Sample many clusters from ECMF, then resample with MASS weighting
+        # With β=2, most clusters are low-mass by number, but massive clusters
+        # contribute ~50% of total stellar mass. We must capture them.
+        n_clusters_raw = 10000  # Sample many to capture rare massive clusters
+        cluster_masses_raw = ecmf.sample(key1, n_clusters_raw)
 
-        key1, key2, key3 = jax.random.split(key, 3)
+        # Mass-weighted resampling: probability ∝ cluster mass
+        # This ensures massive clusters are properly represented
+        weights = cluster_masses_raw / jnp.sum(cluster_masses_raw)
 
-        # Sample cluster masses
-        cluster_masses = ecmf.sample(key1, n_clusters)
+        # How many clusters do we need? Estimate from desired star count
+        mean_stellar_mass = float(self.stellar_imf.mean_mass())
+        total_cluster_mass_needed = n * mean_stellar_mass * 3  # 3× buffer
+        mean_cluster_mass = float(jnp.mean(cluster_masses_raw))
+        n_clusters_needed = max(int(total_cluster_mass_needed / mean_cluster_mass), 100)
 
-        # For each cluster, get m_max
+        # Resample clusters with mass weighting
+        cluster_indices = jax.random.choice(
+            key2, n_clusters_raw, shape=(n_clusters_needed,), replace=True, p=weights
+        )
+        cluster_masses = cluster_masses_raw[cluster_indices]
+
+        # Step 2: For each cluster, get m_max from M_ecl relation
         m_max_values = m_max_relation(cluster_masses)
 
-        # Sample stellar masses - use vectorized approach
-        # For simplicity, sample n_per_cluster stars per cluster
-        n_per_cluster = int(stars_per_cluster * 2) + 10
+        # Step 3: Sample from TRUNCATED stellar IMF using proper inverse CDF
+        # For truncated distribution: u_scaled = cdf_min + u * (cdf_max - cdf_min)
+        # Then mass = ppf(u_scaled)
 
-        # Generate all uniform samples at once
-        u_samples = jax.random.uniform(key2, (n_clusters, n_per_cluster))
+        # Get CDF bounds for stellar IMF
+        stellar_m_min = self.stellar_imf.m_min
+        cdf_at_stellar_min = float(self.stellar_imf.cdf(jnp.asarray(stellar_m_min)))
 
-        def sample_cluster_stars(cluster_idx):
-            """Sample stars for one cluster."""
-            M_ecl = cluster_masses[cluster_idx]
-            m_max = m_max_values[cluster_idx]
-            u = u_samples[cluster_idx]
+        # Precompute CDF at each cluster's m_max
+        cdf_at_mmax = jax.vmap(lambda m: self.stellar_imf.cdf(jnp.asarray(m)))(m_max_values)
 
-            # Transform u -> mass using stellar IMF ppf
-            masses_raw = self.stellar_imf.ppf(u)
+        # Each cluster contributes N_stars ∝ M_ecl / mean_mass_truncated
+        # Approximate mean_mass_truncated ≈ mean_stellar_mass
+        stars_per_cluster = jnp.maximum(
+            (cluster_masses / mean_stellar_mass).astype(int), 1
+        )
+        max_stars_per_cluster = int(jnp.max(stars_per_cluster)) + 10
 
-            # Truncate at m_max
-            masses_truncated = jnp.minimum(masses_raw, m_max)
+        # Generate uniform samples for all clusters
+        u_samples = jax.random.uniform(key3, (n_clusters_needed, max_stars_per_cluster))
+
+        def sample_truncated_cluster(args):
+            """Sample stars from truncated IMF for one cluster."""
+            M_ecl, m_max, cdf_max, u_vec, n_stars = args
+
+            # CDF range for truncation
+            cdf_range = cdf_max - cdf_at_stellar_min
+
+            # Scale uniform samples to truncated CDF range
+            u_scaled = cdf_at_stellar_min + u_vec * cdf_range
+
+            # Transform to masses via inverse CDF
+            masses = self.stellar_imf.ppf(u_scaled)
+
+            # Ensure masses are within bounds (numerical safety)
+            masses = jnp.clip(masses, stellar_m_min, m_max)
 
             # Keep stars until cluster mass reached
-            cumsum = jnp.cumsum(masses_truncated)
-            mask = cumsum <= M_ecl
+            cumsum = jnp.cumsum(masses)
+            mask = (cumsum <= M_ecl) & (jnp.arange(len(masses)) < n_stars)
 
-            # Return masses (zero out rejected)
-            return jnp.where(mask, masses_truncated, 0.0)
+            return jnp.where(mask, masses, 0.0)
 
-        # Sample all clusters
-        all_masses = jax.vmap(sample_cluster_stars)(jnp.arange(n_clusters))
+        # Vectorized sampling over all clusters
+        all_masses = jax.vmap(sample_truncated_cluster)(
+            (cluster_masses, m_max_values, cdf_at_mmax, u_samples, stars_per_cluster)
+        )
         all_masses_flat = all_masses.ravel()
 
-        # Sort so non-zeros come first (JIT-compatible approach)
-        # Use negative masses so sort puts positive masses first
-        sort_key = jnp.where(all_masses_flat > 0, -all_masses_flat, jnp.inf)
+        # Collect non-zero masses and shuffle
+        # Use argsort trick: sort by (is_zero, random) to get non-zeros first in random order
+        is_zero = all_masses_flat <= 0
+        sort_key = is_zero.astype(float) + jax.random.uniform(key4, all_masses_flat.shape) * 0.5
         sorted_indices = jnp.argsort(sort_key)
-        sorted_masses = all_masses_flat[sorted_indices]
+        shuffled_masses = all_masses_flat[sorted_indices]
 
-        # Randomly permute the non-zero portion
-        # First count how many non-zeros we have (approximately)
-        n_available = n_clusters * n_per_cluster  # Upper bound
-
-        # Shuffle the first n_available elements
-        perm = jax.random.permutation(key3, n_available)
-
-        # Take first n_available, shuffle, then take first n
-        first_chunk = sorted_masses[:n_available]
-        shuffled = first_chunk[perm]
-
-        # Return first n (zeros at end if needed, but should be rare)
-        return shuffled[:n]
+        # Return first n masses
+        return shuffled_masses[:n]
 
     def effective_slope_high_mass(
         self,
@@ -575,29 +617,37 @@ class IGIMF(eqx.Module):
         # Fit power-law slope using log-histogram
         n_in_range = int(jnp.sum(in_range))
 
-        # Handle empty case - return default Salpeter slope
+        # Handle empty case - return NaN (insufficient data for slope estimation)
         if n_in_range < 10:
-            return jnp.array(2.35)
+            return jnp.array(jnp.nan)
 
         log_masses = jnp.log10(jnp.where(in_range, masses, 1.0))
         log_masses_selected = log_masses[in_range]
         hist, bin_edges = jnp.histogram(log_masses_selected, bins=20)
         bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
-        # Log-log slope: d(log N) / d(log m) = -(α - 1)
-        # So α = 1 - slope
-        valid = hist > 0
-        n_valid = jnp.sum(valid)
+        # For power-law dn/dm ∝ m^(-α), histogram counts scale as:
+        # N(log m) ∝ m^(1-α) (since dm ∝ m d(log m))
+        # So log N = const + (1-α) * log m
+        # Slope = 1 - α, thus α = 1 - slope
 
-        log_hist = jnp.log10(hist + 1)
-        # Simple linear regression
+        valid = hist > 0
+        n_valid = int(jnp.sum(valid))
+
+        if n_valid < 3:
+            return jnp.array(jnp.nan)
+
+        # Use log10(hist) directly for valid bins (no +1 bias!)
+        log_hist = jnp.log10(jnp.where(valid, hist, 1.0))
+
+        # Linear regression on valid bins only
         x = bin_centers[valid]
         y = log_hist[valid]
-        slope = jnp.where(
-            n_valid >= 3,
-            jnp.cov(x, y)[0, 1] / (jnp.var(x) + 1e-10),
-            -1.3  # Default to α=2.3 slope
-        )
+
+        # Compute slope: cov(x,y) / var(x)
+        x_mean = jnp.mean(x)
+        y_mean = jnp.mean(y)
+        slope = jnp.sum((x - x_mean) * (y - y_mean)) / (jnp.sum((x - x_mean) ** 2) + 1e-10)
 
         # α = 1 - slope
         return 1.0 - slope

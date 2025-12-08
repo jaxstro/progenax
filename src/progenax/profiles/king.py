@@ -10,7 +10,7 @@ class implementing the SpatialProfile protocol.
 The King model is characterized by:
 - Lowered Maxwellian distribution function
 - Tidal truncation at radius r_t
-- Concentration parameter W₀ (dimensionless central potential)
+- Concentration parameter W0 (dimensionless central potential)
 
 References:
     King, I. R. (1966), "The Structure of Star Clusters. III. Some Simple
@@ -19,9 +19,9 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics" (2nd ed.), Section 4.3
 
 Notes:
-    - W₀ typically ranges from 1 (low concentration) to 12 (high concentration)
-    - Globular clusters have W₀ ~ 5-9
-    - Models with W₀ > 12 are unstable (core collapse)
+    - W0 typically ranges from 1 (low concentration) to 12 (high concentration)
+    - Globular clusters have W0 ~ 5-9
+    - Models with W0 > 12 are unstable (core collapse)
 """
 
 from typing import Tuple
@@ -43,10 +43,10 @@ def king_K_function(W: Float[Array, "..."]) -> Float[Array, "..."]:
     """
     King's K function for exact density-potential relation.
 
-    K(W) = erf(√W) - (2/√π) √W exp(-W)
+    K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
 
     This function appears in the exact King (1966) density formula:
-        ρ(r)/ρ₀ = [K(W₀) - K(W₀ - ψ(r))] / K(W₀)
+        rho(r)/rho_0 = [K(W0) - K(W0 - psi(r))] / K(W0)
 
     Args:
         W: Dimensionless potential parameter (can be scalar or array)
@@ -62,17 +62,17 @@ def king_K_function(W: Float[Array, "..."]) -> Float[Array, "..."]:
         For W < 0, returns 0 (not physical in King models).
         Uses jax.scipy.special.erf for the error function.
     """
-    # Ensure non-negative (King models have ψ ≥ 0)
+    # Ensure non-negative (King models have psi >= 0)
     W_safe = jnp.maximum(W, 0.0)
     sqrt_W = jnp.sqrt(W_safe)
 
-    # K(W) = erf(√W) - (2/√π) √W exp(-W)
+    # K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
     term1 = jax.scipy.special.erf(sqrt_W)
     term2 = (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W_safe)
 
     K = term1 - term2
 
-    # For W ≈ 0, K(W) → 0, handle numerically
+    # For W ~ 0, K(W) -> 0, handle numerically
     K = jnp.where(W_safe < 1e-10, 0.0, K)
 
     return K
@@ -88,26 +88,26 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     Right-hand side of King's dimensionless Poisson equation.
 
     The King (1966) model satisfies:
-        d²ψ/dξ² + (2/ξ) dψ/dξ = -ρ̃(ψ)
+        d^2 psi/d xi^2 + (2/xi) d psi/d xi = -rho_tilde(psi)
 
-    where ξ = r/r_c is dimensionless radius and ρ̃(ψ) is the dimensionless
+    where xi = r/r_c is dimensionless radius and rho_tilde(psi) is the dimensionless
     density from integrating the King distribution function.
 
     We convert to first-order system:
-        y[0] = ψ(ξ)
-        y[1] = dψ/dξ
+        y[0] = psi(xi)
+        y[1] = d psi/d xi
 
     Then:
-        dy[0]/dξ = y[1]
-        dy[1]/dξ = -ρ̃(ψ) - (2/ξ) y[1]
+        dy[0]/d xi = y[1]
+        dy[1]/d xi = -rho_tilde(psi) - (2/xi) y[1]
 
     Args:
-        xi: Dimensionless radius ξ = r/r_c
-        y: State vector [ψ, dψ/dξ]
+        xi: Dimensionless radius xi = r/r_c
+        y: State vector [psi, d psi/d xi]
         args: (W0,) - concentration parameter
 
     Returns:
-        Derivative [dψ/dξ, d²ψ/dξ²]
+        Derivative [d psi/d xi, d^2 psi/d xi^2]
 
     References:
         King (1966), AJ, 71, 64, Eq. 9-10
@@ -117,18 +117,18 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     psi, dpsi_dxi = y[0], y[1]
 
     # Dimensionless density from King DF integration
-    # ρ̃(ψ) = [K(W₀) - K(W₀ - ψ)] / K(W₀)
+    # rho_tilde(psi) = [K(W0) - K(W0 - psi)] / K(W0)
     K_W0 = king_K_function(W0)
     K_W0_minus_psi = king_K_function(W0 - psi)
 
     rho_tilde = jnp.where(K_W0 > 1e-10, (K_W0 - K_W0_minus_psi) / K_W0, 0.0)
 
-    # Poisson equation: d²ψ/dξ² = -ρ̃(ψ) - (2/ξ) dψ/dξ
-    # Handle singularity at ξ=0 using L'Hôpital: lim_{ξ→0} (2/ξ) dψ/dξ = 0
+    # Poisson equation: d^2 psi/d xi^2 = -rho_tilde(psi) - (2/xi) d psi/d xi
+    # Handle singularity at xi=0 using L'Hopital: lim_{xi->0} (2/xi) d psi/d xi = 0
     d2psi_dxi2 = jnp.where(
         xi > 1e-6,
         -rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -rho_tilde,  # At center, use ψ''(0) = -ρ(0)
+        -rho_tilde,  # At center, use psi''(0) = -rho(0)
     )
 
     return jnp.array([dpsi_dxi, d2psi_dxi2])
@@ -140,11 +140,11 @@ def solve_king_profile(
     """
     Solve King's Poisson equation numerically using diffrax.
 
-    Integrates from ξ=0 (center) outward until ψ(ξ) → 0 (tidal radius).
+    Integrates from xi=0 (center) outward until psi(xi) -> 0 (tidal radius).
 
     Boundary conditions (King 1966, Eq. 10):
-        ψ(0) = W₀  (central potential)
-        dψ/dξ|₀ = 0  (symmetry at center)
+        psi(0) = W0  (central potential)
+        d psi/d xi|_0 = 0  (symmetry at center)
 
     Args:
         W0: King concentration parameter
@@ -152,8 +152,8 @@ def solve_king_profile(
         n_points: Number of points in output grid
 
     Returns:
-        xi_grid: Dimensionless radii ξ = r/r_c
-        psi_grid: Dimensionless potential ψ(ξ)
+        xi_grid: Dimensionless radii xi = r/r_c
+        psi_grid: Dimensionless potential psi(xi)
 
     References:
         King (1966), AJ, 71, 64
@@ -164,7 +164,7 @@ def solve_king_profile(
         Uses Tsit5 (Runge-Kutta 5th order) from diffrax for robustness.
     """
     # Initial conditions
-    y0 = jnp.array([W0, 0.0])  # [ψ(0), dψ/dξ|₀]
+    y0 = jnp.array([W0, 0.0])  # [psi(0), d psi/d xi|_0]
 
     # Integration domain
     xi_span = (1e-6, xi_max)  # Start slightly off center to avoid singularity
@@ -196,12 +196,47 @@ def solve_king_profile(
     )
 
     xi_grid = solution.ts
-    psi_grid = solution.ys[:, 0]  # Extract ψ(ξ)
+    psi_grid = solution.ys[:, 0]  # Extract psi(xi)
 
-    # Ensure ψ ≥ 0 (truncate at tidal radius where ψ → 0)
+    # Ensure psi >= 0 (truncate at tidal radius where psi -> 0)
     psi_grid = jnp.maximum(psi_grid, 0.0)
 
     return xi_grid, psi_grid
+
+
+def _find_tidal_radius(
+    xi_grid: Float[Array, "n_points"],
+    psi_grid: Float[Array, "n_points"],
+) -> float:
+    """
+    Find dimensionless tidal radius where psi first crosses zero.
+
+    Args:
+        xi_grid: Dimensionless radii from ODE solution
+        psi_grid: Dimensionless potential from ODE solution
+
+    Returns:
+        xi_t: Dimensionless tidal radius where psi(xi_t) = 0
+
+    Note:
+        Uses linear interpolation for precise crossing point.
+        If no crossing found, returns last grid point.
+    """
+    # Find where psi drops to zero (or below due to numerics)
+    crossing_mask = psi_grid <= 0
+    has_crossing = jnp.any(crossing_mask)
+    first_zero_idx = jnp.argmax(crossing_mask)
+
+    # Linear interpolation for precise xi_t
+    idx = jnp.maximum(first_zero_idx - 1, 0)
+    psi0, psi1 = psi_grid[idx], psi_grid[first_zero_idx]
+    xi0, xi1 = xi_grid[idx], xi_grid[first_zero_idx]
+    t = psi0 / (psi0 - psi1 + 1e-30)
+    xi_t = xi0 + t * (xi1 - xi0)
+
+    # If no crossing, use last point
+    xi_t = jnp.where(has_crossing, xi_t, xi_grid[-1])
+    return float(xi_t)
 
 
 # ==============================================================================
@@ -215,17 +250,25 @@ class KingProfile(eqx.Module):
 
     Implements SpatialProfile protocol for IC assembly.
 
+    The CDF is precomputed at initialization for efficient sampling.
+
     Attributes:
         W0: King concentration parameter (dimensionless)
         r_c: Core radius [length units]
         r_t: Tidal (truncation) radius [length units]
         xi_grid: Pre-computed dimensionless radii from ODE solver
         psi_grid: Pre-computed dimensionless potential from ODE solver
+        _r_grid: Precomputed radial grid for CDF interpolation
+        _cdf_grid: Precomputed CDF values on grid
 
     References:
         King (1966), AJ, 71, 64
 
     Examples:
+        # Recommended: Use from_W0_rc for self-consistent model
+        >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+
+        # Or manually with pre-computed ODE solution
         >>> xi_grid, psi_grid = solve_king_profile(W0=7.0)
         >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0,
         ...                       xi_grid=xi_grid, psi_grid=psi_grid)
@@ -239,6 +282,8 @@ class KingProfile(eqx.Module):
     r_t: Float[Array, ""]
     xi_grid: Float[Array, "n_points"]
     psi_grid: Float[Array, "n_points"]
+    _r_grid: Float[Array, "n_grid"]
+    _cdf_grid: Float[Array, "n_grid"]
 
     def __init__(
         self,
@@ -247,9 +292,10 @@ class KingProfile(eqx.Module):
         r_t: float,
         xi_grid: Float[Array, "n_points"],
         psi_grid: Float[Array, "n_points"],
+        n_grid: int = 1000,
     ):
         """
-        Initialize King profile.
+        Initialize King profile with precomputed CDF.
 
         Args:
             W0: King concentration parameter (typical 1-12)
@@ -257,12 +303,99 @@ class KingProfile(eqx.Module):
             r_t: Tidal radius [length units]
             xi_grid: Pre-computed dimensionless radii from solve_king_profile()
             psi_grid: Pre-computed dimensionless potential from solve_king_profile()
+            n_grid: Number of grid points for CDF interpolation (default: 1000)
         """
-        self.W0 = jnp.asarray(W0, dtype=jnp.float64)
-        self.r_c = jnp.asarray(r_c, dtype=jnp.float64)
-        self.r_t = jnp.asarray(r_t, dtype=jnp.float64)
-        self.xi_grid = jnp.asarray(xi_grid, dtype=jnp.float64)
-        self.psi_grid = jnp.asarray(psi_grid, dtype=jnp.float64)
+        W0_arr = jnp.asarray(W0, dtype=jnp.float64)
+        r_c_arr = jnp.asarray(r_c, dtype=jnp.float64)
+        r_t_arr = jnp.asarray(r_t, dtype=jnp.float64)
+        xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
+        psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
+
+        # Build radial grid for CDF
+        r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
+        xi_grid_local = r_grid / r_c_arr
+
+        # Compute density on grid via interpolation of ODE solution
+        psi_vals = jnp.interp(
+            xi_grid_local,
+            xi_grid_arr,
+            psi_grid_arr,
+            left=W0_arr,
+            right=0.0
+        )
+
+        # King density: rho(r)/rho_0 = [K(W0) - K(W0 - psi)] / K(W0)
+        K_W0 = king_K_function(W0_arr)
+        K_W0_minus_psi = king_K_function(W0_arr - psi_vals)
+        rho_grid = jnp.where(
+            K_W0 > 1e-10,
+            (K_W0 - K_W0_minus_psi) / K_W0,
+            0.0
+        )
+
+        # Truncate at tidal radius
+        rho_grid = jnp.where(r_grid <= r_t_arr, rho_grid, 0.0)
+
+        # Integrand: 4*pi*r^2*rho(r)
+        integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
+
+        # Cumulative integral using cumsum (trapezoid approximation)
+        dr = r_grid[1] - r_grid[0]
+        M_cum = jnp.cumsum(integrand) * dr
+
+        # Normalize to [0, 1] for CDF
+        cdf_grid = M_cum / (M_cum[-1] + 1e-30)
+
+        # Store using object.__setattr__ (future-proof Equinox pattern)
+        object.__setattr__(self, "W0", W0_arr)
+        object.__setattr__(self, "r_c", r_c_arr)
+        object.__setattr__(self, "r_t", r_t_arr)
+        object.__setattr__(self, "xi_grid", xi_grid_arr)
+        object.__setattr__(self, "psi_grid", psi_grid_arr)
+        object.__setattr__(self, "_r_grid", r_grid)
+        object.__setattr__(self, "_cdf_grid", cdf_grid)
+
+    @classmethod
+    def from_W0_rc(
+        cls,
+        W0: float,
+        r_c: float,
+        xi_max: float = 100.0,
+        n_ode_points: int = 500,
+        n_grid: int = 1000,
+    ) -> "KingProfile":
+        """
+        Create self-consistent King profile where r_t is derived from W0.
+
+        This is the RECOMMENDED constructor. The tidal radius is computed
+        from where the potential psi(xi) crosses zero, ensuring a physically
+        self-consistent King model.
+
+        Args:
+            W0: King concentration parameter (typical 1-12)
+            r_c: Core radius [length units]
+            xi_max: Maximum dimensionless radius for ODE integration (default: 100)
+            n_ode_points: Number of ODE solution points (default: 500)
+            n_grid: Number of grid points for CDF interpolation (default: 1000)
+
+        Returns:
+            KingProfile with self-consistent r_t derived from W0
+
+        Examples:
+            >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+            >>> print(f"Tidal radius: {profile.r_t:.2f}")
+        """
+        xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
+        xi_t = _find_tidal_radius(xi_grid, psi_grid)
+        r_t = r_c * xi_t
+        return cls(
+            W0=W0,
+            r_c=r_c,
+            r_t=r_t,
+            xi_grid=xi_grid,
+            psi_grid=psi_grid,
+            n_grid=n_grid,
+        )
 
     def sample_positions(
         self,
@@ -272,11 +405,12 @@ class KingProfile(eqx.Module):
         """
         Sample particle positions from King density profile.
 
-        Uses numerical inverse CDF sampling since the King profile has no
-        closed-form CDF.
+        Uses precomputed CDF for efficient inverse transform sampling.
 
         Args:
-            masses: Particle masses [mass units]
+            masses: Particle masses [mass units]. Note: Only the array
+                length is used to determine N; mass values are not used
+                for position sampling in this profile.
             key: JAX random key for reproducible sampling
 
         Returns:
@@ -284,7 +418,7 @@ class KingProfile(eqx.Module):
         """
         N = len(masses)
 
-        # Sample radii via numerical inverse CDF
+        # Sample radii via precomputed inverse CDF
         key, subkey = jax.random.split(key)
         radii = self._sample_radii(subkey, N)
 
@@ -303,10 +437,7 @@ class KingProfile(eqx.Module):
 
     def _sample_radii(self, key: PRNGKeyArray, N: int) -> Float[Array, "N"]:
         """
-        Sample radii from King profile using numerical inverse CDF.
-
-        The cumulative mass M(<r) has no closed form, so we compute it
-        numerically and invert via interpolation.
+        Sample radii from precomputed CDF via inverse transform.
 
         Args:
             key: JAX random key
@@ -315,53 +446,46 @@ class KingProfile(eqx.Module):
         Returns:
             Radii following King profile [length units]
         """
-        # Create grid for cumulative mass function
-        N_grid = 1000
-        r_grid = jnp.linspace(0.0, self.r_t, N_grid)
-        xi_grid_local = r_grid / self.r_c
-
-        # Compute density on grid via interpolation of ODE solution
-        psi_vals = jnp.interp(
-            xi_grid_local,
-            self.xi_grid,
-            self.psi_grid,
-            left=self.W0,
-            right=0.0
-        )
-
-        # King density: ρ(r)/ρ₀ = [K(W₀) - K(W₀ - ψ)] / K(W₀)
-        K_W0 = king_K_function(self.W0)
-        K_W0_minus_psi = king_K_function(self.W0 - psi_vals)
-        rho_grid = jnp.where(
-            K_W0 > 1e-10,
-            (K_W0 - K_W0_minus_psi) / K_W0,
-            0.0
-        )
-
-        # Truncate at tidal radius
-        rho_grid = jnp.where(r_grid <= self.r_t, rho_grid, 0.0)
-
-        # Integrand: 4π r² ρ(r)
-        integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
-
-        # Cumulative integral using trapezoid rule
-        dr = r_grid[1] - r_grid[0]
-        M_cumulative = jnp.cumsum(integrand) * dr
-
-        # Normalize to [0, 1]
-        M_total_computed = M_cumulative[-1]
-        M_normalized = M_cumulative / (M_total_computed + 1e-30)
-
         # Generate uniform random numbers
         u = jax.random.uniform(key, shape=(N,))
 
-        # Inverse CDF: interpolate to find r where M_normalized = u
-        r_sampled = jnp.interp(u, M_normalized, r_grid)
+        # Inverse CDF: interpolate to find r where CDF = u
+        r_sampled = jnp.interp(u, self._cdf_grid, self._r_grid)
 
-        # Ensure r ≤ r_t (strict truncation)
+        # Ensure r <= r_t (strict truncation)
         r_sampled = jnp.clip(r_sampled, 0.0, self.r_t)
 
         return r_sampled
+
+    def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
+        """
+        Unnormalized density profile rho(r)/rho_0.
+
+        The King density is:
+            rho(r)/rho_0 = [K(W0) - K(W0 - psi(r))] / K(W0)
+
+        where K is the King K-function and psi(r) is the dimensionless
+        potential obtained from interpolating the ODE solution.
+
+        This method returns the unnormalized form (rho_0=1), useful for
+        plotting and analysis with jaxstroviz.
+
+        Args:
+            r: Radial distances [length units]. Can be any shape.
+
+        Returns:
+            Unnormalized density at each radius (same shape as input)
+        """
+        xi = r / self.r_c
+        psi_vals = jnp.interp(xi, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+
+        K_W0 = king_K_function(self.W0)
+        K_W0_minus_psi = king_K_function(self.W0 - psi_vals)
+
+        rho = jnp.where(K_W0 > 1e-10, (K_W0 - K_W0_minus_psi) / K_W0, 0.0)
+
+        # Truncate at tidal radius
+        return jnp.where(r <= self.r_t, rho, 0.0)
 
     def characteristic_radius(self) -> Float[Array, ""]:
         """

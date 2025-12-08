@@ -41,11 +41,13 @@ class PlummerProfile(eqx.Module):
         Args:
             r_h: Half-mass radius [length units]
         """
-        self.r_h = jnp.asarray(r_h, dtype=jnp.float64)
+        r_h_arr = jnp.asarray(r_h, dtype=jnp.float64)
         # Scale radius from half-mass radius
         # From Plummer CDF: M(<r_h)/M = 0.5 = r_h³ / (r_h² + a²)^(3/2)
         # Solving: a = r_h * sqrt((1 - 0.5^(2/3)) / 0.5^(2/3))
-        self.a = self.r_h * jnp.sqrt((1.0 - 0.5**(2/3)) / 0.5**(2/3))
+        a = r_h_arr * jnp.sqrt((1.0 - 0.5**(2/3)) / 0.5**(2/3))
+        object.__setattr__(self, "r_h", r_h_arr)
+        object.__setattr__(self, "a", a)
 
     def sample_positions(
         self,
@@ -58,7 +60,9 @@ class PlummerProfile(eqx.Module):
         Uses inverse CDF for radii + isotropic angles.
 
         Args:
-            masses: Particle masses (N,) [Msun]
+            masses: Particle masses (N,) [Msun]. Note: Only the array
+                length is used to determine N; mass values are not used
+                for position sampling in this profile.
             key: JAX random key
 
         Returns:
@@ -102,10 +106,20 @@ class PlummerProfile(eqx.Module):
 
         References:
             Verified against PLUMMER_FIXES.md (v0.3.0)
+
+        Note:
+            u is clamped to [eps, 1-eps] to prevent numerical blow-up
+            as u→1 which would give r→∞.
         """
+        # Clamp u to prevent numerical issues at boundaries
+        # As u → 1: u^(2/3) → 1, so 1 - u^(2/3) → 0, causing r → ∞
+        # Use eps=1e-7 to work in both float32 and float64 modes
+        eps = 1e-7
+        u_clamped = jnp.clip(u, eps, 1.0 - eps)
+
         # Inverse CDF formula
         # r = a × sqrt(u^(2/3) / (1 - u^(2/3)))
-        u_23 = jnp.power(u, 2.0/3.0)
+        u_23 = jnp.power(u_clamped, 2.0 / 3.0)
         radii = self.a * jnp.sqrt(u_23 / (1.0 - u_23))
 
         return radii
@@ -118,6 +132,24 @@ class PlummerProfile(eqx.Module):
             Half-mass radius [length units]
         """
         return self.r_h
+
+    def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
+        """
+        Unnormalized density profile ρ(r) ∝ (1 + r²/a²)^(-5/2).
+
+        The Plummer density profile normalized would be:
+            ρ(r) = (3M / 4πa³) × (1 + r²/a²)^(-5/2)
+
+        This method returns the unnormalized form, useful for plotting
+        and analysis with jaxstroviz.
+
+        Args:
+            r: Radial distances [length units]. Can be any shape.
+
+        Returns:
+            Unnormalized density at each radius (same shape as input)
+        """
+        return jnp.power(1.0 + (r / self.a) ** 2, -2.5)
 
 
 __all__ = ["PlummerProfile"]

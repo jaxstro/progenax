@@ -34,13 +34,9 @@ from .binary import (
     MassDependentBinaryFraction,
     BinaryIMF,
 )
-from .igimf import (
-    EmbeddedClusterMassFunction,
-    MaxStellarMass,
-    max_cluster_mass_from_sfr,
-    IGIMF,
-    igimf_effective_slope,
-)
+# IGIMF is experimental (galaxy-scale only, known issues)
+# Import directly from progenax.imf.igimf if needed:
+#   from progenax.imf.igimf import IGIMF, EmbeddedClusterMassFunction, ...
 
 __all__ = [
     "IMFProtocol",
@@ -77,10 +73,5 @@ __all__ = [
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
-    # IGIMF
-    "EmbeddedClusterMassFunction",
-    "MaxStellarMass",
-    "max_cluster_mass_from_sfr",
-    "IGIMF",
-    "igimf_effective_slope",
+    # IGIMF - EXPERIMENTAL (not exported, import from progenax.imf.igimf if needed)
 ]
