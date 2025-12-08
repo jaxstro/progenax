@@ -4,12 +4,11 @@ Base infrastructure for Initial Mass Functions (IMFs).
 Provides the core protocol and abstract base class for all IMF
 implementations, enabling differentiable sampling with multiple modes.
 
-The key innovation is the custom_jvp Newton solver for inverse CDF,
-which provides exact gradients via the implicit function theorem.
+The Newton solver for inverse CDF uses fixed iterations with automatic
+differentiation, enabling gradients w.r.t. both samples and IMF parameters.
 """
 
 from abc import abstractmethod
-from functools import partial
 from typing import Protocol, runtime_checkable
 
 import equinox as eqx
@@ -41,20 +40,22 @@ class IMFProtocol(Protocol):
 
 
 # ============================================================================
-# PPF Newton Solver with custom_jvp
+# PPF Newton Solver
 # ============================================================================
 
 
-@partial(jax.custom_jvp, nondiff_argnums=(0,))
 def _ppf_newton(imf: "BaseIMF", u: Float[Array, "..."]) -> Float[Array, "..."]:
     """
-    Inverse CDF via fixed Newton iteration (forward pass).
+    Inverse CDF via fixed Newton iteration.
 
     Uses Newton's method with fixed iterations (JIT-safe, no convergence loops).
     Initial guess uses linear interpolation in log-mass space.
 
+    Gradients flow through all iterations via automatic differentiation,
+    enabling differentiation w.r.t. both u and IMF parameters.
+
     Args:
-        imf: IMF instance (non-differentiable argument)
+        imf: IMF instance
         u: Uniform samples in [0, 1]
 
     Returns:
@@ -75,30 +76,6 @@ def _ppf_newton(imf: "BaseIMF", u: Float[Array, "..."]) -> Float[Array, "..."]:
 
     # Fixed 20 iterations (JIT-safe, no while_loop)
     return jax.lax.fori_loop(0, 20, newton_step, m0)
-
-
-@_ppf_newton.defjvp
-def _ppf_newton_jvp(imf, primals, tangents):
-    """
-    Custom JVP using implicit function theorem: dm/du = 1/pdf(m).
-
-    By the implicit function theorem, for CDF(m) = u:
-        d(CDF)/dm * dm/du = du/du = 1
-        => dm/du = 1 / (d(CDF)/dm) = 1 / pdf(m)
-
-    This provides exact gradients without backpropagating through Newton iterations.
-    """
-    (u,) = primals
-    (u_dot,) = tangents
-
-    # Forward pass
-    m = _ppf_newton(imf, u)
-
-    # Gradient via implicit function theorem
-    pdf_at_m = jnp.exp(imf.logpdf(m))
-    m_dot = u_dot / (pdf_at_m + 1e-30)
-
-    return m, m_dot
 
 
 # ============================================================================
