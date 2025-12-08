@@ -573,7 +573,11 @@ class IGIMF(eqx.Module):
         masses_selected = masses[in_range]
 
         # Fit power-law slope using log-histogram
-        n_in_range = jnp.sum(in_range)
+        n_in_range = int(jnp.sum(in_range))
+
+        # Handle empty case - return default Salpeter slope
+        if n_in_range < 10:
+            return jnp.array(2.35)
 
         log_masses = jnp.log10(jnp.where(in_range, masses, 1.0))
         log_masses_selected = log_masses[in_range]
