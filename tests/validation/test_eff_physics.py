@@ -24,7 +24,7 @@ class TestEFFDensityFormula:
         a, gamma, r_t = 1.0, 3.0, 10.0
         profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
 
-        rho_0 = profile._density_unnormalized(jnp.array([0.0]))
+        rho_0 = profile.density(jnp.array([0.0]))
         assert float(rho_0[0]) == 1.0, f"rho(0) = {float(rho_0[0])}, expected 1.0"
 
     def test_density_at_scale_radius(self):
@@ -33,7 +33,7 @@ class TestEFFDensityFormula:
             a, r_t = 1.0, 10.0
             profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
 
-            rho_a = profile._density_unnormalized(jnp.array([a]))
+            rho_a = profile.density(jnp.array([a]))
             expected = 1.0 / (2.0 ** (gamma / 2.0))
 
             assert abs(float(rho_a[0]) - expected) < 1e-10, \
@@ -46,8 +46,8 @@ class TestEFFDensityFormula:
 
         # Test at r >> a
         r1, r2 = 20.0, 40.0
-        rho_1 = float(profile._density_unnormalized(jnp.array([r1]))[0])
-        rho_2 = float(profile._density_unnormalized(jnp.array([r2]))[0])
+        rho_1 = float(profile.density(jnp.array([r1]))[0])
+        rho_2 = float(profile.density(jnp.array([r2]))[0])
 
         # For power law rho ~ r^(-gamma): rho2/rho1 = (r1/r2)^gamma
         expected_ratio = (r1 / r2) ** gamma
@@ -62,7 +62,7 @@ class TestEFFDensityFormula:
         profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
 
         r_grid = jnp.linspace(0.0, r_t, 100)
-        rho_grid = profile._density_unnormalized(r_grid)
+        rho_grid = profile.density(r_grid)
 
         diffs = jnp.diff(rho_grid)
         assert jnp.all(diffs <= 1e-10), "Density should decrease with radius"
@@ -73,7 +73,7 @@ class TestEFFDensityFormula:
         profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
 
         r_beyond = jnp.array([r_t + 0.01, r_t + 1.0, r_t + 10.0])
-        rho_beyond = profile._density_unnormalized(r_beyond)
+        rho_beyond = profile.density(r_beyond)
 
         assert jnp.all(rho_beyond == 0.0), \
             f"Density should be 0 beyond r_t, got {rho_beyond}"
