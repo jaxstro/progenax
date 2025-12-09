@@ -1,0 +1,315 @@
+# progenax/src/progenax/profiles/api.py
+"""
+Functional API for spatial density profiles.
+
+Provides profile-agnostic functions for:
+- Creating profile instances via factory function
+- Sampling positions from density profiles
+- Computing analytic gravitational potentials
+
+This API enables the cluster IC generator to work with any supported
+density profile without depending on specific profile class implementations.
+
+Example:
+    >>> from progenax.profiles.api import sample_density_profile, compute_profile_potential
+    >>> import jax
+    >>>
+    >>> key = jax.random.PRNGKey(42)
+    >>> positions = sample_density_profile(key, N_stars=1000, profile="plummer", R_half=1.0)
+    >>>
+    >>> # Compute potential at those positions
+    >>> from jaxstro.units import STELLAR
+    >>> phi = compute_profile_potential(
+    ...     positions, profile="plummer", M_total=1000.0, R_half=1.0, G=STELLAR.G
+    ... )
+"""
+
+from typing import Literal, Union
+
+import jax.numpy as jnp
+from jax import Array
+from jaxtyping import Float, PRNGKeyArray
+
+from progenax.profiles.plummer import PlummerProfile
+from progenax.profiles.king import KingProfile
+from progenax.profiles.eff import EFFProfile
+
+
+# Type alias for supported profile names
+ProfileName = Literal["plummer", "king", "eff"]
+
+
+def make_profile(
+    name: ProfileName,
+    R_half: float,
+    **kwargs,
+) -> Union[PlummerProfile, KingProfile, EFFProfile]:
+    """
+    Factory function for creating profile instances.
+
+    This is the primary entry point for creating density profiles. It provides
+    a uniform interface where R_half is the external scale parameter, with
+    profile-specific shape parameters passed via kwargs.
+
+    Args:
+        name: Profile type - "plummer", "king", or "eff"
+        R_half: Half-mass radius (for Plummer) or characteristic radius (for King/EFF)
+                in length units [pc in stellar units].
+
+                - **Plummer**: This is the actual half-mass radius r_h
+                - **King**: This is treated as the core radius r_c (not half-mass)
+                - **EFF**: This is treated as the scale radius a (not half-mass)
+
+        **kwargs: Profile-specific parameters:
+
+            **King profile**:
+                - W0: float = 5.0 - King concentration parameter (typical 1-12)
+                - n_grid: int = 1000 - CDF interpolation grid points
+
+            **EFF profile**:
+                - gamma: float = 3.0 - Power-law index (concentration)
+                - r_t: float = 10*R_half - Tidal/truncation radius
+                - n_grid: int = 1000 - CDF interpolation grid points
+
+    Returns:
+        Profile instance (PlummerProfile, KingProfile, or EFFProfile)
+
+    Raises:
+        ValueError: If profile name is not recognized
+
+    Examples:
+        >>> # Plummer profile with 1 pc half-mass radius
+        >>> profile = make_profile("plummer", R_half=1.0)
+
+        >>> # King profile with W0=7 (globular cluster typical)
+        >>> profile = make_profile("king", R_half=1.0, W0=7.0)
+
+        >>> # EFF profile with gamma=3 (young cluster typical)
+        >>> profile = make_profile("eff", R_half=1.0, gamma=3.0, r_t=15.0)
+
+    Notes:
+        For King and EFF profiles, the mapping from R_half to internal parameters
+        is simplified: R_half is used directly as r_c (King) or a (EFF). For
+        precise half-mass radius control, the user should compute the appropriate
+        r_c or a value externally.
+    """
+    name_lower = name.lower()
+
+    if name_lower == "plummer":
+        return PlummerProfile(r_h=R_half)
+
+    elif name_lower == "king":
+        W0 = kwargs.get("W0", 5.0)
+        n_grid = kwargs.get("n_grid", 1000)
+        # Use R_half as core radius r_c
+        # Tidal radius is derived self-consistently from W0
+        return KingProfile.from_W0_rc(W0=W0, r_c=R_half, n_grid=n_grid)
+
+    elif name_lower == "eff":
+        gamma = kwargs.get("gamma", 3.0)
+        # Default tidal radius is 10x the scale radius
+        r_t = kwargs.get("r_t", 10.0 * R_half)
+        n_grid = kwargs.get("n_grid", 1000)
+        # Use R_half as scale radius a
+        return EFFProfile(a=R_half, gamma=gamma, r_t=r_t, n_grid=n_grid)
+
+    else:
+        raise ValueError(
+            f"Unknown profile type: '{name}'. "
+            f"Supported profiles: 'plummer', 'king', 'eff'"
+        )
+
+
+def sample_density_profile(
+    key: PRNGKeyArray,
+    N_stars: int,
+    profile: ProfileName,
+    R_half: float,
+    **kwargs,
+) -> Float[Array, "N 3"]:
+    """
+    Sample N_stars positions from the chosen density profile.
+
+    This function creates a profile instance and samples positions from its
+    density distribution using inverse CDF sampling.
+
+    Args:
+        key: JAX random key for reproducibility
+        N_stars: Number of stars (positions) to sample
+        profile: Profile type - "plummer", "king", or "eff"
+        R_half: Half-mass/characteristic radius in length units [pc]
+        **kwargs: Profile-specific parameters (passed to make_profile)
+                  See make_profile() docstring for details.
+
+    Returns:
+        positions: Array of shape (N_stars, 3) in length units [pc]
+                   Positions are sampled from the density profile's
+                   radial distribution with isotropic angular distribution.
+
+    Examples:
+        >>> import jax
+        >>> key = jax.random.PRNGKey(42)
+        >>>
+        >>> # Sample 1000 positions from Plummer profile
+        >>> positions = sample_density_profile(key, 1000, "plummer", R_half=1.0)
+        >>> positions.shape
+        (1000, 3)
+
+        >>> # Sample from King profile with specific concentration
+        >>> positions = sample_density_profile(key, 1000, "king", R_half=1.0, W0=7.0)
+
+    Notes:
+        - All profiles sample radii via inverse CDF for efficiency
+        - Angular distribution is isotropic (uniform on sphere)
+        - The masses argument required by profile.sample_positions() is
+          filled with ones internally (mass values don't affect spatial sampling)
+    """
+    # Create profile instance
+    profile_instance = make_profile(profile, R_half, **kwargs)
+
+    # Create dummy masses array (only length matters for position sampling)
+    masses = jnp.ones(N_stars)
+
+    # Sample positions from profile
+    return profile_instance.sample_positions(masses, key)
+
+
+def compute_profile_potential(
+    positions: Float[Array, "N 3"],
+    profile: ProfileName,
+    M_total: float,
+    R_half: float,
+    G: float,
+    **kwargs,
+) -> Float[Array, "N"]:
+    """
+    Compute analytic gravitational potential at given positions.
+
+    This function computes Phi(r) for the specified density profile.
+    The potential is normalized to the total mass M_total and gravitational
+    constant G.
+
+    Args:
+        positions: Particle positions, shape (N, 3) [length units]
+        profile: Profile type - "plummer", "king", or "eff"
+        M_total: Total cluster mass [mass units, typically Msun]
+        R_half: Half-mass/characteristic radius [length units, typically pc]
+        G: Gravitational constant in consistent units
+           (use jaxstro.units.STELLAR.G for stellar units)
+        **kwargs: Profile-specific parameters (passed to make_profile)
+
+    Returns:
+        phi: Gravitational potential at each position, shape (N,)
+             All values are negative (bound system).
+             Units: [mass units] * [length units]^2 / [time units]^2
+
+    Examples:
+        >>> from jaxstro.units import STELLAR
+        >>> import jax.numpy as jnp
+        >>>
+        >>> positions = jnp.array([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
+        >>> phi = compute_profile_potential(
+        ...     positions, "plummer", M_total=1000.0, R_half=1.0, G=STELLAR.G
+        ... )
+
+    Notes:
+        **Plummer potential** (analytic):
+            Phi(r) = -G * M_total / sqrt(r^2 + a^2)
+            where a = R_half * sqrt(2^(2/3) - 1) is the scale radius.
+
+        **King/EFF potential** (numerical approximation):
+            These profiles use a spherically symmetric enclosed-mass
+            approximation: Phi(r) ~ -G * M(<r) / r for consistency with
+            the energy-ordered mass segregation algorithm. For orbits
+            inside the cluster, this is a reasonable approximation.
+
+        The potential is computed per-particle and vectorized for efficiency.
+    """
+    # Compute radii from positions
+    r = jnp.linalg.norm(positions, axis=1)
+
+    profile_lower = profile.lower()
+
+    if profile_lower == "plummer":
+        # Plummer scale radius from half-mass radius
+        # a = r_h * sqrt((1 - 0.5^(2/3)) / 0.5^(2/3)) ≈ 0.7664 * r_h
+        a = R_half * jnp.sqrt((1.0 - 0.5**(2/3)) / 0.5**(2/3))
+
+        # Exact Plummer potential: Phi(r) = -G*M / sqrt(r^2 + a^2)
+        phi = -G * M_total / jnp.sqrt(r**2 + a**2)
+
+    elif profile_lower == "king":
+        # For King profile, use enclosed mass approximation
+        # This is sufficient for energy ordering in mass segregation
+        # Note: Full King potential would require numerical integration
+
+        # Get profile instance to access parameters
+        profile_instance = make_profile(profile, R_half, **kwargs)
+        r_c = profile_instance.r_c
+        r_t = profile_instance.r_t
+
+        # Approximate enclosed mass fraction using King-like profile
+        # M(<r)/M_total ~ (r/r_t)^3 * (1 + r/r_c)^(-3/2) / normalization
+        # Simplified: use spherical approximation Phi ~ -G*M_enc/r
+        x = r / r_c
+        x_t = r_t / r_c
+
+        # Enclosed mass fraction (approximate)
+        # For r << r_c: M_enc ~ r^3
+        # For r >> r_c: M_enc approaches M_total
+        M_enc_frac = jnp.minimum(
+            (r / r_t)**3 * (1.0 + x_t**2)**(3/2) / (1.0 + x**2)**(3/2),
+            1.0
+        )
+        M_enc = M_total * M_enc_frac
+
+        # Potential from enclosed mass (with softening for r~0)
+        phi = -G * M_enc / jnp.maximum(r, 0.01 * r_c)
+
+    elif profile_lower == "eff":
+        # EFF profile: use enclosed mass approximation
+        profile_instance = make_profile(profile, R_half, **kwargs)
+        a = profile_instance.a
+        gamma = profile_instance.gamma
+        r_t = profile_instance.r_t
+
+        # For EFF: rho(r) = (1 + r^2/a^2)^(-gamma/2)
+        # Enclosed mass: M(<r) = 4*pi * integral of rho * r^2 dr
+        # Using numerical approximation via cumulative mass fraction
+
+        # Simplified enclosed mass for EFF (approximate)
+        x = r / a
+        x_t = r_t / a
+
+        # For gamma=3 (typical): M_enc/M_total ~ arctan(x)/arctan(x_t)
+        # General case: approximate with power-law interpolation
+        if gamma == 3.0:
+            M_enc_frac = jnp.arctan(x) / jnp.arctan(x_t)
+        else:
+            # General approximation
+            M_enc_frac = jnp.minimum(
+                x**3 / (1.0 + x**2)**(gamma/2 - 0.5) /
+                (x_t**3 / (1.0 + x_t**2)**(gamma/2 - 0.5)),
+                1.0
+            )
+
+        M_enc = M_total * jnp.clip(M_enc_frac, 0.0, 1.0)
+
+        # Potential from enclosed mass
+        phi = -G * M_enc / jnp.maximum(r, 0.01 * a)
+
+    else:
+        raise ValueError(
+            f"Unknown profile type: '{profile}'. "
+            f"Supported profiles: 'plummer', 'king', 'eff'"
+        )
+
+    return phi
+
+
+__all__ = [
+    "ProfileName",
+    "make_profile",
+    "sample_density_profile",
+    "compute_profile_potential",
+]

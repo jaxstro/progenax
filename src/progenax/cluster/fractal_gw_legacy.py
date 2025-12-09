@@ -1,5 +1,21 @@
-# progenax/src/progenax/cluster/fractal.py
+# progenax/src/progenax/cluster/fractal_gw_legacy.py
 """
+DEPRECATED: Goodwin-Whitworth fractal tree implementation.
+
+This module is kept for reference only. For production use, see fdf.py
+which implements the differentiable Fractal Displacement Field method.
+
+The GW2004 algorithm is non-differentiable due to:
+- Bernoulli survival (discrete 0/1 decisions)
+- Variable cardinality (stochastic array shapes)
+- Subsampling with replacement
+
+Use FDF for JAX-native differentiable inference pipelines.
+
+---
+
+Original docstring:
+
 Fractal substructure generation for star cluster initial conditions.
 
 Implements the Goodwin-Whitworth (2004) / McLuster algorithm for generating
@@ -17,12 +33,47 @@ References:
     Küpper et al. (2011) MNRAS 417, 2300 - McLuster implementation
 """
 
+import math
+import warnings
 from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
 from jax import Array, random
 from jaxtyping import Bool, Float, Int, PRNGKeyArray
+
+
+def _estimate_required_generations(
+    N_stars: int,
+    D: float,
+    f_sphere: float = 0.6,
+    safety_factor: float = 2.0,
+) -> int:
+    """
+    Estimate minimum g_max such that expected survivors inside the unit
+    sphere exceed safety_factor * N_stars.
+
+    The fractal tree grows as 8 * k^(g-1) where k = round(2^D).
+    After the unit sphere cut, approximately f_sphere fraction survives.
+
+    Args:
+        N_stars: Target number of stars
+        D: Fractal dimension in [1.3, 3.0]
+        f_sphere: Expected fraction surviving sphere cut (~0.5-0.7)
+        safety_factor: Multiplier to ensure enough particles (2.0 = 2x margin)
+
+    Returns:
+        Estimated minimum number of generations needed
+    """
+    k = max(1, int(round(2.0 ** D)))  # expected survivors per parent
+
+    # We want: f_sphere * 8 * k^(g-1) >= safety_factor * N_stars
+    target = safety_factor * N_stars / (f_sphere * 8.0)
+    if target <= 1.0:
+        return 2  # 8 children is already enough
+
+    g_minus_1 = math.ceil(math.log(target, k))
+    return 1 + g_minus_1
 
 
 def _select_k_survivors(
@@ -55,10 +106,12 @@ def generate_fractal_positions(
     N_stars: int,
     D: float = 2.0,
     N_div: int = 2,
-    g_max: int = 6,
-    oversample_factor: float = 8.0,
+    g_max: Optional[int] = None,
+    max_generations: int = 10,
+    oversample_factor: float = 2.0,
     forced: bool = True,
     enforce_octant_symmetry: bool = True,
+    allow_resampling: bool = False,
 ) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"], Int[Array, "N"]]:
     """
     Generate fractal star cluster in unit sphere (McLuster algorithm).
@@ -78,10 +131,14 @@ def generate_fractal_positions(
         N_stars: Target number of stars
         D: Fractal dimension in [1.3, 3.0]. D=3 is uniform, D~1.6 is clumpy.
         N_div: Subdivision factor per axis (must be 2)
-        g_max: Number of generations
-        oversample_factor: Pool size multiplier for sphere cut
+        g_max: Number of generations. If None, auto-calculated based on N_stars
+            and D to ensure enough particles after sphere cut.
+        max_generations: Safety cap on g_max when auto-calculating (default 10)
+        oversample_factor: Pool size multiplier (default 2.0)
         forced: If True, exactly k=round(N_div^D) survivors per parent
         enforce_octant_symmetry: If True, keep all 8 children at level 0
+        allow_resampling: If True, allow sampling with replacement when pool
+            is smaller than N_stars. If False (default), raise ValueError.
 
     Returns:
         Tuple of (positions, velocities, generation_index):
@@ -94,10 +151,16 @@ def generate_fractal_positions(
               spatial proximity instead.
 
     Raises:
-        ValueError: If not enough survivors inside unit sphere
+        ValueError: If not enough survivors inside unit sphere and
+            allow_resampling=False
         AssertionError: If N_div != 2
     """
     assert N_div == 2, f"Only N_div=2 supported, got {N_div}"
+
+    # Auto-calculate g_max if not provided
+    if g_max is None:
+        g_est = _estimate_required_generations(N_stars, D)
+        g_max = min(g_est, max_generations)
 
     # Clamp D to valid range
     D_clamped = jnp.clip(D, 1.3, 3.0)
@@ -259,36 +322,66 @@ def generate_fractal_positions(
     sorted_valid_indices = jnp.argsort(priorities)
 
     # Count valid particles
-    N_valid = jnp.sum(in_sphere)
+    N_valid = int(jnp.sum(in_sphere))
 
     # =========================================================================
-    # SUBSAMPLE to N_stars
+    # CHECK CAPACITY AND SUBSAMPLE
     # =========================================================================
-    # Use categorical sampling from valid particles.
-    # This works for both N_valid >= N_stars (sampling without much repetition)
-    # and N_valid < N_stars (sampling with necessary repetition).
+    if N_valid < N_stars:
+        if not allow_resampling:
+            # Compute analytic maximum for error message
+            k = max(1, int(round(2.0 ** float(D))))
+            N_tree_max = 8 * (k ** (g_max - 1))
+            f_sph_eff = N_valid / max(N_tree_max, 1)
+            N_max_est = int(f_sph_eff * N_tree_max)
+
+            raise ValueError(
+                f"generate_fractal_positions: not enough distinct particles after "
+                f"sphere cut for D={D:.2f}, N_stars={N_stars}, g_max={g_max}. "
+                f"Only N_valid={N_valid} inside r<=1. "
+                f"Estimated N_max≈{N_max_est}. "
+                f"Fix by: (1) increasing g_max or max_generations, or "
+                f"(2) reducing N_stars, or (3) setting allow_resampling=True "
+                f"if you are OK with duplicates."
+            )
+        else:
+            # Warn and allow resampling
+            warnings.warn(
+                f"generate_fractal_positions: N_valid={N_valid} < N_stars={N_stars}. "
+                f"Sampling with replacement (allow_resampling=True). "
+                f"Consider increasing g_max or max_generations for distinct particles.",
+                UserWarning,
+            )
+
+    # Determine whether to use replacement
+    use_replacement = allow_resampling and (N_valid < N_stars)
+
     key, subkey = random.split(key)
 
-    # Create uniform weights over valid particles
-    weights = jnp.where(
-        jnp.arange(N_pool) < N_valid,
-        1.0 / jnp.maximum(N_valid, 1.0),
-        0.0
-    )
+    if use_replacement:
+        # Sample with replacement using weights
+        weights = jnp.where(
+            jnp.arange(N_pool) < N_valid,
+            1.0 / jnp.maximum(N_valid, 1.0),
+            0.0
+        )
+        chosen_relative = random.choice(
+            subkey,
+            N_pool,
+            shape=(N_stars,),
+            replace=True,
+            p=weights,
+        )
+    else:
+        # Sample without replacement
+        chosen_relative = random.choice(
+            subkey,
+            jnp.minimum(N_valid, N_pool),
+            shape=(N_stars,),
+            replace=False,
+        )
 
-    # Sample N_stars indices using categorical sampling
-    # This automatically handles both cases:
-    # - N_valid >= N_stars: low probability of duplication
-    # - N_valid < N_stars: will duplicate as needed
-    chosen_relative = random.choice(
-        subkey,
-        N_pool,
-        shape=(N_stars,),
-        replace=True,
-        p=weights,
-    )
-
-    # Map to actual particle indices via sorted_valid_indices
+    # Map relative indices to actual particle indices
     chosen = sorted_valid_indices[chosen_relative]
 
     positions_out = final_pos_centered[chosen]

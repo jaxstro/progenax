@@ -37,7 +37,7 @@ class TestGenerateFractalPositions:
 
         McLuster algorithm: positions are constrained to unit sphere (r <= 1).
         """
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, vel, ancestry = generate_fractal_positions(key, N_stars, D=D)
 
@@ -58,7 +58,7 @@ class TestGenerateFractalPositions:
 
     def test_ancestry_values(self, key):
         """Test that ancestry contains valid generation indices [0, g_max]."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         g_max = 6
         pos, vel, ancestry = generate_fractal_positions(key, 500, D=2.0, g_max=g_max)
@@ -69,7 +69,7 @@ class TestGenerateFractalPositions:
 
     def test_reproducibility(self, key):
         """Test that same key produces same output."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos1, vel1, anc1 = generate_fractal_positions(key, 500, D=2.0)
         pos2, vel2, anc2 = generate_fractal_positions(key, 500, D=2.0)
@@ -84,7 +84,7 @@ class TestGenerateFractalPositions:
         D=1.6 (clumpy) should have uneven octant distribution.
         D=3.0 (uniform) should have even octant distribution.
         """
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos_clumpy, _, _ = generate_fractal_positions(key, 2000, D=1.6)
         pos_uniform, _, _ = generate_fractal_positions(key, 2000, D=3.0)
@@ -116,7 +116,7 @@ class TestGenerateFractalPositions:
 
     def test_forced_survivors_exact_count(self, key):
         """Test that forced mode produces exactly k survivors per parent."""
-        from progenax.cluster.fractal import _select_k_survivors
+        from progenax.cluster.fractal_gw_legacy import _select_k_survivors
 
         N_div = 2
         n_children = N_div ** 3  # 8
@@ -132,7 +132,7 @@ class TestGenerateFractalPositions:
 
     def test_different_keys_different_results(self, key):
         """Test that different keys produce different realizations."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         key1 = jax.random.PRNGKey(42)
         key2 = jax.random.PRNGKey(123)
@@ -144,7 +144,7 @@ class TestGenerateFractalPositions:
 
     def test_D_clamping(self, key):
         """Test that D values outside [0, 3] are clamped without error."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         # D > 3 should clamp to 3 (all children survive)
         pos_high, vel_high, anc_high = generate_fractal_positions(key, N_stars=100, D=5.0)
@@ -156,7 +156,7 @@ class TestGenerateFractalPositions:
 
     def test_velocities_nonzero(self, key):
         """Test that velocities are generated (non-zero)."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, vel, ancestry = generate_fractal_positions(key, 500, D=2.0)
 
@@ -166,7 +166,7 @@ class TestGenerateFractalPositions:
 
     def test_probabilistic_mode(self, key):
         """Test that probabilistic mode (forced=False) still works."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, vel, ancestry = generate_fractal_positions(key, 500, D=2.0, forced=False)
 
@@ -176,7 +176,7 @@ class TestGenerateFractalPositions:
 
     def test_positions_in_unit_sphere(self, key):
         """Test that ALL positions are inside unit sphere (r <= 1)."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, vel, ancestry = generate_fractal_positions(key, 1000, D=2.0)
 
@@ -193,7 +193,7 @@ class TestGenerateFractalPositions:
         Note: The sphere cut heavily affects corner octants (removes corner particles),
         so we can't expect uniformity. We just verify all octants have some particles.
         """
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, _, _ = generate_fractal_positions(
             key, 5000, D=3.0, enforce_octant_symmetry=True
@@ -220,7 +220,7 @@ class TestGenerateFractalPositions:
 
     def test_velocity_spatial_correlation(self, key):
         """Nearby particles should have more similar velocities than distant pairs."""
-        from progenax.cluster.fractal import generate_fractal_positions
+        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
 
         pos, vel, _ = generate_fractal_positions(key, 500, D=1.6)
 
@@ -266,7 +266,7 @@ class TestRescaleFractalToTargetRadii:
 
     def test_output_shape(self, key):
         """Test that output has same shape as input."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )
@@ -281,7 +281,7 @@ class TestRescaleFractalToTargetRadii:
 
     def test_preserves_rank_ordering(self, key):
         """Test that radii match sorted target_radii."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )
@@ -303,7 +303,7 @@ class TestRescaleFractalToTargetRadii:
 
     def test_preserves_angular_structure(self, key):
         """Test that angular directions are preserved."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )
@@ -331,7 +331,7 @@ class TestRescaleFractalToTargetRadii:
 
     def test_with_profile_sampled_radii(self, key):
         """Test integration with profile sampling."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )
@@ -366,7 +366,7 @@ class TestRescaleFractalToTargetRadii:
 
     def test_differentiable(self, key):
         """Test that rescaling is differentiable."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )
@@ -400,7 +400,7 @@ class TestAssignVelocitiesAndVirialize:
 
     def test_output_shape(self, key):
         """Test that output has correct shape."""
-        from progenax.cluster.fractal import assign_velocities_and_virialize
+        from progenax.cluster.fractal_gw_legacy import assign_velocities_and_virialize
 
         N = 500
         positions = jax.random.normal(key, (N, 3))
@@ -415,7 +415,7 @@ class TestAssignVelocitiesAndVirialize:
 
     def test_virial_ratio_accuracy(self, key):
         """Test that output matches target virial ratio."""
-        from progenax.cluster.fractal import assign_velocities_and_virialize
+        from progenax.cluster.fractal_gw_legacy import assign_velocities_and_virialize
         from jaxstro.units import STELLAR
         from progenax.dynamics.virial import compute_potential_energy
 
@@ -440,7 +440,7 @@ class TestAssignVelocitiesAndVirialize:
 
     def test_com_velocity_removed(self, key):
         """Test that center-of-mass velocity is zero."""
-        from progenax.cluster.fractal import assign_velocities_and_virialize
+        from progenax.cluster.fractal_gw_legacy import assign_velocities_and_virialize
 
         N = 500
         positions = jax.random.normal(key, (N, 3))
@@ -462,7 +462,7 @@ class TestAssignVelocitiesAndVirialize:
     @pytest.mark.parametrize("target_Q", [0.3, 0.5, 0.75])
     def test_different_virial_ratios(self, key, target_Q):
         """Test that different target Q values are achieved."""
-        from progenax.cluster.fractal import assign_velocities_and_virialize
+        from progenax.cluster.fractal_gw_legacy import assign_velocities_and_virialize
         from jaxstro.units import STELLAR
         from progenax.dynamics.virial import compute_potential_energy
 
@@ -483,7 +483,7 @@ class TestAssignVelocitiesAndVirialize:
 
     def test_coherent_velocities_with_ancestry(self, key):
         """Test coherent velocity mode with ancestry (generation indices)."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             assign_velocities_and_virialize,
         )
@@ -518,7 +518,7 @@ class TestRescaleVelocitiesToVirial:
 
     def test_achieves_target_Q(self, key):
         """Test that velocities are rescaled to target Q."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_velocities_to_virial,
         )
@@ -547,7 +547,7 @@ class TestRescaleVelocitiesToVirial:
 
     def test_removes_com_velocity(self, key):
         """Test that COM velocity is zero after rescaling."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_velocities_to_virial,
         )
@@ -581,7 +581,7 @@ class TestFractalICIntegration:
 
     def test_full_fractal_ic_pipeline(self):
         """Test full pipeline: fractal generation -> rescale -> virial ratio."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
             assign_velocities_and_virialize,
@@ -636,7 +636,7 @@ class TestFractalICIntegration:
 
     def test_fractal_velocities_pipeline(self):
         """Test using fractal-generated velocities directly."""
-        from progenax.cluster.fractal import (
+        from progenax.cluster.fractal_gw_legacy import (
             generate_fractal_positions,
             rescale_fractal_to_target_radii,
         )

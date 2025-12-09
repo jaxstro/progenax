@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.cluster.fractal import (
+from progenax.cluster.fractal_gw_legacy import (
     generate_fractal_positions,
     rescale_fractal_to_target_radii,
 )

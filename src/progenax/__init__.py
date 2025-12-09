@@ -53,10 +53,11 @@ from .tidal import (
     apply_tidal_truncation,
     fill_factor_to_r_h,
 )
-from .substructure import (
+# Legacy GW2004 fractal (deprecated - use FDF instead)
+from .cluster.fractal_gw_legacy import (
     generate_fractal_positions,
-    apply_fractal_overlay_radial,
-    apply_fractal_overlay_blend,
+    rescale_fractal_to_target_radii,
+    assign_velocities_and_virialize,
 )
 from .populations import (
     TwoComponentConfig,
@@ -116,8 +117,8 @@ __all__ = [
     "fill_factor_to_r_h",
     # Fractal substructure
     "generate_fractal_positions",
-    "apply_fractal_overlay_radial",
-    "apply_fractal_overlay_blend",
+    "rescale_fractal_to_target_radii",
+    "assign_velocities_and_virialize",
     # Two-component populations
     "TwoComponentConfig",
     "generate_two_component_cluster",
