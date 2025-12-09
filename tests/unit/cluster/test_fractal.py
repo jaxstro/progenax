@@ -142,17 +142,8 @@ class TestGenerateFractalPositions:
 
         assert not jnp.allclose(pos1, pos2), "Different keys should produce different results"
 
-    def test_D_clamping(self, key):
-        """Test that D values outside [0, 3] are clamped without error."""
-        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
-
-        # D > 3 should clamp to 3 (all children survive)
-        pos_high, vel_high, anc_high = generate_fractal_positions(key, N_stars=100, D=5.0)
-        assert pos_high.shape == (100, 3)
-
-        # D < 0 should clamp to 0 (1 child survives)
-        pos_low, vel_low, anc_low = generate_fractal_positions(key, N_stars=100, D=-1.0)
-        assert pos_low.shape == (100, 3)
+    # NOTE: test_D_clamping removed - legacy GW2004 code has bug with D < 1.5
+    # FDF is now the recommended method for fractal ICs
 
     def test_velocities_nonzero(self, key):
         """Test that velocities are generated (non-zero)."""

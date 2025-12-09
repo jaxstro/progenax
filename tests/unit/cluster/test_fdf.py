@@ -619,3 +619,306 @@ class TestAssignFractalVelocities:
         v_com = jnp.sum(masses[:, None] * velocities, axis=0) / M_total
 
         assert jnp.allclose(v_com, 0.0, atol=1e-10)
+
+
+class TestGenerateFractalIC:
+    """Tests for generate_fractal_ic function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    @pytest.fixture
+    def imf(self):
+        from progenax.imf import PowerLawIMF
+        return PowerLawIMF.kroupa()
+
+    @pytest.fixture
+    def frac_params(self):
+        from progenax.cluster.fdf import FractalDisplacementLayer
+        return FractalDisplacementLayer(chi=2.0, lambda_frac=1.0, sigma_u=0.3)
+
+    def test_output_is_cluster_state(self, key, imf, frac_params):
+        """generate_fractal_ic returns a ClusterState."""
+        from progenax.cluster.fdf import generate_fractal_ic
+        from progenax.cluster import ClusterState
+
+        cluster = generate_fractal_ic(
+            key, N_stars=100, M_total=100.0, R_half=1.0,
+            profile="plummer", frac_params=frac_params, imf_params=imf
+        )
+
+        assert isinstance(cluster, ClusterState)
+        assert cluster.masses.shape == (100,)
+        assert cluster.positions.shape == (100, 3)
+        assert cluster.velocities.shape == (100, 3)
+
+    def test_total_mass_is_correct(self, key, imf, frac_params):
+        """Total mass matches M_total."""
+        from progenax.cluster.fdf import generate_fractal_ic
+
+        M_total = 500.0
+        cluster = generate_fractal_ic(
+            key, N_stars=200, M_total=M_total, R_half=1.0,
+            profile="plummer", frac_params=frac_params, imf_params=imf
+        )
+
+        assert jnp.isclose(jnp.sum(cluster.masses), M_total, rtol=1e-5)
+
+    def test_com_is_centered(self, key, imf, frac_params):
+        """Center of mass is near origin."""
+        from progenax.cluster.fdf import generate_fractal_ic
+
+        cluster = generate_fractal_ic(
+            key, N_stars=300, M_total=300.0, R_half=1.0,
+            profile="plummer", frac_params=frac_params, imf_params=imf
+        )
+
+        M_total = jnp.sum(cluster.masses)
+        x_com = jnp.sum(cluster.masses[:, None] * cluster.positions, axis=0) / M_total
+
+        assert jnp.allclose(x_com, 0.0, atol=1e-10)
+
+    def test_virial_ratio_achieved(self, key, imf):
+        """Generated cluster achieves target virial ratio."""
+        from progenax.cluster.fdf import generate_fractal_ic, FractalDisplacementLayer
+        from progenax.dynamics.virial import compute_virial_ratio
+        from jaxstro.units import STELLAR
+
+        for Q_target in [0.3, 0.5]:
+            frac = FractalDisplacementLayer(virial_ratio=Q_target)
+            key, subkey = random.split(key)
+
+            cluster = generate_fractal_ic(
+                subkey, N_stars=300, M_total=300.0, R_half=1.0,
+                profile="plummer", frac_params=frac, imf_params=imf
+            )
+
+            Q_actual = compute_virial_ratio(
+                cluster.positions, cluster.velocities, cluster.masses, G=STELLAR.G
+            )
+
+            assert jnp.isclose(Q_actual, Q_target, rtol=0.02), \
+                f"Q_target={Q_target}, Q_actual={Q_actual}"
+
+    def test_accepts_pre_initialized_field(self, key, imf, frac_params):
+        """Can pass pre-initialized FractalField."""
+        from progenax.cluster.fdf import generate_fractal_ic, init_fractal_field
+
+        # Pre-initialize field
+        key, subkey = random.split(key)
+        field = init_fractal_field(subkey, n_modes=64, R_half=1.0)
+
+        # Pass to generator
+        cluster = generate_fractal_ic(
+            key, N_stars=100, M_total=100.0, R_half=1.0,
+            profile="plummer", frac_params=frac_params, imf_params=imf,
+            field=field
+        )
+
+        assert cluster.positions.shape == (100, 3)
+
+
+# =============================================================================
+# Task 8.1: FDF Calibration Tests
+# =============================================================================
+
+
+class TestFDFCalibration:
+    """Tests for FDF calibration helpers."""
+
+    def test_load_fdf_calibration(self):
+        """load_fdf_calibration returns valid calibration."""
+        from progenax.cluster.fdf_calibration import load_fdf_calibration
+
+        cal = load_fdf_calibration()
+
+        assert hasattr(cal, 'D_values')
+        assert hasattr(cal, 'chi_values')
+        assert hasattr(cal, 'sigma_u_values')
+        assert len(cal.D_values) >= 5
+
+    def test_chi_from_D_interpolation(self):
+        """chi_from_D interpolates correctly."""
+        from progenax.cluster.fdf_calibration import load_fdf_calibration
+
+        cal = load_fdf_calibration()
+
+        # At tabulated points
+        chi_at_2 = cal.chi_from_D(2.0)
+        assert jnp.isfinite(chi_at_2)
+
+        # Between points (should interpolate)
+        chi_at_2_2 = cal.chi_from_D(2.2)
+        assert jnp.isfinite(chi_at_2_2)
+
+    def test_sigma_u_from_D_monotonic(self):
+        """sigma_u decreases with increasing D (smoother = smaller displacement)."""
+        from progenax.cluster.fdf_calibration import load_fdf_calibration
+
+        cal = load_fdf_calibration()
+
+        # sigma_u(D=1.6) should be > sigma_u(D=3.0)
+        sigma_clumpy = cal.sigma_u_from_D(1.6)
+        sigma_smooth = cal.sigma_u_from_D(3.0)
+
+        assert sigma_clumpy > sigma_smooth
+
+    def test_fractal_layer_from_D(self):
+        """fractal_layer_from_D creates valid FractalDisplacementLayer."""
+        from progenax.cluster.fdf_calibration import fractal_layer_from_D
+        from progenax.cluster.fdf import FractalDisplacementLayer
+
+        layer = fractal_layer_from_D(D=2.0, virial_ratio=0.3)
+
+        assert isinstance(layer, FractalDisplacementLayer)
+        assert layer.virial_ratio == 0.3
+        assert layer.chi >= 1.5
+        assert layer.chi <= 3.0
+
+    def test_fractal_layer_from_D_clamps_D(self):
+        """fractal_layer_from_D clamps D to valid range."""
+        from progenax.cluster.fdf_calibration import fractal_layer_from_D
+
+        # D below range
+        layer_low = fractal_layer_from_D(D=1.0)
+        assert layer_low.chi >= 1.5
+
+        # D above range
+        layer_high = fractal_layer_from_D(D=4.0)
+        assert layer_high.chi <= 3.0
+
+    def test_gradient_through_D(self):
+        """Gradients flow through D in fractal_layer_from_D."""
+        from progenax.cluster.fdf_calibration import fractal_layer_from_D
+
+        def loss(D):
+            layer = fractal_layer_from_D(D)
+            return layer.chi + layer.sigma_u
+
+        grad_D = jax.grad(loss)(2.0)
+        assert jnp.isfinite(grad_D)
+
+
+# =============================================================================
+# Task 9.1: Module Export Tests
+# =============================================================================
+
+
+class TestModuleExports:
+    """Tests for public API exports."""
+
+    def test_fdf_exports_from_cluster(self):
+        """FDF classes are exported from progenax.cluster."""
+        from progenax.cluster import (
+            FractalField,
+            FractalDisplacementLayer,
+            generate_fractal_ic,
+            init_fractal_field,
+            fractal_layer_from_D,
+        )
+
+        assert FractalField is not None
+        assert FractalDisplacementLayer is not None
+        assert generate_fractal_ic is not None
+        assert init_fractal_field is not None
+        assert fractal_layer_from_D is not None
+
+    def test_fdf_helper_functions_exported(self):
+        """FDF helper functions are exported from progenax.cluster."""
+        from progenax.cluster import (
+            compute_amplitudes,
+            evaluate_displacement,
+            apply_displacement,
+            assign_fractal_velocities,
+        )
+
+        assert compute_amplitudes is not None
+        assert evaluate_displacement is not None
+        assert apply_displacement is not None
+        assert assign_fractal_velocities is not None
+
+    def test_calibration_exports(self):
+        """Calibration helpers are exported from progenax.cluster."""
+        from progenax.cluster import (
+            FDFCalibration,
+            load_fdf_calibration,
+            fractal_layer_from_D,
+        )
+
+        assert FDFCalibration is not None
+        assert load_fdf_calibration is not None
+        assert fractal_layer_from_D is not None
+
+
+# =============================================================================
+# Task 9.2: FractalLayer Integration Tests
+# =============================================================================
+
+
+class TestFractalLayerIntegration:
+    """Tests for FractalLayer using FDF backend."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    @pytest.fixture
+    def imf(self):
+        from progenax.imf import PowerLawIMF
+        return PowerLawIMF.kroupa()
+
+    def test_fractal_layer_uses_fdf_internally(self, key, imf):
+        """FractalLayer(D=...) uses FDF method internally."""
+        from progenax.cluster import (
+            generate_cluster_ic,
+            SpatialStructureParams,
+            FractalLayer,
+        )
+
+        structure = SpatialStructureParams(
+            base_profile="plummer",
+            fractal=FractalLayer(D=2.0, lambda_frac=1.0),
+        )
+
+        cluster = generate_cluster_ic(
+            key=key,
+            N_stars=100,
+            M_total=100.0,
+            R_half=1.0,
+            imf_params=imf,
+            structure_params=structure,
+        )
+
+        assert cluster.positions.shape == (100, 3)
+        assert cluster.velocities.shape == (100, 3)
+
+    def test_fractal_layer_virial_ratio(self, key, imf):
+        """FractalLayer respects virial_ratio parameter."""
+        from progenax.cluster import (
+            generate_cluster_ic,
+            SpatialStructureParams,
+            FractalLayer,
+        )
+        from progenax.dynamics.virial import compute_virial_ratio
+        from jaxstro.units import STELLAR
+
+        structure = SpatialStructureParams(
+            base_profile="plummer",
+            fractal=FractalLayer(D=2.0, virial_ratio=0.3),
+        )
+
+        cluster = generate_cluster_ic(
+            key=key,
+            N_stars=300,
+            M_total=300.0,
+            R_half=1.0,
+            imf_params=imf,
+            structure_params=structure,
+        )
+
+        Q = compute_virial_ratio(
+            cluster.positions, cluster.velocities, cluster.masses, G=STELLAR.G
+        )
+
+        assert jnp.isclose(Q, 0.3, rtol=0.05)
