@@ -22,8 +22,8 @@ class EFFVelocityDF(eqx.Module):
     isotropic Gaussian velocities with a velocity scale estimated from:
         σ ≈ √(G M_total / (6 a))
 
-    This provides a reasonable initial velocity distribution that can be
-    scaled to any desired virial ratio Q via virial_scale().
+    This provides a reasonable initial velocity distribution. Global virial
+    ratio rescaling is handled by the higher-level kinematics API.
 
     Attributes:
         a: Scale radius [length units], must match spatial profile
@@ -36,7 +36,7 @@ class EFFVelocityDF(eqx.Module):
     Notes:
         - Velocities are isotropic Gaussian (no radial dependence)
         - Fully differentiable and JIT-compatible
-        - Use virial_scale() to adjust to desired virial ratio
+        - For virial rescaling, use progenax.kinematics.sample_velocities_pipeline
 
     Examples:
         >>> from progenax.profiles.eff import EFFProfile
@@ -70,11 +70,10 @@ class EFFVelocityDF(eqx.Module):
             gamma: Power-law index (for documentation)
             r_t: Tidal radius [length units], must match spatial profile
         """
-        self.a = jnp.asarray(a, dtype=jnp.float64)
-        self.gamma = jnp.asarray(gamma, dtype=jnp.float64)
-        self.r_t = jnp.asarray(r_t, dtype=jnp.float64)
+        self.a = jnp.asarray(a)
+        self.gamma = jnp.asarray(gamma)
+        self.r_t = jnp.asarray(r_t)
 
-    @jax.jit
     def sample_velocities(
         self,
         positions: Float[Array, "N 3"],
@@ -88,14 +87,14 @@ class EFFVelocityDF(eqx.Module):
         Velocities are drawn from 3D Gaussian with velocity scale:
             σ ≈ √(G M_total / (6 a))
 
-        This provides a reasonable initial distribution. Use virial_scale()
-        to adjust to desired virial ratio Q.
+        This provides a reasonable initial distribution. Global virial ratio
+        rescaling is handled by the higher-level kinematics API.
 
         Args:
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [mass units]
             key: JAX random key for reproducible sampling
-            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+            G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
@@ -107,25 +106,21 @@ class EFFVelocityDF(eqx.Module):
             - Mean velocity is zero (no bulk motion)
         """
         if G is None:
-            from jaxstro.units import DEFAULT
-            G = DEFAULT.G
+            from jaxstro.units import STELLAR
+            G = STELLAR.G
 
-        N = len(masses)
+        N = positions.shape[0]
         M_total = jnp.sum(masses)
 
         # Velocity scale from virial theorem estimate
         # σ ≈ √(G M_total / (6 a))
         sigma = jnp.sqrt(G * M_total / (6.0 * self.a))
 
-        # Isotropic Gaussian velocities
-        key, subkey_x = jax.random.split(key)
-        v_x = jax.random.normal(subkey_x, shape=(N,)) * sigma
-
-        key, subkey_y = jax.random.split(key)
-        v_y = jax.random.normal(subkey_y, shape=(N,)) * sigma
-
-        key, subkey_z = jax.random.split(key)
-        v_z = jax.random.normal(subkey_z, shape=(N,)) * sigma
+        # Isotropic Gaussian velocities - split once into 3 subkeys
+        keys = jax.random.split(key, 3)
+        v_x = jax.random.normal(keys[0], shape=(N,)) * sigma
+        v_y = jax.random.normal(keys[1], shape=(N,)) * sigma
+        v_z = jax.random.normal(keys[2], shape=(N,)) * sigma
 
         velocities = jnp.stack([v_x, v_y, v_z], axis=1)
 

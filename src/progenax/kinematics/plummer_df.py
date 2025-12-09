@@ -78,14 +78,13 @@ class PlummerVelocityDF(eqx.Module):
         Args:
             r_h: Half-mass radius [length units], must match spatial profile
         """
-        self.r_h = jnp.asarray(r_h, dtype=jnp.float64)
+        self.r_h = jnp.asarray(r_h)
         # Scale radius from half-mass radius
         # From Plummer (1911): M(<r)/M = r³/(r²+a²)^(3/2)
         # At r = r_h: 0.5 = r_h³/(r_h²+a²)^(3/2)
         # Solving: a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
         self.a = self.r_h * jnp.sqrt(2**(2/3) - 1)
 
-    @jax.jit
     def sample_velocities(
         self,
         positions: Float[Array, "N 3"],
@@ -103,7 +102,7 @@ class PlummerVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M☉]
             key: JAX random key
-            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+            G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
@@ -115,8 +114,8 @@ class PlummerVelocityDF(eqx.Module):
             - Statistical properties match Plummer (1911) exactly
         """
         if G is None:
-            from jaxstro.units import DEFAULT
-            G = DEFAULT.G
+            from jaxstro.units import STELLAR
+            G = STELLAR.G
 
         N = positions.shape[0]
         key_mag, key_theta, key_phi = jax.random.split(key, 3)
@@ -141,7 +140,6 @@ class PlummerVelocityDF(eqx.Module):
 
         return velocities
 
-    @jax.jit
     def _sample_velocity_magnitudes(
         self,
         r: Float[Array, "N"],

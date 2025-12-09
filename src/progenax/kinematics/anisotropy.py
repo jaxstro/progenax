@@ -53,8 +53,6 @@ def apply_osipkov_merritt(
         Osipkov (1979) Soviet Astronomy Letters 5, 42
         Merritt (1985) AJ 90, 1027
     """
-    N = positions.shape[0]
-
     # Compute radii
     r = jnp.linalg.norm(positions, axis=1, keepdims=True)  # (N, 1)
     r_safe = jnp.maximum(r, 1e-10)
@@ -93,8 +91,8 @@ def apply_osipkov_merritt(
     t_hat = v_t / v_t_safe  # (N, 3)
 
     # Generate random tangential direction for particles with v_t ~ 0
-    key1, key2 = jax.random.split(key)
-    random_vec = jax.random.normal(key1, (N, 3))
+    N = positions.shape[0]
+    random_vec = jax.random.normal(key, (N, 3))
     random_vec = random_vec - jnp.sum(random_vec * r_hat, axis=1, keepdims=True) * r_hat
     random_vec_mag = jnp.linalg.norm(random_vec, axis=1, keepdims=True)
     random_t_hat = random_vec / jnp.maximum(random_vec_mag, 1e-10)

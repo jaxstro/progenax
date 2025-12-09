@@ -28,7 +28,7 @@ def apply_solid_body_rotation(
         velocities: Input velocities (N, 3)
         positions: Particle positions (N, 3)
         omega: Angular velocity magnitude [rad/time]
-        axis: Rotation axis unit vector (3,), will be normalized
+        axis: Rotation axis vector (3,), will be normalized. Must be nonzero.
 
     Returns:
         Velocities with rotation added (N, 3)
@@ -44,8 +44,10 @@ def apply_solid_body_rotation(
     Reference:
         Binney & Tremaine (2008) Section 4.8
     """
-    # Normalize axis
-    axis_norm = axis / jnp.linalg.norm(axis)
+    # Normalize axis with epsilon safeguard
+    axis_mag = jnp.linalg.norm(axis)
+    # Use safe division - if axis is zero, result will be NaN which is appropriate
+    axis_norm = axis / jnp.maximum(axis_mag, 1e-30)
 
     # Rotation velocity: v_rot = omega x r = omega * (axis x r)
     omega_vec = omega * axis_norm  # (3,)
@@ -77,7 +79,7 @@ def apply_differential_rotation(
         positions: Particle positions (N, 3)
         v_peak: Peak rotation velocity [velocity units]
         R_peak: Radius of peak rotation [length units]
-        axis: Rotation axis unit vector (3,)
+        axis: Rotation axis vector (3,), will be normalized. Must be nonzero.
 
     Returns:
         Velocities with differential rotation added (N, 3)
@@ -85,8 +87,9 @@ def apply_differential_rotation(
     Reference:
         Lynden-Bell (1960) MNRAS 120, 204
     """
-    # Normalize axis
-    axis_norm = axis / jnp.linalg.norm(axis)
+    # Normalize axis with epsilon safeguard
+    axis_mag = jnp.linalg.norm(axis)
+    axis_norm = axis / jnp.maximum(axis_mag, 1e-30)
 
     # Compute cylindrical radius R (distance from rotation axis)
     # R^2 = |r|^2 - (r . axis)^2

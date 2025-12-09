@@ -140,14 +140,11 @@ profile = PlummerProfile(r_h=1.0)
 df = PlummerVelocityDF(r_h=2.0)  # Different r_h!
 ```
 
-### JAX Float64
+### JAX Float64 (Automatic)
 
-Enable float64 for precision-sensitive calculations:
+**progenax automatically enables float64** via `jaxstro.jaxconfig.enable_high_precision()` at import time. This is the standard approach across the jaxstro ecosystem - high precision is configured before any JAX arrays are created.
 
-```python
-import jax
-jax.config.update("jax_enable_x64", True)
-```
+You don't need to do anything - just `import progenax` and you get float64.
 
 ### Unit System Consistency
 

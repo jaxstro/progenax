@@ -4,6 +4,13 @@ progenax - Differentiable initial conditions for N-body simulations.
 Part of the jaxstro ecosystem.
 """
 
+# Configure JAX for 64-bit precision BEFORE any other imports
+# This must be called before any JAX arrays are created
+from jaxstro.jaxconfig import enable_high_precision as _enable_jax_hp
+
+_enable_jax_hp()
+del _enable_jax_hp  # avoid leaking into public API
+
 from .protocols import SpatialProfile, VelocityDF, IMFProtocol
 from .profiles import PlummerProfile, KingProfile, EFFProfile, solve_king_profile
 from .kinematics import PlummerVelocityDF, KingVelocityDF, EFFVelocityDF

@@ -78,11 +78,10 @@ class KingVelocityDF(eqx.Module):
             r_c: Core radius [length units]
             r_t: Tidal radius [length units]
         """
-        self.W0 = jnp.asarray(W0, dtype=jnp.float64)
-        self.r_c = jnp.asarray(r_c, dtype=jnp.float64)
-        self.r_t = jnp.asarray(r_t, dtype=jnp.float64)
+        self.W0 = jnp.asarray(W0)
+        self.r_c = jnp.asarray(r_c)
+        self.r_t = jnp.asarray(r_t)
 
-    @jax.jit
     def sample_velocities(
         self,
         positions: Float[Array, "N 3"],
@@ -100,7 +99,7 @@ class KingVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M☉]
             key: JAX random key
-            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+            G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
@@ -112,8 +111,8 @@ class KingVelocityDF(eqx.Module):
             - Uses simplified velocity dispersion profile
         """
         if G is None:
-            from jaxstro.units import DEFAULT
-            G = DEFAULT.G
+            from jaxstro.units import STELLAR
+            G = STELLAR.G
 
         N = positions.shape[0]
         M_total = jnp.sum(masses)
@@ -139,11 +138,11 @@ class KingVelocityDF(eqx.Module):
         v_esc_squared = 2.0 * psi * sigma_0_squared
         v_esc = jnp.sqrt(jnp.maximum(v_esc_squared, 0.0))
 
-        # Sample isotropic Gaussian velocities
-        key1, key2, key3 = jax.random.split(key, 3)
-        v_x = jax.random.normal(key1, shape=(N,)) * sigma_r
-        v_y = jax.random.normal(key2, shape=(N,)) * sigma_r
-        v_z = jax.random.normal(key3, shape=(N,)) * sigma_r
+        # Sample isotropic Gaussian velocities - split once into 3 subkeys
+        keys = jax.random.split(key, 3)
+        v_x = jax.random.normal(keys[0], shape=(N,)) * sigma_r
+        v_y = jax.random.normal(keys[1], shape=(N,)) * sigma_r
+        v_z = jax.random.normal(keys[2], shape=(N,)) * sigma_r
 
         velocities = jnp.stack([v_x, v_y, v_z], axis=1)
 
