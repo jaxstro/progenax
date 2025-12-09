@@ -250,7 +250,7 @@ def apply_mass_segregation_baumgardt(
     key: PRNGKeyArray,
     G: float | None = None,
     eps: float = 0.01,
-    Q_target: float = 1.0,
+    Q_target: float = 0.5,
 ) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"]]:
     """
     Apply Baumgardt/McLuster-style primordial mass segregation.
@@ -275,7 +275,7 @@ def apply_mass_segregation_baumgardt(
         key: JAX random key for stochastic slot selection
         G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
         eps: Softening length for potential calculation [length units]
-        Q_target: Target virial ratio Q = 2K/|U| (default: 1.0 for equilibrium)
+        Q_target: Target virial ratio Q = K/|U| (default: 0.5 for equilibrium)
 
     Returns:
         Tuple of (positions_out, velocities_out) with:
@@ -322,7 +322,7 @@ def apply_mass_segregation_baumgardt(
         # This gives bias toward slot 0 (most bound) as s → 1
         U = jax.random.uniform(subkey)
         slot_frac = 1.0 - jnp.power(U, 1.0 - s + 1e-10)
-        slot_index = jnp.floor((n_available - 1) * slot_frac).astype(jnp.int32)
+        slot_index = jnp.floor((n_available - 1) * slot_frac).astype(int)
         slot_index = jnp.clip(slot_index, 0, N - 1)
 
         # Find the slot_index-th available orbit
@@ -344,7 +344,7 @@ def apply_mass_segregation_baumgardt(
 
     # Initialize: all orbits available
     initial_mask = jnp.ones(N, dtype=bool)
-    initial_assignments = jnp.zeros(N, dtype=jnp.int32)
+    initial_assignments = jnp.zeros(N, dtype=int)
 
     (_, final_assignments, _), _ = jax.lax.scan(
         assign_step,
@@ -377,8 +377,8 @@ def apply_mass_segregation_baumgardt(
     U = 0.5 * jnp.sum(masses * phi_out)  # Total potential energy
     K = 0.5 * jnp.sum(masses * jnp.sum(velocities_out**2, axis=1))
 
-    # Current virial ratio
-    Q_current = 2.0 * K / jnp.abs(U)
+    # Current virial ratio: Q = T/|V| (equilibrium at 0.5)
+    Q_current = K / jnp.abs(U)
 
     # Scale velocities: v_new = v_old * sqrt(Q_target / Q_current)
     scale = jnp.sqrt(Q_target / (Q_current + 1e-10))

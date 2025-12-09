@@ -221,7 +221,7 @@ class TestBaumgardtSegregation:
         assert rho < -0.6, f"s=1 should give rho < -0.6, got rho={rho:.3f}"
 
     def test_virial_ratio_rescaling(self, key, G, eps):
-        """Output has virial ratio Q ~ Q_target."""
+        """Output has virial ratio Q = T/|V| ~ Q_target (0.5 for equilibrium)."""
         from progenax.profiles import PlummerProfile
 
         N = 200
@@ -233,7 +233,7 @@ class TestBaumgardtSegregation:
         key, subkey = jax.random.split(key)
         velocities = jax.random.normal(subkey, (N, 3)) * 0.5
 
-        Q_target = 1.0
+        Q_target = 0.5  # Virial equilibrium: Q = T/|V| = 0.5
         key, subkey = jax.random.split(key)
         pos_out, vel_out = apply_mass_segregation_baumgardt(
             positions, velocities, masses, s=0.5, key=subkey,
@@ -243,7 +243,7 @@ class TestBaumgardtSegregation:
         phi = _softened_potential(pos_out, masses, G=G, eps=eps)
         U = 0.5 * jnp.sum(masses * phi)
         K = 0.5 * jnp.sum(masses * jnp.sum(vel_out**2, axis=1))
-        Q = 2.0 * K / jnp.abs(U)
+        Q = K / jnp.abs(U)  # Q = T/|V| (NOT 2T/|V|)
 
         assert jnp.isclose(Q, Q_target, rtol=0.1), (
             f"Q={float(Q):.3f}, expected Q_target={Q_target}"
