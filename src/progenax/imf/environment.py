@@ -292,6 +292,144 @@ class BirthEnvironment(eqx.Module):
             log_rho_cl=jnp.log10(jnp.array(9.54)),
         )
 
+    # -------------------------------------------------------------------------
+    # Turbulence Properties (for FDF parameter derivation)
+    # -------------------------------------------------------------------------
+
+    def turbulent_mach(self, c_s: float = 0.2) -> Float[Array, ""]:
+        """Estimate turbulent Mach number from virial equilibrium.
+
+        Assumes the cluster's velocity dispersion follows virial scaling:
+            σ_v = √(G M_ecl / r_h)
+
+        Then Mach number:
+            M = σ_v / c_s
+
+        Parameters
+        ----------
+        c_s : float, optional
+            Sound speed [km/s]. Default 0.2 (cold GMC at T ~ 10 K).
+
+        Returns
+        -------
+        mach : Float[Array, ""]
+            Turbulent Mach number.
+
+        Notes
+        -----
+        Physical ranges for typical clusters:
+
+        =========  =======  ======  =========  =====
+        Cluster    M_ecl    r_h     σ_v        Mach
+        =========  =======  ======  =========  =====
+        Small OC   10³ M☉   0.3 pc  ~1 km/s    ~5
+        Large OC   10⁴ M☉   0.5 pc  ~2 km/s    ~10
+        YMC        10⁵ M☉   1.0 pc  ~5 km/s    ~25
+        GC         10⁶ M☉   3.0 pc  ~10 km/s   ~50
+        =========  =======  ======  =========  =====
+
+        References
+        ----------
+        .. [1] Larson (1981) MNRAS 194, 809 - σ-R relation
+        .. [2] Marks & Kroupa (2012) MNRAS 422, 2246 - r_h-M relation
+
+        Examples
+        --------
+        >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
+        >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~14
+        """
+        from progenax.cluster.fdf_config import turbulent_mach_from_virial
+
+        M_ecl = jnp.power(10.0, self.log_mecl)
+        r_h = compute_r_half(M_ecl)
+        return turbulent_mach_from_virial(M_ecl, r_h, c_s)
+
+    def sigma_ln_rho(
+        self, b: float = 0.4, c_s: float = 0.2
+    ) -> Float[Array, ""]:
+        """σ_ln_ρ from Federrath+2010 density-Mach relation.
+
+        The variance of the log-density field in supersonic turbulence:
+            σ²_ln_ρ = ln(1 + b² M²)
+
+        Parameters
+        ----------
+        b : float, optional
+            Turbulence driving parameter (default 0.4).
+            - b ≈ 1/3 (0.33): Solenoidal (incompressible) driving
+            - b ≈ 1.0: Compressive (irrotational) driving
+            - b ≈ 0.4: Natural mixture (default)
+        c_s : float, optional
+            Sound speed [km/s]. Default 0.2.
+
+        Returns
+        -------
+        sigma_ln_rho : Float[Array, ""]
+            Standard deviation of log-density field.
+
+        Notes
+        -----
+        Physical ranges:
+
+        =========  =========
+        Cluster    σ_ln_ρ
+        =========  =========
+        Small OC   ~0.9
+        Large OC   ~1.4
+        YMC        ~1.9
+        GC         ~2.4
+        =========  =========
+
+        References
+        ----------
+        .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 14
+
+        Examples
+        --------
+        >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
+        >>> print(f"σ_ln_ρ = {float(env.sigma_ln_rho()):.2f}")  # ~1.4
+        """
+        from progenax.cluster.fdf_config import sigma_ln_rho_from_mach
+
+        mach = self.turbulent_mach(c_s)
+        return sigma_ln_rho_from_mach(mach, b)
+
+    def spectral_slope(self, c_s: float = 0.2) -> Float[Array, ""]:
+        """Power spectrum slope β from turbulence regime.
+
+        Interpolates between:
+            - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
+            - Supersonic (M >> 1): Burgers β ≈ 4.0
+
+        Parameters
+        ----------
+        c_s : float, optional
+            Sound speed [km/s]. Default 0.2.
+
+        Returns
+        -------
+        beta : Float[Array, ""]
+            Power spectrum slope P(k) ∝ k^{-β}.
+
+        Notes
+        -----
+        For star-forming clouds with M >> 1, expect β ≈ 4.
+
+        References
+        ----------
+        .. [1] Kolmogorov (1941) - Incompressible turbulence
+        .. [2] Burgers (1948) - Shock-dominated turbulence
+
+        Examples
+        --------
+        >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
+        >>> print(f"β = {float(env.spectral_slope()):.2f}")  # ~4.0
+        """
+        from progenax.cluster.fdf_config import spectral_slope_from_mach
+
+        mach = self.turbulent_mach(c_s)
+        return spectral_slope_from_mach(mach)
+
 
 # =============================================================================
 # Generalized x Functions
