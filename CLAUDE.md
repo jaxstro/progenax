@@ -110,8 +110,13 @@ a = r_h * jnp.sqrt(2**(2/3) - 1)  # ≈ 0.7664 * r_h
 ### Virial Ratio
 
 ```python
-Q = 2*T / |V|  # Q ≈ 1.0 for equilibrium
+Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 ```
+
+**Convention:**
+- Q = 0.5: Virial equilibrium (2T + V = 0)
+- Q < 0.5: Subvirial (cold, collapsing)
+- Q > 0.5: Supervirial (hot, expanding)
 
 ### Kepler's Third Law
 

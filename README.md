@@ -338,7 +338,7 @@ a = r_h * jnp.sqrt(2**(2/3) - 1)  # ≈ 0.7664 * r_h
 
 **Virial Ratio:**
 ```python
-Q = 2*T / |V|  # Q ≈ 1.0 for equilibrium
+Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 ```
 
 ## Testing
@@ -361,7 +361,7 @@ pytest tests/validation/test_plummer_physics.py -v
 
 From `tests/validation/`:
 
-- **Virial ratio**: Q = 0.995 (expected 1.0)
+- **Virial ratio**: Q ≈ 0.5 (expected 0.5 for equilibrium)
 - **Velocity dispersion**: <1% error at all radii
 - **Bound particles**: 100% within escape velocity
 - **Half-mass radius**: 49.9% within r_h (expected 50%)

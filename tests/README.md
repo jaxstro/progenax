@@ -108,7 +108,7 @@ Velocity magnitudes follow $q^2 \sim \text{Beta}(3/2, 9/2)$ where $q = v/v_{\rm 
 | `test_central_velocity_dispersion` | $\sigma(0) = \sqrt{GM/6a}$ | 10% | Statistical + sampling |
 | `test_radial_dispersion_profile` | $\sigma(r)$ decreases outward | 10% | Statistical |
 | `test_velocity_isotropy` | $\langle v_x^2 \rangle \approx \langle v_y^2 \rangle \approx \langle v_z^2 \rangle$ | 5% | Statistical |
-| `test_virial_ratio` | $Q = 2T/|V| \approx 1.0$ | 20% | Statistical + PE approximation |
+| `test_virial_ratio` | $Q = T/|V| \approx 0.5$ | 20% | Statistical + PE approximation |
 | `test_all_particles_bound` | 100% have $v < v_{\rm esc}$ | exact | Physical requirement |
 | `test_q_squared_mean` | $\langle q^2 \rangle = 0.25$ | 2% | Beta distribution property |
 | `test_q_squared_variance` | $\text{Var}(q^2) \approx 0.027$ | 15% | Higher-order statistic |
