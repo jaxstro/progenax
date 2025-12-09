@@ -211,3 +211,6 @@ __marimo__/
 
 # Reference papers and implementation guides (large PDFs)
 docs/core-papers/
+
+# macOS
+.DS_Store
