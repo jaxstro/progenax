@@ -74,16 +74,17 @@ class TestLogProbMasses:
 
         assert jnp.isclose(integral, 1.0, atol=0.05)
 
-    def test_gradient_through_alpha_high(self):
-        """Can compute gradient of log_prob wrt alpha_high."""
+    def test_gradient_through_alpha3(self):
+        """Can compute gradient of log_prob wrt alpha3."""
         from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
 
-        def loss(alpha_high):
+        def loss(alpha3):
             params = IMFParams(
-                alpha_low=jnp.array(0.3),
-                alpha_mid=jnp.array(1.3),
-                alpha_high=alpha_high,
+                alpha0=jnp.array(0.3),
+                alpha1=jnp.array(1.3),
+                alpha2=jnp.array(2.3),
+                alpha3=alpha3,
             )
             masses = jnp.array([1.0, 10.0, 50.0])
             return jnp.sum(log_prob_masses(masses, params))
@@ -183,11 +184,12 @@ class TestSampleMassesFromParams:
         from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
 
-        def loss(alpha_high):
+        def loss(alpha3):
             params = IMFParams(
-                alpha_low=jnp.array(0.3),
-                alpha_mid=jnp.array(1.3),
-                alpha_high=alpha_high,
+                alpha0=jnp.array(0.3),
+                alpha1=jnp.array(1.3),
+                alpha2=jnp.array(2.3),
+                alpha3=alpha3,
             )
             u = jnp.array([0.5, 0.9, 0.99])  # Fixed uniforms
             masses = sample_masses_from_params(params, u)
@@ -198,7 +200,7 @@ class TestSampleMassesFromParams:
 
         assert jnp.isfinite(gradient)
         # Steeper slope → fewer high-mass stars → lower mean mass
-        # So d(mean)/d(alpha_high) should be negative
+        # So d(mean)/d(alpha3) should be negative
         assert gradient < 0
 
     def test_jit_compatible(self):
@@ -260,8 +262,8 @@ class TestIndividualMassNLL:
 
         assert nll_large > nll_small
 
-    def test_gradient_wrt_alpha_high(self):
-        """Gradient of NLL wrt alpha_high is computable and sensible."""
+    def test_gradient_wrt_alpha3(self):
+        """Gradient of NLL wrt alpha3 is computable and sensible."""
         from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
 
@@ -269,11 +271,12 @@ class TestIndividualMassNLL:
         true_alpha = 2.0  # Top-heavy
         masses = jnp.array([5.0, 10.0, 20.0, 50.0])  # Heavy masses
 
-        def loss(alpha_high):
+        def loss(alpha3):
             params = IMFParams(
-                alpha_low=jnp.array(0.3),
-                alpha_mid=jnp.array(1.3),
-                alpha_high=alpha_high,
+                alpha0=jnp.array(0.3),
+                alpha1=jnp.array(1.3),
+                alpha2=jnp.array(2.3),
+                alpha3=alpha3,
             )
             return individual_mass_nll(masses, params)
 

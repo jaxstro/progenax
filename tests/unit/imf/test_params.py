@@ -14,30 +14,33 @@ class TestIMFParamsBasic:
 
         params = IMFParams.kroupa()
 
-        assert jnp.isclose(params.alpha_low, 0.3, atol=1e-6)
-        assert jnp.isclose(params.alpha_mid, 1.3, atol=1e-6)
-        assert jnp.isclose(params.alpha_high, 2.3, atol=1e-6)
+        assert jnp.isclose(params.alpha0, 0.3, atol=1e-6)
+        assert jnp.isclose(params.alpha1, 1.3, atol=1e-6)
+        assert jnp.isclose(params.alpha2, 2.3, atol=1e-6)
+        assert jnp.isclose(params.alpha3, 2.3, atol=1e-6)
 
     def test_fixed_breaks_are_correct(self):
-        """Mass breaks are fixed at 0.08 and 0.5 M_sun."""
+        """Mass breaks are fixed at 0.08, 0.50, and 1.00 M_sun."""
         from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
 
-        assert params.m_break1 == 0.08
-        assert params.m_break2 == 0.50
+        assert params.m_break0 == 0.08
+        assert params.m_break1 == 0.50
+        assert params.m_break2 == 1.00
 
-    def test_custom_alpha_high(self):
-        """Can create IMFParams with custom alpha_high."""
+    def test_custom_alpha3(self):
+        """Can create IMFParams with custom alpha3."""
         from progenax.imf.params import IMFParams
 
         params = IMFParams(
-            alpha_low=jnp.array(0.3),
-            alpha_mid=jnp.array(1.3),
-            alpha_high=jnp.array(2.7),
+            alpha0=jnp.array(0.3),
+            alpha1=jnp.array(1.3),
+            alpha2=jnp.array(2.3),
+            alpha3=jnp.array(2.7),
         )
 
-        assert jnp.isclose(params.alpha_high, 2.7)
+        assert jnp.isclose(params.alpha3, 2.7)
 
 
 class TestIMFParamsJAXCompatibility:
@@ -50,8 +53,8 @@ class TestIMFParamsJAXCompatibility:
         params = IMFParams.kroupa()
         leaves, treedef = jax.tree_util.tree_flatten(params)
 
-        # Should have 3 leaves (alpha_low, alpha_mid, alpha_high)
-        assert len(leaves) == 3
+        # Should have 4 leaves (alpha0, alpha1, alpha2, alpha3)
+        assert len(leaves) == 4
         assert all(isinstance(leaf, jax.Array) for leaf in leaves)
 
     def test_jit_compatible(self):
@@ -60,24 +63,25 @@ class TestIMFParamsJAXCompatibility:
 
         @jax.jit
         def get_alpha_sum(params):
-            return params.alpha_low + params.alpha_mid + params.alpha_high
+            return params.alpha0 + params.alpha1 + params.alpha2 + params.alpha3
 
         params = IMFParams.kroupa()
         result = get_alpha_sum(params)
 
-        assert jnp.isclose(result, 0.3 + 1.3 + 2.3)
+        assert jnp.isclose(result, 0.3 + 1.3 + 2.3 + 2.3)
 
-    def test_grad_through_alpha_high(self):
-        """Can compute gradient through alpha_high."""
+    def test_grad_through_alpha3(self):
+        """Can compute gradient through alpha3."""
         from progenax.imf.params import IMFParams
 
-        def loss(alpha_high):
+        def loss(alpha3):
             params = IMFParams(
-                alpha_low=jnp.array(0.3),
-                alpha_mid=jnp.array(1.3),
-                alpha_high=alpha_high,
+                alpha0=jnp.array(0.3),
+                alpha1=jnp.array(1.3),
+                alpha2=jnp.array(2.3),
+                alpha3=alpha3,
             )
-            return params.alpha_high ** 2
+            return params.alpha3 ** 2
 
         grad_fn = jax.grad(loss)
         gradient = grad_fn(jnp.array(2.3))
