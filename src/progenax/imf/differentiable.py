@@ -6,6 +6,7 @@ This module provides JAX-native functions for:
 - Computing likelihood for observed masses (individual_mass_nll)
 
 All functions are fully differentiable and JIT-compatible.
+Uses 4-segment IMF matching Marks+2012 convention.
 """
 
 import jax
@@ -16,54 +17,68 @@ from .params import IMFParams
 
 
 def _compute_normalization(params: IMFParams) -> Float[Array, ""]:
-    """Compute normalization constant for piecewise power-law IMF.
+    """Compute normalization constant for 4-segment piecewise power-law IMF.
 
-    Integrates ξ(m) = k * m^(-α) over each segment.
+    Integrates ξ(m) = k * a_j * m^(-α_j) over each segment.
 
     For α ≠ 1: ∫ m^(-α) dm = m^(1-α) / (1-α)
+
+    Segments:
+        0: [m_min, m_break0] with α₀
+        1: [m_break0, m_break1] with α₁
+        2: [m_break1, m_break2] with α₂
+        3: [m_break2, m_max] with α₃
     """
     m_min = params.m_min
+    m_b0 = params.m_break0
     m_b1 = params.m_break1
     m_b2 = params.m_break2
     m_max = params.m_max
 
-    a1 = params.alpha_low
-    a2 = params.alpha_mid
-    a3 = params.alpha_high
+    a0 = params.alpha0
+    a1 = params.alpha1
+    a2 = params.alpha2
+    a3 = params.alpha3
 
     # Integral of m^(-α) from a to b: [m^(1-α)/(1-α)]_a^b
     def power_integral(m_lo, m_hi, alpha):
         exp = 1.0 - alpha
         return (m_hi**exp - m_lo**exp) / exp
 
-    # Segment 1: [m_min, m_b1)
-    I1 = power_integral(m_min, m_b1, a1)
+    # Segment 0: [m_min, m_b0)
+    I0 = power_integral(m_min, m_b0, a0)
 
-    # Continuity factor at m_b1: C1 such that C1 * m_b1^(-a2) = m_b1^(-a1)
-    C1 = m_b1 ** (a2 - a1)
+    # Continuity factor at m_b0: C1 such that C1 * m_b0^(-a1) = m_b0^(-a0)
+    C1 = m_b0 ** (a1 - a0)
+
+    # Segment 1: [m_b0, m_b1)
+    I1 = C1 * power_integral(m_b0, m_b1, a1)
+
+    # Continuity factor at m_b1
+    C2 = C1 * m_b1 ** (a2 - a1)
 
     # Segment 2: [m_b1, m_b2)
-    I2 = C1 * power_integral(m_b1, m_b2, a2)
+    I2 = C2 * power_integral(m_b1, m_b2, a2)
 
     # Continuity factor at m_b2
-    C2 = C1 * m_b2 ** (a3 - a2)
+    C3 = C2 * m_b2 ** (a3 - a2)
 
     # Segment 3: [m_b2, m_max]
-    I3 = C2 * power_integral(m_b2, m_max, a3)
+    I3 = C3 * power_integral(m_b2, m_max, a3)
 
-    return I1 + I2 + I3
+    return I0 + I1 + I2 + I3
 
 
 def log_prob_masses(
     masses: Float[Array, "N"],
     params: IMFParams,
 ) -> Float[Array, "N"]:
-    """Compute log probability of each mass under the IMF.
+    """Compute log probability of each mass under the 4-segment IMF.
 
     Evaluates the normalized piecewise power-law PDF:
         log p(m | params) = log(ξ(m)) - log(normalization)
 
-    where ξ(m) is the unnormalized IMF.
+    where ξ(m) is the unnormalized IMF with 4 segments.
 
     Args:
         masses: Stellar masses [M☉], shape (N,)
@@ -77,30 +92,38 @@ def log_prob_masses(
         >>> masses = jnp.array([0.5, 1.0, 10.0])
         >>> log_probs = log_prob_masses(masses, params)
     """
+    m_b0 = params.m_break0
     m_b1 = params.m_break1
     m_b2 = params.m_break2
 
-    a1 = params.alpha_low
-    a2 = params.alpha_mid
-    a3 = params.alpha_high
+    a0 = params.alpha0
+    a1 = params.alpha1
+    a2 = params.alpha2
+    a3 = params.alpha3
 
     # Continuity factors
-    C1 = m_b1 ** (a2 - a1)
-    C2 = C1 * m_b2 ** (a3 - a2)
+    C1 = m_b0 ** (a1 - a0)
+    C2 = C1 * m_b1 ** (a2 - a1)
+    C3 = C2 * m_b2 ** (a3 - a2)
 
     # Determine which segment each mass belongs to
-    in_seg1 = masses < m_b1
+    in_seg0 = masses < m_b0
+    in_seg1 = (masses >= m_b0) & (masses < m_b1)
     in_seg2 = (masses >= m_b1) & (masses < m_b2)
-    in_seg3 = masses >= m_b2
+    # in_seg3 = masses >= m_b2 (implicit else)
 
     # Unnormalized log PDF (log of ξ(m) = C * m^(-α))
     log_xi = jnp.where(
-        in_seg1,
-        -a1 * jnp.log(masses),
+        in_seg0,
+        -a0 * jnp.log(masses),
         jnp.where(
-            in_seg2,
-            jnp.log(C1) - a2 * jnp.log(masses),
-            jnp.log(C2) - a3 * jnp.log(masses),
+            in_seg1,
+            jnp.log(C1) - a1 * jnp.log(masses),
+            jnp.where(
+                in_seg2,
+                jnp.log(C2) - a2 * jnp.log(masses),
+                jnp.log(C3) - a3 * jnp.log(masses),
+            ),
         ),
     )
 
@@ -111,34 +134,41 @@ def log_prob_masses(
     return log_prob
 
 
-def _compute_cdf_at_breaks(params: IMFParams) -> tuple[Float[Array, ""], Float[Array, ""]]:
+def _compute_cdf_at_breaks(
+    params: IMFParams,
+) -> tuple[Float[Array, ""], Float[Array, ""], Float[Array, ""]]:
     """Compute CDF values at mass break points.
 
-    Returns (F(m_b1), F(m_b2)) where F is the cumulative distribution.
+    Returns (F(m_b0), F(m_b1), F(m_b2)) where F is the cumulative distribution.
     """
     m_min = params.m_min
+    m_b0 = params.m_break0
     m_b1 = params.m_break1
     m_b2 = params.m_break2
 
-    a1 = params.alpha_low
-    a2 = params.alpha_mid
-    a3 = params.alpha_high
+    a0 = params.alpha0
+    a1 = params.alpha1
+    a2 = params.alpha2
 
     norm = _compute_normalization(params)
 
-    # Integral from m_min to m_b1
+    # Integral from m_min to m_b0
     def power_integral(m_lo, m_hi, alpha):
         exp = 1.0 - alpha
         return (m_hi**exp - m_lo**exp) / exp
 
-    I1 = power_integral(m_min, m_b1, a1)
-    F_b1 = I1 / norm
+    I0 = power_integral(m_min, m_b0, a0)
+    F_b0 = I0 / norm
 
-    C1 = m_b1 ** (a2 - a1)
-    I2 = C1 * power_integral(m_b1, m_b2, a2)
-    F_b2 = (I1 + I2) / norm
+    C1 = m_b0 ** (a1 - a0)
+    I1 = C1 * power_integral(m_b0, m_b1, a1)
+    F_b1 = (I0 + I1) / norm
 
-    return F_b1, F_b2
+    C2 = C1 * m_b1 ** (a2 - a1)
+    I2 = C2 * power_integral(m_b1, m_b2, a2)
+    F_b2 = (I0 + I1 + I2) / norm
+
+    return F_b0, F_b1, F_b2
 
 
 def sample_masses_from_params(
@@ -166,21 +196,24 @@ def sample_masses_from_params(
         >>> masses = sample_masses_from_params(params, u)
     """
     m_min = params.m_min
+    m_b0 = params.m_break0
     m_b1 = params.m_break1
     m_b2 = params.m_break2
     m_max = params.m_max
 
-    a1 = params.alpha_low
-    a2 = params.alpha_mid
-    a3 = params.alpha_high
+    a0 = params.alpha0
+    a1 = params.alpha1
+    a2 = params.alpha2
+    a3 = params.alpha3
 
     # Get CDF values at breaks
-    F_b1, F_b2 = _compute_cdf_at_breaks(params)
+    F_b0, F_b1, F_b2 = _compute_cdf_at_breaks(params)
     norm = _compute_normalization(params)
 
     # Continuity factors
-    C1 = m_b1 ** (a2 - a1)
-    C2 = C1 * m_b2 ** (a3 - a2)
+    C1 = m_b0 ** (a1 - a0)
+    C2 = C1 * m_b1 ** (a2 - a1)
+    C3 = C2 * m_b2 ** (a3 - a2)
 
     # Inverse CDF for each segment
     # For segment with ξ(m) = C * m^(-α):
@@ -194,20 +227,26 @@ def sample_masses_from_params(
         return inner ** (1.0 / exp)
 
     # Determine segment for each u
-    in_seg1 = u < F_b1
+    in_seg0 = u < F_b0
+    in_seg1 = (u >= F_b0) & (u < F_b1)
     in_seg2 = (u >= F_b1) & (u < F_b2)
-    in_seg3 = u >= F_b2
+    # in_seg3 = u >= F_b2 (implicit else)
 
     # Compute mass for each segment
-    m_seg1 = inv_cdf_segment(u, m_min, 0.0, 1.0, a1)
-    m_seg2 = inv_cdf_segment(u, m_b1, F_b1, C1, a2)
-    m_seg3 = inv_cdf_segment(u, m_b2, F_b2, C2, a3)
+    m_seg0 = inv_cdf_segment(u, m_min, 0.0, 1.0, a0)
+    m_seg1 = inv_cdf_segment(u, m_b0, F_b0, C1, a1)
+    m_seg2 = inv_cdf_segment(u, m_b1, F_b1, C2, a2)
+    m_seg3 = inv_cdf_segment(u, m_b2, F_b2, C3, a3)
 
     # Select based on segment
     masses = jnp.where(
-        in_seg1,
-        m_seg1,
-        jnp.where(in_seg2, m_seg2, m_seg3),
+        in_seg0,
+        m_seg0,
+        jnp.where(
+            in_seg1,
+            m_seg1,
+            jnp.where(in_seg2, m_seg2, m_seg3),
+        ),
     )
 
     # Clip to valid range (numerical safety)

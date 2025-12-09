@@ -10,20 +10,6 @@ from .power_law import (
 )
 from .smooth import Maschberger, TaperedPowerLaw, Schechter
 from .chabrier import ChabrierIMF
-from .environment import (
-    GasEnvironment,
-    jeans_mass,
-    characteristic_mass_from_jeans,
-    alpha_bounded,
-    bonnor_ebert_mass,
-    alpha_marks2012,
-    alpha_jerabkova2018,
-    alpha_from_sfr,
-    EnvironmentIMF,
-    CustomEnvironmentIMF,
-    is_top_heavy,
-    massive_star_fraction,
-)
 from .binary import (
     MassRatioProtocol,
     FlatMassRatio,
@@ -40,34 +26,52 @@ from .differentiable import (
     sample_masses_from_params,
     individual_mass_nll,
 )
-from .environment_v2 import BirthEnvironment, env_to_imf_params
+# Paper-calibrated environment-dependent IMF (v0.3)
+from .environment import (
+    # Data class
+    BirthEnvironment,
+    # Main API
+    env_to_imf_params,
+    # Density functions
+    compute_r_half,
+    compute_rho_ecl,
+    compute_rho_cl,
+    compute_log_rho_cl_6,
+    # x functions
+    x_jerabkova_generalized,
+    x_jerabkova_rho,
+    x_hat_marks_plane,
+    # α₃ functions
+    alpha3_jerabkova_generalized,
+    alpha3_jerabkova_mecl,
+    alpha3_jerabkova_rho,
+    alpha3_marks_plane,
+    alpha3_marks_table3,
+    # Low-mass slopes
+    lowmass_slopes_metallicity,
+    # Coefficients
+    JERABKOVA_COEFFICIENTS,
+    MARKS_COEFFICIENTS,
+    MARKS_TABLE3_COEFFICIENTS,
+    DEFAULT_SFE,
+)
 
 __all__ = [
+    # Base classes
     "IMFProtocol",
     "BaseIMF",
     "_ppf_newton",
     "TruncatedIMF",
+    # Power-law IMFs
     "PowerLawIMF",
     "prepare_imf_samples",
     "estimate_N_max_for_M_total",
     "estimate_pool_size",
+    # Smooth IMFs
     "Maschberger",
     "TaperedPowerLaw",
     "Schechter",
     "ChabrierIMF",
-    # Environment-conditioned IMFs
-    "GasEnvironment",
-    "jeans_mass",
-    "characteristic_mass_from_jeans",
-    "alpha_bounded",
-    "bonnor_ebert_mass",
-    "alpha_marks2012",
-    "alpha_jerabkova2018",
-    "alpha_from_sfr",
-    "EnvironmentIMF",
-    "CustomEnvironmentIMF",
-    "is_top_heavy",
-    "massive_star_fraction",
     # Binary IMFs
     "MassRatioProtocol",
     "FlatMassRatio",
@@ -77,11 +81,34 @@ __all__ = [
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
-    # Differentiable IMF inference (v0.1 + v0.2)
+    # Differentiable IMF inference
     "IMFParams",
     "log_prob_masses",
     "sample_masses_from_params",
     "individual_mass_nll",
+    # Paper-calibrated environment-dependent IMF (v0.3)
     "BirthEnvironment",
     "env_to_imf_params",
+    # Density functions
+    "compute_r_half",
+    "compute_rho_ecl",
+    "compute_rho_cl",
+    "compute_log_rho_cl_6",
+    # x functions
+    "x_jerabkova_generalized",
+    "x_jerabkova_rho",
+    "x_hat_marks_plane",
+    # α₃ functions
+    "alpha3_jerabkova_generalized",
+    "alpha3_jerabkova_mecl",
+    "alpha3_jerabkova_rho",
+    "alpha3_marks_plane",
+    "alpha3_marks_table3",
+    # Low-mass slopes
+    "lowmass_slopes_metallicity",
+    # Coefficients
+    "JERABKOVA_COEFFICIENTS",
+    "MARKS_COEFFICIENTS",
+    "MARKS_TABLE3_COEFFICIENTS",
+    "DEFAULT_SFE",
 ]
