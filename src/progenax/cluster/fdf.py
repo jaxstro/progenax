@@ -336,3 +336,93 @@ def evaluate_displacement(
     displacements = cos_terms @ a_vecs
 
     return displacements
+
+
+# =============================================================================
+# Displacement Application with Radial Modes
+# =============================================================================
+
+
+def apply_displacement(
+    positions: Float[Array, "N 3"],
+    displacements: Float[Array, "N 3"],
+    lambda_frac: float,
+    target_radii: Float[Array, "N"],
+    mode: Literal["full", "tangential", "remap"] = "remap",
+) -> Float[Array, "N 3"]:
+    """Apply displacement field to positions.
+
+    Parameters
+    ----------
+    positions : Array, shape (N, 3)
+        Base positions from smooth profile.
+    displacements : Array, shape (N, 3)
+        Displacement vectors from evaluate_displacement.
+    lambda_frac : float
+        Blend fraction in [0, 1].
+    target_radii : Array, shape (N,)
+        Target radii for 'remap' mode.
+    mode : str
+        How to handle radial profile:
+        - 'full': Just add lambda_frac * displacements (radial CDF changes).
+        - 'tangential': Project out radial component, renormalize to original
+          radius. EXPERIMENTAL: exact per-star radius preservation.
+        - 'remap' (default): Full displacement, then rank-based radial remap
+          to exactly match target radial CDF. RECOMMENDED.
+
+    Returns
+    -------
+    positions_out : Array, shape (N, 3)
+        Displaced positions.
+
+    Notes
+    -----
+    For 'remap' mode: Sorting is piecewise-constant in the permutation;
+    gradients flow through the *values* being sorted, not which star is rank k.
+    We accept non-smooth gradients w.r.t. permutations and only rely on
+    smoothness in the radii values themselves.
+    """
+    if mode == "full":
+        return positions + lambda_frac * displacements
+
+    elif mode == "tangential":
+        # Project out radial component
+        r = jnp.linalg.norm(positions, axis=1, keepdims=True)
+        r_hat = positions / jnp.maximum(r, 1e-10)
+
+        # Tangential displacement
+        u_radial = jnp.sum(displacements * r_hat, axis=1, keepdims=True)
+        u_tangential = displacements - u_radial * r_hat
+
+        # Apply tangential displacement
+        pos_displaced = positions + lambda_frac * u_tangential
+
+        # Renormalize to original radius
+        r_new = jnp.linalg.norm(pos_displaced, axis=1, keepdims=True)
+        pos_out = pos_displaced * (r / jnp.maximum(r_new, 1e-10))
+
+        return pos_out
+
+    elif mode == "remap":
+        # Full displacement
+        pos_displaced = positions + lambda_frac * displacements
+
+        # Rank-based radial remap
+        r_displaced = jnp.linalg.norm(pos_displaced, axis=1)
+
+        # Sort indices
+        idx_displaced = jnp.argsort(r_displaced)
+        target_sorted = jnp.sort(target_radii)
+
+        # Map: star at rank k gets target radius at rank k
+        r_mapped = jnp.zeros_like(r_displaced)
+        r_mapped = r_mapped.at[idx_displaced].set(target_sorted)
+
+        # Rescale directions to new radii
+        r_hat = pos_displaced / jnp.maximum(r_displaced[:, None], 1e-10)
+        pos_out = r_hat * r_mapped[:, None]
+
+        return pos_out
+
+    else:
+        raise ValueError(f"Unknown radial mode: {mode}")

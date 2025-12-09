@@ -370,3 +370,156 @@ class TestEvaluateDisplacement:
 
         assert grad_a.shape == (32, 3)
         assert jnp.all(jnp.isfinite(grad_a))
+
+
+class TestApplyDisplacement:
+    """Tests for apply_displacement function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    def test_full_mode_basic(self):
+        """'full' mode adds displacement directly."""
+        from progenax.cluster.fdf import apply_displacement
+
+        positions = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+        displacements = jnp.array([[0.1, 0.0, 0.0], [0.0, 0.1, 0.0]])
+        target_radii = jnp.array([1.0, 1.0])
+
+        result = apply_displacement(
+            positions, displacements, lambda_frac=1.0,
+            target_radii=target_radii, mode="full"
+        )
+
+        expected = positions + displacements
+        assert jnp.allclose(result, expected)
+
+    def test_full_mode_with_lambda_frac(self):
+        """'full' mode respects lambda_frac scaling."""
+        from progenax.cluster.fdf import apply_displacement
+
+        positions = jnp.array([[1.0, 0.0, 0.0]])
+        displacements = jnp.array([[1.0, 0.0, 0.0]])
+        target_radii = jnp.array([1.0])
+
+        result = apply_displacement(
+            positions, displacements, lambda_frac=0.5,
+            target_radii=target_radii, mode="full"
+        )
+
+        expected = jnp.array([[1.5, 0.0, 0.0]])
+        assert jnp.allclose(result, expected)
+
+    def test_remap_mode_preserves_radial_cdf(self, key):
+        """'remap' mode exactly preserves sorted radii."""
+        from progenax.cluster.fdf import apply_displacement
+
+        N = 100
+        # Base positions with known radii
+        key, subkey = random.split(key)
+        target_radii = random.uniform(subkey, (N,), minval=0.1, maxval=2.0)
+
+        # Random positions
+        key, subkey = random.split(key)
+        positions = random.normal(subkey, (N, 3))
+
+        # Large displacements that would change radii
+        key, subkey = random.split(key)
+        displacements = random.normal(subkey, (N, 3)) * 0.5
+
+        result = apply_displacement(
+            positions, displacements, lambda_frac=1.0,
+            target_radii=target_radii, mode="remap"
+        )
+
+        result_radii = jnp.linalg.norm(result, axis=1)
+
+        # Sorted radii must match exactly
+        assert jnp.allclose(
+            jnp.sort(result_radii),
+            jnp.sort(target_radii),
+            rtol=1e-5
+        )
+
+    def test_tangential_mode_preserves_radius_per_star(self):
+        """'tangential' mode preserves each star's original radius."""
+        from progenax.cluster.fdf import apply_displacement
+
+        # Positions at various radii
+        positions = jnp.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [0.0, 0.0, 3.0],
+        ])
+        original_radii = jnp.linalg.norm(positions, axis=1)
+
+        # Large displacements
+        displacements = jnp.array([
+            [0.5, 0.5, 0.0],
+            [0.5, 0.0, 0.5],
+            [0.0, 0.5, 0.5],
+        ])
+        target_radii = original_radii
+
+        result = apply_displacement(
+            positions, displacements, lambda_frac=1.0,
+            target_radii=target_radii, mode="tangential"
+        )
+
+        result_radii = jnp.linalg.norm(result, axis=1)
+
+        # Each star's radius should be preserved
+        assert jnp.allclose(result_radii, original_radii, rtol=1e-5)
+
+    def test_lambda_frac_zero_returns_original(self):
+        """lambda_frac=0 returns original positions."""
+        from progenax.cluster.fdf import apply_displacement
+
+        positions = jnp.array([[1.0, 2.0, 3.0]])
+        displacements = jnp.array([[10.0, 10.0, 10.0]])
+        target_radii = jnp.linalg.norm(positions, axis=1)
+
+        for mode in ["full", "remap", "tangential"]:
+            result = apply_displacement(
+                positions, displacements, lambda_frac=0.0,
+                target_radii=target_radii, mode=mode
+            )
+            assert jnp.allclose(result, positions, rtol=1e-5), f"Failed for mode={mode}"
+
+    def test_differentiable_in_lambda_frac(self, key):
+        """Gradients flow through lambda_frac."""
+        from progenax.cluster.fdf import apply_displacement
+
+        positions = random.normal(key, (20, 3))
+        displacements = random.normal(random.split(key)[0], (20, 3)) * 0.1
+        target_radii = jnp.linalg.norm(positions, axis=1)
+
+        def loss(lambda_frac):
+            result = apply_displacement(
+                positions, displacements, lambda_frac=lambda_frac,
+                target_radii=target_radii, mode="remap"
+            )
+            return jnp.sum(result ** 2)
+
+        grad_lambda = jax.grad(loss)(0.5)
+        assert jnp.isfinite(grad_lambda)
+        assert grad_lambda != 0.0
+
+    def test_jit_compatible(self, key):
+        """apply_displacement can be JIT compiled."""
+        from progenax.cluster.fdf import apply_displacement
+
+        @jax.jit
+        def apply_disp(positions, displacements, lambda_frac):
+            target_radii = jnp.linalg.norm(positions, axis=1)
+            return apply_displacement(
+                positions, displacements, lambda_frac,
+                target_radii, mode="remap"
+            )
+
+        positions = random.normal(key, (30, 3))
+        displacements = random.normal(random.split(key)[0], (30, 3))
+
+        result = apply_disp(positions, displacements, 0.5)
+        assert result.shape == (30, 3)
