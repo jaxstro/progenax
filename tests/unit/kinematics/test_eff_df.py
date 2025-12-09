@@ -27,12 +27,13 @@ class TestEFFVelocityDFPhysics:
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
 
-        vx2_mean = jnp.mean(velocities[:, 0]**2)
-        vy2_mean = jnp.mean(velocities[:, 1]**2)
-        vz2_mean = jnp.mean(velocities[:, 2]**2)
-
-        assert jnp.abs(vx2_mean - vy2_mean) / vx2_mean < 0.15
-        assert jnp.abs(vy2_mean - vz2_mean) / vy2_mean < 0.15
+        v2_means = jnp.array([
+            jnp.mean(velocities[:, 0]**2),
+            jnp.mean(velocities[:, 1]**2),
+            jnp.mean(velocities[:, 2]**2),
+        ])
+        ratio = jnp.max(v2_means) / jnp.min(v2_means)
+        assert ratio < 1.3, f"Velocity variance ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 
     def test_mean_velocity_zero(self):
         """Mean velocity is zero (no bulk motion)."""

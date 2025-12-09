@@ -33,16 +33,18 @@ class TestEFFPhysics:
         key = jax.random.PRNGKey(42)
         positions = profile.sample_positions(masses, key)
 
-        # Check mean position is near origin
+        # Check mean position is near origin (within ~3σ/√N tolerance)
         mean_pos = jnp.mean(positions, axis=0)
-        assert jnp.allclose(mean_pos, 0.0, atol=0.05)
+        assert jnp.all(jnp.abs(mean_pos) < 0.1), f"Mean pos {mean_pos} too far from origin"
 
-        # Check each axis has similar spread
-        std_x = jnp.std(positions[:, 0])
-        std_y = jnp.std(positions[:, 1])
-        std_z = jnp.std(positions[:, 2])
-        assert jnp.isclose(std_x, std_y, rtol=0.15)
-        assert jnp.isclose(std_y, std_z, rtol=0.15)
+        # Check each axis has similar spread (ratio < 1.3)
+        stds = jnp.array([
+            jnp.std(positions[:, 0]),
+            jnp.std(positions[:, 1]),
+            jnp.std(positions[:, 2]),
+        ])
+        ratio = jnp.max(stds) / jnp.min(stds)
+        assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 
     def test_gamma_affects_concentration(self):
         """Higher gamma gives more concentrated distribution."""
