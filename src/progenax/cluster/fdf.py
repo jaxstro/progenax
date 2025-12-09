@@ -219,3 +219,72 @@ def init_fractal_field(
         phases=phases,
         base_vecs=base_vecs,
     )
+
+
+# =============================================================================
+# Spectral Constants (from calibration)
+# =============================================================================
+
+BETA_0 = 2.0  # Baseline spectral slope
+BETA_1 = 1.5  # Slope sensitivity to chi
+
+
+# =============================================================================
+# Amplitude Computation
+# =============================================================================
+
+
+def compute_amplitudes(
+    field: FractalField,
+    chi: float,
+    sigma_u: float,
+) -> Float[Array, "M 3"]:
+    """Compute mode amplitudes from chi and sigma_u.
+
+    Parameters
+    ----------
+    field : FractalField
+        Frozen field with k_vecs and base_vecs.
+    chi : float
+        Clumpiness parameter in [1.5, 3.0].
+    sigma_u : float
+        Displacement amplitude scale in physical units (same units as positions,
+        typically pc). The caller should pass sigma_u_physical = dimensionless_sigma_u * R_half.
+
+    Returns
+    -------
+    a_vecs : Array, shape (M, 3)
+        Amplitude vectors for each mode. a_vecs[n] = A_n * base_vecs[n].
+
+    Notes
+    -----
+    This function is differentiable in chi and sigma_u.
+    Gradients do NOT flow through field (should be stop_gradient'd).
+
+    The spectral slope mapping is:
+        beta(chi) = beta_0 + beta_1*(3 - chi)
+
+    Mode amplitudes follow:
+        A_n proportional to k_n^(-beta/2)
+
+    Normalized so that sum(A_n^2) = sigma_u^2.
+    """
+    # Wavenumber magnitudes from field
+    k_mags = jnp.linalg.norm(field.k_vecs, axis=1)  # (M,)
+
+    # Spectral slope from chi
+    # Lower chi → lower beta → shallower slope → more small-scale power (clumpier)
+    # Higher chi → higher beta → steeper slope → less small-scale power (smoother)
+    beta = BETA_0 + BETA_1 * (chi - 1.5)
+
+    # Unnormalized amplitudes: A_n proportional to k_n^(-beta/2)
+    raw_amps = k_mags ** (-0.5 * beta)  # (M,)
+
+    # Normalize so that sum(A_n^2) = sigma_u^2
+    norm = jnp.sqrt(jnp.sum(raw_amps ** 2))
+    amps = sigma_u * raw_amps / norm  # (M,)
+
+    # Amplitude vectors = scalar amplitude * unit polarization
+    a_vecs = amps[:, None] * field.base_vecs  # (M, 3)
+
+    return a_vecs

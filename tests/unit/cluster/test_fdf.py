@@ -196,3 +196,83 @@ class TestInitFractalField:
 
         field = make_field(key)
         assert field.k_vecs.shape == (32, 3)
+
+
+class TestComputeAmplitudes:
+    """Tests for compute_amplitudes function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    @pytest.fixture
+    def field(self, key):
+        from progenax.cluster.fdf import init_fractal_field
+        return init_fractal_field(key, n_modes=64, R_half=1.0)
+
+    def test_output_shape(self, field):
+        """compute_amplitudes returns correct shape."""
+        from progenax.cluster.fdf import compute_amplitudes
+
+        a_vecs = compute_amplitudes(field, chi=2.0, sigma_u=0.3)
+        assert a_vecs.shape == (64, 3)
+
+    def test_amplitude_normalization(self, field):
+        """Sum of squared amplitudes equals sigma_u^2."""
+        from progenax.cluster.fdf import compute_amplitudes
+
+        sigma_u = 0.4
+        a_vecs = compute_amplitudes(field, chi=2.0, sigma_u=sigma_u)
+
+        # ||a_n||^2 summed should equal sigma_u^2
+        # Note: a_vecs = amps[:, None] * base_vecs, where base_vecs are unit
+        # So ||a_n||^2 = amps[n]^2
+        amps_squared = jnp.sum(a_vecs ** 2, axis=1)  # ||a_n||^2 per mode
+        total_amp_sq = jnp.sum(amps_squared)
+
+        assert jnp.isclose(total_amp_sq, sigma_u ** 2, rtol=1e-5)
+
+    def test_lower_chi_gives_more_small_scale_power(self, field):
+        """Lower chi (more clumpy) gives relatively more power to small scales."""
+        from progenax.cluster.fdf import compute_amplitudes
+
+        # chi=1.5 (clumpy) vs chi=3.0 (smooth)
+        a_vecs_clumpy = compute_amplitudes(field, chi=1.5, sigma_u=0.3)
+        a_vecs_smooth = compute_amplitudes(field, chi=3.0, sigma_u=0.3)
+
+        # Get amplitude magnitudes
+        amps_clumpy = jnp.linalg.norm(a_vecs_clumpy, axis=1)
+        amps_smooth = jnp.linalg.norm(a_vecs_smooth, axis=1)
+
+        # Ratio of small-scale to large-scale power
+        # Last 10 modes (small scale) vs first 10 modes (large scale)
+        ratio_clumpy = jnp.sum(amps_clumpy[-10:]) / jnp.sum(amps_clumpy[:10])
+        ratio_smooth = jnp.sum(amps_smooth[-10:]) / jnp.sum(amps_smooth[:10])
+
+        # Clumpy should have higher small/large ratio
+        assert ratio_clumpy > ratio_smooth
+
+    def test_differentiable_in_chi(self, field):
+        """Gradients flow through chi."""
+        from progenax.cluster.fdf import compute_amplitudes
+
+        def loss(chi):
+            a_vecs = compute_amplitudes(field, chi=chi, sigma_u=0.3)
+            return jnp.sum(a_vecs ** 2)
+
+        grad_chi = jax.grad(loss)(2.0)
+        assert jnp.isfinite(grad_chi)
+        assert grad_chi != 0.0
+
+    def test_differentiable_in_sigma_u(self, field):
+        """Gradients flow through sigma_u."""
+        from progenax.cluster.fdf import compute_amplitudes
+
+        def loss(sigma_u):
+            a_vecs = compute_amplitudes(field, chi=2.0, sigma_u=sigma_u)
+            return jnp.sum(a_vecs ** 2)
+
+        grad_sigma = jax.grad(loss)(0.3)
+        assert jnp.isfinite(grad_sigma)
+        # d/d(sigma_u) of sigma_u^2 = 2*sigma_u = 0.6
+        assert jnp.isclose(grad_sigma, 0.6, rtol=1e-4)
