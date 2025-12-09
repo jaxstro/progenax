@@ -426,3 +426,103 @@ def apply_displacement(
 
     else:
         raise ValueError(f"Unknown radial mode: {mode}")
+
+
+# =============================================================================
+# Velocity Structure
+# =============================================================================
+
+
+def assign_fractal_velocities(
+    key: PRNGKeyArray,
+    positions: Float[Array, "N 3"],
+    masses: Float[Array, "N"],
+    field: FractalField,
+    a_vecs: Float[Array, "M 3"],
+    frac_params: FractalDisplacementLayer,
+    G: float,
+    lambda_vel: float = None,
+) -> Float[Array, "N 3"]:
+    """Assign velocities with optional coherent structure.
+
+    Creates velocities that:
+    1. Achieve the target virial ratio Q_vir
+    2. Optionally correlate with the displacement field (coherent subclumps)
+    3. Have zero center-of-mass motion
+
+    Parameters
+    ----------
+    key : PRNGKey
+        JAX random key.
+    positions : Array, shape (N, 3)
+        Final positions in pc.
+    masses : Array, shape (N,)
+        Stellar masses in M_sun.
+    field : FractalField
+        Frozen displacement field structure.
+    a_vecs : Array, shape (M, 3)
+        Amplitude vectors.
+    frac_params : FractalDisplacementLayer
+        Parameters including virial_ratio, coherent_velocities, lambda_vel.
+    G : float
+        Gravitational constant in units consistent with positions/masses.
+    lambda_vel : float, optional
+        Override for velocity coherence strength [0, 1].
+        If None, uses frac_params.lambda_vel.
+
+    Returns
+    -------
+    velocities : Array, shape (N, 3)
+        Velocity vectors achieving target Q_vir.
+
+    Notes
+    -----
+    Uses O(N^2) potential energy calculation internally. Acceptable for
+    IC generation (N ~ 10^3-10^4) but not for every N-body timestep.
+    """
+    from progenax.dynamics.virial import compute_potential_energy
+
+    N = masses.shape[0]
+    M_total = jnp.sum(masses)
+
+    # Use override if provided, else use frac_params
+    lam_vel = lambda_vel if lambda_vel is not None else frac_params.lambda_vel
+    lam_vel = jnp.clip(lam_vel, 0.0, 1.0)
+
+    # Compute potential energy for virial scaling
+    U_total = compute_potential_energy(positions, masses, G)
+    K_target = frac_params.virial_ratio * jnp.abs(U_total)
+    sigma_v = jnp.sqrt(2 * K_target / M_total)
+
+    # Base velocities: isotropic Gaussian
+    key, subkey = random.split(key)
+    v_base = random.normal(subkey, (N, 3)) * sigma_v / jnp.sqrt(3)
+
+    # Coherent perturbation from displacement field
+    def add_coherent(v_base):
+        # Evaluate displacement at final positions
+        u = evaluate_displacement(positions, field, a_vecs)
+        u_norm = jnp.linalg.norm(u, axis=1, keepdims=True)
+        u_hat = u / jnp.maximum(u_norm, 1e-10)
+
+        # Add coherent component
+        v_coherent = lam_vel * sigma_v * u_hat
+        return v_base + v_coherent
+
+    def no_coherent(v_base):
+        return v_base
+
+    # Apply coherent component if enabled and lambda_vel > 0
+    use_coherent = frac_params.coherent_velocities & (lam_vel > 0)
+    velocities = jax.lax.cond(use_coherent, add_coherent, no_coherent, v_base)
+
+    # Remove COM motion first
+    v_com = jnp.sum(masses[:, None] * velocities, axis=0) / M_total
+    velocities = velocities - v_com
+
+    # Rescale to exact target virial ratio (AFTER COM removal)
+    K_actual = 0.5 * jnp.sum(masses[:, None] * velocities ** 2)
+    scale = jnp.sqrt(K_target / jnp.maximum(K_actual, 1e-12))
+    velocities = velocities * scale
+
+    return velocities

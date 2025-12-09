@@ -523,3 +523,99 @@ class TestApplyDisplacement:
 
         result = apply_disp(positions, displacements, 0.5)
         assert result.shape == (30, 3)
+
+
+class TestAssignFractalVelocities:
+    """Tests for assign_fractal_velocities function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    @pytest.fixture
+    def field(self, key):
+        from progenax.cluster.fdf import init_fractal_field
+        return init_fractal_field(key, n_modes=32, R_half=1.0)
+
+    @pytest.fixture
+    def a_vecs(self, field):
+        from progenax.cluster.fdf import compute_amplitudes
+        return compute_amplitudes(field, chi=2.0, sigma_u=0.3)
+
+    @pytest.fixture
+    def frac_params(self):
+        from progenax.cluster.fdf import FractalDisplacementLayer
+        return FractalDisplacementLayer(
+            virial_ratio=0.5,
+            coherent_velocities=True,
+            lambda_vel=0.3,
+        )
+
+    def test_output_shape(self, key, field, a_vecs, frac_params):
+        """assign_fractal_velocities returns correct shape."""
+        from progenax.cluster.fdf import assign_fractal_velocities
+        from jaxstro.units import STELLAR
+
+        N = 100
+        positions = random.normal(key, (N, 3))
+        masses = jnp.ones(N)
+
+        velocities = assign_fractal_velocities(
+            key, positions, masses, field, a_vecs, frac_params, G=STELLAR.G
+        )
+
+        assert velocities.shape == (N, 3)
+
+    def test_virial_ratio_achieved(self, key, field, a_vecs):
+        """Velocities achieve target virial ratio."""
+        from progenax.cluster.fdf import assign_fractal_velocities, FractalDisplacementLayer
+        from progenax.dynamics.virial import compute_virial_ratio
+        from jaxstro.units import STELLAR
+
+        N = 300
+        key, subkey = random.split(key)
+        # Plummer-like positions
+        r = random.uniform(subkey, (N,), minval=0.1, maxval=2.0)
+        key, subkey = random.split(key)
+        theta = random.uniform(subkey, (N,)) * 2 * jnp.pi
+        key, subkey = random.split(key)
+        phi = jnp.arccos(2 * random.uniform(subkey, (N,)) - 1)
+
+        positions = jnp.stack([
+            r * jnp.sin(phi) * jnp.cos(theta),
+            r * jnp.sin(phi) * jnp.sin(theta),
+            r * jnp.cos(phi),
+        ], axis=1)
+
+        masses = jnp.ones(N)
+
+        for target_Q in [0.3, 0.5]:
+            frac_params = FractalDisplacementLayer(virial_ratio=target_Q)
+            key, subkey = random.split(key)
+
+            velocities = assign_fractal_velocities(
+                subkey, positions, masses, field, a_vecs, frac_params, G=STELLAR.G
+            )
+
+            Q_actual = compute_virial_ratio(positions, velocities, masses, G=STELLAR.G)
+
+            assert jnp.isclose(Q_actual, target_Q, rtol=0.02), \
+                f"Q_target={target_Q}, Q_actual={Q_actual}"
+
+    def test_com_velocity_removed(self, key, field, a_vecs, frac_params):
+        """Center-of-mass velocity is near zero."""
+        from progenax.cluster.fdf import assign_fractal_velocities
+        from jaxstro.units import STELLAR
+
+        N = 200
+        positions = random.normal(key, (N, 3))
+        masses = random.uniform(random.split(key)[0], (N,), minval=0.5, maxval=2.0)
+        M_total = jnp.sum(masses)
+
+        velocities = assign_fractal_velocities(
+            key, positions, masses, field, a_vecs, frac_params, G=STELLAR.G
+        )
+
+        v_com = jnp.sum(masses[:, None] * velocities, axis=0) / M_total
+
+        assert jnp.allclose(v_com, 0.0, atol=1e-10)
