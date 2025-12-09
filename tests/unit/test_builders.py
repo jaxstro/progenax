@@ -52,10 +52,13 @@ class TestToCOMFrame:
 
 
 class TestVirialScale:
-    """Test virial scaling physics."""
+    """Test virial scaling physics.
+
+    Convention: Q = T / |V| (equilibrium at Q = 0.5)
+    """
 
     def test_virial_ratio_is_target(self):
-        """After scaling, Q = 2T/|V| should equal target."""
+        """After scaling, Q = T/|V| should equal target."""
         from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
 
         positions = jnp.array([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]])
@@ -63,39 +66,16 @@ class TestVirialScale:
         masses = jnp.array([1.0, 1.0])
         G = 1.0
 
-        vel_scaled = virial_scale(positions, velocities, masses, Q_target=1.0, G=G)
+        vel_scaled = virial_scale(positions, velocities, masses, Q_target=0.5, G=G)
 
         T = compute_kinetic_energy(vel_scaled, masses)
         V = compute_potential_energy(positions, masses, G=G)
-        Q = 2.0 * T / jnp.abs(V)
+        Q = T / jnp.abs(V)  # Q = T/|V|, NOT 2T/|V|
 
-        assert jnp.abs(Q - 1.0) < 0.01
+        assert jnp.abs(Q - 0.5) < 0.01
 
-    def test_q_one_equilibrium(self):
-        """Q = 1.0 gives virial equilibrium (2T + V = 0)."""
-        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
-
-        positions = jnp.array([
-            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
-        ])
-        velocities = jnp.array([
-            [0.0, 0.1, 0.0], [0.0, -0.1, 0.0],
-            [0.1, 0.0, 0.0], [-0.1, 0.0, 0.0],
-        ])
-        masses = jnp.ones(4)
-        G = 1.0
-
-        vel_scaled = virial_scale(positions, velocities, masses, Q_target=1.0, G=G)
-
-        T = compute_kinetic_energy(vel_scaled, masses)
-        V = compute_potential_energy(positions, masses, G=G)
-        Q = 2.0 * T / jnp.abs(V)
-
-        assert jnp.abs(Q - 1.0) < 0.02
-
-    def test_q_less_than_one_collapsing(self):
-        """Q < 1.0 gives sub-virial (cold) system."""
+    def test_q_half_equilibrium(self):
+        """Q = 0.5 gives virial equilibrium (2T + V = 0)."""
         from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
 
         positions = jnp.array([
@@ -113,10 +93,33 @@ class TestVirialScale:
 
         T = compute_kinetic_energy(vel_scaled, masses)
         V = compute_potential_energy(positions, masses, G=G)
-        Q = 2.0 * T / jnp.abs(V)
+        Q = T / jnp.abs(V)  # Q = T/|V|
 
-        assert Q < 1.0
-        assert jnp.abs(Q - 0.5) < 0.05
+        assert jnp.abs(Q - 0.5) < 0.02
+
+    def test_q_less_than_half_collapsing(self):
+        """Q < 0.5 gives sub-virial (cold) system."""
+        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+
+        positions = jnp.array([
+            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
+        ])
+        velocities = jnp.array([
+            [0.0, 0.1, 0.0], [0.0, -0.1, 0.0],
+            [0.1, 0.0, 0.0], [-0.1, 0.0, 0.0],
+        ])
+        masses = jnp.ones(4)
+        G = 1.0
+
+        vel_scaled = virial_scale(positions, velocities, masses, Q_target=0.25, G=G)
+
+        T = compute_kinetic_energy(vel_scaled, masses)
+        V = compute_potential_energy(positions, masses, G=G)
+        Q = T / jnp.abs(V)  # Q = T/|V|
+
+        assert Q < 0.5  # Subvirial
+        assert jnp.abs(Q - 0.25) < 0.05
 
 
 class TestBuildSpatialIC:
@@ -138,7 +141,7 @@ class TestBuildSpatialIC:
             profile=profile,
             masses=masses,
             velocity_df=velocity_df,
-            Q=1.0,
+            Q=0.5,  # Q = T/|V|, 0.5 for equilibrium
             key=key,
             G=G,
         )
@@ -163,7 +166,7 @@ class TestBuildSpatialIC:
             profile=profile,
             masses=masses,
             velocity_df=velocity_df,
-            Q=1.0,
+            Q=0.5,  # Q = T/|V|, 0.5 for equilibrium
             key=key,
             G=G,
         )

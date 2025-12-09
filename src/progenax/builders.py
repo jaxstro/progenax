@@ -177,18 +177,18 @@ def virial_scale(
     softening: float = 0.0,
 ) -> Float[Array, "N 3"]:
     """
-    Scale velocities to achieve target virial ratio Q = 2T/|V|.
+    Scale velocities to achieve target virial ratio Q = T/|V|.
 
     Physical interpretation:
-        - Q < 1.0: Sub-virial (cold), system will collapse
-        - Q = 1.0: Virial equilibrium (stable)
-        - Q > 1.0: Super-virial (hot), system will expand/unbind
+        - Q = 0.5: Virial equilibrium (2T + V = 0)
+        - Q < 0.5: Sub-virial (cold), system will collapse
+        - Q > 0.5: Super-virial (hot), system will expand/unbind
 
     Args:
         positions: Particle positions (N, 3)
         velocities: Particle velocities (N, 3)
         masses: Particle masses (N,)
-        Q_target: Target virial ratio (1.0 for equilibrium)
+        Q_target: Target virial ratio (0.5 for equilibrium)
         G: Gravitational constant
         softening: Softening length (default: 0)
 
@@ -202,7 +202,8 @@ def virial_scale(
     T = compute_kinetic_energy(velocities, masses)
     V = compute_potential_energy(positions, masses, G=G, softening=softening)
 
-    Q_current = 2.0 * T / jnp.abs(V)
+    # Q = T / |V| (NOT 2T / |V|)
+    Q_current = T / jnp.abs(V)
     scale = jnp.sqrt(Q_target / Q_current)
 
     return velocities * scale
@@ -214,7 +215,7 @@ def build_spatial_ic(
     velocity_df: VelocityDF,
     key: PRNGKeyArray,
     G: float,
-    Q: Optional[float] = 1.0,
+    Q: Optional[float] = 0.5,
     softening_factor: float = 0.01,
     softening_floor: Optional[float] = None,
     id_offset: int = 0,
@@ -228,7 +229,7 @@ def build_spatial_ic(
         velocity_df: Velocity distribution function (must implement VelocityDF protocol)
         key: JAX random key
         G: Gravitational constant (REQUIRED - no default)
-        Q: Virial ratio target (1.0 for equilibrium, None to disable scaling)
+        Q: Virial ratio target Q = T/|V| (0.5 for equilibrium, None to disable)
         softening_factor: Softening as fraction of mean separation (default: 0.01)
         softening_floor: Minimum softening (default: None)
         id_offset: Offset for particle IDs (default: 0)
