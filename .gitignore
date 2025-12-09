@@ -208,3 +208,6 @@ __marimo__/
 
 # Claude Code
 .claude-work/
+
+# Reference papers and implementation guides (large PDFs)
+docs/core-papers/
