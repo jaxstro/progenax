@@ -276,3 +276,97 @@ class TestComputeAmplitudes:
         assert jnp.isfinite(grad_sigma)
         # d/d(sigma_u) of sigma_u^2 = 2*sigma_u = 0.6
         assert jnp.isclose(grad_sigma, 0.6, rtol=1e-4)
+
+
+class TestEvaluateDisplacement:
+    """Tests for evaluate_displacement function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    @pytest.fixture
+    def field(self, key):
+        from progenax.cluster.fdf import init_fractal_field
+        return init_fractal_field(key, n_modes=32, R_half=1.0)
+
+    @pytest.fixture
+    def a_vecs(self, field):
+        from progenax.cluster.fdf import compute_amplitudes
+        return compute_amplitudes(field, chi=2.0, sigma_u=0.3)
+
+    def test_output_shape(self, field, a_vecs):
+        """evaluate_displacement returns correct shape."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        N = 100
+        positions = jnp.ones((N, 3))
+        displacements = evaluate_displacement(positions, field, a_vecs)
+
+        assert displacements.shape == (N, 3)
+
+    def test_zero_amplitudes_give_zero_displacement(self, field):
+        """If amplitudes are zero, displacement is zero."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        positions = jnp.ones((50, 3))
+        a_vecs_zero = jnp.zeros((32, 3))
+
+        displacements = evaluate_displacement(positions, field, a_vecs_zero)
+
+        assert jnp.allclose(displacements, 0.0)
+
+    def test_different_positions_give_different_displacements(self, field, a_vecs):
+        """Different positions produce different displacements."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        pos1 = jnp.array([[0.0, 0.0, 0.0]])
+        pos2 = jnp.array([[1.0, 1.0, 1.0]])
+
+        disp1 = evaluate_displacement(pos1, field, a_vecs)
+        disp2 = evaluate_displacement(pos2, field, a_vecs)
+
+        assert not jnp.allclose(disp1, disp2)
+
+    def test_jit_compatible(self, field, a_vecs):
+        """evaluate_displacement can be JIT compiled."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        @jax.jit
+        def compute_disp(positions):
+            return evaluate_displacement(positions, field, a_vecs)
+
+        positions = jnp.ones((20, 3))
+        displacements = compute_disp(positions)
+
+        assert displacements.shape == (20, 3)
+
+    def test_differentiable_in_positions(self, field, a_vecs):
+        """Gradients flow through positions."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        def loss(positions):
+            disp = evaluate_displacement(positions, field, a_vecs)
+            return jnp.sum(disp ** 2)
+
+        positions = jnp.ones((10, 3))
+        grad_pos = jax.grad(loss)(positions)
+
+        assert grad_pos.shape == (10, 3)
+        assert jnp.all(jnp.isfinite(grad_pos))
+
+    def test_differentiable_in_a_vecs(self, field):
+        """Gradients flow through amplitude vectors."""
+        from progenax.cluster.fdf import evaluate_displacement
+
+        positions = jnp.ones((10, 3))
+        a_vecs = jnp.ones((32, 3)) * 0.1
+
+        def loss(a_vecs):
+            disp = evaluate_displacement(positions, field, a_vecs)
+            return jnp.sum(disp ** 2)
+
+        grad_a = jax.grad(loss)(a_vecs)
+
+        assert grad_a.shape == (32, 3)
+        assert jnp.all(jnp.isfinite(grad_a))

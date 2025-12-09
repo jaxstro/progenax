@@ -288,3 +288,51 @@ def compute_amplitudes(
     a_vecs = amps[:, None] * field.base_vecs  # (M, 3)
 
     return a_vecs
+
+
+# =============================================================================
+# Displacement Field Evaluation
+# =============================================================================
+
+
+def evaluate_displacement(
+    positions: Float[Array, "N 3"],
+    field: FractalField,
+    a_vecs: Float[Array, "M 3"],
+) -> Float[Array, "N 3"]:
+    """Evaluate displacement field at given positions.
+
+    Computes u(x) = sum_n a_n cos(k_n . x + phi_n)
+
+    Parameters
+    ----------
+    positions : Array, shape (N, 3)
+        Positions in pc where to evaluate the field.
+    field : FractalField
+        Frozen field with k_vecs and phases.
+    a_vecs : Array, shape (M, 3)
+        Amplitude vectors from compute_amplitudes.
+
+    Returns
+    -------
+    displacements : Array, shape (N, 3)
+        Displacement vectors in pc.
+
+    Notes
+    -----
+    This is fully differentiable in positions and a_vecs.
+    """
+    # k_n . x_i: shape (N, M)
+    # positions: (N, 3), k_vecs: (M, 3)
+    dot_products = jnp.einsum("nd,md->nm", positions, field.k_vecs)
+
+    # Add phases: (N, M)
+    arguments = dot_products + field.phases[None, :]
+
+    # Cosine terms: (N, M)
+    cos_terms = jnp.cos(arguments)
+
+    # Sum over modes: (N, M) @ (M, 3) -> (N, 3)
+    displacements = cos_terms @ a_vecs
+
+    return displacements
