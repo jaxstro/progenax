@@ -26,37 +26,56 @@ def compute_q_parameter(positions: np.ndarray) -> float:
     """
     Compute Cartwright & Whitworth Q parameter for spatial substructure.
 
-    Q = mean_mst_edge / mean_separation
+    Implements the exact CW04 definition:
+        Q = m̄ / s̄
+
+    Where:
+        - s̄ = (mean pairwise separation) / R_cluster
+        - m̄ = L_MST / sqrt(N × A)
+        - R_cluster = max distance from cluster center
+        - A = convex hull area
 
     This is the substructure metric, NOT the virial ratio Q_vir.
 
-    Interpretation:
-        - Q < 0.8: Substructured (fractal, clumpy)
-        - Q ≈ 0.8: Homogeneous sphere
-        - Q > 0.8: Centrally concentrated (radial profile dominates)
-
     Args:
-        positions: Stellar positions (N, 3) as NumPy array
+        positions: Stellar positions (N, 2) or (N, 3) as NumPy array.
+            If 3D, positions are projected to x-y plane (CW04 methodology).
 
     Returns:
         Q: Cartwright-Whitworth Q parameter
 
+    CW04 Reference Values (2D projected, N=300):
+        - Uniform sphere (3D0): s̄ ≈ 0.80, m̄ ≈ 0.63, Q ≈ 0.79 ± 0.04
+        - Fractal D=1.5: Q ≈ 0.47 ± 0.02
+        - Fractal D=2.0: Q ≈ 0.58 ± 0.03
+        - Fractal D=2.5: Q ≈ 0.70 ± 0.03
+        - Fractal D=3.0: Q ≈ 0.82 ± 0.04
+        - r^-1 profile (3D1): Q ≈ 0.86 ± 0.04
+        - r^-2 profile (3D2): Q ≈ 1.05 ± 0.04
+
+    Interpretation:
+        - Q < 0.79: Substructured (fractal, clumpy)
+        - Q ≈ 0.79: Homogeneous sphere
+        - Q > 0.79: Centrally concentrated (radial profile dominates)
+
     Example:
         >>> import numpy as np
         >>> # Random uniform sphere
-        >>> r = np.random.uniform(0, 1, 1000)**(1/3)
-        >>> theta = np.arccos(2*np.random.uniform(0, 1, 1000) - 1)
-        >>> phi = np.random.uniform(0, 2*np.pi, 1000)
+        >>> rng = np.random.default_rng(42)
+        >>> u = rng.uniform(0, 1, 300)
+        >>> r = u**(1/3)
+        >>> theta = np.arccos(2*rng.uniform(0, 1, 300) - 1)
+        >>> phi = rng.uniform(0, 2*np.pi, 300)
         >>> positions = np.column_stack([
         ...     r * np.sin(theta) * np.cos(phi),
         ...     r * np.sin(theta) * np.sin(phi),
         ...     r * np.cos(theta),
         ... ])
         >>> Q = compute_q_parameter(positions)
-        >>> print(f"Q = {Q:.3f}")  # Should be ~0.8 for uniform sphere
+        >>> print(f"Q = {Q:.2f}")  # Should be ~0.79 for uniform sphere
 
     Notes:
-        O(N²) complexity for full cluster due to pairwise distance computation.
+        O(N²) complexity due to pairwise distance computation.
         For large N (> 5000), consider using a random subsample.
 
         Not differentiable; for validation/calibration only.
@@ -64,27 +83,58 @@ def compute_q_parameter(positions: np.ndarray) -> float:
     References:
         Cartwright & Whitworth (2004), MNRAS 348, 589
     """
-    N = len(positions)
+    from scipy.spatial import ConvexHull
 
+    # 1. Project to 2D (CW04 always uses 2D projected positions)
+    if positions.shape[1] == 3:
+        xy = positions[:, :2]
+    elif positions.shape[1] == 2:
+        xy = positions
+    else:
+        raise ValueError("positions must be (N, 2) or (N, 3)")
+
+    N = len(xy)
     if N < 3:
-        return 0.8  # Default for degenerate case
+        return 0.79  # Default for degenerate case
 
-    # Compute pairwise distances
-    dist_matrix = squareform(pdist(positions))
+    # 2. Centre and compute cluster radius R_cluster
+    centre = xy.mean(axis=0)
+    rel = xy - centre
+    radii = np.linalg.norm(rel, axis=1)
+    R_cluster = radii.max()
 
-    # Mean MST edge length
+    if R_cluster <= 0:
+        return 0.79  # Degenerate case
+
+    # 3. Compute s̄ (normalized mean pairwise separation)
+    # s_raw = mean of all pairwise distances
+    # s̄ = s_raw / R_cluster
+    pairwise_dists = pdist(xy)
+    s_raw = np.mean(pairwise_dists)
+    s_bar = s_raw / R_cluster
+
+    # 4. Compute m̄ (normalized mean MST edge length)
+    # L_MST = total MST length
+    # m̄ = L_MST / sqrt(N × A)
+    dist_matrix = squareform(pairwise_dists)
     mst = minimum_spanning_tree(dist_matrix)
-    mst_length = mst.sum()
-    mean_m = mst_length / (N - 1)
+    L_MST = mst.sum()
 
-    # Mean separation (all pairs)
-    # Upper triangle of distance matrix (excluding diagonal)
-    upper_indices = np.triu_indices(N, k=1)
-    all_distances = dist_matrix[upper_indices]
-    mean_s = np.mean(all_distances)
+    # Convex hull area
+    try:
+        hull = ConvexHull(xy)
+        A = hull.volume  # In 2D, volume = area
+    except Exception:
+        # Degenerate hull (e.g., collinear points)
+        A = np.pi * R_cluster**2
 
-    # Q = mean_mst_edge / mean_separation
-    Q = mean_m / mean_s if mean_s > 0 else 0.8
+    m_bar = L_MST / np.sqrt(N * A)
+
+    # 5. Q = m̄ / s̄
+    if s_bar <= 0:
+        return 0.79
+
+    Q = m_bar / s_bar
 
     return float(Q)
 
