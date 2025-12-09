@@ -371,38 +371,39 @@ def generate_cluster_ic(
     )
 
     # ─────────────────────────────────────────────────────────────
-    # BRANCH A: Apply fractal layer (if requested)
+    # BRANCH A: Apply fractal layer (if requested) - NOW USES FDF
     # ─────────────────────────────────────────────────────────────
     if frac is not None:
-        key, subkey = random.split(key)
-        positions_frac_unit, vel_frac, ancestry = generate_fractal_positions(
-            subkey, N_stars, D=frac.D
+        from progenax.cluster.fdf_calibration import fractal_layer_from_D
+        from progenax.cluster.fdf import generate_fractal_ic as fdf_generate
+
+        # Convert FractalLayer(D) to FractalDisplacementLayer(chi, sigma_u)
+        fdf_params = fractal_layer_from_D(
+            D=frac.D,
+            virial_ratio=frac.virial_ratio,
+            coherent_velocities=frac.coherent_velocities,
+            lambda_frac=frac.lambda_frac,
         )
 
-        # Sample target radii from the profile (same distribution as base profile)
         key, subkey = random.split(key)
-        target_positions = sample_density_profile(subkey, N_stars, profile, R_half, **kwargs)
-        target_radii = jnp.linalg.norm(target_positions, axis=1)
 
-        # Rescale fractal positions to match profile's radial CDF
-        positions_frac = rescale_fractal_to_target_radii(positions_frac_unit, target_radii)
-
-        # Blend: positions = (1 - λ) * base + λ * fractal
-        lambda_frac = frac.lambda_frac
-        positions = (
-            (1.0 - lambda_frac) * positions_base
-            + lambda_frac * positions_frac
-        )
-
-        # Assign velocities (coherent or incoherent)
-        # Note: does NOT use equilibrium DF; fractal clumps are non-equilibrium
-        key, subkey = random.split(key)
-        velocities = assign_velocities_and_virialize(
-            subkey, positions, masses, target_Q_vir,
-            ancestry=ancestry,
-            coherent=frac.coherent_velocities,
+        # Generate fractal IC using FDF method
+        cluster_fdf = fdf_generate(
+            subkey,
+            N_stars=N_stars,
+            M_total=M_total,
+            R_half=R_half,
+            profile=profile,
+            frac_params=fdf_params,
+            imf_params=imf_params,
             G=G,
         )
+
+        # Use FDF-generated positions and velocities
+        # Note: masses are redrawn by FDF; for consistency we use FDF's masses
+        masses = cluster_fdf.masses
+        positions = cluster_fdf.positions
+        velocities = cluster_fdf.velocities
 
     # ─────────────────────────────────────────────────────────────
     # BRANCH B: Apply mass segregation layer (if requested)

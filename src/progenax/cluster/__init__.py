@@ -1,9 +1,12 @@
 # progenax/src/progenax/cluster/__init__.py
 """
-Star cluster initial condition generator (v1.4 spec).
+Star cluster initial condition generator (v2 with FDF).
 
 This module provides tools for generating realistic initial conditions for
 star cluster simulations with optional mass segregation and fractal substructure.
+
+v2 Update: Fractal substructure now uses the differentiable Fractal Displacement
+Field (FDF) method instead of the non-differentiable GW2004 tree algorithm.
 
 Main Entry Point:
     generate_cluster_ic: Generate complete cluster IC from parameters
@@ -12,45 +15,19 @@ Data Classes:
     ClusterState: Immutable container for masses, positions, velocities
     SpatialStructureParams: Combined profile + structure parameters
     MassSegregationLayer: Baumgardt+2008 mass segregation parameters
-    FractalLayer: Goodwin-Whitworth+2004 fractal substructure parameters
+    FractalLayer: User-facing fractal params (D-based, uses FDF internally)
 
-Example:
-    >>> from progenax.cluster import (
-    ...     generate_cluster_ic,
-    ...     ClusterState,
-    ...     SpatialStructureParams,
-    ...     MassSegregationLayer,
-    ... )
-    >>> from progenax.imf import PowerLawIMF
-    >>> import jax
-    >>>
-    >>> key = jax.random.PRNGKey(42)
-    >>> imf = PowerLawIMF.kroupa()
-    >>>
-    >>> # Generate mass-segregated Plummer cluster
-    >>> cluster = generate_cluster_ic(
-    ...     key=key,
-    ...     N_stars=1000,
-    ...     M_total=1000.0,  # Msun
-    ...     R_half=1.0,       # pc
-    ...     imf_params=imf,
-    ...     structure_params=SpatialStructureParams(
-    ...         base_profile="plummer",
-    ...         mass_segregation=MassSegregationLayer(lambda_seg=0.8),
-    ...     ),
-    ... )
-    >>> print(f"N={cluster.N}, M={cluster.M_total:.0f} Msun")
-
-Notes:
-    - All code is JAX-native (jax.numpy, jax.lax.scan, etc.)
-    - Mass segregation and fractal layers are mutually exclusive in v1
-    - Diagnostics (Λ_MSR, Q parameter) are in progenax.diagnostics
+FDF API (Fractal Displacement Field):
+    FractalField: Frozen stochastic structure
+    FractalDisplacementLayer: FDF parameter bundle
+    generate_fractal_ic: Generate IC with FDF
+    init_fractal_field: Initialize displacement field
+    fractal_layer_from_D: Create FDF params from GW-style D
 
 References:
     Baumgardt, De Marchi & Kroupa (2008), ApJ 685, 247
     Goodwin & Whitworth (2004), A&A 413, 929
     Küpper et al. (2011), MNRAS 417, 2300 - McLuster
-    Allison et al. (2009), ApJ 700, L99
 """
 
 from progenax.cluster.core import (
@@ -64,11 +41,32 @@ from progenax.cluster.core import (
 
 from progenax.cluster.mass_segregation import energy_sorted_segregation
 
-# Legacy GW2004 implementation (deprecated - use FDF instead)
-from progenax.cluster.fractal_gw_legacy import (
-    generate_fractal_positions,
-    rescale_fractal_to_target_radii,
-    assign_velocities_and_virialize,
+# FDF API (v2 fractal substructure)
+from progenax.cluster.fdf import (
+    FractalField,
+    FractalDisplacementLayer,
+    generate_fractal_ic,
+    init_fractal_field,
+    compute_amplitudes,
+    evaluate_displacement,
+    apply_displacement,
+    assign_fractal_velocities,
+)
+
+from progenax.cluster.fdf_calibration import (
+    FDFCalibration,
+    load_fdf_calibration,
+    fractal_layer_from_D,
+)
+
+# FDF Density API (v3 fractal substructure via density field sampling)
+from progenax.cluster.fdf_density import (
+    FractalDensityLayer,
+    DensityField3D,
+    generate_fractal_ic_density,
+    init_turbulent_density_field,
+    sample_positions_from_density,
+    density_layer_from_D,
 )
 
 __all__ = [
@@ -81,8 +79,23 @@ __all__ = [
     "sample_velocities_for_profile",
     # Mass segregation
     "energy_sorted_segregation",
-    # Fractal substructure
-    "generate_fractal_positions",
-    "rescale_fractal_to_target_radii",
-    "assign_velocities_and_virialize",
+    # FDF API
+    "FractalField",
+    "FractalDisplacementLayer",
+    "generate_fractal_ic",
+    "init_fractal_field",
+    "compute_amplitudes",
+    "evaluate_displacement",
+    "apply_displacement",
+    "assign_fractal_velocities",
+    "FDFCalibration",
+    "load_fdf_calibration",
+    "fractal_layer_from_D",
+    # FDF Density API (density field sampling)
+    "FractalDensityLayer",
+    "DensityField3D",
+    "generate_fractal_ic_density",
+    "init_turbulent_density_field",
+    "sample_positions_from_density",
+    "density_layer_from_D",
 ]

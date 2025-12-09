@@ -9,17 +9,29 @@ displacement field that:
 
 1. Is fully differentiable in clumpiness (chi), blend strength (lambda_frac),
    and amplitude scale (sigma_u)
-2. Produces statistically similar structures (same Q_CW, sigma_Sigma/Sigma)
+2. Creates density perturbations via irrotational displacement (div(u) ≠ 0)
 3. Has physically motivated connection to turbulent star formation
 
 Physical basis:
 - Turbulent fragmentation in molecular clouds (Larson 1981, Mac Low & Klessen 2004)
-- Power-law velocity/density spectra from supersonic turbulence (Federrath+ 2010)
+- Power-law velocity/density spectra from supersonic turbulence (Federrath+2010)
 
-References:
-    Goodwin & Whitworth (2004) A&A 413, 929 - Original fractal method (non-JAX)
-    Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter
-    Federrath et al. (2010) A&A 512, A81 - Turbulence spectra
+WARNING - Uncalibrated Parameters
+---------------------------------
+The spectral envelope parameters (BETA_BASE, SIGMA_LOGK) and default sigma_u
+are preliminary heuristics. They are NOT calibrated against:
+
+- MHD simulations of turbulent molecular clouds
+- Cartwright & Whitworth (2004) Q(D) measurements
+
+For most applications, prefer the density-field FDF (``fdf_density.py``) which
+directly modulates density rather than displacing positions.
+
+References
+----------
+- Goodwin & Whitworth (2004) A&A 413, 929 - Original fractal method (non-JAX)
+- Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter definition
+- Federrath et al. (2010) A&A 512, A81 - Turbulence spectra
 """
 
 from dataclasses import dataclass
@@ -48,16 +60,23 @@ class FractalField:
     ----------
     k_vecs : Array, shape (M, 3)
         Wavevectors in 1/pc. Magnitudes are log-spaced between k_min and k_max.
+        In v2, displacement vectors are parallel to k_vecs (irrotational field).
     phases : Array, shape (M,)
         Random phases in [0, 2pi] for each mode.
     base_vecs : Array, shape (M, 3)
         Unit polarization vectors for each mode (random directions on S^2).
+        **LEGACY (v1):** No longer used for displacement direction in v2.
+        Kept for API compatibility; displacement is now parallel to k_vecs.
 
     Notes
     -----
     The FractalField should be wrapped in `jax.tree_util.tree_map(stop_gradient, ...)`
     before use in differentiable pipelines. This ensures that the stochastic
     structure is fixed while gradients flow through amplitude parameters.
+
+    **v2 Change:** Displacement vectors are now parallel to wavevectors (a ∥ k),
+    making the field irrotational (u = ∇ψ). This creates actual density
+    perturbations via div(u) ≠ 0, rather than incompressible rearrangement.
     """
 
     k_vecs: Float[Array, "M 3"]
@@ -120,8 +139,17 @@ class FractalDisplacementLayer:
     Unlike Goodwin-Whitworth D, chi is differentiable. The mapping
     chi -> Q_CW (Cartwright-Whitworth) is established via calibration.
 
-    The spectral slope is beta(chi) = beta_0 + beta_1*(3 - chi) where beta_0 ~ 2.0
-    and beta_1 ~ 1.5 (calibration-dependent).
+    **Spectral Envelope (v2):**
+
+    The amplitude spectrum uses a χ-dependent lognormal envelope in k-space:
+        - chi ≈ CHI_MIN (1.6): envelope peaked at high k → small-scale dominated → clumpy
+        - chi ≈ CHI_MAX (3.0): envelope peaked at low k → large-scale dominated → smooth
+
+    Displacement vectors are parallel to wavevectors (irrotational/potential field),
+    creating actual density perturbations via div(u) ≠ 0.
+
+    This approach is physically motivated by turbulent star formation: the envelope
+    peak controls which scales dominate the density structure.
     """
 
     chi: float = 2.0
@@ -222,11 +250,23 @@ def init_fractal_field(
 
 
 # =============================================================================
-# Spectral Constants (from calibration)
+# Spectral Constants (from versioned config)
 # =============================================================================
 
-BETA_0 = 2.0  # Baseline spectral slope
-BETA_1 = 1.5  # Slope sensitivity to chi
+from progenax.cluster.fdf_config import FDF_DISPLACEMENT_DEFAULTS
+
+# Chi range for clumpiness parameter
+CHI_MIN = 1.6  # Clumpy end (small-scale dominated)
+CHI_MAX = 3.0  # Smooth end (large-scale dominated)
+
+# Lognormal envelope parameters
+# NOTE: These are uncalibrated heuristics. See fdf_config.py for details.
+BETA_BASE = FDF_DISPLACEMENT_DEFAULTS.beta_base  # Mild baseline power-law slope
+SIGMA_LOGK = FDF_DISPLACEMENT_DEFAULTS.sigma_logk  # Envelope width in log-k space
+
+# Legacy constants (kept for backwards compatibility, no longer used)
+BETA_0 = 2.0  # Baseline spectral slope (DEPRECATED)
+BETA_1 = 1.5  # Slope sensitivity to chi (DEPRECATED)
 
 
 # =============================================================================
@@ -244,9 +284,9 @@ def compute_amplitudes(
     Parameters
     ----------
     field : FractalField
-        Frozen field with k_vecs and base_vecs.
+        Frozen field with k_vecs and phases.
     chi : float
-        Clumpiness parameter in [1.5, 3.0].
+        Clumpiness parameter in [CHI_MIN, CHI_MAX] (typically [1.6, 3.0]).
     sigma_u : float
         Displacement amplitude scale in physical units (same units as positions,
         typically pc). The caller should pass sigma_u_physical = dimensionless_sigma_u * R_half.
@@ -254,38 +294,68 @@ def compute_amplitudes(
     Returns
     -------
     a_vecs : Array, shape (M, 3)
-        Amplitude vectors for each mode. a_vecs[n] = A_n * base_vecs[n].
+        Amplitude vectors for each mode. a_vecs[n] = A_n * k_hat[n].
+        Displacement vectors are parallel to wavevectors (potential-like modes).
 
     Notes
     -----
     This function is differentiable in chi and sigma_u.
     Gradients do NOT flow through field (should be stop_gradient'd).
 
-    The spectral slope mapping is:
-        beta(chi) = beta_0 + beta_1*(3 - chi)
+    **Spectral Envelope (v2):**
 
-    Mode amplitudes follow:
-        A_n proportional to k_n^(-beta/2)
+    We use a χ-dependent lognormal envelope in k-space with a peak that moves:
+        - chi ≈ CHI_MIN (1.6, clumpy): peak at high k → small-scale dominated
+        - chi ≈ CHI_MAX (3.0, smooth): peak at low k → large-scale dominated
 
-    Normalized so that sum(A_n^2) = sigma_u^2.
+    The envelope is:
+        h(k; χ) = exp(-0.5 * ((log k - log k_peak) / σ_logk)²) * k^(-β_base/2)
+
+    where log_k_peak interpolates linearly from log_k_max (clumpy) to log_k_min (smooth).
+
+    **Compressive Modes:**
+
+    Displacement vectors are parallel to wavevectors: a_vecs[n] ∥ k_vecs[n].
+    This makes the field irrotational (u = ∇ψ), so div(u) ≠ 0, creating actual
+    density perturbations (clumps and voids).
+
+    The extra factor of k_mag in the amplitude enhances small-scale divergence,
+    making density contrast more prominent at small scales.
     """
-    # Wavenumber magnitudes from field
-    k_mags = jnp.linalg.norm(field.k_vecs, axis=1)  # (M,)
+    # Wavevector magnitudes and unit directions
+    k_vecs = field.k_vecs  # (M, 3)
+    k_mags = jnp.linalg.norm(k_vecs, axis=1)  # (M,)
+    k_hat = k_vecs / jnp.maximum(k_mags[:, None], 1e-12)  # (M, 3) unit vectors
 
-    # Spectral slope from chi
-    # Lower chi → lower beta → shallower slope → more small-scale power (clumpier)
-    # Higher chi → higher beta → steeper slope → less small-scale power (smoother)
-    beta = BETA_0 + BETA_1 * (chi - 1.5)
+    # Map chi to [0, 1]: 0 = clumpy (small-scale), 1 = smooth (large-scale)
+    chi_clamped = jnp.clip(chi, CHI_MIN, CHI_MAX)
+    t = (chi_clamped - CHI_MIN) / (CHI_MAX - CHI_MIN)
 
-    # Unnormalized amplitudes: A_n proportional to k_n^(-beta/2)
-    raw_amps = k_mags ** (-0.5 * beta)  # (M,)
+    # Work in log-k space
+    log_k = jnp.log(k_mags + 1e-12)
+    log_k_min = jnp.min(log_k)
+    log_k_max = jnp.max(log_k)
 
-    # Normalize so that sum(A_n^2) = sigma_u^2
-    norm = jnp.sqrt(jnp.sum(raw_amps ** 2))
-    amps = sigma_u * raw_amps / norm  # (M,)
+    # χ-dependent peak position: clumpy → high k, smooth → low k
+    log_k_peak = (1.0 - t) * log_k_max + t * log_k_min
 
-    # Amplitude vectors = scalar amplitude * unit polarization
-    a_vecs = amps[:, None] * field.base_vecs  # (M, 3)
+    # Lognormal envelope centered on peak
+    dlog = (log_k - log_k_peak) / SIGMA_LOGK
+    gauss_envelope = jnp.exp(-0.5 * dlog**2)  # (M,)
+
+    # Combine with mild baseline power-law slope
+    power_law = k_mags ** (-0.5 * BETA_BASE)  # (M,)
+    h = gauss_envelope * power_law
+
+    # Extra k factor to enhance small-scale divergence (density contrast)
+    raw = h * k_mags  # (M,)
+
+    # Normalize so RMS displacement magnitude ≈ sigma_u
+    norm = jnp.sqrt(jnp.sum(raw**2) + 1e-30)
+    amps = sigma_u * raw / jnp.maximum(norm, 1e-12)  # (M,)
+
+    # Amplitude vectors parallel to wavevectors (irrotational/potential field)
+    a_vecs = amps[:, None] * k_hat  # (M, 3)
 
     return a_vecs
 
@@ -526,3 +596,171 @@ def assign_fractal_velocities(
     velocities = velocities * scale
 
     return velocities
+
+
+# =============================================================================
+# Complete IC Generator
+# =============================================================================
+
+
+def generate_fractal_ic(
+    key: PRNGKeyArray,
+    N_stars: int,
+    M_total: float,
+    R_half: float,
+    profile: str,
+    frac_params: FractalDisplacementLayer,
+    imf_params,
+    field: FractalField = None,
+    G: float = None,
+):
+    """Generate cluster IC with fractal displacement field.
+
+    Parameters
+    ----------
+    key : PRNGKey
+        JAX random key.
+    N_stars : int
+        Number of stars.
+    M_total : float
+        Total mass in M_sun.
+    R_half : float
+        Half-mass radius in pc.
+    profile : str
+        Density profile type: 'plummer', 'king', or 'eff'.
+    frac_params : FractalDisplacementLayer
+        FDF parameters (chi, lambda_frac, sigma_u, etc.).
+    imf_params : IMF
+        IMF instance with .sample(key, n) method.
+    field : FractalField, optional
+        Pre-initialized FractalField. If None, creates new one.
+        For long-running inference loops, precompute and pass in a frozen
+        FractalField to avoid reinitialization overhead.
+    G : float, optional
+        Gravitational constant. If None, uses jaxstro.units.STELLAR.G.
+
+    Returns
+    -------
+    ClusterState
+        Cluster with masses, positions, velocities.
+
+    Notes
+    -----
+    **Inference pattern**: In long-running inference (HMC, NUTS), you may want
+    to precompute a FractalField once and pass it in, rather than reinitializing
+    each iteration.
+
+    **Velocity assignment**: Uses O(N^2) potential energy calculation. Acceptable
+    for IC generation but not for every N-body timestep.
+    """
+    from progenax.cluster.core import ClusterState
+    from progenax.profiles import sample_density_profile
+
+    if G is None:
+        from jaxstro.units import STELLAR
+        G = STELLAR.G
+
+    # Split keys
+    key_imf, key_pos, key_field, key_vel = random.split(key, 4)
+
+    # Clamp lambda parameters to valid range [0, 1]
+    lambda_frac = jnp.clip(frac_params.lambda_frac, 0.0, 1.0)
+    lambda_vel = jnp.clip(frac_params.lambda_vel, 0.0, 1.0)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 1: Draw masses from IMF
+    # ─────────────────────────────────────────────────────────────
+    masses = imf_params.sample(key_imf, N_stars)
+    masses = masses * (M_total / jnp.sum(masses))
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 2: Sample smooth base profile
+    # ─────────────────────────────────────────────────────────────
+    positions_base = sample_density_profile(key_pos, N_stars, profile, R_half)
+    radii_base = jnp.linalg.norm(positions_base, axis=1)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 3: Initialize and freeze displacement field (or use provided)
+    # ─────────────────────────────────────────────────────────────
+    if field is None:
+        field = init_fractal_field(
+            key_field,
+            n_modes=frac_params.n_modes,
+            R_half=R_half,
+            k_min_factor=frac_params.k_min_factor,
+            k_max_factor=frac_params.k_max_factor,
+        )
+    # Freeze stochastic structure (no gradients through wavevectors/phases)
+    field = jax.tree_util.tree_map(jax.lax.stop_gradient, field)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 4: Compute amplitudes (differentiable in chi, sigma_u)
+    # ─────────────────────────────────────────────────────────────
+    sigma_u_physical = frac_params.sigma_u * R_half  # Convert to pc
+    a_vecs = compute_amplitudes(field, frac_params.chi, sigma_u_physical)
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 5: Evaluate and apply displacement
+    # ─────────────────────────────────────────────────────────────
+    displacements = evaluate_displacement(positions_base, field, a_vecs)
+
+    positions = apply_displacement(
+        positions_base,
+        displacements,
+        lambda_frac,  # Use clamped value
+        target_radii=radii_base,
+        mode=frac_params.radial_mode,
+    )
+
+    # Recenter positions to COM (finite-N realizations can drift)
+    M_total_actual = jnp.sum(masses)
+    x_com = jnp.sum(masses[:, None] * positions, axis=0) / M_total_actual
+    positions = positions - x_com
+
+    # ─────────────────────────────────────────────────────────────
+    # Step 6: Assign velocities
+    # ─────────────────────────────────────────────────────────────
+    velocities = assign_fractal_velocities(
+        key_vel,
+        positions,
+        masses,
+        field,
+        a_vecs,
+        frac_params,
+        G,
+        lambda_vel=lambda_vel,  # Use clamped value
+    )
+
+    return ClusterState(
+        masses=masses,
+        positions=positions,
+        velocities=velocities,
+    )
+
+
+# =============================================================================
+# Module Exports
+# =============================================================================
+
+__all__ = [
+    # Data structures
+    "FractalField",
+    "FractalDisplacementLayer",
+    # Field operations
+    "init_fractal_field",
+    "compute_amplitudes",
+    "evaluate_displacement",
+    "apply_displacement",
+    # Velocity
+    "assign_fractal_velocities",
+    # IC Generator
+    "generate_fractal_ic",
+    # Constants (v2 - lognormal envelope)
+    "CHI_MIN",
+    "CHI_MAX",
+    "BETA_BASE",
+    "SIGMA_LOGK",
+    # Legacy constants (deprecated)
+    "BETA_0",
+    "BETA_1",
+]
