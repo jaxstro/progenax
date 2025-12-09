@@ -97,3 +97,102 @@ class TestFractalDisplacementLayer:
 
         assert layer.chi == layer2.chi
         assert layer.lambda_frac == layer2.lambda_frac
+
+
+class TestInitFractalField:
+    """Tests for init_fractal_field function."""
+
+    @pytest.fixture
+    def key(self):
+        return random.PRNGKey(42)
+
+    def test_output_shapes(self, key):
+        """init_fractal_field produces correct shapes."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        n_modes = 64
+        R_half = 1.0
+        field = init_fractal_field(key, n_modes, R_half)
+
+        assert field.k_vecs.shape == (n_modes, 3)
+        assert field.phases.shape == (n_modes,)
+        assert field.base_vecs.shape == (n_modes, 3)
+
+    def test_k_directions_are_unit_vectors(self, key):
+        """Wavevector directions are normalized."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        field = init_fractal_field(key, n_modes=64, R_half=1.0)
+
+        k_mags = jnp.linalg.norm(field.k_vecs, axis=1)
+        # Extract directions by dividing by magnitudes
+        k_dirs = field.k_vecs / k_mags[:, None]
+        dir_norms = jnp.linalg.norm(k_dirs, axis=1)
+
+        assert jnp.allclose(dir_norms, 1.0, atol=1e-6)
+
+    def test_base_vecs_are_unit_vectors(self, key):
+        """Polarization vectors are normalized."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        field = init_fractal_field(key, n_modes=64, R_half=1.0)
+
+        base_norms = jnp.linalg.norm(field.base_vecs, axis=1)
+        assert jnp.allclose(base_norms, 1.0, atol=1e-6)
+
+    def test_k_magnitudes_are_log_spaced(self, key):
+        """Wavenumber magnitudes are log-spaced in [k_min, k_max]."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        R_half = 2.0
+        k_min_factor = 0.5
+        k_max_factor = 20.0
+
+        field = init_fractal_field(
+            key, n_modes=64, R_half=R_half,
+            k_min_factor=k_min_factor, k_max_factor=k_max_factor
+        )
+
+        k_mags = jnp.linalg.norm(field.k_vecs, axis=1)
+
+        # Check bounds
+        k_min_expected = k_min_factor / R_half
+        k_max_expected = k_max_factor / R_half
+        assert k_mags[0] >= k_min_expected * 0.99
+        assert k_mags[-1] <= k_max_expected * 1.01
+
+        # Check monotonicity (log-spaced means strictly increasing)
+        assert jnp.all(jnp.diff(k_mags) > 0)
+
+    def test_phases_in_valid_range(self, key):
+        """Phases are in [0, 2*pi]."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        field = init_fractal_field(key, n_modes=64, R_half=1.0)
+
+        assert jnp.all(field.phases >= 0)
+        assert jnp.all(field.phases <= 2 * jnp.pi)
+
+    def test_different_keys_produce_different_fields(self):
+        """Different random keys produce different fields."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        key1 = random.PRNGKey(42)
+        key2 = random.PRNGKey(123)
+
+        field1 = init_fractal_field(key1, n_modes=32, R_half=1.0)
+        field2 = init_fractal_field(key2, n_modes=32, R_half=1.0)
+
+        # Phases should differ
+        assert not jnp.allclose(field1.phases, field2.phases)
+
+    def test_jit_compatible(self, key):
+        """init_fractal_field can be JIT compiled."""
+        from progenax.cluster.fdf import init_fractal_field
+
+        @jax.jit
+        def make_field(key):
+            return init_fractal_field(key, n_modes=32, R_half=1.0)
+
+        field = make_field(key)
+        assert field.k_vecs.shape == (32, 3)

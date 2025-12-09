@@ -146,3 +146,76 @@ jax.tree_util.register_dataclass(
     ],
     meta_fields=[],
 )
+
+
+# =============================================================================
+# Field Initialization
+# =============================================================================
+
+
+def init_fractal_field(
+    key: PRNGKeyArray,
+    n_modes: int,
+    R_half: float,
+    k_min_factor: float = 0.5,
+    k_max_factor: float = 20.0,
+) -> FractalField:
+    """Initialize frozen stochastic structure for displacement field.
+
+    Creates a FractalField with log-spaced wavenumbers, random directions,
+    random phases, and random polarization vectors.
+
+    Parameters
+    ----------
+    key : PRNGKey
+        JAX random key for reproducibility.
+    n_modes : int
+        Number of Fourier modes (M). More modes = finer structure.
+    R_half : float
+        Half-mass radius in pc. Sets scale for k_min, k_max.
+    k_min_factor : float, default 0.5
+        k_min = k_min_factor / R_half. Default gives modes on scales ~2*R_half.
+    k_max_factor : float, default 20.0
+        k_max = k_max_factor / R_half. Default gives modes on scales ~R_half/20.
+
+    Returns
+    -------
+    FractalField
+        Frozen stochastic structure with k_vecs, phases, base_vecs.
+
+    Notes
+    -----
+    This structure should be frozen via stop_gradient before use in
+    differentiable pipelines. The k_vecs depend on R_half at initialization,
+    but because we apply stop_gradient, changes in R_half during inference
+    affect only the amplitude scaling - NOT the internal phase structure.
+    """
+    key_dir, key_phase, key_pol = random.split(key, 3)
+
+    # Wavenumber range
+    k_min = k_min_factor / R_half
+    k_max = k_max_factor / R_half
+
+    # Log-spaced wavenumber magnitudes
+    t = jnp.linspace(0.0, 1.0, n_modes)
+    k_mags = k_min * (k_max / k_min) ** t  # (M,)
+
+    # Random directions on unit sphere (normalize Gaussian vectors)
+    raw_dirs = random.normal(key_dir, (n_modes, 3))
+    k_dirs = raw_dirs / jnp.linalg.norm(raw_dirs, axis=1, keepdims=True)
+
+    # Wavevectors = magnitude * direction
+    k_vecs = k_mags[:, None] * k_dirs  # (M, 3)
+
+    # Random phases in [0, 2*pi]
+    phases = random.uniform(key_phase, (n_modes,)) * (2 * jnp.pi)
+
+    # Random polarization directions (unit vectors)
+    raw_pol = random.normal(key_pol, (n_modes, 3))
+    base_vecs = raw_pol / jnp.linalg.norm(raw_pol, axis=1, keepdims=True)
+
+    return FractalField(
+        k_vecs=k_vecs,
+        phases=phases,
+        base_vecs=base_vecs,
+    )
