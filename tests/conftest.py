@@ -18,8 +18,16 @@ import jax.numpy as jnp
 # =============================================================================
 
 def pytest_configure(config):
-    """Enable float64 for all tests."""
+    """Enable float64 for all tests and configure warnings."""
     jax.config.update("jax_enable_x64", True)
+
+    # Suppress Equinox warning about field(init=False) - this is intentional
+    # design in EnvironmentIMF where environment→IMF conversion is not meant
+    # to be differentiated through
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore:Using.*field.*init=False.*:UserWarning"
+    )
 
 
 # =============================================================================
@@ -75,7 +83,7 @@ class PhysicsTolerances:
     QUALITATIVE = 0.20  # 20%
 
     # Specific physics targets
-    VIRIAL_RATIO = 0.20      # Q = 2T/|V| should be within 20% of 1.0
+    VIRIAL_RATIO = 0.20      # Q = T/|V| should be within 20% of 0.5
     HALF_MASS = 0.03         # Half-mass radius: 3% tolerance
     VELOCITY_DISPERSION = 0.10  # σ(r) profile: 10% tolerance
     CDF_MONOTONIC = 1e-10    # CDF must be strictly increasing

@@ -227,10 +227,10 @@ class TestPlummerVelocityDispersion:
 
 
 class TestPlummerVirialEquilibrium:
-    """Verify Plummer ICs are in virial equilibrium: Q = 2T/|V| ≈ 1."""
+    """Verify Plummer ICs are in virial equilibrium: Q = T/|V| ≈ 0.5."""
 
     def test_virial_ratio(self, N_validation, key, tolerances):
-        """Virial ratio Q = 2T/|V| close to 1.0 for equilibrium system."""
+        """Virial ratio Q = T/|V| close to 0.5 for equilibrium system."""
         r_h = 1.0
         G = 1.0
 
@@ -251,11 +251,11 @@ class TestPlummerVirialEquilibrium:
         # Analytical potential energy for Plummer: V = -3πGM²/(32a)
         V_analytical = -3.0 * jnp.pi * G * M_total**2 / (32.0 * a)
 
-        # Virial ratio
-        Q = 2.0 * T / abs(float(V_analytical))
+        # Virial ratio: Q = T/|V| (NOT 2T/|V|)
+        Q = T / abs(float(V_analytical))
 
-        assert abs(Q - 1.0) < tolerances.VIRIAL_RATIO, \
-            f"Virial ratio Q={Q:.4f}, expected 1.0 ± {tolerances.VIRIAL_RATIO}"
+        assert abs(Q - 0.5) < tolerances.VIRIAL_RATIO, \
+            f"Virial ratio Q={Q:.4f}, expected 0.5 ± {tolerances.VIRIAL_RATIO}"
 
 
 class TestPlummerBoundParticles:

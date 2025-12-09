@@ -65,19 +65,19 @@ class TestKnobsPipeline:
         # 8. Center on COM
         positions, velocities = to_com_frame(positions, velocities, masses)
 
-        # 9. Virial scale
-        velocities = virial_scale(positions, velocities, masses, Q_target=1.0, G=G)
+        # 9. Virial scale to Q = 0.5 (equilibrium)
+        velocities = virial_scale(positions, velocities, masses, Q_target=0.5, G=G)
 
         # Verify final state
         assert positions.shape[0] > 0  # Some particles kept
         assert velocities.shape == positions.shape
         assert masses.shape[0] == positions.shape[0]
 
-        # Check virial ratio
+        # Check virial ratio: Q = T/|V| = 0.5 for equilibrium
         T = compute_kinetic_energy(velocities, masses)
         V = compute_potential_energy(positions, masses, G=G)
-        Q = 2 * T / jnp.abs(V)
-        assert jnp.abs(Q - 1.0) < 0.01  # Should be virial equilibrium
+        Q = T / jnp.abs(V)  # Q = T/|V| (NOT 2T/|V|)
+        assert jnp.abs(Q - 0.5) < 0.01  # Should be virial equilibrium
 
     def test_binary_parameters_sampling(self):
         """Test sampling binary orbital parameters."""

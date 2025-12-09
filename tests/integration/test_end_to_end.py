@@ -30,7 +30,7 @@ class TestIMFToICPipeline:
             profile=profile,
             masses=masses,
             velocity_df=velocity_df,
-            Q=1.0,
+            Q=0.5,  # Q = T/|V|, 0.5 for equilibrium
             key=key_ic,
             G=G,
         )
@@ -63,7 +63,7 @@ class TestIMFToICPipeline:
             profile=profile,
             masses=masses,
             velocity_df=velocity_df,
-            Q=1.0,
+            Q=0.5,  # Q = T/|V|, 0.5 for equilibrium
             key=key_ic,
             G=G,
         )
