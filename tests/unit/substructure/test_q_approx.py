@@ -1,6 +1,23 @@
 """Tests for JAX-native Q parameter approximation."""
 
 import pytest
+import jax
+import jax.numpy as jnp
+import numpy as np
+
+
+def generate_uniform_sphere_jax(N: int, key) -> jnp.ndarray:
+    """Generate uniform sphere using JAX."""
+    key_r, key_theta, key_phi = jax.random.split(key, 3)
+    u = jax.random.uniform(key_r, (N,))
+    r = u ** (1 / 3)
+    cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
+    sin_theta = jnp.sqrt(1 - cos_theta ** 2)
+    phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2 * jnp.pi)
+    x = r * sin_theta * jnp.cos(phi)
+    y = r * sin_theta * jnp.sin(phi)
+    z = r * cos_theta
+    return jnp.stack([x, y, z], axis=1)
 
 
 class TestImports:
@@ -15,3 +32,60 @@ class TestImports:
         assert callable(q_approx_naive)
         assert callable(q_approx_fast)
         assert callable(q_approx)
+
+
+class TestQApproxNaive:
+    """Tests for q_approx_naive implementation."""
+
+    def test_returns_scalar(self):
+        """q_approx_naive should return a scalar."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(100, key)
+        Q = q_approx_naive(positions)
+        assert Q.shape == (), f"Expected scalar, got shape {Q.shape}"
+
+    def test_uniform_sphere_reasonable_range(self):
+        """Q for uniform sphere should be in [0.5, 1.2]."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        Q_values = []
+        for seed in range(10):
+            key = jax.random.PRNGKey(seed)
+            positions = generate_uniform_sphere_jax(300, key)
+            Q = q_approx_naive(positions)
+            Q_values.append(float(Q))
+        Q_mean = np.mean(Q_values)
+        assert 0.5 < Q_mean < 1.2, f"Q_mean = {Q_mean:.3f} outside expected range"
+
+    def test_degenerate_small_n(self):
+        """Small N should return default value 0.79."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        positions = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+        Q = q_approx_naive(positions)
+        assert jnp.isclose(Q, 0.79), f"Expected 0.79 for N=2, got {Q}"
+
+    def test_jit_compatible(self):
+        """Function should work with @jax.jit."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(100, key)
+        q_jit = jax.jit(q_approx_naive)
+        Q = q_jit(positions)
+        assert jnp.isfinite(Q), f"JIT result should be finite, got {Q}"
+
+    def test_vmap_compatible(self):
+        """Function should work with jax.vmap."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        keys = jax.random.split(jax.random.PRNGKey(42), 5)
+        batch_positions = jax.vmap(lambda k: generate_uniform_sphere_jax(100, k))(keys)
+        Q_batch = jax.vmap(q_approx_naive)(batch_positions)
+        assert Q_batch.shape == (5,), f"Expected (5,), got {Q_batch.shape}"
+
+    def test_grad_compatible(self):
+        """Function should support gradients."""
+        from progenax.diagnostics.q_approx import q_approx_naive
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(50, key)
+        grad = jax.grad(lambda p: q_approx_naive(p))(positions)
+        assert grad.shape == positions.shape
+        assert jnp.all(jnp.isfinite(grad)), "Gradients should be finite"

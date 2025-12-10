@@ -42,8 +42,67 @@ def q_approx_naive(
     project_to_2d: bool = True,
     calibration: float = DEFAULT_CALIBRATION,
 ) -> Float[Array, ""]:
-    """O(N^2) Q approximation. Implementation in Task 2."""
-    raise NotImplementedError("Task 2")
+    """
+    Compute approximate Q parameter using O(N^2) brute-force kNN.
+
+    Suitable for N < 2000 where O(N^2) is acceptable.
+
+    Args:
+        positions: Particle positions [N, 3] or [N, 2]
+        project_to_2d: Project to xy plane (CW04 methodology)
+        calibration: Multiplicative calibration factor
+
+    Returns:
+        Q_approx: Approximate Q parameter (scalar)
+    """
+    # Handle 2D input
+    if positions.shape[1] == 2:
+        xy = positions
+    elif positions.shape[1] == 3:
+        xy = positions[:, :2] if project_to_2d else positions
+    else:
+        raise ValueError(f"positions must be (N, 2) or (N, 3), got {positions.shape}")
+
+    N = xy.shape[0]
+
+    # Degenerate case
+    def degenerate_case(_):
+        return jnp.array(0.79)
+
+    def normal_case(_):
+        # 1. Compute all pairwise distances [N, N]
+        diff = xy[:, None, :] - xy[None, :, :]  # [N, N, D]
+        dist_sq = jnp.sum(diff ** 2, axis=-1)  # [N, N]
+        dist = jnp.sqrt(dist_sq + 1e-12)
+
+        # 2. Find 1-NN distance (exclude self with large value on diagonal)
+        dist_no_self = dist + jnp.eye(N) * 1e10
+        nn_dist = jnp.min(dist_no_self, axis=1)  # [N]
+
+        # 3. Approximate MST length: L_MST ~ (N-1) * mean(d_1NN)
+        L_approx = (N - 1) * jnp.mean(nn_dist)
+
+        # 4. Cluster geometry
+        center = jnp.mean(xy, axis=0)
+        radii = jnp.sqrt(jnp.sum((xy - center) ** 2, axis=1))
+        R_cluster = jnp.maximum(jnp.max(radii), 1e-10)
+
+        # Approximate area (bounding circle)
+        A_approx = jnp.pi * R_cluster ** 2
+
+        # 5. m_bar approximation
+        m_bar = L_approx / jnp.sqrt(N * A_approx)
+
+        # 6. s_bar: mean pairwise separation / R_cluster
+        triu_mask = jnp.triu(jnp.ones((N, N), dtype=bool), k=1)
+        n_pairs = N * (N - 1) // 2
+        s_raw = jnp.sum(dist * triu_mask) / n_pairs
+        s_bar = s_raw / R_cluster
+
+        # 7. Q = calibration * m_bar / s_bar
+        return calibration * m_bar / (s_bar + 1e-10)
+
+    return jax.lax.cond(N < 3, degenerate_case, normal_case, operand=None)
 
 
 def q_approx_fast(
