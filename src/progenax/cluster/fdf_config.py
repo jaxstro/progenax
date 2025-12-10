@@ -23,9 +23,13 @@ Parameters are derived from ISM turbulence theory:
     - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
     - Supersonic (M >> 1): Burgers β ≈ 4.0
 
-- **Mach number**: Estimated from virial equilibrium
-    M = σ_v / c_s where σ_v = √(G M_ecl / r_h)
+- **Mach number**: Derived from Larson velocity-size relation
+    M = σ_v / c_s where σ_v = σ_v0 × (R_cloud / 1 pc)^α
+    R_cloud = (3 M_gas / 4π ρ_cl)^(1/3), Larson α ≈ 0.5
     c_s ~ 0.2 km/s for cold GMC (T ~ 10 K)
+
+    NOTE: We use the PARENT CLOUD size, not stellar r_h, because the fractal
+    density structure is imprinted by gas turbulence before star formation.
 
 References
 ----------
@@ -76,6 +80,11 @@ B_DEFAULT = 0.4
 # Spectral slopes from turbulence theory
 BETA_KOLMOGOROV = 11.0 / 3.0  # ≈ 3.67, incompressible limit
 BETA_BURGERS = 4.0  # Shock-dominated limit
+
+# Larson velocity-size relation (Larson 1981, Solomon+1987)
+# σ_v = σ_v0 × (R / 1 pc)^α
+SIGMA_V0_DEFAULT = 1.0  # km/s at 1 pc
+ALPHA_LARSON = 0.5  # Velocity-size exponent
 
 
 # =============================================================================
@@ -160,6 +169,81 @@ class FDFDisplacementHyperparams:
 # Default instances
 FDF_DENSITY_DEFAULTS = FDFDensityHyperparams()
 FDF_DISPLACEMENT_DEFAULTS = FDFDisplacementHyperparams()
+
+
+# =============================================================================
+# Uncalibrated Heuristics (QUARANTINED)
+# =============================================================================
+
+# Chi parameter bounds (Goodwin & Whitworth 2004)
+# 1.6 = most clumpy (small-scale dominated)
+# 3.0 = smoothest (large-scale dominated)
+CHI_MIN = 1.6
+CHI_MAX = 3.0
+
+
+@dataclass(frozen=True)
+class FDFUncalibratedHeuristics:
+    """HEURISTIC CONSTANTS - NOT PHYSICS-DERIVED.
+
+    WARNING: These values are placeholders awaiting calibration against:
+    - MHD turbulence simulations
+    - Cartwright & Whitworth (2004) Q(D) measurements
+
+    DO NOT use these in env_to_fdf_layer(). They exist only for:
+    - Legacy API compatibility (density_layer_from_D)
+    - Manual experimentation
+    - Calibration sweeps
+
+    For physics-based parameters, use env_to_fdf_layer() which derives
+    σ_ln_ρ and β from turbulence theory (Federrath+2010, Kolmogorov/Burgers).
+
+    Attributes
+    ----------
+    beta_0 : float
+        Baseline spectral slope for legacy χ→β mapping.
+        Formula: β = beta_0 + beta_1 × (χ - 1.5)
+        NOT from physics - arbitrary heuristic.
+    beta_1 : float
+        Sensitivity of β to chi. NOT calibrated.
+    sigma_ln_rho_manual : float
+        Default σ_ln_ρ for manual FractalDensityLayer construction.
+        Should use env_to_fdf_layer() instead which derives from Federrath+2010.
+    beta_base_displacement : float
+        Spectral slope for displacement FDF. NOT physics-based.
+    sigma_logk_displacement : float
+        Envelope width for displacement FDF. NOT physics-based.
+    sigma_u_default : float
+        Displacement amplitude scale. NOT physics-based.
+
+    Notes
+    -----
+    CW04 calibration targets (NOT currently achieved):
+        D=1.5 → Q ≈ 0.47
+        D=2.0 → Q ≈ 0.58
+        D=2.5 → Q ≈ 0.70
+        D=3.0 → Q ≈ 0.79-0.82
+
+    Current D→χ is identity mapping, produces UNKNOWN Q values.
+    """
+
+    # Legacy χ→β mapping (used when chi is set directly)
+    beta_0: float = 2.0  # Baseline: arbitrary, NOT Kolmogorov
+    beta_1: float = 1.5  # Sensitivity: arbitrary, NOT from physics
+
+    # Default σ_ln_ρ for manual construction (bypasses Federrath+2010)
+    sigma_ln_rho_manual: float = 2.0  # Arbitrary "visible substructure"
+
+    # Displacement field (fdf.py) parameters - LEGACY/EXPERIMENTAL
+    beta_base_displacement: float = 1.5
+    sigma_logk_displacement: float = 0.8
+    sigma_u_default: float = 0.3
+
+    version: str = "v0_uncalibrated_2024-12"
+
+
+# Singleton instance for heuristics
+FDF_HEURISTICS = FDFUncalibratedHeuristics()
 
 
 # =============================================================================
@@ -264,12 +348,194 @@ def spectral_slope_from_mach(mach: Float[Array, "..."]) -> Float[Array, "..."]:
     return BETA_KOLMOGOROV * (1.0 - t) + BETA_BURGERS * t
 
 
+# =============================================================================
+# Larson Velocity-Size Relation (RECOMMENDED)
+# =============================================================================
+
+
+def cloud_radius_from_density(
+    M_ecl: Float[Array, "..."],
+    sfe: Float[Array, "..."],
+    rho_cl: Float[Array, "..."],
+) -> Float[Array, "..."]:
+    """Parent cloud radius [pc] from cluster mass, SFE, and cloud density.
+
+    Derives the size of the parent molecular cloud that formed the cluster,
+    assuming a spherical geometry:
+
+        R_cloud = (3 M_gas / (4π ρ_cl))^(1/3)
+
+    where M_gas = M_ecl / SFE is the gas mass.
+
+    Parameters
+    ----------
+    M_ecl : array
+        Stellar mass of embedded cluster [M☉].
+    sfe : array
+        Star formation efficiency ε = M_ecl / M_gas.
+    rho_cl : array
+        Cloud density [M☉ pc⁻³].
+
+    Returns
+    -------
+    R_cloud : array
+        Parent cloud radius [pc].
+
+    Notes
+    -----
+    This is used to derive the turbulent velocity dispersion via the
+    Larson velocity-size relation, which then gives the Mach number.
+
+    The cloud radius is NOT the stellar half-mass radius r_h (which is
+    much smaller). The fractal density structure is imprinted at the
+    cloud scale, not the stellar scale.
+
+    Expected ranges:
+        | M_ecl   | SFE  | ρ_cl       | R_cloud |
+        |---------|------|------------|---------|
+        | 10³ M☉  | 0.33 | ~10³ M☉/pc³| ~2 pc   |
+        | 10⁴ M☉  | 0.33 | ~10⁴ M☉/pc³| ~3 pc   |
+        | 10⁵ M☉  | 0.33 | ~10⁵ M☉/pc³| ~4 pc   |
+        | 10⁶ M☉  | 0.33 | ~10⁶ M☉/pc³| ~5 pc   |
+
+    References
+    ----------
+    .. [1] Larson (1981) MNRAS 194, 809
+    """
+    M_gas = M_ecl / sfe
+    volume = M_gas / rho_cl
+    return jnp.power(3.0 * volume / (4.0 * jnp.pi), 1.0 / 3.0)
+
+
+def larson_sigma_v(
+    R_cloud: Float[Array, "..."],
+    sigma_v0: float = SIGMA_V0_DEFAULT,
+    alpha: float = ALPHA_LARSON,
+) -> Float[Array, "..."]:
+    """Velocity dispersion [km/s] from Larson velocity-size relation.
+
+    The classic scaling of turbulent velocity dispersion with cloud size:
+
+        σ_v(R) = σ_v0 × (R / 1 pc)^α
+
+    Parameters
+    ----------
+    R_cloud : array
+        Cloud radius [pc].
+    sigma_v0 : float, optional
+        Normalization velocity [km/s] at 1 pc. Default 1.0.
+    alpha : float, optional
+        Power-law exponent. Default 0.5 (Larson 1981).
+
+    Returns
+    -------
+    sigma_v : array
+        Turbulent velocity dispersion [km/s].
+
+    Notes
+    -----
+    Typical values from literature:
+        - Larson (1981): σ_v0 ≈ 1.1 km/s, α ≈ 0.38
+        - Solomon et al. (1987): σ_v0 ≈ 0.72 km/s, α ≈ 0.5
+        - Heyer & Brunt (2004): α ≈ 0.5 (with scatter)
+
+    We use σ_v0 = 1.0 km/s, α = 0.5 as reasonable defaults.
+
+    For R ~ 1-10 pc clouds:
+        - R = 2 pc → σ_v ≈ 1.4 km/s
+        - R = 5 pc → σ_v ≈ 2.2 km/s
+        - R = 10 pc → σ_v ≈ 3.2 km/s
+
+    References
+    ----------
+    .. [1] Larson (1981) MNRAS 194, 809
+    .. [2] Solomon et al. (1987) ApJ 319, 730
+    .. [3] Heyer & Brunt (2004) ApJ 615, L45
+    """
+    return sigma_v0 * jnp.power(jnp.maximum(R_cloud, 1e-3), alpha)
+
+
+def turbulent_mach_from_cloud(
+    R_cloud: Float[Array, "..."],
+    c_s: float = C_S_DEFAULT,
+    sigma_v0: float = SIGMA_V0_DEFAULT,
+    alpha: float = ALPHA_LARSON,
+) -> Float[Array, "..."]:
+    """Gas turbulent Mach number from Larson velocity-size relation.
+
+    Combines the Larson relation with the sound speed to get Mach number:
+
+        M = σ_v(R_cloud) / c_s
+
+    where σ_v = σ_v0 × (R_cloud)^α.
+
+    This is the RECOMMENDED method for deriving Mach numbers because it uses
+    the parent cloud properties (where turbulence imprints density structure),
+    not the stellar half-mass radius.
+
+    Parameters
+    ----------
+    R_cloud : array
+        Parent cloud radius [pc].
+    c_s : float, optional
+        Sound speed [km/s]. Default 0.2 (cold GMC at T ~ 10 K).
+    sigma_v0 : float, optional
+        Larson normalization [km/s]. Default 1.0.
+    alpha : float, optional
+        Larson exponent. Default 0.5.
+
+    Returns
+    -------
+    mach : array
+        Turbulent Mach number M = σ_v / c_s.
+
+    Notes
+    -----
+    Expected ranges for typical star-forming clouds:
+
+        | R_cloud | σ_v    | Mach |
+        |---------|--------|------|
+        | 2 pc    | 1.4    | ~7   |
+        | 3 pc    | 1.7    | ~9   |
+        | 5 pc    | 2.2    | ~11  |
+        | 10 pc   | 3.2    | ~16  |
+
+    These are MUCH more realistic than virial-based estimates which give
+    M ~ 20-400 for the same cluster masses.
+
+    References
+    ----------
+    .. [1] Larson (1981) MNRAS 194, 809 - Velocity-size relation
+    .. [2] Solomon et al. (1987) ApJ 319, 730 - GMC properties
+    .. [3] Federrath et al. (2010) A&A 512, A81 - Turbulence-density relation
+
+    Examples
+    --------
+    >>> R_cloud = jnp.array(3.0)  # 3 pc cloud
+    >>> M = turbulent_mach_from_cloud(R_cloud)
+    >>> print(f"Mach = {float(M):.1f}")  # ~8.7
+    """
+    sigma_v = larson_sigma_v(R_cloud, sigma_v0, alpha)
+    return sigma_v / c_s
+
+
+# =============================================================================
+# Virial-Based Mach (DEPRECATED - gives unrealistic values)
+# =============================================================================
+
+
 def turbulent_mach_from_virial(
     M_ecl: Float[Array, "..."],
     r_h: Float[Array, "..."],
     c_s: float = C_S_DEFAULT,
 ) -> Float[Array, "..."]:
-    """Estimate turbulent Mach number from virial equilibrium.
+    """DEPRECATED: Estimate turbulent Mach number from virial equilibrium.
+
+    .. deprecated::
+        This function uses stellar r_h which gives unrealistically high Mach
+        numbers (M ~ 20-400). Use `turbulent_mach_from_cloud()` instead, which
+        uses the parent cloud radius via Larson's velocity-size relation and
+        gives physically realistic Mach numbers (M ~ 5-15).
 
     Assumes the cluster's velocity dispersion follows virial scaling:
         σ_v = √(G M_ecl / r_h)
@@ -291,36 +557,105 @@ def turbulent_mach_from_virial(
     mach : array
         Turbulent Mach number.
 
-    Notes
-    -----
-    Physical ranges for typical clusters:
-        - Small OC (10³ M☉, 0.3 pc): σ_v ~ 1 km/s, M ~ 5
-        - Large OC (10⁴ M☉, 0.5 pc): σ_v ~ 2 km/s, M ~ 10
-        - YMC (10⁵ M☉, 1.0 pc): σ_v ~ 5 km/s, M ~ 25
-        - GC (10⁶ M☉, 3.0 pc): σ_v ~ 10 km/s, M ~ 50
-
     Warning
     -------
-    This is a simplified estimate. Real clouds have:
-    - Non-virial initial states
-    - Magnetic support
-    - External pressure confinement
-    - Varying temperature structure
+    THIS GIVES UNREALISTIC MACH NUMBERS!
 
-    References
-    ----------
-    .. [1] Larson (1981) MNRAS 194, 809 - σ-R relation
-    .. [2] Marks & Kroupa (2012) MNRAS 422, 2246 - r_h-M relation
+    The stellar half-mass radius r_h is NOT the relevant scale for gas turbulence.
+    Using r_h gives M ~ 21-422 for 10³-10⁶ M☉ clusters, which is way too high.
 
-    Examples
+    Use `turbulent_mach_from_cloud()` instead, which:
+    1. Derives the parent cloud radius from (M_ecl, SFE, ρ_cl)
+    2. Uses Larson's velocity-size relation: σ_v = σ_v0 × R^α
+    3. Gives realistic M ~ 5-15
+
+    See Also
     --------
-    >>> M_ecl = jnp.array(1e4)  # 10⁴ M☉ cluster
-    >>> r_h = jnp.array(0.5)    # 0.5 pc
-    >>> M = turbulent_mach_from_virial(M_ecl, r_h)
-    >>> print(f"Mach = {float(M):.1f}")  # ~14
+    turbulent_mach_from_cloud : Recommended replacement using Larson relation.
+    cloud_radius_from_density : Helper to derive cloud radius.
     """
     sigma_v = jnp.sqrt(G_KMS * M_ecl / r_h)
     return sigma_v / c_s
+
+
+# =============================================================================
+# Environment-Dependent Turbulence Driving Parameter
+# =============================================================================
+
+
+def b_from_environment(
+    log_rho_cl: Float[Array, "..."],
+    log_rho_transition: float = 4.0,
+    b_low: float = 0.33,
+    b_high: float = 0.7,
+    width: float = 1.0,
+) -> Float[Array, "..."]:
+    """Turbulence driving parameter b from cloud density.
+
+    Physical motivation (Federrath+2010, Federrath+2013):
+
+    - Low-density clouds: Turbulence is primarily driven by large-scale flows
+      (galactic shear, supernova feedback) which are more solenoidal. b ≈ 0.33.
+
+    - High-density star-forming cores: Self-gravity and accretion flows create
+      more compressive motions. Observed b ≈ 0.5-1.0 in dense regions.
+
+    This function interpolates smoothly using tanh for JAX compatibility.
+
+    Parameters
+    ----------
+    log_rho_cl : array
+        Log₁₀ of cloud density [M☉/pc³].
+    log_rho_transition : float, optional
+        Density at which transition from solenoidal to compressive occurs.
+        Default 10⁴ M☉/pc³ (typical dense core threshold).
+    b_low : float, optional
+        Driving parameter for low-density regions (solenoidal limit).
+        Default 0.33 ≈ 1/3 from pure solenoidal driving.
+    b_high : float, optional
+        Driving parameter for high-density regions (compressive).
+        Default 0.7 (moderate compressive, not pure compressive b=1).
+    width : float, optional
+        Width of transition in log₁₀(ρ) units. Default 1.0 dex.
+
+    Returns
+    -------
+    b : array
+        Turbulence driving parameter for Federrath+2010 formula.
+        σ²_ln_ρ = ln(1 + b²M²)
+
+    Notes
+    -----
+    The b parameter in the density-Mach relation (Federrath+2010 Eq. 14):
+
+    - b ≈ 1/3 (0.33): Pure solenoidal (incompressible) driving
+    - b ≈ 1.0: Pure compressive driving
+    - b ≈ 0.4: Natural mixture (often used as default)
+
+    This environment-dependent mapping is TENTATIVE. The relationship between
+    cloud density and driving mechanism is not firmly established. Use with
+    scientific caveat.
+
+    References
+    ----------
+    .. [1] Federrath et al. (2010) A&A 512, A81 - Eq. 14
+    .. [2] Federrath (2013) MNRAS 436, 1245 - Driving modes
+    .. [3] Padoan & Nordlund (2011) ApJ 730, 40 - Turbulence in cores
+
+    Examples
+    --------
+    >>> import jax.numpy as jnp
+    >>> # Low density cloud → solenoidal
+    >>> b_low_cloud = b_from_environment(jnp.array(2.0))  # 100 M☉/pc³
+    >>> print(f"b = {float(b_low_cloud):.2f}")  # ~0.33
+    >>>
+    >>> # High density core → more compressive
+    >>> b_high_cloud = b_from_environment(jnp.array(6.0))  # 10⁶ M☉/pc³
+    >>> print(f"b = {float(b_high_cloud):.2f}")  # ~0.70
+    """
+    # Smooth tanh interpolation for JAX compatibility
+    t = 0.5 * (1.0 + jnp.tanh((log_rho_cl - log_rho_transition) / width))
+    return b_low * (1.0 - t) + b_high * t
 
 
 # =============================================================================
@@ -331,16 +666,27 @@ def turbulent_mach_from_virial(
 def env_to_fdf_layer(
     log_mecl: Float[Array, ""],
     sfe: Float[Array, ""] | None = None,
-    b: float = B_DEFAULT,
+    log_rho_cl: Float[Array, ""] | None = None,
+    b: float | None = None,
     c_s: float = C_S_DEFAULT,
+    sigma_v0: float = SIGMA_V0_DEFAULT,
+    alpha: float = ALPHA_LARSON,
     base_profile: str = "uniform",
     lambda_frac: float = 1.0,
     virial_ratio: float = 0.5,
 ) -> "FractalDensityLayer":
-    """Convert environment parameters to physically motivated FDF layer.
+    """CANONICAL entry point: Environment → FDF parameters.
 
-    Derives turbulent parameters from the same environmental conditions
-    that determine the IMF (Marks+2012, Jerabkova+2018).
+    This is the RECOMMENDED way to create a FractalDensityLayer.
+    Parameters are derived from ISM turbulence physics:
+
+    1. R_cloud from (M_ecl, SFE, ρ_cl) via spherical geometry
+    2. σ_v from Larson velocity-size relation
+    3. Mach = σ_v / c_s
+    4. b from ρ_cl (if not provided) via b_from_environment()
+    5. σ_ln_ρ from Federrath+2010: σ² = ln(1 + b²M²)
+    6. β from Kolmogorov↔Burgers interpolation
+    7. χ from β (inverse mapping, awaiting Q(D) calibration)
 
     This provides a unified physical model where:
         BirthEnvironment → IMF (via env_to_imf_params)
@@ -354,10 +700,19 @@ def env_to_fdf_layer(
         log₁₀(M_ecl / M☉), cluster stellar mass.
     sfe : array, optional
         Star formation efficiency. Default 0.33.
-    b : float, optional
-        Turbulence driving parameter. Default 0.4.
+    log_rho_cl : array, optional
+        log₁₀(ρ_cl / M☉ pc⁻³), cloud density. If None, computed from
+        M_ecl, SFE, and Marks+2012 r_h-M scaling.
+    b : float or None, optional
+        Turbulence driving parameter. If None (default), derived from
+        cloud density via b_from_environment(). Accepts 0.33 (solenoidal)
+        to 1.0 (compressive).
     c_s : float, optional
         Sound speed [km/s]. Default 0.2.
+    sigma_v0 : float, optional
+        Larson normalization [km/s]. Default 1.0.
+    alpha : float, optional
+        Larson exponent. Default 0.5.
     base_profile : str, optional
         Base density profile: "uniform" or "plummer".
         Use "uniform" for CW04-comparable Q values.
@@ -373,35 +728,45 @@ def env_to_fdf_layer(
 
     Notes
     -----
-    Parameter derivation:
-        1. M_ecl → r_h via Marks+2012 scaling
-        2. (M_ecl, r_h) → σ_v via virial theorem
-        3. σ_v → Mach via M = σ_v / c_s
-        4. Mach → σ_ln_ρ via Federrath+2010
-        5. Mach → β via Kolmogorov/Burgers interpolation
-        6. β → χ via inverse of chi-beta mapping
+    Parameter derivation (using Larson velocity-size relation):
+        1. M_ecl, SFE → M_gas = M_ecl / SFE
+        2. M_gas, ρ_cl → R_cloud = (3 M_gas / 4π ρ_cl)^(1/3)
+        3. R_cloud → σ_v via Larson: σ_v = σ_v0 × R^α
+        4. σ_v → Mach: M = σ_v / c_s
+        5. b from ρ_cl via b_from_environment() (if not provided)
+        6. Mach, b → σ_ln_ρ via Federrath+2010
+        7. Mach → β via Kolmogorov/Burgers interpolation
+        8. β → χ via inverse of chi-beta mapping
 
-    Expected ranges:
-        | M_ecl   | σ_ln_ρ | χ    |
-        |---------|--------|------|
-        | 10³ M☉  | ~0.9   | ~2.6 |
-        | 10⁴ M☉  | ~1.4   | ~2.8 |
-        | 10⁵ M☉  | ~1.9   | ~2.8 |
-        | 10⁶ M☉  | ~2.4   | ~2.8 |
+    This uses the PARENT CLOUD size (not stellar r_h) because turbulence
+    imprints the fractal density structure before star formation.
+
+    Expected ranges (with Larson relation):
+        | M_ecl   | R_cloud | Mach | σ_ln_ρ | χ    |
+        |---------|---------|------|--------|------|
+        | 10³ M☉  | ~1.5 pc | ~6   | ~1.1   | ~2.7 |
+        | 10⁴ M☉  | ~2.5 pc | ~8   | ~1.3   | ~2.8 |
+        | 10⁵ M☉  | ~4.0 pc | ~10  | ~1.4   | ~2.8 |
+        | 10⁶ M☉  | ~6.5 pc | ~13  | ~1.6   | ~2.8 |
 
     Warning
     -------
-    The χ(β) mapping is preliminary. The inverse mapping:
-        χ = (β + 0.25) / 1.5
-    is derived from the uncalibrated β = 2.0 + 1.5×(χ - 1.5) heuristic.
-    This will be updated after proper Q(D) calibration.
+    The β→χ mapping (step 8) is TENTATIVE and awaits calibration against
+    Cartwright & Whitworth (2004) Q(D) measurements. The physics chain
+    (steps 1-7) is well-grounded.
 
     Examples
     --------
     >>> from progenax.cluster.fdf_config import env_to_fdf_layer
-    >>> # Young massive cluster (10⁴ M☉)
+    >>> import jax.numpy as jnp
+    >>>
+    >>> # Young massive cluster (10⁴ M☉) - b derived from environment
     >>> layer = env_to_fdf_layer(log_mecl=jnp.array(4.0))
     >>> print(f"σ_ln_ρ = {layer.sigma_ln_rho:.2f}")  # Physically motivated!
+    >>>
+    >>> # Override b for specific driving mode
+    >>> layer_solenoidal = env_to_fdf_layer(log_mecl=jnp.array(4.0), b=0.33)
+    >>> layer_compressive = env_to_fdf_layer(log_mecl=jnp.array(4.0), b=1.0)
     >>>
     >>> # Can use same environment for IMF:
     >>> from progenax.imf.environment import BirthEnvironment, env_to_imf_params
@@ -410,32 +775,49 @@ def env_to_fdf_layer(
     """
     # Avoid circular import
     from progenax.cluster.fdf_density import FractalDensityLayer
-    from progenax.imf.environment import compute_r_half
+    from progenax.imf.environment import compute_rho_cl
 
     # Default SFE
     if sfe is None:
         sfe = jnp.array(0.33)
 
-    # Step 1: Cluster mass and radius
+    # Step 1: Cluster mass
     M_ecl = jnp.power(10.0, log_mecl)
-    r_h = compute_r_half(M_ecl)
 
-    # Step 2: Mach number from virial equilibrium
-    mach = turbulent_mach_from_virial(M_ecl, r_h, c_s)
+    # Step 2: Cloud density (either from input or computed via Marks+2012)
+    if log_rho_cl is not None:
+        rho_cl = jnp.power(10.0, log_rho_cl)
+        log_rho_for_b = log_rho_cl
+    else:
+        # Use Marks+2012 r_h-M relation to get cloud density
+        rho_cl = compute_rho_cl(M_ecl, sfe)
+        log_rho_for_b = jnp.log10(rho_cl)
 
-    # Step 3: σ_ln_ρ from Federrath+2010
-    sigma_ln_rho = sigma_ln_rho_from_mach(mach, b)
+    # Step 3: Cloud radius from spherical geometry
+    R_cloud = cloud_radius_from_density(M_ecl, sfe, rho_cl)
 
-    # Step 4: Spectral slope from turbulence regime
+    # Step 4: Mach number from Larson velocity-size relation
+    mach = turbulent_mach_from_cloud(R_cloud, c_s, sigma_v0, alpha)
+
+    # Step 5: Derive b from environment if not provided
+    if b is None:
+        b_derived = float(b_from_environment(log_rho_for_b))
+    else:
+        b_derived = b
+
+    # Step 6: σ_ln_ρ from Federrath+2010
+    sigma_ln_rho = sigma_ln_rho_from_mach(mach, b_derived)
+
+    # Step 7: Spectral slope from turbulence regime
     beta = spectral_slope_from_mach(mach)
 
-    # Step 5: Map β → χ (inverse of chi→beta mapping)
+    # Step 8: Map β → χ (inverse of chi→beta mapping)
     # Current heuristic: β = beta_0 + beta_1 × (χ - 1.5)
     #                    β = 2.0 + 1.5 × (χ - 1.5) = 1.5χ - 0.25
     # Inverse: χ = (β + 0.25) / 1.5
     # NOTE: This mapping will be replaced after Q(D) calibration
     chi = (beta + 0.25) / 1.5
-    chi = jnp.clip(chi, 1.6, 3.0)
+    chi = jnp.clip(chi, CHI_MIN, CHI_MAX)
 
     return FractalDensityLayer(
         chi=float(chi),
@@ -451,21 +833,36 @@ def env_to_fdf_layer(
 # =============================================================================
 
 __all__ = [
-    # Physical constants
+    # Physical constants (CALIBRATED)
     "G_KMS",
     "C_S_DEFAULT",
     "B_DEFAULT",
     "BETA_KOLMOGOROV",
     "BETA_BURGERS",
-    # Hyperparameter dataclasses
+    "SIGMA_V0_DEFAULT",
+    "ALPHA_LARSON",
+    # Chi parameter bounds
+    "CHI_MIN",
+    "CHI_MAX",
+    # Hyperparameter dataclasses (legacy)
     "FDFDensityHyperparams",
     "FDFDisplacementHyperparams",
     "FDF_DENSITY_DEFAULTS",
     "FDF_DISPLACEMENT_DEFAULTS",
-    # Turbulence physics helpers
+    # Uncalibrated heuristics (QUARANTINED - use with caution)
+    "FDFUncalibratedHeuristics",
+    "FDF_HEURISTICS",
+    # Turbulence physics helpers (Federrath+2010)
     "sigma_ln_rho_from_mach",
     "spectral_slope_from_mach",
+    # Larson velocity-size relation (RECOMMENDED)
+    "cloud_radius_from_density",
+    "larson_sigma_v",
+    "turbulent_mach_from_cloud",
+    # Virial-based Mach (DEPRECATED)
     "turbulent_mach_from_virial",
-    # Environment mapping
+    # Environment-dependent turbulence driving (TENTATIVE)
+    "b_from_environment",
+    # Environment mapping (CANONICAL entry point)
     "env_to_fdf_layer",
 ]

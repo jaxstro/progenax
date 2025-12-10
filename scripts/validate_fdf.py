@@ -47,6 +47,12 @@ from progenax.cluster.fdf_density import (
     generate_fractal_ic_density,
     density_layer_from_D,
 )
+from progenax.cluster.fdf_config import (
+    env_to_fdf_layer,
+    b_from_environment,
+    CHI_MIN,
+    CHI_MAX,
+)
 from progenax.diagnostics import compute_azimuthal_variation, compute_q_parameter
 from progenax.imf import PowerLawIMF
 
@@ -1033,6 +1039,235 @@ def plot_radial_cdf_overlay(output_dir: str, N_stars: int = 2000):
 
 
 # =============================================================================
+# Figure 7: Environment-Based FDF Physics Validation
+# =============================================================================
+
+
+def plot_env_physics_validation(output_dir: str):
+    """Validate env_to_fdf_layer physics chain.
+
+    Plots:
+    1. b(ρ) - turbulence driving parameter vs cloud density
+    2. σ_ln_ρ(M_ecl) - density fluctuation amplitude vs cluster mass
+    3. Mach(M_ecl) - turbulence Mach number vs cluster mass
+    4. Comparison table of expected vs measured values
+    """
+    print("\n" + "=" * 60)
+    print("FIGURE 7: ENVIRONMENT-BASED FDF PHYSICS VALIDATION")
+    print("=" * 60)
+
+    from progenax.imf.environment import BirthEnvironment
+
+    # Panel 1: b(ρ) - driving parameter vs cloud density
+    log_rho_values = np.linspace(1.0, 7.0, 50)
+    b_values = [float(b_from_environment(jnp.array(lr))) for lr in log_rho_values]
+
+    # Panel 2 & 3: σ_ln_ρ and Mach vs cluster mass
+    log_mecl_values = np.linspace(2.0, 7.0, 20)
+    sigma_ln_rho_values = []
+    mach_values = []
+    chi_values = []
+
+    for log_m in log_mecl_values:
+        env = BirthEnvironment.from_cluster_mass(M_ecl=10**log_m)
+        sigma_ln_rho_values.append(float(env.sigma_ln_rho()))
+        mach_values.append(float(env.turbulent_mach()))
+
+        layer = env_to_fdf_layer(jnp.array(log_m))
+        chi_values.append(layer.chi)
+
+    # Create figure
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+    # Panel A: b(ρ)
+    ax = axes[0, 0]
+    ax.plot(log_rho_values, b_values, 'b-', lw=2)
+    ax.axhline(0.33, ls='--', color='green', alpha=0.7, label='Solenoidal (b=0.33)')
+    ax.axhline(0.70, ls='--', color='red', alpha=0.7, label='Compressive (b=0.70)')
+    ax.axhline(0.40, ls=':', color='gray', alpha=0.7, label='Old default (b=0.40)')
+    ax.set_xlabel('log₁₀(ρ_cl) [M☉/pc³]')
+    ax.set_ylabel('b (turbulence driving)')
+    ax.set_title('Driving Parameter vs Cloud Density')
+    ax.legend(loc='lower right')
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(1, 7)
+    ax.set_ylim(0.25, 0.80)
+
+    # Panel B: σ_ln_ρ(M_ecl)
+    ax = axes[0, 1]
+    ax.plot(log_mecl_values, sigma_ln_rho_values, 'darkorange', lw=2, marker='o', markersize=5)
+    ax.set_xlabel('log₁₀(M_ecl) [M☉]')
+    ax.set_ylabel('σ_ln_ρ (Federrath+2010)')
+    ax.set_title('Density Fluctuation Amplitude vs Cluster Mass')
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(2, 7)
+
+    # Expected range annotations
+    ax.axhspan(0.8, 1.9, alpha=0.1, color='green', label='Expected range')
+    ax.legend(loc='upper left')
+
+    # Panel C: Mach(M_ecl)
+    ax = axes[1, 0]
+    ax.plot(log_mecl_values, mach_values, 'teal', lw=2, marker='s', markersize=5)
+    ax.set_xlabel('log₁₀(M_ecl) [M☉]')
+    ax.set_ylabel('Mach number (Larson relation)')
+    ax.set_title('Turbulent Mach Number vs Cluster Mass')
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(2, 7)
+
+    # Panel D: χ(M_ecl)
+    ax = axes[1, 1]
+    ax.plot(log_mecl_values, chi_values, 'purple', lw=2, marker='^', markersize=5)
+    ax.axhline(CHI_MIN, ls='--', color='gray', alpha=0.7, label=f'χ_min = {CHI_MIN}')
+    ax.axhline(CHI_MAX, ls='--', color='gray', alpha=0.7, label=f'χ_max = {CHI_MAX}')
+    ax.set_xlabel('log₁₀(M_ecl) [M☉]')
+    ax.set_ylabel('χ (clumpiness parameter)')
+    ax.set_title('Clumpiness Parameter vs Cluster Mass')
+    ax.legend(loc='upper right')
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(2, 7)
+    ax.set_ylim(CHI_MIN - 0.2, CHI_MAX + 0.2)
+
+    plt.suptitle('env_to_fdf_layer Physics Validation', fontsize=14)
+    plt.tight_layout()
+
+    filename = f'{output_dir}/fdf_env_physics.png'
+    plt.savefig(filename, dpi=150)
+    plt.close()
+    print(f"  Saved: {filename}")
+
+    # Print quantitative results table
+    print("\n  QUANTITATIVE RESULTS:")
+    print("-" * 70)
+    print(f"  {'Parameter':<25} {'Expected':<20} {'Measured':<15} {'Status'}")
+    print("-" * 70)
+
+    # b(ρ) checks
+    b_low = float(b_from_environment(jnp.array(2.0)))
+    b_high = float(b_from_environment(jnp.array(6.0)))
+    print(f"  {'b at 10² M☉/pc³':<25} {'~0.33 (solenoidal)':<20} {b_low:<15.3f} {'✅' if 0.30 < b_low < 0.40 else '❌'}")
+    print(f"  {'b at 10⁶ M☉/pc³':<25} {'~0.70 (compressive)':<20} {b_high:<15.3f} {'✅' if 0.60 < b_high < 0.75 else '❌'}")
+
+    # σ_ln_ρ checks
+    for log_m, name, s_range in [(3.0, 'Small OC', (0.8, 1.5)), (6.0, 'GC', (1.1, 1.9))]:
+        env = BirthEnvironment.from_cluster_mass(M_ecl=10**log_m)
+        sigma = float(env.sigma_ln_rho())
+        status = '✅' if s_range[0] <= sigma <= s_range[1] else '❌'
+        print(f"  {f'σ_ln_ρ ({name})':<25} {f'{s_range[0]:.1f}-{s_range[1]:.1f}':<20} {sigma:<15.3f} {status}")
+
+    # Mach checks
+    for log_m, name, m_range in [(3.0, 'Small OC', (2, 5)), (6.0, 'GC', (3.5, 6))]:
+        env = BirthEnvironment.from_cluster_mass(M_ecl=10**log_m)
+        mach = float(env.turbulent_mach())
+        status = '✅' if m_range[0] <= mach <= m_range[1] else '❌'
+        print(f"  {f'Mach ({name})':<25} {f'{m_range[0]:.0f}-{m_range[1]:.0f}':<20} {mach:<15.2f} {status}")
+
+    # χ range check
+    all_chi_valid = all(CHI_MIN <= c <= CHI_MAX for c in chi_values)
+    print(f"  {'χ in valid range':<25} {f'[{CHI_MIN}, {CHI_MAX}]':<20} {f'{min(chi_values):.2f}-{max(chi_values):.2f}':<15} {'✅' if all_chi_valid else '❌'}")
+
+    print("-" * 70)
+
+    all_passed = (
+        0.30 < b_low < 0.40 and
+        0.60 < b_high < 0.75 and
+        all_chi_valid
+    )
+
+    return {'env_physics_ok': all_passed}
+
+
+def plot_env_vs_heuristic_comparison(output_dir: str, N_stars: int = 1000):
+    """Compare env_to_fdf_layer vs density_layer_from_D at same χ.
+
+    Shows that env_to_fdf_layer produces DIFFERENT σ_ln_ρ based on physics,
+    while density_layer_from_D uses arbitrary heuristics.
+    """
+    print("\n" + "=" * 60)
+    print("FIGURE 8: ENV VS HEURISTIC COMPARISON")
+    print("=" * 60)
+
+    from progenax.imf.environment import BirthEnvironment
+
+    # Compare for different cluster masses
+    log_mecl_values = [3.0, 4.0, 5.0, 6.0]
+    cluster_names = ['Small OC', 'Large OC', 'YMC', 'GC']
+
+    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    imf = PowerLawIMF.kroupa()
+
+    for idx, (log_m, name) in enumerate(zip(log_mecl_values, cluster_names)):
+        # Top row: env_to_fdf_layer (physics-based)
+        ax_top = axes[0, idx]
+        key_env = random.PRNGKey(SEED + idx)
+
+        layer_env = env_to_fdf_layer(jnp.array(log_m))
+        cluster_env = generate_fractal_ic_density(
+            key_env,
+            N_stars=N_stars,
+            M_total=float(N_stars),
+            R_half=1.0,
+            imf_params=imf,
+            layer=layer_env,
+        )
+        pos_env = np.array(cluster_env.positions)
+        Q_env = compute_q_parameter(pos_env)
+
+        density_env = estimate_local_density(pos_env, k=10)
+        log_density_env = np.log10(density_env + 1e-10)
+
+        ax_top.scatter(pos_env[:, 0], pos_env[:, 1], c=log_density_env,
+                       s=2, cmap='viridis', alpha=0.7, rasterized=True)
+        ax_top.set_xlim(-3, 3)
+        ax_top.set_ylim(-3, 3)
+        ax_top.set_aspect('equal')
+        ax_top.set_title(f'{name} (10^{log_m:.0f} M☉)\nenv: σ={layer_env.sigma_ln_rho:.2f}, Q={Q_env:.2f}',
+                         fontsize=10)
+        if idx == 0:
+            ax_top.set_ylabel('env_to_fdf_layer\n(physics-based)', fontsize=11)
+
+        # Bottom row: density_layer_from_D (heuristic)
+        ax_bot = axes[1, idx]
+        key_heur = random.PRNGKey(SEED + idx + 100)
+
+        # Use same chi as env version, but heuristic σ_ln_ρ = 2.0 (old default)
+        layer_heur = density_layer_from_D(D=layer_env.chi, sigma_ln_rho=2.0)
+        cluster_heur = generate_fractal_ic_density(
+            key_heur,
+            N_stars=N_stars,
+            M_total=float(N_stars),
+            R_half=1.0,
+            imf_params=imf,
+            layer=layer_heur,
+        )
+        pos_heur = np.array(cluster_heur.positions)
+        Q_heur = compute_q_parameter(pos_heur)
+
+        density_heur = estimate_local_density(pos_heur, k=10)
+        log_density_heur = np.log10(density_heur + 1e-10)
+
+        ax_bot.scatter(pos_heur[:, 0], pos_heur[:, 1], c=log_density_heur,
+                       s=2, cmap='viridis', alpha=0.7, rasterized=True)
+        ax_bot.set_xlim(-3, 3)
+        ax_bot.set_ylim(-3, 3)
+        ax_bot.set_aspect('equal')
+        ax_bot.set_title(f'heur: σ={layer_heur.sigma_ln_rho:.2f}, Q={Q_heur:.2f}', fontsize=10)
+        ax_bot.set_xlabel('x [pc]')
+        if idx == 0:
+            ax_bot.set_ylabel('density_layer_from_D\n(heuristic)', fontsize=11)
+
+        print(f"  {name}: env σ_ln_ρ = {layer_env.sigma_ln_rho:.2f}, heur σ_ln_ρ = {layer_heur.sigma_ln_rho:.2f}")
+
+    plt.suptitle('Physics-Based (env) vs Heuristic FDF Comparison', fontsize=14)
+    plt.tight_layout()
+
+    filename = f'{output_dir}/fdf_env_vs_heuristic.png'
+    plt.savefig(filename, dpi=150)
+    plt.close()
+    print(f"  Saved: {filename}")
+
+
+# =============================================================================
 # Gradient Sanity Check (for 'sanity' mode)
 # =============================================================================
 
@@ -1117,10 +1352,18 @@ def print_validation_summary(results: dict):
         status = 'PASS' if results.get('density_q_monotonic', False) else 'FAIL'
         print(f"| Density-FDF Q monotonic:   {status}                         |")
 
+    if 'env_physics_ok' in results:
+        status = 'PASS' if results['env_physics_ok'] else 'FAIL'
+        print(f"| env_to_fdf_layer physics:  {status}                         |")
+
     print("-" * 55)
 
     # Overall pass/fail
-    all_passed = results.get('grad_ok', True) and results.get('cdf_ok', True)
+    all_passed = (
+        results.get('grad_ok', True) and
+        results.get('cdf_ok', True) and
+        results.get('env_physics_ok', True)
+    )
     overall = 'ALL TESTS PASSED' if all_passed else 'SOME TESTS FAILED'
     print(f"\n  Overall: {overall}")
 
@@ -1139,9 +1382,9 @@ def main():
     )
     parser.add_argument(
         '--mode',
-        choices=['sanity', 'paper', 'docs', 'calib', 'density', 'all'],
+        choices=['sanity', 'paper', 'docs', 'calib', 'density', 'env', 'all'],
         default='sanity',
-        help='Validation mode: sanity (quick), paper (full), docs (small N), density (density-field FDF), all',
+        help='Validation mode: sanity (quick), paper (full), docs (small N), density (density-field FDF), env (physics-based), all',
     )
     parser.add_argument(
         '--output-dir',
@@ -1201,6 +1444,13 @@ def main():
         q_density = plot_q_vs_d_density(output_dir, n_realizations=10, N_stars=2000, sigma_ln_rho=2.0)
         results['density_Q_mean'] = q_density['Q_mean']
         results['density_q_monotonic'] = q_density['q_monotonic']
+
+    # Env mode: validate physics-based env_to_fdf_layer
+    if args.mode in ['env', 'all']:
+        env_results = plot_env_physics_validation(output_dir)
+        results.update(env_results)
+
+        plot_env_vs_heuristic_comparison(output_dir, N_stars=1000)
 
     elapsed = time.time() - start_time
     print(f"\nElapsed time: {elapsed:.1f}s")

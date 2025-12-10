@@ -51,7 +51,7 @@ class FDFCalibration:
         Parameters
         ----------
         D : float
-            Target fractal dimension in [1.5, 3.0].
+            Target fractal dimension in [1.6, 3.0].
 
         Returns
         -------
@@ -67,7 +67,7 @@ class FDFCalibration:
         Parameters
         ----------
         D : float
-            Target fractal dimension in [1.5, 3.0].
+            Target fractal dimension in [1.6, 3.0].
 
         Returns
         -------
@@ -143,7 +143,7 @@ def fractal_layer_from_D(
     Parameters
     ----------
     D : float
-        Target fractal dimension in [1.5, 3.0] (GW convention).
+        Target fractal dimension in [1.6, 3.0] (GW convention).
         D=1.6: highly clumpy
         D=3.0: nearly smooth (homogeneous sphere)
     virial_ratio : float, default 0.5

@@ -135,7 +135,7 @@ class FractalLayer:
     Parameters for fractal substructure layer (Goodwin-Whitworth+2004).
 
     Attributes:
-        D: Fractal dimension in [1.5, 3.0].
+        D: Fractal dimension in [1.6, 3.0].
            D=1.6: highly clumpy, D=3.0: homogeneous sphere.
            Note: D is not differentiable; treat as discrete hyperparameter.
         lambda_frac: Smooth blending parameter in [0, 1]. Controls interpolation

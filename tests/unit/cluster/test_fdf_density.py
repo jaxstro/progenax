@@ -386,7 +386,7 @@ class TestDensityLayerFromD:
             density_layer_from_D,
         )
 
-        layer = density_layer_from_D(D=2.0, virial_ratio=0.3)
+        layer = density_layer_from_D(D=2.0, sigma_ln_rho=1.3, virial_ratio=0.3)
 
         assert isinstance(layer, FractalDensityLayer)
         assert layer.virial_ratio == 0.3
@@ -398,25 +398,25 @@ class TestDensityLayerFromD:
         from progenax.cluster.fdf_density import density_layer_from_D
 
         # D below range
-        layer_low = density_layer_from_D(D=1.0)
+        layer_low = density_layer_from_D(D=1.0, sigma_ln_rho=1.3)
         assert layer_low.chi >= 1.6
 
         # D above range
-        layer_high = density_layer_from_D(D=4.0)
+        layer_high = density_layer_from_D(D=4.0, sigma_ln_rho=1.3)
         assert layer_high.chi <= 3.0
 
     def test_default_base_profile_is_uniform(self):
         """Default base profile is 'uniform'."""
         from progenax.cluster.fdf_density import density_layer_from_D
 
-        layer = density_layer_from_D(D=2.0)
+        layer = density_layer_from_D(D=2.0, sigma_ln_rho=1.3)
         assert layer.base_profile == "uniform"
 
     def test_accepts_base_profile_parameter(self):
         """Can specify base profile."""
         from progenax.cluster.fdf_density import density_layer_from_D
 
-        layer = density_layer_from_D(D=2.0, base_profile="plummer")
+        layer = density_layer_from_D(D=2.0, sigma_ln_rho=1.3, base_profile="plummer")
         assert layer.base_profile == "plummer"
 
 

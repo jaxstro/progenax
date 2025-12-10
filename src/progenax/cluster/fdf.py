@@ -1,31 +1,31 @@
 # progenax/src/progenax/cluster/fdf.py
-"""
-Fractal Displacement Field (FDF) for differentiable cluster substructure.
+"""LEGACY/EXPERIMENTAL: Displacement-field FDF for cluster substructure.
 
-This module implements a JAX-native, fully differentiable method for generating
-fractal substructure in star cluster initial conditions. It replaces the
-Goodwin-Whitworth (2004) recursive tree algorithm with a Fourier-mode
-displacement field that:
+.. deprecated:: 0.5.0
+    This module is DEPRECATED for science use. Use the density-field
+    implementation via ``env_to_fdf_layer()`` instead.
 
-1. Is fully differentiable in clumpiness (chi), blend strength (lambda_frac),
-   and amplitude scale (sigma_u)
-2. Creates density perturbations via irrotational displacement (div(u) ≠ 0)
-3. Has physically motivated connection to turbulent star formation
+WARNING: This module implements a displacement-field approach that:
+- Has UNCALIBRATED spectral parameters (BETA_BASE, SIGMA_LOGK)
+- Is NOT validated against MHD simulations or CW04 Q(D) measurements
+- Exists only for backwards compatibility and experimentation
+- Should NOT be used in production science pipelines
 
-Physical basis:
-- Turbulent fragmentation in molecular clouds (Larson 1981, Mac Low & Klessen 2004)
+For physics-grounded FDF with properly derived parameters, use::
+
+    from progenax.cluster.fdf_config import env_to_fdf_layer
+    import jax.numpy as jnp
+
+    # Canonical entry point: derives parameters from ISM turbulence physics
+    layer = env_to_fdf_layer(log_mecl=jnp.array(4.0))
+
+This displacement-field approach creates density perturbations via
+irrotational displacement (div(u) ≠ 0), whereas the density-field
+approach (fdf_density.py) directly modulates the density field.
+
+Physical basis (theoretical, not calibrated):
+- Turbulent fragmentation in molecular clouds (Larson 1981)
 - Power-law velocity/density spectra from supersonic turbulence (Federrath+2010)
-
-WARNING - Uncalibrated Parameters
----------------------------------
-The spectral envelope parameters (BETA_BASE, SIGMA_LOGK) and default sigma_u
-are preliminary heuristics. They are NOT calibrated against:
-
-- MHD simulations of turbulent molecular clouds
-- Cartwright & Whitworth (2004) Q(D) measurements
-
-For most applications, prefer the density-field FDF (``fdf_density.py``) which
-directly modulates density rather than displacing positions.
 
 References
 ----------
@@ -102,8 +102,8 @@ class FractalDisplacementLayer:
     Attributes
     ----------
     chi : float
-        Clumpiness parameter in [1.5, 3.0]. Controls spectral slope.
-        chi=1.5: highly clumpy (more small-scale power)
+        Clumpiness parameter in [1.6, 3.0]. Controls spectral slope.
+        chi=1.6: highly clumpy (more small-scale power)
         chi=3.0: smooth (more large-scale power)
         Calibrated to match Goodwin-Whitworth fractal dimension D.
     lambda_frac : float

@@ -55,15 +55,34 @@ from jaxtyping import Float, PRNGKeyArray
 
 
 # =============================================================================
-# Spectral Constants (from versioned config)
+# Heuristics Import (quarantined - not physics-derived)
 # =============================================================================
 
-from progenax.cluster.fdf_config import FDF_DENSITY_DEFAULTS
+from progenax.cluster.fdf_config import FDF_HEURISTICS, CHI_MIN, CHI_MAX
 
-# Spectral slope: β = BETA_0_DENSITY + BETA_1_DENSITY * (chi - 1.5)
-# NOTE: These are uncalibrated heuristics. See fdf_config.py for details.
-BETA_0_DENSITY = FDF_DENSITY_DEFAULTS.beta_0  # Baseline spectral slope for δ field
-BETA_1_DENSITY = FDF_DENSITY_DEFAULTS.beta_1  # Sensitivity to chi
+
+def _legacy_chi_to_beta(chi: float) -> float:
+    """INTERNAL: Convert chi to beta for legacy API.
+
+    WARNING: This mapping is UNCALIBRATED. For physics-based β,
+    use BirthEnvironment.spectral_slope() instead.
+
+    The formula β = β₀ + β₁ × (χ - 1.5) is arbitrary and NOT derived from:
+    - Kolmogorov/Burgers turbulence theory
+    - MHD simulations
+    - Observed cloud power spectra
+
+    Parameters
+    ----------
+    chi : float
+        Clumpiness parameter in [1.6, 3.0].
+
+    Returns
+    -------
+    beta : float
+        Spectral slope for power spectrum P(k) ∝ k^{-β}.
+    """
+    return FDF_HEURISTICS.beta_0 + FDF_HEURISTICS.beta_1 * (chi - 1.5)
 
 
 # =============================================================================
@@ -345,9 +364,9 @@ def init_turbulent_density_field(
     # Avoid division by zero at DC
     k_mag_safe = jnp.where(k_mag == 0, 1.0, k_mag)
 
-    # Spectral slope from chi
+    # Spectral slope from chi (UNCALIBRATED legacy mapping)
     # Higher chi → higher beta → less small-scale power → smoother
-    beta = BETA_0_DENSITY + BETA_1_DENSITY * (layer.chi - 1.5)
+    beta = _legacy_chi_to_beta(layer.chi)
 
     # Power spectrum P(k) ∝ k^{-β}
     # The amplitude spectrum is sqrt(P(k)) = k^{-β/2}
@@ -607,7 +626,7 @@ def generate_fractal_ic_density(
 
 def density_layer_from_D(
     D: float,
-    sigma_ln_rho: float = FDF_DENSITY_DEFAULTS.sigma_ln_rho_default,
+    sigma_ln_rho: float,
     lambda_frac: float = 1.0,
     virial_ratio: float = 0.5,
     grid_size: int = 64,
@@ -615,39 +634,15 @@ def density_layer_from_D(
 ) -> FractalDensityLayer:
     """Create FractalDensityLayer from GW-style D parameter.
 
-    User-facing API for specifying fractal structure using the
-    Goodwin-Whitworth (2004) fractal dimension convention.
-
-    WARNING - Uncalibrated D→chi Mapping
-    ------------------------------------
-    The current chi ≈ D identity mapping is a **placeholder heuristic**.
-    It has NOT been calibrated to reproduce CW04's Q(D) curve:
-
-    CW04 targets (NOT currently achieved):
-        - D=1.5 → Q ≈ 0.47
-        - D=2.0 → Q ≈ 0.58
-        - D=2.5 → Q ≈ 0.70
-        - D=3.0 → Q ≈ 0.79-0.82
-
-    Current behavior (uncalibrated):
-        - D=1.6 → chi=1.6 → β=2.15 (more small-scale power)
-        - D=3.0 → chi=3.0 → β=4.25 (less small-scale power)
-
-    For Physically Motivated Parameters
-    ------------------------------------
-    Use ``env_to_fdf_layer()`` from ``progenax.cluster.fdf_config`` instead.
-    It derives σ_ln_ρ and χ from turbulence theory (Federrath+2010).
+    UNCALIBRATED: Use env_to_fdf_layer() for physics-based parameters.
 
     Parameters
     ----------
     D : float
         Target fractal dimension in [1.6, 3.0].
-        D=1.6: more small-scale power (clumpier)
-        D=3.0: less small-scale power (smoother)
-    sigma_ln_rho : float, optional
-        Amplitude of log-density fluctuations.
-        Higher values = more contrast between clumps and voids.
-        Default from config (currently 2.0, arbitrary).
+    sigma_ln_rho : float
+        Amplitude of log-density fluctuations. REQUIRED - no default.
+        Use env_to_fdf_layer() for physics-derived values (~1.1-1.5).
     lambda_frac : float, default 1.0
         Blend fraction [0, 1].
     virial_ratio : float, default 0.5
@@ -656,36 +651,14 @@ def density_layer_from_D(
         Grid resolution per dimension.
     base_profile : str, default "uniform"
         Base density profile: "uniform" or "plummer".
-        Use "uniform" for CW04-comparable Q values.
 
     Returns
     -------
     FractalDensityLayer
         Configured layer (chi ≈ D, uncalibrated).
-
-    Notes
-    -----
-    The chi ≈ D mapping assumes both control relative power at
-    different spatial scales. This is qualitatively correct but
-    quantitatively uncalibrated.
-
-    Examples
-    --------
-    >>> from progenax.cluster.fdf_density import density_layer_from_D
-    >>> from progenax.cluster.fdf_density import generate_fractal_ic_density
-    >>> from progenax.imf import PowerLawIMF
-    >>> import jax
-    >>>
-    >>> key = jax.random.PRNGKey(42)
-    >>> imf = PowerLawIMF.kroupa()
-    >>> layer = density_layer_from_D(D=1.6, virial_ratio=0.3)
-    >>> cluster = generate_fractal_ic_density(
-    ...     key, N_stars=1000, M_total=500.0, R_half=0.5,
-    ...     imf_params=imf, layer=layer
-    ... )
     """
-    # chi ≈ D (both control scale distribution)
-    chi = jnp.clip(D, 1.6, 3.0)
+
+    chi = jnp.clip(D, CHI_MIN, CHI_MAX)
 
     return FractalDensityLayer(
         chi=float(chi),  # Convert to float for dataclass
@@ -710,9 +683,6 @@ __all__ = [
     "sample_positions_from_density",
     # IC Generator
     "generate_fractal_ic_density",
-    # Calibration
+    # Calibration (DEPRECATED - use env_to_fdf_layer() instead)
     "density_layer_from_D",
-    # Constants
-    "BETA_0_DENSITY",
-    "BETA_1_DENSITY",
 ]

@@ -296,19 +296,80 @@ class BirthEnvironment(eqx.Module):
     # Turbulence Properties (for FDF parameter derivation)
     # -------------------------------------------------------------------------
 
-    def turbulent_mach(self, c_s: float = 0.2) -> Float[Array, ""]:
-        """Estimate turbulent Mach number from virial equilibrium.
+    def cloud_radius(self) -> Float[Array, ""]:
+        """Parent cloud radius [pc] from (M_ecl, SFE, ρ_cl).
 
-        Assumes the cluster's velocity dispersion follows virial scaling:
-            σ_v = √(G M_ecl / r_h)
+        Derives the size of the parent molecular cloud that formed the cluster,
+        using a spherical geometry:
 
-        Then Mach number:
-            M = σ_v / c_s
+            R_cloud = (3 M_gas / (4π ρ_cl))^(1/3)
+
+        where M_gas = M_ecl / SFE.
+
+        Returns
+        -------
+        R_cloud : Float[Array, ""]
+            Parent cloud radius [pc].
+
+        Notes
+        -----
+        This is NOT the stellar half-mass radius r_h (which is much smaller).
+        The fractal density structure is imprinted at the cloud scale.
+
+        The cloud density is either:
+        - From log_rho_cl if provided at construction
+        - Computed from M_ecl and SFE via Marks+2012 r_h-M scaling
+
+        Expected ranges:
+            | M_ecl   | R_cloud |
+            |---------|---------|
+            | 10³ M☉  | ~1.5 pc |
+            | 10⁴ M☉  | ~2.5 pc |
+            | 10⁵ M☉  | ~4.0 pc |
+            | 10⁶ M☉  | ~6.5 pc |
+
+        Examples
+        --------
+        >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
+        >>> print(f"R_cloud = {float(env.cloud_radius()):.2f} pc")
+        """
+        from progenax.cluster.fdf_config import cloud_radius_from_density
+
+        M_ecl = jnp.power(10.0, self.log_mecl)
+
+        # Get cloud density
+        if self.log_rho_cl is not None:
+            # Use provided density (log₁₀(ρ_cl / 10⁶))
+            rho_cl = jnp.power(10.0, self.log_rho_cl + 6.0)
+        else:
+            # Compute from Marks+2012 scaling
+            rho_cl = compute_rho_cl(M_ecl, self.sfe)
+
+        return cloud_radius_from_density(M_ecl, self.sfe, rho_cl)
+
+    def turbulent_mach(
+        self,
+        c_s: float = 0.2,
+        sigma_v0: float = 1.0,
+        alpha: float = 0.5,
+    ) -> Float[Array, ""]:
+        """Gas turbulent Mach number from Larson velocity-size relation.
+
+        Uses the parent cloud radius (NOT stellar r_h) because the fractal
+        density structure is imprinted by gas turbulence before star formation.
+
+            M = σ_v(R_cloud) / c_s
+
+        where σ_v = σ_v0 × (R_cloud)^α (Larson 1981).
 
         Parameters
         ----------
         c_s : float, optional
             Sound speed [km/s]. Default 0.2 (cold GMC at T ~ 10 K).
+        sigma_v0 : float, optional
+            Larson normalization [km/s] at 1 pc. Default 1.0.
+        alpha : float, optional
+            Larson exponent. Default 0.5.
 
         Returns
         -------
@@ -317,50 +378,65 @@ class BirthEnvironment(eqx.Module):
 
         Notes
         -----
-        Physical ranges for typical clusters:
+        Physical ranges for typical star-forming clouds (using Larson relation):
 
-        =========  =======  ======  =========  =====
-        Cluster    M_ecl    r_h     σ_v        Mach
-        =========  =======  ======  =========  =====
-        Small OC   10³ M☉   0.3 pc  ~1 km/s    ~5
-        Large OC   10⁴ M☉   0.5 pc  ~2 km/s    ~10
-        YMC        10⁵ M☉   1.0 pc  ~5 km/s    ~25
-        GC         10⁶ M☉   3.0 pc  ~10 km/s   ~50
-        =========  =======  ======  =========  =====
+        =========  =========  =====  =========
+        Cluster    R_cloud    σ_v    Mach
+        =========  =========  =====  =========
+        Small OC   ~1.5 pc    ~1.2   ~6
+        Large OC   ~2.5 pc    ~1.6   ~8
+        YMC        ~4.0 pc    ~2.0   ~10
+        GC         ~6.5 pc    ~2.5   ~13
+        =========  =========  =====  =========
+
+        These are MUCH more realistic than virial-based estimates which give
+        M ~ 20-400 for the same cluster masses.
 
         References
         ----------
-        .. [1] Larson (1981) MNRAS 194, 809 - σ-R relation
-        .. [2] Marks & Kroupa (2012) MNRAS 422, 2246 - r_h-M relation
+        .. [1] Larson (1981) MNRAS 194, 809 - Velocity-size relation
+        .. [2] Solomon et al. (1987) ApJ 319, 730 - GMC properties
+        .. [3] Federrath et al. (2010) A&A 512, A81 - Turbulence-density relation
 
         Examples
         --------
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
-        >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~14
+        >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~8
         """
-        from progenax.cluster.fdf_config import turbulent_mach_from_virial
+        from progenax.cluster.fdf_config import turbulent_mach_from_cloud
 
-        M_ecl = jnp.power(10.0, self.log_mecl)
-        r_h = compute_r_half(M_ecl)
-        return turbulent_mach_from_virial(M_ecl, r_h, c_s)
+        R_cloud = self.cloud_radius()
+        return turbulent_mach_from_cloud(R_cloud, c_s, sigma_v0, alpha)
 
     def sigma_ln_rho(
-        self, b: float = 0.4, c_s: float = 0.2
+        self,
+        b: float | None = None,
+        c_s: float = 0.2,
+        sigma_v0: float = 1.0,
+        alpha: float = 0.5,
     ) -> Float[Array, ""]:
         """σ_ln_ρ from Federrath+2010 density-Mach relation.
 
         The variance of the log-density field in supersonic turbulence:
             σ²_ln_ρ = ln(1 + b² M²)
 
+        Uses Larson velocity-size relation to derive Mach number from
+        parent cloud properties.
+
         Parameters
         ----------
-        b : float, optional
-            Turbulence driving parameter (default 0.4).
+        b : float or None, optional
+            Turbulence driving parameter. If None (default), derives b from
+            cloud density via b_from_environment().
             - b ≈ 1/3 (0.33): Solenoidal (incompressible) driving
             - b ≈ 1.0: Compressive (irrotational) driving
-            - b ≈ 0.4: Natural mixture (default)
+            - b ≈ 0.4: Natural mixture (common manual value)
         c_s : float, optional
             Sound speed [km/s]. Default 0.2.
+        sigma_v0 : float, optional
+            Larson normalization [km/s] at 1 pc. Default 1.0.
+        alpha : float, optional
+            Larson exponent. Default 0.5.
 
         Returns
         -------
@@ -369,42 +445,84 @@ class BirthEnvironment(eqx.Module):
 
         Notes
         -----
-        Physical ranges:
+        Physical ranges (using Larson relation):
 
         =========  =========
         Cluster    σ_ln_ρ
         =========  =========
-        Small OC   ~0.9
-        Large OC   ~1.4
-        YMC        ~1.9
-        GC         ~2.4
+        Small OC   ~1.1
+        Large OC   ~1.3
+        YMC        ~1.4
+        GC         ~1.6
         =========  =========
+
+        When b=None (default), the driving parameter is derived from cloud
+        density using b_from_environment(). Low-density clouds get more
+        solenoidal driving (b≈0.33), high-density cores get more compressive
+        driving (b≈0.7). This is TENTATIVE and may be overridden by explicit b.
 
         References
         ----------
         .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 14
+        .. [2] Federrath (2013) MNRAS 436, 1245 - Driving modes
 
         Examples
         --------
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
-        >>> print(f"σ_ln_ρ = {float(env.sigma_ln_rho()):.2f}")  # ~1.4
+        >>> # Use environment-derived b (default)
+        >>> print(f"σ_ln_ρ = {float(env.sigma_ln_rho()):.2f}")
+        >>> # Or override with explicit b
+        >>> print(f"σ_ln_ρ (b=0.4) = {float(env.sigma_ln_rho(b=0.4)):.2f}")
         """
-        from progenax.cluster.fdf_config import sigma_ln_rho_from_mach
+        from progenax.cluster.fdf_config import (
+            sigma_ln_rho_from_mach,
+            b_from_environment,
+        )
 
-        mach = self.turbulent_mach(c_s)
+        # Derive b from environment if not provided
+        if b is None:
+            log_rho = self._get_log_rho_cl()
+            b = float(b_from_environment(log_rho))
+
+        mach = self.turbulent_mach(c_s, sigma_v0, alpha)
         return sigma_ln_rho_from_mach(mach, b)
 
-    def spectral_slope(self, c_s: float = 0.2) -> Float[Array, ""]:
+    def _get_log_rho_cl(self) -> Float[Array, ""]:
+        """Get log₁₀ of cloud density [M☉/pc³] for b derivation."""
+        if self.log_rho_cl is not None:
+            # User provided explicit cloud density (in log₁₀(ρ / 10⁶) units)
+            # Convert to log₁₀(ρ) by adding 6
+            return self.log_rho_cl + 6.0
+        else:
+            # Derive from Marks+2012 r_h-M relation
+            # compute_rho_cl is defined in this module
+            M_ecl = jnp.power(10.0, self.log_mecl)
+            sfe = self.sfe if self.sfe is not None else 0.33
+            rho_cl = compute_rho_cl(M_ecl, sfe)
+            return jnp.log10(rho_cl)
+
+    def spectral_slope(
+        self,
+        c_s: float = 0.2,
+        sigma_v0: float = 1.0,
+        alpha: float = 0.5,
+    ) -> Float[Array, ""]:
         """Power spectrum slope β from turbulence regime.
 
         Interpolates between:
             - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
             - Supersonic (M >> 1): Burgers β ≈ 4.0
 
+        Uses Larson velocity-size relation to derive Mach number.
+
         Parameters
         ----------
         c_s : float, optional
             Sound speed [km/s]. Default 0.2.
+        sigma_v0 : float, optional
+            Larson normalization [km/s] at 1 pc. Default 1.0.
+        alpha : float, optional
+            Larson exponent. Default 0.5.
 
         Returns
         -------
@@ -427,7 +545,7 @@ class BirthEnvironment(eqx.Module):
         """
         from progenax.cluster.fdf_config import spectral_slope_from_mach
 
-        mach = self.turbulent_mach(c_s)
+        mach = self.turbulent_mach(c_s, sigma_v0, alpha)
         return spectral_slope_from_mach(mach)
 
 

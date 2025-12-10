@@ -160,8 +160,12 @@ class TestEnvToFDFLayerRanges:
         """σ_ln_ρ from environment should be in reasonable range.
 
         Federrath+2010: σ_ln_ρ = sqrt(ln(1 + b²M²)) where b ~ 0.4.
-        For virial Mach numbers M ~ 20-60 (from our r_h-M relation),
-        this gives σ_ln_ρ ~ 2.0-3.5.
+        Using Larson-derived Mach numbers (M ~ 3-5 with Marks+2012 densities),
+        this gives σ_ln_ρ ~ 0.9-1.2.
+
+        Note: Marks+2012 derived cloud densities are higher than typical GMCs,
+        resulting in smaller cloud radii and lower Mach numbers. Users can
+        override with explicit log_rho_cl for more realistic GMC densities.
         """
         from progenax.cluster.fdf_config import env_to_fdf_layer
 
@@ -176,9 +180,9 @@ class TestEnvToFDFLayerRanges:
             layer = env_to_fdf_layer(jnp.array(log_mecl))
             sigma = layer.sigma_ln_rho
 
-            # Actual computed range is ~2.0-3.5 due to high virial Mach
-            assert 1.0 < sigma < 4.0, (
-                f"{name}: σ_ln_ρ = {sigma:.2f} outside physical range [1.0, 4.0]"
+            # σ_ln_ρ ~ 0.9-1.2 with Marks+2012 densities (M ~ 3-5)
+            assert 0.5 < sigma < 2.0, (
+                f"{name}: σ_ln_ρ = {sigma:.2f} outside physical range [0.5, 2.0]"
             )
 
     def test_chi_in_valid_range(self):
@@ -218,24 +222,29 @@ class TestBirthEnvironmentTurbulence:
     def test_turbulent_mach_typical_values(self):
         """Mach number should be in physical range for typical clusters.
 
-        Using virial σ_v = √(G M_ecl / r_h) with Marks+2012 r_h-M relation
-        (r_h = 0.1 × M_ecl^0.13):
-        - Small OC (10³ M☉): M ~ 21
-        - Large OC (10⁴ M☉): M ~ 57
-        - YMC (10⁵ M☉): M ~ 155
-        - GC (10⁶ M☉): M ~ 422
+        Using Larson velocity-size relation: σ_v = σ_v0 × (R_cloud)^α
+        where R_cloud is derived from Marks+2012 cloud density:
+        - Small OC (10³ M☉): M ~ 2.8
+        - Large OC (10⁴ M☉): M ~ 3.2
+        - YMC (10⁵ M☉): M ~ 3.8
+        - GC (10⁶ M☉): M ~ 4.4
 
-        Note: These high Mach numbers reflect the compact r_h from Marks+2012.
-        Real clusters may have larger r_h and lower Mach.
+        These are MUCH more realistic than old virial-based estimates (M ~ 20-400)
+        which incorrectly used stellar r_h instead of cloud radius.
+
+        Note: Marks+2012 derived cloud densities are higher than typical GMCs
+        (~10⁴-10⁶ vs ~10²-10³ M☉/pc³), giving smaller cloud radii and lower
+        Mach numbers. Users can override with explicit log_rho_cl for typical
+        GMC densities, which would give M ~ 7-15.
         """
         from progenax.imf.environment import BirthEnvironment
 
-        # Actual computed ranges from virial + r_h scaling
+        # Expected ranges with Marks+2012 cloud densities
         test_cases = [
-            (1e3, 15, 30),     # Small OC: M ~ 21
-            (1e4, 45, 70),     # Large OC: M ~ 57
-            (1e5, 130, 180),   # YMC: M ~ 155
-            (1e6, 350, 500),   # GC: M ~ 422
+            (1e3, 2, 5),     # Small OC: M ~ 2.8
+            (1e4, 2.5, 5),   # Large OC: M ~ 3.2
+            (1e5, 3, 5.5),   # YMC: M ~ 3.8
+            (1e6, 3.5, 6),   # GC: M ~ 4.4
         ]
 
         for M_ecl, M_min, M_max in test_cases:
@@ -249,20 +258,30 @@ class TestBirthEnvironmentTurbulence:
     def test_sigma_ln_rho_typical_values(self):
         """σ_ln_ρ should be in physical range from Federrath+2010.
 
-        σ_ln_ρ = sqrt(ln(1 + b²M²)) with b ~ 0.4 and high virial Mach:
-        - Small OC (M ~ 21): σ_ln_ρ ~ 2.1
-        - Large OC (M ~ 39): σ_ln_ρ ~ 2.6
-        - YMC (M ~ 73): σ_ln_ρ ~ 3.1
-        - GC (M ~ 137): σ_ln_ρ ~ 3.5
+        σ_ln_ρ = sqrt(ln(1 + b²M²)) with environment-dependent b and
+        Larson-derived Mach numbers. The b parameter is derived from cloud
+        density via b_from_environment():
+        - Low-density clouds: b ~ 0.33 (more solenoidal)
+        - High-density cores: b ~ 0.7 (more compressive)
+
+        Expected ranges (with environment-dependent b):
+        - Small OC (10³ M☉): σ_ln_ρ ~ 1.0-1.3
+        - Large OC (10⁴ M☉): σ_ln_ρ ~ 1.1-1.5
+        - YMC (10⁵ M☉): σ_ln_ρ ~ 1.2-1.6
+        - GC (10⁶ M☉): σ_ln_ρ ~ 1.3-1.8
+
+        These are slightly higher than fixed b=0.4 values because b increases
+        with cloud density for massive clusters.
         """
         from progenax.imf.environment import BirthEnvironment
 
-        # Actual computed ranges based on virial Mach numbers
+        # Expected ranges with environment-dependent b
+        # Higher-mass clusters have denser clouds → higher b → higher σ_ln_ρ
         test_cases = [
-            (1e3, 1.5, 2.5),   # Small OC: σ ~ 2.1
-            (1e4, 2.2, 3.0),   # Large OC: σ ~ 2.6
-            (1e5, 2.8, 3.4),   # YMC: σ ~ 3.1
-            (1e6, 3.2, 3.8),   # GC: σ ~ 3.5
+            (1e3, 0.8, 1.5),   # Small OC
+            (1e4, 0.9, 1.6),   # Large OC
+            (1e5, 1.0, 1.7),   # YMC
+            (1e6, 1.1, 1.9),   # GC
         ]
 
         for M_ecl, sigma_min, sigma_max in test_cases:
@@ -285,4 +304,87 @@ class TestBirthEnvironmentTurbulence:
             # Should be close to Burgers β ≈ 4.0 for supersonic
             assert 3.8 < beta < 4.05, (
                 f"M_ecl={M_ecl:.0e}: β = {beta:.2f} should be ~4.0 for supersonic"
+            )
+
+
+class TestBFromEnvironment:
+    """Test environment-dependent turbulence driving parameter b."""
+
+    def test_b_low_density_solenoidal(self):
+        """Low-density clouds should have solenoidal driving (b ~ 0.33)."""
+        from progenax.cluster.fdf_config import b_from_environment
+
+        # Low density: 100 M☉/pc³ (log = 2)
+        b_low = float(b_from_environment(jnp.array(2.0)))
+
+        # Should be close to solenoidal limit (0.33)
+        assert 0.30 < b_low < 0.40, (
+            f"Low density (10² M☉/pc³) should give b ≈ 0.33, got {b_low:.2f}"
+        )
+
+    def test_b_high_density_compressive(self):
+        """High-density cores should have compressive driving (b ~ 0.7)."""
+        from progenax.cluster.fdf_config import b_from_environment
+
+        # High density: 10⁶ M☉/pc³ (log = 6)
+        b_high = float(b_from_environment(jnp.array(6.0)))
+
+        # Should be close to compressive limit (0.7)
+        assert 0.60 < b_high < 0.75, (
+            f"High density (10⁶ M☉/pc³) should give b ≈ 0.7, got {b_high:.2f}"
+        )
+
+    def test_b_increases_with_density(self):
+        """b should increase monotonically with cloud density."""
+        from progenax.cluster.fdf_config import b_from_environment
+
+        log_rhos = [2.0, 3.0, 4.0, 5.0, 6.0]
+        b_values = [float(b_from_environment(jnp.array(lr))) for lr in log_rhos]
+
+        # Check monotonic increase
+        for i in range(len(b_values) - 1):
+            assert b_values[i] < b_values[i + 1], (
+                f"b should increase with density: {b_values}"
+            )
+
+
+class TestEnvToFDFLayerPhysics:
+    """Test that env_to_fdf_layer produces physics-consistent parameters."""
+
+    def test_env_to_fdf_layer_uses_environment_b(self):
+        """env_to_fdf_layer should derive b from environment when not specified."""
+        from progenax.cluster.fdf_config import env_to_fdf_layer
+
+        # Two different mass clusters should have different σ_ln_ρ
+        # (even with same Mach, b varies with density)
+        layer_small = env_to_fdf_layer(jnp.array(3.0))  # 10³ M☉
+        layer_large = env_to_fdf_layer(jnp.array(6.0))  # 10⁶ M☉
+
+        # Higher mass = denser cloud = higher b = higher σ_ln_ρ (at similar Mach)
+        assert layer_large.sigma_ln_rho > layer_small.sigma_ln_rho, (
+            "Larger clusters should have higher σ_ln_ρ due to higher b"
+        )
+
+    def test_env_to_fdf_layer_explicit_b_override(self):
+        """Explicit b should override environment derivation."""
+        from progenax.cluster.fdf_config import env_to_fdf_layer
+
+        # Same cluster mass, different explicit b values
+        layer_solenoidal = env_to_fdf_layer(jnp.array(4.0), b=0.33)
+        layer_compressive = env_to_fdf_layer(jnp.array(4.0), b=1.0)
+
+        # Compressive (b=1) should give higher σ_ln_ρ
+        assert layer_compressive.sigma_ln_rho > layer_solenoidal.sigma_ln_rho, (
+            "Higher b should give higher σ_ln_ρ"
+        )
+
+    def test_env_to_fdf_layer_chi_in_range(self):
+        """χ should always be in valid range [1.6, 3.0]."""
+        from progenax.cluster.fdf_config import env_to_fdf_layer, CHI_MIN, CHI_MAX
+
+        for log_mecl in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]:
+            layer = env_to_fdf_layer(jnp.array(log_mecl))
+
+            assert CHI_MIN <= layer.chi <= CHI_MAX, (
+                f"log_mecl={log_mecl}: χ={layer.chi:.2f} outside [{CHI_MIN}, {CHI_MAX}]"
             )
