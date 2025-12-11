@@ -33,8 +33,10 @@ __all__ = [
     "DEFAULT_CALIBRATION",
 ]
 
-# Default calibration factor (determined empirically in Task 5)
-DEFAULT_CALIBRATION: float = 1.0
+# Default calibration factor (determined empirically in Task 6)
+# Calibrated using n_samples=100, N_stars=500 uniform spheres
+# Q_approx underestimates by ~37.6%, so we multiply by 1.376 to correct
+DEFAULT_CALIBRATION: float = 1.375696
 
 
 def q_approx_naive(
