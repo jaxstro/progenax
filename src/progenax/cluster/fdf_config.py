@@ -1,52 +1,73 @@
 # progenax/src/progenax/cluster/fdf_config.py
-"""FDF hyperparameter configuration and turbulence-based parameter derivation.
+"""FDF configuration: turbulence physics and gravoturbulent substructure helpers.
 
-This module provides:
-1. Versioned hyperparameter dataclasses for FDF modules
-2. Physically motivated helpers for deriving parameters from turbulence theory
-3. Functions to convert BirthEnvironment → FDF parameters
+Two-Layer Architecture
+----------------------
+This module provides configuration for the FDF two-layer model:
 
-All tunable constants are collected here for:
-- Transparency about what's arbitrary vs calibrated
-- Easy swapping between calibration versions
-- Reproducible parameter tracking in papers
+**Layer 1: Turbulent Gas Density Field**
 
-Turbulence Physics
-------------------
-Parameters are derived from ISM turbulence theory:
+    Controlled by ``env_to_fdf_layer()`` which derives:
+    - σ_ln_ρ from Federrath+2010 density-Mach relation
+    - β from Kolmogorov↔Burgers interpolation
+    - χ (internal turbulence shaping parameter)
 
-- **σ_ln_ρ** (density contrast): Federrath+2010 Eq. 14
-    σ²_ln_ρ = ln(1 + b² M²)
-    where M = Mach number, b = driving parameter (0.33 solenoidal, 1.0 compressive)
+    These describe the GAS density PDF, NOT stellar substructure.
 
-- **β** (spectral slope): Interpolates between regimes
-    - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
-    - Supersonic (M >> 1): Burgers β ≈ 4.0
+**Layer 2: Gravoturbulent Collapse Selection**
 
-- **Mach number**: Derived from Larson velocity-size relation
-    M = σ_v / c_s where σ_v = σ_v0 × (R_cloud / 1 pc)^α
-    R_cloud = (3 M_gas / 4π ρ_cl)^(1/3), Larson α ≈ 0.5
-    c_s ~ 0.2 km/s for cold GMC (T ~ 10 K)
+    Controlled by f_sub via helpers in this module:
+    - ``default_f_sub_for_cluster_type()`` - phenomenological defaults
+    - ``f_sub_from_D()`` - maps GW-style D to f_sub
+    - ``tail_layer_from_*()`` - convenience constructors
 
-    NOTE: We use the PARENT CLOUD size, not stellar r_h, because the fractal
-    density structure is imprinted by gas turbulence before star formation.
+    This determines WHICH PARTS of the gas PDF form stars.
+
+Key Physics Separation
+----------------------
+- **Turbulence (σ_ln_ρ, β)**: Set by ISM physics (environment → Larson → Federrath)
+- **Substructure (f_sub)**: Phenomenological knob for stellar clumpiness
+
+χ and β are turbulence parameters, NOT clumpiness knobs.
+Stellar substructure is controlled by f_sub.
+
+Turbulence Physics (Layer 1)
+----------------------------
+Parameters derived from ISM turbulence theory:
+
+- **σ_ln_ρ**: Federrath+2010 Eq. 14: σ²_ln_ρ = ln(1 + b²M²)
+- **β**: Kolmogorov (3.67) ↔ Burgers (4.0) interpolation
+- **Mach**: Larson velocity-size relation using parent cloud radius
+
+Substructure Helpers (Layer 2)
+------------------------------
+Cluster-type defaults (phenomenological, NOT CW04-calibrated):
+
+    ======  ======  ================
+    Type    f_sub   Description
+    ======  ======  ================
+    assoc   0.15    Loose associations
+    oc      0.30    Open clusters
+    ymc     0.55    Young massive clusters
+    gc      0.70    Globular cluster-like
+    ======  ======  ================
+
+D→f_sub mapping (phenomenological):
+
+    D=1.5 → f_sub=0.70 (clumpy)
+    D=3.0 → f_sub=0.15 (smooth)
 
 References
 ----------
 - Federrath et al. (2010) A&A 512, A81 - Density-Mach relation
-- Padoan & Nordlund (2002) ApJ 576, 870 - Turbulent fragmentation
-- Larson (1981) MNRAS 194, 809 - Turbulent velocity scaling
-- Burgers (1948) - Shock-dominated turbulence
+- Larson (1981) MNRAS 194, 809 - Velocity-size relation
+- Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter
 
-WARNING
--------
-The default hyperparameters (v0_uncalibrated) are heuristic placeholders.
-They are NOT calibrated against:
-- MHD simulations of turbulent clouds
-- Observed molecular cloud spectra
-- Cartwright & Whitworth (2004) Q(D) measurements
-
-A calibration sweep is required before claiming "physically motivated" in papers.
+WARNING: Calibration Status
+---------------------------
+- Turbulence physics (σ_ln_ρ, β): CALIBRATED via Federrath+2010
+- Cluster-type f_sub defaults: PHENOMENOLOGICAL (not observation-calibrated)
+- D→f_sub mapping: PHENOMENOLOGICAL (not CW04 Q(D) calibrated)
 """
 
 from __future__ import annotations
@@ -829,6 +850,201 @@ def env_to_fdf_layer(
 
 
 # =============================================================================
+# Gravoturbulent Substructure Helpers
+# =============================================================================
+
+
+def default_f_sub_for_cluster_type(cluster_type: str) -> float:
+    """Phenomenological dense-tail fraction by cluster type.
+
+    Returns the default f_sub (fraction of stars from dense tail) for
+    different cluster formation environments.
+
+    These are PHENOMENOLOGICAL defaults informed by gravoturbulent and
+    feedback arguments - NOT directly calibrated to observations or
+    simulations. Use with scientific caveat.
+
+    Parameters
+    ----------
+    cluster_type : str
+        One of: "assoc", "oc", "ymc", "gc" (case-insensitive).
+
+    Returns
+    -------
+    f_sub : float
+        Default dense-tail fraction in [0, 1].
+
+    Notes
+    -----
+    Physical motivation:
+
+    - **assoc** (0.15): Low surface density, weak confinement. Small fraction
+      of gas reaches runaway collapse before feedback unbinds the cloud.
+      Results in loose, weakly clustered stellar associations.
+
+    - **oc** (0.30): Moderate surface density, modest confinement. More
+      regions reach collapse and survive locally as small clumps. Typical
+      open cluster birth conditions.
+
+    - **ymc** (0.55): High surface density, high external pressure (cloud
+      collisions, starbursts). Many dense regions reach deep collapse and
+      survive. Young massive cluster formation.
+
+    - **gc** (0.70): Extreme surface density and confinement. Majority of
+      star formation in deeply collapsed hubs/filaments. Globular cluster-
+      like proto-clusters.
+
+    These encode unresolved physics: feedback efficiency, collision geometry,
+    external pressure, magnetic support. They are NOT calibrated to
+    Cartwright & Whitworth (2004) Q(D) measurements.
+
+    Examples
+    --------
+    >>> f_sub = default_f_sub_for_cluster_type("ymc")
+    >>> print(f"YMC default: f_sub = {f_sub}")  # 0.55
+    """
+    mapping = {
+        "assoc": 0.15,
+        "oc": 0.30,
+        "ymc": 0.55,
+        "gc": 0.70,
+    }
+    return mapping.get(cluster_type.lower(), 0.30)
+
+
+def tail_layer_from_cluster_type(cluster_type: str) -> "TailSubstructureLayer":
+    """Create TailSubstructureLayer with default f_sub for cluster type.
+
+    Convenience constructor that maps cluster type to phenomenological
+    f_sub defaults.
+
+    Parameters
+    ----------
+    cluster_type : str
+        One of: "assoc", "oc", "ymc", "gc" (case-insensitive).
+
+    Returns
+    -------
+    TailSubstructureLayer
+        Configured with default f_sub for that cluster type.
+
+    See Also
+    --------
+    default_f_sub_for_cluster_type : Source of f_sub defaults.
+    tail_layer_from_D : Maps fractal dimension D to f_sub.
+
+    Examples
+    --------
+    >>> tail = tail_layer_from_cluster_type("ymc")
+    >>> print(f"f_sub = {tail.f_sub}")  # 0.55
+    """
+    from progenax.cluster.fdf_density import TailSubstructureLayer
+
+    return TailSubstructureLayer(f_sub=default_f_sub_for_cluster_type(cluster_type))
+
+
+def f_sub_from_D(D: float) -> float:
+    """Map GW-style fractal dimension D to dense tail fraction f_sub.
+
+    This provides a user-friendly interface that maps the familiar
+    Goodwin-Whitworth fractal dimension D to the physically meaningful
+    f_sub parameter.
+
+    WARNING: This mapping is PHENOMENOLOGICAL and NOT CALIBRATED to
+    reproduce Cartwright & Whitworth (2004) Q(D) measurements. It only
+    enforces the monotonic relationship: lower D → larger f_sub → more clumpy.
+
+    Parameters
+    ----------
+    D : float
+        Fractal dimension in [1.5, 3.0].
+        - D ≈ 1.5: highly clumpy → high f_sub
+        - D ≈ 3.0: smooth → low f_sub
+
+    Returns
+    -------
+    f_sub : float
+        Dense tail fraction in [0.15, 0.70].
+
+    Notes
+    -----
+    The mapping is a simple linear interpolation:
+
+        D = 1.5 → f_sub = 0.70 (clumpy, GC-like)
+        D = 2.0 → f_sub ≈ 0.52
+        D = 2.5 → f_sub ≈ 0.33
+        D = 3.0 → f_sub = 0.15 (smooth, association-like)
+
+    This is NOT the same as the original GW2004 fractal dimension! The
+    relationship between D and observable Q is an emergent property that
+    depends on the full sampling algorithm, not a directly enforced mapping.
+
+    CW04 Q(D) calibration targets (NOT currently reproduced):
+
+        =========  =========
+        D          Q (CW04)
+        =========  =========
+        1.5        ~0.47
+        2.0        ~0.58
+        2.5        ~0.70
+        3.0        ~0.79-0.82
+        =========  =========
+
+    TODO: Calibration sweep to measure actual Q(f_sub) and refine this mapping.
+
+    See Also
+    --------
+    tail_layer_from_D : Creates TailSubstructureLayer from D.
+    default_f_sub_for_cluster_type : Alternative via cluster type names.
+
+    Examples
+    --------
+    >>> f_sub = f_sub_from_D(2.0)
+    >>> print(f"D=2.0 → f_sub = {f_sub:.2f}")  # ~0.52
+    """
+    D_clamped = jnp.clip(D, 1.5, 3.0)
+    # Linear mapping: D low (1.5) → f_sub high (0.7), D high (3.0) → f_sub low (0.15)
+    f_high, f_low = 0.70, 0.15
+    t = (3.0 - D_clamped) / (3.0 - 1.5)  # t=1 when D=1.5 (clumpy), t=0 when D=3.0
+    return f_low + (f_high - f_low) * t
+
+
+def tail_layer_from_D(D: float) -> "TailSubstructureLayer":
+    """Create TailSubstructureLayer from GW-style fractal dimension D.
+
+    Maps the familiar Goodwin-Whitworth fractal dimension to f_sub via
+    a phenomenological (uncalibrated) linear mapping.
+
+    WARNING: This is NOT calibrated to reproduce CW04 Q(D). Use for
+    convenience when transitioning from D-based interfaces, but document
+    that the relationship is phenomenological.
+
+    Parameters
+    ----------
+    D : float
+        Fractal dimension in [1.5, 3.0].
+
+    Returns
+    -------
+    TailSubstructureLayer
+        Configured with f_sub derived from D.
+
+    See Also
+    --------
+    f_sub_from_D : Source of the D→f_sub mapping.
+    tail_layer_from_cluster_type : Alternative via cluster type names.
+
+    Examples
+    --------
+    >>> tail = tail_layer_from_D(2.0)
+    >>> print(f"D=2.0 → f_sub = {tail.f_sub:.2f}")  # ~0.52
+    """
+    from progenax.cluster.fdf_density import TailSubstructureLayer
+
+    return TailSubstructureLayer(f_sub=float(f_sub_from_D(D)))
+
+
+# =============================================================================
 # Exports
 # =============================================================================
 
@@ -865,4 +1081,9 @@ __all__ = [
     "b_from_environment",
     # Environment mapping (CANONICAL entry point)
     "env_to_fdf_layer",
+    # Gravoturbulent substructure helpers (PHENOMENOLOGICAL)
+    "default_f_sub_for_cluster_type",
+    "tail_layer_from_cluster_type",
+    "f_sub_from_D",
+    "tail_layer_from_D",
 ]

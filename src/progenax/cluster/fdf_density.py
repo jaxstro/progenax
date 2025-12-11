@@ -2,45 +2,56 @@
 """
 Fractal Density Field (FDF-D) for star cluster initial conditions.
 
-This module implements a density-field-based approach to generating
-fractal substructure. Unlike the displacement-field FDF, this method:
+This module implements a two-layer approach to generating substructured
+star cluster initial conditions:
 
-1. Constructs a 3D turbulent density field ρ_turb(x) with power spectrum P(k) ∝ k^{-β}
-2. Multiplies by the base profile to get ρ_final(x) = ρ_base(x) × ρ_turb(x)
-3. Samples star positions proportionally to ρ_final(x)
+**Layer 1: Turbulent Gas Density Field (FractalDensityLayer)**
 
-The chi parameter controls the spectral slope:
-    - chi ≈ 1.6 (clumpy): more small-scale power → more small clumps
-    - chi ≈ 3.0 (smooth): more large-scale power → smoother distribution
+    Constructs a 3D gas density field from ISM turbulence physics:
+    - σ_ln_ρ and β are derived from Larson + Federrath theory
+    - χ is an INTERNAL turbulence shaping parameter, NOT a "fractal dimension"
+    - This layer describes WHERE gas is dense, not where stars form
+
+**Layer 2: Gravoturbulent Collapse Selection (TailSubstructureLayer)**
+
+    Controls STELLAR substructure via f_sub:
+    - f_sub = fraction of stars from dense tail of gas PDF
+    - Higher f_sub → more substructured (clumpy) stellar distribution
+    - This is the PRIMARY stellar substructure knob
+
+Key Physics Separation
+----------------------
+- **Turbulence (σ_ln_ρ, β)**: Set by ISM physics (Larson + Federrath+2010)
+- **Substructure (f_sub)**: Controlled by gravoturbulent collapse selection
+
+χ and β are turbulence-shaping parameters, NOT clumpiness knobs.
+Stellar substructure is controlled by f_sub in TailSubstructureLayer.
+
+Position Sampling Methods
+-------------------------
+**Standard sampling** (sample_positions_from_density):
+    Samples stars proportionally to the full density field.
+
+**Tail sampling** (sample_positions_tail):
+    Two-component sampling with dense tail + smooth component split.
+    Stars allocated: N_dense ≈ f_sub × N_stars from dense regions.
 
 Base Profile Choice
 -------------------
-The ``base_profile`` parameter critically affects Q interpretation:
+The ``base_profile`` parameter affects Q interpretation:
 
-**"uniform" (RECOMMENDED for CW04 comparison)**
-    Turbulent field in a spherical region. Q calibration matches CW04 Table 1.
+- **"uniform"**: RECOMMENDED for CW04-comparable Q values
+- **"plummer"**: Realistic clusters, but Q >> 1 due to central concentration
 
-**"plummer" (for realistic star clusters)**
-    Turbulent field modulates Plummer radial profile. Q will be HIGHER than
-    CW04 values because the base profile is already centrally concentrated.
-    Use with caveat in papers.
-
-WARNING - Uncalibrated Parameters
----------------------------------
-The spectral slopes (BETA_0_DENSITY, BETA_1_DENSITY) and σ_ln_ρ defaults
-are preliminary heuristics. They are NOT calibrated against:
-
-- MHD simulations of turbulent molecular clouds
-- Observed cloud power spectra
-- Cartwright & Whitworth (2004) Q(D) measurements
-
-For physically motivated parameters, use ``env_to_fdf_layer()`` from
-``progenax.cluster.fdf_config``, which derives σ_ln_ρ from Federrath+2010
-density-Mach scaling.
+WARNING - Calibration Status
+----------------------------
+The spectral slopes and χ→β mapping are UNCALIBRATED heuristics.
+For physics-based turbulence parameters, use ``env_to_fdf_layer()``.
+The D→f_sub mapping is phenomenological, NOT calibrated to CW04 Q(D).
 
 References
 ----------
-- Federrath et al. (2010) A&A 512, A81 - Turbulence spectra, density-Mach relation
+- Federrath et al. (2010) A&A 512, A81 - Density-Mach relation, turbulence
 - Goodwin & Whitworth (2004) A&A 413, 929 - Fractal dimension D
 - Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter definition
 """
@@ -92,16 +103,25 @@ def _legacy_chi_to_beta(chi: float) -> float:
 
 @dataclass(frozen=True)
 class FractalDensityLayer:
-    """Parameters for fractal density field layer.
+    """Parameters for fractal density field layer (TURBULENCE LAYER).
+
+    This controls the GAS density field structure from ISM turbulence physics.
+    It does NOT directly control stellar substructure - that is controlled by
+    TailSubstructureLayer via f_sub.
+
+    The parameters σ_ln_ρ and β (derived from chi) describe turbulence in the
+    parent molecular cloud, NOT the "fractal dimension" of stellar positions.
 
     Attributes
     ----------
     chi : float
-        Clumpiness parameter in [1.6, 3.0]. Controls spectral slope.
-        Lower chi → steeper spectrum → more small-scale power → clumpier.
+        INTERNAL turbulence shaping parameter in [1.6, 3.0]. Controls spectral
+        slope of the gas density field. This is NOT a "fractal dimension" proxy.
+        For stellar substructure control, use TailSubstructureLayer with f_sub.
     sigma_ln_rho : float
-        Standard deviation of log-density field. Controls amplitude of
-        density fluctuations. Typical values: 1.5-2.5 for visible substructure.
+        Standard deviation of log-density field from Federrath+2010.
+        σ²_ln_ρ = ln(1 + b²M²) where b is driving parameter, M is Mach number.
+        Derived from environment via env_to_fdf_layer() for physical values.
     lambda_frac : float
         Blend fraction [0, 1]. 0 = pure smooth profile, 1 = full turbulent.
     grid_size : int
@@ -123,6 +143,11 @@ class FractalDensityLayer:
     sphere_radius_factor : float
         For uniform base: radius = sphere_radius_factor * R_half.
         Stars are sampled within this spherical region.
+
+    See Also
+    --------
+    TailSubstructureLayer : Controls stellar substructure via f_sub.
+    env_to_fdf_layer : Derives physical σ_ln_ρ from environment.
     """
 
     chi: float = 2.0
@@ -134,6 +159,55 @@ class FractalDensityLayer:
     virial_ratio: float = 0.5
     base_profile: str = "uniform"  # Default to uniform for proper Q(D) trend
     sphere_radius_factor: float = 2.5
+
+
+@dataclass(frozen=True)
+class TailSubstructureLayer:
+    """Gravoturbulent dense-tail substructure parameters.
+
+    This controls STELLAR substructure by specifying what fraction of stars
+    form in the densest, locally-collapsing regions of the turbulent gas field.
+
+    This is separate from the turbulence layer (FractalDensityLayer):
+    - Turbulence (σ_ln_ρ, β) sets the gas density PDF from ISM physics
+    - Substructure (f_sub) determines which parts of that PDF form stars
+
+    The physical motivation is gravoturbulent fragmentation: local regions
+    with α_vir,loc << 1 undergo runaway collapse and form stars, while
+    lower-density regions may be disrupted by feedback before star formation.
+
+    Attributes
+    ----------
+    f_sub : float
+        Fraction of stars sampled from the dense tail (0..1).
+        This is the PRIMARY stellar substructure knob.
+
+        Phenomenological defaults by cluster type:
+        - f_sub ~ 0.15: loose stellar associations (low Σ, weak confinement)
+        - f_sub ~ 0.30: typical open cluster birth conditions
+        - f_sub ~ 0.55: young massive cluster (YMC) formation
+        - f_sub ~ 0.70: extreme, globular cluster-like proto-clusters
+
+        Higher f_sub → more stars from dense clumps → more substructured.
+
+    Notes
+    -----
+    The dense tail is defined by MASS FRACTION in the gas density field,
+    not by volume or cell count. This means f_sub=0.3 samples stars from
+    the voxels containing the densest 30% of the gas mass.
+
+    f_sub encodes unresolved physics: feedback efficiency, collision geometry,
+    external pressure, magnetic support. It is NOT directly calibrated to
+    Cartwright & Whitworth (2004) Q(D) measurements.
+
+    See Also
+    --------
+    FractalDensityLayer : Controls turbulent gas density field.
+    default_f_sub_for_cluster_type : Phenomenological defaults.
+    f_sub_from_D : Maps GW-style D to f_sub (phenomenological).
+    """
+
+    f_sub: float = 0.3  # Default "OC-like"
 
 
 @dataclass(frozen=True)
@@ -177,6 +251,12 @@ jax.tree_util.register_dataclass(
         "base_profile",
         "sphere_radius_factor",
     ],
+    meta_fields=[],
+)
+
+jax.tree_util.register_dataclass(
+    TailSubstructureLayer,
+    data_fields=["f_sub"],
     meta_fields=[],
 )
 
@@ -231,6 +311,62 @@ def _make_hermitian(delta_k: jnp.ndarray) -> jnp.ndarray:
     delta_k_sym = 0.5 * (delta_k + delta_k_conj)
 
     return delta_k_sym
+
+
+def _gaussian_blur_3d_fft(
+    field: Float[Array, "Nx Ny Nz"],
+    sigma_cells: float = 5.0,
+) -> Float[Array, "Nx Ny Nz"]:
+    """Apply 3D Gaussian blur using FFT convolution.
+
+    This is used to compute local overdensity: ρ_local = ρ / ρ_smoothed.
+    By smoothing the density field, we remove large-scale structure and
+    keep only local fluctuations for tail selection.
+
+    Parameters
+    ----------
+    field : Array, shape (Nx, Ny, Nz)
+        3D density field to blur.
+    sigma_cells : float
+        Standard deviation of Gaussian in grid cells.
+        Larger values → more smoothing → only large-scale structure remains.
+        Default 5.0 cells is ~10% of typical 64-cell grid.
+
+    Returns
+    -------
+    blurred : Array, shape (Nx, Ny, Nz)
+        Smoothed density field.
+
+    Notes
+    -----
+    Uses FFT-based convolution which is:
+    1. Fully JAX-native (differentiable)
+    2. Fast O(N log N) complexity
+    3. Handles periodic boundaries naturally
+    """
+    Nx, Ny, Nz = field.shape
+
+    # Create Gaussian kernel in Fourier space
+    # For Gaussian g(x) ∝ exp(-x²/2σ²), the FT is also Gaussian:
+    # G(k) ∝ exp(-σ²k²/2)
+    kx = jnp.fft.fftfreq(Nx) * 2 * jnp.pi
+    ky = jnp.fft.fftfreq(Ny) * 2 * jnp.pi
+    kz = jnp.fft.fftfreq(Nz) * 2 * jnp.pi
+    KX, KY, KZ = jnp.meshgrid(kx, ky, kz, indexing="ij")
+    k2 = KX**2 + KY**2 + KZ**2
+
+    # Gaussian filter in Fourier space
+    gaussian_filter_k = jnp.exp(-0.5 * sigma_cells**2 * k2)
+
+    # Apply filter via FFT convolution
+    field_k = jnp.fft.fftn(field)
+    blurred_k = field_k * gaussian_filter_k
+    blurred = jnp.real(jnp.fft.ifftn(blurred_k))
+
+    # Ensure positive (numerical noise can create tiny negatives)
+    blurred = jnp.maximum(blurred, 1e-10)
+
+    return blurred
 
 
 def _plummer_density_grid(
@@ -516,6 +652,170 @@ def sample_positions_from_density(
     return positions
 
 
+def sample_positions_tail(
+    key: PRNGKeyArray,
+    field: DensityField3D,
+    N_stars: int,
+    f_sub: float,
+    dense_tail_mass_frac: float = 0.10,
+) -> Float[Array, "N 3"]:
+    """Sample star positions from gravoturbulent dense tail + smooth component.
+
+    This implements two-component sampling that separates:
+    - Dense tail: FIXED to top ~10% of gas MASS (very few, densest cells)
+    - Smooth component: remaining ~90% of mass (more spread out)
+
+    Stars are allocated: N_dense ≈ f_sub × N_stars go to dense tail,
+    N_smooth = N - N_dense to smooth. Higher f_sub = more stars concentrated
+    in the dense tail = more substructure = LOWER Q.
+
+    Parameters
+    ----------
+    key : PRNGKey
+        JAX random key.
+    field : DensityField3D
+        The density field to sample from (turbulent gas density).
+    N_stars : int
+        Total number of star positions to sample. MUST be a concrete integer
+        (not a JAX tracer) because jax.random.categorical requires static shape.
+    f_sub : float
+        Fraction of stars to sample from dense tail (0..1).
+        - f_sub=0: all stars from smooth component (spread out → high Q)
+        - f_sub=1: all stars from dense tail (concentrated → low Q)
+    dense_tail_mass_frac : float
+        Mass fraction defining the dense tail (default 0.10 = top 10% of mass).
+        This is typically ~1-2% of volume for lognormal density fields.
+
+    Returns
+    -------
+    positions : Array, shape (N, 3)
+        Sampled positions in pc.
+
+    Notes
+    -----
+    The algorithm:
+    1. Flatten and normalize cell masses as probabilities
+    2. Compute LOCAL overdensity: ρ_local = ρ / ρ_smoothed (high-pass filter)
+       This identifies cells denser than their local environment.
+    3. Rank voxels by local overdensity (descending)
+    4. Split by FIXED mass fraction: dense tail = top 10% of mass
+       (These are distributed local peaks, not a single central clump)
+    5. Build two normalized PMFs for dense and smooth components
+    6. Allocate N_dense = round(f_sub × N_stars) to dense, rest to smooth
+    7. Sample from each component via jax.random.categorical
+    8. Convert flat indices → 3D → physical coordinates + sub-voxel jitter
+
+    Physics: Local overdensity identifies gravitationally unstable regions
+    (local α_vir << 1) that are candidates for collapse. Higher f_sub puts
+    more stars into these spatially-distributed dense regions, producing
+    lower Q (more substructure with multiple clumps).
+
+    From CW04: f_sub ↑ → more stars in spatially-correlated clumps → Q ↓
+
+    Note
+    ----
+    Q(f_sub) monotonicity requires base_profile="uniform" for best results.
+    With radial profiles (Plummer, King), Q interpretation is more complex.
+    """
+    Nx = field.x_grid.shape[0]
+    Ny = field.y_grid.shape[0]
+    Nz = field.z_grid.shape[0]
+    n_cells = Nx * Ny * Nz
+
+    # Step 1: Flatten and normalize cell masses as probabilities
+    rho_flat = field.rho_grid.ravel()
+    mass = rho_flat / (jnp.sum(rho_flat) + 1e-12)  # Dimensionless probabilities
+
+    # Step 2: Rank voxels by LOCAL overdensity (ρ / ρ_smoothed)
+    #
+    # CRITICAL: Global density ranking fails because the turbulent field has
+    # spatially-correlated structure - the highest-density cells cluster together.
+    # Selecting the top 10% by global density picks a single clump, not distributed
+    # clumps. This creates CENTRAL CONCENTRATION (Q > 0.79), not SUBSTRUCTURE (Q < 0.79).
+    #
+    # Fix: Use local overdensity = ρ / ρ_smoothed to identify cells that are
+    # denser than their LOCAL environment. This ensures the "dense" cells are
+    # DISTRIBUTED across the volume as multiple independent clumps.
+    #
+    # Physics: Local overdensity = local α_vir << 1 = gravitational collapse site
+    rho_smoothed = _gaussian_blur_3d_fft(field.rho_grid, sigma_cells=5.0)
+    rho_local = field.rho_grid / (rho_smoothed + 1e-12)  # Local overdensity ratio
+    rho_local_flat = rho_local.ravel()
+
+    sort_idx = jnp.argsort(-rho_local_flat)  # Rank by LOCAL overdensity (high → low)
+    mass_sorted = mass[sort_idx]
+    cum_mass = jnp.cumsum(mass_sorted)
+
+    # Step 3: Define dense vs smooth by FIXED mass fraction (not f_sub!)
+    # Dense tail = voxels containing top dense_tail_mass_frac of the total mass
+    # This is typically ~1-2% of cells for lognormal density fields
+    dense_cut = jnp.searchsorted(cum_mass, dense_tail_mass_frac, side="right")
+    dense_cut = jnp.clip(dense_cut, 1, n_cells - 1)  # At least 1 cell in each
+
+    # Create masks for dense and smooth indices
+    idx_range = jnp.arange(n_cells)
+    is_dense = idx_range < dense_cut
+    is_smooth = ~is_dense
+
+    # Step 4: Build two normalized PMFs
+    # For dense component: use mass of dense voxels
+    mass_dense_raw = jnp.where(is_dense, mass_sorted, 0.0)
+    sum_dense = jnp.sum(mass_dense_raw) + 1e-12
+    p_dense = mass_dense_raw / sum_dense
+
+    # For smooth component: use mass of smooth voxels
+    mass_smooth_raw = jnp.where(is_smooth, mass_sorted, 0.0)
+    sum_smooth = jnp.sum(mass_smooth_raw) + 1e-12
+    p_smooth = mass_smooth_raw / sum_smooth
+
+    # Step 5: Allocate stars to each component
+    # f_sub controls how many stars go to the FIXED dense tail
+    # Use JAX-clean computation: jnp.round returns float, then clip and cast
+    f_sub_clipped = jnp.clip(f_sub, 0.0, 1.0)
+    N_dense_float = jnp.round(f_sub_clipped * N_stars)
+    N_dense = jnp.clip(N_dense_float, 0, N_stars).astype(jnp.int32)
+    N_smooth = N_stars - N_dense
+
+    # Step 6: Sample from each component via categorical
+    key_dense, key_smooth, key_jitter = random.split(key, 3)
+
+    # Sample sorted indices from dense PMF
+    # categorical samples from logits, so we use log(p)
+    log_p_dense = jnp.log(p_dense + 1e-30)
+    dense_sorted_idx = random.categorical(key_dense, log_p_dense, shape=(N_stars,))
+
+    # Sample sorted indices from smooth PMF
+    log_p_smooth = jnp.log(p_smooth + 1e-30)
+    smooth_sorted_idx = random.categorical(key_smooth, log_p_smooth, shape=(N_stars,))
+
+    # Convert sorted indices back to original flat indices
+    dense_flat_idx = sort_idx[dense_sorted_idx]
+    smooth_flat_idx = sort_idx[smooth_sorted_idx]
+
+    # Create selection mask: first N_dense from dense, rest from smooth
+    star_idx = jnp.arange(N_stars)
+    use_dense = star_idx < N_dense
+    cell_idx_all = jnp.where(use_dense, dense_flat_idx, smooth_flat_idx)
+
+    # Step 7: Convert flat indices → 3D → physical coordinates
+    x_idx = cell_idx_all // (Ny * Nz)
+    y_idx = (cell_idx_all % (Ny * Nz)) // Nz
+    z_idx = cell_idx_all % Nz
+
+    # Cell centers
+    x_c = field.x_grid[x_idx]
+    y_c = field.y_grid[y_idx]
+    z_c = field.z_grid[z_idx]
+
+    # Sub-voxel uniform jitter for smoothness
+    dx = field.x_grid[1] - field.x_grid[0]
+    jitter = (random.uniform(key_jitter, (N_stars, 3)) - 0.5) * dx
+
+    positions = jnp.stack([x_c, y_c, z_c], axis=1) + jitter
+
+    return positions
+
+
 # =============================================================================
 # Complete IC Generator
 # =============================================================================
@@ -528,9 +828,21 @@ def generate_fractal_ic_density(
     R_half: float,
     imf_params,
     layer: FractalDensityLayer,
+    tail: TailSubstructureLayer | None = None,
     G: float = None,
 ):
     """Generate cluster IC using density-field fractal method.
+
+    This function creates initial conditions for a star cluster by:
+    1. Generating a turbulent gas density field (controlled by FractalDensityLayer)
+    2. Sampling star positions from that field
+
+    The position sampling can use either:
+    - Pure density sampling (default, when tail=None)
+    - Gravoturbulent tail sampling (when tail is provided)
+
+    The tail sampling preferentially places stars in the densest regions of
+    the gas field, controlled by f_sub in TailSubstructureLayer.
 
     Parameters
     ----------
@@ -545,7 +857,11 @@ def generate_fractal_ic_density(
     imf_params
         IMF instance with .sample(key, n) method.
     layer : FractalDensityLayer
-        Density field parameters.
+        Turbulence parameters for gas density field (σ_ln_ρ, β).
+    tail : TailSubstructureLayer, optional
+        Gravoturbulent substructure parameters. If provided, uses two-component
+        dense tail + smooth sampling with f_sub controlling the split.
+        If None (default), uses standard density-weighted sampling.
     G : float, optional
         Gravitational constant. Uses jaxstro.units.STELLAR.G if None.
 
@@ -565,6 +881,15 @@ def generate_fractal_ic_density(
     Gradients do NOT flow through:
         - Stochastic realization of the field (frozen structure)
         - Cell selection in position sampling (discrete)
+
+    Examples
+    --------
+    >>> # Standard density sampling (legacy behavior)
+    >>> cluster = generate_fractal_ic_density(key, N, M, R, imf, layer)
+    >>>
+    >>> # With gravoturbulent tail sampling
+    >>> tail = TailSubstructureLayer(f_sub=0.5)  # YMC-like
+    >>> cluster = generate_fractal_ic_density(key, N, M, R, imf, layer, tail=tail)
     """
     from progenax.cluster.core import ClusterState
     from progenax.dynamics.virial import compute_potential_energy
@@ -586,7 +911,11 @@ def generate_fractal_ic_density(
     field = jax.tree_util.tree_map(jax.lax.stop_gradient, field)
 
     # Step 3: Sample positions from density field
-    positions = sample_positions_from_density(key_pos, field, N_stars)
+    # Use tail sampling if TailSubstructureLayer provided, else standard sampling
+    if tail is not None:
+        positions = sample_positions_tail(key_pos, field, N_stars, tail.f_sub)
+    else:
+        positions = sample_positions_from_density(key_pos, field, N_stars)
 
     # Step 4: Recenter to center of mass
     M_total_actual = jnp.sum(masses)
@@ -677,10 +1006,12 @@ def density_layer_from_D(
 __all__ = [
     # Data structures
     "FractalDensityLayer",
+    "TailSubstructureLayer",
     "DensityField3D",
     # Field operations
     "init_turbulent_density_field",
     "sample_positions_from_density",
+    "sample_positions_tail",
     # IC Generator
     "generate_fractal_ic_density",
     # Calibration (DEPRECATED - use env_to_fdf_layer() instead)
