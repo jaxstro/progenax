@@ -19,17 +19,50 @@ This module provides configuration for the FDF two-layer model:
     Controlled by f_sub via helpers in this module:
     - ``default_f_sub_for_cluster_type()`` - phenomenological defaults
     - ``f_sub_from_D()`` - maps GW-style D to f_sub
-    - ``tail_layer_from_*()`` - convenience constructors
+    - ``tail_layer_from_env()`` - PHYSICS-BASED (Burkhart 2018)
+    - ``tail_layer_from_*()`` - other convenience constructors
 
     This determines WHICH PARTS of the gas PDF form stars.
 
 Key Physics Separation
 ----------------------
 - **Turbulence (σ_ln_ρ, β)**: Set by ISM physics (environment → Larson → Federrath)
-- **Substructure (f_sub)**: Phenomenological knob for stellar clumpiness
+- **Substructure (f_sub)**: Controlled by gravoturbulent collapse selection
 
 χ and β are turbulence parameters, NOT clumpiness knobs.
 Stellar substructure is controlled by f_sub.
+
+Gravoturbulent f_sub Derivation (RECOMMENDED)
+---------------------------------------------
+For physics-based f_sub values, use the gravoturbulent interface:
+
+    >>> from progenax.cluster.fdf_config import GravoturbulentEnv, tail_layer_from_env
+    >>> env = GravoturbulentEnv(Sigma=1000, Mach=20, eta_survive=0.85)
+    >>> tail = tail_layer_from_env(env)
+    >>> print(f"f_sub = {tail.f_sub:.3f}")  # Physics-derived!
+
+Or use named presets from the theory document:
+
+    >>> from progenax.cluster.fdf_config import env_from_preset
+    >>> env = env_from_preset("ymc_precursor")  # Σ=1000, M=20
+    >>> tail = tail_layer_from_env(env)
+
+The derivation chain follows Burkhart (2018):
+
+    (Σ, M) → σ_s → s_crit → f_tail → f_sub
+
+Available presets (from theory document Table 10.3):
+
+    ============  =====  ====  =====  =====
+    Preset        Σ      M     η      f_sub
+    ============  =====  ====  =====  =====
+    taurus        40     6     0.4    ~0.008
+    orion         150    12    0.6    ~0.06
+    typical_gmc   100    10    0.5    ~0.04
+    dense_gmc     300    15    0.65   ~0.11
+    ymc_precursor 1000   20    0.85   ~0.28
+    starburst     3000   30    0.9    ~0.42
+    ============  =====  ====  =====  =====
 
 Turbulence Physics (Layer 1)
 ----------------------------
@@ -39,9 +72,9 @@ Parameters derived from ISM turbulence theory:
 - **β**: Kolmogorov (3.67) ↔ Burgers (4.0) interpolation
 - **Mach**: Larson velocity-size relation using parent cloud radius
 
-Substructure Helpers (Layer 2)
-------------------------------
-Cluster-type defaults (phenomenological, NOT CW04-calibrated):
+Phenomenological Substructure Helpers (Legacy)
+----------------------------------------------
+Cluster-type defaults (phenomenological, NOT physics-derived):
 
     ======  ======  ================
     Type    f_sub   Description
@@ -59,14 +92,19 @@ D→f_sub mapping (phenomenological):
 
 References
 ----------
+- Burkhart (2018) ApJ 863, 118 - Gravoturbulent star formation
+- Federrath & Klessen (2012) ApJ 761, 156 - Critical density
+- Padoan & Nordlund (2011) ApJ 730, 40 - φ_x definition
 - Federrath et al. (2010) A&A 512, A81 - Density-Mach relation
 - Larson (1981) MNRAS 194, 809 - Velocity-size relation
 - Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter
 
-WARNING: Calibration Status
----------------------------
+Calibration Status
+------------------
+- Gravoturbulent f_sub (Burkhart 2018): PHYSICS-BASED (erfc formula exact given lognormal)
 - Turbulence physics (σ_ln_ρ, β): CALIBRATED via Federrath+2010
-- Cluster-type f_sub defaults: PHENOMENOLOGICAL (not observation-calibrated)
+- η_survive: POORLY CONSTRAINED (factor ~2 uncertainty)
+- Cluster-type f_sub defaults: PHENOMENOLOGICAL (legacy interface)
 - D→f_sub mapping: PHENOMENOLOGICAL (not CW04 Q(D) calibrated)
 """
 
@@ -75,6 +113,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -1045,6 +1084,337 @@ def tail_layer_from_D(D: float) -> "TailSubstructureLayer":
 
 
 # =============================================================================
+# Gravoturbulent f_sub Derivation (Physics-Based)
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class GravoturbulentEnv:
+    """Birth cloud environment for gravoturbulent f_sub derivation.
+
+    This encapsulates the ISM properties that determine what fraction
+    of gas mass ends up in gravitationally collapsing dense regions.
+
+    The derivation follows Burkhart (2018), Federrath & Klessen (2012),
+    and Padoan & Nordlund (2011). See progenax/docs/core-papers/
+    progenax-gravoturbulent-fdf-theory.md for the full physics derivation.
+
+    Attributes
+    ----------
+    Sigma : float
+        Cloud surface density [M☉/pc²]. Primary driver of α_vir.
+        Typical ranges: 50 (diffuse GMC) to 3000+ (starburst).
+    Mach : float
+        Turbulent Mach number. Sets PDF width σ_s.
+        Typical ranges: 6 (Taurus-like) to 30+ (starburst).
+    eta_survive : float
+        Feedback survival fraction [0-1]. POORLY CONSTRAINED.
+        Fraction of f_tail that survives as stellar substructure.
+        This is the main uncertainty in the model.
+    b : float
+        Turbulence driving parameter (default 0.4).
+        0.33 = solenoidal (pure rotational), 1.0 = compressive.
+    phi_x : float
+        Sonic scale factor (default 0.35 from PN11).
+        Enters s_crit prefactor. Range: 0.17-0.5 depending on B-field.
+    alpha_0 : float
+        Reference virial parameter (default 2.0 from Heyer & Dame 2015).
+        Has factor ~2 scatter in observations.
+    Sigma_0 : float
+        Reference surface density [M☉/pc²] (default 100).
+        For α_vir = α₀ × (Σ₀/Σ) scaling.
+
+    Notes
+    -----
+    Physical motivation for defaults:
+        - b = 0.4: Natural mixture of solenoidal/compressive driving
+        - phi_x = 0.35: PN11 fiducial with moderate magnetic support
+        - alpha_0 = 2.0: Heyer & Dame (2015) mean GMC value
+        - Sigma_0 = 100: Typical GMC surface density for normalization
+
+    References
+    ----------
+    - Burkhart (2018) ApJ 863, 118 - Complete gravoturbulent framework
+    - Federrath & Klessen (2012) ApJ 761, 156 - s_crit formula
+    - Padoan & Nordlund (2011) ApJ 730, 40 - phi_x definition
+    - Heyer & Dame (2015) ARA&A 53, 583 - α_vir-Σ relation
+
+    Examples
+    --------
+    >>> # Orion-like GMC
+    >>> env = GravoturbulentEnv(Sigma=150, Mach=12, eta_survive=0.6)
+    >>>
+    >>> # YMC-forming clump (high surface density)
+    >>> env = GravoturbulentEnv(Sigma=1000, Mach=20, eta_survive=0.85)
+    >>>
+    >>> # Low-density Taurus-like cloud
+    >>> env = GravoturbulentEnv(Sigma=40, Mach=6, eta_survive=0.4)
+    """
+
+    Sigma: float
+    Mach: float
+    eta_survive: float
+    b: float = 0.4
+    phi_x: float = 0.35
+    alpha_0: float = 2.0
+    Sigma_0: float = 100.0
+
+
+@dataclass(frozen=True)
+class GravoturbulentResult:
+    """Results from gravoturbulent f_sub derivation.
+
+    All intermediate values are exposed for diagnostics, debugging,
+    and sensitivity analysis. The derivation chain is:
+
+        (Σ, M) → σ_s → s_crit → u_crit → f_tail → f_sub
+
+    Attributes
+    ----------
+    sigma_s : float
+        PDF width from Federrath+2010: σ_s = √ln(1 + b²M²)
+    alpha_vir : float
+        Virial parameter: α_vir = α₀ × (Σ₀/Σ)
+    s_crit : float
+        Critical log-overdensity for collapse: s_crit = ln((π²φ_x²/5) × α_vir × M²)
+    u_crit : float
+        Normalized erfc argument: (s_crit - σ_s²/2) / (√2 σ_s)
+    f_tail : float
+        Gas mass fraction in collapsing tail: 0.5 × erfc(u_crit)
+        This is the physics-derived quantity.
+    f_sub : float
+        Stellar substructure fraction: η_survive × f_tail
+        This is what gets used for sampling.
+
+    Notes
+    -----
+    The f_tail value is mathematically exact given the lognormal assumption.
+    The main uncertainty comes from η_survive, which has factor ~2 uncertainty.
+
+    References
+    ----------
+    - Theory document: progenax/docs/core-papers/progenax-gravoturbulent-fdf-theory.md
+    """
+
+    sigma_s: float
+    alpha_vir: float
+    s_crit: float
+    u_crit: float
+    f_tail: float
+    f_sub: float
+
+
+def gravoturbulent_summary(env: GravoturbulentEnv) -> GravoturbulentResult:
+    """Compute f_sub from gravoturbulent theory (Burkhart 2018).
+
+    Implements the complete derivation chain from cloud environment to
+    stellar substructure fraction:
+
+        (Σ, M) → σ_s → s_crit → f_tail → f_sub
+
+    This is the PHYSICS-BASED alternative to phenomenological f_sub defaults.
+
+    Parameters
+    ----------
+    env : GravoturbulentEnv
+        Cloud environment parameters (Σ, M, η_survive, etc.)
+
+    Returns
+    -------
+    GravoturbulentResult
+        All intermediate values including f_tail and f_sub.
+
+    Notes
+    -----
+    **Derivation steps:**
+
+    1. **PDF width** (Federrath+2010 Eq. 14):
+       σ_s² = ln(1 + b²M²)
+
+    2. **Virial parameter** (Heyer & Dame 2015):
+       α_vir = α₀ × (Σ₀/Σ)
+
+    3. **Critical density** (Padoan & Nordlund 2011, Federrath & Klessen 2012):
+       s_crit = ln((π²φ_x²/5) × α_vir × M²)
+
+    4. **Tail mass fraction** (standard erfc integral over lognormal):
+       f_tail = 0.5 × erfc((s_crit - σ_s²/2) / (√2 σ_s))
+
+    5. **Substructure fraction** (this work):
+       f_sub = η_survive × f_tail
+
+    **Physical uncertainty:**
+    - The erfc formula is mathematically exact given lognormal assumption
+    - Main uncertainty is η_survive (factor ~2)
+    - Secondary: α₀/Σ₀ scatter, φ_x (0.17-0.5 depending on B-field)
+
+    References
+    ----------
+    - Burkhart (2018) ApJ 863, 118 - Full derivation
+    - Federrath & Klessen (2012) ApJ 761, 156 - s_crit formula
+    - Padoan & Nordlund (2011) ApJ 730, 40 - φ_x definition
+
+    Examples
+    --------
+    >>> # Orion-like GMC (Section 11.1 of theory document)
+    >>> env = GravoturbulentEnv(Sigma=150, Mach=12, eta_survive=0.6)
+    >>> result = gravoturbulent_summary(env)
+    >>> print(f"σ_s = {result.sigma_s:.2f}")  # ~1.78
+    >>> print(f"α_vir = {result.alpha_vir:.2f}")  # ~1.33
+    >>> print(f"f_tail = {result.f_tail:.3f}")  # ~0.107
+    >>> print(f"f_sub = {result.f_sub:.3f}")  # ~0.064
+
+    >>> # YMC-forming clump (Section 11.2 of theory document)
+    >>> env = GravoturbulentEnv(Sigma=1500, Mach=25, eta_survive=0.85)
+    >>> result = gravoturbulent_summary(env)
+    >>> print(f"f_sub = {result.f_sub:.3f}")  # ~0.316
+    """
+    # Step 1: PDF width (Federrath+2010 Eq. 14)
+    # σ_s² = ln(1 + b²M²)
+    sigma_s_sq = jnp.log(1.0 + env.b**2 * env.Mach**2)
+    sigma_s = jnp.sqrt(sigma_s_sq)
+
+    # Step 2: Virial parameter (Heyer & Dame 2015)
+    # α_vir = α₀ × (Σ₀/Σ)
+    alpha_vir = env.alpha_0 * (env.Sigma_0 / env.Sigma)
+
+    # Step 3: Critical density (PN11/FK12)
+    # s_crit = ln((π²φ_x²/5) × α_vir × M²)
+    prefactor = jnp.pi**2 * env.phi_x**2 / 5.0
+    s_crit = jnp.log(prefactor * alpha_vir * env.Mach**2)
+
+    # Step 4: Tail mass fraction (erfc integral)
+    # f_tail = 0.5 × erfc((s_crit - σ_s²/2) / (√2 σ_s))
+    u_crit = (s_crit - sigma_s_sq / 2.0) / (jnp.sqrt(2.0) * sigma_s)
+    f_tail = 0.5 * jax.scipy.special.erfc(u_crit)
+
+    # Step 5: Substructure fraction
+    # f_sub = η_survive × f_tail
+    f_sub = env.eta_survive * f_tail
+
+    return GravoturbulentResult(
+        sigma_s=float(sigma_s),
+        alpha_vir=float(alpha_vir),
+        s_crit=float(s_crit),
+        u_crit=float(u_crit),
+        f_tail=float(f_tail),
+        f_sub=float(f_sub),
+    )
+
+
+# =============================================================================
+# Gravoturbulent Presets (Common Environments)
+# =============================================================================
+
+
+# Preset environments from theory document Table 10.3
+# These are fiducial values based on the gravoturbulent framework.
+# η_survive values are ASSUMED based on qualitative physical arguments.
+GRAVOTURBULENT_PRESETS: dict[str, GravoturbulentEnv] = {
+    "taurus": GravoturbulentEnv(Sigma=40, Mach=6, eta_survive=0.4),
+    "orion": GravoturbulentEnv(Sigma=150, Mach=12, eta_survive=0.6),
+    "typical_gmc": GravoturbulentEnv(Sigma=100, Mach=10, eta_survive=0.5),
+    "dense_gmc": GravoturbulentEnv(Sigma=300, Mach=15, eta_survive=0.65),
+    "ymc_precursor": GravoturbulentEnv(Sigma=1000, Mach=20, eta_survive=0.85),
+    "starburst": GravoturbulentEnv(Sigma=3000, Mach=30, eta_survive=0.9),
+}
+
+
+def env_from_preset(preset: str) -> GravoturbulentEnv:
+    """Get gravoturbulent environment from named preset.
+
+    Convenience function for common cloud environments based on the
+    theory document (Table 10.3). The η_survive values are ASSUMED
+    based on qualitative physical arguments, not calibrated.
+
+    Available presets:
+        - "taurus": Diffuse cloud (Σ=40, M=6, η=0.4) → f_sub~0.008
+        - "orion": Typical GMC (Σ=150, M=12, η=0.6) → f_sub~0.06
+        - "typical_gmc": Moderate GMC (Σ=100, M=10, η=0.5)
+        - "dense_gmc": Dense GMC (Σ=300, M=15, η=0.65)
+        - "ymc_precursor": YMC-forming clump (Σ=1000, M=20, η=0.85) → f_sub~0.28
+        - "starburst": Extreme environment (Σ=3000, M=30, η=0.9) → f_sub~0.42
+
+    Parameters
+    ----------
+    preset : str
+        Preset name (case-insensitive).
+
+    Returns
+    -------
+    GravoturbulentEnv
+        Pre-configured environment.
+
+    Raises
+    ------
+    KeyError
+        If preset name not found.
+
+    Examples
+    --------
+    >>> env = env_from_preset("orion")
+    >>> result = gravoturbulent_summary(env)
+    >>> print(f"f_sub = {result.f_sub:.3f}")  # ~0.06
+
+    >>> env = env_from_preset("YMC_PRECURSOR")  # Case-insensitive
+    >>> result = gravoturbulent_summary(env)
+    >>> print(f"f_sub = {result.f_sub:.3f}")  # ~0.28
+    """
+    key = preset.lower()
+    if key not in GRAVOTURBULENT_PRESETS:
+        available = ", ".join(GRAVOTURBULENT_PRESETS.keys())
+        raise KeyError(f"Unknown preset '{preset}'. Available: {available}")
+    return GRAVOTURBULENT_PRESETS[key]
+
+
+def tail_layer_from_env(env: GravoturbulentEnv) -> "TailSubstructureLayer":
+    """Create TailSubstructureLayer from gravoturbulent environment.
+
+    This is the RECOMMENDED way to create a TailSubstructureLayer when
+    you have physical knowledge of the birth cloud environment.
+
+    The f_sub value is derived from the gravoturbulent theory chain,
+    and the layer records full provenance (mode, env, result).
+
+    Parameters
+    ----------
+    env : GravoturbulentEnv
+        Cloud environment parameters (Σ, M, η_survive, etc.)
+
+    Returns
+    -------
+    TailSubstructureLayer
+        With f_sub derived from gravoturbulent theory and full provenance:
+        - mode="gravoturbulent"
+        - env=<the input environment>
+        - result=<computed GravoturbulentResult>
+
+    Examples
+    --------
+    >>> # YMC-forming clump (high Σ, high M)
+    >>> env = GravoturbulentEnv(Sigma=1000, Mach=20, eta_survive=0.85)
+    >>> tail = tail_layer_from_env(env)
+    >>> print(f"f_sub = {tail.f_sub:.3f}")  # ~0.28
+    >>> print(f"f_tail = {tail.result.f_tail:.3f}")  # ~0.33
+    >>> print(f"mode = {tail.mode}")  # "gravoturbulent"
+
+    >>> # Using a preset
+    >>> env = env_from_preset("orion")
+    >>> tail = tail_layer_from_env(env)
+    >>> print(f"f_sub = {tail.f_sub:.3f}")  # ~0.06
+    """
+    from progenax.cluster.fdf_density import TailSubstructureLayer
+
+    result = gravoturbulent_summary(env)
+    return TailSubstructureLayer(
+        f_sub=result.f_sub,
+        mode="gravoturbulent",
+        env=env,
+        result=result,
+    )
+
+
+# =============================================================================
 # Exports
 # =============================================================================
 
@@ -1086,4 +1456,11 @@ __all__ = [
     "tail_layer_from_cluster_type",
     "f_sub_from_D",
     "tail_layer_from_D",
+    # Gravoturbulent physics (BURKHART 2018 - PHYSICS-BASED)
+    "GravoturbulentEnv",
+    "GravoturbulentResult",
+    "gravoturbulent_summary",
+    "GRAVOTURBULENT_PRESETS",
+    "env_from_preset",
+    "tail_layer_from_env",
 ]

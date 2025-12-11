@@ -56,7 +56,10 @@ References
 - Cartwright & Whitworth (2004) MNRAS 348, 589 - Q parameter definition
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -70,6 +73,9 @@ from jaxtyping import Float, PRNGKeyArray
 # =============================================================================
 
 from progenax.cluster.fdf_config import FDF_HEURISTICS, CHI_MIN, CHI_MAX
+
+if TYPE_CHECKING:
+    from progenax.cluster.fdf_config import GravoturbulentEnv, GravoturbulentResult
 
 
 def _legacy_chi_to_beta(chi: float) -> float:
@@ -190,6 +196,23 @@ class TailSubstructureLayer:
 
         Higher f_sub → more stars from dense clumps → more substructured.
 
+    mode : str
+        How f_sub was determined (for provenance tracking):
+        - "direct": User-specified value (default)
+        - "gravoturbulent": Derived from GravoturbulentEnv via Burkhart (2018)
+        - "cluster_type": From phenomenological cluster type defaults
+        - "D_mapping": From legacy fractal dimension D mapping
+
+    env : GravoturbulentEnv | None
+        If mode="gravoturbulent", the environment used for derivation.
+        None for other modes.
+
+    result : GravoturbulentResult | None
+        If mode="gravoturbulent", the full derivation result including
+        all intermediate values (σ_s, α_vir, s_crit, f_tail, f_sub).
+        Useful for diagnostics and sensitivity analysis.
+        None for other modes.
+
     Notes
     -----
     The dense tail is defined by MASS FRACTION in the gas density field,
@@ -197,17 +220,24 @@ class TailSubstructureLayer:
     the voxels containing the densest 30% of the gas mass.
 
     f_sub encodes unresolved physics: feedback efficiency, collision geometry,
-    external pressure, magnetic support. It is NOT directly calibrated to
-    Cartwright & Whitworth (2004) Q(D) measurements.
+    external pressure, magnetic support.
+
+    For physics-based f_sub values, use tail_layer_from_env() which derives
+    f_sub from the gravoturbulent framework (Burkhart 2018).
 
     See Also
     --------
     FractalDensityLayer : Controls turbulent gas density field.
     default_f_sub_for_cluster_type : Phenomenological defaults.
     f_sub_from_D : Maps GW-style D to f_sub (phenomenological).
+    tail_layer_from_env : Physics-based f_sub from cloud environment.
+    GravoturbulentEnv : Cloud environment parameters.
     """
 
     f_sub: float = 0.3  # Default "OC-like"
+    mode: str = "direct"
+    env: GravoturbulentEnv | None = None
+    result: GravoturbulentResult | None = None
 
 
 @dataclass(frozen=True)
@@ -257,7 +287,7 @@ jax.tree_util.register_dataclass(
 jax.tree_util.register_dataclass(
     TailSubstructureLayer,
     data_fields=["f_sub"],
-    meta_fields=[],
+    meta_fields=["mode", "env", "result"],  # Non-array fields as metadata
 )
 
 jax.tree_util.register_dataclass(
@@ -829,6 +859,7 @@ def generate_fractal_ic_density(
     imf_params,
     layer: FractalDensityLayer,
     tail: TailSubstructureLayer | None = None,
+    env: GravoturbulentEnv | None = None,
     G: float = None,
 ):
     """Generate cluster IC using density-field fractal method.
@@ -838,8 +869,8 @@ def generate_fractal_ic_density(
     2. Sampling star positions from that field
 
     The position sampling can use either:
-    - Pure density sampling (default, when tail=None)
-    - Gravoturbulent tail sampling (when tail is provided)
+    - Pure density sampling (default, when tail=None and env=None)
+    - Gravoturbulent tail sampling (when tail or env is provided)
 
     The tail sampling preferentially places stars in the densest regions of
     the gas field, controlled by f_sub in TailSubstructureLayer.
@@ -862,6 +893,10 @@ def generate_fractal_ic_density(
         Gravoturbulent substructure parameters. If provided, uses two-component
         dense tail + smooth sampling with f_sub controlling the split.
         If None (default), uses standard density-weighted sampling.
+    env : GravoturbulentEnv, optional
+        If provided, derives tail layer from gravoturbulent theory (Burkhart 2018).
+        This OVERRIDES the `tail` parameter with a physics-derived f_sub.
+        This is the RECOMMENDED interface when birth cloud properties are known.
     G : float, optional
         Gravitational constant. Uses jaxstro.units.STELLAR.G if None.
 
@@ -887,10 +922,20 @@ def generate_fractal_ic_density(
     >>> # Standard density sampling (legacy behavior)
     >>> cluster = generate_fractal_ic_density(key, N, M, R, imf, layer)
     >>>
-    >>> # With gravoturbulent tail sampling
+    >>> # With gravoturbulent tail sampling (direct f_sub)
     >>> tail = TailSubstructureLayer(f_sub=0.5)  # YMC-like
     >>> cluster = generate_fractal_ic_density(key, N, M, R, imf, layer, tail=tail)
+    >>>
+    >>> # With physics-derived f_sub from environment (RECOMMENDED)
+    >>> from progenax.cluster.fdf_config import GravoturbulentEnv
+    >>> env = GravoturbulentEnv(Sigma=1000, Mach=20, eta_survive=0.85)
+    >>> cluster = generate_fractal_ic_density(key, N, M, R, imf, layer, env=env)
     """
+    # If env provided, derive tail layer from gravoturbulent theory
+    if env is not None:
+        from progenax.cluster.fdf_config import tail_layer_from_env
+
+        tail = tail_layer_from_env(env)
     from progenax.cluster.core import ClusterState
     from progenax.dynamics.virial import compute_potential_energy
 
