@@ -89,3 +89,42 @@ class TestQApproxNaive:
         grad = jax.grad(lambda p: q_approx_naive(p))(positions)
         assert grad.shape == positions.shape
         assert jnp.all(jnp.isfinite(grad)), "Gradients should be finite"
+
+
+class TestQApproxFast:
+    """Tests for q_approx_fast implementation."""
+
+    def test_returns_scalar(self):
+        """q_approx_fast should return a scalar."""
+        from progenax.diagnostics.q_approx import q_approx_fast
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(500, key)
+        Q = q_approx_fast(positions)
+        assert Q.shape == (), f"Expected scalar, got shape {Q.shape}"
+
+    def test_consistent_with_naive(self):
+        """Fast version should give similar results to naive."""
+        from progenax.diagnostics.q_approx import q_approx_naive, q_approx_fast
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(300, key)
+        Q_naive = q_approx_naive(positions)
+        Q_fast = q_approx_fast(positions)
+        rel_diff = abs(float(Q_naive) - float(Q_fast)) / float(Q_naive)
+        assert rel_diff < 0.30, f"Fast vs naive differ by {rel_diff*100:.1f}%"
+
+    def test_jit_compatible(self):
+        """Function should work with @jax.jit."""
+        from progenax.diagnostics.q_approx import q_approx_fast
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(500, key)
+        q_jit = jax.jit(q_approx_fast)
+        Q = q_jit(positions)
+        assert jnp.isfinite(Q), f"JIT result should be finite"
+
+    def test_scales_to_large_n(self):
+        """Should handle large N efficiently."""
+        from progenax.diagnostics.q_approx import q_approx_fast
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(5000, key)
+        Q = q_approx_fast(positions, nbins_per_dim=32)
+        assert jnp.isfinite(Q), f"Large N should work"
