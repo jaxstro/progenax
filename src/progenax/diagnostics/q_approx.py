@@ -244,8 +244,35 @@ def q_approx(
     calibration: float = DEFAULT_CALIBRATION,
     **kwargs,
 ) -> Float[Array, ""]:
-    """Unified interface. Implementation in Task 4."""
-    raise NotImplementedError("Task 4")
+    """
+    Compute approximate Q parameter with automatic method selection.
+
+    Args:
+        positions: Particle positions [N, 3] or [N, 2]
+        project_to_2d: Project to xy plane (CW04 methodology)
+        method: "auto" (default), "naive", or "fast"
+        calibration: Multiplicative calibration factor
+        **kwargs: Passed to underlying implementation
+
+    Returns:
+        Q_approx: Approximate Q parameter (scalar)
+    """
+    N = positions.shape[0]
+
+    if method == "naive":
+        return q_approx_naive(positions, project_to_2d, calibration)
+    elif method == "fast":
+        return q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs)
+    elif method == "auto":
+        # Use naive for small N (JIT overhead dominates), fast for large N
+        return jax.lax.cond(
+            N > 1000,
+            lambda _: q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs),
+            lambda _: q_approx_naive(positions, project_to_2d, calibration),
+            operand=None,
+        )
+    else:
+        raise ValueError(f"method must be 'auto', 'naive', or 'fast'")
 
 
 def calibrate_q_approx(

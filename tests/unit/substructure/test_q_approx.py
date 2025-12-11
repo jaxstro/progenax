@@ -128,3 +128,33 @@ class TestQApproxFast:
         positions = generate_uniform_sphere_jax(5000, key)
         Q = q_approx_fast(positions, nbins_per_dim=32)
         assert jnp.isfinite(Q), f"Large N should work"
+
+
+class TestQApproxUnified:
+    """Tests for unified q_approx interface."""
+
+    def test_auto_dispatches_correctly(self):
+        """Auto should dispatch based on N."""
+        from progenax.diagnostics.q_approx import q_approx
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(500, key)
+        Q = q_approx(positions, method="auto")
+        assert jnp.isfinite(Q)
+
+    def test_explicit_method_selection(self):
+        """Explicit method selection should work."""
+        from progenax.diagnostics.q_approx import q_approx
+        key = jax.random.PRNGKey(42)
+        positions = generate_uniform_sphere_jax(300, key)
+        Q_naive = q_approx(positions, method="naive")
+        Q_fast = q_approx(positions, method="fast")
+        assert jnp.isfinite(Q_naive) and jnp.isfinite(Q_fast)
+
+
+class TestExports:
+    """Test module exports from progenax.diagnostics."""
+
+    def test_import_from_diagnostics(self):
+        """Should be importable from progenax.diagnostics."""
+        from progenax.diagnostics import q_approx, q_approx_naive, q_approx_fast
+        assert callable(q_approx)

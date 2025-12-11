@@ -43,9 +43,21 @@ from progenax.diagnostics.substructure import (
     compute_q_parameter,
     compute_azimuthal_variation,
 )
+from progenax.diagnostics.q_approx import (
+    q_approx,
+    q_approx_naive,
+    q_approx_fast,
+    calibrate_q_approx,
+    DEFAULT_CALIBRATION,
+)
 
 __all__ = [
     "compute_lambda_msr",
     "compute_q_parameter",
     "compute_azimuthal_variation",
+    "q_approx",
+    "q_approx_naive",
+    "q_approx_fast",
+    "calibrate_q_approx",
+    "DEFAULT_CALIBRATION",
 ]
