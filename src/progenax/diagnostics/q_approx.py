@@ -280,5 +280,51 @@ def calibrate_q_approx(
     N_stars: int = 500,
     seed: int = 42,
 ) -> dict[str, float]:
-    """Calibration function. Implementation in Task 5."""
-    raise NotImplementedError("Task 5")
+    """
+    Determine calibration factor by comparing to exact scipy Q.
+
+    Args:
+        n_samples: Number of random samples
+        N_stars: Particles per sample
+        seed: Random seed
+
+    Returns:
+        Dictionary with calibration factors and statistics
+    """
+    import numpy as np
+    from progenax.diagnostics.substructure import compute_q_parameter
+
+    Q_exact_list, Q_naive_list, Q_fast_list = [], [], []
+
+    for i in range(n_samples):
+        key = jax.random.PRNGKey(seed + i)
+        key_r, key_theta, key_phi = jax.random.split(key, 3)
+
+        u = jax.random.uniform(key_r, (N_stars,))
+        r = u ** (1 / 3)
+        cos_theta = jax.random.uniform(key_theta, (N_stars,), minval=-1.0, maxval=1.0)
+        sin_theta = jnp.sqrt(1 - cos_theta ** 2)
+        phi = jax.random.uniform(key_phi, (N_stars,), minval=0.0, maxval=2 * jnp.pi)
+
+        positions = jnp.stack([
+            r * sin_theta * jnp.cos(phi),
+            r * sin_theta * jnp.sin(phi),
+            r * cos_theta
+        ], axis=1)
+
+        Q_exact_list.append(compute_q_parameter(np.asarray(positions)))
+        Q_naive_list.append(float(q_approx_naive(positions, calibration=1.0)))
+        Q_fast_list.append(float(q_approx_fast(positions, calibration=1.0)))
+
+    Q_exact = np.array(Q_exact_list)
+    Q_naive = np.array(Q_naive_list)
+    Q_fast = np.array(Q_fast_list)
+
+    return {
+        "calibration_naive": float(np.mean(Q_exact) / np.mean(Q_naive)),
+        "calibration_fast": float(np.mean(Q_exact) / np.mean(Q_fast)),
+        "correlation_naive": float(np.corrcoef(Q_exact, Q_naive)[0, 1]),
+        "correlation_fast": float(np.corrcoef(Q_exact, Q_fast)[0, 1]),
+        "rmse_naive": float(np.sqrt(np.mean((Q_exact - Q_naive) ** 2))),
+        "n_samples": n_samples,
+    }

@@ -158,3 +158,45 @@ class TestExports:
         """Should be importable from progenax.diagnostics."""
         from progenax.diagnostics import q_approx, q_approx_naive, q_approx_fast
         assert callable(q_approx)
+
+
+class TestCalibration:
+    """Tests for calibration against scipy baseline."""
+
+    @pytest.mark.slow
+    def test_calibration_produces_valid_factors(self):
+        """Calibration should produce reasonable factors."""
+        from progenax.diagnostics.q_approx import calibrate_q_approx
+        results = calibrate_q_approx(n_samples=50, N_stars=300, seed=42)
+        assert 0.5 < results["calibration_naive"] < 2.0
+        assert results["correlation_naive"] > 0.5
+
+    def test_monotonicity_preserved(self):
+        """Q_approx should preserve ordering vs Q_exact."""
+        from progenax.diagnostics import compute_q_parameter
+        from progenax.diagnostics.q_approx import q_approx_naive
+
+        # Create two distributions with different substructure levels
+        # More substructure = lower Q
+        key1 = jax.random.PRNGKey(42)
+        key2 = jax.random.PRNGKey(100)
+
+        # Smooth distribution
+        smooth = generate_uniform_sphere_jax(300, key1)
+
+        # Clumpy distribution (add two offset spheres)
+        clump1 = generate_uniform_sphere_jax(150, key2) * 0.3 + jnp.array([0.5, 0.0, 0.0])
+        clump2 = generate_uniform_sphere_jax(150, jax.random.PRNGKey(101)) * 0.3 + jnp.array([-0.5, 0.0, 0.0])
+        clumpy = jnp.concatenate([clump1, clump2], axis=0)
+
+        Q_smooth_exact = compute_q_parameter(np.asarray(smooth))
+        Q_clumpy_exact = compute_q_parameter(np.asarray(clumpy))
+        Q_smooth_approx = float(q_approx_naive(smooth))
+        Q_clumpy_approx = float(q_approx_naive(clumpy))
+
+        # Clumpy should have lower Q than smooth (both methods)
+        # Only check if exact difference is significant (>10%)
+        if abs(Q_smooth_exact - Q_clumpy_exact) / Q_smooth_exact > 0.1:
+            exact_ordering = Q_clumpy_exact < Q_smooth_exact
+            approx_ordering = Q_clumpy_approx < Q_smooth_approx
+            assert exact_ordering == approx_ordering, "Monotonicity violated!"
