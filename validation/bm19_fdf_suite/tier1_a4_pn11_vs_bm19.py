@@ -205,23 +205,27 @@ def make_plot(results: dict, show: bool = False) -> str:
 
 
 def make_sigma_dependence_plot(show: bool = False) -> str:
-    """Show how PN11 depends on Sigma while BM19 doesn't.
+    """Show how PN11 depends on Sigma while BM19 depends on α.
 
     PN11 uses alpha_vir(Sigma) so f_dense changes with Sigma.
-    BM19 only depends on (M, alpha, b), not Sigma directly.
+    BM19 depends on (M, alpha, b), not Sigma - show multiple α lines.
     """
     setup_publication_style()
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 7))
 
     machs = np.linspace(5, 35, 50)
     Sigmas = [50, 100, 200, 500]
-    alpha = 2.0
+    alphas_bm19 = [1.5, 2.0, 2.5, 3.0]
     b = 0.4
 
+    # Colors for PN11 (by Sigma) - dashed lines
     colors_sigma = {50: "C0", 100: "C1", 200: "C2", 500: "C3"}
 
-    # PN11 for different Sigma
+    # Colors for BM19 (by alpha) - solid lines
+    colors_alpha = {1.5: "purple", 2.0: "darkred", 2.5: "darkorange", 3.0: "darkgreen"}
+
+    # PN11 for different Sigma (dashed)
     for Sigma in Sigmas:
         alpha_vir = float(pn11.alpha_vir_from_sigma(Sigma))
         f_dense_pn11 = []
@@ -236,26 +240,29 @@ def make_sigma_dependence_plot(show: bool = False) -> str:
             label=f"PN11 $\\Sigma$={Sigma}"
         )
 
-    # BM19 (single line - doesn't depend on Sigma)
-    f_dense_bm19 = []
-    for mach in machs:
-        result = bm19.bm19_pipeline(mach, b, alpha, eta_survive=0.6)
-        f_dense_bm19.append(float(result.f_dense))
+    # BM19 for different alpha (solid lines)
+    for alpha in alphas_bm19:
+        f_dense_bm19 = []
+        for mach in machs:
+            result = bm19.bm19_pipeline(mach, b, alpha, eta_survive=0.6)
+            f_dense_bm19.append(float(result.f_dense))
 
-    ax.semilogy(
-        machs, f_dense_bm19,
-        color="black", linewidth=3,
-        label=f"BM19 ($\\alpha$={alpha}, all $\\Sigma$)"
-    )
+        ax.semilogy(
+            machs, f_dense_bm19,
+            color=colors_alpha[alpha], linewidth=2.5, linestyle="-",
+            label=f"BM19 $\\alpha$={alpha}"
+        )
 
     ax.set_xlabel("Mach Number ($\\mathcal{M}$)", fontsize=12)
     ax.set_ylabel("$f_\\mathrm{dense}$", fontsize=12)
     ax.set_title(
-        "PN11 Depends on $\\Sigma$ (via $\\alpha_\\mathrm{vir}$), BM19 Does Not\n"
-        "BM19 is better constrained: fewer free parameters",
+        "PN11 Depends on $\\Sigma$ (dashed), BM19 Depends on $\\alpha$ (solid)\n"
+        "Both models span similar range but with different physics",
         fontsize=14
     )
-    ax.legend(fontsize=10, loc="upper right")
+
+    # Create separate legends for clarity
+    ax.legend(fontsize=9, loc="upper right", ncol=2)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(machs.min(), machs.max())
 
