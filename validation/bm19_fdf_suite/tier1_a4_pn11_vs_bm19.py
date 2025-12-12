@@ -322,15 +322,19 @@ ASTROPHYSICAL_ENVIRONMENTS = {
 def make_degeneracy_contour_plot(show: bool = False) -> str:
     """Show parameter degeneracies with real astrophysical environments.
 
-    Two panels showing iso-f_dense and iso-N_H contours in (Mach, Σ) space,
-    with real environments overlaid as ellipses.
+    Three panels showing iso-f_dense contours in (Mach, Σ) space:
+    1. PN11 f_dense - contours CURVE because f_dense depends on Σ via α_vir
+    2. BM19 f_dense - contours are VERTICAL because f_dense has NO Σ dependence
+    3. BM19 N_H threshold - shows column density (combines s_t and Σ)
 
-    This demonstrates that different physical conditions can produce
-    similar observables (degeneracy).
+    This demonstrates:
+    - PN11 has (Mach, Σ) degeneracy in f_dense
+    - BM19 removes this degeneracy (f_dense only depends on Mach at fixed α)
+    - But column density N_H still depends on Σ
     """
     setup_publication_style()
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
     # Parameter grids
     n_mach, n_sigma = 60, 60
@@ -339,9 +343,10 @@ def make_degeneracy_contour_plot(show: bool = False) -> str:
     Mach_grid, Sigma_grid = np.meshgrid(machs, sigmas)
 
     b = 0.4  # Natural mixture driving
+    alpha_bm19 = 2.0
 
-    # Compute f_dense (PN11) over grid
-    f_dense_grid = np.zeros_like(Mach_grid)
+    # Compute f_dense (PN11) over grid - depends on (Mach, Σ)
+    f_dense_pn11_grid = np.zeros_like(Mach_grid)
     for i in range(n_sigma):
         for j in range(n_mach):
             mach = Mach_grid[i, j]
@@ -349,10 +354,17 @@ def make_degeneracy_contour_plot(show: bool = False) -> str:
             alpha_vir = float(pn11.alpha_vir_from_sigma(sigma))
             sigma_sq = float(bm19.sigma_s_squared(mach, b))
             s_crit = float(pn11.s_crit_pn11(mach, alpha_vir))
-            f_dense_grid[i, j] = float(pn11.f_dense_pn11(sigma_sq, s_crit))
+            f_dense_pn11_grid[i, j] = float(pn11.f_dense_pn11(sigma_sq, s_crit))
 
-    # Compute N_H (BM19 at α=2.0) over grid
-    alpha_bm19 = 2.0
+    # Compute f_dense (BM19) over grid - depends on Mach only (at fixed α)!
+    f_dense_bm19_grid = np.zeros_like(Mach_grid)
+    for i in range(n_sigma):
+        for j in range(n_mach):
+            mach = Mach_grid[i, j]
+            result = bm19.bm19_pipeline(mach, b, alpha_bm19, eta_survive=0.6)
+            f_dense_bm19_grid[i, j] = float(result.f_dense)
+
+    # Compute N_H (BM19) over grid - depends on (Mach, Σ) via s_t and conversion
     N_H_grid = np.zeros_like(Mach_grid)
     for i in range(n_sigma):
         for j in range(n_mach):
@@ -362,98 +374,118 @@ def make_degeneracy_contour_plot(show: bool = False) -> str:
             s_t = float(result.s_t)
             N_H_grid[i, j] = s_to_column_density(s_t, sigma)
 
-    # f_dense contour levels
+    # f_dense contour levels (same for both panels)
     f_dense_levels = [0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5]
 
     # N_H contour levels (cm^-2)
     N_H_levels = [1e22, 3e22, 1e23, 3e23, 1e24, 3e24, 1e25]
 
     # =========================================================================
-    # Panel 1: f_dense (PN11) contours
+    # Panel 1: f_dense (PN11) - CURVED contours (Σ dependence)
     # =========================================================================
     ax1 = axes[0]
 
-    # Filled contours
     cf1 = ax1.contourf(
-        Mach_grid, Sigma_grid, f_dense_grid,
+        Mach_grid, Sigma_grid, f_dense_pn11_grid,
         levels=f_dense_levels,
         cmap="viridis",
         extend="both",
     )
     ax1.contour(
-        Mach_grid, Sigma_grid, f_dense_grid,
+        Mach_grid, Sigma_grid, f_dense_pn11_grid,
         levels=f_dense_levels,
         colors="white",
-        linewidths=0.5,
+        linewidths=0.8,
         linestyles="-",
     )
 
-    # Add colorbar
     cbar1 = plt.colorbar(cf1, ax=ax1)
-    cbar1.set_label("$f_\\mathrm{dense}$ (PN11)", fontsize=12)
+    cbar1.set_label("$f_\\mathrm{dense}$", fontsize=11)
 
-    # Overlay environment ellipses
     _add_environment_ellipses(ax1)
 
     ax1.set_yscale("log")
     ax1.set_xlabel("Mach Number ($\\mathcal{M}$)", fontsize=12)
     ax1.set_ylabel("$\\Sigma$ [M$_\\odot$/pc$^2$]", fontsize=12)
-    ax1.set_title("PN11: $f_\\mathrm{dense}$ Degeneracy in (Mach, $\\Sigma$)", fontsize=13)
+    ax1.set_title("PN11: $f_\\mathrm{dense}$(Mach, $\\Sigma$)\nContours curve — $\\Sigma$ matters", fontsize=12)
     ax1.set_xlim(3, 55)
     ax1.set_ylim(15, 12000)
 
     # =========================================================================
-    # Panel 2: N_H threshold (BM19) contours
+    # Panel 2: f_dense (BM19) - VERTICAL contours (no Σ dependence!)
     # =========================================================================
     ax2 = axes[1]
 
-    # Filled contours
     cf2 = ax2.contourf(
+        Mach_grid, Sigma_grid, f_dense_bm19_grid,
+        levels=f_dense_levels,
+        cmap="viridis",
+        extend="both",
+    )
+    ax2.contour(
+        Mach_grid, Sigma_grid, f_dense_bm19_grid,
+        levels=f_dense_levels,
+        colors="white",
+        linewidths=0.8,
+        linestyles="-",
+    )
+
+    cbar2 = plt.colorbar(cf2, ax=ax2)
+    cbar2.set_label("$f_\\mathrm{dense}$", fontsize=11)
+
+    _add_environment_ellipses(ax2)
+
+    ax2.set_yscale("log")
+    ax2.set_xlabel("Mach Number ($\\mathcal{M}$)", fontsize=12)
+    ax2.set_ylabel("$\\Sigma$ [M$_\\odot$/pc$^2$]", fontsize=12)
+    ax2.set_title("BM19: $f_\\mathrm{dense}$(Mach) at $\\alpha$=2.0\nVertical contours — $\\Sigma$ irrelevant!", fontsize=12)
+    ax2.set_xlim(3, 55)
+    ax2.set_ylim(15, 12000)
+
+    # =========================================================================
+    # Panel 3: N_H threshold (BM19) - curved contours (Σ affects conversion)
+    # =========================================================================
+    ax3 = axes[2]
+
+    cf3 = ax3.contourf(
         Mach_grid, Sigma_grid, N_H_grid,
         levels=N_H_levels,
         cmap="plasma",
         extend="both",
         norm=plt.matplotlib.colors.LogNorm(vmin=1e22, vmax=1e25),
     )
-    ax2.contour(
+    ax3.contour(
         Mach_grid, Sigma_grid, N_H_grid,
         levels=N_H_levels,
         colors="white",
-        linewidths=0.5,
+        linewidths=0.8,
         linestyles="-",
     )
 
-    # Add colorbar
-    cbar2 = plt.colorbar(cf2, ax=ax2, format="%.0e")
-    cbar2.set_label("$N_H(s_t)$ [cm$^{-2}$] (BM19, $\\alpha$=2.0)", fontsize=12)
+    cbar3 = plt.colorbar(cf3, ax=ax3, format="%.0e")
+    cbar3.set_label("$N_H(s_t)$ [cm$^{-2}$]", fontsize=11)
 
-    # Lada threshold line
+    # Lada threshold annotation
     lada_NH = OBSERVATIONAL_ANCHORS["lada_threshold_cm2"]
-    ax2.axhline(
-        y=100,  # Just a placeholder - we need to find Sigma where N_H = Lada
-        color="red", linestyle="--", linewidth=2, alpha=0.0,  # Hide this
-    )
-    # Add annotation for Lada threshold
-    ax2.annotate(
-        f"Lada threshold: $N_H$ = {lada_NH:.0e} cm$^{{-2}}$",
+    ax3.annotate(
+        f"Lada threshold: {lada_NH:.0e} cm$^{{-2}}$",
         xy=(0.02, 0.02), xycoords="axes fraction",
-        fontsize=9, color="red", alpha=0.8,
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        fontsize=9, color="red",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.9),
     )
 
-    # Overlay environment ellipses
-    _add_environment_ellipses(ax2)
+    _add_environment_ellipses(ax3)
 
-    ax2.set_yscale("log")
-    ax2.set_xlabel("Mach Number ($\\mathcal{M}$)", fontsize=12)
-    ax2.set_ylabel("$\\Sigma$ [M$_\\odot$/pc$^2$]", fontsize=12)
-    ax2.set_title("BM19: $N_H(s_t)$ Degeneracy in (Mach, $\\Sigma$)", fontsize=13)
-    ax2.set_xlim(3, 55)
-    ax2.set_ylim(15, 12000)
+    ax3.set_yscale("log")
+    ax3.set_xlabel("Mach Number ($\\mathcal{M}$)", fontsize=12)
+    ax3.set_ylabel("$\\Sigma$ [M$_\\odot$/pc$^2$]", fontsize=12)
+    ax3.set_title("BM19: $N_H(s_t)$ at $\\alpha$=2.0\n$\\Sigma$ re-enters for column density", fontsize=12)
+    ax3.set_xlim(3, 55)
+    ax3.set_ylim(15, 12000)
 
     # Overall title
     plt.suptitle(
-        "Parameter Degeneracies: Same Observable from Different Environments",
+        "Parameter Degeneracies: PN11 vs BM19 in (Mach, $\\Sigma$) Space",
         fontsize=14, y=1.02,
     )
     plt.tight_layout()
