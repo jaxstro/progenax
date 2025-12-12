@@ -76,6 +76,7 @@ from progenax.cluster.fdf_config import FDF_HEURISTICS, CHI_MIN, CHI_MAX
 
 if TYPE_CHECKING:
     from progenax.cluster.fdf_config import GravoturbulentEnv, GravoturbulentResult
+    from progenax.gravoturb.bm19_model import BM19Result
 
 
 def _legacy_chi_to_beta(chi: float) -> float:
@@ -199,17 +200,19 @@ class TailSubstructureLayer:
     mode : str
         How f_sub was determined (for provenance tracking):
         - "direct": User-specified value (default)
-        - "gravoturbulent": Derived from GravoturbulentEnv via Burkhart (2018)
+        - "bm19": Derived via BM19 pipeline (RECOMMENDED)
+        - "gravoturbulent": Derived via legacy PN11 path (DEPRECATED)
         - "cluster_type": From phenomenological cluster type defaults
         - "D_mapping": From legacy fractal dimension D mapping
 
     env : GravoturbulentEnv | None
-        If mode="gravoturbulent", the environment used for derivation.
+        If mode="bm19" or "gravoturbulent", the environment used for derivation.
         None for other modes.
 
-    result : GravoturbulentResult | None
-        If mode="gravoturbulent", the full derivation result including
-        all intermediate values (σ_s, α_vir, s_crit, f_tail, f_sub).
+    result : BM19Result | GravoturbulentResult | None
+        If mode="bm19", the BM19Result with fields:
+        (sigma_s, sigma_s_sq, s_t, f_dense, f_sub, beta, p, zeta).
+        If mode="gravoturbulent", the legacy GravoturbulentResult.
         Useful for diagnostics and sensitivity analysis.
         None for other modes.
 
@@ -236,8 +239,8 @@ class TailSubstructureLayer:
 
     f_sub: float = 0.3  # Default "OC-like"
     mode: str = "direct"
-    env: GravoturbulentEnv | None = None
-    result: GravoturbulentResult | None = None
+    env: "GravoturbulentEnv | None" = None
+    result: "BM19Result | GravoturbulentResult | None" = None
 
 
 @dataclass(frozen=True)
@@ -604,6 +607,137 @@ def init_turbulent_density_field(
     )
 
 
+def init_bm19_density_field(
+    key: PRNGKeyArray,
+    sigma_s_sq: float,
+    s_t: float,
+    alpha: float,
+    grid_size: int = 64,
+    box_half_size: float = 1.0,
+    beta: float = 4.0,
+) -> DensityField3D:
+    """Initialize a 3D turbulent density field with BM19 LN+PL PDF.
+
+    Uses Gaussian copula (CDF remap) to generate a density field where the
+    one-point PDF exactly matches the BM19 piecewise lognormal+powerlaw
+    distribution while preserving turbulent spatial correlations.
+
+    This is the PHYSICS-CORRECT method for generating FDF fields consistent
+    with BM19 gravoturbulent theory. Use this for validation and production.
+
+    Parameters
+    ----------
+    key : PRNGKey
+        JAX random key.
+    sigma_s_sq : float
+        BM19 PDF variance σ_s² = ln(1 + b²M²).
+    s_t : float
+        BM19 transition density s_t = (α - 0.5)σ_s².
+    alpha : float
+        BM19 powerlaw slope (1.5-3.0).
+    grid_size : int
+        Number of grid cells per dimension (default 64).
+    box_half_size : float
+        Half-size of cubic box (default 1.0, normalized units).
+    beta : float
+        Power spectrum slope for turbulent structure (default 4.0 = Burgers).
+
+    Returns
+    -------
+    DensityField3D
+        Density field with BM19 LN+PL PDF and turbulent geometry.
+
+    Notes
+    -----
+    The algorithm:
+    1. Generate Gaussian GRF g(x) with power spectrum P(k) ∝ k^{-β}
+    2. Transform: u(x) = Φ(g(x)) where Φ is standard normal CDF
+    3. Apply inverse BM19 CDF: s(x) = F_V^{-1}(u(x))
+    4. Convert to density: ρ(x) = exp(s(x))
+
+    This preserves spatial correlations from the Gaussian GRF while enforcing
+    the exact BM19 one-point PDF. The resulting field has:
+    - Lognormal PDF for s < s_t
+    - Powerlaw tail (∝ exp(-αs)) for s ≥ s_t
+    - f_tail_actual ≈ f_dense from BM19 theory
+
+    References
+    ----------
+    Burkhart, B. & Mocz, P. 2019, ApJ, 879, 129
+
+    Examples
+    --------
+    >>> from progenax.gravoturb import bm19_pipeline
+    >>> result = bm19_pipeline(mach=10.0, alpha=2.0)
+    >>> field = init_bm19_density_field(
+    ...     key, sigma_s_sq=result.sigma_s_sq, s_t=result.s_t, alpha=2.0
+    ... )
+    """
+    from progenax.gravoturb import gaussian_to_bm19, build_bm19_cdf_table
+
+    Nx = Ny = Nz = grid_size
+    L_box = box_half_size
+
+    # Grid setup
+    x_grid = jnp.linspace(-L_box, L_box, Nx)
+    y_grid = jnp.linspace(-L_box, L_box, Ny)
+    z_grid = jnp.linspace(-L_box, L_box, Nz)
+    dx = 2 * L_box / Nx
+    dV = dx**3
+
+    # k-space grid for power spectrum
+    kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, d=dx)
+    ky = 2 * jnp.pi * jnp.fft.fftfreq(Ny, d=dx)
+    kz = 2 * jnp.pi * jnp.fft.fftfreq(Nz, d=dx)
+    KX, KY, KZ = jnp.meshgrid(kx, ky, kz, indexing="ij")
+    k_mag = jnp.sqrt(KX**2 + KY**2 + KZ**2)
+    k_mag_safe = jnp.where(k_mag == 0, 1.0, k_mag)
+
+    # Power spectrum P(k) ∝ k^{-β} (turbulent structure)
+    P_k = k_mag_safe ** (-beta)
+    P_k = jnp.where(k_mag == 0, 0.0, P_k)
+
+    # Draw complex Gaussian modes
+    key_real, key_imag = random.split(key)
+    sigma_k = jnp.sqrt(P_k / 2.0)
+    real_part = sigma_k * random.normal(key_real, (Nx, Ny, Nz))
+    imag_part = sigma_k * random.normal(key_imag, (Nx, Ny, Nz))
+    g_k = real_part + 1j * imag_part
+
+    # Enforce Hermitian symmetry for real IFFT output
+    g_k = _make_hermitian(g_k)
+    g_k = g_k.at[0, 0, 0].set(0.0)
+
+    # Inverse FFT to get Gaussian random field g(x)
+    g_x = jnp.real(jnp.fft.ifftn(g_k))
+
+    # Standardize to N(0, 1) for CDF remap
+    g_mean = jnp.mean(g_x)
+    g_std = jnp.std(g_x)
+    g_standardized = (g_x - g_mean) / (g_std + 1e-12)
+
+    # Build BM19 CDF table
+    s_grid, F_grid = build_bm19_cdf_table(sigma_s_sq, s_t, alpha)
+
+    # Apply CDF remap: g -> u = Φ(g) -> s = F_V^{-1}(u)
+    s_field = gaussian_to_bm19(g_standardized, sigma_s_sq, s_t, alpha, s_grid, F_grid)
+
+    # Convert to density
+    rho = jnp.exp(s_field)
+
+    # Normalize to total mass = 1
+    mass_total = jnp.sum(rho) * dV
+    rho_normalized = rho / (mass_total + 1e-12)
+
+    return DensityField3D(
+        rho_grid=rho_normalized,
+        x_grid=x_grid,
+        y_grid=y_grid,
+        z_grid=z_grid,
+        box_half_size=L_box,
+    )
+
+
 # =============================================================================
 # Position Sampling
 # =============================================================================
@@ -687,13 +821,17 @@ def sample_positions_tail(
     field: DensityField3D,
     N_stars: int,
     f_sub: float,
+    *,
+    mode: str = "bm19",
+    s_t: float | None = None,
+    kappa: float = 10.0,
     dense_tail_mass_frac: float = 0.10,
 ) -> Float[Array, "N 3"]:
     """Sample star positions from gravoturbulent dense tail + smooth component.
 
     This implements two-component sampling that separates:
-    - Dense tail: FIXED to top ~10% of gas MASS (very few, densest cells)
-    - Smooth component: remaining ~90% of mass (more spread out)
+    - Dense tail: cells with s > s_t (BM19 mode) or top 10% mass (legacy)
+    - Smooth component: remaining cells
 
     Stars are allocated: N_dense ≈ f_sub × N_stars go to dense tail,
     N_smooth = N - N_dense to smooth. Higher f_sub = more stars concentrated
@@ -712,9 +850,18 @@ def sample_positions_tail(
         Fraction of stars to sample from dense tail (0..1).
         - f_sub=0: all stars from smooth component (spread out → high Q)
         - f_sub=1: all stars from dense tail (concentrated → low Q)
-    dense_tail_mass_frac : float
-        Mass fraction defining the dense tail (default 0.10 = top 10% of mass).
-        This is typically ~1-2% of volume for lognormal density fields.
+    mode : str, default "bm19"
+        Tail selection method:
+        - "bm19": BM19-consistent direct s > s_t threshold (RECOMMENDED)
+        - "pn11_legacy": Local overdensity ranking (legacy, for comparison)
+    s_t : float, optional
+        BM19 transition density. REQUIRED when mode="bm19".
+        Get from bm19.bm19_pipeline(mach, alpha).s_t.
+    kappa : float, default 10.0
+        Sigmoid sharpness for BM19 mode. Higher = sharper threshold.
+    dense_tail_mass_frac : float, default 0.10
+        Fixed mass fraction for dense tail in legacy mode.
+        Ignored when mode="bm19".
 
     Returns
     -------
@@ -723,30 +870,77 @@ def sample_positions_tail(
 
     Notes
     -----
-    The algorithm:
-    1. Flatten and normalize cell masses as probabilities
-    2. Compute LOCAL overdensity: ρ_local = ρ / ρ_smoothed (high-pass filter)
-       This identifies cells denser than their local environment.
-    3. Rank voxels by local overdensity (descending)
-    4. Split by FIXED mass fraction: dense tail = top 10% of mass
-       (These are distributed local peaks, not a single central clump)
-    5. Build two normalized PMFs for dense and smooth components
-    6. Allocate N_dense = round(f_sub × N_stars) to dense, rest to smooth
-    7. Sample from each component via jax.random.categorical
-    8. Convert flat indices → 3D → physical coordinates + sub-voxel jitter
+    **BM19 Mode (Recommended)**
 
-    Physics: Local overdensity identifies gravitationally unstable regions
-    (local α_vir << 1) that are candidates for collapse. Higher f_sub puts
-    more stars into these spatially-distributed dense regions, producing
-    lower Q (more substructure with multiple clumps).
+    Uses direct s = ln(ρ/ρ_mean) > s_t threshold with soft sigmoid:
+    - w(x) = sigmoid(κ × (s(x) - s_t))
+    - Cells with s > s_t have w ≈ 1 (in tail)
+    - f_tail_actual ≈ f_dense from BM19 theory
+
+    **Legacy Mode (PN11)**
+
+    Uses local overdensity ranking (ρ/ρ_smoothed):
+    - Identifies cells denser than local environment
+    - Selects top dense_tail_mass_frac of mass
+    - NOT physics-consistent with BM19
 
     From CW04: f_sub ↑ → more stars in spatially-correlated clumps → Q ↓
 
-    Note
-    ----
-    Q(f_sub) monotonicity requires base_profile="uniform" for best results.
-    With radial profiles (Plummer, King), Q interpretation is more complex.
+    Examples
+    --------
+    >>> # BM19 mode (recommended)
+    >>> from progenax.gravoturb import bm19_pipeline
+    >>> result = bm19_pipeline(mach=10.0, alpha=2.0, eta_survive=0.6)
+    >>> positions = sample_positions_tail(
+    ...     key, field, N_stars=1000, f_sub=float(result.f_sub),
+    ...     mode="bm19", s_t=float(result.s_t)
+    ... )
+
+    >>> # Legacy mode
+    >>> positions = sample_positions_tail(
+    ...     key, field, N_stars=1000, f_sub=0.3,
+    ...     mode="pn11_legacy", dense_tail_mass_frac=0.10
+    ... )
     """
+    if mode == "bm19":
+        if s_t is None:
+            raise ValueError(
+                "s_t is required for mode='bm19'. "
+                "Get it from bm19.bm19_pipeline(mach, alpha).s_t"
+            )
+        # Use new BM19-consistent tail selection
+        from progenax.cluster.fdf_tail import sample_positions_tail_bm19
+
+        positions, _ = sample_positions_tail_bm19(
+            key,
+            field.rho_grid,
+            field.x_grid,
+            field.y_grid,
+            field.z_grid,
+            N_stars,
+            f_sub,
+            s_t,
+            kappa,
+        )
+        return positions
+
+    elif mode == "pn11_legacy":
+        import warnings
+
+        warnings.warn(
+            "mode='pn11_legacy' uses deprecated local overdensity ranking. "
+            "Use mode='bm19' with s_t from bm19_pipeline() for "
+            "physics-consistent results.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        # Fall through to legacy implementation below
+    else:
+        raise ValueError(f"Invalid mode '{mode}'. Use 'bm19' or 'pn11_legacy'.")
+
+    # =========================================================================
+    # Legacy local overdensity implementation (mode='pn11_legacy')
+    # =========================================================================
     Nx = field.x_grid.shape[0]
     Ny = field.y_grid.shape[0]
     Nz = field.z_grid.shape[0]
@@ -958,7 +1152,25 @@ def generate_fractal_ic_density(
     # Step 3: Sample positions from density field
     # Use tail sampling if TailSubstructureLayer provided, else standard sampling
     if tail is not None:
-        positions = sample_positions_tail(key_pos, field, N_stars, tail.f_sub)
+        # Get mode and s_t from tail layer
+        tail_mode = tail.mode
+        tail_s_t = None
+
+        # For BM19/gravoturbulent modes, extract s_t from result
+        if tail_mode in ("bm19", "gravoturbulent") and tail.result is not None:
+            tail_s_t = float(tail.result.s_t)
+            # Map "gravoturbulent" to "bm19" for sample_positions_tail
+            if tail_mode == "gravoturbulent":
+                tail_mode = "bm19"
+        elif tail_mode == "direct" or tail_mode in ("cluster_type", "D_mapping"):
+            # Direct/cluster_type/D_mapping modes have no BM19 result
+            # Fall back to legacy mode
+            tail_mode = "pn11_legacy"
+
+        positions = sample_positions_tail(
+            key_pos, field, N_stars, tail.f_sub,
+            mode=tail_mode, s_t=tail_s_t
+        )
     else:
         positions = sample_positions_from_density(key_pos, field, N_stars)
 

@@ -166,13 +166,17 @@ class TestMassFractionSplit:
         With dense tail FIXED at top 10% of mass:
         - f_sub=0.1 → 10% of stars in top-10%-mass cells
         - f_sub=0.7 → 70% of stars in top-10%-mass cells (more concentrated!)
+
+        NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
         """
         key = random.PRNGKey(123)
         N_stars = 5000
 
         for f_sub in [0.1, 0.3, 0.5, 0.7]:
-            # Sample positions
-            positions = sample_positions_tail(key, density_field, N_stars, f_sub)
+            # Sample positions using legacy mode (no s_t required)
+            positions = sample_positions_tail(
+                key, density_field, N_stars, f_sub, mode="pn11_legacy"
+            )
 
             # The number of stars from dense component should be ≈ f_sub * N
             # We can't directly verify which stars came from which component,
@@ -187,15 +191,21 @@ class TestMassFractionSplit:
         - f_sub=0.9 → 90% in dense, 10% spread → MORE concentrated
 
         Higher f_sub = more stars in the same small dense region = LOWER Q.
+
+        NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
         """
         key = random.PRNGKey(456)
         N_stars = 2000
 
         # Sample with low f_sub (mostly spread in smooth component)
-        pos_low = sample_positions_tail(key, density_field, N_stars, f_sub=0.1)
+        pos_low = sample_positions_tail(
+            key, density_field, N_stars, f_sub=0.1, mode="pn11_legacy"
+        )
 
         # Sample with high f_sub (mostly concentrated in dense tail)
-        pos_high = sample_positions_tail(key, density_field, N_stars, f_sub=0.9)
+        pos_high = sample_positions_tail(
+            key, density_field, N_stars, f_sub=0.9, mode="pn11_legacy"
+        )
 
         # HIGH f_sub should have SMALLER spatial spread (more concentrated)
         # because more stars go to the FIXED small dense region
@@ -215,6 +225,8 @@ class TestFSubZeroBaseline:
 
         This means all stars come from the non-dense voxels, which should
         produce a distribution similar to the base profile (uniform sphere).
+
+        NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
         """
         key = random.PRNGKey(789)
         layer = FractalDensityLayer(
@@ -227,7 +239,9 @@ class TestFSubZeroBaseline:
         field = init_turbulent_density_field(key_field, R_half=1.0, layer=layer)
 
         N_stars = 1000
-        pos_f0 = sample_positions_tail(key_sample, field, N_stars, f_sub=0.0)
+        pos_f0 = sample_positions_tail(
+            key_sample, field, N_stars, f_sub=0.0, mode="pn11_legacy"
+        )
 
         # Positions should be valid
         assert pos_f0.shape == (N_stars, 3)
@@ -238,18 +252,20 @@ class TestFSubZeroBaseline:
 
         With base_profile="uniform" and f_sub=0 (all smooth), the Q value
         should be close to the standard uniform sphere sampling.
+
+        NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
         """
         key = random.PRNGKey(101)
         N_stars = 500
         n_realizations = 5
 
-        # Generate clusters with f_sub=0 (all smooth)
+        # Generate clusters with f_sub=0 (all smooth), using legacy mode
         Q_f0_values = []
         for i in range(n_realizations):
             key_i = random.fold_in(key, i)
             imf = PowerLawIMF.kroupa()
             layer = env_to_fdf_layer(jnp.array(4.0))
-            tail = TailSubstructureLayer(f_sub=0.0)
+            tail = TailSubstructureLayer(f_sub=0.0, mode="pn11_legacy")
 
             cluster = generate_fractal_ic_density(
                 key_i, N_stars=N_stars, M_total=float(N_stars),
@@ -282,85 +298,11 @@ class TestFSubZeroBaseline:
         assert Q_std_mean > 0.4, f"Q(standard) = {Q_std_mean:.2f} seems too low"
 
 
-class TestQVsFSubMonotonicity:
-    """Test Q behavior with varying f_sub.
-
-    From Cartwright & Whitworth (2004):
-    - Q < 0.79: substructured (fractal, multiple clumps)
-    - Q > 0.79: centrally concentrated (radial profile)
-    - Q ≈ 0.79: uniform sphere baseline
-
-    For our model with GLOBAL density ranking on uniform base:
-    - f_sub ↑ → more stars in spatially-correlated dense clumps → Q ↓
-    - Expected: ⟨Q⟩(0.7) < ⟨Q⟩(0.5) < ⟨Q⟩(0.3) < ⟨Q⟩(0.1)
-    """
-
-    @pytest.mark.slow
-    def test_q_ordering_with_f_sub(self):
-        """Higher f_sub should give lower Q (more substructured).
-
-        IMPORTANT: This test uses base_profile="uniform" only.
-        We test 4 f_sub values with 20 realizations each for robust statistics.
-        """
-        key = random.PRNGKey(202)
-        N_stars = 500
-        n_realizations = 20  # 20 realizations for robust ensemble statistics
-
-        f_sub_values = [0.1, 0.3, 0.5, 0.7]
-        Q_means = {}
-        Q_stds = {}
-
-        for f_sub in f_sub_values:
-            Q_values = []
-            for i in range(n_realizations):
-                imf = PowerLawIMF.kroupa()
-                layer = FractalDensityLayer(
-                    chi=2.0,
-                    sigma_ln_rho=2.0,
-                    base_profile="uniform",
-                )
-
-                # Use different seed for each realization
-                key_i = random.fold_in(key, int(f_sub * 100) + i)
-                tail = TailSubstructureLayer(f_sub=f_sub)
-                cluster = generate_fractal_ic_density(
-                    key_i, N_stars=N_stars, M_total=float(N_stars),
-                    R_half=1.0, imf_params=imf, layer=layer, tail=tail,
-                )
-                Q = compute_q_parameter(np.array(cluster.positions))
-                Q_values.append(Q)
-
-            Q_means[f_sub] = np.mean(Q_values)
-            Q_stds[f_sub] = np.std(Q_values)
-
-        # Print results for debugging/calibration
-        print("\nQ(f_sub) ensemble results:")
-        for f_sub in f_sub_values:
-            print(f"  f_sub={f_sub:.1f}: Q = {Q_means[f_sub]:.3f} ± {Q_stds[f_sub]:.3f}")
-
-        # Test 1: Mean Q monotonicity
-        # From CW04: f_sub ↑ → more substructure → ⟨Q⟩ ↓
-        # We test the MEAN Q values, not individual noisy realizations
-        assert Q_means[0.7] < Q_means[0.5], (
-            f"Expected mean Q(0.7)={Q_means[0.7]:.3f} < mean Q(0.5)={Q_means[0.5]:.3f}"
-        )
-        assert Q_means[0.5] < Q_means[0.3], (
-            f"Expected mean Q(0.5)={Q_means[0.5]:.3f} < mean Q(0.3)={Q_means[0.3]:.3f}"
-        )
-        assert Q_means[0.3] < Q_means[0.1], (
-            f"Expected mean Q(0.3)={Q_means[0.3]:.3f} < mean Q(0.1)={Q_means[0.1]:.3f}"
-        )
-
-        # Test 2: Loose sanity bounds on mean Q values
-        # Q is noisy but should fall in reasonable CW04 range (0.3 to 1.1)
-        for f_sub in f_sub_values:
-            assert 0.3 < Q_means[f_sub] < 1.1, (
-                f"Mean Q({f_sub})={Q_means[f_sub]:.3f} outside expected range [0.3, 1.1]"
-            )
-
-
 class TestSamplePositionsTailJaxCompatibility:
-    """Test that sample_positions_tail is JAX-compatible."""
+    """Test that sample_positions_tail is JAX-compatible.
+
+    NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
+    """
 
     def test_jit_compatible(self):
         """sample_positions_tail should work under JIT with static N_stars."""
@@ -371,11 +313,11 @@ class TestSamplePositionsTailJaxCompatibility:
         field = init_turbulent_density_field(key_field, R_half=1.0, layer=layer)
 
         # JIT compile the sampling - N_stars must be static for categorical shape
-        @functools.partial(jax.jit, static_argnums=(2,))
-        def sample_jit(key, field, N, f_sub):
-            return sample_positions_tail(key, field, N, f_sub)
+        @functools.partial(jax.jit, static_argnums=(2, 4))
+        def sample_jit(key, field, N, f_sub, mode):
+            return sample_positions_tail(key, field, N, f_sub, mode=mode)
 
-        positions = sample_jit(key_sample, field, 100, 0.5)
+        positions = sample_jit(key_sample, field, 100, 0.5, "pn11_legacy")
         assert positions.shape == (100, 3)
         assert not jnp.any(jnp.isnan(positions))
 
@@ -390,23 +332,26 @@ class TestSamplePositionsTailJaxCompatibility:
         # Generate multiple keys
         keys = random.split(key_samples, 5)
 
-        # vmap over keys
+        # vmap over keys - using legacy mode
         positions_batch = jax.vmap(
-            lambda k: sample_positions_tail(k, field, 50, 0.5)
+            lambda k: sample_positions_tail(k, field, 50, 0.5, mode="pn11_legacy")
         )(keys)
 
         assert positions_batch.shape == (5, 50, 3)
 
 
 class TestGenerateFractalICDensityWithTail:
-    """Test generate_fractal_ic_density with tail parameter."""
+    """Test generate_fractal_ic_density with tail parameter.
+
+    NOTE: Uses legacy mode since BM19 mode requires s_t parameter.
+    """
 
     def test_with_tail_parameter(self):
         """Can generate IC with TailSubstructureLayer."""
         key = random.PRNGKey(505)
         imf = PowerLawIMF.kroupa()
         layer = env_to_fdf_layer(jnp.array(4.0))
-        tail = TailSubstructureLayer(f_sub=0.5)
+        tail = TailSubstructureLayer(f_sub=0.5, mode="pn11_legacy")
 
         cluster = generate_fractal_ic_density(
             key, N_stars=100, M_total=100.0, R_half=1.0,

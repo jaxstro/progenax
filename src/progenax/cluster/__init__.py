@@ -62,11 +62,71 @@ from progenax.cluster.fdf_calibration import (
 # FDF Density API (v3 fractal substructure via density field sampling)
 from progenax.cluster.fdf_density import (
     FractalDensityLayer,
+    TailSubstructureLayer,
     DensityField3D,
     generate_fractal_ic_density,
     init_turbulent_density_field,
     sample_positions_from_density,
+    sample_positions_tail,
     density_layer_from_D,
+)
+
+# FDF Tail Selection (BM19-consistent)
+from progenax.cluster.fdf_tail import (
+    TailPMFResult,
+    compute_tail_pmfs_bm19,
+    sample_positions_tail_bm19,
+)
+
+# Physical constants
+from progenax.cluster.constants import (
+    G_KMS,
+    C_S_DEFAULT,
+    B_DEFAULT,
+    BETA_KOLMOGOROV,
+    BETA_BURGERS,
+    SIGMA_V0_DEFAULT,
+    ALPHA_LARSON,
+    CHI_MIN,
+    CHI_MAX,
+)
+
+# Turbulence physics
+from progenax.cluster.turbulence import (
+    sigma_ln_rho_from_mach,
+    spectral_slope_from_mach,
+    cloud_radius_from_density,
+    larson_sigma_v,
+    turbulent_mach_from_cloud,
+    b_from_environment,
+)
+
+# FDF Hyperparameters
+from progenax.cluster.fdf_hyperparams import (
+    FDFDensityHyperparams,
+    FDFDisplacementHyperparams,
+    FDFUncalibratedHeuristics,
+    FDF_DENSITY_DEFAULTS,
+    FDF_DISPLACEMENT_DEFAULTS,
+    FDF_HEURISTICS,
+)
+
+# Gravoturbulent Environment
+from progenax.cluster.gravoturbulent import (
+    GravoturbulentEnv,
+    TailSelectionConfig,
+    GRAVOTURBULENT_PRESETS,
+    env_from_preset,
+    tail_layer_from_env,
+)
+
+# Environment mapping and phenomenological helpers
+from progenax.cluster.fdf_config import (
+    env_to_fdf_layer,
+    default_f_sub_for_cluster_type,
+    tail_layer_from_cluster_type,
+    f_sub_from_D,
+    tail_layer_from_D,
 )
 
 __all__ = [
@@ -93,9 +153,52 @@ __all__ = [
     "fractal_layer_from_D",
     # FDF Density API (density field sampling)
     "FractalDensityLayer",
+    "TailSubstructureLayer",
     "DensityField3D",
     "generate_fractal_ic_density",
     "init_turbulent_density_field",
     "sample_positions_from_density",
+    "sample_positions_tail",
     "density_layer_from_D",
+    # FDF Tail Selection (BM19-consistent)
+    "TailPMFResult",
+    "compute_tail_pmfs_bm19",
+    "sample_positions_tail_bm19",
+    # Physical constants
+    "G_KMS",
+    "C_S_DEFAULT",
+    "B_DEFAULT",
+    "BETA_KOLMOGOROV",
+    "BETA_BURGERS",
+    "SIGMA_V0_DEFAULT",
+    "ALPHA_LARSON",
+    "CHI_MIN",
+    "CHI_MAX",
+    # Turbulence physics
+    "sigma_ln_rho_from_mach",
+    "spectral_slope_from_mach",
+    "cloud_radius_from_density",
+    "larson_sigma_v",
+    "turbulent_mach_from_cloud",
+    "b_from_environment",
+    # FDF Hyperparameters
+    "FDFDensityHyperparams",
+    "FDFDisplacementHyperparams",
+    "FDFUncalibratedHeuristics",
+    "FDF_DENSITY_DEFAULTS",
+    "FDF_DISPLACEMENT_DEFAULTS",
+    "FDF_HEURISTICS",
+    # Gravoturbulent Environment
+    "GravoturbulentEnv",
+    "TailSelectionConfig",
+    "GRAVOTURBULENT_PRESETS",
+    "env_from_preset",
+    "tail_layer_from_env",
+    # Environment mapping
+    "env_to_fdf_layer",
+    # Phenomenological helpers
+    "default_f_sub_for_cluster_type",
+    "tail_layer_from_cluster_type",
+    "f_sub_from_D",
+    "tail_layer_from_D",
 ]
