@@ -216,14 +216,14 @@ def make_sigma_dependence_plot(show: bool = False) -> str:
 
     machs = np.linspace(5, 35, 50)
     Sigmas = [50, 100, 200, 500]
-    alphas_bm19 = [1.5, 2.0, 2.5, 3.0]
+    alphas_bm19 = [1.5, 1.8, 2.0, 2.3]  # Realistic range from BM19
     b = 0.4
 
     # Colors for PN11 (by Sigma) - dashed lines
     colors_sigma = {50: "C0", 100: "C1", 200: "C2", 500: "C3"}
 
     # Colors for BM19 (by alpha) - solid lines
-    colors_alpha = {1.5: "purple", 2.0: "darkred", 2.5: "darkorange", 3.0: "darkgreen"}
+    colors_alpha = {1.5: "purple", 1.8: "darkred", 2.0: "darkorange", 2.3: "darkgreen"}
 
     # PN11 for different Sigma (dashed)
     for Sigma in Sigmas:
