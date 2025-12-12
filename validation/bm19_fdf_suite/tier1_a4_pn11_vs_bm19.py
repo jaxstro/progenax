@@ -13,7 +13,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from progenax.gravoturb import bm19_model as bm19, legacy_pn11
+from progenax.gravoturb import bm19_model as bm19, pn11_model as pn11
 
 from .helpers import (
     setup_publication_style,
@@ -58,7 +58,7 @@ def run_validation(
         machs = np.linspace(5, 35, 50)
 
     # PN11 prediction (uses alpha_vir from Sigma)
-    alpha_vir = float(legacy_pn11.alpha_vir_from_sigma(Sigma))
+    alpha_vir = float(pn11.alpha_vir_from_sigma(Sigma))
     if verbose:
         print(f"\nPN11 parameters: Sigma={Sigma}, alpha_vir={alpha_vir:.2f}")
 
@@ -66,8 +66,8 @@ def run_validation(
     s_crit_pn11_vals = []
     for mach in machs:
         sigma_sq = float(bm19.sigma_s_squared(mach, b))
-        s_crit = float(legacy_pn11.s_crit_pn11(mach, alpha_vir))
-        f_pn11 = float(legacy_pn11.f_dense_pn11(sigma_sq, s_crit))
+        s_crit = float(pn11.s_crit_pn11(mach, alpha_vir))
+        f_pn11 = float(pn11.f_dense_pn11(sigma_sq, s_crit))
         f_dense_pn11.append(f_pn11)
         s_crit_pn11_vals.append(s_crit)
 
@@ -223,12 +223,12 @@ def make_sigma_dependence_plot(show: bool = False) -> str:
 
     # PN11 for different Sigma
     for Sigma in Sigmas:
-        alpha_vir = float(legacy_pn11.alpha_vir_from_sigma(Sigma))
+        alpha_vir = float(pn11.alpha_vir_from_sigma(Sigma))
         f_dense_pn11 = []
         for mach in machs:
             sigma_sq = float(bm19.sigma_s_squared(mach, b))
-            s_crit = float(legacy_pn11.s_crit_pn11(mach, alpha_vir))
-            f_dense_pn11.append(float(legacy_pn11.f_dense_pn11(sigma_sq, s_crit)))
+            s_crit = float(pn11.s_crit_pn11(mach, alpha_vir))
+            f_dense_pn11.append(float(pn11.f_dense_pn11(sigma_sq, s_crit)))
 
         ax.semilogy(
             machs, f_dense_pn11,
@@ -287,10 +287,10 @@ def main():
 
     # Quantify difference at reference point
     mach_ref = 10.0
-    alpha_vir = float(legacy_pn11.alpha_vir_from_sigma(100.0))
+    alpha_vir = float(pn11.alpha_vir_from_sigma(100.0))
     sigma_sq = float(bm19.sigma_s_squared(mach_ref, 0.4))
-    s_crit = float(legacy_pn11.s_crit_pn11(mach_ref, alpha_vir))
-    f_pn11 = float(legacy_pn11.f_dense_pn11(sigma_sq, s_crit))
+    s_crit = float(pn11.s_crit_pn11(mach_ref, alpha_vir))
+    f_pn11 = float(pn11.f_dense_pn11(sigma_sq, s_crit))
     f_bm19 = float(bm19.bm19_pipeline(mach_ref, 0.4, 2.0, 0.6).f_dense)
 
     print(f"\nAt M=10, Sigma=100:")

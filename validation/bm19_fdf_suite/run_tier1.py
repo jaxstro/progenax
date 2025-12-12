@@ -140,4 +140,14 @@ def run_all_tier1():
 
 
 if __name__ == "__main__":
+    # Allow running as both `python run_tier1.py` and `python -m validation.bm19_fdf_suite.run_tier1`
+    import sys
+    import os
+
+    # Add progenax to path if running as standalone script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    progenax_root = os.path.dirname(os.path.dirname(script_dir))
+    if progenax_root not in sys.path:
+        sys.path.insert(0, progenax_root)
+
     run_all_tier1()
