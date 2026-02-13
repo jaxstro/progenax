@@ -67,6 +67,8 @@ from jax import random
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
+from progenax import defaults
+
 
 # =============================================================================
 # Heuristics Import (quarantined - not physics-derived)
@@ -1092,7 +1094,7 @@ def generate_fractal_ic_density(
         This OVERRIDES the `tail` parameter with a physics-derived f_sub.
         This is the RECOMMENDED interface when birth cloud properties are known.
     G : float, optional
-        Gravitational constant. Uses jaxstro.units.STELLAR.G if None.
+        Gravitational constant. Uses progenax.DEFAULT_UNITS.G if None.
 
     Returns
     -------
@@ -1134,9 +1136,7 @@ def generate_fractal_ic_density(
     from progenax.dynamics.virial import compute_potential_energy
 
     if G is None:
-        from jaxstro.units import STELLAR
-
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     # Split keys
     key_imf, key_field, key_pos, key_vel = random.split(key, 4)

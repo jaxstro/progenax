@@ -233,15 +233,16 @@ velocities = velocity_df.sample_velocities(positions, masses, key, G=STELLAR.G)
 # PLANETARY.G for binaries/planets (~39.478 AU³ Msun⁻¹ yr⁻² = 4π²)
 orbit = two_body_kepler(a=1.0, e=0.3, m1=1.0, m2=1.0, G=PLANETARY.G)
 
-# Default behavior: G=None uses jaxstro.units.DEFAULT.G (= STELLAR.G)
-velocities = velocity_df.sample_velocities(positions, masses, key)  # Uses STELLAR.G
+# Convenience default (wrapper behavior only)
+from progenax import DEFAULT_UNITS
+velocities = velocity_df.sample_velocities(positions, masses, key, G=DEFAULT_UNITS.G)
 ```
 
 | Unit System | G Value | Units | Use Case |
 |-------------|---------|-------|----------|
 | `STELLAR` | ~0.00450 | pc³ Msun⁻¹ Myr⁻² | Star clusters, galaxies |
 | `PLANETARY` | ~39.478 | AU³ Msun⁻¹ yr⁻² | Binaries, planets |
-| `DEFAULT` | = STELLAR | - | Default for progenax |
+| `DEFAULT_UNITS` | = STELLAR | - | Default for progenax |
 
 ## Architecture
 

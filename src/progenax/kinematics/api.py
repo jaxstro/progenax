@@ -43,6 +43,7 @@ import jax.numpy as jnp
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
+from progenax import defaults
 from progenax.kinematics.anisotropy import apply_osipkov_merritt
 from progenax.kinematics.rotation import (
     apply_solid_body_rotation,
@@ -193,7 +194,7 @@ def sample_velocities_pipeline(
         positions: Particle positions (N, 3) [length units].
         masses: Particle masses (N,) [mass units].
         model: VelocityModel specifying DF + transforms + target Q.
-        G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G.
+        G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
 
     Returns:
         velocities: Particle velocities (N, 3) [velocity units].
@@ -214,8 +215,7 @@ def sample_velocities_pipeline(
         - COM motion is removed after rescaling
     """
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     # Split key for each stage that needs randomness
     key_df, key_aniso = jax.random.split(key, 2)

@@ -90,3 +90,24 @@ class TestPlummerVelocityDFPhysics:
 
         q2_mean = jnp.mean(q**2)
         assert jnp.abs(q2_mean - 0.25) < 0.01
+
+
+class TestPlummerVelocityDFDefaults:
+    """Tests for default-unit behavior."""
+
+    def test_default_units_used_when_g_none(self, monkeypatch):
+        """G=None should use progenax.defaults.DEFAULT_UNITS.G."""
+        from jaxstro.units import CGS
+        from progenax import defaults
+
+        df = PlummerVelocityDF(r_h=1.0)
+        N = 16
+        positions = jnp.zeros((N, 3))
+        masses = jnp.ones(N)
+        key = jax.random.PRNGKey(123)
+
+        monkeypatch.setattr(defaults, "DEFAULT_UNITS", CGS)
+        velocities_default = df.sample_velocities(positions, masses, key, G=None)
+        velocities_explicit = df.sample_velocities(positions, masses, key, G=CGS.G)
+
+        assert jnp.allclose(velocities_default, velocities_explicit)

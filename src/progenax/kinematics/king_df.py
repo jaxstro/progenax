@@ -10,6 +10,8 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax import defaults
+
 
 class KingVelocityDF(eqx.Module):
     """
@@ -99,7 +101,7 @@ class KingVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M☉]
             key: JAX random key
-            G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
+            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
@@ -111,8 +113,7 @@ class KingVelocityDF(eqx.Module):
             - Uses simplified velocity dispersion profile
         """
         if G is None:
-            from jaxstro.units import STELLAR
-            G = STELLAR.G
+            G = defaults.DEFAULT_UNITS.G
 
         N = positions.shape[0]
         M_total = jnp.sum(masses)

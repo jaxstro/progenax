@@ -74,7 +74,7 @@ class VelocityDF(Protocol):
             positions: Particle positions (N, 3)
             masses: Particle masses (N,)
             key: JAX random key
-            G: Gravitational constant. If None, uses jaxstro.units.DEFAULT.G
+            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:

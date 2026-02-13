@@ -13,6 +13,8 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax import defaults
+
 
 class EFFVelocityDF(eqx.Module):
     """
@@ -94,7 +96,7 @@ class EFFVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [mass units]
             key: JAX random key for reproducible sampling
-            G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
+            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
                (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
 
         Returns:
@@ -106,8 +108,7 @@ class EFFVelocityDF(eqx.Module):
             - Mean velocity is zero (no bulk motion)
         """
         if G is None:
-            from jaxstro.units import STELLAR
-            G = STELLAR.G
+            G = defaults.DEFAULT_UNITS.G
 
         N = positions.shape[0]
         M_total = jnp.sum(masses)

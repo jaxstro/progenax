@@ -11,6 +11,7 @@ from jaxstro.jaxconfig import enable_high_precision as _enable_jax_hp
 _enable_jax_hp()
 del _enable_jax_hp  # avoid leaking into public API
 
+from .defaults import DEFAULT_UNITS
 from .protocols import SpatialProfile, VelocityDF, IMFProtocol
 from .profiles import PlummerProfile, KingProfile, EFFProfile, solve_king_profile
 from .kinematics import PlummerVelocityDF, KingVelocityDF, EFFVelocityDF
@@ -67,6 +68,7 @@ from .populations import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "DEFAULT_UNITS",
     # Protocols
     "SpatialProfile",
     "VelocityDF",

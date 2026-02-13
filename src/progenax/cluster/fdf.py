@@ -42,6 +42,8 @@ import jax.numpy as jnp
 from jax import Array, random
 from jaxtyping import Float, PRNGKeyArray
 
+from progenax import defaults
+
 
 # =============================================================================
 # Data Structures
@@ -637,7 +639,7 @@ def generate_fractal_ic(
         For long-running inference loops, precompute and pass in a frozen
         FractalField to avoid reinitialization overhead.
     G : float, optional
-        Gravitational constant. If None, uses jaxstro.units.STELLAR.G.
+        Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
 
     Returns
     -------
@@ -657,8 +659,7 @@ def generate_fractal_ic(
     from progenax.profiles import sample_density_profile
 
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     # Split keys
     key_imf, key_pos, key_field, key_vel = random.split(key, 4)

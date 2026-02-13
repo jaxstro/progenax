@@ -42,6 +42,8 @@ import jax.numpy as jnp
 from jax import Array, random
 from jaxtyping import Bool, Float, Int, PRNGKeyArray
 
+from progenax import defaults
+
 
 def _estimate_required_generations(
     N_stars: int,
@@ -449,15 +451,14 @@ def rescale_velocities_to_virial(
         velocities: (N, 3) raw velocities from fractal random walk
         masses: (N,) particle masses
         target_Q_vir: Desired virial ratio (0.5 = equilibrium)
-        G: Gravitational constant (default: jaxstro.units.STELLAR.G)
+        G: Gravitational constant (default: progenax.DEFAULT_UNITS.G)
         softening: Softening length for potential calculation
 
     Returns:
         velocities_scaled: (N, 3) with Q = target_Q_vir (in COM frame)
     """
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     from progenax.dynamics.virial import compute_potential_energy
 
@@ -512,8 +513,7 @@ def assign_velocities_and_virialize(
         velocities: (N, 3) scaled to target_Q_vir
     """
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     N = masses.shape[0]
 

@@ -26,6 +26,7 @@ import jax.numpy as jnp
 import numpy as np
 from jax import Array
 
+from progenax import defaults
 from progenax.cluster import (
     ClusterState,
     FractalLayer,
@@ -275,15 +276,14 @@ def measure_virial_ratio(
         N_stars: Number of stars
         M_total: Total mass [Msun]
         R_half: Half-mass radius [pc]
-        G: Gravitational constant (default: stellar units)
+        G: Gravitational constant (default: progenax.DEFAULT_UNITS.G)
         softening: Softening length for potential [pc]
 
     Returns:
         Measured Q_vir = K/|U|
     """
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     imf = PowerLawIMF.kroupa()
 

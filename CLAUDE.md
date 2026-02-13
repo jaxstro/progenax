@@ -17,28 +17,26 @@ pytest tests/integration/ -v        # 42 integration tests
 pytest tests/validation/ -v         # 80 physics validation tests
 ```
 
-## jaxstro Unit Systems (MANDATORY)
+## Units Policy (progenax)
 
-**ALL physics functions use jaxstro unit systems - NEVER hardcode G values.**
+**DEFAULT_UNITS:** `STELLAR` (Msun, pc, Myr)
 
+Rules:
+- Core APIs require explicit `G` or `units` (or objects that carry units).
+- Convenience wrappers may accept `units=None` and resolve to `DEFAULT_UNITS`.
+- Do **not** use global context managers or `get_G()` in core code.
+
+Example:
 ```python
-from jaxstro.units import STELLAR, PLANETARY
+from jaxstro.units import STELLAR
+from progenax import DEFAULT_UNITS
 
-# Star clusters: STELLAR.G (~0.00450 pc³ Msun⁻¹ Myr⁻²)
+# Core (explicit)
 velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 
-# Binaries/planets: PLANETARY.G (~39.478 AU³ Msun⁻¹ yr⁻² = 4π²)
-orbit = two_body_kepler(a=1.0, e=0.3, m1=1.0, m2=1.0, G=PLANETARY.G)
-
-# Default: G=None uses jaxstro.units.DEFAULT.G (= STELLAR.G)
-velocities = df.sample_velocities(positions, masses, key)  # Uses STELLAR.G
+# Wrapper (optional)
+velocities = df.sample_velocities(positions, masses, key, G=DEFAULT_UNITS.G)
 ```
-
-| Unit System | G Value | Units | Use Case |
-|-------------|---------|-------|----------|
-| `STELLAR` | ~0.00450 | pc³ Msun⁻¹ Myr⁻² | Star clusters, galaxies |
-| `PLANETARY` | ~39.478 | AU³ Msun⁻¹ yr⁻² | Binaries, planets |
-| `DEFAULT` | = STELLAR | - | Default for progenax |
 
 ## Key Patterns
 

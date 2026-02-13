@@ -48,6 +48,7 @@ import jax.numpy as jnp
 from jax import Array, random
 from jaxtyping import Float, PRNGKeyArray
 
+from progenax import defaults
 from progenax.profiles.api import (
     sample_density_profile,
     compute_profile_potential,
@@ -280,7 +281,7 @@ def generate_cluster_ic(
         imf_params: IMF instance (e.g., PowerLawIMF.kroupa()) providing a
                     `.sample(key, n)` method for mass sampling
         structure_params: SpatialStructureParams with profile and layers
-        G: Gravitational constant. If None, uses jaxstro.units.STELLAR.G
+        G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
         **kwargs: Profile-specific parameters (W0 for King, gamma for EFF)
 
     Returns:
@@ -329,8 +330,7 @@ def generate_cluster_ic(
     """
     # Handle G parameter
     if G is None:
-        from jaxstro.units import STELLAR
-        G = STELLAR.G
+        G = defaults.DEFAULT_UNITS.G
 
     profile = structure_params.base_profile
     frac = structure_params.fractal
