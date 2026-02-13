@@ -730,6 +730,63 @@ def plot_residuals(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Panel (d): Precision scaling -- σ(α) vs N
+# ═══════════════════════════════════════════════════════════════════════════
+
+def plot_scaling(
+    ax: plt.Axes,
+    scaling_points: list[ScalingPoint],
+) -> None:
+    """Panel (d): posterior width and bias vs sample size."""
+    naive_pts = [p for p in scaling_points if p.method == "naive"]
+    aware_pts = [p for p in scaling_points if p.method == "binary_aware"]
+
+    n_naive = [p.n_masses for p in naive_pts]
+    n_aware = [p.n_masses for p in aware_pts]
+    sigma_naive = [p.ci_width for p in naive_pts]
+    sigma_aware = [p.ci_width for p in aware_pts]
+    bias_naive = [abs(p.bias) for p in naive_pts]
+
+    c_aware = ENV_COLORS[SCALING_ENV_IDX]
+    c_naive = ENV_COLORS[SCALING_ENV_IDX]
+
+    # 95% CI width (σ proxy)
+    ax.plot(n_aware, sigma_aware, "o-", color=c_aware, lw=1.3,
+            markersize=5, markeredgecolor="white", markeredgewidth=0.6,
+            label=r"Binary-aware 95% CI", zorder=3)
+    ax.plot(n_naive, sigma_naive, "D--", color=c_naive, lw=1.0,
+            markersize=4, alpha=0.5,
+            markeredgecolor=c_naive, markeredgewidth=0.8,
+            label=r"Naive 95% CI", zorder=2)
+
+    # Naive |bias| — stays constant while CI shrinks
+    ax.plot(n_naive, bias_naive, "s:", color="#D55E00", lw=1.0,
+            markersize=4, alpha=0.8,
+            label=r"Naive $|\mathrm{bias}|$", zorder=2)
+
+    # √N reference line (anchored to aware at N=1000)
+    n_ref = np.array([400, 40000])
+    ref_pt = aware_pts[1] if len(aware_pts) > 1 else aware_pts[0]
+    sigma_ref = ref_pt.ci_width * np.sqrt(ref_pt.n_masses / n_ref)
+    ax.plot(n_ref, sigma_ref, ls="-", color="0.75", lw=0.8, zorder=0)
+    ax.text(35000, sigma_ref[-1] * 1.3, r"$\propto 1/\sqrt{N}$",
+            fontsize=6, color="0.55", ha="right")
+
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel(r"Sample size $N$")
+    ax.set_ylabel(r"95% CI width or $|\mathrm{bias}|$")
+    ax.set_title(r"(d) Precision scaling (Solar, $\alpha=2.30$)", fontsize=9)
+
+    ax.legend(loc="upper right", framealpha=0.9, fontsize=5.5,
+              edgecolor=PALETTE["light"], handletextpad=0.4)
+
+    ax.minorticks_on()
+    ax.tick_params(which="both", direction="out")
+    ax.tick_params(which="minor", length=2)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Figure assembly
 # ═══════════════════════════════════════════════════════════════════════════
 
