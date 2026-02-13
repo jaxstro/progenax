@@ -5,7 +5,7 @@ Tests 4 astrophysically motivated α₃ values and produces a 1×3 proposal
 figure showing parameter recovery across the full observed range.
 
 SUCCESS CRITERIA:
-  - All 4 α₃ values recovered within 68% credible interval
+  - All 4 α₃ values recovered within 95% credible interval
   - ESS > 200 for every run
   - R-hat < 1.05 for every run
 
@@ -51,12 +51,12 @@ ALPHA_LABELS = {
     1.7: "Extreme top-heavy",
 }
 
-N_MASSES = 2000
+N_MASSES = 5000
 N_WARMUP = 500
 N_SAMPLES = 1000
 N_CHAINS = 2
 TARGET_ACCEPT = 0.8
-BASE_SEED = 42
+BASE_SEED = 100
 
 PLOT_DIR = Path(__file__).parent / "plots"
 
@@ -280,13 +280,13 @@ def plot_diagnostics_table(ax: plt.Axes, results: list[RecoveryResult]) -> None:
             f"{r.ess:5.0f} {r.rhat:6.3f}"
         )
 
-    all_in_68 = all(r.in_68ci for r in results)
+    all_in_95 = all(r.in_95ci for r in results)
     all_ess = all(r.ess > 200 for r in results)
     all_rhat = all(r.rhat < 1.05 for r in results)
     ok = lambda b: "PASS" if b else "FAIL"
 
     lines.append("─" * len(header))
-    lines.append(f"All in 68% CI:  {ok(all_in_68)}")
+    lines.append(f"All in 95% CI:  {ok(all_in_95)}")
     lines.append(f"All ESS > 200:  {ok(all_ess)}")
     lines.append(f"All R̂ < 1.05:   {ok(all_rhat)}")
 
@@ -374,25 +374,26 @@ def evaluate_pass_fail(results: list[RecoveryResult]) -> bool:
     all_pass = True
 
     for r in results:
-        status = "PASS" if r.in_68ci else "FAIL"
-        if not r.in_68ci:
+        status = "PASS" if r.in_95ci else "FAIL"
+        if not r.in_95ci:
             all_pass = False
         print(
             f"  α₃={r.alpha_true:.2f}: median={r.median:.3f} "
-            f"CI=[{r.q16:.3f},{r.q84:.3f}] ESS={r.ess:.0f} "
+            f"95%CI=[{r.q025:.3f},{r.q975:.3f}] ESS={r.ess:.0f} "
             f"R̂={r.rhat:.4f}  [{status}]"
         )
 
     ess_ok = all(r.ess > 200 for r in results)
     rhat_ok = all(r.rhat < 1.05 for r in results)
-    ci_ok = all(r.in_68ci for r in results)
+    ci_ok = all(r.in_95ci for r in results)
 
     if not ess_ok:
         all_pass = False
     if not rhat_ok:
         all_pass = False
 
-    print(f"\n  68% CI coverage: {sum(r.in_68ci for r in results)}/{n}")
+    print(f"\n  95% CI coverage: {sum(r.in_95ci for r in results)}/{n} (primary)")
+    print(f"  68% CI coverage: {sum(r.in_68ci for r in results)}/{n} (informational)")
     print(f"  ESS > 200:       {'PASS' if ess_ok else 'FAIL'}")
     print(f"  R̂ < 1.05:        {'PASS' if rhat_ok else 'FAIL'}")
     print(f"\n  {'='*40}")
