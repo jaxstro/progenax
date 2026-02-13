@@ -885,6 +885,10 @@ def main() -> None:
         "--plot-only", action="store_true",
         help="Skip HMC, re-plot from saved results",
     )
+    parser.add_argument(
+        "--run-scaling", action="store_true",
+        help="Run scaling experiment (N vs precision) for panel (d)",
+    )
     args = parser.parse_args()
 
     print("=" * 65)
@@ -892,16 +896,29 @@ def main() -> None:
     print(f"  {len(ENV_CONFIGS)} environments x 2 methods")
     print("=" * 65)
 
+    # --- Main 4-environment recovery ---
     if args.plot_only:
         naive_results, aware_results = load_results()
     else:
         naive_results, aware_results = run_all_recoveries()
         save_results(naive_results, aware_results)
 
+    # --- Scaling experiment (panel d) ---
+    scaling_points = None
+    if args.run_scaling:
+        print("\n" + "=" * 65)
+        print("  Scaling experiment: σ(α) vs N  (Solar environment)")
+        print("=" * 65)
+        scaling_points = run_scaling_experiment()
+        save_scaling_results(scaling_points)
+    elif (RESULTS_DIR / "scaling_results.json").exists():
+        scaling_points = load_scaling_results()
+
+    # --- Figure ---
     print("\nCreating figure...")
     PLOT_DIR.mkdir(parents=True, exist_ok=True)
     set_paper(light=True)
-    create_main_figure(naive_results, aware_results)
+    create_main_figure(naive_results, aware_results, scaling_points)
 
     passed = evaluate(naive_results, aware_results)
     if not passed:
