@@ -793,15 +793,22 @@ def plot_scaling(
 def create_main_figure(
     naive_results: list[RecoveryResult],
     aware_results: list[RecoveryResult],
+    scaling_points: list[ScalingPoint] | None = None,
 ) -> None:
-    """Create the 1x3 proposal figure."""
-    fig, axes = plt.subplots(1, 3, figsize=(7.25, 2.75))
-
-    plot_system_mf(axes[0], naive_results, aware_results)
-    plot_recovery(axes[1], naive_results, aware_results)
-    plot_residuals(axes[2], naive_results, aware_results)
-
-    fig.tight_layout(w_pad=1.2)
+    """Create the 2x2 proposal figure (or 1x3 if no scaling data)."""
+    if scaling_points is not None:
+        fig, axes = plt.subplots(2, 2, figsize=(7.25, 5.0))
+        plot_system_mf(axes[0, 0], naive_results, aware_results)
+        plot_recovery(axes[0, 1], naive_results, aware_results)
+        plot_residuals(axes[1, 0], naive_results, aware_results)
+        plot_scaling(axes[1, 1], scaling_points)
+        fig.tight_layout(w_pad=1.4, h_pad=1.8)
+    else:
+        fig, axes = plt.subplots(1, 3, figsize=(7.25, 2.75))
+        plot_system_mf(axes[0], naive_results, aware_results)
+        plot_recovery(axes[1], naive_results, aware_results)
+        plot_residuals(axes[2], naive_results, aware_results)
+        fig.tight_layout(w_pad=1.2)
 
     savefig(fig, PLOT_DIR / "binary_aware_recovery.png")
     savefig(fig, PLOT_DIR / "binary_aware_recovery.pdf")
