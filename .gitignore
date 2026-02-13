@@ -212,5 +212,9 @@ __marimo__/
 # Reference papers and implementation guides (large PDFs)
 docs/core-papers/
 
+# Validation plots (regeneratable artifacts)
+*.png
+*.pdf
+
 # macOS
 .DS_Store
