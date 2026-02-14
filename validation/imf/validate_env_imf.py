@@ -32,7 +32,7 @@ from progenax.imf.differentiable import individual_mass_nll, log_prob_masses
 
 
 # Output directory - dedicated subfolder for environment IMF plots
-PLOT_DIR = Path(__file__).parent / "plots" / "env_imf"
+PLOT_DIR = Path(__file__).parent / "plots"
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
 
