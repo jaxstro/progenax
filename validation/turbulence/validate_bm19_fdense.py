@@ -16,10 +16,14 @@ Run with:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+
+PLOT_DIR = Path(__file__).parent / "plots"
 
 from progenax.gravoturb import bm19_model as bm19
 
@@ -194,8 +198,8 @@ def generate_parameter_sweep_plot():
 
     # Save plot
     plt.tight_layout()
-    plt.savefig("validation/plots/bm19_fdense_parameter_sweep.png", dpi=150)
-    print("  Saved: validation/plots/bm19_fdense_parameter_sweep.png")
+    plt.savefig(str(PLOT_DIR / "bm19_fdense_parameter_sweep.png"), dpi=150)
+    print(f"  Saved: {PLOT_DIR / 'bm19_fdense_parameter_sweep.png'}")
     plt.close()
 
 
@@ -243,8 +247,8 @@ def generate_comparison_plot():
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("validation/plots/bm19_fdense_comparison.png", dpi=150)
-    print("  Saved: validation/plots/bm19_fdense_comparison.png")
+    plt.savefig(str(PLOT_DIR / "bm19_fdense_comparison.png"), dpi=150)
+    print(f"  Saved: {PLOT_DIR / 'bm19_fdense_comparison.png'}")
     plt.close()
 
 
@@ -273,8 +277,8 @@ def main():
     print("  2. Mach scaling: f_dense ↓ as Mach ↑ (correct)")
     print("  3. Alpha scaling: f_dense ↓ as α ↑ (correct)")
     print(f"  4. Gradient signs: {'PASS ✓' if gradients_pass else 'FAIL ✗'}")
-    print("  5. Parameter sweep plot: validation/plots/bm19_fdense_parameter_sweep.png")
-    print("  6. Comparison plot: validation/plots/bm19_fdense_comparison.png")
+    print(f"  5. Parameter sweep plot: {PLOT_DIR / 'bm19_fdense_parameter_sweep.png'}")
+    print(f"  6. Comparison plot: {PLOT_DIR / 'bm19_fdense_comparison.png'}")
     print("=" * 70)
 
 

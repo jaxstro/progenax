@@ -50,7 +50,7 @@ plt.rcParams.update({
     "font.family": "serif",
 })
 
-PLOT_DIR = Path(__file__).parent / "plots" / "gravoturbulent"
+PLOT_DIR = Path(__file__).parent / "plots"
 PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
 

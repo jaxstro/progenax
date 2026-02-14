@@ -16,9 +16,13 @@ Run with:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+
+PLOT_DIR = Path(__file__).parent / "plots"
 
 from progenax.gravoturb import bm19_model as bm19, legacy_pn11
 
@@ -172,8 +176,8 @@ def generate_comparison_plot(machs, bm19_values, pn11_values):
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("validation/plots/bm19_vs_pn11_comparison.png", dpi=150)
-    print("  Saved: validation/plots/bm19_vs_pn11_comparison.png")
+    plt.savefig(str(PLOT_DIR / "bm19_vs_pn11_comparison.png"), dpi=150)
+    print(f"  Saved: {PLOT_DIR / 'bm19_vs_pn11_comparison.png'}")
     plt.close()
 
 
@@ -224,8 +228,8 @@ def generate_surface_density_sweep():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("validation/plots/bm19_vs_pn11_sigma_dependence.png", dpi=150)
-    print("  Saved: validation/plots/bm19_vs_pn11_sigma_dependence.png")
+    plt.savefig(str(PLOT_DIR / "bm19_vs_pn11_sigma_dependence.png"), dpi=150)
+    print(f"  Saved: {PLOT_DIR / 'bm19_vs_pn11_sigma_dependence.png'}")
     plt.close()
 
 
@@ -267,8 +271,8 @@ def main():
     print("   BM19 is more predictive for diverse environments")
 
     print("\n5. PLOTS GENERATED:")
-    print("   - validation/plots/bm19_vs_pn11_comparison.png")
-    print("   - validation/plots/bm19_vs_pn11_sigma_dependence.png")
+    print(f"   - {PLOT_DIR / 'bm19_vs_pn11_comparison.png'}")
+    print(f"   - {PLOT_DIR / 'bm19_vs_pn11_sigma_dependence.png'}")
     print("=" * 70)
 
 

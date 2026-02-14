@@ -16,11 +16,15 @@ Run with:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jax
 import jax.numpy as jnp
 import jax.random as random
 import matplotlib.pyplot as plt
 import numpy as np
+
+PLOT_DIR = Path(__file__).parent / "plots"
 
 from progenax.cluster.fdf_density import FractalDensityLayer, init_turbulent_density_field
 from progenax.cluster.fdf_tail import compute_tail_pmfs_bm19
@@ -281,8 +285,8 @@ def generate_consistency_plot(n_realizations: int = 20):
     ax.set_aspect("equal")
 
     plt.tight_layout()
-    plt.savefig("validation/plots/ftail_fdense_consistency.png", dpi=150)
-    print("  Saved: validation/plots/ftail_fdense_consistency.png")
+    plt.savefig(str(PLOT_DIR / "ftail_fdense_consistency.png"), dpi=150)
+    print(f"  Saved: {PLOT_DIR / 'ftail_fdense_consistency.png'}")
     plt.close()
 
     # Compute overall statistics
@@ -314,7 +318,7 @@ def main():
     print(f"  1. Single realization error: {mean_error:+.1f}% ± {std_error:.1f}%")
     print("  2. Mach trend: f_tail ↓ as Mach ↑ (matches f_dense)")
     print("  3. Alpha trend: f_tail ↓ as α ↑ (matches f_dense)")
-    print("  4. Consistency plot: validation/plots/ftail_fdense_consistency.png")
+    print(f"  4. Consistency plot: {PLOT_DIR / 'ftail_fdense_consistency.png'}")
     print("=" * 70)
     print("\nNote: Single-realization variance is expected (~20-40%) due to")
     print("      finite grid size and stochastic nature of 3D fields.")

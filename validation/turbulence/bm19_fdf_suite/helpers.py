@@ -10,6 +10,8 @@ Contains:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import jax.numpy as jnp
 import numpy as np
 from typing import NamedTuple
@@ -376,7 +378,7 @@ def relative_error_percent(measured: float | np.ndarray, expected: float | np.nd
     return 100 * (measured - expected) / expected
 
 
-def save_plot(fig, name: str, base_dir: str = "/Users/anna/projects/jaxstro-dev/progenax/validation/plots/bm19_fdf_suite"):
+def save_plot(fig, name: str, base_dir: str = str(Path(__file__).parent / "plots")):
     """Save plot with standard settings.
 
     Parameters
