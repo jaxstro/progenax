@@ -568,6 +568,7 @@ def plot_system_mf(
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlim(M_MIN, M_MAX * 2)
+    ax.set_ylim(bottom=5e-6)
     ax.set_xlabel(r"Stellar Mass $[M_\odot]$")
     ax.set_ylabel(r"$m \cdot \xi(m)$")
     ax.set_title("(a) IMF + binary distortion", fontsize=9)
@@ -789,7 +790,7 @@ def plot_scaling(
     n_ref = np.array([400, 40000])
     ref_pt = aware_pts[1] if len(aware_pts) > 1 else aware_pts[0]
     sigma_ref = ref_pt.ci_width * np.sqrt(ref_pt.n_masses / n_ref)
-    ax.plot(n_ref, sigma_ref, ls="-", color="0.65", lw=0.8, zorder=0,
+    ax.plot(n_ref, sigma_ref, ls="--", color="0.45", lw=0.9, zorder=4,
             label=r"$\propto 1/\sqrt{N}$")
 
     # Shade "confidently wrong" regime where naive |bias| > naive CI
