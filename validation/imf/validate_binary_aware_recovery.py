@@ -789,9 +789,8 @@ def plot_scaling(
     n_ref = np.array([400, 40000])
     ref_pt = aware_pts[1] if len(aware_pts) > 1 else aware_pts[0]
     sigma_ref = ref_pt.ci_width * np.sqrt(ref_pt.n_masses / n_ref)
-    ax.plot(n_ref, sigma_ref, ls="-", color="0.80", lw=0.8, zorder=0)
-    ax.text(35000, sigma_ref[-1] * 1.4, r"$\propto 1/\sqrt{N}$",
-            fontsize=6, color="0.55", ha="right")
+    ax.plot(n_ref, sigma_ref, ls="-", color="0.65", lw=0.8, zorder=0,
+            label=r"$\propto 1/\sqrt{N}$")
 
     # Shade "confidently wrong" regime where naive |bias| > naive CI
     cross_mask = bias_naive > ci_naive
@@ -802,7 +801,7 @@ def plot_scaling(
         ax.annotate(
             "confidently\nwrong",
             xy=(n_cross, ci_naive[idx]),
-            xytext=(n_cross * 0.25, ci_naive[idx] * 0.35),
+            xytext=(n_cross * 2.5, ci_naive[idx] * 0.35),
             fontsize=6, color=c_naive, alpha=0.7, ha="center",
             arrowprops=dict(arrowstyle="->", color=c_naive, alpha=0.4, lw=0.8),
         )
@@ -813,7 +812,7 @@ def plot_scaling(
     ax.set_ylabel(r"95% CI width or $|\mathrm{bias}|$")
     ax.set_title(r"(d) Precision scaling (Solar, $\alpha=2.30$)", fontsize=9)
 
-    ax.legend(loc="upper right", framealpha=0.9, fontsize=5.5,
+    ax.legend(loc="lower left", framealpha=0.9, fontsize=5.5,
               edgecolor=PALETTE["light"], handletextpad=0.4,
               ncol=1)
 
