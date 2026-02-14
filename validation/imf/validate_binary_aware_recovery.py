@@ -801,7 +801,7 @@ def plot_scaling(
         ax.annotate(
             "confidently\nwrong",
             xy=(n_cross, ci_naive[idx]),
-            xytext=(n_cross * 2.5, ci_naive[idx] * 0.35),
+            xytext=(10000, ci_naive[idx] * 0.35),
             fontsize=6, color=c_naive, alpha=0.7, ha="center",
             arrowprops=dict(arrowstyle="->", color=c_naive, alpha=0.4, lw=0.8),
         )
