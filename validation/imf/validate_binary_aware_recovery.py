@@ -479,22 +479,29 @@ class ScalingPoint:
 
 
 def run_scaling_experiment() -> list[ScalingPoint]:
-    """Run naive + binary-aware at multiple N for Solar environment."""
+    """Run naive + binary-aware at multiple N for Solar environment.
+
+    Generates masses at max(SCALING_N_VALUES) once, then subsamples
+    for smaller N to eliminate seed-dependent scatter.
+    """
     cfg = ENV_CONFIGS[SCALING_ENV_IDX]
     color = ENV_COLORS[SCALING_ENV_IDX]
     alpha_true = cfg["alpha3"]
     results = []
 
+    # Generate full population once, subsample for smaller N
+    n_max = max(SCALING_N_VALUES)
+    seed_full = BASE_SEED + 100
+    m_sys_full, f_bin = generate_system_masses(alpha_true, n_max, seed_full)
+    print(f"  Generated full population: N={n_max}, f_bin={f_bin:.2f}")
+
     for n in SCALING_N_VALUES:
         print(f"\n  Scaling: N={n}")
-        seed = BASE_SEED + 100 + n
-        m_sys, f_bin = generate_system_masses(alpha_true, n, seed)
-        print(f"    f_bin={f_bin:.2f}")
+        m_sys = m_sys_full[:n]
 
         for method in ["naive", "binary_aware"]:
-            r = run_single_recovery(
-                cfg, color, m_sys, method, seed + (1000 if method == "naive" else 2000),
-            )
+            seed = BASE_SEED + 200 + n + (1000 if method == "naive" else 2000)
+            r = run_single_recovery(cfg, color, m_sys, method, seed)
             pt = ScalingPoint(
                 n_masses=n,
                 method=method,
@@ -737,40 +744,68 @@ def plot_scaling(
     ax: plt.Axes,
     scaling_points: list[ScalingPoint],
 ) -> None:
-    """Panel (d): posterior width and bias vs sample size."""
+    """Panel (d): posterior width and bias vs sample size.
+
+    Shows 4 lines on log-log axes:
+    - Binary-aware 95% CI width (blue, solid) — shrinks as 1/√N
+    - Naive 95% CI width (vermillion, solid) — also shrinks as 1/√N
+    - Binary-aware |bias| (blue, dotted) — decreases with N (correct model)
+    - Naive |bias| (vermillion, dotted) — stays constant (wrong model)
+
+    The crossing of naive |bias| above naive CI width marks the regime
+    where the naive posterior becomes "confidently wrong".
+    """
     naive_pts = [p for p in scaling_points if p.method == "naive"]
     aware_pts = [p for p in scaling_points if p.method == "binary_aware"]
 
-    n_naive = [p.n_masses for p in naive_pts]
-    n_aware = [p.n_masses for p in aware_pts]
-    sigma_naive = [p.ci_width for p in naive_pts]
-    sigma_aware = [p.ci_width for p in aware_pts]
-    bias_naive = [abs(p.bias) for p in naive_pts]
+    n_naive = np.array([p.n_masses for p in naive_pts])
+    n_aware = np.array([p.n_masses for p in aware_pts])
+    ci_naive = np.array([p.ci_width for p in naive_pts])
+    ci_aware = np.array([p.ci_width for p in aware_pts])
+    bias_naive = np.array([abs(p.bias) for p in naive_pts])
+    bias_aware = np.array([abs(p.bias) for p in aware_pts])
 
-    c_aware = ENV_COLORS[SCALING_ENV_IDX]
-    c_naive = ENV_COLORS[SCALING_ENV_IDX]
+    # Okabe-Ito palette: blue for binary-aware, vermillion for naive
+    c_aware = "#0072B2"
+    c_naive = "#D55E00"
 
-    # 95% CI width (σ proxy)
-    ax.plot(n_aware, sigma_aware, "o-", color=c_aware, lw=1.3,
+    # --- CI width (solid lines) ---
+    ax.plot(n_aware, ci_aware, "o-", color=c_aware, lw=1.4,
             markersize=5, markeredgecolor="white", markeredgewidth=0.6,
             label=r"Binary-aware 95% CI", zorder=3)
-    ax.plot(n_naive, sigma_naive, "D--", color=c_naive, lw=1.0,
-            markersize=4, alpha=0.5,
-            markeredgecolor=c_naive, markeredgewidth=0.8,
-            label=r"Naive 95% CI", zorder=2)
+    ax.plot(n_naive, ci_naive, "D-", color=c_naive, lw=1.4,
+            markersize=4.5, markeredgecolor="white", markeredgewidth=0.6,
+            label=r"Naive 95% CI", zorder=3)
 
-    # Naive |bias| — stays constant while CI shrinks
-    ax.plot(n_naive, bias_naive, "s:", color="#D55E00", lw=1.0,
-            markersize=4, alpha=0.8,
+    # --- |bias| (dotted lines) ---
+    ax.plot(n_aware, bias_aware, "o:", color=c_aware, lw=1.0,
+            markersize=4, alpha=0.6,
+            label=r"Binary-aware $|\mathrm{bias}|$", zorder=2)
+    ax.plot(n_naive, bias_naive, "D:", color=c_naive, lw=1.0,
+            markersize=4, alpha=0.6,
             label=r"Naive $|\mathrm{bias}|$", zorder=2)
 
-    # √N reference line (anchored to aware at N=1000)
+    # √N reference line (anchored to aware CI at N=1000)
     n_ref = np.array([400, 40000])
     ref_pt = aware_pts[1] if len(aware_pts) > 1 else aware_pts[0]
     sigma_ref = ref_pt.ci_width * np.sqrt(ref_pt.n_masses / n_ref)
-    ax.plot(n_ref, sigma_ref, ls="-", color="0.75", lw=0.8, zorder=0)
-    ax.text(35000, sigma_ref[-1] * 1.3, r"$\propto 1/\sqrt{N}$",
+    ax.plot(n_ref, sigma_ref, ls="-", color="0.80", lw=0.8, zorder=0)
+    ax.text(35000, sigma_ref[-1] * 1.4, r"$\propto 1/\sqrt{N}$",
             fontsize=6, color="0.55", ha="right")
+
+    # Shade "confidently wrong" regime where naive |bias| > naive CI
+    cross_mask = bias_naive > ci_naive
+    if cross_mask.any():
+        idx = np.argmax(cross_mask)
+        n_cross = n_naive[idx]
+        ax.axvspan(n_cross * 0.7, 50000, color=c_naive, alpha=0.06, zorder=0)
+        ax.annotate(
+            "confidently\nwrong",
+            xy=(n_cross, ci_naive[idx]),
+            xytext=(n_cross * 0.25, ci_naive[idx] * 0.35),
+            fontsize=6, color=c_naive, alpha=0.7, ha="center",
+            arrowprops=dict(arrowstyle="->", color=c_naive, alpha=0.4, lw=0.8),
+        )
 
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -779,7 +814,8 @@ def plot_scaling(
     ax.set_title(r"(d) Precision scaling (Solar, $\alpha=2.30$)", fontsize=9)
 
     ax.legend(loc="upper right", framealpha=0.9, fontsize=5.5,
-              edgecolor=PALETTE["light"], handletextpad=0.4)
+              edgecolor=PALETTE["light"], handletextpad=0.4,
+              ncol=1)
 
     ax.minorticks_on()
     ax.tick_params(which="both", direction="out")
