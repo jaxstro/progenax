@@ -1,0 +1,150 @@
+---
+title: Full symbol index
+description: Alphabetical index of every public progenax symbol with classification and link to the per-module page.
+slug: api-full-symbol-index
+---
+
+# Full symbol index
+
+*Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
+
+Total public symbols: **135**
+
+| Symbol | Kind | Module |
+|--------|------|--------|
+| [`_ppf_newton`](imf.md#_ppf_newton) | function | `progenax.imf` |
+| [`alpha3_jerabkova_generalized`](imf.md#alpha3_jerabkova_generalized) | function | `progenax.imf` |
+| [`alpha3_jerabkova_mecl`](imf.md#alpha3_jerabkova_mecl) | function | `progenax.imf` |
+| [`alpha3_jerabkova_rho`](imf.md#alpha3_jerabkova_rho) | function | `progenax.imf` |
+| [`alpha3_marks_plane`](imf.md#alpha3_marks_plane) | function | `progenax.imf` |
+| [`alpha3_marks_table3`](imf.md#alpha3_marks_table3) | function | `progenax.imf` |
+| [`alpha_vir_from_sigma`](gravoturb.md#alpha_vir_from_sigma) | function | `progenax.gravoturb` |
+| [`AnalyticalIC`](analytical.md#analyticalic) | class | `progenax.analytical` |
+| [`AnisotropyParams`](kinematics.md#anisotropyparams) | class | `progenax.kinematics` |
+| [`apply_differential_rotation`](kinematics.md#apply_differential_rotation) | function | `progenax.kinematics` |
+| [`apply_osipkov_merritt`](kinematics.md#apply_osipkov_merritt) | function | `progenax.kinematics` |
+| [`apply_solid_body_rotation`](kinematics.md#apply_solid_body_rotation) | function | `progenax.kinematics` |
+| [`apply_tidal_truncation`](tidal.md#apply_tidal_truncation) | function | `progenax.tidal` |
+| [`BaseIMF`](imf.md#baseimf) | class | `progenax.imf` |
+| [`batch_elements_to_com_and_internal`](binaries.md#batch_elements_to_com_and_internal) | function | `progenax.binaries` |
+| [`batch_elements_to_resolved`](binaries.md#batch_elements_to_resolved) | function | `progenax.binaries` |
+| [`BinaryIMF`](imf.md#binaryimf) | class | `progenax.imf` |
+| [`BinaryOrbitalState`](binaries.md#binaryorbitalstate) | class | `progenax.binaries` |
+| [`BirthEnvironment`](imf.md#birthenvironment) | class | `progenax.imf` |
+| [`bm19_icdf`](gravoturb.md#bm19_icdf) | function | `progenax.gravoturb` |
+| [`bm19_pipeline`](gravoturb.md#bm19_pipeline) | function | `progenax.gravoturb` |
+| [`bm19_volume_pdf`](gravoturb.md#bm19_volume_pdf) | function | `progenax.gravoturb` |
+| [`BM19Result`](gravoturb.md#bm19result) | class | `progenax.gravoturb` |
+| [`build_bm19_cdf_table`](gravoturb.md#build_bm19_cdf_table) | function | `progenax.gravoturb` |
+| [`build_spatial_ic`](builders.md#build_spatial_ic) | function | `progenax.builders` |
+| [`ChabrierIMF`](imf.md#chabrierimf) | class | `progenax.imf` |
+| [`compute_kinetic_energy`](builders.md#compute_kinetic_energy) | function | `progenax.builders` |
+| [`compute_log_rho_cl_6`](imf.md#compute_log_rho_cl_6) | function | `progenax.imf` |
+| [`compute_period`](binaries.md#compute_period) | function | `progenax.binaries` |
+| [`compute_potential_energy`](builders.md#compute_potential_energy) | function | `progenax.builders` |
+| [`compute_profile_potential`](profiles.md#compute_profile_potential) | function | `progenax.profiles` |
+| [`compute_r_half`](imf.md#compute_r_half) | function | `progenax.imf` |
+| [`compute_rho_cl`](imf.md#compute_rho_cl) | function | `progenax.imf` |
+| [`compute_rho_ecl`](imf.md#compute_rho_ecl) | function | `progenax.imf` |
+| [`compute_stellar_radii`](builders.md#compute_stellar_radii) | function | `progenax.builders` |
+| [`ConstantBinaryFraction`](imf.md#constantbinaryfraction) | class | `progenax.imf` |
+| [`DEFAULT_SFE`](imf.md#default_sfe) | value | `progenax.imf` |
+| [`earth_sun_2body`](analytical.md#earth_sun_2body) | function | `progenax.analytical` |
+| [`earth_sun_eccentric`](analytical.md#earth_sun_eccentric) | function | `progenax.analytical` |
+| [`EFFProfile`](profiles.md#effprofile) | class | `progenax.profiles` |
+| [`EFFVelocityDF`](kinematics.md#effvelocitydf) | class | `progenax.kinematics` |
+| [`elements_to_com_and_internal`](binaries.md#elements_to_com_and_internal) | function | `progenax.binaries` |
+| [`elements_to_resolved_state`](binaries.md#elements_to_resolved_state) | function | `progenax.binaries` |
+| [`env_to_imf_params`](imf.md#env_to_imf_params) | function | `progenax.imf` |
+| [`estimate_N_max_for_M_total`](imf.md#estimate_n_max_for_m_total) | function | `progenax.imf` |
+| [`estimate_pool_size`](imf.md#estimate_pool_size) | function | `progenax.imf` |
+| [`f_dense_bm19_full`](gravoturb.md#f_dense_bm19_full) | function | `progenax.gravoturb` |
+| [`f_dense_lognormal_limit`](gravoturb.md#f_dense_lognormal_limit) | function | `progenax.gravoturb` |
+| [`f_dense_pn11`](gravoturb.md#f_dense_pn11) | function | `progenax.gravoturb` |
+| [`figure_eight_period`](analytical.md#figure_eight_period) | function | `progenax.analytical` |
+| [`fill_factor_to_r_h`](tidal.md#fill_factor_to_r_h) | function | `progenax.tidal` |
+| [`FlatMassRatio`](imf.md#flatmassratio) | class | `progenax.imf` |
+| [`gaussian_to_bm19`](gravoturb.md#gaussian_to_bm19) | function | `progenax.gravoturb` |
+| [`generate_two_component_cluster`](populations.md#generate_two_component_cluster) | function | `progenax.populations` |
+| [`get_planet`](analytical.md#get_planet) | function | `progenax.analytical` |
+| [`harmonic_oscillator`](analytical.md#harmonic_oscillator) | function | `progenax.analytical` |
+| [`harmonic_solution`](analytical.md#harmonic_solution) | function | `progenax.analytical` |
+| [`ICResult`](builders.md#icresult) | class | `progenax.builders` |
+| [`IMFParams`](imf.md#imfparams) | class | `progenax.imf` |
+| [`IMFProtocol`](imf.md#imfprotocol) | protocol | `progenax.imf` |
+| [`IMFProtocol`](protocols.md#imfprotocol) | protocol | `progenax.protocols` |
+| [`individual_mass_nll`](imf.md#individual_mass_nll) | function | `progenax.imf` |
+| [`jacobi_radius`](tidal.md#jacobi_radius) | function | `progenax.tidal` |
+| [`jacobi_radius_isothermal`](tidal.md#jacobi_radius_isothermal) | function | `progenax.tidal` |
+| [`JERABKOVA_COEFFICIENTS`](imf.md#jerabkova_coefficients) | value | `progenax.imf` |
+| [`KeplerElements`](binaries.md#keplerelements) | class | `progenax.binaries` |
+| [`KeplerElements_IC`](binaries.md#keplerelements_ic) | class | `progenax.binaries` |
+| [`KingProfile`](profiles.md#kingprofile) | class | `progenax.profiles` |
+| [`KingVelocityDF`](kinematics.md#kingvelocitydf) | class | `progenax.kinematics` |
+| [`log_prob_masses`](imf.md#log_prob_masses) | function | `progenax.imf` |
+| [`LogNormalPeriod`](binaries.md#lognormalperiod) | class | `progenax.binaries` |
+| [`LogUniformPeriod`](binaries.md#loguniformperiod) | class | `progenax.binaries` |
+| [`lowmass_slopes_metallicity`](imf.md#lowmass_slopes_metallicity) | function | `progenax.imf` |
+| [`magnification_factor`](gravoturb.md#magnification_factor) | function | `progenax.gravoturb` |
+| [`magnification_factor_with_core`](gravoturb.md#magnification_factor_with_core) | function | `progenax.gravoturb` |
+| [`make_elements_from_inputs`](binaries.md#make_elements_from_inputs) | function | `progenax.binaries` |
+| [`make_profile`](profiles.md#make_profile) | function | `progenax.profiles` |
+| [`MARKS_COEFFICIENTS`](imf.md#marks_coefficients) | value | `progenax.imf` |
+| [`MARKS_TABLE3_COEFFICIENTS`](imf.md#marks_table3_coefficients) | value | `progenax.imf` |
+| [`Maschberger`](imf.md#maschberger) | class | `progenax.imf` |
+| [`MassDependentBinaryConfig`](binaries.md#massdependentbinaryconfig) | class | `progenax.binaries` |
+| [`MassDependentBinaryFraction`](imf.md#massdependentbinaryfraction) | class | `progenax.imf` |
+| [`MassRatioProtocol`](imf.md#massratioprotocol) | protocol | `progenax.imf` |
+| [`MoeDiStefano2017`](imf.md#moedistefano2017) | class | `progenax.imf` |
+| [`MoeEccentricity`](binaries.md#moeeccentricity) | class | `progenax.binaries` |
+| [`period_to_semimajor_axis`](binaries.md#period_to_semimajor_axis) | function | `progenax.binaries` |
+| [`PlummerProfile`](profiles.md#plummerprofile) | class | `progenax.profiles` |
+| [`PlummerVelocityDF`](kinematics.md#plummervelocitydf) | class | `progenax.kinematics` |
+| [`pn11_pipeline`](gravoturb.md#pn11_pipeline) | function | `progenax.gravoturb` |
+| [`PN11Result`](gravoturb.md#pn11result) | class | `progenax.gravoturb` |
+| [`power_spectrum_slope`](gravoturb.md#power_spectrum_slope) | function | `progenax.gravoturb` |
+| [`PowerLawIMF`](imf.md#powerlawimf) | class | `progenax.imf` |
+| [`PowerLawMassRatio`](imf.md#powerlawmassratio) | class | `progenax.imf` |
+| [`prepare_imf_samples`](imf.md#prepare_imf_samples) | function | `progenax.imf` |
+| [`ProfileName`](profiles.md#profilename) | function | `progenax.profiles` |
+| [`RadialBinaryFraction`](binaries.md#radialbinaryfraction) | class | `progenax.binaries` |
+| [`RotationParams`](kinematics.md#rotationparams) | class | `progenax.kinematics` |
+| [`s_crit_pn11`](gravoturb.md#s_crit_pn11) | function | `progenax.gravoturb` |
+| [`sample_density_profile`](profiles.md#sample_density_profile) | function | `progenax.profiles` |
+| [`sample_isotropic_orientations`](binaries.md#sample_isotropic_orientations) | function | `progenax.binaries` |
+| [`sample_mass_dependent_orbits`](binaries.md#sample_mass_dependent_orbits) | function | `progenax.binaries` |
+| [`sample_masses_from_params`](imf.md#sample_masses_from_params) | function | `progenax.imf` |
+| [`sample_velocities_pipeline`](kinematics.md#sample_velocities_pipeline) | function | `progenax.kinematics` |
+| [`SanaOBPeriod`](binaries.md#sanaobperiod) | class | `progenax.binaries` |
+| [`Schechter`](imf.md#schechter) | class | `progenax.imf` |
+| [`sfr_per_dense_gas`](gravoturb.md#sfr_per_dense_gas) | function | `progenax.gravoturb` |
+| [`sigma_s_squared`](gravoturb.md#sigma_s_squared) | function | `progenax.gravoturb` |
+| [`solar_system_full`](analytical.md#solar_system_full) | function | `progenax.analytical` |
+| [`solar_system_inner_4`](analytical.md#solar_system_inner_4) | function | `progenax.analytical` |
+| [`SOLAR_SYSTEM_PLANETS`](analytical.md#solar_system_planets) | value | `progenax.analytical` |
+| [`solve_king_profile`](profiles.md#solve_king_profile) | function | `progenax.profiles` |
+| [`SpatialProfile`](protocols.md#spatialprofile) | protocol | `progenax.protocols` |
+| [`sun_earth_jupiter_3body`](analytical.md#sun_earth_jupiter_3body) | function | `progenax.analytical` |
+| [`TaperedPowerLaw`](imf.md#taperedpowerlaw) | class | `progenax.imf` |
+| [`ThermalEccentricity`](binaries.md#thermaleccentricity) | class | `progenax.binaries` |
+| [`three_body_figure_eight`](analytical.md#three_body_figure_eight) | function | `progenax.analytical` |
+| [`to_com_frame`](builders.md#to_com_frame) | function | `progenax.builders` |
+| [`transition_density`](gravoturb.md#transition_density) | function | `progenax.gravoturb` |
+| [`TruncatedIMF`](imf.md#truncatedimf) | class | `progenax.imf` |
+| [`TwinPeakedMassRatio`](imf.md#twinpeakedmassratio) | class | `progenax.imf` |
+| [`two_body_energy`](analytical.md#two_body_energy) | function | `progenax.analytical` |
+| [`two_body_kepler`](analytical.md#two_body_kepler) | function | `progenax.analytical` |
+| [`two_body_period`](analytical.md#two_body_period) | function | `progenax.analytical` |
+| [`TwoComponentConfig`](populations.md#twocomponentconfig) | class | `progenax.populations` |
+| [`UniformEccentricity`](binaries.md#uniformeccentricity) | class | `progenax.binaries` |
+| [`UniformSphereProfile`](profiles.md#uniformsphereprofile) | class | `progenax.profiles` |
+| [`validate_bm19_field`](gravoturb.md#validate_bm19_field) | function | `progenax.gravoturb` |
+| [`VelocityDF`](kinematics.md#velocitydf) | protocol | `progenax.kinematics` |
+| [`VelocityDF`](protocols.md#velocitydf) | protocol | `progenax.protocols` |
+| [`VelocityModel`](kinematics.md#velocitymodel) | class | `progenax.kinematics` |
+| [`virial_scale`](builders.md#virial_scale) | function | `progenax.builders` |
+| [`x_hat_marks_plane`](imf.md#x_hat_marks_plane) | function | `progenax.imf` |
+| [`x_jerabkova_generalized`](imf.md#x_jerabkova_generalized) | function | `progenax.imf` |
+| [`x_jerabkova_rho`](imf.md#x_jerabkova_rho) | function | `progenax.imf` |
+| [`zeta_fdf_direct`](gravoturb.md#zeta_fdf_direct) | function | `progenax.gravoturb` |
+

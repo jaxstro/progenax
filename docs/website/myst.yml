@@ -1,0 +1,208 @@
+# progenax documentation site
+# Build: `cd docs/website && myst build`
+# Serve: `cd docs/website && myst start`
+# See: https://mystmd.org/guide
+
+version: 1
+project:
+  id: progenax-docs
+  title: progenax — differentiable initial conditions for N-body simulations
+  description: >-
+    progenax is a JAX-native package in the jaxstro ecosystem providing
+    differentiable initial conditions, mass functions, binary populations,
+    and gravoturbulent substructure for N-body simulations. This site is the
+    single source of truth for its theory, architecture, and API.
+  authors:
+    - name: Anna L. Rosen
+      affiliation: San Diego State University
+      orcid: 0000-0003-4423-0660
+      email: alrosen@sdsu.edu
+  github: https://github.com/drannarosen/progenax
+  license:
+    code: MIT
+    content: CC-BY-4.0
+  open_access: true
+  subject: Astrophysics
+  keywords:
+    - JAX
+    - differentiable programming
+    - N-body simulations
+    - star clusters
+    - initial mass function
+    - gravoturbulence
+    - stellar dynamics
+  bibliography:
+    - references.bib
+
+  # Math defaults
+  math:
+    '\Msun': '\mathrm{M}_\odot'
+    '\Rsun': '\mathrm{R}_\odot'
+    '\Lsun': '\mathrm{L}_\odot'
+    '\rh': 'r_{\mathrm{h}}'
+    '\rt': 'r_{\mathrm{t}}'
+    '\tff': 't_{\mathrm{ff}}'
+
+  # Top-of-page navigation
+  toc:
+    - file: index.md
+    - title: Getting started
+      children:
+        - file: 00-getting-started/index.md
+        - file: 00-getting-started/installation.md
+        - file: 00-getting-started/whats-new.md
+        - file: 00-getting-started/first-plummer-sphere.md
+        - file: 00-getting-started/differentiable-ic.md
+        - file: 00-getting-started/imf-sampling.md
+        - file: 00-getting-started/glossary.md
+    - title: Theory & methods
+      children:
+        - file: 10-theory/index.md
+        - file: 10-theory/ic-philosophy.md
+        - title: Spatial density profiles
+          children:
+            - file: 10-theory/spatial-profiles/index.md
+            - file: 10-theory/spatial-profiles/plummer.md
+            - file: 10-theory/spatial-profiles/king.md
+            - file: 10-theory/spatial-profiles/eff.md
+        - title: Velocity distribution functions
+          children:
+            - file: 10-theory/velocity-dfs/index.md
+            - file: 10-theory/velocity-dfs/plummer-dfs.md
+            - file: 10-theory/velocity-dfs/king-dfs.md
+            - file: 10-theory/velocity-dfs/rotation-anisotropy.md
+        - title: Initial mass functions
+          children:
+            - file: 10-theory/imfs/index.md
+            - file: 10-theory/imfs/classic.md
+            - file: 10-theory/imfs/multiplicity-statistics.md
+            - file: 10-theory/imfs/mass-ratio-distributions.md
+            - file: 10-theory/imfs/binary.md
+            - file: 10-theory/imfs/binary-aware-likelihood.md
+            - file: 10-theory/imfs/observation-operators.md
+            - file: 10-theory/imfs/environment.md
+        - title: Binary populations
+          children:
+            - file: 10-theory/binaries/index.md
+            - file: 10-theory/binaries/kepler-elements.md
+            - file: 10-theory/binaries/period-distributions.md
+            - file: 10-theory/binaries/eccentricity.md
+        - title: Tidal & substructure
+          children:
+            - file: 10-theory/tidal-and-substructure/index.md
+            - file: 10-theory/tidal-and-substructure/tidal.md
+            - file: 10-theory/tidal-and-substructure/fractal.md
+            - file: 10-theory/tidal-and-substructure/mass-segregation.md
+        - title: Gravoturbulence
+          children:
+            - file: 10-theory/gravoturbulence/index.md
+            - file: 10-theory/gravoturbulence/density-pdf-fundamentals.md
+            - file: 10-theory/gravoturbulence/freefall-density-factor.md
+            - file: 10-theory/gravoturbulence/pdf-and-fdf.md
+            - file: 10-theory/gravoturbulence/pp20.md
+            - file: 10-theory/gravoturbulence/cored-profiles.md
+            - file: 10-theory/gravoturbulence/direct-3d-zeta.md
+            - file: 10-theory/gravoturbulence/bm19.md
+        - title: Multi-component populations
+          children:
+            - file: 10-theory/populations/index.md
+            - file: 10-theory/populations/two-component.md
+    - title: Architecture & design
+      children:
+        - file: 20-architecture/index.md
+        - file: 20-architecture/jax-native-philosophy.md
+        - file: 20-architecture/three-brick-state.md
+        - file: 20-architecture/protocols.md
+        - file: 20-architecture/differentiability.md
+        - file: 20-architecture/units-policy.md
+        - file: 20-architecture/q-virial-convention.md
+        - file: 20-architecture/jax-native-substructure-q.md
+        - file: 20-architecture/contributor-guide.md
+        - file: 20-architecture/ic-redesign-history.md
+    - title: API reference
+      children:
+        - file: 30-api/index.md
+        - file: 30-api/profiles.md
+        - file: 30-api/kinematics.md
+        - file: 30-api/imf.md
+        - file: 30-api/binaries.md
+        - file: 30-api/analytical.md
+        - file: 30-api/builders.md
+        - file: 30-api/tidal.md
+        - file: 30-api/populations.md
+        - file: 30-api/gravoturb.md
+        - file: 30-api/protocols.md
+        - file: 30-api/full-symbol-index.md
+    - title: How-to recipes
+      children:
+        - file: 40-howto/index.md
+        - file: 40-howto/set-up-virial-cluster.md
+        - file: 40-howto/gradient-based-r_h-fit.md
+        - file: 40-howto/mix-plummer-positions-king-velocities.md
+        - file: 40-howto/add-binary-population.md
+        - file: 40-howto/interface-with-gravax.md
+    - title: Validation
+      children:
+        - file: 50-validation/index.md
+        - file: 50-validation/methodology.md
+        - file: 50-validation/plummer-equilibrium.md
+        - file: 50-validation/king-profile.md
+        - file: 50-validation/eff-profile.md
+        - file: 50-validation/imf-statistics.md
+        - file: 50-validation/binary-imf.md
+        - file: 50-validation/fractal-substructure.md
+        - file: 50-validation/mass-segregation.md
+        - file: 50-validation/gravoturbulent-pp20.md
+        - file: 50-validation/two-component.md
+        - file: 50-validation/tidal-truncation.md
+        - file: 50-validation/analytical-test-cases.md
+        - file: 50-validation/physics-tests.md
+        - file: 50-validation/plot-gallery.md
+    - title: Development log
+      children:
+        - file: 90-development-log/index.md
+        - file: 90-development-log/whats-changed.md
+        - file: 90-development-log/by-topic.md
+        - file: 90-development-log/2026-04-28-pp20-fix.md
+        - file: 90-development-log/2026-02-12-ic-redesign.md
+        - file: 90-development-log/2025-12-07-imf-stack-fix.md
+        - file: 90-development-log/2026-02-12-imf-hmc-recovery.md
+        - file: 90-development-log/2026-02-13-binary-aware-imf-recovery.md
+        - file: 90-development-log/2026-02-13-binary-aware-imf-recovery-impl.md
+        - file: 90-development-log/2026-02-13-precision-scaling-panel.md
+        - file: 90-development-log/2025-12-07-progenax-review.md
+        - file: 90-development-log/phase1-complete.md
+        - file: 90-development-log/code-reviews.md
+    - title: Bibliography
+      children:
+        - file: 99-bibliography/bibliography.md
+        - file: 99-bibliography/ecosystem-papers.md
+        - title: Per-paper detail
+          children:
+            - file: 99-bibliography/per-paper/index.md
+            - file: 99-bibliography/per-paper/plummer-1911.md
+            - file: 99-bibliography/per-paper/king-1966.md
+            - file: 99-bibliography/per-paper/elson-fall-freeman-1987.md
+            - file: 99-bibliography/per-paper/salpeter-1955.md
+            - file: 99-bibliography/per-paper/chabrier-2003.md
+            - file: 99-bibliography/per-paper/kroupa-2001.md
+            - file: 99-bibliography/per-paper/maschberger-2013.md
+            - file: 99-bibliography/per-paper/sana-2012.md
+            - file: 99-bibliography/per-paper/moe-distefano-2017.md
+            - file: 99-bibliography/per-paper/moe-2019.md
+            - file: 99-bibliography/per-paper/cartwright-2004.md
+            - file: 99-bibliography/per-paper/goodwin-2004.md
+            - file: 99-bibliography/per-paper/allison-2009.md
+            - file: 99-bibliography/per-paper/baumgardt-2008.md
+            - file: 99-bibliography/per-paper/federrath-klessen-2012.md
+            - file: 99-bibliography/per-paper/burkhart-2018.md
+            - file: 99-bibliography/per-paper/burkhart-2021.md
+            - file: 99-bibliography/per-paper/parmentier-pasquali-2020.md
+            - file: 99-bibliography/per-paper/kainulainen-2014.md
+            - file: 99-bibliography/per-paper/hurley-2000.md
+
+site:
+  template: book-theme
+  options:
+    favicon: ''
+    logo_text: progenax
