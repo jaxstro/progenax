@@ -1,34 +1,132 @@
-"""Parmentier & Pasquali 2020 dense-gas SFR framework.
+"""Parmentier & Pasquali (2020) magnification factor ζ(p) and dense-gas SFR.
 
-Implements the magnification factor zeta for predicting dense-gas star
-formation efficiency from density profile geometry.
+Reference: Parmentier, G. & Pasquali, A. 2020, ApJ, 903, 56
+           (arXiv:2009.10652; "A New Parameterization of the Star
+           Formation Rate–Dense Gas Mass Relation: Embracing Gas Density
+           Gradients").
 
-All functions are:
-- @jax.jit compatible
-- Differentiable via jax.grad
-- Vectorizable via jax.vmap
+Physical meaning
+================
 
-Key Equations
--------------
-- PP20 Eq. 6: zeta(p) = (3 - p) / (2.6 - 2*p)^(3/2)
-- PP20 Eq. 8: zeta with finite core via numerical integration
-- zeta_fdf_direct: Freefall-weighted zeta measurement from 3D field
+The magnification factor ζ quantifies how much the *star formation rate*
+of a centrally-concentrated cloud is boosted relative to a uniform-density
+("top-hat") cloud of the same mass and outer radius. The boost arises
+because the local free-fall time t_ff ∝ ρ^(-1/2) is shortest where the
+density is highest, so cloud regions whose density exceeds the cloud-mean
+contribute disproportionately to the cloud-integrated SFR
+(SFR_local ∝ ρ / t_ff_local ∝ ρ^(3/2)).
 
-Domain Warnings
----------------
-The analytic zeta(p) formula (PP20 Eq. 6) has a singularity at p = 1.3.
+Definition (PP20 Eq. 1, equivalently Eq. 8 of Parmentier 2019):
 
-- p in [0, 1): Reliable
-- p in [1, 1.3): Use with caution
-- p >= 1.3: Singularity; use zeta_fdf_direct() instead
+    ζ ≡ SFR_clump / SFR_TH                                          (1)
 
-For typical alpha values (alpha <= 3, i.e., p >= 1), always prefer
-zeta_fdf_direct() which measures zeta from the actual density field.
+where SFR_TH is the SFR of the same clump if its gas were redistributed
+uniformly at the cloud mean density ⟨ρ⟩. Writing the local SFR as
+ε_ff,int · ρ / t_ff(ρ) and integrating over the clump volume V_R:
+
+         ∫_{V_R} ρ^(3/2) dV
+    ζ = ──────────────────────                                      (2)
+            M · ⟨ρ⟩^(1/2)
+
+where M is the clump's total gas mass. In this form ζ(0) ≡ 1 by
+construction (a uniform clump is its own top-hat reference) and ζ
+increases with the steepness of the density profile.
+
+Closed-form derivation for a pure power-law profile
+===================================================
+
+For ρ(r) = ρ_R (r/R)^(-p), with the clump filling a sphere of outer
+radius R, the integrals in Eq. (2) admit closed forms whenever
+0 ≤ p < 2 (the upper bound is the divergence threshold of the SFR
+integrand ∫ r^(2 - 3p/2) dr; physically, p = 2 is the singular-isothermal
+profile where the central density runs away).
+
+Step 1 — total mass:
+
+    M = 4π ρ_R R^p ∫_0^R r^{2-p} dr = 4π ρ_R R^3 / (3 - p)            (3)
+
+Step 2 — mean density:
+
+    ⟨ρ⟩ = M / V = 3 ρ_R / (3 - p)                                    (4)
+
+Step 3 — SFR integral (∫ ρ^(3/2) dV):
+
+    ∫ ρ^(3/2) dV = 4π ρ_R^{3/2} R^{3p/2} ∫_0^R r^{2 - 3p/2} dr
+                 = 8π ρ_R^{3/2} R^3 / [3 (2 - p)]                    (5)
+
+Step 4 — top-hat reference (M · √⟨ρ⟩):
+
+    M · ⟨ρ⟩^{1/2} = 4π √3 ρ_R^{3/2} R^3 / (3 - p)^{3/2}              (6)
+
+Step 5 — combine (5) / (6):
+
+    ζ(p) = 2 (3 - p)^{3/2} / [3^{3/2} (2 - p)]                       (7)
+
+This is the canonical analytic form implemented in
+:func:`magnification_factor` below. PP20 Eq. 6 quotes the same result
+in the equivalent form
+
+    ζ(p) = (3 - p)^{3/2} / [2.6 · (2 - p)]                           (PP20-6)
+
+where "2.6" is a numerical approximation to 3^{3/2}/2 = 2.598. Equations
+(7) and (PP20-6) agree to 0.08% across the physical domain; tests in
+``progenax/tests/unit/physics/test_pp20_zeta_canonical.py`` lock this
+equivalence.
+
+Spot values (compare PP20 Fig. 1):
+
+    p = 0    →  ζ = 1                       (top-hat)
+    p = 1    →  ζ = 2 · 2^{3/2} / 3^{3/2}  ≈ 1.0887
+    p = 1.5  →  ζ = √2                      ≈ 1.4142
+    p = 1.67 →  ζ ≈ 1.79                    (Kainulainen+2014 median)
+    p → 2    →  ζ → ∞
+
+Numerical safety
+================
+
+The closed-form ζ(p) diverges at p = 2. To keep gradients well-behaved
+under HMC/NUTS and to avoid pathological broadcasts in vectorised
+forward calls, we clip p to [0, P_MAX] with P_MAX = 1.95. PP20 Fig. 1
+adopts the same convention (the analytic curve is plotted only up to
+p ≈ 1.95; beyond that the paper switches to a numerically-integrated
+profile with a finite constant-density core, i.e.
+:func:`magnification_factor_with_core` below).
+
+Module contents
+===============
+
+- :func:`magnification_factor`: PP20 Eq. 6 in the canonical analytic
+  form — for pure power-law profiles ρ(r) ∝ r^(-p).
+- :func:`magnification_factor_with_core`: PP20 Eq. 7-8 via numerical
+  integration — for cored profiles ρ(r) ∝ [1+(r/r_c)^2]^(-p/2).
+- :func:`zeta_fdf_direct`: Freefall-weighted ζ measured directly from a
+  3D density field (no power-law assumption); see Burkhart 2018 / 2021.
+- :func:`sfr_per_dense_gas`: PP20 SFR per unit dense-gas mass.
+
+All functions are JAX-native: @jax.jit compatible, differentiable via
+jax.grad, vectorisable via jax.vmap.
+
+Historical note
+===============
+
+A pre-2026 transcription of PP20 Eq. 6 in this module read
+``(3 - p) / (2.6 - 2*p)^(3/2)`` — a typo in which the constant 2.6 had
+been moved *inside* the 3/2 power and the (3 - p) factor had lost its
+3/2 exponent. The buggy form had a spurious singularity at p = 1.3 that
+was rationalised in docstrings as a "domain limit"; in fact PP20 Eq. 6
+is well-behaved over the full 0 ≤ p < 2 domain, and the only true
+singularity is at p = 2 (singular isothermal collapse). The same bug
+existed in ``swindlax.physics.density_gradient`` and was fixed there
+first; see the hardening report at
+``papers/rosen-burkhart-swindle-2026/reviews/audit-2026-04-28-pp20-validation.md``.
+Verified 2026-04-28 against PP20 Eq. 6 (page 2) and Kainulainen+2014
+ζ(1.67) ≈ 1.79.
 
 References
 ----------
 Parmentier, G. & Pasquali, A. 2020, ApJ, 903, 56
 Tan, J. C., Krumholz, M. R., & McKee, C. F. 2006, ApJL, 641, L121
+Kainulainen, J., Federrath, C., & Henning, T. 2014, Science, 344, 183
 """
 
 from __future__ import annotations
@@ -38,6 +136,12 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 
+# Numerical-safety clip: ζ(p) diverges as p → 2 (singular isothermal
+# collapse). P_MAX < 2 keeps the function differentiable for HMC/NUTS
+# and matches PP20 Fig. 1, which caps the analytic curve before p=2.
+P_MAX = 1.95
+
+
 # =============================================================================
 # Analytic Magnification Factor
 # =============================================================================
@@ -45,56 +149,59 @@ from jaxtyping import Array, Float
 
 @jax.jit
 def magnification_factor(p: Array) -> Array:
-    """PP20 Eq. 6: Analytic zeta(p) for pure power-law profiles.
+    r"""Compute the PP20 magnification factor ζ(p) for power-law profiles.
 
-    zeta(p) = (3 - p) / (2.6 - 2*p)^(3/2)
+    Closed-form analytic expression for a pure power-law density profile
+    ρ(r) ∝ r^(-p), 0 ≤ p < 2:
 
-    For density profiles rho ~ r^(-p), zeta quantifies the SFR boost
-    compared to uniform density (top-hat). Centrally concentrated profiles
-    have zeta > 1 because inner regions have shorter freefall times.
+    .. math::
+
+        \zeta(p) \;=\; \frac{2\,(3-p)^{3/2}}{3^{3/2}\,(2-p)}
+
+    equivalent to Parmentier & Pasquali 2020 Eq. 6:
+
+    .. math::
+
+        \zeta(p) \;=\; \frac{(3-p)^{3/2}}{2.6\,(2-p)}
+
+    See the module docstring for the integral derivation. The two forms
+    agree to 0.08% across the physical 0 ≤ p < 2 domain — PP20's "2.6"
+    is a numerical approximation to 3^(3/2)/2 = 2.598; this implementation
+    uses the unrounded analytic form.
 
     Parameters
     ----------
     p : Array
-        Radial density profile slope (rho ~ r^{-p}).
-
-        **For reliable results, use only with p < 1.0.**
-
-        For p >= 1 (typical in star formation), use zeta_fdf_direct()
-        instead.
+        Radial density-profile slope for ρ(r) ∝ r^(-p). Values are
+        clipped to [0, P_MAX] = [0, 1.95]. The clip protects HMC/NUTS
+        gradients against the p → 2 divergence (singular isothermal
+        collapse) and matches PP20 Fig. 1, which caps the analytic curve
+        before p = 2.
 
     Returns
     -------
     zeta : Array
-        Magnification factor (clamped to >= 1).
-
-    Warnings
-    --------
-    DOMAIN WARNING: This formula is only valid for p < 1.3.
-
-    - p in [0, 1): Physically meaningful, zeta(p) > 1
-    - p in [1, 1.3): Mathematically defined but unreliable
-    - p >= 1.3: Singularity (denominator -> 0); produces arbitrary values
-    - p >= 2: Undefined and should NEVER be used
-
-    For p >= 1 (i.e., alpha <= 3), always use zeta_fdf_direct() instead.
+        Magnification factor ζ(p) ≥ 1, with ζ(0) = 1 (uniform sphere)
+        and ζ increasing monotonically with p over the clipped domain.
 
     Notes
     -----
-    This function is retained for reference and sanity checks at small p,
-    but should NOT be used in production for typical alpha values.
+    Spot values:
+
+    - ζ(0)    = 1                         (top-hat reference)
+    - ζ(1)    = 2·2^(3/2) / 3^(3/2) ≈ 1.0887
+    - ζ(1.5)  = √2                  ≈ 1.4142
+    - ζ(1.67) ≈ 1.79                (Kainulainen+2014 observational anchor)
+
+    For cored profiles or for ζ measured directly from a 3D density field,
+    see :func:`magnification_factor_with_core` and :func:`zeta_fdf_direct`.
 
     References
     ----------
     Parmentier & Pasquali 2020, ApJ, 903, 56, Equation 6
     """
-    # Clamp denominator to avoid division by zero near p = 1.3
-    # Note: This produces arbitrary values for p >= 1.3; see docstring warning.
-    denom = jnp.maximum(2.6 - 2.0 * p, 1e-6)
-    zeta = (3.0 - p) / denom**1.5
-
-    # Clamp to physical range: zeta >= 1 (top-hat is minimum)
-    return jnp.maximum(zeta, 1.0)
+    p_safe = jnp.clip(p, 0.0, P_MAX)
+    return 2.0 * (3.0 - p_safe) ** 1.5 / (3.0**1.5 * (2.0 - p_safe))
 
 
 @jax.jit
