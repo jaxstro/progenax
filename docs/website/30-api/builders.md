@@ -1,7 +1,6 @@
 ---
 title: '`progenax.builders`'
 description: Auto-generated API reference for `progenax.builders` — signatures and docstrings of every public symbol.
-slug: api-builders
 ---
 
 # `progenax.builders`
@@ -14,15 +13,16 @@ Public symbols: **7**
 
 ## Contents
 
-- [`ICResult`](#icresult)
-- [`compute_stellar_radii`](#compute_stellar_radii)
-- [`compute_kinetic_energy`](#compute_kinetic_energy)
-- [`compute_potential_energy`](#compute_potential_energy)
-- [`to_com_frame`](#to_com_frame)
-- [`virial_scale`](#virial_scale)
-- [`build_spatial_ic`](#build_spatial_ic)
+- [`ICResult`](#api-builders-icresult)
+- [`compute_stellar_radii`](#api-builders-compute_stellar_radii)
+- [`compute_kinetic_energy`](#api-builders-compute_kinetic_energy)
+- [`compute_potential_energy`](#api-builders-compute_potential_energy)
+- [`to_com_frame`](#api-builders-to_com_frame)
+- [`virial_scale`](#api-builders-virial_scale)
+- [`build_spatial_ic`](#api-builders-build_spatial_ic)
 
-## `ICResult`
+(api-builders-icresult)=
+## `builders.ICResult`
 
 *class*
 
@@ -45,7 +45,8 @@ Attributes:
 
 *Source: [`progenax/builders.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L23)*
 
-## `compute_stellar_radii`
+(api-builders-compute_stellar_radii)=
+## `builders.compute_stellar_radii`
 
 *function*
 
@@ -70,7 +71,8 @@ Returns:
 
 *Source: [`progenax/builders.py#L48`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L48)*
 
-## `compute_kinetic_energy`
+(api-builders-compute_kinetic_energy)=
+## `builders.compute_kinetic_energy`
 
 *function*
 
@@ -89,7 +91,8 @@ Returns:
 
 *Source: [`progenax/builders.py#L89`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L89)*
 
-## `compute_potential_energy`
+(api-builders-compute_potential_energy)=
+## `builders.compute_potential_energy`
 
 *function*
 
@@ -112,7 +115,8 @@ Returns:
 
 *Source: [`progenax/builders.py#L107`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L107)*
 
-## `to_com_frame`
+(api-builders-to_com_frame)=
+## `builders.to_com_frame`
 
 *function*
 
@@ -132,7 +136,8 @@ Returns:
 
 *Source: [`progenax/builders.py#L146`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L146)*
 
-## `virial_scale`
+(api-builders-virial_scale)=
+## `builders.virial_scale`
 
 *function*
 
@@ -164,7 +169,8 @@ References:
 
 *Source: [`progenax/builders.py#L171`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L171)*
 
-## `build_spatial_ic`
+(api-builders-build_spatial_ic)=
+## `builders.build_spatial_ic`
 
 *function*
 

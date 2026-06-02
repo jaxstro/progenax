@@ -43,7 +43,6 @@ Five things were wrong with this:
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Problem
   - Concrete failure mode
@@ -72,7 +71,6 @@ the pre-redesign problems:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Principle
   - Implementation
@@ -103,7 +101,6 @@ import it. Users had two paths:
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Path
   - When to use

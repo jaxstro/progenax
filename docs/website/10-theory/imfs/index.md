@@ -20,7 +20,6 @@ analytically-invertible (Maschberger) to physically-detailed
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 28 40
 
 * - Chapter
   - Scope

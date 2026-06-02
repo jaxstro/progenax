@@ -178,7 +178,6 @@ See [](../../30-api/profiles.md) for the signature and
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Use EFF when…
   - …because
@@ -194,7 +193,6 @@ See [](../../30-api/profiles.md) for the signature and
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Use Plummer instead when…
   - …because
@@ -208,7 +206,6 @@ See [](../../30-api/profiles.md) for the signature and
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Use King instead when…
   - …because

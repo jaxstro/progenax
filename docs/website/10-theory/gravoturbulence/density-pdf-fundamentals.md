@@ -48,7 +48,6 @@ forcing parameter has well-defined physical limits:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 56
 
 * - $b$
   - Forcing

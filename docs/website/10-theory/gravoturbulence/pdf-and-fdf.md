@@ -107,7 +107,6 @@ The two formulations apply to different observational situations:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 30 48
 
 * - Formulation
   - Best when you have…
@@ -144,7 +143,8 @@ between volume and density {cite:p}`Kritsuk2011,FederrathKlessen2012`,
 p \;=\; \frac{3}{\alpha}
 ```
 
-This is the same relation noted at [](pp20.md#α-bm19-pdf-tail--p-pp20-radial-profile).
+This is the same relation noted in the
+[PP20 α-to-p mapping](pp20.md#alpha-p).
 For the {cite:t}`Burkhart2021` α window $[\alpha_{\mathrm{sat}},\alpha_0]
 = [1.5, 3.0]$, the corresponding $p$ window is $[1.0, 2.0]$ — from
 "marginally collapsing" to "singular isothermal" radial profiles.

@@ -1,7 +1,6 @@
 ---
 title: '`progenax.imf`'
 description: Auto-generated API reference for `progenax.imf` — signatures and docstrings of every public symbol.
-slug: api-imf
 ---
 
 # `progenax.imf`
@@ -14,51 +13,52 @@ Public symbols: **43**
 
 ## Contents
 
-- [`IMFProtocol`](#imfprotocol)
-- [`BaseIMF`](#baseimf)
-- [`_ppf_newton`](#_ppf_newton)
-- [`TruncatedIMF`](#truncatedimf)
-- [`PowerLawIMF`](#powerlawimf)
-- [`prepare_imf_samples`](#prepare_imf_samples)
-- [`estimate_N_max_for_M_total`](#estimate_n_max_for_m_total)
-- [`estimate_pool_size`](#estimate_pool_size)
-- [`Maschberger`](#maschberger)
-- [`TaperedPowerLaw`](#taperedpowerlaw)
-- [`Schechter`](#schechter)
-- [`ChabrierIMF`](#chabrierimf)
-- [`MassRatioProtocol`](#massratioprotocol)
-- [`FlatMassRatio`](#flatmassratio)
-- [`PowerLawMassRatio`](#powerlawmassratio)
-- [`TwinPeakedMassRatio`](#twinpeakedmassratio)
-- [`MoeDiStefano2017`](#moedistefano2017)
-- [`ConstantBinaryFraction`](#constantbinaryfraction)
-- [`MassDependentBinaryFraction`](#massdependentbinaryfraction)
-- [`BinaryIMF`](#binaryimf)
-- [`IMFParams`](#imfparams)
-- [`log_prob_masses`](#log_prob_masses)
-- [`sample_masses_from_params`](#sample_masses_from_params)
-- [`individual_mass_nll`](#individual_mass_nll)
-- [`BirthEnvironment`](#birthenvironment)
-- [`env_to_imf_params`](#env_to_imf_params)
-- [`compute_r_half`](#compute_r_half)
-- [`compute_rho_ecl`](#compute_rho_ecl)
-- [`compute_rho_cl`](#compute_rho_cl)
-- [`compute_log_rho_cl_6`](#compute_log_rho_cl_6)
-- [`x_jerabkova_generalized`](#x_jerabkova_generalized)
-- [`x_jerabkova_rho`](#x_jerabkova_rho)
-- [`x_hat_marks_plane`](#x_hat_marks_plane)
-- [`alpha3_jerabkova_generalized`](#alpha3_jerabkova_generalized)
-- [`alpha3_jerabkova_mecl`](#alpha3_jerabkova_mecl)
-- [`alpha3_jerabkova_rho`](#alpha3_jerabkova_rho)
-- [`alpha3_marks_plane`](#alpha3_marks_plane)
-- [`alpha3_marks_table3`](#alpha3_marks_table3)
-- [`lowmass_slopes_metallicity`](#lowmass_slopes_metallicity)
-- [`JERABKOVA_COEFFICIENTS`](#jerabkova_coefficients)
-- [`MARKS_COEFFICIENTS`](#marks_coefficients)
-- [`MARKS_TABLE3_COEFFICIENTS`](#marks_table3_coefficients)
-- [`DEFAULT_SFE`](#default_sfe)
+- [`IMFProtocol`](#api-imf-imfprotocol)
+- [`BaseIMF`](#api-imf-baseimf)
+- [`_ppf_newton`](#api-imf-_ppf_newton)
+- [`TruncatedIMF`](#api-imf-truncatedimf)
+- [`PowerLawIMF`](#api-imf-powerlawimf)
+- [`prepare_imf_samples`](#api-imf-prepare_imf_samples)
+- [`estimate_N_max_for_M_total`](#api-imf-estimate_n_max_for_m_total)
+- [`estimate_pool_size`](#api-imf-estimate_pool_size)
+- [`Maschberger`](#api-imf-maschberger)
+- [`TaperedPowerLaw`](#api-imf-taperedpowerlaw)
+- [`Schechter`](#api-imf-schechter)
+- [`ChabrierIMF`](#api-imf-chabrierimf)
+- [`MassRatioProtocol`](#api-imf-massratioprotocol)
+- [`FlatMassRatio`](#api-imf-flatmassratio)
+- [`PowerLawMassRatio`](#api-imf-powerlawmassratio)
+- [`TwinPeakedMassRatio`](#api-imf-twinpeakedmassratio)
+- [`MoeDiStefano2017`](#api-imf-moedistefano2017)
+- [`ConstantBinaryFraction`](#api-imf-constantbinaryfraction)
+- [`MassDependentBinaryFraction`](#api-imf-massdependentbinaryfraction)
+- [`BinaryIMF`](#api-imf-binaryimf)
+- [`IMFParams`](#api-imf-imfparams)
+- [`log_prob_masses`](#api-imf-log_prob_masses)
+- [`sample_masses_from_params`](#api-imf-sample_masses_from_params)
+- [`individual_mass_nll`](#api-imf-individual_mass_nll)
+- [`BirthEnvironment`](#api-imf-birthenvironment)
+- [`env_to_imf_params`](#api-imf-env_to_imf_params)
+- [`compute_r_half`](#api-imf-compute_r_half)
+- [`compute_rho_ecl`](#api-imf-compute_rho_ecl)
+- [`compute_rho_cl`](#api-imf-compute_rho_cl)
+- [`compute_log_rho_cl_6`](#api-imf-compute_log_rho_cl_6)
+- [`x_jerabkova_generalized`](#api-imf-x_jerabkova_generalized)
+- [`x_jerabkova_rho`](#api-imf-x_jerabkova_rho)
+- [`x_hat_marks_plane`](#api-imf-x_hat_marks_plane)
+- [`alpha3_jerabkova_generalized`](#api-imf-alpha3_jerabkova_generalized)
+- [`alpha3_jerabkova_mecl`](#api-imf-alpha3_jerabkova_mecl)
+- [`alpha3_jerabkova_rho`](#api-imf-alpha3_jerabkova_rho)
+- [`alpha3_marks_plane`](#api-imf-alpha3_marks_plane)
+- [`alpha3_marks_table3`](#api-imf-alpha3_marks_table3)
+- [`lowmass_slopes_metallicity`](#api-imf-lowmass_slopes_metallicity)
+- [`JERABKOVA_COEFFICIENTS`](#api-imf-jerabkova_coefficients)
+- [`MARKS_COEFFICIENTS`](#api-imf-marks_coefficients)
+- [`MARKS_TABLE3_COEFFICIENTS`](#api-imf-marks_table3_coefficients)
+- [`DEFAULT_SFE`](#api-imf-default_sfe)
 
-## `IMFProtocol`
+(api-imf-imfprotocol)=
+## `imf.IMFProtocol`
 
 *protocol*
 
@@ -73,7 +73,8 @@ enabling TruncatedIMF to wrap any compatible IMF.
 
 *Source: [`progenax/imf/base.py#L25`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/base.py#L25)*
 
-## `BaseIMF`
+(api-imf-baseimf)=
+## `imf.BaseIMF`
 
 *class*
 
@@ -98,7 +99,8 @@ Attributes:
 
 *Source: [`progenax/imf/base.py#L86`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/base.py#L86)*
 
-## `_ppf_newton`
+(api-imf-_ppf_newton)=
+## `imf._ppf_newton`
 
 *function*
 
@@ -123,7 +125,8 @@ Returns:
 
 *Source: [`progenax/imf/base.py#L47`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/base.py#L47)*
 
-## `TruncatedIMF`
+(api-imf-truncatedimf)=
+## `imf.TruncatedIMF`
 
 *class*
 
@@ -149,7 +152,8 @@ Example:
 
 *Source: [`progenax/imf/truncated.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/truncated.py#L15)*
 
-## `PowerLawIMF`
+(api-imf-powerlawimf)=
+## `imf.PowerLawIMF`
 
 *class*
 
@@ -180,7 +184,8 @@ Example:
 
 *Source: [`progenax/imf/power_law.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L17)*
 
-## `prepare_imf_samples`
+(api-imf-prepare_imf_samples)=
+## `imf.prepare_imf_samples`
 
 *function*
 
@@ -199,7 +204,8 @@ Returns:
 
 *Source: [`progenax/imf/power_law.py#L268`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L268)*
 
-## `estimate_N_max_for_M_total`
+(api-imf-estimate_n_max_for_m_total)=
+## `imf.estimate_N_max_for_M_total`
 
 *function*
 
@@ -211,7 +217,8 @@ Estimate N_max for M_total mode sampling.
 
 *Source: [`progenax/imf/power_law.py#L283`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L283)*
 
-## `estimate_pool_size`
+(api-imf-estimate_pool_size)=
+## `imf.estimate_pool_size`
 
 *function*
 
@@ -223,7 +230,8 @@ Alias for estimate_N_max_for_M_total.
 
 *Source: [`progenax/imf/power_law.py#L293`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L293)*
 
-## `Maschberger`
+(api-imf-maschberger)=
+## `imf.Maschberger`
 
 *class*
 
@@ -249,7 +257,8 @@ Reference:
 
 *Source: [`progenax/imf/smooth.py#L54`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L54)*
 
-## `TaperedPowerLaw`
+(api-imf-taperedpowerlaw)=
+## `imf.TaperedPowerLaw`
 
 *class*
 
@@ -271,7 +280,8 @@ Attributes:
 
 *Source: [`progenax/imf/smooth.py#L175`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L175)*
 
-## `Schechter`
+(api-imf-schechter)=
+## `imf.Schechter`
 
 *class*
 
@@ -304,7 +314,8 @@ Attributes:
 
 *Source: [`progenax/imf/smooth.py#L228`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L228)*
 
-## `ChabrierIMF`
+(api-imf-chabrierimf)=
+## `imf.ChabrierIMF`
 
 *class*
 
@@ -345,7 +356,8 @@ References:
 
 *Source: [`progenax/imf/chabrier.py#L24`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/chabrier.py#L24)*
 
-## `MassRatioProtocol`
+(api-imf-massratioprotocol)=
+## `imf.MassRatioProtocol`
 
 *protocol*
 
@@ -365,7 +377,8 @@ Note: q = M_secondary / M_primary ∈ [q_min, 1] by convention.
 
 *Source: [`progenax/imf/binary.py#L73`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L73)*
 
-## `FlatMassRatio`
+(api-imf-flatmassratio)=
+## `imf.FlatMassRatio`
 
 *class*
 
@@ -385,7 +398,8 @@ Parameters:
 
 *Source: [`progenax/imf/binary.py#L110`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L110)*
 
-## `PowerLawMassRatio`
+(api-imf-powerlawmassratio)=
+## `imf.PowerLawMassRatio`
 
 *class*
 
@@ -415,7 +429,8 @@ Note:
 
 *Source: [`progenax/imf/binary.py#L145`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L145)*
 
-## `TwinPeakedMassRatio`
+(api-imf-twinpeakedmassratio)=
+## `imf.TwinPeakedMassRatio`
 
 *class*
 
@@ -447,7 +462,8 @@ Parameters:
 
 *Source: [`progenax/imf/binary.py#L265`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L265)*
 
-## `MoeDiStefano2017`
+(api-imf-moedistefano2017)=
+## `imf.MoeDiStefano2017`
 
 *class*
 
@@ -478,7 +494,8 @@ Parameters:
 
 *Source: [`progenax/imf/binary.py#L398`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L398)*
 
-## `ConstantBinaryFraction`
+(api-imf-constantbinaryfraction)=
+## `imf.ConstantBinaryFraction`
 
 *class*
 
@@ -497,7 +514,8 @@ Parameters:
 
 *Source: [`progenax/imf/binary.py#L559`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L559)*
 
-## `MassDependentBinaryFraction`
+(api-imf-massdependentbinaryfraction)=
+## `imf.MassDependentBinaryFraction`
 
 *class*
 
@@ -525,7 +543,8 @@ Higher-order multiples (triples, etc.) are common at high masses.
 
 *Source: [`progenax/imf/binary.py#L577`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L577)*
 
-## `BinaryIMF`
+(api-imf-binaryimf)=
+## `imf.BinaryIMF`
 
 *class*
 
@@ -605,7 +624,8 @@ Examples:
 
 *Source: [`progenax/imf/binary.py#L627`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L627)*
 
-## `IMFParams`
+(api-imf-imfparams)=
+## `imf.IMFParams`
 
 *class*
 
@@ -652,7 +672,8 @@ Example:
 
 *Source: [`progenax/imf/params.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/params.py#L23)*
 
-## `log_prob_masses`
+(api-imf-log_prob_masses)=
+## `imf.log_prob_masses`
 
 *function*
 
@@ -681,7 +702,8 @@ Example:
 
 *Source: [`progenax/imf/differentiable.py#L72`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L72)*
 
-## `sample_masses_from_params`
+(api-imf-sample_masses_from_params)=
+## `imf.sample_masses_from_params`
 
 *function*
 
@@ -711,7 +733,8 @@ Example:
 
 *Source: [`progenax/imf/differentiable.py#L174`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L174)*
 
-## `individual_mass_nll`
+(api-imf-individual_mass_nll)=
+## `imf.individual_mass_nll`
 
 *function*
 
@@ -740,7 +763,8 @@ Example:
 
 *Source: [`progenax/imf/differentiable.py#L258`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L258)*
 
-## `BirthEnvironment`
+(api-imf-birthenvironment)=
+## `imf.BirthEnvironment`
 
 *class*
 
@@ -774,7 +798,8 @@ Example:
 
 *Source: [`progenax/imf/environment.py#L171`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L171)*
 
-## `env_to_imf_params`
+(api-imf-env_to_imf_params)=
+## `imf.env_to_imf_params`
 
 *function*
 
@@ -820,7 +845,8 @@ Example:
 
 *Source: [`progenax/imf/environment.py#L861`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L861)*
 
-## `compute_r_half`
+(api-imf-compute_r_half)=
+## `imf.compute_r_half`
 
 *function*
 
@@ -840,7 +866,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L98`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L98)*
 
-## `compute_rho_ecl`
+(api-imf-compute_rho_ecl)=
+## `imf.compute_rho_ecl`
 
 *function*
 
@@ -865,7 +892,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L112`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L112)*
 
-## `compute_rho_cl`
+(api-imf-compute_rho_cl)=
+## `imf.compute_rho_cl`
 
 *function*
 
@@ -886,7 +914,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L132`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L132)*
 
-## `compute_log_rho_cl_6`
+(api-imf-compute_log_rho_cl_6)=
+## `imf.compute_log_rho_cl_6`
 
 *function*
 
@@ -905,7 +934,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L150`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L150)*
 
-## `x_jerabkova_generalized`
+(api-imf-x_jerabkova_generalized)=
+## `imf.x_jerabkova_generalized`
 
 *function*
 
@@ -930,7 +960,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L556`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L556)*
 
-## `x_jerabkova_rho`
+(api-imf-x_jerabkova_rho)=
+## `imf.x_jerabkova_rho`
 
 *function*
 
@@ -953,7 +984,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L582`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L582)*
 
-## `x_hat_marks_plane`
+(api-imf-x_hat_marks_plane)=
+## `imf.x_hat_marks_plane`
 
 *function*
 
@@ -975,7 +1007,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L604`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L604)*
 
-## `alpha3_jerabkova_generalized`
+(api-imf-alpha3_jerabkova_generalized)=
+## `imf.alpha3_jerabkova_generalized`
 
 *function*
 
@@ -999,7 +1032,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L669`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L669)*
 
-## `alpha3_jerabkova_mecl`
+(api-imf-alpha3_jerabkova_mecl)=
+## `imf.alpha3_jerabkova_mecl`
 
 *function*
 
@@ -1022,7 +1056,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L698`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L698)*
 
-## `alpha3_jerabkova_rho`
+(api-imf-alpha3_jerabkova_rho)=
+## `imf.alpha3_jerabkova_rho`
 
 *function*
 
@@ -1043,7 +1078,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L725`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L725)*
 
-## `alpha3_marks_plane`
+(api-imf-alpha3_marks_plane)=
+## `imf.alpha3_marks_plane`
 
 *function*
 
@@ -1068,7 +1104,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L750`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L750)*
 
-## `alpha3_marks_table3`
+(api-imf-alpha3_marks_table3)=
+## `imf.alpha3_marks_table3`
 
 *function*
 
@@ -1091,7 +1128,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L779`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L779)*
 
-## `lowmass_slopes_metallicity`
+(api-imf-lowmass_slopes_metallicity)=
+## `imf.lowmass_slopes_metallicity`
 
 *function*
 
@@ -1116,7 +1154,8 @@ Returns:
 
 *Source: [`progenax/imf/environment.py#L825`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L825)*
 
-## `JERABKOVA_COEFFICIENTS`
+(api-imf-jerabkova_coefficients)=
+## `imf.JERABKOVA_COEFFICIENTS`
 
 *value*
 
@@ -1130,7 +1169,8 @@ dict(iterable) -> new dictionary initialized as if via:
 dict(**kwargs) -> new dictionary initialized with the name=value pairs
     in the keyword argument list.  For example:  dict(one=1, two=2)
 
-## `MARKS_COEFFICIENTS`
+(api-imf-marks_coefficients)=
+## `imf.MARKS_COEFFICIENTS`
 
 *value*
 
@@ -1144,7 +1184,8 @@ dict(iterable) -> new dictionary initialized as if via:
 dict(**kwargs) -> new dictionary initialized with the name=value pairs
     in the keyword argument list.  For example:  dict(one=1, two=2)
 
-## `MARKS_TABLE3_COEFFICIENTS`
+(api-imf-marks_table3_coefficients)=
+## `imf.MARKS_TABLE3_COEFFICIENTS`
 
 *value*
 
@@ -1158,7 +1199,8 @@ dict(iterable) -> new dictionary initialized as if via:
 dict(**kwargs) -> new dictionary initialized with the name=value pairs
     in the keyword argument list.  For example:  dict(one=1, two=2)
 
-## `DEFAULT_SFE`
+(api-imf-default_sfe)=
+## `imf.DEFAULT_SFE`
 
 *value*
 

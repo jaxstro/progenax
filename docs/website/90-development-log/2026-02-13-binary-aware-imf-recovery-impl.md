@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Script scaffold with data generation
+## Task 1: Script scaffold with data generation
 
 **Files:**
 - Create: `validation/imf/validate_binary_aware_recovery.py`
@@ -184,7 +184,7 @@ git commit -m "feat(validation): scaffold binary-aware IMF recovery script"
 
 ---
 
-### Task 2: Gauss-Legendre mixture likelihood
+## Task 2: Gauss-Legendre mixture likelihood
 
 **Files:**
 - Modify: `validation/imf/validate_binary_aware_recovery.py`
@@ -291,7 +291,7 @@ git commit -m "feat(validation): add Gauss-Legendre binary mixture likelihood"
 
 ---
 
-### Task 3: NumPyro models and MCMC runner
+## Task 3: NumPyro models and MCMC runner
 
 **Files:**
 - Modify: `validation/imf/validate_binary_aware_recovery.py`
@@ -459,7 +459,7 @@ git commit -m "feat(validation): add MCMC runner for naive + binary-aware models
 
 ---
 
-### Task 4: Plotting functions
+## Task 4: Plotting functions
 
 **Files:**
 - Modify: `validation/imf/validate_binary_aware_recovery.py`
@@ -684,7 +684,7 @@ git commit -m "feat(validation): add plotting for binary-aware recovery figure"
 
 ---
 
-### Task 5: Main function and pass/fail evaluation
+## Task 5: Main function and pass/fail evaluation
 
 **Files:**
 - Modify: `validation/imf/validate_binary_aware_recovery.py`
@@ -775,7 +775,7 @@ git commit -m "feat(validation): add main + evaluation for binary-aware recovery
 
 ---
 
-### Task 6: Run full validation
+## Task 6: Run full validation
 
 **Step 1: Run the script**
 
@@ -804,7 +804,7 @@ git commit -m "feat(validation): binary-aware IMF recovery passes all environmen
 
 ---
 
-### Task 7: Figure polish (if needed)
+## Task 7: Figure polish (if needed)
 
 Apply the same refinements as the IMF-only figure:
 - Verify panel sizes are balanced (no panel too small)

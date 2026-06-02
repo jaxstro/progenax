@@ -93,7 +93,6 @@ chain that benefits from GPU.
 
 ```{list-table}
 :header-rows: 1
-:widths: 18 82
 
 * - Extra
   - Provides

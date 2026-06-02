@@ -14,7 +14,6 @@ its three spatial profiles, plus extensions for radial anisotropy
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 28 44
 
 * - Velocity DF
   - Pairs with profile

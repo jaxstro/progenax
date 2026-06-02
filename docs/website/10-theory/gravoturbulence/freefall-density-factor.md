@@ -46,7 +46,6 @@ Three alternative scalings are sometimes proposed:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 56
 
 * - Kernel
   - Implied $\dot\rho_\star$

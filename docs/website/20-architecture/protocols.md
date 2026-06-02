@@ -10,7 +10,6 @@ the interfaces for the orthogonal IC ingredients:
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 40 32
 
 * - Protocol
   - Interface
@@ -134,7 +133,6 @@ deliberately rejects this for three reasons:
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Reason
   - Detail
@@ -161,7 +159,6 @@ equilibrium) only if profile and DF are matched:
 
 ```{list-table}
 :header-rows: 1
-:widths: 40 30 30
 
 * - Combination
   - Equilibrium?

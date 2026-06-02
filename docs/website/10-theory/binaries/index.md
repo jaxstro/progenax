@@ -18,7 +18,6 @@ positions and velocities that an N-body integrator consumes.
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 72
 
 * - Chapter
   - Scope
@@ -59,7 +58,6 @@ DF combination:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Component
   - Role for binaries

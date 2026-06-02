@@ -12,7 +12,6 @@ and one mass-dependent routing helper.
 
 ```{list-table}
 :header-rows: 1
-:widths: 24 28 48
 
 * - Family
   - Class/function

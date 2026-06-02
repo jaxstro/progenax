@@ -27,7 +27,6 @@ coverage until a dedicated validation suite is added.
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 22 43
 
 * - Property
   - Tolerance
@@ -74,7 +73,6 @@ intended regression anchors; run the commands below for fresh status.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 22 46
 
 * - Property
   - Tolerance

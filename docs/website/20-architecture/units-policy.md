@@ -20,7 +20,6 @@ progenax supports, and explains why the alternatives (global $G$,
 
 ```{list-table}
 :header-rows: 1
-:widths: 18 18 18 18 28
 
 * - System
   - Mass
@@ -52,7 +51,6 @@ the user to be explicit.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Rule
   - Implication
@@ -72,7 +70,6 @@ annoying. In progenax's experience the opposite is true at scale:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Pain point with implicit defaults
   - What progenax's explicit policy prevents

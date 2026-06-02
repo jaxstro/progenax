@@ -1,7 +1,6 @@
 ---
 title: '`progenax.populations`'
 description: Auto-generated API reference for `progenax.populations` — signatures and docstrings of every public symbol.
-slug: api-populations
 ---
 
 # `progenax.populations`
@@ -14,10 +13,11 @@ Public symbols: **2**
 
 ## Contents
 
-- [`TwoComponentConfig`](#twocomponentconfig)
-- [`generate_two_component_cluster`](#generate_two_component_cluster)
+- [`TwoComponentConfig`](#api-populations-twocomponentconfig)
+- [`generate_two_component_cluster`](#api-populations-generate_two_component_cluster)
 
-## `TwoComponentConfig`
+(api-populations-twocomponentconfig)=
+## `populations.TwoComponentConfig`
 
 *class*
 
@@ -64,7 +64,8 @@ References:
 
 *Source: [`progenax/populations.py#L22`](https://github.com/drannarosen/progenax/blob/main/progenax/populations.py#L22)*
 
-## `generate_two_component_cluster`
+(api-populations-generate_two_component_cluster)=
+## `populations.generate_two_component_cluster`
 
 *function*
 

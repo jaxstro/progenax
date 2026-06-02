@@ -106,7 +106,6 @@ implementation:
 
 ```{list-table} {cite:t}`Moe2017` Table 13 — companion frequency above $q > 0.1$.
 :header-rows: 1
-:widths: 30 20 50
 
 * - Primary mass
   - $f_b$
@@ -137,7 +136,7 @@ implementation:
 The trend is steep: O-type stars are almost always in multiples, while
 M-dwarfs are mostly single. For O-type primaries the *companion frequency*
 exceeds 1.0 ($\sim 2.1$ per primary), reflecting hierarchical triples and
-higher-order systems — see [Limitations](#limitations) below for the
+higher-order systems — see [Limitations](#binary-imf-limitations) below for the
 single-companion approximation progenax adopts.
 
 ### Mass-ratio distribution $g(q \mid M_1)$
@@ -156,11 +155,10 @@ $\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses period-averaged values
 of $\gamma(M_1)$ from {cite:t}`Moe2017` Table 10 — appropriate for total
 mass-function analyses, but loses the small-$q$ structure that matters
 for surveys sensitive to specific period ranges (see
-[Limitations](#limitations)):
+[Limitations](#binary-imf-limitations)):
 
 ```{list-table} Period-averaged $\gamma(M_1)$ from {cite:t}`Moe2017` Table 10.
 :header-rows: 1
-:widths: 35 18 47
 
 * - Primary mass
   - $\gamma$
@@ -341,9 +339,8 @@ flux addition; see the
 [](../../40-howto/add-binary-population.md) recipe for the planned
 extension.
 
+(binary-imf-limitations)=
 ## Limitations
-
-(limitations)=
 
 ```{admonition} Mass addition is an upper bound
 :class: note

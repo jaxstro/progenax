@@ -151,7 +151,6 @@ production $\kappa$ values).
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 30 40
 
 * - Field shape
   - Tail weights
@@ -178,7 +177,6 @@ $\sim 10^{-10}$ to avoid division-by-zero in degenerate inputs.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Use direct 3D ζ when…
   - …because
@@ -194,7 +192,6 @@ $\sim 10^{-10}$ to avoid division-by-zero in degenerate inputs.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Use PP20 / cored instead when…
   - …because

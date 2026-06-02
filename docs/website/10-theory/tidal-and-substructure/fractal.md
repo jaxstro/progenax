@@ -42,7 +42,6 @@ distinctive clumpiness is incompatible with JAX's differentiable model:
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 72
 
 * - GW04 feature
   - JAX-incompatibility
@@ -150,7 +149,6 @@ parameter $\chi \in [1.5, 3.0]$ controls the spectral slope:
 
 ```{list-table}
 :header-rows: 1
-:widths: 18 18 64
 
 * - $\chi$
   - $\beta(\chi)$

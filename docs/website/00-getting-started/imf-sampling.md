@@ -95,7 +95,6 @@ are smooth.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Choose
   - When

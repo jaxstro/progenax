@@ -16,7 +16,6 @@ checkout. The implemented two-component API is covered by
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 25 40
 
 * - Property
   - Status

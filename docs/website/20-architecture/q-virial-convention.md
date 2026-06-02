@@ -32,7 +32,6 @@ any value without checking which is in use:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 20 30 28
 
 * - Convention
   - Equilibrium value
@@ -81,7 +80,6 @@ self-binding. Departures from $0.5$ are physically meaningful:
 
 ```{list-table} progenax interpretation of $Q_{\mathrm{vir}}$.
 :header-rows: 1
-:widths: 16 24 60
 
 * - $Q_{\mathrm{vir}}$
   - State

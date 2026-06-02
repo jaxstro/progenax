@@ -12,7 +12,6 @@ There are no `tests/validation/test_cross_cutting.py` or
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 22 43
 
 * - Property
   - Tolerance

@@ -25,7 +25,6 @@ structure** to the **integrated star formation rate**. The chain is:
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Chapter
   - Scope

@@ -22,7 +22,6 @@ properties that make `KeplerElements` HMC-compatible.
 
 ```{list-table}
 :header-rows: 1
-:widths: 16 28 56
 
 * - Element
   - Symbol

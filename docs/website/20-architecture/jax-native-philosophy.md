@@ -19,7 +19,6 @@ discipline pays for itself many times over in practice.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Constraint
   - Implication

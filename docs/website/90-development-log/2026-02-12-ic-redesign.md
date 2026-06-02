@@ -23,17 +23,18 @@ dev-log narrative see [](index.md).
 
 ## Table of Contents
 
-1. [Motivation](#1-motivation)
-2. [Protocol Hierarchy](#2-protocol-hierarchy)
-3. [Unified IMF Classes](#3-unified-imf-classes)
-4. [Spatial Pipeline](#4-spatial-pipeline)
-5. [Science-Motivated Presets & Top-Level API](#5-science-motivated-presets--top-level-api)
-6. [Deprecation Plan](#6-deprecation-plan)
-7. [Testing Strategy](#7-testing-strategy)
-8. [Scientific Review & References](#8-scientific-review--references)
+1. [Motivation](#ic-redesign-motivation)
+2. [Protocol Hierarchy](#ic-redesign-protocol-hierarchy)
+3. [Unified IMF Classes](#ic-redesign-unified-imf-classes)
+4. [Spatial Pipeline](#ic-redesign-spatial-pipeline)
+5. [Science-Motivated Presets & Top-Level API](#ic-redesign-presets-api)
+6. [Deprecation Plan](#ic-redesign-deprecation-plan)
+7. [Testing Strategy](#ic-redesign-testing-strategy)
+8. [Scientific Review & References](#ic-redesign-review-references)
 
 ---
 
+(ic-redesign-motivation)=
 ## 1. Motivation
 
 ### The Problem
@@ -69,6 +70,7 @@ BirthEnvironment ──┬──→ IMFProtocol (Maschberger, PiecewiseIMF, Chab
 
 ---
 
+(ic-redesign-protocol-hierarchy)=
 ## 2. Protocol Hierarchy
 
 Four runtime-checkable protocols define the composition contracts. Each protocol specifies what invariants implementors must satisfy.
@@ -151,6 +153,7 @@ class ICModifier(Protocol):
 
 ---
 
+(ic-redesign-unified-imf-classes)=
 ## 3. Unified IMF Classes
 
 ### 3.1 PiecewiseIMF(BaseIMF) — replaces PowerLawIMF + IMFParams + differentiable.py
@@ -253,6 +256,7 @@ def env_to_imf(
 
 ---
 
+(ic-redesign-spatial-pipeline)=
 ## 4. Spatial Pipeline
 
 ### 4.1 TurbulentDensityProfile — composing smooth × turbulent
@@ -350,6 +354,7 @@ The Padoan & Nordlund (2011) model (`pn11_model.py`) is removed. BM19 subsumes i
 
 ---
 
+(ic-redesign-presets-api)=
 ## 5. Science-Motivated Presets & Top-Level API
 
 ### 5.1 ICPreset — bundles of consistent components
@@ -471,6 +476,7 @@ def generate_cluster_ic(
 
 ---
 
+(ic-redesign-deprecation-plan)=
 ## 6. Deprecation Plan
 
 ### Files to Remove
@@ -510,6 +516,7 @@ def generate_cluster_ic(
 
 ---
 
+(ic-redesign-testing-strategy)=
 ## 7. Testing Strategy
 
 ### Three-Tier Architecture (matching existing progenax convention)
@@ -553,6 +560,7 @@ def generate_cluster_ic(
 
 ---
 
+(ic-redesign-review-references)=
 ## 8. Scientific Review & References
 
 ### Why This Architecture is State-of-the-Art

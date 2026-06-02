@@ -208,7 +208,6 @@ the dispersion of the random subsets.
 
 ```{list-table} $\Lambda_{\mathrm{MSR}}$ regimes.
 :header-rows: 1
-:widths: 22 18 60
 
 * - $\Lambda_{\mathrm{MSR}}$
   - State
@@ -237,7 +236,7 @@ binary contamination affects single-star inferences.
 The implementation lives in `progenax.diagnostics.mass_segregation`,
 which uses scipy's `minimum_spanning_tree` and is *not* part of the
 JIT-able core IC pipeline (diagnostics are deliberately kept separate
-from the differentiable core; see [](jax-native-substructure-q.md) for
+from the differentiable core; see [JAX-native substructure design](../../20-architecture/jax-native-substructure-q.md) for
 the broader JAX-native-MST design discussion).
 
 ## Other constructions (not implemented in progenax)

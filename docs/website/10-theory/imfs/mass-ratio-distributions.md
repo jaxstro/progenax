@@ -44,7 +44,6 @@ below).
 
 ```{list-table} {cite:t}`Moe2017` Table 10 — period-averaged $\gamma(M_1)$.
 :header-rows: 1
-:widths: 32 18 50
 
 * - Primary mass
   - $\gamma$
@@ -74,7 +73,6 @@ companions in shared accretion environments.
 
 ```{list-table} {cite:t}`Moe2017` twin-excess fractions.
 :header-rows: 1
-:widths: 35 25 40
 
 * - Primary mass
   - $f_{\mathrm{twin}}$
@@ -128,7 +126,6 @@ splits $\gamma$ further:
 
 ```{list-table} {cite:t}`Moe2017` $\gamma$ split into small-$q$ and large-$q$ regimes (period-averaged).
 :header-rows: 1
-:widths: 32 25 25 18
 
 * - Primary mass
   - $\gamma_{\mathrm{small}{-}q}$ ($0.1 < q < 0.3$)

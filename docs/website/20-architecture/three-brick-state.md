@@ -36,7 +36,6 @@ them correctly.
 
 ```{list-table}
 :header-rows: 1
-:widths: 24 32 44
 
 * - Brick
   - Contents

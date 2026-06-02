@@ -19,7 +19,6 @@ purpose, frequency, and tolerance convention.
 
 ```{list-table}
 :header-rows: 1
-:widths: 18 30 52
 
 * - Tier
   - Purpose
@@ -74,7 +73,6 @@ derived constant**:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Bad anchor
   - Good anchor

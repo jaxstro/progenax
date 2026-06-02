@@ -24,7 +24,6 @@ A progenax IC is built up from three orthogonal ingredients:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 28 50
 
 * - Component
   - Specifies
@@ -59,7 +58,7 @@ A bound, gravitationally self-interacting N-body system in steady state
 satisfies the *virial theorem*:
 
 ```{math}
-:label: virial-theorem
+:label: ic-virial-theorem
 2T + V \;=\; 0
 ```
 
@@ -76,7 +75,6 @@ physical meaning:
 
 ```{list-table}
 :header-rows: 1
-:widths: 18 22 60
 
 * - $Q_{\mathrm{vir}}$
   - State
@@ -126,7 +124,7 @@ physical extent, even though their internal scale radii differ.
 The Plummer scale-radius–to–half-mass-radius relation is
 
 ```{math}
-:label: plummer-rh-a
+:label: ic-plummer-rh-a
 a \;=\; r_h\,\sqrt{2^{2/3} - 1} \;\approx\; 0.7664\,r_h.
 ```
 

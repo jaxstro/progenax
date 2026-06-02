@@ -24,7 +24,6 @@ differentiability, the antipatterns it forbids, and the
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 36 36
 
 * - Pattern
   - What it replaces
@@ -238,7 +237,6 @@ Some progenax modules are explicitly *partially* differentiable:
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 38 30
 
 * - Module
   - Differentiable in

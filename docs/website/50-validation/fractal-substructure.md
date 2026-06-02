@@ -16,7 +16,6 @@ this checkout. The current implementation is covered by unit tests under
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 25 40
 
 * - Property
   - Status

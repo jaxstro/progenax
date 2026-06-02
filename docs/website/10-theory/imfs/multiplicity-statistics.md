@@ -64,7 +64,6 @@ Moe & Di Stefano vocabulary exactly.
 
 ```{list-table}
 :header-rows: 1
-:widths: 26 30 44
 
 * - Quantity
   - Definition
@@ -89,13 +88,12 @@ In simplified models (like progenax's `BinaryIMF`) that allow at most
 one companion per primary, the "binary fraction" $f_b(m_1)$ is treated
 as a probability — i.e. it is bounded above by 1. This is a deliberate
 simplification; the implications for inferred IMF slopes are
-documented at [](binary.md#limitations).
+documented at [](binary.md#binary-imf-limitations).
 
 ## Mass-dependent binary fraction
 
 ```{list-table} {cite:t}`Moe2017` Table 13 — companion frequency above $q > 0.1$.
 :header-rows: 1
-:widths: 30 18 52
 
 * - Primary mass
   - $f_b$
@@ -135,7 +133,6 @@ inferences from binary-rich populations are biased — see
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 56
 
 * - Regime
   - Period range
@@ -195,7 +192,6 @@ shift across the mass spectrum:
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 24 48
 
 * - Primary mass
   - $f_{\mathrm{twin}}$

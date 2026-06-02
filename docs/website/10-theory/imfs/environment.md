@@ -32,7 +32,6 @@ Both papers attribute IMF variation to two environmental parameters:
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 75
 
 * - Driver
   - Mechanism
@@ -67,7 +66,6 @@ The progenax 4-segment IMF:
 
 ```{list-table}
 :header-rows: 1
-:widths: 14 30 28 28
 
 * - Segment
   - Mass range $(\Msun)$
@@ -300,7 +298,6 @@ of unknown reliability:
 
 ```{list-table}
 :header-rows: 1
-:widths: 25 30 45
 
 * - Parameter
   - Valid range

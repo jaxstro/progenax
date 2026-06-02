@@ -75,7 +75,6 @@ Building a two-component IC requires three explicit choices:
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 36 36
 
 * - Decision
   - Current default

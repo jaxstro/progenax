@@ -164,7 +164,6 @@ release:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 20 50
 
 * - Property
   - Tolerance

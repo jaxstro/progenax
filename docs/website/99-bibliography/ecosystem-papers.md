@@ -17,7 +17,6 @@ see [](per-paper/index.md). For the full bibliography, see
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - PDF
   - Topic
@@ -37,7 +36,6 @@ see [](per-paper/index.md). For the full bibliography, see
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - PDF
   - Topic
@@ -51,7 +49,6 @@ see [](per-paper/index.md). For the full bibliography, see
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - PDF
   - Topic
@@ -65,7 +62,6 @@ see [](per-paper/index.md). For the full bibliography, see
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - PDF
   - Topic

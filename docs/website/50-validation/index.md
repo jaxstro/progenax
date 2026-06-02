@@ -20,7 +20,6 @@ tolerances.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Page
   - Scope
@@ -61,7 +60,6 @@ each of three categories:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 78
 
 * - Tier
   - Verifies
@@ -81,7 +79,6 @@ research.
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 30 42
 
 * - Test type
   - Default tolerance
@@ -135,7 +132,6 @@ test "$M(<r_h) = M/2$" rather than "$a = 0.7664\,r_h$".
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 28 44
 
 * - Frequency
   - What runs

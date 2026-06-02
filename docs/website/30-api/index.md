@@ -1,7 +1,6 @@
 ---
 title: API reference
 description: Auto-generated reference for every public symbol in progenax — 135 symbols across 10 modules, regenerated from source on every release.
-slug: api-index
 ---
 
 # API reference
@@ -23,7 +22,6 @@ For physics derivations of the algorithms behind these symbols, see
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Module
   - Scope
@@ -99,7 +97,6 @@ chapter.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 30 40
 
 * - Status
   - Convention

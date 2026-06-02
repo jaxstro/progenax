@@ -1,7 +1,6 @@
 ---
 title: '`progenax.analytical`'
 description: Auto-generated API reference for `progenax.analytical` — signatures and docstrings of every public symbol.
-slug: api-analytical
 ---
 
 # `progenax.analytical`
@@ -14,23 +13,24 @@ Public symbols: **15**
 
 ## Contents
 
-- [`AnalyticalIC`](#analyticalic)
-- [`SOLAR_SYSTEM_PLANETS`](#solar_system_planets)
-- [`get_planet`](#get_planet)
-- [`two_body_kepler`](#two_body_kepler)
-- [`two_body_period`](#two_body_period)
-- [`two_body_energy`](#two_body_energy)
-- [`three_body_figure_eight`](#three_body_figure_eight)
-- [`figure_eight_period`](#figure_eight_period)
-- [`harmonic_oscillator`](#harmonic_oscillator)
-- [`harmonic_solution`](#harmonic_solution)
-- [`earth_sun_2body`](#earth_sun_2body)
-- [`earth_sun_eccentric`](#earth_sun_eccentric)
-- [`sun_earth_jupiter_3body`](#sun_earth_jupiter_3body)
-- [`solar_system_inner_4`](#solar_system_inner_4)
-- [`solar_system_full`](#solar_system_full)
+- [`AnalyticalIC`](#api-analytical-analyticalic)
+- [`SOLAR_SYSTEM_PLANETS`](#api-analytical-solar_system_planets)
+- [`get_planet`](#api-analytical-get_planet)
+- [`two_body_kepler`](#api-analytical-two_body_kepler)
+- [`two_body_period`](#api-analytical-two_body_period)
+- [`two_body_energy`](#api-analytical-two_body_energy)
+- [`three_body_figure_eight`](#api-analytical-three_body_figure_eight)
+- [`figure_eight_period`](#api-analytical-figure_eight_period)
+- [`harmonic_oscillator`](#api-analytical-harmonic_oscillator)
+- [`harmonic_solution`](#api-analytical-harmonic_solution)
+- [`earth_sun_2body`](#api-analytical-earth_sun_2body)
+- [`earth_sun_eccentric`](#api-analytical-earth_sun_eccentric)
+- [`sun_earth_jupiter_3body`](#api-analytical-sun_earth_jupiter_3body)
+- [`solar_system_inner_4`](#api-analytical-solar_system_inner_4)
+- [`solar_system_full`](#api-analytical-solar_system_full)
 
-## `AnalyticalIC`
+(api-analytical-analyticalic)=
+## `analytical.AnalyticalIC`
 
 *class*
 
@@ -50,7 +50,8 @@ Attributes:
 
 *Source: [`progenax/analytical/core.py#L43`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L43)*
 
-## `SOLAR_SYSTEM_PLANETS`
+(api-analytical-solar_system_planets)=
+## `analytical.SOLAR_SYSTEM_PLANETS`
 
 *value*
 
@@ -59,7 +60,8 @@ Built-in mutable sequence.
 If no argument is given, the constructor creates a new empty list.
 The argument must be an iterable if specified.
 
-## `get_planet`
+(api-analytical-get_planet)=
+## `analytical.get_planet`
 
 *function*
 
@@ -94,7 +96,8 @@ Example:
 
 *Source: [`progenax/analytical/core.py#L156`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L156)*
 
-## `two_body_kepler`
+(api-analytical-two_body_kepler)=
+## `analytical.two_body_kepler`
 
 *function*
 
@@ -148,7 +151,8 @@ References:
 
 *Source: [`progenax/analytical/core.py#L196`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L196)*
 
-## `two_body_period`
+(api-analytical-two_body_period)=
+## `analytical.two_body_period`
 
 *function*
 
@@ -174,7 +178,8 @@ Example:
 
 *Source: [`progenax/analytical/core.py#L343`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L343)*
 
-## `two_body_energy`
+(api-analytical-two_body_energy)=
+## `analytical.two_body_energy`
 
 *function*
 
@@ -199,7 +204,8 @@ Notes:
 
 *Source: [`progenax/analytical/core.py#L365`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L365)*
 
-## `three_body_figure_eight`
+(api-analytical-three_body_figure_eight)=
+## `analytical.three_body_figure_eight`
 
 *function*
 
@@ -256,7 +262,8 @@ References:
 
 *Source: [`progenax/analytical/core.py#L390`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L390)*
 
-## `figure_eight_period`
+(api-analytical-figure_eight_period)=
+## `analytical.figure_eight_period`
 
 *function*
 
@@ -279,7 +286,8 @@ Notes:
 
 *Source: [`progenax/analytical/core.py#L503`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L503)*
 
-## `harmonic_oscillator`
+(api-analytical-harmonic_oscillator)=
+## `analytical.harmonic_oscillator`
 
 *function*
 
@@ -331,7 +339,8 @@ Warning:
 
 *Source: [`progenax/analytical/core.py#L531`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L531)*
 
-## `harmonic_solution`
+(api-analytical-harmonic_solution)=
+## `analytical.harmonic_solution`
 
 *function*
 
@@ -357,7 +366,8 @@ Example:
 
 *Source: [`progenax/analytical/core.py#L615`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L615)*
 
-## `earth_sun_2body`
+(api-analytical-earth_sun_2body)=
+## `analytical.earth_sun_2body`
 
 *function*
 
@@ -400,7 +410,8 @@ References:
 
 *Source: [`progenax/analytical/core.py#L659`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L659)*
 
-## `earth_sun_eccentric`
+(api-analytical-earth_sun_eccentric)=
+## `analytical.earth_sun_eccentric`
 
 *function*
 
@@ -437,7 +448,8 @@ Example:
 
 *Source: [`progenax/analytical/core.py#L702`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L702)*
 
-## `sun_earth_jupiter_3body`
+(api-analytical-sun_earth_jupiter_3body)=
+## `analytical.sun_earth_jupiter_3body`
 
 *function*
 
@@ -485,7 +497,8 @@ References:
 
 *Source: [`progenax/analytical/core.py#L739`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L739)*
 
-## `solar_system_inner_4`
+(api-analytical-solar_system_inner_4)=
+## `analytical.solar_system_inner_4`
 
 *function*
 
@@ -531,7 +544,8 @@ References:
 
 *Source: [`progenax/analytical/core.py#L832`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core.py#L832)*
 
-## `solar_system_full`
+(api-analytical-solar_system_full)=
+## `analytical.solar_system_full`
 
 *function*
 

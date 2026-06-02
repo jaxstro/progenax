@@ -72,7 +72,7 @@ of progenax stored $a = r_h / \sqrt{2^{2/3} - 1}$ instead of $a = r_h
 \sqrt{2^{2/3} - 1}$ — the inverse — which generates Plummer clusters
 1.7× too large. The bug propagated into the validation suite (where
 "50% within $r_h$" failed by ~25%) and was caught only when
-[`tests/validation/test_plummer_physics.py::test_half_mass_radius`](#)
+`tests/validation/test_plummer_physics.py::test_half_mass_radius`
 was added in 2025-12. The lesson: anchor every closed-form constant
 on a quantitative test against the *defining condition* (here,
 $M(<r_h) = M/2$), not against the constant itself.
@@ -163,7 +163,6 @@ one place:
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 72
 
 * - Quantity
   - Closed form
@@ -181,7 +180,7 @@ one place:
 
 The half-mass relation $a = r_h\sqrt{2^{2/3}-1}$ {eq}`plummer-rh-a`
 ties this all together. Every progenax Plummer-related test
-({cite}`tests/validation/test_plummer_physics.py`) anchors on at least
+(`tests/validation/test_plummer_physics.py`) anchors on at least
 two of these quantities.
 
 ## Implementation in progenax

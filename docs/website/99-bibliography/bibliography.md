@@ -9,8 +9,6 @@ This page renders progenax's full bibliography from
 `{cite}` keys throughout the docs to jump back here.
 
 ```{bibliography}
-:list: bullet
-:all:
 ```
 
 ## Per-paper detail pages

@@ -26,7 +26,6 @@ there's a path for you.
 ## Find your reading path
 
 ::::{grid} 1 1 3 3
-:gutter: 3
 
 :::{card} 🚀 Get started
 :link: 00-getting-started/index.md

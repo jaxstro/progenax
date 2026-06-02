@@ -1,7 +1,6 @@
 ---
 title: '`progenax.binaries`'
 description: Auto-generated API reference for `progenax.binaries` — signatures and docstrings of every public symbol.
-slug: api-binaries
 ---
 
 # `progenax.binaries`
@@ -14,28 +13,29 @@ Public symbols: **20**
 
 ## Contents
 
-- [`KeplerElements`](#keplerelements)
-- [`compute_period`](#compute_period)
-- [`period_to_semimajor_axis`](#period_to_semimajor_axis)
-- [`BinaryOrbitalState`](#binaryorbitalstate)
-- [`make_elements_from_inputs`](#make_elements_from_inputs)
-- [`elements_to_resolved_state`](#elements_to_resolved_state)
-- [`batch_elements_to_resolved`](#batch_elements_to_resolved)
-- [`elements_to_com_and_internal`](#elements_to_com_and_internal)
-- [`batch_elements_to_com_and_internal`](#batch_elements_to_com_and_internal)
-- [`LogUniformPeriod`](#loguniformperiod)
-- [`LogNormalPeriod`](#lognormalperiod)
-- [`ThermalEccentricity`](#thermaleccentricity)
-- [`UniformEccentricity`](#uniformeccentricity)
-- [`sample_isotropic_orientations`](#sample_isotropic_orientations)
-- [`RadialBinaryFraction`](#radialbinaryfraction)
-- [`SanaOBPeriod`](#sanaobperiod)
-- [`MoeEccentricity`](#moeeccentricity)
-- [`MassDependentBinaryConfig`](#massdependentbinaryconfig)
-- [`sample_mass_dependent_orbits`](#sample_mass_dependent_orbits)
-- [`KeplerElements_IC`](#keplerelements_ic)
+- [`KeplerElements`](#api-binaries-keplerelements)
+- [`compute_period`](#api-binaries-compute_period)
+- [`period_to_semimajor_axis`](#api-binaries-period_to_semimajor_axis)
+- [`BinaryOrbitalState`](#api-binaries-binaryorbitalstate)
+- [`make_elements_from_inputs`](#api-binaries-make_elements_from_inputs)
+- [`elements_to_resolved_state`](#api-binaries-elements_to_resolved_state)
+- [`batch_elements_to_resolved`](#api-binaries-batch_elements_to_resolved)
+- [`elements_to_com_and_internal`](#api-binaries-elements_to_com_and_internal)
+- [`batch_elements_to_com_and_internal`](#api-binaries-batch_elements_to_com_and_internal)
+- [`LogUniformPeriod`](#api-binaries-loguniformperiod)
+- [`LogNormalPeriod`](#api-binaries-lognormalperiod)
+- [`ThermalEccentricity`](#api-binaries-thermaleccentricity)
+- [`UniformEccentricity`](#api-binaries-uniformeccentricity)
+- [`sample_isotropic_orientations`](#api-binaries-sample_isotropic_orientations)
+- [`RadialBinaryFraction`](#api-binaries-radialbinaryfraction)
+- [`SanaOBPeriod`](#api-binaries-sanaobperiod)
+- [`MoeEccentricity`](#api-binaries-moeeccentricity)
+- [`MassDependentBinaryConfig`](#api-binaries-massdependentbinaryconfig)
+- [`sample_mass_dependent_orbits`](#api-binaries-sample_mass_dependent_orbits)
+- [`KeplerElements_IC`](#api-binaries-keplerelements_ic)
 
-## `KeplerElements`
+(api-binaries-keplerelements)=
+## `binaries.KeplerElements`
 
 *class*
 
@@ -75,7 +75,8 @@ Examples:
 
 *Source: [`progenax/binaries/kepler.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L15)*
 
-## `compute_period`
+(api-binaries-compute_period)=
+## `binaries.compute_period`
 
 *function*
 
@@ -115,7 +116,8 @@ References:
 
 *Source: [`progenax/binaries/kepler.py#L473`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L473)*
 
-## `period_to_semimajor_axis`
+(api-binaries-period_to_semimajor_axis)=
+## `binaries.period_to_semimajor_axis`
 
 *function*
 
@@ -156,7 +158,8 @@ References:
 
 *Source: [`progenax/binaries/kepler.py#L515`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L515)*
 
-## `BinaryOrbitalState`
+(api-binaries-binaryorbitalstate)=
+## `binaries.BinaryOrbitalState`
 
 *class*
 
@@ -188,7 +191,8 @@ Example:
 
 *Source: [`progenax/binaries/orbital_state.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L23)*
 
-## `make_elements_from_inputs`
+(api-binaries-make_elements_from_inputs)=
+## `binaries.make_elements_from_inputs`
 
 *function*
 
@@ -215,7 +219,8 @@ Returns:
 
 *Source: [`progenax/binaries/orbital_state.py#L180`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L180)*
 
-## `elements_to_resolved_state`
+(api-binaries-elements_to_resolved_state)=
+## `binaries.elements_to_resolved_state`
 
 *function*
 
@@ -234,7 +239,8 @@ Returns:
 
 *Source: [`progenax/binaries/orbital_state.py#L220`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L220)*
 
-## `batch_elements_to_resolved`
+(api-binaries-batch_elements_to_resolved)=
+## `binaries.batch_elements_to_resolved`
 
 *function*
 
@@ -261,7 +267,8 @@ Returns:
 
 *Source: [`progenax/binaries/orbital_state.py#L236`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L236)*
 
-## `elements_to_com_and_internal`
+(api-binaries-elements_to_com_and_internal)=
+## `binaries.elements_to_com_and_internal`
 
 *function*
 
@@ -275,7 +282,8 @@ For now r_com=v_com=0; hook for future drift/offset support.
 
 *Source: [`progenax/binaries/orbital_state.py#L285`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L285)*
 
-## `batch_elements_to_com_and_internal`
+(api-binaries-batch_elements_to_com_and_internal)=
+## `binaries.batch_elements_to_com_and_internal`
 
 *function*
 
@@ -291,7 +299,8 @@ Args:
 
 *Source: [`progenax/binaries/orbital_state.py#L297`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L297)*
 
-## `LogUniformPeriod`
+(api-binaries-loguniformperiod)=
+## `binaries.LogUniformPeriod`
 
 *class*
 
@@ -313,7 +322,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L26`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L26)*
 
-## `LogNormalPeriod`
+(api-binaries-lognormalperiod)=
+## `binaries.LogNormalPeriod`
 
 *class*
 
@@ -335,7 +345,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L68`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L68)*
 
-## `ThermalEccentricity`
+(api-binaries-thermaleccentricity)=
+## `binaries.ThermalEccentricity`
 
 *class*
 
@@ -357,7 +368,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L115`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L115)*
 
-## `UniformEccentricity`
+(api-binaries-uniformeccentricity)=
+## `binaries.UniformEccentricity`
 
 *class*
 
@@ -375,7 +387,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L151`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L151)*
 
-## `sample_isotropic_orientations`
+(api-binaries-sample_isotropic_orientations)=
+## `binaries.sample_isotropic_orientations`
 
 *function*
 
@@ -407,7 +420,8 @@ Reference:
 
 *Source: [`progenax/binaries/population.py#L189`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L189)*
 
-## `RadialBinaryFraction`
+(api-binaries-radialbinaryfraction)=
+## `binaries.RadialBinaryFraction`
 
 *class*
 
@@ -451,7 +465,8 @@ Examples:
 
 *Source: [`progenax/binaries/population.py#L351`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L351)*
 
-## `SanaOBPeriod`
+(api-binaries-sanaobperiod)=
+## `binaries.SanaOBPeriod`
 
 *class*
 
@@ -479,7 +494,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L234`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L234)*
 
-## `MoeEccentricity`
+(api-binaries-moeeccentricity)=
+## `binaries.MoeEccentricity`
 
 *class*
 
@@ -507,7 +523,8 @@ Parameters:
 
 *Source: [`progenax/binaries/population.py#L295`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L295)*
 
-## `MassDependentBinaryConfig`
+(api-binaries-massdependentbinaryconfig)=
+## `binaries.MassDependentBinaryConfig`
 
 *class*
 
@@ -547,7 +564,8 @@ Example:
 
 *Source: [`progenax/binaries/population.py#L433`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L433)*
 
-## `sample_mass_dependent_orbits`
+(api-binaries-sample_mass_dependent_orbits)=
+## `binaries.sample_mass_dependent_orbits`
 
 *function*
 
@@ -587,7 +605,8 @@ Example:
 
 *Source: [`progenax/binaries/population.py#L473`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L473)*
 
-## `KeplerElements_IC`
+(api-binaries-keplerelements_ic)=
+## `binaries.KeplerElements_IC`
 
 *class*
 

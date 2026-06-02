@@ -16,7 +16,6 @@ historical decisions that shaped the current API.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Chapter
   - Scope

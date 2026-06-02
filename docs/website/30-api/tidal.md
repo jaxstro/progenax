@@ -1,7 +1,6 @@
 ---
 title: '`progenax.tidal`'
 description: Auto-generated API reference for `progenax.tidal` — signatures and docstrings of every public symbol.
-slug: api-tidal
 ---
 
 # `progenax.tidal`
@@ -14,12 +13,13 @@ Public symbols: **4**
 
 ## Contents
 
-- [`jacobi_radius`](#jacobi_radius)
-- [`jacobi_radius_isothermal`](#jacobi_radius_isothermal)
-- [`apply_tidal_truncation`](#apply_tidal_truncation)
-- [`fill_factor_to_r_h`](#fill_factor_to_r_h)
+- [`jacobi_radius`](#api-tidal-jacobi_radius)
+- [`jacobi_radius_isothermal`](#api-tidal-jacobi_radius_isothermal)
+- [`apply_tidal_truncation`](#api-tidal-apply_tidal_truncation)
+- [`fill_factor_to_r_h`](#api-tidal-fill_factor_to_r_h)
 
-## `jacobi_radius`
+(api-tidal-jacobi_radius)=
+## `tidal.jacobi_radius`
 
 *function*
 
@@ -54,7 +54,8 @@ Reference:
 
 *Source: [`progenax/tidal.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L17)*
 
-## `jacobi_radius_isothermal`
+(api-tidal-jacobi_radius_isothermal)=
+## `tidal.jacobi_radius_isothermal`
 
 *function*
 
@@ -84,7 +85,8 @@ Reference:
 
 *Source: [`progenax/tidal.py#L51`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L51)*
 
-## `apply_tidal_truncation`
+(api-tidal-apply_tidal_truncation)=
+## `tidal.apply_tidal_truncation`
 
 *function*
 
@@ -115,7 +117,8 @@ Note:
 
 *Source: [`progenax/tidal.py#L82`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L82)*
 
-## `fill_factor_to_r_h`
+(api-tidal-fill_factor_to_r_h)=
+## `tidal.fill_factor_to_r_h`
 
 *function*
 

@@ -13,7 +13,6 @@ validation tests anchoring the closed-form expressions from
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 18 50
 
 * - Property
   - Tolerance

@@ -32,7 +32,6 @@ underlying $\alpha = 2.35$ population.
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 28 44
 
 * - Operator
   - What the telescope measures

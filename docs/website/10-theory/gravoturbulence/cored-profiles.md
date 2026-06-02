@@ -85,7 +85,6 @@ production parameter range.
 
 ```{list-table} Limits of `magnification_factor_with_core(p, r_c/R)`.
 :header-rows: 1
-:widths: 22 32 46
 
 * - Limit
   - Behaviour
@@ -119,7 +118,6 @@ numerical safety problem doesn't arise.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Use cored when…
   - …because
@@ -133,7 +131,6 @@ numerical safety problem doesn't arise.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Use pure power-law (PP20) when…
   - …because

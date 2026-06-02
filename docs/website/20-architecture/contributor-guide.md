@@ -16,7 +16,6 @@ progenax's structure. This chapter is the *how*.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 30 40
 
 * - Target
   - Protocol / file location
@@ -275,7 +274,6 @@ admitted.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Convention
   - Detail

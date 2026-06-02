@@ -54,7 +54,6 @@ Three regimes:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 30 48
 
 * - $r$
   - $\beta(r)$

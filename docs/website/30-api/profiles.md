@@ -1,7 +1,6 @@
 ---
 title: '`progenax.profiles`'
 description: Auto-generated API reference for `progenax.profiles` — signatures and docstrings of every public symbol.
-slug: api-profiles
 ---
 
 # `progenax.profiles`
@@ -14,17 +13,18 @@ Public symbols: **9**
 
 ## Contents
 
-- [`PlummerProfile`](#plummerprofile)
-- [`KingProfile`](#kingprofile)
-- [`solve_king_profile`](#solve_king_profile)
-- [`EFFProfile`](#effprofile)
-- [`UniformSphereProfile`](#uniformsphereprofile)
-- [`ProfileName`](#profilename)
-- [`make_profile`](#make_profile)
-- [`sample_density_profile`](#sample_density_profile)
-- [`compute_profile_potential`](#compute_profile_potential)
+- [`PlummerProfile`](#api-profiles-plummerprofile)
+- [`KingProfile`](#api-profiles-kingprofile)
+- [`solve_king_profile`](#api-profiles-solve_king_profile)
+- [`EFFProfile`](#api-profiles-effprofile)
+- [`UniformSphereProfile`](#api-profiles-uniformsphereprofile)
+- [`ProfileName`](#api-profiles-profilename)
+- [`make_profile`](#api-profiles-make_profile)
+- [`sample_density_profile`](#api-profiles-sample_density_profile)
+- [`compute_profile_potential`](#api-profiles-compute_profile_potential)
 
-## `PlummerProfile`
+(api-profiles-plummerprofile)=
+## `profiles.PlummerProfile`
 
 *class*
 
@@ -51,7 +51,8 @@ Examples:
 
 *Source: [`progenax/profiles/plummer.py#L14`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/plummer.py#L14)*
 
-## `KingProfile`
+(api-profiles-kingprofile)=
+## `profiles.KingProfile`
 
 *class*
 
@@ -91,7 +92,8 @@ Examples:
 
 *Source: [`progenax/profiles/king.py#L247`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L247)*
 
-## `solve_king_profile`
+(api-profiles-solve_king_profile)=
+## `profiles.solve_king_profile`
 
 *function*
 
@@ -126,7 +128,8 @@ Note:
 
 *Source: [`progenax/profiles/king.py#L137`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L137)*
 
-## `EFFProfile`
+(api-profiles-effprofile)=
+## `profiles.EFFProfile`
 
 *class*
 
@@ -160,7 +163,8 @@ References:
 
 *Source: [`progenax/profiles/eff.py#L20`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/eff.py#L20)*
 
-## `UniformSphereProfile`
+(api-profiles-uniformsphereprofile)=
+## `profiles.UniformSphereProfile`
 
 *class*
 
@@ -188,7 +192,8 @@ Examples:
 
 *Source: [`progenax/profiles/uniform.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/uniform.py#L15)*
 
-## `ProfileName`
+(api-profiles-profilename)=
+## `profiles.ProfileName`
 
 *function*
 
@@ -198,7 +203,8 @@ ProfileName(*args, **kwargs)
 
 *(no docstring)*
 
-## `make_profile`
+(api-profiles-make_profile)=
+## `profiles.make_profile`
 
 *function*
 
@@ -256,7 +262,8 @@ Notes:
 
 *Source: [`progenax/profiles/api.py#L42`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/api.py#L42)*
 
-## `sample_density_profile`
+(api-profiles-sample_density_profile)=
+## `profiles.sample_density_profile`
 
 *function*
 
@@ -302,7 +309,8 @@ Notes:
 
 *Source: [`progenax/profiles/api.py#L123`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/api.py#L123)*
 
-## `compute_profile_potential`
+(api-profiles-compute_profile_potential)=
+## `profiles.compute_profile_potential`
 
 *function*
 

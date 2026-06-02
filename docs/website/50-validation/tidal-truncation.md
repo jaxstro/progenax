@@ -13,7 +13,6 @@ Tests `progenax.tidal.jacobi_radius` and
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 22 46
 
 * - Property
   - Tolerance

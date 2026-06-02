@@ -9,8 +9,8 @@ script walks the module via :mod:`inspect`, extracts signatures and
 docstrings, and emits one MyST page per top-level module under
 ``30-api/`` plus an alphabetical ``30-api/full-symbol-index.md``.
 
-Pages contain anchors so theory chapters can cross-link via
-``[](../30-api/profiles.md#PlummerProfile)``.
+Pages contain module-namespaced anchors so theory chapters can
+cross-link via ``[](../30-api/profiles.md#api-profiles-plummerprofile)``.
 
 The script uses only Python stdlib — no Griffe dependency. Sufficient
 for progenax's docstring style (numpy-style with parameter descriptions
@@ -88,6 +88,11 @@ def _source_link(obj, package_root: Path) -> str | None:
     return f"{rel.as_posix()}#L{line}"
 
 
+def _anchor(short_module: str, symbol: str) -> str:
+    """Return a stable anchor that is unique across the whole MyST site."""
+    return f"api-{short_module.replace('.', '-')}-{symbol.lower()}"
+
+
 def _collect_public_symbols(module_name: str):
     """Yield (name, obj) for each public symbol in `module.__all__`."""
     mod = importlib.import_module(module_name)
@@ -130,7 +135,6 @@ def _emit_module_page(module_name: str, out_path: Path, package_root: Path) -> i
         f"description: Auto-generated API reference for `{module_name}` — "
         f"signatures and docstrings of every public symbol."
     )
-    lines.append(f"slug: api-{short.replace('.', '-')}")
     lines.append("---")
     lines.append("")
     lines.append(f"# `{module_name}`")
@@ -154,7 +158,7 @@ def _emit_module_page(module_name: str, out_path: Path, package_root: Path) -> i
     lines.append("## Contents")
     lines.append("")
     for name, _obj in symbols:
-        lines.append(f"- [`{name}`](#{name.lower()})")
+        lines.append(f"- [`{name}`](#{_anchor(short, name)})")
     lines.append("")
 
     # Per-symbol section
@@ -164,7 +168,8 @@ def _emit_module_page(module_name: str, out_path: Path, package_root: Path) -> i
         doc = _format_docstring(obj)
         src = _source_link(obj, package_root)
 
-        lines.append(f"## `{name}`")
+        lines.append(f"({_anchor(short, name)})=")
+        lines.append(f"## `{short}.{name}`")
         lines.append("")
 
         kind_label = {
@@ -217,7 +222,6 @@ def _emit_full_symbol_index(
         "description: Alphabetical index of every public progenax symbol "
         "with classification and link to the per-module page."
     )
-    lines.append("slug: api-full-symbol-index")
     lines.append("---")
     lines.append("")
     lines.append("# Full symbol index")
@@ -234,7 +238,9 @@ def _emit_full_symbol_index(
 
     for name, kind, mod_short in sorted_syms:
         page = f"{mod_short}.md"
-        lines.append(f"| [`{name}`]({page}#{name.lower()}) | {kind} | `progenax.{mod_short}` |")
+        lines.append(
+            f"| [`{name}`]({page}#{_anchor(mod_short, name)}) | {kind} | `progenax.{mod_short}` |"
+        )
 
     lines.append("")
 

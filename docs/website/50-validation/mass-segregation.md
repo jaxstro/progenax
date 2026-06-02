@@ -18,7 +18,6 @@ checkout. The current implemented behavior is covered by
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 25 40
 
 * - Property
   - Status

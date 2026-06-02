@@ -11,7 +11,6 @@ combination ([](../ic-philosophy.md)):
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Modifier
   - What it adds to the IC

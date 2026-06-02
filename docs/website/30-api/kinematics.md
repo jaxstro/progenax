@@ -1,7 +1,6 @@
 ---
 title: '`progenax.kinematics`'
 description: Auto-generated API reference for `progenax.kinematics` — signatures and docstrings of every public symbol.
-slug: api-kinematics
 ---
 
 # `progenax.kinematics`
@@ -14,19 +13,20 @@ Public symbols: **11**
 
 ## Contents
 
-- [`PlummerVelocityDF`](#plummervelocitydf)
-- [`KingVelocityDF`](#kingvelocitydf)
-- [`EFFVelocityDF`](#effvelocitydf)
-- [`apply_osipkov_merritt`](#apply_osipkov_merritt)
-- [`apply_solid_body_rotation`](#apply_solid_body_rotation)
-- [`apply_differential_rotation`](#apply_differential_rotation)
-- [`VelocityDF`](#velocitydf)
-- [`AnisotropyParams`](#anisotropyparams)
-- [`RotationParams`](#rotationparams)
-- [`VelocityModel`](#velocitymodel)
-- [`sample_velocities_pipeline`](#sample_velocities_pipeline)
+- [`PlummerVelocityDF`](#api-kinematics-plummervelocitydf)
+- [`KingVelocityDF`](#api-kinematics-kingvelocitydf)
+- [`EFFVelocityDF`](#api-kinematics-effvelocitydf)
+- [`apply_osipkov_merritt`](#api-kinematics-apply_osipkov_merritt)
+- [`apply_solid_body_rotation`](#api-kinematics-apply_solid_body_rotation)
+- [`apply_differential_rotation`](#api-kinematics-apply_differential_rotation)
+- [`VelocityDF`](#api-kinematics-velocitydf)
+- [`AnisotropyParams`](#api-kinematics-anisotropyparams)
+- [`RotationParams`](#api-kinematics-rotationparams)
+- [`VelocityModel`](#api-kinematics-velocitymodel)
+- [`sample_velocities_pipeline`](#api-kinematics-sample_velocities_pipeline)
 
-## `PlummerVelocityDF`
+(api-kinematics-plummervelocitydf)=
+## `kinematics.PlummerVelocityDF`
 
 *class*
 
@@ -91,7 +91,8 @@ Examples:
 
 *Source: [`progenax/kinematics/plummer_df.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/plummer_df.py#L15)*
 
-## `KingVelocityDF`
+(api-kinematics-kingvelocitydf)=
+## `kinematics.KingVelocityDF`
 
 *class*
 
@@ -152,7 +153,8 @@ Examples:
 
 *Source: [`progenax/kinematics/king_df.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L16)*
 
-## `EFFVelocityDF`
+(api-kinematics-effvelocitydf)=
+## `kinematics.EFFVelocityDF`
 
 *class*
 
@@ -202,7 +204,8 @@ Examples:
 
 *Source: [`progenax/kinematics/eff_df.py#L19`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L19)*
 
-## `apply_osipkov_merritt`
+(api-kinematics-apply_osipkov_merritt)=
+## `kinematics.apply_osipkov_merritt`
 
 *function*
 
@@ -246,7 +249,8 @@ Reference:
 
 *Source: [`progenax/kinematics/anisotropy.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/anisotropy.py#L16)*
 
-## `apply_solid_body_rotation`
+(api-kinematics-apply_solid_body_rotation)=
+## `kinematics.apply_solid_body_rotation`
 
 *function*
 
@@ -283,7 +287,8 @@ Reference:
 
 *Source: [`progenax/kinematics/rotation.py#L14`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/rotation.py#L14)*
 
-## `apply_differential_rotation`
+(api-kinematics-apply_differential_rotation)=
+## `kinematics.apply_differential_rotation`
 
 *function*
 
@@ -315,7 +320,8 @@ Reference:
 
 *Source: [`progenax/kinematics/rotation.py#L61`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/rotation.py#L61)*
 
-## `VelocityDF`
+(api-kinematics-velocitydf)=
+## `kinematics.VelocityDF`
 
 *protocol*
 
@@ -330,7 +336,8 @@ kinematics API pipeline.
 
 *Source: [`progenax/kinematics/api.py#L55`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L55)*
 
-## `AnisotropyParams`
+(api-kinematics-anisotropyparams)=
+## `kinematics.AnisotropyParams`
 
 *class*
 
@@ -360,7 +367,8 @@ References:
 
 *Source: [`progenax/kinematics/api.py#L84`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L84)*
 
-## `RotationParams`
+(api-kinematics-rotationparams)=
+## `kinematics.RotationParams`
 
 *class*
 
@@ -393,7 +401,8 @@ References:
 
 *Source: [`progenax/kinematics/api.py#L111`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L111)*
 
-## `VelocityModel`
+(api-kinematics-velocitymodel)=
+## `kinematics.VelocityModel`
 
 *class*
 
@@ -422,7 +431,8 @@ Example:
 
 *Source: [`progenax/kinematics/api.py#L145`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L145)*
 
-## `sample_velocities_pipeline`
+(api-kinematics-sample_velocities_pipeline)=
+## `kinematics.sample_velocities_pipeline`
 
 *function*
 

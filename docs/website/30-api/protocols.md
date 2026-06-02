@@ -1,7 +1,6 @@
 ---
 title: '`progenax.protocols`'
 description: Auto-generated API reference for `progenax.protocols` — signatures and docstrings of every public symbol.
-slug: api-protocols
 ---
 
 # `progenax.protocols`
@@ -14,11 +13,12 @@ Public symbols: **3**
 
 ## Contents
 
-- [`SpatialProfile`](#spatialprofile)
-- [`VelocityDF`](#velocitydf)
-- [`IMFProtocol`](#imfprotocol)
+- [`SpatialProfile`](#api-protocols-spatialprofile)
+- [`VelocityDF`](#api-protocols-velocitydf)
+- [`IMFProtocol`](#api-protocols-imfprotocol)
 
-## `SpatialProfile`
+(api-protocols-spatialprofile)=
+## `protocols.SpatialProfile`
 
 *protocol*
 
@@ -38,7 +38,8 @@ Example implementations:
 
 *Source: [`progenax/protocols.py#L13`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L13)*
 
-## `VelocityDF`
+(api-protocols-velocitydf)=
+## `protocols.VelocityDF`
 
 *protocol*
 
@@ -53,7 +54,8 @@ Enables composability: mix Plummer positions + King velocities.
 
 *Source: [`progenax/protocols.py#L54`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L54)*
 
-## `IMFProtocol`
+(api-protocols-imfprotocol)=
+## `protocols.IMFProtocol`
 
 *protocol*
 

@@ -31,7 +31,6 @@ Every chapter follows the same template:
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - Chapter family
   - Scientific scope

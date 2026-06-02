@@ -38,7 +38,6 @@ composition patterns, not a separate public API in this checkout.
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 68
 
 * - Chapter
   - Scope

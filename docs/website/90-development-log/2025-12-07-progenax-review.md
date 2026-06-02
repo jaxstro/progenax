@@ -10,17 +10,18 @@
 
 ## Table of Contents
 
-1. [Executive Summary](#1-executive-summary)
-2. [Pedagogical Guide to Capabilities](#2-pedagogical-guide-to-capabilities)
-3. [Architecture Deep-Dive](#3-architecture-deep-dive)
-4. [Scientific Correctness Verification](#4-scientific-correctness-verification)
-5. [Code Quality Assessment](#5-code-quality-assessment)
-6. [Module-by-Module Analysis](#6-module-by-module-analysis)
-7. [Recommendations](#7-recommendations)
-8. [Appendices](#8-appendices)
+1. [Executive Summary](#progenax-review-executive-summary)
+2. [Pedagogical Guide to Capabilities](#progenax-review-pedagogy)
+3. [Architecture Deep-Dive](#progenax-review-architecture)
+4. [Scientific Correctness Verification](#progenax-review-science)
+5. [Code Quality Assessment](#progenax-review-code-quality)
+6. [Module-by-Module Analysis](#progenax-review-modules)
+7. [Recommendations](#progenax-review-recommendations)
+8. [Appendices](#progenax-review-appendices)
 
 ---
 
+(progenax-review-executive-summary)=
 ## 1. Executive Summary
 
 ### 1.1 Package Overview
@@ -72,6 +73,7 @@
 
 ---
 
+(progenax-review-pedagogy)=
 ## 2. Pedagogical Guide to Capabilities
 
 ### 2.1 Core Concepts
@@ -317,6 +319,7 @@ periods, eccentricities = sample_mass_dependent_orbits(masses, config, key)
 
 ---
 
+(progenax-review-architecture)=
 ## 3. Architecture Deep-Dive
 
 ### 3.1 Design Patterns
@@ -526,6 +529,7 @@ progenax/
 
 ---
 
+(progenax-review-science)=
 ## 4. Scientific Correctness Verification
 
 ### 4.1 Plummer Profile (Plummer 1911)
@@ -680,6 +684,7 @@ $$r_J = \left(\frac{GM_{\text{cluster}}}{2\Omega^2}\right)^{1/3} \quad \text{whe
 
 ---
 
+(progenax-review-code-quality)=
 ## 5. Code Quality Assessment
 
 ### 5.1 Strengths
@@ -768,6 +773,7 @@ class PlummerVelocityDF(eqx.Module):
 
 ---
 
+(progenax-review-modules)=
 ## 6. Module-by-Module Analysis
 
 ### 6.1 `profiles/plummer.py` (124 LOC)
@@ -980,6 +986,7 @@ $$v_\phi(R) = v_{\text{peak}} \cdot \frac{R}{R_{\text{peak}}} \cdot \exp\left(1 
 
 ---
 
+(progenax-review-recommendations)=
 ## 7. Recommendations
 
 ### 7.1 Critical (Should Fix) — ✅ ALL COMPLETED
@@ -1102,6 +1109,7 @@ from jaxstro.constants import k_B_cgs, m_p_cgs, G_cgs
 
 ---
 
+(progenax-review-appendices)=
 ## 8. Appendices
 
 ### Appendix A: Complete Public API

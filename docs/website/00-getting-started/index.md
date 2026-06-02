@@ -14,7 +14,6 @@ the rest of the docs.
 
 ```{list-table}
 :header-rows: 1
-:widths: 35 65
 
 * - Page
   - What you'll do

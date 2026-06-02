@@ -14,7 +14,6 @@ outputs live under `validation/imf/`, including
 
 ```{list-table}
 :header-rows: 1
-:widths: 32 24 44
 
 * - Property
   - Tolerance

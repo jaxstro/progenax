@@ -47,7 +47,6 @@ self-similar distributions.
 
 ```{list-table} CW04 Q regimes.
 :header-rows: 1
-:widths: 25 35 40
 
 * - Regime
   - $Q$ value
@@ -91,7 +90,6 @@ fundamental obstructions:
 
 ```{list-table} MST algorithms ranked for JAX feasibility.
 :header-rows: 1
-:widths: 22 22 22 34
 
 * - Algorithm
   - Parallelisable?
@@ -265,7 +263,6 @@ CW04 Q is one of three substructure metrics implemented in progenax:
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 35 35
 
 * - Metric
   - What it measures

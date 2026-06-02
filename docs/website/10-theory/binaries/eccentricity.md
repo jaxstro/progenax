@@ -14,7 +14,6 @@ formed with (typically thermal). progenax implements three families:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 56
 
 * - Distribution
   - $f(e)$

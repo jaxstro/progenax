@@ -13,7 +13,6 @@ checkout is `tests/validation/test_imf_physics.py`; there is no
 
 ```{list-table}
 :header-rows: 1
-:widths: 28 22 50
 
 * - Property
   - Tolerance

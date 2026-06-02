@@ -1,7 +1,6 @@
 ---
 title: '`progenax.gravoturb`'
 description: Auto-generated API reference for `progenax.gravoturb` — signatures and docstrings of every public symbol.
-slug: api-gravoturb
 ---
 
 # `progenax.gravoturb`
@@ -14,29 +13,30 @@ Public symbols: **21**
 
 ## Contents
 
-- [`BM19Result`](#bm19result)
-- [`sigma_s_squared`](#sigma_s_squared)
-- [`transition_density`](#transition_density)
-- [`f_dense_lognormal_limit`](#f_dense_lognormal_limit)
-- [`f_dense_bm19_full`](#f_dense_bm19_full)
-- [`power_spectrum_slope`](#power_spectrum_slope)
-- [`bm19_pipeline`](#bm19_pipeline)
-- [`PN11Result`](#pn11result)
-- [`s_crit_pn11`](#s_crit_pn11)
-- [`f_dense_pn11`](#f_dense_pn11)
-- [`alpha_vir_from_sigma`](#alpha_vir_from_sigma)
-- [`pn11_pipeline`](#pn11_pipeline)
-- [`bm19_volume_pdf`](#bm19_volume_pdf)
-- [`build_bm19_cdf_table`](#build_bm19_cdf_table)
-- [`bm19_icdf`](#bm19_icdf)
-- [`gaussian_to_bm19`](#gaussian_to_bm19)
-- [`validate_bm19_field`](#validate_bm19_field)
-- [`magnification_factor`](#magnification_factor)
-- [`magnification_factor_with_core`](#magnification_factor_with_core)
-- [`zeta_fdf_direct`](#zeta_fdf_direct)
-- [`sfr_per_dense_gas`](#sfr_per_dense_gas)
+- [`BM19Result`](#api-gravoturb-bm19result)
+- [`sigma_s_squared`](#api-gravoturb-sigma_s_squared)
+- [`transition_density`](#api-gravoturb-transition_density)
+- [`f_dense_lognormal_limit`](#api-gravoturb-f_dense_lognormal_limit)
+- [`f_dense_bm19_full`](#api-gravoturb-f_dense_bm19_full)
+- [`power_spectrum_slope`](#api-gravoturb-power_spectrum_slope)
+- [`bm19_pipeline`](#api-gravoturb-bm19_pipeline)
+- [`PN11Result`](#api-gravoturb-pn11result)
+- [`s_crit_pn11`](#api-gravoturb-s_crit_pn11)
+- [`f_dense_pn11`](#api-gravoturb-f_dense_pn11)
+- [`alpha_vir_from_sigma`](#api-gravoturb-alpha_vir_from_sigma)
+- [`pn11_pipeline`](#api-gravoturb-pn11_pipeline)
+- [`bm19_volume_pdf`](#api-gravoturb-bm19_volume_pdf)
+- [`build_bm19_cdf_table`](#api-gravoturb-build_bm19_cdf_table)
+- [`bm19_icdf`](#api-gravoturb-bm19_icdf)
+- [`gaussian_to_bm19`](#api-gravoturb-gaussian_to_bm19)
+- [`validate_bm19_field`](#api-gravoturb-validate_bm19_field)
+- [`magnification_factor`](#api-gravoturb-magnification_factor)
+- [`magnification_factor_with_core`](#api-gravoturb-magnification_factor_with_core)
+- [`zeta_fdf_direct`](#api-gravoturb-zeta_fdf_direct)
+- [`sfr_per_dense_gas`](#api-gravoturb-sfr_per_dense_gas)
 
-## `BM19Result`
+(api-gravoturb-bm19result)=
+## `gravoturb.BM19Result`
 
 *class*
 
@@ -69,7 +69,8 @@ zeta : Array
 
 *Source: [`progenax/gravoturb/bm19_model.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_model.py#L64)*
 
-## `sigma_s_squared`
+(api-gravoturb-sigma_s_squared)=
+## `gravoturb.sigma_s_squared`
 
 *function*
 
@@ -110,7 +111,8 @@ References
 ----------
 Federrath et al. 2010, A&A 512, A81, Eq. 14
 
-## `transition_density`
+(api-gravoturb-transition_density)=
+## `gravoturb.transition_density`
 
 *function*
 
@@ -143,7 +145,8 @@ Returns
 s_t : Array
     Transition log-density.
 
-## `f_dense_lognormal_limit`
+(api-gravoturb-f_dense_lognormal_limit)=
+## `gravoturb.f_dense_lognormal_limit`
 
 *function*
 
@@ -174,7 +177,8 @@ Returns
 f_dense : Array
     Self-gravitating mass fraction (lognormal approximation).
 
-## `f_dense_bm19_full`
+(api-gravoturb-f_dense_bm19_full)=
+## `gravoturb.f_dense_bm19_full`
 
 *function*
 
@@ -231,7 +235,8 @@ Burkhart & Mocz 2019, ApJ, 879, 129, Equations 19-20
 
 *Source: [`progenax/gravoturb/bm19_model.py#L291`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_model.py#L291)*
 
-## `power_spectrum_slope`
+(api-gravoturb-power_spectrum_slope)=
+## `gravoturb.power_spectrum_slope`
 
 *function*
 
@@ -271,7 +276,8 @@ References
 Federrath et al. 2010, A&A 512, A81
 Kim & Ryu 2005, ApJL 630, L45
 
-## `bm19_pipeline`
+(api-gravoturb-bm19_pipeline)=
+## `gravoturb.bm19_pipeline`
 
 *function*
 
@@ -331,7 +337,8 @@ Examples
 
 *Source: [`progenax/gravoturb/bm19_model.py#L404`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_model.py#L404)*
 
-## `PN11Result`
+(api-gravoturb-pn11result)=
+## `gravoturb.PN11Result`
 
 *class*
 
@@ -360,7 +367,8 @@ f_sub : Array
 
 *Source: [`progenax/gravoturb/pn11_model.py#L51`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/pn11_model.py#L51)*
 
-## `s_crit_pn11`
+(api-gravoturb-s_crit_pn11)=
+## `gravoturb.s_crit_pn11`
 
 *function*
 
@@ -404,7 +412,8 @@ References
 Padoan & Nordlund 2011, ApJ, 730, 40
 Federrath & Klessen 2012, ApJ, 761, 156
 
-## `f_dense_pn11`
+(api-gravoturb-f_dense_pn11)=
+## `gravoturb.f_dense_pn11`
 
 *function*
 
@@ -439,7 +448,8 @@ Comparison with BM19:
 
 PN11 uses pure lognormal; BM19 includes powerlaw tail contribution.
 
-## `alpha_vir_from_sigma`
+(api-gravoturb-alpha_vir_from_sigma)=
+## `gravoturb.alpha_vir_from_sigma`
 
 *function*
 
@@ -482,7 +492,8 @@ References
 ----------
 Heyer & Dame 2015, ARA&A 53, 583
 
-## `pn11_pipeline`
+(api-gravoturb-pn11_pipeline)=
+## `gravoturb.pn11_pipeline`
 
 *function*
 
@@ -540,7 +551,8 @@ Examples
 
 *Source: [`progenax/gravoturb/pn11_model.py#L244`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/pn11_model.py#L244)*
 
-## `bm19_volume_pdf`
+(api-gravoturb-bm19_volume_pdf)=
+## `gravoturb.bm19_volume_pdf`
 
 *function*
 
@@ -580,7 +592,8 @@ This is the VOLUME-weighted PDF. Each voxel has equal volume, so sampling
 s from this distribution gives the volume distribution. Mass weighting
 is applied separately via e^s factors in integrals.
 
-## `build_bm19_cdf_table`
+(api-gravoturb-build_bm19_cdf_table)=
+## `gravoturb.build_bm19_cdf_table`
 
 *function*
 
@@ -622,7 +635,8 @@ root-finding per voxel.
 
 *Source: [`progenax/gravoturb/bm19_pdf.py#L162`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_pdf.py#L162)*
 
-## `bm19_icdf`
+(api-gravoturb-bm19_icdf)=
+## `gravoturb.bm19_icdf`
 
 *function*
 
@@ -656,7 +670,8 @@ Notes
 Uses searchsorted + linear interpolation for O(log n) lookup per sample.
 For n_grid=2000 and 128^3 voxels, this is very efficient.
 
-## `gaussian_to_bm19`
+(api-gravoturb-gaussian_to_bm19)=
+## `gravoturb.gaussian_to_bm19`
 
 *function*
 
@@ -708,7 +723,8 @@ Examples
 
 *Source: [`progenax/gravoturb/bm19_pdf.py#L277`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_pdf.py#L277)*
 
-## `validate_bm19_field`
+(api-gravoturb-validate_bm19_field)=
+## `gravoturb.validate_bm19_field`
 
 *function*
 
@@ -745,7 +761,8 @@ stats : dict
 
 *Source: [`progenax/gravoturb/bm19_pdf.py#L348`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_pdf.py#L348)*
 
-## `magnification_factor`
+(api-gravoturb-magnification_factor)=
+## `gravoturb.magnification_factor`
 
 *function*
 
@@ -804,7 +821,8 @@ References
 ----------
 Parmentier & Pasquali 2020, ApJ, 903, 56, Equation 6
 
-## `magnification_factor_with_core`
+(api-gravoturb-magnification_factor_with_core)=
+## `gravoturb.magnification_factor_with_core`
 
 *function*
 
@@ -857,7 +875,8 @@ References
 Parmentier & Pasquali 2020, ApJ, 903, 56, Equations 7-8
 Tan, Krumholz & McKee 2006, ApJL, 641, L121
 
-## `zeta_fdf_direct`
+(api-gravoturb-zeta_fdf_direct)=
+## `gravoturb.zeta_fdf_direct`
 
 *function*
 
@@ -908,7 +927,8 @@ the analytic magnification_factor().
 The formula measures the actual freefall-weighted SFR boost relative
 to a uniform (top-hat) distribution of the same tail mass.
 
-## `sfr_per_dense_gas`
+(api-gravoturb-sfr_per_dense_gas)=
+## `gravoturb.sfr_per_dense_gas`
 
 *function*
 

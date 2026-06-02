@@ -14,7 +14,6 @@ with a regime where it is the natural choice:
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 56
 
 * - IMF
   - Class
@@ -199,7 +198,6 @@ guaranteed inside $[m_{\min}, m_{\max}]$ in a single pass.
 
 ```{list-table}
 :header-rows: 1
-:widths: 22 22 22 34
 
 * - IMF
   - Sampling cost
