@@ -53,8 +53,10 @@ Replace the density relation with `king_lowered_maxwellian_density(rho_hat)` at 
 factor-of-9 RHS, so `r_c` **is** the King core radius. This **subsumes M6** (no separate
 factor-of-9 decision needed) and is validated against King Table II.
 
-`king_K_function` is retained (it is a correct special function and is exported/tested), but is
-no longer used as the volume density.
+`king_K_function` was initially retained, then **removed in Batch 4** (commit `629770b`): once it
+was no longer the volume density it had zero production callers, and its docstring still
+advertised the disproven density relation `ρ/ρ₀ = [K(W0)−K(W0−ψ)]/K(W0)`. Its W=0 gradient-safety
+(audit C2) is now covered on `king_lowered_maxwellian_density` instead.
 
 ## Blast radius (please confirm acceptable)
 
