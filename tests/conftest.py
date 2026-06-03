@@ -245,12 +245,6 @@ class KingConstants:
         King (1966), AJ 71, 64
         Binney & Tremaine (2008), "Galactic Dynamics"
     """
-    # Reference K-function values (computed from implementation)
-    # K(W) = erf(√W) - (2/√π)√W exp(-W)
-    K_REF_W3 = 0.8884  # K(3.0)
-    K_REF_W5 = 0.9814  # K(5.0)
-    K_REF_W7 = 0.9971  # K(7.0)
-
     # W0 ranges for different concentration
     W0_LOW = 3.0    # Low concentration
     W0_MED = 7.0    # Medium concentration

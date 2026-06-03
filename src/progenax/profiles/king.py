@@ -34,50 +34,8 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 
 # ==============================================================================
-# King K-function (Exact Density-Potential Relation)
+# King lowered-Maxwellian density (Poisson source)
 # ==============================================================================
-
-
-@jax.jit
-def king_K_function(W: Float[Array, "..."]) -> Float[Array, "..."]:
-    """
-    King's K function for exact density-potential relation.
-
-    K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
-
-    This function appears in the exact King (1966) density formula:
-        rho(r)/rho_0 = [K(W0) - K(W0 - psi(r))] / K(W0)
-
-    Args:
-        W: Dimensionless potential parameter (can be scalar or array)
-
-    Returns:
-        K(W) value(s)
-
-    References:
-        King (1966), AJ, 71, 64, Eq. 12
-        Binney & Tremaine (2008), "Galactic Dynamics", Eq. 4.113
-
-    Note:
-        For W < 0, returns 0 (not physical in King models).
-        Uses jax.scipy.special.erf for the error function.
-    """
-    # Clamp BEFORE sqrt/exp so the backward pass never differentiates sqrt at W=0
-    # (the classic where-NaN trap, audit C2). The true derivative is
-    # dK/dW = (2/sqrt(pi)) sqrt(W) e^{-W}, which is 0 at W=0, so W<=0 selects a
-    # constant-0 branch with finite (zero) gradient.
-    W_pos = jnp.where(W > 0.0, W, 1.0)  # never feed 0/negative to sqrt
-    sqrt_W = jnp.sqrt(W_pos)
-
-    # K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
-    term1 = jax.scipy.special.erf(sqrt_W)
-    term2 = (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W_pos)
-    K_pos = term1 - term2
-
-    # W <= 0 is unphysical in King models: K(W) -> 0 (value and gradient).
-    K = jnp.where(W > 0.0, K_pos, 0.0)
-
-    return K
 
 
 def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "..."]:
@@ -91,9 +49,9 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
         rho(W) ∝ int_0^{sqrt(2W)} v^2 (e^{W - v^2/2} - 1) dv,
 
     and equals that direct integral up to the constant sqrt(pi/2). It is the
-    density that must appear in the King Poisson equation. (The K-function
-    ``king_K_function`` is the incomplete-gamma / projected-style form and
-    over-extends the 3-D profile by 2-30x if used here.)
+    density that must appear in the King Poisson equation. (The incomplete-gamma
+    / projected-style form erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} over-extends
+    the 3-D profile by 2-30x and must NOT be used as the volume density.)
 
     Gradient-safe at W=0: rho_hat(0)=0 and d(rho_hat)/dW(0)=0; clamp before
     sqrt/exp so the backward pass never differentiates sqrt at 0.
@@ -547,4 +505,4 @@ class KingProfile(eqx.Module):
         return self.r_t
 
 
-__all__ = ["KingProfile", "solve_king_profile", "king_K_function"]
+__all__ = ["KingProfile", "solve_king_profile"]

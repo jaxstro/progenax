@@ -12,60 +12,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.profiles.king import KingProfile, solve_king_profile, king_K_function
+from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.kinematics import KingVelocityDF
-
-
-class TestKingKFunction:
-    """Verify King's K-function: K(W) = erf(√W) - (2/√π)√W exp(-W)."""
-
-    def test_k_function_at_zero(self):
-        """K(0) = 0 exactly."""
-        K_0 = king_K_function(jnp.array(0.0))
-        assert jnp.abs(K_0) < 1e-10, f"K(0) = {float(K_0)}, expected 0"
-
-    def test_k_function_reference_values(self, king_constants):
-        """K-function matches reference values from King (1966)."""
-        # K(5.0) ≈ 0.9996
-        K_5 = king_K_function(jnp.array(5.0))
-        assert abs(float(K_5) - king_constants.K_REF_W5) < 0.001, \
-            f"K(5) = {float(K_5):.6f}, expected {king_constants.K_REF_W5}"
-
-        # K(7.0) ≈ 0.99999
-        K_7 = king_K_function(jnp.array(7.0))
-        assert abs(float(K_7) - king_constants.K_REF_W7) < 0.0001, \
-            f"K(7) = {float(K_7):.6f}, expected {king_constants.K_REF_W7}"
-
-        # K(3.0) ≈ 0.9707
-        K_3 = king_K_function(jnp.array(3.0))
-        assert abs(float(K_3) - king_constants.K_REF_W3) < 0.001, \
-            f"K(3) = {float(K_3):.6f}, expected {king_constants.K_REF_W3}"
-
-    def test_k_function_asymptotic_behavior(self):
-        """K(W) → erf(√W) → 1 as W → ∞."""
-        K_large = king_K_function(jnp.array(20.0))
-        assert abs(float(K_large) - 1.0) < 0.001, \
-            f"K(20) = {float(K_large)}, expected ~1.0"
-
-    def test_k_function_monotonic(self):
-        """K(W) is monotonically increasing."""
-        W_grid = jnp.linspace(0.1, 12.0, 50)
-        K_grid = king_K_function(W_grid)
-
-        diffs = jnp.diff(K_grid)
-        assert jnp.all(diffs >= 0), "K(W) should be monotonically increasing"
-
-    def test_k_function_small_w_limit(self):
-        """For small W: K(W) ≈ (4/3√π) W^(3/2) (Taylor expansion)."""
-        W_small = 0.01
-        K_small = king_K_function(jnp.array(W_small))
-
-        # Taylor expansion: K(W) ≈ (4/3√π) W^(3/2) for W << 1
-        expected = (4.0 / (3.0 * jnp.sqrt(jnp.pi))) * W_small**1.5
-
-        # Should be within 10% for small W
-        assert abs(float(K_small) - float(expected)) / float(expected) < 0.1, \
-            f"K({W_small}) = {float(K_small):.6f}, Taylor approx = {float(expected):.6f}"
 
 
 class TestKingODESolution:
