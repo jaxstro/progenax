@@ -361,13 +361,16 @@ class TestProfilesAPI:
         """Test sample_density_profile."""
         from progenax.profiles.api import sample_density_profile
 
-        positions = sample_density_profile(key, 100, "plummer", R_half=2.0)
+        # N=10000: the sample median converges so a tight, seed-robust bound is
+        # possible. At N=100 the median scatter is ~9% (max dev ~40% over seeds),
+        # so the old rtol=0.3 only "passed" by seed luck; here rtol=0.05 is ~6 sigma.
+        positions = sample_density_profile(key, 10000, "plummer", R_half=2.0)
 
-        assert positions.shape == (100, 3)
-        # Check half-mass radius is approximately correct
+        assert positions.shape == (10000, 3)
+        # Half-mass radius: sample median tracks the true R_half to <5% at N=1e4
         radii = jnp.linalg.norm(positions, axis=1)
         r_half_measured = jnp.median(radii)
-        assert jnp.isclose(r_half_measured, 2.0, rtol=0.3)  # 30% tolerance
+        assert jnp.isclose(r_half_measured, 2.0, rtol=0.05)
 
     def test_compute_profile_potential(self, key):
         """Test compute_profile_potential for Plummer."""

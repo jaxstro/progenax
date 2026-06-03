@@ -328,7 +328,9 @@ class TestRescaleFractalToTargetRadii:
         )
         from progenax.profiles.api import sample_density_profile
 
-        N = 500
+        # N=5000 so the sample median converges and supports a tight, seed-robust
+        # bound (at N=500 the median scatter is ~4%, max dev ~17% over seeds).
+        N = 5000
         R_half = 1.0
 
         # Generate fractal positions
@@ -349,9 +351,9 @@ class TestRescaleFractalToTargetRadii:
 
         assert jnp.allclose(r_out_sorted, r_target_sorted, rtol=1e-5)
 
-        # Check median radius is close to R_half
+        # Check median radius tracks R_half (rtol=0.05 is ~4.5 sigma at N=5000)
         r_median = jnp.median(r_out)
-        assert jnp.isclose(r_median, R_half, rtol=0.3), (
+        assert jnp.isclose(r_median, R_half, rtol=0.05), (
             f"Median radius {r_median:.3f} should be close to R_half={R_half}"
         )
 
