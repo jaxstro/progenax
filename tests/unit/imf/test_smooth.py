@@ -141,10 +141,12 @@ class TestTaperedPowerLaw:
         fixed n_points for EACH upper limit (see _linear_trapz_integrate). For
         the steep m^-alpha integrand (mass piled up just above m_min), adjacent
         upper limits sample the low-mass spike at slightly different nodes,
-        giving O(1e-4)-relative quadrature wiggle that shrinks as n_points grows
-        (verified: 200k points -> strictly increasing). We therefore require
-        non-decreasing to a quadrature-aware RELATIVE floor (1e-3 of the max),
-        which still fails hard for a broken/constant/sign-flipped CDF.
+        giving O(1e-4)-relative quadrature wiggle whose worst-case magnitude
+        shrinks ~1 order per 10x points (~1e-3 at 1k -> ~1e-4 at the 10k default
+        -> ~6e-6 at 200k), i.e. it converges to zero as a genuine non-monotonic
+        bug would not. We therefore require non-decreasing to a quadrature-aware
+        RELATIVE floor (1e-3 of the max) plus endpoint growth checks, which still
+        fail hard for a broken/constant/sign-flipped CDF.
         """
         imf = TaperedPowerLaw(m_min=0.01, m_max=100.0)
         m = jnp.linspace(0.01, 100.0, 40)
