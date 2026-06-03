@@ -1,12 +1,24 @@
 # Ticket: BM19 correlated-field dense-tail undersampling
 
-**Opened:** 2026-06-02 · **Status:** 🔬 **OPEN — research sub-effort** · **Source:** 2026-06-01 audit finding **M3**
+**Opened:** 2026-06-02 · **Status:** ✅ **RESOLVED 2026-06-02 (commit `d654e4f`)** · **Source:** 2026-06-01 audit finding **M3**
 
-> Deferred out of the `hardening/audit-2026-06` scope: this is not a localized bug
-> with a one-line fix, but a sampling-fidelity question about correlated turbulent
-> fields. The forward BM19 *formula* is verified correct (lognormal+power-law PDF,
-> `s_t=(α−½)σ_s²`) to <1e-13 by direct quadrature; the risk is entirely in the
-> **sampled 3-D field**.
+> **Resolution.** The undersampling was **not** a finite-resolution / correlation
+> sampling-fidelity issue (a sub-grid cascade was considered and *measured* to be
+> resolution-insensitive at β=4, so rejected). The real cause was a **copula bug**:
+> `gaussian_to_bm19` used `u = Φ(g)` assuming the GRF `g` is standard normal, but at
+> the physical slope β=4 the realized `g` is non-Gaussian, so `Φ(g)` mismaps and the
+> dense tail collapses (the measured `0.022 ± 0.020` symptom). Fixed by switching to a
+> **rank / empirical-CDF copula** (`copula="rank"`, now the default) — `u` is exactly
+> uniform → exact BM19 marginal at any β, the monotone rank preserves the turbulent
+> spatial correlation, and gradients still flow through the CDF table. Measured at
+> Mach=2/α=2/β=4 (`f_dense=0.0568`): `f_tail` `0.029 ± 0.040` → **`0.054 ± 0.000`**.
+> A resolution guard warns when `s_t` is so extreme the tail is unresolvable at the
+> grid. Design: [`docs/plans/2026-06-02-bm19-rank-copula-design.md`]; validation:
+> `tests/validation/test_bm19_field_tail.py`. The diagnosis below is retained as a record.
+
+The forward BM19 *formula* was never in doubt (lognormal+power-law PDF,
+`s_t=(α−½)σ_s²`, verified to <1e-13 by direct quadrature); the defect was entirely in
+the **sampled 3-D field**, specifically the Gaussian-copula remap.
 
 ## Summary
 
