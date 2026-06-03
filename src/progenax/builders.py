@@ -40,7 +40,7 @@ class ICResult:
     positions: Float[Array, "N 3"]
     velocities: Float[Array, "N 3"]
     masses: Float[Array, "N"]
-    softening: float
+    softening: float | Float[Array, ""]
     stellar_radii: Float[Array, "N"]
     ids: Optional[Float[Array, "N"]] = None
 
@@ -129,10 +129,12 @@ def compute_potential_energy(
     # Pairwise distances (vectorized)
     diff = positions[:, None, :] - positions[None, :, :]  # (N, N, 3)
     r_squared = jnp.sum(diff**2, axis=2)  # (N, N)
-    r_soft = jnp.sqrt(r_squared + softening**2)  # Plummer softening
-
-    # Avoid self-interaction
-    r_soft = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, r_soft)
+    eye = jnp.eye(N, dtype=bool)
+    # Double-where: feed the diagonal a safe positive value BEFORE sqrt (else the
+    # diagonal sqrt(0) derivative is inf and 0*inf=nan survives a later where), then
+    # set the diagonal to inf so the i<j sum drops it.
+    r_squared_safe = jnp.where(eye, 1.0, r_squared + softening**2)
+    r_soft = jnp.where(eye, jnp.inf, jnp.sqrt(r_squared_safe))
 
     # Mass products
     m_prod = masses[:, None] * masses[None, :]  # (N, N)
@@ -255,7 +257,10 @@ def build_spatial_ic(
     softening = softening_factor * d_mean
     if softening_floor is not None:
         softening = jnp.maximum(softening, softening_floor)
-    softening = float(softening)
+    # Keep softening as a JAX scalar so build_spatial_ic stays differentiable
+    # (float() concretized a tracer -> broke jax.grad wrt r_h; audit CR-FU-2).
+    # It is only stored on ICResult and passed to virial_scale, both array-safe.
+    softening = jnp.asarray(softening)
 
     # 4. Compute stellar radii
     stellar_radii = compute_stellar_radii(masses)

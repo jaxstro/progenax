@@ -55,13 +55,18 @@ class TestBM19FieldDenseTail:
         )
 
     def test_phi_copula_reproduces_the_bug(self):
-        """Regression guard: the legacy phi copula undersamples with large scatter at
-        beta=4 (the audit-M3 symptom) -- this is *why* rank is the default."""
-        vals, f_dense = _measure_f_tail(seeds=4, grid_size=48, beta=4.0, copula="phi")
-        # The defining symptom is large realization-to-realization scatter (vs the
-        # rank copula's near-zero), plus an undersampled mean.
-        assert vals.std() > 0.2 * f_dense, "phi copula scatter unexpectedly small"
-        assert vals.mean() < 0.85 * f_dense, "phi copula unexpectedly matched f_dense"
+        """Regression guard: the legacy phi copula undersamples the dense tail at beta=4
+        (the audit-M3 symptom) -- which is *why* rank is the default. The undersampled
+        MEAN is the seed-robust signature; the rank copula reproduces f_dense."""
+        vals, f_dense = _measure_f_tail(seeds=8, grid_size=48, beta=4.0, copula="phi")
+        rank_vals, _ = _measure_f_tail(seeds=8, grid_size=48, beta=4.0, copula="rank")
+        assert vals.mean() < 0.85 * f_dense, (
+            f"phi f_tail mean {vals.mean():.4f} not undersampling f_dense {f_dense:.4f}"
+        )
+        assert vals.mean() < rank_vals.mean() - 0.1 * f_dense, (
+            f"phi ({vals.mean():.4f}) not materially worse than rank "
+            f"({rank_vals.mean():.4f}); bug not reproduced"
+        )
 
     def test_resolution_guard_warns_on_unresolved_tail(self):
         """An extreme s_t (tail count-prob << 1/N^3) warns the user to raise grid_size."""

@@ -7,6 +7,25 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-03 — Follow-up audit: two launch-blockers closed
+
+A five-lane post-hardening audit re-verified every 2026-06 fix and surfaced two
+**Critical "untested twins"**, now closed: `build_spatial_ic` crashed under
+`jax.grad` (`float(softening)` → `jnp.asarray`), and the default `mode="bm19"`
+tail sampler still OOM'd at production scale (`random.categorical` Gumbel-max →
+`cumsum`+`searchsorted` inverse-CDF). Also fixed two Major (a NaN gradient in
+`compute_potential_energy` at the default `softening=0`, via a double-`where`;
+a seed-fragile BM19 test) and ~10 Minor (a differentiable BM19 resolution guard,
+the `energy_sorted_segregation` top-level export, `profiles/api.py` coverage
+37 % → 100 %, a `c(W₀)`↔King-1966-Table-II regression guard, doc fixes). Test
+suite: **874** across 3 tiers (742 / 24 / 108), **86 % coverage**. These were the
+blockers the audit said would take it from A− to a solid A.
+
+**Impact.** Gradient-based inference through `build_spatial_ic` and
+production-scale `mode="bm19"` substructure now work. No previously-trusted
+result was affected — both Criticals manifested as a crash / OOM, never as a
+silent wrong number.
+
 ## 2026-06-02 — Audit hardening: true King/EFF velocity DFs
 
 Resolved the 2026-06-01 expert audit (2 Critical, 9 Major). The King

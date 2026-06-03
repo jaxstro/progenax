@@ -37,3 +37,26 @@ check for any stochastic sampler, as was done for `generate_cluster_ic`).
 
 These are maintainability-only refactors (the code is correct), so they are
 lower priority than open science items.
+
+## Function-length follow-up (>100-LOC functions in the split files)
+
+The 2026-06 hardening split the audit-named oversize *files*, but several
+*functions* (inherited from the old monoliths) still exceed the project's
+**100-LOC function limit (50 preferred)**. These should be addressed alongside
+the file-length splits above. Measured 2026-06-03 (def line → end):
+
+| Function | LOC | File |
+| --- | --- | --- |
+| `sample_positions_tail` | 231 | `cluster/fdf_density/sampling.py` |
+| `init_bm19_density_field` | 160 | `cluster/fdf_density/field_init.py` |
+| `two_body_kepler` | 145 | `analytical/core/two_body.py` |
+| `generate_fractal_ic_density` | 140 | `cluster/fdf_density/pipeline.py` |
+| `env_to_imf_params` | 137 | `imf/environment/mapping.py` |
+| `init_turbulent_density_field` | 131 | `cluster/fdf_density/field_init.py` |
+| `solar_system_inner_4` | 125 | `analytical/core/solar_system.py` |
+| `three_body_figure_eight` | 111 | `analytical/core/few_body.py` |
+| `solar_system_full` | 103 | `analytical/core/solar_system.py` |
+
+(`init_bm19_density_field` is 160 LOC post-Batch-C — the 2026-06-03 concreteness
+guard added ~3 lines over the audit's 157.) As with the file splits, these are
+maintainability-only — the functions are correct and tested.

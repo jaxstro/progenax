@@ -4,17 +4,17 @@
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 + 2026-06 audit hardening complete - 18,936 LOC source, 855 tests (unit: 727, integration: 21, validation: 107). King & EFF velocity DFs are now true equilibria (lowered-Maxwellian / Eddington inversion); see Physics Validation Results below.
+**Status**: Phase 1 + 2026-06 audit hardening complete - 18,967 LOC source, 874 tests (unit: 742, integration: 24, validation: 108). King & EFF velocity DFs are now true equilibria (lowered-Maxwellian / Eddington inversion); see Physics Validation Results below.
 
 ## Quick Commands
 
 ```bash
 conda activate astro
 pip install -e ".[dev]"
-pytest tests/ -v                    # All 855 tests (~55s; ~5min with coverage)
-pytest tests/unit/ -v               # 727 unit tests
-pytest tests/integration/ -v        # 21 integration tests
-pytest tests/validation/ -v         # 107 physics validation tests
+pytest tests/ -v                    # All 874 tests (~55s; ~5min with coverage)
+pytest tests/unit/ -v               # 742 unit tests
+pytest tests/integration/ -v        # 24 integration tests
+pytest tests/validation/ -v         # 108 physics validation tests
 ```
 
 ## Units Policy (progenax)
@@ -165,7 +165,7 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 
 ```text
 tests/
-├── unit/                727 tests
+├── unit/                742 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
@@ -175,11 +175,11 @@ tests/
 │   ├── physics/         PN11 / BM19 / PP20 gravoturbulence tests
 │   ├── dynamics/        Virial / energy utilities
 │   └── substructure/    Fractal substructure tests
-├── integration/         21 tests
+├── integration/         24 tests
 │   ├── test_jax_compatibility.py     JIT/grad/vmap tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          107 tests
+└── validation/          108 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_eff_physics.py          EFF Eddington-inversion DF
@@ -214,7 +214,7 @@ All public symbols exported from `progenax.__init__`:
 
 **Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`
 
-**Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator_1d()`
+**Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`
 
 **Utilities**: `build_spatial_ic()`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `generate_fractal_positions()`, `TwoComponentConfig`, `generate_two_component_cluster()`, `energy_sorted_segregation()`
 
