@@ -62,18 +62,20 @@ def king_K_function(W: Float[Array, "..."]) -> Float[Array, "..."]:
         For W < 0, returns 0 (not physical in King models).
         Uses jax.scipy.special.erf for the error function.
     """
-    # Ensure non-negative (King models have psi >= 0)
-    W_safe = jnp.maximum(W, 0.0)
-    sqrt_W = jnp.sqrt(W_safe)
+    # Clamp BEFORE sqrt/exp so the backward pass never differentiates sqrt at W=0
+    # (the classic where-NaN trap, audit C2). The true derivative is
+    # dK/dW = (2/sqrt(pi)) sqrt(W) e^{-W}, which is 0 at W=0, so W<=0 selects a
+    # constant-0 branch with finite (zero) gradient.
+    W_pos = jnp.where(W > 0.0, W, 1.0)  # never feed 0/negative to sqrt
+    sqrt_W = jnp.sqrt(W_pos)
 
     # K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
     term1 = jax.scipy.special.erf(sqrt_W)
-    term2 = (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W_safe)
+    term2 = (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W_pos)
+    K_pos = term1 - term2
 
-    K = term1 - term2
-
-    # For W ~ 0, K(W) -> 0, handle numerically
-    K = jnp.where(W_safe < 1e-10, 0.0, K)
+    # W <= 0 is unphysical in King models: K(W) -> 0 (value and gradient).
+    K = jnp.where(W > 0.0, K_pos, 0.0)
 
     return K
 
@@ -160,8 +162,10 @@ def solve_king_profile(
         Binney & Tremaine (2008), Section 4.3.2
 
     Note:
-        Cannot be JIT-compiled due to n_points (concrete value needed for linspace).
-        Uses Tsit5 (Runge-Kutta 5th order) from diffrax for robustness.
+        JIT-compatible when ``n_points`` (and ``xi_max``) are static: they set the
+        ``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
+        traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
+        diffrax for robustness.
     """
     # Initial conditions
     y0 = jnp.array([W0, 0.0])  # [psi(0), d psi/d xi|_0]
@@ -207,7 +211,7 @@ def solve_king_profile(
 def _find_tidal_radius(
     xi_grid: Float[Array, "n_points"],
     psi_grid: Float[Array, "n_points"],
-) -> float:
+) -> Float[Array, ""]:
     """
     Find dimensionless tidal radius where psi first crosses zero.
 
@@ -234,9 +238,10 @@ def _find_tidal_radius(
     t = psi0 / (psi0 - psi1 + 1e-30)
     xi_t = xi0 + t * (xi1 - xi0)
 
-    # If no crossing, use last point
+    # If no crossing, use last point. Return the array (do NOT cast to float):
+    # float() concretizes the tracer and breaks jit/grad through from_W0_rc (C2).
     xi_t = jnp.where(has_crossing, xi_t, xi_grid[-1])
-    return float(xi_t)
+    return xi_t
 
 
 # ==============================================================================
