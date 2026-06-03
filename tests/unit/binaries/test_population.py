@@ -310,3 +310,66 @@ class TestMassDependentOrbits:
 
         # High-mass stars (Sana) should have shorter periods than low-mass (log-normal)
         assert median_period_high < median_period_low
+
+
+class TestBinarySamplingDifferentiability:
+    """Reparameterization gradients through the period/eccentricity samplers.
+
+    Each sampler is an inverse-CDF or location-scale reparameterization, so
+    mean(samples) is a smooth, differentiable function of the distribution
+    parameters at fixed key. These tests assert gradient *correctness* (against a
+    finite difference or a closed form), not merely finiteness, since the
+    differentiable-IC pipeline relies on these gradients (gradient-validation).
+    """
+
+    def test_sana_power_gradient_matches_finite_difference(self):
+        """d<log10 P>/d(power) for SanaOB matches a central finite difference.
+
+        The Sana sampler inverts a power-law CDF via jnp.power, so the gradient
+        w.r.t. the index is non-trivial. With a fixed key the loss is
+        deterministic, so autodiff must match a central difference to <1e-5
+        (h-sweep to bracket the truncation/round-off sweet spot).
+        """
+        from progenax.binaries.population import SanaOBPeriod
+
+        key = jax.random.PRNGKey(0)
+
+        def loss(power):
+            return jnp.mean(jnp.log10(SanaOBPeriod(power=power).sample(key, 20000)))
+
+        p0 = -0.55
+        g_ad = jax.grad(loss)(p0)
+        assert jnp.isfinite(g_ad)
+
+        rel_errs = []
+        for h in (1e-3, 1e-4, 1e-5):
+            g_fd = (loss(p0 + h) - loss(p0 - h)) / (2.0 * h)
+            rel_errs.append(
+                float(jnp.abs(g_ad - g_fd) / (jnp.abs(g_ad) + jnp.abs(g_fd) + 1e-12))
+            )
+        assert min(rel_errs) < 1e-5, f"min FD rel-err {min(rel_errs):.2e}"
+
+    def test_lognormal_location_gradient_is_unity(self):
+        """d<log10 P>/d(mu) = 1 exactly (log10 P = mu + sigma*z)."""
+        from progenax.binaries.population import LogNormalPeriod
+
+        key = jax.random.PRNGKey(1)
+        g = jax.grad(
+            lambda mu: jnp.mean(jnp.log10(LogNormalPeriod(mu_log_P=mu).sample(key, 20000)))
+        )(4.8)
+        assert jnp.isfinite(g)
+        assert jnp.abs(g - 1.0) < 1e-6, f"d<log10P>/dmu={float(g):.6f}, expected 1"
+
+    def test_thermal_scale_gradient_equals_mean_sqrt_u(self):
+        """d<e>/d(e_max) = <sqrt(u)> exactly (e = e_max*sqrt(u)), ~2/3 in the limit."""
+        from progenax.binaries.population import ThermalEccentricity
+
+        key = jax.random.PRNGKey(2)
+        # Closed form: with the same key, the sampler draws this exact u.
+        expected = jnp.mean(jnp.sqrt(jax.random.uniform(key, (20000,))))
+        g = jax.grad(
+            lambda em: jnp.mean(ThermalEccentricity(e_max=em).sample(key, 20000))
+        )(1.0)
+        assert jnp.isfinite(g)
+        assert jnp.abs(g - expected) < 1e-6, f"d<e>/d(e_max)={float(g):.6f} != <sqrt u>"
+        assert jnp.abs(g - 2.0 / 3.0) < 0.02  # converges to <sqrt u> = 2/3

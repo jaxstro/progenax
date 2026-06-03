@@ -75,6 +75,19 @@ class TestSCritPN11:
         expected = pn11.s_crit_pn11(10.0, 2.0, 0.35)
         assert jnp.isclose(result, expected)
 
+    def test_s_crit_differentiable(self):
+        """s_crit threshold is differentiable w.r.t. Mach number and virial alpha.
+
+        s_crit sets the PN11 dense-tail selection threshold (the path routed by
+        the fdf pn11 fix), so gradient flow through it is needed for inference on
+        turbulence parameters. f_dense's own gradient is checked separately in
+        TestFDensePN11; this covers the threshold itself.
+        """
+        g_mach = jax.grad(lambda m: pn11.s_crit_pn11(m, 2.0, 0.12))(5.0)
+        g_alpha = jax.grad(lambda a: pn11.s_crit_pn11(5.0, a, 0.12))(2.0)
+        assert jnp.isfinite(g_mach)
+        assert jnp.isfinite(g_alpha)
+
 
 class TestFDensePN11:
     """Tests for f_dense_pn11()."""
