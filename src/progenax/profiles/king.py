@@ -344,9 +344,14 @@ class KingProfile(eqx.Module):
         # Integrand: 4*pi*r^2*rho(r)
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
 
-        # Cumulative integral using cumsum (trapezoid approximation)
+        # Cumulative mass via the trapezoid rule (2nd-order). The old
+        # cumsum(integrand)*dr was a 1st-order left/right-Riemann sum mislabeled
+        # "trapezoid" and biased the sampled radial distribution (audit M5).
         dr = r_grid[1] - r_grid[0]
-        M_cum = jnp.cumsum(integrand) * dr
+        M_cum = jnp.concatenate([
+            jnp.zeros(1, dtype=integrand.dtype),
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+        ])
 
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
