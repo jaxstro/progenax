@@ -341,20 +341,20 @@ Attributes:
     sigma: Width of lognormal in log-space (default: 0.69)
     alpha: Power-law exponent for ξ(m) ∝ m^(-α) (default: 2.35, Salpeter)
     m_trans: Transition mass between lognormal and power-law (default: 1.0)
-    A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 system IMF)
+    A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF)
     A_pl: Power-law coefficient (computed for continuity at m_trans)
 
 Examples:
-    >>> imf = ChabrierIMF()  # Default Chabrier (2003) system IMF
+    >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
     >>> key = jax.random.PRNGKey(42)
     >>> masses = imf.sample(key, 1000)
     >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.35-0.5 M☉
 
 References:
-    Chabrier (2003), PASP, 115, 763 - Table 1: System IMF coefficients
+    Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
     Chabrier (2005), ASSL, 327, 41 - Review of IMF determinations
 
-*Source: [`progenax/imf/chabrier.py#L24`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/chabrier.py#L24)*
+*Source: [`progenax/imf/chabrier.py#L28`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/chabrier.py#L28)*
 
 (api-imf-massratioprotocol)=
 ## `imf.MassRatioProtocol`
@@ -1204,5 +1204,5 @@ dict(**kwargs) -> new dictionary initialized with the name=value pairs
 
 *value*
 
-Convert a string or number to a floating point number, if possible.
+Convert a string or number to a floating-point number, if possible.
 

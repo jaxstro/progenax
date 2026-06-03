@@ -175,7 +175,7 @@ References:
 *function*
 
 ```python
-build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: jaxtyping.Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2']], G: float, Q: Optional[float] = 0.5, softening_factor: float = 0.01, softening_floor: Optional[float] = None, id_offset: int = 0) -> progenax.builders.ICResult
+build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: jaxtyping.Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], G: float, Q: Optional[float] = 0.5, softening_factor: float = 0.01, softening_floor: Optional[float] = None, id_offset: int = 0) -> progenax.builders.ICResult
 ```
 
 Build initial conditions from spatial profile and velocity DF.

@@ -70,7 +70,7 @@ References:
 *function*
 
 ```python
-generate_two_component_cluster(masses: jaxtyping.Float[Array, 'N'], config: progenax.populations.TwoComponentConfig, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2']], G: float, pop_mask: Optional[jaxtyping.Bool[Array, 'N']] = None) -> Tuple[jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N']]
+generate_two_component_cluster(masses: jaxtyping.Float[Array, 'N'], config: progenax.populations.TwoComponentConfig, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], G: float, pop_mask: Optional[jaxtyping.Bool[Array, 'N']] = None) -> Tuple[jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N']]
 ```
 
 Generate two-component cluster with distinct spatial/kinematic populations.
