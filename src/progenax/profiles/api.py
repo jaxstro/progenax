@@ -31,7 +31,7 @@ from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
 from progenax.profiles.plummer import PlummerProfile
-from progenax.profiles.king import KingProfile
+from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.profiles.eff import EFFProfile
 
 
@@ -217,11 +217,15 @@ def compute_profile_potential(
             Phi(r) = -G * M_total / sqrt(r^2 + a^2)
             where a = R_half * sqrt(2^(2/3) - 1) is the scale radius.
 
-        **King/EFF potential** (numerical approximation):
-            These profiles use a spherically symmetric enclosed-mass
-            approximation: Phi(r) ~ -G * M(<r) / r for consistency with
-            the energy-ordered mass segregation algorithm. For orbits
-            inside the cluster, this is a reasonable approximation.
+        **King potential** (exact relative potential):
+            Phi(r) = -sigma^2 * psi(r), with psi the dimensionless King ODE
+            potential (psi(r_t) = 0) and sigma^2 = G M / (9 r_c mu(W0)) the
+            self-consistent velocity scale (matches KingVelocityDF).
+
+        **EFF potential** (true spherical potential):
+            Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ], using the exact
+            enclosed mass from the profile's density grid (interior monopole +
+            outer-shell term).
 
         The potential is computed per-particle and vectorized for efficiency.
     """
@@ -239,64 +243,57 @@ def compute_profile_potential(
         phi = -G * M_total / jnp.sqrt(r**2 + a**2)
 
     elif profile_lower == "king":
-        # For King profile, use enclosed mass approximation
-        # This is sufficient for energy ordering in mass segregation
-        # Note: Full King potential would require numerical integration
-
-        # Get profile instance to access parameters
+        # True King relative potential V(r) = -sigma^2 * psi(r), with psi(r_t)=0.
+        # psi is the dimensionless potential from the King ODE; sigma is the
+        # self-consistent velocity scale sigma^2 = G M / (9 r_c mu(W0)), matching
+        # KingVelocityDF so energies are consistent with the sampled velocities.
         profile_instance = make_profile(profile, R_half, **kwargs)
-        r_c = profile_instance.r_c
-        r_t = profile_instance.r_t
-
-        # Approximate enclosed mass fraction using King-like profile
-        # M(<r)/M_total ~ (r/r_t)^3 * (1 + r/r_c)^(-3/2) / normalization
-        # Simplified: use spherical approximation Phi ~ -G*M_enc/r
-        x = r / r_c
-        x_t = r_t / r_c
-
-        # Enclosed mass fraction (approximate)
-        # For r << r_c: M_enc ~ r^3
-        # For r >> r_c: M_enc approaches M_total
-        M_enc_frac = jnp.minimum(
-            (r / r_t)**3 * (1.0 + x_t**2)**(3/2) / (1.0 + x**2)**(3/2),
-            1.0
+        rho0 = king_lowered_maxwellian_density(profile_instance.W0)
+        rho_tilde = jnp.where(
+            rho0 > 1e-10,
+            king_lowered_maxwellian_density(profile_instance.psi_grid) / rho0,
+            0.0,
         )
-        M_enc = M_total * M_enc_frac
-
-        # Potential from enclosed mass (with softening for r~0)
-        phi = -G * M_enc / jnp.maximum(r, 0.01 * r_c)
+        mu = jnp.trapezoid(
+            rho_tilde * profile_instance.xi_grid**2, profile_instance.xi_grid
+        )
+        sigma_sq = G * M_total / (9.0 * profile_instance.r_c * mu)
+        xi = r / profile_instance.r_c
+        psi = jnp.interp(
+            xi,
+            profile_instance.xi_grid,
+            profile_instance.psi_grid,
+            left=profile_instance.W0,
+            right=0.0,
+        )
+        phi = -sigma_sq * psi
 
     elif profile_lower == "eff":
-        # EFF profile: use enclosed mass approximation
+        # True EFF potential from the exact enclosed mass on the profile grid:
+        #   Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ]
+        # (interior monopole + outer-shell term). Uses the same density grid as
+        # the sampler, and is jit/grad-safe in gamma (no Python branch on gamma).
         profile_instance = make_profile(profile, R_half, **kwargs)
-        a = profile_instance.a
-        gamma = profile_instance.gamma
-        r_t = profile_instance.r_t
+        rgrid = profile_instance._r_grid
+        rho_t = (1.0 + (rgrid / profile_instance.a) ** 2) ** (
+            -profile_instance.gamma / 2.0
+        )
+        dr = rgrid[1] - rgrid[0]
 
-        # For EFF: rho(r) = (1 + r^2/a^2)^(-gamma/2)
-        # Enclosed mass: M(<r) = 4*pi * integral of rho * r^2 dr
-        # Using numerical approximation via cumulative mass fraction
-
-        # Simplified enclosed mass for EFF (approximate)
-        x = r / a
-        x_t = r_t / a
-
-        # For gamma=3 (typical): M_enc/M_total ~ arctan(x)/arctan(x_t)
-        # General case: approximate with power-law interpolation
-        if gamma == 3.0:
-            M_enc_frac = jnp.arctan(x) / jnp.arctan(x_t)
-        else:
-            # General approximation
-            M_enc_frac = jnp.minimum(
-                x**3 / (1.0 + x**2)**(gamma/2 - 0.5) /
-                (x_t**3 / (1.0 + x_t**2)**(gamma/2 - 0.5)),
-                1.0
+        def _cumtrap(y):
+            return jnp.concatenate(
+                [jnp.zeros(1, dtype=y.dtype), jnp.cumsum(0.5 * (y[1:] + y[:-1]) * dr)]
             )
 
-        M_enc = M_total * jnp.clip(M_enc_frac, 0.0, 1.0)
-
-        # Potential from enclosed mass
-        phi = -G * M_enc / jnp.maximum(r, 0.01 * a)
+        I2 = _cumtrap(rho_t * rgrid**2)  # propto M(<r); I2[-1] propto M_total
+        M_enc_frac = I2 / (I2[-1] + 1e-30)  # M(<r)/M_total (= profile CDF)
+        J_outer = _cumtrap(rho_t * rgrid)
+        J_outer = J_outer[-1] - J_outer  # int_r^rt rho_t s ds
+        phi_grid = -G * M_total * (
+            M_enc_frac / jnp.maximum(rgrid, 1e-3 * profile_instance.a)
+            + J_outer / (I2[-1] + 1e-30)
+        )
+        phi = jnp.interp(r, rgrid, phi_grid)
 
     else:
         raise ValueError(
