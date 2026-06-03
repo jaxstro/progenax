@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAX_ENABLE_X64: "1"
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+
+      # progenax depends on the sibling repo jaxstro (not on PyPI). Check it out
+      # as a sibling directory so the [tool.uv.sources] `../jaxstro` path in
+      # pyproject.toml / uv.lock resolves and `uv sync --locked` can install the
+      # exact pinned dependency tree.
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      # Reproducible install from the committed lockfile (fails if uv.lock is
+      # out of date with pyproject.toml). Includes the `dev` extra (pytest).
+      - name: Sync from lockfile
+        working-directory: progenax
+        run: uv sync --locked --extra dev
+
+      - name: Run fast suite
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term

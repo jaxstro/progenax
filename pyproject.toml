@@ -20,9 +20,28 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov"]
 
+# jaxstro is the sibling ecosystem package (not published to PyPI). Resolve it
+# from the standard side-by-side checkout so `uv lock` / `uv sync --locked` work.
+# CI checks jaxstro out as a sibling directory (see .github/workflows/tests.yml).
+[tool.uv.sources]
+jaxstro = { path = "../jaxstro", editable = true }
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/progenax"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+markers = [
+    "unit: fast isolated unit tests",
+    "integration: cross-module integration tests",
+    "validation: scientific validation tests (physics/statistics)",
+    "slow: expensive tests excluded from the fast CI gate",
+]
+
+[tool.coverage.run]
+source = ["progenax"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

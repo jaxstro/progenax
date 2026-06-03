@@ -83,7 +83,10 @@ class PhysicsTolerances:
     QUALITATIVE = 0.20  # 20%
 
     # Specific physics targets
-    VIRIAL_RATIO = 0.20      # Q = T/|V| should be within 20% of 0.5
+    # Q = T/|V| for a sampled Plummer (analytic V) at N=5000: |Q-0.5| ~ 0.002,
+    # 40-seed std 0.005 (max 0.011) -> 0.05 is an ~11-sigma, discriminating bound.
+    # (Was 0.20, which would have accepted a 40%-wrong kinetic energy.)
+    VIRIAL_RATIO = 0.05      # Q = T/|V| within 5% of 0.5 (regime-anchored, N=5000)
     HALF_MASS = 0.03         # Half-mass radius: 3% tolerance
     VELOCITY_DISPERSION = 0.10  # σ(r) profile: 10% tolerance
     CDF_MONOTONIC = 1e-10    # CDF must be strictly increasing
@@ -112,56 +115,6 @@ def key_factory():
     def _make_key(seed=42):
         return jax.random.PRNGKey(seed)
     return _make_key
-
-
-# =============================================================================
-# Profile Factories
-# =============================================================================
-
-@pytest.fixture
-def plummer_profile():
-    """Standard Plummer profile for testing."""
-    from progenax.profiles import PlummerProfile
-    return PlummerProfile(r_h=1.0)
-
-
-@pytest.fixture
-def king_profile():
-    """Standard King profile for testing (W0=7, moderate concentration)."""
-    from progenax.profiles import KingProfile
-    return KingProfile(W0=7.0, r_c=1.0, r_t=10.0)
-
-
-@pytest.fixture
-def eff_profile():
-    """Standard EFF profile for testing."""
-    from progenax.profiles import EFFProfile
-    return EFFProfile(a=1.0, gamma=3.0, r_t=10.0)
-
-
-# =============================================================================
-# Velocity DF Factories
-# =============================================================================
-
-@pytest.fixture
-def plummer_df():
-    """Standard Plummer velocity DF for testing."""
-    from progenax.kinematics import PlummerVelocityDF
-    return PlummerVelocityDF(r_h=1.0)
-
-
-@pytest.fixture
-def king_df():
-    """Standard King velocity DF for testing."""
-    from progenax.kinematics import KingVelocityDF
-    return KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
-
-
-@pytest.fixture
-def eff_df():
-    """Standard EFF velocity DF for testing."""
-    from progenax.kinematics import EFFVelocityDF
-    return EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
 
 
 # =============================================================================
@@ -242,12 +195,6 @@ class KingConstants:
         King (1966), AJ 71, 64
         Binney & Tremaine (2008), "Galactic Dynamics"
     """
-    # Reference K-function values (computed from implementation)
-    # K(W) = erf(√W) - (2/√π)√W exp(-W)
-    K_REF_W3 = 0.8884  # K(3.0)
-    K_REF_W5 = 0.9814  # K(5.0)
-    K_REF_W7 = 0.9971  # K(7.0)
-
     # W0 ranges for different concentration
     W0_LOW = 3.0    # Low concentration
     W0_MED = 7.0    # Medium concentration

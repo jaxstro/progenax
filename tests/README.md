@@ -483,9 +483,7 @@ class PlummerConstants:
     MEAN_Q_SQUARED = 0.25                     # Beta(3/2, 9/2) mean
 
 class KingConstants:
-    K_REF_W3 = 0.8884  # K(3.0)
-    K_REF_W5 = 0.9814  # K(5.0)
-    K_REF_W7 = 0.9971  # K(7.0)
+    W0_LOW = 3.0; W0_MED = 7.0; W0_HIGH = 12.0  # concentration ranges
 
 class IMFConstants:
     SALPETER_ALPHA = 2.35
@@ -502,7 +500,7 @@ class PhysicsTolerances:
     EXACT = 1e-10              # Machine precision
     HIGH = 1e-6                # Numerical methods
     STANDARD = 0.05            # 5% (physics + statistics)
-    VIRIAL_RATIO = 0.20        # 20% (statistical + PE approximation)
+    VIRIAL_RATIO = 0.05        # 5% (regime-anchored: ~11-sigma at N=5000)
     HALF_MASS = 0.03           # 3% (half-mass radius)
     VELOCITY_DISPERSION = 0.10 # 10% (velocity statistics)
     BOUND_FRACTION = 1.0       # 100% (all particles bound)

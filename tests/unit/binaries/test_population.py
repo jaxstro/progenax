@@ -88,6 +88,23 @@ class TestThermalEccentricity:
         u_recovered = dist.cdf(e_vals)
         assert jnp.allclose(u_recovered, u_vals, atol=1e-10)
 
+    def test_canonical_moments_emax1(self):
+        """Canonical thermal f(e)=2e on [0,1]: <e>=2/3 and <e^2>=1/2.
+
+        The existing mean test folds e_max into the expectation; this pins the
+        textbook moments at e_max=1. Checking both moments jointly constrains the
+        f(e)=2e shape (a wrong exponent e^k shifts both). At N=5e4, SEM ~1e-3, so
+        the +/-0.01 bound is ~7-10 sigma.
+
+        Reference: Jeans (1919); Heggie (1975) MNRAS 173, 729.
+        """
+        dist = ThermalEccentricity(e_max=1.0)
+        samples = dist.sample(jax.random.PRNGKey(0), 50000)
+        mean_e = jnp.mean(samples)
+        mean_e2 = jnp.mean(samples ** 2)
+        assert jnp.abs(mean_e - 2.0 / 3.0) < 0.01, f"<e>={float(mean_e):.4f}, expected 2/3"
+        assert jnp.abs(mean_e2 - 0.5) < 0.01, f"<e^2>={float(mean_e2):.4f}, expected 1/2"
+
 
 class TestUniformEccentricity:
     """Test uniform eccentricity distribution."""
@@ -204,6 +221,31 @@ class TestSanaOBPeriod:
         # O/B stars should have shorter periods
         assert mean_sana < mean_solar
 
+    def test_log_slope_recovers_minus_055(self):
+        """Recovered power-law index matches Sana+2012: p(log P) ~ (log P)^-0.55.
+
+        The sampler draws x = log10(P) with p(x) ~ x^power on [0.3, 3.5], so a
+        log-log histogram of x has slope = power. Measured -0.551 +/- 0.009 over
+        seeds (max dev 0.020), so +/-0.08 is ~9 sigma; it also excludes the
+        log-uniform case (slope 0) by ~7 sigma, making the test discriminating.
+
+        Reference: Sana et al. (2012) Science 337, 444.
+        """
+        from progenax.binaries.population import SanaOBPeriod
+
+        dist = SanaOBPeriod()  # power = -0.55, log10(P) in [0.3, 3.5]
+        key = jax.random.PRNGKey(0)
+        x = jnp.log10(dist.sample(key, 50000))
+
+        counts, edges = jnp.histogram(x, bins=24, range=(dist.log_P_min, dist.log_P_max))
+        centers = 0.5 * (edges[1:] + edges[:-1])
+        mask = counts > 0
+        slope = jnp.polyfit(jnp.log(centers[mask]), jnp.log(counts[mask]), 1)[0]
+
+        assert jnp.abs(slope - dist.power) < 0.08, (
+            f"Recovered log-slope {float(slope):.3f}, expected {dist.power} (Sana+2012)"
+        )
+
 
 class TestMoeEccentricity:
     """Test Moe+2017 period-dependent eccentricity distribution."""
@@ -268,3 +310,66 @@ class TestMassDependentOrbits:
 
         # High-mass stars (Sana) should have shorter periods than low-mass (log-normal)
         assert median_period_high < median_period_low
+
+
+class TestBinarySamplingDifferentiability:
+    """Reparameterization gradients through the period/eccentricity samplers.
+
+    Each sampler is an inverse-CDF or location-scale reparameterization, so
+    mean(samples) is a smooth, differentiable function of the distribution
+    parameters at fixed key. These tests assert gradient *correctness* (against a
+    finite difference or a closed form), not merely finiteness, since the
+    differentiable-IC pipeline relies on these gradients (gradient-validation).
+    """
+
+    def test_sana_power_gradient_matches_finite_difference(self):
+        """d<log10 P>/d(power) for SanaOB matches a central finite difference.
+
+        The Sana sampler inverts a power-law CDF via jnp.power, so the gradient
+        w.r.t. the index is non-trivial. With a fixed key the loss is
+        deterministic, so autodiff must match a central difference to <1e-5
+        (h-sweep to bracket the truncation/round-off sweet spot).
+        """
+        from progenax.binaries.population import SanaOBPeriod
+
+        key = jax.random.PRNGKey(0)
+
+        def loss(power):
+            return jnp.mean(jnp.log10(SanaOBPeriod(power=power).sample(key, 20000)))
+
+        p0 = -0.55
+        g_ad = jax.grad(loss)(p0)
+        assert jnp.isfinite(g_ad)
+
+        rel_errs = []
+        for h in (1e-3, 1e-4, 1e-5):
+            g_fd = (loss(p0 + h) - loss(p0 - h)) / (2.0 * h)
+            rel_errs.append(
+                float(jnp.abs(g_ad - g_fd) / (jnp.abs(g_ad) + jnp.abs(g_fd) + 1e-12))
+            )
+        assert min(rel_errs) < 1e-5, f"min FD rel-err {min(rel_errs):.2e}"
+
+    def test_lognormal_location_gradient_is_unity(self):
+        """d<log10 P>/d(mu) = 1 exactly (log10 P = mu + sigma*z)."""
+        from progenax.binaries.population import LogNormalPeriod
+
+        key = jax.random.PRNGKey(1)
+        g = jax.grad(
+            lambda mu: jnp.mean(jnp.log10(LogNormalPeriod(mu_log_P=mu).sample(key, 20000)))
+        )(4.8)
+        assert jnp.isfinite(g)
+        assert jnp.abs(g - 1.0) < 1e-6, f"d<log10P>/dmu={float(g):.6f}, expected 1"
+
+    def test_thermal_scale_gradient_equals_mean_sqrt_u(self):
+        """d<e>/d(e_max) = <sqrt(u)> exactly (e = e_max*sqrt(u)), ~2/3 in the limit."""
+        from progenax.binaries.population import ThermalEccentricity
+
+        key = jax.random.PRNGKey(2)
+        # Closed form: with the same key, the sampler draws this exact u.
+        expected = jnp.mean(jnp.sqrt(jax.random.uniform(key, (20000,))))
+        g = jax.grad(
+            lambda em: jnp.mean(ThermalEccentricity(e_max=em).sample(key, 20000))
+        )(1.0)
+        assert jnp.isfinite(g)
+        assert jnp.abs(g - expected) < 1e-6, f"d<e>/d(e_max)={float(g):.6f} != <sqrt u>"
+        assert jnp.abs(g - 2.0 / 3.0) < 0.02  # converges to <sqrt u> = 2/3

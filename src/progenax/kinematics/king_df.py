@@ -1,88 +1,117 @@
 """
-King (1966) velocity distribution function as Equinox module.
+King (1966) lowered-Maxwellian velocity distribution function (Equinox module).
 
-Implements VelocityDF protocol for use with IC assembly.
-Samples from the "lowered Maxwellian" distribution with escape velocity cutoff.
+This samples the *true* King DF in detailed equilibrium with the King potential:
+
+    f(E) ∝ exp(E/sigma^2) - 1,   E = psi(r) sigma^2 - v^2/2 > 0,
+
+so the speed distribution at radius r is
+
+    g(v) ∝ v^2 [ exp(psi(r) - v^2/2sigma^2) - 1 ],   0 <= v <= v_esc = sigma sqrt(2 psi(r)),
+
+with psi(r) the dimensionless King potential (from the ODE) and sigma the central
+velocity scale fixed self-consistently from the model,
+
+    sigma^2 = G M_total / (9 r_c mu(W0)),   mu(W0) = int_0^{xi_t} rho_tilde(xi) xi^2 dxi
+
+(King 1966; Binney & Tremaine 2008, Eq. 4.131; the factor of 9 follows the standard
+nondimensionalization where r_c is the King core radius). With this sigma the sampled
+cluster is in virial equilibrium (Q = T/|V| = 0.5) WITHOUT any external rescale.
+
+Sampling uses a per-particle tabulated inverse-CDF (jnp.lax-free, vmap'd, differentiable;
+no while_loop), and isotropic directions.
 """
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.profiles.king import (
+    king_lowered_maxwellian_density,
+    solve_king_profile,
+)
+
+# Resolution of the per-particle speed inverse-CDF table.
+_N_SPEED_GRID = 256
+
+
+def _sample_unit_speed(key: PRNGKeyArray, W: Float[Array, ""], n_u: int) -> Float[Array, ""]:
+    """Sample one normalized speed u ~ g(u) = u^2 (exp(W - u^2/2) - 1) on [0, sqrt(2W)].
+
+    u is in units of sigma; the physical speed is sigma * u. Differentiable inverse-CDF
+    sampling on a fixed-size grid. Returns 0 where W <= 0 (at/outside the tidal radius,
+    where the escape speed vanishes).
+    """
+    W_safe = jnp.maximum(W, 1e-12)
+    u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W_safe), n_u)
+    g = u_grid**2 * (jnp.exp(W_safe - u_grid**2 / 2.0) - 1.0)
+    g = jnp.maximum(g, 0.0)  # numerically non-negative on [0, sqrt(2W)]
+
+    du = u_grid[1] - u_grid[0]
+    cdf = jnp.concatenate(
+        [jnp.zeros(1), jnp.cumsum(0.5 * (g[1:] + g[:-1])) * du]
+    )
+    cdf = cdf / (cdf[-1] + 1e-30)
+
+    q = jax.random.uniform(key)
+    u = jnp.interp(q, cdf, u_grid)
+    return jnp.where(W > 1e-6, u, 0.0)
 
 
 class KingVelocityDF(eqx.Module):
     """
-    King (1966) "lowered Maxwellian" velocity distribution function.
+    King (1966) lowered-Maxwellian velocity distribution function.
 
-    The King DF gives a velocity distribution at each radius:
-        f(E) ∝ (e^(ψ - v²/2σ²) - 1)  for E < 0
-        f(E) = 0                      for E ≥ 0
-
-    where ψ(r) is the dimensionless potential and σ is the central velocity
-    dispersion.
-
-    This implementation uses a simplified approach:
-    - Samples from Gaussian (Maxwellian) velocity distribution
-    - Applies cutoff at escape velocity
-    - Velocity dispersion decreases with radius following King profile
+    A true equilibrium DF: velocities are sampled from the lowered Maxwellian whose
+    radial speed structure follows the King potential psi(r), with the central velocity
+    scale sigma fixed self-consistently from (G, M_total, r_c, W0). The resulting ICs are
+    in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
+    bound (v < v_esc(r)).
 
     Attributes:
         W0: King concentration parameter (dimensionless central potential)
-        r_c: Core radius [length units]
+        r_c: Core radius [length units] (the King core radius)
         r_t: Tidal radius [length units]
+        xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
 
     References:
-        King, I. R. (1966), "The Structure of Star Clusters. III. Some Simple
-        Dynamical Models", AJ, 71, 64
-
-        Heggie & Hut (2003), "The Gravitational Million-Body Problem", §6.2
-
-        Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-
-    Notes:
-        - W0 typically ranges from 1 (low concentration) to 12 (high)
-        - Globular clusters have W0 ~ 5-9
-        - Simplified velocity dispersion profile (not full King potential)
-        - Fully differentiable and JIT-compatible
-
-    Examples:
-        >>> from progenax.profiles.king import KingProfile
-        >>> import jax
-        >>> import jax.numpy as jnp
-        >>>
-        >>> # Create spatial profile and velocity DF
-        >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0)
-        >>> velocity_df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
-        >>>
-        >>> # Sample positions and velocities
-        >>> masses = jnp.ones(100)
-        >>> key = jax.random.PRNGKey(42)
-        >>> key_pos, key_vel = jax.random.split(key)
-        >>>
-        >>> positions = profile.sample_positions(masses, key_pos)
-        >>> from jaxstro.units import STELLAR
-        >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
+        King (1966), AJ, 71, 64
+        Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
     """
 
     W0: Float[Array, ""]
     r_c: Float[Array, ""]
     r_t: Float[Array, ""]
+    xi_grid: Float[Array, "n_ode"]
+    psi_grid: Float[Array, "n_ode"]
 
-    def __init__(self, W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0):
-        """
-        Initialize King velocity distribution function.
-
-        Args:
-            W0: King concentration parameter (dimensionless central potential)
-            r_c: Core radius [length units]
-            r_t: Tidal radius [length units]
-        """
+    def __init__(
+        self,
+        W0: float = 5.0,
+        r_c: float = 1.0,
+        r_t: float = 10.0,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
+    ):
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
         self.r_t = jnp.asarray(r_t)
+        xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
+        self.xi_grid = xi_grid
+        self.psi_grid = psi_grid
+
+    def _sigma(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:
+        """Self-consistent central velocity scale sigma = sqrt(G M / (9 r_c mu(W0)))."""
+        rho0 = king_lowered_maxwellian_density(self.W0)
+        rho_tilde = jnp.where(
+            rho0 > 1e-10, king_lowered_maxwellian_density(self.psi_grid) / rho0, 0.0
+        )
+        # mu(W0) = int rho_tilde xi^2 dxi (rho_tilde -> 0 beyond xi_t, so the full grid works)
+        mu = jnp.trapezoid(rho_tilde * self.xi_grid**2, self.xi_grid)
+        sigma_sq = G * M_total / (9.0 * self.r_c * mu)
+        return jnp.sqrt(sigma_sq)
 
     def sample_velocities(
         self,
@@ -92,70 +121,43 @@ class KingVelocityDF(eqx.Module):
         G: float | None = None,
     ) -> Float[Array, "N 3"]:
         """
-        Sample velocities from King distribution function.
+        Sample velocities from the King lowered-Maxwellian DF.
 
-        Samples from isotropic Gaussian with radius-dependent velocity
-        dispersion, then applies cutoff at escape velocity.
+        At each radius r, the speed is drawn from g(v) ∝ v^2 [exp(psi(r) - v^2/2sigma^2) - 1]
+        on [0, v_esc(r)] via a differentiable tabulated inverse-CDF; directions are isotropic.
 
         Args:
             positions: Particle positions (N, 3) [length units]
-            masses: Particle masses (N,) [M☉]
+            masses: Particle masses (N,) [M_sun]
             key: JAX random key
-            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
-               (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
+            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
 
         Returns:
             Cartesian velocities (N, 3) [velocity units]
-
-        Notes:
-            - Velocities are isotropic (no radial bias)
-            - All velocities satisfy v < v_esc (bound particles)
-            - Uses simplified velocity dispersion profile
         """
         if G is None:
             G = defaults.DEFAULT_UNITS.G
 
         N = positions.shape[0]
         M_total = jnp.sum(masses)
-
-        # Compute radii
         radii = jnp.linalg.norm(positions, axis=1)
 
-        # Central velocity dispersion (from virial theorem)
-        # For King models: σ₀² ≈ G M_total / (9 r_c)  (approximate)
-        sigma_0_squared = G * M_total / (9.0 * self.r_c)
+        # Local dimensionless potential W(r) = psi(r) from the King ODE.
+        W = jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+        W = jnp.maximum(W, 0.0)
 
-        # Simplified dimensionless potential (approximate)
-        # ψ(r) ≈ W₀ × (1 - r²/(r_t²+r_c²))
-        psi = self.W0 * (1.0 - radii**2 / (self.r_t**2 + self.r_c**2))
-        psi = jnp.maximum(psi, 0.0)  # Ensure non-negative
+        sigma = self._sigma(M_total, G)
 
-        # Velocity dispersion at each radius (from King DF)
-        # σ(r)² = σ₀² × (1 + ψ(r)/3)  (approximate)
-        sigma_r_squared = sigma_0_squared * (1.0 + psi / 3.0)
-        sigma_r = jnp.sqrt(jnp.maximum(sigma_r_squared, 1e-10))
+        key_speed, key_dir = jax.random.split(key)
+        speed_keys = jax.random.split(key_speed, N)
+        u = jax.vmap(lambda k, w: _sample_unit_speed(k, w, _N_SPEED_GRID))(speed_keys, W)
+        speeds = sigma * u
 
-        # Escape velocity at each radius: v_esc² ≈ 2 ψ(r) σ₀²
-        v_esc_squared = 2.0 * psi * sigma_0_squared
-        v_esc = jnp.sqrt(jnp.maximum(v_esc_squared, 0.0))
+        # Isotropic directions (normalized Gaussian vectors).
+        dirs = jax.random.normal(key_dir, shape=(N, 3))
+        dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
 
-        # Sample isotropic Gaussian velocities - split once into 3 subkeys
-        keys = jax.random.split(key, 3)
-        v_x = jax.random.normal(keys[0], shape=(N,)) * sigma_r
-        v_y = jax.random.normal(keys[1], shape=(N,)) * sigma_r
-        v_z = jax.random.normal(keys[2], shape=(N,)) * sigma_r
-
-        velocities = jnp.stack([v_x, v_y, v_z], axis=1)
-
-        # Apply cutoff at escape velocity
-        v_mag = jnp.linalg.norm(velocities, axis=1, keepdims=True)
-        velocities = jnp.where(
-            v_mag > v_esc.reshape(-1, 1),
-            velocities * (v_esc.reshape(-1, 1) / (v_mag + 1e-30)),
-            velocities,
-        )
-
-        return velocities
+        return speeds[:, None] * dirs
 
 
 __all__ = ["KingVelocityDF"]

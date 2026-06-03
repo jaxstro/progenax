@@ -34,7 +34,6 @@ Formulas and coefficients were verified against primary literature (NASA ADS / a
 full text). Quantitative evidence is reproduced in [§3](#cr-2026-evidence).
 
 ```{contents}
-:local:
 :depth: 2
 ```
 
@@ -445,6 +444,37 @@ docstring (both Minor).
     SanaOBPeriod-slope and King/EFF/PN11/binary-distribution differentiability tests.
 11. Refresh `CLAUDE.md`/`README.md` metrics; split the three oversize units; fix the
     `moe2017()` and Chabrier docstrings.
+
+---
+
+(cr-2026-resolution)=
+### 6. Resolution status — 2026-06 hardening
+
+Worked on branch `hardening/audit-2026-06` (TDD: a failing test reproduced each
+finding before the fix; per-batch human gates). All Critical and Major **bug**
+findings are resolved.
+
+| Finding | Status | Commit(s) | Note |
+| --- | --- | --- | --- |
+| **C1** dropped `G` | ✅ Resolved | `645eed6` | `G` threaded into `sample_velocities`; Q correct with no rescale |
+| **C2** King `K` NaN grad + non-JIT ctor | ✅ Resolved | `e9966f6`, `629770b` | double-`where` + array `xi_t`. `king_K_function` was later **removed** (it became orphaned when M6/the density bug were fixed); the W=0 clamp now lives on `king_lowered_maxwellian_density`, and the JIT-safe `from_W0_rc` + ODE-grad guards remain |
+| **M1** King true DF | ✅ Resolved | `94e92ff` | lowered-Maxwellian `f(E)`; Q≈0.51 unscaled |
+| **M2** EFF true DF | ✅ Resolved | `5fe5c90` | Eddington inversion; `f(E)≥0`; Q≈0.50 (γ=5) |
+| **M4** non-collecting suite | ✅ Resolved | `08f98fa`, `5fe5c90` | quarantined, then the refactor-orphaned file deleted; suite collects **848** |
+| **M5** CDF quadrature | ✅ Resolved | `ecc3198` | cumulative trapezoid (EFF + King) |
+| **M6** King nondimensionalization | ✅ Resolved | `817b1a9` | factor-of-9 restored — **and a latent density–potential bug found during hardening** (the ODE sampled a non-King, 2–30× over-extended profile). `c(W₀)` now matches King (1966) Table II to ≤0.02 |
+| **M3** BM19 dense-tail undersampling | ✅ Resolved | `d654e4f` | **rank/empirical-CDF copula** (the bug was copula non-Gaussianity at β=4, *not* finite resolution — a cascade was measured-and-rejected); realized `f_tail` 0.029±0.040 → 0.054±0.000 vs `f_dense` 0.057, + resolution guard |
+| **M7** tooling | ✅ Resolved | `47568b4`, `4ef2dc2` | CI + markers + coverage; **`uv.lock` + `[tool.uv.sources]` + `uv sync --locked`** |
+| **M8** IMF coefficient citations | ✅ Present | — | Jeřábková 2018 / Marks+2012 already cited in `imf/environment.py` + `cluster/README.md` |
+| **M9** stub FDF calibration | ✅ Resolved | `5aa811e` | `UserWarning` + surfaced `version` (`v1_stub_uncalibrated`) at the `generate_cluster_ic` fractal path |
+| Oversize units (rec. 11) | ✅ Resolved | `8a9208b`,`eb3e4f6`,`b660bf6`,`1d6878a`,`1301c7f` | `generate_cluster_ic` + `generate_fractal_ic_density` split to ≤100 code-lines; `binary.py`/`fdf_density.py`/`analytical/core.py`/`environment.py` → subpackages <500 LOC (API-preserving) |
+| Test robustness (rec. 10) | ✅ Resolved | `7304ffa`,`ef6e69f`,`d4c12d1`,`28b2536`,`c1d8894` | virial→5%, fractal/median→5% (via N-bump), SanaOB −0.55 slope, thermal ⟨e⟩=2/3, binary + PN11 differentiability |
+| Docs / docstrings (rec. 11) | ✅ Resolved | `b2e1f6d`,`ba55ebc`,`9f11753` | `moe2017()` + Chabrier single-star labels; CLAUDE/README/API metrics + DF-fidelity |
+| Minor: `dV` off-by-one; pn11 routing | ✅ Resolved | `77e46d0`,`8abbf5b` | — |
+
+**All audit Critical/Major findings are resolved.** One maintainability follow-up
+remains ticketed: the eight files still 500–1000 LOC (the audit named only the
+>1000-LOC files for splitting) → `docs/notes/2026-06-02-file-length-followup-ticket.md`.
 
 ---
 

@@ -139,8 +139,10 @@ class TestInitTurbulentDensityField:
         dV = dx**3
         total_mass = jnp.sum(field.rho_grid) * dV
 
-        # Allow 10% tolerance due to grid discretization and turbulent modulation
-        assert jnp.isclose(total_mass, 1.0, rtol=0.10)
+        # sum(rho)*spacing^3 is a normalization identity (turbulent modulation
+        # cancels), so it is *exactly* 1.0 when dV matches the grid spacing. The
+        # old rtol=0.10 masked a dV off-by-one of (N/(N-1))^3 ~ 1.048 (audit minor).
+        assert jnp.isclose(total_mass, 1.0, atol=1e-6)
 
     def test_density_is_positive(self, key):
         """Lognormal density is positive everywhere."""

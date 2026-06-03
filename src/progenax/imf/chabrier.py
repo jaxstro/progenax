@@ -1,15 +1,19 @@
 """
 Chabrier (2003) IMF with lognormal + power-law components.
 
-Implements the Chabrier (2003) system IMF:
+Implements the Chabrier (2003) single-star (disk) IMF:
 - Lognormal component for m < 1 M☉
 - Power-law tail (Salpeter slope) for m ≥ 1 M☉
 
 Implements IMFProtocol for compatibility with BaseIMF framework and
 TruncatedIMF wrapper.
 
+Note: the default parameters (m_c=0.08, σ=0.69, A_ln=0.158) are the Chabrier
+(2003) Table 1 *single-star* disk values (individual stars; binaries resolved
+into components), NOT the system IMF (which has m_c≈0.22, σ≈0.57).
+
 References:
-    Chabrier (2003), PASP, 115, 763 - System IMF (binaries resolved)
+    Chabrier (2003), PASP, 115, 763 - Table 1, single-star disk IMF
     Chabrier (2005), ASSL, 327, 41 - The Initial Mass Function 50 Years Later
 """
 
@@ -40,17 +44,17 @@ class ChabrierIMF(eqx.Module):
         sigma: Width of lognormal in log-space (default: 0.69)
         alpha: Power-law exponent for ξ(m) ∝ m^(-α) (default: 2.35, Salpeter)
         m_trans: Transition mass between lognormal and power-law (default: 1.0)
-        A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 system IMF)
+        A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF)
         A_pl: Power-law coefficient (computed for continuity at m_trans)
 
     Examples:
-        >>> imf = ChabrierIMF()  # Default Chabrier (2003) system IMF
+        >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
         >>> key = jax.random.PRNGKey(42)
         >>> masses = imf.sample(key, 1000)
         >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.35-0.5 M☉
 
     References:
-        Chabrier (2003), PASP, 115, 763 - Table 1: System IMF coefficients
+        Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
         Chabrier (2005), ASSL, 327, 41 - Review of IMF determinations
     """
 
@@ -104,7 +108,7 @@ class ChabrierIMF(eqx.Module):
     def _lognormal_pdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
         """Unnormalized lognormal PDF in mass space (dN/dm).
 
-        Chabrier (2003) Eq. 8 for system IMF:
+        Chabrier (2003) for the single-star (disk) IMF:
         ξ(m) = A_ln / (m × ln 10) × exp[-(log₁₀ m - log₁₀ m_c)² / (2σ²)]
 
         The 1/(m × ln 10) is the Jacobian from log₁₀ space to mass space.

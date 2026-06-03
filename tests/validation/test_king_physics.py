@@ -12,60 +12,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.profiles.king import KingProfile, solve_king_profile, king_K_function
+from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.kinematics import KingVelocityDF
-
-
-class TestKingKFunction:
-    """Verify King's K-function: K(W) = erf(√W) - (2/√π)√W exp(-W)."""
-
-    def test_k_function_at_zero(self):
-        """K(0) = 0 exactly."""
-        K_0 = king_K_function(jnp.array(0.0))
-        assert jnp.abs(K_0) < 1e-10, f"K(0) = {float(K_0)}, expected 0"
-
-    def test_k_function_reference_values(self, king_constants):
-        """K-function matches reference values from King (1966)."""
-        # K(5.0) ≈ 0.9996
-        K_5 = king_K_function(jnp.array(5.0))
-        assert abs(float(K_5) - king_constants.K_REF_W5) < 0.001, \
-            f"K(5) = {float(K_5):.6f}, expected {king_constants.K_REF_W5}"
-
-        # K(7.0) ≈ 0.99999
-        K_7 = king_K_function(jnp.array(7.0))
-        assert abs(float(K_7) - king_constants.K_REF_W7) < 0.0001, \
-            f"K(7) = {float(K_7):.6f}, expected {king_constants.K_REF_W7}"
-
-        # K(3.0) ≈ 0.9707
-        K_3 = king_K_function(jnp.array(3.0))
-        assert abs(float(K_3) - king_constants.K_REF_W3) < 0.001, \
-            f"K(3) = {float(K_3):.6f}, expected {king_constants.K_REF_W3}"
-
-    def test_k_function_asymptotic_behavior(self):
-        """K(W) → erf(√W) → 1 as W → ∞."""
-        K_large = king_K_function(jnp.array(20.0))
-        assert abs(float(K_large) - 1.0) < 0.001, \
-            f"K(20) = {float(K_large)}, expected ~1.0"
-
-    def test_k_function_monotonic(self):
-        """K(W) is monotonically increasing."""
-        W_grid = jnp.linspace(0.1, 12.0, 50)
-        K_grid = king_K_function(W_grid)
-
-        diffs = jnp.diff(K_grid)
-        assert jnp.all(diffs >= 0), "K(W) should be monotonically increasing"
-
-    def test_k_function_small_w_limit(self):
-        """For small W: K(W) ≈ (4/3√π) W^(3/2) (Taylor expansion)."""
-        W_small = 0.01
-        K_small = king_K_function(jnp.array(W_small))
-
-        # Taylor expansion: K(W) ≈ (4/3√π) W^(3/2) for W << 1
-        expected = (4.0 / (3.0 * jnp.sqrt(jnp.pi))) * W_small**1.5
-
-        # Should be within 10% for small W
-        assert abs(float(K_small) - float(expected)) / float(expected) < 0.1, \
-            f"K({W_small}) = {float(K_small):.6f}, Taylor approx = {float(expected):.6f}"
 
 
 class TestKingODESolution:
@@ -198,49 +146,30 @@ class TestKingConcentration:
 class TestKingVelocityDF:
     """Verify King velocity distribution function properties."""
 
-    def test_velocities_clipped_at_escape(self, N_validation, key):
-        """Velocities are clipped at King model escape velocity.
-
-        The KingVelocityDF explicitly clips velocities at v_esc derived from
-        the King potential, guaranteeing all particles are bound.
+    def test_velocities_bound_against_king_escape_speed(self, N_validation, key):
+        """All velocities are bound: v <= v_esc(r) = sigma sqrt(2 psi(r)) from the
+        self-consistent King model. The lowered-Maxwellian DF samples on [0, v_esc]
+        natively (no clipping), so boundedness is intrinsic.
         """
-        W0, r_c, r_t = 7.0, 1.0, 10.0
+        W0, r_c = 7.0, 1.0
         G = 1.0
 
-        xi_grid, psi_grid = solve_king_profile(W0)
-        profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=r_t)
+        profile = KingProfile.from_W0_rc(W0, r_c)
+        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=float(profile.r_t))
 
         masses = jnp.ones(N_validation)
         key_pos, key_vel = jax.random.split(key)
-
         positions = profile.sample_positions(masses, key_pos)
         velocities = df.sample_velocities(positions, masses, key_vel, G=G)
 
-        # Compute King model escape velocity using SAME formula as velocity DF
         radii = jnp.linalg.norm(positions, axis=1)
-        M_total = float(jnp.sum(masses))
-
-        # Central velocity dispersion (from velocity DF)
-        sigma_0_squared = G * M_total / (9.0 * r_c)
-
-        # Dimensionless potential (from velocity DF approximation)
-        psi = W0 * (1.0 - radii**2 / (r_t**2 + r_c**2))
-        psi = jnp.maximum(psi, 0.0)
-
-        # Escape velocity (from velocity DF)
-        v_esc_king = jnp.sqrt(2.0 * psi * sigma_0_squared)
-
+        W = jnp.interp(radii / r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+        v_esc = df._sigma(jnp.sum(masses), G) * jnp.sqrt(2.0 * jnp.maximum(W, 0.0))
         v_mag = jnp.linalg.norm(velocities, axis=1)
 
-        # All particles should have v <= v_esc (with small numerical tolerance)
-        bound_fraction = float(jnp.mean(v_mag <= v_esc_king + 1e-6))
+        bound_fraction = float(jnp.mean(v_mag <= v_esc + 1e-9))
         assert bound_fraction == 1.0, \
-            f"Only {bound_fraction*100:.1f}% at or below v_esc (expected 100%)"
-
-        # Verify clipping is actually happening (some should be clipped)
-        near_escape = float(jnp.mean(v_mag > 0.9 * v_esc_king))
-        # This just verifies distribution reaches near escape velocity
+            f"Only {bound_fraction*100:.1f}% bound (v <= v_esc), expected 100%"
 
     def test_velocity_isotropy(self, N_stats, key):
         """Velocities are isotropically distributed."""
@@ -321,6 +250,126 @@ class TestKingDensityProfile:
 
         assert inner_density > outer_density, \
             f"Inner density {inner_density:.2f} should exceed outer {outer_density:.2f}"
+
+
+class TestKingLoweredMaxwellianDensity:
+    """B2.0: corrected lowered-Maxwellian volume density + factor-of-9 nondimensionalization.
+
+    The earlier code solved Poisson with King's K-function (incomplete-gamma/projected
+    form) as the 3-D density, over-extending the profile by 2-30x, and omitted the
+    standard factor of 9 in the nondimensionalization. The corrected model must
+    reproduce the King (1966) Table II concentrations and the lowered-Maxwellian
+    density shape.
+    """
+
+    # King (1966), AJ 71, 64, Table II: c = log10(r_t/r_c) vs W0.
+    @pytest.mark.parametrize(
+        "W0,c_ref", [(1, 0.30), (3, 0.67), (5, 1.03), (7, 1.53), (9, 2.12)]
+    )
+    def test_concentration_matches_king_table_ii(self, W0, c_ref):
+        prof = KingProfile.from_W0_rc(float(W0), 1.0, xi_max=400.0, n_ode_points=8000)
+        c = float(jnp.log10(prof.r_t / prof.r_c))
+        assert abs(c - c_ref) < 0.03, (
+            f"W0={W0}: c={c:.3f} vs King (1966) Table II c={c_ref} (delta {c-c_ref:+.3f})"
+        )
+
+    def test_density_shape_matches_direct_velocity_integral(self):
+        """KingProfile.density(r) follows the lowered-Maxwellian shape (independent
+        oracle = direct velocity integration), not the over-extended K-form."""
+        prof = KingProfile.from_W0_rc(7.0, 1.0, xi_max=400.0, n_ode_points=8000)
+        r = jnp.linspace(0.02 * float(prof.r_t), 0.9 * float(prof.r_t), 25)
+        xi = r / prof.r_c
+        psi = jnp.interp(xi, prof.xi_grid, prof.psi_grid, left=prof.W0, right=0.0)
+
+        def direct(W, nv=100_000):
+            v = jnp.linspace(0.0, jnp.sqrt(2.0 * W), nv)
+            return float(jnp.trapezoid(v**2 * (jnp.exp(W - v**2 / 2.0) - 1.0), v))
+
+        rho = jnp.asarray(prof.density(r))
+        rho_direct = jnp.asarray([direct(float(p)) for p in psi])
+        rho_n = rho / rho[0]
+        d_n = rho_direct / rho_direct[0]
+        max_rel = float(jnp.max(jnp.abs(rho_n - d_n) / (jnp.abs(d_n) + 1e-12)))
+        assert max_rel < 5e-3, f"density shape disagrees with lowered-Maxwellian (max rel {max_rel:.2e})"
+
+
+class TestKingEquilibriumVelocityDF:
+    """B2.1: King velocity DF as a true lowered-Maxwellian in detailed equilibrium.
+
+    Sampling the lowered-Maxwellian g(v) ∝ v^2 [exp(psi(r) - v^2/2sigma^2) - 1] on
+    [0, v_esc(r)] with the self-consistent sigma^2 = G M / (9 r_c mu(W0)) must put the
+    cluster in virial equilibrium WITHOUT any external rescale (Q = T/|V| = 0.5).
+    The old ad-hoc DF (Gaussian + clip, parabolic psi) gives Q ~ 6.7.
+    """
+
+    def _build_ic(self, W0=7.0, r_c=1.0, N=5000, seed=0):
+        from jaxstro.units import STELLAR
+        prof = KingProfile.from_W0_rc(W0, r_c)
+        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=float(prof.r_t))
+        masses = jnp.ones(N)
+        kp, kv = jax.random.split(jax.random.PRNGKey(seed))
+        pos = prof.sample_positions(masses, kp)
+        vel = df.sample_velocities(pos, masses, kv, G=STELLAR.G)
+        return prof, df, masses, pos, vel, STELLAR.G
+
+    def test_virial_ratio_is_half_unscaled(self):
+        from progenax.builders import compute_kinetic_energy, compute_potential_energy
+        _, _, m, pos, vel, G = self._build_ic(W0=7.0, N=5000)
+        T = compute_kinetic_energy(vel, m)
+        V = compute_potential_energy(pos, m, G=G)
+        Q = float(T / jnp.abs(V))
+        assert abs(Q - 0.5) < 0.05, f"unscaled Q={Q:.3f} (expected 0.5 for King equilibrium)"
+
+    def test_all_particles_bound(self):
+        prof, df, m, pos, vel, G = self._build_ic(W0=7.0, N=3000)
+        r = jnp.linalg.norm(pos, axis=1)
+        v = jnp.linalg.norm(vel, axis=1)
+        # local potential and escape speed from the self-consistent model
+        W = jnp.interp(r / prof.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+        sigma = df._sigma(jnp.sum(m), G)
+        v_esc = sigma * jnp.sqrt(2.0 * jnp.maximum(W, 0.0))
+        frac_bound = float(jnp.mean(v <= v_esc + 1e-9))
+        assert frac_bound == 1.0, f"only {frac_bound*100:.1f}% bound (v < v_esc)"
+
+    def test_velocity_sampling_is_differentiable(self):
+        """grad of mean kinetic energy w.r.t. r_c flows through the DF sampling."""
+        from jaxstro.units import STELLAR
+
+        def loss(r_c):
+            prof = KingProfile.from_W0_rc(7.0, 1.0)
+            df = KingVelocityDF(W0=7.0, r_c=r_c, r_t=float(prof.r_t))
+            m = jnp.ones(200)
+            kp, kv = jax.random.split(jax.random.PRNGKey(1))
+            pos = prof.sample_positions(m, kp)
+            vel = df.sample_velocities(pos, m, kv, G=STELLAR.G)
+            return jnp.mean(jnp.sum(vel**2, axis=1))
+
+        g = jax.grad(loss)(1.0)
+        assert jnp.isfinite(g), f"grad through King DF sampling is non-finite: {g}"
+
+    def test_dispersion_profile_matches_king_moment(self):
+        """Sampled sigma_1d(r) matches the analytic lowered-Maxwellian 2nd moment."""
+        prof, df, m, pos, vel, G = self._build_ic(W0=7.0, N=40000)
+        sigma = float(df._sigma(jnp.sum(m), G))
+        r = jnp.linalg.norm(pos, axis=1)
+        v2 = jnp.sum(vel**2, axis=1)
+
+        def u2_mean(W, nu=4000):
+            u = jnp.linspace(0.0, jnp.sqrt(2.0 * W), nu)
+            g = u**2 * (jnp.exp(W - u**2 / 2.0) - 1.0)
+            return float(jnp.trapezoid(u**2 * g, u) / jnp.trapezoid(g, u))
+
+        for lo, hi in [(0.5, 1.5), (2.0, 4.0), (5.0, 9.0)]:
+            msk = (r >= lo) & (r < hi)
+            W_bin = float(jnp.mean(jnp.interp(
+                r[msk] / prof.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)))
+            sig_sampled = float(jnp.sqrt(jnp.mean(v2[msk]) / 3.0))
+            sig_analytic = sigma * jnp.sqrt(u2_mean(W_bin) / 3.0)
+            rel = abs(sig_sampled - sig_analytic) / sig_analytic
+            assert rel < 0.12, (
+                f"r in [{lo},{hi}): sampled sigma_1d={sig_sampled:.3f} vs "
+                f"analytic {sig_analytic:.3f} (rel {rel:.2%})"
+            )
 
 
 if __name__ == "__main__":

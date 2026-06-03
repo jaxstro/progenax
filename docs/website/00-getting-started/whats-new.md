@@ -7,6 +7,28 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-02 — Audit hardening: true King/EFF velocity DFs
+
+Resolved the 2026-06-01 expert audit (2 Critical, 9 Major). The King
+and EFF velocity DFs are now sampled in **detailed equilibrium** — King
+via the lowered-Maxwellian $f(E)\propto e^{E/\sigma^2}-1$ with a
+self-consistent $\sigma$, EFF via exact Eddington inversion $f(E)$ of
+the truncated density — so both are virial ($Q=T/|V|\approx0.5$) with
+**no external rescale**. A latent density–potential bug (the King ODE
+sampled a non-King, 2–30× over-extended profile) was fixed, so the
+concentration $c(W_0)$ now matches King (1966) Table II to $\le 0.02$.
+Also fixed: $G$ was silently dropped from velocity sampling (C1); the
+King $K$-function had a NaN gradient and a non-JIT-able constructor (C2).
+Test suite: 848 across 3 tiers (724 / 21 / 103), with tightened,
+regime-anchored tolerances.
+
+**Impact.** ICs built with King or EFF velocities before this release
+were not in equilibrium and should be regenerated. The unused
+`king_K_function` was removed; the corrected density is
+`king_lowered_maxwellian_density`.
+
+**Reference.** [](../90-development-log/code-reviews.md).
+
 ## 2026-04-28 — PP20 ζ(p) transcription bug fix
 
 The `magnification_factor(p)` function was producing systematically

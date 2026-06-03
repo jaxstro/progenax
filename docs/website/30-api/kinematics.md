@@ -97,61 +97,28 @@ Examples:
 *class*
 
 ```python
-KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0)
+KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0, xi_max: float = 300.0, n_ode_points: int = 2000)
 ```
 
-King (1966) "lowered Maxwellian" velocity distribution function.
+King (1966) lowered-Maxwellian velocity distribution function.
 
-The King DF gives a velocity distribution at each radius:
-    f(E) ∝ (e^(ψ - v²/2σ²) - 1)  for E < 0
-    f(E) = 0                      for E ≥ 0
-
-where ψ(r) is the dimensionless potential and σ is the central velocity
-dispersion.
-
-This implementation uses a simplified approach:
-- Samples from Gaussian (Maxwellian) velocity distribution
-- Applies cutoff at escape velocity
-- Velocity dispersion decreases with radius following King profile
+A true equilibrium DF: velocities are sampled from the lowered Maxwellian whose
+radial speed structure follows the King potential psi(r), with the central velocity
+scale sigma fixed self-consistently from (G, M_total, r_c, W0). The resulting ICs are
+in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
+bound (v < v_esc(r)).
 
 Attributes:
     W0: King concentration parameter (dimensionless central potential)
-    r_c: Core radius [length units]
+    r_c: Core radius [length units] (the King core radius)
     r_t: Tidal radius [length units]
+    xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
 
 References:
-    King, I. R. (1966), "The Structure of Star Clusters. III. Some Simple
-    Dynamical Models", AJ, 71, 64
+    King (1966), AJ, 71, 64
+    Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-    Heggie & Hut (2003), "The Gravitational Million-Body Problem", §6.2
-
-    Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-
-Notes:
-    - W0 typically ranges from 1 (low concentration) to 12 (high)
-    - Globular clusters have W0 ~ 5-9
-    - Simplified velocity dispersion profile (not full King potential)
-    - Fully differentiable and JIT-compatible
-
-Examples:
-    >>> from progenax.profiles.king import KingProfile
-    >>> import jax
-    >>> import jax.numpy as jnp
-    >>>
-    >>> # Create spatial profile and velocity DF
-    >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0)
-    >>> velocity_df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
-    >>>
-    >>> # Sample positions and velocities
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> key_pos, key_vel = jax.random.split(key)
-    >>>
-    >>> positions = profile.sample_positions(masses, key_pos)
-    >>> from jaxstro.units import STELLAR
-    >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
-
-*Source: [`progenax/kinematics/king_df.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L16)*
+*Source: [`progenax/kinematics/king_df.py#L63`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L63)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`
@@ -162,47 +129,25 @@ Examples:
 EFFVelocityDF(a: float = 1.0, gamma: float = 3.0, r_t: float = 10.0)
 ```
 
-Isotropic Gaussian velocity distribution for EFF profiles.
+EFF (Elson-Fall-Freeman 1987) isotropic velocity DF via Eddington inversion.
 
-Since the EFF profile has no analytic distribution function, we assign
-isotropic Gaussian velocities with a velocity scale estimated from:
-    σ ≈ √(G M_total / (6 a))
-
-This provides a reasonable initial velocity distribution. Global virial
-ratio rescaling is handled by the higher-level kinematics API.
+Samples the exact isotropic ergodic DF f(E) of the (truncated) EFF density. The
+central velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t),
+so no external virial rescale is needed.
 
 Attributes:
-    a: Scale radius [length units], must match spatial profile
-    gamma: Power-law index (for documentation, not used in velocity sampling)
-    r_t: Tidal radius [length units], must match spatial profile
+    a: Scale radius [length units], must match the spatial profile
+    gamma: Power-law index
+    r_t: Tidal/truncation radius [length units]
+    r_grid, Psi_grid: relative potential Psi(r) (dimensionless: G=1, rho_0=1)
+    E_grid, f_grid: tabulated Eddington DF f(E) >= 0
+    mu: int_0^{r_t} rho_tilde r^2 dr (sets rho_0 = M_total / (4 pi mu))
 
 References:
     Elson, Fall & Freeman (1987), ApJ, 323, 54
+    Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
 
-Notes:
-    - Velocities are isotropic Gaussian (no radial dependence)
-    - Fully differentiable and JIT-compatible
-    - For virial rescaling, use progenax.kinematics.sample_velocities_pipeline
-
-Examples:
-    >>> from progenax.profiles.eff import EFFProfile
-    >>> import jax
-    >>> import jax.numpy as jnp
-    >>>
-    >>> # Create spatial profile and velocity DF
-    >>> profile = EFFProfile(a=1.0, gamma=3.0, r_t=10.0)
-    >>> velocity_df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
-    >>>
-    >>> # Sample positions and velocities
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> key_pos, key_vel = jax.random.split(key)
-    >>>
-    >>> positions = profile.sample_positions(masses, key_pos)
-    >>> from jaxstro.units import STELLAR
-    >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
-
-*Source: [`progenax/kinematics/eff_df.py#L19`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L19)*
+*Source: [`progenax/kinematics/eff_df.py#L96`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L96)*
 
 (api-kinematics-apply_osipkov_merritt)=
 ## `kinematics.apply_osipkov_merritt`
@@ -210,7 +155,7 @@ Examples:
 *function*
 
 ```python
-apply_osipkov_merritt(velocities: jaxtyping.Float[Array, 'N 3'], positions: jaxtyping.Float[Array, 'N 3'], key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2']], r_a: float) -> jaxtyping.Float[Array, 'N 3']
+apply_osipkov_merritt(velocities: jaxtyping.Float[Array, 'N 3'], positions: jaxtyping.Float[Array, 'N 3'], key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], r_a: float) -> jaxtyping.Float[Array, 'N 3']
 ```
 
 Apply Osipkov-Merritt radial anisotropy to velocities.
@@ -437,7 +382,7 @@ Example:
 *function*
 
 ```python
-sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float | None = None) -> jaxtyping.Float[Array, 'N 3']
+sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float | None = None) -> jaxtyping.Float[Array, 'N 3']
 ```
 
 Velocity pipeline: DF sampling -> anisotropy -> rotation -> virial rescale.

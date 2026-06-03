@@ -90,7 +90,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/king.py#L247`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L247)*
+*Source: [`progenax/profiles/king.py#L250`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L250)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -98,7 +98,7 @@ Examples:
 *function*
 
 ```python
-solve_king_profile(W0: float, xi_max: float = 100.0, n_points: int = 500) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+solve_king_profile(W0: float, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
 ```
 
 Solve King's Poisson equation numerically using diffrax.
@@ -123,8 +123,10 @@ References:
     Binney & Tremaine (2008), Section 4.3.2
 
 Note:
-    Cannot be JIT-compiled due to n_points (concrete value needed for linspace).
-    Uses Tsit5 (Runge-Kutta 5th order) from diffrax for robustness.
+    JIT-compatible when ``n_points`` (and ``xi_max``) are static: they set the
+    ``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
+    traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
+    diffrax for robustness.
 
 *Source: [`progenax/profiles/king.py#L137`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L137)*
 
@@ -268,7 +270,7 @@ Notes:
 *function*
 
 ```python
-sample_density_profile(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2']], N_stars: int, profile: Literal['plummer', 'king', 'eff'], R_half: float, **kwargs) -> jaxtyping.Float[Array, 'N 3']
+sample_density_profile(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], N_stars: int, profile: Literal['plummer', 'king', 'eff'], R_half: float, **kwargs) -> jaxtyping.Float[Array, 'N 3']
 ```
 
 Sample N_stars positions from the chosen density profile.

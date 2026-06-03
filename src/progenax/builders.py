@@ -245,8 +245,9 @@ def build_spatial_ic(
     # 1. Sample positions
     positions = profile.sample_positions(masses, key_pos)
 
-    # 2. Sample velocities
-    velocities = velocity_df.sample_velocities(positions, masses, key_vel)
+    # 2. Sample velocities (G must be threaded through — see audit C1; without it
+    #    the DF silently falls back to DEFAULT_UNITS.G and ignores the caller's units)
+    velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=G)
 
     # 3. Compute softening
     r_char = profile.characteristic_radius()

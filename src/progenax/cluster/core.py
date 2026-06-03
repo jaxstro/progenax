@@ -252,6 +252,83 @@ def sample_velocities_for_profile(
 
 
 # =============================================================================
+# Structure-layer branches (extracted from generate_cluster_ic)
+# =============================================================================
+
+
+def _apply_fractal_branch(
+    key, N_stars, M_total, R_half, profile, frac, imf_params, G, **kwargs
+):
+    """FDF fractal-substructure branch. Returns (masses, positions, velocities).
+
+    FDF redraws masses, so this returns its own masses for consistency. The key
+    is split internally exactly as the inline branch did (RNG-preserving).
+    """
+    from progenax.cluster.fdf_calibration import fractal_layer_from_D
+    from progenax.cluster.fdf import generate_fractal_ic as fdf_generate
+
+    # Convert FractalLayer(D) to FractalDisplacementLayer(chi, sigma_u)
+    fdf_params = fractal_layer_from_D(
+        D=frac.D,
+        virial_ratio=frac.virial_ratio,
+        coherent_velocities=frac.coherent_velocities,
+        lambda_frac=frac.lambda_frac,
+    )
+
+    key, subkey = random.split(key)
+    cluster_fdf = fdf_generate(
+        subkey,
+        N_stars=N_stars,
+        M_total=M_total,
+        R_half=R_half,
+        profile=profile,
+        frac_params=fdf_params,
+        imf_params=imf_params,
+        G=G,
+    )
+    return cluster_fdf.masses, cluster_fdf.positions, cluster_fdf.velocities
+
+
+def _apply_segregation_branch(
+    key, positions_base, velocities_base, masses, seg,
+    profile, R_half, M_total, N_stars, G, **kwargs
+):
+    """Baumgardt mass-segregation branch. Returns (positions, velocities).
+
+    Blends an unsegregated baseline with an energy-ordered (S=1) state by
+    lambda_seg. The key is split three times internally, exactly as the inline
+    branch did (RNG-preserving).
+    """
+    # Unsegregated baseline: equilibrium DF, masses assigned at random
+    positions_unseg = positions_base
+    velocities_unseg = velocities_base
+
+    # Segregated state: Baumgardt with S=1 from an orbit pool (N_pool > N)
+    N_pool = seg.pool_factor * N_stars
+
+    key, subkey = random.split(key)
+    pos_pool = sample_density_profile(subkey, N_pool, profile, R_half, **kwargs)
+
+    key, subkey = random.split(key)
+    vel_pool = sample_velocities_for_profile(
+        subkey, pos_pool, profile, R_half, M_total, G, target_Q=0.5, **kwargs
+    )
+
+    def potential_fn(positions):
+        return compute_profile_potential(positions, profile, M_total, R_half, G, **kwargs)
+
+    key, subkey = random.split(key)
+    _, positions_seg, velocities_seg = energy_sorted_segregation(
+        subkey, masses, pos_pool, vel_pool, potential_fn
+    )
+
+    lambda_seg = seg.lambda_seg
+    positions = (1.0 - lambda_seg) * positions_unseg + lambda_seg * positions_seg
+    velocities = (1.0 - lambda_seg) * velocities_unseg + lambda_seg * velocities_seg
+    return positions, velocities
+
+
+# =============================================================================
 # Main IC Generator
 # =============================================================================
 
@@ -371,83 +448,18 @@ def generate_cluster_ic(
     )
 
     # ─────────────────────────────────────────────────────────────
-    # BRANCH A: Apply fractal layer (if requested) - NOW USES FDF
+    # Apply the requested structure layer (fractal / segregation / none).
+    # In v1 fractal and segregation are mutually exclusive (guarded above).
     # ─────────────────────────────────────────────────────────────
     if frac is not None:
-        from progenax.cluster.fdf_calibration import fractal_layer_from_D
-        from progenax.cluster.fdf import generate_fractal_ic as fdf_generate
-
-        # Convert FractalLayer(D) to FractalDisplacementLayer(chi, sigma_u)
-        fdf_params = fractal_layer_from_D(
-            D=frac.D,
-            virial_ratio=frac.virial_ratio,
-            coherent_velocities=frac.coherent_velocities,
-            lambda_frac=frac.lambda_frac,
+        masses, positions, velocities = _apply_fractal_branch(
+            key, N_stars, M_total, R_half, profile, frac, imf_params, G, **kwargs
         )
-
-        key, subkey = random.split(key)
-
-        # Generate fractal IC using FDF method
-        cluster_fdf = fdf_generate(
-            subkey,
-            N_stars=N_stars,
-            M_total=M_total,
-            R_half=R_half,
-            profile=profile,
-            frac_params=fdf_params,
-            imf_params=imf_params,
-            G=G,
-        )
-
-        # Use FDF-generated positions and velocities
-        # Note: masses are redrawn by FDF; for consistency we use FDF's masses
-        masses = cluster_fdf.masses
-        positions = cluster_fdf.positions
-        velocities = cluster_fdf.velocities
-
-    # ─────────────────────────────────────────────────────────────
-    # BRANCH B: Apply mass segregation layer (if requested)
-    # ─────────────────────────────────────────────────────────────
     elif seg is not None:
-        # --- Unsegregated baseline: equilibrium DF, no mass-energy correlation ---
-        # This is an independent draw from the same DF as the Baumgardt construction,
-        # but with masses assigned to orbits uniformly at random.
-        positions_unseg = positions_base
-        velocities_unseg = velocities_base
-
-        # --- Segregated state: Baumgardt with S=1 ---
-        # Generate orbit pool (JIT-safe: use static pool_factor)
-        N_pool = seg.pool_factor * N_stars
-
-        key, subkey = random.split(key)
-        pos_pool = sample_density_profile(subkey, N_pool, profile, R_half, **kwargs)
-
-        # Orbit pool velocities also from kinematics API (same DF)
-        key, subkey = random.split(key)
-        vel_pool = sample_velocities_for_profile(
-            subkey, pos_pool, profile, R_half, M_total, G, target_Q=0.5, **kwargs
+        positions, velocities = _apply_segregation_branch(
+            key, positions_base, velocities_base, masses, seg,
+            profile, R_half, M_total, N_stars, G, **kwargs
         )
-
-        # Potential function: analytic profile potential (not N-body sum)
-        # This ensures consistency between the DF and energy ordering
-        def potential_fn(positions):
-            return compute_profile_potential(positions, profile, M_total, R_half, G, **kwargs)
-
-        # Apply Baumgardt segregation (S=1 internally)
-        key, subkey = random.split(key)
-        _, positions_seg, velocities_seg = energy_sorted_segregation(
-            subkey, masses, pos_pool, vel_pool, potential_fn
-        )
-
-        # Blend: (1 - λ_seg) * unsegregated + λ_seg * segregated
-        lambda_seg = seg.lambda_seg
-        positions = (1.0 - lambda_seg) * positions_unseg + lambda_seg * positions_seg
-        velocities = (1.0 - lambda_seg) * velocities_unseg + lambda_seg * velocities_seg
-        # masses unchanged (same 1D distribution, different assignments)
-
-    # ─────────────────────────────────────────────────────────────
-    # BRANCH C: No structure layers, just base profile
-    # ─────────────────────────────────────────────────────────────
     else:
         positions = positions_base
         velocities = velocities_base

@@ -34,48 +34,45 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 
 # ==============================================================================
-# King K-function (Exact Density-Potential Relation)
+# King lowered-Maxwellian density (Poisson source)
 # ==============================================================================
 
 
-@jax.jit
-def king_K_function(W: Float[Array, "..."]) -> Float[Array, "..."]:
+def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "..."]:
     """
-    King's K function for exact density-potential relation.
+    King (1966) lowered-Maxwellian dimensionless *volume* density rho_hat(W).
 
-    K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
+        rho_hat(W) = e^W erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3)
 
-    This function appears in the exact King (1966) density formula:
-        rho(r)/rho_0 = [K(W0) - K(W0 - psi(r))] / K(W0)
+    This is the velocity-space integral of the King DF f(E) ∝ (e^{E/sigma^2} - 1):
+
+        rho(W) ∝ int_0^{sqrt(2W)} v^2 (e^{W - v^2/2} - 1) dv,
+
+    and equals that direct integral up to the constant sqrt(pi/2). It is the
+    density that must appear in the King Poisson equation. (The incomplete-gamma
+    / projected-style form erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} over-extends
+    the 3-D profile by 2-30x and must NOT be used as the volume density.)
+
+    Gradient-safe at W=0: rho_hat(0)=0 and d(rho_hat)/dW(0)=0; clamp before
+    sqrt/exp so the backward pass never differentiates sqrt at 0.
 
     Args:
-        W: Dimensionless potential parameter (can be scalar or array)
+        W: Dimensionless potential (scalar or array). W <= 0 returns 0.
 
     Returns:
-        K(W) value(s)
+        rho_hat(W), the (unnormalized) King volume density.
 
     References:
-        King (1966), AJ, 71, 64, Eq. 12
-        Binney & Tremaine (2008), "Galactic Dynamics", Eq. 4.113
-
-    Note:
-        For W < 0, returns 0 (not physical in King models).
-        Uses jax.scipy.special.erf for the error function.
+        King (1966), AJ, 71, 64
+        Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
     """
-    # Ensure non-negative (King models have psi >= 0)
-    W_safe = jnp.maximum(W, 0.0)
-    sqrt_W = jnp.sqrt(W_safe)
-
-    # K(W) = erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) exp(-W)
-    term1 = jax.scipy.special.erf(sqrt_W)
-    term2 = (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W_safe)
-
-    K = term1 - term2
-
-    # For W ~ 0, K(W) -> 0, handle numerically
-    K = jnp.where(W_safe < 1e-10, 0.0, K)
-
-    return K
+    W_pos = jnp.where(W > 0.0, W, 1.0)  # never feed 0/negative to sqrt
+    sqrt_W = jnp.sqrt(W_pos)
+    rho_pos = (
+        jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W)
+        - (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * (1.0 + 2.0 * W_pos / 3.0)
+    )
+    return jnp.where(W > 0.0, rho_pos, 0.0)
 
 
 # ==============================================================================
@@ -116,26 +113,29 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     (W0,) = args
     psi, dpsi_dxi = y[0], y[1]
 
-    # Dimensionless density from King DF integration
-    # rho_tilde(psi) = [K(W0) - K(W0 - psi)] / K(W0)
-    K_W0 = king_K_function(W0)
-    K_W0_minus_psi = king_K_function(W0 - psi)
+    # Dimensionless density = lowered-Maxwellian volume density rho_hat(psi),
+    # normalized to 1 at the center (psi=W0). (The earlier code used King's
+    # K-function here, which over-extends the 3-D profile 2-30x.)
+    rho0 = king_lowered_maxwellian_density(W0)
+    rho_tilde = jnp.where(
+        rho0 > 1e-10, king_lowered_maxwellian_density(psi) / rho0, 0.0
+    )
 
-    rho_tilde = jnp.where(K_W0 > 1e-10, (K_W0 - K_W0_minus_psi) / K_W0, 0.0)
-
-    # Poisson equation: d^2 psi/d xi^2 = -rho_tilde(psi) - (2/xi) d psi/d xi
-    # Handle singularity at xi=0 using L'Hopital: lim_{xi->0} (2/xi) d psi/d xi = 0
+    # King's Poisson equation in standard nondimensional form (King 1966;
+    # Binney & Tremaine 2008, Eq. 4.131): with xi = r/r_c and r_c the King core
+    # radius r_0 = sqrt(9 sigma^2 / 4 pi G rho_0), the RHS carries a factor of 9.
+    # Handle the xi=0 singularity via L'Hopital: lim_{xi->0} (2/xi) dpsi/dxi = 0.
     d2psi_dxi2 = jnp.where(
         xi > 1e-6,
-        -rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -rho_tilde,  # At center, use psi''(0) = -rho(0)
+        -9.0 * rho_tilde - (2.0 / xi) * dpsi_dxi,
+        -9.0 * rho_tilde,  # center guard (dpsi/dxi(0)=0)
     )
 
     return jnp.array([dpsi_dxi, d2psi_dxi2])
 
 
 def solve_king_profile(
-    W0: float, xi_max: float = 100.0, n_points: int = 500
+    W0: float, xi_max: float = 300.0, n_points: int = 2000
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"]]:
     """
     Solve King's Poisson equation numerically using diffrax.
@@ -160,8 +160,10 @@ def solve_king_profile(
         Binney & Tremaine (2008), Section 4.3.2
 
     Note:
-        Cannot be JIT-compiled due to n_points (concrete value needed for linspace).
-        Uses Tsit5 (Runge-Kutta 5th order) from diffrax for robustness.
+        JIT-compatible when ``n_points`` (and ``xi_max``) are static: they set the
+        ``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
+        traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
+        diffrax for robustness.
     """
     # Initial conditions
     y0 = jnp.array([W0, 0.0])  # [psi(0), d psi/d xi|_0]
@@ -207,7 +209,7 @@ def solve_king_profile(
 def _find_tidal_radius(
     xi_grid: Float[Array, "n_points"],
     psi_grid: Float[Array, "n_points"],
-) -> float:
+) -> Float[Array, ""]:
     """
     Find dimensionless tidal radius where psi first crosses zero.
 
@@ -234,9 +236,10 @@ def _find_tidal_radius(
     t = psi0 / (psi0 - psi1 + 1e-30)
     xi_t = xi0 + t * (xi1 - xi0)
 
-    # If no crossing, use last point
+    # If no crossing, use last point. Return the array (do NOT cast to float):
+    # float() concretizes the tracer and breaks jit/grad through from_W0_rc (C2).
     xi_t = jnp.where(has_crossing, xi_t, xi_grid[-1])
-    return float(xi_t)
+    return xi_t
 
 
 # ==============================================================================
@@ -324,12 +327,12 @@ class KingProfile(eqx.Module):
             right=0.0
         )
 
-        # King density: rho(r)/rho_0 = [K(W0) - K(W0 - psi)] / K(W0)
-        K_W0 = king_K_function(W0_arr)
-        K_W0_minus_psi = king_K_function(W0_arr - psi_vals)
+        # King density: rho(r)/rho_0 = rho_hat(psi) / rho_hat(W0)
+        # (lowered-Maxwellian volume density; see king_lowered_maxwellian_density)
+        rho0 = king_lowered_maxwellian_density(W0_arr)
         rho_grid = jnp.where(
-            K_W0 > 1e-10,
-            (K_W0 - K_W0_minus_psi) / K_W0,
+            rho0 > 1e-10,
+            king_lowered_maxwellian_density(psi_vals) / rho0,
             0.0
         )
 
@@ -339,9 +342,14 @@ class KingProfile(eqx.Module):
         # Integrand: 4*pi*r^2*rho(r)
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
 
-        # Cumulative integral using cumsum (trapezoid approximation)
+        # Cumulative mass via the trapezoid rule (2nd-order). The old
+        # cumsum(integrand)*dr was a 1st-order left/right-Riemann sum mislabeled
+        # "trapezoid" and biased the sampled radial distribution (audit M5).
         dr = r_grid[1] - r_grid[0]
-        M_cum = jnp.cumsum(integrand) * dr
+        M_cum = jnp.concatenate([
+            jnp.zeros(1, dtype=integrand.dtype),
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+        ])
 
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
@@ -360,8 +368,8 @@ class KingProfile(eqx.Module):
         cls,
         W0: float,
         r_c: float,
-        xi_max: float = 100.0,
-        n_ode_points: int = 500,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
         n_grid: int = 1000,
     ) -> "KingProfile":
         """
@@ -479,10 +487,10 @@ class KingProfile(eqx.Module):
         xi = r / self.r_c
         psi_vals = jnp.interp(xi, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
 
-        K_W0 = king_K_function(self.W0)
-        K_W0_minus_psi = king_K_function(self.W0 - psi_vals)
-
-        rho = jnp.where(K_W0 > 1e-10, (K_W0 - K_W0_minus_psi) / K_W0, 0.0)
+        rho0 = king_lowered_maxwellian_density(self.W0)
+        rho = jnp.where(
+            rho0 > 1e-10, king_lowered_maxwellian_density(psi_vals) / rho0, 0.0
+        )
 
         # Truncate at tidal radius
         return jnp.where(r <= self.r_t, rho, 0.0)
@@ -497,4 +505,4 @@ class KingProfile(eqx.Module):
         return self.r_t
 
 
-__all__ = ["KingProfile", "solve_king_profile", "king_K_function"]
+__all__ = ["KingProfile", "solve_king_profile"]

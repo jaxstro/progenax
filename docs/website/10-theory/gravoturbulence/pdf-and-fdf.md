@@ -168,6 +168,15 @@ radial-profile slope, and PP20 ζ(p) gives the geometric SFR boost.
 3. **Single-cloud assumption.** The PDF describes one cloud. Multi-cloud
    superposition (line-of-sight integration in observations) requires
    a separate treatment.
+4. **3-D field realisation.** When a sampled 3-D field is built from the
+   PDF (`init_bm19_density_field`), the one-point statistics are imposed by
+   a **rank / empirical-CDF copula** (Gaussian anamorphosis), which reproduces
+   the dense-tail mass fraction $f_{\mathrm{dense}}$ exactly at any
+   power-spectrum slope $\beta$. The legacy normal-CDF copula collapses the
+   tail at steep $\beta$ (the realised field is non-Gaussian). For a very
+   extreme threshold $s_t$, where the tail count-probability
+   $1-F_V(s_t) \lesssim 1/N_{\mathrm{grid}}^3$, the tail is genuinely
+   unresolved at that grid and a warning is emitted.
 
 ## References
 

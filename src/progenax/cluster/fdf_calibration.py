@@ -39,11 +39,15 @@ class FDFCalibration:
         Corresponding chi (clumpiness) values.
     sigma_u_values : Array
         Corresponding sigma_u / R_half values.
+    version : str
+        Calibration provenance tag. ``"v1_stub_uncalibrated"`` marks the
+        placeholder chi~D identity mapping (not yet fit to Goodwin-Whitworth).
     """
 
     D_values: Float[Array, "K"]
     chi_values: Float[Array, "K"]
     sigma_u_values: Float[Array, "K"]
+    version: str = "v1_stub_uncalibrated"
 
     def chi_from_D(self, D: float) -> float:
         """Interpolate chi from target D.
@@ -117,9 +121,21 @@ def load_fdf_calibration() -> FDFCalibration:
 
     Notes
     -----
-    v1 returns a stub calibration with chi ~ D.
+    v1 returns a stub calibration with chi ~ D. Emits a ``UserWarning`` (M9) so
+    that stub-driven cluster statistics are not mistaken for calibrated results.
     Production calibration will be loaded from progenax.data in future.
     """
+    import warnings
+
+    warnings.warn(
+        f"FDF calibration '{_V1_CALIBRATION.version}' is an uncalibrated stub "
+        "(chi~D identity mapping): FDF-generated cluster statistics (Q_CW, "
+        "sigma_Sigma/Sigma) are NOT yet calibrated to Goodwin-Whitworth. Treat "
+        "fractal-substructure ICs as qualitative until the calibration sweep "
+        "replaces the v1 stub (see progenax/cluster/fdf_calibration.py).",
+        UserWarning,
+        stacklevel=2,
+    )
     return _V1_CALIBRATION
 
 
