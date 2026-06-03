@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening complete**: 18,704 LOC source code, 848 tests passing (unit: 724, integration: 21, validation: 103). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
+**Phase 1 + 2026-06 audit hardening complete**: 18,936 LOC source code, 855 tests passing (unit: 727, integration: 21, validation: 107). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
 
 ## Features
 
@@ -94,9 +94,9 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | **Transforms** | `to_com_frame()`, `virial_scale()` |
 | **Stellar Radii** | `compute_stellar_radii()` (3-regime M-R relation) |
 | **Tidal Physics** | `jacobi_radius()`, `jacobi_radius_isothermal()`, `apply_tidal_truncation()` |
-| **Fractal** | `generate_fractal_positions()`, `apply_fractal_overlay_radial()` |
+| **Fractal** | `generate_fractal_positions()` |
 | **Two-Component** | `TwoComponentConfig`, `generate_two_component_cluster()` |
-| **Mass Segregation** | `apply_mass_segregation()`, `apply_mass_segregation_baumgardt()` |
+| **Mass Segregation** | `energy_sorted_segregation()` |
 
 ## Installation
 
@@ -281,9 +281,9 @@ progenax/
 │   └── analytical/
 │       └── core.py          # Solar system, Kepler orbits
 └── tests/
-    ├── unit/                # 724 unit tests
+    ├── unit/                # 727 unit tests
     ├── integration/         # 21 integration tests
-    └── validation/          # 103 physics validation tests
+    └── validation/          # 107 physics validation tests
 ```
 
 ## Key Patterns
@@ -346,12 +346,12 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 
 ```bash
 # All tests
-pytest tests/ -v                    # 848 tests, ~55s
+pytest tests/ -v                    # 855 tests, ~55s
 
 # By tier
-pytest tests/unit/ -v               # 724 unit tests
+pytest tests/unit/ -v               # 727 unit tests
 pytest tests/integration/ -v        # 21 integration tests
-pytest tests/validation/ -v         # 103 physics validation tests
+pytest tests/validation/ -v         # 107 physics validation tests
 
 # Specific modules
 pytest tests/unit/imf/ -v
