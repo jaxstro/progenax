@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 Complete**: 9,400 LOC source code, 432 tests passing (unit: 310, integration: 42, validation: 80)
+**Phase 1 + 2026-06 audit hardening complete**: 18,704 LOC source code, 848 tests passing (unit: 724, integration: 21, validation: 103). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
 
 ## Features
 
@@ -24,8 +24,8 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | DF | Class | Method | Notes |
 |----|-------|--------|-------|
 | **Plummer DF** | `PlummerVelocityDF` | Beta(3/2, 9/2) sampling | Exact, no rejection |
-| **King DF** | `KingVelocityDF` | Gaussian + escape velocity cutoff | Lowered Maxwellian |
-| **EFF DF** | `EFFVelocityDF` | Isotropic Gaussian σ ∝ √(GM/a) | Virial-based |
+| **King DF** | `KingVelocityDF` | Lowered-Maxwellian f(E) ∝ e^{E/σ²}−1, σ self-consistent | True equilibrium (Q≈0.5 unscaled) |
+| **EFF DF** | `EFFVelocityDF` | Isotropic Eddington inversion f(E) from ρ(Ψ) | True equilibrium (Q≈0.5 unscaled) |
 
 **Velocity Transforms:**
 
@@ -281,9 +281,9 @@ progenax/
 │   └── analytical/
 │       └── core.py          # Solar system, Kepler orbits
 └── tests/
-    ├── unit/                # 310 unit tests
-    ├── integration/         # 42 integration tests
-    └── validation/          # 80 physics validation tests
+    ├── unit/                # 724 unit tests
+    ├── integration/         # 21 integration tests
+    └── validation/          # 103 physics validation tests
 ```
 
 ## Key Patterns
@@ -346,12 +346,12 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 
 ```bash
 # All tests
-pytest tests/ -v                    # 432 tests, ~55s
+pytest tests/ -v                    # 848 tests, ~55s
 
 # By tier
-pytest tests/unit/ -v               # 310 unit tests
-pytest tests/integration/ -v        # 42 integration tests
-pytest tests/validation/ -v         # 80 physics validation tests
+pytest tests/unit/ -v               # 724 unit tests
+pytest tests/integration/ -v        # 21 integration tests
+pytest tests/validation/ -v         # 103 physics validation tests
 
 # Specific modules
 pytest tests/unit/imf/ -v
@@ -360,13 +360,15 @@ pytest tests/validation/test_plummer_physics.py -v
 
 ### Physics Validation
 
-From `tests/validation/`:
+From `tests/validation/` (Q ≡ T/|V|; 0.5 = equilibrium). King & EFF DFs are
+sampled in detailed equilibrium with no external virial rescale:
 
-- **Virial ratio**: Q ≈ 0.5 (expected 0.5 for equilibrium)
-- **Velocity dispersion**: <1% error at all radii
+- **Plummer virial ratio**: Q = 0.502 (expected 0.5)
+- **King true-DF virial ratio**: Q ≈ 0.51 unscaled (lowered-Maxwellian DF)
+- **EFF Eddington-DF virial ratio**: Q ≈ 0.50 unscaled (γ=5, mild truncation)
+- **King concentration c(W₀)**: matches King (1966) Table II to Δ ≤ 0.02
 - **Bound particles**: 100% within escape velocity
-- **Half-mass radius**: 49.9% within r_h (expected 50%)
-- **Kepler orbits**: Period formula exact to 1e-10
+- **Kepler orbits**: energy & angular momentum conserved to ~1e-16; period exact to 1e-10
 
 ## Dependencies
 

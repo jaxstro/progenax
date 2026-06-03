@@ -4,17 +4,17 @@
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 Complete - 9,400 LOC source, 432 tests (unit: 310, integration: 42, validation: 80)
+**Status**: Phase 1 + 2026-06 audit hardening complete - 18,704 LOC source, 848 tests (unit: 724, integration: 21, validation: 103). King & EFF velocity DFs are now true equilibria (lowered-Maxwellian / Eddington inversion); see Physics Validation Results below.
 
 ## Quick Commands
 
 ```bash
 conda activate astro
 pip install -e ".[dev]"
-pytest tests/ -v                    # All 432 tests (~55s)
-pytest tests/unit/ -v               # 310 unit tests
-pytest tests/integration/ -v        # 42 integration tests
-pytest tests/validation/ -v         # 80 physics validation tests
+pytest tests/ -v                    # All 848 tests (~55s; ~5min with coverage)
+pytest tests/unit/ -v               # 724 unit tests
+pytest tests/integration/ -v        # 21 integration tests
+pytest tests/validation/ -v         # 103 physics validation tests
 ```
 
 ## Units Policy (progenax)
@@ -165,32 +165,42 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 
 ```text
 tests/
-├── unit/                310 tests
+├── unit/                724 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
 │   ├── analytical/      Analytical test case tests
-│   └── binaries/        Binary orbital element tests
-├── integration/         42 tests
-│   ├── test_jax_compatibility.py    JIT/grad/vmap tests
-│   └── test_physics_validation.py   Physics validation
-└── validation/          80 tests
+│   ├── binaries/        Binary orbital element + sampling-gradient tests
+│   ├── cluster/         Fractal / FDF / tail-sampling tests
+│   ├── physics/         PN11 / BM19 / PP20 gravoturbulence tests
+│   ├── dynamics/        Virial / energy utilities
+│   └── substructure/    Fractal substructure tests
+├── integration/         21 tests
+│   ├── test_jax_compatibility.py     JIT/grad/vmap tests
+│   ├── test_units_through_pipeline.py  G threading (audit C1)
+│   └── test_end_to_end.py            Full IC → energy checks
+└── validation/          103 tests
     ├── test_plummer_physics.py      Plummer equilibrium
+    ├── test_king_physics.py         King true-DF equilibrium + c(W0)
+    ├── test_eff_physics.py          EFF Eddington-inversion DF
     ├── test_binary_physics.py       Kepler's laws
-    └── test_imf_statistics.py       IMF distributions
+    └── test_imf_physics.py          IMF distributions
 ```
 
 ## Physics Validation Results
 
-From `tests/validation/`:
+From `tests/validation/` (Q ≡ T/|V|, so 0.5 is equilibrium). King & EFF DFs
+are sampled in detailed equilibrium with **no external virial rescale**:
 
 | Test | Result | Expected |
 |------|--------|----------|
-| Virial ratio | Q = 0.995 | 1.0 |
-| Velocity dispersion | <1% error | Analytical |
+| Plummer virial Q = T/\|V\| | 0.502 | 0.5 |
+| King true-DF virial Q (unscaled) | ~0.51 | 0.5 |
+| EFF Eddington-DF virial Q (γ=5, mild trunc) | ~0.50 | 0.5 |
+| King c(W₀) vs King (1966) Table II | Δ ≤ 0.02 (≤0.004 for W₀≥5) | Table II |
+| Kepler energy & angular momentum | conserved to ~1e-16 | exact |
 | Bound particles | 100% | 100% |
-| Half-mass radius | 49.9% within r_h | 50% |
-| Kepler period | Exact to 1e-10 | 2π√(a³/GM) |
+| Binary period (Kepler III) | exact to 1e-10 | 2π√(a³/GM) |
 
 ## Public API (57+ exports)
 
