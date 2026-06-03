@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening complete**: 18,936 LOC source code, 855 tests passing (unit: 727, integration: 21, validation: 107). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
+**Phase 1 + 2026-06 audit hardening complete**: 18,967 LOC source code, 874 tests passing (unit: 742, integration: 24, validation: 108). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
 
 ## Features
 
@@ -83,7 +83,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | **Earth-Sun** | `earth_sun_2body()` | JPL ephemerides |
 | **Solar System** | `solar_system_inner_4()` | Sun + inner 4 planets |
 | **Full Solar System** | `solar_system_full()` | Sun + 8 planets |
-| **Harmonic Oscillator** | `harmonic_oscillator_1d()` | 1D/2D SHO |
+| **Harmonic Oscillator** | `harmonic_oscillator()` | 1D/2D SHO |
 
 ### Utilities
 
@@ -281,9 +281,9 @@ progenax/
 │   └── analytical/
 │       └── core.py          # Solar system, Kepler orbits
 └── tests/
-    ├── unit/                # 727 unit tests
-    ├── integration/         # 21 integration tests
-    └── validation/          # 107 physics validation tests
+    ├── unit/                # 742 unit tests
+    ├── integration/         # 24 integration tests
+    └── validation/          # 108 physics validation tests
 ```
 
 ## Key Patterns
@@ -346,12 +346,12 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 
 ```bash
 # All tests
-pytest tests/ -v                    # 855 tests, ~55s
+pytest tests/ -v                    # 874 tests, ~55s
 
 # By tier
-pytest tests/unit/ -v               # 727 unit tests
-pytest tests/integration/ -v        # 21 integration tests
-pytest tests/validation/ -v         # 107 physics validation tests
+pytest tests/unit/ -v               # 742 unit tests
+pytest tests/integration/ -v        # 24 integration tests
+pytest tests/validation/ -v         # 108 physics validation tests
 
 # Specific modules
 pytest tests/unit/imf/ -v

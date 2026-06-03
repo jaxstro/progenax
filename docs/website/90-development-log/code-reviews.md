@@ -51,7 +51,7 @@ was applied to only one of two call sites:**
 |----------|-------|----------------|
 | 🔴 Critical | 2 | The **default/recommended** `mode="bm19"` tail sampler still OOMs (~26 GB @ 5000×64³) — the CI memory fix patched only the `pn11_legacy` twin; `build_spatial_ic` (the flagship public IC, and the CLAUDE.md "fully differentiable" example) **crashes under `jax.grad`** |
 | 🟠 Major | 2 | `compute_potential_energy(softening=0.0)` (the default; the C1 doc example) returns a **NaN gradient**; the M3-guard test `test_phi_copula_reproduces_the_bug` is **seed-fragile** (flaky-CI risk) |
-| 🟡 Minor | ~12 | M3's new `float()` guard makes `init_bm19_density_field` non-grad/JIT; a 4th phantom doc ref (`harmonic_oscillator_1d`); an `energy_sorted_segregation` export overclaim; `profiles/api.py` at 37 % coverage; stale `tests/README.md` & "848" count; 9 functions >100 LOC in the split files; etc. |
+| 🟡 Minor | ~12 | M3's new `float()` guard makes `init_bm19_density_field` non-grad/JIT; a 4th phantom analytical doc ref (the real symbol is `harmonic_oscillator`); an `energy_sorted_segregation` export overclaim; `profiles/api.py` at 37 % coverage; stale `tests/README.md` & "848" count; 9 functions >100 LOC in the split files; etc. |
 | 🟢 Verified | many | every hardening physics / numerics / reproducibility / API claim (see above) |
 
 **Grade: A− (90/100)** as-is — up from B+ (87) on the back of the now-verified science, the nine
@@ -123,8 +123,8 @@ array-safe — the same lesson was already applied at `king.py:240`), plus a
   routine (also un-JIT-able via the data-dependent `if expected_tail_cells < 5` warn) and not on the
   `generate_fractal_ic_density` hot path — but it defeats the design doc's "param gradients flow
   through the CDF table" claim for the standalone function. Guard behind a concreteness check.
-- 🟡 **A 4th phantom doc ref survived the "3 phantom refs" fix:** `harmonic_oscillator_1d()`
-  (CLAUDE.md:217, README.md:86); the real symbol is `harmonic_oscillator`. Separately, CLAUDE.md:207/219
+- 🟡 **A 4th phantom doc ref survived the "3 phantom refs" fix:** a stale `harmonic_oscillator_*1d*`
+  name (CLAUDE.md:217, README.md:86); the real symbol is `harmonic_oscillator`. Separately, CLAUDE.md:207/219
   lists `energy_sorted_segregation()` under "exported from `progenax.__init__`" though it is not in
   `__all__` (it exists as `progenax.cluster.energy_sorted_segregation`).
 - 🟡 **`profiles/api.py` at 37 % coverage** — the one core-adjacent module below 60 % (the
@@ -597,7 +597,7 @@ findings are resolved.
 | **C2** King `K` NaN grad + non-JIT ctor | ✅ Resolved | `e9966f6`, `629770b` | double-`where` + array `xi_t`. `king_K_function` was later **removed** (it became orphaned when M6/the density bug were fixed); the W=0 clamp now lives on `king_lowered_maxwellian_density`, and the JIT-safe `from_W0_rc` + ODE-grad guards remain |
 | **M1** King true DF | ✅ Resolved | `94e92ff` | lowered-Maxwellian `f(E)`; Q≈0.51 unscaled |
 | **M2** EFF true DF | ✅ Resolved | `5fe5c90` | Eddington inversion; `f(E)≥0`; Q≈0.50 (γ=5) |
-| **M4** non-collecting suite | ✅ Resolved | `08f98fa`, `5fe5c90` | quarantined, then the refactor-orphaned file deleted; suite collects **848** |
+| **M4** non-collecting suite | ✅ Resolved | `08f98fa`, `5fe5c90` | quarantined, then the refactor-orphaned file deleted; suite collects **874** |
 | **M5** CDF quadrature | ✅ Resolved | `ecc3198` | cumulative trapezoid (EFF + King) |
 | **M6** King nondimensionalization | ✅ Resolved | `817b1a9` | factor-of-9 restored — **and a latent density–potential bug found during hardening** (the ODE sampled a non-King, 2–30× over-extended profile). `c(W₀)` now matches King (1966) Table II to ≤0.02 |
 | **M3** BM19 dense-tail undersampling | ✅ Resolved | `d654e4f` | **rank/empirical-CDF copula** (the bug was copula non-Gaussianity at β=4, *not* finite resolution — a cascade was measured-and-rejected); realized `f_tail` 0.029±0.040 → 0.054±0.000 vs `f_dense` 0.057, + resolution guard |

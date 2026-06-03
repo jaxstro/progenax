@@ -1146,7 +1146,7 @@ from progenax import (
     two_body_kepler,
     earth_sun_2body,
     three_body_figure_eight,
-    harmonic_oscillator_1d,
+    harmonic_oscillator,
     harmonic_oscillator_2d,
     plummer_fixed_particles,
     solar_system_full,

@@ -2,7 +2,7 @@
 
 Comprehensive physics validation for stellar initial conditions generation.
 
-**391 tests** across 3 tiers validating astrophysics from published literature (1911-2018).
+**874 tests** across 3 tiers validating astrophysics from published literature (1911-2018).
 
 ## Table of Contents
 
@@ -45,10 +45,10 @@ pytest tests/validation/test_plummer_physics.py -v
 
 | Tier | Tests | Purpose | Runtime |
 |------|-------|---------|---------|
-| **Unit** | 265 | Functional correctness (shapes, bounds, roundtrips) | ~30s |
-| **Integration** | 31 | JAX transformations (JIT, grad, vmap) | ~10s |
-| **Validation** | 95 | Physics accuracy against literature | ~15s |
-| **Total** | **391** | Comprehensive coverage | ~55s |
+| **Unit** | 742 | Functional correctness (shapes, bounds, roundtrips) | ~30s |
+| **Integration** | 24 | JAX transformations (JIT, grad, vmap) | ~10s |
+| **Validation** | 108 | Physics accuracy against literature | ~15s |
+| **Total** | **874** | Comprehensive coverage | ~55s |
 
 ---
 
@@ -119,14 +119,19 @@ Velocity magnitudes follow $q^2 \sim \text{Beta}(3/2, 9/2)$ where $q = v/v_{\rm 
 
 **Source:** King (1966) AJ 71:64, Binney & Tremaine (2008) "Galactic Dynamics"
 
-#### King's K-Function
+#### Lowered-Maxwellian Density
 
-$$K(W) = \text{erf}(\sqrt{W}) - \frac{2}{\sqrt{\pi}}\sqrt{W} \, e^{-W}$$
+The 3-D King density is the lowered Maxwellian (King 1966; B&T 2008 eq. 4.131),
+not the projected $K$-function — the latter over-extends the profile by 2-30x and was
+removed during the 2026-06 hardening:
 
-Properties:
-- $K(0) = 0$ (boundary condition)
-- $K(W) \to 1$ as $W \to \infty$
-- Reference values: $K(3) \approx 0.888$, $K(5) \approx 0.981$, $K(7) \approx 0.997$
+$$\rho(r) \propto \int_0^{v_{\rm esc}} v^2 \left[e^{\psi(r) - v^2/2\sigma^2} - 1\right] dv$$
+
+The self-consistent $\sigma^2 = GM / (9\, r_c\, \mu(W_0))$ (factor-of-9 nondimensionalization)
+puts the cluster in virial equilibrium ($Q = 0.5$) with no external rescale.
+
+Reference concentrations $c = \log_{10}(r_t/r_c)$ (King 1966 Table II): $c(3) \approx 0.67$,
+$c(7) \approx 1.53$, $c(9) \approx 2.12$.
 
 #### Dimensionless Poisson Equation
 
@@ -136,7 +141,10 @@ Boundary conditions: $\psi(0) = W_0$, $\left.\frac{d\psi}{d\xi}\right|_{\xi=0} =
 
 #### Density-Potential Relation
 
-$$\frac{\rho(r)}{\rho_0} = \frac{K(W_0) - K(W_0 - \psi(r))}{K(W_0)}$$
+The density follows from the lowered-Maxwellian DF via the velocity integral above,
+normalized to the central value:
+
+$$\frac{\rho(r)}{\rho_0} = \frac{\int_0^{\sqrt{2\psi(r)}} v^2 \left[e^{\psi(r) - v^2/2} - 1\right] dv}{\int_0^{\sqrt{2 W_0}} v^2 \left[e^{W_0 - v^2/2} - 1\right] dv}$$
 
 #### Tidal Truncation
 
@@ -146,17 +154,18 @@ The tidal radius $r_t$ is where $\psi(r_t) = 0$.
 
 #### Concentration Parameter
 
-$c = \log_{10}(r_t/r_c)$ increases with $W_0$:
-- $W_0 = 3$: Low concentration ($c \approx 0.8$)
-- $W_0 = 7$: Medium concentration ($c \approx 1.5$)
-- $W_0 = 12$: High concentration ($c \approx 2.2$)
+$c = \log_{10}(r_t/r_c)$ increases with $W_0$ (King 1966 Table II):
+- $W_0 = 3$: Low concentration ($c \approx 0.67$)
+- $W_0 = 7$: Medium concentration ($c \approx 1.53$)
+- $W_0 = 9$: High concentration ($c \approx 2.12$)
 
 #### Tests & Tolerances
 
 | Test | Physics Validated | Tolerance | Justification |
 |------|-------------------|-----------|---------------|
-| `test_k_function_at_zero` | $K(0) = 0$ | 1e-10 | Exact boundary |
-| `test_k_function_reference_values` | $K(3), K(5), K(7)$ | 0.1% | Numerical precision |
+| `test_concentration_matches_king1966_table_ii` | $c = \log_{10}(r_t/r_c)$ vs Table II | 0.02 | King 1966 Table II |
+| `test_density_shape_matches_direct_velocity_integral` | Lowered-Maxwellian $\rho(r)$ shape | 0.5% | Independent velocity-integral oracle |
+| `test_grad_of_psi_through_solve_king_profile_is_finite` | $\partial\psi/\partial W_0$ finite (grad/JIT-safe) | finite | Differentiability |
 | `test_boundary_conditions` | $\psi(0) \approx W_0$ | 0.1 | ODE solver |
 | `test_potential_monotonic_decrease` | $d\psi/dr < 0$ | exact | Physical requirement |
 | `test_potential_reaches_zero` | $\psi(r_t) = 0$ | 1e-3 | ODE termination |
@@ -552,4 +561,4 @@ N_stats = 10000       # Precise statistics
 
 ---
 
-*Last updated: 2025-01-06 | 391 tests | progenax v0.1.0*
+*Last updated: 2026-06-03 | 874 tests | progenax v0.1.0*

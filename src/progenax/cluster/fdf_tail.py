@@ -10,7 +10,9 @@ Primary Methods
 The BM19 method implements the physics-consistent approach:
 - Uses s = ln(ρ/ρ_mean) as the threshold variable
 - Applies soft sigmoid w(x) = sigmoid(κ(s - s_t)) for differentiability
-- Produces f_tail_actual that matches f_dense from theory
+- Produces f_tail_actual that approximates f_dense from theory (reads ~0.96·f_dense
+  at the default κ=10; the soft threshold is intentionally not a hard cut, so the
+  match is approximate by design — raise κ toward a step function to tighten it)
 
 The legacy method uses local overdensity ranking (ρ/ρ_smoothed)
 which is phenomenological but NOT BM19-consistent.
@@ -114,9 +116,11 @@ def compute_tail_pmfs_bm19(
 
     Notes
     -----
-    **Validation check**: f_tail_actual should match f_dense from BM19
-    to within ~5-10% for a single realization at 64³ resolution.
-    Larger deviations suggest:
+    **Validation check**: f_tail_actual approximates f_dense from BM19. The soft
+    sigmoid (default κ=10) is intentionally not a hard threshold, so the realized
+    fraction reads systematically a bit low — empirically ~0.96·f_dense at κ=10 for
+    the rank-copula field at N=48³ (raise κ toward a step function to tighten it).
+    Substantially larger deviations than this soft-threshold bias suggest:
     - Non-lognormal field (e.g., strong shocks)
     - Resolution effects (increase grid_size)
     - Bug in either computation
@@ -136,7 +140,7 @@ def compute_tail_pmfs_bm19(
     >>> field = init_turbulent_density_field(key, R_half=1.0, layer=layer)
     >>> pmf_result = compute_tail_pmfs_bm19(field.rho_grid, float(result.s_t))
     >>>
-    >>> # Validate: f_tail_actual ≈ f_dense
+    >>> # Validate: f_tail_actual ~ 0.96 * f_dense at the default kappa=10
     >>> print(f"Theory f_dense: {result.f_dense:.3f}")
     >>> print(f"Measured f_tail: {pmf_result.f_tail_actual:.3f}")
     """
