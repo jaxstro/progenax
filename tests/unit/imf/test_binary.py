@@ -68,6 +68,122 @@ class TestMassRatioDistributions:
         assert pdf_near_one > pdf_mid
 
 
+class TestPowerLawMassRatioArrayBranches:
+    """Cover PowerLawMassRatio cdf/ppf array branches and sample statistics.
+
+    The existing tests only exercise the PDF and gamma=0 equivalence. These
+    target the vmapped cdf/ppf array paths (lines ~177, ~207) and the
+    inverse-CDF round-trip, plus sampling statistics.
+    """
+
+    @pytest.mark.parametrize("gamma", [-0.5, 0.0, 0.3])
+    def test_cdf_array_monotonic_and_boundaries(self, gamma):
+        """cdf(array) is monotonic increasing with cdf(q_min)=0, cdf(1)=1."""
+        q_min = 0.1
+        q_dist = PowerLawMassRatio(gamma=gamma, q_min=q_min)
+        q = jnp.linspace(q_min, 1.0, 50)
+        F = q_dist.cdf(q)
+
+        # Shape preserved by the array branch
+        assert F.shape == q.shape
+        # Boundary values
+        assert jnp.abs(F[0] - 0.0) < 1e-6, f"cdf(q_min) != 0 for gamma={gamma}"
+        assert jnp.abs(F[-1] - 1.0) < 1e-6, f"cdf(1) != 1 for gamma={gamma}"
+        # Strictly increasing (discriminating: a constant/garbage CDF fails)
+        assert jnp.all(jnp.diff(F) > 0), f"cdf not monotonic for gamma={gamma}"
+
+    @pytest.mark.parametrize("gamma", [-0.5, 0.0, 0.3])
+    def test_ppf_array_inverse_of_cdf(self, gamma):
+        """ppf(array) inverts cdf: cdf(ppf(u)) ~= u, with q in [q_min, 1]."""
+        q_min = 0.1
+        q_dist = PowerLawMassRatio(gamma=gamma, q_min=q_min)
+        u = jnp.array([0.01, 0.2, 0.4, 0.6, 0.8, 0.99])
+        q = q_dist.ppf(u)
+
+        # Shape preserved + physical range
+        assert q.shape == u.shape
+        assert jnp.all(q >= q_min - 1e-9), f"q < q_min for gamma={gamma}"
+        assert jnp.all(q <= 1.0 + 1e-9), f"q > 1 for gamma={gamma}"
+        # Round-trip cdf(ppf(u)) == u (analytic inverse, tight tolerance)
+        u_round = q_dist.cdf(q)
+        assert jnp.allclose(u_round, u, atol=1e-6), (
+            f"cdf(ppf(u)) != u for gamma={gamma}"
+        )
+
+    @pytest.mark.parametrize("gamma", [-0.5, 0.0, 0.5])
+    def test_sample_matches_distribution(self, gamma):
+        """sample() statistics match the analytic PDF mean and KS-fit the CDF."""
+        q_min = 0.1
+        q_dist = PowerLawMassRatio(gamma=gamma, q_min=q_min)
+        key = jax.random.PRNGKey(7)
+        samples = q_dist.sample(key, 5000)
+
+        # All samples physical
+        assert jnp.all(samples >= q_min - 1e-9)
+        assert jnp.all(samples <= 1.0 + 1e-9)
+
+        # Analytic mean E[q] = integral q*pdf(q) dq on a fine grid
+        q_grid = jnp.linspace(q_min, 1.0, 4000)
+        pdf = q_dist.pdf(q_grid)
+        mean_analytic = jnp.trapezoid(q_grid * pdf, q_grid)
+        mean_sample = jnp.mean(samples)
+        # 5000 draws: sample mean within ~0.02 of analytic mean
+        assert jnp.abs(mean_sample - mean_analytic) < 0.02, (
+            f"mean {mean_sample:.3f} vs analytic {mean_analytic:.3f} (gamma={gamma})"
+        )
+
+        # KS statistic: max |empirical CDF - analytic CDF| should be small
+        sorted_s = jnp.sort(samples)
+        emp_cdf = (jnp.arange(1, sorted_s.shape[0] + 1)) / sorted_s.shape[0]
+        ana_cdf = q_dist.cdf(sorted_s)
+        ks = jnp.max(jnp.abs(emp_cdf - ana_cdf))
+        assert ks < 0.05, f"KS={ks:.3f} too large for gamma={gamma}"
+
+
+class TestTwinPeakedMassRatioArrayBranches:
+    """Cover TwinPeakedMassRatio cdf array branch and ppf Newton convergence.
+
+    Targets the vmapped cdf (line ~320) and the fori_loop Newton ppf
+    (lines ~325-340) for both scalar and array inputs.
+    """
+
+    def test_cdf_array_monotonic_and_boundaries(self):
+        """cdf(array): monotonic, cdf(q_min)~=0, cdf(1)~=1."""
+        q_min = 0.1
+        q_dist = TwinPeakedMassRatio(gamma=0.0, f_twin=0.2, sigma_twin=0.03, q_min=q_min)
+        q = jnp.linspace(q_min, 1.0, 80)
+        F = q_dist.cdf(q)
+
+        assert F.shape == q.shape
+        assert jnp.abs(F[0] - 0.0) < 1e-5, "cdf(q_min) should be ~0"
+        assert jnp.abs(F[-1] - 1.0) < 1e-5, "cdf(1) should be ~1"
+        # Non-decreasing (twin peak makes CDF steep near q=1, but never decreasing)
+        assert jnp.all(jnp.diff(F) >= -1e-9), "twin-peaked cdf must be non-decreasing"
+
+    def test_ppf_scalar_newton_converges(self):
+        """ppf scalar: Newton iteration converges so |cdf(ppf(u)) - u| < 1e-5."""
+        q_dist = TwinPeakedMassRatio(gamma=0.0, f_twin=0.2, sigma_twin=0.03, q_min=0.1)
+        for u_val in [0.1, 0.3, 0.5, 0.7, 0.85]:
+            u = jnp.array(u_val)
+            q = q_dist.ppf(u)
+            assert jnp.ndim(q) == 0, "scalar ppf should return scalar"
+            assert 0.1 - 1e-6 <= float(q) <= 1.0 + 1e-6
+            residual = jnp.abs(q_dist.cdf(q) - u)
+            assert residual < 1e-5, f"Newton ppf residual {residual:.2e} at u={u_val}"
+
+    def test_ppf_array_newton_converges(self):
+        """ppf array: vmapped Newton converges for all u, shape preserved."""
+        q_dist = TwinPeakedMassRatio(gamma=0.0, f_twin=0.2, sigma_twin=0.03, q_min=0.1)
+        u = jnp.array([0.05, 0.25, 0.5, 0.75, 0.95])
+        q = q_dist.ppf(u)
+
+        assert q.shape == u.shape
+        assert jnp.all(q >= 0.1 - 1e-6)
+        assert jnp.all(q <= 1.0 + 1e-6)
+        residuals = jnp.abs(q_dist.cdf(q) - u)
+        assert jnp.all(residuals < 1e-5), f"max residual {jnp.max(residuals):.2e}"
+
+
 class TestMoeDiStefano2017:
     """Test mass-dependent q-distribution from Moe+17."""
 
@@ -160,3 +276,131 @@ class TestBinaryIMF:
         q = m2 / m1
         assert jnp.all(q >= q_min - 1e-6)
         assert jnp.all(q <= 1.0 + 1e-6)
+
+
+class TestBinaryIMFHelpers:
+    """Cover BinaryIMF helper/aggregate methods and callable branches.
+
+    Targets uncovered lines in binary/imf.py: _get_binary_fraction_model
+    default (None path), _get_binary_fraction callable branch,
+    sample_mass_ratios custom callable, sample_all_masses, mean_system_mass,
+    binary_fraction_overall, and the moe2017/massive_stars factories.
+    """
+
+    def test_binary_fraction_model_default_is_mass_dependent(self):
+        """binary_fraction=None resolves to MassDependentBinaryFraction."""
+        imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa())  # both q & f_bin None
+        model = imf._get_binary_fraction_model()
+        assert isinstance(model, MassDependentBinaryFraction)
+        # And the default q distribution is the Moe+17 model
+        assert isinstance(imf._get_q_distribution(), MoeDiStefano2017)
+
+    def test_get_binary_fraction_callable_branch(self):
+        """A custom callable f_bin(m) is invoked element-wise."""
+        def my_f_bin(m):
+            return jnp.where(m < 1.0, 0.4, 0.8)
+
+        imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa(), binary_fraction=my_f_bin)
+        masses = jnp.array([0.2, 0.5, 1.5, 5.0])
+        f = imf._get_binary_fraction(masses)
+        expected = jnp.array([0.4, 0.4, 0.8, 0.8])
+        assert jnp.allclose(f, expected), f"callable f_bin not applied: {f}"
+
+    def test_get_binary_fraction_float_branch(self):
+        """A float binary_fraction broadcasts to a full array."""
+        imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa(), binary_fraction=0.55)
+        masses = jnp.array([0.3, 1.0, 10.0])
+        f = imf._get_binary_fraction(masses)
+        assert f.shape == masses.shape
+        assert jnp.allclose(f, 0.55)
+
+    def test_sample_mass_ratios_custom_callable(self):
+        """A custom q_sampler(key, m1) is called directly (callable branch)."""
+        def my_q_sampler(key, m1):
+            # Deterministic-ish: q depends on m1 only, in (0.3, 1.0)
+            return jnp.full_like(m1, 0.42)
+
+        imf = BinaryIMF(
+            primary_imf=PowerLawIMF.kroupa(),
+            q_distribution=my_q_sampler,
+        )
+        key = jax.random.PRNGKey(0)
+        m1 = jnp.array([0.5, 1.0, 5.0, 20.0])
+        q = imf.sample_mass_ratios(key, m1)
+        assert q.shape == m1.shape
+        assert jnp.allclose(q, 0.42), "custom q_sampler branch not taken"
+
+    def test_sample_mass_ratios_flat_distribution_branch(self):
+        """Non-callable, non-Moe distribution uses q_dist.sample(key, n)."""
+        imf = BinaryIMF(
+            primary_imf=PowerLawIMF.kroupa(),
+            q_distribution=FlatMassRatio(q_min=0.2),
+        )
+        key = jax.random.PRNGKey(1)
+        m1 = jnp.ones(500)
+        q = imf.sample_mass_ratios(key, m1)
+        assert q.shape == (500,)
+        assert jnp.all(q >= 0.2 - 1e-6) and jnp.all(q <= 1.0 + 1e-6)
+
+    def test_sample_all_masses_shapes_and_content(self):
+        """sample_all_masses returns flattened masses (n + n_binary) and mask."""
+        n = 1000
+        imf = BinaryIMF.simple(PowerLawIMF.kroupa(), binary_fraction=0.5)
+        key = jax.random.PRNGKey(99)
+        all_masses, is_binary = imf.sample_all_masses(key, n)
+
+        n_binary = int(jnp.sum(is_binary))
+        assert is_binary.shape == (n,)
+        # All n primaries + the n_binary secondaries
+        assert all_masses.shape == (n + n_binary,), (
+            f"expected {n + n_binary} masses, got {all_masses.shape[0]}"
+        )
+        # All masses strictly positive (secondaries with m2=0 were filtered out)
+        assert jnp.all(all_masses > 0.0)
+
+    def test_mean_system_mass_constant_fbin(self):
+        """mean_system_mass = E[M1]*(1 + f_bin*E[q]) for constant f_bin + flat q."""
+        primary = PowerLawIMF.kroupa()
+        f_bin = 0.5
+        q_min = 0.1
+        imf = BinaryIMF.simple(primary, binary_fraction=f_bin, q_min=q_min)
+
+        mean_m1 = primary.mean_mass()
+        avg_q = (1.0 + q_min) / 2.0  # flat q -> mean is midpoint
+        expected = mean_m1 * (1.0 + f_bin * avg_q)
+
+        result = imf.mean_system_mass()
+        assert jnp.isclose(result, expected, rtol=1e-5), (
+            f"mean_system_mass {float(result):.4f} vs expected {float(expected):.4f}"
+        )
+        # Sanity: a binary population has more mass per system than singles only
+        assert float(result) > float(mean_m1)
+
+    def test_binary_fraction_overall_constant(self):
+        """binary_fraction_overall returns the constant fraction exactly."""
+        imf = BinaryIMF.simple(PowerLawIMF.kroupa(), binary_fraction=0.37)
+        assert jnp.isclose(imf.binary_fraction_overall(), 0.37)
+
+    def test_binary_fraction_overall_mass_dependent_in_range(self):
+        """For a mass-dependent model, overall fraction is an IMF-weighted mean in (0,1)."""
+        imf = BinaryIMF.moe2017(PowerLawIMF.kroupa())
+        f_overall = imf.binary_fraction_overall()
+        # Kroupa is bottom-heavy -> dominated by low-mass (low f_bin) stars
+        assert 0.0 < f_overall < 1.0
+        # M-dwarf floor is ~0.22, O-star ceiling ~0.90; weighted mean must lie between
+        assert 0.2 < f_overall < 0.9
+
+    def test_factory_moe2017_component_types(self):
+        """moe2017() factory wires MoeDiStefano2017 + MassDependentBinaryFraction."""
+        imf = BinaryIMF.moe2017(PowerLawIMF.kroupa())
+        assert isinstance(imf.q_distribution, MoeDiStefano2017)
+        assert isinstance(imf.binary_fraction, MassDependentBinaryFraction)
+
+    def test_factory_massive_stars_component_types(self):
+        """massive_stars() factory wires PowerLawMassRatio(gamma<0) + float f_bin."""
+        imf = BinaryIMF.massive_stars(PowerLawIMF.kroupa(), gamma=-0.1, binary_fraction=0.7)
+        assert isinstance(imf.q_distribution, PowerLawMassRatio)
+        assert jnp.isclose(imf.q_distribution.gamma, -0.1)
+        assert float(imf.binary_fraction) == 0.7
+        # And the overall fraction equals that constant
+        assert jnp.isclose(imf.binary_fraction_overall(), 0.7)

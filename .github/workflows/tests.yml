@@ -39,6 +39,16 @@ jobs:
         working-directory: progenax
         run: uv sync --locked --extra dev
 
-      - name: Run fast suite
+      # Pass/fail gate: no coverage instrumentation, so a coverage-tooling crash
+      # (the jaxlib/abseil narrow-scope class — see
+      # docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md) can never red a build
+      # whose tests actually pass.
+      - name: Run fast suite (pass/fail gate)
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/ -m "not slow" -q
+
+      # Coverage is a non-fatal report, decoupled from the gate above.
+      - name: Coverage report (non-fatal)
+        continue-on-error: true
         working-directory: progenax
         run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term

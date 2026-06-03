@@ -1,6 +1,23 @@
 # Ticket: remaining files over the 500-LOC limit
 
-**Opened:** 2026-06-02 · **Status:** 📋 **OPEN — follow-up** · **Source:** audit "oversize units" (file-length) + 2026-06 hardening Batch 6
+**Opened:** 2026-06-02 · **Status:** 🔵 **RELAXED (2026-06-03)** — see policy update · **Source:** audit "oversize units" (file-length) + 2026-06 hardening Batch 6
+
+## Policy update — 2026-06-03 (relaxed)
+
+After the 2026-06 engineering-hardening review, the strict 500-LOC *file* limit is
+**relaxed to a guideline**: 500 LOC is *preferred*, and **cohesive files up to ~600 LOC are
+accepted**. Of the 8 files below, only `cluster/fdf.py` (767) is substantially over; the
+other seven are 507–573 LOC (≤15% over), and mechanically chopping a cohesive ~510-line
+module just to hit 500 hurts cohesion — the opposite of good design. (The Batch-6 splits
+that produced the clean 200–470-LOC modules were carving up **>1000-LOC monoliths** — a
+regime that does not apply here.)
+
+**Decision:** the borderline files (`fdf_tail` 573, `kepler` 558, `validation` 543,
+`fractal_gw_legacy` 535, `population` 531, `king` 508, `bm19_model` 507) are **kept as-is**.
+Only **`cluster/fdf.py` (767)** warrants a split, deferred to the deliberate **SoTA-design
+pass** (`docs/notes/2026-06-03-pre-release-sota-agenda.md`) — a design exercise, not a
+mechanical chop. `fractal_gw_legacy.py` remains a separate retire-vs-split decision. The
+function-length items below likewise fold into that pass.
 
 ## Context
 

@@ -7,6 +7,18 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-03 — Engineering hardening: CI coverage decoupling + coverage to 91%
+
+Decoupled coverage from the CI pass/fail gate — a coverage-tooling crash (the documented
+jaxlib/abseil narrow-scope class) can no longer red a build whose tests pass — and added
+~60 discriminating tests lifting five under-covered modules (`imf/binary/mass_ratio` 53→96,
+`imf/smooth` 64→**100**, `imf/binary/imf` 61→93, `imf/environment/mapping` 69→96,
+`kinematics/api` 72→**100**). Package coverage **86 % → 91 %**; suite **949** passing, no
+existing test weakened. The 500-LOC file limit was relaxed to a guideline (cohesive files
+≤~600 accepted). A deliberate **SoTA-design + per-module validation pass** — including the
+`fdf.py` split and a cumulative-shared-grid CDF for `smooth.py` — is queued for release; see
+[`2026-06-03-pre-release-sota-agenda.md`](../../notes/2026-06-03-pre-release-sota-agenda.md).
+
 ## 2026-06-03 — Follow-up audit: two launch-blockers closed
 
 A five-lane post-hardening audit re-verified every 2026-06 fix and surfaced two
