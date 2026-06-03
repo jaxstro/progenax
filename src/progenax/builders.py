@@ -40,7 +40,7 @@ class ICResult:
     positions: Float[Array, "N 3"]
     velocities: Float[Array, "N 3"]
     masses: Float[Array, "N"]
-    softening: float
+    softening: float | Float[Array, ""]
     stellar_radii: Float[Array, "N"]
     ids: Optional[Float[Array, "N"]] = None
 

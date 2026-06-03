@@ -383,7 +383,7 @@ def sample_from_pmf(
     # i.e. Gumbel-max, which materialized an (n_samples, n_cells) array and OOM'd the
     # default bm19 path at production scale -- audit CR-FU-1.)
     cdf = jnp.cumsum(pmf)
-    cdf = cdf / cdf[-1]  # normalize (pmf may not sum to exactly 1)
+    cdf = cdf / (cdf[-1] + 1e-30)  # normalize (guard sum~0; pmf may not sum to exactly 1)
     u = random.uniform(key, (n_samples,))
     idx = jnp.searchsorted(cdf, u, side="right")
     return jnp.clip(idx, 0, pmf.shape[0] - 1).astype(jnp.int32)
