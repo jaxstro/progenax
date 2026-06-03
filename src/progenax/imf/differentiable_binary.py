@@ -147,7 +147,9 @@ class DifferentiableBinaryModel(eqx.Module):
     def moe2017(cls, temperature: float = 0.01) -> "DifferentiableBinaryModel":
         """Factory with parameters fit to Moe+2017.
 
-        Binary fraction: logistic fit to Table 13 (a=0.0416, b=1.3925)
+        Binary fraction: quadratic-logit fit to Table 13 via
+            DifferentiableBinaryFraction.from_moe2017()
+            (a=-0.2799, b=1.4170, c=0.4755).
         Mass-ratio slope: linear fit to gamma(m) (c=0.1907, d=-0.7521)
 
         Args:
