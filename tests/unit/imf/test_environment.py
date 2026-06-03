@@ -22,6 +22,11 @@ from progenax.imf import (
     MARKS_COEFFICIENTS,
 )
 from progenax.imf.differentiable import individual_mass_nll
+from progenax.imf.environment.mapping import (
+    alpha3_marks_table3,
+    _alpha3_from_x,
+)
+from progenax.imf.environment.coefficients import MARKS_TABLE3_COEFFICIENTS
 
 
 # =============================================================================
@@ -472,3 +477,216 @@ class TestNumericalStability:
         alpha3s = jax.vmap(alpha3_jerabkova_mecl)(log_mecl_6, FeH)
         assert alpha3s.shape == (5,)
         assert jnp.all(jnp.isfinite(alpha3s))
+
+
+# =============================================================================
+# Test Marks+2012 Table 3 1D relations (alpha3_marks_table3)
+# =============================================================================
+
+
+class TestMarksTable3:
+    """Cover alpha3_marks_table3 relations, the '<' branch, and validation."""
+
+    def test_invalid_relation_raises(self):
+        """Unknown relation name raises ValueError listing valid options."""
+        with pytest.raises(ValueError, match="Unknown relation"):
+            alpha3_marks_table3(jnp.array(0.0), relation="not_a_relation")
+
+    @pytest.mark.parametrize("relation", ["mcl", "mecl", "rho", "feh"])
+    def test_all_relations_clip_to_bounds(self, relation):
+        """Every relation returns a finite alpha3 in [0.5, 2.3]."""
+        # Sweep lambda across a wide range
+        lam = jnp.linspace(-3.0, 3.0, 25)
+        a3 = alpha3_marks_table3(lam, relation=relation)
+        assert a3.shape == lam.shape
+        assert jnp.all(jnp.isfinite(a3))
+        assert jnp.all(a3 >= 0.5 - 1e-9)
+        assert jnp.all(a3 <= 2.3 + 1e-9)
+
+    def test_feh_branch_less_than(self):
+        """The '<' branch (feh): lambda < lim varies; lambda > lim stays canonical.
+
+        feh coeffs: p=0.66, q=2.63, lim=-0.5, branch='<'.
+        So FeH < -0.5 -> 0.66*FeH + 2.63 (top-heavy at low Z);
+           FeH > -0.5 -> canonical 2.3.
+        """
+        coef = MARKS_TABLE3_COEFFICIENTS["feh"]
+        assert coef["branch"] == "<", "feh relation must use the '<' branch"
+        p, q, lim = coef["p"], coef["q"], coef["lim"]
+
+        # Below lim (metal-poor): varied value
+        feh_lo = jnp.array(-1.5)
+        a3_lo = alpha3_marks_table3(feh_lo, relation="feh")
+        expected_lo = jnp.clip(p * feh_lo + q, 0.5, 2.3)  # = 1.64
+        assert jnp.isclose(a3_lo, expected_lo, atol=1e-6)
+        assert float(a3_lo) < 2.3, "metal-poor should be top-heavy (below canonical)"
+
+        # Above lim (metal-rich): canonical 2.3
+        feh_hi = jnp.array(0.0)
+        a3_hi = alpha3_marks_table3(feh_hi, relation="feh")
+        assert jnp.isclose(a3_hi, 2.3, atol=1e-6), "above lim -> canonical Kroupa"
+
+    def test_greater_than_branch_rho(self):
+        """The '>' branch (rho): lambda > lim varies; lambda < lim canonical."""
+        coef = MARKS_TABLE3_COEFFICIENTS["rho"]
+        assert coef["branch"] == ">"
+        p, q, lim = coef["p"], coef["q"], coef["lim"]
+
+        # Above lim (dense): varied
+        lam_hi = jnp.array(2.0)
+        a3_hi = alpha3_marks_table3(lam_hi, relation="rho")
+        expected_hi = jnp.clip(p * lam_hi + q, 0.5, 2.3)
+        assert jnp.isclose(a3_hi, expected_hi, atol=1e-6)
+
+        # Below lim (diffuse): canonical
+        lam_lo = jnp.array(-1.0)
+        a3_lo = alpha3_marks_table3(lam_lo, relation="rho")
+        assert jnp.isclose(a3_lo, 2.3, atol=1e-6)
+
+    def test_smooth_feh_branch_differentiable(self):
+        """smooth=True for the '<' (feh) branch is finite and gradient-friendly."""
+        def f(feh):
+            return alpha3_marks_table3(feh, relation="feh", smooth=True)
+
+        # Gradient near the transition (lim=-0.5) should be finite and non-zero
+        g = jax.grad(f)(jnp.array(-0.5))
+        assert jnp.isfinite(g)
+        # Smooth value at transition midpoint sits between canonical and varied
+        val = f(jnp.array(-0.5))
+        assert 0.5 <= float(val) <= 2.3
+
+
+# =============================================================================
+# Test _alpha3_from_x smooth/differentiable path
+# =============================================================================
+
+
+class TestAlpha3FromXSmooth:
+    """Cover the smooth (tanh) branch of _alpha3_from_x and its clipping."""
+
+    def test_smooth_is_differentiable_and_finite(self):
+        """jax.grad through the smooth tanh transition is finite."""
+        def f(x):
+            return _alpha3_from_x(
+                x, threshold=-0.87, slope=-0.41, intercept=1.94, smooth=True
+            )
+
+        for x0 in [-2.0, -0.87, 0.0, 1.0]:
+            g = jax.grad(f)(jnp.array(x0))
+            assert jnp.isfinite(g), f"non-finite gradient at x={x0}"
+
+    def test_smooth_clipped_to_bounds(self):
+        """Smooth output is clipped to [0.5, 2.3] even for extreme x."""
+        x = jnp.linspace(-10.0, 20.0, 60)
+        a3 = _alpha3_from_x(
+            x, threshold=-0.87, slope=-0.41, intercept=1.94, smooth=True
+        )
+        assert jnp.all(a3 >= 0.5 - 1e-9)
+        assert jnp.all(a3 <= 2.3 + 1e-9)
+
+    def test_smooth_approaches_canonical_below_threshold(self):
+        """Far below threshold, smooth alpha3 -> canonical 2.3."""
+        a3 = _alpha3_from_x(
+            jnp.array(-5.0), threshold=-0.87, slope=-0.41, intercept=1.94,
+            smooth=True, smooth_width=0.2,
+        )
+        assert jnp.isclose(a3, 2.3, atol=0.05)
+
+
+# =============================================================================
+# Test env_to_imf_params across ALL model branches
+# =============================================================================
+
+
+class TestEnvToIMFParamsAllModels:
+    """Cover every model dispatch branch in env_to_imf_params."""
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "jerabkova_rho",
+            "marks_plane",
+            "marks_rho",
+            "marks_mcl",
+            "marks_mecl",
+            "marks_feh",
+        ],
+    )
+    def test_model_branch_returns_valid_params(self, model):
+        """Each model returns IMFParams with alpha3 in [0.5, 2.3] and fixed lows."""
+        # Massive, dense, metal-poor cluster exercises top-heavy branches
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e7, FeH=-2.0, sfe=0.1)
+        params = env_to_imf_params(env, model=model)
+
+        assert jnp.isfinite(params.alpha3), f"{model}: alpha3 not finite"
+        assert 0.5 - 1e-9 <= float(params.alpha3) <= 2.3 + 1e-9, (
+            f"{model}: alpha3={float(params.alpha3)} out of [0.5, 2.3]"
+        )
+        # Without lowmass variation, alpha1/alpha2 stay canonical
+        assert jnp.isclose(params.alpha0, 0.3)
+        assert jnp.isclose(params.alpha1, 1.3)
+        assert jnp.isclose(params.alpha2, 2.3)
+
+    def test_marks_feh_uses_metallicity_only(self):
+        """marks_feh ignores mass/density and matches the table3 feh relation."""
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e3, FeH=-1.5)
+        params = env_to_imf_params(env, model="marks_feh")
+        # Should equal alpha3_marks_table3(FeH=-1.5, 'feh')
+        expected = alpha3_marks_table3(jnp.array(-1.5), relation="feh")
+        assert jnp.isclose(params.alpha3, expected, atol=1e-6)
+
+    def test_marks_mcl_uses_cloud_mass(self):
+        """marks_mcl divides M_ecl by SFE (M_cl) before the table3 lookup."""
+        # With high mass + low SFE, M_cl is large -> top-heavy via '>' branch
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e7, FeH=-1.0, sfe=0.05)
+        params = env_to_imf_params(env, model="marks_mcl")
+        M_ecl = 10.0 ** env.log_mecl
+        log_mcl_6 = jnp.log10(M_ecl / env.sfe) - 6.0
+        expected = alpha3_marks_table3(log_mcl_6, relation="mcl")
+        assert jnp.isclose(params.alpha3, expected, atol=1e-5)
+
+    def test_jerabkova_rho_uses_provided_density(self):
+        """jerabkova_rho uses env.log_rho_cl directly when provided (else-branch)."""
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, log_rho_cl=1.0)
+        params = env_to_imf_params(env, model="jerabkova_rho")
+        expected = alpha3_jerabkova_rho(jnp.array(1.0), jnp.array(-1.5))
+        assert jnp.isclose(params.alpha3, expected, atol=1e-5)
+
+    def test_marks_plane_uses_provided_density(self):
+        """marks_plane uses env.log_rho_cl directly when provided (else-branch)."""
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-2.0, log_rho_cl=1.0)
+        params = env_to_imf_params(env, model="marks_plane")
+        expected = alpha3_marks_plane(jnp.array(1.0), jnp.array(-2.0))
+        assert jnp.isclose(params.alpha3, expected, atol=1e-5)
+
+    def test_include_lowmass_variation_branch(self):
+        """include_lowmass_variation=True applies Marks Eq.12 to alpha1, alpha2."""
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-2.0)
+        params = env_to_imf_params(
+            env, model="marks_feh", include_lowmass_variation=True
+        )
+        a1, a2 = lowmass_slopes_metallicity(jnp.array(-2.0), clamp_FeH=True)
+        assert jnp.isclose(params.alpha1, a1, atol=1e-6)
+        assert jnp.isclose(params.alpha2, a2, atol=1e-6)
+        # Metal-poor -> shallower than canonical 1.3
+        assert float(params.alpha1) < 1.3
+
+    def test_clamp_domain_false_vs_true_out_of_range_feh(self):
+        """clamp_domain=False passes raw FeH; True clamps to [-2.5, 0.5]."""
+        # FeH = -4.0 is below the calibrated floor (-2.5)
+        env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-4.0)
+
+        params_clamped = env_to_imf_params(
+            env, model="marks_feh", clamp_domain=True
+        )
+        params_raw = env_to_imf_params(
+            env, model="marks_feh", clamp_domain=False
+        )
+
+        # Clamped uses FeH=-2.5; raw uses FeH=-4.0 -> different alpha3
+        a3_at_clamp = alpha3_marks_table3(jnp.array(-2.5), relation="feh")
+        a3_at_raw = alpha3_marks_table3(jnp.array(-4.0), relation="feh")
+        assert jnp.isclose(params_clamped.alpha3, a3_at_clamp, atol=1e-6)
+        assert jnp.isclose(params_raw.alpha3, a3_at_raw, atol=1e-6)
+        # They genuinely differ (clamping changed the result)
+        assert not jnp.isclose(params_clamped.alpha3, params_raw.alpha3, atol=1e-3)
