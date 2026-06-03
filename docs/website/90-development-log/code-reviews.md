@@ -156,6 +156,26 @@ was run (equilibrium rests on unscaled virial ratios + DF re-derivation, not evo
 the OOM was confirmed by RSS scaling at N=2000 plus the materialization arithmetic rather than by
 allocating the full ~26 GB.
 
+### Resolution status — 2026-06-03 follow-up
+
+Worked on branch `hardening/followup-2026-06` (TDD: a failing test reproduced each finding before the
+fix; per-batch human gates). All 2026-06-03 follow-up Critical/Major findings are resolved.
+
+| Finding | Status | Commit(s) |
+| --- | --- | --- |
+| **CR-FU-1** bm19 default-path OOM (`random.categorical` Gumbel-max) | ✅ Resolved | `26a9ab9` (+ `0be73ff` degenerate-PMF guard) |
+| **CR-FU-2** `build_spatial_ic` non-differentiable (`float(softening)`) | ✅ Resolved | `b227740` |
+| 🟠 `compute_potential_energy` NaN grad at `softening=0` | ✅ Resolved | `5e7fc1e` |
+| 🟠 flaky `test_phi_copula_reproduces_the_bug` | ✅ Resolved | `3566247` |
+| 🟡 `init_bm19_density_field` resolution-guard breaks grad/JIT | ✅ Resolved | `0362dea` |
+| 🟡 `energy_sorted_segregation` export overclaim | ✅ Resolved | `269d512` |
+| 🟡 `profiles/api.py` coverage (37% → 100%) | ✅ Resolved | `2a8715c` |
+| 🟡 `c(W₀)` ↔ King (1966) Table II guard | ✅ Resolved | `275f528` |
+| 🟡 `harmonic_oscillator_*1d*` phantom + stale docs/counts | ✅ Resolved | `1e8ac50` |
+| env: `--cov=<submodule>` narrow-scope abort root-caused + documented | ✅ Resolved | `efdac19` |
+
+All 2026-06-03 follow-up Critical/Major resolved; package clears to A.
+
 ---
 
 ## Expert scientific audit & code review — 2026-06-01
