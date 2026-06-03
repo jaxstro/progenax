@@ -522,8 +522,11 @@ def init_turbulent_density_field(
     x_grid = jnp.linspace(-L_box, L_box, Nx)
     y_grid = jnp.linspace(-L_box, L_box, Ny)
     z_grid = jnp.linspace(-L_box, L_box, Nz)
-    dx = 2 * L_box / Nx
-    dV = dx**3
+    dx = 2 * L_box / Nx  # periodic spacing for the FFT k-grid (fftfreq below)
+    # ∫ρ dV uses the ACTUAL grid spacing (linspace endpoints inclusive -> 2L/(N-1));
+    # using dx here left the absolute normalization off by (N/(N-1))^3 ~ 1.048 at
+    # N=64 (audit minor). Decoupled so the k-grid / turbulent spectrum is unchanged.
+    dV = (x_grid[1] - x_grid[0]) ** 3
 
     # k-space grid
     kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, d=dx)
@@ -684,8 +687,11 @@ def init_bm19_density_field(
     x_grid = jnp.linspace(-L_box, L_box, Nx)
     y_grid = jnp.linspace(-L_box, L_box, Ny)
     z_grid = jnp.linspace(-L_box, L_box, Nz)
-    dx = 2 * L_box / Nx
-    dV = dx**3
+    dx = 2 * L_box / Nx  # periodic spacing for the FFT k-grid (fftfreq below)
+    # ∫ρ dV uses the ACTUAL grid spacing (linspace endpoints inclusive -> 2L/(N-1));
+    # using dx here left the absolute normalization off by (N/(N-1))^3 ~ 1.048 at
+    # N=64 (audit minor). Decoupled so the k-grid / turbulent spectrum is unchanged.
+    dV = (x_grid[1] - x_grid[0]) ** 3
 
     # k-space grid for power spectrum
     kx = 2 * jnp.pi * jnp.fft.fftfreq(Nx, d=dx)
