@@ -323,5 +323,46 @@ class TestKingDensityProfile:
             f"Inner density {inner_density:.2f} should exceed outer {outer_density:.2f}"
 
 
+class TestKingLoweredMaxwellianDensity:
+    """B2.0: corrected lowered-Maxwellian volume density + factor-of-9 nondimensionalization.
+
+    The earlier code solved Poisson with King's K-function (incomplete-gamma/projected
+    form) as the 3-D density, over-extending the profile by 2-30x, and omitted the
+    standard factor of 9 in the nondimensionalization. The corrected model must
+    reproduce the King (1966) Table II concentrations and the lowered-Maxwellian
+    density shape.
+    """
+
+    # King (1966), AJ 71, 64, Table II: c = log10(r_t/r_c) vs W0.
+    @pytest.mark.parametrize(
+        "W0,c_ref", [(1, 0.30), (3, 0.67), (5, 1.03), (7, 1.53), (9, 2.12)]
+    )
+    def test_concentration_matches_king_table_ii(self, W0, c_ref):
+        prof = KingProfile.from_W0_rc(float(W0), 1.0, xi_max=400.0, n_ode_points=8000)
+        c = float(jnp.log10(prof.r_t / prof.r_c))
+        assert abs(c - c_ref) < 0.03, (
+            f"W0={W0}: c={c:.3f} vs King (1966) Table II c={c_ref} (delta {c-c_ref:+.3f})"
+        )
+
+    def test_density_shape_matches_direct_velocity_integral(self):
+        """KingProfile.density(r) follows the lowered-Maxwellian shape (independent
+        oracle = direct velocity integration), not the over-extended K-form."""
+        prof = KingProfile.from_W0_rc(7.0, 1.0, xi_max=400.0, n_ode_points=8000)
+        r = jnp.linspace(0.02 * float(prof.r_t), 0.9 * float(prof.r_t), 25)
+        xi = r / prof.r_c
+        psi = jnp.interp(xi, prof.xi_grid, prof.psi_grid, left=prof.W0, right=0.0)
+
+        def direct(W, nv=100_000):
+            v = jnp.linspace(0.0, jnp.sqrt(2.0 * W), nv)
+            return float(jnp.trapezoid(v**2 * (jnp.exp(W - v**2 / 2.0) - 1.0), v))
+
+        rho = jnp.asarray(prof.density(r))
+        rho_direct = jnp.asarray([direct(float(p)) for p in psi])
+        rho_n = rho / rho[0]
+        d_n = rho_direct / rho_direct[0]
+        max_rel = float(jnp.max(jnp.abs(rho_n - d_n) / (jnp.abs(d_n) + 1e-12)))
+        assert max_rel < 5e-3, f"density shape disagrees with lowered-Maxwellian (max rel {max_rel:.2e})"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

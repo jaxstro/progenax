@@ -17,7 +17,7 @@ import pytest
 
 import progenax  # noqa: F401  (enables float64)
 from progenax.profiles.eff import EFFProfile
-from progenax.profiles.king import KingProfile, king_K_function
+from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 
 
 def _fine_trapezoid_cdf(r_fine, f_fine, r_eval):
@@ -43,9 +43,9 @@ def _king_reference_cdf(profile, r_eval, n_fine=200_001):
     xi_local = rf / profile.r_c
     psi = jnp.interp(xi_local, profile.xi_grid, profile.psi_grid,
                      left=profile.W0, right=0.0)
-    K_W0 = king_K_function(profile.W0)
-    rho = jnp.where(K_W0 > 1e-10,
-                    (K_W0 - king_K_function(profile.W0 - psi)) / K_W0, 0.0)
+    rho0 = king_lowered_maxwellian_density(profile.W0)
+    rho = jnp.where(rho0 > 1e-10,
+                    king_lowered_maxwellian_density(psi) / rho0, 0.0)
     rho = jnp.where(rf <= profile.r_t, rho, 0.0)
     f = 4.0 * jnp.pi * rf**2 * rho
     return _fine_trapezoid_cdf(rf, f, r_eval)
