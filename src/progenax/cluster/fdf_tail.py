@@ -375,11 +375,18 @@ def sample_from_pmf(
 
     Notes
     -----
-    This function is NOT JIT-compiled because n_samples must be a
-    concrete integer for JAX shape requirements.
+    Uses memory-efficient inverse-CDF sampling (cumsum + searchsorted),
+    which is O(n_cells + n_samples) and materializes no large intermediate.
+    n_samples must be a concrete integer for JAX shape requirements.
     """
-    log_pmf = jnp.log(pmf + 1e-30)
-    return random.categorical(key, log_pmf, shape=(n_samples,))
+    # Inverse-CDF sampling: O(n_cells + n_samples) memory. (Was random.categorical,
+    # i.e. Gumbel-max, which materialized an (n_samples, n_cells) array and OOM'd the
+    # default bm19 path at production scale -- audit CR-FU-1.)
+    cdf = jnp.cumsum(pmf)
+    cdf = cdf / cdf[-1]  # normalize (pmf may not sum to exactly 1)
+    u = random.uniform(key, (n_samples,))
+    idx = jnp.searchsorted(cdf, u, side="right")
+    return jnp.clip(idx, 0, pmf.shape[0] - 1).astype(jnp.int32)
 
 
 def sample_positions_from_pmfs(

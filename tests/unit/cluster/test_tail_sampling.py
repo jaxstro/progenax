@@ -388,3 +388,47 @@ class TestGenerateFractalICDensityWithTail:
         )
 
         assert cluster.positions.shape == (100, 3)
+
+
+class TestSampleFromPmfMemory:
+    """sample_from_pmf must use O(n_cells + n_samples) inverse-CDF sampling, not the
+    O(n_samples * n_cells) Gumbel-max categorical that OOMs the default bm19 path (CR-FU-1)."""
+
+    def test_no_quadratic_materialization(self):
+        import numpy as np
+        import jax
+        import jax.numpy as jnp
+        from progenax.cluster.fdf_tail import sample_from_pmf
+
+        n_cells, n_samples = 4096, 512
+        pmf = jnp.ones(n_cells) / n_cells
+        jaxpr = jax.make_jaxpr(lambda k: sample_from_pmf(k, pmf, n_samples))(
+            jax.random.PRNGKey(0)
+        )
+        max_elems = 0
+        for eqn in jaxpr.eqns:
+            for v in eqn.outvars:
+                aval = getattr(v, "aval", None)
+                shape = getattr(aval, "shape", None)
+                if shape is not None:
+                    max_elems = max(max_elems, int(np.prod(shape)) if shape else 1)
+        assert max_elems < n_cells * n_samples, (
+            f"sample_from_pmf materializes a {max_elems}-element array "
+            f">= n_cells*n_samples={n_cells * n_samples} (Gumbel-max OOM, CR-FU-1)"
+        )
+
+    def test_distribution_faithful(self):
+        """The inverse-CDF sampler must reproduce the PMF (same statistics as categorical)."""
+        import numpy as np
+        import jax
+        import jax.numpy as jnp
+        from progenax.cluster.fdf_tail import sample_from_pmf
+
+        n_cells, n_samples = 64, 400_000
+        rng = np.random.default_rng(0)
+        p = rng.random(n_cells) ** 2
+        p = jnp.asarray(p / p.sum())
+        idx = np.asarray(sample_from_pmf(jax.random.PRNGKey(1), p, n_samples))
+        freq = np.bincount(idx, minlength=n_cells) / n_samples
+        assert np.max(np.abs(freq - np.asarray(p))) < 5e-3, "empirical freq != PMF"
+        assert idx.min() >= 0 and idx.max() < n_cells, "indices out of range"
