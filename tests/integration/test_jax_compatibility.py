@@ -186,3 +186,24 @@ def test_build_spatial_ic_differentiable_wrt_r_h():
     # mean radius scales ~linearly with r_h -> positive, O(1) sensitivity
     fd = (loss(1.0 + 1e-4) - loss(1.0 - 1e-4)) / 2e-4
     assert abs(g - fd) / (abs(g) + abs(fd) + 1e-30) < 1e-4, f"grad {g} vs FD {fd}"
+
+
+def test_compute_potential_energy_grad_finite_at_default_softening():
+    """grad of the public compute_potential_energy at the default softening=0 (the
+    CLAUDE.md C1 example form) must be finite and FD-correct (double-where; audit 🟠)."""
+    import jax
+    import jax.numpy as jnp
+    from jaxstro.units import STELLAR
+    from progenax import compute_potential_energy
+
+    pos = jax.random.normal(jax.random.PRNGKey(1), (16, 3))
+    m = jnp.ones(16)
+    f = lambda p: compute_potential_energy(p, m, G=STELLAR.G)  # softening=0 default
+    g = jax.grad(f)(pos)
+    assert jnp.all(jnp.isfinite(g)), "grad not finite at softening=0"
+    # FD check on a random direction
+    v = jax.random.normal(jax.random.PRNGKey(2), pos.shape)
+    v = v / jnp.linalg.norm(v)
+    fd = (f(pos + 1e-5 * v) - f(pos - 1e-5 * v)) / 2e-5
+    ad = jnp.sum(g * v)
+    assert abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30) < 1e-5, f"ad {ad} vs fd {fd}"
