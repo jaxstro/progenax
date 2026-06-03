@@ -207,3 +207,21 @@ def test_compute_potential_energy_grad_finite_at_default_softening():
     fd = (f(pos + 1e-5 * v) - f(pos - 1e-5 * v)) / 2e-5
     ad = jnp.sum(g * v)
     assert abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30) < 1e-5, f"ad {ad} vs fd {fd}"
+
+
+def test_init_bm19_density_field_differentiable_in_params():
+    """The resolution guard must be skipped under tracing so init_bm19_density_field
+    is differentiable in its BM19 params (M3 design-doc claim; audit minor)."""
+    import jax
+    import jax.numpy as jnp
+    from progenax.cluster.fdf_density import init_bm19_density_field
+
+    def summary(sigma_s_sq):
+        s_t = (2.0 - 0.5) * sigma_s_sq
+        fld = init_bm19_density_field(
+            jax.random.PRNGKey(2), sigma_s_sq, s_t, 2.0, grid_size=16
+        )
+        return jnp.sum(fld.rho_grid)
+
+    g = jax.grad(summary)(1.0)
+    assert jnp.isfinite(g), f"grad is {g}, expected finite"
