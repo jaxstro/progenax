@@ -15,39 +15,30 @@ jobs:
     steps:
       - name: Checkout progenax
         uses: actions/checkout@v4
+        with:
+          path: progenax
 
       # progenax depends on the sibling repo jaxstro (not on PyPI). Check it out
-      # alongside and install it editable so the bare `jaxstro` dependency resolves.
-      - name: Checkout jaxstro (path dependency)
+      # as a sibling directory so the [tool.uv.sources] `../jaxstro` path in
+      # pyproject.toml / uv.lock resolves and `uv sync --locked` can install the
+      # exact pinned dependency tree.
+      - name: Checkout jaxstro (path dependency, sibling layout)
         uses: actions/checkout@v4
         with:
           repository: jaxstro/jaxstro
-          path: .jaxstro-src
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
+          path: jaxstro
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
 
-      - name: Create venv
-        run: uv venv --python 3.13
+      # Reproducible install from the committed lockfile (fails if uv.lock is
+      # out of date with pyproject.toml). Includes the `dev` extra (pytest).
+      - name: Sync from lockfile
+        working-directory: progenax
+        run: uv sync --locked --extra dev
 
-      # Install jaxstro first (with deps -> brings jax/jaxlib/jaxtyping/numpy/scipy),
-      # then progenax with --no-deps (so uv does not try to resolve `jaxstro` from PyPI),
-      # then the test toolchain. Mirrors the documented local setup.
-      - name: Install jaxstro (editable)
-        run: uv pip install -e ./.jaxstro-src
-
-      - name: Install progenax (editable, no deps)
-        run: uv pip install -e . --no-deps
-
-      - name: Install test dependencies
-        run: uv pip install pytest pytest-cov equinox diffrax
-
-      # --no-sync: use the venv we just built; do NOT re-resolve pyproject (the bare
-      # `jaxstro` dependency is not on PyPI and would fail a sync).
       - name: Run fast suite
+        working-directory: progenax
         run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term
