@@ -76,4 +76,6 @@ no longer used as the volume density.
 
 ## Sign-off
 
-- [ ] Anna confirms the corrected King model (changed sampled positions) is acceptable for launch.
+- [x] **Anna confirms (2026-06-02)** the corrected King model (changed sampled positions) is
+  acceptable for launch. Cross-checked the density relation and factor-of-9 against King (1966)
+  directly.
