@@ -136,7 +136,7 @@ substantial. Unequal-mass binaries with $q \le 0.3$ are essentially
 invisible to photometry. This is why photometric IMF inferences are
 generally *less* contaminated than dynamical-mass inferences: the
 operator's nonlinearity suppresses the contribution from low-$q$
-companions, which are the most numerous in the {cite:t}`Moe2017`
+companions, which are the most numerous in the {cite:t}`MoeDiStefano2017`
 distribution.
 
 A future photometric likelihood layer can swap the mass-addition
@@ -262,7 +262,7 @@ configurations at the survey's distance and resolution.
 
 A future survey-selection layer should expose this kind of resolution
 cutoff and integrate over periods up to the resolution boundary using
-the {cite:t}`Moe2017` period distribution. The current `BinaryIMF`
+the {cite:t}`MoeDiStefano2017` period distribution. The current `BinaryIMF`
 does not provide a `with_resolution_cutoff()` convenience method. This
 refinement is most important for nearby clusters (where wide binaries
 are routinely resolved) and for adaptive-optics or space-based surveys

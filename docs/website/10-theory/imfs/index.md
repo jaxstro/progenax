@@ -28,7 +28,7 @@ analytically-invertible (Maschberger) to physically-detailed
   - Salpeter, Kroupa, Chabrier, Maschberger, truncated power-law
   - `PowerLawIMF`, `Maschberger`, `ChabrierIMF`, `TruncatedIMF`
 * - [](multiplicity-statistics.md)
-  - {cite:t}`Moe2017` joint $f(M_1, q, P, e)$, mass-dependent binary fractions, three period regimes
+  - {cite:t}`MoeDiStefano2017` joint $f(M_1, q, P, e)$, mass-dependent binary fractions, three period regimes
   - Backing data for `BinaryIMF`
 * - [](mass-ratio-distributions.md)
   - Power-law $q^\gamma$ + twin-excess parameterisation, period-conditional vs period-averaged
@@ -139,7 +139,7 @@ the underlying $\xi(m)$ is preserved.
 
 The canonical IMF references are {cite:t}`Salpeter1955`,
 {cite:t}`Kroupa2001`, {cite:t}`Chabrier2003`, {cite:t}`Maschberger2013`.
-For binary statistics: {cite:t}`Sana2012`, {cite:t}`Moe2017`,
+For binary statistics: {cite:t}`Sana2012`, {cite:t}`MoeDiStefano2017`,
 {cite:t}`Moe2019`. For environment dependence: {cite:t}`Marks2012`,
 {cite:t}`Jerabkova2018`. Each per-chapter `References` block points at
 the specific result(s) used.

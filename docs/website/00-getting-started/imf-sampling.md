@@ -109,7 +109,7 @@ are smooth.
   - Unresolved-population integrated colours
 ```
 
-For binary-aware inference, the IMF combines with the {cite:t}`Moe2017`
+For binary-aware inference, the IMF combines with the {cite:t}`MoeDiStefano2017`
 multiplicity statistics — see [](../10-theory/imfs/binary.md).
 
 For environment-dependent IMF (top-heavy in dense / metal-poor

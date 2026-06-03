@@ -52,7 +52,7 @@ Reference:
     King (1962) AJ 67, 471
     Binney & Tremaine (2008) Eq. 8.91
 
-*Source: [`progenax/tidal.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L17)*
+*Source: [`progenax/tidal.py#L18`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L18)*
 
 (api-tidal-jacobi_radius_isothermal)=
 ## `tidal.jacobi_radius_isothermal`
@@ -71,11 +71,17 @@ For a singular isothermal sphere with circular velocity V_circ:
 
 where Omega = V_circ / R is the angular velocity.
 
+Units (IMPORTANT): V_circ must be in the SAME length/time units as G, i.e.
+consistent with the rest of the unit system — pc/Myr for STELLAR, NOT km/s.
+The ecosystem's display convention quotes velocities in km/s, but G is in
+pc^3 Msun^-1 Myr^-2, so pass V_circ in pc/Myr (1 km/s = 1.0227 pc/Myr);
+mixing the two biases r_J by ~1.5% per the km/s->pc/Myr factor.
+
 Args:
     M_cluster: Cluster mass [Msun]
-    V_circ: Circular velocity of galaxy [km/s or appropriate units]
+    V_circ: Circular velocity [pc/Myr for STELLAR — same units as G, not km/s]
     R_galactic: Distance from galactic center [pc]
-    G: Gravitational constant
+    G: Gravitational constant [pc^3 Msun^-1 Myr^-2 for STELLAR]
 
 Returns:
     Jacobi radius [pc]
@@ -83,7 +89,7 @@ Returns:
 Reference:
     Binney & Tremaine (2008) Section 8.3.1
 
-*Source: [`progenax/tidal.py#L51`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L51)*
+*Source: [`progenax/tidal.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L52)*
 
 (api-tidal-apply_tidal_truncation)=
 ## `tidal.apply_tidal_truncation`
@@ -91,31 +97,44 @@ Reference:
 *function*
 
 ```python
-apply_tidal_truncation(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], r_t: float) -> Tuple[jaxtyping.Float[Array, 'M 3'], jaxtyping.Float[Array, 'M 3'], jaxtyping.Float[Array, 'M'], jaxtyping.Float[Array, 'N']]
+apply_tidal_truncation(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], r_t: float, grad_width: float = 0.05) -> Tuple[jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N'], jaxtyping.Float[Array, 'N']]
 ```
 
-Remove particles beyond tidal radius.
+Sharp tidal truncation — shape-preserving and differentiable in ``r_t``.
 
-Sharp truncation: particles with r > r_t are removed.
+Particles with ``r > r_t`` are "removed" by setting their mass to zero, so
+they contribute nothing to mass-weighted quantities (energy, virial, COM).
+The forward pass is an EXACT hard cut; the backward pass uses a logistic
+straight-through surrogate (width ``grad_width * r_t``) so that ``r_t`` — and
+any upstream parameter feeding it (e.g. via :func:`jacobi_radius`) — remains
+differentiable. Unlike boolean-mask indexing, the output keeps a static
+shape ``N``, so the function is ``jit`` / ``vmap`` / ``grad`` safe.
 
 Args:
     positions: Particle positions (N, 3)
     velocities: Particle velocities (N, 3)
     masses: Particle masses (N,)
-    r_t: Tidal truncation radius [length units]
+    r_t: Tidal truncation radius [same length units as ``positions``]
+    grad_width: Surrogate-gradient smoothing scale as a fraction of ``r_t``
+        (default 0.05). Affects ONLY the gradient w.r.t. ``r_t``, never the
+        (exact) forward truncation.
 
 Returns:
-    Tuple of (positions_kept, velocities_kept, masses_kept, keep_mask)
-    - positions_kept: Positions of retained particles (M, 3)
-    - velocities_kept: Velocities of retained particles (M, 3)
-    - masses_kept: Masses of retained particles (M,)
-    - keep_mask: Boolean mask indicating which particles were kept (N,)
+    Tuple ``(positions, velocities, masses_truncated, keep_mask)``, all
+    length ``N``:
+    - ``positions``, ``velocities``: unchanged (truncated particles are left
+      in place — never moved to ``inf``, which would give ``0 * inf = nan``
+      in mass-weighted sums).
+    - ``masses_truncated``: masses with ``r > r_t`` entries set to 0.
+    - ``keep_mask``: boolean (N,), ``True`` where ``r <= r_t`` (use this to
+      filter NUMBER-based downstream quantities, which still see the
+      zero-mass "ghost" particles).
 
 Note:
-    This is a sharp cutoff. For smoother truncation consistent with
-    King models, use the King profile directly.
+    Sharp cutoff. For a physically smooth truncation consistent with King
+    models, use the King profile directly.
 
-*Source: [`progenax/tidal.py#L82`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L82)*
+*Source: [`progenax/tidal.py#L119`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L119)*
 
 (api-tidal-fill_factor_to_r_h)=
 ## `tidal.fill_factor_to_r_h`
@@ -145,5 +164,5 @@ Returns:
 Reference:
     Baumgardt & Makino (2003) MNRAS 340, 227
 
-*Source: [`progenax/tidal.py#L119`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L119)*
+*Source: [`progenax/tidal.py#L168`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L168)*
 

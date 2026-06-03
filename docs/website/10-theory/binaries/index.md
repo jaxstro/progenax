@@ -24,9 +24,9 @@ positions and velocities that an N-body integrator consumes.
 * - [](kepler-elements.md)
   - The seven orbital elements $(a, e, i, \Omega, \omega, M, t_p)$, their physical meaning, and the conversion from elements to phase-space coordinates.
 * - [](period-distributions.md)
-  - Four period-distribution families: log-uniform (Öpik), log-normal ({cite:t}`Sana2012` for OB-type, Duquennoy-Mayor for solar), {cite:t}`Sana2012` and {cite:t}`Moe2017` empirical fits.
+  - Four period-distribution families: log-uniform (Öpik), log-normal ({cite:t}`Sana2012` for OB-type, Duquennoy-Mayor for solar), {cite:t}`Sana2012` and {cite:t}`MoeDiStefano2017` empirical fits.
 * - [](eccentricity.md)
-  - Three eccentricity-distribution families: thermal ($f(e) = 2e$), uniform, period-dependent {cite:t}`Moe2017`. Tidal-circularisation effects at short period.
+  - Three eccentricity-distribution families: thermal ($f(e) = 2e$), uniform, period-dependent {cite:t}`MoeDiStefano2017`. Tidal-circularisation effects at short period.
 ```
 
 ## What a "binary" is in progenax
@@ -113,7 +113,7 @@ underlying parameters.
 
 The binary fraction $f_b(m_1)$ from [](../imfs/binary.md) decides the
 *number* of binaries; the chapters in this section decide their
-*orbital properties*. Both come from the same {cite:t}`Moe2017`
+*orbital properties*. Both come from the same {cite:t}`MoeDiStefano2017`
 calibration when consistency matters — period distributions from
 [](period-distributions.md), mass ratios from
 [](../imfs/mass-ratio-distributions.md), eccentricities from
@@ -124,5 +124,5 @@ non-separability noted at [](../imfs/multiplicity-statistics.md).
 
 Kepler-element machinery is standard textbook material. The period
 distributions follow {cite:t}`Sana2012` (OB-type), Duquennoy-Mayor
-(solar), and {cite:t}`Moe2017` (joint $f(P)$). The eccentricity
-distributions follow {cite:t}`Moe2017` and earlier compilations.
+(solar), and {cite:t}`MoeDiStefano2017` (joint $f(P)$). The eccentricity
+distributions follow {cite:t}`MoeDiStefano2017` and earlier compilations.

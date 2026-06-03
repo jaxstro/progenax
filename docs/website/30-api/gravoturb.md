@@ -676,14 +676,20 @@ For n_grid=2000 and 128^3 voxels, this is very efficient.
 *function*
 
 ```python
-gaussian_to_bm19(g: 'Array', sigma_s_sq: 'float', s_t: 'float', alpha: 'float', s_grid: 'Array | None' = None, F_grid: 'Array | None' = None) -> 'Array'
+gaussian_to_bm19(g: 'Array', sigma_s_sq: 'float', s_t: 'float', alpha: 'float', s_grid: 'Array | None' = None, F_grid: 'Array | None' = None, copula: 'str' = 'rank') -> 'Array'
 ```
 
-Transform Gaussian field to BM19 LN+PL distribution via CDF remap.
+Transform a Gaussian field to the BM19 LN+PL distribution via a CDF remap.
 
 This is the main interface for generating BM19-distributed fields:
 
-    g(x) ~ N(0,1)  ->  u(x) = Phi(g(x))  ->  s(x) = F_V^{-1}(u(x))
+    g(x)  ->  u(x) in (0,1)  ->  s(x) = F_V^{-1}(u(x))
+
+where u is the field's *uniform* image. ``copula="rank"`` (default) uses the
+empirical CDF of g (Gaussian anamorphosis), so u is exactly uniform and the BM19
+marginal is reproduced at ANY power-spectrum slope. ``copula="phi"`` is the
+legacy normal-CDF form u = Phi(g), which assumes g ~ N(0,1) and collapses the
+dense tail at steep beta where the realized GRF is non-Gaussian (audit M3).
 
 Parameters
 ----------
@@ -759,7 +765,7 @@ stats : dict
     - 'f_dense_theory': Theoretical f_dense from BM19
     - 'relative_error': (f_tail_actual - f_dense) / f_dense * 100%
 
-*Source: [`progenax/gravoturb/bm19_pdf.py#L348`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_pdf.py#L348)*
+*Source: [`progenax/gravoturb/bm19_pdf.py#L364`](https://github.com/drannarosen/progenax/blob/main/progenax/gravoturb/bm19_pdf.py#L364)*
 
 (api-gravoturb-magnification_factor)=
 ## `gravoturb.magnification_factor`

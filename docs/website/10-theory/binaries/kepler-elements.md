@@ -169,7 +169,7 @@ elements as follows:
 2. **$a$** from $P$ and $m_{\mathrm{tot}}$ via {eq}`kepler-third`.
 3. **$e$** from the population eccentricity distribution
    ([](eccentricity.md)) — thermal, uniform, or
-   {cite:t}`Moe2017` period-dependent.
+   {cite:t}`MoeDiStefano2017` period-dependent.
 4. **$\cos i \sim \mathcal{U}(-1, 1)$** — isotropic inclination.
 5. **$\Omega \sim \mathcal{U}(0, 2\pi)$** — uniform.
 6. **$\omega \sim \mathcal{U}(0, 2\pi)$** — uniform.

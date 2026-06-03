@@ -29,7 +29,7 @@ SpatialProfile(*args, **kwargs)
 Protocol for spatial density profiles.
 
 Implementations must provide position sampling and characteristic radius.
-Used by build_ic() for generic IC assembly.
+Used by build_spatial_ic() for generic IC assembly.
 
 Example implementations:
     - PlummerProfile: Plummer (1911) density

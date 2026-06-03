@@ -3,7 +3,7 @@ title: Multiplicity statistics (Moe & Di Stefano 2017)
 description: The joint binary-population statistics f(M₁, q, P, e) from Moe & Di Stefano 2017 — mass-dependent binary fractions, three period regimes, terminology pitfalls, and the survey-selection corrections that produced the calibration.
 ---
 
-# Multiplicity statistics: the {cite:t}`Moe2017` joint distribution
+# Multiplicity statistics: the {cite:t}`MoeDiStefano2017` joint distribution
 
 ```{seealso}
 This chapter covers the *empirical* binary statistics that progenax's
@@ -17,7 +17,7 @@ A practical binary-aware IMF requires knowing *the joint distribution*
 of binary parameters: the probability that a primary of mass $M_1$ has
 a companion at all, and conditional on having one, the joint
 distribution of mass ratio $q$, orbital period $P$, and eccentricity
-$e$. {cite:t}`Moe2017` compiled the most comprehensive such census
+$e$. {cite:t}`MoeDiStefano2017` compiled the most comprehensive such census
 to date, combining spectroscopic, eclipsing, long-baseline
 interferometric, adaptive-optics, and common-proper-motion samples,
 each carefully corrected for its own selection function. The result
@@ -52,12 +52,12 @@ in older population-synthesis work.
 
 progenax respects this non-separability by storing the joint
 $f(M_1, q, P, e)$ as a 4D table sampled per the
-{cite:t}`Moe2017` Tables 10–13 piecewise fits.
+{cite:t}`MoeDiStefano2017` Tables 10–13 piecewise fits.
 
 ## Terminology: companion frequency vs binary fraction
 
 ```{warning}
-{cite:t}`Moe2017` are careful about three closely-related quantities;
+{cite:t}`MoeDiStefano2017` are careful about three closely-related quantities;
 many earlier papers conflate them. progenax's docstrings follow the
 Moe & Di Stefano vocabulary exactly.
 ```
@@ -92,7 +92,7 @@ documented at [](binary.md#binary-imf-limitations).
 
 ## Mass-dependent binary fraction
 
-```{list-table} {cite:t}`Moe2017` Table 13 — companion frequency above $q > 0.1$.
+```{list-table} {cite:t}`MoeDiStefano2017` Table 13 — companion frequency above $q > 0.1$.
 :header-rows: 1
 
 * - Primary mass
@@ -129,7 +129,7 @@ inferences from binary-rich populations are biased — see
 
 ## Three orbital-period regimes
 
-{cite:t}`Moe2017` identify three qualitatively distinct period regimes:
+{cite:t}`MoeDiStefano2017` identify three qualitatively distinct period regimes:
 
 ```{list-table}
 :header-rows: 1
@@ -151,7 +151,7 @@ inferences from binary-rich populations are biased — see
 The three regimes have distinct mass-ratio distributions, which is
 the source of the period-conditional structure in $g(q \mid M_1, P)$.
 progenax's default `BinaryIMF` uses *period-averaged* mass-ratio
-parameters from {cite:t}`Moe2017` Table 10; surveys sensitive to a
+parameters from {cite:t}`MoeDiStefano2017` Table 10; surveys sensitive to a
 specific period range (spectroscopic = short-period, visual = wide)
 need a full period-conditional likelihood layer. That layer is
 described conceptually in [](mass-ratio-distributions.md), but the
@@ -160,7 +160,7 @@ constructor.
 
 ## How the calibration was derived
 
-{cite:t}`Moe2017` analysed dozens of binary samples, each spanning a
+{cite:t}`MoeDiStefano2017` analysed dozens of binary samples, each spanning a
 narrow interval of $M_1$ and $P$. For each sample they:
 
 1. Identified the relevant **selection function** of the survey
@@ -218,7 +218,7 @@ is documented in [](mass-ratio-distributions.md).
 progenax's default `BinaryIMF` model caps at one companion per
 primary. Real populations include triples, quadruples, and higher:
 $\sim 10\%$ of solar-type systems are triples, rising to $> 50\%$ for
-O-type {cite:p}`Moe2017,Sana2012`. The single-companion approximation
+O-type {cite:p}`MoeDiStefano2017,Sana2012`. The single-companion approximation
 *underestimates* the high-mass distortion (a triple with masses
 $m_1 + m_2 + m_3$ inflates the system mass more than the binary
 $m_1 + m_2$). For O-star-dominated populations this is a substantial
@@ -230,7 +230,7 @@ deferred to a future progenax version.
 
 ## References
 
-{cite:t}`Moe2017` is the comprehensive joint-distribution paper.
+{cite:t}`MoeDiStefano2017` is the comprehensive joint-distribution paper.
 {cite:t}`Sana2012` is the foundational massive-star multiplicity
 work. {cite:t}`Moe2019` extends to metallicity dependence. The
 period-distribution side of the calibration is documented at

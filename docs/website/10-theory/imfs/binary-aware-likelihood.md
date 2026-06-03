@@ -59,7 +59,7 @@ their product:
    piecewise for {cite:t}`Kroupa2001`.
 2. **The mass-ratio distribution $g(q \mid m_1)$** —
    {eq}`gq-form` from [](mass-ratio-distributions.md), piecewise in
-   $m_1$ via the {cite:t}`Moe2017` mass-bin lookup.
+   $m_1$ via the {cite:t}`MoeDiStefano2017` mass-bin lookup.
 3. **The Jacobian $1/(1+q)$** — trivial.
 
 The piecewise mass-bin lookup in $g(q \mid m_1)$ is what kills any
@@ -149,7 +149,7 @@ Three details that matter at large $N$:
    the final $\log[(1-f_b)\xi + f_b\,I]$ to avoid catastrophic
    cancellation.
 3. **$q_{\min}$ floor.** The integral lower limit is $q_{\min} = 0.1$
-   matching {cite:t}`Moe2017`'s observational completeness. progenax
+   matching {cite:t}`MoeDiStefano2017`'s observational completeness. progenax
    does not extrapolate below this; setting $q_{\min} = 0$ would make
    the integral diverge for some IMF parameter values.
 
@@ -200,7 +200,7 @@ Every step in {eq}`ba-likelihood` is JAX-differentiable:
 - $g(q \mid m_1)$ — power-law and Gaussian both analytic; the mass-bin
   lookup uses `jnp.where` (smooth fallback for boundary
   derivatives optional via sigmoid-blend).
-- $\bar f_b(m_1)$ — `jnp.interp` on the {cite:t}`Moe2017` Table 13
+- $\bar f_b(m_1)$ — `jnp.interp` on the {cite:t}`MoeDiStefano2017` Table 13
   values, differentiable via piecewise-linear gradients.
 - The Gauss-Legendre quadrature is a fixed weighted sum.
 
@@ -238,7 +238,7 @@ $\alpha$ at $N = 30{,}000$.
 ## What if the binary statistics are wrong?
 
 The likelihood above assumes *known* $f_b(m_1)$ and $g(q \mid m_1)$.
-In real applications, the {cite:t}`Moe2017` calibration carries
+In real applications, the {cite:t}`MoeDiStefano2017` calibration carries
 its own uncertainties: $\pm 0.04$ for solar-type binary fractions,
 growing to $\pm 0.10$ for O-stars. Misspecification of these
 statistics reintroduces bias on $\alpha$ at large $N$.
@@ -254,7 +254,7 @@ this is a planned likelihood-layer extension rather than a live API.
 ## References
 
 The binary-aware-likelihood structure is original to progenax. The
-binary-statistics calibration is {cite:t}`Moe2017`. The
+binary-statistics calibration is {cite:t}`MoeDiStefano2017`. The
 "confidently wrong" framing is documented at [](binary.md). The NUTS
 sampler is {cite:t}`JAX`-backed via NumPyro. The validation suite that
 demonstrates unbiased recovery at $N = 30{,}000$ is at

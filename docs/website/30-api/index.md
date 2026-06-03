@@ -1,6 +1,6 @@
 ---
 title: API reference
-description: Auto-generated reference for every public symbol in progenax — 135 symbols across 10 modules, regenerated from source on every release.
+description: Auto-generated reference for every public symbol in progenax, regenerated from source on every release.
 ---
 
 # API reference
@@ -50,10 +50,13 @@ For physics derivations of the algorithms behind these symbols, see
 ## Browse alphabetically
 
 The [full symbol index](full-symbol-index.md) lists every public
-symbol (currently **135**) sorted alphabetically, with classification
-(class / function / protocol / value) and link to the per-module
-page. Use this when you know the symbol name but don't remember which
-module it lives in.
+symbol across all submodules, sorted alphabetically, with classification
+(class / function / protocol / value) and link to the per-module page.
+This counts every symbol in each submodule's `__all__`; the top-level
+`progenax` package re-exports a curated subset for convenience
+(e.g. `from progenax import PlummerProfile`), so `len(progenax.__all__)`
+is smaller. Use the index when you know the symbol name but don't
+remember which module it lives in.
 
 ## How the API reference is built
 

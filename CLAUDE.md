@@ -202,7 +202,7 @@ are sampled in detailed equilibrium with **no external virial rescale**:
 | Bound particles | 100% | 100% |
 | Binary period (Kepler III) | exact to 1e-10 | 2π√(a³/GM) |
 
-## Public API (57+ exports)
+## Public API
 
 All public symbols exported from `progenax.__init__`:
 

@@ -10,14 +10,14 @@ supernova rates, and the integrated light of galaxies. Measuring its
 shape — and whether it varies with environment — is one of the central
 problems in stellar astrophysics {cite:p}`Salpeter1955,Kroupa2001,Chabrier2003,Marks2012,Jerabkova2018`.
 Most stars do not form alone: roughly 50% of solar-type stars and >90%
-of O-type stars have at least one bound companion {cite:p}`Sana2012,Moe2017`.
+of O-type stars have at least one bound companion {cite:p}`Sana2012,MoeDiStefano2017`.
 When those companions are unresolved, the IMF inferred from observed
 *system* masses is systematically biased toward shallower slopes.
 
 This chapter is the single source of truth for the **binary-aware IMF
 recovery** pipeline implemented in `progenax.imf.BinaryIMF` and exercised
 in `validation/imf/binary_aware_validation.py`. It derives the system mass
-function under the {cite:t}`Moe2017` joint binary statistics, formulates a
+function under the {cite:t}`MoeDiStefano2017` joint binary statistics, formulates a
 likelihood that marginalises over latent binary status and mass ratio, and
 quantifies the regime — sample size $N \gtrsim 10^4$ — where the naive
 single-star likelihood becomes "**confidently wrong**": its 95% credible
@@ -85,7 +85,7 @@ the naive 95% credible interval becomes narrower than the bias and
 
 ## The Moe & Di Stefano (2017) joint binary statistics
 
-{cite:t}`Moe2017` compiled the most comprehensive census of binary star
+{cite:t}`MoeDiStefano2017` compiled the most comprehensive census of binary star
 properties to date, combining spectroscopy, eclipsing binaries, long-baseline
 interferometry, adaptive optics, and common proper motion surveys. After
 correcting each sample for its selection function, they derived the
@@ -104,7 +104,7 @@ implementation:
 
 ### Binary fraction $f_b(M_1)$
 
-```{list-table} {cite:t}`Moe2017` Table 13 — companion frequency above $q > 0.1$.
+```{list-table} {cite:t}`MoeDiStefano2017` Table 13 — companion frequency above $q > 0.1$.
 :header-rows: 1
 
 * - Primary mass
@@ -141,7 +141,7 @@ single-companion approximation progenax adopts.
 
 ### Mass-ratio distribution $g(q \mid M_1)$
 
-For a primary of mass $M_1$, {cite:t}`Moe2017` parameterise $g(q \mid M_1)$
+For a primary of mass $M_1$, {cite:t}`MoeDiStefano2017` parameterise $g(q \mid M_1)$
 as a power law plus a narrow "twin excess" peak near $q = 1$:
 
 ```{math}
@@ -152,12 +152,12 @@ p(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{p
 
 where $Z_{\mathrm{pl}} = \int_{q_{\min}}^{1} q^\gamma\,\mathrm{d}q$ and
 $\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses period-averaged values
-of $\gamma(M_1)$ from {cite:t}`Moe2017` Table 10 — appropriate for total
+of $\gamma(M_1)$ from {cite:t}`MoeDiStefano2017` Table 10 — appropriate for total
 mass-function analyses, but loses the small-$q$ structure that matters
 for surveys sensitive to specific period ranges (see
 [Limitations](#binary-imf-limitations)):
 
-```{list-table} Period-averaged $\gamma(M_1)$ from {cite:t}`Moe2017` Table 10.
+```{list-table} Period-averaged $\gamma(M_1)$ from {cite:t}`MoeDiStefano2017` Table 10.
 :header-rows: 1
 
 * - Primary mass
@@ -352,7 +352,7 @@ LSST-realistic inference requires isochrone-mediated flux addition.
 :class: note
 We model only singles and binaries. ~10% of solar-type systems are
 triples, rising to >50% for O-type primaries
-{cite:p}`Sana2012,Moe2017`. For O-type stars {cite:t}`Moe2017` report
+{cite:p}`Sana2012,MoeDiStefano2017`. For O-type stars {cite:t}`MoeDiStefano2017` report
 companion frequency $\sim 2.1$ per primary; our single-companion model
 compresses this into one effective binary, *underestimating* the
 high-mass distortion.
@@ -361,7 +361,7 @@ high-mass distortion.
 ```{admonition} Period-averaged mass-ratio distribution
 :class: note
 progenax uses the period-averaged $\gamma$ and $f_{\mathrm{twin}}$ from
-{cite:t}`Moe2017` Table 10. Surveys sensitive to specific period ranges
+{cite:t}`MoeDiStefano2017` Table 10. Surveys sensitive to specific period ranges
 (spectroscopic = short-period, visual = wide) need the full
 period-conditional $g(q \mid M_1, P)$.
 ```
@@ -384,7 +384,7 @@ mass). Always be explicit which definition is in use.
 
 ```{admonition} Metallicity dependence
 :class: note
-{cite:t}`Moe2017` are calibrated primarily on solar-metallicity samples.
+{cite:t}`MoeDiStefano2017` are calibrated primarily on solar-metallicity samples.
 Low-metallicity environments may have higher binary fractions
 {cite:p}`Moe2019`. progenax's "Low-Z" and "Starburst" environment
 presets currently use the same Moe+17 statistics as Solar — likely an
@@ -395,7 +395,7 @@ underestimate of the binary contamination.
 
 The pipeline lives in three modules:
 
-- `progenax.imf.BinaryIMF` — the {cite:t}`Moe2017`-conditioned forward
+- `progenax.imf.BinaryIMF` — the {cite:t}`MoeDiStefano2017`-conditioned forward
   model and likelihood. Differentiable via `jax.grad`, JIT-compatible,
   vectorisable via `jax.vmap`.
 - `progenax.binaries.MoeEccentricity` and friends — the joint binary
@@ -411,7 +411,7 @@ binary-corrected mock catalog end-to-end.
 ## References
 
 The single-star IMF backbone follows {cite:t}`Maschberger2013`; binary
-contamination dynamics follow {cite:t}`Sana2012,Moe2017,Moe2019`; the
+contamination dynamics follow {cite:t}`Sana2012,MoeDiStefano2017,Moe2019`; the
 "confidently wrong" framing is original to this work and validated
 against the synthetic forward model documented above. For the
 environment-dependent IMF that consumes $\alpha$ from this chapter, see

@@ -235,7 +235,7 @@ match the convention of the comparison; progenax's flexible
 The IMFs above describe *single-star* distributions. They feed into the
 binary-aware framework ([](binary.md)) where the *primary* mass is
 drawn from $\xi(m \mid \alpha)$ and the *secondary* is drawn
-conditionally from the {cite:t}`Moe2017` mass-ratio distribution. They
+conditionally from the {cite:t}`MoeDiStefano2017` mass-ratio distribution. They
 also feed into the environment-dependent framework ([](environment.md))
 where the slopes $\alpha_{1,2,3}$ become functions of cloud-core
 density and metallicity per {cite:t}`Marks2012`.

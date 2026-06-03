@@ -24,6 +24,15 @@ the codebase.
 
 ## Follow-up audit — 2026-06-03 (post-hardening)
 
+```{admonition} Status: every finding below was RESOLVED (2026-06-03)
+:class: important
+All Critical / Major / Minor items in this audit have since been **fixed and merged**
+(see [](../00-getting-started/whats-new.md) and the resolution table at the end of this
+section). The present-tense wording below — "still OOMs", "crashes under `jax.grad`",
+"returns a NaN gradient" — records the state **at the time of the audit**, not current
+behaviour.
+```
+
 **Document type:** Regression + new-code audit of the 2026-06 hardening (the 41-commit
 `hardening/audit-2026-06` branch, merged at `644c28f`).
 **Date:** 2026-06-03
@@ -465,7 +474,7 @@ appear (distinct from the unrouted `mode='pn11'` crash noted in §2).
 | King solve gradient | `grad(Σψ) wrt W₀` | `nan` | C2 confirmed |
 | `build_spatial_ic` `G`-drop | `G=PLANETARY, Q=None` | Q = **5.5×10⁻⁵** (predicted 5.70×10⁻⁵) | C1 confirmed |
 | ↳ control | `G=PLANETARY, Q=0.5` | Q = 0.500 (rescale masks) | C1 scope confirmed |
-| Moe2017 coefficients | `from_moe2017()` vs docstring | code (−0.28,1.42,0.48) ≠ docstring (0.042,1.39) | M-doc confirmed |
+| MoeDiStefano2017 coefficients | `from_moe2017()` vs docstring | code (−0.28,1.42,0.48) ≠ docstring (0.042,1.39) | M-doc confirmed |
 | EFF CDF rule | left vs trapezoid, same grid | err 6.3e-3 vs 1.0e-6 | M5 confirmed |
 | Field `dV` | `(N/(N−1))³` | 1.048 (N=64), 1.024 (N=128) | Minor confirmed |
 | BM19 field f_tail | `init_bm19_density_field`, β=4, 8 seeds | 0.022 ± 0.020 vs theory 0.057 | M3 confirmed |

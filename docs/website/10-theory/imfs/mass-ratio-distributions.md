@@ -6,7 +6,7 @@ description: The conditional mass-ratio distribution g(q | M₁) — power-law p
 # Mass-ratio distributions
 
 The conditional mass-ratio distribution $g(q \mid M_1)$ is the
-component of the {cite:t}`Moe2017` joint $f(M_1, q, P, e)$ that the
+component of the {cite:t}`MoeDiStefano2017` joint $f(M_1, q, P, e)$ that the
 binary-aware likelihood ([](binary-aware-likelihood.md)) integrates
 over at inference time. Getting it right is essential — a
 misspecified $g(q)$ produces residual bias on the inferred IMF slope
@@ -18,7 +18,7 @@ trade-off that progenax exposes through `BinaryIMF`.
 
 ## The parametric form
 
-For a primary of mass $M_1$, the {cite:t}`Moe2017` mass-ratio
+For a primary of mass $M_1$, the {cite:t}`MoeDiStefano2017` mass-ratio
 distribution combines a power-law in $q$ with a narrow Gaussian
 "twin excess" near $q = 1$:
 
@@ -36,13 +36,13 @@ narrow $q \in [0.95, 1]$ window.
 
 The two component weights $(1 - f_{\mathrm{twin}})$ and
 $f_{\mathrm{twin}}$ guarantee normalisation. Both depend on $M_1$;
-$\gamma$ also depends on $P$ in the full {cite:t}`Moe2017`
+$\gamma$ also depends on $P$ in the full {cite:t}`MoeDiStefano2017`
 description (see [period-conditional treatment](#period-conditional)
 below).
 
 ## The power-law slope $\gamma(M_1)$
 
-```{list-table} {cite:t}`Moe2017` Table 10 — period-averaged $\gamma(M_1)$.
+```{list-table} {cite:t}`MoeDiStefano2017` Table 10 — period-averaged $\gamma(M_1)$.
 :header-rows: 1
 
 * - Primary mass
@@ -71,7 +71,7 @@ companions in shared accretion environments.
 
 ## The twin fraction $f_{\mathrm{twin}}(M_1)$
 
-```{list-table} {cite:t}`Moe2017` twin-excess fractions.
+```{list-table} {cite:t}`MoeDiStefano2017` twin-excess fractions.
 :header-rows: 1
 
 * - Primary mass
@@ -101,7 +101,7 @@ miscalibration in older population-synthesis codes.
 ## Period-averaged vs period-conditional
 
 The values above are *period-averaged* — they integrate the full
-{cite:t}`Moe2017` $g(q \mid M_1, P)$ over all observed periods,
+{cite:t}`MoeDiStefano2017` $g(q \mid M_1, P)$ over all observed periods,
 weighted by the period distribution. progenax's default `BinaryIMF`
 uses these values because:
 
@@ -119,12 +119,12 @@ For surveys that *are* period-selective — spectroscopic surveys
 the period-averaged $\gamma$ is wrong. A future
 period-conditional likelihood layer should accept a period-selectivity
 function $w(P)$ and replace the integrated $g(q \mid M_1)$ with the
-*conditional* $g(q \mid M_1, P)$ from {cite:t}`Moe2017` Tables 11 and
+*conditional* $g(q \mid M_1, P)$ from {cite:t}`MoeDiStefano2017` Tables 11 and
 12. The current `BinaryIMF` does not export a
 `with_period_conditional()` constructor. The conditional treatment
 splits $\gamma$ further:
 
-```{list-table} {cite:t}`Moe2017` $\gamma$ split into small-$q$ and large-$q$ regimes (period-averaged).
+```{list-table} {cite:t}`MoeDiStefano2017` $\gamma$ split into small-$q$ and large-$q$ regimes (period-averaged).
 :header-rows: 1
 
 * - Primary mass
@@ -213,7 +213,7 @@ mass-bin boundaries (rare but supported).
    future period-conditional likelihood layer; the current
    `BinaryIMF` is period-averaged.
 2. **$q \ge q_{\min}$ floor** — all distributions in this chapter
-   assume $q \ge 0.1$, matching {cite:t}`Moe2017`'s observational
+   assume $q \ge 0.1$, matching {cite:t}`MoeDiStefano2017`'s observational
    completeness threshold. Below $q = 0.1$, companion detection is
    unreliable, so the calibration cannot constrain that regime.
 3. **Single-$\gamma$ approximation** in the default `BinaryIMF` —
@@ -226,7 +226,7 @@ mass-bin boundaries (rare but supported).
 
 ## References
 
-The functional form and per-mass values are {cite:t}`Moe2017` Tables
+The functional form and per-mass values are {cite:t}`MoeDiStefano2017` Tables
 10–12. The period-conditional split is from the same source. The
 metallicity dependence is {cite:t}`Moe2019`. For the broader
 multiplicity context see [](multiplicity-statistics.md).

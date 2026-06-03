@@ -13,7 +13,7 @@ Decoupled coverage from the CI pass/fail gate — a coverage-tooling crash (the 
 jaxlib/abseil narrow-scope class) can no longer red a build whose tests pass — and added
 ~60 discriminating tests lifting five under-covered modules (`imf/binary/mass_ratio` 53→96,
 `imf/smooth` 64→**100**, `imf/binary/imf` 61→93, `imf/environment/mapping` 69→96,
-`kinematics/api` 72→**100**). Package coverage **86 % → 91 %**; suite **949** passing, no
+`kinematics/api` 72→**100**). Package coverage **86 % → 91 %**; full suite passing, no
 existing test weakened. The 500-LOC file limit was relaxed to a guideline (cohesive files
 ≤~600 accepted). A deliberate **SoTA-design + per-module validation pass** — including the
 `fdf.py` split and a cumulative-shared-grid CDF for `smooth.py` — is queued for release; see
@@ -30,7 +30,7 @@ tail sampler still OOM'd at production scale (`random.categorical` Gumbel-max �
 a seed-fragile BM19 test) and ~10 Minor (a differentiable BM19 resolution guard,
 the `energy_sorted_segregation` top-level export, `profiles/api.py` coverage
 37 % → 100 %, a `c(W₀)`↔King-1966-Table-II regression guard, doc fixes). Test
-suite: **874** across 3 tiers (742 / 24 / 108), **86 % coverage**. These were the
+suite spans three tiers (unit / integration / validation). These were the
 blockers the audit said would take it from A− to a solid A.
 
 **Impact.** Gradient-based inference through `build_spatial_ic` and

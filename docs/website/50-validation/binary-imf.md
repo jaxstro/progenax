@@ -19,7 +19,7 @@ outputs live under `validation/imf/`, including
   - Tolerance
   - Anchor
 * - Forward model $f(M_1, q, P, e)$
-  - Match {cite:t}`Moe2017` Tables 10-13
+  - Match {cite:t}`MoeDiStefano2017` Tables 10-13
   - Per-mass-bin spot checks
 * - Marginalised likelihood
   - Offline validation
@@ -101,5 +101,5 @@ progenax's binary-aware framework. It demonstrates:
 
 The full chapter at [](../10-theory/imfs/binary.md) walks through
 the methodology end-to-end. The likelihood derivation is at
-[](../10-theory/imfs/binary-aware-likelihood.md). The {cite:t}`Moe2017`
+[](../10-theory/imfs/binary-aware-likelihood.md). The {cite:t}`MoeDiStefano2017`
 calibration is at [](../10-theory/imfs/multiplicity-statistics.md).

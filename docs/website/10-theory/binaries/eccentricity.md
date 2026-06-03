@@ -6,7 +6,7 @@ description: Three eccentricity distribution families — thermal f(e) = 2e, uni
 # Eccentricity distributions
 
 The orbital eccentricity $e$ is the third free parameter (alongside
-$P$ and $q$) in the {cite:t}`Moe2017` joint binary-population
+$P$ and $q$) in the {cite:t}`MoeDiStefano2017` joint binary-population
 calibration. Unlike $P$ and $q$, the eccentricity distribution is
 **period-dependent**: short-period binaries are tidally circularised
 (small $e$); long-period binaries retain whatever eccentricity they
@@ -24,7 +24,7 @@ formed with (typically thermal). progenax implements three families:
 * - **Uniform**
   - $f(e) = 1$
   - Short-period binaries that have lost angular momentum but not yet circularised
-* - **{cite:t}`Moe2017`**
+* - **{cite:t}`MoeDiStefano2017`**
   - Period-dependent
   - Empirical: thermal at long $P$, smoothly transitioning to uniform/circular at short $P$
 ```
@@ -89,10 +89,10 @@ evolution.
 
 ## Moe & Di Stefano (2017): period-dependent transition
 
-{cite:t}`Moe2017` find that the eccentricity distribution depends
+{cite:t}`MoeDiStefano2017` find that the eccentricity distribution depends
 strongly on orbital period:
 
-```{list-table} {cite:t}`Moe2017` eccentricity-period regimes.
+```{list-table} {cite:t}`MoeDiStefano2017` eccentricity-period regimes.
 :header-rows: 1
 
 * - Period range
@@ -165,7 +165,7 @@ massive stars (larger radii) the circularisation cutoff extends to
 slightly longer periods.
 
 progenax's default `MoeEccentricity()` uses a $P \le 4$ d circular
-cutoff matching {cite:t}`Moe2017`. Surveys targeting evolved stars
+cutoff matching {cite:t}`MoeDiStefano2017`. Surveys targeting evolved stars
 (red giants with $R_\star \gg R_\odot$) should use the longer cutoff
 appropriate to the evolutionary phase — `MoeEccentricity(p_circ_d=12.0)`
 overrides the default.
@@ -216,7 +216,7 @@ binary module, not in this eccentricity sampler.
    which extends the cutoff temporarily. progenax's IC-time treatment
    uses ZAMS radii; subsequent evolution should be handled by the
    integrator (gravax) and stellar-evolution code (startrax, planned).
-3. **Metallicity assumption** — the {cite:t}`Moe2017` calibration is
+3. **Metallicity assumption** — the {cite:t}`MoeDiStefano2017` calibration is
    solar-metallicity. Tidal-circularisation efficiency varies with
    internal stellar structure, which is metallicity-dependent. For
    metal-poor populations expect the cutoff period to shift slightly.
@@ -230,6 +230,6 @@ binary module, not in this eccentricity sampler.
 ## References
 
 The thermal distribution is {cite:t}`Heggie1975`; the period-
-dependent treatment is {cite:t}`Moe2017`; the tidal-circularisation
+dependent treatment is {cite:t}`MoeDiStefano2017`; the tidal-circularisation
 timescale follows {cite:t}`Hurley2002`. For population-synthesis
 context see {cite:t}`Sana2012`.

@@ -27,7 +27,7 @@ Public symbols: **7**
 *class*
 
 ```python
-ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], softening: float, stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None) -> None
+ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], softening: float | jaxtyping.Float[Array, ''], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None) -> None
 ```
 
 Result from initial conditions generation.
@@ -43,7 +43,7 @@ Attributes:
     stellar_radii: Stellar radii (N,) [R_sun]
     ids: Particle IDs (N,) or None
 
-*Source: [`progenax/builders.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L23)*
+*Source: [`progenax/builders.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L27)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -69,7 +69,7 @@ Args:
 Returns:
     Radii in R☉
 
-*Source: [`progenax/builders.py#L48`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L48)*
+*Source: [`progenax/builders.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L52)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -82,14 +82,7 @@ compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyp
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-Args:
-    velocities: Particle velocities (N, 3)
-    masses: Particle masses (N,)
-
-Returns:
-    Total kinetic energy
-
-*Source: [`progenax/builders.py#L89`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L89)*
+*Source: [`progenax/dynamics/virial.py#L14`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L14)*
 
 (api-builders-compute_potential_energy)=
 ## `builders.compute_potential_energy`
@@ -102,18 +95,16 @@ compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxty
 
 Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
 
-Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2)
+Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2). Returns a negative
+value (bound systems have V < 0).
 
-Args:
-    positions: Particle positions (N, 3)
-    masses: Particle masses (N,)
-    G: Gravitational constant
-    softening: Softening length (default: 0)
+Differentiable at ``softening=0``: a double-``where`` feeds the diagonal a
+safe positive value *before* ``sqrt`` (otherwise the diagonal ``sqrt(0)``
+derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
+sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
+canonical energy implementation; ``progenax.builders`` re-exports it.
 
-Returns:
-    Total potential energy (negative)
-
-*Source: [`progenax/builders.py#L107`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L107)*
+*Source: [`progenax/dynamics/virial.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L23)*
 
 (api-builders-to_com_frame)=
 ## `builders.to_com_frame`
@@ -134,7 +125,7 @@ Args:
 Returns:
     (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`progenax/builders.py#L146`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L146)*
+*Source: [`progenax/builders.py#L93`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L93)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -167,7 +158,7 @@ References:
     Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
     Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`progenax/builders.py#L171`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L171)*
+*Source: [`progenax/builders.py#L118`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L118)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -194,5 +185,5 @@ Args:
 Returns:
     ICResult with positions, velocities, masses, softening, stellar_radii
 
-*Source: [`progenax/builders.py#L212`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L212)*
+*Source: [`progenax/builders.py#L159`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L159)*
 

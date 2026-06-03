@@ -375,7 +375,7 @@ All mass-ratio distributions must implement:
 
 Note: q = M_secondary / M_primary ∈ [q_min, 1] by convention.
 
-*Source: [`progenax/imf/binary.py#L73`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L73)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L23)*
 
 (api-imf-flatmassratio)=
 ## `imf.FlatMassRatio`
@@ -396,7 +396,7 @@ Parameters:
     q_min: Minimum mass ratio (default: 0.1)
            Below ~0.1, companions become brown dwarfs.
 
-*Source: [`progenax/imf/binary.py#L110`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L110)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L60`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L60)*
 
 (api-imf-powerlawmassratio)=
 ## `imf.PowerLawMassRatio`
@@ -427,7 +427,7 @@ Note:
     For γ = -1, the distribution is singular at q = 0.
     Use q_min > 0 to avoid singularity.
 
-*Source: [`progenax/imf/binary.py#L145`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L145)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L95`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L95)*
 
 (api-imf-twinpeakedmassratio)=
 ## `imf.TwinPeakedMassRatio`
@@ -460,7 +460,7 @@ Parameters:
                Moe+17 suggest σ ≈ 0.02-0.05
     q_min: Minimum mass ratio (default: 0.1)
 
-*Source: [`progenax/imf/binary.py#L265`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L265)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L215`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L215)*
 
 (api-imf-moedistefano2017)=
 ## `imf.MoeDiStefano2017`
@@ -492,7 +492,7 @@ Parameters:
     q_min: Minimum mass ratio (default: 0.1)
     sigma_twin: Width of twin peak (default: 0.03)
 
-*Source: [`progenax/imf/binary.py#L398`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L398)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L17)*
 
 (api-imf-constantbinaryfraction)=
 ## `imf.ConstantBinaryFraction`
@@ -512,7 +512,7 @@ Reference:
 Parameters:
     f_bin: Binary fraction (default: 0.5)
 
-*Source: [`progenax/imf/binary.py#L559`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L559)*
+*Source: [`progenax/imf/binary/binary_fraction.py#L18`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L18)*
 
 (api-imf-massdependentbinaryfraction)=
 ## `imf.MassDependentBinaryFraction`
@@ -541,7 +541,7 @@ Model (period-integrated companion frequency):
 Note: These are companion frequencies, not strict binary fractions.
 Higher-order multiples (triples, etc.) are common at high masses.
 
-*Source: [`progenax/imf/binary.py#L577`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L577)*
+*Source: [`progenax/imf/binary/binary_fraction.py#L36`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L36)*
 
 (api-imf-binaryimf)=
 ## `imf.BinaryIMF`
@@ -622,7 +622,7 @@ Examples:
     ...     binary_fraction=my_f_bin,
     ... )
 
-*Source: [`progenax/imf/binary.py#L627`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary.py#L627)*
+*Source: [`progenax/imf/binary/imf.py#L37`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/imf.py#L37)*
 
 (api-imf-imfparams)=
 ## `imf.IMFParams`
@@ -796,7 +796,7 @@ Example:
     >>> params = env_to_imf_params(env)
     >>> print(f"α₃ = {float(params.alpha3):.2f}")  # Top-heavy!
 
-*Source: [`progenax/imf/environment.py#L171`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L171)*
+*Source: [`progenax/imf/environment/birth_environment.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/birth_environment.py#L27)*
 
 (api-imf-env_to_imf_params)=
 ## `imf.env_to_imf_params`
@@ -843,7 +843,7 @@ Example:
     >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, sfe=0.1)
     >>> params = env_to_imf_params(env, model="jerabkova_generalized")
 
-*Source: [`progenax/imf/environment.py#L861`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L861)*
+*Source: [`progenax/imf/environment/mapping.py#L332`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L332)*
 
 (api-imf-compute_r_half)=
 ## `imf.compute_r_half`
@@ -864,7 +864,7 @@ Args:
 Returns:
     Half-mass radius [pc]
 
-*Source: [`progenax/imf/environment.py#L98`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L98)*
+*Source: [`progenax/imf/environment/density.py#L13`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L13)*
 
 (api-imf-compute_rho_ecl)=
 ## `imf.compute_rho_ecl`
@@ -890,7 +890,7 @@ Args:
 Returns:
     Stellar half-mass density [M☉ pc⁻³]
 
-*Source: [`progenax/imf/environment.py#L112`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L112)*
+*Source: [`progenax/imf/environment/density.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L27)*
 
 (api-imf-compute_rho_cl)=
 ## `imf.compute_rho_cl`
@@ -912,7 +912,7 @@ Args:
 Returns:
     Cloud density [M☉ pc⁻³]
 
-*Source: [`progenax/imf/environment.py#L132`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L132)*
+*Source: [`progenax/imf/environment/density.py#L47`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L47)*
 
 (api-imf-compute_log_rho_cl_6)=
 ## `imf.compute_log_rho_cl_6`
@@ -932,7 +932,7 @@ Args:
 Returns:
     log₁₀(ρ_cl / 10⁶)
 
-*Source: [`progenax/imf/environment.py#L150`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L150)*
+*Source: [`progenax/imf/environment/density.py#L65`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L65)*
 
 (api-imf-x_jerabkova_generalized)=
 ## `imf.x_jerabkova_generalized`
@@ -958,7 +958,7 @@ Args:
 Returns:
     x parameter for α₃ calculation
 
-*Source: [`progenax/imf/environment.py#L556`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L556)*
+*Source: [`progenax/imf/environment/mapping.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L27)*
 
 (api-imf-x_jerabkova_rho)=
 ## `imf.x_jerabkova_rho`
@@ -982,7 +982,7 @@ Args:
 Returns:
     x parameter for α₃ calculation
 
-*Source: [`progenax/imf/environment.py#L582`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L582)*
+*Source: [`progenax/imf/environment/mapping.py#L53`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L53)*
 
 (api-imf-x_hat_marks_plane)=
 ## `imf.x_hat_marks_plane`
@@ -1005,7 +1005,7 @@ Args:
 Returns:
     x̂ coordinate on Fundamental Plane
 
-*Source: [`progenax/imf/environment.py#L604`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L604)*
+*Source: [`progenax/imf/environment/mapping.py#L75`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L75)*
 
 (api-imf-alpha3_jerabkova_generalized)=
 ## `imf.alpha3_jerabkova_generalized`
@@ -1030,7 +1030,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment.py#L669`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L669)*
+*Source: [`progenax/imf/environment/mapping.py#L140`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L140)*
 
 (api-imf-alpha3_jerabkova_mecl)=
 ## `imf.alpha3_jerabkova_mecl`
@@ -1054,7 +1054,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment.py#L698`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L698)*
+*Source: [`progenax/imf/environment/mapping.py#L169`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L169)*
 
 (api-imf-alpha3_jerabkova_rho)=
 ## `imf.alpha3_jerabkova_rho`
@@ -1076,7 +1076,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment.py#L725`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L725)*
+*Source: [`progenax/imf/environment/mapping.py#L196`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L196)*
 
 (api-imf-alpha3_marks_plane)=
 ## `imf.alpha3_marks_plane`
@@ -1102,7 +1102,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment.py#L750`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L750)*
+*Source: [`progenax/imf/environment/mapping.py#L221`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L221)*
 
 (api-imf-alpha3_marks_table3)=
 ## `imf.alpha3_marks_table3`
@@ -1126,7 +1126,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment.py#L779`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L779)*
+*Source: [`progenax/imf/environment/mapping.py#L250`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L250)*
 
 (api-imf-lowmass_slopes_metallicity)=
 ## `imf.lowmass_slopes_metallicity`
@@ -1152,7 +1152,7 @@ Args:
 Returns:
     (α₁, α₂) - slopes for segments 1 and 2
 
-*Source: [`progenax/imf/environment.py#L825`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment.py#L825)*
+*Source: [`progenax/imf/environment/mapping.py#L296`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L296)*
 
 (api-imf-jerabkova_coefficients)=
 ## `imf.JERABKOVA_COEFFICIENTS`

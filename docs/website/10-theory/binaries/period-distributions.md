@@ -107,7 +107,7 @@ periods_days, eccentricities = sample_mass_dependent_orbits(
 
 ## Period-mass-ratio coupling
 
-The {cite:t}`Moe2017` joint distribution is non-separable: mass-ratio
+The {cite:t}`MoeDiStefano2017` joint distribution is non-separable: mass-ratio
 statistics depend on primary mass and period, and eccentricity depends
 on period. progenax currently exposes these pieces separately rather
 than as one public all-parameters sampler.
@@ -136,6 +136,6 @@ m1, m2, is_binary = binary_imf.sample_systems(key, 1000)
 ## References
 
 {cite:t}`Sana2012` provides the OB-period anchor. The broader
-mass-dependent binary-statistics reference is {cite:t}`Moe2017`; see
+mass-dependent binary-statistics reference is {cite:t}`MoeDiStefano2017`; see
 [](../imfs/multiplicity-statistics.md) and
 [](../imfs/mass-ratio-distributions.md).

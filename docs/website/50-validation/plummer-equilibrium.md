@@ -4,7 +4,7 @@ description: "Validation suite for the Plummer profile + matched velocity DF: vi
 ---
 # Plummer equilibrium validation
 
-The Plummer suite is the most-tested module in progenax, with 12
+The Plummer suite is the most-tested module in progenax, its
 validation tests anchoring the closed-form expressions from
 [](../10-theory/spatial-profiles/plummer.md). Test file:
 `tests/validation/test_plummer_physics.py`.

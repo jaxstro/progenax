@@ -231,7 +231,14 @@ def _emit_full_symbol_index(
         "Click the symbol name to jump to its per-module page entry.*"
     )
     lines.append("")
-    lines.append(f"Total public symbols: **{len(sorted_syms)}**")
+    lines.append(f"Total public symbols: **{len(sorted_syms)}** across all submodules.")
+    lines.append("")
+    lines.append(
+        "> This counts every symbol in each submodule's `__all__`. The top-level "
+        "`progenax` package re-exports a curated subset for convenience "
+        "(e.g. `from progenax import PlummerProfile`); import the submodule "
+        "(e.g. `from progenax.imf import ...`) to reach the rest."
+    )
     lines.append("")
     lines.append("| Symbol | Kind | Module |")
     lines.append("|--------|------|--------|")

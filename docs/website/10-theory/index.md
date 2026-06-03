@@ -41,9 +41,9 @@ Every chapter follows the same template:
 * - [](velocity-dfs/index.md)
   - Velocity distribution functions paired with each spatial profile to produce dynamical equilibrium ICs. Includes anisotropy and rotation extensions.
 * - [](imfs/index.md)
-  - The initial mass function — from canonical Salpeter / Kroupa / Chabrier / Maschberger through binary-aware {cite:t}`Moe2017` and environment-dependent {cite:t}`Marks2012,Jerabkova2018` variants.
+  - The initial mass function — from canonical Salpeter / Kroupa / Chabrier / Maschberger through binary-aware {cite:t}`MoeDiStefano2017` and environment-dependent {cite:t}`Marks2012,Jerabkova2018` variants.
 * - [](binaries/index.md)
-  - Kepler orbital elements, period and eccentricity distributions ({cite:t}`Sana2012,Moe2017`), resolved binary kinematics.
+  - Kepler orbital elements, period and eccentricity distributions ({cite:t}`Sana2012,MoeDiStefano2017`), resolved binary kinematics.
 * - [](tidal-and-substructure/index.md)
   - Tidal physics, the {cite:t}`Goodwin2004`-equivalent FDF method for differentiable substructure, and {cite:t}`Baumgardt2008` energy-ranked mass segregation.
 * - [](gravoturbulence/index.md)

@@ -65,14 +65,14 @@ Salpeter slope
 
 mass ratio
     $q = m_2/m_1 \in [0, 1]$ for a binary. Distribution $g(q | M_1)$
-    follows {cite:t}`Moe2017`.
+    follows {cite:t}`MoeDiStefano2017`.
 
 binary fraction
     Probability that a primary has at least one companion. Mass-dependent;
     $\sim 0.5$ for solar-type, $\sim 0.9$ for O-type.
 
 twin excess
-    Narrow Gaussian peak at $q \approx 1$ in the {cite:t}`Moe2017`
+    Narrow Gaussian peak at $q \approx 1$ in the {cite:t}`MoeDiStefano2017`
     mass-ratio distribution. Solar-type stars show the strongest
     excess, $f_{\mathrm{twin}} \approx 0.10$.
 
