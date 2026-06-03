@@ -1,4 +1,4 @@
-"""Tests for tidal physics utilities."""
+"""Tests for tidal physics utilities (progenax.tidal)."""
 
 import jax
 import jax.numpy as jnp
@@ -9,120 +9,115 @@ from progenax.tidal import (
     jacobi_radius_isothermal,
     apply_tidal_truncation,
     fill_factor_to_r_h,
+    _truncation_weight,
 )
 
 
 class TestJacobiRadius:
-    """Tests for Jacobi/tidal radius calculation."""
+    """r_J = R * (M_cl / 3 M_gal)^(1/3)  (King 1962; BT2008 Eq 8.91)."""
 
     def test_jacobi_radius_formula(self):
-        """Jacobi radius follows r_J = R * (M_cl / 3M_gal)^(1/3)."""
-        M_cluster = 1e4  # 10^4 Msun cluster
-        M_galaxy = 1e11  # 10^11 Msun galaxy
-        R_galactic = 8000.0  # 8 kpc from galactic center
+        M_cluster, M_galaxy, R = 1e4, 1e11, 8000.0
+        r_J = jacobi_radius(M_cluster, M_galaxy, R)
+        # defining relation, independent of internal arithmetic ordering
+        assert jnp.isclose(r_J**3, R**3 * M_cluster / (3.0 * M_galaxy), rtol=1e-12)
 
-        r_J = jacobi_radius(M_cluster, M_galaxy, R_galactic)
+    def test_scales_with_cluster_mass(self):
+        r_small = jacobi_radius(1e3, 1e11, 8000.0)
+        r_large = jacobi_radius(1e5, 1e11, 8000.0)
+        assert jnp.isclose(r_large / r_small, (1e5 / 1e3) ** (1.0 / 3.0), rtol=1e-3)
 
-        # Expected: r_J = R * (M_cl / 3M_gal)^(1/3)
-        expected = R_galactic * (M_cluster / (3.0 * M_galaxy)) ** (1.0/3.0)
-        assert jnp.abs(r_J - expected) / expected < 1e-10
-
-    def test_jacobi_scales_with_cluster_mass(self):
-        """More massive clusters have larger tidal radii."""
-        M_galaxy = 1e11
-        R_galactic = 8000.0
-
-        r_J_small = jacobi_radius(1e3, M_galaxy, R_galactic)
-        r_J_large = jacobi_radius(1e5, M_galaxy, R_galactic)
-
-        assert r_J_large > r_J_small
-        # Should scale as M^(1/3)
-        ratio = r_J_large / r_J_small
-        expected_ratio = (1e5 / 1e3) ** (1.0/3.0)
-        assert jnp.abs(ratio - expected_ratio) < 0.01
-
-    def test_jacobi_scales_with_distance(self):
-        """Clusters further from galactic center have larger tidal radii."""
-        M_cluster = 1e4
-        M_galaxy = 1e11
-
-        r_J_inner = jacobi_radius(M_cluster, M_galaxy, 4000.0)
-        r_J_outer = jacobi_radius(M_cluster, M_galaxy, 8000.0)
-
-        assert r_J_outer > r_J_inner
+    def test_scales_with_distance(self):
+        assert jacobi_radius(1e4, 1e11, 8000.0) > jacobi_radius(1e4, 1e11, 4000.0)
 
 
 class TestJacobiRadiusIsothermal:
-    """Tests for isothermal halo Jacobi radius."""
+    """r_J = (G M_cl R^2 / 2 V^2)^(1/3); V_circ must share G's units (pc/Myr)."""
 
-    def test_formula(self):
-        """Jacobi radius scales correctly for isothermal halo."""
-        M_cluster = 1e4
-        V_circ = 220.0  # km/s
-        R_galactic = 8000.0  # pc
-        G = 0.00450  # stellar units
+    def test_satisfies_defining_relation(self):
+        M, V, R, G = 1e4, 225.0, 8000.0, 0.00450  # V in pc/Myr (consistent with G)
+        r_J = jacobi_radius_isothermal(M, V, R, G)
+        # Omega = V/R  =>  r_J^3 = G M / (2 Omega^2) = G M R^2 / (2 V^2)
+        assert jnp.isclose(r_J**3, G * M * R**2 / (2.0 * V**2), rtol=1e-12)
 
-        r_J = jacobi_radius_isothermal(M_cluster, V_circ, R_galactic, G)
+    def test_mass_cube_root_scaling(self):
+        G = 0.00450
+        r1 = jacobi_radius_isothermal(1e4, 225.0, 8000.0, G)
+        r8 = jacobi_radius_isothermal(8e4, 225.0, 8000.0, G)
+        assert jnp.isclose(r8 / r1, 2.0, rtol=1e-3)
 
-        # Should scale as M^(1/3)
-        r_J_2 = jacobi_radius_isothermal(8 * M_cluster, V_circ, R_galactic, G)
-        assert jnp.allclose(r_J_2 / r_J, 2.0, rtol=0.01)
+    def test_finite_positive_for_consistent_units(self):
+        # 220 km/s expressed in pc/Myr (the unit the function requires)
+        r_J = jacobi_radius_isothermal(1e4, 220.0 * 1.0227121651, 8000.0, 0.00450)
+        assert jnp.isfinite(r_J) and r_J > 0.0
 
 
 class TestTidalTruncation:
-    """Tests for tidal truncation of particle distributions."""
+    """Hybrid: exact hard cut (zero-mass), shape-preserving, differentiable in r_t."""
 
-    def test_removes_particles_beyond_r_t(self):
-        """Particles beyond r_t are removed."""
-        N = 1000
-        key = jax.random.PRNGKey(42)
-        positions = jax.random.normal(key, (N, 3)) * 5.0
-        velocities = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
+    def _system(self, N=200, seed=42):
+        pos = jax.random.normal(jax.random.PRNGKey(seed), (N, 3)) * 5.0
+        vel = jax.random.normal(jax.random.PRNGKey(seed + 1), (N, 3))
+        return pos, vel, jnp.ones(N)
 
+    def test_shape_preserving(self):
+        pos, vel, m = self._system()
+        p, v, mt, mask = apply_tidal_truncation(pos, vel, m, 3.0)
+        assert p.shape == pos.shape and v.shape == vel.shape
+        assert mt.shape == m.shape and mask.shape == (m.shape[0],)
+        # positions/velocities returned unchanged (truncated left in place)
+        assert jnp.allclose(p, pos) and jnp.allclose(v, vel)
+
+    def test_forward_is_exact_hard_cut(self):
+        pos, vel, m = self._system()
         r_t = 3.0
-        pos_out, vel_out, mass_out, mask = apply_tidal_truncation(
-            positions, velocities, masses, r_t
-        )
+        _, _, mt, mask = apply_tidal_truncation(pos, vel, m, r_t)
+        radii = jnp.linalg.norm(pos, axis=1)
+        assert jnp.all(mt[radii > r_t] == 0.0)               # outside -> massless
+        assert jnp.allclose(mt[radii <= r_t], m[radii <= r_t])  # inside -> unchanged
+        assert jnp.array_equal(mask, radii <= r_t)
 
-        radii_out = jnp.linalg.norm(pos_out, axis=1)
-        assert jnp.all(radii_out <= r_t + 1e-10)
+    def test_zero_mass_ghosts_are_inert_in_potential_energy(self):
+        from progenax.dynamics.virial import compute_potential_energy
+        pos, vel, m = self._system(N=60)
+        _, _, mt, _ = apply_tidal_truncation(pos, vel, m, 3.0)
+        assert jnp.isfinite(compute_potential_energy(pos, mt, 0.00450, 0.0))
 
-    def test_preserves_particles_within_r_t(self):
-        """Particles within r_t are preserved."""
-        N = 100
-        # All particles well within tidal radius
-        positions = jax.random.normal(jax.random.PRNGKey(42), (N, 3)) * 0.5
-        velocities = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
+    def test_jit_compatible(self):
+        pos, vel, m = self._system()
+        _, _, mt_j, _ = jax.jit(apply_tidal_truncation)(pos, vel, m, 3.0)
+        _, _, mt, _ = apply_tidal_truncation(pos, vel, m, 3.0)
+        assert jnp.allclose(mt_j, mt)
 
-        r_t = 3.0
-        pos_out, vel_out, mass_out, mask = apply_tidal_truncation(
-            positions, velocities, masses, r_t
-        )
+    def test_vmap_over_r_t_monotone(self):
+        pos, vel, m = self._system(N=40)
+        f = lambda rt: apply_tidal_truncation(pos, vel, m, rt)[2].sum()
+        retained = jax.vmap(f)(jnp.array([2.0, 3.0, 4.0]))
+        assert retained.shape == (3,)
+        assert retained[0] <= retained[1] <= retained[2]
 
-        assert jnp.sum(mask) == N  # All preserved
-        assert jnp.allclose(pos_out, positions)
+    def test_retained_mass_grad_wrt_r_t_finite_positive(self):
+        """The capability a hard cut lacks: nonzero gradient w.r.t. r_t."""
+        pos, vel, m = self._system(N=200)
+        g = jax.grad(lambda r_t: apply_tidal_truncation(pos, vel, m, r_t)[2].sum())(3.0)
+        assert jnp.isfinite(g)
+        assert g > 0.0  # widening the truncation radius retains more mass
+
+    def test_surrogate_matches_logistic_derivative(self):
+        """Self-consistency: d(weight)/d(r_t) == sigma(1-sigma)/w (the surrogate)."""
+        r, w = 2.0, 0.1
+        g = jax.grad(lambda r_t: _truncation_weight(jnp.asarray(r_t - r), jnp.asarray(w)))(2.05)
+        s = jax.nn.sigmoid((2.05 - r) / w)
+        assert jnp.isclose(g, s * (1.0 - s) / w, rtol=1e-6)
+
 
 class TestFillFactor:
-    """Tests for fill factor to half-mass radius conversion."""
+    """r_h = fill_factor * r_J (Baumgardt & Makino 2003)."""
 
-    def test_fill_factor_formula(self):
-        """r_h = fill_factor * r_J."""
+    def test_formula(self):
+        assert jnp.isclose(fill_factor_to_r_h(0.2, 10.0), 2.0, atol=1e-12)
+
+    def test_monotone_and_bounded(self):
         r_J = 10.0
-        fill_factor = 0.2
-
-        r_h = fill_factor_to_r_h(fill_factor, r_J)
-
-        assert jnp.abs(r_h - 2.0) < 1e-10
-
-    def test_fill_factor_bounds(self):
-        """Fill factor should be in (0, 1)."""
-        r_J = 10.0
-
-        r_h_low = fill_factor_to_r_h(0.1, r_J)
-        r_h_high = fill_factor_to_r_h(0.5, r_J)
-
-        assert r_h_low < r_h_high
-        assert r_h_low > 0
-        assert r_h_high < r_J
+        assert fill_factor_to_r_h(0.1, r_J) < fill_factor_to_r_h(0.5, r_J)
+        assert 0 < fill_factor_to_r_h(0.1, r_J) < r_J
