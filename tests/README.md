@@ -502,7 +502,7 @@ class PhysicsTolerances:
     EXACT = 1e-10              # Machine precision
     HIGH = 1e-6                # Numerical methods
     STANDARD = 0.05            # 5% (physics + statistics)
-    VIRIAL_RATIO = 0.20        # 20% (statistical + PE approximation)
+    VIRIAL_RATIO = 0.05        # 5% (regime-anchored: ~11-sigma at N=5000)
     HALF_MASS = 0.03           # 3% (half-mass radius)
     VELOCITY_DISPERSION = 0.10 # 10% (velocity statistics)
     BOUND_FRACTION = 1.0       # 100% (all particles bound)

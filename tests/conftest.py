@@ -83,7 +83,10 @@ class PhysicsTolerances:
     QUALITATIVE = 0.20  # 20%
 
     # Specific physics targets
-    VIRIAL_RATIO = 0.20      # Q = T/|V| should be within 20% of 0.5
+    # Q = T/|V| for a sampled Plummer (analytic V) at N=5000: |Q-0.5| ~ 0.002,
+    # 40-seed std 0.005 (max 0.011) -> 0.05 is an ~11-sigma, discriminating bound.
+    # (Was 0.20, which would have accepted a 40%-wrong kinetic energy.)
+    VIRIAL_RATIO = 0.05      # Q = T/|V| within 5% of 0.5 (regime-anchored, N=5000)
     HALF_MASS = 0.03         # Half-mass radius: 3% tolerance
     VELOCITY_DISPERSION = 0.10  # σ(r) profile: 10% tolerance
     CDF_MONOTONIC = 1e-10    # CDF must be strictly increasing
