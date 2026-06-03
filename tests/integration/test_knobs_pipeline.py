@@ -4,6 +4,26 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+# --- QUARANTINED (Batch 0, audit M4) -----------------------------------------
+# This integration test is refactor-orphaned: it exercises a pre-refactor
+# "knobs pipeline" API that no longer exists. The skip is placed ABOVE the
+# progenax imports so the dead `from progenax.profiles.mass_segregation import
+# apply_mass_segregation_baumgardt` (and the removed progenax.substructure.fractal
+# / apply_fractal_overlay_radial) never execute and abort suite collection.
+# Resolution (rewrite to the current energy_sorted_segregation API vs delete) is
+# tracked for Batch 4 per-item approval.
+# See: docs/notes/2026-06-02-knobs-pipeline-stale-test.md
+pytest.skip(
+    "Refactor-orphaned knobs-pipeline test: references the pre-refactor API "
+    "(progenax.profiles.mass_segregation.apply_mass_segregation_baumgardt, since "
+    "redesigned into progenax.cluster.mass_segregation.energy_sorted_segregation "
+    "with an incompatible signature; progenax.substructure.fractal and "
+    "apply_fractal_overlay_radial removed). Quarantined to restore suite "
+    "collection. Tracked in docs/notes/2026-06-02-knobs-pipeline-stale-test.md "
+    "(Batch 4, per-item approval).",
+    allow_module_level=True,
+)
+
 from progenax.profiles import PlummerProfile
 from progenax.kinematics import PlummerVelocityDF
 from progenax.imf import PowerLawIMF
