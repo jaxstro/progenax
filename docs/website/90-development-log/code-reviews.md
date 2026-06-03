@@ -4,6 +4,7 @@ This page is the landing record for full-package technical reviews of progenax.
 
 | Date | Reviewer | Type | Grade | Record |
 |------|----------|------|-------|--------|
+| 2026-06-03 | Claude Opus 4.8 (5-lane follow-up) | Post-hardening regression + new-code audit | **A− (90/100)** | *this page* |
 | 2026-06-01 | Claude Opus 4.8 (multi-agent audit) | Expert scientific audit + code review | **B+ (87/100)** | *this page* |
 | 2025-12-07 | Claude Opus 4.5 | Comprehensive code/architecture/science review | A (95/100) | [`2025-12-07-progenax-review.md`](2025-12-07-progenax-review.md) |
 
@@ -18,6 +19,142 @@ analytic core remains excellent; the grade reflects *correctness and
 reproducibility gaps that block publication-grade results*, not a regression in
 the codebase.
 ```
+
+---
+
+## Follow-up audit — 2026-06-03 (post-hardening)
+
+**Document type:** Regression + new-code audit of the 2026-06 hardening (the 41-commit
+`hardening/audit-2026-06` branch, merged at `644c28f`).
+**Date:** 2026-06-03
+**Reviewer:** Claude Opus 4.8, five independent review lanes (equilibrium-DF physics ·
+differentiability/JAX · gravoturbulence-FDF · testing/reproducibility · code-craft/API/provenance),
+each charged to **re-run** every claim; all Critical/Major findings then independently re-executed
+by the lead reviewer.
+**Scope:** `git diff 22ad6ad..644c28f` (the original audit's commit → the hardening merge):
+**+4,980 / −4,661 across 34 source files**, four >1000-LOC monoliths split into 20 subpackage modules.
+**Package version:** 0.1.0 at `644c28f` (main).
+
+### Bottom line
+
+**Every claim the hardening made is independently verified true.** The King and EFF velocity DFs are
+genuine equilibria (unscaled Q = 0.499–0.502), `c(W₀)` matches King (1966) Table II to ≤0.02, the
+latent King density bug is gone, the BM19 rank copula reproduces `f_dense` at β=4 (0.0548 vs 0.0568,
+realization scatter collapsed to ~0), C1/C2/M5 are correct, test coverage is **85 %** (measured — the
+original audit could not), and the four subpackage splits are byte-identical with zero API loss. The
+original audit's two Criticals and nine Majors are genuinely closed.
+
+**But the follow-up surfaced two new Critical launch-blockers — both "untested twins" of a fix that
+was applied to only one of two call sites:**
+
+| Severity | Count | Headline items |
+|----------|-------|----------------|
+| 🔴 Critical | 2 | The **default/recommended** `mode="bm19"` tail sampler still OOMs (~26 GB @ 5000×64³) — the CI memory fix patched only the `pn11_legacy` twin; `build_spatial_ic` (the flagship public IC, and the CLAUDE.md "fully differentiable" example) **crashes under `jax.grad`** |
+| 🟠 Major | 2 | `compute_potential_energy(softening=0.0)` (the default; the C1 doc example) returns a **NaN gradient**; the M3-guard test `test_phi_copula_reproduces_the_bug` is **seed-fragile** (flaky-CI risk) |
+| 🟡 Minor | ~12 | M3's new `float()` guard makes `init_bm19_density_field` non-grad/JIT; a 4th phantom doc ref (`harmonic_oscillator_1d`); an `energy_sorted_segregation` export overclaim; `profiles/api.py` at 37 % coverage; stale `tests/README.md` & "848" count; 9 functions >100 LOC in the split files; etc. |
+| 🟢 Verified | many | every hardening physics / numerics / reproducibility / API claim (see above) |
+
+**Grade: A− (90/100)** as-is — up from B+ (87) on the back of the now-verified science, the nine
+closed Majors, a measured 85 % coverage, and a green CI gate. It clears to a solid **A** the moment
+the two 🔴 twins are patched: both are one-to-few-line fixes whose correct pattern *already lives in
+the repo* (the `cumsum`+`searchsorted` inverse-CDF for the sampler; dropping the `float()` cast for
+the grad path).
+
+### The two Critical findings (independently re-verified by the lead)
+
+**CR-FU-1 — the `mode="bm19"` (default, recommended) tail sampler still OOMs at production scale.**
+The CI memory fix (`c5d2061`) replaced `jax.random.categorical` with a `cumsum`+`searchsorted`
+inverse-CDF — but **only in the `pn11_legacy` branch** of `cluster/fdf_density/sampling.py`. The
+default path `mode="bm19"` (`cluster/gravoturbulent.py:126`, `cluster/fdf_density/sampling.py:103`,
+both labelled "RECOMMENDED") routes through `sample_positions_tail_bm19` → `sample_positions_from_pmfs`
+→ **`sample_from_pmf` (`cluster/fdf_tail.py:382`)**, which still calls
+`random.categorical(key, log_pmf, shape=(n_samples,))` — Gumbel-max, materializing an
+`(n_samples × n_cells)` array, called twice (tail + smooth). No test exercises it at scale, so CI
+stays green.
+
+*Re-verified (this audit, macOS peak RSS, float64):*
+
+```text
+searchsorted (N=2000, n_cells=262144): peak RSS  0.52 GB  (delta +0.01 GB)
+categorical  (N=2000, n_cells=262144): peak RSS 11.01 GB  (delta +10.49 GB)
+# at N=5000 the categorical materializes ~10.5 GB x2 calls -> ~26 GB OOM
+```
+
+A user following the documented `mode="bm19"` workflow at 5000 stars × 64³ OOMs exactly as the fix
+claimed to prevent. **Fix:** port the same `searchsorted` inverse-CDF into
+`sample_from_pmf` / `sample_positions_from_pmfs`.
+
+**CR-FU-2 — `build_spatial_ic` crashes under `jax.grad`, breaking the headline guarantee on the
+flagship path.** `builders.py:258` does `softening = float(softening)`, where
+`softening = softening_factor · characteristic_radius() / N^{1/3}` — a traced quantity when
+differentiating w.r.t. a profile scale (`r_h`). The package's headline is "fully differentiable IC
+generation," and the CLAUDE.md example differentiates a loss built from `build_spatial_ic`.
+
+*Re-verified (this audit):*
+
+```text
+jax.grad(loss_built_from_build_spatial_ic)(r_h=1.0)
+  -> ConcretizationTypeError at builders.py:258  (float(softening))
+```
+
+The existing grad tests miss it because they re-implement the IC via `sample_positions` /
+`sample_velocities` directly and never call `build_spatial_ic`. **Fix:** `softening =
+jnp.asarray(softening)` (it is only stored on `ICResult` and passed to `virial_scale`, both
+array-safe — the same lesson was already applied at `king.py:240`), plus a
+`jax.grad`-through-`build_spatial_ic` regression test.
+
+### Major / Minor (selected)
+
+- 🟠 **`compute_potential_energy(softening=0.0)` NaN gradient.** `builders.py:132-135` computes
+  `r_soft = sqrt(r² + softening²)` then masks the diagonal with `where(eye, inf, ·)` *after* the
+  `sqrt`. At the default `softening=0`, the diagonal `sqrt(0)` has an infinite derivative the later
+  `where` cannot rescue (`0·inf = nan`). *Re-verified:* `softening=0.0 → grad nan`,
+  `softening=0.01 → finite`. This is the exact call form in the CLAUDE.md C1 example. Fix: mask the
+  `r²` diagonal to a positive constant *before* the `sqrt` (double-`where`).
+- 🟠 **`test_phi_copula_reproduces_the_bug` is seed-fragile** (`tests/validation/test_bm19_field_tail.py`).
+  Its `vals.std() > 0.2·f_dense` assertion fails on 3 of 6 seed-blocks (on some seeds the Φ-copula
+  undersamples so hard the tail nearly vanishes, shrinking the scatter below the bound). The
+  bug-reproduction itself (mean undersampling) is robust; only the scatter bound over-specifies — so
+  a different default seed could flake CI in the very test guarding the headline M3 fix. Fix: assert
+  the robust mean-undersampling signature.
+- 🟡 **M3 introduced a new non-differentiability.** The resolution-guard `float()` at
+  `field_init.py:284` makes `init_bm19_density_field` non-grad/JIT
+  (`ConcretizationTypeError` w.r.t. `sigma_s_sq`, re-verified). Contained — it is a host-side setup
+  routine (also un-JIT-able via the data-dependent `if expected_tail_cells < 5` warn) and not on the
+  `generate_fractal_ic_density` hot path — but it defeats the design doc's "param gradients flow
+  through the CDF table" claim for the standalone function. Guard behind a concreteness check.
+- 🟡 **A 4th phantom doc ref survived the "3 phantom refs" fix:** `harmonic_oscillator_1d()`
+  (CLAUDE.md:217, README.md:86); the real symbol is `harmonic_oscillator`. Separately, CLAUDE.md:207/219
+  lists `energy_sorted_segregation()` under "exported from `progenax.__init__`" though it is not in
+  `__all__` (it exists as `progenax.cluster.energy_sorted_segregation`).
+- 🟡 **`profiles/api.py` at 37 % coverage** — the one core-adjacent module below 60 % (the
+  `make_profile` / `compute_profile_potential` dispatch wrapper; the physics modules it dispatches to
+  are 97–100 %). Plus a stale `tests/README.md` (still lists the disproven `c≈0.8` and references the
+  removed `king_K_function` tests) and a stale "collects 848" count (now 855).
+
+### What the hardening got right (independently confirmed)
+
+Equilibrium DFs re-derived from King (1966) / B&T (2008) eq. 4.46 and re-run: King lowered-Maxwellian
+Q = 0.4995–0.5025 unscaled, EFF Eddington f(E) ≥ 0 with Q ≈ 0.50 (γ=5); `c(W₀)` =
+0.681 / 1.034 / 1.529 / 2.119 vs Table II 0.67 / 1.03 / 1.53 / 2.12. C2 grad finite (FD rel-err 9.5e-9)
+and JIT-safe. BM19 rank copula Spearman(g,s) = 1.000000 (monotone), f_tail 0.0548 vs analytic f_dense
+0.0568 at β=4 with ~0 scatter; the resolution guard fires exactly at `expected_tail_cells < 5`; and the
+inverse-CDF fix that *was* applied is distribution-faithful (χ²/dof = 1.02, zero leak into zero-prob
+cells). Coverage 85 % (854 passed / 1 deselected, 0 collection errors, 0 unknown-mark warnings); the
+new modules are 95–100 % covered; tolerances were genuinely tightened (virial 0.20→0.05, fractal/median
+0.30→0.05) and the King/EFF tests assert the *unscaled* Q that truly tests M1/M2. uv.lock +
+`[tool.uv.sources]` + `uv sync --locked` CI are wired; API parity is byte-identical with deterministic
+RNG; M8 provenance (Jeřábková 2018 / Marks 2012) is pinned to specific equations/tables.
+
+### Methodology & limitations
+
+Five lanes read the source directly and re-ran claims against the installed package (`.venv`,
+JAX 0.10.1, float64); the lead independently re-executed every Critical/Major (the F1 / F3 / OOM / F2
+re-runs above). Lane sub-grades: physics 96, differentiability 78, gravoturbulence 78, testing 94,
+craft 94. **Limitations:** as in the original audit, no long N-body integration of the generated ICs
+was run (equilibrium rests on unscaled virial ratios + DF re-derivation, not evolved relaxation), and
+the OOM was confirmed by RSS scaling at N=2000 plus the materialization arithmetic rather than by
+allocating the full ~26 GB.
 
 ---
 
