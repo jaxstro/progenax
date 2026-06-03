@@ -1,7 +1,14 @@
 # Stale test: `tests/integration/test_knobs_pipeline.py`
 
-**Opened:** 2026-06-02 · **Status:** Quarantined (module-level skip) · **Owner decision due:** Batch 4
-**Source:** Batch 0 of the 2026-06 hardening effort (audit finding **M4**)
+**Opened:** 2026-06-02 · **Status:** ✅ **RESOLVED — deleted 2026-06-02 (Batch 2)** · **Source:** Batch 0 (audit **M4**)
+
+> **Resolution (Anna: "remove or refactor stale tests"):** the file was **deleted**. It
+> uniquely tested only the two *removed* functions (`apply_mass_segregation_baumgardt`,
+> `apply_fractal_overlay_radial`); every still-existing API it touched is covered elsewhere
+> (`energy_sorted_segregation` → `test_mass_segregation.py`/`test_cluster_ic.py`,
+> `generate_two_component_cluster` → `test_populations.py`, binaries → `test_population.py`,
+> anisotropy/rotation/tidal/fractal each in their own unit tests). So deletion lost **no**
+> coverage of existing functionality. The diagnosis below is retained as a record.
 
 ## Summary
 
