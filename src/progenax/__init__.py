@@ -60,6 +60,7 @@ from .cluster.fractal_gw_legacy import (
     rescale_fractal_to_target_radii,
     assign_velocities_and_virialize,
 )
+from .cluster import energy_sorted_segregation
 from .populations import (
     TwoComponentConfig,
     generate_two_component_cluster,
@@ -121,6 +122,8 @@ __all__ = [
     "generate_fractal_positions",
     "rescale_fractal_to_target_radii",
     "assign_velocities_and_virialize",
+    # Mass segregation
+    "energy_sorted_segregation",
     # Two-component populations
     "TwoComponentConfig",
     "generate_two_component_cluster",
