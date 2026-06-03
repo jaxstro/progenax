@@ -88,6 +88,23 @@ class TestThermalEccentricity:
         u_recovered = dist.cdf(e_vals)
         assert jnp.allclose(u_recovered, u_vals, atol=1e-10)
 
+    def test_canonical_moments_emax1(self):
+        """Canonical thermal f(e)=2e on [0,1]: <e>=2/3 and <e^2>=1/2.
+
+        The existing mean test folds e_max into the expectation; this pins the
+        textbook moments at e_max=1. Checking both moments jointly constrains the
+        f(e)=2e shape (a wrong exponent e^k shifts both). At N=5e4, SEM ~1e-3, so
+        the +/-0.01 bound is ~7-10 sigma.
+
+        Reference: Jeans (1919); Heggie (1975) MNRAS 173, 729.
+        """
+        dist = ThermalEccentricity(e_max=1.0)
+        samples = dist.sample(jax.random.PRNGKey(0), 50000)
+        mean_e = jnp.mean(samples)
+        mean_e2 = jnp.mean(samples ** 2)
+        assert jnp.abs(mean_e - 2.0 / 3.0) < 0.01, f"<e>={float(mean_e):.4f}, expected 2/3"
+        assert jnp.abs(mean_e2 - 0.5) < 0.01, f"<e^2>={float(mean_e2):.4f}, expected 1/2"
+
 
 class TestUniformEccentricity:
     """Test uniform eccentricity distribution."""
