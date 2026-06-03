@@ -372,5 +372,17 @@ class TestKingEquilibriumVelocityDF:
             )
 
 
+def test_concentration_matches_king1966_table_ii():
+    """c(W0)=log10(r_t/r_c) must match King (1966) Table II to <=0.02 (audit M6 guard).
+    Reference c: W0=3 -> 0.67, W0=7 -> 1.53, W0=9 -> 2.12 (King 1966; B&T 2008)."""
+    import jax.numpy as jnp
+    from progenax import KingProfile
+    ref = {3.0: 0.67, 7.0: 1.53, 9.0: 2.12}
+    for w0, c_ref in ref.items():
+        p = KingProfile.from_W0_rc(W0=w0, r_c=1.0)
+        c = float(jnp.log10(p.r_t / p.r_c))
+        assert abs(c - c_ref) <= 0.02, f"W0={w0}: c={c:.3f} vs King Table II {c_ref} (>0.02)"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
