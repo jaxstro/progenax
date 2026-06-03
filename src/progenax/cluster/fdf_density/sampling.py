@@ -278,17 +278,26 @@ def sample_positions_tail(
     N_dense = jnp.clip(N_dense_float, 0, N_stars).astype(jnp.int32)
     N_smooth = N_stars - N_dense
 
-    # Step 6: Sample from each component via categorical
+    # Step 6: Sample from each component via inverse-CDF (searchsorted).
+    #
+    # NB: random.categorical(logits=(n_cells,), shape=(N_stars,)) is Gumbel-max,
+    # which materialises an (N_stars, n_cells) array -- 5000 x 64^3 ~ 10 GB each,
+    # ~23 GB total -> OOM. Inverse-CDF sampling is O(N_stars log n_cells) with no
+    # large intermediate (same approach as sample_positions_from_density) and draws
+    # from the identical PMF.
     key_dense, key_smooth, key_jitter = random.split(key, 3)
 
-    # Sample sorted indices from dense PMF
-    # categorical samples from logits, so we use log(p)
-    log_p_dense = jnp.log(p_dense + 1e-30)
-    dense_sorted_idx = random.categorical(key_dense, log_p_dense, shape=(N_stars,))
+    cdf_dense = jnp.cumsum(p_dense)
+    dense_sorted_idx = jnp.clip(
+        jnp.searchsorted(cdf_dense, random.uniform(key_dense, (N_stars,))),
+        0, n_cells - 1,
+    )
 
-    # Sample sorted indices from smooth PMF
-    log_p_smooth = jnp.log(p_smooth + 1e-30)
-    smooth_sorted_idx = random.categorical(key_smooth, log_p_smooth, shape=(N_stars,))
+    cdf_smooth = jnp.cumsum(p_smooth)
+    smooth_sorted_idx = jnp.clip(
+        jnp.searchsorted(cdf_smooth, random.uniform(key_smooth, (N_stars,))),
+        0, n_cells - 1,
+    )
 
     # Convert sorted indices back to original flat indices
     dense_flat_idx = sort_idx[dense_sorted_idx]
