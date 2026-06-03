@@ -1168,6 +1168,13 @@ def generate_fractal_ic_density(
             # Map "gravoturbulent" to "bm19" for sample_positions_tail
             if tail_mode == "gravoturbulent":
                 tail_mode = "bm19"
+        elif tail_mode == "pn11" and tail.result is not None:
+            # PN11 uses the critical log-density s_crit as its threshold (PN11Result
+            # has s_crit, not s_t); route through the BM19 s>s_t sampler with
+            # s_t = s_crit. Previously unrouted -> ValueError "Invalid mode 'pn11'"
+            # (audit minor).
+            tail_s_t = float(tail.result.s_crit)
+            tail_mode = "bm19"
         elif tail_mode == "direct" or tail_mode in ("cluster_type", "D_mapping"):
             # Direct/cluster_type/D_mapping modes have no BM19 result
             # Fall back to legacy mode
