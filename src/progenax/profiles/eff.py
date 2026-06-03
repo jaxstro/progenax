@@ -21,27 +21,33 @@ class EFFProfile(eqx.Module):
     """
     EFF (Elson-Fall-Freeman 1987) truncated power-law profile.
 
-    Density profile:
+    3-D volume density:
         rho(r) = rho_0 * (1 + r^2/a^2)^{-gamma/2}  for r <= r_t
                = 0                                   for r > r_t
 
-    This profile is commonly used for young massive clusters and has no
-    analytic distribution function (velocities must be assigned separately).
+    Provenance note: Elson, Fall & Freeman (1987) Eq. 1 defines this functional
+    form as the *projected surface brightness* mu(r), with gamma the surface
+    (projected) slope (their median ~2.6). Here we adopt the same form as the
+    3-D *volume* density -- the standard N-body / IC-code convention -- so this
+    ``gamma`` is a 3-D density slope, offset by ~1 from EFF87's surface slope
+    (Abel projection of r^-gamma gives a surface slope gamma-1). At gamma=5 the
+    form reduces exactly to Plummer. No closed-form DF; velocities are assigned
+    via Eddington inversion in kinematics.EFFVelocityDF.
 
     The CDF is precomputed at initialization for efficient sampling.
 
     Attributes:
-        a: Scale radius [length units] (core-like region)
-        gamma: Power-law index (concentration parameter)
-               - gamma=2.0: Shallow, extended profile
-               - gamma=3.0: Intermediate (typical for young clusters)
-               - gamma=4.0: Steep, concentrated profile
+        a: Scale radius [length units]
+        gamma: 3-D density power-law slope (rho ~ r^-gamma at r >> a)
+               - gamma=3.0: typical young-cluster 3-D slope
+               - gamma=5.0: reduces to the Plummer profile
         r_t: Tidal/truncation radius [length units]
         _r_grid: Precomputed radial grid for CDF interpolation
         _cdf_grid: Precomputed CDF values on grid
 
     References:
-        Elson, Fall & Freeman (1987), ApJ, 323, 54, Eq. 1
+        Elson, Fall & Freeman (1987), ApJ, 323, 54 (Eq. 1 = surface brightness,
+        used here as the 3-D volume density; see docs bibliography note).
     """
 
     a: Float[Array, ""]

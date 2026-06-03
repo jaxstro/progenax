@@ -469,11 +469,14 @@ class KingProfile(eqx.Module):
         """
         Unnormalized density profile rho(r)/rho_0.
 
-        The King density is:
-            rho(r)/rho_0 = [K(W0) - K(W0 - psi(r))] / K(W0)
-
-        where K is the King K-function and psi(r) is the dimensionless
-        potential obtained from interpolating the ODE solution.
+        The King density is the lowered-Maxwellian *volume* density,
+        normalized to 1 at the centre:
+            rho(r)/rho_0 = rho_hat(psi(r)) / rho_hat(W0)
+        with rho_hat(W) = e^W erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3)
+        (king_lowered_maxwellian_density; BT2008 Eq. 4.131), and psi(r) the
+        dimensionless potential from interpolating the ODE solution. (The
+        earlier K-function / incomplete-gamma form is the *projected* density
+        and over-extends the profile by 2-30x; it is NOT used here.)
 
         This method returns the unnormalized form (rho_0=1), useful for
         plotting and analysis with jaxstroviz.

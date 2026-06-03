@@ -29,6 +29,19 @@ power-law slope $\gamma$. The structural similarity to Plummer (which
 is exactly EFF at $\gamma = 5$) is intentional — EFF generalises Plummer
 by exposing the outer slope as a free parameter.
 
+```{admonition} progenax's $\gamma$ is a 3-D density slope, not EFF87's surface slope
+:class: important
+{cite:t}`ElsonFallFreeman1987` Eq. 1 defines $\mu(r) = \mu_0(1+r^2/a^2)^{-\gamma/2}$ as the
+**projected surface brightness** (their $\gamma \in [2.2, 3.2]$, median 2.6, is the *surface*
+slope). progenax adopts the **same functional form as the 3-D volume density** $\rho(r)$ above —
+the standard N-body/IC-code convention (e.g. McLuster). So **progenax's $\gamma$ is a 3-D
+density slope**, offset by $\approx 1$ from EFF87's observed surface slope (Abel projection of a
+3-D power law $r^{-\gamma}$ gives a surface power law $r^{-(\gamma-1)}$). Thus EFF87's median
+surface slope $\gamma_{\rm EFF}\approx 2.6$ corresponds to a progenax 3-D slope $\approx 3.6$;
+the mass-convergence thresholds in the table below ($\gamma > 3$) are 3-D-density statements.
+See [](../../99-bibliography/per-paper/elson-fall-freeman-1987.md).
+```
+
 ```{list-table} EFF behaviour vs. $\gamma$.
 :header-rows: 1
 

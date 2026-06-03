@@ -1,6 +1,6 @@
 ---
 title: King profile validation
-description: "Validation suite for the King profile + matched velocity DF: ODE integration vs LIMEPY reference, tidal truncation, W₀ sweep."
+description: "Validation suite for the King profile + matched velocity DF: ODE integration vs King 1966 Table II, tidal truncation, W₀ sweep."
 ---
 # King profile validation
 
@@ -15,18 +15,15 @@ the matched velocity DF. Test file: `tests/validation/test_king_physics.py`.
 * - Property
   - Tolerance
   - Anchor
-* - ODE solution at $W_0 = 5, 7, 9$
-  - 0.1% rel
-  - {cite:t}`Gieles2015` LIMEPY at $g = 1$
-* - Tidal radius $\xi_t$
-  - 0.5% rel
-  - LIMEPY $\xi_t(W_0)$
-* - Concentration $c = \log_{10}(\xi_t)$
-  - 0.5% rel
-  - $c(W_0)$ from ODE
-* - $r_h / r_c$ vs $W_0$
-  - 1% rel
-  - LIMEPY interpolation table
+* - Tidal radius $\xi_t = r_t/r_c$ from the ODE
+  - $\le 0.03$ in $\log_{10}$
+  - {cite:t}`King1966` Table II ($c$ column)
+* - Concentration $c = \log_{10}(\xi_t)$ at $W_0 = 3,5,7,9$
+  - $\le 0.02$–$0.03$ abs
+  - {cite:t}`King1966` Table II ($\log c$)
+* - $r_h / r_c$ varies with $W_0$
+  - positivity + monotone trend
+  - Integrated mass profile (code)
 * - Density profile sampling
   - KS p-value $> 0.05$ at $N = 10^4$
   - Inverse-CDF on integrated $M(<\xi)$
@@ -43,29 +40,25 @@ the matched velocity DF. Test file: `tests/validation/test_king_physics.py`.
 
 ## Spot results at $W_0 = 7$
 
-```{list-table}
+```{list-table} progenax vs King (1966) Table II at $W_0 = 7$.
 :header-rows: 1
 
 * - Quantity
-  - LIMEPY
+  - King 1966 Table II
   - progenax
   - Match
-* - $\xi_t = r_t/r_c$
-  - $30.95$
-  - $30.94$
-  - 0.03%
-* - $c$
-  - $1.491$
-  - $1.491$
-  - $< 0.001$
-* - $r_h/r_c$
-  - $3.49$
-  - $3.49$
+* - $\xi_t = r_t/r_c$ (Table II $c$)
+  - $33.71$
+  - $33.75$
   - 0.1%
-* - $\sigma_0/\sqrt{GM/r_c}$
-  - $0.667$
-  - $0.667$
-  - 0.05%
+* - concentration $\log_{10}\xi_t$
+  - $1.528$
+  - $1.528$
+  - exact
+* - $r_h/r_c$ (computed; not in Table II)
+  - —
+  - $3.92$
+  - —
 ```
 
 ## How to run

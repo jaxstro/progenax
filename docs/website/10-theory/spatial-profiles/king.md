@@ -122,7 +122,7 @@ c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t).
 For Galactic globular clusters, observational fits give $c$ in the
 range $\sim 0.7$–$2.5$, corresponding to $W_0 \sim 5$–$10$:
 
-```{list-table} $W_0 \to (\xi_t, c, r_h/r_c)$ mapping for the King profile.
+```{list-table} $W_0 \to (\xi_t, c, r_h/r_c)$ mapping for the King profile. The $\xi_t$ and $c$ columns reproduce King (1966) Table II; $r_h/r_c$ is computed from the integrated mass profile.
 :header-rows: 1
 
 * - $W_0$
@@ -131,30 +131,25 @@ range $\sim 0.7$–$2.5$, corresponding to $W_0 \sim 5$–$10$:
   - $r_h / r_c$
   - Cluster type
 * - 3
-  - 7.4
-  - 0.87
-  - 2.4
+  - 4.70
+  - 0.67
+  - 1.26
   - Diffuse, low-density
 * - 5
-  - 14
-  - 1.15
-  - 3.0
+  - 10.70
+  - 1.03
+  - 2.00
   - Typical low-concentration GC
 * - 7
-  - 31
-  - 1.49
-  - 3.5
+  - 33.7
+  - 1.53
+  - 3.92
   - Average Milky Way GC
 * - 9
-  - 100
-  - 2.0
-  - 4.0
+  - 131
+  - 2.12
+  - 15.4
   - High-concentration GC
-* - 11
-  - 700
-  - 2.85
-  - 4.4
-  - Approaching core-collapse
 ```
 
 The $r_h$ column shows that — unlike Plummer's $a/r_h \approx 0.766$
