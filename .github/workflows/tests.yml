@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAX_ENABLE_X64: "1"
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+
+      # progenax depends on the sibling repo jaxstro (not on PyPI). Check it out
+      # alongside and install it editable so the bare `jaxstro` dependency resolves.
+      - name: Checkout jaxstro (path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: .jaxstro-src
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Create venv
+        run: uv venv --python 3.13
+
+      # Install jaxstro first (with deps -> brings jax/jaxlib/jaxtyping/numpy/scipy),
+      # then progenax with --no-deps (so uv does not try to resolve `jaxstro` from PyPI),
+      # then the test toolchain. Mirrors the documented local setup.
+      - name: Install jaxstro (editable)
+        run: uv pip install -e ./.jaxstro-src
+
+      - name: Install progenax (editable, no deps)
+        run: uv pip install -e . --no-deps
+
+      - name: Install test dependencies
+        run: uv pip install pytest pytest-cov equinox diffrax
+
+      # --no-sync: use the venv we just built; do NOT re-resolve pyproject (the bare
+      # `jaxstro` dependency is not on PyPI and would fail a sync).
+      - name: Run fast suite
+        run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term

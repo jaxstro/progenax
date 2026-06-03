@@ -26,3 +26,16 @@ packages = ["src/progenax"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+markers = [
+    "unit: fast isolated unit tests",
+    "integration: cross-module integration tests",
+    "validation: scientific validation tests (physics/statistics)",
+    "slow: expensive tests excluded from the fast CI gate",
+]
+
+[tool.coverage.run]
+source = ["progenax"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
