@@ -255,7 +255,10 @@ def build_spatial_ic(
     softening = softening_factor * d_mean
     if softening_floor is not None:
         softening = jnp.maximum(softening, softening_floor)
-    softening = float(softening)
+    # Keep softening as a JAX scalar so build_spatial_ic stays differentiable
+    # (float() concretized a tracer -> broke jax.grad wrt r_h; audit CR-FU-2).
+    # It is only stored on ICResult and passed to virial_scale, both array-safe.
+    softening = jnp.asarray(softening)
 
     # 4. Compute stellar radii
     stellar_radii = compute_stellar_radii(masses)
