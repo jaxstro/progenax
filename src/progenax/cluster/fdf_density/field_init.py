@@ -169,6 +169,7 @@ def init_bm19_density_field(
     grid_size: int = 64,
     box_half_size: float = 1.0,
     beta: float = 4.0,
+    copula: str = "rank",
 ) -> DensityField3D:
     """Initialize a 3D turbulent density field with BM19 LN+PL PDF.
 
@@ -276,8 +277,32 @@ def init_bm19_density_field(
     # Build BM19 CDF table
     s_grid, F_grid = build_bm19_cdf_table(sigma_s_sq, s_t, alpha)
 
-    # Apply CDF remap: g -> u = Φ(g) -> s = F_V^{-1}(u)
-    s_field = gaussian_to_bm19(g_standardized, sigma_s_sq, s_t, alpha, s_grid, F_grid)
+    # Resolution guard (audit M3): if the dense tail's count-probability 1 - F_V(s_t)
+    # is below ~a few cells per N^3, even the exact (rank) copula cannot place a tail
+    # cell, so f_tail reads low regardless of copula. Warn so the user raises grid_size
+    # rather than silently undersampling.
+    tail_prob = float(jnp.clip(1.0 - jnp.interp(s_t, s_grid, F_grid), 0.0, 1.0))
+    expected_tail_cells = tail_prob * (Nx * Ny * Nz)
+    if expected_tail_cells < 5.0:
+        import warnings
+
+        need = 5.0 / max(tail_prob, 1e-30)
+        warnings.warn(
+            f"BM19 dense tail under-resolved at grid_size={grid_size}: only "
+            f"~{expected_tail_cells:.1f} cells expected above s_t={s_t:.2f} "
+            f"(tail probability {tail_prob:.2e}). Realized f_tail will read low even "
+            f"with the rank copula; increase grid_size (need N^3 >~ {need:.0e}).",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    # Apply CDF remap: g -> u -> s = F_V^{-1}(u).
+    # Default copula="rank" (empirical CDF) forces the exact BM19 marginal at any
+    # beta; the legacy "phi" (normal CDF) collapses the dense tail at steep beta
+    # because the realized GRF is non-Gaussian (audit M3).
+    s_field = gaussian_to_bm19(
+        g_standardized, sigma_s_sq, s_t, alpha, s_grid, F_grid, copula=copula
+    )
 
     # Convert to density
     rho = jnp.exp(s_field)

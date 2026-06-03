@@ -281,12 +281,19 @@ def gaussian_to_bm19(
     alpha: float,
     s_grid: Array | None = None,
     F_grid: Array | None = None,
+    copula: str = "rank",
 ) -> Array:
-    """Transform Gaussian field to BM19 LN+PL distribution via CDF remap.
+    """Transform a Gaussian field to the BM19 LN+PL distribution via a CDF remap.
 
     This is the main interface for generating BM19-distributed fields:
 
-        g(x) ~ N(0,1)  ->  u(x) = Phi(g(x))  ->  s(x) = F_V^{-1}(u(x))
+        g(x)  ->  u(x) in (0,1)  ->  s(x) = F_V^{-1}(u(x))
+
+    where u is the field's *uniform* image. ``copula="rank"`` (default) uses the
+    empirical CDF of g (Gaussian anamorphosis), so u is exactly uniform and the BM19
+    marginal is reproduced at ANY power-spectrum slope. ``copula="phi"`` is the
+    legacy normal-CDF form u = Phi(g), which assumes g ~ N(0,1) and collapses the
+    dense tail at steep beta where the realized GRF is non-Gaussian (audit M3).
 
     Parameters
     ----------
@@ -328,13 +335,22 @@ def gaussian_to_bm19(
     if s_grid is None or F_grid is None:
         s_grid, F_grid = build_bm19_cdf_table(sigma_s_sq, s_t, alpha)
 
-    # Transform Gaussian to uniform via standard normal CDF
-    # Phi(g) = 0.5 * (1 + erf(g / sqrt(2)))
-    u = 0.5 * (1.0 + erf(g / jnp.sqrt(2.0)))
-
-    # Flatten for inverse CDF lookup
     original_shape = g.shape
-    u_flat = u.flatten()
+    g_flat = g.flatten()
+
+    # Map the Gaussian field to a uniform image u in (0,1).
+    if copula == "rank":
+        # Empirical-CDF copula: u is EXACTLY uniform by construction, so the BM19
+        # marginal (hence f_tail = f_dense) is reproduced at any beta. The rank is
+        # monotone -> spatial correlations preserved; it acts on the frozen
+        # realization, so parameter gradients (through the CDF table) are unaffected.
+        ranks = jnp.argsort(jnp.argsort(g_flat))
+        u_flat = (ranks + 0.5) / g_flat.size
+    elif copula == "phi":
+        # Legacy normal-CDF form; only correct when g is marginally N(0,1).
+        u_flat = 0.5 * (1.0 + erf(g_flat / jnp.sqrt(2.0)))
+    else:
+        raise ValueError(f"Unknown copula '{copula}'. Use 'rank' (default) or 'phi'.")
 
     # Apply inverse CDF
     s_flat = bm19_icdf(u_flat, s_grid, F_grid)
