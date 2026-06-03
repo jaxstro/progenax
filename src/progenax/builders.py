@@ -18,6 +18,10 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from .protocols import SpatialProfile, VelocityDF
+# Single canonical energy implementation lives in dynamics.virial; re-export it
+# here so the public API (progenax.compute_*_energy) and virial_scale share one
+# gradient-safe source of truth (Batch 0, F1+F2).
+from .dynamics.virial import compute_kinetic_energy, compute_potential_energy
 
 
 @dataclass(frozen=True)
@@ -84,65 +88,6 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     )(masses)
 
     return radii
-
-
-def compute_kinetic_energy(
-    velocities: Float[Array, "N 3"],
-    masses: Float[Array, "N"],
-) -> Float[Array, ""]:
-    """
-    Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
-
-    Args:
-        velocities: Particle velocities (N, 3)
-        masses: Particle masses (N,)
-
-    Returns:
-        Total kinetic energy
-    """
-    v_squared = jnp.sum(velocities**2, axis=1)
-    return 0.5 * jnp.sum(masses * v_squared)
-
-
-def compute_potential_energy(
-    positions: Float[Array, "N 3"],
-    masses: Float[Array, "N"],
-    G: float,
-    softening: float = 0.0,
-) -> Float[Array, ""]:
-    """
-    Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
-
-    Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2)
-
-    Args:
-        positions: Particle positions (N, 3)
-        masses: Particle masses (N,)
-        G: Gravitational constant
-        softening: Softening length (default: 0)
-
-    Returns:
-        Total potential energy (negative)
-    """
-    N = positions.shape[0]
-
-    # Pairwise distances (vectorized)
-    diff = positions[:, None, :] - positions[None, :, :]  # (N, N, 3)
-    r_squared = jnp.sum(diff**2, axis=2)  # (N, N)
-    eye = jnp.eye(N, dtype=bool)
-    # Double-where: feed the diagonal a safe positive value BEFORE sqrt (else the
-    # diagonal sqrt(0) derivative is inf and 0*inf=nan survives a later where), then
-    # set the diagonal to inf so the i<j sum drops it.
-    r_squared_safe = jnp.where(eye, 1.0, r_squared + softening**2)
-    r_soft = jnp.where(eye, jnp.inf, jnp.sqrt(r_squared_safe))
-
-    # Mass products
-    m_prod = masses[:, None] * masses[None, :]  # (N, N)
-
-    # Sum upper triangle (i < j)
-    V = -G * jnp.sum(jnp.triu(m_prod / r_soft, k=1))
-
-    return V
 
 
 def to_com_frame(

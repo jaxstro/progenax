@@ -28,18 +28,23 @@ def compute_potential_energy(
 ) -> Float[Array, ""]:
     """Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
 
-    Returns negative value (bound systems have V < 0).
+    Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2). Returns a negative
+    value (bound systems have V < 0).
+
+    Differentiable at ``softening=0``: a double-``where`` feeds the diagonal a
+    safe positive value *before* ``sqrt`` (otherwise the diagonal ``sqrt(0)``
+    derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
+    sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
+    canonical energy implementation; ``progenax.builders`` re-exports it.
     """
-    # Pairwise distances
+    N = positions.shape[0]
     diff = positions[:, None, :] - positions[None, :, :]  # (N, N, 3)
-    r2 = jnp.sum(diff**2, axis=-1) + softening**2  # (N, N)
-    r = jnp.sqrt(r2)
-
-    # Mass products
+    r_squared = jnp.sum(diff**2, axis=2)  # (N, N)
+    eye = jnp.eye(N, dtype=bool)
+    r_squared_safe = jnp.where(eye, 1.0, r_squared + softening**2)
+    r_soft = jnp.where(eye, jnp.inf, jnp.sqrt(r_squared_safe))
     m_prod = masses[:, None] * masses[None, :]  # (N, N)
-
-    # Upper triangle only (i < j)
-    V = -G * jnp.sum(jnp.triu(m_prod / (r + 1e-10), k=1))
+    V = -G * jnp.sum(jnp.triu(m_prod / r_soft, k=1))
     return V
 
 
