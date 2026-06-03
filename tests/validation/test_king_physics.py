@@ -262,9 +262,10 @@ class TestKingLoweredMaxwellianDensity:
     density shape.
     """
 
-    # King (1966), AJ 71, 64, Table II: c = log10(r_t/r_c) vs W0.
+    # King (1966), AJ 71, 64, Table II (log c column): c = log10(r_t/r_c) vs W0.
+    # Table II begins at W0=2.5; W0<2.5 is not tabulated, so it is not asserted here.
     @pytest.mark.parametrize(
-        "W0,c_ref", [(1, 0.30), (3, 0.67), (5, 1.03), (7, 1.53), (9, 2.12)]
+        "W0,c_ref", [(3, 0.67), (5, 1.03), (7, 1.53), (9, 2.12)]
     )
     def test_concentration_matches_king_table_ii(self, W0, c_ref):
         prof = KingProfile.from_W0_rc(float(W0), 1.0, xi_max=400.0, n_ode_points=8000)
