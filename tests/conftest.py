@@ -118,56 +118,6 @@ def key_factory():
 
 
 # =============================================================================
-# Profile Factories
-# =============================================================================
-
-@pytest.fixture
-def plummer_profile():
-    """Standard Plummer profile for testing."""
-    from progenax.profiles import PlummerProfile
-    return PlummerProfile(r_h=1.0)
-
-
-@pytest.fixture
-def king_profile():
-    """Standard King profile for testing (W0=7, moderate concentration)."""
-    from progenax.profiles import KingProfile
-    return KingProfile(W0=7.0, r_c=1.0, r_t=10.0)
-
-
-@pytest.fixture
-def eff_profile():
-    """Standard EFF profile for testing."""
-    from progenax.profiles import EFFProfile
-    return EFFProfile(a=1.0, gamma=3.0, r_t=10.0)
-
-
-# =============================================================================
-# Velocity DF Factories
-# =============================================================================
-
-@pytest.fixture
-def plummer_df():
-    """Standard Plummer velocity DF for testing."""
-    from progenax.kinematics import PlummerVelocityDF
-    return PlummerVelocityDF(r_h=1.0)
-
-
-@pytest.fixture
-def king_df():
-    """Standard King velocity DF for testing."""
-    from progenax.kinematics import KingVelocityDF
-    return KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
-
-
-@pytest.fixture
-def eff_df():
-    """Standard EFF velocity DF for testing."""
-    from progenax.kinematics import EFFVelocityDF
-    return EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
-
-
-# =============================================================================
 # IMF Factories
 # =============================================================================
 
