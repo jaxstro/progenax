@@ -32,7 +32,7 @@ counts $F(r)$, and the **projected** counts $f(r)$ / $\Sigma(r)$ (perpendicular 
 sight). Schuster's $\gamma = 1.2$ polytrope solution (his Eq. 11) gives the **space density**
 
 ```{math}
-:label: plummer-rho
+:label: plummer-1911-rho
 \phi(r) = N\,(1 + r^2)^{-5/2}   \qquad\text{(Plummer Eq. 11–12, in units of the scale radius } a=1\text{)}
 ```
 

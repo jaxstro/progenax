@@ -4,7 +4,7 @@ Velocity distribution functions and transforms for initial conditions.
 This module provides velocity sampling from various distribution functions:
 - PlummerVelocityDF: Exact Plummer (1911) DF using Beta distribution
 - KingVelocityDF: King (1966) lowered Maxwellian with escape velocity cutoff
-- EFFVelocityDF: Isotropic Gaussian for EFF profiles
+- EFFVelocityDF: Isotropic ergodic DF for EFF profiles via Eddington inversion
 
 Velocity transforms:
 - apply_osipkov_merritt: Osipkov-Merritt radial anisotropy

@@ -84,8 +84,12 @@ def apply_differential_rotation(
     Returns:
         Velocities with differential rotation added (N, 3)
 
-    Reference:
-        Lynden-Bell (1960) MNRAS 120, 204
+    Note:
+        The peaked form v_phi(R) = v_peak (R/R_peak) exp(1 - R/R_peak) is a
+        *phenomenological* rotation curve (smooth rise to a single peak at R_peak,
+        then decay) chosen for convenience -- it is NOT taken from a specific paper.
+        Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
+        stellar systems in general, not for this functional form.
     """
     # Normalize axis with epsilon safeguard
     axis_mag = jnp.linalg.norm(axis)

@@ -43,7 +43,7 @@ class PlummerVelocityDF(eqx.Module):
         Plummer (1911), MNRAS, 71, 460 - Original Plummer model
         Aarseth (2003), "Gravitational N-Body Simulations", Section 4.3.2
         Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-        Dehnen (1993), MNRAS, 265, 250 - Exact analytical DF
+        Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
     Notes:
         - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
@@ -172,7 +172,7 @@ class PlummerVelocityDF(eqx.Module):
             Plummer (1911), MNRAS, 71, 460 - Original Plummer model
             Aarseth (2003), "Gravitational N-Body Simulations", Section 4.3.2
             Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-            Dehnen (1993), MNRAS, 265, 250 - Exact analytical DF
+            Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
         Notes:
             - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)

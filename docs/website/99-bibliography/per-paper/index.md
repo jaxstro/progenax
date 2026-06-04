@@ -19,6 +19,10 @@ The pages are organised alphabetically by first-author surname.
 - [](king-1966.md)
 - [](elson-fall-freeman-1987.md)
 
+## Velocity distribution functions
+
+- [](merritt-1985.md)
+
 ## Initial mass functions
 
 - [](salpeter-1955.md)
