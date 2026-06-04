@@ -11,6 +11,8 @@ import equinox as eqx
 from jaxtyping import Array, Float
 from typing import NamedTuple
 
+from .kepler_inverse import orbital_elements_from_state
+
 
 class CartesianState(NamedTuple):
     """Cartesian phase-space state of a single body.
@@ -299,114 +301,12 @@ class KeplerElements(eqx.Module):
             - Unbound orbits (E ≥ 0) return a = infinity
             - All angles wrapped to [0, 2π)
         """
-        r = position
-        v = velocity
-
-        # Compute magnitudes
-        r_mag = jnp.sqrt(jnp.sum(r**2))
-        v_mag = jnp.sqrt(jnp.sum(v**2))
-
-        # Specific orbital energy: E = v²/2 - GM/r
-        energy = 0.5 * v_mag**2 - G * M_total / r_mag
-
-        # Specific angular momentum: h = r × v
-        h = jnp.cross(r, v)
-        h_mag = jnp.sqrt(jnp.sum(h**2))
-
-        # Eccentricity vector: e = (v × h)/(GM) - r/|r|
-        e_vec = jnp.cross(v, h) / (G * M_total) - r / r_mag
-        e = jnp.sqrt(jnp.sum(e_vec**2))
-
-        # Semi-major axis: a = -GM/(2E) for bound orbits
-        # For unbound orbits (E ≥ 0), set a = infinity
-        a = jnp.where(
-            energy < 0,
-            -G * M_total / (2.0 * energy + 1e-30),
-            jnp.inf
+        # The inverse problem (angular-momentum / eccentricity-vector method) lives
+        # in kepler_inverse, decomposed into named helpers; we wrap the elements.
+        a, e, i, Omega, omega, M = orbital_elements_from_state(
+            position, velocity, M_total, G
         )
-
-        # Inclination: i = arccos(h_z / |h|)
-        i = jnp.arccos(jnp.clip(h[2] / (h_mag + 1e-30), -1.0, 1.0))
-
-        # Node vector: n = z × h (points to ascending node)
-        n = jnp.cross(jnp.array([0.0, 0.0, 1.0]), h)
-        n_mag = jnp.sqrt(jnp.sum(n**2))
-
-        # Longitude of ascending node: Omega = arctan2(n_y, n_x)
-        # For equatorial orbits (i ≈ 0), Omega is undefined → set to 0
-        Omega = jnp.where(
-            n_mag > 1e-10,
-            jnp.arctan2(n[1], n[0]),
-            0.0
-        )
-        Omega = jnp.mod(Omega, 2.0 * jnp.pi)  # Wrap to [0, 2π)
-
-        # Argument of periapsis: omega = arccos(n · e / (|n| |e|))
-        # Sign from e_z: if e_z < 0, omega = 2π - omega
-        # For circular orbits (e ≈ 0), omega is undefined → set to 0
-        # For equatorial orbits (i ≈ 0), use arctan2(e_y, e_x)
-        omega = jnp.where(
-            e > 1e-10,
-            jnp.where(
-                n_mag > 1e-10,
-                # Inclined orbit: omega from n · e
-                jnp.where(
-                    e_vec[2] >= 0,
-                    jnp.arccos(jnp.clip(jnp.dot(n, e_vec) / (n_mag * e + 1e-30), -1.0, 1.0)),
-                    2.0 * jnp.pi - jnp.arccos(jnp.clip(jnp.dot(n, e_vec) / (n_mag * e + 1e-30), -1.0, 1.0))
-                ),
-                # Equatorial orbit: omega from arctan2(e_y, e_x)
-                jnp.arctan2(e_vec[1], e_vec[0])
-            ),
-            0.0  # Circular orbit
-        )
-        omega = jnp.mod(omega, 2.0 * jnp.pi)  # Wrap to [0, 2π)
-
-        # True anomaly: nu = arccos(e · r / (|e| |r|))
-        # Sign from r · v: if r · v < 0, nu = 2π - nu
-        # For circular orbits (e ≈ 0), nu from arctan2(r_y, r_x) in orbital plane
-        nu = jnp.where(
-            e > 1e-10,
-            jnp.where(
-                jnp.dot(r, v) >= 0,
-                jnp.arccos(jnp.clip(jnp.dot(e_vec, r) / (e * r_mag + 1e-30), -1.0, 1.0)),
-                2.0 * jnp.pi - jnp.arccos(jnp.clip(jnp.dot(e_vec, r) / (e * r_mag + 1e-30), -1.0, 1.0))
-            ),
-            # Circular orbit: nu from position angle in orbital plane
-            jnp.where(
-                n_mag > 1e-10,
-                # Inclined: angle from node vector
-                jnp.where(
-                    r[2] >= 0,
-                    jnp.arccos(jnp.clip(jnp.dot(n, r) / (n_mag * r_mag + 1e-30), -1.0, 1.0)),
-                    2.0 * jnp.pi - jnp.arccos(jnp.clip(jnp.dot(n, r) / (n_mag * r_mag + 1e-30), -1.0, 1.0))
-                ),
-                # Equatorial: arctan2(y, x)
-                jnp.arctan2(r[1], r[0])
-            )
-        )
-
-        # Convert true anomaly to eccentric anomaly
-        # tan(E/2) = sqrt((1-e)/(1+e)) * tan(nu/2)
-        E = 2.0 * jnp.arctan2(
-            jnp.sqrt(jnp.maximum(1.0 - e, 0.0)) * jnp.sin(nu / 2.0),
-            jnp.sqrt(jnp.maximum(1.0 + e, 1e-30)) * jnp.cos(nu / 2.0)
-        )
-        E = jnp.mod(E, 2.0 * jnp.pi)  # Wrap to [0, 2π)
-
-        # Convert eccentric anomaly to mean anomaly: M = E - e*sin(E)
-        M = E - e * jnp.sin(E)
-        M = jnp.mod(M, 2.0 * jnp.pi)  # Wrap to [0, 2π)
-
-        # Return KeplerElements (keep as JAX arrays for JIT compatibility)
-        return cls(
-            a=a,
-            e=e,
-            i=i,
-            Omega=Omega,
-            omega=omega,
-            M0=M,
-        )
+        return cls(a=a, e=e, i=i, Omega=Omega, omega=omega, M0=M)
 
     @staticmethod
     def _solve_kepler_equation(
@@ -508,98 +408,4 @@ class KeplerElements(eqx.Module):
         return jnp.array([x, y, z])
 
 
-def compute_period(
-    a: float,
-    M_total: float,
-    G: float,
-) -> float:
-    """
-    Compute orbital period from semi-major axis using Kepler's 3rd law.
-
-    Args:
-        a: Semi-major axis [length units]
-        M_total: Total mass of binary system [M☉]
-        G: Gravitational constant (REQUIRED, no default)
-
-    Returns:
-        period: Orbital period [time units]
-
-    Formula:
-        T = 2π√(a³/(GM))
-
-    Examples:
-        >>> # Earth orbit: a=1 AU, M=1 M☉ → T≈1 year
-        >>> G = 39.478  # AU³/Msun/yr²
-        >>> T = compute_period(a=1.0, M_total=1.0, G=G)
-        >>> print(f"Period: {T:.2f} years")
-        Period: 1.00 years
-
-        >>> # Stellar cluster orbit: a=1 pc, M=1000 M☉
-        >>> G = 0.00450  # pc³/Msun/Myr²
-        >>> T = compute_period(a=1.0, M_total=1000.0, G=G)
-        >>> print(f"Period: {T:.2f} Myr")
-        Period: 0.94 Myr
-
-    References:
-        Kepler's 3rd Law: T² ∝ a³/M
-        Murray & Dermott (1999) Eq 2.37
-    """
-    # T = 2π√(a³/(GM)). Divide-safe double-where (mirrors KeplerElements.to_state):
-    # the sqrt' and 1/denom blow up at a=0 / GM=0, so guard both so the gradient
-    # stays finite at those (unphysical) boundaries rather than NaN-poisoning.
-    denom = G * M_total
-    denom_safe = jnp.where(denom > 0.0, denom, 1.0)
-    arg = a**3 / denom_safe
-    arg_safe = jnp.where(arg > 0.0, arg, 1.0)
-    period = jnp.where(arg > 0.0, 2.0 * jnp.pi * jnp.sqrt(arg_safe), 0.0)
-
-    return period
-
-
-def period_to_semimajor_axis(
-    period: float,
-    M_total: float,
-    G: float,
-) -> float:
-    """
-    Compute semi-major axis from orbital period using Kepler's 3rd law.
-
-    Args:
-        period: Orbital period [time units]
-        M_total: Total mass of binary system [M☉]
-        G: Gravitational constant (REQUIRED, no default)
-
-    Returns:
-        a: Semi-major axis [length units]
-
-    Formula:
-        a = (GMT²/(4π²))^(1/3)
-
-    Examples:
-        >>> # Binary with 10 day period, M_total=2 M☉
-        >>> G = 39.478  # AU³/Msun/yr²
-        >>> P_yr = 10.0 / 365.25  # Convert days to years
-        >>> a = period_to_semimajor_axis(P_yr, M_total=2.0, G=G)
-        >>> print(f"Semi-major axis: {a:.3f} AU")
-        Semi-major axis: 0.089 AU
-
-        >>> # Star cluster binary: 10 Myr period, M_total=2 M☉
-        >>> G = 0.00450  # pc³/Msun/Myr²
-        >>> a = period_to_semimajor_axis(10.0, M_total=2.0, G=G)
-        >>> print(f"Semi-major axis: {a:.2f} pc")
-        Semi-major axis: 4.64 pc
-
-    References:
-        Kepler's 3rd Law: a³ ∝ T²M
-        Murray & Dermott (1999) Eq 2.37
-    """
-    # a = (GM*T²/(4π²))^(1/3). The cube-root derivative (1/3)x^(-2/3) diverges at
-    # x=0, so guard with a double-where so grad is finite at P=0 / GM=0 boundaries.
-    arg = G * M_total * period**2 / (4.0 * jnp.pi**2)
-    arg_safe = jnp.where(arg > 0.0, arg, 1.0)
-    a = jnp.where(arg > 0.0, arg_safe ** (1.0 / 3.0), 0.0)
-
-    return a
-
-
-__all__ = ["KeplerElements", "compute_period", "period_to_semimajor_axis"]
+__all__ = ["KeplerElements", "CartesianState", "BinaryState"]

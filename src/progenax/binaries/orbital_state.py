@@ -12,10 +12,8 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import Array, Float
 
-from .kepler import (
-    KeplerElements,
-    period_to_semimajor_axis,
-)
+from .kepler import KeplerElements
+from .kepler_period import period_to_semimajor_axis
 
 
 class BinaryOrbitalState(eqx.Module):

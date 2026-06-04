@@ -4,7 +4,9 @@ Kepler mechanics, binary orbital state, and population parameter distributions.
 All functions take an explicit G parameter (NO get_G() defaults).
 
 Modules:
-    kepler:         KeplerElements, period conversions
+    kepler:         KeplerElements (forward state machinery), CartesianState, BinaryState
+    kepler_inverse: orbital_elements_from_state (rv -> elements)
+    kepler_period:  compute_period, period_to_semimajor_axis (Kepler-III conversions)
     orbital_state:  BinaryOrbitalState, batch operations
     period:         LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
     eccentricity:   ThermalEccentricity, UniformEccentricity, MoeEccentricity
@@ -17,9 +19,8 @@ from .kepler import (
     KeplerElements,
     CartesianState,
     BinaryState,
-    compute_period,
-    period_to_semimajor_axis,
 )
+from .kepler_period import compute_period, period_to_semimajor_axis
 
 from .orbital_state import (
     BinaryOrbitalState,
