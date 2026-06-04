@@ -9,18 +9,16 @@ description: Auto-generated API reference for `progenax.kinematics` — signatur
 
 Module path: `progenax/kinematics/`
 
-Public symbols: **11**
+Public symbols: **9**
 
 ## Contents
 
 - [`PlummerVelocityDF`](#api-kinematics-plummervelocitydf)
 - [`KingVelocityDF`](#api-kinematics-kingvelocitydf)
 - [`EFFVelocityDF`](#api-kinematics-effvelocitydf)
-- [`apply_osipkov_merritt`](#api-kinematics-apply_osipkov_merritt)
 - [`apply_solid_body_rotation`](#api-kinematics-apply_solid_body_rotation)
 - [`apply_differential_rotation`](#api-kinematics-apply_differential_rotation)
 - [`VelocityDF`](#api-kinematics-velocitydf)
-- [`AnisotropyParams`](#api-kinematics-anisotropyparams)
 - [`RotationParams`](#api-kinematics-rotationparams)
 - [`VelocityModel`](#api-kinematics-velocitymodel)
 - [`sample_velocities_pipeline`](#api-kinematics-sample_velocities_pipeline)
@@ -31,7 +29,7 @@ Public symbols: **11**
 *class*
 
 ```python
-PlummerVelocityDF(r_h: float = 1.0)
+PlummerVelocityDF(r_h: float = 1.0, anisotropy_radius: float | None = None)
 ```
 
 Plummer (1911) velocity distribution function.
@@ -63,7 +61,7 @@ References:
     Plummer (1911), MNRAS, 71, 460 - Original Plummer model
     Aarseth (2003), "Gravitational N-Body Simulations", Section 4.3.2
     Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-    Dehnen (1993), MNRAS, 265, 250 - Exact analytical DF
+    Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
 Notes:
     - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
@@ -89,7 +87,7 @@ Examples:
     >>> from jaxstro.units import STELLAR
     >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
-*Source: [`progenax/kinematics/plummer_df.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/plummer_df.py#L15)*
+*Source: [`progenax/kinematics/plummer_df.py#L37`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/plummer_df.py#L37)*
 
 (api-kinematics-kingvelocitydf)=
 ## `kinematics.KingVelocityDF`
@@ -126,73 +124,35 @@ References:
 *class*
 
 ```python
-EFFVelocityDF(a: float = 1.0, gamma: float = 3.0, r_t: float = 10.0)
+EFFVelocityDF(a: float = 1.0, gamma: float = 3.0, r_t: float = 10.0, anisotropy_radius: float | None = None)
 ```
 
-EFF (Elson-Fall-Freeman 1987) isotropic velocity DF via Eddington inversion.
+EFF (Elson-Fall-Freeman 1987) velocity DF via Eddington inversion.
 
-Samples the exact isotropic ergodic DF f(E) of the (truncated) EFF density. The
-central velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t),
-so no external virial rescale is needed.
+Samples the exact ergodic DF f(E) of the (truncated) EFF density. The central
+velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t), so no
+external virial rescale is needed.
+
+With ``anisotropy_radius`` (r_a) set, the DF is the Osipkov-Merritt radially
+anisotropic model for the same EFF density: f = f(Q), Q = E + J^2/2r_a^2, built by
+Eddington inversion of the augmented density rho_Q = (1 + r^2/r_a^2) rho (Merritt
+1985). The realised anisotropy is beta(r) = r^2/(r^2 + r_a^2). r_a=None is isotropic.
 
 Attributes:
     a: Scale radius [length units], must match the spatial profile
     gamma: Power-law index
     r_t: Tidal/truncation radius [length units]
+    anisotropy_radius: Osipkov-Merritt radius r_a, or None for isotropic
     r_grid, Psi_grid: relative potential Psi(r) (dimensionless: G=1, rho_0=1)
-    E_grid, f_grid: tabulated Eddington DF f(E) >= 0
+    E_grid, f_grid: tabulated ergodic DF f(E) (augmented density if anisotropic)
     mu: int_0^{r_t} rho_tilde r^2 dr (sets rho_0 = M_total / (4 pi mu))
 
 References:
     Elson, Fall & Freeman (1987), ApJ, 323, 54
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
+    Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
-*Source: [`progenax/kinematics/eff_df.py#L96`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L96)*
-
-(api-kinematics-apply_osipkov_merritt)=
-## `kinematics.apply_osipkov_merritt`
-
-*function*
-
-```python
-apply_osipkov_merritt(velocities: jaxtyping.Float[Array, 'N 3'], positions: jaxtyping.Float[Array, 'N 3'], key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], r_a: float) -> jaxtyping.Float[Array, 'N 3']
-```
-
-Apply Osipkov-Merritt radial anisotropy to velocities.
-
-Transforms isotropic velocities to have radial anisotropy profile:
-
-    beta(r) = r^2 / (r^2 + r_a^2)
-
-where beta = 1 - sigma_t^2/(2*sigma_r^2) is the anisotropy parameter:
-    - beta = 0: isotropic
-    - beta -> 1: purely radial
-    - beta < 0: tangentially biased
-
-For Osipkov-Merritt:
-    - beta(0) = 0 (isotropic at center)
-    - beta(r_a) = 0.5
-    - beta(inf) = 1 (radial at large r)
-
-Algorithm:
-    1. Decompose v into radial and tangential components
-    2. Compute target ratio based on beta(r)
-    3. Redistribute speed between radial/tangential preserving |v|
-
-Args:
-    velocities: Input velocities (N, 3)
-    positions: Particle positions (N, 3)
-    key: JAX random key (for random tangential direction)
-    r_a: Anisotropy radius [length units]
-
-Returns:
-    Transformed velocities (N, 3) with same |v| but anisotropic distribution
-
-Reference:
-    Osipkov (1979) Soviet Astronomy Letters 5, 42
-    Merritt (1985) AJ 90, 1027
-
-*Source: [`progenax/kinematics/anisotropy.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/anisotropy.py#L16)*
+*Source: [`progenax/kinematics/eff_df.py#L111`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L111)*
 
 (api-kinematics-apply_solid_body_rotation)=
 ## `kinematics.apply_solid_body_rotation`
@@ -260,8 +220,12 @@ Args:
 Returns:
     Velocities with differential rotation added (N, 3)
 
-Reference:
-    Lynden-Bell (1960) MNRAS 120, 204
+Note:
+    The peaked form v_phi(R) = v_peak (R/R_peak) exp(1 - R/R_peak) is a
+    *phenomenological* rotation curve (smooth rise to a single peak at R_peak,
+    then decay) chosen for convenience -- it is NOT taken from a specific paper.
+    Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
+    stellar systems in general, not for this functional form.
 
 *Source: [`progenax/kinematics/rotation.py#L61`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/rotation.py#L61)*
 
@@ -279,38 +243,7 @@ Protocol for velocity distribution functions.
 All velocity DFs must implement this interface for use with the
 kinematics API pipeline.
 
-*Source: [`progenax/kinematics/api.py#L55`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L55)*
-
-(api-kinematics-anisotropyparams)=
-## `kinematics.AnisotropyParams`
-
-*class*
-
-```python
-AnisotropyParams(use_osipkov_merritt: bool = False, r_a: float = 1.0) -> None
-```
-
-Parameters for velocity anisotropy transforms.
-
-Attributes:
-    use_osipkov_merritt: Whether to apply Osipkov-Merritt anisotropy.
-    r_a: Anisotropy radius [length units]. At r = r_a, beta = 0.5.
-         Smaller r_a means stronger radial anisotropy.
-
-Notes:
-    The Osipkov-Merritt profile gives:
-        beta(r) = r^2 / (r^2 + r_a^2)
-
-    where beta = 1 - sigma_t^2 / (2 sigma_r^2) is the anisotropy parameter:
-        - beta = 0: isotropic
-        - beta -> 1: purely radial
-        - beta < 0: tangentially biased
-
-References:
-    Osipkov (1979) Soviet Astronomy Letters 5, 42
-    Merritt (1985) AJ 90, 1027
-
-*Source: [`progenax/kinematics/api.py#L84`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L84)*
+*Source: [`progenax/kinematics/api.py#L53`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L53)*
 
 (api-kinematics-rotationparams)=
 ## `kinematics.RotationParams`
@@ -344,7 +277,7 @@ References:
     Lynden-Bell (1960) MNRAS 120, 204
     Binney & Tremaine (2008) Section 4.8
 
-*Source: [`progenax/kinematics/api.py#L111`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L111)*
+*Source: [`progenax/kinematics/api.py#L82`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L82)*
 
 (api-kinematics-velocitymodel)=
 ## `kinematics.VelocityModel`
@@ -352,29 +285,34 @@ References:
 *class*
 
 ```python
-VelocityModel(df: progenax.kinematics.api.VelocityDF, anisotropy: Optional[progenax.kinematics.api.AnisotropyParams] = None, rotation: Optional[progenax.kinematics.api.RotationParams] = None, target_Q: float = 0.5) -> None
+VelocityModel(df: progenax.kinematics.api.VelocityDF, rotation: Optional[progenax.kinematics.api.RotationParams] = None, target_Q: Optional[float] = None) -> None
 ```
 
 Complete velocity model specification.
 
-Bundles a distribution function with optional anisotropy and rotation
-transforms, plus a target virial ratio.
+Bundles a distribution function with optional rotation and a target virial
+ratio. Radial anisotropy is a property of the DF itself: pass
+``anisotropy_radius`` to PlummerVelocityDF/EFFVelocityDF for an Osipkov-Merritt
+DF (beta(r)=r^2/(r^2+r_a^2)).
 
 Attributes:
-    df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.)
-    anisotropy: Optional anisotropy parameters.
+    df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.;
+        anisotropic DFs supply their own radial anisotropy).
     rotation: Optional rotation parameters.
-    target_Q: Target virial ratio Q = T / |V|. Default 0.5 for equilibrium.
+    target_Q: Target virial ratio Q = T / |V|, or None (default). The
+        Plummer/King/EFF DFs are already sampled in detailed equilibrium, so
+        target_Q=None keeps their native equilibrium (no rescale). Pass a float
+        only to deliberately force a virial ratio (e.g. 0.5 for equilibrium,
+        <0.5 subvirial, >0.5 supervirial), or when adding rotation / mixing an
+        inconsistent profile+DF combination.
 
 Example:
     >>> model = VelocityModel(
-    ...     df=PlummerVelocityDF(r_h=1.0),
-    ...     anisotropy=AnisotropyParams(use_osipkov_merritt=True, r_a=2.0),
+    ...     df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
     ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
-    ...     target_Q=0.5,
     ... )
 
-*Source: [`progenax/kinematics/api.py#L145`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L145)*
+*Source: [`progenax/kinematics/api.py#L116`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L116)*
 
 (api-kinematics-sample_velocities_pipeline)=
 ## `kinematics.sample_velocities_pipeline`
@@ -385,23 +323,24 @@ Example:
 sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float | None = None) -> jaxtyping.Float[Array, 'N 3']
 ```
 
-Velocity pipeline: DF sampling -> anisotropy -> rotation -> virial rescale.
+Velocity pipeline: DF sampling -> rotation -> optional virial rescale.
 
-This is the main entry point for velocity generation in progenax.
-It applies a sequence of transforms to produce physically realistic
-velocity distributions.
+This is the main entry point for velocity generation in progenax. Radial
+anisotropy lives on the DF (pass ``anisotropy_radius``), so the pipeline only
+layers optional rotation and an optional virial rescale on top of the DF sample.
 
 Pipeline stages:
-    1. Sample velocities from distribution function (model.df)
-    2. Apply Osipkov-Merritt anisotropy if configured
-    3. Apply rotation (solid-body and/or differential) if configured
-    4. Rescale to target virial ratio and remove COM motion
+    1. Sample velocities from distribution function (model.df; carries any
+       Osipkov-Merritt anisotropy intrinsically)
+    2. Apply rotation (solid-body and/or differential) if configured
+    3. Rescale to target virial ratio (only if model.target_Q is not None),
+       then remove COM motion
 
 Args:
     key: JAX random key.
     positions: Particle positions (N, 3) [length units].
     masses: Particle masses (N,) [mass units].
-    model: VelocityModel specifying DF + transforms + target Q.
+    model: VelocityModel specifying DF + rotation + target Q.
     G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
 
 Returns:
@@ -422,5 +361,5 @@ Notes:
     - Virial rescaling uses O(N^2) pairwise potential energy calculation
     - COM motion is removed after rescaling
 
-*Source: [`progenax/kinematics/api.py#L173`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L173)*
+*Source: [`progenax/kinematics/api.py#L148`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L148)*
 

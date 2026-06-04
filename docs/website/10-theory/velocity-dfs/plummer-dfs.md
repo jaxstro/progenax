@@ -197,8 +197,10 @@ progenax extends it with two compositions:
 - **Osipkov-Merritt anisotropy**: introduces a free anisotropy radius
   $r_a$ such that $\beta(r) = r^2/(r^2 + r_a^2)$. The DF is no longer
   a function of $\mathcal{E}$ alone but of $Q = \mathcal{E} - L^2/(2 r_a^2)$,
-  the augmented integral of motion. progenax implements this via the
-  `apply_osipkov_merritt(df, r_a)` decorator.
+  the augmented integral of motion. progenax implements this as an
+  intrinsic DF option, `PlummerVelocityDF(r_h=..., anisotropy_radius=r_a)`,
+  using the analytic OM Plummer DF (Merritt 1985, Eq. 45; requires
+  $r_a \ge 0.75\,a$). See [](rotation-anisotropy.md).
 - **Solid-body / differential rotation**: adds a tangential velocity
   component $\mathbf{v}_\phi(\mathbf{r}) = \mathbf{\Omega}(r) \times \mathbf{r}$
   to the isotropic Plummer velocities. Implemented via

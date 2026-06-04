@@ -208,7 +208,7 @@ All public symbols exported from `progenax.__init__`:
 
 **Profiles**: `PlummerProfile`, `KingProfile`, `EFFProfile`, `solve_king_profile()`
 
-**Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF`, `apply_osipkov_merritt()`, `apply_solid_body_rotation()`, `apply_differential_rotation()`
+**Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` (Plummer/EFF take an optional `anisotropy_radius` for Osipkov-Merritt radial anisotropy, β(r)=r²/(r²+r_a²)), `apply_solid_body_rotation()`, `apply_differential_rotation()`
 
 **IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`, `IGIMF`, `EnvironmentIMF`
 

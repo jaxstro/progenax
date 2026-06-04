@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **135** across all submodules.
+Total public symbols: **133** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -21,9 +21,7 @@ Total public symbols: **135** across all submodules.
 | [`alpha3_marks_table3`](imf.md#api-imf-alpha3_marks_table3) | function | `progenax.imf` |
 | [`alpha_vir_from_sigma`](gravoturb.md#api-gravoturb-alpha_vir_from_sigma) | function | `progenax.gravoturb` |
 | [`AnalyticalIC`](analytical.md#api-analytical-analyticalic) | class | `progenax.analytical` |
-| [`AnisotropyParams`](kinematics.md#api-kinematics-anisotropyparams) | class | `progenax.kinematics` |
 | [`apply_differential_rotation`](kinematics.md#api-kinematics-apply_differential_rotation) | function | `progenax.kinematics` |
-| [`apply_osipkov_merritt`](kinematics.md#api-kinematics-apply_osipkov_merritt) | function | `progenax.kinematics` |
 | [`apply_solid_body_rotation`](kinematics.md#api-kinematics-apply_solid_body_rotation) | function | `progenax.kinematics` |
 | [`apply_tidal_truncation`](tidal.md#api-tidal-apply_tidal_truncation) | function | `progenax.tidal` |
 | [`BaseIMF`](imf.md#api-imf-baseimf) | class | `progenax.imf` |

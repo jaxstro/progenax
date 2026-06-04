@@ -74,43 +74,57 @@ The anisotropy radius $r_a$ is the only new parameter. Setting $r_a
 fully radial orbits at all radii (which is generally unphysical and
 unstable).
 
-## Implementation: the `apply_osipkov_merritt` decorator
+## Implementation: the `anisotropy_radius` DF parameter
+
+Osipkov-Merritt anisotropy is an intrinsic property of the velocity DF:
+pass `anisotropy_radius` ($=r_a$) to a DF. `None` (default) gives the
+isotropic DF; a float gives the radially anisotropic OM DF for the
+*same* density.
 
 ```python
-from progenax.kinematics import PlummerVelocityDF, apply_osipkov_merritt
+from jaxstro.units import STELLAR
+from progenax.kinematics import PlummerVelocityDF, EFFVelocityDF
 
-base_df = PlummerVelocityDF(r_h=1.0)
-om_df = apply_osipkov_merritt(base_df, r_a=2.0)   # r_a in same units as r_h
+# r_a in the same length units as r_h / a
+om_plummer = PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0)
+om_eff = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0, anisotropy_radius=2.0)
 
-# Sample velocities — same API as the base DF
-velocities = om_df.sample_velocities(positions, masses, key, G=STELLAR.G)
+velocities = om_plummer.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```
 
-`apply_osipkov_merritt` returns a new Equinox module that wraps the
-base DF and overrides `sample_velocities` to produce $f(Q)$ samples.
-The implementation:
+Internally (Merritt 1985):
 
-1. At each particle's position, compute the local potential $\Phi(r)$
-   and the augmented density $\rho_Q(r) = (1 + r^2/r_a^2)\rho(r)$.
-2. Sample $Q$ from the Eddington-inverted $f(Q)$ via the same
-   inverse-CDF table machinery used for the base DF.
-3. Convert $(Q, r)$ to $(v, \cos\theta_v)$ where $\theta_v$ is the
-   angle between $\mathbf{v}$ and $\mathbf{\hat r}$.
-4. Add an isotropic tangential angle in the plane perpendicular to
-   $\mathbf{\hat r}$.
+1. Build $f(Q)$ from the augmented density $\rho_Q = (1+r^2/r_a^2)\rho$
+   — the closed-form Eq. 45 for Plummer, the numerical Eddington
+   inversion of $\rho_Q$ for EFF. The potential $\Psi(r)$ is unchanged
+   (set by the true mass density).
+2. At each radius sample a speed $s$ from $s^2 f(\Psi - s^2/2)$ by
+   inverse-CDF — the same machinery as the isotropic DF.
+3. Split $s$ *isotropically in the stretched frame*
+   $w_t = v_t\sqrt{1+r^2/r_a^2}$, then un-stretch the tangential
+   component, which realises $\beta(r)=r^2/(r^2+r_a^2)$ exactly.
 
-The decorator is JIT-compatible and differentiable in $r_a$ as well
-as $r_h$.
+The DF is JIT-compatible and differentiable in $r_a$ (and $r_h$/$a$).
 
 ```{warning}
-**Stability constraint on $r_a$.** Osipkov-Merritt DFs become
-*radial-orbit-instability* unstable when $r_a$ is too small relative
-to the spatial scale. For Plummer, $r_a / a \gtrsim 0.5$ is generally
-stable; below that, evolved configurations show bar-like instabilities
-within $\sim 1$ relaxation time. progenax does not enforce this
-bound at construction time; the validation suite checks for negative
-$f(Q)$ values which is a clear signal of a physically inconsistent
-choice.
+**Non-negativity bound on $r_a$.** Too small an $r_a$ asks for more
+radial anisotropy than the density can support with $f(Q)\ge 0$. For
+Plummer the exact bound is $r_a \ge 0.75\,a$ (Merritt 1985, Eq. 46);
+progenax **refuses** a smaller $r_a$ at construction (raises
+`ValueError`) rather than silently clamping an unphysical DF, and EFF
+likewise rejects an $r_a$ that drives $f(Q)$ negative. Separately, OM
+DFs with very small $r_a$ are prone to the radial-orbit instability
+under evolution — the non-negativity bound is necessary but not
+sufficient for long-term stability.
+```
+
+```{note}
+**King anisotropy** is *not* the augmented-density OM construction:
+the radially anisotropic King model is the self-consistent
+**Michie (1963)** model, whose lowered DF
+$f \propto e^{-J^2/2r_a^2\sigma^2}[e^{-E/\sigma^2}-1]$ is **not** a
+function of $Q$ alone and yields a *different* density profile. It is
+tracked as separate work; `KingVelocityDF` is isotropic for now.
 ```
 
 ## Solid-body rotation
@@ -204,26 +218,33 @@ differentiable in any parameters of the rotation profile.
 
 ## Composability
 
-All three extensions compose:
+Anisotropy is intrinsic to the DF; rotation and an optional virial
+rescale are layered by the velocity pipeline:
 
 ```python
-df = PlummerVelocityDF(r_h=1.0)
-df = apply_osipkov_merritt(df, r_a=2.0)
-df = apply_solid_body_rotation(df, omega=jnp.array([0.0, 0.0, 0.3]))
+from progenax.kinematics import (
+    PlummerVelocityDF, VelocityModel, RotationParams, sample_velocities_pipeline,
+)
+
+model = VelocityModel(
+    df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),   # radial anisotropy
+    rotation=RotationParams(solid_body=True, pattern_speed=0.3),
+)
+velocities = sample_velocities_pipeline(key, positions, masses, model, G=STELLAR.G)
 ```
 
-The order is *anisotropy first, rotation second* by convention —
-anisotropy modifies the velocity ellipsoid, rotation adds a bulk
-flow on top. Reversing the order gives the same numerical result
-because rotation does not change $\sigma_r$ or $\sigma_t$.
+The DF sets the velocity ellipsoid ($\sigma_r$, $\sigma_t$); rotation
+adds a bulk flow on top without changing the random-motion
+dispersions.
 
 ## Domain of validity
 
-1. **Osipkov-Merritt requires $r_a / r_h \gtrsim 0.5$** for stability.
-   Below that, expect radial-orbit instability within a relaxation
-   time. progenax does not enforce this at construction; the
-   validation suite checks $f(Q) > 0$ which catches the most pathological
-   regime.
+1. **Osipkov-Merritt non-negativity.** progenax refuses an $r_a$ below
+   the Plummer bound $r_a \ge 0.75\,a$ (Merritt 1985, Eq. 46) at
+   construction (raises `ValueError`), and EFF rejects an $r_a$ that
+   drives $f(Q)$ negative. Even above the bound, very small $r_a$ is
+   prone to the radial-orbit instability within a relaxation time
+   under evolution.
 2. **Solid-body rotation up to $\Omega/\Omega_{\mathrm{break-up}} \sim 0.5$**
    is physically reasonable. Above that, the cluster flattens
    significantly and a spherical IC is a poor approximation.
