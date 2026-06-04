@@ -2,28 +2,27 @@
 Velocity sampling API for progenax initial conditions.
 
 Provides a unified pipeline for velocity generation:
-    DF sampling → anisotropy → rotation → virial rescaling
+    DF sampling → rotation → optional virial rescaling
 
-This module combines the individual DF modules with optional transforms
-to produce physically realistic velocity distributions.
+This module combines the individual DF modules with optional rotation and an
+optional virial rescale. Radial anisotropy (Osipkov-Merritt) is an intrinsic
+property of the velocity DF itself (pass ``anisotropy_radius`` to the DF), not a
+separate pipeline stage.
 
 Example:
     >>> from progenax.kinematics import (
     ...     PlummerVelocityDF,
     ...     VelocityModel,
-    ...     AnisotropyParams,
     ...     RotationParams,
     ...     sample_velocities_pipeline,
     ... )
     >>> import jax
     >>> import jax.numpy as jnp
     >>>
-    >>> # Create velocity model with Plummer DF + anisotropy + rotation
+    >>> # Radially anisotropic Plummer DF + solid-body rotation, native equilibrium.
     >>> model = VelocityModel(
-    ...     df=PlummerVelocityDF(r_h=1.0),
-    ...     anisotropy=AnisotropyParams(use_osipkov_merritt=True, r_a=2.0),
+    ...     df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
     ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
-    ...     target_Q=0.5,
     ... )
     >>>
     >>> # Sample velocities
@@ -44,7 +43,6 @@ from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
 from progenax import defaults
-from progenax.kinematics.anisotropy import apply_osipkov_merritt
 from progenax.kinematics.rotation import (
     apply_solid_body_rotation,
     apply_differential_rotation,
@@ -79,33 +77,6 @@ class VelocityDF(Protocol):
             Cartesian velocities (N, 3) [velocity units]
         """
         ...
-
-
-@dataclass(frozen=True)
-class AnisotropyParams:
-    """Parameters for velocity anisotropy transforms.
-
-    Attributes:
-        use_osipkov_merritt: Whether to apply Osipkov-Merritt anisotropy.
-        r_a: Anisotropy radius [length units]. At r = r_a, beta = 0.5.
-             Smaller r_a means stronger radial anisotropy.
-
-    Notes:
-        The Osipkov-Merritt profile gives:
-            beta(r) = r^2 / (r^2 + r_a^2)
-
-        where beta = 1 - sigma_t^2 / (2 sigma_r^2) is the anisotropy parameter:
-            - beta = 0: isotropic
-            - beta -> 1: purely radial
-            - beta < 0: tangentially biased
-
-    References:
-        Osipkov (1979) Soviet Astronomy Letters 5, 42
-        Merritt (1985) AJ 90, 1027
-    """
-
-    use_osipkov_merritt: bool = False
-    r_a: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -146,31 +117,30 @@ class RotationParams:
 class VelocityModel:
     """Complete velocity model specification.
 
-    Bundles a distribution function with optional anisotropy and rotation
-    transforms, plus a target virial ratio.
+    Bundles a distribution function with optional rotation and a target virial
+    ratio. Radial anisotropy is a property of the DF itself: pass
+    ``anisotropy_radius`` to PlummerVelocityDF/EFFVelocityDF for an Osipkov-Merritt
+    DF (beta(r)=r^2/(r^2+r_a^2)).
 
     Attributes:
-        df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.)
-        anisotropy: Optional anisotropy parameters.
+        df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.;
+            anisotropic DFs supply their own radial anisotropy).
         rotation: Optional rotation parameters.
         target_Q: Target virial ratio Q = T / |V|, or None (default). The
             Plummer/King/EFF DFs are already sampled in detailed equilibrium, so
             target_Q=None keeps their native equilibrium (no rescale). Pass a float
             only to deliberately force a virial ratio (e.g. 0.5 for equilibrium,
-            <0.5 subvirial, >0.5 supervirial), or when mixing/transforming
-            inconsistent profile+DF+anisotropy+rotation combinations.
+            <0.5 subvirial, >0.5 supervirial), or when adding rotation / mixing an
+            inconsistent profile+DF combination.
 
     Example:
         >>> model = VelocityModel(
-        ...     df=PlummerVelocityDF(r_h=1.0),
-        ...     anisotropy=AnisotropyParams(use_osipkov_merritt=True, r_a=2.0),
+        ...     df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
         ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
-        ...     target_Q=0.5,
         ... )
     """
 
     df: VelocityDF
-    anisotropy: Optional[AnisotropyParams] = None
     rotation: Optional[RotationParams] = None
     target_Q: Optional[float] = None
 
@@ -182,24 +152,24 @@ def sample_velocities_pipeline(
     model: VelocityModel,
     G: float | None = None,
 ) -> Float[Array, "N 3"]:
-    """Velocity pipeline: DF sampling -> anisotropy -> rotation -> virial rescale.
+    """Velocity pipeline: DF sampling -> rotation -> optional virial rescale.
 
-    This is the main entry point for velocity generation in progenax.
-    It applies a sequence of transforms to produce physically realistic
-    velocity distributions.
+    This is the main entry point for velocity generation in progenax. Radial
+    anisotropy lives on the DF (pass ``anisotropy_radius``), so the pipeline only
+    layers optional rotation and an optional virial rescale on top of the DF sample.
 
     Pipeline stages:
-        1. Sample velocities from distribution function (model.df)
-        2. Apply Osipkov-Merritt anisotropy if configured
-        3. Apply rotation (solid-body and/or differential) if configured
-        4. Rescale to target virial ratio (only if model.target_Q is not None),
+        1. Sample velocities from distribution function (model.df; carries any
+           Osipkov-Merritt anisotropy intrinsically)
+        2. Apply rotation (solid-body and/or differential) if configured
+        3. Rescale to target virial ratio (only if model.target_Q is not None),
            then remove COM motion
 
     Args:
         key: JAX random key.
         positions: Particle positions (N, 3) [length units].
         masses: Particle masses (N,) [mass units].
-        model: VelocityModel specifying DF + transforms + target Q.
+        model: VelocityModel specifying DF + rotation + target Q.
         G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
 
     Returns:
@@ -223,22 +193,10 @@ def sample_velocities_pipeline(
     if G is None:
         G = defaults.DEFAULT_UNITS.G
 
-    # Split key for each stage that needs randomness
-    key_df, key_aniso = jax.random.split(key, 2)
+    # Stage 1: DF sampling (the DF is the only source of randomness in the pipeline).
+    v = model.df.sample_velocities(positions, masses, key, G=G)
 
-    # Stage 1: DF sampling
-    v = model.df.sample_velocities(positions, masses, key_df, G=G)
-
-    # Stage 2: Anisotropy
-    if model.anisotropy is not None and model.anisotropy.use_osipkov_merritt:
-        v = apply_osipkov_merritt(
-            velocities=v,
-            positions=positions,
-            key=key_aniso,
-            r_a=model.anisotropy.r_a,
-        )
-
-    # Stage 3: Rotation
+    # Stage 2: Rotation
     if model.rotation is not None:
         # Get rotation axis (default to z-axis if None)
         if model.rotation.axis is None:
@@ -265,7 +223,7 @@ def sample_velocities_pipeline(
                 axis=axis,
             )
 
-    # Stage 4: Optional virial rescaling. target_Q=None keeps the DF's native
+    # Stage 3: Optional virial rescaling. target_Q=None keeps the DF's native
     # equilibrium (Plummer/King/EFF are already sampled in detailed equilibrium);
     # pass a float only to deliberately force a virial ratio.
     if model.target_Q is not None:
@@ -287,7 +245,6 @@ def sample_velocities_pipeline(
 
 __all__ = [
     "VelocityDF",
-    "AnisotropyParams",
     "RotationParams",
     "VelocityModel",
     "sample_velocities_pipeline",

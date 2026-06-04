@@ -21,7 +21,6 @@ from progenax.profiles.plummer import PlummerProfile
 from progenax.kinematics import (
     PlummerVelocityDF,
     VelocityModel,
-    AnisotropyParams,
     RotationParams,
     sample_velocities_pipeline,
 )
@@ -65,56 +64,29 @@ class TestPipelineGDefault:
         assert jnp.all(jnp.isfinite(v_default))
 
 
-class TestPipelineAnisotropy:
-    """Cover the Osipkov-Merritt anisotropy branch (line ~228)."""
+class TestPipelineAnisotropicDF:
+    """Radial anisotropy now lives on the DF; it must flow through the pipeline."""
 
-    def test_anisotropy_makes_velocities_radially_biased(self, plummer_setup):
-        """Enabling OM anisotropy increases the radial velocity fraction."""
+    def test_anisotropic_df_increases_radial_fraction(self, plummer_setup):
+        """An Osipkov-Merritt DF raises the radial velocity fraction vs isotropic."""
         positions, masses, r_h = plummer_setup
-        df = PlummerVelocityDF(r_h=r_h)
-
-        iso_model = VelocityModel(df=df, target_Q=0.5)
-        aniso_model = VelocityModel(
-            df=df,
-            anisotropy=AnisotropyParams(use_osipkov_merritt=True, r_a=0.5),
-            target_Q=0.5,
-        )
+        iso = VelocityModel(df=PlummerVelocityDF(r_h=r_h))
+        aniso = VelocityModel(df=PlummerVelocityDF(r_h=r_h, anisotropy_radius=0.6))
 
         key = jax.random.PRNGKey(11)
-        v_iso = sample_velocities_pipeline(key, positions, masses, iso_model, G=G)
-        v_aniso = sample_velocities_pipeline(key, positions, masses, aniso_model, G=G)
+        v_iso = sample_velocities_pipeline(key, positions, masses, iso, G=G)
+        v_aniso = sample_velocities_pipeline(key, positions, masses, aniso, G=G)
 
-        assert v_aniso.shape == positions.shape
-        assert jnp.all(jnp.isfinite(v_aniso))
+        assert v_aniso.shape == positions.shape and jnp.all(jnp.isfinite(v_aniso))
 
-        # Radial fraction beta-proxy: <v_r^2> / <|v|^2>. OM biases toward radial,
-        # especially at r > r_a, so the radial fraction should rise.
         r_hat = positions / jnp.linalg.norm(positions, axis=1, keepdims=True)
         def radial_frac(v):
             v_r = jnp.sum(v * r_hat, axis=1)
             return jnp.sum(v_r**2) / jnp.sum(v**2)
 
         assert radial_frac(v_aniso) > radial_frac(v_iso), (
-            "Osipkov-Merritt should increase the radial velocity fraction"
+            "an Osipkov-Merritt DF should increase the radial velocity fraction"
         )
-
-    def test_anisotropy_disabled_when_flag_false(self, plummer_setup):
-        """anisotropy present but use_osipkov_merritt=False -> branch NOT taken."""
-        positions, masses, r_h = plummer_setup
-        df = PlummerVelocityDF(r_h=r_h)
-
-        model_off = VelocityModel(
-            df=df,
-            anisotropy=AnisotropyParams(use_osipkov_merritt=False, r_a=0.5),
-            target_Q=0.5,
-        )
-        model_none = VelocityModel(df=df, target_Q=0.5)
-
-        key = jax.random.PRNGKey(3)
-        v_off = sample_velocities_pipeline(key, positions, masses, model_off, G=G)
-        v_none = sample_velocities_pipeline(key, positions, masses, model_none, G=G)
-        # Flag off => identical pipeline to no anisotropy at all
-        assert jnp.allclose(v_off, v_none, atol=1e-12)
 
 
 class TestPipelineRotation:
@@ -221,9 +193,8 @@ class TestPipelineTargetQNone:
         model = VelocityModel(df=df, target_Q=None)
         v_pipeline = sample_velocities_pipeline(key, positions, masses, model, G=G)
 
-        # Reference: reproduce the pipeline's key split, sample the raw DF, remove COM.
-        key_df, _key_aniso = jax.random.split(key, 2)
-        v_raw = df.sample_velocities(positions, masses, key_df, G=G)
+        # Reference: the pipeline feeds `key` straight to the DF, then removes COM.
+        v_raw = df.sample_velocities(positions, masses, key, G=G)
         M_total = jnp.sum(masses)
         v_raw = v_raw - jnp.sum(masses[:, None] * v_raw, axis=0) / M_total
 
@@ -268,8 +239,7 @@ class TestPipelineFullIntegration:
         positions, masses, r_h = plummer_setup
         target_Q = 0.5
         model = VelocityModel(
-            df=PlummerVelocityDF(r_h=r_h),
-            anisotropy=AnisotropyParams(use_osipkov_merritt=True, r_a=1.0),
+            df=PlummerVelocityDF(r_h=r_h, anisotropy_radius=1.0),
             rotation=RotationParams(solid_body=True, pattern_speed=0.1),
             target_Q=target_Q,
         )

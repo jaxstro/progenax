@@ -10,6 +10,28 @@ import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.kinematics.eddington import (
+    assign_om_directions,
+    sample_speed_from_f_table,
+)
+
+# Resolution of the analytic Osipkov-Merritt speed inverse-CDF table.
+_N_OM_E = 1000
+
+
+def _plummer_om_f_table(rho_a, n_e=_N_OM_E):
+    """Analytic Osipkov-Merritt Plummer DF table (Merritt 1985, Eq. 45), dimensionless.
+
+    x = Q/sigma_0^2 in [0, 6]; rho_a = (r_0/r_a)^2 = (a/r_a)^2. The OM DF is
+
+        f_I(x) ∝ x^{7/2} [1 - rho_a + (63/4) rho_a x^{-2}]
+               = (1 - rho_a) x^{7/2} + (63/4) rho_a x^{3/2}     (>= 0 for r_a >= 0.75 a).
+
+    The overall positive constant is irrelevant for inverse-CDF sampling.
+    """
+    x = jnp.linspace(0.0, 6.0, n_e)
+    f = (1.0 - rho_a) * x**3.5 + (63.0 / 4.0) * rho_a * x**1.5
+    return x, f
 
 
 class PlummerVelocityDF(eqx.Module):
@@ -72,13 +94,20 @@ class PlummerVelocityDF(eqx.Module):
 
     r_h: Float[Array, ""]
     a: Float[Array, ""]
+    anisotropy_radius: Float[Array, ""] | None
+    _om_E_grid: Float[Array, "n_e"] | None
+    _om_f_grid: Float[Array, "n_e"] | None
 
-    def __init__(self, r_h: float = 1.0):
+    def __init__(self, r_h: float = 1.0, anisotropy_radius: float | None = None):
         """
         Initialize Plummer velocity distribution function.
 
         Args:
             r_h: Half-mass radius [length units], must match spatial profile
+            anisotropy_radius: Osipkov-Merritt radius r_a [length units], or None for the
+                isotropic DF. When set, velocities follow the analytic OM Plummer DF
+                (Merritt 1985, Eq. 45) with beta(r) = r^2/(r^2 + r_a^2). Requires
+                r_a >= 0.75 a (Eq. 46); smaller r_a makes the DF negative (refused).
         """
         self.r_h = jnp.asarray(r_h)
         # Scale radius from half-mass radius
@@ -86,6 +115,28 @@ class PlummerVelocityDF(eqx.Module):
         # At r = r_h: 0.5 = r_h³/(r_h²+a²)^(3/2)
         # Solving: a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
         self.a = self.r_h * jnp.sqrt(2**(2/3) - 1)
+
+        if anisotropy_radius is None:
+            self.anisotropy_radius = None
+            self._om_E_grid = None
+            self._om_f_grid = None
+        else:
+            self.anisotropy_radius = jnp.asarray(anisotropy_radius)
+            # Eager non-negativity guard for a concrete r_a (Merritt 1985, Eq. 46). Under
+            # tracing (e.g. jax.grad w.r.t. r_a) the check is skipped and the caller owns
+            # the r_a >= 0.75 a bound; the table itself stays traced-safe (jnp only).
+            if isinstance(anisotropy_radius, (int, float)):
+                a_val = float(self.a)
+                if anisotropy_radius < 0.75 * a_val:
+                    raise ValueError(
+                        f"Plummer Osipkov-Merritt DF requires anisotropy_radius >= 0.75 a "
+                        f"= {0.75 * a_val:.4f} (Merritt 1985, Eq. 46); got "
+                        f"{anisotropy_radius}. Smaller r_a makes the phase-space DF negative."
+                    )
+            rho_a = (self.a / self.anisotropy_radius) ** 2  # (r_0/r_a)^2, traced-safe
+            E_grid, f_grid = _plummer_om_f_table(rho_a)
+            self._om_E_grid = E_grid
+            self._om_f_grid = f_grid
 
     def sample_velocities(
         self,
@@ -119,27 +170,34 @@ class PlummerVelocityDF(eqx.Module):
             G = defaults.DEFAULT_UNITS.G
 
         N = positions.shape[0]
-        key_mag, key_theta, key_phi = jax.random.split(key, 3)
-
-        # Compute radii from positions
         radii = jnp.linalg.norm(positions, axis=1)
 
-        # Sample velocity magnitudes from Plummer DF
-        v_magnitudes = self._sample_velocity_magnitudes(radii, masses, key_mag, G)
+        if self.anisotropy_radius is None:
+            # Isotropic Plummer DF via exact Beta(3/2, 9/2) speed sampling.
+            key_mag, key_theta, key_phi = jax.random.split(key, 3)
+            v_magnitudes = self._sample_velocity_magnitudes(radii, masses, key_mag, G)
+            cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
+            phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2 * jnp.pi)
+            sin_theta = jnp.sqrt(1.0 - cos_theta**2)
+            vx = v_magnitudes * sin_theta * jnp.cos(phi)
+            vy = v_magnitudes * sin_theta * jnp.sin(phi)
+            vz = v_magnitudes * cos_theta
+            return jnp.stack([vx, vy, vz], axis=1)
 
-        # Sample isotropic directions
-        cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
-        phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2*jnp.pi)
+        # Osipkov-Merritt anisotropic Plummer DF (Merritt 1985, Eq. 45). Dimensionless
+        # units: sigma_0^2 = G M / (6 a); psi(r) = 6 (1 + r^2/a^2)^{-1/2}. Sample the
+        # speed from s^2 f(psi - s^2/2) (shared inverse-CDF), then assign OM directions.
+        M_total = jnp.sum(masses)
+        sigma0 = jnp.sqrt(G * M_total / (6.0 * self.a))
+        psi_r = 6.0 / jnp.sqrt(1.0 + (radii / self.a) ** 2)
 
-        # Convert to Cartesian velocity components
-        sin_theta = jnp.sqrt(1.0 - cos_theta**2)
-        vx = v_magnitudes * sin_theta * jnp.cos(phi)
-        vy = v_magnitudes * sin_theta * jnp.sin(phi)
-        vz = v_magnitudes * cos_theta
-
-        velocities = jnp.stack([vx, vy, vz], axis=1)
-
-        return velocities
+        key_speed, key_dir = jax.random.split(key)
+        speed_keys = jax.random.split(key_speed, N)
+        s = jax.vmap(
+            lambda k, p: sample_speed_from_f_table(k, p, self._om_E_grid, self._om_f_grid)
+        )(speed_keys, psi_r)
+        speeds = sigma0 * s
+        return assign_om_directions(key_dir, positions, speeds, self.anisotropy_radius)
 
     def _sample_velocity_magnitudes(
         self,
