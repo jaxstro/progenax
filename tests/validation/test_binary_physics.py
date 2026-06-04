@@ -270,5 +270,84 @@ class TestDifferentiability:
             "dE/da should be negative (larger orbit → slower velocity)"
 
 
+class TestSmallSemiMajorAxisSTELLAR:
+    """B4-1 regression: to_state mean motion must be exact for ALL physical a.
+
+    The historical bug clamped a**3 at an absolute 1e-12 floor (kepler.py:122),
+    so in STELLAR units (pc; the package default) realistic stellar binaries
+    (a ~ 1e-6 pc) got velocities/energies wrong by ~100%. For a circular orbit
+    |v_rel| must equal sqrt(G M / a) at every scale, with no unit-dependent floor.
+    """
+
+    def test_circular_velocity_exact_across_scales_stellar(self):
+        from jaxstro.units import STELLAR
+        G_st = STELLAR.G
+        M = 2.0
+        # 1.86e-7 pc ~ 0.04 AU, a typical short-period stellar binary separation.
+        for a in [1.0, 1e-2, 1e-4, 1.86e-7]:
+            el = KeplerElements(a=a, e=0.0, M0=0.0)
+            v = jnp.linalg.norm(el.to_state(M_total=M, G=G_st)['velocity'])
+            v_true = jnp.sqrt(G_st * M / a)
+            rel = abs(float(v) - float(v_true)) / float(v_true)
+            assert rel < 1e-10, (
+                f"a={a:.2e} pc: |v|={float(v):.3e} vs sqrt(GM/a)={float(v_true):.3e}, rel={rel:.2e}"
+            )
+
+
+class TestKeplerEccentricityGradientBoundary:
+    """B4-3 regression: gradient of to_state wrt e stays finite at the e->1 boundary."""
+
+    def test_grad_finite_through_e_to_one(self):
+        def loss(e):
+            el = KeplerElements(a=1.0, e=e, M0=1.0)
+            return jnp.sum(el.to_state(M_total=1.0, G=G)['velocity'] ** 2)
+
+        assert jnp.isfinite(jax.grad(loss)(0.9999))
+        g_one = jax.grad(loss)(1.0)
+        assert jnp.isfinite(g_one), f"grad at e=1.0 = {float(g_one)} (NaN before the B4-3 fix)"
+
+
+class TestKeplerTransformGradients:
+    """B4-15: FD-vs-autodiff grad-checks for the KeplerElements transforms.
+
+    The differentiable-IC pipeline depends on grads through to_state/from_state;
+    these pin autodiff against a central finite difference (rel-err) so a future
+    refactor or guard cannot silently break them. (Prior coverage only checked
+    sign + finiteness via test_grad_through_kepler_solve.)
+    """
+
+    @staticmethod
+    def _fd_relerr(f, x, hs=(1e-4, 1e-5, 1e-6)):
+        g_ad = jax.grad(f)(x)
+        rel = min(
+            float(jnp.abs(g_ad - (f(x + h) - f(x - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
+            for h in hs
+        )
+        return g_ad, rel
+
+    def test_to_state_grad_wrt_a(self):
+        loss = lambda a: jnp.sum(KeplerElements(a=a, e=0.3, M0=1.0).to_state(1.0, G)['velocity'] ** 2)
+        g, rel = self._fd_relerr(loss, 1.5)
+        assert jnp.isfinite(g) and rel < 1e-5, f"d|v|^2/da FD rel-err {rel:.2e}"
+
+    def test_to_state_grad_wrt_e(self):
+        loss = lambda e: jnp.sum(KeplerElements(a=1.0, e=e, M0=1.0).to_state(1.0, G)['velocity'] ** 2)
+        g, rel = self._fd_relerr(loss, 0.3)
+        assert jnp.isfinite(g) and rel < 1e-5, f"d|v|^2/de FD rel-err {rel:.2e}"
+
+    def test_to_state_grad_wrt_M0(self):
+        loss = lambda M0: jnp.linalg.norm(KeplerElements(a=1.0, e=0.3, M0=M0).to_state(1.0, G)['position'])
+        g, rel = self._fd_relerr(loss, 1.0)
+        assert jnp.isfinite(g) and rel < 1e-5, f"d|r|/dM0 FD rel-err {rel:.2e}"
+
+    def test_from_state_grad_wrt_velocity_scale(self):
+        base = KeplerElements(a=1.0, e=0.3, i=0.4, M0=1.0).to_state(1.0, G)
+        r0, v0 = base['position'], base['velocity']
+        # Scaling v rescales the orbital energy -> changes the recovered a.
+        loss = lambda s: KeplerElements.from_state(r0, s * v0, M_total=1.0, G=G).a
+        g, rel = self._fd_relerr(loss, 1.0)
+        assert jnp.isfinite(g) and rel < 1e-4, f"from_state d a/d(v-scale) FD rel-err {rel:.2e}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

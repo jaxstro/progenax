@@ -115,17 +115,23 @@ class KeplerElements(eqx.Module):
         sin_E = jnp.sin(E)
 
         x_p = self.a * (cos_E - self.e)
-        y_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 0.0)) * sin_E
+        y_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 1e-12)) * sin_E
 
         # Perifocal velocities
-        # Mean motion: n = sqrt(GM/a^3)
-        n = jnp.sqrt(G * M_total / jnp.maximum(self.a**3, 1e-12))
+        # Mean motion: n = sqrt(GM/a^3). Use a divide-safe denominator (double
+        # where) rather than an ABSOLUTE floor on a^3: a^3 is a dimensional
+        # quantity, so a fixed 1e-12 floor silently corrupts tight binaries in
+        # STELLAR units (a ~ 1e-6 pc => a^3 ~ 1e-17). The where guards only the
+        # true singularity a=0 (and keeps the gradient finite there).
+        a3 = self.a**3
+        a3_safe = jnp.where(a3 > 0.0, a3, 1.0)
+        n = jnp.where(a3 > 0.0, jnp.sqrt(G * M_total / a3_safe), 0.0)
 
         # dE/dt = n/(1 - e*cos E)
         E_dot = n / jnp.maximum(1.0 - self.e * cos_E, 1e-12)
 
         vx_p = -self.a * sin_E * E_dot
-        vy_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 0.0)) * cos_E * E_dot
+        vy_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 1e-12)) * cos_E * E_dot
 
         # Step 3: Rotate to inertial frame
         # Rotation matrices for (Omega, i, omega)

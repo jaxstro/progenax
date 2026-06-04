@@ -373,3 +373,109 @@ class TestBinarySamplingDifferentiability:
         assert jnp.isfinite(g)
         assert jnp.abs(g - expected) < 1e-6, f"d<e>/d(e_max)={float(g):.6f} != <sqrt u>"
         assert jnp.abs(g - 2.0 / 3.0) < 0.02  # converges to <sqrt u> = 2/3
+
+
+class TestSanaOBPeriodAlphaMinusOne:
+    """B4-2 regression: SanaOBPeriod must be finite + grad-safe at the alpha=-1 index.
+
+    The historical bug raised ZeroDivisionError in sample() and returned a NaN
+    gradient at power=-1 (the IMF-B5 double-where trap, population.py:283). The
+    alpha=-1 member must ALSO be the true alpha->-1 limit of the power-law family
+    (log-uniform in log10 P), i.e. continuous across -1 (finding B4-2b).
+
+    Reference: Sana et al. (2012); power=-1 is the Opik/log-uniform special case.
+    """
+
+    def test_sample_finite_at_power_minus_one(self):
+        from progenax.binaries.population import SanaOBPeriod
+        key = jax.random.PRNGKey(0)
+        s = SanaOBPeriod(power=-1.0).sample(key, 200)
+        assert jnp.all(jnp.isfinite(s)) and jnp.all(s > 0)
+
+    def test_power_minus_one_matches_general_limit(self):
+        """B4-2b: the alpha=-1 special case must equal the alpha->-1 limit of the
+        general inverse-CDF (same key => same u draws => same per-sample log P)."""
+        from progenax.binaries.population import SanaOBPeriod
+        key = jax.random.PRNGKey(1)
+        x_exact = jnp.log10(SanaOBPeriod(power=-1.0).sample(key, 5000))
+        x_near = jnp.log10(SanaOBPeriod(power=-1.0 + 1e-6).sample(key, 5000))
+        dev = float(jnp.max(jnp.abs(x_exact - x_near)))
+        assert dev < 1e-3, f"alpha=-1 branch deviates from the alpha->-1 limit by {dev:.2e}"
+
+    def test_grad_finite_at_power_minus_one(self):
+        from progenax.binaries.population import SanaOBPeriod
+        key = jax.random.PRNGKey(2)
+        def loss(p):
+            return jnp.mean(jnp.log10(SanaOBPeriod(power=p).sample(key, 2000)))
+        assert jnp.isfinite(jax.grad(loss)(-1.0))
+
+
+class TestMassDependentBinaryConfigPyTree:
+    """B4-4 regression: MassDependentBinaryConfig must be a proper JAX PyTree.
+
+    A frozen @dataclass registers as ONE opaque leaf, so its submodule array
+    leaves are invisible to tree_map/vmap/grad over the config (the docstring's
+    'JIT-native' claim does not hold). An eqx.Module exposes the inner leaves.
+    """
+
+    def test_config_is_pytree(self):
+        import jax.tree_util as jtu
+        from progenax.binaries.population import (
+            MassDependentBinaryConfig, LogNormalPeriod, SanaOBPeriod,
+            ThermalEccentricity, MoeEccentricity,
+        )
+        cfg = MassDependentBinaryConfig(
+            m_break=8.0,
+            low_mass_period=LogNormalPeriod(),
+            high_mass_period=SanaOBPeriod(),
+            low_mass_eccentricity=ThermalEccentricity(),
+            high_mass_eccentricity=MoeEccentricity(),
+        )
+        leaves = jtu.tree_leaves(cfg)
+        assert len(leaves) > 1, f"config is not a PyTree (tree_leaves={len(leaves)})"
+
+
+class TestMoreSamplerGradients:
+    """B4-15: FD-vs-autodiff grad-checks for the samplers that lacked them
+    (Moe eccentricity, Uniform eccentricity, LogUniform period). Fixed key =>
+    deterministic loss => autodiff must match a central finite difference.
+    """
+
+    def test_moe_eccentricity_emax_gradient_matches_fd(self):
+        from progenax.binaries.population import MoeEccentricity
+        key = jax.random.PRNGKey(0)
+        periods = jnp.logspace(0.5, 3.5, 4000)  # fixed period grid
+
+        def loss(em):
+            return jnp.mean(MoeEccentricity(e_max=em).sample(periods, key))
+
+        em0 = 0.99
+        g_ad = jax.grad(loss)(em0)
+        assert jnp.isfinite(g_ad)
+        rel = min(
+            float(jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
+            for h in (1e-3, 1e-4, 1e-5)
+        )
+        assert rel < 1e-5, f"Moe e_max grad FD rel-err {rel:.2e}"
+
+    def test_uniform_eccentricity_emax_gradient(self):
+        from progenax.binaries.population import UniformEccentricity
+        key = jax.random.PRNGKey(1)
+        # e = e_min + u(e_max - e_min)  =>  d<e>/d(e_max) = <u>
+        expected = jnp.mean(jax.random.uniform(key, (20000,)))
+        g = jax.grad(
+            lambda em: jnp.mean(UniformEccentricity(e_min=0.0, e_max=em).sample(key, 20000))
+        )(0.9)
+        assert jnp.isfinite(g) and jnp.abs(g - expected) < 1e-6
+        assert jnp.abs(g - 0.5) < 0.02
+
+    def test_loguniform_period_logpmax_gradient(self):
+        from progenax.binaries.population import LogUniformPeriod
+        key = jax.random.PRNGKey(2)
+        # log10 P = lo + u (hi - lo)  =>  d<log10 P>/d(hi) = <u>
+        expected = jnp.mean(jax.random.uniform(key, (20000,)))
+        g = jax.grad(
+            lambda hi: jnp.mean(jnp.log10(LogUniformPeriod(log_P_min=0.0, log_P_max=hi).sample(key, 20000)))
+        )(8.0)
+        assert jnp.isfinite(g) and jnp.abs(g - expected) < 1e-6
+        assert jnp.abs(g - 0.5) < 0.02

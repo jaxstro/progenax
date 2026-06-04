@@ -14,7 +14,6 @@ References:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Tuple
 
 import equinox as eqx
@@ -272,21 +271,24 @@ class SanaOBPeriod(eqx.Module):
         a = self.log_P_min
         b = self.log_P_max
 
-        # Special case: α = -1 (log-uniform)
+        # alpha = -1 is the log-uniform (Öpik) special case. The general
+        # inverse-CDF divides by (alpha+1), so guard that denominator with a
+        # double-where: ap1_safe is never 0, so neither the value path (a
+        # concrete power=-1 raised ZeroDivisionError) nor the dead branch under
+        # autodiff (jnp.where traces BOTH branches -> NaN grad) can blow up.
         is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
+        ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
 
-        # General power-law case
-        a_pow = a ** (alpha + 1.0)
-        b_pow = b ** (alpha + 1.0)
-        log_P_general = jnp.power(
-            u * (b_pow - a_pow) + a_pow,
-            1.0 / (alpha + 1.0)
-        )
+        # General truncated power law p(x) ∝ x^alpha on x=log10(P) in [a, b]:
+        #   F^-1(u) = [u (b^{a+1} - a^{a+1}) + a^{a+1}]^{1/(a+1)}
+        a_pow = a ** ap1_safe
+        b_pow = b ** ap1_safe
+        log_P_general = jnp.power(u * (b_pow - a_pow) + a_pow, 1.0 / ap1_safe)
 
-        # Log-uniform case (α = -1)
-        log_P_log_uniform = a + u * (b - a)
+        # True alpha -> -1 limit is log-uniform IN x (not uniform): x = a (b/a)^u.
+        # (lim_{β->0} [u(b^β - a^β) + a^β]^{1/β} = a (b/a)^u.)
+        log_P_log_uniform = a * (b / a) ** u
 
-        # Select appropriate formula
         log_P = jnp.where(is_log_uniform, log_P_log_uniform, log_P_general)
 
         return 10.0 ** log_P
@@ -430,8 +432,7 @@ class RadialBinaryFraction(eqx.Module):
 # =============================================================================
 
 
-@dataclass(frozen=True)
-class MassDependentBinaryConfig:
+class MassDependentBinaryConfig(eqx.Module):
     """Configuration for mass-dependent binary orbital parameter sampling.
 
     Routes stars to different period/eccentricity distributions based on mass:
