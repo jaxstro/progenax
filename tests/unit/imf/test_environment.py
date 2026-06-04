@@ -25,6 +25,8 @@ from progenax.imf.differentiable import individual_mass_nll
 from progenax.imf.environment.mapping import (
     alpha3_marks_table3,
     _alpha3_from_x,
+    alpha3_jerabkova_generalized,
+    x_jerabkova_generalized,
 )
 from progenax.imf.environment.coefficients import MARKS_TABLE3_COEFFICIENTS
 
@@ -690,3 +692,82 @@ class TestEnvToIMFParamsAllModels:
         assert jnp.isclose(params_raw.alpha3, a3_at_raw, atol=1e-6)
         # They genuinely differ (clamping changed the result)
         assert not jnp.isclose(params_clamped.alpha3, params_raw.alpha3, atol=1e-3)
+
+
+# =============================================================================
+# Environment gradient correctness (FD-vs-autodiff) + SFE-extreme robustness
+# =============================================================================
+
+
+def _central_fd(f, x, h):
+    return (f(x + h) - f(x - h)) / (2.0 * h)
+
+
+def _assert_grad_matches_fd(f, x0, h=1e-5, rtol=1e-4, atol=1e-9):
+    """Autodiff grad of f at x0 matches the central FD (and is finite/non-zero)."""
+    g = jax.grad(f)(x0)
+    g_fd = _central_fd(f, x0, h)
+    assert jnp.isfinite(g), f"autodiff grad is {g}"
+    assert jnp.abs(g) > 1e-6, f"grad effectively zero ({g}); FD says {g_fd}"
+    assert jnp.abs(g - g_fd) <= rtol * jnp.abs(g_fd) + atol, (
+        f"autodiff {float(g):.6e} vs FD {float(g_fd):.6e} "
+        f"(rel {float(jnp.abs(g - g_fd) / (jnp.abs(g_fd) + 1e-12)):.2e})"
+    )
+
+
+class TestEnvGradients:
+    """Autodiff env-parameter gradients match central finite differences.
+
+    Evaluated in a top-heavy regime where the varied branch (slope*x+intercept) is
+    active and unclipped, so the gradient is non-zero. Uses smooth=True so the
+    tanh-relaxed transition is differentiable everywhere.
+    """
+
+    def test_jerabkova_generalized_grad_FeH(self):
+        _assert_grad_matches_fd(
+            lambda fe: alpha3_jerabkova_generalized(fe, 1e6, 0.33, smooth=True), -1.0
+        )
+
+    def test_jerabkova_generalized_grad_sfe(self):
+        _assert_grad_matches_fd(
+            lambda s: alpha3_jerabkova_generalized(-1.0, 1e6, s, smooth=True), 0.33, h=1e-4
+        )
+
+    def test_jerabkova_mecl_grad_logmass(self):
+        # Mass dependence via the natural log-mass variable (O(0.1) gradient).
+        _assert_grad_matches_fd(
+            lambda lm: alpha3_jerabkova_mecl(lm, -1.0, smooth=True), 0.0
+        )
+
+    def test_marks_plane_grad_logrho(self):
+        _assert_grad_matches_fd(
+            lambda r: alpha3_marks_plane(r, -1.5, smooth=True), 1.0
+        )
+
+    def test_marks_plane_grad_FeH(self):
+        _assert_grad_matches_fd(
+            lambda fe: alpha3_marks_plane(1.0, fe, smooth=True), -1.5
+        )
+
+    def test_x_jerabkova_grad_FeH(self):
+        # x is unconditional (no threshold): grad is exactly the FeH coefficient.
+        _assert_grad_matches_fd(
+            lambda fe: x_jerabkova_generalized(fe, 1e6, 0.33), -1.0
+        )
+
+
+class TestSFEExtreme:
+    """alpha3 stays finite and clipped to [0.5, 2.3] at SFE extremes (no NaN)."""
+
+    @pytest.mark.parametrize("sfe", [1e-6, 1e-3, 0.33, 100.0, 1e6])
+    def test_alpha3_finite_and_bounded(self, sfe):
+        a3 = alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(sfe))
+        assert jnp.isfinite(a3), f"alpha3 non-finite at sfe={sfe}: {a3}"
+        assert 0.5 - 1e-9 <= float(a3) <= 2.3 + 1e-9, f"alpha3={float(a3)} out of [0.5,2.3] at sfe={sfe}"
+
+    def test_sfe_extremes_saturate(self):
+        # sfe -> 0 => most top-heavy (clips to 0.5); sfe -> inf => canonical (2.3)
+        a_low = float(alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(1e-6)))
+        a_high = float(alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(1e6)))
+        assert a_low == pytest.approx(0.5, abs=1e-6), f"sfe->0 should clip to 0.5, got {a_low}"
+        assert a_high == pytest.approx(2.3, abs=1e-6), f"sfe->inf should be canonical 2.3, got {a_high}"

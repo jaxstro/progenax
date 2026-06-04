@@ -25,14 +25,19 @@ def compute_r_half(M_ecl: Float[Array, "..."]) -> Float[Array, "..."]:
 
 
 def compute_rho_ecl(M_ecl: Float[Array, "..."]) -> Float[Array, "..."]:
-    """Half-mass density (Marks+2012 convention).
+    """Half-mass density (Marks & Kroupa 2012 definition).
 
     ρ_ecl = 3 × M_ecl / (8π × r_h³)
 
     The 8π factor arises because half the cluster mass is within r_h:
         ρ = (M_ecl/2) / (4π/3 × r_h³) = 3M_ecl / (8π × r_h³)
 
-    This convention matches Marks+2012 Table 1 densities exactly.
+    This is the authoritative definition in Marks & Kroupa (2012), A&A 543, A8 (p. 2,
+    "ρ_ecl = 3 M_ecl/8π r_h³"), and reproduces Marks+2012 (MNRAS 422, 2246) Table 1
+    densities exactly (e.g. NGC 104: 3·9.40e6/(8π·0.49³)=9.54e6 = the tabulated ρ_cl).
+    NOTE: Jerabkova+2018 Eq. 8 writes 4π, but that is internally inconsistent with its
+    own ρ_ecl=0.61·logM+2.08 relation (which is 8π); progenax follows the 8π convention
+    that matches the actual α₃–ρ calibration data.
 
     Args:
         M_ecl: Stellar mass of embedded cluster [M☉]

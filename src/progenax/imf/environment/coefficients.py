@@ -25,10 +25,14 @@ JERABKOVA_COEFFICIENTS = {
     "FeH_coeff": -0.14,
     "logMecl_coeff": 0.6039,  # 0.99 × 0.61 = 0.6039 (exact)
     "constant": 0.2161,       # 0.99 × (2.5583 - 6) + 3.6234 = 0.2161 (8π-derived)
-    "x_threshold": -0.87,     # NEGATIVE threshold (top-heavy when x > -0.87)
-    "alpha3_slope": -0.41,
-    "alpha3_intercept": 1.94,
-    "alpha3_canonical": 2.3,
+    # α₃(x) relation — Jerabkova+2018 Eq. 6 (= Marks+2012 + 2014 erratum):
+    #   α₃ = 2.3 (x < -0.87);  α₃ = -0.41·x + 1.94 (x ≥ -0.87)
+    # NOTE: distinct from the Marks+2012 MNRAS Fundamental-Plane fit (-0.4072 / 1.9383),
+    # which is kept separately in MARKS_COEFFICIENTS.
+    "x_threshold": -0.87,     # NEGATIVE threshold (top-heavy when x ≥ -0.87); Jerabkova Eq. 6
+    "alpha3_slope": -0.41,    # Jerabkova+2018 Eq. 6
+    "alpha3_intercept": 1.94, # Jerabkova+2018 Eq. 6
+    "alpha3_canonical": 2.3,  # Kroupa (2001) canonical high-mass slope
     # Jerabkova+2018 Eq. 7 (density-based, NO constant term)
     "rho_logRho_coeff": 0.99,
 }
