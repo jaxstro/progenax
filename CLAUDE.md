@@ -82,8 +82,8 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 
 | Module | Purpose | Key Classes |
 |--------|---------|-------------|
-| `profiles/` | Spatial density profiles | `PlummerProfile`, `KingProfile`, `EFFProfile` |
-| `kinematics/` | Velocity DFs + transforms | `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` |
+| `profiles/` | Spatial density profiles | `PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile` |
+| `kinematics/` | Velocity DFs + transforms | `PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF` |
 | `imf/` | Initial mass functions | `PowerLawIMF`, `ChabrierIMF`, `IGIMF`, `BinaryIMF` |
 | `binaries/` | Orbital mechanics | `KeplerElements`, `BinaryOrbitalState` |
 | `analytical/` | Test cases with exact solutions | `two_body_kepler()`, `three_body_figure_eight()` |
@@ -206,9 +206,9 @@ are sampled in detailed equilibrium with **no external virial rescale**:
 
 All public symbols exported from `progenax.__init__`:
 
-**Profiles**: `PlummerProfile`, `KingProfile`, `EFFProfile`, `solve_king_profile()`
+**Profiles**: `PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile`, `solve_king_profile()`, `solve_michie_profile()`
 
-**Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` (Plummer/EFF take an optional `anisotropy_radius` for Osipkov-Merritt radial anisotropy, β(r)=r²/(r²+r_a²)), `apply_solid_body_rotation()`, `apply_differential_rotation()`
+**Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` (Plummer/EFF take an optional `anisotropy_radius` for Osipkov-Merritt radial anisotropy, β(r)=r²/(r²+r_a²)), `MichieVelocityDF` (self-consistent anisotropic King = Michie 1963 + King 1966 cutoff; pairs with `MichieProfile`), `apply_solid_body_rotation()`, `apply_differential_rotation()`
 
 **IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`, `IGIMF`, `EnvironmentIMF`
 

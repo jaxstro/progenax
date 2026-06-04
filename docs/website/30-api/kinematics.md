@@ -9,12 +9,13 @@ description: Auto-generated API reference for `progenax.kinematics` — signatur
 
 Module path: `progenax/kinematics/`
 
-Public symbols: **9**
+Public symbols: **10**
 
 ## Contents
 
 - [`PlummerVelocityDF`](#api-kinematics-plummervelocitydf)
 - [`KingVelocityDF`](#api-kinematics-kingvelocitydf)
+- [`MichieVelocityDF`](#api-kinematics-michievelocitydf)
 - [`EFFVelocityDF`](#api-kinematics-effvelocitydf)
 - [`apply_solid_body_rotation`](#api-kinematics-apply_solid_body_rotation)
 - [`apply_differential_rotation`](#api-kinematics-apply_differential_rotation)
@@ -117,6 +118,30 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
 *Source: [`progenax/kinematics/king_df.py#L63`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L63)*
+
+(api-kinematics-michievelocitydf)=
+## `kinematics.MichieVelocityDF`
+
+*class*
+
+```python
+MichieVelocityDF(W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000)
+```
+
+Michie-King anisotropic velocity DF (radially anisotropic, lowered-Maxwellian).
+
+beta(r) ~ 0 at the centre, increasing outward; r_a -> infinity is the isotropic King
+DF. The velocity scale sigma is self-consistent (sigma^2 = G M / (9 r_c mu), mu the
+anisotropic dimensionless mass integral), so ICs are virial without external rescale.
+
+Attributes:
+    W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.
+    mu: int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma).
+
+References:
+    Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
+
+*Source: [`progenax/kinematics/michie_df.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/michie_df.py#L64)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`

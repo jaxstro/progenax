@@ -70,6 +70,7 @@ project:
             - file: 10-theory/velocity-dfs/index.md
             - file: 10-theory/velocity-dfs/plummer-dfs.md
             - file: 10-theory/velocity-dfs/king-dfs.md
+            - file: 10-theory/velocity-dfs/michie-king.md
             - file: 10-theory/velocity-dfs/rotation-anisotropy.md
         - title: Initial mass functions
           children:

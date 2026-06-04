@@ -9,13 +9,15 @@ description: Auto-generated API reference for `progenax.profiles` — signatures
 
 Module path: `progenax/profiles/`
 
-Public symbols: **9**
+Public symbols: **11**
 
 ## Contents
 
 - [`PlummerProfile`](#api-profiles-plummerprofile)
 - [`KingProfile`](#api-profiles-kingprofile)
 - [`solve_king_profile`](#api-profiles-solve_king_profile)
+- [`MichieProfile`](#api-profiles-michieprofile)
+- [`solve_michie_profile`](#api-profiles-solve_michie_profile)
 - [`EFFProfile`](#api-profiles-effprofile)
 - [`UniformSphereProfile`](#api-profiles-uniformsphereprofile)
 - [`ProfileName`](#api-profiles-profilename)
@@ -129,6 +131,60 @@ Note:
     diffrax for robustness.
 
 *Source: [`progenax/profiles/king.py#L137`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L137)*
+
+(api-profiles-michieprofile)=
+## `profiles.MichieProfile`
+
+*class*
+
+```python
+MichieProfile(W0, r_c, r_a, r_t, xi_grid, psi_grid, n_grid: int = 1000)
+```
+
+Michie-King anisotropic spherical density profile (SpatialProfile).
+
+The self-consistent density of the Michie-King model (Michie 1963 anisotropy + King
+1966 cutoff). More centrally-radial and more extended than the isotropic King model;
+r_a -> infinity recovers King. Construct with ``from_W0_rc``.
+
+Attributes:
+    W0: central concentration. r_c: core radius. r_a: anisotropy radius [length].
+    r_t: tidal radius (derived). xi_grid, psi_grid: ODE solution. _r_grid, _cdf_grid:
+    precomputed mass-CDF for inverse-transform position sampling.
+
+References:
+    Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
+
+*Source: [`progenax/profiles/michie.py#L144`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/michie.py#L144)*
+
+(api-profiles-solve_michie_profile)=
+## `profiles.solve_michie_profile`
+
+*function*
+
+```python
+solve_michie_profile(W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+```
+
+Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
+
+Args:
+    W0: Central concentration (psi(0) = W0).
+    ra_hat: Anisotropy radius in core-radius units, r_a / r_c. ra_hat -> infinity is
+        the isotropic King limit. Below a W0-dependent threshold the radial orbits
+        build a 1/r^2 density tail and the model has no finite tidal radius (infinite
+        mass) -- a concrete-input call then raises ValueError.
+    xi_max: Maximum dimensionless radius. Larger than King's default because
+        anisotropic models are far more extended (xi_t up to several hundred).
+    n_points: output grid size.
+
+Returns:
+    xi_grid (= r/r_c), psi_grid (psi >= 0, truncated at the tidal radius).
+
+References:
+    Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
+
+*Source: [`progenax/profiles/michie.py#L83`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/michie.py#L83)*
 
 (api-profiles-effprofile)=
 ## `profiles.EFFProfile`

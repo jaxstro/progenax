@@ -123,8 +123,10 @@ sufficient for long-term stability.
 the radially anisotropic King model is the self-consistent
 **Michie (1963)** model, whose lowered DF
 $f \propto e^{-J^2/2r_a^2\sigma^2}[e^{-E/\sigma^2}-1]$ is **not** a
-function of $Q$ alone and yields a *different* density profile. It is
-tracked as separate work; `KingVelocityDF` is isotropic for now.
+function of $Q$ alone and yields a *different*, more centrally-radial
+density profile. It is implemented as the separate self-consistent pair
+`MichieProfile` + `MichieVelocityDF` (`KingVelocityDF` stays isotropic).
+See [](michie-king.md) and [](../../99-bibliography/per-paper/michie-1963.md).
 ```
 
 ## Solid-body rotation

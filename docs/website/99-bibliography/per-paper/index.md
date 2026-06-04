@@ -22,6 +22,7 @@ The pages are organised alphabetically by first-author surname.
 ## Velocity distribution functions
 
 - [](merritt-1985.md)
+- [](michie-1963.md)
 
 ## Initial mass functions
 

@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **133** across all submodules.
+Total public symbols: **136** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -94,6 +94,8 @@ Total public symbols: **133** across all submodules.
 | [`MassDependentBinaryConfig`](binaries.md#api-binaries-massdependentbinaryconfig) | class | `progenax.binaries` |
 | [`MassDependentBinaryFraction`](imf.md#api-imf-massdependentbinaryfraction) | class | `progenax.imf` |
 | [`MassRatioProtocol`](imf.md#api-imf-massratioprotocol) | protocol | `progenax.imf` |
+| [`MichieProfile`](profiles.md#api-profiles-michieprofile) | class | `progenax.profiles` |
+| [`MichieVelocityDF`](kinematics.md#api-kinematics-michievelocitydf) | class | `progenax.kinematics` |
 | [`MoeDiStefano2017`](imf.md#api-imf-moedistefano2017) | class | `progenax.imf` |
 | [`MoeEccentricity`](binaries.md#api-binaries-moeeccentricity) | class | `progenax.binaries` |
 | [`period_to_semimajor_axis`](binaries.md#api-binaries-period_to_semimajor_axis) | function | `progenax.binaries` |
@@ -122,6 +124,7 @@ Total public symbols: **133** across all submodules.
 | [`solar_system_inner_4`](analytical.md#api-analytical-solar_system_inner_4) | function | `progenax.analytical` |
 | [`SOLAR_SYSTEM_PLANETS`](analytical.md#api-analytical-solar_system_planets) | value | `progenax.analytical` |
 | [`solve_king_profile`](profiles.md#api-profiles-solve_king_profile) | function | `progenax.profiles` |
+| [`solve_michie_profile`](profiles.md#api-profiles-solve_michie_profile) | function | `progenax.profiles` |
 | [`SpatialProfile`](protocols.md#api-protocols-spatialprofile) | protocol | `progenax.protocols` |
 | [`sun_earth_jupiter_3body`](analytical.md#api-analytical-sun_earth_jupiter_3body) | function | `progenax.analytical` |
 | [`TaperedPowerLaw`](imf.md#api-imf-taperedpowerlaw) | class | `progenax.imf` |
