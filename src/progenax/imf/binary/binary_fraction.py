@@ -34,23 +34,27 @@ class ConstantBinaryFraction(eqx.Module):
 
 
 class MassDependentBinaryFraction(eqx.Module):
-    """Mass-dependent binary fraction from Moe & Di Stefano (2017).
+    """Mass-dependent MULTIPLICITY fraction (probability a primary has ≥1 companion).
 
-    Reference:
-        Moe & Di Stefano (2017) ApJS 230, 15 - Table 13
-        "Close Binary Fraction as Function of Primary Mass"
+    These are the **multiplicity fractions** f = 1 − (single-star fraction). For
+    M ≥ 0.8 Msun they are derived from Moe & Di Stefano (2017) ApJS 230, 15, Table 13
+    (the single-star fraction F_{n=0;q>0.1} row): e.g. solar 1−0.60=0.40, B-star 1−0.41≈0.59,
+    O-star 1−0.06≈0.94. Below 0.8 Msun the values come from M-dwarf surveys (Raghavan et al.
+    2010; Duchêne & Kraus 2013). They are NOT the "close binary fraction" (Table 13's
+    f_{logP<3.7}) nor the total multiplicity *frequency* f_mult (which exceeds 1 for massive
+    stars because of triples/quadruples); they are the fraction of primaries with a companion.
 
-    Model (period-integrated companion frequency):
-        - M < 0.1 Msun: f_bin ≈ 0.22 (VLM/brown dwarfs)
-        - 0.1 < M < 0.5 Msun: f_bin ≈ 0.26 (M-dwarfs)
-        - 0.5 < M < 1.0 Msun: f_bin ≈ 0.44 (K/G-dwarfs)
-        - 1.0 < M < 2.0 Msun: f_bin ≈ 0.50 (F/A-stars)
-        - 2.0 < M < 5.0 Msun: f_bin ≈ 0.60 (B-stars)
-        - 5.0 < M < 10 Msun: f_bin ≈ 0.80 (early B)
-        - M > 10 Msun: f_bin ≈ 0.90 (O-stars)
+    Model (multiplicity fraction vs primary mass):
+        - M < 0.1 Msun: f ≈ 0.22 (VLM/brown dwarfs; M-dwarf surveys)
+        - 0.1 < M < 0.5 Msun: f ≈ 0.26 (M-dwarfs; surveys)
+        - 0.5 < M < 1.0 Msun: f ≈ 0.44 (K/G-dwarfs; Raghavan 2010 ≈0.44, Moe solar 1−0.60=0.40)
+        - 1.0 < M < 2.0 Msun: f ≈ 0.50 (F/A-stars)
+        - 2.0 < M < 5.0 Msun: f ≈ 0.60 (B-stars; Moe A/late-B 1−0.41≈0.59)
+        - 5.0 < M < 10 Msun: f ≈ 0.80 (early B; Moe mid/early-B 1−{0.24,0.16}≈0.76–0.84)
+        - M > 10 Msun: f ≈ 0.90 (O-stars; Moe O 1−0.06≈0.94)
 
-    Note: These are companion frequencies, not strict binary fractions.
-    Higher-order multiples (triples, etc.) are common at high masses.
+    Note: pairing one companion per "binary" system; higher-order multiples (triples, etc.)
+    are common at high masses but are not modelled here (use the full Moe model for that).
     """
 
     def __call__(self, m: Float[Array, "..."]) -> Float[Array, "..."]:

@@ -57,14 +57,16 @@ class DifferentiableBinaryFraction(eqx.Module):
 
     @classmethod
     def from_moe2017(cls) -> "DifferentiableBinaryFraction":
-        """Factory with parameters fit to Moe+2017 Table 13.
+        """Factory: a smooth quadratic-logit fit to the MassDependentBinaryFraction steps.
 
-        Weighted least-squares fit of logit(f_b) = a + b*log10(m) + c*log10(m)^2
-        to the step-function values at representative masses. The quadratic term
-        captures the flattening at low mass. Errors <3% at all mass bins.
+        Weighted least-squares fit of logit(f_b) = a + b*log10(m) + c*log10(m)^2 to the
+        MassDependentBinaryFraction step values (the Moe+2017 Table 13-derived multiplicity
+        fractions; see that class). The quadratic term captures the low-mass flattening.
+        Agreement is ≲3% at representative (bin-centre) masses, rising to ~6% near the step
+        discontinuities (a continuous curve cannot match a step exactly at its edge).
 
         Returns:
-            DifferentiableBinaryFraction with Moe+2017-calibrated (a, b, c)
+            DifferentiableBinaryFraction with the fitted (a, b, c)
         """
         return cls(a=-0.2799, b=1.4170, c=0.4755)
 

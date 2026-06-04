@@ -18,19 +18,25 @@ class MoeDiStefano2017(eqx.Module):
     """Mass-dependent mass-ratio distribution from Moe & Di Stefano (2017).
 
     Reference:
-        Moe & Di Stefano (2017) ApJS 230, 15
-        Table 10: Intrinsic mass-ratio distributions
+        Moe & Di Stefano (2017) ApJS 230, 15, Table 13.
 
-    This implements the full mass-dependent model where:
-        - γ (power-law exponent) depends on primary mass
-        - f_twin (twin excess) depends on primary mass and period
-        - The distribution transitions smoothly across mass ranges
+    APPROXIMATION — single-slope, period-averaged. Moe & Di Stefano's actual mass-ratio
+    distribution is a THREE-parameter, PERIOD-DEPENDENT form (Table 13): two power-law
+    slopes γ_smallq (0.1<q<0.3) and γ_largeq (0.3<q<1.0) plus a twin excess F_twin, with
+    all three tabulated as functions of BOTH primary mass AND orbital period (at logP=1,3,5,7).
+    This class collapses that to a SINGLE period-averaged slope γ(M1) and a period-averaged
+    F_twin(M1) — it captures the qualitative trend (low-mass companions favour equal q, OB
+    companions favour small q) but is not a verbatim Table row. A faithful two-slope,
+    period-dependent implementation is tracked in
+    docs/notes/2026-06-04-moe-twoslope-q-distribution-ticket.md.
 
-    Model (simplified, period-averaged):
+    Period-averaged single-slope reduction (γ from the qualitative γ_smallq/γ_largeq trend;
+    f_twin period-averaged from Table 13's F_twin, which falls from ~0.1–0.3 at logP=1 to
+    <0.03 at long P):
         - M1 < 0.8 Msun: γ ≈ 0.4, f_twin ≈ 0.05 (M-dwarfs)
-        - 0.8 < M1 < 1.2 Msun: γ ≈ 0.3, f_twin ≈ 0.10 (Solar-type)
+        - 0.8 < M1 < 1.2 Msun: γ ≈ 0.3, f_twin ≈ 0.10 (Solar-type; Table 13 F_twin period-avg)
         - 1.2 < M1 < 3.5 Msun: γ ≈ 0.0, f_twin ≈ 0.08 (A/F stars)
-        - M1 > 3.5 Msun: γ ≈ -0.5, f_twin ≈ 0.03 (OB stars)
+        - M1 > 3.5 Msun: γ ≈ -0.5, f_twin ≈ 0.03 (OB stars; Table 13 γ_largeq(logP=1)=-0.5)
 
     Parameters:
         q_min: Minimum mass ratio (default: 0.1)
@@ -41,7 +47,7 @@ class MoeDiStefano2017(eqx.Module):
     sigma_twin: float = 0.03
 
     def _gamma_of_mass(self, m1: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Power-law exponent as function of primary mass (Moe+17 Table 10)."""
+        """Period-averaged single-slope γ(M1) (reduction of Moe+17 Table 13 γ_smallq/γ_largeq)."""
         # Piecewise linear interpolation
         gamma = jnp.where(
             m1 < 0.8,
@@ -59,7 +65,7 @@ class MoeDiStefano2017(eqx.Module):
         return gamma
 
     def _ftwin_of_mass(self, m1: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Twin excess fraction as function of primary mass (Moe+17 Table 10)."""
+        """Period-averaged twin excess F_twin(M1) (from Moe+17 Table 13, averaged over logP)."""
         f_twin = jnp.where(
             m1 < 0.8,
             0.05,  # M-dwarfs

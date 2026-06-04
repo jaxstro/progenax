@@ -340,7 +340,7 @@ class BinaryIMF(eqx.Module):
         cls,
         primary_imf: BaseIMF,
         gamma: float = -0.1,
-        binary_fraction: float = 0.7,
+        binary_fraction: float = 0.69,
     ) -> "BinaryIMF":
         """Create BinaryIMF tuned for massive star populations.
 
@@ -351,8 +351,8 @@ class BinaryIMF(eqx.Module):
 
         Args:
             primary_imf: IMF for primary stars
-            gamma: Power-law exponent for q distribution (default: -0.1)
-            binary_fraction: Binary fraction (default: 0.7)
+            gamma: Power-law exponent for q distribution (default: -0.1, Sana 2012 κ=-0.1)
+            binary_fraction: Binary fraction (default: 0.69, Sana 2012 intrinsic f_bin=0.69±0.09)
 
         Returns:
             BinaryIMF configured for OB star populations

@@ -404,3 +404,109 @@ class TestBinaryIMFHelpers:
         assert float(imf.binary_fraction) == 0.7
         # And the overall fraction equals that constant
         assert jnp.isclose(imf.binary_fraction_overall(), 0.7)
+
+    def test_factory_massive_stars_default_fbin_sana(self):
+        """massive_stars() DEFAULT f_bin = 0.69 (Sana et al. 2012, intrinsic f_bin=0.69±0.09)."""
+        imf = BinaryIMF.massive_stars(PowerLawIMF.kroupa())
+        assert float(imf.binary_fraction) == 0.69
+        assert jnp.isclose(imf.q_distribution.gamma, -0.1)  # Sana kappa = -0.1 (uniform q)
+
+
+# =============================================================================
+# FD-vs-autodiff grad-checks + gamma=-1 edge + pdf_given_primary
+# =============================================================================
+
+from progenax.imf.differentiable_binary import (
+    DifferentiableBinaryFraction,
+    DifferentiableBinaryModel,
+)
+
+_U = jnp.array([0.2, 0.4, 0.6, 0.8])
+
+
+def _central_fd(f, x, h):
+    return (f(x + h) - f(x - h)) / (2.0 * h)
+
+
+def _assert_grad_matches_fd(f, x0, h=1e-5, rtol=1e-4, atol=1e-9):
+    g = jax.grad(f)(x0)
+    g_fd = _central_fd(f, x0, h)
+    assert jnp.isfinite(g), f"autodiff grad is {g}"
+    assert jnp.abs(g) > 1e-6, f"grad effectively zero ({g}); FD says {g_fd}"
+    assert jnp.abs(g - g_fd) <= rtol * jnp.abs(g_fd) + atol, (
+        f"autodiff {float(g):.6e} vs FD {float(g_fd):.6e} "
+        f"(rel {float(jnp.abs(g - g_fd) / (jnp.abs(g_fd) + 1e-12)):.2e})"
+    )
+
+
+class TestBinaryGradients:
+    """Autodiff gradients of the binary samplers match central finite differences."""
+
+    def test_powerlaw_ppf_grad_gamma(self):
+        _assert_grad_matches_fd(
+            lambda g: jnp.sum(PowerLawMassRatio(gamma=g, q_min=0.1).ppf(_U)), -0.1
+        )
+
+    def test_twinpeaked_ppf_grad_ftwin(self):
+        _assert_grad_matches_fd(
+            lambda ft: jnp.sum(TwinPeakedMassRatio(f_twin=ft, sigma_twin=0.05, q_min=0.1).ppf(_U)),
+            0.1,
+        )
+
+    def test_twinpeaked_ppf_grad_sigma(self):
+        _assert_grad_matches_fd(
+            lambda s: jnp.sum(TwinPeakedMassRatio(f_twin=0.1, sigma_twin=s, q_min=0.1).ppf(_U)),
+            0.05,
+        )
+
+    def test_diffmodel_grad_gamma_intercept(self):
+        m1 = jnp.array([1.0, 5.0, 20.0, 50.0])
+        ub = jnp.array([0.1, 0.3, 0.5, 0.7])
+        uq = jnp.array([0.2, 0.4, 0.6, 0.8])
+
+        def loss(gi):
+            mdl = DifferentiableBinaryModel(
+                binary_fraction=DifferentiableBinaryFraction.from_moe2017(),
+                gamma_intercept=gi, gamma_slope=-0.7521, temperature=0.01,
+            )
+            m2, _ = mdl.sample_systems(m1, ub, uq)
+            return jnp.sum(m2)
+
+        _assert_grad_matches_fd(loss, 0.1907)
+
+
+class TestPowerLawGammaMinusOne:
+    """gamma = -1 (thermal q-distribution) must not crash and must be correct.
+
+    lax.cond traces BOTH branches; the neq-branch's 1/(gamma+1) must be divide-safe so
+    exactly gamma=-1 routes to the log-branch without a ZeroDivisionError at trace time.
+    """
+
+    def test_ppf_gamma_minus_one_no_crash(self):
+        q = PowerLawMassRatio(gamma=-1.0, q_min=0.1).ppf(_U)
+        assert jnp.all(jnp.isfinite(q)), f"non-finite ppf at gamma=-1: {q}"
+        assert jnp.all((q >= 0.1 - 1e-6) & (q <= 1.0 + 1e-6)), f"q out of [q_min,1]: {q}"
+
+    def test_cdf_gamma_minus_one_no_crash(self):
+        c = PowerLawMassRatio(gamma=-1.0, q_min=0.1).cdf(jnp.array([0.1, 0.3, 0.6, 1.0]))
+        assert jnp.all(jnp.isfinite(c)), f"non-finite cdf at gamma=-1: {c}"
+        assert float(c[0]) == pytest.approx(0.0, abs=1e-6)
+        assert float(c[-1]) == pytest.approx(1.0, abs=1e-6)
+
+    def test_gamma_minus_one_matches_limit(self):
+        # gamma=-1 (log branch) should agree with gamma=-1+-eps (power branch) ppf.
+        u = jnp.array([0.3, 0.5, 0.7])
+        q_exact = PowerLawMassRatio(gamma=-1.0, q_min=0.1).ppf(u)
+        q_near = PowerLawMassRatio(gamma=-1.0 + 1e-4, q_min=0.1).ppf(u)
+        assert jnp.allclose(q_exact, q_near, atol=1e-3), f"{q_exact} vs {q_near}"
+
+
+class TestMoeDiStefanoPDF:
+    """MoeDiStefano2017.pdf_given_primary is a normalized density over [q_min, 1]."""
+
+    @pytest.mark.parametrize("m1", [0.5, 1.0, 2.0, 10.0])
+    def test_pdf_normalized(self, m1):
+        moe = MoeDiStefano2017(q_min=0.1, sigma_twin=0.05)
+        qg = jnp.linspace(0.1, 1.0, 5000)
+        integral = float(jnp.trapezoid(moe.pdf_given_primary(qg, m1), qg))
+        assert integral == pytest.approx(1.0, abs=0.02), f"integral={integral} at m1={m1}"

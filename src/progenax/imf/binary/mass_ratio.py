@@ -154,7 +154,11 @@ class PowerLawMassRatio(eqx.Module):
 
         def cdf_neq_m1(q_val):
             # ∫_{q_min}^q t^γ dt = (q^{γ+1} - q_min^{γ+1}) / (γ+1)
-            integral = (q_val ** (g + 1.0) - q0 ** (g + 1.0)) / (g + 1.0)
+            # Guard the denominator: lax.cond traces this branch even at γ=-1, so 1/(γ+1)
+            # must stay finite (the eq-branch result is selected there).
+            g_plus_1 = g + 1.0
+            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
+            integral = (q_val ** g_plus_1 - q0 ** g_plus_1) / g_plus_1_safe
             return integral / norm
 
         def cdf_eq_m1(q_val):
@@ -186,8 +190,13 @@ class PowerLawMassRatio(eqx.Module):
             # F(q) = (q^{γ+1} - q_min^{γ+1}) / ((γ+1) × Z) = u
             # q^{γ+1} = u × (γ+1) × Z + q_min^{γ+1}
             # q = [u × (γ+1) × Z + q_min^{γ+1}]^{1/(γ+1)}
-            inner = u_val * (g + 1.0) * norm + q0 ** (g + 1.0)
-            return inner ** (1.0 / (g + 1.0))
+            # Guard the reciprocal exponent: lax.cond traces this branch even at γ=-1,
+            # where 1/(γ+1) would be a (Python) division by zero; the eq-branch (log)
+            # result is selected there, so this dead value only needs to stay finite.
+            g_plus_1 = g + 1.0
+            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
+            inner = u_val * g_plus_1 * norm + q0 ** g_plus_1
+            return inner ** (1.0 / g_plus_1_safe)
 
         def ppf_eq_m1(u_val):
             # F(q) = log(q/q_min) / Z = u
