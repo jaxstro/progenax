@@ -47,6 +47,28 @@ a small-$q$ slope $\gamma_{\rm smallq}$ ($0.1<q<0.3$), a large-$q$ slope $\gamma
 $\mathcal F_{\rm twin}$ falls to $<0.03$ beyond $\log P\gtrsim3$). The multiplicity *frequency*
 $f_{\rm mult}>1$ for massive stars because O/B stars are commonly triples/quadruples.
 
+## Eccentricity distribution — §9.2 (verified, p. 38, Fig. 36)
+
+The eccentricity follows a power law $p(e) \propto e^{\eta}$ on $0 \le e \le e_{\max}$ (their
+Fig. 36), with the slope $\eta$ a function of orbital period **and** primary mass. $\eta = 0$ is
+uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e$ ($\langle e\rangle = 2/3$). The
+analytic fits are
+
+```{math}
+:label: moe-eta
+\eta(M_1, P) =
+\begin{cases}
+0.6 - \dfrac{0.7}{\log P - 0.5}, & 0.8 < M_1 < 3\,M_\odot\ \text{(Eq. 17, late-type)} \\[1ex]
+0.9 - \dfrac{0.2}{\log P - 0.5}, & M_1 > 7\,M_\odot\ \text{(Eq. 18, early-type)}
+\end{cases}
+```
+
+with linear interpolation in $M_1$ for $3 \le M_1 \le 7\,M_\odot$ (Eqs. 17–18 valid
+$0.5 < \log P < 6$/$5$). Late-type binaries asymptote to $\eta \approx 0.5$ at long $P$; early-type
+intermediate-period binaries reach $\eta \approx 0.8$ (near-thermal); short periods circularize
+($\eta$ "not well defined" for $\log P \lesssim 1$). Sana et al. (2012) measure
+$\eta = -0.4 \pm 0.2$ for short-period O-stars.
+
 ## Use in progenax
 
 - [](../../10-theory/imfs/mass-ratio-distributions.md), [](../../10-theory/imfs/binary.md).
@@ -56,7 +78,11 @@ $f_{\rm mult}>1$ for massive stars because O/B stars are commonly triples/quadru
 - `progenax.imf.MassDependentBinaryFraction` — the **multiplicity fraction** $1-\mathcal F_{n=0}$
   from Table 13 (e.g. solar $1-0.60=0.40$, O-type $1-0.06=0.94$), with $<0.8\,M_\odot$ bins from
   M-dwarf surveys.
-- `progenax.binaries.MoeEccentricity` — the period-dependent eccentricity slope $\eta$.
+- `progenax.binaries.MoeEccentricity` — **faithful** implementation of the $p(e)\propto e^{\eta}$
+  law with $\eta(\log P, M_1)$ from {eq}`moe-eta` (Eqs. 17–18); samples via inverse-CDF
+  $e = e_{\max}\,u^{1/(\eta+1)}$, with $\eta \le -1$ (very short $P$) → circular.
+- `progenax.binaries.LogisticThermalEccentricity` — a smooth circular→thermal **heuristic** (a
+  logistic blend toward $f(e)=2e$); not Moe's $\eta(P)$ law (see [](duquennoy-mayor-1991.md)).
 
 ## Notes
 

@@ -191,9 +191,12 @@ project:
             - file: 99-bibliography/per-paper/marks-2012.md
             - file: 99-bibliography/per-paper/marks-kroupa-2012.md
             - file: 99-bibliography/per-paper/jerabkova-2018.md
+            - file: 99-bibliography/per-paper/duquennoy-mayor-1991.md
             - file: 99-bibliography/per-paper/sana-2012.md
             - file: 99-bibliography/per-paper/moe-distefano-2017.md
             - file: 99-bibliography/per-paper/moe-2019.md
+            - file: 99-bibliography/per-paper/raghavan-2010.md
+            - file: 99-bibliography/per-paper/heggie-1975.md
             - file: 99-bibliography/per-paper/cartwright-2004.md
             - file: 99-bibliography/per-paper/goodwin-2004.md
             - file: 99-bibliography/per-paper/allison-2009.md

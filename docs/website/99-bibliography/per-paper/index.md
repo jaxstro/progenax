@@ -39,9 +39,12 @@ The pages are organised alphabetically by first-author surname.
 
 ## Binaries
 
+- [](duquennoy-mayor-1991.md)
 - [](sana-2012.md)
 - [](moe-distefano-2017.md)
 - [](moe-2019.md)
+- [](raghavan-2010.md)
+- [](heggie-1975.md)
 
 ## Substructure & mass segregation
 
