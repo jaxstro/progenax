@@ -49,10 +49,19 @@ $f_{\rm mult}>1$ for massive stars because O/B stars are commonly triples/quadru
 
 ## Eccentricity distribution — §9.2 (verified, p. 38, Fig. 36)
 
-The eccentricity follows a power law $p(e) \propto e^{\eta}$ on $0 \le e \le e_{\max}$ (their
-Fig. 36), with the slope $\eta$ a function of orbital period **and** primary mass. $\eta = 0$ is
-uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e$ ($\langle e\rangle = 2/3$). The
-analytic fits are
+The eccentricity follows a power law $p(e) \propto e^{\eta}$ on $0 \le e \le e_{\max}(P)$ (their
+Fig. 36), with the slope $\eta$ a function of orbital period **and** primary mass. The upper limit
+is the period-dependent Roche-lobe ceiling (their Eq. 3, p. 38),
+
+```{math}
+:label: moe-emax
+e_{\max}(P) = 1 - \left(\frac{P}{2\,\mathrm{d}}\right)^{-2/3} \quad (P > 2\ \mathrm{d}),
+```
+
+which guarantees the components do not fill their Roche lobes at periapsis (e.g.
+$e_{\max}(10\,\mathrm{d})\approx0.66$, $e_{\max}(100\,\mathrm{d})\approx0.93$); $P \le 2$ d circularizes.
+$\eta = 0$ is uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e$
+($\langle e\rangle = 2/3$). The analytic $\eta$ fits are
 
 ```{math}
 :label: moe-eta
@@ -79,8 +88,10 @@ $\eta = -0.4 \pm 0.2$ for short-period O-stars.
   from Table 13 (e.g. solar $1-0.60=0.40$, O-type $1-0.06=0.94$), with $<0.8\,M_\odot$ bins from
   M-dwarf surveys.
 - `progenax.binaries.MoeEccentricity` — **faithful** implementation of the $p(e)\propto e^{\eta}$
-  law with $\eta(\log P, M_1)$ from {eq}`moe-eta` (Eqs. 17–18); samples via inverse-CDF
-  $e = e_{\max}\,u^{1/(\eta+1)}$, with $\eta \le -1$ (very short $P$) → circular.
+  law with $\eta(\log P, M_1)$ from {eq}`moe-eta` (Eqs. 17–18) on $[0, e_{\max}(P)]$ with the
+  period-dependent Roche ceiling {eq}`moe-emax` (Eq. 3); samples via inverse-CDF
+  $e = e_{\max}(P)\,u^{1/(\eta+1)}$, with $\eta \le -1$ (very short $P$) → circular. A fixed
+  numerical ceiling (`e_max`, default 0.99) caps the long-$P$ limit where Eq. 3 → 1.
 - `progenax.binaries.LogisticThermalEccentricity` — a smooth circular→thermal **heuristic** (a
   logistic blend toward $f(e)=2e$); not Moe's $\eta(P)$ law (see [](duquennoy-mayor-1991.md)).
 

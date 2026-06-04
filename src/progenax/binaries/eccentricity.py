@@ -53,8 +53,13 @@ class ThermalEccentricity(eqx.Module):
         return jnp.clip(cdf_val, 0.0, 1.0)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF: e = e_max × √u."""
-        return self.e_max * jnp.sqrt(u)
+        """Inverse CDF: e = e_max × √u (differentiable on (0,1)).
+
+        u is clamped to (1e-12, 1) so the gradient stays finite at u=0, where
+        d/du √u = 1/(2√u) -> ∞.
+        """
+        u_safe = jnp.clip(u, 1e-12, 1.0)
+        return self.e_max * jnp.sqrt(u_safe)
 
 
 class UniformEccentricity(eqx.Module):
@@ -186,18 +191,48 @@ class MoeEccentricity(eqx.Module):
     the orbit is tidally circularized and this returns e ≈ 0 (Moe notes η is "not
     well defined" for logP ≲ 1).
 
-    Sampling uses the inverse CDF e = e_max * u^(1/(η+1)); as η -> -1+ the exponent
-    diverges so e -> 0 (circular) by construction.
+    Sampling uses the inverse CDF e = e_max(P) * u^(1/(η+1)); as η -> -1+ the
+    exponent diverges so e -> 0 (circular) by construction.
+
+    The upper limit is the period-dependent Roche-lobe ceiling (their Eq. 3),
+
+        e_max(P) = 1 - (P / 2 days)^(-2/3)   for P > 2 d,
+
+    clipped to [0, e_max], so the components do not overflow their Roche lobes at
+    periapsis (e.g. e_max(10 d) ≈ 0.66, e_max(100 d) ≈ 0.93); P <= 2 d -> circular.
+    The ``e_max`` field is the long-period numerical ceiling (avoids the e -> 1
+    singularity), reached only where the Roche relation itself approaches 1.
 
     Reference:
-        Moe & Di Stefano (2017) ApJS 230, 15, §9.2 Eqs. 17-18, Fig. 36.
+        Moe & Di Stefano (2017) ApJS 230, 15, §9.2 Eqs. 17-18, Eq. 3, Fig. 36.
         Sana et al. (2012) Science 337, 444 - η = -0.4 ± 0.2 short-period O-stars.
 
     Parameters:
-        e_max: Maximum eccentricity (default: 0.99).
+        e_max: Numerical eccentricity ceiling at long P (default: 0.99); the
+            physical cap is the period-dependent Roche relation (Eq. 3).
     """
 
     e_max: float = 0.99
+
+    def e_max_of_period(
+        self,
+        periods: Float[Array, "N"],
+    ) -> Float[Array, "N"]:
+        """Roche-lobe eccentricity ceiling e_max(P) (Moe & Di Stefano 2017 Eq. 3).
+
+        e_max(P) = 1 - (P / 2 days)^(-2/3) for P > 2 d, clipped to [0, e_max]. The
+        ``jnp.maximum(periods, 2.0)`` keeps the fractional power away from P=0 so
+        the gradient stays finite (below 2 d the cap is 0 regardless).
+
+        Args:
+            periods: Orbital periods [days] (shape N,).
+
+        Returns:
+            Period-dependent maximum eccentricity (shape N,), in [0, e_max].
+        """
+        P_safe = jnp.maximum(periods, 2.0)
+        roche = 1.0 - (P_safe / 2.0) ** (-2.0 / 3.0)
+        return jnp.clip(roche, 0.0, self.e_max)
 
     def eta(
         self,
@@ -234,12 +269,14 @@ class MoeEccentricity(eqx.Module):
         """
         u = jax.random.uniform(key, periods.shape)
         eta = self.eta(periods, masses)
-        # F(e) = (e/e_max)^(η+1) -> e = e_max u^(1/(η+1)) for η > -1; double-where
-        # guards η <= -1 (degenerate -> circular) so neither branch produces NaN.
+        # F(e) = (e/e_max(P))^(η+1) -> e = e_max(P) u^(1/(η+1)) for η > -1;
+        # double-where guards η <= -1 (degenerate -> circular) so neither branch
+        # produces NaN. e_max(P) is the Roche-lobe ceiling (Eq. 3).
         etap1 = eta + 1.0
         is_circular = etap1 <= 1e-6
         etap1_safe = jnp.where(is_circular, 1.0, etap1)
-        e = self.e_max * u ** (1.0 / etap1_safe)
+        e_max_eff = self.e_max_of_period(periods)
+        e = e_max_eff * u ** (1.0 / etap1_safe)
         return jnp.where(is_circular, 0.0, e)
 
     def pdf(
@@ -248,19 +285,21 @@ class MoeEccentricity(eqx.Module):
         periods: Float[Array, "N"],
         masses: Float[Array, "N"],
     ) -> Float[Array, "..."]:
-        """Conditional pdf p(e | logP, M1) = (η+1) e^η / e_max^(η+1) on [0, e_max].
+        """Conditional pdf p(e | logP, M1) = (η+1) e^η / e_max(P)^(η+1) on [0, e_max(P)].
 
-        Broadcasts e against (periods, masses): result[..., i, j] is p(e_j | P_i, M_i).
+        Support is the period-dependent Roche ceiling e_max(P) (Eq. 3). Broadcasts e
+        against (periods, masses): result[..., i, j] is p(e_j | P_i, M_i).
         """
         eta = self.eta(periods, masses)
         etap1 = eta + 1.0
         etap1_safe = jnp.where(etap1 <= 1e-6, 1.0, etap1)
-        in_range = (e >= 0.0) & (e <= self.e_max)
-        e_pos = jnp.where(in_range, e, self.e_max)
+        e_max_eff = self.e_max_of_period(periods)[..., None]
+        in_range = (e >= 0.0) & (e <= e_max_eff)
+        e_pos = jnp.where(in_range, e, e_max_eff)
         p = (
             etap1_safe[..., None]
             * jnp.power(e_pos, eta[..., None])
-            / self.e_max ** etap1_safe[..., None]
+            / e_max_eff ** etap1_safe[..., None]
         )
         p = jnp.where(in_range, p, 0.0)
         # Circular (η <= -1): mass at e=0, continuous density undefined -> 0.
