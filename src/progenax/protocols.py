@@ -108,7 +108,11 @@ class IMFProtocol(Protocol):
         ...
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Percent point function (inverse CDF). Differentiable."""
+        """Percent point function (inverse CDF). Differentiable on (0, 1).
+
+        u may be clamped to (eps, 1-eps) internally so gradients stay finite at the
+        open boundary of unbounded-support distributions.
+        """
         ...
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
@@ -145,7 +149,11 @@ class PeriodDistribution(Protocol):
         ...
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Percent point function (inverse CDF). Differentiable."""
+        """Percent point function (inverse CDF). Differentiable on (0, 1).
+
+        u may be clamped to (eps, 1-eps) internally so gradients stay finite at the
+        open boundary of unbounded-support distributions.
+        """
         ...
 
 
@@ -173,7 +181,11 @@ class EccentricityDistribution(Protocol):
         ...
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Percent point function (inverse CDF). Differentiable."""
+        """Percent point function (inverse CDF). Differentiable on (0, 1).
+
+        u may be clamped to (eps, 1-eps) internally so gradients stay finite at the
+        open boundary of unbounded-support distributions.
+        """
         ...
 
 

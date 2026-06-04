@@ -14,7 +14,6 @@ from jaxtyping import Array, Float
 
 from .kepler import (
     KeplerElements,
-    compute_period,
     period_to_semimajor_axis,
 )
 
@@ -29,9 +28,8 @@ class BinaryOrbitalState(eqx.Module):
     Attributes:
         m1: Primary mass [M_sun]
         m2: Secondary mass [M_sun]
-        elements: KeplerElements (a, e, i, Omega, omega, M0)
-        P: Orbital period [time units] (convenience cache = 2*pi*sqrt(a^3/GM));
-           the mean motion n = 2*pi/P = sqrt(GM/a^3) is recomputed in to_state.
+        elements: KeplerElements (a, e, i, Omega, omega, M0). The period/mean motion
+            is derived on demand from (a, m1+m2, G) in to_state, not cached here.
 
     Example:
         >>> from jaxstro.units import PLANETARY
@@ -46,7 +44,6 @@ class BinaryOrbitalState(eqx.Module):
     m1: Float[Array, ""]
     m2: Float[Array, ""]
     elements: KeplerElements
-    P: Float[Array, ""]
 
     @classmethod
     def from_log_period(
@@ -98,7 +95,6 @@ class BinaryOrbitalState(eqx.Module):
             m1=jnp.asarray(m1),
             m2=jnp.asarray(m2),
             elements=elements,
-            P=jnp.asarray(P),
         )
 
     @classmethod
@@ -131,9 +127,6 @@ class BinaryOrbitalState(eqx.Module):
         Returns:
             BinaryOrbitalState ready for IC generation
         """
-        M_total = m1 + m2
-        P = compute_period(a, M_total, G)
-
         elements = KeplerElements(
             a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom
         )
@@ -142,7 +135,6 @@ class BinaryOrbitalState(eqx.Module):
             m1=jnp.asarray(m1),
             m2=jnp.asarray(m2),
             elements=elements,
-            P=P,
         )
 
     def to_resolved_positions(

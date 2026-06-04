@@ -98,8 +98,13 @@ class LogNormalPeriod(eqx.Module):
         return 0.5 * (1.0 + jax.scipy.special.erf(z / jnp.sqrt(2.0)))
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF via inverse error function."""
-        z = jnp.sqrt(2.0) * jax.scipy.special.erfinv(2.0 * u - 1.0)
+        """Inverse CDF via inverse error function (differentiable on (0,1)).
+
+        u is clamped to (1e-12, 1-1e-12) so the gradient stays finite at the open
+        boundary, where erfinv(±1) -> ±inf (a log-normal has unbounded support).
+        """
+        u_safe = jnp.clip(u, 1e-12, 1.0 - 1e-12)
+        z = jnp.sqrt(2.0) * jax.scipy.special.erfinv(2.0 * u_safe - 1.0)
         log_P = self.mu_log_P + self.sigma_log_P * z
         return 10.0 ** log_P
 
@@ -121,7 +126,9 @@ class SanaOBPeriod(eqx.Module):
         (log P ~ 0.15) to ~9 yr (log P = 3.5).
 
     Parameters:
-        log_P_min: Minimum log10(P/days) (default: 0.15 = ~1.4 days; Sana 2012 Fig.2)
+        log_P_min: Minimum log10(P/days) (default: 0.15 = ~1.4 days; Sana 2012 Fig.2).
+            Must be > 0: the model p(logP) ∝ (logP)^power is undefined for logP <= 0
+            (P <= 1 day), since that raises a non-positive base to a fractional power.
         log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days ~ 9 yr)
         power: Power-law index (default: -0.55 from Sana+2012)
     """
@@ -129,6 +136,17 @@ class SanaOBPeriod(eqx.Module):
     log_P_min: float = 0.15
     log_P_max: float = 3.5
     power: float = -0.55
+
+    def __post_init__(self):
+        # Domain precondition: log_P_min must be > 0 (the power law is on log P,
+        # undefined for logP <= 0). Fail fast on concrete configs (the normal case)
+        # with a clear error instead of a cryptic ZeroDivisionError inside sample/ppf;
+        # skip under tracing, where the bound is virtually never a differentiated value.
+        if isinstance(self.log_P_min, (int, float)) and self.log_P_min <= 0.0:
+            raise ValueError(
+                f"SanaOBPeriod.log_P_min must be > 0 (got {self.log_P_min}): "
+                f"p(logP) ∝ (logP)^power is undefined for logP <= 0 (P <= 1 day)."
+            )
 
     def _inv_cdf_log_P(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF in x = log10(P): the quantile function for x given u.

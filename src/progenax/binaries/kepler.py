@@ -544,8 +544,14 @@ def compute_period(
         Kepler's 3rd Law: T² ∝ a³/M
         Murray & Dermott (1999) Eq 2.37
     """
-    # T = 2π√(a³/(GM))  (G, M_total > 0 for any physical binary)
-    period = 2.0 * jnp.pi * jnp.sqrt(a**3 / (G * M_total))
+    # T = 2π√(a³/(GM)). Divide-safe double-where (mirrors KeplerElements.to_state):
+    # the sqrt' and 1/denom blow up at a=0 / GM=0, so guard both so the gradient
+    # stays finite at those (unphysical) boundaries rather than NaN-poisoning.
+    denom = G * M_total
+    denom_safe = jnp.where(denom > 0.0, denom, 1.0)
+    arg = a**3 / denom_safe
+    arg_safe = jnp.where(arg > 0.0, arg, 1.0)
+    period = jnp.where(arg > 0.0, 2.0 * jnp.pi * jnp.sqrt(arg_safe), 0.0)
 
     return period
 
@@ -587,8 +593,11 @@ def period_to_semimajor_axis(
         Kepler's 3rd Law: a³ ∝ T²M
         Murray & Dermott (1999) Eq 2.37
     """
-    # a = (GM*T²/(4π²))^(1/3)
-    a = (G * M_total * period**2 / (4.0 * jnp.pi**2))**(1.0 / 3.0)
+    # a = (GM*T²/(4π²))^(1/3). The cube-root derivative (1/3)x^(-2/3) diverges at
+    # x=0, so guard with a double-where so grad is finite at P=0 / GM=0 boundaries.
+    arg = G * M_total * period**2 / (4.0 * jnp.pi**2)
+    arg_safe = jnp.where(arg > 0.0, arg, 1.0)
+    a = jnp.where(arg > 0.0, arg_safe ** (1.0 / 3.0), 0.0)
 
     return a
 

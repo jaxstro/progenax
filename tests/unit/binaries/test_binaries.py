@@ -93,6 +93,24 @@ class TestPeriodFunctions:
         T_back = compute_period(a, M_total=1.0, G=G)
         assert jnp.abs(T_back - T) < 0.001
 
+    def test_compute_period_grad_finite_at_zero(self):
+        """compute_period has finite grad at a=0 (divide-safe sqrt), like to_state."""
+        from progenax.binaries import compute_period
+        G = 0.00450  # STELLAR
+        g0 = jax.grad(lambda a: compute_period(a, 2.0, G))(0.0)
+        g1 = jax.grad(lambda a: compute_period(a, 2.0, G))(1.0)
+        assert jnp.isfinite(g0), f"grad at a=0 = {g0}"
+        assert jnp.isfinite(g1) and g1 > 0.0
+
+    def test_period_to_a_grad_finite_at_zero(self):
+        """period_to_semimajor_axis has finite grad at P=0 (safe cube-root)."""
+        from progenax.binaries import period_to_semimajor_axis
+        G = 0.00450
+        g0 = jax.grad(lambda P: period_to_semimajor_axis(P, 2.0, G))(0.0)
+        g1 = jax.grad(lambda P: period_to_semimajor_axis(P, 2.0, G))(10.0)
+        assert jnp.isfinite(g0), f"grad at P=0 = {g0}"
+        assert jnp.isfinite(g1) and g1 > 0.0
+
 
 class TestBinaryOrbitalState:
     """Test BinaryOrbitalState IC container."""
