@@ -40,6 +40,7 @@ from .mass_dependent import (
     MassDependentBinaryConfig,
     sample_mass_dependent_orbits,
 )
+from .assembly import ResolvedBinaries, resolve_binary_components
 
 __all__ = [
     # Kepler mechanics
@@ -66,4 +67,7 @@ __all__ = [
     "RadialBinaryFraction",
     "MassDependentBinaryConfig",
     "sample_mass_dependent_orbits",
+    # Binary -> spatial-IC connector
+    "ResolvedBinaries",
+    "resolve_binary_components",
 ]

@@ -29,6 +29,7 @@ from .kinematics import PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFF
 from .builders import (
     ICResult,
     build_spatial_ic,
+    build_binary_cluster,
     to_com_frame,
     virial_scale,
     compute_stellar_radii,
@@ -71,6 +72,8 @@ from .binaries import (
     RadialBinaryFraction,
     MassDependentBinaryConfig,
     sample_mass_dependent_orbits,
+    ResolvedBinaries,
+    resolve_binary_components,
 )
 from .tidal import (
     jacobi_radius,
@@ -117,6 +120,9 @@ __all__ = [
     # Builders
     "ICResult",
     "build_spatial_ic",
+    "build_binary_cluster",
+    "resolve_binary_components",
+    "ResolvedBinaries",
     "to_com_frame",
     "virial_scale",
     "compute_stellar_radii",
