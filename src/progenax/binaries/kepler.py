@@ -187,12 +187,14 @@ class KeplerElements(eqx.Module):
         center-of-mass frame, ensuring COM conservation and zero total momentum.
 
         Args:
-            m1: Mass of primary component [M☉]
-            m2: Mass of secondary component [M☉]
+            m1: Mass of the body returned as (r1, v1) [M☉].
+            m2: Mass of the body returned as (r2, v2) [M☉]. m1/m2 are POSITIONAL
+                (m1 >= m2 is NOT enforced); the barycentric split
+                m1*r1 + m2*r2 = 0 is exact regardless of which is larger.
             G: Gravitational constant (REQUIRED, no default)
 
         Returns:
-            Tuple of (r1, v1, r2, v2) where:
+            BinaryState(r1, v1, r2, v2) where:
                 r1: Position of primary [length units] (3,)
                 v1: Velocity of primary [velocity units] (3,)
                 r2: Position of secondary [length units] (3,)
@@ -416,7 +418,10 @@ class KeplerElements(eqx.Module):
         Solve Kepler's equation M = E - e*sin(E) for eccentric anomaly E.
 
         Uses Newton-Raphson iteration with fixed iterations (differentiable).
-        Converges very fast for e < 1 (typically 3-4 iterations for e < 0.8).
+        Converges very fast for e < 1 (typically 3-4 iterations for e < 0.8). The
+        default max_iter=50 is deliberately conservative so the fixed-iteration
+        scheme still reaches machine precision near e -> 1 (slower convergence);
+        the extra iterations are cheap and guarantee accuracy across all e < 1.
 
         Args:
             M: Mean anomaly [rad]
@@ -539,8 +544,8 @@ def compute_period(
         Kepler's 3rd Law: T² ∝ a³/M
         Murray & Dermott (1999) Eq 2.37
     """
-    # T = 2π√(a³/(GM))
-    period = 2.0 * jnp.pi * jnp.sqrt(a**3 / (G * M_total + 1e-30))
+    # T = 2π√(a³/(GM))  (G, M_total > 0 for any physical binary)
+    period = 2.0 * jnp.pi * jnp.sqrt(a**3 / (G * M_total))
 
     return period
 
@@ -583,7 +588,7 @@ def period_to_semimajor_axis(
         Murray & Dermott (1999) Eq 2.37
     """
     # a = (GM*T²/(4π²))^(1/3)
-    a = (G * M_total * period**2 / (4.0 * jnp.pi**2 + 1e-30))**(1.0 / 3.0)
+    a = (G * M_total * period**2 / (4.0 * jnp.pi**2))**(1.0 / 3.0)
 
     return a
 

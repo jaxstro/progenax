@@ -276,6 +276,13 @@ class TestSanaOBPeriodDistribution:
         u = jnp.array([0.1, 0.5, 0.9])
         assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
 
+    def test_default_range_is_sana_2012(self):
+        """Default log_P range matches Sana 2012 Fig.2: P ~ 1.4 d (logP=0.15) to ~9 yr (3.5)."""
+        from progenax.binaries import SanaOBPeriod
+        d = SanaOBPeriod()
+        assert d.log_P_min == 0.15, "Sana 2012 Fig.2 fits down to P~1.4d (logP~0.15), not 0.3"
+        assert d.log_P_max == 3.5
+
 
 class TestLogisticThermalEccentricity:
     """Test the LogisticThermalEccentricity circular->thermal heuristic."""

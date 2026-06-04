@@ -29,23 +29,28 @@ from .period import LogNormalPeriod, LogUniformPeriod, SanaOBPeriod
 
 
 class RadialBinaryFraction(eqx.Module):
-    """Radially varying binary fraction.
+    """Phenomenological radially-varying binary fraction.
 
-    Implements spatially varying binary fraction following the power-law model:
+    A simple parametric knob for a spatially varying binary fraction:
 
-        f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α))
+        f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α)),  clipped to [0, 1]
 
     where:
         - A > 0: core-enhanced (more binaries in center)
         - A < 0: core-depleted (fewer binaries in center)
         - A = 0: constant binary fraction everywhere
 
-    The result is clipped to [0, 1] to ensure valid binary fractions.
+    NOTE: this functional form is a PHENOMENOLOGICAL model, NOT taken from any
+    specific paper. The references below establish that the binary fraction
+    *varies* with primary mass / environment (motivating a spatial knob), but none
+    provides this closed-form radial f_b(r) profile. The (r/r_scale)^(-α) term
+    diverges as r -> 0 for α > 0; the clip to [0, 1] caps it (so the core value is
+    set by the clip, not the power law) — intended for r > 0.
 
-    References:
-        Raghavan et al. (2010) ApJS 190, 1 - Solar neighborhood binary census
-        Sana et al. (2012) Science 337, 444 - O-star binary fraction
-        Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+    References (motivation only — not the source of this functional form):
+        Raghavan et al. (2010) ApJS 190, 1 - solar-neighborhood multiplicity census.
+        Sana et al. (2012) Science 337, 444 - O-star binary fraction.
+        Moe & Di Stefano (2017) ApJS 230, 15 - binary statistics review.
 
     Parameters:
         fb0: Baseline binary fraction (default: 0.5)

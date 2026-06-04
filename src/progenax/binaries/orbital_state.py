@@ -35,10 +35,11 @@ class BinaryOrbitalState(eqx.Module):
 
     Example:
         >>> from jaxstro.units import PLANETARY
+        >>> # PLANETARY.G is per-year, so convert the period days -> years.
         >>> state = BinaryOrbitalState.from_log_period(
         ...     m1=1.0, m2=0.5, logP_days=2.0, e=0.3,
         ...     inc=0.1, Omega=0.0, omega=0.0, M_anom=0.0,
-        ...     G=PLANETARY.G, day_in_time_units=1.0
+        ...     G=PLANETARY.G, day_in_time_units=1.0 / 365.25
         ... )
         >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
     """

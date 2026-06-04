@@ -52,8 +52,11 @@ def test_period_samplers_bit_identical():
     k = jax.random.PRNGKey(0)
     _assert_eq("loguniform", LogUniformPeriod().sample(k, 4))
     _assert_eq("lognormal", LogNormalPeriod().sample(k, 4))
-    _assert_eq("sana", SanaOBPeriod().sample(k, 4))
-    _assert_eq("sana_neg1", SanaOBPeriod(power=-1.0).sample(k, 4))
+    # Pin the original [0.3, 3.5] range (the 4b-relocation reference). The default
+    # log_P_min was changed 0.3 -> 0.15 in 4c-b (Sana 2012 Fig.2); that is tested
+    # separately in TestSanaOBPeriodDistribution::test_default_range_is_sana_2012.
+    _assert_eq("sana", SanaOBPeriod(log_P_min=0.3).sample(k, 4))
+    _assert_eq("sana_neg1", SanaOBPeriod(power=-1.0, log_P_min=0.3).sample(k, 4))
 
 
 def test_eccentricity_samplers_bit_identical():
@@ -74,7 +77,7 @@ def test_orientation_radial_massdep_bit_identical():
     cfg = MassDependentBinaryConfig(
         m_break=8.0,
         low_mass_period=LogNormalPeriod(),
-        high_mass_period=SanaOBPeriod(),
+        high_mass_period=SanaOBPeriod(log_P_min=0.3),  # original range (relocation pin)
         low_mass_eccentricity=ThermalEccentricity(),
         high_mass_eccentricity=LogisticThermalEccentricity(),
     )

@@ -110,21 +110,23 @@ class SanaOBPeriod(eqx.Module):
     Power-law distribution in log-space:
         p(log P) ∝ (log P)^(-0.55)
 
-    for log P in [0.3, 3.5] (P in days).
+    for log P in [0.15, 3.5] (P in days).
 
     This corresponds to shorter periods than solar-type binaries,
     consistent with observations of massive star binaries.
 
     Reference:
-        Sana et al. (2012) Science 337, 444 - O-star binary survey
+        Sana et al. (2012) Science 337, 444 - O-star binary survey. The intrinsic
+        period distribution (their Fig. 2, π = -0.55 ± 0.22) runs from P ~ 1.4 d
+        (log P ~ 0.15) to ~9 yr (log P = 3.5).
 
     Parameters:
-        log_P_min: Minimum log10(P/days) (default: 0.3 = ~2 days)
-        log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days)
+        log_P_min: Minimum log10(P/days) (default: 0.15 = ~1.4 days; Sana 2012 Fig.2)
+        log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days ~ 9 yr)
         power: Power-law index (default: -0.55 from Sana+2012)
     """
 
-    log_P_min: float = 0.3
+    log_P_min: float = 0.15
     log_P_max: float = 3.5
     power: float = -0.55
 
