@@ -37,7 +37,7 @@ Every chapter follows the same template:
 * - [](ic-philosophy.md)
   - What an "initial condition" *is* in progenax. Conventions, virial theorem, units, COM frame, half-mass radius. Read first if you are new.
 * - [](spatial-profiles/index.md)
-  - The three production-grade spatial density profiles: [](spatial-profiles/plummer.md), [](spatial-profiles/king.md), and [](spatial-profiles/eff.md).
+  - The production-grade spatial density profiles: [](spatial-profiles/plummer.md), [](spatial-profiles/king.md), [](spatial-profiles/eff.md), and the anisotropic [](velocity-dfs/michie-king.md).
 * - [](velocity-dfs/index.md)
   - Velocity distribution functions paired with each spatial profile to produce dynamical equilibrium ICs. Includes anisotropy and rotation extensions.
 * - [](imfs/index.md)

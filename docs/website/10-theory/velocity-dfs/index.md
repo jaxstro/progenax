@@ -8,9 +8,10 @@ description: Velocity DFs in progenax — Plummer / King / EFF equilibrium distr
 A spatial density profile alone does not produce a complete IC: every
 particle needs a velocity. The **velocity distribution function** (DF)
 specifies how velocities are sampled given particle positions and
-masses. progenax implements the canonical equilibrium DFs for each of
-its three spatial profiles, plus extensions for radial anisotropy
-({cite:t}`Plummer1911` Osipkov-Merritt) and rigid/differential rotation.
+masses. progenax implements the canonical equilibrium DFs for its
+spatial profiles (Plummer, King, EFF), the self-consistent radially
+anisotropic **Michie–King** DF, plus extensions for Osipkov–Merritt
+radial anisotropy ({cite:t}`Merritt1985`) and rigid/differential rotation.
 
 ```{list-table}
 :header-rows: 1
@@ -24,6 +25,9 @@ its three spatial profiles, plus extensions for radial anisotropy
 * - [](king-dfs.md)
   - [](../spatial-profiles/king.md)
   - Lowered-Maxwellian $f(E) = \rho_1 (2\pi\sigma_0^2)^{-3/2} [e^{(\Phi_t - E)/\sigma_0^2} - 1]$
+* - [](michie-king.md)
+  - King (anisotropic, self-consistent)
+  - Michie–King $f(E,J) \propto e^{-J^2/2r_a^2\sigma^2}[e^{-E/\sigma^2}-1]$ — radial anisotropy, distinct density
 * - `EFFVelocityDF`
   - [](../spatial-profiles/eff.md)
   - Numerically-evaluated isotropic DF from EFF $\rho(r)$ via Eddington inversion
@@ -105,10 +109,10 @@ class VelocityDF(Protocol):
         ...
 ```
 
-`sample_velocities` is differentiable in $r_h$ via the chain $r_h \to
-\sigma_r(r) \to \mathbf{v}$. `velocity_dispersion` is differentiable
-analytically (Plummer) or via implicit-function / fixed-quadrature
-machinery (King, EFF). All three DFs are JIT-compatible and
+`sample_velocities` is differentiable in the model parameters via the
+chain (e.g. $r_h \to \sigma_r(r) \to \mathbf{v}$). Dispersions are
+differentiable analytically (Plummer) or via tabulated-quadrature /
+ODE machinery (King, EFF, Michie). All four DFs are JIT-compatible and
 vectorisable via `jax.vmap`.
 
 ## References

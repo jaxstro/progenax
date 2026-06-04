@@ -6,8 +6,8 @@ description: Curated gallery of physics-validation figures rendered from the val
 
 A curated gallery of physics-validation figures. Each plot
 visualises the quantitative result of a corresponding per-suite
-test page. Files live under `validation/plots/` (PNG), with
-companion data under `validation/results/` (JSON / NPZ).
+test page. The filenames below are the figures that currently exist
+under `validation/plots/` (PNG).
 
 ```{seealso}
 For the *quantitative* numbers behind each plot, see the per-suite
@@ -18,56 +18,61 @@ validation pages: [](plummer-equilibrium.md), [](king-profile.md),
 [](analytical-test-cases.md).
 ```
 
-## Plummer equilibrium
+## Spatial profiles
 
-`validation/plots/plummer_density_profile.png` — sampled vs analytical
-density profile, $N = 10^4$.
+`validation/plots/profiles/profiles_plummer_density.png`,
+`profiles_king_density.png`, `profiles_eff_density.png` — sampled vs
+analytical density profiles for each model.
 
-`validation/plots/plummer_velocity_dispersion.png` — measured
-$\sigma_r(r)$ vs $\sigma_r(r) = \sqrt{GM/[6\sqrt{r^2 + a^2}]}$.
+`validation/plots/profiles/profiles_comparison.png` — the three
+profiles overlaid; `profiles_isotropy.png` — velocity isotropy check.
 
-`validation/plots/plummer_virial_ratio_vs_N.png` — $Q_{\mathrm{vir}}$
-recovery as a function of $N$, showing $1/\sqrt{N}$ scaling.
+## Initial mass functions
 
-## King profile
-
-`validation/plots/king_ode_vs_limepy.png` — progenax $W(\xi)$ vs
-LIMEPY at $W_0 \in \{5, 7, 9\}$, residuals.
-
-`validation/plots/king_concentration_vs_W0.png` — $c(W_0)$ relation.
+`validation/plots/imf/{salpeter,kroupa,chabrier}_{pdf,cdf,tail}.png` —
+PDF, CDF, and high-mass tail for each analytic IMF family.
 
 ## Binary IMF recovery
 
-`validation/plots/binary_imf_naive_vs_aware.png` — the headline
-"confidently wrong" plot: naive 95% CI shrinking past the bias as
-$N \to \infty$, binary-aware CI shrinking around the truth.
+`validation/imf/plots/binary_aware_recovery.png` — the headline
+"confidently wrong" result: a naive (binary-blind) fit biases the
+recovered slope while the binary-aware fit recovers the truth.
 
-`validation/plots/binary_imf_alpha_recovery.png` — recovered $\alpha$
-vs $\alpha_{\mathrm{true}}$ for a sweep of true values.
+`validation/imf/plots/{maschberger,piecewise}_recovery.png` — slope
+recovery for the smooth and piecewise IMFs.
+
+## HMC inference
+
+`validation/plots/hmc_recovery/imf_hmc_recovery.png` and the
+per-environment posteriors `imf_hmc_posterior_*.png` (solar, low-Z,
+massive GC, NGC 7078, starburst, YMC).
 
 ## Fractal substructure
 
-`validation/plots/fractal_chi_calibration.png` — the
-$\chi \leftrightarrow D$ calibration curve via $Q_{\mathrm{CW}}$ and
-$\sigma_\Sigma/\langle\Sigma\rangle$.
-
-`validation/plots/fractal_realisations.png` — 4 example projected
-realisations at $D \in \{1.6, 2.0, 2.4, 3.0\}$.
+`validation/plots/cluster_ic/fractal/fig_fractal_Q_vs_D.png`,
+`fig_fractal_sigmaSigma_vs_D.png` — the $Q_{\mathrm{CW}}$ and
+$\sigma_\Sigma/\langle\Sigma\rangle$ vs fractal dimension $D$
+calibration; `fig_fractal_snapshots.png` — example realisations.
 
 ## Mass segregation
 
-`validation/plots/lambda_msr_vs_lambda_seg.png` —
-$\Lambda_{\mathrm{MSR}}(\lambda_{\mathrm{seg}})$ at $N = 10^3$, error
-bars from 10 realisations.
+`validation/plots/cluster_ic/mass_segregation/fig_mass_segregation_lambda_msr.png`
+— $\Lambda_{\mathrm{MSR}}$; companion radial-profile / snapshot figures
+in the same directory.
 
-## Gravoturbulence + PP20
+## Gravoturbulence (BM19 / PN11 / PP20)
 
-`validation/plots/pp20_zeta_p.png` — ζ(p) curve over $p \in [0, 1.95]$
-with the canonical analytic form, the 0.08% PP20 Eq. 6 deviation,
-and the spot-value anchors marked.
+`validation/plots/bm19_fdf_suite/` — the BM19 f-dense/f-tail suite
+(e.g. `b5_zeta_comparison.png`, `e5_pp20.png`, `a1_ftail_vs_fdense.png`);
+`validation/plots/gravoturbulent/` and `validation/plots/fdf/` — the
+derivation chain, $f_{\mathrm{sub}}$–$\sigma$ relation, and FDF density
+fields.
 
-`validation/plots/bm19_forward_chain.png` — full BM19 forward chain
-output at canonical Galactic-cloud parameters.
+## Environment-dependent IMF
+
+`validation/plots/env_imf/env_imf_alpha3_surface.png`,
+`env_imf_shapes.png`, `env_imf_gc_validation.png` — the
+$\alpha_3$(density) surface, IMF shapes, and GC validation.
 
 ## Plot regeneration
 

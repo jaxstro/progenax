@@ -33,10 +33,10 @@ A progenax IC is built up from three orthogonal ingredients:
   - [](imfs/index.md) — `progenax.imf.PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `BinaryIMF`, `BirthEnvironment`
 * - **Spatial profile**
   - The radial density $\rho(r)$
-  - [](spatial-profiles/index.md) — `progenax.profiles.PlummerProfile`, `KingProfile`, `EFFProfile`
+  - [](spatial-profiles/index.md) — `progenax.profiles.PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile`
 * - **Velocity DF**
   - The velocity distribution given $(\mathbf{r}, m)$
-  - [](velocity-dfs/index.md) — `progenax.kinematics.PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF`
+  - [](velocity-dfs/index.md) — `progenax.kinematics.PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF`
 ```
 
 Each ingredient satisfies a runtime-checkable protocol — `IMFProtocol`,

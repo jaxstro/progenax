@@ -28,7 +28,7 @@ tolerances.
 * - [](plummer-equilibrium.md)
   - Virial Q recovery, density-profile sampling, velocity-dispersion radial profile, energy conservation
 * - [](king-profile.md)
-  - ODE integration vs LIMEPY reference, tidal-truncation behaviour, $W_0$ sweep
+  - ODE integration vs King (1966) Table II concentrations, tidal-truncation behaviour, $W_0$ sweep
 * - [](eff-profile.md)
   - Density-profile sampling, asymptotic-slope verification
 * - [](imf-statistics.md)

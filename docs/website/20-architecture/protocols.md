@@ -16,10 +16,10 @@ the interfaces for the orthogonal IC ingredients:
   - Implementations
 * - `SpatialProfile`
   - `sample_positions`, `characteristic_radius`
-  - `PlummerProfile`, `KingProfile`, `EFFProfile`
+  - `PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile`
 * - `VelocityDF`
   - `sample_velocities`
-  - `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF`
+  - `PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF`
 * - `IMFProtocol`
   - `logpdf`, `cdf`, `ppf`, `sample`, `mean_mass`
   - `PowerLawIMF`, `Maschberger`, `ChabrierIMF`, `BinaryIMF`

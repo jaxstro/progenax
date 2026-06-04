@@ -1,14 +1,16 @@
 ---
 title: Spatial density profiles
-description: The three production-grade spatial density profiles in progenax — Plummer, King, EFF — and when to use each.
+description: The production-grade spatial density profiles in progenax — Plummer, King, EFF, and the anisotropic Michie–King — and when to use each.
 ---
 
 # Spatial density profiles
 
 A **spatial density profile** $\rho(r)$ is one of the three orthogonal
 ingredients in every progenax IC ([](../ic-philosophy.md)). progenax
-ships three production-grade profiles, all parameterised by half-mass
-radius $r_h$ for cross-profile comparability:
+ships four production-grade profiles — the isotropic Plummer / King /
+EFF (parameterised by half-mass radius $r_h$ for cross-profile
+comparability) plus the self-consistent anisotropic **Michie–King**
+($W_0$, $r_c$, $r_a$):
 
 ```{list-table}
 :header-rows: 1
@@ -25,6 +27,9 @@ radius $r_h$ for cross-profile comparability:
 * - [](eff.md)
   - $\rho(r) = \rho_0\,\bigl[1 + (r/a)^2\bigr]^{-\gamma/2}$
   - You want power-law outer falloff matching young massive cluster surface brightness; need a free outer-slope parameter.
+* - [](../velocity-dfs/michie-king.md)
+  - Self-consistent King with a Gaussian-in-$J^2$ anisotropy term (Michie 1963); ODE-defined, distinct from isotropic King.
+  - You want a tidally-truncated cluster with *radial velocity anisotropy* increasing outward (the Michie–King model). Density and DF are solved together.
 ```
 
 Plummer is the default. King is the right choice for old globular
@@ -89,9 +94,12 @@ in-equilibrium ICs:
 * - EFF
   - `progenax.kinematics.EFFVelocityDF`
   - EFF + isotropic-Maxwellian → approximate but useful starting state
+* - Michie–King
+  - `progenax.kinematics.MichieVelocityDF` ([](../velocity-dfs/michie-king.md))
+  - Solved self-consistently as a pair (`MichieProfile` + `MichieVelocityDF`); the density is intrinsic to the anisotropic DF
 ```
 
-All three profiles compose with the modifier layers — mass segregation
+All four profiles compose with the modifier layers — mass segregation
 ([](../tidal-and-substructure/mass-segregation.md)), fractal
 substructure ([](../tidal-and-substructure/fractal.md)), and tidal
 truncation ([](../tidal-and-substructure/tidal.md)) — without changing
@@ -99,7 +107,8 @@ the underlying $\rho(r)$.
 
 ## References
 
-The three profiles are due to {cite:t}`Plummer1911`, {cite:t}`King1966`,
-and {cite:t}`ElsonFallFreeman1987`. {cite:t}`Gieles2015`'s LIMEPY
-generalisation unifies them under a single multi-mass family; see
-[](king.md) for the LIMEPY connection.
+The isotropic profiles are due to {cite:t}`Plummer1911`, {cite:t}`King1966`,
+and {cite:t}`ElsonFallFreeman1987`; the anisotropic Michie–King model is
+{cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff). {cite:t}`Gieles2015`'s
+LIMEPY generalisation unifies the lowered models under a single multi-mass
+family; see [](king.md) for the LIMEPY connection.

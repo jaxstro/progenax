@@ -164,18 +164,19 @@ from progenax.profiles import EFFProfile
 from progenax.kinematics import EFFVelocityDF
 from jaxstro.units import STELLAR
 
-profile = EFFProfile(r_h=1.0, gamma=4.0)        # Young-cluster default
-df = EFFVelocityDF(r_h=1.0, gamma=4.0)
+profile = EFFProfile(a=1.0, gamma=3.0, r_t=10.0)   # a = scale radius, r_t = truncation
+df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)      # match a, gamma, r_t
 
 masses = jnp.ones(1000)
 positions = profile.sample_positions(masses, key)
 velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```
 
-`EFFProfile` is a fully-vectorised Equinox module; `EFFVelocityDF` runs
-a 64-point Gauss-Legendre quadrature per particle that adds ~$3\times$
-overhead vs Plummer at $N = 10^4$. The quadrature is fully
-JIT-compatible.
+`EFFProfile` is a fully-vectorised Equinox module. `EFFVelocityDF` builds the
+exact isotropic ergodic DF $f(E)$ of the (truncated) EFF density by **Eddington
+inversion** at initialisation, then samples speeds per particle from a tabulated
+inverse-CDF; it is fully JIT-compatible and differentiable. For radial anisotropy,
+pass `anisotropy_radius` (Osipkov–Merritt; see [](../velocity-dfs/rotation-anisotropy.md)).
 
 ```{warning}
 **Match $\gamma$ in profile and velocity DF.** Like the $r_h$ matching
