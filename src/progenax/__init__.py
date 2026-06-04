@@ -74,6 +74,10 @@ from .binaries import (
     sample_mass_dependent_orbits,
     ResolvedBinaries,
     resolve_binary_components,
+    relative_energy,
+    find_bound_pairs,
+    find_bound_multiples,
+    primordial_survival,
 )
 from .tidal import (
     jacobi_radius,
@@ -123,6 +127,10 @@ __all__ = [
     "build_binary_cluster",
     "resolve_binary_components",
     "ResolvedBinaries",
+    "relative_energy",
+    "find_bound_pairs",
+    "find_bound_multiples",
+    "primordial_survival",
     "to_com_frame",
     "virial_scale",
     "compute_stellar_radii",

@@ -41,6 +41,12 @@ from .mass_dependent import (
     sample_mass_dependent_orbits,
 )
 from .assembly import ResolvedBinaries, resolve_binary_components
+from .diagnostics import (
+    relative_energy,
+    find_bound_pairs,
+    find_bound_multiples,
+    primordial_survival,
+)
 
 __all__ = [
     # Kepler mechanics
@@ -70,4 +76,9 @@ __all__ = [
     # Binary -> spatial-IC connector
     "ResolvedBinaries",
     "resolve_binary_components",
+    # Dynamic binary diagnostics
+    "relative_energy",
+    "find_bound_pairs",
+    "find_bound_multiples",
+    "primordial_survival",
 ]
