@@ -21,34 +21,30 @@ from jaxtyping import Array, Float
 from .base import BaseIMF
 
 
-def _linear_trapz_integrate(log_pdf_fn, m_min: float, m_max: float, n_points: int = 10000):
-    """Integrate exp(log_pdf) using dense linear grid.
+def _shared_grid_cdf_unnorm(log_pdf_fn, m, m_min: float, m_max: float, n_points: int = 4000):
+    """Unnormalized CDF int_{m_min}^m pdf dm' via one shared cumulative-trapezoid grid.
 
-    For smooth IMFs, linear spacing with many points gives consistent
-    results that match standard verification methods.
+    A single (log-spaced) grid is evaluated once, then
 
-    Args:
-        log_pdf_fn: Function returning log-PDF at mass m
-        m_min: Lower integration bound
-        m_max: Upper integration bound
-        n_points: Number of points (default: 10000, matches test verification)
+        cdf = cumsum( 0.5 (f_i + f_{i+1}) dm_i ),   f = pdf = exp(log_pdf) >= 0,
 
-    Returns:
-        Integral of exp(log_pdf) from m_min to m_max
+    is interpolated to the query masses ``m``. Each increment is non-negative, so the
+    CDF is **monotone by construction** to machine precision -- no per-upper-limit
+    re-gridding (the old approach re-gridded [m_min, m_val] for every query, which is
+    O(N * n_points) and gave ~1e-4 non-monotonic wiggle over the steep m^-alpha spike).
+    Cost is O(n_points + N), and it is smooth/differentiable (cumsum + interp, no
+    argmax/argsort). Log-spacing concentrates nodes on the low-mass spike. Queries below
+    m_min map to 0; above m_max to the total integral.
+
+    Works for any ``m`` shape (jnp.interp preserves it).
     """
-    m_grid = jnp.linspace(m_min, m_max, n_points)
-    log_pdf_grid = log_pdf_fn(m_grid)
-    pdf_grid = jnp.exp(log_pdf_grid)
-    return jnp.trapezoid(pdf_grid, m_grid)
-
-
-def _scalar_cdf_unnorm(log_pdf_fn, m_val, m_min: float, n_points: int = 10000):
-    """Compute CDF for a single mass value, returning scalar output."""
-    return jnp.where(
-        m_val <= m_min,
-        0.0,
-        _linear_trapz_integrate(log_pdf_fn, m_min, m_val, n_points=n_points)
+    grid = jnp.exp(jnp.linspace(jnp.log(m_min), jnp.log(m_max), n_points))
+    pdf = jnp.exp(log_pdf_fn(grid))
+    dgrid = jnp.diff(grid)
+    cdf_grid = jnp.concatenate(
+        [jnp.zeros(1, dtype=pdf.dtype), jnp.cumsum(0.5 * (pdf[1:] + pdf[:-1]) * dgrid)]
     )
+    return jnp.interp(jnp.asarray(m), grid, cdf_grid, left=0.0, right=cdf_grid[-1])
 
 
 class Maschberger(BaseIMF):
@@ -207,22 +203,12 @@ class TaperedPowerLaw(BaseIMF):
         return powerlaw + taper
 
     def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Unnormalized CDF via numerical integration.
-
-        Note: Analytical primitive exists but gamma recurrence for negative
-        shape parameters (α > 1) is numerically unstable. Keep numerical
-        integration for robustness.
+        """Unnormalized CDF via the shared cumulative-trapezoid grid (monotone by
+        construction). Analytical primitive exists but the gamma recurrence for
+        negative shape parameters (alpha > 1) is numerically unstable; the shared-grid
+        integral is robust, monotone, and differentiable.
         """
-        m_arr = jnp.asarray(m)
-        is_scalar = m_arr.ndim == 0
-
-        if is_scalar:
-            return _scalar_cdf_unnorm(self._logpdf_unnorm, m_arr, self.m_min)
-        else:
-            original_shape = m_arr.shape
-            m_flat = m_arr.ravel()
-            result = jax.vmap(lambda mv: _scalar_cdf_unnorm(self._logpdf_unnorm, mv, self.m_min))(m_flat)
-            return result.reshape(original_shape)
+        return _shared_grid_cdf_unnorm(self._logpdf_unnorm, m, self.m_min, self.m_max)
 
 
 class Schechter(BaseIMF):
@@ -260,22 +246,10 @@ class Schechter(BaseIMF):
         return -self.alpha * jnp.log(m + 1e-30) - m / self.m_star
 
     def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Unnormalized CDF via numerical integration.
-
-        Note: Analytical primitive exists but gamma recurrence for negative
-        shape parameters (α > 1) is numerically unstable. Keep numerical
-        integration for robustness.
+        """Unnormalized CDF via the shared cumulative-trapezoid grid (monotone by
+        construction); see TaperedPowerLaw._cdf_unnorm.
         """
-        m_arr = jnp.asarray(m)
-        is_scalar = m_arr.ndim == 0
-
-        if is_scalar:
-            return _scalar_cdf_unnorm(self._logpdf_unnorm, m_arr, self.m_min)
-        else:
-            original_shape = m_arr.shape
-            m_flat = m_arr.ravel()
-            result = jax.vmap(lambda mv: _scalar_cdf_unnorm(self._logpdf_unnorm, mv, self.m_min))(m_flat)
-            return result.reshape(original_shape)
+        return _shared_grid_cdf_unnorm(self._logpdf_unnorm, m, self.m_min, self.m_max)
 
 
 __all__ = ["Maschberger", "TaperedPowerLaw", "Schechter"]

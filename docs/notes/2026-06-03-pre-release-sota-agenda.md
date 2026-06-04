@@ -23,19 +23,16 @@ units, provenance of constants), and docstrings — applying the audit's per-lan
    *design* exercise (thoughtful module boundaries + a byte-identical RNG check on
    `generate_fractal_ic`), not a mechanical chop. (From the file-length ticket.)
 
-2. **`imf/smooth.py` CDF numerics — cumulative-shared-grid integration.**
-   `TaperedPowerLaw` / `Schechter` build their CDF via `_scalar_cdf_unnorm`, which
-   **re-grids `[m_min, m_val]` independently for every upper limit** (`_linear_trapz_integrate`)
-   — O(N²), and O(1e-4)-relative quadrature wiggle between adjacent CDF points (the current
-   `test_cdf_unnorm_array_*` monotonicity tests therefore use a quadrature-aware floor).
-   **SoTA fix:** a cumulative integral on a **single shared grid**
-   (`concat([0], cumsum(0.5·(f[1:]+f[:-1])·dr))`) — monotone *by construction*, O(N),
-   matching the **M5 King/EFF pattern** already in the codebase. Add **log-spacing** for the
-   `m^−α` spike near `m_min`, and/or use the **analytic power-law primitive**
-   (`∫ m^−α dm = m^{1−α}/(1−α)`) so numerics handle only the taper/exponential factor; then
-   **tighten the monotonicity test to exact**. (Note: `Maschberger` already uses an exact
-   analytic inverse — unaffected. Not a bug today — the wiggle is ~100× below Monte-Carlo
-   sampling error — but it's the right SoTA design and removes a tolerance band.)
+2. **`imf/smooth.py` CDF numerics — cumulative-shared-grid integration. ✅ RESOLVED
+   (Batch 3a, 2026-06-03).** `TaperedPowerLaw` / `Schechter` `_cdf_unnorm` now interpolate a
+   single **log-spaced cumulative-trapezoid** grid (`_shared_grid_cdf_unnorm`):
+   `concat([0], cumsum(0.5·(f[1:]+f[:-1])·dm))` — monotone *by construction* (machine
+   precision), O(n+N) instead of the old per-upper-limit re-grid, and differentiable
+   (cumsum + interp). The `test_cdf_unnorm_array_*` monotonicity tests were **tightened from
+   the −1e-3 quadrature floor to exact**; a grad-through-`ppf` FD check was added; the dead
+   `_linear_trapz_integrate` / `_scalar_cdf_unnorm` helpers (and their tests) were removed.
+   `Maschberger` (exact analytic inverse) was untouched. *Original problem:* the per-query
+   re-grid gave O(1e-4)-relative non-monotonic wiggle over the steep `m^−α` spike.
 
 3. **General, per module:** confirm numerical order/convergence, differentiability
    (FD-vs-autodiff on public entry points), unit consistency, constant provenance, and

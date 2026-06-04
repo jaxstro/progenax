@@ -1,14 +1,12 @@
 """Tests for smooth IMF families (Maschberger, TaperedPowerLaw, Schechter).
 
-Coverage-gap tests for the numerical integration helpers and the
-unnormalized log-PDF / CDF building blocks that the base-class
-normalization and PPF solver rely on.
+Coverage-gap tests for the unnormalized log-PDF / CDF building blocks that the
+base-class normalization and PPF solver rely on.
 
 These assert real behavior:
-- `_linear_trapz_integrate` reproduces an analytic power-law integral.
-- `_scalar_cdf_unnorm` honors its m < m_min boundary (returns 0).
+- `_shared_grid_cdf_unnorm` reproduces an analytic power-law CDF and its boundaries.
 - TaperedPowerLaw / Schechter `_logpdf_unnorm` stay finite at edges.
-- `_cdf_unnorm` (array branch) is shape-preserving and monotonic.
+- `_cdf_unnorm` is shape-preserving and EXACTLY monotone (shared-grid construction).
 - The full normalized CDF round-trips with the PPF (cdf(ppf(u)) ~= u).
 """
 
@@ -20,81 +18,66 @@ from progenax.imf.smooth import (
     Maschberger,
     Schechter,
     TaperedPowerLaw,
-    _linear_trapz_integrate,
-    _scalar_cdf_unnorm,
+    _shared_grid_cdf_unnorm,
 )
 
 
 # =============================================================================
-# Numerical integration helpers
+# Shared-grid cumulative CDF helper
 # =============================================================================
 
 
-class TestLinearTrapzIntegrate:
-    """Verify the dense trapezoid integrator against an analytic integral."""
+class TestSharedGridCdfUnnorm:
+    """The shared-grid cumulative CDF matches an analytic power-law integral and is
+    monotone + boundary-correct on the production path."""
 
-    def test_matches_powerlaw_integral(self):
-        """integral of m^-alpha over [a,b] = (b^(1-a) - a^(1-a))/(1-alpha)."""
+    def test_matches_powerlaw_cdf(self):
+        """int_{m_min}^m s^-alpha ds = (m^(1-a) - m_min^(1-a))/(1-alpha)."""
         alpha = 2.3
         m_min, m_max = 0.1, 50.0
 
-        # log_pdf for a pure power law m^(-alpha)
         def log_pdf(m):
             return -alpha * jnp.log(m)
 
-        numeric = _linear_trapz_integrate(log_pdf, m_min, m_max, n_points=20000)
-
-        p = 1.0 - alpha  # exponent of the antiderivative
-        analytic = (m_max**p - m_min**p) / p
-
+        m = jnp.linspace(0.2, 50.0, 25)
+        numeric = _shared_grid_cdf_unnorm(log_pdf, m, m_min, m_max, n_points=8000)
+        p = 1.0 - alpha
+        analytic = (m**p - m_min**p) / p
         rel_err = jnp.abs(numeric - analytic) / jnp.abs(analytic)
-        assert rel_err < 1e-3, (
-            f"trapz integral {float(numeric):.5f} vs analytic "
-            f"{float(analytic):.5f} (rel err {float(rel_err):.2e})"
+        assert jnp.all(rel_err < 2e-3), f"max rel err {float(jnp.max(rel_err)):.2e}"
+
+    def test_boundaries(self):
+        """m <= m_min -> 0; m >= m_max -> the full integral; monotone throughout."""
+        def log_pdf(m):
+            return -2.3 * jnp.log(m + 1e-30)
+
+        assert float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(0.005), 0.01, 100.0)) == 0.0
+        full = float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(100.0), 0.01, 100.0))
+        beyond = float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(200.0), 0.01, 100.0))
+        assert beyond == full and full > 0.0
+
+    def test_shape_preserved(self):
+        """jnp.interp preserves arbitrary query shape (scalar, 1-D, 2-D)."""
+        def log_pdf(m):
+            return -2.3 * jnp.log(m + 1e-30)
+
+        assert _shared_grid_cdf_unnorm(log_pdf, jnp.array(1.0), 0.01, 100.0).ndim == 0
+        assert _shared_grid_cdf_unnorm(log_pdf, jnp.ones((4, 3)), 0.01, 100.0).shape == (4, 3)
+
+    def test_grad_flows_through_ppf(self):
+        """The shared-grid CDF (cumsum + interp) keeps ppf differentiable in the IMF
+        shape parameter (FD-vs-autodiff)."""
+        u = jnp.array([0.2, 0.5, 0.8])
+
+        def loss(alpha):
+            return jnp.sum(TaperedPowerLaw(alpha=alpha, m_min=0.01, m_max=100.0).ppf(u))
+
+        g = jax.grad(loss)(2.3)
+        g_fd = (loss(2.3 + 1e-4) - loss(2.3 - 1e-4)) / 2e-4
+        assert jnp.isfinite(g)
+        assert jnp.abs(g - g_fd) <= 1e-2 * jnp.abs(g_fd) + 1e-9, (
+            f"grad through ppf {float(g)} vs FD {float(g_fd)}"
         )
-
-    def test_matches_flat_integral(self):
-        """A flat PDF (log_pdf=0) integrates to (m_max - m_min) exactly."""
-        m_min, m_max = 0.5, 3.5
-
-        def log_pdf(m):
-            return jnp.zeros_like(m)
-
-        numeric = _linear_trapz_integrate(log_pdf, m_min, m_max, n_points=5000)
-        assert jnp.isclose(numeric, m_max - m_min, rtol=1e-6)
-
-    def test_zero_width_interval(self):
-        """An interval [m_min, m_min] integrates to zero."""
-        def log_pdf(m):
-            return -2.3 * jnp.log(m)
-
-        numeric = _linear_trapz_integrate(log_pdf, 1.0, 1.0, n_points=1000)
-        assert jnp.abs(numeric) < 1e-12
-
-
-class TestScalarCdfUnnorm:
-    """Cover the m <= m_min boundary branch in _scalar_cdf_unnorm."""
-
-    def _log_pdf(self, m):
-        return -2.3 * jnp.log(m + 1e-30)
-
-    def test_below_m_min_is_zero(self):
-        """m < m_min returns exactly 0 (jnp.where short-circuit branch)."""
-        val = _scalar_cdf_unnorm(self._log_pdf, jnp.array(0.005), m_min=0.01)
-        assert float(val) == 0.0
-
-    def test_at_m_min_is_zero(self):
-        """m == m_min returns 0 (boundary of the <= comparison)."""
-        val = _scalar_cdf_unnorm(self._log_pdf, jnp.array(0.01), m_min=0.01)
-        assert float(val) == 0.0
-
-    def test_above_m_min_is_positive_and_increasing(self):
-        """m > m_min returns a positive, increasing partial integral."""
-        m_min = 0.01
-        v1 = _scalar_cdf_unnorm(self._log_pdf, jnp.array(0.5), m_min=m_min)
-        v2 = _scalar_cdf_unnorm(self._log_pdf, jnp.array(2.0), m_min=m_min)
-        assert float(v1) > 0.0
-        assert float(v2) > float(v1), "CDF integral must grow with upper limit"
 
 
 # =============================================================================
@@ -135,28 +118,23 @@ class TestTaperedPowerLaw:
         assert float(lp_tapered) < float(lp_powerlaw)
 
     def test_cdf_unnorm_array_shape_and_monotonic(self):
-        """_cdf_unnorm(array): shape preserved, non-decreasing (vmap branch).
+        """_cdf_unnorm(array): shape preserved, EXACTLY non-decreasing.
 
-        Monotonicity tolerance note: _cdf_unnorm re-grids [m_min, m_val] with a
-        fixed n_points for EACH upper limit (see _linear_trapz_integrate). For
-        the steep m^-alpha integrand (mass piled up just above m_min), adjacent
-        upper limits sample the low-mass spike at slightly different nodes,
-        giving O(1e-4)-relative quadrature wiggle whose worst-case magnitude
-        shrinks ~1 order per 10x points (~1e-3 at 1k -> ~1e-4 at the 10k default
-        -> ~6e-6 at 200k), i.e. it converges to zero as a genuine non-monotonic
-        bug would not. We therefore require non-decreasing to a quadrature-aware
-        RELATIVE floor (1e-3 of the max) plus endpoint growth checks, which still
-        fail hard for a broken/constant/sign-flipped CDF.
+        _cdf_unnorm now interpolates a single cumulative-trapezoid integral on one
+        shared (log-spaced) grid, so each increment is 0.5*(f_i+f_{i+1})*dm >= 0
+        (f = pdf >= 0): the CDF is monotone *by construction* to machine precision,
+        not merely within a quadrature-noise floor (the old per-upper-limit re-grid
+        gave ~1e-4 relative wiggle over the steep m^-alpha spike).
         """
         imf = TaperedPowerLaw(m_min=0.01, m_max=100.0)
         m = jnp.linspace(0.01, 100.0, 40)
         F = imf._cdf_unnorm(m)
         assert F.shape == m.shape
         assert jnp.all(jnp.isfinite(F))
-        # Non-decreasing up to quadrature noise (relative floor)
+        # Exactly non-decreasing (only float64 cumsum round-off, ~1e-12 of scale).
         F_scale = jnp.max(jnp.abs(F))
-        assert jnp.all(jnp.diff(F) >= -1e-3 * F_scale), (
-            "tapered _cdf_unnorm decreased beyond quadrature noise"
+        assert jnp.all(jnp.diff(F) >= -1e-12 * F_scale), (
+            "tapered _cdf_unnorm must be monotone by construction (shared-grid CDF)"
         )
         # Discriminating: the integral genuinely grows (start near 0, end ~ max)
         assert F[0] < 1e-6 * F_scale
@@ -219,11 +197,10 @@ class TestSchechter:
         assert float(lp_large) < float(lp_small) - 10.0
 
     def test_cdf_unnorm_array_shape_and_monotonic(self):
-        """_cdf_unnorm(array): shape preserved, non-decreasing (vmap branch).
+        """_cdf_unnorm(array): shape preserved, EXACTLY non-decreasing.
 
-        Same quadrature-noise consideration as TaperedPowerLaw: require
-        non-decreasing to a relative floor (1e-3 of max) that still fails a
-        broken CDF by orders of magnitude.
+        Shared cumulative-trapezoid grid => monotone by construction to machine
+        precision (see TaperedPowerLaw test for the rationale).
         """
         imf = Schechter(alpha=1.35, m_star=10.0, m_min=0.01, m_max=100.0)
         m = jnp.linspace(0.01, 100.0, 40)
@@ -231,8 +208,8 @@ class TestSchechter:
         assert F.shape == m.shape
         assert jnp.all(jnp.isfinite(F))
         F_scale = jnp.max(jnp.abs(F))
-        assert jnp.all(jnp.diff(F) >= -1e-3 * F_scale), (
-            "Schechter _cdf_unnorm decreased beyond quadrature noise"
+        assert jnp.all(jnp.diff(F) >= -1e-12 * F_scale), (
+            "Schechter _cdf_unnorm must be monotone by construction (shared-grid CDF)"
         )
         assert F[0] < 1e-6 * F_scale
         assert F[-1] >= 0.99 * F_scale
