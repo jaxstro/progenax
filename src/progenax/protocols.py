@@ -229,6 +229,31 @@ class MassPeriodEccentricityDistribution(Protocol):
         ...
 
 
+@runtime_checkable
+class BinaryFractionModel(Protocol):
+    """Protocol for binary-fraction models — uniform across mass and environment.
+
+    `probability(masses, radii=None) -> f_bin` returns the per-star binary fraction.
+    Mass-based models (ConstantBinaryFraction, MassDependentBinaryFraction,
+    DifferentiableBinaryFraction) ignore `radii`; RadialBinaryFraction ignores
+    `masses`; CombinedBinaryFraction modulates one by the other.
+
+    Example implementations:
+        - ConstantBinaryFraction, MassDependentBinaryFraction (Moe Table 13)
+        - DifferentiableBinaryFraction
+        - RadialBinaryFraction (phenomenological f_b(r))
+        - CombinedBinaryFraction (mass x radial)
+    """
+
+    def probability(
+        self,
+        masses: Float[Array, "N"],
+        radii: Float[Array, "N"] | None = None,
+    ) -> Float[Array, "N"]:
+        """Binary fraction f_bin in [0, 1] for each star."""
+        ...
+
+
 __all__ = [
     "SpatialProfile",
     "VelocityDF",
@@ -237,4 +262,5 @@ __all__ = [
     "EccentricityDistribution",
     "ConditionalEccentricityDistribution",
     "MassPeriodEccentricityDistribution",
+    "BinaryFractionModel",
 ]

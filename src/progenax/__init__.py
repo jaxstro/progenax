@@ -20,6 +20,7 @@ from .protocols import (
     EccentricityDistribution,
     ConditionalEccentricityDistribution,
     MassPeriodEccentricityDistribution,
+    BinaryFractionModel,
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
@@ -70,6 +71,7 @@ from .binaries import (
     MoeEccentricity,
     sample_isotropic_orientations,
     RadialBinaryFraction,
+    CombinedBinaryFraction,
     MassDependentBinaryConfig,
     sample_mass_dependent_orbits,
     ResolvedBinaries,
@@ -109,6 +111,7 @@ __all__ = [
     "EccentricityDistribution",
     "ConditionalEccentricityDistribution",
     "MassPeriodEccentricityDistribution",
+    "BinaryFractionModel",
     # Spatial density profiles
     "PlummerProfile",
     "KingProfile",
@@ -170,6 +173,7 @@ __all__ = [
     "MoeEccentricity",
     "sample_isotropic_orientations",
     "RadialBinaryFraction",
+    "CombinedBinaryFraction",
     "MassDependentBinaryConfig",
     "sample_mass_dependent_orbits",
     # Tidal physics

@@ -90,6 +90,19 @@ class RadialBinaryFraction(eqx.Module):
         # Clip to valid range [0, 1]
         return jnp.clip(fb_r, 0.0, 1.0)
 
+    def probability(
+        self,
+        masses: Float[Array, "N"],
+        radii: Float[Array, "N"] | None = None,
+    ) -> Float[Array, "N"]:
+        """BinaryFractionModel protocol: f_b(radii) (masses ignored).
+
+        Requires `radii` (the radial fraction is undefined without positions).
+        """
+        if radii is None:
+            raise ValueError("RadialBinaryFraction.probability requires radii.")
+        return self.compute(radii)
+
     def sample_membership(
         self, radii: Float[Array, "N"], key: PRNGKeyArray
     ) -> Bool[Array, "N"]:
@@ -108,6 +121,34 @@ class RadialBinaryFraction(eqx.Module):
         fb_r = self.compute(radii)
         u = jax.random.uniform(key, radii.shape)
         return u < fb_r
+
+
+class CombinedBinaryFraction(eqx.Module):
+    """Binary fraction that modulates a mass-based fraction by a radial one.
+
+    f_bin(m, r) = clip(mass_model.probability(m) * radial_model.probability(m, r), 0, 1).
+
+    Lets a Moe/Raghavan mass-dependent fraction vary spatially (e.g. core-enhanced
+    binarity) without conflating the two effects. Both sub-models are duck-typed
+    BinaryFractionModel instances. Requires radii at evaluation.
+
+    Parameters:
+        mass_model: a mass-based BinaryFractionModel (ignores radii).
+        radial_model: a RadialBinaryFraction-like BinaryFractionModel (uses radii).
+    """
+
+    mass_model: eqx.Module
+    radial_model: eqx.Module
+
+    def probability(
+        self,
+        masses: Float[Array, "N"],
+        radii: Float[Array, "N"] | None = None,
+    ) -> Float[Array, "N"]:
+        """Product of the mass and radial fractions, clipped to [0, 1]."""
+        f_mass = self.mass_model.probability(masses)
+        f_radial = self.radial_model.probability(masses, radii)
+        return jnp.clip(f_mass * f_radial, 0.0, 1.0)
 
 
 class MassDependentBinaryConfig(eqx.Module):
@@ -223,6 +264,7 @@ def sample_mass_dependent_orbits(
 
 __all__ = [
     "RadialBinaryFraction",
+    "CombinedBinaryFraction",
     "MassDependentBinaryConfig",
     "sample_mass_dependent_orbits",
 ]

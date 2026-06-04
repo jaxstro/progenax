@@ -37,6 +37,7 @@ from .eccentricity import (
 from .orientation import sample_isotropic_orientations
 from .mass_dependent import (
     RadialBinaryFraction,
+    CombinedBinaryFraction,
     MassDependentBinaryConfig,
     sample_mass_dependent_orbits,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "sample_isotropic_orientations",
     # Radial / mass-dependent prescriptions
     "RadialBinaryFraction",
+    "CombinedBinaryFraction",
     "MassDependentBinaryConfig",
     "sample_mass_dependent_orbits",
     # Binary -> spatial-IC connector

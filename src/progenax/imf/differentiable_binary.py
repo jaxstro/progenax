@@ -55,6 +55,10 @@ class DifferentiableBinaryFraction(eqx.Module):
         log_odds = self.a + self.b * log_m + self.c * log_m ** 2
         return jax.nn.sigmoid(log_odds)
 
+    def probability(self, masses, radii=None):
+        """BinaryFractionModel protocol: f_bin(masses) (radii ignored)."""
+        return self(masses)
+
     @classmethod
     def from_moe2017(cls) -> "DifferentiableBinaryFraction":
         """Factory: a smooth quadratic-logit fit to the MassDependentBinaryFraction steps.

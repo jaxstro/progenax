@@ -32,6 +32,10 @@ class ConstantBinaryFraction(eqx.Module):
         """Return binary fraction (constant)."""
         return jnp.full_like(m, self.f_bin)
 
+    def probability(self, masses, radii=None):
+        """BinaryFractionModel protocol: f_bin(masses) (radii ignored)."""
+        return self(masses)
+
 
 class MassDependentBinaryFraction(eqx.Module):
     """Mass-dependent MULTIPLICITY fraction (probability a primary has ≥1 companion).
@@ -80,5 +84,9 @@ class MassDependentBinaryFraction(eqx.Module):
                 ),
             ),
         )
+
+    def probability(self, masses, radii=None):
+        """BinaryFractionModel protocol: f_bin(masses) (radii ignored)."""
+        return self(masses)
 
 
