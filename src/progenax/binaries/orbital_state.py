@@ -1,5 +1,4 @@
-"""
-Binary orbital state for IC generation.
+"""Binary orbital state for IC generation.
 
 Port from gravax-legacy with explicit G parameter for progenax.
 All functions take explicit G parameter (NOT get_G() defaults).
@@ -31,8 +30,8 @@ class BinaryOrbitalState(eqx.Module):
         m1: Primary mass [M_sun]
         m2: Secondary mass [M_sun]
         elements: KeplerElements (a, e, i, Omega, omega, M0)
-        P: Orbital period [time units]
-        n: Mean motion [rad/time] = 2*pi/P
+        P: Orbital period [time units] (convenience cache = 2*pi*sqrt(a^3/GM));
+           the mean motion n = 2*pi/P = sqrt(GM/a^3) is recomputed in to_state.
 
     Example:
         >>> from jaxstro.units import PLANETARY
@@ -47,7 +46,6 @@ class BinaryOrbitalState(eqx.Module):
     m2: Float[Array, ""]
     elements: KeplerElements
     P: Float[Array, ""]
-    n: Float[Array, ""]
 
     @classmethod
     def from_log_period(
@@ -90,9 +88,6 @@ class BinaryOrbitalState(eqx.Module):
         M_total = m1 + m2
         a = period_to_semimajor_axis(P, M_total, G)
 
-        # Mean motion
-        n = 2.0 * jnp.pi / jnp.maximum(P, 1e-30)
-
         # Create orbital elements
         elements = KeplerElements(
             a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom
@@ -103,7 +98,6 @@ class BinaryOrbitalState(eqx.Module):
             m2=jnp.asarray(m2),
             elements=elements,
             P=jnp.asarray(P),
-            n=n,
         )
 
     @classmethod
@@ -138,7 +132,6 @@ class BinaryOrbitalState(eqx.Module):
         """
         M_total = m1 + m2
         P = compute_period(a, M_total, G)
-        n = 2.0 * jnp.pi / jnp.maximum(P, 1e-30)
 
         elements = KeplerElements(
             a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom
@@ -149,7 +142,6 @@ class BinaryOrbitalState(eqx.Module):
             m2=jnp.asarray(m2),
             elements=elements,
             P=P,
-            n=n,
         )
 
     def to_resolved_positions(
@@ -173,11 +165,7 @@ class BinaryOrbitalState(eqx.Module):
         )
 
 
-# -------------------------------------------------------------------
-# Legacy API compatibility (thin wrappers)
-# -------------------------------------------------------------------
-
-def make_elements_from_inputs(
+def _make_elements_from_inputs(
     m1: Float[Array, ""],
     m2: Float[Array, ""],
     logP_days: Float[Array, ""],
@@ -187,29 +175,10 @@ def make_elements_from_inputs(
     omega: Float[Array, ""],
     M_anom: Float[Array, ""],
     *,
-    G: float | None = None,
+    G: float,
     day_in_time_units: float = 1.0,
 ) -> BinaryOrbitalState:
-    """Build binary orbital state from standard binary sampler outputs.
-
-    Args:
-        m1, m2: Component masses
-        logP_days: log10(P / day)
-        e: Eccentricity
-        inc: Inclination [rad]
-        Omega: Longitude of ascending node [rad]
-        omega: Argument of periapsis [rad]
-        M_anom: Mean anomaly at epoch [rad]
-        G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-           (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
-        day_in_time_units: Conversion factor days -> code time units
-
-    Returns:
-        BinaryOrbitalState with derived (a, P, n)
-    """
-    if G is None:
-        from jaxstro.units import PLANETARY
-        G = PLANETARY.G
+    """Internal: build a BinaryOrbitalState from standard binary-sampler outputs."""
     return BinaryOrbitalState.from_log_period(
         m1=m1, m2=m2, logP_days=logP_days, e=e,
         inc=inc, Omega=Omega, omega=omega, M_anom=M_anom,
@@ -217,19 +186,11 @@ def make_elements_from_inputs(
     )
 
 
-def elements_to_resolved_state(
+def _elements_to_resolved_state(
     elem: BinaryOrbitalState,
     G: float,
 ) -> Tuple[Float[Array, "3"], Float[Array, "3"], Float[Array, "3"], Float[Array, "3"]]:
-    """Resolved barycentric state for a single binary at the given epoch.
-
-    Args:
-        elem: BinaryOrbitalState
-        G: Gravitational constant
-
-    Returns:
-        r1, v1, r2, v2 (each 3-vector), with COM at origin.
-    """
+    """Internal: resolved barycentric state for one BinaryOrbitalState (COM at origin)."""
     return elem.to_resolved_positions(G=G)
 
 
@@ -243,7 +204,7 @@ def batch_elements_to_resolved(
     omega: Float[Array, "N"],
     M_anom: Float[Array, "N"],
     *,
-    G: float | None = None,
+    G: float,
     day_in_time_units: float = 1.0,
 ) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"]]:
     """Vectorized wrapper to get resolved (r1, v1, r2, v2) for N binaries.
@@ -256,19 +217,15 @@ def batch_elements_to_resolved(
         Omega: Longitude of ascending node [rad] [N]
         omega: Argument of periapsis [rad] [N]
         M_anom: Mean anomaly [rad] [N]
-        G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-           (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
+        G: Gravitational constant (REQUIRED, no default)
         day_in_time_units: Conversion factor days -> code time units
 
     Returns:
         r1, v1, r2, v2: Arrays of shape [N, 3]
     """
-    if G is None:
-        from jaxstro.units import PLANETARY
-        G = PLANETARY.G
     # Vectorize the element creation
     make_fn = jax.vmap(
-        lambda m1, m2, lp, e, i, O, o, M: make_elements_from_inputs(
+        lambda m1, m2, lp, e, i, O, o, M: _make_elements_from_inputs(
             m1, m2, lp, e, i, O, o, M, G=G, day_in_time_units=day_in_time_units
         ),
         in_axes=(0, 0, 0, 0, 0, 0, 0, 0),
@@ -276,71 +233,10 @@ def batch_elements_to_resolved(
     elems = make_fn(m1, m2, logP_days, e, inc, Omega, omega, M_anom)
 
     # Vectorize state conversion
-    to_state = jax.vmap(lambda el: elements_to_resolved_state(el, G=G))
+    to_state = jax.vmap(lambda el: _elements_to_resolved_state(el, G=G))
     r1, v1, r2, v2 = to_state(elems)
 
     return r1, v1, r2, v2
 
 
-def elements_to_com_and_internal(
-    elem: BinaryOrbitalState,
-) -> Tuple[Float[Array, "3"], Float[Array, "3"], BinaryOrbitalState]:
-    """Return (r_com, v_com, elements).
-
-    For now r_com=v_com=0; hook for future drift/offset support.
-    """
-    r_com = jnp.zeros(3)
-    v_com = jnp.zeros(3)
-    return r_com, v_com, elem
-
-
-def batch_elements_to_com_and_internal(
-    m1: Float[Array, "N"],
-    m2: Float[Array, "N"],
-    logP_days: Float[Array, "N"],
-    e: Float[Array, "N"],
-    inc: Float[Array, "N"],
-    Omega: Float[Array, "N"],
-    omega: Float[Array, "N"],
-    M_anom: Float[Array, "N"],
-    *,
-    G: float | None = None,
-    day_in_time_units: float = 1.0,
-) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"], BinaryOrbitalState]:
-    """Vectorized COM+elements pack (COM states are zeros by default).
-
-    Args:
-        G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-           (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
-    """
-    if G is None:
-        from jaxstro.units import PLANETARY
-        G = PLANETARY.G
-    make_fn = jax.vmap(
-        lambda m1, m2, lp, e, i, O, o, M: make_elements_from_inputs(
-            m1, m2, lp, e, i, O, o, M, G=G, day_in_time_units=day_in_time_units
-        ),
-        in_axes=(0, 0, 0, 0, 0, 0, 0, 0),
-    )
-    elems = make_fn(m1, m2, logP_days, e, inc, Omega, omega, M_anom)
-
-    N = m1.shape[0]
-    rcom = jnp.zeros((N, 3))
-    vcom = jnp.zeros((N, 3))
-
-    return rcom, vcom, elems
-
-
-# Backwards compatibility alias
-KeplerElements_IC = BinaryOrbitalState
-
-
-__all__ = [
-    "BinaryOrbitalState",
-    "make_elements_from_inputs",
-    "elements_to_resolved_state",
-    "batch_elements_to_resolved",
-    "elements_to_com_and_internal",
-    "batch_elements_to_com_and_internal",
-    "KeplerElements_IC",
-]
+__all__ = ["BinaryOrbitalState", "batch_elements_to_resolved"]

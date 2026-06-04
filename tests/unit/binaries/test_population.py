@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.binaries.population import (
+from progenax.binaries import (
     LogUniformPeriod,
     LogNormalPeriod,
     ThermalEccentricity,
@@ -146,7 +146,7 @@ class TestRadialBinaryFraction:
 
     def test_A_positive_core_enhanced(self):
         """A > 0 gives higher fb at small radii (core-enhanced)."""
-        from progenax.binaries.population import RadialBinaryFraction
+        from progenax.binaries import RadialBinaryFraction
 
         rbf = RadialBinaryFraction(fb0=0.5, A=0.5, alpha=1.0, r_scale=1.0)
         r_center = jnp.array([0.1])
@@ -160,7 +160,7 @@ class TestRadialBinaryFraction:
 
     def test_A_negative_core_depleted(self):
         """A < 0 gives lower fb at small radii (core-depleted)."""
-        from progenax.binaries.population import RadialBinaryFraction
+        from progenax.binaries import RadialBinaryFraction
 
         rbf = RadialBinaryFraction(fb0=0.5, A=-0.5, alpha=1.0, r_scale=1.0)
         r_center = jnp.array([0.1])
@@ -174,7 +174,7 @@ class TestRadialBinaryFraction:
 
     def test_A_zero_constant(self):
         """A = 0 gives constant binary fraction everywhere."""
-        from progenax.binaries.population import RadialBinaryFraction
+        from progenax.binaries import RadialBinaryFraction
 
         rbf = RadialBinaryFraction(fb0=0.6, A=0.0, alpha=1.0, r_scale=1.0)
         radii = jnp.linspace(0.01, 10.0, 50)
@@ -185,7 +185,7 @@ class TestRadialBinaryFraction:
 
     def test_sample_membership_statistics(self):
         """Sample membership statistics match theoretical fb(r)."""
-        from progenax.binaries.population import RadialBinaryFraction
+        from progenax.binaries import RadialBinaryFraction
 
         rbf = RadialBinaryFraction(fb0=0.5, A=0.0, alpha=1.0, r_scale=1.0)
         radii = jnp.ones(10000) * 1.0  # All at same radius
@@ -204,7 +204,7 @@ class TestSanaOBPeriod:
 
     def test_mean_shorter_than_solar_type(self):
         """O/B stars have shorter periods on average than solar-type stars."""
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
 
         sana_dist = SanaOBPeriod()
         solar_dist = LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3)
@@ -231,7 +231,7 @@ class TestSanaOBPeriod:
 
         Reference: Sana et al. (2012) Science 337, 444.
         """
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
 
         dist = SanaOBPeriod()  # power = -0.55, log10(P) in [0.3, 3.5]
         key = jax.random.PRNGKey(0)
@@ -247,24 +247,54 @@ class TestSanaOBPeriod:
         )
 
 
+class TestSanaOBPeriodDistribution:
+    """B4-9: SanaOBPeriod exposes the full pdf/cdf/ppf protocol (truncated power law)."""
+
+    def test_ppf_inverts_cdf(self):
+        from progenax.binaries import SanaOBPeriod
+        d = SanaOBPeriod()
+        u = jnp.array([0.05, 0.25, 0.5, 0.75, 0.95])
+        assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
+
+    def test_cdf_endpoints(self):
+        from progenax.binaries import SanaOBPeriod
+        d = SanaOBPeriod()
+        assert jnp.abs(d.cdf(10.0 ** d.log_P_min)) < 1e-12
+        assert jnp.abs(d.cdf(10.0 ** d.log_P_max) - 1.0) < 1e-12
+
+    def test_pdf_normalized(self):
+        from progenax.binaries import SanaOBPeriod
+        d = SanaOBPeriod()
+        P = jnp.logspace(d.log_P_min, d.log_P_max, 20000)
+        integral = jnp.trapezoid(d.pdf(P), P)
+        assert jnp.abs(integral - 1.0) < 1e-3
+
+    def test_ppf_inverts_cdf_log_uniform_branch(self):
+        """alpha=-1 (Öpik) branch also satisfies cdf(ppf(u))=u."""
+        from progenax.binaries import SanaOBPeriod
+        d = SanaOBPeriod(power=-1.0)
+        u = jnp.array([0.1, 0.5, 0.9])
+        assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
+
+
 class TestMoeEccentricity:
     """Test Moe+2017 period-dependent eccentricity distribution."""
 
     def test_short_periods_more_circular(self):
         """Short periods (P < 10d) are more circular than long periods (P > 1000d)."""
-        from progenax.binaries.population import MoeEccentricity
+        from progenax.binaries import MoeEccentricity
 
         dist = MoeEccentricity()
         key = jax.random.PRNGKey(42)
 
         # Short periods: P ~ 1-10 days (tidally circularized)
         periods_short = jnp.full(10000, 5.0)
-        e_short = dist.sample(periods_short, key)
+        e_short = dist.sample(key, periods_short)
 
         # Long periods: P ~ 1000-10000 days (thermal-like)
         key = jax.random.PRNGKey(43)
         periods_long = jnp.full(10000, 5000.0)
-        e_long = dist.sample(periods_long, key)
+        e_long = dist.sample(key, periods_long)
 
         mean_e_short = jnp.mean(e_short)
         mean_e_long = jnp.mean(e_long)
@@ -278,7 +308,7 @@ class TestMassDependentOrbits:
 
     def test_routes_by_mass(self):
         """Low-mass and high-mass stars get different distributions."""
-        from progenax.binaries.population import (
+        from progenax.binaries import (
             sample_mass_dependent_orbits,
             MassDependentBinaryConfig,
             LogNormalPeriod,
@@ -330,7 +360,7 @@ class TestBinarySamplingDifferentiability:
         deterministic, so autodiff must match a central difference to <1e-5
         (h-sweep to bracket the truncation/round-off sweet spot).
         """
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
 
         key = jax.random.PRNGKey(0)
 
@@ -351,7 +381,7 @@ class TestBinarySamplingDifferentiability:
 
     def test_lognormal_location_gradient_is_unity(self):
         """d<log10 P>/d(mu) = 1 exactly (log10 P = mu + sigma*z)."""
-        from progenax.binaries.population import LogNormalPeriod
+        from progenax.binaries import LogNormalPeriod
 
         key = jax.random.PRNGKey(1)
         g = jax.grad(
@@ -362,7 +392,7 @@ class TestBinarySamplingDifferentiability:
 
     def test_thermal_scale_gradient_equals_mean_sqrt_u(self):
         """d<e>/d(e_max) = <sqrt(u)> exactly (e = e_max*sqrt(u)), ~2/3 in the limit."""
-        from progenax.binaries.population import ThermalEccentricity
+        from progenax.binaries import ThermalEccentricity
 
         key = jax.random.PRNGKey(2)
         # Closed form: with the same key, the sampler draws this exact u.
@@ -387,7 +417,7 @@ class TestSanaOBPeriodAlphaMinusOne:
     """
 
     def test_sample_finite_at_power_minus_one(self):
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
         key = jax.random.PRNGKey(0)
         s = SanaOBPeriod(power=-1.0).sample(key, 200)
         assert jnp.all(jnp.isfinite(s)) and jnp.all(s > 0)
@@ -395,7 +425,7 @@ class TestSanaOBPeriodAlphaMinusOne:
     def test_power_minus_one_matches_general_limit(self):
         """B4-2b: the alpha=-1 special case must equal the alpha->-1 limit of the
         general inverse-CDF (same key => same u draws => same per-sample log P)."""
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
         key = jax.random.PRNGKey(1)
         x_exact = jnp.log10(SanaOBPeriod(power=-1.0).sample(key, 5000))
         x_near = jnp.log10(SanaOBPeriod(power=-1.0 + 1e-6).sample(key, 5000))
@@ -403,7 +433,7 @@ class TestSanaOBPeriodAlphaMinusOne:
         assert dev < 1e-3, f"alpha=-1 branch deviates from the alpha->-1 limit by {dev:.2e}"
 
     def test_grad_finite_at_power_minus_one(self):
-        from progenax.binaries.population import SanaOBPeriod
+        from progenax.binaries import SanaOBPeriod
         key = jax.random.PRNGKey(2)
         def loss(p):
             return jnp.mean(jnp.log10(SanaOBPeriod(power=p).sample(key, 2000)))
@@ -420,7 +450,7 @@ class TestMassDependentBinaryConfigPyTree:
 
     def test_config_is_pytree(self):
         import jax.tree_util as jtu
-        from progenax.binaries.population import (
+        from progenax.binaries import (
             MassDependentBinaryConfig, LogNormalPeriod, SanaOBPeriod,
             ThermalEccentricity, MoeEccentricity,
         )
@@ -442,12 +472,12 @@ class TestMoreSamplerGradients:
     """
 
     def test_moe_eccentricity_emax_gradient_matches_fd(self):
-        from progenax.binaries.population import MoeEccentricity
+        from progenax.binaries import MoeEccentricity
         key = jax.random.PRNGKey(0)
         periods = jnp.logspace(0.5, 3.5, 4000)  # fixed period grid
 
         def loss(em):
-            return jnp.mean(MoeEccentricity(e_max=em).sample(periods, key))
+            return jnp.mean(MoeEccentricity(e_max=em).sample(key, periods))
 
         em0 = 0.99
         g_ad = jax.grad(loss)(em0)
@@ -459,7 +489,7 @@ class TestMoreSamplerGradients:
         assert rel < 1e-5, f"Moe e_max grad FD rel-err {rel:.2e}"
 
     def test_uniform_eccentricity_emax_gradient(self):
-        from progenax.binaries.population import UniformEccentricity
+        from progenax.binaries import UniformEccentricity
         key = jax.random.PRNGKey(1)
         # e = e_min + u(e_max - e_min)  =>  d<e>/d(e_max) = <u>
         expected = jnp.mean(jax.random.uniform(key, (20000,)))
@@ -470,7 +500,7 @@ class TestMoreSamplerGradients:
         assert jnp.abs(g - 0.5) < 0.02
 
     def test_loguniform_period_logpmax_gradient(self):
-        from progenax.binaries.population import LogUniformPeriod
+        from progenax.binaries import LogUniformPeriod
         key = jax.random.PRNGKey(2)
         # log10 P = lo + u (hi - lo)  =>  d<log10 P>/d(hi) = <u>
         expected = jnp.mean(jax.random.uniform(key, (20000,)))
@@ -479,3 +509,30 @@ class TestMoreSamplerGradients:
         )(8.0)
         assert jnp.isfinite(g) and jnp.abs(g - expected) < 1e-6
         assert jnp.abs(g - 0.5) < 0.02
+
+
+class TestDistributionProtocols:
+    """B4-9: samplers satisfy the runtime_checkable Period/Eccentricity protocols."""
+
+    def test_period_distributions_conform(self):
+        from progenax.protocols import PeriodDistribution
+        from progenax.binaries import LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
+        for d in (LogUniformPeriod(), LogNormalPeriod(), SanaOBPeriod()):
+            assert isinstance(d, PeriodDistribution), type(d).__name__
+
+    def test_unconditional_eccentricity_conform(self):
+        from progenax.protocols import EccentricityDistribution
+        from progenax.binaries import ThermalEccentricity, UniformEccentricity
+        for d in (ThermalEccentricity(), UniformEccentricity()):
+            assert isinstance(d, EccentricityDistribution), type(d).__name__
+
+    def test_moe_is_conditional_not_unconditional(self):
+        from progenax.protocols import (
+            EccentricityDistribution,
+            ConditionalEccentricityDistribution,
+        )
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity()
+        # Has sample(key, periods) but no pdf/cdf/ppf -> conditional, not unconditional.
+        assert isinstance(moe, ConditionalEccentricityDistribution)
+        assert not isinstance(moe, EccentricityDistribution)

@@ -12,7 +12,14 @@ _enable_jax_hp()
 del _enable_jax_hp  # avoid leaking into public API
 
 from .defaults import DEFAULT_UNITS
-from .protocols import SpatialProfile, VelocityDF, IMFProtocol
+from .protocols import (
+    SpatialProfile,
+    VelocityDF,
+    IMFProtocol,
+    PeriodDistribution,
+    EccentricityDistribution,
+    ConditionalEccentricityDistribution,
+)
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
     solve_king_profile, solve_michie_profile,
@@ -46,10 +53,22 @@ from .analytical import (
 )
 from .binaries import (
     KeplerElements,
+    CartesianState,
+    BinaryState,
     compute_period,
     period_to_semimajor_axis,
     BinaryOrbitalState,
     batch_elements_to_resolved,
+    LogUniformPeriod,
+    LogNormalPeriod,
+    SanaOBPeriod,
+    ThermalEccentricity,
+    UniformEccentricity,
+    MoeEccentricity,
+    sample_isotropic_orientations,
+    RadialBinaryFraction,
+    MassDependentBinaryConfig,
+    sample_mass_dependent_orbits,
 )
 from .tidal import (
     jacobi_radius,
@@ -77,6 +96,9 @@ __all__ = [
     "SpatialProfile",
     "VelocityDF",
     "IMFProtocol",
+    "PeriodDistribution",
+    "EccentricityDistribution",
+    "ConditionalEccentricityDistribution",
     # Spatial density profiles
     "PlummerProfile",
     "KingProfile",
@@ -115,10 +137,23 @@ __all__ = [
     "solar_system_full",
     # Binary orbital mechanics
     "KeplerElements",
+    "CartesianState",
+    "BinaryState",
     "compute_period",
     "period_to_semimajor_axis",
     "BinaryOrbitalState",
     "batch_elements_to_resolved",
+    # Binary population distributions
+    "LogUniformPeriod",
+    "LogNormalPeriod",
+    "SanaOBPeriod",
+    "ThermalEccentricity",
+    "UniformEccentricity",
+    "MoeEccentricity",
+    "sample_isotropic_orientations",
+    "RadialBinaryFraction",
+    "MassDependentBinaryConfig",
+    "sample_mass_dependent_orbits",
     # Tidal physics
     "jacobi_radius",
     "jacobi_radius_isothermal",

@@ -9,7 +9,38 @@ import jax
 import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import Array, Float
-from typing import Dict
+from typing import NamedTuple
+
+
+class CartesianState(NamedTuple):
+    """Cartesian phase-space state of a single body.
+
+    A JAX-pytree NamedTuple (transparent to jit/grad/vmap); also tuple-iterable,
+    so ``pos, vel = state`` works.
+
+    Attributes:
+        position: (3,) Cartesian position [length units]
+        velocity: (3,) Cartesian velocity [velocity units]
+    """
+
+    position: Float[Array, "3"]
+    velocity: Float[Array, "3"]
+
+
+class BinaryState(NamedTuple):
+    """Resolved barycentric phase-space state of a binary's two components.
+
+    A JAX-pytree NamedTuple; tuple-iterable, so ``r1, v1, r2, v2 = state`` works.
+
+    Attributes:
+        r1, v1: Position/velocity of the primary [length, velocity units]
+        r2, v2: Position/velocity of the secondary [length, velocity units]
+    """
+
+    r1: Float[Array, "3"]
+    v1: Float[Array, "3"]
+    r2: Float[Array, "3"]
+    v2: Float[Array, "3"]
 
 
 class KeplerElements(eqx.Module):
@@ -83,7 +114,7 @@ class KeplerElements(eqx.Module):
         self,
         M_total: float,
         G: float,
-    ) -> Dict[str, Float[Array, "3"]]:
+    ) -> CartesianState:
         """
         Convert orbital elements to Cartesian state (position, velocity).
 
@@ -94,9 +125,8 @@ class KeplerElements(eqx.Module):
             G: Gravitational constant (REQUIRED, no default)
 
         Returns:
-            Dictionary with keys:
-                - 'position': (3,) Cartesian position [length units]
-                - 'velocity': (3,) Cartesian velocity [velocity units]
+            CartesianState(position, velocity), each a (3,) array. Tuple-iterable
+            (``pos, vel = state``) and a JAX pytree.
 
         Algorithm:
             1. Solve Kepler's equation for eccentric anomaly E
@@ -142,17 +172,14 @@ class KeplerElements(eqx.Module):
             jnp.array([vx_p, vy_p, 0.0])
         )
 
-        return {
-            'position': position,
-            'velocity': velocity,
-        }
+        return CartesianState(position=position, velocity=velocity)
 
     def to_binary_state(
         self,
         m1: float,
         m2: float,
         G: float,
-    ) -> tuple[Float[Array, "3"], Float[Array, "3"], Float[Array, "3"], Float[Array, "3"]]:
+    ) -> BinaryState:
         """
         Convert orbital elements to resolved binary state vectors.
 
@@ -203,8 +230,8 @@ class KeplerElements(eqx.Module):
 
         # Get relative orbit state: r_rel = r2 - r1, v_rel = v2 - v1
         relative_state = self.to_state(M_total=M_total, G=G)
-        r_rel = relative_state['position']
-        v_rel = relative_state['velocity']
+        r_rel = relative_state.position
+        v_rel = relative_state.velocity
 
         # Convert to barycentric frame
         # COM condition: m1*r1 + m2*r2 = 0
@@ -220,7 +247,7 @@ class KeplerElements(eqx.Module):
         v1 = -mu1 * v_rel
         v2 = mu2 * v_rel
 
-        return r1, v1, r2, v2
+        return BinaryState(r1, v1, r2, v2)
 
     @classmethod
     def from_state(
@@ -260,7 +287,7 @@ class KeplerElements(eqx.Module):
             >>> original = KeplerElements(a=1.0, e=0.5, i=0.0, Omega=0.0, omega=0.0, M0=0.0)
             >>> state = original.to_state(M_total=1.0, G=1.0)
             >>> recovered = KeplerElements.from_state(
-            ...     state['position'], state['velocity'], M_total=1.0, G=1.0
+            ...     state.position, state.velocity, M_total=1.0, G=1.0
             ... )
             >>> assert jnp.allclose(recovered.a, original.a)
 

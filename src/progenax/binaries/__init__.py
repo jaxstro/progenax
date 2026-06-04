@@ -1,39 +1,36 @@
 """Binary star orbital mechanics for progenax.
 
-Combines Kepler mechanics and binary orbital state from gravax-legacy.
-All functions take explicit G parameter (NO get_G() defaults).
+Kepler mechanics, binary orbital state, and population parameter distributions.
+All functions take an explicit G parameter (NO get_G() defaults).
 
 Modules:
-    kepler: KeplerElements, period conversions
-    orbital_state: BinaryOrbitalState, batch operations
-    population: Period, eccentricity, and orientation distributions
+    kepler:         KeplerElements, period conversions
+    orbital_state:  BinaryOrbitalState, batch operations
+    period:         LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
+    eccentricity:   ThermalEccentricity, UniformEccentricity, MoeEccentricity
+    orientation:    sample_isotropic_orientations
+    mass_dependent: RadialBinaryFraction, MassDependentBinaryConfig,
+                    sample_mass_dependent_orbits
 """
 
 from .kepler import (
     KeplerElements,
+    CartesianState,
+    BinaryState,
     compute_period,
     period_to_semimajor_axis,
 )
 
 from .orbital_state import (
     BinaryOrbitalState,
-    make_elements_from_inputs,
-    elements_to_resolved_state,
     batch_elements_to_resolved,
-    elements_to_com_and_internal,
-    batch_elements_to_com_and_internal,
-    KeplerElements_IC,
 )
 
-from .population import (
-    LogUniformPeriod,
-    LogNormalPeriod,
-    ThermalEccentricity,
-    UniformEccentricity,
-    sample_isotropic_orientations,
+from .period import LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
+from .eccentricity import ThermalEccentricity, UniformEccentricity, MoeEccentricity
+from .orientation import sample_isotropic_orientations
+from .mass_dependent import (
     RadialBinaryFraction,
-    SanaOBPeriod,
-    MoeEccentricity,
     MassDependentBinaryConfig,
     sample_mass_dependent_orbits,
 )
@@ -41,27 +38,25 @@ from .population import (
 __all__ = [
     # Kepler mechanics
     "KeplerElements",
+    "CartesianState",
+    "BinaryState",
     "compute_period",
     "period_to_semimajor_axis",
     # Binary orbital state
     "BinaryOrbitalState",
-    "make_elements_from_inputs",
-    "elements_to_resolved_state",
     "batch_elements_to_resolved",
-    "elements_to_com_and_internal",
-    "batch_elements_to_com_and_internal",
-    # Population distributions
+    # Period distributions
     "LogUniformPeriod",
     "LogNormalPeriod",
+    "SanaOBPeriod",
+    # Eccentricity distributions
     "ThermalEccentricity",
     "UniformEccentricity",
-    "sample_isotropic_orientations",
-    "RadialBinaryFraction",
-    # Mass-dependent prescriptions
-    "SanaOBPeriod",
     "MoeEccentricity",
+    # Orientation
+    "sample_isotropic_orientations",
+    # Radial / mass-dependent prescriptions
+    "RadialBinaryFraction",
     "MassDependentBinaryConfig",
     "sample_mass_dependent_orbits",
-    # Backwards compatibility
-    "KeplerElements_IC",
 ]

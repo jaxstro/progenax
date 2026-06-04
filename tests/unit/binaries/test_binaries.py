@@ -25,9 +25,8 @@ class TestKeplerElements:
         elements = KeplerElements(a=1.0, e=0.0, i=0.0, Omega=0.0, omega=0.0, M0=0.0)
         G = 1.0
         state = elements.to_state(M_total=1.0, G=G)
-        assert 'position' in state
-        assert 'velocity' in state
-        assert state['position'].shape == (3,)
+        assert state.position.shape == (3,)
+        assert state.velocity.shape == (3,)
 
     def test_to_binary_state(self):
         """Convert elements to resolved binary state."""
@@ -47,7 +46,7 @@ class TestKeplerElements:
         original = KeplerElements(a=1.0, e=0.3, i=0.5, Omega=0.2, omega=0.1, M0=0.0)
         state = original.to_state(M_total=1.0, G=G)
         recovered = KeplerElements.from_state(
-            state['position'], state['velocity'], M_total=1.0, G=G
+            state.position, state.velocity, M_total=1.0, G=G
         )
 
         assert jnp.abs(recovered.a - original.a) < 0.01

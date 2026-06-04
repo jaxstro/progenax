@@ -120,4 +120,86 @@ class IMFProtocol(Protocol):
         ...
 
 
-__all__ = ["SpatialProfile", "VelocityDF", "IMFProtocol"]
+@runtime_checkable
+class PeriodDistribution(Protocol):
+    """Protocol for binary orbital-period distributions (period in days).
+
+    Implementations expose the standard sample/pdf/cdf/ppf quartet.
+
+    Example implementations:
+        - LogUniformPeriod (Öpik 1924)
+        - LogNormalPeriod (Duquennoy & Mayor 1991)
+        - SanaOBPeriod (Sana et al. 2012)
+    """
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n periods [days]."""
+        ...
+
+    def pdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Probability density at period P [days]."""
+        ...
+
+    def cdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Cumulative distribution at period P [days]."""
+        ...
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Percent point function (inverse CDF). Differentiable."""
+        ...
+
+
+@runtime_checkable
+class EccentricityDistribution(Protocol):
+    """Protocol for unconditional binary-eccentricity distributions.
+
+    Implementations expose the standard sample/pdf/cdf/ppf quartet.
+
+    Example implementations:
+        - ThermalEccentricity (f(e) = 2e; Ambartsumian 1937 / Heggie 1975)
+        - UniformEccentricity
+    """
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Sample n eccentricities."""
+        ...
+
+    def pdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Probability density at eccentricity e."""
+        ...
+
+    def cdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Cumulative distribution at eccentricity e."""
+        ...
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Percent point function (inverse CDF). Differentiable."""
+        ...
+
+
+@runtime_checkable
+class ConditionalEccentricityDistribution(Protocol):
+    """Protocol for period-CONDITIONAL eccentricity distributions, p(e | P).
+
+    Sampling takes (key, periods); n is implied by ``periods.shape``. Distinct
+    from the unconditional :class:`EccentricityDistribution` (sample(key, n)).
+
+    Example implementations:
+        - MoeEccentricity (period-dependent circular->thermal heuristic)
+    """
+
+    def sample(
+        self, key: PRNGKeyArray, periods: Float[Array, "N"]
+    ) -> Float[Array, "N"]:
+        """Sample one eccentricity per period [days]."""
+        ...
+
+
+__all__ = [
+    "SpatialProfile",
+    "VelocityDF",
+    "IMFProtocol",
+    "PeriodDistribution",
+    "EccentricityDistribution",
+    "ConditionalEccentricityDistribution",
+]
