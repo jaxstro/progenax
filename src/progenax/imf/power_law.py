@@ -115,8 +115,12 @@ class PowerLawIMF(eqx.Module):
             α = 1.3 for 0.08 ≤ m < 0.50 M_sun
             α = 2.3 for 0.50 ≤ m ≤ 100 M_sun
 
+        Kroupa (2001) Eq. 2 lists four segments with α₂=2.3 (0.5–1.0) and α₃=2.3 (≥1.0);
+        since those two slopes are equal, merging them into one ≥0.5 segment is exact.
+        IMFParams.kroupa() keeps the explicit 4-segment form for inference.
+
         References:
-            Kroupa (2001), MNRAS, 322, 231
+            Kroupa (2001), MNRAS, 322, 231 — Eq. 2 (α₀=0.3, α₁=1.3, α₂=α₃=2.3)
         """
         return cls(
             exponents=[0.3, 1.3, 2.3],
@@ -254,10 +258,30 @@ class PowerLawIMF(eqx.Module):
         return self.ppf(u)
 
     def mean_mass(self) -> float:
-        """Mean mass (numerical integration)."""
-        m_grid = jnp.linspace(self.m_min, self.m_max, 1000)
-        pdf_grid = jnp.exp(self.logpdf(m_grid))
-        return jnp.trapezoid(m_grid * pdf_grid, m_grid)
+        """Exact mean mass E[m] for the piecewise power law (analytic, differentiable).
+
+        E[m] = (Σ_i ∫ m·ξ_i dm) / (Σ_i ∫ ξ_i dm), where ξ_i(m) = C_i·m^(-α_i) on
+        segment i. The denominator is the stored segment integrals (with exponent
+        1-α_i); the numerator carries one extra power of m (exponent 2-α_i). This
+        replaces a linear-grid trapezoid that under-resolved the steep low-mass spike.
+        """
+        bounds = jnp.array([self.m_min] + list(self.breakpoints) + [self.m_max])
+        alphas = jnp.array(self.exponents)
+        cont = self._continuity_factors
+
+        def first_moment(i):
+            a = alphas[i]
+            lo, hi = bounds[i], bounds[i + 1]
+            e = 2.0 - a  # antiderivative exponent of m·m^(-a) = m^(1-a)
+            return jnp.where(
+                jnp.abs(e) < 1e-12,
+                cont[i] * jnp.log(hi / lo),
+                cont[i] * (hi**e - lo**e) / e,
+            )
+
+        moments = jax.vmap(first_moment)(jnp.arange(len(self.exponents)))
+        Z = jnp.sum(self._segment_integrals)
+        return jnp.sum(moments) / Z
 
     def inverse_cdf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Alias for ppf (legacy compatibility)."""

@@ -141,8 +141,13 @@ class BaseIMF(eqx.Module):
         return self.ppf(u)
 
     def mean_mass(self) -> float:
-        """Expected mass E[m]. Override for analytical formula."""
-        m_grid = jnp.linspace(self.m_min, self.m_max, 1000)
+        """Expected mass E[m] via a LOG-spaced trapezoid (override for analytic forms).
+
+        Log-spacing concentrates nodes on the steep low-mass region; a linear grid of
+        the same size badly under-resolves an m^-alpha spike near m_min (e.g. Schechter
+        with m_min=0.01 was ~5x off on a linear grid). 4000 log-nodes converge to <<1%.
+        """
+        m_grid = jnp.exp(jnp.linspace(jnp.log(self.m_min), jnp.log(self.m_max), 4000))
         pdf_grid = jnp.exp(self.logpdf(m_grid))
         return jnp.trapezoid(m_grid * pdf_grid, m_grid)
 

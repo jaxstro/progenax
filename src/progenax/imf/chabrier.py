@@ -3,7 +3,7 @@ Chabrier (2003) IMF with lognormal + power-law components.
 
 Implements the Chabrier (2003) single-star (disk) IMF:
 - Lognormal component for m < 1 M☉
-- Power-law tail (Salpeter slope) for m ≥ 1 M☉
+- Power-law tail (Chabrier 2003 Table 1 high-mass slope α=2.3) for m ≥ 1 M☉
 
 Implements IMFProtocol for compatibility with BaseIMF framework and
 TruncatedIMF wrapper.
@@ -42,7 +42,9 @@ class ChabrierIMF(eqx.Module):
         m_max: Maximum mass [M☉] (default: 100)
         m_c: Characteristic mass for lognormal [M☉] (default: 0.08, Chabrier 2003)
         sigma: Width of lognormal in log-space (default: 0.69)
-        alpha: Power-law exponent for ξ(m) ∝ m^(-α) (default: 2.35, Salpeter)
+        alpha: High-mass slope for ξ(m)=dN/dm ∝ m^(-α) (default: 2.3, Chabrier 2003
+            Table 1 high-mass tail x=1.3 ⇒ α=2.3; the original Salpeter slope is
+            2.35, available via PowerLawIMF.salpeter())
         m_trans: Transition mass between lognormal and power-law (default: 1.0)
         A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF)
         A_pl: Power-law coefficient (computed for continuity at m_trans)
@@ -60,9 +62,9 @@ class ChabrierIMF(eqx.Module):
 
     m_min: float = 0.08  # Hydrogen burning limit
     m_max: float = 100.0
-    m_c: float = 0.08  # Standard Chabrier (2003) characteristic mass
-    sigma: float = 0.69  # Lognormal width
-    alpha: float = 2.35  # Power-law exponent (true Salpeter slope)
+    m_c: float = 0.08  # Chabrier (2003) Table 1 characteristic mass (0.079, rounded)
+    sigma: float = 0.69  # Lognormal width (Chabrier 2003 Table 1, single-object disk)
+    alpha: float = 2.3  # High-mass slope dN/dm ∝ m^-α (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
     m_trans: float = 1.0  # Transition mass [M☉]
     A_ln: float = 0.158  # Chabrier (2003) lognormal coefficient
 
@@ -215,7 +217,10 @@ class ChabrierIMF(eqx.Module):
         """Unnormalized log-PDF (for TruncatedIMF compatibility).
 
         Returns log(ξ(m)) where ξ(m) uses Chabrier coefficients A_ln and A_pl.
-        Note: There is a DISCONTINUITY at m_trans by design (Chabrier 2003).
+        Note: the pdf VALUE is continuous at m_trans by construction — A_pl is set so
+        ξ_ln(m_trans) = ξ_pl(m_trans) (see the A_pl property). Only the slope has a kink
+        there (the two components have different log-slopes), matching Chabrier (2003),
+        which joins the lognormal and Salpeter-tail continuously at 1 M☉.
         """
         is_lognormal = m < self.m_trans
 
@@ -365,7 +370,10 @@ class ChabrierIMF(eqx.Module):
             m_new = m - residual / (pdf + 1e-30)
             return jnp.clip(m_new, self.m_min, self.m_max)
 
-        return jax.lax.fori_loop(0, 30, newton_step, m0)  # 30 iterations for better convergence
+        # 30 fixed iterations (vs 20 in BaseIMF): the two-component lognormal+power-law
+        # CDF has a sharp slope change at m_trans, so the worst-case starting guess needs
+        # a few extra Newton steps to converge across the join. JIT-safe (no while_loop).
+        return jax.lax.fori_loop(0, 30, newton_step, m0)
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n masses via reparameterization trick.
@@ -381,11 +389,12 @@ class ChabrierIMF(eqx.Module):
         return self.ppf(u)
 
     def mean_mass(self) -> float:
-        """Expected mass E[m] via numerical integration.
+        """Expected mass E[m] via a LOG-spaced trapezoid.
 
-        Returns:
-            Mean mass [M☉]
+        Log-spacing is robust to a steep low-mass spike if m_min is lowered into the
+        power-law-divergent regime; for the default lognormal (which turns over below
+        m_c) it gives the same value as the old linear grid. Returns mean mass [M☉].
         """
-        m_grid = jnp.linspace(self.m_min, self.m_max, 5000)
+        m_grid = jnp.exp(jnp.linspace(jnp.log(self.m_min), jnp.log(self.m_max), 4000))
         pdf_grid = jnp.exp(self.logpdf(m_grid))
         return jnp.trapezoid(m_grid * pdf_grid, m_grid)

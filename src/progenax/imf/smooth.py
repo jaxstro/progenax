@@ -55,21 +55,27 @@ class Maschberger(BaseIMF):
 
     PDF: f(m) ∝ (m/μ)^(-α) * (1 + (m/μ)^(1-α))^(-β)
 
-    Default parameters from Maschberger (2013):
-        mu = 0.2 M_sun (peak mass)
-        alpha = 2.3 (Salpeter high-mass slope)
-        beta = 1.4 (low-mass turnover)
+    Default parameters from Maschberger (2013) Table 1 (canonical single-star IMF):
+        mu = 0.2 M_sun (scale parameter; the pdf peak is near here)
+        alpha = 2.3 (high-mass slope; Kroupa/Chabrier canonical, not Salpeter's 2.35)
+        beta = 1.4 (low-mass turnover; gives effective low-mass slope γ=α+β(1-α)=0.48)
+
+    Note on m_max: Maschberger (2013) Table 1 adopts the fiducial upper limit
+    m_u = 150 M_sun; these limits "are only needed for the normalization" (Table 1
+    caption). progenax defaults to m_max = 300 M_sun to admit very massive stars;
+    since the limit only sets the normalization constant, this is a convention choice,
+    not a change to the IMF shape. Pass m_max=150.0 to reproduce the paper exactly.
 
     Reference:
         Maschberger, T. (2013), MNRAS, 429, 1725
         "On the function describing the stellar initial mass function"
     """
 
-    mu: float = 0.2       # Peak mass [M_sun]
-    alpha: float = 2.3    # High-mass slope
+    mu: float = 0.2       # Scale parameter [M_sun] (Maschberger 2013 Table 1)
+    alpha: float = 2.3    # High-mass slope (canonical; cf. Salpeter 2.35)
     beta: float = 1.4     # Low-mass turnover
-    m_min: float = 0.01   # Natural domain lower bound
-    m_max: float = 300.0  # Natural domain upper bound
+    m_min: float = 0.01   # Lower limit (Maschberger 2013 fiducial m_l)
+    m_max: float = 300.0  # Upper limit (paper fiducial m_u=150; 300 here, normalization-only)
 
     def _logpdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
         """Unnormalized log-PDF.
@@ -174,10 +180,15 @@ class TaperedPowerLaw(BaseIMF):
     PDF: f(m) ∝ m^(-α) * (1 - exp(-(m/m_peak)^β))
 
     The exponential taper suppresses low masses below m_peak,
-    creating a smooth turnover.
+    creating a smooth turnover. Functional form: the tapered power law of
+    Parravano, McKee & Hollenbach (2011) (cf. Maschberger 2013, Eq. 12).
+
+    No closed-form CDF inverse: the CDF uses the shared cumulative-trapezoid grid
+    and ``ppf`` is the inherited BaseIMF fixed-iteration Newton solver (unlike
+    Maschberger, which has an analytic quantile). Differentiable and JIT-safe.
 
     Attributes:
-        alpha: Power-law slope (default: 2.3, Salpeter)
+        alpha: Power-law slope (default: 2.3, canonical high-mass)
         m_peak: Turnover/peak mass [M_sun]
         beta: Taper sharpness (higher = sharper cutoff)
     """
@@ -218,6 +229,9 @@ class Schechter(BaseIMF):
 
     Originally developed for galaxy luminosity functions (Schechter 1976),
     also used for IMFs in extreme environments or IGIMF theory.
+
+    No closed-form CDF inverse: the CDF uses the shared cumulative-trapezoid grid and
+    ``ppf`` is the inherited BaseIMF fixed-iteration Newton solver. Differentiable/JIT-safe.
 
     WARNING: Default parameters (α=2.3, m_star=100) give a function
     that is essentially just a power-law since the cutoff is far above

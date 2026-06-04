@@ -97,8 +97,12 @@ class TruncatedIMF(eqx.Module):
         return self.ppf(u)
 
     def mean_mass(self) -> float:
-        """Mean mass over truncated domain."""
-        m_grid = jnp.linspace(self.m_min, self.m_max, 1000)
+        """Mean mass over the truncated domain via a LOG-spaced trapezoid.
+
+        Log-spacing resolves a steep low-mass spike that a linear grid of the same size
+        under-resolves (see BaseIMF.mean_mass).
+        """
+        m_grid = jnp.exp(jnp.linspace(jnp.log(self.m_min), jnp.log(self.m_max), 4000))
         pdf_grid = jnp.exp(self.logpdf(m_grid))
         return jnp.trapezoid(m_grid * pdf_grid, m_grid)
 

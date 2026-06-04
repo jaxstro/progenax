@@ -223,9 +223,9 @@ class IMFConstants:
     KROUPA_BREAKS = (0.08, 0.5)  # M_sun
 
     # Chabrier log-normal parameters
-    CHABRIER_MC = 0.08  # M_sun (characteristic mass)
-    CHABRIER_SIGMA = 0.69  # Log-normal width
-    CHABRIER_ALPHA_HIGH = 2.35  # Power law slope above 1 M_sun
+    CHABRIER_MC = 0.08  # M_sun (characteristic mass; Chabrier 2003 Table 1 m_c=0.079, rounded)
+    CHABRIER_SIGMA = 0.69  # Log-normal width (Chabrier 2003 Table 1, single-object disk)
+    CHABRIER_ALPHA_HIGH = 2.3  # High-mass slope dN/dm ∝ m^-2.3 (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
 
 
 @pytest.fixture
