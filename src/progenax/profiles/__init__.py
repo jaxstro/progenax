@@ -36,6 +36,7 @@ References:
 
 from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, solve_king_profile
+from progenax.profiles.michie import MichieProfile, solve_michie_profile
 from progenax.profiles.eff import EFFProfile
 from progenax.profiles.uniform import UniformSphereProfile
 from progenax.profiles.api import (
@@ -50,6 +51,8 @@ __all__ = [
     "PlummerProfile",
     "KingProfile",
     "solve_king_profile",
+    "MichieProfile",
+    "solve_michie_profile",
     "EFFProfile",
     "UniformSphereProfile",
     # Functional API

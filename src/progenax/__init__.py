@@ -13,8 +13,11 @@ del _enable_jax_hp  # avoid leaking into public API
 
 from .defaults import DEFAULT_UNITS
 from .protocols import SpatialProfile, VelocityDF, IMFProtocol
-from .profiles import PlummerProfile, KingProfile, EFFProfile, solve_king_profile
-from .kinematics import PlummerVelocityDF, KingVelocityDF, EFFVelocityDF
+from .profiles import (
+    PlummerProfile, KingProfile, MichieProfile, EFFProfile,
+    solve_king_profile, solve_michie_profile,
+)
+from .kinematics import PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF
 from .builders import (
     ICResult,
     build_spatial_ic,
@@ -77,11 +80,14 @@ __all__ = [
     # Spatial density profiles
     "PlummerProfile",
     "KingProfile",
+    "MichieProfile",
     "EFFProfile",
     "solve_king_profile",
+    "solve_michie_profile",
     # Velocity distribution functions
     "PlummerVelocityDF",
     "KingVelocityDF",
+    "MichieVelocityDF",
     "EFFVelocityDF",
     # Builders
     "ICResult",
