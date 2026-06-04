@@ -176,3 +176,226 @@ class MoeDiStefano2017(eqx.Module):
         return jnp.where(in_range, combined, 0.0)
 
 
+# =============================================================================
+# Faithful two-slope, period-dependent model (Batch 4i)
+# =============================================================================
+
+# Table 13 (Moe & Di Stefano 2017, p.52), transcribed + verified 2026-06-04.
+# Rows = log P {1,3,5,7}; cols = mass bins {Solar, A/late-B, Mid-B, Early-B, O}
+# at representative masses 1.0/3.2/6.7/12/20 Msun. "<0.03" twin cells -> 0.
+_MASS_NODES_LOG = jnp.log10(jnp.array([1.0, 3.2, 6.7, 12.0, 20.0]))
+_LOGP_NODES = jnp.array([1.0, 3.0, 5.0, 7.0])
+_GAMMA_LARGEQ = jnp.array([
+    [-0.5, -0.5, -0.5, -0.5, -0.5],
+    [-0.5, -0.9, -1.7, -1.7, -1.7],
+    [-0.5, -1.4, -2.0, -2.0, -2.0],
+    [-1.1, -2.0, -2.0, -2.0, -2.0],
+])
+_GAMMA_SMALLQ = jnp.array([
+    [0.3, 0.2, 0.1, 0.1, 0.1],
+    [0.3, 0.1, -0.2, -0.2, -0.2],
+    [0.3, -0.5, -1.2, -1.2, -1.2],
+    [0.3, -1.0, -1.5, -1.5, -1.5],
+])
+_F_TWIN = jnp.array([
+    [0.30, 0.22, 0.17, 0.14, 0.08],
+    [0.20, 0.10, 0.0, 0.0, 0.0],
+    [0.10, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0],
+])
+
+
+def _bilinear(grid: Float[Array, "4 5"], logP, logm1):
+    """Bilinear interpolation of a (logP, mass) grid, clamped outside (jnp.interp)."""
+    logP, logm1 = jnp.broadcast_arrays(
+        jnp.asarray(logP, dtype=jnp.float64), jnp.asarray(logm1, dtype=jnp.float64)
+    )
+    shape = logP.shape
+    fp = logP.reshape(-1)
+    fm = logm1.reshape(-1)
+    rows = jnp.stack([jnp.interp(fm, _MASS_NODES_LOG, grid[i]) for i in range(4)], axis=0)
+    out = jax.vmap(lambda lp, col: jnp.interp(lp, _LOGP_NODES, col))(fp, rows.T)
+    return out.reshape(shape)
+
+
+def _pl_integral(a, b, gamma):
+    """∫_a^b q^gamma dq, divide-safe at gamma=-1 (double-where)."""
+    gp1 = gamma + 1.0
+    is_m1 = jnp.abs(gp1) < 1e-10
+    gp1s = jnp.where(is_m1, 1.0, gp1)
+    general = (b ** gp1s - a ** gp1s) / gp1s
+    return jnp.where(is_m1, jnp.log(b / a), general)
+
+
+class MoeDiStefano2017Full(eqx.Module):
+    """Faithful two-slope, period-dependent Moe & Di Stefano (2017) mass-ratio model.
+
+    The mass-ratio pdf is (their §9.1, Eq. 2 + the worked twin example, p.5):
+
+        p_q(q | M1, P) = (1 - F_twin) * p_2slope(q) + F_twin * Uniform[0.95, 1.0]
+
+    where p_2slope ∝ q^γsmallq on [q_min, 0.3] then q^γlargeq on [0.3, 1.0]
+    (continuous at q=0.3), normalized over [q_min, 1.0]; F_twin is the EXCESS twin
+    weight (the fraction of systems that are pure twins, not the total q>0.95
+    fraction). γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
+    Table 13 (verified against the PDF p.52). η(P,M1) for eccentricity is handled by
+    `progenax.binaries.MoeEccentricity` (which reproduces Table 13's η).
+
+    This is period-dependent (sample takes periods AND masses) — it does NOT fit the
+    unconditional MassRatioProtocol; use it via `MoeJointOrbit`. The single-slope
+    period-averaged `MoeDiStefano2017` remains the fast approximation / BinaryIMF default.
+
+    Reference:
+        Moe & Di Stefano (2017) ApJS 230, 15, §9.1 Eqs. 2-3, Table 13 (p.52), Fig. 2.
+
+    Parameters:
+        q_min: Minimum mass ratio for the normalized range (default: 0.1).
+    """
+
+    q_min: float = 0.1
+    q_break: float = 0.3
+    n_grid: int = 512
+
+    def gamma_smallq(self, periods, masses):
+        """Power-law slope across 0.1<q<0.3 (Table 13, bilinear in logM1, logP)."""
+        return _bilinear(_GAMMA_SMALLQ, jnp.log10(periods), jnp.log10(masses))
+
+    def gamma_largeq(self, periods, masses):
+        """Power-law slope across 0.3<q<1.0 (Table 13, bilinear in logM1, logP)."""
+        return _bilinear(_GAMMA_LARGEQ, jnp.log10(periods), jnp.log10(masses))
+
+    def f_twin(self, periods, masses):
+        """Excess twin fraction at q>0.95 (Table 13, bilinear; <0.03 cells -> 0)."""
+        return _bilinear(_F_TWIN, jnp.log10(periods), jnp.log10(masses))
+
+    def _two_slope(self, periods, masses):
+        gs = self.gamma_smallq(periods, masses)
+        gl = self.gamma_largeq(periods, masses)
+        C = jnp.power(self.q_break, gs - gl)  # continuity at q_break
+        I_A = _pl_integral(self.q_min, self.q_break, gs)
+        I_B = C * _pl_integral(self.q_break, 1.0, gl)
+        return gs, gl, C, I_A, I_B
+
+    def pdf(self, q, masses, periods):
+        """Conditional mass-ratio pdf p(q | M1, P), normalized on [q_min, 1]."""
+        gs, gl, C, I_A, I_B = self._two_slope(periods, masses)
+        ft = self.f_twin(periods, masses)
+        Z = I_A + I_B
+        p_lo = jnp.power(q, gs)
+        p_hi = C * jnp.power(q, gl)
+        p_pl = jnp.where(q < self.q_break, p_lo, p_hi) / Z
+        twin = jnp.where((q >= 0.95) & (q <= 1.0), 1.0 / 0.05, 0.0)
+        p = (1.0 - ft) * p_pl + ft * twin
+        return jnp.where((q >= self.q_min) & (q <= 1.0), p, 0.0)
+
+    def sample(self, key: PRNGKeyArray, masses, periods):
+        """Sample q | (M1 [Msun], P [days]) from the two-slope + twin mixture.
+
+        Uses a grid-based inverse-CDF of the analytic `pdf` (like `MoePeriod`): this is
+        smooth and **properly reparameterized**, so gradients wrt the mixture weights
+        (γ, F_twin -> M1, P) are FD-accurate — unlike a multi-uniform segment/twin
+        decision, which would block the reassignment gradient.
+
+        Args:
+            masses: primary masses (n,) [Msun]; periods: orbital periods (n,) [days].
+        """
+        n = masses.shape[0]
+        q_grid = jnp.linspace(self.q_min, 1.0, self.n_grid)
+        p = self.pdf(q_grid, masses[:, None], periods[:, None])  # (n, G)
+        dq = q_grid[1] - q_grid[0]
+        cdf = jnp.cumsum(p, axis=1) * dq
+        cdf = cdf - cdf[:, :1]
+        cdf = cdf / cdf[:, -1:]
+        u = jax.random.uniform(key, (n,))
+        return jax.vmap(lambda c, uu: jnp.interp(uu, c, q_grid))(cdf, u)
+
+
+# Companion frequency f_logP;q>0.1 per dex (Table 13) — the M1-dependent period
+# distribution shape. Rows = logP {1,3,5,7}; cols = mass bins.
+_COMPANION_FREQ = jnp.array([
+    [0.027, 0.07, 0.14, 0.19, 0.29],
+    [0.057, 0.12, 0.22, 0.26, 0.32],
+    [0.095, 0.13, 0.20, 0.23, 0.30],
+    [0.075, 0.09, 0.11, 0.13, 0.18],
+])
+
+
+class MoePeriod(eqx.Module):
+    """Mass-dependent orbital-period distribution from Moe & Di Stefano (2017) Table 13.
+
+    The companion-frequency anchors f_logP;q>0.1(M1) at logP={1,3,5,7} (bilinear in
+    M1) define the period-distribution *shape*; we sample logP by inverting the
+    normalized cumulative of the piecewise-linear density over [logP_min, logP_max]
+    (clamped at the edges). Differentiable wrt M1 via jnp.interp / cumsum.
+
+    Solar-type companion frequency peaks at long periods (logP~5); early-type is
+    flatter and weighted to shorter periods — reproducing Moe's period trend.
+
+    Reference: Moe & Di Stefano (2017) ApJS 230, 15, Table 13, Figure 37.
+    """
+
+    logP_min: float = 0.2
+    logP_max: float = 8.0
+    n_grid: int = 257
+
+    def _density_grid(self, masses):
+        logm1 = jnp.log10(masses)
+        anchors = jnp.stack(
+            [jnp.interp(logm1, _MASS_NODES_LOG, _COMPANION_FREQ[i]) for i in range(4)],
+            axis=-1,
+        )  # (n, 4)
+        grid = jnp.linspace(self.logP_min, self.logP_max, self.n_grid)
+        f = jax.vmap(lambda a: jnp.interp(grid, _LOGP_NODES, a))(anchors)  # (n, G)
+        return grid, f
+
+    def sample(self, key: PRNGKeyArray, masses) -> Float[Array, "n"]:
+        """Sample one period [days] per primary mass [Msun] (shape n,)."""
+        grid, f = self._density_grid(masses)
+        dx = grid[1] - grid[0]
+        cdf = jnp.cumsum(f, axis=1) * dx
+        cdf = cdf - cdf[:, :1]
+        cdf = cdf / cdf[:, -1:]
+        u = jax.random.uniform(key, (masses.shape[0],))
+        log_P = jax.vmap(lambda c, uu: jnp.interp(uu, c, grid))(cdf, u)
+        return 10.0 ** log_P
+
+
+class MoeJointOrbit(eqx.Module):
+    """Faithful joint (P, q, e) sampler — the Moe & Di Stefano (2017) interrelation.
+
+    Given a primary mass M1, samples the *correlated* orbital parameters:
+        logP ~ MoePeriod(M1);  q ~ MoeDiStefano2017Full(M1, P);  e ~ MoeEccentricity(P, M1).
+    The P–q–e coupling (short-P -> larger q / twins / circular; long-P -> small q
+    approaching random IMF pairings) is the paper's central result ("Mind your Ps and Qs").
+
+    Construct via `MoeJointOrbit.default()` for the standard components, or pass your
+    own. The eccentricity sampler is duck-typed (any `.sample(key, periods, masses)`)
+    so `imf` need not hard-import `binaries`.
+
+    Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
+    """
+
+    period: MoePeriod
+    massratio: MoeDiStefano2017Full
+    eccentricity: eqx.Module
+
+    @classmethod
+    def default(cls) -> "MoeJointOrbit":
+        """Standard Moe joint sampler (lazy-imports the Roche-capped MoeEccentricity)."""
+        from ...binaries import MoeEccentricity  # lazy: imf -> binaries (no cycle)
+
+        return cls(
+            period=MoePeriod(),
+            massratio=MoeDiStefano2017Full(),
+            eccentricity=MoeEccentricity(),
+        )
+
+    def sample(self, key: PRNGKeyArray, masses):
+        """Sample (P [days], q, e) jointly given primary masses [Msun] (shape n,)."""
+        k_P, k_q, k_e = jax.random.split(key, 3)
+        P = self.period.sample(k_P, masses)
+        q = self.massratio.sample(k_q, masses, P)
+        e = self.eccentricity.sample(k_e, P, masses)
+        return P, q, e
+
+

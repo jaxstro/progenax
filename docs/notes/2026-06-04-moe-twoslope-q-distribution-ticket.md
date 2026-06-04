@@ -115,6 +115,15 @@ continuous at q=0.3, normalized on [0.1,1].
 
 ## Status
 
-**Gate-1 COMPLETE** (2026-06-04): Table 13 transcribed verbatim + verified against PDF p.52;
-all design decisions locked above. **Implementation PENDING Anna's verification of the grid +
-explicit go.** The single-slope `MoeDiStefano2017` remains the documented approximation until then.
+**IMPLEMENTED & verified (2026-06-04, Batch 4i).** Anna verified Table 13 against p.52 and gave the
+go. Delivered in `imf/binary/moe_di_stefano.py`:
+- `MoeDiStefano2017Full` — two-slope+twin q | (M1,P) via bilinear Table-13 interpolation; the
+  mixture pdf is analytic, sampling is a **grid-based inverse-CDF** (properly reparameterized ->
+  FD-accurate gradients wrt M1/P, unlike a multi-uniform decision which loses the mixture-weight
+  gradient — this was caught by an FD-vs-autodiff grad-check and fixed).
+- `MoePeriod` — M1-dependent period distribution from the companion-frequency anchors (grid invcdf).
+- `MoeJointOrbit.default()` — joint (P,q,e): logP~MoePeriod; q~Full(M1,P); e~MoeEccentricity(P,M1).
+Tests (tests/unit/imf/test_moe_full.py, 18): Table-13 cell recovery, pdf shape/normalization/
+continuity/twin, the **P–q interrelation** (<q>_shortP > <q>_longP for massive stars), MoePeriod
+mass-dependence, FD-grad accuracy. The single-slope `MoeDiStefano2017` remains the documented fast
+approximation and the BinaryIMF default (unchanged). **Ticket CLOSED.**

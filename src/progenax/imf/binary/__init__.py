@@ -12,7 +12,12 @@ from .mass_ratio import (
     PowerLawMassRatio,
     TwinPeakedMassRatio,
 )
-from .moe_di_stefano import MoeDiStefano2017
+from .moe_di_stefano import (
+    MoeDiStefano2017,
+    MoeDiStefano2017Full,
+    MoePeriod,
+    MoeJointOrbit,
+)
 from .binary_fraction import (
     ConstantBinaryFraction,
     MassDependentBinaryFraction,
@@ -29,6 +34,9 @@ __all__ = [
     "PowerLawMassRatio",
     "TwinPeakedMassRatio",
     "MoeDiStefano2017",
+    "MoeDiStefano2017Full",
+    "MoePeriod",
+    "MoeJointOrbit",
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
