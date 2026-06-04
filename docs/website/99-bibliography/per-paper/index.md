@@ -31,6 +31,12 @@ The pages are organised alphabetically by first-author surname.
 - [](chabrier-2003.md)
 - [](maschberger-2013.md)
 
+## Environment-dependent IMF (IGIMF)
+
+- [](marks-2012.md)
+- [](marks-kroupa-2012.md)
+- [](jerabkova-2018.md)
+
 ## Binaries
 
 - [](sana-2012.md)

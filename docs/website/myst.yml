@@ -188,6 +188,9 @@ project:
             - file: 99-bibliography/per-paper/chabrier-2003.md
             - file: 99-bibliography/per-paper/kroupa-2001.md
             - file: 99-bibliography/per-paper/maschberger-2013.md
+            - file: 99-bibliography/per-paper/marks-2012.md
+            - file: 99-bibliography/per-paper/marks-kroupa-2012.md
+            - file: 99-bibliography/per-paper/jerabkova-2018.md
             - file: 99-bibliography/per-paper/sana-2012.md
             - file: 99-bibliography/per-paper/moe-distefano-2017.md
             - file: 99-bibliography/per-paper/moe-2019.md
