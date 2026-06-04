@@ -19,6 +19,7 @@ from .protocols import (
     PeriodDistribution,
     EccentricityDistribution,
     ConditionalEccentricityDistribution,
+    MassPeriodEccentricityDistribution,
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
@@ -64,6 +65,7 @@ from .binaries import (
     SanaOBPeriod,
     ThermalEccentricity,
     UniformEccentricity,
+    LogisticThermalEccentricity,
     MoeEccentricity,
     sample_isotropic_orientations,
     RadialBinaryFraction,
@@ -99,6 +101,7 @@ __all__ = [
     "PeriodDistribution",
     "EccentricityDistribution",
     "ConditionalEccentricityDistribution",
+    "MassPeriodEccentricityDistribution",
     # Spatial density profiles
     "PlummerProfile",
     "KingProfile",
@@ -149,6 +152,7 @@ __all__ = [
     "SanaOBPeriod",
     "ThermalEccentricity",
     "UniformEccentricity",
+    "LogisticThermalEccentricity",
     "MoeEccentricity",
     "sample_isotropic_orientations",
     "RadialBinaryFraction",

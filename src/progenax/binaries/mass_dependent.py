@@ -19,7 +19,12 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, PRNGKeyArray
 
-from .eccentricity import MoeEccentricity, ThermalEccentricity, UniformEccentricity
+from .eccentricity import (
+    LogisticThermalEccentricity,
+    MoeEccentricity,
+    ThermalEccentricity,
+    UniformEccentricity,
+)
 from .period import LogNormalPeriod, LogUniformPeriod, SanaOBPeriod
 
 
@@ -136,7 +141,7 @@ class MassDependentBinaryConfig(eqx.Module):
     low_mass_period: LogNormalPeriod | LogUniformPeriod
     high_mass_period: SanaOBPeriod
     low_mass_eccentricity: ThermalEccentricity | UniformEccentricity
-    high_mass_eccentricity: MoeEccentricity
+    high_mass_eccentricity: MoeEccentricity | LogisticThermalEccentricity
 
 
 def sample_mass_dependent_orbits(
@@ -193,12 +198,13 @@ def sample_mass_dependent_orbits(
     periods_low = config.low_mass_period.sample(key_p_low, N)
     periods_high = config.high_mass_period.sample(key_p_high, N)
 
-    # Sample eccentricities from both distributions.
-    # MoeEccentricity depends on period, so the high-mass eccentricities are
-    # conditioned on the high-mass periods; the low-mass eccentricity is
-    # period-independent (Thermal/Uniform).
+    # Sample eccentricities from both distributions. The high-mass eccentricity
+    # is period+mass conditional (faithful MoeEccentricity uses both; the
+    # LogisticThermalEccentricity heuristic accepts masses but ignores them), so
+    # it is always passed (periods_high, masses). The low-mass eccentricity is
+    # unconditional (Thermal/Uniform).
     ecc_low = config.low_mass_eccentricity.sample(key_e_low, N)
-    ecc_high = config.high_mass_eccentricity.sample(key_e_high, periods_high)
+    ecc_high = config.high_mass_eccentricity.sample(key_e_high, periods_high, masses)
 
     # Route based on mass threshold
     is_high_mass = masses >= config.m_break

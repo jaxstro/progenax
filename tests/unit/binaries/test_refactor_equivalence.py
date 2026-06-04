@@ -18,7 +18,7 @@ from progenax.binaries import (
     SanaOBPeriod,
     ThermalEccentricity,
     UniformEccentricity,
-    MoeEccentricity,
+    LogisticThermalEccentricity,
     RadialBinaryFraction,
     sample_isotropic_orientations,
     MassDependentBinaryConfig,
@@ -60,8 +60,9 @@ def test_eccentricity_samplers_bit_identical():
     k = jax.random.PRNGKey(0)
     _assert_eq("thermal", ThermalEccentricity().sample(k, 4))
     _assert_eq("uniform", UniformEccentricity().sample(k, 4))
-    # MoeEccentricity.sample is now (key, periods); values are unchanged from 4a.
-    _assert_eq("moe", MoeEccentricity().sample(k, jnp.array([5.0, 50.0, 500.0, 5000.0])))
+    # The 4a heuristic MoeEccentricity was renamed to LogisticThermalEccentricity
+    # in 4c (values unchanged); the "moe" reference pins that bit-identical rename.
+    _assert_eq("moe", LogisticThermalEccentricity().sample(k, jnp.array([5.0, 50.0, 500.0, 5000.0])))
 
 
 def test_orientation_radial_massdep_bit_identical():
@@ -75,7 +76,7 @@ def test_orientation_radial_massdep_bit_identical():
         low_mass_period=LogNormalPeriod(),
         high_mass_period=SanaOBPeriod(),
         low_mass_eccentricity=ThermalEccentricity(),
-        high_mass_eccentricity=MoeEccentricity(),
+        high_mass_eccentricity=LogisticThermalEccentricity(),
     )
     P, e = sample_mass_dependent_orbits(jnp.array([1.0, 5.0, 10.0, 20.0]), cfg, k)
     _assert_eq("mdep_P", P)

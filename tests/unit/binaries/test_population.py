@@ -277,14 +277,14 @@ class TestSanaOBPeriodDistribution:
         assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
 
 
-class TestMoeEccentricity:
-    """Test Moe+2017 period-dependent eccentricity distribution."""
+class TestLogisticThermalEccentricity:
+    """Test the LogisticThermalEccentricity circular->thermal heuristic."""
 
     def test_short_periods_more_circular(self):
         """Short periods (P < 10d) are more circular than long periods (P > 1000d)."""
-        from progenax.binaries import MoeEccentricity
+        from progenax.binaries import LogisticThermalEccentricity
 
-        dist = MoeEccentricity()
+        dist = LogisticThermalEccentricity()
         key = jax.random.PRNGKey(42)
 
         # Short periods: P ~ 1-10 days (tidally circularized)
@@ -301,6 +301,88 @@ class TestMoeEccentricity:
 
         # Short periods should be more circular (lower e)
         assert mean_e_short < mean_e_long
+
+
+class TestFaithfulMoeEccentricity:
+    """4c: faithful Moe & Di Stefano (2017) eccentricity p(e) ∝ e^η(logP, M1).
+
+    §9.2 Eq. 17 (late-type 0.8<M1<3 M☉):  η = 0.6 - 0.7/(logP - 0.5).
+    §9.2 Eq. 18 (early-type M1>7 M☉):      η = 0.9 - 0.2/(logP - 0.5).
+    Interpolate linearly in M1 for 3 <= M1 <= 7. e ∝ e^η on [0, e_max].
+    """
+
+    def test_eta_eq17_late_type(self):
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity()
+        # logP=3, M1=1: 0.6 - 0.7/2.5 = 0.32 ; logP=6: 0.6 - 0.7/5.5 ~ 0.473
+        eta3 = moe.eta(jnp.array([1e3]), jnp.array([1.0]))
+        eta6 = moe.eta(jnp.array([1e6]), jnp.array([1.0]))
+        assert jnp.allclose(eta3, 0.6 - 0.7 / 2.5, atol=1e-6)
+        assert jnp.allclose(eta6, 0.6 - 0.7 / 5.5, atol=1e-6)
+
+    def test_eta_eq18_early_type(self):
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity()
+        # logP=3, M1=20: 0.9 - 0.2/2.5 = 0.82 ; logP=1: 0.9 - 0.2/0.5 = 0.5
+        assert jnp.allclose(moe.eta(jnp.array([1e3]), jnp.array([20.0])), 0.9 - 0.2 / 2.5, atol=1e-6)
+        assert jnp.allclose(moe.eta(jnp.array([1e1]), jnp.array([20.0])), 0.9 - 0.2 / 0.5, atol=1e-6)
+
+    def test_eta_interpolates_intermediate_mass(self):
+        """M1=5 (midpoint of 3-7) is halfway between Eq.17 and Eq.18."""
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity()
+        P = jnp.array([1e3])
+        late = 0.6 - 0.7 / 2.5
+        early = 0.9 - 0.2 / 2.5
+        assert jnp.allclose(moe.eta(P, jnp.array([5.0])), 0.5 * (late + early), atol=1e-6)
+
+    def test_sampled_mean_matches_eta(self):
+        """<e> of e^η on [0, e_max] is e_max (η+1)/(η+2); recovered from samples."""
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity(e_max=0.99)
+        key = jax.random.PRNGKey(0)
+        P = jnp.full(200000, 1e3)
+        M = jnp.full(200000, 20.0)  # eta = 0.82
+        eta = 0.9 - 0.2 / 2.5
+        e = moe.sample(key, P, M)
+        expected = 0.99 * (eta + 1.0) / (eta + 2.0)
+        assert jnp.abs(jnp.mean(e) - expected) < 0.01, f"<e>={float(jnp.mean(e)):.3f} vs {expected:.3f}"
+
+    def test_short_period_circularizes(self):
+        """Very short P (eta <= -1) returns near-circular e ~ 0."""
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity()
+        key = jax.random.PRNGKey(1)
+        P = jnp.full(20000, 10.0 ** 0.6)  # late eta=-6.4, early eta=-1.1 -> circular
+        e = moe.sample(key, P, jnp.full(20000, 1.0))
+        assert jnp.mean(e) < 0.05, f"<e>={float(jnp.mean(e)):.3f} should be ~circular"
+
+    def test_pdf_normalized(self):
+        from progenax.binaries import MoeEccentricity
+        moe = MoeEccentricity(e_max=0.99)
+        P = jnp.array([1e3])
+        M = jnp.array([20.0])
+        e = jnp.linspace(0.0, 0.99, 20000)
+        integral = jnp.trapezoid(moe.pdf(e, P, M).ravel(), e)
+        assert jnp.abs(integral - 1.0) < 1e-3
+
+    def test_emax_gradient_matches_fd(self):
+        """d<e>/d(e_max) (FD vs autodiff): e = e_max u^(1/(η+1))."""
+        from progenax.binaries import MoeEccentricity
+        key = jax.random.PRNGKey(3)
+        P = jnp.full(4000, 1e3)
+        M = jnp.full(4000, 20.0)  # eta = 0.82
+
+        def loss(em):
+            return jnp.mean(MoeEccentricity(e_max=em).sample(key, P, M))
+
+        em0 = 0.99
+        g_ad = jax.grad(loss)(em0)
+        rel = min(
+            float(jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
+            for h in (1e-3, 1e-4, 1e-5)
+        )
+        assert jnp.isfinite(g_ad) and rel < 1e-5, f"Moe e_max grad FD rel-err {rel:.2e}"
 
 
 class TestMassDependentOrbits:
@@ -471,13 +553,13 @@ class TestMoreSamplerGradients:
     deterministic loss => autodiff must match a central finite difference.
     """
 
-    def test_moe_eccentricity_emax_gradient_matches_fd(self):
-        from progenax.binaries import MoeEccentricity
+    def test_logistic_thermal_emax_gradient_matches_fd(self):
+        from progenax.binaries import LogisticThermalEccentricity
         key = jax.random.PRNGKey(0)
         periods = jnp.logspace(0.5, 3.5, 4000)  # fixed period grid
 
         def loss(em):
-            return jnp.mean(MoeEccentricity(e_max=em).sample(key, periods))
+            return jnp.mean(LogisticThermalEccentricity(e_max=em).sample(key, periods))
 
         em0 = 0.99
         g_ad = jax.grad(loss)(em0)
@@ -526,13 +608,16 @@ class TestDistributionProtocols:
         for d in (ThermalEccentricity(), UniformEccentricity()):
             assert isinstance(d, EccentricityDistribution), type(d).__name__
 
-    def test_moe_is_conditional_not_unconditional(self):
+    def test_conditional_eccentricity_protocols(self):
         from progenax.protocols import (
             EccentricityDistribution,
             ConditionalEccentricityDistribution,
+            MassPeriodEccentricityDistribution,
         )
-        from progenax.binaries import MoeEccentricity
-        moe = MoeEccentricity()
-        # Has sample(key, periods) but no pdf/cdf/ppf -> conditional, not unconditional.
-        assert isinstance(moe, ConditionalEccentricityDistribution)
-        assert not isinstance(moe, EccentricityDistribution)
+        from progenax.binaries import LogisticThermalEccentricity, MoeEccentricity
+        # Faithful Moe is period+mass conditional; the heuristic is period-conditional.
+        assert isinstance(MoeEccentricity(), MassPeriodEccentricityDistribution)
+        assert isinstance(LogisticThermalEccentricity(), ConditionalEccentricityDistribution)
+        # Neither exposes the full unconditional sample/pdf/cdf/ppf quartet.
+        assert not isinstance(MoeEccentricity(), EccentricityDistribution)
+        assert not isinstance(LogisticThermalEccentricity(), EccentricityDistribution)

@@ -27,7 +27,12 @@ from .orbital_state import (
 )
 
 from .period import LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
-from .eccentricity import ThermalEccentricity, UniformEccentricity, MoeEccentricity
+from .eccentricity import (
+    ThermalEccentricity,
+    UniformEccentricity,
+    LogisticThermalEccentricity,
+    MoeEccentricity,
+)
 from .orientation import sample_isotropic_orientations
 from .mass_dependent import (
     RadialBinaryFraction,
@@ -52,6 +57,7 @@ __all__ = [
     # Eccentricity distributions
     "ThermalEccentricity",
     "UniformEccentricity",
+    "LogisticThermalEccentricity",
     "MoeEccentricity",
     # Orientation
     "sample_isotropic_orientations",

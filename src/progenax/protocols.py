@@ -195,6 +195,28 @@ class ConditionalEccentricityDistribution(Protocol):
         ...
 
 
+@runtime_checkable
+class MassPeriodEccentricityDistribution(Protocol):
+    """Protocol for period- AND mass-conditional eccentricity distributions,
+    p(e | P, M1).
+
+    Sampling takes (key, periods, masses).
+
+    Example implementations:
+        - MoeEccentricity (Moe & Di Stefano 2017 e^η(logP, M1))
+        - LogisticThermalEccentricity (accepts masses but ignores them)
+    """
+
+    def sample(
+        self,
+        key: PRNGKeyArray,
+        periods: Float[Array, "N"],
+        masses: Float[Array, "N"],
+    ) -> Float[Array, "N"]:
+        """Sample one eccentricity per (period [days], primary mass [Msun])."""
+        ...
+
+
 __all__ = [
     "SpatialProfile",
     "VelocityDF",
@@ -202,4 +224,5 @@ __all__ = [
     "PeriodDistribution",
     "EccentricityDistribution",
     "ConditionalEccentricityDistribution",
+    "MassPeriodEccentricityDistribution",
 ]
