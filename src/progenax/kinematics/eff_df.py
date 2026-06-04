@@ -53,10 +53,14 @@ def _eff_eddington_table(a, gamma, r_t, n_r=_N_R, n_e=_N_E):
 
     Mr = 4.0 * jnp.pi * inner
     dPsi_dr = -Mr / r**2               # analytic dPsi/dr
-    # At the center (r->0) both drho_dr and dPsi_dr vanish; the ratio has a finite
-    # limit (3 gamma / 4 pi a^2). inner[0]=0 makes dPsi_dr[0]=0 exactly, so replace
-    # the center point with its neighbor to avoid a 0/0 -> nan.
-    drho_dPsi = drho_dr / dPsi_dr
+    # drho/dPsi = (drho/dr)/(dPsi/dr). At r->0 the enclosed mass ->0, so dPsi/dr->0
+    # (exactly at index 0, where inner[0]=0). A bare 0-denominator divide is finite
+    # in the forward pass after the center fix below, but its BACKWARD pass is NaN
+    # (0 * inf in the VJP), which kills grad w.r.t. (a, gamma). Guard with the
+    # double-where pattern so no inf/NaN ever enters the graph, then set the center
+    # point from its neighbor (the ratio has a finite limit 3 gamma / 4 pi a^2).
+    safe_dPsi_dr = jnp.where(dPsi_dr == 0.0, 1.0, dPsi_dr)
+    drho_dPsi = jnp.where(dPsi_dr == 0.0, 0.0, drho_dr / safe_dPsi_dr)
     drho_dPsi = drho_dPsi.at[0].set(drho_dPsi[1])
     d2rho_dPsi2 = jnp.gradient(drho_dPsi, Psi)
 

@@ -208,6 +208,58 @@ class TestPipelineRotation:
         assert float(Lx) > 0.0, "x-axis rotation should produce positive L_x"
 
 
+class TestPipelineTargetQNone:
+    """D1: target_Q=None opts OUT of virial rescaling (keep DF-native equilibrium)."""
+
+    def test_none_skips_rescale_equals_raw_df_plus_com(self, plummer_setup):
+        """With target_Q=None the pipeline must NOT rescale: the result is exactly the
+        raw DF sample (same key routing) with COM motion removed."""
+        positions, masses, r_h = plummer_setup
+        df = PlummerVelocityDF(r_h=r_h)
+        key = jax.random.PRNGKey(17)
+
+        model = VelocityModel(df=df, target_Q=None)
+        v_pipeline = sample_velocities_pipeline(key, positions, masses, model, G=G)
+
+        # Reference: reproduce the pipeline's key split, sample the raw DF, remove COM.
+        key_df, _key_aniso = jax.random.split(key, 2)
+        v_raw = df.sample_velocities(positions, masses, key_df, G=G)
+        M_total = jnp.sum(masses)
+        v_raw = v_raw - jnp.sum(masses[:, None] * v_raw, axis=0) / M_total
+
+        assert jnp.allclose(v_pipeline, v_raw, atol=1e-12), (
+            "target_Q=None must skip the virial rescale (raw DF + COM removal only)"
+        )
+
+    def test_none_preserves_native_equilibrium_not_forced(self, plummer_setup):
+        """target_Q=None keeps the DF's native Q; an explicit float forces it.
+
+        The Plummer DF is already a true equilibrium, so its native Q is ~0.5 but NOT
+        exactly 0.5; forcing target_Q=0.5 lands exactly on 0.5. The two must differ."""
+        positions, masses, r_h = plummer_setup
+        df = PlummerVelocityDF(r_h=r_h)
+        key = jax.random.PRNGKey(23)
+
+        v_native = sample_velocities_pipeline(
+            key, positions, masses, VelocityModel(df=df, target_Q=None), G=G
+        )
+        v_forced = sample_velocities_pipeline(
+            key, positions, masses, VelocityModel(df=df, target_Q=0.5), G=G
+        )
+
+        # target_Q=0.5 applies a global rescale before COM removal, so v_forced is a
+        # scaled copy of v_native -> the arrays must differ (the rescale factor != 1
+        # unless the raw DF were exactly virial, which finite-N sampling never is).
+        assert not jnp.allclose(v_native, v_forced, atol=1e-6), (
+            "target_Q=0.5 must rescale, so it cannot equal the un-rescaled None result"
+        )
+
+        # Forced Q lands near 0.5 (the rescale targets Q *before* COM subtraction, so a
+        # ~1/N COM-energy drift of order 1e-3 is expected and physical, not a miss).
+        Q_forced = float(compute_virial_ratio(positions, v_forced, masses, G=G))
+        assert abs(Q_forced - 0.5) < 5e-3, f"forced Q={Q_forced} should be ~0.5"
+
+
 class TestPipelineFullIntegration:
     """End-to-end: virial equilibrium, COM removal, shape, with all stages on."""
 

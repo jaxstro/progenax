@@ -153,7 +153,12 @@ class VelocityModel:
         df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.)
         anisotropy: Optional anisotropy parameters.
         rotation: Optional rotation parameters.
-        target_Q: Target virial ratio Q = T / |V|. Default 0.5 for equilibrium.
+        target_Q: Target virial ratio Q = T / |V|, or None (default). The
+            Plummer/King/EFF DFs are already sampled in detailed equilibrium, so
+            target_Q=None keeps their native equilibrium (no rescale). Pass a float
+            only to deliberately force a virial ratio (e.g. 0.5 for equilibrium,
+            <0.5 subvirial, >0.5 supervirial), or when mixing/transforming
+            inconsistent profile+DF+anisotropy+rotation combinations.
 
     Example:
         >>> model = VelocityModel(
@@ -167,7 +172,7 @@ class VelocityModel:
     df: VelocityDF
     anisotropy: Optional[AnisotropyParams] = None
     rotation: Optional[RotationParams] = None
-    target_Q: float = 0.5
+    target_Q: Optional[float] = None
 
 
 def sample_velocities_pipeline(
@@ -187,7 +192,8 @@ def sample_velocities_pipeline(
         1. Sample velocities from distribution function (model.df)
         2. Apply Osipkov-Merritt anisotropy if configured
         3. Apply rotation (solid-body and/or differential) if configured
-        4. Rescale to target virial ratio and remove COM motion
+        4. Rescale to target virial ratio (only if model.target_Q is not None),
+           then remove COM motion
 
     Args:
         key: JAX random key.
@@ -259,14 +265,17 @@ def sample_velocities_pipeline(
                 axis=axis,
             )
 
-    # Stage 4: Virial rescaling + COM removal
-    v = rescale_velocities_to_virial(
-        positions=positions,
-        velocities=v,
-        masses=masses,
-        G=G,
-        target_Q=model.target_Q,
-    )
+    # Stage 4: Optional virial rescaling. target_Q=None keeps the DF's native
+    # equilibrium (Plummer/King/EFF are already sampled in detailed equilibrium);
+    # pass a float only to deliberately force a virial ratio.
+    if model.target_Q is not None:
+        v = rescale_velocities_to_virial(
+            positions=positions,
+            velocities=v,
+            masses=masses,
+            G=G,
+            target_Q=model.target_Q,
+        )
 
     # Remove COM motion
     M_total = jnp.sum(masses)
