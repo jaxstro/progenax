@@ -26,17 +26,26 @@ faithful **Moe P–q–e interrelation**.
 
 ## gravax handoff contract (verified 2026-06-04)
 
-`ICResult` flows into gravax via **`ParticleSystem.from_velocities(positions, velocities, masses,
-units, radii=None, softening=0.01, time=0.0, ids=None)`** — `core/state.py:243`.
+**Design for the best contract; fix gravax to match later (Anna, 2026-06-04).** We do NOT contort
+progenax's `ICResult` to fit gravax's current loose constructor. `ICResult` is the **rich,
+authoritative handoff object** (positions/velocities/masses/radii/softening + **primordial
+provenance** + units). The ideal consumer is **`gravax.ParticleSystem.from_ic(ic: ICResult)`** —
+which gravax should grow (deferred gravax work).
 
-- ⚠️ **`ParticleSystem.from_ic(ic, units)` referenced in progenax docs/CLAUDE.md does NOT exist** —
-  the real constructor is `from_velocities`. Ticket a doc fix (out of this design's scope).
+Current gravax reality (verified `core/state.py:243`): the only array constructor is
+`ParticleSystem.from_velocities(positions, velocities, masses, units, radii=None, softening=0.01,
+time=0.0, ids=None)`.
+
+- ⚠️ **`ParticleSystem.from_ic(ic, units)` advertised in progenax docs/CLAUDE.md does NOT exist yet** —
+  the best fix is to ADD `from_ic(ICResult)` to gravax (not to downgrade progenax docs to
+  `from_velocities`). Deferred gravax work.
 - **Binaries require `softening=0.0` + a collisional integrator** (Hermite-direct or IAS15; close
   encounters resolved by adaptive timestep). `gravax.core.softening.ZeroSoftening` exists "for
   regularized subsystems." Fixed-ε collisionless schemes (PEFRL/Yoshida/Leapfrog) are WRONG for
-  resolved binaries. The orchestrator documents this and emits `softening=0.0` guidance.
+  resolved binaries. The orchestrator documents this and emits `softening=0.0` guidance; ideally
+  `from_ic` defaults softening from the `ICResult`.
 - `ParticleSystem` carries `radii` (collision detection) and `ids` (tuple). Primordial bookkeeping
-  stays progenax-side on `ICResult` (arrays), not crammed into the `ids` tuple.
+  lives on `ICResult` as arrays (not crammed into the `ids` tuple); `from_ic` carries it through.
 
 ## Decisions (validated with Anna, 2026-06-04)
 
