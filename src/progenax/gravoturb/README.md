@@ -12,7 +12,7 @@ The gravoturb module provides three interconnected frameworks:
 |--------|-----------|------------|
 | `bm19_model.py` | Burkhart & Mocz (2019) | Dense gas fraction $f_{\text{dense}}$ |
 | `bm19_pdf.py` | BM19 PDF sampling | CDF remap for density fields |
-| `pp20_magnification.py` | Parmentier & Pfalzner (2020) | Magnification factor $\zeta_{\text{FDF}}$ |
+| `pp20_magnification.py` | Parmentier & Pasquali (2020) | Magnification factor $\zeta_{\text{FDF}}$ |
 
 All functions are:
 - `@jax.jit` compatible
@@ -110,7 +110,7 @@ With $A$ chosen for continuity at $s_t$.
 ```python
 from progenax.gravoturb import f_dense_bm19_full
 
-f_dense = f_dense_bm19_full(sigma_s_sq=2.83, s_t=4.25, alpha=2.0)  # ~0.15
+f_dense = f_dense_bm19_full(sigma_s_sq=2.83, s_t=4.25, alpha=2.0)  # ~0.057
 ```
 
 ### Main Pipeline
@@ -328,19 +328,17 @@ zeta = zeta_fdf_direct(
 - Differentiable through soft weights
 - Never diverges
 
-#### Analytic (PP20 Eq. 6) — Reference Only
+#### Analytic (PP20 Eq. 6) — Reference
 
-`magnification_factor(p)` implements PP20 Eq. 6 for a pure power-law density profile $\rho \propto r^{-p}$. It diverges at a critical slope $p_{\text{crit}}$ where the inner integral no longer converges (see PP20 Fig. 1).
+`magnification_factor(p)` implements PP20 Eq. 6 for a pure power-law density profile $\rho \propto r^{-p}$. It is well-defined over the full physical domain $0 \le p < 2$ and diverges only at $p = 2$ (the singular-isothermal profile); the implementation clips $p$ to `P_MAX = 1.95` to keep gradients finite (see PP20 Fig. 1 and the 2026-04-28 transcription fix).
 
-**We do not recommend this for production science** — it is included for comparison and for reproducing PP20 figures.
+For ζ measured from an actual 3D density field (no power-law assumption), prefer `zeta_fdf_direct()`.
 
 ```python
 from progenax.gravoturb import magnification_factor
 
-zeta = magnification_factor(p=0.75)  # Only reliable for p < 1.0
+zeta = magnification_factor(p=1.5)  # √2 ≈ 1.414 (valid for 0 ≤ p < 2)
 ```
-
-For $p \geq 1$ (typical in star formation where $\alpha \leq 3$), always use `zeta_fdf_direct()` instead.
 
 ### SFR Prediction
 
@@ -370,7 +368,7 @@ sfr_per_mdg = sfr_per_dense_gas(
 |----------|-------------|---------|
 | `zeta_fdf_direct(rho_grid, tail_weights)` | **RECOMMENDED**: Direct 3D measurement | `Array` |
 | `sfr_per_dense_gas(zeta, epsilon_ff_int, t_ff_dg)` | SFR/M_dg prediction | `Array` |
-| `magnification_factor(p)` | PP20 Eq. 6 (reference only, p < 1) | `Array` |
+| `magnification_factor(p)` | PP20 Eq. 6 for power-law profiles (0 ≤ p < 2) | `Array` |
 | `magnification_factor_with_core(p, r_c_over_R)` | Cored profile (reference) | `Array` |
 
 ---
@@ -417,7 +415,7 @@ Each function is validated against:
    - Piecewise lognormal+powerlaw PDF framework
    - Self-gravitating fraction from turbulence
 
-2. **Parmentier, G. & Pfalzner, S. 2020**, ApJ, 903, 56
+2. **Parmentier, G. & Pasquali, A. 2020**, ApJ, 903, 56
    - Magnification factor for dense-gas SFR
    - Profile slope ↔ star formation connection
 

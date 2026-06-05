@@ -4,7 +4,7 @@ Implements differentiable gravoturbulent star formation theory:
 - BM19: Piecewise lognormal+powerlaw PDF, dense gas fraction (Burkhart & Mocz 2019)
 - PN11: Classical critical density framework (Padoan-Nordlund 2011)
 - BM19 PDF: CDF remap sampling for 3D density fields
-- PP20: Magnification factor for SFR boost (Parmentier & Pfalzner 2020)
+- PP20: Magnification factor for SFR boost (Parmentier & Pasquali 2020)
 
 Choosing a Model
 ----------------
@@ -27,7 +27,7 @@ Example::
 References
 ----------
 - Burkhart, B. & Mocz, P. 2019, ApJ, 879, 129 (BM19)
-- Parmentier, G. & Pfalzner, S. 2020, ApJ, 903, 56 (PP20)
+- Parmentier, G. & Pasquali, A. 2020, ApJ, 903, 56 (PP20)
 - Federrath, C. & Klessen, R. S. 2012, ApJ, 761, 156 (FK12)
 - Padoan, P. & Nordlund, A. 2011, ApJ, 730, 40 (PN11)
 """

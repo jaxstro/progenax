@@ -100,8 +100,7 @@ constrained by *continuity* of $p_V(s)$ and its derivative
 
 ```{math}
 :label: s-t
-s_t \;=\; -\frac{(\alpha + 1)\,\sigma_s^2}{2}
-       + \sqrt{\frac{(\alpha + 1)^2\,\sigma_s^4}{4} - 2\sigma_s^2 \ln(\alpha + 1)}
+s_t \;=\; \Bigl(\alpha - \tfrac{1}{2}\Bigr)\,\sigma_s^2
 ```
 
 This is a closed-form expression: given $\sigma_s^2$ (set by Mach +
@@ -109,11 +108,12 @@ forcing) and $\alpha$ (a free parameter), $s_t$ is determined.
 progenax's `transition_density(sigma_s_sq, alpha)` returns this value
 directly; it is differentiable in both arguments.
 
-For typical molecular-cloud parameters ($\sigma_s^2 \approx 3$,
-$\alpha \approx 2$), $s_t \approx 1$, meaning the lognormal-to-power-law
-transition occurs around $\rho/\langle\rho\rangle \approx e^1 \approx 2.7$.
-This is consistent with observational identifications of the
-transition density {cite:p}`Kainulainen2014`.
+For typical molecular-cloud parameters ($\sigma_s^2 \approx 2.8$,
+$\alpha \approx 2$), $s_t = (\alpha - \tfrac{1}{2})\sigma_s^2 \approx 4.25$,
+meaning the lognormal-to-power-law transition occurs around
+$\rho/\langle\rho\rangle \approx e^{4.25} \approx 70$. This matches the
+{cite:t}`Kainulainen2014` observational dense-gas threshold
+$s_{\mathrm{th}} \approx 4.2$ (as adopted by {cite:t}`ParmentierPasquali2020`).
 
 ## Implementation in progenax
 
@@ -129,7 +129,7 @@ alpha = 2.0          # Power-law tail slope
 
 sigma_s_sq = sigma_s_squared(mach, b)             # ≈ 2.83
 sigma_s = jnp.sqrt(sigma_s_sq)
-s_t = transition_density(sigma_s_sq, alpha)        # ≈ 0.91
+s_t = transition_density(sigma_s_sq, alpha)        # ≈ 4.25
 
 # Evaluate the full PDF
 s_grid = jnp.linspace(-5, 10, 200)

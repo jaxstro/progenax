@@ -212,7 +212,7 @@ def alpha_vir_from_sigma(
 
 @jax.jit
 def sigma_s_squared(mach: Array, b: Array = 0.4) -> Array:
-    """PDF variance from turbulence (Federrath+2010 Eq. 14).
+    """PDF variance from turbulence (BM19 Eq. 1 / PN11 Eq. 22).
 
     sigma_s^2 = ln(1 + b^2 * M^2)
 
@@ -235,7 +235,9 @@ def sigma_s_squared(mach: Array, b: Array = 0.4) -> Array:
 
     References
     ----------
-    Federrath et al. 2010, A&A 512, A81, Eq. 14
+    Padoan & Nordlund 2011, ApJ 730, 40, Eq. 22 (b=1/2 case); general-b form in
+    Burkhart & Mocz 2019, ApJ 879, 129, Eq. 1; originally Federrath et al. 2010,
+    A&A 512, A81.
     """
     return jnp.log(1.0 + b**2 * mach**2)
 
