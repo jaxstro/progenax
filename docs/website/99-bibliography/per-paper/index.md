@@ -56,7 +56,10 @@ The pages are organised alphabetically by first-author surname.
 
 ## Gravoturbulence
 
+- [](federrath-2010.md)
 - [](federrath-klessen-2012.md)
+- [](kim-ryu-2005.md)
+- [](heyer-2009.md)
 - [](burkhart-2018.md)
 - [](burkhart-mocz-2019.md)
 - [](parmentier-pasquali-2020.md)
