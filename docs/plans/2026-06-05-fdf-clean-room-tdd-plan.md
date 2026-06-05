@@ -38,9 +38,9 @@ reference. "Validated" appears only next to fresh printed output.
 - **HITL cadence (Anna, 2026-06-05):** commit each task autonomously (TDD + verified);
   check in + give next-steps **at phase boundaries**; surface consequential decisions
   (API shape, physics) before acting.
-- **Both-env verify** at phase boundaries: `env -u VIRTUAL_ENV uv run --no-sync pytest
-  tests/ -q` (jax 0.10.1) + `/Users/anna/miniforge3/envs/astro/bin/python -m pytest tests/
-  -q` (jax 0.7.0).
+- **Verify** at phase boundaries with **uv (jax 0.10.1)**: `env -u VIRTUAL_ENV uv run
+  --no-sync pytest tests/ -q`. (Conda/jax-0.7.0 was dropped from the loop on 2026-06-05;
+  P0 was both-env-verified before that.)
 - **Released-core invariant (corrected):** the ~814 released-core tests stay green at every
   gate. ~404 of the original 1217 are subsystem tests retired in P5 and replaced by
   `tests/experimental/`. (See P0 appendix.)
