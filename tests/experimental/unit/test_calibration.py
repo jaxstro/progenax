@@ -40,6 +40,24 @@ def test_q_vs_fsub_monotone_decreasing():
     assert qm[0] > qm[1] > qm[2]  # strictly decreasing
 
 
+def test_q_calibration_grid_struct():
+    """Grid driver sweeps (cloud-param sets × f_sub); returns σ_s, β, Q surfaces."""
+    from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb_fdf.validation.calibration import q_calibration_grid
+
+    param_sets = [(6.0, 0.4, 1.8, 3.2), (10.0, 0.5, 1.8, 3.8)]
+    res = q_calibration_grid(
+        param_sets, f_sub_values=(0.1, 0.5), n_stars=300, n_real=3,
+        shape=(32, 32, 32), key=jax.random.PRNGKey(0),
+    )
+    assert res["q_mean"].shape == (2, 2)
+    assert res["sigma_s"].shape == (2,) and res["beta"].shape == (2,)
+    # σ_s computed from the cloud params
+    assert res["sigma_s"][0] == pytest.approx(float(np.sqrt(sigma_s_squared(6.0, 0.4))), rel=1e-6)
+    assert res["beta"][1] == pytest.approx(3.8)
+    assert np.all(np.isfinite(res["q_mean"]))
+
+
 def test_q_vs_fsub_physical_range_and_struct():
     """Result carries f_sub/q_mean/q_std arrays; means in CW04 substructured band."""
     from gravoturb_fdf.validation.calibration import q_vs_fsub
