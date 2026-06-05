@@ -5,6 +5,15 @@ description: Numerical-integration ζ for profiles with a flat inner core, ρ(r)
 
 # Cored profiles: `magnification_factor_with_core`
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 ```{seealso}
 This chapter introduces the **cored** ζ computation for profiles with
 a flat inner core. For the *pure power-law* analytic ζ(p) it
@@ -105,9 +114,9 @@ production parameter range.
 
 The first limit is the most important: as $r_c/R \to 0$, the cored
 profile becomes a pure power-law and the cored ζ should converge to
-the analytic PP20 value. Tests in
-`tests/unit/physics/test_pp20_zeta_canonical.py` verify this
-convergence at $p \in \{0.5, 1.0, 1.5\}$.
+the analytic PP20 value. `tests/experimental/unit/test_pp20.py` and
+the AC4 direct-field check verify ζ convergence at
+$p \in \{0.5, 1.0, 1.5\}$.
 
 The fourth limit is what distinguishes cored from pure: a *cored*
 profile with $p \to 2$ does *not* diverge the way the pure power-law
@@ -142,10 +151,10 @@ numerical safety problem doesn't arise.
   - PP20 is the published formula; cored is a generalisation
 ```
 
-## Implementation in progenax
+## Implementation in `gravoturb_fdf`
 
 ```python
-from progenax.gravoturb.pp20_magnification import (
+from gravoturb_fdf.theory.pp20 import (
     magnification_factor,
     magnification_factor_with_core,
 )
@@ -163,25 +172,26 @@ Both functions are `@jax.jit`-compatible. `magnification_factor_with_core`
 is differentiable in both $p$ and $r_c/R$.
 
 ```{warning}
-**`n_radial_points` must be a static int, not a traced value.** Under
-JIT, the integration grid is constructed at trace time; making it
-trace-dependent breaks the grid construction. The API exposes it as
-a Python `int` keyword argument with a sensible default.
+**`n_nodes` must be a static int, not a traced value.** Under JIT, the
+trapezoid grid is constructed at trace time; making it trace-dependent
+breaks the grid construction. The API exposes it as a Python `int`
+keyword argument with a sensible default (`n_nodes=2048`).
 ```
 
 ## Domain of validity
 
-1. **Inner-edge approximation** — the integration starts at $x = 0.01$
-   ($r = 0.01 R$), not exactly at $r = 0$. The error is
-   $\mathcal{O}(0.01^3) \sim 10^{-6}$ for any smooth integrand.
-2. **Trapezoidal accuracy** — fixed-grid trapezoidal at 100 points
-   gives $\sim 1\%$ accuracy. For higher accuracy, increase
-   `n_radial_points`; the cost scales linearly.
+1. **Inner-edge approximation** — the trapezoid starts at $x = 1/n_{\mathrm{nodes}}$
+   ($\approx 5\times10^{-4}$ at the default $n_{\mathrm{nodes}}=2048$), not exactly
+   at $r = 0$. Because the integrand $\sim x^2$ near the core, the omitted region
+   contributes $\mathcal{O}((1/n_{\mathrm{nodes}})^3) \sim 10^{-10}$.
+2. **Trapezoidal accuracy** — fixed-grid trapezoid with the default
+   `n_nodes=2048` is accurate to well below a percent; increase `n_nodes`
+   for more (the cost scales linearly).
 3. **Spherical symmetry assumed** — the cored profile {eq}`cored-profile`
    is spherical. Non-spherical cores require the direct 3D treatment;
    see [](direct-3d-zeta.md).
 4. **Single inner-core scale** — real clouds may have hierarchical
-   substructure with multiple core radii. progenax models the
+   substructure with multiple core radii. `gravoturb_fdf` models the
    single-scale case; multi-scale requires the direct 3D approach
    or a parametric extension not currently implemented.
 
@@ -189,7 +199,7 @@ a Python `int` keyword argument with a sensible default.
 
 The cored profile {eq}`cored-profile` is a standard {cite:t}`King1966`-style
 generalisation of the pure power-law; it appears throughout the
-molecular-cloud literature. progenax's numerical integration follows
+molecular-cloud literature. `gravoturb_fdf`'s numerical integration follows
 the standard trapezoidal-quadrature approach. For the corresponding
 analytic limit see [](pp20.md); for the parameter-free 3D approach
 see [](direct-3d-zeta.md).

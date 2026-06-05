@@ -5,6 +5,15 @@ description: Combining the lognormal+power-law density PDF with the ρ^(3/2) fre
 
 # Density PDFs and the freefall-density factor
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 ```{seealso}
 This chapter ties together [](density-pdf-fundamentals.md) and
 [](freefall-density-factor.md) into the cloud-integrated SFR
@@ -60,22 +69,22 @@ f_{\mathrm{dense}} \;\equiv\; \int_{\rho_t}^{\infty} \frac{\rho}{\langle\rho\ran
 
 This is *not* the SFR-weighted fraction; it is the simple mass
 fraction. The SFR uses the FDF-weighted version with $\rho^{3/2}$ in
-the integrand. progenax computes both:
+the integrand. `gravoturb_fdf` computes both:
 
 ```python
-from progenax.gravoturb.bm19_model import sigma_s_squared, transition_density, _f_dense_bm19_full_jit
-from progenax.gravoturb import bm19_pipeline
+from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density, f_dense_bm19_full
+from gravoturb_fdf.theory.pp20 import magnification_factor
 
-mach = 10.0; b = 0.4; alpha = 2.0
-sigma_s_sq = sigma_s_squared(mach, b)        # Lognormal variance
-s_t = transition_density(sigma_s_sq, alpha)  # Transition log-density
+mach, b, alpha = 10.0, 0.4, 2.0
+sigma_s_sq = sigma_s_squared(mach, b)        # lognormal variance        ≈ 2.83
+s_t = transition_density(alpha, sigma_s_sq)  # transition log-density    ≈ 4.25  (args: alpha, σ_s²)
 
-# f_dense — mass fraction above s_t
-f_dense = _f_dense_bm19_full_jit(sigma_s_sq, s_t, alpha)
+# f_dense — mass fraction in the dense power-law tail
+f_dense = f_dense_bm19_full(mach, b, alpha)  # ≈ 0.057
 
-# Full BM19 forward chain (includes f_dense and ζ)
-result = bm19_pipeline(mach=mach, b=b, alpha=alpha, eta_survive=0.6)
-print(f"f_dense = {result.f_dense:.3f}, f_sub = {result.f_sub:.3f}, ζ = {result.zeta:.3f}")
+# geometric magnification ζ for the implied radial slope p = 3/α
+zeta = magnification_factor(3.0 / alpha)     # ζ(1.5) = √2 ≈ 1.414
+print(f"f_dense = {f_dense:.3f}, ζ = {zeta:.3f}")
 ```
 
 For typical Galactic-cloud parameters ($\mathcal{M} = 10$, $b = 0.4$,

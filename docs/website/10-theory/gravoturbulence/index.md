@@ -5,6 +5,15 @@ description: progenax's gravoturbulence section — the chain from molecular-clo
 
 # Gravoturbulence
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 This section covers the framework that links **cloud-scale density
 structure** to the **integrated star formation rate**. The chain is:
 
@@ -56,8 +65,10 @@ Note on the 2026-04-28 transcription bug fix, or to [](bm19.md) for
 the full forward chain that consumes ζ.
 
 For implementation work: each chapter ends with a code snippet showing
-the corresponding progenax API. The full module reference is at
-[](../../30-api/gravoturb.md).
+the corresponding `gravoturb_fdf` API. The module reference is the package
+source under `src/experimental/gravoturb_fdf/` (see its `README.md` and
+`VALIDATION_SUMMARY.md`); this experimental subsystem has no generated
+website API page.
 
 ## Why progenax computes ζ multiple ways
 

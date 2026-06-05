@@ -5,6 +5,15 @@ description: The Federrath & Klessen (2012) lognormal + power-law density PDF fo
 
 # Density PDF fundamentals
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 A turbulent molecular cloud has a *distribution* of densities, not a
 single density. The shape of that distribution — the **volume-density
 PDF** $p_V(\rho)$ — is the foundational object that every subsequent
@@ -115,25 +124,24 @@ $\rho/\langle\rho\rangle \approx e^{4.25} \approx 70$. This matches the
 {cite:t}`Kainulainen2014` observational dense-gas threshold
 $s_{\mathrm{th}} \approx 4.2$ (as adopted by {cite:t}`ParmentierPasquali2020`).
 
-## Implementation in progenax
+## Implementation in `gravoturb_fdf`
 
 ```python
-from progenax.gravoturb.bm19_model import (
-    sigma_s_squared, transition_density,
-)
-from progenax.gravoturb.bm19_pdf import bm19_volume_pdf
+import jax.numpy as jnp
+from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+from gravoturb_fdf.theory.pdf import bm19_volume_pdf
 
 mach = 10.0          # Sonic Mach number
 b = 0.4              # Forcing parameter
 alpha = 2.0          # Power-law tail slope
 
-sigma_s_sq = sigma_s_squared(mach, b)             # ≈ 2.83
+sigma_s_sq = sigma_s_squared(mach, b)            # ≈ 2.83
 sigma_s = jnp.sqrt(sigma_s_sq)
-s_t = transition_density(sigma_s_sq, alpha)        # ≈ 4.25
+s_t = transition_density(alpha, sigma_s_sq)      # ≈ 4.25   (args: alpha, σ_s²)
 
-# Evaluate the full PDF
+# Evaluate the full PDF (it takes mach, b, alpha directly — σ_s² and s_t are internal)
 s_grid = jnp.linspace(-5, 10, 200)
-pdf_values = bm19_volume_pdf(s_grid, sigma_s_sq, s_t, alpha)
+pdf_values = bm19_volume_pdf(s_grid, mach, b, alpha)
 ```
 
 `bm19_volume_pdf` evaluates the lognormal piece for $s < s_t$ and

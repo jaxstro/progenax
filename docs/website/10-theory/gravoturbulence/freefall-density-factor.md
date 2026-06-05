@@ -5,6 +5,15 @@ description: The functional ρ/t_ff(ρ) ∝ ρ^(3/2) that weights local density 
 
 # The freefall-density factor
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 The **freefall-density factor** (FDF) is the kernel that converts the
 density-PDF picture from [](density-pdf-fundamentals.md) into a *star
 formation rate*. Its form follows from elementary considerations:
@@ -127,14 +136,14 @@ contributes to actual star formation. The lognormal core represents
 turbulent fluctuations that compress and re-expand without forming
 stars.
 
-`progenax.gravoturb.bm19_model._f_dense_bm19_full_jit` evaluates
+`gravoturb_fdf.theory.bm19.f_dense_bm19_full` evaluates
 {eq}`f-sfr` for the {cite:t}`Burkhart2018` framework — see [](bm19.md)
 for the full forward chain.
 
-## Implementation in progenax
+## Implementation in `gravoturb_fdf`
 
 The FDF kernel is implicit in every gravoturbulence calculation.
-progenax does not expose it as a standalone function (since it has
+`gravoturb_fdf` does not expose it as a standalone function (since it has
 no free parameters beyond the constants), but it appears inside:
 
 - `magnification_factor(p)` — analytic ζ for power-law profiles.
@@ -142,8 +151,7 @@ no free parameters beyond the constants), but it appears inside:
   cored profiles.
 - `zeta_fdf_direct(rho_grid, tail_weights)` — direct measurement
   from a 3D field.
-- `_f_dense_bm19_full_jit(sigma_s_sq, s_t, alpha)` — the BM19 forward
-  chain.
+- `f_dense_bm19_full(mach, b, alpha)` — the BM19 dense-mass fraction.
 
 In each case, the integrand is $\rho^{3/2}$ (or its log-space
 equivalent $e^{1.5 s}$) weighted by the appropriate volume element or
