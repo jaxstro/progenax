@@ -56,9 +56,10 @@ def _hard_binary_cluster(n_systems=40, P_days=1.0, seed=2):
     import equinox as eqx
     from jaxtyping import Array, Float
     from progenax import PlummerProfile, PlummerVelocityDF, ThermalEccentricity
-    from progenax.builders import build_binary_cluster
+    from progenax.builders import build_binary_cluster, Systems
+    from progenax.binaries import IndependentCompanions
     from progenax.imf import PowerLawIMF
-    from progenax.imf.binary import BinaryIMF, ConstantBinaryFraction, FlatMassRatio
+    from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 
     class FixedPeriod(eqx.Module):
         P_days: float
@@ -66,18 +67,17 @@ def _hard_binary_cluster(n_systems=40, P_days=1.0, seed=2):
         def sample(self, key, n: int) -> Float[Array, "n"]:
             return jnp.full((n,), self.P_days)
 
-    imf = BinaryIMF(
-        primary_imf=PowerLawIMF.kroupa(),
-        q_distribution=FlatMassRatio(q_min=0.3),
-        binary_fraction=ConstantBinaryFraction(1.0),
-    )
     return build_binary_cluster(
         profile=PlummerProfile(r_h=1.0),
         velocity_df=PlummerVelocityDF(r_h=1.0),
-        binary_imf=imf,
-        period_dist=FixedPeriod(P_days=P_days),
-        ecc_dist=ThermalEccentricity(),
-        n_systems=n_systems,
+        primary_imf=PowerLawIMF.kroupa(),
+        companion_model=IndependentCompanions(
+            binary_fraction=ConstantBinaryFraction(1.0),
+            q_distribution=FlatMassRatio(q_min=0.3),
+            period_distribution=FixedPeriod(P_days=P_days),
+            eccentricity_distribution=ThermalEccentricity(),
+        ),
+        target=Systems(n_systems),
         key=jax.random.PRNGKey(seed),
         units=STELLAR,
     )

@@ -254,6 +254,34 @@ class BinaryFractionModel(Protocol):
         ...
 
 
+@runtime_checkable
+class CompanionModel(Protocol):
+    """Protocol for the binary companion/orbit layer used by `build_binary_cluster`.
+
+    A single owner of the binary statistics: given primary masses, it decides
+    multiplicity (f_b -> is_binary) AND samples the companion properties
+    (q -> m2, P -> a, e, isotropic orientation), all keyed on the primary masses.
+    Returns ``(is_binary, CompanionElements)``.
+
+    Example implementations (progenax.binaries):
+        - IndependentCompanions(binary_fraction, q_distribution,
+          period_distribution, eccentricity_distribution) — versatile marginals.
+        - MoeCompanions(q_min) — faithful Moe+2017 joint (P, q, e) with Moe's own
+          mass-dependent f_b; the same q sets m2 (self-consistent).
+    """
+
+    def sample(
+        self,
+        key: PRNGKeyArray,
+        m1: Float[Array, "N"],
+        *,
+        G: float,
+        day_in_time_units: float,
+    ):
+        """Sample ``(is_binary[N], CompanionElements)`` for primary masses ``m1`` [Msun]."""
+        ...
+
+
 __all__ = [
     "SpatialProfile",
     "VelocityDF",
@@ -263,4 +291,5 @@ __all__ = [
     "ConditionalEccentricityDistribution",
     "MassPeriodEccentricityDistribution",
     "BinaryFractionModel",
+    "CompanionModel",
 ]

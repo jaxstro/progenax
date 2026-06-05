@@ -21,6 +21,7 @@ from .protocols import (
     ConditionalEccentricityDistribution,
     MassPeriodEccentricityDistribution,
     BinaryFractionModel,
+    CompanionModel,
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
@@ -29,6 +30,9 @@ from .profiles import (
 from .kinematics import PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF
 from .builders import (
     ICResult,
+    Systems,
+    Stars,
+    TotalMass,
     build_spatial_ic,
     build_binary_cluster,
     to_com_frame,
@@ -76,6 +80,9 @@ from .binaries import (
     sample_mass_dependent_orbits,
     ResolvedBinaries,
     resolve_binary_components,
+    CompanionElements,
+    IndependentCompanions,
+    MoeCompanions,
     relative_energy,
     find_bound_pairs,
     find_bound_multiples,
@@ -112,6 +119,7 @@ __all__ = [
     "ConditionalEccentricityDistribution",
     "MassPeriodEccentricityDistribution",
     "BinaryFractionModel",
+    "CompanionModel",
     # Spatial density profiles
     "PlummerProfile",
     "KingProfile",
@@ -126,10 +134,16 @@ __all__ = [
     "EFFVelocityDF",
     # Builders
     "ICResult",
+    "Systems",
+    "Stars",
+    "TotalMass",
     "build_spatial_ic",
     "build_binary_cluster",
     "resolve_binary_components",
     "ResolvedBinaries",
+    "CompanionElements",
+    "IndependentCompanions",
+    "MoeCompanions",
     "relative_energy",
     "find_bound_pairs",
     "find_bound_multiples",

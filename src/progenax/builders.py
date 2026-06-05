@@ -22,15 +22,93 @@ from .protocols import SpatialProfile, VelocityDF
 # here so the public API (progenax.compute_*_energy) and virial_scale share one
 # gradient-safe source of truth (Batch 0, F1+F2).
 from .dynamics.virial import compute_kinetic_energy, compute_potential_energy
-from .binaries import (
-    resolve_binary_components,
-    sample_isotropic_orientations,
-    period_to_semimajor_axis,
-)
+from .binaries import resolve_binary_components
 
 # Seconds in one (SI) day — exact; used to convert sampled periods (days) into the
 # code time unit via units.time_scale_cgs.
 _SECONDS_PER_DAY = 86400.0
+
+
+# =============================================================================
+# Population-size budget targets (Batch 4k)
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class Systems:
+    """Target a fixed number of stellar *systems* (singles + binaries).
+
+    Companions are **not** counted toward the count — the paper/observational
+    convention (Rosen, *Confidently Wrong*; McLuster / Küpper+2011): draw ``n``
+    systems and attach companions on top. The only **fixed-shape ⇒ differentiable**
+    target (supports the masked ``compact=False`` path).
+    """
+
+    n: int
+
+
+@dataclass(frozen=True)
+class Stars:
+    """Target a fixed number of resolved *stars* (primaries + real secondaries).
+
+    Companions count: draw whole systems in order until the resolved star count
+    first reaches ``n`` (overshoot ≤ 1 star — a binary is never split). The
+    data-dependent system count makes this **eager only** (``compact=True``).
+    """
+
+    n: int
+
+
+@dataclass(frozen=True)
+class TotalMass:
+    """Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
+
+    Whole-system, McLuster-style mass filling: draw until the cumulative system
+    mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
+    """
+
+    m: float
+
+
+def _system_star_counts(is_binary: Bool[Array, "N"]) -> Int[Array, "N"]:
+    """Resolved stars contributed by each system: 1 (single) or 2 (binary)."""
+    return 1 + is_binary.astype(jnp.int32)
+
+
+def _target_system_mask(
+    target, is_binary: Bool[Array, "N"], system_masses: Float[Array, "N"]
+) -> Bool[Array, "N"]:
+    """Prefix keep-mask over systems (draw order) for a budget target.
+
+    Keeps whole systems until the budget is first reached (the crossing system is
+    included), so star/mass budgets overshoot by at most one system. `Systems(n)`
+    keeps the first ``n`` slots (all of them when the draw is exactly ``n``).
+    """
+    n_sys = is_binary.shape[0]
+    idx = jnp.arange(n_sys)
+    if isinstance(target, Systems):
+        return idx < target.n
+    if isinstance(target, Stars):
+        stars = _system_star_counts(is_binary)
+        cum_before = jnp.cumsum(stars) - stars  # exclusive prefix sum
+        return cum_before < target.n
+    if isinstance(target, TotalMass):
+        cum_before = jnp.cumsum(system_masses) - system_masses
+        return cum_before < target.m
+    raise TypeError(f"Unknown population target: {target!r}")
+
+
+def _target_satisfied(
+    target, is_binary: Bool[Array, "N"], system_masses: Float[Array, "N"]
+) -> bool:
+    """Whether a draw of these systems is large enough to fill the target."""
+    if isinstance(target, Systems):
+        return is_binary.shape[0] >= target.n
+    if isinstance(target, Stars):
+        return int(jnp.sum(_system_star_counts(is_binary))) >= target.n
+    if isinstance(target, TotalMass):
+        return float(jnp.sum(system_masses)) >= target.m
+    raise TypeError(f"Unknown population target: {target!r}")
 
 
 @dataclass(frozen=True)
@@ -242,13 +320,64 @@ def build_spatial_ic(
     )
 
 
+_MASS_PRESAMPLE = 8192  # systems presampled to estimate mean system mass for a TotalMass budget.
+
+
+def _index_companions(comp, keep: Bool[Array, "N"]):
+    """Boolean-index every field of a `CompanionElements` (eager budget cut)."""
+    return jax.tree_util.tree_map(lambda x: x[keep], comp)
+
+
+def _concat_companions(a, b):
+    """Concatenate two `CompanionElements` along axis 0 (eager TotalMass top-up)."""
+    return jax.tree_util.tree_map(lambda x, y: jnp.concatenate([x, y]), a, b)
+
+
+def _draw_systems_for_target(target, primary_imf, companion_model, key, *, G, day):
+    """Draw enough systems to fill `target` (in draw order).
+
+    `Systems(n)` / `Stars(n)` are filled by a single draw of `n` systems (>=1 star
+    per system guarantees >= n stars). `TotalMass(M)` over-draws from a mean-system-
+    mass estimate and tops up until the mass budget is reached.
+
+    Returns (m1, is_binary, CompanionElements).
+    """
+    if isinstance(target, (Systems, Stars)):
+        km, kc = jax.random.split(key)
+        m1 = primary_imf.sample(km, target.n)
+        is_binary, comp = companion_model.sample(kc, m1, G=G, day_in_time_units=day)
+        return m1, is_binary, comp
+
+    if isinstance(target, TotalMass):
+        key, kp, kc = jax.random.split(key, 3)
+        m1_pre = primary_imf.sample(kp, _MASS_PRESAMPLE)
+        _, comp_pre = companion_model.sample(kc, m1_pre, G=G, day_in_time_units=day)
+        mbar = float(jnp.mean(m1_pre + comp_pre.m2))
+        n = int(1.5 * target.m / max(mbar, 1e-12)) + 64
+        m1_all = is_binary_all = comp_all = None
+        while True:
+            key, km, kc = jax.random.split(key, 3)
+            m1 = primary_imf.sample(km, n)
+            is_binary, comp = companion_model.sample(kc, m1, G=G, day_in_time_units=day)
+            if m1_all is None:
+                m1_all, is_binary_all, comp_all = m1, is_binary, comp
+            else:
+                m1_all = jnp.concatenate([m1_all, m1])
+                is_binary_all = jnp.concatenate([is_binary_all, is_binary])
+                comp_all = _concat_companions(comp_all, comp)
+            if _target_satisfied(target, is_binary_all, m1_all + comp_all.m2):
+                return m1_all, is_binary_all, comp_all
+            n = max(n // 2, 64)  # smaller top-up batches
+
+    raise TypeError(f"Unknown population target: {target!r}")
+
+
 def build_binary_cluster(
     profile: SpatialProfile,
     velocity_df: VelocityDF,
-    binary_imf,
-    period_dist,
-    ecc_dist,
-    n_systems: int,
+    primary_imf,
+    companion_model,
+    target,
     key: PRNGKeyArray,
     *,
     units,
@@ -256,35 +385,41 @@ def build_binary_cluster(
     softening: float = 0.0,
     compact: bool = True,
 ):
-    """Assemble a star cluster with a primordial binary population.
+    """Assemble a star cluster with a primordial binary population (SoTA composition).
 
-    Wires the three domains: (1) `binary_imf.sample_systems` -> primary/secondary
-    masses + binary flags; (2) `build_spatial_ic` on the **system** masses (m1+m2)
-    -> COM positions/velocities (virialized at the system level under the given
-    softening, ε=0 by default); (3) sample period/eccentricity/orientation and
-    convert period -> semi-major axis; (4) `resolve_binary_components` places the
-    two components of each binary around its COM (COM preserved exactly).
+    Composes five independent axes: `profile` x `velocity_df` (spatial), `primary_imf`
+    (the **primary**-star IMF — vary alpha freely), `companion_model` (the single owner
+    of the binary statistics: f_b -> is_binary AND q -> m2, P -> a, e, orientation), and
+    `target` (what the population size holds fixed).
 
-    Binaries are **collisional**: integrate the result with a collisional integrator
-    (Hermite/IAS15, softening=0). The COM virialization treats binaries as point
-    masses; internal binary energy is separate and untouched by `Q`.
+    Pipeline: draw `target`-many systems -> `companion_model.sample` -> system masses
+    `m1 + m2` -> budget cut -> `build_spatial_ic` on the system masses (COMs virialized
+    treating binaries as point masses, eps=0 by default) -> `resolve_binary_components`
+    places each binary's two components around its COM (COM preserved exactly).
+
+    **IMF convention** (Rosen, *Confidently Wrong*; McLuster / Kuepper+2011): `primary_imf`
+    is the IMF of *primaries*; companions are generated conditionally, so the all-stars
+    mass function is a *derived* consequence — not the input IMF. The COM virialization
+    treats binaries as point masses; internal binary binding energy is a separate
+    reservoir untouched by `Q` (measure it with `binaries.diagnostics`).
 
     Args:
         profile, velocity_df: spatial profile + velocity DF for the system COMs.
-        binary_imf: object with `sample_systems(key, n) -> (m1, m2, is_binary)`
-            (e.g. `progenax.imf.binary.BinaryIMF`).
-        period_dist: period distribution with `sample(key, n) -> periods [days]`.
-        ecc_dist: **unconditional** eccentricity distribution with
-            `sample(key, n) -> e` (period/mass-conditional Moe is wired in 4i).
-        n_systems: number of stellar *systems* (singles + binaries).
+        primary_imf: primary-star IMF with `sample(key, n) -> m1 [Msun]`.
+        companion_model: a `CompanionModel` (e.g. `IndependentCompanions`, `MoeCompanions`)
+            owning multiplicity + (q, P, e); `sample(key, m1, *, G, day_in_time_units)
+            -> (is_binary, CompanionElements)`. No separate `binary_fraction` arg — f_b
+            lives in the model (Moe sets it from the masses).
+        target: population-size budget — `Systems(n)` (count systems; companions not
+            counted; the only differentiable / `compact=False` target), `Stars(n)` (count
+            resolved stars, companions included), or `TotalMass(M)` [Msun]. Stars/TotalMass
+            have data-dependent counts and are **eager only** (`compact=True`).
         key: JAX random key.
-        units: `UnitSystem` (carries G and the time scale for the day->time-unit
-            conversion).
+        units: `UnitSystem` (carries G + the time scale for the day->time-unit conversion).
         Q: system-level virial ratio target (0.5 = equilibrium; None to disable).
-        softening: virial-scaling softening for the COM cluster (default 0 = exact;
-            NOT stored — see `build_spatial_ic`).
-        compact: True (default) -> eagerly compacted `ICResult` of real particles;
-            False -> the masked fixed-shape `ResolvedBinaries` (jit/grad-safe).
+        softening: virial-scaling softening for the COM cluster (default 0 = exact; NOT stored).
+        compact: True (default) -> eagerly compacted `ICResult`; False -> the masked
+            fixed-shape `ResolvedBinaries` (jit/grad-safe; requires a `Systems` target).
 
     Returns:
         `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
@@ -292,27 +427,39 @@ def build_binary_cluster(
     G = units.G
     day_in_time_units = _SECONDS_PER_DAY / units.time_scale_cgs
 
-    key_sys, key_spatial, key_P, key_e, key_orient = jax.random.split(key, 5)
+    if not compact and not isinstance(target, Systems):
+        raise ValueError(
+            "compact=False (masked, differentiable output) requires a Systems(n) target; "
+            "Stars/TotalMass have data-dependent counts and are eager-only (compact=True)."
+        )
 
-    # 1. System masses + binary flags.
-    m1, m2, is_binary = binary_imf.sample_systems(key_sys, n_systems)
-    system_masses = m1 + m2
+    key_draw, key_spatial = jax.random.split(key)
 
-    # 2. System COMs (virialized treating binaries as point masses at COM).
+    # 1. Draw systems for the budget: primaries from the IMF, companions (f_b, q, P, e)
+    #    from the companion model (the single owner of the binary statistics).
+    m1, is_binary, comp = _draw_systems_for_target(
+        target, primary_imf, companion_model, key_draw, G=G, day=day_in_time_units
+    )
+    system_masses = m1 + comp.m2
+
+    # 2. Budget cut. Systems(n) needs no cut (static shape -> compact=False safe);
+    #    Stars/TotalMass keep a whole-system prefix (eager, dynamic shape).
+    if not isinstance(target, Systems):
+        keep = _target_system_mask(target, is_binary, system_masses)
+        m1 = m1[keep]
+        is_binary = is_binary[keep]
+        comp = _index_companions(comp, keep)
+        system_masses = system_masses[keep]
+
+    # 3. System COMs (virialized treating binaries as point masses at COM).
     ic_sys = build_spatial_ic(
         profile, system_masses, velocity_df, key_spatial, G, Q=Q, softening=softening
     )
-    com_pos, com_vel = ic_sys.positions, ic_sys.velocities
 
-    # 3. Orbital elements for every system (singles are sanitized in the primitive).
-    periods_days = period_dist.sample(key_P, n_systems)
-    e = ecc_dist.sample(key_e, n_systems)
-    inc, Omega, omega, M_anom = sample_isotropic_orientations(key_orient, n_systems)
-    a = period_to_semimajor_axis(periods_days * day_in_time_units, system_masses, G)
-
-    # 4. Resolve binaries into the masked 2N representation.
+    # 4. Resolve binaries into the masked 2N representation (COM preserved exactly).
     resolved = resolve_binary_components(
-        com_pos, com_vel, m1, m2, is_binary, a, e, inc, Omega, omega, M_anom, G=G
+        ic_sys.positions, ic_sys.velocities, m1, comp.m2, is_binary,
+        comp.a, comp.e, comp.inc, comp.Omega, comp.omega, comp.M_anom, G=G,
     )
 
     if not compact:
@@ -333,6 +480,9 @@ def build_binary_cluster(
 
 
 __all__ = [
+    "Systems",
+    "Stars",
+    "TotalMass",
     "ICResult",
     "compute_stellar_radii",
     "compute_kinetic_energy",

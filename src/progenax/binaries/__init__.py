@@ -42,6 +42,11 @@ from .mass_dependent import (
     sample_mass_dependent_orbits,
 )
 from .assembly import ResolvedBinaries, resolve_binary_components
+from .companions import (
+    CompanionElements,
+    IndependentCompanions,
+    MoeCompanions,
+)
 from .diagnostics import (
     relative_energy,
     find_bound_pairs,
@@ -78,6 +83,10 @@ __all__ = [
     # Binary -> spatial-IC connector
     "ResolvedBinaries",
     "resolve_binary_components",
+    # Companion/orbit layer (Batch 4k)
+    "CompanionElements",
+    "IndependentCompanions",
+    "MoeCompanions",
     # Dynamic binary diagnostics
     "relative_energy",
     "find_bound_pairs",

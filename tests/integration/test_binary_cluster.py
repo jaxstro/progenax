@@ -1,8 +1,10 @@
-"""End-to-end binary-cluster IC assembly (Batch 4f orchestrator).
+"""End-to-end binary-cluster IC assembly (Batch 4k SoTA composition).
 
-build_binary_cluster wires BinaryIMF (masses+flags) + build_spatial_ic (system
-COMs) + orbital sampling + resolve_binary_components, returning a compacted
-ICResult (real particles + primordial provenance) or the masked ResolvedBinaries.
+build_binary_cluster composes primary_imf x companion_model x profile x velocity_df
+x target -> system COMs (build_spatial_ic) + resolve_binary_components, returning a
+compacted ICResult (real particles + primordial provenance) or the masked
+ResolvedBinaries. The companion model owns f_b + (q, P, e); the target chooses the
+population-size budget (Systems / Stars / TotalMass).
 """
 
 import equinox as eqx
@@ -19,8 +21,10 @@ from progenax import (
     ThermalEccentricity,
     LogUniformPeriod,
 )
+from progenax.builders import build_binary_cluster, Systems, Stars, TotalMass
+from progenax.binaries import IndependentCompanions, MoeCompanions
 from progenax.imf import PowerLawIMF
-from progenax.imf.binary import BinaryIMF, ConstantBinaryFraction, FlatMassRatio
+from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 
 DAY_IN_TU = 86400.0 / STELLAR.time_scale_cgs  # 1 day in Myr (STELLAR)
 
@@ -34,20 +38,22 @@ class FixedPeriod(eqx.Module):
         return jnp.full((n,), self.P_days)
 
 
-def _cluster(fbin=0.5, period=None, n_systems=300, seed=0, **kw):
-    from progenax.builders import build_binary_cluster
-    imf = BinaryIMF(
-        primary_imf=PowerLawIMF.kroupa(),
-        q_distribution=FlatMassRatio(q_min=0.2),
+def _independent(fbin=0.5, period=None, qmin=0.2):
+    return IndependentCompanions(
         binary_fraction=ConstantBinaryFraction(fbin),
+        q_distribution=FlatMassRatio(q_min=qmin),
+        period_distribution=period if period is not None else LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
+        eccentricity_distribution=ThermalEccentricity(),
     )
+
+
+def _cluster(fbin=0.5, period=None, n_systems=300, seed=0, target=None, **kw):
     return build_binary_cluster(
         profile=PlummerProfile(r_h=1.0),
         velocity_df=PlummerVelocityDF(r_h=1.0),
-        binary_imf=imf,
-        period_dist=period if period is not None else LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
-        ecc_dist=ThermalEccentricity(),
-        n_systems=n_systems,
+        primary_imf=PowerLawIMF.kroupa(),
+        companion_model=_independent(fbin=fbin, period=period),
+        target=target if target is not None else Systems(n_systems),
         key=jax.random.PRNGKey(seed),
         units=STELLAR,
         **kw,
@@ -105,21 +111,14 @@ class TestBuildBinaryCluster:
 
     def test_grad_through_r_h(self):
         """The compacted COM positions are differentiable wrt the spatial scale r_h."""
-        from progenax.builders import build_binary_cluster
-        imf = BinaryIMF(
-            primary_imf=PowerLawIMF.kroupa(),
-            q_distribution=FlatMassRatio(q_min=0.2),
-            binary_fraction=ConstantBinaryFraction(0.5),
-        )
 
         def spread(r_h):
             rb = build_binary_cluster(
                 profile=PlummerProfile(r_h=r_h),
                 velocity_df=PlummerVelocityDF(r_h=r_h),
-                binary_imf=imf,
-                period_dist=LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
-                ecc_dist=ThermalEccentricity(),
-                n_systems=100,
+                primary_imf=PowerLawIMF.kroupa(),
+                companion_model=_independent(fbin=0.5),
+                target=Systems(100),
                 key=jax.random.PRNGKey(5),
                 units=STELLAR,
                 compact=False,  # static shape -> grad-safe
@@ -128,3 +127,50 @@ class TestBuildBinaryCluster:
 
         g = jax.grad(spread)(1.0)
         assert jnp.isfinite(g) and g > 0.0, f"d<|r|>/d(r_h) = {g}"
+
+
+class TestBudgetTargets:
+    def test_stars_counts_companions(self):
+        """Stars(n) yields n or n+1 resolved stars (companions counted; whole systems)."""
+        n = 400
+        ic = _cluster(fbin=0.6, target=Stars(n), seed=1)
+        assert n <= ic.masses.shape[0] <= n + 1
+
+    def test_systems_does_not_count_companions(self):
+        """Systems(n) yields n systems -> n + n_binary stars (companions on top)."""
+        ic = _cluster(fbin=0.5, target=Systems(300), seed=1)
+        n_sec = int(jnp.sum(ic.is_primordial_secondary))
+        assert ic.masses.shape[0] == 300 + n_sec
+
+    def test_totalmass_reaches_budget(self):
+        """TotalMass(M) yields total stellar mass >= M, minimal whole-system overshoot."""
+        M = 800.0
+        ic = _cluster(fbin=0.5, target=TotalMass(M), seed=2)
+        total = float(jnp.sum(ic.masses))
+        assert total >= M
+        assert total <= M + float(jnp.max(ic.masses)) * 2  # <= one (binary) system over
+
+    def test_stars_compact_false_raises(self):
+        """Stars/TotalMass have dynamic counts -> the masked differentiable path is rejected."""
+        with pytest.raises(ValueError, match="Systems"):
+            _cluster(target=Stars(100), compact=False)
+
+
+class TestMoeCompanionsCluster:
+    def test_invariants_with_moe_joint(self):
+        """A cluster built from the faithful MoeCompanions satisfies the same IC invariants."""
+        ic = build_binary_cluster(
+            profile=PlummerProfile(r_h=1.0),
+            velocity_df=PlummerVelocityDF(r_h=1.0),
+            primary_imf=PowerLawIMF.kroupa(),
+            companion_model=MoeCompanions(),
+            target=Systems(400),
+            key=jax.random.PRNGKey(7),
+            units=STELLAR,
+        )
+        assert jnp.all(ic.masses > 0.0)  # no ghosts
+        com = jnp.sum(ic.positions * ic.masses[:, None], axis=0) / jnp.sum(ic.masses)
+        assert jnp.allclose(com, 0.0, atol=1e-10), f"cluster COM {com}"
+        # secondaries are real: m2 <= m1 within each primordial binary -> q in (0,1]
+        n_sec = int(jnp.sum(ic.is_primordial_secondary))
+        assert n_sec > 0
