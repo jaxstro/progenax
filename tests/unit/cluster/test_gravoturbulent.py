@@ -2,10 +2,10 @@
 
 This module tests the physics-based f_sub derivation using both BM19 and PN11:
 - BM19 (default): s_t = (α - 0.5) × σ_s²
-- PN11 (alternative): s_crit = ln((π²φ_x²/5) × α_vir × M²)
+- PN11 (alternative): s_crit = ln(0.067 × θ⁻² × α_vir × M²)  [PN11 Eq. 8, θ=0.35 → 0.547]
 
-Based on the theory document:
-    progenax/docs/core-papers/progenax-gravoturbulent-fdf-theory.md
+Based on the gravoturbulent FDF theory guide:
+    docs/dev-methods-guides/gravoturbulent_fdf_IC_theory_guide.md
 """
 
 import pytest
