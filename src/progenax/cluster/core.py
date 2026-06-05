@@ -54,12 +54,6 @@ from progenax.profiles.api import (
     compute_profile_potential,
 )
 from progenax.cluster.mass_segregation import energy_sorted_segregation
-# Legacy GW2004 fractal (deprecated - will be replaced by FDF)
-from progenax.cluster.fractal_gw_legacy import (
-    generate_fractal_positions,
-    rescale_fractal_to_target_radii,
-    assign_velocities_and_virialize,
-)
 from progenax.dynamics.virial import (
     compute_potential_energy,
     rescale_velocities_to_virial,
