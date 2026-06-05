@@ -209,20 +209,7 @@ def test_compute_potential_energy_grad_finite_at_default_softening():
     assert abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30) < 1e-5, f"ad {ad} vs fd {fd}"
 
 
-def test_init_bm19_density_field_differentiable_in_params():
-    """init_bm19_density_field must be differentiable in its BM19 params with a CORRECT
-    gradient (not just finite): the resolution guard runs only on concrete inputs, and the
-    rank-copula param-gradient flows through the CDF table (M3 design-doc claim; audit minor)."""
-    import jax
-    import jax.numpy as jnp
-    from progenax.cluster.fdf_density import init_bm19_density_field
-
-    def summary(sigma_s_sq):  # contrast (sum of squares) DOES depend on sigma_s_sq
-        s_t = (2.0 - 0.5) * sigma_s_sq
-        fld = init_bm19_density_field(jax.random.PRNGKey(2), sigma_s_sq, s_t, 2.0, grid_size=16)
-        return jnp.sum(fld.rho_grid ** 2)
-
-    g = jax.grad(summary)(1.0)
-    assert jnp.isfinite(g), f"grad is {g}, expected finite"
-    fd = (summary(1.0 + 1e-4) - summary(1.0 - 1e-4)) / 2e-4
-    assert abs(g - fd) / (abs(g) + abs(fd) + 1e-30) < 1e-4, f"grad {g} vs FD {fd}"
+# NOTE: the FDF density-field differentiability test was retired in P5 with the legacy
+# cluster.fdf_density subsystem. Its replacement — grad through the rank-copula CDF table —
+# is covered by tests/experimental/unit/test_copula.py
+# (test_rank_copula_differentiable_in_alpha, test_mass_conserving_differentiable_in_alpha).

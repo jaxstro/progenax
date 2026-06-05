@@ -46,18 +46,11 @@ class TestImports:
         assert sample_velocities_for_profile is not None
 
     def test_cluster_submodule_imports(self):
-        """Test submodule imports."""
+        """Test submodule imports (released core; the fractal_gw_legacy subsystem was
+        removed in P5 — its FBM replacement lives in experimental gravoturb_fdf)."""
         from progenax.cluster.mass_segregation import energy_sorted_segregation
-        from progenax.cluster.fractal_gw_legacy import (
-            generate_fractal_positions,
-            rescale_fractal_to_target_radii,
-            assign_velocities_and_virialize,
-        )
 
         assert energy_sorted_segregation is not None
-        assert generate_fractal_positions is not None
-        assert rescale_fractal_to_target_radii is not None
-        assert assign_velocities_and_virialize is not None
 
     def test_profiles_api_imports(self):
         """Test profiles functional API imports."""

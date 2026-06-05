@@ -7,9 +7,10 @@ star cluster simulations with optional mass segregation.
 
 Turbulent/fractal substructure ICs (the gravoturbulent + fractal-density-field
 pipeline) live in the experimental ``gravoturb_fdf`` package (follow-up paper),
-not in released progenax. The subsystem modules (``fdf``, ``fdf_density``,
+not in released progenax. The old subsystem modules (``fdf``, ``fdf_density``,
 ``fdf_tail``, ``gravoturbulent``, ``fdf_config``, ``fdf_calibration``,
-``fdf_hyperparams``) are no longer surfaced here and are scheduled for deletion.
+``fdf_hyperparams``, and the ``gravoturb`` package) were removed in the 2026-06
+clean-room rewrite; their validated successors are in ``gravoturb_fdf``.
 
 Main Entry Point:
     generate_cluster_ic: Generate complete cluster IC from parameters
@@ -43,8 +44,6 @@ from progenax.cluster.constants import (
     BETA_BURGERS,
     SIGMA_V0_DEFAULT,
     ALPHA_LARSON,
-    CHI_MIN,
-    CHI_MAX,
 )
 
 # Turbulence physics (stays in core; used by EnvironmentIMF)
@@ -74,8 +73,6 @@ __all__ = [
     "BETA_BURGERS",
     "SIGMA_V0_DEFAULT",
     "ALPHA_LARSON",
-    "CHI_MIN",
-    "CHI_MAX",
     # Turbulence physics
     "sigma_ln_rho_from_mach",
     "spectral_slope_from_mach",

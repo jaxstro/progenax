@@ -146,74 +146,18 @@ class TestPlummerBaseline:
         """
         Q_plummer = compute_q_parameter(plummer_positions)
 
-        # Plummer should have Q > 1.5 (way above CW04 range)
-        assert Q_plummer > 1.5, (
-            f"Plummer Q ({Q_plummer:.2f}) should be >> 1 due to concentration. "
-            "If Q < 1.5, something may be wrong with sampling."
+        # Plummer (centrally concentrated) gives Q > 1, well above the CW04
+        # fractal/uniform band (~0.5-0.95). Under the corrected A=πR² convention
+        # Plummer Q ≈ 1.2-1.7; assert > 1.1 (still clearly concentrated).
+        assert Q_plummer > 1.1, (
+            f"Plummer Q ({Q_plummer:.2f}) should be > 1 due to concentration. "
+            "If Q < 1.1, something may be wrong with sampling."
         )
 
 
-class TestEnvToFDFLayerRanges:
-    """Test that environment-derived FDF parameters are in physical ranges."""
-
-    def test_sigma_ln_rho_in_physical_range(self):
-        """σ_ln_ρ from environment should be in reasonable range.
-
-        Federrath+2010: σ_ln_ρ = sqrt(ln(1 + b²M²)) where b ~ 0.4.
-        Using Larson-derived Mach numbers (M ~ 3-5 with Marks+2012 densities),
-        this gives σ_ln_ρ ~ 0.9-1.2.
-
-        Note: Marks+2012 derived cloud densities are higher than typical GMCs,
-        resulting in smaller cloud radii and lower Mach numbers. Users can
-        override with explicit log_rho_cl for more realistic GMC densities.
-        """
-        from progenax.cluster.fdf_config import env_to_fdf_layer
-
-        test_cases = [
-            (3.0, "Small OC (10³ M☉)"),
-            (4.0, "Large OC (10⁴ M☉)"),
-            (5.0, "YMC (10⁵ M☉)"),
-            (6.0, "GC (10⁶ M☉)"),
-        ]
-
-        for log_mecl, name in test_cases:
-            layer = env_to_fdf_layer(jnp.array(log_mecl))
-            sigma = layer.sigma_ln_rho
-
-            # σ_ln_ρ ~ 0.9-1.2 with Marks+2012 densities (M ~ 3-5)
-            assert 0.5 < sigma < 2.0, (
-                f"{name}: σ_ln_ρ = {sigma:.2f} outside physical range [0.5, 2.0]"
-            )
-
-    def test_chi_in_valid_range(self):
-        """χ from environment should be in [1.6, 3.0]."""
-        from progenax.cluster.fdf_config import env_to_fdf_layer
-
-        for log_mecl in [3.0, 4.0, 5.0, 6.0]:
-            layer = env_to_fdf_layer(jnp.array(log_mecl))
-            chi = layer.chi
-
-            assert 1.6 <= chi <= 3.0, (
-                f"log_mecl={log_mecl}: χ = {chi:.2f} outside valid range [1.6, 3.0]"
-            )
-
-    def test_sigma_increases_with_mass(self):
-        """σ_ln_ρ should increase with cluster mass.
-
-        More massive clusters → higher velocity dispersion → higher Mach → higher σ.
-        """
-        from progenax.cluster.fdf_config import env_to_fdf_layer
-
-        sigmas = []
-        for log_mecl in [3.0, 4.0, 5.0, 6.0]:
-            layer = env_to_fdf_layer(jnp.array(log_mecl))
-            sigmas.append(layer.sigma_ln_rho)
-
-        # Check monotonic increase
-        for i in range(len(sigmas) - 1):
-            assert sigmas[i] < sigmas[i + 1], (
-                f"σ_ln_ρ should increase with mass: {sigmas}"
-            )
+# NOTE: TestEnvToFDFLayerRanges / TestEnvToFDFLayerPhysics were removed in P5 — they
+# tested cluster.fdf_config.env_to_fdf_layer (deleted). The underlying physics (σ_ln_ρ,
+# χ, b from environment) is covered below via BirthEnvironment + the clean-room subsystem.
 
 
 class TestBirthEnvironmentTurbulence:
@@ -322,7 +266,7 @@ class TestBFromEnvironment:
 
     def test_b_low_density_solenoidal(self):
         """Low-density clouds should have solenoidal driving (b ~ 0.33)."""
-        from progenax.cluster.fdf_config import b_from_environment
+        from progenax.cluster.turbulence import b_from_environment
 
         # Low density: 100 M☉/pc³ (log = 2)
         b_low = float(b_from_environment(jnp.array(2.0)))
@@ -334,7 +278,7 @@ class TestBFromEnvironment:
 
     def test_b_high_density_compressive(self):
         """High-density cores should have compressive driving (b ~ 0.7)."""
-        from progenax.cluster.fdf_config import b_from_environment
+        from progenax.cluster.turbulence import b_from_environment
 
         # High density: 10⁶ M☉/pc³ (log = 6)
         b_high = float(b_from_environment(jnp.array(6.0)))
@@ -346,7 +290,7 @@ class TestBFromEnvironment:
 
     def test_b_increases_with_density(self):
         """b should increase monotonically with cloud density."""
-        from progenax.cluster.fdf_config import b_from_environment
+        from progenax.cluster.turbulence import b_from_environment
 
         log_rhos = [2.0, 3.0, 4.0, 5.0, 6.0]
         b_values = [float(b_from_environment(jnp.array(lr))) for lr in log_rhos]
@@ -358,43 +302,5 @@ class TestBFromEnvironment:
             )
 
 
-class TestEnvToFDFLayerPhysics:
-    """Test that env_to_fdf_layer produces physics-consistent parameters."""
-
-    def test_env_to_fdf_layer_uses_environment_b(self):
-        """env_to_fdf_layer should derive b from environment when not specified."""
-        from progenax.cluster.fdf_config import env_to_fdf_layer
-
-        # Two different mass clusters should have different σ_ln_ρ
-        # (even with same Mach, b varies with density)
-        layer_small = env_to_fdf_layer(jnp.array(3.0))  # 10³ M☉
-        layer_large = env_to_fdf_layer(jnp.array(6.0))  # 10⁶ M☉
-
-        # Higher mass = denser cloud = higher b = higher σ_ln_ρ (at similar Mach)
-        assert layer_large.sigma_ln_rho > layer_small.sigma_ln_rho, (
-            "Larger clusters should have higher σ_ln_ρ due to higher b"
-        )
-
-    def test_env_to_fdf_layer_explicit_b_override(self):
-        """Explicit b should override environment derivation."""
-        from progenax.cluster.fdf_config import env_to_fdf_layer
-
-        # Same cluster mass, different explicit b values
-        layer_solenoidal = env_to_fdf_layer(jnp.array(4.0), b=0.33)
-        layer_compressive = env_to_fdf_layer(jnp.array(4.0), b=1.0)
-
-        # Compressive (b=1) should give higher σ_ln_ρ
-        assert layer_compressive.sigma_ln_rho > layer_solenoidal.sigma_ln_rho, (
-            "Higher b should give higher σ_ln_ρ"
-        )
-
-    def test_env_to_fdf_layer_chi_in_range(self):
-        """χ should always be in valid range [1.6, 3.0]."""
-        from progenax.cluster.fdf_config import env_to_fdf_layer, CHI_MIN, CHI_MAX
-
-        for log_mecl in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0]:
-            layer = env_to_fdf_layer(jnp.array(log_mecl))
-
-            assert CHI_MIN <= layer.chi <= CHI_MAX, (
-                f"log_mecl={log_mecl}: χ={layer.chi:.2f} outside [{CHI_MIN}, {CHI_MAX}]"
-            )
+# TestEnvToFDFLayerPhysics removed in P5 (tested the deleted cluster.fdf_config.env_to_fdf_layer).
+# The b-from-density physics is covered by TestBFromEnvironment above (core turbulence).

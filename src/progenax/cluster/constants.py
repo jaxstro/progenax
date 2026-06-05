@@ -1,5 +1,9 @@
 # progenax/src/progenax/cluster/constants.py
-"""Physical constants for FDF and gravoturbulent calculations.
+"""Physical constants for cluster turbulence relations.
+
+Consumed by ``cluster.turbulence`` (released) and the experimental ``gravoturb_fdf``
+subsystem. (The legacy FDF/gravoturbulent modules that also used these were removed in
+the 2026-06 clean-room rewrite.)
 
 All constants are in units consistent with the jaxstro ecosystem:
 - Masses: M☉
@@ -82,17 +86,6 @@ SIGMA_V0_DEFAULT = 1.0
 ALPHA_LARSON = 0.5
 
 
-# =============================================================================
-# Chi Parameter Bounds (Goodwin & Whitworth 2004)
-# =============================================================================
-
-# Chi controls small-scale vs large-scale power distribution
-# 1.6 = most clumpy (small-scale dominated)
-# 3.0 = smoothest (large-scale dominated)
-CHI_MIN = 1.6
-CHI_MAX = 3.0
-
-
 __all__ = [
     "G_KMS",
     "C_S_DEFAULT",
@@ -104,6 +97,4 @@ __all__ = [
     "BETA_DENSITY_FLOOR",
     "SIGMA_V0_DEFAULT",
     "ALPHA_LARSON",
-    "CHI_MIN",
-    "CHI_MAX",
 ]

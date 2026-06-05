@@ -124,3 +124,17 @@ def test_no_core_module_imports_subsystem_at_module_level():
         "Released-core modules still import the gravoturb-FDF subsystem at module "
         f"level (must be importer-free before P5 deletion):\n" + "\n".join(offenders)
     )
+
+
+def test_importing_progenax_pulls_in_no_subsystem_module():
+    """Runtime guard: `import progenax` must not load any condemned subsystem module
+    (the strongest evidence P5 deletion is a pure file removal)."""
+    import sys
+
+    import progenax  # noqa: F401
+
+    leaked = [
+        m for m in sys.modules
+        if _is_subsystem_module(m) and "gravoturb_fdf" not in m
+    ]
+    assert not leaked, f"import progenax leaked subsystem modules: {leaked}"
