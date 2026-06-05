@@ -53,6 +53,38 @@ IMF is $\langle m\rangle = 0.36\,M_\odot$ over $0.01$–$1\,M_\odot$ (p. 235).
 Because $\alpha_2 = \alpha_3 = 2.3$, the two highest segments can be merged into a single
 $\ge 0.5\,M_\odot$ segment with no change to the IMF.
 
+## Why the IMF *appears* to vary — the corrections (the paper's core argument)
+
+Kroupa's central methodological point is that most reported IMF "variations" are artefacts
+of three observational/dynamical effects, and vanish once corrected — hence a single
+*canonical* IMF suffices:
+
+- **Unresolved multiplicity.** Surveys measure *systems*, not stars. Because companions are
+  preferentially low-mass, the inferred *system* MF is flatter at low mass than the
+  *single-star* IMF. Kroupa derives the single-star IMF by populating systems with a
+  realistic binary fraction and "observing" them — the low-mass slope $\alpha_1$ steepens on
+  correction. (progenax keeps the two distinct: `PowerLawIMF.kroupa()` is the single-star IMF.)
+- **Poisson/sampling noise.** A finite cluster scatters the measured high-mass slope by
+  $\pm0.5$–$0.7$ (the quoted per-segment uncertainties); apparent cluster-to-cluster scatter
+  is consistent with one universal IMF.
+- **Dynamical evolution.** Two-body relaxation and tidal stripping preferentially remove
+  low-mass stars, flattening the *present-day* MF relative to the IMF — an age/dynamical
+  effect, not an IMF difference.
+
+The conclusion — *no convincing evidence for a primordial IMF variation in resolved Local
+Group populations* — is precisely the **null hypothesis** that the environment-dependent
+extensions ([](marks-2012.md), [](jerabkova-2018.md)) later challenge in the *extreme*
+density/metallicity regimes (dense GCs, UCDs, starbursts) that the Galactic field does not
+probe.
+
+## Inputs
+
+The canonical IMF has **no** environmental inputs — it is the universal baseline
+($\alpha_3=2.3$). The environment-dependent IMF reduces to exactly this canonical form in
+the low-density / solar-metallicity limit ($\rho_{\rm cl}\lesssim10^5\,M_\odot\,{\rm pc^{-3}}$,
+${\rm [Fe/H]}\gtrsim0$); only outside that regime do $(\rho_{\rm cl}, {\rm [Fe/H]})$ drive
+$\alpha_3$ away from $2.3$. No turbulence quantity enters at any point.
+
 ## Use in progenax
 
 - [](../../10-theory/imfs/classic.md) — the canonical multi-segment broken power law.

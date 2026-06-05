@@ -28,6 +28,53 @@ become **top-heavy** (lower $\alpha_3$) with **increasing pre-cluster core densi
 captures both dependences. This is the empirical basis for the density/metallicity-dependent
 high-mass IMF used in IGIMF theory.
 
+## The physics: top-heaviness from the gas-expulsion energy budget (§2, verified)
+
+The α₃ relations are **not** fitted ad hoc — they fall out of an energy argument. An
+embedded cluster forms with star-formation efficiency
+$\epsilon = M_{\rm ecl}/(M_{\rm ecl}+M_{\rm gas})$; the leftover gas must be expelled by
+feedback from the massive (O/B) stars. Marks et al. ask: *what high-mass slope $\alpha_3$
+delivers exactly enough energy to unbind the residual gas within a cluster crossing time?*
+
+**Energy required.** For a Plummer cluster ($r_h = 1.305\,r_{\rm pl}$) that expels its gas,
+the change in binding energy is (Eq. 5)
+
+$$
+E_{\rm OB}^{\rm req} = 1.305\,\frac{3G}{32}
+\left(\frac{M_{\rm cl}^2}{r_{h,\rm i}} - \frac{M_{\rm ecl}\,M_{\rm cl}}{r_{h,\rm i}}\right),
+$$
+
+with $M_{\rm cl}=M_{\rm ecl}/\epsilon$ the cloud-core mass and $r_{h,\rm f}=r_{h,\rm i}\,M_{\rm cl}/M_{\rm ecl}$
+the post-expulsion half-mass radius (Eq. 6, slow/adiabatic expulsion, Hills 1980).
+
+**Energy supplied.** The radiative + mechanical power deposited by all stars is (Eqs. 8–9)
+
+$$
+\dot E = \int_{0.08\,M_\odot}^{m_{\max}} \dot E_*(m)\,\xi(m)\,dm,
+\qquad
+\log_{10}\!\frac{\dot E_*}{{\rm erg\,Myr^{-1}}} = 50 + 1.72\left(\log_{10}\tfrac{m}{M_\odot} - 1.55\right),
+$$
+
+so the budget is dominated by massive stars and is negligible for low-mass stars. Integrated
+over a crossing time $\tau_{\rm cr}=\tfrac{2}{\sqrt G}M_{\rm cl}^{-1/2}r_h^{3/2}$ (Eq. 7),
+$\alpha_3$ is chosen so that $E_{\rm OB}^{\tau_M}(\alpha_3)=E_{\rm OB}^{\rm req}$.
+
+**Why it goes top-heavy with density.** A denser, more massive cluster sits in a deeper
+potential with more gas to expel ($E_{\rm OB}^{\rm req}$ larger), so it needs *more* massive
+stars — a *flatter* (smaller) $\alpha_3$. Lower metallicity raises the Jeans mass, also
+favouring massive stars. Hence $\alpha_3$ **decreases with $\rho_{\rm cl}$ and with
+decreasing [Fe/H]** — exactly the trends fit below.
+
+## Inputs — what actually sets α₃ (and what does *not*)
+
+The variation is driven by **three environmental quantities only**: the pre-cluster
+**cloud-core density $\rho_{\rm cl}$**, the **metallicity [Fe/H]**, and the **cluster mass**
+($M_{\rm cl}$/$M_{\rm ecl}$, which fix $\rho_{\rm cl}$ via the $r_h$–$M$ relation). It does
+**not** involve any turbulence statistic — neither the density-PDF width $\sigma_s$ nor the
+turbulent power-spectrum slope $\beta$. In progenax this means the environment-dependent IMF
+slopes are independent of `cluster.turbulence.spectral_slope_from_mach`: the gravoturbulent
+$\beta$ feeds only the experimental FDF *spatial* field, never the mass function.
+
 ## The canonical IMF and the α₃ relations (verified against the paper)
 
 The stellar IMF is the canonical multi-power-law (Eq. 2; Kroupa 2001),
