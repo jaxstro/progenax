@@ -470,25 +470,3 @@ class TestQParameterTrend:
         assert Q_means[1] > Q_means[0], (
             f"Q(D=1.6)={Q_means[0]:.3f} should be < Q(D=3.0)={Q_means[1]:.3f}"
         )
-
-
-class TestModuleExports:
-    """Tests for public API exports."""
-
-    def test_density_fdf_exports_from_cluster(self):
-        """Density FDF classes are exported from progenax.cluster."""
-        from progenax.cluster import (
-            FractalDensityLayer,
-            DensityField3D,
-            generate_fractal_ic_density,
-            init_turbulent_density_field,
-            sample_positions_from_density,
-            density_layer_from_D,
-        )
-
-        assert FractalDensityLayer is not None
-        assert DensityField3D is not None
-        assert generate_fractal_ic_density is not None
-        assert init_turbulent_density_field is not None
-        assert sample_positions_from_density is not None
-        assert density_layer_from_D is not None

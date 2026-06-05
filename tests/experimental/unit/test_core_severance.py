@@ -70,3 +70,57 @@ def test_birth_environment_imports_turbulence_directly():
         "birth_environment still imports from cluster.fdf_config; it must import "
         "turbulence relations directly from progenax.cluster.turbulence."
     )
+
+
+# ── Task 0.5: importer-free invariant — no released-core module imports the subsystem ──
+# The gravoturb-FDF subsystem modules still EXIST (deleted in P5), but released
+# progenax must not import them, so P5 deletion is a pure file removal.
+_SUBSYSTEM_FILES = {
+    "fdf.py", "fdf_tail.py", "gravoturbulent.py", "fdf_config.py",
+    "fdf_calibration.py", "fdf_hyperparams.py", "fractal_gw_legacy.py",
+}
+_SUBSYSTEM_TOKENS = {
+    "fdf", "fdf_density", "fdf_tail", "gravoturbulent", "fdf_config",
+    "fdf_calibration", "fdf_hyperparams", "fractal_gw_legacy", "gravoturb",
+}
+
+
+def _is_subsystem_module(modname):
+    if not modname:
+        return False
+    parts = modname.replace("progenax.", "").split(".")
+    return any(p in _SUBSYSTEM_TOKENS for p in parts)
+
+
+def _in_subsystem_file(path):
+    s = str(path)
+    return ("/gravoturb/" in s or "/fdf_density/" in s
+            or path.name in _SUBSYSTEM_FILES)
+
+
+def test_no_core_module_imports_subsystem_at_module_level():
+    """AST-scan released progenax: no core module imports a subsystem module
+    at module level (the prerequisite for safe wholesale deletion in P5)."""
+    import ast
+    import pathlib
+
+    import progenax
+
+    root = pathlib.Path(progenax.__file__).parent
+    offenders = []
+    for path in root.rglob("*.py"):
+        if _in_subsystem_file(path):
+            continue  # subsystem files may import each other
+        tree = ast.parse(path.read_text())
+        for node in tree.body:  # module level only
+            if isinstance(node, ast.ImportFrom) and _is_subsystem_module(node.module):
+                offenders.append(f"{path.name}:{node.lineno} from {node.module}")
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if _is_subsystem_module(alias.name):
+                        offenders.append(f"{path.name}:{node.lineno} import {alias.name}")
+
+    assert not offenders, (
+        "Released-core modules still import the gravoturb-FDF subsystem at module "
+        f"level (must be importer-free before P5 deletion):\n" + "\n".join(offenders)
+    )
