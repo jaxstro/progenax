@@ -129,7 +129,7 @@ output. The 3D formulation is what cosmological simulations output
 when probed at the cloud scale.
 
 progenax's [](bm19.md) forward chain uses the *PDF-based* formulation
-because the {cite:t}`Burkhart2018,Burkhart2021` framework is
+because the {cite:t}`Burkhart2018,BurkhartMocz2019` framework is
 parameterised in PDF space.
 
 ## The α↔p mapping
@@ -145,7 +145,7 @@ p \;=\; \frac{3}{\alpha}
 
 This is the same relation noted in the
 [PP20 α-to-p mapping](pp20.md#alpha-p).
-For the {cite:t}`Burkhart2021` α window $[\alpha_{\mathrm{sat}},\alpha_0]
+For the {cite:t}`BurkhartMocz2019` α window $[\alpha_{\mathrm{sat}},\alpha_0]
 = [1.5, 3.0]$, the corresponding $p$ window is $[1.0, 2.0]$ — from
 "marginally collapsing" to "singular isothermal" radial profiles.
 

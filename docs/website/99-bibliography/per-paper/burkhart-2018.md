@@ -26,7 +26,6 @@ Combines lognormal density PDF with a power-law tail, integrating the FDF kernel
 
 ## Notes
 
-Part I of the BM19-style gravoturbulent framework used here. The
-companion self-gravitating-gas-fraction reference is cited in this site
-with the legacy key {cite:t}`Burkhart2021`, but its corrected metadata
-is Burkhart & Mocz (2019).
+Part I of the BM19-style gravoturbulent framework used here. The companion
+self-gravitating-gas-fraction reference is {cite:t}`BurkhartMocz2019`
+([](burkhart-mocz-2019.md)).

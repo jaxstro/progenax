@@ -146,7 +146,7 @@ analytic form, or the Kainulainen+14 observation. Full history at
 ## References
 
 {cite:t}`ParmentierPasquali2020` for ζ(p); {cite:t}`Kainulainen2014`
-for the observational anchor; {cite:t}`Burkhart2018,Burkhart2021` for
+for the observational anchor; {cite:t}`Burkhart2018,BurkhartMocz2019` for
 the BM19 framework. Theory at
 [](../10-theory/gravoturbulence/pp20.md) and
 [](../10-theory/gravoturbulence/bm19.md).

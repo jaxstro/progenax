@@ -85,7 +85,7 @@ power-law tail represents *self-gravitating gas* in approximate
 isothermal collapse — the {cite:t}`Kritsuk2011` derivation maps
 $\rho \propto r^{-p}$ to a power-law in $s$ with slope $\alpha = 3/p$.
 
-For the canonical {cite:t}`Burkhart2021` α window
+For the canonical {cite:t}`BurkhartMocz2019` α window
 $\alpha \in [\alpha_{\mathrm{sat}}, \alpha_0] = [1.5, 3.0]$, the
 corresponding radial profile slope is $p = 3/\alpha \in [1, 2]$ —
 from "marginally collapsing" to "singular isothermal." This is the

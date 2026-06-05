@@ -130,7 +130,7 @@ magnification factor
     [](../10-theory/gravoturbulence/pp20.md).
 
 BM19 framework
-    {cite:t}`Burkhart2018,Burkhart2021` forward model: turbulence
+    {cite:t}`Burkhart2018,BurkhartMocz2019` forward model: turbulence
     parameters → density PDF → SFR. See
     [](../10-theory/gravoturbulence/bm19.md).
 

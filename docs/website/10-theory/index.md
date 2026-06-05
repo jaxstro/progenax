@@ -47,7 +47,7 @@ Every chapter follows the same template:
 * - [](tidal-and-substructure/index.md)
   - Tidal physics, the {cite:t}`Goodwin2004`-equivalent FDF method for differentiable substructure, and {cite:t}`Baumgardt2008` energy-ranked mass segregation.
 * - [](gravoturbulence/index.md)
-  - From the {cite:t}`FederrathKlessen2012` density PDF through the {cite:t}`ParmentierPasquali2020` magnification factor and the {cite:t}`Burkhart2018,Burkhart2021` dense-gas SFR framework.
+  - From the {cite:t}`FederrathKlessen2012` density PDF through the {cite:t}`ParmentierPasquali2020` magnification factor and the {cite:t}`Burkhart2018,BurkhartMocz2019` dense-gas SFR framework.
 * - [](populations/index.md)
   - Multi-component clusters and other composite distributions.
 ```

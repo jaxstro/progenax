@@ -19,7 +19,7 @@ structure** to the **integrated star formation rate**. The chain is:
    density-profile slope $p$ {cite:p}`ParmentierPasquali2020`.
 4. **BM19 framework** — the dense-gas SFR formalism that combines all
    the above into a predictive forward model for cloud-integrated SFR
-   {cite:p}`Burkhart2018,Burkhart2021`.
+   {cite:p}`Burkhart2018,BurkhartMocz2019`.
 
 ## Map of the section
 
@@ -41,7 +41,7 @@ structure** to the **integrated star formation rate**. The chain is:
 * - [](direct-3d-zeta.md)
   - `zeta_fdf_direct` — measure ζ directly from a 3D density field with no power-law assumption.
 * - [](bm19.md)
-  - The {cite:t}`Burkhart2018,Burkhart2021` framework that consumes ζ in a forward model for dense-gas SFR.
+  - The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ in a forward model for dense-gas SFR.
 ```
 
 ## Reading order
@@ -86,6 +86,6 @@ parameterisation in the inference target.
 The density-PDF framework is {cite:t}`FederrathKlessen2012`. The
 PP20 magnification factor is {cite:t}`ParmentierPasquali2020`, with
 the {cite:t}`Kainulainen2014` observational anchor for $p \approx 5/3$.
-The BM19 framework is {cite:t}`Burkhart2018,Burkhart2021`. The
+The BM19 framework is {cite:t}`Burkhart2018,BurkhartMocz2019`. The
 {cite:t}`TanKrumholzMcKee2006` cluster-formation framework provides
 some of the structural underpinning.
