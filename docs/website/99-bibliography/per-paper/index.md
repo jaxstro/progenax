@@ -50,6 +50,7 @@ The pages are organised alphabetically by first-author surname.
 
 - [](cartwright-2004.md)
 - [](goodwin-2004.md)
+- [](lomax-2018.md)
 - [](allison-2009.md)
 - [](baumgardt-2008.md)
 
@@ -59,6 +60,7 @@ The pages are organised alphabetically by first-author surname.
 - [](burkhart-2018.md)
 - [](burkhart-mocz-2019.md)
 - [](parmentier-pasquali-2020.md)
+- [](padoan-nordlund-2011.md)
 - [](kainulainen-2014.md)
 
 ## Stellar evolution
