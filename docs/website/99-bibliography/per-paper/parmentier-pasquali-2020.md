@@ -15,7 +15,7 @@ description: "Annotated reference for G. Parmentier & A. Pasquali — a new para
 **DOI.** [10.3847/1538-4357/abb8d3](https://doi.org/10.3847/1538-4357/abb8d3) ·
 **arXiv.** [2009.10652](https://arxiv.org/abs/2009.10652)
 
-**Verified.** Equations below checked against the held PDF (2026-06).
+**Verified.** Equations + ranges checked against the held PDF (pp. 1–5, Eqs. 1–9, Fig. 1; re-verified 2026-06).
 ```
 
 ## The big idea
@@ -33,6 +33,25 @@ $$
 $$
 
 $\zeta=1$ is the top-hat lower limit; $\zeta>1$ for any centrally-concentrated profile.
+
+## Physical & observational context (Sections 1–3)
+
+The dense-gas star-formation law — $N_\mathrm{YSO}\propto M_\mathrm{dg}$, equivalently
+$\mathrm{SFR}\propto M_\mathrm{dg}$ — is observationally near-linear (Lada et al. 2010 find
+$N_\mathrm{YSO}=0.18\,M_\mathrm{dg}$) but carries real *scatter*. PP20's thesis is that the
+scatter is not purely random: it partly tracks the cloud's internal **density gradient**.
+Steeper gradients (larger $p$) push more mass into the short-free-fall-time inner region,
+raising $\mathrm{SFR}/M_\mathrm{dg}$. The two key inputs PP20 separate (their Eq. 2) are the
+*intrinsic* efficiency per free-fall time $\epsilon_\mathrm{ff,int}$ (a true SF-physics
+number) and the purely *geometric* boost $\zeta$ — so that measuring a cloud's gradient
+unlocks its $\zeta$ and lets one read $\epsilon_\mathrm{ff,int}$ cleanly from the data.
+
+The radial slope $p$ is inferred observationally from the cloud $\rho$-pdf or projected
+$\Sigma$-pdf: for a power-law tail of index $n$ in the $\Sigma$-pdf, $p = 1 + 2/n$ (Kritsuk
+et al. 2011); $p\equiv\kappa$ in the Kainulainen et al. (2014) notation. The Kainulainen
+sample has a mean **$p \approx 1.67$** (range $1<p<2.2$), which is the canonical observational
+anchor: $\zeta(1.67)\approx1.79$. PP20 also apply the framework to the Central Molecular Zone
+(CMZ), whose clouds sit ~10× below the nearby-cloud locus in $(p,\,\mathrm{SFR}/M_\mathrm{dg})$.
 
 ## Core equations
 
@@ -65,8 +84,12 @@ caught transcription fabrication). Spot values:
 
 **Forbidden regions (their Fig. 1).** Equation (6) is the *upper* limit on $\zeta$ (pure
 power law), and $\zeta=1$ is the *lower* limit (top-hat); real cored profiles lie between.
-A cored profile $\rho(r)=\rho_c[1+(r/r_c)^2]^{-p/2}$ has a finite $\zeta$ even for $p\ge2$,
-obtained by numerically integrating the ratio above over $r/R\in[0,1]$.
+For $p\ge2$ a pure power law would drive the central density — and the SFR — to infinity, so
+PP20 add a flat inner **core**: a cored profile $\rho(r)=\rho_c[1+(r/r_c)^2]^{-p/2}$ has a
+finite $\zeta$ even for $p\ge2$, obtained by numerically integrating the ratio above over
+$r/R\in[0,1]$. The core *damps* the boost: a relative core size $r_c/r_\mathrm{clump}>0.1$
+already reduces $\zeta$ significantly (their Fig. 1), because it shrinks the centre-to-edge
+density contrast.
 
 **Link to BM19.** The PDF slope $\alpha$ (Burkhart & Mocz) and the radial slope $p$ are
 the same quantity: $p = \kappa = 3/\alpha$. So $\alpha\in[1.5,3]\Leftrightarrow p\in[1,2]$.
