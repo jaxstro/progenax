@@ -128,7 +128,7 @@ $$
 
 **Appendices**
 
-- [Appendix A: Python Implementation](#appendix-a-python-implementation)
+- [Appendix A: Reference Implementation](#appendix-a-reference-implementation-in-progenax)
 - [Appendix B: Classical PN11/FK12 Framework (Historical)](#appendix-b-classical-pn11fk12-framework-historical)
 - [Appendix C: The Q Parameter in Detail](#appendix-c-the-q-parameter-in-detail)
 - [Appendix D: Alternative—Local Virial Parameter Mask](#appendix-d-alternativelocal-virial-parameter-mask)
@@ -643,7 +643,7 @@ $$
 | Method | Theoretical basis | Implementation |
 |--------|------------------|----------------|
 | **Direct $s > s_t$** | Exact BM19 criterion | `compute_tail_pmfs_bm19()` |
-| Local overdensity proxy | Heuristic approximation | `compute_sampling_pmfs()` (deprecated) |
+| Local-overdensity proxy | Heuristic approximation | legacy `mode='pn11_legacy'` (deprecated) |
 
 The local overdensity method ($\rho/\rho_{\rm smooth}$) was a proxy that attempted to identify "locally overdense" regions. But BM19's criterion is about **absolute** log-density, not relative to neighbors. Direct thresholding:
 
@@ -691,7 +691,7 @@ In BM19-consistent mode (the default), the transition density $s_t$ comes direct
 
 **Differentiability note:** The BM19-consistent path is **fully differentiable** in all physical parameters $(\mathcal{M}, b, \alpha, \eta_{\rm survive})$. Gradients can flow from a loss defined on dense-gas statistics (e.g., $f_{\rm tail}$ or $\zeta_{\rm FDF}$) back through $s_t \to \sigma_s \to (\mathcal{M}, b, \alpha)$. This enables gradient-based inference on cloud parameters from observed cluster properties (Paper B). However, gradients **cannot** flow through $Q$ because of the MST-based measurement—if gradients through $Q$ were needed, a differentiable surrogate (e.g., kernel-based clustering score) would be required.
 
-**Implementation note:** The `local_overdensity()` path remains in the codebase for historical/phenomenological runs, but our default is `compute_tail_pmfs_bm19()` with direct thresholding on $s$.
+**Implementation note:** The legacy local-overdensity ranking (`mode='pn11_legacy'`) remains in the codebase for historical/phenomenological runs, but the default is `compute_tail_pmfs_bm19()` with direct thresholding on $s$.
 
 ---
 
@@ -794,37 +794,29 @@ where:
 
 ### 9.4 Analytic Form for ζ(p)
 
-For a pure power-law profile with $p < 2$ (PP20 Eq. 6, from Tan et al. 2006):
+For a pure power-law profile $\rho \propto r^{-p}$ with $0 \le p < 2$ (PP20 Eq. 6; derivation from Tan et al. 2006):
 
 $$
-\boxed{\zeta(p) = \frac{3 - p}{(2.6 - 2p)^{3/2}}}
+\boxed{\zeta(p) = \frac{(3 - p)^{3/2}}{2.6\,(2 - p)}}
 $$
 
-**⚠️ Critical validity note:** This analytic expression has a singularity at $p = 1.3$ (where $2.6 - 2p = 0$) and gives $\zeta(0) \approx 0.72 \neq 1$. For $p \gtrsim 1$, the formula becomes unreliable. **In practice, always measure $\zeta_{\rm FDF}$ directly** from the density field (§10.3) rather than relying on this expression.
+where $2.6 \approx 3^{3/2}/2 = 2.598$, so equivalently $\zeta(p) = 2(3-p)^{3/2}/[3^{3/2}(2-p)]$ (the two agree to $<0.1\%$ on $0 \le p < 2$). This expression is well-behaved on the whole physical domain: $\zeta(0) = 1$ (top-hat baseline), rising monotonically and diverging only as $p \to 2$ ($\alpha \to 3/2$), where the pure power-law mass integral itself diverges and a central core is required.
 
-**Representative ζ values from numerical integration** (with finite cores):
+**ζ(p) from PP20 Eq. 6** (pure power law, no core):
 
-| Profile slope $p$ | $\zeta$ (typical) | Notes |
-|-------------------|-------------------|-------|
-| 0 (uniform) | 1.0 | Top-hat baseline |
-| 1.0 | 1.0–1.5 | Shallow, modest boost |
-| 1.5 | 1.5–3 | Moderate concentration |
-| 1.7 | 2–5 | Significant concentration |
-| → 2 | → large | Core-dependent; measure directly |
+| Profile slope $p$ | $\zeta(p)$ | $\alpha = 3/p$ |
+|-------------------|------------|----------------|
+| 0 (uniform) | 1.000 | ∞ |
+| 1.0 | 1.089 | 3.0 |
+| 1.5 | 1.414 (= √2) | 2.0 |
+| 1.67 | 1.79 | 1.8 |
+| → 2 | → ∞ | → 1.5 |
 
-*These representative values come from numerical integration over realistic density profiles with finite central cores, not from the pure power-law formula above. The analytic formula is provided for reference but should not be used for $p \gtrsim 1$.*
+For $p \geq 2$ ($\alpha \le 3/2$) the pure power-law form diverges and a central core is required; $\zeta$ then depends on $r_c/R$ (use `magnification_factor_with_core` or measure $\zeta_{\rm FDF}$ directly).
 
-For $p \geq 2$, a central core is required; $\zeta$ then depends sensitively on $r_c/R$.
-
-> **Important:** For any realistic application with $\alpha \lesssim 3$ (i.e., $p \gtrsim 1$), we do **not** use the analytic $\zeta(p)$ formula. Instead, we measure $\zeta_{\rm FDF}$ directly from the FDF density field via the freefall-weighted integral:
+> **When to prefer the direct measurement $\zeta_{\rm FDF}$:** The analytic $\zeta(p)$ assumes a *pure* power law with no core, and diverges as $p \to 2$. Real dense gas has finite central cores and departs from a single power law, so for realistic geometry — and for any $p$ near 2 — measure $\zeta_{\rm FDF}$ directly from the FDF density field via the freefall-weighted integral:
 > $$\zeta_{\rm FDF} = \frac{\int_{\rm tail} \rho^{3/2} \, dV}{M_{\rm tail} \cdot \langle\rho_{\rm tail}\rangle^{1/2}}$$
-> This automatically accounts for cores, deviations from pure power laws, and the actual geometry of the dense tail. See `zeta_fdf_direct()` in Appendix A.
-
-$$
-\boxed{\textbf{Hard rule: For } p_{\rm eff} \gtrsim 1\textbf{, never use the closed-form } \zeta(p)\textbf{; always measure } \zeta_{\rm FDF} \textbf{ directly.}}
-$$
-
-Do not push the analytic formula into the singular regime.
+> This automatically accounts for cores, deviations from pure power laws, and the actual geometry of the dense tail. See `zeta_fdf_direct()` (Appendix A).
 
 ### 9.5 The Connection: BM19 α ↔ PP20 p
 
@@ -840,9 +832,7 @@ $$
 | 2.0 | 1.5 | Active collapse | Significant boost |
 | 1.5 | 2.0 | Isothermal cores | Very large (core-dependent) |
 
-**⚠️ Implementation note:** The analytic $\zeta(p)$ formula in the code,
-$$\zeta(p) = \frac{3-p}{(2.6 - 2p)^{3/2}}$$
-has a singularity at $p = 1.3$ and is undefined for $p > 1.3$. For production use with $p \gtrsim 1$, **always measure $\zeta_{\rm FDF}$ directly** from the simulated density field rather than relying on this analytic expression. The direct measurement via the freefall-weighted integral (§10.3) is both more accurate and avoids the singularity.
+**Implementation note:** The analytic $\zeta(p) = (3-p)^{3/2}/[2.6\,(2-p)]$ (§9.4) is valid across $0 \le p < 2$, diverging only as $p \to 2$ ($\alpha \to 3/2$). For dense gas with finite cores, departures from a single power law, or $p$ near 2, measure $\zeta_{\rm FDF}$ directly (§10.3) rather than relying on the pure-power-law form.
 
 **Key insight:** Advanced collapse (low $\alpha$) = steep radial profiles (high $p$) = large SFR boost ($\zeta \gg 1$).
 
@@ -900,7 +890,7 @@ From the dense-gas region, measure $p_{\rm eff}$ via:
 
 > **Hierarchy of ζ estimates:**
 > - **$\zeta_{\rm FDF}$ (direct measurement):** Ground truth; always valid. Use for any serious inference or comparison to PP20.
-> - **$\zeta(p)$ (analytic formula):** Sanity check only; valid for $p \lesssim 1.0$. Never use for typical $\alpha$ values ($\alpha \lesssim 3$, i.e., $p \gtrsim 1$).
+> - **$\zeta(p)$ (analytic formula, PP20 Eq. 6):** Valid for a pure power law across $0 \le p < 2$. Use as a closed-form estimate or sanity check; prefer $\zeta_{\rm FDF}$ when the dense gas has finite cores, departs from a single power law, or has $p$ near 2.
 
 Compute $\zeta$ directly from the field:
 
@@ -1212,1396 +1202,62 @@ The theory is complete. What remains is numerical calibration.
 
 ---
 
-## Appendix A: JAX Implementation
-
-This appendix provides a JAX-native, differentiable implementation of the BM19 + FDF + PP20 framework. All functions are compatible with `jax.jit`, `jax.grad`, and `jax.vmap`.
-
-```python
-"""
-Gravoturbulent Cluster IC Framework — JAX Implementation
-
-A differentiable implementation of:
-  Part I:   BM19 density PDF theory (σ_s, s_t, f_dense)
-  Part II:  FDF geometric tail selection
-  Part III: PP20 magnification factor (ζ)
-
-All functions are JIT-compatible and support automatic differentiation.
-"""
-
-from __future__ import annotations
-from typing import NamedTuple
-from functools import partial
-
-import jax
-import jax.numpy as jnp
-from jax import lax
-from jax.scipy.special import erfc
-from jax.scipy.signal import convolve
-
-# Type alias for clarity
-Array = jax.Array
-
-
-# =============================================================================
-# Part I: BM19 1D PDF Framework
-# =============================================================================
-
-@jax.jit
-def sigma_s_squared(mach: Array, b: Array = 0.4) -> Array:
-    """
-    BM19 Eq. 1: PDF width from turbulence.
-    
-    σ_s² = ln(1 + b²M²)
-    
-    Parameters
-    ----------
-    mach : Array
-        Turbulent Mach number (M = σ_v / c_s)
-    b : Array
-        Driving parameter (0.3-1.0; default 0.4 for mixed driving)
-        
-    Returns
-    -------
-    sigma_s_sq : Array
-        Variance of the log-density PDF
-    """
-    return jnp.log(1.0 + b**2 * mach**2)
-
-
-@jax.jit
-def power_spectrum_slope(mach: Array, b: Array = 0.4) -> Array:
-    """
-    Density power spectrum slope β from turbulence parameters.
-    
-    Based on Federrath+ 2010 (A&A 512, A81) and Kim & Ryu 2005,
-    the density power spectrum P_ρ(k) ∝ k^(-β) steepens with Mach number.
-    
-    For highly supersonic turbulence:
-        β ≈ 1.0 + 2.0 × ln(1 + (b×M)^γ) / ln(1 + (b×M_ref)^γ)
-    
-    where γ ≈ 0.5 and M_ref sets the normalization.
-    
-    Limiting behavior:
-        - Subsonic (M ≲ 1): β → 11/3 ≈ 3.67 (Kolmogorov)
-        - Supersonic (M ≫ 1): β → 4.0-4.2 (shock-dominated)
-    
-    Parameters
-    ----------
-    mach : Array
-        Turbulent Mach number
-    b : Array
-        Driving parameter
-        
-    Returns
-    -------
-    beta : Array
-        Power spectrum slope (typically 3.5-4.2)
-        
-    Notes
-    -----
-    This is a fit to simulation results. The exact form varies between
-    studies; this implementation follows the Federrath+ 2010 scaling.
-    
-    References
-    ----------
-    Federrath, C. et al. 2010, A&A, 512, A81
-    Kim, J. & Ryu, D. 2005, ApJL, 630, L45
-    """
-    # Effective turbulent amplitude
-    bM = b * mach
-    
-    # Interpolation between Kolmogorov (subsonic) and shock-dominated (supersonic)
-    # β transitions from ~11/3 to ~4 as M increases
-    beta_subsonic = 11.0 / 3.0  # Kolmogorov
-    beta_supersonic = 4.0       # Burgers/shock-dominated
-    
-    # Smooth transition using tanh
-    # Transition occurs around M ~ 1-2
-    transition_mach = 1.5
-    transition_width = 1.0
-    
-    weight = 0.5 * (1.0 + jnp.tanh((bM - transition_mach) / transition_width))
-    
-    beta = beta_subsonic + (beta_supersonic - beta_subsonic) * weight
-    
-    return beta
-
-
-@jax.jit
-def sonic_scale(cloud_size: Array, mach: Array) -> Array:
-    """
-    Sonic scale: length below which turbulence becomes subsonic.
-    
-    For isothermal turbulence with Larson/Burgers scaling (σ_v ∝ ℓ^0.5),
-    the sonic scale—where σ_v(ℓ_s) = c_s—is:
-    
-        ℓ_s = L × M^(-2)
-    
-    This is where the turbulent velocity equals the sound speed,
-    marking the transition from supersonic to subsonic cascade.
-    
-    Parameters
-    ----------
-    cloud_size : Array
-        Cloud outer scale L
-    mach : Array
-        Turbulent Mach number at scale L (i.e., M = σ_v(L) / c_s)
-        
-    Returns
-    -------
-    l_s : Array
-        Sonic scale
-        
-    Notes
-    -----
-    **Derivation:** If σ_v(ℓ) = σ_v(L) × (ℓ/L)^(1/2) and σ_v(L) = M × c_s,
-    then setting σ_v(ℓ_s) = c_s gives ℓ_s = L × M^(-2).
-    
-    For Burgers turbulence (velocity PS ∝ k^(-2)), the exponent is 0.5.
-    For Kolmogorov (σ_v ∝ ℓ^(1/3)), the result would be ℓ_s = L × M^(-3).
-    
-    We use the Burgers scaling as appropriate for supersonic ISM.
-    """
-    return cloud_size * mach**(-2)
-
-
-@jax.jit
-def transition_density(sigma_s_sq: Array, alpha: Array) -> Array:
-    """
-    BM19 Eq. 2: Transition density (derived, not parameterized).
-    
-    s_t = (α - 1/2) σ_s²
-    
-    This is where the lognormal body transitions to the powerlaw tail,
-    corresponding to the onset of self-gravitating collapse.
-    
-    Parameters
-    ----------
-    sigma_s_sq : Array
-        PDF variance from sigma_s_squared()
-    alpha : Array
-        Powerlaw slope (typically 1.5-3.0)
-        
-    Returns
-    -------
-    s_t : Array
-        Transition log-density
-    """
-    return (alpha - 0.5) * sigma_s_sq
-
-
-@jax.jit
-def f_dense_lognormal_limit(sigma_s_sq: Array, s_t: Array) -> Array:
-    """
-    Self-gravitating gas fraction in pure lognormal limit (α → ∞).
-    
-    f_dense = (1/2) erfc[(s_t - σ_s²/2) / (√2 σ_s)]
-    
-    This approximation ignores the powerlaw tail and is only valid
-    for very steep slopes (α ≳ 2.5). For general use, prefer
-    f_dense_bm19_full() which implements the complete piecewise integral.
-    
-    Retained for comparison and limiting-case validation.
-    """
-    sigma_s = jnp.sqrt(sigma_s_sq)
-    u = (s_t - sigma_s_sq / 2.0) / (jnp.sqrt(2.0) * sigma_s)
-    return 0.5 * erfc(u)
-
-
-@jax.jit
-def f_dense_bm19_full(
-    sigma_s_sq: Array, 
-    s_t: Array, 
-    alpha: Array
-) -> Array:
-    """
-    Full BM19 self-gravitating gas fraction (Eqs. 19-20).
-    
-    Computes the mass-weighted integral over the piecewise LN+PL PDF:
-    
-        f_dense = M(s > s_t) / M_total
-    
-    where the PDF is:
-        p(s) = p_LN(s)           for s < s_t
-        p(s) = A exp(-α s)       for s ≥ s_t
-    
-    with A chosen for continuity at s_t.
-    
-    Parameters
-    ----------
-    sigma_s_sq : Array
-        PDF variance σ_s²
-    s_t : Array  
-        Transition density
-    alpha : Array
-        Powerlaw slope (must be > 1 for convergence)
-        
-    Returns
-    -------
-    f_dense : Array
-        Mass fraction in self-gravitating tail (0 to 1)
-        
-    Notes
-    -----
-    The mass-weighted integrals are:
-    
-    For the lognormal part, multiplying by e^s shifts the Gaussian mean
-    from s_0 = -σ_s²/2 to s_0 + σ_s² = σ_s²/2. The resulting distribution
-    is already normalized (integrates to 1), so:
-    
-        M_LN(-∞, s_t) = Φ[(s_t - σ_s²/2) / σ_s]
-                      = (1/2)[1 + erf((s_t - σ_s²/2) / (√2 σ_s))]
-    
-    IMPORTANT: There is NO extra exp(σ_s²/2) prefactor. The choice
-    s_0 = -σ_s²/2 ensures mass conservation: ∫ e^s p_LN(s) ds = 1.
-    
-    Powerlaw part (s ≥ s_t):
-        M_PL = A/(α-1) × exp((1-α)s_t)    for α > 1
-    
-    where A = p_LN(s_t) × exp(α s_t) ensures continuity.
-    
-    Reference: Burkhart & Mocz 2019, ApJ, 879, 129, Equations 19-20
-    """
-    sigma_s = jnp.sqrt(sigma_s_sq)
-    
-    # -----------------------------------------------------------------
-    # Mass in lognormal part: M_LN(-∞, s_t) = Φ[(s_t - σ²/2) / σ]
-    # 
-    # This is the CDF of a Gaussian with mean σ²/2 and std σ.
-    # NO extra exp(σ²/2) factor - that's a common error.
-    # -----------------------------------------------------------------
-    u_LN = (s_t - sigma_s_sq / 2.0) / (jnp.sqrt(2.0) * sigma_s)
-    M_LN = 0.5 * (1.0 + jax.scipy.special.erf(u_LN))
-    
-    # -----------------------------------------------------------------
-    # Lognormal PDF at transition point (for powerlaw normalization A)
-    # p_LN(s_t) = (1/√(2π)σ_s) exp[-(s_t - s_0)² / (2σ_s²)]
-    # where s_0 = -σ_s²/2 for mass conservation
-    # -----------------------------------------------------------------
-    s_0 = -sigma_s_sq / 2.0
-    p_LN_at_st = (1.0 / (jnp.sqrt(2.0 * jnp.pi) * sigma_s)) * \
-                  jnp.exp(-(s_t - s_0)**2 / (2.0 * sigma_s_sq))
-    
-    # Powerlaw normalization: A = p_LN(s_t) × exp(α s_t)
-    A = p_LN_at_st * jnp.exp(alpha * s_t)
-    
-    # -----------------------------------------------------------------
-    # Mass in powerlaw part: M_PL = ∫_{s_t}^{∞} e^s × A exp(-αs) ds
-    #                             = A ∫_{s_t}^{∞} exp((1-α)s) ds
-    #                             = A / (α-1) × exp((1-α)s_t)  for α > 1
-    # -----------------------------------------------------------------
-    # Guard against α ≤ 1 (integral diverges)
-    alpha_safe = jnp.maximum(alpha, 1.0 + 1e-6)
-    M_PL = A / (alpha_safe - 1.0) * jnp.exp((1.0 - alpha_safe) * s_t)
-    
-    # -----------------------------------------------------------------
-    # Total mass and fraction
-    # For pure lognormal (α → ∞), M_PL → 0 and M_LN → total mass
-    # The total should be ~1 + small PL contribution
-    # -----------------------------------------------------------------
-    M_total = M_LN + M_PL
-    f_dense = M_PL / M_total
-    
-    # Clamp to valid range
-    return jnp.clip(f_dense, 0.0, 1.0)
-
-
-class BM19Result(NamedTuple):
-    """Container for BM19 calculation results."""
-    sigma_s: Array          # PDF width
-    sigma_s_sq: Array       # PDF variance
-    s_t: Array              # Transition density
-    f_dense: Array          # Self-gravitating fraction (full BM19 integral)
-    f_sub: Array            # Substructure fraction (after η_survive)
-    beta: Array             # Power spectrum slope
-    p: Array                # PP20 profile slope (= 3/α)
-    zeta: Array             # PP20 magnification factor
-
-
-@jax.jit
-def bm19_pipeline(
-    mach: Array,
-    b: Array = 0.4,
-    alpha: Array = 2.0,
-    eta_survive: Array = 0.6
-) -> BM19Result:
-    """
-    Complete BM19 calculation: cloud parameters → f_sub.
-    
-    This is the main entry point for Part I, computing all intermediate
-    quantities from cloud-scale observables.
-    
-    Parameters
-    ----------
-    mach : Array
-        Turbulent Mach number
-    b : Array
-        Driving parameter (0.3-1.0)
-    alpha : Array
-        Powerlaw slope (1.5-3.0)
-    eta_survive : Array
-        Feedback survival efficiency (0-1)
-        
-    Returns
-    -------
-    BM19Result : NamedTuple
-        All intermediate and final quantities
-        
-    Notes
-    -----
-    This function also computes PP20 quantities (p, zeta) for convenience.
-    These are conceptually Part III (Parmentier interpretation) rather
-    than Part I (BM19).
-    
-    In a production package, consider splitting into separate modules:
-    - bm19.py: sigma_s_squared, transition_density, f_dense_lognormal
-    - parmentier.py: magnification_factor, sfr_per_dense_gas
-    - api.py: bm19_pipeline as a thin wrapper combining both
-    
-    This keeps the physics layers independent and reusable.
-    """
-    # BM19 Eq. 1: PDF width
-    sigma_s_sq = sigma_s_squared(mach, b)
-    sigma_s = jnp.sqrt(sigma_s_sq)
-    
-    # Power spectrum slope from turbulence (Federrath+ 2010)
-    beta = power_spectrum_slope(mach, b)
-    
-    # BM19 Eq. 2: Transition density
-    s_t = transition_density(sigma_s_sq, alpha)
-    
-    # Self-gravitating fraction: FULL BM19 piecewise integral
-    f_dense = f_dense_bm19_full(sigma_s_sq, s_t, alpha)
-    
-    # Substructure fraction after feedback
-    f_sub = eta_survive * f_dense
-    
-    # PP20 connection: α ↔ p
-    p = 3.0 / alpha
-    zeta = magnification_factor(p)
-    
-    return BM19Result(
-        sigma_s=sigma_s,
-        sigma_s_sq=sigma_s_sq,
-        s_t=s_t,
-        f_dense=f_dense,
-        f_sub=f_sub,
-        beta=beta,
-        p=p,
-        zeta=zeta
-    )
-
-
-# =============================================================================
-# Part III: Parmentier Magnification Factor
-# =============================================================================
-
-@jax.jit
-def magnification_factor(p: Array) -> Array:
-    """
-    PP20 Eq. 6: Magnification factor ζ(p) for pure power-law profiles.
-    
-    ζ(p) = (3 - p) / (2.6 - 2p)^(3/2)
-    
-    ⚠️ DOMAIN WARNING: This formula is only valid for p < 1.3.
-    
-    Behavior by regime:
-    - p ∈ [0, 1): Physically meaningful, ζ(p) > 1
-    - p ∈ [1, 1.3): Mathematically defined but unreliable
-    - p ≥ 1.3: Singularity (denominator → 0); produces arbitrary large values
-    - p ≥ 2: Undefined and should NEVER be used; use zeta_fdf_direct() instead
-    
-    For ρ ∝ r^(-p), ζ quantifies the SFR boost compared to uniform density
-    (top-hat). Centrally concentrated profiles have ζ > 1 because inner
-    regions have shorter freefall times.
-    
-    Parameters
-    ----------
-    p : Array
-        Radial density profile slope.
-        **For reliable results, use only with p < 1.0.**
-        
-    Returns
-    -------
-    zeta : Array
-        Magnification factor (clamped to ≥ 1)
-        
-    Notes
-    -----
-    - Singularity at p = 1.3 (denominator zero)
-    - For p ≥ 1, results are unreliable; use zeta_fdf_direct() instead
-    - This function is retained for reference and sanity checks, but should
-      NOT be used in production for typical α values (α ≤ 3, i.e., p ≥ 1)
-    - The hard rule (see §9.4): For p_eff ≳ 1, always measure ζ_FDF directly.
-    """
-    # Clamp denominator to avoid division by zero near p = 1.3
-    # Note: This produces arbitrary values for p ≥ 1.3; see docstring warning.
-    denom = jnp.maximum(2.6 - 2.0 * p, 1e-6)
-    zeta = (3.0 - p) / denom**1.5
-    
-    # Clamp to physical range: ζ ≥ 1 (top-hat is minimum)
-    return jnp.maximum(zeta, 1.0)
-
-
-@jax.jit
-def magnification_factor_with_core(
-    p: Array, 
-    r_c_over_R: Array,
-    n_integration_points: int = 100
-) -> Array:
-    """
-    Full PP20 magnification factor with central constant-density core.
-    
-    For a density profile:
-        ρ(r) = ρ_c / [1 + (r/r_c)^2]^(p/2)
-    
-    which transitions from ρ ~ ρ_c for r << r_c to ρ ~ r^(-p) for r >> r_c.
-    
-    The magnification factor is computed by numerical integration:
-    
-        ζ = [∫₀^R ρ(r)^(3/2) 4πr² dr] / [M × ⟨ρ⟩^(1/2)]
-    
-    where M = ∫₀^R ρ(r) 4πr² dr is the total mass.
-    
-    Parameters
-    ----------
-    p : Array
-        Profile slope (0 to ~2.5)
-    r_c_over_R : Array
-        Core radius as fraction of outer radius (0 to 1)
-        
-    Returns
-    -------
-    zeta : Array
-        Magnification factor (≥ 1)
-        
-    Notes
-    -----
-    This implements the physics of PP20 Eq. 8 via direct integration.
-    
-    Limiting cases:
-    - r_c/R → 0: approaches pure power-law ζ(p) for p < 2
-    - r_c/R → 1: approaches ζ = 1 (uniform density)
-    - p → 0: ζ = 1 regardless of r_c/R
-    
-    References
-    ----------
-    Parmentier & Pasquali 2020, ApJ, 903, 56, Equations 7-8
-    Tan, Krumholz & McKee 2006, ApJL, 641, L121
-    """
-    # Dimensionless radial grid (r/R)
-    x = jnp.linspace(0.01, 1.0, n_integration_points)
-    dx = x[1] - x[0]
-    
-    # Core radius in dimensionless units
-    x_c = jnp.maximum(r_c_over_R, 1e-4)  # Avoid division by zero
-    
-    # Density profile: ρ/ρ_c = [1 + (x/x_c)²]^(-p/2)
-    # Using softened form for numerical stability
-    rho_normalized = jnp.power(1.0 + (x / x_c)**2, -p / 2.0)
-    
-    # Volume element: 4π x² dx (in dimensionless units)
-    dV = 4.0 * jnp.pi * x**2 * dx
-    
-    # Mass integral: M ∝ ∫ ρ dV
-    mass_integrand = rho_normalized * dV
-    total_mass = jnp.sum(mass_integrand)
-    
-    # Mean density: ⟨ρ⟩ = M / V, where V = (4/3)πR³ = 4π/3 in units of R
-    volume = 4.0 * jnp.pi / 3.0
-    mean_rho = total_mass / volume
-    
-    # SFR-weighted integral: ∫ ρ^(3/2) dV
-    # (since SFR ∝ ρ/t_ff ∝ ρ^(3/2))
-    sfr_integrand = jnp.power(rho_normalized, 1.5) * dV
-    sfr_weighted = jnp.sum(sfr_integrand)
-    
-    # Top-hat reference: SFR_tophat ∝ M × ⟨ρ⟩^(1/2)
-    tophat_sfr = total_mass * jnp.sqrt(mean_rho)
-    
-    # Magnification factor
-    zeta = sfr_weighted / tophat_sfr
-    
-    # Ensure ζ ≥ 1 (top-hat is minimum)
-    return jnp.maximum(zeta, 1.0)
-
-
-@jax.jit
-def sfr_per_dense_gas(
-    p: Array,
-    eps_ff_int: Array = 0.01,
-    t_ff_dg_Myr: Array = 0.25
-) -> Array:
-    """
-    PP20 framework: SFR per unit dense gas mass.
-    
-    SFR/M_dg = ζ(p) × ε_ff,int / t_ff,dg
-    
-    Parameters
-    ----------
-    p : Array
-        Profile slope
-    eps_ff_int : Array
-        Intrinsic efficiency per freefall time (typically ~0.01)
-    t_ff_dg_Myr : Array
-        Mean freefall time of dense gas in Myr
-        
-    Returns
-    -------
-    sfr_per_mdg : Array
-        SFR/M_dg in Myr^(-1)
-    """
-    zeta = magnification_factor(p)
-    return zeta * eps_ff_int / t_ff_dg_Myr
-
-
-# =============================================================================
-# Part II: FDF Geometric Tail Selection
-# =============================================================================
-
-@jax.jit
-def log_density_field(rho_grid: Array) -> Array:
-    """
-    Convert density field to log-density contrast s = ln(ρ/ρ₀).
-    
-    This is the natural variable for BM19's PDF framework.
-    The mean density ρ₀ is computed as the arithmetic mean.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field, shape (N, N, N)
-        
-    Returns
-    -------
-    s_field : Array
-        Log-density contrast field, same shape as rho_grid
-    """
-    # Mean density (arithmetic mean for normalization)
-    rho_0 = jnp.mean(rho_grid)
-    
-    # Log-density contrast
-    # Guard against log(0) with small floor
-    rho_safe = jnp.maximum(rho_grid, 1e-10 * rho_0)
-    s_field = jnp.log(rho_safe / rho_0)
-    
-    return s_field
-
-
-def _make_gaussian_kernel_3d(sigma_cells: int, truncate: float = 3.0) -> Array:
-    """Create a 3D Gaussian smoothing kernel."""
-    # Kernel size: truncate at ±truncate*sigma
-    half_size = int(truncate * sigma_cells + 0.5)
-    size = 2 * half_size + 1
-    
-    # 1D Gaussian
-    x = jnp.arange(size) - half_size
-    g1d = jnp.exp(-0.5 * (x / sigma_cells)**2)
-    g1d = g1d / g1d.sum()
-    
-    # Outer product for 3D
-    g2d = jnp.outer(g1d, g1d)
-    g3d = jnp.einsum('ij,k->ijk', g2d, g1d)
-    
-    return g3d / g3d.sum()
-
-
-@partial(jax.jit, static_argnums=(1,))
-def local_overdensity(
-    rho_grid: Array,
-    smoothing_cells: int = 3
-) -> Array:
-    """
-    Compute local overdensity field δ_loc = ρ / ρ_smooth.
-    
-    NOTE: This is a PROXY for the BM19 self-gravitating criterion.
-    For strict BM19 consistency, use direct_s_threshold() which
-    thresholds on s = ln(ρ/ρ₀) at s_t.
-    
-    This function is retained for historical/phenomenological runs where 
-    local contrast relative to surroundings (rather than global mean) 
-    is desired.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field, shape (N, N, N)
-    smoothing_cells : int
-        Gaussian smoothing width in grid cells (static for JIT)
-        
-    Returns
-    -------
-    delta_loc : Array
-        Local overdensity field, same shape as rho_grid
-        
-    Notes
-    -----
-    **Performance caveat:** Current implementation uses full 3D convolution 
-    via jax.scipy.signal.convolve. For production 128³+ grids, consider 
-    replacing with separable 1D convolutions or FFT-based convolution; 
-    this function is primarily for experiments and historical runs.
-    """
-    # Create Gaussian kernel
-    kernel = _make_gaussian_kernel_3d(smoothing_cells)
-    
-    # Smooth the density field (mode='same' keeps shape)
-    rho_smooth = convolve(rho_grid, kernel, mode='same')
-    
-    # Avoid division by zero
-    rho_smooth = jnp.maximum(rho_smooth, 1e-10 * jnp.mean(rho_grid))
-    
-    return rho_grid / rho_smooth
-
-
-@jax.jit
-def direct_s_threshold_weights(
-    s_field: Array,
-    s_t: Array,
-    sharpness: Array = 10.0
-) -> Array:
-    """
-    BM19-consistent tail selection: threshold directly on log-density.
-    
-    This implements the BM19 criterion that gas with s > s_t is
-    self-gravitating, where s = ln(ρ/ρ₀) and s_t is the transition
-    density from BM19 Eq. 2.
-    
-    Uses soft sigmoid for differentiability.
-    
-    Parameters
-    ----------
-    s_field : Array
-        Log-density contrast field from log_density_field()
-    s_t : Array
-        Transition density from transition_density()
-    sharpness : Array
-        Sigmoid sharpness (higher = sharper transition)
-        
-    Returns
-    -------
-    weights : Array
-        Soft membership weights in [0, 1]
-        weights → 1 where s > s_t (self-gravitating)
-        weights → 0 where s < s_t (turbulence-dominated)
-        
-    Notes
-    -----
-    This is the PREFERRED method for BM19-consistent tail selection.
-    It directly implements the theoretical criterion rather than using
-    a local overdensity proxy.
-    """
-    return jax.nn.sigmoid(sharpness * (s_field - s_t))
-
-
-@jax.jit
-def tail_mass_fraction_from_s(
-    rho_grid: Array,
-    s_field: Array,
-    s_t: Array
-) -> Array:
-    """
-    Compute mass fraction above s_t threshold (hard mask).
-    
-    This should match f_dense from BM19 theory if the density field
-    has the correct PDF statistics.
-    
-    **Note:** This function uses a hard boolean mask (s > s_t), not soft
-    sigmoid weights. It is intended as a **diagnostic tool** for validation,
-    not for gradient-aware inference. For differentiable tail selection,
-    use `compute_tail_pmfs_bm19()` which employs soft sigmoid weights.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field  
-    s_field : Array
-        Log-density contrast field
-    s_t : Array
-        Transition density threshold
-        
-    Returns
-    -------
-    f_tail : Array
-        Mass fraction with s > s_t
-    """
-    mask = s_field > s_t
-    mass_in_tail = jnp.sum(jnp.where(mask, rho_grid, 0.0))
-    total_mass = jnp.sum(rho_grid)
-    return mass_in_tail / total_mass
-
-
-@jax.jit
-def soft_tail_weights(
-    delta_loc: Array,
-    threshold: Array,
-    sharpness: Array = 10.0
-) -> Array:
-    """
-    Soft (differentiable) tail selection weights based on local overdensity.
-    
-    NOTE: This is a PROXY method. For BM19-consistent selection, prefer
-    direct_s_threshold_weights() which thresholds on s directly.
-    
-    Parameters
-    ----------
-    delta_loc : Array
-        Local overdensity field
-    threshold : Array  
-        Overdensity threshold for tail
-    sharpness : Array
-        Sigmoid sharpness (higher = sharper transition)
-        
-    Returns
-    -------
-    weights : Array
-        Soft membership weights in [0, 1]
-    """
-    # Sigmoid centered at threshold
-    return jax.nn.sigmoid(sharpness * (delta_loc - threshold))
-
-
-class TailPMFs(NamedTuple):
-    """Probability mass functions for star sampling."""
-    p_tail: Array       # PMF over tail cells
-    p_smooth: Array     # PMF over all cells
-    tail_weights: Array # Soft tail membership
-    f_tail_actual: Array  # Actual mass fraction in tail
-
-
-@jax.jit
-def compute_tail_pmfs_bm19(
-    rho_grid: Array,
-    s_t: Array,
-    sharpness: Array = 10.0
-) -> TailPMFs:
-    """
-    Compute PMFs using BM19-consistent direct s-thresholding.
-    
-    This is the PREFERRED method: it directly implements the BM19
-    criterion that gas with s > s_t is self-gravitating.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field
-    s_t : Array
-        Transition density from BM19 (via transition_density())
-    sharpness : Array
-        Sigmoid sharpness for soft selection
-        
-    Returns
-    -------
-    TailPMFs : NamedTuple
-        p_tail, p_smooth, tail_weights, and f_tail_actual
-        
-    Notes
-    -----
-    The resulting f_tail_actual should approximately match f_dense
-    from BM19 theory if the density field has correct statistics.
-    
-    **Gradient flow:** This function is fully differentiable. Gradients
-    flow through s_t back to (M, b, α, η_survive) via the BM19 pipeline:
-    
-        (M, b, α, η) → σ_s → s_t → tail_weights → f_tail → loss
-    
-    The entire pipeline (M, b, α, η) ↦ star PMFs is differentiable,
-    enabling gradient-based inference. The only non-differentiable step
-    is the Q measurement itself (MST-based), which would require a
-    differentiable surrogate (e.g., kernel-based clustering score) if
-    gradients through Q were needed.
-    """
-    # Convert to log-density
-    s_field = log_density_field(rho_grid)
-    
-    # BM19-consistent soft weights: s > s_t
-    tail_weights = direct_s_threshold_weights(s_field, s_t, sharpness)
-    
-    # PMFs (normalized)
-    p_tail_unnorm = tail_weights * rho_grid
-    p_tail = p_tail_unnorm / jnp.sum(p_tail_unnorm)
-    
-    p_smooth = rho_grid / jnp.sum(rho_grid)
-    
-    # Actual mass fraction in tail (for validation)
-    f_tail_actual = jnp.sum(tail_weights * rho_grid) / jnp.sum(rho_grid)
-    
-    return TailPMFs(
-        p_tail=p_tail, 
-        p_smooth=p_smooth, 
-        tail_weights=tail_weights,
-        f_tail_actual=f_tail_actual
-    )
-
-
-@jax.jit
-def compute_sampling_pmfs(
-    rho_grid: Array,
-    delta_loc: Array,
-    f_target: Array,
-    sharpness: Array = 10.0
-) -> TailPMFs:
-    """
-    Compute PMFs using local overdensity proxy (DEPRECATED).
-    
-    This method uses ρ/ρ_smooth as a proxy for identifying dense gas.
-    For BM19-consistent selection, prefer compute_tail_pmfs_bm19()
-    which directly thresholds on s = ln(ρ/ρ₀) at s_t.
-    
-    Retained for backward compatibility and comparison studies.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field
-    delta_loc : Array
-        Local overdensity field  
-    f_target : Array
-        Target mass fraction for tail (= f_dense from BM19)
-    sharpness : Array
-        Sigmoid sharpness for soft selection
-        
-    Returns
-    -------
-    TailPMFs : NamedTuple
-        p_tail, p_smooth, tail_weights, and f_tail_actual
-        
-    Notes
-    -----
-    **Differentiability:** The soft sigmoid weights are differentiable
-    w.r.t. δ_loc at fixed threshold. However, the threshold itself is
-    determined by a quantile calculation (argsort + searchsorted) which
-    is piecewise constant—gradients through this step are zero almost
-    everywhere.
-    
-    Practical implications:
-    - Gradients of p_tail w.r.t. rho_grid flow through the sigmoid
-    - Gradients w.r.t. f_target do NOT flow (quantile is non-diff)
-    - For end-to-end differentiability, consider soft top-k relaxations
-    """
-    # Heuristic: threshold scales with percentile of overdensity
-    flat_delta = delta_loc.ravel()
-    flat_rho = rho_grid.ravel()
-    
-    # Mass-weighted percentile (approximate via sorting proxy)
-    sorted_idx = jnp.argsort(flat_delta)[::-1]
-    cumulative_mass = jnp.cumsum(flat_rho[sorted_idx])
-    total_mass = cumulative_mass[-1]
-    
-    # Find index where cumulative mass ≈ f_target * total
-    target_mass = f_target * total_mass
-    threshold_idx = jnp.searchsorted(cumulative_mass, target_mass)
-    threshold_idx = jnp.minimum(threshold_idx, len(flat_delta) - 1)
-    threshold = flat_delta[sorted_idx[threshold_idx]]
-    
-    # Soft weights
-    tail_weights = soft_tail_weights(delta_loc, threshold, sharpness)
-    
-    # PMFs (normalized)
-    p_tail_unnorm = tail_weights * rho_grid
-    p_tail = p_tail_unnorm / jnp.sum(p_tail_unnorm)
-    
-    p_smooth = rho_grid / jnp.sum(rho_grid)
-    
-    # Actual mass fraction
-    f_tail_actual = jnp.sum(tail_weights * rho_grid) / jnp.sum(rho_grid)
-    
-    return TailPMFs(
-        p_tail=p_tail, 
-        p_smooth=p_smooth, 
-        tail_weights=tail_weights,
-        f_tail_actual=f_tail_actual
-    )
-
-
-# =============================================================================
-# Utility: Direct ζ_FDF Measurement
-# =============================================================================
-
-@jax.jit
-def zeta_fdf_direct(
-    rho_grid: Array,
-    dense_weights: Array
-) -> Array:
-    """
-    Compute magnification factor directly from density field.
-    
-    ζ_FDF = [Σ w(x) ρ(x)/t_ff(x) dV] / [M_dg / ⟨t_ff,dg⟩]
-    
-    This bypasses the power-law assumption and measures the actual
-    geometric boost from the density field.
-    
-    Parameters
-    ----------
-    rho_grid : Array
-        3D density field
-    dense_weights : Array
-        Dense gas weights. Can be:
-        - Boolean/hard mask (0 or 1)
-        - Soft weights from sigmoid tail selection (continuous in [0,1])
-        Using soft weights makes ζ_FDF differentiable w.r.t. tail selection.
-        
-    Returns
-    -------
-    zeta_fdf : Array
-        Measured magnification factor
-        
-    Notes
-    -----
-    G (gravitational constant) cancels in the ratio ζ = SFR_actual / SFR_tophat,
-    so we work in arbitrary but consistent units. The ρ^(3/2) scaling comes 
-    from SFR ∝ ρ/t_ff ∝ ρ × ρ^(1/2).
-    
-    Assumes equal-volume grid cells. For non-uniform grids, multiply
-    by explicit dV factors (they mostly cancel in the ratio).
-    """
-    # Weighted density field (soft or hard selection)
-    rho_weighted = rho_grid * dense_weights
-    
-    # Numerator: sum of ρ/t_ff over dense gas
-    # ρ/t_ff ∝ ρ × ρ^(1/2) = ρ^(3/2), weighted by dense membership
-    sfr_weighted = jnp.sum(dense_weights * rho_grid**1.5)
-    
-    # Denominator: M_dg / t_ff(⟨ρ_dg⟩)
-    # M_dg = sum of weighted density
-    M_dg = jnp.sum(rho_weighted)
-    
-    # Effective volume of dense gas (sum of weights)
-    V_dg = jnp.sum(dense_weights)
-    
-    # Mean density of dense gas
-    mean_rho_dg = M_dg / jnp.maximum(V_dg, 1e-10)
-    
-    # Top-hat equivalent SFR: what you'd get with uniform density = mean_rho_dg
-    tophat_sfr = M_dg * jnp.sqrt(mean_rho_dg)
-    
-    # Ratio: actual / top-hat
-    return sfr_weighted / jnp.maximum(tophat_sfr, 1e-10)
-
-
-# =============================================================================
-# Vectorized Operations
-# =============================================================================
-
-# Vectorize over batch dimension for parameter sweeps
-bm19_pipeline_batch = jax.vmap(bm19_pipeline, in_axes=(0, None, None, None))
-magnification_factor_batch = jax.vmap(magnification_factor)
-
-
-# =============================================================================
-# Gradient Utilities
-# =============================================================================
-
-@jax.jit
-def grad_f_dense_wrt_mach(
-    mach: Array,
-    b: Array = 0.4,
-    alpha: Array = 2.0
-) -> Array:
-    """
-    Gradient of f_dense with respect to Mach number.
-    
-    This differentiates through the FULL BM19 piecewise integral,
-    capturing how the self-gravitating fraction responds to changes
-    in turbulence.
-    
-    BM19 predict a weak *anti*-correlation (∂f_dense/∂M < 0) for actively
-    star-forming clouds, because higher M pushes s_t higher faster than
-    it widens the PDF.
-    """
-    def f_dense_fn(m):
-        sigma_s_sq = sigma_s_squared(m, b)
-        s_t = transition_density(sigma_s_sq, alpha)
-        return f_dense_bm19_full(sigma_s_sq, s_t, alpha)
-    
-    return jax.grad(f_dense_fn)(mach)
-
-
-@jax.jit  
-def grad_zeta_wrt_alpha(alpha: Array) -> Array:
-    """
-    Gradient of ζ with respect to α (via p = 3/α).
-    
-    More advanced collapse (lower α) → steeper profile (higher p) → 
-    larger ζ. This gradient quantifies that sensitivity.
-    """
-    def zeta_fn(a):
-        p = 3.0 / a
-        return magnification_factor(p)
-    
-    return jax.grad(zeta_fn)(alpha)
-
-
-@jax.jit
-def grad_f_dense_wrt_alpha(
-    mach: Array,
-    b: Array = 0.4,
-    alpha: Array = 2.0
-) -> Array:
-    """
-    Gradient of f_dense with respect to α.
-    
-    This captures how the evolutionary state (encoded in α) affects
-    the self-gravitating fraction. Lower α (more advanced collapse)
-    generally increases f_dense.
-    """
-    def f_dense_fn(a):
-        sigma_s_sq = sigma_s_squared(mach, b)
-        s_t = transition_density(sigma_s_sq, a)
-        return f_dense_bm19_full(sigma_s_sq, s_t, a)
-    
-    return jax.grad(f_dense_fn)(alpha)
-
-
-# =============================================================================
-# Example Usage
-# =============================================================================
-
-if __name__ == "__main__":
-    print("=" * 70)
-    print("BM19 + FDF + PP20 Framework (JAX Implementation)")
-    print("=" * 70)
-    
-    # Example 1: Single cloud
-    print("\n--- Example 1: Orion-like cloud ---")
-    result = bm19_pipeline(
-        mach=jnp.array(12.0),
-        b=jnp.array(0.4),
-        alpha=jnp.array(2.0),
-        eta_survive=jnp.array(0.6)
-    )
-    print(f"Inputs: M=12, b=0.4, α=2.0, η=0.6")
-    print(f"  σ_s = {result.sigma_s:.3f}")
-    print(f"  β (power spectrum) = {result.beta:.3f}")
-    print(f"  s_t = {result.s_t:.3f}")
-    print(f"  f_dense = {result.f_dense:.4f} (full BM19 integral)")
-    print(f"  f_sub = {result.f_sub:.4f}")
-    print(f"  p (PP20) = {result.p:.2f}")
-    print(f"  ζ (PP20) = {result.zeta:.2f}")
-    
-    # Example 2: Batch computation
-    print("\n--- Example 2: Parameter sweep (vectorized) ---")
-    mach_values = jnp.array([5.0, 10.0, 15.0, 20.0, 25.0])
-    results = bm19_pipeline_batch(mach_values, 0.4, 2.0, 0.6)
-    print(f"{'Mach':>6} | {'σ_s':>6} | {'f_dense':>8} | {'f_sub':>8}")
-    print("-" * 40)
-    for i in range(len(mach_values)):
-        print(f"{mach_values[i]:>6.1f} | {results.sigma_s[i]:>6.3f} | "
-              f"{results.f_dense[i]:>8.4f} | {results.f_sub[i]:>8.4f}")
-    
-    # Example 3: Gradients (full BM19 integral)
-    print("\n--- Example 3: Gradient computation (full BM19) ---")
-    mach = jnp.array(15.0)
-    alpha = jnp.array(2.0)
-    
-    df_dM = grad_f_dense_wrt_mach(mach, b=0.4, alpha=alpha)
-    print(f"∂f_dense/∂M at M=15: {df_dM:.6f}")
-    print(f"  (Negative confirms BM19 anti-correlation)")
-    
-    df_dalpha = grad_f_dense_wrt_alpha(mach, b=0.4, alpha=alpha)
-    print(f"∂f_dense/∂α at α=2.0: {df_dalpha:.6f}")
-    print(f"  (Negative: lower α → higher f_dense)")
-    
-    dzeta_dalpha = grad_zeta_wrt_alpha(alpha)
-    print(f"∂ζ/∂α at α=2.0: {dzeta_dalpha:.4f}")
-    print(f"  (Negative: lower α → higher ζ)")
-    
-    # Example 4: α/p/ζ relationship table
-    print("\n--- Example 4: α ↔ p ↔ ζ relationship ---")
-    print(f"{'α':>5} | {'p':>5} | {'ζ':>6} | {'∂ζ/∂α':>8}")
-    print("-" * 35)
-    for alpha_val in [3.0, 2.5, 2.0, 1.75, 1.5]:
-        alpha_arr = jnp.array(alpha_val)
-        p_val = 3.0 / alpha_val
-        zeta_val = magnification_factor(jnp.array(p_val))
-        dzeta = grad_zeta_wrt_alpha(alpha_arr)
-        print(f"{alpha_val:>5.2f} | {p_val:>5.2f} | {zeta_val:>6.2f} | {dzeta:>8.4f}")
-    
-    # Example 5: JIT compilation check
-    print("\n--- Example 5: JIT compilation ---")
-    import time
-    
-    # First call compiles
-    _ = bm19_pipeline(jnp.array(10.0), 0.4, 2.0, 0.6)
-    
-    # Time compiled execution
-    start = time.perf_counter()
-    for _ in range(1000):
-        _ = bm19_pipeline(jnp.array(10.0), 0.4, 2.0, 0.6)
-    elapsed = time.perf_counter() - start
-    print(f"1000 calls after JIT: {elapsed*1000:.2f} ms ({elapsed:.3f} μs/call)")
-```
-
-### A.1 Design Notes
-
-**Differentiability considerations:**
-
-| Operation | Challenge | Solution |
-|-----------|-----------|----------|
-| $f_{\rm dense}$ integral | Piecewise PDF | Analytic formula for both pieces |
-| $s_t$ threshold | Hard boundary | Soft sigmoid with tunable sharpness |
-| erfc | Already smooth | Direct use of `jax.scipy.special.erfc` |
-| $\zeta$ with core | Numerical integration | Trapezoidal rule (differentiable) |
-
-**Key improvement in v8.4:** The BM19-consistent tail selection (`compute_tail_pmfs_bm19`) uses direct thresholding on $s = \ln(\rho/\rho_0)$ at $s_t$. This is:
-
-1. **Theoretically exact:** Directly implements BM19's criterion
-2. **Fully differentiable:** Gradients flow through the sigmoid
-3. **Parameter-free:** No smoothing scale or quantile heuristics
-
-The deprecated local overdensity method (`compute_sampling_pmfs`) is retained for comparison but has non-differentiable quantile selection.
-
-*AD limitations of the deprecated local-overdensity path:* The quantile-based threshold selection uses `argsort` and `searchsorted`, which are piecewise constant—gradients through this step are zero almost everywhere. For true end-to-end gradients, soft top-k / Gumbel-top-k relaxations would be needed. The BM19-consistent path avoids this issue entirely.
-
-**Static vs. dynamic parameters:**
-
-| Parameter | Type | Reason |
-|-----------|------|--------|
-| Grid shape | Static | Different shapes need recompilation |
-| `sharpness` | Dynamic (Array) | May want to tune during inference |
-| `n_integration_points` | Static (int) | Affects $\zeta$ integration accuracy |
-
-**Performance notes:**
-
-- `f_dense_bm19_full`: Analytic formula, very fast
-- `magnification_factor_with_core`: Numerical integration; consider caching for parameter sweeps
-- `log_density_field`: Simple element-wise ops, efficient
-- Large grids ($128^3$+): Consider memory-efficient chunking for star sampling
-
-**Vectorization patterns:**
-
-```python
-# Single cloud
-result = bm19_pipeline(mach, b, alpha, eta_survive)
-
-# Batch over Mach numbers
-results = jax.vmap(bm19_pipeline, in_axes=(0, None, None, None))(mach_batch, b, alpha, eta)
-
-# Full grid over (Mach, alpha) pairs
-results = jax.vmap(jax.vmap(bm19_pipeline, in_axes=(None, None, 0, None)), 
-                   in_axes=(0, None, None, None))(mach_grid, b, alpha_grid, eta)
-```
-
-### A.2 Integration with Progenax
-
-This module is designed to integrate with the broader Progenax/JAXstro ecosystem:
-
-```python
-# Example integration pattern
-from progenax.gravoturbulent import bm19_pipeline, compute_tail_pmfs_bm19
-from progenax.fdf import FractalDensityField
-from progenax.sampling import sample_stars_from_pmf
-
-# Physics layer (Part I): cloud parameters → PDF statistics
-cloud_params = bm19_pipeline(mach=15.0, b=0.4, alpha=2.0, eta_survive=0.6)
-
-# Realization layer (Part II): generate 3D density field
-fdf = FractalDensityField(
-    sigma_s=cloud_params.sigma_s, 
-    beta=cloud_params.beta  # Now derived from turbulence!
-)
-rho_grid = fdf.generate(key=jax.random.PRNGKey(42))
-
-# BM19-CONSISTENT tail selection: threshold directly on s = ln(ρ/ρ₀) at s_t
-# This is the PREFERRED method - directly implements BM19 criterion
-pmfs = compute_tail_pmfs_bm19(rho_grid, s_t=cloud_params.s_t)
-
-# Verify: f_tail_actual should approximately match f_dense
-print(f"f_dense (theory): {cloud_params.f_dense:.4f}")
-print(f"f_tail (actual):  {pmfs.f_tail_actual:.4f}")
-
-# Sampling layer: draw star positions
-positions = sample_stars_from_pmf(
-    key=jax.random.PRNGKey(43),
-    n_stars=1000,
-    p_tail=pmfs.p_tail,
-    p_smooth=pmfs.p_smooth,
-    f_sub=cloud_params.f_sub
-)
-
-# Measure ζ_FDF for PP20 comparison (Part III)
-zeta_measured = zeta_fdf_direct(rho_grid, pmfs.tail_weights)
-print(f"ζ (PP20 theory): {cloud_params.zeta:.2f}")
-print(f"ζ_FDF (measured): {zeta_measured:.2f}")
-```
-
-**Key improvement:** The `compute_tail_pmfs_bm19()` function directly implements the BM19 criterion by thresholding on $s = \ln(\rho/\rho_0)$ at the transition density $s_t$. This is theoretically consistent, unlike the local overdensity proxy.
-
-**Recommended module organization for package:**
-
-```
-progenax/
-├── physics/
-│   ├── bm19.py          # sigma_s, s_t, f_dense_bm19_full (Part I)
-│   ├── parmentier.py    # magnification_factor, sfr_per_dense_gas (Part III)
-│   └── turbulence.py    # power_spectrum_slope, sonic_scale
-├── fdf/
-│   ├── density.py       # FractalDensityField, turbulent field generation
-│   └── tail.py          # log_density_field, compute_tail_pmfs_bm19
-├── sampling/
-│   └── stars.py         # sample_stars_from_pmf, position generation
-└── api/
-    └── gravoturbulent.py  # High-level facade: cloud params → star positions
-```
-
-This separation keeps:
-- **physics/** independent of Progenax internals (reusable in other projects)
-- **fdf/** focused on density field operations
-- **api/** as a thin wrapper combining layers for common workflows
-
-### A.3 Numerical Stability
-
-The implementation includes several safeguards:
-
-1. **$\alpha$ floor** in `f_dense_bm19_full()`: $\alpha_{\rm safe} = \max(\alpha, 1 + 10^{-6})$ ensures powerlaw integral converges
-2. **Log-density floor** in `log_density_field()`: $\rho_{\rm safe} = \max(\rho, 10^{-10}\rho_0)$ avoids $\ln(0)$
-3. **Denominator clamping** in `magnification_factor()` to avoid division by zero near $p = 1.3$
-4. **Soft sigmoid** for tail selection enables gradient flow
-5. **Safe division** in `zeta_fdf_direct()` with `jnp.maximum(..., 1e-10)` guards
-6. **Integration bounds** in `magnification_factor_with_core()`: starts at $x = 0.01$ not $x = 0$ to avoid singularities
-
-**Validation checks:**
-
-The `TailPMFs` NamedTuple now includes `f_tail_actual`, which should match `f_dense` from BM19 theory:
-```python
-pmfs = compute_tail_pmfs_bm19(rho_grid, s_t)
-assert jnp.abs(pmfs.f_tail_actual - f_dense) < 0.01  # Should match within 1%
-```
-
-This provides a consistency check that the 3D realization matches 1D theory.
-
-### A.4 Required Unit Tests
-
-Before running calibration, lock in these tests to catch future formula errors:
-
-**BM19 mass integral tests:**
-
-```python
-def test_lognormal_limit():
-    """For α → ∞, full BM19 should match lognormal limit."""
-    sigma_s_sq = jnp.array(1.5)
-    s_t = jnp.array(0.5)
-    alpha_large = jnp.array(50.0)
-    
-    f_full = f_dense_bm19_full(sigma_s_sq, s_t, alpha_large)
-    f_limit = f_dense_lognormal_limit(sigma_s_sq, s_t)
-    
-    assert jnp.abs(f_full - f_limit) < 0.001, f"Mismatch: {f_full} vs {f_limit}"
-
-def test_mass_conservation():
-    """Pure lognormal (α → ∞) should integrate to 1, not exp(σ²/2)."""
-    sigma_s_sq = jnp.array(2.0)
-    sigma_s = jnp.sqrt(sigma_s_sq)
-    
-    # Mass-weighted integral of lognormal = CDF evaluated at ∞
-    # Should be exactly 1 with s_0 = -σ²/2 mass conservation
-    from scipy.integrate import quad
-    import numpy as np
-    
-    def mass_weighted_lognormal(s):
-        s_0 = -sigma_s_sq / 2.0
-        p_LN = np.exp(-(s - s_0)**2 / (2 * sigma_s_sq)) / (np.sqrt(2 * np.pi) * sigma_s)
-        return np.exp(s) * p_LN
-    
-    total_mass, _ = quad(mass_weighted_lognormal, -20, 20)
-    assert np.abs(total_mass - 1.0) < 0.001, f"Mass = {total_mass}, expected 1.0"
-```
-
-**Gradient sign tests:**
-
-```python
-def test_gradient_signs():
-    """Check expected gradient signs for physical consistency."""
-    mach = jnp.array(15.0)
-    alpha = jnp.array(2.0)
-    
-    # ∂f_dense/∂M < 0 in actively star-forming regime (BM19 anti-correlation)
-    df_dM = grad_f_dense_wrt_mach(mach, b=0.4, alpha=alpha)
-    assert df_dM < 0, f"Expected ∂f_dense/∂M < 0, got {df_dM}"
-    
-    # ∂f_dense/∂α < 0 (lower α = more collapse = more dense gas)
-    df_dalpha = grad_f_dense_wrt_alpha(mach, b=0.4, alpha=alpha)
-    assert df_dalpha < 0, f"Expected ∂f_dense/∂α < 0, got {df_dalpha}"
-    
-    # ∂ζ/∂α < 0 at typical α (lower α = steeper profile = higher ζ)
-    dzeta_dalpha = grad_zeta_wrt_alpha(alpha)
-    assert dzeta_dalpha < 0, f"Expected ∂ζ/∂α < 0, got {dzeta_dalpha}"
-```
-
-**FDF consistency test:**
-
-```python
-def test_fdf_bm19_consistency():
-    """f_tail_actual from FDF should match f_dense from BM19."""
-    # Generate field with known parameters
-    mach, b, alpha = 12.0, 0.4, 2.0
-    result = bm19_pipeline(jnp.array(mach), b, alpha, eta_survive=1.0)
-    
-    # Generate FDF realization (would need actual FDF implementation)
-    # rho_grid = generate_fdf(sigma_s=result.sigma_s, beta=result.beta, seed=42)
-    # pmfs = compute_tail_pmfs_bm19(rho_grid, s_t=result.s_t)
-    # 
-    # assert jnp.abs(pmfs.f_tail_actual - result.f_dense) < 0.02
-    pass  # Implement when FDF generator is ready
-```
-
-**σ_s–s_0 mass conservation test (JAX-native):**
-
-```python
-def test_mass_conservation_jax():
-    """
-    Directly verify ∫ e^s p_LN(s) ds ≈ 1 in JAX.
-    
-    This is the "never again add exp(σ²/2)" alarm.
-    """
-    sigma_s_sq_values = jnp.array([0.5, 1.0, 1.5, 2.0, 2.5])
-    
-    for sigma_s_sq in sigma_s_sq_values:
-        sigma_s = jnp.sqrt(sigma_s_sq)
-        s_0 = -sigma_s_sq / 2.0
-        
-        # Analytic result: M_LN(-∞, ∞) = Φ(+∞) = 1
-        # Our formula: M_LN = (1/2)[1 + erf((s_t - σ²/2)/(√2 σ))]
-        # As s_t → ∞: erf → 1, so M_LN → 1
-        s_t_large = jnp.array(100.0)
-        u = (s_t_large - sigma_s_sq / 2.0) / (jnp.sqrt(2.0) * sigma_s)
-        M_LN_total = 0.5 * (1.0 + jax.scipy.special.erf(u))
-        
-        assert jnp.abs(M_LN_total - 1.0) < 0.001, \
-            f"σ_s²={sigma_s_sq}: M_LN = {M_LN_total}, expected 1.0"
-```
-
-**f_tail vs f_dense smoke test (small grid):**
-
-```python
-def test_f_tail_f_dense_smoke():
-    """
-    Quick sanity check with small 32³ grid.
-    
-    For a range of (M, b, α), require single-realization agreement 
-    within 5%. Tighter ensemble tests come later.
-    """
-    # Parameters to test
-    test_cases = [
-        (10.0, 0.4, 2.0),
-        (15.0, 0.4, 2.0),
-        (10.0, 0.4, 1.75),
-    ]
-    
-    for mach, b, alpha in test_cases:
-        result = bm19_pipeline(jnp.array(mach), b, alpha, eta_survive=1.0)
-        
-        # Generate 32³ field (placeholder - needs FDF generator)
-        # rho_grid = generate_fdf(sigma_s=result.sigma_s, beta=result.beta, 
-        #                         grid_size=32, seed=42)
-        # pmfs = compute_tail_pmfs_bm19(rho_grid, s_t=result.s_t)
-        # 
-        # rel_error = jnp.abs(pmfs.f_tail_actual - result.f_dense) / result.f_dense
-        # assert rel_error < 0.05, \
-        #     f"(M={mach}, b={b}, α={alpha}): {pmfs.f_tail_actual:.4f} vs {result.f_dense:.4f}"
-        pass  # Implement when FDF generator is ready
-```
-
-These tests are the early warning system for formula errors.
+## Appendix A: Reference Implementation (in `progenax`)
+
+The framework above is implemented in the `progenax.gravoturb` package (1D BM19 PDF,
+PP20 magnification) and the `progenax.cluster` FDF layer (3D realization, tail
+selection, sampling). Earlier revisions of this guide embedded a full copy of the
+code here; it drifted from the package (most seriously, a stale $\zeta(p)$
+transcription), so we now point to the canonical modules instead. Everything below is
+JAX-native (`jax.jit` / `jax.grad` / `jax.vmap`) and differentiable in the physical
+parameters $(\mathcal{M}, b, \alpha, \eta_{\rm survive})$.
+
+### A.1 Part I — BM19 1D PDF (`progenax/gravoturb/bm19_model.py`)
+
+| Function | Role | Equation |
+|----------|------|----------|
+| `sigma_s_squared(mach, b)` | PDF width $\sigma_s^2$ | BM19 Eq. 1: $\ln(1+b^2\mathcal{M}^2)$ |
+| `transition_density(sigma_s_sq, alpha)` | transition density $s_t$ | BM19 Eq. 2: $(\alpha-\tfrac{1}{2})\sigma_s^2$ |
+| `f_dense_bm19_full(sigma_s_sq, s_t, alpha)` | self-gravitating fraction (full piecewise LN+PL integral) | BM19 Eq. 19–20 |
+| `f_dense_lognormal_limit(sigma_s_sq, s_t)` | $\alpha\to\infty$ limit (comparison only) | §Key Result |
+| `power_spectrum_slope(mach, b)` | $\beta(\mathcal{M})$ interpolation (heuristic; see §6.3) | — |
+| `bm19_pipeline(mach, b, alpha, eta_survive)` | end-to-end → `BM19Result` | Part I |
+
+### A.2 Part III — PP20 magnification (`progenax/gravoturb/pp20_magnification.py`)
+
+| Function | Role | Notes |
+|----------|------|-------|
+| `magnification_factor(p)` | analytic $\zeta(p)$ | **PP20 Eq. 6**: $(3-p)^{3/2}/[2.6\,(2-p)]$; $\zeta(0)=1$, valid $0\le p<2$ |
+| `magnification_factor_with_core(p, r_c_over_R, ...)` | $\zeta$ for a cored profile | numerical integration |
+| `zeta_fdf_direct(rho_grid, dense_weights)` | $\zeta$ measured from a density field | freefall-weighted; ground truth |
+| `sfr_per_dense_gas(p, ...)` | $\mathrm{SFR}/M_{\rm dg}=\zeta\,\epsilon_{\rm ff}/t_{\rm ff}$ | PP20 |
+
+> **Note.** `magnification_factor` is the correct, well-behaved PP20 Eq. 6 across
+> $0\le p<2$. A pre-2026 transcription `(3-p)/(2.6-2p)^{3/2}` — with a spurious
+> $p=1.3$ pole, once rationalised as a "domain limit" — was a typo, since corrected
+> (see the fix-note in `pp20_magnification.py`, verified 2026-04-28 against PP20
+> Eq. 6, p. 2). For cored / non-power-law geometry or $p$ near 2, prefer
+> `zeta_fdf_direct`.
+
+### A.3 BM19 field PDF + Part II FDF realization
+
+The lognormal+powerlaw field PDF used to realize 3D fields lives in
+`progenax/gravoturb/bm19_pdf.py` (`bm19_volume_pdf`, `build_bm19_cdf_table`,
+`bm19_icdf`, `gaussian_to_bm19`, `validate_bm19_field`). The 3D density field, the
+BM19-consistent direct $s>s_t$ tail selection (soft-sigmoid weights), PMF
+construction, and star sampling live in `progenax/cluster/` — chiefly `fdf_density/`
+(`density_field.py`, `field_init.py`, `pipeline.py`, `sampling.py`), `fdf_tail.py`,
+`turbulence.py`, and the high-level `gravoturbulent.py`. The BM19-consistent path is
+the default and is differentiable; the legacy local-overdensity proxy
+(`mode='pn11_legacy'`) is retained for comparison only and is deprecated.
+
+### A.4 Tests
+
+Locked-in regression and gradient tests live in `tests/unit/physics/` (BM19
+mass-conservation and lognormal-limit checks, PN11/PP20 formula and $\zeta$-anchor
+tests, FD-vs-autodiff grad-checks) and `tests/unit/cluster/` (FDF field, tail
+sampling, gravoturbulent presets). Run them with
+`pytest tests/unit/physics tests/unit/cluster`.
 
 ---
 
@@ -2619,17 +1275,29 @@ $$
 
 ### B.2 The Parameterized Critical Density
 
-PN11/FK12 derived a critical density from $t_{\rm ff} < t_{\rm cross}$:
+These theories derive a critical density from $t_{\rm ff} < t_{\rm cross}$. **PN11**
+(their Eq. 8) write it with a turbulence integral-scale factor $\theta$:
 
 $$
-s_{\rm crit} = \ln\left(\frac{\pi^2 \phi_x^2}{5} \alpha_{\rm vir} \mathcal{M}^2\right)
+\frac{\rho_{\rm crit}}{\rho_0} = 0.067\,\theta^{-2}\,\alpha_{\rm vir}\,\mathcal{M}^2,
+\qquad s_{\rm crit} = \ln\!\left(0.067\,\theta^{-2}\,\alpha_{\rm vir}\,\mathcal{M}^2\right)
 $$
 
-where $\phi_x \approx 0.17$–$0.5$ is a geometric/magnetic calibration factor.
+with $\theta \approx 0.35$ (Wang & George 2002 correction; PN11 p. 3), giving prefactor
+$0.067 \times 0.35^{-2} = 0.547$ (PN11 Eq. 11). **FK12** (and KM05) recast the same
+physics with a geometric/magnetic factor $\phi_x$:
 
-**Problems with this approach:**
-1. $\phi_x$ must be calibrated (not derived)
-2. Different authors use different $\phi_x$ values
+$$
+s_{\rm crit} = \ln\!\left(\frac{\pi^2 \phi_x^2}{5}\,\alpha_{\rm vir}\,\mathcal{M}^2\right),
+\qquad \phi_x \approx 0.17\text{–}0.5.
+$$
+
+progenax's `s_crit_pn11` (`gravoturb/pn11_model.py`) implements the **PN11 Eq. 8
+form** ($0.067\,\theta^{-2}$), not the FK12 $\phi_x$ form.
+
+**Problems with this classical approach (why we use BM19 instead):**
+1. $\theta$ / $\phi_x$ must be calibrated, not derived
+2. Different authors use different conventions and values
 3. No connection to evolutionary state
 
 ### B.3 Comparison to BM19
@@ -2710,7 +1378,9 @@ This approach may be explored in future work for more physically detailed models
 
 ---
 
-*Document version: 9.0 — CALIBRATION READY; BM19 + FDF + PP20 theory frozen (December 2025)*
+*Document version: 9.1 — BM19 + FDF + PP20; calibration-ready (theory frozen December 2025; ζ and sourcing corrections June 2026)*
+
+*v9.0 → v9.1 changes (June 2026 — progenax SoTA grounding pass): (1) **Corrected the PP20 $\zeta(p)$ formula** in §9.4/§9.5/§10.3 to the true Eq. 6 $(3-p)^{3/2}/[2.6\,(2-p)]$ ($\zeta(0)=1$, valid $0 \le p < 2$); the previous $(3-p)/(2.6-2p)^{3/2}$ form with a spurious $p=1.3$ pole was a transcription typo (corrected in `pp20_magnification.py`, verified 2026-04-28 against PP20 Eq. 6 p. 2), and the "never use the analytic formula / hard rule" narrative built on that pole was removed. (2) **Replaced the embedded Appendix A code dump with a pointer + API summary** to the canonical modules (`gravoturb/`, `cluster/`), from which the dump had drifted. (3) **Appendix B.2:** distinguished the PN11 Eq. 8 form ($0.067\,\theta^{-2}$, the form `s_crit_pn11` implements) from the FK12 $\phi_x$ form. (4) Fixed stale body references (`compute_sampling_pmfs` / `local_overdensity` → legacy `mode='pn11_legacy'`).*
 
 *v8.9 → v9.0 changes: **Final consistency fixes per fourth reviewer.** (1) **Fixed sonic scale docstring**: removed inconsistent "$\ell_s = L/\mathcal{M}$" formula; clarified that we implement Larson/Burgers scaling $\ell_s = L \mathcal{M}^{-2}$ with explicit derivation. (2) **Enhanced $\zeta(p)$ domain warning**: added explicit regime-by-regime behavior in `magnification_factor()` docstring. (3) **Clarified Parameter Budget**: added note that $\Sigma$ and $R$ are bookkeeping parameters; BM19 core depends only on $(\mathcal{M}, b, \alpha, \eta)$. (4) **Added GRF vs Goodwin & Whitworth comparison**: explicit statement that our $(\sigma_s, \beta, f_{\rm sub})$ replace their fractal dimension $D$. (5) **Added Paper A figure promise**: Q degeneracy will be illustrated with side-by-side examples. (6) **Added $\zeta$ hierarchy box**: clarified that $\zeta_{\rm FDF}$ is ground truth; $\zeta(p)$ is sanity check only. (7) **Trimmed repetition**: simplified §5.2 reference to core principle. Status: **Theory frozen; remaining work is numerical calibration.***
 
