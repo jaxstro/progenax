@@ -20,5 +20,12 @@ printing acceptance scripts before it is believed. See
 ``docs/plans/2026-06-05-fdf-clean-room-spec.md`` (§8 authoritative).
 """
 
+# Configure JAX for 64-bit precision BEFORE any JAX arrays are created (ecosystem
+# convention; float64 is mandatory for scientific precision).
+from jaxstro.jaxconfig import enable_high_precision as _enable_jax_hp
+
+_enable_jax_hp()
+del _enable_jax_hp
+
 __version__ = "0.0.0.dev0"
 __all__: list[str] = []
