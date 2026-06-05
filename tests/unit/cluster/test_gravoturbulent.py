@@ -19,10 +19,11 @@ from progenax.gravoturb import bm19_pipeline, pn11_pipeline, BM19Result, PN11Res
 
 
 class TestPN11Summary:
-    """Test the PN11 f_sub derivation chain.
+    """Test the PN11 f_sub derivation chain (PN11 Eq. 8 critical density).
 
-    These tests verify against worked examples in the theory document
-    (Sections 11.1-11.3) using the PN11 model.
+    Expected s_crit/f_dense/f_sub are grounded in Padoan & Nordlund (2011)
+    Eq. 8 (prefactor 0.067*theta^-2 = 0.547 at theta=0.35) and verified against
+    the pn11_pipeline output.
     """
 
     def test_orion_example(self):
@@ -41,9 +42,10 @@ class TestPN11Summary:
 
         assert abs(result.sigma_s - 1.78) < 0.02, f"σ_s={result.sigma_s}, expected 1.78"
         assert abs(result.alpha_vir - 1.13) < 0.05, f"α_vir={result.alpha_vir}, expected 1.13"
-        assert result.s_crit > 3.0, f"s_crit={result.s_crit} should be > 3"
-        assert 0.05 < result.f_dense < 0.20, f"f_dense={result.f_dense} out of expected range"
-        assert 0.03 < result.f_sub < 0.15, f"f_sub={result.f_sub} out of expected range"
+        # PN11 Eq. 8 (theta=0.35 -> 0.547): s_crit=4.49, f_dense=0.052, f_sub=0.031
+        assert abs(result.s_crit - 4.49) < 0.05, f"s_crit={result.s_crit}, expected 4.49"
+        assert abs(result.f_dense - 0.0518) < 0.003, f"f_dense={result.f_dense}, expected 0.052"
+        assert abs(result.f_sub - 0.0311) < 0.002, f"f_sub={result.f_sub}, expected 0.031"
 
     def test_ymc_example(self):
         """Verify YMC-forming clump example.
@@ -60,9 +62,10 @@ class TestPN11Summary:
 
         assert abs(result.sigma_s - 2.15) < 0.02, f"σ_s={result.sigma_s}, expected 2.15"
         assert abs(result.alpha_vir - 0.113) < 0.02, f"α_vir={result.alpha_vir}, expected 0.113"
-        assert 2.5 < result.s_crit < 3.5, f"s_crit={result.s_crit} out of expected range"
-        assert 0.3 < result.f_dense < 0.5, f"f_dense={result.f_dense} out of expected range"
-        assert 0.25 < result.f_sub < 0.45, f"f_sub={result.f_sub} out of expected range"
+        # PN11 Eq. 8 (theta=0.35 -> 0.547): s_crit=3.66, f_dense=0.265, f_sub=0.225
+        assert abs(result.s_crit - 3.66) < 0.05, f"s_crit={result.s_crit}, expected 3.66"
+        assert abs(result.f_dense - 0.265) < 0.01, f"f_dense={result.f_dense}, expected 0.265"
+        assert abs(result.f_sub - 0.225) < 0.01, f"f_sub={result.f_sub}, expected 0.225"
 
     def test_taurus_example(self):
         """Verify Taurus-like diffuse cloud example.
@@ -79,9 +82,10 @@ class TestPN11Summary:
 
         assert abs(result.sigma_s - 1.38) < 0.02, f"σ_s={result.sigma_s}, expected 1.38"
         assert abs(result.alpha_vir - 4.25) < 0.1, f"α_vir={result.alpha_vir}, expected 4.25"
-        assert 3.0 < result.s_crit < 4.5, f"s_crit={result.s_crit} out of expected range"
-        assert 0.01 < result.f_dense < 0.05, f"f_dense={result.f_dense} out of expected range"
-        assert 0.005 < result.f_sub < 0.02, f"f_sub={result.f_sub} out of expected range"
+        # PN11 Eq. 8 (theta=0.35 -> 0.547): s_crit=4.43, f_dense=0.006, f_sub=0.0024
+        assert abs(result.s_crit - 4.43) < 0.05, f"s_crit={result.s_crit}, expected 4.43"
+        assert abs(result.f_dense - 0.0060) < 0.001, f"f_dense={result.f_dense}, expected 0.006"
+        assert abs(result.f_sub - 0.0024) < 0.0005, f"f_sub={result.f_sub}, expected 0.0024"
 
     def test_result_type(self):
         """Result should be a PN11Result namedtuple."""
@@ -305,12 +309,12 @@ class TestPhysicalConstraints:
         assert result.f_sub == 0.0, f"f_sub={result.f_sub}, expected 0.0 when η=0"
 
     def test_custom_pn11_parameters(self):
-        """Test that custom b, phi_x work correctly in PN11."""
+        """Test that custom b, theta work correctly in PN11."""
         result_default = pn11_pipeline(mach=12, Sigma=200, eta_survive=0.6)
         result_custom = pn11_pipeline(
             mach=12, Sigma=200, eta_survive=0.6,
             b=0.33,  # Solenoidal (narrower PDF)
-            phi_x=0.5,  # Larger sonic scale
+            theta=0.5,  # Larger turbulence integral scale
         )
 
         # With b=0.33 (vs 0.4), σ_s should be smaller (narrower PDF)

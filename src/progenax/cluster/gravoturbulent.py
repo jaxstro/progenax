@@ -66,8 +66,8 @@ class GravoturbulentEnv:
 
     PN11 Parameters (Alternative Model)
     ------------------------------------
-    phi_x : float
-        Magnetic support factor (default 0.35 from PN11).
+    theta : float
+        Turbulence integral-scale factor (default 0.35; PN11 Eq. 8).
         Only used when model="pn11".
 
     Examples
@@ -87,7 +87,7 @@ class GravoturbulentEnv:
     alpha: float = 2.0
 
     # PN11 parameters (alternative model)
-    phi_x: float = 0.35
+    theta: float = 0.35
 
 
 # =============================================================================
@@ -219,7 +219,7 @@ def tail_layer_from_env(
         - "bm19": Burkhart & Mocz 2019 (RECOMMENDED)
           Uses env.alpha for transition density.
         - "pn11": Padoan-Nordlund 2011 (alternative)
-          Uses env.phi_x for magnetic support.
+          Uses env.theta (turbulence integral-scale factor).
 
     Returns
     -------
@@ -261,7 +261,7 @@ def tail_layer_from_env(
             Sigma=env.Sigma,
             eta_survive=env.eta_survive,
             b=env.b,
-            phi_x=env.phi_x,
+            theta=env.theta,
         )
         return TailSubstructureLayer(
             f_sub=float(result.f_sub),

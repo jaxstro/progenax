@@ -11,7 +11,7 @@ All functions are:
 When to Use PN11 vs BM19
 ------------------------
 **PN11** (this module):
-- When you need explicit magnetic support (phi_x parameter)
+- When you need the PN11 integral-scale critical density (theta parameter)
 - When you have cloud surface density (Sigma) information
 - For comparison with classical literature
 
@@ -22,7 +22,7 @@ When to Use PN11 vs BM19
 
 Key Equations
 -------------
-- s_crit = ln((pi^2 * phi_x^2 / 5) * alpha_vir * M^2)
+- s_crit = ln(0.067 * theta^-2 * alpha_vir * M^2)  (PN11 Eq. 8)
 - alpha_vir = alpha_0 * (Sigma_0 / Sigma)
 - f_dense = (1/2) * erfc[(s_crit - sigma_s^2/2) / (sqrt(2) * sigma_s)]
 
@@ -86,24 +86,27 @@ class PN11Result(NamedTuple):
 def s_crit_pn11(
     mach: Array,
     alpha_vir: Array,
-    phi_x: Array = 0.35,
+    theta: Array = 0.35,
 ) -> Array:
-    """PN11/FK12 critical density threshold.
+    """Padoan & Nordlund (2011) critical density threshold (PN11 Eq. 8).
 
-    s_crit = ln((pi^2 * phi_x^2 / 5) * alpha_vir * M^2)
+    s_crit = ln(0.067 * theta^-2 * alpha_vir * M^2)
 
-    The critical density marks the transition to self-gravitating gas.
-    Gas with s > s_crit is expected to collapse.
+    The critical density marks the transition to self-gravitating gas; gas with
+    s > s_crit is expected to collapse. PN11 derive it by equating the
+    Bonnor-Ebert mass to the mass of a post-shock layer (their Eq. 7), giving the
+    numerical coefficient 0.067 (PN11 Eq. 8).
 
     Parameters
     ----------
     mach : Array
-        Turbulent Mach number.
+        Turbulent (3D rms) Mach number.
     alpha_vir : Array
         Virial parameter (from alpha_vir_from_sigma or known).
-    phi_x : Array
-        Sonic scale factor / magnetic support factor (default 0.35 from PN11).
-        Range: 0.17-0.5 depending on magnetic field strength.
+    theta : Array
+        Turbulence integral-scale factor: the integral scale is theta * L_cloud
+        with theta <= 1. PN11 adopt theta = 0.35 (Wang & George 2002 correction;
+        PN11 p.3), giving prefactor 0.067 * 0.35^-2 = 0.547 (PN11 Eq. 11).
 
     Returns
     -------
@@ -112,19 +115,20 @@ def s_crit_pn11(
 
     Notes
     -----
-    Physical interpretation of phi_x:
-    - phi_x ~ 0.17: Strong magnetic support
-    - phi_x ~ 0.35: Moderate magnetic support (fiducial)
-    - phi_x ~ 0.5: Weak magnetic support
+    Larger theta (larger turbulence driving scale) -> LOWER critical density:
+    the prefactor 0.067 * theta^-2 decreases with theta (theta is in the
+    denominator). This is the opposite sense to the KM05/FK12 phi_x parameter.
 
-    The prefactor (pi^2 / 5) comes from the Jeans analysis in turbulent media.
+    This is the PN11 parametrization (Eq. 8), distinct from the KM05/FK12 form
+    s_crit = ln((pi^2/5) * phi_x^2 * alpha_vir * M^2) used by swindlax and the
+    rosen-burkhart-swindle companion paper. PN11 (p.3) report the KM05 numerical
+    coefficient as phi_x = 1.12.
 
     References
     ----------
-    Padoan & Nordlund 2011, ApJ, 730, 40
-    Federrath & Klessen 2012, ApJ, 761, 156
+    Padoan & Nordlund 2011, ApJ, 730, 40, Eq. 8 and Eq. 11
     """
-    prefactor = jnp.pi**2 * phi_x**2 / 5.0
+    prefactor = 0.067 * theta**-2.0
     return jnp.log(prefactor * alpha_vir * mach**2)
 
 
@@ -152,7 +156,7 @@ def f_dense_pn11(sigma_s_sq: Array, s_crit: Array) -> Array:
     Notes
     -----
     Comparison with BM19:
-    - PN11 f_dense depends on: M, alpha_vir, phi_x (via s_crit)
+    - PN11 f_dense depends on: M, alpha_vir, theta (via s_crit)
     - BM19 f_dense depends on: M, alpha (powerlaw slope)
 
     PN11 uses pure lognormal; BM19 includes powerlaw tail contribution.
@@ -246,7 +250,7 @@ def pn11_pipeline(
     Sigma: Array,
     eta_survive: Array = 0.6,
     b: Array = 0.4,
-    phi_x: Array = 0.35,
+    theta: Array = 0.35,
     alpha_0: Array = 2.0,
     Sigma_0: Array = 85.0,
 ) -> PN11Result:
@@ -265,8 +269,8 @@ def pn11_pipeline(
         Feedback survival efficiency (0-1; default 0.6).
     b : Array
         Driving parameter (default 0.4).
-    phi_x : Array
-        Sonic scale factor (default 0.35).
+    theta : Array
+        Turbulence integral-scale factor (default 0.35; PN11 Eq. 8).
     alpha_0 : Array
         Reference virial parameter (default 2.0).
     Sigma_0 : Array
@@ -283,7 +287,7 @@ def pn11_pipeline(
 
     1. PN11 uses s_crit (parameterized); BM19 uses s_t (derived from PDF)
     2. PN11 requires Sigma (surface density); BM19 does not
-    3. PN11 includes phi_x (magnetic support); BM19 has fewer parameters
+    3. PN11 includes theta (integral-scale factor); BM19 has fewer parameters
     4. PN11 uses pure lognormal erfc; BM19 uses full piecewise integral
 
     Examples
@@ -298,7 +302,7 @@ def pn11_pipeline(
     >>> results = jax.vmap(lambda S: pn11_pipeline(10.0, S))(Sigmas)
     >>> print(f"f_dense = {results.f_dense}")
     """
-    return _pn11_pipeline_jit(mach, Sigma, eta_survive, b, phi_x, alpha_0, Sigma_0)
+    return _pn11_pipeline_jit(mach, Sigma, eta_survive, b, theta, alpha_0, Sigma_0)
 
 
 @jax.jit
@@ -307,7 +311,7 @@ def _pn11_pipeline_jit(
     Sigma: Array,
     eta_survive: Array,
     b: Array,
-    phi_x: Array,
+    theta: Array,
     alpha_0: Array,
     Sigma_0: Array,
 ) -> PN11Result:
@@ -319,8 +323,8 @@ def _pn11_pipeline_jit(
     # Step 2: Virial parameter (Heyer & Dame 2015)
     alpha_vir = alpha_vir_from_sigma(Sigma, alpha_0, Sigma_0)
 
-    # Step 3: Critical density (PN11/FK12)
-    s_crit = s_crit_pn11(mach, alpha_vir, phi_x)
+    # Step 3: Critical density (PN11 Eq. 8)
+    s_crit = s_crit_pn11(mach, alpha_vir, theta)
 
     # Step 4: Self-gravitating fraction (pure lognormal)
     f_dense = f_dense_pn11(sigma_s_sq, s_crit)

@@ -12,7 +12,7 @@ Choosing a Model
     Fewer parameters, powerlaw tail included, s_t derived from physics.
 
 **PN11** (alternative):
-    When you need magnetic support (phi_x) or surface density dependence.
+    When you need the PN11 critical density (theta) or surface density dependence.
 
 Example::
 

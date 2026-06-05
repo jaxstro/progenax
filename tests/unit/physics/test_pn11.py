@@ -17,25 +17,30 @@ from progenax.gravoturb import pn11_model as pn11
 class TestSCritPN11:
     """Tests for s_crit_pn11()."""
 
-    def test_basic_formula(self):
-        """s_crit = ln((π²φ_x²/5) × α_vir × M²)."""
-        mach = 10.0
-        alpha_vir = 2.0
-        phi_x = 0.35
-        prefactor = jnp.pi**2 * phi_x**2 / 5.0  # ≈ 0.242
+    def test_s_crit_pn11_eq8_faithful(self):
+        """s_crit = ln(0.067 * theta^-2 * alpha_vir * M^2) — PN11 (2011) Eq. 8.
+
+        theta = 0.35 (turbulence integral-scale factor, Wang & George 2002
+        correction; PN11 p.3) gives prefactor 0.067*0.35^-2 = 0.547, i.e. PN11
+        Eq. 11 (n_cr/n0 = 0.547*alpha_vir*M^2). This is the Padoan & Nordlund
+        critical density, NOT the FK12/KM05 form (pi^2/5)*phi_x^2 = 0.242 that
+        swindlax + the rosen-burkhart-swindle paper use.
+        """
+        mach, alpha_vir, theta = 10.0, 2.0, 0.35
+        prefactor = 0.067 * theta**-2.0  # = 0.547 (PN11 Eq. 11)
         expected = jnp.log(prefactor * alpha_vir * mach**2)
 
-        result = pn11.s_crit_pn11(mach, alpha_vir, phi_x)
+        result = pn11.s_crit_pn11(mach, alpha_vir, theta)
         assert jnp.isclose(result, expected, rtol=1e-6)
 
     def test_mach_scaling(self):
         """s_crit scales with M²."""
         alpha_vir = 2.0
-        phi_x = 0.35
+        theta = 0.35
 
-        s_crit_5 = pn11.s_crit_pn11(5.0, alpha_vir, phi_x)
-        s_crit_10 = pn11.s_crit_pn11(10.0, alpha_vir, phi_x)
-        s_crit_20 = pn11.s_crit_pn11(20.0, alpha_vir, phi_x)
+        s_crit_5 = pn11.s_crit_pn11(5.0, alpha_vir, theta)
+        s_crit_10 = pn11.s_crit_pn11(10.0, alpha_vir, theta)
+        s_crit_20 = pn11.s_crit_pn11(20.0, alpha_vir, theta)
 
         # Check M² scaling
         assert s_crit_10 > s_crit_5
@@ -44,23 +49,23 @@ class TestSCritPN11:
     def test_alpha_vir_scaling(self):
         """Higher α_vir → higher s_crit."""
         mach = 10.0
-        phi_x = 0.35
+        theta = 0.35
 
         alpha_virs = jnp.array([1.0, 2.0, 4.0])
-        s_crits = jax.vmap(lambda a: pn11.s_crit_pn11(mach, a, phi_x))(alpha_virs)
+        s_crits = jax.vmap(lambda a: pn11.s_crit_pn11(mach, a, theta))(alpha_virs)
         assert jnp.all(jnp.diff(s_crits) > 0)
 
-    def test_phi_x_scaling(self):
-        """Higher φ_x → higher s_crit."""
+    def test_theta_scaling(self):
+        """Higher theta -> LOWER s_crit (theta in denominator: 0.067 * theta^-2)."""
         mach = 10.0
         alpha_vir = 2.0
 
-        phi_xs = jnp.array([0.17, 0.35, 0.5])
-        s_crits = jax.vmap(lambda p: pn11.s_crit_pn11(mach, alpha_vir, p))(phi_xs)
-        assert jnp.all(jnp.diff(s_crits) > 0)
+        thetas = jnp.array([0.17, 0.35, 0.5])
+        s_crits = jax.vmap(lambda t: pn11.s_crit_pn11(mach, alpha_vir, t))(thetas)
+        assert jnp.all(jnp.diff(s_crits) < 0)
 
-    def test_default_phi_x(self):
-        """Default φ_x = 0.35."""
+    def test_default_theta(self):
+        """Default theta = 0.35."""
         mach = 10.0
         alpha_vir = 2.0
 
@@ -233,6 +238,30 @@ class TestPN11Pipeline:
         expected = pn11.pn11_pipeline(10.0, 100.0, 0.6, 0.4, 0.35, 2.0, 85.0)
         assert jnp.isclose(result.f_dense, expected.f_dense)
 
+    def test_pipeline_grad_fd_vs_autodiff(self):
+        """FD-vs-autodiff agreement for pn11_pipeline f_sub (Mach and theta).
+
+        Confirms the gradients are correct (not merely finite) on the public
+        differentiable entry point: PN11's s_crit path (log, theta**-2, erfc)
+        has no clip/where/while traps, so autodiff must match central differences.
+        """
+        Sigma, eta = 200.0, 0.6
+
+        def f_of_mach(m):
+            return pn11.pn11_pipeline(m, Sigma, eta_survive=eta).f_sub
+
+        def f_of_theta(t):
+            return pn11.pn11_pipeline(10.0, Sigma, eta_survive=eta, theta=t).f_sub
+
+        h = 1e-4
+        g_m_ad = jax.grad(f_of_mach)(10.0)
+        g_m_fd = (f_of_mach(10.0 + h) - f_of_mach(10.0 - h)) / (2.0 * h)
+        assert jnp.isclose(g_m_ad, g_m_fd, rtol=1e-4, atol=1e-8)
+
+        g_t_ad = jax.grad(f_of_theta)(0.35)
+        g_t_fd = (f_of_theta(0.35 + h) - f_of_theta(0.35 - h)) / (2.0 * h)
+        assert jnp.isclose(g_t_ad, g_t_fd, rtol=1e-4, atol=1e-8)
+
 
 class TestPN11VsBM19:
     """Compare PN11 and BM19 predictions.
@@ -241,22 +270,19 @@ class TestPN11VsBM19:
     """
 
     def test_different_threshold_formulas(self):
-        """PN11 s_crit and BM19 s_t use different formulas."""
+        """PN11 s_crit and BM19 s_t are different formulas: s_crit depends on
+        Sigma (via alpha_vir) and theta; s_t depends only on sigma_s^2 and alpha."""
         mach = 10.0
         b = 0.4
-        sigma_sq = bm19.sigma_s_squared(mach, b)
-
-        # BM19 s_t depends only on σ_s² and α
         alpha = 2.0
-        s_t = bm19.transition_density(sigma_sq, alpha)
+        sigma_sq = bm19.sigma_s_squared(mach, b)
+        s_t = bm19.transition_density(sigma_sq, alpha)  # Sigma-independent
 
-        # PN11 s_crit depends on α_vir, φ_x, M
-        Sigma = 100.0
-        alpha_vir = pn11.alpha_vir_from_sigma(Sigma)
-        s_crit = pn11.s_crit_pn11(mach, alpha_vir, 0.35)
-
-        # They should be DIFFERENT (different formulas)
-        assert not jnp.isclose(s_t, s_crit, rtol=0.1)
+        # s_crit responds to Sigma; s_t does not -> genuinely different formulas
+        s_crit_100 = pn11.s_crit_pn11(mach, pn11.alpha_vir_from_sigma(100.0))
+        s_crit_300 = pn11.s_crit_pn11(mach, pn11.alpha_vir_from_sigma(300.0))
+        assert not jnp.isclose(s_crit_100, s_crit_300, rtol=0.1)
+        assert not jnp.isclose(s_t, s_crit_300, rtol=0.1)
 
     def test_different_f_dense(self):
         """PN11 and BM19 give different f_dense."""
@@ -283,7 +309,7 @@ class TestPN11VsBM19:
         # BM19: (M, b, α, η) → f_sub
         bm19_result = bm19.bm19_pipeline(10.0, 0.4, 2.0, 0.6)
 
-        # PN11: (M, Σ, η, b, φ_x, α₀, Σ₀) → f_sub
+        # PN11: (M, Σ, η, b, θ, α₀, Σ₀) → f_sub
         pn11_result = pn11.pn11_pipeline(10.0, 100.0, 0.6, 0.4, 0.35, 2.0, 85.0)
 
         # Both produce valid f_sub
@@ -332,16 +358,14 @@ class TestEdgeCases:
         alpha_vir = pn11.alpha_vir_from_sigma(Sigma)
         assert alpha_vir > 4.0  # Unbound
 
-    def test_extreme_phi_x(self):
-        """Extreme φ_x values."""
+    def test_extreme_theta(self):
+        """Extreme theta; smaller theta -> larger s_crit (0.067 * theta^-2)."""
         mach = 10.0
         alpha_vir = 2.0
 
-        # Strong magnetic support
-        s_crit_low = pn11.s_crit_pn11(mach, alpha_vir, 0.17)
-        # Weak magnetic support
-        s_crit_high = pn11.s_crit_pn11(mach, alpha_vir, 0.5)
+        s_crit_small_theta = pn11.s_crit_pn11(mach, alpha_vir, 0.17)
+        s_crit_large_theta = pn11.s_crit_pn11(mach, alpha_vir, 0.5)
 
-        assert jnp.isfinite(s_crit_low)
-        assert jnp.isfinite(s_crit_high)
-        assert s_crit_high > s_crit_low
+        assert jnp.isfinite(s_crit_small_theta)
+        assert jnp.isfinite(s_crit_large_theta)
+        assert s_crit_small_theta > s_crit_large_theta
