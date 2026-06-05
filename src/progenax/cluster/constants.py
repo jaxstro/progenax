@@ -47,13 +47,26 @@ B_DEFAULT = 0.4
 # Power Spectrum Slopes
 # =============================================================================
 
-# Kolmogorov slope: incompressible limit
-# E(k) ∝ k^(-5/3) → P(k) ∝ k^(-11/3)
-BETA_KOLMOGOROV = 11.0 / 3.0  # ≈ 3.67
+# Kolmogorov slope: incompressible / transonic DENSITY-spectrum limit.
+# E(k) ∝ k^(-5/3) → 3D power-spectral-density P_3D(k) ∝ k^(-11/3). Kim & Ryu (2005)
+# measure the transonic (M~1.2) 3D density spectrum slope ≈ -5/3, i.e. β_P3D ≈ 11/3.
+BETA_KOLMOGOROV = 11.0 / 3.0  # ≈ 3.67  (transonic ceiling for the density spectrum)
 
-# Burgers slope: shock-dominated limit
-# Velocity discontinuities → steeper spectrum
+# Burgers VELOCITY slope (shock-dominated). NOTE: this is a *velocity* power-spectrum
+# slope; it is NOT the density-spectrum slope of supersonic turbulence (which FLATTENS).
+# Retained for legacy imports only; spectral_slope_from_mach no longer uses it.
 BETA_BURGERS = 4.0
+
+# Kim & Ryu (2005) DENSITY power spectrum slope vs Mach (3D, P_3D convention).
+# Their 3D least-squares slopes E_ρ(k)∝k^{-s}: s = 1.73 (M=1.2), 1.08 (3.4), 0.75 (7.3),
+# 0.52 (12). With β_P3D = s + 2, a log-linear least-squares fit gives:
+#   β(M) = KIMRYU_BETA_INTERCEPT + KIMRYU_BETA_LOGSLOPE * log10(M),
+# clipped to [BETA_DENSITY_FLOOR, BETA_KOLMOGOROV]. β DECREASES with Mach (density
+# concentrates into sheets/filaments → shallower spectrum). See per-paper note kim-ryu-2005.
+KIMRYU_BETA_INTERCEPT = 3.788
+KIMRYU_BETA_LOGSLOPE = -1.203
+# 1D strong-shock density limit P_ρ ∝ k^0 → β_P3D = 2 (Saichev & Woyczynski 1996; Kim&Ryu 1D).
+BETA_DENSITY_FLOOR = 2.0
 
 
 # =============================================================================
@@ -86,6 +99,9 @@ __all__ = [
     "B_DEFAULT",
     "BETA_KOLMOGOROV",
     "BETA_BURGERS",
+    "KIMRYU_BETA_INTERCEPT",
+    "KIMRYU_BETA_LOGSLOPE",
+    "BETA_DENSITY_FLOOR",
     "SIGMA_V0_DEFAULT",
     "ALPHA_LARSON",
     "CHI_MIN",

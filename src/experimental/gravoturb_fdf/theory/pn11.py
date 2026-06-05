@@ -22,6 +22,31 @@ from jaxtyping import Array, Float
 THETA_PN11 = 0.35
 
 
+def virial_parameter(
+    mass: Float[Array, ""],
+    radius: Float[Array, ""],
+    sigma_v: Float[Array, ""],
+    G: float,
+) -> Float[Array, ""]:
+    r"""Cloud virial parameter alpha_vir = 5 sigma_v^2 R / (G M) (Bertoldi & McKee 1992).
+
+    The dimensionless ratio of (twice the) turbulent kinetic to gravitational energy for a
+    uniform sphere; ``alpha_vir = 1`` is virial equilibrium, ``< 1`` bound/collapsing,
+    ``>> 1`` unbound. Pass the same unit system through ``(mass, radius, sigma_v, G)``
+    (e.g. M_sun, pc, km/s with G = 4.3009e-3 pc (km/s)^2 M_sun^-1).
+
+    Grounding (Heyer et al. 2009, ApJ 699, 1092): Galactic GMCs follow
+    ``v_0 = sigma_v/R^{1/2} ∝ Sigma^{1/2}``, which makes alpha_vir ≈ const (~1-2) across
+    surface density — i.e. clouds self-regulate to virial equilibrium. This is the
+    correct grounding; the older code's ``alpha_vir ∝ Sigma^{-1}`` assumed Larson's
+    (refuted) constant v_0 and is NOT used. ``critical_overdensity_pn11`` still accepts
+    ``alpha_vir`` directly, so this helper is optional.
+
+    JAX-native, differentiable.
+    """
+    return 5.0 * sigma_v**2 * radius / (G * mass)
+
+
 def critical_overdensity_pn11(
     mach: Float[Array, ""],
     alpha_vir: Float[Array, ""],

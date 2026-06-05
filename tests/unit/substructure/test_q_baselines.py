@@ -293,18 +293,28 @@ class TestBirthEnvironmentTurbulence:
             )
 
     def test_spectral_slope_supersonic(self):
-        """Star-forming clouds have M >> 1, so β should be ~4 (Burgers)."""
+        """Density spectrum flattens (β < Kolmogorov) and decreases with mass (Kim&Ryu 2005).
+
+        Corrected 2026-06: β is the DENSITY power-spectrum slope, which *flattens* with
+        Mach (Kim & Ryu 2005), NOT the velocity Burgers slope ~4 (the prior bug). These
+        clouds are mildly supersonic (M~3-4) → β~3.0-3.3, shallower than the Kolmogorov
+        ceiling 11/3 and monotonically decreasing as the cluster (hence Mach) grows.
+        """
         from progenax.imf.environment import BirthEnvironment
 
-        # All typical star-forming clusters are supersonic
+        prev = None
         for M_ecl in [1e3, 1e4, 1e5, 1e6]:
             env = BirthEnvironment.from_cluster_mass(M_ecl=M_ecl)
             beta = float(env.spectral_slope())
 
-            # Should be close to Burgers β ≈ 4.0 for supersonic
-            assert 3.8 < beta < 4.05, (
-                f"M_ecl={M_ecl:.0e}: β = {beta:.2f} should be ~4.0 for supersonic"
+            assert 2.0 <= beta < 11.0 / 3.0, (
+                f"M_ecl={M_ecl:.0e}: β = {beta:.2f} should be in [2, 11/3) (density spectrum)"
             )
+            if prev is not None:
+                assert beta < prev, (
+                    f"β should decrease with cluster mass (Mach); got {beta:.3f} >= {prev:.3f}"
+                )
+            prev = beta
 
 
 class TestBFromEnvironment:

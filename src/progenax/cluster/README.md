@@ -209,8 +209,9 @@ Inverse mapping (used in `env_to_fdf_layer()`):
 | `B_DEFAULT` | 0.4 | Turbulence driving parameter | Federrath+2010 |
 | `SIGMA_V0_DEFAULT` | 1.0 km/s | Larson normalization at 1 pc | Larson 1981 |
 | `ALPHA_LARSON` | 0.5 | Larson velocity-size exponent | Larson 1981 |
-| `BETA_KOLMOGOROV` | 11/3 ≈ 3.67 | Incompressible spectral slope | Kolmogorov 1941 |
-| `BETA_BURGERS` | 4.0 | Shock-dominated spectral slope | Burgers 1948 |
+| `BETA_KOLMOGOROV` | 11/3 ≈ 3.67 | Transonic density-spectrum ceiling | Kolmogorov 1941 / Kim&Ryu 2005 |
+| `BETA_BURGERS` | 4.0 | **Velocity** Burgers slope (legacy; NOT the density spectrum) | Burgers 1948 |
+| `KIMRYU_BETA_*`, `BETA_DENSITY_FLOOR` | 3.788, −1.203, 2.0 | Density-spectrum β(M) fit (flattens with Mach) | Kim & Ryu 2005 |
 
 ### FractalDensityLayer Parameters
 

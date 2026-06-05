@@ -6,17 +6,16 @@ structure in star-forming clouds. All functions are JAX-compatible.
 
 Key Relations
 -------------
-- Federrath+2010 Eq. 14: σ²_ln_ρ = ln(1 + b²M²)
+- Federrath+2010 Eq. 19: σ²_ln_ρ = ln(1 + b²M²)  (with Eq. 18 σ_ρ/⟨ρ⟩ = bM)
 - Larson (1981): σ_v = σ_v0 × R^α
-- Kolmogorov ↔ Burgers spectral interpolation
+- Kim & Ryu (2005): the DENSITY power-spectrum slope flattens with Mach
 
 References
 ----------
 - Federrath et al. (2010) A&A 512, A81
 - Larson (1981) MNRAS 194, 809
 - Solomon et al. (1987) ApJ 319, 730
-- Kolmogorov (1941) - Incompressible turbulence theory
-- Burgers (1948) - Shock-dominated turbulence
+- Kim & Ryu (2005) ApJ 630, L45 - density power spectrum of compressible turbulence
 """
 
 from __future__ import annotations
@@ -26,10 +25,12 @@ from jaxtyping import Array, Float
 
 from progenax.cluster.constants import (
     B_DEFAULT,
-    BETA_BURGERS,
+    BETA_DENSITY_FLOOR,
     BETA_KOLMOGOROV,
     C_S_DEFAULT,
     G_KMS,
+    KIMRYU_BETA_INTERCEPT,
+    KIMRYU_BETA_LOGSLOPE,
     SIGMA_V0_DEFAULT,
     ALPHA_LARSON,
 )
@@ -44,10 +45,14 @@ def sigma_ln_rho_from_mach(
     mach: Float[Array, "..."],
     b: float = B_DEFAULT,
 ) -> Float[Array, "..."]:
-    """Density contrast from Mach number (Federrath+2010 Eq. 14).
+    """Density contrast from Mach number (Federrath+2010 Eq. 19).
 
     The variance of the log-density field in supersonic turbulence:
         σ²_ln_ρ = ln(1 + b²M²)
+
+    This is FK10 Eq. 19 (the log form of the linear relation Eq. 18,
+    σ_ρ/⟨ρ⟩ = b·M); the mean is fixed by mass conservation to ⟨s⟩ = -σ²_ln_ρ/2
+    (FK10 Eq. 11). See the per-paper note federrath-2010 for the equation-number history.
 
     Parameters
     ----------
@@ -74,19 +79,26 @@ def sigma_ln_rho_from_mach(
 
     References
     ----------
-    .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 14
+    .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 19
     """
     return jnp.sqrt(jnp.log(1.0 + b**2 * mach**2))
 
 
 def spectral_slope_from_mach(mach: Float[Array, "..."]) -> Float[Array, "..."]:
-    """Power spectrum slope from Mach number.
+    """DENSITY power-spectrum slope β from Mach number (Kim & Ryu 2005).
 
-    Interpolates between:
-        - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
-        - Supersonic (M >> 1): Burgers β ≈ 4.0
+    Returns the slope of the 3D density power spectrum P_3D(k) ∝ k^{-β}. In supersonic
+    turbulence the *density* spectrum FLATTENS as the Mach number rises (mass is swept
+    into sheets and filaments), so β **decreases** with M — the opposite of the velocity
+    (Kolmogorov→Burgers) cascade.
 
-    Uses smooth tanh interpolation centered at M = 1.
+    Calibration: Kim & Ryu (2005, ApJ 630, L45) measure 3D density spectra E_ρ(k)∝k^{-s}
+    with s = 1.73 (M=1.2, ≈Kolmogorov 5/3), 1.08 (3.4), 0.75 (7.3), 0.52 (12). Converting
+    to the 3D power-spectral-density convention β = s + 2 and least-squares fitting in
+    log10(M):
+        β(M) = 3.788 - 1.203·log10(M),  clipped to [2.0, 11/3].
+    The Kolmogorov ceiling (11/3) is the transonic limit; the floor (2.0) is the 1D
+    strong-shock density limit P_ρ ∝ k^0.
 
     Parameters
     ----------
@@ -96,19 +108,22 @@ def spectral_slope_from_mach(mach: Float[Array, "..."]) -> Float[Array, "..."]:
     Returns
     -------
     beta : array
-        Power spectrum slope P(k) ∝ k^{-β}.
+        Density power spectrum slope P_3D(k) ∝ k^{-β} (decreasing in M).
 
     Notes
     -----
-    For star-forming clouds with M >> 1, expect β ≈ 4.
+    This is a log-linear fit to Kim & Ryu's four measured 3D Mach points (1.2–12);
+    treat it as a calibrated interpolation, not a first-principles law. It is a *density*
+    slope — distinct from the velocity Kolmogorov/Burgers slopes. Magnetic fields and
+    self-gravity (not modelled by Kim & Ryu) modify it further.
 
     References
     ----------
-    .. [1] Kolmogorov (1941) - Incompressible turbulence theory
-    .. [2] Burgers (1948) - Shock-dominated turbulence
+    .. [1] Kim & Ryu (2005) ApJ 630, L45 - density power spectrum vs Mach
+    .. [2] Kolmogorov (1941) - transonic ceiling (E_ρ slope ≈ -5/3)
     """
-    t = 0.5 * (1.0 + jnp.tanh((mach - 1.0) / 0.5))
-    return BETA_KOLMOGOROV * (1.0 - t) + BETA_BURGERS * t
+    beta = KIMRYU_BETA_INTERCEPT + KIMRYU_BETA_LOGSLOPE * jnp.log10(mach)
+    return jnp.clip(beta, BETA_DENSITY_FLOOR, BETA_KOLMOGOROV)
 
 
 # =============================================================================

@@ -49,3 +49,39 @@ def test_s_crit_pn11_mach_squared_grad():
     # d s_crit / d M = 2/M  -> at M=10, grad = 0.2
     g = float(jax.grad(lambda m: s_crit_pn11(m, 1.0))(10.0))
     assert g == pytest.approx(0.2, rel=1e-6)
+
+
+# ── virial parameter helper (Bertoldi & McKee 1992; Heyer+2009 grounding) ──
+def test_virial_parameter_definition():
+    """alpha_vir = 5 sigma_v^2 R / (G M) — the BM92 definition."""
+    from gravoturb_fdf.theory.pn11 import virial_parameter
+
+    val = float(virial_parameter(mass=1.0e4, radius=2.0, sigma_v=3.0, G=4.3009e-3))
+    assert val == pytest.approx(5.0 * 3.0**2 * 2.0 / (4.3009e-3 * 1.0e4), rel=1e-9)
+
+
+def test_virial_parameter_unity_when_virialised():
+    """A cloud with sigma_v^2 = G M/(5R) is exactly virial (alpha_vir = 1)."""
+    from gravoturb_fdf.theory.pn11 import virial_parameter
+
+    G, M, R = 4.3009e-3, 1.0e4, 2.0
+    import math
+    sigma_v = math.sqrt(G * M / (5.0 * R))
+    assert float(virial_parameter(M, R, sigma_v, G)) == pytest.approx(1.0, rel=1e-9)
+
+
+def test_virial_parameter_feeds_pn11():
+    """alpha_vir from the helper can be passed straight into critical_overdensity_pn11."""
+    from gravoturb_fdf.theory.pn11 import critical_overdensity_pn11, virial_parameter
+
+    av = virial_parameter(mass=1.0e4, radius=2.0, sigma_v=2.0, G=4.3009e-3)
+    val = float(critical_overdensity_pn11(mach=10.0, alpha_vir=av))
+    assert val == pytest.approx(0.547 * float(av) * 100.0, rel=1e-3)
+
+
+def test_virial_parameter_differentiable():
+    from gravoturb_fdf.theory.pn11 import virial_parameter
+    import jax.numpy as jnp
+
+    g = float(jax.grad(lambda s: virial_parameter(1.0e4, 2.0, s, 4.3009e-3))(3.0))
+    assert jnp.isfinite(g) and g > 0.0  # rises with velocity dispersion
