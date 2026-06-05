@@ -96,9 +96,10 @@ stars."* progenax does exactly this: `build_spatial_ic` virializes the system CO
 (binaries as point masses, `Q = 0.5` default — McLuster option `-Q`, p. 2313), then
 `resolve_binary_components` places the two constituents around each COM. **Internal binary
 binding energy is a separate reservoir untouched by `Q`** (scale separation: the global
-virial balance lives on the COM scale). A `binary_energy_budget` diagnostic that reports
-this reservoir is the next item (Batch 4j). Orbital orientation is isotropic (McLuster:
-"The binary orbital plane is oriented randomly", p. 2316).
+virial balance lives on the COM scale). `binaries.binary_energy_budget` (Batch 4j) reports
+this explicitly — `Q_com` recovers the virial target while the internal reservoir
+`E_internal` dwarfs the cluster potential by orders of magnitude for hard binaries. Orbital
+orientation is isotropic (McLuster: "The binary orbital plane is oriented randomly", p. 2316).
 
 **Accuracy note — McLuster pairing differs.** McLuster draws `N` stars from the IMF then
 *pairs* `N·b/2` of them (random, or ordered by mass above `msort`) — companions are drawn

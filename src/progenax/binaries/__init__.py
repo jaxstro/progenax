@@ -52,6 +52,8 @@ from .diagnostics import (
     find_bound_pairs,
     find_bound_multiples,
     primordial_survival,
+    BinaryEnergyBudget,
+    binary_energy_budget,
 )
 
 __all__ = [
@@ -92,4 +94,6 @@ __all__ = [
     "find_bound_pairs",
     "find_bound_multiples",
     "primordial_survival",
+    "BinaryEnergyBudget",
+    "binary_energy_budget",
 ]

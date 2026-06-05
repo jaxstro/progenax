@@ -87,6 +87,8 @@ from .binaries import (
     find_bound_pairs,
     find_bound_multiples,
     primordial_survival,
+    BinaryEnergyBudget,
+    binary_energy_budget,
 )
 from .tidal import (
     jacobi_radius,
@@ -148,6 +150,8 @@ __all__ = [
     "find_bound_pairs",
     "find_bound_multiples",
     "primordial_survival",
+    "BinaryEnergyBudget",
+    "binary_energy_budget",
     "to_com_frame",
     "virial_scale",
     "compute_stellar_radii",
