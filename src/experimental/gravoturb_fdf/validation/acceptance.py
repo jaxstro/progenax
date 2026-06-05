@@ -141,6 +141,33 @@ def ac6_cornerstone(shape=(128, 128, 128), n_real=8):
     return {"passed": bool(ok)}
 
 
+# ── AC7: f_sub → Q calibration (headline) — monotone↓, CW04 substructured band ──
+def ac7_q_calibration(shape=(64, 64, 64), n_real=10, n_stars=500):
+    from gravoturb_fdf.validation.calibration import q_vs_fsub
+
+    _header("AC7 — Q(f_sub) calibration (headline): trend↓ + Q∈[0.4,0.8]")
+    f_sub_values = (0.0, 0.2, 0.4, 0.6, 0.8)
+    res = q_vs_fsub(
+        mach=8.0, b=0.5, alpha=1.8, beta=3.5,
+        f_sub_values=f_sub_values, n_stars=n_stars, n_real=n_real,
+        shape=shape, key=jax.random.PRNGKey(0),
+    )
+    qm, qs = res["q_mean"], res["q_std"]
+    slope = float(np.polyfit(res["f_sub"], qm, 1)[0])
+    # Robust "monotone↓ trend": clear negative slope + decreasing endpoints (point
+    # scatter grows with f_sub — a real FBM property, so strict adjacency is too brittle).
+    trend_down = slope < -0.03 and qm[0] > qm[-1]
+    in_band = bool(np.all((qm > 0.4) & (qm < 0.8)))
+    strict = bool(np.all(np.diff(qm) < 0))  # informational
+    n = shape[0]
+    for f, m, sd in zip(f_sub_values, qm, qs):
+        print(f"  {n}³ f_sub={f:.2f}  Q={m:.3f} ± {sd:.3f}")
+    print(f"  slope={slope:+.3f} (trend↓ {'PASS' if trend_down else 'FAIL'})  "
+          f"Q∈[0.4,0.8]: {'PASS' if in_band else 'FAIL'}  strict-mono={strict}  "
+          f"(N⋆={n_stars}, {n_real} real)")
+    return {"passed": bool(trend_down and in_band), "q_mean": qm, "q_std": qs, "slope": slope}
+
+
 # ── AC8 + AC9: gradient signs + FD-vs-autodiff ──
 def ac8_ac9_grads():
     import jax
@@ -174,6 +201,7 @@ def main():
         "AC3/AC4": ac3_ac4_zeta(),
         "AC5": ac5_q(),
         "AC6": ac6_cornerstone(),
+        "AC7": ac7_q_calibration(),
         "AC8/AC9": ac8_ac9_grads(),
     }
     print("\n=== SUMMARY ===")

@@ -28,5 +28,10 @@ def test_ac6_cornerstone():
     assert acceptance.ac6_cornerstone(shape=(64, 64, 64), n_real=4)["passed"]
 
 
+def test_ac7_q_calibration():
+    # 48³×4 smoke for test speed; the script main() runs the 64³ smoke.
+    assert acceptance.ac7_q_calibration(shape=(48, 48, 48), n_real=4, n_stars=400)["passed"]
+
+
 def test_ac8_ac9_grads():
     assert acceptance.ac8_ac9_grads()["passed"]
