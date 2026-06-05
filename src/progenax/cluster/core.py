@@ -5,13 +5,14 @@ Core cluster initial condition generator implementing v1.4 spec.
 Provides the main API for generating star cluster initial conditions with:
 - Arbitrary density profiles (Plummer, King, EFF)
 - Optional mass segregation (Baumgardt+2008 energy ordering)
-- Optional fractal substructure (Goodwin-Whitworth+2004)
 - Flexible virial ratio control
+
+(Turbulent/fractal substructure ICs live in the experimental ``gravoturb_fdf``
+package, not in released progenax.)
 
 Data Classes:
     ClusterState: Immutable container for cluster phase-space coordinates
     MassSegregationLayer: Parameters for mass segregation
-    FractalLayer: Parameters for fractal substructure
     SpatialStructureParams: Combined structure configuration
 
 Functions:
@@ -118,35 +119,10 @@ class MassSegregationLayer:
         **v1.5 extension**: Currently, mass-segregated ICs always use Q_vir=0.5
         (virial equilibrium). To support subvirial or supervirial Baumgardt ICs,
         add `virial_ratio: float = 0.5` to this class and update `generate_cluster_ic`
-        to use `seg.virial_ratio` when `frac is None`.
+        to use `seg.virial_ratio`.
     """
     lambda_seg: float = 1.0
     pool_factor: int = 4
-
-
-@dataclass(frozen=True)
-class FractalLayer:
-    """
-    Parameters for fractal substructure layer (Goodwin-Whitworth+2004).
-
-    Attributes:
-        D: Fractal dimension in [1.6, 3.0].
-           D=1.6: highly clumpy, D=3.0: homogeneous sphere.
-           Note: D is not differentiable; treat as discrete hyperparameter.
-        lambda_frac: Smooth blending parameter in [0, 1]. Controls interpolation
-                     between smooth base profile (lambda_frac=0) and fractal
-                     structure (lambda_frac=1). This is differentiable.
-        coherent_velocities: If True, use hierarchical velocity inheritance from
-                             fractal ancestry tree. If False, use incoherent
-                             random velocities.
-        virial_ratio: Target virial ratio Q_vir = K/|U|. Default 0.5 (virial
-                      equilibrium). Use Q_vir < 0.5 for subvirial (collapsing)
-                      systems like Allison+2009 (Q_vir=0.3).
-    """
-    D: float = 3.0
-    lambda_frac: float = 1.0
-    coherent_velocities: bool = True
-    virial_ratio: float = 0.5
 
 
 @dataclass(frozen=True)
@@ -157,18 +133,13 @@ class SpatialStructureParams:
     Attributes:
         base_profile: Base density profile: "plummer", "king", or "eff"
         mass_segregation: If provided, apply mass segregation after base profile
-        fractal: If provided, apply fractal substructure layer
 
     Notes:
-        In v1, `fractal` and `mass_segregation` are mutually exclusive.
-        If both are provided, a ValueError is raised. Combining primordial
-        energy-ordered mass segregation with strong fractal substructure
-        raises subtle questions about how to define "most bound" in a
-        strongly clumpy potential; we defer that to v2.
+        Turbulent/fractal substructure ICs are provided by the experimental
+        ``gravoturb_fdf`` package (follow-up paper), not by released progenax.
     """
     base_profile: str = "plummer"
     mass_segregation: Optional[MassSegregationLayer] = None
-    fractal: Optional[FractalLayer] = None
 
 
 # =============================================================================
@@ -190,7 +161,7 @@ def sample_velocities_for_profile(
     Sample velocities from equilibrium DF for the given profile.
 
     This is a wrapper around progenax.kinematics that creates the appropriate
-    VelocityDF and samples velocities. Used for smooth profile ICs (no fractal).
+    VelocityDF and samples velocities. Used for smooth profile ICs.
 
     Args:
         key: JAX random key
@@ -248,39 +219,6 @@ def sample_velocities_for_profile(
 # =============================================================================
 # Structure-layer branches (extracted from generate_cluster_ic)
 # =============================================================================
-
-
-def _apply_fractal_branch(
-    key, N_stars, M_total, R_half, profile, frac, imf_params, G, **kwargs
-):
-    """FDF fractal-substructure branch. Returns (masses, positions, velocities).
-
-    FDF redraws masses, so this returns its own masses for consistency. The key
-    is split internally exactly as the inline branch did (RNG-preserving).
-    """
-    from progenax.cluster.fdf_calibration import fractal_layer_from_D
-    from progenax.cluster.fdf import generate_fractal_ic as fdf_generate
-
-    # Convert FractalLayer(D) to FractalDisplacementLayer(chi, sigma_u)
-    fdf_params = fractal_layer_from_D(
-        D=frac.D,
-        virial_ratio=frac.virial_ratio,
-        coherent_velocities=frac.coherent_velocities,
-        lambda_frac=frac.lambda_frac,
-    )
-
-    key, subkey = random.split(key)
-    cluster_fdf = fdf_generate(
-        subkey,
-        N_stars=N_stars,
-        M_total=M_total,
-        R_half=R_half,
-        profile=profile,
-        frac_params=fdf_params,
-        imf_params=imf_params,
-        G=G,
-    )
-    return cluster_fdf.masses, cluster_fdf.positions, cluster_fdf.velocities
 
 
 def _apply_segregation_branch(
@@ -341,8 +279,7 @@ def generate_cluster_ic(
     Generate complete cluster initial conditions.
 
     This is the main entry point for creating star cluster ICs following the
-    v1.4 spec. Supports smooth profiles, mass segregation, and fractal
-    substructure.
+    v1.4 spec. Supports smooth profiles and mass segregation.
 
     Args:
         key: JAX random key for reproducibility
@@ -358,24 +295,16 @@ def generate_cluster_ic(
     Returns:
         ClusterState with masses, positions, velocities
 
-    Raises:
-        ValueError: If both `fractal` and `mass_segregation` are provided.
-                    In v1, these are mutually exclusive.
-
     Notes:
         Follows the layering order from v1.4 spec:
             1. IMF → masses
             2. Base profile → positions_base, velocities_base
-            3. Either fractal layer OR mass segregation layer (not both in v1)
+            3. Optional mass segregation layer
             4. Velocity finalization → rescale to Q_vir, remove COM
 
         The `lambda_seg` parameter blends between:
             - Unsegregated baseline: equilibrium DF with random mass assignment
             - Fully segregated state: Baumgardt energy ordering (S=1)
-
-        The `lambda_frac` parameter blends between:
-            - Smooth base profile
-            - Fractal structure (with profile-mapped radii)
 
     Example:
         >>> from progenax.cluster import generate_cluster_ic, SpatialStructureParams
@@ -404,24 +333,10 @@ def generate_cluster_ic(
         G = defaults.DEFAULT_UNITS.G
 
     profile = structure_params.base_profile
-    frac = structure_params.fractal
     seg = structure_params.mass_segregation
 
-    # ─────────────────────────────────────────────────────────────
-    # Guard: fractal + segregation not supported in v1
-    # ─────────────────────────────────────────────────────────────
-    if frac is not None and seg is not None:
-        raise ValueError(
-            "Fractal + Baumgardt mass segregation not yet combined in v1. "
-            "Use either `fractal` or `mass_segregation`, not both. "
-            "Combining primordial energy-ordered mass segregation with "
-            "strong fractal substructure raises subtle questions about "
-            "how to define 'most bound' in a strongly clumpy potential; "
-            "we defer that to v2."
-        )
-
-    # Determine target virial ratio
-    target_Q_vir = frac.virial_ratio if frac is not None else 0.5
+    # Smooth + mass-segregation ICs target virial equilibrium.
+    target_Q_vir = 0.5
 
     # ─────────────────────────────────────────────────────────────
     # Step 1: Draw masses from IMF
@@ -442,14 +357,9 @@ def generate_cluster_ic(
     )
 
     # ─────────────────────────────────────────────────────────────
-    # Apply the requested structure layer (fractal / segregation / none).
-    # In v1 fractal and segregation are mutually exclusive (guarded above).
+    # Apply the requested structure layer (mass segregation / none).
     # ─────────────────────────────────────────────────────────────
-    if frac is not None:
-        masses, positions, velocities = _apply_fractal_branch(
-            key, N_stars, M_total, R_half, profile, frac, imf_params, G, **kwargs
-        )
-    elif seg is not None:
+    if seg is not None:
         positions, velocities = _apply_segregation_branch(
             key, positions_base, velocities_base, masses, seg,
             profile, R_half, M_total, N_stars, G, **kwargs
@@ -484,7 +394,6 @@ def generate_cluster_ic(
 __all__ = [
     "ClusterState",
     "MassSegregationLayer",
-    "FractalLayer",
     "SpatialStructureParams",
     "generate_cluster_ic",
     "sample_velocities_for_profile",

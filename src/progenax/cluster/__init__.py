@@ -15,7 +15,6 @@ Data Classes:
     ClusterState: Immutable container for masses, positions, velocities
     SpatialStructureParams: Combined profile + structure parameters
     MassSegregationLayer: Baumgardt+2008 mass segregation parameters
-    FractalLayer: User-facing fractal params (D-based, uses FDF internally)
 
 FDF API (Fractal Displacement Field):
     FractalField: Frozen stochastic structure
@@ -33,7 +32,6 @@ References:
 from progenax.cluster.core import (
     ClusterState,
     MassSegregationLayer,
-    FractalLayer,
     SpatialStructureParams,
     generate_cluster_ic,
     sample_velocities_for_profile,
@@ -133,7 +131,6 @@ __all__ = [
     # Core API
     "ClusterState",
     "MassSegregationLayer",
-    "FractalLayer",
     "SpatialStructureParams",
     "generate_cluster_ic",
     "sample_velocities_for_profile",

@@ -30,3 +30,28 @@ def test_no_fractal_gw_legacy_reexport():
         assert name not in getattr(progenax, "__all__", []), (
             f"{name} is still in progenax.__all__"
         )
+
+
+# ── Task 0.3: link #2 — the FractalLayer / fractal= branch is removed from core ──
+def test_no_fractal_layer_in_released_api():
+    """FractalLayer is retired from the released cluster API (Option A)."""
+    import progenax.cluster as cluster
+
+    assert not hasattr(cluster, "FractalLayer"), (
+        "progenax.cluster.FractalLayer still exists; the D-stub fractal layer is "
+        "retired to experimental gravoturb_fdf."
+    )
+    assert "FractalLayer" not in getattr(cluster, "__all__", [])
+
+
+def test_spatial_structure_params_has_no_fractal_field():
+    """SpatialStructureParams exposes only base_profile + mass_segregation."""
+    import dataclasses
+
+    from progenax.cluster import SpatialStructureParams
+
+    field_names = {f.name for f in dataclasses.fields(SpatialStructureParams)}
+    assert "fractal" not in field_names, (
+        f"SpatialStructureParams still has a `fractal` field: {field_names}"
+    )
+    assert "mass_segregation" in field_names  # mass-seg stays in released core
