@@ -14,7 +14,7 @@ description: Annotated reference for B. Burkhart & P. Mocz — the self-gravitat
 
 **DOI.** [10.3847/1538-4357/ab25ed](https://doi.org/10.3847/1538-4357/ab25ed)
 
-**Verified.** Equations below checked against the held PDF (2026-06).
+**Verified.** Equations + ranges checked against the held PDF (pp. 1–8, Eqs. 1–3, 11, 16–20, 24; Figs. 1, 5; re-verified 2026-06).
 ```
 
 ## The big idea
@@ -91,7 +91,23 @@ the true $f_\mathrm{dense}$ exceeds it because the shallower tail adds high-dens
 
 **Behaviour (their Fig. 5).** $f_\mathrm{dense}$ *decreases* with $\mathcal{M}$ (the PDF
 widens, $s_t$ moves up) and *decreases* with $\alpha$ (steeper tail → less dense gas). The
-instantaneous SFE is $\epsilon_\mathrm{inst}=\epsilon_0\,f_\mathrm{dense}$.
+instantaneous SFE is $\epsilon_\mathrm{inst}=\epsilon_0\,f_\mathrm{dense}$ (Eq. 24).
+
+**The central result: only two parameters, no free critical density.** Because $s_t$ is
+*derived* from $(\sigma_s,\alpha)$ via Eq. 2, the self-gravitating fraction in Eqs. 18–20 is
+controlled by **just those two numbers** — BM19 stress there is "*no need to invoke a
+critical density of collapse*." This is what lets the SFE be predicted from observables
+(cloud Mach number / PDF width and the measured tail slope) rather than a tuned threshold.
+
+**$s_t$ *is* a critical density (Eqs. 9–15).** Equating the Jeans length to the post-shock
+sonic length gives a critical overdensity $\rho_\mathrm{crit}/\rho_0 = \exp(s_\mathrm{crit})
+= \tfrac{\pi^2}{15}\,\alpha_\mathrm{vir}\,\mathcal{M}^2$ (their Eq. 11, with
+$\alpha_\mathrm{vir}=5v_L^2 R/GM$). For virialised clouds ($\alpha_\mathrm{vir}\approx1$)
+this matches the post-shock density $\rho_\mathrm{ps}/\rho_0=\mathcal{M}^2$ to within a
+factor of a few, and BM19 show $s_t\approx s_\mathrm{crit}\approx s_\mathrm{ps}$ in the
+$\alpha\simeq1.5$–2 limit. They validate $s_t$ and $f_\mathrm{dense}$ against AREPO
+moving-mesh gravo-turbulent simulations ($b=1/3$, $\mathcal{M}=5,10,16$; their Figs. 4–5),
+finding the dense fraction (and hence SFE) is **weakly anti-correlated with Mach number**.
 
 ## Use in progenax
 
