@@ -14,7 +14,7 @@ description: Annotated reference for P. Padoan & Å. Nordlund — the star forma
 
 **DOI.** [10.1088/0004-637X/730/1/40](https://doi.org/10.1088/0004-637X/730/1/40)
 
-**Verified.** Equations below checked against the held PDF (2026-06).
+**Verified.** Equations + prefactors checked against the held PDF (pp. 1–4, Eqs. 1, 3–4, 8–11, 18; re-verified 2026-06).
 ```
 
 ## The big idea
@@ -66,8 +66,13 @@ $$
 s_\mathrm{crit} = \ln\!\left(0.067\,\theta^{-2}\,\alpha_\mathrm{vir}\,\mathcal{M}_{S,0}^{2}\right).
 $$
 
-**Virial parameter (Eq. 9).** $\alpha_\mathrm{vir} = 5 v_0^2 / (\pi G \rho_0 L_0^2)$,
-with $v_0$ the 3-D rms turbulent velocity and $L_0$ the cloud size.
+**Virial parameter (Eqs. 1, 9).** Equivalently
+$\alpha_\mathrm{vir} = 5\sigma_{v,\mathrm{1D}}^2 R/(GM)$ (Bertoldi & McKee 1992; Eq. 1) or
+$\alpha_\mathrm{vir} = 5 v_0^2 / (\pi G \rho_0 L_0^2)$ (Eq. 9, a uniform sphere of radius
+$L_0/2$, mean density $\rho_0$, 3-D rms velocity $v_0$). `gravoturb_fdf`'s
+`virial_parameter` helper uses the Eq. 1 form. $\alpha_\mathrm{vir}\approx1$ is virial
+equilibrium; the SFR *decreases* with increasing $\alpha_\mathrm{vir}$ (more turbulent
+support relative to gravity) and increases with $\mathcal{M}_{S,0}$.
 
 **MHD generalisation (Eq. 18).** Including magnetic pressure ($\beta_0 = 2c_s^2/v_{A,0}^2$
 the ratio of gas to magnetic pressure),
