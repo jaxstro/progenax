@@ -32,19 +32,22 @@ def test_build_fdf_field_struct():
     assert float(fld.f_dense) == pytest.approx(float(f_dense_bm19_full(10.0, 0.4, 2.0)), rel=1e-9)
 
 
-def test_build_fdf_field_marginal_unity():
-    """Pipeline preserves the ρ_0 convention: ⟨e^s⟩ = 1."""
+def test_build_fdf_field_marginal_mean_density():
+    """Mass-conserving copula gives ⟨e^s⟩ = bm19_mean_density (BM19-consistent ρ_0, ≳1)."""
     from gravoturb_fdf.field.pipeline import build_fdf_field
+    from gravoturb_fdf.theory.pdf import bm19_mean_density
 
     fld = build_fdf_field(
         mach=8.0, b=0.5, alpha=1.8, beta=3.5,
         shape=(48, 48, 48), key=jax.random.PRNGKey(1),
     )
-    assert float(jnp.mean(jnp.exp(fld.s))) == pytest.approx(1.0, abs=1e-6)
+    assert float(jnp.mean(jnp.exp(fld.s))) == pytest.approx(
+        float(bm19_mean_density(8.0, 0.5, 1.8)), rel=1e-6
+    )
 
 
 def test_cornerstone_single_64():
-    """AC6 single-realization smoke: |f_dense_realized − f_dense| < 5% at 64³."""
+    """AC6 single-realization: |f_dense_realized − f_dense| < 0.5% at 64³ (mass-conserving)."""
     from gravoturb_fdf.field.pipeline import build_fdf_field
 
     fld = build_fdf_field(
@@ -52,7 +55,7 @@ def test_cornerstone_single_64():
         shape=(64, 64, 64), key=jax.random.PRNGKey(7),
     )
     rel_bias = abs(float(fld.f_dense_realized) - float(fld.f_dense)) / float(fld.f_dense)
-    assert rel_bias < 0.05
+    assert rel_bias < 0.005
 
 
 def test_cloud_to_stars_end_to_end():

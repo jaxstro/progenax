@@ -23,5 +23,10 @@ def test_ac5_q():
     assert acceptance.ac5_q()["passed"]
 
 
+def test_ac6_cornerstone():
+    # 64³×4 for test speed; the script main() runs the full 128³×8 ensemble.
+    assert acceptance.ac6_cornerstone(shape=(64, 64, 64), n_real=4)["passed"]
+
+
 def test_ac8_ac9_grads():
     assert acceptance.ac8_ac9_grads()["passed"]

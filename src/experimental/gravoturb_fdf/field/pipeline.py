@@ -25,7 +25,7 @@ from jaxtyping import Array, Float
 from gravoturb_fdf.field.field import (
     gaussian_random_field,
     low_resolution_flag,
-    rank_copula_field,
+    mass_conserving_copula_field,
 )
 from gravoturb_fdf.field.sampling import sample_positions
 from gravoturb_fdf.theory.bm19 import (
@@ -68,7 +68,7 @@ def build_fdf_field(
         )
 
     g = gaussian_random_field(shape, beta, key)
-    s = rank_copula_field(g, mach, b, alpha)
+    s = mass_conserving_copula_field(g, mach, b, alpha)
 
     rho = jnp.exp(s)
     above = s > s_t

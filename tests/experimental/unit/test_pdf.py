@@ -11,6 +11,7 @@ rank-copula field realization in P2; it must be smooth in (mach, b, alpha) for g
 import math
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -27,6 +28,74 @@ def test_volume_pdf_normalized(mach, b, alpha):
     s = np.linspace(-30.0, 80.0, 2_000_000)
     p = np.asarray(bm19_volume_pdf(s, mach, b, alpha))
     assert np.trapezoid(p, s) == pytest.approx(1.0, abs=2e-3)
+
+
+@pytest.mark.parametrize("mach,b,alpha", PARAMS)
+def test_icdf_analytic_roundtrip(mach, b, alpha):
+    """Analytic iCDF inverts the volume CDF exactly: F(F^{-1}(u)) = u, incl. deep tail."""
+    import jax
+    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic
+    from gravoturb_fdf.theory.pdf import build_bm19_cdf_table
+
+    u = np.array([1e-6, 0.01, 0.2, 0.5, 0.8, 0.99, 1 - 1e-6, 1 - 5e-7])
+    s = np.asarray(bm19_icdf_analytic(u, mach, b, alpha))
+    # recover u via the analytic mass-independent volume CDF table (fine interp)
+    s_grid, cdf = build_bm19_cdf_table(mach, b, alpha, n_nodes=200_000)
+    u_back = np.interp(s, np.asarray(s_grid), np.asarray(cdf))
+    assert np.allclose(u_back, u, atol=2e-4)
+
+
+def test_icdf_analytic_differentiable():
+    """Analytic iCDF is differentiable in alpha across body and tail (no where-nan)."""
+    import jax
+    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic
+
+    for u in (0.3, 0.95):
+        g = float(jax.grad(lambda a: jnp.sum(bm19_icdf_analytic(jnp.array([u]), 6.0, 0.4, a)))(1.8))
+        assert jnp.isfinite(g)
+
+
+@pytest.mark.parametrize("mach,b,alpha", PARAMS)
+def test_mass_cdf_matches_numeric(mach, b, alpha):
+    """Normalized mass CDF M(s)=∫_{-∞}^s e^{s'}p ds' / ⟨e^s⟩ matches numeric integration."""
+    from gravoturb_fdf.theory.pdf import bm19_mass_cdf, bm19_volume_pdf
+
+    s = np.linspace(-30.0, 90.0, 2_000_000)
+    p = np.asarray(bm19_volume_pdf(s, mach, b, alpha))
+    mass_density = np.exp(s) * p
+    cum = np.concatenate([[0.0], np.cumsum(0.5 * (mass_density[1:] + mass_density[:-1]) * np.diff(s))])
+    cum /= cum[-1]  # normalize to M(∞)=1
+    grid = np.linspace(-10.0, 20.0, 40)
+    m_analytic = np.asarray(bm19_mass_cdf(grid, mach, b, alpha))
+    m_numeric = np.interp(grid, s, cum)
+    assert np.allclose(m_analytic, m_numeric, atol=3e-3)
+
+
+@pytest.mark.parametrize("mach,b,alpha", PARAMS)
+def test_mass_cdf_at_transition_is_one_minus_f_dense(mach, b, alpha):
+    """1 − M(s_t) equals BM19 f_dense (mass fraction above the transition)."""
+    from gravoturb_fdf.theory.bm19 import (
+        f_dense_bm19_full,
+        sigma_s_squared,
+        transition_density,
+    )
+    from gravoturb_fdf.theory.pdf import bm19_mass_cdf
+
+    s_t = transition_density(alpha, sigma_s_squared(mach, b))
+    f_dense = float(f_dense_bm19_full(mach, b, alpha))
+    assert 1.0 - float(bm19_mass_cdf(s_t, mach, b, alpha)) == pytest.approx(f_dense, rel=1e-4)
+
+
+@pytest.mark.parametrize("mach,b,alpha", PARAMS)
+def test_mean_density_matches_numeric(mach, b, alpha):
+    """bm19_mean_density = ⟨ρ/ρ_0⟩ = ∫ e^s p ds ≥ 1 (power-law tail adds mass)."""
+    from gravoturb_fdf.theory.pdf import bm19_mean_density, bm19_volume_pdf
+
+    s = np.linspace(-30.0, 90.0, 2_000_000)
+    numeric = np.trapezoid(np.exp(s) * np.asarray(bm19_volume_pdf(s, mach, b, alpha)), s)
+    val = float(bm19_mean_density(mach, b, alpha))
+    assert val >= 1.0
+    assert val == pytest.approx(numeric, rel=2e-3)
 
 
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)

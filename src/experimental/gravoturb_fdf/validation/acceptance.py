@@ -13,6 +13,8 @@ import math
 
 import numpy as np
 
+import jax
+
 from gravoturb_fdf.theory.bm19 import (
     f_dense_bm19_full,
     sigma_s_squared,
@@ -20,6 +22,7 @@ from gravoturb_fdf.theory.bm19 import (
 )
 from gravoturb_fdf.theory.pp20 import magnification_factor, zeta_fdf_direct
 from gravoturb_fdf.diagnostics.q import compute_q_parameter
+from gravoturb_fdf.field.pipeline import build_fdf_field
 
 
 # ── small printing helpers ──
@@ -114,6 +117,30 @@ def ac5_q(n_real=30, N=200):
     return {"passed": bool(ok)}
 
 
+# ── AC6: cornerstone — realized f_dense vs BM19 (mass-conserving rank copula) ──
+def ac6_cornerstone(shape=(128, 128, 128), n_real=8):
+    _header("AC6 — CORNERSTONE: f_dense_realized vs BM19 f_dense (mass-conserving copula)")
+    ok = True
+    cases = [(10.0, 0.4, 2.0, 3.667), (8.0, 0.5, 1.8, 3.5), (12.0, 1 / 3, 1.6, 4.0)]
+    n = shape[0]
+    for mach, b, alpha, beta in cases:
+        biases = []
+        for seed in range(n_real):
+            fld = build_fdf_field(mach, b, alpha, beta, shape, jax.random.PRNGKey(seed))
+            fd = float(fld.f_dense)
+            fr = float(fld.f_dense_realized)
+            biases.append((fr - fd) / fd)
+        biases = np.asarray(biases)
+        ens = abs(biases.mean())
+        single = np.abs(biases).max()
+        verdict = "PASS" if (ens < 0.01 and single < 0.05) else "FAIL"
+        ok &= ens < 0.01 and single < 0.05
+        print(f"  {n}³ ℳ={mach:>4} b={b:.2f} α={alpha} f_dense={fd:.4f}  "
+              f"ens_bias={biases.mean()*100:+.3f}%  single_max={single*100:.3f}%  "
+              f"(tol ens<1% single<5%, N={n_real})  {verdict}")
+    return {"passed": bool(ok)}
+
+
 # ── AC8 + AC9: gradient signs + FD-vs-autodiff ──
 def ac8_ac9_grads():
     import jax
@@ -146,6 +173,7 @@ def main():
         "AC1/AC2": ac1_ac2_bm19(),
         "AC3/AC4": ac3_ac4_zeta(),
         "AC5": ac5_q(),
+        "AC6": ac6_cornerstone(),
         "AC8/AC9": ac8_ac9_grads(),
     }
     print("\n=== SUMMARY ===")

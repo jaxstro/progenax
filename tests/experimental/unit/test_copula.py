@@ -71,6 +71,57 @@ def test_rank_copula_marginal_matches_bm19():
     assert np.allclose(np.diff(emp), np.diff(theo), atol=0.05)
 
 
+def test_mass_conserving_preserves_order():
+    """Mass-conserving remap is monotone: argsort(s) == argsort(g)."""
+    from gravoturb_fdf.field.field import mass_conserving_copula_field
+
+    g = jax.random.normal(jax.random.PRNGKey(10), (16, 16, 16))
+    s = mass_conserving_copula_field(g, mach=8.0, b=0.5, alpha=1.8)
+    assert jnp.array_equal(jnp.argsort(s.ravel()), jnp.argsort(g.ravel()))
+
+
+def test_mass_conserving_mean_density_matches_theory():
+    """⟨e^s⟩ equals bm19_mean_density exactly (mass-conserving construction)."""
+    from gravoturb_fdf.field.field import mass_conserving_copula_field
+    from gravoturb_fdf.theory.pdf import bm19_mean_density
+
+    g = jax.random.normal(jax.random.PRNGKey(11), (50_000,))
+    s = mass_conserving_copula_field(g, mach=8.0, b=0.5, alpha=1.8)
+    assert float(jnp.mean(jnp.exp(s))) == pytest.approx(
+        float(bm19_mean_density(8.0, 0.5, 1.8)), rel=1e-6
+    )
+
+
+@pytest.mark.parametrize("mach,b,alpha", [(10.0, 0.4, 2.0), (12.0, 1 / 3, 1.6)])
+def test_mass_conserving_f_dense_exact(mach, b, alpha):
+    """Realized hard mass fraction reproduces BM19 f_dense to <0.5% (the AC6 fix)."""
+    from gravoturb_fdf.field.field import mass_conserving_copula_field
+    from gravoturb_fdf.theory.bm19 import (
+        f_dense_bm19_full,
+        sigma_s_squared,
+        transition_density,
+    )
+
+    g = jax.random.normal(jax.random.PRNGKey(12), (200_000,))
+    s = mass_conserving_copula_field(g, mach=mach, b=b, alpha=alpha)
+    rho = jnp.exp(s)
+    s_t = transition_density(alpha, sigma_s_squared(mach, b))
+    realized = float(jnp.sum(jnp.where(s > s_t, rho, 0.0)) / jnp.sum(rho))
+    theory = float(f_dense_bm19_full(mach, b, alpha))
+    assert abs(realized - theory) / theory < 0.005
+
+
+def test_mass_conserving_differentiable_in_alpha():
+    """Grad of an s-statistic w.r.t. alpha is finite (analytic iCDF + mass CDF)."""
+    from gravoturb_fdf.field.field import mass_conserving_copula_field
+
+    g = jax.random.normal(jax.random.PRNGKey(13), (4096,))
+    grad = float(jax.grad(
+        lambda a: jnp.mean(mass_conserving_copula_field(g, 8.0, 0.5, a) ** 2)
+    )(1.8))
+    assert jnp.isfinite(grad)
+
+
 def test_rank_copula_differentiable_in_alpha():
     """Grad of an s-statistic w.r.t. alpha flows through the smooth CDF table and is finite."""
     from gravoturb_fdf.field.field import rank_copula_field
