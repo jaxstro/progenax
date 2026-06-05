@@ -266,6 +266,26 @@ def test_cored_approaches_powerlaw_as_core_shrinks(p):
     )
 
 
+@pytest.mark.parametrize("p,rc", [(0.5, 0.2), (1.5, 0.2), (1.7, 0.3)])
+def test_with_core_resolution_controllable_and_converged(p, rc):
+    """magnification_factor_with_core must accept an explicit n_radial_points
+    and give a resolution-independent result at high n.
+
+    Before the F10 fix, n_radial_points was not static under jax.jit, so passing
+    it raised ConcretizationTypeError (jnp.linspace 'num' must be concrete).
+    After the fix (static n + trapezoid on a grid from 0), the cored integral is
+    converged: doubling the resolution changes zeta by < 1e-3.
+    """
+    pp, rr = jnp.float64(p), jnp.float64(rc)
+    z256 = float(magnification_factor_with_core(pp, rr, n_radial_points=256))
+    z512 = float(magnification_factor_with_core(pp, rr, n_radial_points=512))
+    assert jnp.isfinite(z256) and jnp.isfinite(z512)
+    assert abs(z256 - z512) < 1e-3, (
+        f"At p={p}, r_c/R={rc}: cored zeta not converged in resolution "
+        f"(n=256 -> {z256:.6f}, n=512 -> {z512:.6f}, |delta|={abs(z256 - z512):.2e})"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Regression trap for the historical buggy inline form
 # ---------------------------------------------------------------------------

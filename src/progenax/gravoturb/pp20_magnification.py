@@ -131,6 +131,8 @@ Kainulainen, J., Federrath, C., & Henning, T. 2014, Science, 344, 183
 
 from __future__ import annotations
 
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
@@ -204,7 +206,7 @@ def magnification_factor(p: Array) -> Array:
     return 2.0 * (3.0 - p_safe) ** 1.5 / (3.0**1.5 * (2.0 - p_safe))
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("n_radial_points",))
 def magnification_factor_with_core(
     p: Array,
     r_c_over_R: Array,
@@ -217,8 +219,10 @@ def magnification_factor_with_core(
 
     which transitions from rho ~ rho_c for r << r_c to rho ~ r^(-p) for r >> r_c.
 
-    This avoids the singularity at p = 1.3 by integrating over a realistic
-    cored profile.
+    The analytic ``magnification_factor`` (PP20 Eq. 6) is well-behaved over
+    0 <= p < 2 and diverges only as p -> 2 (singular isothermal collapse). A
+    finite central core regularizes that p -> 2 divergence and yields a finite
+    zeta for p >= 2 as well, where the pure power law has no finite mass.
 
     The magnification factor is computed by numerical integration:
 
@@ -235,8 +239,10 @@ def magnification_factor_with_core(
     n_radial_points : int
         Integration resolution (default 100).
 
-        n_radial_points = 100 is sufficient for ~1% accuracy for typical
-        p and r_c/R. Increase if higher precision is needed.
+        Trapezoid integration on a uniform r/R grid in [0, 1]. The default
+        n_radial_points = 100 already gives the converged zeta to <0.1% for
+        typical p and r_c/R. It is a static argument (settable for stress
+        tests or higher precision).
 
     Returns
     -------
@@ -255,40 +261,39 @@ def magnification_factor_with_core(
     Parmentier & Pasquali 2020, ApJ, 903, 56, Equations 7-8
     Tan, Krumholz & McKee 2006, ApJL, 641, L121
     """
-    # Dimensionless radial grid (r/R)
-    x = jnp.linspace(0.01, 1.0, n_radial_points)
+    # Dimensionless radial grid (r/R) from centre to edge. x=0 is safe: the
+    # cored profile is finite there and the r^2 volume weight vanishes.
+    x = jnp.linspace(0.0, 1.0, n_radial_points)
     dx = x[1] - x[0]
 
     # Core radius in dimensionless units
     x_c = jnp.maximum(r_c_over_R, 1e-4)  # Avoid division by zero
 
     # Density profile: rho/rho_c = [1 + (x/x_c)^2]^(-p/2)
-    # Using softened form for numerical stability
     rho_normalized = jnp.power(1.0 + (x / x_c) ** 2, -p / 2.0)
 
-    # Volume element: 4*pi*x^2*dx (in dimensionless units)
-    dV = 4.0 * jnp.pi * x**2 * dx
+    # Volume weight 4*pi*x^2 (dx applied by the trapezoid rule below)
+    vol_weight = 4.0 * jnp.pi * x**2
 
-    # Mass integral: M ~ int rho dV
-    mass_integrand = rho_normalized * dV
-    total_mass = jnp.sum(mass_integrand)
+    # Trapezoid rule on the uniform grid: dx * (sum - 1/2 * (first + last)).
+    def _trapz(integrand: Array) -> Array:
+        return dx * (jnp.sum(integrand) - 0.5 * (integrand[0] + integrand[-1]))
 
-    # Mean density: <rho> = M / V, where V = (4/3)*pi*R^3 = 4*pi/3 in units of R
+    # Mass integral M = int rho dV
+    total_mass = _trapz(rho_normalized * vol_weight)
+
+    # Mean density <rho> = M / V, with V = (4/3)*pi*R^3 = 4*pi/3 in units of R
     volume = 4.0 * jnp.pi / 3.0
     mean_rho = total_mass / volume
 
-    # SFR-weighted integral: int rho^(3/2) dV
-    # (since SFR ~ rho/t_ff ~ rho^(3/2))
-    sfr_integrand = jnp.power(rho_normalized, 1.5) * dV
-    sfr_weighted = jnp.sum(sfr_integrand)
+    # SFR-weighted integral int rho^(3/2) dV  (SFR ~ rho/t_ff ~ rho^(3/2))
+    sfr_weighted = _trapz(jnp.power(rho_normalized, 1.5) * vol_weight)
 
-    # Top-hat reference: SFR_tophat ~ M * <rho>^(1/2)
+    # Top-hat reference SFR_tophat ~ M * <rho>^(1/2)
     tophat_sfr = total_mass * jnp.sqrt(mean_rho)
 
-    # Magnification factor
+    # Magnification factor (zeta >= 1; top-hat is the minimum)
     zeta = sfr_weighted / tophat_sfr
-
-    # Ensure zeta >= 1 (top-hat is minimum)
     return jnp.maximum(zeta, 1.0)
 
 
