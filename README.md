@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete**: 21,221 LOC source code, 1201 tests passing (unit: 1046, integration: 35, validation: 120). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics.
+**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete**: 21,221 LOC source code, 1213 tests passing (unit: 1046, integration: 35, validation: 132). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics.
 
 ## Features
 
@@ -298,7 +298,7 @@ progenax/
 └── tests/
     ├── unit/                # 1046 unit tests
     ├── integration/         # 35 integration tests
-    └── validation/          # 120 physics validation tests
+    └── validation/          # 132 physics validation tests
 ```
 
 ## Key Patterns
@@ -361,12 +361,12 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 
 ```bash
 # All tests
-pytest tests/ -v                    # 1201 tests, ~55s
+pytest tests/ -v                    # 1213 tests, ~55s
 
 # By tier
 pytest tests/unit/ -v               # 1046 unit tests
 pytest tests/integration/ -v        # 35 integration tests
-pytest tests/validation/ -v         # 120 physics validation tests
+pytest tests/validation/ -v         # 132 physics validation tests
 
 # Specific modules
 pytest tests/unit/imf/ -v

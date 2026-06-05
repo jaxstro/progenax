@@ -32,12 +32,18 @@ class AnalyticalIC:
 
 
 # ============================================================================
-# NASA JPL Solar System Data (Single Source of Truth)
+# Solar System Data (Single Source of Truth)
 # ============================================================================
 
-# Planetary orbital elements at J2000.0 epoch
-# Source: https://ssd.jpl.nasa.gov/horizons/
-# Used by solar_system_full(), solar_system_inner_4(), and validation scripts
+# Orbital elements (a, e, inc, Omega, omega) are J2000.0 osculating elements from
+#   JPL Horizons / Standish & Williams (2012). The `nu` (true anomaly) values are an
+#   arbitrary phase spread (0, 45, 90, ... deg) so the planets are not all aligned —
+#   a test-IC convenience, not ephemeris positions.
+# Masses `M` are planet/Sun mass ratios from the IAU (2009) best estimates
+#   (Earth: M_sun/M_E = 332946.05 -> 3.0035e-6; Jupiter: 1/1047.35 -> 9.5479e-4). The
+#   solar-mass UNIT itself is the IAU 2015 Resolution B3 nominal mass parameter
+#   (Prša et al. 2016, AJ 152, 41 — (GM_sun)^N = 1.3271244e20 m^3 s^-2).
+# Used by solar_system_full(), solar_system_inner_4(), and validation scripts.
 SOLAR_SYSTEM_PLANETS = [
     {
         "name": "Mercury",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -63,59 +65,40 @@ def three_body_figure_eight(mass: float = 1.0, scale: float = 1.0, G: float = 1.
         - Simó (2001), private communication (numerical coefficients)
         - Montgomery (2001), Notices AMS, 48, 471 - Popular review
     """
-    # Initial conditions from Chenciner & Montgomery (2000)
-    # Dimensionless units: G=1, m=1, length scale=1
-    # Positions at t=0 (3-fold symmetry)
-    x1 = 0.97000436 * scale
-    y1 = -0.24308753 * scale
+    # Canonical Chenciner-Montgomery-Simó initial conditions (dimensionless: G=1, m=1,
+    # length=1). Bodies 1 and 2 sit at ±(x1, y1) with the SAME velocity; body 3 sits at
+    # the origin with velocity -2·(vx1, vy1). This collinear configuration makes BOTH the
+    # total momentum and the total angular momentum vanish (the figure-eight has L=0) and
+    # is the one that closes after one period. (A 3-fold spatial rotation does NOT — it
+    # gives an equilateral choreography with L≠0; verified by one-period integration.)
+    x1 = 0.97000436
+    y1 = -0.24308753
+    vx1 = 0.4662036850
+    vy1 = 0.4323657300
 
-    # Velocities at t=0
-    vx1 = 0.4662036850 * scale
-    vy1 = 0.4323657300 * scale
-
-    # Use 3-fold rotational symmetry to get other particles
-    # Rotation by 120° and 240°
-    theta2 = 2.0 * jnp.pi / 3.0
-    theta3 = 4.0 * jnp.pi / 3.0
-
-    cos2 = jnp.cos(theta2)
-    sin2 = jnp.sin(theta2)
-    cos3 = jnp.cos(theta3)
-    sin3 = jnp.sin(theta3)
-
-    # Particle 2 (rotated 120°)
-    x2 = cos2 * x1 - sin2 * y1
-    y2 = sin2 * x1 + cos2 * y1
-    vx2 = cos2 * vx1 - sin2 * vy1
-    vy2 = sin2 * vx1 + cos2 * vy1
-
-    # Particle 3 (rotated 240°)
-    x3 = cos3 * x1 - sin3 * y1
-    y3 = sin3 * x1 + cos3 * y1
-    vx3 = cos3 * vx1 - sin3 * vy1
-    vy3 = sin3 * vx1 + cos3 * vy1
-
-    # Create arrays (planar motion, z=0)
-    positions = jnp.array(
+    pos0 = jnp.array(
         [
             [x1, y1, 0.0],
-            [x2, y2, 0.0],
-            [x3, y3, 0.0],
+            [-x1, -y1, 0.0],
+            [0.0, 0.0, 0.0],
         ]
     )
-
-    velocities = jnp.array(
+    vel0 = jnp.array(
         [
             [vx1, vy1, 0.0],
-            [vx2, vy2, 0.0],
-            [vx3, vy3, 0.0],
+            [vx1, vy1, 0.0],
+            [-2.0 * vx1, -2.0 * vy1, 0.0],
         ]
     )
 
+    # Rescale the dimensionless orbit to (mass, scale, G): lengths × scale, velocities ×
+    # √(G·m/scale), so the orbit stays a closed figure-eight with period
+    # T₀·√(scale³/(G·m)). (At the defaults G=m=scale=1 this is the identity.)
+    positions = pos0 * scale
+    velocities = vel0 * jnp.sqrt(G * mass / scale)
     masses = jnp.array([mass, mass, mass])
 
-    # Compute period
-    period = figure_eight_period(scale, G)
+    period = figure_eight_period(scale, G, mass)
 
     return AnalyticalIC(
         positions=positions,
@@ -123,31 +106,28 @@ def three_body_figure_eight(mass: float = 1.0, scale: float = 1.0, G: float = 1.
         masses=masses,
         name="three_body_figure_eight",
         period=float(period),
-        energy=None,  # Not trivial to compute analytically
+        energy=None,  # Constant, but not a simple closed form; measured in tests.
     )
 
 
-def figure_eight_period(scale: float = 1.0, G: float = 1.0) -> float:
+def figure_eight_period(scale: float = 1.0, G: float = 1.0, mass: float = 1.0) -> float:
     """
     Return period of figure-8 orbit.
 
     Args:
         scale: Spatial scale factor used in three_body_figure_eight()
         G: Gravitational constant [appropriate units]
+        mass: Mass of each particle [same units as three_body_figure_eight] (default 1.0)
 
     Returns:
         Period in time units
 
     Notes:
-        - Period is T = 6.3259 in dimensionless units (G=1, m=1, scale=1)
-        - Scales as T ∝ scale^(3/2) / √(G·m)
+        - Period is T₀ = 6.32591398 in dimensionless units (G=1, m=1, scale=1)
+        - Scales as T = T₀ · √(scale³ / (G·m))
     """
-    # Dimensionless period (G=1, m=1, scale=1)
     T_dimensionless = 6.32591398
-
-    # Scale to current units: T = T_0 * sqrt(scale³ / (G·m))
-    # For equal masses m=1, this simplifies to:
-    return T_dimensionless * jnp.sqrt(scale**3 / G)
+    return T_dimensionless * jnp.sqrt(scale**3 / (G * mass))
 
 
 # ============================================================================

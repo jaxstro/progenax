@@ -4,17 +4,17 @@
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete - 21,221 LOC source, 1201 tests (unit: 1046, integration: 35, validation: 120). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized: IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`), faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector (`resolve_binary_components`), and dynamic + energy-budget diagnostics. See Physics Validation Results below.
+**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete - 21,221 LOC source, 1213 tests (unit: 1046, integration: 35, validation: 132). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized: IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`), faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector (`resolve_binary_components`), and dynamic + energy-budget diagnostics. See Physics Validation Results below.
 
 ## Quick Commands
 
 ```bash
 conda activate astro
 pip install -e ".[dev]"
-pytest tests/ -v                    # All 1201 tests (~55s; ~5min with coverage)
+pytest tests/ -v                    # All 1213 tests (~55s; ~5min with coverage)
 pytest tests/unit/ -v               # 1046 unit tests
 pytest tests/integration/ -v        # 35 integration tests
-pytest tests/validation/ -v         # 120 physics validation tests
+pytest tests/validation/ -v         # 132 physics validation tests
 ```
 
 ## Units Policy (progenax)
@@ -180,11 +180,12 @@ tests/
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          120 tests
+└── validation/          132 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_eff_physics.py          EFF Eddington-inversion DF
     ├── test_binary_physics.py       Kepler's laws
+    ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
 ```
 

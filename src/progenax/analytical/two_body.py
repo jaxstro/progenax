@@ -76,12 +76,8 @@ def two_body_kepler(
     # Semi-latus rectum
     p = a * (1.0 - e**2)
 
-    # Current radius and velocity in orbital plane
-    # At true anomaly ν:
-    #   r = p / (1 + e cos ν)
-    #   v = sqrt(G M_total / p) * sqrt(1 + e² + 2e cos ν)
+    # Current radius in the orbital plane at true anomaly ν: r = p / (1 + e cos ν).
     r_orb = p / (1.0 + e * jnp.cos(true_anomaly))
-    v_orb = jnp.sqrt(G * M_total / p) * jnp.sqrt(1.0 + e**2 + 2.0 * e * jnp.cos(true_anomaly))
 
     # Position and velocity in orbital plane (before rotation)
     # Position: along radial direction at true anomaly

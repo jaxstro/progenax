@@ -14,6 +14,41 @@ from .two_body import two_body_kepler
 # ============================================================================
 
 
+def _assemble_planetary_system(planet_dicts: list, G: float, name: str) -> AnalyticalIC:
+    """Build a Sun + planets ``AnalyticalIC`` from ``SOLAR_SYSTEM_PLANETS``-style dicts.
+
+    Each planet is placed on its Sun-planet two-body orbit (angles in **degrees** in the
+    table, converted here), then the Sun is placed at the barycentre (total momentum = 0).
+    Single source of truth for both ``solar_system_inner_4`` and ``solar_system_full``.
+    """
+    M_sun = 1.0
+    deg = jnp.pi / 180.0
+    planet_systems = [
+        two_body_kepler(
+            M1=M_sun, M2=p["M"], a=p["a"], e=p["e"],
+            inclination=p["inc"] * deg, Omega=p["Omega"] * deg,
+            omega=p["omega"] * deg, true_anomaly=p["nu"] * deg, G=G,
+        )
+        for p in planet_dicts
+    ]
+    planet_positions = jnp.array([ic.positions[1] for ic in planet_systems])
+    planet_velocities = jnp.array([ic.velocities[1] for ic in planet_systems])
+    planet_masses = jnp.array([p["M"] for p in planet_dicts])
+
+    # Barycentric Sun: M_sun·q_sun + Σ M_i·q_i = 0.
+    q_sun = -jnp.sum(planet_masses[:, None] * planet_positions, axis=0) / M_sun
+    v_sun = -jnp.sum(planet_masses[:, None] * planet_velocities, axis=0) / M_sun
+
+    return AnalyticalIC(
+        positions=jnp.vstack([q_sun[None, :], planet_positions]),
+        velocities=jnp.vstack([v_sun[None, :], planet_velocities]),
+        masses=jnp.concatenate([jnp.array([M_sun]), planet_masses]),
+        name=name,
+        period=None,  # Multiple periods
+        energy=None,  # Not trivial for N>2
+    )
+
+
 def earth_sun_2body(G: float) -> AnalyticalIC:
     """
     Earth-Sun system for validation (circular orbit approximation).
@@ -225,93 +260,8 @@ def solar_system_inner_4(G: float) -> AnalyticalIC:
         - JPL Horizons ephemeris (J2000.0)
         - https://ssd.jpl.nasa.gov/planets/phys_par.html
     """
-    M_sun = 1.0
-
-    # Planetary masses [Msun]
-    M_mercury = 1.6601e-7
-    M_venus = 2.4478e-6
-    M_earth = 3.0035e-6
-    M_mars = 3.2271e-7
-
-    # Orbital elements (J2000.0)
-    planets = [
-        {
-            "M": M_mercury,
-            "a": 0.38710,
-            "e": 0.20563,
-            "inc": 7.00 * jnp.pi / 180,
-            "Omega": 48.33 * jnp.pi / 180,
-            "omega": 29.12 * jnp.pi / 180,
-            "nu": 0.0,
-        },
-        {
-            "M": M_venus,
-            "a": 0.72333,
-            "e": 0.00677,
-            "inc": 3.39 * jnp.pi / 180,
-            "Omega": 76.68 * jnp.pi / 180,
-            "omega": 54.88 * jnp.pi / 180,
-            "nu": jnp.pi / 2,
-        },
-        {
-            "M": M_earth,
-            "a": 1.00000,
-            "e": 0.01671,
-            "inc": 0.00 * jnp.pi / 180,
-            "Omega": 0.00 * jnp.pi / 180,
-            "omega": 102.94 * jnp.pi / 180,
-            "nu": jnp.pi,
-        },
-        {
-            "M": M_mars,
-            "a": 1.52368,
-            "e": 0.09340,
-            "inc": 1.85 * jnp.pi / 180,
-            "Omega": 49.56 * jnp.pi / 180,
-            "omega": 286.50 * jnp.pi / 180,
-            "nu": 3 * jnp.pi / 2,
-        },
-    ]
-
-    # Create each planet in its orbit
-    planet_systems = []
-    for p in planets:
-        ic = two_body_kepler(
-            M1=M_sun,
-            M2=p["M"],
-            a=p["a"],
-            e=p["e"],
-            inclination=p["inc"],
-            Omega=p["Omega"],
-            omega=p["omega"],
-            true_anomaly=p["nu"],
-            G=G,
-        )
-        planet_systems.append(ic)
-
-    # Extract planet positions and velocities (particle 1 in each 2-body system)
-    planet_positions = jnp.array([ic.positions[1] for ic in planet_systems])
-    planet_masses = jnp.array([p["M"] for p in planets])
-    planet_velocities = jnp.array([ic.velocities[1] for ic in planet_systems])
-
-    # Compute Sun position and velocity (barycentric frame)
-    # Center of mass condition: M_sun*q_sun + sum(M_i*q_i) = 0
-    q_sun = -jnp.sum(planet_masses[:, None] * planet_positions, axis=0) / M_sun
-    v_sun = -jnp.sum(planet_masses[:, None] * planet_velocities, axis=0) / M_sun
-
-    # Combine into single system
-    positions = jnp.vstack([q_sun[None, :], planet_positions])
-    velocities = jnp.vstack([v_sun[None, :], planet_velocities])
-    masses = jnp.concatenate([jnp.array([M_sun]), planet_masses])
-
-    return AnalyticalIC(
-        positions=positions,
-        velocities=velocities,
-        masses=masses,
-        name="solar_system_inner_4",
-        period=None,  # Multiple periods
-        energy=None,  # Not trivial for N>2
-    )
+    # Single source of truth: the first four entries of SOLAR_SYSTEM_PLANETS.
+    return _assemble_planetary_system(SOLAR_SYSTEM_PLANETS[:4], G, "solar_system_inner_4")
 
 
 def solar_system_full(G: float) -> AnalyticalIC:
@@ -366,54 +316,5 @@ def solar_system_full(G: float) -> AnalyticalIC:
         - Standish & Williams (2012), "Orbital Ephemerides"
         - Laskar (1989), Nature, 338, 237 - Solar system chaos
     """
-    M_sun = 1.0
-
-    # Use module-level planet data (single source of truth)
-    planets = [p.copy() for p in SOLAR_SYSTEM_PLANETS]
-
-    # Convert angles to radians
-    for p in planets:
-        p["inc_rad"] = p["inc"] * jnp.pi / 180.0
-        p["Omega_rad"] = p["Omega"] * jnp.pi / 180.0
-        p["omega_rad"] = p["omega"] * jnp.pi / 180.0
-        p["nu_rad"] = p["nu"] * jnp.pi / 180.0
-
-    # Create each planet in its orbit
-    planet_systems = []
-    for p in planets:
-        ic = two_body_kepler(
-            M1=M_sun,
-            M2=p["M"],
-            a=p["a"],
-            e=p["e"],
-            inclination=p["inc_rad"],
-            Omega=p["Omega_rad"],
-            omega=p["omega_rad"],
-            true_anomaly=p["nu_rad"],
-            G=G,
-        )
-        planet_systems.append(ic)
-
-    # Extract planet positions and velocities (particle 1 in each 2-body system)
-    planet_positions = jnp.array([ic.positions[1] for ic in planet_systems])
-    planet_masses = jnp.array([p["M"] for p in planets])
-    planet_velocities = jnp.array([ic.velocities[1] for ic in planet_systems])
-
-    # Compute Sun position and velocity (barycentric frame)
-    # Center of mass condition: M_sun*q_sun + sum(M_i*q_i) = 0
-    q_sun = -jnp.sum(planet_masses[:, None] * planet_positions, axis=0) / M_sun
-    v_sun = -jnp.sum(planet_masses[:, None] * planet_velocities, axis=0) / M_sun
-
-    # Combine into single system
-    positions = jnp.vstack([q_sun[None, :], planet_positions])
-    velocities = jnp.vstack([v_sun[None, :], planet_velocities])
-    masses = jnp.concatenate([jnp.array([M_sun]), planet_masses])
-
-    return AnalyticalIC(
-        positions=positions,
-        velocities=velocities,
-        masses=masses,
-        name="solar_system_full",
-        period=None,  # Multiple periods
-        energy=None,  # Not trivial for N>2
-    )
+    # Single source of truth: all eight entries of SOLAR_SYSTEM_PLANETS.
+    return _assemble_planetary_system(SOLAR_SYSTEM_PLANETS, G, "solar_system_full")

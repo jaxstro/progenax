@@ -48,7 +48,7 @@ Attributes:
     period: Orbital period (if applicable)
     energy: Analytical total energy (if applicable)
 
-*Source: [`progenax/analytical/core/base.py#L12`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/base.py#L12)*
+*Source: [`progenax/analytical/base.py#L12`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/base.py#L12)*
 
 (api-analytical-solar_system_planets)=
 ## `analytical.SOLAR_SYSTEM_PLANETS`
@@ -94,7 +94,7 @@ Example:
     >>> print(f"Mass: {jupiter['M']:.4e} Msun, a: {jupiter['a']:.2f} AU")
     Mass: 9.5479e-04 Msun, a: 5.20 AU
 
-*Source: [`progenax/analytical/core/base.py#L125`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/base.py#L125)*
+*Source: [`progenax/analytical/base.py#L131`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/base.py#L131)*
 
 (api-analytical-two_body_kepler)=
 ## `analytical.two_body_kepler`
@@ -149,7 +149,7 @@ References:
     - Murray & Dermott (1999), "Solar System Dynamics", Ch. 2
     - Hairer et al. (2006), "Geometric Numerical Integration", §I.2.4
 
-*Source: [`progenax/analytical/core/two_body.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/two_body.py#L16)*
+*Source: [`progenax/analytical/two_body.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/two_body.py#L16)*
 
 (api-analytical-two_body_period)=
 ## `analytical.two_body_period`
@@ -176,7 +176,7 @@ Example:
     >>> T = two_body_period(M1=1.0, M2=0.001, a=1.0, G=G)
     >>> # T = 1.0 yr (Earth orbit)
 
-*Source: [`progenax/analytical/core/two_body.py#L163`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/two_body.py#L163)*
+*Source: [`progenax/analytical/two_body.py#L159`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/two_body.py#L159)*
 
 (api-analytical-two_body_energy)=
 ## `analytical.two_body_energy`
@@ -202,7 +202,7 @@ Notes:
     E = -G M1 M2 / (2a)
     Independent of eccentricity!
 
-*Source: [`progenax/analytical/core/two_body.py#L185`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/two_body.py#L185)*
+*Source: [`progenax/analytical/two_body.py#L181`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/two_body.py#L181)*
 
 (api-analytical-three_body_figure_eight)=
 ## `analytical.three_body_figure_eight`
@@ -260,7 +260,7 @@ References:
     - Simó (2001), private communication (numerical coefficients)
     - Montgomery (2001), Notices AMS, 48, 471 - Popular review
 
-*Source: [`progenax/analytical/core/few_body.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/few_body.py#L17)*
+*Source: [`progenax/analytical/few_body.py#L19`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/few_body.py#L19)*
 
 (api-analytical-figure_eight_period)=
 ## `analytical.figure_eight_period`
@@ -268,7 +268,7 @@ References:
 *function*
 
 ```python
-figure_eight_period(scale: 'float' = 1.0, G: 'float' = 1.0) -> 'float'
+figure_eight_period(scale: 'float' = 1.0, G: 'float' = 1.0, mass: 'float' = 1.0) -> 'float'
 ```
 
 Return period of figure-8 orbit.
@@ -276,15 +276,16 @@ Return period of figure-8 orbit.
 Args:
     scale: Spatial scale factor used in three_body_figure_eight()
     G: Gravitational constant [appropriate units]
+    mass: Mass of each particle [same units as three_body_figure_eight] (default 1.0)
 
 Returns:
     Period in time units
 
 Notes:
-    - Period is T = 6.3259 in dimensionless units (G=1, m=1, scale=1)
-    - Scales as T ∝ scale^(3/2) / √(G·m)
+    - Period is T₀ = 6.32591398 in dimensionless units (G=1, m=1, scale=1)
+    - Scales as T = T₀ · √(scale³ / (G·m))
 
-*Source: [`progenax/analytical/core/few_body.py#L130`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/few_body.py#L130)*
+*Source: [`progenax/analytical/few_body.py#L113`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/few_body.py#L113)*
 
 (api-analytical-harmonic_oscillator)=
 ## `analytical.harmonic_oscillator`
@@ -337,7 +338,7 @@ Warning:
     This is a placeholder for future external potential support.
     For now, use two_body_kepler() for gravity tests.
 
-*Source: [`progenax/analytical/core/few_body.py#L158`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/few_body.py#L158)*
+*Source: [`progenax/analytical/few_body.py#L138`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/few_body.py#L138)*
 
 (api-analytical-harmonic_solution)=
 ## `analytical.harmonic_solution`
@@ -364,7 +365,7 @@ Example:
     >>> pos, vel = harmonic_solution(t=1.0, amplitude=1.0, omega=2*jnp.pi)
     >>> # Compare with integrated result
 
-*Source: [`progenax/analytical/core/few_body.py#L242`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/few_body.py#L242)*
+*Source: [`progenax/analytical/few_body.py#L222`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/few_body.py#L222)*
 
 (api-analytical-earth_sun_2body)=
 ## `analytical.earth_sun_2body`
@@ -408,7 +409,7 @@ References:
     - JPL Horizons ephemeris data
     - Murray & Dermott (1999), "Solar System Dynamics", Appendix B
 
-*Source: [`progenax/analytical/core/solar_system.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/solar_system.py#L17)*
+*Source: [`progenax/analytical/solar_system.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/solar_system.py#L52)*
 
 (api-analytical-earth_sun_eccentric)=
 ## `analytical.earth_sun_eccentric`
@@ -446,7 +447,7 @@ Example:
     >>> ic = earth_sun_eccentric(G=G)
     >>> # Tests adaptive timestep handling (dt varies by ~3%)
 
-*Source: [`progenax/analytical/core/solar_system.py#L60`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/solar_system.py#L60)*
+*Source: [`progenax/analytical/solar_system.py#L95`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/solar_system.py#L95)*
 
 (api-analytical-sun_earth_jupiter_3body)=
 ## `analytical.sun_earth_jupiter_3body`
@@ -495,7 +496,7 @@ References:
     - JPL Horizons ephemeris (epoch J2000.0)
     - Murray & Dermott (1999), Appendix B
 
-*Source: [`progenax/analytical/core/solar_system.py#L97`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/solar_system.py#L97)*
+*Source: [`progenax/analytical/solar_system.py#L132`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/solar_system.py#L132)*
 
 (api-analytical-solar_system_inner_4)=
 ## `analytical.solar_system_inner_4`
@@ -542,7 +543,7 @@ References:
     - JPL Horizons ephemeris (J2000.0)
     - https://ssd.jpl.nasa.gov/planets/phys_par.html
 
-*Source: [`progenax/analytical/core/solar_system.py#L190`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/solar_system.py#L190)*
+*Source: [`progenax/analytical/solar_system.py#L225`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/solar_system.py#L225)*
 
 (api-analytical-solar_system_full)=
 ## `analytical.solar_system_full`
@@ -603,5 +604,5 @@ References:
     - Standish & Williams (2012), "Orbital Ephemerides"
     - Laskar (1989), Nature, 338, 237 - Solar system chaos
 
-*Source: [`progenax/analytical/core/solar_system.py#L317`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/core/solar_system.py#L317)*
+*Source: [`progenax/analytical/solar_system.py#L267`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/solar_system.py#L267)*
 

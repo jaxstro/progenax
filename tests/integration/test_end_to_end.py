@@ -93,18 +93,25 @@ class TestAnalyticalValidation:
         assert jnp.abs(E_computed - E_analytical) / jnp.abs(E_analytical) < 0.01
 
     def test_figure_eight_symmetry(self):
-        """Figure-8 should have 3-fold symmetry."""
+        """The canonical Chenciner–Montgomery figure-eight is a COLLINEAR, point-symmetric
+        configuration at t=0 — NOT 3-fold spatially symmetric (that was a prior bug, which
+        gave |L|=1.6 and an orbit that did not close). Bodies 1,2 sit at ±(x1,y1); body 3
+        sits at the origin; total angular momentum is zero."""
         from progenax.analytical import three_body_figure_eight
 
         G = 1.0
         ic = three_body_figure_eight(mass=1.0, scale=1.0, G=G)
 
-        # All three masses should be equal
+        # All three masses equal
         assert jnp.allclose(ic.masses, 1.0)
 
-        # Distances from origin should be approximately equal (3-fold symmetry)
-        r = jnp.linalg.norm(ic.positions, axis=1)
-        assert jnp.std(r) / jnp.mean(r) < 0.1  # <10% variation
+        # Point symmetry r1 = -r2, and body 3 at the origin (the collinear CMS config)
+        assert jnp.allclose(ic.positions[0], -ic.positions[1], atol=1e-12)
+        assert jnp.allclose(ic.positions[2], 0.0, atol=1e-12)
+
+        # Zero total angular momentum (the defining property of the figure-eight)
+        L = jnp.sum(ic.masses[:, None] * jnp.cross(ic.positions, ic.velocities), axis=0)
+        assert jnp.linalg.norm(L) < 1e-10
 
 
 class TestBinaryICGeneration:
