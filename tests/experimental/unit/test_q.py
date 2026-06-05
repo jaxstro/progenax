@@ -60,3 +60,21 @@ def test_q_requires_three_points():
 
     with pytest.raises(ValueError):
         compute_q_parameter(np.zeros((2, 2)))
+
+
+# ── core/experimental equivalence (P5): both must use A = pi R_cluster^2 ──
+def test_core_and_experimental_q_agree():
+    """progenax.diagnostics.substructure and the clean-room q.py must agree (both pi R^2).
+
+    P5 review found the core estimator used convex-hull area (biased +0.1 vs CW04);
+    after correcting core to pi R_cluster^2 the two implementations must match closely on
+    identical inputs (same CW04 convention), so the experimental rebuild is pinned to the
+    released reference.
+    """
+    from gravoturb_fdf.diagnostics.q import compute_q_parameter as q_exp
+    from progenax.diagnostics.substructure import compute_q_parameter as q_core
+
+    for alpha in (0.0, 1.0, 2.0):
+        for seed in range(8):
+            pos = radial_profile_positions(alpha, 200, seed)
+            assert q_core(np.asarray(pos)) == pytest.approx(float(q_exp(np.asarray(pos))), abs=1e-9)
