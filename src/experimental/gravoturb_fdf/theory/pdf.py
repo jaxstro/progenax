@@ -54,6 +54,22 @@ def bm19_volume_pdf(
     return jnp.where(s < s_t, p_ln, p_pl) / Z
 
 
+def bm19_volume_tail_fraction(
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+) -> Float[Array, ""]:
+    r"""Volume fraction above the transition: ``∫_{s_t}^∞ p(s) ds = vol_pl / Z``.
+
+    Closed form from the normalized piecewise PDF: the powerlaw tail integrates to
+    ``vol_pl = p_LN(s_t)/alpha``, divided by the volume normalization ``Z``. Used by
+    the field resolution guard to compute the expected number of cells above s_t.
+    """
+    _s0, _sigma, _s_t, p_ln_st, _C, Z = _pdf_pieces(mach, b, alpha)
+    vol_pl = p_ln_st / alpha
+    return vol_pl / Z
+
+
 def build_bm19_cdf_table(
     mach: Float[Array, ""],
     b: Float[Array, ""],

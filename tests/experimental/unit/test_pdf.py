@@ -30,6 +30,20 @@ def test_volume_pdf_normalized(mach, b, alpha):
 
 
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
+def test_volume_tail_fraction_matches_integral(mach, b, alpha):
+    """bm19_volume_tail_fraction = ∫_{s_t}^∞ p(s) ds (volume fraction above s_t)."""
+    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+    from gravoturb_fdf.theory.pdf import bm19_volume_pdf, bm19_volume_tail_fraction
+
+    s_t = float(transition_density(alpha, sigma_s_squared(mach, b)))
+    s = np.linspace(s_t, s_t + 200.0, 2_000_000)
+    integral = np.trapezoid(np.asarray(bm19_volume_pdf(s, mach, b, alpha)), s)
+    frac = float(bm19_volume_tail_fraction(mach, b, alpha))
+    assert 0.0 < frac < 1.0
+    assert frac == pytest.approx(integral, rel=1e-3)
+
+
+@pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_volume_pdf_continuous_at_st(mach, b, alpha):
     """p(s) is continuous across the lognormal->powerlaw transition s_t."""
     from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density

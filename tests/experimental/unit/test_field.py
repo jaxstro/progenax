@@ -70,6 +70,33 @@ def test_grf_power_spectrum_slope(beta):
     assert slope == pytest.approx(-beta, abs=0.25)
 
 
+def test_expected_cells_above_transition():
+    """Expected count = n_cells × BM19 volume tail fraction above s_t."""
+    from gravoturb_fdf.field.field import expected_cells_above_transition
+    from gravoturb_fdf.theory.pdf import bm19_volume_tail_fraction
+
+    n_cells = 128**3
+    expected = float(expected_cells_above_transition(n_cells, 6.0, 0.4, 1.8))
+    frac = float(bm19_volume_tail_fraction(6.0, 0.4, 1.8))
+    assert expected == pytest.approx(n_cells * frac, rel=1e-9)
+    assert expected > 100  # 128³ at these params is well-resolved
+
+
+def test_resolution_guard_flags_small_field():
+    """A tiny field with a steep tail expects <5 cells above s_t → low-resolution flag."""
+    from gravoturb_fdf.field.field import low_resolution_flag
+
+    # 8³=512 cells, steep alpha + modest Mach → ~1.3 cells above s_t
+    assert bool(low_resolution_flag(8**3, mach=3.0, b=0.4, alpha=3.0))
+
+
+def test_resolution_guard_ok_for_large_field():
+    """A well-resolved 128³ field at typical params is NOT flagged."""
+    from gravoturb_fdf.field.field import low_resolution_flag
+
+    assert not bool(low_resolution_flag(128**3, mach=6.0, b=0.4, alpha=1.8))
+
+
 def test_grf_deterministic_in_key():
     """Same key → identical field (reproducible); different key → different field."""
     from gravoturb_fdf.field.field import gaussian_random_field

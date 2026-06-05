@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.pdf import bm19_icdf
+from gravoturb_fdf.theory.pdf import bm19_icdf, bm19_volume_tail_fraction
 
 
 def gaussian_random_field(
@@ -104,3 +104,32 @@ def rank_copula_field(
     # Enforce ρ_0 = volume mean: ⟨e^s⟩ = 1  ⇒  s = s_raw − ln⟨e^{s_raw}⟩.
     shift = jnp.log(jnp.mean(jnp.exp(s_raw)))
     return s_raw - shift
+
+
+def expected_cells_above_transition(
+    n_cells: int,
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+) -> Float[Array, ""]:
+    r"""Expected number of cells above s_t: ``n_cells × (1 − F(s_t))``.
+
+    Uses the closed-form BM19 volume tail fraction. The dense tail must be resolved by
+    enough cells for the rank copula to populate it faithfully (spec §3.5).
+    """
+    return n_cells * bm19_volume_tail_fraction(mach, b, alpha)
+
+
+def low_resolution_flag(
+    n_cells: int,
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    min_cells: float = 5.0,
+):
+    r"""True when fewer than ``min_cells`` cells are expected above s_t.
+
+    JIT-safe (returns a JAX boolean); the eager pipeline wrapper converts to a host
+    bool and emits a ``warnings.warn`` — JAX cannot warn inside ``jit``.
+    """
+    return expected_cells_above_transition(n_cells, mach, b, alpha) < min_cells
