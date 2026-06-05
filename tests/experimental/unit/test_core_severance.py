@@ -55,3 +55,18 @@ def test_spatial_structure_params_has_no_fractal_field():
         f"SpatialStructureParams still has a `fractal` field: {field_names}"
     )
     assert "mass_segregation" in field_names  # mass-seg stays in released core
+
+
+# ── Task 0.4: link #3 — birth_environment imports turbulence directly, not fdf_config ──
+def test_birth_environment_imports_turbulence_directly():
+    """The released EnvironmentIMF reaches turbulence relations via the core
+    turbulence module, not via the to-be-retired cluster.fdf_config re-exports."""
+    import inspect
+
+    from progenax.imf.environment import birth_environment
+
+    src = inspect.getsource(birth_environment)
+    assert "progenax.cluster.fdf_config" not in src, (
+        "birth_environment still imports from cluster.fdf_config; it must import "
+        "turbulence relations directly from progenax.cluster.turbulence."
+    )

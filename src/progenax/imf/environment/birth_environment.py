@@ -189,7 +189,7 @@ class BirthEnvironment(eqx.Module):
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
         >>> print(f"R_cloud = {float(env.cloud_radius()):.2f} pc")
         """
-        from progenax.cluster.fdf_config import cloud_radius_from_density
+        from progenax.cluster.turbulence import cloud_radius_from_density
 
         M_ecl = jnp.power(10.0, self.log_mecl)
 
@@ -259,7 +259,7 @@ class BirthEnvironment(eqx.Module):
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
         >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~8
         """
-        from progenax.cluster.fdf_config import turbulent_mach_from_cloud
+        from progenax.cluster.turbulence import turbulent_mach_from_cloud
 
         R_cloud = self.cloud_radius()
         return turbulent_mach_from_cloud(R_cloud, c_s, sigma_v0, alpha)
@@ -330,7 +330,7 @@ class BirthEnvironment(eqx.Module):
         >>> # Or override with explicit b
         >>> print(f"σ_ln_ρ (b=0.4) = {float(env.sigma_ln_rho(b=0.4)):.2f}")
         """
-        from progenax.cluster.fdf_config import (
+        from progenax.cluster.turbulence import (
             sigma_ln_rho_from_mach,
             b_from_environment,
         )
@@ -399,7 +399,7 @@ class BirthEnvironment(eqx.Module):
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
         >>> print(f"β = {float(env.spectral_slope()):.2f}")  # ~4.0
         """
-        from progenax.cluster.fdf_config import spectral_slope_from_mach
+        from progenax.cluster.turbulence import spectral_slope_from_mach
 
         mach = self.turbulent_mach(c_s, sigma_v0, alpha)
         return spectral_slope_from_mach(mach)
