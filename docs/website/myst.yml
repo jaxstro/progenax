@@ -9,9 +9,10 @@ project:
   title: progenax — differentiable initial conditions for N-body simulations
   description: >-
     progenax is a JAX-native package in the jaxstro ecosystem providing
-    differentiable initial conditions, mass functions, binary populations,
-    and gravoturbulent substructure for N-body simulations. This site is the
-    single source of truth for its theory, architecture, and API.
+    differentiable initial conditions, mass functions, and binary populations
+    for N-body simulations (with experimental gravoturbulent substructure in
+    the repo-only gravoturb_fdf package). This site is the single source of
+    truth for its theory, architecture, and API.
   authors:
     - name: Anna L. Rosen
       affiliation: San Diego State University

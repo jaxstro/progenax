@@ -6,12 +6,12 @@ description: The patterns that preserve gradient flow through progenax — fixed
 # Differentiability rules
 
 progenax's promise is that every IC parameter — half-mass radius,
-IMF slope, virial Q, fractal strength, mass-segregation strength,
-gravoturbulent Mach and α — is **differentiable** through `jax.grad`.
-Gradients flow from any downstream observable (final-snapshot
-energy, mock observation likelihood, BM19 forward chain output) all
-the way back to the IC parameters. This is what makes HMC inference
-of cluster properties tractable.
+IMF slope, virial Q, mass-segregation strength (and, in the experimental
+`gravoturb_fdf` package, gravoturbulent Mach and α) — is
+**differentiable** through `jax.grad`. Gradients flow from any
+downstream observable (final-snapshot energy, mock observation
+likelihood) all the way back to the IC parameters. This is what makes
+HMC inference of cluster properties tractable.
 
 The promise is non-trivial. Real-world code is full of operations
 that *silently* break differentiability — hard thresholds, while-loops

@@ -11,15 +11,16 @@ description: Differentiable initial conditions for N-body simulations
 
 `progenax` is part of the [jaxstro](https://github.com/drannarosen/jaxstro-dev)
 ecosystem. Every initial condition you generate — Plummer or King spatial
-profiles, isotropic or anisotropic velocity distributions, IMF samples,
-binary orbits, fractal substructure, gravoturbulent realisations — is
-differentiable through `jax.grad`, vectorisable through `jax.vmap`, and
-JIT-compilable through `jax.jit`.
+profiles, isotropic or anisotropic velocity distributions, IMF samples, and
+binary orbits — is differentiable through `jax.grad`, vectorisable through
+`jax.vmap`, and JIT-compilable through `jax.jit`. Gravoturbulent /
+fractal-density-field substructure is an **experimental** follow-up-paper
+feature in the repo-only `gravoturb_fdf` package (not in the released wheel).
 
 This site is the **single source of truth** for the package: theory,
 architecture, API, tutorials, and history. Whether you arrived to learn
-how to build your first cluster, to dig into the gravoturbulent freefall-density
-factor formalism, to understand why we chose a protocol-based composition
+how to build your first cluster, to dig into the (experimental) gravoturbulent
+freefall-density factor formalism, to understand why we chose a protocol-based composition
 pattern over inheritance, or to look up a specific function signature —
 there's a path for you.
 

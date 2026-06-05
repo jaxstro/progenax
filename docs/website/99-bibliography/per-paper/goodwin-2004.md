@@ -21,9 +21,15 @@ Introduces the recursive-tree fractal IC generation algorithm, parameterised by 
 
 ## Use in progenax
 
-- [](../../10-theory/tidal-and-substructure/fractal.md) — GW04 algorithm + the differentiable FDF replacement
-- [](../../50-validation/fractal-substructure.md) — Calibration target for FDF $\chi \leftrightarrow D$
+- [](../../10-theory/tidal-and-substructure/fractal.md) — GW04 algorithm + the fractal-dimension $D$ ↔ CW04 $Q$ relationship (theory)
+- [](../../50-validation/fractal-substructure.md) — current substructure-validation status (CW04 $Q$ diagnostic)
 
 ## Notes
 
-The standard fractal IC. progenax keeps GW04 in `cluster.fractal_gw_legacy` and replaces it for production with the differentiable FDF method.
+The standard fractal IC and the source of the fractal-dimension $D$ parameter.
+progenax's differentiable Fractal Displacement Field replacement (`cluster.fdf`,
+`cluster.fractal_gw_legacy`) was **removed in the 2026-06 clean-room rewrite** and
+has no released successor; GW04 now appears only as theory pedagogy and as the
+fractal-dimension ladder behind the CW04 $Q$ diagnostic (the surviving substructure
+tool). Turbulent-density ICs are now the experimental `gravoturb_fdf` package
+(a *density*-field method, distinct from the GW04 displacement fractal).
