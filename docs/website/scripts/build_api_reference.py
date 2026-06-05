@@ -32,7 +32,6 @@ PUBLIC_MODULES: list[str] = [
     "progenax.analytical",
     "progenax.binaries",
     "progenax.builders",
-    "progenax.gravoturb",
     "progenax.imf",
     "progenax.kinematics",
     "progenax.populations",

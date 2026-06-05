@@ -41,8 +41,6 @@ For physics derivations of the algorithms behind these symbols, see
   - Jacobi-radius computation and tidal truncation
 * - [](populations.md)
   - Multi-component populations (two-component clusters)
-* - [](gravoturb.md)
-  - Gravoturbulent SFR framework: PP20 ζ(p), BM19 forward chain
 * - [](protocols.md)
   - Runtime-checkable protocols: `SpatialProfile`, `VelocityDF`, `IMFProtocol`
 ```

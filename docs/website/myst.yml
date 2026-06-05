@@ -131,7 +131,6 @@ project:
         - file: 30-api/builders.md
         - file: 30-api/tidal.md
         - file: 30-api/populations.md
-        - file: 30-api/gravoturb.md
         - file: 30-api/protocols.md
         - file: 30-api/full-symbol-index.md
     - title: How-to recipes
