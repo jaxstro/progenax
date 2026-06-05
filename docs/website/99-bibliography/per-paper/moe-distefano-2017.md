@@ -82,8 +82,15 @@ $\eta = -0.4 \pm 0.2$ for short-period O-stars.
 
 - [](../../10-theory/imfs/mass-ratio-distributions.md), [](../../10-theory/imfs/binary.md).
 - `progenax.imf.MoeDiStefano2017` — a **period-averaged single-slope** reduction of the
-  $\gamma_{\rm smallq}/\gamma_{\rm largeq}+\mathcal F_{\rm twin}$ model (captures the trend; the
-  faithful two-slope, period-dependent model is a tracked enhancement).
+  $\gamma_{\rm smallq}/\gamma_{\rm largeq}+\mathcal F_{\rm twin}$ model (captures the trend;
+  appropriate for a *mass-function* analysis that marginalizes over period, e.g. the
+  *Confidently Wrong* forward model).
+- `progenax.imf.MoeDiStefano2017Full` / `MoePeriod` / `MoeJointOrbit` (Batch 4i) — the
+  **faithful** two-slope, period-dependent $q\,|\,(M_1,P)$ from Table 13 (bilinear
+  interpolation, grid inverse-CDF) and the joint $(P,q,e)$ interrelation sampler.
+- `progenax.binaries.MoeCompanions` (Batch 4k) — wires `MoeJointOrbit` + Moe's own
+  $f_b(M_1)$ into `build_binary_cluster` as a `CompanionModel`; the same $q$ sets
+  $m_2 = q\,m_1$, so the P–q correlation is **self-consistent** in the secondary masses.
 - `progenax.imf.MassDependentBinaryFraction` — the **multiplicity fraction** $1-\mathcal F_{n=0}$
   from Table 13 (e.g. solar $1-0.60=0.40$, O-type $1-0.06=0.94$), with $<0.8\,M_\odot$ bins from
   M-dwarf surveys.
@@ -98,6 +105,9 @@ $\eta = -0.4 \pm 0.2$ for short-period O-stars.
 ## Notes
 
 **The most-referenced paper across progenax binary modelling.** The central result — that $P$,
-$q$, and $e$ are interrelated — is only partially captured by the current period-averaged
-`MoeDiStefano2017`; a faithful $(P,q)$-joint sampler is tracked in
-`docs/notes/2026-06-04-moe-twoslope-q-distribution-ticket.md`.
+$q$, and $e$ are interrelated — is captured at two fidelities: the **period-averaged**
+`MoeDiStefano2017` (for mass-function analyses that marginalize over period) and the
+**faithful joint** `MoeJointOrbit` / `MoeCompanions` (for dynamical ICs with realistic
+orbits; Batches 4i–4k). The composition into `build_binary_cluster` is documented in
+`docs/notes/2026-06-04-binary-cluster-sota-composition.md`; the q-axis ticket
+(`2026-06-04-moe-twoslope-q-distribution-ticket.md`) is **CLOSED**.

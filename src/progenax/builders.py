@@ -38,10 +38,10 @@ _SECONDS_PER_DAY = 86400.0
 class Systems:
     """Target a fixed number of stellar *systems* (singles + binaries).
 
-    Companions are **not** counted toward the count — the paper/observational
-    convention (Rosen, *Confidently Wrong*; McLuster / Küpper+2011): draw ``n``
-    systems and attach companions on top. The only **fixed-shape ⇒ differentiable**
-    target (supports the masked ``compact=False`` path).
+    Companions are **not** counted toward the count — the observational convention of
+    Rosen, *Confidently Wrong* (``N`` = observed systems; primaries from the IMF,
+    companions attached on top, so total stars = ``n + n_binary``). The only
+    **fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
     """
 
     n: int
@@ -51,8 +51,10 @@ class Systems:
 class Stars:
     """Target a fixed number of resolved *stars* (primaries + real secondaries).
 
-    Companions count: draw whole systems in order until the resolved star count
-    first reaches ``n`` (overshoot ≤ 1 star — a binary is never split). The
+    Companions count toward the total — the dynamical-IC convention of McLuster
+    (Kuepper+2011 draws ``N`` stars then forms ``N*b/2`` binaries). Draw whole systems
+    in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 star
+    — a binary is never split, so the result is ``n`` or ``n+1`` stars). The
     data-dependent system count makes this **eager only** (``compact=True``).
     """
 
@@ -397,11 +399,14 @@ def build_binary_cluster(
     treating binaries as point masses, eps=0 by default) -> `resolve_binary_components`
     places each binary's two components around its COM (COM preserved exactly).
 
-    **IMF convention** (Rosen, *Confidently Wrong*; McLuster / Kuepper+2011): `primary_imf`
-    is the IMF of *primaries*; companions are generated conditionally, so the all-stars
-    mass function is a *derived* consequence — not the input IMF. The COM virialization
-    treats binaries as point masses; internal binary binding energy is a separate
-    reservoir untouched by `Q` (measure it with `binaries.diagnostics`).
+    **Conventions.** `primary_imf` is the IMF of *primaries*; companions are generated
+    conditionally (`m2 = q*m1`, with `q | M1` from the companion model), so the all-stars
+    mass function is a *derived* consequence — not the input IMF (Rosen, *Confidently
+    Wrong*, S9.6; the conditional `q | M1` parameterization follows Moe & Di Stefano 2017).
+    The COM virialization treats each binary as a single CoM particle and replaces it with
+    its two constituents only at the end (the McLuster convention, Kuepper+2011 SA8);
+    internal binary binding energy is a separate reservoir untouched by `Q` (measure it
+    with `binaries.diagnostics`).
 
     Args:
         profile, velocity_df: spatial profile + velocity DF for the system COMs.
