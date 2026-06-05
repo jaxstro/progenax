@@ -9,10 +9,13 @@ description: Auto-generated API reference for `progenax.builders` — signatures
 
 Module path: `progenax/builders/`
 
-Public symbols: **7**
+Public symbols: **11**
 
 ## Contents
 
+- [`Systems`](#api-builders-systems)
+- [`Stars`](#api-builders-stars)
+- [`TotalMass`](#api-builders-totalmass)
 - [`ICResult`](#api-builders-icresult)
 - [`compute_stellar_radii`](#api-builders-compute_stellar_radii)
 - [`compute_kinetic_energy`](#api-builders-compute_kinetic_energy)
@@ -20,6 +23,60 @@ Public symbols: **7**
 - [`to_com_frame`](#api-builders-to_com_frame)
 - [`virial_scale`](#api-builders-virial_scale)
 - [`build_spatial_ic`](#api-builders-build_spatial_ic)
+- [`build_binary_cluster`](#api-builders-build_binary_cluster)
+
+(api-builders-systems)=
+## `builders.Systems`
+
+*class*
+
+```python
+Systems(n: int) -> None
+```
+
+Target a fixed number of stellar *systems* (singles + binaries).
+
+Companions are **not** counted toward the count — the observational convention of
+Rosen, *Confidently Wrong* (``N`` = observed systems; primaries from the IMF,
+companions attached on top, so total stars = ``n + n_binary``). The only
+**fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
+
+*Source: [`progenax/builders.py#L37`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L37)*
+
+(api-builders-stars)=
+## `builders.Stars`
+
+*class*
+
+```python
+Stars(n: int) -> None
+```
+
+Target a fixed number of resolved *stars* (primaries + real secondaries).
+
+Companions count toward the total — the dynamical-IC convention of McLuster
+(Kuepper+2011 draws ``N`` stars then forms ``N*b/2`` binaries). Draw whole systems
+in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 star
+— a binary is never split, so the result is ``n`` or ``n+1`` stars). The
+data-dependent system count makes this **eager only** (``compact=True``).
+
+*Source: [`progenax/builders.py#L50`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L50)*
+
+(api-builders-totalmass)=
+## `builders.TotalMass`
+
+*class*
+
+```python
+TotalMass(m: float) -> None
+```
+
+Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
+
+Whole-system, McLuster-style mass filling: draw until the cumulative system
+mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
+
+*Source: [`progenax/builders.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L64)*
 
 (api-builders-icresult)=
 ## `builders.ICResult`
@@ -27,23 +84,33 @@ Public symbols: **7**
 *class*
 
 ```python
-ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], softening: float | jaxtyping.Float[Array, ''], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None) -> None
+ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None, primordial_system_id: Optional[jaxtyping.Int[Array, 'N']] = None, is_primordial_secondary: Optional[jaxtyping.Bool[Array, 'N']] = None) -> None
 ```
 
-Result from initial conditions generation.
+Result from initial conditions generation — pure physical state.
 
-Immutable dataclass containing all particle data.
-No dependency on gravax - can be converted to any state format.
+Immutable dataclass containing all particle data. No dependency on gravax;
+can be converted to any state format.
+
+Softening is intentionally **NOT** stored here: it is a force-model /
+integration choice (selected on the integrator, e.g. ε=0 for collisional
+Hermite/IAS15), not a property of the initial conditions.
 
 Attributes:
     positions: Particle positions (N, 3) [length units]
     velocities: Particle velocities (N, 3) [velocity units]
     masses: Particle masses (N,) [M_sun]
-    softening: Softening length [length units]
     stellar_radii: Stellar radii (N,) [R_sun]
     ids: Particle IDs (N,) or None
+    primordial_system_id: (N,) int — which primordial system each particle
+        belongs to (paired particles share an id); None for single-only ICs.
+        **PROVENANCE at t=0 only** — goes stale under dynamical evolution
+        (ionization / formation / exchange). Measure the *current* binary
+        population with `binaries.diagnostics.find_bound_pairs`, not this.
+    is_primordial_secondary: (N,) bool — True for the secondary of a
+        primordial binary; None for single-only ICs.
 
-*Source: [`progenax/builders.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L27)*
+*Source: [`progenax/builders.py#L116`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L116)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -69,7 +136,7 @@ Args:
 Returns:
     Radii in R☉
 
-*Source: [`progenax/builders.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L52)*
+*Source: [`progenax/builders.py#L152`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L152)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -125,7 +192,7 @@ Args:
 Returns:
     (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`progenax/builders.py#L93`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L93)*
+*Source: [`progenax/builders.py#L193`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L193)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -158,7 +225,7 @@ References:
     Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
     Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`progenax/builders.py#L118`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L118)*
+*Source: [`progenax/builders.py#L218`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L218)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -166,7 +233,7 @@ References:
 *function*
 
 ```python
-build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: jaxtyping.Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], G: float, Q: Optional[float] = 0.5, softening_factor: float = 0.01, softening_floor: Optional[float] = None, id_offset: int = 0) -> progenax.builders.ICResult
+build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: jaxtyping.Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], G: float, Q: Optional[float] = 0.5, softening: float = 0.0, id_offset: int = 0) -> progenax.builders.ICResult
 ```
 
 Build initial conditions from spatial profile and velocity DF.
@@ -178,12 +245,69 @@ Args:
     key: JAX random key
     G: Gravitational constant (REQUIRED - no default)
     Q: Virial ratio target Q = T/|V| (0.5 for equilibrium, None to disable)
-    softening_factor: Softening as fraction of mean separation (default: 0.01)
-    softening_floor: Minimum softening (default: None)
+    softening: Softening length used ONLY to virial-scale the IC under the same
+        force law it will be integrated with (default: 0.0 = exact Newtonian,
+        matching the analytic equilibrium DFs and collisional integration).
+        Pass ε>0 for a collisionless science case so the IC is virialized
+        consistently. This is a force-model knob (a future shared `ForceModel`
+        will supply it); it is **not** stored on the returned `ICResult`.
     id_offset: Offset for particle IDs (default: 0)
 
 Returns:
-    ICResult with positions, velocities, masses, softening, stellar_radii
+    ICResult (pure physical state — no softening field)
 
-*Source: [`progenax/builders.py#L159`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L159)*
+*Source: [`progenax/builders.py#L259`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L259)*
+
+(api-builders-build_binary_cluster)=
+## `builders.build_binary_cluster`
+
+*function*
+
+```python
+build_binary_cluster(profile: progenax.protocols.SpatialProfile, velocity_df: progenax.protocols.VelocityDF, primary_imf, companion_model, target, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], *, units, Q: Optional[float] = 0.5, softening: float = 0.0, compact: bool = True)
+```
+
+Assemble a star cluster with a primordial binary population (SoTA composition).
+
+Composes five independent axes: `profile` x `velocity_df` (spatial), `primary_imf`
+(the **primary**-star IMF — vary alpha freely), `companion_model` (the single owner
+of the binary statistics: f_b -> is_binary AND q -> m2, P -> a, e, orientation), and
+`target` (what the population size holds fixed).
+
+Pipeline: draw `target`-many systems -> `companion_model.sample` -> system masses
+`m1 + m2` -> budget cut -> `build_spatial_ic` on the system masses (COMs virialized
+treating binaries as point masses, eps=0 by default) -> `resolve_binary_components`
+places each binary's two components around its COM (COM preserved exactly).
+
+**Conventions.** `primary_imf` is the IMF of *primaries*; companions are generated
+conditionally (`m2 = q*m1`, with `q | M1` from the companion model), so the all-stars
+mass function is a *derived* consequence — not the input IMF (Rosen, *Confidently
+Wrong*, S9.6; the conditional `q | M1` parameterization follows Moe & Di Stefano 2017).
+The COM virialization treats each binary as a single CoM particle and replaces it with
+its two constituents only at the end (the McLuster convention, Kuepper+2011 SA8);
+internal binary binding energy is a separate reservoir untouched by `Q` (measure it
+with `binaries.diagnostics`).
+
+Args:
+    profile, velocity_df: spatial profile + velocity DF for the system COMs.
+    primary_imf: primary-star IMF with `sample(key, n) -> m1 [Msun]`.
+    companion_model: a `CompanionModel` (e.g. `IndependentCompanions`, `MoeCompanions`)
+        owning multiplicity + (q, P, e); `sample(key, m1, *, G, day_in_time_units)
+        -> (is_binary, CompanionElements)`. No separate `binary_fraction` arg — f_b
+        lives in the model (Moe sets it from the masses).
+    target: population-size budget — `Systems(n)` (count systems; companions not
+        counted; the only differentiable / `compact=False` target), `Stars(n)` (count
+        resolved stars, companions included), or `TotalMass(M)` [Msun]. Stars/TotalMass
+        have data-dependent counts and are **eager only** (`compact=True`).
+    key: JAX random key.
+    units: `UnitSystem` (carries G + the time scale for the day->time-unit conversion).
+    Q: system-level virial ratio target (0.5 = equilibrium; None to disable).
+    softening: virial-scaling softening for the COM cluster (default 0 = exact; NOT stored).
+    compact: True (default) -> eagerly compacted `ICResult`; False -> the masked
+        fixed-shape `ResolvedBinaries` (jit/grad-safe; requires a `Systems` target).
+
+Returns:
+    `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
+
+*Source: [`progenax/builders.py#L377`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L377)*
 

@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **136** across all submodules.
+Total public symbols: **159** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -25,18 +25,26 @@ Total public symbols: **136** across all submodules.
 | [`apply_solid_body_rotation`](kinematics.md#api-kinematics-apply_solid_body_rotation) | function | `progenax.kinematics` |
 | [`apply_tidal_truncation`](tidal.md#api-tidal-apply_tidal_truncation) | function | `progenax.tidal` |
 | [`BaseIMF`](imf.md#api-imf-baseimf) | class | `progenax.imf` |
-| [`batch_elements_to_com_and_internal`](binaries.md#api-binaries-batch_elements_to_com_and_internal) | function | `progenax.binaries` |
 | [`batch_elements_to_resolved`](binaries.md#api-binaries-batch_elements_to_resolved) | function | `progenax.binaries` |
+| [`binary_energy_budget`](binaries.md#api-binaries-binary_energy_budget) | function | `progenax.binaries` |
+| [`BinaryEnergyBudget`](binaries.md#api-binaries-binaryenergybudget) | class | `progenax.binaries` |
+| [`BinaryFractionModel`](protocols.md#api-protocols-binaryfractionmodel) | protocol | `progenax.protocols` |
 | [`BinaryIMF`](imf.md#api-imf-binaryimf) | class | `progenax.imf` |
 | [`BinaryOrbitalState`](binaries.md#api-binaries-binaryorbitalstate) | class | `progenax.binaries` |
+| [`BinaryState`](binaries.md#api-binaries-binarystate) | class | `progenax.binaries` |
 | [`BirthEnvironment`](imf.md#api-imf-birthenvironment) | class | `progenax.imf` |
 | [`bm19_icdf`](gravoturb.md#api-gravoturb-bm19_icdf) | function | `progenax.gravoturb` |
 | [`bm19_pipeline`](gravoturb.md#api-gravoturb-bm19_pipeline) | function | `progenax.gravoturb` |
 | [`bm19_volume_pdf`](gravoturb.md#api-gravoturb-bm19_volume_pdf) | function | `progenax.gravoturb` |
 | [`BM19Result`](gravoturb.md#api-gravoturb-bm19result) | class | `progenax.gravoturb` |
+| [`build_binary_cluster`](builders.md#api-builders-build_binary_cluster) | function | `progenax.builders` |
 | [`build_bm19_cdf_table`](gravoturb.md#api-gravoturb-build_bm19_cdf_table) | function | `progenax.gravoturb` |
 | [`build_spatial_ic`](builders.md#api-builders-build_spatial_ic) | function | `progenax.builders` |
+| [`CartesianState`](binaries.md#api-binaries-cartesianstate) | class | `progenax.binaries` |
 | [`ChabrierIMF`](imf.md#api-imf-chabrierimf) | class | `progenax.imf` |
+| [`CombinedBinaryFraction`](binaries.md#api-binaries-combinedbinaryfraction) | class | `progenax.binaries` |
+| [`CompanionElements`](binaries.md#api-binaries-companionelements) | class | `progenax.binaries` |
+| [`CompanionModel`](protocols.md#api-protocols-companionmodel) | protocol | `progenax.protocols` |
 | [`compute_kinetic_energy`](builders.md#api-builders-compute_kinetic_energy) | function | `progenax.builders` |
 | [`compute_log_rho_cl_6`](imf.md#api-imf-compute_log_rho_cl_6) | function | `progenax.imf` |
 | [`compute_period`](binaries.md#api-binaries-compute_period) | function | `progenax.binaries` |
@@ -46,14 +54,14 @@ Total public symbols: **136** across all submodules.
 | [`compute_rho_cl`](imf.md#api-imf-compute_rho_cl) | function | `progenax.imf` |
 | [`compute_rho_ecl`](imf.md#api-imf-compute_rho_ecl) | function | `progenax.imf` |
 | [`compute_stellar_radii`](builders.md#api-builders-compute_stellar_radii) | function | `progenax.builders` |
+| [`ConditionalEccentricityDistribution`](protocols.md#api-protocols-conditionaleccentricitydistribution) | protocol | `progenax.protocols` |
 | [`ConstantBinaryFraction`](imf.md#api-imf-constantbinaryfraction) | class | `progenax.imf` |
 | [`DEFAULT_SFE`](imf.md#api-imf-default_sfe) | value | `progenax.imf` |
 | [`earth_sun_2body`](analytical.md#api-analytical-earth_sun_2body) | function | `progenax.analytical` |
 | [`earth_sun_eccentric`](analytical.md#api-analytical-earth_sun_eccentric) | function | `progenax.analytical` |
+| [`EccentricityDistribution`](protocols.md#api-protocols-eccentricitydistribution) | protocol | `progenax.protocols` |
 | [`EFFProfile`](profiles.md#api-profiles-effprofile) | class | `progenax.profiles` |
 | [`EFFVelocityDF`](kinematics.md#api-kinematics-effvelocitydf) | class | `progenax.kinematics` |
-| [`elements_to_com_and_internal`](binaries.md#api-binaries-elements_to_com_and_internal) | function | `progenax.binaries` |
-| [`elements_to_resolved_state`](binaries.md#api-binaries-elements_to_resolved_state) | function | `progenax.binaries` |
 | [`env_to_imf_params`](imf.md#api-imf-env_to_imf_params) | function | `progenax.imf` |
 | [`estimate_N_max_for_M_total`](imf.md#api-imf-estimate_n_max_for_m_total) | function | `progenax.imf` |
 | [`estimate_pool_size`](imf.md#api-imf-estimate_pool_size) | function | `progenax.imf` |
@@ -62,6 +70,8 @@ Total public symbols: **136** across all submodules.
 | [`f_dense_pn11`](gravoturb.md#api-gravoturb-f_dense_pn11) | function | `progenax.gravoturb` |
 | [`figure_eight_period`](analytical.md#api-analytical-figure_eight_period) | function | `progenax.analytical` |
 | [`fill_factor_to_r_h`](tidal.md#api-tidal-fill_factor_to_r_h) | function | `progenax.tidal` |
+| [`find_bound_multiples`](binaries.md#api-binaries-find_bound_multiples) | function | `progenax.binaries` |
+| [`find_bound_pairs`](binaries.md#api-binaries-find_bound_pairs) | function | `progenax.binaries` |
 | [`FlatMassRatio`](imf.md#api-imf-flatmassratio) | class | `progenax.imf` |
 | [`gaussian_to_bm19`](gravoturb.md#api-gravoturb-gaussian_to_bm19) | function | `progenax.gravoturb` |
 | [`generate_two_component_cluster`](populations.md#api-populations-generate_two_component_cluster) | function | `progenax.populations` |
@@ -72,33 +82,39 @@ Total public symbols: **136** across all submodules.
 | [`IMFParams`](imf.md#api-imf-imfparams) | class | `progenax.imf` |
 | [`IMFProtocol`](imf.md#api-imf-imfprotocol) | protocol | `progenax.imf` |
 | [`IMFProtocol`](protocols.md#api-protocols-imfprotocol) | protocol | `progenax.protocols` |
+| [`IndependentCompanions`](binaries.md#api-binaries-independentcompanions) | class | `progenax.binaries` |
 | [`individual_mass_nll`](imf.md#api-imf-individual_mass_nll) | function | `progenax.imf` |
 | [`jacobi_radius`](tidal.md#api-tidal-jacobi_radius) | function | `progenax.tidal` |
 | [`jacobi_radius_isothermal`](tidal.md#api-tidal-jacobi_radius_isothermal) | function | `progenax.tidal` |
 | [`JERABKOVA_COEFFICIENTS`](imf.md#api-imf-jerabkova_coefficients) | value | `progenax.imf` |
 | [`KeplerElements`](binaries.md#api-binaries-keplerelements) | class | `progenax.binaries` |
-| [`KeplerElements_IC`](binaries.md#api-binaries-keplerelements_ic) | class | `progenax.binaries` |
 | [`KingProfile`](profiles.md#api-profiles-kingprofile) | class | `progenax.profiles` |
 | [`KingVelocityDF`](kinematics.md#api-kinematics-kingvelocitydf) | class | `progenax.kinematics` |
 | [`log_prob_masses`](imf.md#api-imf-log_prob_masses) | function | `progenax.imf` |
+| [`LogisticThermalEccentricity`](binaries.md#api-binaries-logisticthermaleccentricity) | class | `progenax.binaries` |
 | [`LogNormalPeriod`](binaries.md#api-binaries-lognormalperiod) | class | `progenax.binaries` |
 | [`LogUniformPeriod`](binaries.md#api-binaries-loguniformperiod) | class | `progenax.binaries` |
 | [`lowmass_slopes_metallicity`](imf.md#api-imf-lowmass_slopes_metallicity) | function | `progenax.imf` |
 | [`magnification_factor`](gravoturb.md#api-gravoturb-magnification_factor) | function | `progenax.gravoturb` |
 | [`magnification_factor_with_core`](gravoturb.md#api-gravoturb-magnification_factor_with_core) | function | `progenax.gravoturb` |
-| [`make_elements_from_inputs`](binaries.md#api-binaries-make_elements_from_inputs) | function | `progenax.binaries` |
 | [`make_profile`](profiles.md#api-profiles-make_profile) | function | `progenax.profiles` |
 | [`MARKS_COEFFICIENTS`](imf.md#api-imf-marks_coefficients) | value | `progenax.imf` |
 | [`MARKS_TABLE3_COEFFICIENTS`](imf.md#api-imf-marks_table3_coefficients) | value | `progenax.imf` |
 | [`Maschberger`](imf.md#api-imf-maschberger) | class | `progenax.imf` |
 | [`MassDependentBinaryConfig`](binaries.md#api-binaries-massdependentbinaryconfig) | class | `progenax.binaries` |
 | [`MassDependentBinaryFraction`](imf.md#api-imf-massdependentbinaryfraction) | class | `progenax.imf` |
+| [`MassPeriodEccentricityDistribution`](protocols.md#api-protocols-massperiodeccentricitydistribution) | protocol | `progenax.protocols` |
 | [`MassRatioProtocol`](imf.md#api-imf-massratioprotocol) | protocol | `progenax.imf` |
 | [`MichieProfile`](profiles.md#api-profiles-michieprofile) | class | `progenax.profiles` |
 | [`MichieVelocityDF`](kinematics.md#api-kinematics-michievelocitydf) | class | `progenax.kinematics` |
+| [`MoeCompanions`](binaries.md#api-binaries-moecompanions) | class | `progenax.binaries` |
 | [`MoeDiStefano2017`](imf.md#api-imf-moedistefano2017) | class | `progenax.imf` |
+| [`MoeDiStefano2017Full`](imf.md#api-imf-moedistefano2017full) | class | `progenax.imf` |
 | [`MoeEccentricity`](binaries.md#api-binaries-moeeccentricity) | class | `progenax.binaries` |
+| [`MoeJointOrbit`](imf.md#api-imf-moejointorbit) | class | `progenax.imf` |
+| [`MoePeriod`](imf.md#api-imf-moeperiod) | class | `progenax.imf` |
 | [`period_to_semimajor_axis`](binaries.md#api-binaries-period_to_semimajor_axis) | function | `progenax.binaries` |
+| [`PeriodDistribution`](protocols.md#api-protocols-perioddistribution) | protocol | `progenax.protocols` |
 | [`PlummerProfile`](profiles.md#api-profiles-plummerprofile) | class | `progenax.profiles` |
 | [`PlummerVelocityDF`](kinematics.md#api-kinematics-plummervelocitydf) | class | `progenax.kinematics` |
 | [`pn11_pipeline`](gravoturb.md#api-gravoturb-pn11_pipeline) | function | `progenax.gravoturb` |
@@ -107,8 +123,12 @@ Total public symbols: **136** across all submodules.
 | [`PowerLawIMF`](imf.md#api-imf-powerlawimf) | class | `progenax.imf` |
 | [`PowerLawMassRatio`](imf.md#api-imf-powerlawmassratio) | class | `progenax.imf` |
 | [`prepare_imf_samples`](imf.md#api-imf-prepare_imf_samples) | function | `progenax.imf` |
+| [`primordial_survival`](binaries.md#api-binaries-primordial_survival) | function | `progenax.binaries` |
 | [`ProfileName`](profiles.md#api-profiles-profilename) | function | `progenax.profiles` |
 | [`RadialBinaryFraction`](binaries.md#api-binaries-radialbinaryfraction) | class | `progenax.binaries` |
+| [`relative_energy`](binaries.md#api-binaries-relative_energy) | function | `progenax.binaries` |
+| [`resolve_binary_components`](binaries.md#api-binaries-resolve_binary_components) | function | `progenax.binaries` |
+| [`ResolvedBinaries`](binaries.md#api-binaries-resolvedbinaries) | class | `progenax.binaries` |
 | [`RotationParams`](kinematics.md#api-kinematics-rotationparams) | class | `progenax.kinematics` |
 | [`s_crit_pn11`](gravoturb.md#api-gravoturb-s_crit_pn11) | function | `progenax.gravoturb` |
 | [`sample_density_profile`](profiles.md#api-profiles-sample_density_profile) | function | `progenax.profiles` |
@@ -126,11 +146,14 @@ Total public symbols: **136** across all submodules.
 | [`solve_king_profile`](profiles.md#api-profiles-solve_king_profile) | function | `progenax.profiles` |
 | [`solve_michie_profile`](profiles.md#api-profiles-solve_michie_profile) | function | `progenax.profiles` |
 | [`SpatialProfile`](protocols.md#api-protocols-spatialprofile) | protocol | `progenax.protocols` |
+| [`Stars`](builders.md#api-builders-stars) | class | `progenax.builders` |
 | [`sun_earth_jupiter_3body`](analytical.md#api-analytical-sun_earth_jupiter_3body) | function | `progenax.analytical` |
+| [`Systems`](builders.md#api-builders-systems) | class | `progenax.builders` |
 | [`TaperedPowerLaw`](imf.md#api-imf-taperedpowerlaw) | class | `progenax.imf` |
 | [`ThermalEccentricity`](binaries.md#api-binaries-thermaleccentricity) | class | `progenax.binaries` |
 | [`three_body_figure_eight`](analytical.md#api-analytical-three_body_figure_eight) | function | `progenax.analytical` |
 | [`to_com_frame`](builders.md#api-builders-to_com_frame) | function | `progenax.builders` |
+| [`TotalMass`](builders.md#api-builders-totalmass) | class | `progenax.builders` |
 | [`transition_density`](gravoturb.md#api-gravoturb-transition_density) | function | `progenax.gravoturb` |
 | [`TruncatedIMF`](imf.md#api-imf-truncatedimf) | class | `progenax.imf` |
 | [`TwinPeakedMassRatio`](imf.md#api-imf-twinpeakedmassratio) | class | `progenax.imf` |

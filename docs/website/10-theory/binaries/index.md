@@ -31,93 +31,96 @@ positions and velocities that an N-body integrator consumes.
 
 ## What a "binary" is in progenax
 
-A binary in progenax is two particles linked by a `KeplerElements`
-PyTree. The two particles are stored in the same `(masses, positions,
-velocities)` arrays as single stars — they are not "second-class"
-entries. The binary status is recorded in a separate `binary_id`
-array indexing which pairs of particles form binaries:
+A binary in progenax is two particles whose relative orbit is a set of
+`KeplerElements`. Both components live in the same `(positions, velocities,
+masses)` arrays as single stars — secondaries are not "second-class" entries.
+The primordial pairing is recorded as **provenance at $t=0$** on the
+`ICResult` returned by `build_binary_cluster`:
 
 ```python
-masses     # shape (N_total,)   — every star's mass, including secondaries
-positions  # shape (N_total, 3) — 3D positions in cluster frame
-velocities # shape (N_total, 3) — 3D velocities in cluster frame
-binary_id  # shape (N_total,)   — 0 for singles, integer >= 1 for paired binaries
+positions                 # (N, 3) component positions in the cluster frame
+velocities                # (N, 3) component velocities
+masses                    # (N,)   every star's mass, including secondaries
+primordial_system_id      # (N,)   members of one system share an id
+is_primordial_secondary   # (N,)   True on the secondary of each primordial binary
 ```
 
-The advantage of this representation is that downstream consumers
-(integrators, renderers, observation operators) treat singles and
-binary components uniformly. The disadvantage is that the joint
-distribution of binary parameters has to be reconstructed from the
-component data when needed — for which progenax provides
-`progenax.binaries.elements_from_state(positions, velocities, masses, binary_id)`.
+This labelling is the *birth* pairing. It goes stale under dynamical evolution
+(encounters ionise soft binaries, three-body captures form new ones, exchanges
+swap partners), so the **current** binary population of an evolved snapshot must
+be *measured* from the phase-space state, not read off the labels:
+`progenax.binaries.find_bound_pairs(positions, velocities, masses, G=...)`
+returns the energy-bound mutual-nearest-neighbour pairs, and
+`primordial_survival` compares them to the $t=0$ ids (survived / disrupted /
+newly-formed). A single binary's elements are recovered with
+`KeplerElements.from_state(r_rel, v_rel, M_total, G=...)`.
 
 ## Composability
 
-Binary populations layer on top of any IMF + spatial profile + velocity
-DF combination:
+`build_binary_cluster` composes **five independent axes**:
 
 ```{list-table}
 :header-rows: 1
 
-* - Component
-  - Role for binaries
-* - [](../imfs/binary.md)
-  - Decides *which* primaries get companions and *what* the secondary masses are
-* - [](../spatial-profiles/index.md)
-  - Places primaries in 3D — secondaries are placed at the same position then offset by the orbital separation
-* - [](../velocity-dfs/index.md)
-  - Sets the primary's bulk velocity — secondaries inherit it plus the orbital velocity
-* - [Kepler elements](kepler-elements.md)
-  - Specify the relative orbit (semi-major axis, eccentricity, orientation)
-* - [Period distributions](period-distributions.md)
-  - Set the per-binary semi-major axis from the population-wide $f(P)$
-* - [Eccentricity distributions](eccentricity.md)
-  - Set the per-binary $e$ from the population-wide $f(e)$
+* - Axis
+  - Role
+* - `primary_imf`
+  - The **primary** IMF — draws $m_1$ (companions are conditional, so the all-stars MF is derived; see [](../imfs/binary.md))
+* - `companion_model`
+  - Owns the binary statistics: multiplicity $f_b(m_1)$ **and** $q\to m_2$, $P\to a$, $e$, orientation
+* - [spatial profile](../spatial-profiles/index.md)
+  - Places the **system COMs** in 3D
+* - [velocity DF](../velocity-dfs/index.md)
+  - Sets each system COM's bulk velocity
+* - `target`
+  - Population-size budget: `Systems(n)` / `Stars(n)` / `TotalMass(M)`
 ```
 
-The composition is order-independent: the result is the same whether
-you place primaries first and decorate with binaries, or sample
-binary parameters first and place the resolved system. progenax's
-default builder follows the latter ordering for vectorisation efficiency.
+The `companion_model` has two implementations: `IndependentCompanions`
+(versatile independent $f_b \times q \times P \times e$ marginals — the
+period-averaged default) and `MoeCompanions` (the faithful
+{cite:t}`MoeDiStefano2017` joint $P$–$q$–$e$ interrelation, where the *same* $q$
+sets $m_2$, so the coupling is self-consistent). `f_b` lives inside the
+companion model — in Moe it is part of the model, set by the IMF masses.
 
 ## Resolved vs unresolved
 
-A "resolved" binary in progenax is one where both components are
-present in the output `(masses, positions, velocities)` arrays. An
-"unresolved" treatment merges the two components into a single
-phase-space entry at the binary's centre of mass. Both are supported:
+`resolve_binary_components` places each binary's two components around its COM
+using the barycentric split $m_1\,\delta r_1 + m_2\,\delta r_2 = 0$, so the COM
+(and hence the cluster phase space) is preserved exactly. `build_binary_cluster`
+returns one of two forms:
 
 ```python
-from progenax.binaries import build_binaries
+from progenax.builders import build_binary_cluster, Systems
+from progenax.binaries import MoeCompanions
 
-# Resolved (default): both components present
-masses, positions, velocities, binary_id = build_binaries(
-    primary_masses, primary_positions, primary_velocities,
-    binary_mask, q_samples, kepler_elements,
-    resolved=True,
-)
+# compact=True (default): eagerly compacted ICResult of real particles
+ic = build_binary_cluster(profile, velocity_df, primary_imf,
+                          MoeCompanions(), Systems(1000), key, units=STELLAR)
 
-# Unresolved: combined into binary CoM
-masses_u, positions_u, velocities_u = build_binaries(
-    ..., resolved=False,
-)
+# compact=False: the masked, fixed-shape ResolvedBinaries (2N slots + is_real
+# mask) — jit/grad-safe; required for differentiable IC generation
+rb = build_binary_cluster(profile, velocity_df, primary_imf,
+                         MoeCompanions(), Systems(1000), key, units=STELLAR,
+                         compact=False)
 ```
 
-For N-body integration, *resolved* is the right choice — the
-integrator needs to evolve the orbital motion. For mock observations
-of unresolved photometric surveys, *unresolved* matches the
-data-generating process. Both forms are differentiable in the
-underlying parameters.
+For N-body integration the resolved components are what you want — the integrator
+evolves the orbital motion (binaries are *collisional*: integrate with a
+collisional scheme, $\varepsilon = 0$). The COM virialisation treats each binary
+as a single CoM particle (the McLuster convention, {cite:t}`Kuepper2011` §A8) and
+leaves the internal binary binding energy as a separate reservoir, which
+`binary_energy_budget` reports explicitly.
 
 ## Connection to the binary IMF
 
-The binary fraction $f_b(m_1)$ from [](../imfs/binary.md) decides the
-*number* of binaries; the chapters in this section decide their
-*orbital properties*. Both come from the same {cite:t}`MoeDiStefano2017`
-calibration when consistency matters — period distributions from
+The binary fraction $f_b(m_1)$ and the mass ratios from [](../imfs/binary.md)
+decide *which* stars are paired and the secondary masses; the chapters in this
+section decide the *orbital properties*. When consistency matters they come from
+the same {cite:t}`MoeDiStefano2017` calibration — periods from
 [](period-distributions.md), mass ratios from
-[](../imfs/mass-ratio-distributions.md), eccentricities from
-[](eccentricity.md) — and they share the period-conditional
+[](../imfs/mass-ratio-distributions.md), eccentricities from [](eccentricity.md) —
+and `MoeCompanions` samples them *jointly* to preserve the period-conditional
 non-separability noted at [](../imfs/multiplicity-statistics.md).
 
 ## References

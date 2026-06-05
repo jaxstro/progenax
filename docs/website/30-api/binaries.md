@@ -9,30 +9,40 @@ description: Auto-generated API reference for `progenax.binaries` — signatures
 
 Module path: `progenax/binaries/`
 
-Public symbols: **20**
+Public symbols: **30**
 
 ## Contents
 
 - [`KeplerElements`](#api-binaries-keplerelements)
+- [`CartesianState`](#api-binaries-cartesianstate)
+- [`BinaryState`](#api-binaries-binarystate)
 - [`compute_period`](#api-binaries-compute_period)
 - [`period_to_semimajor_axis`](#api-binaries-period_to_semimajor_axis)
 - [`BinaryOrbitalState`](#api-binaries-binaryorbitalstate)
-- [`make_elements_from_inputs`](#api-binaries-make_elements_from_inputs)
-- [`elements_to_resolved_state`](#api-binaries-elements_to_resolved_state)
 - [`batch_elements_to_resolved`](#api-binaries-batch_elements_to_resolved)
-- [`elements_to_com_and_internal`](#api-binaries-elements_to_com_and_internal)
-- [`batch_elements_to_com_and_internal`](#api-binaries-batch_elements_to_com_and_internal)
 - [`LogUniformPeriod`](#api-binaries-loguniformperiod)
 - [`LogNormalPeriod`](#api-binaries-lognormalperiod)
+- [`SanaOBPeriod`](#api-binaries-sanaobperiod)
 - [`ThermalEccentricity`](#api-binaries-thermaleccentricity)
 - [`UniformEccentricity`](#api-binaries-uniformeccentricity)
+- [`LogisticThermalEccentricity`](#api-binaries-logisticthermaleccentricity)
+- [`MoeEccentricity`](#api-binaries-moeeccentricity)
 - [`sample_isotropic_orientations`](#api-binaries-sample_isotropic_orientations)
 - [`RadialBinaryFraction`](#api-binaries-radialbinaryfraction)
-- [`SanaOBPeriod`](#api-binaries-sanaobperiod)
-- [`MoeEccentricity`](#api-binaries-moeeccentricity)
+- [`CombinedBinaryFraction`](#api-binaries-combinedbinaryfraction)
 - [`MassDependentBinaryConfig`](#api-binaries-massdependentbinaryconfig)
 - [`sample_mass_dependent_orbits`](#api-binaries-sample_mass_dependent_orbits)
-- [`KeplerElements_IC`](#api-binaries-keplerelements_ic)
+- [`ResolvedBinaries`](#api-binaries-resolvedbinaries)
+- [`resolve_binary_components`](#api-binaries-resolve_binary_components)
+- [`CompanionElements`](#api-binaries-companionelements)
+- [`IndependentCompanions`](#api-binaries-independentcompanions)
+- [`MoeCompanions`](#api-binaries-moecompanions)
+- [`relative_energy`](#api-binaries-relative_energy)
+- [`find_bound_pairs`](#api-binaries-find_bound_pairs)
+- [`find_bound_multiples`](#api-binaries-find_bound_multiples)
+- [`primordial_survival`](#api-binaries-primordial_survival)
+- [`BinaryEnergyBudget`](#api-binaries-binaryenergybudget)
+- [`binary_energy_budget`](#api-binaries-binary_energy_budget)
 
 (api-binaries-keplerelements)=
 ## `binaries.KeplerElements`
@@ -73,7 +83,46 @@ Examples:
     ... )
     >>> state = elements.to_state(M_total=1.0, G=1.0)
 
-*Source: [`progenax/binaries/kepler.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L15)*
+*Source: [`progenax/binaries/kepler.py#L48`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L48)*
+
+(api-binaries-cartesianstate)=
+## `binaries.CartesianState`
+
+*class*
+
+```python
+CartesianState(position: jaxtyping.Float[Array, '3'], velocity: jaxtyping.Float[Array, '3'])
+```
+
+Cartesian phase-space state of a single body.
+
+A JAX-pytree NamedTuple (transparent to jit/grad/vmap); also tuple-iterable,
+so ``pos, vel = state`` works.
+
+Attributes:
+    position: (3,) Cartesian position [length units]
+    velocity: (3,) Cartesian velocity [velocity units]
+
+*Source: [`progenax/binaries/kepler.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L17)*
+
+(api-binaries-binarystate)=
+## `binaries.BinaryState`
+
+*class*
+
+```python
+BinaryState(r1: jaxtyping.Float[Array, '3'], v1: jaxtyping.Float[Array, '3'], r2: jaxtyping.Float[Array, '3'], v2: jaxtyping.Float[Array, '3'])
+```
+
+Resolved barycentric phase-space state of a binary's two components.
+
+A JAX-pytree NamedTuple; tuple-iterable, so ``r1, v1, r2, v2 = state`` works.
+
+Attributes:
+    r1, v1: Position/velocity of the primary [length, velocity units]
+    r2, v2: Position/velocity of the secondary [length, velocity units]
+
+*Source: [`progenax/binaries/kepler.py#L32`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L32)*
 
 (api-binaries-compute_period)=
 ## `binaries.compute_period`
@@ -114,7 +163,7 @@ References:
     Kepler's 3rd Law: T² ∝ a³/M
     Murray & Dermott (1999) Eq 2.37
 
-*Source: [`progenax/binaries/kepler.py#L473`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L473)*
+*Source: [`progenax/binaries/kepler_period.py#L11`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler_period.py#L11)*
 
 (api-binaries-period_to_semimajor_axis)=
 ## `binaries.period_to_semimajor_axis`
@@ -156,7 +205,7 @@ References:
     Kepler's 3rd Law: a³ ∝ T²M
     Murray & Dermott (1999) Eq 2.37
 
-*Source: [`progenax/binaries/kepler.py#L515`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler.py#L515)*
+*Source: [`progenax/binaries/kepler_period.py#L59`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/kepler_period.py#L59)*
 
 (api-binaries-binaryorbitalstate)=
 ## `binaries.BinaryOrbitalState`
@@ -164,7 +213,7 @@ References:
 *class*
 
 ```python
-BinaryOrbitalState(m1: "Float[Array, '']", m2: "Float[Array, '']", elements: 'KeplerElements', P: "Float[Array, '']", n: "Float[Array, '']") -> None
+BinaryOrbitalState(m1: "Float[Array, '']", m2: "Float[Array, '']", elements: 'KeplerElements') -> None
 ```
 
 Binary orbital state for IC generation.
@@ -176,68 +225,20 @@ use KeplerElements directly.
 Attributes:
     m1: Primary mass [M_sun]
     m2: Secondary mass [M_sun]
-    elements: KeplerElements (a, e, i, Omega, omega, M0)
-    P: Orbital period [time units]
-    n: Mean motion [rad/time] = 2*pi/P
+    elements: KeplerElements (a, e, i, Omega, omega, M0). The period/mean motion
+        is derived on demand from (a, m1+m2, G) in to_state, not cached here.
 
 Example:
     >>> from jaxstro.units import PLANETARY
+    >>> # PLANETARY.G is per-year, so convert the period days -> years.
     >>> state = BinaryOrbitalState.from_log_period(
     ...     m1=1.0, m2=0.5, logP_days=2.0, e=0.3,
     ...     inc=0.1, Omega=0.0, omega=0.0, M_anom=0.0,
-    ...     G=PLANETARY.G, day_in_time_units=1.0
+    ...     G=PLANETARY.G, day_in_time_units=1.0 / 365.25
     ... )
     >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
 
-*Source: [`progenax/binaries/orbital_state.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L23)*
-
-(api-binaries-make_elements_from_inputs)=
-## `binaries.make_elements_from_inputs`
-
-*function*
-
-```python
-make_elements_from_inputs(m1: "Float[Array, '']", m2: "Float[Array, '']", logP_days: "Float[Array, '']", e: "Float[Array, '']", inc: "Float[Array, '']", Omega: "Float[Array, '']", omega: "Float[Array, '']", M_anom: "Float[Array, '']", *, G: 'float | None' = None, day_in_time_units: 'float' = 1.0) -> 'BinaryOrbitalState'
-```
-
-Build binary orbital state from standard binary sampler outputs.
-
-Args:
-    m1, m2: Component masses
-    logP_days: log10(P / day)
-    e: Eccentricity
-    inc: Inclination [rad]
-    Omega: Longitude of ascending node [rad]
-    omega: Argument of periapsis [rad]
-    M_anom: Mean anomaly at epoch [rad]
-    G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-       (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
-    day_in_time_units: Conversion factor days -> code time units
-
-Returns:
-    BinaryOrbitalState with derived (a, P, n)
-
-*Source: [`progenax/binaries/orbital_state.py#L180`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L180)*
-
-(api-binaries-elements_to_resolved_state)=
-## `binaries.elements_to_resolved_state`
-
-*function*
-
-```python
-elements_to_resolved_state(elem: 'BinaryOrbitalState', G: 'float') -> "Tuple[Float[Array, '3'], Float[Array, '3'], Float[Array, '3'], Float[Array, '3']]"
-```
-
-Resolved barycentric state for a single binary at the given epoch.
-
-Args:
-    elem: BinaryOrbitalState
-    G: Gravitational constant
-
-Returns:
-    r1, v1, r2, v2 (each 3-vector), with COM at origin.
-
-*Source: [`progenax/binaries/orbital_state.py#L220`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L220)*
+*Source: [`progenax/binaries/orbital_state.py#L19`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L19)*
 
 (api-binaries-batch_elements_to_resolved)=
 ## `binaries.batch_elements_to_resolved`
@@ -245,7 +246,7 @@ Returns:
 *function*
 
 ```python
-batch_elements_to_resolved(m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", logP_days: "Float[Array, 'N']", e: "Float[Array, 'N']", inc: "Float[Array, 'N']", Omega: "Float[Array, 'N']", omega: "Float[Array, 'N']", M_anom: "Float[Array, 'N']", *, G: 'float | None' = None, day_in_time_units: 'float' = 1.0) -> "Tuple[Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N 3']]"
+batch_elements_to_resolved(m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", logP_days: "Float[Array, 'N']", e: "Float[Array, 'N']", inc: "Float[Array, 'N']", Omega: "Float[Array, 'N']", omega: "Float[Array, 'N']", M_anom: "Float[Array, 'N']", *, G: 'float', day_in_time_units: 'float' = 1.0) -> "Tuple[Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N 3']]"
 ```
 
 Vectorized wrapper to get resolved (r1, v1, r2, v2) for N binaries.
@@ -258,46 +259,13 @@ Args:
     Omega: Longitude of ascending node [rad] [N]
     omega: Argument of periapsis [rad] [N]
     M_anom: Mean anomaly [rad] [N]
-    G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-       (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
+    G: Gravitational constant (REQUIRED, no default)
     day_in_time_units: Conversion factor days -> code time units
 
 Returns:
     r1, v1, r2, v2: Arrays of shape [N, 3]
 
-*Source: [`progenax/binaries/orbital_state.py#L236`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L236)*
-
-(api-binaries-elements_to_com_and_internal)=
-## `binaries.elements_to_com_and_internal`
-
-*function*
-
-```python
-elements_to_com_and_internal(elem: 'BinaryOrbitalState') -> "Tuple[Float[Array, '3'], Float[Array, '3'], BinaryOrbitalState]"
-```
-
-Return (r_com, v_com, elements).
-
-For now r_com=v_com=0; hook for future drift/offset support.
-
-*Source: [`progenax/binaries/orbital_state.py#L285`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L285)*
-
-(api-binaries-batch_elements_to_com_and_internal)=
-## `binaries.batch_elements_to_com_and_internal`
-
-*function*
-
-```python
-batch_elements_to_com_and_internal(m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", logP_days: "Float[Array, 'N']", e: "Float[Array, 'N']", inc: "Float[Array, 'N']", Omega: "Float[Array, 'N']", omega: "Float[Array, 'N']", M_anom: "Float[Array, 'N']", *, G: 'float | None' = None, day_in_time_units: 'float' = 1.0) -> "Tuple[Float[Array, 'N 3'], Float[Array, 'N 3'], BinaryOrbitalState]"
-```
-
-Vectorized COM+elements pack (COM states are zeros by default).
-
-Args:
-    G: Gravitational constant. If None, uses jaxstro.units.PLANETARY.G
-       (~39.478 for binaries in AU³ Msun⁻¹ yr⁻²)
-
-*Source: [`progenax/binaries/orbital_state.py#L297`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L297)*
+*Source: [`progenax/binaries/orbital_state.py#L188`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L188)*
 
 (api-binaries-loguniformperiod)=
 ## `binaries.LogUniformPeriod`
@@ -320,7 +288,7 @@ Parameters:
     log_P_min: Minimum log10(P/days) (default: 0.0 = 1 day)
     log_P_max: Maximum log10(P/days) (default: 8.0 = ~27,000 years)
 
-*Source: [`progenax/binaries/population.py#L26`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L26)*
+*Source: [`progenax/binaries/period.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/period.py#L23)*
 
 (api-binaries-lognormalperiod)=
 ## `binaries.LogNormalPeriod`
@@ -343,7 +311,40 @@ Parameters:
     mu_log_P: Mean of log10(P/days) (default: 4.8)
     sigma_log_P: Std dev of log10(P/days) (default: 2.3)
 
-*Source: [`progenax/binaries/population.py#L68`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L68)*
+*Source: [`progenax/binaries/period.py#L65`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/period.py#L65)*
+
+(api-binaries-sanaobperiod)=
+## `binaries.SanaOBPeriod`
+
+*class*
+
+```python
+SanaOBPeriod(log_P_min: 'float' = 0.15, log_P_max: 'float' = 3.5, power: 'float' = -0.55) -> None
+```
+
+Sana+2012 period distribution for O/B stars.
+
+Power-law distribution in log-space:
+    p(log P) ∝ (log P)^(-0.55)
+
+for log P in [0.15, 3.5] (P in days).
+
+This corresponds to shorter periods than solar-type binaries,
+consistent with observations of massive star binaries.
+
+Reference:
+    Sana et al. (2012) Science 337, 444 - O-star binary survey. The intrinsic
+    period distribution (their Fig. 2, π = -0.55 ± 0.22) runs from P ~ 1.4 d
+    (log P ~ 0.15) to ~9 yr (log P = 3.5).
+
+Parameters:
+    log_P_min: Minimum log10(P/days) (default: 0.15 = ~1.4 days; Sana 2012 Fig.2).
+        Must be > 0: the model p(logP) ∝ (logP)^power is undefined for logP <= 0
+        (P <= 1 day), since that raises a non-positive base to a fractional power.
+    log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days ~ 9 yr)
+    power: Power-law index (default: -0.55 from Sana+2012)
+
+*Source: [`progenax/binaries/period.py#L112`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/period.py#L112)*
 
 (api-binaries-thermaleccentricity)=
 ## `binaries.ThermalEccentricity`
@@ -366,7 +367,7 @@ Reference:
 Parameters:
     e_max: Maximum eccentricity (default: 0.99, avoids singularity)
 
-*Source: [`progenax/binaries/population.py#L115`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L115)*
+*Source: [`progenax/binaries/eccentricity.py#L24`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/eccentricity.py#L24)*
 
 (api-binaries-uniformeccentricity)=
 ## `binaries.UniformEccentricity`
@@ -385,7 +386,94 @@ Parameters:
     e_min: Minimum eccentricity (default: 0.0)
     e_max: Maximum eccentricity (default: 0.9)
 
-*Source: [`progenax/binaries/population.py#L151`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L151)*
+*Source: [`progenax/binaries/eccentricity.py#L65`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/eccentricity.py#L65)*
+
+(api-binaries-logisticthermaleccentricity)=
+## `binaries.LogisticThermalEccentricity`
+
+*class*
+
+```python
+LogisticThermalEccentricity(P_circ: 'float' = 10.0, P_thermal: 'float' = 1000.0, e_max: 'float' = 0.99, transition_width: 'float' = 0.5) -> None
+```
+
+Smooth circular->thermal eccentricity heuristic (period-conditional).
+
+A differentiable heuristic that interpolates a thermal f(e)=2e distribution
+from near-circular at short P to fully thermal at long P, via a logistic
+blend in log10(P):  e = blend(P) * e_max * sqrt(u),  u ~ U(0,1).
+
+This captures the QUALITATIVE three-period structure of solar-type
+eccentricities measured by Duquennoy & Mayor (1991) (§6.1/§7.2): P < ~10 d
+tidally circularized (e ~ 0; their circularization period P_circ ~ 11.6 d),
+P > ~1000 d approaching thermal f(e)=2e (Ambartsumian 1937), with a smooth
+transition between. The logistic midpoint defaults to the geometric mean of
+P_circ=10 d and P_thermal=1000 d (log10 P = 2.0).
+
+It is NOT Moe & Di Stefano's (2017) f(e) ∝ e^η(P, M1) law — for that, use
+:class:`MoeEccentricity`. This class is a smooth, mass-independent surrogate
+motivated by the tidal-circularization physics (Zahn 1977).
+
+References:
+    Duquennoy & Mayor (1991) A&A 248, 485 §6.1/§7.2 - three-period e model.
+    Ambartsumian (1937); Heggie (1975) MNRAS 173, 729 - thermal f(e)=2e.
+    Zahn (1977) A&A 57, 383 - tidal circularization.
+
+Parameters:
+    P_circ: Circularization period [days] (default: 10.0; DM91 ~11.6 d)
+    P_thermal: Thermalization period [days] (default: 1000.0; DM91 wide onset)
+    e_max: Maximum eccentricity (default: 0.99)
+    transition_width: Width of transition region in log10(P) (default: 0.5)
+
+*Source: [`progenax/binaries/eccentricity.py#L98`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/eccentricity.py#L98)*
+
+(api-binaries-moeeccentricity)=
+## `binaries.MoeEccentricity`
+
+*class*
+
+```python
+MoeEccentricity(e_max: 'float' = 0.99) -> None
+```
+
+Moe & Di Stefano (2017) eccentricity distribution p(e) ∝ e^η(logP, M1).
+
+Faithful implementation of Moe & Di Stefano (2017) §9.2 (Figure 36): the
+eccentricity follows a power law p(e) ∝ e^η on 0 <= e <= e_max, with the
+slope η a function of orbital period AND primary mass:
+
+    Eq. 17 (late-type, 0.8 < M1 < 3 Msun):  η = 0.6 - 0.7 / (logP - 0.5)
+    Eq. 18 (early-type, M1 > 7 Msun):       η = 0.9 - 0.2 / (logP - 0.5)
+
+with a linear interpolation in M1 for 3 <= M1 <= 7 Msun. η = 0 is uniform
+(<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Sana et al. (2012)
+measure η ≈ -0.4 for short-period (P < 10 d) O-stars; solar-type binaries
+asymptote to η ≈ 0.5 at long P; intermediate-period massive binaries reach
+η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
+the orbit is tidally circularized and this returns e ≈ 0 (Moe notes η is "not
+well defined" for logP ≲ 1).
+
+Sampling uses the inverse CDF e = e_max(P) * u^(1/(η+1)); as η -> -1+ the
+exponent diverges so e -> 0 (circular) by construction.
+
+The upper limit is the period-dependent Roche-lobe ceiling (their Eq. 3),
+
+    e_max(P) = 1 - (P / 2 days)^(-2/3)   for P > 2 d,
+
+clipped to [0, e_max], so the components do not overflow their Roche lobes at
+periapsis (e.g. e_max(10 d) ≈ 0.66, e_max(100 d) ≈ 0.93); P <= 2 d -> circular.
+The ``e_max`` field is the long-period numerical ceiling (avoids the e -> 1
+singularity), reached only where the Roche relation itself approaches 1.
+
+Reference:
+    Moe & Di Stefano (2017) ApJS 230, 15, §9.2 Eqs. 17-18, Eq. 3, Fig. 36.
+    Sana et al. (2012) Science 337, 444 - η = -0.4 ± 0.2 short-period O-stars.
+
+Parameters:
+    e_max: Numerical eccentricity ceiling at long P (default: 0.99); the
+        physical cap is the period-dependent Roche relation (Eq. 3).
+
+*Source: [`progenax/binaries/eccentricity.py#L176`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/eccentricity.py#L176)*
 
 (api-binaries-sample_isotropic_orientations)=
 ## `binaries.sample_isotropic_orientations`
@@ -418,7 +506,7 @@ Returns:
 Reference:
     Binney & Tremaine (2008) "Galactic Dynamics" Section 3.1
 
-*Source: [`progenax/binaries/population.py#L189`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L189)*
+*Source: [`progenax/binaries/orientation.py#L16`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orientation.py#L16)*
 
 (api-binaries-radialbinaryfraction)=
 ## `binaries.RadialBinaryFraction`
@@ -429,23 +517,28 @@ Reference:
 RadialBinaryFraction(fb0: 'float' = 0.5, A: 'float' = 0.5, alpha: 'float' = 1.0, r_scale: 'float' = 1.0) -> None
 ```
 
-Radially varying binary fraction.
+Phenomenological radially-varying binary fraction.
 
-Implements spatially varying binary fraction following the power-law model:
+A simple parametric knob for a spatially varying binary fraction:
 
-    f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α))
+    f_b(r) = fb0 × (1 + A × (r/r_scale)^(-α)),  clipped to [0, 1]
 
 where:
     - A > 0: core-enhanced (more binaries in center)
     - A < 0: core-depleted (fewer binaries in center)
     - A = 0: constant binary fraction everywhere
 
-The result is clipped to [0, 1] to ensure valid binary fractions.
+NOTE: this functional form is a PHENOMENOLOGICAL model, NOT taken from any
+specific paper. The references below establish that the binary fraction
+*varies* with primary mass / environment (motivating a spatial knob), but none
+provides this closed-form radial f_b(r) profile. The (r/r_scale)^(-α) term
+diverges as r -> 0 for α > 0; the clip to [0, 1] caps it (so the core value is
+set by the clip, not the power law) — intended for r > 0.
 
-References:
-    Raghavan et al. (2010) ApJS 190, 1 - Solar neighborhood binary census
-    Sana et al. (2012) Science 337, 444 - O-star binary fraction
-    Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+References (motivation only — not the source of this functional form):
+    Raghavan et al. (2010) ApJS 190, 1 - solar-neighborhood multiplicity census.
+    Sana et al. (2012) Science 337, 444 - O-star binary fraction.
+    Moe & Di Stefano (2017) ApJS 230, 15 - binary statistics review.
 
 Parameters:
     fb0: Baseline binary fraction (default: 0.5)
@@ -463,65 +556,30 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> is_binary = rbf.sample_membership(radii, key)
 
-*Source: [`progenax/binaries/population.py#L351`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L351)*
+*Source: [`progenax/binaries/mass_dependent.py#L31`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/mass_dependent.py#L31)*
 
-(api-binaries-sanaobperiod)=
-## `binaries.SanaOBPeriod`
-
-*class*
-
-```python
-SanaOBPeriod(log_P_min: 'float' = 0.3, log_P_max: 'float' = 3.5, power: 'float' = -0.55) -> None
-```
-
-Sana+2012 period distribution for O/B stars.
-
-Power-law distribution in log-space:
-    p(log P) ∝ (log P)^(-0.55)
-
-for log P in [0.3, 3.5] (P in days).
-
-This corresponds to shorter periods than solar-type binaries,
-consistent with observations of massive star binaries.
-
-Reference:
-    Sana et al. (2012) Science 337, 444 - O-star binary survey
-
-Parameters:
-    log_P_min: Minimum log10(P/days) (default: 0.3 = ~2 days)
-    log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days)
-    power: Power-law index (default: -0.55 from Sana+2012)
-
-*Source: [`progenax/binaries/population.py#L234`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L234)*
-
-(api-binaries-moeeccentricity)=
-## `binaries.MoeEccentricity`
+(api-binaries-combinedbinaryfraction)=
+## `binaries.CombinedBinaryFraction`
 
 *class*
 
 ```python
-MoeEccentricity(P_circ: 'float' = 10.0, P_thermal: 'float' = 1000.0, e_max: 'float' = 0.99, transition_width: 'float' = 0.5) -> None
+CombinedBinaryFraction(mass_model: 'eqx.Module', radial_model: 'eqx.Module') -> None
 ```
 
-Moe+2017 period-dependent eccentricity distribution.
+Binary fraction that modulates a mass-based fraction by a radial one.
 
-Implements period-dependent eccentricity following Moe & Di Stefano (2017):
-- Short periods (P < P_circ ~ 10d): Tidally circularized, e ≈ 0
-- Intermediate periods: Smooth transition
-- Long periods (P > P_thermal ~ 1000d): Thermal-like distribution f(e) = 2e
+f_bin(m, r) = clip(mass_model.probability(m) * radial_model.probability(m, r), 0, 1).
 
-The transition uses a smooth logistic function to ensure differentiability.
-
-Reference:
-    Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+Lets a Moe/Raghavan mass-dependent fraction vary spatially (e.g. core-enhanced
+binarity) without conflating the two effects. Both sub-models are duck-typed
+BinaryFractionModel instances. Requires radii at evaluation.
 
 Parameters:
-    P_circ: Circularization period [days] (default: 10.0)
-    P_thermal: Thermalization period [days] (default: 1000.0)
-    e_max: Maximum eccentricity (default: 0.99)
-    transition_width: Width of transition region in log10(P) (default: 0.5)
+    mass_model: a mass-based BinaryFractionModel (ignores radii).
+    radial_model: a RadialBinaryFraction-like BinaryFractionModel (uses radii).
 
-*Source: [`progenax/binaries/population.py#L295`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L295)*
+*Source: [`progenax/binaries/mass_dependent.py#L126`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/mass_dependent.py#L126)*
 
 (api-binaries-massdependentbinaryconfig)=
 ## `binaries.MassDependentBinaryConfig`
@@ -529,7 +587,7 @@ Parameters:
 *class*
 
 ```python
-MassDependentBinaryConfig(m_break: 'float', low_mass_period: 'LogNormalPeriod | LogUniformPeriod', high_mass_period: 'SanaOBPeriod', low_mass_eccentricity: 'ThermalEccentricity | UniformEccentricity', high_mass_eccentricity: 'MoeEccentricity') -> None
+MassDependentBinaryConfig(m_break: 'float', low_mass_period: 'LogNormalPeriod | LogUniformPeriod', high_mass_period: 'SanaOBPeriod', low_mass_eccentricity: 'ThermalEccentricity | UniformEccentricity', high_mass_eccentricity: 'MoeEccentricity | LogisticThermalEccentricity') -> None
 ```
 
 Configuration for mass-dependent binary orbital parameter sampling.
@@ -562,7 +620,7 @@ Example:
     >>> key = jax.random.PRNGKey(42)
     >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
-*Source: [`progenax/binaries/population.py#L433`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L433)*
+*Source: [`progenax/binaries/mass_dependent.py#L154`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/mass_dependent.py#L154)*
 
 (api-binaries-sample_mass_dependent_orbits)=
 ## `binaries.sample_mass_dependent_orbits`
@@ -591,6 +649,12 @@ Returns:
         - periods: Orbital periods [days] (shape N,)
         - eccentricities: Orbital eccentricities (shape N,)
 
+Note:
+    Only the high-mass branch supports period-dependent eccentricity
+    (MoeEccentricity, conditioned on the high-mass periods). The low-mass
+    eccentricity is sampled unconditionally (Thermal/Uniform), enforced by
+    the config type hints.
+
 Example:
     >>> config = MassDependentBinaryConfig(
     ...     m_break=8.0,
@@ -603,38 +667,262 @@ Example:
     >>> key = jax.random.PRNGKey(42)
     >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
-*Source: [`progenax/binaries/population.py#L473`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/population.py#L473)*
+*Source: [`progenax/binaries/mass_dependent.py#L193`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/mass_dependent.py#L193)*
 
-(api-binaries-keplerelements_ic)=
-## `binaries.KeplerElements_IC`
+(api-binaries-resolvedbinaries)=
+## `binaries.ResolvedBinaries`
 
 *class*
 
 ```python
-KeplerElements_IC(m1: "Float[Array, '']", m2: "Float[Array, '']", elements: 'KeplerElements', P: "Float[Array, '']", n: "Float[Array, '']") -> None
+ResolvedBinaries(positions: ForwardRef("Float[Array, 'M 3']"), velocities: ForwardRef("Float[Array, 'M 3']"), masses: ForwardRef("Float[Array, 'M']"), is_real: ForwardRef("Bool[Array, 'M']"), primordial_system_id: ForwardRef("Int[Array, 'M']"), is_primordial_secondary: ForwardRef("Bool[Array, 'M']"))
 ```
 
-Binary orbital state for IC generation.
-
-Combines component masses with Keplerian orbital elements.
-This is an IC-specific container - for general orbital mechanics,
-use KeplerElements directly.
+Masked fixed-shape (2N) particle set from resolving N systems.
 
 Attributes:
-    m1: Primary mass [M_sun]
-    m2: Secondary mass [M_sun]
-    elements: KeplerElements (a, e, i, Omega, omega, M0)
-    P: Orbital period [time units]
-    n: Mean motion [rad/time] = 2*pi/P
+    positions: (2N, 3) component positions [length units].
+    velocities: (2N, 3) component velocities [velocity units].
+    masses: (2N,) component masses [M_sun] (ghosts = 0).
+    is_real: (2N,) bool — True for real particles (all primaries + binary
+        secondaries); False for single-star ghost secondaries.
+    primordial_system_id: (2N,) int — slots 2i, 2i+1 both = i.
+    is_primordial_secondary: (2N,) bool — True on the odd (secondary) slots.
 
-Example:
-    >>> from jaxstro.units import PLANETARY
-    >>> state = BinaryOrbitalState.from_log_period(
-    ...     m1=1.0, m2=0.5, logP_days=2.0, e=0.3,
-    ...     inc=0.1, Omega=0.0, omega=0.0, M_anom=0.0,
-    ...     G=PLANETARY.G, day_in_time_units=1.0
-    ... )
-    >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
+*Source: [`progenax/binaries/assembly.py#L27`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/assembly.py#L27)*
 
-*Source: [`progenax/binaries/orbital_state.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/orbital_state.py#L23)*
+(api-binaries-resolve_binary_components)=
+## `binaries.resolve_binary_components`
+
+*function*
+
+```python
+resolve_binary_components(com_pos: "Float[Array, 'N 3']", com_vel: "Float[Array, 'N 3']", m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", is_binary: "Bool[Array, 'N']", a: "Float[Array, 'N']", e: "Float[Array, 'N']", inc: "Float[Array, 'N']", Omega: "Float[Array, 'N']", omega: "Float[Array, 'N']", M_anom: "Float[Array, 'N']", *, G: 'float') -> 'ResolvedBinaries'
+```
+
+Resolve N system COMs into a masked 2N component set (see module docstring).
+
+Args:
+    com_pos, com_vel: (N, 3) system center-of-mass positions/velocities.
+    m1, m2: (N,) primary / secondary masses (m2 = 0 for singles).
+    is_binary: (N,) bool — True for binary systems.
+    a, e, inc, Omega, omega, M_anom: (N,) Keplerian elements of the relative
+        orbit (ignored for singles; sanitized internally so grads stay finite).
+    G: gravitational constant (REQUIRED).
+
+Returns:
+    ResolvedBinaries (2N slots + is_real mask + primordial provenance).
+
+*Source: [`progenax/binaries/assembly.py#L53`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/assembly.py#L53)*
+
+(api-binaries-companionelements)=
+## `binaries.CompanionElements`
+
+*class*
+
+```python
+CompanionElements(m2: ForwardRef("Float[Array, 'N']"), a: ForwardRef("Float[Array, 'N']"), e: ForwardRef("Float[Array, 'N']"), inc: ForwardRef("Float[Array, 'N']"), Omega: ForwardRef("Float[Array, 'N']"), omega: ForwardRef("Float[Array, 'N']"), M_anom: ForwardRef("Float[Array, 'N']"))
+```
+
+Per-system companion mass + relative-orbit elements (singles: m2=0, a sanitized).
+
+Plugs directly into `resolve_binary_components(..., a, e, inc, Omega, omega, M_anom)`.
+
+*Source: [`progenax/binaries/companions.py#L35`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/companions.py#L35)*
+
+(api-binaries-independentcompanions)=
+## `binaries.IndependentCompanions`
+
+*class*
+
+```python
+IndependentCompanions(binary_fraction: 'Any', q_distribution: 'Any', period_distribution: 'Any', eccentricity_distribution: 'Any') -> None
+```
+
+Versatile companion model: independent f_b x q x P x e marginals.
+
+Multiplicity from `binary_fraction(m1)`; q from `q_distribution` (mass-dependent
+or unconditional); period and eccentricity sampled independently. Reproduces the
+period-averaged default of `build_binary_cluster` today. The mass-ratio is the
+single owner of q -> `m2 = m1 * q` (0 for singles).
+
+Entropy layout (the equivalence contract): ``split(key, 5)`` ->
+``[is_binary, q, period, eccentricity, orientation]``.
+
+*Source: [`progenax/binaries/companions.py#L74`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/companions.py#L74)*
+
+(api-binaries-moecompanions)=
+## `binaries.MoeCompanions`
+
+*class*
+
+```python
+MoeCompanions(q_min: 'float' = 0.1) -> None
+```
+
+Faithful Moe & Di Stefano (2017) companion model — the P-q-e interrelation.
+
+Multiplicity from Moe's own mass-dependent ``MassDependentBinaryFraction`` (no
+f_b supplied — it is set by the IMF masses); orbital parameters from the joint
+``MoeJointOrbit`` (`logP ~ MoePeriod(M1)`, `q ~ MoeDiStefano2017Full(M1,P)`,
+`e ~ MoeEccentricity(P,M1)`). The same q sets ``m2 = m1 * q`` (self-consistent),
+so short-period binaries carry larger q than long-period ones.
+
+Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
+
+*Source: [`progenax/binaries/companions.py#L115`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/companions.py#L115)*
+
+(api-binaries-relative_energy)=
+## `binaries.relative_energy`
+
+*function*
+
+```python
+relative_energy(r_i: "Float[Array, '3']", r_j: "Float[Array, '3']", v_i: "Float[Array, '3']", v_j: "Float[Array, '3']", m_i: "Float[Array, '']", m_j: "Float[Array, '']", *, G: 'float') -> "Float[Array, '']"
+```
+
+The (internal) two-body orbital energy of the pair (i, j).
+
+E_rel = ½ μ |v_j - v_i|² − G m_i m_j / |r_j - r_i|,  μ = m_i m_j / (m_i + m_j).
+E_rel < 0 ⇒ the pair is gravitationally bound. For a bound orbit of semi-major
+axis a, E_rel = −G m_i m_j / (2a). Differentiable (separation guarded).
+
+*Source: [`progenax/binaries/diagnostics.py#L35`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L35)*
+
+(api-binaries-find_bound_pairs)=
+## `binaries.find_bound_pairs`
+
+*function*
+
+```python
+find_bound_pairs(positions: "Float[Array, 'N 3']", velocities: "Float[Array, 'N 3']", masses: "Float[Array, 'N']", *, G: 'float')
+```
+
+Detect bound two-body pairs: mutual nearest neighbours with E_rel < 0.
+
+Returns (pair_idx, E_rel) where pair_idx is (K, 2) with i < j per row, and
+E_rel is (K,) the pair binding energies. Each particle appears in at most one
+pair (mutual-NN is a matching). O(N^2); eager (dynamic K).
+
+**Scaling.** The full N×N separation matrix is materialized, so this is intended for
+N ≲ a few×10^3 (memory ~ N^2). For larger snapshots use an accelerated neighbour-list
+finder (cell list / kd-tree) — ticketed for gravax, which already has the Hermite-AC
+neighbour machinery (docs/notes/2026-06-04-accelerated-bound-finder-gravax-ticket.md).
+
+*Source: [`progenax/binaries/diagnostics.py#L59`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L59)*
+
+(api-binaries-find_bound_multiples)=
+## `binaries.find_bound_multiples`
+
+*function*
+
+```python
+find_bound_multiples(positions: "Float[Array, 'N 3']", velocities: "Float[Array, 'N 3']", masses: "Float[Array, 'N']", *, G: 'float', max_levels: 'int' = 3)
+```
+
+Detect hierarchical bound systems (binaries, triples, quadruples, …).
+
+Iteratively collapses mutual-nearest-neighbour bound pairs into COM
+pseudo-bodies and re-runs on the reduced set, to a fixed `max_levels` depth: a
+single bound to a binary-COM becomes a triple, two binaries a quadruple, etc.
+Mutual-NN is a matching, so all disjoint merges at a level happen at once.
+
+Fixed-shape (N body slots, bounded `lax.scan`) ⇒ jit-safe; uses `argmin`, so
+not differentiable (a diagnostic). O(N^2) per level (materializes the N×N separation
+matrix) — intended for N ≲ a few×10^3; an accelerated neighbour-list version is
+ticketed for gravax (docs/notes/2026-06-04-accelerated-bound-finder-gravax-ticket.md).
+
+Args:
+    max_levels: hierarchy depth to resolve (default 3 ⇒ up to ~octuples).
+
+Returns:
+    (system_id, multiplicity), each (N,): `system_id[i]` is the body slot of
+    particle i (members of one hierarchy share it); `multiplicity[i]` is the
+    number of particles in that system.
+
+*Source: [`progenax/binaries/diagnostics.py#L100`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L100)*
+
+(api-binaries-primordial_survival)=
+## `binaries.primordial_survival`
+
+*function*
+
+```python
+primordial_survival(current_pairs, primordial_system_id: "Int[Array, 'N']") -> 'dict'
+```
+
+Compare the current bound pairing to the t=0 primordial labelling.
+
+Args:
+    current_pairs: (K, 2) index pairs from :func:`find_bound_pairs`.
+    primordial_system_id: (N,) the IC-time `primordial_system_id` (paired
+        particles share an id).
+
+Returns:
+    dict with integer counts: ``survived`` (primordial binaries still bound),
+    ``disrupted`` (primordial binaries no longer a current pair), and
+    ``newly_formed`` (current pairs that were not primordial binaries).
+
+*Source: [`progenax/binaries/diagnostics.py#L178`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L178)*
+
+(api-binaries-binaryenergybudget)=
+## `binaries.BinaryEnergyBudget`
+
+*class*
+
+```python
+BinaryEnergyBudget(E_internal: ForwardRef("Float[Array, '']"), T_com: ForwardRef("Float[Array, '']"), W_com: ForwardRef("Float[Array, '']"), Q_com: ForwardRef("Float[Array, '']"), Q_resolved: ForwardRef("Float[Array, '']"), n_binaries: ForwardRef('int'))
+```
+
+Two-scale energy budget of a primordial-binary cluster.
+
+Attributes:
+    E_internal: total internal orbital energy of the primordial binaries
+        (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the
+        global virial scaling (``Q``) does NOT touch.
+    T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the
+        scale the cluster is virialized on.
+    Q_com: ``T_com / |W_com|`` — the virial ratio the cluster was scaled to
+        (≈ the ``Q`` passed to ``build_binary_cluster``).
+    Q_resolved: ``T / |W|`` on the *resolved* stars — the naive ratio that mixes
+        the cluster and internal-binary scales (inflated by internal binary KE).
+    n_binaries: number of primordial binaries (two positive-mass members).
+
+*Source: [`progenax/binaries/diagnostics.py#L203`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L203)*
+
+(api-binaries-binary_energy_budget)=
+## `binaries.binary_energy_budget`
+
+*function*
+
+```python
+binary_energy_budget(positions: "Float[Array, 'N 3']", velocities: "Float[Array, 'N 3']", masses: "Float[Array, 'N']", system_id: "Int[Array, 'N']", *, G: 'float', softening: 'float' = 0.0) -> 'BinaryEnergyBudget'
+```
+
+Separate the cluster-COM virial from the internal binary binding energy.
+
+`build_binary_cluster` virializes the *system COMs* to `Q` (binaries as point
+masses) and leaves the internal binary binding energy as a separate reservoir
+(the McLuster scale-separation convention, Küpper+2011 §A8). This diagnostic makes
+that explicit: it reconstructs the system COMs (segment sums over `system_id`) and
+reports `Q_com` (recovers the virial target), `E_internal` (the reservoir), and the
+naive `Q_resolved` (which mixes the two scales and is therefore *not* ~`Q`).
+
+Keyed on `system_id`, so it accepts either the compacted `ICResult`
+(`primordial_system_id`) or the masked `ResolvedBinaries` (ghost secondaries m=0
+contribute exactly 0). The COM reconstruction is differentiable; the binary pairing
+is eager (like `find_bound_pairs`). Handles singles + binaries — systems with > 2
+members (triples/quadruples) are skipped (the higher-multiplicity seam).
+
+Args:
+    positions, velocities, masses: resolved per-star state.
+    system_id: per-star system label (members of one system share it).
+    G: gravitational constant (REQUIRED).
+    softening: softening for the COM/resolved PE (default 0 = exact, matching the
+        collisional build default).
+
+Returns:
+    :class:`BinaryEnergyBudget`.
+
+*Source: [`progenax/binaries/diagnostics.py#L246`](https://github.com/drannarosen/progenax/blob/main/progenax/binaries/diagnostics.py#L246)*
 

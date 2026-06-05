@@ -9,7 +9,7 @@ description: Auto-generated API reference for `progenax.imf` — signatures and 
 
 Module path: `progenax/imf/`
 
-Public symbols: **43**
+Public symbols: **46**
 
 ## Contents
 
@@ -30,6 +30,9 @@ Public symbols: **43**
 - [`PowerLawMassRatio`](#api-imf-powerlawmassratio)
 - [`TwinPeakedMassRatio`](#api-imf-twinpeakedmassratio)
 - [`MoeDiStefano2017`](#api-imf-moedistefano2017)
+- [`MoeDiStefano2017Full`](#api-imf-moedistefano2017full)
+- [`MoePeriod`](#api-imf-moeperiod)
+- [`MoeJointOrbit`](#api-imf-moejointorbit)
 - [`ConstantBinaryFraction`](#api-imf-constantbinaryfraction)
 - [`MassDependentBinaryFraction`](#api-imf-massdependentbinaryfraction)
 - [`BinaryIMF`](#api-imf-binaryimf)
@@ -202,7 +205,7 @@ Args:
 Returns:
     Uniform samples in [0, 1]
 
-*Source: [`progenax/imf/power_law.py#L268`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L268)*
+*Source: [`progenax/imf/power_law.py#L292`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L292)*
 
 (api-imf-estimate_n_max_for_m_total)=
 ## `imf.estimate_N_max_for_M_total`
@@ -215,7 +218,7 @@ estimate_N_max_for_M_total(m_total: 'float', imf: 'PowerLawIMF', safety_factor: 
 
 Estimate N_max for M_total mode sampling.
 
-*Source: [`progenax/imf/power_law.py#L283`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L283)*
+*Source: [`progenax/imf/power_law.py#L307`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L307)*
 
 (api-imf-estimate_pool_size)=
 ## `imf.estimate_pool_size`
@@ -228,7 +231,7 @@ estimate_pool_size(m_total: 'float', imf: 'PowerLawIMF') -> 'int'
 
 Alias for estimate_N_max_for_M_total.
 
-*Source: [`progenax/imf/power_law.py#L293`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L293)*
+*Source: [`progenax/imf/power_law.py#L317`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/power_law.py#L317)*
 
 (api-imf-maschberger)=
 ## `imf.Maschberger`
@@ -246,16 +249,22 @@ power-law tail at high mass.
 
 PDF: f(m) ∝ (m/μ)^(-α) * (1 + (m/μ)^(1-α))^(-β)
 
-Default parameters from Maschberger (2013):
-    mu = 0.2 M_sun (peak mass)
-    alpha = 2.3 (Salpeter high-mass slope)
-    beta = 1.4 (low-mass turnover)
+Default parameters from Maschberger (2013) Table 1 (canonical single-star IMF):
+    mu = 0.2 M_sun (scale parameter; the pdf peak is near here)
+    alpha = 2.3 (high-mass slope; Kroupa/Chabrier canonical, not Salpeter's 2.35)
+    beta = 1.4 (low-mass turnover; gives effective low-mass slope γ=α+β(1-α)=0.48)
+
+Note on m_max: Maschberger (2013) Table 1 adopts the fiducial upper limit
+m_u = 150 M_sun; these limits "are only needed for the normalization" (Table 1
+caption). progenax defaults to m_max = 300 M_sun to admit very massive stars;
+since the limit only sets the normalization constant, this is a convention choice,
+not a change to the IMF shape. Pass m_max=150.0 to reproduce the paper exactly.
 
 Reference:
     Maschberger, T. (2013), MNRAS, 429, 1725
     "On the function describing the stellar initial mass function"
 
-*Source: [`progenax/imf/smooth.py#L54`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L54)*
+*Source: [`progenax/imf/smooth.py#L50`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L50)*
 
 (api-imf-taperedpowerlaw)=
 ## `imf.TaperedPowerLaw`
@@ -271,14 +280,19 @@ Tapered Power Law IMF.
 PDF: f(m) ∝ m^(-α) * (1 - exp(-(m/m_peak)^β))
 
 The exponential taper suppresses low masses below m_peak,
-creating a smooth turnover.
+creating a smooth turnover. Functional form: the tapered power law of
+Parravano, McKee & Hollenbach (2011) (cf. Maschberger 2013, Eq. 12).
+
+No closed-form CDF inverse: the CDF uses the shared cumulative-trapezoid grid
+and ``ppf`` is the inherited BaseIMF fixed-iteration Newton solver (unlike
+Maschberger, which has an analytic quantile). Differentiable and JIT-safe.
 
 Attributes:
-    alpha: Power-law slope (default: 2.3, Salpeter)
+    alpha: Power-law slope (default: 2.3, canonical high-mass)
     m_peak: Turnover/peak mass [M_sun]
     beta: Taper sharpness (higher = sharper cutoff)
 
-*Source: [`progenax/imf/smooth.py#L175`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L175)*
+*Source: [`progenax/imf/smooth.py#L177`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L177)*
 
 (api-imf-schechter)=
 ## `imf.Schechter`
@@ -296,6 +310,9 @@ PDF: f(m) ∝ m^(-α) * exp(-m/m_star)
 Originally developed for galaxy luminosity functions (Schechter 1976),
 also used for IMFs in extreme environments or IGIMF theory.
 
+No closed-form CDF inverse: the CDF uses the shared cumulative-trapezoid grid and
+``ppf`` is the inherited BaseIMF fixed-iteration Newton solver. Differentiable/JIT-safe.
+
 WARNING: Default parameters (α=2.3, m_star=100) give a function
 that is essentially just a power-law since the cutoff is far above
 where the power-law already suppresses high masses.
@@ -312,7 +329,7 @@ Attributes:
     alpha: Power-law slope (default: 2.3, Salpeter-like)
     m_star: Exponential cutoff mass [M_sun] (default: 100)
 
-*Source: [`progenax/imf/smooth.py#L228`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L228)*
+*Source: [`progenax/imf/smooth.py#L225`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/smooth.py#L225)*
 
 (api-imf-chabrierimf)=
 ## `imf.ChabrierIMF`
@@ -320,7 +337,7 @@ Attributes:
 *class*
 
 ```python
-ChabrierIMF(m_min: float = 0.08, m_max: float = 100.0, m_c: float = 0.08, sigma: float = 0.69, alpha: float = 2.35, m_trans: float = 1.0, A_ln: float = 0.158) -> None
+ChabrierIMF(m_min: float = 0.08, m_max: float = 100.0, m_c: float = 0.08, sigma: float = 0.69, alpha: float = 2.3, m_trans: float = 1.0, A_ln: float = 0.158) -> None
 ```
 
 Chabrier (2003) lognormal + power-law IMF.
@@ -339,7 +356,9 @@ Attributes:
     m_max: Maximum mass [M☉] (default: 100)
     m_c: Characteristic mass for lognormal [M☉] (default: 0.08, Chabrier 2003)
     sigma: Width of lognormal in log-space (default: 0.69)
-    alpha: Power-law exponent for ξ(m) ∝ m^(-α) (default: 2.35, Salpeter)
+    alpha: High-mass slope for ξ(m)=dN/dm ∝ m^(-α) (default: 2.3, Chabrier 2003
+        Table 1 high-mass tail x=1.3 ⇒ α=2.3; the original Salpeter slope is
+        2.35, available via PowerLawIMF.salpeter())
     m_trans: Transition mass between lognormal and power-law (default: 1.0)
     A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF)
     A_pl: Power-law coefficient (computed for continuity at m_trans)
@@ -460,7 +479,7 @@ Parameters:
                Moe+17 suggest σ ≈ 0.02-0.05
     q_min: Minimum mass ratio (default: 0.1)
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L215`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L215)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L224`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L224)*
 
 (api-imf-moedistefano2017)=
 ## `imf.MoeDiStefano2017`
@@ -474,25 +493,112 @@ MoeDiStefano2017(q_min: 'float' = 0.1, sigma_twin: 'float' = 0.03) -> None
 Mass-dependent mass-ratio distribution from Moe & Di Stefano (2017).
 
 Reference:
-    Moe & Di Stefano (2017) ApJS 230, 15
-    Table 10: Intrinsic mass-ratio distributions
+    Moe & Di Stefano (2017) ApJS 230, 15, Table 13.
 
-This implements the full mass-dependent model where:
-    - γ (power-law exponent) depends on primary mass
-    - f_twin (twin excess) depends on primary mass and period
-    - The distribution transitions smoothly across mass ranges
+APPROXIMATION — single-slope, period-averaged. Moe & Di Stefano's actual mass-ratio
+distribution is a THREE-parameter, PERIOD-DEPENDENT form (Table 13): two power-law
+slopes γ_smallq (0.1<q<0.3) and γ_largeq (0.3<q<1.0) plus a twin excess F_twin, with
+all three tabulated as functions of BOTH primary mass AND orbital period (at logP=1,3,5,7).
+This class collapses that to a SINGLE period-averaged slope γ(M1) and a period-averaged
+F_twin(M1) — it captures the qualitative trend (low-mass companions favour equal q, OB
+companions favour small q) but is not a verbatim Table row. A faithful two-slope,
+period-dependent implementation is tracked in
+docs/notes/2026-06-04-moe-twoslope-q-distribution-ticket.md.
 
-Model (simplified, period-averaged):
+Period-averaged single-slope reduction (γ from the qualitative γ_smallq/γ_largeq trend;
+f_twin period-averaged from Table 13's F_twin, which falls from ~0.1–0.3 at logP=1 to
+<0.03 at long P):
     - M1 < 0.8 Msun: γ ≈ 0.4, f_twin ≈ 0.05 (M-dwarfs)
-    - 0.8 < M1 < 1.2 Msun: γ ≈ 0.3, f_twin ≈ 0.10 (Solar-type)
+    - 0.8 < M1 < 1.2 Msun: γ ≈ 0.3, f_twin ≈ 0.10 (Solar-type; Table 13 F_twin period-avg)
     - 1.2 < M1 < 3.5 Msun: γ ≈ 0.0, f_twin ≈ 0.08 (A/F stars)
-    - M1 > 3.5 Msun: γ ≈ -0.5, f_twin ≈ 0.03 (OB stars)
+    - M1 > 3.5 Msun: γ ≈ -0.5, f_twin ≈ 0.03 (OB stars; Table 13 γ_largeq(logP=1)=-0.5)
 
 Parameters:
     q_min: Minimum mass ratio (default: 0.1)
     sigma_twin: Width of twin peak (default: 0.03)
 
 *Source: [`progenax/imf/binary/moe_di_stefano.py#L17`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L17)*
+
+(api-imf-moedistefano2017full)=
+## `imf.MoeDiStefano2017Full`
+
+*class*
+
+```python
+MoeDiStefano2017Full(q_min: 'float' = 0.1, q_break: 'float' = 0.3, n_grid: 'int' = 512) -> None
+```
+
+Faithful two-slope, period-dependent Moe & Di Stefano (2017) mass-ratio model.
+
+The mass-ratio pdf is (their §9.1, Eq. 2 + the worked twin example, p.5):
+
+    p_q(q | M1, P) = (1 - F_twin) * p_2slope(q) + F_twin * Uniform[0.95, 1.0]
+
+where p_2slope ∝ q^γsmallq on [q_min, 0.3] then q^γlargeq on [0.3, 1.0]
+(continuous at q=0.3), normalized over [q_min, 1.0]; F_twin is the EXCESS twin
+weight (the fraction of systems that are pure twins, not the total q>0.95
+fraction). γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
+Table 13 (verified against the PDF p.52). η(P,M1) for eccentricity is handled by
+`progenax.binaries.MoeEccentricity` (which reproduces Table 13's η).
+
+This is period-dependent (sample takes periods AND masses) — it does NOT fit the
+unconditional MassRatioProtocol; use it via `MoeJointOrbit`. The single-slope
+period-averaged `MoeDiStefano2017` remains the fast approximation / BinaryIMF default.
+
+Reference:
+    Moe & Di Stefano (2017) ApJS 230, 15, §9.1 Eqs. 2-3, Table 13 (p.52), Fig. 2.
+
+Parameters:
+    q_min: Minimum mass ratio for the normalized range (default: 0.1).
+
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L230`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L230)*
+
+(api-imf-moeperiod)=
+## `imf.MoePeriod`
+
+*class*
+
+```python
+MoePeriod(logP_min: 'float' = 0.2, logP_max: 'float' = 8.0, n_grid: 'int' = 257) -> None
+```
+
+Mass-dependent orbital-period distribution from Moe & Di Stefano (2017) Table 13.
+
+The companion-frequency anchors f_logP;q>0.1(M1) at logP={1,3,5,7} (bilinear in
+M1) define the period-distribution *shape*; we sample logP by inverting the
+normalized cumulative of the piecewise-linear density over [logP_min, logP_max]
+(clamped at the edges). Differentiable wrt M1 via jnp.interp / cumsum.
+
+Solar-type companion frequency peaks at long periods (logP~5); early-type is
+flatter and weighted to shorter periods — reproducing Moe's period trend.
+
+Reference: Moe & Di Stefano (2017) ApJS 230, 15, Table 13, Figure 37.
+
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L323`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L323)*
+
+(api-imf-moejointorbit)=
+## `imf.MoeJointOrbit`
+
+*class*
+
+```python
+MoeJointOrbit(period: 'MoePeriod', massratio: 'MoeDiStefano2017Full', eccentricity: 'eqx.Module') -> None
+```
+
+Faithful joint (P, q, e) sampler — the Moe & Di Stefano (2017) interrelation.
+
+Given a primary mass M1, samples the *correlated* orbital parameters:
+    logP ~ MoePeriod(M1);  q ~ MoeDiStefano2017Full(M1, P);  e ~ MoeEccentricity(P, M1).
+The P–q–e coupling (short-P -> larger q / twins / circular; long-P -> small q
+approaching random IMF pairings) is the paper's central result ("Mind your Ps and Qs").
+
+Construct via `MoeJointOrbit.default()` for the standard components, or pass your
+own. The eccentricity sampler is duck-typed (any `.sample(key, periods, masses)`)
+so `imf` need not hard-import `binaries`.
+
+Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
+
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L363`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L363)*
 
 (api-imf-constantbinaryfraction)=
 ## `imf.ConstantBinaryFraction`
@@ -523,25 +629,29 @@ Parameters:
 MassDependentBinaryFraction() -> None
 ```
 
-Mass-dependent binary fraction from Moe & Di Stefano (2017).
+Mass-dependent MULTIPLICITY fraction (probability a primary has ≥1 companion).
 
-Reference:
-    Moe & Di Stefano (2017) ApJS 230, 15 - Table 13
-    "Close Binary Fraction as Function of Primary Mass"
+These are the **multiplicity fractions** f = 1 − (single-star fraction). For
+M ≥ 0.8 Msun they are derived from Moe & Di Stefano (2017) ApJS 230, 15, Table 13
+(the single-star fraction F_{n=0;q>0.1} row): e.g. solar 1−0.60=0.40, B-star 1−0.41≈0.59,
+O-star 1−0.06≈0.94. Below 0.8 Msun the values come from M-dwarf surveys (Raghavan et al.
+2010; Duchêne & Kraus 2013). They are NOT the "close binary fraction" (Table 13's
+f_{logP<3.7}) nor the total multiplicity *frequency* f_mult (which exceeds 1 for massive
+stars because of triples/quadruples); they are the fraction of primaries with a companion.
 
-Model (period-integrated companion frequency):
-    - M < 0.1 Msun: f_bin ≈ 0.22 (VLM/brown dwarfs)
-    - 0.1 < M < 0.5 Msun: f_bin ≈ 0.26 (M-dwarfs)
-    - 0.5 < M < 1.0 Msun: f_bin ≈ 0.44 (K/G-dwarfs)
-    - 1.0 < M < 2.0 Msun: f_bin ≈ 0.50 (F/A-stars)
-    - 2.0 < M < 5.0 Msun: f_bin ≈ 0.60 (B-stars)
-    - 5.0 < M < 10 Msun: f_bin ≈ 0.80 (early B)
-    - M > 10 Msun: f_bin ≈ 0.90 (O-stars)
+Model (multiplicity fraction vs primary mass):
+    - M < 0.1 Msun: f ≈ 0.22 (VLM/brown dwarfs; M-dwarf surveys)
+    - 0.1 < M < 0.5 Msun: f ≈ 0.26 (M-dwarfs; surveys)
+    - 0.5 < M < 1.0 Msun: f ≈ 0.44 (K/G-dwarfs; Raghavan 2010 ≈0.44, Moe solar 1−0.60=0.40)
+    - 1.0 < M < 2.0 Msun: f ≈ 0.50 (F/A-stars)
+    - 2.0 < M < 5.0 Msun: f ≈ 0.60 (B-stars; Moe A/late-B 1−0.41≈0.59)
+    - 5.0 < M < 10 Msun: f ≈ 0.80 (early B; Moe mid/early-B 1−{0.24,0.16}≈0.76–0.84)
+    - M > 10 Msun: f ≈ 0.90 (O-stars; Moe O 1−0.06≈0.94)
 
-Note: These are companion frequencies, not strict binary fractions.
-Higher-order multiples (triples, etc.) are common at high masses.
+Note: pairing one companion per "binary" system; higher-order multiples (triples, etc.)
+are common at high masses but are not modelled here (use the full Moe model for that).
 
-*Source: [`progenax/imf/binary/binary_fraction.py#L36`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L36)*
+*Source: [`progenax/imf/binary/binary_fraction.py#L40`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L40)*
 
 (api-imf-binaryimf)=
 ## `imf.BinaryIMF`
@@ -875,14 +985,19 @@ Returns:
 compute_rho_ecl(M_ecl: "Float[Array, '...']") -> "Float[Array, '...']"
 ```
 
-Half-mass density (Marks+2012 convention).
+Half-mass density (Marks & Kroupa 2012 definition).
 
 ρ_ecl = 3 × M_ecl / (8π × r_h³)
 
 The 8π factor arises because half the cluster mass is within r_h:
     ρ = (M_ecl/2) / (4π/3 × r_h³) = 3M_ecl / (8π × r_h³)
 
-This convention matches Marks+2012 Table 1 densities exactly.
+This is the authoritative definition in Marks & Kroupa (2012), A&A 543, A8 (p. 2,
+"ρ_ecl = 3 M_ecl/8π r_h³"), and reproduces Marks+2012 (MNRAS 422, 2246) Table 1
+densities exactly (e.g. NGC 104: 3·9.40e6/(8π·0.49³)=9.54e6 = the tabulated ρ_cl).
+NOTE: Jerabkova+2018 Eq. 8 writes 4π, but that is internally inconsistent with its
+own ρ_ecl=0.61·logM+2.08 relation (which is 8π); progenax follows the 8π convention
+that matches the actual α₃–ρ calibration data.
 
 Args:
     M_ecl: Stellar mass of embedded cluster [M☉]
@@ -912,7 +1027,7 @@ Args:
 Returns:
     Cloud density [M☉ pc⁻³]
 
-*Source: [`progenax/imf/environment/density.py#L47`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L47)*
+*Source: [`progenax/imf/environment/density.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L52)*
 
 (api-imf-compute_log_rho_cl_6)=
 ## `imf.compute_log_rho_cl_6`
@@ -932,7 +1047,7 @@ Args:
 Returns:
     log₁₀(ρ_cl / 10⁶)
 
-*Source: [`progenax/imf/environment/density.py#L65`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L65)*
+*Source: [`progenax/imf/environment/density.py#L70`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/density.py#L70)*
 
 (api-imf-x_jerabkova_generalized)=
 ## `imf.x_jerabkova_generalized`

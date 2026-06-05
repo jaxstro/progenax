@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening complete**: 18,967 LOC source code, 874 tests passing (unit: 742, integration: 24, validation: 108). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion).
+**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete**: 21,221 LOC source code, 1201 tests passing (unit: 1046, integration: 35, validation: 120). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics.
 
 ## Features
 
@@ -44,7 +44,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | **Maschberger** | `Maschberger` | Smooth transitions | Maschberger (2013) |
 | **Chabrier** | `ChabrierIMF` | Log-normal + power law | Chabrier (2003) |
 | **Truncated** | `TruncatedIMF` | Mass limits wrapper | - |
-| **Binary** | `BinaryIMF` | Primary + secondary sampling | - |
+| **Binary** | `BinaryIMF` | Primary IMF + mass-dependent companions (q, f_b) | Moe & Di Stefano (2017) |
 | **IGIMF** | `IGIMF` | Integrated galactic IMF | Weidner+ (2013) |
 | **Environment** | `EnvironmentIMF` | Metallicity/SFR dependent | Jeans mass theory |
 
@@ -72,7 +72,22 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 |--------------|-------|-------------|
 | Thermal | `ThermalEccentricity` | f(e) = 2e (Heggie 1975) |
 | Uniform | `UniformEccentricity` | f(e) = 1 |
-| Moe+2017 | `MoeEccentricity` | Period-dependent blend |
+| Moe+2017 | `MoeEccentricity` | p(e) ∝ e^η(logP, M₁) + Roche cap (Moe & Di Stefano 2017) |
+| Logistic-thermal | `LogisticThermalEccentricity` | Circular→thermal heuristic (Duquennoy & Mayor 1991) |
+
+**Binary-cluster composition** (`build_binary_cluster`): composes a primary IMF with a
+`CompanionModel` and a population-size budget.
+
+| Component | Class | Description |
+|-----------|-------|-------------|
+| Budget | `Systems` / `Stars` / `TotalMass` | fix #systems (companions not counted) / #stars / total mass |
+| Companions (versatile) | `IndependentCompanions` | independent f_b × q × P × e marginals |
+| Companions (faithful) | `MoeCompanions` | Moe+2017 joint P–q–e; same q sets m₂ (self-consistent) |
+| Connector | `resolve_binary_components()` | binary COMs → 2N components (COM-preserving) |
+
+**Binary diagnostics:** `find_bound_pairs()`, `find_bound_multiples()`,
+`primordial_survival()`, and `binary_energy_budget()` (separates the cluster COM virial
+from the internal binary binding-energy reservoir).
 
 ### Analytical Test Cases
 
@@ -281,9 +296,9 @@ progenax/
 │   └── analytical/
 │       └── core.py          # Solar system, Kepler orbits
 └── tests/
-    ├── unit/                # 742 unit tests
-    ├── integration/         # 24 integration tests
-    └── validation/          # 108 physics validation tests
+    ├── unit/                # 1046 unit tests
+    ├── integration/         # 35 integration tests
+    └── validation/          # 120 physics validation tests
 ```
 
 ## Key Patterns
@@ -346,12 +361,12 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 
 ```bash
 # All tests
-pytest tests/ -v                    # 874 tests, ~55s
+pytest tests/ -v                    # 1201 tests, ~55s
 
 # By tier
-pytest tests/unit/ -v               # 742 unit tests
-pytest tests/integration/ -v        # 24 integration tests
-pytest tests/validation/ -v         # 108 physics validation tests
+pytest tests/unit/ -v               # 1046 unit tests
+pytest tests/integration/ -v        # 35 integration tests
+pytest tests/validation/ -v         # 120 physics validation tests
 
 # Specific modules
 pytest tests/unit/imf/ -v

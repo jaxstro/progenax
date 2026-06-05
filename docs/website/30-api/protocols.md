@@ -9,13 +9,19 @@ description: Auto-generated API reference for `progenax.protocols` — signature
 
 Module path: `progenax/protocols/`
 
-Public symbols: **3**
+Public symbols: **9**
 
 ## Contents
 
 - [`SpatialProfile`](#api-protocols-spatialprofile)
 - [`VelocityDF`](#api-protocols-velocitydf)
 - [`IMFProtocol`](#api-protocols-imfprotocol)
+- [`PeriodDistribution`](#api-protocols-perioddistribution)
+- [`EccentricityDistribution`](#api-protocols-eccentricitydistribution)
+- [`ConditionalEccentricityDistribution`](#api-protocols-conditionaleccentricitydistribution)
+- [`MassPeriodEccentricityDistribution`](#api-protocols-massperiodeccentricitydistribution)
+- [`BinaryFractionModel`](#api-protocols-binaryfractionmodel)
+- [`CompanionModel`](#api-protocols-companionmodel)
 
 (api-protocols-spatialprofile)=
 ## `protocols.SpatialProfile`
@@ -73,4 +79,130 @@ Attributes:
     m_max: Maximum mass in distribution [M_sun]
 
 *Source: [`progenax/protocols.py#L86`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L86)*
+
+(api-protocols-perioddistribution)=
+## `protocols.PeriodDistribution`
+
+*protocol*
+
+```python
+PeriodDistribution(*args, **kwargs)
+```
+
+Protocol for binary orbital-period distributions (period in days).
+
+Implementations expose the standard sample/pdf/cdf/ppf quartet.
+
+Example implementations:
+    - LogUniformPeriod (Öpik 1924)
+    - LogNormalPeriod (Duquennoy & Mayor 1991)
+    - SanaOBPeriod (Sana et al. 2012)
+
+*Source: [`progenax/protocols.py#L127`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L127)*
+
+(api-protocols-eccentricitydistribution)=
+## `protocols.EccentricityDistribution`
+
+*protocol*
+
+```python
+EccentricityDistribution(*args, **kwargs)
+```
+
+Protocol for unconditional binary-eccentricity distributions.
+
+Implementations expose the standard sample/pdf/cdf/ppf quartet.
+
+Example implementations:
+    - ThermalEccentricity (f(e) = 2e; Ambartsumian 1937 / Heggie 1975)
+    - UniformEccentricity
+
+*Source: [`progenax/protocols.py#L160`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L160)*
+
+(api-protocols-conditionaleccentricitydistribution)=
+## `protocols.ConditionalEccentricityDistribution`
+
+*protocol*
+
+```python
+ConditionalEccentricityDistribution(*args, **kwargs)
+```
+
+Protocol for period-CONDITIONAL eccentricity distributions, p(e | P).
+
+Sampling takes (key, periods); n is implied by ``periods.shape``. Distinct
+from the unconditional :class:`EccentricityDistribution` (sample(key, n)).
+
+Example implementations:
+    - MoeEccentricity (period-dependent circular->thermal heuristic)
+
+*Source: [`progenax/protocols.py#L192`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L192)*
+
+(api-protocols-massperiodeccentricitydistribution)=
+## `protocols.MassPeriodEccentricityDistribution`
+
+*protocol*
+
+```python
+MassPeriodEccentricityDistribution(*args, **kwargs)
+```
+
+Protocol for period- AND mass-conditional eccentricity distributions,
+p(e | P, M1).
+
+Sampling takes (key, periods, masses).
+
+Example implementations:
+    - MoeEccentricity (Moe & Di Stefano 2017 e^η(logP, M1))
+    - LogisticThermalEccentricity (accepts masses but ignores them)
+
+*Source: [`progenax/protocols.py#L210`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L210)*
+
+(api-protocols-binaryfractionmodel)=
+## `protocols.BinaryFractionModel`
+
+*protocol*
+
+```python
+BinaryFractionModel(*args, **kwargs)
+```
+
+Protocol for binary-fraction models — uniform across mass and environment.
+
+`probability(masses, radii=None) -> f_bin` returns the per-star binary fraction.
+Mass-based models (ConstantBinaryFraction, MassDependentBinaryFraction,
+DifferentiableBinaryFraction) ignore `radii`; RadialBinaryFraction ignores
+`masses`; CombinedBinaryFraction modulates one by the other.
+
+Example implementations:
+    - ConstantBinaryFraction, MassDependentBinaryFraction (Moe Table 13)
+    - DifferentiableBinaryFraction
+    - RadialBinaryFraction (phenomenological f_b(r))
+    - CombinedBinaryFraction (mass x radial)
+
+*Source: [`progenax/protocols.py#L232`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L232)*
+
+(api-protocols-companionmodel)=
+## `protocols.CompanionModel`
+
+*protocol*
+
+```python
+CompanionModel(*args, **kwargs)
+```
+
+Protocol for the binary companion/orbit layer used by `build_binary_cluster`.
+
+A single owner of the binary statistics: given primary masses, it decides
+multiplicity (f_b -> is_binary) AND samples the companion properties
+(q -> m2, P -> a, e, isotropic orientation), all keyed on the primary masses.
+Returns ``(is_binary, CompanionElements)``.
+
+Example implementations (progenax.binaries):
+    - IndependentCompanions(binary_fraction, q_distribution,
+      period_distribution, eccentricity_distribution) — versatile marginals.
+    - MoeCompanions(q_min) — faithful Moe+2017 joint (P, q, e) with Moe's own
+      mass-dependent f_b; the same q sets m2 (self-consistent).
+
+*Source: [`progenax/protocols.py#L257`](https://github.com/drannarosen/progenax/blob/main/progenax/protocols.py#L257)*
 

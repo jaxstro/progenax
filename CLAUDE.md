@@ -4,17 +4,17 @@
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 + 2026-06 audit hardening complete - 18,967 LOC source, 874 tests (unit: 742, integration: 24, validation: 108). King & EFF velocity DFs are now true equilibria (lowered-Maxwellian / Eddington inversion); see Physics Validation Results below.
+**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete - 21,221 LOC source, 1201 tests (unit: 1046, integration: 35, validation: 120). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized: IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`), faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector (`resolve_binary_components`), and dynamic + energy-budget diagnostics. See Physics Validation Results below.
 
 ## Quick Commands
 
 ```bash
 conda activate astro
 pip install -e ".[dev]"
-pytest tests/ -v                    # All 874 tests (~55s; ~5min with coverage)
-pytest tests/unit/ -v               # 742 unit tests
-pytest tests/integration/ -v        # 24 integration tests
-pytest tests/validation/ -v         # 108 physics validation tests
+pytest tests/ -v                    # All 1201 tests (~55s; ~5min with coverage)
+pytest tests/unit/ -v               # 1046 unit tests
+pytest tests/integration/ -v        # 35 integration tests
+pytest tests/validation/ -v         # 120 physics validation tests
 ```
 
 ## Units Policy (progenax)
@@ -84,12 +84,12 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 |--------|---------|-------------|
 | `profiles/` | Spatial density profiles | `PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile` |
 | `kinematics/` | Velocity DFs + transforms | `PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF` |
-| `imf/` | Initial mass functions | `PowerLawIMF`, `ChabrierIMF`, `IGIMF`, `BinaryIMF` |
-| `binaries/` | Orbital mechanics | `KeplerElements`, `BinaryOrbitalState` |
+| `imf/` | Initial mass functions + binary stats | `PowerLawIMF`, `ChabrierIMF`, `IGIMF`, `BinaryIMF`, `MoeJointOrbit` |
+| `binaries/` | Orbital mechanics + connector + diagnostics | `KeplerElements`, `resolve_binary_components()`, `IndependentCompanions`, `MoeCompanions`, `binary_energy_budget()` |
 | `analytical/` | Test cases with exact solutions | `two_body_kepler()`, `three_body_figure_eight()` |
 | `substructure/` | Fractal + substructure | `generate_fractal_positions()` |
-| `protocols.py` | 3 runtime-checkable protocols | `SpatialProfile`, `VelocityDF`, `IMFProtocol` |
-| `builders.py` | IC assembly utilities | `build_spatial_ic()`, `ICResult` |
+| `protocols.py` | Runtime-checkable protocols | `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `CompanionModel` |
+| `builders.py` | IC assembly + binary-cluster composition | `build_spatial_ic()`, `build_binary_cluster()`, `Systems`/`Stars`/`TotalMass`, `ICResult` |
 | `populations.py` | Multi-component clusters | `TwoComponentConfig`, `generate_two_component_cluster()` |
 | `tidal.py` | Tidal physics | `jacobi_radius()`, `apply_tidal_truncation()` |
 
@@ -165,21 +165,22 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 
 ```text
 tests/
-├── unit/                742 tests
-│   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary)
+├── unit/                1046 tests
+│   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
 │   ├── analytical/      Analytical test case tests
-│   ├── binaries/        Binary orbital element + sampling-gradient tests
+│   ├── binaries/        Kepler + period/ecc/companion + assembly + diagnostics + energy-budget
 │   ├── cluster/         Fractal / FDF / tail-sampling tests
 │   ├── physics/         PN11 / BM19 / PP20 gravoturbulence tests
 │   ├── dynamics/        Virial / energy utilities
 │   └── substructure/    Fractal substructure tests
-├── integration/         24 tests
+├── integration/         35 tests
 │   ├── test_jax_compatibility.py     JIT/grad/vmap tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
+│   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          108 tests
+└── validation/          120 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_eff_physics.py          EFF Eddington-inversion DF
@@ -210,15 +211,15 @@ All public symbols exported from `progenax.__init__`:
 
 **Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` (Plummer/EFF take an optional `anisotropy_radius` for Osipkov-Merritt radial anisotropy, β(r)=r²/(r²+r_a²)), `MichieVelocityDF` (self-consistent anisotropic King = Michie 1963 + King 1966 cutoff; pairs with `MichieProfile`), `apply_solid_body_rotation()`, `apply_differential_rotation()`
 
-**IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`, `IGIMF`, `EnvironmentIMF`
+**IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`, `IGIMF`, `EnvironmentIMF`; mass-ratio: `FlatMassRatio`, `PowerLawMassRatio`, `TwinPeakedMassRatio`, `MoeDiStefano2017`, `MoeDiStefano2017Full`, `MoePeriod`, `MoeJointOrbit`; fractions: `ConstantBinaryFraction`, `MassDependentBinaryFraction`
 
-**Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`
+**Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`; **connector/composition**: `resolve_binary_components()`, `ResolvedBinaries`, `CompanionElements`, `IndependentCompanions`, `MoeCompanions`; **diagnostics**: `relative_energy()`, `find_bound_pairs()`, `find_bound_multiples()`, `primordial_survival()`, `binary_energy_budget()`, `BinaryEnergyBudget`
 
 **Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`
 
-**Utilities**: `build_spatial_ic()`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `generate_fractal_positions()`, `TwoComponentConfig`, `generate_two_component_cluster()`, `energy_sorted_segregation()`
+**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `generate_fractal_positions()`, `TwoComponentConfig`, `generate_two_component_cluster()`, `energy_sorted_segregation()`
 
-**Protocols**: `SpatialProfile`, `VelocityDF`, `IMFProtocol`
+**Protocols**: `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `PeriodDistribution`, `EccentricityDistribution`, `BinaryFractionModel`, `CompanionModel`
 
 ## TODO: Validation Plots (Pending jaxstroviz)
 

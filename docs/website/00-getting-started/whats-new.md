@@ -7,6 +7,40 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-04 — Binaries SoTA arc: review, completion, and faithful Moe composition
+
+A paper-grounded review + completion pass over the whole `binaries/` module (Batches 4a–4k).
+
+**Correctness (4a–4e).** Fixed a Critical STELLAR-unit mean-motion bug (an absolute `a³`
+floor made realistic stellar-binary velocities ~100% wrong in pc), a `SanaOBPeriod(power=-1)`
+divide-by-zero + NaN gradient, an `e→1` gradient singularity, and a non-PyTree config; split
+`population.py` and `kepler.py` to the size limits; replaced the mislabelled eccentricity
+heuristic with the **faithful `MoeEccentricity`** `p(e) ∝ e^η(logP, M₁)` + Roche cap (Moe &
+Di Stefano 2017 Eqs. 3, 17–18), keeping the old logistic blend honestly cited as
+`LogisticThermalEccentricity` (Duquennoy & Mayor 1991).
+
+**Completion (4f–4k).** The binary-population engine is now end-to-end:
+
+- **Connector** `resolve_binary_components()` — binary COMs → masked 2N components, COM-preserving
+  and jit/grad-safe — plus the `build_binary_cluster` orchestrator.
+- **Faithful Moe P–q–e** (`MoeDiStefano2017Full`, `MoePeriod`, `MoeJointOrbit`) — the two-slope,
+  period-dependent mass-ratio + the joint interrelation (an FD-vs-autodiff grad-check caught that a
+  multi-uniform sampler drops the mixture-weight gradient; the grid inverse-CDF is reparameterized).
+- **SoTA composition** — `build_binary_cluster(primary_imf, companion_model, target, …)`. A
+  `CompanionModel` owns the binary statistics (f_b + q + P + e); `IndependentCompanions` reproduces
+  the period-averaged default, `MoeCompanions` wires the faithful joint (the same q sets m₂).
+  Population-size budgets `Systems(n)` / `Stars(n)` / `TotalMass(M)` let you fix systems
+  (companions not counted; the observational convention), resolved stars, or total mass.
+- **Diagnostics** — `find_bound_pairs`/`find_bound_multiples`/`primordial_survival` and
+  `binary_energy_budget`, which separates the cluster COM virial (`Q_com`, what the build scales to)
+  from the internal binary binding-energy reservoir (grounded in the McLuster CoM-virialization
+  convention, Küpper+2011 §A8).
+
+**Impact.** Realistic primordial-binary cluster ICs with the empirically-calibrated Moe & Di Stefano
+(2017) interrelation, differentiable end-to-end, paper-grounded, green under jax 0.10.1 and 0.7.0.
+The mass-only `BinaryIMF.sample_systems` path (used by the *Confidently Wrong* IMF-inference paper) is
+unchanged. Suite 1074 → 1201.
+
 ## 2026-06-03 — Engineering hardening: CI coverage decoupling + coverage to 91%
 
 Decoupled coverage from the CI pass/fail gate — a coverage-tooling crash (the documented
