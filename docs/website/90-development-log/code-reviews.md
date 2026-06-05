@@ -20,6 +20,21 @@ reproducibility gaps that block publication-grade results*, not a regression in
 the codebase.
 ```
 
+```{admonition} 2026-06-05 update — gravoturbulent/FDF subsystem rebuilt clean-room
+:class: warning
+The **gravoturbulent + fractal-density-field findings** in these audits (CR-FU-1's
+`mode="bm19"` categorical-sampler OOM; M3's white-noise dense-tail under-sampling; the
+`fdf_density` normalization off-by-one; the `s_max` mass-truncation; the
+`fractal_gw_legacy` deprecation gap) concern modules that were **deleted and rebuilt
+clean-room on 2026-06-05** as the experimental, repo-only **`gravoturb_fdf`** package.
+The `cluster.fdf*`, `gravoturb`, and `fdf_density` file:line references below are
+therefore **historical**. In the rewrite: the cornerstone is now **AC6** (realized vs
+BM19 `f_dense`, ensemble bias ≤0.004% at 128³ — versus the −37% / 2.5×-low white-noise
+era this audit flagged), and the OOM-prone `jax.random.categorical` tail sampler no
+longer exists (mass-conserving rank copula + `gravoturb_fdf.field.sampling`). See
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 ---
 
 ## Follow-up audit — 2026-06-03 (post-hardening)
