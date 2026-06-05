@@ -95,11 +95,14 @@ with Mach — shallower than, and trending opposite to, a pure Kolmogorov/Burger
 
 ## Notes
 
-- **Density ≠ velocity spectrum.** The code's `spectral_slope_from_mach`
+- **Density ≠ velocity spectrum.** An earlier `spectral_slope_from_mach`
   ([turbulence.py](../../../../src/progenax/cluster/turbulence.py)) interpolated between
   Kolmogorov ($\beta=11/3$) and Burgers ($\beta=4$) — those are **velocity** slopes, and
   the implied *increase* of $\beta$ with Mach is **backwards** for the density spectrum.
-  Flagged for correction in the 2026-06 grounding pass.
+  **Corrected in the 2026-06 grounding pass:** `spectral_slope_from_mach` now returns the
+  Kim & Ryu density slope $\beta(\mathcal{M}) = 3.788 - 1.203\log_{10}\mathcal{M}$ (the
+  least-squares fit of $s+2$ vs $\log_{10}\mathcal{M}$ over the four points above), clipped
+  to $[2,\,11/3]$ (`BETA_DENSITY_FLOOR`, `BETA_KOLMOGOROV` in `cluster/constants.py`).
 - The simulations neglect magnetic fields and self-gravity; both modify the slope (Padoan+
   2004 found magnetic fields shallow it further; self-gravity adds power at small scales,
   the high-density tail of [](burkhart-mocz-2019.md)).
