@@ -32,11 +32,15 @@ packages = ["src/progenax"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
+# src/experimental is dev/repo-only (NOT in the wheel: see hatch packages above).
+# Adding it to pythonpath makes `import gravoturb_fdf` work during tests in both envs.
+pythonpath = ["src", "src/experimental"]
 markers = [
     "unit: fast isolated unit tests",
     "integration: cross-module integration tests",
     "validation: scientific validation tests (physics/statistics)",
     "slow: expensive tests excluded from the fast CI gate",
+    "experimental: experimental gravoturb_fdf subsystem (follow-up paper, not released)",
 ]
 
 [tool.coverage.run]
