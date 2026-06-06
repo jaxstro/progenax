@@ -466,21 +466,34 @@ def ac14_grad_validation(shape=(24, 24, 24), R=2.0, mach=5.0, b=0.4, alpha=2.5, 
 
 def ac15_fisher_forecast(shape=(32, 32, 32), n_real=150, c=4, beta=3.0, mach=5.0, b=0.4,
                          alpha=2.5, n_bar=30, seed=0, n_max=14):
-    """AC15 -- the Fisher forecast (first science deliverable): how well do log-density
-    band-powers + CIC variance constrain (mach, alpha, beta) given the driving b?
+    """AC15 -- Fisher forecast: a FIELD-LEVEL INFORMATION UPPER BOUND on (mach, alpha, beta).
 
-    Builds the mock covariance of the data vector d = [P_s(k_i), sigma^2_N(c)] from n_real
-    realization mocks (Hartlap-corrected precision), the analytic Jacobian J = d d/d theta, and
-    F = J^T Cinv J. Reports marginal sigma(mach,alpha,beta) (b fixed -- the data constrains
-    (mach,b) only via sigma_s^2=ln(1+(b mach)^2), so the full 4-param F is rank-3 singular), the
-    forecast tightening with survey volume (sigma ~ 1/sqrt(V)), and the mach-b degeneracy."""
+    Builds the mock covariance of d = [P_s(k_i), sigma^2_N(c)] from n_real realization mocks
+    (Hartlap-corrected precision), the analytic Jacobian J = d d/d theta, and F = J^T Cinv J.
+    Reports marginal sigma(mach,alpha,beta) (b fixed -- the data constrains (mach,b) only via
+    sigma_s^2=ln(1+(b mach)^2), so the full 4-param F is rank-3 singular), the tightening with
+    survey volume (sigma ~ 1/sqrt(V)), and the mach-b degeneracy.
+
+    *** SCOPING (Anna 2026-06-05) -- these are OPTIMISTIC, an UPPER BOUND, because: ***
+    (1) the band-power block is measured from the CONTINUOUS log-density field (no shot noise),
+        i.e. it assumes the density is perfectly observed; real star counts add shot noise and
+        log(counts) is ill-defined where counts->0, so the realistic sigma(beta) is weaker;
+    (2) N_bar~30/cell here is a ~10^4-star box, far richer than a real ~10^2-10^3-member cluster
+        -- the per-box sigmas are not per-cluster; the science is POPULATION-stacked (the 1/sqrt(V)).
+    The ROBUST results are the hierarchy (beta best-constrained, alpha weakest -- alpha is a
+    PDF-TAIL slope needing the high-N tail of P(N)), the 1/sqrt(V) scaling, and the mach-b
+    degeneracy. The realistic, shot-noise-consistent forecast (with alpha rescued by the
+    compound-Poisson P(N) likelihood) is the Phase-6 deliverable (AC16, inherently star-level)."""
     from gravoturb_fdf.field.field import gaussian_random_field
     from gravoturb_fdf.validation.measure import smooth_copula_field
     from gravoturb_fdf.inference.covariance import measured_bandpowers, mock_covariance, hartlap_factor
     from gravoturb_fdf.inference.likelihood import data_vector
     from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
 
-    _header("AC15 -- Fisher forecast (log-density band-powers + CIC variance)")
+    _header("AC15 -- Fisher forecast (FIELD-LEVEL UPPER BOUND; band-powers + CIC variance)")
+    print("  NOTE: optimistic upper bound -- band-powers are field-level (no star shot noise) and")
+    print("        the box is ~10^4 stars (not a real ~10^2-10^3 cluster). Robust: the hierarchy,")
+    print("        1/sqrt(V) scaling, mach-b degeneracy. Realistic forecast = Phase 6 (P(N)+HMC).")
     k_edges = jnp.linspace(2.0, 11.0, 5)  # 4 band-power bins
     n = shape[0]
     M = n // c
