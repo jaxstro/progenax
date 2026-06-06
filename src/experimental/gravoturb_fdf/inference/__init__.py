@@ -7,6 +7,7 @@ Milestone 2 (Phase 6): compound-Poisson count likelihood + blackjax HMC recovery
 All differentiable in theta=(mach, b, alpha, beta); numpy/scipy only in the mock/validation paths.
 """
 
+from gravoturb_fdf.inference.diagnostics import compute_hmc_diagnostics
 from gravoturb_fdf.inference.priors import BM19Prior
 
-__all__ = ["BM19Prior"]
+__all__ = ["BM19Prior", "compute_hmc_diagnostics"]
