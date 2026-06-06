@@ -5,14 +5,14 @@
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
-gravoturbulent-FDF clean-room rewrite complete - 14,731 LOC released-core source, 1065 tests
-(released-core 815: unit 653, integration 34, validation 128; experimental 250). King & EFF velocity DFs are true
+gravoturbulent-FDF clean-room rewrite complete - 14,731 LOC released-core source, 1060 tests
+(released-core 815: unit 653, integration 34, validation 128; experimental 245). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
 (`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
 fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
-`gravoturb_fdf` package** (3,087 LOC, 250 experimental tests; `src/experimental/`, **not** in the
+`gravoturb_fdf` package** (2,975 LOC, 245 experimental tests; `src/experimental/`, **not** in the
 released wheel), now including a **differentiable physics-direct inference layer** (analytic
 predicted statistics + blackjax NUTS; AC11–AC17) — the BM19 tail slope **α is recoverable** via a
 peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail forecast (AC17). See
@@ -27,13 +27,13 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q                  # All 1065 tests (~55s)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q                  # All 1060 tests (~55s)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 653 unit tests (released core)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 128 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
-PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 250 tests
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 245 tests
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb_fdf.validation.acceptance   # AC1-AC17
 ```
 
@@ -207,8 +207,8 @@ tests/                   815 released-core tests
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
 
-tests/experimental/      250 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
-├── unit/                236 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
+tests/experimental/      245 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
+├── unit/                231 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
 │                                    + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC)
 └── validation/          14 tests   (AC1-AC17 acceptance assertions)
 ```

@@ -92,9 +92,10 @@ Q decreases as more stars are drawn from the dense FBM tail — i.e. more substr
 in the direction of CW04's fractal-D ladder. Per-point scatter grows with f_sub (a genuine FBM
 property), so the headline is the negative slope + decreasing endpoints, reported with bands.
 
-A smooth differentiable surrogate `q_surrogate(f_sub, σ_s, β)` (in `gravoturb_fdf.surrogate`)
-emulates this calibration for gradient-based inference, since the star-sampling (categorical) and
-CW04 Q (MST/scipy) steps are themselves non-differentiable.
+The star-sampling (categorical) and CW04 Q (MST/scipy) steps are non-differentiable, so Q is a
+validation/demo diagnostic only. Differentiable inference predicts summary statistics analytically
+and differentiates *those* (the `inference/` layer, AC11–AC17 / Differentiable Inference section).
+(The earlier fitted `q_surrogate` prototype was retired in Phase 7.)
 
 ---
 
@@ -176,7 +177,9 @@ high precision (it tracks the CW04 ladder *direction* with realistic scatter, re
 not tuned to hit a target); that the β(ℳ) interpolation is a derived law (it is a Kim & Ryu 2005
 log-linear fit to measured density-spectrum slopes, clipped to physical limits — see the per-paper
 note). Star positions from categorical sampling and the CW04 Q metric are non-differentiable by
-construction; the differentiable interface is the fitted surrogate.
+construction; the differentiable interface is the analytic predicted-statistics inference layer
+(`inference/`, AC11–AC17), which differentiates the predicted summary statistics rather than the
+stochastic simulator.
 
 **Grounding:** Burkhart & Mocz (2019), Parmentier & Pasquali (2020), Padoan & Nordlund (2011),
 Federrath et al. (2010), Heyer (2009), Kim & Ryu (2005), Lomax et al. (2018), Cartwright &

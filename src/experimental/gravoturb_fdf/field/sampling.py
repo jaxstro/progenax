@@ -6,8 +6,9 @@ Two categorical PMFs over field cells set where stars form:
 N_tail = round(f_sub · N⋆) stars are drawn from p_tail, the remainder from p_smooth;
 each star gets an independent sub-voxel uniform jitter so positions are continuous.
 
-Categorical sampling is non-differentiable in the resulting positions (accepted,
-spec §8 — the differentiable interface is the fitted Q(f_sub) surrogate in P3).
+Categorical sampling is non-differentiable in the resulting positions (accepted, spec §8 —
+the differentiable interface is the analytic predicted-statistics inference layer in
+``inference/`` (AC11-AC17), not a fitted Q surrogate).
 ``f_sub`` and ``n_stars`` are static (set sample shapes); the field is traced.
 
 JAX-native (jax.random).

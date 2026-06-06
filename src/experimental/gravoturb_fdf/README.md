@@ -24,11 +24,11 @@ re-validates it before believing it. The cornerstone that was −37% in the old 
 
 ```
 gravoturb_fdf/
-  theory/      bm19.py  pp20.py  pn11.py  pdf.py      # 1D density-PDF theory — JAX, differentiable
+  theory/      bm19.py pp20.py pn11.py pdf.py gaussianization.py projection.py cic.py  # 1D PDF + predicted stats — JAX, differentiable
   field/       field.py tail.py sampling.py pipeline.py  # 3D realization — GRF + rank copula → stars
   diagnostics/ q.py                                   # CW04 Q substructure metric (numpy/scipy, non-diff)
-  surrogate.py                                        # differentiable Q(f_sub;σ_s,β) emulator
-  validation/  acceptance.py  calibration.py          # AC1–AC10 printing scripts + Q(f_sub) driver
+  inference/   covariance.py likelihood.py fisher.py hmc.py  # differentiable predicted-statistics inference (blackjax NUTS)
+  validation/  acceptance.py calibration.py measure.py  # AC1–AC17 printing scripts + Q(f_sub) driver + oracles
 ```
 
 | Layer | Key public symbols |
@@ -42,7 +42,8 @@ gravoturb_fdf/
 | `field.sampling` | `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
 | `field.pipeline` | `FDFField`, `build_fdf_field`, `cloud_to_stars` |
 | `diagnostics.q` | `compute_q_parameter` (CW04, `A = πR²`) |
-| `surrogate` | `surrogate_features`, `q_surrogate` |
+| `theory.gaussianization` / `projection` / `cic` | `gaussianized_xi`, `gaussian_correlation_grid`, `cic_variance`, `count_distribution` |
+| `inference` | `data_vector`, `gaussian_loglike`, `count_loglike`, `tail_exceedance_loglike`, `alpha_fisher_info`, `sigma_alpha`, `run_nuts` |
 
 ## Use
 
@@ -74,8 +75,10 @@ fld.f_dense, fld.f_dense_realized   # match to O(1/N) — the AC6 cornerstone
 - **JAX-native cores.** `theory/` and `field/` use `jax.numpy`, `lax`, `vmap`/`grad`/`jit`,
   Equinox/jaxtyping; sampling uses fixed-iteration `lax.scan`, never `while_loop`. float64 is
   enabled at import. `diagnostics/q.py` and `validation/` are the *only* places numpy/scipy appear.
-- **Differentiable interface = the surrogate.** Categorical star sampling and the CW04 Q metric are
-  non-differentiable; `q_surrogate` is the smooth emulator for gradient inference.
+- **Differentiable interface = the predicted-statistics inference layer.** Categorical star sampling
+  and the CW04 Q metric are non-differentiable, so inference predicts summary statistics analytically
+  as smooth functions of θ and differentiates *those* (`inference/`; AC11–AC17). Q is a
+  validation/demo diagnostic only. (The earlier fitted `q_surrogate` prototype was retired.)
 - **Units.** CGS for microphysics; the turbulence relations consumed from
   `progenax.cluster.turbulence` use M☉/pc/Myr/(km·s⁻¹).
 
