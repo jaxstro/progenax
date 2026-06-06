@@ -150,15 +150,27 @@ hierarchical scaling) — the higher-order correlations of a lognormal/transform
 are **derived** from its 1-pt + 2-pt. This grounds the §6b claim that the model's 3-pt is purely
 *marginal-induced*, and is the analytic prediction for the deferred 3-pt null test.
 
-## 11. [DEFERRED TO PHASE 2 GATE] Limber projection + projected PDF
+## 11. [VERIFIED 2026-06-05] Limber projection + projected PDF (Task 2.3 grounding)
 
-Not needed for Phase 1 (gaussianization) or Phase 3 (CIC at scale R). To verify when Phase 2
-(`theory/projection.py`) opens:
-- **Limber 2-pt kernel** `w(r_⊥) = ∫ ξ_3D(√(r_⊥² + ℓ²)) dℓ` — classical (Limber 1953; Peebles
-  1980, *LSS of the Universe*). Verify the form + validate against the realization oracle.
-- **Projected (column) PDF narrowing** — Federrath et al. 2010 (`Federrath-2010.pdf`) §3.5:
-  read and cite the exact statement/equation at the Phase-2 gate (the design doc's "FK10 §3.5"
-  reference is itself prior-session provenance and must be confirmed against the PDF).
+- **Projected (column) PDF narrowing — FK10 §3.5 CONFIRMED** (read `Federrath-2010.pdf` p9,
+  "3.5. The column density PDFs and comparison with observations"). Verbatim: *"by computing
+  projections of the volumetric density fields, density fluctuations are effectively averaged
+  out by integration along the line-of-sight, and as a consequence, the column density
+  dispersions become smaller compared to the corresponding volumetric density dispersions."*
+  Quantified (Table 3 / Fig 7): the **column** log-density dispersion σ_η ≈ 0.46 (solenoidal) /
+  1.51 (compressive) is smaller than the volumetric σ_s. So projection narrows the 1-pt PDF —
+  the 1-pt effect for the projected CIC. (This is a **1-point** statement; FK10 gives no 2-pt
+  kernel.) §3.4 (p8) also notes the high-density tail is resolution-dependent (un-converged even
+  at 1024³) — supports the smoothing-scale regularization (Decision #1).
+- **Limber 2-pt kernel** `w(r_⊥) = ∫ ξ_3D(√(r_⊥²+ℓ²)) dℓ` — classical (Limber 1953; Peebles
+  1980). On the periodic grid this is the EXACT discrete identity: for a column field
+  `Σ(x,y)=Σ_z f(x,y,z)`, the 2-D autocovariance `ξ_Σ(r_⊥)=Σ_{Δz} ξ_f(r_⊥,Δz)` (LOS-lag sum) —
+  validated to machine precision against the realization oracle in Task 2.3.
+- **[OPEN modeling choice, Task 2.3]** which field is projected: column density `Σ=∫ρ dℓ` is a
+  **linear-ρ** integral (tail-sensitive ξ_ρ), whereas the β-carrier we measure cleanly is the
+  **log-density** ξ_s. The CIC counts ∝ projected mass (Σ), so the projected *linear*-density
+  2-pt is what sources the 2-D CIC; the smoothing scale R regularizes its tail (Decision #1).
+  The Limber operator itself is field-agnostic; record the chosen sourced field in the design doc.
 
 ## 12. Net status
 
