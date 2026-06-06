@@ -103,63 +103,59 @@ git commit -m "deps+docs(gravoturb_fdf): arviz/scipy extras + PDF-grounded Talts
 - Test: `tests/experimental/unit/test_priors.py`
 - Modify (export): `src/experimental/gravoturb_fdf/inference/__init__.py`
 
-**Design (grounded in `transition_density`):** free params `(M, α, β)`, `b` fixed.
-- `M ~ LogUniform[M_lo, M_hi]`  (default 2, 20)
+**Design (Option B — Anna-approved 2026-06-06):** free params `(M, α, β)`, `b` fixed (NOT a prior field — `b` is a likelihood constant). The prior is **unconditional**; POT-validity is handled *per trial* by the SBC driver (Task 6), which sets `s_thr = s_t(θ*)+margin` and relies on the existing `pot_validity_barrier`, exactly as AC16 does. So the prior carries **no** `s_thr` / `α_hi(M)` coupling (this avoids the high-Mach α-range collapse and matches the existing engine).
+- `M ~ LogUniform[m_lo, m_hi]`  (default 2, 20)
+- `α ~ Uniform[α_lo, α_hi]`  (default 1.1, 4.0 — physical BM19 tail slopes; α>1 for mass-integral convergence)
 - `β ~ LogUniform[β_lo, β_hi]`  (default 2, 11/3 ≈ 3.667)
-- `α ~ Uniform[α_lo, α_hi(M)]` with `α_hi(M) = min(α_cap, 0.5 + s_thr/σ_s²(M,b))` so `s_t(θ) ≤ s_thr` (POT-valid); `α_lo` default 1.5, `α_cap` default 6.0. Note `α_hi` depends on M and the fixed `s_thr`, `b` (the prior is conditional `p(α|M)`).
 
 **Step 1 — Write the failing test** (`tests/experimental/unit/test_priors.py`):
 ```python
 import jax, jax.numpy as jnp, pytest
 from gravoturb_fdf.inference.priors import BM19Prior
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
 
 pytestmark = pytest.mark.experimental
 
 def _prior(**kw):
-    return BM19Prior(b=0.4, s_thr=3.0, m_range=(2.0, 20.0), beta_range=(2.0, 11/3),
-                     alpha_lo=1.5, alpha_cap=6.0, **kw)
+    return BM19Prior(m_range=(2.0, 20.0), alpha_range=(1.1, 4.0),
+                     beta_range=(2.0, 11/3), **kw)
 
-def test_sample_within_support_and_pot_valid():
+def test_sample_within_support():
     pr = _prior()
     keys = jax.random.split(jax.random.PRNGKey(0), 2000)
     thetas = jax.vmap(pr.sample)(keys)          # (2000, 3) = (M, alpha, beta)
     M, alpha, beta = thetas[:, 0], thetas[:, 1], thetas[:, 2]
     assert jnp.all((M >= 2.0) & (M <= 20.0))
+    assert jnp.all((alpha >= 1.1) & (alpha <= 4.0))
     assert jnp.all((beta >= 2.0) & (beta <= 11/3 + 1e-9))
-    assert jnp.all(alpha >= 1.5)
-    # every draw is POT-valid: s_t(theta) <= s_thr
-    s_t = transition_density(alpha, sigma_s_squared(M, 0.4))
-    assert jnp.all(s_t <= 3.0 + 1e-6)
 
 def test_logdensity_finite_inside_minus_inf_outside():
     pr = _prior()
-    th_in = jnp.array([5.0, 2.0, 3.0])
+    th_in = jnp.array([5.0, 2.0, 3.0])           # (M, alpha, beta) all in range
     assert jnp.isfinite(pr.logpdf(th_in))
-    th_lowM = jnp.array([1.0, 2.0, 3.0])         # M below range
-    assert pr.logpdf(th_lowM) == -jnp.inf
-    th_badalpha = jnp.array([5.0, 5.99, 3.0])    # alpha above alpha_hi(M) (POT-invalid)
-    assert pr.logpdf(th_badalpha) == -jnp.inf
+    for bad in (jnp.array([1.0, 2.0, 3.0]),      # M below range
+                jnp.array([5.0, 0.9, 3.0]),      # alpha below range
+                jnp.array([5.0, 4.5, 3.0]),      # alpha above range
+                jnp.array([5.0, 2.0, 5.0])):     # beta above range
+        assert pr.logpdf(bad) == -jnp.inf
 
 def test_logpdf_grad_finite_inside():
     pr = _prior()
     g = jax.grad(lambda th: pr.logpdf(th))(jnp.array([5.0, 2.0, 3.0]))
     assert jnp.all(jnp.isfinite(g))
 
-def test_sampled_ranks_uniform_smoke():
-    # the inverse-CDF sampler must produce ~uniform CDF values (sanity for SBC)
+def test_sampled_M_loguniform_smoke():
+    # log-uniform M => CDF values ~ Uniform(0,1) (sanity for the inverse-CDF sampler)
     pr = _prior()
     keys = jax.random.split(jax.random.PRNGKey(1), 5000)
     M = jax.vmap(pr.sample)(keys)[:, 0]
-    u = (jnp.log(M) - jnp.log(2.0)) / (jnp.log(20.0) - jnp.log(2.0))  # log-uniform CDF
-    # KS-ish: max deviation of empirical CDF from uniform is small
+    u = (jnp.log(M) - jnp.log(2.0)) / (jnp.log(20.0) - jnp.log(2.0))
     us = jnp.sort(u); emp = jnp.arange(1, us.size + 1) / us.size
     assert jnp.max(jnp.abs(emp - us)) < 0.05
 ```
 
 **Step 2 — Run, watch it fail:** `PYTHONPATH=src:src/experimental … pytest tests/experimental/unit/test_priors.py -q` → ImportError / FAIL.
 
-**Step 3 — Implement** `priors.py` as an `eqx.Module` `BM19Prior` with `sample(key)->(M,α,β)` (inverse-CDF: log-uniform for M,β; uniform on `[α_lo, α_hi(M)]` for α) and `logpdf(theta)->scalar` (sum of per-param log-densities; `-inf` outside support, incl. `α > α_hi(M)`). Use `jnp.where` + `jnp.inf` carefully so `logpdf` is differentiable *inside* the support (the `-inf` branch is for out-of-support points only; HMC stays inside via the barrier).
+**Step 3 — Implement** `priors.py` as an `eqx.Module` `BM19Prior` (fields: `m_range`, `alpha_range`, `beta_range`) with `sample(key)->(M,α,β)` (inverse-CDF: log-uniform for M and β; uniform for α) and `logpdf(theta)->scalar` (sum of per-param log-densities; `-inf` outside the box support). Use the **double-`where` trick** so `logpdf` is finite and differentiable *inside* the support (the `-inf` branch is for out-of-support points only; HMC stays inside via the per-trial `pot_validity_barrier`). **No `b` / `s_thr` / `α_hi(M)`** — the prior is unconditional (Option B); per-trial POT-validity lives in the SBC driver (Task 6).
 
 **Step 4 — Run, watch it pass.** Then released-core invariant check.
 
@@ -340,7 +336,7 @@ logdensity(z) = tail_exceedance_loglike(...) + Σ count_loglike(...)
               + pot_validity_barrier(theta, s_thr)
               + log_jacobian(z)               # KEEP: reparam Jacobian is still required
 ```
-Factor this into a shared `build_logdensity(prior, data, s_thr, s_max, shape, cell_sizes, ...)` used by both SBC and (later, carefully) AC16.
+Factor this into a shared `build_logdensity(prior, data, b, s_thr, s_max, shape, cell_sizes, ...)` used by both SBC and (later, carefully) AC16. **theta assembly:** `(M, α, β) = to_constrained(z)`; the likelihood/barrier take the 4-vector `[M, b, α, β]` (b fixed), while `prior.logpdf` takes the 3 free params `[M, α, β]`.
 
 **Step 1 — Failing test** (small, fast — a reduced "is the machinery wired" check; the heavy uniformity assertion lives in AC18/Task 7):
 ```python
@@ -350,8 +346,9 @@ from gravoturb_fdf.inference.priors import BM19Prior
 pytestmark = [pytest.mark.experimental, pytest.mark.slow]
 
 def test_sbc_ranks_shape_and_support():
-    pr = BM19Prior(b=0.4, s_thr=3.0)
+    pr = BM19Prior()                              # unconditional (M, alpha, beta)
     out = sbc_ranks(pr, key=jax.random.PRNGKey(0), n_trials=6,
+                    b=0.4, s_thr_margin=0.75,     # per-trial s_thr = s_t(theta*)+margin
                     shape=(24, 24, 24), density_shape=(48, 48, 48),
                     n_warmup=80, n_samples=120, n_thin=4,
                     cell_sizes=(2, 4), n_stars=4.0e4)
@@ -363,8 +360,8 @@ def test_sbc_ranks_shape_and_support():
 
 **Step 2 — Run, watch fail.**
 
-**Step 3 — Implement** `sbc_ranks(prior, key, n_trials, shape, density_shape, n_warmup, n_samples, n_thin, cell_sizes, n_stars, s_thr=None, alpha_cap=…) -> dict`:
-- loop trials (python loop OK — oracle/validation side; each trial is a full NUTS run): `θ* = prior.sample(k)`; realize gas field `rank_copula_field(gaussian_random_field(density_shape, β*, …), M*, b, α*)`; `measure_exceedances`; `s_lo` field + `sample_cic_counts` per cell size; `build_logdensity`; `run_nuts`; **thin** posterior to ~independent (`[::n_thin]`); `rank = Σ_l (θ_l < θ*)` per param.
+**Step 3 — Implement** `sbc_ranks(prior, key, n_trials, b, s_thr_margin, shape, density_shape, n_warmup, n_samples, n_thin, cell_sizes, n_stars) -> dict`:
+- loop trials (python loop OK — oracle/validation side; each trial is a full NUTS run): `θ* = prior.sample(k)` → `(M*, α*, β*)`; **set the per-trial POT threshold (Option B)** `s_thr = float(transition_density(α*, sigma_s_squared(M*, b))) + s_thr_margin`; realize gas field `rank_copula_field(gaussian_random_field(density_shape, β*, …), M*, b, α*)`; `measure_exceedances(s_field, s_thr)` → `(exc_counts, exc_edges, s_max, n_tail)`; `s_lo` field + `sample_cic_counts` per cell size; `build_logdensity(prior, …, b, s_thr, s_max, …)`; `run_nuts`; **thin** posterior to ~independent (`[::n_thin]`); `rank = Σ_l (θ_l < θ*)` per free param (M, α, β).
 - Return `{"ranks", "n_draws", "n_trials", "param_names", "thetas_true"}`.
 - Parallelize trials across devices later if needed; for now a python loop with fold-in keys (deterministic, resumable).
 
