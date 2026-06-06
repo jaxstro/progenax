@@ -20,17 +20,21 @@ peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail
 
 ## Quick Commands
 
+Use **uv** (the project `.venv`); do not use conda. `env -u VIRTUAL_ENV` avoids an
+outer-venv clash and `--no-sync` runs against the installed env without re-locking.
+
 ```bash
-conda activate astro
-pip install -e ".[dev]"
-pytest tests/ -v                    # All 1065 tests (~55s; ~5min with coverage)
-pytest tests/unit/ -v               # 653 unit tests (released core)
-pytest tests/integration/ -v        # 34 integration tests
-pytest tests/validation/ -v         # 128 physics validation tests
+# Install (released core + experimental extras: blackjax, optax for the inference layer)
+env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
+
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q                  # All 1065 tests (~55s)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 653 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 128 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
-PYTHONPATH=src:src/experimental pytest tests/experimental -v          # 250 tests
-PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance   # AC1-AC10
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 250 tests
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb_fdf.validation.acceptance   # AC1-AC17
 ```
 
 ## Units Policy (progenax)
