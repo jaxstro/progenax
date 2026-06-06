@@ -43,19 +43,15 @@ jobs:
         working-directory: progenax
         run: uv sync --locked --extra dev
 
-      # Pass/fail gate: released-core only (tests/unit, integration, validation). No
-      # coverage instrumentation, so a coverage-tooling crash (the jaxlib/abseil
-      # narrow-scope class — see docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md)
-      # can never red a build whose tests actually pass.
+      # Pass/fail gate: released-core only (tests/unit, integration, validation). The
+      # in-CI coverage step was removed — it re-ran the whole suite a second time
+      # (~doubling runtime) and hit a hard cancellation from the jaxlib/abseil
+      # coverage-tooling crash (docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md),
+      # which reds the job despite continue-on-error. Run coverage locally on demand:
+      #   uv run --no-sync pytest tests/ -m "not slow" --cov=progenax --cov-report=term
       - name: Run released-core suite (pass/fail gate)
         working-directory: progenax
         run: uv run --no-sync pytest tests/unit tests/integration tests/validation -m "not slow" -q
-
-      # Coverage is a non-fatal report, decoupled from the gate above.
-      - name: Coverage report (non-fatal)
-        continue-on-error: true
-        working-directory: progenax
-        run: uv run --no-sync pytest tests/unit tests/integration tests/validation -m "not slow" -q --cov=progenax --cov-report=term
 
   # Experimental gravoturb_fdf subsystem (repo-only, NOT in the wheel). Needs the
   # `[experimental]` extra (blackjax, optax). Runs the non-slow experimental suite,
