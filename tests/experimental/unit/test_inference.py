@@ -248,6 +248,28 @@ def test_run_nuts_recovers_gaussian():
     assert np.allclose(np.asarray(samples.std(0)), 1.0, atol=0.2)
 
 
+def test_density_pdf_loglike_constrains_alpha():
+    """1-pt density-PDF block: sum_bins hist[s] log p_BM19(s;M,b,alpha) -- the faithful,
+    alpha-sensitive observable (a gas-density tracer; stars don't carry alpha). Maximal at
+    theta_true on the noiseless expected histogram, differentiable, and SHARPLY peaked in
+    alpha (d2/dalpha2 << 0) -- this is the block that recovers the PDF-tail slope alpha."""
+    from gravoturb_fdf.inference.likelihood import density_pdf_loglike
+    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+
+    s = jnp.linspace(-8.0, 25.0, 400)
+    theta = jnp.array([5.0, 0.4, 2.5, 3.0])
+    p_true = bm19_volume_pdf(s, 5.0, 0.4, 2.5)
+    hist = np.asarray(p_true / jnp.trapezoid(p_true, s)) * 1e4  # noiseless expected histogram
+
+    ll0 = float(density_pdf_loglike(hist, s, theta))
+    for j, dth in [(0, 0.5), (2, 0.3)]:  # mach, alpha
+        assert float(density_pdf_loglike(hist, s, theta.at[j].add(dth))) < ll0 - 1e-6
+    g = np.asarray(jax.grad(lambda th: density_pdf_loglike(hist, s, th))(theta))
+    assert np.all(np.isfinite(g))
+    d2 = float(jax.grad(jax.grad(lambda a: density_pdf_loglike(hist, s, theta.at[2].set(a))))(2.5))
+    assert d2 < -10.0  # sharply constrains alpha (the PDF-tail slope)
+
+
 def test_bounded_transforms_roundtrip_and_jacobian():
     """The bounded->unconstrained reparametrization (mach>0, alpha>1, beta>0) round-trips and
     its log-Jacobian is finite (needed so HMC samples in unconstrained space)."""

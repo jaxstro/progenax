@@ -16,6 +16,7 @@ from jaxtyping import Array, Float
 
 from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
 from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance, count_distribution
+from gravoturb_fdf.theory.pdf import bm19_volume_pdf
 from gravoturb_fdf.theory.projection import box_window_sq_grid
 
 
@@ -90,3 +91,24 @@ def count_loglike(
     pN = pN / jnp.sum(pN)  # normalize over the support [0, nmax] -> conditional P(N|N<=nmax);
     # removes a theta-dependent truncation bias on alpha (the tail param) for finite nmax.
     return jnp.sum(count_hist * jnp.log(jnp.clip(pN, floor, None)))
+
+
+def density_pdf_loglike(
+    s_hist: Float[Array, " nb"],
+    s_centers: Float[Array, " nb"],
+    theta: Float[Array, " 4"],
+    floor: float = 1e-300,
+) -> Float[Array, ""]:
+    r"""1-pt log-density-PDF log-likelihood ``sum_bins hist[s] log p_BM19(s;M,b,alpha)`` (M2).
+
+    The faithful, ALPHA-sensitive observable: the BM19 volume density PDF (lognormal body +
+    power-law tail). Stars don't carry alpha at realistic sampling (the tail is washed out by
+    cell-smoothing and shot noise), so alpha needs a GAS-density tracer's 1-pt PDF (extinction /
+    column-density / dust maps) -- this block represents that probe. ``s_hist[i]`` = (relative)
+    count of density samples in bin ``i`` centred at ``s_centers[i]``; ``p_BM19`` is normalized
+    over the bins. Constrains (sigma_s^2 = ln(1+(b M)^2), alpha); pairs with the stellar CIC +
+    band-powers (sigma_s^2, beta) for a joint (M, alpha, beta) inference. Differentiable in theta."""
+    mach, b, alpha, _beta = theta
+    p = bm19_volume_pdf(s_centers, mach, b, alpha)
+    p = p / jnp.trapezoid(p, s_centers)  # normalize over the observed support
+    return jnp.sum(s_hist * jnp.log(jnp.clip(p, floor, None)))
