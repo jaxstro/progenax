@@ -291,6 +291,37 @@ def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5
             "mass_max_rel": float(rm.max())}
 
 
+# ── AC12: Limber-projected analytic 2-pt vs realization oracle ──
+def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=12, beta=3.0, n_bins=12,
+                                     seed=0, w_floor=0.1, rel_tol=0.06):
+    """The analytic 3-D correlation rho_g, Limber-projected along the LOS, reproduces the
+    measured 2-D correlation of the column-projected realization (normalized to w(0)=1)."""
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.theory.projection import (
+        gaussian_correlation_grid, limber_project_grid)
+    from gravoturb_fdf.validation.measure import autocovariance_3d, radial_average
+
+    _header("AC12 — Limber-projected analytic 2-pt vs realization oracle")
+    proj = np.asarray(limber_project_grid(gaussian_correlation_grid(shape, beta), los_axis=2))
+    _, w_pred = radial_average(proj / proj[0, 0], n_bins=n_bins)
+
+    key = jax.random.PRNGKey(seed)
+    xi_sum = None
+    for i in range(n_real):
+        g = np.asarray(gaussian_random_field(shape, beta, jax.random.fold_in(key, i)))
+        xi_col = autocovariance_3d(g.sum(axis=2))
+        xi_sum = xi_col if xi_sum is None else xi_sum + xi_col
+    xi_mean = xi_sum / n_real  # average autocov FIRST, then normalize (unbiased)
+    _, w_meas = radial_average(xi_mean / xi_mean[0, 0], n_bins=n_bins)
+
+    mask = w_pred > w_floor
+    rel = np.abs(w_pred[mask] - w_meas[mask]) / np.abs(w_pred[mask])
+    print(f"  beta={beta}  shape={shape}  n_real={n_real}  (bins w_pred>{w_floor}: {int(mask.sum())})")
+    ok = _row("Limber proj 2-pt vs oracle (max rel)", 0.0, float(rel.max()), rel_tol, "abs")
+    print(f"  median rel = {np.median(rel) * 100:.3f}%")
+    return {"passed": bool(ok), "max_rel": float(rel.max()), "median_rel": float(np.median(rel))}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -301,6 +332,7 @@ def main():
         "AC8/AC9": ac8_ac9_grads(),
         "AC11": ac11_xi_s_vs_oracle(),
         "AC11b": ac11b_rank_copula_equivalence(),
+        "AC12": ac12_limber_projection_vs_oracle(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

@@ -71,3 +71,33 @@ def smoothed_variance_fraction(
     power = jnp.where(kmag > 0, kmag_safe ** (-beta), 0.0)
     w = window(kmag * R)
     return jnp.sum(power * w**2) / jnp.sum(power)
+
+
+def limber_project_grid(
+    xi_3d: Float[Array, " nx ny nz"], los_axis: int = 2
+) -> Float[Array, " nx ny"]:
+    r"""Discrete Limber projection: the 2-D projected autocovariance from the 3-D
+    autocovariance, summing over the line-of-sight axis. For a column field
+    ``Sigma = sum_los f`` the exact periodic identity is
+    ``xi_Sigma(r_perp) = N_los * sum_{dlos} xi_f(r_perp, dlos)``.
+
+    Field-agnostic: the choice of which field is projected (linear column density Sigma=∫ρ
+    vs log-density s) is a Task-3 / CIC decision; this operator just projects a given 2-pt.
+    """
+    n_los = xi_3d.shape[los_axis]
+    return n_los * jnp.sum(xi_3d, axis=los_axis)
+
+
+def limber_project_radial(
+    xi_fn, r_perp: Float[Array, " ..."], half_depth: Float[Array, ""], n_nodes: int = 512
+) -> Float[Array, " ..."]:
+    r"""Continuous Limber projection ``w(r_perp) = int_{-L}^{L} xi_fn(sqrt(r_perp^2+l^2)) dl``
+    by fixed-node trapezoid quadrature over the line-of-sight depth ``[-half_depth, +half_depth]``.
+
+    ``xi_fn`` maps a separation array to the 3-D correlation. Differentiable in ``r_perp`` and
+    any parameters ``xi_fn`` closes over (the depth/distance enters as a nuisance, FK10 §3.5).
+    """
+    r_perp = jnp.asarray(r_perp)
+    ell = jnp.linspace(-half_depth, half_depth, n_nodes)
+    sep = jnp.sqrt(r_perp[..., None] ** 2 + ell**2)
+    return jnp.trapezoid(xi_fn(sep), ell, axis=-1)

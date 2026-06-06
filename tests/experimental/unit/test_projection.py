@@ -141,3 +141,45 @@ def test_smoothed_variance_differentiable():
     gb = float(jax.grad(lambda beta: smoothed_variance_fraction((24, 24, 24), beta, 2.0))(3.0))
     gR = float(jax.grad(lambda R: smoothed_variance_fraction((24, 24, 24), 3.0, R))(2.0))
     assert np.isfinite(gb) and np.isfinite(gR) and gR < 0.0
+
+
+# --- Task 2.3: Limber projection 3D -> 2D --------------------------------------
+
+
+def test_limber_project_grid_exact_identity():
+    """Discrete Limber is exact: the 2D autocovariance of the LOS-projected field equals
+    N_los * sum over the LOS axis of the 3D autocovariance (periodic identity)."""
+    from gravoturb_fdf.theory.projection import limber_project_grid
+    from gravoturb_fdf.validation.measure import autocovariance_3d
+
+    rng = np.random.default_rng(0)
+    f = rng.normal(size=(20, 20, 16))
+    sigma_col = f.sum(axis=2)  # project along LOS (z)
+    xi_col = autocovariance_3d(sigma_col)
+    proj = np.asarray(limber_project_grid(jnp.asarray(autocovariance_3d(f)), los_axis=2))
+    assert np.allclose(proj, xi_col, rtol=1e-9, atol=1e-12)
+
+
+def test_limber_project_radial_matches_gaussian_closed_form():
+    """w(r_perp) = int xi(sqrt(r_perp^2+l^2)) dl; for xi=exp(-r^2/2sigma^2) the closed
+    form is sigma*sqrt(2pi)*exp(-r_perp^2/2sigma^2)."""
+    from gravoturb_fdf.theory.projection import limber_project_radial
+
+    sigma = 2.0
+    xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
+    r_perp = jnp.array([0.0, 1.0, 2.0, 3.0])
+    w = limber_project_radial(xi, r_perp, half_depth=8.0 * sigma, n_nodes=2001)
+    expected = sigma * np.sqrt(2 * np.pi) * np.exp(-0.5 * (np.asarray(r_perp) / sigma) ** 2)
+    assert np.allclose(np.asarray(w), expected, rtol=1e-4)
+
+
+def test_limber_project_radial_differentiable():
+    """w(r_perp) differentiable in a parameter of xi (finite nonzero grad)."""
+    from gravoturb_fdf.theory.projection import limber_project_radial
+
+    def w0(sigma):
+        xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
+        return limber_project_radial(xi, jnp.array([1.0]), half_depth=20.0, n_nodes=1001)[0]
+
+    grad = float(jax.grad(w0)(2.0))
+    assert np.isfinite(grad) and abs(grad) > 0.0

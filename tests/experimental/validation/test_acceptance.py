@@ -48,3 +48,9 @@ def test_ac11b_rank_copula_equivalence():
     # 48³×4 for test speed; physical rank/mass-conserving copula xi_s vs prediction.
     res = acceptance.ac11b_rank_copula_equivalence(shape=(48, 48, 48), n_real=4, rel_tol=0.03)
     assert res["passed"]
+
+
+def test_ac12_limber_projection_vs_oracle():
+    # 40³×12 for test speed; Limber-projected analytic 2-pt vs projected-realization 2-pt.
+    res = acceptance.ac12_limber_projection_vs_oracle(shape=(40, 40, 40), n_real=12)
+    assert res["passed"]

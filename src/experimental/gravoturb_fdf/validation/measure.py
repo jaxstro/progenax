@@ -40,10 +40,10 @@ def autocovariance_3d(field):
 
 
 def _separation_radius(shape):
-    """Minimum-image separation magnitude (grid-cell units) for each lag cell."""
+    """Minimum-image separation magnitude (grid-cell units) for each lag cell (any ndim)."""
     lags = [np.fft.fftfreq(n, d=1.0 / n) for n in shape]  # signed integer lags
-    dx, dy, dz = np.meshgrid(*lags, indexing="ij")
-    return np.sqrt(dx**2 + dy**2 + dz**2)
+    grids = np.meshgrid(*lags, indexing="ij")
+    return np.sqrt(sum(g**2 for g in grids))
 
 
 def radial_average(values3d, n_bins=24, r_max=None, exclude_zero=True):
