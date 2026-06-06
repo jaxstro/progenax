@@ -229,3 +229,31 @@ def test_count_loglike_constrains_alpha_strongly():
     d2 = float(jax.grad(jax.grad(
         lambda a: count_loglike(hist, _THETA.at[2].set(a), **_CCFG)))(2.5))
     assert d2 < -1.0  # sharply peaked in alpha
+
+
+# --- Task 6.2: blackjax NUTS driver -------------------------------------------
+
+
+def test_run_nuts_recovers_gaussian():
+    """The thin blackjax NUTS wrapper recovers a known 2-D Gaussian target (mean + std) --
+    validates window-adaptation + sampling independent of our likelihood."""
+    from gravoturb_fdf.inference.hmc import run_nuts
+
+    mu = jnp.array([1.0, -2.0])
+    logdensity = lambda x: -0.5 * jnp.sum((x - mu) ** 2)
+    samples = run_nuts(logdensity, jnp.zeros(2), jax.random.PRNGKey(0),
+                       n_warmup=300, n_samples=1500)
+    assert samples.shape == (1500, 2)
+    assert np.allclose(np.asarray(samples.mean(0)), np.asarray(mu), atol=0.15)
+    assert np.allclose(np.asarray(samples.std(0)), 1.0, atol=0.2)
+
+
+def test_bounded_transforms_roundtrip_and_jacobian():
+    """The bounded->unconstrained reparametrization (mach>0, alpha>1, beta>0) round-trips and
+    its log-Jacobian is finite (needed so HMC samples in unconstrained space)."""
+    from gravoturb_fdf.inference.hmc import to_unconstrained, to_constrained, log_jacobian
+
+    theta_c = jnp.array([5.0, 2.5, 3.0])  # (mach, alpha, beta), all in-bounds
+    z = to_unconstrained(theta_c)
+    assert np.allclose(np.asarray(to_constrained(z)), np.asarray(theta_c), atol=1e-10)
+    assert np.isfinite(float(log_jacobian(z)))
