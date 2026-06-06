@@ -69,3 +69,37 @@ def test_smooth_copula_field_mean_density_unity():
     g = jax.random.normal(key, (48, 48, 48))
     s = smooth_copula_field(g, 5.0, 0.4, 3.0)
     assert float(np.mean(np.exp(s))) == pytest.approx(1.0, rel=3e-2)
+
+
+# --- Task 4: measure_exceedances (mock -> POT exceedance histogram for the alpha block) -------
+
+
+def test_measure_exceedances_counts_edges_and_alpha_recovery():
+    """measure_exceedances reduces a gas log-density field to (counts, edges, s_max, n_tail) above
+    s_thr. Mechanics: edges span [s_thr, s_max] closed at the realized max; counts sum to n_tail =
+    #(s>s_thr). Physics: on a pure-exponential tail above s_thr, maximizing tail_exceedance_loglike
+    over alpha recovers alpha_true to within ~3 sigma (sigma = alpha/sqrt(N_tail))."""
+    from gravoturb_fdf.validation.measure import measure_exceedances
+    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+
+    rng = np.random.default_rng(0)
+    alpha_true, s_thr, n_tail_draw = 2.5, 1.0, 40000
+    body = rng.uniform(-5.0, 0.99, size=30000)                      # all below s_thr
+    tail = s_thr + rng.exponential(1.0 / alpha_true, size=n_tail_draw)
+    s_field = np.concatenate([body, tail])
+
+    counts, edges, s_max, n_tail = measure_exceedances(s_field, s_thr, n_bins=30)
+    # --- mechanics ---
+    assert n_tail == int((s_field > s_thr).sum()) == n_tail_draw
+    assert edges[0] == pytest.approx(s_thr) and edges[-1] == pytest.approx(s_max)
+    assert s_max == pytest.approx(float(s_field.max()))
+    assert int(round(float(counts.sum()))) == n_tail               # every exceedance binned
+
+    # --- physics: 1-D MLE over alpha recovers the tail slope ---
+    alphas = np.linspace(1.5, 4.0, 501)
+    theta = lambda a: jnp.array([5.0, 0.4, a, 3.0])
+    lls = np.array([float(tail_exceedance_loglike(
+        jnp.asarray(counts), jnp.asarray(edges), theta(a), s_thr, s_max)) for a in alphas])
+    alpha_hat = alphas[int(np.argmax(lls))]
+    sigma = alpha_true / np.sqrt(n_tail)
+    assert abs(alpha_hat - alpha_true) < 3.0 * sigma

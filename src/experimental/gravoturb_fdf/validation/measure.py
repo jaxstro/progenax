@@ -100,6 +100,25 @@ def field_2pt_measured(s, n_bins=24, r_max=None):
     return r, xi
 
 
+def measure_exceedances(s_field, s_thr, n_bins=20):
+    r"""Reduce a gas log-density field to the threshold-exceedance histogram for the POT alpha block.
+
+    Returns ``(exc_counts, exc_edges, s_max, n_tail)``: counts of cells with ``s > s_thr`` binned
+    into ``n_bins`` equal s-bins spanning ``[s_thr, s_max]`` (``s_max`` = the realized field maximum,
+    i.e. the finite-field truncation ceiling, so the top bin is CLOSED at ``s_max``); the s-space bin
+    edges; the realized maximum; and the number of exceedances ``n_tail``. The output feeds
+    :func:`gravoturb_fdf.inference.likelihood.tail_exceedance_loglike`. ``s_thr`` and ``s_max`` are
+    measured here on the SAME field as the counts, which is what makes the POT block shift-immune.
+    numpy path (non-differentiable, validation/oracle only).
+    """
+    s = np.asarray(s_field).ravel()
+    exc = s[s > s_thr]
+    s_max = float(s.max())
+    exc_edges = np.linspace(s_thr, s_max, n_bins + 1)
+    exc_counts, _ = np.histogram(exc, bins=exc_edges)  # last bin closed at s_max
+    return exc_counts.astype(float), exc_edges, s_max, int(exc.size)
+
+
 def smoothed_linear_variance(rho_tilde, R, window_fn):
     r"""Variance of the linear field ``rho_tilde`` after smoothing at scale ``R`` (cells):
     ``(1/N^2) sum_{k!=0} |FFT(rho_tilde - mean)|^2 W(kR)^2`` for ONE realization.
