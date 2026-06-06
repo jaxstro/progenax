@@ -23,6 +23,7 @@ JAX-native; differentiable in (mach, b, alpha, beta).
 """
 
 import jax.numpy as jnp
+from jax.scipy.special import gammaln, xlogy
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.theory.gaussianization import (
@@ -185,3 +186,51 @@ def cic_variance(
     ``xi_bar>0`` is the clustering over-dispersion. Differentiable in both arguments.
     """
     return n_bar + n_bar**2 * xi_bar
+
+
+def count_distribution(
+    n_counts: Float[Array, " k"],
+    n_bar: Float[Array, ""],
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    n_max: int = 16,
+    n_quad: int = 256,
+    n_s: int = 1024,
+    s_min: float = -15.0,
+    s_max: float = 30.0,
+    window=top_hat_window,
+) -> Float[Array, " k"]:
+    r"""Compound-Poisson counts-in-cells distribution ``P(N)`` (Route B).
+
+    A Cox process: each cell's count is ``Poisson(N | N_bar * rho_tilde)`` with the cell's
+    mean-1 density ``rho_tilde`` drawn from the smoothed volume PDF ``p_R`` (:func:`smoothed_pdf`),
+
+        ``P(N) = int Poisson(N | N_bar e^s / mu) p_R(s) ds`` ,   ``mu = <e^s>_{p_R}`` ,
+
+    by fixed-node trapezoid quadrature over ``s`` (differentiable in theta). ``p_R`` and ``mu``
+    are evaluated on the SAME grid so the discrete identities hold exactly given the grid:
+    ``sum_N P(N) = 1`` and ``sum_N N P(N) = N_bar`` (for ``n_counts`` spanning the mass). The
+    over-dispersion ``Var(N) = N_bar + N_bar^2 Var_{p_R}(rho_tilde)`` carries the clustering /
+    density-PDF shape -> constrains (mach, b, alpha) [+ beta via R]. ``n_counts`` are the
+    (integer-valued) counts at which to evaluate P. Differentiable in (mach, b, alpha, beta).
+    """
+    sigma_s_sq_R = smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max, n_quad, window)
+    mach_eff = effective_mach(sigma_s_sq_R, b)
+    s = jnp.linspace(s_min, s_max, n_s)
+    p = bm19_volume_pdf(s, mach_eff, b, alpha)
+    p = p / jnp.trapezoid(p, s)  # normalize on the grid (tail truncation absorbed in mu)
+    mu = jnp.trapezoid(jnp.exp(s) * p, s)  # grid <e^s>; mean-1 rho_tilde = e^s/mu
+    lam = n_bar * jnp.exp(s) / mu  # Poisson intensity per cell, (n_s,)
+
+    n_counts = jnp.asarray(n_counts, dtype=lam.dtype)  # float: avoid float0 grad cotangents
+    log_pmf = (
+        xlogy(n_counts[:, None], lam[None, :])
+        - lam[None, :]
+        - gammaln(n_counts[:, None] + 1.0)
+    )  # Poisson log-pmf, (k, n_s)
+    pmf = jnp.exp(log_pmf)
+    return jnp.trapezoid(pmf * p[None, :], s, axis=1)

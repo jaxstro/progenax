@@ -125,3 +125,69 @@ def test_smoothed_pdf_log_variance_matches_in_body_limit():
     var = float(jnp.trapezoid((s - mean) ** 2 * p, s))
     sig2R = float(smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max=12))
     assert var == pytest.approx(sig2R, rel=0.05)
+
+
+# --- Task 3.3: compound-Poisson count distribution P(N) -----------------------
+
+
+def test_pN_normalizes_and_mean_matches():
+    """P(N) = int Poisson(N | N_bar e^s/mu) p_R(s) ds: sum_N P(N) = 1 and sum_N N P(N) = N_bar
+    (the compound-Poisson identities). N range wide enough to capture the over-dispersed tail."""
+    from gravoturb_fdf.theory.cic import count_distribution
+
+    N = jnp.arange(0, 250)
+    n_bar = 8.0
+    pN = count_distribution(N, n_bar, (24, 24, 24), 3.0, 2.0, 5.0, 0.4, 3.0, n_max=12)
+    assert float(jnp.sum(pN)) == pytest.approx(1.0, rel=2e-3)
+    assert float(jnp.sum(N * pN)) == pytest.approx(n_bar, rel=2e-2)
+
+
+def test_pN_overdispersed():
+    """Clustering makes counts over-dispersed relative to pure Poisson: Var(N) > N_bar.
+    Heavy regime (R=2, alpha=3): the density fluctuations broaden the count distribution."""
+    from gravoturb_fdf.theory.cic import count_distribution
+
+    N = jnp.arange(0, 400)
+    n_bar = 10.0
+    pN = count_distribution(N, n_bar, (24, 24, 24), 3.0, 2.0, 6.0, 0.5, 3.0, n_max=12)
+    mean = float(jnp.sum(N * pN))
+    var = float(jnp.sum(N**2 * pN) - mean**2)
+    assert var > 1.3 * n_bar  # clearly over-dispersed (Poisson would give var == mean)
+
+
+def test_pN_compound_poisson_moment_identity():
+    """Var(N) == N_bar + N_bar^2 Var_{p_R}(rho_tilde), the exact compound-Poisson identity.
+    Validated in a light regime (R=4, alpha=4) where the lambda^2 tail is captured by the N
+    range (in heavy regimes the identity still holds but needs a far larger N_max to sum the
+    rare high-density tail -- see the AC13 convergence note)."""
+    from gravoturb_fdf.theory.cic import count_distribution, smoothed_pdf
+
+    N = jnp.arange(0, 300)
+    n_bar = 8.0
+    shape, beta, R, mach, b, alpha = (24, 24, 24), 3.0, 4.0, 5.0, 0.4, 4.0
+    pN = count_distribution(N, n_bar, shape, beta, R, mach, b, alpha, n_max=12)
+    mean = float(jnp.sum(N * pN))
+    var = float(jnp.sum(N**2 * pN) - mean**2)
+
+    s = jnp.linspace(-15.0, 30.0, 1024)  # count_distribution's own grid (shared -> exact)
+    p = smoothed_pdf(s, shape, beta, R, mach, b, alpha, n_max=12)
+    p = p / jnp.trapezoid(p, s)
+    mu = float(jnp.trapezoid(jnp.exp(s) * p, s))
+    var_rho = float(jnp.trapezoid((jnp.exp(s) / mu - 1.0) ** 2 * p, s))
+    assert var == pytest.approx(n_bar + n_bar**2 * var_rho, rel=0.02)
+
+
+def test_pN_differentiable():
+    """jax.grad of a functional of P(N) wrt (mach,b,alpha,beta) is finite and nonzero."""
+    from gravoturb_fdf.theory.cic import count_distribution
+
+    N = jnp.arange(0, 200)
+
+    def tail_mass(params):
+        mach, b, alpha, beta = params
+        pN = count_distribution(N, 10.0, (24, 24, 24), beta, 2.0, mach, b, alpha, n_max=10)
+        return jnp.sum(jnp.where(N > 25, pN, 0.0))  # P(N>25): the over-dense cells
+
+    grad = np.asarray(jax.grad(tail_mass)(jnp.array([6.0, 0.5, 3.0, 3.0])))
+    assert np.all(np.isfinite(grad))
+    assert np.any(np.abs(grad) > 0.0)
