@@ -21,7 +21,7 @@ JAX-native; differentiable in (mach, b, alpha). The Gaussian field ``g`` is held
 
 import jax.numpy as jnp
 import numpy as np  # constants only: Gauss-Hermite nodes/weights at import time
-from jax.scipy.special import erf
+from jax.scipy.special import erf, gammaln
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.theory.pdf import bm19_icdf_analytic, bm19_mean_density
@@ -109,3 +109,21 @@ def bm19_hermite_coefficients(
 ) -> Float[Array, " n"]:
     r"""Hermite coefficients of the BM19 copula map ``s_of_g(.; mach,b,alpha)``."""
     return hermite_coefficients(lambda g: s_of_g(g, mach, b, alpha), n_max, n_quad)
+
+
+def gaussianized_xi(
+    rho_g: Float[Array, " ..."], c: Float[Array, " n"]
+) -> Float[Array, " ..."]:
+    r"""Gaussianization 2-point series ``xi_s(rho_g) = sum_{n>=1} (c_n^2/n!) rho_g^n``.
+
+    The Mehler bivariate-Hermite expansion (Szapudi & Pan 2004); it reduces to
+    Coles & Jones 1991 Eq (30) ``1+xi = exp[Xi]`` in the exp/lognormal case. ``c`` is
+    the :func:`hermite_coefficients` output (n=0..n_max); the n=0 (mean) term is
+    dropped. ``rho_g`` is the normalized Gaussian correlation (``rho_g(0)=1``), scalar
+    or array. Differentiable in both ``c`` (hence theta) and ``rho_g`` (hence beta).
+    """
+    n = jnp.arange(c.shape[0])
+    weights = c**2 * jnp.exp(-gammaln(n + 1.0))  # c_n^2 / n!
+    weights = weights.at[0].set(0.0)  # drop the n=0 mean term
+    powers = jnp.asarray(rho_g)[..., None] ** n  # (..., n_max+1)
+    return (powers * weights).sum(axis=-1)
