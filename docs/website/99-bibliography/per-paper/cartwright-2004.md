@@ -15,7 +15,7 @@ description: Annotated reference for A. Cartwright & A. P. Whitworth — the sta
 **DOI.** [10.1111/j.1365-2966.2004.07360.x](https://doi.org/10.1111/j.1365-2966.2004.07360.x) ·
 **arXiv.** [astro-ph/0403474](https://arxiv.org/abs/astro-ph/0403474)
 
-**Verified.** Equations, Table 1, and the area convention below checked against the held PDF (2026-06).
+**Verified.** Eqs. 2–6, Table 1, and the MST/area normalisation checked against the held PDF (pp. 589–594; re-verified 2026-06 — fixed a transcribed $\mathcal{Q}$ uncertainty at $D=1.5$).
 ```
 
 ## The big idea
@@ -72,15 +72,23 @@ headline elsewhere in this codebase).
 | F3.0 | fractal $D=3.0$ | $0.80\pm0.02$ |
 | F2.5 | fractal $D=2.5$ | $0.73\pm0.06$ |
 | F2.0 | fractal $D=2.0$ | $0.61\pm0.08$ |
-| F1.5 | fractal $D=1.5$ | $0.45\pm0.18$ |
+| F1.5 | fractal $D=1.5$ | $0.45\pm0.09$ |
 
 Increasing **central concentration** pushes $\mathcal{Q}$ *above* 0.8; increasing
-**fractal sub-clustering** (lower $D$) pushes it *below* 0.8. Note the large scatter at
-low $D$ ($\mathcal{Q}=0.45\pm0.18$ for $D=1.5$).
+**fractal sub-clustering** (lower $D$) pushes it *below* 0.8. (The $\mathcal{Q}$
+uncertainties are small — $\pm0.09$ at $D=1.5$; it is the *correlation length* $\bar s$
+that carries the large $\pm0.18$ scatter at low $D$, Table 1 column 2.)
 
-Radial models are sampled analytically via the inverse CDF $r = u^{1/(3-\alpha)}$ (their
-Eq. 2 family) for $n\propto r^{-\alpha}$; fractal models use a discrete box-fractal tree
-with Bernoulli maturation probability $p = N_\mathrm{div}^{D-3} = 2^{D-3}$.
+Radial models are sampled analytically via the inverse CDF $r = \{(3-\alpha)\mathcal{R}/3\}^{1/(3-\alpha)}$
+(their Eq. 2) for $n\propto r^{-\alpha}$; fractal models use a discrete box-fractal tree
+with Bernoulli maturation probability $p = \mathcal{N}_\mathrm{div}^{D-3} = 2^{D-3}$
+($\mathcal{N}_\mathrm{div}=2$).
+
+**Real clusters (their Table 1 / abstract).** Centrally concentrated: IC 348
+$\mathcal{Q}=0.98$, $\rho$ Oph $0.85$ (radial slopes $\alpha\simeq2.2,\,1.2$); mildly
+substructured: Chamaeleon $0.67$, IC 2391 $0.66$ ($D'\simeq2.25$); strongly substructured:
+Taurus $0.45$ ($D'\simeq1.55$; treating its binaries as single systems raises this to
+$0.58$, $D'\simeq1.9$).
 
 ## Use in progenax
 
@@ -94,11 +102,15 @@ $\sim$Table-1 scatter and is monotone in central concentration.
 
 ## Notes
 
-- **Area convention (important).** CW04's "cluster area" is $A=\pi R_\mathrm{cluster}^2$
-  (circle of the max-distance radius), *not* the convex-hull area. Using the hull area
-  biases $\mathcal{Q}$ high by $\sim+0.08$; $A=\pi R_\mathrm{cluster}^2$ reproduces Table 1
-  to $<0.01$. Other authors (Schmeja & Klessen 2006; Lomax+ 2018) instead set
-  $R=\sqrt{A_\mathrm{hull}}$, giving a *different* absolute $\mathcal{Q}$ scale.
+- **Area convention (important).** CW04 normalise each cluster so that
+  $R_\mathrm{cluster}=1$ (Fig. 3 caption: "scaled so that the distance from the centre to
+  the most distant star is unity") and normalise $\bar m$ by $(N A)^{1/2}/(N-1)$ with "the
+  area $A$ of the cluster" (Section 4.1). Operationally this is the circle area
+  $A=\pi R_\mathrm{cluster}^2$, **not** the convex-hull area: using the hull biases
+  $\mathcal{Q}$ high by $\sim+0.08$–$0.14$, whereas $A=\pi R_\mathrm{cluster}^2$ reproduces
+  Table 1 to $<0.01$ (our AC5: 0.782/0.832/0.924 vs 0.79/0.84/0.93). Other authors (Schmeja
+  & Klessen 2006; Lomax+ 2018) instead set $R=\sqrt{A_\mathrm{hull}}$, giving a *different*
+  absolute $\mathcal{Q}$ scale.
 - The CW04 $\mathcal{Q}$ is **distinct** from the virial ratio $Q_\mathrm{vir}=T/|V|$;
   progenax separates these into different modules.
 - $\mathcal{Q}$ is a **poor estimator of fractional-Brownian-motion (FBM) parameters** —
