@@ -51,13 +51,17 @@ structure** to the **integrated star formation rate**. The chain is:
   - `zeta_fdf_direct` — measure ζ directly from a 3D density field with no power-law assumption.
 * - [](bm19.md)
   - The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ in a forward model for dense-gas SFR.
+* - [](differentiable-inference.md)
+  - **The inference capstone** — running the chain *backwards*: natal cloud parameters $(\mathcal{M}, b, \alpha, \beta)$ from observed cluster substructure, via differentiable predicted statistics (Gaussianization 2-point + counts-in-cells + a peaks-over-threshold tail block) and HMC. Makes the BM19 tail slope $\alpha$ inferable.
 ```
 
 ## Reading order
 
 For a student first encountering the framework: read in TOC order
-(density PDF → FDF → PDF+FDF → PP20 → BM19). Each chapter assumes
-only the conventions established in the previous one.
+(density PDF → FDF → PDF+FDF → PP20 → BM19), then
+[](differentiable-inference.md) as the capstone that inverts the
+forward chain. Each chapter assumes only the conventions established
+in the previous one.
 
 For a researcher already familiar with the literature: jump
 directly to [](pp20.md) for the PP20 derivation and the Historical
