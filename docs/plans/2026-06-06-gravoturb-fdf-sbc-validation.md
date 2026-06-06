@@ -446,6 +446,74 @@ PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gr
 
 ---
 
+## Figure Gallery — Sections A–C (brainstormed + validated with Anna 2026-06-06)
+
+**Scope expansion (Anna):** the figures must *visually verify every forward-model + inference
+component reproduces its analytic/oracle target* — the visual companion to the AC1–AC19 numeric
+checks — not just the inference plots. **Decision:** the research-fresh plotters live in a new
+**jaxstroviz `experimental/` tier** (mirrors progenax `src/experimental`: not in the released
+jaxstroviz wheel, importable under an editable install), on a matching jaxstroviz feature branch
+**`gravoturb-fdf-sbc-figures`**. This supersedes the old Tasks 4–5 (which were SBC-only).
+
+### A. jaxstroviz `experimental/` tier
+```
+jaxstroviz/src/jaxstroviz/experimental/
+├── __init__.py
+├── analysis/  (compute: arrays/metrics in → dict out; no matplotlib)
+│   ├── sbc.py        compute_sbc_rank_histogram(thetas_true, posterior, n_bins, param_names)
+│   ├── spectrum.py   compute_radial_power_spectrum(field) -> (k, P_k)
+│   └── residual.py   compute_overlay_residual(x, data, model) -> dict(frac_resid, ...)
+└── plots/     (axes-first: plot_*(ax, …) -> None; reuse styles.figures + PALETTE; NO gravoturb_fdf import)
+    ├── sbc.py        plot_sbc_rank_histogram(ax, ranks, *, n_draws, n_bins, n_trials, show_band)
+    ├── pdf.py        plot_density_pdf_overlay(ax, s, hist, p_model, *, s_t); plot_density_pdf_models(ax, s, {label: p(s)}, *, s_t_map)
+    ├── spectrum.py   plot_power_spectrum(ax, k, P_k, *, beta)
+    ├── counts.py     plot_counts_distribution(ax, n, P_mock, P_pred, *, n_bar)
+    ├── tail.py       plot_tail_exceedances(ax, edges, counts, *, alpha_hat, s_t, s_thr, s_max)
+    ├── forecast.py   plot_sigma_alpha_ladder(ax, n_tail, sigma_emp, sigma_fisher, *, slope)
+    └── hmc.py        plot_hmc_trace(ax, samples, *, param_name); plot_hmc_rank(ax, samples, *, n_bins)
+```
+- Packaging: exclude `jaxstroviz.experimental` from the wheel (mirror progenax). `scipy` added to a
+  jaxstroviz `[experimental]` extra (χ²); matplotlib already core.
+- Tests: `jaxstroviz/tests/experimental/` — Agg backend, assert on axes state (lines/patches/labels),
+  `plt.close`. TDD per plotter.
+
+### B. The 14-figure gallery + the validation standard
+**Standard (every figure):** (a) overlay realized/oracle **vs** analytic prediction; (b) a
+residual / fractional-error panel; (c) annotate the AC pass/fail + key metric (e.g. "AC11 max
+rel 0.08 % < 0.5 % ✓"). The figure visually demonstrates the AC passing.
+
+Forward model: (1) density PDF AC1/AC6; (2) GRF P(k)~k^−β; (3) ξ_s(r) + Hermite convergence AC11;
+(4) Limber w(r⊥) AC12; (5) CIC P(N) **and** Var(N)=N̄+N̄²ξ̄ AC13; (6) grad AD-vs-FD AC14;
+(7) Fisher σ(M,α,β)+correlation AC15. Inference: (8) POT tail truncated-exp + s_t/s_thr/s_max
+AC16/17; (9) (M,α,β) corner AC16; (10) HMC traces+R̂/ESS AC19; (11) SBC rank histograms AC18;
+(12) σ(α)–N_tail ladder AC17; (13) summary dashboard (PASS/FAIL tile per component).
+Plus (14a) **BM19 PDF-model comparison** (pure-LN vs LN+PL across (M,α,b), s_t marked — experimental)
+and (14b) **spatial-profile comparison** (Plummer/King/EFF/Michie ρ(r) — RELEASED core, reuse
+released `plots/profiles.py`).
+
+Reuse released jaxstroviz where it fits: `plot_two_point_correlation` (3), `plot_profile_validation`
+(4), `plot_parameter_recovery`/`plot_posterior_2d` (9), `plot_fisher_correlation`/
+`plot_marginalized_uncertainties` (7), `plots/profiles` (14b).
+
+### C. Revised figure tasks (replace old Tasks 4–5; each RED→GREEN + code-review, jaxstroviz branch)
+- **F1** — jaxstroviz `experimental/` scaffold (package, packaging-exclude, `[experimental]`+scipy,
+  `tests/experimental/`) **+ SBC pair** (`analysis/sbc.compute_sbc_rank_histogram` per the
+  Talts-grounded rank stat {eq}`talts-rank`; `plots/sbc.plot_sbc_rank_histogram` with the
+  Binomial(N,1/B) 0.5–99.5 % band). RED tests: rank uniform for calibrated mock → χ² p>0.01;
+  plot draws ≥B bars + the band.
+- **F2** — forward-model plotters: `plots/pdf` (overlay + **model comparison**), `plots/spectrum`
+  (+ `analysis/spectrum`), `plots/counts`, `plots/tail`. Per-plotter RED test asserts the overlay
+  line + residual axis + the marked walls/transition exist.
+- **F3** — inference plotters: `plots/forecast` (σ–N_tail log-log + √N slope), `plots/hmc`
+  (trace + rank), `analysis/residual`. RED tests assert axes content.
+- **F4** — released spatial-profile comparison: `plot_density_profile_comparison` (released
+  `plots/profiles.py`) overlaying Plummer/King/EFF/Michie ρ(r); RED test in jaxstroviz released tests.
+
+Then **Task 6** (SBC driver, now the SBC analysis/plot exist) → **7–8** (AC18/AC19) →
+**Task 9** (gravoturb_fdf `validation/figures.py` orchestrator: compute arrays from AC dicts +
+theory/field/measure, call the jaxstroviz plotters, save to `validation/plots/fdf/`,
+import-guarded; render all 14; docs sweep; AC counts; completion doc).
+
 ## Completion (the project's Definition of Complete)
 
 1. **Tests:** `test_priors.py`, `test_diagnostics.py`, `test_sbc.py`, appended `test_inference.py`/`test_acceptance.py` — all green (experimental); released-core 815 untouched.
