@@ -15,7 +15,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
-from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance
+from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance, count_distribution
 from gravoturb_fdf.theory.projection import box_window_sq_grid
 
 
@@ -58,3 +58,35 @@ def gaussian_loglike(
     noiseless data; differentiable in theta. ``cfg`` are the :func:`data_vector` keyword args."""
     resid = data_vector(theta, **cfg) - data
     return -0.5 * resid @ (precision @ resid)
+
+
+def count_loglike(
+    count_hist: Float[Array, " nmax"],
+    theta: Float[Array, " 4"],
+    shape: tuple[int, int, int],
+    cell_size: int,
+    n_bar: Float[Array, ""],
+    n_max: int = 14,
+    n_quad: int = 256,
+    n_s: int = 1024,
+    s_max: float = 40.0,
+    floor: float = 1e-300,
+) -> Float[Array, ""]:
+    r"""1-pt compound-Poisson count log-likelihood ``sum_N hist[N] log P(N|theta)`` (Milestone 2).
+
+    Treats the cells as i.i.d. draws from the count distribution ``P(N|theta)``
+    (:func:`count_distribution`, cubic-cell box window); the spatial correlation is the separate
+    2-pt block. ``count_hist[N]`` = number of observed cells with count N (N = 0..len-1). This is
+    the STAR-LEVEL, shot-noise-included observable whose high-N tail pins alpha (the density-PDF
+    tail slope). Differentiable in ``theta = (mach, b, alpha, beta)``; the ``log`` is floored to
+    stay finite where P(N) underflows in the deep tail."""
+    mach, b, alpha, beta = theta
+    n = count_hist.shape[0]
+    pN = count_distribution(
+        jnp.arange(n), n_bar, shape, beta, float(cell_size), mach, b, alpha,
+        n_max=n_max, n_quad=n_quad, w2=box_window_sq_grid(shape, cell_size),
+        n_s=n_s, s_max=s_max,
+    )
+    pN = pN / jnp.sum(pN)  # normalize over the support [0, nmax] -> conditional P(N|N<=nmax);
+    # removes a theta-dependent truncation bias on alpha (the tail param) for finite nmax.
+    return jnp.sum(count_hist * jnp.log(jnp.clip(pN, floor, None)))

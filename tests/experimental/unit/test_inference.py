@@ -181,3 +181,51 @@ def test_fisher_errors_shrink_as_sqrt_volume():
     s1 = marginal_errors(fisher_matrix(_THETA, prec, free=(0, 2, 3), **_CFG))
     s4 = marginal_errors(fisher_matrix(_THETA, 4.0 * prec, free=(0, 2, 3), **_CFG))
     assert jnp.allclose(s4, s1 / 2.0, rtol=1e-5)
+
+
+# --- Task 6.1: compound-Poisson count (1-pt) log-likelihood --------------------
+
+_CCFG = dict(shape=(24, 24, 24), cell_size=4, n_bar=30.0, n_max=12)
+
+
+def test_count_loglike_max_at_truth_and_differentiable():
+    """1-pt count log-likelihood sum_N hist[N] log P(N|theta). On the noiseless expected
+    histogram hist = n_cells * P(N|theta_true) it is maximal at theta_true (Gibbs' inequality:
+    cross-entropy is minimised when the model PDF matches), and differentiable in theta."""
+    from gravoturb_fdf.inference.likelihood import count_loglike
+    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+
+    N = jnp.arange(0, 250)
+    w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
+    pN_true = count_distribution(N, _CCFG["n_bar"], _CCFG["shape"], 3.0, float(_CCFG["cell_size"]),
+                                 5.0, 0.4, 2.5, n_max=_CCFG["n_max"], w2=w2)
+    n_cells = (_CCFG["shape"][0] // _CCFG["cell_size"]) ** 3
+    hist = np.asarray(pN_true) * n_cells  # noiseless expected histogram
+
+    ll0 = float(count_loglike(hist, _THETA, **_CCFG))
+    for j, dth in enumerate([0.5, 0.05, 0.3, 0.3]):
+        assert float(count_loglike(hist, _THETA.at[j].add(dth), **_CCFG)) < ll0 - 1e-6
+
+    g = np.asarray(jax.grad(lambda th: count_loglike(hist, th, **_CCFG))(_THETA))
+    assert np.all(np.isfinite(g))
+
+
+def test_count_loglike_constrains_alpha_strongly():
+    """The COUNT distribution's high-N tail pins alpha (the PDF-tail slope) -- the curvature of
+    the count log-likelihood in alpha is sharp, the M1-vs-M2 improvement that rescues alpha."""
+    from gravoturb_fdf.inference.likelihood import count_loglike
+    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+
+    N = jnp.arange(0, 250)
+    w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
+    pN_true = count_distribution(N, _CCFG["n_bar"], _CCFG["shape"], 3.0, 4.0, 5.0, 0.4, 2.5,
+                                 n_max=_CCFG["n_max"], w2=w2)
+    n_cells = (_CCFG["shape"][0] // _CCFG["cell_size"]) ** 3
+    hist = np.asarray(pN_true) * n_cells
+
+    # second derivative in alpha = Fisher curvature; must be clearly negative (a real constraint)
+    d2 = float(jax.grad(jax.grad(
+        lambda a: count_loglike(hist, _THETA.at[2].set(a), **_CCFG)))(2.5))
+    assert d2 < -1.0  # sharply peaked in alpha
