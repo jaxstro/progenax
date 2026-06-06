@@ -322,6 +322,78 @@ def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=12, beta=3.0, n_
     return {"passed": bool(ok), "max_rel": float(rel.max()), "median_rel": float(np.median(rel))}
 
 
+def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b=0.4,
+                       alpha=3.0, n_bar=40, seed=0, n_max=16,
+                       cox_tol=0.04, theory_tol=0.08, l1_tol=0.08):
+    """Counts-in-cells: the Cox / compound-Poisson predictions vs mock star counts.
+
+    Mock = smooth-copula log-density field (the AC11/AC12 oracle; rank/mass-copula
+    equivalence is AC11b) -> Cox star sampling (cloud_to_stars, f_sub=0, intensity ~ rho)
+    -> counts in CUBIC cells of side c (box window). Validates: (1) the CIC variance formula
+    sigma^2_N = N_bar + N_bar^2 xi_bar reproduces Var(N) using the field's OWN cell variance
+    (sampler+formula, tight); (2) the differentiable Route-A prediction xi_bar_rho(box c) vs
+    the measured clustering; (3) the compound-Poisson P(N) vs the mock count histogram.
+    The linear-rho moment is genuinely tail-sensitive (the old realization pipeline scattered
+    ~90%); Route A reaches a few % at n_real=24 (cosmic-variance-limited at small n_real)."""
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.field.pipeline import FDFField, cloud_to_stars
+    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb_fdf.theory.cic import (
+        cell_averaged_xi_rho, cic_variance, count_distribution)
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+
+    _header("AC13 — counts-in-cells sigma^2_N and P(N) vs mock star counts")
+    n = shape[0]
+    M = n // c
+    ncell = M**3
+    n_stars = int(n_bar * ncell)
+    Nbar = n_stars / ncell
+    w2 = box_window_sq_grid(shape, c)
+    s_t = jnp.asarray(transition_density(alpha, sigma_s_squared(mach, b)))
+    xi_pred = float(cell_averaged_xi_rho(shape, beta, float(c), mach, b, alpha,
+                                         n_max=n_max, w2=w2))
+
+    n_hist = int(Nbar * 10) + 50
+    hist = np.zeros(n_hist)
+    key = jax.random.PRNGKey(seed)
+    var_list, xibar_list = [], []
+    for i in range(n_real):
+        g = gaussian_random_field(shape, beta, jax.random.fold_in(key, i))
+        s = jnp.asarray(smooth_copula_field(g, mach, b, alpha))
+        field = FDFField(s=s, s_t=s_t, f_dense=jnp.asarray(0.0),
+                         f_dense_realized=jnp.asarray(0.0), low_resolution=False)
+        pos = np.asarray(cloud_to_stars(field, 0.0, n_stars, jax.random.fold_in(key, 1000 + i)))
+        ijk = np.floor(pos * M).astype(int) % M
+        flat = (ijk[:, 0] * M + ijk[:, 1]) * M + ijk[:, 2]
+        cnt = np.bincount(flat, minlength=ncell)
+        var_list.append(cnt.var())
+        hist += np.bincount(cnt, minlength=n_hist)[:n_hist]
+        rt = np.asarray(jnp.exp(s) / jnp.mean(jnp.exp(s))).reshape(
+            M, c, M, c, M, c).mean(axis=(1, 3, 5))
+        xibar_list.append(rt.var())
+
+    varN = float(np.mean(var_list))
+    xibar_orc = float(np.mean(xibar_list))
+    sig2_pred = float(cic_variance(Nbar, xi_pred))
+    Pmock = hist / hist.sum()
+    Nvals = jnp.arange(0, n_hist)
+    Ppred = np.asarray(count_distribution(Nvals, Nbar, shape, beta, float(c), mach, b, alpha,
+                                          n_max=n_max, w2=w2, n_s=2048, s_max=40.0))
+    l1 = float(np.sum(np.abs(Pmock - Ppred)))
+
+    print(f"  shape={shape} c={c} (M={M}, {ncell} cells) n_stars={n_stars} "
+          f"N_bar={Nbar:.1f} n_real={n_real}")
+    ok_cox = _row("Cox: Var(N) vs N_bar+N_bar^2 xi_orc", Nbar + Nbar**2 * xibar_orc, varN, cox_tol)
+    ok_thy = _row("Route-A xi_bar_rho(box) vs measured", xibar_orc, xi_pred, theory_tol)
+    ok_sig = _row("predicted sigma^2_N vs Var(N)", varN, sig2_pred, theory_tol)
+    ok_pn = _row("P(N) total-variation L1", 0.0, l1, l1_tol, "abs")
+    print(f"  (P(N) mean: mock={float(np.sum(np.arange(n_hist) * Pmock)):.2f} "
+          f"pred={float(np.sum(np.asarray(Nvals) * Ppred)):.2f}; sum Ppred={Ppred.sum():.3f})")
+    ok = ok_cox and ok_thy and ok_sig and ok_pn
+    return {"passed": bool(ok), "sigma2_rel": abs(varN - sig2_pred) / varN,
+            "xi_rel": abs(xi_pred - xibar_orc) / xibar_orc, "l1": l1}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -333,6 +405,7 @@ def main():
         "AC11": ac11_xi_s_vs_oracle(),
         "AC11b": ac11b_rank_copula_equivalence(),
         "AC12": ac12_limber_projection_vs_oracle(),
+        "AC13": ac13_cic_vs_oracle(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

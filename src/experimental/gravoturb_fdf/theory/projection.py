@@ -55,6 +55,31 @@ def gaussian_window(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
     return jnp.exp(-0.5 * x**2)
 
 
+def box_window_sq_grid(
+    shape: tuple[int, int, int], c: Float[Array, ""]
+) -> Float[Array, " nx ny nz"]:
+    r"""Squared FT ``|H(k)|^2`` of a separable CUBIC-cell box average of side ``c`` cells.
+
+    The correct counts-in-cells window: counting in cubic cells averages ``c`` adjacent grid
+    cells per axis (kernel ``h[m]=1/c``, m=0..c-1), whose discrete FT magnitude is the
+    Dirichlet kernel ``|H_1d(k)| = |sin(pi k c / n) / (c sin(pi k / n))|`` (``=1`` at k=0).
+    ``|H(k)|^2 = prod_axis |H_1d(k_axis)|^2``. Use this (not the spherical
+    :func:`top_hat_window`) when matching CIC predictions to square-cell binning. ``c`` may be
+    non-integer (continuum interpolation); integer ``c`` is the exact decimation filter.
+    """
+    out = jnp.ones(shape)
+    for axis, n in enumerate(shape):
+        k = jnp.fft.fftfreq(n) * n  # signed integer wavenumbers
+        num = jnp.sin(jnp.pi * k * c / n)
+        den = jnp.sin(jnp.pi * k / n)
+        ratio = jnp.where(den != 0, num / jnp.where(den != 0, den, 1.0), c)  # k=0 limit -> c
+        w1_sq = (ratio / c) ** 2
+        bshape = [1] * len(shape)
+        bshape[axis] = n
+        out = out * w1_sq.reshape(bshape)
+    return out
+
+
 def smoothed_variance_fraction(
     shape: tuple[int, int, int],
     beta: Float[Array, ""],

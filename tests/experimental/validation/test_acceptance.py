@@ -54,3 +54,12 @@ def test_ac12_limber_projection_vs_oracle():
     # 40³×12 for test speed; Limber-projected analytic 2-pt vs projected-realization 2-pt.
     res = acceptance.ac12_limber_projection_vs_oracle(shape=(40, 40, 40), n_real=12)
     assert res["passed"]
+
+
+def test_ac13_cic_vs_oracle():
+    # 48³×10 smoke for test speed; the Cox relation + P(N) are tight at any n_real, the
+    # Route-A linear moment is cosmic-variance-limited at small n_real -> theory_tol loosened
+    # (the script main() runs the full 48³×24 ensemble where Route A reaches ~2.5%).
+    res = acceptance.ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=10, c=4,
+                                        cox_tol=0.06, theory_tol=0.18, l1_tol=0.12)
+    assert res["passed"]

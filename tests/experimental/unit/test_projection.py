@@ -173,6 +173,22 @@ def test_limber_project_radial_matches_gaussian_closed_form():
     assert np.allclose(np.asarray(w), expected, rtol=1e-4)
 
 
+def test_box_window_sq_matches_kernel_fft():
+    """box_window_sq_grid(shape, c) is the EXACT discrete c-cell box-average filter |H(k)|^2,
+    separable across axes -- the correct window for counts-in-cells in CUBIC cells (vs the
+    spherical top-hat). Validate against the explicit FFT of a width-c normalized box kernel."""
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+
+    n, c = 16, 4
+    h = np.zeros(n)
+    h[:c] = 1.0 / c  # normalized moving-average kernel of width c
+    w1_sq = np.abs(np.fft.fft(h)) ** 2  # 1D |H(k)|^2, (n,)
+    expected = (w1_sq[:, None, None] * w1_sq[None, :, None] * w1_sq[None, None, :])
+    got = np.asarray(box_window_sq_grid((n, n, n), c))
+    assert float(got[0, 0, 0]) == pytest.approx(1.0, abs=1e-12)  # W^2(0)=1
+    assert np.allclose(got, expected, atol=1e-10)
+
+
 def test_limber_project_radial_differentiable():
     """w(r_perp) differentiable in a parameter of xi (finite nonzero grad)."""
     from gravoturb_fdf.theory.projection import limber_project_radial

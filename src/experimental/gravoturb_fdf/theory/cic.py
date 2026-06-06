@@ -46,22 +46,25 @@ def _windowed_series_variance(
     R: Float[Array, ""],
     coeffs: Float[Array, " n"],
     window,
+    w2=None,
 ) -> Float[Array, ""]:
     r"""Windowed (cell-averaged) variance of a Gaussianization series at scale ``R`` (cells).
 
     Builds the autocovariance grid ``xi(r) = sum_{n>=1}(coeffs_n^2/n!) rho_g(r;beta)^n`` (a
     valid PSD autocovariance: powers of a correlation are PSD) and returns
-    ``(1/N) sum_{k!=0} FFT[xi](k) W(kR)^2`` -- the variance of the mapped field smoothed at
-    R, with the k=0 mode excluded (cell-to-cell fluctuations about the mean). Differentiable
-    in ``beta`` (via rho_g) and in ``coeffs`` (via theta). Shared by the linear-rho clustering
-    term and the smoothed log-density variance (same machinery, different copula map).
+    ``(1/N) sum_{k!=0} FFT[xi](k) W^2(k)`` -- the variance of the mapped field smoothed by the
+    cell window, with the k=0 mode excluded (cell-to-cell fluctuations about the mean).
+    ``window`` is a radial callable evaluated at ``kmag*R`` (spherical default); pass ``w2`` (a
+    precomputed squared-window grid, e.g. :func:`box_window_sq_grid` for cubic CIC cells) to
+    override -- then ``R``/``window`` are unused. Differentiable in ``beta`` and ``coeffs``.
     """
     rho_g = gaussian_correlation_grid(shape, beta)
     xi = gaussianized_xi(rho_g, coeffs)
     power = jnp.fft.fftn(xi).real
     kmag = _kmag_grid(shape)
-    w2 = jnp.where(kmag > 0, window(kmag * R) ** 2, 0.0)
-    return jnp.sum(power * w2) / power.size
+    w2_full = window(kmag * R) ** 2 if w2 is None else w2
+    w2_masked = jnp.where(kmag > 0, w2_full, 0.0)
+    return jnp.sum(power * w2_masked) / power.size
 
 
 def linear_hermite_coefficients(
@@ -96,18 +99,20 @@ def cell_averaged_xi_rho(
     n_max: int = 16,
     n_quad: int = 256,
     window=top_hat_window,
+    w2=None,
 ) -> Float[Array, ""]:
     r"""CIC clustering term ``xi_bar_rho(R) = Var(rho_tilde smoothed at scale R)`` (Route A).
 
     Builds the linear-density autocovariance grid ``xi_rho(r) = sum_{n>=1}(d_n^2/n!)
     rho_g(r;beta)^n`` (a valid PSD autocovariance: powers of a correlation are PSD), then
-    returns its windowed variance ``(1/N) sum_{k!=0} P_rho(k) W(kR)^2`` with
+    returns its windowed variance ``(1/N) sum_{k!=0} P_rho(k) W^2(k)`` with
     ``P_rho = FFT[xi_rho]``. The k=0 mode is excluded (cell-to-cell fluctuations about the
-    mean). ``R`` in grid cells, shared with the 2-pt window and the CIC cell (Decision #1).
-    Differentiable in (mach, b, alpha) via ``d_n`` and in ``beta`` via ``rho_g``.
+    mean). ``R`` in grid cells, shared with the 2-pt window and the CIC cell (Decision #1);
+    pass ``w2`` (e.g. :func:`box_window_sq_grid`) for cubic CIC cells. Differentiable in
+    (mach, b, alpha) via ``d_n`` and in ``beta`` via ``rho_g``.
     """
     d = linear_hermite_coefficients(mach, b, alpha, n_max, n_quad)
-    return _windowed_series_variance(shape, beta, R, d, window)
+    return _windowed_series_variance(shape, beta, R, d, window, w2)
 
 
 def smoothed_log_variance(
@@ -120,6 +125,7 @@ def smoothed_log_variance(
     n_max: int = 16,
     n_quad: int = 256,
     window=top_hat_window,
+    w2=None,
 ) -> Float[Array, ""]:
     r"""Exact smoothed LOG-density variance ``sigma_s^2(R) = Var(s smoothed at R)`` (Route B).
 
@@ -127,10 +133,10 @@ def smoothed_log_variance(
     log-density 2-point ``xi_s(r) = sum_{n>=1}(c_n^2/n!) rho_g(r;beta)^n``,
     ``c_n = <s_of_g He_n>``. ``-> sigma_s_squared(mach,b)`` as ``R->0`` and decreases with R.
     This sets the effective Mach of the reduced-variance BM19 smoothed PDF (:func:`smoothed_pdf`).
-    Differentiable in (mach, b, alpha, beta).
+    Pass ``w2`` for cubic CIC cells. Differentiable in (mach, b, alpha, beta).
     """
     c = bm19_hermite_coefficients(mach, b, alpha, n_max, n_quad)
-    return _windowed_series_variance(shape, beta, R, c, window)
+    return _windowed_series_variance(shape, beta, R, c, window, w2)
 
 
 def effective_mach(
@@ -157,6 +163,7 @@ def smoothed_pdf(
     n_max: int = 16,
     n_quad: int = 256,
     window=top_hat_window,
+    w2=None,
 ) -> Float[Array, " m"]:
     r"""Route B smoothed-density volume PDF ``p_R(s)`` (reduced-variance BM19).
 
@@ -170,7 +177,9 @@ def smoothed_pdf(
     (documented; the moment xi_bar(R) for sigma^2_N uses the exact Route A series instead).
     Differentiable in (mach, b, alpha, beta).
     """
-    sigma_s_sq_R = smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max, n_quad, window)
+    sigma_s_sq_R = smoothed_log_variance(
+        shape, beta, R, mach, b, alpha, n_max, n_quad, window, w2
+    )
     mach_eff = effective_mach(sigma_s_sq_R, b)
     return bm19_volume_pdf(s, mach_eff, b, alpha)
 
@@ -203,6 +212,7 @@ def count_distribution(
     s_min: float = -15.0,
     s_max: float = 30.0,
     window=top_hat_window,
+    w2=None,
 ) -> Float[Array, " k"]:
     r"""Compound-Poisson counts-in-cells distribution ``P(N)`` (Route B).
 
@@ -218,7 +228,9 @@ def count_distribution(
     density-PDF shape -> constrains (mach, b, alpha) [+ beta via R]. ``n_counts`` are the
     (integer-valued) counts at which to evaluate P. Differentiable in (mach, b, alpha, beta).
     """
-    sigma_s_sq_R = smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max, n_quad, window)
+    sigma_s_sq_R = smoothed_log_variance(
+        shape, beta, R, mach, b, alpha, n_max, n_quad, window, w2
+    )
     mach_eff = effective_mach(sigma_s_sq_R, b)
     s = jnp.linspace(s_min, s_max, n_s)
     p = bm19_volume_pdf(s, mach_eff, b, alpha)
