@@ -7,6 +7,10 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Released-core merge gate: src/progenax only (the ~815-test invariant), installed
+  # from the committed lockfile with just the `dev` extra. Fast and dependency-light.
+  # The experimental gravoturb_fdf subsystem is a SEPARATE job below (it needs the
+  # `[experimental]` extra and runs heavier field-realization validation tests).
   tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -39,16 +43,53 @@ jobs:
         working-directory: progenax
         run: uv sync --locked --extra dev
 
-      # Pass/fail gate: no coverage instrumentation, so a coverage-tooling crash
-      # (the jaxlib/abseil narrow-scope class — see
-      # docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md) can never red a build
-      # whose tests actually pass.
-      - name: Run fast suite (pass/fail gate)
+      # Pass/fail gate: released-core only (tests/unit, integration, validation). No
+      # coverage instrumentation, so a coverage-tooling crash (the jaxlib/abseil
+      # narrow-scope class — see docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md)
+      # can never red a build whose tests actually pass.
+      - name: Run released-core suite (pass/fail gate)
         working-directory: progenax
-        run: uv run --no-sync pytest tests/ -m "not slow" -q
+        run: uv run --no-sync pytest tests/unit tests/integration tests/validation -m "not slow" -q
 
       # Coverage is a non-fatal report, decoupled from the gate above.
       - name: Coverage report (non-fatal)
         continue-on-error: true
         working-directory: progenax
-        run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term
+        run: uv run --no-sync pytest tests/unit tests/integration tests/validation -m "not slow" -q --cov=progenax --cov-report=term
+
+  # Experimental gravoturb_fdf subsystem (repo-only, NOT in the wheel). Needs the
+  # `[experimental]` extra (blackjax, optax). Runs the non-slow experimental suite,
+  # which includes the field-realization validation tests (minutes of compute).
+  experimental:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAX_ENABLE_X64: "1"
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      # The experimental subsystem imports blackjax (inference/hmc.py) and optax,
+      # declared in the `[experimental]` optional-dependency group.
+      - name: Sync from lockfile (dev + experimental extras)
+        working-directory: progenax
+        run: uv sync --locked --extra dev --extra experimental
+
+      # pythonpath = ["src", "src/experimental"] in pyproject makes `gravoturb_fdf`
+      # importable; -m "not slow" excludes the long HMC-recovery / forecast tests.
+      - name: Run experimental suite
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/experimental -m "not slow" -q
