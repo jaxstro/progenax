@@ -148,6 +148,9 @@ def compute_hmc_diagnostics(
         saturation = 0.0
         has_depth = False
 
+    # Note: a *provided* but degenerate `energy` (e.g. constant) makes az.bfmi -> nan, and
+    # `nan > 0.3` is False, so the run intentionally FAILS the gate (degenerate energy is a
+    # broken-sampler signal). An *absent* energy (has_bfmi False) skips the gate entirely.
     passed = bool(
         np.all(r_hat < r_hat_max)
         and np.all(ess_bulk > ess_min)
