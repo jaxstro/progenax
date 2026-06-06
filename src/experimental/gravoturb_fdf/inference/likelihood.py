@@ -112,3 +112,46 @@ def density_pdf_loglike(
     p = bm19_volume_pdf(s_centers, mach, b, alpha)
     p = p / jnp.trapezoid(p, s_centers)  # normalize over the observed support
     return jnp.sum(s_hist * jnp.log(jnp.clip(p, floor, None)))
+
+
+def tail_exceedance_loglike(
+    exc_counts: Float[Array, " nb"],
+    exc_edges: Float[Array, " nbp1"],
+    theta: Float[Array, " 4"],
+    s_thr: float,
+    s_max: float,
+    floor: float = 1e-300,
+) -> Float[Array, ""]:
+    r"""Peaks-over-threshold log-likelihood for the BM19 tail slope alpha (Phase 6 finish).
+
+    Above the transition s_t the BM19 density PDF is ``C e^{-alpha s}``; it is memoryless, so
+    the gas log-density exceedances ``x = s - s_thr in [0, L]`` (``L = s_max - s_thr``) above any
+    fixed threshold ``s_thr >= s_t`` are a TRUNCATED EXPONENTIAL of rate alpha:
+
+        p(x) = alpha e^{-alpha x} / (1 - e^{-alpha L}),    0 <= x <= L.
+
+    The per-bin model probability for the s-space edges ``exc_edges`` (bins ``[s_i, s_{i+1}]``,
+    ``x_i = s_i - s_thr``) is the truncated-exponential CDF difference, evaluated in log-space
+    with ``-expm1`` (never ``1 - exp``) so the normalizer ``1 - e^{-alpha L}`` and the per-bin
+    factor ``1 - e^{-alpha (x_{i+1}-x_i)}`` stay accurate (and grads finite) as ``alpha*L -> 0``::
+
+        log P_i = -alpha x_i + log(-expm1(-alpha dx_i)) - log(-expm1(-alpha L))
+        loglike = sum_i exc_counts[i] * log P_i.
+
+    Properties exploited by the inference (see the design doc): (1) EXACT, not asymptotic -- the
+    lognormal normalization cancels, so alpha is read off the tail independent of sigma_s^2(mach,b),
+    breaking the mach-alpha degeneracy; (2) SHIFT-IMMUNE -- ``s_thr`` and ``s_max`` are measured on
+    the same field as ``exc_counts``, so a global s-shift cancels in ``x`` (no mean-1 shift needed);
+    (3) GEOMETRY-FREE -- purely marginal counts, no ``rho_g(r;beta)`` grid, hence no cross-grid
+    forward bias. ``s_thr`` and ``s_max`` are data-derived constants; only ``theta[2]=alpha`` is
+    differentiated (``theta`` is passed whole for interface uniformity with the other blocks). The
+    top bin must close at ``s_max`` -- an open-to-infinity bin reintroduces the infinite-tail bias.
+    """
+    alpha = theta[2]
+    x = exc_edges - s_thr  # exceedance-space edges in [0, L]
+    L = s_max - s_thr
+    x_lo = x[:-1]
+    dx = x[1:] - x[:-1]
+    log_p = (-alpha * x_lo) + jnp.log(-jnp.expm1(-alpha * dx)) - jnp.log(-jnp.expm1(-alpha * L))
+    log_p = jnp.clip(log_p, jnp.log(floor), None)  # guard empty/underflowing bins
+    return jnp.sum(exc_counts * log_p)

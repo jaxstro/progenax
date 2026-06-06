@@ -279,3 +279,81 @@ def test_bounded_transforms_roundtrip_and_jacobian():
     z = to_unconstrained(theta_c)
     assert np.allclose(np.asarray(to_constrained(z)), np.asarray(theta_c), atol=1e-10)
     assert np.isfinite(float(log_jacobian(z)))
+
+
+# --- Task 1 (Phase 6 finish): POT truncated-exponential tail-exceedance log-likelihood ---
+#
+# alpha (the BM19 density-PDF tail slope) is recovered from the gas-density exceedances above a
+# fixed threshold s_thr: above s_t the BM19 tail C e^{-alpha s} is memoryless, so the exceedances
+# x = s - s_thr in [0, L], L = s_max - s_thr, are TRUNCATED-EXPONENTIAL rate alpha. This decouples
+# alpha from sigma_s^2(mach,b) exactly (the lognormal norm cancels) and is the principled fix for
+# the finite-field tail truncation that biased the old full-PDF fit high (~2.8 vs truth 2.5).
+
+
+def _trunc_exp_binprob(edges, s_thr, s_max, alpha):
+    """Reference truncated-exponential per-bin probability (numpy), edges in s-space."""
+    x = np.asarray(edges) - s_thr
+    L = s_max - s_thr
+    cdf = (1.0 - np.exp(-alpha * x)) / (1.0 - np.exp(-alpha * L))
+    return np.diff(cdf)
+
+
+def test_tail_exceedance_loglike_max_at_truth():
+    """On the noiseless expected exceedance histogram at alpha_true, the POT truncated-exponential
+    likelihood is maximal at alpha_true (Gibbs' inequality), strictly above alpha_true +/- 0.3.
+    s_thr, s_max are data-derived constants; only theta[2]=alpha is fit."""
+    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+
+    s_thr, s_max, alpha_true, n_tail = 0.0, 3.0, 2.5, 2000.0
+    edges = jnp.linspace(s_thr, s_max, 21)
+    counts = jnp.asarray(_trunc_exp_binprob(edges, s_thr, s_max, alpha_true) * n_tail)
+    theta = lambda a: jnp.array([5.0, 0.4, a, 3.0])
+
+    ll0 = float(tail_exceedance_loglike(counts, edges, theta(alpha_true), s_thr, s_max))
+    for da in (+0.3, -0.3):
+        llp = float(tail_exceedance_loglike(counts, edges, theta(alpha_true + da), s_thr, s_max))
+        assert llp < ll0 - 1e-6
+
+
+def test_tail_exceedance_loglike_constrains_alpha_sharply():
+    """d2(ll)/dalpha2 << 0 at truth: the exceedance slope sharply pins alpha (= -N_tail*I(alpha))."""
+    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+
+    s_thr, s_max, alpha_true, n_tail = 0.0, 3.0, 2.5, 2000.0
+    edges = jnp.linspace(s_thr, s_max, 21)
+    counts = jnp.asarray(_trunc_exp_binprob(edges, s_thr, s_max, alpha_true) * n_tail)
+
+    d2 = float(jax.grad(jax.grad(lambda a: tail_exceedance_loglike(
+        counts, edges, jnp.array([5.0, 0.4, a, 3.0]), s_thr, s_max)))(alpha_true))
+    assert d2 < -10.0
+
+
+def test_tail_exceedance_loglike_grad_finite_incl_small_alphaL():
+    """grad in alpha is finite for alpha in [1.1, 6] AND in the alpha*L -> 0 limit (L = 1e-3) --
+    guards the stable -expm1 normalizer against 0/0."""
+    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+
+    s_thr = 0.0
+    for s_max in (3.0, 1e-3):
+        edges = jnp.linspace(s_thr, s_max, 11)
+        counts = jnp.ones(10) * 50.0  # every bin populated
+        for a in (1.1, 2.5, 6.0):
+            g = float(jax.grad(lambda av: tail_exceedance_loglike(
+                counts, edges, jnp.array([5.0, 0.4, av, 3.0]), s_thr, s_max))(a))
+            assert np.isfinite(g)
+
+
+def test_tail_exceedance_loglike_shift_invariance():
+    """Shift-immunity: adding a constant c to (s-edges, s_thr, s_max) together leaves ll unchanged
+    -- the POT alpha-block needs no mean-1 shift, only s_thr/s_max co-measured with the counts."""
+    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+
+    s_thr, s_max = 0.7, 3.4
+    edges = jnp.linspace(s_thr, s_max, 16)
+    counts = jnp.asarray(_trunc_exp_binprob(edges, s_thr, s_max, 2.5) * 1500.0)
+    theta = jnp.array([5.0, 0.4, 2.3, 3.0])
+    ll = float(tail_exceedance_loglike(counts, edges, theta, s_thr, s_max))
+
+    c = 10.0
+    ll_shift = float(tail_exceedance_loglike(counts, edges + c, theta, s_thr + c, s_max + c))
+    assert ll_shift == pytest.approx(ll, abs=1e-9)
