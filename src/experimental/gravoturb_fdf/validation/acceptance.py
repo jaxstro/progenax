@@ -550,6 +550,72 @@ def ac15_fisher_forecast(shape=(32, 32, 32), n_real=150, c=4, beta=3.0, mach=5.0
     return {"passed": bool(ok), "sigma": {n_: float(s_) for n_, s_ in zip(names, sig)}}
 
 
+def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(64, 64, 64), cell_sizes=(2, 4),
+                      beta=3.0, mach=5.0, b=0.4, alpha=2.5, n_stars=18000, seed=0,
+                      n_warmup=250, n_samples=400, n_max=10, n_s=400, cover_nsigma=3.0):
+    """AC16 -- multi-probe HMC recovery of (mach, alpha, beta) on injected-theta mocks.
+
+    Stellar counts-in-cells (the CLEAN inhomogeneous-Poisson sampler, multiple scales) ->
+    (mach, beta); the gas 1-pt density PDF (BM19, the faithful alpha observable -- stars don't
+    carry alpha) -> alpha. alpha is a density-PDF TAIL slope, so the gas map must resolve the
+    tail: a high-resolution ``density_shape`` field (~10^5-10^6 cells) supplies the s-histogram
+    (cheap, precomputed), while the stellar CIC FFTs stay on the smaller ``shape`` grid. b is
+    fixed (the mach-b degeneracy). NUTS samples unconstrained (mach,alpha,beta); the posterior
+    must cover theta_true within cover_nsigma. The realistic counterpart to AC15's upper bound."""
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.field.sampling import sample_cic_counts
+    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb_fdf.inference.likelihood import count_loglike, density_pdf_loglike
+    from gravoturb_fdf.inference.hmc import (
+        run_nuts, to_unconstrained, to_constrained, log_jacobian)
+
+    _header("AC16 -- multi-probe HMC recovery (stellar CIC -> M,beta; gas 1-pt PDF -> alpha)")
+    key = jax.random.PRNGKey(seed)
+    g = gaussian_random_field(shape, beta, jax.random.fold_in(key, 1))
+    s = jnp.asarray(smooth_copula_field(g, mach, b, alpha))
+
+    # high-resolution gas density map -> resolves the BM19 tail -> constrains alpha
+    g_hi = gaussian_random_field(density_shape, beta, jax.random.fold_in(key, 7))
+    s_hi = np.asarray(smooth_copula_field(g_hi, mach, b, alpha))
+    s_edges = np.linspace(-8.0, 25.0, 80)
+    s_centers = jnp.asarray(0.5 * (s_edges[:-1] + s_edges[1:]))
+    s_hist = jnp.asarray(np.histogram(s_hi.ravel(), s_edges)[0].astype(float))
+
+    hists, nbars = [], []
+    for c in cell_sizes:
+        nb = n_stars / (shape[0] // c) ** 3
+        cnt = np.asarray(sample_cic_counts(s, nb, c, jax.random.fold_in(key, 100 + c))).ravel()
+        nmaxN = int(nb * 8) + 30
+        hists.append(jnp.asarray(np.bincount(cnt, minlength=nmaxN)[:nmaxN].astype(float)))
+        nbars.append(nb)
+
+    def logdensity(z):
+        m_, a_, be_ = to_constrained(z)
+        th = jnp.array([m_, b, a_, be_])
+        ll = density_pdf_loglike(s_hist, s_centers, th)
+        for c, h, nb in zip(cell_sizes, hists, nbars):
+            ll = ll + count_loglike(h, th, shape, c, nb, n_max=n_max, n_s=n_s)
+        return ll + log_jacobian(z)
+
+    z0 = to_unconstrained(jnp.array([mach, alpha, beta]))
+    sz = run_nuts(logdensity, z0, jax.random.fold_in(key, 2), n_warmup, n_samples)
+    sc = np.asarray(jax.vmap(to_constrained)(sz))
+    means, stds = sc.mean(0), sc.std(0)
+    truth = np.array([mach, alpha, beta])
+    cover = np.abs(means - truth) < cover_nsigma * stds
+
+    print(f"  CIC shape={shape} cells={cell_sizes} n_stars={n_stars} | gas PDF map={density_shape}"
+          f" | n_warmup={n_warmup} n_samples={n_samples}  inject (M={mach}, a={alpha}, "
+          f"beta={beta}; b={b} fixed)")
+    for nm, tr, mu, sd, cv in zip(("mach", "alpha", "beta"), truth, means, stds, cover):
+        print(f"    {nm:<5} post={mu:+.3f} +/- {sd:.3f}  truth={tr:+.2f}  "
+              f"{abs(mu - tr) / sd:.2f}sigma  {'COVER' if cv else 'MISS'}")
+    ok = bool(np.all(cover) and np.all(np.isfinite(stds)) and np.all(stds > 0))
+    print(f"  recovery {'PASS' if ok else 'FAIL'} (posterior covers theta_true within "
+          f"{cover_nsigma} sigma)")
+    return {"passed": ok, "means": means.tolist(), "stds": stds.tolist()}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -564,6 +630,9 @@ def main():
         "AC13": ac13_cic_vs_oracle(),
         "AC14": ac14_grad_validation(),
         "AC15": ac15_fisher_forecast(),
+        # AC16 (multi-probe HMC recovery) is WIP: (mach,beta) recover cleanly but alpha-recovery
+        # is blocked (the density-PDF tail is under-sampled even at 64^3, max s=4.81 ~ s_t=3.22).
+        # Not wired into the asserted suite until the tail-modeling research lands. Call directly.
     }
     print("\n=== SUMMARY ===")
     all_ok = True
