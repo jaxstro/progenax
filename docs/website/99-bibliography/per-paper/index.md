@@ -50,16 +50,39 @@ The pages are organised alphabetically by first-author surname.
 
 - [](cartwright-2004.md)
 - [](goodwin-2004.md)
+- [](lomax-2018.md)
 - [](allison-2009.md)
 - [](baumgardt-2008.md)
 
 ## Gravoturbulence
 
+- [](federrath-2010.md)
 - [](federrath-klessen-2012.md)
+- [](kim-ryu-2005.md)
+- [](heyer-2009.md)
 - [](burkhart-2018.md)
 - [](burkhart-mocz-2019.md)
 - [](parmentier-pasquali-2020.md)
+- [](padoan-nordlund-2011.md)
 - [](kainulainen-2014.md)
+
+## Gaussianization & log-density inference
+
+The differentiable inference layer (gravoturb_fdf; see [](../../10-theory/gravoturbulence/differentiable-inference.md))
+predicts log-density statistics analytically and differentiates them. This lineage grounds that
+machinery: lognormal fields, the Hermite/Gaussianization of the two-point function, the
+information-optimality of the log transform, the counts-in-cells likelihood, and the
+simulation-based-inference alternative.
+
+- [](coles-jones-1991.md)
+- [](szapudi-pan-2004.md)
+- [](szapudi-2005.md)
+- [](neyrinck-2009.md)
+- [](neyrinck-2011.md)
+- [](carron-szapudi-2013.md)
+- [](carron-szapudi-2014.md)
+- [](carron-wolk-szapudi-2014.md)
+- [](bairagi-2026.md)
 
 ## Stellar evolution
 

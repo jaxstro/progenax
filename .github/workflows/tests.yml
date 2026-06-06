@@ -6,49 +6,115 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Global env for every job. JAX float64 + low-memory settings: the ~815-test released-core
+# suite was OOM-cancelled when run as ONE process on the 2-core / 7 GB ubuntu-latest runner.
+# PREALLOCATE=false and the platform allocator release device memory between allocations;
+# OMP_NUM_THREADS=1 caps BLAS threads on the 2-core runner.
+env:
+  JAX_ENABLE_X64: "1"
+  XLA_PYTHON_CLIENT_PREALLOCATE: "false"
+  XLA_PYTHON_CLIENT_ALLOCATOR: platform
+  OMP_NUM_THREADS: "1"
+
 jobs:
-  tests:
+  # Cheap, fast guard: fail in seconds if uv.lock drifts from pyproject.toml, instead of
+  # failing minutes into a `uv sync --locked`.
+  lock-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      JAX_ENABLE_X64: "1"
+    timeout-minutes: 10
     steps:
       - name: Checkout progenax
         uses: actions/checkout@v4
         with:
           path: progenax
-
-      # progenax depends on the sibling repo jaxstro (not on PyPI). Check it out
-      # as a sibling directory so the [tool.uv.sources] `../jaxstro` path in
-      # pyproject.toml / uv.lock resolves and `uv sync --locked` can install the
-      # exact pinned dependency tree.
       - name: Checkout jaxstro (path dependency, sibling layout)
         uses: actions/checkout@v4
         with:
           repository: jaxstro/jaxstro
           path: jaxstro
-
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+      - name: uv.lock matches pyproject.toml
+        working-directory: progenax
+        run: uv lock --check
 
-      # Reproducible install from the committed lockfile (fails if uv.lock is
-      # out of date with pyproject.toml). Includes the `dev` extra (pytest).
-      - name: Sync from lockfile
+  # Released-core invariant, SHARDED across the three test tiers. Each shard runs in a
+  # fresh process on its own runner -> bounded memory (no OOM), parallel (fast wall-clock),
+  # and isolates which tier fails. fail-fast: false so all shards report.
+  released-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [unit, integration, validation]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Sync from lockfile (dev extra)
         working-directory: progenax
         run: uv sync --locked --extra dev
-
-      # Pass/fail gate: no coverage instrumentation, so a coverage-tooling crash
-      # (the jaxlib/abseil narrow-scope class — see
-      # docs/notes/2026-06-03-coverage-jaxlib-narrow-scope.md) can never red a build
-      # whose tests actually pass.
-      - name: Run fast suite (pass/fail gate)
+      - name: Run tests/${{ matrix.suite }}
         working-directory: progenax
-        run: uv run --no-sync pytest tests/ -m "not slow" -q
+        run: uv run --no-sync pytest tests/${{ matrix.suite }} -m "not slow" -q
 
-      # Coverage is a non-fatal report, decoupled from the gate above.
-      - name: Coverage report (non-fatal)
-        continue-on-error: true
+  # Experimental gravoturb_fdf subsystem (repo-only, NOT in the wheel). Needs the
+  # [experimental] extra (blackjax, optax); runs the non-slow experimental suite.
+  experimental:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Sync from lockfile (dev + experimental extras)
         working-directory: progenax
-        run: uv run --no-sync pytest tests/ -m "not slow" -q --cov=progenax --cov-report=term
+        run: uv sync --locked --extra dev --extra experimental
+      - name: Run experimental suite
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/experimental -m "not slow" -q
+
+  # Aggregator gate: a single `tests` check that is green iff every required job above
+  # succeeded — preserves the `tests` branch-protection check name. `if: always()` so a
+  # failed/cancelled dependency reds it (a skipped dependent job would otherwise let
+  # failures slip through branch protection).
+  tests:
+    if: always()
+    needs: [lock-check, released-core, experimental]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All required jobs succeeded
+        run: |
+          echo "lock-check=${{ needs.lock-check.result }}  released-core=${{ needs.released-core.result }}  experimental=${{ needs.experimental.result }}"
+          if [ "${{ needs.lock-check.result }}" = "success" ] \
+             && [ "${{ needs.released-core.result }}" = "success" ] \
+             && [ "${{ needs.experimental.result }}" = "success" ]; then
+            echo "all required jobs green"
+          else
+            echo "::error::a required job did not succeed"
+            exit 1
+          fi

@@ -189,7 +189,7 @@ class BirthEnvironment(eqx.Module):
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
         >>> print(f"R_cloud = {float(env.cloud_radius()):.2f} pc")
         """
-        from progenax.cluster.fdf_config import cloud_radius_from_density
+        from progenax.cluster.turbulence import cloud_radius_from_density
 
         M_ecl = jnp.power(10.0, self.log_mecl)
 
@@ -259,7 +259,7 @@ class BirthEnvironment(eqx.Module):
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
         >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~8
         """
-        from progenax.cluster.fdf_config import turbulent_mach_from_cloud
+        from progenax.cluster.turbulence import turbulent_mach_from_cloud
 
         R_cloud = self.cloud_radius()
         return turbulent_mach_from_cloud(R_cloud, c_s, sigma_v0, alpha)
@@ -330,7 +330,7 @@ class BirthEnvironment(eqx.Module):
         >>> # Or override with explicit b
         >>> print(f"σ_ln_ρ (b=0.4) = {float(env.sigma_ln_rho(b=0.4)):.2f}")
         """
-        from progenax.cluster.fdf_config import (
+        from progenax.cluster.turbulence import (
             sigma_ln_rho_from_mach,
             b_from_environment,
         )
@@ -363,13 +363,16 @@ class BirthEnvironment(eqx.Module):
         sigma_v0: float = 1.0,
         alpha: float = 0.5,
     ) -> Float[Array, ""]:
-        """Power spectrum slope β from turbulence regime.
+        """DENSITY power-spectrum slope β from the turbulence regime (Kim & Ryu 2005).
 
-        Interpolates between:
-            - Subsonic (M << 1): Kolmogorov β = 11/3 ≈ 3.67
-            - Supersonic (M >> 1): Burgers β ≈ 4.0
+        The 3D density spectrum P_3D(k)∝k^{-β} FLATTENS with Mach number (β decreases),
+        because supersonic turbulence concentrates mass into sheets and filaments — the
+        opposite of the velocity (Kolmogorov→Burgers) cascade. Uses the Larson
+        velocity-size relation to derive the Mach number, then
+        ``cluster.turbulence.spectral_slope_from_mach``.
 
-        Uses Larson velocity-size relation to derive Mach number.
+        Note: β is a diagnostic of the gas field's spatial structure; it does NOT enter
+        the IMF slopes (those depend on ρ_cl and [Fe/H]; see Marks+2012 / Jerabkova+2018).
 
         Parameters
         ----------
@@ -383,23 +386,18 @@ class BirthEnvironment(eqx.Module):
         Returns
         -------
         beta : Float[Array, ""]
-            Power spectrum slope P(k) ∝ k^{-β}.
-
-        Notes
-        -----
-        For star-forming clouds with M >> 1, expect β ≈ 4.
+            Density power spectrum slope P_3D(k) ∝ k^{-β}, in [2, 11/3].
 
         References
         ----------
-        .. [1] Kolmogorov (1941) - Incompressible turbulence
-        .. [2] Burgers (1948) - Shock-dominated turbulence
+        .. [1] Kim & Ryu (2005) ApJ 630, L45 - density power spectrum vs Mach
 
         Examples
         --------
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
-        >>> print(f"β = {float(env.spectral_slope()):.2f}")  # ~4.0
+        >>> print(f"β = {float(env.spectral_slope()):.2f}")  # ~3.18 (mildly supersonic)
         """
-        from progenax.cluster.fdf_config import spectral_slope_from_mach
+        from progenax.cluster.turbulence import spectral_slope_from_mach
 
         mach = self.turbulent_mach(c_s, sigma_v0, alpha)
         return spectral_slope_from_mach(mach)

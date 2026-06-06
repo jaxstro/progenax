@@ -4,17 +4,37 @@
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete - 21,221 LOC source, 1213 tests (unit: 1046, integration: 35, validation: 132). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized: IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`), faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector (`resolve_binary_components`), and dynamic + energy-budget diagnostics. See Physics Validation Results below.
+**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
+gravoturbulent-FDF clean-room rewrite complete - 14,731 LOC released-core source, 1060 tests
+(released-core 815: unit 653, integration 34, validation 128; experimental 245). King & EFF velocity DFs are true
+equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
+IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
+faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
+(`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
+fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
+`gravoturb_fdf` package** (2,975 LOC, 245 experimental tests; `src/experimental/`, **not** in the
+released wheel), now including a **differentiable physics-direct inference layer** (analytic
+predicted statistics + blackjax NUTS; AC11–AC17) — the BM19 tail slope **α is recoverable** via a
+peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail forecast (AC17). See
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md` and Physics Validation Results below.
 
 ## Quick Commands
 
+Use **uv** (the project `.venv`); do not use conda. `env -u VIRTUAL_ENV` avoids an
+outer-venv clash and `--no-sync` runs against the installed env without re-locking.
+
 ```bash
-conda activate astro
-pip install -e ".[dev]"
-pytest tests/ -v                    # All 1213 tests (~55s; ~5min with coverage)
-pytest tests/unit/ -v               # 1046 unit tests
-pytest tests/integration/ -v        # 35 integration tests
-pytest tests/validation/ -v         # 132 physics validation tests
+# Install (released core + experimental extras: blackjax, optax for the inference layer)
+env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
+
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q                  # All 1060 tests (~55s)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 653 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 128 physics validation tests
+
+# Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 245 tests
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb_fdf.validation.acceptance   # AC1-AC17
 ```
 
 ## Units Policy (progenax)
@@ -87,7 +107,7 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 | `imf/` | Initial mass functions + binary stats | `PowerLawIMF`, `ChabrierIMF`, `IGIMF`, `BinaryIMF`, `MoeJointOrbit` |
 | `binaries/` | Orbital mechanics + connector + diagnostics | `KeplerElements`, `resolve_binary_components()`, `IndependentCompanions`, `MoeCompanions`, `binary_energy_budget()` |
 | `analytical/` | Test cases with exact solutions | `two_body_kepler()`, `three_body_figure_eight()` |
-| `substructure/` | Fractal + substructure | `generate_fractal_positions()` |
+| `diagnostics/` | Substructure + mass-segregation diagnostics | `compute_q_parameter()` (CW04 Q, A=πR²), `q_approx` (differentiable kNN), `energy_sorted_segregation()` |
 | `protocols.py` | Runtime-checkable protocols | `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `CompanionModel` |
 | `builders.py` | IC assembly + binary-cluster composition | `build_spatial_ic()`, `build_binary_cluster()`, `Systems`/`Stars`/`TotalMass`, `ICResult` |
 | `populations.py` | Multi-component clusters | `TwoComponentConfig`, `generate_two_component_cluster()` |
@@ -164,29 +184,33 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/
-├── unit/                1046 tests
+tests/                   815 released-core tests
+├── unit/                653 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
 │   ├── analytical/      Analytical test case tests
 │   ├── binaries/        Kepler + period/ecc/companion + assembly + diagnostics + energy-budget
-│   ├── cluster/         Fractal / FDF / tail-sampling tests
-│   ├── physics/         PN11 / BM19 / PP20 gravoturbulence tests
+│   ├── cluster/         Smooth-profile + mass-segregation cluster IC tests
 │   ├── dynamics/        Virial / energy utilities
-│   └── substructure/    Fractal substructure tests
-├── integration/         35 tests
+│   └── substructure/    CW04 Q diagnostic (compute_q_parameter, q_approx, baselines)
+├── integration/         34 tests
 │   ├── test_jax_compatibility.py     JIT/grad/vmap tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          132 tests
+└── validation/          128 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_eff_physics.py          EFF Eddington-inversion DF
     ├── test_binary_physics.py       Kepler's laws
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
+
+tests/experimental/      245 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
+├── unit/                231 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
+│                                    + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC)
+└── validation/          14 tests   (AC1-AC17 acceptance assertions)
 ```
 
 ## Physics Validation Results
@@ -218,7 +242,9 @@ All public symbols exported from `progenax.__init__`:
 
 **Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`
 
-**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `generate_fractal_positions()`, `TwoComponentConfig`, `generate_two_component_cluster()`, `energy_sorted_segregation()`
+**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `TwoComponentConfig`, `generate_two_component_cluster()`, `energy_sorted_segregation()`
+
+(The fractal-substructure generator `generate_fractal_positions()` was removed in the 2026-06 clean-room rewrite; turbulent/fractal ICs now live in the experimental `gravoturb_fdf` package. The CW04 `Q` substructure *diagnostic* survives in `progenax.diagnostics`.)
 
 **Protocols**: `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `PeriodDistribution`, `EccentricityDistribution`, `BinaryFractionModel`, `CompanionModel`
 

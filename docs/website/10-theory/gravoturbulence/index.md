@@ -5,6 +5,15 @@ description: progenax's gravoturbulence section — the chain from molecular-clo
 
 # Gravoturbulence
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 This section covers the framework that links **cloud-scale density
 structure** to the **integrated star formation rate**. The chain is:
 
@@ -42,13 +51,17 @@ structure** to the **integrated star formation rate**. The chain is:
   - `zeta_fdf_direct` — measure ζ directly from a 3D density field with no power-law assumption.
 * - [](bm19.md)
   - The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ in a forward model for dense-gas SFR.
+* - [](differentiable-inference.md)
+  - **The inference capstone** — running the chain *backwards*: natal cloud parameters $(\mathcal{M}, b, \alpha, \beta)$ from observed cluster substructure, via differentiable predicted statistics (Gaussianization 2-point + counts-in-cells + a peaks-over-threshold tail block) and HMC. Makes the BM19 tail slope $\alpha$ inferable.
 ```
 
 ## Reading order
 
 For a student first encountering the framework: read in TOC order
-(density PDF → FDF → PDF+FDF → PP20 → BM19). Each chapter assumes
-only the conventions established in the previous one.
+(density PDF → FDF → PDF+FDF → PP20 → BM19), then
+[](differentiable-inference.md) as the capstone that inverts the
+forward chain. Each chapter assumes only the conventions established
+in the previous one.
 
 For a researcher already familiar with the literature: jump
 directly to [](pp20.md) for the PP20 derivation and the Historical
@@ -56,8 +69,10 @@ Note on the 2026-04-28 transcription bug fix, or to [](bm19.md) for
 the full forward chain that consumes ζ.
 
 For implementation work: each chapter ends with a code snippet showing
-the corresponding progenax API. The full module reference is at
-[](../../30-api/gravoturb.md).
+the corresponding `gravoturb_fdf` API. The module reference is the package
+source under `src/experimental/gravoturb_fdf/` (see its `README.md` and
+`VALIDATION_SUMMARY.md`); this experimental subsystem has no generated
+website API page.
 
 ## Why progenax computes ζ multiple ways
 

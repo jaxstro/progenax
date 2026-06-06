@@ -6,7 +6,7 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) complete**: 21,221 LOC source code, 1213 tests passing (unit: 1046, integration: 35, validation: 132). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics.
+**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) + gravoturbulent-FDF clean-room rewrite complete**: 14,731 LOC released-core source code, 965 tests passing (released-core 815: unit 653, integration 34, validation 128). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics. The gravoturbulent + fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only `gravoturb_fdf` package** (1,400 LOC, 150 tests; `src/experimental/`, **not** in the released wheel).
 
 ## Features
 
@@ -109,7 +109,7 @@ from the internal binary binding-energy reservoir).
 | **Transforms** | `to_com_frame()`, `virial_scale()` |
 | **Stellar Radii** | `compute_stellar_radii()` (3-regime M-R relation) |
 | **Tidal Physics** | `jacobi_radius()`, `jacobi_radius_isothermal()`, `apply_tidal_truncation()` |
-| **Fractal** | `generate_fractal_positions()` |
+| **Substructure diagnostic** | `compute_q_parameter()` (CW04 Q), `q_approx` (differentiable kNN) |
 | **Two-Component** | `TwoComponentConfig`, `generate_two_component_cluster()` |
 | **Mass Segregation** | `energy_sorted_segregation()` |
 
@@ -291,15 +291,21 @@ progenax/
 │   │   ├── kepler.py        # KeplerElements, Kepler solver
 │   │   ├── orbital_state.py # BinaryOrbitalState
 │   │   └── population.py    # Period/eccentricity distributions
-│   ├── substructure/
-│   │   └── fractal.py       # Goodwin-Whitworth + overlays
+│   ├── diagnostics/
+│   │   ├── substructure.py  # CW04 Q parameter (compute_q_parameter, A=πR²)
+│   │   ├── q_approx.py      # differentiable kNN Q approximation
+│   │   └── mass_segregation.py
 │   └── analytical/
 │       └── core.py          # Solar system, Kepler orbits
 └── tests/
-    ├── unit/                # 1046 unit tests
-    ├── integration/         # 35 integration tests
-    └── validation/          # 132 physics validation tests
+    ├── unit/                # 653 unit tests
+    ├── integration/         # 34 integration tests
+    └── validation/          # 128 physics validation tests
 ```
+
+> **Note (2026-06):** the gravoturbulent + fractal-density-field subsystem (and the
+> `generate_fractal_positions` GW04 generator) was rebuilt clean-room as the experimental,
+> repo-only `gravoturb_fdf` package under `src/experimental/` — not shipped in the wheel.
 
 ## Key Patterns
 
@@ -360,13 +366,16 @@ Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
 ## Testing
 
 ```bash
-# All tests
-pytest tests/ -v                    # 1213 tests, ~55s
+# All released-core tests
+pytest tests/ -v                    # 815 tests, ~55s
 
 # By tier
-pytest tests/unit/ -v               # 1046 unit tests
-pytest tests/integration/ -v        # 35 integration tests
-pytest tests/validation/ -v         # 132 physics validation tests
+pytest tests/unit/ -v               # 653 unit tests
+pytest tests/integration/ -v        # 34 integration tests
+pytest tests/validation/ -v         # 128 physics validation tests
+
+# Experimental gravoturb_fdf subsystem (repo-only)
+PYTHONPATH=src:src/experimental pytest tests/experimental -v   # 150 tests
 
 # Specific modules
 pytest tests/unit/imf/ -v

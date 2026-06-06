@@ -272,8 +272,8 @@
 }
 
 @article{Burkhart2018,
-  author  = {Burkhart, B.},
-  title   = {The star formation rate in the gravoturbulent ISM},
+  author  = {Burkhart, Blakesley},
+  title   = {The Star Formation Rate in the Gravoturbulent Interstellar Medium},
   journal = {The Astrophysical Journal},
   volume  = {863},
   pages   = {118},
@@ -407,4 +407,160 @@
   title  = {{Equinox}: Neural networks in {JAX} via callable {PyTrees}},
   year   = {2021},
   doi    = {10.5281/zenodo.5648586}
+}
+
+@misc{blackjax,
+  author = {{BlackJAX Developers}},
+  title  = {{BlackJAX}: A sampling library for {JAX}},
+  year   = {2024},
+  url    = {https://github.com/blackjax-devs/blackjax}
+}
+
+@article{HoffmanGelman2014,
+  author  = {Hoffman, Matthew D. and Gelman, Andrew},
+  title   = {The {No-U-Turn} Sampler: Adaptively Setting Path Lengths in {Hamiltonian} {Monte} {Carlo}},
+  journal = {Journal of Machine Learning Research},
+  volume  = {15},
+  pages   = {1593--1623},
+  year    = {2014}
+}
+
+% =============================================================================
+% Gravoturbulence — density PDF & supersonic-turbulence theory
+% (PDF-grounded per-paper notes in 99-bibliography/per-paper/)
+% =============================================================================
+
+@article{Federrath2010,
+  author  = {Federrath, C. and Roman-Duval, J. and Klessen, R. S. and Schmidt, W. and Mac Low, M.-M.},
+  title   = {Comparing the statistics of interstellar turbulence in simulations and observations: Solenoidal versus compressive turbulence forcing},
+  journal = {Astronomy \& Astrophysics},
+  volume  = {512},
+  pages   = {A81},
+  year    = {2010},
+  doi     = {10.1051/0004-6361/200912437}
+}
+
+@article{KimRyu2005,
+  author  = {Kim, Jongsoo and Ryu, Dongsu},
+  title   = {Density Power Spectrum of Compressible Hydrodynamic Turbulent Flows},
+  journal = {The Astrophysical Journal Letters},
+  volume  = {630},
+  pages   = {L45--L48},
+  year    = {2005},
+  note    = {ADS: 2005ApJ...630L..45K (DOI not printed on the PDF)}
+}
+
+@article{PadoanNordlund2011,
+  author  = {Padoan, Paolo and Nordlund, {\AA}ke},
+  title   = {The Star Formation Rate of Supersonic Magnetohydrodynamic Turbulence},
+  journal = {The Astrophysical Journal},
+  volume  = {730},
+  pages   = {40},
+  year    = {2011},
+  doi     = {10.1088/0004-637X/730/1/40}
+}
+
+@article{Lomax2018,
+  author  = {Lomax, O. and Bates, M. L. and Whitworth, A. P.},
+  title   = {Modelling the structure of star clusters with fractional Brownian motion},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {480},
+  pages   = {371--380},
+  year    = {2018},
+  doi     = {10.1093/mnras/sty1788}
+}
+
+% =============================================================================
+% Gaussianization / log-density inference (gravoturb_fdf differentiable layer)
+% =============================================================================
+
+@article{ColesJones1991,
+  author  = {Coles, Peter and Jones, Bernard},
+  title   = {A lognormal model for the cosmological mass distribution},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {248},
+  pages   = {1--13},
+  year    = {1991},
+  doi     = {10.1093/mnras/248.1.1}
+}
+
+@article{SzapudiPan2004,
+  author  = {Szapudi, Istv{\'a}n and Pan, Jun},
+  title   = {On Recovering the Nonlinear Bias Function from Counts-in-Cells Measurements},
+  journal = {The Astrophysical Journal},
+  volume  = {602},
+  pages   = {26--37},
+  year    = {2004},
+  doi     = {10.1086/380920}
+}
+
+@article{Szapudi2005,
+  author  = {Szapudi, Istv{\'a}n and Pan, Jun and Prunet, Simon and Budav{\'a}ri, Tam{\'a}s},
+  title   = {Fast Edge-corrected Measurement of the Two-Point Correlation Function and the Power Spectrum},
+  journal = {The Astrophysical Journal Letters},
+  volume  = {631},
+  pages   = {L1--L4},
+  year    = {2005},
+  doi     = {10.1086/496971}
+}
+
+@article{Neyrinck2009,
+  author  = {Neyrinck, Mark C. and Szapudi, Istv{\'a}n and Szalay, Alexander S.},
+  title   = {Rejuvenating the Matter Power Spectrum: Restoring Information with a Logarithmic Density Mapping},
+  journal = {The Astrophysical Journal Letters},
+  volume  = {698},
+  pages   = {L90--L93},
+  year    = {2009},
+  doi     = {10.1088/0004-637X/698/2/L90}
+}
+
+@article{Neyrinck2011,
+  author  = {Neyrinck, Mark C. and Szapudi, Istv{\'a}n and Szalay, Alexander S.},
+  title   = {Rejuvenating Power Spectra. II. The Gaussianized Galaxy Density Field},
+  journal = {The Astrophysical Journal},
+  volume  = {731},
+  pages   = {116},
+  year    = {2011},
+  doi     = {10.1088/0004-637X/731/2/116}
+}
+
+@article{CarronSzapudi2013,
+  author  = {Carron, J. and Szapudi, I.},
+  title   = {Optimal non-linear transformations for large-scale structure statistics},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {434},
+  pages   = {2961--2970},
+  year    = {2013},
+  doi     = {10.1093/mnras/stt1215}
+}
+
+@article{CarronSzapudi2014,
+  author  = {Carron, J. and Szapudi, I.},
+  title   = {Sufficient observables for large-scale structure in galaxy surveys},
+  journal = {Monthly Notices of the Royal Astronomical Society Letters},
+  volume  = {439},
+  pages   = {L11--L15},
+  year    = {2014},
+  doi     = {10.1093/mnrasl/slt167}
+}
+
+@article{CarronWolkSzapudi2014,
+  author  = {Carron, J. and Wolk, M. and Szapudi, I.},
+  title   = {On fast generation of cosmological random fields},
+  journal = {Monthly Notices of the Royal Astronomical Society},
+  volume  = {444},
+  pages   = {994--1000},
+  year    = {2014},
+  doi     = {10.1093/mnras/stu1527}
+}
+
+@article{Bairagi2026,
+  author  = {Bairagi, Anirban and Wandelt, Benjamin D.},
+  title   = {{PatchNet}: A hierarchical approach for neural field-level inference from {Quijote} simulations},
+  journal = {Journal of Cosmology and Astroparticle Physics},
+  volume  = {2026},
+  number  = {03},
+  pages   = {028},
+  year    = {2026},
+  doi     = {10.1088/1475-7516/2026/03/028}
 }

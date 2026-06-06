@@ -4,24 +4,33 @@ description: The PP20 ζ(p) regression suite, BM19 unit coverage, and the histor
 ---
 # Gravoturbulent + PP20 validation
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent ζ/BM19 code now lives in the experimental **`gravoturb_fdf`** package
+(repo-only, **not** in the released wheel; the old `progenax.gravoturb` and
+`tests/unit/physics/` were removed in the 2026-06 rewrite). The anchors below are now
+backed by the committed **AC suite** (AC1–AC4) and `tests/experimental/`, not the deleted
+`tests/unit/physics/` files.
+```
+
 ```{seealso}
 The 2026-04-28 PP20 transcription bug history is at
 [](../90-development-log/2026-04-28-pp20-fix.md). The full theory is
 at [](../10-theory/gravoturbulence/pp20.md).
 ```
 
-Current test files:
+Current test + acceptance files:
 
-- `tests/unit/physics/test_pp20_zeta_canonical.py` — 35 tests anchoring
-  ζ(p) on PP20 Eq. 6 + analytic + Kainulainen+14 observational anchor.
-- `tests/unit/physics/test_parmentier.py` — additional PP20 unit tests.
-- `tests/unit/physics/test_bm19.py` and
-  `tests/unit/physics/test_bm19_pdf.py` — BM19 density-PDF/unit
-  coverage.
-
-There is no `tests/validation/test_bm19_forward.py` file in this
-checkout; BM19 forward-chain validation should be treated as unit/offline
-coverage until a dedicated validation suite is added.
+- `gravoturb_fdf/validation/acceptance.py` — **AC3/AC4** anchor ζ(p) on
+  PP20 Eq. 6 + analytic + the direct-field estimator; **AC1/AC2** anchor the
+  BM19 scalars + mass conservation. These *print* their numbers (see
+  `gravoturb_fdf/VALIDATION_SUMMARY.md`).
+- `tests/experimental/unit/test_pp20.py` — PP20 ζ(p) unit tests (anchors,
+  no-spurious-pole regression, divergence at $p=2$).
+- `tests/experimental/unit/test_bm19.py`, `tests/experimental/unit/test_pdf.py`
+  — BM19 scalar + density-PDF/iCDF coverage.
+- `tests/experimental/validation/test_acceptance.py` — asserts the AC
+  PASS verdicts so "validated" is backed by fresh output.
 
 ## What is verified (PP20 ζ(p))
 
@@ -66,8 +75,8 @@ coverage until a dedicated validation suite is added.
   - Regression trap
 ```
 
-35 tests total in `test_pp20_zeta_canonical.py`. This page records the
-intended regression anchors; run the commands below for fresh status.
+These regression anchors are exercised by `tests/experimental/unit/test_pp20.py`
+and printed by AC3/AC4; run the commands below for fresh status.
 
 ## What is verified (BM19 unit coverage)
 
@@ -89,9 +98,9 @@ intended regression anchors; run the commands below for fresh status.
 * - α↔p mapping
   - $p = 3/\alpha$ exactly
   - Definition
-* - End-to-end forward-chain validation
-  - Not a dedicated validation file yet
-  - Planned/offline
+* - End-to-end forward chain (1D → 3D realization)
+  - AC6 cornerstone: realized vs BM19 $f_{\mathrm{dense}}$, ensemble bias $<1\%$
+  - `gravoturb_fdf` AC6 (128³); see its `VALIDATION_SUMMARY.md`
 ```
 
 ## Spot ζ values (canonical anchors)
@@ -125,13 +134,16 @@ intended regression anchors; run the commands below for fresh status.
 ## How to run
 
 ```bash
-pytest tests/unit/physics/test_pp20_zeta_canonical.py -v
-pytest tests/unit/physics/test_parmentier.py -v
-pytest tests/unit/physics/test_bm19.py -v
-pytest tests/unit/physics/test_bm19_pdf.py -v
+# Unit tests (repo-only; needs src/experimental on the path)
+PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_pp20.py -v
+PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_bm19.py tests/experimental/unit/test_pdf.py -v
+
+# Acceptance suite — prints the ζ/BM19 anchor numbers (AC1–AC4)
+PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance
 ```
 
-$\sim 30$ seconds total on CPU.
+A few seconds for the unit tests; the full AC suite (incl. the 128³ AC6
+cornerstone) takes a couple of minutes.
 
 ## The 2026-04-28 fix
 

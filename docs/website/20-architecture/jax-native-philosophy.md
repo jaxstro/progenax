@@ -60,9 +60,10 @@ trace. The error message is usually a cryptic
 
 scipy presents the same problem with bigger consequences:
 `scipy.integrate.quad` cannot be JIT-traced because its iteration
-count depends on the value of the integrand. progenax's gravoturb
-quadratures use fixed-grid trapezoidal or Gauss-Legendre instead —
-both of which are pure-JAX operations.
+count depends on the value of the integrand. The gravoturbulence
+quadratures (now in the experimental `gravoturb_fdf` package) use
+fixed-grid trapezoidal or Gauss-Legendre instead — both of which are
+pure-JAX operations.
 
 The progenax convention: *zero* `import numpy as np` or
 `import scipy` in `progenax/`. The diagnostics module
@@ -165,13 +166,12 @@ non-JAX-native. It uses `numpy` and `scipy` (e.g. `scipy.spatial.distance.pdist`
    inside HMC chains.
 
 The boundary is enforced by the import structure: `progenax.profiles`,
-`progenax.kinematics`, `progenax.imf`, `progenax.binaries`,
-`progenax.gravoturb` may not import from `progenax.diagnostics`. The
-reverse is allowed.
+`progenax.kinematics`, `progenax.imf`, and `progenax.binaries` may not
+import from `progenax.diagnostics`. The reverse is allowed.
 
 For diagnostic functions that *do* need to be JAX-native — e.g. the
 JAX-native CW04 Q approximation in [](jax-native-substructure-q.md) —
-they live alongside the scipy reference in `progenax.diagnostics.q_jax`,
+they live alongside the scipy reference in `progenax.diagnostics.q_approx`,
 clearly labelled.
 
 ## The dividend

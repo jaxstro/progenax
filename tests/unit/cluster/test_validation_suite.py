@@ -4,7 +4,6 @@ Tests for progenax.cluster.validation module.
 
 Tests cover:
 - sweep_mass_segregation_lambda: runs without error, returns correct shapes
-- sweep_fractal_dimension: runs without error, returns correct shapes
 - measure_virial_ratio: returns Q_vir within tolerance of target
 - grad_mean_radius_wrt_lambda_seg: returns finite gradients
 - recover_lambda_seg_via_gradient_descent: converges toward true value
@@ -86,42 +85,6 @@ class TestSweepMassSegregation:
         assert results["lambda_msr_mean"][1] > results["lambda_msr_mean"][0]
 
 
-class TestSweepFractalDimension:
-    """Test sweep_fractal_dimension function."""
-
-    def test_sweep_runs_without_error(self, key):
-        """Test that sweep runs and returns results."""
-        from progenax.cluster.validation import sweep_fractal_dimension
-
-        D_values = [1.6, 2.0, 3.0]
-        results = sweep_fractal_dimension(
-            key, D_values,
-            N_stars=200,
-            n_realizations=3,
-        )
-
-        assert "D_values" in results
-        assert "Q_mean" in results
-        assert "Q_std" in results
-        assert "sigmaSigma_over_mean_mean" in results
-
-    def test_sweep_returns_correct_shapes(self, key):
-        """Test that sweep returns arrays of correct shape."""
-        from progenax.cluster.validation import sweep_fractal_dimension
-
-        D_values = [1.6, 2.0, 2.6, 3.0]
-        results = sweep_fractal_dimension(
-            key, D_values,
-            N_stars=200,
-            n_realizations=3,
-        )
-
-        n_D = len(D_values)
-        assert len(results["D_values"]) == n_D
-        assert len(results["Q_mean"]) == n_D
-        assert len(results["Q_std"]) == n_D
-
-
 # =============================================================================
 # Virial Ratio Tests
 # =============================================================================
@@ -145,33 +108,6 @@ class TestMeasureVirialRatio:
 
         # Should be within 20% for smooth profile
         assert 0.3 < Q_measured < 0.8, f"Q_measured = {Q_measured}, expected ~0.5"
-
-    def test_virial_ratio_fractal_profile(self, key):
-        """Test Q_vir for fractal profile.
-
-        Note: Fractal ICs have more complex virial balance due to substructure.
-        This test primarily verifies the function runs without error.
-        The measure_virial_ratio function computes the actual K/|U| which can
-        differ from the target virial_ratio due to fractal structure.
-        """
-        from progenax.cluster import FractalLayer, SpatialStructureParams
-        from progenax.cluster.validation import measure_virial_ratio
-
-        target_Q = 0.5  # Use equilibrium target
-        structure_params = SpatialStructureParams(
-            base_profile="plummer",
-            fractal=FractalLayer(D=2.0, lambda_frac=1.0, virial_ratio=target_Q),
-        )
-
-        Q_measured = measure_virial_ratio(
-            key, target_Q, structure_params,
-            N_stars=500,
-        )
-
-        # Just check function runs and returns a positive finite value
-        # Fractal ICs have complex virial behavior
-        assert np.isfinite(Q_measured), f"Q_measured not finite: {Q_measured}"
-        assert Q_measured > 0, f"Q_measured should be positive: {Q_measured}"
 
 
 # =============================================================================
@@ -270,15 +206,6 @@ class TestGenerateClusterForPlot:
         from progenax.cluster.validation import generate_cluster_for_plot
 
         cluster = generate_cluster_for_plot(key, lambda_seg=0.8, N_stars=100)
-
-        assert cluster.N == 100
-        assert cluster.positions.shape == (100, 3)
-
-    def test_fractal_cluster(self, key):
-        """Test generating fractal cluster."""
-        from progenax.cluster.validation import generate_cluster_for_plot
-
-        cluster = generate_cluster_for_plot(key, D=2.0, lambda_frac=1.0, N_stars=100)
 
         assert cluster.N == 100
         assert cluster.positions.shape == (100, 3)

@@ -34,7 +34,6 @@ class TestImports:
             ClusterState,
             SpatialStructureParams,
             MassSegregationLayer,
-            FractalLayer,
             generate_cluster_ic,
             sample_velocities_for_profile,
         )
@@ -43,23 +42,15 @@ class TestImports:
         assert ClusterState is not None
         assert SpatialStructureParams is not None
         assert MassSegregationLayer is not None
-        assert FractalLayer is not None
         assert generate_cluster_ic is not None
         assert sample_velocities_for_profile is not None
 
     def test_cluster_submodule_imports(self):
-        """Test submodule imports."""
+        """Test submodule imports (released core; the fractal_gw_legacy subsystem was
+        removed in P5 — its FBM replacement lives in experimental gravoturb_fdf)."""
         from progenax.cluster.mass_segregation import energy_sorted_segregation
-        from progenax.cluster.fractal_gw_legacy import (
-            generate_fractal_positions,
-            rescale_fractal_to_target_radii,
-            assign_velocities_and_virialize,
-        )
 
         assert energy_sorted_segregation is not None
-        assert generate_fractal_positions is not None
-        assert rescale_fractal_to_target_radii is not None
-        assert assign_velocities_and_virialize is not None
 
     def test_profiles_api_imports(self):
         """Test profiles functional API imports."""
@@ -163,29 +154,6 @@ class TestGenerateClusterIC:
         assert cluster.positions.shape == (100, 3)
         assert cluster.velocities.shape == (100, 3)
 
-    def test_guard_fractal_plus_segregation(self, key, imf):
-        """Test that ValueError is raised if both fractal and mass_seg are set."""
-        from progenax.cluster import (
-            generate_cluster_ic,
-            SpatialStructureParams,
-            MassSegregationLayer,
-            FractalLayer,
-        )
-
-        with pytest.raises(ValueError, match="not both"):
-            generate_cluster_ic(
-                key=key,
-                N_stars=100,
-                M_total=100.0,
-                R_half=1.0,
-                imf_params=imf,
-                structure_params=SpatialStructureParams(
-                    base_profile="plummer",
-                    mass_segregation=MassSegregationLayer(lambda_seg=0.5),
-                    fractal=FractalLayer(D=2.0),
-                ),
-            )
-
     def test_center_of_mass_removed(self, key, imf):
         """Test that center of mass is at origin."""
         from progenax.cluster import generate_cluster_ic, SpatialStructureParams
@@ -275,65 +243,6 @@ class TestMassSegregation:
         assert lambda_seg > lambda_unseg, (
             f"λ_seg=1.0 should give Λ_MSR > unsegregated: "
             f"Λ_seg={lambda_seg:.2f} vs Λ_unseg={lambda_unseg:.2f}"
-        )
-
-
-# =============================================================================
-# Fractal Tests
-# =============================================================================
-
-
-class TestFractal:
-    """Test fractal substructure functionality."""
-
-    @pytest.fixture
-    def imf(self):
-        from progenax.imf import PowerLawIMF
-        return PowerLawIMF.kroupa()
-
-    @pytest.fixture
-    def key(self):
-        return jax.random.PRNGKey(456)
-
-    def test_fractal_generation(self, key, imf):
-        """Test basic fractal IC generation."""
-        from progenax.cluster import (
-            generate_cluster_ic,
-            SpatialStructureParams,
-            FractalLayer,
-        )
-
-        cluster = generate_cluster_ic(
-            key=key,
-            N_stars=200,
-            M_total=200.0,
-            R_half=1.0,
-            imf_params=imf,
-            structure_params=SpatialStructureParams(
-                base_profile="plummer",
-                fractal=FractalLayer(D=2.0, lambda_frac=1.0),
-            ),
-        )
-
-        assert cluster.N == 200
-        assert cluster.positions.shape == (200, 3)
-
-    def test_q_parameter_increases_with_D(self, key):
-        """Test that Q parameter increases with fractal dimension D."""
-        from progenax.cluster.fractal_gw_legacy import generate_fractal_positions
-        from progenax.diagnostics import compute_q_parameter
-
-        # Low D = more clumpy = lower Q
-        key1, key2 = jax.random.split(key)
-        pos_low_D, _, _ = generate_fractal_positions(key1, 500, D=1.6)
-        pos_high_D, _, _ = generate_fractal_positions(key2, 500, D=2.8)
-
-        Q_low = compute_q_parameter(np.array(pos_low_D))
-        Q_high = compute_q_parameter(np.array(pos_high_D))
-
-        # Higher D → more uniform → higher Q
-        assert Q_high > Q_low, (
-            f"Higher D should give higher Q: Q(D=2.8)={Q_high:.3f} vs Q(D=1.6)={Q_low:.3f}"
         )
 
 

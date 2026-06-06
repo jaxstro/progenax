@@ -27,6 +27,41 @@ each embedded cluster's stellar IMF varies with its density and metallicity foll
 [](marks-2012.md). The resulting gwIMF is bottom-light + top-heavy at high SFR and bottom-heavy
 at high metallicity. Three IGIMF variants are defined (IGIMF1/2/3); IGIMF3 lets the full IMF vary.
 
+## The IGIMF framework — how the galaxy-wide IMF is assembled (§3, verified)
+
+The IGIMF idea: a galaxy does not form stars in one event but as a population of **embedded
+clusters**, and the galaxy-wide IMF (gwIMF) is the *sum* of all their stellar IMFs over a
+star-formation epoch $\delta t \approx 10$ Myr (the molecular-cloud free-fall/cycle time):
+
+$$
+\xi_{\rm gwIMF}(m) = \int_{M_{\rm ecl,min}}^{M_{\rm ecl,max}({\rm SFR})}
+\xi_{\star}\!\big(m \,\big|\, \rho_{\rm cl}(M_{\rm ecl}),\,{\rm [Fe/H]}\big)\;
+\xi_{\rm ecl}(M_{\rm ecl})\; dM_{\rm ecl}.
+$$
+
+Two ingredients:
+
+1. **The embedded-cluster mass function (ECMF)** — how many clusters of each mass form
+   (Eqs. 1–2): a power law $\xi_{\rm ecl}(M_{\rm ecl})\propto M_{\rm ecl}^{-\beta}$ with a
+   galaxy-SFR-dependent slope $\beta = -0.106\,\log_{10}{\rm SFR} + 2$ (Weidner+2004), and an
+   upper truncation $M_{\rm ecl,max}({\rm SFR})$ from $M_{\rm tot}={\rm SFR}\cdot\delta t$
+   (Eq. 3). Higher SFR → more, more-massive clusters → top-heavier gwIMF.
+2. **The embedded-cluster stellar IMF** — the multi-power-law (Eq. 4) whose slopes vary with
+   the cluster's own $(\rho_{\rm cl}, {\rm [Fe/H]})$ following [](marks-2012.md) (below).
+
+The IGIMF variants differ in *what* is allowed to vary: IGIMF1 (high-mass only), IGIMF2
+(adds a metallicity-dependent ECMF), IGIMF3 (full stellar-IMF variation). progenax
+implements the embedded-cluster stellar-IMF mapping (the integrand), not the galaxy
+integral.
+
+```{warning}
+**Two unrelated quantities are both called $\beta$.** Here $\beta=-0.106\log_{10}{\rm SFR}+2$
+is the **ECMF slope** (a cluster *mass*-function exponent, set by galaxy SFR). It is entirely
+distinct from the turbulent **density power-spectrum slope** $\beta$ of [](kim-ryu-2005.md) /
+`cluster.turbulence.spectral_slope_from_mach`. Neither $\beta$ enters the stellar-IMF slopes
+$\alpha_i$ — those depend only on $(\rho_{\rm cl},{\rm [Fe/H]})$.
+```
+
 ## The embedded-cluster α₃ and the density parameter x (verified, §3.2–3.3)
 
 The stellar IMF in an embedded cluster is the multi-power-law (Eq. 4) with high-mass slope

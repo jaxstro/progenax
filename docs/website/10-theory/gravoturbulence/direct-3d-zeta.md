@@ -5,6 +5,15 @@ description: Soft-mask formulation that computes ζ directly from a 3D density f
 
 # Direct 3D ζ measurement: `zeta_fdf_direct`
 
+```{admonition} Experimental — not in the released wheel
+:class: warning
+The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
+the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+`progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
+`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+```
+
 ```{seealso}
 This chapter introduces the **parameter-free** ζ computation that
 operates on an arbitrary 3D density field. For the *power-law*
@@ -97,9 +106,10 @@ def zeta_fdf_direct(rho_grid, tail_weights):
 
 `rho_grid` is the 3D density field (shape `(Nx, Ny, Nz)`) and
 `tail_weights` is the matching soft-mask field (same shape, values in
-$[0, 1]$). Both are typically generated upstream by
-`compute_tail_pmfs_bm19` which evaluates the BM19 forward model on
-the same grid as the density field.
+$[0, 1]$). In `gravoturb_fdf` the density field comes from
+`field.pipeline.build_fdf_field` and the soft mask from
+`field.tail.tail_weights`; the realized dense fraction is then
+`field.tail.f_tail_actual`.
 
 ```{note}
 **Volume element $\mathrm{d}V$ cancels.** The numerator and
@@ -117,7 +127,7 @@ PDF parameters that drive the analytic $\zeta(p)$ from [](pp20.md):
 ```python
 # Given sigma_s, alpha, the BM19 transition density s_t is closed-form
 sigma_s_sq = sigma_s_squared(mach=10.0, b=0.4)
-s_t = transition_density(sigma_s_sq, alpha=2.0)
+s_t = transition_density(alpha=2.0, sigma_s_sq=sigma_s_sq)  # args: alpha, σ_s²
 
 # Soft mask via sigmoid in log-density space
 s = jnp.log(rho_grid / jnp.mean(rho_grid))
@@ -128,9 +138,12 @@ tail_weights = jax.nn.sigmoid(kappa * (s - s_t))
 zeta_direct = zeta_fdf_direct(rho_grid, tail_weights)
 ```
 
-The full pipeline — turbulence parameters → BM19 transition density
-→ soft mask → 3D ζ — is implemented in
-`progenax.gravoturb.bm19_model.compute_tail_pmfs_bm19`. See [](bm19.md).
+The soft tail mask and its mass-weighted fraction live in
+`gravoturb_fdf.field.tail` (`tail_weights`, `f_tail_actual`); the full
+pipeline — turbulence parameters → BM19 transition density → soft mask →
+3D field → realized dense fraction — is
+`gravoturb_fdf.field.pipeline.build_fdf_field` (the AC6 cornerstone). The
+old `compute_tail_pmfs_bm19` orchestrator was not rebuilt. See [](bm19.md).
 
 ## What "uniform tail with weighted mean density" means
 

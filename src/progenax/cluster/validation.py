@@ -3,11 +3,10 @@
 Validation functions for cluster IC generation.
 
 Provides sweep functions for parameter studies and differentiability checks
-for mass segregation, fractal substructure, and virial ratio.
+for mass segregation and virial ratio.
 
 This module contains:
 - sweep_mass_segregation_lambda: Sweep λ_seg and compute Λ_MSR, radial profiles
-- sweep_fractal_dimension: Sweep D and compute Q, σΣ/⟨Σ⟩
 - measure_virial_ratio: Check virial ratio accuracy
 - mean_radius_of_massive_jax: JAX-only summary for gradients
 - grad_mean_radius_wrt_lambda_seg: Gradient sanity check
@@ -29,16 +28,11 @@ from jax import Array
 from progenax import defaults
 from progenax.cluster import (
     ClusterState,
-    FractalLayer,
     MassSegregationLayer,
     SpatialStructureParams,
     generate_cluster_ic,
 )
-from progenax.diagnostics import (
-    compute_azimuthal_variation,
-    compute_lambda_msr,
-    compute_q_parameter,
-)
+from progenax.diagnostics import compute_lambda_msr
 from progenax.imf import PowerLawIMF
 
 
@@ -157,97 +151,6 @@ def sweep_mass_segregation_lambda(
         "radial_hist_ref": radial_hist_ref,
         "radial_hist_seg": radial_hist_seg,
         "radial_bins": radial_bins,
-    }
-
-
-# =============================================================================
-# Fractal Dimension Sweep
-# =============================================================================
-
-
-def sweep_fractal_dimension(
-    key: jax.random.PRNGKey,
-    D_values: Sequence[float],
-    N_stars: int = 5000,
-    M_total: float = 1000.0,
-    R_half: float = 1.0,
-    n_realizations: int = 20,
-    Q_vir: float = 0.5,
-) -> Dict:
-    """
-    Sweep fractal dimension D and compute Q, σΣ/⟨Σ⟩.
-
-    For each D value, generates n_realizations clusters with λ_frac=1.0
-    and computes substructure diagnostics.
-
-    Args:
-        key: JAX random key
-        D_values: Sequence of fractal dimensions to sweep
-        N_stars: Number of stars per cluster
-        M_total: Total cluster mass [Msun]
-        R_half: Half-mass radius [pc]
-        n_realizations: Number of realizations per D
-        Q_vir: Target virial ratio
-
-    Returns:
-        Dictionary with:
-        - 'D_values': Array of D values
-        - 'Q_mean': Mean Cartwright-Whitworth Q per D
-        - 'Q_std': Std Q per D
-        - 'sigmaSigma_over_mean_mean': Mean σΣ/⟨Σ⟩ per D
-        - 'sigmaSigma_over_mean_std': Std σΣ/⟨Σ⟩ per D
-    """
-    imf = PowerLawIMF.kroupa()
-    D_values = np.array(D_values)
-
-    Q_all = []
-    sigma_all = []
-
-    for D in D_values:
-        Q_realizations = []
-        sigma_realizations = []
-
-        for i in range(n_realizations):
-            key, subkey = jax.random.split(key)
-
-            structure_params = SpatialStructureParams(
-                base_profile="plummer",
-                fractal=FractalLayer(D=float(D), lambda_frac=1.0, virial_ratio=Q_vir),
-            )
-
-            cluster = generate_cluster_ic(
-                key=subkey,
-                N_stars=N_stars,
-                M_total=M_total,
-                R_half=R_half,
-                imf_params=imf,
-                structure_params=structure_params,
-            )
-
-            # Convert to NumPy for diagnostics
-            positions_np = np.array(cluster.positions)
-
-            # Compute Q parameter
-            Q = compute_q_parameter(positions_np)
-            Q_realizations.append(Q)
-
-            # Compute σΣ/⟨Σ⟩
-            sigma = compute_azimuthal_variation(positions_np, n_bins=12)
-            sigma_realizations.append(sigma)
-
-        Q_all.append(Q_realizations)
-        sigma_all.append(sigma_realizations)
-
-    # Compute statistics
-    Q_all = np.array(Q_all)
-    sigma_all = np.array(sigma_all)
-
-    return {
-        "D_values": D_values,
-        "Q_mean": np.mean(Q_all, axis=1),
-        "Q_std": np.std(Q_all, axis=1),
-        "sigmaSigma_over_mean_mean": np.mean(sigma_all, axis=1),
-        "sigmaSigma_over_mean_std": np.std(sigma_all, axis=1),
     }
 
 
@@ -484,8 +387,6 @@ def recover_lambda_seg_via_gradient_descent(
 def generate_cluster_for_plot(
     key: jax.random.PRNGKey,
     lambda_seg: Optional[float] = None,
-    D: Optional[float] = None,
-    lambda_frac: float = 1.0,
     Q_vir: float = 0.5,
     N_stars: int = 5000,
     M_total: float = 1000.0,
@@ -497,8 +398,6 @@ def generate_cluster_for_plot(
     Args:
         key: JAX random key
         lambda_seg: Mass segregation parameter (None for no segregation)
-        D: Fractal dimension (None for smooth profile)
-        lambda_frac: Fractal blending parameter
         Q_vir: Target virial ratio
         N_stars: Number of stars
         M_total: Total mass [Msun]
@@ -509,12 +408,7 @@ def generate_cluster_for_plot(
     """
     imf = PowerLawIMF.kroupa()
 
-    if D is not None:
-        structure_params = SpatialStructureParams(
-            base_profile="plummer",
-            fractal=FractalLayer(D=D, lambda_frac=lambda_frac, virial_ratio=Q_vir),
-        )
-    elif lambda_seg is not None and lambda_seg > 0:
+    if lambda_seg is not None and lambda_seg > 0:
         structure_params = SpatialStructureParams(
             base_profile="plummer",
             mass_segregation=MassSegregationLayer(lambda_seg=lambda_seg),
@@ -534,7 +428,6 @@ def generate_cluster_for_plot(
 
 __all__ = [
     "sweep_mass_segregation_lambda",
-    "sweep_fractal_dimension",
     "measure_virial_ratio",
     "mean_radius_of_massive_jax",
     "grad_mean_radius_wrt_lambda_seg",

@@ -96,12 +96,6 @@ from .tidal import (
     apply_tidal_truncation,
     fill_factor_to_r_h,
 )
-# Legacy GW2004 fractal (deprecated - use FDF instead)
-from .cluster.fractal_gw_legacy import (
-    generate_fractal_positions,
-    rescale_fractal_to_target_radii,
-    assign_velocities_and_virialize,
-)
 from .cluster import energy_sorted_segregation
 from .populations import (
     TwoComponentConfig,
@@ -199,10 +193,6 @@ __all__ = [
     "jacobi_radius_isothermal",
     "apply_tidal_truncation",
     "fill_factor_to_r_h",
-    # Fractal substructure
-    "generate_fractal_positions",
-    "rescale_fractal_to_target_radii",
-    "assign_velocities_and_virialize",
     # Mass segregation
     "energy_sorted_segregation",
     # Two-component populations
