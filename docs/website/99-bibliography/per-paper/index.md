@@ -88,6 +88,18 @@ simulation-based-inference alternative.
 
 - [](hurley-2000.md)
 
+## Calibration & convergence diagnostics
+
+The `gravoturb_fdf` trustworthiness arc (workstream ①; see
+[](../../10-theory/gravoturbulence/differentiable-inference.md)) validates the
+differentiable-inference engine with simulation-based calibration (SBC) and HMC convergence
+diagnostics. These papers ground that machinery: the SBC rank statistic, the graphical
+uniformity test with simultaneous bands, and the data-conditional posterior-SBC extension.
+
+- [](talts-2018.md)
+- [](sailynoja-2022.md)
+- [](sailynoja-2026.md)
+
 ## How to add a new per-paper page
 
 1. Add the BibTeX entry to `references.bib`.
