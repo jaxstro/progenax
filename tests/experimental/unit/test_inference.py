@@ -388,3 +388,36 @@ def test_pot_validity_barrier_zero_inside_penalizes_outside():
     assert gd(alpha_knee) == pytest.approx(0.0, abs=1e-9)
     assert gd(alpha_knee - 1e-3) == 0.0
     assert abs(gd(alpha_knee + 1e-6)) < 1e-3
+
+
+# --- Task 3: truncation-corrected Fisher forecast for alpha (the sigma(alpha) vs N_tail law) ---
+
+
+def test_alpha_fisher_info_untruncated_limit():
+    """Per-exceedance Fisher info of the truncated exponential -> 1/alpha^2 as L -> inf (the EVT/
+    Hill asymptote sigma(alpha)=alpha/sqrt(N))."""
+    from gravoturb_fdf.inference.fisher import alpha_fisher_info
+
+    for a in (1.5, 2.5, 4.0):
+        assert float(alpha_fisher_info(a, 1e3)) == pytest.approx(1.0 / a**2, rel=1e-6)
+
+
+def test_sigma_alpha_truncation_corrected_value_and_asymptote():
+    """sigma(alpha)*sqrt(N) = 1/sqrt(I): at (alpha=2.5, L=3) the truncation correction gives ~2.54
+    (above the naive alpha/sqrt(N)=2.5); as L -> inf it relaxes to the alpha/sqrt(N) asymptote."""
+    from gravoturb_fdf.inference.fisher import sigma_alpha
+
+    assert float(sigma_alpha(2.5, 3.0, 1.0)) == pytest.approx(2.5399, abs=1e-3)
+    assert float(sigma_alpha(2.5, 1e3, 1.0)) == pytest.approx(2.5, rel=1e-5)
+    # 1/sqrt(N_tail) scaling
+    assert float(sigma_alpha(2.5, 3.0, 100.0)) == pytest.approx(
+        float(sigma_alpha(2.5, 3.0, 1.0)) / 10.0, rel=1e-6)
+
+
+def test_alpha_fisher_info_monotone_in_L():
+    """Information grows with the tail's dynamic range L (truncation only loses info)."""
+    from gravoturb_fdf.inference.fisher import alpha_fisher_info
+
+    Is = [float(alpha_fisher_info(2.5, L)) for L in (0.5, 1.0, 2.0, 3.0, 5.0)]
+    assert all(Is[i] < Is[i + 1] for i in range(len(Is) - 1))
+    assert Is[-1] < 1.0 / 2.5**2  # always below the untruncated ceiling
