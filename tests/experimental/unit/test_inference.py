@@ -248,6 +248,24 @@ def test_run_nuts_recovers_gaussian():
     assert np.allclose(np.asarray(samples.std(0)), 1.0, atol=0.2)
 
 
+def test_run_nuts_diagnostic_shapes_and_recovers_gaussian():
+    import blackjax  # noqa
+    from gravoturb_fdf.inference.hmc import run_nuts_diagnostic
+    # 2-D unit Gaussian target
+    logdensity = lambda x: -0.5 * jnp.sum(x ** 2)
+    out = run_nuts_diagnostic(
+        logdensity, jnp.zeros(2), jax.random.PRNGKey(0),
+        n_warmup=300, n_samples=400, n_chains=4)
+    assert out["positions"].shape == (4, 400, 2)        # (chains, samples, dim)
+    assert out["divergences"].shape == (4, 400)         # bool per step
+    assert out["tree_depth"].shape == (4, 400)
+    assert out["energy"].shape == (4, 400)
+    m = out["positions"].reshape(-1, 2).mean(0)
+    s = out["positions"].reshape(-1, 2).std(0)
+    assert jnp.all(jnp.abs(m) < 0.15) and jnp.all(jnp.abs(s - 1.0) < 0.15)
+    assert out["divergences"].mean() < 0.02             # healthy target -> few divergences
+
+
 def test_density_pdf_loglike_constrains_alpha():
     """1-pt density-PDF block: sum_bins hist[s] log p_BM19(s;M,b,alpha) -- the faithful,
     alpha-sensitive observable (a gas-density tracer; stars don't carry alpha). Maximal at
