@@ -87,6 +87,10 @@ class BM19Prior(eqx.Module):
     def logpdf(self, theta: Float[Array, " 3"]) -> Float[Array, ""]:
         r"""Log prior density at ``theta = (M, alpha, beta)``.
 
+        ``theta`` is the **3 free params** ``[M, alpha, beta]`` — NOT the 4-vector
+        ``[M, b, alpha, beta]`` the likelihood/barrier take (``b`` is fixed and lives
+        outside the prior). The SBC driver assembles both from ``to_constrained(z)``.
+
         Sum of per-parameter log-densities:
 
         - log-uniform on ``x``: ``-log(x) - log(log(hi) - log(lo))`` for ``x in [lo, hi]``;

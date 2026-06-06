@@ -36,6 +36,19 @@ def test_logpdf_grad_finite_inside():
     assert jnp.all(jnp.isfinite(g))
 
 
+def test_logpdf_grad_finite_outside_support():
+    # Locks the load-bearing double-where clamp: HMC can approach/exit the box, so the
+    # gradient must stay finite (not nan) even where logpdf == -inf. Without the clamp on
+    # the log arguments, all the other tests still pass while grad silently NaNs here.
+    pr = _prior()
+    for bad in (jnp.array([1e-6, 2.0, 3.0]),     # M far below range
+                jnp.array([5.0, 0.5, 3.0]),      # alpha below range
+                jnp.array([5.0, 4.5, 3.0]),      # alpha above range
+                jnp.array([5.0, 2.0, 1e-6])):    # beta far below range
+        g = jax.grad(lambda th: pr.logpdf(th))(bad)
+        assert jnp.all(jnp.isfinite(g))
+
+
 def test_sampled_M_loguniform_smoke():
     # log-uniform M => CDF values ~ Uniform(0,1) (sanity for the inverse-CDF sampler)
     pr = _prior()
