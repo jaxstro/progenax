@@ -40,3 +40,34 @@ def gaussian_correlation_grid(
     power = jnp.where(kmag > 0, kmag_safe ** (-beta), 0.0)
     xi = jnp.fft.ifftn(power).real
     return xi / xi[0, 0, 0]
+
+
+def top_hat_window(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
+    r"""Fourier transform of a real-space spherical top-hat (radius R, ``x = k R``):
+    ``W(x) = 3 (sin x - x cos x) / x^3``, ``W(0) = 1``. Grad-safe at x=0."""
+    x_safe = jnp.where(x > 0, x, 1.0)
+    w = 3.0 * (jnp.sin(x_safe) - x_safe * jnp.cos(x_safe)) / x_safe**3
+    return jnp.where(x > 0, w, 1.0)
+
+
+def gaussian_window(x: Float[Array, " ..."]) -> Float[Array, " ..."]:
+    r"""Gaussian smoothing window ``W(x) = exp(-x^2/2)``, ``x = k R``; ``W(0) = 1``."""
+    return jnp.exp(-0.5 * x**2)
+
+
+def smoothed_variance_fraction(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    window=top_hat_window,
+) -> Float[Array, ""]:
+    r"""Fraction of Gaussian variance retained after smoothing at scale ``R`` (cells):
+    ``sigma_g^2(R)/sigma_g^2(0) = sum_k P(k) W(kR)^2 / sum_k P(k)``, ``P(k)=k^{-beta}``
+    (DC=0). ->1 as R->0, decreasing in R. The single scale R shared by the 2-pt window
+    and the CIC cell. Differentiable in ``beta`` and ``R``.
+    """
+    kmag = _kmag_grid(shape)
+    kmag_safe = jnp.where(kmag > 0, kmag, 1.0)
+    power = jnp.where(kmag > 0, kmag_safe ** (-beta), 0.0)
+    w = window(kmag * R)
+    return jnp.sum(power * w**2) / jnp.sum(power)

@@ -88,3 +88,56 @@ def test_rho_g_grid_differentiable_in_beta():
 
     grad = float(jax.grad(rho_at)(3.0))
     assert np.isfinite(grad) and abs(grad) > 0.0
+
+
+# --- Task 2.2: smoothing at scale R (window, sigma_g^2(R)) ---------------------
+
+
+def test_window_functions_normalized_at_zero():
+    """W(0) = 1 for both top-hat and Gaussian windows (grad-safe at k=0)."""
+    from gravoturb_fdf.theory.projection import gaussian_window, top_hat_window
+
+    assert float(top_hat_window(jnp.array(0.0))) == pytest.approx(1.0, abs=1e-8)
+    assert float(gaussian_window(jnp.array(0.0))) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_smoothed_variance_fraction_limits_and_monotone():
+    """sigma_g^2(R)/sigma_g^2(0): ->1 as R->0, decreasing in R."""
+    from gravoturb_fdf.theory.projection import smoothed_variance_fraction
+
+    shape, beta = (32, 32, 32), 3.0
+    assert float(smoothed_variance_fraction(shape, beta, 1e-3)) == pytest.approx(1.0, abs=0.02)
+    fs = np.array([float(smoothed_variance_fraction(shape, beta, R))
+                   for R in (0.5, 1.0, 2.0, 4.0, 8.0)])
+    assert np.all(np.diff(fs) < 0.0)
+
+
+def test_smoothed_variance_matches_oracle():
+    """Analytic sigma_g^2(R)/sigma_g^2(0) == the ensemble-summed-periodogram ratio
+    sum_real sum_k |g_k|^2 W^2 / sum_real sum_k |g_k|^2 (an unbiased estimator of
+    sum P W^2 / sum P; avoids the ratio-of-sums bias from few low-k modes that a
+    per-realization var(g_R)/var(g) average suffers)."""
+    from gravoturb_fdf.theory.projection import (
+        _kmag_grid, smoothed_variance_fraction, top_hat_window)
+    from gravoturb_fdf.field.field import gaussian_random_field
+
+    shape, beta, R = (40, 40, 40), 3.0, 2.0
+    pred = float(smoothed_variance_fraction(shape, beta, R))
+    W2 = np.asarray(top_hat_window(jnp.asarray(np.asarray(_kmag_grid(shape)) * R))) ** 2
+    key = jax.random.PRNGKey(0)
+    x_tot = y_tot = 0.0
+    for i in range(16):
+        g = np.asarray(gaussian_random_field(shape, beta, jax.random.fold_in(key, i)))
+        pk = np.abs(np.fft.fftn(g)) ** 2
+        x_tot += float(np.sum(pk * W2))
+        y_tot += float(np.sum(pk))
+    assert abs(x_tot / y_tot - pred) / pred < 0.05
+
+
+def test_smoothed_variance_differentiable():
+    """sigma_g^2(R) differentiable in beta and R (d/dR < 0)."""
+    from gravoturb_fdf.theory.projection import smoothed_variance_fraction
+
+    gb = float(jax.grad(lambda beta: smoothed_variance_fraction((24, 24, 24), beta, 2.0))(3.0))
+    gR = float(jax.grad(lambda R: smoothed_variance_fraction((24, 24, 24), 3.0, R))(2.0))
+    assert np.isfinite(gb) and np.isfinite(gR) and gR < 0.0
