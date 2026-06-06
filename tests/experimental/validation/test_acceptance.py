@@ -42,3 +42,9 @@ def test_ac11_xi_s_vs_oracle():
     # main() runs the full 64³×8 ensemble at rel_tol=0.02.
     res = acceptance.ac11_xi_s_vs_oracle(shape=(48, 48, 48), n_real=4, rel_tol=0.03)
     assert res["passed"]
+
+
+def test_ac11b_rank_copula_equivalence():
+    # 48³×4 for test speed; physical rank/mass-conserving copula xi_s vs prediction.
+    res = acceptance.ac11b_rank_copula_equivalence(shape=(48, 48, 48), n_real=4, rel_tol=0.03)
+    assert res["passed"]

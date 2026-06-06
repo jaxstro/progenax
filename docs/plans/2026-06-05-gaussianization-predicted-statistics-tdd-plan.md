@@ -207,6 +207,13 @@ Characterize the `mass_conserving` offset (mass-averaged marginal ⇒ may differ
 don't force a tight tol). **Step 3:** thresholds set from a measured exploration run (physics-
 first, not arbitrary). **Commit.**
 
+> **TASK 2.0 DONE (2026-06-05, AC11b):** both `rank_copula` AND `mass_conserving` measured
+> `ξ_s` match the analytic prediction to **max ~0.4% / median ~0.2%** on ρ_g>0.05 bins, across
+> N=32/64/96. **Finding (corrected the a-priori):** the discrepancy is **noise-limited, not a
+> rank→Φ bias** — already sub-% at N=32 — so the planned "shrinks with N" criterion was dropped;
+> the honest criterion is "both copulas agree within a few %". Mass-averaging perturbs the
+> marginal (AC6 1-pt) but barely the log-density 2-pt. Map-mismatch closed.
+
 ### Task 2.1: Analytic Gaussian correlation `ρ_g(r;β)` (differentiable in β)
 **Files:** Create `theory/projection.py`; tests in `test_projection.py`.
 **Step 1 — failing tests:**

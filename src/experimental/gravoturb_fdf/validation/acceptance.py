@@ -243,6 +243,54 @@ def ac11_xi_s_vs_oracle(shape=(64, 64, 64), n_real=8, beta=3.0, mach=5.0, b=0.4,
             "median_rel": med_rel, "convergence": conv}
 
 
+# ── AC11b: physical rank/mass-conserving copula xi_s vs analytic prediction ──
+def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5.0,
+                                  b=0.4, alpha=2.0, n_max=16, n_bins=14, seed=0,
+                                  rho_floor=0.05, rel_tol=0.03):
+    """Map-mismatch check: the analytic xi_s prediction (point-map T=F^{-1} o Phi) also
+    describes the PHYSICAL simulator fields, which use the empirical-rank copulas
+    (rank_copula_field, mass_conserving_copula_field). Both should match the prediction
+    to ~<1% on rho_g>floor bins -- the empirical CDF -> Phi, and the mass-averaging
+    perturbs the marginal (1-pt) but barely the log-density 2-pt. (The discrepancy is
+    noise-limited, not a systematic rank-vs-Phi bias.)
+    """
+    from gravoturb_fdf.field.field import (
+        gaussian_random_field, mass_conserving_copula_field, rank_copula_field)
+    from gravoturb_fdf.validation.measure import (
+        field_2pt_measured, gaussian_correlation_measured)
+    from gravoturb_fdf.theory.gaussianization import (
+        bm19_hermite_coefficients, gaussianized_xi)
+
+    _header("AC11b — rank/mass-conserving copula xi_s vs analytic prediction (map-mismatch)")
+    key = jax.random.PRNGKey(seed)
+    rho_a, xr_a, xm_a = [], [], []
+    for i in range(n_real):
+        g = gaussian_random_field(shape, beta, jax.random.fold_in(key, i))
+        s_rank = np.asarray(rank_copula_field(g, mach, b, alpha)).reshape(shape)
+        s_mass = np.asarray(mass_conserving_copula_field(g, mach, b, alpha)).reshape(shape)
+        _, rho = gaussian_correlation_measured(np.asarray(g), n_bins=n_bins)
+        _, xr = field_2pt_measured(s_rank, n_bins=n_bins)
+        _, xm = field_2pt_measured(s_mass, n_bins=n_bins)
+        rho_a.append(rho)
+        xr_a.append(xr)
+        xm_a.append(xm)
+    rho_m = np.mean(rho_a, axis=0)
+    xr_m, xm_m = np.mean(xr_a, axis=0), np.mean(xm_a, axis=0)
+    c = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max))
+    xpred = np.asarray(gaussianized_xi(jnp.asarray(rho_m), jnp.asarray(c)))
+
+    mask = rho_m > rho_floor
+    rr = np.abs(xr_m[mask] - xpred[mask]) / np.abs(xpred[mask])
+    rm = np.abs(xm_m[mask] - xpred[mask]) / np.abs(xpred[mask])
+    print(f"  theta=(M={mach}, b={b}, alpha={alpha})  beta={beta}  shape={shape}  "
+          f"n_real={n_real}  (bins rho_g>{rho_floor}: {int(mask.sum())})")
+    ok1 = _row("rank_copula xi_s vs pred (max rel)", 0.0, float(rr.max()), rel_tol, "abs")
+    ok2 = _row("mass_conserving xi_s vs pred (max rel)", 0.0, float(rm.max()), rel_tol, "abs")
+    print(f"  medians: rank {np.median(rr) * 100:.3f}%  mass {np.median(rm) * 100:.3f}%")
+    return {"passed": bool(ok1 and ok2), "rank_max_rel": float(rr.max()),
+            "mass_max_rel": float(rm.max())}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -252,6 +300,7 @@ def main():
         "AC7": ac7_q_calibration(),
         "AC8/AC9": ac8_ac9_grads(),
         "AC11": ac11_xi_s_vs_oracle(),
+        "AC11b": ac11b_rank_copula_equivalence(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True
