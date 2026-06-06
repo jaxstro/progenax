@@ -102,13 +102,16 @@ def density_pdf_loglike(
 ) -> Float[Array, ""]:
     r"""1-pt log-density-PDF log-likelihood ``sum_bins hist[s] log p_BM19(s;M,b,alpha)`` (M2).
 
-    The faithful, ALPHA-sensitive observable: the BM19 volume density PDF (lognormal body +
-    power-law tail). Stars don't carry alpha at realistic sampling (the tail is washed out by
-    cell-smoothing and shot noise), so alpha needs a GAS-density tracer's 1-pt PDF (extinction /
-    column-density / dust maps) -- this block represents that probe. ``s_hist[i]`` = (relative)
-    count of density samples in bin ``i`` centred at ``s_centers[i]``; ``p_BM19`` is normalized
-    over the bins. Constrains (sigma_s^2 = ln(1+(b M)^2), alpha); pairs with the stellar CIC +
-    band-powers (sigma_s^2, beta) for a joint (M, alpha, beta) inference. Differentiable in theta."""
+    A 1-pt density-PDF fit over the WHOLE BM19 PDF (lognormal body + power-law tail). CONTRACT:
+    ``s_hist``/``s_centers`` must be on the same rho_0 = volume-mean convention as the model (the
+    ``bm19_volume_pdf`` s-axis, i.e. <e^s>=1) -- histogram a field with the empirical mean-1 shift
+    (``rank_copula_field`` already returns shifted s). NOTE: for inferring the TAIL slope alpha,
+    prefer :func:`tail_exceedance_loglike` (the POT block): fitting the full infinite-tail PDF to a
+    finite (truncated) field biases alpha high, whereas the POT exceedance fit is exact,
+    shift-immune, and geometry-free (see AC16). The robust convergent cross-check on the tail mass
+    is ``f_dense_bm19_full`` (AC17, Option B). This block remains a body+tail diagnostic.
+    ``s_hist[i]`` = count in bin ``i`` centred at ``s_centers[i]``; ``p_BM19`` normalized over the
+    bins. Differentiable in theta."""
     mach, b, alpha, _beta = theta
     p = bm19_volume_pdf(s_centers, mach, b, alpha)
     p = p / jnp.trapezoid(p, s_centers)  # normalize over the observed support

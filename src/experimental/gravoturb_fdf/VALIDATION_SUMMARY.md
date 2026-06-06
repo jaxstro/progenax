@@ -3,7 +3,8 @@
 **Status: EXPERIMENTAL** — follow-up paper, **not** part of the initial progenax/jaxstro
 release and **not** shipped in the progenax wheel.
 
-**Generated:** 2026-06-05 (clean-room rewrite).
+**Generated:** 2026-06-05 (clean-room rewrite); **differentiable-inference addendum 2026-06-06**
+(AC11–AC17, see the Differentiable Inference section below).
 **Every number below was printed by a committed acceptance script on the current tree** —
 no prose claim of correctness exists without a fresh artifact behind it. Reproduce with:
 
@@ -12,9 +13,10 @@ cd progenax
 PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance
 ```
 
-The acceptance suite lives in `gravoturb_fdf/validation/acceptance.py` (AC1–AC9) +
+The acceptance suite lives in `gravoturb_fdf/validation/acceptance.py` (AC1–AC17) +
 `gravoturb_fdf/validation/calibration.py` (the Q(f_sub) driver behind AC7). numpy/scipy are
-permitted on this validation/diagnostics side; the `theory/` and `field/` cores are JAX-native.
+permitted on this validation/diagnostics side; the `theory/`, `field/`, and `inference/` cores
+are JAX-native.
 
 ---
 
@@ -32,7 +34,7 @@ permitted on this validation/diagnostics side; the `theory/` and `field/` cores 
 | **AC7** | **Headline**: Q(f_sub) monotone↓ + Q∈[0.4,0.8] (64³×10×500★) | trend↓ + band | see below | **PASS** |
 | **AC8** | Gradient signs: ∂σ_s²/∂ℳ>0, ∂f_dense/∂ℳ<0, ∂f_dense/∂α<0, ∂ζ/∂α<0 | sign | all correct | **PASS** |
 | **AC9** | FD-vs-autodiff on f_dense(ℳ) and ζ(p) | rel <1e-4 | relerr ≤2e-9 | **PASS** |
-| **AC10** | Full suite, both environments | 100% | 965 passed (uv + conda) | **PASS** |
+| **AC10** | Full suite (uv) | 100% | 1065 passed (815 released-core + 250 experimental) | **PASS** |
 
 ---
 
@@ -110,6 +112,56 @@ CW04 Q (MST/scipy) steps are themselves non-differentiable.
 The public differentiable entry points (`sigma_s_squared`, `f_dense_bm19_full`,
 `magnification_factor`, `bm19_icdf`) survive `jax.grad`; finite-difference and autodiff agree to
 machine precision, including across the α→1 and p→2 guard regions.
+
+---
+
+## Differentiable inference (Phases 5–6) — AC11–AC17
+
+The `inference/` layer predicts summary statistics analytically as smooth functions of
+θ=(ℳ,b,α,β) and differentiates *those* (cosmology playbook: analytic prediction + likelihood +
+blackjax NUTS), rather than differentiating the stochastic simulator. AC11–AC15 (log-density 2-pt
+ξ_s via Gaussianization, ρ_g(β)/Limber projection, CIC moments + P(N), gradient validation, the
+field-level Fisher forecast) are asserted in `acceptance.py`. The Phase-6 finish (2026-06-06) makes
+**α — the BM19 power-law tail slope — inferable**:
+
+### AC16 — joint (ℳ, α, β) HMC recovery (the headline)
+
+α had been un-recoverable: a finite N-cell field truncates the power-law tail at
+`s_max ≈ s_t + ln(N)/α`, so fitting the full infinite-tail PDF biased α high. The fix is a
+**peaks-over-threshold (POT) truncated-exponential** likelihood on the gas-density exceedances
+above a fixed `s_thr` — exact (the lognormal norm cancels → decoupled from σ_s²), shift-immune, and
+geometry-free. Stellar counts-in-cells (clean Poisson sampler, matched grid) carry (ℳ,β); the POT
+block carries α; a soft barrier keeps the chain where `s_t(θ) ≤ s_thr`. **160³ gas map
+(N_tail=510), 500/1000 NUTS, injection θ=(ℳ5, α2.5, β3; b0.4 fixed):**
+
+| param | posterior | truth | deviation | cover |
+|-------|-----------|-------|-----------|-------|
+| ℳ | 4.88 ± 0.65 | 5.0 | 0.18σ | ✓ |
+| **α** | **2.533 ± 0.112** | **2.5** | **0.30σ** | ✓ |
+| β | 3.20 ± 0.43 | 3.0 | 0.45σ | ✓ |
+
+α posterior width 0.112 matches the truncation-corrected Fisher 0.113 (**ratio 0.99** — calibrated,
+not covering-by-being-wide); `corr(ℳ,α) = −0.11` (the old ℳ–α degeneracy is broken). This is an
+**injection-recovery** test of the inference machinery (mock drawn from the same BM19 model).
+
+### AC17 — σ(α) vs N_tail forecast (the transferable result)
+
+"How many independent tail elements N a gas map needs to measure α." Per-exceedance Fisher info of
+the truncated exponential is `I(α) = 1/α² − L²e^{−αL}/(1−e^{−αL})²` (→ `α/√N` as `L→∞`). Validated
+with genuine i.i.d. truncated-exponential draws (the rank copula's marginal is *deterministic* — the
+exact order statistics — so it has zero 1-pt scatter and cannot validate this):
+
+| N_tail | σ_emp (i.i.d.) | σ_Fisher | rel |
+|--------|----------------|----------|-----|
+| 61 | 0.366 | 0.356 | 0.03 |
+| 158 | 0.204 | 0.210 | 0.03 |
+| 327 | 0.145 | 0.143 | 0.01 |
+
+√N law: empirical slope −0.556 (Fisher −0.544; ideal −0.5). **Caveat (honest, cf. AC15):** a
+*realistic correlated* field (smooth copula, β=3) scatters ~2.5× wider than the i.i.d. bound
+(N_eff ≈ N_tail/6) — red-spectrum tail cells are not independent. Option B cross-check: a
+mass-conserving realization's dense-mass fraction matches `f_dense_bm19_full` to rel 0.000
+(convergent, truncation-robust).
 
 ---
 
