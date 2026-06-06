@@ -46,31 +46,45 @@ def _separation_radius(shape):
     return np.sqrt(dx**2 + dy**2 + dz**2)
 
 
-def measured_2pt(field, n_bins=24, r_max=None):
-    """Binned periodic 2-point ``xi(r)`` for r>0 plus the zero-lag variance.
+def radial_average(values3d, n_bins=24, r_max=None, exclude_zero=True):
+    """Radially (minimum-image) bin a 3D grid quantity. Returns ``(r_centers, binned)``.
 
-    Returns ``(r_centers, xi_r, variance)``; ``r`` in grid-cell units (minimum image).
-    The r=0 self-cell is excluded so the first bin is genuine small-r correlation.
+    ``r`` in grid-cell units. With ``exclude_zero`` the r=0 self-cell is dropped (so a
+    binned autocovariance's first bin is genuine small-r correlation, not the variance).
+    The binning geometry is fixed (independent of the values), so this is a linear average
+    -- safe to apply to analytic predictions and measurements alike for apples-to-apples.
     """
-    xi3d = autocovariance_3d(field)
-    variance = float(xi3d[0, 0, 0])
-    r = _separation_radius(np.shape(field))
+    v = np.asarray(values3d)
+    r = _separation_radius(v.shape)
     if r_max is None:
-        r_max = min(np.shape(field)) // 2
-    rflat, xflat = r.ravel(), xi3d.ravel()
-    keep = (rflat > 0.0) & (rflat <= r_max)
-    rk, xk = rflat[keep], xflat[keep]
+        r_max = min(v.shape) // 2
+    rflat, vflat = r.ravel(), v.ravel()
+    keep = rflat <= r_max
+    if exclude_zero:
+        keep = keep & (rflat > 0.0)
+    rk, vk = rflat[keep], vflat[keep]
     edges = np.linspace(rk.min(), r_max, n_bins + 1)
     idx = np.clip(np.digitize(rk, edges) - 1, 0, n_bins - 1)
     r_centers = np.full(n_bins, np.nan)
-    xi_r = np.zeros(n_bins)
+    binned = np.zeros(n_bins)
     for i in range(n_bins):
         m = idx == i
         if m.any():
             r_centers[i] = rk[m].mean()
-            xi_r[i] = xk[m].mean()
+            binned[i] = vk[m].mean()
     valid = ~np.isnan(r_centers)
-    return r_centers[valid], xi_r[valid], variance
+    return r_centers[valid], binned[valid]
+
+
+def measured_2pt(field, n_bins=24, r_max=None):
+    """Binned periodic 2-point ``xi(r)`` for r>0 plus the zero-lag variance.
+
+    Returns ``(r_centers, xi_r, variance)``; ``r`` in grid-cell units (minimum image).
+    """
+    xi3d = autocovariance_3d(field)
+    variance = float(xi3d[0, 0, 0])
+    r, xi_r = radial_average(xi3d, n_bins=n_bins, r_max=r_max, exclude_zero=True)
+    return r, xi_r, variance
 
 
 def gaussian_correlation_measured(g, n_bins=24, r_max=None):
