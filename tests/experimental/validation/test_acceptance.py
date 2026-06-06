@@ -80,3 +80,19 @@ def test_ac13_cic_vs_oracle():
     res = acceptance.ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=10, c=4,
                                         cox_tol=0.06, theory_tol=0.18, l1_tol=0.12)
     assert res["passed"]
+
+
+@pytest.mark.slow
+def test_ac16_hmc_recovery():
+    # Joint (mach,alpha,beta) NUTS recovery: stellar CIC (24^3, matched grid) -> mach,beta;
+    # POT truncated-exponential tail exceedances (112^3 gas map) -> alpha. Short chains for
+    # test speed; main() runs 160^3 + longer chains. Asserts coverage within cover_nsigma,
+    # alpha posterior width within [0.5,2]x the truncation-corrected Fisher, and small
+    # mach-alpha correlation (the POT block breaks the old mach-alpha degeneracy).
+    res = acceptance.ac16_hmc_recovery(
+        shape=(24, 24, 24), density_shape=(112, 112, 112), s_thr_margin=0.75, n_exc_bins=12,
+        n_warmup=150, n_samples=250, seed=0)
+    assert res["passed"]
+    assert res["n_tail"] > 50                       # tail resolved
+    assert 0.5 <= res["stds"][1] / res["sigma_alpha_fisher"] <= 2.0  # alpha width sane
+    assert abs(res["corr_mach_alpha"]) < 0.6        # mach-alpha decoupled by POT
