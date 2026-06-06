@@ -12,6 +12,31 @@
 
 ---
 
+## CURRENT STATE — RESUME HERE (updated 2026-06-06)
+
+**Done (committed; NOTHING pushed except jaxstroviz `main`):**
+- **Tasks 0–3** on progenax branch `gravoturb-fdf-sbc-validation` (off `main` @ 006ccdc; branch HEAD `48db3c4`):
+  Task 0 deps+Talts grounding `ad8e0a8`; Task 1 priors `f4f7fd2`+`ef41b8a`; Task 2
+  `run_nuts_diagnostic` `00165c9`+`9b4f958`; Task 3 `diagnostics` `682cb64`+`4324e48`. Each
+  RED→GREEN + code-reviewed Ready; released-core (not-slow) **814** held throughout.
+- **jaxstroviz cleanup** (Anna-authorized): env fixed — added `[tool.uv.sources]` for
+  jaxstro/progenax/gravax/fluxax + moved `startrax`→optional `[tracks]` extra; committed the
+  pending DEFAULT_UNITS/validation-pkg/AGENTS work; **`main` PUSHED** to origin (`b816165`).
+  jaxstroviz now installs (`uv pip install -e .[dev]`) and its 801 released tests pass.
+- **F1** on jaxstroviz branch `gravoturb-fdf-sbc-figures` (off `main` @ b816165): experimental/
+  tier + SBC pair `921b283`; **Critical review fix C1** (integer-aware χ² expectation — a flat
+  K/n_bins falsely rejected calibrated engines at AC18's regime) `d8fe882`. **807** tests pass
+  (801 released + 6 SBC). experimental excluded from wheel, importable in editable.
+
+**NEXT — resume at F2** (forward-model plotters: pdf+model-compare, spectrum, counts, tail) →
+F3 (inference plotters) → F4 (spatial-profile compare) → Task 6 (SBC driver) → 7–8 (AC18/AC19) →
+Task 9 (orchestrator renders the 14-fig gallery + docs + counts). See "Figure Gallery — Sections
+A–C" below for the full design + F1–F4 specs.
+
+**Verify env:**
+`PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q` (progenax);
+`cd ../jaxstroviz && env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q` (after `uv pip install -e .[dev]`).
+
 ## Rules in force (non-negotiable)
 
 - **HITL** — Anna approves at every task/fork; **no git push / no PR without her explicit go**.
