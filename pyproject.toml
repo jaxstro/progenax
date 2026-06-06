@@ -19,6 +19,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov"]
+# Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
+# Differentiable-inference deps imported by inference/{hmc,surrogate}.py. blackjax 1.x
+# `window_adaptation`/`nuts` API per inference/hmc.py (verified against 1.5).
+experimental = [
+    "blackjax>=1.2,<2",
+    "optax>=0.2",
+    # "numpyro>=0.13",  # reserved for the hierarchical population model (Decision #7)
+]
 
 # jaxstro is the sibling ecosystem package (not published to PyPI). Resolve it
 # from the standard side-by-side checkout so `uv lock` / `uv sync --locked` work.
