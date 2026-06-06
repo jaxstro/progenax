@@ -135,3 +135,49 @@ def test_gaussian_loglike_max_at_truth_and_differentiable():
 
     g = np.asarray(jax.grad(lambda th: gaussian_loglike(data, th, precision, **_CFG))(_THETA))
     assert np.all(np.isfinite(g))
+
+
+# --- Task 5.3: Fisher matrix + forecast ---------------------------------------
+
+
+def test_fisher_3param_pd_and_errors_finite():
+    """With b fixed, the free params (mach, alpha, beta) are identifiable: F = J^T Cinv J is
+    symmetric positive-definite and the marginal errors sigma(theta_i) are finite and positive."""
+    from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
+    from gravoturb_fdf.inference.likelihood import data_vector
+
+    data = data_vector(_THETA, **_CFG)
+    prec = jnp.diag(1.0 / data**2)
+    F = fisher_matrix(_THETA, prec, free=(0, 2, 3), **_CFG)
+    assert F.shape == (3, 3)
+    assert jnp.allclose(F, F.T)
+    assert jnp.all(jnp.linalg.eigvalsh(F) > 0)  # identifiable
+    sig = marginal_errors(F)
+    assert jnp.all(jnp.isfinite(sig)) and jnp.all(sig > 0)
+
+
+def test_fisher_full_4param_singular_mach_b_degeneracy():
+    """The predicted statistics depend on (mach,b) ONLY via sigma_s^2 = ln(1+(b*mach)^2), so the
+    full 4-param Fisher is rank-3 singular -- value the data can't break the mach-b degeneracy
+    (need fixed b). A genuine model property, asserted here as a guard."""
+    from gravoturb_fdf.inference.fisher import fisher_matrix
+    from gravoturb_fdf.inference.likelihood import data_vector
+
+    data = data_vector(_THETA, **_CFG)
+    prec = jnp.diag(1.0 / data**2)
+    F = fisher_matrix(_THETA, prec, free=(0, 1, 2, 3), **_CFG)
+    ev = jnp.linalg.eigvalsh(F)
+    assert float(ev[0] / ev[-1]) < 1e-8  # one ~zero eigenvalue = the mach-b degeneracy
+
+
+def test_fisher_errors_shrink_as_sqrt_volume():
+    """sigma(theta_i) ~ 1/sqrt(V_survey): scaling the precision by n_boxes (independent survey
+    volumes add Fisher information) shrinks the errors by 1/sqrt(n_boxes)."""
+    from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
+    from gravoturb_fdf.inference.likelihood import data_vector
+
+    data = data_vector(_THETA, **_CFG)
+    prec = jnp.diag(1.0 / data**2)
+    s1 = marginal_errors(fisher_matrix(_THETA, prec, free=(0, 2, 3), **_CFG))
+    s4 = marginal_errors(fisher_matrix(_THETA, 4.0 * prec, free=(0, 2, 3), **_CFG))
+    assert jnp.allclose(s4, s1 / 2.0, rtol=1e-5)

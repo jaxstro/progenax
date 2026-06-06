@@ -59,6 +59,13 @@ def test_ac12_limber_projection_vs_oracle():
     assert res["passed"]
 
 
+def test_ac15_fisher_forecast():
+    # 24³×60 smoke for test speed; the script main() runs the 32³×150 forecast. Checks the
+    # Fisher is PD (b fixed), errors finite + shrink as 1/sqrt(V), and the mach-b degeneracy.
+    res = acceptance.ac15_fisher_forecast(shape=(24, 24, 24), n_real=60, c=4, n_bar=25)
+    assert res["passed"]
+
+
 def test_ac14_grad_validation():
     # autodiff vs FD (analytic gradients, tight) + the analytic beta path vs the simulator's
     # beta-response (paired CRN, consistency within n_sigma). n_real=24 smoke; main() runs 48.

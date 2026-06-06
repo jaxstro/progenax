@@ -464,6 +464,79 @@ def ac14_grad_validation(shape=(24, 24, 24), R=2.0, mach=5.0, b=0.4, alpha=2.5, 
     return {"passed": bool(ok), "beta_grad_rel": rel}
 
 
+def ac15_fisher_forecast(shape=(32, 32, 32), n_real=150, c=4, beta=3.0, mach=5.0, b=0.4,
+                         alpha=2.5, n_bar=30, seed=0, n_max=14):
+    """AC15 -- the Fisher forecast (first science deliverable): how well do log-density
+    band-powers + CIC variance constrain (mach, alpha, beta) given the driving b?
+
+    Builds the mock covariance of the data vector d = [P_s(k_i), sigma^2_N(c)] from n_real
+    realization mocks (Hartlap-corrected precision), the analytic Jacobian J = d d/d theta, and
+    F = J^T Cinv J. Reports marginal sigma(mach,alpha,beta) (b fixed -- the data constrains
+    (mach,b) only via sigma_s^2=ln(1+(b mach)^2), so the full 4-param F is rank-3 singular), the
+    forecast tightening with survey volume (sigma ~ 1/sqrt(V)), and the mach-b degeneracy."""
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb_fdf.inference.covariance import measured_bandpowers, mock_covariance, hartlap_factor
+    from gravoturb_fdf.inference.likelihood import data_vector
+    from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
+
+    _header("AC15 -- Fisher forecast (log-density band-powers + CIC variance)")
+    k_edges = jnp.linspace(2.0, 11.0, 5)  # 4 band-power bins
+    n = shape[0]
+    M = n // c
+    ncell = M**3
+    n_stars = int(n_bar * ncell)
+    theta = jnp.array([mach, b, alpha, beta])
+    cfg = dict(shape=shape, k_edges=k_edges, cell_sizes=(c,), n_bar=float(n_stars / ncell),
+               n_max=n_max)
+
+    key = jax.random.PRNGKey(seed)
+    rows = []
+    for i in range(n_real):
+        g = gaussian_random_field(shape, beta, jax.random.fold_in(key, i))
+        s = jnp.asarray(smooth_copula_field(g, mach, b, alpha))
+        bp = measured_bandpowers(np.asarray(s), shape, k_edges)
+        rho = jnp.exp(s)
+        p = (rho / jnp.sum(rho)).ravel()
+        idx = jax.random.choice(jax.random.fold_in(key, 9000 + i), rho.size, (n_stars,),
+                                replace=True, p=p)
+        ijk = jnp.stack(jnp.unravel_index(idx, shape), axis=-1) // c
+        flat = np.asarray(ijk[:, 0] * M * M + ijk[:, 1] * M + ijk[:, 2])
+        var_n = float(np.bincount(flat, minlength=ncell).var())
+        rows.append(np.concatenate([bp, [var_n]]))
+    rows = np.array(rows)
+    C = mock_covariance(rows)
+    cinv = hartlap_factor(n_real, rows.shape[1]) * np.linalg.inv(C)
+    cinv = jnp.asarray(cinv)
+
+    free = (0, 2, 3)  # (mach, alpha, beta); b fixed
+    names = ["mach", "alpha", "beta"]
+    F = fisher_matrix(theta, cinv, free=free, **cfg)
+    sig = np.asarray(marginal_errors(F))
+    sig4 = np.asarray(marginal_errors(fisher_matrix(theta, 4.0 * cinv, free=free, **cfg)))
+    fid = np.array([mach, alpha, beta])
+
+    print(f"  shape={shape} c={c} (N_bar={n_stars / ncell:.0f}) n_real={n_real} "
+          f"k-bins={len(k_edges) - 1}  fiducial=(M={mach},b={b},a={alpha},beta={beta})")
+    for nm, s_, s4_, f_ in zip(names, sig, sig4, fid):
+        print(f"    sigma({nm:<5}) = {s_:.4f}  ({100 * s_ / f_:5.1f}% of fid)   "
+              f"4x-volume = {s4_:.4f}  ({s_ / s4_:.2f}x tighter)")
+
+    ok_pd = bool(np.all(np.linalg.eigvalsh(np.asarray(F)) > 0))
+    ok_finite = bool(np.all(np.isfinite(sig)) and np.all(sig > 0))
+    ok_vol = bool(np.allclose(sig4, sig / 2.0, rtol=1e-4))  # sigma ~ 1/sqrt(V)
+    F4 = np.asarray(fisher_matrix(theta, cinv, free=(0, 1, 2, 3), **cfg))
+    ev = np.linalg.eigvalsh(F4)
+    degenerate = bool(ev[0] / ev[-1] < 1e-6)
+    print(f"    4-param Fisher cond: lambda_min/lambda_max = {ev[0] / ev[-1]:.1e} "
+          f"-> mach-b degeneracy {'DETECTED' if degenerate else 'ABSENT'} "
+          f"(data constrains sigma_s^2=ln(1+(b M)^2))")
+    print(f"  Fisher PD={ok_pd}  errors finite={ok_finite}  sigma~1/sqrt(V)={ok_vol}  "
+          f"degeneracy={degenerate}  {'PASS' if (ok_pd and ok_finite and ok_vol and degenerate) else 'FAIL'}")
+    ok = ok_pd and ok_finite and ok_vol and degenerate
+    return {"passed": bool(ok), "sigma": {n_: float(s_) for n_, s_ in zip(names, sig)}}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -477,6 +550,7 @@ def main():
         "AC12": ac12_limber_projection_vs_oracle(),
         "AC13": ac13_cic_vs_oracle(),
         "AC14": ac14_grad_validation(),
+        "AC15": ac15_fisher_forecast(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True
