@@ -263,6 +263,54 @@ substructure), and it's the parameter the *spatial* data most directly constrain
    predictions — a beautiful internal-consistency test we already have the machinery for).
 3. Then the Fisher-forecast demo (cheapest science deliverable), then HMC recovery on mocks.
 
+## 12. Session handoff (paste this to bootstrap the next session)
+
+```text
+Continue the gravoturb_fdf differentiable-inference design (phase 2, after the clean-room
+rewrite that's in PR #5).
+
+READ FIRST, in order:
+  1. docs/plans/2026-06-05-gravoturb-fdf-differentiable-inference-design.md  (this living
+     design doc — note the [DECIDED] vs [OPEN] tags and the §10 Open Questions).
+  2. Memory: gravoturb-fdf-differentiable-inference.md AND gravoturb-fdf-clean-room.md.
+  3. The code: src/experimental/gravoturb_fdf/ (theory/, field/, diagnostics/) — the
+     realization simulator is your GROUND-TRUTH ORACLE for validating analytic predictions.
+
+WHERE WE ARE (converged — do not relitigate without reason):
+  - Direction: physics-direct, predicted-statistics inference — differentiate the PREDICTED
+    summary statistic, NOT the stochastic simulator (cosmology playbook: analytic prediction
+    + Gaussian likelihood + HMC). SBI optional, not the backbone.
+  - Inference likelihood = 1-pt PDF + 2-pt (log-density ξ_s via Gaussianization, β analytic)
+    + counts-in-cells. CW04 Q → validation-only ("we reproduce fractal clusters"). 3-pt →
+    validation/diagnostic null-test + filament detector, NEVER in the θ-likelihood (§6b).
+  - 2D Limber projection required (data is 2D; distance/depth = nuisance). Two-tier diff
+    boundary; NO soft-sort (deferred, YAGNI). Fat-tail handled via log-space + max-density
+    cutoff (the cutoff choice is OPEN). Realization simulator retained as oracle/mocks.
+
+DO THIS, in order:
+  1. BRAINSTORM with me first (superpowers:brainstorming) to close the §10 Open Questions —
+     START with #1 (fat-tail max-density cutoff: resolution vs physical Jeans/opacity floor;
+     inferred nuisance?) and #5 (likelihood form: Gaussian-on-CIC-moments vs a proper
+     over-dispersed count likelihood). These gate everything else.
+  2. THEN superpowers:writing-plans → a detailed TDD implementation plan. First module to
+     plan: the differentiable predicted-statistics module (Gaussianization ξ_s + Limber
+     projection + CIC prediction), validated AGAINST THE REALIZATION SIMULATOR as oracle;
+     then the Fisher-forecast demo (cheapest science deliverable).
+
+RULES IN FORCE:
+  - Trust-nothing / verify against held PDFs (read the actual PDFs). OBTAIN the Gaussianization
+    refs first — Coles & Jones (1991), Szapudi & Pan (2004), Carron & Szapudi — NOT yet in
+    docs/core-papers/; do not assert their formulae from memory.
+  - HITL-approve-everything (gate before acting); evidence-before-done (fresh command output
+    on the current tree); JAX-native core (numpy/scipy only in diagnostics/validation);
+    single-env uv verification: `env -u VIRTUAL_ENV uv run --no-sync pytest`.
+  - NO git push / no PR merge without Anna's explicit go.
+
+REPO STATE: on branch gravoturb-fdf-clean-room (PR #5 OPEN → main, green, 44 commits,
+965 released-core+experimental tests). The clean-room rewrite + this design doc live there.
+Do not merge PR #5 or push without Anna's go.
+```
+
 ## References (held PDFs, verified this session unless noted)
 
 BM19 (Burkhart & Mocz 2019), PP20 (Parmentier & Pasquali 2020), PN11 (Padoan & Nordlund
