@@ -67,3 +67,61 @@ def test_cic_moments_differentiable():
     grad = np.asarray(jax.grad(sigma2)(jnp.array([5.0, 0.4, 2.5, 3.0])))
     assert np.all(np.isfinite(grad))
     assert np.any(np.abs(grad) > 0.0)
+
+
+# --- Task 3.2: smoothed density PDF p_R (Route B: reduced-variance BM19) -------
+
+
+def test_smoothed_log_variance_limits():
+    """sigma_s^2(R) (exact smoothed log-density variance, the log-map analog of Route A):
+    -> sigma_s_squared(mach,b) as R->0 (cell = point, full variance), strictly decreasing
+    in R (more smoothing), and differentiable in (mach,b,alpha,beta)."""
+    from gravoturb_fdf.theory.cic import smoothed_log_variance
+    from gravoturb_fdf.theory.bm19 import sigma_s_squared
+
+    shape, beta = (32, 32, 32), 3.0
+    mach, b, alpha = 5.0, 0.4, 2.5
+    full = float(sigma_s_squared(mach, b))
+    at0 = float(smoothed_log_variance(shape, beta, 1e-3, mach, b, alpha, n_max=12))
+    assert at0 == pytest.approx(full, rel=0.02)  # R->0 recovers the full log-variance
+
+    sigs = np.array([float(smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max=12))
+                     for R in (0.5, 1.0, 2.0, 4.0, 8.0)])
+    assert np.all(np.diff(sigs) < 0.0)  # decreasing in R
+
+    grad = float(jax.grad(lambda be: smoothed_log_variance(shape, be, 2.0, mach, b, alpha,
+                                                           n_max=12))(beta))
+    assert np.isfinite(grad) and abs(grad) > 0.0
+
+
+def test_smoothed_pdf_normalized_and_R0_limit():
+    """Route B p_R(s) = reduced-variance BM19 (effective Mach from sigma_s^2(R)): integrates
+    to 1, and as R->0 (cell = point) recovers the full unsmoothed BM19 volume PDF."""
+    from gravoturb_fdf.theory.cic import smoothed_pdf
+    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+
+    shape, beta = (32, 32, 32), 3.0
+    mach, b, alpha = 5.0, 0.4, 2.5
+    s = jnp.linspace(-15.0, 40.0, 8000)
+
+    p = smoothed_pdf(s, shape, beta, 2.0, mach, b, alpha, n_max=12)
+    assert float(jnp.trapezoid(p, s)) == pytest.approx(1.0, rel=2e-3)
+
+    p0 = smoothed_pdf(s, shape, beta, 1e-3, mach, b, alpha, n_max=12)
+    full = bm19_volume_pdf(s, mach, b, alpha)
+    assert float(jnp.max(jnp.abs(p0 - full))) < 1e-2 * float(jnp.max(full))
+
+
+def test_smoothed_pdf_log_variance_matches_in_body_limit():
+    """Large alpha (negligible tail): the log-variance of p_R equals sigma_s^2(R), so the
+    reduced-variance construction is faithful (Var of s under p_R == the smoothed log-var)."""
+    from gravoturb_fdf.theory.cic import smoothed_log_variance, smoothed_pdf
+
+    shape, beta = (32, 32, 32), 3.0
+    mach, b, alpha, R = 5.0, 0.4, 8.0, 2.0  # alpha=8 -> tail negligible, ~ pure lognormal
+    s = jnp.linspace(-15.0, 15.0, 8000)
+    p = smoothed_pdf(s, shape, beta, R, mach, b, alpha, n_max=12)
+    mean = float(jnp.trapezoid(s * p, s))
+    var = float(jnp.trapezoid((s - mean) ** 2 * p, s))
+    sig2R = float(smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max=12))
+    assert var == pytest.approx(sig2R, rel=0.05)

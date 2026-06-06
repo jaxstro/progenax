@@ -26,15 +26,41 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.theory.gaussianization import (
+    bm19_hermite_coefficients,
     gaussianized_xi,
     hermite_coefficients,
     s_of_g,
 )
+from gravoturb_fdf.theory.pdf import bm19_volume_pdf
 from gravoturb_fdf.theory.projection import (
     _kmag_grid,
     gaussian_correlation_grid,
     top_hat_window,
 )
+
+
+def _windowed_series_variance(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    coeffs: Float[Array, " n"],
+    window,
+) -> Float[Array, ""]:
+    r"""Windowed (cell-averaged) variance of a Gaussianization series at scale ``R`` (cells).
+
+    Builds the autocovariance grid ``xi(r) = sum_{n>=1}(coeffs_n^2/n!) rho_g(r;beta)^n`` (a
+    valid PSD autocovariance: powers of a correlation are PSD) and returns
+    ``(1/N) sum_{k!=0} FFT[xi](k) W(kR)^2`` -- the variance of the mapped field smoothed at
+    R, with the k=0 mode excluded (cell-to-cell fluctuations about the mean). Differentiable
+    in ``beta`` (via rho_g) and in ``coeffs`` (via theta). Shared by the linear-rho clustering
+    term and the smoothed log-density variance (same machinery, different copula map).
+    """
+    rho_g = gaussian_correlation_grid(shape, beta)
+    xi = gaussianized_xi(rho_g, coeffs)
+    power = jnp.fft.fftn(xi).real
+    kmag = _kmag_grid(shape)
+    w2 = jnp.where(kmag > 0, window(kmag * R) ** 2, 0.0)
+    return jnp.sum(power * w2) / power.size
 
 
 def linear_hermite_coefficients(
@@ -79,13 +105,73 @@ def cell_averaged_xi_rho(
     mean). ``R`` in grid cells, shared with the 2-pt window and the CIC cell (Decision #1).
     Differentiable in (mach, b, alpha) via ``d_n`` and in ``beta`` via ``rho_g``.
     """
-    rho_g = gaussian_correlation_grid(shape, beta)
     d = linear_hermite_coefficients(mach, b, alpha, n_max, n_quad)
-    xi_rho = gaussianized_xi(rho_g, d)
-    power = jnp.fft.fftn(xi_rho).real
-    kmag = _kmag_grid(shape)
-    w2 = jnp.where(kmag > 0, window(kmag * R) ** 2, 0.0)
-    return jnp.sum(power * w2) / power.size
+    return _windowed_series_variance(shape, beta, R, d, window)
+
+
+def smoothed_log_variance(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    n_max: int = 16,
+    n_quad: int = 256,
+    window=top_hat_window,
+) -> Float[Array, ""]:
+    r"""Exact smoothed LOG-density variance ``sigma_s^2(R) = Var(s smoothed at R)`` (Route B).
+
+    The log-map analog of :func:`cell_averaged_xi_rho`: the windowed variance of the
+    log-density 2-point ``xi_s(r) = sum_{n>=1}(c_n^2/n!) rho_g(r;beta)^n``,
+    ``c_n = <s_of_g He_n>``. ``-> sigma_s_squared(mach,b)`` as ``R->0`` and decreases with R.
+    This sets the effective Mach of the reduced-variance BM19 smoothed PDF (:func:`smoothed_pdf`).
+    Differentiable in (mach, b, alpha, beta).
+    """
+    c = bm19_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    return _windowed_series_variance(shape, beta, R, c, window)
+
+
+def effective_mach(
+    sigma_s_sq_R: Float[Array, ""], b: Float[Array, ""]
+) -> Float[Array, ""]:
+    r"""Effective Mach number reproducing a target log-variance: ``ln(1+b^2 M_eff^2) =
+    sigma_s^2(R)`` -> ``M_eff = sqrt(exp(sigma_s^2(R)) - 1)/b`` (BM19 Eq.1 inverted).
+
+    Lets the smoothed BM19 PDF be re-used at the reduced variance ``sigma_s^2(R)`` while
+    keeping (b, alpha): smoothing shrinks the lognormal width and pulls s_t inward
+    self-consistently. ``M_eff -> mach`` as ``R->0``. ``expm1`` keeps small-R accuracy.
+    """
+    return jnp.sqrt(jnp.expm1(sigma_s_sq_R)) / b
+
+
+def smoothed_pdf(
+    s: Float[Array, " m"],
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    n_max: int = 16,
+    n_quad: int = 256,
+    window=top_hat_window,
+) -> Float[Array, " m"]:
+    r"""Route B smoothed-density volume PDF ``p_R(s)`` (reduced-variance BM19).
+
+    The cell-averaged (scale-R) log-density follows a BM19 PDF at the reduced log-variance
+    ``sigma_s^2(R)`` (:func:`smoothed_log_variance`), i.e. ``bm19_volume_pdf`` evaluated at
+    the effective Mach ``M_eff(R)`` with (b, alpha) preserved. ``int p_R ds = 1``; as
+    ``R->0`` it recovers the full unsmoothed BM19 PDF. This sources the compound-Poisson
+    count distribution P(N) (Task 3.3). **Approximation:** keeping the BM19 tail shape at the
+    reduced variance models the smoothed tail by its variance reduction only; smoothing also
+    suppresses the rarest peaks beyond that, so the high-s tail is an over-estimate at large R
+    (documented; the moment xi_bar(R) for sigma^2_N uses the exact Route A series instead).
+    Differentiable in (mach, b, alpha, beta).
+    """
+    sigma_s_sq_R = smoothed_log_variance(shape, beta, R, mach, b, alpha, n_max, n_quad, window)
+    mach_eff = effective_mach(sigma_s_sq_R, b)
+    return bm19_volume_pdf(s, mach_eff, b, alpha)
 
 
 def cic_variance(
