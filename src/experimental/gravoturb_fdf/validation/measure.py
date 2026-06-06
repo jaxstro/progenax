@@ -12,6 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from gravoturb_fdf.theory.gaussianization import s_of_g
+from gravoturb_fdf.theory.projection import _kmag_grid
 
 
 def smooth_copula_field(g, mach, b, alpha):
@@ -97,3 +98,22 @@ def field_2pt_measured(s, n_bins=24, r_max=None):
     """Measured 2-point ``xi_s(r)`` of a log-density field ``s`` (r>0)."""
     r, xi, _var = measured_2pt(np.asarray(s), n_bins, r_max)
     return r, xi
+
+
+def smoothed_linear_variance(rho_tilde, R, window_fn):
+    r"""Variance of the linear field ``rho_tilde`` after smoothing at scale ``R`` (cells):
+    ``(1/N^2) sum_{k!=0} |FFT(rho_tilde - mean)|^2 W(kR)^2`` for ONE realization.
+
+    This is the oracle for the CIC clustering term ``xi_bar_rho(R) = Var(rho_tilde_cell)``:
+    smoothing the realized linear density with the SAME window the prediction uses, then
+    taking its variance. The k=0 mode is dropped (empirical-mean subtracted) so it measures
+    cell-to-cell fluctuations, matching :func:`cell_averaged_xi_rho` which also excludes DC.
+    Average over realizations to beat down the tail-driven scatter.
+    """
+    f = np.asarray(rho_tilde, dtype=float)
+    f = f - f.mean()
+    pk = np.abs(np.fft.fftn(f)) ** 2
+    kmag = np.asarray(_kmag_grid(f.shape))
+    w2 = np.asarray(window_fn(jnp.asarray(kmag * R))) ** 2
+    w2 = np.where(kmag > 0, w2, 0.0)  # exclude DC (empirical mean already removed)
+    return float(np.sum(pk * w2) / f.size ** 2)
