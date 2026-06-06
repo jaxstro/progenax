@@ -574,11 +574,9 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
         gaussian_random_field, rank_copula_field, expected_cells_above_transition)
     from gravoturb_fdf.field.sampling import sample_cic_counts
     from gravoturb_fdf.validation.measure import measure_exceedances
-    from gravoturb_fdf.inference.likelihood import (
-        count_loglike, tail_exceedance_loglike, pot_validity_barrier)
     from gravoturb_fdf.inference.fisher import sigma_alpha
     from gravoturb_fdf.inference.hmc import (
-        run_nuts, to_unconstrained, to_constrained, log_jacobian)
+        run_nuts, to_unconstrained, to_constrained)
 
     _header("AC16 -- joint (mach,alpha,beta) HMC recovery (stellar CIC -> M,beta; POT tail -> alpha)")
     key = jax.random.PRNGKey(seed)
@@ -603,14 +601,17 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
         hists.append(jnp.asarray(np.bincount(cnt, minlength=nmaxN)[:nmaxN].astype(float)))
         nbars.append(nb)
 
-    def logdensity(z):
-        m_, a_, be_ = to_constrained(z)
-        th = jnp.array([m_, b, a_, be_])
-        ll = tail_exceedance_loglike(exc_counts, exc_edges, th, s_thr, s_max)   # alpha (POT)
-        for c, h, nb in zip(cell_sizes, hists, nbars):
-            ll = ll + count_loglike(h, th, shape, c, nb, n_max=n_max, n_s=n_s)  # mach, beta
-        ll = ll + pot_validity_barrier(th, s_thr)                              # POT-validity guard
-        return ll + log_jacobian(z)
+    # Shared prior-aware log-density factory (single source of truth with the SBC driver,
+    # Task 6). AC16 uses a weakly-informative BM19Prior whose log-uniform/uniform boxes
+    # comfortably contain the injected (mach, alpha, beta), so the prior is nearly flat over
+    # the posterior bulk and the recovery is unchanged from the old flat-in-theta closure.
+    from gravoturb_fdf.inference.priors import BM19Prior
+    from gravoturb_fdf.inference.sbc import build_logdensity
+    data = {"exc_counts": exc_counts, "exc_edges": exc_edges,
+            "count_hists": tuple(hists), "n_bars": tuple(nbars)}
+    logdensity = build_logdensity(
+        BM19Prior(), data, b=b, s_thr=s_thr, s_max=s_max, shape=shape,
+        cell_sizes=cell_sizes, n_max=n_max, n_s=n_s)
 
     z0 = to_unconstrained(jnp.array([mach, alpha, beta]))
     sz = run_nuts(logdensity, z0, jax.random.fold_in(key, 2), n_warmup, n_samples)

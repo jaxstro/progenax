@@ -9,5 +9,11 @@ All differentiable in theta=(mach, b, alpha, beta); numpy/scipy only in the mock
 
 from gravoturb_fdf.inference.diagnostics import compute_hmc_diagnostics
 from gravoturb_fdf.inference.priors import BM19Prior
+from gravoturb_fdf.inference.sbc import build_logdensity, sbc_ranks
 
-__all__ = ["BM19Prior", "compute_hmc_diagnostics"]
+__all__ = [
+    "BM19Prior",
+    "compute_hmc_diagnostics",
+    "build_logdensity",
+    "sbc_ranks",
+]
