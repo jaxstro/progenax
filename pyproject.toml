@@ -20,11 +20,15 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov"]
 # Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
-# Differentiable-inference deps imported by inference/{hmc,surrogate}.py. blackjax 1.x
-# `window_adaptation`/`nuts` API per inference/hmc.py (verified against 1.5).
+# Differentiable-inference deps. blackjax 1.x `window_adaptation`/`nuts` API per
+# inference/hmc.py (verified against 1.5); arviz for HMC convergence diagnostics
+# (R-hat/ESS/divergences/BFMI, inference/diagnostics.py); scipy for the SBC rank-histogram
+# chi^2 uniformity test (validation oracle side). All CPU-only, validation/inference side.
 experimental = [
     "blackjax>=1.2,<2",
     "optax>=0.2",
+    "arviz>=0.18",
+    "scipy>=1.11",
     # "numpyro>=0.13",  # reserved for the hierarchical population model (Decision #7)
 ]
 
