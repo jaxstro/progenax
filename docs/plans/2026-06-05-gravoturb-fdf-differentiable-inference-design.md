@@ -96,9 +96,14 @@ BM19 density PDF = lognormal body + power-law tail. In linear density `p(ρ) ∝
 ## 5. The Gaussianization machinery (how β stays analytic)
 
 Field = Gaussian `g` (spectrum `k^{−β}`) → monotone copula → BM19 marginal. Classic result
-(Coles & Jones 1991; Szapudi & Pan 2004) for a monotone transform `Y=T(g)`:
+(Coles & Jones 1991, MNRAS 248, 1; Szapudi & Pan 2004, ApJ 602, 26 = arXiv:astro-ph/0308525)
+for a monotone transform `Y=T(g)` — verified in the Phase-0 memo
+([2026-06-05-gaussianization-formula-verification.md](2026-06-05-gaussianization-formula-verification.md)):
 
-  `ξ_Y(r) = Σ_{n≥1} (c_n²/n!) ξ_g(r)^n`, with `c_n = ⟨T(g) H_n(g)⟩` (Hermite coefficients).
+  `ξ_Y(r) = Σ_{n≥1} (c_n²/n!) ρ_g(r)^n`, with `c_n = ⟨T(g) He_n(g)⟩` (probabilists' Hermite
+  coefficients; `ρ_g` the normalized Gaussian correlation, `ρ_g(0)=1`). The general (arbitrary-
+  transform) series is the Mehler bivariate-Hermite expansion; it reduces to Coles & Jones
+  Eq (30) `1+ξ=exp[Ξ]` in the exp/lognormal case (PDF-verified).
 
 - `c_n` = 1-D integrals of our copula map → smooth in `(ℳ,b,α)` (use the iCDF map `T=F⁻¹∘Φ`
   in **log space** so variance/coefficients are finite — avoids the fat-tail divergence).
@@ -315,6 +320,9 @@ Do not merge PR #5 or push without Anna's go.
 
 BM19 (Burkhart & Mocz 2019), PP20 (Parmentier & Pasquali 2020), PN11 (Padoan & Nordlund
 2011), FK10 (Federrath+2010), FK12 (Federrath & Klessen 2012), Kim & Ryu (2005), Heyer
-(2009), Lomax+ (2018), CW04 (Cartwright & Whitworth 2004). Gaussianization: Coles & Jones
-(1991), Szapudi & Pan (2004), Carron & Szapudi — *to be obtained/verified next session*.
+(2009), Lomax+ (2018), CW04 (Cartwright & Whitworth 2004). Gaussianization (**obtained &
+verified 2026-06-05** — see [Phase-0 verification memo](2026-06-05-gaussianization-formula-verification.md)):
+Coles & Jones (1991, MNRAS 248, 1); Szapudi & Pan (2004, **ApJ 602, 26** = arXiv:astro-ph/0308525
+— the earlier "ApJ 601, 697" citation was WRONG); Carron & Szapudi (2013, MNRAS 434, 2961;
+2014, MNRASL 439, L11); Carron, Wolk & Szapudi (2014, MNRAS 444, 994).
 Kainulainen (2014) — no held PDF (values cross-referenced via PP20/BM19 only).
