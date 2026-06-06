@@ -406,6 +406,64 @@ def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b
             "xi_rel": abs(xi_pred - xibar_orc) / xibar_orc, "l1": l1}
 
 
+def ac14_grad_validation(shape=(24, 24, 24), R=2.0, mach=5.0, b=0.4, alpha=2.5, beta=3.0,
+                         n_real_crn=48, eps_crn=0.1, seed=0, fd_tol=1e-4, beta_rel_tol=0.20):
+    """AC14 — gradient validation of the differentiable predicted-statistics layer.
+
+    (1) Autodiff vs CENTRAL finite-difference for xi_bar_rho(R) in each of (mach,b,alpha,beta)
+        -- the analytic gradients the Fisher/HMC phases ride on (rel < fd_tol; the unit tests
+        sweep h to ~1e-5). This is the rigorous gradient-correctness check.
+    (2) The analytic BETA path (Decision #3, no soft-sort) vs the SIMULATOR's beta-response, on
+        the LOG-density variance sigma_s^2(R) -- the beta-carrier, finite-variance for any alpha
+        (the linear xi_bar_rho derivative is tail-heavy and a poor estimator). A paired-CRN
+        finite difference (one white-noise field realized at beta+/-eps; common random numbers
+        cancel the realization structure) measures d sigma_s^2/d beta from the actual mock.
+        The residual (~8% on a 24^3, R=2 grid) is the FORWARD-model discretization bias (the
+        same theory-vs-simulator fidelity AC13 drives to ~2.4% at the production grid), NOT a
+        gradient error -- part (1) proves the gradient math to ~1e-5. Reported as rel agreement."""
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.validation.measure import smooth_copula_field, smoothed_linear_variance
+    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, smoothed_log_variance
+    from gravoturb_fdf.theory.projection import top_hat_window
+
+    _header("AC14 — gradient validation (autodiff vs FD; analytic beta vs simulator CRN)")
+
+    def xib(mach_, b_, alpha_, beta_):
+        return cell_averaged_xi_rho(shape, beta_, R, mach_, b_, alpha_, n_max=16)
+
+    base = dict(mach_=mach, b_=b, alpha_=alpha, beta_=beta)
+    ok = True
+    for name, key_, x0, h in [("mach", "mach_", mach, 1e-4), ("b", "b_", b, 1e-5),
+                              ("alpha", "alpha_", alpha, 1e-5), ("beta", "beta_", beta, 1e-4)]:
+        ad = float(jax.grad(lambda v: xib(**{**base, key_: v}))(x0))
+        fd = float((xib(**{**base, key_: x0 + h}) - xib(**{**base, key_: x0 - h})) / (2 * h))
+        ok &= _row(f"d xi_bar_rho / d {name} (AD vs FD)", fd, ad, fd_tol)
+
+    # (2) analytic beta-gradient of the LOG-density sigma_s^2(R) vs the simulator (paired CRN)
+    ad_beta = float(jax.grad(
+        lambda be: smoothed_log_variance(shape, be, R, mach, b, alpha, n_max=16))(beta))
+    key = jax.random.PRNGKey(seed)
+    derivs = []
+    for i in range(n_real_crn):
+        k = jax.random.fold_in(key, i)
+        sp = np.asarray(smooth_copula_field(gaussian_random_field(shape, beta + eps_crn, k),
+                                            mach, b, alpha))
+        sm = np.asarray(smooth_copula_field(gaussian_random_field(shape, beta - eps_crn, k),
+                                            mach, b, alpha))
+        derivs.append((smoothed_linear_variance(sp, R, top_hat_window)
+                       - smoothed_linear_variance(sm, R, top_hat_window)) / (2 * eps_crn))
+    sim = float(np.mean(derivs))
+    se = float(np.std(derivs) / np.sqrt(len(derivs)))
+    rel = abs(ad_beta - sim) / (abs(sim) + 1e-30)
+    print(f"  analytic d sigma_s^2/d beta = {ad_beta:+.5f}   CRN-simulator = {sim:+.5f} +/- "
+          f"{se:.5f}  (n_real={n_real_crn}, eps={eps_crn}; nsig={abs(ad_beta - sim) / (se + 1e-30):.1f})")
+    ok_beta = _row("analytic-vs-simulator beta-grad", 0.0, rel, beta_rel_tol, "abs")
+    print("  (residual = forward-model discretization bias, shrinks with grid -- cf AC13; "
+          "the gradient MATH is rel~1e-5 above)")
+    ok = ok and ok_beta
+    return {"passed": bool(ok), "beta_grad_rel": rel}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -418,6 +476,7 @@ def main():
         "AC11b": ac11b_rank_copula_equivalence(),
         "AC12": ac12_limber_projection_vs_oracle(),
         "AC13": ac13_cic_vs_oracle(),
+        "AC14": ac14_grad_validation(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

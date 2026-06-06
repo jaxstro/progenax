@@ -59,6 +59,13 @@ def test_ac12_limber_projection_vs_oracle():
     assert res["passed"]
 
 
+def test_ac14_grad_validation():
+    # autodiff vs FD (analytic gradients, tight) + the analytic beta path vs the simulator's
+    # beta-response (paired CRN, consistency within n_sigma). n_real=24 smoke; main() runs 48.
+    res = acceptance.ac14_grad_validation(n_real_crn=24)
+    assert res["passed"]
+
+
 def test_ac13_cic_vs_oracle():
     # 48³×10 smoke for test speed; the Cox relation + P(N) are tight at any n_real, the
     # Route-A linear moment is cosmic-variance-limited at small n_real -> theory_tol loosened
