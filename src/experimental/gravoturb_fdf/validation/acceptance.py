@@ -14,6 +14,7 @@ import math
 import numpy as np
 
 import jax
+import jax.numpy as jnp
 
 from gravoturb_fdf.theory.bm19 import (
     f_dense_bm19_full,
@@ -195,6 +196,53 @@ def ac8_ac9_grads():
     return {"passed": bool(ok)}
 
 
+# ── AC11: predicted xi_s vs realization oracle + Gaussianization convergence ──
+def ac11_xi_s_vs_oracle(shape=(64, 64, 64), n_real=8, beta=3.0, mach=5.0, b=0.4,
+                        alpha=2.0, n_max=16, n_bins=16, seed=0, rho_floor=0.05,
+                        rel_tol=0.02):
+    """Predicted log-density 2-point xi_s (Gaussianization series) vs the realization
+    oracle (smooth-copula field measured xi_s). Reports max/median relative error on
+    bins with rho_g > rho_floor and the Gaussianization convergence (n_max/2 -> n_max).
+    """
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.validation.measure import (
+        field_2pt_measured, gaussian_correlation_measured, smooth_copula_field)
+    from gravoturb_fdf.theory.gaussianization import (
+        bm19_hermite_coefficients, gaussianized_xi)
+
+    _header("AC11 — predicted xi_s vs realization oracle (+ Gaussianization convergence)")
+    key = jax.random.PRNGKey(seed)
+    rho_acc, xis_acc, r_ref = [], [], None
+    for i in range(n_real):
+        g = np.asarray(gaussian_random_field(shape, beta, jax.random.fold_in(key, i)))
+        s = smooth_copula_field(g, mach, b, alpha)
+        r_ref, rho = gaussian_correlation_measured(g, n_bins=n_bins)
+        _, xis = field_2pt_measured(s, n_bins=n_bins)
+        rho_acc.append(rho)
+        xis_acc.append(xis)
+    rho_m = np.mean(rho_acc, axis=0)
+    xis_m = np.mean(xis_acc, axis=0)
+
+    c = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max))
+    xis_pred = np.asarray(gaussianized_xi(jnp.asarray(rho_m), jnp.asarray(c)))
+
+    mask = rho_m > rho_floor
+    rel = np.abs(xis_pred[mask] - xis_m[mask]) / np.abs(xis_m[mask])
+    max_rel, med_rel = float(rel.max()), float(np.median(rel))
+
+    c_half = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max // 2))
+    xp_half = float(gaussianized_xi(jnp.asarray(rho_m[:1]), jnp.asarray(c_half))[0])
+    conv = abs(xis_pred[0] - xp_half) / abs(xis_pred[0])
+
+    print(f"  theta=(M={mach}, b={b}, alpha={alpha})  beta={beta}  shape={shape}  "
+          f"n_real={n_real}  n_max={n_max}  (bins with rho_g>{rho_floor}: {int(mask.sum())})")
+    ok_agree = _row("max rel(xi_pred vs oracle)", 0.0, max_rel, rel_tol, "abs")
+    ok_conv = _row(f"Gaussianization conv (n_max {n_max // 2}->{n_max})", 0.0, conv, 1e-3, "abs")
+    print(f"  median rel = {med_rel * 100:.3f}%")
+    return {"passed": bool(ok_agree and ok_conv), "max_rel": max_rel,
+            "median_rel": med_rel, "convergence": conv}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -203,6 +251,7 @@ def main():
         "AC6": ac6_cornerstone(),
         "AC7": ac7_q_calibration(),
         "AC8/AC9": ac8_ac9_grads(),
+        "AC11": ac11_xi_s_vs_oracle(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

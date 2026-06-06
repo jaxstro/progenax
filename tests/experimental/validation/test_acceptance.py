@@ -35,3 +35,10 @@ def test_ac7_q_calibration():
 
 def test_ac8_ac9_grads():
     assert acceptance.ac8_ac9_grads()["passed"]
+
+
+def test_ac11_xi_s_vs_oracle():
+    # 48³×4 for test speed (rel_tol=0.03 covers the smaller-grid noise); the script
+    # main() runs the full 64³×8 ensemble at rel_tol=0.02.
+    res = acceptance.ac11_xi_s_vs_oracle(shape=(48, 48, 48), n_real=4, rel_tol=0.03)
+    assert res["passed"]
