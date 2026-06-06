@@ -105,7 +105,10 @@ def run_nuts_diagnostic(
         ``step_size``      (n_chains,) float                  -- warmup-tuned step size per chain
         ``max_tree_depth`` int                                -- blackjax NUTS max_num_doublings
     """
-    max_tree_depth = 10  # blackjax NUTS default `max_num_doublings` (verified against installed API)
+    # NUTS max tree depth, passed explicitly to BOTH warmup and the sampling kernel so the
+    # reported saturation ceiling (Task 3 / AC19) is coupled to the value actually used,
+    # rather than relying on the blackjax default staying 10.
+    max_tree_depth = 10
 
     chain_keys = jax.random.split(key, n_chains)
 
@@ -113,7 +116,11 @@ def run_nuts_diagnostic(
         disperse_key, warmup_key, sample_key = jax.random.split(chain_key, 3)
         init = init_pos + 0.5 * jax.random.normal(disperse_key, jnp.shape(init_pos))
 
-        warmup = blackjax.window_adaptation(blackjax.nuts, logdensity_fn)
+        # max_num_doublings flows through `params` (window_adaptation folds its extra
+        # kernel kwargs into the returned params), so it is NOT passed again to the kernel.
+        warmup = blackjax.window_adaptation(
+            blackjax.nuts, logdensity_fn, max_num_doublings=max_tree_depth
+        )
         (state, params), _ = warmup.run(warmup_key, init, num_steps=n_warmup)
         kernel = blackjax.nuts(logdensity_fn, **params)
 
@@ -131,11 +138,11 @@ def run_nuts_diagnostic(
         _, (positions, divergences, tree_depth, energy) = jax.lax.scan(one_step, state, keys)
         return positions, divergences, tree_depth, energy, params["step_size"]
 
-    # Distinct per-chain fold-in for the dispersed inits + warmup/sampling streams.
-    init_keys = jax.vmap(lambda c: jax.random.fold_in(key, c))(jnp.arange(n_chains))
+    # vmap each chain over its own split key (distinct disperse/warmup/sample streams) +
+    # the shared central init (dispersed per-chain inside run_one_chain).
     positions, divergences, tree_depth, energy, step_size = jax.vmap(
         run_one_chain
-    )(init_keys, jnp.broadcast_to(init_position, (n_chains, *jnp.shape(init_position))))
+    )(chain_keys, jnp.broadcast_to(init_position, (n_chains, *jnp.shape(init_position))))
 
     return {
         "positions": positions,
