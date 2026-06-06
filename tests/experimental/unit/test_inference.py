@@ -98,3 +98,40 @@ def test_gaussian_bandpower_covariance_underestimates_mock():
     ratio = mock_diag / gauss_diag
     assert np.all(ratio > 1.3)          # Gaussian C is an underestimate everywhere
     assert ratio[-1] > 2.0 * ratio[0]   # excess grows toward small scales (high k)
+
+
+# --- Task 5.2: Gaussian likelihood on the data vector --------------------------
+
+_CFG = dict(shape=(24, 24, 24), k_edges=jnp.linspace(2.0, 11.0, 5), cell_sizes=(4,),
+            n_bar=30.0, n_max=12)
+_THETA = jnp.array([5.0, 0.4, 2.5, 3.0])  # (mach, b, alpha, beta)
+
+
+def test_data_vector_shape_and_differentiable():
+    """d(theta) = [P_s(k_i) band-powers, sigma^2_N(c)] is finite, correctly shaped, and
+    differentiable in theta=(mach,b,alpha,beta)."""
+    from gravoturb_fdf.inference.likelihood import data_vector
+
+    d = data_vector(_THETA, **_CFG)
+    assert d.shape == (4 + 1,)  # 4 band-power bins + 1 CIC variance
+    assert jnp.all(jnp.isfinite(d))
+    g = np.asarray(jax.grad(lambda th: jnp.sum(data_vector(th, **_CFG)))(_THETA))
+    assert np.all(np.isfinite(g)) and np.any(np.abs(g) > 0)
+
+
+def test_gaussian_loglike_max_at_truth_and_differentiable():
+    """gaussian_loglike on NOISELESS data (= d(theta_true)) peaks at theta_true (zero residual)
+    and is a finite, differentiable scalar."""
+    from gravoturb_fdf.inference.likelihood import data_vector, gaussian_loglike
+
+    data = data_vector(_THETA, **_CFG)
+    precision = jnp.diag(1.0 / data**2)  # any PD precision -> max at truth
+    ll0 = float(gaussian_loglike(data, _THETA, precision, **_CFG))
+    assert ll0 == pytest.approx(0.0, abs=1e-8)  # zero residual at truth
+
+    for j, dth in enumerate([0.5, 0.05, 0.3, 0.3]):
+        pert = _THETA.at[j].add(dth)
+        assert float(gaussian_loglike(data, pert, precision, **_CFG)) < ll0 - 1e-6
+
+    g = np.asarray(jax.grad(lambda th: gaussian_loglike(data, th, precision, **_CFG))(_THETA))
+    assert np.all(np.isfinite(g))
