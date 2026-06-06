@@ -120,6 +120,9 @@ Field = Gaussian `g` (spectrum `k^{−β}`) → monotone copula → BM19 margina
   [realization simulator + CW04 Q]  ─▶  RETAINED for: "we reproduce fractal clusters"
                                         demo (CW04 Q–fractal-D ladder), mocks, covariance,
                                         validation, and feeding gravax.
+
+  [3-pt / bispectrum]  ─▶  SEPARATE validation/diagnostic branch (NOT in the θ-likelihood):
+                           null test of the phase-randomness assumption + filament detector. See §6b.
 ```
 
 **Two-tier differentiability boundary [LEANING, not final]:** Tier-1 = analytic predicted
@@ -129,6 +132,54 @@ random numbers — the paired trick the calibration already uses) — *no soft-s
 exact non-diff realization statistics (CW04 Q, true MST) for validation/mocks. Soft-sort /
 Gumbel relaxations are **deferred** (YAGNI) unless full-fused backprop to gravax/render is
 later needed.
+
+## 6b. Higher-order statistics — the 3-point function **[DECIDED: validation/diagnostic only, NOT inference]**
+
+**Decision:** the inference likelihood stays at **1-pt + 2-pt**; the **3-pt (bispectrum) is
+implemented as a *separate* validation / diagnostic, never in the θ-fit.** Reasons, in order
+of importance:
+
+1. **Sufficiency.** Our field is a Gaussian `g` (2-pt set by β) through a monotone marginal
+   map (set by ℳ,b,α). Such a model is *fully specified by its 1-pt marginal + 2-pt function*;
+   every higher-order statistic is a **derived** quantity. So in the ideal (noise-free,
+   model-correct) limit the 3-pt carries **no independent information about θ** — 1-pt+2-pt
+   are sufficient statistics. (With noise it adds marginal info, but see #3.)
+
+2. **Two sources of 3-pt — only one is in the model.** A Gaussian field has *exactly zero*
+   connected 3-pt. So our model's 3-pt is **purely marginal-induced** (the skewed PDF, à la
+   the lognormal bispectrum) — analytic from the same Gaussianization machinery extended to
+   3 points, and fully fixed by (1-pt, 2-pt). Real clusters add a **second** source:
+   genuine **phase coherence** (filaments/sheets/chains) that a phase-random GRF **cannot**
+   produce.
+
+3. **Putting 3-pt in the θ-likelihood would BIAS θ.** If real filamentary 3-pt is present,
+   the model can only chase it by *distorting (ℳ,b,α,β)* — importing the phase-randomness
+   misspecification directly into the parameter estimates. The 3-pt is *where the
+   misspecification lives*, so it must stay out of the fit. This is the safety argument that
+   dominates the modest noise-limit information gain in #1.
+
+**Its right role — a held-out null test + discovery channel.** Predict the model 3-pt
+(marginal-induced, analytic) from the θ inferred via 1-pt+2-pt, then compare to the measured
+3-pt:
+- **Agree** → the cluster's non-Gaussianity is consistent with "skewed PDF + random phases";
+  the 1-pt+2-pt inference (and its sufficiency assumption) is validated.
+- **Excess over prediction** → detection of **genuine filamentary/coherent structure** beyond
+  a lognormal-random field — a science result in itself, and the signpost that a richer
+  (phase-correlated) field model is warranted.
+
+This closes the logic: **the 3-pt tests the very assumption (phase-randomness is adequate)
+that justifies using only 1-pt+2-pt for inference.** Pass → inference validated; fail →
+discovery.
+
+**Observational caveat.** 3-pt needs triplet counts → poor S/N at the ~10²–10³ members of a
+single cluster; feasible mainly **population-stacked** or as the model-validation null test.
+A small-N-robust substitute (MST-topology / higher-order tree statistics) is an **[OPEN]**
+alternative to the raw bispectrum — see Open Questions.
+
+**Implementation note:** lives in the validation/diagnostic layer alongside CW04 Q — it
+consumes the *realization simulator's* mocks (measured 3-pt) and the *analytic* predicted 3-pt
+(Gaussianization-to-3-pt), and reports the null-test residual. It is **not** wired into the
+HMC likelihood.
 
 ## 7. 2D projection **[DECIDED it's required]**
 
@@ -155,6 +206,10 @@ substructure), and it's the parameter the *spatial* data most directly constrain
   single snapshot (needs end-to-end coupling; β-diff is the upstream piece).
 - **Population test of the gravoturbulent paradigm**: inferred β→ℳ vs independent cloud
   line-widths.
+- **Stacked-3-pt "filament memory"** (novel LSST angle): population-stacked 3-pt residual
+  (measured − model-predicted) vs. environment/age → do young clusters retain primordial
+  *coherent* (phase-correlated) substructure beyond a lognormal-random field, and how fast
+  does it erase? Uses the 3-pt as the discovery channel of §6b, not as a θ-constraint.
 
 ## 9. Honest caveats / limitations
 
@@ -191,7 +246,12 @@ substructure), and it's the parameter the *spatial* data most directly constrain
    and the emulator-of-scatter (goal A).
 10. **Validation targets / ACs**: predicted ξ_s / CIC vs realization-measured (agreement);
     Fisher forecast sanity; HMC recovery of injected θ on mocks; convergence of the
-    Gaussianization series.
+    Gaussianization series; **3-pt null test** — model-predicted vs realization-measured 3-pt
+    agree (since the simulator IS phase-random, the null test must PASS on its own mocks — a
+    clean self-consistency check that the 3-pt machinery is correct).
+11. **3-pt estimator for small N**: raw bispectrum vs. an MST-topology / higher-order-tree
+    statistic as the small-N-robust substitute for per-cluster use (bispectrum likely
+    population-stacked only). Which to implement first?
 
 ## 11. Concrete next steps
 
