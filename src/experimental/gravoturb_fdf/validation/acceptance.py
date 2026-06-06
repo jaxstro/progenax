@@ -292,10 +292,19 @@ def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5
 
 
 # ── AC12: Limber-projected analytic 2-pt vs realization oracle ──
-def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=12, beta=3.0, n_bins=12,
-                                     seed=0, w_floor=0.1, rel_tol=0.06):
+def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=48, beta=3.0, n_bins=12,
+                                     seed=0, w_floor=0.1, abs_tol=0.03):
     """The analytic 3-D correlation rho_g, Limber-projected along the LOS, reproduces the
-    measured 2-D correlation of the column-projected realization (normalized to w(0)=1)."""
+    measured 2-D correlation of the column-projected realization (normalized to w(0)=1).
+
+    Criterion: max ABSOLUTE error ``max|w_pred - w_meas|`` over the signal bins
+    (w_pred>w_floor). The agreement is flat-in-absolute (~0.007 of the peak at n_real=48), so
+    absolute error is the robust metric -- a relative error divides that flat residual by
+    w->w_floor at the outer bin and spuriously explodes (the diagnosis Anna prompted
+    2026-06-05). The residual is cosmic-variance-limited (LOS projection discards modes;
+    steep red beta=3 -> few low-k modes coherently tilt the normalized curve): seed=0 n_real=48
+    -> 0.008, worst of seeds 0-4 -> 0.026, so abs_tol=0.03 is robust and deterministic at the
+    fiducial seed=0. main() runs that 48^3 x 48 ensemble."""
     from gravoturb_fdf.field.field import gaussian_random_field
     from gravoturb_fdf.theory.projection import (
         gaussian_correlation_grid, limber_project_grid)
@@ -315,11 +324,14 @@ def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=12, beta=3.0, n_
     _, w_meas = radial_average(xi_mean / xi_mean[0, 0], n_bins=n_bins)
 
     mask = w_pred > w_floor
-    rel = np.abs(w_pred[mask] - w_meas[mask]) / np.abs(w_pred[mask])
+    absd = np.abs(w_pred[mask] - w_meas[mask])
+    rel = absd / np.abs(w_pred[mask])
     print(f"  beta={beta}  shape={shape}  n_real={n_real}  (bins w_pred>{w_floor}: {int(mask.sum())})")
-    ok = _row("Limber proj 2-pt vs oracle (max rel)", 0.0, float(rel.max()), rel_tol, "abs")
-    print(f"  median rel = {np.median(rel) * 100:.3f}%")
-    return {"passed": bool(ok), "max_rel": float(rel.max()), "median_rel": float(np.median(rel))}
+    ok = _row("Limber proj 2-pt vs oracle (max |dw|)", 0.0, float(absd.max()), abs_tol, "abs")
+    print(f"  median |dw| = {np.median(absd):.4f}  (outer-bin max rel = {rel.max() * 100:.1f}%, "
+          f"a small-denominator artifact -- abs residual is flat)")
+    return {"passed": bool(ok), "max_abs": float(absd.max()),
+            "median_abs": float(np.median(absd)), "max_rel": float(rel.max())}
 
 
 def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b=0.4,

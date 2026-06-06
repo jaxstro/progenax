@@ -51,8 +51,11 @@ def test_ac11b_rank_copula_equivalence():
 
 
 def test_ac12_limber_projection_vs_oracle():
-    # 40³×12 for test speed; Limber-projected analytic 2-pt vs projected-realization 2-pt.
-    res = acceptance.ac12_limber_projection_vs_oracle(shape=(40, 40, 40), n_real=12)
+    # Asserts max ABSOLUTE error max|w_pred-w_meas| (the robust metric; relative error divides
+    # the flat ~0.007 residual by w->w_floor at the outer bin and spuriously explodes). Uses
+    # the SAME deterministic config as main() (48³×48, seed=0 -> max|dw|~0.008 < abs_tol 0.03)
+    # since the residual is cosmic-variance-noisy across seeds even at n_real=48. ~15s.
+    res = acceptance.ac12_limber_projection_vs_oracle()
     assert res["passed"]
 
 
