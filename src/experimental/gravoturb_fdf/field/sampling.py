@@ -20,6 +20,29 @@ from jaxtyping import Array, Float, Int
 from gravoturb_fdf.field.tail import tail_weights
 
 
+def sample_cic_counts(
+    s: Float[Array, "n n n"],
+    n_bar: Float[Array, ""],
+    cell_size: int,
+    key: jax.Array,
+) -> Int[Array, "m m m"]:
+    r"""Clean inhomogeneous-Poisson counts-in-cells from a log-density field ``s``.
+
+    A true Poisson point process with intensity proportional to rho = exp(s): the count in a
+    cubic cell is ``Poisson(n_bar * rho_cell)``, ``rho_cell`` = the cell-averaged mean-1 density
+    (a sum of sub-cell Poissons is Poisson of the integral, so this is resolution-independent at
+    the cell scale). This replaces the ``cloud_to_stars`` multinomial/with-replacement fine-cell
+    sampler for CIC inference: that sampler's counts pick up a fixed-total + fine-cell-pile-up
+    over-dispersion (an artifact, density/grid-dependent) that the cell-mean count model can't
+    represent; the clean Poisson process matches ``count_distribution``. ``cell_size`` divides the
+    grid; returns the ``(M, M, M)`` integer count grid, ``M = n // cell_size``."""
+    rho_tilde = jnp.exp(s) / jnp.mean(jnp.exp(s))
+    n = s.shape[0]
+    m = n // cell_size
+    rho_cell = rho_tilde.reshape(m, cell_size, m, cell_size, m, cell_size).mean(axis=(1, 3, 5))
+    return jax.random.poisson(key, n_bar * rho_cell)
+
+
 def sample_cell_indices(
     s: Float[Array, "nx ny nz"],
     s_t: Float[Array, ""],

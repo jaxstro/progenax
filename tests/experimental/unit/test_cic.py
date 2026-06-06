@@ -177,6 +177,28 @@ def test_pN_compound_poisson_moment_identity():
     assert var == pytest.approx(n_bar + n_bar**2 * var_rho, rel=0.02)
 
 
+def test_sample_cic_counts_clean_poisson():
+    """sample_cic_counts is a true inhomogeneous-Poisson CIC: count_cell ~ Poisson(n_bar*rho_cell).
+    Mean ~ n_bar and Var(N) ~ N_bar + N_bar^2 Var(rho_cell) (the clean Cox relation, no fine-cell
+    pile-up artifact) -- so it matches the count_distribution model and is resolution-independent."""
+    from gravoturb_fdf.field.sampling import sample_cic_counts
+    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.validation.measure import smooth_copula_field
+
+    shape, c, n_bar = (24, 24, 24), 4, 30.0
+    M = shape[0] // c
+    g = gaussian_random_field(shape, 3.0, jax.random.PRNGKey(0))
+    s = jnp.asarray(smooth_copula_field(g, 5.0, 0.4, 2.5))
+    counts = sample_cic_counts(s, n_bar, c, jax.random.PRNGKey(1))
+    assert counts.shape == (M, M, M)
+    assert float(counts.mean()) == pytest.approx(n_bar, rel=0.12)
+
+    rho_cell = (jnp.exp(s) / jnp.mean(jnp.exp(s))).reshape(
+        M, c, M, c, M, c).mean(axis=(1, 3, 5))
+    expected_var = n_bar + n_bar**2 * float(jnp.var(rho_cell))
+    assert float(jnp.var(counts)) == pytest.approx(expected_var, rel=0.25)
+
+
 def test_pN_differentiable():
     """jax.grad of a functional of P(N) wrt (mach,b,alpha,beta) is finite and nonzero."""
     from gravoturb_fdf.theory.cic import count_distribution
