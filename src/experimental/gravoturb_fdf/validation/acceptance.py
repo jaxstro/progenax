@@ -647,6 +647,120 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
             "corr_mach_alpha": corr_ma}
 
 
+def ac17_alpha_forecast(grids=((64, 64, 64), (96, 96, 96), (128, 128, 128)), n_iid=400,
+                        n_field=50, caveat_grid=(96, 96, 96), beta=3.0, mach=5.0, b=0.4,
+                        alpha=2.5, s_thr_margin=0.5, n_exc_bins=12, seed=0, sigma_tol=0.25,
+                        slope_tol=0.15, fdense_tol=0.03, corr_lo=1.0, corr_hi=3.0):
+    """AC17 -- sigma(alpha) vs N_tail forecast: the truncation-corrected Fisher, validated + caveated.
+
+    The transferable science result ("how many independent tail elements N a gas map needs to
+    measure the natal density-PDF slope alpha"), complementing AC16's single-resolution recovery.
+
+    METHOD NOTE (a real discovery): the rank copula has a DETERMINISTIC marginal -- ``s_i =
+    F^{-1}((rank_i+0.5)/N)``, the exact order statistics -- so repeated rank-copula realizations give
+    ZERO 1-pt scatter (only the spatial arrangement varies). The plan's "K rank-copula mocks ->
+    std(alpha_hat)" therefore cannot validate the forecast. Instead (Anna-approved):
+
+    PRIMARY (asserted): use one rank-copula field per grid only to read off the representative
+    ``(N_tail, L)`` at that resolution, then validate the forecast with ``n_iid`` genuine
+    truncated-exponential draws of ``N_tail`` exceedances -- the definition of N INDEPENDENT tail
+    elements. Assert ``|sigma_emp/sigma_fisher - 1| < sigma_tol`` per grid and the sqrt(N) law
+    (``log sigma`` vs ``log N_tail`` slope within ``slope_tol`` of -0.5 AND of the Fisher slope).
+
+    CAVEAT (reported, loose sanity bound): a REALISTIC correlated field (``smooth_copula_field``,
+    ``n_field`` mocks at ``caveat_grid``) scatters wider than the i.i.d. bound by a correlation
+    factor ``c = sigma_field/sigma_fisher`` (the red-spectrum tail's cells are not independent;
+    N_eff ~ N_tail/c^2). Reported as the honest "field-level upper bound" caveat (cf. AC15); only
+    bounded to ``[corr_lo, corr_hi]`` as a sanity check, not pinned.
+
+    Also (Option B) the robust f_dense cross-check: a MASS-conserving realization's dense-mass
+    fraction matches ``f_dense_bm19_full`` (convergent, truncation-robust). numpy MLE (validation)."""
+    from gravoturb_fdf.field.field import (
+        gaussian_random_field, rank_copula_field, mass_conserving_copula_field)
+    from gravoturb_fdf.validation.measure import measure_exceedances, smooth_copula_field
+    from gravoturb_fdf.inference.fisher import sigma_alpha
+
+    _header("AC17 -- sigma(alpha) vs N_tail forecast (iid-validated Fisher + correlation caveat)")
+    key = jax.random.PRNGKey(seed)
+    s_t = float(transition_density(alpha, sigma_s_squared(mach, b)))
+    s_thr = s_t + s_thr_margin
+    a_grid = np.arange(1.2, 5.0, 0.005)
+    rng = np.random.default_rng(seed)
+
+    def mle_alpha(counts, edges, s_max):
+        """1-D MLE of alpha = argmax of the binned truncated-exponential loglike (vectorized)."""
+        x = edges - s_thr
+        L = s_max - s_thr
+        x_lo, dx = x[:-1][None, :], np.diff(x)[None, :]
+        a = a_grid[:, None]
+        logp = (-a * x_lo) + np.log(-np.expm1(-a * dx)) - np.log(-np.expm1(-a * L))
+        return float(a_grid[int(np.argmax((counts[None, :] * logp).sum(1)))])
+
+    # --- PRIMARY: i.i.d. validation of the truncation-corrected Fisher across the N_tail ladder ---
+    rows = []
+    for gi, grid in enumerate(grids):
+        s = np.asarray(rank_copula_field(
+            gaussian_random_field(grid, beta, jax.random.fold_in(key, gi)), mach, b, alpha))
+        _c, _e, s_max, n_tail = measure_exceedances(s, s_thr, n_bins=n_exc_bins)  # representative (N,L)
+        L = s_max - s_thr
+        edges = np.linspace(s_thr, s_max, n_exc_bins + 1)
+        Z = 1.0 - np.exp(-alpha * L)
+        a_hats = np.empty(n_iid)
+        for j in range(n_iid):
+            x = -np.log1p(-rng.random(n_tail) * Z) / alpha          # truncated-exp draws on [0, L]
+            counts, _ = np.histogram(x, edges - s_thr)
+            a_hats[j] = mle_alpha(counts.astype(float), edges, s_max)
+        sigma_emp, sigma_fish = float(a_hats.std()), float(sigma_alpha(alpha, L, n_tail))
+        rel = abs(sigma_emp / sigma_fish - 1.0)
+        rows.append((n_tail, sigma_emp, sigma_fish))
+        print(f"  grid={grid[0]:>3}^3  N_tail={n_tail:6d}  L={L:.2f}  sigma_emp={sigma_emp:.3f}  "
+              f"sigma_fish={sigma_fish:.3f}  rel={rel:.2f}  {'OK' if rel < sigma_tol else 'BAD'}")
+
+    rows = np.asarray(rows)
+    nt, se, sf = rows[:, 0], rows[:, 1], rows[:, 2]
+    per_grid_ok = bool(np.all(np.abs(se / sf - 1.0) < sigma_tol))
+    slope_emp = float(np.polyfit(np.log(nt), np.log(se), 1)[0])
+    slope_fish = float(np.polyfit(np.log(nt), np.log(sf), 1)[0])
+    slope_ok = bool(abs(slope_emp + 0.5) < slope_tol and abs(slope_emp - slope_fish) < slope_tol)
+
+    # --- CAVEAT: a realistic correlated field scatters wider than the iid bound (report c) ---
+    a_field, nts_c, Ls_c = [], [], []
+    for k in range(n_field):
+        s = smooth_copula_field(
+            gaussian_random_field(caveat_grid, beta, jax.random.fold_in(key, 5000 + k)), mach, b, alpha)
+        c_, e_, smax_, nt_ = measure_exceedances(s, s_thr, n_bins=n_exc_bins)
+        if nt_ < 10:
+            continue
+        a_field.append(mle_alpha(c_, e_, smax_))
+        nts_c.append(nt_)
+        Ls_c.append(smax_ - s_thr)
+    sig_field = float(np.std(a_field))
+    sig_fish_c = float(sigma_alpha(alpha, float(np.mean(Ls_c)), float(np.mean(nts_c))))
+    corr_factor = sig_field / sig_fish_c
+    corr_ok = bool(corr_lo <= corr_factor <= corr_hi)
+
+    # --- Option B: robust f_dense cross-check (MASS-conserving realization vs analytic) ---
+    s_mc = np.asarray(mass_conserving_copula_field(
+        gaussian_random_field((96, 96, 96), beta, jax.random.fold_in(key, 99)), mach, b, alpha))
+    rho = np.exp(s_mc)
+    f_dense_real, f_dense_an = float(rho[s_mc > s_t].sum() / rho.sum()), float(f_dense_bm19_full(mach, b, alpha))
+    fd_rel = abs(f_dense_real / f_dense_an - 1.0)
+    fd_ok = fd_rel < fdense_tol
+
+    print(f"  sqrt(N) law: slope_emp={slope_emp:+.3f} (Fisher {slope_fish:+.3f}; ideal -0.5) "
+          f"{'OK' if slope_ok else 'BAD'}")
+    print(f"  correlation caveat: realistic field sigma={sig_field:.3f} vs iid Fisher {sig_fish_c:.3f}"
+          f" -> c={corr_factor:.2f} (N_eff ~ N_tail/{corr_factor**2:.1f})  {'OK' if corr_ok else 'BAD'}")
+    print(f"  f_dense cross-check (Option B): realized={f_dense_real:.4f} analytic={f_dense_an:.4f}"
+          f"  rel={fd_rel:.3f}  {'OK' if fd_ok else 'BAD'}")
+    ok = per_grid_ok and slope_ok and corr_ok and fd_ok
+    print(f"  forecast {'PASS' if ok else 'FAIL'} (iid sigma_emp ~ corrected Fisher; sqrt(N); "
+          f"correlation caveat; f_dense robust)")
+    return {"passed": bool(ok), "n_tail": nt.tolist(), "sigma_emp": se.tolist(),
+            "sigma_fisher": sf.tolist(), "slope_emp": slope_emp, "slope_fisher": slope_fish,
+            "corr_factor": corr_factor, "f_dense_rel": fd_rel}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -664,6 +778,9 @@ def main():
         # AC16 (joint mach,alpha,beta HMC recovery) -- the POT truncated-exponential tail block
         # makes alpha recoverable; production run uses a 160^3 gas map (N_tail ~ 500) + long chains.
         "AC16": ac16_hmc_recovery(density_shape=(160, 160, 160), n_warmup=500, n_samples=1000),
+        # AC17 (sigma(alpha) vs N_tail forecast) -- iid-validated truncation-corrected Fisher +
+        # the realistic-field correlation caveat. Production ladder up to 128^3.
+        "AC17": ac17_alpha_forecast(grids=((64,)*3, (96,)*3, (128,)*3), n_field=60),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

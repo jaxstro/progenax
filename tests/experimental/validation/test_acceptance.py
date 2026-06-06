@@ -96,3 +96,14 @@ def test_ac16_hmc_recovery():
     assert res["n_tail"] > 50                       # tail resolved
     assert 0.5 <= res["stds"][1] / res["sigma_alpha_fisher"] <= 2.0  # alpha width sane
     assert abs(res["corr_mach_alpha"]) < 0.6        # mach-alpha decoupled by POT
+
+
+def test_ac17_alpha_forecast():
+    # sigma(alpha) vs N_tail: iid draws validate the truncation-corrected Fisher (sigma_emp/sigma_fish
+    # ~1) + sqrt(N) law; the smooth-copula correlation caveat is reported; f_dense is robust. Small
+    # grids/n_field for test speed; main() runs the bigger ladder.
+    res = acceptance.ac17_alpha_forecast(grids=((64,)*3, (88,)*3, (112,)*3), n_iid=300, n_field=30,
+                                         caveat_grid=(96, 96, 96), seed=0)
+    assert res["passed"]
+    assert res["corr_factor"] > 1.0                 # correlation inflates scatter over the iid bound
+    assert abs(res["slope_emp"] + 0.5) < 0.15       # sqrt(N) scaling
