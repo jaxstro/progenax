@@ -9,12 +9,46 @@ them. The ``experimental`` marker keeps them out of the released-core collection
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
+from gravoturb_fdf.inference.hmc import to_unconstrained
 from gravoturb_fdf.inference.priors import BM19Prior
-from gravoturb_fdf.inference.sbc import sbc_ranks
+from gravoturb_fdf.inference.sbc import build_logdensity, sbc_ranks
 
 pytestmark = [pytest.mark.experimental, pytest.mark.slow]
+
+
+def test_build_logdensity_uses_log_count_variance_block():
+    """build_logdensity consumes the tail-robust log-count-variance keys and is finite + diff'able.
+
+    Mirrors the SBC mock bundle but with the NEW keys (Task 7): ``log_count_vars`` (per-cell
+    measured Var_cells[log_plus(N)]) and threaded ``var_vs`` (fixed-fiducial estimator variance),
+    replacing the dropped ``count_hists``. Asserts logdensity(z) is finite and jax.grad is finite.
+    """
+    pr = BM19Prior()
+    shape = (24, 24, 24)
+    cell_sizes = (4,)
+    # A small, valid POT histogram (empty tail -> contributes exactly 0) + the new count keys.
+    s_thr, s_max = 5.0, 6.0
+    data = {
+        "exc_counts": np.zeros(8, dtype=float),
+        "exc_edges": np.linspace(s_thr, s_max, 9),
+        "log_count_vars": (0.35,),  # measured Var_cells[log_plus(N)] per cell
+        "var_vs": (1e-3,),  # fixed-fiducial estimator variance per cell
+        "n_bars": (5.0,),
+    }
+    logdensity = build_logdensity(
+        pr, data, b=0.4, s_thr=s_thr, s_max=s_max,
+        shape=shape, cell_sizes=cell_sizes, n_max=8, n_s=256,
+    )
+    # Evaluate at an in-prior-support point (unconstrained image of a valid theta), as the
+    # SBC driver does; z=0 would map outside the BM19 box -> prior is -inf there.
+    z = to_unconstrained(jnp.array([8.0, 2.5, 3.0]))
+    val = logdensity(z)
+    assert jnp.isfinite(val), f"logdensity not finite: {val}"
+    g = jax.grad(logdensity)(z)
+    assert bool(jnp.all(jnp.isfinite(g))), f"gradient not finite: {g}"
 
 
 def test_sbc_ranks_shape_and_support():

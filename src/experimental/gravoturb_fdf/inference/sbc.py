@@ -14,10 +14,20 @@ Two pieces:
 - :func:`build_logdensity` -- the shared, **prior-aware** unconstrained log-density factory used
   by BOTH the SBC driver and AC16. It composes (over a constrained ``z`` reparametrization)::
 
-        logdensity(z) = tail_exceedance_loglike(...)          # POT tail -> alpha
-                      + sum_c count_loglike(count_hist_c, ...) # stellar CIC -> mach, beta
-                      + prior.logpdf([M, alpha, beta])         # proper BM19 prior
-                      + log_jacobian(z)                        # reparam Jacobian
+        logdensity(z) = tail_exceedance_loglike(...)               # POT tail -> alpha
+                      + sum_c log_count_variance_loglike(meas_v_c, # tail-robust CIC sigma_s^2
+                            ..., var_v_c)                          #   -> mach, beta
+                      + prior.logpdf([M, alpha, beta])             # proper BM19 prior
+                      + log_jacobian(z)                            # reparam Jacobian
+
+  The stellar CIC block is the **tail-robust log-count-variance** statistic
+  (:func:`log_count_variance_loglike`, Task 7) -- a Gaussian fit of the measured
+  ``Var_cells[log_plus(N_cell)]`` to its analytic prediction with a FIXED-FIDUCIAL estimator
+  variance ``var_v``. It REPLACES the per-cell ``count_loglike`` count-histogram block, which
+  was tail-sensitive and biased mach high (the AC18 ℳ-bias). Crucially, ``var_v`` is computed
+  ONCE per inference at a fixed fiducial theta (NOT at the trial truth ``theta*``) so it is a
+  truth-independent constant -- a truth-keyed var_v would be exactly the kind of SBC artifact
+  the old POT validity barrier was.
 
   AC16 originally carried a *flat-in-theta* (improper) prior; SBC REQUIRES a proper prior, so
   the prior term is part of this shared factory. AC16 is refactored to call this factory with
@@ -35,15 +45,18 @@ Two pieces:
 
 - :func:`sbc_ranks` -- the calibration loop. A python loop over trials (the validation/oracle
   side -- each trial is a full NUTS run), with per-trial fold-in keys for determinism /
-  resumability. Per trial it draws theta*, builds the BM19 mock (gas tail exceedances + stellar
-  CIC count histograms) exactly as AC16 does, builds the prior-aware log-density, runs NUTS,
-  thins the draws to ~independence (Talts 2018 sec. 5.1), and ranks theta* among them.
+  resumability. Per trial it draws theta*, builds the BM19 mock (gas tail exceedances + the
+  tail-robust stellar-CIC log-count variance) exactly as AC16 does, builds the prior-aware
+  log-density, runs NUTS, thins the draws to ~independence (Talts 2018 sec. 5.1), and ranks
+  theta* among them. The fixed-fiducial estimator variance ``var_vs`` for the count block is
+  computed ONCE (before the trial loop) at a fixed fiducial theta -- never at the trial truth --
+  and threaded into every trial's log-density (SBC-valid as a truth-independent constant).
 
-The mock construction (n_bar per cell, count-hist length, the rank-copula gas/stellar fields)
-mirrors :func:`gravoturb_fdf.validation.acceptance.ac16_hmc_recovery` so the calibrated object
-is the SAME inference machinery AC16 exercises. The numpy paths (``measure_exceedances``,
-``np.bincount``, the per-trial scalar threshold) are the non-differentiable oracle side --
-the differentiable interface is the log-density itself (Phase 5 design).
+The mock construction (n_bar per cell, the rank-copula gas/stellar fields) mirrors
+:func:`gravoturb_fdf.validation.acceptance.ac16_hmc_recovery` so the calibrated object is the
+SAME inference machinery AC16 exercises. The numpy paths (``measure_exceedances``,
+``measure_log_count_variance``, the per-trial scalar threshold) are the non-differentiable
+oracle side -- the differentiable interface is the log-density itself (Phase 5 design).
 """
 
 from typing import Callable
@@ -61,12 +74,24 @@ from gravoturb_fdf.inference.hmc import (
     to_unconstrained,
 )
 from gravoturb_fdf.inference.likelihood import (
-    count_loglike,
+    log_count_variance_loglike,
     tail_exceedance_loglike,
 )
 from gravoturb_fdf.inference.priors import BM19Prior
 from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-from gravoturb_fdf.validation.measure import measure_exceedances
+from gravoturb_fdf.validation.measure import (
+    estimate_log_count_variance_var,
+    measure_exceedances,
+    measure_log_count_variance,
+)
+
+# Fixed fiducial theta for the truth-INDEPENDENT log-count-variance estimator variance
+# (var_v). Used ONCE per inference in sbc_ranks to compute var_v at a fixed point -- NEVER at
+# the trial truth theta* (a truth-keyed var_v would break SBC, like the old POT barrier did).
+_MACH_FID = 8.0
+_ALPHA_FID = 2.5
+_BETA_FID = 3.0
+_N_REAL_VAR_V = 12
 
 
 def build_logdensity(
@@ -89,9 +114,11 @@ def build_logdensity(
     data : dict
         Per-trial mock data bundle with keys:
         ``"exc_counts"`` (nb,), ``"exc_edges"`` (nb+1,) -- the gas-tail POT histogram from
-        :func:`measure_exceedances`; ``"count_hists"`` -- tuple of per-cell count histograms
-        (each ``(nmax_c,)`` from ``np.bincount``); ``"n_bars"`` -- tuple of per-cell ``n_bar``
-        (matched to ``cell_sizes``).
+        :func:`measure_exceedances`; ``"log_count_vars"`` -- tuple of per-cell measured
+        ``Var_cells[log_plus(N)]`` scalars (:func:`measure_log_count_variance`, Task 7);
+        ``"var_vs"`` -- tuple of per-cell FIXED-FIDUCIAL estimator variances (threaded in from
+        :func:`sbc_ranks`, computed ONCE at a fixed fiducial theta, NOT at the trial truth ->
+        SBC-valid); ``"n_bars"`` -- tuple of per-cell ``n_bar`` (matched to ``cell_sizes``).
     b : float
         Fixed turbulence driving parameter (the likelihood constant in ``theta4``).
     s_thr, s_max : float
@@ -100,9 +127,10 @@ def build_logdensity(
     shape : (n, n, n)
         Stellar CIC grid the count model FFTs on (forward-bias-matched).
     cell_sizes : tuple[int, ...]
-        CIC cell sizes; ``data["count_hists"]`` / ``data["n_bars"]`` align with this.
+        CIC cell sizes; ``data["log_count_vars"]`` / ``data["var_vs"]`` / ``data["n_bars"]``
+        align with this.
     n_max, n_s : int
-        ``count_loglike`` quadrature controls (mirror AC16 defaults).
+        ``log_count_variance_loglike`` quadrature controls (mirror AC16 defaults).
 
     Returns
     -------
@@ -110,7 +138,8 @@ def build_logdensity(
     """
     exc_counts = jnp.asarray(data["exc_counts"])
     exc_edges = jnp.asarray(data["exc_edges"])
-    count_hists = tuple(jnp.asarray(h) for h in data["count_hists"])
+    log_count_vars = tuple(jnp.asarray(mv) for mv in data["log_count_vars"])
+    var_vs = tuple(jnp.asarray(vv) for vv in data["var_vs"])
     n_bars = tuple(float(nb) for nb in data["n_bars"])
 
     def logdensity(z):
@@ -120,9 +149,12 @@ def build_logdensity(
         # POT tail block -> alpha. SHIFT-IMMUNE in s_thr (the lognormal norm
         # cancels), so a per-trial s_thr keyed to the truth does NOT bias alpha.
         ll = tail_exceedance_loglike(exc_counts, exc_edges, theta4, s_thr, s_max)
-        # stellar CIC blocks -> mach, beta
-        for c, h, nb in zip(cell_sizes, count_hists, n_bars):
-            ll = ll + count_loglike(h, theta4, shape, c, nb, n_max=n_max, n_s=n_s)
+        # tail-robust stellar CIC blocks (log-count variance) -> mach, beta. var_v is the
+        # FIXED-FIDUCIAL estimator variance (truth-independent; see build_logdensity docstring).
+        for c, mv, vv, nb in zip(cell_sizes, log_count_vars, var_vs, n_bars):
+            ll = ll + log_count_variance_loglike(
+                mv, theta4, shape, c, nb, vv, n_max=n_max, n_s=n_s
+            )
         # proper prior (replaces AC16's flat-in-theta improper prior)
         ll = ll + prior.logpdf(theta3)
         # NB: NO pot_validity_barrier here. The barrier penalizes draws with
@@ -198,20 +230,22 @@ def _build_mock(
         b,
         alpha_star,
     )
-    count_hists, n_bars = [], []
+    log_count_vars, n_bars = [], []
     for c in cell_sizes:
         nb = n_stars / (shape[0] // c) ** 3
         cnt = np.asarray(
             sample_cic_counts(s_lo, nb, c, jax.random.fold_in(key, 100 + c))
-        ).ravel()
-        nmaxN = int(nb * 8) + 30
-        count_hists.append(np.bincount(cnt, minlength=nmaxN)[:nmaxN].astype(float))
+        )
+        # Tail-robust statistic (Task 7): measured Var_cells[log_plus(N)] per cell scale,
+        # replacing the count histogram. var_v (fixed-fiducial estimator variance) is threaded
+        # in by sbc_ranks, NOT computed here -- it must be truth-independent for SBC validity.
+        log_count_vars.append(measure_log_count_variance(cnt, nb))
         n_bars.append(nb)
 
     data = {
         "exc_counts": exc_counts,
         "exc_edges": exc_edges,
-        "count_hists": tuple(count_hists),
+        "log_count_vars": tuple(log_count_vars),
         "n_bars": tuple(n_bars),
     }
     return data, float(s_thr), float(s_max)
@@ -259,6 +293,30 @@ def sbc_ranks(
     thetas_true = np.zeros((n_trials, 3), dtype=float)
     n_draws = None
 
+    # --- Fixed-fiducial estimator variance var_v for the log-count-variance block. ---
+    # CRITICAL FOR SBC VALIDITY: var_v MUST be truth-independent. It is computed ONCE here,
+    # before the trial loop, at a FIXED fiducial theta (M=_MACH_FID, alpha=_ALPHA_FID,
+    # beta=_BETA_FID; the same fixed b as inference) -- NEVER at the trial truth theta*. A
+    # truth-keyed var_v is exactly the kind of artifact (like the old POT validity barrier)
+    # that breaks SBC by tying the likelihood's precision to the injected truth. Per cell,
+    # with the SAME shape/cell_size/n_bar the inference uses, its own fold-in key.
+    # Tag 2**31 keeps this stream disjoint from the per-trial fold-ins (i in 0..n_trials-1).
+    k_var = jax.random.fold_in(key, 2**31)
+    var_vs = tuple(
+        estimate_log_count_variance_var(
+            mach=_MACH_FID,
+            b=b,
+            alpha=_ALPHA_FID,
+            beta=_BETA_FID,
+            shape=shape,
+            cell_size=c,
+            n_bar=n_stars / (shape[0] // c) ** 3,
+            n_real=_N_REAL_VAR_V,
+            key=jax.random.fold_in(k_var, c),
+        )
+        for c in cell_sizes
+    )
+
     for i in range(n_trials):
         # Per-trial fold-in keys: prior draw / mock realization / NUTS, each its own stream.
         k_trial = jax.random.fold_in(key, i)
@@ -278,6 +336,8 @@ def sbc_ranks(
             key=k_mock,
             n_exc_bins=n_exc_bins,
         )
+        # Thread the fixed-fiducial (truth-independent) var_v per cell into the data bundle.
+        data["var_vs"] = var_vs
 
         logdensity = build_logdensity(
             prior,
