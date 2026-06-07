@@ -16,8 +16,17 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients, gaussianized_xi
-from gravoturb_fdf.theory.projection import _kmag_grid, gaussian_correlation_grid
+from gravoturb_fdf.theory.gaussianization import (
+    bm19_density_hermite_coefficients,
+    bm19_hermite_coefficients,
+    gaussianized_xi,
+)
+from gravoturb_fdf.theory.projection import (
+    _kmag_grid,
+    gaussian_correlation_grid,
+    limber_project_grid,
+    limber_project_slab,
+)
 
 
 def _bin_by_kmag(values, kmag, k_edges):
@@ -104,6 +113,94 @@ def mock_precision(rows):
     rows = np.asarray(rows)
     n_real, n_data = rows.shape
     return hartlap_factor(n_real, n_data) * np.linalg.inv(mock_covariance(rows))
+
+
+def _kmag_grid_2d(shape: tuple[int, int]) -> Float[Array, " ny nx"]:
+    r"""2-D isotropic |k| grid (kx = fftfreq(n)*n per axis), matching
+    :func:`gravoturb_fdf.validation.measure.measure_angular_bandpowers_2d` so the predicted
+    and measured angular band-powers share an identical |k| convention."""
+    ny, nx = shape
+    ky = jnp.fft.fftfreq(ny) * ny
+    kx = jnp.fft.fftfreq(nx) * nx
+    return jnp.sqrt(ky[:, None] ** 2 + kx[None, :] ** 2)
+
+
+def _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges):
+    r"""Bin the 2-D projected autocovariance into angular band-powers via Wiener-Khinchin.
+
+    ``P_Sigma(k) = fft2(xi_Sigma)(k)`` is the EXACT discrete 2-D power spectrum for the
+    same periodogram convention as ``measure_angular_bandpowers_2d`` (derived normalization
+    constant = 1; see _v1b_limber_predictor module docstring), provided ``xi_Sigma`` is the
+    true autocovariance of the projected map. Returns (k_centers, band-powers, N_modes)."""
+    P_2d = jnp.fft.fft2(xi_Sigma).real
+    kmag = _kmag_grid_2d(xi_Sigma.shape)
+    return _bin_by_kmag(P_2d, kmag, k_edges)
+
+
+def _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad):
+    r"""3-D EXACT BM19 density 2-point ``xi_rho(r) = sum_{n>=1} d_n^2/n! rho_g(r)^n``.
+
+    Uses the DENSITY Hermite coefficients ``d_n = <e^s He_n(g)>`` (the exact Mehler
+    expansion), NOT the lognormal-limit ``expm1(xi_s)`` -- the only change vs a naive build
+    (A-new1). Differentiable in (beta, mach, b, alpha)."""
+    rho_g = gaussian_correlation_grid(shape, beta)
+    d = bm19_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    return gaussianized_xi(rho_g, d)
+
+
+def angular_bandpowers_2d_limber(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    depth: Float[Array, ""],
+    k_edges: Float[Array, " kp1"],
+    n_max: int = 14,
+    n_quad: int = 256,
+) -> tuple[Float[Array, " k"], Float[Array, " k"], Float[Array, " k"]]:
+    r"""Predicted 2-D projected-DENSITY angular band-powers via the analytic Limber chain.
+
+    Walks the validated forward model (A-new1):
+      rho_g(beta) -> d_n (EXACT BM19 density Hermite) -> xi_rho (Mehler, NOT expm1)
+      -> ``limber_project_slab`` (depth-L LOS projection) -> ``fft2`` (Wiener-Khinchin,
+      derived normalization = 1) -> radially binned by 2-D |k| into ``k_edges``.
+
+    The density 2-point is the exact ``sum_{n>=1} d_n^2/n! rho_g^n`` (copula-faithful);
+    this predicts the observable slope to <=0.06 across M in {4,8,16} (vs the lognormal-limit
+    ``expm1(xi_s)`` which biases the slope by M). Returns (k_centers, band-powers, N_modes)
+    mirroring :func:`power_spectrum_bandpowers`. Differentiable in (beta, mach, b, alpha) and
+    the ``depth`` nuisance. This is the CLUSTERING predictor only; compose with
+    :func:`add_poisson_shot` for the count observable."""
+    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
+    return _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
+
+
+def _angular_bandpowers_from_xi_rho_full(
+    shape, beta, mach, b, alpha, k_edges, n_max=14, n_quad=256
+):
+    r"""Full-depth periodic-projection variant of :func:`angular_bandpowers_2d_limber`
+    (uses ``limber_project_grid`` directly). At ``depth = n_los`` the slab predictor reduces
+    to this exactly; kept as the reduction-limit reference for tests."""
+    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_Sigma = limber_project_grid(xi_rho, los_axis=2)
+    return _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
+
+
+def add_poisson_shot(
+    bandpowers: Float[Array, " k"],
+    n_bar_sky: Float[Array, ""],
+    depth: Float[Array, ""],
+) -> Float[Array, " k"]:
+    r"""Compose the clustering band-powers into the validated COUNT observable.
+
+    ``P_N(k) = (n_bar_sky / depth)^2 * P_clustering(k) + n_bar_sky``. The clustering term is
+    in units of the unit-mean column density Sigma = sum_los rho (mean = depth); the count map
+    N = n_bar_sky * Sigma/<Sigma> rescales its band-power by ``(n_bar_sky/depth)^2``, and the
+    Poisson white-noise floor is the mean count per sky cell ``n_bar_sky`` (_v1b shot block).
+    Kept separate from the clustering predictor so the two pieces stay composable."""
+    return (n_bar_sky / depth) ** 2 * bandpowers + n_bar_sky
 
 
 def measured_bandpowers(s, shape, k_edges):

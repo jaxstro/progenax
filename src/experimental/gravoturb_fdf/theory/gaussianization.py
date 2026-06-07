@@ -111,6 +111,34 @@ def bm19_hermite_coefficients(
     return hermite_coefficients(lambda g: s_of_g(g, mach, b, alpha), n_max, n_quad)
 
 
+def bm19_density_hermite_coefficients(
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    n_max: int,
+    n_quad: int = 256,
+) -> Float[Array, " n"]:
+    r"""Hermite coefficients of the BM19 DENSITY map ``rho = e^s = exp(s_of_g(.))``.
+
+    ``d_n = <exp(T(g)) He_n(g)>``, ``T(g) = s_of_g(g; mach,b,alpha)`` (probabilists'
+    Hermite), the density analog of :func:`bm19_hermite_coefficients` (which expands the
+    log-density ``s`` itself). Feeding ``d`` to :func:`gaussianized_xi` gives the EXACT
+    BM19 density 2-point (Mehler bivariate-Hermite),
+    ``xi_rho(r) = sum_{n>=1} d_n^2/n! rho_g(r)^n`` -- the copula-faithful density 2-pt,
+    not the lognormal-limit ``expm1(xi_s)``.
+
+    Two derived invariants follow from the rho0 convention (``<e^s> = 1``):
+      - ``d_0 = <e^s> = 1`` (mean density), and
+      - ``xi_rho(0) = sum_{n>=1} d_n^2/n! = Var(rho)`` (the density variance).
+
+    Differentiable in (mach, b, alpha) via the Gauss-Hermite quadrature in
+    :func:`hermite_coefficients`; ``g`` is held fixed.
+    """
+    return hermite_coefficients(
+        lambda g: jnp.exp(s_of_g(g, mach, b, alpha)), n_max, n_quad
+    )
+
+
 def gaussianized_xi(
     rho_g: Float[Array, " ..."], c: Float[Array, " n"]
 ) -> Float[Array, " ..."]:
