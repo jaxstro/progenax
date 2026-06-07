@@ -144,3 +144,39 @@ Depth-resolved 3D-star α mode (Gaia parallaxes → full α from observed stars)
 - AC16-2D: joint (ℳ, β) recovery covers truth; α reported as a limit (depth-gated).
 - AC18-2D: rank-uniformity **passes** for β and ℳ (α per its gated scope).
 - Full experimental suite green; **released-core 814 invariant**.
+
+## 12. Refinement (2026-06-07, after the A3 + A4 implementation STOPs)
+
+Two implementation STOPs (the angular-band-power β carrier; the BM19-at-`meff` count carrier) shared
+**one root cause: deep LOS projection CLT-Gaussianizes the field, so analytic predictions that carry
+the 3D BM19 *shape* through projection are biased in the intermediate regime** (both carriers nearly
+worked at full depth, failed where the projected field is neither BM19 nor Gaussian). A4's residual
+was mach-dependent (+37%→−8%) from (i) a Jensen gap `Var(avg of log)` vs `log(avg)` and (ii) the
+CLT-thinned tail vs the fatter BM19-at-`meff` tail.
+
+**Decision (Anna-approved):** model the deep-projected observable as the **near-Gaussian / lognormal**
+field it actually is — *not* a loss of substructure: clustering/substructure lives entirely in the
+power spectrum P(k)∝k⁻ᵝ (preserved by projection) and the amplitude σ_s²→ℳ; "near-Gaussian" refers
+only to the projected **1-point** distribution, whose fat tail (α) projection erases. Phase-coherent
+filaments were always outside the phase-random GRF model (the held-out 3-pt null test) — unchanged.
+
+- **2D-headline inference parameters = (ℳ, β, depth/aspect-ratio nuisance).** **α exits the inference
+  loop**, held at a physical fiducial. (It is not marginalized-as-unconstrained; the Gaussian-limit
+  prediction barely depends on it.)
+- **α scope:** scientifically meaningful (high-density power-law tail = self-gravity beating
+  turbulence; shallower α = more-advanced/efficient star formation — a collapse/SF clock), but
+  *unmeasurable from 2D star positions* (washed out). It is kept (i) as a fiducial in the realistic
+  forward mock (it seeds where the densest stars form), (ii) as the inference target of the future
+  **depth-resolved mode** (Gaia 3D star positions; dust/extinction column-PDF), and (iii) as a
+  **held-out tail robustness stress-test** of the 2D (ℳ,β) inference.
+- **Predicted statistic (lognormal limit, tail-robust, no Hermite tail series):**
+  σ_s²=ln(1+(bℳ)²); ξ_s(r)=σ_s²·ρ_g(r;β); **lognormal density 2-pt** ξ_ρ(r)=exp(ξ_s(r))−1 (exact,
+  finite — no α≤2 divergence); project + cell-window via `limber_project_slab` → Var[ρ̃_proj,cell](R;
+  depth) → σ_s²_proj=ln(1+Var) → Poisson-**lognormal** count model (the α→∞ limit of
+  `count_distribution`) → `Var[log₊(N₂D)]`. Differentiable in (ℳ, β, depth).
+- **Oracle structure (two tests):** (a) **AC20-2D gate** — predicted vs finite-field **lognormal**
+  mock (α→∞) across ℳ, must pass (gen = infer, self-consistent); (b) **tail robustness stress-test**
+  — predicted vs finite-field **realistic-tail** mock (α=2.5) across ℳ, report the residual
+  (quantifies how safely α is held at fiducial / washed out by deep projection).
+- The variance **ladder** over cell scales R carries β (de-risk confirmed: σ(β)/fid≈23%,
+  corr(ℳ,β)=−0.25, ℳ–β degeneracy broken).
