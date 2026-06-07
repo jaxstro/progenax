@@ -202,7 +202,6 @@ def test_limber_project_radial_differentiable():
 
 
 def test_limber_slab_matches_periodic_at_full_depth():
-    import jax.numpy as jnp
     from gravoturb_fdf.theory.projection import (
         gaussian_correlation_grid, limber_project_grid, limber_project_slab)
     xi = gaussian_correlation_grid((16, 16, 16), 3.0)
@@ -212,7 +211,6 @@ def test_limber_slab_matches_periodic_at_full_depth():
 
 
 def test_limber_slab_shallower_depth_lowers_amplitude_and_is_differentiable():
-    import jax, jax.numpy as jnp
     from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
     xi = gaussian_correlation_grid((16, 16, 16), 3.0)
     shallow = float(limber_project_slab(xi, depth=4.0, los_axis=2)[0, 0])
@@ -220,3 +218,35 @@ def test_limber_slab_shallower_depth_lowers_amplitude_and_is_differentiable():
     assert 0.0 < shallow < deep                              # variance grows with depth
     g = jax.grad(lambda L: limber_project_slab(xi, depth=L, los_axis=2)[0, 0])(6.0)
     assert g == g and abs(g) > 0.0                           # finite, nonzero d/dL
+
+
+def test_limber_slab_periodization_pins_actual_lag_slab_sum_incl_L_gt_half_n():
+    """Pin the periodized triangular weight against an INDEPENDENT brute-force actual-lag
+    slab sum, probing the L > n/2 wrap regime.
+
+    For a periodic field the depth-L projected-slab autocovariance is the explicit
+    (non-periodic) double sum over actual LOS lags d in [-(L-1), L-1] of the pair-count
+    (L - |d|) times the periodic 3D autocovariance evaluated at index (d mod n). This is
+    the *measured* statistic the implementation's fftfreq-periodized weight must equal --
+    for all L <= n, especially L > n/2 where the periodic wrap matters. Verifies the
+    predicted-vs-measured SBC-consistency claim at the unit level.
+    """
+    from gravoturb_fdf.theory.projection import limber_project_slab
+
+    n = 12
+    los_axis = 2
+    rng = np.random.default_rng(7)
+    f = rng.normal(size=(n, n, n))
+    f = f - f.mean()
+    # True periodic 3D autocovariance grid: ifftn(|fftn|^2)/size (periodic by construction).
+    xi = np.fft.ifftn(np.abs(np.fft.fftn(f)) ** 2).real / f.size
+    xi_j = jnp.asarray(xi)
+
+    for L in (3, 6, 8, 10, 12):  # 8, 10 are L > n/2 = 6 (wrap regime)
+        pred = np.asarray(limber_project_slab(xi_j, depth=L, los_axis=los_axis))
+        # Independent brute-force: explicit actual-lag double sum, no fftfreq/periodized form.
+        ref = np.zeros((n, n))
+        for d in range(-(L - 1), L):
+            weight = L - abs(d)
+            ref += weight * xi[:, :, d % n]
+        assert np.allclose(pred, ref, rtol=1e-10), f"slab weight mismatch at L={L}"
