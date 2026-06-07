@@ -12,7 +12,18 @@
 
 ---
 
-## CURRENT STATE — RESUME HERE (updated 2026-06-06)
+## CURRENT STATE — RESUME HERE (updated 2026-06-06, late)
+
+> **SUPERSEDED for the count-model issue:** F2→F2.5→F3→F4 figure gallery is COMPLETE (jaxstroviz
+> `184cc03`, 848 tests) and progenax Task 6 (SBC driver + I2 barrier-drop), the jaxstroviz
+> first-class dep, and AC18 (xfail) are committed (`a58f867`→`266c516`→`c13bc15`→`e8d0222`→`4554a71`).
+> **AC18 surfaced a REAL count-model M(Mach)-bias** (CIC P(N) over-predicts over-dispersion from
+> tail-sensitive linear moments at high σ_s²; α/β pass). The tail-robust count-model redesign is now a
+> **fresh brainstorm session** — see `docs/plans/2026-06-06-gravoturb-fdf-count-model-tail-robustness-handoff.md`.
+> **Deferred until that fix:** AC18-M pass, Task 8 (AC19), Task 9 (figures orchestrator + docs + completion).
+> The text below is the ORIGINAL F2-resume plan, kept for the figure specs (now done).
+
+### (original) CURRENT STATE — RESUME HERE
 
 **Done (committed; NOTHING pushed except jaxstroviz `main`):**
 - **Tasks 0–3** on progenax branch `gravoturb-fdf-sbc-validation` (off `main` @ 006ccdc; branch HEAD `48db3c4`):
