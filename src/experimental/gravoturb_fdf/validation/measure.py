@@ -119,6 +119,19 @@ def measure_exceedances(s_field, s_thr, n_bins=20):
     return exc_counts.astype(float), exc_edges, s_max, int(exc.size)
 
 
+def measure_log_count_variance(counts, n_bar):
+    r"""Measured CIC log-count variance ``Var_cells[log_plus(N_cell)]`` (Neyrinck+2011 Eq 2).
+
+    The data-side counterpart of :func:`gravoturb_fdf.theory.cic.predict_log_count_variance`;
+    uses the identical ``log_plus`` transform so the statistic is consistent in generation and
+    inference (SBC-valid). ``counts`` is an integer count grid; ``n_bar`` the mean count per cell.
+    """
+    counts = np.asarray(counts, dtype=float)
+    d = counts / n_bar - 1.0
+    A = np.where(d > 0.0, np.log1p(np.where(d > 0.0, d, 0.0)), d)
+    return float(np.var(A))
+
+
 def smoothed_linear_variance(rho_tilde, R, window_fn):
     r"""Variance of the linear field ``rho_tilde`` after smoothing at scale ``R`` (cells):
     ``(1/N^2) sum_{k!=0} |FFT(rho_tilde - mean)|^2 W(kR)^2`` for ONE realization.

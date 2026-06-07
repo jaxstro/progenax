@@ -103,3 +103,20 @@ def test_measure_exceedances_counts_edges_and_alpha_recovery():
     alpha_hat = alphas[int(np.argmax(lls))]
     sigma = alpha_true / np.sqrt(n_tail)
     assert abs(alpha_hat - alpha_true) < 3.0 * sigma
+
+
+# --- Task 3: measure_log_count_variance (data-side log_plus variance, Neyrinck+2011 Eq 2) -----
+
+
+def test_measure_log_count_variance_matches_log_plus():
+    from gravoturb_fdf.validation.measure import measure_log_count_variance
+
+    rng = np.random.default_rng(0)
+    n_bar = 5.0
+    counts = rng.poisson(n_bar, size=(16, 16, 16))
+    v = measure_log_count_variance(counts, n_bar)
+    # reference: same Neyrinck Eq 2 transform, numpy
+    d = counts / n_bar - 1.0
+    A = np.where(d > 0.0, np.log1p(np.where(d > 0.0, d, 0.0)), d)
+    assert abs(v - float(np.var(A))) < 1e-12
+    assert v >= 0.0
