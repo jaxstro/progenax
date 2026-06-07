@@ -40,6 +40,19 @@ from gravoturb_fdf.theory.projection import (
 )
 
 
+def log_plus(n: Float[Array, " ..."], n_bar: Float[Array, ""]) -> Float[Array, " ..."]:
+    r"""Modified-log transform of counts (Neyrinck, Szapudi & Szalay 2011, Eq. 2).
+
+    ``A = ln(1+delta)`` for ``delta > 0`` else ``delta``, with ``delta = N/N_bar - 1``. Tail-
+    compressing (so ``Var[A]`` converges on a fat-tailed field, unlike ``Var(N)``) and N=0-safe
+    (``delta = -1`` there; the branch below ``N_bar`` uses the linear ``delta``, avoiding ``log 0``).
+    Differentiable; grad-safe ``where`` guards the ``log1p`` input.
+    """
+    delta = n / n_bar - 1.0
+    pos = delta > 0.0
+    return jnp.where(pos, jnp.log1p(jnp.where(pos, delta, 0.0)), delta)
+
+
 def _windowed_series_variance(
     shape: tuple[int, int, int],
     beta: Float[Array, ""],

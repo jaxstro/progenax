@@ -213,3 +213,28 @@ def test_pN_differentiable():
     grad = np.asarray(jax.grad(tail_mass)(jnp.array([6.0, 0.5, 3.0, 3.0])))
     assert np.all(np.isfinite(grad))
     assert np.any(np.abs(grad) > 0.0)
+
+
+def test_log_plus_neyrinck_eq2():
+    """log_+ modified-log count transform (Neyrinck, Szapudi & Szalay 2011, Eq. 2):
+    A = ln(1+delta) for delta>0 else delta, with delta = N/N_bar - 1. N=0-safe (delta=-1),
+    continuous at N=N_bar (A=0), and equals ln(N/N_bar) on the over-dense branch."""
+    from gravoturb_fdf.theory.cic import log_plus
+
+    n_bar = 4.0
+    n = jnp.array([0.0, 2.0, 4.0, 8.0, 100.0])
+    A = log_plus(n, n_bar)
+    # delta = n/n_bar - 1 = [-1, -0.5, 0, 1, 24]
+    # log_+ : delta>0 -> ln(1+delta)=ln(n/n_bar); else delta
+    assert float(A[0]) == -1.0                          # N=0 -> delta=-1 (N=0-safe)
+    assert abs(float(A[1]) + 0.5) < 1e-12              # N<N_bar -> linear delta
+    assert abs(float(A[2]) - 0.0) < 1e-12              # N=N_bar -> 0
+    assert abs(float(A[3]) - jnp.log(2.0)) < 1e-12     # N>N_bar -> ln(n/n_bar)
+    assert abs(float(A[4]) - jnp.log(25.0)) < 1e-12
+
+    # grad-safety (the load-bearing property the double-`where` guards): finite gradient at
+    # N=0 (the log-0 trap), at the branch boundary delta=0 (N=N_bar), and on the over-dense
+    # branch. Pins the guarantee so a future single-`where` simplification can't pass silently.
+    g = jax.grad(lambda x: log_plus(x, n_bar))
+    for x in (0.0, 4.0, 8.0):
+        assert np.isfinite(float(g(x)))
