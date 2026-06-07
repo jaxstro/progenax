@@ -415,12 +415,21 @@ name = "contourpy"
 version = "1.3.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten'",
+    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.13.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'win32'",
+    "python_full_version == '3.12.*' and sys_platform == 'emscripten'",
+    "python_full_version == '3.12.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version == '3.11.*' and sys_platform == 'win32'",
     "python_full_version == '3.11.*' and sys_platform == 'emscripten'",
     "python_full_version == '3.11.*' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/58/01/1253e6698a07380cd31a736d248a3f2a50a7c88779a1813da27503cadc2a/contourpy-1.3.3.tar.gz", hash = "sha256:083e12155b210502d0bca491432bb04d56dc3432f95a979b429f2848c3dbe880", size = 13466174, upload-time = "2025-07-26T12:03:12.549Z" }
 wheels = [
@@ -742,6 +751,39 @@ wheels = [
 ]
 
 [[package]]
+name = "fluxax"
+version = "0.1.0"
+source = { editable = "../fluxax" }
+dependencies = [
+    { name = "equinox" },
+    { name = "jax", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jax", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxlib", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jaxlib", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxstro" },
+    { name = "jaxtyping", version = "0.3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jaxtyping", version = "0.3.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0" },
+    { name = "equinox", specifier = ">=0.11.0" },
+    { name = "fluxax", extras = ["dev", "viz"], marker = "extra == 'all'" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "jax", specifier = ">=0.4.0" },
+    { name = "jaxlib", specifier = ">=0.4.0" },
+    { name = "jaxstro", specifier = ">=0.1.0" },
+    { name = "jaxtyping", specifier = ">=0.2.0" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.5" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "seaborn", marker = "extra == 'viz'", specifier = ">=0.12" },
+]
+provides-extras = ["dev", "viz", "all"]
+
+[[package]]
 name = "fonttools"
 version = "4.63.0"
 source = { registry = "https://pypi.org/simple" }
@@ -797,6 +839,35 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/dd/1e/3ff1a9b523058c2eeb6a9d50f5574e2a738200d0d94107d5bc4105e8da3f/fonttools-4.63.0-cp314-cp314t-win_amd64.whl", hash = "sha256:6d4741eb179121cab9eea4cb2393d24492373a260d7945006358c08cfbf45419", size = 2425829, upload-time = "2026-05-14T12:04:26.829Z" },
     { url = "https://files.pythonhosted.org/packages/2c/47/c99d5268f354002ce80f8d029cd9d7d872969da1de8b93d32de4dc56d6f4/fonttools-4.63.0-py3-none-any.whl", hash = "sha256:445af2eab030a16b9171ea8bdda7ebf7d96bda2df88ee182a464252f6e05e20d", size = 1164562, upload-time = "2026-05-14T12:04:29.092Z" },
 ]
+
+[[package]]
+name = "gravax"
+version = "0.1.0"
+source = { editable = "../gravax" }
+dependencies = [
+    { name = "equinox" },
+    { name = "jax", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jax", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxlib", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jaxlib", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxstro" },
+    { name = "jaxtyping", version = "0.3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jaxtyping", version = "0.3.10", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "progenax" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "equinox", specifier = ">=0.11.0" },
+    { name = "jax", specifier = ">=0.4.20" },
+    { name = "jaxlib", specifier = ">=0.4.20" },
+    { name = "jaxstro" },
+    { name = "jaxtyping", specifier = ">=0.2.25" },
+    { name = "progenax" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "h11"
@@ -1153,6 +1224,44 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [[package]]
+name = "jaxstroviz"
+version = "0.1.0"
+source = { editable = "../jaxstroviz" }
+dependencies = [
+    { name = "fluxax" },
+    { name = "gravax" },
+    { name = "jax", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jax", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxlib", version = "0.6.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "jaxlib", version = "0.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxstro" },
+    { name = "matplotlib" },
+    { name = "progenax" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arviz", marker = "extra == 'experimental'", specifier = ">=0.18" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0" },
+    { name = "fluxax", editable = "../fluxax" },
+    { name = "gravax", editable = "../gravax" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.12" },
+    { name = "jax", specifier = ">=0.4.20" },
+    { name = "jaxlib", specifier = ">=0.4.20" },
+    { name = "jaxstro", editable = "../jaxstro" },
+    { name = "jaxstroviz", extras = ["dev", "seaborn"], marker = "extra == 'all'" },
+    { name = "matplotlib", specifier = ">=3.7" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "progenax", editable = "." },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "scipy", marker = "extra == 'experimental'", specifier = ">=1.11" },
+    { name = "seaborn", marker = "extra == 'seaborn'", specifier = ">=0.12" },
+    { name = "startrax", marker = "extra == 'tracks'", specifier = ">=0.1.0" },
+]
+provides-extras = ["dev", "seaborn", "experimental", "tracks", "all"]
+
+[[package]]
 name = "jaxtyping"
 version = "0.3.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1382,16 +1491,16 @@ version = "3.10.9"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "contourpy", version = "1.3.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "contourpy", version = "1.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "cycler", marker = "python_full_version < '3.12'" },
-    { name = "fonttools", marker = "python_full_version < '3.12'" },
-    { name = "kiwisolver", marker = "python_full_version < '3.12'" },
+    { name = "contourpy", version = "1.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "cycler" },
+    { name = "fonttools" },
+    { name = "kiwisolver" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "packaging", marker = "python_full_version < '3.12'" },
-    { name = "pillow", marker = "python_full_version < '3.12'" },
-    { name = "pyparsing", marker = "python_full_version < '3.12'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.12'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "packaging" },
+    { name = "pillow" },
+    { name = "pyparsing" },
+    { name = "python-dateutil" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/63/1b/4be5be87d43d327a0cf4de1a56e86f7f84c89312452406cf122efe2839e6/matplotlib-3.10.9.tar.gz", hash = "sha256:fd66508e8c6877d98e586654b608a0456db8d7e8a546eb1e2600efd957302358", size = 34811233, upload-time = "2026-04-24T00:14:13.539Z" }
 wheels = [
@@ -2030,6 +2139,7 @@ experimental = [
     { name = "arviz", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "blackjax", version = "1.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "blackjax", version = "1.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "jaxstroviz" },
     { name = "optax" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -2044,6 +2154,7 @@ requires-dist = [
     { name = "jax", specifier = ">=0.4.20" },
     { name = "jaxlib", specifier = ">=0.4.20" },
     { name = "jaxstro", editable = "../jaxstro" },
+    { name = "jaxstroviz", marker = "extra == 'experimental'", editable = "../jaxstroviz" },
     { name = "jaxtyping", specifier = ">=0.2.25" },
     { name = "optax", marker = "extra == 'experimental'", specifier = ">=0.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
