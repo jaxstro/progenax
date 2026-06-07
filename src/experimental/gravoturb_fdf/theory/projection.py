@@ -113,6 +113,26 @@ def limber_project_grid(
     return n_los * jnp.sum(xi_3d, axis=los_axis)
 
 
+def limber_project_slab(xi_3d, depth, los_axis: int = 2):
+    r"""Depth-``L`` (cells) LOS projection of a 3-D autocovariance: the triangular-overlap sum
+    ``xi_Sigma(r_perp) = sum_{dl} (L - |dl|)_+ xi_3d(r_perp, dl)`` for Sigma = sum_{z<L} rho, on
+    the periodic LOS ring of length ``n``. The weight is the count of cell pairs in the length-``L``
+    window at periodic separation ``dl``, i.e. the *periodization* of the triangular overlap,
+    ``w(dl) = sum_j (L - |dl - j n|)_+``. For ``L <= n/2`` this is the plain triangle
+    ``(L-|dl|)_+``; at ``L = n`` it is uniformly ``n``, so this reduces exactly to
+    :func:`limber_project_grid` (the periodic limit). Differentiable in ``depth`` (the depth
+    nuisance) via the grad-safe ``relu`` weight; ``depth`` may be non-integer."""
+    import jax.numpy as jnp
+    n = xi_3d.shape[los_axis]
+    dl = jnp.fft.fftfreq(n) * n                              # signed LOS separations (cells)
+    n_shift = int(n // 2) + 1                                # enough shifts to cover dl in [-n, n]
+    shifts = jnp.arange(-n_shift, n_shift + 1)
+    triangles = jnp.clip(depth - jnp.abs(dl[None, :] - shifts[:, None] * n), 0.0)
+    w = jnp.sum(triangles, axis=0)                          # periodic triangular overlap weight
+    shape = [1, 1, 1]; shape[los_axis] = n
+    return jnp.sum(xi_3d * w.reshape(shape), axis=los_axis)
+
+
 def limber_project_radial(
     xi_fn, r_perp: Float[Array, " ..."], half_depth: Float[Array, ""], n_nodes: int = 512
 ) -> Float[Array, " ..."]:

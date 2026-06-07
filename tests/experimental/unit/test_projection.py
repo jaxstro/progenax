@@ -199,3 +199,24 @@ def test_limber_project_radial_differentiable():
 
     grad = float(jax.grad(w0)(2.0))
     assert np.isfinite(grad) and abs(grad) > 0.0
+
+
+def test_limber_slab_matches_periodic_at_full_depth():
+    import jax.numpy as jnp
+    from gravoturb_fdf.theory.projection import (
+        gaussian_correlation_grid, limber_project_grid, limber_project_slab)
+    xi = gaussian_correlation_grid((16, 16, 16), 3.0)
+    full = limber_project_slab(xi, depth=16, los_axis=2)   # full periodic depth
+    ref = limber_project_grid(xi, los_axis=2)
+    assert jnp.allclose(full, ref, rtol=1e-10)
+
+
+def test_limber_slab_shallower_depth_lowers_amplitude_and_is_differentiable():
+    import jax, jax.numpy as jnp
+    from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
+    xi = gaussian_correlation_grid((16, 16, 16), 3.0)
+    shallow = float(limber_project_slab(xi, depth=4.0, los_axis=2)[0, 0])
+    deep = float(limber_project_slab(xi, depth=12.0, los_axis=2)[0, 0])
+    assert 0.0 < shallow < deep                              # variance grows with depth
+    g = jax.grad(lambda L: limber_project_slab(xi, depth=L, los_axis=2)[0, 0])(6.0)
+    assert g == g and abs(g) > 0.0                           # finite, nonzero d/dL
