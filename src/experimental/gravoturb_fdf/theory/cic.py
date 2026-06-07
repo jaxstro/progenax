@@ -259,3 +259,50 @@ def count_distribution(
     )  # Poisson log-pmf, (k, n_s)
     pmf = jnp.exp(log_pmf)
     return jnp.trapezoid(pmf * p[None, :], s, axis=1)
+
+
+def predict_log_count_variance(
+    n_bar: Float[Array, ""],
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    R: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    n_max: int = 16,
+    n_quad: int = 256,
+    n_s: int = 1024,
+    s_min: float = -15.0,
+    s_max: float = 30.0,
+    window=top_hat_window,
+    w2=None,
+    n_count_max: int | None = None,
+) -> Float[Array, ""]:
+    r"""Tail-robust predicted CIC log-count variance ``Var_{P(N)}[log_plus(N)]``.
+
+    ``P(N)`` is the Poisson-Lognormal compound-Poisson :func:`count_distribution` (shot noise
+    modelled exactly by the Poisson mixture). The :func:`log_plus` transform (Neyrinck+2011 Eq 2)
+    compresses the fat tail, so this variance **converges** as the count grid grows -- unlike the
+    raw count over-dispersion ``Var(N) propto <e^{2s}>``, which is tail-dominated (diverges for
+    alpha<=2) and over-predicts on finite fields. ``n_count_max`` (the count-grid extent) defaults
+    to ~80*n_bar; at this default a small residual truncation (~0.2%) remains at the top of the Mach
+    prior. NB the realized field is *also* finite (its measured counterpart truncates at the densest
+    realized cell), so the operative target is prediction-vs-finite-field agreement, confirmed -- and
+    ``n_count_max`` finalized -- empirically by the AC20 oracle gate (flat residual across ℳ). This
+    is the carrier of ``sigma_s^2 -> mach``. Differentiable in (mach, b, alpha, beta); ``n_bar`` must
+    be a concrete (static) float (``int(n_bar*80)`` sets the grid size; it is static in the inference
+    path -- ``sbc.py`` passes ``float(n_bar)``).
+    """
+    if n_count_max is None:
+        # ~80*n_bar: captures the bulk of the fat P(N) tail. A small (~0.2%) high-Mach residual
+        # truncation remains; AC20 (Task 4) finalizes this against the finite-field oracle.
+        n_count_max = int(n_bar * 80) + 50
+    n_counts = jnp.arange(n_count_max + 1, dtype=jnp.float64)
+    pN = count_distribution(
+        n_counts, n_bar, shape, beta, R, mach, b, alpha,
+        n_max=n_max, n_quad=n_quad, n_s=n_s, s_min=s_min, s_max=s_max, window=window, w2=w2,
+    )
+    pN = pN / jnp.sum(pN)                       # condition on [0, n_count_max]
+    A = log_plus(n_counts, n_bar)
+    mean = jnp.sum(A * pN)
+    return jnp.sum((A - mean) ** 2 * pN)

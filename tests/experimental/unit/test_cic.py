@@ -238,3 +238,35 @@ def test_log_plus_neyrinck_eq2():
     g = jax.grad(lambda x: log_plus(x, n_bar))
     for x in (0.0, 4.0, 8.0):
         assert np.isfinite(float(g(x)))
+
+
+# --- Task 2: predict_log_count_variance (tail-robust sigma_s^2 carrier) --------
+
+
+def test_predict_log_count_variance_monotone_and_tailrobust():
+    import jax, jax.numpy as jnp
+    from gravoturb_fdf.theory.cic import predict_log_count_variance
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    shape, c, n_bar = (24, 24, 24), 4, 5.0
+    w2 = box_window_sq_grid(shape, c)
+    kw = dict(shape=shape, beta=3.0, R=float(c), b=0.4, alpha=2.5, n_s=512, w2=w2)
+    v_lo = float(predict_log_count_variance(n_bar=n_bar, mach=3.0, **kw))
+    v_hi = float(predict_log_count_variance(n_bar=n_bar, mach=12.0, **kw))
+    assert v_hi > v_lo > 0.0                                  # grows with sigma_s^2(mach)
+    # TAIL-ROBUST: compare two *converged* count grids to assert convergence/tail-robustness --
+    # the property that distinguishes Var[log_plus] from the divergent raw Var(N). (80 would be
+    # under-resolved at M=12, capturing only ~99.84% of P(N), so it is not a convergence test.)
+    v_a = float(predict_log_count_variance(n_bar=n_bar, mach=12.0, n_count_max=400, **kw))
+    v_b = float(predict_log_count_variance(n_bar=n_bar, mach=12.0, n_count_max=800, **kw))
+    assert abs(v_a - v_b) / v_b < 1e-3
+
+
+def test_predict_log_count_variance_differentiable():
+    import jax
+    from gravoturb_fdf.theory.cic import predict_log_count_variance
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    shape, c = (16, 16, 16), 4
+    w2 = box_window_sq_grid(shape, c)
+    f = lambda m: predict_log_count_variance(5.0, shape, 3.0, float(c), m, 0.4, 2.5, n_s=256, w2=w2)
+    g = float(jax.grad(f)(8.0))
+    assert g == g and abs(g) > 0.0   # finite, nonzero d/dmach
