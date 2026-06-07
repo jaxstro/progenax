@@ -183,11 +183,16 @@ filaments were always outside the phase-random GRF model (the held-out 3-pt null
 
 ## 13. β-headline pivot (FINAL, Anna-approved 2026-06-07) — motivation, contributions, scope
 
-After verifying the projected-amplitude wall is a **finite-volume cosmic-variance** effect intrinsic
-to red fat-tailed fields (the amplitude carries ~16–38% per-cluster scatter + box-drift at n≤128, and
-data-vector stacking reduces *scatter* not *bias*), and that the **β-slope is box-stable, monotonic,
-and low-scatter** (rank-G angular-clustering slope: −2.30/−2.81/−3.35 for β=2.5/3.0/3.5, drift ≲0.1
-across n=48→96, ±0.05–0.07 at n=96), the engine is re-scoped to a **β headline**.
+After verifying that **β is recoverable from the 2-D projected map** — the observable-space slope→β
+transfer gain is **0.64–0.86** (best in rank-Gaussianised projected density: gain 0.86, per-cluster
+σ(β)≈0.22; with Poisson shot at N=10⁴: gain 0.64, σ(β)≈0.29), monotonic and degeneracy-free (V1a,
+§14) — and that the amplitude (→ℳ) is finite-volume cosmic-variance-limited per cluster (so
+data-vector stacking reduces *scatter*, not *bias*), the engine is re-scoped to a **β headline**.
+(Naïvely reading β off the measured slope fails: the slope is compressed mainly by the lognormal
+s→eˢ step, Δslope≈+0.55, while LOS projection/geometry is negligible, Δslope≈+0.03 — so β must be
+**fit against a forward model** that captures the transfer, not read from a slope. The earlier
+amplitude per-cluster scatter figure quoted here previously was from an unreproduced run and has been
+dropped pending re-measurement; the cosmic-variance *reasoning* for ℳ-forecast-grade stands.)
 
 **Motivation.** Stellar substructure is the field's standard probe of natal conditions, measured today
 with *heuristic, non-differentiable, non-calibrated* statistics (Cartwright–Whitworth **Q**, MST,
@@ -201,16 +206,22 @@ positions of *young* clusters, via rank-Gaussianized angular clustering + a Limb
 a calibrated number with an error bar and a model behind it. This is the robust, novel deliverable.
 
 **Honest scope (what each parameter is):**
-- **β — headline, trustworthy.** Structural (clustering spectrum); robustly recoverable from 2-D
-  positions; box-stable. The calibrated Q/MST successor. Science: β(environment), **β-vs-age = the
-  substructure clock** (substructure decays in a few crossing times → only *young* systems retain it),
-  population tests of the gravoturbulent paradigm.
+- **β — headline, trustworthy.** Structural (clustering spectrum); recoverable from 2-D positions with
+  per-cluster σ(β)≈0.22 (best space, rank-G projected density; V1a). The calibrated Q/MST successor.
+  Science: β(environment), **β-vs-age = the substructure clock** (substructure decays in a few crossing
+  times → only *young* systems retain it), population tests of the gravoturbulent paradigm.
+  (Box/resolution stability was claimed by an earlier run not reproduced this session; not relied upon.)
 - **ℳ — secondary, forecast-grade.** A *thermodynamic* amplitude (σ_s²); cosmic-variance-limited
-  *per cluster* (~16%/√K with K stacked clusters), not a precision per-object Mach measurement. β→ℳ is
-  model-dependent (gravoturbulent relation), reported as relative/population with honest error bars.
-- **α — depth-gated, not inferred in 2-D.** A *gravitational/SF* tail slope; washed out by projection
-  (verified). Kept as a forward-model fiducial + held-out tail stress-test; a science target only in
-  the future depth-resolved (Gaia 3-D / dust-column) mode.
+  *per cluster* (improves ∝1/√K with K stacked clusters; the specific per-cluster scatter quoted in an
+  earlier draft was not reproduced this session and awaits re-measurement), not a precision per-object
+  Mach measurement. β→ℳ is model-dependent (gravoturbulent relation), reported as relative/population
+  with honest error bars.
+- **α — depth-gated, not inferred in 2-D.** A *gravitational/SF* tail slope; expected to wash out under
+  deep-LOS projection (which CLT-Gaussianises the 1-pt tail), and the tail is already sparsely resolved
+  even in 3-D at ℳ≈8 (M2: ~5 cells above s_t on 96³). Kept as a forward-model fiducial + held-out tail
+  stress-test; a science target only in the future depth-resolved (Gaia 3-D / dust-column) mode.
+  (A dedicated 2-D α-washout test has not been run this session; the depth-gating is the conservative
+  default, not a fresh first-hand result.)
 
 **Why this is a *better* result than the original (ℳ,α,β)-absolute ambition.** The physics taught us
 (through every wall) that 2-D stellar positions trustworthily encode **β**, which is exactly the
@@ -223,27 +234,57 @@ honest, and novel; ℳ/α are honestly-scoped secondary/extension results, not o
 **population stacking** (precision, = the science); α POT retained as fiducial + stress-test, not in
 the fit.
 
-## 14. Method validation results (2026-06-07, before build commit)
+## 14. Method validation results (2026-06-07, first-hand, reproduced in-session)
 
-Two verify-first checks (per Anna's "validate the methods before we commit"):
+Three verify-first checks (per Anna's "validate the methods before we commit"). Scratch scripts:
+`validation/_m2_ic_gallery.py`, `_m1_shot_bakeoff.py`, `_v1a_transfer_decomposition.py`; plots in
+`validation/plots/`. Every number below was reproduced first-hand this session (not from memory or a
+single subagent report).
 
-**(a) β-slope is the robust observable — CONFIRMED.** rank-G angular-clustering slope vs β_true, box
-size: −2.30/−2.81/−3.35 (β=2.5/3.0/3.5 at n=48), drift ≲0.1 across n=48→96, scatter ±0.05–0.07 at
-n=96. Monotonic, well-separated (Δslope≈0.5 per Δβ=0.5), box-stable — unlike the amplitude
-(±16–38% + box-drift). β is identifiable and stable. dslope/dβ ≈ 1.
+**(a) The IC generator is physically faithful — CONFIRMED (M2).** ℳ=8, b=0.4, α=2.5, β=3.0, 96³,
+4 seeds: ⟨eˢ⟩=1.0014 (target 1), σ_s²=2.420 vs BM19 2.419, mean(s)=−1.210=−σ²/2, realized P(k) slope
+of s = 2.97 vs input β=3.0, and f_dense_realized vs BM19 |bias|=0.30% (AC6 bar 5%); the 1-pt PDF
+overlies BM19 across ~5 decades, and the β-sweep is visibly correct (small-scale→large-scale filaments
+as β rises). Caveats (not bugs): the marginal is identical across seeds (the mass-conserving copula
+assigns the analytic sorted-quantile densities by GRF rank — variation is spatial); the power-law tail
+is under-resolved at ℳ≳16 on 96³ (the pipeline raises its own `low_resolution` warning).
 
-**(b) β recoverable at realistic cluster sizes — CONFIRMED, with a required shot-noise ingredient.**
-With Poisson star sampling (n=96, full-LOS, 24² sky cells), β_true=3.0:
-σ(β) per cluster ≈ 0.46 (N=1000), 0.35 (N=3000), 0.31 (N=10⁴) → ~0.1–0.15 stacked over K≈10. Useful
-for resolving β across environment/age. **BUT** shot noise *flattens the measured slope
-N-dependently* (−1.94 → −2.86 → −3.25 as N=1000→10⁴→∞): the white shot plateau (1/n̄) contaminates the
-angular spectrum.
+**(b) Slope→β transfer function, per step — CONFIRMED with an identical estimator (V1a).** Measured
+power-spectrum slope vs β_true (β∈{2,2.5,3,3.5}, n_real=30, 96³); gain ≡ dslope/dβ:
 
-**Required build ingredient (standard galaxy-clustering):** the forward model **must include the
-shot-noise term** — predicted band-powers = clustering(β,ℳ) + 1/n̄ (n̄ known from data) — so β is
-recovered **unbiased**. **Build milestone 1 = demonstrate unbiased β recovery WITH the shot model**
-(rank-G alone does not remove shot noise; it must be modeled or debiased à la Neyrinck+2011 Eq.3).
+| space | gain | per-cluster σ(β) |
+|---|---|---|
+| GRF g (3D) / log-density s (3D) | 0.98 / 0.98 | — (β lives here, unobservable) |
+| density eˢ (3D) | 0.64 | — |
+| projected density (2D) | 0.66 | 0.31 |
+| **rank-G projected density (2D)** | **0.86** | **0.22 (best)** |
+| rank-G projected counts (2D, N=10⁴) | 0.64 | 0.29 |
 
-**Net:** the β-headline method is validated as viable on real data scales, contingent on the (standard,
-well-understood) shot-noise modeling. ℳ (amplitude) remains forecast-grade (cosmic-variance-limited);
-α depth-gated.
+Per-step Δslope (positive = compression): g→s +0.00, **s→eˢ +0.55 (dominant compressor)**,
+eˢ→projection +0.03 (**geometry negligible — this answers the cube-vs-spherical question**),
+projection→rank-G −0.23 (partial restore), density→counts +0.64 (shot). Monotonic in every space, no
+degeneracy, no STOP flag. β is usefully recoverable per cluster (σ(β)≈0.22–0.29) → ≈0.07–0.09 stacked
+over K≈10.
+
+**(c) Naïve slope→β recovery FAILS for any shot model — CONFIRMED (M1); forward-model-first required.**
+Recovering β by fitting the measured 2-D slope (with a shot term) is biased for BOTH a raw-count flat
+1/n̄ model (N-stable but biased low: β_rec≈2.58 at β=3, N=10⁴) and a rank-G + flat Neyrinck-Eq.3 model
+(strongly N-dependent: β_rec≈1.55→2.74 as N=10³→10⁵). Root cause is the deterministic transfer in (b):
+even noiseless, measured-slope ≠ β. Verified sub-results: in raw-count space the flat 1/n̄ plateau is
+exact (matches n̄ to ~1%); in rank-G space a *flat* Eq.3 shot is insufficient (Gaussianisation
+increases and scale-tilts the shot — Neyrinck+2011 §3.1, verified against the PDF). **Conclusion: β must
+be fit against a forward model that predicts the projected, copula/exp-transformed, shot-included
+band-powers — not read from a slope.** This *supersedes* the earlier note that a flat +1/n̄ term alone
+recovers β unbiased.
+
+**Correction to an earlier in-session draft.** A prior (pre-decomposition) run had reported rank-G
+slopes −2.30/−2.81/−3.35 with **dslope/dβ≈1** and σ(β)≈0.3–0.5, and quoted box-stability across
+n=48→96. The identical-estimator V1a decomposition supersedes those figures: the **observable-space
+gain is 0.64–0.86, not ≈1** (the ≈1 conflated the unobservable s-space gain, 0.98, with the observable
+gain), and σ(β)≈0.22–0.31. The box/resolution-stability claim was **not reproduced this session** and
+is not relied upon. The qualitative conclusions that survived: rank-G projected density is the best
+observable space, β is recoverable, σ(β) is a few tenths per cluster.
+
+**Net:** IC faithful; β recoverable from the projected map (σ(β)≈0.22/cluster, best space); recovery
+**requires a forward model** (the analytic-2D Limber predictor — built next as V1b), not a naïve slope
+fit; ℳ forecast-grade (cosmic-variance-limited); α depth-gated.

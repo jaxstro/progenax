@@ -5,13 +5,19 @@
 > (A1/A2 there are DONE and reused). Rationale + evolution: design doc §12 +
 > `2026-06-07-gravoturb-fdf-2d-projection-native-inference-design.md`.
 
-> **β-HEADLINE REFRAME (design §13, Anna-approved 2026-06-07).** β is THE deliverable: a
+> **β-HEADLINE REFRAME (design §13/§14, Anna-approved 2026-06-07).** β is THE deliverable: a
 > differentiable, SBC-calibrated, physically-parameterized **successor to Q/MST** (same substructure
 > content, made rigorous). **ℳ is secondary/forecast-grade** (cosmic-variance-limited per cluster,
-> reported relative/population), **α is depth-gated** (not in the 2-D fit). **VALIDATED 2026-06-07:**
-> the rank-G angular-clustering **slope→β is box-stable, monotonic, low-scatter** (−2.30/−2.81/−3.35
-> for β=2.5/3.0/3.5; ±0.05–0.07 at n=96) — unlike the amplitude. Remaining method-validation before
-> the full build: a minimal end-to-end **β-recovery** (unbiased) + a realistic **σ(β) forecast**.
+> reported relative/population), **α is depth-gated** (not in the 2-D fit). **VERIFIED FIRST-HAND
+> 2026-06-07 (design §14):** the IC generator is physically faithful (M2); the observable-space
+> **slope→β transfer gain is 0.64–0.86** (best: rank-G projected density, gain 0.86, σ(β)≈0.22/cluster;
+> V1a), monotonic and degeneracy-free; the dominant slope compressor is the lognormal s→eˢ step
+> (Δslope≈+0.55), LOS projection/geometry negligible (+0.03). **Key correction:** β CANNOT be read off
+> the measured slope — a naïve slope fit is biased for every shot model (M1), so β must be **fit against
+> a forward model** that captures the transfer. **The build is therefore forward-model-first** (V1b:
+> analytic-2D Limber predictor with the expm1 lognormal map + shot term), then a forward-model-based
+> β-recovery + realistic σ(β), then SBC. (Superseded: an earlier run's dslope/dβ≈1 / box-stability
+> claim — not reproduced; see §14 "Correction".)
 
 **Goal:** A fast, SBC-calibrated, differentiable inference of the natal turbulence **spectral slope β**
 (headline; the calibrated Q/MST successor) — with **amplitude ℳ** as a forecast-grade secondary and
