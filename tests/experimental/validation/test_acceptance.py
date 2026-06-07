@@ -98,6 +98,25 @@ def test_ac16_hmc_recovery():
     assert abs(res["corr_mach_alpha"]) < 0.6        # mach-alpha decoupled by POT
 
 
+@pytest.mark.slow
+def test_ac20_log_count_variance_tail_robust_across_mach():
+    # AC20 -- the DECISIVE count-model gate. For M in {4,6,8,12,16,20} (spanning the RESTRICTED
+    # ℳ≥4 calibrated prior, incl. the high edge ℳ=20): generate 64^3 rank-copula fields,
+    # Poisson-sample CIC counts (cell=4, n_bar=5) over 6 realizations, measure the finite-field
+    # Var[log_plus(N)] oracle, and compare to the analytic prediction. Asserts |pred-meas|/meas
+    # < 6% at EVERY mach AND a non-positively-sloped residual (the old linear-CIC bug over-predicted
+    # +9%->+36% growing with M; the log_plus transform compresses the fat tail so the statistic
+    # converges). The ℳ≥4 floor matches the prior restriction (low-edge residual at ℳ=4 ~+1.5%).
+    # This replaces the design-doc Sec.1 over-prediction table.
+    res = acceptance.ac20_log_count_variance_oracle()
+    assert res["passed"], (
+        f"AC20 count-model gate: max|rel|={res['max_abs_rel']:.2%} "
+        f"slope={res['slope']:+.2e} rels={['%+.2f%%' % (100 * r) for r in res['rel']]}")
+    # explicit per-mach <6% (mirrors the plan's assertion; helper already enforces this)
+    for mach, rel in zip(res["machs"], res["rel"]):
+        assert abs(rel) < 0.06, f"mach={mach}: rel={rel:+.2%} exceeds 6%"
+
+
 def test_ac17_alpha_forecast():
     # sigma(alpha) vs N_tail: iid draws validate the truncation-corrected Fisher (sigma_emp/sigma_fish
     # ~1) + sqrt(N) law; the smooth-copula correlation caveat is reported; f_dense is robust. Small

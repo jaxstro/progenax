@@ -5,7 +5,7 @@ pytestmark = pytest.mark.experimental
 
 
 def _prior(**kw):
-    return BM19Prior(m_range=(2.0, 20.0), alpha_range=(1.1, 4.0),
+    return BM19Prior(m_range=(4.0, 20.0), alpha_range=(1.1, 4.0),
                      beta_range=(2.0, 11 / 3), **kw)
 
 
@@ -14,7 +14,7 @@ def test_sample_within_support():
     keys = jax.random.split(jax.random.PRNGKey(0), 2000)
     thetas = jax.vmap(pr.sample)(keys)          # (2000, 3) = (M, alpha, beta)
     M, alpha, beta = thetas[:, 0], thetas[:, 1], thetas[:, 2]
-    assert jnp.all((M >= 2.0) & (M <= 20.0))
+    assert jnp.all((M >= 4.0) & (M <= 20.0))
     assert jnp.all((alpha >= 1.1) & (alpha <= 4.0))
     assert jnp.all((beta >= 2.0) & (beta <= 11 / 3 + 1e-9))
 
@@ -54,7 +54,7 @@ def test_sampled_M_loguniform_smoke():
     pr = _prior()
     keys = jax.random.split(jax.random.PRNGKey(1), 5000)
     M = jax.vmap(pr.sample)(keys)[:, 0]
-    u = (jnp.log(M) - jnp.log(2.0)) / (jnp.log(20.0) - jnp.log(2.0))
+    u = (jnp.log(M) - jnp.log(4.0)) / (jnp.log(20.0) - jnp.log(4.0))
     us = jnp.sort(u)
     emp = jnp.arange(1, us.size + 1) / us.size
     assert jnp.max(jnp.abs(emp - us)) < 0.05

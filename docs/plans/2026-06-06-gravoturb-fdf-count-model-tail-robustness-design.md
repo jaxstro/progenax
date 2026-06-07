@@ -83,6 +83,15 @@ broken SBC, bad NUTS geometry. **b is identifiable only with an independent obse
 separately — the velocity field** (ℳ=σ_v/c_s; the solenoidal/compressive mix also informs b). ⇒
 **deferred to the velocity arc.**
 
+**Prior floor ℳ≥4 (Anna-approved 2026-06-06).** The calibrated prior is **LogUniform[4, 20]** (was
+[2,20]). The AC20 oracle (§9) exposed a real low-ℳ over-prediction (+7–9% at ℳ≲2.5; +3.8% at ℳ=3) —
+**not** a cell-*variance* error (Route A, with a 6%-*low* variance, *still* over-predicts +9%) but a
+cell-density **shape/discreteness** effect in the transonic, shot-noise-dominated regime: cell-averaging
+makes the realized cell density *less skewed* than the lognormal Poisson-mixture the model assumes.
+Rather than fit that shot-dominated corner, we restrict to ℳ≥4 (residual <1.5% there) — losing **no
+science**: cluster-forming GMCs are highly supersonic (ℳ~5–20; ℳ<4 is the transonic dense-core regime,
+α_vir~1–2, c_s≈0.19 km/s). This is an honest scope statement, not a hack.
+
 ## 6. SBC-validity (non-negotiable)
 
 Any **data-derived quantity** (the cell scale R, the shot-noise debias) must be computed **identically
@@ -106,8 +115,9 @@ function of the realized data.
 
 ## 9. Validation plan (definition of done)
 
-- **Oracle:** the §1 over-prediction table must flatten to **~few-% across the whole ℳ prior** (ℳ∈[2,20])
-  — the decisive quantitative gate, with publication plots.
+- **Oracle (AC20):** the §1 over-prediction table must flatten to **<6% across the calibrated prior
+  ℳ∈[4,20]** — ✅ DONE: worst |rel|=1.44% (ℳ=8), residual flat (slope −6e-4), ℳ=4 edge +0.49%,
+  ℳ=20 −0.31% (64³, n_real=6). The decisive quantitative gate. [publication plots → Task 9]
 - **AC16** (single-point recovery) stays green.
 - **AC18-ℳ** rank-uniformity becomes **uniform** (the xfail flips to pass).
 - **σ(ℳ)-vs-N_star** forecast (honest, shot-noise-limited; mirrors AC17 for α).

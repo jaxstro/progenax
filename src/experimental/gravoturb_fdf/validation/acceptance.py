@@ -832,6 +832,81 @@ def ac18_sbc_rank_uniformity(n_trials, b=0.4, s_thr_margin=0.75, shape=(24,) * 3
             "n_draws": L, "ranks": ranks, "param_names": list(out["param_names"])}
 
 
+def ac20_log_count_variance_oracle(
+    shape=(64, 64, 64), c=4, n_bar=5.0, b=0.4, alpha=2.5, beta=3.0,
+    # ℳ set spans the RESTRICTED (ℳ≥4) calibrated prior, incl. the high edge ℳ=20.
+    # The count/ℳ channel is calibrated only for ℳ≥4 (below that the field is transonic /
+    # shot-noise-dominated, outside the supersonic GMC range); measured low-edge residual at
+    # ℳ=4 is ~+1.5%, ℳ≥5 <1%. n_real=6 makes the ℳ=4-edge gate robust.
+    machs=(4.0, 6.0, 8.0, 12.0, 16.0, 20.0), n_real=6, n_s=1024, rel_tol=0.06,
+    n_count_max=None,
+):
+    r"""AC20 -- the DECISIVE count-model gate: tail-robust log-count variance across the M prior.
+
+    The quantitative replacement for the design-doc Sec.1 over-prediction table (the old linear
+    counts-in-cells M-channel over-predicted +9% -> +36% growing with Mach, the fat-tail signature
+    that broke AC18 SBC). For each ``mach`` in the prior: generate a ``shape`` rank-copula gas field
+    (``gaussian_random_field`` -> ``rank_copula_field``), Poisson-sample CIC counts (``sample_cic_counts``,
+    cubic cell ``c``, mean ``n_bar``) over ``n_real`` realizations, MEASURE ``Var_cells[log_plus(N)]``
+    (the FINITE-field oracle, truncated at the densest realized cell), and compare to the analytic
+    :func:`~gravoturb_fdf.theory.cic.predict_log_count_variance` (same ``log_plus`` transform, ``w2``
+    = the cubic-cell window). Reports the SIGNED relative residual per mach plus its slope vs mach:
+    the cure is proven by (a) ``|rel| < rel_tol`` at EVERY mach and (b) a FLAT (non-monotone-positive)
+    residual -- the old bug's signature was an all-positive residual GROWING with mach. ``log_plus``
+    compresses the tail so this converges and is insensitive to ``n_count_max`` (the count-grid
+    extent); pass an explicit ``n_count_max`` to probe that (a no-op if truly tail-robust). numpy
+    oracle (validation/non-differentiable); the prediction is the differentiable theory side.
+    """
+    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
+    from gravoturb_fdf.field.sampling import sample_cic_counts
+    from gravoturb_fdf.theory.cic import predict_log_count_variance
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb_fdf.validation.measure import measure_log_count_variance
+
+    _header("AC20 -- tail-robust log-count variance: predicted vs finite-field oracle across Mach")
+    w2 = box_window_sq_grid(shape, c)
+    ncm_kw = {} if n_count_max is None else {"n_count_max": n_count_max}
+    ncm_label = "default(int(80*nbar)+50)" if n_count_max is None else str(n_count_max)
+    print(f"  shape={shape} cell={c} n_bar={n_bar} (b={b}, alpha={alpha}, beta={beta})  "
+          f"n_real={n_real}  n_s={n_s}  n_count_max={ncm_label}")
+    print(f"  {'mach':>5} {'predicted':>11} {'oracle-meas':>12} {'maxN':>5} "
+          f"{'signed-rel':>11}  verdict")
+
+    rels = []
+    ok = True
+    for mach in machs:
+        meas, max_n = [], 0
+        for r in range(n_real):
+            k = jax.random.PRNGKey(100 * r + int(mach))
+            s = rank_copula_field(gaussian_random_field(shape, beta, k), mach, b, alpha)
+            cnt = np.asarray(sample_cic_counts(s, n_bar, c, jax.random.fold_in(k, 1)))
+            meas.append(measure_log_count_variance(cnt, n_bar))
+            max_n = max(max_n, int(cnt.max()))
+        measured = float(np.mean(meas))
+        pred = float(predict_log_count_variance(
+            n_bar, shape, beta, float(c), mach, b, alpha, w2=w2, n_s=n_s, **ncm_kw))
+        rel = (pred - measured) / measured  # SIGNED: see coherent bias direction
+        rels.append(rel)
+        good = abs(rel) < rel_tol
+        ok &= good
+        print(f"  {mach:>5} {pred:>11.5f} {measured:>12.5f} {max_n:>5} "
+              f"{rel:>+10.2%}  {'PASS' if good else 'FAIL'}")
+
+    rels = np.asarray(rels)
+    slope = float(np.polyfit(np.asarray(machs, dtype=float), rels, 1)[0])
+    # The bug's signature was a coherent all-positive residual growing with mach. "Flat" here
+    # means no such high-mach monotone-positive bias (a small low-mach offset is benign).
+    flat = bool(slope <= 2e-3)  # not POSITIVE-sloped (the bug direction)
+    print(f"  signed-rel: min={rels.min():+.2%} max={rels.max():+.2%} "
+          f"|max|={np.abs(rels).max():.2%}  d(rel)/d(mach)={slope:+.2e} "
+          f"({'FLAT (no high-M bias)' if flat else 'POSITIVE-SLOPED (bug signature!)'})")
+    print(f"  AC20 {'PASS' if (ok and flat) else 'FAIL'} "
+          f"(all |rel| < {rel_tol:.0%} AND residual not positively sloped in M)")
+    return {"passed": bool(ok and flat), "machs": list(machs),
+            "rel": rels.tolist(), "max_abs_rel": float(np.abs(rels).max()),
+            "slope": slope}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -857,6 +932,9 @@ def main():
         # chains thinned to ~independence. Slow.
         "AC18": ac18_sbc_rank_uniformity(
             n_trials=128, density_shape=(96,)*3, n_warmup=300, n_samples=600, n_thin=4),
+        # AC20 (tail-robust log-count variance) -- the DECISIVE count-model gate across the
+        # RESTRICTED ℳ≥4 calibrated prior. Predicted vs finite-field Var[log_plus(N)] oracle.
+        "AC20": ac20_log_count_variance_oracle(),
     }
     print("\n=== SUMMARY ===")
     all_ok = True

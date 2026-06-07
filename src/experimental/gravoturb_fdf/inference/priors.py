@@ -9,9 +9,13 @@ identifiable on its own and is fixed in this inference layer).
 
 Priors (Option B — unconditional; Anna-approved 2026-06-06)
 -----------------------------------------------------------
-- ``M     ~ LogUniform[m_lo, m_hi]``        (sonic Mach number; default 2 .. 20)
+- ``M     ~ LogUniform[m_lo, m_hi]``        (sonic Mach number; default 4 .. 20)
 - ``alpha ~ Uniform[alpha_lo, alpha_hi]``   (BM19 PDF tail slope; default 1.1 .. 4.0)
 - ``beta  ~ LogUniform[beta_lo, beta_hi]``  (GRF power-spectrum slope; default 2 .. 11/3)
+
+The ``M`` lower bound is 4 because the count/ℳ channel is calibrated for ℳ≥4; below that
+the field is transonic and shot-noise-dominated (dense-core regime), outside the supersonic
+GMC range (ℳ~5–20) and not analytically captured by the cell-density model.
 
 The alpha prior is **unconditional** (a plain box ``[alpha_lo, alpha_hi]``, no M-coupling).
 POT-validity of the tail block (the requirement ``s_t(theta) = (alpha - 1/2) sigma_s^2 <=
@@ -53,7 +57,7 @@ class BM19Prior(eqx.Module):
 
     def __init__(
         self,
-        m_range: Tuple[float, float] = (2.0, 20.0),
+        m_range: Tuple[float, float] = (4.0, 20.0),
         alpha_range: Tuple[float, float] = (1.1, 4.0),
         beta_range: Tuple[float, float] = (2.0, 11.0 / 3.0),
     ):
