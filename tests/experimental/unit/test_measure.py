@@ -134,3 +134,37 @@ def test_log_count_variance_estimator_var_positive():
         mach=8.0, b=0.4, alpha=2.5, beta=3.0, shape=(24, 24, 24),
         cell_size=4, n_bar=5.0, n_real=8, key=jax.random.PRNGKey(0))
     assert vv > 0.0 and vv == vv
+
+
+# --- Task A2: 2D measurement helpers (project_counts_los, angular band-powers) -----------------
+
+
+def test_project_counts_los_sums_slices():
+    import numpy as np
+    from gravoturb_fdf.validation.measure import project_counts_los
+
+    c = np.ones((8, 8, 8))
+    assert np.allclose(project_counts_los(c, depth=8), 8.0)
+    assert np.allclose(project_counts_los(c, depth=3), 3.0)
+
+
+def test_measure_angular_bandpowers_2d_shape_and_positive():
+    import numpy as np
+    from gravoturb_fdf.validation.measure import measure_angular_bandpowers_2d
+
+    rng = np.random.default_rng(0)
+    bp = measure_angular_bandpowers_2d(rng.normal(size=(32, 32)), np.linspace(1.0, 8.0, 4))
+    assert bp.shape == (3,) and np.all(bp >= 0.0)
+
+
+def test_measure_log_count_variance_is_shape_agnostic_2d():
+    """measure_log_count_variance is shape-agnostic: it runs on a 2D (projected) count map and
+    returns a finite, non-negative float. The 2D inference path relies on this same statistic."""
+    import numpy as np
+    from gravoturb_fdf.validation.measure import measure_log_count_variance
+
+    rng = np.random.default_rng(0)
+    n_bar = 5.0
+    counts2d = rng.poisson(n_bar, size=(16, 16))
+    v = measure_log_count_variance(counts2d, n_bar)
+    assert isinstance(v, float) and np.isfinite(v) and v >= 0.0

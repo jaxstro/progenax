@@ -119,6 +119,40 @@ def measure_exceedances(s_field, s_thr, n_bins=20):
     return exc_counts.astype(float), exc_edges, s_max, int(exc.size)
 
 
+def project_counts_los(counts3d, depth, los_axis=2):
+    r"""Project a 3D count grid to a 2D map by summing the FIRST ``depth`` slices along ``los_axis``.
+
+    A non-periodic line-of-sight slab: ``sum_{i<depth} N[..., i, ...]`` (the integer ``depth`` is a
+    number of slices, not a fraction). Returns a 2D numpy array (the data-side projected map fed to
+    :func:`measure_angular_bandpowers_2d` and :func:`measure_log_count_variance`).
+    """
+    c = np.asarray(counts3d)
+    return c.take(range(depth), axis=los_axis).sum(axis=los_axis)
+
+
+def measure_angular_bandpowers_2d(map2d, k_edges):
+    r"""Measured 2D periodogram band-powers ``<|fft2(f-<f>)|^2 / N>`` of a projected map ``map2d``,
+    binned by 2D ``|k|`` into ``k_edges`` (numpy; the angular analog of
+    :func:`gravoturb_fdf.inference.covariance.measured_bandpowers`).
+
+    Uses the EXACT same periodogram normalization (``/ f.size``) and the same ``|k|`` convention
+    (``kx = fftfreq(n)*n`` per axis) so a future predicted ``angular_bandpowers_2d`` matches.
+    """
+    f = np.asarray(map2d, dtype=float)
+    f = f - f.mean()
+    pk = np.abs(np.fft.fft2(f)) ** 2 / f.size
+    ny, nx = f.shape
+    ky = np.fft.fftfreq(ny) * ny
+    kx = np.fft.fftfreq(nx) * nx
+    kmag = np.sqrt(ky[:, None] ** 2 + kx[None, :] ** 2)
+    out = np.zeros(len(k_edges) - 1)
+    ke = np.asarray(k_edges)
+    for i, (lo, hi) in enumerate(zip(ke[:-1], ke[1:])):
+        mask = (kmag >= lo) & (kmag < hi)
+        out[i] = pk[mask].mean()
+    return out
+
+
 def measure_log_count_variance(counts, n_bar):
     r"""Measured CIC log-count variance ``Var_cells[log_plus(N_cell)]`` (Neyrinck+2011 Eq 2).
 
