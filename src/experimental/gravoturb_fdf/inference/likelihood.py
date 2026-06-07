@@ -15,7 +15,6 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
 from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance, count_distribution
 from gravoturb_fdf.theory.pdf import bm19_volume_pdf
 from gravoturb_fdf.theory.projection import box_window_sq_grid
@@ -159,28 +158,3 @@ def tail_exceedance_loglike(
     log_p = (-alpha * x_lo) + jnp.log(-jnp.expm1(-alpha * dx)) - jnp.log(-jnp.expm1(-alpha * L))
     log_p = jnp.clip(log_p, jnp.log(floor), None)  # guard empty/underflowing bins
     return jnp.sum(exc_counts * log_p)
-
-
-def pot_validity_barrier(
-    theta: Float[Array, " 4"],
-    s_thr: float,
-    eps: float = 0.1,
-) -> Float[Array, ""]:
-    r"""Smooth log-prior barrier keeping the chain where the POT model is valid (``s_t(theta) <= s_thr``).
-
-    :func:`tail_exceedance_loglike` assumes the exceedances above ``s_thr`` are pure power-law tail,
-    which holds only for ``s_thr >= s_t(theta) = (alpha - 1/2) sigma_s^2(mach,b)``. Since ``s_t``
-    grows with alpha -- exactly the direction the tail data pull -- the chain can wander into the
-    invalid region where the model silently biases alpha (no NaN). This adds a half-quadratic
-    ``relu`` penalty to the unconstrained log-density::
-
-        barrier = -1/2 ( max(s_t(theta) - s_thr, 0) / eps )^2,
-
-    which is identically 0 (and zero-gradient) inside the valid region, smoothly negative outside,
-    and C^1 at the knee ``s_t = s_thr`` (``relu^2`` has a continuous derivative) so NUTS gradients
-    stay clean -- unlike a hard ``-inf`` cutoff. ``eps`` sets the ramp width in s-units.
-    """
-    mach, b, alpha, _beta = theta
-    s_t = transition_density(alpha, sigma_s_squared(mach, b))
-    excess = jnp.maximum(s_t - s_thr, 0.0) / eps
-    return -0.5 * excess**2

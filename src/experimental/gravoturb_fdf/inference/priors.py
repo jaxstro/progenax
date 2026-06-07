@@ -15,10 +15,11 @@ Priors (Option B — unconditional; Anna-approved 2026-06-06)
 
 The alpha prior is **unconditional** (a plain box ``[alpha_lo, alpha_hi]``, no M-coupling).
 POT-validity of the tail block (the requirement ``s_t(theta) = (alpha - 1/2) sigma_s^2 <=
-s_thr``) is **not** enforced here: it is handled *per trial* by the SBC driver
-(``sbc.py``), which sets the exceedance threshold adaptively as ``s_thr = s_t(theta*) +
-margin`` (exactly as AC16 does) and relies on the soft ``pot_validity_barrier`` in the HMC
-log-density. Folding POT-validity into the prior instead would make ``alpha`` conditional on
+s_thr``) is **not** enforced here: the SBC driver (``sbc.py``) sets the exceedance threshold
+adaptively per trial as ``s_thr = s_t(theta*) + margin`` (exactly as AC16 does), and the POT
+block (``tail_exceedance_loglike``) is **shift-immune** in ``s_thr`` (the lognormal norm
+cancels), so no validity barrier is needed in the log-density. Folding POT-validity into the
+prior instead would make ``alpha`` conditional on
 ``M`` and collapse the alpha range at high Mach number (wide sigma_s^2 -> low transition),
 so it is deliberately left out of the prior. ``alpha > 1`` keeps the mass-weighted tail
 integral convergent.

@@ -377,37 +377,6 @@ def test_tail_exceedance_loglike_shift_invariance():
     assert ll_shift == pytest.approx(ll, abs=1e-9)
 
 
-# --- Task 2: POT-validity soft barrier (keeps the chain in the s_t(theta) <= s_thr region) ---
-
-
-def test_pot_validity_barrier_zero_inside_penalizes_outside():
-    """The POT exponential model is valid only for s_thr >= s_t(theta)=(alpha-1/2)sigma_s^2, and s_t
-    grows with alpha (the direction the data pull). The soft barrier is 0 inside the valid region,
-    smoothly negative with finite grad outside, and C^1 at the knee (so NUTS gradients stay clean)."""
-    from gravoturb_fdf.inference.likelihood import pot_validity_barrier
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
-
-    mach, b = 5.0, 0.4
-    s2 = float(sigma_s_squared(mach, b))
-    alpha_in = 2.5
-    s_thr = (alpha_in - 0.5) * s2 + 0.5  # s_thr above s_t(alpha_in) -> inside
-    bar = lambda a: float(pot_validity_barrier(jnp.array([mach, b, a, 3.0]), s_thr))
-    gd = lambda a: float(jax.grad(
-        lambda av: pot_validity_barrier(jnp.array([mach, b, av, 3.0]), s_thr))(a))
-
-    assert bar(alpha_in) == 0.0                 # strictly inside: no penalty
-    alpha_out = alpha_in + 2.0                  # s_t(theta) > s_thr -> outside
-    assert bar(alpha_out) < 0.0
-    assert gd(alpha_in - 0.3) == 0.0            # flat inside -> zero grad
-    assert np.isfinite(gd(alpha_out)) and gd(alpha_out) < 0.0  # pushed back toward valid region
-
-    # C^1 at the knee s_t = s_thr: derivative continuous (-> 0 from both sides)
-    alpha_knee = 0.5 + s_thr / s2
-    assert gd(alpha_knee) == pytest.approx(0.0, abs=1e-9)
-    assert gd(alpha_knee - 1e-3) == 0.0
-    assert abs(gd(alpha_knee + 1e-6)) < 1e-3
-
-
 # --- Task 3: truncation-corrected Fisher forecast for alpha (the sigma(alpha) vs N_tail law) ---
 
 

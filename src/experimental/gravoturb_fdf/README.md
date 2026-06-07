@@ -100,9 +100,9 @@ explained pedagogically in
   the true non-Gaussian one, so the mock covariance is used).
 - **`likelihood.py`** — the blocks: `data_vector` + `gaussian_loglike` (2-pt band-powers + CIC
   variance); `count_loglike` (compound-Poisson counts → $\mathcal{M}, \beta$);
-  **`tail_exceedance_loglike`** (the peaks-over-threshold truncated-exponential tail block → $\alpha$)
-  and its `pot_validity_barrier`; `density_pdf_loglike` (a full-PDF diagnostic, superseded for
-  $\alpha$ by the POT block).
+  **`tail_exceedance_loglike`** (the peaks-over-threshold truncated-exponential tail block → $\alpha$;
+  shift-immune in `s_thr`, so no validity barrier is needed); `density_pdf_loglike` (a full-PDF
+  diagnostic, superseded for $\alpha$ by the POT block).
 - **`fisher.py`** — `fisher_matrix` / `marginal_errors` (the field-level forecast) and the
   truncation-corrected POT forecast `alpha_fisher_info` / `sigma_alpha` (the honest σ(α)-vs-$N_{\rm tail}$ curve).
 - **`hmc.py`** — `run_nuts` (a thin blackjax NUTS driver) with a bounded log/log-shift
