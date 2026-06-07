@@ -16,9 +16,23 @@ Two pieces:
 
         logdensity(z) = tail_exceedance_loglike(...)               # POT tail -> alpha
                       + sum_c log_count_variance_loglike(meas_v_c, # tail-robust CIC sigma_s^2
-                            ..., var_v_c)                          #   -> mach, beta
+                            ..., var_v_c)                          #   -> mach (scalar; weak beta)
+                      + bandpower_gaussian_loglike(P_pred-bp, ...) # 2-pt band powers -> beta
                       + prior.logpdf([M, alpha, beta])             # proper BM19 prior
                       + log_jacobian(z)                            # reparam Jacobian
+
+  The **2-pt band-power block** is the beta carrier. The single-scalar log-count variance (even
+  at multiple cell scales) barely constrains the GRF slope beta -- it integrates the spectrum to
+  one number, so SBC found beta UNDER-constrained (rank-uniformity fails). The design-intended
+  fix is the field-level log-density power-spectrum band-powers (à la AC15): predicted analytic
+  band-powers ``P_pred(theta)`` (:func:`power_spectrum_bandpowers`, differentiable, the beta
+  carrier) fit to the measured periodogram ``band_powers`` of the latent log-density field via a
+  Gaussian ``-1/2 r^T Cinv r`` with a FIXED-FIDUCIAL Hartlap precision ``bp_precision`` (no
+  log|C| term, exactly like :func:`gaussian_loglike`). This is a FIELD-LEVEL UPPER BOUND on beta
+  information: the band-powers are measured from the continuous log-density field, with NO star
+  shot noise on the 2-pt (cf. the AC15 scoping caveat). ``bp_precision`` is computed ONCE at a
+  FIXED fiducial theta (NOT the trial truth), so -- like ``var_v`` -- it is a truth-independent
+  constant and does not break SBC.
 
   The stellar CIC block is the **tail-robust log-count-variance** statistic
   (:func:`log_count_variance_loglike`, Task 7) -- a Gaussian fit of the measured
@@ -46,11 +60,12 @@ Two pieces:
 - :func:`sbc_ranks` -- the calibration loop. A python loop over trials (the validation/oracle
   side -- each trial is a full NUTS run), with per-trial fold-in keys for determinism /
   resumability. Per trial it draws theta*, builds the BM19 mock (gas tail exceedances + the
-  tail-robust stellar-CIC log-count variance) exactly as AC16 does, builds the prior-aware
-  log-density, runs NUTS, thins the draws to ~independence (Talts 2018 sec. 5.1), and ranks
-  theta* among them. The fixed-fiducial estimator variance ``var_vs`` for the count block is
+  tail-robust stellar-CIC log-count variance + the field-level 2-pt band powers) exactly as AC16
+  does, builds the prior-aware log-density, runs NUTS, thins the draws to ~independence (Talts
+  2018 sec. 5.1), and ranks theta* among them. BOTH fixed-fiducial precisions -- the count
+  block's estimator variance ``var_vs`` and the 2-pt band-power precision ``bp_precision`` -- are
   computed ONCE (before the trial loop) at a fixed fiducial theta -- never at the trial truth --
-  and threaded into every trial's log-density (SBC-valid as a truth-independent constant).
+  and threaded into every trial's log-density (SBC-valid as truth-independent constants).
 
 The mock construction (n_bar per cell, the rank-copula gas/stellar fields) mirrors
 :func:`gravoturb_fdf.validation.acceptance.ac16_hmc_recovery` so the calibrated object is the
@@ -67,6 +82,11 @@ import numpy as np
 
 from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
 from gravoturb_fdf.field.sampling import sample_cic_counts
+from gravoturb_fdf.inference.covariance import (
+    measured_bandpowers,
+    mock_precision,
+    power_spectrum_bandpowers,
+)
 from gravoturb_fdf.inference.hmc import (
     log_jacobian,
     run_nuts,
@@ -88,10 +108,22 @@ from gravoturb_fdf.validation.measure import (
 # Fixed fiducial theta for the truth-INDEPENDENT log-count-variance estimator variance
 # (var_v). Used ONCE per inference in sbc_ranks to compute var_v at a fixed point -- NEVER at
 # the trial truth theta* (a truth-keyed var_v would break SBC, like the old POT barrier did).
+# The SAME fixed fiducial theta also keys the band-power precision bp_precision (below).
 _MACH_FID = 8.0
 _ALPHA_FID = 2.5
 _BETA_FID = 3.0
 _N_REAL_VAR_V = 12
+
+# Fixed |k| band-power edges for the field-level 2-pt block (the beta carrier). 5 bins on the
+# 24^3 stellar grid the count model FFTs on. NB: AC15/data_vector use jnp.linspace(2.0, 11.0, 5)
+# (4 bins); we use one more bin (6 edges -> 5 bins) to give beta a touch more 2-pt leverage on
+# the small grid -- harmless, since bp_precision is the matched mock covariance of the SAME edges.
+_K_EDGES = jnp.linspace(2.0, 11.0, 6)
+_N_REAL_BP = 64  # ensemble size for the fixed-fiducial band-power mock precision
+
+# Fixed turbulence driving parameter the fiducial band-power ensemble uses (matches the fixed b
+# threaded through inference; b is not a free param here).
+_B_FID = 0.4
 
 
 def build_logdensity(
@@ -102,6 +134,7 @@ def build_logdensity(
     s_max: float,
     shape: tuple[int, int, int],
     cell_sizes: tuple[int, ...],
+    bp_precision,
     n_max: int = 10,
     n_s: int = 400,
 ) -> Callable:
@@ -118,19 +151,27 @@ def build_logdensity(
         ``Var_cells[log_plus(N)]`` scalars (:func:`measure_log_count_variance`, Task 7);
         ``"var_vs"`` -- tuple of per-cell FIXED-FIDUCIAL estimator variances (threaded in from
         :func:`sbc_ranks`, computed ONCE at a fixed fiducial theta, NOT at the trial truth ->
-        SBC-valid); ``"n_bars"`` -- tuple of per-cell ``n_bar`` (matched to ``cell_sizes``).
+        SBC-valid); ``"n_bars"`` -- tuple of per-cell ``n_bar`` (matched to ``cell_sizes``);
+        ``"band_powers"`` -- (k,) measured periodogram band-powers of the latent log-density
+        field on ``_K_EDGES`` (the 2-pt beta channel; :func:`measured_bandpowers`).
     b : float
         Fixed turbulence driving parameter (the likelihood constant in ``theta4``).
     s_thr, s_max : float
         POT threshold and realized field maximum (data-derived constants; same field as
         ``exc_counts``, which makes the POT block shift-immune).
     shape : (n, n, n)
-        Stellar CIC grid the count model FFTs on (forward-bias-matched).
+        Stellar CIC grid the count model FFTs on (forward-bias-matched). The band-power block
+        FFTs on this SAME grid (``_K_EDGES``).
     cell_sizes : tuple[int, ...]
         CIC cell sizes; ``data["log_count_vars"]`` / ``data["var_vs"]`` / ``data["n_bars"]``
         align with this.
+    bp_precision : (k, k) array
+        FIXED-FIDUCIAL Hartlap-corrected band-power precision (:func:`mock_precision` over an
+        ensemble at the fixed fiducial theta; threaded in from :func:`sbc_ranks`). Truth-
+        independent constant (like ``var_v``) -> SBC-valid. numpy/jnp both ok (fixed data).
     n_max, n_s : int
-        ``log_count_variance_loglike`` quadrature controls (mirror AC16 defaults).
+        ``log_count_variance_loglike`` quadrature controls (mirror AC16 defaults). ``n_max`` also
+        sets the Gaussianization order of the predicted band-powers.
 
     Returns
     -------
@@ -141,6 +182,8 @@ def build_logdensity(
     log_count_vars = tuple(jnp.asarray(mv) for mv in data["log_count_vars"])
     var_vs = tuple(jnp.asarray(vv) for vv in data["var_vs"])
     n_bars = tuple(float(nb) for nb in data["n_bars"])
+    band_powers = jnp.asarray(data["band_powers"])  # measured 2-pt band powers (beta channel)
+    bp_precision = jnp.asarray(bp_precision)         # fixed-fiducial Hartlap precision (k, k)
 
     def logdensity(z):
         m_, a_, be_ = to_constrained(z)
@@ -149,12 +192,23 @@ def build_logdensity(
         # POT tail block -> alpha. SHIFT-IMMUNE in s_thr (the lognormal norm
         # cancels), so a per-trial s_thr keyed to the truth does NOT bias alpha.
         ll = tail_exceedance_loglike(exc_counts, exc_edges, theta4, s_thr, s_max)
-        # tail-robust stellar CIC blocks (log-count variance) -> mach, beta. var_v is the
-        # FIXED-FIDUCIAL estimator variance (truth-independent; see build_logdensity docstring).
+        # tail-robust stellar CIC blocks (log-count variance) -> mach (scalar sigma_s^2; only a
+        # weak beta dependence). var_v is the FIXED-FIDUCIAL estimator variance (truth-
+        # independent; see build_logdensity docstring).
         for c, mv, vv, nb in zip(cell_sizes, log_count_vars, var_vs, n_bars):
             ll = ll + log_count_variance_loglike(
                 mv, theta4, shape, c, nb, vv, n_max=n_max, n_s=n_s
             )
+        # field-level 2-pt band-power block -> beta. Predicted analytic band-powers (the beta
+        # carrier; differentiable) vs the measured periodogram, Gaussian with the fixed-fiducial
+        # precision -- same -1/2 r^T Cinv r pattern as gaussian_loglike (no log|C| term). This is
+        # the channel the single-scalar log-count variance lacked; it is a FIELD-LEVEL UPPER
+        # BOUND (no star shot noise on the 2-pt; see build_logdensity docstring).
+        _, P_pred, _ = power_spectrum_bandpowers(
+            shape, be_, m_, b, a_, _K_EDGES, n_max=n_max
+        )
+        r = P_pred - band_powers
+        ll = ll + (-0.5 * r @ (bp_precision @ r))
         # proper prior (replaces AC16's flat-in-theta improper prior)
         ll = ll + prior.logpdf(theta3)
         # NB: NO pot_validity_barrier here. The barrier penalizes draws with
@@ -242,11 +296,16 @@ def _build_mock(
         log_count_vars.append(measure_log_count_variance(cnt, nb))
         n_bars.append(nb)
 
+    # Field-level 2-pt band powers (the beta channel): measured periodogram of the SAME latent
+    # stellar log-density field s_lo, on the SAME grid/_K_EDGES the predicted band-powers FFT on.
+    band_powers = measured_bandpowers(np.asarray(s_lo), shape, _K_EDGES)
+
     data = {
         "exc_counts": exc_counts,
         "exc_edges": exc_edges,
         "log_count_vars": tuple(log_count_vars),
         "n_bars": tuple(n_bars),
+        "band_powers": band_powers,
     }
     return data, float(s_thr), float(s_max)
 
@@ -317,6 +376,30 @@ def sbc_ranks(
         for c in cell_sizes
     )
 
+    # --- Fixed-fiducial band-power precision bp_precision for the 2-pt beta block. ---
+    # SAME SBC-validity contract as var_v: it MUST be truth-independent. Computed ONCE here, at the
+    # FIXED fiducial theta (_MACH_FID, _ALPHA_FID, _BETA_FID; fixed b), as the Hartlap-corrected
+    # mock precision of an ensemble of measured band-powers -- NEVER at the trial truth theta*.
+    # Tag 2**30 keeps this stream disjoint from the var_v (2**31) and per-trial (0..n_trials-1)
+    # fold-ins. n_real (=_N_REAL_BP) > k (band-power bins) is required for an invertible Hartlap C.
+    k_bp = jax.random.fold_in(key, 2**30)
+    bp_rows = [
+        measured_bandpowers(
+            np.asarray(
+                rank_copula_field(
+                    gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(k_bp, i)),
+                    _MACH_FID,
+                    b,
+                    _ALPHA_FID,
+                )
+            ),
+            shape,
+            _K_EDGES,
+        )
+        for i in range(_N_REAL_BP)
+    ]
+    bp_precision = mock_precision(bp_rows)
+
     for i in range(n_trials):
         # Per-trial fold-in keys: prior draw / mock realization / NUTS, each its own stream.
         k_trial = jax.random.fold_in(key, i)
@@ -347,6 +430,7 @@ def sbc_ranks(
             s_max=s_max,
             shape=shape,
             cell_sizes=cell_sizes,
+            bp_precision=bp_precision,
             n_max=n_max,
             n_s=n_s,
         )

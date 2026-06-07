@@ -19,28 +19,47 @@ from gravoturb_fdf.inference.sbc import build_logdensity, sbc_ranks
 pytestmark = [pytest.mark.experimental, pytest.mark.slow]
 
 
-def test_build_logdensity_uses_log_count_variance_block():
-    """build_logdensity consumes the tail-robust log-count-variance keys and is finite + diff'able.
+def test_build_logdensity_uses_log_count_variance_and_bandpower_blocks():
+    """build_logdensity consumes the log-count-variance AND 2-pt band-power keys; finite + diff'able.
 
-    Mirrors the SBC mock bundle but with the NEW keys (Task 7): ``log_count_vars`` (per-cell
-    measured Var_cells[log_plus(N)]) and threaded ``var_vs`` (fixed-fiducial estimator variance),
-    replacing the dropped ``count_hists``. Asserts logdensity(z) is finite and jax.grad is finite.
+    Mirrors the SBC mock bundle with the count keys (Task 7) ``log_count_vars`` (per-cell measured
+    Var_cells[log_plus(N)]) + threaded ``var_vs`` (fixed-fiducial estimator variance), PLUS the new
+    field-level 2-pt beta channel: ``band_powers`` (measured periodogram on ``_K_EDGES``) fit with a
+    fixed-fiducial ``bp_precision``. Asserts logdensity(z) is finite and jax.grad is finite (the
+    band-power block must be differentiable in theta via the analytic power_spectrum_bandpowers).
     """
+    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
+    from gravoturb_fdf.inference.covariance import measured_bandpowers, mock_precision
+    from gravoturb_fdf.inference.sbc import _K_EDGES, _MACH_FID, _ALPHA_FID, _BETA_FID
+
     pr = BM19Prior()
     shape = (24, 24, 24)
     cell_sizes = (4,)
-    # A small, valid POT histogram (empty tail -> contributes exactly 0) + the new count keys.
+    b = 0.4
+    # A small, valid POT histogram (empty tail -> contributes exactly 0) + the count keys.
     s_thr, s_max = 5.0, 6.0
+    # Measured band powers of a real latent log-density field + fixed-fiducial Hartlap precision.
+    key = jax.random.PRNGKey(0)
+    s_lo = rank_copula_field(gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(key, 1)),
+                             _MACH_FID, b, _ALPHA_FID)
+    band_powers = measured_bandpowers(np.asarray(s_lo), shape, _K_EDGES)
+    k_bp = jax.random.fold_in(key, 2**30)
+    bp_rows = [measured_bandpowers(np.asarray(rank_copula_field(
+        gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(k_bp, i)),
+        _MACH_FID, b, _ALPHA_FID)), shape, _K_EDGES) for i in range(16)]
+    bp_precision = mock_precision(bp_rows)
+
     data = {
         "exc_counts": np.zeros(8, dtype=float),
         "exc_edges": np.linspace(s_thr, s_max, 9),
         "log_count_vars": (0.35,),  # measured Var_cells[log_plus(N)] per cell
         "var_vs": (1e-3,),  # fixed-fiducial estimator variance per cell
         "n_bars": (5.0,),
+        "band_powers": band_powers,
     }
     logdensity = build_logdensity(
-        pr, data, b=0.4, s_thr=s_thr, s_max=s_max,
-        shape=shape, cell_sizes=cell_sizes, n_max=8, n_s=256,
+        pr, data, b=b, s_thr=s_thr, s_max=s_max,
+        shape=shape, cell_sizes=cell_sizes, bp_precision=bp_precision, n_max=8, n_s=256,
     )
     # Evaluate at an in-prior-support point (unconstrained image of a valid theta), as the
     # SBC driver does; z=0 would map outside the BM19 box -> prior is -inf there.

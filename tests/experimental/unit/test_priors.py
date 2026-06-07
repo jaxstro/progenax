@@ -5,7 +5,7 @@ pytestmark = pytest.mark.experimental
 
 
 def _prior(**kw):
-    return BM19Prior(m_range=(4.0, 20.0), alpha_range=(1.1, 4.0),
+    return BM19Prior(m_range=(4.0, 20.0), alpha_range=(1.5, 3.0),
                      beta_range=(2.0, 11 / 3), **kw)
 
 
@@ -15,7 +15,7 @@ def test_sample_within_support():
     thetas = jax.vmap(pr.sample)(keys)          # (2000, 3) = (M, alpha, beta)
     M, alpha, beta = thetas[:, 0], thetas[:, 1], thetas[:, 2]
     assert jnp.all((M >= 4.0) & (M <= 20.0))
-    assert jnp.all((alpha >= 1.1) & (alpha <= 4.0))
+    assert jnp.all((alpha >= 1.5) & (alpha <= 3.0))
     assert jnp.all((beta >= 2.0) & (beta <= 11 / 3 + 1e-9))
 
 

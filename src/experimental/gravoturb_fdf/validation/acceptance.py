@@ -573,7 +573,10 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     from gravoturb_fdf.field.field import (
         gaussian_random_field, rank_copula_field, expected_cells_above_transition)
     from gravoturb_fdf.field.sampling import sample_cic_counts
-    from gravoturb_fdf.validation.measure import measure_exceedances
+    from gravoturb_fdf.validation.measure import (
+        measure_exceedances, measure_log_count_variance,
+        estimate_log_count_variance_var)
+    from gravoturb_fdf.inference.covariance import measured_bandpowers, mock_precision
     from gravoturb_fdf.inference.fisher import sigma_alpha
     from gravoturb_fdf.inference.hmc import (
         run_nuts, to_unconstrained, to_constrained)
@@ -591,15 +594,36 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     n_tail_exp = float(expected_cells_above_transition(int(np.prod(density_shape)), mach, b, alpha))
 
     # --- stellar CIC counts on the SAME grid the model FFTs on (forward-bias-matched) -> M,beta ---
+    # Tail-robust log-count-variance statistic (Task 7), mirroring sbc.py::_build_mock EXACTLY:
+    # measured Var_cells[log_plus(N)] per cell + a FIXED-FIDUCIAL estimator variance var_v
+    # (truth-INDEPENDENT: computed at (M,alpha,beta)=(_MACH_FID,_ALPHA_FID,_BETA_FID), NOT at the
+    # injected mach/alpha/beta -- a truth-keyed var_v would be exactly the SBC artifact the old POT
+    # barrier was). Replaces the tail-sensitive bincount count-histogram block (the AC18 M-bias).
+    from gravoturb_fdf.inference.sbc import (
+        _MACH_FID, _ALPHA_FID, _BETA_FID, _N_REAL_VAR_V, _N_REAL_BP, _K_EDGES)
     s_lo = rank_copula_field(gaussian_random_field(shape, beta, jax.random.fold_in(key, 1)),
                              mach, b, alpha)
-    hists, nbars = [], []
+    k_var = jax.random.fold_in(key, 2**31)  # disjoint stream for the fixed-fiducial var_v
+    log_count_vars, var_vs, nbars = [], [], []
     for c in cell_sizes:
         nb = n_stars / (shape[0] // c) ** 3
-        cnt = np.asarray(sample_cic_counts(s_lo, nb, c, jax.random.fold_in(key, 100 + c))).ravel()
-        nmaxN = int(nb * 8) + 30
-        hists.append(jnp.asarray(np.bincount(cnt, minlength=nmaxN)[:nmaxN].astype(float)))
+        cnt = np.asarray(sample_cic_counts(s_lo, nb, c, jax.random.fold_in(key, 100 + c)))
+        log_count_vars.append(measure_log_count_variance(cnt, nb))
+        var_vs.append(estimate_log_count_variance_var(
+            mach=_MACH_FID, b=b, alpha=_ALPHA_FID, beta=_BETA_FID, shape=shape,
+            cell_size=c, n_bar=nb, n_real=_N_REAL_VAR_V, key=jax.random.fold_in(k_var, c)))
         nbars.append(nb)
+
+    # --- field-level 2-pt band powers (the beta channel) -> beta, mirroring sbc.py EXACTLY ---
+    # measured band powers of the SAME latent stellar field s_lo on _K_EDGES; plus a FIXED-FIDUCIAL
+    # Hartlap precision bp_precision computed at (_MACH_FID,_ALPHA_FID,_BETA_FID) (truth-independent,
+    # disjoint 2**30 stream) -- the design-intended beta carrier the scalar log-count variance lacks.
+    band_powers = measured_bandpowers(np.asarray(s_lo), shape, _K_EDGES)
+    k_bp = jax.random.fold_in(key, 2**30)
+    bp_rows = [measured_bandpowers(np.asarray(rank_copula_field(
+        gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(k_bp, i)),
+        _MACH_FID, b, _ALPHA_FID)), shape, _K_EDGES) for i in range(_N_REAL_BP)]
+    bp_precision = mock_precision(bp_rows)
 
     # Shared prior-aware log-density factory (single source of truth with the SBC driver,
     # Task 6). AC16 uses a weakly-informative BM19Prior whose log-uniform/uniform boxes
@@ -608,10 +632,11 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     from gravoturb_fdf.inference.priors import BM19Prior
     from gravoturb_fdf.inference.sbc import build_logdensity
     data = {"exc_counts": exc_counts, "exc_edges": exc_edges,
-            "count_hists": tuple(hists), "n_bars": tuple(nbars)}
+            "log_count_vars": tuple(log_count_vars), "var_vs": tuple(var_vs),
+            "n_bars": tuple(nbars), "band_powers": band_powers}
     logdensity = build_logdensity(
         BM19Prior(), data, b=b, s_thr=s_thr, s_max=s_max, shape=shape,
-        cell_sizes=cell_sizes, n_max=n_max, n_s=n_s)
+        cell_sizes=cell_sizes, bp_precision=bp_precision, n_max=n_max, n_s=n_s)
 
     z0 = to_unconstrained(jnp.array([mach, alpha, beta]))
     sz = run_nuts(logdensity, z0, jax.random.fold_in(key, 2), n_warmup, n_samples)

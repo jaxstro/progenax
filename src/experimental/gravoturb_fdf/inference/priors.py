@@ -10,8 +10,13 @@ identifiable on its own and is fixed in this inference layer).
 Priors (Option B — unconditional; Anna-approved 2026-06-06)
 -----------------------------------------------------------
 - ``M     ~ LogUniform[m_lo, m_hi]``        (sonic Mach number; default 4 .. 20)
-- ``alpha ~ Uniform[alpha_lo, alpha_hi]``   (BM19 PDF tail slope; default 1.1 .. 4.0)
+- ``alpha ~ Uniform[alpha_lo, alpha_hi]``   (BM19 PDF tail slope; default 1.5 .. 3.0)
 - ``beta  ~ LogUniform[beta_lo, beta_hi]``  (GRF power-spectrum slope; default 2 .. 11/3)
+
+The alpha box ``[1.5, 3.0]`` is PDF-grounded: alpha=3/2 (kappa=3/alpha=2) is the canonical
+isothermal-collapse value (Shu 1977; BM19 s_t=sigma_s^2 at alpha=3/2); Kainulainen 2014
+observe kappa~1.67 -> alpha~1.8; the upper bound 3 (kappa=1) is the shallow-tail limit. The
+old 1.1 dipped below the canonical floor toward the alpha->1 mass-integral divergence.
 
 The ``M`` lower bound is 4 because the count/ℳ channel is calibrated for ℳ≥4; below that
 the field is transonic and shot-noise-dominated (dense-core regime), outside the supersonic
@@ -58,7 +63,7 @@ class BM19Prior(eqx.Module):
     def __init__(
         self,
         m_range: Tuple[float, float] = (4.0, 20.0),
-        alpha_range: Tuple[float, float] = (1.1, 4.0),
+        alpha_range: Tuple[float, float] = (1.5, 3.0),
         beta_range: Tuple[float, float] = (2.0, 11.0 / 3.0),
     ):
         # Static python float tuples (used for the box support + log-CDF normalization).
