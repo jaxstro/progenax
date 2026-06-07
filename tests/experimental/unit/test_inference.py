@@ -231,6 +231,27 @@ def test_count_loglike_constrains_alpha_strongly():
     assert d2 < -1.0  # sharply peaked in alpha
 
 
+# --- Task 5: tail-robust log-count-variance Gaussian block --------------------
+
+
+def test_log_count_variance_loglike_peaks_at_truth():
+    """The Gaussian sigma_s^2 -> mach block: on noiseless data (measured = prediction at the
+    injected theta) the loglike peaks at the injected mach (ll(8) > ll(5) and ll(8) > ll(12)),
+    and is differentiable in mach (finite grad)."""
+    from gravoturb_fdf.theory.cic import predict_log_count_variance
+    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb_fdf.inference.likelihood import log_count_variance_loglike
+    shape, c, n_bar = (24, 24, 24), 4, 5.0
+    w2 = box_window_sq_grid(shape, c)
+    truth = jnp.array([8.0, 0.4, 2.5, 3.0])
+    # noiseless "measured" = prediction at truth
+    meas = float(predict_log_count_variance(n_bar, shape, 3.0, float(c), 8.0, 0.4, 2.5, w2=w2))
+    ll = lambda m: float(log_count_variance_loglike(meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3))
+    assert ll(8.0) > ll(5.0) and ll(8.0) > ll(12.0)     # peaks at the injected mach
+    g = float(jax.grad(lambda m: log_count_variance_loglike(meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3))(8.0))
+    assert g == g
+
+
 # --- Task 6.2: blackjax NUTS driver -------------------------------------------
 
 

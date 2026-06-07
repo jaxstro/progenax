@@ -15,7 +15,12 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
-from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance, count_distribution
+from gravoturb_fdf.theory.cic import (
+    cell_averaged_xi_rho,
+    cic_variance,
+    count_distribution,
+    predict_log_count_variance,
+)
 from gravoturb_fdf.theory.pdf import bm19_volume_pdf
 from gravoturb_fdf.theory.projection import box_window_sq_grid
 
@@ -91,6 +96,35 @@ def count_loglike(
     pN = pN / jnp.sum(pN)  # normalize over the support [0, nmax] -> conditional P(N|N<=nmax);
     # removes a theta-dependent truncation bias on alpha (the tail param) for finite nmax.
     return jnp.sum(count_hist * jnp.log(jnp.clip(pN, floor, None)))
+
+
+def log_count_variance_loglike(
+    measured_v: Float[Array, ""],
+    theta: Float[Array, " 4"],
+    shape: tuple[int, int, int],
+    cell_size: int,
+    n_bar: Float[Array, ""],
+    var_v: Float[Array, ""],
+    n_max: int = 14,
+    n_quad: int = 256,
+    n_s: int = 1024,
+    s_max: float = 40.0,
+) -> Float[Array, ""]:
+    r"""Gaussian log-likelihood on the tail-robust CIC log-count variance (the sigma_s^2 -> mach block).
+
+    Compares the measured ``Var_cells[log_plus(N)]`` to the analytic
+    :func:`~gravoturb_fdf.theory.cic.predict_log_count_variance` at ``theta``; ``var_v`` is the fixed
+    (fiducial-mock) estimator variance (Decision #4 mock-precision pattern, no log|C| term). Replaces
+    ``count_loglike`` in the inference path: tail-robust, so it does not bias mach high. Differentiable
+    in ``theta = (mach, b, alpha, beta)`` (carries mach; alpha/beta enter only weakly via P(N)/R).
+    """
+    mach, b, alpha, beta = theta
+    pred = predict_log_count_variance(
+        n_bar, shape, beta, float(cell_size), mach, b, alpha,
+        n_max=n_max, n_quad=n_quad, n_s=n_s, s_max=s_max,
+        w2=box_window_sq_grid(shape, cell_size),
+    )
+    return -0.5 * (pred - measured_v) ** 2 / var_v
 
 
 def density_pdf_loglike(
