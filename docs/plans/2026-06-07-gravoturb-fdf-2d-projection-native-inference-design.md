@@ -180,3 +180,70 @@ filaments were always outside the phase-random GRF model (the held-out 3-pt null
   (quantifies how safely α is held at fiducial / washed out by deep projection).
 - The variance **ladder** over cell scales R carries β (de-risk confirmed: σ(β)/fid≈23%,
   corr(ℳ,β)=−0.25, ℳ–β degeneracy broken).
+
+## 13. β-headline pivot (FINAL, Anna-approved 2026-06-07) — motivation, contributions, scope
+
+After verifying the projected-amplitude wall is a **finite-volume cosmic-variance** effect intrinsic
+to red fat-tailed fields (the amplitude carries ~16–38% per-cluster scatter + box-drift at n≤128, and
+data-vector stacking reduces *scatter* not *bias*), and that the **β-slope is box-stable, monotonic,
+and low-scatter** (rank-G angular-clustering slope: −2.30/−2.81/−3.35 for β=2.5/3.0/3.5, drift ≲0.1
+across n=48→96, ±0.05–0.07 at n=96), the engine is re-scoped to a **β headline**.
+
+**Motivation.** Stellar substructure is the field's standard probe of natal conditions, measured today
+with *heuristic, non-differentiable, non-calibrated* statistics (Cartwright–Whitworth **Q**, MST,
+fractal dimension D). They report "how substructured," but without a forward model, a calibrated
+uncertainty, or a gradient.
+
+**Contribution.** A **differentiable, SBC-calibrated, physically-parameterized successor to Q/MST**:
+infer the natal-turbulence density power-spectrum slope **β** (P(k)∝k⁻ᵝ) from the projected stellar
+positions of *young* clusters, via rank-Gaussianized angular clustering + a Limber forward model + HMC.
+β is the *same physical content* as Q/MST (the 2-pt substructure / fractal scaling) but rigorous:
+a calibrated number with an error bar and a model behind it. This is the robust, novel deliverable.
+
+**Honest scope (what each parameter is):**
+- **β — headline, trustworthy.** Structural (clustering spectrum); robustly recoverable from 2-D
+  positions; box-stable. The calibrated Q/MST successor. Science: β(environment), **β-vs-age = the
+  substructure clock** (substructure decays in a few crossing times → only *young* systems retain it),
+  population tests of the gravoturbulent paradigm.
+- **ℳ — secondary, forecast-grade.** A *thermodynamic* amplitude (σ_s²); cosmic-variance-limited
+  *per cluster* (~16%/√K with K stacked clusters), not a precision per-object Mach measurement. β→ℳ is
+  model-dependent (gravoturbulent relation), reported as relative/population with honest error bars.
+- **α — depth-gated, not inferred in 2-D.** A *gravitational/SF* tail slope; washed out by projection
+  (verified). Kept as a forward-model fiducial + held-out tail stress-test; a science target only in
+  the future depth-resolved (Gaia 3-D / dust-column) mode.
+
+**Why this is a *better* result than the original (ℳ,α,β)-absolute ambition.** The physics taught us
+(through every wall) that 2-D stellar positions trustworthily encode **β**, which is exactly the
+quantity the field characterizes heuristically with Q/MST. The deliverable — *the calibrated,
+differentiable successor to Q/MST, connected to natal turbulence by a forward model* — is cleaner,
+honest, and novel; ℳ/α are honestly-scoped secondary/extension results, not overclaimed.
+
+**Engine (unchanged pillars, β-focused):** rank-Gaussianized projected angular clustering →
+**slope→β** (robust), amplitude→ℳ (forecast-grade); analytic-2D **Limber** prediction (speed);
+**population stacking** (precision, = the science); α POT retained as fiducial + stress-test, not in
+the fit.
+
+## 14. Method validation results (2026-06-07, before build commit)
+
+Two verify-first checks (per Anna's "validate the methods before we commit"):
+
+**(a) β-slope is the robust observable — CONFIRMED.** rank-G angular-clustering slope vs β_true, box
+size: −2.30/−2.81/−3.35 (β=2.5/3.0/3.5 at n=48), drift ≲0.1 across n=48→96, scatter ±0.05–0.07 at
+n=96. Monotonic, well-separated (Δslope≈0.5 per Δβ=0.5), box-stable — unlike the amplitude
+(±16–38% + box-drift). β is identifiable and stable. dslope/dβ ≈ 1.
+
+**(b) β recoverable at realistic cluster sizes — CONFIRMED, with a required shot-noise ingredient.**
+With Poisson star sampling (n=96, full-LOS, 24² sky cells), β_true=3.0:
+σ(β) per cluster ≈ 0.46 (N=1000), 0.35 (N=3000), 0.31 (N=10⁴) → ~0.1–0.15 stacked over K≈10. Useful
+for resolving β across environment/age. **BUT** shot noise *flattens the measured slope
+N-dependently* (−1.94 → −2.86 → −3.25 as N=1000→10⁴→∞): the white shot plateau (1/n̄) contaminates the
+angular spectrum.
+
+**Required build ingredient (standard galaxy-clustering):** the forward model **must include the
+shot-noise term** — predicted band-powers = clustering(β,ℳ) + 1/n̄ (n̄ known from data) — so β is
+recovered **unbiased**. **Build milestone 1 = demonstrate unbiased β recovery WITH the shot model**
+(rank-G alone does not remove shot noise; it must be modeled or debiased à la Neyrinck+2011 Eq.3).
+
+**Net:** the β-headline method is validated as viable on real data scales, contingent on the (standard,
+well-understood) shot-noise modeling. ℳ (amplitude) remains forecast-grade (cosmic-variance-limited);
+α depth-gated.

@@ -5,10 +5,18 @@
 > (A1/A2 there are DONE and reused). Rationale + evolution: design doc §12 +
 > `2026-06-07-gravoturb-fdf-2d-projection-native-inference-design.md`.
 
+> **β-HEADLINE REFRAME (design §13, Anna-approved 2026-06-07).** β is THE deliverable: a
+> differentiable, SBC-calibrated, physically-parameterized **successor to Q/MST** (same substructure
+> content, made rigorous). **ℳ is secondary/forecast-grade** (cosmic-variance-limited per cluster,
+> reported relative/population), **α is depth-gated** (not in the 2-D fit). **VALIDATED 2026-06-07:**
+> the rank-G angular-clustering **slope→β is box-stable, monotonic, low-scatter** (−2.30/−2.81/−3.35
+> for β=2.5/3.0/3.5; ±0.05–0.07 at n=96) — unlike the amplitude. Remaining method-validation before
+> the full build: a minimal end-to-end **β-recovery** (unbiased) + a realistic **σ(β) forecast**.
+
 **Goal:** A fast, SBC-calibrated, differentiable inference of the natal turbulence **spectral slope β**
-(headline) and **amplitude ℳ** from the *projected star catalogue of a population of young clusters* —
-realised as galaxy-angular-clustering-style inference, robust to the fat tail and to finite-volume
-cosmic variance.
+(headline; the calibrated Q/MST successor) — with **amplitude ℳ** as a forecast-grade secondary and
+**α depth-gated** — from the *projected star catalogue of a population of young clusters*, realised as
+galaxy-angular-clustering-style inference robust to the fat tail and to finite-volume cosmic variance.
 
 **Architecture (the two pillars, each doing a distinct job):**
 1. **Analytic-2D Limber prediction (SPEED).** Predict the projected (angular) statistic from a *radial*
