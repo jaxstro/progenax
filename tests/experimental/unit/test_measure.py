@@ -120,3 +120,17 @@ def test_measure_log_count_variance_matches_log_plus():
     A = np.where(d > 0.0, np.log1p(np.where(d > 0.0, d, 0.0)), d)
     assert abs(v - float(np.var(A))) < 1e-12
     assert v >= 0.0
+
+
+# --- Task 6: estimate_log_count_variance_var (fixed fiducial var_v for the count block) -------
+
+
+def test_log_count_variance_estimator_var_positive():
+    """The fiducial estimator variance of measure_log_count_variance over an n_real mock ensemble
+    (used as the fixed var_v in log_count_variance_loglike) is a finite, strictly positive number."""
+    from gravoturb_fdf.validation.measure import estimate_log_count_variance_var
+
+    vv = estimate_log_count_variance_var(
+        mach=8.0, b=0.4, alpha=2.5, beta=3.0, shape=(24, 24, 24),
+        cell_size=4, n_bar=5.0, n_real=8, key=jax.random.PRNGKey(0))
+    assert vv > 0.0 and vv == vv

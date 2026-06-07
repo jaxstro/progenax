@@ -132,6 +132,24 @@ def measure_log_count_variance(counts, n_bar):
     return float(np.var(A))
 
 
+def estimate_log_count_variance_var(mach, b, alpha, beta, shape, cell_size, n_bar, n_real, key):
+    r"""Fixed (fiducial) variance of the ``measure_log_count_variance`` estimator from an ``n_real``
+    mock ensemble at theta_fid. Used as ``var_v`` in :func:`log_count_variance_loglike` (mock-precision
+    pattern; computed ONCE per inference, not per NUTS step -> SBC-valid as a fixed constant)."""
+    import jax
+
+    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
+    from gravoturb_fdf.field.sampling import sample_cic_counts
+
+    vals = []
+    for r in range(n_real):
+        k = jax.random.fold_in(key, r)
+        s = rank_copula_field(gaussian_random_field(shape, beta, k), mach, b, alpha)
+        cnt = np.asarray(sample_cic_counts(s, n_bar, cell_size, jax.random.fold_in(k, 1)))
+        vals.append(measure_log_count_variance(cnt, n_bar))
+    return float(np.var(vals, ddof=1))
+
+
 def smoothed_linear_variance(rho_tilde, R, window_fn):
     r"""Variance of the linear field ``rho_tilde`` after smoothing at scale ``R`` (cells):
     ``(1/N^2) sum_{k!=0} |FFT(rho_tilde - mean)|^2 W(kR)^2`` for ONE realization.
