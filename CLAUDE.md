@@ -259,3 +259,17 @@ After jaxstroviz is ported:
 - [ ] Virial equilibrium verification plots
 - [ ] IMF mass distributions
 - [ ] Binary orbital element distributions
+
+
+## Brain hub — this repo is a spoke of ~/brain (read-only from here)
+
+- **Never edit `~/brain` from this session** — not hat homes, ADRs, configs, knowledge, or `_generated/`.
+- **One write path home — the inbox, via capture** (works from any directory):
+  `brain "what happened — short, factual"`
+- **Cross-cutting insight** (something here also relevant to another project/paper)?
+  `brain "xref: <insight> — touches <other project / paper>"` → becomes a brain concept that resurfaces here via `/brain-pack` (ADR-0019).
+- **Full protocol + conventions:** read `~/brain/AGENTS.md` and `~/brain/guide/` before cross-session work
+  (pull-only hub; spec → session → log handoffs, ADR-0018; modern mystmd if this is a MyST site).
+- **Starting focused work here?** Pull a context pack from the hub: `/brain-pack <this-project>`.
+
+<!-- brain-handshake: keep in sync with ~/brain/guide/how-to/set-up-a-project.md#spoke-stanza -->
