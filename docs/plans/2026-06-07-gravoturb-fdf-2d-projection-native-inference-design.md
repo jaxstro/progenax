@@ -288,3 +288,59 @@ observable space, β is recoverable, σ(β) is a few tenths per cluster.
 **Net:** IC faithful; β recoverable from the projected map (σ(β)≈0.22/cluster, best space); recovery
 **requires a forward model** (the analytic-2D Limber predictor — built next as V1b), not a naïve slope
 fit; ℳ forecast-grade (cosmic-variance-limited); α depth-gated.
+
+## 15. Follow-up SoTA design (v2): non-Gaussian / scattering-transform block + v1↔v2 comparison
+
+**Status: PLANNED, not built (Anna-approved 2026-06-07 to stay the course on v1 first).** The 2-pt
+β engine (v1) ships first as the validated, interpretable baseline. v2 adds a **non-Gaussian
+statistic** (wavelet scattering transform / wavelet phase harmonics) as a novelty amplifier. The
+**v1↔v2 comparison is itself a deliverable** — it quantifies how much information the non-Gaussian
+structure carries beyond the power spectrum.
+
+**Why (the honest gap in v1).** The 2-pt band-power statistic discards the field's *non-Gaussian*
+information — the filaments and the BM19 power-law tail — which is the defining signature of
+supersonic turbulence. v1 even **depth-gates α** because deep-LOS projection CLT-Gaussianises the
+1-pt tail. The methodological frontier for non-Gaussian (turbulent / ISM) fields — the **wavelet
+scattering transform (WST)** and **wavelet phase harmonics (WPH)** — is built precisely to capture
+projected non-Gaussian structure *robustly and with low estimator variance*. So the very information
+v1 writes off is what these statistics recover.
+
+**Method.** WST = a CNN-like cascade of wavelet convolutions + modulus + spatial averaging →
+translation-invariant, deformation-stable coefficients: S0 (mean), S1 (≈ power-spectrum content),
+S2 (cross-scale interactions = non-Gaussian/clustering-of-structures). It is a **low-variance
+estimator** (an advantage for single clusters / few realisations — directly relevant to the
+finite-volume cosmic-variance wall), and JAX-differentiable (kymatio-style or custom), so it slots
+into the existing differentiable-forward-model + mock/jackknife-covariance + HMC + SBC machinery —
+**only the data vector (WST coeffs of the projected, optionally rank-G, star map) and its predicted
+statistic change.**
+
+**What we EXPECT it to buy — HYPOTHESES TO TEST, not established results** (held to the same
+no-assumptions standard as §14; to be measured, not claimed):
+- **(H1) De-gate α.** S2 coefficients may be sensitive to the tail/filament non-Gaussianity that
+  survives projection better than the 1-pt tail does → α potentially recoverable from 2-D after all.
+- **(H2) Break the β–ℳ degeneracy.** S1 (amplitude-like) vs S2 (structure-like) ratios may separate
+  the thermodynamic amplitude (ℳ) from the structural slope (β) more cleanly than (slope, amplitude).
+- **(H3) Lower per-cluster variance** → tighter σ(β), possibly a better-than-forecast σ(ℳ),
+  mitigating the cosmic-variance wall.
+
+**The hard part (why it is v2, the open methodological risk).** Unlike the 2-pt (closed-form
+Mehler + Limber), WST has **no closed-form predicted statistic**. v2 needs either (i) a
+*differentiable simulation-based* predicted-WST (mean WST over JAX-generated mocks, gradient through
+the generative model — expensive but JAX-feasible) or (ii) a trained emulator; plus SBC calibration
+of that estimator and its covariance. v1's analytic 2-pt remains the validated fallback if v2's
+predicted-statistic differentiability/calibration proves intractable.
+
+**Reuse (what carries over unchanged).** Generative model (pointwise copula, Option A §14),
+projection, priors (ℳ∈[4,20], α∈[1.5,3] or depth-gated, β∈[2,11/3]), mock/jackknife covariance,
+HMC/NUTS, SBC driver + integer-aware χ² + ECDF bands. Only the data vector + its predicted statistic
+are new.
+
+**Comparison protocol (the publishable result).** Run v1 (band-powers) and v2 (WST) on *identical*
+mocks and *identical* SBC, and report: (a) Fisher/posterior σ(β,ℳ) improvement v2-over-v1;
+(b) α-recoverability — depth-gated (v1) vs whatever v2 achieves (test H1); (c) shot-noise robustness;
+(d) both must SBC-pass. The 2-pt is the interpretable yardstick; **the delta is the contribution.**
+
+**References — VERIFY EACH AGAINST THE PDF before any manuscript use (no-assumptions; these are from
+memory):** WST foundations Mallat 2012, Bruna & Mallat 2013; ISM/turbulence applications Allys et al.
+(~2019), Regaldo-Saint Blancard et al. (~2020), Saydjari et al. (~2021); weak-lensing Cheng et al.
+(~2020); WPH Allys et al. (~2020). Treat all years/venues as provisional until PDF-checked.
