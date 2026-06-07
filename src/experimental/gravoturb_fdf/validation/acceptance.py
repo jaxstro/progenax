@@ -762,6 +762,76 @@ def ac17_alpha_forecast(grids=((64, 64, 64), (96, 96, 96), (128, 128, 128)), n_i
             "corr_factor": corr_factor, "f_dense_rel": fd_rel}
 
 
+def ac18_sbc_rank_uniformity(n_trials, b=0.4, s_thr_margin=0.75, shape=(24,) * 3,
+                             density_shape=(64,) * 3, n_warmup=120, n_samples=200, n_thin=4,
+                             cell_sizes=(2, 4), n_stars=4.0e4, key=None, alpha_level=0.05):
+    """AC18 -- SBC rank-uniformity: the EMPIRICAL calibration check of the inference engine.
+
+    Runs the Simulation-Based Calibration loop (Talts et al. 2018) via
+    :func:`gravoturb_fdf.inference.sbc.sbc_ranks` -- each trial draws ``theta* ~ BM19Prior``,
+    builds a BM19 mock from theta*, runs NUTS, and ranks theta* among the thinned posterior
+    draws -- then tests that the per-parameter rank statistics are DiscreteUniform over
+    ``{0, ..., L}`` (L = number of thinned draws). A calibrated engine yields uniform ranks;
+    deviations diagnose miscalibration (U/inverted-U = over/under-dispersion, slope = bias).
+
+    This is the empirical proof that Task 6's drop of the truth-keyed POT-validity barrier
+    produced a *calibrated* engine. The uniformity test uses the jaxstroviz integer-aware
+    chi^2 helpers (the "C1" fix): ranks live in the DISCRETE set ``{0..L}``, so a naive flat
+    ``K / n_bins`` expectation falsely rejects calibrated engines; ``sbc_expected_counts``
+    weights each bin by how many integer rank values it contains.
+
+    *** CAVEAT (under-the-model only): *** this is calibration UNDER the BM19 generative model
+    (mock drawn from the same prior+likelihood the posterior assumes). It certifies the
+    sampler/reparametrization/prior are self-consistent; it does NOT validate the BM19 model
+    against real (mis-specified) data. The transferable science result is AC17's forecast.
+
+    Returns ``{"passed", "p_value": [pM, pAlpha, pBeta], "n_trials", "n_draws" (=L),
+    "ranks", "param_names"}``. PASS iff every per-param chi^2 p-value exceeds ``alpha_level``.
+    """
+    import matplotlib  # noqa: E402  (lazy: keep acceptance.py import light for other ACs)
+    matplotlib.use("Agg")
+    from scipy import stats  # noqa: E402  (validation/analysis side)
+    from jaxstroviz.experimental.analysis.sbc import (  # noqa: E402
+        resolve_sbc_n_bins, sbc_bin_assignment, sbc_expected_counts)
+
+    from gravoturb_fdf.inference.priors import BM19Prior
+    from gravoturb_fdf.inference.sbc import sbc_ranks
+
+    _header("AC18 -- SBC rank-uniformity (calibration UNDER the BM19 model; not vs real data)")
+    print("  CAVEAT: under-model calibration only (mock ~ same prior+likelihood the posterior")
+    print("          assumes); certifies sampler/reparam/prior self-consistency, NOT BM19-vs-data.")
+
+    prior = BM19Prior()
+    if key is None:
+        key = jax.random.PRNGKey(0)
+
+    out = sbc_ranks(prior, key, n_trials, b, s_thr_margin, shape, density_shape,
+                    n_warmup, n_samples, n_thin, cell_sizes, n_stars)
+    ranks = out["ranks"]                       # (n_trials, 3) int in {0..L}
+    L = int(out["n_draws"])
+    n_possible_ranks = L + 1                    # m = L + 1 distinct rank values
+    n_bins = resolve_sbc_n_bins(n_trials, n_possible_ranks, target_per_bin=20)
+    expected, _n_per_bin = sbc_expected_counts(n_trials, n_possible_ranks, n_bins)
+
+    p_value = []
+    for p, name in enumerate(out["param_names"]):
+        bins = sbc_bin_assignment(ranks[:, p], n_possible_ranks, n_bins)
+        observed = np.bincount(bins, minlength=n_bins)[:n_bins].astype(float)
+        pv = float(stats.chisquare(observed, f_exp=expected).pvalue)
+        p_value.append(pv)
+        print(f"    {name:<5} chi^2 uniformity p={pv:.4f}  "
+              f"{'PASS' if pv > alpha_level else 'FAIL'}  "
+              f"(ranks: min={int(ranks[:, p].min())} max={int(ranks[:, p].max())})")
+
+    passed = all(pv > alpha_level for pv in p_value)
+    print(f"  n_trials={n_trials}  L={L} (m={n_possible_ranks} ranks)  n_bins={n_bins}  "
+          f"(target ~20 trials/bin, integer-aware chi^2)")
+    print(f"  SBC rank-uniformity {'PASS' if passed else 'FAIL'} "
+          f"(all per-param p > {alpha_level})")
+    return {"passed": bool(passed), "p_value": p_value, "n_trials": int(n_trials),
+            "n_draws": L, "ranks": ranks, "param_names": list(out["param_names"])}
+
+
 def main():
     results = {
         "AC1/AC2": ac1_ac2_bm19(),
@@ -782,6 +852,11 @@ def main():
         # AC17 (sigma(alpha) vs N_tail forecast) -- iid-validated truncation-corrected Fisher +
         # the realistic-field correlation caveat. Production ladder up to 128^3.
         "AC17": ac17_alpha_forecast(grids=((64,)*3, (96,)*3, (128,)*3), n_field=60),
+        # AC18 (SBC rank-uniformity) -- the empirical calibration check (under the BM19 model)
+        # that Task 6's POT-barrier drop worked. Full config: 128 trials, 96^3 gas map, long
+        # chains thinned to ~independence. Slow.
+        "AC18": ac18_sbc_rank_uniformity(
+            n_trials=128, density_shape=(96,)*3, n_warmup=300, n_samples=600, n_thin=4),
     }
     print("\n=== SUMMARY ===")
     all_ok = True
