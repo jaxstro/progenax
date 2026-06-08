@@ -1,6 +1,6 @@
 # progenax — status
 
-next: FDF cluster IC forward tool DONE (build_cluster_ic + 6/6 AC validation + 5-fig gallery, incl. β recovery to <0.5% on log-density + fixed radial-profile control); awaiting Anna review before methods-paper figures
+next: segregation module validated in progenax (Λ_MSR analytic Tier-A, 8 tests + plots; released-core 814→822) + stale validate scripts cleaned (3 deleted, 2 refactored); gravax dynamical-segregation experiment DEFERRED (docs/notes/2026-06-08-...). Next: methods-paper Figs 1-3 (buildable now) + Tier-C density-correlated mass placement + mass-weighted metric
 blocker: none
 due:
 
