@@ -1,6 +1,6 @@
 # progenax — status
 
-next: FDF IC pipeline — validate+test+plot, add a spherical cluster-shape envelope, design a parameterizable substructure diagnostic
+next: FDF cluster IC forward tool DONE (build_cluster_ic + 5/5 AC validation + 4-fig gallery); awaiting Anna review before optional m̄↔β calibration table / methods-paper figures
 blocker: none
 due:
 
@@ -10,9 +10,11 @@ _Seeded 2026-06-07 by the brain STATUS.md convention (`~/brain/work/meta/status-
 Differentiable ICs / population generation (IMF, binaries, cluster profiles). Feeds the Cottrell census (Aim 1) + the jaxstro methods paper. Mature, actively committed.
 
 ## Open
-- [ ] FDF ICs: spherical envelope (envelope × turbulent fluctuation; reuse Plummer/EFF profiles)
-- [ ] FDF ICs: validation + curated figure gallery
-- [ ] substructure diagnostic to parameterize (decouple concentration from substructure)
+- [x] FDF ICs: spherical envelope (envelope × turbulent fluctuation; reuse Plummer/EFF profiles)
+- [x] FDF ICs: end-to-end `build_cluster_ic` (envelope + coherent velocities + chosen virial Q)
+- [x] FDF ICs: validation + curated figure gallery (`validation/cluster_acceptance.py`, 5/5 AC, 4 figs)
+- [x] substructure diagnostic to parameterize: CW04 (m̄,s̄) plane — m̄ ≈ concentration axis, Q/s̄ resolves β
+- [ ] (optional) m̄↔β quantitative calibration table for inference-grade substructure recovery
 - [ ] methods-paper-ready API + validation figures
 
 ## Nice-to-do / revisit later
