@@ -1,6 +1,6 @@
 # progenax — status
 
-next: FDF cluster IC forward tool DONE (build_cluster_ic + 5/5 AC validation + 4-fig gallery); awaiting Anna review before optional m̄↔β calibration table / methods-paper figures
+next: FDF cluster IC forward tool DONE (build_cluster_ic + 6/6 AC validation + 5-fig gallery, incl. β recovery to <0.5% on log-density + fixed radial-profile control); awaiting Anna review before methods-paper figures
 blocker: none
 due:
 

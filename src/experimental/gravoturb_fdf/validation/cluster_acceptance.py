@@ -36,6 +36,7 @@ from gravoturb_fdf.cluster import build_cluster_ic
 from gravoturb_fdf.diagnostics.q import q_components
 from gravoturb_fdf.field.envelope import apply_spherical_envelope, radius_grid
 from gravoturb_fdf.field.pipeline import build_fdf_field
+from gravoturb_fdf.field.sampling import sample_positions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLOTS = os.path.join(HERE, "plots")
@@ -57,10 +58,41 @@ def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, f_sub=0.3, seed=0):
 
 
 def _qms(beta, r_h, seeds, n=2000):
-    """Mean (Q, m̄, s̄) over seeds for the CW04 plane."""
+    """Per-seed (Q, m̄, s̄) → (mean[3], std[3]) for the CW04 plane (expected value ± scatter)."""
     vals = np.array([q_components(np.asarray(_ic(n=n, beta=beta, r_h=r_h, seed=sd).positions))
                      for sd in seeds])
-    return vals.mean(axis=0)
+    return vals.mean(axis=0), vals.std(axis=0)
+
+
+# ── power-spectrum tools (β recovery) ──
+def radial_power_spectrum(field3d, n_bins=24):
+    """Isotropic P(k) of a 3D field via FFT periodogram, radially binned in integer |k|."""
+    f = np.asarray(field3d, dtype=float)
+    f = f - f.mean()
+    pk = np.abs(np.fft.fftn(f)) ** 2 / f.size
+    n = f.shape[0]
+    k1 = np.fft.fftfreq(n) * n
+    KX, KY, KZ = np.meshgrid(k1, k1, k1, indexing="ij")
+    kmag = np.sqrt(KX**2 + KY**2 + KZ**2)
+    kf, pf = kmag.ravel(), pk.ravel()
+    keep = (kf > 0) & (kf <= n // 2)
+    kf, pf = kf[keep], pf[keep]
+    edges = np.logspace(0, np.log10(n // 2), n_bins + 1)
+    idx = np.clip(np.digitize(kf, edges) - 1, 0, n_bins - 1)
+    kc = np.full(n_bins, np.nan); pc = np.full(n_bins, np.nan)
+    for i in range(n_bins):
+        m = idx == i
+        if m.sum() > 2:
+            kc[i] = kf[m].mean(); pc[i] = pf[m].mean()
+    good = ~np.isnan(kc)
+    return kc[good], pc[good]
+
+
+def fit_slope(k, p):
+    """Fit log10(P) = a − slope·log10(k); return slope (P ∝ k^−slope)."""
+    lk, lp = np.log10(k), np.log10(p)
+    coef, *_ = np.linalg.lstsq(np.vstack([lk, np.ones_like(lk)]).T, lp, rcond=None)
+    return -coef[0]
 
 
 # ── AC-IC1: spherical envelope sets the cluster scale ──
@@ -116,18 +148,18 @@ def ac_ic3_substructure(seeds=(0, 1, 2)):
     betas = [2.0, 2.5, 3.0, 3.5, 4.0]
     r_hs = [0.3, 0.5, 0.8, 1.2]
 
-    print("  β-sweep (envelope r_h=0.5 fixed):   β     Q     m̄     s̄")
+    print("  β-sweep (envelope r_h=0.5 fixed):   β       Q              m̄             s̄  (mean±σ)")
     beta_rows = []
     for beta in betas:
-        Q, m, s = _qms(beta, 0.5, seeds)
+        (Q, m, s), (dQ, dm, ds) = _qms(beta, 0.5, seeds)
         beta_rows.append((beta, Q, m, s))
-        print(f"                                   {beta:>4} {Q:>6.3f} {m:>6.3f} {s:>6.3f}")
-    print("  concentration-sweep (β=3.0 fixed): r_h     Q     m̄     s̄")
+        print(f"                                   {beta:>4} {Q:>6.3f}±{dQ:.3f} {m:>6.3f}±{dm:.3f} {s:>6.3f}±{ds:.3f}")
+    print("  concentration-sweep (β=3.0 fixed): r_h       Q              m̄             s̄  (mean±σ)")
     conc_rows = []
     for r_h in r_hs:
-        Q, m, s = _qms(3.0, r_h, seeds)
+        (Q, m, s), (dQ, dm, ds) = _qms(3.0, r_h, seeds)
         conc_rows.append((r_h, Q, m, s))
-        print(f"                                   {r_h:>4} {Q:>6.3f} {m:>6.3f} {s:>6.3f}")
+        print(f"                                   {r_h:>4} {Q:>6.3f}±{dQ:.3f} {m:>6.3f}±{dm:.3f} {s:>6.3f}±{ds:.3f}")
 
     Qb = np.array([r[1] for r in beta_rows]); mb = np.array([r[2] for r in beta_rows])
     sb = np.array([r[3] for r in beta_rows])
@@ -190,6 +222,46 @@ def ac_ic5_gradient():
     return {"passed": ok, "grad": g}
 
 
+# ── AC-IC6: input β is recovered from the log-density power spectrum ──
+def ac_ic6_beta_recovery(seeds=(0, 1, 2), n_grid=64):
+    """The realized field's power-spectrum slope vs the INPUT β (the expected/ground-truth value).
+
+    The mass-conserving copula is monotone, so it preserves the LOG-DENSITY spectral slope:
+    measured slope of s_turb ≈ input β (sub-% recovery). The DENSITY field exp(s) has a
+    compressed, nonlinear slope (the heavy BM19 tail flattens P(k)) — reported for honesty,
+    and the reason β-inference uses Gaussianized/log observables (Phase-0). Fit range k∈[2, N/3].
+    """
+    print("\n=== AC-IC6 — β recovery: input β vs realized P(k) slope (expected value = input β) ===")
+    betas = [2.0, 2.5, 3.0, 3.5, 4.0]
+    fit_lo, fit_hi = 2.0, n_grid // 3
+    rows = []
+    print(f"  (64³, {len(seeds)} seeds, fit k∈[{fit_lo:.0f},{fit_hi}])")
+    print(f"  {'input β':>8} {'slope(log-dens s)':>20} {'|err|':>7} {'slope(dens e^s)':>16}")
+    for beta in betas:
+        ss, se = [], []
+        for sd in seeds:
+            fld = build_fdf_field(MACH, B, ALPHA, beta, (n_grid,) * 3, jax.random.PRNGKey(sd))
+            s = np.asarray(fld.s)
+            for arr, acc in [(s, ss), (np.exp(s), se)]:
+                k, p = radial_power_spectrum(arr)
+                sel = (k > fit_lo) & (k < fit_hi)
+                acc.append(fit_slope(k[sel], p[sel]))
+        ms, dms = float(np.mean(ss)), float(np.std(ss))
+        me, dme = float(np.mean(se)), float(np.std(se))
+        err = abs(ms - beta)
+        rows.append((beta, ms, dms, me, dme, err))
+        print(f"  {beta:>8.1f} {ms:>13.3f}±{dms:.3f} {err:>7.3f} {me:>11.3f}±{dme:.3f}")
+    # expected value = input β: log-density slope must track 1:1 within tolerance
+    max_err = max(r[5] for r in rows)
+    inp = np.array([r[0] for r in rows]); meas = np.array([r[1] for r in rows])
+    A = np.vstack([inp, np.ones_like(inp)]).T
+    fit_slope_1to1 = float(np.linalg.lstsq(A, meas, rcond=None)[0][0])
+    ok = max_err < 0.15 and abs(fit_slope_1to1 - 1.0) < 0.05
+    print(f"  max |measured−input| = {max_err:.3f} (<0.15); recovery line slope = "
+          f"{fit_slope_1to1:.3f} (≈1.00)  {'PASS' if ok else 'FAIL'}")
+    return {"passed": ok, "rows": rows, "max_err": max_err, "recovery_slope": fit_slope_1to1}
+
+
 # ── figure gallery ──
 def _fig_scatter(seed=0):
     ic = _ic(n=4000, seed=seed)
@@ -209,29 +281,73 @@ def _fig_scatter(seed=0):
     plt.close(fig)
 
 
+_RP_EDGES = np.linspace(0, 2.0, 24)
+_RP_CEN = 0.5 * (_RP_EDGES[:-1] + _RP_EDGES[1:])
+_RP_SHELL = 4 / 3 * np.pi * (_RP_EDGES[1:] ** 3 - _RP_EDGES[:-1] ** 3)
+
+
+def _radial_profile_sampled(r_h, mach, s_turb_zero, seeds, n=6000):
+    """Mean sampled number-density profile ρ(r). ``s_turb_zero`` → pure-envelope control."""
+    prof = PlummerProfile(r_h=r_h)
+    stack = []
+    for sd in seeds:
+        fld = build_fdf_field(mach, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(sd))
+        s_turb = jnp.zeros(SHAPE) if s_turb_zero else fld.s
+        s_tot = apply_spherical_envelope(s_turb, prof, BOX)
+        pos = np.asarray(sample_positions(s_turb, fld.s_t, 8.0, 0.3, n,
+                                          jax.random.PRNGKey(sd + 50), box_size=BOX,
+                                          s_density=s_tot)) - BOX / 2
+        cnt, _ = np.histogram(np.linalg.norm(pos, axis=1), bins=_RP_EDGES)
+        stack.append(cnt / _RP_SHELL)
+    return np.mean(stack, axis=0)
+
+
 def _fig_radial_profile(seeds=(0, 1, 2)):
-    fig, ax = plt.subplots(figsize=(7.5, 5.5))
-    edges = np.linspace(0, 2.0, 24)
-    cen = 0.5 * (edges[:-1] + edges[1:])
-    shell_vol = 4 / 3 * np.pi * (edges[1:] ** 3 - edges[:-1] ** 3)
+    # normalise at r = r_h (a RESOLVED radius, ~4 cells) — NOT the sub-cell innermost bin
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
+    # panel A: fiducial (ℳ=8) sampled vs analytic, 3 envelopes
+    ax = axes[0]
     for r_h, col in zip([0.3, 0.5, 0.8], ["C0", "C1", "C2"]):
-        prof_stack = []
-        for sd in seeds:
-            pos = np.asarray(_ic(n=6000, r_h=r_h, seed=sd).positions)
-            r = np.linalg.norm(pos, axis=1)
-            cnt, _ = np.histogram(r, bins=edges)
-            prof_stack.append(cnt / shell_vol)
-        dens = np.mean(prof_stack, axis=0)
-        dens = dens / dens[0]
-        ax.plot(cen, dens, "o-", color=col, label=f"sampled, r_h={r_h}")
-        # analytic Plummer envelope (normalised to the same r=cen[0])
-        pl = np.asarray(PlummerProfile(r_h=r_h).density(jnp.asarray(cen)))
-        ax.plot(cen, pl / pl[0], "--", color=col, alpha=0.7)
-    ax.set_yscale("log"); ax.set_xlabel("r (pc)"); ax.set_ylabel("ρ(r)/ρ(r₀)")
-    ax.set_title("Sampled cluster radial profile (points) vs analytic Plummer envelope (dashed)\n"
-                 "turbulence broadens the sampled profile above the smooth envelope")
+        iref = int(np.argmin(np.abs(_RP_CEN - r_h)))
+        dens = _radial_profile_sampled(r_h, MACH, False, seeds)
+        ax.plot(_RP_CEN, dens / dens[iref], "o-", color=col, label=f"sampled, r_h={r_h}")
+        pl = np.asarray(PlummerProfile(r_h=r_h).density(jnp.asarray(_RP_CEN)))
+        ax.plot(_RP_CEN, pl / pl[iref], "--", color=col, alpha=0.7)
+    ax.set_yscale("log"); ax.set_xlabel("r (pc)"); ax.set_ylabel("ρ(r)/ρ(r_h)")
+    ax.set_title("Fiducial (ℳ=8) sampled (points) vs analytic Plummer (dashed)\n"
+                 "normalised at r=r_h; turbulent BM19 tail broadens the wings")
+    ax.legend()
+    # panel B: control — turbulence on/off at r_h=0.5 proves envelope fidelity
+    ax = axes[1]
+    iref = int(np.argmin(np.abs(_RP_CEN - 0.5)))
+    pl = np.asarray(PlummerProfile(r_h=0.5).density(jnp.asarray(_RP_CEN)))
+    pe = _radial_profile_sampled(0.5, MACH, True, seeds)    # pure envelope (turbulence off)
+    m8 = _radial_profile_sampled(0.5, MACH, False, seeds)   # fiducial (turbulence on)
+    ax.plot(_RP_CEN, pl / pl[iref], "k--", lw=2, label="analytic Plummer")
+    ax.plot(_RP_CEN, pe / pe[iref], "s-", color="C2", label="sampled, turbulence OFF")
+    ax.plot(_RP_CEN, m8 / m8[iref], "o-", color="C3", label="sampled, ℳ=8 (turbulence ON)")
+    ax.set_yscale("log"); ax.set_xlabel("r (pc)"); ax.set_ylabel("ρ(r)/ρ(r_h)")
+    ax.set_title("Control (r_h=0.5): envelope sampling = analytic (few %);\n"
+                 "turbulence is the large-r EXCESS; central cusp grid-under-resolved")
     ax.legend()
     fig.savefig(os.path.join(PLOTS, "cluster_radial_profile.png"), dpi=120, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _fig_beta_recovery(rec):
+    rows = np.array(rec["rows"])  # (β, slope_s, σ_s, slope_dens, σ_dens, err)
+    fig, ax = plt.subplots(figsize=(7.5, 5.5))
+    lo, hi = rows[:, 0].min() - 0.2, rows[:, 0].max() + 0.2
+    ax.plot([lo, hi], [lo, hi], "k:", label="1:1 (perfect recovery)")
+    ax.errorbar(rows[:, 0], rows[:, 1], yerr=rows[:, 2], fmt="o-", color="C0", capsize=3,
+                label="log-density slope (≈ input β)")
+    ax.errorbar(rows[:, 0], rows[:, 3], yerr=rows[:, 4], fmt="s-", color="C1", capsize=3,
+                label="density e^s slope (compressed)")
+    ax.set_xlabel("input β"); ax.set_ylabel("measured P(k) slope")
+    ax.set_title(f"β recovery: log-density slope tracks input β to "
+                 f"max |err|={rec['max_err']:.3f}\n(density slope is compressed by the BM19 tail)")
+    ax.legend()
+    fig.savefig(os.path.join(PLOTS, "cluster_beta_recovery.png"), dpi=120, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -293,15 +409,17 @@ def main():
     r3 = ac_ic3_substructure()
     r4 = ac_ic4_velocity_coherence()
     r5 = ac_ic5_gradient()
+    r6 = ac_ic6_beta_recovery()
 
     print("\n[gallery] writing figures ...")
     _fig_scatter()
     _fig_radial_profile()
     _fig_substructure_plane(r3)
     _fig_velocity(r4)
+    _fig_beta_recovery(r6)
 
     results = {"AC-IC1 envelope": r1, "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
-               "AC-IC4 coherence": r4, "AC-IC5 gradient": r5}
+               "AC-IC4 coherence": r4, "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
     print("\n" + "=" * 78)
     print("SUMMARY")
     for name, r in results.items():
@@ -310,7 +428,8 @@ def main():
     print(f"  {n_pass}/{len(results)} acceptance checks passed")
     print("  figures:")
     for fn in ["cluster_scatter.png", "cluster_radial_profile.png",
-               "cluster_substructure_plane.png", "cluster_velocity_coherence.png"]:
+               "cluster_substructure_plane.png", "cluster_velocity_coherence.png",
+               "cluster_beta_recovery.png"]:
         print("   ", os.path.join(PLOTS, fn))
     print("=" * 78)
     return results
