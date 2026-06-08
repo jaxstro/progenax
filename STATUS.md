@@ -10,6 +10,13 @@ _Seeded 2026-06-07 by the brain STATUS.md convention (`~/brain/work/meta/status-
 Differentiable ICs / population generation (IMF, binaries, cluster profiles). Feeds the Cottrell census (Aim 1) + the jaxstro methods paper. Mature, actively committed.
 
 ## Recent progress (2026-06-08)
+- **King auto-domain + differentiability.** `from_W0_rc`/`KingVelocityDF` now
+  auto-size the ODE domain from W0 (tracer-safe: falls back to fixed domain under
+  jit/grad-over-W0, so differentiability is preserved) — high-W0 (to 15) models
+  "just work"; backward-compatible for W0≤9. Released core 822→830. Added Fig 5
+  gradient-validation (AD vs FD: r_c 2e-10, W0 2e-7, M 1.6e-6) and CORRECTED the
+  docs: W0 IS differentiable (diffrax dψ/dW0); only the scalar r_t crossing is
+  blocked (argmax). Joint (W0, r_c, M) gradient/HMC inference is supported.
 - **profiles/King audit + release-hardening.** king-profile.md rewritten to the
   exact tested tolerances; 4 build-verified figures via scripts/validate_king.py
   (concentration vs Table II, density-vs-oracle [Option A: K-function overlay
