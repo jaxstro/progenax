@@ -15,6 +15,13 @@ Differentiable ICs / population generation (IMF, binaries, cluster profiles). Fe
 - [ ] substructure diagnostic to parameterize (decouple concentration from substructure)
 - [ ] methods-paper-ready API + validation figures
 
+## Nice-to-do / revisit later
+- Filamentary (non-Gaussian-phase) morphology for the FDF field — deferred (second-order for the
+  N-body/binary purpose at matched P(k)+clumpiness+virial). Why-wait + pedagogical implementation
+  (turbulent-shock / Zel'dovich displacement + copula; equations) in
+  docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md (§ NICE-TO-DO). Revisit only if a
+  dynamical observable distinguishes filament-vs-blob ICs, or for direct morphology/gas→star studies.
+
 ## Decided (2026-06-07)
 - 2D-projected β inference from star catalogues: **banked as a methods result, not optimizing
   further** (cosmic-variance + dynamics limited; gas measures β more directly). Analytic high-N
