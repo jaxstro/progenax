@@ -25,17 +25,22 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 from scipy.spatial.distance import pdist, squareform
 
 
-def compute_q_parameter(positions: np.ndarray) -> float:
-    """Cartwright & Whitworth (2004) Q parameter.
+def q_components(positions: np.ndarray) -> tuple[float, float, float]:
+    """Cartwright & Whitworth (2004) Q with its components: returns ``(Q, m_bar, s_bar)``.
+
+    Reporting the components separates the two effects Q conflates, via the ``(m_bar, s_bar)`` PLANE
+    (not either alone): ``s_bar`` (normalized mean separation) is the CONCENTRATION axis (centrally
+    concentrated -> small s_bar; uniform & clumpy both ~0.8). ``m_bar`` (normalized MST length) is
+    lowered by BOTH concentration and clumpiness, so at FIXED s_bar it isolates SUBSTRUCTURE (uniform
+    high m_bar vs clumpy low m_bar at the same s_bar). The three regimes occupy distinct regions:
+    uniform (high m_bar, high s_bar), concentrated (low m_bar, LOW s_bar), clumpy (low m_bar, HIGH
+    s_bar). Measured (N=500): uniform (0.64, 0.79); concentrated (0.20, 0.15); clumpy (0.25, 0.82).
+    NB: m_bar's R_cluster normalization is outlier/tail-sensitive, so m_bar alone is NOT a clean
+    substructure measure -- use the plane (or compare at matched s_bar).
 
     Parameters
     ----------
-    positions : (N, 2) or (N, 3) array. 3D inputs are projected to the x-y plane.
-
-    Returns
-    -------
-    Q = m_bar / s_bar (float). Uniform sphere ~ 0.79; fractal D<3 gives Q < 0.79;
-    centrally-concentrated profiles give Q > 0.79.
+    positions : (N, 2) or (N, 3) array. 3D inputs are projected to the x-y plane (CW04 methodology).
     """
     positions = np.asarray(positions)
     if positions.shape[1] == 3:
@@ -62,4 +67,19 @@ def compute_q_parameter(positions: np.ndarray) -> float:
     A = float(np.pi * R_cluster**2)  # CW04 cluster area (reproduces Table 1)
     m_bar = L_MST / np.sqrt(N * A)
 
-    return float(m_bar / s_bar)
+    return float(m_bar / s_bar), float(m_bar), float(s_bar)
+
+
+def compute_q_parameter(positions: np.ndarray) -> float:
+    """Cartwright & Whitworth (2004) Q parameter.
+
+    Parameters
+    ----------
+    positions : (N, 2) or (N, 3) array. 3D inputs are projected to the x-y plane.
+
+    Returns
+    -------
+    Q = m_bar / s_bar (float). Uniform sphere ~ 0.79; fractal D<3 gives Q < 0.79;
+    centrally-concentrated profiles give Q > 0.79.
+    """
+    return q_components(positions)[0]
