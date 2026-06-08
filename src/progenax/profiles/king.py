@@ -25,6 +25,7 @@ Notes:
       model approaches the singular isothermal sphere (Binney & Tremaine 2008).
 """
 
+import math
 from typing import Tuple
 
 import diffrax
@@ -132,6 +133,37 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     )
 
     return jnp.array([dpsi_dxi, d2psi_dxi2])
+
+
+def _auto_ode_domain(W0: float) -> Tuple[float, int]:
+    """Default King ODE integration domain ``(xi_max, n_points)`` sized from ``W0``.
+
+    The tidal radius grows super-exponentially with concentration (King 1966
+    Table II: xi_t = r_t/r_c is ~4.7 at W0=3, ~131 at W0=9, ~2272 at W0=15), so a
+    fixed domain pins high-W0 models to the integration boundary and
+    under-estimates the concentration. This envelope keeps ~1.6-1.8x margin above
+    xi_t for W0 up to ~16, while reproducing the historical default
+    (xi_max=300, n_points=2000) for W0 <= ~9.5 (so typical globular-cluster models
+    are unchanged). ``n_points`` scales with the domain to hold the core resolution
+    (~0.15 in xi) roughly fixed.
+
+    Sizing the domain needs a *concrete* ``W0`` (it sets static array sizes). When
+    ``W0`` is a JAX tracer -- i.e. the caller is jitting or differentiating
+    *through W0* -- we fall back to the fixed default ``(300, 2000)``. That keeps
+    ``from_W0_rc`` JIT-able and differentiable in ``W0`` exactly as before (the ODE
+    -> psi -> density -> CDF path carries dpsi/dW0); auto-sizing applies to ordinary
+    eager construction, which is where high-concentration models are built. Under
+    traced ``W0`` only the historical W0 <= ~10 range is in-domain at the fixed
+    default -- pass an explicit ``xi_max`` for traced high-W0 work.
+    """
+    try:
+        w = float(W0)
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
+            TypeError):
+        return 300.0, 2000  # traced W0: array sizes cannot depend on a tracer
+    xi_max = max(300.0, 10.0 ** (0.21 * w + 0.45))
+    n_points = int(max(2000, math.ceil(xi_max / 0.15)))
+    return xi_max, n_points
 
 
 def solve_king_profile(
@@ -367,8 +399,8 @@ class KingProfile(eqx.Module):
         cls,
         W0: float,
         r_c: float,
-        xi_max: float = 300.0,
-        n_ode_points: int = 2000,
+        xi_max: float | None = None,
+        n_ode_points: int | None = None,
         n_grid: int = 1000,
     ) -> "KingProfile":
         """
@@ -379,10 +411,13 @@ class KingProfile(eqx.Module):
         self-consistent King model.
 
         Args:
-            W0: King concentration parameter (typical 1-12)
+            W0: King concentration parameter (typical 3-12; supported to ~15)
             r_c: Core radius [length units]
-            xi_max: Maximum dimensionless radius for ODE integration (default: 100)
-            n_ode_points: Number of ODE solution points (default: 500)
+            xi_max: Maximum dimensionless radius for ODE integration. If None
+                (default), sized automatically from W0 (see _auto_ode_domain) so
+                high-concentration models integrate to psi->0 instead of pinning.
+            n_ode_points: Number of ODE solution points. If None (default), sized
+                automatically alongside xi_max to hold core resolution fixed.
             n_grid: Number of grid points for CDF interpolation (default: 1000)
 
         Returns:
@@ -392,6 +427,11 @@ class KingProfile(eqx.Module):
             >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
             >>> print(f"Tidal radius: {profile.r_t:.2f}")
         """
+        auto_xi_max, auto_n_points = _auto_ode_domain(W0)
+        if xi_max is None:
+            xi_max = auto_xi_max
+        if n_ode_points is None:
+            n_ode_points = auto_n_points
         xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
         xi_t = _find_tidal_radius(xi_grid, psi_grid)
         r_t = r_c * xi_t

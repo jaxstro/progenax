@@ -383,5 +383,66 @@ def test_concentration_matches_king1966_table_ii():
         assert abs(c - c_ref) <= 0.02, f"W0={w0}: c={c:.3f} vs King Table II {c_ref} (>0.02)"
 
 
+class TestKingAutoDomain:
+    """from_W0_rc auto-sizes the ODE integration domain from W0 (no manual xi_max).
+
+    The default ODE domain must scale with concentration so high-W0 models (whose
+    tidal radius grows super-exponentially) integrate to psi->0 instead of pinning
+    to the boundary. For W0 <= 9 the auto domain must reproduce the previous fixed
+    default exactly (backward compatibility), and differentiability in r_c must be
+    preserved (W0 keys only the static domain, never a differentiated path).
+    """
+
+    # King (1966) Table II: c = log10(r_t/r_c)
+    @pytest.mark.parametrize("W0,c_ref", [(12.0, 2.739), (15.0, 3.356)])
+    def test_auto_domain_recovers_high_W0_concentration(self, W0, c_ref):
+        """High-W0 King models converge to Table II with NO explicit xi_max."""
+        p = KingProfile.from_W0_rc(W0=W0, r_c=1.0)  # auto domain
+        c = float(jnp.log10(p.r_t / p.r_c))
+        assert abs(c - c_ref) <= 0.03, (
+            f"W0={W0}: auto-domain c={c:.3f} vs King Table II {c_ref} "
+            f"(>0.03 -> domain pinned, not converged)"
+        )
+
+    @pytest.mark.parametrize("W0", [3.0, 5.0, 7.0, 9.0])
+    def test_auto_domain_backward_compatible(self, W0):
+        """For W0<=9 the auto domain reproduces the previous fixed default
+        (xi_max=300, n_ode_points=2000) bit-for-bit."""
+        auto = KingProfile.from_W0_rc(W0=W0, r_c=1.0)
+        explicit = KingProfile.from_W0_rc(W0=W0, r_c=1.0, xi_max=300.0, n_ode_points=2000)
+        assert float(auto.r_t) == float(explicit.r_t)
+
+    def test_auto_domain_preserves_differentiability_high_W0(self):
+        """grad of a sampled summary statistic w.r.t. r_c flows through the
+        auto-domain high-W0 profile and matches a finite difference."""
+        def loss(r_c):
+            p = KingProfile.from_W0_rc(W0=12.0, r_c=r_c)  # auto domain
+            pos = p.sample_positions(jnp.ones(200), jax.random.PRNGKey(0))
+            return jnp.mean(jnp.linalg.norm(pos, axis=1))
+
+        g = float(jax.grad(loss)(1.0))
+        assert jnp.isfinite(g) and g != 0.0, f"grad non-finite/zero: {g}"
+        fd = float((loss(1.0 + 1e-5) - loss(1.0 - 1e-5)) / 2e-5)
+        rel = abs(g - fd) / (abs(g) + abs(fd) + 1e-30)
+        assert rel < 1e-5, f"AD {g:.6f} vs FD {fd:.6f} rel={rel:.2e}"
+
+    def test_velocity_df_auto_domain_high_W0_equilibrium(self):
+        """KingVelocityDF auto-sizes its domain too: a W0=12 IC sampled with the
+        matched DF (no explicit xi_max) is in virial equilibrium (Q~0.5)."""
+        from jaxstro.units import STELLAR
+        from progenax.builders import compute_kinetic_energy, compute_potential_energy
+
+        prof = KingProfile.from_W0_rc(W0=12.0, r_c=1.0)
+        df = KingVelocityDF(W0=12.0, r_c=1.0, r_t=float(prof.r_t))  # auto domain
+        m = jnp.ones(3000)
+        kp, kv = jax.random.split(jax.random.PRNGKey(0))
+        pos = prof.sample_positions(m, kp)
+        vel = df.sample_velocities(pos, m, kv, G=STELLAR.G)
+        T = compute_kinetic_energy(vel, m)
+        V = compute_potential_energy(pos, m, G=STELLAR.G)
+        Q = float(T / jnp.abs(V))
+        assert abs(Q - 0.5) < 0.06, f"W0=12 auto-domain Q={Q:.3f} (expected ~0.5)"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

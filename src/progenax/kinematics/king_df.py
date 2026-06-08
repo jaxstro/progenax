@@ -29,6 +29,7 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
 from progenax.profiles.king import (
+    _auto_ode_domain,
     king_lowered_maxwellian_density,
     solve_king_profile,
 )
@@ -92,12 +93,19 @@ class KingVelocityDF(eqx.Module):
         W0: float = 5.0,
         r_c: float = 1.0,
         r_t: float = 10.0,
-        xi_max: float = 300.0,
-        n_ode_points: int = 2000,
+        xi_max: float | None = None,
+        n_ode_points: int | None = None,
     ):
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
         self.r_t = jnp.asarray(r_t)
+        # Auto-size the ODE domain from W0 (matches KingProfile.from_W0_rc) so the
+        # matched DF stays self-consistent for high-concentration models.
+        auto_xi_max, auto_n_points = _auto_ode_domain(W0)
+        if xi_max is None:
+            xi_max = auto_xi_max
+        if n_ode_points is None:
+            n_ode_points = auto_n_points
         xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
