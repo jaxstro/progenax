@@ -74,7 +74,9 @@ def compute_lambda_msr(
         binary center-of-mass positions.
 
     References:
-        Allison et al. (2009), ApJ 700, L99, Eq. 1
+        Allison et al. (2009), MNRAS 395, 1449 — formal Λ_MSR definition.
+        Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
+            Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
     """
     rng = np.random.default_rng(seed)
     N = len(masses)
