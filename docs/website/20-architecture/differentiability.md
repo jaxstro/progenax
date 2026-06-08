@@ -242,8 +242,8 @@ Some progenax modules are explicitly *partially* differentiable:
   - Differentiable in
   - Not differentiable in
 * - `KingProfile`
-  - $r_h$, positions
-  - $W_0$ (ODE solution-dependent)
+  - $r_c$, $M_{\mathrm{tot}}$, **and $W_0$** (profile shape, via `diffrax`)
+  - the *scalar* tidal radius $r_t$ (argmax crossing) — see roadmap below
 * - Environment IMF helpers
   - $\rho_{\mathrm{cl}}$, $M_{\mathrm{ecl}}$, [Fe/H], slope continuation
   - Mass-bin boundaries (need sigmoid for full)
@@ -260,6 +260,78 @@ docstring with the specific limitation and the workaround if one
 exists. For inference targets that need gradients in a partially-
 differentiable parameter, consult the module documentation for the
 finite-difference fallback.
+
+(roadmap-differentiable-rt)=
+## Roadmap: differentiable King tidal radius ($\partial r_t/\partial W_0$)
+
+```{admonition} Status: deferred (non-breaking add-later)
+:class: note
+The King concentration $W_0$ **is** differentiable for the density/velocity
+*shape* observables one fits to data (validated in
+[](../50-validation/king-profile.md)). The lone exception is the **scalar tidal
+radius** $r_t$: $\partial r_t/\partial W_0 = 0$. Making it differentiable is
+planned but **deferred** until a concrete scalar-$r_t$ science case appears —
+the headline being tidal-field coupling. The forward value of $r_t$ is unchanged
+by the fix, so deferring costs nothing.
+```
+
+### Why $r_t$ is blocked
+
+`solve_king_profile` ends with `psi_grid = jnp.maximum(psi_grid, 0.0)` — the clamp
+that keeps the lowered-Maxwellian density gradient-safe at $\psi=0$. At the first
+crossing node this forces $\psi_1 = 0$ exactly, so the linear-interpolation weight
+$t = \psi_0/(\psi_0 - \psi_1) = 1$ and $\xi_t$ snaps to the fixed grid node
+selected by `argmax` (an integer index, zero gradient). The very clamp that makes
+the *density* safe is what zeroes the *tidal-radius* slope.
+
+### The fix (Approach B — implicit function theorem)
+
+$\xi_t$ is implicitly defined by $\psi(\xi_t, W_0) = 0$. By the implicit function
+theorem,
+
+$$\frac{\partial \xi_t}{\partial W_0} = -\frac{\partial\psi/\partial W_0}{\partial\psi/\partial\xi}\Bigg|_{\xi_t},$$
+
+where the denominator $\partial\psi/\partial\xi$ at $\xi_t$ is the King ODE's
+second state $y[1]$ (already solved) and the numerator comes from differentiating
+the solve. Wrapping the tidal-radius finder in `jax.custom_jvp` with this
+expression yields an **exact, smooth** $\partial r_t/\partial W_0$ with the forward
+value unchanged. (Cheaper alternative: unclamped bracketed linear interpolation,
+correct almost everywhere; most JAX-native: a `diffrax.Event` at $\psi=0$.)
+
+### Science cases that would trigger it
+
+```{list-table}
+:header-rows: 1
+
+* - Case
+  - Needs $\partial r_t/\partial W_0$?
+  - Why
+* - **Galactic potential / orbits from cluster limiting radii**
+  - ✅ headline
+  - $r_t \approx r_J = \big(M_{\rm cl}/3M_{\rm gal}(<R)\big)^{1/3} R$; backprop
+    observed truncation → $M_{\rm gal}(<R)$ and pericenter (HMC over structure +
+    orbit + MW mass, with Gaia orbits).
+* - **Roche-filling / tidal-coupling prior** $r_t = r_J(\text{orbit})$
+  - ✅
+  - Links cluster structure to its orbit; the hook for integrating
+    `progenax.tidal` ([](../10-theory/tidal-and-substructure/tidal.md)) into a
+    differentiable fit.
+* - Catalog-concentration fitting $(c_{\rm model}-c_{\rm cat})^2/\sigma_c^2$
+  - ⚠️ convenience
+  - Can refit the underlying profile instead.
+* - Outer-edge observables (tidal-tail onset, count beyond $0.9\,r_t$)
+  - ⚠️ later
+  - Real, but downstream of gravax / rendering.
+* - Ordinary concentration inference
+  - ❌ no
+  - Already covered by $W_0$ via the profile shape.
+```
+
+**Trigger:** implement Approach B when any planned analysis puts $r_t$ (or $c$) on
+the *left* of a likelihood/prior — priority: tidal-field coupling first. When
+built, add the finite-difference grad-check and a sixth panel to the
+[gradient-validation figure](../50-validation/king-profile.md). Full design record:
+`docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
 
 ## References
 

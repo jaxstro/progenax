@@ -153,8 +153,9 @@ non-breaking add-later — the forward value is unchanged. It will be implemente
 when a scalar-$r_t$ use case becomes concrete, the headline driver being
 **tidal-field coupling** $r_t \approx r_J$ (inferring the Galactic potential /
 orbits from cluster limiting radii, wiring in `progenax.tidal.jacobi_radius`).
-Full rationale, the IFT design, and ranked science cases:
-`docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
+The mechanism, the IFT design, and ranked science cases are browsable at
+[](../20-architecture/differentiability.md#roadmap-differentiable-rt); the full
+design record is `docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
 :::
 
 ## How to run
