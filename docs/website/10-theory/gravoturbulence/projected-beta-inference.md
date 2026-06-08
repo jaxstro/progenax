@@ -14,10 +14,13 @@ package — a follow-up-paper feature **excluded from the released progenax whee
 
 ```{admonition} Status — active research, honestly scoped
 :class: note
-The high-stellar-density regime is **SBC-calibrated** (single-cluster β rank-uniformity *p* = 0.82).
-The analytic Poisson-shot transfer derived below extends this to low density; its one approximation
-(a lognormal projected-density marginal) is **under SBC test**. Numbers here are first-hand and
-re-runnable (`src/experimental/gravoturb_fdf/validation/_d0*`, `_v3_logp_sbc.py`).
+Two complementary, SBC-calibrated estimators on the **same** log₊ observable cover the full density
+range: at **high density** the analytic forward model below is calibrated (single-cluster β
+rank-uniformity *p* = 0.82); at **low density**, where the analytic shot transfer's lognormal
+projected-density marginal breaks down (the variance–skewness relation crosses over with β, so no
+simple positive family fits), a **flow-based neural posterior** learns the marginal implicitly and
+calibrates (*p* = 0.20 at N⋆ = 10⁵). Numbers are first-hand and re-runnable
+(`validation/_d0*`, `_v3_logp_sbc.py`, `_v4_logp_shot_sbc.py`, `_v5_flow_sbc.py`).
 ```
 
 ```{seealso}
@@ -190,9 +193,13 @@ the lognormal-marginal approximation is accurate *enough* is exactly what SBC at
 
 ## What this buys, and what it costs
 
-This is the differentiable, SBC-calibrated $Q$/MST successor for $\beta$, built from analytic
-predicted statistics rather than a learned simulator surrogate {cite:p}`Bairagi2026` — interpretable
-and gradient-friendly by construction. The honest scope is set by physics, not method: $\sigma(\beta)
+This is the differentiable, SBC-calibrated $Q$/MST successor for $\beta$. At high density it is built
+from **analytic** predicted statistics — interpretable and gradient-friendly by construction; at low
+density, where the projected-density marginal defeats a closed-form model, a **flow-based neural
+posterior** {cite:p}`Bairagi2026` on the *same* log₊ summary takes over, learning the marginal from
+simulations. The two agree where they overlap and are reported together: the analytic model is the
+interpretable backbone, the flow the general-purpose extension. The honest scope is set by physics,
+not method: $\sigma(\beta)
 \approx 0.2$ per cluster is **cosmic-variance limited** (one cloud is one realization of a random
 field), improving as $\sim 1/\sqrt{K}$ only by **stacking** a population of $K$ clusters. The
 amplitude $\mathcal M$ is forecast-grade; the tail slope $\alpha$ is depth-gated in pure 2-D
