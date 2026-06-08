@@ -55,7 +55,9 @@ B_FIXED, ALPHA, M_FID = 0.4, 2.5, 8.0
 BETA_FID = 2.7
 K_EDGES = np.linspace(2.0, 28.0, 10)          # drop the weak lowest-k bin (D05); 9 bins
 NB = len(K_EDGES) - 1
-N_STARS = 10**6                                # high-N first (D04: analytic model directly valid)
+# N_stars is a KNOWN survey quantity -> calibrate T_fid + precision at THIS N_stars (truth-independent,
+# beta-response stays analytic). Override via env GFDF_NSTARS to sweep the shot-limited regime.
+N_STARS = int(float(os.environ.get("GFDF_NSTARS", 10**6)))
 N_BAR_3D = N_STARS / (SHAPE[0] ** 3)
 BETA_LO, BETA_HI = 2.0, 11.0 / 3.0
 LOGB_LO, LB = np.log(BETA_LO), np.log(BETA_HI) - np.log(BETA_LO)

@@ -48,7 +48,7 @@ B_FIXED, ALPHA, M_FID = 0.4, 2.5, 8.0
 K_EDGES = np.linspace(1.0, 28.0, 11)
 BETAS = np.array([2.0, 2.5, 3.0, 3.5, 11.0 / 3.0])
 N_REAL = 32
-N_STARS_HI = 10**6
+N_STARS_HI = int(float(os.environ.get("GFDF_NSTARS", 10**6)))   # override to probe low-N transfer beta-stability
 N_MAX = 14
 
 
