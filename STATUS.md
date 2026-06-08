@@ -9,13 +9,31 @@ _Seeded 2026-06-07 by the brain STATUS.md convention (`~/brain/work/meta/status-
 
 Differentiable ICs / population generation (IMF, binaries, cluster profiles). Feeds the Cottrell census (Aim 1) + the jaxstro methods paper. Mature, actively committed.
 
+## Recent progress (2026-06-08)
+- **Segregation module validated in progenax (no gravax).** Λ_MSR diagnostic
+  (`progenax.diagnostics.compute_lambda_msr`, Allison 2009) validated against analytic ground
+  truth — `tests/validation/test_mass_segregation_physics.py` (8 tests: unsegregated→1, exact
+  N=2, maximal→≫1, inverse→<1, convergence, binary caveat). Released-core **814→822**.
+- **Paper grounding.** `docs/website/99-bibliography/per-paper/allison-2009.md` rewritten + verified
+  vs the held ApJ 700 L99 PDF; found+fixed a docstring mis-citation (L99 Eq.1 = Spitzer t_seg, not
+  Λ_MSR; formal def is MNRAS 395,1449 — PDF not held).
+- **Validate-script cleanup (round 1).** 5 of 7 `scripts/validate_*.py` were broken (FDF clean-room +
+  feature removal). Deleted 3 obsolete (`validate_fdf`, `validate_tail_sampling`,
+  `validate_imf_extensions`); refactored `validate_mass_segregation` + `validate_cluster_ic` to the
+  live API (all PASS). Commits 0745731, d327774.
+- **Gravax dynamical mass-segregation experiment DEFERRED** (Anna's call) — full spec in
+  `docs/notes/2026-06-08-gravax-segregation-validation-followup.md`.
+
 ## Open
-- [x] FDF ICs: spherical envelope (envelope × turbulent fluctuation; reuse Plummer/EFF profiles)
-- [x] FDF ICs: end-to-end `build_cluster_ic` (envelope + coherent velocities + chosen virial Q)
-- [x] FDF ICs: validation + curated figure gallery (`validation/cluster_acceptance.py`, 5/5 AC, 4 figs)
-- [x] substructure diagnostic to parameterize: CW04 (m̄,s̄) plane — m̄ ≈ concentration axis, Q/s̄ resolves β
-- [ ] (optional) m̄↔β quantitative calibration table for inference-grade substructure recovery
-- [ ] methods-paper-ready API + validation figures
+- [x] FDF ICs: spherical envelope, `build_cluster_ic`, validation gallery, CW04 (m̄,s̄) plane
+- [x] Λ_MSR segregation diagnostic validated (analytic Tier-A) + stale validate-script cleanup r1
+- [ ] **validation/plots + experimental scratch-driver cleanup (round 2)** — retire banked-2D-β
+      scratch (`_d0*`,`_v2*`,`_v3/4/5` + their plots); classify verified-vs-stale (in progress)
+- [ ] integrate verified validation plots into the website docs pages
+- [ ] Tier C: density-correlated mass placement (`correlated_mass_assignment`) + grounded
+      mass-weighted substructure metric
+- [ ] methods-paper Figs 1–3 (buildable now) + (deferred) gravax Figs 4–5
+- [ ] (optional) m̄↔β quantitative calibration table
 
 ## Nice-to-do / revisit later
 - Filamentary (non-Gaussian-phase) morphology for the FDF field — deferred (second-order for the

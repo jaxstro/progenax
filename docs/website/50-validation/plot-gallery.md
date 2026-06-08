@@ -58,9 +58,20 @@ $Q(f_{\mathrm{sub}})$ calibration (below).
 
 ## Mass segregation
 
-`validation/plots/cluster_ic/mass_segregation/fig_mass_segregation_lambda_msr.png`
-— $\Lambda_{\mathrm{MSR}}$; companion radial-profile / snapshot figures
-in the same directory.
+**Committed, embedded figures** (under `docs/website/50-validation/figures/`, shown on
+[](../10-theory/tidal-and-substructure/mass-segregation.md)):
+
+- `lambda_msr_regimes.png`, `lambda_msr_monotonic_convergence.png`,
+  `lambda_msr_binary_caveat.png` — the $\Lambda_{\mathrm{MSR}}$ *diagnostic* validated against
+  analytic ground truth (regenerate: `python scripts/validate_mass_segregation.py`).
+- `cluster_ic_energy_sorted_segregation.png` (+ `cluster_ic_plummer_equilibrium.png`,
+  `cluster_ic_two_component.png`) — the released-core cluster-IC generators
+  (regenerate: `python scripts/validate_cluster_ic.py`).
+
+These are the curated set committed for the docs (a deliberate exception to the
+otherwise-gitignored `validation/plots/`). The *dynamical* mass-segregation figures
+(Λ_MSR(t) evolution) await the deferred gravax N-body experiment —
+`docs/notes/2026-06-08-gravax-segregation-validation-followup.md`.
 
 ## Gravoturbulence (BM19 / PN11 / PP20)
 

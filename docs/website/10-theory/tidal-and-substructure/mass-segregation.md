@@ -174,12 +174,11 @@ that is the linear combination of its baseline (random) and Baumgardt
 parametric family of clusters that gradient-based inference needs.
 ```
 
-Current unit tests in `tests/unit/cluster/test_cluster_ic.py`,
-`tests/unit/cluster/test_mass_segregation.py`, and
-`tests/unit/cluster/test_validation_suite.py` verify the implemented
-behavior. There is not yet a dedicated
-`tests/validation/test_mass_segregation.py` suite. The unit-backed
-checks cover:
+The λ_seg *generator* behaviour is covered by unit tests in
+`tests/unit/cluster/` (`test_cluster_ic.py`, `test_mass_segregation.py`,
+`test_validation_suite.py`); the Λ_MSR *diagnostic* is validated against
+analytic ground truth in `tests/validation/test_mass_segregation_physics.py`
+(8 tests, 2026-06-08; figures below). The unit-backed generator checks cover:
 
 - $\lambda_{\mathrm{seg}} = 0$ gives $\Lambda_{\mathrm{MSR}} \approx 1$
   (no segregation) to within Poisson noise.
@@ -223,6 +222,31 @@ the dispersion of the random subsets.
   - All most-massive stars in inner core
 ```
 
+The diagnostic is **validated against analytic ground truth** in
+`tests/validation/test_mass_segregation_physics.py` (8 tests) with the human-facing
+companion `scripts/validate_mass_segregation.py` — definition cross-checked against the
+held {cite:t}`Allison2009` (ApJ 700 L99) PDF (see
+[](../../99-bibliography/per-paper/allison-2009.md)).
+
+:::{figure} ../../50-validation/figures/lambda_msr_regimes.png
+:label: fig-lambda-msr-regimes
+:width: 100%
+
+$\Lambda_{\mathrm{MSR}}$ on three hand-constructed regimes with known answers:
+unsegregated (random masses → $\Lambda\approx1$), maximally segregated (massive stars in a
+tight core → $\Lambda\gg1$), and inverse (massive stars on the rim → $\Lambda<1$). ▲ marks the
+$N_{\mathrm{massive}}$ set whose MST is $\ell_{\mathrm{massive}}$.
+:::
+
+:::{figure} ../../50-validation/figures/lambda_msr_monotonic_convergence.png
+:label: fig-lambda-msr-convergence
+:width: 100%
+
+Left: $\Lambda_{\mathrm{MSR}}$ rises monotonically as the massive set is concentrated toward
+the centre. Right: the estimator converges to the exact value (independent $N_{\mathrm{massive}}=2$
+enumeration) with seed-to-seed scatter $\sigma(\Lambda)\propto 1/\sqrt{N_{\mathrm{random}}}$.
+:::
+
 ```{warning}
 **Λ_MSR is biased by binaries.** A massive binary appears as two stars
 at the same position, giving an extremely short MST edge. For
@@ -232,6 +256,17 @@ the system mass, or use the local-density-ratio diagnostic
 chapter ([](../imfs/binary.md)) for the related discussion of how
 binary contamination affects single-star inferences.
 ```
+
+:::{figure} ../../50-validation/figures/lambda_msr_binary_caveat.png
+:label: fig-lambda-msr-binary
+:width: 70%
+:align: center
+
+Quantifying the caveat: at $N_{\mathrm{massive}}=2$ a tight massive pair drives
+$\Lambda_{\mathrm{MSR}}\propto 1/\text{(pair separation)}$, inflating it by $10^3$–$10^4$ as the
+separation shrinks to $10^{-4}$ pc. The effect is milder at large $N_{\mathrm{massive}}$ (one of
+$\sim\!N_{\mathrm{massive}}-1$ edges); mitigation is to use binary centre-of-mass positions.
+:::
 
 The implementation lives in `progenax.diagnostics.mass_segregation`,
 which uses scipy's `minimum_spanning_tree` and is *not* part of the
@@ -294,6 +329,17 @@ segregated catalog with the unsegregated baseline through
 `MassSegregationLayer.lambda_seg`. See
 [](../../50-validation/mass-segregation.md) for the current validation
 status page.
+
+:::{figure} ../../50-validation/figures/cluster_ic_energy_sorted_segregation.png
+:label: fig-energy-sorted-segregation
+:width: 100%
+
+End-to-end check of `energy_sorted_segregation` (`scripts/validate_cluster_ic.py`): applying the
+energy-ordered assignment to an unsegregated Kroupa-IMF Plummer pool drives the *independently
+validated* $\Lambda_{\mathrm{MSR}}$ from $1.40$ to $14.3$ (left), and the most massive stars occupy
+the most-bound orbits (right, Spearman $\rho(m,E)=-0.84$) — the construction described above produces
+real, $\Lambda_{\mathrm{MSR}}$-detectable mass segregation.
+:::
 
 ## Composing with fractal substructure
 

@@ -224,3 +224,7 @@ docs/core-papers/
 
 # macOS
 .DS_Store
+
+# Curated, verified validation figures embedded in the website (committed exception to *.png)
+!docs/website/50-validation/figures/
+!docs/website/50-validation/figures/*.png
