@@ -31,6 +31,7 @@ experimental = [
     "arviz>=0.18",
     "scipy>=1.11",
     "jaxstroviz",
+    "flowjax>=17",  # conditional normalizing flow for the SBI/NPE low-N beta likelihood (Path C)
     # "numpyro>=0.13",  # reserved for the hierarchical population model (Decision #7)
 ]
 
