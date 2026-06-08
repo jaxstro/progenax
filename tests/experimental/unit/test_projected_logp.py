@@ -108,6 +108,71 @@ def test_analytic_emulator_differentiable():
     assert np.isfinite(g) and g != 0.0
 
 
+def _logplus_limit_reference(shape, beta, mach, b, alpha, depth, k_edges, n_max, n_quad):
+    """Deterministic high-N limit: the Mehler 2-pt of log_+(Sigma/L) (NO Poisson noise).
+
+    As n_bar -> inf the Poisson-smoothed map m(Sigma) -> log_+(Sigma/L) (piecewise: ln above the mean,
+    linear below), so the shot model's clustering term must converge to the band-powers of this
+    deterministic log_+ of the lognormal projected density -- NOT pure ln (that is the ln-vs-log_+
+    difference the calibrated transfer absorbs)."""
+    from gravoturb_fdf.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
+    from gravoturb_fdf.theory.gaussianization import gaussianized_xi, hermite_coefficients
+    from gravoturb_fdf.theory.projection import limber_project_slab
+
+    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
+    L = float(depth)
+    s2 = jnp.log1p(xi_Sigma[0, 0] / L**2)
+    s = jnp.sqrt(s2)
+    rho_g = jnp.log1p(xi_Sigma / L**2) / s2
+
+    def lp_map(g):
+        x = jnp.exp(s * g - 0.5 * s2)  # Sigma/L, mean 1
+        return jnp.where(x > 1.0, jnp.log(jnp.where(x > 0, x, 1.0)), x - 1.0)
+
+    a = hermite_coefficients(lp_map, n_max, n_quad)
+    return np.asarray(_angular_bandpowers_from_xi_rho_2d(gaussianized_xi(rho_g, a), k_edges)[1])
+
+
+def test_shot_model_differentiable_in_beta():
+    """jax.grad of the shot-transfer forward model wrt beta is finite and nonzero."""
+    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers_shot
+
+    def total(beta):
+        return jnp.sum(predict_logp_bandpowers_shot(
+            SHAPE, beta, 8.0, 0.4, 2.5, 32.0, K_EDGES, n_bar_3d=0.4, n_max=8, n_quad=64, n_count_max=400))
+
+    g = float(jax.grad(total)(3.0))
+    assert np.isfinite(g) and g != 0.0
+
+
+def test_shot_floor_positive_and_decreases_with_nbar():
+    """W_shot (white Poisson floor) is positive and SMALLER at higher mean count."""
+    from gravoturb_fdf.inference.projected_logp import logp_shot_components
+
+    _Pc_lo, W_lo = logp_shot_components(SHAPE, 3.0, 8.0, 0.4, 2.5, 32.0, K_EDGES,
+                                        n_bar_3d=0.3, n_max=8, n_quad=64, n_count_max=400)
+    _Pc_hi, W_hi = logp_shot_components(SHAPE, 3.0, 8.0, 0.4, 2.5, 32.0, K_EDGES,
+                                        n_bar_3d=3.0, n_max=8, n_quad=64, n_count_max=2000)
+    assert float(W_lo) > 0.0 and float(W_hi) > 0.0
+    assert float(W_hi) < float(W_lo)
+
+
+def test_shot_clustering_reduces_to_log_limit_at_high_nbar():
+    """At high mean count the clustering term -> the lognormal-copula log predictor (A_logSig)."""
+    from gravoturb_fdf.inference.projected_logp import logp_shot_components
+
+    # high n_bar but modest absolute count (low n_bar_3d on a deep box) so the Poisson sum is fully
+    # resolved by n_count_max (the shot model is cheap only at low counts -- exactly the regime we need
+    # it for). n_bar_sky = n_bar_3d * depth = 8 * 32 = 256 -> log limit well-approached.
+    sh, dep, nmax, nq = (32, 32, 32), 32.0, 8, 64
+    ke = jnp.linspace(2.0, 12.0, 6)
+    P_clust, _W = logp_shot_components(sh, 3.0, 8.0, 0.4, 2.5, dep, ke,
+                                       n_bar_3d=8.0, n_max=nmax, n_quad=nq, n_count_max=6000)
+    ref = _logplus_limit_reference(sh, 3.0, 8.0, 0.4, 2.5, dep, ke, nmax, nq)
+    np.testing.assert_allclose(np.asarray(P_clust), ref, rtol=0.08)
+
+
 def test_loglike_stationary_and_peaked_at_truth():
     """Noiseless data = mu(beta_true): the Gaussian log-like is peaked at beta_true with grad ~ 0."""
     from gravoturb_fdf.inference.projected_logp import logp_loglike, predict_logp_bandpowers

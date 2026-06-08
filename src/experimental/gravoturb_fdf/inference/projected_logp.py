@@ -24,10 +24,16 @@ JAX-native; differentiable in beta (and mach) through the analytic chain. ``T`` 
 
 import jax
 import jax.numpy as jnp
+from jax.scipy.special import gammaln
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.inference.covariance import _angular_bandpowers_from_xi_rho_2d
-from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients, gaussianized_xi
+from gravoturb_fdf.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
+from gravoturb_fdf.theory.gaussianization import (
+    _gauss_hermite,
+    bm19_hermite_coefficients,
+    gaussianized_xi,
+    hermite_coefficients,
+)
 from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
 
 
@@ -154,3 +160,104 @@ def logp_loglike(
     mu = predict_logp_bandpowers(shape, beta, mach, b, alpha, depth, k_edges, transfer, n_max, n_quad)
     r = mu - data
     return -0.5 * r @ (precision @ r)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Analytic Poisson-shot transfer (N-agnostic forward model for the log+ observable)
+# ---------------------------------------------------------------------------------------------------
+def _log_plus_counts(n_counts: Float[Array, " m"], n_bar_sky: Float[Array, ""]) -> Float[Array, " m"]:
+    r"""Neyrinck Eq.2 log+ on integer counts ``N``: ln(N/nbar) for N>nbar else N/nbar-1 (mean count)."""
+    ratio = n_counts / n_bar_sky
+    return jnp.where(n_counts > n_bar_sky, jnp.log(jnp.where(ratio > 0, ratio, 1.0)), ratio - 1.0)
+
+
+def _poisson_logp_moments(
+    g_nodes: Float[Array, " q"],
+    n_bar_sky: Float[Array, ""],
+    s_sigma: Float[Array, ""],
+    n_count_max: int,
+):
+    r"""Conditional log+ mean ``m(g)`` and variance ``v(g)`` of ``N|Sigma ~ Poisson(nbar_sky*Sigma/L)``.
+
+    The projected density is modelled lognormal: ``Sigma/L = exp(s_sigma*g - s_sigma^2/2)`` (mean 1),
+    so ``lambda(g) = n_bar_sky * exp(s_sigma*g - s_sigma^2/2)``. Returns ``(m, v)`` over the quadrature
+    nodes via the Poisson sum N=0..n_count_max (differentiable in n_bar_sky, s_sigma). High-|g| nodes
+    carry ~e^{-g^2/2} weight, so truncating the Poisson tail there is negligible."""
+    lam = n_bar_sky * jnp.exp(s_sigma * g_nodes - 0.5 * s_sigma**2)        # (q,)
+    n = jnp.arange(n_count_max + 1, dtype=jnp.float64)                     # (m,)
+    log_pmf = n[None, :] * jnp.log(lam[:, None]) - lam[:, None] - gammaln(n + 1.0)[None, :]
+    pmf = jnp.exp(log_pmf)                                                 # (q, m)
+    lp = _log_plus_counts(n, n_bar_sky)                                    # (m,)
+    m = jnp.sum(pmf * lp[None, :], axis=1)
+    e2 = jnp.sum(pmf * (lp**2)[None, :], axis=1)
+    return m, e2 - m**2
+
+
+def logp_shot_components(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    depth: Float[Array, ""],
+    k_edges: Float[Array, " kp1"],
+    n_bar_3d: Float[Array, ""],
+    n_max: int = 14,
+    n_quad: int = 256,
+    n_count_max: int = 800,
+) -> tuple[Float[Array, " k"], Float[Array, ""]]:
+    r"""Analytic clustering band-powers ``P_clust(k)`` and white shot floor ``W_shot`` for log+ counts.
+
+    Conditional-independence split ``P_A(k) = P_clust(k) + W_shot`` (see the projected-beta-inference
+    theory page). ``n_bar_3d`` is the (known) mean stars per 3-D cell; mean projected count
+    ``n_bar_sky = n_bar_3d * depth``. The projected-density 2-pt is analytic
+    (``xi_Sigma = Limber[xi_rho]``); its marginal is modelled lognormal (the one approximation). The
+    Poisson-smoothed log map ``m(Sigma(g))`` is Mehler-expanded through the UNDERLYING Gaussian
+    correlation ``rho_g = ln(1 + xi_Sigma/L^2)/s_sigma^2`` (lognormal copula), reusing
+    :func:`gaussianized_xi`. Fully differentiable in (beta, mach, ...). At high ``n_bar`` reduces to
+    the lognormal-copula log predictor (``m -> ln``, ``W_shot -> 0``)."""
+    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
+    L = depth
+    sigma_sigma2 = xi_Sigma[0, 0]                                          # projected-density variance
+    s_sigma2 = jnp.log1p(sigma_sigma2 / L**2)                             # underlying Gaussian log-var
+    s_sigma = jnp.sqrt(s_sigma2)
+    rho_g_und = jnp.log1p(xi_Sigma / L**2) / s_sigma2                     # underlying Gaussian corr (=1 @ 0)
+    n_bar_sky = n_bar_3d * L
+
+    # clustering: Hermite coeffs of the Poisson-smoothed log map, Mehler-expanded in rho_g_und
+    a = hermite_coefficients(
+        lambda g: _poisson_logp_moments(g, n_bar_sky, s_sigma, n_count_max)[0], n_max, n_quad
+    )
+    xi_clust = gaussianized_xi(rho_g_und, a)
+    _kc, P_clust, _nm = _angular_bandpowers_from_xi_rho_2d(xi_clust, k_edges)
+
+    # white shot floor: <Var(log+ N | Sigma)>_Sigma via the same Gauss-Hermite rule
+    g_nodes, weights = _gauss_hermite(n_quad)
+    _m, v = _poisson_logp_moments(g_nodes, n_bar_sky, s_sigma, n_count_max)
+    W_shot = jnp.sum(weights * v)
+    return P_clust, W_shot
+
+
+def predict_logp_bandpowers_shot(
+    shape: tuple[int, int, int],
+    beta: Float[Array, ""],
+    mach: Float[Array, ""],
+    b: Float[Array, ""],
+    alpha: Float[Array, ""],
+    depth: Float[Array, ""],
+    k_edges: Float[Array, " kp1"],
+    n_bar_3d: Float[Array, ""],
+    n_max: int = 14,
+    n_quad: int = 256,
+    n_count_max: int = 800,
+) -> Float[Array, " k"]:
+    r"""N-agnostic analytic forward model ``mu(k) = P_clust(k) + W_shot`` for the log+ observable.
+
+    The analytic Poisson-shot transfer (:func:`logp_shot_components`): no fitted, beta-dependent
+    transfer -> the beta-response stays analytic at any stellar density. Differentiable in
+    (beta, mach, ...)."""
+    P_clust, W_shot = logp_shot_components(
+        shape, beta, mach, b, alpha, depth, k_edges, n_bar_3d, n_max, n_quad, n_count_max
+    )
+    return P_clust + W_shot
