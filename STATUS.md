@@ -50,6 +50,11 @@ Differentiable ICs / population generation (IMF, binaries, cluster profiles). Fe
 - [ ] integrate verified validation plots into the website docs pages
 - [ ] Tier C: density-correlated mass placement (`correlated_mass_assignment`) + grounded
       mass-weighted substructure metric
+- [ ] **Differentiable King r_t (Approach B, IFT)** — DEFERRED until a scalar-r_t
+      use case is concrete (headline: tidal-field/Jacobi coupling r_t≈r_J → infer
+      Galactic potential/orbits from cluster limiting radii, wiring in
+      progenax.tidal). Plan + science cases:
+      docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md
 - [ ] methods-paper Figs 1–3 (buildable now) + (deferred) gravax Figs 4–5
 - [ ] (optional) m̄↔β quantitative calibration table
 
