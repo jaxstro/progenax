@@ -105,6 +105,8 @@ project:
             - file: 10-theory/gravoturbulence/cored-profiles.md
             - file: 10-theory/gravoturbulence/direct-3d-zeta.md
             - file: 10-theory/gravoturbulence/bm19.md
+            - file: 10-theory/gravoturbulence/differentiable-inference.md
+            - file: 10-theory/gravoturbulence/projected-beta-inference.md
         - title: Multi-component populations
           children:
             - file: 10-theory/populations/index.md
