@@ -51,13 +51,22 @@ def sample_cell_indices(
     f_sub: float,
     n_stars: int,
     key: jax.Array,
+    s_density: Float[Array, "nx ny nz"] | None = None,
 ) -> tuple[Int[Array, " n_tail"], Int[Array, " n_smooth"]]:
     r"""Draw flat cell indices: N_tail from p_tail ∝ wρ, N_smooth from p_smooth ∝ ρ.
 
     Returns ``(tail_idx, smooth_idx)``. ``n_tail = round(f_sub · n_stars)`` (Python int
     so the categorical sample shapes are static).
+
+    ``s_density`` (optional) is the log-density field used for the PLACEMENT PMF (ρ ∝
+    e^{s_density}); ``s`` always defines the dense-tail mask against ``s_t``. With a spherical
+    envelope, ``s_density = s_turb + ln ρ_env(r)`` (placement follows the centrally-concentrated
+    total density) while the tail mask stays on ``s = s_turb`` (dense clumps = LOCAL
+    overdensities, decoupled from the envelope). Default ``None`` ⇒ ``s_density = s`` (original
+    behaviour: a featureless / periodic box).
     """
-    rho = jnp.exp(s).ravel()
+    s_place = s if s_density is None else s_density
+    rho = jnp.exp(s_place).ravel()
     w = tail_weights(s, s_t, kappa).ravel()
     p_tail = w * rho
     p_tail = p_tail / jnp.sum(p_tail)
@@ -99,13 +108,18 @@ def sample_positions(
     n_stars: int,
     key: jax.Array,
     box_size: float = 1.0,
+    s_density: Float[Array, "nx ny nz"] | None = None,
 ) -> Float[Array, "n_stars 3"]:
     r"""Sample ``n_stars`` star positions (tail + smooth) from the FDF field.
 
     Returns positions in [0, box_size)^3. Non-differentiable in the positions
     (categorical sampling); Q is scale-invariant, so ``box_size`` is conventional.
+    ``s_density`` (optional) is the placement-density field (e.g. envelope-modulated
+    ``s_turb + ln ρ_env``); ``s`` defines the dense-tail mask. See :func:`sample_cell_indices`.
     """
     k_idx, k_jit = jax.random.split(key)
-    tail_idx, smooth_idx = sample_cell_indices(s, s_t, kappa, f_sub, n_stars, k_idx)
+    tail_idx, smooth_idx = sample_cell_indices(
+        s, s_t, kappa, f_sub, n_stars, k_idx, s_density=s_density
+    )
     all_idx = jnp.concatenate([tail_idx, smooth_idx])
     return cells_to_positions(all_idx, s.shape, k_jit, box_size)

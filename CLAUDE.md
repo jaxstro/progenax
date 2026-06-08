@@ -273,3 +273,7 @@ After jaxstroviz is ported:
 - **Starting focused work here?** Pull a context pack from the hub: `/brain-pack <this-project>`.
 
 <!-- brain-handshake: keep in sync with ~/brain/guide/how-to/set-up-a-project.md#spoke-stanza -->
+
+<!-- brain-status-convention -->
+## Brain status updates
+When you make notable progress, hit a blocker, or set the next action, update this repo's `STATUS.md` (`next:` / `blocker:` / `due:` lines) — the brain pulls it into the portfolio dashboard + standup via `federate.py` (see `~/brain/work/meta/status-convention.md`). Brain stays pull-only: never hand-edit `~/brain`; capture events with `brain "…"`.
