@@ -1,6 +1,6 @@
 # progenax — status
 
-next: Tier C complete — density-correlated mass placement (correlated_mass_assignment) + grounded mass-weighted substructure metric (M&C 2011 local Σ, m–Σ plane). Segregation module validated (Λ_MSR Tier-A, released-core 814→822); validation cleanup r2 done (scratch archived, verified figures committed+embedded on website). Next: methods-paper Figs 1–3 (buildable now); deferred gravax Figs 4–5
+next: NEW SESSION — systematic validation audit of all progenax modules + pub-quality methods figures. Entry point: docs/plans/2026-06-08-validation-audit-and-methods-figures-spec.md (per-module: brainstorm plot set → build pub-quality figures → embed on 50-validation page → BUILD-VERIFY render → update index dashboard). Refactor/remove stale validate scripts as found. Done so far: mass-segregation/plummer/two-component pages current+figure-bearing+build-verified; Λ_MSR validated; Tier C built.
 blocker: none
 due:
 
