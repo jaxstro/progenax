@@ -11,15 +11,15 @@ has no closed-form $\rho(r)$ — the profile is defined implicitly via
 an ODE in the dimensionless gravitational potential. In exchange,
 King provides what Plummer cannot: a finite outer radius matching the
 observed tidal cutoff, a single dimensionless concentration parameter
-$W_0$ that captures the full cluster geometry, and a one-to-one
-mapping to the {cite:t}`King1966` Table 1 density profiles fit to most
-Galactic globular clusters in the second half of the 20th century.
+$W_0$ that captures the full cluster geometry, and the family of
+{cite:t}`King1966` model density profiles fit to most Galactic globular
+clusters in the second half of the 20th century.
 
 This chapter derives the King profile from its defining lowered-isothermal
 DF, sets up the ODE that progenax integrates with `diffrax`, lists the
-$W_0 \to (r_c, r_t, c, r_h)$ mapping, and connects to the
-{cite:t}`Gieles2015` LIMEPY generalisation that progenax can switch to
-when multi-mass anisotropy matters.
+$W_0 \to (r_c, r_t, c, r_h)$ mapping, and notes the
+{cite:t}`Gieles2015` LIMEPY generalisation — the natural future extension
+when multi-mass anisotropy matters (not currently implemented in progenax).
 
 ## The lowered-isothermal distribution function
 
@@ -233,12 +233,13 @@ positions = profile.sample_positions(masses, key)
 velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```
 
-The `solve_king_profile` call is the ODE helper for the King profile.
-The public helper returns arrays rather than a `KingSolution` object.
+The `solve_king_profile` call is the ODE helper for the King profile; it
+returns the `(xi_grid, psi_grid)` arrays used by `KingProfile`.
 
 See [](../../30-api/profiles.md) for the full signature and
-[](../../50-validation/king-profile.md) for the regression suite that
-cross-checks against {cite:t}`Gieles2015` LIMEPY at $g = 1$.
+[](../../50-validation/king-profile.md) for the regression suite, which
+validates $c(W_0)$ against {cite:t}`King1966` Table II and the volume
+density against an independent direct-velocity-integral oracle.
 
 ## Domain of validity and limitations
 
@@ -253,11 +254,11 @@ cross-checks against {cite:t}`Gieles2015` LIMEPY at $g = 1$.
    starting point.
 
 3. **No primordial substructure.** King is a smooth equilibrium
-   profile. Substructure modelled via the FDF method
-   ([](../tidal-and-substructure/fractal.md)) is *layered on top* of
-   the King base and breaks the equilibrium assumption — a deliberate
-   choice for studying cool-clumpy initial conditions
-   {cite:p}`Allison2009`.
+   profile. Turbulent/fractal substructure — relevant to cool-clumpy
+   initial conditions {cite:p}`Allison2009` — is provided separately by
+   the experimental `gravoturb_fdf` subsystem
+   ([](../tidal-and-substructure/fractal.md)), not by the released King
+   profile, and deliberately breaks the equilibrium assumption.
 
 4. **Tidal radius is fixed at IC time.** A cluster's tidal radius
    evolves with its galactocentric orbit; progenax's King IC fixes

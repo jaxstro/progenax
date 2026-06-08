@@ -19,9 +19,10 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics" (2nd ed.), Section 4.3
 
 Notes:
-    - W0 typically ranges from 1 (low concentration) to 12 (high concentration)
-    - Globular clusters have W0 ~ 5-9
-    - Models with W0 > 12 are unstable (core collapse)
+    - W0 is the dimensionless central potential; larger W0 = more centrally
+      concentrated. Galactic globular clusters span W0 ~ 5-9.
+    - King (1966) Table II tabulates models up to W0 = 15; as W0 increases the
+      model approaches the singular isothermal sphere (Binney & Tremaine 2008).
 """
 
 from typing import Tuple
@@ -49,9 +50,9 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
         rho(W) ∝ int_0^{sqrt(2W)} v^2 (e^{W - v^2/2} - 1) dv,
 
     and equals that direct integral up to the constant sqrt(pi/2). It is the
-    density that must appear in the King Poisson equation. (The incomplete-gamma
-    / projected-style form erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} over-extends
-    the 3-D profile by 2-30x and must NOT be used as the volume density.)
+    3-D *volume* density that appears in the King Poisson equation. The King
+    K-function form erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} is the *projected*
+    surface density, a distinct quantity, and must not be used as the volume density.
 
     Gradient-safe at W=0: rho_hat(0)=0 and d(rho_hat)/dW(0)=0; clamp before
     sqrt/exp so the backward pass never differentiates sqrt at 0.
@@ -114,8 +115,7 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     psi, dpsi_dxi = y[0], y[1]
 
     # Dimensionless density = lowered-Maxwellian volume density rho_hat(psi),
-    # normalized to 1 at the center (psi=W0). (The earlier code used King's
-    # K-function here, which over-extends the 3-D profile 2-30x.)
+    # normalized to 1 at the center (psi=W0).
     rho0 = king_lowered_maxwellian_density(W0)
     rho_tilde = jnp.where(
         rho0 > 1e-10, king_lowered_maxwellian_density(psi) / rho0, 0.0
@@ -237,7 +237,7 @@ def _find_tidal_radius(
     xi_t = xi0 + t * (xi1 - xi0)
 
     # If no crossing, use last point. Return the array (do NOT cast to float):
-    # float() concretizes the tracer and breaks jit/grad through from_W0_rc (C2).
+    # float() concretizes the tracer and breaks jit/grad through from_W0_rc.
     xi_t = jnp.where(has_crossing, xi_t, xi_grid[-1])
     return xi_t
 
@@ -342,9 +342,8 @@ class KingProfile(eqx.Module):
         # Integrand: 4*pi*r^2*rho(r)
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
 
-        # Cumulative mass via the trapezoid rule (2nd-order). The old
-        # cumsum(integrand)*dr was a 1st-order left/right-Riemann sum mislabeled
-        # "trapezoid" and biased the sampled radial distribution (audit M5).
+        # Cumulative mass via the trapezoid rule (2nd-order); a 1st-order Riemann
+        # sum would bias the sampled radial distribution.
         dr = r_grid[1] - r_grid[0]
         M_cum = jnp.concatenate([
             jnp.zeros(1, dtype=integrand.dtype),
@@ -474,9 +473,9 @@ class KingProfile(eqx.Module):
             rho(r)/rho_0 = rho_hat(psi(r)) / rho_hat(W0)
         with rho_hat(W) = e^W erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3)
         (king_lowered_maxwellian_density; BT2008 Eq. 4.131), and psi(r) the
-        dimensionless potential from interpolating the ODE solution. (The
-        earlier K-function / incomplete-gamma form is the *projected* density
-        and over-extends the profile by 2-30x; it is NOT used here.)
+        dimensionless potential from interpolating the ODE solution. This is the
+        3-D *volume* density; the King K-function (incomplete-gamma) form is the
+        *projected* surface density and is not used here.
 
         This method returns the unnormalized form (rho_0=1), useful for
         plotting and analysis with jaxstroviz.

@@ -5,9 +5,9 @@ description: "Validation suite for the King (1966) profile + matched lowered-Max
 # King profile validation
 
 The King suite verifies the lowered-isothermal Poisson ODE integration, the
-**lowered-Maxwellian volume density** (the form that fixed the earlier
-over-extended K-function bug), and the matched velocity DF. Test file:
-`tests/validation/test_king_physics.py` (**24 tests**); figures:
+**lowered-Maxwellian volume density** (the 3-D density entering the Poisson
+source, distinct from the projected King K-function), and the matched velocity
+DF. Test file: `tests/validation/test_king_physics.py` (**24 tests**); figures:
 `scripts/validate_king.py`.
 
 ## What is verified
@@ -74,10 +74,9 @@ $W_0 \gtrsim 11$ requires enlarging the ODE domain beyond the package default
 
 **Volume density vs an independent oracle ($W_0=7$).** `KingProfile.density`
 (dashed) coincides with the direct velocity-space integral (solid) and the $N=5\times10^4$
-sample (points) to **max rel $=1.2\times10^{-10}$** (panel b). The dotted
-curve is the old *projected* K-function: using it as the volume density piles mass
-into the outskirts and over-extends the Poisson solution — the bug this density
-form replaced. It is shown only to make that failure visible; it is **not used**.
+sample (points) to **max rel $=1.2\times10^{-10}$** (panel b) — confirming the
+lowered-Maxwellian *volume* density $\hat\rho(W)=e^W\,\mathrm{erf}(\sqrt W)-\tfrac{2}{\sqrt\pi}\sqrt W\,(1+\tfrac23 W)$
+is the form used in the Poisson source.
 :::
 
 :::{figure} figures/king_velocity_equilibrium.png

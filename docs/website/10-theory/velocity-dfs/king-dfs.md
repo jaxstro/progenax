@@ -69,29 +69,30 @@ v_{\mathrm{esc}}]$ with no rejection.
 
 ## Sampling
 
-progenax samples King velocities via inverse-CDF on {eq}`king-fv`:
+progenax samples King velocities via a per-particle inverse-CDF on
+{eq}`king-fv`:
 
 ```python
 # At each particle's radius r, look up W(r) from the King ODE solution
-W_per_particle = jnp.interp(r_per_particle, xi_grid * r_c, W_solution)
+W_per_particle = jnp.interp(radii / r_c, xi_grid, psi_grid, left=W0, right=0.0)
 
-# Build a 2D inverse-CDF table: u ↔ v at each W
-u = jax.random.uniform(key, (N,))
-v = lookup_2d_inverse_cdf(u, W_per_particle, table)
+# Per particle: build a 1-D speed CDF on [0, sqrt(2W)] and invert it (vmap'd)
+def sample_unit_speed(key, W):
+    u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W), N_SPEED_GRID)   # 256 points
+    g = u_grid**2 * (jnp.exp(W - u_grid**2 / 2.0) - 1.0)         # eq:king-fv
+    cdf = jnp.cumsum(0.5 * (g[1:] + g[:-1])) * du                # trapezoid
+    return jnp.interp(jax.random.uniform(key), cdf / cdf[-1], u_grid)
 
-# Isotropic angles
-v_vec = v[:, None] * isotropic_unit_vector(key2, N)
+u = jax.vmap(sample_unit_speed)(keys, W_per_particle)            # speed / sigma_0
+v_vec = (sigma_0 * u)[:, None] * isotropic_unit_vector(key2, N)
 ```
 
-The 2D lookup table is precomputed once at the King-solution stage:
-for a grid of $W$ values, evaluate the cumulative integral of
-{eq}`king-fv` at a grid of speeds, then store as `(W, u_table, v_table)`.
-At sampling time, each particle's $W$ value (set by its radius)
-selects a row of the table; bilinear interpolation in `(W, u)` gives
-the speed.
-
-The whole pipeline is JIT-compatible and differentiable in $r_h$ via
-the chain $r_h \to r_c \to \sigma_0 \to v$.
+Each particle builds its own fixed-size (256-point) speed grid scaled
+to its local escape speed $\sigma_0\sqrt{2W}$ and inverts the trapezoidal
+CDF by interpolation — there is no precomputed cross-$W$ table. The grid
+size is fixed and the operations are `jnp.interp`/`vmap` only (no
+`while_loop`), so the whole pipeline is JIT-compatible and differentiable
+in $r_h$ via the chain $r_h \to r_c \to \sigma_0 \to v$.
 
 ## Velocity dispersion profile
 

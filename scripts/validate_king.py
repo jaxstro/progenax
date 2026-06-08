@@ -104,17 +104,6 @@ def _direct_velocity_integral(W, n_v=100_000):
     return float(jnp.trapezoid(v**2 * (jnp.exp(W - v**2 / 2.0) - 1.0), v))
 
 
-def _king_K_function_debunked(W):
-    """The *projected*-style K-function form, kept ONLY to visualize the bug it
-    caused. king.py documents this over-extends the 3-D volume profile by 2-30x;
-    it must NOT be used as the volume density. Shown faintly in Fig 2.
-    """
-    W = jnp.maximum(W, 0.0)
-    sqrt_W = jnp.sqrt(jnp.where(W > 0, W, 1.0))
-    val = jax.scipy.special.erf(sqrt_W) - (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * jnp.exp(-W)
-    return jnp.where(W > 0, val, 0.0)
-
-
 # ============================================================================
 # Figure 1 -- concentration c(W0) vs King 1966 Table II
 # ============================================================================
@@ -189,25 +178,16 @@ def fig_density_oracle(output_dir):
 
     rho = np.asarray(prof.density(r))
     rho_oracle = np.asarray([_direct_velocity_integral(float(p)) for p in psi])
-    rho_K = np.asarray([float(_king_K_function_debunked(p)) for p in psi])
 
     rho_n = rho / rho[0]
     oracle_n = rho_oracle / rho_oracle[0]
-    K_n = rho_K / rho_K[0]
     rel = np.abs(rho_n - oracle_n) / (np.abs(oracle_n) + 1e-12)
     max_rel = float(np.max(rel))
     tol = 5e-3
     passed = max_rel < tol
 
-    # how much extra normalized density the debunked K-form piles into the
-    # outskirts (true volume density -> 0 there, so the ratio is large): this is
-    # why using K(W) as the volume density over-extends the Poisson solution.
-    tail_excess = float(K_n[-1] / oracle_n[-1])
-
     print(f"  max relative deviation (method vs oracle): {max_rel:.2e}  "
           f"(tol < {tol:.0e})  -> {'PASS' if passed else 'FAIL'}")
-    print(f"  debunked K-function piles ~{tail_excess:.0f}x too much normalized "
-          f"density at 0.9 r_t (mass pushed to the outskirts)")
 
     # sampled histogram
     key = jax.random.PRNGKey(SEED)
@@ -233,11 +213,9 @@ def fig_density_oracle(output_dir):
     axA.semilogy(centers[valid] / float(prof.r_c), rho_hist[valid], "o",
                  color=OI["green"], ms=4, alpha=0.7,
                  label=f"sampled (N={N_SAMPLES:,})")
-    axA.semilogy(np.asarray(r) / prof.r_c, K_n, ":", color=OI["vermilion"],
-                 lw=2, label="K-function (projected; over-extends, NOT used)")
     axA.set_xlabel("$r / r_c$")
     axA.set_ylabel("$\\rho(r) / \\rho_0$")
-    axA.set_title("King density ($W_0=7$): volume DF vs the over-extended bug")
+    axA.set_title("King volume density vs independent oracle ($W_0=7$)")
     axA.set_ylim(1e-4, 2)
     axA.legend(loc="lower left")
     _panel_label(axA, "a")

@@ -253,13 +253,12 @@ class TestKingDensityProfile:
 
 
 class TestKingLoweredMaxwellianDensity:
-    """B2.0: corrected lowered-Maxwellian volume density + factor-of-9 nondimensionalization.
+    """Lowered-Maxwellian volume density + factor-of-9 nondimensionalization.
 
-    The earlier code solved Poisson with King's K-function (incomplete-gamma/projected
-    form) as the 3-D density, over-extending the profile by 2-30x, and omitted the
-    standard factor of 9 in the nondimensionalization. The corrected model must
-    reproduce the King (1966) Table II concentrations and the lowered-Maxwellian
-    density shape.
+    The King Poisson source is the lowered-Maxwellian 3-D *volume* density (not the
+    projected K-function), nondimensionalized with the standard factor of 9. With
+    these, the model must reproduce the King (1966) Table II concentrations and the
+    lowered-Maxwellian density shape (verified against a direct velocity integral).
     """
 
     # King (1966), AJ 71, 64, Table II (log c column): c = log10(r_t/r_c) vs W0.
@@ -275,8 +274,8 @@ class TestKingLoweredMaxwellianDensity:
         )
 
     def test_density_shape_matches_direct_velocity_integral(self):
-        """KingProfile.density(r) follows the lowered-Maxwellian shape (independent
-        oracle = direct velocity integration), not the over-extended K-form."""
+        """KingProfile.density(r) follows the lowered-Maxwellian volume-density
+        shape, verified against an independent oracle (direct velocity integration)."""
         prof = KingProfile.from_W0_rc(7.0, 1.0, xi_max=400.0, n_ode_points=8000)
         r = jnp.linspace(0.02 * float(prof.r_t), 0.9 * float(prof.r_t), 25)
         xi = r / prof.r_c
@@ -295,12 +294,11 @@ class TestKingLoweredMaxwellianDensity:
 
 
 class TestKingEquilibriumVelocityDF:
-    """B2.1: King velocity DF as a true lowered-Maxwellian in detailed equilibrium.
+    """King velocity DF as a true lowered-Maxwellian in detailed equilibrium.
 
     Sampling the lowered-Maxwellian g(v) ∝ v^2 [exp(psi(r) - v^2/2sigma^2) - 1] on
-    [0, v_esc(r)] with the self-consistent sigma^2 = G M / (9 r_c mu(W0)) must put the
+    [0, v_esc(r)] with the self-consistent sigma^2 = G M / (9 r_c mu(W0)) puts the
     cluster in virial equilibrium WITHOUT any external rescale (Q = T/|V| = 0.5).
-    The old ad-hoc DF (Gaussian + clip, parabolic psi) gives Q ~ 6.7.
     """
 
     def _build_ic(self, W0=7.0, r_c=1.0, N=5000, seed=0):
@@ -374,7 +372,7 @@ class TestKingEquilibriumVelocityDF:
 
 
 def test_concentration_matches_king1966_table_ii():
-    """c(W0)=log10(r_t/r_c) must match King (1966) Table II to <=0.02 (audit M6 guard).
+    """c(W0)=log10(r_t/r_c) must match King (1966) Table II to <=0.02.
     Reference c: W0=3 -> 0.67, W0=7 -> 1.53, W0=9 -> 2.12 (King 1966; B&T 2008)."""
     import jax.numpy as jnp
     from progenax import KingProfile

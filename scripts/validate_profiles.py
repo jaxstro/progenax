@@ -36,13 +36,8 @@ jax.config.update("jax_enable_x64", True)
 
 from progenax.profiles import PlummerProfile, KingProfile, EFFProfile
 
-# NOTE (2026-06-08 audit): the King validation figures now live in
-# scripts/validate_king.py (4 figures anchored to test_king_physics.py). The old
-# in-file validate_king() here imported king_K_function — removed in the
-# lowered-Maxwellian rewrite because the K-function over-extends the volume
-# profile 2-30x — and plotted it as the "analytical" reference, so it was both
-# un-importable and scientifically wrong. It has been excised. The Plummer/EFF
-# figure sections below are pending their own module audits.
+# King validation figures live in scripts/validate_king.py (4 figures anchored to
+# tests/validation/test_king_physics.py). This module covers Plummer and EFF.
 
 
 # =============================================================================

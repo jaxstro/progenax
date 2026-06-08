@@ -10,6 +10,17 @@ _Seeded 2026-06-07 by the brain STATUS.md convention (`~/brain/work/meta/status-
 Differentiable ICs / population generation (IMF, binaries, cluster profiles). Feeds the Cottrell census (Aim 1) + the jaxstro methods paper. Mature, actively committed.
 
 ## Recent progress (2026-06-08)
+- **profiles/King audit + release-hardening.** king-profile.md rewritten to the
+  exact tested tolerances; 4 build-verified figures via scripts/validate_king.py
+  (concentration vs Table II, density-vs-oracle [Option A: K-function overlay
+  removed], velocity equilibrium, W₀ sweep); 50-validation index dashboard added.
+  Release-grade stale-text sweep across all King files (king.py, king_df.py,
+  test_king_physics.py, king.md + king-dfs.md theory, validate_profiles.py):
+  removed internal audit labels (B2.0/B2.1/M5/M6/C2), bug-history comments, the
+  uncited "W0>12 unstable" note, and the **fabricated** "validation cross-checks
+  against LIMEPY at g=1" claim; fixed king-dfs.md sampling description to match the
+  code (per-particle 1-D inverse-CDF via vmap, not a 2-D table). 24 King tests +
+  822 released-core green; all 4 figures build-verified in _build + page JSON.
 - **Segregation module validated in progenax (no gravax).** Λ_MSR diagnostic
   (`progenax.diagnostics.compute_lambda_msr`, Allison 2009) validated against analytic ground
   truth — `tests/validation/test_mass_segregation_physics.py` (8 tests: unsegregated→1, exact
