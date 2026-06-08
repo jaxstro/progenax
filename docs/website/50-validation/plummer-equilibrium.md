@@ -91,6 +91,16 @@ For $N = 10^4$ Plummer particles with $r_h = 1$ pc, $\langle m\rangle =
 
 All twelve tests pass under the declared tolerances at every release.
 
+:::{figure} figures/cluster_ic_plummer_equilibrium.png
+:label: val-plummer-ic
+:width: 80%
+:align: center
+
+`build_spatial_ic` Plummer IC (`scripts/validate_cluster_ic.py`): sampled radial density vs the
+analytic profile, at virial $Q = 0.500$ with a 100% bound fraction. (Complementary to the
+`test_plummer_physics.py` spot table above, which uses $N = 10^4$.)
+:::
+
 ## How to run
 
 ```bash

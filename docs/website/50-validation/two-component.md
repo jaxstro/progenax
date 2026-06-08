@@ -35,7 +35,20 @@ checkout. The implemented two-component API is covered by
 * - Per-component IMF sampling, Q-target-global finalisation, COM finalisation, modifiers
   - Not implemented in this API
   - Planned/design-only unless added later
+* - Radial separation of a concentrated vs extended component
+  - Script-checked (`scripts/validate_cluster_ic.py`): median $r_A = 0.52 < r_B = 2.06$ pc
+  - figure below
 ```
+
+:::{figure} figures/cluster_ic_two_component.png
+:label: val-two-component
+:width: 80%
+:align: center
+
+`generate_two_component_cluster`: radial distribution of a concentrated component A
+($r_h = 0.5$ pc) and an extended component B ($r_h = 2.0$ pc), confirming the configured spatial
+separation. From `scripts/validate_cluster_ic.py`.
+:::
 
 ## Spot values
 
