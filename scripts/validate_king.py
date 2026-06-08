@@ -453,6 +453,76 @@ def fig_w0_sweep(output_dir):
     return all_pass
 
 
+# ============================================================================
+# Figure 5 -- gradient validation (autodiff vs finite difference)
+# ============================================================================
+def _grad_check_sweep(loss, xs, h):
+    """Autodiff and central-FD gradients of loss across parameter values xs."""
+    ad = np.array([float(jax.grad(loss)(float(x))) for x in xs])
+    fd = np.array([float((loss(float(x) + h) - loss(float(x) - h)) / (2 * h)) for x in xs])
+    rel = np.abs(ad - fd) / (np.abs(ad) + np.abs(fd) + 1e-30)
+    return ad, fd, rel
+
+
+def fig_gradient_validation(output_dir):
+    """Autodiff gradients of IC summary statistics w.r.t. the structural
+    parameters (r_c, W0, M) vs central finite differences -- the foundation for
+    gradient-based / HMC inference of King structural parameters from data."""
+    print("\n" + "=" * 60)
+    print("FIG 5: gradient validation (autodiff vs finite difference)")
+    print("=" * 60)
+    G = STELLAR.G
+    N = 300
+    KEY = jax.random.PRNGKey(0)
+
+    # Model observables a likelihood is actually built from: the density profile
+    # (number counts) and the velocity scale (dispersion). These carry the
+    # structural-parameter gradients used in gradient-based / HMC fitting.
+    def log_density_at(r_phys, W0, r_c):
+        p = KingProfile.from_W0_rc(W0, r_c)
+        return jnp.log10(p.density(jnp.array([r_phys]))[0] + 1e-30)
+
+    def sigma_scale(M_total, W0=7.0, r_c=1.0):
+        p = KingProfile.from_W0_rc(W0, r_c)
+        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=p.r_t)
+        return df._sigma(M_total, G)
+
+    # one differentiable structural parameter per panel
+    specs = [
+        ("r_c", r"$r_c$ [pc]", r"$\partial\,\log\rho(2\,{\rm pc}) / \partial r_c$",
+         lambda rc: log_density_at(2.0, 7.0, rc), np.linspace(0.6, 2.0, 11), 1e-5),
+        ("W0", r"$W_0$", r"$\partial\,\log\rho(2\,{\rm pc}) / \partial W_0$",
+         lambda w: log_density_at(2.0, w, 1.0), np.linspace(4.0, 9.0, 11), 1e-4),
+        ("M", r"$M_{\rm tot}$ [$M_\odot$]", r"$\partial\,\sigma_0 / \partial M_{\rm tot}$",
+         lambda M: sigma_scale(M), np.linspace(200.0, 2000.0, 11), 1.0),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.7))
+    worst = 0.0
+    for ax, (key, xlab, ylab, loss, xs, h), tag in zip(axes, specs, "abc"):
+        ad, fd, rel = _grad_check_sweep(loss, xs, h)
+        worst = max(worst, float(np.max(rel)))
+        ax.plot(xs, ad, "-", color=OI["blue"], lw=1.8, label="autodiff", zorder=2)
+        ax.plot(xs, fd, "o", color=OI["vermilion"], ms=4.5, mfc="none", mew=1.2,
+                label="finite diff", zorder=3)
+        ax.set_xlabel(xlab)
+        ax.set_ylabel(ylab)
+        ax.legend(loc="best")
+        ax.text(0.5, 0.05, rf"max rel err $={np.max(rel):.0e}$", transform=ax.transAxes,
+                ha="center", va="bottom", fontsize=8,
+                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5))
+        _panel_label(ax, f"({tag})", loc="upper left")
+        diffable = "DIFFERENTIABLE" if np.max(rel) < 1e-4 else "CHECK"
+        print(f"  d(loss)/d{key:3}: max rel err {np.max(rel):.2e}  -> {diffable}")
+
+    passed = worst < 1e-4
+    print(f"  overall worst rel err {worst:.2e}  -> {'PASS' if passed else 'FAIL'}")
+    fig.tight_layout(pad=0.4, w_pad=0.8)
+    _save(fig, output_dir, "king_gradient_validation")
+    print("  saved king_gradient_validation.{png,pdf}")
+    return passed
+
+
 def main():
     print("\n" + "=" * 70)
     print("PROGENAX KING (1966) PROFILE + VELOCITY-DF VALIDATION FIGURES")
@@ -464,6 +534,7 @@ def main():
         "Fig 2  density vs direct-integral oracle": fig_density_oracle(OUTPUT_DIR),
         "Fig 3  velocity-space equilibrium": fig_velocity_equilibrium(OUTPUT_DIR),
         "Fig 4  anchored W0 sweep": fig_w0_sweep(OUTPUT_DIR),
+        "Fig 5  gradient validation (AD vs FD)": fig_gradient_validation(OUTPUT_DIR),
     }
 
     print("\n" + "=" * 70)

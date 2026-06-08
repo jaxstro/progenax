@@ -98,32 +98,66 @@ external rescale**.
 :width: 80%
 :align: center
 
-**Concentration sweep.** Normalized density for $W_0=3,5,7,9$; dotted lines mark
-each model's natural $\xi_t=r_t/r_c$, which match King (1966) Table II
-($\Delta\log_{10}c \le 0.001$). Higher $W_0$ ⇒ more extended, more concentrated.
+**Concentration sweep.** Normalized density for $W_0=3,5,7,9$; dotted lines and
+floor markers give each model's natural $\xi_t=r_t/r_c$, matching King (1966)
+Table II ($\Delta\log_{10}c \le 0.001$). Higher $W_0$ ⇒ more extended, more
+concentrated. `from_W0_rc` auto-sizes the ODE domain from $W_0$, so the full
+tabulated range (to $W_0=15$, $\xi_t\simeq2272$) integrates without a manual
+`xi_max`.
 :::
+
+## Differentiability
+
+The King IC pipeline is built for gradient-based inference: the model observables
+a likelihood uses — the density profile $\rho(r)$ and the velocity scale $\sigma_0$
+— are differentiable w.r.t. the **structural parameters** that one fits to data.
+
+:::{figure} figures/king_gradient_validation.png
+:label: val-king-gradient
+:width: 95%
+:align: center
+
+**Gradient validation (autodiff vs central finite difference).** $\partial(\text{observable})/\partial\theta$
+for each structural parameter $\theta$: (a) core radius $r_c$, (b) concentration
+$W_0$, (c) total mass $M_{\rm tot}$. Autodiff (line) and finite difference (circles)
+agree to **max rel.\ err $\le 2\times10^{-6}$** across the parameter range — so
+$(r_c, W_0, M_{\rm tot})$ can be inferred jointly by gradient descent or HMC.
+:::
+
+```{list-table} What is differentiable in the King model.
+:header-rows: 1
+
+* - Parameter
+  - Differentiable?
+  - Notes
+* - $r_c$ (core radius)
+  - ✅ machine precision
+  - The spatial scale; gradients flow through positions, density, and velocities.
+* - $M_{\rm tot}$ (total mass)
+  - ✅ machine precision
+  - Sets the velocity scale $\sigma_0\propto\sqrt{GM}$.
+* - $W_0$ (concentration)
+  - ✅ (profile observables)
+  - Flows through the `diffrax` ODE → $\psi$ → density → CDF → sampling.
+* - $r_t$ (scalar tidal radius)
+  - ⚠️ blocked
+  - $\partial r_t/\partial W_0$ is zeroed by the `argmax` zero-crossing in
+    `_find_tidal_radius`. Fit the profile *shape* (which is differentiable in
+    $W_0$), not the scalar $r_t$, when inferring $W_0$.
+```
 
 ## How to run
 
 ```bash
-# physics tests (24 tests, ~17 s on CPU; ODE integration dominates)
+# physics tests (32 tests, ~30 s on CPU; ODE integration dominates)
 pytest tests/validation/test_king_physics.py -v
 
-# regenerate the four figures with PASS/FAIL tables
+# regenerate the five figures with PASS/FAIL tables
 python scripts/validate_king.py
 ```
 
 ## What this suite does *not* test
 
-- **Extreme concentration at the package default.** `KingProfile.from_W0_rc`
-  defaults to an ODE domain `xi_max=300`, sufficient for $W_0 \le 10$
-  ($\xi_t \le 224$). For $W_0 \gtrsim 11$ the profile would pin to the integration
-  boundary and under-estimate $c$; pass a larger `xi_max` (the concentration
-  figure uses $\le 3000$ for $W_0=15$). The physics tests cover $W_0 \le 9$.
-- **$W_0$ gradients** — $W_0$ is treated as a static parameter; partial
-  differentiability is documented at
-  [](../20-architecture/differentiability.md). The DF *sampling* is
-  differentiable in $r_c$.
 - **Multi-mass / anisotropic / rotating King** — out of scope here; these are
   the generalizations of {cite:t}`Gieles2015` (LIMEPY). progenax does **not**
   cross-validate against LIMEPY.

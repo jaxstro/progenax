@@ -177,13 +177,17 @@ xi_samples = jnp.interp(u, cumulative_mass_normalized, xi_grid)
 r_samples = xi_samples * r_c                              # r in physical units
 ```
 
-The interpolation is differentiable in $r_c$ (and therefore in $r_h$
-via the $r_h(W_0, r_c)$ mapping) but *not* in $W_0$ — changing $W_0$
-changes the underlying ODE solution, which would require differentiating
-the ODE itself. For the rare HMC use case where $W_0$ gradients are
-needed, progenax exposes a finite-difference fallback; for production
-inference, $W_0$ is treated as a fixed structural choice and only $r_h$
-varies.
+The whole chain is differentiable in $r_c$ (and therefore in $r_h$ via
+the $r_h(W_0, r_c)$ mapping). It is **also** differentiable in $W_0$:
+`diffrax` propagates $\partial\psi/\partial W_0$ through the ODE solve, so the
+density profile and any shape-based observable carry correct $W_0$ gradients
+(validated against finite differences in
+[](../../50-validation/king-profile.md)). The one exception is the *scalar*
+tidal radius $r_t$: its $W_0$-derivative is zeroed by the `argmax` zero-crossing
+in `_find_tidal_radius`, so $W_0$ inference should target the profile *shape*
+(differentiable) rather than the scalar $r_t$ readout. This makes joint
+gradient-based / HMC inference of $(W_0, r_c)$ — and, with the velocity DF,
+$M_{\rm tot}$ — feasible.
 
 ## Connection to LIMEPY
 

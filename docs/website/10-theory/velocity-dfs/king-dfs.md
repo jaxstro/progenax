@@ -136,21 +136,24 @@ Using the same `W0`, `r_c`, and `r_t` keeps the profile and DF
 consistent. Pairing a King profile at $W_0 = 7$ with a King DF at
 $W_0 = 5$ would produce a mismatched non-equilibrium IC.
 
-## Differentiability caveat
+## Differentiability
 
-Like the King density profile, the King velocity DF is differentiable
-in $r_h$ (via $r_c$ and $\sigma_0$) but *not* in $W_0$ — the latter
-parameterises the underlying ODE solution and changing it would
-require differentiating through the solver. progenax's standard usage
-treats $W_0$ as a fixed structural choice (held at e.g. $W_0 = 7$ for
-the average Galactic globular cluster) and infers $r_h$ via HMC.
+The King velocity DF is differentiable in $r_c$ (via $\sigma_0$) and in the
+total mass $M_{\rm tot}$ ($\sigma_0\propto\sqrt{GM}$). It is **also**
+differentiable in $W_0$: `diffrax` propagates $\partial\psi/\partial W_0$
+through the ODE solve, so the dispersion profile and other shape observables
+carry correct $W_0$ gradients (gradient-validated in
+[](../../50-validation/king-profile.md)). The lone non-differentiable quantity
+is the *scalar* tidal radius $r_t$, whose $W_0$-derivative is zeroed by the
+`argmax` zero-crossing in `_find_tidal_radius`; inference should therefore use
+the profile *shape* rather than the scalar $r_t$.
 
-For applications that genuinely need $\partial / \partial W_0$
-gradients — e.g. inferring the King concentration of an unresolved
-cluster from photometric data — the recommendation is to use the
-{cite:t}`Gieles2015` LIMEPY family in its $g = 1$ (King-equivalent)
-limit, where the parameter $g$ enters the solution analytically.
-LIMEPY support is not currently implemented in progenax.
+Consequently progenax supports joint gradient-based / HMC inference of the King
+structural parameters $(W_0, r_c, M_{\rm tot})$ directly — e.g. fitting a
+cluster's number-density and velocity-dispersion profiles. The
+{cite:t}`Gieles2015` LIMEPY family (where the truncation parameter $g$ enters
+analytically) remains the natural extension for multi-mass / anisotropic
+generalisations; LIMEPY support is not currently implemented in progenax.
 
 ## Domain of validity
 

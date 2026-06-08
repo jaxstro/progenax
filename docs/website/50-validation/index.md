@@ -35,8 +35,8 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `pytest tests/validation/test_plummer_physics.py`
 * - [profiles/King](king-profile.md)
-  - ✅ (24)
-  - ✅ 4
+  - ✅ (32)
+  - ✅ 5
   - 2026-06-08
   - `python scripts/validate_king.py`
 * - [profiles/EFF](eff-profile.md)
