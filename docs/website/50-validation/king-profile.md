@@ -73,9 +73,11 @@ $W_0 \gtrsim 11$ requires enlarging the ODE domain beyond the package default
 :align: center
 
 **Volume density vs an independent oracle ($W_0=7$).** `KingProfile.density`
-(dashed) coincides with the direct velocity-space integral (solid) and the $N=5\times10^4$
-sample (points) to **max rel $=1.2\times10^{-10}$** (panel b) — confirming the
-lowered-Maxwellian *volume* density $\hat\rho(W)=e^W\,\mathrm{erf}(\sqrt W)-\tfrac{2}{\sqrt\pi}\sqrt W\,(1+\tfrac23 W)$
+(dashed) coincides with the "King DF integral" — the direct velocity-space
+integral $\int_0^{\sqrt{2W}} v^2(e^{W-v^2/2}-1)\,dv$ of the defining DF, computed
+independently (solid) — and with the $N=5\times10^4$ sample (points) to
+**max rel $=1.2\times10^{-10}$** (panel b). This confirms the lowered-Maxwellian
+*volume* density $\hat\rho(W)=e^W\,\mathrm{erf}(\sqrt W)-\tfrac{2}{\sqrt\pi}\sqrt W\,(1+\tfrac23 W)$
 is the form used in the Poisson source.
 :::
 

@@ -39,6 +39,7 @@ import sys
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)
@@ -164,8 +165,8 @@ def fig_concentration(output_dir):
           f"{'PASS' if passed else 'FAIL'}")
 
     fig, (ax0, ax1) = plt.subplots(
-        2, 1, figsize=(3.5, 4.0), sharex=True,
-        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08})
+        2, 1, figsize=(3.6, 4.1), sharex=True,
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.06})
 
     ax0.plot(W0s, c_prog, "-", color=OI["blue"], lw=1.4, zorder=1,
              label=r"progenax $\log_{10}(r_t/r_c)$")
@@ -173,21 +174,21 @@ def fig_concentration(output_dir):
              zorder=2, label="King (1966) Table II")
     ax0.set_ylabel(r"concentration $c = \log_{10}(r_t/r_c)$")
     ax0.set_ylim(0.4, 3.6)
-    ax0.legend(loc="upper left", handletextpad=0.5)
-    _panel_label(ax0, "(a)")
+    ax0.legend(loc="lower right", handletextpad=0.5)
+    _panel_label(ax0, "(a)", loc="upper left")
 
-    ax1.axhspan(-tol, tol, color=OI["green"], alpha=0.18,
-                label=rf"$\pm{tol}$")
+    # symmetric y with headroom above the +/-0.03 band for the legend
+    ax1.axhspan(-tol, tol, color=OI["green"], alpha=0.18, label=rf"$\pm{tol}$ band")
     ax1.axhline(0, color=OI["black"], lw=0.7)
     ax1.plot(W0s, resid, "s", color=OI["vermilion"], ms=5)
     ax1.set_xlabel(r"$W_0$")
     ax1.set_ylabel(r"$\Delta\,\log_{10} c$")
     ax1.set_xlim(1.8, 15.7)
-    ax1.set_ylim(-1.6 * tol, 1.6 * tol)
+    ax1.set_ylim(-0.085, 0.085)
     ax1.legend(loc="upper right", handlelength=1.2)
-    _panel_label(ax1, "(b)")
+    _panel_label(ax1, "(b)", loc="lower left")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.4)
     _save(fig, output_dir, "king_concentration")
     print("  saved king_concentration.{png,pdf}")
     return passed
@@ -236,21 +237,22 @@ def fig_density_oracle(output_dir):
     rho_hist = rho_hist * scale
 
     xr = np.asarray(r) / float(prof.r_c)
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(7.1, 2.9))
+    xmax = float(prof.r_t / prof.r_c)
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(6.8, 3.3))
 
     axA.semilogy(xr, oracle_n, "-", color=OI["black"], lw=2.2,
-                 label=r"King DF integral $\int_0^{\sqrt{2W}}\! v^2(e^{W-v^2/2}\!-\!1)\,dv$")
+                 label="King DF integral")
     axA.semilogy(xr, rho_n, "--", color=OI["blue"],
-                 label=r"progenax $\rho(r)$ (lowered-Maxwellian)")
+                 label=r"progenax $\rho(r)$")
     axA.semilogy(centers[valid] / float(prof.r_c), rho_hist[valid], "o",
                  color=OI["green"], ms=3.5, alpha=0.7, mec="none",
                  label=rf"sampled ($N={N_SAMPLES:,}$)")
     axA.set_xlabel(r"$r / r_c$")
     axA.set_ylabel(r"$\rho(r) / \rho_0$")
-    axA.set_xlim(0, 1.0 * float(prof.r_t / prof.r_c))
+    axA.set_xlim(0, xmax)
     axA.set_ylim(1e-4, 2)
-    axA.legend(loc="lower left")
-    _panel_label(axA, "(a)")
+    axA.legend(loc="upper right")
+    _panel_label(axA, "(a)", loc="lower left")
 
     axB.semilogy(xr, np.maximum(rel, 1e-16), "-", color=OI["blue"], marker="o", ms=3,
                  mec="none")
@@ -258,15 +260,15 @@ def fig_density_oracle(output_dir):
                 label=rf"tolerance $={tol:.0e}$")
     axB.set_xlabel(r"$r / r_c$")
     axB.set_ylabel(r"$|\rho_{\rm method} - \rho_{\rm integral}|\,/\,\rho_{\rm integral}$")
-    axB.set_xlim(0, 1.0 * float(prof.r_t / prof.r_c))
+    axB.set_xlim(0, xmax)
     axB.set_ylim(1e-12, 1e-1)
     axB.legend(loc="upper right")
-    axB.text(0.035, 0.96, rf"max $={max_rel:.1e}$", transform=axB.transAxes,
+    axB.text(0.04, 0.30, rf"max $={max_rel:.1e}$", transform=axB.transAxes,
              fontsize=8, va="top", ha="left",
              bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
     _panel_label(axB, "(b)", loc="lower left")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.4, w_pad=0.8)
     _save(fig, output_dir, "king_density_oracle")
     print("  saved king_density_oracle.{png,pdf}")
     return passed
@@ -351,7 +353,7 @@ def fig_velocity_equilibrium(output_dir):
     print(f"  unscaled virial Q=T/|V|: {Q:.3f} (expect 0.5+-0.05)  "
           f"-> {'PASS' if q_pass else 'FAIL'}")
 
-    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(7.2, 2.6))
+    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(7.2, 2.7))
 
     axA.plot(r_curve, sig_curve, "-", color=OI["black"], lw=1.6,
              label=r"analytic King $\sigma_{1d}(r)$")
@@ -379,16 +381,18 @@ def fig_velocity_equilibrium(output_dir):
                 label=r"equilibrium $\pm0.05$")
     axC.axhline(0.5, color=OI["black"], ls="--", label=r"$Q=0.5$")
     axC.errorbar([0], [Q], fmt="o", color=OI["vermilion"], ms=8, zorder=5)
-    axC.annotate(rf"$Q={Q:.3f}$" + "\n(unscaled IC)", (0, Q),
-                 textcoords="offset points", xytext=(14, 0), va="center", fontsize=8.5)
+    axC.text(0.5, 0.84, rf"$Q={Q:.3f}$", transform=axC.transAxes, ha="center",
+             va="center", fontsize=10, fontweight="bold",
+             bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.6))
     axC.set_xticks([])
-    axC.set_xlim(-0.5, 1.0)
+    axC.set_xlim(-0.6, 0.6)
     axC.set_ylim(0.4, 0.6)
+    axC.set_xlabel("unscaled IC")
     axC.set_ylabel(r"virial ratio $Q = T/|V|$")
-    axC.legend(loc="lower right")
+    axC.legend(loc="lower center")
     _panel_label(axC, "(c)", loc="upper left")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.4, w_pad=0.8)
     _save(fig, output_dir, "king_velocity_equilibrium")
     print("  saved king_velocity_equilibrium.{png,pdf}")
     return passed
@@ -407,10 +411,10 @@ def fig_w0_sweep(output_dir):
     tol = 0.03
     all_pass = True
 
-    fig, ax = plt.subplots(figsize=(3.6, 3.0))
+    fig, ax = plt.subplots(figsize=(3.8, 3.5))
     print(f"  {'W0':>5} {'xi_t_prog':>10} {'c_prog':>8} {'c_TableII':>10} "
           f"{'delta':>8} {'pass':>6}")
-    y_floor = 1e-8
+    y_floor = 1e-12
     for W0, col in zip(W0s, colors):
         prof = KingProfile.from_W0_rc(W0, 1.0, xi_max=400.0, n_ode_points=8000)
         xi_t = float(prof.r_t / prof.r_c)
@@ -422,7 +426,8 @@ def fig_w0_sweep(output_dir):
         print(f"  {W0:>5.1f} {xi_t:>10.2f} {c_prog:>8.3f} {c_ref:>10.3f} "
               f"{d:>+8.3f} {'PASS' if ok else 'FAIL':>6}")
 
-        r = jnp.linspace(0.01, xi_t * 0.999, 600) * prof.r_c
+        # dense grid to ~r_t so the curve plunges to the floor right at xi_t
+        r = jnp.linspace(0.01, xi_t * 0.99999, 4000) * prof.r_c
         rho = np.asarray(prof.density(r))
         rho = rho / rho[0]
         xi = np.asarray(r / prof.r_c)
@@ -436,10 +441,11 @@ def fig_w0_sweep(output_dir):
     ax.set_ylabel(r"$\rho(r) / \rho_0$")
     ax.set_xlim(0, 140)
     ax.set_ylim(y_floor, 2)
-    ax.legend(loc="upper right", title=r"markers: $\xi_t$ = $r_t/r_c$ (King 1966)",
+    ax.yaxis.set_major_locator(mticker.LogLocator(base=10, numticks=8))
+    ax.legend(loc="upper right", title=r"markers: $\xi_t = r_t/r_c$ (King 1966)",
               title_fontsize=7.5)
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.4)
     _save(fig, output_dir, "king_w0_sweep")
     print(f"  xi_t matches Table II for all W0  -> "
           f"{'PASS' if all_pass else 'FAIL'}")
