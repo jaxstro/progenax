@@ -146,6 +146,17 @@ $(r_c, W_0, M_{\rm tot})$ can be inferred jointly by gradient descent or HMC.
     $W_0$), not the scalar $r_t$, when inferring $W_0$.
 ```
 
+:::{seealso} Making $r_t$ differentiable is deferred (not abandoned)
+A differentiable scalar $r_t$ (via the implicit function theorem,
+$\partial\xi_t/\partial W_0 = -\psi_{W_0}/\psi_{\xi}\big|_{\xi_t}$) is a
+non-breaking add-later — the forward value is unchanged. It will be implemented
+when a scalar-$r_t$ use case becomes concrete, the headline driver being
+**tidal-field coupling** $r_t \approx r_J$ (inferring the Galactic potential /
+orbits from cluster limiting radii, wiring in `progenax.tidal.jacobi_radius`).
+Full rationale, the IFT design, and ranked science cases:
+`docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
+:::
+
 ## How to run
 
 ```bash

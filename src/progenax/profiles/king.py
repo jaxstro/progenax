@@ -255,6 +255,15 @@ def _find_tidal_radius(
     Note:
         Uses linear interpolation for precise crossing point.
         If no crossing found, returns last grid point.
+
+        Non-differentiable in W0: the argmax crossing + the psi>=0 clamp in
+        solve_king_profile force the interpolation onto a fixed grid node, so
+        d(xi_t)/dW0 = 0. This is intentional for now -- profile-*shape*
+        observables remain differentiable in W0, which covers structural-
+        parameter inference. Making xi_t differentiable (implicit function
+        theorem, dxi_t/dW0 = -psi_W0/psi_xi) is DEFERRED; rationale + design +
+        science cases (tidal-field/Jacobi coupling) in
+        docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md.
     """
     # Find where psi drops to zero (or below due to numerics)
     crossing_mask = psi_grid <= 0
