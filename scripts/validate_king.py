@@ -82,17 +82,49 @@ OI = {
     "yellow": "#F0E442", "black": "#000000",
 }
 
+# Publication style (ApJ/AAS): serif text + Computer-Modern math, clean spines,
+# inward ticks, vector-friendly. Figures carry no in-figure title (the paper /
+# validation-page caption does that); panel labels + axis labels are self-sufficient.
 plt.rcParams.update({
-    "font.size": 11, "axes.labelsize": 12, "axes.titlesize": 12,
-    "legend.fontsize": 9, "xtick.labelsize": 10, "ytick.labelsize": 10,
-    "figure.dpi": 150, "savefig.dpi": 200, "savefig.bbox": "tight",
-    "axes.grid": True, "grid.alpha": 0.3,
+    "font.family": "serif",
+    "mathtext.fontset": "cm",
+    "font.size": 9,
+    "axes.labelsize": 10,
+    "axes.titlesize": 10,
+    "legend.fontsize": 8,
+    "legend.frameon": False,
+    "xtick.labelsize": 8.5,
+    "ytick.labelsize": 8.5,
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+    "xtick.top": True,
+    "ytick.right": True,
+    "xtick.minor.visible": True,
+    "ytick.minor.visible": True,
+    "axes.linewidth": 0.8,
+    "lines.linewidth": 1.6,
+    "figure.dpi": 150,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "savefig.pad_inches": 0.02,
 })
 
 
-def _panel_label(ax, text):
-    ax.text(0.02, 0.97, text, transform=ax.transAxes, fontsize=13,
-            fontweight="bold", va="top", ha="left")
+def _panel_label(ax, text, loc="upper left"):
+    """Bold (a)/(b)/... tag in a figure corner, on a subtle white patch so it
+    never collides with data or the legend."""
+    x, ha = (0.035, "left") if "left" in loc else (0.965, "right")
+    y, va = (0.96, "top") if "upper" in loc else (0.06, "bottom")
+    ax.text(x, y, text, transform=ax.transAxes, fontsize=11, fontweight="bold",
+            va=va, ha=ha,
+            bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
+
+
+def _save(fig, output_dir, stem):
+    """Save publication PNG (raster) + PDF (vector) for the same figure."""
+    fig.savefig(f"{output_dir}/{stem}.png")
+    fig.savefig(f"{output_dir}/{stem}.pdf")
+    plt.close(fig)
 
 
 def _direct_velocity_integral(W, n_v=100_000):
@@ -132,33 +164,32 @@ def fig_concentration(output_dir):
           f"{'PASS' if passed else 'FAIL'}")
 
     fig, (ax0, ax1) = plt.subplots(
-        2, 1, figsize=(7, 6.2), sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]})
+        2, 1, figsize=(3.5, 4.0), sharex=True,
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.08})
 
-    ax0.plot(W0s, c_ref, "o", color=OI["black"], ms=8, mfc="none", mew=1.8,
-             label="King (1966) Table II")
-    ax0.plot(W0s, c_prog, "-", color=OI["blue"], lw=2, marker=".", ms=10,
-             label="progenax  $\\log_{10}(r_t/r_c)$")
-    ax0.set_ylabel("concentration  $c = \\log_{10}(r_t/r_c)$")
-    ax0.set_title("King concentration relation vs King (1966) Table II")
-    ax0.legend(loc="upper left")
-    _panel_label(ax0, "a")
+    ax0.plot(W0s, c_prog, "-", color=OI["blue"], lw=1.4, zorder=1,
+             label=r"progenax $\log_{10}(r_t/r_c)$")
+    ax0.plot(W0s, c_ref, "o", color=OI["black"], ms=5, mfc="none", mew=1.1,
+             zorder=2, label="King (1966) Table II")
+    ax0.set_ylabel(r"concentration $c = \log_{10}(r_t/r_c)$")
+    ax0.set_ylim(0.4, 3.6)
+    ax0.legend(loc="upper left", handletextpad=0.5)
+    _panel_label(ax0, "(a)")
 
     ax1.axhspan(-tol, tol, color=OI["green"], alpha=0.18,
-                label=f"$\\pm{tol}$ tolerance")
-    ax1.axhline(0, color=OI["black"], lw=0.8)
-    ax1.plot(W0s, resid, "s", color=OI["vermilion"], ms=6)
-    ax1.set_xlabel("$W_0$")
-    ax1.set_ylabel("$\\Delta\\,\\log_{10} c$")
-    ax1.set_ylim(-1.5 * tol, 1.5 * tol)
-    ax1.legend(loc="upper right")
-    _panel_label(ax1, "b")
+                label=rf"$\pm{tol}$")
+    ax1.axhline(0, color=OI["black"], lw=0.7)
+    ax1.plot(W0s, resid, "s", color=OI["vermilion"], ms=5)
+    ax1.set_xlabel(r"$W_0$")
+    ax1.set_ylabel(r"$\Delta\,\log_{10} c$")
+    ax1.set_xlim(1.8, 15.7)
+    ax1.set_ylim(-1.6 * tol, 1.6 * tol)
+    ax1.legend(loc="upper right", handlelength=1.2)
+    _panel_label(ax1, "(b)")
 
     fig.tight_layout()
-    path = f"{output_dir}/king_concentration.png"
-    fig.savefig(path)
-    plt.close(fig)
-    print(f"  saved {path}")
+    _save(fig, output_dir, "king_concentration")
+    print("  saved king_concentration.{png,pdf}")
     return passed
 
 
@@ -204,37 +235,40 @@ def fig_density_oracle(output_dir):
     scale = np.median(method_at_centers[valid] / rho_hist[valid])
     rho_hist = rho_hist * scale
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(12, 4.6))
+    xr = np.asarray(r) / float(prof.r_c)
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(7.1, 2.9))
 
-    axA.semilogy(np.asarray(r) / prof.r_c, oracle_n, "-", color=OI["black"],
-                 lw=2.5, label="direct $\\int v^2(e^{W-v^2/2}-1)\\,dv$ (oracle)")
-    axA.semilogy(np.asarray(r) / prof.r_c, rho_n, "--", color=OI["blue"], lw=2,
-                 label="progenax  $\\rho(r)$ (lowered-Maxwellian)")
+    axA.semilogy(xr, oracle_n, "-", color=OI["black"], lw=2.2,
+                 label=r"King DF integral $\int_0^{\sqrt{2W}}\! v^2(e^{W-v^2/2}\!-\!1)\,dv$")
+    axA.semilogy(xr, rho_n, "--", color=OI["blue"],
+                 label=r"progenax $\rho(r)$ (lowered-Maxwellian)")
     axA.semilogy(centers[valid] / float(prof.r_c), rho_hist[valid], "o",
-                 color=OI["green"], ms=4, alpha=0.7,
-                 label=f"sampled (N={N_SAMPLES:,})")
-    axA.set_xlabel("$r / r_c$")
-    axA.set_ylabel("$\\rho(r) / \\rho_0$")
-    axA.set_title("King volume density vs independent oracle ($W_0=7$)")
+                 color=OI["green"], ms=3.5, alpha=0.7, mec="none",
+                 label=rf"sampled ($N={N_SAMPLES:,}$)")
+    axA.set_xlabel(r"$r / r_c$")
+    axA.set_ylabel(r"$\rho(r) / \rho_0$")
+    axA.set_xlim(0, 1.0 * float(prof.r_t / prof.r_c))
     axA.set_ylim(1e-4, 2)
     axA.legend(loc="lower left")
-    _panel_label(axA, "a")
+    _panel_label(axA, "(a)")
 
-    axB.axhline(tol, color=OI["green"], ls="--", lw=1.5,
-                label=f"tolerance {tol:.0e}")
-    axB.plot(np.asarray(r) / prof.r_c, rel, "o-", color=OI["blue"], ms=4)
-    axB.set_yscale("log")
-    axB.set_xlabel("$r / r_c$")
-    axB.set_ylabel("relative deviation |method - oracle| / oracle")
-    axB.set_title(f"Agreement with oracle (max = {max_rel:.1e})")
-    axB.legend(loc="upper left")
-    _panel_label(axB, "b")
+    axB.semilogy(xr, np.maximum(rel, 1e-16), "-", color=OI["blue"], marker="o", ms=3,
+                 mec="none")
+    axB.axhline(tol, color=OI["vermilion"], ls="--",
+                label=rf"tolerance $={tol:.0e}$")
+    axB.set_xlabel(r"$r / r_c$")
+    axB.set_ylabel(r"$|\rho_{\rm method} - \rho_{\rm integral}|\,/\,\rho_{\rm integral}$")
+    axB.set_xlim(0, 1.0 * float(prof.r_t / prof.r_c))
+    axB.set_ylim(1e-12, 1e-1)
+    axB.legend(loc="upper right")
+    axB.text(0.035, 0.96, rf"max $={max_rel:.1e}$", transform=axB.transAxes,
+             fontsize=8, va="top", ha="left",
+             bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
+    _panel_label(axB, "(b)", loc="lower left")
 
     fig.tight_layout()
-    path = f"{output_dir}/king_density_oracle.png"
-    fig.savefig(path)
-    plt.close(fig)
-    print(f"  saved {path}")
+    _save(fig, output_dir, "king_density_oracle")
+    print("  saved king_density_oracle.{png,pdf}")
     return passed
 
 
@@ -268,9 +302,10 @@ def fig_velocity_equilibrium(output_dir):
     v2_d = jnp.sum(vel_d**2, axis=1)
 
     bins_phys = [(0.5, 1.5), (2.0, 4.0), (5.0, 9.0)]
-    bin_mid, sig_samp, sig_ana, sig_rel = [], [], [], []
+    bin_mid, sig_samp, sig_ana, sig_rel, sig_err = [], [], [], [], []
     for lo, hi in bins_phys:
         msk = (r_d >= lo) & (r_d < hi)
+        n_bin = int(jnp.sum(msk))
         W_bin = float(jnp.mean(jnp.interp(
             r_d[msk] / prof.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)))
         s_s = float(jnp.sqrt(jnp.mean(v2_d[msk]) / 3.0))
@@ -279,7 +314,15 @@ def fig_velocity_equilibrium(output_dir):
         sig_samp.append(s_s)
         sig_ana.append(float(s_a))
         sig_rel.append(abs(s_s - s_a) / s_a)
+        sig_err.append(s_s / np.sqrt(2.0 * max(n_bin - 1, 1)))  # std-error on sigma
     disp_pass = all(x < 0.12 for x in sig_rel)
+
+    # smooth analytic sigma_1d(r) over the full radial range for the figure
+    r_curve = np.linspace(0.1, 0.97 * float(prof.r_t), 80)
+    W_curve = np.asarray(jnp.interp(
+        r_curve / float(prof.r_c), df.xi_grid, df.psi_grid, left=df.W0, right=0.0))
+    sig_curve = np.array([sigma * np.sqrt(_u2_mean(float(w)) / 3.0)
+                          if w > 1e-6 else 0.0 for w in W_curve])
 
     # --- boundedness + virial (separate seeds, matching the tests) ---
     m_v = jnp.ones(N_VIRIAL)
@@ -308,48 +351,46 @@ def fig_velocity_equilibrium(output_dir):
     print(f"  unscaled virial Q=T/|V|: {Q:.3f} (expect 0.5+-0.05)  "
           f"-> {'PASS' if q_pass else 'FAIL'}")
 
-    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(14.5, 4.4))
+    fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(7.2, 2.6))
 
-    axA.plot(bin_mid, sig_ana, "-o", color=OI["black"], ms=7,
-             label="analytic King 2nd moment")
-    axA.plot(bin_mid, sig_samp, "s", color=OI["blue"], ms=8,
-             label=f"sampled (N={N_DISPERSION:,})")
-    for x, ss, rl in zip(bin_mid, sig_samp, sig_rel):
-        axA.annotate(f"{rl:.1%}", (x, ss), textcoords="offset points",
-                     xytext=(6, 6), fontsize=8, color=OI["vermilion"])
-    axA.set_xlabel("$r$ [pc]")
-    axA.set_ylabel("$\\sigma_{1d}(r)$ [km/s, code units]")
-    axA.set_title("Dispersion vs King moment (rel < 12%)")
-    axA.legend(loc="upper right")
-    _panel_label(axA, "a")
+    axA.plot(r_curve, sig_curve, "-", color=OI["black"], lw=1.6,
+             label=r"analytic King $\sigma_{1d}(r)$")
+    axA.errorbar(bin_mid, sig_samp, yerr=sig_err, fmt="s", color=OI["blue"],
+                 ms=5, capsize=2.5, lw=1.0, label=rf"sampled ($N={N_DISPERSION:,}$)")
+    axA.set_xlabel(r"$r$ [pc]")
+    axA.set_ylabel(r"$\sigma_{1d}(r)$ [pc Myr$^{-1}$]")
+    axA.set_xlim(0, 12)
+    axA.set_ylim(0, 3.4)
+    axA.legend(loc="lower left")
+    _panel_label(axA, "(a)", loc="upper right")
 
-    axB.hist(ratio, bins=50, color=OI["sky"], edgecolor="k", linewidth=0.3)
-    axB.axvline(1.0, color=OI["vermilion"], ls="--", lw=2,
-                label="$v = v_{esc}$")
-    axB.set_xlabel("$v / v_{esc}(r)$")
+    axB.hist(ratio, bins=40, color=OI["sky"], edgecolor="white", linewidth=0.3)
+    axB.axvline(1.0, color=OI["vermilion"], ls="--", lw=1.4)
+    axB.text(0.97, 0.5, r"$v_{\rm esc}$", transform=axB.get_xaxis_transform(),
+             rotation=90, va="center", ha="right", color=OI["vermilion"], fontsize=8.5)
+    axB.text(0.5, 0.92, rf"{bound_frac*100:.1f}% bound", transform=axB.transAxes,
+             ha="center", va="top", fontsize=8.5)
+    axB.set_xlabel(r"$v / v_{\rm esc}(r)$")
     axB.set_ylabel("count")
-    axB.set_title(f"Boundedness: {bound_frac*100:.1f}% have $v \\leq v_{{esc}}$")
-    axB.legend(loc="upper right")
-    _panel_label(axB, "b")
+    axB.set_xlim(0, 1.08)
+    _panel_label(axB, "(b)", loc="upper left")
 
-    axC.bar([0], [Q], width=0.5, color=OI["green"], edgecolor="k")
-    axC.axhline(0.5, color=OI["black"], ls="--", lw=2, label="equilibrium $Q=0.5$")
-    axC.axhspan(0.45, 0.55, color=OI["green"], alpha=0.15, label="$\\pm0.05$ tol")
-    axC.set_xticks([0])
-    axC.set_xticklabels(["unscaled IC"])
-    axC.set_ylim(0, 0.7)
-    axC.set_ylabel("virial ratio  $Q = T/|V|$")
-    axC.set_title(f"Unscaled virial $Q = {Q:.3f}$")
-    axC.annotate(f"{Q:.3f}", (0, Q), textcoords="offset points",
-                 xytext=(0, 6), ha="center", fontsize=11, fontweight="bold")
-    axC.legend(loc="upper right")
-    _panel_label(axC, "c")
+    axC.axhspan(0.45, 0.55, color=OI["green"], alpha=0.15,
+                label=r"equilibrium $\pm0.05$")
+    axC.axhline(0.5, color=OI["black"], ls="--", label=r"$Q=0.5$")
+    axC.errorbar([0], [Q], fmt="o", color=OI["vermilion"], ms=8, zorder=5)
+    axC.annotate(rf"$Q={Q:.3f}$" + "\n(unscaled IC)", (0, Q),
+                 textcoords="offset points", xytext=(14, 0), va="center", fontsize=8.5)
+    axC.set_xticks([])
+    axC.set_xlim(-0.5, 1.0)
+    axC.set_ylim(0.4, 0.6)
+    axC.set_ylabel(r"virial ratio $Q = T/|V|$")
+    axC.legend(loc="lower right")
+    _panel_label(axC, "(c)", loc="upper left")
 
     fig.tight_layout()
-    path = f"{output_dir}/king_velocity_equilibrium.png"
-    fig.savefig(path)
-    plt.close(fig)
-    print(f"  saved {path}")
+    _save(fig, output_dir, "king_velocity_equilibrium")
+    print("  saved king_velocity_equilibrium.{png,pdf}")
     return passed
 
 
@@ -366,9 +407,10 @@ def fig_w0_sweep(output_dir):
     tol = 0.03
     all_pass = True
 
-    fig, ax = plt.subplots(figsize=(7.5, 5.4))
+    fig, ax = plt.subplots(figsize=(3.6, 3.0))
     print(f"  {'W0':>5} {'xi_t_prog':>10} {'c_prog':>8} {'c_TableII':>10} "
           f"{'delta':>8} {'pass':>6}")
+    y_floor = 1e-8
     for W0, col in zip(W0s, colors):
         prof = KingProfile.from_W0_rc(W0, 1.0, xi_max=400.0, n_ode_points=8000)
         xi_t = float(prof.r_t / prof.r_c)
@@ -380,29 +422,28 @@ def fig_w0_sweep(output_dir):
         print(f"  {W0:>5.1f} {xi_t:>10.2f} {c_prog:>8.3f} {c_ref:>10.3f} "
               f"{d:>+8.3f} {'PASS' if ok else 'FAIL':>6}")
 
-        r = jnp.linspace(0.01, xi_t * 0.999, 400) * prof.r_c
+        r = jnp.linspace(0.01, xi_t * 0.999, 600) * prof.r_c
         rho = np.asarray(prof.density(r))
         rho = rho / rho[0]
         xi = np.asarray(r / prof.r_c)
-        ax.semilogy(xi, rho, "-", color=col, lw=2,
-                    label=f"$W_0={W0:.0f}$  ($\\xi_t={xi_t:.1f}$, $c={c_prog:.2f}$)")
-        ax.axvline(xi_t, color=col, ls=":", lw=1.2, alpha=0.8)
+        ax.semilogy(xi, rho, "-", color=col, lw=1.6,
+                    label=rf"$W_0={W0:.0f}$ ($\xi_t={xi_t:.0f}$)")
+        ax.axvline(xi_t, color=col, ls=":", lw=1.0, alpha=0.8)
+        # marker at the truncation radius, on the floor, ties curve <-> xi_t line
+        ax.plot([xi_t], [y_floor], marker="^", color=col, ms=5, clip_on=False)
 
-    ax.set_xlabel("$r / r_c$")
-    ax.set_ylabel("$\\rho(r) / \\rho_0$")
-    ax.set_title("King profile concentration sweep "
-                 "(dotted = natural $\\xi_t = r_t/r_c$ vs Table II)")
+    ax.set_xlabel(r"$r / r_c$")
+    ax.set_ylabel(r"$\rho(r) / \rho_0$")
     ax.set_xlim(0, 140)
-    ax.set_ylim(1e-7, 2)
-    ax.legend(loc="upper right")
+    ax.set_ylim(y_floor, 2)
+    ax.legend(loc="upper right", title=r"markers: $\xi_t$ = $r_t/r_c$ (King 1966)",
+              title_fontsize=7.5)
 
     fig.tight_layout()
-    path = f"{output_dir}/king_w0_sweep.png"
-    fig.savefig(path)
-    plt.close(fig)
+    _save(fig, output_dir, "king_w0_sweep")
     print(f"  xi_t matches Table II for all W0  -> "
           f"{'PASS' if all_pass else 'FAIL'}")
-    print(f"  saved {path}")
+    print("  saved king_w0_sweep.{png,pdf}")
     return all_pass
 
 

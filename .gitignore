@@ -225,6 +225,8 @@ docs/core-papers/
 # macOS
 .DS_Store
 
-# Curated, verified validation figures embedded in the website (committed exception to *.png)
+# Curated, verified validation figures embedded in the website (committed exception
+# to *.png/*.pdf): PNG for the rendered site, PDF as paper-ready vectors.
 !docs/website/50-validation/figures/
 !docs/website/50-validation/figures/*.png
+!docs/website/50-validation/figures/*.pdf
