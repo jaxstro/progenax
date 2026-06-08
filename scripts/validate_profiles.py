@@ -34,8 +34,15 @@ from scipy import stats
 
 jax.config.update("jax_enable_x64", True)
 
-from progenax.profiles import PlummerProfile, KingProfile, EFFProfile, solve_king_profile
-from progenax.profiles.king import king_K_function
+from progenax.profiles import PlummerProfile, KingProfile, EFFProfile
+
+# NOTE (2026-06-08 audit): the King validation figures now live in
+# scripts/validate_king.py (4 figures anchored to test_king_physics.py). The old
+# in-file validate_king() here imported king_K_function — removed in the
+# lowered-Maxwellian rewrite because the K-function over-extends the volume
+# profile 2-30x — and plotted it as the "analytical" reference, so it was both
+# un-importable and scientifically wrong. It has been excised. The Plummer/EFF
+# figure sections below are pending their own module audits.
 
 
 # =============================================================================
@@ -225,168 +232,6 @@ def validate_plummer(output_dir: str):
         'passed': passed
     }
 
-
-# =============================================================================
-# King Profile Validation
-# =============================================================================
-
-def validate_king(output_dir: str):
-    """Validate KingProfile implementation."""
-    print("\n" + "="*60)
-    print("KING PROFILE VALIDATION")
-    print("="*60)
-
-    # Test with W0=7 (typical globular cluster)
-    W0 = 7.0
-    r_c = 1.0
-    profile = KingProfile.from_W0_rc(W0=W0, r_c=r_c)
-
-    key = jax.random.PRNGKey(SEED)
-    masses = jnp.ones(N_SAMPLES)
-    positions = profile.sample_positions(masses, key)
-    radii = jnp.linalg.norm(positions, axis=1)
-
-    # -------------------------------------------------------------------------
-    # Compute metrics FIRST (needed for plot annotations)
-    # -------------------------------------------------------------------------
-    max_r = float(jnp.max(radii))
-    r_t = float(profile.r_t)
-    truncation_ok = max_r <= r_t * 1.001  # Allow 0.1% numerical tolerance
-    c_measured = np.log10(r_t / r_c)
-
-    # CDF deviation metrics using precomputed CDF
-    sorted_r, ecdf = compute_empirical_cdf(radii)
-    # Interpolate theoretical CDF at sampled radii
-    theoretical_cdf = jnp.interp(sorted_r, profile._r_grid, profile._cdf_grid)
-    cdf_deviations = jnp.abs(ecdf - theoretical_cdf)
-    max_cdf_deviation = float(jnp.max(cdf_deviations))
-    mean_cdf_deviation = float(jnp.mean(cdf_deviations))
-
-    # -------------------------------------------------------------------------
-    # Figure 1: King ODE Solution & Density
-    # -------------------------------------------------------------------------
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-
-    # Panel A: ODE solution (psi vs xi)
-    ax = axes[0]
-    xi_grid, psi_grid = solve_king_profile(W0, xi_max=50.0, n_points=500)
-
-    ax.plot(xi_grid, psi_grid, 'b-', lw=2)
-    ax.axhline(0, color='gray', ls='--', alpha=0.5)
-    ax.axvline(float(profile.r_t / r_c), color='r', ls='--', alpha=0.7, label=f'$\\xi_t = {float(profile.r_t/r_c):.2f}$')
-
-    ax.set_xlabel('$\\xi = r/r_c$')
-    ax.set_ylabel('$\\psi(\\xi)$')
-    ax.set_title(f'King ODE Solution ($W_0 = {W0}$)')
-    ax.set_xlim(0, 50)
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    # Panel B: Density profile
-    ax = axes[1]
-    r_grid = jnp.linspace(0.01, float(profile.r_t) * 0.99, 200)
-
-    # Compute density using K-function formula
-    xi = r_grid / r_c
-    psi_vals = jnp.interp(xi, profile.xi_grid, profile.psi_grid, left=W0, right=0.0)
-    K_W0 = king_K_function(W0)
-    K_W0_minus_psi = king_K_function(W0 - psi_vals)
-    rho_analytical = jnp.where(K_W0 > 1e-10, (K_W0 - K_W0_minus_psi) / K_W0, 0.0)
-
-    # Computed density
-    rho_computed = profile.density(r_grid)
-
-    ax.semilogy(r_grid / r_c, rho_analytical, 'b-', lw=2, label='Analytical (K-function)')
-    ax.semilogy(r_grid / r_c, rho_computed, 'r--', lw=2, label='density(r) method')
-
-    # Histogram from samples
-    r_max = float(profile.r_t)
-    bins = np.linspace(0, r_max / r_c, 50)
-    bin_centers = 0.5 * (bins[:-1] + bins[1:])
-    hist, _ = np.histogram(np.array(radii / r_c), bins=bins, density=False)
-    dr = bins[1] - bins[0]
-    shell_volume = 4 * np.pi * (bin_centers * r_c)**2 * dr * r_c
-    rho_hist = hist / shell_volume
-    # Normalize by matching to analytical curve at bin centers (robust median scaling)
-    rho_analytical_at_bins = np.interp(bin_centers, np.array(r_grid / r_c), np.array(rho_analytical))
-    valid = (rho_hist > 0) & (rho_analytical_at_bins > 1e-10)
-    if np.any(valid):
-        scale = np.median(rho_analytical_at_bins[valid] / rho_hist[valid])
-        rho_hist = rho_hist * scale
-    ax.semilogy(bin_centers[valid], rho_hist[valid], 'go', ms=4, alpha=0.6, label=f'Samples (N={N_SAMPLES})')
-
-    ax.axvline(float(profile.r_t / r_c), color='gray', ls=':', alpha=0.5, label='$r_t$')
-    ax.set_xlabel('$r / r_c$')
-    ax.set_ylabel('$\\rho(r) / \\rho_0$')
-    ax.set_title(f'King Density Profile ($W_0 = {W0}$)')
-    ax.set_xlim(0, float(profile.r_t / r_c) * 1.1)
-    ax.legend(loc='upper right', fontsize=9)
-    ax.grid(True, alpha=0.3)
-
-    # Add metrics text box
-    metrics_text = (
-        f"Validation Metrics:\n"
-        f"Max CDF dev: {max_cdf_deviation:.4f}\n"
-        f"Mean CDF dev: {mean_cdf_deviation:.4f}\n"
-        f"$c = \\log_{{10}}(r_t/r_c)$: {c_measured:.3f}\n"
-        f"Truncation: {'OK' if truncation_ok else 'FAIL'}"
-    )
-    ax.text(0.98, 0.60, metrics_text, transform=ax.transAxes, fontsize=8,
-            verticalalignment='top', horizontalalignment='right',
-            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-
-    # Panel C: Concentration effect
-    ax = axes[2]
-    W0_values = [3, 5, 7, 9]
-    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(W0_values)))
-
-    for W0_test, color in zip(W0_values, colors):
-        profile_test = KingProfile.from_W0_rc(W0=W0_test, r_c=1.0)
-        r_grid_test = jnp.linspace(0.01, float(profile_test.r_t) * 0.99, 200)
-        rho_test = profile_test.density(r_grid_test)
-        rho_test = rho_test / rho_test[0]  # Normalize
-        ax.semilogy(r_grid_test / profile_test.r_c, rho_test, '-', lw=2,
-                   color=color, label=f'$W_0 = {W0_test}$')
-
-    ax.set_xlabel('$r / r_c$')
-    ax.set_ylabel('$\\rho(r) / \\rho_0$')
-    ax.set_title('King Profile: Concentration Effect')
-    ax.legend(loc='upper right')
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0, 30)
-    ax.set_ylim(1e-6, 2)
-
-    plt.tight_layout()
-    plt.savefig(f'{output_dir}/profiles_king_density.png')
-    plt.close()
-    print("  ✓ King density plot saved")
-
-    # -------------------------------------------------------------------------
-    # Print results (metrics already computed above)
-    # -------------------------------------------------------------------------
-    passed = truncation_ok and max_cdf_deviation < 0.02
-
-    print(f"\n  Quantitative Results:")
-    print(f"  ---------------------")
-    print(f"  W0:                         {W0:.1f}")
-    print(f"  Core radius (r_c):          {r_c:.4f}")
-    print(f"  Tidal radius (r_t):         {r_t:.4f}")
-    print(f"  Concentration c:            {c_measured:.3f}")
-    print(f"  Max CDF deviation:          {max_cdf_deviation:.4f}  (target < 0.02)")
-    print(f"  Mean CDF deviation:         {mean_cdf_deviation:.4f}")
-    print(f"  Max sampled radius:         {max_r:.4f}")
-    print(f"  Truncation test:            {'PASS' if truncation_ok else 'FAIL'}")
-    print(f"  Overall:                    {'PASS' if passed else 'FAIL'}")
-
-    return {
-        'W0': W0,
-        'r_t': r_t,
-        'concentration': c_measured,
-        'max_cdf_deviation': max_cdf_deviation,
-        'mean_cdf_deviation': mean_cdf_deviation,
-        'truncation_ok': truncation_ok,
-        'passed': passed
-    }
 
 
 # =============================================================================
@@ -737,9 +582,9 @@ def main():
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # Run validations
+    # Run validations (King figures live in scripts/validate_king.py since the
+    # 2026-06-08 audit; see note at top of this module)
     plummer_results = validate_plummer(OUTPUT_DIR)
-    king_results = validate_king(OUTPUT_DIR)
     eff_results = validate_eff(OUTPUT_DIR)
     isotropy_results = validate_isotropy(OUTPUT_DIR)
     plot_comparison_panel(OUTPUT_DIR)
@@ -762,14 +607,6 @@ def main():
 
     print("├─────────────────────────────────────────────────────────────────┤")
 
-    print(f"│ King Profile:                                                   │")
-    print(f"│   Max CDF deviation:   {king_results['max_cdf_deviation']:6.4f}   (target < 0.02)           │")
-    print(f"│   Concentration c:     {king_results['concentration']:6.3f}                                  │")
-    print(f"│   Truncation:          {'✓ OK' if king_results['truncation_ok'] else '✗ FAIL'}                                     │")
-    print(f"│   Status:              {'✓ PASS' if king_results['passed'] else '✗ FAIL'}                                   │")
-
-    print("├─────────────────────────────────────────────────────────────────┤")
-
     print(f"│ EFF Profile:                                                    │")
     print(f"│   Max CDF deviation:   {eff_results['max_cdf_deviation']:6.4f}   (target < 0.02)           │")
     print(f"│   gamma slope:         {eff_results['measured_gamma']:6.2f}   (expected: {eff_results['gamma']:.1f})            │")
@@ -788,7 +625,6 @@ def main():
     # Overall pass/fail
     all_passed = (
         plummer_results['passed'] and
-        king_results['passed'] and
         eff_results['passed'] and
         all(r['passed'] for r in isotropy_results.values())
     )
@@ -802,7 +638,6 @@ def main():
 
     print(f"\nPlots saved to: {OUTPUT_DIR}/")
     print("  - profiles_plummer_density.png")
-    print("  - profiles_king_density.png")
     print("  - profiles_eff_density.png")
     print("  - profiles_isotropy.png")
     print("  - profiles_comparison.png")

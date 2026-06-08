@@ -1,6 +1,6 @@
 # progenax — status
 
-next: NEW SESSION — systematic validation audit of all progenax modules + pub-quality methods figures. Entry point: docs/plans/2026-06-08-validation-audit-and-methods-figures-spec.md (per-module: brainstorm plot set → build pub-quality figures → embed on 50-validation page → BUILD-VERIFY render → update index dashboard). Refactor/remove stale validate scripts as found. Done so far: mass-segregation/plummer/two-component pages current+figure-bearing+build-verified; Λ_MSR validated; Tier C built.
+next: Validation audit — RESUME AT profiles/EFF (step 1 status check → brainstorm plot set → build). Entry point: docs/plans/2026-06-08-validation-audit-and-methods-figures-spec.md (per-module: brainstorm plot set → build pub-quality figures → embed on 50-validation page → BUILD-VERIFY render → update index dashboard). Done so far: mass-segregation/plummer/two-component + **King (2026-06-08)** pages current+figure-bearing+build-verified; Λ_MSR validated; Tier C built. King: 4 figures (concentration vs Table II, density-vs-oracle, velocity equilibrium, W₀ sweep) via scripts/validate_king.py; index dashboard added; validate_profiles.py broken King section excised. EFF figure rewrite in validate_profiles.py deferred to the EFF audit.
 blocker: none
 due:
 

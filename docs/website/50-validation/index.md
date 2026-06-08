@@ -16,6 +16,66 @@ quantitative match between progenax output and an analytical or
 published-observational ground truth, with explicit pass/fail
 tolerances.
 
+## Status dashboard
+
+The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)
+embedded on the page; ⚠️ = tested but page/figures pending the module audit.
+
+```{list-table}
+:header-rows: 1
+
+* - Module
+  - Validated (tests pass)
+  - Figures on page
+  - Last verified
+  - Run command
+* - [profiles/Plummer](plummer-equilibrium.md)
+  - ✅
+  - ✅ 1
+  - 2026-06-08
+  - `pytest tests/validation/test_plummer_physics.py`
+* - [profiles/King](king-profile.md)
+  - ✅ (24)
+  - ✅ 4
+  - 2026-06-08
+  - `python scripts/validate_king.py`
+* - [profiles/EFF](eff-profile.md)
+  - ✅
+  - ⚠️ pending
+  - —
+  - `pytest tests/validation/test_eff_physics.py`
+* - [cluster/two-component](two-component.md)
+  - ✅
+  - ✅ 1
+  - 2026-06-08
+  - `python scripts/validate_cluster_ic.py`
+* - [diagnostics/Λ_MSR + segregation](mass-segregation.md)
+  - ✅ (8)
+  - ✅ 4
+  - 2026-06-08
+  - `python scripts/validate_mass_segregation.py`
+* - [imf statistics](imf-statistics.md)
+  - ✅
+  - ⚠️ pending
+  - —
+  - `pytest tests/validation/test_imf_physics.py`
+* - [binary / Moe IMF](binary-imf.md)
+  - ✅
+  - ⚠️ pending
+  - —
+  - `pytest tests/validation/test_binary_physics.py`
+* - [analytical test cases](analytical-test-cases.md)
+  - ✅
+  - ⚠️ pending
+  - —
+  - `pytest tests/validation/test_analytical_physics.py`
+* - [gravoturbulent / PP20](gravoturbulent-pp20.md)
+  - ✅
+  - ⚠️ pending
+  - —
+  - `pytest tests/validation -k pp20`
+```
+
 ## Map of the section
 
 ```{list-table}
