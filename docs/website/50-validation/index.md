@@ -77,10 +77,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `python scripts/validate_imfs.py`
 * - [binary / Moe IMF](binary-imf.md)
-  - ✅
-  - ⚠️ pending
-  - —
-  - `pytest tests/validation/test_binary_physics.py`
+  - ✅ (24)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_binaries.py`
 * - [analytical test cases](analytical-test-cases.md)
   - ✅
   - ⚠️ pending

@@ -145,9 +145,9 @@ A useful trust grading:
 * - Layer
   - State
 * - **Validated (publication tier: unit + integration + validation + figures)**
-  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08). IMF binary engine + tidal truncation validated in prior work.
+  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08); [binary-imf](binary-imf.md) (24 orbital tests + 5 figures incl. the regenerated "confidently wrong" recovery, 2026-06-08). Tidal truncation validated in prior work.
 * - **Released, tested, *not yet figure-validated*** ⚠️
-  - [binary-imf](binary-imf.md), [analytical-test-cases](analytical-test-cases.md) — validation tests pass, but no figures/measured tables yet.
+  - [analytical-test-cases](analytical-test-cases.md) — validation tests pass, but no figures/measured tables yet.
 * - **Released, *unit-tested only*** ⚠️
   - [tidal-truncation](tidal-truncation.md) (`jacobi_radius`, `apply_tidal_truncation`) — `tests/unit/test_tidal.py` only; no validation-tier test or figures.
 * - **Experimental (repo-only, not in the wheel)** 🔬
@@ -215,7 +215,7 @@ Scoped to the *validated, differentiable* capability:
 **Released, tested, missing only figures/pages (do these next):**
 
 - ✅ [imf-statistics](imf-statistics.md) — **DONE 2026-06-08**: recovered slopes (sample MLE), PDF/CDF coverage + KS, `mean_mass()` vs 200k log-grid ref (with the linear-grid failure mode), and inference-layer gradient validation (5 figures, `scripts/validate_imfs.py`).
-- [binary-imf](binary-imf.md) — forward-model + binary-aware likelihood ("confidently wrong" regime).
+- ✅ [binary-imf](binary-imf.md) — **DONE 2026-06-08**: Kepler/orbit oracles, Moe+17 q-distribution (mass-dependent twin excess), the regenerated "confidently wrong" recovery (naive single-star fit 18σ-wrong at N=10⁵ vs binary-aware 0.4σ, via fast MLE — no MCMC), bias-vs-f_b mechanism, and grad validation (5 figures, `scripts/validate_binaries.py`).
 - [analytical-test-cases](analytical-test-cases.md) — two-body Kepler, figure-eight, harmonic oscillator (exact-solution checks).
 - [tidal-truncation](tidal-truncation.md) — **needs a validation-tier test first**, then a Jacobi-radius/truncation figure.
 

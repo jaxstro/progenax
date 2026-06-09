@@ -16,7 +16,8 @@ When those companions are unresolved, the IMF inferred from observed
 
 This chapter is the single source of truth for the **binary-aware IMF
 recovery** pipeline implemented in `progenax.imf.BinaryIMF` and exercised
-in `validation/imf/binary_aware_validation.py`. It derives the system mass
+in `scripts/validate_binaries.py` (fast MLE) and
+`validation/imf/validate_binary_aware_recovery.py` (full numpyro NUTS). It derives the system mass
 function under the {cite:t}`MoeDiStefano2017` joint binary statistics, formulates a
 likelihood that marginalises over latent binary status and mass ratio, and
 quantifies the regime — sample size $N \gtrsim 10^4$ — where the naive
@@ -401,8 +402,9 @@ The pipeline lives in three modules:
 - `progenax.binaries.MoeEccentricity` and friends — the joint binary
   statistics tables used by `BinaryIMF` (see
   [](../binaries/period-distributions.md)).
-- `validation/imf/binary_aware_validation.py` — the regression suite
-  that produces the "$N$ vs. CI vs. bias" table above.
+- `scripts/validate_binaries.py` — the fast (MLE, no-MCMC) figure suite that
+  regenerates the "$N$ vs. CI vs. bias" result; `validation/imf/validate_binary_aware_recovery.py`
+  is the full numpyro NUTS cross-check.
 
 See [](../../30-api/imf.md) for full API signatures and
 [](../../40-howto/add-binary-population.md) for a recipe building a
