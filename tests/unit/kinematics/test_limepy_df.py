@@ -22,12 +22,13 @@ from jaxstro.units import STELLAR
 G = STELLAR.G
 
 
-def _build_ic(W0, g, r_c=1.0, N=5000, seed=0):
+def _build_ic(W0, g, r_c=1.0, N=5000, seed=0, r_a=None, xi_max=300.0, n_ode=2000):
     from progenax.profiles.limepy import LIMEPYProfile
     from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 
-    prof = LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=r_c)
-    df = LIMEPYVelocityDF(W0=W0, g=g, r_c=r_c)
+    prof = LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=r_c, r_a=r_a,
+                                    xi_max=xi_max, n_ode_points=n_ode)
+    df = LIMEPYVelocityDF(W0=W0, g=g, r_c=r_c, r_a=r_a, xi_max=xi_max, n_ode_points=n_ode)
     masses = jnp.ones(N)
     kp, kv = jax.random.split(jax.random.PRNGKey(seed))
     pos = prof.sample_positions(masses, kp)
@@ -35,6 +36,24 @@ def _build_ic(W0, g, r_c=1.0, N=5000, seed=0):
     vel = df.sample_velocities(pos, masses, kv, G=G)
     vel = vel - jnp.average(vel, axis=0, weights=masses)
     return prof, df, masses, pos, vel
+
+
+def _beta_profile(pos, vel, r_edges):
+    """Measured anisotropy beta(r) = 1 - sigma_t^2 / (2 sigma_r^2) in radial shells."""
+    r = jnp.linalg.norm(pos, axis=1)
+    r_hat = pos / (r[:, None] + 1e-30)
+    v_r = jnp.sum(vel * r_hat, axis=1)
+    v_t2 = jnp.sum(vel**2, axis=1) - v_r**2  # |v_t|^2 (two tangential components)
+    betas, centers = [], []
+    for lo, hi in zip(r_edges[:-1], r_edges[1:]):
+        m = (r >= lo) & (r < hi)
+        if int(jnp.sum(m)) < 50:
+            continue
+        sr2 = jnp.mean(v_r[m] ** 2)
+        st2 = jnp.mean(v_t2[m])  # = sigma_theta^2 + sigma_phi^2
+        betas.append(float(1.0 - st2 / (2.0 * sr2)))
+        centers.append(0.5 * (lo + hi))
+    return np.array(centers), np.array(betas)
 
 
 class TestLimepyEquilibrium:
@@ -109,6 +128,95 @@ class TestLimepyVelocityCorner:
         s_l = sigma1d_central(pos_l, vel_l)
         s_k = sigma1d_central(pos_k, vel_k)
         np.testing.assert_allclose(s_l, s_k, rtol=0.03)
+
+
+class TestLimepyAnisotropicVelocity:
+    """The anisotropic (Michie/OM) velocity DF: radially biased, true equilibrium,
+    matching MichieVelocityDF at g=1.
+    """
+
+    def test_sampler_core_isotropic_outskirts_radial(self):
+        """Direct unit test of the speed-angle sampler: at small s = r/r_a the
+        directions are isotropic (beta ~ 0), and at large s they are radially biased
+        (beta > 0). This is the kinematic content of the Michie/OM term, isolated from
+        the profile/shell binning."""
+        from progenax.kinematics.limepy_df import _sample_speed_angle
+
+        keys = jax.random.split(jax.random.PRNGKey(0), 20000)
+        for s_val, lo, hi, label in [(0.05, -0.05, 0.05, "core->isotropic"),
+                                     (1.0, 0.25, 0.55, "outskirts->radial")]:
+            ur, ut = jax.vmap(lambda k: _sample_speed_angle(
+                k, jnp.asarray(7.0), jnp.asarray(s_val), jnp.asarray(1.0), 256, 128))(keys)
+            beta = 1.0 - float(jnp.mean(ut**2)) / (2.0 * float(jnp.mean(ur**2)))
+            assert lo < beta < hi, f"{label}: s={s_val} beta={beta:.3f} not in ({lo},{hi})"
+
+    def test_aniso_unscaled_virial_is_half(self):
+        """A finite r_a anisotropic LIMEPY cluster is STILL a true equilibrium:
+        Q = T/|V| = 0.5 unscaled (the anisotropic density sets mu, hence the velocity
+        scale, self-consistently). Uses r_a/r_c=8 at W0=7 (a finite-r_t model; smaller
+        r_a hits the radial-orbit / infinite-mass regime the solver now refuses)."""
+        from progenax.builders import compute_kinetic_energy, compute_potential_energy
+
+        Qs = []
+        for seed in range(4):
+            _, _, m, pos, vel = _build_ic(W0=7.0, g=1.0, r_a=8.0, N=6000, seed=seed,
+                                          xi_max=800.0, n_ode=3000)
+            T = compute_kinetic_energy(vel, m)
+            V = compute_potential_energy(pos, m, G=G)
+            Qs.append(float(T / jnp.abs(V)))
+        Q = float(np.mean(Qs))
+        assert abs(Q - 0.5) < 0.04, f"aniso unscaled Q={Q:.3f} (expected 0.5)"
+
+    def test_radial_anisotropy_increases_outward(self):
+        """The defining Michie/OM kinematic signature in a full IC: beta(r) is small in
+        the core (r << r_a) and rises (radially biased) outward. r_a/r_c=8, r_t~56."""
+        _, df, m, pos, vel = _build_ic(W0=7.0, g=1.0, r_a=8.0, N=60000, seed=1,
+                                       xi_max=800.0, n_ode=3000)
+        r_t = float(df.r_t)
+        edges = np.linspace(0.0, 0.8 * r_t, 8)
+        centers, betas = _beta_profile(pos, vel, edges)
+        assert betas[0] < 0.2, f"core not near-isotropic: beta={betas[0]:.2f}"
+        assert betas[-1] > betas[0] + 0.15, f"beta not rising outward: {betas}"
+        assert np.all(betas > -0.15), f"unexpected tangential bias: {betas}"
+
+    def test_g1_aniso_matches_michie_velocity_df(self):
+        """g=1 anisotropic LIMEPY velocity sampling reproduces MichieVelocityDF: same
+        self-consistent velocity scale and same beta(r) anisotropy profile."""
+        from progenax.profiles.michie import MichieProfile
+        from progenax.kinematics.michie_df import MichieVelocityDF
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        W0, r_a = 7.0, 8.0
+        lim = LIMEPYVelocityDF(W0=W0, g=1.0, r_c=1.0, r_a=r_a, xi_max=800.0, n_ode_points=3000)
+        mic = MichieVelocityDF(W0=W0, r_c=1.0, r_a=r_a, xi_max=800.0, n_ode_points=3000)
+        M = jnp.asarray(6000.0)
+        # velocity scale s (LIMEPY) == sigma (Michie)
+        s_lim = float(lim._s(M, G))
+        s_mic = float(jnp.sqrt(G * M / (9.0 * mic.r_c * mic.mu)))
+        np.testing.assert_allclose(s_lim, s_mic, rtol=1e-3)
+
+        # beta(r) profiles agree within sampling noise
+        N = 60000
+        prof = MichieProfile.from_W0_rc(W0, 1.0, r_a)
+        kp, kvl, kvm = jax.random.split(jax.random.PRNGKey(7), 3)
+        pos = prof.sample_positions(jnp.ones(N), kp)
+        pos = pos - jnp.mean(pos, axis=0)
+        vel_l = lim.sample_velocities(pos, jnp.ones(N), kvl, G=G)
+        vel_m = mic.sample_velocities(pos, jnp.ones(N), kvm, G=G)
+        edges = np.linspace(0.0, 0.8 * float(prof.r_t), 6)
+        _, bl = _beta_profile(pos, vel_l, edges)
+        _, bm = _beta_profile(pos, vel_m, edges)
+        np.testing.assert_allclose(bl, bm, atol=0.06)
+
+    def test_aniso_all_bound(self):
+        _, df, m, pos, vel = _build_ic(W0=7.0, g=1.5, r_a=8.0, N=4000, seed=2,
+                                       xi_max=800.0, n_ode=3000)
+        r = jnp.linalg.norm(pos, axis=1)
+        v = jnp.linalg.norm(vel, axis=1)
+        W = jnp.interp(r / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+        s = df._s(jnp.sum(m), G)
+        v_esc = s * jnp.sqrt(2.0 * jnp.maximum(W, 0.0))
+        assert float(jnp.mean(v <= v_esc + 0.05 * s)) == 1.0
 
 
 class TestLimepyVelocityDifferentiable:

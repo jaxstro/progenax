@@ -277,7 +277,7 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.limepy import solve_limepy_profile
         from progenax.profiles.michie import solve_michie_profile
 
-        W0, ra = 7.0, 5.0
+        W0, ra = 7.0, 8.0
         xi_m, psi_m = solve_michie_profile(W0, ra, xi_max=800.0, n_points=4000)
         xi_l, psi_l = solve_limepy_profile(W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000)
         inside = psi_m > 1e-3
@@ -292,8 +292,8 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.michie import MichieProfile
         from progenax.profiles.limepy import LIMEPYProfile
 
-        mic = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=5.0)
-        lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
+        mic = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
+        lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000)
         r = jnp.linspace(0.0, float(mic.r_t), 400)
         np.testing.assert_allclose(
             np.asarray(lim.density(r)), np.asarray(mic.density(r)), rtol=5e-3, atol=5e-3
@@ -306,7 +306,7 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.limepy import LIMEPYProfile
 
         iso = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, xi_max=800.0, n_ode_points=3000)
-        ani = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=4.0, xi_max=800.0, n_ode_points=3000)
+        ani = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000)
         assert float(ani.r_t) > float(iso.r_t), f"aniso r_t={float(ani.r_t)} !> iso {float(iso.r_t)}"
 
     def test_differentiable_in_anisotropy_radius(self):

@@ -261,7 +261,22 @@ def solve_limepy_profile(
         max_steps=100000,
     )
     xi_grid = solution.ts
+    psi_end = solution.ys[-1, 0]  # W at xi_max (negative once truncated)
     psi_grid = jnp.maximum(solution.ys[:, 0], 0.0)
+
+    # Non-truncation guard for anisotropic models (concrete inputs only; skipped under
+    # tracing). Too-small ra_hat builds a radial-orbit 1/r^2 density tail -> no finite
+    # tidal radius (infinite mass); mu and the virial scale then become grid-dependent.
+    # Mirrors solve_michie_profile. Isotropic models (g <= 3.5) always truncate.
+    if (not isotropic and isinstance(W0, (int, float))
+            and isinstance(ra_hat, (int, float)) and isinstance(g, (int, float))):
+        if float(psi_end) > 1e-3 * W0:
+            raise ValueError(
+                f"Anisotropic LIMEPY model (W0={W0}, g={g}, r_a/r_c={ra_hat}) does not "
+                f"truncate within xi_max={xi_max} (W(xi_max)={float(psi_end):.3f} > 0): the "
+                f"anisotropy is too strong (no finite tidal radius / infinite mass). "
+                f"Increase ra_hat, or raise xi_max if the model is genuinely this extended."
+            )
     return xi_grid, psi_grid
 
 
