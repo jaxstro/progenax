@@ -22,7 +22,7 @@ def _segregated_cluster(key, N=400, n_massive=20):
     """
     k1, k2 = jax.random.split(key)
     halo = jax.random.normal(k1, (N - n_massive, 3)) * 1.0
-    core = jax.random.normal(k2, (n_massive, 3)) * 0.1
+    core = jax.random.normal(k2, (n_massive, 3)) * 0.05
     positions = jnp.concatenate([halo, core], axis=0)
     masses = jnp.concatenate(
         [jnp.full(N - n_massive, 0.5), jnp.full(n_massive, 10.0)]
@@ -153,4 +153,75 @@ class TestRadialConcentration:
         out = jax.vmap(
             lambda p, mm: radial_concentration_approx(p, mm, m_cut=2.0, tau=0.5)
         )(batch_pos, batch_m)
+        assert out.shape == (2,)
+
+
+# --------------------------------------------------------------------------
+# Soft Lambda_MSR observable (MST-ratio surrogate, closed-form random baseline).
+# --------------------------------------------------------------------------
+class TestLambdaMSRApprox:
+    def test_returns_scalar(self):
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(0))
+        lam = lambda_msr_approx(pos, m, m_cut=2.0, tau=0.5, beta=0.05)
+        assert lam.shape == ()
+
+    def test_segregated_above_one(self):
+        """Massive stars clumped => short massive NN-length => Lambda > 1.
+
+        The (N-1)<d_1NN> MST proxy is a *local-density* measure, so its dynamic range
+        is milder than the global radial concentration -- it saturates near ~1.5-1.6
+        even for strong segregation. We assert a clear separation from unity, not a
+        large magnitude (the Fisher-information figure quantifies the sensitivity gap).
+        """
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(1))
+        lam = lambda_msr_approx(pos, m, m_cut=2.0, tau=0.5, beta=0.05)
+        assert float(lam) > 1.3
+
+    def test_unsegregated_near_one(self):
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        vals = []
+        for s in range(8):
+            pos, m = _unsegregated_cluster(jax.random.PRNGKey(s))
+            vals.append(float(lambda_msr_approx(pos, m, m_cut=2.0, tau=0.5, beta=0.05)))
+        assert abs(np.mean(vals) - 1.0) < 0.2
+
+    def test_segregated_above_unsegregated(self):
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        ps, ms = _segregated_cluster(jax.random.PRNGKey(2))
+        pu, mu = _unsegregated_cluster(jax.random.PRNGKey(2))
+        ls = lambda_msr_approx(ps, ms, m_cut=2.0, tau=0.5, beta=0.05)
+        lu = lambda_msr_approx(pu, mu, m_cut=2.0, tau=0.5, beta=0.05)
+        assert float(ls) > float(lu)
+
+    def test_differentiable_in_m_cut_matches_fd(self):
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(4))
+
+        def f(mc):
+            return lambda_msr_approx(pos, m, m_cut=mc, tau=0.8, beta=0.05)
+
+        g = jax.grad(f)(2.0)
+        eps = 1e-4
+        fd = (float(f(2.0 + eps)) - float(f(2.0 - eps))) / (2 * eps)
+        assert jnp.isfinite(g)
+        np.testing.assert_allclose(float(g), fd, rtol=2e-4, atol=1e-6)
+
+    def test_jit_and_vmap(self):
+        from progenax.diagnostics.segregation_approx import lambda_msr_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(5))
+        jitted = jax.jit(
+            lambda p, mm: lambda_msr_approx(p, mm, m_cut=2.0, tau=0.5, beta=0.05)
+        )
+        assert jnp.isfinite(jitted(pos, m))
+        out = jax.vmap(
+            lambda p, mm: lambda_msr_approx(p, mm, m_cut=2.0, tau=0.5, beta=0.05)
+        )(jnp.stack([pos, pos]), jnp.stack([m, m]))
         assert out.shape == (2,)

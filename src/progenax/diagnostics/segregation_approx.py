@@ -34,6 +34,7 @@ from jaxtyping import Array, Float
 __all__ = [
     "soft_mass_weights",
     "radial_concentration_approx",
+    "lambda_msr_approx",
 ]
 
 
@@ -117,3 +118,83 @@ def radial_concentration_approx(
     r_massive = jnp.sum(w * r) / W
     r_all = jnp.mean(r)
     return calibration * r_massive / (r_all + 1e-12)
+
+
+def _softmin_nn_distance(
+    xy: Float[Array, "N d"], beta: Float[Array, ""]
+) -> Float[Array, "N"]:
+    """Per-star smooth nearest-neighbour distance ``softmin_{j!=i} d_ij``.
+
+    softmin with temperature ``beta``: ``sum_j softmax(-(d_ij/scale)/beta) * d_ij``. As
+    ``beta -> 0`` this approaches the true 1-NN distance (the ``min``). Self-pairs are
+    masked with a large value so their softmax weight underflows to 0.
+
+    ``beta`` is **scale-relative**: distances are normalised by the median hard 1-NN
+    distance (a ``stop_gradient`` constant) before applying the temperature, so ``beta``
+    is dimensionless and the observable is invariant to the cluster's physical size --
+    essential for inference across clusters spanning orders of magnitude in extent.
+    """
+    N = xy.shape[0]
+    diff = xy[:, None, :] - xy[None, :, :]
+    dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)  # (N, N)
+    dist = dist + jnp.eye(N) * 1e10  # exclude self
+    # Scale-relative temperature: normalise by the median hard 1-NN distance. The scale
+    # only sets the softmin sharpness (stop_gradient) so gradients flow through `dist`.
+    scale = jax.lax.stop_gradient(jnp.median(jnp.min(dist, axis=1)) + 1e-12)
+    s = jax.nn.softmax(-dist / (scale * beta), axis=1)  # (N, N) soft 1-NN selector
+    return jnp.sum(s * dist, axis=1)  # (N,)
+
+
+def lambda_msr_approx(
+    positions: Float[Array, "N D"],
+    masses: Float[Array, "N"],
+    *,
+    m_cut: Float[Array, ""],
+    tau: Float[Array, ""],
+    beta: Float[Array, ""] = 0.1,
+    project_to_2d: bool = True,
+    calibration: float = 1.0,
+) -> Float[Array, ""]:
+    """Soft Lambda_MSR segregation observable (MST-ratio surrogate).
+
+    Differentiable analogue of the Allison et al. (2009) mass-segregation ratio
+    ``Lambda_MSR = <L_random> / L_massive`` (cf. :func:`compute_lambda_msr`), softening
+    both discrete operations:
+
+    - The combinatorial MST length is replaced by a per-star **softmin nearest-neighbour
+      distance** (the ``q_approx`` ``L_MST ~ (N-1) <d_1NN>`` estimator, with a smooth
+      ``min``).
+    - The Monte-Carlo "random subset" baseline is replaced by its **closed-form
+      expectation**: the unweighted mean NN-length over all stars. No sampling::
+
+          Lambda_soft = mean_i d_i  /  ( sum_i w_i d_i / sum_i w_i )
+
+      where ``d_i`` is the softmin 1-NN distance and ``w_i`` the soft mass-cut weight.
+
+    Interpretation:
+        - ``Lambda > 1``: massive stars more clustered (segregated).
+        - ``Lambda ~ 1``: no segregation.
+        - ``Lambda < 1``: inverse segregation.
+
+    As ``tau, beta -> 0`` this reduces (up to the multiplicative ``calibration``) to the
+    exact Lambda_MSR -- the central validation route (Oracle 1).
+
+    Args:
+        positions: Positions ``(N, 3)`` or ``(N, 2)``.
+        masses: Stellar masses ``(N,)``.
+        m_cut: Mass cut for the massive population.
+        tau: Soft mass-cut softness (> 0).
+        beta: Softmin temperature for the nearest-neighbour distance (> 0).
+        project_to_2d: Use projected (x, y) positions if True (observer-faithful).
+        calibration: Multiplicative calibration vs the exact Lambda_MSR oracle.
+
+    Returns:
+        Scalar ``Lambda_soft``.
+    """
+    xy = _project(positions, project_to_2d)
+    w = soft_mass_weights(masses, m_cut, tau)
+    d = _softmin_nn_distance(xy, beta)
+
+    baseline = jnp.mean(d)  # closed-form "random subset" expectation
+    massive = jnp.sum(w * d) / jnp.sum(w)
+    return calibration * baseline / (massive + 1e-12)
