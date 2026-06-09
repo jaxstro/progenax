@@ -186,3 +186,72 @@ class TestSolveLimepyProfile:
         dg = jax.grad(shape_metric, argnums=1)(7.0, 1.0)
         assert jnp.isfinite(dW0) and jnp.abs(dW0) > 0.0
         assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0
+
+
+class TestLimepyProfile:
+    """LIMEPYProfile (SpatialProfile): general-g isotropic spatial profile with
+    inverse-CDF position sampling. Generalizes KingProfile with a g field; at g=1
+    it must reproduce KingProfile.
+    """
+
+    def test_g1_density_matches_king_profile(self):
+        """LIMEPYProfile(g=1).density(r) == KingProfile.density(r) over radius —
+        the self-consistent spatial-profile corner (W0->r_t->normalized rho(r))."""
+        from progenax.profiles.king import KingProfile
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        king = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+        lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0)
+        r = jnp.linspace(0.0, float(king.r_t), 400)
+        np.testing.assert_allclose(
+            np.asarray(lim.density(r)), np.asarray(king.density(r)), rtol=2e-3, atol=2e-3
+        )
+
+    def test_truncation_radius_grows_with_g(self):
+        """The profile's truncation radius r_t obeys the extent ordering in g
+        (Woolley<King<Wilson) at fixed (W0, r_c)."""
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        r_t = [float(LIMEPYProfile.from_W0_rc(W0=6.0, g=g, r_c=1.0).r_t)
+               for g in (0.0, 1.0, 2.0)]
+        assert r_t[0] < r_t[1] < r_t[2], f"r_t not ordered in g: {r_t}"
+
+    def test_sampled_positions_recover_density_profile(self):
+        """Inverse-CDF position sampling reproduces the model's own radial density:
+        the sampled radial histogram matches 4 pi r^2 rho(r) within Poisson noise.
+        A real distribution test (not a smoke test) — a wrong CDF fails it."""
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.5, r_c=1.0)
+        key = jax.random.PRNGKey(0)
+        pos = prof.sample_positions(jnp.ones(40000), key)
+        radii = jnp.linalg.norm(pos, axis=1)
+        assert float(jnp.max(radii)) <= float(prof.r_t) * 1.001  # strict truncation
+
+        # Compare sampled radial CDF to the analytic mass CDF at several radii.
+        r_test = jnp.linspace(0.1, float(prof.r_t) * 0.95, 6)
+        rr = jnp.linspace(0.0, float(prof.r_t), 2000)
+        integrand = 4.0 * jnp.pi * rr**2 * prof.density(rr)
+        m_cum = jnp.concatenate([jnp.zeros(1),
+                                 jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * (rr[1] - rr[0])])
+        cdf_analytic = m_cum / m_cum[-1]
+        for rt in r_test:
+            emp = float(jnp.mean(radii <= rt))
+            ana = float(jnp.interp(rt, rr, cdf_analytic))
+            assert abs(emp - ana) < 0.02, f"CDF mismatch at r={float(rt):.2f}: {emp:.3f} vs {ana:.3f}"
+
+    def test_differentiable_construction_in_W0_and_g(self):
+        """A profile-shape functional is differentiable through construction in both
+        W0 and g — structural parameters remain inferable end-to-end at the class
+        level (not just the bare solver)."""
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        def metric(W0, g):
+            prof = LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=1.0)
+            r = jnp.linspace(0.0, 5.0, 200)
+            return jnp.mean(prof.density(r))
+
+        dW0 = jax.grad(metric, argnums=0)(7.0, 1.0)
+        dg = jax.grad(metric, argnums=1)(7.0, 1.0)
+        assert jnp.isfinite(dW0) and jnp.abs(dW0) > 0.0
+        assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0

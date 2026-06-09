@@ -37,9 +37,12 @@ References:
 from typing import Tuple
 
 import diffrax
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float, PRNGKeyArray
+
+from progenax.profiles.king import _find_tidal_radius
 
 
 def lowered_exponential(
@@ -160,4 +163,134 @@ def solve_limepy_profile(
     return xi_grid, psi_grid
 
 
-__all__ = ["lowered_exponential", "limepy_density_hat", "solve_limepy_profile"]
+# ==============================================================================
+# LIMEPYProfile (SpatialProfile implementation; generalizes KingProfile)
+# ==============================================================================
+
+
+class LIMEPYProfile(eqx.Module):
+    """General-g LIMEPY (lowered-isothermal) spherical density profile.
+
+    Implements the SpatialProfile protocol. Generalizes `KingProfile` with a
+    continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson); at g=1
+    it reproduces KingProfile. Isotropic (anisotropy is a planned extension).
+
+    The CDF is precomputed at construction for inverse-transform position
+    sampling, exactly as in KingProfile.
+
+    Attributes:
+        W0: Dimensionless central potential.
+        g:  Truncation parameter (continuous; finite extent for g <= 3.5).
+        r_c: Core (King) radius [length units].
+        r_t: Truncation radius [length units], where W(r) -> 0.
+        xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
+        _r_grid, _cdf_grid: precomputed mass CDF for sampling.
+    """
+
+    W0: Float[Array, ""]
+    g: Float[Array, ""]
+    r_c: Float[Array, ""]
+    r_t: Float[Array, ""]
+    xi_grid: Float[Array, "n_points"]
+    psi_grid: Float[Array, "n_points"]
+    _r_grid: Float[Array, "n_grid"]
+    _cdf_grid: Float[Array, "n_grid"]
+
+    def __init__(self, W0, g, r_c, r_t, xi_grid, psi_grid, n_grid: int = 1000):
+        W0_arr = jnp.asarray(W0, dtype=jnp.float64)
+        g_arr = jnp.asarray(g, dtype=jnp.float64)
+        r_c_arr = jnp.asarray(r_c, dtype=jnp.float64)
+        r_t_arr = jnp.asarray(r_t, dtype=jnp.float64)
+        xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
+        psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
+
+        r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
+        xi_local = r_grid / r_c_arr
+        psi_vals = jnp.interp(xi_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0)
+
+        rho0 = limepy_density_hat(W0_arr, g_arr)
+        rho_grid = jnp.where(
+            rho0 > 1e-300, limepy_density_hat(psi_vals, g_arr) / rho0, 0.0
+        )
+        rho_grid = jnp.where(r_grid <= r_t_arr, rho_grid, 0.0)
+
+        integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
+        dr = r_grid[1] - r_grid[0]
+        M_cum = jnp.concatenate([
+            jnp.zeros(1, dtype=integrand.dtype),
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+        ])
+        cdf_grid = M_cum / (M_cum[-1] + 1e-30)
+
+        object.__setattr__(self, "W0", W0_arr)
+        object.__setattr__(self, "g", g_arr)
+        object.__setattr__(self, "r_c", r_c_arr)
+        object.__setattr__(self, "r_t", r_t_arr)
+        object.__setattr__(self, "xi_grid", xi_grid_arr)
+        object.__setattr__(self, "psi_grid", psi_grid_arr)
+        object.__setattr__(self, "_r_grid", r_grid)
+        object.__setattr__(self, "_cdf_grid", cdf_grid)
+
+    @classmethod
+    def from_W0_rc(
+        cls,
+        W0: float,
+        g: float,
+        r_c: float,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
+        n_grid: int = 1000,
+    ) -> "LIMEPYProfile":
+        """Self-consistent constructor: r_t derived from where W(xi) -> 0.
+
+        JIT/grad-safe in (W0, g): the fixed (xi_max, n_ode_points) keep array sizes
+        static, so W0 and g may be tracers and profile-shape functionals carry
+        dW0/dg gradients (the argmax truncation-radius crossing has zero gradient,
+        as in KingProfile — structural-shape inference is unaffected). For large g
+        / high W0, pass a larger xi_max so the model integrates to W -> 0.
+        """
+        xi_grid, psi_grid = solve_limepy_profile(W0, g, xi_max=xi_max, n_points=n_ode_points)
+        xi_t = _find_tidal_radius(xi_grid, psi_grid)
+        r_t = r_c * xi_t
+        return cls(W0=W0, g=g, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid, n_grid=n_grid)
+
+    def sample_positions(
+        self, masses: Float[Array, "N"], key: PRNGKeyArray
+    ) -> Float[Array, "N 3"]:
+        """Sample isotropic positions via the precomputed inverse mass CDF."""
+        N = len(masses)
+        key, sub = jax.random.split(key)
+        radii = self._sample_radii(sub, N)
+        key, sub = jax.random.split(key)
+        theta = jnp.arccos(1.0 - 2.0 * jax.random.uniform(sub, shape=(N,)))
+        key, sub = jax.random.split(key)
+        phi = 2.0 * jnp.pi * jax.random.uniform(sub, shape=(N,))
+        x = radii * jnp.sin(theta) * jnp.cos(phi)
+        y = radii * jnp.sin(theta) * jnp.sin(phi)
+        z = radii * jnp.cos(theta)
+        return jnp.stack([x, y, z], axis=1)
+
+    def _sample_radii(self, key: PRNGKeyArray, N: int) -> Float[Array, "N"]:
+        u = jax.random.uniform(key, shape=(N,))
+        r_sampled = jnp.interp(u, self._cdf_grid, self._r_grid)
+        return jnp.clip(r_sampled, 0.0, self.r_t)
+
+    def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Unnormalized radial density rho(r)/rho_0 (isotropic LIMEPY)."""
+        xi = r / self.r_c
+        psi_vals = jnp.interp(xi, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+        rho0 = limepy_density_hat(self.W0, self.g)
+        rho = jnp.where(rho0 > 1e-300, limepy_density_hat(psi_vals, self.g) / rho0, 0.0)
+        return jnp.where(r <= self.r_t, rho, 0.0)
+
+    def characteristic_radius(self) -> Float[Array, ""]:
+        """Truncation radius r_t (the model's outer scale)."""
+        return self.r_t
+
+
+__all__ = [
+    "lowered_exponential",
+    "limepy_density_hat",
+    "solve_limepy_profile",
+    "LIMEPYProfile",
+]
