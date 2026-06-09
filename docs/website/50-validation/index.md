@@ -67,10 +67,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `python scripts/validate_cluster_ic.py`
 * - [diagnostics/Λ_MSR + segregation](mass-segregation.md)
-  - ✅ (8)
-  - ✅ 4
-  - 2026-06-08
-  - `python scripts/validate_mass_segregation.py`
+  - ✅ (8 + 13 + 27)
+  - ✅ 9
+  - 2026-06-09
+  - `python scripts/validate_segregation_approx.py`
 * - [imf statistics](imf-statistics.md)
   - ✅ (25)
   - ✅ 5
@@ -129,7 +129,8 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
 * - [](fractal-substructure.md)
   - CW04 Q substructure diagnostic: (s̄,m̄) plane, Table 1, differentiable q_approx
 * - [](mass-segregation.md)
-  - Baumgardt energy-ranked algorithm vs McLuster reference
+  - $\Lambda_{\mathrm{MSR}}$ diagnostic (analytic), energy-ranked generator, and the
+    differentiable segregation observables (soft $\Lambda_{\mathrm{MSR}}$ / radial / $\Sigma$–$m$)
 * - [](gravoturbulent-pp20.md)
   - PP20 ζ(p) regression suite (35 tests), BM19 forward chain
 * - [](two-component.md)
