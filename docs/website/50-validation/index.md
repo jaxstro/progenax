@@ -44,6 +44,11 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-08
   - `python scripts/validate_eff.py`
+* - [kinematics/Michie-King](michie-anisotropy.md)
+  - ✅ (12)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_michie.py`
 * - [cluster/two-component](two-component.md)
   - ✅
   - ✅ 1
@@ -91,6 +96,8 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ODE integration vs King (1966) Table II concentrations, tidal-truncation behaviour, $W_0$ sweep
 * - [](eff-profile.md)
   - Density-profile sampling, asymptotic-slope verification
+* - [](michie-anisotropy.md)
+  - Anisotropy β(r) vs the DF oracle, isotropic King limit, anisotropic dispersions
 * - [](imf-statistics.md)
   - Salpeter / Kroupa / Chabrier / Maschberger sampling: KS-test goodness-of-fit and recovered $\alpha$ vs truth
 * - [](binary-imf.md)

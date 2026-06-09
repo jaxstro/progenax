@@ -152,6 +152,7 @@ project:
         - file: 50-validation/plummer-equilibrium.md
         - file: 50-validation/king-profile.md
         - file: 50-validation/eff-profile.md
+        - file: 50-validation/michie-anisotropy.md
         - file: 50-validation/imf-statistics.md
         - file: 50-validation/binary-imf.md
         - file: 50-validation/fractal-substructure.md
