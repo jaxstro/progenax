@@ -48,20 +48,27 @@ from progenax.profiles.king import _find_tidal_radius
 def lowered_exponential(
     a: Float[Array, ""], W: Float[Array, "..."]
 ) -> Float[Array, "..."]:
-    """The lowered exponential E_gamma(a, W) = e^W P(a, W) for a > 0 (Eq. 2).
+    """The lowered exponential E_gamma(a, W) of Gieles & Zocchi (2015) Eq. 2:
 
-    P(a, W) = gammainc(a, W) is the regularized lower incomplete gamma function.
-    For W <= 0 the function is 0 (gamma(a, 0) = 0); we clamp the argument before
-    `gammainc` so the backward pass never sees a negative argument.
+        E_gamma(a, W) = e^W              for a = 0   (the Woolley branch),
+                      = e^W P(a, W)      for a > 0,
 
-    This is the a > 0 branch only (a = g + 3/2 >= 3/2 for every density use). The
-    a = 0 Woolley branch E_gamma(0, x) = e^x is needed only for the DF itself, not
-    for the density, and is intentionally not handled here.
+    with P(a, W) = gammainc(a, W) the regularized lower incomplete gamma function.
+    For W <= 0 the function is 0 (no stars above the escape energy). The argument
+    is clamped to W >= 0 before `gammainc` so the backward pass never sees a
+    negative argument.
 
-    Differentiable in both a and W (carries d/dg via a = g + 3/2).
+    The density uses a = g + 3/2 >= 3/2 (always the a > 0 branch); the velocity DF
+    uses a = g, which is 0 for the Woolley (g=0) corner — hence the a = 0 branch.
+
+    Differentiable in both a and W (carries d/dg).
     """
     W_pos = jnp.where(W > 0.0, W, 0.0)
-    val = jnp.exp(W_pos) * jax.scipy.special.gammainc(a, W_pos)
+    # gammainc requires a > 0; clamp the index for the a=0 Woolley branch, then select.
+    a_safe = jnp.where(a > 0.0, a, 1.0)
+    val_pos_a = jnp.exp(W_pos) * jax.scipy.special.gammainc(a_safe, W_pos)
+    val_zero_a = jnp.exp(W_pos)  # E_gamma(0, W) = e^W
+    val = jnp.where(a > 0.0, val_pos_a, val_zero_a)
     return jnp.where(W > 0.0, val, 0.0)
 
 
