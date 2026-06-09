@@ -165,63 +165,85 @@ def limepy_density_aniso_hat(
     return out.reshape(W_arr.shape) if W_arr.ndim > 0 else out[0]
 
 
+# Paired (W, p) -> rho vmap, for evaluating the anisotropic density on a grid where
+# both the potential psi(xi) and the radius p = xi/ra_hat vary together.
+_aniso_density_vec = jax.vmap(_aniso_density_scalar, in_axes=(0, 0, None))
+
+
 # ==============================================================================
 # Self-consistent Poisson solve (general-g; generalizes solve_king_profile)
 # ==============================================================================
 
 
-def _limepy_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Array, "2"]:
-    """RHS of the LIMEPY dimensionless Poisson equation (Gieles & Zocchi Eq. 5):
-
-        d^2W/dxi^2 + (2/xi) dW/dxi = -9 rho_hat(W; g),
-
-    with rho_hat normalized to 1 at the centre (W = W0) and xi = r/r_s the
-    King-radius-scaled radius (the same factor-of-9 nondimensionalization as the
-    King solver; LIMEPY uses King's r_s by construction). State y = [W, dW/dxi].
-
-    At g=1 this is identical to `_king_poisson_rhs`. The xi=0 singularity is
-    handled by L'Hopital (lim (2/xi)dW/dxi = 0 since dW/dxi(0)=0).
-    """
-    W0, g = args
-    psi, dpsi_dxi = y[0], y[1]
-
-    rho0 = limepy_density_hat(W0, g)
-    rho_tilde = jnp.where(rho0 > 1e-300, limepy_density_hat(psi, g) / rho0, 0.0)
-
-    d2psi_dxi2 = jnp.where(
+def _poisson_d2(xi, dpsi_dxi, rho_tilde):
+    """The shared -9 King-radius Poisson second derivative with the xi=0 L'Hopital
+    guard (lim (2/xi)dW/dxi = 0 since dW/dxi(0)=0)."""
+    return jnp.where(
         xi > 1e-6,
         -9.0 * rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -9.0 * rho_tilde,  # centre guard (dW/dxi(0)=0)
+        -9.0 * rho_tilde,
     )
-    return jnp.array([dpsi_dxi, d2psi_dxi2])
+
+
+def _limepy_poisson_rhs_iso(xi, y, args):
+    """Isotropic LIMEPY Poisson RHS (fast path). args = (W0, g). At g=1 == King."""
+    W0, g = args
+    psi, dpsi_dxi = y[0], y[1]
+    rho0 = limepy_density_hat(W0, g)
+    rho_tilde = jnp.where(rho0 > 1e-300, limepy_density_hat(psi, g) / rho0, 0.0)
+    return jnp.array([dpsi_dxi, _poisson_d2(xi, dpsi_dxi, rho_tilde)])
+
+
+def _limepy_poisson_rhs_aniso(xi, y, args):
+    """Anisotropic (Michie/OM) LIMEPY Poisson RHS. args = (W0, g, ra_hat). The source
+    depends on xi explicitly through p = xi/ra_hat (as in solve_michie). At g=1 ==
+    Michie-King. Central normalization uses the isotropic (p=0) central density."""
+    W0, g, ra_hat = args
+    psi, dpsi_dxi = y[0], y[1]
+    p = xi / ra_hat
+    rho0 = _aniso_density_scalar(W0, 0.0, g)
+    rho_tilde = jnp.where(rho0 > 1e-300, _aniso_density_scalar(psi, p, g) / rho0, 0.0)
+    return jnp.array([dpsi_dxi, _poisson_d2(xi, dpsi_dxi, rho_tilde)])
 
 
 def solve_limepy_profile(
-    W0: float, g: float, xi_max: float = 300.0, n_points: int = 2000
+    W0: float,
+    g: float,
+    ra_hat: float | None = None,
+    xi_max: float = 300.0,
+    n_points: int = 2000,
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"]]:
-    """Solve the general-g LIMEPY Poisson equation with diffrax (Tsit5).
+    """Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
 
     Integrates W(xi) from the centre (W=W0, dW/dxi=0) outward to the truncation
-    radius where W -> 0. Identical structure to `solve_king_profile`, with the
-    continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson). At
-    g=1 it reproduces the King solution.
+    radius where W -> 0. Generalizes `solve_king_profile` with the continuous
+    truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an optional
+    Michie/OM radial anisotropy radius. At g=1: isotropic reproduces King,
+    anisotropic reproduces the Michie-King model.
 
-    JIT/grad-safe in (W0, g): n_points and xi_max are static (they set the output
-    grid size); W0 and g may be tracers, and the ODE -> W(xi) path carries
-    dW/dW0 and dW/dg (the latter through gammainc's a-derivative).
+    JIT/grad-safe in (W0, g, ra_hat): n_points and xi_max are static; W0, g, ra_hat
+    may be tracers and the ODE -> W(xi) path carries their gradients.
 
     Args:
-        W0: Dimensionless central potential (King's W0 = Gieles & Zocchi's phi0).
-        g: Truncation parameter (continuous; finite extent for g <= 3.5).
-        xi_max: Max dimensionless radius for integration.
+        W0: Dimensionless central potential.
+        g: Truncation parameter (finite extent for g <= 3.5).
+        ra_hat: Anisotropy radius in core-radius units, r_a/r_c. None (default) =
+            isotropic (uses the fast isotropic density). Finite values add radial
+            anisotropy (more extended; too-small ra_hat -> no finite tidal radius).
+        xi_max: Max dimensionless radius (anisotropic models are more extended;
+            pass a larger value, e.g. 800).
         n_points: Output grid size.
 
     Returns:
         (xi_grid, psi_grid): dimensionless radius and potential W(xi) (>= 0).
     """
+    isotropic = ra_hat is None  # static (Python) -> picks the RHS at trace time
+    rhs = _limepy_poisson_rhs_iso if isotropic else _limepy_poisson_rhs_aniso
+    args = (W0, g) if isotropic else (W0, g, ra_hat)
+
     y0 = jnp.array([W0, 0.0])
     xi_span = (1e-6, xi_max)
-    term = diffrax.ODETerm(_limepy_poisson_rhs)
+    term = diffrax.ODETerm(rhs)
     solver = diffrax.Tsit5()
     stepsize_controller = diffrax.PIDController(rtol=1e-8, atol=1e-10)
     saveat = diffrax.SaveAt(ts=jnp.linspace(xi_span[0], xi_span[1], n_points))
@@ -233,7 +255,7 @@ def solve_limepy_profile(
         t1=xi_span[1],
         dt0=1e-4,
         y0=y0,
-        args=(W0, g),
+        args=args,
         saveat=saveat,
         stepsize_controller=stepsize_controller,
         max_steps=100000,
@@ -252,34 +274,40 @@ class LIMEPYProfile(eqx.Module):
     """General-g LIMEPY (lowered-isothermal) spherical density profile.
 
     Implements the SpatialProfile protocol. Generalizes `KingProfile` with a
-    continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson); at g=1
-    it reproduces KingProfile. Isotropic (anisotropy is a planned extension).
+    continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an
+    optional Michie/Osipkov-Merritt radial anisotropy radius r_a. Corners: g=1
+    isotropic == KingProfile; g=1 anisotropic == MichieProfile.
 
-    The CDF is precomputed at construction for inverse-transform position
-    sampling, exactly as in KingProfile.
+    The CDF is precomputed at construction for inverse-transform position sampling.
 
     Attributes:
         W0: Dimensionless central potential.
         g:  Truncation parameter (continuous; finite extent for g <= 3.5).
         r_c: Core (King) radius [length units].
+        r_a: Anisotropy radius [length units]; inf for the isotropic model.
         r_t: Truncation radius [length units], where W(r) -> 0.
         xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
+        is_aniso: static flag selecting the anisotropic density path.
         _r_grid, _cdf_grid: precomputed mass CDF for sampling.
     """
 
     W0: Float[Array, ""]
     g: Float[Array, ""]
     r_c: Float[Array, ""]
+    r_a: Float[Array, ""]
     r_t: Float[Array, ""]
     xi_grid: Float[Array, "n_points"]
     psi_grid: Float[Array, "n_points"]
     _r_grid: Float[Array, "n_grid"]
     _cdf_grid: Float[Array, "n_grid"]
+    is_aniso: bool = eqx.field(static=True)
 
-    def __init__(self, W0, g, r_c, r_t, xi_grid, psi_grid, n_grid: int = 1000):
+    def __init__(self, W0, g, r_c, r_t, xi_grid, psi_grid, r_a=None, n_grid: int = 1000):
+        is_aniso = r_a is not None
         W0_arr = jnp.asarray(W0, dtype=jnp.float64)
         g_arr = jnp.asarray(g, dtype=jnp.float64)
         r_c_arr = jnp.asarray(r_c, dtype=jnp.float64)
+        r_a_arr = jnp.asarray(jnp.inf if r_a is None else r_a, dtype=jnp.float64)
         r_t_arr = jnp.asarray(r_t, dtype=jnp.float64)
         xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
@@ -288,10 +316,15 @@ class LIMEPYProfile(eqx.Module):
         xi_local = r_grid / r_c_arr
         psi_vals = jnp.interp(xi_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0)
 
-        rho0 = limepy_density_hat(W0_arr, g_arr)
-        rho_grid = jnp.where(
-            rho0 > 1e-300, limepy_density_hat(psi_vals, g_arr) / rho0, 0.0
-        )
+        if is_aniso:
+            rho0 = _aniso_density_scalar(W0_arr, jnp.asarray(0.0), g_arr)
+            rho_vals = _aniso_density_vec(psi_vals, r_grid / r_a_arr, g_arr)
+            rho_grid = jnp.where(rho0 > 1e-300, rho_vals / rho0, 0.0)
+        else:
+            rho0 = limepy_density_hat(W0_arr, g_arr)
+            rho_grid = jnp.where(
+                rho0 > 1e-300, limepy_density_hat(psi_vals, g_arr) / rho0, 0.0
+            )
         rho_grid = jnp.where(r_grid <= r_t_arr, rho_grid, 0.0)
 
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
@@ -305,9 +338,11 @@ class LIMEPYProfile(eqx.Module):
         object.__setattr__(self, "W0", W0_arr)
         object.__setattr__(self, "g", g_arr)
         object.__setattr__(self, "r_c", r_c_arr)
+        object.__setattr__(self, "r_a", r_a_arr)
         object.__setattr__(self, "r_t", r_t_arr)
         object.__setattr__(self, "xi_grid", xi_grid_arr)
         object.__setattr__(self, "psi_grid", psi_grid_arr)
+        object.__setattr__(self, "is_aniso", is_aniso)
         object.__setattr__(self, "_r_grid", r_grid)
         object.__setattr__(self, "_cdf_grid", cdf_grid)
 
@@ -317,22 +352,29 @@ class LIMEPYProfile(eqx.Module):
         W0: float,
         g: float,
         r_c: float,
+        r_a: float | None = None,
         xi_max: float = 300.0,
         n_ode_points: int = 2000,
         n_grid: int = 1000,
     ) -> "LIMEPYProfile":
         """Self-consistent constructor: r_t derived from where W(xi) -> 0.
 
-        JIT/grad-safe in (W0, g): the fixed (xi_max, n_ode_points) keep array sizes
-        static, so W0 and g may be tracers and profile-shape functionals carry
-        dW0/dg gradients (the argmax truncation-radius crossing has zero gradient,
-        as in KingProfile — structural-shape inference is unaffected). For large g
-        / high W0, pass a larger xi_max so the model integrates to W -> 0.
+        r_a=None (default) is the isotropic model; a finite r_a adds Michie/OM radial
+        anisotropy (more extended -- pass a larger xi_max, e.g. 800).
+
+        JIT/grad-safe in (W0, g, r_a): the fixed (xi_max, n_ode_points) keep array
+        sizes static, so the parameters may be tracers and profile-shape functionals
+        carry their gradients (the argmax truncation-radius crossing has zero
+        gradient, as in KingProfile -- structural-shape inference is unaffected).
         """
-        xi_grid, psi_grid = solve_limepy_profile(W0, g, xi_max=xi_max, n_points=n_ode_points)
+        ra_hat = None if r_a is None else r_a / r_c
+        xi_grid, psi_grid = solve_limepy_profile(
+            W0, g, ra_hat=ra_hat, xi_max=xi_max, n_points=n_ode_points
+        )
         xi_t = _find_tidal_radius(xi_grid, psi_grid)
         r_t = r_c * xi_t
-        return cls(W0=W0, g=g, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid, n_grid=n_grid)
+        return cls(W0=W0, g=g, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid,
+                   r_a=r_a, n_grid=n_grid)
 
     def sample_positions(
         self, masses: Float[Array, "N"], key: PRNGKeyArray
@@ -356,12 +398,19 @@ class LIMEPYProfile(eqx.Module):
         return jnp.clip(r_sampled, 0.0, self.r_t)
 
     def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Unnormalized radial density rho(r)/rho_0 (isotropic LIMEPY)."""
-        xi = r / self.r_c
-        psi_vals = jnp.interp(xi, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        rho0 = limepy_density_hat(self.W0, self.g)
-        rho = jnp.where(rho0 > 1e-300, limepy_density_hat(psi_vals, self.g) / rho0, 0.0)
-        return jnp.where(r <= self.r_t, rho, 0.0)
+        """Normalized radial density rho(r)/rho_0 (general-g; anisotropic if r_a set)."""
+        r_arr = jnp.asarray(r)
+        psi_vals = jnp.interp(r_arr / self.r_c, self.xi_grid, self.psi_grid,
+                              left=self.W0, right=0.0)
+        if self.is_aniso:
+            rho0 = _aniso_density_scalar(self.W0, jnp.asarray(0.0), self.g)
+            flat_psi = jnp.atleast_1d(psi_vals).reshape(-1)
+            flat_p = jnp.atleast_1d(r_arr / self.r_a).reshape(-1)
+            rho = (_aniso_density_vec(flat_psi, flat_p, self.g) / rho0).reshape(r_arr.shape)
+        else:
+            rho0 = limepy_density_hat(self.W0, self.g)
+            rho = jnp.where(rho0 > 1e-300, limepy_density_hat(psi_vals, self.g) / rho0, 0.0)
+        return jnp.where(r_arr <= self.r_t, rho, 0.0)
 
     def characteristic_radius(self) -> Float[Array, ""]:
         """Truncation radius r_t (the model's outer scale)."""

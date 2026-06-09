@@ -265,6 +265,63 @@ class TestLimepyAnisotropicDensity:
         assert jnp.abs(dp) > 0.0 and jnp.abs(dg) > 0.0
 
 
+class TestLimepyAnisotropicProfile:
+    """The anisotropic (Michie/OM) self-consistent solve + profile. The radius-
+    dependent Poisson source (density depends on xi via p = xi/ra_hat) generalizes
+    solve_michie_profile; the g=1 corner must reproduce MichieProfile.
+    """
+
+    def test_solve_g1_aniso_matches_michie_solver(self):
+        """solve_limepy_profile(g=1, ra_hat) reproduces solve_michie_profile's W(xi)
+        — the anisotropic self-consistent corner (radius-dependent RHS)."""
+        from progenax.profiles.limepy import solve_limepy_profile
+        from progenax.profiles.michie import solve_michie_profile
+
+        W0, ra = 7.0, 5.0
+        xi_m, psi_m = solve_michie_profile(W0, ra, xi_max=800.0, n_points=4000)
+        xi_l, psi_l = solve_limepy_profile(W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000)
+        inside = psi_m > 1e-3
+        psi_l_on_m = jnp.interp(xi_m, xi_l, psi_l)
+        np.testing.assert_allclose(
+            np.asarray(psi_l_on_m[inside]), np.asarray(psi_m[inside]), rtol=3e-3, atol=3e-3
+        )
+
+    def test_profile_g1_aniso_matches_michie_profile(self):
+        """LIMEPYProfile(g=1, r_a).density(r) == MichieProfile.density(r) — the
+        anisotropic King profile corner, end to end (W0 -> r_t -> normalized rho)."""
+        from progenax.profiles.michie import MichieProfile
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        mic = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=5.0)
+        lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
+        r = jnp.linspace(0.0, float(mic.r_t), 400)
+        np.testing.assert_allclose(
+            np.asarray(lim.density(r)), np.asarray(mic.density(r)), rtol=5e-3, atol=5e-3
+        )
+
+    def test_anisotropy_extends_the_model(self):
+        """Radial orbits puff the envelope out: at fixed (W0, g), a finite anisotropy
+        radius r_a gives a LARGER truncation radius than the isotropic model (r_a=inf).
+        The defining qualitative signature of Michie/OM anisotropy."""
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        iso = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, xi_max=800.0, n_ode_points=3000)
+        ani = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=4.0, xi_max=800.0, n_ode_points=3000)
+        assert float(ani.r_t) > float(iso.r_t), f"aniso r_t={float(ani.r_t)} !> iso {float(iso.r_t)}"
+
+    def test_differentiable_in_anisotropy_radius(self):
+        """A profile-shape functional is differentiable in r_a through the radius-
+        dependent anisotropic solve — the anisotropy radius is inferable."""
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        def metric(ra_hat):
+            xi, psi = solve_limepy_profile(7.0, g=1.0, ra_hat=ra_hat, xi_max=800.0, n_points=3000)
+            return jnp.mean(psi[:300])
+
+        d = jax.grad(metric)(5.0)
+        assert jnp.isfinite(d) and jnp.abs(d) > 0.0
+
+
 class TestLimepyProfile:
     """LIMEPYProfile (SpatialProfile): general-g isotropic spatial profile with
     inverse-CDF position sampling. Generalizes KingProfile with a g field; at g=1
