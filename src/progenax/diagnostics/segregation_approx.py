@@ -36,6 +36,7 @@ __all__ = [
     "radial_concentration_approx",
     "lambda_msr_approx",
     "sigma_m_approx",
+    "calibrate_segregation_approx",
 ]
 
 
@@ -267,3 +268,115 @@ def sigma_m_approx(
     sigma = (k - 1) / (jnp.pi * r_k ** 2 + 1e-12)
     log_sigma = jnp.log(sigma + 1e-12)
     return calibration * _weighted_pearson(w, log_sigma)
+
+
+# --------------------------------------------------------------------------
+# Calibration against exact (non-differentiable) oracles.
+# --------------------------------------------------------------------------
+def _exact_radial_concentration(xy, massive, m_cut):
+    """Hard-cut radial concentration (NumPy) -- the tau->0 limit of the surrogate."""
+    import numpy as np
+
+    sel = massive
+    center = xy[sel].mean(axis=0)
+    r = np.sqrt(((xy - center) ** 2).sum(axis=1))
+    return float(r[sel].mean() / (r.mean() + 1e-12))
+
+
+def _exact_sigma_m(xy, massive, k):
+    """Exact k-NN Sigma--m correlation (SciPy cKDTree)."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    tree = cKDTree(xy)
+    dists, _ = tree.query(xy, k=k + 1)  # +1 includes self at distance 0
+    r_k = dists[:, k]  # k-th nearest real neighbour
+    sigma = (k - 1) / (np.pi * r_k ** 2 + 1e-12)
+    log_sigma = np.log(sigma + 1e-12)
+    return float(np.corrcoef(massive.astype(float), log_sigma)[0, 1])
+
+
+def calibrate_segregation_approx(
+    n_samples: int = 100,
+    N_stars: int = 300,
+    n_massive: int = 20,
+    m_cut: float = 2.0,
+    tau: float = 0.5,
+    beta: float = 0.1,
+    k: int = 6,
+    seed: int = 42,
+) -> dict:
+    """Calibrate the soft observables against their exact non-differentiable oracles.
+
+    Mirrors :func:`calibrate_q_approx`. Generates clusters spanning a range of
+    segregation strengths (massive-star core scale swept from tight to diffuse) and,
+    for each soft observable, reports ``mean(exact) / mean(soft)`` (the multiplicative
+    calibration) and the Pearson correlation between soft and exact across the sample.
+
+    Exact oracles: :func:`compute_lambda_msr` (SciPy MST), a hard-cut radial
+    concentration, and a SciPy cKDTree k-NN Sigma--m correlation.
+
+    Args:
+        n_samples: Number of random clusters.
+        N_stars: Stars per cluster.
+        n_massive: Number of massive stars (placed in a core of varying tightness).
+        m_cut, tau, beta, k: Observable hyperparameters.
+        seed: Base PRNG seed.
+
+    Returns:
+        Dict of calibration factors, correlations, and ``n_samples``.
+    """
+    import numpy as np
+    from progenax.diagnostics.mass_segregation import compute_lambda_msr
+
+    lam_soft, lam_exact = [], []
+    rad_soft, rad_exact = [], []
+    sig_soft, sig_exact = [], []
+
+    for i in range(n_samples):
+        key = jax.random.PRNGKey(seed + i)
+        k_halo, k_core, k_scale = jax.random.split(key, 3)
+        # Sweep segregation strength: core scale in [0.05, 1.0] (1.0 ~ unsegregated).
+        core_scale = 0.05 + 0.95 * jax.random.uniform(k_scale, ())
+        halo = jax.random.normal(k_halo, (N_stars - n_massive, 3)) * 1.0
+        core = jax.random.normal(k_core, (n_massive, 3)) * core_scale
+        positions = jnp.concatenate([halo, core], axis=0)
+        masses = jnp.concatenate(
+            [jnp.full(N_stars - n_massive, 0.5), jnp.full(n_massive, 10.0)]
+        )
+
+        lam_soft.append(
+            float(lambda_msr_approx(positions, masses, m_cut=m_cut, tau=tau, beta=beta))
+        )
+        rad_soft.append(
+            float(radial_concentration_approx(positions, masses, m_cut=m_cut, tau=tau))
+        )
+        sig_soft.append(
+            float(sigma_m_approx(positions, masses, m_cut=m_cut, tau=tau, k=k))
+        )
+
+        xy = np.asarray(positions[:, :2])
+        massive = np.asarray(masses) > m_cut
+        lam_exact.append(
+            compute_lambda_msr(
+                np.asarray(positions), np.asarray(masses), N_massive=int(massive.sum())
+            )[0]
+        )
+        rad_exact.append(_exact_radial_concentration(xy, massive, m_cut))
+        sig_exact.append(_exact_sigma_m(xy, massive, k))
+
+    lam_soft, lam_exact = np.array(lam_soft), np.array(lam_exact)
+    rad_soft, rad_exact = np.array(rad_soft), np.array(rad_exact)
+    sig_soft, sig_exact = np.array(sig_soft), np.array(sig_exact)
+
+    return {
+        "calibration_lambda": float(np.mean(lam_exact) / np.mean(lam_soft)),
+        "calibration_radial": float(np.mean(rad_exact) / np.mean(rad_soft)),
+        "calibration_sigma": float(
+            np.mean(np.abs(sig_exact)) / (np.mean(np.abs(sig_soft)) + 1e-12)
+        ),
+        "correlation_lambda": float(np.corrcoef(lam_exact, lam_soft)[0, 1]),
+        "correlation_radial": float(np.corrcoef(rad_exact, rad_soft)[0, 1]),
+        "correlation_sigma": float(np.corrcoef(sig_exact, sig_soft)[0, 1]),
+        "n_samples": n_samples,
+    }

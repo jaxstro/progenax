@@ -288,3 +288,39 @@ class TestSigmaMApprox:
             jnp.stack([pos, pos]), jnp.stack([m, m])
         )
         assert out.shape == (2,)
+
+
+# --------------------------------------------------------------------------
+# Calibration against exact (non-differentiable) oracles.
+# --------------------------------------------------------------------------
+class TestCalibration:
+    def test_returns_expected_keys(self):
+        from progenax.diagnostics.segregation_approx import calibrate_segregation_approx
+
+        out = calibrate_segregation_approx(n_samples=12, N_stars=200, seed=0)
+        for key in (
+            "calibration_lambda",
+            "calibration_radial",
+            "calibration_sigma",
+            "correlation_lambda",
+            "correlation_radial",
+            "correlation_sigma",
+            "n_samples",
+        ):
+            assert key in out
+
+    def test_calibration_factors_finite_positive(self):
+        from progenax.diagnostics.segregation_approx import calibrate_segregation_approx
+
+        out = calibrate_segregation_approx(n_samples=12, N_stars=200, seed=1)
+        for k in ("calibration_lambda", "calibration_radial", "calibration_sigma"):
+            assert np.isfinite(out[k]) and out[k] > 0.0
+
+    def test_soft_tracks_exact(self):
+        """Each soft observable should correlate positively with its exact oracle."""
+        from progenax.diagnostics.segregation_approx import calibrate_segregation_approx
+
+        out = calibrate_segregation_approx(n_samples=20, N_stars=200, seed=2)
+        assert out["correlation_lambda"] > 0.5
+        assert out["correlation_radial"] > 0.5
+        assert out["correlation_sigma"] > 0.5

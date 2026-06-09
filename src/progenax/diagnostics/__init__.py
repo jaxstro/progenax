@@ -50,6 +50,13 @@ from progenax.diagnostics.q_approx import (
     calibrate_q_approx,
     DEFAULT_CALIBRATION,
 )
+from progenax.diagnostics.segregation_approx import (
+    soft_mass_weights,
+    radial_concentration_approx,
+    lambda_msr_approx,
+    sigma_m_approx,
+    calibrate_segregation_approx,
+)
 
 __all__ = [
     "compute_lambda_msr",
@@ -60,4 +67,10 @@ __all__ = [
     "q_approx_fast",
     "calibrate_q_approx",
     "DEFAULT_CALIBRATION",
+    # Differentiable segregation observables
+    "soft_mass_weights",
+    "radial_concentration_approx",
+    "lambda_msr_approx",
+    "sigma_m_approx",
+    "calibrate_segregation_approx",
 ]
