@@ -23,10 +23,13 @@ References:
 from typing import Tuple
 
 import diffrax
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax import defaults
+from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import limepy_density_hat
 
 
@@ -174,4 +177,193 @@ def find_alpha_for_masses(
     return alpha_final, residual
 
 
-__all__ = ["solve_multimass_limepy", "find_alpha_for_masses"]
+# ==============================================================================
+# Layer C: MultiMassLIMEPY model (construction, IMF binning, segregated-IC sampling)
+# ==============================================================================
+
+_N_SPEED = 256  # per-particle speed inverse-CDF resolution
+
+
+def _isotropic_dirs(key: PRNGKeyArray, n: int) -> Float[Array, "n 3"]:
+    """n random unit vectors (isotropic)."""
+    v = jax.random.normal(key, (n, 3))
+    return v / (jnp.linalg.norm(v, axis=1, keepdims=True) + 1e-30)
+
+
+def _bin_imf(imf, n_comp: int, m_range):
+    """Bin an IMF into n_comp log-spaced mass components -> (m_j, M_j).
+
+    Per bin: number N_j = int xi dm (from the IMF number CDF), mass
+    M_j = int m xi dm (trapezoid of m * pdf over a sub-grid), representative mass
+    m_j = M_j / N_j (number-weighted mean). Test/convenience path (concrete inputs).
+    """
+    edges = jnp.asarray(__import__("numpy").geomspace(m_range[0], m_range[1], n_comp + 1))
+    N_j, M_j = [], []
+    for e0, e1 in zip(edges[:-1], edges[1:]):
+        n_sub = 64
+        m_sub = jnp.linspace(e0, e1, n_sub)
+        pdf = jnp.exp(imf.logpdf(m_sub))
+        N = jnp.trapezoid(pdf, m_sub)
+        M = jnp.trapezoid(m_sub * pdf, m_sub)
+        N_j.append(N)
+        M_j.append(M)
+    N_j = jnp.array(N_j)
+    M_j = jnp.array(M_j)
+    m_j = M_j / N_j
+    return m_j, M_j
+
+
+class MultiMassLIMEPY(eqx.Module):
+    """Multi-mass LIMEPY coupled equilibrium model (isotropic; Layer C).
+
+    A mass-segregated star cluster in which segregation is a TRUE equilibrium: one
+    shared potential, per-component velocity scales s_j = s mu_j^(-delta). Each mass
+    component is individually virial (Q_j ~ 0.5). Construct with `from_alpha` (direct
+    central density fractions) or `from_imf` (bin an IMF, solve for alpha_j). Isotropic;
+    per-component anisotropy (eta) is a planned extension (Phase 2b).
+
+    Attributes:
+        W0, g, delta, r_c, r_t: model parameters / scales.
+        m_j, alpha_j, mu_j, rescale_j (= mu_j^(2 delta)), nu_j, N_frac_j: per component.
+        mu_tot: total dimensionless mass integral (sets the velocity scale).
+        residual: eigenvalue-solve residual (0 for from_alpha).
+        xi_grid, psi_grid: shared ODE solution. _r_grid, _cdf_j: per-component mass CDFs.
+    """
+
+    W0: Float[Array, ""]
+    g: Float[Array, ""]
+    delta: Float[Array, ""]
+    r_c: Float[Array, ""]
+    r_t: Float[Array, ""]
+    m_j: Float[Array, "n_comp"]
+    alpha_j: Float[Array, "n_comp"]
+    mu_j: Float[Array, "n_comp"]
+    rescale_j: Float[Array, "n_comp"]
+    nu_j: Float[Array, "n_comp"]
+    N_frac_j: Float[Array, "n_comp"]
+    mu_tot: Float[Array, ""]
+    residual: Float[Array, ""]
+    xi_grid: Float[Array, "n_ode"]
+    psi_grid: Float[Array, "n_ode"]
+    _r_grid: Float[Array, "n_grid"]
+    _cdf_j: Float[Array, "n_comp n_grid"]
+
+    def __init__(self, alpha_j, m_j, W0, g, delta, r_c, xi_grid, psi_grid,
+                 residual=0.0, n_grid: int = 1000):
+        alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
+        m_j = jnp.asarray(m_j, dtype=jnp.float64)
+        W0 = jnp.asarray(W0, dtype=jnp.float64)
+        g = jnp.asarray(g, dtype=jnp.float64)
+        delta = jnp.asarray(delta, dtype=jnp.float64)
+        r_c = jnp.asarray(r_c, dtype=jnp.float64)
+        xi_grid = jnp.asarray(xi_grid, dtype=jnp.float64)
+        psi_grid = jnp.asarray(psi_grid, dtype=jnp.float64)
+
+        bar_m = jnp.sum(m_j * alpha_j)
+        mu_j = m_j / bar_m
+        rescale = mu_j ** (2.0 * delta)
+
+        rho_on_xi = jax.vmap(
+            lambda p: _multimass_density_sources(p, rescale, W0, g), out_axes=1
+        )(psi_grid)
+        rho_on_xi = jnp.where(psi_grid[None, :] > 0.0, rho_on_xi, 0.0)
+        nu_j = jnp.trapezoid(rho_on_xi * xi_grid**2, xi_grid, axis=1)
+        mu_tot = jnp.sum(alpha_j * nu_j)
+        M_real = alpha_j * nu_j
+        N_frac = (M_real / m_j) / jnp.sum(M_real / m_j)
+
+        r_t = r_c * _find_tidal_radius(xi_grid, psi_grid)
+        r_grid = jnp.linspace(0.0, r_t, n_grid)
+        psi_r = jnp.interp(r_grid / r_c, xi_grid, psi_grid, left=W0, right=0.0)
+        rho_j_r = jax.vmap(
+            lambda p: _multimass_density_sources(p, rescale, W0, g), out_axes=1
+        )(psi_r)
+        rho_j_r = jnp.where(r_grid[None, :] <= r_t, rho_j_r, 0.0)
+
+        integrand = 4.0 * jnp.pi * r_grid[None, :] ** 2 * rho_j_r
+        dr = r_grid[1] - r_grid[0]
+        M_cum = jnp.concatenate([
+            jnp.zeros((rho_j_r.shape[0], 1)),
+            jnp.cumsum(0.5 * (integrand[:, 1:] + integrand[:, :-1]), axis=1) * dr,
+        ], axis=1)
+        cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
+
+        for name, val in dict(
+            W0=W0, g=g, delta=delta, r_c=r_c, r_t=r_t, m_j=m_j, alpha_j=alpha_j,
+            mu_j=mu_j, rescale_j=rescale, nu_j=nu_j, N_frac_j=N_frac, mu_tot=mu_tot,
+            residual=jnp.asarray(residual, dtype=jnp.float64),
+            xi_grid=xi_grid, psi_grid=psi_grid, _r_grid=r_grid, _cdf_j=cdf_j,
+        ).items():
+            object.__setattr__(self, name, val)
+
+    @classmethod
+    def from_alpha(cls, alpha_j, m_j, W0, g, delta, r_c=1.0,
+                   xi_max: float = 300.0, n_ode_points: int = 2000, n_grid: int = 1000):
+        """Direct constructor: solve the coupled equilibrium for given alpha_j (Layer A)."""
+        xi, psi, _ = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_ode_points)
+        return cls(alpha_j, m_j, W0, g, delta, r_c, xi, psi, residual=0.0, n_grid=n_grid)
+
+    @classmethod
+    def from_imf(cls, imf, n_comp, W0, g, delta, m_range=(0.1, 100.0), r_c=1.0,
+                 n_iter: int = 30, xi_max: float = 300.0, n_ode_points: int = 2000,
+                 n_grid: int = 1000):
+        """Bin an IMF into n_comp log-spaced components and solve for alpha_j (Layer B)."""
+        m_j, M_j = _bin_imf(imf, n_comp, m_range)
+        alpha_j, residual = find_alpha_for_masses(
+            m_j, M_j, W0, g, delta, n_iter=n_iter, xi_max=xi_max, n_points=n_ode_points
+        )
+        xi, psi, _ = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_ode_points)
+        return cls(alpha_j, m_j, W0, g, delta, r_c, xi, psi, residual=residual, n_grid=n_grid)
+
+    def total_density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Total (mass-weighted) volume density sum_j alpha_j rho_hat_j(r), 0 outside r_t."""
+        psi_r = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+        rho_j = jax.vmap(
+            lambda p: _multimass_density_sources(p, self.rescale_j, self.W0, self.g),
+            out_axes=1,
+        )(jnp.atleast_1d(psi_r))
+        tot = jnp.sum(self.alpha_j[:, None] * rho_j, axis=0).reshape(jnp.shape(r))
+        return jnp.where(r <= self.r_t, tot, 0.0)
+
+    def sample_cluster(self, key, n_stars: int, G=None):
+        """Sample a mass-segregated equilibrium IC -> (positions, velocities, masses).
+
+        Each star is assigned a component by a categorical draw (probabilities N_frac_j),
+        then its position is drawn from that component's mass CDF and its speed from
+        u^2 E_gamma(g, W_j(r) - u^2/2) at scale s_j = s mu_j^(-delta), s^2 = G M /
+        (9 r_c mu_tot). The total cluster mass M = sum_i m_i is the sum of the sampled
+        stellar masses (as in the single-mass DF) -- so kinetic and potential energies
+        use a consistent M and the cluster is virial (Q=0.5). Differentiable in
+        (W0, g, delta) through the per-star scales.
+        """
+        from progenax.kinematics.limepy_df import _sample_unit_speed
+
+        if G is None:
+            G = defaults.DEFAULT_UNITS.G
+        k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
+
+        c = jax.random.categorical(k_assign, jnp.log(self.N_frac_j + 1e-30), shape=(n_stars,))
+        m_i = self.m_j[c]
+        rescale_i = self.rescale_j[c]
+        M_total = jnp.sum(m_i)  # the cluster mass IS the sum of its stars
+        s = jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu_tot))
+        s_i = s * self.mu_j[c] ** (-self.delta)
+
+        # Positions: per-star inverse-CDF on its component's mass CDF + isotropic dirs.
+        u = jax.random.uniform(k_pos, (n_stars,))
+        radii = jax.vmap(lambda uu, cc: jnp.interp(uu, self._cdf_j[cc], self._r_grid))(u, c)
+        pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
+
+        # Velocities: per-star speed at the component's rescaled potential + scale s_i.
+        W_i = rescale_i * jnp.maximum(
+            jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid,
+                       left=self.W0, right=0.0), 0.0
+        )
+        speed_keys = jax.random.split(k_speed, n_stars)
+        u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, self.g, _N_SPEED))(
+            speed_keys, W_i)
+        vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)
+        return pos, vel, m_i
+
+
+__all__ = ["solve_multimass_limepy", "find_alpha_for_masses", "MultiMassLIMEPY"]

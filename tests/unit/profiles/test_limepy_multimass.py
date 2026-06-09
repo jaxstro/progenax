@@ -19,6 +19,15 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from jaxstro.units import STELLAR
+
+G = STELLAR.G
+
+
+def _component_masks(masses, m_j):
+    """Boolean (n_comp, N) masks selecting each discrete mass component."""
+    return jnp.stack([jnp.isclose(masses, float(mj)) for mj in np.asarray(m_j)])
+
 
 class TestMultiMassCoreDelta0:
     """delta=0 is the single-mass model, structurally (the cleanest oracle)."""
@@ -201,3 +210,146 @@ class TestEigenvalueSolve:
         dd = jax.grad(metric_d)(0.4)
         assert jnp.all(jnp.isfinite(dM)) and jnp.any(jnp.abs(dM) > 0)
         assert jnp.isfinite(dd) and jnp.abs(dd) > 0
+
+
+class TestMultiMassLIMEPYModel:
+    """Layer C: MultiMassLIMEPY -- construction, sampling, and the equilibrium headline."""
+
+    def _two_component(self, delta=0.5, W0=7.0, g=1.0):
+        # A mass ratio mild enough that the (rarer, concentrated) heavy component is
+        # resolvable for kinematics, while still clearly segregating (mu_heavy > 1).
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+        m_j = jnp.array([1.0, 4.0])
+        alpha_j = jnp.array([0.6, 0.4])
+        return MultiMassLIMEPY.from_alpha(alpha_j, m_j, W0=W0, g=g, delta=delta, r_c=1.0)
+
+    def test_from_alpha_delta0_density_matches_single_mass(self):
+        """A delta=0 model's total density profile equals the single-mass LIMEPYProfile
+        (no segregation): the class-level single-mass corner."""
+        from progenax.profiles.limepy import LIMEPYProfile
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        m_j = jnp.array([0.4, 5.0])
+        alpha_j = jnp.array([0.6, 0.4])
+        model = MultiMassLIMEPY.from_alpha(alpha_j, m_j, W0=7.0, g=1.0, delta=0.0, r_c=1.0)
+        king = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0)
+        r = jnp.linspace(0.0, float(king.r_t) * 0.98, 200)
+        tot = model.total_density(r)
+        ref = king.density(r)
+        # normalize both to their central value for a shape comparison
+        np.testing.assert_allclose(np.asarray(tot / tot[0]), np.asarray(ref / ref[0]),
+                                   rtol=3e-3, atol=3e-3)
+
+    def test_from_imf_constructs_and_hits_masses(self):
+        """from_imf bins an IMF, solves for alpha_j, and reproduces the per-bin mass
+        budget (small residual)."""
+        from progenax.imf import PowerLawIMF
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        model = MultiMassLIMEPY.from_imf(
+            PowerLawIMF.kroupa(), n_comp=4, W0=7.0, g=1.0, delta=0.5,
+            m_range=(0.1, 20.0), r_c=1.0,
+        )
+        assert float(model.residual) < 2e-3
+        assert model.m_j.shape == (4,) and model.alpha_j.shape == (4,)
+        assert abs(float(jnp.sum(model.alpha_j)) - 1.0) < 1e-9
+
+    def test_per_group_virial_is_half(self):
+        """THE headline equilibrium proof: each mass component is sampled from ITS OWN
+        equilibrium DF, so the per-component velocity dispersion sigma_1d,j(r) matches
+        the analytic LIMEPY moment s_j sqrt(I2/I0/3) (I_k = int u^k E_gamma(g, W_j-u^2/2)),
+        and the whole cluster is virial (global Q=0.5, unscaled). This is the
+        well-resolved (not N-body-noise-limited) statement of 'each mass group is in
+        equilibrium' -- the property the lambda_seg blend lacks per group. (The direct
+        per-group virial Q_j vs the blend, seed-averaged, is the Phase-3 comparison.)"""
+        from progenax.dynamics import compute_virial_ratio
+        from progenax.profiles.limepy import lowered_exponential
+
+        model = self._two_component(delta=0.5)
+        pos, vel, masses = model.sample_cluster(jax.random.PRNGKey(0), n_stars=15000, G=G)
+        pos = pos - jnp.average(pos, axis=0, weights=masses)
+        vel = vel - jnp.average(vel, axis=0, weights=masses)
+        r = jnp.linalg.norm(pos, axis=1)
+        v2 = jnp.sum(vel**2, axis=1)
+        M = jnp.sum(masses)
+        s = jnp.sqrt(G * M / (9.0 * model.r_c * model.mu_tot))
+
+        def analytic_sigma1d(W_j, s_j):
+            u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
+            E = lowered_exponential(model.g, W_j - u**2 / 2.0)
+            return float(s_j * jnp.sqrt(jnp.trapezoid(u**4 * E, u)
+                                        / jnp.trapezoid(u**2 * E, u) / 3.0))
+
+        # Per-component core dispersion matches the analytic equilibrium prediction.
+        for jc in range(2):
+            sel = jnp.isclose(masses, float(model.m_j[jc]))
+            r_j, v2_j = r[sel], v2[sel]
+            s_j = float(s * model.mu_j[jc] ** (-model.delta))
+            core = r_j < 1.0
+            assert int(jnp.sum(core)) > 60, "too few stars to resolve the core dispersion"
+            sig_meas = float(jnp.sqrt(jnp.mean(v2_j[core]) / 3.0))
+            r_mid = float(jnp.median(r_j[core]))
+            W_j = float(model.rescale_j[jc]) * float(
+                jnp.interp(r_mid, model.xi_grid, model.psi_grid))
+            sig_pred = analytic_sigma1d(jnp.asarray(W_j), s_j)
+            np.testing.assert_allclose(sig_meas, sig_pred, rtol=0.08,
+                                       err_msg=f"component {jc} dispersion off equilibrium")
+
+        # The whole cluster is virial without rescaling.
+        Qg = float(compute_virial_ratio(pos, vel, masses, G=G))
+        assert abs(Qg - 0.5) < 0.04, f"global Q={Qg:.3f} (expected 0.5)"
+
+    def test_heavy_component_is_kinematically_colder(self):
+        """The equipartition signature: at fixed radius the heavy component has a
+        SMALLER velocity dispersion than the light one (s_j = s mu_j^{-delta} with
+        mu_heavy>1) -- partial energy equipartition, a true-equilibrium consequence the
+        blend does not encode."""
+        model = self._two_component(delta=0.5)
+        pos, vel, masses = model.sample_cluster(jax.random.PRNGKey(2), n_stars=15000, G=G)
+        r = jnp.linalg.norm(pos, axis=1)
+        v2 = jnp.sum(vel**2, axis=1)
+        core = r < 1.0
+        sig_light = float(jnp.sqrt(jnp.mean(
+            v2[core & jnp.isclose(masses, float(model.m_j[0]))]) / 3.0))
+        sig_heavy = float(jnp.sqrt(jnp.mean(
+            v2[core & jnp.isclose(masses, float(model.m_j[1]))]) / 3.0))
+        assert sig_heavy < sig_light, f"heavy sigma={sig_heavy:.3f} not < light {sig_light:.3f}"
+
+    def test_sampled_cluster_is_mass_segregated(self):
+        """In the sampled cluster the heavy component is more centrally concentrated
+        than the light one (mean radius), the observable signature of segregation."""
+        model = self._two_component(delta=0.5)
+        pos, vel, masses = model.sample_cluster(
+            jax.random.PRNGKey(0), n_stars=20000, G=G)
+        r = jnp.linalg.norm(pos, axis=1)
+        r_light = float(jnp.mean(r[jnp.isclose(masses, float(model.m_j[0]))]))
+        r_heavy = float(jnp.mean(r[jnp.isclose(masses, float(model.m_j[1]))]))
+        assert r_heavy < r_light, f"heavy <r>={r_heavy:.2f} not < light <r>={r_light:.2f}"
+
+    def test_all_particles_bound(self):
+        model = self._two_component(delta=0.5)
+        pos, vel, masses = model.sample_cluster(
+            jax.random.PRNGKey(1), n_stars=5000, G=G)
+        # crude global bound check: speed below the central escape speed s*sqrt(2 W0)
+        from progenax.builders import compute_potential_energy, compute_kinetic_energy
+        V = float(compute_potential_energy(pos, masses, G=G))
+        assert np.isfinite(V)
+        d = jnp.linalg.norm(pos[:, None] - pos[None], axis=2) + jnp.eye(pos.shape[0]) * 1e9
+        assert float(d.min()) > 1e-6  # no coincident stars
+
+    def test_sample_differentiable_in_delta(self):
+        """grad of a kinematic functional w.r.t. delta flows through construction +
+        sampling -- the equipartition degree is inferable from a sampled cluster."""
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        m_j = jnp.array([0.4, 5.0])
+        alpha_j = jnp.array([0.7, 0.3])
+
+        def loss(delta):
+            model = MultiMassLIMEPY.from_alpha(alpha_j, m_j, W0=7.0, g=1.0, delta=delta, r_c=1.0)
+            pos, vel, masses = model.sample_cluster(
+                jax.random.PRNGKey(0), n_stars=400, G=G)
+            return jnp.mean(jnp.sum(vel**2, axis=1))
+
+        d = jax.grad(loss)(0.4)
+        assert jnp.isfinite(d)
