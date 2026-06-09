@@ -66,10 +66,10 @@ value is shown against the tested tolerance (no self-consistency-only checks).
   - 2026-06-08
 * - diagnostics/Λ_MSR + segregation
   - [](mass-segregation.md)
-  - 8
-  - 4
-  - Λ_MSR vs analytic ground truth; energy-sorted generator
-  - 2026-06-08
+  - 8 + 13 + 27
+  - 9
+  - Λ_MSR vs analytic ground truth; energy-sorted generator; **differentiable observables** (soft Λ_MSR / radial / Σ–m) vs exact soft→hard limit + Fisher identifiability
+  - 2026-06-09
 * - cluster/two-component
   - [](two-component.md)
   - ✅
@@ -206,7 +206,7 @@ Scoped to the *validated, differentiable* capability:
   - **End-to-end inference validation** (SBC-style recovery on mocks through gravax/fluxax)
   - this is the real outstanding gap: gradients are verified at the IC level, not against data.
 * - R7
-  - **Retrofit a Measured column onto the older figured pages** (mass-segregation, two-component)
+  - **Retrofit a Measured column onto the older figured pages** (two-component; mass-segregation done 2026-06-09)
   - consistency with the new pages' tolerance/measured convention.
 ```
 

@@ -36,9 +36,47 @@ def test_unsegregated_lambda_is_unity():
     assert 0.9 < mean_lambda < 1.1, f"unsegregated mean Λ={mean_lambda:.3f}, expected ≈1"
 
 
-# ── Tier A2: maximally segregated → Λ ≫ 1 ──
-def test_maximal_segregation_lambda_large():
-    """Massive stars packed in a tiny core, rest spread over unit radius ⇒ L_massive→0 ⇒ Λ≫1."""
+def _plummer_clip(n, rng, a=0.4, rmax=1.2):
+    """A realistic, centrally concentrated baseline cluster (clipped Plummer sphere).
+
+    Shared by the realistic segregated/inverse tests so each regime is a rearrangement
+    of the SAME physical cluster — the honest construction (cf. the documented figure in
+    docs/website/50-validation/mass-segregation.md §1).
+    """
+    out = np.empty((0, 3))
+    while len(out) < n:
+        u = rng.uniform(0, 1, n)
+        r = a / np.sqrt(u ** (-2 / 3) - 1)
+        cth = rng.uniform(-1, 1, n)
+        sth = np.sqrt(1 - cth ** 2)
+        ph = rng.uniform(0, 2 * np.pi, n)
+        p = np.stack([r * sth * np.cos(ph), r * sth * np.sin(ph), r * cth], axis=1)
+        out = np.vstack([out, p[np.linalg.norm(p, axis=1) < rmax]])
+    return out[:n]
+
+
+# ── Tier A2: realistic segregation → Λ ~ a few (observed range) ──
+def test_segregation_lambda_in_observed_range():
+    """Massive stars in a *resolved* central core of a realistic (Plummer) cluster ⇒
+    Λ ~ a few — the range Allison et al. (2009) measure for segregated young clusters,
+    NOT the scale-arbitrary Λ≫1 that a near-delta core produces (see the limit test below)."""
+    rng = np.random.default_rng(0)
+    N, N_massive = 300, 15
+    positions = _plummer_clip(N, rng)
+    masses = rng.random(N)
+    top = np.argsort(-masses)[:N_massive]
+    positions[top] = rng.normal(scale=0.07, size=(N_massive, 3))  # resolved (~0.2 pc) core
+    lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive,
+                                N_random_samples=400, seed=1)
+    assert 2.0 < lam < 12.0, f"segregated Λ={lam:.2f}, expected ~a few (observed range)"
+
+
+# ── Tier A2b: estimator extreme limit → Λ unbounded as the core → 0 ──
+def test_delta_core_lambda_unbounded():
+    """Estimator-limit check (not a physical configuration): a near-delta massive core
+    drives L_massive→0, so Λ→∞. This documents that Λ has no upper bound — the value is
+    set by the (arbitrary) core size, which is why the realistic test above, not this one,
+    is the headline."""
     rng = np.random.default_rng(1)
     N, N_massive = 200, 10
     field = rng.normal(size=(N, 3))
@@ -46,24 +84,26 @@ def test_maximal_segregation_lambda_large():
     field *= rng.uniform(0, 1, (N, 1)) ** (1 / 3)  # uniform in unit ball
     masses = rng.random(N)
     top = np.argsort(-masses)[:N_massive]
-    field[top] = rng.normal(scale=1e-3, size=(N_massive, 3))  # tight core
+    field[top] = rng.normal(scale=1e-3, size=(N_massive, 3))  # near-delta core
     lam, _ = compute_lambda_msr(field, masses, N_massive=N_massive, N_random_samples=200, seed=2)
-    assert lam > 20.0, f"maximal-segregation Λ={lam:.2f}, expected ≫1"
+    assert lam > 20.0, f"delta-core Λ={lam:.2f}, expected ≫1 (unbounded limit)"
 
 
 # ── Tier A3: inverse segregation → Λ < 1 ──
 def test_inverse_segregation_lambda_below_unity():
-    """Massive stars on a wide shell, low-mass stars in a tight core ⇒ Λ<1."""
-    rng = np.random.default_rng(3)
-    N, N_massive = 200, 10
-    positions = rng.normal(scale=0.05, size=(N, 3))  # everyone tight by default
+    """Massive stars on the OUTER half of the SAME realistic cluster (low-mass stars central)
+    ⇒ Λ<1, a genuine mild inverse — not the exaggerated tight-clump-plus-thin-shell caricature."""
+    rng = np.random.default_rng(0)
+    N, N_massive = 300, 15
+    positions = _plummer_clip(N, rng)
     masses = rng.random(N)
     top = np.argsort(-masses)[:N_massive]
-    shell = rng.normal(size=(N_massive, 3))
-    shell /= np.linalg.norm(shell, axis=1, keepdims=True)
-    positions[top] = shell  # massive stars on unit shell (spread out)
-    lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive, N_random_samples=200, seed=4)
-    assert lam < 0.7, f"inverse-segregation Λ={lam:.3f}, expected <1"
+    dirs = rng.normal(size=(N_massive, 3))
+    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+    positions[top] = dirs * rng.uniform(0.6, 1.0, (N_massive, 1))  # massive on the outskirts
+    lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive,
+                                N_random_samples=400, seed=1)
+    assert lam < 0.85, f"inverse-segregation Λ={lam:.3f}, expected <1"
 
 
 # ── Tier A4: exact hand-computed value (N_massive=2) ──
