@@ -188,6 +188,83 @@ class TestSolveLimepyProfile:
         assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0
 
 
+class TestLimepyAnisotropicDensity:
+    """The general-g anisotropic (Michie/OM) density rho_hat(W, p, g), p = r/r_a.
+
+    Computed by the stable 1-D speed quadrature (the angle integral closes to the
+    bounded T(beta) = int_{-1}^1 exp(-beta(1-c^2)) dc, beta = p^2 u^2/2), NOT the
+    numerically unstable jax hyp1f1. Oracles: the g=1 corner is progenax's existing
+    michie_density (same physical DF); p->0 recovers the isotropic limepy density;
+    and (where jax hyp1f1 is stable, x < 80) it matches the verified closed form.
+    """
+
+    def test_g1_matches_michie_density(self):
+        """g=1 anisotropic LIMEPY density == michie_density(W, s) (King cutoff +
+        Michie anisotropy) to quadrature precision, over a (W, p) grid. The
+        anisotropic King corner."""
+        from progenax.profiles.limepy import limepy_density_aniso_hat
+        from progenax.profiles.michie import michie_density
+
+        for W in (1.0, 3.0, 6.0, 9.0):
+            for p in (0.0, 0.3, 1.0, 3.0):
+                lim = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(p), g=1.0))
+                mic = float(michie_density(jnp.asarray(W), jnp.asarray(p)))
+                np.testing.assert_allclose(lim, mic, rtol=2e-3, atol=1e-6,
+                                           err_msg=f"W={W} p={p}")
+
+    @pytest.mark.parametrize("g", [0.0, 1.0, 2.0])
+    def test_isotropic_limit_recovers_limepy_density(self, g):
+        """As p->0 the normalized anisotropic density -> the isotropic limepy
+        density rho_hat(W)/rho_hat(W0) (T(0)=2 makes the angle integral isotropic)."""
+        from progenax.profiles.limepy import limepy_density_aniso_hat, limepy_density_hat
+
+        W = jnp.linspace(0.2, 8.0, 40)
+        W0 = 8.0
+        aniso = limepy_density_aniso_hat(W, jnp.asarray(1e-4), g=g) / \
+            limepy_density_aniso_hat(jnp.asarray(W0), jnp.asarray(1e-4), g=g)
+        iso = limepy_density_hat(W, g=g) / limepy_density_hat(jnp.asarray(W0), g=g)
+        np.testing.assert_allclose(np.asarray(aniso), np.asarray(iso), rtol=2e-3, atol=1e-4)
+
+    @pytest.mark.parametrize("g", [0.0, 1.0, 2.0])
+    @pytest.mark.parametrize("W,p", [(5.0, 0.5), (5.0, 1.0), (3.0, 1.5)])
+    def test_matches_verified_closed_form_where_stable(self, g, W, p):
+        """Cross-check the quadrature against the verified hyp1f1 closed form
+        (candidate A) in the regime where jax hyp1f1 is stable (x = p^2 W < 80):
+
+            I_rho = E(g+3/2,W)/(1+p^2) + p^2/(1+p^2) W^(g+3/2)/Gamma(g+5/2)
+                    1F1(1, g+5/2, -p^2 W).
+
+        Both are normalized to the isotropic central value to compare on one scale."""
+        from scipy.special import gammainc as sp_gammainc, gamma as sp_gamma, hyp1f1
+        from progenax.profiles.limepy import limepy_density_aniso_hat
+
+        x = p**2 * W
+        assert x < 80.0  # guard: only test where hyp1f1 is reliable
+        a = g + 1.5
+        E = np.exp(W) * sp_gammainc(a, W)  # E_gamma(g+3/2, W)
+        closed = E / (1 + p**2) + p**2 / (1 + p**2) * W**(g + 1.5) / sp_gamma(g + 2.5) \
+            * hyp1f1(1.0, g + 2.5, -(p**2) * W)
+        # quadrature is unnormalized by sqrt(2 pi) vs E_gamma; rescale by the s=0 ratio.
+        quad = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(p), g=g))
+        quad0 = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(1e-6), g=g))
+        E_iso = float(np.exp(W) * sp_gammainc(a, W))
+        quad_scaled = quad / quad0 * E_iso  # put quadrature on the E_gamma scale
+        np.testing.assert_allclose(quad_scaled, closed, rtol=3e-3)
+
+    def test_differentiable_in_W_p_g(self):
+        """Gradients flow through the anisotropic density in all of (W, p, g) — the
+        anisotropy radius r_a (via p) and truncation g are jointly inferable."""
+        from progenax.profiles.limepy import limepy_density_aniso_hat
+
+        f = lambda W, p, g: jnp.sum(limepy_density_aniso_hat(W, p, g))
+        Wv = jnp.array([2.0, 5.0])
+        dW = jax.grad(f, 0)(Wv, jnp.asarray(0.8), 1.0)
+        dp = jax.grad(lambda p: limepy_density_aniso_hat(jnp.asarray(5.0), p, 1.0))(0.8)
+        dg = jax.grad(lambda g: limepy_density_aniso_hat(jnp.asarray(5.0), jnp.asarray(0.8), g))(1.0)
+        assert jnp.all(jnp.isfinite(dW)) and jnp.isfinite(dp) and jnp.isfinite(dg)
+        assert jnp.abs(dp) > 0.0 and jnp.abs(dg) > 0.0
+
+
 class TestLimepyProfile:
     """LIMEPYProfile (SpatialProfile): general-g isotropic spatial profile with
     inverse-CDF position sampling. Generalizes KingProfile with a g field; at g=1

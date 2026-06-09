@@ -93,6 +93,79 @@ def limepy_density_hat(
 
 
 # ==============================================================================
+# Anisotropic (Michie / Osipkov-Merritt) density — stable 1-D speed quadrature
+# ==============================================================================
+
+# Resolution of the tangential-angle Poisson sum and the speed quadrature.
+_N_POIS = 91   # Poisson terms for the small-beta angle integral (covers beta < 25)
+_N_U_ANISO = 256  # speed-grid resolution for the anisotropic density quadrature
+
+
+def _angle_integral_T(beta: Float[Array, "..."]) -> Float[Array, "..."]:
+    """T(beta) = int_{-1}^1 exp(-beta (1 - c^2)) dc, the closed tangential-angle
+    integral of the Michie/OM anisotropy factor (beta = p^2 u^2 / 2 >= 0).
+
+    Evaluated *stably for all beta* — avoiding jax's hyp1f1, which is NaN for the
+    arguments this reaches. Rewriting
+
+        T(beta) = 2 sum_n e^{-beta} beta^n / (n! (2n+1)) = 2 sum_n Pois(n; beta)/(2n+1)
+
+    makes every term a bounded Poisson weight (no overflow). For small beta the
+    Poisson sum is used directly; for large beta the Watson asymptotic
+    T ~ (1/beta)(1 + 1/2beta + 3/4beta^2 + 15/8beta^3) (accurate to ~1e-5 by
+    beta=25, where the series is truncated). T(0) = 2 (isotropic). Differentiable.
+    """
+    bc = 25.0
+    n = jnp.arange(float(_N_POIS))
+    bs = jnp.maximum(beta, 1e-300)[..., None]
+    log_pois = n * jnp.log(bs) - bs - jax.scipy.special.gammaln(n + 1.0)
+    series = 2.0 * jnp.sum(jnp.exp(log_pois) / (2.0 * n + 1.0), axis=-1)
+
+    b = jnp.maximum(beta, bc)  # clamp keeps the unused asymptotic branch grad-safe
+    asy = (1.0 / b) * (1.0 + 1.0 / (2.0 * b) + 3.0 / (4.0 * b**2) + 15.0 / (8.0 * b**3))
+    return jnp.where(beta < bc, series, asy)
+
+
+def _aniso_density_scalar(
+    W: Float[Array, ""], p: Float[Array, ""], g: Float[Array, ""]
+) -> Float[Array, ""]:
+    """Scalar anisotropic density rho_hat(W, p, g), p = r / r_a (unnormalized).
+
+    The velocity-space integral of the LIMEPY DF with the Michie/OM anisotropy,
+    reduced to a 1-D speed quadrature by closing the angle integral into T(beta):
+
+        rho_hat(W, p, g) = int_0^{sqrt(2W)} u^2 E_gamma(g, W - u^2/2) T(p^2 u^2/2) du.
+
+    At p=0, T=2 and this is sqrt(2 pi) times the isotropic limepy_density_hat (the
+    same proportionality michie_density uses); at g=1 it equals michie_density(W, p).
+    Returns 0 for W <= 0. Mirrors michie_density's quadrature structure.
+    """
+    W_pos = jnp.maximum(W, 1e-12)
+    u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_pos), _N_U_ANISO)
+    E = lowered_exponential(g, W_pos - u**2 / 2.0)
+    integrand = u**2 * E * _angle_integral_T(p**2 * u**2 / 2.0)
+    rho = jnp.trapezoid(integrand, u)
+    return jnp.where(W > 0.0, rho, 0.0)
+
+
+def limepy_density_aniso_hat(
+    W: Float[Array, "..."], p: Float[Array, ""], g: Float[Array, ""]
+) -> Float[Array, "..."]:
+    """Anisotropic (Michie/OM) LIMEPY density rho_hat(W, p, g), p = r/r_a (scalar).
+
+    Broadcasts over W (scalar p, g). Unnormalized (consistent constant across W, p);
+    normalize by the central value rho_hat(W0, 0, g) as in the Poisson solve. At p=0
+    it reduces to the isotropic limepy density (after normalization); at g=1 it equals
+    `michie_density`. Differentiable in (W, p, g): p carries the anisotropy radius
+    gradient, g the truncation-index gradient.
+    """
+    W_arr = jnp.asarray(W)
+    flat = jnp.atleast_1d(W_arr).reshape(-1)
+    out = jax.vmap(lambda w: _aniso_density_scalar(w, p, g))(flat)
+    return out.reshape(W_arr.shape) if W_arr.ndim > 0 else out[0]
+
+
+# ==============================================================================
 # Self-consistent Poisson solve (general-g; generalizes solve_king_profile)
 # ==============================================================================
 
@@ -298,6 +371,7 @@ class LIMEPYProfile(eqx.Module):
 __all__ = [
     "lowered_exponential",
     "limepy_density_hat",
+    "limepy_density_aniso_hat",
     "solve_limepy_profile",
     "LIMEPYProfile",
 ]
