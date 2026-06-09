@@ -24,6 +24,14 @@ definition verified against the held ApJ 700 L99 PDF — see
 [](../99-bibliography/per-paper/allison-2009.md)). Tests in
 `tests/validation/test_mass_segregation_physics.py`:
 
+The three regimes below are **rearrangements of one shared, realistic baseline cluster**
+(a centrally concentrated Plummer sphere): only the massive-star positions change, so the
+panels are an honest like-for-like comparison, the massive stars are spatially *resolved*,
+and the segregated $\Lambda$ sits in the **observed range** (Allison et al. 2009 measure
+$\Lambda \sim$ a few for segregated young clusters such as the ONC). The unbounded
+behaviour of $\Lambda$ — useful as a *mathematical* limit but not a physical configuration
+— is checked separately (the delta-core row), so it never sets the headline number.
+
 ```{list-table}
 :header-rows: 1
 
@@ -32,17 +40,21 @@ definition verified against the held ApJ 700 L99 PDF — see
   - Expected
   - Measured
 * - Unsegregated
-  - random masses on a field
+  - random masses on the baseline cluster
   - $\Lambda \approx 1$
   - $1.00 \pm 0.11$
-* - Maximally segregated
-  - massive stars in a tight core
-  - $\Lambda \gg 1$
-  - $\sim 410$
+* - Segregated (realistic)
+  - massive stars in a **resolved** central core ($\sim0.2$ pc)
+  - $\Lambda \sim$ a few
+  - $4.8 \pm 0.7$
 * - Inverse
-  - massive stars on the rim
+  - massive stars on the outer half of the same cluster
   - $\Lambda < 1$
-  - $0.17$
+  - $0.80 \pm 0.10$
+* - Estimator limit (delta core)
+  - near-point massive core, $L_{\mathrm{massive}}\!\to\!0$
+  - $\Lambda \to \infty$ (unbounded)
+  - $\sim 390$ (scale-set, *not* physical)
 * - Exact ($N_{\mathrm{massive}}=2$)
   - vs independent `scipy.pdist` enumeration
   - exact ratio
@@ -61,10 +73,24 @@ definition verified against the held ApJ 700 L99 PDF — see
 :label: val-lambda-regimes
 :width: 100%
 
-$\Lambda_{\mathrm{MSR}}$ on three hand-constructed regimes (unsegregated $\to 1$,
-maximally segregated $\to \gg 1$, inverse $\to <1$). ▲ marks the
-$N_{\mathrm{massive}}$ set.
+$\Lambda_{\mathrm{MSR}}$ on three states of **one shared Plummer cluster** (same grey
+"all stars" distribution, same axes): (a) unsegregated ($\Lambda=1.05$) — massive stars
+follow the field; (b) segregated ($\Lambda=5.70$) — the $N_{\mathrm{massive}}$ stars (▲)
+sit in a *resolved* central core, a value in the observed range, not a scale-arbitrary
+extreme; (c) inverse ($\Lambda=0.73$) — massive stars on the cluster outskirts. ▲ marks
+the $N_{\mathrm{massive}}$ set used for $\ell_{\mathrm{massive}}$.
 :::
+
+```{note}
+This figure was rebuilt (2026-06-09) after review. The earlier version (i) crushed the
+massive stars into a $10^{-3}$ pc near-delta core — so they overlapped into a single
+unresolvable point and reported a *scale-arbitrary* $\Lambda\approx410$ — and (ii) used a
+**different** baseline distribution in each panel (a $0.05$ pc clump for the inverse case),
+breaking the cross-panel comparison. The estimator itself was never in error (the exact
+$N_{\mathrm{massive}}=2$ anchor below holds to $<0.1\%$); only the *illustration* was
+unphysical. The three panels now share one realistic cluster and report observed-range
+$\Lambda$ values.
+```
 
 :::{figure} figures/lambda_msr_monotonic_convergence.png
 :label: val-lambda-convergence

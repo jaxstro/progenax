@@ -34,6 +34,11 @@ from scipy.spatial.distance import pdist
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from progenax.diagnostics import compute_lambda_msr  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).parent))
+from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
+
+apply_pub_style()
+
 PLOT_DIR = Path(__file__).parent.parent / "validation" / "plots"
 
 
@@ -44,20 +49,49 @@ def _uniform_ball(n, rng):
     return p * rng.uniform(0, 1, (n, 1)) ** (1 / 3)
 
 
+def _plummer_clip(n, rng, a=0.4, rmax=1.2):
+    """Sample n points from a 3D Plummer sphere (scale ``a``), clipped at ``rmax``.
+
+    A realistic, centrally concentrated baseline cluster — shared by all three
+    regime panels so they are an honest like-for-like comparison (unlike the old
+    figure, which used a different distribution in each panel).
+    """
+    out = np.empty((0, 3))
+    while len(out) < n:
+        u = rng.uniform(0, 1, n)
+        r = a / np.sqrt(u ** (-2 / 3) - 1)
+        cth = rng.uniform(-1, 1, n)
+        sth = np.sqrt(1 - cth ** 2)
+        ph = rng.uniform(0, 2 * np.pi, n)
+        p = np.stack([r * sth * np.cos(ph), r * sth * np.sin(ph), r * cth], axis=1)
+        out = np.vstack([out, p[np.linalg.norm(p, axis=1) < rmax]])
+    return out[:n]
+
+
 def make_config(kind, N=300, N_massive=15, rng=None):
-    """Return (positions, masses, massive_idx) for a named regime."""
+    """Return (positions, masses, massive_idx) for a named regime.
+
+    All three regimes share ONE realistic baseline cluster (a centrally
+    concentrated Plummer sphere); only the massive-star positions differ, so the
+    panels are an honest like-for-like comparison. Massive cores are spatially
+    **resolved** (no delta-function), and the Λ values sit in the *observed* range
+    (Allison et al. 2009 measure Λ ~ a few for segregated young clusters), rather
+    than the scale-arbitrary Λ ~ 400 that a near-delta core produces.
+    """
     rng = rng or np.random.default_rng(0)
-    pos = _uniform_ball(N, rng)
+    pos = _plummer_clip(N, rng)                       # shared baseline for ALL regimes
     masses = rng.random(N)
     top = np.argsort(-masses)[:N_massive]
     if kind == "unsegregated":
-        pass  # massive stars stay at their random positions
+        pass                                          # massive at baseline positions
     elif kind == "segregated":
-        pos[top] = rng.normal(scale=1e-3, size=(N_massive, 3))   # tight central core
+        # resolved central core (~0.2 pc across) -> Λ ~ 4-5 (observed range)
+        pos[top] = rng.normal(scale=0.07, size=(N_massive, 3))
     elif kind == "inverse":
-        pos = rng.normal(scale=0.05, size=(N, 3))                # everyone tight...
-        shell = rng.normal(size=(N_massive, 3))
-        pos[top] = shell / np.linalg.norm(shell, axis=1, keepdims=True)  # ...massive on the rim
+        # massive stars in the OUTER half of the SAME cluster, with real scatter
+        dirs = rng.normal(size=(N_massive, 3))
+        dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+        pos[top] = dirs * rng.uniform(0.6, 1.0, (N_massive, 1))
     return pos, masses, top
 
 
@@ -68,9 +102,11 @@ def validate_regimes():
     print(f"  {'regime':<16}{'Λ_MSR (meas)':>16}{'expected':>14}{'':>4}verdict")
     rng = np.random.default_rng(0)
     rows, ok_all = [], True
+    # Thresholds are physically meaningful: a *resolved* segregated core gives
+    # Λ ~ a few (observed range), not the scale-arbitrary Λ > 20 a delta-core forces.
     checks = [("unsegregated", lambda L: 0.85 < L < 1.15, "≈ 1"),
-              ("segregated", lambda L: L > 20, "≫ 1"),
-              ("inverse", lambda L: L < 0.7, "< 1")]
+              ("segregated", lambda L: L > 2.0, "> 1 (a few)"),
+              ("inverse", lambda L: L < 0.85, "< 1")]
     for kind, test, exp in checks:
         pos, m, top = make_config(kind, rng=rng)
         # average over mass-shuffles for the unsegregated case (kill single-draw scatter)
@@ -96,18 +132,26 @@ def validate_regimes():
 
 # ----------------------------------------------------------------- plots
 def fig_regimes(rows):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for ax, (kind, pos, m, top, lam) in zip(axes, rows):
+    """Three regimes of the SAME baseline cluster, on shared axes (honest comparison)."""
+    fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.9))
+    tags = ["(a)", "(b)", "(c)"]
+    lim = 1.25
+    for ax, (kind, pos, m, top, lam), tag in zip(axes, rows, tags):
         other = np.setdiff1d(np.arange(len(m)), top)
-        ax.scatter(pos[other, 0], pos[other, 1], s=6, c="0.7", label="all stars")
-        ax.scatter(pos[top, 0], pos[top, 1], s=45, c="crimson", marker="^",
-                   edgecolor="k", label="massive (MST set)")
-        ax.set_aspect("equal"); ax.set_xlabel("x (pc)"); ax.set_ylabel("y (pc)")
-        ax.set_title(f"{kind}\nΛ_MSR = {lam:.2f}")
-        ax.legend(fontsize=8, loc="upper right")
-    fig.suptitle("Λ_MSR on analytic regimes (▲ = the N_massive used for L_massive)")
-    fig.savefig(PLOT_DIR / "lambda_msr_regimes.png", dpi=130, bbox_inches="tight")
-    plt.close(fig)
+        ax.scatter(pos[other, 0], pos[other, 1], s=7, c="0.72",
+                   label="all stars", rasterized=True)
+        ax.scatter(pos[top, 0], pos[top, 1], s=42, c=OI["vermilion"], marker="^",
+                   edgecolor="k", linewidths=0.6, label="massive (MST set)", zorder=3)
+        ax.set_aspect("equal")
+        ax.set_xlim(-lim, lim)
+        ax.set_ylim(-lim, lim)
+        ax.set_xlabel("x (pc)")
+        ax.set_title(rf"{kind}" "\n" rf"$\Lambda_{{\rm MSR}} = {lam:.2f}$", fontsize=9.5)
+        panel_label(ax, tag, loc="upper left")
+    axes[0].set_ylabel("y (pc)")
+    axes[0].legend(loc="upper right", fontsize=7, markerscale=0.9)
+    fig.tight_layout(pad=0.5, w_pad=1.0)
+    save_fig(fig, PLOT_DIR, "lambda_msr_regimes")
 
 
 def fig_monotonic_and_convergence():
