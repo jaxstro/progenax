@@ -1,17 +1,22 @@
 # progenax/tests/unit/cluster/test_mass_segregation.py
-"""
-Unit tests for mass_segregation module.
+"""Unit tests for the energy-ordered mass-segregation assignment.
 
-Tests cover:
-    - Shape and identity preservation in energy_sorted_segregation
-    - Physical behavior (massive stars -> more bound orbits)
-    - No-orbit-reuse guarantee
-    - _mcluster_partial_shuffle behavior for S=0, S=0.5, S=1
+Every test is a *contract* or *physics* check that a wrong implementation would fail —
+no shape-only smoke tests, no re-derivation of the function's own internals.
+
+Covers `energy_sorted_segregation` (Baumgardt+2008 S=1 orbit assignment):
+    - no orbit reuse for ANY mass spectrum (regression for the cumulative-mass
+      bin-collapse bug that produced coincident stars for steep IMFs)
+    - the S=1 physics: assigned specific energy is monotonic in mass
+    - the assignment selects pool orbits (never interpolates) and is deterministic
+and `_mcluster_partial_shuffle` (the unused reference shuffle): S=0/1 limits.
 """
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
+from scipy.stats import spearmanr
 
 from progenax.cluster.mass_segregation import (
     energy_sorted_segregation,
@@ -19,328 +24,182 @@ from progenax.cluster.mass_segregation import (
 )
 
 
-# =============================================================================
-# Fixtures
-# =============================================================================
-
-
 @pytest.fixture
 def key():
-    """Standard JAX random key for reproducibility."""
     return jax.random.PRNGKey(42)
 
 
 def harmonic_potential(positions):
-    """
-    Simple harmonic potential: Phi = 0.5 * omega^2 * r^2 (omega=1).
-
-    This gives a toy potential where E = 0.5 * v^2 + 0.5 * r^2, so
-    more negative E (or smaller total) means more bound.
-
-    Note: This is a positive potential (unlike gravitational), but the
-    segregation algorithm just sorts by energy, so it still works for testing.
-    """
+    """Toy potential Phi = 0.5 r^2 (omega=1): orbits are ranked by E = 0.5 v^2 + 0.5 r^2."""
     return 0.5 * jnp.sum(positions**2, axis=1)
 
 
 def negative_harmonic_potential(positions):
-    """
-    Harmonic potential with negative sign: Phi = -0.5 * r^2.
-
-    More physically motivated since bound orbits should have negative total
-    energy with gravitational-like potentials.
-    """
+    """Gravitational-like Phi = -0.5 r^2 (bound orbits have negative total energy)."""
     return -0.5 * jnp.sum(positions**2, axis=1)
 
 
-# =============================================================================
-# Test: energy_sorted_segregation - Shapes and Identity
-# =============================================================================
+def _mass_spectrum(kind, key, N):
+    """Mass spectra spanning the regimes that stress the orbit-binning."""
+    if kind == "uniform":
+        return jnp.ones(N)
+    if kind == "bimodal":
+        return jnp.where(jax.random.uniform(key, (N,)) < 0.1, 10.0, 1.0)
+    if kind == "kroupa-like":  # steep: most stars low-mass
+        return 0.08 * (100.0 / 0.08) ** jax.random.uniform(key, (N,)) ** 2.3
+    if kind == "extreme-steep":  # 0.01-50 Msun, very bottom-heavy
+        return 0.01 * (50.0 / 0.01) ** jax.random.uniform(key, (N,)) ** 3.0
+    raise ValueError(kind)
 
 
-class TestEnergySegregationShapes:
-    """Test shape preservation and mass identity in energy_sorted_segregation."""
+class TestEnergySortedSegregation:
+    """Contract + physics for the S=1 energy-ordered orbit assignment."""
 
-    def test_shape_and_identity(self, key):
+    @pytest.mark.parametrize("spectrum",
+                             ["uniform", "bimodal", "kroupa-like", "extreme-steep"])
+    def test_no_orbit_reuse_for_any_mass_spectrum(self, key, spectrum):
+        """The core contract, at the scale and IMF steepness that broke the old code:
+        every star lands on a DISTINCT orbit, so no two stars are coincident.
+
+        Regression: the previous per-bin sampler binned the energy-sorted pool by
+        cumulative mass; for a steep IMF a low-mass star's bin is sub-orbit, so the
+        clamp forced many ranks onto the SAME orbit -> coincident stars -> V = -inf.
         """
-        Verify that energy_sorted_segregation:
-        - Returns masses_out identical to input masses
-        - Returns positions/velocities with correct shapes
-        """
-        N = 50
-        N_pool = 200
+        N, N_pool = 600, 4 * 600
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+        masses = _mass_spectrum(spectrum, k1, N)
+        pos_pool = jax.random.normal(k2, (N_pool, 3))  # all distinct
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-        key1, key2, key3, key4 = jax.random.split(key, 4)
-
-        masses = jax.random.uniform(key1, (N,), minval=0.5, maxval=10.0)
-        positions_pool = jax.random.normal(key2, (N_pool, 3))
-        velocities_pool = jax.random.normal(key3, (N_pool, 3))
-
-        masses_out, positions_out, velocities_out = energy_sorted_segregation(
-            key4,
-            masses,
-            positions_pool,
-            velocities_pool,
-            harmonic_potential,
+        _, pos_out, _ = energy_sorted_segregation(
+            k4, masses, pos_pool, vel_pool, harmonic_potential
         )
+        n_unique = len(jnp.unique(jnp.round(pos_out, 8), axis=0))
+        assert n_unique == N, f"{spectrum}: {N - n_unique} of {N} stars coincide (orbit reuse)"
 
-        # Masses should be identical (not just equal, same array)
-        assert jnp.array_equal(masses_out, masses), "masses_out should equal input masses"
+    def test_assigned_energy_is_monotonic_in_mass(self, key):
+        """S=1 physics, as one discriminating number: the assigned specific energy is a
+        monotonically decreasing function of stellar mass (more massive -> more bound).
+        Spearman rho ~ -1 for the correct ordering; an inverted or partial assignment
+        fails. Uses a continuous spectrum so there are no mass ties."""
+        N, N_pool = 400, 4 * 400
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+        masses = jax.random.uniform(k1, (N,), minval=0.1, maxval=50.0)
+        pos_pool = jax.random.normal(k2, (N_pool, 3)) * 2.0
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-        # Check output shapes
-        assert positions_out.shape == (N, 3), f"Expected positions shape (N, 3), got {positions_out.shape}"
-        assert velocities_out.shape == (N, 3), f"Expected velocities shape (N, 3), got {velocities_out.shape}"
-
-    def test_different_keys_give_different_results(self, key):
-        """Verify different random keys produce different orbit assignments."""
-        N = 20
-        N_pool = 100
-
-        key1, key2, key3, key4 = jax.random.split(key, 4)
-
-        masses = jax.random.uniform(key1, (N,), minval=0.5, maxval=10.0)
-        positions_pool = jax.random.normal(key2, (N_pool, 3))
-        velocities_pool = jax.random.normal(key3, (N_pool, 3))
-
-        _, pos1, _ = energy_sorted_segregation(
-            key4, masses, positions_pool, velocities_pool, harmonic_potential
+        _, pos_out, vel_out = energy_sorted_segregation(
+            k4, masses, pos_pool, vel_pool, negative_harmonic_potential
         )
+        E = 0.5 * jnp.sum(vel_out**2, axis=1) + negative_harmonic_potential(pos_out)
+        rho = spearmanr(np.asarray(masses), np.asarray(E)).correlation
+        assert rho < -0.95, f"mass->energy ordering not monotonic (Spearman={rho:.3f})"
 
-        _, pos2, _ = energy_sorted_segregation(
-            jax.random.PRNGKey(999), masses, positions_pool, velocities_pool, harmonic_potential
+    def test_most_massive_star_is_the_most_bound(self, key):
+        """The single most massive star is assigned the most bound orbit of the realised
+        cluster (the exact bound-end of the S=1 ordering)."""
+        N, N_pool = 300, 4 * 300
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+        masses = jax.random.uniform(k1, (N,), minval=0.5, maxval=20.0)
+        pos_pool = jax.random.normal(k2, (N_pool, 3))
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
+
+        _, pos_out, vel_out = energy_sorted_segregation(
+            k4, masses, pos_pool, vel_pool, negative_harmonic_potential
         )
+        E = 0.5 * jnp.sum(vel_out**2, axis=1) + negative_harmonic_potential(pos_out)
+        most_massive = int(jnp.argmax(masses))
+        n_more_bound = int(jnp.sum(E < E[most_massive]))
+        assert n_more_bound == 0, f"{n_more_bound} stars more bound than the most massive"
 
-        # With high probability, results should differ
-        assert not jnp.allclose(pos1, pos2), "Different keys should give different results"
+    def test_assignment_selects_pool_orbits_and_preserves_masses(self, key):
+        """The function SELECTS orbits from the pool (never interpolates): every output
+        (position, velocity) pair is an exact pool member, and masses are returned
+        unchanged in the caller's ordering."""
+        N, N_pool = 80, 320
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+        masses = jax.random.uniform(k1, (N,), minval=0.5, maxval=10.0)
+        pos_pool = jax.random.normal(k2, (N_pool, 3))
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-
-# =============================================================================
-# Test: energy_sorted_segregation - Physical Behavior
-# =============================================================================
-
-
-class TestEnergySegregationPhysics:
-    """Test that segregation produces physically correct behavior."""
-
-    def test_massive_stars_more_bound(self, key):
-        """
-        Verify that massive stars are assigned to more bound (lower energy) orbits.
-
-        Uses bimodal mass distribution: 10 heavy stars (10 Msun) and 90 light stars (1 Msun).
-        After segregation, heavy stars should have lower mean specific energy.
-        """
-        n_heavy = 10
-        n_light = 90
-        N = n_heavy + n_light
-        N_pool = 4 * N  # pool_factor = 4
-
-        key1, key2, key3, key4 = jax.random.split(key, 4)
-
-        # Bimodal mass distribution
-        masses = jnp.concatenate([
-            jnp.full(n_heavy, 10.0),  # Heavy stars
-            jnp.full(n_light, 1.0),   # Light stars
-        ])
-
-        # Generate orbit pool with spread in both position and velocity
-        positions_pool = jax.random.normal(key1, (N_pool, 3)) * 2.0
-        velocities_pool = jax.random.normal(key2, (N_pool, 3)) * 1.0
-
-        _, positions_out, velocities_out = energy_sorted_segregation(
-            key3,
-            masses,
-            positions_pool,
-            velocities_pool,
-            negative_harmonic_potential,
+        m_out, pos_out, vel_out = energy_sorted_segregation(
+            k4, masses, pos_pool, vel_pool, harmonic_potential
         )
+        assert jnp.array_equal(m_out, masses)
+        pool = set(map(tuple, np.asarray(jnp.concatenate([pos_pool, vel_pool], axis=1)).round(8)))
+        out = np.asarray(jnp.concatenate([pos_out, vel_out], axis=1)).round(8)
+        assert all(tuple(row) in pool for row in out), "an output orbit is not a pool member"
 
-        # Compute specific energy after assignment
-        kinetic = 0.5 * jnp.sum(velocities_out**2, axis=1)
-        potential = negative_harmonic_potential(positions_out)
-        E_specific = kinetic + potential
+    def test_deterministic_given_the_pool(self, key):
+        """The assignment is deterministic given (masses, pool): repeated calls with
+        DIFFERENT keys return identical catalogs. Realisation variety comes from the
+        random orbit pool, not from the assignment (which is a fixed monotonic map)."""
+        N, N_pool = 100, 400
+        k1, k2, k3 = jax.random.split(key, 3)
+        masses = jax.random.uniform(k1, (N,), minval=0.5, maxval=10.0)
+        pos_pool = jax.random.normal(k2, (N_pool, 3))
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-        # Identify heavy and light stars
-        heavy_mask = masses > 5.0
-        light_mask = ~heavy_mask
+        _, p1, v1 = energy_sorted_segregation(
+            jax.random.PRNGKey(1), masses, pos_pool, vel_pool, harmonic_potential)
+        _, p2, v2 = energy_sorted_segregation(
+            jax.random.PRNGKey(2), masses, pos_pool, vel_pool, harmonic_potential)
+        assert jnp.array_equal(p1, p2) and jnp.array_equal(v1, v2)
 
-        E_heavy_mean = jnp.mean(E_specific[heavy_mask])
-        E_light_mean = jnp.mean(E_specific[light_mask])
+    def test_different_pools_give_different_assignments(self, key):
+        """Variety enters through the orbit pool: two independent pools (same masses)
+        yield genuinely different catalogs."""
+        N, N_pool = 100, 400
+        k1, ka, kb = jax.random.split(key, 3)
+        masses = jax.random.uniform(k1, (N,), minval=0.5, maxval=10.0)
 
-        # Heavy stars should be more bound (more negative energy)
-        assert E_heavy_mean < E_light_mean, (
-            f"Heavy stars should be more bound: E_heavy={E_heavy_mean:.4f} vs E_light={E_light_mean:.4f}"
-        )
+        def draw(kp):
+            kk1, kk2 = jax.random.split(kp)
+            return jax.random.normal(kk1, (N_pool, 3)), jax.random.normal(kk2, (N_pool, 3))
 
-    def test_segregation_with_uniform_masses(self, key):
-        """
-        Test that segregation works correctly even with uniform masses.
+        pa, va = draw(ka)
+        pb, vb = draw(kb)
+        _, p1, _ = energy_sorted_segregation(key, masses, pa, va, harmonic_potential)
+        _, p2, _ = energy_sorted_segregation(key, masses, pb, vb, harmonic_potential)
+        assert not jnp.allclose(p1, p2)
 
-        When all masses are equal, the algorithm should still run without errors.
-        """
-        N = 50
-        N_pool = 200
+    def test_jit_matches_eager(self, key):
+        """The assignment runs under jit (it is called inside the jitted IC generator)
+        and produces the identical result to eager execution."""
+        N, N_pool = 100, 400
+        k1, k2, k3, k4 = jax.random.split(key, 4)
+        masses = jax.random.uniform(k1, (N,), minval=0.5, maxval=10.0)
+        pos_pool = jax.random.normal(k2, (N_pool, 3))
+        vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-        key1, key2, key3 = jax.random.split(key, 3)
-
-        masses = jnp.ones(N)  # All equal masses
-        positions_pool = jax.random.normal(key1, (N_pool, 3))
-        velocities_pool = jax.random.normal(key2, (N_pool, 3))
-
-        masses_out, positions_out, velocities_out = energy_sorted_segregation(
-            key3,
-            masses,
-            positions_pool,
-            velocities_pool,
-            harmonic_potential,
-        )
-
-        # Should complete without error and return valid shapes
-        assert masses_out.shape == (N,)
-        assert positions_out.shape == (N, 3)
-        assert velocities_out.shape == (N, 3)
-
-
-# =============================================================================
-# Test: energy_sorted_segregation - No Orbit Reuse
-# =============================================================================
-
-
-class TestNoOrbitReuse:
-    """Test that each orbit is used at most once."""
-
-    def test_no_orbit_reuse(self, key):
-        """
-        Verify that orbit indices are not reused across different mass ranks.
-
-        We re-derive the orbit indices by replicating the energy ordering and
-        bin logic, then check that all indices are unique.
-        """
-        N = 10
-        N_pool = 40
-
-        key1, key2, key3, key4 = jax.random.split(key, 4)
-
-        masses = jax.random.uniform(key1, (N,), minval=0.5, maxval=10.0)
-        positions_pool = jax.random.normal(key2, (N_pool, 3))
-        velocities_pool = jax.random.normal(key3, (N_pool, 3))
-
-        # Replicate the algorithm's energy ordering
-        kinetic = 0.5 * jnp.sum(velocities_pool**2, axis=1)
-        potential = harmonic_potential(positions_pool)
-        specific_energy = kinetic + potential
-        energy_order = jnp.argsort(specific_energy)
-
-        # Replicate bin boundaries
-        mass_order = jnp.argsort(-masses)
-        m_sorted = masses[mass_order]
-        M_cum_sorted = jnp.cumsum(m_sorted)
-        M_total = jnp.maximum(M_cum_sorted[-1], 1e-12)
-        M_cum_norm = M_cum_sorted / M_total
-        M_cum_norm_shifted = jnp.concatenate([
-            jnp.array([0.0], dtype=M_cum_norm.dtype),
-            M_cum_norm[:-1]
-        ])
-
-        bin_low = jnp.floor(N_pool * M_cum_norm_shifted).astype(jnp.int32)
-        bin_high = jnp.floor(N_pool * M_cum_norm).astype(jnp.int32) - 1
-        bin_high = jnp.maximum(bin_high, bin_low)
-
-        # Sample orbit indices (same logic as the function)
-        keys_per_rank = jax.random.split(key4, N)
-
-        def sample_orbit_for_rank(i):
-            low = bin_low[i]
-            high = bin_high[i] + 1
-            return jax.random.randint(keys_per_rank[i], (), low, high)
-
-        orbit_indices = jax.vmap(sample_orbit_for_rank)(jnp.arange(N))
-
-        # Check uniqueness
-        unique_indices = jnp.unique(orbit_indices)
-        assert len(unique_indices) == N, (
-            f"Expected {N} unique orbit indices, got {len(unique_indices)}. "
-            f"Orbit indices: {orbit_indices}"
-        )
-
-
-# =============================================================================
-# Test: _mcluster_partial_shuffle
-# =============================================================================
+        eager = energy_sorted_segregation(k4, masses, pos_pool, vel_pool, harmonic_potential)[1]
+        jit_fn = jax.jit(lambda k, m, p, v: energy_sorted_segregation(k, m, p, v, harmonic_potential)[1])
+        assert jnp.allclose(eager, jit_fn(k4, masses, pos_pool, vel_pool))
 
 
 class TestMclusterPartialShuffle:
-    """Test the _mcluster_partial_shuffle reference implementation."""
+    """The unused McLuster Eq. A1 reference shuffle: S=0/1 limits and validity.
 
-    def test_s1_returns_identity(self, key):
-        """
-        For S=1, _mcluster_partial_shuffle should return identity mapping.
+    (Kept as a reference implementation; energy_sorted_segregation does not use it.)
+    """
 
-        star_for_rank[i] = i for all i
-        """
+    def test_s1_is_identity(self, key):
+        """S=1: no shuffle — rank i keeps star i."""
         N = 20
-        result = _mcluster_partial_shuffle(key, N, S=1.0)
-        expected = jnp.arange(N)
+        assert jnp.array_equal(_mcluster_partial_shuffle(key, N, S=1.0), jnp.arange(N))
 
-        assert jnp.array_equal(result, expected), (
-            f"S=1 should give identity: expected {expected}, got {result}"
-        )
-
-    def test_s0_returns_valid_permutation(self, key):
-        """
-        For S=0, _mcluster_partial_shuffle should return a valid permutation.
-
-        The sorted result should equal [0, 1, ..., N-1].
-        """
+    @pytest.mark.parametrize("S", [0.0, 0.5])
+    def test_result_is_a_valid_permutation(self, key, S):
+        """For any S the mapping is a bijection rank<->star (a permutation of 0..N-1)."""
         N = 20
-        result = _mcluster_partial_shuffle(key, N, S=0.0)
+        result = _mcluster_partial_shuffle(key, N, S=S)
+        assert jnp.array_equal(jnp.sort(result), jnp.arange(N))
 
-        # Should be a valid permutation
-        assert jnp.array_equal(jnp.sort(result), jnp.arange(N)), (
-            f"S=0 result should be a permutation of 0..N-1: got {result}"
-        )
-
-        # With S=0, should NOT be identity (with very high probability)
-        # Allow for extremely unlikely case where random permutation equals identity
-        is_identity = jnp.array_equal(result, jnp.arange(N))
-        if is_identity:
-            # Try another key to confirm it's not always identity
-            result2 = _mcluster_partial_shuffle(jax.random.PRNGKey(123), N, S=0.0)
-            assert not jnp.array_equal(result2, jnp.arange(N)), (
-                "S=0 should produce random permutations, not identity"
-            )
-
-    def test_s0_different_keys_different_permutations(self, key):
-        """
-        For S=0, different keys should produce different permutations.
-        """
-        N = 20
-        result1 = _mcluster_partial_shuffle(key, N, S=0.0)
-        result2 = _mcluster_partial_shuffle(jax.random.PRNGKey(999), N, S=0.0)
-
-        # Both should be valid permutations
-        assert jnp.array_equal(jnp.sort(result1), jnp.arange(N))
-        assert jnp.array_equal(jnp.sort(result2), jnp.arange(N))
-
-        # Should be different (with very high probability)
-        assert not jnp.array_equal(result1, result2), (
-            "Different keys should produce different permutations"
-        )
-
-    def test_s_intermediate_returns_valid_permutation(self, key):
-        """
-        For intermediate S (0.5), result should still be a valid permutation.
-        """
-        N = 20
-        result = _mcluster_partial_shuffle(key, N, S=0.5)
-
-        # Should be a valid permutation
-        assert jnp.array_equal(jnp.sort(result), jnp.arange(N)), (
-            f"S=0.5 result should be a permutation of 0..N-1: got {result}"
-        )
-
-    def test_output_dtype_is_int32(self, key):
-        """Verify output has correct integer dtype."""
-        N = 20
-        result = _mcluster_partial_shuffle(key, N, S=0.5)
-
-        assert result.dtype == jnp.int32, f"Expected int32 dtype, got {result.dtype}"
+    def test_s0_is_a_nontrivial_shuffle(self, key):
+        """S=0 fully shuffles: different keys give different permutations, and it is
+        not the identity."""
+        N = 40
+        r1 = _mcluster_partial_shuffle(jax.random.PRNGKey(1), N, S=0.0)
+        r2 = _mcluster_partial_shuffle(jax.random.PRNGKey(2), N, S=0.0)
+        assert not jnp.array_equal(r1, r2)
+        assert not jnp.array_equal(r1, jnp.arange(N))

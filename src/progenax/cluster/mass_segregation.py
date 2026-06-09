@@ -46,17 +46,25 @@ def energy_sorted_segregation(
 
     Algorithm (Baumgardt+2008 Appendix, McLuster implementation):
         1. Sort masses descending → m_sorted[i] for mass rank i
-        2. Compute cumulative mass: M_cum_sorted[i] = sum(m_sorted[0:i+1])
-        3. Normalize: M_cum_norm[i] = M_cum_sorted[i] / M_total
-        4. Compute energy bin boundaries for each mass rank:
-           bin_low[i] = floor(N_pool * M_cum_norm[i-1])
-           bin_high[i] = floor(N_pool * M_cum_norm[i]) - 1
-        5. Sort orbit pool by specific energy (most bound first)
-        6. For each mass rank i, sample orbit uniformly from [bin_low[i], bin_high[i]]
-        7. Map back to original mass ordering
+        2. Cumulative-mass coordinate M_cum_norm[i] = sum(m_sorted[0:i+1]) / M_total,
+           and the bin-centre target energy-rank t[i] = floor(N_pool * M_cum_mid[i]),
+           M_cum_mid[i] = (M_cum_norm[i-1] + M_cum_norm[i]) / 2
+        3. Sort orbit pool by specific energy (most bound first)
+        4. Assign each mass rank a DISTINCT orbit by isotonic-rounding the targets to a
+           strictly increasing integer sequence in [0, N_pool-1]:
+               idx[i] = max(idx[i-1] + 1, min(t[i], N_pool - N + i))
+           (the per-rank upper clamp prevents overflow; the running max guarantees no
+           reuse). Most massive rank 0 -> smallest index -> most bound orbit.
+        5. Map back to original mass ordering
+
+    This deterministic monotonic assignment replaced an earlier per-bin random sampler
+    whose cumulative-mass bins collapsed below one orbit for steep IMFs, forcing many
+    low-mass ranks onto the same orbit (coincident stars, V = -inf). See
+    docs/website/50-validation/mass-segregation.md.
 
     Args:
-        key: JAX random key for orbit sampling within bins.
+        key: JAX random key (retained for API stability; the assignment is now
+            deterministic — realisation variety comes from the random orbit pool).
         masses: Stellar masses with shape (N,). Will be sorted internally;
             output preserves original ordering.
         positions_pool: Orbit pool positions with shape (N_pool, 3) from
@@ -83,39 +91,38 @@ def energy_sorted_segregation(
         - potential_fn(positions_pool) must return: (N_pool,)
 
     Pool Size Recommendations:
-        In practice, set N_pool ≈ pool_factor * N with pool_factor >= 4 so each
-        cumulative-mass bin contains multiple orbits and the segregation signal
-        is smooth. The algorithm technically works for any N_pool >= N, but small
-        N_pool will cause many stars to sample very similar orbits.
+        Set N_pool = pool_factor * N with pool_factor >= 4 so the assigned orbits are
+        a well-spread mass-weighted subsample of the pool and the segregation signal is
+        smooth. Any N_pool >= N yields a valid no-reuse assignment; small N_pool just
+        leaves fewer distinct orbits between mass ranks.
 
     No-Orbit-Reuse Guarantee:
-        The cumulative mass binning produces disjoint, ordered bins that partition
-        the sorted orbit list (up to rounding). Each mass rank i draws one orbit
-        from its own bin [bin_low[i], bin_high[i]], so each selected orbit index
-        is used at most once. There is no reuse of the same orbit across different
-        mass ranks.
+        The isotonic-rounding assignment (Step 4) produces a strictly increasing integer
+        sequence in [0, N_pool-1], so every mass rank receives a DISTINCT orbit and no
+        two stars are coincident — for ANY mass spectrum, including steep IMFs. (The
+        previous per-bin sampler did NOT guarantee this: sub-orbit bins collapsed and
+        reused orbits.) Verified for uniform/bimodal/Kroupa/extreme-steep spectra in
+        tests/unit/cluster/test_mass_segregation.py.
 
     Non-Differentiability:
-        This function is NOT differentiable due to:
-            - Sorting (argsort)
-            - Discrete bin boundaries (floor)
-            - Random sampling (randint)
-
-        For gradient-based inference, do NOT differentiate through this function.
-        Instead, generate a fully segregated catalog and an unsegregated catalog,
-        then blend them in the IC generator via a continuous parameter lambda_seg::
+        This function is NOT differentiable (argsort, floor). For gradient-based
+        inference, do NOT differentiate through it; instead blend a fully segregated and
+        an unsegregated catalog in the IC generator via a continuous lambda_seg::
 
             positions = (1 - lambda_seg) * positions_unseg + lambda_seg * positions_seg
 
-        Differentiation should occur through this blending, not the discrete
-        segregation algorithm.
+        Differentiate through the blend, not this discrete assignment. (Note: only
+        lambda_seg in {0, 1} are exact equilibria; intermediate blends drift from
+        per-mass-group virial balance — see per_group_virial_ratio and the validation
+        page. The first-principles partial-equilibrium alternative is the multi-mass
+        LIMEPY family.)
 
     Segregation Strength:
-        This function implements full Baumgardt-style energy ordering (S=1 at bin
-        level): the most massive stars only sample from the most bound energy bins.
-        Randomness within bins ensures different realizations produce different
-        (but equally segregated) ICs. The _mcluster_partial_shuffle helper is kept
-        for potential future S-based schemes but is not currently used.
+        Implements full Baumgardt-style energy ordering (S=1): the most massive stars
+        occupy the most bound orbits. The assignment is deterministic given the pool;
+        realisation variety comes from re-drawing the random orbit pool. The
+        _mcluster_partial_shuffle helper is kept as a reference for future S-based
+        schemes but is not used here.
     """
     N = masses.shape[0]
     N_pool = positions_pool.shape[0]
@@ -129,24 +136,19 @@ def energy_sorted_segregation(
     mass_order = jnp.argsort(-masses)
     m_sorted = masses[mass_order]  # m_sorted[i] = mass at rank i
 
-    # --- Step 2: Compute cumulative mass and bin boundaries ---
+    # --- Step 2: Cumulative-mass coordinate (Baumgardt energy ordering) ---
     M_cum_sorted = jnp.cumsum(m_sorted)
     # Guard against degenerate total mass (e.g., all-zero masses)
     M_total = jnp.maximum(M_cum_sorted[-1], 1e-12)
     M_cum_norm = M_cum_sorted / M_total
-
-    # Prepend 0 for bin_low calculation (match dtype for JAX hygiene)
     M_cum_norm_shifted = jnp.concatenate([
         jnp.array([0.0], dtype=M_cum_norm.dtype),
         M_cum_norm[:-1]
     ])
-
-    # Note: M_cum_norm is strictly increasing, so (bin_low[i], bin_high[i])
-    # define disjoint, ordered bins that partition the sorted orbits.
-    # Each rank i samples one orbit from its own bin -> no orbit index is reused.
-    bin_low = jnp.floor(N_pool * M_cum_norm_shifted).astype(jnp.int32)
-    bin_high = jnp.floor(N_pool * M_cum_norm).astype(jnp.int32) - 1
-    bin_high = jnp.maximum(bin_high, bin_low)  # Ensure at least one orbit per bin
+    # Target energy-rank for each mass rank = N_pool * (bin-centre cumulative mass).
+    # Monotonic in rank (masses > 0); most massive rank 0 -> smallest target -> most bound.
+    M_cum_mid = 0.5 * (M_cum_norm + M_cum_norm_shifted)
+    target = jnp.floor(N_pool * M_cum_mid).astype(jnp.int32)
 
     # --- Step 3: Sort orbit pool by specific energy ---
     kinetic = 0.5 * jnp.sum(velocities_pool**2, axis=1)
@@ -159,20 +161,29 @@ def energy_sorted_segregation(
     sorted_positions = positions_pool[energy_order]
     sorted_velocities = velocities_pool[energy_order]
 
-    # --- Step 4: Sample orbit for each rank ---
-    # For S=1, we draw orbits uniformly within each energy bin.
-    # S=1 is enforced at the bin level (most massive ranks only sample
-    # from the most bound bins), not by a deterministic pick inside bins.
-    # Using vmap for parallel execution (faster than scan for independent ops).
-    keys_per_rank = random.split(key, N)
+    # --- Step 4: Deterministic monotonic DISTINCT orbit assignment (no reuse) ---
+    # Each mass rank gets one orbit, indices strictly increasing in rank so the
+    # most massive get the most bound orbits. We isotonic-round `target` to a
+    # strictly increasing integer sequence in [0, N_pool-1]:
+    #   idx[i] = max(idx[i-1] + 1, min(target[i], N_pool - N + i)).
+    # The per-rank upper clamp N_pool-N+i guarantees idx[N-1] <= N_pool-1 (no
+    # overflow), and the running max guarantees distinctness. Since N_pool >= N a
+    # valid injective assignment always exists. This replaces the old per-bin
+    # sampler, whose bins collapsed below one orbit for steep IMFs and forced many
+    # low-mass ranks onto the SAME orbit (coincident stars -> V = -inf). `key` is
+    # retained for API stability; the assignment is now deterministic (realization
+    # variety comes from the random orbit pool).
+    del key
+    upper = (N_pool - N) + jnp.arange(N, dtype=jnp.int32)
 
-    def sample_orbit_for_rank(i):
-        """Sample an orbit index for mass rank i."""
-        low = bin_low[i]
-        high = bin_high[i] + 1  # randint uses exclusive upper bound
-        return random.randint(keys_per_rank[i], (), low, high)
+    def assign_step(prev, t_u):
+        t, u = t_u
+        cur = jnp.maximum(prev + 1, jnp.minimum(t, u))
+        return cur, cur
 
-    orbit_indices = jax.vmap(sample_orbit_for_rank)(jnp.arange(N))
+    _, orbit_indices = jax.lax.scan(
+        assign_step, jnp.array(-1, dtype=jnp.int32), (target, upper)
+    )
 
     # Gather positions and velocities for each rank
     pos_for_rank = sorted_positions[orbit_indices]  # (N, 3)
