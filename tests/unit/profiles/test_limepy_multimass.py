@@ -123,3 +123,81 @@ class TestMultiMassSegregation:
         assert jnp.isfinite(dg) and jnp.abs(dg) > 0
         assert jnp.isfinite(dd) and jnp.abs(dd) > 0  # delta genuinely moves the solution
         assert jnp.all(jnp.isfinite(da))
+
+
+class TestEigenvalueSolve:
+    """Layer B: find_alpha_for_masses iterates alpha_j to reproduce target masses M_j."""
+
+    def _kroupa_like_components(self, n=4):
+        """A bottom-heavy mass spectrum binned into n components (m_j, M_j)."""
+        m_edges = np.geomspace(0.1, 20.0, n + 1)
+        m_j = np.sqrt(m_edges[:-1] * m_edges[1:])  # geometric-mean representative mass
+        # Kroupa-ish dN/dm ~ m^-2.3 -> mass per bin ~ int m^-1.3 dm
+        M_j = np.array([(e1**-0.3 - e0**-0.3) / -0.3
+                        for e0, e1 in zip(m_edges[:-1], m_edges[1:])])
+        return jnp.asarray(m_j), jnp.asarray(M_j)
+
+    def test_realized_masses_match_targets(self):
+        """The converged alpha_j reproduce the target mass fractions f_j = M_j/sum M to
+        a small residual -- the eigenvalue solve hits the IMF mass budget."""
+        from progenax.profiles.limepy_multimass import (
+            find_alpha_for_masses, solve_multimass_limepy,
+        )
+
+        m_j, M_j = self._kroupa_like_components(4)
+        alpha_j, residual = find_alpha_for_masses(
+            m_j, M_j, W0=7.0, g=1.0, delta=0.5, n_iter=40, xi_max=300.0, n_points=2000
+        )
+        assert float(residual) < 1e-3, f"eigenvalue residual {float(residual):.2e} too large"
+        # independent check of the realized mass fractions
+        xi, psi, rho_j = solve_multimass_limepy(alpha_j, m_j, 7.0, 1.0, 0.5, 300.0, 2000)
+        nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
+        f_real = np.asarray(alpha_j * nu_j / jnp.sum(alpha_j * nu_j))
+        f_target = np.asarray(M_j / jnp.sum(M_j))
+        np.testing.assert_allclose(f_real, f_target, atol=2e-3)
+
+    def test_delta0_alpha_equals_mass_fractions(self):
+        """At delta=0 all components share one density shape (equal nu_j), so the
+        realized fraction is alpha_j itself -> the solve drives alpha_j to the target
+        mass fractions M_j/sum M. A clean closed-form corner of the iteration."""
+        from progenax.profiles.limepy_multimass import find_alpha_for_masses
+
+        m_j, M_j = self._kroupa_like_components(4)
+        alpha_j, residual = find_alpha_for_masses(
+            m_j, M_j, W0=6.0, g=1.0, delta=0.0, n_iter=40, xi_max=300.0, n_points=2000
+        )
+        f_target = np.asarray(M_j / jnp.sum(M_j))
+        np.testing.assert_allclose(np.asarray(alpha_j), f_target, atol=1e-4)
+
+    def test_alpha_normalized_and_positive(self):
+        """The returned alpha_j are a valid central-density partition: positive and
+        summing to 1 (preserved by the sqrt update + renormalization)."""
+        from progenax.profiles.limepy_multimass import find_alpha_for_masses
+
+        m_j, M_j = self._kroupa_like_components(5)
+        alpha_j, _ = find_alpha_for_masses(m_j, M_j, W0=7.0, g=1.5, delta=0.4,
+                                           n_iter=30, xi_max=300.0, n_points=2000)
+        assert abs(float(jnp.sum(alpha_j)) - 1.0) < 1e-9
+        assert bool(jnp.all(alpha_j > 0.0))
+
+    def test_differentiable_in_targets_and_delta(self):
+        """Gradients flow through the fixed-iteration eigenvalue solve in (M_j, delta)
+        -- target mass fractions and the equipartition degree are inferable."""
+        from progenax.profiles.limepy_multimass import find_alpha_for_masses
+
+        m_j, M_j = self._kroupa_like_components(3)
+
+        def metric_M(M):
+            a, _ = find_alpha_for_masses(m_j, M, 7.0, 1.0, 0.4, n_iter=15,
+                                         xi_max=300.0, n_points=1500)
+            return jnp.sum(a**2)
+
+        def metric_d(delta):
+            a, _ = find_alpha_for_masses(m_j, M_j, 7.0, 1.0, delta, n_iter=15,
+                                         xi_max=300.0, n_points=1500)
+            return jnp.sum(a**2)
+
+        dM = jax.grad(metric_M)(M_j)
+        dd = jax.grad(metric_d)(0.4)
+        assert jnp.all(jnp.isfinite(dM)) and jnp.any(jnp.abs(dM) > 0)
+        assert jnp.isfinite(dd) and jnp.abs(dd) > 0
