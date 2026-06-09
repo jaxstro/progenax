@@ -54,6 +54,11 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-08
   - `python scripts/validate_rotation_anisotropy.py`
+* - [substructure/CW04 Q](fractal-substructure.md)
+  - ✅ (9)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_substructure_q.py`
 * - [cluster/two-component](two-component.md)
   - ✅
   - ✅ 1
@@ -110,7 +115,7 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
 * - [](binary-imf.md)
   - End-to-end forward-model + likelihood: reproduces "confidently wrong" regime at $N \gtrsim 10^4$
 * - [](fractal-substructure.md)
-  - GW04 fractal IC reproduction: CW04 Q vs fractal dimension D
+  - CW04 Q substructure diagnostic: (s̄,m̄) plane, Table 1, differentiable q_approx
 * - [](mass-segregation.md)
   - Baumgardt energy-ranked algorithm vs McLuster reference
 * - [](gravoturbulent-pp20.md)
