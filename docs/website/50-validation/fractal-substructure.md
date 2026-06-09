@@ -133,11 +133,77 @@ everywhere — usable for gradient-based substructure inference (the reason
 `q_approx` exists alongside the non-differentiable exact `compute_q_parameter`).
 :::
 
+## Azimuthal-variation diagnostic (Küpper+2011)
+
+`compute_azimuthal_variation` returns $\sigma_\Sigma/\langle\Sigma\rangle$, the
+relative scatter of star counts in azimuthal sectors — a cheap $O(N)$ substructure
+proxy. Test file: `tests/validation/test_azimuthal_variation_physics.py` (**5
+tests**); figures: `scripts/validate_azimuthal_variation.py`.
+
+```{list-table}
+:header-rows: 1
+
+* - Property
+  - Tolerance (as tested)
+  - Measured
+  - Anchor
+* - Smooth axisymmetric → Poisson floor
+  - $< 3\sqrt{n_b/N}$
+  - $0.059$ (floor $0.069$)
+  - Poisson counts
+* - Monotonic rise with clump fraction
+  - monotone
+  - $0.06\to1.25$
+  - more clumps ⇒ larger $\sigma_\Sigma$
+* - Spans the Küpper range
+  - smooth $<0.2$, clumpy $>0.5$
+  - $0.06$ / $0.9$
+  - {cite:t}`Kuepper2011` $[0.07,0.76]$
+* - Anti-correlates with CW04 $Q$
+  - $\rho < -0.5$
+  - $\rho = -0.83$
+  - both detect substructure
+```
+
+:::{figure} figures/azimuthal_histograms.png
+:label: val-azim-hist
+:width: 95%
+:align: center
+
+**Sector-count histograms.** A smooth axisymmetric cluster (left) has nearly flat
+azimuthal counts ($\sigma_\Sigma/\langle\Sigma\rangle=0.06$, the Poisson floor);
+azimuthal clumps (right) give spiky sectors ($\sigma_\Sigma/\langle\Sigma\rangle=1.04$).
+:::
+
+:::{figure} figures/azimuthal_vs_clumpiness.png
+:label: val-azim-clump
+:width: 60%
+:align: center
+
+**Response to clumpiness.** $\sigma_\Sigma/\langle\Sigma\rangle$ rises monotonically
+from the Poisson floor through the {cite:t}`Kuepper2011` range ($[0.07,0.76]$, shaded)
+as the azimuthal clump fraction increases. The fractal *generator* was removed, so the
+specific $\sigma_\Sigma\!-\!D$ slope is not reproduced here — only the floor, span, and
+monotonic behaviour.
+:::
+
+:::{figure} figures/azimuthal_vs_cw04q.png
+:label: val-azim-q
+:width: 60%
+:align: center
+
+**Cross-check vs CW04 $Q$.** Across a smooth→clumpy sequence the two independent
+substructure diagnostics anti-correlate ($\rho=-0.83$): higher
+$\sigma_\Sigma/\langle\Sigma\rangle$ tracks lower $Q$.
+:::
+
 ## How to run
 
 ```bash
-pytest tests/validation/test_substructure_q_physics.py -q   # 9 tests, ~5 s
-python scripts/validate_substructure_q.py                   # 5 figures + PASS/FAIL
+pytest tests/validation/test_substructure_q_physics.py -q          # 9 tests, ~5 s
+pytest tests/validation/test_azimuthal_variation_physics.py -q     # 5 tests, ~1 s
+python scripts/validate_substructure_q.py                          # 5 Q figures
+python scripts/validate_azimuthal_variation.py                     # 3 azimuthal figures
 ```
 
 ## What this suite does *not* test
@@ -145,8 +211,8 @@ python scripts/validate_substructure_q.py                   # 5 figures + PASS/F
 - **Fractal IC *generation*** — removed in the 2026-06 rewrite (no released
   successor); the turbulent-density method is experimental `gravoturb_fdf`
   (`src/experimental/`, AC6/AC7 — see its `VALIDATION_SUMMARY.md`).
-- **Azimuthal-variation diagnostic** (`compute_azimuthal_variation`, Küpper+2011)
-  — present in `progenax.diagnostics` but not figure-validated here.
+- **The Küpper $\sigma_\Sigma\!-\!D$ slope** — requires fractal-dimension models
+  (generator removed); only the metric's floor/span/monotonicity is validated.
 
 ## References
 

@@ -54,9 +54,9 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-08
   - `python scripts/validate_rotation_anisotropy.py`
-* - [substructure/CW04 Q](fractal-substructure.md)
-  - ✅ (9)
-  - ✅ 5
+* - [substructure/CW04 Q + azimuthal](fractal-substructure.md)
+  - ✅ (14)
+  - ✅ 8
   - 2026-06-08
   - `python scripts/validate_substructure_q.py`
 * - [cluster/two-component](two-component.md)
