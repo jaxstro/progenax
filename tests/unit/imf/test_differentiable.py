@@ -305,6 +305,50 @@ class TestIndividualMassNLL:
         assert jnp.isfinite(nll)
 
 
+class TestAlphaEqualsOneSingularity:
+    """Regression: the 4-segment integrals must stay finite at a slope of exactly 1.
+
+    The segment integral of m^(-alpha) is m^(1-alpha)/(1-alpha), which is 0/0 at
+    alpha=1 (the removable singularity int m^-1 dm = log(m_hi/m_lo)). power_law.py and
+    chabrier.py guard this with a log-branch; differentiable.py must too, otherwise
+    gradient-based inference that sweeps a slope across 1.0 (the canonical alpha1=1.3
+    is close) hits NaN in the likelihood AND its gradient.
+    """
+
+    def _params_with(self, **overrides):
+        from progenax.imf.params import IMFParams
+        p = IMFParams.kroupa()
+        kw = dict(alpha0=p.alpha0, alpha1=p.alpha1, alpha2=p.alpha2, alpha3=p.alpha3)
+        kw.update(overrides)
+        return IMFParams(**kw)
+
+    def test_nll_finite_at_alpha1_equals_one(self):
+        from progenax.imf.differentiable import individual_mass_nll
+        masses = jnp.array([0.2, 0.5, 1.0, 5.0, 20.0])
+        nll = individual_mass_nll(masses, self._params_with(alpha1=jnp.array(1.0)))
+        assert jnp.isfinite(nll), f"NLL is {nll} at alpha1=1.0 (segment singularity)"
+
+    def test_grad_finite_sweeping_alpha1_through_one(self):
+        from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
+        p = IMFParams.kroupa()
+        masses = jnp.array([0.2, 0.5, 1.0, 5.0, 20.0])
+
+        def nll(a1):
+            return individual_mass_nll(masses, IMFParams(
+                alpha0=p.alpha0, alpha1=a1, alpha2=p.alpha2, alpha3=p.alpha3))
+
+        for a1 in [0.98, 1.0, 1.02]:
+            g = jax.grad(nll)(a1)
+            assert jnp.isfinite(g), f"grad(NLL)/d alpha1 is {g} at alpha1={a1}"
+
+    def test_sampling_finite_at_alpha_one(self):
+        from progenax.imf.differentiable import sample_masses_from_params
+        u = jnp.linspace(0.01, 0.99, 50)
+        masses = sample_masses_from_params(self._params_with(alpha3=jnp.array(1.0)), u)
+        assert bool(jnp.all(jnp.isfinite(masses))), "samples non-finite at alpha3=1.0"
+
+
 def test_public_api_exports():
     """All new symbols are exported from progenax.imf."""
     from progenax.imf import (

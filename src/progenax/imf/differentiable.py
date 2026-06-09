@@ -40,10 +40,18 @@ def _compute_normalization(params: IMFParams) -> Float[Array, ""]:
     a2 = params.alpha2
     a3 = params.alpha3
 
-    # Integral of m^(-α) from a to b: [m^(1-α)/(1-α)]_a^b
+    # Integral of m^(-α) from a to b: [m^(1-α)/(1-α)]_a^b.
+    # Guard the removable singularity at α=1 (exp=0): ∫ m^-1 dm = log(m_hi/m_lo).
+    # The exp_safe substitution keeps BOTH branches finite so the gradient w.r.t.
+    # alpha is finite at exactly α=1 (jnp.where alone would still backprop NaN).
     def power_integral(m_lo, m_hi, alpha):
         exp = 1.0 - alpha
-        return (m_hi**exp - m_lo**exp) / exp
+        exp_safe = jnp.where(jnp.abs(exp) < 1e-12, 1.0, exp)
+        return jnp.where(
+            jnp.abs(exp) < 1e-12,
+            jnp.log(m_hi / m_lo),
+            (m_hi**exp_safe - m_lo**exp_safe) / exp_safe,
+        )
 
     # Segment 0: [m_min, m_b0)
     I0 = power_integral(m_min, m_b0, a0)
@@ -152,10 +160,15 @@ def _compute_cdf_at_breaks(
 
     norm = _compute_normalization(params)
 
-    # Integral from m_min to m_b0
+    # Integral from m_min to m_b0 (same α=1 guard as _compute_normalization).
     def power_integral(m_lo, m_hi, alpha):
         exp = 1.0 - alpha
-        return (m_hi**exp - m_lo**exp) / exp
+        exp_safe = jnp.where(jnp.abs(exp) < 1e-12, 1.0, exp)
+        return jnp.where(
+            jnp.abs(exp) < 1e-12,
+            jnp.log(m_hi / m_lo),
+            (m_hi**exp_safe - m_lo**exp_safe) / exp_safe,
+        )
 
     I0 = power_integral(m_min, m_b0, a0)
     F_b0 = I0 / norm
@@ -221,10 +234,20 @@ def sample_masses_from_params(
     # Solving for m: m = [m_lo^(1-α) + (u - F(m_lo)) * norm * (1-α) / C]^(1/(1-α))
 
     def inv_cdf_segment(u_val, m_lo, F_lo, C, alpha):
-        """Inverse CDF within a single power-law segment."""
+        """Inverse CDF within a single power-law segment.
+
+        Guards the α=1 (exp=0) singularity: for ξ ∝ C m^-1 the segment inverse is
+        m = m_lo exp[(u - F_lo) norm / C]. exp_safe keeps both branches finite so
+        the gradient stays finite at exactly α=1.
+        """
         exp = 1.0 - alpha
-        inner = m_lo**exp + (u_val - F_lo) * norm * exp / C
-        return inner ** (1.0 / exp)
+        exp_safe = jnp.where(jnp.abs(exp) < 1e-12, 1.0, exp)
+        inner = m_lo**exp_safe + (u_val - F_lo) * norm * exp_safe / C
+        return jnp.where(
+            jnp.abs(exp) < 1e-12,
+            m_lo * jnp.exp((u_val - F_lo) * norm / C),
+            inner ** (1.0 / exp_safe),
+        )
 
     # Determine segment for each u
     in_seg0 = u < F_b0

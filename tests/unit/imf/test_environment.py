@@ -169,19 +169,26 @@ class TestMarksCoefficients:
         c = MARKS_COEFFICIENTS
         assert jnp.isclose(c["cos_theta"], -0.139, atol=0.001)
         assert jnp.isclose(c["sin_theta"], 0.990, atol=0.001)
-        assert jnp.isclose(c["x_hat_threshold"], 0.87, atol=0.01)  # POSITIVE
+        assert jnp.isclose(c["x_hat_threshold"], -0.87, atol=0.01)  # erratum (was +0.87 typo)
         assert jnp.isclose(c["alpha3_slope"], -0.4072, atol=0.001)
         assert jnp.isclose(c["alpha3_intercept"], 1.9383, atol=0.001)
 
-    def test_threshold_is_positive(self):
-        """CRITICAL: Marks threshold is x_hat >= +0.87 (POSITIVE)."""
+    def test_threshold_is_negative_erratum(self):
+        """CRITICAL: Marks threshold is x_hat >= -0.87 (NEGATIVE), per the 2014
+        erratum (Marks et al. 2014, MNRAS 442, 3315). The originally printed +0.87
+        in Marks+2012 Eq.14/15 was a missing-minus-sign typo; Fig.6 (p.2252) shows
+        the canonical knee at x' ~ -0.87, and the authors used -0.87 in their analysis.
+        """
         c = MARKS_COEFFICIENTS
-        assert c["x_hat_threshold"] > 0, "Marks threshold must be POSITIVE"
+        assert c["x_hat_threshold"] < 0, "Marks threshold must be NEGATIVE (erratum)"
+        # the line meets canonical 2.3 continuously at the threshold:
+        knee = c["alpha3_slope"] * c["x_hat_threshold"] + c["alpha3_intercept"]
+        assert jnp.isclose(knee, 2.3, atol=0.02), "threshold must give a continuous knee"
 
     def test_high_density_metal_poor(self):
         """High density + metal poor: top-heavy IMF."""
         # FeH = -2, log_rho_6 = 1 (10^7 M_sun/pc^3)
-        # x_hat = -0.139*(-2) + 0.990*1 = 0.278 + 0.990 = 1.268 > +0.87
+        # x_hat = -0.139*(-2) + 0.990*1 = 0.278 + 0.990 = 1.268 >= -0.87 (on the line)
         log_rho_6 = jnp.array(1.0)
         FeH = jnp.array(-2.0)
         alpha3 = alpha3_marks_plane(log_rho_6, FeH)
@@ -193,7 +200,7 @@ class TestMarksCoefficients:
     def test_low_density_canonical(self):
         """Low density + solar metallicity: canonical Kroupa."""
         # FeH = 0, log_rho_6 = -2 (10^4 M_sun/pc^3)
-        # x_hat = -0.139*0 + 0.990*(-2) = -1.98 < +0.87
+        # x_hat = -0.139*0 + 0.990*(-2) = -1.98 < -0.87 (below threshold -> canonical)
         log_rho_6 = jnp.array(-2.0)
         FeH = jnp.array(0.0)
         alpha3 = alpha3_marks_plane(log_rho_6, FeH)

@@ -36,10 +36,12 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 
+from progenax.imf.environment.coefficients import MARKS_COEFFICIENTS
 from progenax.imf.environment.mapping import (
     alpha3_jerabkova_rho,
     alpha3_marks_plane,
     lowmass_slopes_metallicity,
+    x_hat_marks_plane,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -114,7 +116,9 @@ def fig_fundamental_plane(output_dir):
     print("\n" + "=" * 60)
     print("FIG 2: alpha3 over the (log rho_cl, [Fe/H]) Fundamental Plane")
     print("=" * 60)
-    lr = np.linspace(0.0, 3.0, 200)   # log10(rho / 1e6)
+    # extend below log_rho_6 = 0 to show the continuous canonical->top-heavy knee at
+    # x_hat = -0.87 (the erratum-corrected transition; the +0.87 typo was discontinuous)
+    lr = np.linspace(-1.5, 3.0, 240)   # log10(rho / 1e6)
     feh = np.linspace(-2.5, 0.5, 200)
     LR, FEH = np.meshgrid(lr, feh)
     A3 = np.array(alpha3_marks_plane(jnp.asarray(LR), jnp.asarray(FEH)))
@@ -194,40 +198,54 @@ def fig_lowmass_slopes(output_dir):
 # ============================================================================
 # Figure 4 -- Marks Fundamental Plane vs Jeřábková IGIMF
 # ============================================================================
+def _alpha3_marks_preerratum(lr, feh):
+    """The literally-PRINTED Marks+2012 Eq.14 with the +0.87 typo (for illustration
+    only): alpha3 = -0.4072 x_hat + 1.9383 for x_hat >= +0.87, else canonical 2.3."""
+    xh = np.array(x_hat_marks_plane(jnp.asarray(feh), jnp.asarray(lr)))
+    line = MARKS_COEFFICIENTS["alpha3_slope"] * xh + MARKS_COEFFICIENTS["alpha3_intercept"]
+    return np.where(xh >= 0.87, line, 2.3)
+
+
 def fig_marks_vs_jerabkova(output_dir):
     print("\n" + "=" * 60)
-    print("FIG 4: Marks Fundamental Plane vs Jeřábková IGIMF alpha3(rho)")
+    print("FIG 4: erratum-corrected Marks plane == Jeřábková IGIMF; the +0.87 typo")
     print("=" * 60)
     lr = np.linspace(0.0, 3.0, 200)
     fig, ax = plt.subplots(figsize=(4.8, 3.5))
     max_gap = 0.0
     both_mono = True
     for feh, col in [(-2.0, OI["purple"]), (-1.0, OI["green"]), (0.0, OI["orange"])]:
-        am = np.array(alpha3_marks_plane(jnp.asarray(lr), jnp.asarray(feh)))
+        am = np.array(alpha3_marks_plane(jnp.asarray(lr), jnp.asarray(feh)))  # erratum (-0.87)
         aj = np.array(alpha3_jerabkova_rho(jnp.asarray(lr), jnp.asarray(feh)))
         max_gap = max(max_gap, float(np.max(np.abs(am - aj))))
-        # robust, validated claim: BOTH parameterizations are top-heavy with density
         both_mono &= bool(np.all(np.diff(am) <= 1e-9) and np.all(np.diff(aj) <= 1e-9))
-        ax.plot(lr, am, "-", color=col, lw=1.7, label=rf"Marks [Fe/H]$={feh:+.0f}$")
-        ax.plot(lr, aj, "--", color=col, lw=1.3, alpha=0.8)
-    # HONEST: the two published parameterizations agree on the MECHANISM (monotone
-    # top-heavy with density) but differ quantitatively in zero-point -- Jeřábková is
-    # systematically the more top-heavy. We validate the robust qualitative agreement
-    # and REPORT the divergence; we do not claim quantitative agreement they lack.
-    passed = both_mono
-    print(f"  both models monotone top-heavy with density: {both_mono}  "
-          f"-> {'PASS' if both_mono else 'FAIL'}")
-    print(f"  cross-model zero-point divergence (reported, not a pass/fail): "
-          f"max |Marks - Jeřábková| = {max_gap:.2f} (Jeřábková more top-heavy)")
+        ax.plot(lr, am, "-", color=col, lw=1.8, label=rf"[Fe/H]$={feh:+.0f}$")
+        ax.plot(lr[::10], aj[::10], "o", color=col, ms=3.0, mec="white", mew=0.4,
+                alpha=0.9, zorder=4)
+    # the pre-erratum +0.87 typo, one representative [Fe/H], as a cautionary curve
+    typo = _alpha3_marks_preerratum(lr, -1.0)
+    ax.plot(lr, typo, ":", color="0.45", lw=1.4, zorder=2)
 
-    ax.plot([], [], "-", color="0.4", lw=1.7, label="Marks plane (solid)")
-    ax.plot([], [], "--", color="0.4", lw=1.3, label="Jeřábková IGIMF (dashed)")
+    # VALIDATED claim: erratum-corrected Marks plane IS the Jeřábková density relation
+    # (they adopt the same -0.87 form; identical up to the -0.4072-vs-(-0.41) rounding).
+    agree = max_gap < 0.05
+    passed = agree and both_mono
+    print(f"  erratum-corrected Marks vs Jeřábková_rho: max|gap| = {max_gap:.3f} "
+          f"(tol 0.05)  -> {'PASS' if agree else 'FAIL'}")
+    print(f"  both monotone top-heavy with density: {both_mono}  "
+          f"-> {'PASS' if both_mono else 'FAIL'}")
+    print(f"  (the pre-erratum +0.87 typo would spuriously hold alpha3=2.3 out to "
+          f"x_hat=+0.87; corrected threshold is -0.87)")
+
+    ax.plot([], [], "-", color="0.4", lw=1.8, label="Marks (2014 erratum, $-0.87$)")
+    ax.plot([], [], "o", color="0.4", ms=4, label="Jeřábková IGIMF")
+    ax.plot([], [], ":", color="0.45", lw=1.4, label="Marks 2012 +0.87 (printed typo)")
     ax.set_xlabel(r"$\log_{10}(\rho_{\rm cl} / 10^6\,M_\odot\,{\rm pc}^{-3})$")
     ax.set_ylabel(r"$\alpha_3$")
-    ax.legend(loc="lower left", fontsize=6.5, ncol=1)
-    ax.text(0.96, 0.93, "same mechanism\n(top-heavy w/ density);\n"
-            rf"differ $\leq{max_gap:.1f}$ in zero-point",
-            transform=ax.transAxes, ha="right", va="top", fontsize=6.5, color="0.4")
+    ax.legend(loc="lower left", fontsize=6.2, ncol=1)
+    ax.text(0.96, 0.94, rf"corrected Marks $\equiv$ Jeřábková" + "\n"
+            rf"(max $\Delta={max_gap:.2f}$, rounding only)",
+            transform=ax.transAxes, ha="right", va="top", fontsize=6.3, color="0.35")
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "env_marks_vs_jerabkova")
     print("  saved env_marks_vs_jerabkova.{png,pdf}")

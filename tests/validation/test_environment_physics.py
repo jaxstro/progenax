@@ -97,5 +97,38 @@ class TestMarksTable4LowMassSlopes:
         assert bool(jnp.all(jnp.diff(a2) > 0)), "alpha2 should increase with [Fe/H]"
 
 
+class TestErratumCorrectedPlane:
+    """The 2014 erratum: the Marks Fundamental Plane uses threshold x_hat >= -0.87,
+    so it coincides with the Jerabkova (2018) IGIMF density relation (which adopts the
+    same corrected form). The originally printed +0.87 was a missing-minus-sign typo.
+    """
+
+    def test_marks_threshold_is_erratum_value(self):
+        from progenax.imf.environment.coefficients import MARKS_COEFFICIENTS as M
+        assert M["x_hat_threshold"] == -0.87, "must use the 2014-erratum threshold"
+        # the corrected line meets canonical 2.3 continuously at the threshold
+        knee = M["alpha3_slope"] * M["x_hat_threshold"] + M["alpha3_intercept"]
+        assert abs(knee - 2.3) < 0.02, "erratum threshold must give a continuous knee"
+
+    def test_corrected_marks_equals_jerabkova(self):
+        from progenax.imf.environment.mapping import (
+            alpha3_marks_plane, alpha3_jerabkova_rho,
+        )
+        lr = jnp.linspace(-1.0, 3.0, 50)
+        for feh in (-2.0, -1.0, 0.0):
+            am = alpha3_marks_plane(lr, jnp.full_like(lr, feh))
+            aj = alpha3_jerabkova_rho(lr, jnp.full_like(lr, feh))
+            gap = float(jnp.max(jnp.abs(am - aj)))
+            # identical up to the -0.4072-vs-(-0.41) slope rounding
+            assert gap < 0.05, f"[Fe/H]={feh}: corrected Marks vs Jerabkova gap {gap:.3f}"
+
+    def test_canonical_recovered_at_low_density(self):
+        """Below the knee (x_hat < -0.87) the corrected plane returns canonical 2.3."""
+        from progenax.imf.environment.mapping import alpha3_marks_plane
+        # FeH=0, log_rho_6 = -2 -> x_hat = -1.98 < -0.87
+        a3 = float(alpha3_marks_plane(jnp.asarray(-2.0), jnp.asarray(0.0)))
+        assert abs(a3 - 2.3) < 0.01, f"diffuse field must be canonical, got {a3:.3f}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

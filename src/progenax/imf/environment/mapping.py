@@ -146,7 +146,13 @@ def alpha3_jerabkova_generalized(
 ) -> Float[Array, "..."]:
     """α₃ from generalized Jerabkova with explicit ε (RECOMMENDED).
 
-    Uses x_jerabkova_generalized() which reduces to Eq. 9 at ε = 0.33.
+    Uses x_jerabkova_generalized(), the mass-based x built self-consistently from
+    Jerabkova Eq. 7 + the Marks r_h–M_ecl relation + the 8π half-mass density
+    (constant 0.2161; see coefficients.py). NOTE: this is NOT the constant (2.83)
+    printed in Jerabkova Eq. 9 — that printed value is internally inconsistent with
+    her own Eq. 7+8 density relation (which reconstructs to ~0.50, not 2.83). We
+    deliberately use the density-consistent 8π constant so the mass- and density-
+    based paths agree; it does not reproduce Eq. 9 as literally printed.
 
     Args:
         FeH: Metallicity [Fe/H]
@@ -224,11 +230,18 @@ def alpha3_marks_plane(
     smooth: bool = False,
     smooth_width: float = 0.2,
 ) -> Float[Array, "..."]:
-    """Marks+2012 Fundamental Plane (Eq. 14-15).
+    """Marks+2012 Fundamental Plane (Eq. 14-15), with the 2014 erratum applied.
 
     x̂ = -0.139 × [Fe/H] + 0.990 × log₁₀(ρ_cl/10⁶)
+    α₃ = -0.4072·x̂ + 1.9383  for  x̂ ≥ -0.87  (else canonical 2.3)
 
-    CRITICAL: Threshold is POSITIVE (+0.87), unlike Jerabkova's -0.87!
+    The threshold is -0.87 (NEGATIVE): the originally printed Marks+2012 Eq.14/15
+    had a missing-minus-sign typo ("x̂ ≥ 0.87"), corrected by the 2014 erratum
+    (Marks et al. 2014, MNRAS 442, 3315) and visible in Marks+2012 Fig.6, where the
+    canonical-plateau knee sits at x̂ ≈ -0.87 (the line meets 2.3 continuously there).
+    With this correction the Marks plane coincides with the Jerabkova (2018) IGIMF
+    density relation `alpha3_jerabkova_rho` (which adopts the same erratum-corrected
+    form) to within the -0.4072-vs-(-0.41) rounding (~0.01).
 
     Args:
         log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)

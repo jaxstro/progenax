@@ -53,7 +53,7 @@ class ChabrierIMF(eqx.Module):
         >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
         >>> key = jax.random.PRNGKey(42)
         >>> masses = imf.sample(key, 1000)
-        >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.35-0.5 M☉
+        >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.61 M☉ over [0.08, 100]
 
     References:
         Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients

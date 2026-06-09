@@ -38,10 +38,19 @@ JERABKOVA_COEFFICIENTS = {
 }
 
 MARKS_COEFFICIENTS = {
-    # Marks+2012 Eq. 14-15 (Fundamental Plane)
+    # Marks+2012 Eq. 14-15 (Fundamental Plane), with the 2014 ERRATUM applied.
     "cos_theta": -0.139,  # cos(98 deg)
     "sin_theta": 0.990,   # sin(98 deg)
-    "x_hat_threshold": 0.87,  # POSITIVE threshold
+    # THRESHOLD = -0.87 (NEGATIVE). The originally PRINTED Marks+2012 Eq.14/15 had a
+    # missing minus sign ("x' >= 0.87"); the 2014 erratum (Marks et al. 2014, MNRAS
+    # 442, 3315; PDF in docs/core-papers/marks-2014-erratum.pdf) states Eq.14 should
+    # read "alpha3 = -0.41 x' + 1.94 for x' >= -0.87, else 2.3", and notes the authors
+    # USED -0.87 in their analysis (so Table 1 is unaffected). Marks+2012 Fig.6 (p.2252)
+    # shows the canonical-plateau knee at x' ~ -0.87 (where the line meets 2.3:
+    # 2.3 = -0.4072 x' + 1.9383 => x' = -0.888), confirming the negative threshold.
+    # We keep the full-precision 2012 slope/intercept (-0.4072 / 1.9383, Eq.15); the
+    # erratum only rounds them to -0.41 / 1.94 while fixing the sign.
+    "x_hat_threshold": -0.87,  # erratum-corrected (was +0.87, a printed typo)
     "alpha3_slope": -0.4072,
     "alpha3_intercept": 1.9383,
     "alpha3_canonical": 2.3,

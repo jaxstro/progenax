@@ -65,10 +65,10 @@ Rows map to `test_environment_physics.py`; **Measured** values are regenerated b
   - $|\Delta| < 0.02$ (5 anchors)
   - $0.0000$ (exact)
   - {cite:t}`Marks2012` Table 4, Eq. 12
-* - Marks vs Jeřábková: both top-heavy
-  - both monotone in $\rho$
-  - **True** (both)
-  - cross-model mechanism
+* - Erratum-corrected Marks $\equiv$ Jeřábková
+  - max $|\Delta\alpha_3| < 0.05$
+  - $0.008$ (rounding only)
+  - same $-0.87$ relation (2014 erratum)
 * - $\alpha_3$ differentiability (AD vs FD)
   - rel err $< 10^{-3}$
   - $9\times10^{-8}$
@@ -104,11 +104,15 @@ near the scatter limit).
 :width: 80%
 :align: center
 
-**The Fundamental Plane.** $\alpha_3$ over $(\log\rho_{\rm cl},\,[\mathrm{Fe/H}])$ with
-the four GCs overplotted. The near-vertical contours show $\alpha_3$ responds chiefly
-to **density**: a 1-dex change in $\rho_{\rm cl}$ shifts $\alpha_3$ by $0.40$ versus
-$0.06$ for $[\mathrm{Fe/H}]$ — the $\sim7{:}1$ ratio that places dense, metal-poor M15
-deep in the top-heavy regime while the diffuse field stays canonical ($\alpha_3=2.3$).
+**The Fundamental Plane (erratum-corrected).** $\alpha_3$ over
+$(\log\rho_{\rm cl},\,[\mathrm{Fe/H}])$ with the four GCs overplotted, using the
+2014-erratum threshold $\hat x \ge -0.87$ (continuous; the originally printed $+0.87$
+was a typo — see @val-env-models). The near-vertical contours show $\alpha_3$ responds
+chiefly to **density**: a 1-dex change in $\rho_{\rm cl}$ shifts $\alpha_3$ by $0.40$
+versus $0.06$ for $[\mathrm{Fe/H}]$ — the $\sim7{:}1$ ratio that places dense,
+metal-poor M15 deep in the top-heavy regime, while the diffuse low-density field
+($\log\rho_{\rm cl}/10^6 \lesssim -0.9$, left edge) smoothly recovers the canonical
+$\alpha_3 = 2.3$.
 :::
 
 :::{figure} figures/env_lowmass_slopes.png
@@ -128,12 +132,15 @@ near and above solar.
 :width: 65%
 :align: center
 
-**Two parameterizations, one mechanism (honest cross-model comparison).** The
-{cite:t}`Marks2012` Fundamental Plane (solid) and the {cite:t}`Jerabkova2018`
-density-based IGIMF (dashed) are **both** monotonically top-heavy with density — the
-validated, robust agreement. They **differ in zero-point by up to $\sim0.7$** in
-$\alpha_3$ (Jeřábková systematically more top-heavy); this is a real model systematic,
-reported here, not asserted away.
+**The corrected Marks plane *is* the Jeřábková IGIMF relation.** With the 2014
+erratum applied (threshold $\hat x \ge -0.87$), the {cite:t}`Marks2012` Fundamental
+Plane (solid lines) and the {cite:t}`Jerabkova2018` density-based IGIMF (circles)
+**coincide** for every $[\mathrm{Fe/H}]$ — max $|\Delta\alpha_3| = 0.008$, purely the
+$-0.4072$-vs-$-0.41$ rounding (Jeřábková Eq. 6 simply adopts the erratum-corrected
+relation). The dotted grey curve shows the **literally printed Marks+2012 Eq. 14**
+with its missing-minus-sign typo ($\hat x \ge +0.87$): it spuriously pins
+$\alpha_3 = 2.3$ out to $\hat x = +0.87$ and then drops discontinuously to $1.58$ —
+the artifact the erratum (and Marks+2012 Fig. 6) corrects.
 :::
 
 :::{figure} figures/env_gradient_validation.png
@@ -162,9 +169,12 @@ python scripts/validate_environment.py
 
 - The GC $\alpha_3$ tolerance ($0.20$) is the intrinsic scatter of {cite:t}`Marks2012`
   Table 1 about its own best-fit plane; NGC 104 sits near that limit ($|\Delta|=0.16$).
-- @val-env-models reports a real $\sim0.7$ zero-point divergence between the Marks and
-  Jeřábková parameterizations: they agree on the mechanism (top-heavy with density),
-  not on the absolute normalization. Inference results depend on which is adopted.
+- `alpha3_marks_plane` applies the **2014 erratum** (Marks et al. 2014, MNRAS 442,
+  3315; PDF held): the threshold is $\hat x \ge -0.87$, not the $+0.87$ printed in the
+  2012 Eq. 14/15 (a missing-minus-sign typo the authors did *not* use). With this
+  correction the Marks plane and the Jeřábková density relation are the *same* relation
+  (@val-env-models, $\Delta \le 0.008$); the GC anchors are unaffected because all four
+  GCs lie at high density where $+0.87$ and $-0.87$ give identical $\alpha_3$.
 - The turbulence diagnostics on `BirthEnvironment` (`turbulent_mach`, `sigma_ln_rho`,
   `spectral_slope`) are *not* inputs to $\alpha_3$ here and are not validated on this page.
 
