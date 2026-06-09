@@ -40,10 +40,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `python scripts/validate_king.py`
 * - [profiles/EFF](eff-profile.md)
-  - ✅
-  - ⚠️ pending
-  - —
-  - `pytest tests/validation/test_eff_physics.py`
+  - ✅ (23)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_eff.py`
 * - [cluster/two-component](two-component.md)
   - ✅
   - ✅ 1
