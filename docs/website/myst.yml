@@ -153,6 +153,7 @@ project:
         - file: 50-validation/king-profile.md
         - file: 50-validation/eff-profile.md
         - file: 50-validation/michie-anisotropy.md
+        - file: 50-validation/rotation-om-anisotropy.md
         - file: 50-validation/imf-statistics.md
         - file: 50-validation/binary-imf.md
         - file: 50-validation/fractal-substructure.md

@@ -49,6 +49,11 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-08
   - `python scripts/validate_michie.py`
+* - [kinematics/rotation & anisotropy](rotation-om-anisotropy.md)
+  - ✅ (10)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_rotation_anisotropy.py`
 * - [cluster/two-component](two-component.md)
   - ✅
   - ✅ 1
@@ -98,6 +103,8 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - Density-profile sampling, asymptotic-slope verification
 * - [](michie-anisotropy.md)
   - Anisotropy β(r) vs the DF oracle, isotropic King limit, anisotropic dispersions
+* - [](rotation-om-anisotropy.md)
+  - Solid-body & differential rotation; Osipkov-Merritt β(r) for Plummer/EFF
 * - [](imf-statistics.md)
   - Salpeter / Kroupa / Chabrier / Maschberger sampling: KS-test goodness-of-fit and recovered $\alpha$ vs truth
 * - [](binary-imf.md)
