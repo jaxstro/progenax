@@ -26,6 +26,7 @@ All classes implement the VelocityDF protocol for use with IC assembly.
 from progenax.kinematics.plummer_df import PlummerVelocityDF
 from progenax.kinematics.king_df import KingVelocityDF
 from progenax.kinematics.michie_df import MichieVelocityDF
+from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 from progenax.kinematics.eff_df import EFFVelocityDF
 from progenax.kinematics.rotation import apply_solid_body_rotation, apply_differential_rotation
 from progenax.kinematics.api import (
@@ -40,6 +41,7 @@ __all__ = [
     "PlummerVelocityDF",
     "KingVelocityDF",
     "MichieVelocityDF",
+    "LIMEPYVelocityDF",
     "EFFVelocityDF",
     # Transforms
     "apply_solid_body_rotation",

@@ -37,6 +37,12 @@ References:
 from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.profiles.michie import MichieProfile, solve_michie_profile
+from progenax.profiles.limepy import LIMEPYProfile, solve_limepy_profile
+from progenax.profiles.limepy_multimass import (
+    MultiMassLIMEPY,
+    solve_multimass_limepy,
+    find_alpha_for_masses,
+)
 from progenax.profiles.eff import EFFProfile
 from progenax.profiles.uniform import UniformSphereProfile
 from progenax.profiles.api import (
@@ -53,6 +59,11 @@ __all__ = [
     "solve_king_profile",
     "MichieProfile",
     "solve_michie_profile",
+    "LIMEPYProfile",
+    "solve_limepy_profile",
+    "MultiMassLIMEPY",
+    "solve_multimass_limepy",
+    "find_alpha_for_masses",
     "EFFProfile",
     "UniformSphereProfile",
     # Functional API

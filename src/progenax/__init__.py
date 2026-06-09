@@ -25,9 +25,14 @@ from .protocols import (
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
-    solve_king_profile, solve_michie_profile,
+    LIMEPYProfile, MultiMassLIMEPY,
+    solve_king_profile, solve_michie_profile, solve_limepy_profile,
+    solve_multimass_limepy, find_alpha_for_masses,
 )
-from .kinematics import PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF
+from .kinematics import (
+    PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF,
+    LIMEPYVelocityDF,
+)
 from .builders import (
     ICResult,
     Systems,
@@ -121,12 +126,18 @@ __all__ = [
     "KingProfile",
     "MichieProfile",
     "EFFProfile",
+    "LIMEPYProfile",
+    "MultiMassLIMEPY",
     "solve_king_profile",
     "solve_michie_profile",
+    "solve_limepy_profile",
+    "solve_multimass_limepy",
+    "find_alpha_for_masses",
     # Velocity distribution functions
     "PlummerVelocityDF",
     "KingVelocityDF",
     "MichieVelocityDF",
+    "LIMEPYVelocityDF",
     "EFFVelocityDF",
     # Builders
     "ICResult",
