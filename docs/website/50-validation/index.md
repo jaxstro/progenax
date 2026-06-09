@@ -91,6 +91,11 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-09
   - `python scripts/validate_analytical.py`
+* - [tidal truncation](tidal-truncation.md)
+  - ✅ (9 + 15 unit)
+  - ✅ 5
+  - 2026-06-09
+  - `python scripts/validate_tidal.py`
 * - [gravoturbulent / PP20](gravoturbulent-pp20.md)
   - ✅
   - ⚠️ pending
