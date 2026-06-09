@@ -35,6 +35,7 @@ __all__ = [
     "soft_mass_weights",
     "radial_concentration_approx",
     "lambda_msr_approx",
+    "sigma_m_approx",
 ]
 
 
@@ -198,3 +199,71 @@ def lambda_msr_approx(
     baseline = jnp.mean(d)  # closed-form "random subset" expectation
     massive = jnp.sum(w * d) / jnp.sum(w)
     return calibration * baseline / (massive + 1e-12)
+
+
+def _weighted_pearson(
+    x: Float[Array, "N"], y: Float[Array, "N"]
+) -> Float[Array, ""]:
+    """Smooth (unweighted) Pearson correlation coefficient of two vectors."""
+    xc = x - jnp.mean(x)
+    yc = y - jnp.mean(y)
+    num = jnp.sum(xc * yc)
+    den = jnp.sqrt(jnp.sum(xc ** 2) * jnp.sum(yc ** 2)) + 1e-12
+    return num / den
+
+
+def sigma_m_approx(
+    positions: Float[Array, "N D"],
+    masses: Float[Array, "N"],
+    *,
+    m_cut: Float[Array, ""],
+    tau: Float[Array, ""],
+    k: int = 6,
+    project_to_2d: bool = True,
+    calibration: float = 1.0,
+) -> Float[Array, ""]:
+    """Soft Sigma--m segregation observable (Maschberger & Clarke 2011).
+
+    Measures whether massive stars sit in locally denser regions, via the correlation
+    between the soft mass-cut weight and the local surface density::
+
+        S = corr_i( w_i , log Sigma_i ),   Sigma_i = (k - 1) / (pi r_ik^2)
+
+    where ``r_ik`` is the distance to the ``k``-th nearest neighbour (Maschberger &
+    Clarke 2011, Eq. 4; ``k = 6`` standard). The k-NN radius is computed with
+    ``jnp.sort`` -- the **exact** k-th order statistic, which (unlike ``argsort``) has a
+    well-defined JVP, so the observable is differentiable in positions without any
+    softening of the radius.
+
+    Interpretation:
+        - ``S > 0``: massive stars in denser regions (segregated).
+        - ``S ~ 0``: no mass--density correlation.
+        - ``S < 0``: massive stars in sparser regions (inverse).
+
+    Args:
+        positions: Positions ``(N, 3)`` or ``(N, 2)``.
+        masses: Stellar masses ``(N,)``.
+        m_cut: Mass cut for the massive population.
+        tau: Soft mass-cut softness (> 0).
+        k: Nearest-neighbour rank for the local-density estimator (Maschberger-Clarke
+            ``k = 6``). Must satisfy ``2 <= k < N``.
+        project_to_2d: Use projected (x, y) positions if True (observer-faithful;
+            surface density is intrinsically a projected quantity).
+        calibration: Multiplicative calibration vs the exact Sigma--m oracle.
+
+    Returns:
+        Scalar correlation ``S``.
+    """
+    xy = _project(positions, project_to_2d)
+    N = xy.shape[0]
+    w = soft_mass_weights(masses, m_cut, tau)
+
+    diff = xy[:, None, :] - xy[None, :, :]
+    dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)
+    dist = dist + jnp.eye(N) * 1e10  # exclude self before sorting
+    dist_sorted = jnp.sort(dist, axis=1)  # ascending; differentiable order statistic
+    r_k = dist_sorted[:, k - 1]  # k-th nearest real neighbour (self masked out)
+
+    sigma = (k - 1) / (jnp.pi * r_k ** 2 + 1e-12)
+    log_sigma = jnp.log(sigma + 1e-12)
+    return calibration * _weighted_pearson(w, log_sigma)

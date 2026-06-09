@@ -225,3 +225,66 @@ class TestLambdaMSRApprox:
             lambda p, mm: lambda_msr_approx(p, mm, m_cut=2.0, tau=0.5, beta=0.05)
         )(jnp.stack([pos, pos]), jnp.stack([m, m]))
         assert out.shape == (2,)
+
+
+# --------------------------------------------------------------------------
+# Soft Sigma-m observable (mass--local-density correlation; Maschberger-Clarke).
+# --------------------------------------------------------------------------
+class TestSigmaMApprox:
+    def test_returns_scalar(self):
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(0))
+        S = sigma_m_approx(pos, m, m_cut=2.0, tau=0.5, k=6)
+        assert S.shape == ()
+
+    def test_segregated_positive(self):
+        """Massive stars in locally dense regions => corr(w, log Sigma) > 0."""
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(1))
+        S = sigma_m_approx(pos, m, m_cut=2.0, tau=0.5, k=6)
+        assert float(S) > 0.2
+
+    def test_unsegregated_near_zero(self):
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        vals = []
+        for s in range(8):
+            pos, m = _unsegregated_cluster(jax.random.PRNGKey(s))
+            vals.append(float(sigma_m_approx(pos, m, m_cut=2.0, tau=0.5, k=6)))
+        assert abs(np.mean(vals)) < 0.15
+
+    def test_segregated_above_unsegregated(self):
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        ps, ms = _segregated_cluster(jax.random.PRNGKey(2))
+        pu, mu = _unsegregated_cluster(jax.random.PRNGKey(2))
+        Ss = sigma_m_approx(ps, ms, m_cut=2.0, tau=0.5, k=6)
+        Su = sigma_m_approx(pu, mu, m_cut=2.0, tau=0.5, k=6)
+        assert float(Ss) > float(Su)
+
+    def test_differentiable_in_m_cut_matches_fd(self):
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(4))
+
+        def f(mc):
+            return sigma_m_approx(pos, m, m_cut=mc, tau=0.8, k=6)
+
+        g = jax.grad(f)(2.0)
+        eps = 1e-4
+        fd = (float(f(2.0 + eps)) - float(f(2.0 - eps))) / (2 * eps)
+        assert jnp.isfinite(g)
+        np.testing.assert_allclose(float(g), fd, rtol=2e-4, atol=1e-6)
+
+    def test_jit_and_vmap(self):
+        from progenax.diagnostics.segregation_approx import sigma_m_approx
+
+        pos, m = _segregated_cluster(jax.random.PRNGKey(5))
+        jitted = jax.jit(lambda p, mm: sigma_m_approx(p, mm, m_cut=2.0, tau=0.5, k=6))
+        assert jnp.isfinite(jitted(pos, m))
+        out = jax.vmap(lambda p, mm: sigma_m_approx(p, mm, m_cut=2.0, tau=0.5, k=6))(
+            jnp.stack([pos, pos]), jnp.stack([m, m])
+        )
+        assert out.shape == (2,)
