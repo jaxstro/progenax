@@ -25,7 +25,7 @@ with a regime where it is the natural choice:
   - `PowerLawIMF` with multi-segment
   - 3- or 4-segment broken power-law that captures the low-mass turnover. Standard default for resolved-cluster work.
 * - **Chabrier** (2003)
-  - `Chabrier`
+  - `ChabrierIMF`
   - Lognormal below $1\,\Msun$ matched to a Salpeter-like power-law above. Standard for unresolved-population integrated colours.
 * - **Maschberger** (2013)
   - `Maschberger`
@@ -64,8 +64,8 @@ N(<m) / N \;=\; \frac{m^{1-\alpha} - m_{\min}^{1-\alpha}}{m_{\max}^{1-\alpha} - 
 ```
 
 inverted analytically for inverse-CDF sampling. progenax's
-`PowerLawIMF(alpha=2.35, m_min=1.0, m_max=150.0)` is the Salpeter
-configuration.
+`PowerLawIMF.salpeter(m_min=1.0, m_max=150.0)` is the Salpeter
+configuration (internally `exponents=[2.35], breakpoints=[]`).
 
 ## Kroupa (2001): multi-segment broken power-law
 
@@ -90,14 +90,23 @@ two high-mass slopes $\alpha_2 = \alpha_3 = 2.3$ match the Salpeter
 value (different normalisation conventions account for the small
 difference between Salpeter's $2.35$ and Kroupa's $2.3$).
 
-`PowerLawIMF` accepts arbitrary segment break-points and slopes:
+`PowerLawIMF` accepts arbitrary segment slopes and break-points
+(`breakpoints` lists the *interior* breaks only, excluding `m_min` and
+`m_max`):
 
 ```python
 from progenax.imf import PowerLawIMF
 
-kroupa = PowerLawIMF(
-    breaks=jnp.array([0.01, 0.08, 0.5, 1.0, 150.0]),
-    alphas=jnp.array([0.3, 1.3, 2.3, 2.3]),
+# canonical Kroupa: the two equal high-mass slopes (2.3) merge to one
+# segment, so the classmethod uses 3 segments / 2 breaks (exact).
+kroupa = PowerLawIMF.kroupa(m_min=0.01, m_max=150.0)
+
+# or build the explicit 4-segment form directly:
+kroupa4 = PowerLawIMF(
+    exponents=[0.3, 1.3, 2.3, 2.3],
+    breakpoints=[0.08, 0.5, 1.0],
+    m_min=0.01,
+    m_max=150.0,
 )
 ```
 
@@ -119,12 +128,16 @@ with a lognormal:
 \end{cases}
 ```
 
-with $m_c \approx 0.22\,\Msun$, $\sigma_{\log m} \approx 0.57$, and
-$\alpha_3 = 2.3$, joined continuously at $m = 1\,\Msun$. The lognormal
-provides a smoother low-mass description than the broken power-law,
-which matters for unresolved-population integrated luminosities and
-colours. progenax's `Chabrier` class is the standard implementation;
-it shares its high-mass tail with `PowerLawIMF`.
+with the {cite:t}`Chabrier2003` Table 1 **single-star (disk)** values
+$m_c \approx 0.08\,\Msun$ ($0.079$), $\sigma_{\log m} = 0.69$, and
+$\alpha_3 = 2.3$, joined continuously at $m = 1\,\Msun$. (The
+often-quoted $m_c = 0.22$, $\sigma = 0.57$ are the *system* IMF;
+progenax's `ChabrierIMF` defaults to the single-star disk form — its
+defaults are `m_c=0.08, sigma=0.69, alpha=2.3, m_trans=1.0`.) The
+lognormal provides a smoother low-mass description than the broken
+power-law, which matters for unresolved-population integrated
+luminosities and colours. `ChabrierIMF` is the standard implementation;
+it shares its high-mass tail slope with `PowerLawIMF`.
 
 The Chabrier IMF does *not* admit a closed-form inverse CDF. Sampling
 uses a Newton solver on $\mathrm{CDF}(m) = u$; the iteration count is
@@ -228,7 +241,7 @@ guaranteed inside $[m_{\min}, m_{\max}]$ in a single pass.
 For new users: use `Maschberger` unless you have a specific reason to
 pick another. For comparison with prior work using a different IMF,
 match the convention of the comparison; progenax's flexible
-`PowerLawIMF` + `Chabrier` cover the standard alternatives.
+`PowerLawIMF` + `ChabrierIMF` cover the standard alternatives.
 
 ## Connection to binary-aware and environment IMFs
 

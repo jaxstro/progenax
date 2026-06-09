@@ -145,9 +145,9 @@ A useful trust grading:
 * - Layer
   - State
 * - **Validated (publication tier: unit + integration + validation + figures)**
-  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters. IMF + binary engine + tidal truncation validated in prior work.
+  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08). IMF binary engine + tidal truncation validated in prior work.
 * - **Released, tested, *not yet figure-validated*** ⚠️
-  - [imf-statistics](imf-statistics.md), [binary-imf](binary-imf.md), [analytical-test-cases](analytical-test-cases.md) — 61 validation tests pass combined, but no figures/measured tables yet.
+  - [binary-imf](binary-imf.md), [analytical-test-cases](analytical-test-cases.md) — validation tests pass, but no figures/measured tables yet.
 * - **Released, *unit-tested only*** ⚠️
   - [tidal-truncation](tidal-truncation.md) (`jacobi_radius`, `apply_tidal_truncation`) — `tests/unit/test_tidal.py` only; no validation-tier test or figures.
 * - **Experimental (repo-only, not in the wheel)** 🔬
@@ -214,7 +214,7 @@ Scoped to the *validated, differentiable* capability:
 
 **Released, tested, missing only figures/pages (do these next):**
 
-- [imf-statistics](imf-statistics.md) — Salpeter/Kroupa/Chabrier/Maschberger sampling + recovered $\alpha$ (a `validate_imfs.py` script exists already).
+- ✅ [imf-statistics](imf-statistics.md) — **DONE 2026-06-08**: recovered slopes (sample MLE), PDF/CDF coverage + KS, `mean_mass()` vs 200k log-grid ref (with the linear-grid failure mode), and inference-layer gradient validation (5 figures, `scripts/validate_imfs.py`).
 - [binary-imf](binary-imf.md) — forward-model + binary-aware likelihood ("confidently wrong" regime).
 - [analytical-test-cases](analytical-test-cases.md) — two-body Kepler, figure-eight, harmonic oscillator (exact-solution checks).
 - [tidal-truncation](tidal-truncation.md) — **needs a validation-tier test first**, then a Jacobi-radius/truncation figure.

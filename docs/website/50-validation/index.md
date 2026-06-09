@@ -72,10 +72,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `python scripts/validate_mass_segregation.py`
 * - [imf statistics](imf-statistics.md)
-  - ✅
-  - ⚠️ pending
-  - —
-  - `pytest tests/validation/test_imf_physics.py`
+  - ✅ (25)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_imfs.py`
 * - [binary / Moe IMF](binary-imf.md)
   - ✅
   - ⚠️ pending
