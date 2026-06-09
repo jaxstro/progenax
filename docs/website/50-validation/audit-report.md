@@ -145,9 +145,9 @@ A useful trust grading:
 * - Layer
   - State
 * - **Validated (publication tier: unit + integration + validation + figures)**
-  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08); [binary-imf](binary-imf.md) (24 orbital tests + 5 figures incl. the regenerated "confidently wrong" recovery, 2026-06-08); [environment-imf](environment-imf.md) (Marks+2012/Jeřábková IGIMF: new validation tier of 12 published-table tests + 5 figures, 2026-06-08). Tidal truncation validated in prior work.
+  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08); [binary-imf](binary-imf.md) (24 orbital tests + 5 figures incl. the regenerated "confidently wrong" recovery, 2026-06-08); [environment-imf](environment-imf.md) (Marks+2012/Jeřábková IGIMF: new validation tier of 12 published-table tests + 5 figures, 2026-06-08); [analytical-test-cases](analytical-test-cases.md) (two-body Kepler, Chenciner–Montgomery figure-eight, solar-system Kepler III, harmonic oscillator: 12 tests + 5 figures, 2026-06-09). Tidal truncation validated in prior work.
 * - **Released, tested, *not yet figure-validated*** ⚠️
-  - [analytical-test-cases](analytical-test-cases.md) — validation tests pass, but no figures/measured tables yet.
+  - (none — analytical-test-cases figure-validated 2026-06-09; see the validated row).
 * - **Released, *unit-tested only*** ⚠️
   - [tidal-truncation](tidal-truncation.md) (`jacobi_radius`, `apply_tidal_truncation`) — `tests/unit/test_tidal.py` only; no validation-tier test or figures.
 * - **Experimental (repo-only, not in the wheel)** 🔬
@@ -216,7 +216,7 @@ Scoped to the *validated, differentiable* capability:
 
 - ✅ [imf-statistics](imf-statistics.md) — **DONE 2026-06-08**: recovered slopes (sample MLE), PDF/CDF coverage + KS, `mean_mass()` vs 200k log-grid ref (with the linear-grid failure mode), and inference-layer gradient validation (5 figures, `scripts/validate_imfs.py`).
 - ✅ [binary-imf](binary-imf.md) — **DONE 2026-06-08**: Kepler/orbit oracles, Moe+17 q-distribution (mass-dependent twin excess), the regenerated "confidently wrong" recovery (naive single-star fit 18σ-wrong at N=10⁵ vs binary-aware 0.4σ, via fast MLE — no MCMC), bias-vs-f_b mechanism, and grad validation (5 figures, `scripts/validate_binaries.py`).
-- [analytical-test-cases](analytical-test-cases.md) — two-body Kepler, figure-eight, harmonic oscillator (exact-solution checks).
+- ✅ [analytical-test-cases](analytical-test-cases.md) — **DONE 2026-06-09**: two-body Kepler (E=−Gm₁m₂/2a, closes), Chenciner–Montgomery figure-eight (L=0, closes), Kepler III across the eight planets + IAU mass ratios, harmonic oscillator, and an adversarial spun-figure-eight (5 figures, `scripts/validate_analytical.py`).
 - [tidal-truncation](tidal-truncation.md) — **needs a validation-tier test first**, then a Jacobi-radius/truncation figure.
 
 ## 8. Incomplete — harden first, then validate + plot

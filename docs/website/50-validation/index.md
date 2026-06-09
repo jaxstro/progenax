@@ -87,10 +87,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - 2026-06-08
   - `python scripts/validate_environment.py`
 * - [analytical test cases](analytical-test-cases.md)
-  - ✅
-  - ⚠️ pending
-  - —
-  - `pytest tests/validation/test_analytical_physics.py`
+  - ✅ (12)
+  - ✅ 5
+  - 2026-06-09
+  - `python scripts/validate_analytical.py`
 * - [gravoturbulent / PP20](gravoturbulent-pp20.md)
   - ✅
   - ⚠️ pending
