@@ -58,8 +58,8 @@ M_CUT = 2.0
 # Per-observable plotting identity.
 OBS = {
     "lambda": dict(color=OI["blue"], label=r"soft $\Lambda_{\rm MSR}$", marker="o"),
-    "radial": dict(color=OI["vermilion"], label=r"radial concentration $C$", marker="s"),
-    "sigma": dict(color=OI["green"], label=r"$\Sigma$--$m$ correlation $S$", marker="^"),
+    "radial": dict(color=OI["vermilion"], label=r"radial conc. $C$", marker="s"),
+    "sigma": dict(color=OI["green"], label=r"$\Sigma$$-$$m$ corr. $S$", marker="^"),
 }
 
 
@@ -148,7 +148,8 @@ def fig_hard_limit(output_dir):
               f"tol={tol:.0e}  {'PASS' if passed else 'FAIL'}")
     ax.set_xlabel(r"softness $\tau$ (and $\beta$ for $\Lambda$)")
     ax.set_ylabel(r"$|{\rm soft} - {\rm exact}|$")
-    ax.legend(loc="lower right", fontsize=7.5)
+    ax.legend(loc="upper right", fontsize=7.5)
+    ax.set_ylim(1e-12, 1e1)
     ax.invert_xaxis()
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "seg_hard_limit_convergence")
@@ -198,7 +199,9 @@ def fig_response_curves(output_dir):
     print(f"  exact  : spearman(seg, Lambda_MSR) = {rho_ex:+.3f}")
     ax.set_xlabel(r"segregation strength $1 - \theta$ (core tightness)")
     ax.set_ylabel("normalised response")
-    ax.legend(loc="lower right", fontsize=7.0)
+    ax.set_ylim(-0.04, 1.18)
+    ax.legend(loc="upper left", fontsize=7.0, ncol=2, columnspacing=1.0,
+              handlelength=1.6)
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "seg_response_curves")
     print(f"  saved seg_response_curves.{{png,pdf}}  ->  {'PASS' if ok else 'FAIL'}")
@@ -234,17 +237,27 @@ def fig_fisher(output_dir):
         print(f"  {name:7s}: dmu/dtheta={dmu:+.4f}  sigma={sd:.4f}  Fisher I={I:.3f}")
     ok = all(np.isfinite(v) and v > 0 for v in info.values())
 
-    fig, ax = plt.subplots(figsize=(4.2, 3.4))
+    fig, ax = plt.subplots(figsize=(4.4, 3.6))
     names = list(OBS)
-    ax.bar(range(len(names)), [info[n] for n in names],
-           color=[OBS[n]["color"] for n in names], width=0.6, alpha=0.85)
+    heights = [info[n] for n in names]
+    bars = ax.bar(range(len(names)), heights,
+                  color=[OBS[n]["color"] for n in names], width=0.62, alpha=0.85)
     ax.set_xticks(range(len(names)))
-    ax.set_xticklabels([OBS[n]["label"] for n in names], fontsize=7.5)
+    ax.set_xticklabels([OBS[n]["label"] for n in names], fontsize=8)
     ax.set_ylabel(r"Fisher information $\mathcal{I}(\theta)$")
+    ax.set_ylim(0, max(heights) * 1.16)
+    # Value label above each bar.
+    for b, h in zip(bars, heights):
+        ax.text(b.get_x() + b.get_width() / 2, h + max(heights) * 0.015,
+                f"{h:.0f}", ha="center", va="bottom", fontsize=8.5, fontweight="bold")
     best = max(info, key=info.get)
-    ax.text(0.5, 0.92, f"most identifiable: {OBS[best]['label']}",
-            transform=ax.transAxes, ha="center", fontsize=7.5, color="0.3")
-    fig.tight_layout(pad=0.4)
+    ax.text(0.03, 0.96, rf"most identifiable: {OBS[best]['label']}"
+            "\n" rf"($\sim\!{info[best]/min(info.values()):.0f}\times$ the others)",
+            transform=ax.transAxes, ha="left", va="top", fontsize=7.5, color="0.3")
+    ax.text(0.5, -0.16, r"$\mathcal{I}=(\mathrm{d}\mu/\mathrm{d}\theta)^2/\mathrm{Var}$ "
+            r"at $\theta=0.3$ (autodiff)", transform=ax.transAxes, ha="center",
+            fontsize=7, color="0.45")
+    fig.tight_layout(pad=0.5)
     save_fig(fig, output_dir, "seg_fisher_identifiability")
     print(f"  saved seg_fisher_identifiability.{{png,pdf}}  ->  {'PASS' if ok else 'FAIL'}")
     return ok
@@ -268,20 +281,32 @@ def fig_2d_vs_3d(output_dir):
             v3d[name].append(float(_soft(name, pos, masses, project_to_2d=False)))
     seg = 1.0 - scales
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(8.0, 3.4))
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(8.4, 4.1))
     ok = True
+    # Panel (a): normalise each observable to its own 3D dynamic range so all three
+    # share one [0,1] axis and the 2D-vs-3D gap (not the scale clash) is what shows.
     for name in OBS:
-        axA.plot(seg, v3d[name], "-", color=OBS[name]["color"], lw=1.6,
-                 label=OBS[name]["label"] + " (3D)")
-        axA.plot(seg, v2d[name], "--", color=OBS[name]["color"], lw=1.2, alpha=0.7)
+        v3 = np.array(v3d[name])
+        v2 = np.array(v2d[name])
+        lo, span = v3.min(), (np.ptp(v3) + 1e-12)
+        n3 = (v3 - lo) / span
+        n2 = (v2 - lo) / span
+        if name == "radial":  # flip so "up" = more segregated for all three
+            n3, n2 = 1 - n3, 1 - n2
+        axA.plot(seg, n3, "-", color=OBS[name]["color"], lw=1.8, marker=OBS[name]["marker"],
+                 ms=4, mfc="none", label=OBS[name]["label"])
+        axA.plot(seg, n2, "--", color=OBS[name]["color"], lw=1.3, alpha=0.7)
     axA.set_xlabel(r"segregation strength $1-\theta$")
-    axA.set_ylabel("observable value")
-    axA.legend(loc="best", fontsize=6.5)
-    axA.text(0.04, 0.05, "solid = 3D, dashed = 2D projection", transform=axA.transAxes,
-             fontsize=7, color="0.4")
-    panel_label(axA, "(a)")
+    axA.set_ylabel("response (normalised to 3D range)")
+    axA.set_ylim(-0.05, 1.18)
+    # Legend strip ABOVE the axes (never overlaps data); style note as a sub-line.
+    axA.legend(loc="lower center", bbox_to_anchor=(0.5, 1.01), ncol=3, fontsize=7,
+               columnspacing=1.1, handlelength=1.6, frameon=False)
+    axA.text(0.5, 0.04, "solid = 3D  ·  dashed = 2D projection", transform=axA.transAxes,
+             ha="center", fontsize=7.2, color="0.4")
+    panel_label(axA, "(a)", loc="upper left")
 
-    # Fisher ratio 2D/3D = fraction of segregation signal surviving projection.
+    # Panel (b): Fisher ratio 2D/3D = fraction of segregation signal surviving projection.
     ratios = []
     for name in OBS:
         I2, _, _ = _fisher(name, 0.3, n_real=30, project_to_2d=True)
@@ -290,16 +315,21 @@ def fig_2d_vs_3d(output_dir):
         ratios.append(frac)
         ok = ok and np.isfinite(frac) and frac > 0
         print(f"  {name:7s}: Fisher 2D/3D = {frac:.3f}  ({100*frac:.0f}% of signal survives)")
-    axB.bar(range(len(OBS)), ratios, color=[OBS[n]["color"] for n in OBS],
-            width=0.6, alpha=0.85)
-    axB.axhline(1.0, color="0.5", lw=0.8, ls=":")
+    bars = axB.bar(range(len(OBS)), ratios, color=[OBS[n]["color"] for n in OBS],
+                   width=0.62, alpha=0.85)
+    axB.axhline(1.0, color="0.45", lw=1.0, ls=":")
+    axB.text(0.985, 1.0, "no loss", transform=axB.get_yaxis_transform(),
+             ha="right", va="bottom", fontsize=6.8, color="0.45")
+    for b, frac in zip(bars, ratios):
+        axB.text(b.get_x() + b.get_width() / 2, frac + 0.02, f"{frac:.2f}",
+                 ha="center", va="bottom", fontsize=8.5, fontweight="bold")
     axB.set_xticks(range(len(OBS)))
-    axB.set_xticklabels([OBS[n]["label"] for n in OBS], fontsize=7)
+    axB.set_xticklabels([OBS[n]["label"] for n in OBS], fontsize=7.5)
     axB.set_ylabel(r"Fisher ratio $\mathcal{I}_{\rm 2D}/\mathcal{I}_{\rm 3D}$")
-    axB.text(0.5, 0.92, "signal fraction surviving projection", transform=axB.transAxes,
-             ha="center", fontsize=7, color="0.3")
-    panel_label(axB, "(b)")
-    fig.tight_layout(pad=0.4, w_pad=1.2)
+    axB.set_ylim(0, max(ratios) * 1.22)
+    axB.set_title("signal fraction surviving projection", fontsize=7.5, color="0.3", pad=4)
+    panel_label(axB, "(b)", loc="upper left")
+    fig.tight_layout(pad=0.5, w_pad=1.6)
     save_fig(fig, output_dir, "seg_2d_vs_3d")
     print(f"  saved seg_2d_vs_3d.{{png,pdf}}  ->  {'PASS' if ok else 'FAIL'}")
     return ok
@@ -315,7 +345,7 @@ def fig_gradient_validation(output_dir):
     halo, core_base, masses = _bases(jax.random.PRNGKey(11))
     pos = _positions(0.1, halo, core_base)
 
-    fig, (axA, axB) = plt.subplots(1, 2, figsize=(8.0, 3.4))
+    fig, (axA, axB) = plt.subplots(1, 2, figsize=(8.4, 4.0))
     # (a) AD vs FD for d(obs)/d m_cut
     mcs = np.linspace(1.0, 6.0, 11)
     ok_a = True
@@ -328,16 +358,18 @@ def fig_gradient_validation(output_dir):
             fd.append((float(f(mc + eps)) - float(f(mc - eps))) / (2 * eps))
         ad, fd = np.array(ad), np.array(fd)
         axA.plot(mcs, ad, "-", color=OBS[name]["color"], label=OBS[name]["label"])
-        axA.plot(mcs, fd, "o", color=OBS[name]["color"], ms=3, mfc="none")
+        axA.plot(mcs, fd, "o", color=OBS[name]["color"], ms=3.5, mfc="none", mew=1.0)
         maxerr = np.max(np.abs(ad - fd))
         ok_a = ok_a and maxerr < 1e-3
         print(f"  {name:7s}: max|AD-FD| d/dm_cut = {maxerr:.2e}")
     axA.set_xlabel(r"mass cut $m_{\rm cut}\ [M_\odot]$")
     axA.set_ylabel(r"$\partial\,{\rm obs}/\partial m_{\rm cut}$")
-    axA.legend(loc="best", fontsize=6.5)
-    axA.text(0.04, 0.05, "line = autodiff, points = finite diff", transform=axA.transAxes,
-             fontsize=7, color="0.4")
-    panel_label(axA, "(a)")
+    # Legend strip above the axes; method note as a clear sub-line.
+    axA.legend(loc="lower center", bbox_to_anchor=(0.5, 1.01), ncol=3, fontsize=7,
+               columnspacing=1.1, handlelength=1.6, frameon=False)
+    axA.text(0.97, 0.93, "line = autodiff\npoints = finite diff.",
+             transform=axA.transAxes, ha="right", va="top", fontsize=7.2, color="0.4")
+    panel_label(axA, "(a)", loc="upper left")
 
     # (b) gradient-descent recovery of segregation strength via the radial observable
     halo2, core2, m2 = _bases(jax.random.PRNGKey(12))
@@ -355,14 +387,17 @@ def fig_gradient_validation(output_dir):
         theta = min(max(theta, 0.02), 1.0)
         traj.append(theta)
     ok_b = abs(traj[-1] - theta_true) < 0.03
-    axB.plot(traj, "-", color=OBS["radial"]["color"], lw=1.6)
-    axB.axhline(theta_true, color="0.4", ls="--", lw=1.0, label=r"true $\theta$")
+    axB.plot(traj, "-", color=OBS["radial"]["color"], lw=1.8,
+             label="radial-$C$ descent")
+    axB.axhline(theta_true, color="0.4", ls="--", lw=1.0, label=r"true $\theta=0.12$")
     axB.set_xlabel("gradient-descent step")
     axB.set_ylabel(r"recovered $\theta$ (core scale)")
-    axB.legend(loc="best", fontsize=7.5)
-    axB.text(0.5, 0.9, fr"$\theta$: {theta_true:.2f} recovered {traj[-1]:.2f}",
-             transform=axB.transAxes, ha="center", fontsize=7.5, color="0.3")
-    panel_label(axB, "(b)", loc="upper right")
+    axB.set_ylim(0.0, 0.9)
+    axB.legend(loc="upper right", fontsize=7.5)
+    axB.text(0.5, 0.55, fr"recovered $\theta = {traj[-1]:.2f}$"
+             "\n(exact)", transform=axB.transAxes, ha="center", fontsize=8,
+             color="0.3")
+    panel_label(axB, "(b)", loc="lower right")
     print(f"  recovery: true theta={theta_true:.3f}  recovered={traj[-1]:.3f}  "
           f"{'PASS' if ok_b else 'FAIL'}")
     fig.tight_layout(pad=0.4, w_pad=1.2)
