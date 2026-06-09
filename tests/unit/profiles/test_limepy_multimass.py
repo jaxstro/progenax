@@ -299,6 +299,23 @@ class TestMultiMassLIMEPYModel:
         Qg = float(compute_virial_ratio(pos, vel, masses, G=G))
         assert abs(Qg - 0.5) < 0.04, f"global Q={Qg:.3f} (expected 0.5)"
 
+    def test_theoretical_component_virial_is_exactly_half(self):
+        """The bias-free equilibrium proof: the THEORETICAL per-component virial ratio
+        Q_j = T_j/|W_j| computed from the model (no sampling, no softening, no finite-N)
+        equals 0.5 for EVERY component at every delta. This is the rigorous statement of
+        'each mass group is in equilibrium' -- the sampled per-group Q_j is a finite-N
+        observable that converges to this."""
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        m_j = jnp.array([1.0, 4.0])
+        alpha_j = jnp.array([0.5, 0.5])
+        for delta in (0.0, 0.3, 0.5, 0.6):
+            model = MultiMassLIMEPY.from_alpha(alpha_j, m_j, W0=7.0, g=1.0, delta=delta,
+                                               r_c=1.0, n_ode_points=4000)
+            Qj = np.asarray(model.component_virial_ratios())
+            np.testing.assert_allclose(Qj, 0.5, atol=2e-3,
+                                       err_msg=f"delta={delta}: theoretical Q_j={Qj}")
+
     def test_heavy_component_is_kinematically_colder(self):
         """The equipartition signature: at fixed radius the heavy component has a
         SMALLER velocity dispersion than the light one (s_j = s mu_j^{-delta} with

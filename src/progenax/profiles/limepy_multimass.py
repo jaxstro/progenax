@@ -30,7 +30,7 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
 from progenax.profiles.king import _find_tidal_radius
-from progenax.profiles.limepy import limepy_density_hat
+from progenax.profiles.limepy import limepy_density_hat, lowered_exponential
 
 
 def _multimass_density_sources(
@@ -314,6 +314,53 @@ class MultiMassLIMEPY(eqx.Module):
         )
         xi, psi, _ = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_ode_points)
         return cls(alpha_j, m_j, W0, g, delta, r_c, xi, psi, residual=residual, n_grid=n_grid)
+
+    def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
+        """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model itself.
+
+        The bias-free equilibrium proof (no sampling, no softening, no finite-N): for a
+        component in steady state in the shared potential, 2 T_j + W_j = 0, so Q_j = 0.5.
+        Computed in the smooth mean field, so it returns exactly 0.5 for every component
+        of a self-consistent model -- the rigorous statement that the sampled per-group
+        Q_j is a finite-N estimator of. Dimensionless (independent of G, M, r_c).
+
+            T_j = int 0.5 rho_j <v^2>_j 4 pi r^2 dr,  <v^2>_j = s_j^2 * 3 Eg(g+5/2,W_j)/Eg(g+3/2,W_j)
+            W_j = - int rho_j r (dphi/dr) 4 pi r^2 dr, dphi/dr = G M_enc(r)/r^2,
+        with W_j(r) = mu_j^(2 delta) psi(r), s_j^2 = mu_j^(-2 delta)/(9 mu_tot) (G=M=r_c=1).
+        """
+        r = jnp.linspace(1e-3, self.r_t, n)
+        psi = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+        # per-component mass density rho_j = alpha_j * rho_hat_j (normalization cancels in Q_j)
+        rho_j = jax.vmap(
+            lambda p: _multimass_density_sources(p, self.rescale_j, self.W0, self.g),
+            out_axes=1,
+        )(psi)
+        rho_j = jnp.where(r[None, :] <= self.r_t, rho_j, 0.0) * self.alpha_j[:, None]
+        rho_tot = jnp.sum(rho_j, axis=0)
+
+        integ = 4.0 * jnp.pi * r**2 * rho_tot
+        dr = r[1] - r[0]
+        M_enc = jnp.concatenate([jnp.zeros(1),
+                                 jnp.cumsum(0.5 * (integ[1:] + integ[:-1])) * dr])
+        # Normalize to total mass M=1 so the velocity scale s^2 = 1/(9 mu_tot) is
+        # consistent with the potential (G = M = r_c = 1). W_j carries two powers of this
+        # normalization (rho_j and M_enc), T_j one (rho_j) -- so it must NOT be dropped.
+        norm = 1.0 / M_enc[-1]
+        rho_j = rho_j * norm
+        dphi_dr = (M_enc * norm) / jnp.maximum(r, 1e-6) ** 2  # G=1
+
+        s2 = 1.0 / (9.0 * self.mu_tot)  # G=M=r_c=1
+        Qs = []
+        for j in range(self.m_j.shape[0]):
+            W_j = self.rescale_j[j] * psi
+            s_j2 = s2 * self.mu_j[j] ** (-2.0 * self.delta)
+            v2hat = 3.0 * lowered_exponential(self.g + 2.5, W_j) / \
+                jnp.maximum(lowered_exponential(self.g + 1.5, W_j), 1e-300)
+            v2 = s_j2 * jnp.where(W_j > 0.0, v2hat, 0.0)
+            T = jnp.trapezoid(0.5 * rho_j[j] * v2 * 4.0 * jnp.pi * r**2, r)
+            W = jnp.trapezoid(-rho_j[j] * r * dphi_dr * 4.0 * jnp.pi * r**2, r)
+            Qs.append(T / jnp.abs(W))
+        return jnp.stack(Qs)
 
     def total_density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
         """Total (mass-weighted) volume density sum_j alpha_j rho_hat_j(r), 0 outside r_t."""

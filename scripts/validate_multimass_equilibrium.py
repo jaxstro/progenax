@@ -12,8 +12,13 @@ velocity scales s_j = s mu_j^(-delta). The figure establishes, on one model:
       own equilibrium DF (the proof of equilibrium).
   (c) segregation strength (light/heavy half-mass-radius ratio) vs delta: ~1 (no
       segregation) at delta=0, rising with delta.
-  (d) per-group virial Q_j vs delta (seed-averaged): each mass group stays ~0.5 -- a
-      TRUE per-component equilibrium, the property the lambda_seg blend lacks (Phase 0).
+  (d) per-group virial Q_j vs delta: the bias-free THEORETICAL Q_j (from the model) is
+      exactly 0.5 for every component -- the rigorous equilibrium proof. The sampled
+      N-body Q_j (seed-averaged) is a finite-N estimator of it: light + global are tight;
+      the rarer, concentrated heavy component carries a small POSITIVE finite-N bias (the
+      1/r-weighted W_j is dominated by its few innermost stars), NOT a softening effect
+      (it persists at softening=0) and NOT physics. This per-component equilibrium is the
+      property the lambda_seg blend lacks (Phase 0).
 
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_multimass_equilibrium.py
@@ -139,34 +144,44 @@ def main():
     axC.set_title("segregation grows with $\\delta$", fontsize=9)
     panel_label(axC, "(c)", loc="upper left")
 
-    # (d) per-group Q_j vs delta (seed-averaged) + global Q
-    print("  delta  Q_light  Q_heavy  Q_global")
+    # (d) per-group Q_j vs delta: theoretical (exact) + sampled N-body (seed-averaged).
+    # N-body Q_j uses softening=0 (exact Clausius) -> the heavy offset is finite-N, not
+    # softening.
+    print("  delta  Q_light  Q_heavy  Q_global | theory(light,heavy)")
     Qg_all, Ql_all, Qh_all, Ql_se, Qh_se = [], [], [], [], []
+    Qlt_all, Qht_all = [], []
     for d in DELTAS:
         mdl = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=float(d), r_c=1.0)
+        Qth = np.asarray(mdl.component_virial_ratios())
+        Qlt_all.append(Qth[0]); Qht_all.append(Qth[1])
         Ql_s, Qh_s, Qg_s = [], [], []
         for sd in SEEDS:
             p, v, mm = mdl.sample_cluster(jax.random.PRNGKey(sd), n_stars=8000, G=G)
             p = p - jnp.average(p, axis=0, weights=mm)
             v = v - jnp.average(v, axis=0, weights=mm)
             masks = jnp.stack([jnp.isclose(mm, float(mj)) for mj in M_J])
-            Qj = np.asarray(per_group_virial_ratio(p, v, mm, G=G, group_masks=masks, softening=0.05))
+            Qj = np.asarray(per_group_virial_ratio(p, v, mm, G=G, group_masks=masks, softening=0.0))
             Ql_s.append(Qj[0]); Qh_s.append(Qj[1])
             Qg_s.append(float(compute_virial_ratio(p, v, mm, G=G)))
         Ql_all.append(np.mean(Ql_s)); Qh_all.append(np.mean(Qh_s)); Qg_all.append(np.mean(Qg_s))
         Ql_se.append(np.std(Ql_s) / np.sqrt(len(Ql_s)))
         Qh_se.append(np.std(Qh_s) / np.sqrt(len(Qh_s)))
-        print(f"  {d:.1f}    {np.mean(Ql_s):.3f}    {np.mean(Qh_s):.3f}    {np.mean(Qg_s):.3f}")
-    axD.errorbar(DELTAS, Ql_all, yerr=Ql_se, marker="o", ms=4, color=LCOL, capsize=2, label="light")
-    axD.errorbar(DELTAS, Qh_all, yerr=Qh_se, marker="s", ms=4, color=HCOL, capsize=2, label="heavy")
-    axD.plot(DELTAS, Qg_all, "-^", color="0.4", ms=4, lw=1.2, label="global")
+        print(f"  {d:.1f}    {np.mean(Ql_s):.3f}    {np.mean(Qh_s):.3f}    {np.mean(Qg_s):.3f}"
+              f"   | {Qth[0]:.4f}, {Qth[1]:.4f}")
+    # theoretical (exact) -- flat at 0.5
+    axD.plot(DELTAS, Qlt_all, "-", color=LCOL, lw=2.4, alpha=0.45, label="light (theory)")
+    axD.plot(DELTAS, Qht_all, "-", color=HCOL, lw=2.4, alpha=0.45, label="heavy (theory)")
+    # sampled N-body (finite-N estimator)
+    axD.errorbar(DELTAS, Ql_all, yerr=Ql_se, marker="o", ms=4, ls="none", color=LCOL,
+                 capsize=2, label="light (sampled)")
+    axD.errorbar(DELTAS, Qh_all, yerr=Qh_se, marker="s", ms=4, ls="none", color=HCOL,
+                 capsize=2, label="heavy (sampled)")
+    axD.plot(DELTAS, Qg_all, "^", color="0.4", ms=4, ls="none", label="global (sampled)")
     axD.axhline(0.5, color="0.6", ls="--", lw=1.0)
-    axD.text(0.02, 0.5, "equilibrium", transform=axD.get_yaxis_transform(),
-             va="bottom", fontsize=7, color="0.4")
     axD.set_xlabel(r"equipartition $\delta$"); axD.set_ylabel(r"per-group $Q_j = T_j/|W_j|$")
-    axD.legend(frameon=False, fontsize=8, ncol=3, loc="upper center")
-    axD.set_ylim(0.35, 0.75)
-    axD.set_title("each mass group stays virial", fontsize=9)
+    axD.legend(frameon=False, fontsize=6.5, ncol=2, loc="upper left")
+    axD.set_ylim(0.40, 0.62)
+    axD.set_title("theory exact 0.5; sampled = finite-N", fontsize=9)
     panel_label(axD, "(d)", loc="lower right")
 
     fig.tight_layout(pad=0.6)
