@@ -145,7 +145,7 @@ A useful trust grading:
 * - Layer
   - State
 * - **Validated (publication tier: unit + integration + validation + figures)**
-  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08); [binary-imf](binary-imf.md) (24 orbital tests + 5 figures incl. the regenerated "confidently wrong" recovery, 2026-06-08). Tidal truncation validated in prior work.
+  - Plummer, King, EFF, Michie; matched isotropic DFs + OM anisotropy + Michie anisotropy + rotation; CW04 Q + azimuthal variation; Λ_MSR + energy-sorted segregation; two-component clusters; [imf-statistics](imf-statistics.md) (25 tests + 5 figures, 2026-06-08); [binary-imf](binary-imf.md) (24 orbital tests + 5 figures incl. the regenerated "confidently wrong" recovery, 2026-06-08); [environment-imf](environment-imf.md) (Marks+2012/Jeřábková IGIMF: new validation tier of 12 published-table tests + 5 figures, 2026-06-08). Tidal truncation validated in prior work.
 * - **Released, tested, *not yet figure-validated*** ⚠️
   - [analytical-test-cases](analytical-test-cases.md) — validation tests pass, but no figures/measured tables yet.
 * - **Released, *unit-tested only*** ⚠️

@@ -81,6 +81,11 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 5
   - 2026-06-08
   - `python scripts/validate_binaries.py`
+* - [environment IMF (Marks/IGIMF)](environment-imf.md)
+  - ✅ (12)
+  - ✅ 5
+  - 2026-06-08
+  - `python scripts/validate_environment.py`
 * - [analytical test cases](analytical-test-cases.md)
   - ✅
   - ⚠️ pending

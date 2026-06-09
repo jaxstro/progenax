@@ -157,6 +157,7 @@ project:
         - file: 50-validation/rotation-om-anisotropy.md
         - file: 50-validation/imf-statistics.md
         - file: 50-validation/binary-imf.md
+        - file: 50-validation/environment-imf.md
         - file: 50-validation/fractal-substructure.md
         - file: 50-validation/mass-segregation.md
         - file: 50-validation/gravoturbulent-pp20.md
