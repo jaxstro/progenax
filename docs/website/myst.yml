@@ -190,6 +190,7 @@ project:
             - file: 99-bibliography/per-paper/index.md
             - file: 99-bibliography/per-paper/plummer-1911.md
             - file: 99-bibliography/per-paper/king-1966.md
+            - file: 99-bibliography/per-paper/gieles-zocchi-2015.md
             - file: 99-bibliography/per-paper/elson-fall-freeman-1987.md
             - file: 99-bibliography/per-paper/salpeter-1955.md
             - file: 99-bibliography/per-paper/chabrier-2003.md

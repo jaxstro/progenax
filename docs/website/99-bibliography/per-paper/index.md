@@ -17,6 +17,7 @@ The pages are organised alphabetically by first-author surname.
 
 - [](plummer-1911.md)
 - [](king-1966.md)
+- [](gieles-zocchi-2015.md)
 - [](elson-fall-freeman-1987.md)
 
 ## Velocity distribution functions
