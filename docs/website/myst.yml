@@ -66,6 +66,7 @@ project:
             - file: 10-theory/spatial-profiles/plummer.md
             - file: 10-theory/spatial-profiles/king.md
             - file: 10-theory/spatial-profiles/eff.md
+            - file: 10-theory/spatial-profiles/lowered-model-family.md
         - title: Velocity distribution functions
           children:
             - file: 10-theory/velocity-dfs/index.md

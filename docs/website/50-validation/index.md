@@ -30,10 +30,10 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - Last verified
   - Run command
 * - [profiles/Plummer](plummer-equilibrium.md)
-  - ✅
-  - ✅ 1
+  - ✅ (20)
+  - ✅ 5
   - 2026-06-08
-  - `pytest tests/validation/test_plummer_physics.py`
+  - `python scripts/validate_plummer.py`
 * - [profiles/King](king-profile.md)
   - ✅ (32)
   - ✅ 5

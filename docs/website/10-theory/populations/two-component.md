@@ -115,9 +115,10 @@ component's individual DF. Component A's DF was designed for one
 profile; the actual potential includes component B's mass too.
 
 For marginal mass ratios ($M_b/M_a \sim 1$), self-consistent
-multi-component DFs are needed. The {cite:t}`Gieles2015` LIMEPY family
-provides this for King-style profiles; progenax does not currently
-implement multi-component LIMEPY.
+multi-component DFs are needed. The lowered-model family formalized by
+{cite:t}`Gieles2015` provides this for King-style profiles; progenax
+does not yet implement the multi-component case of its planned native
+generalization (see [](../spatial-profiles/lowered-model-family.md)).
 
 ## Validation
 
@@ -144,5 +145,7 @@ the `pop_id` convention, and custom `pop_mask` behavior.
 Multi-component cluster modelling is standard in N-body work
 {cite:p}`Aarseth1974,Kuepper2011`. progenax's two-component
 implementation follows the layered single-component DF approach rather
-than the self-consistent multi-mass DF approach; {cite:t}`Gieles2015`
-LIMEPY is the right tool when self-consistency matters.
+than the self-consistent multi-mass DF approach; the lowered-model
+family formalized by {cite:t}`Gieles2015` is the natural framework when
+self-consistency matters, and progenax plans to implement it natively
+as its own differentiable generalization.

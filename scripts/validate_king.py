@@ -49,6 +49,10 @@ from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.kinematics import KingVelocityDF
 from progenax.builders import compute_kinetic_energy, compute_potential_energy
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _plotstyle import OI, apply_pub_style, panel_label as _panel_label, save_fig as _save
+
+apply_pub_style()
 
 OUTPUT_DIR = "validation/plots"
 N_SAMPLES = 50_000
@@ -75,57 +79,6 @@ def _ode_domain(c_ref):
     if c_ref <= 600.0:
         return 800.0, 12000
     return 3000.0, 24000
-
-# Okabe-Ito colourblind-safe palette.
-OI = {
-    "blue": "#0072B2", "orange": "#E69F00", "green": "#009E73",
-    "vermilion": "#D55E00", "purple": "#CC79A7", "sky": "#56B4E9",
-    "yellow": "#F0E442", "black": "#000000",
-}
-
-# Publication style (ApJ/AAS): serif text + Computer-Modern math, clean spines,
-# inward ticks, vector-friendly. Figures carry no in-figure title (the paper /
-# validation-page caption does that); panel labels + axis labels are self-sufficient.
-plt.rcParams.update({
-    "font.family": "serif",
-    "mathtext.fontset": "cm",
-    "font.size": 9,
-    "axes.labelsize": 10,
-    "axes.titlesize": 10,
-    "legend.fontsize": 8,
-    "legend.frameon": False,
-    "xtick.labelsize": 8.5,
-    "ytick.labelsize": 8.5,
-    "xtick.direction": "in",
-    "ytick.direction": "in",
-    "xtick.top": True,
-    "ytick.right": True,
-    "xtick.minor.visible": True,
-    "ytick.minor.visible": True,
-    "axes.linewidth": 0.8,
-    "lines.linewidth": 1.6,
-    "figure.dpi": 150,
-    "savefig.dpi": 300,
-    "savefig.bbox": "tight",
-    "savefig.pad_inches": 0.02,
-})
-
-
-def _panel_label(ax, text, loc="upper left"):
-    """Bold (a)/(b)/... tag in a figure corner, on a subtle white patch so it
-    never collides with data or the legend."""
-    x, ha = (0.035, "left") if "left" in loc else (0.965, "right")
-    y, va = (0.96, "top") if "upper" in loc else (0.06, "bottom")
-    ax.text(x, y, text, transform=ax.transAxes, fontsize=11, fontweight="bold",
-            va=va, ha=ha,
-            bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
-
-
-def _save(fig, output_dir, stem):
-    """Save publication PNG (raster) + PDF (vector) for the same figure."""
-    fig.savefig(f"{output_dir}/{stem}.png")
-    fig.savefig(f"{output_dir}/{stem}.pdf")
-    plt.close(fig)
 
 
 def _direct_velocity_integral(W, n_v=100_000):
@@ -342,12 +295,23 @@ def fig_velocity_equilibrium(output_dir):
     Q = float(T / jnp.abs(V))
     bound_pass = bound_frac == 1.0
     q_pass = abs(Q - 0.5) < 0.05
-    passed = disp_pass and bound_pass and q_pass
 
+    # ODE boundary condition psi(0) = W0, and velocity isotropy <v_i^2> spread.
+    ode_bc = float(jnp.abs(prof.psi_grid[0] - prof.W0))
+    v2c = np.asarray(jnp.mean(vel_d ** 2, axis=0))
+    iso_spread = float(np.max(np.abs(v2c - v2c.mean())) / v2c.mean())
+    bc_pass = ode_bc < 0.1
+    iso_pass = iso_spread < 0.10
+    passed = disp_pass and bound_pass and q_pass and bc_pass and iso_pass
+
+    print(f"  ODE BC |psi(0)-W0|: {ode_bc:.2e} (tol 0.1)  "
+          f"-> {'PASS' if bc_pass else 'FAIL'}")
     print(f"  sigma_1d(r) vs King moment:")
     for (lo, hi), ss, sa, rl in zip(bins_phys, sig_samp, sig_ana, sig_rel):
         print(f"    r in [{lo},{hi}): sampled={ss:.3f} analytic={sa:.3f} "
               f"rel={rl:.2%} {'PASS' if rl < 0.12 else 'FAIL'}")
+    print(f"  velocity isotropy: max |<v_i^2>-mean|/mean = {iso_spread:.2%} "
+          f"(tol 10%)  -> {'PASS' if iso_pass else 'FAIL'}")
     print(f"  bound fraction (v<=v_esc): {bound_frac*100:.2f}%  "
           f"-> {'PASS' if bound_pass else 'FAIL'}")
     print(f"  unscaled virial Q=T/|V|: {Q:.3f} (expect 0.5+-0.05)  "

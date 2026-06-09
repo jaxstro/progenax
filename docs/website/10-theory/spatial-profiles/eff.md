@@ -249,7 +249,8 @@ See [](../../30-api/profiles.md) for the signature and
 
 The original derivation is {cite:t}`ElsonFallFreeman1987`. The
 power-law outer slope motivates several other young-cluster profile
-families (Wilson, Woolley) that {cite:t}`Gieles2015` LIMEPY
-generalises uniformly. EFF remains the simplest of the family that
-captures the key observation — power-law outer fall-off with a
+families (Wilson, Woolley) that the lowered-model family of
+{cite:t}`Gieles2015` generalises uniformly (see
+[](lowered-model-family.md)). EFF remains the simplest of the family
+that captures the key observation — power-law outer fall-off with a
 free slope.

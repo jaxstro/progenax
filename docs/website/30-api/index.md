@@ -107,7 +107,7 @@ chapter.
   - `PlummerProfile`, `magnification_factor`
 * - **Experimental**
   - In `progenax.experimental.*`; minimal tests
-  - LIMEPY backend (planned)
+  - Native lowered-model family (planned)
 * - **Internal**
   - Underscore-prefixed; not in `__all__`
   - `_f_dense_bm19_full_jit`

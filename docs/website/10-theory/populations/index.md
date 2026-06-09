@@ -101,7 +101,10 @@ single API call documented at [](two-component.md).
 
 Multi-component cluster modelling is standard in N-body work; the
 {cite:t}`Aarseth1974` numerical scheme and {cite:t}`Kuepper2011`
-McLuster code both support multi-population ICs. The
-{cite:t}`Gieles2015` LIMEPY family is the right tool when
+McLuster code both support multi-population ICs. The lowered-model
+family formalized by {cite:t}`Gieles2015` is the natural framework when
 *self-consistent* multi-mass equilibrium is required (rather than
-the layered single-mass-DF-per-component approach progenax takes).
+the layered single-mass-DF-per-component approach progenax takes);
+progenax plans to implement this family natively as its own
+differentiable generalization (see
+[](../spatial-profiles/lowered-model-family.md)).

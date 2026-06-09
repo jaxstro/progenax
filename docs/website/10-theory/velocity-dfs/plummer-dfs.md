@@ -216,8 +216,10 @@ combination for old globular clusters with observed radial anisotropy).
 
 1. **Single-mass equilibrium only.** The Eddington DF assumes one
    stellar mass species. Multi-mass equilibrium DFs require
-   simultaneous treatment of all mass groups — see
-   {cite:t}`Gieles2015` LIMEPY for the multi-mass generalisation.
+   simultaneous treatment of all mass groups — the multi-mass
+   generalisation is formalized by {cite:t}`Gieles2015`, which progenax
+   plans to implement natively as its own differentiable generalization
+   (see [](../spatial-profiles/lowered-model-family.md)).
 
 2. **Spherical and isotropic by default.** Anisotropy and rotation
    extensions exist (above) but are layered on top of the isotropic

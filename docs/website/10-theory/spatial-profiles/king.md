@@ -1,6 +1,6 @@
 ---
 title: King profile
-description: The King (1966) lowered isothermal sphere — its ODE-defined density profile, the central potential parameter W₀, the tidal radius, and the LIMEPY connection.
+description: The King (1966) lowered isothermal sphere — its ODE-defined density profile, the central potential parameter W₀, the tidal radius, and its place in the lowered-model family.
 ---
 
 # The King profile
@@ -18,8 +18,9 @@ clusters in the second half of the 20th century.
 This chapter derives the King profile from its defining lowered-isothermal
 DF, sets up the ODE that progenax integrates with `diffrax`, lists the
 $W_0 \to (r_c, r_t, c, r_h)$ mapping, and notes the
-{cite:t}`Gieles2015` LIMEPY generalisation — the natural future extension
-when multi-mass anisotropy matters (not currently implemented in progenax).
+{cite:t}`Gieles2015` lowered-model-family generalisation — progenax's planned
+own differentiable extension when multi-mass anisotropy matters (not currently
+implemented).
 
 ## The lowered-isothermal distribution function
 
@@ -189,18 +190,20 @@ in `_find_tidal_radius`, so $W_0$ inference should target the profile *shape*
 gradient-based / HMC inference of $(W_0, r_c)$ — and, with the velocity DF,
 $M_{\rm tot}$ — feasible.
 
-## Connection to LIMEPY
+## The lowered-model family
 
-{cite:t}`Gieles2015` introduced the LIMEPY family — a one-parameter
-generalisation of King that smoothly interpolates between
-Wilson-Plummer-like profiles ($g = 0$), King ($g = 1$), and
-Woolley-cutoff models ($g \to \infty$). progenax does not currently
-provide a `LIMEPYProfile` backend; LIMEPY remains the natural future
-extension when exact multi-mass lowered-isothermal models are needed.
+{cite:t}`Gieles2015` showed that King is one member of a one-parameter family of
+lowered-isothermal models: a continuous truncation parameter $g$ interpolates
+between Woolley ($g = 0$), King ($g = 1$), and Wilson ($g = 2$) models, and the
+framework extends to multi-mass and anisotropic clusters. progenax will
+implement this family **natively** as its own differentiable, JAX-native
+generalization — so that $g$ (and the multi-mass / anisotropy parameters) can be
+*inferred* — rather than depending on the external (non-differentiable) `limepy`
+package. See the [roadmap](lowered-model-family.md).
 
 For most production work — single-mass populations or coarse mass
-binning — the King profile suffices. LIMEPY becomes the right choice
-when the science target is the radial velocity-anisotropy profile or
+binning — the released King profile suffices. The unified family becomes the
+right tool when the science target is the radial velocity-anisotropy profile or
 the multi-mass equipartition state.
 
 ## Tidal physics
@@ -249,13 +252,14 @@ density against an independent direct-velocity-integral oracle.
 
 1. **Single-mass only.** The lowered-isothermal DF assumes one mass
    species. Multi-mass clusters in equilibrium have radially-varying
-   velocity dispersions per mass group; LIMEPY handles this natively
+   velocity dispersions per mass group; the planned
+   [lowered-model family](lowered-model-family.md) will handle this natively,
    while progenax's standard King does not.
 
 2. **Spherical and isotropic.** No rotation, no anisotropy. For
-   anisotropic generalisations see [](../velocity-dfs/rotation-anisotropy.md);
-   for rotating King-like profiles, the LIMEPY family is the better
-   starting point.
+   anisotropic generalisations see [](../velocity-dfs/rotation-anisotropy.md)
+   and the anisotropic [Michie](../velocity-dfs/michie-king.md) model; rotating
+   King-like profiles are part of the planned lowered-model family.
 
 3. **No primordial substructure.** King is a smooth equilibrium
    profile. Turbulent/fractal substructure — relevant to cool-clumpy

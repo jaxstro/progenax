@@ -109,6 +109,8 @@ the underlying $\rho(r)$.
 
 The isotropic profiles are due to {cite:t}`Plummer1911`, {cite:t}`King1966`,
 and {cite:t}`ElsonFallFreeman1987`; the anisotropic Michie–King model is
-{cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff). {cite:t}`Gieles2015`'s
-LIMEPY generalisation unifies the lowered models under a single multi-mass
-family; see [](king.md) for the LIMEPY connection.
+{cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff). The lowered-model
+family formalized by {cite:t}`Gieles2015` unifies these lowered models under
+a single multi-mass family, which progenax plans to implement natively as its
+own differentiable generalization; see
+[](lowered-model-family.md) for the roadmap.

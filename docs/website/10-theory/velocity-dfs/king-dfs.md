@@ -150,15 +150,18 @@ the profile *shape* rather than the scalar $r_t$.
 
 Consequently progenax supports joint gradient-based / HMC inference of the King
 structural parameters $(W_0, r_c, M_{\rm tot})$ directly — e.g. fitting a
-cluster's number-density and velocity-dispersion profiles. The
-{cite:t}`Gieles2015` LIMEPY family (where the truncation parameter $g$ enters
-analytically) remains the natural extension for multi-mass / anisotropic
-generalisations; LIMEPY support is not currently implemented in progenax.
+cluster's number-density and velocity-dispersion profiles. The lowered-model
+family formalized by {cite:t}`Gieles2015` (where the truncation parameter $g$
+enters analytically) remains the natural extension for multi-mass /
+anisotropic generalisations; progenax plans to implement this family natively
+as its own differentiable generalization (see
+[](../spatial-profiles/lowered-model-family.md)), but it is not yet available.
 
 ## Domain of validity
 
-1. **Single-mass equilibrium.** Multi-mass equilibrium is handled by
-   LIMEPY, not by the standard King DF here.
+1. **Single-mass equilibrium.** Multi-mass equilibrium is described by
+   the lowered-model family formalized by {cite:t}`Gieles2015`, not by the
+   standard King DF here.
 2. **Spherical and isotropic** by default. Anisotropic and rotating
    variants live in [](rotation-anisotropy.md).
 3. **Tidal cutoff is sharp.** Real clusters have a smooth transition

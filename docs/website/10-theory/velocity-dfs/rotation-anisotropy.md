@@ -263,6 +263,9 @@ The Osipkov-Merritt construction is standard textbook material;
 Binney & Tremaine *Galactic Dynamics* §4 gives a clean derivation.
 The solid-body and differential-rotation prescriptions follow the
 N-body initialisation literature {cite:p}`Aarseth1974,Kuepper2011`. For
-King-cluster rotation specifically, the {cite:t}`Gieles2015` LIMEPY
-family includes a self-consistent rotating extension that progenax
-does not currently implement.
+King-cluster rotation specifically, the lowered-model family formalized
+by {cite:t}`Gieles2015` includes a self-consistent rotating extension;
+progenax plans to implement this family natively as its own
+differentiable generalization (see
+[](../spatial-profiles/lowered-model-family.md)), but it is not yet
+available.

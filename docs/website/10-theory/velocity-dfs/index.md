@@ -120,5 +120,5 @@ vectorisable via `jax.vmap`.
 The Eddington-inversion machinery ({cite:t}`Plummer1911`,
 {cite:t}`King1966`) is standard textbook material; for a clean
 review see {cite:t}`Aarseth1974` Section 3 and
-{cite:t}`Gieles2015` Section 2 (covering LIMEPY's multi-mass
-extension).
+{cite:t}`Gieles2015` Section 2 (covering the multi-mass extension
+of the lowered-model family).
