@@ -1,0 +1,188 @@
+# progenax/tests/unit/profiles/test_limepy.py
+"""Unit tests for the general-g LIMEPY density (Gieles & Zocchi 2015, Phase 1).
+
+The single-mass LIMEPY isotropic density is the dimensionless integral (their
+Appendix B, Eq. B9 — NOT the misprinted main-text Eq. 8):
+
+    I_rho(W) = E_gamma(g + 3/2, W),   E_gamma(a, x) = e^x * P(a, x),
+
+with P the regularized lower incomplete gamma function (jax gammainc). The
+truncation parameter g is continuous: g=0 Woolley, g=1 King, g=2 Wilson.
+
+The non-negotiable oracle: at g=1 the density MUST reduce to the existing,
+validated King lowered-Maxwellian density (king_lowered_maxwellian_density),
+which itself reproduces King (1966). Verified algebraically:
+    E_gamma(5/2, W) = e^W erf(sqrt W) - (2/sqrt pi) sqrt(W) (1 + 2W/3).
+"""
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+from scipy import integrate
+from scipy.special import gammainc as scipy_gammainc
+
+from progenax.profiles.king import (
+    king_lowered_maxwellian_density,
+    solve_king_profile,
+    _find_tidal_radius,
+)
+
+
+def _direct_density_integral(W, g):
+    """First-principles I_rho(W) by direct velocity-space quadrature (Eq. B4):
+
+        I_rho(W) = (2/sqrt(pi)) int_0^W k^(1/2) E_gamma(g, W - k) dk,
+
+    with E_gamma(g, y) = e^y for g=0 and e^y * P(g, y) for g>0. This is the
+    *definition* the closed form E_gamma(g + 3/2, W) must reproduce — an oracle
+    independent of the gammainc identity, valid for ANY g. (scipy: test-only.)
+    """
+    def E_gamma(a, y):
+        if a == 0.0:
+            return np.exp(y)
+        return np.exp(y) * scipy_gammainc(a, y)
+
+    def integrand(k):
+        return np.sqrt(k) * E_gamma(g, W - k)
+
+    val, _ = integrate.quad(integrand, 0.0, W, limit=200)
+    return (2.0 / np.sqrt(np.pi)) * val
+
+
+class TestLimepyDensityCorners:
+    """The continuous-g density against its trusted integer-g corners."""
+
+    def test_g1_reduces_to_king_density(self):
+        """g=1 isotropic LIMEPY density == the validated King volume density, to
+        float64 precision, across the cluster-relevant potential range. This is
+        the corner that certifies the general-g closed form."""
+        from progenax.profiles.limepy import limepy_density_hat
+
+        W = jnp.linspace(0.01, 16.0, 200)
+        limepy_g1 = limepy_density_hat(W, g=1.0)
+        king = king_lowered_maxwellian_density(W)
+        np.testing.assert_allclose(
+            np.asarray(limepy_g1), np.asarray(king), rtol=1e-9, atol=1e-12
+        )
+
+    @pytest.mark.parametrize("g", [0.0, 0.5, 1.0, 2.0, 3.0])
+    @pytest.mark.parametrize("W", [0.5, 2.0, 5.0, 9.0])
+    def test_closed_form_matches_direct_velocity_integral(self, g, W):
+        """The closed form E_gamma(g + 3/2, W) reproduces the direct velocity-space
+        integral of the DF (Eq. B4) for arbitrary g — first-principles proof that
+        the index is g + 3/2 (not the misprinted g + 1/2), for Woolley/King/Wilson
+        and the continuous values between them."""
+        from progenax.profiles.limepy import limepy_density_hat
+
+        closed = float(limepy_density_hat(jnp.asarray(W), g=g))
+        direct = _direct_density_integral(W, g)
+        np.testing.assert_allclose(closed, direct, rtol=1e-6)
+
+
+class TestLimepyDensityContract:
+    """Physics/contract properties of the density that a wrong form would break."""
+
+    def test_vanishes_at_and_below_truncation(self):
+        """rho_hat(W) = 0 for W <= 0 (the truncation boundary): no stars above the
+        escape energy."""
+        from progenax.profiles.limepy import limepy_density_hat
+
+        W = jnp.array([-5.0, -0.1, 0.0])
+        out = limepy_density_hat(W, g=1.5)
+        np.testing.assert_array_equal(np.asarray(out), np.zeros(3))
+
+    def test_strictly_increasing_in_potential(self):
+        """Deeper potential -> denser: rho_hat is monotonically increasing in W
+        (each successive E_gamma index is monotone)."""
+        from progenax.profiles.limepy import limepy_density_hat
+
+        W = jnp.linspace(0.05, 16.0, 300)
+        rho = limepy_density_hat(W, g=1.0)
+        assert jnp.all(jnp.diff(rho) > 0.0)
+
+    def test_differentiable_in_g_and_W(self):
+        """The non-negotiable: gradients flow through BOTH the potential W and the
+        truncation index g (g enters as the gammainc first argument a = g + 3/2).
+        This is what lets g be a *fitted* parameter in HMC/gradient inference. We
+        assert the gradients are finite and non-zero (the parameter genuinely moves
+        the density); the W-gradient is additionally positive (deeper -> denser,
+        the monotonicity locked above). The sign of the g-gradient is NOT asserted:
+        at fixed W the unnormalized E_gamma(g+3/2,W) decreases in g (a property of
+        the incomplete gamma); the physical 'larger g -> more extended' statement is
+        a normalized profile-extent property, tested on solve_limepy_profile."""
+        from progenax.profiles.limepy import limepy_density_hat
+
+        dg = jax.grad(lambda g: jnp.sum(limepy_density_hat(jnp.array([2.0, 5.0]), g)))(1.0)
+        dW = jax.grad(lambda W: jnp.sum(limepy_density_hat(W, g=1.0)))(jnp.array([2.0, 5.0]))
+        assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0  # g genuinely moves the density
+        assert jnp.all(jnp.isfinite(dW)) and jnp.all(dW > 0.0)  # deeper -> denser
+
+
+class TestSolveLimepyProfile:
+    """The self-consistent Poisson solve d^2W/dxi^2 + (2/xi)dW/dxi = -9 rho_hat(W;g).
+
+    Same -9 King-radius nondimensionalization as solve_king_profile; the only
+    change is the general-g density source. The g=1 corner must reproduce the
+    validated King solver, and the truncation radius must obey the paper's
+    extent-vs-g ordering (Fig. 1: larger g -> more extended).
+    """
+
+    def test_g1_profile_matches_king_solver(self):
+        """g=1 reproduces solve_king_profile's W(xi) to tight tolerance on a shared
+        grid — the self-consistent corner (density + Poisson solve together)."""
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        W0 = 7.0
+        xi_k, psi_k = solve_king_profile(W0, xi_max=300.0, n_points=3000)
+        xi_l, psi_l = solve_limepy_profile(W0, g=1.0, xi_max=300.0, n_points=3000)
+        # Compare W(xi) inside the cluster (where psi_king > small) on King's grid.
+        inside = psi_k > 1e-3
+        psi_l_on_k = jnp.interp(xi_k, xi_l, psi_l)
+        np.testing.assert_allclose(
+            np.asarray(psi_l_on_k[inside]), np.asarray(psi_k[inside]), rtol=1e-4, atol=1e-4
+        )
+
+    @pytest.mark.parametrize("W0,c_table_ii", [(5.0, 10.70), (7.0, 33.71), (9.0, 131.4)])
+    def test_g1_truncation_radius_matches_king_table_ii(self, W0, c_table_ii):
+        """g=1 truncation radius xi_t = r_t/r_c equals King (1966) Table II
+        concentration c(W0). A first-principles anchor: the general-g solver lands
+        on the historical King concentrations at g=1."""
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        xi, psi = solve_limepy_profile(W0, g=1.0)
+        xi_t = float(_find_tidal_radius(xi, psi))
+        # Table II is quoted to ~3-4 sig figs; allow 3% (ODE-grid + interp).
+        np.testing.assert_allclose(xi_t, c_table_ii, rtol=0.03)
+
+    def test_extent_increases_with_g(self):
+        """The CORRECT physical g-statement (Gieles & Zocchi Fig. 1): at fixed
+        central potential W0, a softer truncation (larger g) yields a more extended
+        model — the truncation radius grows Woolley(0) < King(1) < Wilson(2). This is
+        the normalized profile-level property my fixed-W density test wrongly tried
+        to assert; here it is, in its proper place."""
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        W0 = 6.0
+        xi_t = []
+        for g in (0.0, 1.0, 2.0):
+            xi, psi = solve_limepy_profile(W0, g=g, xi_max=400.0, n_points=4000)
+            xi_t.append(float(_find_tidal_radius(xi, psi)))
+        assert xi_t[0] < xi_t[1] < xi_t[2], f"extent not ordered in g: {xi_t}"
+
+    def test_differentiable_through_solve_in_W0_and_g(self):
+        """Gradients flow through the diffrax Poisson solve in BOTH W0 and g — the
+        property that makes (W0, g) jointly inferable. A profile-shape functional
+        (central-region potential integral) is used so the gradient is grid-stable
+        (it does not depend on the non-differentiable truncation-radius crossing)."""
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        def shape_metric(W0, g):
+            xi, psi = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
+            # mean potential over the fixed inner grid: smooth in (W0, g)
+            return jnp.mean(psi[:200])
+
+        dW0 = jax.grad(shape_metric, argnums=0)(7.0, 1.0)
+        dg = jax.grad(shape_metric, argnums=1)(7.0, 1.0)
+        assert jnp.isfinite(dW0) and jnp.abs(dW0) > 0.0
+        assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0
