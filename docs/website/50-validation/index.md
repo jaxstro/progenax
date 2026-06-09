@@ -16,6 +16,8 @@ quantitative match between progenax output and an analytical or
 published-observational ground truth, with explicit pass/fail
 tolerances.
 
+See the [**validation audit report**](audit-report.md) for trustworthiness tiers, limits, recommendations, and the remaining/incomplete roadmap (point-in-time, 2026-06-08).
+
 ## Status dashboard
 
 The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)
