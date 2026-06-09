@@ -115,6 +115,64 @@ def test_sampled_per_group_virial_converges_to_theory():
         assert abs(np.mean(Qh) - 0.5) < 0.06, f"delta={delta}: heavy Q={np.mean(Qh):.3f}"
 
 
+def _analytic_beta_meanfield(model, j, rr):
+    """DF anisotropy beta_j(r) = 1 - <v_t^2>/(2<v_r^2>) by direct (u,c) quadrature of the
+    LIMEPY phase-space weight u^2 E_gamma(g, W_j - u^2/2) exp(-(p_j^2/2) u^2 (1-c^2)) --
+    the mean-field ground truth (no sampling) the sampled beta must reproduce."""
+    ra_hat = float(model.r_a / model.r_c)
+    psi = float(jnp.interp(rr / model.r_c, model.xi_grid, model.psi_grid,
+                           left=model.W0, right=0.0))
+    W_j = float(model.rescale_j[j]) * max(psi, 0.0)
+    p = (rr / float(model.r_c)) / (ra_hat * float(model.mu_j[j]) ** float(model.eta))
+    u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
+    c = jnp.linspace(-1.0, 1.0, 240)
+    E = lowered_exponential(model.g, W_j - u**2 / 2.0)
+    U, C = jnp.meshgrid(u, c, indexing="ij")
+    w = U**2 * E[:, None] * jnp.exp(-(p**2 / 2.0) * U**2 * (1.0 - C**2))
+    nr = jnp.trapezoid(jnp.trapezoid(w * U**2 * C**2, c, axis=1), u)
+    nt = jnp.trapezoid(jnp.trapezoid(w * U**2 * (1.0 - C**2), c, axis=1), u)
+    return float(1.0 - nt / (2.0 * nr))
+
+
+def test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic():
+    """The ANISOTROPIC multi-mass sampler produces a true equilibrium that carries the
+    RIGHT anisotropy: (1) the sampled cluster is globally virial Q=T/|V|=0.5 without
+    rescaling, for every delta -- the scalar virial theorem 2T+W=0 is anisotropy-blind;
+    (2) the sampled per-component beta_j(r) reproduces the DF's own analytic beta_j(r)
+    (mean-field quadrature) in the radial-bias peak region. Together: the velocity field
+    is drawn from the Michie/Osipkov-Merritt LIMEPY DF, not merely 'some' anisotropy."""
+    r_a = 5.0
+    for delta in (0.0, 0.3, 0.5):
+        model = MultiMassLIMEPY.from_alpha(
+            ALPHA_J, M_J, W0=W0, g=GG, delta=delta, r_a=r_a, eta=0.0, r_c=1.0,
+            xi_max=800.0, n_ode_points=3000)
+        Qs = []
+        for s in range(3):
+            p, v, m = _sample(model, s, n=20000)
+            Qs.append(float(compute_virial_ratio(p, v, m, G=G)))
+        assert abs(np.mean(Qs) - 0.5) < 0.04, \
+            f"aniso delta={delta}: global Q={np.mean(Qs):.3f}"
+
+    # Anisotropy correctness at delta=0.4: sampled beta_light(r) matches the DF.
+    model = MultiMassLIMEPY.from_alpha(
+        ALPHA_J, M_J, W0=W0, g=GG, delta=0.4, r_a=r_a, eta=0.0, r_c=1.0,
+        xi_max=800.0, n_ode_points=3000)
+    p, v, m = _sample(model, 0, n=60000)
+    r = np.asarray(jnp.linalg.norm(p, axis=1))
+    r_hat = np.asarray(p) / (r[:, None] + 1e-30)
+    v_r = np.sum(np.asarray(v) * r_hat, axis=1)
+    v_t2 = np.sum(np.asarray(v) ** 2, axis=1) - v_r**2
+    sel = np.isclose(np.asarray(m), float(M_J[0]))
+    rt = float(model.r_t)
+    for lo, hi in [(0.3 * rt, 0.5 * rt), (0.5 * rt, 0.7 * rt)]:
+        b = sel & (r >= lo) & (r < hi)
+        assert b.sum() > 400
+        beta_meas = 1.0 - v_t2[b].mean() / (2.0 * (v_r[b] ** 2).mean())
+        beta_pred = _analytic_beta_meanfield(model, 0, float(np.median(r[b])))
+        assert abs(beta_meas - beta_pred) < 0.05, \
+            f"r in [{lo:.1f},{hi:.1f}): sampled beta={beta_meas:.3f} vs DF {beta_pred:.3f}"
+
+
 def test_delta0_is_single_mass_and_segregation_grows():
     """delta=0 produces no segregation (light/heavy half-mass ratio = 1); the ratio
     increases monotonically with delta -- segregation is a controlled delta effect."""

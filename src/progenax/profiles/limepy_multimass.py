@@ -268,6 +268,7 @@ def find_alpha_for_masses(
 # ==============================================================================
 
 _N_SPEED = 256  # per-particle speed inverse-CDF resolution
+_N_C = 128      # per-particle cos(theta) inverse-CDF resolution (anisotropic conditional)
 
 
 def _isotropic_dirs(key: PRNGKeyArray, n: int) -> Float[Array, "n 3"]:
@@ -490,23 +491,25 @@ class MultiMassLIMEPY(eqx.Module):
         """Sample a mass-segregated equilibrium IC -> (positions, velocities, masses).
 
         Each star is assigned a component by a categorical draw (probabilities N_frac_j),
-        then its position is drawn from that component's mass CDF and its speed from
-        u^2 E_gamma(g, W_j(r) - u^2/2) at scale s_j = s mu_j^(-delta), s^2 = G M /
-        (9 r_c mu_tot). The total cluster mass M = sum_i m_i is the sum of the sampled
-        stellar masses (as in the single-mass DF) -- so kinetic and potential energies
-        use a consistent M and the cluster is virial (Q=0.5). Differentiable in
-        (W0, g, delta) through the per-star scales.
-        """
-        from progenax.kinematics.limepy_df import _sample_unit_speed
+        then its position is drawn from that component's mass CDF and its velocity from
+        the component's lowered DF at the rescaled potential W_j(r) = mu_j^(2 delta) psi(r)
+        and velocity scale s_j = s mu_j^(-delta), s^2 = G M / (9 r_c mu_tot):
 
-        if self.is_aniso:
-            raise NotImplementedError(
-                "Anisotropic multi-mass IC sampling is not yet implemented (Phase 2b "
-                "delivered the anisotropic equilibrium model + theoretical virial; the "
-                "per-component anisotropic velocity sampler is a follow-up). Use the "
-                "isotropic model (r_a=None) to sample, or component_virial_ratios() / "
-                "total_density() on the anisotropic model."
-            )
+          * isotropic model: speed ~ u^2 E_gamma(g, W_j - u^2/2), isotropic direction;
+          * anisotropic model (finite r_a): speed-angle (u_r, u_t) from the Michie/OM
+            LIMEPY DF (speed marginal u^2 E_gamma T(p_j^2 u^2/2), conditional
+            cos(theta)|u with weight exp(-(p_j^2/2) u^2 (1-c^2))) at per-star anisotropy
+            p_j = (r/r_c)/((r_a/r_c) mu_j^eta); v_r along r_hat, v_t in a random azimuth
+            perpendicular to r_hat -- producing beta_j(r) ~ 0 in the core rising outward.
+
+        The total cluster mass M = sum_i m_i is the sum of the sampled stellar masses (as
+        in the single-mass DF) -- so kinetic and potential energies use a consistent M and
+        the cluster is virial (Q=0.5), anisotropy notwithstanding (the scalar virial
+        theorem 2T+W=0 is anisotropy-blind). Differentiable in (W0, g, delta, r_a, eta)
+        through the per-star scales and the angular draw.
+        """
+        from progenax.kinematics.limepy_df import _sample_speed_angle, _sample_unit_speed
+
         if G is None:
             G = defaults.DEFAULT_UNITS.G
         k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
@@ -523,12 +526,30 @@ class MultiMassLIMEPY(eqx.Module):
         radii = jax.vmap(lambda uu, cc: jnp.interp(uu, self._cdf_j[cc], self._r_grid))(u, c)
         pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
 
-        # Velocities: per-star speed at the component's rescaled potential + scale s_i.
+        # Per-star rescaled potential W_j(r) = mu_j^(2 delta) psi(r) (shared by both paths).
         W_i = rescale_i * jnp.maximum(
             jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid,
                        left=self.W0, right=0.0), 0.0
         )
         speed_keys = jax.random.split(k_speed, n_stars)
+
+        if self.is_aniso:
+            # Anisotropic: per-star (u_r, u_t) from the Michie/OM speed-angle DF.
+            ra_hat = self.r_a / self.r_c
+            p_i = (radii / self.r_c) / (ra_hat * self.mu_j[c] ** self.eta)
+            u_r, u_t = jax.vmap(
+                lambda kk, w, pp: _sample_speed_angle(kk, w, pp, self.g, _N_SPEED, _N_C)
+            )(speed_keys, W_i, p_i)
+            v_r, v_t = s_i * u_r, s_i * u_t
+            # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
+            r_hat = pos / (radii[:, None] + 1e-30)
+            rand = jax.random.normal(k_vdir, (n_stars, 3))
+            rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
+            t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
+            vel = v_r[:, None] * r_hat + v_t[:, None] * t_hat
+            return pos, vel, m_i
+
+        # Isotropic: per-star speed at the component's rescaled potential + scale s_i.
         u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, self.g, _N_SPEED))(
             speed_keys, W_i)
         vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)

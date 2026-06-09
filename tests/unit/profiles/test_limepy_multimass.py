@@ -437,3 +437,150 @@ class TestMultiMassAnisotropic:
         assert jnp.isfinite(d_ra) and jnp.abs(d_ra) > 0
         assert jnp.isfinite(d_eta)
         assert jnp.isfinite(d_delta) and jnp.abs(d_delta) > 0
+
+
+def _analytic_beta(model, j, r_eval):
+    """Analytic anisotropy beta_j(r) = 1 - <v_t^2>/(2<v_r^2>) of the LIMEPY DF itself,
+    computed by direct quadrature of the SAME (u, c) phase-space weight the sampler draws
+    from: w(u,c) = u^2 E_gamma(g, W_j - u^2/2) exp(-(p_j^2/2) u^2 (1-c^2)), with
+    W_j(r) = rescale_j psi(r), p_j(r) = (r/r_c)/(ra_hat mu_j^eta), c = cos(angle to r_hat).
+    v_r^2 = (s_j u)^2 c^2, v_t^2 = (s_j u)^2 (1-c^2); the s_j^2 cancels in beta. This is the
+    ground truth the sampled beta must reproduce (proves the angular sampling is correct).
+    p_j -> 0 gives beta = 0 (isotropic) by construction."""
+    from progenax.profiles.limepy import lowered_exponential
+
+    ra_hat = float(model.r_a / model.r_c)
+    out = []
+    for rr in np.atleast_1d(np.asarray(r_eval)):
+        psi = float(jnp.interp(rr / model.r_c, model.xi_grid, model.psi_grid,
+                               left=model.W0, right=0.0))
+        W_j = float(model.rescale_j[j]) * max(psi, 0.0)
+        if W_j <= 0.0:
+            out.append(np.nan); continue
+        p = (rr / float(model.r_c)) / (ra_hat * float(model.mu_j[j]) ** float(model.eta))
+        u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
+        c = jnp.linspace(-1.0, 1.0, 240)
+        E = lowered_exponential(model.g, W_j - u**2 / 2.0)  # (nu,)
+        U, C = jnp.meshgrid(u, c, indexing="ij")
+        w = U**2 * E[:, None] * jnp.exp(-(p**2 / 2.0) * U**2 * (1.0 - C**2))
+        num_r = jnp.trapezoid(jnp.trapezoid(w * U**2 * C**2, c, axis=1), u)
+        num_t = jnp.trapezoid(jnp.trapezoid(w * U**2 * (1.0 - C**2), c, axis=1), u)
+        out.append(float(1.0 - num_t / (2.0 * num_r)))
+    return np.array(out)
+
+
+class TestAnisotropicSampling:
+    """Follow-up to Phase 2b: per-component ANISOTROPIC IC sampling (the velocity
+    sampler that closes the anisotropic equilibrium model). The angular distribution of
+    each star's velocity must reproduce the Michie/Osipkov-Merritt LIMEPY DF, so the
+    sampled cluster is (a) globally virial Q=0.5 -- the scalar virial theorem is
+    anisotropy-blind -- and (b) radially anisotropic with beta_j(r) matching the DF."""
+
+    def _aniso_model(self, delta=0.4, eta=0.0, r_a=10.0, W0=7.0, g=1.0):
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+        return MultiMassLIMEPY.from_alpha(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 4.0]), W0=W0, g=g, delta=delta,
+            r_a=r_a, eta=eta, r_c=1.0, xi_max=800.0, n_ode_points=3000)
+
+    def test_aniso_sample_cluster_runs(self):
+        """The anisotropic model can be sampled (no NotImplementedError): finite
+        positions/velocities of the right shape, masses drawn from the components."""
+        model = self._aniso_model()
+        pos, vel, masses = model.sample_cluster(jax.random.PRNGKey(0), n_stars=2000, G=G)
+        assert pos.shape == (2000, 3) and vel.shape == (2000, 3) and masses.shape == (2000,)
+        assert bool(jnp.all(jnp.isfinite(pos))) and bool(jnp.all(jnp.isfinite(vel)))
+        # every sampled mass is one of the component masses
+        assert bool(jnp.all(jnp.any(jnp.isclose(masses[:, None], model.m_j[None, :]), axis=1)))
+
+    def test_aniso_global_virial_is_half(self):
+        """The sampled anisotropic cluster is in virial equilibrium WITHOUT rescaling:
+        global Q = T/|V| = 0.5. The scalar virial theorem 2T+W=0 holds for any
+        anisotropy (T is the full kinetic energy), so this is the headline equilibrium
+        proof for the anisotropic sampler."""
+        from progenax.dynamics import compute_virial_ratio
+
+        model = self._aniso_model(delta=0.4, eta=0.0)
+        Qs = []
+        for s in range(3):
+            pos, vel, m = model.sample_cluster(jax.random.PRNGKey(s), n_stars=20000, G=G)
+            pos = pos - jnp.average(pos, axis=0, weights=m)
+            vel = vel - jnp.average(vel, axis=0, weights=m)
+            Qs.append(float(compute_virial_ratio(pos, vel, m, G=G)))
+        assert abs(np.mean(Qs) - 0.5) < 0.04, f"aniso global Q={np.mean(Qs):.3f} (expected 0.5)"
+
+    def test_aniso_velocity_is_radially_anisotropic(self):
+        """The sampled velocities show the full LIMEPY radial-anisotropy signature,
+        measured directly from the (v_r, v_t) split: beta(r) ~ 0 in the core, RISES to a
+        clear radial-bias peak near ~0.5 r_t, then TURNS OVER toward r_t (truncation
+        lowers the most radial orbits at the edge -- Gieles & Zocchi 2015). r_a=5 gives a
+        well-resolved peak beta ~ 0.22, distinguishing the anisotropic sampler from the
+        isotropic one."""
+        model = self._aniso_model(delta=0.4, eta=0.0, r_a=5.0)
+        pos, vel, m = model.sample_cluster(jax.random.PRNGKey(0), n_stars=40000, G=G)
+        pos = pos - jnp.average(pos, axis=0, weights=m)
+        vel = vel - jnp.average(vel, axis=0, weights=m)
+        r = jnp.linalg.norm(pos, axis=1)
+        r_hat = pos / (r[:, None] + 1e-30)
+        v_r = jnp.sum(vel * r_hat, axis=1)
+        v_t2 = jnp.sum(vel**2, axis=1) - v_r**2
+
+        def beta_in(lo, hi):
+            sel = (r >= lo) & (r < hi)
+            return float(1.0 - jnp.mean(v_t2[sel]) / (2.0 * jnp.mean(v_r[sel] ** 2)))
+
+        r_t = float(model.r_t)
+        beta_core = beta_in(0.0, 0.15 * r_t)
+        beta_peak = beta_in(0.4 * r_t, 0.6 * r_t)
+        beta_edge = beta_in(0.75 * r_t, 0.95 * r_t)
+        assert abs(beta_core) < 0.06, f"core should be ~isotropic, beta_core={beta_core:.3f}"
+        assert beta_peak > beta_core + 0.1, f"no radial-bias peak: {beta_core:.3f}->{beta_peak:.3f}"
+        assert beta_edge < beta_peak, f"no truncation turnover: peak {beta_peak:.3f}, edge {beta_edge:.3f}"
+
+    def test_aniso_sampled_beta_matches_analytic(self):
+        """THE sampler-correctness proof: the per-component sampled beta_j(r) reproduces
+        the DF's own analytic beta_j(r) (direct (u,c) quadrature of the same phase-space
+        weight) across radial bins. This certifies the angular (cos theta | u) draw is
+        correct -- not just 'some anisotropy' but the RIGHT anisotropy of the LIMEPY DF."""
+        model = self._aniso_model(delta=0.4, eta=0.0, r_a=5.0)
+        pos, vel, m = model.sample_cluster(jax.random.PRNGKey(1), n_stars=60000, G=G)
+        pos = pos - jnp.average(pos, axis=0, weights=m)
+        vel = vel - jnp.average(vel, axis=0, weights=m)
+        r = jnp.linalg.norm(pos, axis=1)
+        r_hat = pos / (r[:, None] + 1e-30)
+        v_r = jnp.sum(vel * r_hat, axis=1)
+        v_t2 = jnp.sum(vel**2, axis=1) - v_r**2
+
+        r_t = float(model.r_t)
+        # light component (well-resolved); bins from core to mid-halo
+        sel_j = np.asarray(jnp.isclose(m, float(model.m_j[0])))
+        rj = np.asarray(r)[sel_j]
+        vr2j = np.asarray(v_r**2)[sel_j]
+        vt2j = np.asarray(v_t2)[sel_j]
+        edges = np.array([0.05, 0.2, 0.4, 0.6]) * r_t
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            b = (rj >= lo) & (rj < hi)
+            assert b.sum() > 400, f"too few light stars in [{lo:.1f},{hi:.1f})"
+            beta_meas = 1.0 - vt2j[b].mean() / (2.0 * vr2j[b].mean())
+            beta_pred = _analytic_beta(model, 0, np.median(rj[b]))[0]
+            assert abs(beta_meas - beta_pred) < 0.06, (
+                f"r in [{lo:.1f},{hi:.1f}): sampled beta={beta_meas:.3f} vs DF {beta_pred:.3f}")
+
+    def test_aniso_sample_differentiable_in_ra(self):
+        """grad of a kinematic functional w.r.t. r_a flows through construction + the
+        anisotropic sampler -- the anisotropy radius is inferable from a sampled cluster."""
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        m_j = jnp.array([1.0, 4.0]); alpha = jnp.array([0.6, 0.4])
+
+        def loss(r_a):
+            model = MultiMassLIMEPY.from_alpha(alpha, m_j, W0=7.0, g=1.0, delta=0.4,
+                                               r_a=r_a, eta=0.0, r_c=1.0, xi_max=800.0,
+                                               n_ode_points=2000, n_grid=600)
+            pos, vel, m = model.sample_cluster(jax.random.PRNGKey(0), n_stars=400, G=G)
+            r = jnp.linalg.norm(pos, axis=1)
+            r_hat = pos / (r[:, None] + 1e-30)
+            v_r2 = jnp.sum(vel * r_hat, axis=1) ** 2
+            return jnp.mean(v_r2)
+
+        d = jax.grad(loss)(10.0)
+        assert jnp.isfinite(d)
