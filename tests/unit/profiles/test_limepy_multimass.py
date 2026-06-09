@@ -370,3 +370,70 @@ class TestMultiMassLIMEPYModel:
 
         d = jax.grad(loss)(0.4)
         assert jnp.isfinite(d)
+
+
+class TestMultiMassAnisotropic:
+    """Phase 2b: per-component radial anisotropy r_{a,j} = r_a mu_j^eta in the coupled
+    solve. eta=0 is mass-independent anisotropy (the paper default)."""
+
+    def test_isotropic_corner_ra_none(self):
+        """r_a=None reproduces the isotropic coupled solve exactly (the iso corner)."""
+        from progenax.profiles.limepy_multimass import solve_multimass_limepy
+
+        alpha = jnp.array([0.6, 0.4]); m_j = jnp.array([0.5, 4.0])
+        xi_i, psi_i, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000)
+        xi_a, psi_a, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000, ra_hat=None)
+        np.testing.assert_allclose(np.asarray(psi_a), np.asarray(psi_i), rtol=1e-9, atol=1e-9)
+
+    def test_single_component_recovers_single_mass_anisotropic(self):
+        """n_comp=1 (alpha=[1], any m) with anisotropy reduces to the single-mass
+        anisotropic LIMEPY solve (Phase 1) -- a clean cross-module corner."""
+        from progenax.profiles.limepy_multimass import solve_multimass_limepy
+        from progenax.profiles.limepy import solve_limepy_profile
+
+        xi_s, psi_s = solve_limepy_profile(7.0, g=1.0, ra_hat=8.0, xi_max=800.0, n_points=3000)
+        xi_m, psi_m, _ = solve_multimass_limepy(
+            jnp.array([1.0]), jnp.array([1.0]), 7.0, 1.0, 0.5, 800.0, 3000, ra_hat=8.0)
+        inside = psi_s > 1e-3
+        np.testing.assert_allclose(np.asarray(jnp.interp(xi_s, xi_m, psi_m))[inside],
+                                   np.asarray(psi_s)[inside], rtol=2e-3, atol=2e-3)
+
+    def test_anisotropic_multimass_is_equilibrium_and_segregated(self):
+        """An anisotropic multi-mass model is still a true equilibrium (theoretical
+        per-component Q_j = 0.5, scalar virial holds with anisotropy) AND segregated
+        (heavy more concentrated)."""
+        from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+
+        model = MultiMassLIMEPY.from_alpha(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 4.0]), W0=7.0, g=1.0, delta=0.4,
+            r_a=10.0, eta=0.0, r_c=1.0, xi_max=800.0, n_ode_points=3000)
+        Qj = np.asarray(model.component_virial_ratios())
+        np.testing.assert_allclose(Qj, 0.5, atol=3e-3, err_msg=f"aniso Q_j={Qj}")
+        # heavy more concentrated than light (segregation persists under anisotropy)
+        r = model._r_grid
+        from progenax.profiles.limepy import _aniso_density_scalar
+        def rh(j):
+            psi = jnp.interp(r / model.r_c, model.xi_grid, model.psi_grid, left=model.W0, right=0.0)
+            p = r / (model.r_a / model.r_c * model.mu_j[j] ** model.eta)
+            rho = jax.vmap(lambda pp, ww: _aniso_density_scalar(model.rescale_j[j] * ww, pp, model.g))(p, psi)
+            rho = jnp.where(r <= model.r_t, rho, 0.0)
+            integ = rho * r**2
+            M = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1])) * (r[1] - r[0])])
+            return float(jnp.interp(0.5 * M[-1], M, r))
+        assert rh(1) < rh(0), "heavy not more concentrated under anisotropy"
+
+    def test_anisotropic_multimass_differentiable_in_eta_ra_delta(self):
+        """Gradients flow through the anisotropic coupled solve in (r_a, eta, delta)."""
+        from progenax.profiles.limepy_multimass import solve_multimass_limepy
+
+        m_j = jnp.array([1.0, 4.0]); alpha = jnp.array([0.6, 0.4])
+        def metric(ra_hat, eta, delta):
+            xi, psi, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 800.0, 2000,
+                                                ra_hat=ra_hat, eta=eta)
+            return jnp.mean(psi[:300])
+        d_ra = jax.grad(metric, 0)(10.0, 0.0, 0.4)
+        d_eta = jax.grad(metric, 1)(10.0, 0.3, 0.4)
+        d_delta = jax.grad(metric, 2)(10.0, 0.0, 0.4)
+        assert jnp.isfinite(d_ra) and jnp.abs(d_ra) > 0
+        assert jnp.isfinite(d_eta)
+        assert jnp.isfinite(d_delta) and jnp.abs(d_delta) > 0
