@@ -26,6 +26,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.numerics import cumulative_trapezoid
 from progenax.kinematics.eddington import (
     assign_om_directions,
     eddington_invert,
@@ -49,13 +50,10 @@ def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
     rho = (1.0 + (r / a) ** 2) ** (-gamma / 2.0)
     drho_dr = -gamma * (r / a**2) * (1.0 + (r / a) ** 2) ** (-gamma / 2.0 - 1.0)
 
-    dr = jnp.diff(r)
+    dr = r[1] - r[0]
 
-    def cumtrap(y):
-        return jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (y[1:] + y[:-1]) * dr)])
-
-    inner = cumtrap(rho * r**2)        # int_0^r rho s^2 ds  (true density -> potential)
-    tail = cumtrap(rho * r)            # int_0^r rho s ds
+    inner = cumulative_trapezoid(rho * r**2, dx=dr)  # int_0^r rho s^2 ds (true density -> potential)
+    tail = cumulative_trapezoid(rho * r, dx=dr)      # int_0^r rho s ds
     outer = tail[-1] - tail            # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)   # gravitational potential (G=1, rho_0=1)
     Psi = Phi[-1] - Phi                # relative potential, Psi(r_t)=0, increases inward

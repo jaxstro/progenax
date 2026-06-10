@@ -4,30 +4,34 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-# Pre-refactor pins from _eff_eddington_table(1.0, 4.0, 12.0, r_a)
-# (captured at Task 1 Step 1, full repr precision).
-# Re-capture (never loosen) on JAX upgrades.
+# Exact-value pins from _eff_eddington_table(1.0, 4.0, 12.0, r_a)
+# (full repr precision). Re-capture (never loosen) on JAX upgrades or
+# DELIBERATE op-order changes only.
+# Re-captured 2026-06-10 (consolidation Task 8): the table's cumulative
+# trapezoid moved onto progenax.numerics.cumulative_trapezoid (scalar dx
+# OUTSIDE the cumsum; the old inline used the non-uniform jnp.diff(r)
+# INSIDE), shifting every pinned value by ~1 ulp (max rel. diff ~9e-16).
 PINS = {
     "iso": (
-        5.504246729970181,
-        0.7024482367263554,
+        5.5042467299701805,
+        0.702448236726355,
         [
-            0.00012431051303885793,
-            0.0007435780468229273,
-            0.0043761938193880336,
-            0.017345663822072446,
-            0.056220494086212325,
+            0.0001243105130388584,
+            0.0007435780468229333,
+            0.0043761938193880206,
+            0.01734566382207258,
+            0.05622049408621226,
         ],
     ),
     "om": (
-        5.504246729970181,
-        0.7024482367263554,
+        5.5042467299701805,
+        0.702448236726355,
         [
-            0.002275026047535748,
-            0.001516930253864097,
-            0.005020898446083242,
-            0.01595233272056164,
-            0.046931165805733276,
+            0.00227502604753575,
+            0.001516930253864098,
+            0.0050208984460832105,
+            0.01595233272056175,
+            0.046931165805733546,
         ],
     ),
 }

@@ -48,6 +48,7 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
+from progenax.numerics import cumulative_trapezoid
 from progenax.cluster.eddington_engine import (
     _EngineBState,
     assemble_engine_b_fields,
@@ -209,10 +210,7 @@ class MultiComponentCluster(eqx.Module):
 
         integrand = 4.0 * jnp.pi * r_grid[None, :] ** 2 * rho_j_r
         dr = r_grid[1] - r_grid[0]
-        M_cum = jnp.concatenate([
-            jnp.zeros((rho_j_r.shape[0], 1)),
-            jnp.cumsum(0.5 * (integrand[:, 1:] + integrand[:, :-1]), axis=1) * dr,
-        ], axis=1)
+        M_cum = cumulative_trapezoid(integrand, dx=dr, axis=1)
         cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
 
         for name, val in dict(
@@ -387,8 +385,7 @@ class MultiComponentCluster(eqx.Module):
 
         integ = 4.0 * jnp.pi * r**2 * rho_tot
         dr = r[1] - r[0]
-        M_enc = jnp.concatenate([jnp.zeros(1),
-                                 jnp.cumsum(0.5 * (integ[1:] + integ[:-1])) * dr])
+        M_enc = cumulative_trapezoid(integ, dx=dr)
         # Normalize to total mass M=1 so the velocity scale s^2 = 1/(9 mu_tot) is
         # consistent with the potential (G = M = r_c = 1). W_j carries two powers
         # of this normalization (rho_j and M_enc), T_j one (rho_j).

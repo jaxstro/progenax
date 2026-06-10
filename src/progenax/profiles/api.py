@@ -30,6 +30,7 @@ import jax.numpy as jnp
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
+from progenax.numerics import cumulative_trapezoid
 from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.profiles.eff import EFFProfile
@@ -282,14 +283,9 @@ def compute_profile_potential(
         )
         dr = rgrid[1] - rgrid[0]
 
-        def _cumtrap(y):
-            return jnp.concatenate(
-                [jnp.zeros(1, dtype=y.dtype), jnp.cumsum(0.5 * (y[1:] + y[:-1]) * dr)]
-            )
-
-        I2 = _cumtrap(rho_t * rgrid**2)  # propto M(<r); I2[-1] propto M_total
+        I2 = cumulative_trapezoid(rho_t * rgrid**2, dx=dr)  # propto M(<r); I2[-1] propto M_total
         M_enc_frac = I2 / (I2[-1] + 1e-30)  # M(<r)/M_total (= profile CDF)
-        J_outer = _cumtrap(rho_t * rgrid)
+        J_outer = cumulative_trapezoid(rho_t * rgrid, dx=dr)
         J_outer = J_outer[-1] - J_outer  # int_r^rt rho_t s ds
         phi_grid = -G * M_total * (
             M_enc_frac / jnp.maximum(rgrid, 1e-3 * profile_instance.a)
