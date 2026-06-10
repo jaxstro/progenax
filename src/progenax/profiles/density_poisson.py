@@ -141,23 +141,66 @@ def _king_drho_dW(W: Float[Array, "..."]) -> Float[Array, "..."]:
     return jnp.where(W > 0.0, val, 0.0)
 
 
+def _king_density_and_dW(profile, r: Float[Array, "n_r"]):
+    """King (rho_hat, d rho_hat/dr) via King's own Poisson identity (extent-masked).
+
+    Both outputs come from the solved W-grid WITHOUT differentiating interpolated
+    data:
+
+    * **rho** is the closed-form King density integrand evaluated at the
+      interpolated potential, rho_hat(psi)/rho_hat(W0) with
+      rho_hat(W) = e^W erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3).
+    * **dW/dr** comes from King's Poisson identity (king.py ODE convention,
+      (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 rho_hat(psi)/rho_hat(W0)), i.e. the
+      cumulative mass integral
+      dpsi/dxi = -9 xi^-2 int_0^xi (rho_hat(psi(s))/rho_hat(W0)) s^2 ds --
+      one cumulative trapezoid of the already-computed CLOSED-FORM density.
+    * **d rho_hat/dr** is then the chain rule (d rho_hat/dW) * dW/dr with the
+      closed-form ``_king_drho_dW``.
+
+    Why differentiating the interpolated psi is FORBIDDEN: jnp.gradient of the
+    piecewise-LINEAR interpolated psi is a staircase whose ringing the Eddington
+    d^2 rho/dPsi^2 + Abel 1/sqrt(E - Psi) weight focuses into f(E -> Psi0). The
+    historical single-King read had min f/max|f| = -0.68 that way, while the
+    true King ergodic DF is strictly positive (fixed in commit dccedbe).
+
+    Uniform-grid contract: the cumulative integral assumes ``r`` is a dense,
+    UNIFORM, ascending grid anchored at ~0 (scalar-dx trapezoid) -- exactly the
+    Poisson linspace grid both call sites (shared_potential,
+    build_engine_b_state) pass. A non-uniform (e.g. log-spaced) grid would give
+    a silently wrong dW/dr.
+    """
+    xi = r / profile.r_c
+    psi = jnp.interp(xi, profile.xi_grid, profile.psi_grid, left=profile.W0, right=0.0)
+    rho0 = king_lowered_maxwellian_density(profile.W0)
+    rho = king_lowered_maxwellian_density(psi) / rho0
+    # dW/dr from King's own Poisson identity (king.py ODE convention,
+    # (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 rho_hat(psi)/rho_hat(W0)):
+    #     dpsi/dxi = -9 xi^-2 int_0^xi (rho_hat(psi(s))/rho_hat(W0)) s^2 ds,
+    # one cumulative trapezoid of the already-computed CLOSED-FORM density
+    # -- no differentiation of interpolated data (see function docstring).
+    # xi -> 0 limit: dpsi/dxi -> -3 rho_tilde xi -> 0 (double-where guard,
+    # gradient-safe: no 0/0 enters the graph). xi = r/r_c, so dW/dr =
+    # (dpsi/dxi)/r_c.
+    dxi = xi[1] - xi[0]
+    integ = rho * xi**2
+    cum = cumulative_trapezoid(integ, dx=dxi)
+    small = xi <= 1e-4
+    xi_safe = jnp.where(small, 1.0, xi)
+    dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
+    dW_dr = dpsi_dxi / profile.r_c
+    drho = (_king_drho_dW(psi) / rho0) * dW_dr
+    inside = r <= profile.r_t
+    return jnp.where(inside, rho, 0.0), jnp.where(inside, drho, 0.0)
+
+
 def _density_and_derivative(profile, r: Float[Array, "n_r"]):
     """Unnormalized rho_hat_j(r) and d rho_hat_j/dr on the grid (extent-masked).
 
-    Plummer/EFF use ANALYTIC closed-form derivatives; King uses the chain rule
-    d rho_hat/dW * dW/dr with the closed-form d rho_hat/dW and dW/dr from
-    King's own Poisson identity integrated over the CLOSED-FORM density (see
-    the King branch). NEVER differentiate interpolated data: jnp.gradient of
-    the piecewise-LINEAR interpolated psi is a staircase whose ringing the
-    Eddington d^2 rho/dPsi^2 + Abel 1/sqrt(E - Psi) weight focuses into
-    f(E -> Psi0) (a single King read min f/max|f| = -0.68 that way; the true
-    King ergodic DF is strictly positive).
-
-    The King branch's cumulative integral assumes `r` is a dense, UNIFORM,
-    ascending grid anchored at ~0 (scalar-dx trapezoid) -- exactly the
-    Poisson linspace grid both call sites (shared_potential,
-    build_engine_b_state) pass. A non-uniform (e.g. log-spaced) grid would
-    give a silently wrong dW/dr.
+    Plummer/EFF use ANALYTIC closed-form derivatives; King delegates to
+    ``_king_density_and_dW`` (rho + dW/dr from King's own Poisson identity --
+    deliberately NOT differentiating interpolated data; see that helper's
+    docstring for the staircase-bug rationale and the uniform-grid contract).
     """
     if isinstance(profile, PlummerProfile):
         a = profile.a
@@ -171,28 +214,7 @@ def _density_and_derivative(profile, r: Float[Array, "n_r"]):
         inside = r <= profile.r_t
         return jnp.where(inside, rho, 0.0), jnp.where(inside, drho, 0.0)
     if isinstance(profile, KingProfile):
-        xi = r / profile.r_c
-        psi = jnp.interp(xi, profile.xi_grid, profile.psi_grid, left=profile.W0, right=0.0)
-        rho0 = king_lowered_maxwellian_density(profile.W0)
-        rho = king_lowered_maxwellian_density(psi) / rho0
-        # dW/dr from King's own Poisson identity (king.py ODE convention,
-        # (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 rho_hat(psi)/rho_hat(W0)):
-        #     dpsi/dxi = -9 xi^-2 int_0^xi (rho_hat(psi(s))/rho_hat(W0)) s^2 ds,
-        # one cumulative trapezoid of the already-computed CLOSED-FORM density
-        # -- no differentiation of interpolated data (see function docstring).
-        # xi -> 0 limit: dpsi/dxi -> -3 rho_tilde xi -> 0 (double-where guard,
-        # gradient-safe: no 0/0 enters the graph). xi = r/r_c, so dW/dr =
-        # (dpsi/dxi)/r_c.
-        dxi = xi[1] - xi[0]
-        integ = rho * xi**2
-        cum = cumulative_trapezoid(integ, dx=dxi)
-        small = xi <= 1e-4
-        xi_safe = jnp.where(small, 1.0, xi)
-        dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
-        dW_dr = dpsi_dxi / profile.r_c
-        drho = (_king_drho_dW(psi) / rho0) * dW_dr
-        inside = r <= profile.r_t
-        return jnp.where(inside, rho, 0.0), jnp.where(inside, drho, 0.0)
+        return _king_density_and_dW(profile, r)
     raise TypeError(
         f"Engine B does not support {type(profile).__name__}; supported density "
         f"components are: {_SUPPORTED}."
