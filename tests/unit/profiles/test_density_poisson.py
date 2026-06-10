@@ -97,6 +97,49 @@ class TestSharedPotential:
                              jnp.array([0.6, 0.6]), r_t=jnp.asarray(20.0))
 
 
+class TestKingSharedPotential:
+    """King dW/dr in the Engine B density path (2c-iii prerequisite fix).
+
+    jnp.gradient of the LINEARLY interpolated psi grid is a staircase; the
+    Eddington d^2 rho/dPsi^2 then rings at high Psi (near the center, where
+    successive Delta Psi -> 0) and the Abel 1/sqrt(E - Psi) weight focuses the
+    ringing into f(E -> Psi0): a single King failed the realizability gate at
+    min f/max|f| = -0.68 even though the true King ergodic DF is strictly
+    positive. The fix integrates King's own Poisson identity
+        dpsi/dxi = -(9/rho_hat_0) xi^-2 int_0^xi rho_hat(psi(s)) s^2 ds
+    by cumulative trapezoid of the CLOSED-FORM density (never differentiate
+    interpolated data).
+    """
+
+    def _single_king(self):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        return MultiComponentCluster.from_density_profiles(
+            [KingProfile.from_W0_rc(W0=5.0, r_c=1.0)],
+            jnp.array([1.0]), m_j=jnp.array([1.0]))
+
+    def test_single_king_passes_realizability_gate(self):
+        """A single King component IS an equilibrium: the build must not raise
+        and the realizability margin must be at worst grid-level noise."""
+        m = self._single_king()
+        assert float(m.engine_b.f_min_j[0]) > -1e-5
+
+    def test_king_f_shape_matches_lowered_maxwellian(self):
+        """The Engine B King f(E) must BE the lowered Maxwellian e^Ehat - 1.
+
+        Engine A's King DF is f propto e^{E/sigma^2} - 1 with W = psi/sigma^2;
+        the tables are G = 1, so sigma^2 = Psi0/W0 and Ehat = E W0/Psi0.
+        Pearson correlation > 0.999 pins the SHAPE (amplitude is the
+        mass-fraction normalization)."""
+        m = self._single_king()
+        st = m.engine_b
+        E = np.asarray(st.E_grid)
+        f = np.asarray(st.f_j_grid[0])
+        sigma2 = float(st.Psi_poisson[0]) / 5.0   # sigma^2 = Psi0/W0, W0 = 5
+        ref = np.expm1(E / sigma2)
+        corr = float(np.corrcoef(f, ref)[0, 1])
+        assert corr > 0.999, f"corr(f, e^Ehat - 1) = {corr:.6f}"
+
+
 class TestKingDrhoDW:
     def test_closed_form_matches_autodiff(self):
         """Pin the closed-form _king_drho_dW (the erf'/boundary cancellation)

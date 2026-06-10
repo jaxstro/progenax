@@ -139,8 +139,16 @@ def _density_and_derivative(profile, r: Float[Array, "n_r"]):
 
     Plummer/EFF use ANALYTIC closed-form derivatives; King uses the chain rule
     d rho_hat/dW * dW/dr with the closed-form d rho_hat/dW and dW/dr from
-    jnp.gradient of the interpolated psi grid (numerical OK for King only -- its
-    psi is itself an interpolated ODE solution).
+    King's own Poisson identity integrated over the CLOSED-FORM density (see
+    the King branch). NEVER differentiate interpolated data: jnp.gradient of
+    the piecewise-LINEAR interpolated psi is a staircase whose ringing the
+    Eddington d^2 rho/dPsi^2 + Abel 1/sqrt(E - Psi) weight focuses into
+    f(E -> Psi0) (a single King read min f/max|f| = -0.68 that way; the true
+    King ergodic DF is strictly positive).
+
+    The King branch's cumulative integral assumes `r` is a dense, ascending
+    grid anchored at ~0 -- exactly the Poisson grid both call sites
+    (shared_potential, build_engine_b_state) pass.
     """
     if isinstance(profile, PlummerProfile):
         a = profile.a
@@ -158,7 +166,22 @@ def _density_and_derivative(profile, r: Float[Array, "n_r"]):
         psi = jnp.interp(xi, profile.xi_grid, profile.psi_grid, left=profile.W0, right=0.0)
         rho0 = king_lowered_maxwellian_density(profile.W0)
         rho = king_lowered_maxwellian_density(psi) / rho0
-        dW_dr = jnp.gradient(psi, r)
+        # dW/dr from King's own Poisson identity (king.py ODE convention,
+        # (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 rho_hat(psi)/rho_hat(W0)):
+        #     dpsi/dxi = -9 xi^-2 int_0^xi (rho_hat(psi(s))/rho_hat(W0)) s^2 ds,
+        # one cumulative trapezoid of the already-computed CLOSED-FORM density
+        # -- no differentiation of interpolated data (see function docstring).
+        # xi -> 0 limit: dpsi/dxi -> -3 rho_tilde xi -> 0 (double-where guard,
+        # gradient-safe: no 0/0 enters the graph). xi = r/r_c, so dW/dr =
+        # (dpsi/dxi)/r_c.
+        dxi = jnp.diff(xi)
+        integ = rho * xi**2
+        cum = jnp.concatenate(
+            [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * dxi)])
+        small = xi <= 1e-4
+        xi_safe = jnp.where(small, 1.0, xi)
+        dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
+        dW_dr = dpsi_dxi / profile.r_c
         drho = (_king_drho_dW(psi) / rho0) * dW_dr
         inside = r <= profile.r_t
         return jnp.where(inside, rho, 0.0), jnp.where(inside, drho, 0.0)

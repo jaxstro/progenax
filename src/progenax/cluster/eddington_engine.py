@@ -21,9 +21,7 @@ than the one prescribed.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
-
-from jaxtyping import PRNGKeyArray
+from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax.kinematics.eddington import (
     assign_om_directions,
@@ -255,11 +253,16 @@ def engine_b_component_virials(state: _EngineBState,
     -- genuine edge physics (the documented truncated-empirical-profile
     approximation, gated at 0.02 on the SAMPLED global Q), not a table bug.
     With rho_DF the steady-state identity 2T_j + W_j = 4 pi r_t^3 p_j(r_t) = 0
-    holds for ANY f(Q)-of-integral table (p_j(r_t) = 0), so Q_j = 0.5 to pure
-    quadrature accuracy: any inversion/interpolation/Psi-consistency bug in the
-    tables breaks it. Density fidelity (rho_DF vs prescribed rho_j in the
-    interior) is gated separately by the sampled-density KS test and the
-    Task 5 cross-engine anchors. f is clamped at 0 inside the moments exactly
+    holds for ANY positive f given a consistent (Psi, dPsi/dr) pair
+    (p_j(r_t) = 0), so Q_j = 0.5 here gates Poisson consistency, the OM
+    algebra, and the quadrature -- a NECESSARY condition, not a sufficient
+    one: a wrong-but-positive f(E) would pass it. Inversion correctness is
+    carried by the sampled global virial and the Task 5 cross-engine /
+    cross-family anchors (King A-vs-B, EFF(gamma=5) == Plummer, the interior
+    rho_DF-vs-rho_presc fidelity gate in test_engine_b_physics.py). The
+    sampled-density KS test gates the POSITION pipeline only -- it compares
+    sampled radii against the same _cdf_j they were drawn from, so it says
+    nothing about rho_DF-vs-rho_presc fidelity. f is clamped at 0 inside the moments exactly
     as the speed sampler clamps grid ringing. Q_j is dimensionless: the
     velocity scale and the total mass cancel in T_j/|W_j|.
     """
