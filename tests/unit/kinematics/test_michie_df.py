@@ -6,6 +6,7 @@ virial equilibrium Q ~ 0.5 unscaled; large r_a -> isotropic; JIT.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from jaxstro.units import STELLAR
@@ -94,3 +95,72 @@ class TestMichieVelocityDF:
         assert jnp.abs(g - g_fd) <= 5e-2 * jnp.abs(g_fd) + 1e-9, (
             f"grad d<|v|^2>/dW0={float(g)} vs FD {float(g_fd)}"
         )
+
+
+class TestMichieTableRouting:
+    """speed_method='table' (default) must agree with the exact 2-D
+    (u_r, u_t) quadrature oracle (speed_method='quadrature')
+    distributionally and in moments — the same contract the LIMEPY aniso
+    routing passed (tests/unit/kinematics/test_limepy_df.py::
+    TestLimepyTableRouting); the underlying joint is identical (Michie's
+    exp(-s^2 u_t^2 / 2) IS exp(-(s^2 u^2 / 2)(1 - cos^2 theta)) under
+    u_t = u sin(theta)).
+
+    N is capped at 2e4 for every draw through the quadrature oracle (the
+    review-mandated oracle-N convention): the two-sample KS 95% critical D
+    at n=2e4 is ~0.0136 < the 0.02 threshold."""
+
+    def _two_dfs(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+
+        kw = dict(W0=7.0, r_c=1.0, r_a=8.0)
+        return (MichieVelocityDF(**kw),                       # default: table
+                MichieVelocityDF(**kw, speed_method="quadrature"))
+
+    def _pos_vel(self, df, n=20000, seed=0):
+        masses = jnp.ones(n)
+        prof = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
+        pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
+                                   G=G)
+        return pos, vel
+
+    def _speeds(self, df, n=20000, seed=0):
+        _, vel = self._pos_vel(df, n=n, seed=seed)
+        return np.asarray(jnp.linalg.norm(vel, axis=1))
+
+    def test_speed_moments_match_quadrature_oracle(self):
+        df_t, df_q = self._two_dfs()
+        s_t, s_q = self._speeds(df_t), self._speeds(df_q)
+        assert abs(s_t.mean() / s_q.mean() - 1.0) < 0.02
+        assert abs((s_t**2).mean() / (s_q**2).mean() - 1.0) < 0.03
+
+    def test_speed_distribution_ks(self):
+        from scipy.stats import ks_2samp
+
+        df_t, df_q = self._two_dfs()
+        D = ks_2samp(self._speeds(df_t), self._speeds(df_q)).statistic
+        assert D < 0.02
+
+    def test_beta_profile_preserved(self):
+        """The table path must keep the validated beta(r): the angular
+        conditional stays EXACT, so only the speed marginal changed."""
+        df_t, df_q = self._two_dfs()
+        N = 20000
+        betas_t, betas_q = [], []
+        for r, seed in [(1.0, 0), (8.0, 1), (25.0, 2)]:
+            pos = _shell(r, N, seed)
+            key = jax.random.PRNGKey(seed + 10)
+            v_t = df_t.sample_velocities(pos, jnp.ones(N), key, G=G)
+            v_q = df_q.sample_velocities(pos, jnp.ones(N), key, G=G)
+            betas_t.append(float(_beta(v_t, pos)))
+            betas_q.append(float(_beta(v_q, pos)))
+        np.testing.assert_allclose(betas_t, betas_q, atol=0.06)
+
+    def test_table_default_and_quadrature_static(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
+        assert df.speed_method == "table"
+        with pytest.raises(ValueError, match="speed_method"):
+            MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0, speed_method="exact")

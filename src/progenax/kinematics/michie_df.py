@@ -1,9 +1,14 @@
 """Michie-King anisotropic velocity DF (Michie 1963 anisotropy + King 1966 cutoff).
 
 The DF f ∝ exp(-J^2/2 r_a^2 sigma^2) [exp(-E/sigma^2) - 1] is not a function of a single
-integral, so (unlike Osipkov-Merritt) there is no stretch trick: velocities are drawn by a
-2-D marginal-then-conditional inverse-CDF over (u_r, u_t), u = v/sigma. The self-consistent
-sigma uses the same factor-of-9 relation as the King DF, with the anisotropic density.
+integral, so (unlike Osipkov-Merritt) there is no stretch trick: velocities are drawn from
+a 2-D joint over (u_r, u_t), u = v/sigma. By default the speed MARGINAL comes from one
+precomputed inverse-CDF table per call (AnisoSpeedCDFTable at g=1 — the exact Michie =
+LIMEPY(g=1, finite r_a) reduction) with the EXACT angular conditional cos(theta)|u
+(weight exp(-(s^2 u^2/2)(1 - cos^2 theta)), identical to the u_t-marginal-then-u_r
+factorization under u_t = u sin(theta)); speed_method="quadrature" retains the per-star
+2-D marginal-then-conditional inverse-CDF as the oracle. The self-consistent sigma uses
+the same factor-of-9 relation as the King DF, with the anisotropic density.
 
 See docs/website/99-bibliography/per-paper/michie-1963.md.
 """
@@ -14,6 +19,9 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.kinematics.limepy_df import _N_C, _sample_costheta_given_u
+from progenax.profiles.king import _find_tidal_radius
+from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
 from progenax.profiles.michie import michie_density, solve_michie_profile
 
 _N_T = 128  # tangential inverse-CDF resolution
@@ -68,9 +76,25 @@ class MichieVelocityDF(eqx.Module):
     DF. The velocity scale sigma is self-consistent (sigma^2 = G M / (9 r_c mu), mu the
     anisotropic dimensionless mass integral), so ICs are virial without external rescale.
 
+    Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
+    marginal comes from one precomputed inverse-CDF table per call,
+    AnisoSpeedCDFTable.build(W0, p_box, g=1) — Michie IS the g=1 anisotropic
+    LIMEPY model (E_gamma(1, x) = e^x - 1 exactly; the standing
+    distributional proof is test_g1_aniso_matches_michie_velocity_df). The
+    angular conditional cos(theta)|u stays EXACT (_sample_costheta_given_u,
+    weight exp(-(s^2 u^2/2)(1 - cos^2 theta)) = exp(-s^2 u_t^2/2) under
+    u_t = u sin(theta)) — only the speed marginal is tabulated.
+    speed_method="quadrature" retains the exact per-star 2-D
+    (u_t-marginal-then-u_r) inverse-CDF as the oracle (statistical agreement
+    asserted in tests/unit/kinematics/test_michie_df.py::
+    TestMichieTableRouting). Small-N note: the aniso table build (~160 ms
+    per sample_velocities call) dominates below ~3k stars — batch repeated
+    small draws into one call, or use the quadrature oracle there.
+
     Attributes:
         W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.
         mu: int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma).
+        speed_method: static, "table" (default) or "quadrature" (exact oracle).
 
     References:
         Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
@@ -82,11 +106,18 @@ class MichieVelocityDF(eqx.Module):
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
     mu: Float[Array, ""]
+    speed_method: str = eqx.field(static=True)
 
     def __init__(
         self, W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0,
         xi_max: float = 800.0, n_ode_points: int = 3000,
+        speed_method: str = "table",
     ):
+        if speed_method not in ("table", "quadrature"):
+            raise ValueError(
+                f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
+            )
+        self.speed_method = speed_method
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
         self.r_a = jnp.asarray(r_a)
@@ -120,7 +151,29 @@ class MichieVelocityDF(eqx.Module):
 
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
-        ur, ut = jax.vmap(lambda k, w, ss: _sample_ur_ut(k, w, ss))(speed_keys, W, s)
+        if self.speed_method == "table":
+            # Mirror of LIMEPYVelocityDF's aniso table path at g=1 (the exact
+            # Michie reduction): the speed MARGINAL comes from ONE precomputed
+            # 3-D CDF table; the angular conditional cos(theta)|u stays EXACT
+            # (_sample_costheta_given_u — the same Michie factor
+            # exp(-s^2 u_t^2/2) reparametrized via u_t = u sin(theta)).
+            # Box covers every star: W <= W0, p <= r_t/r_a (radii <= r_t);
+            # the 1e-3 p floor guards the near-isotropic corner.
+            p_box = jnp.maximum(
+                self.r_c * _find_tidal_radius(self.xi_grid, self.psi_grid) / self.r_a,
+                1e-3,
+            )
+            table = AnisoSpeedCDFTable.build(self.W0, p_box, jnp.asarray(1.0))
+            ku_kc = jax.vmap(jax.random.split)(speed_keys)
+            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+            u_sp = jax.vmap(table.inverse)(W, s, unif)
+            cos_t = jax.vmap(
+                lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
+            )(ku_kc[:, 1], u_sp, s)
+            ur = u_sp * cos_t
+            ut = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
+        else:
+            ur, ut = jax.vmap(lambda k, w, ss: _sample_ur_ut(k, w, ss))(speed_keys, W, s)
         v_r = sigma * ur
         v_t = sigma * ut
 
