@@ -25,6 +25,7 @@ References:
 from typing import Tuple
 
 import diffrax
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
@@ -35,6 +36,7 @@ from progenax.profiles.limepy import (
     limepy_density_hat,
     lowered_exponential,
 )
+from progenax.profiles.limepy_tables import AnisoDensityTable
 
 
 def _multimass_density_sources(
@@ -94,6 +96,82 @@ def _aniso_v2hat_scalar(W, p, g):
     return jnp.where(W > 0.0, num / jnp.maximum(den, 1e-300), 0.0)
 
 
+# Solver grid for the shared anisotropic density table, sized to the SOLVE-level
+# budget (|psi_table - psi_quad| <= 1e-4 W0, |rho_j| <= 2e-4 absolute; asserted in
+# tests/unit/profiles/test_limepy_tables.py::TestTableBackedSolver). Measured
+# 2026-06 (W0=7, rescale=[1,1.6], ra_hat=10, xi_max=800, cubic Lagrange):
+# max|dpsi| 8.9e-5, max|drho_j| 8.8e-5, warm solve 0.15 s vs 0.78 s quadrature.
+_TAB_N_W = 160
+_TAB_N_P = 40
+
+# Jitted build: the tabulation is one big batched quadrature; jit caches its
+# compilation across solves (n_W/n_p static, W_max/p_max/g dynamic -> grad-safe).
+_build_density_table = jax.jit(AnisoDensityTable.build, static_argnames=("n_W", "n_p"))
+
+
+class _TableRHS(eqx.Module):
+    """Table-backed anisotropic Poisson RHS for the coupled solve.
+
+    An eqx.Module (not a closure) so diffrax's internal jit treats the table and
+    parameters as DYNAMIC pytree leaves: repeated solves hit the compile cache.
+    A fresh-closure RHS is re-traced and re-compiled on every diffeqsolve call
+    (~0.4 s, measured 2026-06), which would defeat the table speedup.
+    """
+
+    alpha_j: Float[Array, "n_comp"]
+    rescale: Float[Array, "n_comp"]
+    ra_j: Float[Array, "n_comp"]
+    rho0_j: Float[Array, "n_comp"]
+    tab: AnisoDensityTable
+
+    def density_components(self, xi, psi):  # (n_comp,) normalized to central
+        p_j = xi / self.ra_j
+        rho = jax.vmap(lambda res, pj: self.tab.evaluate(res * psi, pj))(self.rescale, p_j)
+        return jnp.where(self.rho0_j > 1e-300, rho / self.rho0_j, 0.0)
+
+    def __call__(self, xi, y, args):
+        psi, dpsi = y[0], y[1]
+        rho_tot = jnp.sum(self.alpha_j * self.density_components(xi, psi))
+        d2 = jnp.where(xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot)
+        return jnp.array([dpsi, d2])
+
+
+def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method):
+    """Anisotropic per-component density source for the coupled RHS.
+
+    Returns (density_components, rhs_fn_or_None). aniso_method is a STATIC
+    Python string selecting a code path at trace time:
+
+    "table" (default): ONE shared AnisoDensityTable covering the whole solve box
+    (W <= max_j(rescale_j) W0, p <= xi_max / min_j(ra_hat_j)) replaces the
+    pointwise quadrature -- the 86% hotspot. Normalized by the TABLE's own
+    central values rho0_j = tab(rescale_j W0, 0) so the interpolation error
+    cancels at the centre exactly as the quadrature normalization does. Also
+    returns the full RHS as an eqx.Module (see _TableRHS).
+
+    "quadrature": the exact oracle path, verbatim; rhs_fn is None (the caller
+    builds its closure RHS as before). Both paths are differentiable in
+    (alpha_j, rescale, ra_j, W0, g).
+    """
+    if aniso_method == "table":
+        tab = _build_density_table(jnp.max(rescale) * W0, xi_max / jnp.min(ra_j), g,
+                                   n_W=_TAB_N_W, n_p=_TAB_N_P)
+        rho0_j = jax.vmap(lambda res: tab.evaluate(res * W0, jnp.asarray(0.0)))(rescale)
+        rhs_fn = _TableRHS(alpha_j, rescale, ra_j, rho0_j, tab)
+        return rhs_fn.density_components, rhs_fn
+    if aniso_method != "quadrature":
+        raise ValueError(
+            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}")
+    rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
+
+    def density_components(xi, psi):  # (n_comp,) normalized to central
+        p_j = xi / ra_j
+        rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(rescale, p_j)
+        return jnp.where(rho0_j > 1e-300, rho / rho0_j, 0.0)
+
+    return density_components, None
+
+
 def solve_multicomponent_limepy(
     alpha_j: Float[Array, "n_comp"],
     rescale_j: Float[Array, "n_comp"],
@@ -102,6 +180,7 @@ def solve_multicomponent_limepy(
     xi_max: float = 300.0,
     n_points: int = 2000,
     ra_hat_j: Float[Array, "n_comp"] | None = None,
+    aniso_method: str = "table",
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
     """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
 
@@ -124,9 +203,12 @@ def solve_multicomponent_limepy(
     Optional per-component radial anisotropy: ra_hat_j[j] = hat_r_{a,j} = r_{a,j}/r_c is
     the component anisotropy radius (None = isotropic, fast path). The component source is
     then the anisotropic density at p_j(xi) = xi/ra_hat_j and rescaled potential
-    rescale_j*psi.
+    rescale_j*psi. aniso_method selects how that source is evaluated: "table" (default)
+    uses one shared AnisoDensityTable over the solve box (|psi - psi_quad| <= 1e-4 W0,
+    |rho_j| <= 2e-4, asserted in tests); "quadrature" is the exact oracle path. It is a
+    STATIC Python string (path selection at trace time); ignored when ra_hat_j is None.
 
-    JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max static.
+    JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max, aniso_method static.
 
     Returns:
         (xi_grid, psi_grid, rho_j_grid): dimensionless radius, shared potential W(xi)>=0,
@@ -136,28 +218,26 @@ def solve_multicomponent_limepy(
     rescale = jnp.asarray(rescale_j)
     isotropic = ra_hat_j is None
 
+    rhs_fn = None  # the table path supplies an eqx.Module RHS (jit-cache stable)
     if isotropic:
         def density_components(xi, psi):  # (n_comp,)
             return _multimass_density_sources(psi, rescale, W0, g)
     else:
-        ra_j = jnp.asarray(ra_hat_j)  # per-component anisotropy radius (n_comp,)
-        rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
+        density_components, rhs_fn = _aniso_density_fn(
+            alpha_j, rescale, jnp.asarray(ra_hat_j), W0, g, xi_max, aniso_method)
 
-        def density_components(xi, psi):  # (n_comp,) normalized to central
-            p_j = xi / ra_j
-            rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(rescale, p_j)
-            return jnp.where(rho0_j > 1e-300, rho / rho0_j, 0.0)
-
-    def rhs(xi, y, args):
-        psi, dpsi = y[0], y[1]
-        rho_tot = jnp.sum(alpha_j * density_components(xi, psi))
-        d2 = jnp.where(xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot)
-        return jnp.array([dpsi, d2])
+    if rhs_fn is None:
+        def rhs(xi, y, args):
+            psi, dpsi = y[0], y[1]
+            rho_tot = jnp.sum(alpha_j * density_components(xi, psi))
+            d2 = jnp.where(xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot)
+            return jnp.array([dpsi, d2])
+        rhs_fn = rhs
 
     y0 = jnp.array([W0, 0.0])
     xi_span = (1e-6, xi_max)
     solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(rhs),
+        diffrax.ODETerm(rhs_fn),
         diffrax.Tsit5(),
         t0=xi_span[0],
         t1=xi_span[1],

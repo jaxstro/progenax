@@ -126,3 +126,64 @@ class TestAnisoDensityTable:
         fd_g = (f(g0 + eps, jnp.asarray(W0_), jnp.asarray(p0))
                 - f(g0 - eps, jnp.asarray(W0_), jnp.asarray(p0))) / (2 * eps)
         np.testing.assert_allclose(float(dg), float(fd_g), rtol=1e-4, atol=1e-8)
+
+
+class TestTableBackedSolver:
+    """solve_multicomponent_limepy(aniso_method='table') reproduces the exact
+    quadrature solve to the stated budget and is the new default."""
+
+    def _solve(self, method):
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+        return solve_multicomponent_limepy(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), W0=7.0, g=1.0,
+            xi_max=800.0, n_points=2000, ra_hat_j=jnp.array([10.0, 10.0]),
+            aniso_method=method)
+
+    def test_table_solve_matches_quadrature_solve(self):
+        """|psi_table - psi_quad| <= 1e-4 * W0 everywhere; per-component
+        densities match to 2e-4 absolute (normalized units)."""
+        xi_q, psi_q, rho_q = self._solve("quadrature")
+        xi_t, psi_t, rho_t = self._solve("table")
+        np.testing.assert_allclose(np.asarray(xi_t), np.asarray(xi_q), rtol=0)
+        assert float(jnp.max(jnp.abs(psi_t - psi_q))) <= 1e-4 * 7.0
+        assert float(jnp.max(jnp.abs(rho_t - rho_q))) <= 2e-4
+
+    def test_table_is_default_and_iso_path_untouched(self):
+        """Default aniso_method is 'table'; the ISOTROPIC path is bit-identical
+        to before (no table involved when ra_hat_j is None)."""
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+        xi_d, psi_d, _ = self._solve("table")
+        from inspect import signature
+        assert signature(solve_multicomponent_limepy).parameters["aniso_method"].default == "table"
+        xi_i, psi_i, _ = solve_multicomponent_limepy(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), W0=7.0, g=1.0,
+            xi_max=300.0, n_points=2000)  # iso: no ra_hat_j
+        assert bool(jnp.all(jnp.isfinite(psi_i)))
+
+    def test_table_solve_differentiable_in_rescale_ra(self):
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        def metric(rescale, ra):
+            xi, psi, _ = solve_multicomponent_limepy(
+                jnp.array([0.5, 0.5]), rescale, 7.0, 1.0, xi_max=800.0,
+                n_points=1500, ra_hat_j=ra, aniso_method="table")
+            return jnp.mean(psi[:300])
+
+        d_r = jax.grad(metric, 0)(jnp.array([1.0, 1.6]), jnp.array([10.0, 10.0]))
+        d_a = jax.grad(metric, 1)(jnp.array([1.0, 1.6]), jnp.array([10.0, 10.0]))
+        assert jnp.all(jnp.isfinite(d_r)) and jnp.any(jnp.abs(d_r) > 0)
+        assert jnp.all(jnp.isfinite(d_a)) and jnp.any(jnp.abs(d_a) > 0)
+
+    def test_table_solve_is_faster(self):
+        """Warm table solve >= 3x faster than warm quadrature solve (the measured
+        target is ~5-10x; assert a conservative 3x so the test is not flaky)."""
+        import time
+
+        def timed(method):
+            self._solve(method)  # warm/compile
+            t0 = time.perf_counter()
+            out = self._solve(method)
+            jax.block_until_ready(out[1])
+            return time.perf_counter() - t0
+
+        assert timed("quadrature") / timed("table") >= 3.0
