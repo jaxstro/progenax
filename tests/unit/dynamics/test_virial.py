@@ -6,6 +6,7 @@ re-implementation of the same arithmetic).
 """
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from progenax.dynamics.virial import (
@@ -119,3 +120,65 @@ class TestRescaleVelocitiesToVirial:
         Q = compute_virial_ratio(pos, vel_scaled, masses, G=G)
         assert jnp.isclose(Q, 0.7, atol=0.02)
         assert Q > 0.5
+
+
+class TestBlockedPotentialEnergy:
+    """The blocked row-scan kernel must reproduce the dense pair sum exactly
+    (same pair set, same per-pair arithmetic) at every N/block alignment."""
+
+    def _dense_reference(self, positions, masses, G, softening=0.0):
+        """Independent O(N^2) oracle: explicit double loop over i<j in numpy."""
+        pos = np.asarray(positions)
+        m = np.asarray(masses)
+        V = 0.0
+        for i in range(len(m)):
+            for j in range(i + 1, len(m)):
+                r = np.sqrt(np.sum((pos[i] - pos[j]) ** 2) + softening**2)
+                V -= m[i] * m[j] / r
+        return float(G * V)  # -G * sum_{i<j} m_i m_j / r_ij form
+
+    def test_matches_dense_oracle_block_not_dividing_n(self):
+        """N=37 with block_size=16 (padding path) vs the explicit pair sum."""
+        key = jax.random.PRNGKey(3)
+        pos = jax.random.normal(key, (37, 3))
+        m = jnp.abs(jax.random.normal(jax.random.PRNGKey(4), (37,))) + 0.1
+        V = compute_potential_energy(pos, m, G=2.5, block_size=16)
+        V_ref = self._dense_reference(pos, m, G=2.5)
+        np.testing.assert_allclose(float(V), V_ref, rtol=1e-13)
+
+    def test_block_size_invariance(self):
+        """Result independent of block size to float64 reassociation level."""
+        key = jax.random.PRNGKey(5)
+        pos = jax.random.normal(key, (100, 3))
+        m = jnp.ones(100)
+        vals = [float(compute_potential_energy(pos, m, G=1.0, block_size=b))
+                for b in (7, 32, 100, 1024)]
+        np.testing.assert_allclose(vals, vals[0], rtol=1e-13)
+
+    def test_softened_matches_dense_oracle(self):
+        key = jax.random.PRNGKey(6)
+        pos = jax.random.normal(key, (25, 3))
+        m = jnp.ones(25)
+        V = compute_potential_energy(pos, m, G=1.0, softening=0.05, block_size=8)
+        V_ref = self._dense_reference(pos, m, G=1.0, softening=0.05)
+        np.testing.assert_allclose(float(V), V_ref, rtol=1e-13)
+
+    def test_grad_finite_at_zero_softening_with_padding(self):
+        """The where-before-sqrt guard must survive blocking + padding
+        (a padded zero-row coincident with a real star at the origin is the
+        gradient trap)."""
+        pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
+        m = jnp.ones(3)
+        g = jax.grad(lambda p: compute_potential_energy(p, m, G=1.0,
+                                                        block_size=2))(pos)
+        assert bool(jnp.all(jnp.isfinite(g)))
+
+    def test_memory_bounded_smoke_n20000(self):
+        """N=20k ran at 32.8 GB peak dense (measured 2026-06-10); blocked must
+        run comfortably — correctness assert only, the RSS evidence lives in
+        scripts/profile_cluster_memory.py."""
+        key = jax.random.PRNGKey(7)
+        pos = jax.random.normal(key, (20000, 3)) * 5.0
+        m = jnp.ones(20000)
+        V = compute_potential_energy(pos, m, G=1.0)
+        assert bool(jnp.isfinite(V)) and float(V) < 0

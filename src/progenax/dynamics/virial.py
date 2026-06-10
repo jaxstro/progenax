@@ -21,32 +21,55 @@ def compute_kinetic_energy(
     return 0.5 * jnp.sum(masses * v_squared)
 
 
+def _pad_rows(arr, block):
+    """Pad axis 0 to a multiple of ``block`` with zeros (static shapes)."""
+    pad = (-arr.shape[0]) % block
+    if pad == 0:
+        return arr
+    widths = ((0, pad),) + ((0, 0),) * (arr.ndim - 1)
+    return jnp.pad(arr, widths)
+
+
 def compute_potential_energy(
     positions: Float[Array, "N 3"],
     masses: Float[Array, "N"],
     G: float,
     softening: float = 0.0,
+    block_size: int = 256,
 ) -> Float[Array, ""]:
-    """Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
+    """Total potential energy V = -G * sum_{i<j} m_i m_j / r_ij (Plummer-softened).
 
-    Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2). Returns a negative
-    value (bound systems have V < 0).
+    Blocked row-scan (``lax.scan`` over row blocks of ``block_size`` stars vs ALL
+    columns): peak transient memory is O(block_size * N), not O(N^2) — the dense
+    kernel measured 32.8 GB at N = 2e4 (2026-06-10); blocked at the default 256
+    it is ~0.12 GB. Identical pair set and per-pair arithmetic; only float64
+    summation ORDER changes across blocks (re-association at the 1e-15 relative
+    level). ``block_size`` is a Python int and must be static under jax.jit.
 
-    Differentiable at ``softening=0``: a double-``where`` feeds the diagonal a
-    safe positive value *before* ``sqrt`` (otherwise the diagonal ``sqrt(0)``
-    derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
-    sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
-    canonical energy implementation; ``progenax.builders`` re-exports it.
+    Differentiable at ``softening=0``: the i<j mask feeds excluded entries
+    (diagonal, lower triangle, padded rows) a safe value *before* ``sqrt`` so no
+    masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
+    single canonical energy implementation; ``progenax.builders`` re-exports it.
     """
     N = positions.shape[0]
-    diff = positions[:, None, :] - positions[None, :, :]  # (N, N, 3)
-    r_squared = jnp.sum(diff**2, axis=2)  # (N, N)
-    eye = jnp.eye(N, dtype=bool)
-    r_squared_safe = jnp.where(eye, 1.0, r_squared + softening**2)
-    r_soft = jnp.where(eye, jnp.inf, jnp.sqrt(r_squared_safe))
-    m_prod = masses[:, None] * masses[None, :]  # (N, N)
-    V = -G * jnp.sum(jnp.triu(m_prod / r_soft, k=1))
-    return V
+    block = int(min(block_size, N))
+    pos_b = _pad_rows(positions, block).reshape(-1, block, 3)
+    m_b = _pad_rows(masses, block).reshape(-1, block)
+    idx_b = jnp.arange(pos_b.shape[0] * block).reshape(-1, block)
+    col = jnp.arange(N)
+
+    def body(acc, blk):
+        pb, mb, ib = blk
+        diff = pb[:, None, :] - positions[None, :, :]          # (block, N, 3)
+        r2 = jnp.sum(diff**2, axis=2)                          # (block, N)
+        upper = ib[:, None] < col[None, :]                     # i<j; padded rows all-False
+        r_soft = jnp.sqrt(jnp.where(upper, r2 + softening**2, 1.0))
+        pair = jnp.where(upper, (mb[:, None] * masses[None, :]) / r_soft, 0.0)
+        return acc + jnp.sum(pair), None
+
+    V, _ = jax.lax.scan(body, jnp.zeros((), dtype=positions.dtype),
+                        (pos_b, m_b, idx_b))
+    return -G * V
 
 
 def compute_virial_ratio(
