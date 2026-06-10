@@ -106,3 +106,50 @@ class TestPerGroupVirialRatio:
         masks = mass_group_masks(m, n_groups=3)
         f = jax.jit(lambda p, v: per_group_virial_ratio(p, v, m, G=G, group_masks=masks))
         assert jnp.all(jnp.isfinite(f(pos, vel)))
+
+
+# --------------------------------------------------------------------------
+# _accelerations (blocked row-scan)
+# --------------------------------------------------------------------------
+class TestBlockedAccelerations:
+    def test_matches_dense_oracle_with_padding(self):
+        """N=37, block=16 vs an explicit numpy double loop."""
+        from progenax.dynamics.virial import _accelerations
+
+        key = jax.random.PRNGKey(11)
+        pos = jax.random.normal(key, (37, 3))
+        m = jnp.abs(jax.random.normal(jax.random.PRNGKey(12), (37,))) + 0.1
+        a = np.asarray(_accelerations(pos, m, G=1.7, block_size=16))
+        p = np.asarray(pos)
+        mm = np.asarray(m)
+        a_ref = np.zeros_like(p)
+        for i in range(37):
+            for k in range(37):
+                if i == k:
+                    continue
+                d = p[i] - p[k]
+                a_ref[i] -= 1.7 * mm[k] * d / np.sum(d**2) ** 1.5
+        np.testing.assert_allclose(a, a_ref, rtol=1e-12, atol=1e-13)
+
+    def test_clausius_identity_survives_blocking(self):
+        """sum_i m_i r_i . a_i == V — ties Task 2 and Task 3 together and is the
+        physics contract per_group_virial_ratio depends on (existing
+        test_single_group_reproduces_global_virial re-checks at N=300)."""
+        from progenax.dynamics.virial import _accelerations, compute_potential_energy
+
+        key = jax.random.PRNGKey(13)
+        pos = jax.random.normal(key, (123, 3))
+        m = jnp.ones(123)
+        a = _accelerations(pos, m, G=1.0, block_size=32)
+        W = float(jnp.sum(m * jnp.sum(pos * a, axis=1)))
+        V = float(compute_potential_energy(pos, m, G=1.0, block_size=32))
+        np.testing.assert_allclose(W, V, rtol=1e-10)
+
+    def test_grad_finite_at_zero_softening(self):
+        from progenax.dynamics.virial import _accelerations
+
+        pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.5, 0.0]])
+        m = jnp.ones(3)
+        g = jax.grad(lambda p: jnp.sum(_accelerations(p, m, G=1.0,
+                                                      block_size=2) ** 2))(pos)
+        assert bool(jnp.all(jnp.isfinite(g)))

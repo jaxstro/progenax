@@ -137,20 +137,43 @@ def _accelerations(
     masses: Float[Array, "N"],
     G: float,
     softening: float = 0.0,
+    block_size: int = 256,
 ) -> Float[Array, "N 3"]:
-    """Direct-summation gravitational accelerations a_i = -G sum_k m_k r_ik / |r_ik|^3.
+    """Direct-summation accelerations a_i = -G sum_k m_k (r_i - r_k) / |r_ik|^3.
 
-    Plummer-softened and differentiable at ``softening=0`` (the self term is masked
-    before the inverse-cube so the diagonal never differentiates ``r^-3`` at 0).
+    Blocked row-scan: O(block_size * N) transient memory for the forward AND
+    backward pass (see :func:`compute_potential_energy`) — each block's forward
+    is rematerialized via ``jax.checkpoint`` during the vjp instead of stored,
+    so no O(N^2) stacked residuals accumulate across scan iterations.
+    Plummer-softened; differentiable at ``softening=0`` (the interaction mask
+    feeds excluded entries a safe value before the inverse-cube — diagonal AND
+    padded rows, so no masked inf can NaN-poison the vjp through the discarded
+    pad slice). ``block_size`` is a Python int and must be static under jax.jit.
     """
     N = positions.shape[0]
-    diff = positions[:, None, :] - positions[None, :, :]  # (N, N, 3): r_i - r_k
-    r_squared = jnp.sum(diff**2, axis=2)  # (N, N)
-    eye = jnp.eye(N, dtype=bool)
-    r_squared_safe = jnp.where(eye, 1.0, r_squared + softening**2)
-    inv_r3 = jnp.where(eye, 0.0, r_squared_safe ** (-1.5))  # self term -> 0
-    # a_i = -G sum_k m_k (r_i - r_k) / r_ik^3
-    return -G * jnp.sum(masses[None, :, None] * diff * inv_r3[:, :, None], axis=1)
+    if N == 0:
+        return jnp.zeros((0, 3), dtype=positions.dtype)
+    block = int(min(block_size, N))
+    pos_b = _pad_rows(positions, block).reshape(-1, block, 3)
+    idx_b = jnp.arange(pos_b.shape[0] * block).reshape(-1, block)
+    col = jnp.arange(N)
+
+    @jax.checkpoint
+    def block_acc(pb, ib):
+        diff = pb[:, None, :] - positions[None, :, :]            # (block, N, 3)
+        r2 = jnp.sum(diff**2, axis=2)
+        interact = (ib[:, None] != col[None, :]) & (ib[:, None] < N)
+        inv_r3 = jnp.where(interact, 1.0, 0.0) * jnp.where(
+            interact, r2 + softening**2, 1.0) ** (-1.5)
+        return -G * jnp.sum(masses[None, :, None] * diff * inv_r3[:, :, None],
+                            axis=1)
+
+    def body(_, blk):
+        pb, ib = blk
+        return None, block_acc(pb, ib)
+
+    _, a = jax.lax.scan(body, None, (pos_b, idx_b))
+    return a.reshape(-1, 3)[:N]
 
 
 def per_group_virial_ratio(
