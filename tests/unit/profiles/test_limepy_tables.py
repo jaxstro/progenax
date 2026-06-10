@@ -424,6 +424,8 @@ class TestAnisoSpeedCDFTable:
         table-drawn moments against the SpeedCDFTable draw to 1%.
 
         30k draws -> ~0.6% MC noise on <u>; the 1.5% gate sits ~2.5 sigma up.
+        One off-g spot check (g=2.5, off-node (W, p)) guards the g dependence
+        of the tabulated weight (measured deviation <= 0.81% there).
         """
         from progenax.profiles.limepy import _angle_integral_T, lowered_exponential
         from progenax.profiles.limepy_tables import SpeedCDFTable
@@ -462,18 +464,66 @@ class TestAnisoSpeedCDFTable:
                         f"W={W0}, p=0: aniso <u^2> {u2_t:.4f} vs iso table {u2_i:.4f}")
                 i += 1
 
+        # Off-g spot check (Task-6 review): g=2.5 at one off-node (W, p) --
+        # the main sweep is g=1 only; this guards the g dependence of the
+        # tabulated weight x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2). Same 1.5%
+        # gate (reviewer measured <= 0.81% deviation here).
+        g2 = 2.5
+        tab2 = self._table(W_max=10.0, p_max=10.0, g=g2)
+        W0, p0 = 3.3, 1.7  # off any sqrt(W)/asinh(p) grid node
+        u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W0), 4001)
+        wgt = (u_grid**2
+               * lowered_exponential(jnp.asarray(g2), W0 - u_grid**2 / 2.0)
+               * _angle_integral_T(p0**2 * u_grid**2 / 2.0))
+        norm = jnp.trapezoid(wgt, u_grid)
+        mean_q = float(jnp.trapezoid(u_grid * wgt, u_grid) / norm)
+        u2_q = float(jnp.trapezoid(u_grid**2 * wgt, u_grid) / norm)
+        unif = jax.random.uniform(jax.random.PRNGKey(3100), (n,))
+        u = jax.vmap(tab2.inverse, in_axes=(None, None, 0))(
+            jnp.asarray(W0), jnp.asarray(p0), unif)
+        mean_t, u2_t = float(jnp.mean(u)), float(jnp.mean(u**2))
+        assert abs(mean_t - mean_q) / mean_q < 0.015, (
+            f"g={g2}, W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}")
+        assert abs(u2_t - u2_q) / u2_q < 0.015, (
+            f"g={g2}, W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}")
+
     @pytest.mark.parametrize("g", [0.0, 2.5, 3.5])
     def test_high_g_low_W_rows_normalized(self, g):
-        """Every CDF row ends at exactly 1.0 for g in {0, 2.5, 3.5} -- the
-        Task-5 lesson applied from the start: the raw row total scales as W^g
-        (times the T suppression at large p), so relative normalization with
-        a 1e-6 row-W floor is required; an absolute regularizer would swamp
-        low-W high-g rows and corrupt draws near the truncation radius."""
+        """Every CDF row is healthy for g in {0, 2.5, 3.5} -- the Task-5
+        lesson applied from the start: the raw row total scales as W^g (times
+        the T suppression at large p), so relative normalization with a 1e-6
+        row-W floor is required; an absolute regularizer would swamp low-W
+        high-g rows and corrupt draws near the truncation radius.
+
+        The AnisoSpeedCDFTable build unconditionally pins cdf[..., -1] to 1.0
+        (the lax.map x/x ulp fix), so asserting only the last column is
+        VACUOUS against the underflow failure mode this test documents. The
+        real detectors are: (i) every entry finite (a zero row total divides
+        to NaN), (ii) every row monotone non-decreasing, (iii) cdf[..., -2]
+        finite and strictly < 1 (an underflowed/swamped row tops out early
+        and only the pin reaches 1). Checked for BOTH SpeedCDFTable and
+        AnisoSpeedCDFTable."""
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        iso = SpeedCDFTable.build(W_max=10.0, g=g, n_W=48, n_x=96)
         tab = self._table(W_max=10.0, p_max=10.0, g=g, n_W=48, n_p=16, n_x=96)
-        ends = np.asarray(tab.cdf[..., -1])
-        np.testing.assert_array_equal(
-            ends, 1.0, err_msg=f"g={g}: CDF row ends range "
-            f"[{ends.min():.3e}, {ends.max():.3e}], expected exactly 1.0")
+        for name, cdf in (("SpeedCDFTable", np.asarray(iso.cdf)),
+                          ("AnisoSpeedCDFTable", np.asarray(tab.cdf))):
+            assert np.isfinite(cdf).all(), (
+                f"g={g} {name}: non-finite CDF entries "
+                f"({np.size(cdf) - np.isfinite(cdf).sum()} of {np.size(cdf)})")
+            ends = cdf[..., -1]
+            np.testing.assert_array_equal(
+                ends, 1.0, err_msg=f"g={g} {name}: CDF row ends range "
+                f"[{ends.min():.3e}, {ends.max():.3e}], expected exactly 1.0")
+            diffs = np.diff(cdf, axis=-1)
+            assert (diffs >= 0.0).all(), (
+                f"g={g} {name}: non-monotone CDF rows "
+                f"(min diff {diffs.min():.3e})")
+            penult = cdf[..., -2]
+            assert np.isfinite(penult).all() and (penult < 1.0).all(), (
+                f"g={g} {name}: cdf[..., -2] range "
+                f"[{penult.min():.3e}, {penult.max():.3e}], expected all < 1")
 
     def test_differentiable(self):
         """grad through the table BUILD (g) and through a drawn-speed

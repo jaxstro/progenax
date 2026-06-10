@@ -145,8 +145,9 @@ class SpeedCDFTable(eqx.Module):
         guard; its shape is the W = 1e-6 CDF, indistinguishable from the
         analytic W -> 0 limit x^2 (1-x^2)^g at that W. The floor also keeps
         the raw row total (which scales as W^g) far above float64 underflow
-        for g in [0, 3.5], so the plain relative normalization below ends
-        every row's CDF at exactly 1.0 (an absolute +1e-30 regularizer would
+        for g in [0, 3.5], so the relative normalization below (plus the
+        last-column ulp pin) ends every row's CDF at exactly 1.0 (an
+        absolute +1e-30 regularizer would
         swamp a W = 1e-12 row total ~W^g at g >= 2.5 and corrupt row 0).
         Per-component row resolution: a component with velocity-scale ratio w
         (w_j / max_j w_j after rescaling) only ever queries the first w_min/w
@@ -168,9 +169,13 @@ class SpeedCDFTable(eqx.Module):
         )
         # Relative normalization: every row total is strictly positive (the
         # 1e-6 W floor keeps it >= O(1e-23) even at g = 3.5, far above float64
-        # underflow), so plain division ends each row's CDF at exactly 1.0
-        # and stays differentiable.
+        # underflow), so the division is exact to an ulp and differentiable.
+        # XLA rewrites the broadcast divide as x * (1/x) (1 ulp short of 1.0
+        # on some rows -- measured, same as the AnisoSpeedCDFTable build), so
+        # pin the last column to its mathematically identical value 1.0
+        # (true gradient there is 0).
         cdf = cdf / cdf[:, -1:]
+        cdf = cdf.at[:, -1].set(1.0)
         return cls(s_nodes=s, x_nodes=x, cdf=cdf)
 
     def inverse(self, W, unif):
@@ -217,6 +222,13 @@ class AnisoSpeedCDFTable(eqx.Module):
     SpeedCDFTable normalization lesson applies: a 1e-6 row-W floor keeps raw
     row totals (~W^g, further T-suppressed at large p) far above float64
     underflow so plain relative division ends every row's CDF at exactly 1.0.
+
+    Small-N break-even (measured 2026-06, M-series CPU): the per-draw-call
+    table build costs ~160 ms (it is traced inside the jitted sampler core,
+    not cached on the model), which dominates anisotropic draws below
+    ~3k stars; above that the ~3 us/star inverse amortizes it and the table
+    path wins (21.7x at 1e5 stars). For repeated small draws from one model,
+    batch them into a single call.
     """
 
     s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
