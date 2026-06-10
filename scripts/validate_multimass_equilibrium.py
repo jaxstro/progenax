@@ -35,7 +35,7 @@ jax.config.update("jax_enable_x64", True)
 from jaxstro.units import STELLAR
 from progenax.profiles.limepy import lowered_exponential
 from progenax.cluster.multicomponent import MultiComponentCluster
-from progenax.dynamics import per_group_virial_ratio, compute_virial_ratio
+from progenax.dynamics import per_group_virial_ratio
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig
@@ -161,10 +161,13 @@ def main():
             p, v, mm = ic.positions, ic.velocities, ic.masses
             p = p - jnp.average(p, axis=0, weights=mm)
             v = v - jnp.average(v, axis=0, weights=mm)
-            masks = jnp.stack([jnp.isclose(mm, float(mj)) for mj in M_J])
+            # ONE pairwise pass: the all-ones group gives the global Q exactly via the
+            # Clausius identity W = V at softening=0 (documented per_group_virial_ratio
+            # contract), so the separate compute_virial_ratio pass was redundant.
+            masks = jnp.stack([jnp.isclose(mm, float(mj)) for mj in M_J]
+                              + [jnp.ones_like(mm, dtype=bool)])
             Qj = np.asarray(per_group_virial_ratio(p, v, mm, G=G, group_masks=masks, softening=0.0))
-            Ql_s.append(Qj[0]); Qh_s.append(Qj[1])
-            Qg_s.append(float(compute_virial_ratio(p, v, mm, G=G)))
+            Ql_s.append(Qj[0]); Qh_s.append(Qj[1]); Qg_s.append(Qj[2])
         Ql_all.append(np.mean(Ql_s)); Qh_all.append(np.mean(Qh_s)); Qg_all.append(np.mean(Qg_s))
         Ql_se.append(np.std(Ql_s) / np.sqrt(len(Ql_s)))
         Qh_se.append(np.std(Qh_s) / np.sqrt(len(Qh_s)))

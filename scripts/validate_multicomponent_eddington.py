@@ -34,8 +34,9 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
-from progenax import EFFProfile, KingProfile, PlummerProfile
+from progenax import EFFProfile, KingProfile, PlummerProfile, compute_potential_energy
 from progenax.cluster.multicomponent import MultiComponentCluster
+from progenax.dynamics.virial import _accelerations
 from progenax.kinematics.eddington import eddington_invert
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -69,37 +70,17 @@ def _com_arrays(ic):
     return p, v, np.asarray(ic.masses)
 
 
-def _chunked_potential(pos, mass, chunk=2000):
-    """Exact pairwise V = -G/2 sum_{i!=j} m_i m_j / r_ij, row-chunked."""
-    V2 = 0.0
-    for i0 in range(0, pos.shape[0], chunk):
-        p = pos[i0:i0 + chunk]
-        d = np.sqrt(((p[:, None, :] - pos[None, :, :]) ** 2).sum(axis=2))
-        rows = np.arange(p.shape[0])
-        d[rows, i0 + rows] = np.inf
-        V2 += float(np.sum(mass[i0:i0 + chunk, None] * mass[None, :] / d))
-    return -0.5 * G * V2
-
-
-def _chunked_accelerations(pos, mass, chunk=1000):
-    """Direct-summation a_i = -G sum_k m_k (r_i - r_k)/r_ik^3, row-chunked."""
-    acc = np.zeros_like(pos)
-    for i0 in range(0, pos.shape[0], chunk):
-        d = pos[i0:i0 + chunk, None, :] - pos[None, :, :]
-        r2 = (d**2).sum(axis=2)
-        rows = np.arange(d.shape[0])
-        r2[rows, i0 + rows] = np.inf
-        acc[i0:i0 + chunk] = -G * np.sum(
-            mass[None, :, None] * d * r2[:, :, None] ** -1.5, axis=1)
-    return acc
-
-
 def _sampled_component_Q(model, seed, n_stars):
-    """Sampled per-component Q_j = T_j/|W_j| (Clausius in the total field)."""
+    """Sampled per-component Q_j = T_j/|W_j| (Clausius in the total field).
+
+    Accelerations come from the library's memory-bounded blocked kernel
+    (progenax.dynamics.virial._accelerations, O(block*N)); the local numpy
+    mirror existed only because the dense kernel used to OOM.
+    """
     ic = model.sample_cluster(jax.random.PRNGKey(seed), n_stars=n_stars, G=G)
     p, v, mass = _com_arrays(ic)
     cid = np.asarray(ic.component_id)
-    a = _chunked_accelerations(p, mass)
+    a = np.asarray(_accelerations(jnp.asarray(p), jnp.asarray(mass), G))
     T_i = 0.5 * mass * np.sum(v**2, axis=1)
     W_i = mass * np.sum(p * a, axis=1)
     return np.array([T_i[cid == j].sum() / abs(W_i[cid == j].sum())
@@ -187,6 +168,7 @@ def section_king(ax):
         sigB.append(np.sqrt(v2B[sB].mean() / 3.0))
     centers, sigA, sigB = map(np.array, (centers, sigA, sigB))
     max_dev = float(np.max(np.abs(sigB / sigA - 1.0)))
+    del icA, icB, vA, vB, rA, rB, v2A, v2B, grid  # free the 2x20k samples
     print(f"    radial KS distance          = {ks:.4f}  (gate < 0.02)")
     print(f"    max |sigma_B/sigma_A - 1|   = {max_dev:.4f}  (gate < 0.02)")
 
@@ -270,9 +252,11 @@ def section_headline(ax_rho, ax_q):
     ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=30000, G=G)
     p, v, mass = _com_arrays(ic)
     T = 0.5 * float(np.sum(mass * np.sum(v**2, axis=1)))
-    V = _chunked_potential(p, mass)
+    # Library blocked kernel (O(block*N) memory) -- the numpy mirror is gone.
+    V = float(compute_potential_energy(jnp.asarray(p), jnp.asarray(mass), G=G))
     Q_glob = T / abs(V)
     print(f"    sampled global Q (N=30k, unscaled) = {Q_glob:.4f}  (gate 0.5 +- 0.02)")
+    del ic, p, v, mass  # free the 30k sample before the per-seed Q_j passes
 
     Q_pred = _predicted_component_Q(m)
     seeds = (1, 2, 3)
@@ -358,6 +342,7 @@ def section_om(ax):
         cid_l.append(np.asarray(ic.component_id))
     r = np.concatenate(r_l)
     vr2, vt2, cid = np.concatenate(vr2_l), np.concatenate(vt2_l), np.concatenate(cid_l)
+    del r_l, vr2_l, vt2_l, cid_l
 
     halo = cid == 0
     edges = np.quantile(r[halo], np.linspace(0.05, 0.95, 9))
@@ -369,6 +354,7 @@ def section_om(ax):
         beta_om.append(float(np.mean(r[s] ** 2 / (r[s] ** 2 + r_a**2))))
     centers, beta_s, beta_om = map(np.array, (centers, beta_s, beta_om))
     max_dev = float(np.max(np.abs(beta_s - beta_om)))
+    del r, vr2, vt2, cid, halo  # free the pooled 4x20k kinematics arrays
     print(f"    pooled {n_seeds} seeds x 20k stars; 8 interior halo bins")
     print(f"    max |beta_sampled - beta_OM|  = {max_dev:.4f}  (gate < 0.05)")
 
