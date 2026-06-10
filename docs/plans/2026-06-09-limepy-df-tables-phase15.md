@@ -590,3 +590,23 @@ Commit: `perf(cluster): anisotropic speed marginal via 3-D CDF table; exact angu
   `LIMEPYProfile` are OUT OF SCOPE (oracles).
 - If the Task 5/6 statistical gates prove flaky, stop Tranche B, keep Tranche A
   (the dominant win), and report — do not loosen gates.
+
+## CURRENT STATE (post-Task-1 review)
+
+Task 1 landed with several deviations from the plan's reference snippets —
+Tasks 2–6 implementers should copy patterns from
+`src/progenax/profiles/limepy_tables.py`, **not** from the plan's snippets:
+
+- **Cubic Lagrange interpolation** (tensor-product 4-point, O(h^4)), not
+  bilinear — bilinear measured O(h^2) with a large constant and cannot reach
+  the 1e-5 budget even at 3072x512 nodes.
+- **`jax.lax.map` build** over sqrt(W) rows — the double-vmap build OOMs
+  (materializes the full (n_W, n_p, n_quad) quadrature intermediate).
+- **sqrt(2*pi) normalization fix** to the p=0 closed-form test (the isotropic
+  oracle is sqrt(2 pi) * limepy_density_hat).
+- **W<=0 gradient guard**: `s = jnp.sqrt(jnp.maximum(W, 1e-12))` mirroring
+  `_aniso_density_scalar` — sqrt-at-0 has a NaN cotangent under jax.grad and
+  the final where() masks only the primal.
+- **>=0 clamp**: `v = jnp.maximum(v, 0.0)` — cubic overshoot can return tiny
+  negative densities (O(1e-15·central)) in the W->0 corner; rho_hat >= 0 is a
+  contract (Tranche B builds CDFs from it).

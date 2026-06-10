@@ -60,9 +60,9 @@ class AnisoDensityTable(eqx.Module):
         """Tabulate the exact quadrature on the (sqrt W, asinh p) grid.
 
         W_max gets a x1.001 safety factor so in-domain queries never clamp.
-        Differentiable in (W_max, p_max, g): node values carry d/dg through
-        `jax.lax.map` (scan-based, unlike a double-vmap it never materializes
-        the full (n_W, n_p, n_quad) quadrature intermediate).
+        Differentiable in (g) and the queries (W, p): node values carry d/dg
+        through `jax.lax.map` (scan-based, unlike a double-vmap it never
+        materializes the full (n_W, n_p, n_quad) quadrature intermediate).
         """
         s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
         q = jnp.linspace(0.0, jnp.arcsinh(jnp.asarray(p_max)), n_p)
@@ -74,11 +74,22 @@ class AnisoDensityTable(eqx.Module):
 
     def evaluate(self, W, p):
         """Bicubic (4-point Lagrange) interp at (W, p), clamped to the table
-        box. W <= 0 -> 0 (no stars above the escape energy)."""
-        s = jnp.sqrt(jnp.maximum(W, 0.0))
+        box. W <= 0 -> 0 (no stars above the escape energy).
+
+        Cubic Lagrange can overshoot by O(1e-15 * central) near the W->0
+        power-law corner; the result is clamped to preserve the rho_hat >= 0
+        contract (gradient is zero only on that measure-tiny set).
+        Gradients are exactly 0 in the clamp region (edge saturation) --
+        relevant if optimizing ra_hat_j near the p edge.
+        """
+        # 1e-12 floor mirrors _aniso_density_scalar's oracle guard: sqrt(0)
+        # has a NaN cotangent under jax.grad and the final where() masks only
+        # the primal. s = 1e-6 is deep inside the first cell.
+        s = jnp.sqrt(jnp.maximum(W, 1e-12))
         q = jnp.arcsinh(jnp.maximum(p, 0.0))
         s = jnp.clip(s, self.s_nodes[0], self.s_nodes[-1])
         q = jnp.clip(q, self.q_nodes[0], self.q_nodes[-1])
+        # Cell widths: the grid is uniform by construction (linspace in build).
         hs = self.s_nodes[1] - self.s_nodes[0]
         hq = self.q_nodes[1] - self.q_nodes[0]
         i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
@@ -90,6 +101,7 @@ class AnisoDensityTable(eqx.Module):
         wq = _cubic_lagrange_weights((q - self.q_nodes[j0]) / hq)
         sub = jax.lax.dynamic_slice(self.values, (i0, j0), (4, 4))
         v = ws @ sub @ wq
+        v = jnp.maximum(v, 0.0)  # clamp cubic overshoot (rho_hat >= 0 contract)
         return jnp.where(W > 0.0, v, 0.0)
 
 

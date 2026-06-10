@@ -58,6 +58,56 @@ class TestAnisoDensityTable:
         np.testing.assert_allclose(np.asarray(approx), np.asarray(exact),
                                    rtol=5e-5, atol=1e-12)
 
+    def test_gradient_finite_at_W_nonpositive(self):
+        """C1 regression: d(evaluate)/dW must be FINITE at W=0 and W=-1.
+
+        sqrt(max(W, 0)) has a NaN cotangent at W=0 under jax.grad, and the
+        final where() only masks the primal -- the quadrature oracle
+        (_aniso_density_scalar) guards with max(W, 1e-12) and returns a 0
+        gradient there; the table must match.
+        """
+        tab = self._table()
+        grad_fn = jax.grad(lambda w: tab.evaluate(w, jnp.asarray(2.0)))
+        dW_at_zero = grad_fn(jnp.asarray(0.0))
+        dW_at_neg = grad_fn(jnp.asarray(-1.0))
+        assert bool(jnp.isfinite(dW_at_zero)), f"dV/dW NaN at W=0: {dW_at_zero}"
+        assert bool(jnp.isfinite(dW_at_neg)), f"dV/dW NaN at W=-1: {dW_at_neg}"
+        assert float(dW_at_neg) == 0.0
+
+    def test_nonnegative_in_W_to_zero_corner(self):
+        """I1 regression: cubic Lagrange can overshoot by O(1e-15 * central)
+        near the W->0 power-law corner; evaluate must clamp to rho_hat >= 0
+        (Tranche B builds CDFs from this)."""
+        tab = self._table()
+        W = jnp.geomspace(1e-6, 0.05, 200)
+        for p0 in (0.0, 1.0, 10.0, 80.0):
+            vals = jax.vmap(lambda w: tab.evaluate(w, jnp.asarray(p0)))(W)
+            assert bool(jnp.all(vals >= 0.0)), (
+                f"negative density at p={p0}: min {float(vals.min()):.2e}"
+            )
+
+    def test_accuracy_in_W_to_zero_corner(self):
+        """I2 regression: the W->0 power-law corner (geomspace W in
+        [1e-6, 0.012] x p in {0, 1, 10, 80}) must meet the same floored
+        relative budget as the main accuracy test."""
+        from progenax.profiles.limepy import _aniso_density_scalar
+
+        tab = self._table()
+        W1 = jnp.geomspace(1e-6, 0.012, 500)
+        central = float(_aniso_density_scalar(jnp.asarray(12.0), jnp.asarray(0.0),
+                                              jnp.asarray(1.0)))
+        worst = 0.0
+        for p0 in (0.0, 1.0, 10.0, 80.0):
+            pp = jnp.full_like(W1, p0)
+            approx = jax.vmap(tab.evaluate)(W1, pp)
+            exact = jax.vmap(
+                lambda w, q: _aniso_density_scalar(w, q, jnp.asarray(1.0))
+            )(W1, pp)
+            rel = np.asarray(jnp.abs(approx - exact) /
+                             jnp.maximum(exact, 1e-8 * central))
+            worst = max(worst, float(rel.max()))
+            assert rel.max() <= 1e-5, f"p={p0}: max rel err {rel.max():.2e}"
+
     def test_differentiable_in_g_and_queries(self):
         """AD through the table BUILD (g) and the query (W, p); AD matches FD."""
         from progenax.profiles.limepy_tables import AnisoDensityTable
