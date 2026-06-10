@@ -28,12 +28,12 @@ from jaxtyping import Array, Float, PRNGKeyArray
 from progenax import defaults
 from progenax.kinematics.eddington import (
     assign_om_directions,
+    eddington_invert,
     sample_speed_from_f_table,
 )
 
 _N_R = 6000      # radial grid for potential / density tabulation
 _N_E = 1000      # energy grid for f(E)
-_N_U = 2000      # quadrature points for the (substituted) Eddington integral
 _N_SPEED = 256   # per-particle speed inverse-CDF resolution
 
 
@@ -49,16 +49,6 @@ def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
     rho = (1.0 + (r / a) ** 2) ** (-gamma / 2.0)
     drho_dr = -gamma * (r / a**2) * (1.0 + (r / a) ** 2) ** (-gamma / 2.0 - 1.0)
 
-    # Osipkov-Merritt augmented density rho_Q = (1 + r^2/r_a^2) rho (and its r-deriv).
-    # The DF inversion below uses rho_Q in place of rho; the potential Psi is unchanged
-    # (it is set by the true mass density rho). r_a=None -> weight 1 -> isotropic.
-    if r_a is None:
-        rho_df, drho_df_dr = rho, drho_dr
-    else:
-        w = 1.0 + (r / r_a) ** 2
-        rho_df = w * rho
-        drho_df_dr = (2.0 * r / r_a**2) * rho + w * drho_dr
-
     dr = jnp.diff(r)
 
     def cumtrap(y):
@@ -71,40 +61,11 @@ def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
     Psi = Phi[-1] - Phi                # relative potential, Psi(r_t)=0, increases inward
     mu = inner[-1]                     # int_0^{r_t} rho s^2 ds (dimensionless mass / 4pi)
 
-    # DF inversion variables use the augmented density rho_df (= rho if isotropic).
-    drho_dr = drho_df_dr
     Mr = 4.0 * jnp.pi * inner
     dPsi_dr = -Mr / r**2               # analytic dPsi/dr (from true density)
-    # drho/dPsi = (drho/dr)/(dPsi/dr). At r->0 the enclosed mass ->0, so dPsi/dr->0
-    # (exactly at index 0, where inner[0]=0). A bare 0-denominator divide is finite
-    # in the forward pass after the center fix below, but its BACKWARD pass is NaN
-    # (0 * inf in the VJP), which kills grad w.r.t. (a, gamma). Guard with the
-    # double-where pattern so no inf/NaN ever enters the graph, then set the center
-    # point from its neighbor (the ratio has a finite limit 3 gamma / 4 pi a^2).
-    safe_dPsi_dr = jnp.where(dPsi_dr == 0.0, 1.0, dPsi_dr)
-    drho_dPsi = jnp.where(dPsi_dr == 0.0, 0.0, drho_dr / safe_dPsi_dr)
-    drho_dPsi = drho_dPsi.at[0].set(drho_dPsi[1])
-    d2rho_dPsi2 = jnp.gradient(drho_dPsi, Psi)
-
-    Psi0 = Psi[0]
-    Psi_asc = Psi[::-1]
-    d2_asc = d2rho_dPsi2[::-1]
-    bnd = drho_dPsi[-1]                # d rho/d Psi at Psi=0 (truncation boundary term)
-
-    # End just below Psi0: E=Psi0 is the singular central energy (the Eddington
-    # integrand reaches r->0); central lookups clamp to f_grid[-1], and the w^2 factor
-    # makes the w->0 (E->Psi0) contribution negligible for sampling.
-    E_grid = jnp.linspace(1e-4 * Psi0, 0.999 * Psi0, n_e)
-
-    def f_one(E):
-        # u = sqrt(E - Psi): int_0^E g/sqrt(E-Psi) dPsi = 2 int_0^sqrt(E) g(E-u^2) du
-        u = jnp.linspace(0.0, jnp.sqrt(E), _N_U)
-        g = jnp.interp(E - u**2, Psi_asc, d2_asc)
-        return (2.0 * jnp.trapezoid(g, u) + bnd / jnp.sqrt(E)) / (jnp.sqrt(8.0) * jnp.pi**2)
-
-    # Raw (unclamped) f(E): the speed sampler clamps the speed pdf at use, and the raw
-    # values let the DF constructor detect a genuinely negative (unphysical) OM DF.
-    f_grid = jax.vmap(f_one)(E_grid)
+    # Generic inversion (eddington.eddington_invert): OM augmentation, the r->0
+    # double-where dPsi guard, and the u-substituted singular integral live there.
+    E_grid, f_grid = eddington_invert(r, rho, drho_dr, Psi, dPsi_dr, r_a, n_e=n_e)
     return r, Psi, E_grid, f_grid, mu
 
 

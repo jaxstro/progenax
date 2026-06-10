@@ -1,6 +1,10 @@
-"""Shared Osipkov-Merritt (Merritt 1985) sampling helpers.
+"""Eddington inversion + shared Osipkov-Merritt (Merritt 1985) sampling helpers.
 
-Two differentiable, vmap/JIT-safe primitives reused by the anisotropic velocity DFs:
+Three differentiable, vmap/JIT-safe primitives reused by the velocity DFs:
+
+- `eddington_invert`: the generic (dimensionless) Eddington inversion of a density
+  rho(r) in a relative potential Psi(r), optionally Osipkov-Merritt anisotropic via
+  the augmented density rho_Q = (1 + r^2/r_a^2) rho (Merritt 1985, Eqs. 9-11).
 
 - `sample_speed_from_f_table`: draw a (dimensionless) speed s ~ s^2 f(Psi - s^2/2) on
   [0, sqrt(2 Psi)] via a tabulated inverse-CDF. Identical for isotropic and OM models;
@@ -20,6 +24,73 @@ See docs/website/99-bibliography/per-paper/merritt-1985.md.
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
+
+
+def eddington_invert(
+    r_grid: Float[Array, "n_r"],
+    rho_grid: Float[Array, "n_r"],
+    drho_dr_grid: Float[Array, "n_r"],
+    Psi_grid: Float[Array, "n_r"],
+    dPsi_dr_grid: Float[Array, "n_r"],
+    r_a=None,
+    n_e: int = 1000,
+    n_u: int = 2000,
+):
+    """Generic (dimensionless) Eddington inversion in a given relative potential.
+
+    Returns (E_grid, f_grid): the isotropic ergodic DF of rho in Psi, or with
+    r_a set the Osipkov-Merritt f(Q) via the augmented density
+    rho_Q = (1 + r^2/r_a^2) rho (Merritt 1985; r_a=inf or None -> isotropic).
+    Raw (unclamped) f: callers detect genuine negativity; the speed sampler
+    clamps grid-level ringing at use. Extracted VERBATIM from the validated
+    _eff_eddington_table (Phase 2a) -- the r->0 double-where dPsi guard and the
+    u = sqrt(E - Psi) substitution are gradient-safety load-bearing.
+    """
+    # Osipkov-Merritt augmentation applied to the PASSED density derivative
+    # (only drho/dr enters the inversion; Psi always comes from the TRUE density).
+    # r_a=None or inf -> weight 1 -> isotropic. The finite/inf split via jnp.where
+    # keeps a traced infinite r_a gradient-safe (no inf enters the graph).
+    if r_a is None:
+        drho_dr = drho_dr_grid
+    else:
+        r_a = jnp.asarray(r_a)
+        finite = jnp.isfinite(r_a)
+        ra_safe = jnp.where(finite, r_a, 1.0)
+        w = jnp.where(finite, 1.0 + (r_grid / ra_safe) ** 2, 1.0)
+        dw = jnp.where(finite, 2.0 * r_grid / ra_safe**2, 0.0)
+        drho_dr = dw * rho_grid + w * drho_dr_grid
+
+    # drho/dPsi = (drho/dr)/(dPsi/dr). At r->0 the enclosed mass ->0, so dPsi/dr->0
+    # (exactly at index 0 when M(<r_grid[0])=0). A bare 0-denominator divide is finite
+    # in the forward pass after the center fix below, but its BACKWARD pass is NaN
+    # (0 * inf in the VJP), which kills grad w.r.t. the density parameters. Guard with
+    # the double-where pattern so no inf/NaN ever enters the graph, then set the center
+    # point from its neighbor (the ratio has a finite limit there).
+    safe_dPsi_dr = jnp.where(dPsi_dr_grid == 0.0, 1.0, dPsi_dr_grid)
+    drho_dPsi = jnp.where(dPsi_dr_grid == 0.0, 0.0, drho_dr / safe_dPsi_dr)
+    drho_dPsi = drho_dPsi.at[0].set(drho_dPsi[1])
+    d2rho_dPsi2 = jnp.gradient(drho_dPsi, Psi_grid)
+
+    Psi0 = Psi_grid[0]
+    Psi_asc = Psi_grid[::-1]
+    d2_asc = d2rho_dPsi2[::-1]
+    bnd = drho_dPsi[-1]                # d rho/d Psi at Psi=0 (truncation boundary term)
+
+    # End just below Psi0: E=Psi0 is the singular central energy (the Eddington
+    # integrand reaches r->0); central lookups clamp to f_grid[-1], and the w^2 factor
+    # makes the w->0 (E->Psi0) contribution negligible for sampling.
+    E_grid = jnp.linspace(1e-4 * Psi0, 0.999 * Psi0, n_e)
+
+    def f_one(E):
+        # u = sqrt(E - Psi): int_0^E g/sqrt(E-Psi) dPsi = 2 int_0^sqrt(E) g(E-u^2) du
+        u = jnp.linspace(0.0, jnp.sqrt(E), n_u)
+        g = jnp.interp(E - u**2, Psi_asc, d2_asc)
+        return (2.0 * jnp.trapezoid(g, u) + bnd / jnp.sqrt(E)) / (jnp.sqrt(8.0) * jnp.pi**2)
+
+    # Raw (unclamped) f(E): the speed sampler clamps the speed pdf at use, and the raw
+    # values let callers detect a genuinely negative (unphysical) OM DF.
+    f_grid = jax.vmap(f_one)(E_grid)
+    return E_grid, f_grid
 
 
 def sample_speed_from_f_table(
@@ -81,4 +152,4 @@ def assign_om_directions(
     return v_r[:, None] * r_hat + v_t[:, None] * t_hat
 
 
-__all__ = ["sample_speed_from_f_table", "assign_om_directions"]
+__all__ = ["eddington_invert", "sample_speed_from_f_table", "assign_om_directions"]
