@@ -95,3 +95,16 @@ class TestSharedPotential:
         with pytest.raises(ValueError, match="mass_fractions"):
             shared_potential([PlummerProfile(1.0), PlummerProfile(2.0)],
                              jnp.array([0.6, 0.6]), r_t=jnp.asarray(20.0))
+
+
+class TestKingDrhoDW:
+    def test_closed_form_matches_autodiff(self):
+        """Pin the closed-form _king_drho_dW (the erf'/boundary cancellation)
+        against jax.grad of the King lowered-Maxwellian density itself."""
+        from progenax.profiles.density_poisson import _king_drho_dW
+        from progenax.profiles.king import king_lowered_maxwellian_density
+
+        W = jnp.linspace(0.01, 9.0, 400)
+        ad = jax.vmap(jax.grad(king_lowered_maxwellian_density))(W)
+        np.testing.assert_allclose(np.asarray(_king_drho_dW(W)), np.asarray(ad),
+                                   rtol=1e-10)

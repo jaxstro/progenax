@@ -24,6 +24,8 @@ import pytest
 
 from jaxstro.units import STELLAR
 
+from progenax import EFFProfile, PlummerProfile
+
 G = STELLAR.G
 
 
@@ -558,3 +560,57 @@ class TestAnisotropicSampling:
 
         d = jax.grad(loss)(10.0)
         assert jnp.isfinite(d)
+
+
+class TestEngineB:
+    # Default mix: Plummer halo + EFF core. The core scale a=0.8 (NOT the
+    # originally drafted 0.4) is a REALIZABILITY constraint, independently
+    # verified with a closed-form two-Plummer oracle (gamma=5 EFF == Plummer):
+    # at a=0.4 the cored halo density in the concentrated core's potential has
+    # a GENUINELY negative Eddington DF for E > ~0.8 Psi0 (f ~ -1.2e-3 absolute,
+    # min f/max|f| ~ -0.2, resolution-independent) -- the design doc's named
+    # "shallow component in a concentrated companion's potential" non-equilibrium.
+    # At a=0.8 the same oracle gives f > 0 everywhere (min f/max|f| = +0.016).
+    def _model(self, **kw):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        defaults_ = dict(
+            profiles=[PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
+            mass_fractions=jnp.array([0.6, 0.4]), m_j=jnp.array([0.5, 1.0]))
+        defaults_.update(kw)
+        return MultiComponentCluster.from_density_profiles(**defaults_)
+
+    def test_constructs_and_reports_domain(self):
+        m = self._model()
+        assert m.engine == "B"
+        assert float(m.r_t) == 9.0                       # EFF extent wins (design c)
+        assert "EFF" in m.engine_b.r_t_provenance
+        assert bool(jnp.all(jnp.isfinite(m.engine_b.f_j_grid)))
+
+    def test_f_min_diagnostic_stored_and_benign_here(self):
+        m = self._model()
+        fmin = np.asarray(m.engine_b.f_min_j)
+        assert fmin.shape == (2,)
+        assert np.all(fmin > -1e-3)                      # realizable mix (relative units)
+
+    def test_a_fields_are_nan_tripwires(self):
+        """Engine-A-only fields are NaN in B mode: accidental A-path use must
+        poison results visibly, never silently."""
+        m = self._model()
+        for name in ("W0", "g", "mu_tot"):
+            assert bool(jnp.isnan(getattr(m, name)))
+        assert bool(jnp.all(jnp.isnan(m.alpha_j))) and bool(jnp.all(jnp.isnan(m.w_j)))
+
+    def test_position_cdf_matches_component_masses(self):
+        """_cdf_j is reused verbatim by the sampler: each row is a normalized
+        M_j(<r); the Plummer row must match the analytic CDF."""
+        m = self._model(profiles=[PlummerProfile(r_h=1.0)],
+                        mass_fractions=jnp.array([1.0]), m_j=jnp.array([1.0]))
+        a = float(PlummerProfile(r_h=1.0).a)
+        x = np.asarray(m._r_grid) / a
+        exact = x**3 / (1 + x**2) ** 1.5
+        exact = exact / exact[-1]
+        np.testing.assert_allclose(np.asarray(m._cdf_j[0]), exact, atol=2e-3)
+
+    def test_unrealizable_om_raises_with_component_name(self):
+        with pytest.raises(ValueError, match="component 0"):
+            self._model(r_a_j=jnp.array([0.05, jnp.inf]))   # absurdly radial halo

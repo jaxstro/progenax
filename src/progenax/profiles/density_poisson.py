@@ -68,7 +68,9 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
 
     An explicit override wins, BUT a King component whose natural r_t exceeds the
     override raises ValueError: a King model's lowered-Maxwellian edge is part of
-    the prescribed physics and must not be silently re-truncated.
+    the prescribed physics and must not be silently re-truncated. The
+    override/conflict branch requires a CONCRETE r_t -- domain resolution is a
+    construction-time decision, not a traced quantity.
     """
     extents = [component_extent(p) for p in profiles]
 
@@ -242,12 +244,16 @@ def shared_potential(
     """
     mass_fractions = jnp.asarray(mass_fractions)
     total = jnp.sum(mass_fractions)
-    if not isinstance(total, jax.core.Tracer):
-        if abs(float(total) - 1.0) > 1e-8:
-            raise ValueError(
-                f"mass_fractions must sum to 1 (got {float(total):.10g}); they are "
-                f"M_j/M_total amplitudes of the prescribed component densities."
-            )
+    try:
+        total_f = float(total)
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
+            TypeError):
+        total_f = None  # traced build: the sum cannot be checked at trace time
+    if total_f is not None and abs(total_f - 1.0) > 1e-8:
+        raise ValueError(
+            f"mass_fractions must sum to 1 (got {total_f:.10g}); they are "
+            f"M_j/M_total amplitudes of the prescribed component densities."
+        )
 
     r_t = jnp.asarray(r_t)
     r = jnp.linspace(1e-5, r_t, n_r)

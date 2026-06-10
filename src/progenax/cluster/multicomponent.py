@@ -26,6 +26,8 @@ References:
     Gieles, M. & Zocchi, A. (2015), MNRAS, 454, 576 (Eqs. 24-29, Section 4.1).
 """
 
+from typing import Optional
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
@@ -46,6 +48,7 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
+from progenax.cluster.eddington_engine import _EngineBState, assemble_engine_b_fields
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
 
 
@@ -117,16 +120,27 @@ class MultiComponentCluster(eqx.Module):
     _r_grid: Float[Array, "n_grid"]
     _cdf_j: Float[Array, "n_comp n_grid"]
     is_aniso: bool = eqx.field(static=True)
+    engine: str = eqx.field(static=True)
+    engine_b: Optional[_EngineBState] = None
 
-    def __init__(self, alpha_j, w_j, m_j, W0, g, r_c, xi_grid, psi_grid,
+    def __init__(self, alpha_j=None, w_j=None, m_j=None, W0=None, g=None,
+                 r_c=None, xi_grid=None, psi_grid=None,
                  ra_hat_j=None, residual=0.0, n_grid: int = 1000,
-                 rho_on_xi=None, dens_fn=None):
+                 rho_on_xi=None, dens_fn=None, _fields=None):
         """Assemble model state from a finished coupled solve; constructors
         forward `rho_on_xi` (the solver's (n_comp, n_ode) density grid, reused
         verbatim for nu_j/mu_tot) and `dens_fn` (the solve's pointwise
         (xi, psi) -> (n_comp,) density source, e.g. the shared-table source,
         used for the r-grid mass CDF) -- either may be None to recompute /
-        fall back to exact quadrature."""
+        fall back to exact quadrature.
+
+        `_fields` (internal): a complete name -> value dict assembled by a
+        non-A constructor (`from_density_profiles`, Engine B); when given,
+        fields are set verbatim and the Engine-A assembly is skipped."""
+        if _fields is not None:
+            for name, val in _fields.items():
+                object.__setattr__(self, name, val)
+            return
         is_aniso = ra_hat_j is not None
         alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
         w_j = jnp.asarray(w_j, dtype=jnp.float64)
@@ -188,6 +202,8 @@ class MultiComponentCluster(eqx.Module):
         ).items():
             object.__setattr__(self, name, val)
         object.__setattr__(self, "is_aniso", is_aniso)
+        object.__setattr__(self, "engine", "A")
+        object.__setattr__(self, "engine_b", None)
 
     @property
     def rescale_j(self) -> Float[Array, "n_comp"]:
@@ -273,6 +289,33 @@ class MultiComponentCluster(eqx.Module):
         return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
                    residual=residual, n_grid=n_grid, rho_on_xi=rho_j,
                    dens_fn=dens_fn)
+
+    @classmethod
+    def from_density_profiles(cls, profiles, mass_fractions, m_j, r_a_j=None,
+                              r_t=None, f_enc: float = 0.995, n_r: int = 6000,
+                              n_e: int = 1000, n_grid: int = 1000):
+        """Engine B constructor: prescribed-density components in ONE shared Psi.
+
+        Each component j is a prescribed density shape (PlummerProfile,
+        EFFProfile, or KingProfile) with amplitude `mass_fractions[j]` = M_j /
+        M_total (must sum to 1); the shared self-consistent potential is one
+        quadrature pass (no ODE) and each component's DF is its Eddington
+        inversion in that shared Psi -- optionally Osipkov-Merritt anisotropic
+        via `r_a_j` (per-component anisotropy radii; None/inf = isotropic).
+        The domain r_t is DERIVED from the component extents (max finite
+        extent, else the f_enc summed-mass radius; explicit `r_t=` override
+        available -- see `derive_r_t`); provenance + realizability diagnostics
+        live on `self.engine_b`. A genuinely unrealizable mix (negative DF)
+        raises ValueError naming the component (concrete inputs).
+
+        `m_j` are decoupled stellar-mass labels exactly as in Engine A:
+        N_frac_j proportional to mass_fractions_j / m_j. Engine-A-only fields
+        (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j, xi_grid, psi_grid) are NaN
+        tripwires -- accidental A-path use poisons results visibly.
+        """
+        return cls(_fields=assemble_engine_b_fields(
+            profiles, mass_fractions, m_j, r_a_j=r_a_j, r_t=r_t, f_enc=f_enc,
+            n_r=n_r, n_e=n_e, n_grid=n_grid))
 
     def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
         """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model.
