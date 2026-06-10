@@ -34,7 +34,7 @@ jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
 from progenax.profiles.limepy import lowered_exponential
-from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.dynamics import per_group_virial_ratio, compute_virial_ratio
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -79,10 +79,11 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     import matplotlib.pyplot as plt
 
-    model = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=0.5, r_c=1.0)
+    model = MultiComponentCluster.from_mass_segregation(alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=0.5, r_c=1.0)
 
     # ---- sampled cluster for panels (a)-(b) ----
-    pos, vel, masses = model.sample_cluster(jax.random.PRNGKey(0), n_stars=40000, G=G)
+    ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=40000, G=G)
+    pos, vel, masses = ic.positions, ic.velocities, ic.masses
     pos = pos - jnp.average(pos, axis=0, weights=masses)
     vel = vel - jnp.average(vel, axis=0, weights=masses)
     r = np.asarray(jnp.linalg.norm(pos, axis=1))
@@ -113,7 +114,7 @@ def main():
     edges = np.linspace(0.1, 0.85 * float(model.r_t), 9)
     for j, (mj, col, lab) in enumerate([(M_J[0], LCOL, "light"), (M_J[1], HCOL, "heavy")]):
         sel = np.isclose(masses_n, float(mj))
-        s_j = s * float(model.mu_j[j]) ** (-0.5)
+        s_j = s * float(model.w_j[j])  # w_j = mu_j^(-delta), delta=0.5
         rc_, sig_m, sig_a = [], [], []
         for lo, hi in zip(edges[:-1], edges[1:]):
             m = sel & (r >= lo) & (r < hi)
@@ -135,7 +136,7 @@ def main():
     # (c) segregation strength vs delta
     seg = []
     for d in DELTAS:
-        mdl = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=float(d), r_c=1.0)
+        mdl = MultiComponentCluster.from_mass_segregation(alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=float(d), r_c=1.0)
         seg.append(_half_mass_r(mdl, 0) / _half_mass_r(mdl, 1))
     axC.plot(DELTAS, seg, "-o", color=OI["green"], ms=5, lw=1.8)
     axC.axhline(1.0, color="0.6", ls="--", lw=1.0)
@@ -151,12 +152,13 @@ def main():
     Qg_all, Ql_all, Qh_all, Ql_se, Qh_se = [], [], [], [], []
     Qlt_all, Qht_all = [], []
     for d in DELTAS:
-        mdl = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=float(d), r_c=1.0)
+        mdl = MultiComponentCluster.from_mass_segregation(alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=float(d), r_c=1.0)
         Qth = np.asarray(mdl.component_virial_ratios())
         Qlt_all.append(Qth[0]); Qht_all.append(Qth[1])
         Ql_s, Qh_s, Qg_s = [], [], []
         for sd in SEEDS:
-            p, v, mm = mdl.sample_cluster(jax.random.PRNGKey(sd), n_stars=8000, G=G)
+            ic = mdl.sample_cluster(jax.random.PRNGKey(sd), n_stars=8000, G=G)
+            p, v, mm = ic.positions, ic.velocities, ic.masses
             p = p - jnp.average(p, axis=0, weights=mm)
             v = v - jnp.average(v, axis=0, weights=mm)
             masks = jnp.stack([jnp.isclose(mm, float(mj)) for mj in M_J])

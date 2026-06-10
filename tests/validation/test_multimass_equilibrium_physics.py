@@ -22,7 +22,7 @@ import pytest
 
 from jaxstro.units import STELLAR
 from progenax.profiles.limepy import lowered_exponential
-from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.dynamics import per_group_virial_ratio, compute_virial_ratio
 
 G = STELLAR.G
@@ -33,14 +33,15 @@ SOFT = 0.05
 
 
 def _model(delta):
-    return MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=GG, delta=delta, r_c=1.0)
+    return MultiComponentCluster.from_mass_segregation(
+        alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=GG, delta=delta, r_c=1.0)
 
 
 def _sample(model, seed, n=8000):
-    p, v, m = model.sample_cluster(jax.random.PRNGKey(seed), n_stars=n, G=G)
-    p = p - jnp.average(p, axis=0, weights=m)
-    v = v - jnp.average(v, axis=0, weights=m)
-    return p, v, m
+    ic = model.sample_cluster(jax.random.PRNGKey(seed), n_stars=n, G=G)
+    p = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+    v = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+    return p, v, ic.masses
 
 
 def test_global_virial_is_half_across_delta():
@@ -74,7 +75,7 @@ def test_per_component_dispersion_matches_equilibrium_df():
 
     for j in range(2):
         sel = np.isclose(masses, float(M_J[j]))
-        s_j = s * float(model.mu_j[j]) ** (-0.5)
+        s_j = s * float(model.w_j[j])  # w_j = mu_j^(-delta), delta=0.5 here
         core = sel & (r < 1.0)
         assert core.sum() > 80
         rmid = float(np.median(r[core]))
@@ -119,11 +120,10 @@ def _analytic_beta_meanfield(model, j, rr):
     """DF anisotropy beta_j(r) = 1 - <v_t^2>/(2<v_r^2>) by direct (u,c) quadrature of the
     LIMEPY phase-space weight u^2 E_gamma(g, W_j - u^2/2) exp(-(p_j^2/2) u^2 (1-c^2)) --
     the mean-field ground truth (no sampling) the sampled beta must reproduce."""
-    ra_hat = float(model.r_a / model.r_c)
     psi = float(jnp.interp(rr / model.r_c, model.xi_grid, model.psi_grid,
                            left=model.W0, right=0.0))
     W_j = float(model.rescale_j[j]) * max(psi, 0.0)
-    p = (rr / float(model.r_c)) / (ra_hat * float(model.mu_j[j]) ** float(model.eta))
+    p = (rr / float(model.r_c)) / float(model.ra_hat_j[j])
     u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
     c = jnp.linspace(-1.0, 1.0, 240)
     E = lowered_exponential(model.g, W_j - u**2 / 2.0)
@@ -143,9 +143,9 @@ def test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic():
     is drawn from the Michie/Osipkov-Merritt LIMEPY DF, not merely 'some' anisotropy."""
     r_a = 5.0
     for delta in (0.0, 0.3, 0.5):
-        model = MultiMassLIMEPY.from_alpha(
-            ALPHA_J, M_J, W0=W0, g=GG, delta=delta, r_a=r_a, eta=0.0, r_c=1.0,
-            xi_max=800.0, n_ode_points=3000)
+        model = MultiComponentCluster.from_mass_segregation(
+            alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=GG, delta=delta, r_a=r_a, eta=0.0,
+            r_c=1.0, xi_max=800.0, n_ode_points=3000)
         Qs = []
         for s in range(3):
             p, v, m = _sample(model, s, n=20000)
@@ -154,9 +154,9 @@ def test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic():
             f"aniso delta={delta}: global Q={np.mean(Qs):.3f}"
 
     # Anisotropy correctness at delta=0.4: sampled beta_light(r) matches the DF.
-    model = MultiMassLIMEPY.from_alpha(
-        ALPHA_J, M_J, W0=W0, g=GG, delta=0.4, r_a=r_a, eta=0.0, r_c=1.0,
-        xi_max=800.0, n_ode_points=3000)
+    model = MultiComponentCluster.from_mass_segregation(
+        alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=GG, delta=0.4, r_a=r_a, eta=0.0,
+        r_c=1.0, xi_max=800.0, n_ode_points=3000)
     p, v, m = _sample(model, 0, n=60000)
     r = np.asarray(jnp.linalg.norm(p, axis=1))
     r_hat = np.asarray(p) / (r[:, None] + 1e-30)

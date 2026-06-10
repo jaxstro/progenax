@@ -25,7 +25,7 @@ from .protocols import (
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
-    LIMEPYProfile, MultiMassLIMEPY,
+    LIMEPYProfile,
     solve_king_profile, solve_michie_profile, solve_limepy_profile,
     solve_multimass_limepy, find_alpha_for_masses,
 )
@@ -101,7 +101,7 @@ from .tidal import (
     apply_tidal_truncation,
     fill_factor_to_r_h,
 )
-from .cluster import energy_sorted_segregation
+from .cluster import MultiComponentCluster, energy_sorted_segregation
 from .populations import (
     TwoComponentConfig,
     generate_two_component_cluster,
@@ -127,7 +127,7 @@ __all__ = [
     "MichieProfile",
     "EFFProfile",
     "LIMEPYProfile",
-    "MultiMassLIMEPY",
+    "MultiComponentCluster",
     "solve_king_profile",
     "solve_michie_profile",
     "solve_limepy_profile",

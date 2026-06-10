@@ -138,6 +138,11 @@ class ICResult:
             population with `binaries.diagnostics.find_bound_pairs`, not this.
         is_primordial_secondary: (N,) bool — True for the secondary of a
             primordial binary; None for single-only ICs.
+        component_id: (N,) int — which population component each particle was
+            drawn from (multi-component generators, e.g. MultiComponentCluster);
+            None for single-population ICs. Like primordial_system_id, this is
+            **PROVENANCE at t=0** — a label of the generating component, not a
+            dynamical invariant.
     """
 
     positions: Float[Array, "N 3"]
@@ -147,6 +152,7 @@ class ICResult:
     ids: Optional[Float[Array, "N"]] = None
     primordial_system_id: Optional[Int[Array, "N"]] = None
     is_primordial_secondary: Optional[Bool[Array, "N"]] = None
+    component_id: Optional[Int[Array, "N"]] = None
 
 
 def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:

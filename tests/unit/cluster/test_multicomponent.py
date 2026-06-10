@@ -1,0 +1,507 @@
+# progenax/tests/unit/cluster/test_multicomponent.py
+"""Unit tests for MultiComponentCluster (Phase 1b of the unified redesign).
+
+The unified, differentiable multi-component cluster model (Engine A: DF-defined
+lowered-isothermal / LIMEPY). The physics flows from DIRECT per-component scales:
+
+    w_j = s_j / s          per-component velocity-scale ratio (THE free scale),
+    rescale_j = w_j^-2     potential-depth rescaling fed to the coupled solve,
+    ra_hat_j = r_{a,j}/r_c per-component anisotropy radius (None = isotropic),
+
+with the representative stellar mass m_j DECOUPLED from the dynamics (it only
+labels the stars). Mass segregation is the convenience w_j = mu_j^(-delta)
+(Gieles & Zocchi 2015); GC 1G/2G and halo+core populations set w_j directly.
+
+THE new regression here (the bug the legacy generate_two_component_cluster had):
+an UNEQUAL-mass two-population model must be a true shared-potential equilibrium
+-- global Q = T/|V| = 0.5 AND per-component Q_j ~ 0.5 -- for mean(m_A) != mean(m_B).
+"""
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+from jaxstro.units import STELLAR
+
+G = STELLAR.G
+
+
+def _component_half_mass_radius(model, j):
+    """Half-mass radius of component j from the model's own mass CDF."""
+    return float(jnp.interp(0.5, model._cdf_j[j], model._r_grid))
+
+
+class TestFromComponents:
+    """Direct constructor: components defined by (alpha_j, w_j, m_j[, ra_hat_j])."""
+
+    def test_unit_w_recovers_single_mass_density(self):
+        """All w_j = 1 => identical components => the total density is the single-mass
+        LIMEPY profile (the structural oracle), regardless of alpha_j / m_j."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 1.0]),
+            m_j=jnp.array([0.4, 5.0]), W0=7.0, g=1.0, r_c=1.0)
+        king = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0)
+        r = jnp.linspace(0.0, float(king.r_t) * 0.98, 200)
+        tot = model.total_density(r)
+        ref = king.density(r)
+        np.testing.assert_allclose(np.asarray(tot / tot[0]), np.asarray(ref / ref[0]),
+                                   rtol=3e-3, atol=3e-3)
+
+    def test_equal_mass_populations_segregate_by_w(self):
+        """The GC 1G/2G case the mass path cannot express: two EQUAL-MASS populations
+        with different w_j. The colder one (smaller w_j) is more centrally
+        concentrated -- concentration is a velocity-scale effect, not a mass effect."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.5, 0.5]), w_j=jnp.array([1.0, 0.6]),
+            m_j=jnp.array([0.8, 0.8]), W0=7.0, g=1.0, r_c=1.0)
+        rh_hot = _component_half_mass_radius(model, 0)
+        rh_cold = _component_half_mass_radius(model, 1)
+        assert rh_cold < rh_hot, (
+            f"cold (w=0.6) r_h={rh_cold:.2f} not < hot (w=1.0) r_h={rh_hot:.2f}")
+
+    def test_theoretical_component_virial_is_half(self):
+        """Every component of a from_components model is in equilibrium: the
+        theoretical Q_j = T_j/|W_j| (no sampling, no softening) is exactly 0.5."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.5, 0.5]), w_j=jnp.array([1.0, 0.7]),
+            m_j=jnp.array([0.8, 0.8]), W0=7.0, g=1.0, r_c=1.0, n_ode_points=4000)
+        Qj = np.asarray(model.component_virial_ratios())
+        np.testing.assert_allclose(Qj, 0.5, atol=2e-3, err_msg=f"Q_j={Qj}")
+
+    def test_rescale_is_w_inverse_squared(self):
+        """The model exposes the velocity-scale ratio w_j and the derived potential
+        rescaling rescale_j = w_j^-2 consistently."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        w = jnp.array([1.0, 0.5])
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.5, 0.5]), w_j=w, m_j=jnp.array([1.0, 1.0]),
+            W0=5.0, g=1.0, r_c=1.0)
+        np.testing.assert_allclose(np.asarray(model.rescale_j), np.asarray(w**-2),
+                                   rtol=1e-12)
+
+    def test_differentiable_in_w_j(self):
+        """Gradients flow through construction + sampling w.r.t. the direct
+        per-component velocity-scale ratios w_j -- the scales are inferable."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        def loss(w_j):
+            model = MultiComponentCluster.from_components(
+                alpha_j=jnp.array([0.6, 0.4]), w_j=w_j,
+                m_j=jnp.array([0.5, 2.0]), W0=7.0, g=1.0, r_c=1.0,
+                n_ode_points=1500, n_grid=600)
+            ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=400, G=G)
+            return jnp.mean(jnp.sum(ic.velocities**2, axis=1))
+
+        d = jax.grad(loss)(jnp.array([1.0, 0.8]))
+        assert jnp.all(jnp.isfinite(d)) and jnp.any(jnp.abs(d) > 0)
+
+    def test_direct_per_component_anisotropy(self):
+        """from_components accepts a direct per-component ra_hat_j; the anisotropic
+        model still has every component in theoretical equilibrium (Q_j = 0.5)."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.7]),
+            m_j=jnp.array([1.0, 1.0]), W0=7.0, g=1.0, r_c=1.0,
+            ra_hat_j=jnp.array([10.0, 10.0]), xi_max=800.0, n_ode_points=3000)
+        Qj = np.asarray(model.component_virial_ratios())
+        np.testing.assert_allclose(Qj, 0.5, atol=3e-3, err_msg=f"aniso Q_j={Qj}")
+
+
+class TestFromMassSegregation:
+    """Mass-segregation convenience: w_j = mu_j^(-delta), ra_hat_j = (r_a/r_c) mu_j^eta."""
+
+    def test_solve_matches_mass_wrapper(self):
+        """from_mass_segregation rides EXACTLY the validated mass-path coupled solve:
+        its shared potential equals solve_multimass_limepy's for the same (m_j, delta)."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        from progenax.profiles.limepy_multimass import solve_multimass_limepy
+
+        alpha = jnp.array([0.6, 0.4]); m_j = jnp.array([0.5, 4.0]); delta = 0.5
+        model = MultiComponentCluster.from_mass_segregation(
+            alpha_j=alpha, m_j=m_j, W0=7.0, g=1.0, delta=delta, r_c=1.0)
+        _, psi_ref, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
+        np.testing.assert_allclose(np.asarray(model.psi_grid), np.asarray(psi_ref),
+                                   rtol=1e-11, atol=1e-11)
+        # and the w_j are the equipartition law w_j = mu_j^(-delta)
+        bar_m = jnp.sum(m_j * alpha); mu_j = m_j / bar_m
+        np.testing.assert_allclose(np.asarray(model.w_j),
+                                   np.asarray(mu_j ** (-delta)), rtol=1e-12)
+
+    def test_segregation_and_equipartition_signatures(self):
+        """The classic delta>0 signatures survive the rewrite: the heavy component is
+        more concentrated AND kinematically colder (sampled core dispersions)."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_mass_segregation(
+            alpha_j=jnp.array([0.6, 0.4]), m_j=jnp.array([1.0, 4.0]),
+            W0=7.0, g=1.0, delta=0.5, r_c=1.0)
+        assert _component_half_mass_radius(model, 1) < _component_half_mass_radius(model, 0)
+
+        ic = model.sample_cluster(jax.random.PRNGKey(2), n_stars=15000, G=G)
+        r = jnp.linalg.norm(ic.positions, axis=1)
+        v2 = jnp.sum(ic.velocities**2, axis=1)
+        core = r < 1.0
+        sig = [float(jnp.sqrt(jnp.mean(v2[core & (ic.component_id == j)]) / 3.0))
+               for j in range(2)]
+        assert sig[1] < sig[0], f"heavy sigma={sig[1]:.3f} not < light {sig[0]:.3f}"
+
+
+class TestUnequalMassTwoPopulationEquilibrium:
+    """THE new regression (the legacy generate_two_component_cluster bug): an
+    unequal-mass two-population model -- realistic mean(m_A) != mean(m_B) -- must be a
+    TRUE shared-potential equilibrium, globally AND per component. The legacy path fed
+    the full cluster mass to each sub-population's DF and superposed two independently
+    sampled spheres, so it was only (silently) virial for equal masses."""
+
+    def test_true_shared_potential_equilibrium(self):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        from progenax.dynamics import compute_virial_ratio
+        from progenax.dynamics.virial import per_group_virial_ratio
+
+        # Two populations with different representative masses AND different
+        # velocity scales (w_j NOT derived from the masses -- the general case).
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.8]),
+            m_j=jnp.array([0.5, 2.0]), W0=7.0, g=1.0, r_c=1.0)
+
+        # Exact statement: every component is in equilibrium in the shared potential.
+        Qj_theory = np.asarray(model.component_virial_ratios())
+        np.testing.assert_allclose(Qj_theory, 0.5, atol=2e-3,
+                                   err_msg=f"theoretical Q_j={Qj_theory}")
+
+        # Sampled statement: global Q AND per-component Q_j (finite-N estimators).
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=20000, G=G)
+        pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+        vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+
+        Qg = float(compute_virial_ratio(pos, vel, ic.masses, G=G))
+        assert abs(Qg - 0.5) < 0.04, f"global Q={Qg:.3f} (expected 0.5)"
+
+        masks = jnp.stack([ic.component_id == 0, ic.component_id == 1])
+        Qj = np.asarray(per_group_virial_ratio(pos, vel, ic.masses, G=G,
+                                               group_masks=masks))
+        np.testing.assert_allclose(Qj, 0.5, atol=0.07,
+                                   err_msg=f"sampled per-component Q_j={Qj}")
+
+
+class TestSampleClusterICResult:
+    """sample_cluster returns a full ICResult carrying the per-particle component label."""
+
+    def test_icresult_fields_and_component_id(self):
+        from progenax.builders import ICResult, compute_stellar_radii
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.8]),
+            m_j=jnp.array([0.5, 2.0]), W0=7.0, g=1.0, r_c=1.0)
+        n = 3000
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=n, G=G)
+
+        assert isinstance(ic, ICResult)
+        assert ic.positions.shape == (n, 3) and ic.velocities.shape == (n, 3)
+        assert ic.masses.shape == (n,) and ic.stellar_radii.shape == (n,)
+        assert bool(jnp.all(jnp.isfinite(ic.positions)))
+        assert bool(jnp.all(jnp.isfinite(ic.velocities)))
+
+        # component_id labels each star; the mass IS the component's m_j.
+        assert ic.component_id is not None and ic.component_id.shape == (n,)
+        assert jnp.issubdtype(ic.component_id.dtype, jnp.integer)
+        assert bool(jnp.all((ic.component_id >= 0) & (ic.component_id <= 1)))
+        np.testing.assert_allclose(np.asarray(ic.masses),
+                                   np.asarray(model.m_j[ic.component_id]), rtol=0)
+        # both components actually drawn
+        assert int(jnp.sum(ic.component_id == 1)) > 0
+
+        np.testing.assert_allclose(np.asarray(ic.stellar_radii),
+                                   np.asarray(compute_stellar_radii(ic.masses)),
+                                   rtol=1e-12)
+
+    def test_icresult_component_id_defaults_none(self):
+        """The new ICResult field is optional: existing construction is unchanged."""
+        from progenax.builders import ICResult
+
+        ic = ICResult(positions=jnp.zeros((2, 3)), velocities=jnp.zeros((2, 3)),
+                      masses=jnp.ones(2), stellar_radii=jnp.ones(2))
+        assert ic.component_id is None
+
+
+class TestFromIMF:
+    """IMF path: bin the IMF, eigenvalue-solve for alpha_j, mass-segregation scales."""
+
+    def test_constructs_and_hits_masses(self):
+        from progenax.imf import PowerLawIMF
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_imf(
+            PowerLawIMF.kroupa(), n_comp=4, W0=7.0, g=1.0, delta=0.5,
+            m_range=(0.1, 20.0), r_c=1.0)
+        assert float(model.residual) < 2e-3
+        assert model.m_j.shape == (4,) and model.alpha_j.shape == (4,)
+        assert abs(float(jnp.sum(model.alpha_j)) - 1.0) < 1e-9
+        # equipartition ordering: heavier bins are colder (smaller w_j)
+        assert bool(jnp.all(jnp.diff(model.w_j) < 0))
+
+
+# ==============================================================================
+# Ported from tests/unit/profiles/test_limepy_multimass.py (TestMultiMassLIMEPYModel
+# + TestAnisotropicSampling), adapted to MultiComponentCluster + ICResult. These are
+# the validated regression suite of the retired MultiMassLIMEPY class.
+# ==============================================================================
+
+
+def _two_component(delta=0.5, W0=7.0, g=1.0):
+    """A mass ratio mild enough that the (rarer, concentrated) heavy component is
+    resolvable for kinematics, while still clearly segregating (mu_heavy > 1)."""
+    from progenax.cluster.multicomponent import MultiComponentCluster
+    return MultiComponentCluster.from_mass_segregation(
+        alpha_j=jnp.array([0.6, 0.4]), m_j=jnp.array([1.0, 4.0]),
+        W0=W0, g=g, delta=delta, r_c=1.0)
+
+
+class TestSampledEquilibrium:
+    """Sampled-cluster equilibrium regressions (ported from the legacy model tests)."""
+
+    def test_per_group_dispersion_matches_df_and_global_virial(self):
+        """THE headline equilibrium proof: each mass component is sampled from ITS OWN
+        equilibrium DF, so the per-component core dispersion sigma_1d,j matches the
+        analytic LIMEPY moment s_j sqrt(I2/I0/3), and the whole cluster is virial
+        (global Q=0.5, unscaled)."""
+        from progenax.dynamics import compute_virial_ratio
+        from progenax.profiles.limepy import lowered_exponential
+
+        model = _two_component(delta=0.5)
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=15000, G=G)
+        pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+        vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+        r = jnp.linalg.norm(pos, axis=1)
+        v2 = jnp.sum(vel**2, axis=1)
+        s = jnp.sqrt(G * jnp.sum(ic.masses) / (9.0 * model.r_c * model.mu_tot))
+
+        def analytic_sigma1d(W_j, s_j):
+            u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
+            E = lowered_exponential(model.g, W_j - u**2 / 2.0)
+            return float(s_j * jnp.sqrt(jnp.trapezoid(u**4 * E, u)
+                                        / jnp.trapezoid(u**2 * E, u) / 3.0))
+
+        for jc in range(2):
+            sel = ic.component_id == jc
+            r_j, v2_j = r[sel], v2[sel]
+            s_j = float(s * model.w_j[jc])
+            core = r_j < 1.0
+            assert int(jnp.sum(core)) > 60, "too few stars to resolve the core dispersion"
+            sig_meas = float(jnp.sqrt(jnp.mean(v2_j[core]) / 3.0))
+            r_mid = float(jnp.median(r_j[core]))
+            W_j = float(model.rescale_j[jc]) * float(
+                jnp.interp(r_mid, model.xi_grid, model.psi_grid))
+            sig_pred = analytic_sigma1d(jnp.asarray(W_j), s_j)
+            np.testing.assert_allclose(sig_meas, sig_pred, rtol=0.08,
+                                       err_msg=f"component {jc} dispersion off equilibrium")
+
+        Qg = float(compute_virial_ratio(pos, vel, ic.masses, G=G))
+        assert abs(Qg - 0.5) < 0.04, f"global Q={Qg:.3f} (expected 0.5)"
+
+    def test_theoretical_component_virial_across_delta(self):
+        """The bias-free equilibrium proof holds at every equipartition degree:
+        theoretical Q_j = 0.5 for both components for delta in [0, 0.6]."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        for delta in (0.0, 0.3, 0.5, 0.6):
+            model = MultiComponentCluster.from_mass_segregation(
+                alpha_j=jnp.array([0.5, 0.5]), m_j=jnp.array([1.0, 4.0]),
+                W0=7.0, g=1.0, delta=delta, r_c=1.0, n_ode_points=4000)
+            Qj = np.asarray(model.component_virial_ratios())
+            np.testing.assert_allclose(Qj, 0.5, atol=2e-3,
+                                       err_msg=f"delta={delta}: theoretical Q_j={Qj}")
+
+    def test_sampled_cluster_is_mass_segregated(self):
+        """In the sampled cluster the heavy component is more centrally concentrated
+        than the light one (mean radius), the observable signature of segregation."""
+        model = _two_component(delta=0.5)
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=20000, G=G)
+        r = jnp.linalg.norm(ic.positions, axis=1)
+        r_light = float(jnp.mean(r[ic.component_id == 0]))
+        r_heavy = float(jnp.mean(r[ic.component_id == 1]))
+        assert r_heavy < r_light, f"heavy <r>={r_heavy:.2f} not < light <r>={r_light:.2f}"
+
+    def test_no_coincident_stars_and_finite_energy(self):
+        model = _two_component(delta=0.5)
+        ic = model.sample_cluster(jax.random.PRNGKey(1), n_stars=5000, G=G)
+        from progenax.builders import compute_potential_energy
+        V = float(compute_potential_energy(ic.positions, ic.masses, G=G))
+        assert np.isfinite(V)
+        d = jnp.linalg.norm(ic.positions[:, None] - ic.positions[None], axis=2) \
+            + jnp.eye(ic.positions.shape[0]) * 1e9
+        assert float(d.min()) > 1e-6  # no coincident stars
+
+    def test_sample_differentiable_in_delta(self):
+        """grad of a kinematic functional w.r.t. delta flows through construction +
+        sampling -- the equipartition degree is inferable from a sampled cluster."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        def loss(delta):
+            model = MultiComponentCluster.from_mass_segregation(
+                alpha_j=jnp.array([0.7, 0.3]), m_j=jnp.array([0.4, 5.0]),
+                W0=7.0, g=1.0, delta=delta, r_c=1.0)
+            ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=400, G=G)
+            return jnp.mean(jnp.sum(ic.velocities**2, axis=1))
+
+        d = jax.grad(loss)(0.4)
+        assert jnp.isfinite(d)
+
+
+def _analytic_beta(model, j, r_eval):
+    """Analytic anisotropy beta_j(r) = 1 - <v_t^2>/(2<v_r^2>) of the LIMEPY DF itself,
+    computed by direct quadrature of the SAME (u, c) phase-space weight the sampler
+    draws from: w(u,c) = u^2 E_gamma(g, W_j - u^2/2) exp(-(p_j^2/2) u^2 (1-c^2)), with
+    W_j(r) = rescale_j psi(r), p_j(r) = (r/r_c)/ra_hat_j[j], c = cos(angle to r_hat).
+    The s_j^2 cancels in beta. This is the ground truth the sampled beta must reproduce
+    (proves the angular sampling is correct). p_j -> 0 gives beta = 0 (isotropic)."""
+    from progenax.profiles.limepy import lowered_exponential
+
+    out = []
+    for rr in np.atleast_1d(np.asarray(r_eval)):
+        psi = float(jnp.interp(rr / model.r_c, model.xi_grid, model.psi_grid,
+                               left=model.W0, right=0.0))
+        W_j = float(model.rescale_j[j]) * max(psi, 0.0)
+        if W_j <= 0.0:
+            out.append(np.nan); continue
+        p = (rr / float(model.r_c)) / float(model.ra_hat_j[j])
+        u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
+        c = jnp.linspace(-1.0, 1.0, 240)
+        E = lowered_exponential(model.g, W_j - u**2 / 2.0)  # (nu,)
+        U, C = jnp.meshgrid(u, c, indexing="ij")
+        w = U**2 * E[:, None] * jnp.exp(-(p**2 / 2.0) * U**2 * (1.0 - C**2))
+        num_r = jnp.trapezoid(jnp.trapezoid(w * U**2 * C**2, c, axis=1), u)
+        num_t = jnp.trapezoid(jnp.trapezoid(w * U**2 * (1.0 - C**2), c, axis=1), u)
+        out.append(float(1.0 - num_t / (2.0 * num_r)))
+    return np.array(out)
+
+
+class TestAnisotropicSampling:
+    """Per-component ANISOTROPIC IC sampling (ported): the angular distribution of
+    each star's velocity must reproduce the Michie/Osipkov-Merritt LIMEPY DF, so the
+    sampled cluster is (a) globally virial Q=0.5 -- the scalar virial theorem is
+    anisotropy-blind -- and (b) radially anisotropic with beta_j(r) matching the DF."""
+
+    def _aniso_model(self, delta=0.4, eta=0.0, r_a=10.0, W0=7.0, g=1.0):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+        return MultiComponentCluster.from_mass_segregation(
+            alpha_j=jnp.array([0.6, 0.4]), m_j=jnp.array([1.0, 4.0]),
+            W0=W0, g=g, delta=delta, r_a=r_a, eta=eta, r_c=1.0,
+            xi_max=800.0, n_ode_points=3000)
+
+    def test_aniso_model_is_equilibrium_and_segregated(self):
+        """An anisotropic multi-component model is still a true equilibrium
+        (theoretical Q_j = 0.5) AND segregated (heavy more concentrated)."""
+        model = self._aniso_model(delta=0.4)
+        Qj = np.asarray(model.component_virial_ratios())
+        np.testing.assert_allclose(Qj, 0.5, atol=3e-3, err_msg=f"aniso Q_j={Qj}")
+        assert _component_half_mass_radius(model, 1) < _component_half_mass_radius(model, 0), \
+            "heavy not more concentrated under anisotropy"
+
+    def test_aniso_sample_cluster_runs(self):
+        """The anisotropic model samples to a finite ICResult with component labels."""
+        model = self._aniso_model()
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=2000, G=G)
+        assert ic.positions.shape == (2000, 3) and ic.velocities.shape == (2000, 3)
+        assert bool(jnp.all(jnp.isfinite(ic.positions)))
+        assert bool(jnp.all(jnp.isfinite(ic.velocities)))
+        np.testing.assert_allclose(np.asarray(ic.masses),
+                                   np.asarray(model.m_j[ic.component_id]), rtol=0)
+
+    def test_aniso_global_virial_is_half(self):
+        """The sampled anisotropic cluster is in virial equilibrium WITHOUT rescaling:
+        global Q = T/|V| = 0.5 (2T+W=0 holds for any anisotropy)."""
+        from progenax.dynamics import compute_virial_ratio
+
+        model = self._aniso_model(delta=0.4, eta=0.0)
+        Qs = []
+        for s in range(3):
+            ic = model.sample_cluster(jax.random.PRNGKey(s), n_stars=20000, G=G)
+            pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+            vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+            Qs.append(float(compute_virial_ratio(pos, vel, ic.masses, G=G)))
+        assert abs(np.mean(Qs) - 0.5) < 0.04, f"aniso global Q={np.mean(Qs):.3f} (expected 0.5)"
+
+    def test_aniso_velocity_is_radially_anisotropic(self):
+        """The sampled velocities show the full LIMEPY radial-anisotropy signature:
+        beta(r) ~ 0 in the core, RISES to a radial-bias peak near ~0.5 r_t, then TURNS
+        OVER toward r_t (truncation lowers the most radial orbits at the edge --
+        Gieles & Zocchi 2015)."""
+        model = self._aniso_model(delta=0.4, eta=0.0, r_a=5.0)
+        ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=40000, G=G)
+        pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+        vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+        r = jnp.linalg.norm(pos, axis=1)
+        r_hat = pos / (r[:, None] + 1e-30)
+        v_r = jnp.sum(vel * r_hat, axis=1)
+        v_t2 = jnp.sum(vel**2, axis=1) - v_r**2
+
+        def beta_in(lo, hi):
+            sel = (r >= lo) & (r < hi)
+            return float(1.0 - jnp.mean(v_t2[sel]) / (2.0 * jnp.mean(v_r[sel] ** 2)))
+
+        r_t = float(model.r_t)
+        beta_core = beta_in(0.0, 0.15 * r_t)
+        beta_peak = beta_in(0.4 * r_t, 0.6 * r_t)
+        beta_edge = beta_in(0.75 * r_t, 0.95 * r_t)
+        assert abs(beta_core) < 0.06, f"core should be ~isotropic, beta_core={beta_core:.3f}"
+        assert beta_peak > beta_core + 0.1, f"no radial-bias peak: {beta_core:.3f}->{beta_peak:.3f}"
+        assert beta_edge < beta_peak, f"no truncation turnover: peak {beta_peak:.3f}, edge {beta_edge:.3f}"
+
+    def test_aniso_sampled_beta_matches_analytic(self):
+        """THE sampler-correctness proof: the per-component sampled beta_j(r)
+        reproduces the DF's own analytic beta_j(r) (direct (u,c) quadrature of the
+        same phase-space weight) across radial bins."""
+        model = self._aniso_model(delta=0.4, eta=0.0, r_a=5.0)
+        ic = model.sample_cluster(jax.random.PRNGKey(1), n_stars=60000, G=G)
+        pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
+        vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+        r = jnp.linalg.norm(pos, axis=1)
+        r_hat = pos / (r[:, None] + 1e-30)
+        v_r = jnp.sum(vel * r_hat, axis=1)
+        v_t2 = jnp.sum(vel**2, axis=1) - v_r**2
+
+        r_t = float(model.r_t)
+        # light component (well-resolved); bins from core to mid-halo
+        sel_j = np.asarray(ic.component_id == 0)
+        rj = np.asarray(r)[sel_j]
+        vr2j = np.asarray(v_r**2)[sel_j]
+        vt2j = np.asarray(v_t2)[sel_j]
+        edges = np.array([0.05, 0.2, 0.4, 0.6]) * r_t
+        for lo, hi in zip(edges[:-1], edges[1:]):
+            b = (rj >= lo) & (rj < hi)
+            assert b.sum() > 400, f"too few light stars in [{lo:.1f},{hi:.1f})"
+            beta_meas = 1.0 - vt2j[b].mean() / (2.0 * vr2j[b].mean())
+            beta_pred = _analytic_beta(model, 0, np.median(rj[b]))[0]
+            assert abs(beta_meas - beta_pred) < 0.06, (
+                f"r in [{lo:.1f},{hi:.1f}): sampled beta={beta_meas:.3f} vs DF {beta_pred:.3f}")
+
+    def test_aniso_sample_differentiable_in_ra(self):
+        """grad of a kinematic functional w.r.t. r_a flows through construction + the
+        anisotropic sampler -- the anisotropy radius is inferable from a sampled cluster."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        def loss(r_a):
+            model = MultiComponentCluster.from_mass_segregation(
+                alpha_j=jnp.array([0.6, 0.4]), m_j=jnp.array([1.0, 4.0]),
+                W0=7.0, g=1.0, delta=0.4, r_a=r_a, eta=0.0, r_c=1.0,
+                xi_max=800.0, n_ode_points=2000, n_grid=600)
+            ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=400, G=G)
+            r = jnp.linalg.norm(ic.positions, axis=1)
+            r_hat = ic.positions / (r[:, None] + 1e-30)
+            v_r2 = jnp.sum(ic.velocities * r_hat, axis=1) ** 2
+            return jnp.mean(v_r2)
+
+        d = jax.grad(loss)(10.0)
+        assert jnp.isfinite(d)

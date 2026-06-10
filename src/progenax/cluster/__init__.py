@@ -34,6 +34,7 @@ from progenax.cluster.core import (
 )
 
 from progenax.cluster.mass_segregation import energy_sorted_segregation
+from progenax.cluster.multicomponent import MultiComponentCluster
 
 # Physical constants
 from progenax.cluster.constants import (
@@ -65,6 +66,8 @@ __all__ = [
     "sample_velocities_for_profile",
     # Mass segregation
     "energy_sorted_segregation",
+    # Unified multi-component equilibrium model (Engine A)
+    "MultiComponentCluster",
     # Physical constants
     "G_KMS",
     "C_S_DEFAULT",

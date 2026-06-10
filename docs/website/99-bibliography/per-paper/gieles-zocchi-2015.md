@@ -250,8 +250,9 @@ replacing it):
   $(W_0, g, r_a)$ via `diffrax`. Validated against the trusted internal corners: $g=1$ isotropic
   $\equiv$ [`KingProfile`](king-1966.md), $g=1$ anisotropic $\equiv$
   [`MichieProfile`](michie-1963.md), and King (1966) Table II concentrations $c(W_0)$.
-- **Phase 2** — multi-mass coupling: `MultiMassLIMEPY`, the coupled Poisson solve
-  {eq}`limepy-multimass-poisson` with equipartition $\delta$, differentiable in
+- **Phase 2** — multi-mass coupling: `progenax.cluster.MultiComponentCluster`
+  (`from_mass_segregation`; supersedes the earlier `MultiMassLIMEPY`), the coupled Poisson
+  solve {eq}`limepy-multimass-poisson` with equipartition $\delta$, differentiable in
   $(W_0, g, r_a, \delta)$ and the mass-fraction parameters. The per-mass-group virial ratio
   $Q_j$ (progenax's `per_group_virial_ratio`) is the equilibrium proof: $Q_j\approx0.5$ for each
   component certifies a *true* partial equilibrium, the property the `lambda_seg` chord lacks.

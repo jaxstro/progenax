@@ -8,13 +8,15 @@ deeper effective well and central concentration -- mass segregation AS A GENUINE
 EQUILIBRIUM (each component individually virial, Q_j ~ 0.5), unlike the lambda_seg blend.
 
 Three layers (see docs/plans/2026-06-09-multimass-limepy-equilibrium-design.md):
-  A. solve_multimass_limepy(alpha_j, ...) -- one coupled Poisson solve given the central
-     density fractions alpha_j (this module; pure physics, no iteration).
+  A. solve_multicomponent_limepy(alpha_j, rescale_j, ...) -- one coupled Poisson solve
+     given central density fractions alpha_j and DIRECT per-component scales (Engine A
+     core); solve_multimass_limepy is its thin mass-segregation wrapper.
   B. find_alpha_for_masses(m_j, M_j, ...) -- fixed-iteration eigenvalue solve for the
      alpha_j that reproduce target masses (this module).
-  C. MultiMassLIMEPY -- user-facing model + IMF binning + segregated-IC sampling.
+  C. The user-facing model is progenax.cluster.multicomponent.MultiComponentCluster;
+     this module keeps its grid/density/sampling helpers.
 
-Isotropic (delta only); per-component anisotropy (eta) is a planned extension (Phase 2b).
+Isotropic and per-component anisotropic (ra_hat_j; mass path: r_{a,j} = r_a mu_j^eta).
 
 References:
     Gieles, M. & Zocchi, A. (2015), MNRAS, 454, 576 (Eqs. 24-29, Section 4.1).
@@ -23,13 +25,10 @@ References:
 from typing import Tuple
 
 import diffrax
-import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
-from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import (
     _aniso_density_scalar,
     _angle_integral_T,
@@ -57,19 +56,18 @@ def _multimass_density_sources(
 _N_U_VIR = 256  # speed quadrature for the anisotropic v^2 moment
 
 
-def _grid_density_components(psi_arr, xi_arr, rescale, mu_j, W0, g, ra_hat, eta, is_aniso):
+def _grid_density_components(psi_arr, xi_arr, rescale, W0, g, ra_hat_j, is_aniso):
     """Per-component normalized densities on a grid, shape (n_comp, len(psi_arr)).
 
-    Isotropic: rho_hat_j = limepy_density_hat(mu_j^(2 delta) psi)/norm. Anisotropic
-    (finite ra_hat): the anisotropic density at p_j = xi/(ra_hat mu_j^eta), normalized to
-    the central (p=0) value. xi_arr is the dimensionless radius r/r_c.
+    Isotropic: rho_hat_j = limepy_density_hat(rescale_j psi)/norm. Anisotropic
+    (finite per-component ra_hat_j): the anisotropic density at p_j = xi/ra_hat_j,
+    normalized to the central (p=0) value. xi_arr is the dimensionless radius r/r_c.
     """
     if is_aniso:
-        ra_j = ra_hat * mu_j ** eta
         rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
 
         def at(xi, psi):
-            p_j = xi / ra_j
+            p_j = xi / ra_hat_j
             rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(rescale, p_j)
             return jnp.where(rho0_j > 1e-300, rho / rho0_j, 0.0)
 
@@ -300,7 +298,8 @@ def find_alpha_for_masses(
 
 
 # ==============================================================================
-# Layer C: MultiMassLIMEPY model (construction, IMF binning, segregated-IC sampling)
+# Layer C helpers (IMF binning + sampling resolutions), used by
+# progenax.cluster.multicomponent.MultiComponentCluster
 # ==============================================================================
 
 _N_SPEED = 256  # per-particle speed inverse-CDF resolution
@@ -336,265 +335,8 @@ def _bin_imf(imf, n_comp: int, m_range):
     return m_j, M_j
 
 
-class MultiMassLIMEPY(eqx.Module):
-    """Multi-mass LIMEPY coupled equilibrium model (isotropic; Layer C).
-
-    A mass-segregated star cluster in which segregation is a TRUE equilibrium: one
-    shared potential, per-component velocity scales s_j = s mu_j^(-delta). Each mass
-    component is individually virial (Q_j ~ 0.5). Construct with `from_alpha` (direct
-    central density fractions) or `from_imf` (bin an IMF, solve for alpha_j). Isotropic;
-    per-component anisotropy (eta) is a planned extension (Phase 2b).
-
-    Attributes:
-        W0, g, delta, r_c, r_t: model parameters / scales.
-        m_j, alpha_j, mu_j, rescale_j (= mu_j^(2 delta)), nu_j, N_frac_j: per component.
-        mu_tot: total dimensionless mass integral (sets the velocity scale).
-        residual: eigenvalue-solve residual (0 for from_alpha).
-        xi_grid, psi_grid: shared ODE solution. _r_grid, _cdf_j: per-component mass CDFs.
-    """
-
-    W0: Float[Array, ""]
-    g: Float[Array, ""]
-    delta: Float[Array, ""]
-    r_c: Float[Array, ""]
-    r_t: Float[Array, ""]
-    r_a: Float[Array, ""]
-    eta: Float[Array, ""]
-    m_j: Float[Array, "n_comp"]
-    alpha_j: Float[Array, "n_comp"]
-    mu_j: Float[Array, "n_comp"]
-    rescale_j: Float[Array, "n_comp"]
-    nu_j: Float[Array, "n_comp"]
-    N_frac_j: Float[Array, "n_comp"]
-    mu_tot: Float[Array, ""]
-    residual: Float[Array, ""]
-    xi_grid: Float[Array, "n_ode"]
-    psi_grid: Float[Array, "n_ode"]
-    _r_grid: Float[Array, "n_grid"]
-    _cdf_j: Float[Array, "n_comp n_grid"]
-    is_aniso: bool = eqx.field(static=True)
-
-    def __init__(self, alpha_j, m_j, W0, g, delta, r_c, xi_grid, psi_grid,
-                 r_a=None, eta=0.0, residual=0.0, n_grid: int = 1000):
-        is_aniso = r_a is not None
-        alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
-        m_j = jnp.asarray(m_j, dtype=jnp.float64)
-        W0 = jnp.asarray(W0, dtype=jnp.float64)
-        g = jnp.asarray(g, dtype=jnp.float64)
-        delta = jnp.asarray(delta, dtype=jnp.float64)
-        r_c = jnp.asarray(r_c, dtype=jnp.float64)
-        r_a_arr = jnp.asarray(jnp.inf if r_a is None else r_a, dtype=jnp.float64)
-        eta = jnp.asarray(eta, dtype=jnp.float64)
-        xi_grid = jnp.asarray(xi_grid, dtype=jnp.float64)
-        psi_grid = jnp.asarray(psi_grid, dtype=jnp.float64)
-
-        bar_m = jnp.sum(m_j * alpha_j)
-        mu_j = m_j / bar_m
-        rescale = mu_j ** (2.0 * delta)
-        ra_hat = r_a_arr / r_c  # inf for isotropic
-
-        def dens(psi_arr, xi_arr):
-            return _grid_density_components(psi_arr, xi_arr, rescale, mu_j, W0, g,
-                                            ra_hat, eta, is_aniso)
-
-        rho_on_xi = dens(psi_grid, xi_grid)
-        rho_on_xi = jnp.where(psi_grid[None, :] > 0.0, rho_on_xi, 0.0)
-        nu_j = jnp.trapezoid(rho_on_xi * xi_grid**2, xi_grid, axis=1)
-        mu_tot = jnp.sum(alpha_j * nu_j)
-        M_real = alpha_j * nu_j
-        N_frac = (M_real / m_j) / jnp.sum(M_real / m_j)
-
-        r_t = r_c * _find_tidal_radius(xi_grid, psi_grid)
-        r_grid = jnp.linspace(0.0, r_t, n_grid)
-        psi_r = jnp.interp(r_grid / r_c, xi_grid, psi_grid, left=W0, right=0.0)
-        rho_j_r = dens(psi_r, r_grid / r_c)
-        rho_j_r = jnp.where(r_grid[None, :] <= r_t, rho_j_r, 0.0)
-
-        integrand = 4.0 * jnp.pi * r_grid[None, :] ** 2 * rho_j_r
-        dr = r_grid[1] - r_grid[0]
-        M_cum = jnp.concatenate([
-            jnp.zeros((rho_j_r.shape[0], 1)),
-            jnp.cumsum(0.5 * (integrand[:, 1:] + integrand[:, :-1]), axis=1) * dr,
-        ], axis=1)
-        cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
-
-        for name, val in dict(
-            W0=W0, g=g, delta=delta, r_c=r_c, r_t=r_t, r_a=r_a_arr, eta=eta,
-            m_j=m_j, alpha_j=alpha_j, mu_j=mu_j, rescale_j=rescale, nu_j=nu_j,
-            N_frac_j=N_frac, mu_tot=mu_tot,
-            residual=jnp.asarray(residual, dtype=jnp.float64),
-            xi_grid=xi_grid, psi_grid=psi_grid, _r_grid=r_grid, _cdf_j=cdf_j,
-        ).items():
-            object.__setattr__(self, name, val)
-        object.__setattr__(self, "is_aniso", is_aniso)
-
-    @classmethod
-    def from_alpha(cls, alpha_j, m_j, W0, g, delta, r_c=1.0, r_a=None, eta=0.0,
-                   xi_max: float = 300.0, n_ode_points: int = 2000, n_grid: int = 1000):
-        """Direct constructor: solve the coupled equilibrium for given alpha_j (Layer A).
-
-        r_a=None is the isotropic model; a finite r_a adds per-component anisotropy
-        r_{a,j} = r_a mu_j^eta (eta=0 = mass-independent; pass a larger xi_max, e.g. 800).
-        """
-        ra_hat = None if r_a is None else r_a / r_c
-        xi, psi, _ = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max,
-                                            n_ode_points, ra_hat=ra_hat, eta=eta)
-        return cls(alpha_j, m_j, W0, g, delta, r_c, xi, psi, r_a=r_a, eta=eta,
-                   residual=0.0, n_grid=n_grid)
-
-    @classmethod
-    def from_imf(cls, imf, n_comp, W0, g, delta, m_range=(0.1, 100.0), r_c=1.0,
-                 r_a=None, eta=0.0, n_iter: int = 30, xi_max: float = 300.0,
-                 n_ode_points: int = 2000, n_grid: int = 1000):
-        """Bin an IMF into n_comp log-spaced components and solve for alpha_j (Layer B).
-
-        Anisotropy (r_a, eta) is supported but the eigenvalue iteration with the
-        per-component anisotropic density quadrature is expensive; reduce n_iter or use
-        from_alpha for exploratory anisotropic work.
-        """
-        m_j, M_j = _bin_imf(imf, n_comp, m_range)
-        ra_hat = None if r_a is None else r_a / r_c
-        alpha_j, residual = find_alpha_for_masses(
-            m_j, M_j, W0, g, delta, n_iter=n_iter, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat=ra_hat, eta=eta,
-        )
-        xi, psi, _ = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max,
-                                            n_ode_points, ra_hat=ra_hat, eta=eta)
-        return cls(alpha_j, m_j, W0, g, delta, r_c, xi, psi, r_a=r_a, eta=eta,
-                   residual=residual, n_grid=n_grid)
-
-    def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
-        """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model itself.
-
-        The bias-free equilibrium proof (no sampling, no softening, no finite-N): for a
-        component in steady state in the shared potential, 2 T_j + W_j = 0, so Q_j = 0.5.
-        Computed in the smooth mean field, so it returns exactly 0.5 for every component
-        of a self-consistent model -- the rigorous statement that the sampled per-group
-        Q_j is a finite-N estimator of. Dimensionless (independent of G, M, r_c).
-
-            T_j = int 0.5 rho_j <v^2>_j 4 pi r^2 dr,  <v^2>_j = s_j^2 * 3 Eg(g+5/2,W_j)/Eg(g+3/2,W_j)
-            W_j = - int rho_j r (dphi/dr) 4 pi r^2 dr, dphi/dr = G M_enc(r)/r^2,
-        with W_j(r) = mu_j^(2 delta) psi(r), s_j^2 = mu_j^(-2 delta)/(9 mu_tot) (G=M=r_c=1).
-        """
-        r = jnp.linspace(1e-3, self.r_t, n)
-        psi = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        ra_hat = self.r_a / self.r_c
-        # per-component mass density rho_j = alpha_j * rho_hat_j (normalization cancels in Q_j)
-        rho_j = _grid_density_components(psi, r / self.r_c, self.rescale_j, self.mu_j,
-                                         self.W0, self.g, ra_hat, self.eta, self.is_aniso)
-        rho_j = jnp.where(r[None, :] <= self.r_t, rho_j, 0.0) * self.alpha_j[:, None]
-        rho_tot = jnp.sum(rho_j, axis=0)
-
-        integ = 4.0 * jnp.pi * r**2 * rho_tot
-        dr = r[1] - r[0]
-        M_enc = jnp.concatenate([jnp.zeros(1),
-                                 jnp.cumsum(0.5 * (integ[1:] + integ[:-1])) * dr])
-        # Normalize to total mass M=1 so the velocity scale s^2 = 1/(9 mu_tot) is
-        # consistent with the potential (G = M = r_c = 1). W_j carries two powers of this
-        # normalization (rho_j and M_enc), T_j one (rho_j) -- so it must NOT be dropped.
-        norm = 1.0 / M_enc[-1]
-        rho_j = rho_j * norm
-        dphi_dr = (M_enc * norm) / jnp.maximum(r, 1e-6) ** 2  # G=1
-
-        s2 = 1.0 / (9.0 * self.mu_tot)  # G=M=r_c=1
-        Qs = []
-        for j in range(self.m_j.shape[0]):
-            W_j = self.rescale_j[j] * psi
-            s_j2 = s2 * self.mu_j[j] ** (-2.0 * self.delta)
-            if self.is_aniso:
-                p_j = (r / self.r_c) / (ra_hat * self.mu_j[j] ** self.eta)
-                v2hat = jax.vmap(lambda w, pp: _aniso_v2hat_scalar(w, pp, self.g))(W_j, p_j)
-            else:
-                v2hat = 3.0 * lowered_exponential(self.g + 2.5, W_j) / \
-                    jnp.maximum(lowered_exponential(self.g + 1.5, W_j), 1e-300)
-            v2 = s_j2 * jnp.where(W_j > 0.0, v2hat, 0.0)
-            T = jnp.trapezoid(0.5 * rho_j[j] * v2 * 4.0 * jnp.pi * r**2, r)
-            W = jnp.trapezoid(-rho_j[j] * r * dphi_dr * 4.0 * jnp.pi * r**2, r)
-            Qs.append(T / jnp.abs(W))
-        return jnp.stack(Qs)
-
-    def total_density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Total (mass-weighted) volume density sum_j alpha_j rho_hat_j(r), 0 outside r_t."""
-        r1 = jnp.atleast_1d(jnp.asarray(r))
-        psi_r = jnp.interp(r1 / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        rho_j = _grid_density_components(psi_r, r1 / self.r_c, self.rescale_j, self.mu_j,
-                                         self.W0, self.g, self.r_a / self.r_c, self.eta,
-                                         self.is_aniso)
-        tot = jnp.sum(self.alpha_j[:, None] * rho_j, axis=0).reshape(jnp.shape(r))
-        return jnp.where(r <= self.r_t, tot, 0.0)
-
-    def sample_cluster(self, key, n_stars: int, G=None):
-        """Sample a mass-segregated equilibrium IC -> (positions, velocities, masses).
-
-        Each star is assigned a component by a categorical draw (probabilities N_frac_j),
-        then its position is drawn from that component's mass CDF and its velocity from
-        the component's lowered DF at the rescaled potential W_j(r) = mu_j^(2 delta) psi(r)
-        and velocity scale s_j = s mu_j^(-delta), s^2 = G M / (9 r_c mu_tot):
-
-          * isotropic model: speed ~ u^2 E_gamma(g, W_j - u^2/2), isotropic direction;
-          * anisotropic model (finite r_a): speed-angle (u_r, u_t) from the Michie/OM
-            LIMEPY DF (speed marginal u^2 E_gamma T(p_j^2 u^2/2), conditional
-            cos(theta)|u with weight exp(-(p_j^2/2) u^2 (1-c^2))) at per-star anisotropy
-            p_j = (r/r_c)/((r_a/r_c) mu_j^eta); v_r along r_hat, v_t in a random azimuth
-            perpendicular to r_hat -- producing beta_j(r) ~ 0 in the core rising outward.
-
-        The total cluster mass M = sum_i m_i is the sum of the sampled stellar masses (as
-        in the single-mass DF) -- so kinetic and potential energies use a consistent M and
-        the cluster is virial (Q=0.5), anisotropy notwithstanding (the scalar virial
-        theorem 2T+W=0 is anisotropy-blind). Differentiable in (W0, g, delta, r_a, eta)
-        through the per-star scales and the angular draw.
-        """
-        from progenax.kinematics.limepy_df import _sample_speed_angle, _sample_unit_speed
-
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
-        k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
-
-        c = jax.random.categorical(k_assign, jnp.log(self.N_frac_j + 1e-30), shape=(n_stars,))
-        m_i = self.m_j[c]
-        rescale_i = self.rescale_j[c]
-        M_total = jnp.sum(m_i)  # the cluster mass IS the sum of its stars
-        s = jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu_tot))
-        s_i = s * self.mu_j[c] ** (-self.delta)
-
-        # Positions: per-star inverse-CDF on its component's mass CDF + isotropic dirs.
-        u = jax.random.uniform(k_pos, (n_stars,))
-        radii = jax.vmap(lambda uu, cc: jnp.interp(uu, self._cdf_j[cc], self._r_grid))(u, c)
-        pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
-
-        # Per-star rescaled potential W_j(r) = mu_j^(2 delta) psi(r) (shared by both paths).
-        W_i = rescale_i * jnp.maximum(
-            jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid,
-                       left=self.W0, right=0.0), 0.0
-        )
-        speed_keys = jax.random.split(k_speed, n_stars)
-
-        if self.is_aniso:
-            # Anisotropic: per-star (u_r, u_t) from the Michie/OM speed-angle DF.
-            ra_hat = self.r_a / self.r_c
-            p_i = (radii / self.r_c) / (ra_hat * self.mu_j[c] ** self.eta)
-            u_r, u_t = jax.vmap(
-                lambda kk, w, pp: _sample_speed_angle(kk, w, pp, self.g, _N_SPEED, _N_C)
-            )(speed_keys, W_i, p_i)
-            v_r, v_t = s_i * u_r, s_i * u_t
-            # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
-            r_hat = pos / (radii[:, None] + 1e-30)
-            rand = jax.random.normal(k_vdir, (n_stars, 3))
-            rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
-            t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
-            vel = v_r[:, None] * r_hat + v_t[:, None] * t_hat
-            return pos, vel, m_i
-
-        # Isotropic: per-star speed at the component's rescaled potential + scale s_i.
-        u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, self.g, _N_SPEED))(
-            speed_keys, W_i)
-        vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)
-        return pos, vel, m_i
-
-
 __all__ = [
     "solve_multicomponent_limepy",
     "solve_multimass_limepy",
     "find_alpha_for_masses",
-    "MultiMassLIMEPY",
 ]

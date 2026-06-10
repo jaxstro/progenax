@@ -34,7 +34,7 @@ jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
 from progenax.profiles.limepy import lowered_exponential
-from progenax.profiles.limepy_multimass import MultiMassLIMEPY
+from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.dynamics import compute_virial_ratio
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -57,13 +57,12 @@ def _uc_moments(model, j, rr):
     """(<u^2 c^2>, <u^2 (1-c^2)>) of the LIMEPY (u,c) phase-space weight at radius rr,
     component j. w(u,c) = u^2 E_gamma(g, W_j-u^2/2) exp(-(p^2/2) u^2 (1-c^2)). The s_j^2
     scaling is applied by the caller. Returns (0,0) outside the truncation."""
-    ra_hat = float(model.r_a / model.r_c)
     psi = float(jnp.interp(rr / model.r_c, model.xi_grid, model.psi_grid,
                            left=model.W0, right=0.0))
     W_j = float(model.rescale_j[j]) * max(psi, 0.0)
     if W_j <= 0.0:
         return 0.0, 0.0
-    p = (rr / float(model.r_c)) / (ra_hat * float(model.mu_j[j]) ** float(model.eta))
+    p = (rr / float(model.r_c)) / float(model.ra_hat_j[j])
     u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
     c = jnp.linspace(-1.0, 1.0, 240)
     E = lowered_exponential(model.g, W_j - u**2 / 2.0)
@@ -87,8 +86,8 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     import matplotlib.pyplot as plt
 
-    model = MultiMassLIMEPY.from_alpha(
-        ALPHA_J, M_J, W0=W0, g=g, delta=0.4, r_a=R_A, eta=ETA, r_c=1.0,
+    model = MultiComponentCluster.from_mass_segregation(
+        alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=0.4, r_a=R_A, eta=ETA, r_c=1.0,
         xi_max=800.0, n_ode_points=3000)
     rt = float(model.r_t)
 
@@ -109,7 +108,8 @@ def main():
     st_sd = [[] for _ in range(nb)]
     M_tot = None
     for sd in range(N_SEED):
-        pos, vel, masses = model.sample_cluster(jax.random.PRNGKey(sd), n_stars=N_STARS, G=G)
+        ic = model.sample_cluster(jax.random.PRNGKey(sd), n_stars=N_STARS, G=G)
+        pos, vel, masses = ic.positions, ic.velocities, ic.masses
         pos = pos - jnp.average(pos, axis=0, weights=masses)
         vel = vel - jnp.average(vel, axis=0, weights=masses)
         r = np.asarray(jnp.linalg.norm(pos, axis=1))
@@ -155,7 +155,7 @@ def main():
 
     # (b) seed-averaged sigma_r, sigma_t (1D each), sampled vs analytic, light component
     s = float(jnp.sqrt(G * M_tot / (9.0 * model.r_c * model.mu_tot)))
-    s_j = s * float(model.mu_j[0]) ** (-0.4)
+    s_j = s * float(model.w_j[0])  # w_j = mu_j^(-delta), delta=0.4
     srm, srs, _ = _mean_sem(sr_sd)
     stm, sts, _ = _mean_sem(st_sd)
     moms = [_uc_moments(model, 0, float(rc)) for rc in centers]
@@ -176,12 +176,13 @@ def main():
     print("  global Q vs delta (anisotropic):")
     Qg, Qse = [], []
     for d in DELTAS:
-        mdl = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=float(d),
+        mdl = MultiComponentCluster.from_mass_segregation(alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=float(d),
                                          r_a=R_A, eta=ETA, r_c=1.0, xi_max=800.0,
                                          n_ode_points=3000)
         qs = []
         for sd in range(4):
-            p, v, mm = mdl.sample_cluster(jax.random.PRNGKey(sd), n_stars=20000, G=G)
+            ic = mdl.sample_cluster(jax.random.PRNGKey(sd), n_stars=20000, G=G)
+            p, v, mm = ic.positions, ic.velocities, ic.masses
             p = p - jnp.average(p, axis=0, weights=mm)
             v = v - jnp.average(v, axis=0, weights=mm)
             qs.append(float(compute_virial_ratio(p, v, mm, G=G)))
@@ -198,7 +199,7 @@ def main():
     fr = np.linspace(0.03, 0.97, 30)
     for r_a, col in zip([8.0, 6.0, 5.0, 4.0],
                         [OI["sky"], OI["green"], OI["orange"], OI["vermilion"]]):
-        mdl = MultiMassLIMEPY.from_alpha(ALPHA_J, M_J, W0=W0, g=g, delta=0.4,
+        mdl = MultiComponentCluster.from_mass_segregation(alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=g, delta=0.4,
                                          r_a=r_a, eta=ETA, r_c=1.0, xi_max=800.0,
                                          n_ode_points=3000)
         rt_ = float(mdl.r_t)

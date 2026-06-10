@@ -39,7 +39,6 @@ from progenax.profiles.king import KingProfile, solve_king_profile
 from progenax.profiles.michie import MichieProfile, solve_michie_profile
 from progenax.profiles.limepy import LIMEPYProfile, solve_limepy_profile
 from progenax.profiles.limepy_multimass import (
-    MultiMassLIMEPY,
     solve_multimass_limepy,
     find_alpha_for_masses,
 )
@@ -61,7 +60,6 @@ __all__ = [
     "solve_michie_profile",
     "LIMEPYProfile",
     "solve_limepy_profile",
-    "MultiMassLIMEPY",
     "solve_multimass_limepy",
     "find_alpha_for_masses",
     "EFFProfile",
