@@ -135,15 +135,23 @@ class SpeedCDFTable(eqx.Module):
         resolution, vs 256 per star in the exact sampler). W_max gets the
         x1.001 safety factor so in-domain queries never clamp. Differentiable
         in g (through the node CDFs) and W_max (through the nodes). The W = 0
-        row is floored to W = 1e-12, which makes it the analytic W -> 0 LIMIT
-        shape (weight -> x^2 (1-x^2)^g up to normalization) rather than an
-        all-zero row whose CDF would be undefined; drawn speeds there are
-        u = x sqrt(2W) = 0 regardless -- the clean property of the
-        normalized coordinates.
+        row is floored to W = 1e-6 -- the `inverse` draw-guard threshold, so
+        the floored row is never drawn from directly (W <= 1e-6 returns u = 0)
+        and serves only as the lower lerp anchor for stars just above the
+        guard; its shape is the W = 1e-6 CDF, indistinguishable from the
+        analytic W -> 0 limit x^2 (1-x^2)^g at that W. The floor also keeps
+        the raw row total (which scales as W^g) far above float64 underflow
+        for g in [0, 3.5], so the plain relative normalization below ends
+        every row's CDF at exactly 1.0 (an absolute +1e-30 regularizer would
+        swamp a W = 1e-12 row total ~W^g at g >= 2.5 and corrupt row 0).
+        Per-component row resolution: a component with velocity-scale ratio w
+        (w_j / max_j w_j after rescaling) only ever queries the first w_min/w
+        fraction of the n_W = 256 sqrt(W) rows, so its effective resolution
+        shrinks proportionally for extreme scale ratios.
         """
         s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
         x = jnp.linspace(0.0, 1.0, n_x)
-        W = jnp.maximum(s**2, 1e-12)  # W=0-row guard (limit shape; see above)
+        W = jnp.maximum(s**2, 1e-6)  # W=0-row floor at the draw guard (see above)
         wgt = jnp.maximum(
             x[None, :] ** 2 * lowered_exponential(g, W[:, None] * (1.0 - x[None, :] ** 2)),
             0.0,
@@ -154,7 +162,11 @@ class SpeedCDFTable(eqx.Module):
              jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx],
             axis=1,
         )
-        cdf = cdf / (cdf[:, -1:] + 1e-30)
+        # Relative normalization: every row total is strictly positive (the
+        # 1e-6 W floor keeps it >= O(1e-23) even at g = 3.5, far above float64
+        # underflow), so plain division ends each row's CDF at exactly 1.0
+        # and stays differentiable.
+        cdf = cdf / cdf[:, -1:]
         return cls(s_nodes=s, x_nodes=x, cdf=cdf)
 
     def inverse(self, W, unif):

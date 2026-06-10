@@ -354,6 +354,42 @@ class TestSpeedCDFTable:
         d_g = jax.grad(mean_speed_g)(jnp.asarray(1.0))
         assert bool(jnp.isfinite(d_g)), f"d<u>/dg through the build: {d_g}"
 
+    @pytest.mark.parametrize("g", [0.0, 2.5, 3.5])
+    def test_high_g_low_W_draws_match_exact_sampler(self, g):
+        """High-g W->0 regression: the row-0 raw CDF total scales as W^g, so a
+        W=1e-12 row floor underflows an ABSOLUTE 1e-30 normalization guard at
+        g >= 2.5 (~1e-31 at g=2.5, ~1e-43 at g=3.5) -- the row-0 'CDF' then
+        tops out far below 1 and every interp clamps to x=1, corrupting draws
+        for stars with W just above the 1e-6 draw guard (measured ~1.8-1.9x
+        moment inflation pre-fix). Gate: at W=1e-5, table draws match the
+        exact per-star sampler to 2% on mean u and rms u (the W->0 shape
+        x^2 (1-x^2)^g has O(1) normalized moments, resolvable at 20k draws),
+        and the row-0 CDF itself must end at exactly 1.0."""
+        from progenax.kinematics.limepy_df import _sample_unit_speed
+
+        tab = self._table(W_max=10.0, g=g)
+        assert float(tab.cdf[0, -1]) == 1.0, (
+            f"g={g}: row-0 CDF ends at {float(tab.cdf[0, -1]):.3e}, not 1.0")
+
+        n = 20_000
+        W0 = 1e-5
+        W = jnp.full((n,), W0)
+        gg = jnp.asarray(g)
+        keys = jax.random.split(jax.random.PRNGKey(4242), n)
+        u_exact = jax.vmap(lambda k, w: _sample_unit_speed(k, w, gg, 256))(keys, W)
+        unif = jax.random.uniform(jax.random.PRNGKey(4343), (n,))
+        u_tab = jax.vmap(tab.inverse)(W, unif)
+
+        mean_e, mean_t = float(jnp.mean(u_exact)), float(jnp.mean(u_tab))
+        rms_e = float(jnp.sqrt(jnp.mean(u_exact**2)))
+        rms_t = float(jnp.sqrt(jnp.mean(u_tab**2)))
+        assert abs(mean_t - mean_e) / mean_e < 0.02, (
+            f"g={g}, W={W0}: mean u {mean_t:.4e} vs exact {mean_e:.4e} "
+            f"(ratio {mean_t / mean_e:.3f})")
+        assert abs(rms_t - rms_e) / rms_e < 0.02, (
+            f"g={g}, W={W0}: rms u {rms_t:.4e} vs exact {rms_e:.4e} "
+            f"(ratio {rms_t / rms_e:.3f})")
+
     def test_w_zero_draw_is_zero(self):
         """W = 0 (a star at the truncation radius) draws u = 0, no NaN; the
         normalized coordinate makes this automatic (u = x sqrt(2W) = 0)."""
