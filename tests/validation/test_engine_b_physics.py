@@ -512,11 +512,14 @@ def test_gradients_ad_vs_fd():
       (a) halo r_h        -- the headline Plummer+EFF mix; grad of the halo's
                              Plummer scale through density -> Psi -> f;
       (b) mass fraction t -- reparametrized fractions [t, 1-t] (sum-to-1 by
-                             construction) on a KING + Plummer mix, so the
-                             Poisson-identity King dW/dr path
-                             (_king_drho_dW + the cumtrap dpsi/dxi route in
-                             density_poisson._density_and_derivative) is
-                             INSIDE the differentiated graph (Task 5 review);
+                             construction) on a KING + Plummer mix: the King
+                             branch (_king_drho_dW + the cumtrap dpsi/dxi
+                             route in density_poisson._density_and_derivative)
+                             executes inside the traced build, and its outputs
+                             enter the differentiated products via scale(t)
+                             and the shared Psi(t); the King-internal subgraph
+                             itself is constant w.r.t. all three parameters
+                             (its domain is concretized by design);
       (c) r_a_j[0] = 3.0  -- finite OM anisotropy radius on the King
                              component of the same mix (grad through the
                              augmented-density weight in eddington_invert).

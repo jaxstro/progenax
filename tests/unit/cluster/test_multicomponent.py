@@ -633,7 +633,8 @@ class TestEngineB:
         contract is "no raise under tracing, f_min_j always stored". Jit a
         scalar-r_a surrogate of the build and feed it the SAME unrealizable
         r_a = 0.05: construction must complete and return the genuinely
-        negative diagnostic (matching the concrete-path refusal value)."""
+        negative diagnostic (consistent with the concrete-path refusal value;
+        not identical -- this surrogate uses a different n_r/n_e)."""
         from progenax.cluster.eddington_engine import build_engine_b_state
 
         profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]

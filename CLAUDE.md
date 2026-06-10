@@ -5,8 +5,9 @@
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
-gravoturbulent-FDF clean-room rewrite complete - 16,132 LOC released-core source, 1309 tests
-(released-core 1064: unit 802, integration 34, validation 228; experimental 245). King & EFF velocity DFs are true
+gravoturbulent-FDF clean-room rewrite + multi-component cluster arc (Engine A LIMEPY DF tables +
+Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1346 tests
+(released-core 1101: unit 833, integration 34, validation 234; experimental 245). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
@@ -27,18 +28,18 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-# Released-core invariant (1064 tests). The multimass-LIMEPY equilibrium tests make the
+# Released-core invariant (1101 tests). The multimass-LIMEPY equilibrium tests make the
 # serial suite ~17 min; use pytest-xdist with XLA threads capped (one process per core).
-# FAST GATE (inner loop, 1029 tests, ~4 min): excludes @pytest.mark.slow
+# FAST GATE (inner loop, 1059 tests, ~4 min): excludes @pytest.mark.slow
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -m "not slow" -n auto
-# FULL GATE (phase/commit gate, 1064 tests, ~7 min parallel):
+# FULL GATE (phase/commit gate, 1101 tests, ~9 min parallel):
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 802 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 833 unit tests (released core)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 228 physics validation tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 234 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 245 tests
@@ -118,7 +119,7 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 | `diagnostics/` | Substructure + mass-segregation diagnostics | `compute_q_parameter()` (CW04 Q, A=πR²), `q_approx` (differentiable kNN), `energy_sorted_segregation()` |
 | `protocols.py` | Runtime-checkable protocols | `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `CompanionModel` |
 | `builders.py` | IC assembly + binary-cluster composition | `build_spatial_ic()`, `build_binary_cluster()`, `Systems`/`Stars`/`TotalMass`, `ICResult` |
-| `cluster/` | Multi-component equilibrium + primordial segregation | `MultiComponentCluster`, `energy_sorted_segregation()` |
+| `cluster/` | Multi-component equilibrium (Engine A: lowered-isothermal DF; Engine B: density-defined Eddington via `from_density_profiles`) + primordial segregation | `MultiComponentCluster`, `energy_sorted_segregation()` |
 | `tidal.py` | Tidal physics | `jacobi_radius()`, `apply_tidal_truncation()` |
 
 ## Critical Formulas
@@ -192,14 +193,14 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   1064 released-core tests
-├── unit/                802 tests
+tests/                   1101 released-core tests
+├── unit/                833 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
 │   ├── analytical/      Analytical test case tests
 │   ├── binaries/        Kepler + period/ecc/companion + assembly + diagnostics + energy-budget
-│   ├── cluster/         Smooth-profile + mass-segregation cluster IC tests
+│   ├── cluster/         MultiComponentCluster (Engine A + Engine B) + mass-segregation IC tests
 │   ├── dynamics/        Virial / energy utilities
 │   └── substructure/    CW04 Q diagnostic (compute_q_parameter, q_approx, baselines)
 ├── integration/         34 tests
@@ -207,10 +208,11 @@ tests/                   1064 released-core tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          231 tests
+└── validation/          234 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_multimass_equilibrium_physics.py  MultiComponentCluster shared-potential equilibrium
+    ├── test_engine_b_physics.py     Engine B anchors (King A-vs-B, headline Q_j, OM beta, DF fidelity, AD-vs-FD)
     ├── test_eff_physics.py          EFF Eddington-inversion DF
     ├── test_binary_physics.py       Kepler's laws
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
@@ -236,6 +238,9 @@ are sampled in detailed equilibrium with **no external virial rescale**:
 | Kepler energy & angular momentum | conserved to ~1e-16 | exact |
 | Bound particles | 100% | 100% |
 | Binary period (Kepler III) | exact to 1e-10 | 2π√(a³/GM) |
+| Engine B King A-vs-B (σ_1d(r) dev / radial KS, N=2e4) | 3e-4 / 2e-4 | < 0.02 both |
+| Engine B halo+core global Q (N=30k, unscaled) | 0.4976 | 0.5 ± 0.02 |
+| Engine B OM β_halo(r) vs r²/(r²+r_a²) | max dev 0.028 | < 0.05 |
 
 ## Public API
 
@@ -251,7 +256,7 @@ All public symbols exported from `progenax.__init__`:
 
 **Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`
 
-**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `energy_sorted_segregation()`, `MultiComponentCluster`
+**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `energy_sorted_segregation()`, `MultiComponentCluster` (Engine A constructors `from_components`/`from_mass_segregation`/`from_imf`; Engine B `from_density_profiles` — prescribed Plummer/EFF/King densities, shared-Ψ Eddington/OM DFs)
 
 (The fractal-substructure generator `generate_fractal_positions()` was removed in the 2026-06 clean-room rewrite; turbulent/fractal ICs now live in the experimental `gravoturb_fdf` package. The CW04 `Q` substructure *diagnostic* survives in `progenax.diagnostics`.)
 
