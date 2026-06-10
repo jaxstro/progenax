@@ -6,14 +6,14 @@ Differentiable initial conditions for N-body simulations in JAX. Part of the **j
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
 gravoturbulent-FDF clean-room rewrite + multi-component cluster arc (Engine A LIMEPY DF tables +
-Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1395 tests
-(released-core 1150: unit 882, integration 34, validation 234; experimental 245). King & EFF velocity DFs are true
+Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1472 tests
+(released-core 1150: unit 882, integration 34, validation 234; experimental 322). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
 (`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
 fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
-`gravoturb_fdf` package** (2,975 LOC, 245 experimental tests; `src/experimental/`, **not** in the
+`gravoturb_fdf` package** (2,975 LOC, 322 experimental tests; `src/experimental/`, **not** in the
 released wheel), now including a **differentiable physics-direct inference layer** (analytic
 predicted statistics + blackjax NUTS; AC11–AC17) — the BM19 tail slope **α is recoverable** via a
 peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail forecast (AC17). See
@@ -42,7 +42,7 @@ env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integ
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 234 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
-PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 245 tests
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 322 tests
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb_fdf.validation.acceptance   # AC1-AC17
 ```
 
@@ -218,10 +218,10 @@ tests/                   1150 released-core tests
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
 
-tests/experimental/      245 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
-├── unit/                231 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
+tests/experimental/      322 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
+├── unit/                303 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
 │                                    + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC)
-└── validation/          14 tests   (AC1-AC17 acceptance assertions)
+└── validation/          19 tests   (AC1-AC17 acceptance assertions)
 ```
 
 ## Physics Validation Results
@@ -234,7 +234,7 @@ are sampled in detailed equilibrium with **no external virial rescale**:
 | Plummer virial Q = T/\|V\| | 0.502 | 0.5 |
 | King true-DF virial Q (unscaled) | ~0.51 | 0.5 |
 | EFF Eddington-DF virial Q (γ=5, mild trunc) | ~0.50 | 0.5 |
-| King c(W₀) vs King (1966) Table II | max \|Δlog₁₀c\| = 0.002 | ≤ 0.03 (Table II) |
+| King c(W₀) vs King (1966) Table II | max \|Δlog₁₀c\| = 0.002 (hi-res solve: xi_max=400, n_ode_points=8000; defaults ≤0.012) | ≤ 0.03 (Table II) |
 | Kepler energy & angular momentum | conserved to ~1e-16 | exact |
 | Bound particles | 100% | 100% |
 | Binary period (Kepler III) | exact to 1e-10 | 2π√(a³/GM) |

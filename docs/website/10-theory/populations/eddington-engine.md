@@ -287,7 +287,11 @@ constant with respect to the differentiated parameters.
 - **`rescale_j` is Engine-A-only.** Calling it on an Engine B model
   raises a `ValueError`, and Engine-A-only internal fields raise an
   informative `AttributeError` on Engine B models. Shared accessors —
-  `total_density()`, `is_aniso` — dispatch correctly on both engines.
+  `total_density()`, `is_aniso` — dispatch correctly on both engines,
+  with one fine point: in a *traced* anisotropic Engine B build the
+  static `is_aniso` flag cannot follow a traced $r_{a,j}$ and defaults
+  to `False` (`engine_b.r_a_j` carries the truth); concrete builds are
+  fully correct.
 - **No Phase 1.5-style speed tables yet**: Engine B speed draws use
   the per-star differentiable inverse-CDF over the $f_j(E)$ grid —
   deliberately, since that path doubles as the oracle. Precomputed
