@@ -19,6 +19,8 @@ Usage:
         --stage virial_pe
 
 Exits nonzero iff any stage whose gate is not marked --allow-fail exceeds it.
+--allow-fail covers GATE EXCESS only (a real measurement over its gate); a
+stage that crashes (nonzero subprocess exit or no result line) always FAILs.
 """
 import argparse
 import resource
@@ -114,20 +116,23 @@ def run_stage(stage: str) -> None:
                                        G=STELLAR.G)
             vel.block_until_ready()
 
-        else:
-            raise SystemExit(f"unknown stage: {stage}")
-
     print(f"{_RESULT_PREFIX} {_peak_rss_gb():.3f}", flush=True)
 
 
 def _run_subprocess(stage: str):
-    """Run one stage as a subprocess; return (measured_gb | None, error_text)."""
+    """Run one stage as a subprocess; return (measured_gb | None, error_text).
+
+    A result line only counts if the subprocess exited 0; a nonzero exit or a
+    missing result line means the stage CRASHED (measured is None).
+    """
     cmd = [sys.executable, __file__, "--stage", stage]
     proc = subprocess.run(cmd, capture_output=True, text=True)
-    for line in proc.stdout.splitlines():
-        if line.startswith(_RESULT_PREFIX):
-            return float(line.split()[1]), ""
-    return None, (proc.stderr.strip()[-1500:] or "no result line in stage output")
+    if proc.returncode == 0:
+        for line in proc.stdout.splitlines():
+            if line.startswith(_RESULT_PREFIX):
+                return float(line.split()[1]), ""
+    err = proc.stderr.strip()[-1500:] or "no result line in stage output"
+    return None, f"exit code {proc.returncode}: {err}"
 
 
 def main() -> int:
@@ -137,7 +142,9 @@ def main() -> int:
                         help="run a single stage in-process (subprocess re-entry)")
     parser.add_argument("--allow-fail", action="append", default=[],
                         metavar="STAGE", choices=sorted(STAGES),
-                        help="mark this stage's gate ALLOWED-FAIL (repeatable)")
+                        help="mark this stage's gate ALLOWED-FAIL on gate "
+                             "excess only; stage crashes always FAIL "
+                             "(repeatable)")
     args = parser.parse_args()
 
     if args.stage:
@@ -155,7 +162,8 @@ def main() -> int:
     for stage, (n, gate_gb) in STAGES.items():
         measured, err = _run_subprocess(stage)
         if measured is None:
-            status = "ALLOWED-FAIL" if stage in args.allow_fail else "FAIL"
+            # Crashes ALWAYS fail; --allow-fail only covers gate excess.
+            status = "FAIL"
             print(f"  {stage}: stage ERROR\n{err}", flush=True)
         else:
             ok = measured < gate_gb
@@ -164,7 +172,7 @@ def main() -> int:
         any_fatal |= status == "FAIL"
         rows.append((stage, n, gate_gb, measured, status))
         m_str = f"{measured:.2f}" if measured is not None else "ERROR"
-        print(f"  {stage:<20} measured {m_str:>6} GB  (gate < {gate_gb:.0f} GB)"
+        print(f"  {stage:<20} measured {m_str:>6} GB  (gate < {gate_gb:.1f} GB)"
               f"  {status}", flush=True)
 
     print("-" * 72)
@@ -177,7 +185,7 @@ def main() -> int:
               f"{status:>13}")
     print("=" * 72)
     print("  MEMORY GATES PASS" if not any_fatal
-          else "  MEMORY GATES FAILED (non-allowed stage over gate)")
+          else "  MEMORY GATES FAILED (non-allowed gate excess or stage crash)")
     return 1 if any_fatal else 0
 
 
