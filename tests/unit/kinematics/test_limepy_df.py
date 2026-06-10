@@ -223,7 +223,14 @@ class TestLimepyTableRouting:
     """speed_method='table' (default) must agree with the exact quadrature
     oracle (speed_method='quadrature') distributionally and in moments —
     the same contract AnisoSpeedCDFTable passed against the DF quadrature
-    (tests/unit/profiles/test_limepy_tables.py: moments to 1.5%)."""
+    (tests/unit/profiles/test_limepy_tables.py: moments to 1.5%).
+
+    N is capped at 2e4 for every draw that runs the EXPENSIVE quadrature
+    oracle: its (N, 256, 91) eager intermediate would otherwise peak at
+    ~13-26 GiB RSS (the very memory hog Task 5 removed from production).
+    Statistical power is retained: the two-sample KS 95% critical D at
+    n=2e4 is ~0.0136 < the 0.02 threshold, and the table/quadrature draws
+    are variate-paired (same per-star key splits)."""
 
     def _two_dfs(self, r_a):
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
@@ -232,7 +239,7 @@ class TestLimepyTableRouting:
         return (LIMEPYVelocityDF(**kw),                       # default: table
                 LIMEPYVelocityDF(**kw, speed_method="quadrature"))
 
-    def _pos_vel(self, df, n=30000, seed=0):
+    def _pos_vel(self, df, n=20000, seed=0):
         from progenax.profiles.limepy import LIMEPYProfile
 
         prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
@@ -242,7 +249,7 @@ class TestLimepyTableRouting:
                                    G=1.0)
         return pos, vel
 
-    def _speeds(self, df, n=30000, seed=0):
+    def _speeds(self, df, n=20000, seed=0):
         _, vel = self._pos_vel(df, n=n, seed=seed)
         return np.asarray(jnp.linalg.norm(vel, axis=1))
 
@@ -265,8 +272,8 @@ class TestLimepyTableRouting:
         """The table path must keep the validated beta(r): the angular
         conditional stays EXACT, so only the speed marginal changed."""
         df_t, df_q = self._two_dfs(4.0)
-        pos, vel_t = self._pos_vel(df_t, n=60000, seed=2)
-        _, vel_q = self._pos_vel(df_q, n=60000, seed=2)
+        pos, vel_t = self._pos_vel(df_t, n=20000, seed=2)
+        _, vel_q = self._pos_vel(df_q, n=20000, seed=2)
         edges = np.linspace(0.0, 0.8 * float(df_t.r_t), 6)
         _, beta_t = _beta_profile(pos, vel_t, edges)
         _, beta_q = _beta_profile(pos, vel_q, edges)
