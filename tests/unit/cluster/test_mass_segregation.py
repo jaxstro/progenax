@@ -9,7 +9,6 @@ Covers `energy_sorted_segregation` (Baumgardt+2008 S=1 orbit assignment):
       bin-collapse bug that produced coincident stars for steep IMFs)
     - the S=1 physics: assigned specific energy is monotonic in mass
     - the assignment selects pool orbits (never interpolates) and is deterministic
-and `_mcluster_partial_shuffle` (the unused reference shuffle): S=0/1 limits.
 """
 
 import jax
@@ -18,10 +17,7 @@ import numpy as np
 import pytest
 from scipy.stats import spearmanr
 
-from progenax.cluster.mass_segregation import (
-    energy_sorted_segregation,
-    _mcluster_partial_shuffle,
-)
+from progenax.cluster.mass_segregation import energy_sorted_segregation
 
 
 @pytest.fixture
@@ -175,31 +171,3 @@ class TestEnergySortedSegregation:
         eager = energy_sorted_segregation(k4, masses, pos_pool, vel_pool, harmonic_potential)[1]
         jit_fn = jax.jit(lambda k, m, p, v: energy_sorted_segregation(k, m, p, v, harmonic_potential)[1])
         assert jnp.allclose(eager, jit_fn(k4, masses, pos_pool, vel_pool))
-
-
-class TestMclusterPartialShuffle:
-    """The unused McLuster Eq. A1 reference shuffle: S=0/1 limits and validity.
-
-    (Kept as a reference implementation; energy_sorted_segregation does not use it.)
-    """
-
-    def test_s1_is_identity(self, key):
-        """S=1: no shuffle — rank i keeps star i."""
-        N = 20
-        assert jnp.array_equal(_mcluster_partial_shuffle(key, N, S=1.0), jnp.arange(N))
-
-    @pytest.mark.parametrize("S", [0.0, 0.5])
-    def test_result_is_a_valid_permutation(self, key, S):
-        """For any S the mapping is a bijection rank<->star (a permutation of 0..N-1)."""
-        N = 20
-        result = _mcluster_partial_shuffle(key, N, S=S)
-        assert jnp.array_equal(jnp.sort(result), jnp.arange(N))
-
-    def test_s0_is_a_nontrivial_shuffle(self, key):
-        """S=0 fully shuffles: different keys give different permutations, and it is
-        not the identity."""
-        N = 40
-        r1 = _mcluster_partial_shuffle(jax.random.PRNGKey(1), N, S=0.0)
-        r2 = _mcluster_partial_shuffle(jax.random.PRNGKey(2), N, S=0.0)
-        assert not jnp.array_equal(r1, r2)
-        assert not jnp.array_equal(r1, jnp.arange(N))

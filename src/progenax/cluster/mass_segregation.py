@@ -1,21 +1,33 @@
 # progenax/src/progenax/cluster/mass_segregation.py
 """
-Baumgardt+2008 energy-ordered mass segregation for cluster ICs.
+PRIMORDIAL (energy-ordered) mass segregation for cluster ICs.
 
-Implements the energy-ordered orbit assignment method from Baumgardt et al.
-(2008) and McLuster (Küpper et al. 2011) for primordial mass segregation.
+Implements energy-ordered orbit assignment in the spirit of Baumgardt, De
+Marchi & Kroupa (2008) and McLuster (Küpper et al. 2011): the most massive
+stars are placed on the most bound orbits of an equilibrium pool. This is a
+*primordial-segregation generator*, not an equilibrium construction — the
+fully-ordered output is the one clean state (each mass group is an energy
+shell of the parent equilibrium, hence individually virial, Q_j ~ 0.5;
+validated in tests/validation/test_segregation_equilibrium_physics.py).
+
+Departure from the published recipe (deliberate, documented): Baumgardt+2008
+draw orbits randomly within cumulative-mass bins; here the assignment is a
+deterministic isotonic rounding of the bin-centre targets. This guarantees a
+DISTINCT orbit per star for ANY mass spectrum (the random per-bin sampler
+collapsed below one orbit per bin for steep IMFs, producing coincident stars
+and V = -inf). Realisation variety comes from re-drawing the random pool.
+
+For a *differentiable* segregation knob, use the first-principles
+equilibrium family instead: MultiComponentCluster.from_mass_segregation(delta)
+(multi-mass lowered-isothermal, w_j = mu_j^-delta — a true shared-potential
+equilibrium at every delta).
 
 Core Algorithm:
-    1. Generate orbit pool from equilibrium distribution function
+    1. Generate orbit pool from an equilibrium distribution function
     2. Sort orbits by specific energy (most bound first)
-    3. Sort masses by mass (most massive first)
-    4. Assign masses to orbits such that massive stars get lower-energy orbits
-    5. The lambda_seg parameter controls segregation strength via blending
-
-Key Advantages:
-    - Preserves density profile (each mass group in virial equilibrium)
-    - Preserves total virial ratio
-    - S=1 at bin level, smooth control via lambda_seg blending in IC generator
+    3. Sort masses descending
+    4. Assign mass rank i the isotonic-rounded cumulative-mass orbit index
+       (full S=1 energy ordering; strictly increasing, no orbit reuse)
 
 References:
     Baumgardt, De Marchi & Kroupa (2008), ApJ 685, 247
@@ -26,8 +38,8 @@ from typing import Callable, Tuple
 
 import jax
 import jax.numpy as jnp
-from jax import Array, random
-from jaxtyping import Float, Int, PRNGKeyArray
+from jax import Array
+from jaxtyping import Float, PRNGKeyArray
 
 
 def energy_sorted_segregation(
@@ -40,9 +52,10 @@ def energy_sorted_segregation(
     """
     Assign positions/velocities to masses using Baumgardt energy-ordered method.
 
-    This implements full energy-ordered segregation (S=1 at the bin level).
-    Partial segregation (S < 1) is handled via lambda_seg blending in the IC
-    generator, not within this function.
+    This implements full energy-ordered segregation (S=1 at the bin level) —
+    a PRIMORDIAL generator. For partial/continuous segregation use the
+    equilibrium family (MultiComponentCluster.from_mass_segregation), not a
+    blend of this function's output.
 
     Algorithm (Baumgardt+2008 Appendix, McLuster implementation):
         1. Sort masses descending → m_sorted[i] for mass rank i
@@ -105,24 +118,19 @@ def energy_sorted_segregation(
         tests/unit/cluster/test_mass_segregation.py.
 
     Non-Differentiability:
-        This function is NOT differentiable (argsort, floor). For gradient-based
-        inference, do NOT differentiate through it; instead blend a fully segregated and
-        an unsegregated catalog in the IC generator via a continuous lambda_seg::
-
-            positions = (1 - lambda_seg) * positions_unseg + lambda_seg * positions_seg
-
-        Differentiate through the blend, not this discrete assignment. (Note: only
-        lambda_seg in {0, 1} are exact equilibria; intermediate blends drift from
-        per-mass-group virial balance — see per_group_virial_ratio and the validation
-        page. The first-principles partial-equilibrium alternative is the multi-mass
-        LIMEPY family.)
+        This function is NOT differentiable (argsort, floor) and is not meant to
+        be: it is a discrete primordial-assignment generator. For gradient-based
+        inference over segregation strength, use the first-principles equilibrium
+        knob instead — MultiComponentCluster.from_mass_segregation(delta), which
+        is differentiable in delta and a true shared-potential equilibrium at
+        every value. (The historical lambda_seg catalog blend was retired: its
+        intermediate states drift from per-mass-group virial balance — see
+        per_group_virial_ratio and the mass-segregation validation page.)
 
     Segregation Strength:
-        Implements full Baumgardt-style energy ordering (S=1): the most massive stars
-        occupy the most bound orbits. The assignment is deterministic given the pool;
-        realisation variety comes from re-drawing the random orbit pool. The
-        _mcluster_partial_shuffle helper is kept as a reference for future S-based
-        schemes but is not used here.
+        Implements full Baumgardt-style energy ordering (S=1): the most massive
+        stars occupy the most bound orbits. The assignment is deterministic given
+        the pool; realisation variety comes from re-drawing the random orbit pool.
     """
     N = masses.shape[0]
     N_pool = positions_pool.shape[0]
@@ -200,95 +208,6 @@ def energy_sorted_segregation(
     # Return masses unchanged (preserve caller's mass array), with
     # positions/velocities reordered according to Baumgardt assignment
     return masses, positions_out, velocities_out
-
-
-def _mcluster_partial_shuffle(
-    key: PRNGKeyArray,
-    N: int,
-    S: float,
-) -> Int[Array, "N"]:
-    """
-    Build rank-to-star mapping via McLuster Eq. A1 (reference implementation).
-
-    This is a reference implementation of McLuster's Equation A1 "partial shuffle"
-    for S-controlled segregation in rank-space. It returns integer indices mapping
-    mass ranks to original star indices.
-
-    Behavior:
-        - S = 1: Identity mapping (no shuffle). Star i keeps rank i.
-        - S = 0: Full random permutation. Stars are fully shuffled across ranks.
-        - 0 < S < 1: Partial shuffle with bias toward identity.
-
-    The algorithm iteratively assigns stars to ranks, using:
-        j = floor((N - i) * (1 - X^(1-S)))
-    where X ~ Uniform(0, 1) and i is the current rank being assigned.
-
-    Note: This shuffles star labels but does not change which energy bin each
-    mass rank draws from. For S to control physical Λ_MSR, the orbit selection
-    must also depend on S.
-
-    NOTE: Currently unused in energy_sorted_segregation; kept as a reference
-    implementation for potential future direct S-controlled segregation schemes
-    (instead of lambda_seg blending). Tested in test_mass_segregation.py.
-
-    Args:
-        key: JAX random key for stochastic shuffle.
-        N: Number of particles.
-        S: Segregation parameter in [0, 1]. S=1 gives identity, S=0 gives
-            full random permutation.
-
-    Returns:
-        star_for_rank: Integer array (N,) where star_for_rank[i] is the original
-            star index that should occupy mass rank i.
-    """
-    # Clamp S into [0, 1] defensively
-    S = jnp.clip(S, 0.0, 1.0)
-
-    # Generate all random numbers upfront for JAX compatibility
-    X = random.uniform(key, (N,))
-
-    def shuffle_step(carry, i):
-        # available_mask[j] = True if star j has not yet been assigned to a rank
-        # star_for_rank[k] = which original star index is assigned to rank k
-        available_mask, star_for_rank = carry
-
-        # Number of available slots
-        n_available = N - i
-
-        # McLuster formula: j = (N - i) * (1 - X^(1-S))
-        j_relative = jnp.floor(
-            n_available * (1.0 - jnp.power(X[i], 1.0 - S))
-        ).astype(jnp.int32)
-        j_relative = jnp.clip(j_relative, 0, n_available - 1)
-
-        # Build array of available slot indices, padded with N for unavailable
-        available_indices = jnp.where(
-            available_mask,
-            jnp.arange(N, dtype=jnp.int32),
-            jnp.full((N,), N, dtype=jnp.int32),
-        )
-        # Sort to push unavailable (value=N) to the end
-        available_indices_sorted = jnp.sort(available_indices)
-
-        # Take the j_relative-th available index
-        target_star = available_indices_sorted[j_relative]
-
-        # Update mapping and mask
-        star_for_rank = star_for_rank.at[i].set(target_star)
-        available_mask = available_mask.at[target_star].set(False)
-
-        return (available_mask, star_for_rank), None
-
-    init_available = jnp.ones(N, dtype=bool)
-    init_star_for_rank = jnp.zeros(N, dtype=jnp.int32)
-
-    (_, star_for_rank), _ = jax.lax.scan(
-        shuffle_step,
-        (init_available, init_star_for_rank),
-        jnp.arange(N),
-    )
-
-    return star_for_rank
 
 
 __all__ = [
