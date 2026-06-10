@@ -6,14 +6,20 @@ description: Validation of the Λ_MSR diagnostic (analytic ground truth), the en
 # Mass segregation validation
 
 ```{important}
-Status (2026-06-09): the **$\Lambda_{\mathrm{MSR}}$ diagnostic is validated against
+Status (2026-06-10): the **$\Lambda_{\mathrm{MSR}}$ diagnostic is validated against
 analytic ground truth** (`tests/validation/test_mass_segregation_physics.py`, 8 tests).
-The energy-ordered **generator** is unit-tested + end-to-end checked. The
-**mass-weighted local-$\Sigma$ metric** (experimental, repo-only) is validated against
-the held Maschberger & Clarke (2011) PDF. **New:** three **differentiable segregation
-observables** (`progenax.diagnostics.segregation_approx`) enable gradient-based / HMC
-inference of segregation — validated against exact oracles in the soft $\to$ hard limit
-(§5). Regenerate every figure with the commands in [Run it yourself](#run-it-yourself).
+The energy-ordered generator is now explicitly labeled the **PRIMORDIAL**
+(non-equilibrium) route and carries its own physics suite
+(`tests/validation/test_segregation_equilibrium_physics.py`, 4 tests, §2); the
+**`lambda_seg` blend was retired** in the 2026-06 unified redesign — the
+differentiable, *equilibrium* segregation knob is now
+`MultiComponentCluster.from_mass_segregation(delta)` (Engine A, validated at
+[](multimass-equilibrium.md)). The **mass-weighted local-$\Sigma$ metric**
+(experimental, repo-only) is validated against the held Maschberger & Clarke (2011)
+PDF, and three **differentiable segregation observables**
+(`progenax.diagnostics.segregation_approx`) enable gradient-based / HMC inference of
+segregation — validated against exact oracles in the soft $\to$ hard limit (§5).
+Regenerate every figure with the commands in [Run it yourself](#run-it-yourself).
 ```
 
 ## 1. $\Lambda_{\mathrm{MSR}}$ diagnostic — validated against analytic ground truth
@@ -109,27 +115,76 @@ The documented binary caveat, quantified: a tight massive pair drives
 $\Lambda \propto 1/\text{separation}$ (use binary centre-of-mass positions to avoid).
 :::
 
-## 2. Energy-ordered generator — end-to-end check
+## 2. Primordial (energy-ordered) generator — physics suite + end-to-end check
 
-`progenax.cluster.mass_segregation.energy_sorted_segregation` (+ `MassSegregationLayer`):
-unit-tested in `tests/unit/cluster/` (shape/permutation validity, $S=0/1$ limits, massive-stars-
-more-bound). End-to-end via `scripts/validate_cluster_ic.py`: applying it to an unsegregated
-Kroupa Plummer pool drives the *independently validated* $\Lambda_{\mathrm{MSR}}$ from
-$1.40 \to 14.3$ and yields Spearman $\rho(m,E)=-0.84$ (massive stars in the most-bound orbits).
+`progenax.cluster.mass_segregation.energy_sorted_segregation` is the
+**PRIMORDIAL** segregation generator: it assigns the most massive stars to the
+most bound orbits of an equilibrium pool, in the spirit of
+{cite:t}`Baumgardt2008` and McLuster (Küpper et al. 2011). One **deliberate,
+documented departure** from the published recipe: Baumgardt+2008 draw orbits
+*randomly within cumulative-mass bins*; progenax uses a deterministic isotonic
+rounding of the bin-centre targets, which guarantees a distinct orbit per star
+for ANY mass spectrum — the random per-bin sampler collapsed below one orbit
+per bin for steep IMFs, producing coincident stars and $V = -\infty$ (the
+orbit-reuse bug, fixed in this arc and regression-locked below). Realisation
+variety comes from re-drawing the random pool.
+
+Physics suite `tests/validation/test_segregation_equilibrium_physics.py`
+(**4 tests**, ported in the 2026-06 redesign from the retired blend's suite
+onto the protocol-API composition):
+
+```{list-table}
+:header-rows: 1
+
+* - Property
+  - Tolerance (as tested)
+  - Anchor
+* - Full ($S=1$) ordering is a per-group equilibrium: seed-averaged
+    $\max_j |Q_j - 0.5|$ over 4 mass groups, 10 seeds
+  - drift $< 0.08$
+  - each mass group is an energy shell of the parent Plummer equilibrium,
+    hence individually virial — the same budget the $\lambda = 1$ endpoint
+    carried before the blend's retirement
+* - Global virial after finalisation
+  - $|Q - 0.5| < 0.02$
+  - exact rescale by construction
+* - Orbit-reuse regression (steep Kroupa IMF)
+  - $V$ finite; min pair separation $> 10^{-6}$
+  - pre-fix: coincident stars, $V = -\infty$
+* - Segregation signal
+  - $\Lambda_{\mathrm{MSR}}^{\rm seg} > \Lambda_{\mathrm{MSR}}^{\rm unseg}$
+  - the independently validated §1 diagnostic
+```
+
+End-to-end via `scripts/validate_cluster_ic.py` §3 (re-run 2026-06-10, PASS):
+applying the generator to an unsegregated Kroupa Plummer pool drives the
+*independently validated* $\Lambda_{\mathrm{MSR}}$ from $1.40 \to 4.74$ and
+yields Spearman $\rho(m,E) = -0.92$ (massive stars in the most-bound orbits).
+(Earlier versions of this page quoted $1.40 \to 14.3$, $\rho = -0.84$ —
+numbers from before the orbit-reuse fix changed the deterministic assignment.)
 
 :::{figure} figures/cluster_ic_energy_sorted_segregation.png
 :label: val-energy-sorted
 :width: 100%
 
-`energy_sorted_segregation` produces real, $\Lambda_{\mathrm{MSR}}$-detectable segregation.
+`energy_sorted_segregation` produces real, $\Lambda_{\mathrm{MSR}}$-detectable
+segregation: $\Lambda_{\mathrm{MSR}} = 1.40 \to 4.74$, $\rho(m,E) = -0.92$
+(`scripts/validate_cluster_ic.py` §3, 2026-06-10 run).
 :::
 
-```{caution}
-The **partial**-segregation knob `lambda_seg` is a *linear phase-space blend* between the
-unsegregated and fully-Baumgardt catalogs (differentiable in `lambda_seg`), **not** a
-first-principles partial-equilibrium model — intermediate states are interpolated. Its
-intermediate calibration is not yet analytically validated (see the hardening checklist in
-`docs/plans/2026-06-08-fdf-methods-paper-and-hardening-design.md`).
+```{admonition} The `lambda_seg` blend is retired — the equilibrium route is Engine A
+:class: important
+The historical partial-segregation knob `lambda_seg` (a linear phase-space
+blend between the unsegregated and fully-ordered catalogs) was **retired** in
+the 2026-06 unified redesign: its intermediate states drift from per-mass-group
+virial balance (drift peaking $\sim 0.05$ at $\lambda = 0.5$ in the Phase-0
+error-budget study). The differentiable segregation knob is now
+**`MultiComponentCluster.from_mass_segregation(delta)`** — the multi-mass
+lowered-isothermal family with $w_j = \mu_j^{-\delta}$, a *true
+shared-potential equilibrium at every* $\delta$ (theory $Q_j = 0.5$ exactly;
+segregation ratio $1.0 \to 2.6$ over $\delta \in [0, 0.6]$). Validation:
+[](multimass-equilibrium.md). `energy_sorted_segregation` survives as the
+labeled primordial (non-equilibrium, non-differentiable) generator above.
 ```
 
 ## 3. Mass-weighted substructure metric (experimental, repo-only)
@@ -155,10 +210,15 @@ easy:
   - Kind
   - Differentiable?
   - Use
-* - Generator `lambda_seg`
+* - Equipartition $\delta$ (`MultiComponentCluster.from_mass_segregation`)
   - forward-model **parameter**
-  - **Yes** (verified $\partial/\partial\lambda_{\mathrm{seg}}$ finite)
-  - dial segregation strength *into* a model; $\partial(\text{model})/\partial\lambda_{\mathrm{seg}}$
+  - **Yes** (AD $=$ FD through the table-backed solve, $2.15\times10^{-4}$)
+  - dial *equilibrium* segregation strength into a model;
+    $\partial(\text{model})/\partial\delta$ — see [](multimass-equilibrium.md)
+* - Generator `energy_sorted_segregation` (primordial)
+  - forward-model generator
+  - No (`argsort`, floor — discrete assignment, by design)
+  - labeled primordial route (§2); use $\delta$ for gradients
 * - `compute_lambda_msr` (Allison)
   - **observable** (measurement)
   - No (SciPy MST + `argsort`)
@@ -173,9 +233,13 @@ easy:
   - gradient-based / HMC inference *from* positions+masses
 ```
 
-The forward-model parameter `lambda_seg` has **always** been differentiable — that is what
-powers `recover_lambda_seg_via_gradient_descent`. What was missing was a differentiable
-**observable**: a function $f(\text{positions},\text{masses})\to\mathbb{R}$ whose gradient
+The forward-model *parameter* route is differentiable: the equipartition
+$\delta$ flows through the coupled multi-mass Poisson solve and the
+`jax.lax.scan` sampler ([](multimass-equilibrium.md)). (The retired
+`lambda_seg` blend was also differentiable — what it lacked was per-group
+*equilibrium*, which is why $\delta$ replaced it.) What was missing on the
+measurement side was a differentiable **observable**: a function
+$f(\text{positions},\text{masses})\to\mathbb{R}$ whose gradient
 is usable, so segregation can enter a likelihood / HMC *without* a samplable forward model.
 That gap is now closed by §5 — mirroring how the differentiable `q_approx` surrogate closed
 the same gap for CW04 $\mathcal{Q}$ substructure geometry.
@@ -420,8 +484,8 @@ $\partial S/\partial m_{\mathrm{cut}}\approx0$ (flat green) because the $\Sigma$
 *correlation* is insensitive to exactly where the cut falls inside the gap. Panel (b) closes
 the loop: descending on a single differentiable observable recovers the generating
 segregation strength exactly — the minimal end-to-end demonstration that gradient-based
-inference of segregation now works (the observable analogue of the long-standing
-`recover_lambda_seg_via_gradient_descent`, which acts through the *forward model* instead).
+inference of segregation now works (the observable-side complement of the differentiable
+forward-model knob $\delta$ in `MultiComponentCluster.from_mass_segregation`).
 
 **Verdict: correct.** Gradients are exact; inference through the observable succeeds.
 
@@ -469,13 +533,18 @@ pytest tests/validation/test_mass_segregation_physics.py -v
 pytest tests/validation/test_segregation_approx_physics.py tests/unit/diagnostics/ -v
 python scripts/validate_segregation_approx.py     # -> seg_*.png (5 figures, PASS/FAIL)
 
-# (3) energy-ordered generator + Λ_MSR diagnostic figures
+# (3) primordial generator — physics suite, Λ_MSR diagnostic figures, end-to-end
+pytest tests/validation/test_segregation_equilibrium_physics.py -v
 python scripts/validate_mass_segregation.py     # -> lambda_msr_*.png
 python scripts/validate_cluster_ic.py           # -> cluster_ic_*.png
 #   figures land in validation/plots/; the curated copies embedded here live in
 #   docs/website/50-validation/figures/
 
-# (4) experimental mass-weighted Σ metric + density-correlated placement
+# (4) the EQUILIBRIUM mass-segregation route (Engine A, differentiable delta)
+#     -> see multimass-equilibrium.md
+python scripts/validate_multimass_equilibrium.py
+
+# (5) experimental mass-weighted Σ metric + density-correlated placement
 PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_mass_density.py tests/experimental/unit/test_masses.py -v
 ```
 

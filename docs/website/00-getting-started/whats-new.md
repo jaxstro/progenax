@@ -7,6 +7,46 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-09 — Unified multi-component equilibrium clusters (two engines)
+
+The multimass arc (Phases 1+2) merged to main: ONE differentiable
+`MultiComponentCluster` (eqx.Module → `ICResult`) spans mass segregation,
+GC 1G/2G, binaries-vs-singles, and halo+core populations in a single
+self-consistent shared potential, via **two independent engines**:
+
+- **Engine A (DF-defined)** — the multi-mass lowered-isothermal/LIMEPY
+  family (Gieles & Zocchi 2015): `from_components` (direct velocity-scale
+  ratios $w_j = s_j/s$), `from_mass_segregation` (the equipartition law
+  $w_j = \mu_j^{-\delta}$, differentiable in $\delta$), `from_imf`
+  (eigenvalue solve for the central density fractions $\alpha_j$). Optional
+  per-component Michie/Osipkov–Merritt anisotropy; differentiable DF tables
+  accelerate construction ~5.6× and sampling 21–67× with the exact
+  quadrature retained as a selectable oracle.
+- **Engine B (density-defined)** — `from_density_profiles`: Plummer/EFF/King
+  *density* components in one shared potential (single quadrature Poisson
+  pass, no ODE), per-component DFs via generic Eddington inversion
+  (`eddington_invert`), optional per-component OM `r_a_j`, and an
+  $f_j \ge 0$ realizability gate. Validated against Engine A on the same
+  King model (two independent engines agree: $\sigma_{1d}(r)$ deviation
+  $3\times10^{-4}$, radial KS $2\times10^{-4}$).
+
+`sample_cluster` returns an `ICResult` whose new `component_id` field labels
+each star's generating component; per-component theory oracles prove
+$Q_j = 0.5$ for every component. `energy_sorted_segregation` stays as the
+labeled PRIMORDIAL (non-equilibrium) generator.
+
+**Retired (pre-launch, no backwards compat):** the `populations` module
+(`generate_two_component_cluster`/`TwoComponentConfig` — it fed the *full*
+cluster mass to each sub-population's velocity DF, a real physics bug for
+unequal-mass IMFs), the string-dispatch `generate_cluster_ic`/`ClusterState`/
+`SpatialStructureParams`/`MassSegregationLayer`, the `lambda_seg` catalog
+blend (intermediate states drift from per-mass-group virial balance), and
+`MultiMassLIMEPY` (subsumed by `MultiComponentCluster`). `src/` is now
+dataclass-free (all containers are Equinox modules).
+
+**Gate.** Released-core **1101 tests passing** (unit 833, integration 34,
+validation 234).
+
 ## 2026-06-04 — Binaries SoTA arc: review, completion, and faithful Moe composition
 
 A paper-grounded review + completion pass over the whole `binaries/` module (Batches 4a–4k).

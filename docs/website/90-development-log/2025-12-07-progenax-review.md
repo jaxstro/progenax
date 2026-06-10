@@ -1,5 +1,19 @@
 # Progenax: Comprehensive Code, Architecture & Science Review
 
+```{admonition} API retirement notice (2026-06, Phase 1c)
+:class: warning
+This 2025-12-07 review predates the 2026-06 unified multi-component
+redesign. APIs it discusses as current were since **retired**:
+`generate_cluster_ic`/`ClusterState`, the `populations` module
+(`generate_two_component_cluster`/`TwoComponentConfig`),
+`MassSegregationLayer`/`lambda_seg`, and `generate_fractal_positions`
+(the fractal generator moved to the experimental `gravoturb_fdf`
+package). Multi-population clusters are now built with
+`MultiComponentCluster` — see [](../10-theory/populations/index.md) and
+[](../30-api/cluster.md). This page is preserved unedited as a
+historical record.
+```
+
 **Document Type:** Full-Package Technical Review
 **Date:** 2025-12-07
 **Reviewer:** Claude Opus 4.5

@@ -12,11 +12,15 @@ file: `tests/validation/test_substructure_q_physics.py` (**9 tests**); figures:
 ```{admonition} Generator removed — diagnostic validated
 :class: warning
 The differentiable **Fractal Displacement Field generator** was removed in the
-2026-06 clean-room rewrite and has **no released successor** (released
-`generate_cluster_ic` no longer takes a fractal layer). What this page validates is
-the substructure **diagnostic** (exact `compute_q_parameter` + differentiable
-`q_approx`); the separate turbulent-IC method lives in the experimental
-`gravoturb_fdf` package.
+2026-06 clean-room rewrite and has **no released successor**. (The
+string-dispatch `generate_cluster_ic` entry point that once took a fractal
+layer was itself deleted in the 2026-06 unified multi-component redesign.)
+What this page validates is the substructure **diagnostic** — the exact
+`compute_q_parameter` and the differentiable `q_approx`, both alive in
+released `progenax.diagnostics` (unit suites in `tests/unit/substructure/`).
+Turbulent/fractal IC *generation* lives in the experimental, repo-only
+`gravoturb_fdf` package (`src/experimental/`, not in the released wheel —
+see its `VALIDATION_SUMMARY.md` and the AC1–AC17 acceptance suite).
 ```
 
 ## What is verified

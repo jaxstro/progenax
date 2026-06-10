@@ -60,7 +60,7 @@ in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 
 — a binary is never split, so the result is ``n`` or ``n+1`` stars). The
 data-dependent system count makes this **eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L50`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L50)*
+*Source: [`progenax/builders.py#L49`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L49)*
 
 (api-builders-totalmass)=
 ## `builders.TotalMass`
@@ -76,7 +76,7 @@ Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
 Whole-system, McLuster-style mass filling: draw until the cumulative system
 mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L64)*
+*Source: [`progenax/builders.py#L62`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L62)*
 
 (api-builders-icresult)=
 ## `builders.ICResult`
@@ -84,13 +84,14 @@ mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=T
 *class*
 
 ```python
-ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None, primordial_system_id: Optional[jaxtyping.Int[Array, 'N']] = None, is_primordial_secondary: Optional[jaxtyping.Bool[Array, 'N']] = None) -> None
+ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None, primordial_system_id: Optional[jaxtyping.Int[Array, 'N']] = None, is_primordial_secondary: Optional[jaxtyping.Bool[Array, 'N']] = None, component_id: Optional[jaxtyping.Int[Array, 'N']] = None) -> None
 ```
 
 Result from initial conditions generation — pure physical state.
 
-Immutable dataclass containing all particle data. No dependency on gravax;
-can be converted to any state format.
+Immutable Equinox module (a JAX PyTree) containing all particle data. No
+dependency on gravax; can be converted to any state format and passed
+through jit/vmap/grad boundaries.
 
 Softening is intentionally **NOT** stored here: it is a force-model /
 integration choice (selected on the integrator, e.g. ε=0 for collisional
@@ -109,8 +110,13 @@ Attributes:
         population with `binaries.diagnostics.find_bound_pairs`, not this.
     is_primordial_secondary: (N,) bool — True for the secondary of a
         primordial binary; None for single-only ICs.
+    component_id: (N,) int — which population component each particle was
+        drawn from (multi-component generators, e.g. MultiComponentCluster);
+        None for single-population ICs. Like primordial_system_id, this is
+        **PROVENANCE at t=0** — a label of the generating component, not a
+        dynamical invariant.
 
-*Source: [`progenax/builders.py#L116`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L116)*
+*Source: [`progenax/builders.py#L113`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L113)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -136,7 +142,7 @@ Args:
 Returns:
     Radii in R☉
 
-*Source: [`progenax/builders.py#L152`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L152)*
+*Source: [`progenax/builders.py#L155`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L155)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -149,7 +155,7 @@ compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyp
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-*Source: [`progenax/dynamics/virial.py#L14`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L14)*
+*Source: [`progenax/dynamics/virial.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L15)*
 
 (api-builders-compute_potential_energy)=
 ## `builders.compute_potential_energy`
@@ -171,7 +177,7 @@ derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
 sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
 canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L23)*
+*Source: [`progenax/dynamics/virial.py#L24`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L24)*
 
 (api-builders-to_com_frame)=
 ## `builders.to_com_frame`
@@ -192,7 +198,7 @@ Args:
 Returns:
     (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`progenax/builders.py#L193`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L193)*
+*Source: [`progenax/builders.py#L196`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L196)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -225,7 +231,7 @@ References:
     Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
     Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`progenax/builders.py#L218`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L218)*
+*Source: [`progenax/builders.py#L221`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L221)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -256,7 +262,7 @@ Args:
 Returns:
     ICResult (pure physical state — no softening field)
 
-*Source: [`progenax/builders.py#L259`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L259)*
+*Source: [`progenax/builders.py#L262`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L262)*
 
 (api-builders-build_binary_cluster)=
 ## `builders.build_binary_cluster`
@@ -309,5 +315,5 @@ Args:
 Returns:
     `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
 
-*Source: [`progenax/builders.py#L377`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L377)*
+*Source: [`progenax/builders.py#L380`](https://github.com/drannarosen/progenax/blob/main/progenax/builders.py#L380)*
 

@@ -115,6 +115,30 @@ differentiable analytically (Plummer) or via tabulated-quadrature /
 ODE machinery (King, EFF, Michie). All four DFs are JIT-compatible and
 vectorisable via `jax.vmap`.
 
+## Multiple components in one potential
+
+Everything above is **single-component**: one DF in its own
+self-consistent potential. For clusters with *multiple* populations
+sharing **one** potential — GC 1G/2G, halo+core, multi-mass
+equipartition — the right tool is `MultiComponentCluster`
+([](../populations/index.md)), which provides two equilibrium
+engines: the DF-defined lowered-isothermal family
+([Engine A](../spatial-profiles/lowered-model-family.md)) and
+density-defined Eddington inversion in a shared potential
+([Engine B](../populations/eddington-engine.md)). Per-component
+equilibrium ($Q_j = 0.5$) emerges from the DFs with no external
+rescale.
+
+```{admonition} Why trust two engines?
+:class: tip
+The engines share one configuration — a single King component
+($g = 1$ DF in Engine A; King *density* in Engine B) — built through
+entirely disjoint numerics. They agree to a radial KS distance of
+$2\times 10^{-4}$ and a velocity-dispersion-profile deviation of
+$3\times 10^{-4}$: the cross-engine trust anchor for the
+multi-component machinery.
+```
+
 ## References
 
 The Eddington-inversion machinery ({cite:t}`Plummer1911`,

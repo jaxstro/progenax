@@ -1,6 +1,6 @@
 ---
 title: Multi-component populations
-description: progenax's multi-component cluster machinery — two-component clusters, mixed dynamical states, and the per-component composability with profiles, DFs, and modifiers.
+description: "progenax's unified MultiComponentCluster — one differentiable model, two equilibrium engines (DF-defined lowered-isothermal family and density-defined Eddington inversion), every component individually virial in one shared potential with no external rescale."
 ---
 
 # Multi-component populations
@@ -9,30 +9,102 @@ description: progenax's multi-component cluster machinery — two-component clus
 For single-component clusters built from one IMF + one profile + one
 DF, see the chapter families [](../spatial-profiles/index.md),
 [](../velocity-dfs/index.md), and [](../imfs/index.md). This chapter
-covers the case where a single IC contains *multiple* such
-components — the simplest non-trivial example being a two-component
-cluster with a young dense core embedded in an older diffuse envelope.
+covers the case where a single IC contains *multiple* stellar
+populations sharing **one** self-consistent gravitational potential.
 ```
 
-A **multi-component population** is an IC that contains stars drawn
-from more than one IMF + profile + DF combination. Real clusters
-often need multi-component descriptions:
+A **multi-component population** is an IC containing stars from more
+than one population, all orbiting in the same potential. Real clusters
+routinely need this:
 
-- **Two-population globular clusters.** Many old globular clusters
-  show two stellar populations of different ages and chemical
-  compositions; these have distinct radial distributions and need
-  distinct sampling.
-- **Embedded cluster + halo.** Young embedded clusters often have a
-  dense compact core embedded in a diffuse halo of expelled stars.
-- **Multi-mass equipartition.** Old clusters reach approximate
-  equipartition of kinetic energy across mass bins; the resulting
-  per-mass-bin radial distributions differ.
+- **Globular-cluster multiple populations (1G/2G).** Many old GCs host
+  two chemically distinct populations with different radial
+  distributions and kinematics — typically a centrally concentrated 2G
+  inside a more extended 1G.
+- **Halo + core decompositions.** An observed surface-brightness
+  profile decomposed into an extended halo plus a compact core, each
+  with its own prescribed density shape.
+- **Mass segregation as equilibrium.** Multi-mass clusters in partial
+  equipartition: heavier components are dynamically colder and sit
+  deeper in the shared well.
+- **Binaries vs. singles.** Binary systems behave as a dynamically
+  colder, more concentrated component than the single stars.
 
-progenax's `TwoComponentConfig` and `generate_two_component_cluster`
-provide the current two-component primitive: one already-sampled mass
-array, two profiles, two velocity DFs, and a returned population-ID
-mask. Richer N-component builders and per-component IMF sampling are
-composition patterns, not a separate public API in this checkout.
+progenax packages all of these as **one** class —
+`MultiComponentCluster` — with **two equilibrium engines** selected by
+the constructor:
+
+```{list-table}
+:header-rows: 1
+
+* - Engine
+  - Components are defined by…
+  - Constructors
+  - Theory page
+* - **A** — DF-defined (lowered-isothermal family)
+  - Their distribution functions: each component is a
+    {cite:t}`Gieles2015`-family lowered DF with its own velocity-scale
+    ratio $w_j$ (and optionally its own anisotropy radius
+    $\hat r_{a,j}$), coupled through one Poisson solve.
+  - `from_components`, `from_mass_segregation`, `from_imf`
+  - [](../spatial-profiles/lowered-model-family.md)
+* - **B** — density-defined (Eddington inversion)
+  - Their prescribed *densities*: Plummer/EFF/King density shapes with
+    mass-fraction amplitudes; the shared potential is one direct
+    quadrature pass and each component's DF is recovered by Eddington
+    inversion in that shared potential (optionally Osipkov–Merritt
+    anisotropic).
+  - `from_density_profiles`
+  - [](eddington-engine.md)
+```
+
+## When to choose which engine
+
+**Choose Engine A when the DF family *is* the model.** The
+lowered-isothermal family (Woolley/King/Wilson, continuous truncation
+parameter $g$) is the physically motivated description of relaxed,
+tidally truncated clusters; the per-component velocity-scale ratios
+$w_j$ (mass segregation: $w_j = \mu_j^{-\delta}$) make multi-mass
+equipartition a *built-in* equilibrium property. Fitting $g$, $W_0$,
+$\delta$, or $r_a$ to data is an Engine-A problem.
+
+**Choose Engine B when observed or prescribed densities are the
+input.** If the science starts from a density decomposition — "this
+cluster is a Plummer halo of half-mass radius 2 pc plus an EFF core" —
+Engine B takes those shapes verbatim, derives the one shared potential
+they jointly generate, and asks Eddington whether each component can
+exist as an equilibrium there. (It honestly refuses when the answer is
+no — see the
+[realizability discussion](eddington-engine.md).)
+
+The two engines overlap at exactly one configuration — a single King
+component ($g = 1$ in Engine A; King *density* in Engine B) — and that
+overlap is the cross-engine trust anchor: two independent codepaths
+agree to a radial KS distance of $2\times 10^{-4}$ and a velocity
+dispersion profile deviation of $3\times 10^{-4}$.
+
+## The core principle: per-component equilibrium, no rescale
+
+Every `MultiComponentCluster` IC satisfies, **per component**,
+
+```{math}
+:label: per-component-virial
+Q_j \;=\; \frac{T_j}{|W_j|} \;=\; 0.5
+\qquad\text{with}\qquad
+W_j = -\int \rho_j\, r\,\frac{\mathrm{d}\Phi}{\mathrm{d}r}\, \mathrm{d}^3r
+\;\;\text{(Clausius, shared $\Phi$)},
+```
+
+and this **emerges from the DF** — there is no external virial rescale
+anywhere in the pipeline. This matters because joint rescaling cannot
+fix a multi-component IC: rescaling all velocities to set the *global*
+$Q = 0.5$ moves every individually-correct component *away* from its
+own equilibrium. (Precisely this failure — feeding each sub-population's
+DF the full cluster mass, then relying on a rescale — was the physics
+bug that retired progenax's legacy two-component generator.) Both
+engines instead prove $Q_j = 0.5$ by exact quadrature oracles that are
+deliberately independent of the sampled draws, and the sampled clusters
+are checked *unscaled*.
 
 ## Map of the section
 
@@ -42,69 +114,47 @@ composition patterns, not a separate public API in this checkout.
 * - Chapter
   - Scope
 * - [](two-component.md)
-  - Two-component clusters with separate masses, radii, and dynamical states. The simplest multi-component case and the one progenax exposes as a primitive.
-```
-
-## What "multi-component" means in progenax
-
-The implemented two-component primitive treats the masses as an input
-array, splits those systems into populations A and B, then samples
-positions and velocities from the corresponding profile/DF pair. A
-more general multi-component recipe can give each component its own
-IMF, spatial profile, velocity DF, and virial state, but that recipe is
-currently user-side composition rather than a packaged N-component
-builder.
-
-```{warning}
-**Per-component virial state is not preserved by joint rescaling.**
-If component A is at $Q_A = 0.5$ and component B at $Q_B = 0.7$, joint
-rescaling to $Q_{\mathrm{global}} = 0.5$ moves both away from their
-input values. For multi-component ICs where you need both components
-in equilibrium, use `Q_target=None` to skip the joint rescale and
-rely on per-component DFs to set the local equilibrium. See
-[](../../20-architecture/q-virial-convention.md).
+  - Worked two-component examples through **both** engines: an Engine-A
+    cold/hot pair and the Engine-B halo+core headline, including the
+    honest physics (an unrealizable mix, and the truncation-edge
+    $Q_j$ plateau).
+* - [](eddington-engine.md)
+  - Engine B theory and methods: the shared-potential quadrature,
+    per-component Eddington inversion, realizability, derived domains,
+    and hybrid sampling.
+* - [](../spatial-profiles/lowered-model-family.md)
+  - Engine A theory and methods: the lowered-isothermal family, the
+    coupled multi-component Poisson solve, and the DF-table
+    performance layer.
 ```
 
 ## Composability
 
-Each component composes orthogonally with all the modifier layers:
+Each component composes with the modifier layers:
 
-- Tidal truncation ([](../tidal-and-substructure/tidal.md)) applies
-  to the union (or per-component if needed).
-- Fractal substructure ([](../tidal-and-substructure/fractal.md))
-  can be applied per-component (typical for the dense core) or to
-  the union.
-- Mass segregation ([](../tidal-and-substructure/mass-segregation.md))
-  is per-component, since the energy ranking is component-relative.
+- Tidal truncation ([](../tidal-and-substructure/tidal.md)) applies to
+  the union (or per-component if needed).
+- Mass segregation has **two** routes: the Engine-A equipartition
+  equilibrium (`from_mass_segregation` — segregation as a *true*
+  equilibrium), and the labeled **primordial** non-equilibrium
+  generator `energy_sorted_segregation`
+  ([](../tidal-and-substructure/mass-segregation.md)) when the science
+  calls for segregation imposed on a single-mass profile.
+- Rotation stays a post-hoc transform (`apply_solid_body_rotation`,
+  `apply_differential_rotation`,
+  [](../velocity-dfs/rotation-anisotropy.md)) for either engine.
 
-The general N-component recipe is:
-
-```python
-components = []
-for cfg in component_configs:
-    masses_i = cfg.imf.sample(cfg.N, key)
-    positions_i = cfg.profile.sample_positions(masses_i, key)
-    velocities_i = cfg.df.sample_velocities(positions_i, masses_i, key, G=G)
-    components.append((masses_i, positions_i, velocities_i))
-
-# Concatenate and shift to global COM
-masses = jnp.concatenate([c[0] for c in components])
-positions = jnp.concatenate([c[1] for c in components])
-velocities = jnp.concatenate([c[2] for c in components])
-positions, velocities, masses = to_com_frame(positions, velocities, masses)
-```
-
-For the implemented two-component case, progenax exposes the simpler
-single API call documented at [](two-component.md).
+`sample_cluster` returns an `ICResult` whose `component_id` labels each
+star's generating component, so per-population diagnostics (radial
+profiles, $\sigma_j(r)$, $Q_j$, $\Lambda_{\rm MSR}$) are one mask away.
 
 ## References
 
-Multi-component cluster modelling is standard in N-body work; the
-{cite:t}`Aarseth1974` numerical scheme and {cite:t}`Kuepper2011`
-McLuster code both support multi-population ICs. The lowered-model
-family formalized by {cite:t}`Gieles2015` is the natural framework when
-*self-consistent* multi-mass equilibrium is required (rather than
-the layered single-mass-DF-per-component approach progenax takes);
-progenax plans to implement this family natively as its own
-differentiable generalization (see
-[](../spatial-profiles/lowered-model-family.md)).
+Self-consistent multi-mass lowered-isothermal equilibria follow
+{cite:t}`Gieles2015` (Section 4.1 for the multi-mass coupling);
+Eddington inversion with Osipkov–Merritt anisotropy follows
+{cite:t}`Merritt1985`. Multi-population N-body initial conditions are
+standard practice — {cite:t}`Kuepper2011`'s McLuster supports layered
+multi-population ICs — but the layered single-DF-per-component
+approach is *not* a joint equilibrium; the shared-potential treatment
+on this page is what replaces it in progenax.

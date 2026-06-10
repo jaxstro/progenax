@@ -38,7 +38,7 @@ Public symbols: **15**
 AnalyticalIC(positions: "Float[Array, 'N 3']", velocities: "Float[Array, 'N 3']", masses: "Float[Array, 'N']", name: 'str' = '', period: 'Optional[float]' = None, energy: 'Optional[float]' = None) -> None
 ```
 
-Result from analytical IC generation.
+Result from analytical IC generation (immutable Equinox module / PyTree).
 
 Attributes:
     positions: Particle positions (N, 3)
@@ -94,7 +94,7 @@ Example:
     >>> print(f"Mass: {jupiter['M']:.4e} Msun, a: {jupiter['a']:.2f} AU")
     Mass: 9.5479e-04 Msun, a: 5.20 AU
 
-*Source: [`progenax/analytical/base.py#L131`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/base.py#L131)*
+*Source: [`progenax/analytical/base.py#L130`](https://github.com/drannarosen/progenax/blob/main/progenax/analytical/base.py#L130)*
 
 (api-analytical-two_body_kepler)=
 ## `analytical.two_body_kepler`

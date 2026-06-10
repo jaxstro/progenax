@@ -5,6 +5,20 @@ description: Original design specification for progenax's protocol-based, compos
 
 # Progenax IC redesign: unified, composable, differentiable (2026-02-12)
 
+```{admonition} API retirement notice (2026-06, Phase 1c)
+:class: warning
+Several symbols this historical spec references were **retired in the
+2026-06 unified multi-component redesign**: `generate_cluster_ic`,
+`ClusterState`, the `populations` module
+(`generate_two_component_cluster`/`TwoComponentConfig`),
+`MassSegregationLayer`/`lambda_seg`, and the fractal generator. The
+current entry points are `build_spatial_ic` (single population),
+`MultiComponentCluster` (multi-population shared-potential equilibrium,
+Engines A and B), and `energy_sorted_segregation` (primordial). See
+[](../10-theory/populations/index.md) and [](../30-api/cluster.md).
+This page is preserved unedited as a historical record.
+```
+
 ```{seealso}
 This page is the *historical record* of the IC redesign specification.
 For the current state of the architecture see

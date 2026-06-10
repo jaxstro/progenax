@@ -1,8 +1,16 @@
-# `progenax.cluster` — cluster IC assembly + turbulence relations
+# `progenax.cluster` — multi-component equilibrium clusters + turbulence relations
 
-Released-core tools for assembling star-cluster initial conditions from **smooth spatial
-profiles** with optional **mass segregation**, plus the **turbulence scaling relations**
-used to derive gas-cloud properties from cluster parameters.
+Released-core tools for star-cluster initial conditions: the unified
+**`MultiComponentCluster`** equilibrium model (N populations in ONE self-consistent shared
+potential, via two engines — Engine A: DF-defined lowered-isothermal/LIMEPY family;
+Engine B: density-defined Eddington inversion of Plummer/EFF/King components), the
+**primordial** energy-ordered mass-segregation generator, plus the **turbulence scaling
+relations** used to derive gas-cloud properties from cluster parameters.
+
+Smooth single-population ICs are built with `progenax.build_spatial_ic` (any
+`SpatialProfile` × `VelocityDF`). The legacy string-dispatch generator
+(`generate_cluster_ic`/`ClusterState`) and the `lambda_seg` blend were retired in the
+2026-06 unified redesign (pre-launch, no backwards compat).
 
 > **Turbulent / fractal substructure ICs are not here.** The gravoturbulent density-PDF +
 > fractal-density-field (FDF) pipeline was rebuilt clean-room in the experimental
@@ -16,11 +24,17 @@ used to derive gas-cloud properties from cluster parameters.
 
 | Module | Contents |
 |--------|----------|
-| `core.py` | `generate_cluster_ic`, `ClusterState`, `SpatialStructureParams`, `sample_velocities_for_profile` — assemble a cluster IC (smooth profile + optional mass-segregation layer). |
-| `mass_segregation.py` | `energy_sorted_segregation`, `MassSegregationLayer` — energy-ordered mass segregation. |
+| `multicomponent.py` | `MultiComponentCluster` — the unified equilibrium model. Engine A constructors: `from_components`, `from_mass_segregation` (w_j = μ_j^(−δ)), `from_imf`. Engine B constructor: `from_density_profiles`. `sample_cluster` → `ICResult` with `component_id`; `component_virial_ratios` is the quadrature oracle. |
+| `sampling.py` | JIT-compiled per-star sampling kernel for `sample_cluster` (Engines A and B). |
+| `eddington_engine.py` | Engine B internals: shared-potential assembly, per-component Eddington inversion, realizability gate, `engine_b_component_virials`. |
+| `mass_segregation.py` | `energy_sorted_segregation` — PRIMORDIAL energy-ordered orbit assignment (deterministic monotonic; documented departure from Baumgardt+2008's random per-bin draw). |
 | `turbulence.py` | Federrath+2010 / Larson / Kim & Ryu turbulence relations (below). |
 | `constants.py` | Turbulence constants (`B_DEFAULT`, `BETA_KOLMOGOROV`, `SIGMA_V0_DEFAULT`, `ALPHA_LARSON`, …). |
-| `validation.py` | Plotting/validation helpers for the smooth + mass-seg path. |
+
+The Engine-A coupled-Poisson core (`solve_multicomponent_limepy` / `solve_multimass_limepy`,
+`find_alpha_for_masses`) and the differentiable DF-table primitives live in
+`progenax.profiles` (`limepy_multimass.py`, `limepy_tables.py`); the shared-potential
+quadrature for Engine B is `progenax.profiles.density_poisson`.
 
 ## Turbulence relations (`turbulence.py`)
 

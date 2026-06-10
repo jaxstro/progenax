@@ -1,5 +1,16 @@
 # Code reviews
 
+```{admonition} API retirement notice (2026-06, Phase 1c)
+:class: warning
+The audit records below predate the 2026-06 unified multi-component
+redesign and reference APIs that were since **retired**:
+`generate_cluster_ic`, the `populations` module, and the fractal-IC
+generator path (moved to the experimental `gravoturb_fdf` package).
+Multi-population clusters are now built with `MultiComponentCluster` —
+see [](../10-theory/populations/index.md) and [](../30-api/cluster.md).
+The records are preserved unedited as historical evidence.
+```
+
 This page is the landing record for full-package technical reviews of progenax.
 
 | Date | Reviewer | Type | Grade | Record |

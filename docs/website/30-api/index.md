@@ -39,8 +39,12 @@ For physics derivations of the algorithms behind these symbols, see
   - IC pipeline utilities: `virial_scale`, `to_com_frame`, energy diagnostics
 * - [](tidal.md)
   - Jacobi-radius computation and tidal truncation
-* - [](populations.md)
-  - Multi-component populations (two-component clusters)
+* - [](cluster.md)
+  - Multi-component equilibrium clusters: `MultiComponentCluster` (Engines A and B), primordial `energy_sorted_segregation`, turbulence physics
+* - [](diagnostics.md)
+  - Cluster diagnostics: Λ_MSR, CW04 Q parameter, differentiable segregation observables
+* - [](dynamics.md)
+  - Virial and energy utilities: kinetic/potential energy, per-group virial ratios
 * - [](protocols.md)
   - Runtime-checkable protocols: `SpatialProfile`, `VelocityDF`, `IMFProtocol`
 ```
@@ -104,13 +108,13 @@ chapter.
   - Example
 * - **Stable** (default)
   - In `progenax.__all__`; covered by tests
-  - `PlummerProfile`, `magnification_factor`
+  - `PlummerProfile`, `MultiComponentCluster`
 * - **Experimental**
-  - In `progenax.experimental.*`; minimal tests
-  - Native lowered-model family (planned)
+  - Repo-only packages under `src/experimental/`; not in the released wheel
+  - `gravoturb_fdf` (turbulent/fractal ICs + inference)
 * - **Internal**
   - Underscore-prefixed; not in `__all__`
-  - `_f_dense_bm19_full_jit`
+  - `_grid_density_components`
 ```
 
 Only stable-API symbols appear in this reference. Experimental and

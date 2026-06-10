@@ -111,6 +111,7 @@ project:
         - title: Multi-component populations
           children:
             - file: 10-theory/populations/index.md
+            - file: 10-theory/populations/eddington-engine.md
             - file: 10-theory/populations/two-component.md
     - title: Architecture & design
       children:
@@ -134,7 +135,9 @@ project:
         - file: 30-api/analytical.md
         - file: 30-api/builders.md
         - file: 30-api/tidal.md
-        - file: 30-api/populations.md
+        - file: 30-api/cluster.md
+        - file: 30-api/diagnostics.md
+        - file: 30-api/dynamics.md
         - file: 30-api/protocols.md
         - file: 30-api/full-symbol-index.md
     - title: How-to recipes
@@ -160,6 +163,8 @@ project:
         - file: 50-validation/environment-imf.md
         - file: 50-validation/fractal-substructure.md
         - file: 50-validation/mass-segregation.md
+        - file: 50-validation/multimass-equilibrium.md
+        - file: 50-validation/engine-b-eddington.md
         - file: 50-validation/gravoturbulent-pp20.md
         - file: 50-validation/two-component.md
         - file: 50-validation/tidal-truncation.md

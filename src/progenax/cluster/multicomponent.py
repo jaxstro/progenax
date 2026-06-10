@@ -85,15 +85,25 @@ def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
 
 
 class MultiComponentCluster(eqx.Module):
-    """Multi-component lowered-isothermal cluster in shared-potential equilibrium.
+    """Multi-component cluster in shared-potential equilibrium (two engines).
 
-    Construct with `from_components` (direct per-component velocity-scale ratios
-    w_j -- the general case), `from_mass_segregation` (the equipartition law
-    w_j = mu_j^(-delta)), or `from_imf` (bin an IMF, eigenvalue-solve for alpha_j).
-    `sample_cluster` returns an :class:`~progenax.builders.ICResult` whose
-    `component_id` labels each star's generating component.
+    Engine A (DF-defined, lowered-isothermal/LIMEPY family): construct with
+    `from_components` (direct per-component velocity-scale ratios w_j -- the
+    general case), `from_mass_segregation` (the equipartition law
+    w_j = mu_j^(-delta)), or `from_imf` (bin an IMF, eigenvalue-solve for
+    alpha_j).
 
-    Differentiable in every per-component parameter (alpha_j, w_j, ra_hat_j, W0, g)
+    Engine B (density-defined, Eddington inversion): construct with
+    `from_density_profiles` (Plummer/EFF/King density components in ONE
+    shared self-consistent potential, per-component DFs via Eddington
+    inversion, optional per-component Osipkov-Merritt `r_a_j`).
+
+    Either way, `sample_cluster` returns an
+    :class:`~progenax.builders.ICResult` whose `component_id` labels each
+    star's generating component.
+
+    Differentiable in every per-component parameter (Engine A: alpha_j, w_j,
+    ra_hat_j, W0, g; Engine B: profile scales, mass fractions, r_a_j)
     through construction AND sampling.
 
     Attributes:

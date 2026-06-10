@@ -1,6 +1,6 @@
 ---
 title: Mass segregation
-description: Energy-ordered (Baumgardt) primordial mass segregation with the McLuster S-shuffle, the λ_seg blending strategy that makes it differentiable, and the Λ_MSR diagnostic.
+description: Mass segregation two ways — the energy-ordered (Baumgardt-style) primordial generator and the differentiable equilibrium route via MultiComponentCluster.from_mass_segregation — plus the Λ_MSR diagnostic.
 ---
 
 # Mass segregation
@@ -27,14 +27,28 @@ old globular clusters, and {cite:t}`Allison2009` showed that subvirial
 fractal initial conditions produce dynamical segregation on $\sim 1$ Myr
 timescales — much shorter than the classical relaxation time.
 
-progenax implements primordial mass segregation via the energy-ordered
-{cite:t}`Baumgardt2008` construction, with the partial-segregation
-extension from {cite:t}`Kuepper2011`'s McLuster code. The key design
-decision is to expose the segregation strength through a *smooth*
-parameter $\lambda_{\mathrm{seg}} \in [0, 1]$ — differentiable through
-`jax.grad`, rather than the discrete S parameter in McLuster — so that
-it can sit inside an HMC posterior chain alongside $\alpha$, virial Q,
-and the rest of the IC parameters.
+progenax offers segregation **two ways**, with a clean division of
+labour after the 2026-06 unified redesign:
+
+1. **Primordial (non-equilibrium) generator** —
+   `energy_sorted_segregation`, the energy-ordered
+   {cite:t}`Baumgardt2008`-style construction described below. It is a
+   discrete assignment (argsort + floor) and deliberately **not**
+   differentiable.
+2. **Equilibrium route (differentiable)** —
+   `MultiComponentCluster.from_mass_segregation(delta)` (Engine A of the
+   unified multi-component model): each mass component gets velocity-scale
+   ratio $w_j = \mu_j^{-\delta}$ in ONE shared self-consistent potential,
+   so *every* value of $\delta$ is a true equilibrium and the segregation
+   knob $\delta$ is differentiable end-to-end. See
+   [](../populations/index.md) and
+   [](../spatial-profiles/lowered-model-family.md).
+
+An earlier $\lambda_{\mathrm{seg}}$ catalog-blend (linear interpolation
+between an unsegregated and a fully segregated catalog) was **retired**
+in the redesign: its intermediate states drift from per-mass-group
+virial balance, while the equilibrium route gives a smooth,
+HMC-compatible segregation parameter *without* leaving equilibrium.
 
 ## The Baumgardt + McLuster construction
 
@@ -78,6 +92,19 @@ For each mass rank $i$, sample one orbit uniformly from the energy-sorted
 pool in the range $[\mathrm{bin}_{\mathrm{low}}[i],\, \mathrm{bin}_{\mathrm{high}}[i]]$.
 The most massive star (rank 0) draws from the most-bound bin, the
 second-most from the second bin, and so on.
+
+```{admonition} Implementation departure (deliberate)
+:class: note
+The released `energy_sorted_segregation` replaces Step 4's *random*
+per-bin draw with a **deterministic monotonic (isotonic-rounding)
+assignment** of distinct orbit indices to mass ranks. The random draw
+fails for steep IMFs: cumulative-mass bins collapse below one orbit,
+forcing many low-mass ranks onto the *same* orbit (coincident stars,
+$V = -\infty$). The deterministic assignment guarantees no orbit reuse
+for any mass spectrum; realisation variety comes from the random orbit
+pool. See the `energy_sorted_segregation` docstring and
+[](../../50-validation/mass-segregation.md).
+```
 
 ```{admonition} Why the orbit pool is oversized
 :class: note
@@ -139,54 +166,54 @@ which *star* gets which *rank*, but every rank still draws from its
 own energy bin. To make $S$ control the *physical* degree of segregation
 (measured e.g. by $\Lambda_{\mathrm{MSR}}$), the orbit-bin assignment
 itself must also depend on $S$ — for instance by mixing the rank-indexed
-bin with a random-bin draw. progenax v1 uses $S = 1$ internally and
-exposes physical-strength control through the $\lambda_{\mathrm{seg}}$
-parameter described next.
+bin with a random-bin draw. progenax does not implement the S-shuffle:
+the released primordial generator is the fully ordered ($S = 1$)
+construction, and *continuous* segregation strength is provided by the
+equilibrium route described next.
 ```
 
-## The λ_seg blending strategy
+## The differentiable route: equilibrium segregation
 
 progenax expects gradient-based inference of segregation strength as a
 first-class use case. The discrete McLuster $S$ parameter is awkward
 for this — its effect on observables is non-monotonic in the partial
 regime, and the floor function in {eq}`s-shuffle` is non-differentiable
-even where it is monotonic. progenax instead exposes a smooth blending
-parameter
+even where it is monotonic. Instead of smoothing the discrete
+construction, progenax provides a *first-principles* continuous knob:
+`MultiComponentCluster.from_mass_segregation(delta)` (Engine A of the
+unified multi-component model) builds $J$ mass components with
+velocity-scale ratios
 
 ```{math}
-:label: lambda-seg
-(\mathbf{r}_i,\, \mathbf{v}_i)
-\;=\; (1 - \lambda_{\mathrm{seg}})\,(\mathbf{r}_i,\, \mathbf{v}_i)_{\mathrm{baseline}}
-\;+\; \lambda_{\mathrm{seg}}\,(\mathbf{r}_i,\, \mathbf{v}_i)_{\mathrm{Baumgardt}}
+:label: equipartition-law
+w_j \;=\; \frac{s_j}{s} \;=\; \mu_j^{-\delta},
+\qquad \mu_j = \frac{m_j}{\bar m},
 ```
 
-where the *baseline* is an unsegregated random rank-to-orbit mapping
-and the *Baumgardt* state is the fully energy-ordered $S = 1$
-construction above. $\lambda_{\mathrm{seg}} \in [0, 1]$ is a continuous
-JAX-compatible parameter that produces the same Λ_MSR sweep as the
-McLuster $S$ would have, but is differentiable end-to-end.
+the {cite:t}`Gieles2015`-style equipartition law: heavier components are
+kinematically colder and sink in the shared self-consistent potential.
+Crucially, *every* value of $\delta$ is a true shared-potential
+equilibrium ($Q_j = 0.5$ per component, by construction), so the
+segregation strength is a smooth physical parameter — differentiable
+end-to-end through construction *and* sampling — rather than an
+interpolation between catalogs. $\delta = 0$ is the unsegregated
+corner; $\delta = 1/2$ is full Spitzer-style equipartition scaling.
+The theory is developed in [](../populations/index.md) and
+[](../spatial-profiles/lowered-model-family.md).
 
-```{note}
-The blend in {eq}`lambda-seg` is performed in *position-velocity space*,
-not in *rank space*. A 50% blend means each star sits at a position
-that is the linear combination of its baseline (random) and Baumgardt
-(segregated) phase-space coordinates. This produces the smooth
-parametric family of clusters that gradient-based inference needs.
-```
+An earlier $\lambda_{\mathrm{seg}}$ *catalog blend* (linear
+position-velocity interpolation between an unsegregated baseline and the
+fully energy-ordered catalog) was retired in the 2026-06 redesign: its
+intermediate states drift from per-mass-group virial balance (drift
+peaking at $\sim 0.05$ in $Q_j$ near the midpoint), a defect the
+equilibrium route does not share.
 
-The λ_seg *generator* behaviour is covered by unit tests in
-`tests/unit/cluster/` (`test_cluster_ic.py`, `test_mass_segregation.py`,
-`test_validation_suite.py`); the Λ_MSR *diagnostic* is validated against
-analytic ground truth in `tests/validation/test_mass_segregation_physics.py`
-(8 tests, 2026-06-08; figures below). The unit-backed generator checks cover:
-
-- $\lambda_{\mathrm{seg}} = 0$ gives $\Lambda_{\mathrm{MSR}} \approx 1$
-  (no segregation) to within Poisson noise.
-- $\lambda_{\mathrm{seg}} = 1$ recovers the Baumgardt prediction
-  $\Lambda_{\mathrm{MSR}} \approx 1.7$–$2.5$ for typical Plummer
-  parameters and $N_\star \in [10^3, 10^4]$.
-- Intermediate $\lambda_{\mathrm{seg}}$ produces monotonically increasing
-  $\Lambda_{\mathrm{MSR}}$, suitable for gradient inference.
+The *generators* are covered by unit tests in `tests/unit/cluster/`
+(`test_mass_segregation.py`, `test_multicomponent.py`) and validation
+tests (`tests/validation/test_segregation_equilibrium_physics.py`,
+`test_multimass_equilibrium_physics.py`); the Λ_MSR *diagnostic* is
+validated against analytic ground truth in
+`tests/validation/test_mass_segregation_physics.py` (figures below).
 
 ## Quantifying mass segregation: $\Lambda_{\mathrm{MSR}}$
 
@@ -282,53 +309,61 @@ limit but harder to implement without rejection sampling. progenax
 adopts only the energy-ordered Baumgardt construction because:
 
 1. It avoids rejection sampling (deterministic given a fixed orbit pool).
-2. It pairs naturally with $\lambda_{\mathrm{seg}}$ blending.
-3. It maps cleanly onto fixed-iteration `jax.lax.scan`, the standard
-   differentiable-loop pattern (see
-   [](../../20-architecture/jax-native-philosophy.md)).
+2. It composes with any equilibrium orbit pool (Plummer, King, EFF,
+   LIMEPY) through the protocol API.
+3. Continuous, differentiable segregation control is already provided by
+   the separate equilibrium route
+   (`MultiComponentCluster.from_mass_segregation`), so the primordial
+   generator can stay an honest discrete construction.
 
 The {cite:t}`Subr2008` construction may be added as an alternative
 backend in a future version if science needs require it.
 
 ## Implementation in progenax
 
-The public high-level pipeline lives in `progenax.cluster`:
+Both routes are public in `progenax`:
 
 ```python
 import jax
+import jax.numpy as jnp
 from jaxstro.units import STELLAR
-from progenax.cluster import (
-    MassSegregationLayer,
-    SpatialStructureParams,
-    generate_cluster_ic,
+from progenax import (
+    MultiComponentCluster,
+    PlummerProfile,
+    PlummerVelocityDF,
+    energy_sorted_segregation,
 )
-from progenax.imf import PowerLawIMF
+from progenax.profiles import compute_profile_potential
 
-cluster = generate_cluster_ic(
-    key=jax.random.PRNGKey(42),
-    N_stars=1000,
-    M_total=1000.0,
-    R_half=1.0,
-    imf_params=PowerLawIMF.kroupa(),
-    structure_params=SpatialStructureParams(
-        base_profile="plummer",
-        mass_segregation=MassSegregationLayer(
-            lambda_seg=0.7,
-            pool_factor=4,
-        ),
-    ),
-    G=STELLAR.G,
+# --- Route 1: equilibrium segregation (differentiable in delta) ---
+cluster = MultiComponentCluster.from_mass_segregation(
+    alpha_j=jnp.array([0.5, 0.5]),
+    m_j=jnp.array([0.3, 1.0]),
+    W0=7.0, g=1.0, delta=0.5,
+)
+ic = cluster.sample_cluster(jax.random.PRNGKey(42), n_stars=1000, G=STELLAR.G)
+
+# --- Route 2: primordial energy-ordered segregation (S = 1) ---
+key_pos, key_vel, key_seg = jax.random.split(jax.random.PRNGKey(0), 3)
+N, pool_factor = 1000, 4
+masses = jnp.ones(N)  # or an IMF draw
+pool_masses = jnp.ones(N * pool_factor)
+profile = PlummerProfile(r_h=1.0)
+df = PlummerVelocityDF(r_h=1.0)
+pos_pool = profile.sample_positions(pool_masses, key_pos)
+vel_pool = df.sample_velocities(pos_pool, pool_masses, key_vel, G=STELLAR.G)
+masses_out, positions, velocities = energy_sorted_segregation(
+    key_seg, masses, pos_pool, vel_pool,
+    potential_fn=lambda p: compute_profile_potential(
+        p, "plummer", jnp.sum(masses), 1.0, STELLAR.G),
 )
 ```
 
-The lower-level sorter is
-`progenax.cluster.mass_segregation.energy_sorted_segregation`. That
-function implements the discrete energy-ordered assignment and is not
-itself differentiable; smooth control comes from blending the
-segregated catalog with the unsegregated baseline through
-`MassSegregationLayer.lambda_seg`. See
-[](../../50-validation/mass-segregation.md) for the current validation
-status page.
+The primordial sorter implements the discrete energy-ordered assignment
+and is not itself differentiable; for gradient-based inference over
+segregation strength use Route 1 ($\delta$ is the differentiable knob).
+See [](../../50-validation/mass-segregation.md) for the current
+validation status page.
 
 :::{figure} ../../50-validation/figures/cluster_ic_energy_sorted_segregation.png
 :label: fig-energy-sorted-segregation
@@ -341,21 +376,23 @@ the most-bound orbits (right, Spearman $\rho(m,E)=-0.84$) — the construction d
 real, $\Lambda_{\mathrm{MSR}}$-detectable mass segregation.
 :::
 
-## Composing with fractal substructure
+## Relation to fractal substructure
 
-Mass segregation and fractal substructure are separate layers in the
-design, but the current `generate_cluster_ic` implementation allows
-only one of them at a time. Passing both `mass_segregation` and
-`fractal` raises `ValueError`, because defining the "most bound" orbits
-inside a strongly clumpy potential is not yet implemented.
+Mass segregation and fractal/clumpy substructure are conceptually
+orthogonal pathways, but they live in different packages: turbulent
+substructure ICs are the experimental, repo-only `gravoturb_fdf`
+package, while both segregation routes are released progenax. Defining
+"most bound" orbits inside a strongly clumpy potential is not
+implemented anywhere; for most production use cases, choose *one* of:
 
-For most production use cases, choose *one* of:
+- Clumpy + subvirial ($Q_{\mathrm{vir}} \approx 0.3$, experimental
+  `gravoturb_fdf` ICs) — let dynamical segregation emerge during
+  evolution {cite:p}`Allison2009`.
+- Smooth + segregated ($Q_{\mathrm{vir}} = 0.5$,
+  `MultiComponentCluster.from_mass_segregation` or
+  `energy_sorted_segregation`) — primordial segregation in equilibrium.
 
-- $\lambda_{\mathrm{frac}} > 0,\,\lambda_{\mathrm{seg}} = 0,\, Q_{\mathrm{vir}} = 0.3$ — let dynamical segregation emerge during evolution.
-- $\lambda_{\mathrm{frac}} = 0,\,\lambda_{\mathrm{seg}} > 0,\, Q_{\mathrm{vir}} = 0.5$ — primordial segregation in a smooth profile.
-
-See [](fractal.md) for the fractal-substructure side of the layered
-construction.
+See [](fractal.md) for the substructure side.
 
 ## References
 

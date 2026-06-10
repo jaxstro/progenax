@@ -4,10 +4,14 @@ Star cluster initial conditions: the unified multi-component equilibrium model
 plus the primordial (non-equilibrium) mass-segregation generator.
 
 Main Entry Points:
-    MultiComponentCluster: N populations in ONE self-consistent shared potential
-        (Engine A, lowered-isothermal/LIMEPY family) — mass segregation
+    MultiComponentCluster: N populations in ONE self-consistent shared
+        potential, via two engines. Engine A (DF-defined,
+        lowered-isothermal/LIMEPY family) — mass segregation
         (.from_mass_segregation), GC 1G/2G & halo+core (.from_components),
-        IMF-driven (.from_imf). Differentiable; samples to ICResult.
+        IMF-driven (.from_imf). Engine B (density-defined, Eddington
+        inversion) — Plummer/EFF/King density components in one shared
+        potential (.from_density_profiles), optional per-component
+        Osipkov-Merritt anisotropy. Differentiable; samples to ICResult.
     energy_sorted_segregation: Baumgardt+2008-style PRIMORDIAL segregation —
         energy-ordered orbit assignment (not an equilibrium construction; the
         fully-ordered state is a clean per-group equilibrium).
@@ -50,7 +54,8 @@ from progenax.cluster.turbulence import (
 )
 
 __all__ = [
-    # Unified multi-component equilibrium model (Engine A)
+    # Unified multi-component equilibrium model (Engine A: DF-defined
+    # LIMEPY family; Engine B: density-defined Eddington inversion)
     "MultiComponentCluster",
     # Primordial (non-equilibrium) mass segregation
     "energy_sorted_segregation",

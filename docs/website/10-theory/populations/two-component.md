@@ -1,151 +1,157 @@
 ---
-title: Two-component populations
-description: "The implemented two-component cluster IC API: split pre-sampled masses across two profile/velocity-DF pairs."
+title: Two-component populations — worked examples
+description: "Worked two-component clusters through both MultiComponentCluster engines: an Engine-A cold/hot lowered-isothermal pair and the Engine-B Plummer-halo + EFF-core decomposition, including an honestly unrealizable mix and the verified truncation-edge Q_j plateau."
 ---
 
-# Two-component populations
+# Two-component populations — worked examples
 
-The simplest non-trivial multi-component IC has *two* components,
-typically representing a young dense core embedded in an older diffuse
-envelope. progenax's implemented `TwoComponentConfig` gives each
-component its own spatial profile and velocity distribution function.
+The simplest non-trivial multi-component IC has *two* populations in
+one shared potential. This page builds one through **each** engine of
+[`MultiComponentCluster`](index.md): a cold/hot pair where the DFs
+define the model (Engine A), and a halo+core pair where prescribed
+densities define it (Engine B). Both are *true joint equilibria* — no
+external virial rescale anywhere — and both come with the measured
+numbers that prove it.
 
-Masses are sampled outside the two-component generator, then split into
-populations either randomly or with a caller-supplied mask. The current
-API does **not** provide per-component IMF sampling, inter-component
-offsets, or a global virial-rescale option.
+## Engine A: a cold population inside a hot one
 
-## The TwoComponentConfig
-
-```python
-from progenax.populations import TwoComponentConfig
-from progenax.profiles import PlummerProfile
-from progenax.kinematics import PlummerVelocityDF
-
-cfg = TwoComponentConfig(
-    f_A=0.25,                                # 25% in population A
-    profile_A=PlummerProfile(r_h=2.0),       # Extended envelope
-    profile_B=PlummerProfile(r_h=0.4),       # Compact core
-    velocity_df_A=PlummerVelocityDF(r_h=2.0),
-    velocity_df_B=PlummerVelocityDF(r_h=0.4),
-)
-```
-
-`f_A` controls the random assignment probability for population A when
-no mask is supplied. Population A is conventionally the extended
-component (`pop_id == 0`) and population B the compact component
-(`pop_id == 1`), but the code only requires profile and velocity-DF
-objects satisfying the progenax protocols.
-
-## Generation
+Engine A components are lowered-isothermal DFs
+([theory](../spatial-profiles/lowered-model-family.md)); the one free
+per-component scale is the velocity-scale ratio $w_j = s_j/s$. A
+*colder* component ($w_j < 1$) sees the shared potential at the deeper
+rescaled depth $W_j = \psi/w_j^2$ and concentrates — concentration
+here is an *equilibrium outcome*, not a sampling choice:
 
 ```python
 import jax
 import jax.numpy as jnp
-from jaxstro.units import STELLAR
-from progenax.imf import Maschberger
-from progenax.populations import generate_two_component_cluster
+from progenax import MultiComponentCluster
 
-key = jax.random.PRNGKey(42)
-key_mass, key_ic = jax.random.split(key)
-N = 2500
-
-masses = Maschberger(alpha=2.3).sample(key_mass, N)
-positions, velocities, pop_id = generate_two_component_cluster(
-    masses, cfg, key=key_ic, G=STELLAR.G,
+model = MultiComponentCluster.from_components(
+    alpha_j=jnp.array([0.5, 0.5]),   # central density fractions
+    w_j=jnp.array([0.7, 1.0]),       # cold (0.7) + hot (1.0)
+    m_j=jnp.array([1.0, 1.0]),       # equal stellar masses: pure w_j physics
+    W0=7.0, g=1.0, r_c=1.0,          # King-like (g = 1) truncation
 )
+ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=20_000)
+# ic.component_id: 0 = cold, 1 = hot
 ```
 
-The function returns `(positions, velocities, pop_id)`. It does not
-return masses because it never modifies the input mass array.
+Measured (from `scripts/validate_cluster_ic.py`, with $r_c = 1$ pc):
+the cold ($w = 0.7$) population's median radius is **1.50 pc**, inside
+the hot population's **8.36 pc** — spatial segregation from velocity
+scale alone, with equal stellar masses. The exact-quadrature
+equilibrium oracle reads $Q_j = [0.5,\, 0.5]$ for both components.
 
-Internally, `generate_two_component_cluster`:
+For *mass*-driven versions of the same physics, use
+`from_mass_segregation` ($w_j = \mu_j^{-\delta}$) or `from_imf`; for a
+GC 1G/2G setup, give the concentrated 2G the smaller $w_j$.
 
-1. Assigns each input mass to population A or B. If `pop_mask` is
-   supplied, `True` means population A and `False` means population B.
-2. Samples positions from both profiles.
-3. Samples velocities from both velocity DFs.
-4. Selects the profile/DF result for each star according to the
-   population mask.
-5. Returns population labels with `0 = A` and `1 = B`.
+## Engine B: a Plummer halo plus an EFF core
 
-## Composition decisions
+Engine B starts from prescribed *densities*
+([theory](eddington-engine.md)): the headline decomposition is an
+extended Plummer halo carrying 60% of the mass plus a compact
+truncated EFF core ({cite:t}`ElsonFallFreeman1987`) carrying 40%:
 
-Building a two-component IC requires three explicit choices:
+```python
+from progenax import MultiComponentCluster, PlummerProfile, EFFProfile
+
+model = MultiComponentCluster.from_density_profiles(
+    profiles=[PlummerProfile(r_h=2.0),                  # halo
+              EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],   # core
+    mass_fractions=jnp.array([0.6, 0.4]),               # M_j / M_total
+    m_j=jnp.array([0.5, 1.0]),                          # stellar-mass labels
+)
+ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=30_000)
+```
+
+The shared potential is one direct quadrature pass over the summed
+prescribed density; each component's DF is its Eddington inversion in
+that shared potential. Measured at close-out: theoretical
+$Q_j = [0.50038,\, 0.50012]$ (gate $0.5 \pm 3\times 10^{-3}$), sampled
+global $Q = 0.4976$ at $N = 30{,}000$, **unscaled**.
+
+### Honest physics 1: not every decomposition exists
+
+Eddington inversion is a two-way street: a prescribed density in a
+given potential corresponds to a *unique* candidate $f(E)$, and if that
+$f$ is negative anywhere, **the component cannot exist as an
+equilibrium in that potential** — full stop. The originally drafted
+version of this very example used a *shallower* EFF core,
+$a_{\rm EFF} = 0.4$, and it is **genuinely unrealizable**: its
+Eddington DF has $\min f / \max|f| = -0.20$, resolution-independent
+(verified against the closed-form two-Plummer oracle, since
+$\gamma = 5$ EFF *is* Plummer). A close-out sweep located the
+realizability boundary between $a = 0.65$ (refused,
+$-6.4\times 10^{-3}$) and $a = 0.68$ (realizable,
+$+1.9\times 10^{-2}$); the headline uses $a = 0.8$
+($f_{\min,j} = +1.6\times 10^{-2}$ halo, $+1.2\times 10^{-4}$ core).
+
+progenax treats this as physics, not failure: the constructor raises a
+`ValueError` **naming the component** and the remedy (steepen it,
+raise its mass fraction, or raise its $r_{a,j}$), and always stores
+the `f_min_j` diagnostic. See the
+[realizability gate](eddington-engine.md) for the mechanism.
+
+### Honest physics 2: the truncation-edge $Q_j$ plateau
+
+The hard-truncated halo's *sampled* per-component virial ratio
+plateaus slightly **below** 0.5 — and this is verified physics, not a
+bias to be rescaled away. A sharply truncated prescribed density has
+$\rho(r_t) > 0$, a constant edge offset that *no* ergodic $f(E)$ can
+carry (the Eddington pair represents $\rho(\Psi) - \rho(0)$). Engine B
+samples a *hybrid* — positions from the prescribed $\rho_j$, speeds
+from $f_j$ — so the exact-quadrature hybrid expectation predicts the
+offset: **predicted $Q_{\rm halo} = 0.4953$, sampled
+$0.4947 \pm 0.0014$** (18 seeds × 16k stars, a $0.4\sigma$ agreement).
+The validation gate is against the *prediction*, never a tuned offset
+— and emphatically **not** a rescale to 0.5, which would destroy the
+core's equilibrium to cosmetically fix the halo's edge.
+
+## Choosing between the engines for two-component work
 
 ```{list-table}
 :header-rows: 1
 
-* - Decision
-  - Current default
-  - When to override
-* - **Per-component DF**
-  - Match each profile, e.g. Plummer-on-Plummer
-  - Studying deliberately mismatched kinematics
-* - **Population assignment**
-  - Random Bernoulli assignment with probability `f_A`
-  - Use `pop_mask` for mass-sorted or deterministic assignment
-* - **Post-processing**
-  - Caller-controlled
-  - Apply `to_com_frame` or `virial_scale` after generation if needed
+* - You have…
+  - Use
+  - Because
+* - A dynamical model in mind (relaxed, tidally truncated populations;
+    mass segregation; fit $g, W_0, w_j, \delta$ to data)
+  - Engine A (`from_components` et al.)
+  - The lowered-isothermal family *is* the model; equilibrium and
+    equipartition are built in.
+* - Observed/prescribed density shapes (surface-brightness
+    decomposition, halo+core, literature profiles)
+  - Engine B (`from_density_profiles`)
+  - Densities go in verbatim; Eddington tells you whether the
+    decomposition is dynamically realizable.
 ```
 
-For example, a mass-sorted core can be built by supplying a custom mask:
-
-```python
-massive_core = masses > jnp.quantile(masses, 0.75)
-positions, velocities, pop_id = generate_two_component_cluster(
-    masses,
-    cfg,
-    key=key_ic,
-    G=STELLAR.G,
-    pop_mask=~massive_core,  # True => A/envelope; False => B/core
-)
-```
-
-Tidal truncation, fractal substructure, and global virial rescaling can
-still be composed around this output, but they are not options on
-`TwoComponentConfig` itself.
-
-## When components do not equilibrate jointly
-
-For two components with very different scale radii, the *joint*
-gravitational potential is no longer well-described by either
-component's individual DF. Component A's DF was designed for one
-profile; the actual potential includes component B's mass too.
-
-For marginal mass ratios ($M_b/M_a \sim 1$), self-consistent
-multi-component DFs are needed. The lowered-model family formalized by
-{cite:t}`Gieles2015` provides this for King-style profiles; progenax
-does not yet implement the multi-component case of its planned native
-generalization (see [](../spatial-profiles/lowered-model-family.md)).
-
-## Validation
-
-The validation page at [](../../50-validation/two-component.md)
-currently points at unit-test coverage for the implemented API. It does
-not yet correspond to a dedicated
-`tests/validation/test_two_component.py` file.
-
-The real unit tests exercise population assignment, returned shapes,
-the `pop_id` convention, and custom `pop_mask` behavior.
+The two engines agree where they overlap: a single King component
+built both ways matches to a radial KS distance of $2\times 10^{-4}$
+and $|\sigma_B/\sigma_A - 1| \le 3\times 10^{-4}$
+(the A-vs-B trust anchor; see [](eddington-engine.md)).
 
 ## Domain of validity
 
-1. **Two components only.** The `TwoComponentConfig` API is specialised
-   for the two-component case.
-2. **No self-consistent joint DF.** Use this for controlled mixtures,
-   merger studies, or initial conditions for violent-relaxation
-   experiments, not as a proof of exact joint equilibrium.
-3. **No built-in joint finalisation.** The current function does not
-   shift to a centre-of-mass frame or rescale the joint virial ratio.
+1. **True joint equilibrium, by construction.** Unlike the retired
+   layered superposition (each component sampled from its own
+   isolated-cluster DF), both engines solve/integrate **one** shared
+   potential and prove $Q_j = 0.5$ per component with no rescale.
+2. **Truncation edges are approximate** (Engine B): hard-truncated
+   prescribed profiles are only approximately stationary at the edge;
+   the deviation is *predicted and gated*, not hidden (see above).
+3. **Deliberate non-equilibrium ICs** (sub-/super-virial, mismatched
+   DFs) remain a separate, explicit workflow — see
+   [](../velocity-dfs/index.md) and
+   [](../../20-architecture/q-virial-convention.md).
 
 ## References
 
-Multi-component cluster modelling is standard in N-body work
-{cite:p}`Aarseth1974,Kuepper2011`. progenax's two-component
-implementation follows the layered single-component DF approach rather
-than the self-consistent multi-mass DF approach; the lowered-model
-family formalized by {cite:t}`Gieles2015` is the natural framework when
-self-consistency matters, and progenax plans to implement it natively
-as its own differentiable generalization.
+Self-consistent multi-mass lowered models: {cite:t}`Gieles2015`.
+Eddington inversion with Osipkov–Merritt anisotropy:
+{cite:t}`Merritt1985`. EFF profile: {cite:t}`ElsonFallFreeman1987`.
+Layered multi-population ICs in N-body practice:
+{cite:p}`Kuepper2011`.

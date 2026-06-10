@@ -10,9 +10,10 @@ description: Theory of clumpy, hierarchical young-cluster substructure — the G
 This chapter is now **theory only**. The differentiable *Fractal Displacement Field*
 generator it used to document (`cluster.fdf`, `FractalLayer`, `generate_fractal_ic`,
 `fractal_gw_legacy`) was **removed in the 2026-06 clean-room rewrite** and has **no
-released successor** — the released `generate_cluster_ic` no longer takes a fractal layer.
-What survives is the **diagnostic** side (measuring substructure) and a *different*
-turbulent-IC method:
+released successor** in progenax. (The legacy string-dispatch cluster generator
+`generate_cluster_ic` that once hosted the fractal layer was itself retired in the
+2026-06 unified redesign.) What survives is the **diagnostic** side (measuring
+substructure) and a *different* turbulent-IC method:
 
 - **CW04 $Q$ diagnostic** — `progenax.diagnostics.substructure.compute_q_parameter`
   (+ the differentiable kNN approximation `progenax.diagnostics.q_approx`); see
@@ -153,8 +154,9 @@ where $Q_{\mathrm{vir}} \equiv T/|V|$ — see
 [](../../20-architecture/q-virial-convention.md)) is a deliberate use of
 this non-equilibrium pathway to study rapid dynamical mass segregation —
 substructure that erases itself within $\sim 1$ Myr of evolution. See
-[](mass-segregation.md) for the segregation side, which **is** part of
-released `generate_cluster_ic`.
+[](mass-segregation.md) for the segregation side, which **is** released:
+the primordial `energy_sorted_segregation` generator and the equilibrium
+`MultiComponentCluster.from_mass_segregation` constructor.
 
 ## References
 

@@ -129,7 +129,7 @@ of Appendix D — **no quadrature at runtime**.
 :class: tip
 For $g=1$, {eq}`limepy-rho-iso` integrates in closed form to
 $\mathcal{I}^{\rho} = e^{\hat\phi}\,\mathrm{erf}(\sqrt{\hat\phi})
- - \tfrac{2}{\sqrt\pi}\sqrt{\hat\phi}\,(1+\tfrac23\hat\phi)$ — **exactly** the King (1966)
+ - \tfrac{2}{\sqrt\pi}\sqrt{\hat\phi}\,(1+\tfrac23\hat\phi)$ -- **exactly** the King (1966)
 density that [`progenax.profiles.KingProfile`](king-1966.md) already integrates. This is the
 single most useful cross-check for the progenax build: the general-$g$ density **must** reduce
 to the existing King solver at $g=1$, isotropic. (The half-integer index bookkeeping in the
@@ -239,9 +239,9 @@ the King closed form — never the printed Eqs. 20/21.
 
 ## Use in progenax
 
-This paper is the formalism behind the **multi-mass LIMEPY equilibrium hardening** of mass
-segregation (the current build; complements the differentiable `lambda_seg` blend rather than
-replacing it):
+This paper is the formalism behind the **multi-mass LIMEPY equilibrium** treatment of mass
+segregation (Engine A of `MultiComponentCluster`; in the 2026-06 unified redesign it *replaced*
+the historical `lambda_seg` catalog blend, which was retired):
 
 - [](../../10-theory/spatial-profiles/lowered-model-family.md) — the roadmap page this paper
   specifies; tracks the planned→implemented status of the family.

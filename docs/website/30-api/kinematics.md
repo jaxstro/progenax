@@ -9,13 +9,14 @@ description: Auto-generated API reference for `progenax.kinematics` — signatur
 
 Module path: `progenax/kinematics/`
 
-Public symbols: **10**
+Public symbols: **11**
 
 ## Contents
 
 - [`PlummerVelocityDF`](#api-kinematics-plummervelocitydf)
 - [`KingVelocityDF`](#api-kinematics-kingvelocitydf)
 - [`MichieVelocityDF`](#api-kinematics-michievelocitydf)
+- [`LIMEPYVelocityDF`](#api-kinematics-limepyvelocitydf)
 - [`EFFVelocityDF`](#api-kinematics-effvelocitydf)
 - [`apply_solid_body_rotation`](#api-kinematics-apply_solid_body_rotation)
 - [`apply_differential_rotation`](#api-kinematics-apply_differential_rotation)
@@ -96,7 +97,7 @@ Examples:
 *class*
 
 ```python
-KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0, xi_max: float = 300.0, n_ode_points: int = 2000)
+KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0, xi_max: float | None = None, n_ode_points: int | None = None)
 ```
 
 King (1966) lowered-Maxwellian velocity distribution function.
@@ -117,7 +118,7 @@ References:
     King (1966), AJ, 71, 64
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-*Source: [`progenax/kinematics/king_df.py#L63`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L63)*
+*Source: [`progenax/kinematics/king_df.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/king_df.py#L64)*
 
 (api-kinematics-michievelocitydf)=
 ## `kinematics.MichieVelocityDF`
@@ -142,6 +143,31 @@ References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
 *Source: [`progenax/kinematics/michie_df.py#L64`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/michie_df.py#L64)*
+
+(api-kinematics-limepyvelocitydf)=
+## `kinematics.LIMEPYVelocityDF`
+
+*class*
+
+```python
+LIMEPYVelocityDF(W0: float = 5.0, g: float = 1.0, r_c: float = 1.0, r_a: float | None = None, xi_max: float = 300.0, n_ode_points: int = 2000)
+```
+
+General-g LIMEPY lowered-isothermal velocity DF (isotropic or Michie/OM).
+
+A true equilibrium DF; the central velocity scale s is self-consistent from
+(G, M_total, r_c, W0, g, r_a), so ICs are virial (Q=0.5) without rescaling and
+all stars are bound. r_a=None is isotropic (generalizes KingVelocityDF); a finite
+r_a adds radial anisotropy (generalizes MichieVelocityDF). At g=1 it reduces to
+King (isotropic) / Michie-King (anisotropic).
+
+Attributes:
+    W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).
+    r_t: truncation radius. xi_grid, psi_grid: ODE solution W(xi).
+    mu: dimensionless mass integral int rho_tilde xi^2 dxi (sets s).
+    is_aniso: static flag selecting the anisotropic sampler.
+
+*Source: [`progenax/kinematics/limepy_df.py#L112`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/limepy_df.py#L112)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`
@@ -177,7 +203,7 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
     Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
-*Source: [`progenax/kinematics/eff_df.py#L111`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L111)*
+*Source: [`progenax/kinematics/eff_df.py#L72`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/eff_df.py#L72)*
 
 (api-kinematics-apply_solid_body_rotation)=
 ## `kinematics.apply_solid_body_rotation`
@@ -386,5 +412,5 @@ Notes:
     - Virial rescaling uses O(N^2) pairwise potential energy calculation
     - COM motion is removed after rescaling
 
-*Source: [`progenax/kinematics/api.py#L148`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L148)*
+*Source: [`progenax/kinematics/api.py#L147`](https://github.com/drannarosen/progenax/blob/main/progenax/kinematics/api.py#L147)*
 

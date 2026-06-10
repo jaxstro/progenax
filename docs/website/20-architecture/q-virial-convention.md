@@ -153,9 +153,9 @@ All progenax IC builders accept `Q_target` and pipe it through
 * - `gravax.ic.plummer_sphere`
   - $0.5$
   - Mass-first API; explicit `Q_target` overrides
-* - `progenax.populations.generate_two_component_cluster`
-  - $0.5$
-  - Both components rescaled together to a single global Q
+* - `progenax.MultiComponentCluster.sample_cluster`
+  - $0.5$ by construction
+  - Shared-potential equilibrium; no external rescale — global *and* per-component $Q_j = 0.5$
 * - `gravax.ic.sample_kroupa_stochastic` consumers
   - $0.5$
   - IMF + Plummer composition

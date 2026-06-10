@@ -9,7 +9,7 @@ description: Auto-generated API reference for `progenax.profiles` — signatures
 
 Module path: `progenax/profiles/`
 
-Public symbols: **11**
+Public symbols: **15**
 
 ## Contents
 
@@ -18,6 +18,10 @@ Public symbols: **11**
 - [`solve_king_profile`](#api-profiles-solve_king_profile)
 - [`MichieProfile`](#api-profiles-michieprofile)
 - [`solve_michie_profile`](#api-profiles-solve_michie_profile)
+- [`LIMEPYProfile`](#api-profiles-limepyprofile)
+- [`solve_limepy_profile`](#api-profiles-solve_limepy_profile)
+- [`solve_multimass_limepy`](#api-profiles-solve_multimass_limepy)
+- [`find_alpha_for_masses`](#api-profiles-find_alpha_for_masses)
 - [`EFFProfile`](#api-profiles-effprofile)
 - [`UniformSphereProfile`](#api-profiles-uniformsphereprofile)
 - [`ProfileName`](#api-profiles-profilename)
@@ -92,7 +96,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/king.py#L250`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L250)*
+*Source: [`progenax/profiles/king.py#L291`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L291)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -130,7 +134,7 @@ Note:
     traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
     diffrax for robustness.
 
-*Source: [`progenax/profiles/king.py#L137`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L137)*
+*Source: [`progenax/profiles/king.py#L169`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L169)*
 
 (api-profiles-michieprofile)=
 ## `profiles.MichieProfile`
@@ -185,6 +189,135 @@ References:
     Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
 
 *Source: [`progenax/profiles/michie.py#L83`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/michie.py#L83)*
+
+(api-profiles-limepyprofile)=
+## `profiles.LIMEPYProfile`
+
+*class*
+
+```python
+LIMEPYProfile(W0, g, r_c, r_t, xi_grid, psi_grid, r_a=None, n_grid: int = 1000)
+```
+
+General-g LIMEPY (lowered-isothermal) spherical density profile.
+
+Implements the SpatialProfile protocol. Generalizes `KingProfile` with a
+continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an
+optional Michie/Osipkov-Merritt radial anisotropy radius r_a. Corners: g=1
+isotropic == KingProfile; g=1 anisotropic == MichieProfile.
+
+The CDF is precomputed at construction for inverse-transform position sampling.
+
+Attributes:
+    W0: Dimensionless central potential.
+    g:  Truncation parameter (continuous; finite extent for g <= 3.5).
+    r_c: Core (King) radius [length units].
+    r_a: Anisotropy radius [length units]; inf for the isotropic model.
+    r_t: Truncation radius [length units], where W(r) -> 0.
+    xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
+    is_aniso: static flag selecting the anisotropic density path.
+    _r_grid, _cdf_grid: precomputed mass CDF for sampling.
+
+*Source: [`progenax/profiles/limepy.py#L288`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy.py#L288)*
+
+(api-profiles-solve_limepy_profile)=
+## `profiles.solve_limepy_profile`
+
+*function*
+
+```python
+solve_limepy_profile(W0: float, g: float, ra_hat: float | None = None, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+```
+
+Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
+
+Integrates W(xi) from the centre (W=W0, dW/dxi=0) outward to the truncation
+radius where W -> 0. Generalizes `solve_king_profile` with the continuous
+truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an optional
+Michie/OM radial anisotropy radius. At g=1: isotropic reproduces King,
+anisotropic reproduces the Michie-King model.
+
+JIT/grad-safe in (W0, g, ra_hat): n_points and xi_max are static; W0, g, ra_hat
+may be tracers and the ODE -> W(xi) path carries their gradients.
+
+Args:
+    W0: Dimensionless central potential.
+    g: Truncation parameter (finite extent for g <= 3.5).
+    ra_hat: Anisotropy radius in core-radius units, r_a/r_c. None (default) =
+        isotropic (uses the fast isotropic density). Finite values add radial
+        anisotropy (more extended; too-small ra_hat -> no finite tidal radius).
+    xi_max: Max dimensionless radius (anisotropic models are more extended;
+        pass a larger value, e.g. 800).
+    n_points: Output grid size.
+
+Returns:
+    (xi_grid, psi_grid): dimensionless radius and potential W(xi) (>= 0).
+
+*Source: [`progenax/profiles/limepy.py#L209`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy.py#L209)*
+
+(api-profiles-solve_multimass_limepy)=
+## `profiles.solve_multimass_limepy`
+
+*function*
+
+```python
+solve_multimass_limepy(alpha_j: jaxtyping.Float[Array, 'n_comp'], m_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, xi_max: float = 300.0, n_points: int = 2000, ra_hat: float | None = None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_comp n_points']]
+```
+
+Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
+
+The Gieles & Zocchi (2015) equipartition parametrization: per-component rescaling
+rescale_j = mu_j^(2 delta), mu_j = m_j / bar_m, bar_m = sum_j m_j alpha_j (central
+density-weighted mean mass, Eq. 26), and per-component anisotropy radius
+hat_r_{a,j} = ra_hat * mu_j^eta (eta=0 = mass-independent, the paper default). At
+delta=0 every rescaling is 1 -- identical to solve_limepy_profile. ra_hat=None is the
+(fast) isotropic case. aniso_method ("table" default, "quadrature" oracle) is passed
+through to solve_multicomponent_limepy; ignored when ra_hat is None.
+
+JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max,
+aniso_method static.
+
+Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
+
+*Source: [`progenax/profiles/limepy_multimass.py#L303`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy_multimass.py#L303)*
+
+(api-profiles-find_alpha_for_masses)=
+## `profiles.find_alpha_for_masses`
+
+*function*
+
+```python
+find_alpha_for_masses(m_j: jaxtyping.Float[Array, 'n_comp'], M_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, n_iter: int = 30, xi_max: float = 300.0, n_points: int = 2000, ra_hat=None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_comp'], jaxtyping.Float[Array, '']]
+```
+
+Find the central density fractions alpha_j that reproduce target masses M_j (Layer B).
+
+Fixed-point iteration on the realized mass fractions, with the stabilized update of
+Gieles & Zocchi (2015, Section 4.1) -- NOT Gunn & Griffin's linear M_j/M_j' (which
+diverges for wide mass functions):
+
+    alpha_j <- alpha_j sqrt(f_j / f_j'),   renormalize sum_j alpha_j = 1,
+
+f_j = M_j / sum M (target), f_j' = realized fraction. Run as a FIXED-length
+jax.lax.scan (never while_loop) so the whole solve is differentiable in (M_j, delta,
+g, W0). Starts from alpha_j = f_j.
+
+The eigenvalue iteration deliberately uses the SAME aniso_method as the final
+solve (default "table") so the converged alpha_j are self-consistent with the
+model actually built; the residual remains a reported diagnostic. Pass
+aniso_method="quadrature" for the exact oracle path.
+
+Args:
+    m_j: component representative masses. M_j: target mass per component.
+    W0, g, delta: model parameters. n_iter: fixed iteration count.
+    xi_max, n_points: ODE grid (static). aniso_method: density-source path
+    ("table" default, "quadrature" oracle; static, ignored when ra_hat is None).
+
+Returns:
+    (alpha_j, residual): converged central density fractions (sum to 1, positive)
+    and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
+
+*Source: [`progenax/profiles/limepy_multimass.py#L364`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy_multimass.py#L364)*
 
 (api-profiles-effprofile)=
 ## `profiles.EFFProfile`
@@ -398,9 +531,11 @@ Args:
     **kwargs: Profile-specific parameters (passed to make_profile)
 
 Returns:
-    phi: Gravitational potential at each position, shape (N,)
-         All values are negative (bound system).
-         Units: [mass units] * [length units]^2 / [time units]^2
+    phi: SPECIFIC gravitational potential (per unit mass) at each position,
+         shape (N,). All values are negative (bound system).
+         Units: [length units]^2 / [time units]^2 (e.g. pc^2/Myr^2 in
+         STELLAR units) — consistent with specific kinetic energy 0.5*v^2,
+         so E = 0.5*v^2 + phi is a specific orbital energy.
 
 Examples:
     >>> from jaxstro.units import STELLAR

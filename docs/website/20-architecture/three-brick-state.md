@@ -8,12 +8,14 @@ description: progenax's State / SystemParams / ParticleSystem decomposition — 
 ```{important}
 Implementation status: **architecture pattern, not current public API**.
 
-The current progenax package exposes `ClusterState` in
-`progenax.cluster`, plus array-returning builder utilities. It does not
-currently expose public `State`, `SystemParams`, `ParticleSystem`,
-`GravityPolicy`, `SofteningPolicy`, `BinState`, `ExternalState`, or
-`populations.MultiBinSystem` classes. The names below document the
-design direction rather than importable symbols.
+The current progenax package exposes IC containers (`ICResult`,
+`MultiComponentCluster`) plus array-returning builder utilities. It
+does not expose public `State`, `SystemParams`, `ParticleSystem`,
+`GravityPolicy`, `SofteningPolicy`, `BinState`, or `ExternalState`
+classes — those live downstream in gravax. The names below document
+the design direction rather than importable progenax symbols. (The
+legacy `ClusterState` container was retired in the 2026-06 unified
+multi-component redesign.)
 ```
 
 A simulated stellar system has two distinct kinds of "state":
@@ -213,9 +215,11 @@ The three-brick pattern handles ~95% of progenax's needs. Two
 situations call for a fourth:
 
 1. **Per-mass-bin state** for multi-mass clusters where each
-   bin needs its own integration substep. progenax's
-   `populations.MultiBinSystem` (planned) adds a fourth brick
-   `BinState` containing per-bin auxiliary state.
+   bin needs its own integration substep. A hypothetical fourth brick
+   `BinState` would carry per-bin auxiliary state. (On the IC side,
+   per-component structure is already handled without a new brick:
+   `MultiComponentCluster.sample_cluster` labels each star's
+   generating component via `ICResult.component_id`.)
 2. **External-field state** for clusters in time-varying galactic
    potentials. The galactic potential is technically `SystemParams`
    but its time evolution is `State`; the fourth brick `ExternalState`

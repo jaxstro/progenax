@@ -17,15 +17,16 @@ combination ([](../ic-philosophy.md)):
 * - [](tidal.md)
   - Truncation at the Jacobi (tidal) radius set by the host galaxy's tidal field
 * - [](fractal.md)
-  - Fractal-style spatial substructure via the differentiable FDF method (replaces the non-differentiable {cite:t}`Goodwin2004` recursive tree)
+  - Theory of fractal/clumpy substructure ({cite:t}`Goodwin2004`) and the CW04 $Q$ diagnostic. The differentiable *generator* moved to the experimental, repo-only `gravoturb_fdf` package in the 2026-06 clean-room rewrite; released progenax keeps the diagnostics (`progenax.diagnostics`)
 * - [](mass-segregation.md)
-  - Energy-ranked primordial mass segregation per {cite:t}`Baumgardt2008`, with smooth blending for HMC compatibility
+  - Mass segregation two ways: the energy-ranked PRIMORDIAL generator (`energy_sorted_segregation`, after {cite:t}`Baumgardt2008`) and the differentiable EQUILIBRIUM route (`MultiComponentCluster.from_mass_segregation`)
 ```
 
-The modifiers are conceptually composable, but the current high-level
-cluster API keeps fractal substructure and mass segregation mutually
-exclusive. Tidal truncation is a standalone array utility and can be
-applied around either path.
+Tidal truncation is a standalone array utility and can be applied
+around either path. Turbulent/fractal substructure ICs live outside
+the released package (experimental `gravoturb_fdf`), so within released
+progenax the segregation routes and tidal truncation are the two
+modifiers you can actually apply.
 
 ## Why these three?
 
@@ -55,23 +56,20 @@ for studying long-timescale relaxation.
 
 ```python
 import jax
+import jax.numpy as jnp
 from jaxstro.units import STELLAR
-from progenax.cluster import FractalLayer, SpatialStructureParams, generate_cluster_ic
-from progenax.imf import PowerLawIMF
+from progenax import MultiComponentCluster
 from progenax.tidal import jacobi_radius, apply_tidal_truncation
 
-cluster = generate_cluster_ic(
-    key=jax.random.PRNGKey(42),
-    N_stars=1000,
-    M_total=1000.0,
-    R_half=1.0,
-    imf_params=PowerLawIMF.kroupa(),
-    structure_params=SpatialStructureParams(
-        base_profile="plummer",
-        fractal=FractalLayer(D=2.0, lambda_frac=0.5, virial_ratio=0.3),
-    ),
-    G=STELLAR.G,
+# Equilibrium mass segregation: two components in ONE shared potential,
+# with the equipartition law w_j = mu_j^(-delta) (differentiable in delta)
+cluster = MultiComponentCluster.from_mass_segregation(
+    alpha_j=jnp.array([0.5, 0.5]),   # central density fractions
+    m_j=jnp.array([0.3, 1.0]),       # representative stellar masses [Msun]
+    W0=7.0, g=1.0, delta=0.5,
 )
+ic = cluster.sample_cluster(jax.random.PRNGKey(42), n_stars=1000, G=STELLAR.G)
+# ic.component_id labels each star's generating component
 
 r_J = jacobi_radius(
     M_cluster=1e4,
@@ -79,13 +77,16 @@ r_J = jacobi_radius(
     R_galactic=8000.0,
 )
 positions, velocities, masses, keep_mask = apply_tidal_truncation(
-    cluster.positions, cluster.velocities, cluster.masses, r_t=r_J,
+    ic.positions, ic.velocities, ic.masses, r_t=r_J,
 )
 ```
 
-For primordial mass segregation, replace the `FractalLayer` with
-`MassSegregationLayer` in `SpatialStructureParams`. The high-level
-generator will raise `ValueError` if both are supplied at once.
+For *primordial* (non-equilibrium) segregation, use
+`progenax.energy_sorted_segregation` to energy-rank an orbit pool drawn
+from any equilibrium profile — see [](mass-segregation.md). The legacy
+string-dispatch generator (`generate_cluster_ic` with
+`SpatialStructureParams` layers) was retired in the 2026-06 unified
+redesign.
 
 ## References
 

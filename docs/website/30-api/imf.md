@@ -367,7 +367,7 @@ Examples:
     >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
     >>> key = jax.random.PRNGKey(42)
     >>> masses = imf.sample(key, 1000)
-    >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.35-0.5 M☉
+    >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.61 M☉ over [0.08, 100]
 
 References:
     Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
@@ -810,7 +810,7 @@ Example:
     >>> masses = jnp.array([0.5, 1.0, 10.0])
     >>> log_probs = log_prob_masses(masses, params)
 
-*Source: [`progenax/imf/differentiable.py#L72`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L72)*
+*Source: [`progenax/imf/differentiable.py#L80`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L80)*
 
 (api-imf-sample_masses_from_params)=
 ## `imf.sample_masses_from_params`
@@ -841,7 +841,7 @@ Example:
     >>> u = jax.random.uniform(key, (1000,))
     >>> masses = sample_masses_from_params(params, u)
 
-*Source: [`progenax/imf/differentiable.py#L174`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L174)*
+*Source: [`progenax/imf/differentiable.py#L187`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L187)*
 
 (api-imf-individual_mass_nll)=
 ## `imf.individual_mass_nll`
@@ -871,7 +871,7 @@ Example:
     >>> nll = individual_mass_nll(masses, params)
     >>> # Minimize NLL to fit params to data
 
-*Source: [`progenax/imf/differentiable.py#L258`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L258)*
+*Source: [`progenax/imf/differentiable.py#L281`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/differentiable.py#L281)*
 
 (api-imf-birthenvironment)=
 ## `imf.BirthEnvironment`
@@ -953,7 +953,7 @@ Example:
     >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, sfe=0.1)
     >>> params = env_to_imf_params(env, model="jerabkova_generalized")
 
-*Source: [`progenax/imf/environment/mapping.py#L332`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L332)*
+*Source: [`progenax/imf/environment/mapping.py#L345`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L345)*
 
 (api-imf-compute_r_half)=
 ## `imf.compute_r_half`
@@ -1133,7 +1133,13 @@ alpha3_jerabkova_generalized(FeH: "Float[Array, '...']", M_ecl: "Float[Array, '.
 
 α₃ from generalized Jerabkova with explicit ε (RECOMMENDED).
 
-Uses x_jerabkova_generalized() which reduces to Eq. 9 at ε = 0.33.
+Uses x_jerabkova_generalized(), the mass-based x built self-consistently from
+Jerabkova Eq. 7 + the Marks r_h–M_ecl relation + the 8π half-mass density
+(constant 0.2161; see coefficients.py). NOTE: this is NOT the constant (2.83)
+printed in Jerabkova Eq. 9 — that printed value is internally inconsistent with
+her own Eq. 7+8 density relation (which reconstructs to ~0.50, not 2.83). We
+deliberately use the density-consistent 8π constant so the mass- and density-
+based paths agree; it does not reproduce Eq. 9 as literally printed.
 
 Args:
     FeH: Metallicity [Fe/H]
@@ -1169,7 +1175,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L169`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L169)*
+*Source: [`progenax/imf/environment/mapping.py#L175`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L175)*
 
 (api-imf-alpha3_jerabkova_rho)=
 ## `imf.alpha3_jerabkova_rho`
@@ -1191,7 +1197,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L196`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L196)*
+*Source: [`progenax/imf/environment/mapping.py#L202`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L202)*
 
 (api-imf-alpha3_marks_plane)=
 ## `imf.alpha3_marks_plane`
@@ -1202,11 +1208,18 @@ Returns:
 alpha3_marks_plane(log_rho_6: "Float[Array, '...']", FeH: "Float[Array, '...']", smooth: 'bool' = False, smooth_width: 'float' = 0.2) -> "Float[Array, '...']"
 ```
 
-Marks+2012 Fundamental Plane (Eq. 14-15).
+Marks+2012 Fundamental Plane (Eq. 14-15), with the 2014 erratum applied.
 
 x̂ = -0.139 × [Fe/H] + 0.990 × log₁₀(ρ_cl/10⁶)
+α₃ = -0.4072·x̂ + 1.9383  for  x̂ ≥ -0.87  (else canonical 2.3)
 
-CRITICAL: Threshold is POSITIVE (+0.87), unlike Jerabkova's -0.87!
+The threshold is -0.87 (NEGATIVE): the originally printed Marks+2012 Eq.14/15
+had a missing-minus-sign typo ("x̂ ≥ 0.87"), corrected by the 2014 erratum
+(Marks et al. 2014, MNRAS 442, 3315) and visible in Marks+2012 Fig.6, where the
+canonical-plateau knee sits at x̂ ≈ -0.87 (the line meets 2.3 continuously there).
+With this correction the Marks plane coincides with the Jerabkova (2018) IGIMF
+density relation `alpha3_jerabkova_rho` (which adopts the same erratum-corrected
+form) to within the -0.4072-vs-(-0.41) rounding (~0.01).
 
 Args:
     log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
@@ -1217,7 +1230,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L221`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L221)*
+*Source: [`progenax/imf/environment/mapping.py#L227`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L227)*
 
 (api-imf-alpha3_marks_table3)=
 ## `imf.alpha3_marks_table3`
@@ -1241,7 +1254,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L250`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L250)*
+*Source: [`progenax/imf/environment/mapping.py#L263`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L263)*
 
 (api-imf-lowmass_slopes_metallicity)=
 ## `imf.lowmass_slopes_metallicity`
@@ -1267,7 +1280,7 @@ Args:
 Returns:
     (α₁, α₂) - slopes for segments 1 and 2
 
-*Source: [`progenax/imf/environment/mapping.py#L296`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L296)*
+*Source: [`progenax/imf/environment/mapping.py#L309`](https://github.com/drannarosen/progenax/blob/main/progenax/imf/environment/mapping.py#L309)*
 
 (api-imf-jerabkova_coefficients)=
 ## `imf.JERABKOVA_COEFFICIENTS`

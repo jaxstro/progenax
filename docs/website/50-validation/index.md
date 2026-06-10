@@ -22,6 +22,8 @@ See the [**validation audit report**](audit-report.md) for trustworthiness tiers
 
 The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)
 embedded on the page; ⚠️ = tested but page/figures pending the module audit.
+Released-core suite at the Engine-B close-out (2026-06-10): **1101 tests**
+(unit 833 / integration 34 / **validation 234**), full gate green.
 
 ```{list-table}
 :header-rows: 1
@@ -61,15 +63,25 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
   - ✅ 8
   - 2026-06-08
   - `python scripts/validate_substructure_q.py`
-* - [cluster/two-component](two-component.md)
-  - ✅
+* - [cluster/multi-mass LIMEPY equilibrium — Engine A](multimass-equilibrium.md)
+  - ✅ (6 + 42 unit)
+  - ✅ 3
+  - 2026-06-10
+  - `python scripts/validate_multimass_equilibrium.py` (+ `_anisotropy`, `_df_tables`)
+* - [cluster/multi-component Eddington — Engine B](engine-b-eddington.md)
+  - ✅ (6)
   - ✅ 1
-  - 2026-06-08
+  - 2026-06-10
+  - `python scripts/validate_multicomponent_eddington.py`
+* - [cluster/two-component (superseded)](two-component.md)
+  - ✅ (via `MultiComponentCluster`)
+  - ✅ 1
+  - 2026-06-10
   - `python scripts/validate_cluster_ic.py`
 * - [diagnostics/Λ_MSR + segregation](mass-segregation.md)
-  - ✅ (8 + 13 + 27)
+  - ✅ (8 + 13 + 27 + 4 primordial)
   - ✅ 9
-  - 2026-06-09
+  - 2026-06-10
   - `python scripts/validate_segregation_approx.py`
 * - [imf statistics](imf-statistics.md)
   - ✅ (25)
@@ -133,8 +145,12 @@ embedded on the page; ⚠️ = tested but page/figures pending the module audit.
     differentiable segregation observables (soft $\Lambda_{\mathrm{MSR}}$ / radial / $\Sigma$–$m$)
 * - [](gravoturbulent-pp20.md)
   - PP20 ζ(p) regression suite (35 tests), BM19 forward chain
+* - [](multimass-equilibrium.md)
+  - Engine A: coupled multi-mass LIMEPY equilibrium — per-component σ(r) vs the DF moment, Q_j across δ, anisotropic β(r) vs the DF, DF-table budgets
+* - [](engine-b-eddington.md)
+  - Engine B: prescribed-density shared-potential Eddington equilibria — King A-vs-B cross-engine anchor, analytic Plummer DF oracles, OM anisotropy, realizability
 * - [](two-component.md)
-  - Mixing tests: per-component mass and dynamical-state recovery
+  - Superseded API (deleted 2026-06); pointer to the MultiComponentCluster engines + the surviving two-population check
 * - [](tidal-truncation.md)
   - Jacobi-radius computation and truncation behaviour
 * - [](analytical-test-cases.md)
