@@ -41,6 +41,9 @@ def eddington_invert(
     Returns (E_grid, f_grid): the isotropic ergodic DF of rho in Psi, or with
     r_a set the Osipkov-Merritt f(Q) via the augmented density
     rho_Q = (1 + r^2/r_a^2) rho (Merritt 1985; r_a=inf or None -> isotropic).
+    Zero-point contract: Psi_grid must decrease outward with Psi_grid[-1] the
+    truncation zero point (~0); the boundary term is drho/dPsi at the last grid
+    point.
     Raw (unclamped) f: callers detect genuine negativity; the speed sampler
     clamps grid-level ringing at use. Extracted VERBATIM from the validated
     _eff_eddington_table (Phase 2a) -- the r->0 double-where dPsi guard and the

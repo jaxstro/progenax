@@ -6,6 +6,7 @@ import pytest
 
 # Pre-refactor pins from _eff_eddington_table(1.0, 4.0, 12.0, r_a)
 # (captured at Task 1 Step 1, full repr precision).
+# Re-capture (never loosen) on JAX upgrades.
 PINS = {
     "iso": (
         5.504246729970181,
