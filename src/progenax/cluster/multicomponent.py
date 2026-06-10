@@ -85,6 +85,54 @@ def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
     return table, dens_fn
 
 
+class _EngineAState(eqx.Module):
+    """Engine A (lowered-isothermal) leaves, grouped (one field on the model).
+
+    The DF-defined machinery's state: structural parameters (W0, g, r_c), the
+    per-component scales (alpha_j, w_j, ra_hat_j), the velocity-scale integral
+    mu_tot, the eigenvalue-solve residual, and the coupled-Poisson solution
+    (xi_grid, psi_grid). Engine B models carry `engine_a = None` -- A-only
+    access there raises an informative AttributeError via the model's
+    delegating properties (this REPLACED the NaN-sentinel tripwires, which
+    poisoned results silently on accidental A-path use).
+    """
+
+    W0: Float[Array, ""]
+    g: Float[Array, ""]
+    r_c: Float[Array, ""]
+    mu_tot: Float[Array, ""]
+    alpha_j: Float[Array, "n_comp"]
+    w_j: Float[Array, "n_comp"]
+    ra_hat_j: Float[Array, "n_comp"]
+    xi_grid: Float[Array, "n_ode"]
+    psi_grid: Float[Array, "n_ode"]
+    residual: Float[Array, ""]
+
+
+def _engine_a_property(name: str, doc: str) -> property:
+    """A delegating property for an Engine-A-only quantity `name`.
+
+    Reads through `self.engine_a`; on an Engine B model (engine_a is None) it
+    raises an AttributeError NAMING the engine -- loud and immediate, never a
+    silent NaN. Property access happens at Python/trace time (`engine` is a
+    static field), so raising here is jit-safe: a traced Engine A build never
+    takes the None branch.
+    """
+
+    def getter(self):
+        if self.engine_a is None:
+            raise AttributeError(
+                f"{name} is an Engine A (lowered-isothermal) quantity; this "
+                f"model was built by from_density_profiles (Engine B), which "
+                f"has no {name}. Use the profile parameters / the Engine B "
+                f"state on self.engine_b instead.")
+        return getattr(self.engine_a, name)
+
+    getter.__name__ = name
+    getter.__doc__ = doc
+    return property(getter)
+
+
 class MultiComponentCluster(eqx.Module):
     """Multi-component cluster in shared-potential equilibrium (two engines).
 
@@ -108,35 +156,54 @@ class MultiComponentCluster(eqx.Module):
     through construction AND sampling.
 
     Attributes:
-        W0, g, r_c, r_t: structural parameters / scales.
+        r_t: tidal/truncation radius (shared by both engines).
         m_j: representative stellar mass per component [M_sun] (labels only).
+        N_frac_j: number fraction of stars per component.
+        engine: "A" or "B" (static; resolves dispatch at trace time).
+        engine_a: grouped Engine A state (`_EngineAState`; None on B models).
+        engine_b: grouped Engine B state (`_EngineBState`; None on A models).
+
+    Engine-A-only quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j,
+    xi_grid, psi_grid, residual) are exposed as delegating properties reading
+    through `engine_a`:
+        W0, g, r_c: structural parameters / scales.
         alpha_j: central density fractions (sum to 1).
         w_j: per-component velocity-scale ratios s_j/s (rescale_j = w_j^-2).
         ra_hat_j: per-component anisotropy radii r_{a,j}/r_c (inf = isotropic).
-        N_frac_j: number fraction of stars per component.
         mu_tot: total dimensionless mass integral (sets the velocity scale).
         residual: eigenvalue-solve residual (0 for direct constructors).
         xi_grid, psi_grid: shared coupled-Poisson solution W(xi).
+    On an Engine B model each raises an informative AttributeError naming the
+    engine (this replaced the NaN-sentinel tripwires).
     """
 
-    W0: Float[Array, ""]
-    g: Float[Array, ""]
-    r_c: Float[Array, ""]
     r_t: Float[Array, ""]
     m_j: Float[Array, "n_comp"]
-    alpha_j: Float[Array, "n_comp"]
-    w_j: Float[Array, "n_comp"]
-    ra_hat_j: Float[Array, "n_comp"]
     N_frac_j: Float[Array, "n_comp"]
-    mu_tot: Float[Array, ""]
-    residual: Float[Array, ""]
-    xi_grid: Float[Array, "n_ode"]
-    psi_grid: Float[Array, "n_ode"]
     _r_grid: Float[Array, "n_grid"]
     _cdf_j: Float[Array, "n_comp n_grid"]
     is_aniso: bool = eqx.field(static=True)
     engine: str = eqx.field(static=True)
+    engine_a: Optional[_EngineAState] = None
     engine_b: Optional[_EngineBState] = None
+
+    W0 = _engine_a_property("W0", "Central dimensionless potential depth (Engine A).")
+    g = _engine_a_property("g", "Truncation parameter of the lowered isothermal (Engine A).")
+    r_c = _engine_a_property("r_c", "King core radius scale (Engine A).")
+    mu_tot = _engine_a_property(
+        "mu_tot", "Total dimensionless mass integral; sets the velocity scale (Engine A).")
+    alpha_j = _engine_a_property(
+        "alpha_j", "Per-component central density fractions, sum to 1 (Engine A).")
+    w_j = _engine_a_property(
+        "w_j", "Per-component velocity-scale ratios s_j/s (Engine A).")
+    ra_hat_j = _engine_a_property(
+        "ra_hat_j", "Per-component anisotropy radii r_{a,j}/r_c, inf = isotropic (Engine A).")
+    xi_grid = _engine_a_property(
+        "xi_grid", "Coupled-Poisson radial grid xi = r/r_c (Engine A).")
+    psi_grid = _engine_a_property(
+        "psi_grid", "Coupled-Poisson solution W(xi) on xi_grid (Engine A).")
+    residual = _engine_a_property(
+        "residual", "Eigenvalue-solve residual; 0 for direct constructors (Engine A).")
 
     def __init__(self, alpha_j=None, w_j=None, m_j=None, W0=None, g=None,
                  r_c=None, xi_grid=None, psi_grid=None,
@@ -213,15 +280,17 @@ class MultiComponentCluster(eqx.Module):
         M_cum = cumulative_trapezoid(integrand, dx=dr, axis=1)
         cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
 
+        state_a = _EngineAState(
+            W0=W0, g=g, r_c=r_c, mu_tot=mu_tot, alpha_j=alpha_j, w_j=w_j,
+            ra_hat_j=ra_arr, xi_grid=xi_grid, psi_grid=psi_grid,
+            residual=jnp.asarray(residual, dtype=jnp.float64))
         for name, val in dict(
-            W0=W0, g=g, r_c=r_c, r_t=r_t, m_j=m_j, alpha_j=alpha_j, w_j=w_j,
-            ra_hat_j=ra_arr, N_frac_j=N_frac, mu_tot=mu_tot,
-            residual=jnp.asarray(residual, dtype=jnp.float64),
-            xi_grid=xi_grid, psi_grid=psi_grid, _r_grid=r_grid, _cdf_j=cdf_j,
+            r_t=r_t, m_j=m_j, N_frac_j=N_frac, _r_grid=r_grid, _cdf_j=cdf_j,
         ).items():
             object.__setattr__(self, name, val)
         object.__setattr__(self, "is_aniso", is_aniso)
         object.__setattr__(self, "engine", "A")
+        object.__setattr__(self, "engine_a", state_a)
         object.__setattr__(self, "engine_b", None)
 
     @property
@@ -231,7 +300,8 @@ class MultiComponentCluster(eqx.Module):
         Engine B models have no w_j -- their per-component DFs are Eddington
         inversions of prescribed densities, not rescaled lowered isothermals --
         so the concept is physically meaningless there: raises ValueError
-        instead of silently returning the NaN tripwire w_j ** -2.
+        (kept distinct from the delegating properties' AttributeError for the
+        stored A-only leaves; rescale_j is a DERIVED quantity).
         """
         if self.engine == "B":
             raise ValueError(
@@ -341,9 +411,10 @@ class MultiComponentCluster(eqx.Module):
         raises ValueError naming the component (concrete inputs).
 
         `m_j` are decoupled stellar-mass labels exactly as in Engine A:
-        N_frac_j proportional to mass_fractions_j / m_j. Engine-A-only fields
-        (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j, xi_grid, psi_grid) are NaN
-        tripwires -- accidental A-path use poisons results visibly.
+        N_frac_j proportional to mass_fractions_j / m_j. Engine-A-only
+        quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j, xi_grid,
+        psi_grid, residual) do not exist here (`engine_a` is None) -- accessing
+        them raises an informative AttributeError naming the engine.
         """
         return cls(_fields=assemble_engine_b_fields(
             profiles, mass_fractions, m_j, r_a_j=r_a_j, r_t=r_t, f_enc=f_enc,

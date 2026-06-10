@@ -344,12 +344,12 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
 
     SHARED sampler fields are filled meaningfully: `_r_grid` (the Poisson grid
     downsampled to n_grid), `_cdf_j` (per-component M_j(<r)/M_j(r_t) interpolated
-    onto it), `N_frac_j` (proportional to mass_fractions/m_j), `r_t`, `m_j`,
-    `residual=0`; `engine_b.Psi_grid` is re-interpolated onto `_r_grid` so the
-    sampler does one jnp.interp per star. Engine-A-ONLY fields are NaN tripwires
-    (W0, g, r_c, mu_tot scalars; alpha_j/w_j/ra_hat_j arrays; xi_grid/psi_grid
-    shape-minimal length-2 arrays): accidental A-path use must poison results
-    visibly, never silently.
+    onto it), `N_frac_j` (proportional to mass_fractions/m_j), `r_t`, `m_j`;
+    `engine_b.Psi_grid` is re-interpolated onto `_r_grid` so the sampler does
+    one jnp.interp per star. Engine-A-ONLY state simply does not exist on a B
+    model (`engine_a=None`): accidental A-path access raises an informative
+    AttributeError via the model's delegating properties (this replaced the
+    NaN-sentinel tripwires, which poisoned results silently).
     """
     mass_fractions = jnp.asarray(mass_fractions, dtype=jnp.float64)
     m_arr = jnp.asarray(m_j, dtype=jnp.float64)
@@ -393,21 +393,15 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
     any_finite_ra = jnp.any(jnp.isfinite(ra_arr))
     is_aniso = bool(any_finite_ra) if _is_concrete(any_finite_ra) else False
 
-    nan = jnp.asarray(jnp.nan, dtype=jnp.float64)
-    nan_j = jnp.full((n_comp,), jnp.nan, dtype=jnp.float64)
-    nan_2 = jnp.full((2,), jnp.nan, dtype=jnp.float64)
     return dict(
-        # A-only fields: NaN tripwires (never silently usable in B mode).
-        W0=nan, g=nan, r_c=nan, mu_tot=nan,
-        alpha_j=nan_j, w_j=nan_j, ra_hat_j=nan_j,
-        xi_grid=nan_2, psi_grid=nan_2,
         # Shared fields, filled meaningfully.
         r_t=jnp.asarray(pot.r_t, dtype=jnp.float64), m_j=m_arr,
-        N_frac_j=N_frac, residual=jnp.zeros((), dtype=jnp.float64),
-        _r_grid=r_grid, _cdf_j=cdf_j,
+        N_frac_j=N_frac, _r_grid=r_grid, _cdf_j=cdf_j,
         # Engine dispatch: Engine B dispatches on `engine` (Task 4) and carries
-        # r_a_j itself; is_aniso (see above) is truthful introspection.
-        is_aniso=is_aniso, engine="B", engine_b=state,
+        # r_a_j itself; is_aniso (see above) is truthful introspection. A-only
+        # state is absent by construction (engine_a=None -> AttributeError on
+        # access through the model's delegating properties).
+        is_aniso=is_aniso, engine="B", engine_a=None, engine_b=state,
     )
 
 

@@ -592,13 +592,15 @@ class TestEngineB:
         assert fmin.shape == (2,)
         assert np.all(fmin > -1e-3)                      # realizable mix (relative units)
 
-    def test_a_fields_are_nan_tripwires(self):
-        """Engine-A-only fields are NaN in B mode: accidental A-path use must
-        poison results visibly, never silently."""
+    def test_a_only_access_raises_not_nan(self):
+        """Engine-A-only quantities REFUSE in B mode (consolidation 4/4): the
+        old NaN tripwires poisoned downstream results silently on access; the
+        grouped engine_a=None state raises immediately, naming the engine."""
         m = self._model()
-        for name in ("W0", "g", "mu_tot"):
-            assert bool(jnp.isnan(getattr(m, name)))
-        assert bool(jnp.all(jnp.isnan(m.alpha_j))) and bool(jnp.all(jnp.isnan(m.w_j)))
+        assert m.engine_a is None
+        for name in ("W0", "g", "mu_tot", "alpha_j", "w_j"):
+            with pytest.raises(AttributeError, match="Engine A"):
+                getattr(m, name)
 
     def test_position_cdf_matches_component_masses(self):
         """_cdf_j is reused verbatim by the sampler: each row is a normalized
@@ -859,3 +861,57 @@ class TestEngineB:
         v_scalar = assign_om_directions(kd, pos, speeds, 1.7)
         v_array = assign_om_directions(kd, pos, speeds, jnp.full((500,), 1.7))
         np.testing.assert_array_equal(np.asarray(v_scalar), np.asarray(v_array))
+
+
+def _make_engine_b_model():
+    """The realizable Plummer halo + EFF core headline mix (TestEngineB defaults)."""
+    from progenax.cluster.multicomponent import MultiComponentCluster
+    return MultiComponentCluster.from_density_profiles(
+        profiles=[PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
+        mass_fractions=jnp.array([0.6, 0.4]), m_j=jnp.array([0.5, 1.0]))
+
+
+class TestEngineStateGrouping:
+    """Grouped engine state replaces the NaN-sentinel union (consolidation 4/4):
+    Engine-A-only leaves live on `engine_a` (an _EngineAState), Engine-B state on
+    `engine_b`; the absent engine's group is None and A-only access on a B model
+    raises an informative AttributeError naming the engine -- never a silent NaN."""
+
+    def test_engine_a_fields_grouped(self):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        m = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.8]),
+            m_j=jnp.array([0.5, 1.0]), W0=5.0, g=1.0, r_c=1.0)
+        assert m.engine_a is not None and m.engine_b is None
+        assert float(m.W0) == 5.0          # delegating property
+
+    def test_engine_b_has_no_nan_tripwires(self):
+        m = _make_engine_b_model()
+        assert m.engine_b is not None and m.engine_a is None
+
+    def test_engine_b_a_only_access_raises_informatively(self):
+        m = _make_engine_b_model()
+        with pytest.raises(AttributeError, match="Engine A"):
+            _ = m.W0
+
+    def test_engine_b_every_a_only_name_raises(self):
+        """EVERY old A-only field name refuses on a B model, naming the engine
+        (the full tripwire set the NaN block used to cover)."""
+        m = _make_engine_b_model()
+        for name in ("W0", "g", "r_c", "mu_tot", "alpha_j", "w_j", "ra_hat_j",
+                     "xi_grid", "psi_grid", "residual"):
+            with pytest.raises(AttributeError, match="Engine A"):
+                getattr(m, name)
+
+    def test_engine_a_jit_and_grad_still_flow(self):
+        """Grouping must not break the pytree: grad through r_c via the state."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        def f(r_c):
+            m = MultiComponentCluster.from_components(
+                alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]),
+                m_j=jnp.array([1.0]), W0=5.0, g=1.0, r_c=r_c)
+            return jnp.sum(m.total_density(jnp.linspace(0.1, 2.0, 16)))
+
+        assert jnp.isfinite(jax.grad(f)(1.0))
