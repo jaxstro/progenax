@@ -41,6 +41,7 @@ from progenax.profiles.limepy import (
     lowered_exponential,
     solve_limepy_profile,
 )
+from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
 
 # Inverse-CDF table resolutions.
 _N_SPEED_GRID = 256  # speed grid
@@ -118,11 +119,27 @@ class LIMEPYVelocityDF(eqx.Module):
     r_a adds radial anisotropy (generalizes MichieVelocityDF). At g=1 it reduces to
     King (isotropic) / Michie-King (anisotropic).
 
+    Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
+    marginal comes from one precomputed inverse-CDF table per call
+    (SpeedCDFTable / AnisoSpeedCDFTable, the same path MultiComponentCluster
+    uses), so live memory is O(N * n_x) instead of the eager per-star
+    quadrature's O(N * 256 * 91) Poisson-sum buffers (measured 10.87 GB at
+    N=2e4 anisotropic; the table path passes the <3 GB gate in
+    scripts/profile_cluster_memory.py). The anisotropic angular conditional
+    cos(theta)|u stays EXACT (_sample_costheta_given_u) -- only the speed
+    marginal is tabulated. speed_method="quadrature" retains the exact
+    per-star quadrature as the oracle (statistical agreement asserted in
+    tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
+    Small-N note: the anisotropic table build costs ~160 ms per
+    sample_velocities call and dominates below ~3k stars -- batch repeated
+    small draws into one call, or use the quadrature oracle there.
+
     Attributes:
         W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).
         r_t: truncation radius. xi_grid, psi_grid: ODE solution W(xi).
         mu: dimensionless mass integral int rho_tilde xi^2 dxi (sets s).
         is_aniso: static flag selecting the anisotropic sampler.
+        speed_method: static, "table" (default) or "quadrature" (exact oracle).
     """
 
     W0: Float[Array, ""]
@@ -134,6 +151,7 @@ class LIMEPYVelocityDF(eqx.Module):
     psi_grid: Float[Array, "n_ode"]
     mu: Float[Array, ""]
     is_aniso: bool = eqx.field(static=True)
+    speed_method: str = eqx.field(static=True)
 
     def __init__(
         self,
@@ -143,7 +161,13 @@ class LIMEPYVelocityDF(eqx.Module):
         r_a: float | None = None,
         xi_max: float = 300.0,
         n_ode_points: int = 2000,
+        speed_method: str = "table",
     ):
+        if speed_method not in ("table", "quadrature"):
+            raise ValueError(
+                f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
+            )
+        self.speed_method = speed_method
         is_aniso = r_a is not None
         self.W0 = jnp.asarray(W0, dtype=jnp.float64)
         self.g = jnp.asarray(g, dtype=jnp.float64)
@@ -197,9 +221,26 @@ class LIMEPYVelocityDF(eqx.Module):
 
         if self.is_aniso:
             s_local = radii / self.r_a  # = (r/r_c)/(r_a/r_c)
-            u_r, u_t = jax.vmap(
-                lambda k, w, sl: _sample_speed_angle(k, w, sl, self.g, _N_SPEED_GRID, _N_C)
-            )(speed_keys, W, s_local)
+            if self.speed_method == "table":
+                # Mirror of cluster/sampling.py's Engine A aniso path: the speed
+                # MARGINAL comes from ONE precomputed 3-D CDF table; the angular
+                # conditional cos(theta)|u stays EXACT (_sample_costheta_given_u).
+                # Box covers every star: W <= W0, p <= r_t/r_a (radii <= r_t);
+                # the 1e-3 p floor guards the near-isotropic corner.
+                p_box = jnp.maximum(self.r_t / self.r_a, 1e-3)
+                table = AnisoSpeedCDFTable.build(self.W0, p_box, self.g)
+                ku_kc = jax.vmap(jax.random.split)(speed_keys)
+                unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+                u_sp = jax.vmap(table.inverse)(W, s_local, unif)
+                cos_t = jax.vmap(
+                    lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
+                )(ku_kc[:, 1], u_sp, s_local)
+                u_r = u_sp * cos_t
+                u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
+            else:
+                u_r, u_t = jax.vmap(
+                    lambda k, w, sl: _sample_speed_angle(k, w, sl, self.g, _N_SPEED_GRID, _N_C)
+                )(speed_keys, W, s_local)
             v_r, v_t = s * u_r, s * u_t
             # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
             r_hat = positions / (radii[:, None] + 1e-30)
@@ -209,7 +250,16 @@ class LIMEPYVelocityDF(eqx.Module):
             return v_r[:, None] * r_hat + v_t[:, None] * t_hat
 
         # Isotropic: speed * isotropic direction.
-        u = jax.vmap(lambda k, w: _sample_unit_speed(k, w, self.g, _N_SPEED_GRID))(speed_keys, W)
+        if self.speed_method == "table":
+            # One precomputed speed-CDF table replaces the per-star 256-point
+            # E_gamma quadrature (build amortized over N; see class docstring).
+            table = SpeedCDFTable.build(self.W0, self.g)
+            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+            u = jax.vmap(table.inverse)(W, unif)
+        else:
+            u = jax.vmap(
+                lambda k, w: _sample_unit_speed(k, w, self.g, _N_SPEED_GRID)
+            )(speed_keys, W)
         speeds = s * u
         dirs = jax.random.normal(key_dir, shape=(N, 3))
         dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)

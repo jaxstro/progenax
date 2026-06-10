@@ -219,6 +219,81 @@ class TestLimepyAnisotropicVelocity:
         assert float(jnp.mean(v <= v_esc + 0.05 * s)) == 1.0
 
 
+class TestLimepyTableRouting:
+    """speed_method='table' (default) must agree with the exact quadrature
+    oracle (speed_method='quadrature') distributionally and in moments —
+    the same contract AnisoSpeedCDFTable passed against the DF quadrature
+    (tests/unit/profiles/test_limepy_tables.py: moments to 1.5%)."""
+
+    def _two_dfs(self, r_a):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        kw = dict(W0=5.0, g=1.0, r_c=1.0, r_a=r_a)
+        return (LIMEPYVelocityDF(**kw),                       # default: table
+                LIMEPYVelocityDF(**kw, speed_method="quadrature"))
+
+    def _pos_vel(self, df, n=30000, seed=0):
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
+        masses = jnp.ones(n)
+        pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
+                                   G=1.0)
+        return pos, vel
+
+    def _speeds(self, df, n=30000, seed=0):
+        _, vel = self._pos_vel(df, n=n, seed=seed)
+        return np.asarray(jnp.linalg.norm(vel, axis=1))
+
+    @pytest.mark.parametrize("r_a", [None, 4.0])
+    def test_speed_moments_match_quadrature_oracle(self, r_a):
+        df_t, df_q = self._two_dfs(r_a)
+        s_t, s_q = self._speeds(df_t), self._speeds(df_q)
+        assert abs(s_t.mean() / s_q.mean() - 1.0) < 0.02
+        assert abs((s_t**2).mean() / (s_q**2).mean() - 1.0) < 0.03
+
+    @pytest.mark.parametrize("r_a", [None, 4.0])
+    def test_speed_distribution_ks(self, r_a):
+        from scipy.stats import ks_2samp
+
+        df_t, df_q = self._two_dfs(r_a)
+        D = ks_2samp(self._speeds(df_t), self._speeds(df_q)).statistic
+        assert D < 0.02
+
+    def test_aniso_beta_profile_preserved(self):
+        """The table path must keep the validated beta(r): the angular
+        conditional stays EXACT, so only the speed marginal changed."""
+        df_t, df_q = self._two_dfs(4.0)
+        pos, vel_t = self._pos_vel(df_t, n=60000, seed=2)
+        _, vel_q = self._pos_vel(df_q, n=60000, seed=2)
+        edges = np.linspace(0.0, 0.8 * float(df_t.r_t), 6)
+        _, beta_t = _beta_profile(pos, vel_t, edges)
+        _, beta_q = _beta_profile(pos, vel_q, edges)
+        np.testing.assert_allclose(beta_t, beta_q, atol=0.06)
+
+    def test_table_default_and_quadrature_static(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0)
+        assert df.speed_method == "table"
+        with pytest.raises(ValueError, match="speed_method"):
+            LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, speed_method="exact")
+
+    def test_differentiable_in_g_through_table(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        def mean_ke(g):
+            df = LIMEPYVelocityDF(W0=5.0, g=g, r_c=1.0, r_a=4.0)
+            prof_pos = jnp.array([[0.5, 0.0, 0.0]] * 64)
+            v = df.sample_velocities(prof_pos, jnp.ones(64),
+                                     jax.random.PRNGKey(0), G=1.0)
+            return jnp.mean(jnp.sum(v**2, axis=1))
+
+        g = jax.grad(mean_ke)(1.0)
+        assert jnp.isfinite(g) and g != 0.0
+
+
 class TestLimepyVelocityDifferentiable:
     def test_velocity_sampling_differentiable_in_g(self):
         """grad of mean kinetic energy w.r.t. g flows through the DF speed sampling
