@@ -34,9 +34,9 @@ Example:
     ... )
 """
 
-from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -79,8 +79,7 @@ class VelocityDF(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class RotationParams:
+class RotationParams(eqx.Module):
     """Parameters for rotation velocity transforms.
 
     Supports both solid-body and differential rotation. Both can be
@@ -105,16 +104,16 @@ class RotationParams:
         Binney & Tremaine (2008) Section 4.8
     """
 
-    solid_body: bool = False
-    differential: bool = False
+    solid_body: bool = eqx.field(static=True, default=False)
+    differential: bool = eqx.field(static=True, default=False)
     pattern_speed: float = 0.0
     v_peak: float = 0.0
     r_peak: float = 1.0
-    axis: Optional[tuple[float, float, float]] = None  # Default z-axis if None
+    # Default z-axis if None; static: a plain-Python config tuple, not a leaf
+    axis: Optional[tuple[float, float, float]] = eqx.field(static=True, default=None)
 
 
-@dataclass(frozen=True)
-class VelocityModel:
+class VelocityModel(eqx.Module):
     """Complete velocity model specification.
 
     Bundles a distribution function with optional rotation and a target virial

@@ -199,9 +199,11 @@ def compute_profile_potential(
         **kwargs: Profile-specific parameters (passed to make_profile)
 
     Returns:
-        phi: Gravitational potential at each position, shape (N,)
-             All values are negative (bound system).
-             Units: [mass units] * [length units]^2 / [time units]^2
+        phi: SPECIFIC gravitational potential (per unit mass) at each position,
+             shape (N,). All values are negative (bound system).
+             Units: [length units]^2 / [time units]^2 (e.g. pc^2/Myr^2 in
+             STELLAR units) — consistent with specific kinetic energy 0.5*v^2,
+             so E = 0.5*v^2 + phi is a specific orbital energy.
 
     Examples:
         >>> from jaxstro.units import STELLAR

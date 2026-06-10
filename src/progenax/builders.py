@@ -2,7 +2,7 @@
 IC builders for progenax.
 
 Provides:
-- ICResult: Dataclass for initial condition outputs
+- ICResult: Immutable Equinox module (PyTree) for initial condition outputs
 - build_spatial_ic: Generic builder using profile + velocity DF
 - to_com_frame: Center-of-mass frame transformation
 - virial_scale: Scale velocities to target virial ratio
@@ -10,9 +10,9 @@ Provides:
 - compute_kinetic_energy, compute_potential_energy: Energy helpers
 """
 
-from dataclasses import dataclass
 from typing import Optional
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
@@ -34,8 +34,7 @@ _SECONDS_PER_DAY = 86400.0
 # =============================================================================
 
 
-@dataclass(frozen=True)
-class Systems:
+class Systems(eqx.Module):
     """Target a fixed number of stellar *systems* (singles + binaries).
 
     Companions are **not** counted toward the count — the observational convention of
@@ -44,11 +43,10 @@ class Systems:
     **fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
     """
 
-    n: int
+    n: int = eqx.field(static=True)
 
 
-@dataclass(frozen=True)
-class Stars:
+class Stars(eqx.Module):
     """Target a fixed number of resolved *stars* (primaries + real secondaries).
 
     Companions count toward the total — the dynamical-IC convention of McLuster
@@ -58,18 +56,17 @@ class Stars:
     data-dependent system count makes this **eager only** (``compact=True``).
     """
 
-    n: int
+    n: int = eqx.field(static=True)
 
 
-@dataclass(frozen=True)
-class TotalMass:
+class TotalMass(eqx.Module):
     """Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
 
     Whole-system, McLuster-style mass filling: draw until the cumulative system
     mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
     """
 
-    m: float
+    m: float = eqx.field(static=True)
 
 
 def _system_star_counts(is_binary: Bool[Array, "N"]) -> Int[Array, "N"]:
@@ -113,13 +110,13 @@ def _target_satisfied(
     raise TypeError(f"Unknown population target: {target!r}")
 
 
-@dataclass(frozen=True)
-class ICResult:
+class ICResult(eqx.Module):
     """
     Result from initial conditions generation — pure physical state.
 
-    Immutable dataclass containing all particle data. No dependency on gravax;
-    can be converted to any state format.
+    Immutable Equinox module (a JAX PyTree) containing all particle data. No
+    dependency on gravax; can be converted to any state format and passed
+    through jit/vmap/grad boundaries.
 
     Softening is intentionally **NOT** stored here: it is a force-model /
     integration choice (selected on the integrator, e.g. ε=0 for collisional

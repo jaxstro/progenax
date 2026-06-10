@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Literal, Optional
 
+import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 
-@dataclass(frozen=True)
-class AnalyticalIC:
+class AnalyticalIC(eqx.Module):
     """
-    Result from analytical IC generation.
+    Result from analytical IC generation (immutable Equinox module / PyTree).
 
     Attributes:
         positions: Particle positions (N, 3)
@@ -26,7 +25,7 @@ class AnalyticalIC:
     positions: Float[Array, "N 3"]
     velocities: Float[Array, "N 3"]
     masses: Float[Array, "N"]
-    name: str = ""
+    name: str = eqx.field(static=True, default="")
     period: Optional[float] = None
     energy: Optional[float] = None
 
