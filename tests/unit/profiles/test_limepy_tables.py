@@ -1,13 +1,25 @@
 # tests/unit/profiles/test_limepy_tables.py
 """AnisoDensityTable: tabulated anisotropic LIMEPY density rho_hat(W, p; g).
+SpeedCDFTable: tabulated isotropic speed inverse-CDF u(W, unif; g).
 
-The table must reproduce the exact quadrature (_aniso_density_scalar) to the
-stated budget across its whole domain, and be differentiable in (g, queries).
+The tables must reproduce the exact quadrature oracles (_aniso_density_scalar,
+_sample_unit_speed / direct DF quadrature) to the stated budgets across their
+whole domains, and be differentiable in (g, queries).
 """
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
+
+
+def _ks_two_sample(a: np.ndarray, b: np.ndarray) -> float:
+    """Two-sample KS statistic max|ECDF_a - ECDF_b| (scipy-free, numpy only)."""
+    a = np.sort(np.asarray(a))
+    b = np.sort(np.asarray(b))
+    grid = np.concatenate([a, b])
+    cdf_a = np.searchsorted(a, grid, side="right") / a.size
+    cdf_b = np.searchsorted(b, grid, side="right") / b.size
+    return float(np.max(np.abs(cdf_a - cdf_b)))
 
 
 class TestAnisoDensityTable:
@@ -218,12 +230,18 @@ class TestTableBackedSolver:
         """A future third method must raise, never silently fall back to
         quadrature -- both in the solve and in the model constructor."""
         from progenax.cluster.multicomponent import MultiComponentCluster
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
         with pytest.raises(ValueError, match="aniso_method"):
             MultiComponentCluster.from_components(
                 alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.79]),
                 m_j=jnp.array([1.0, 4.0]), W0=7.0, g=1.0,
                 ra_hat_j=jnp.array([10.0, 10.0]), xi_max=800.0,
+                aniso_method="bogus")
+        with pytest.raises(ValueError, match="aniso_method"):
+            solve_multicomponent_limepy(
+                jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), 7.0, 1.0,
+                xi_max=800.0, n_points=500, ra_hat_j=jnp.array([10.0, 10.0]),
                 aniso_method="bogus")
 
     @pytest.mark.slow
@@ -240,3 +258,107 @@ class TestTableBackedSolver:
             return time.perf_counter() - t0
 
         assert timed("quadrature") / timed("table") >= 3.0
+
+
+class TestSpeedCDFTable:
+    """Tabulated isotropic speed inverse-CDF (Tranche B, Task 5).
+
+    One (sqrt W, x = u/sqrt(2W)) CDF table replaces the per-star 256-point
+    E_gamma quadrature of _sample_unit_speed. The contract: the table draw is
+    DISTRIBUTIONALLY identical to the exact sampler (1% moments, KS < 0.02)
+    and matches the direct DF quadrature moments to 1%.
+    """
+
+    def _table(self, W_max=10.0, g=1.0, n_W=256, n_x=256):
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+        return SpeedCDFTable.build(W_max=W_max, g=g, n_W=n_W, n_x=n_x)
+
+    def test_sampled_moments_match_exact_sampler(self):
+        """Per W bin (8 values spanning [0.2, 9.5]): mean u and rms u from the
+        table draw agree with the exact per-star sampler (_sample_unit_speed)
+        to 1% relative, and the two-sample KS statistic < 0.02.
+
+        20k INDEPENDENT draws per bin per path (fixed seeds): the two-sample
+        noise floor is E[KS] ~ 0.87/sqrt(10^4) ~ 0.009 and ~0.45% on the mean,
+        so the 0.02 / 1% gates sit several sigma above pure sampling noise.
+        """
+        from progenax.kinematics.limepy_df import _sample_unit_speed
+
+        g = jnp.asarray(1.0)
+        tab = self._table(W_max=10.0, g=1.0)
+        n = 20_000
+        for i, W0 in enumerate(np.linspace(0.2, 9.5, 8)):
+            W = jnp.full((n,), W0)
+            keys = jax.random.split(jax.random.PRNGKey(100 + i), n)
+            u_exact = jax.vmap(lambda k, w: _sample_unit_speed(k, w, g, 256))(keys, W)
+            unif = jax.random.uniform(jax.random.PRNGKey(900 + i), (n,))
+            u_tab = jax.vmap(tab.inverse)(W, unif)
+
+            mean_e, mean_t = float(jnp.mean(u_exact)), float(jnp.mean(u_tab))
+            rms_e = float(jnp.sqrt(jnp.mean(u_exact**2)))
+            rms_t = float(jnp.sqrt(jnp.mean(u_tab**2)))
+            assert abs(mean_t - mean_e) / mean_e < 0.01, (
+                f"W={W0:.2f}: mean u {mean_t:.4f} vs exact {mean_e:.4f}")
+            assert abs(rms_t - rms_e) / rms_e < 0.01, (
+                f"W={W0:.2f}: rms u {rms_t:.4f} vs exact {rms_e:.4f}")
+            ks = _ks_two_sample(np.asarray(u_exact), np.asarray(u_tab))
+            assert ks < 0.02, f"W={W0:.2f}: KS statistic {ks:.4f} >= 0.02"
+
+    def test_moments_match_df_quadrature(self):
+        """Sharper oracle than sampler-vs-sampler: per W in {0.5, 2, 5, 9},
+        the table-drawn mean u and <u^2> (50k draws) match the DIRECT DF
+        quadrature int u * u^2 E_gamma(g, W - u^2/2) du / int u^2 E_gamma du
+        (and <u^2> likewise) to 1% -- this catches a WRONG CDF, not just
+        table-vs-sampler agreement."""
+        from progenax.profiles.limepy import lowered_exponential
+
+        g = 1.0
+        tab = self._table(W_max=10.0, g=g)
+        n = 50_000
+        for i, W0 in enumerate((0.5, 2.0, 5.0, 9.0)):
+            u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W0), 4001)
+            wgt = u_grid**2 * lowered_exponential(jnp.asarray(g), W0 - u_grid**2 / 2.0)
+            norm = jnp.trapezoid(wgt, u_grid)
+            mean_q = float(jnp.trapezoid(u_grid * wgt, u_grid) / norm)
+            u2_q = float(jnp.trapezoid(u_grid**2 * wgt, u_grid) / norm)
+
+            unif = jax.random.uniform(jax.random.PRNGKey(2000 + i), (n,))
+            u = jax.vmap(tab.inverse)(jnp.full((n,), W0), unif)
+            mean_t = float(jnp.mean(u))
+            u2_t = float(jnp.mean(u**2))
+            assert abs(mean_t - mean_q) / mean_q < 0.01, (
+                f"W={W0}: <u> {mean_t:.4f} vs DF quadrature {mean_q:.4f}")
+            assert abs(u2_t - u2_q) / u2_q < 0.01, (
+                f"W={W0}: <u^2> {u2_t:.4f} vs DF quadrature {u2_q:.4f}")
+
+    def test_differentiable_through_table_draw(self):
+        """grad of the mean drawn speed w.r.t. a velocity multiplier is finite
+        and nonzero through the table draw; grad w.r.t. g through the table
+        BUILD is also finite."""
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        W = jnp.linspace(0.3, 9.0, 64)
+        unif = jax.random.uniform(jax.random.PRNGKey(7), (64,))
+        tab = self._table()
+
+        def mean_speed(scale):
+            return jnp.mean(scale * jax.vmap(tab.inverse)(W, unif))
+
+        d_scale = jax.grad(mean_speed)(jnp.asarray(1.0))
+        assert bool(jnp.isfinite(d_scale)) and float(d_scale) > 0.0
+
+        def mean_speed_g(g):
+            t = SpeedCDFTable.build(W_max=10.0, g=g, n_W=64, n_x=64)
+            return jnp.mean(jax.vmap(t.inverse)(W, unif))
+
+        d_g = jax.grad(mean_speed_g)(jnp.asarray(1.0))
+        assert bool(jnp.isfinite(d_g)), f"d<u>/dg through the build: {d_g}"
+
+    def test_w_zero_draw_is_zero(self):
+        """W = 0 (a star at the truncation radius) draws u = 0, no NaN; the
+        normalized coordinate makes this automatic (u = x sqrt(2W) = 0)."""
+        tab = self._table()
+        u0 = jax.vmap(tab.inverse, in_axes=(None, 0))(
+            jnp.asarray(0.0), jnp.array([0.0, 0.3, 0.7, 1.0]))
+        np.testing.assert_array_equal(np.asarray(u0), 0.0)
+        assert bool(jnp.all(jnp.isfinite(u0)))

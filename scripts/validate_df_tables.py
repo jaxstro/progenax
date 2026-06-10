@@ -13,8 +13,8 @@ oracle to the stated budgets, end to end:
       Task-2 configs (budget 1e-4 * W0 each).
   (c) warm solve speedup table vs quadrature (PASS >= 3x; measured ~5x).
   (d) construction-level speedup of an anisotropic MultiComponentCluster,
-      aniso_method="table" vs "quadrature" (reported; includes the Task-4
-      dedup: ONE shared table for the solve AND the mass-CDF grid; PASS >= 2x).
+      aniso_method="table" vs "quadrature" (PASS >= 2x; includes the Task-4
+      dedup: ONE shared table for the solve AND the mass-CDF grid).
   (e) AD-vs-FD gradient through the TABLE solve in (w_j, r_a) (rtol 1e-3) --
       the table build (box depends on rescale = w_j^-2) and the cubic
       interpolation are inside the differentiated graph.
@@ -211,7 +211,7 @@ def main():
     # (d) construction-level speedup (includes the Task-4 dedup)
     tc_q, tc_t = check_construction_speedup()
     sp_con = tc_q / tc_t
-    checks.append(("aniso construction speedup >= 2x (report)", sp_con >= 2.0,
+    checks.append(("aniso construction speedup >= 2x", sp_con >= 2.0,
                    f"{sp_con:.1f}x ({tc_q * 1e3:.0f} -> {tc_t * 1e3:.0f} ms)"))
     print(f"  (d) aniso construction: quadrature {tc_q * 1e3:.0f} ms, table "
           f"{tc_t * 1e3:.0f} ms -> {sp_con:.1f}x (one shared table: solve + CDF)")

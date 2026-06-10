@@ -29,7 +29,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from progenax.profiles.limepy import _aniso_density_scalar
+from progenax.profiles.limepy import _aniso_density_scalar, lowered_exponential
 
 
 def _cubic_lagrange_weights(t: Float[Array, ""]) -> Float[Array, "4"]:
@@ -105,4 +105,79 @@ class AnisoDensityTable(eqx.Module):
         return jnp.where(W > 0.0, v, 0.0)
 
 
-__all__ = ["AnisoDensityTable"]
+class SpeedCDFTable(eqx.Module):
+    """Isotropic speed inverse-CDF table u(W, unif) for fixed g (Tranche B).
+
+    Replaces the per-star 256-point E_gamma quadrature of
+    `_sample_unit_speed` with ONE precomputed table in NORMALIZED speed
+    coordinates x = u / sqrt(2W) in [0, 1]: one rectangular (sqrt W, x) grid
+    serves every W, and a star's draw is a row lookup + two `jnp.interp`
+    inverse-CDF evaluations + one lerp. The speed weight
+
+        u^2 E_gamma(g, W - u^2/2) du = (2W)^{3/2} x^2 E_gamma(g, W(1-x^2)) dx
+
+    has a W-only prefactor that cancels in the normalized CDF, so each row
+    stores the CDF of x^2 E_gamma(g, W(1 - x^2)) alone. The weights are >= 0
+    (E_gamma >= 0), so every CDF row is monotone by construction, and LINEAR
+    interpolation of monotone rows stays monotone -- the cubic-overshoot
+    clamp of AnisoDensityTable does not arise here.
+    """
+
+    s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
+    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W) nodes, uniform on [0, 1]
+    cdf: Float[Array, "n_W n_x"]  # normalized speed CDF per sqrt(W) row
+
+    @classmethod
+    def build(cls, W_max, g, n_W: int = 256, n_x: int = 256):
+        """Tabulate normalized speed CDFs on the (sqrt W, x) grid.
+
+        One batched E_gamma evaluation of n_W x n_x points (65k at default
+        resolution, vs 256 per star in the exact sampler). W_max gets the
+        x1.001 safety factor so in-domain queries never clamp. Differentiable
+        in g (through the node CDFs) and W_max (through the nodes). The W = 0
+        row is floored to W = 1e-12, which makes it the analytic W -> 0 LIMIT
+        shape (weight -> x^2 (1-x^2)^g up to normalization) rather than an
+        all-zero row whose CDF would be undefined; drawn speeds there are
+        u = x sqrt(2W) = 0 regardless -- the clean property of the
+        normalized coordinates.
+        """
+        s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
+        x = jnp.linspace(0.0, 1.0, n_x)
+        W = jnp.maximum(s**2, 1e-12)  # W=0-row guard (limit shape; see above)
+        wgt = jnp.maximum(
+            x[None, :] ** 2 * lowered_exponential(g, W[:, None] * (1.0 - x[None, :] ** 2)),
+            0.0,
+        )
+        dx = x[1] - x[0]
+        cdf = jnp.concatenate(
+            [jnp.zeros((n_W, 1)),
+             jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx],
+            axis=1,
+        )
+        cdf = cdf / (cdf[:, -1:] + 1e-30)
+        return cls(s_nodes=s, x_nodes=x, cdf=cdf)
+
+    def inverse(self, W, unif):
+        """Inverse-CDF draw: unit speed u in [0, sqrt(2W)] at potential W from
+        the uniform variate unif in [0, 1]. Scalar in, scalar out; vmap over
+        stars. Differentiable in W (and in g through the stored CDF rows).
+
+        Locates the two neighboring sqrt(W) rows, inverse-interpolates each
+        row's CDF at unif, and lerps the two x results by the cell fraction;
+        u = x sqrt(2W). W clamps to the table box; W <= 1e-6 draws exactly 0
+        (matching _sample_unit_speed's bound guard).
+        """
+        # 1e-12 floor mirrors _sample_unit_speed: sqrt(0) has a NaN cotangent
+        # under jax.grad and the final where() masks only the primal.
+        W_safe = jnp.maximum(W, 1e-12)
+        s = jnp.clip(jnp.sqrt(W_safe), self.s_nodes[0], self.s_nodes[-1])
+        hs = self.s_nodes[1] - self.s_nodes[0]  # uniform grid by construction
+        i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
+        t = jnp.clip((s - self.s_nodes[i]) / hs, 0.0, 1.0)
+        x_lo = jnp.interp(unif, self.cdf[i], self.x_nodes)
+        x_hi = jnp.interp(unif, self.cdf[i + 1], self.x_nodes)
+        u = ((1.0 - t) * x_lo + t * x_hi) * jnp.sqrt(2.0 * W_safe)
+        return jnp.where(W > 1e-6, u, 0.0)
+
+
+__all__ = ["AnisoDensityTable", "SpeedCDFTable"]

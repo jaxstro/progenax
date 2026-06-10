@@ -249,6 +249,30 @@ class TestSampleClusterICResult:
                                    np.asarray(compute_stellar_radii(ic.masses)),
                                    rtol=1e-12)
 
+    def test_iso_speeds_bounded_by_local_escape_speed(self):
+        """Every isotropically sampled star satisfies |v| <= s_i sqrt(2 W_i)
+        (the local escape speed at its rescaled potential) -- the invariant
+        the SpeedCDFTable's normalized coordinate x = u/sqrt(2W) in [0, 1]
+        enforces by construction, so the whole sampled cluster is bound."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.7]),
+            m_j=jnp.array([0.5, 4.0]), W0=7.0, g=1.0, r_c=1.0)
+        n = 5000
+        ic = model.sample_cluster(jax.random.PRNGKey(3), n_stars=n, G=G)
+        speeds = jnp.linalg.norm(ic.velocities, axis=1)
+        r = jnp.linalg.norm(ic.positions, axis=1)
+        s = jnp.sqrt(G * jnp.sum(ic.masses) / (9.0 * model.r_c * model.mu_tot))
+        s_i = s * model.w_j[ic.component_id]
+        W_i = model.rescale_j[ic.component_id] * jnp.maximum(
+            jnp.interp(r / model.r_c, model.xi_grid, model.psi_grid,
+                       left=model.W0, right=0.0), 0.0)
+        v_esc = s_i * jnp.sqrt(2.0 * W_i)
+        assert bool(jnp.all(jnp.isfinite(speeds)))
+        assert bool(jnp.all(speeds <= v_esc * (1.0 + 1e-12))), (
+            f"max v/v_esc = {float(jnp.max(speeds / (v_esc + 1e-30))):.6f}")
+
     def test_icresult_component_id_defaults_none(self):
         """The new ICResult field is optional: existing construction is unchanged."""
         from progenax.builders import ICResult

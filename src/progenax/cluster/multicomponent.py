@@ -47,6 +47,7 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
+from progenax.profiles.limepy_tables import SpeedCDFTable
 
 
 def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
@@ -379,10 +380,12 @@ def _sample_cluster_arrays(model: MultiComponentCluster, key: PRNGKeyArray,
 
     `model` enters as a PyTree (is_aniso is a static field, so the iso/aniso
     branch is resolved at trace time); n_stars and G are static arguments
-    (one compilation per distinct value). PRNG semantics are identical to the
-    eager path -- same key splits, same draws.
+    (one compilation per distinct value). Key splits match the original eager
+    path; the isotropic speed VALUES come from the SpeedCDFTable inverse (one
+    batched E_gamma build per call, distributionally identical to the exact
+    per-star sampler -- statistical oracles in test_limepy_tables.py).
     """
-    from progenax.kinematics.limepy_df import _sample_speed_angle, _sample_unit_speed
+    from progenax.kinematics.limepy_df import _sample_speed_angle
 
     k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
 
@@ -419,9 +422,15 @@ def _sample_cluster_arrays(model: MultiComponentCluster, key: PRNGKeyArray,
         t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
         vel = v_r[:, None] * r_hat + v_t[:, None] * t_hat
     else:
-        # Isotropic: per-star speed at the component's rescaled potential + scale s_i.
-        u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, model.g, _N_SPEED))(
-            speed_keys, W_i)
+        # Isotropic: ONE precomputed speed-CDF table (Task 5) replaces the
+        # per-star 256-point E_gamma quadrature: a star's draw is a sqrt(W)-row
+        # lookup + inverse-CDF interp. The box W_max = max(rescale)*W0 covers
+        # every star exactly (W_i = rescale_i * psi <= max(rescale) * W0); the
+        # build is traced per call (65k E_gamma points, amortized over n_stars)
+        # and stays differentiable in (W0, g, w_j) -- the model is unchanged.
+        table = SpeedCDFTable.build(jnp.max(model.rescale_j) * model.W0, model.g)
+        unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+        u_speed = jax.vmap(table.inverse)(W_i, unif)
         vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)
 
     return pos, vel, m_i, compute_stellar_radii(m_i), c
