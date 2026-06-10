@@ -43,28 +43,38 @@ from progenax.profiles.limepy_multimass import (
     _bin_imf,
     _grid_density_components,
     _isotropic_dirs,
+    _solver_table,
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
 
 
-def _table_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max, aniso_method):
-    """The solve's table-backed density source, rebuilt for the CDF r-grid.
+def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
+                              aniso_method):
+    """Build the solve-box AnisoDensityTable ONCE per construction.
 
-    Same (W_max, p_max, g) box and same jitted build as inside
-    `solve_multicomponent_limepy` -> identical table values, so the r-grid mass
-    CDF in `MultiComponentCluster.__init__` uses the SAME method as the solve.
-    Returns None for isotropic models or aniso_method="quadrature" (the
-    `__init__` quadrature fallback is then method-consistent by itself). The
-    r-grid stays inside the table box: r_t <= xi_max * r_c (the solver's
-    truncation guard) and W_j = rescale_j * psi <= max(rescale) * W0.
+    Returns (table, dens_fn): the constructors pass `table` to the coupled
+    Poisson solve (`aniso_table=`) AND wrap it as the CDF r-grid density
+    source `dens_fn`, so the table quadrature runs once -- the same table the
+    solve uses, hence the r-grid mass CDF in `MultiComponentCluster.__init__`
+    uses the SAME method (and values) as the solve. (None, None) for isotropic
+    models or aniso_method="quadrature" (the `__init__` quadrature fallback is
+    then method-consistent by itself); any other method raises -- a future
+    third method must never silently fall back to quadrature. The r-grid stays
+    inside the table box: r_t <= xi_max * r_c (the solver's truncation guard)
+    and W_j = rescale_j * psi <= max(rescale) * W0.
     """
-    if ra_hat_j is None or aniso_method != "table":
-        return None
+    if ra_hat_j is None or aniso_method == "quadrature":
+        return None, None
+    if aniso_method != "table":
+        raise ValueError(
+            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}")
+    ra_arr = jnp.asarray(ra_hat_j, dtype=jnp.float64)
+    table = _solver_table(rescale, ra_arr, W0, g, xi_max)
     dens_fn, _ = _aniso_density_fn(
-        jnp.asarray(alpha_j, dtype=jnp.float64), rescale,
-        jnp.asarray(ra_hat_j, dtype=jnp.float64), W0, g, xi_max, "table")
-    return dens_fn
+        jnp.asarray(alpha_j, dtype=jnp.float64), rescale, ra_arr, W0, g,
+        xi_max, "table", table=table)
+    return table, dens_fn
 
 
 class MultiComponentCluster(eqx.Module):
@@ -111,6 +121,12 @@ class MultiComponentCluster(eqx.Module):
     def __init__(self, alpha_j, w_j, m_j, W0, g, r_c, xi_grid, psi_grid,
                  ra_hat_j=None, residual=0.0, n_grid: int = 1000,
                  rho_on_xi=None, dens_fn=None):
+        """Assemble model state from a finished coupled solve; constructors
+        forward `rho_on_xi` (the solver's (n_comp, n_ode) density grid, reused
+        verbatim for nu_j/mu_tot) and `dens_fn` (the solve's pointwise
+        (xi, psi) -> (n_comp,) density source, e.g. the shared-table source,
+        used for the r-grid mass CDF) -- either may be None to recompute /
+        fall back to exact quadrature."""
         is_aniso = ra_hat_j is not None
         alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
         w_j = jnp.asarray(w_j, dtype=jnp.float64)
@@ -194,11 +210,11 @@ class MultiComponentCluster(eqx.Module):
         when ra_hat_j is None. `component_virial_ratios` always uses quadrature.
         """
         w_arr = jnp.asarray(w_j, dtype=jnp.float64)
+        tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_arr ** -2.0, ra_hat_j,
+                                                 W0, g, xi_max, aniso_method)
         xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_arr ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j, aniso_method=aniso_method)
-        dens_fn = _table_dens_fn(alpha_j, w_arr ** -2.0, ra_hat_j, W0, g,
-                                 xi_max, aniso_method)
+            ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
         return cls(alpha_j, w_arr, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
                    residual=0.0, n_grid=n_grid, rho_on_xi=rho_j, dens_fn=dens_fn)
 
@@ -249,11 +265,11 @@ class MultiComponentCluster(eqx.Module):
         mu_j = m_j / jnp.sum(m_j * alpha_j)
         w_j = mu_j ** (-delta)
         ra_hat_j = None if r_a is None else ra_hat * mu_j ** eta
+        tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_j ** -2.0, ra_hat_j,
+                                                 W0, g, xi_max, aniso_method)
         xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_j ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j, aniso_method=aniso_method)
-        dens_fn = _table_dens_fn(alpha_j, w_j ** -2.0, ra_hat_j, W0, g,
-                                 xi_max, aniso_method)
+            ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
         return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
                    residual=residual, n_grid=n_grid, rho_on_xi=rho_j,
                    dens_fn=dens_fn)

@@ -429,6 +429,9 @@ Expected: FAIL, `TypeError: ... unexpected keyword argument 'aniso_method'`
   (`_grid_density_components`) — do not change it.
 - `from_imf` note: `find_alpha_for_masses` (the eigenvalue iteration) still uses
   the quadrature path internally — leave it; its speedup is Tranche C / deferred.
+  [SUPERSEDED at Task 2 (2968fb0): aniso_method threaded through the mass path;
+  eigenvalue loop defaults to "table" for self-consistency, gated by an aniso
+  realized-mass test]
 
 **Step 4: Run model tests (fast gate for this file) + the slow oracle test**
 
@@ -610,3 +613,34 @@ Tasks 2–6 implementers should copy patterns from
 - **>=0 clamp**: `v = jnp.maximum(v, 0.0)` — cubic overshoot can return tiny
   negative densities (O(1e-15·central)) in the W->0 corner; rho_hat >= 0 is a
   contract (Tranche B builds CDFs from it).
+
+### Tasks 2–4 landing notes (2026-06-09)
+
+- **Task 2 (18b82a0 + review fix 2968fb0):** `aniso_method="table"` is the
+  default in `solve_multicomponent_limepy`; the table branch lives in
+  `_aniso_density_fn` and returns an **eqx.Module RHS (`_TableRHS`)** so
+  diffrax's internal jit treats table/params as dynamic leaves (a fresh-closure
+  RHS re-compiles every solve, ~0.4 s). The SOLVER table grid is 160×40
+  (`_TAB_N_W`/`_TAB_N_P`), sized to the solve-level budget (measured max|dpsi|
+  8.9e-5 vs 7e-4; warm solve 0.15 s vs 0.78 s quadrature). The review fix also
+  threaded `aniso_method` through the mass path (`solve_multimass_limepy`,
+  `_realized_fractions`, `find_alpha_for_masses` — the eigenvalue loop defaults
+  to "table" for self-consistency with the model actually built).
+- **Task 3 (173d2ab):** constructors gained `aniso_method` (a construction
+  choice, not model state); the r-grid mass CDF uses the SAME method as the
+  solve via a `dens_fn` forwarded into `__init__`; `component_virial_ratios`
+  stays on exact quadrature (the equilibrium oracle).
+- **Task 4 PART 1 dedup:** Task 3 originally rebuilt a bit-identical table for
+  the CDF r-grid (measured ~0.4 s pure waste per anisotropic construction at
+  the default n_ode_points=2000). Now `_solver_table(...)` in
+  `limepy_multimass.py` is the single source of the box formula
+  (W_max = max(rescale)·W0, p_max = max(xi_max/min(ra_hat_j), 1e-3));
+  `MultiComponentCluster._shared_table_and_dens_fn` builds the table ONCE and
+  passes it to BOTH the solve (`solve_multicomponent_limepy(...,
+  aniso_table=tab)`) and the CDF density source
+  (`_aniso_density_fn(..., table=tab)`). Direct solve calls without a table
+  build-if-None (bit-identical, asserted by
+  `test_explicit_table_matches_internal_build`); an unknown `aniso_method`
+  raises instead of silently falling back to quadrature. Measured warm aniso
+  construction (n_ode=1000, n_grid=500): 308 ms → 177 ms, bit-identical
+  psi_grid/_cdf_j to the pre-refactor 173d2ab values.

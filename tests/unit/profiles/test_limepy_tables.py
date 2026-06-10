@@ -192,6 +192,40 @@ class TestTableBackedSolver:
         assert jnp.all(jnp.isfinite(d_r)) and jnp.any(jnp.abs(d_r) > 0)
         assert jnp.all(jnp.isfinite(d_a)) and jnp.any(jnp.abs(d_a) > 0)
 
+    def test_explicit_table_matches_internal_build(self):
+        """The constructor-dedup path: passing the shared solve-box table
+        explicitly (aniso_table=...) is BIT-IDENTICAL to letting the solve
+        build it internally (same box formula, same jitted build) -- so
+        MultiComponentCluster building the table ONCE and sharing it between
+        the solve and the CDF density source changes nothing."""
+        from progenax.profiles.limepy_multimass import (
+            _solver_table,
+            solve_multicomponent_limepy,
+        )
+
+        alpha = jnp.array([0.6, 0.4])
+        rescale = jnp.array([1.0, 1.6])
+        ra = jnp.array([10.0, 10.0])
+        tab = _solver_table(rescale, ra, 7.0, 1.0, 800.0)
+        kw = dict(xi_max=800.0, n_points=500, ra_hat_j=ra, aniso_method="table")
+        xi_i, psi_i, rho_i = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0, **kw)
+        xi_e, psi_e, rho_e = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0,
+                                                         aniso_table=tab, **kw)
+        np.testing.assert_array_equal(np.asarray(psi_e), np.asarray(psi_i))
+        np.testing.assert_array_equal(np.asarray(rho_e), np.asarray(rho_i))
+
+    def test_unknown_aniso_method_raises_at_construction(self):
+        """A future third method must raise, never silently fall back to
+        quadrature -- both in the solve and in the model constructor."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        with pytest.raises(ValueError, match="aniso_method"):
+            MultiComponentCluster.from_components(
+                alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.79]),
+                m_j=jnp.array([1.0, 4.0]), W0=7.0, g=1.0,
+                ra_hat_j=jnp.array([10.0, 10.0]), xi_max=800.0,
+                aniso_method="bogus")
+
     @pytest.mark.slow
     def test_table_solve_is_faster(self):
         """Warm table solve >= 3x faster than warm quadrature solve (the measured

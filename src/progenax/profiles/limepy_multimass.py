@@ -109,6 +109,22 @@ _TAB_N_P = 40
 _build_density_table = jax.jit(AnisoDensityTable.build, static_argnames=("n_W", "n_p"))
 
 
+def _solver_table(rescale, ra_j, W0, g, xi_max):
+    """The ONE shared AnisoDensityTable covering the whole coupled-solve box:
+    W <= max_j(rescale_j) W0, p <= xi_max / min_j(ra_hat_j).
+
+    THE single source of the box formula: `MultiComponentCluster` builds this
+    table once per construction and passes it to BOTH the Poisson solve
+    (`aniso_table=`) and the mass-CDF density source, so the table quadrature
+    (~0.4 s) runs once, not twice. All-inf ra_j (degenerate all-isotropic
+    input; the caller's iso convention is ra_hat_j=None) would give
+    p_max = 0 -> zero-width q grid -> NaN; floor it.
+    """
+    p_max = jnp.maximum(xi_max / jnp.min(ra_j), 1e-3)
+    return _build_density_table(jnp.max(rescale) * W0, p_max, g,
+                                n_W=_TAB_N_W, n_p=_TAB_N_P)
+
+
 class _TableRHS(eqx.Module):
     """Table-backed anisotropic Poisson RHS for the coupled solve.
 
@@ -136,30 +152,30 @@ class _TableRHS(eqx.Module):
         return jnp.array([dpsi, d2])
 
 
-def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method):
+def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method,
+                      table=None):
     """Anisotropic per-component density source for the coupled RHS.
 
     Returns (density_components, rhs_fn_or_None). aniso_method is a STATIC
     Python string selecting a code path at trace time:
 
     "table" (default): ONE shared AnisoDensityTable covering the whole solve box
-    (W <= max_j(rescale_j) W0, p <= xi_max / min_j(ra_hat_j)) replaces the
-    pointwise quadrature -- the 86% hotspot. Normalized by the TABLE's own
+    (W <= max_j(rescale_j) W0, p <= xi_max / min_j(ra_hat_j); see
+    `_solver_table`) replaces the pointwise quadrature -- the 86% hotspot.
+    `table` reuses a prebuilt solve-box table (the MultiComponentCluster
+    constructors build it ONCE and share it between the solve and the mass-CDF
+    density source); None builds it here. Normalized by the TABLE's own
     central values rho0_j = tab(rescale_j W0, 0) so the interpolation error
     cancels at the centre exactly as the quadrature normalization does. Also
     returns the full RHS as an eqx.Module (see _TableRHS).
 
     "quadrature": the exact oracle path, verbatim; rhs_fn is None (the caller
-    builds its closure RHS as before). Both paths are differentiable in
-    (rescale, ra_j); W0/g/alpha_j differentiability is inherited from the table
-    build and solver grad tests.
+    builds its closure RHS as before) and `table` is ignored. Both paths are
+    differentiable in (rescale, ra_j); W0/g/alpha_j differentiability is
+    inherited from the table build and solver grad tests.
     """
     if aniso_method == "table":
-        # All-inf ra_j (degenerate all-isotropic input; the caller's iso convention
-        # is ra_hat_j=None) would give p_max = 0 -> zero-width q grid -> NaN; floor it.
-        p_max = jnp.maximum(xi_max / jnp.min(ra_j), 1e-3)
-        tab = _build_density_table(jnp.max(rescale) * W0, p_max, g,
-                                   n_W=_TAB_N_W, n_p=_TAB_N_P)
+        tab = _solver_table(rescale, ra_j, W0, g, xi_max) if table is None else table
         rho0_j = jax.vmap(lambda res: tab.evaluate(res * W0, jnp.asarray(0.0)))(rescale)
         rhs_fn = _TableRHS(alpha_j, rescale, ra_j, rho0_j, tab)
         return rhs_fn.density_components, rhs_fn
@@ -185,6 +201,7 @@ def solve_multicomponent_limepy(
     n_points: int = 2000,
     ra_hat_j: Float[Array, "n_comp"] | None = None,
     aniso_method: str = "table",
+    aniso_table: AnisoDensityTable | None = None,
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
     """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
 
@@ -211,6 +228,10 @@ def solve_multicomponent_limepy(
     uses one shared AnisoDensityTable over the solve box (|psi - psi_quad| <= 1e-4 W0,
     |rho_j| <= 2e-4, asserted in tests); "quadrature" is the exact oracle path. It is a
     STATIC Python string (path selection at trace time); ignored when ra_hat_j is None.
+    aniso_table (private-ish) reuses a prebuilt `_solver_table(...)` for the "table"
+    path instead of building one here -- the MultiComponentCluster constructors build
+    the table ONCE and share it with the mass-CDF grid; it MUST cover the solve box
+    (same formula) and is ignored unless aniso_method="table" with finite ra_hat_j.
 
     JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max, aniso_method static.
 
@@ -228,7 +249,8 @@ def solve_multicomponent_limepy(
             return _multimass_density_sources(psi, rescale, W0, g)
     else:
         density_components, rhs_fn = _aniso_density_fn(
-            alpha_j, rescale, jnp.asarray(ra_hat_j), W0, g, xi_max, aniso_method)
+            alpha_j, rescale, jnp.asarray(ra_hat_j), W0, g, xi_max, aniso_method,
+            table=aniso_table)
 
     if rhs_fn is None:
         def rhs(xi, y, args):
