@@ -118,6 +118,24 @@ class TestFromComponents:
         Qj = np.asarray(model.component_virial_ratios())
         np.testing.assert_allclose(Qj, 0.5, atol=3e-3, err_msg=f"aniso Q_j={Qj}")
 
+    @pytest.mark.slow
+    def test_table_model_equilibrium_matches_quadrature_oracle(self):
+        """A table-backed anisotropic model still proves Q_j = 0.5 via the
+        EXACT-quadrature component_virial_ratios (oracle independence), and its
+        mass CDF matches the quadrature-built model to 5e-4."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        kw = dict(alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.79]),
+                  m_j=jnp.array([1.0, 4.0]), W0=7.0, g=1.0, r_c=1.0,
+                  ra_hat_j=jnp.array([10.0, 10.0]), xi_max=800.0,
+                  n_ode_points=3000)
+        m_tab = MultiComponentCluster.from_components(**kw)  # default: table
+        m_quad = MultiComponentCluster.from_components(**kw, aniso_method="quadrature")
+        Qj = np.asarray(m_tab.component_virial_ratios())
+        np.testing.assert_allclose(Qj, 0.5, atol=3e-3, err_msg=f"table Q_j={Qj}")
+        np.testing.assert_allclose(np.asarray(m_tab._cdf_j),
+                                   np.asarray(m_quad._cdf_j), atol=5e-4)
+
 
 class TestFromMassSegregation:
     """Mass-segregation convenience: w_j = mu_j^(-delta), ra_hat_j = (r_a/r_c) mu_j^eta."""

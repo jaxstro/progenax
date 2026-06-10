@@ -38,6 +38,7 @@ from progenax.profiles.limepy import lowered_exponential
 from progenax.profiles.limepy_multimass import (
     _N_C,
     _N_SPEED,
+    _aniso_density_fn,
     _aniso_v2hat_scalar,
     _bin_imf,
     _grid_density_components,
@@ -45,6 +46,25 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
+
+
+def _table_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max, aniso_method):
+    """The solve's table-backed density source, rebuilt for the CDF r-grid.
+
+    Same (W_max, p_max, g) box and same jitted build as inside
+    `solve_multicomponent_limepy` -> identical table values, so the r-grid mass
+    CDF in `MultiComponentCluster.__init__` uses the SAME method as the solve.
+    Returns None for isotropic models or aniso_method="quadrature" (the
+    `__init__` quadrature fallback is then method-consistent by itself). The
+    r-grid stays inside the table box: r_t <= xi_max * r_c (the solver's
+    truncation guard) and W_j = rescale_j * psi <= max(rescale) * W0.
+    """
+    if ra_hat_j is None or aniso_method != "table":
+        return None
+    dens_fn, _ = _aniso_density_fn(
+        jnp.asarray(alpha_j, dtype=jnp.float64), rescale,
+        jnp.asarray(ra_hat_j, dtype=jnp.float64), W0, g, xi_max, "table")
+    return dens_fn
 
 
 class MultiComponentCluster(eqx.Module):
@@ -90,7 +110,7 @@ class MultiComponentCluster(eqx.Module):
 
     def __init__(self, alpha_j, w_j, m_j, W0, g, r_c, xi_grid, psi_grid,
                  ra_hat_j=None, residual=0.0, n_grid: int = 1000,
-                 rho_on_xi=None):
+                 rho_on_xi=None, dens_fn=None):
         is_aniso = ra_hat_j is not None
         alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
         w_j = jnp.asarray(w_j, dtype=jnp.float64)
@@ -104,9 +124,20 @@ class MultiComponentCluster(eqx.Module):
         psi_grid = jnp.asarray(psi_grid, dtype=jnp.float64)
         rescale = w_j ** -2.0
 
-        def dens(psi_arr, xi_arr):
-            return _grid_density_components(psi_arr, xi_arr, rescale, W0, g,
-                                            ra_arr, is_aniso)
+        # Density evaluator for the r-grid mass CDF. Constructors forward the
+        # solve's density source (`dens_fn`, pointwise (xi, psi) -> (n_comp,);
+        # the shared-table source when aniso_method="table") so the CDF is
+        # built with the SAME method as the coupled Poisson solve. dens_fn=None
+        # (direct construction, isotropic, or aniso_method="quadrature") falls
+        # back to the exact quadrature. `component_virial_ratios` stays on the
+        # quadrature path unconditionally -- it is the equilibrium oracle.
+        if dens_fn is None:
+            def dens(psi_arr, xi_arr):
+                return _grid_density_components(psi_arr, xi_arr, rescale, W0, g,
+                                                ra_arr, is_aniso)
+        else:
+            def dens(psi_arr, xi_arr):
+                return jax.vmap(dens_fn, out_axes=1)(xi_arr, psi_arr)
 
         # Reuse the solver's per-component density grid when provided (exact: the
         # solver evaluates the same normalized densities on the same (xi, psi));
@@ -150,26 +181,32 @@ class MultiComponentCluster(eqx.Module):
     @classmethod
     def from_components(cls, alpha_j, w_j, m_j, W0, g, r_c=1.0, ra_hat_j=None,
                         xi_max: float = 300.0, n_ode_points: int = 2000,
-                        n_grid: int = 1000):
+                        n_grid: int = 1000, aniso_method: str = "table"):
         """Direct constructor: components defined by their velocity-scale ratios w_j.
 
         The general Engine-A case -- GC 1G/2G, halo+core, binaries-vs-singles: any
         set of populations, equal-mass or not, with per-component concentration set
         by w_j (smaller w_j = colder = more concentrated). ra_hat_j (per-component
         r_{a,j}/r_c) is the optional radial anisotropy; pass a larger xi_max
-        (e.g. 800) for anisotropic models.
+        (e.g. 800) for anisotropic models. aniso_method ("table" default,
+        "quadrature" oracle) selects the anisotropic density source for the solve
+        AND the mass-CDF grid -- a construction choice, not model state; ignored
+        when ra_hat_j is None. `component_virial_ratios` always uses quadrature.
         """
         w_arr = jnp.asarray(w_j, dtype=jnp.float64)
         xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_arr ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j)
+            ra_hat_j=ra_hat_j, aniso_method=aniso_method)
+        dens_fn = _table_dens_fn(alpha_j, w_arr ** -2.0, ra_hat_j, W0, g,
+                                 xi_max, aniso_method)
         return cls(alpha_j, w_arr, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j)
+                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j, dens_fn=dens_fn)
 
     @classmethod
     def from_mass_segregation(cls, alpha_j, m_j, W0, g, delta, r_a=None, eta=0.0,
                               r_c=1.0, xi_max: float = 300.0,
-                              n_ode_points: int = 2000, n_grid: int = 1000):
+                              n_ode_points: int = 2000, n_grid: int = 1000,
+                              aniso_method: str = "table"):
         """Equipartition constructor: w_j = mu_j^(-delta) (Gieles & Zocchi 2015).
 
         mu_j = m_j / bar_m with bar_m = sum_j m_j alpha_j (central density-weighted
@@ -184,33 +221,42 @@ class MultiComponentCluster(eqx.Module):
         ra_hat_j = None if r_a is None else (r_a / r_c) * mu_j ** eta
         return cls.from_components(alpha_arr, w_j, m_arr, W0, g, r_c=r_c,
                                    ra_hat_j=ra_hat_j, xi_max=xi_max,
-                                   n_ode_points=n_ode_points, n_grid=n_grid)
+                                   n_ode_points=n_ode_points, n_grid=n_grid,
+                                   aniso_method=aniso_method)
 
     @classmethod
     def from_imf(cls, imf, n_comp, W0, g, delta, m_range=(0.1, 100.0), r_c=1.0,
                  r_a=None, eta=0.0, n_iter: int = 30, xi_max: float = 300.0,
-                 n_ode_points: int = 2000, n_grid: int = 1000):
+                 n_ode_points: int = 2000, n_grid: int = 1000,
+                 aniso_method: str = "table"):
         """IMF constructor: bin into n_comp log-spaced components, solve for alpha_j.
 
         The eigenvalue solve (`find_alpha_for_masses`) finds the central density
         fractions that reproduce the IMF's per-bin mass budget under the
         equipartition law w_j = mu_j^(-delta). Anisotropy (r_a, eta) is supported
         but expensive inside the iteration; prefer from_mass_segregation /
-        from_components for exploratory anisotropic work.
+        from_components for exploratory anisotropic work. aniso_method ("table"
+        default, "quadrature" oracle) is threaded through the eigenvalue
+        iteration, the final solve, AND the mass-CDF grid (a construction
+        choice, not model state; ignored when r_a is None).
         """
         m_j, M_j = _bin_imf(imf, n_comp, m_range)
         ra_hat = None if r_a is None else r_a / r_c
         alpha_j, residual = find_alpha_for_masses(
             m_j, M_j, W0, g, delta, n_iter=n_iter, xi_max=xi_max,
-            n_points=n_ode_points, ra_hat=ra_hat, eta=eta)
+            n_points=n_ode_points, ra_hat=ra_hat, eta=eta,
+            aniso_method=aniso_method)
         mu_j = m_j / jnp.sum(m_j * alpha_j)
         w_j = mu_j ** (-delta)
         ra_hat_j = None if r_a is None else ra_hat * mu_j ** eta
         xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_j ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j)
+            ra_hat_j=ra_hat_j, aniso_method=aniso_method)
+        dens_fn = _table_dens_fn(alpha_j, w_j ** -2.0, ra_hat_j, W0, g,
+                                 xi_max, aniso_method)
         return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=residual, n_grid=n_grid, rho_on_xi=rho_j)
+                   residual=residual, n_grid=n_grid, rho_on_xi=rho_j,
+                   dens_fn=dens_fn)
 
     def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
         """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model.
