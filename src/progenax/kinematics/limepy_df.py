@@ -32,6 +32,12 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.kinematics._speed_kernels import (
+    _N_C,
+    _ORACLE_BATCH,
+    _sample_costheta_given_u,
+)
+from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import (
     _aniso_density_scalar,
@@ -43,9 +49,9 @@ from progenax.profiles.limepy import (
 )
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
 
-# Inverse-CDF table resolutions.
+# Inverse-CDF table resolutions. (_N_C, the cos(theta) grid of the shared
+# angular conditional _sample_costheta_given_u, lives in _speed_kernels.)
 _N_SPEED_GRID = 256  # speed grid
-_N_C = 128           # cos(theta) grid (anisotropic conditional)
 
 
 def _sample_unit_speed(
@@ -55,29 +61,10 @@ def _sample_unit_speed(
     W_safe = jnp.maximum(W, 1e-12)
     u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W_safe), n_u)
     weight = jnp.maximum(u_grid**2 * lowered_exponential(g, W_safe - u_grid**2 / 2.0), 0.0)
-    du = u_grid[1] - u_grid[0]
-    cdf = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (weight[1:] + weight[:-1])) * du])
-    cdf = cdf / (cdf[-1] + 1e-30)
-    u = jnp.interp(jax.random.uniform(key), cdf, u_grid)
+    u = inverse_cdf_draw(weight, u_grid, jax.random.uniform(key))
+    # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
+    # (see numerics.inverse_cdf_draw docstring).
     return jnp.where(W > 1e-6, u, 0.0)
-
-
-def _sample_costheta_given_u(
-    key: PRNGKeyArray, u: Float[Array, ""], s: Float[Array, ""], n_c: int
-) -> Float[Array, ""]:
-    """Anisotropic angular conditional: sample c = cos(theta) | u with weight
-    exp(-(s^2 u^2/2)(1 - c^2)) via differentiable inverse-CDF (s = r/r_a, the
-    per-star anisotropy parameter). The EXACT conditional step of
-    `_sample_speed_angle`, shared with the table-accelerated sampler
-    (`AnisoSpeedCDFTable` draws u; the angle stays exact -- cheap exp
-    arithmetic, no special functions)."""
-    beta_u = s**2 * u**2 / 2.0
-    c_grid = jnp.linspace(-1.0, 1.0, n_c)
-    w_c = jnp.maximum(jnp.exp(-beta_u * (1.0 - c_grid**2)), 0.0)
-    dc = c_grid[1] - c_grid[0]
-    cdf_c = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (w_c[1:] + w_c[:-1])) * dc])
-    cdf_c = cdf_c / (cdf_c[-1] + 1e-30)
-    return jnp.interp(jax.random.uniform(key), cdf_c, c_grid)
 
 
 def _sample_speed_angle(
@@ -95,12 +82,9 @@ def _sample_speed_angle(
     E = lowered_exponential(g, W_safe - u_grid**2 / 2.0)
     beta = s**2 * u_grid**2 / 2.0
     m_u = jnp.maximum(u_grid**2 * E * _angle_integral_T(beta), 0.0)
-    du = u_grid[1] - u_grid[0]
-    cdf_u = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (m_u[1:] + m_u[:-1])) * du])
-    cdf_u = cdf_u / (cdf_u[-1] + 1e-30)
 
     key_u, key_c = jax.random.split(key)
-    u = jnp.interp(jax.random.uniform(key_u), cdf_u, u_grid)
+    u = inverse_cdf_draw(m_u, u_grid, jax.random.uniform(key_u))
 
     c = _sample_costheta_given_u(key_c, u, s, n_c)
 
@@ -238,9 +222,16 @@ class LIMEPYVelocityDF(eqx.Module):
                 u_r = u_sp * cos_t
                 u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
             else:
-                u_r, u_t = jax.vmap(
-                    lambda k, w, sl: _sample_speed_angle(k, w, sl, self.g, _N_SPEED_GRID, _N_C)
-                )(speed_keys, W, s_local)
+                # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+                # (vmap within each chunk) instead of one eager vmap over all N,
+                # bounding the (chunk, n_u, ~91) E_gamma Poisson-sum buffers.
+                u_r, u_t = jax.lax.map(
+                    lambda kws: _sample_speed_angle(
+                        kws[0], kws[1], kws[2], self.g, _N_SPEED_GRID, _N_C
+                    ),
+                    (speed_keys, W, s_local),
+                    batch_size=_ORACLE_BATCH,
+                )
             v_r, v_t = s * u_r, s * u_t
             # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
             r_hat = positions / (radii[:, None] + 1e-30)
@@ -257,9 +248,13 @@ class LIMEPYVelocityDF(eqx.Module):
             unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
             u = jax.vmap(table.inverse)(W, unif)
         else:
-            u = jax.vmap(
-                lambda k, w: _sample_unit_speed(k, w, self.g, _N_SPEED_GRID)
-            )(speed_keys, W)
+            # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+            # (vmap within each chunk) instead of one eager vmap over all N.
+            u = jax.lax.map(
+                lambda kw: _sample_unit_speed(kw[0], kw[1], self.g, _N_SPEED_GRID),
+                (speed_keys, W),
+                batch_size=_ORACLE_BATCH,
+            )
         speeds = s * u
         dirs = jax.random.normal(key_dir, shape=(N, 3))
         dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)

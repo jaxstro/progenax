@@ -25,6 +25,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax.numerics import inverse_cdf_draw
+
 
 def eddington_invert(
     r_grid: Float[Array, "n_r"],
@@ -122,10 +124,9 @@ def sample_speed_from_f_table(
     w_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_safe), n_w)
     f_at = jnp.interp(Psi_r - w_grid**2 / 2.0, E_grid, f_grid)
     p = jnp.maximum(w_grid**2 * f_at, 0.0)
-    dw = w_grid[1] - w_grid[0]
-    cdf = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (p[1:] + p[:-1])) * dw])
-    cdf = cdf / (cdf[-1] + 1e-30)
-    s = jnp.interp(jax.random.uniform(key), cdf, w_grid)
+    s = inverse_cdf_draw(p, w_grid, jax.random.uniform(key))
+    # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
+    # (see numerics.inverse_cdf_draw docstring).
     return jnp.where(Psi_r > 1e-6 * E_scale, s, 0.0)
 
 

@@ -19,7 +19,12 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
-from progenax.kinematics.limepy_df import _N_C, _sample_costheta_given_u
+from progenax.kinematics._speed_kernels import (
+    _N_C,
+    _ORACLE_BATCH,
+    _sample_costheta_given_u,
+)
+from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
 from progenax.profiles.michie import michie_density, solve_michie_profile
@@ -48,23 +53,19 @@ def _sample_ur_ut(key, W, s, n_t: int = _N_T, n_r: int = _N_R):
         * jax.scipy.special.erf(a / jnp.sqrt(2.0)) - 2.0 * a
     )
     m = jnp.maximum(u_t * jnp.exp(-(s**2) * u_t**2 / 2.0) * inner, 0.0)
-    du = u_t[1] - u_t[0]
-    cdf_t = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (m[1:] + m[:-1])) * du])
-    cdf_t = cdf_t / (cdf_t[-1] + 1e-30)
 
     key_t, key_r = jax.random.split(key)
-    ut = jnp.interp(jax.random.uniform(key_t), cdf_t, u_t)
+    ut = inverse_cdf_draw(m, u_t, jax.random.uniform(key_t))
 
     # Conditional u_r | u_t (same sqrt-endpoint guard).
     arg_ut = 2.0 * W_pos - ut**2
     a_ut = jnp.where(arg_ut > 0.0, jnp.sqrt(jnp.where(arg_ut > 0.0, arg_ut, 1.0)), 0.0)
     u_r = jnp.linspace(-a_ut, a_ut, n_r)
     g = jnp.maximum(jnp.exp(W_pos - (u_r**2 + ut**2) / 2.0) - 1.0, 0.0)
-    dur = u_r[1] - u_r[0]
-    cdf_r = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (g[1:] + g[:-1])) * dur])
-    cdf_r = cdf_r / (cdf_r[-1] + 1e-30)
-    ur = jnp.interp(jax.random.uniform(key_r), cdf_r, u_r)
+    ur = inverse_cdf_draw(g, u_r, jax.random.uniform(key_r))
 
+    # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
+    # (see numerics.inverse_cdf_draw docstring).
     bound = W > 1e-6
     return jnp.where(bound, ur, 0.0), jnp.where(bound, ut, 0.0)
 
@@ -173,7 +174,13 @@ class MichieVelocityDF(eqx.Module):
             ur = u_sp * cos_t
             ut = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
         else:
-            ur, ut = jax.vmap(lambda k, w, ss: _sample_ur_ut(k, w, ss))(speed_keys, W, s)
+            # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+            # (vmap within each chunk) instead of one eager vmap over all N.
+            ur, ut = jax.lax.map(
+                lambda kws: _sample_ur_ut(kws[0], kws[1], kws[2]),
+                (speed_keys, W, s),
+                batch_size=_ORACLE_BATCH,
+            )
         v_r = sigma * ur
         v_t = sigma * ut
 

@@ -30,6 +30,8 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax import defaults
+from progenax.kinematics._speed_kernels import _ORACLE_BATCH
+from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import (
     _auto_ode_domain,
     king_lowered_maxwellian_density,
@@ -53,14 +55,9 @@ def _sample_unit_speed(key: PRNGKeyArray, W: Float[Array, ""], n_u: int) -> Floa
     g = u_grid**2 * (jnp.exp(W_safe - u_grid**2 / 2.0) - 1.0)
     g = jnp.maximum(g, 0.0)  # numerically non-negative on [0, sqrt(2W)]
 
-    du = u_grid[1] - u_grid[0]
-    cdf = jnp.concatenate(
-        [jnp.zeros(1), jnp.cumsum(0.5 * (g[1:] + g[:-1])) * du]
-    )
-    cdf = cdf / (cdf[-1] + 1e-30)
-
-    q = jax.random.uniform(key)
-    u = jnp.interp(q, cdf, u_grid)
+    u = inverse_cdf_draw(g, u_grid, jax.random.uniform(key))
+    # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
+    # (see numerics.inverse_cdf_draw docstring).
     return jnp.where(W > 1e-6, u, 0.0)
 
 
@@ -187,7 +184,13 @@ class KingVelocityDF(eqx.Module):
             unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
             u = jax.vmap(table.inverse)(W, unif)
         else:
-            u = jax.vmap(lambda k, w: _sample_unit_speed(k, w, _N_SPEED_GRID))(speed_keys, W)
+            # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+            # (vmap within each chunk) instead of one eager vmap over all N.
+            u = jax.lax.map(
+                lambda kw: _sample_unit_speed(kw[0], kw[1], _N_SPEED_GRID),
+                (speed_keys, W),
+                batch_size=_ORACLE_BATCH,
+            )
         speeds = sigma * u
 
         # Isotropic directions (normalized Gaussian vectors).

@@ -15,7 +15,8 @@ from jaxtyping import PRNGKeyArray
 
 from progenax.builders import compute_stellar_radii
 from progenax.cluster.eddington_engine import engine_b_star_velocities
-from progenax.profiles.limepy_multimass import _N_C, _isotropic_dirs
+from progenax.kinematics._speed_kernels import _N_C, _sample_costheta_given_u
+from progenax.profiles.limepy_multimass import _isotropic_dirs
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
 
 
@@ -31,8 +32,6 @@ def _sample_cluster_arrays(model, key: PRNGKeyArray, n_stars: int, G: float):
     identical to the exact per-star sampler -- statistical oracles in
     test_limepy_tables.py).
     """
-    from progenax.kinematics.limepy_df import _sample_costheta_given_u
-
     k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
 
     c = jax.random.categorical(k_assign, jnp.log(model.N_frac_j + 1e-30),

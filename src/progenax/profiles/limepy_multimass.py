@@ -424,7 +424,8 @@ def find_alpha_for_masses(
 # ==============================================================================
 
 _N_SPEED = 256  # per-particle speed inverse-CDF resolution
-_N_C = 128      # per-particle cos(theta) inverse-CDF resolution (anisotropic conditional)
+# (_N_C, the cos(theta) resolution of the anisotropic angular conditional,
+#  moved to progenax.kinematics._speed_kernels with its kernel.)
 
 
 def _isotropic_dirs(key: PRNGKeyArray, n: int) -> Float[Array, "n 3"]:
