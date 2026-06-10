@@ -469,6 +469,81 @@ def _analytic_beta(model, j, r_eval):
     return np.array(out)
 
 
+class TestDirectPerComponentScales:
+    """Engine-A generalization: a component is defined by a direct per-component
+    velocity-scale ratio w_j (rescale_j = w_j^-2), not only by (mass, delta). This is
+    what lets two EQUAL-MASS populations of different concentration (GC 1G/2G, halo+core)
+    be a TRUE shared-potential equilibrium. The mass-segregation path becomes the thin
+    convenience w_j = mu_j^-delta."""
+
+    def test_equal_rescale_recovers_single_component(self):
+        """All rescale_j = 1 => identical components => the shared potential is exactly
+        the single-mass LIMEPY profile (the structural oracle)."""
+        from progenax.profiles.limepy import solve_limepy_profile
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        xi_s, psi_s = solve_limepy_profile(7.0, g=1.0, xi_max=300.0, n_points=2000)
+        xi, psi, _ = solve_multicomponent_limepy(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.0]), W0=7.0, g=1.0,
+            xi_max=300.0, n_points=2000)
+        np.testing.assert_allclose(np.asarray(psi), np.asarray(psi_s), rtol=1e-9, atol=1e-9)
+
+    def test_colder_component_is_more_concentrated(self):
+        """A component with a LARGER rescale_j (smaller velocity scale w_j, colder) feels
+        a deeper effective well and is MORE centrally concentrated -- segregation as a
+        direct velocity-scale effect, no mass needed."""
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        xi, psi, rho_j = solve_multicomponent_limepy(
+            jnp.array([0.5, 0.5]), jnp.array([1.0, 4.0]), W0=7.0, g=1.0,
+            xi_max=300.0, n_points=3000)
+        assert _half_mass_xi(xi, rho_j[1]) < _half_mass_xi(xi, rho_j[0]), \
+            "colder (rescale=4) component should be more concentrated"
+
+    def test_mass_wrapper_matches_direct_core(self):
+        """solve_multimass_limepy(m_j, delta) is EXACTLY solve_multicomponent_limepy with
+        rescale_j = mu_j^(2 delta) -- the mass path is the thin convenience over the core."""
+        from progenax.profiles.limepy_multimass import (
+            solve_multimass_limepy, solve_multicomponent_limepy,
+        )
+
+        m_j = jnp.array([0.5, 4.0]); alpha = jnp.array([0.6, 0.4]); delta = 0.5
+        bar_m = jnp.sum(m_j * alpha); mu_j = m_j / bar_m
+        rescale = mu_j ** (2.0 * delta)
+        _, psi_a, rho_a = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
+        _, psi_b, rho_b = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
+                                                      xi_max=300.0, n_points=2000)
+        np.testing.assert_allclose(np.asarray(psi_b), np.asarray(psi_a), rtol=1e-11, atol=1e-11)
+        np.testing.assert_allclose(np.asarray(rho_b), np.asarray(rho_a), rtol=1e-9, atol=1e-9)
+
+    def test_per_component_anisotropy_radius_direct(self):
+        """The core accepts a direct per-component anisotropy radius ra_hat_j (not derived
+        from mu_j^eta): a finite ra_hat_j truncates and changes the potential vs isotropic."""
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        alpha = jnp.array([0.6, 0.4]); rescale = jnp.array([1.0, 2.0])
+        xi_i, psi_i, _ = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
+                                                     xi_max=800.0, n_points=2000)
+        xi_a, psi_a, _ = solve_multicomponent_limepy(
+            alpha, rescale, W0=7.0, g=1.0, xi_max=800.0, n_points=2000,
+            ra_hat_j=jnp.array([8.0, 8.0]))
+        # anisotropy makes the model more radially extended (different potential profile)
+        assert not np.allclose(np.asarray(psi_a), np.asarray(psi_i), atol=1e-3)
+
+    def test_differentiable_in_rescale(self):
+        """Gradients flow through the coupled solve w.r.t. the direct per-component
+        rescale_j -- per-component scales are inferable."""
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        def metric(rescale):
+            xi, psi, _ = solve_multicomponent_limepy(
+                jnp.array([0.5, 0.5]), rescale, W0=7.0, g=1.0, xi_max=300.0, n_points=1500)
+            return jnp.mean(psi[:300])
+
+        grad = jax.grad(metric)(jnp.array([1.0, 2.0]))
+        assert jnp.all(jnp.isfinite(grad)) and jnp.any(jnp.abs(grad) > 0)
+
+
 class TestAnisotropicSampling:
     """Follow-up to Phase 2b: per-component ANISOTROPIC IC sampling (the velocity
     sampler that closes the anisotropic equilibrium model). The angular distribution of

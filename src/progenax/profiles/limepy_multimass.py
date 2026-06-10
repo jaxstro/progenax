@@ -96,52 +96,53 @@ def _aniso_v2hat_scalar(W, p, g):
     return jnp.where(W > 0.0, num / jnp.maximum(den, 1e-300), 0.0)
 
 
-def solve_multimass_limepy(
+def solve_multicomponent_limepy(
     alpha_j: Float[Array, "n_comp"],
-    m_j: Float[Array, "n_comp"],
+    rescale_j: Float[Array, "n_comp"],
     W0: float,
     g: float,
-    delta: float,
     xi_max: float = 300.0,
     n_points: int = 2000,
-    ra_hat: float | None = None,
-    eta: float = 0.0,
+    ra_hat_j: Float[Array, "n_comp"] | None = None,
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
-    """Solve the multi-mass coupled LIMEPY Poisson equation (Layer A).
+    """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
 
-    Given central density fractions alpha_j (sum to 1) and component masses m_j, solve
+    Given central density fractions alpha_j (sum to 1) and a DIRECT per-component
+    potential-depth rescaling rescale_j, solve
 
-        (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 sum_j alpha_j rho_hat_j(psi),
+        (1/xi^2) d/dxi(xi^2 dpsi/dxi) = -9 sum_j alpha_j rho_hat_j(rescale_j psi),
 
-    with the shared King-radius (-9) nondimensionalization. The per-component rescaling
-    is mu_j^(2 delta), mu_j = m_j / bar_m, bar_m = sum_j m_j alpha_j (central
-    density-weighted mean mass, Eq. 26). At delta=0 every rescaling is 1 and the source
-    is (sum alpha_j) rho_hat = rho_hat -- identical to solve_limepy_profile.
+    with the shared King-radius (-9) nondimensionalization. Each component rides the one
+    shared dimensionless potential psi(xi) at its own rescaled depth rescale_j*psi, so it
+    has its own concentration. rescale_j = (s/s_j)^2 is the squared ratio of the reference
+    velocity scale s to the component's velocity scale s_j -- the SINGLE free per-component
+    scale (a smaller s_j i.e. larger rescale_j is colder and more concentrated). All
+    rescale_j = 1 reproduces the single-component LIMEPY profile exactly.
 
-    Optional per-component radial anisotropy (Gieles & Zocchi Eq. 25): with a finite
-    ra_hat = r_a/r_c, component j has anisotropy radius hat_r_{a,j} = ra_hat mu_j^eta,
-    so its source is the anisotropic density at p_j(xi) = xi/(ra_hat mu_j^eta) and
-    rescaled potential mu_j^(2 delta) psi. ra_hat=None is the (fast) isotropic case.
-    eta=0 is mass-independent anisotropy (the paper default).
+    Mass segregation is the convenience rescale_j = mu_j^(2 delta) (see
+    solve_multimass_limepy); two equal-mass populations of different concentration
+    (GC 1G/2G, halo+core) just take different rescale_j directly.
 
-    JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta): n_points, xi_max static.
+    Optional per-component radial anisotropy: ra_hat_j[j] = hat_r_{a,j} = r_{a,j}/r_c is
+    the component anisotropy radius (None = isotropic, fast path). The component source is
+    then the anisotropic density at p_j(xi) = xi/ra_hat_j and rescaled potential
+    rescale_j*psi.
+
+    JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max static.
 
     Returns:
         (xi_grid, psi_grid, rho_j_grid): dimensionless radius, shared potential W(xi)>=0,
         and per-component normalized densities rho_hat_j(xi), shape (n_comp, n_points).
     """
     alpha_j = jnp.asarray(alpha_j)
-    m_j = jnp.asarray(m_j)
-    bar_m = jnp.sum(m_j * alpha_j)
-    mu_j = m_j / bar_m
-    rescale = mu_j ** (2.0 * delta)  # mu_j^(2 delta) per component
-    isotropic = ra_hat is None
+    rescale = jnp.asarray(rescale_j)
+    isotropic = ra_hat_j is None
 
     if isotropic:
         def density_components(xi, psi):  # (n_comp,)
             return _multimass_density_sources(psi, rescale, W0, g)
     else:
-        ra_j = ra_hat * mu_j ** eta  # per-component anisotropy radius (n_comp,)
+        ra_j = jnp.asarray(ra_hat_j)  # per-component anisotropy radius (n_comp,)
         rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
 
         def density_components(xi, psi):  # (n_comp,) normalized to central
@@ -176,9 +177,9 @@ def solve_multimass_limepy(
     rho_j_grid = jnp.where(psi_grid[None, :] > 0.0, rho_j_grid, 0.0)
 
     # Non-truncation guard for anisotropic models (concrete inputs only; mirrors
-    # solve_michie / solve_limepy: too-small ra_hat -> radial-orbit 1/r^2 tail -> no
-    # finite tidal radius). Skipped under tracing -- psi_end is a tracer when ANY input
-    # (incl. eta/delta) is differentiated, even if ra_hat itself is concrete.
+    # solve_michie / solve_limepy: too-small ra -> radial-orbit 1/r^2 tail -> no finite
+    # tidal radius). Skipped under tracing -- psi_end is a tracer when ANY input is
+    # differentiated, even if ra_hat_j itself is concrete.
     if not isotropic:
         try:
             psi_end_val = float(psi_end)
@@ -188,11 +189,46 @@ def solve_multimass_limepy(
             psi_end_val = None
         if psi_end_val is not None and psi_end_val > 1e-3 * W0_val:
             raise ValueError(
-                f"Anisotropic multi-mass LIMEPY (W0={W0_val}, r_a/r_c={ra_hat}, eta={eta}) "
+                f"Anisotropic multi-component LIMEPY (W0={W0_val}, r_a/r_c={ra_hat_j}) "
                 f"does not truncate within xi_max={xi_max} (W(xi_max)={psi_end_val:.3f}): "
-                f"the anisotropy is too strong (no finite tidal radius). Increase ra_hat / xi_max."
+                f"the anisotropy is too strong (no finite tidal radius). Increase ra / xi_max."
             )
     return xi_grid, psi_grid, rho_j_grid
+
+
+def solve_multimass_limepy(
+    alpha_j: Float[Array, "n_comp"],
+    m_j: Float[Array, "n_comp"],
+    W0: float,
+    g: float,
+    delta: float,
+    xi_max: float = 300.0,
+    n_points: int = 2000,
+    ra_hat: float | None = None,
+    eta: float = 0.0,
+) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
+    """Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
+
+    The Gieles & Zocchi (2015) equipartition parametrization: per-component rescaling
+    rescale_j = mu_j^(2 delta), mu_j = m_j / bar_m, bar_m = sum_j m_j alpha_j (central
+    density-weighted mean mass, Eq. 26), and per-component anisotropy radius
+    hat_r_{a,j} = ra_hat * mu_j^eta (eta=0 = mass-independent, the paper default). At
+    delta=0 every rescaling is 1 -- identical to solve_limepy_profile. ra_hat=None is the
+    (fast) isotropic case.
+
+    JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max static.
+
+    Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
+    """
+    alpha_j = jnp.asarray(alpha_j)
+    m_j = jnp.asarray(m_j)
+    bar_m = jnp.sum(m_j * alpha_j)
+    mu_j = m_j / bar_m
+    rescale_j = mu_j ** (2.0 * delta)  # mu_j^(2 delta) per component
+    ra_hat_j = None if ra_hat is None else ra_hat * mu_j ** eta
+    return solve_multicomponent_limepy(
+        alpha_j, rescale_j, W0, g, xi_max=xi_max, n_points=n_points, ra_hat_j=ra_hat_j
+    )
 
 
 def _realized_fractions(
@@ -556,4 +592,9 @@ class MultiMassLIMEPY(eqx.Module):
         return pos, vel, m_i
 
 
-__all__ = ["solve_multimass_limepy", "find_alpha_for_masses", "MultiMassLIMEPY"]
+__all__ = [
+    "solve_multicomponent_limepy",
+    "solve_multimass_limepy",
+    "find_alpha_for_masses",
+    "MultiMassLIMEPY",
+]
