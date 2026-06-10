@@ -24,7 +24,7 @@ import pytest
 
 from jaxstro.units import STELLAR
 
-from progenax import EFFProfile, PlummerProfile
+from progenax import EFFProfile, KingProfile, PlummerProfile
 
 G = STELLAR.G
 
@@ -611,9 +611,64 @@ class TestEngineB:
         exact = exact / exact[-1]
         np.testing.assert_allclose(np.asarray(m._cdf_j[0]), exact, atol=2e-3)
 
-    def test_unrealizable_om_raises_with_component_name(self):
-        with pytest.raises(ValueError, match="component 0"):
+    def test_unrealizable_mix_raises_naming_component(self):
+        """The realizability refusal is ACTIONABLE (Task 6, 2d): the message
+        names the offending component, quantifies HOW negative the DF is
+        (the relative f_min in scientific notation), and quotes the design
+        doc's remedy. An absurdly radial halo (r_a = 0.05) in the headline
+        mix is the known-unrealizable config."""
+        import re
+
+        with pytest.raises(ValueError) as exc:
             self._model(r_a_j=jnp.array([0.05, jnp.inf]))   # absurdly radial halo
+        msg = str(exc.value)
+        assert "component 0" in msg                          # which component
+        # the f_min value, as a formatted (scientific-notation) number
+        assert re.search(r"min f / max\|f\| = -\d+\.\d+e[+-]\d+", msg), msg
+        for fragment in ("steepen", "mass fraction", "r_a"):  # the remedy
+            assert fragment in msg, f"remedy fragment {fragment!r} missing: {msg}"
+
+    def test_traced_build_skips_raise_stores_diagnostic(self):
+        """Under tracing (jit/grad) the realizability gate CANNOT raise -- the
+        contract is "no raise under tracing, f_min_j always stored". Jit a
+        scalar-r_a surrogate of the build and feed it the SAME unrealizable
+        r_a = 0.05: construction must complete and return the genuinely
+        negative diagnostic (matching the concrete-path refusal value)."""
+        from progenax.cluster.eddington_engine import build_engine_b_state
+
+        profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]
+
+        @jax.jit
+        def fmin_of_ra(ra):
+            state, _ = build_engine_b_state(
+                profiles, jnp.array([0.6, 0.4]), jnp.stack([ra, jnp.inf]),
+                None, 0.995, 3000, 500)
+            return state.f_min_j
+
+        fmin = fmin_of_ra(jnp.asarray(0.05))                 # must NOT raise
+        assert fmin.shape == (2,)
+        assert bool(jnp.all(jnp.isfinite(fmin)))
+        # the diagnostic records the SAME genuine negativity the concrete
+        # path refuses on (min f/max|f| ~ -0.25 for this config)
+        assert float(fmin[0]) < -1e-3
+        assert float(fmin[1]) > -1e-3                        # core stays realizable
+
+    def test_mass_fraction_sum_raise(self):
+        """Public-API duplicate of the shared_potential sum gate: fractions
+        are M_j/M_total amplitudes and MUST sum to 1."""
+        with pytest.raises(ValueError, match="mass_fractions"):
+            self._model(mass_fractions=jnp.array([0.6, 0.6]))
+
+    def test_king_override_conflict_raise(self):
+        """Public-API duplicate of the derive_r_t King-conflict gate: an
+        explicit r_t override below a King component's natural r_t would
+        silently re-truncate a lowered-Maxwellian edge -- refuse."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        king = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)       # natural r_t ~ 10.8
+        with pytest.raises(ValueError, match="King"):
+            MultiComponentCluster.from_density_profiles(
+                [king], jnp.array([1.0]), m_j=jnp.array([1.0]), r_t=5.0)
 
     # ---- Task 4 (2c-ii): Engine B sampling + exact-quadrature Q_j oracle ----
 

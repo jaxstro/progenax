@@ -496,3 +496,79 @@ def test_df_density_fidelity_interior():
             assert dev < 5e-3, (
                 f"[{label}] component {j}: max |rho_Q,DF/(rho_Q,presc - "
                 f"rho_Q,presc(r_t)) - 1| = {dev:.2e} for r < r_h = {r_h_j:.3f}")
+
+
+# ---------------------------------------------------------------------------
+# 6. Differentiability contract: AD == FD through the full Engine B build
+# ---------------------------------------------------------------------------
+
+
+def test_gradients_ad_vs_fd():
+    """jax.grad through the FULL Engine B construction (Poisson quadrature +
+    Eddington inversion) matches central finite differences to rtol 1e-3
+    (the contract; measured agreement is ~1e-6 or better) for THREE physical
+    parameters, each finite AND nonzero:
+
+      (a) halo r_h        -- the headline Plummer+EFF mix; grad of the halo's
+                             Plummer scale through density -> Psi -> f;
+      (b) mass fraction t -- reparametrized fractions [t, 1-t] (sum-to-1 by
+                             construction) on a KING + Plummer mix, so the
+                             Poisson-identity King dW/dr path
+                             (_king_drho_dW + the cumtrap dpsi/dxi route in
+                             density_poisson._density_and_derivative) is
+                             INSIDE the differentiated graph (Task 5 review);
+      (c) r_a_j[0] = 3.0  -- finite OM anisotropy radius on the King
+                             component of the same mix (grad through the
+                             augmented-density weight in eddington_invert).
+
+    Scalar: mean(Psi_poisson) + mean(f_j_grid[0]) -- smooth, and it exercises
+    BOTH the shared potential and the component-0 inversion ((c)'s Psi does
+    not depend on r_a, so the f term carries that gradient). Resolution is
+    reduced to (n_r, n_e) = (3000, 500): AD-vs-FD identity is a property of
+    the computational graph, not of quadrature convergence, and both sides
+    use the same grids. FD step: central differences, h = 1e-4 |x0| (the
+    test_limepy_tables FD pattern). Both mixes are realizable at the FD-
+    perturbed points (f_min_j > 0 measured), so the concrete-path gate stays
+    silent. NEVER weaken the 1e-3 rtol -- a failure here means a non-smooth
+    op entered the build graph.
+    """
+    n_r, n_e = 3000, 500
+    king = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
+
+    def scalar(state):
+        return jnp.mean(state.Psi_poisson) + jnp.mean(state.f_j_grid[0])
+
+    def loss_rh(x):
+        from progenax.cluster.eddington_engine import build_engine_b_state
+        state, _ = build_engine_b_state(
+            [PlummerProfile(r_h=x), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
+            jnp.array([0.6, 0.4]), jnp.array([jnp.inf, jnp.inf]),
+            None, 0.995, n_r, n_e)
+        return scalar(state)
+
+    def loss_t(t):
+        from progenax.cluster.eddington_engine import build_engine_b_state
+        state, _ = build_engine_b_state(
+            [king, PlummerProfile(r_h=2.0)], jnp.stack([t, 1.0 - t]),
+            jnp.array([3.0, jnp.inf]), None, 0.995, n_r, n_e)
+        return scalar(state)
+
+    def loss_ra(ra):
+        from progenax.cluster.eddington_engine import build_engine_b_state
+        state, _ = build_engine_b_state(
+            [king, PlummerProfile(r_h=2.0)], jnp.array([0.5, 0.5]),
+            jnp.stack([ra, jnp.inf]), None, 0.995, n_r, n_e)
+        return scalar(state)
+
+    for name, loss, x0 in (("halo r_h", loss_rh, 2.0),
+                           ("mass fraction t", loss_t, 0.5),
+                           ("r_a_j[0]", loss_ra, 3.0)):
+        ad = float(jax.grad(loss)(jnp.asarray(x0)))
+        assert np.isfinite(ad), f"{name}: AD gradient not finite ({ad})"
+        assert ad != 0.0, f"{name}: AD gradient is exactly zero"
+        h = 1e-4 * abs(x0)
+        fd = (float(loss(jnp.asarray(x0 + h)))
+              - float(loss(jnp.asarray(x0 - h)))) / (2.0 * h)
+        np.testing.assert_allclose(
+            ad, fd, rtol=1e-3,
+            err_msg=f"{name}: AD {ad:.10e} vs FD {fd:.10e}")
