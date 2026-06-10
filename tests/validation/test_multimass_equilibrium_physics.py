@@ -25,6 +25,8 @@ from progenax.profiles.limepy import lowered_exponential
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.dynamics import per_group_virial_ratio, compute_virial_ratio
 
+pytestmark = pytest.mark.slow  # every test samples >=8000 stars / solves aniso ODEs
+
 G = STELLAR.G
 W0, GG = 7.0, 1.0
 M_J = jnp.array([1.0, 4.0])

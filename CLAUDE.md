@@ -5,8 +5,8 @@
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
-gravoturbulent-FDF clean-room rewrite complete - 14,731 LOC released-core source, 1060 tests
-(released-core 815: unit 653, integration 34, validation 128; experimental 245). King & EFF velocity DFs are true
+gravoturbulent-FDF clean-room rewrite complete - 16,727 LOC released-core source, 1310 tests
+(released-core 1065: unit 800, integration 34, validation 231; experimental 245). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
@@ -27,10 +27,18 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/ -q                  # All 1060 tests (~55s)
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 653 unit tests (released core)
+# Released-core invariant (1065 tests). The multimass-LIMEPY equilibrium tests make the
+# serial suite ~17 min; use pytest-xdist with XLA threads capped (one process per core).
+# FAST GATE (inner loop, 1032 tests, ~3.5 min): excludes @pytest.mark.slow
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
+  env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -m "not slow" -n auto
+# FULL GATE (phase/commit gate, 1065 tests, ~9 min parallel / ~17 min serial):
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
+  env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
+
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 800 unit tests (released core)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 128 physics validation tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 231 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 245 tests
@@ -184,8 +192,8 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   815 released-core tests
-├── unit/                653 tests
+tests/                   1065 released-core tests
+├── unit/                800 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
@@ -199,9 +207,10 @@ tests/                   815 released-core tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          128 tests
+└── validation/          231 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
+    ├── test_multimass_equilibrium_physics.py  MultiComponentCluster shared-potential equilibrium
     ├── test_eff_physics.py          EFF Eddington-inversion DF
     ├── test_binary_physics.py       Kepler's laws
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance

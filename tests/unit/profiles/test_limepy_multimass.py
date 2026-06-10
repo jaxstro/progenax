@@ -105,6 +105,7 @@ class TestMultiMassSegregation:
         assert abs(ratios[0] - 1.0) < 1e-3, f"delta=0 should give no segregation: {ratios[0]:.3f}"
         assert np.all(np.diff(ratios) > 0), f"segregation not monotonic in delta: {ratios}"
 
+    @pytest.mark.slow
     def test_differentiable_in_W0_g_delta_alpha(self):
         """Gradients flow through the coupled solve in all of (W0, g, delta, alpha_j)
         -- the structural and equipartition parameters are jointly inferable."""
@@ -131,6 +132,8 @@ class TestMultiMassSegregation:
 
 class TestEigenvalueSolve:
     """Layer B: find_alpha_for_masses iterates alpha_j to reproduce target masses M_j."""
+
+    pytestmark = pytest.mark.slow
 
     def _kroupa_like_components(self, n=4):
         """A bottom-heavy mass spectrum binned into n components (m_j, M_j)."""
@@ -210,6 +213,8 @@ class TestEigenvalueSolve:
 class TestMultiMassAnisotropic:
     """Phase 2b: per-component radial anisotropy r_{a,j} = r_a mu_j^eta in the coupled
     solve. eta=0 is mass-independent anisotropy (the paper default)."""
+
+    pytestmark = pytest.mark.slow
 
     def test_isotropic_corner_ra_none(self):
         """r_a=None reproduces the isotropic coupled solve exactly (the iso corner)."""
@@ -297,6 +302,7 @@ class TestDirectPerComponentScales:
         np.testing.assert_allclose(np.asarray(psi_b), np.asarray(psi_a), rtol=1e-11, atol=1e-11)
         np.testing.assert_allclose(np.asarray(rho_b), np.asarray(rho_a), rtol=1e-9, atol=1e-9)
 
+    @pytest.mark.slow
     def test_per_component_anisotropy_radius_direct(self):
         """The core accepts a direct per-component anisotropy radius ra_hat_j (not derived
         from mu_j^eta): a finite ra_hat_j truncates and changes the potential vs isotropic."""
@@ -311,6 +317,7 @@ class TestDirectPerComponentScales:
         # anisotropy makes the model more radially extended (different potential profile)
         assert not np.allclose(np.asarray(psi_a), np.asarray(psi_i), atol=1e-3)
 
+    @pytest.mark.slow
     def test_differentiable_in_rescale(self):
         """Gradients flow through the coupled solve w.r.t. the direct per-component
         rescale_j -- per-component scales are inferable."""

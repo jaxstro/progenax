@@ -89,7 +89,8 @@ class MultiComponentCluster(eqx.Module):
     is_aniso: bool = eqx.field(static=True)
 
     def __init__(self, alpha_j, w_j, m_j, W0, g, r_c, xi_grid, psi_grid,
-                 ra_hat_j=None, residual=0.0, n_grid: int = 1000):
+                 ra_hat_j=None, residual=0.0, n_grid: int = 1000,
+                 rho_on_xi=None):
         is_aniso = ra_hat_j is not None
         alpha_j = jnp.asarray(alpha_j, dtype=jnp.float64)
         w_j = jnp.asarray(w_j, dtype=jnp.float64)
@@ -107,7 +108,11 @@ class MultiComponentCluster(eqx.Module):
             return _grid_density_components(psi_arr, xi_arr, rescale, W0, g,
                                             ra_arr, is_aniso)
 
-        rho_on_xi = dens(psi_grid, xi_grid)
+        # Reuse the solver's per-component density grid when provided (exact: the
+        # solver evaluates the same normalized densities on the same (xi, psi));
+        # recomputing it doubles the anisotropic quadrature cost for nothing.
+        if rho_on_xi is None:
+            rho_on_xi = dens(psi_grid, xi_grid)
         rho_on_xi = jnp.where(psi_grid[None, :] > 0.0, rho_on_xi, 0.0)
         nu_j = jnp.trapezoid(rho_on_xi * xi_grid**2, xi_grid, axis=1)
         mu_tot = jnp.sum(alpha_j * nu_j)
@@ -155,11 +160,11 @@ class MultiComponentCluster(eqx.Module):
         (e.g. 800) for anisotropic models.
         """
         w_arr = jnp.asarray(w_j, dtype=jnp.float64)
-        xi, psi, _ = solve_multicomponent_limepy(
+        xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_arr ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
             ra_hat_j=ra_hat_j)
         return cls(alpha_j, w_arr, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=0.0, n_grid=n_grid)
+                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j)
 
     @classmethod
     def from_mass_segregation(cls, alpha_j, m_j, W0, g, delta, r_a=None, eta=0.0,
@@ -201,11 +206,11 @@ class MultiComponentCluster(eqx.Module):
         mu_j = m_j / jnp.sum(m_j * alpha_j)
         w_j = mu_j ** (-delta)
         ra_hat_j = None if r_a is None else ra_hat * mu_j ** eta
-        xi, psi, _ = solve_multicomponent_limepy(
+        xi, psi, rho_j = solve_multicomponent_limepy(
             alpha_j, w_j ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
             ra_hat_j=ra_hat_j)
         return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=residual, n_grid=n_grid)
+                   residual=residual, n_grid=n_grid, rho_on_xi=rho_j)
 
     def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
         """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model.
@@ -293,55 +298,71 @@ class MultiComponentCluster(eqx.Module):
         spectrum (the scalar virial theorem is anisotropy-blind). Differentiable
         in (alpha_j, w_j, ra_hat_j, W0, g) through the per-star scales and the
         angular draw.
-        """
-        from progenax.kinematics.limepy_df import _sample_speed_angle, _sample_unit_speed
 
+        The numerical core is JIT-compiled (compiled once per (n_stars, model
+        structure); repeated draws -- seed averaging, MC studies -- reuse the
+        compiled kernel). ICResult is assembled outside the JIT boundary.
+        """
         if G is None:
             G = defaults.DEFAULT_UNITS.G
-        k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
+        pos, vel, m_i, radii_stellar, c = _sample_cluster_arrays(self, key, n_stars, G)
+        return ICResult(positions=pos, velocities=vel, masses=m_i,
+                        stellar_radii=radii_stellar, component_id=c)
 
-        c = jax.random.categorical(k_assign, jnp.log(self.N_frac_j + 1e-30),
-                                   shape=(n_stars,))
-        m_i = self.m_j[c]
-        rescale_i = self.rescale_j[c]
-        M_total = jnp.sum(m_i)  # the cluster mass IS the sum of its stars
-        s = jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu_tot))
-        s_i = s * self.w_j[c]
 
-        # Positions: per-star inverse-CDF on its component's mass CDF + isotropic dirs.
-        u = jax.random.uniform(k_pos, (n_stars,))
-        radii = jax.vmap(lambda uu, cc: jnp.interp(uu, self._cdf_j[cc], self._r_grid))(u, c)
-        pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
+@eqx.filter_jit
+def _sample_cluster_arrays(model: MultiComponentCluster, key: PRNGKeyArray,
+                           n_stars: int, G: float):
+    """JIT-compiled sampler core -> (pos, vel, m_i, stellar_radii, component_id).
 
-        # Per-star rescaled potential W_j(r) = psi(r)/w_j^2 (shared by both paths).
-        W_i = rescale_i * jnp.maximum(
-            jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid,
-                       left=self.W0, right=0.0), 0.0)
-        speed_keys = jax.random.split(k_speed, n_stars)
+    `model` enters as a PyTree (is_aniso is a static field, so the iso/aniso
+    branch is resolved at trace time); n_stars and G are static arguments
+    (one compilation per distinct value). PRNG semantics are identical to the
+    eager path -- same key splits, same draws.
+    """
+    from progenax.kinematics.limepy_df import _sample_speed_angle, _sample_unit_speed
 
-        if self.is_aniso:
-            # Anisotropic: per-star (u_r, u_t) from the Michie/OM speed-angle DF.
-            p_i = (radii / self.r_c) / self.ra_hat_j[c]
-            u_r, u_t = jax.vmap(
-                lambda kk, w, pp: _sample_speed_angle(kk, w, pp, self.g, _N_SPEED, _N_C)
-            )(speed_keys, W_i, p_i)
-            v_r, v_t = s_i * u_r, s_i * u_t
-            # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
-            r_hat = pos / (radii[:, None] + 1e-30)
-            rand = jax.random.normal(k_vdir, (n_stars, 3))
-            rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
-            t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
-            vel = v_r[:, None] * r_hat + v_t[:, None] * t_hat
-        else:
-            # Isotropic: per-star speed at the component's rescaled potential + scale s_i.
-            u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, self.g, _N_SPEED))(
-                speed_keys, W_i)
-            vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)
+    k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
 
-        return ICResult(
-            positions=pos, velocities=vel, masses=m_i,
-            stellar_radii=compute_stellar_radii(m_i), component_id=c,
-        )
+    c = jax.random.categorical(k_assign, jnp.log(model.N_frac_j + 1e-30),
+                               shape=(n_stars,))
+    m_i = model.m_j[c]
+    rescale_i = model.rescale_j[c]
+    M_total = jnp.sum(m_i)  # the cluster mass IS the sum of its stars
+    s = jnp.sqrt(G * M_total / (9.0 * model.r_c * model.mu_tot))
+    s_i = s * model.w_j[c]
+
+    # Positions: per-star inverse-CDF on its component's mass CDF + isotropic dirs.
+    u = jax.random.uniform(k_pos, (n_stars,))
+    radii = jax.vmap(lambda uu, cc: jnp.interp(uu, model._cdf_j[cc], model._r_grid))(u, c)
+    pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
+
+    # Per-star rescaled potential W_j(r) = psi(r)/w_j^2 (shared by both paths).
+    W_i = rescale_i * jnp.maximum(
+        jnp.interp(radii / model.r_c, model.xi_grid, model.psi_grid,
+                   left=model.W0, right=0.0), 0.0)
+    speed_keys = jax.random.split(k_speed, n_stars)
+
+    if model.is_aniso:
+        # Anisotropic: per-star (u_r, u_t) from the Michie/OM speed-angle DF.
+        p_i = (radii / model.r_c) / model.ra_hat_j[c]
+        u_r, u_t = jax.vmap(
+            lambda kk, w, pp: _sample_speed_angle(kk, w, pp, model.g, _N_SPEED, _N_C)
+        )(speed_keys, W_i, p_i)
+        v_r, v_t = s_i * u_r, s_i * u_t
+        # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
+        r_hat = pos / (radii[:, None] + 1e-30)
+        rand = jax.random.normal(k_vdir, (n_stars, 3))
+        rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
+        t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
+        vel = v_r[:, None] * r_hat + v_t[:, None] * t_hat
+    else:
+        # Isotropic: per-star speed at the component's rescaled potential + scale s_i.
+        u_speed = jax.vmap(lambda kk, w: _sample_unit_speed(kk, w, model.g, _N_SPEED))(
+            speed_keys, W_i)
+        vel = (s_i * u_speed)[:, None] * _isotropic_dirs(k_vdir, n_stars)
+
+    return pos, vel, m_i, compute_stellar_radii(m_i), c
 
 
 __all__ = ["MultiComponentCluster"]

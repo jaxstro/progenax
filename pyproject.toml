@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov"]
+dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0"]
 # Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
 # Differentiable-inference deps. blackjax 1.x `window_adaptation`/`nuts` API per
 # inference/hmc.py (verified against 1.5); arviz for HMC convergence diagnostics

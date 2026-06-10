@@ -88,6 +88,7 @@ class TestFromComponents:
         np.testing.assert_allclose(np.asarray(model.rescale_j), np.asarray(w**-2),
                                    rtol=1e-12)
 
+    @pytest.mark.slow
     def test_differentiable_in_w_j(self):
         """Gradients flow through construction + sampling w.r.t. the direct
         per-component velocity-scale ratios w_j -- the scales are inferable."""
@@ -104,6 +105,7 @@ class TestFromComponents:
         d = jax.grad(loss)(jnp.array([1.0, 0.8]))
         assert jnp.all(jnp.isfinite(d)) and jnp.any(jnp.abs(d) > 0)
 
+    @pytest.mark.slow
     def test_direct_per_component_anisotropy(self):
         """from_components accepts a direct per-component ra_hat_j; the anisotropic
         model still has every component in theoretical equilibrium (Q_j = 0.5)."""
@@ -137,6 +139,7 @@ class TestFromMassSegregation:
         np.testing.assert_allclose(np.asarray(model.w_j),
                                    np.asarray(mu_j ** (-delta)), rtol=1e-12)
 
+    @pytest.mark.slow
     def test_segregation_and_equipartition_signatures(self):
         """The classic delta>0 signatures survive the rewrite: the heavy component is
         more concentrated AND kinematically colder (sampled core dispersions)."""
@@ -162,6 +165,8 @@ class TestUnequalMassTwoPopulationEquilibrium:
     TRUE shared-potential equilibrium, globally AND per component. The legacy path fed
     the full cluster mass to each sub-population's DF and superposed two independently
     sampled spheres, so it was only (silently) virial for equal masses."""
+
+    pytestmark = pytest.mark.slow
 
     def test_true_shared_potential_equilibrium(self):
         from progenax.cluster.multicomponent import MultiComponentCluster
@@ -238,6 +243,8 @@ class TestSampleClusterICResult:
 class TestFromIMF:
     """IMF path: bin the IMF, eigenvalue-solve for alpha_j, mass-segregation scales."""
 
+    pytestmark = pytest.mark.slow
+
     def test_constructs_and_hits_masses(self):
         from progenax.imf import PowerLawIMF
         from progenax.cluster.multicomponent import MultiComponentCluster
@@ -270,6 +277,8 @@ def _two_component(delta=0.5, W0=7.0, g=1.0):
 
 class TestSampledEquilibrium:
     """Sampled-cluster equilibrium regressions (ported from the legacy model tests)."""
+
+    pytestmark = pytest.mark.slow
 
     def test_per_group_dispersion_matches_df_and_global_virial(self):
         """THE headline equilibrium proof: each mass component is sampled from ITS OWN
@@ -392,6 +401,8 @@ class TestAnisotropicSampling:
     each star's velocity must reproduce the Michie/Osipkov-Merritt LIMEPY DF, so the
     sampled cluster is (a) globally virial Q=0.5 -- the scalar virial theorem is
     anisotropy-blind -- and (b) radially anisotropic with beta_j(r) matching the DF."""
+
+    pytestmark = pytest.mark.slow
 
     def _aniso_model(self, delta=0.4, eta=0.0, r_a=10.0, W0=7.0, g=1.0):
         from progenax.cluster.multicomponent import MultiComponentCluster
