@@ -7,7 +7,6 @@ Poisson passes and eight speed-CDF kernels migrate onto them.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 from progenax.numerics import cumulative_trapezoid, inverse_cdf_draw
 
@@ -66,6 +65,14 @@ class TestInverseCdfDraw:
         grid = jnp.linspace(0.0, 1.0, 200)
         out = inverse_cdf_draw(jnp.ones(200), grid, jnp.asarray(0.25))
         np.testing.assert_allclose(float(out), 0.25, atol=1e-3)
+
+    def test_zero_weight_draws_grid_end_callers_must_guard(self):
+        """All-zero weight => interp against a zero CDF clamps to grid[-1].
+        This pins the documented behavior: the +reg guard prevents NaN but
+        does NOT make the draw physical — callers keep their W-bound guard."""
+        grid = jnp.linspace(0.0, 2.0, 64)
+        out = inverse_cdf_draw(jnp.zeros(64), grid, jnp.asarray(0.37))
+        np.testing.assert_array_equal(np.asarray(out), np.asarray(grid[-1]))
 
     def test_differentiable_in_weight_parameter(self):
         def f(scale):
