@@ -1,11 +1,14 @@
 """
 Tests for King (1966) velocity distribution function.
 
-Physics tests only - isotropy and dispersion profile.
+Physics tests (isotropy, dispersion profile) plus the table-routing contract:
+speed_method="table" (default) must agree with the exact per-star quadrature
+oracle (speed_method="quadrature").
 """
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from jaxstro.units import STELLAR
@@ -72,3 +75,63 @@ class TestKingVelocityDFPhysics:
         sigma_outer = jnp.std(velocities_outer[:, 0])
 
         assert sigma_inner > sigma_outer
+
+
+class TestKingTableRouting:
+    """speed_method='table' (default) must agree with the exact quadrature
+    oracle (speed_method='quadrature') distributionally and in moments —
+    the same contract the LIMEPY routing passed (Task 5,
+    tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
+
+    N is capped at 2e4 for every draw through the quadrature oracle (the
+    review-mandated oracle-N convention): the two-sample KS 95% critical D
+    at n=2e4 is ~0.0136 < the 0.02 threshold, and the table/quadrature
+    draws are variate-paired (same per-star key splits)."""
+
+    def _two_dfs(self):
+        kw = dict(W0=5.0, r_c=1.0, r_t=10.0)
+        return (KingVelocityDF(**kw),                       # default: table
+                KingVelocityDF(**kw, speed_method="quadrature"))
+
+    def _speeds(self, df, n=20000, seed=0):
+        from progenax.profiles.king import KingProfile
+
+        prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
+        masses = jnp.ones(n)
+        pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
+                                   G=1.0)
+        return np.asarray(jnp.linalg.norm(vel, axis=1))
+
+    def test_speed_moments_match_quadrature_oracle(self):
+        df_t, df_q = self._two_dfs()
+        s_t, s_q = self._speeds(df_t), self._speeds(df_q)
+        assert abs(s_t.mean() / s_q.mean() - 1.0) < 0.02
+        assert abs((s_t**2).mean() / (s_q**2).mean() - 1.0) < 0.03
+
+    def test_speed_distribution_ks(self):
+        from scipy.stats import ks_2samp
+
+        df_t, df_q = self._two_dfs()
+        D = ks_2samp(self._speeds(df_t), self._speeds(df_q)).statistic
+        assert D < 0.02
+
+    def test_table_default_and_quadrature_static(self):
+        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        assert df.speed_method == "table"
+        with pytest.raises(ValueError, match="speed_method"):
+            KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0, speed_method="exact")
+
+    def test_g1_lowered_exponential_is_king_weight(self):
+        """The exact identity the routing relies on: the LIMEPY lowered
+        exponential at g=1 IS the King lowering, E_gamma(1, x) = e^x - 1
+        (Gieles & Zocchi 2015 Eq. 2), so SpeedCDFTable.build(W0, g=1)
+        tabulates exactly the King speed weight u^2 (exp(W - u^2/2) - 1)."""
+        from progenax.profiles.limepy import lowered_exponential
+
+        x = jnp.linspace(0.0, 10.0, 201)
+        np.testing.assert_allclose(
+            np.asarray(lowered_exponential(jnp.asarray(1.0), x)),
+            np.asarray(jnp.exp(x) - 1.0),
+            rtol=1e-12,
+        )

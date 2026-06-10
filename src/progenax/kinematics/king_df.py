@@ -18,8 +18,10 @@ velocity scale fixed self-consistently from the model,
 nondimensionalization where r_c is the King core radius). With this sigma the sampled
 cluster is in virial equilibrium (Q = T/|V| = 0.5) WITHOUT any external rescale.
 
-Sampling uses a per-particle tabulated inverse-CDF (jnp.lax-free, vmap'd, differentiable;
-no while_loop), and isotropic directions.
+Speed draws are table-backed by default (one precomputed inverse-CDF table per call,
+`SpeedCDFTable` at g=1 — E_gamma(1, x) = e^x - 1 IS the King lowering, exactly);
+`speed_method="quadrature"` retains the per-star tabulated inverse-CDF (vmap'd,
+differentiable, no while_loop) as the exact oracle. Directions are isotropic.
 """
 
 import equinox as eqx
@@ -33,6 +35,7 @@ from progenax.profiles.king import (
     king_lowered_maxwellian_density,
     solve_king_profile,
 )
+from progenax.profiles.limepy_tables import SpeedCDFTable
 
 # Resolution of the per-particle speed inverse-CDF table.
 _N_SPEED_GRID = 256
@@ -71,11 +74,22 @@ class KingVelocityDF(eqx.Module):
     in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
     bound (v < v_esc(r)).
 
+    Speed draws are TABLE-BACKED by default (speed_method="table"): one
+    precomputed inverse-CDF table per call, SpeedCDFTable.build(W0, g=1) —
+    at g=1 the LIMEPY lowered exponential reduces EXACTLY to the King
+    lowering, E_gamma(1, x) = e^x - 1 (identity guarded to rtol 1e-12 in
+    tests/unit/kinematics/test_king_df.py::TestKingTableRouting), so the
+    table weight x^2 E_gamma(1, W(1-x^2)) IS the King speed weight
+    u^2 (exp(W - u^2/2) - 1). speed_method="quadrature" retains the exact
+    per-star 256-point quadrature as the oracle (statistical agreement
+    asserted in TestKingTableRouting).
+
     Attributes:
         W0: King concentration parameter (dimensionless central potential)
         r_c: Core radius [length units] (the King core radius)
         r_t: Tidal radius [length units]
         xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
+        speed_method: static, "table" (default) or "quadrature" (exact oracle)
 
     References:
         King (1966), AJ, 71, 64
@@ -87,6 +101,7 @@ class KingVelocityDF(eqx.Module):
     r_t: Float[Array, ""]
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
+    speed_method: str = eqx.field(static=True)
 
     def __init__(
         self,
@@ -95,7 +110,13 @@ class KingVelocityDF(eqx.Module):
         r_t: float = 10.0,
         xi_max: float | None = None,
         n_ode_points: int | None = None,
+        speed_method: str = "table",
     ):
+        if speed_method not in ("table", "quadrature"):
+            raise ValueError(
+                f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
+            )
+        self.speed_method = speed_method
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
         self.r_t = jnp.asarray(r_t)
@@ -158,7 +179,15 @@ class KingVelocityDF(eqx.Module):
 
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
-        u = jax.vmap(lambda k, w: _sample_unit_speed(k, w, _N_SPEED_GRID))(speed_keys, W)
+        if self.speed_method == "table":
+            # One precomputed speed-CDF table replaces the per-star 256-point
+            # quadrature. g=1 is the EXACT King reduction:
+            # E_gamma(1, x) = e^x - 1 (see class docstring).
+            table = SpeedCDFTable.build(self.W0, jnp.asarray(1.0))
+            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+            u = jax.vmap(table.inverse)(W, unif)
+        else:
+            u = jax.vmap(lambda k, w: _sample_unit_speed(k, w, _N_SPEED_GRID))(speed_keys, W)
         speeds = sigma * u
 
         # Isotropic directions (normalized Gaussian vectors).
