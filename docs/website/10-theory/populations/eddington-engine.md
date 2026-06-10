@@ -284,19 +284,10 @@ constant with respect to the differentiated parameters.
 
 :::{admonition} Honest limitations (current state, fixes tracked)
 :class: warning
-- **`total_density()` and `rescale_j` are Engine-A-only accessors.**
-  On an Engine B model they return NaN — deliberately: the Engine-A
-  fields are NaN tripwires so accidental A-path use poisons results
-  visibly rather than silently. Engine-B equivalents are tracked; read
-  `engine_b.rho_j_poisson` / the prescribed profiles meanwhile.
-- **The `is_aniso` flag reflects the Engine-A sampler switch only**,
-  not Engine-B OM state. To check whether an Engine B model is
-  anisotropic, read `model.engine_b.r_a_j` (finite entries = OM
-  components).
-- **Speed-sampler thresholds are absolute**: very large-scale models
-  ($r_h \gtrsim 10^4$ pc) hit a known scale-dependence issue in the
-  speed sampler. Fix tracked; star-cluster-scale models (the design
-  target) are unaffected.
+- **`rescale_j` is Engine-A-only.** Calling it on an Engine B model
+  raises a `ValueError`, and Engine-A-only internal fields raise an
+  informative `AttributeError` on Engine B models. Shared accessors —
+  `total_density()`, `is_aniso` — dispatch correctly on both engines.
 - **No Phase 1.5-style speed tables yet**: Engine B speed draws use
   the per-star differentiable inverse-CDF over the $f_j(E)$ grid —
   deliberately, since that path doubles as the oracle. Precomputed

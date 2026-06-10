@@ -6,8 +6,8 @@ Differentiable initial conditions for N-body simulations in JAX. Part of the **j
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
 gravoturbulent-FDF clean-room rewrite + multi-component cluster arc (Engine A LIMEPY DF tables +
-Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1346 tests
-(released-core 1101: unit 833, integration 34, validation 234; experimental 245). King & EFF velocity DFs are true
+Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1395 tests
+(released-core 1150: unit 882, integration 34, validation 234; experimental 245). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
@@ -28,16 +28,16 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-# Released-core invariant (1101 tests). The multimass-LIMEPY equilibrium tests make the
+# Released-core invariant (1150 tests). The multimass-LIMEPY equilibrium tests make the
 # serial suite ~17 min; use pytest-xdist with XLA threads capped (one process per core).
-# FAST GATE (inner loop, 1059 tests, ~4 min): excludes @pytest.mark.slow
+# FAST GATE (inner loop, 1108 tests, ~4 min): excludes @pytest.mark.slow
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -m "not slow" -n auto
-# FULL GATE (phase/commit gate, 1101 tests, ~9 min parallel):
+# FULL GATE (phase/commit gate, 1150 tests, ~9 min parallel):
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 833 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 882 unit tests (released core)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 234 physics validation tests
 
@@ -193,8 +193,8 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   1101 released-core tests
-├── unit/                833 tests
+tests/                   1150 released-core tests
+├── unit/                882 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
@@ -234,7 +234,7 @@ are sampled in detailed equilibrium with **no external virial rescale**:
 | Plummer virial Q = T/\|V\| | 0.502 | 0.5 |
 | King true-DF virial Q (unscaled) | ~0.51 | 0.5 |
 | EFF Eddington-DF virial Q (γ=5, mild trunc) | ~0.50 | 0.5 |
-| King c(W₀) vs King (1966) Table II | Δ ≤ 0.02 (≤0.004 for W₀≥5) | Table II |
+| King c(W₀) vs King (1966) Table II | max \|Δlog₁₀c\| = 0.002 | ≤ 0.03 (Table II) |
 | Kepler energy & angular momentum | conserved to ~1e-16 | exact |
 | Bound particles | 100% | 100% |
 | Binary period (Kepler III) | exact to 1e-10 | 2π√(a³/GM) |

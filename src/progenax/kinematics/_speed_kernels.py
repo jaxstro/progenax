@@ -12,6 +12,10 @@ rather than `progenax.numerics`.
 ORACLE branches (king/limepy/michie `speed_method="quadrature"`): chunking the
 per-star vmap bounds the live E_gamma Poisson-sum buffers to
 O(batch * n_u * ~91) floats instead of O(N * n_u * ~91) (~11 GB at N=2e4).
+Numerical caveat: for N > `_ORACLE_BATCH` the chunked `lax.map` scan may
+differ from an eager full-N vmap at the <= 1-ulp level (XLA fuses the two
+shapes differently) -- inherent to chunking, and no seed-exact output pins
+exist at N > 2048.
 """
 
 import jax

@@ -81,7 +81,7 @@ to the IC parameters.
     (LMC/SMC clusters, $\gamma \gtrsim 4$ in the 3-D slope convention);
     mild truncation
   - $\gamma = 5$ reduces to Plummer exactly (max rel $= 0$); asymptotic
-    slope to 1%; Eddington-DF $Q \approx 0.50$ unscaled
+    slope to 1%; Eddington-DF $Q = 0.502$ unscaled
     ([evidence](../50-validation/eff-profile.md))
 * - **Michie–King** {cite:p}`Michie1963` — self-consistent radially
     anisotropic lowered DF
@@ -100,6 +100,7 @@ to the IC parameters.
   - Rotating clusters; composable with any DF above
   - Streaming $v_\phi(R)$ and angular-momentum budget verified exactly
     (additive transform, no scatter noise)
+    ([evidence](../50-validation/rotation-om-anisotropy.md))
 ```
 
 A physically instructive contrast the suite makes explicit: the

@@ -7,6 +7,31 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-10 — Memory-bounded kernels, table-routed standalone DFs, numerics consolidation
+
+A production-scale memory + consolidation pass over the cluster and kinematics stack:
+
+- **Blocked + remat'd virial kernels** — the $O(N^2)$ pairwise potential-energy /
+  virial kernels now run in fixed-size blocks with rematerialization, bounding
+  peak memory in the forward pass *and* the gradient at $O(\mathrm{block}\cdot N)$.
+  Measured peak RSS (`scripts/profile_cluster_memory.py`, all stages PASS):
+  virial scaling at $N=2\times10^4$ → 0.41 GB; Engine A iso/aniso at $N=10^5$ →
+  1.4 / 2.2 GB; Engine B halo+core at $N=10^5$ → 2.5 GB.
+- **Table-routed standalone DFs** — the LIMEPY / King / Michie *standalone*
+  velocity DFs now route through the differentiable DF tables by default, with
+  the exact quadrature retained as the `speed_method="quadrature"` oracle
+  (anisotropic standalone DF sampling at $N=2\times10^4$ → 2.3 GB measured).
+- **`progenax.numerics` consolidation** — five cumulative-trapezoid
+  implementations and the inverse-CDF draw helpers unified in one module;
+  unbounded oracle maps now chunked via `lax.map(batch_size=2048)`.
+- **Grouped engine state** — Engine-A-only internals live in a `_EngineAState`
+  group; accessing them on an Engine-B model raises an informative
+  `AttributeError` (shared fields like `total_density` dispatch correctly on
+  both engines).
+
+**Gate.** Released-core **1150 tests passing** (unit 882, integration 34,
+validation 234).
+
 ## 2026-06-09 — Unified multi-component equilibrium clusters (two engines)
 
 The multimass arc (Phases 1+2) merged to main: ONE differentiable
@@ -43,9 +68,6 @@ unequal-mass IMFs), the string-dispatch `generate_cluster_ic`/`ClusterState`/
 blend (intermediate states drift from per-mass-group virial balance), and
 `MultiMassLIMEPY` (subsumed by `MultiComponentCluster`). `src/` is now
 dataclass-free (all containers are Equinox modules).
-
-**Gate.** Released-core **1101 tests passing** (unit 833, integration 34,
-validation 234).
 
 ## 2026-06-04 — Binaries SoTA arc: review, completion, and faithful Moe composition
 

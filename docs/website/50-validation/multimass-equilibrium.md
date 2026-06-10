@@ -203,6 +203,41 @@ $957 \to 170$ ms (**5.6×**); sampling at $N = 10^5$: isotropic **67×**
 anisotropic table build dominates at small $N$ — break-even $\approx 3$k
 stars (documented; below that, use the quadrature path).
 
+Memory is bounded alongside speed: the $O(N^2)$ virial kernels run in
+fixed-size blocks with rematerialization (forward *and* gradient
+$O(\mathrm{block}\cdot N)$), and the standalone DFs route through the
+same tables. Measured peak RSS (`scripts/profile_cluster_memory.py`,
+all stages PASS):
+
+```{list-table}
+:header-rows: 1
+
+* - Stage
+  - $N$
+  - Peak RSS
+* - `import progenax`
+  - —
+  - 0.19 GB
+* - Engine A build + sample, isotropic
+  - $10^5$
+  - 1.4 GB
+* - Engine A build + sample, anisotropic (OM)
+  - $10^5$
+  - 2.2 GB
+* - Engine B halo+core build + sample
+  - $10^5$
+  - 2.5 GB
+* - Virial / potential-energy kernel
+  - $2\times10^4$
+  - 0.41 GB
+* - Per-group virial oracle
+  - $2\times10^4$
+  - 0.60 GB
+* - Standalone anisotropic LIMEPY DF sampling
+  - $2\times10^4$
+  - 2.3 GB
+```
+
 :::{figure} figures/df_tables.png
 :label: val-df-tables
 :width: 100%

@@ -87,7 +87,7 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
     Right-hand side of King's dimensionless Poisson equation.
 
     The King (1966) model satisfies:
-        d^2 psi/d xi^2 + (2/xi) d psi/d xi = -rho_tilde(psi)
+        d^2 psi/d xi^2 + (2/xi) d psi/d xi = -9 rho_tilde(psi)
 
     where xi = r/r_c is dimensionless radius and rho_tilde(psi) is the dimensionless
     density from integrating the King distribution function.
@@ -98,7 +98,7 @@ def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Arr
 
     Then:
         dy[0]/d xi = y[1]
-        dy[1]/d xi = -rho_tilde(psi) - (2/xi) y[1]
+        dy[1]/d xi = -9 rho_tilde(psi) - (2/xi) y[1]
 
     Args:
         xi: Dimensionless radius xi = r/r_c

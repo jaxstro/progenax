@@ -22,8 +22,8 @@ See the [**validation audit report**](audit-report.md) for trustworthiness tiers
 
 The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)
 embedded on the page; ⚠️ = tested but page/figures pending the module audit.
-Released-core suite at the Engine-B close-out (2026-06-10): **1101 tests**
-(unit 833 / integration 34 / **validation 234**), full gate green.
+Released-core suite (2026-06-10): **1150 tests**
+(unit 882 / integration 34 / **validation 234**), full gate green.
 
 ```{list-table}
 :header-rows: 1
