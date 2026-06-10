@@ -104,6 +104,9 @@ the f_enc criterion).
 - Genuine f_j < 0 → ValueError naming component + remedy (concrete inputs).
 - All-infinite mix with divergent mass (EFF γ ≤ 3 unbounded) → ValueError
   explaining the divergence.
+  [NOTE: structurally unreachable — EFFProfile always carries a finite r_t;
+  downgraded to the documented trunc_frac_j = 0.0 diagnostic per the
+  implementation plan.]
 - King natural r_t conflicting with an explicit override → ValueError (no
   silent re-truncation).
 - |Σ mass_fractions − 1| > 1e-8 → ValueError.

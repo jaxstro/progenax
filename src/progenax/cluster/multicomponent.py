@@ -1,5 +1,5 @@
 """
-Unified multi-component cluster equilibrium model (Engine A: lowered isothermal).
+Unified multi-component cluster equilibrium model (Engines A and B).
 
 ONE differentiable model for any spherical multi-population cluster as a TRUE
 shared-potential equilibrium: mass segregation, GC multiple populations (1G/2G),
@@ -19,8 +19,10 @@ w_j directly (`from_components`). Every component is individually virial
 (Q_j = 0.5) and the sampled cluster is globally virial without rescaling -- for
 ANY mass spectrum (the property the legacy two-population superposition lacked).
 
-Engine B (density-defined Eddington/Osipkov-Merritt for Plummer/EFF/King) is the
-Phase-2 extension; this module is the Engine-A (DF-defined) member of the family.
+This module hosts BOTH engines: the Engine-A (DF-defined, lowered-isothermal)
+machinery lives here, while Engine-B (density-defined Eddington/Osipkov-Merritt for
+Plummer/EFF/King, entered via `from_density_profiles`) builds its state in
+`cluster/eddington_engine.py`.
 
 References:
     Gieles, M. & Zocchi, A. (2015), MNRAS, 454, 576 (Eqs. 24-29, Section 4.1).

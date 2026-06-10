@@ -335,7 +335,11 @@ class TestSharedPotential:
   the EFF table); per-component ρ̂_j via `_density_and_derivative(profile, r)`
   (analytic dρ/dr for Plummer/EFF; King via dρ̂/dW·dW/dr with dW/dr from the
   interpolated psi_grid gradient — numerical `jnp.gradient` on the grid is acceptable
-  for King, NOT for Plummer/EFF where closed forms exist); normalize each ρ̂_j so its
+  for King, NOT for Plummer/EFF where closed forms exist)
+  [AMENDED 2026-06-10: proven wrong in Task 5 — jnp.gradient of interpolated psi
+  produces a d²ρ/dΨ² staircase (f_min −0.679); replaced by the Poisson-identity
+  dψ/dξ = −9ξ⁻²∫ρ̃s²ds quadrature in dccedbe. Never differentiate interpolated
+  data.]; normalize each ρ̂_j so its
   truncated mass is 1, scale by mass_fractions → ρ_j; sum; one cumtrap pass (copy the
   `inner/tail/outer` pattern from `_eff_eddington_table` lines 62–71) → Φ, Ψ,
   dΨ/dr = −M(<r)/r², per-component M_cum_j, μ = Σ_j ∫ρ_j r² dr, and trunc_frac_j

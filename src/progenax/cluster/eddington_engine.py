@@ -262,9 +262,9 @@ def engine_b_component_virials(state: _EngineBState,
     rho_DF-vs-rho_presc fidelity gate in test_engine_b_physics.py). The
     sampled-density KS test gates the POSITION pipeline only -- it compares
     sampled radii against the same _cdf_j they were drawn from, so it says
-    nothing about rho_DF-vs-rho_presc fidelity. f is clamped at 0 inside the moments exactly
-    as the speed sampler clamps grid ringing. Q_j is dimensionless: the
-    velocity scale and the total mass cancel in T_j/|W_j|.
+    nothing about rho_DF-vs-rho_presc fidelity. f is clamped at 0 inside the
+    moments exactly as the speed sampler clamps grid ringing. Q_j is
+    dimensionless: the velocity scale and the total mass cancel in T_j/|W_j|.
     """
     r, Psi = state.r_poisson, state.Psi_poisson
     dphi_dr = -state.dPsi_dr_poisson           # = +M(<r)/r^2 (G=1)
