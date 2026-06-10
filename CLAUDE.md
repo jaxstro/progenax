@@ -5,8 +5,8 @@
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
-gravoturbulent-FDF clean-room rewrite complete - 16,727 LOC released-core source, 1310 tests
-(released-core 1065: unit 800, integration 34, validation 231; experimental 245). King & EFF velocity DFs are true
+gravoturbulent-FDF clean-room rewrite complete - 16,727 LOC released-core source, 1343 tests
+(released-core 1098: unit 833, integration 34, validation 231; experimental 245). King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
@@ -36,7 +36,7 @@ XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 800 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 833 unit tests (released core)
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 231 physics validation tests
 
@@ -192,8 +192,8 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   1065 released-core tests
-├── unit/                800 tests
+tests/                   1098 released-core tests
+├── unit/                833 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy

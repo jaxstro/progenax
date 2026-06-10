@@ -644,3 +644,24 @@ Tasks 2–6 implementers should copy patterns from
   raises instead of silently falling back to quadrature. Measured warm aniso
   construction (n_ode=1000, n_grid=500): 308 ms → 177 ms, bit-identical
   psi_grid/_cdf_j to the pre-refactor 173d2ab values.
+
+### Tasks 5–7 landing notes (2026-06-09)
+
+- **Task 5 (72365ed):** isotropic speed draws via `SpeedCDFTable` (256×256
+  inverse-CDF on (√W, u/√(2W))), with both a statistical oracle (moment match
+  vs DF quadrature, ≤0.28%) and the exact rejection sampler retained as a
+  selectable oracle. Measured **67× at N=1e5** for the iso speed draw.
+- **Task 5 review fix (96b57fd):** high-g W→0 row underflow in
+  `SpeedCDFTable` — absolute CDF normalization underflowed for g≥2.5 rows;
+  fixed via relative (row-max) CDF normalization + a 1e-6 floor; the table is
+  **gated to g ∈ [0, 3.5]** (asserted).
+- **Task 6 (a8fabd4):** anisotropic speed marginal via `AnisoSpeedCDFTable`
+  (192×48×192 on (√W, asinh p, u/√(2W))); the angular conditional
+  (cos θ | u, p) stays EXACT. Measured **21.7× at N=1e5 aniso** with a
+  ~3k-star break-even for the table build amortization. Grid deviation drove
+  n_W to **192** (plan said 256×48×192; 192 rows meet the budget).
+- **Task 7 PART 1 (f69f36d):** test hardening + break-even docs —
+  finiteness + monotonicity guards on BOTH speed tables, an off-g moment
+  oracle, and a `SpeedCDFTable` ulp regression pin; hardened the high-g
+  row-normalization test.
+- Landed as commits `72365ed`, `96b57fd`, `a8fabd4`, `f69f36d`.
