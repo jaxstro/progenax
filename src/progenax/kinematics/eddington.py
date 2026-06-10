@@ -127,8 +127,16 @@ def assign_om_directions(
 ) -> Float[Array, "N 3"]:
     """Assign Cartesian velocities to per-particle speeds.
 
-    r_a is None  -> isotropic (random 3-D direction; byte-identical to the legacy path).
-    r_a is float -> Osipkov-Merritt stretched split realising beta(r)=r^2/(r^2+r_a^2).
+    r_a is None      -> isotropic (random 3-D direction; byte-identical to the
+                        legacy path).
+    r_a scalar       -> Osipkov-Merritt stretched split realising
+                        beta(r) = r^2/(r^2 + r_a^2).
+    r_a (N,) array   -> PER-STAR anisotropy radii (Engine B: r_a_j[component_id]);
+                        the stretch broadcasts radii / r_a elementwise. Non-finite
+                        entries (inf = isotropic component) give stretch exactly 1
+                        via the finite/inf double-where (gradient-safe: no inf
+                        enters the graph). A scalar is broadcast to per-star shape
+                        first, so scalar == array-of-same-scalar bit-identically.
     """
     N = positions.shape[0]
     if r_a is None:
@@ -142,7 +150,10 @@ def assign_om_directions(
 
     cos_t = jax.random.uniform(k_cos, (N,), minval=-1.0, maxval=1.0)
     sin_t = jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
-    stretch = jnp.sqrt(1.0 + (radii / r_a) ** 2)
+    ra_arr = jnp.broadcast_to(jnp.asarray(r_a), radii.shape)
+    finite = jnp.isfinite(ra_arr)
+    ra_safe = jnp.where(finite, ra_arr, 1.0)
+    stretch = jnp.where(finite, jnp.sqrt(1.0 + (radii / ra_safe) ** 2), 1.0)
 
     v_r = speeds * cos_t                 # signed radial component (stretched frame)
     v_t = speeds * sin_t / stretch       # physical tangential magnitude (un-stretched)

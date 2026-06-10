@@ -23,7 +23,13 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from progenax.kinematics.eddington import eddington_invert
+from jaxtyping import PRNGKeyArray
+
+from progenax.kinematics.eddington import (
+    assign_om_directions,
+    eddington_invert,
+    sample_speed_from_f_table,
+)
 from progenax.profiles.density_poisson import (
     _density_and_derivative,
     derive_r_t,
@@ -65,11 +71,24 @@ class _EngineBState(eqx.Module):
         r_a_j: per-component Osipkov-Merritt anisotropy radii (inf = isotropic,
             the Engine A convention).
         mu: velocity-scale integral sum_j int rho_j r^2 dr (the EFF
-            kappa = G M_total / (4 pi mu) pattern).
+            kappa = G M_total / (4 pi mu) pattern). In Engine B mu is
+            IDENTICALLY M_tot_dimensionless / (4 pi) = 1/(4 pi): each rho_j is
+            mass-normalized to its mass fraction and the fractions sum to 1, so
+            no model-parameter dependence flows through mu (kept as a field for
+            convention symmetry with EFFVelocityDF, not as a free quantity).
         f_min_j: realizability margin min(f_j) / max|f_j| per component
             (diagnostic; gate threshold -1e-3).
         trunc_frac_j: M_j(<r_t)/M_j(inf) per component (diagnostic; see
             SharedPotential.trunc_frac_j for the EFF gamma <= 3 convention).
+        r_poisson, Psi_poisson, dPsi_dr_poisson: FULL-resolution Poisson-grid
+            copies (radial grid, shared Psi, dPsi/dr = -M(<r)/r^2) stored for
+            the exact-quadrature Q_j oracle (`engine_b_component_virials`) --
+            the oracle must integrate the SAME potential the DFs were built
+            in, never a re-interpolation of the downsampled sampler grids.
+        rho_j_poisson: the prescribed mass-fraction-normalized per-component
+            densities on the same grid (density-fidelity diagnostics: compare
+            against the DF-side rho_DF,j = 4 pi int w^2 f_j dw to see the
+            truncation-edge offset the ergodic DF cannot carry).
         r_t_provenance: static string naming what set the domain (derive_r_t).
     """
 
@@ -81,6 +100,10 @@ class _EngineBState(eqx.Module):
     mu: Float[Array, ""]
     f_min_j: Float[Array, "n_comp"]
     trunc_frac_j: Float[Array, "n_comp"]
+    r_poisson: Float[Array, "n_r_full"]
+    Psi_poisson: Float[Array, "n_r_full"]
+    dPsi_dr_poisson: Float[Array, "n_r_full"]
+    rho_j_poisson: Float[Array, "n_comp n_r_full"]
     r_t_provenance: str = eqx.field(static=True)
 
 
@@ -125,8 +148,12 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
             E_ref = E_j
         else:
             diff = jnp.max(jnp.abs(E_j - E_ref))
-            if _is_concrete(diff):
-                assert float(diff) == 0.0, "per-component E_grids must be identical"
+            if _is_concrete(diff) and float(diff) != 0.0:
+                # raise (not assert: assert is stripped under -O) -- a mismatch
+                # means the shared-Psi contract broke, never a tolerance issue.
+                raise ValueError(
+                    f"per-component E_grids must be identical (one shared Psi0); "
+                    f"component {j} differs by {float(diff):.3e}")
         f_rows.append(f_j)
         f_min_rows.append(jnp.min(f_j) / jnp.max(jnp.abs(f_j)))
 
@@ -152,9 +179,111 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
         mu=pot.mu,
         f_min_j=f_min_j,
         trunc_frac_j=pot.trunc_frac_j,
+        r_poisson=pot.r_grid,
+        Psi_poisson=pot.Psi_grid,
+        dPsi_dr_poisson=pot.dPsi_dr_grid,
+        rho_j_poisson=pot.rho_j_grid,
         r_t_provenance=prov,
     )
     return state, pot
+
+
+def engine_b_star_velocities(
+    state: _EngineBState,
+    speed_keys: PRNGKeyArray,
+    k_vdir: PRNGKeyArray,
+    pos: Float[Array, "N 3"],
+    radii: Float[Array, "N"],
+    r_grid: Float[Array, "n_grid"],
+    c,
+    G,
+    M_sampled: Float[Array, ""],
+) -> Float[Array, "N 3"]:
+    """Engine B speed + direction stage of the cluster sampler (jit-safe).
+
+    Per star i with component c_i: Psi_i by ONE jnp.interp on the sampler grid
+    (state.Psi_grid was re-interpolated onto `r_grid` at assembly), a
+    dimensionless speed s_i ~ s^2 f_{c_i}(Psi_i - s^2/2) from the component's
+    Eddington table, then the physical scale and the OM stretched split with
+    the PER-STAR anisotropy radius r_a_j[c_i] (inf rows -> stretch 1 ->
+    isotropic).
+
+    Velocity-scale convention (the EFF kappa = G M_total/(4 pi mu) pattern):
+    the tables are built with G = 1, physical lengths, and total dimensionless
+    mass 1, so rho_phys = M_sampled * rho_dimless and Psi_phys = G M_sampled *
+    Psi_dimless; hence v = sqrt(G * M_sampled / (4 pi mu)) * s with
+    4 pi mu == 1 identically (mass-normalized densities -- see _EngineBState.mu).
+    M_sampled = sum_i m_i is the ACTUAL sampled stellar mass, NEVER an input
+    M_total (the Engine A lesson: energies must use the realized cluster mass).
+    """
+    Psi_i = jnp.interp(radii, r_grid, state.Psi_grid)
+    s = jax.vmap(
+        lambda kk, pp, cc: sample_speed_from_f_table(kk, pp, state.E_grid,
+                                                     state.f_j_grid[cc])
+    )(speed_keys, Psi_i, c)
+    speeds = jnp.sqrt(G * M_sampled / (4.0 * jnp.pi * state.mu)) * s
+    return assign_om_directions(k_vdir, pos, speeds, state.r_a_j[c])
+
+
+def engine_b_component_virials(state: _EngineBState,
+                               n_w: int = 400) -> Float[Array, "n_comp"]:
+    """EXACT-quadrature per-component virial ratios Q_j = T_j/|W_j| (Engine B).
+
+    The bias-free equilibrium oracle -- independent of every sampled quantity.
+    On the full-resolution Poisson grid, per component j:
+
+        m0_j(r) = int w^2 f_j(Psi - w^2/2) dw,   m2_j(r) = int w^4 f_j dw,
+        rho_DF,j(r) = 4 pi m0_j(r) / (1 + r^2/r_a_j^2),
+        <v^2>_j(r) = (m2_j/m0_j) * (1/3 + (2/3) / (1 + r^2/r_a_j^2)),
+        T_j = (1/2) int rho_DF,j <v^2>_j 4 pi r^2 dr,
+        W_j = -int rho_DF,j (dPhi/dr) r 4 pi r^2 dr   (Clausius, shared Phi),
+        dPhi/dr = -dPsi/dr = +M(<r)/r^2.
+
+    w is the STRETCHED-frame speed: the OM substitution w_t = v_t * sqrt(1 +
+    r^2/r_a^2) makes the conditional speed weight isotropic w^2 f_j(Psi - w^2/2)
+    -- exactly the frame `sample_speed_from_f_table` + `assign_om_directions`
+    draw in -- so <v_r^2> = <w^2>/3, <v_t^2> = (2/3)<w^2>/(1 + r^2/r_a^2), and
+    the velocity-space measure carries d^3v = d^3w/(1 + r^2/r_a^2) (the
+    rho_DF denominator); r_a = inf gives the isotropic limits exactly.
+
+    TRUNCATION-CONSISTENT weighting (load-bearing): both integrals use
+    rho_DF,j -- the density the DF actually represents -- NOT the prescribed
+    rho_j. A sharply truncated prescribed density has rho_j(r_t) > 0, an edge
+    offset NO ergodic f(E) can carry (the Eddington pair represents
+    rho(Psi) - rho(0)), so weighting by the prescribed rho_j mixes that
+    unrepresentable offset into T_j and reads ~0.495 for a hard-truncated halo
+    -- genuine edge physics (the documented truncated-empirical-profile
+    approximation, gated at 0.02 on the SAMPLED global Q), not a table bug.
+    With rho_DF the steady-state identity 2T_j + W_j = 4 pi r_t^3 p_j(r_t) = 0
+    holds for ANY f(Q)-of-integral table (p_j(r_t) = 0), so Q_j = 0.5 to pure
+    quadrature accuracy: any inversion/interpolation/Psi-consistency bug in the
+    tables breaks it. Density fidelity (rho_DF vs prescribed rho_j in the
+    interior) is gated separately by the sampled-density KS test and the
+    Task 5 cross-engine anchors. f is clamped at 0 inside the moments exactly
+    as the speed sampler clamps grid ringing. Q_j is dimensionless: the
+    velocity scale and the total mass cancel in T_j/|W_j|.
+    """
+    r, Psi = state.r_poisson, state.Psi_poisson
+    dphi_dr = -state.dPsi_dr_poisson           # = +M(<r)/r^2 (G=1)
+    Psi_safe = jnp.maximum(Psi, 1e-12)
+
+    def moments(Psi_r, f_row):
+        w = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_r), n_w)
+        f_at = jnp.maximum(jnp.interp(Psi_r - 0.5 * w**2, state.E_grid, f_row), 0.0)
+        return jnp.trapezoid(w**2 * f_at, w), jnp.trapezoid(w**4 * f_at, w)
+
+    Qs = []
+    for j in range(state.f_j_grid.shape[0]):
+        m0, m2 = jax.vmap(lambda P: moments(P, state.f_j_grid[j]))(Psi_safe)
+        finite = jnp.isfinite(state.r_a_j[j])
+        ra_safe = jnp.where(finite, state.r_a_j[j], 1.0)
+        inv_st2 = jnp.where(finite, 1.0 / (1.0 + (r / ra_safe) ** 2), 1.0)
+        rho_df = jnp.where(Psi > 0.0, 4.0 * jnp.pi * m0 * inv_st2, 0.0)
+        v2 = (m2 / (m0 + 1e-300)) * (1.0 / 3.0 + (2.0 / 3.0) * inv_st2)
+        T = jnp.trapezoid(0.5 * rho_df * v2 * 4.0 * jnp.pi * r**2, r)
+        W = jnp.trapezoid(-rho_df * r * dphi_dr * 4.0 * jnp.pi * r**2, r)
+        Qs.append(T / jnp.abs(W))
+    return jnp.stack(Qs)
 
 
 def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
@@ -206,4 +335,10 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
     )
 
 
-__all__ = ["_EngineBState", "assemble_engine_b_fields", "build_engine_b_state"]
+__all__ = [
+    "_EngineBState",
+    "assemble_engine_b_fields",
+    "build_engine_b_state",
+    "engine_b_component_virials",
+    "engine_b_star_velocities",
+]

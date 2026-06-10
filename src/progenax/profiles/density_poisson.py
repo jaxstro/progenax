@@ -70,7 +70,11 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     override raises ValueError: a King model's lowered-Maxwellian edge is part of
     the prescribed physics and must not be silently re-truncated. The
     override/conflict branch requires a CONCRETE r_t -- domain resolution is a
-    construction-time decision, not a traced quantity.
+    construction-time decision, not a traced quantity. The finite-extent branch
+    is likewise concrete-only: the max over component extents picks its winner
+    via float() (concretizes), so grad w.r.t. a component's r_t is unsupported
+    BY DESIGN -- the domain is decided at construction time, not differentiated
+    through.
     """
     extents = [component_extent(p) for p in profiles]
 

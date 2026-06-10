@@ -567,7 +567,7 @@ class TestEngineB:
     # originally drafted 0.4) is a REALIZABILITY constraint, independently
     # verified with a closed-form two-Plummer oracle (gamma=5 EFF == Plummer):
     # at a=0.4 the cored halo density in the concentrated core's potential has
-    # a GENUINELY negative Eddington DF for E > ~0.8 Psi0 (f ~ -1.2e-3 absolute,
+    # a GENUINELY negative Eddington DF for E > ~0.66 Psi0 (f ~ -1.2e-3 absolute,
     # min f/max|f| ~ -0.2, resolution-independent) -- the design doc's named
     # "shallow component in a concentrated companion's potential" non-equilibrium.
     # At a=0.8 the same oracle gives f > 0 everywhere (min f/max|f| = +0.016).
@@ -614,3 +614,86 @@ class TestEngineB:
     def test_unrealizable_om_raises_with_component_name(self):
         with pytest.raises(ValueError, match="component 0"):
             self._model(r_a_j=jnp.array([0.05, jnp.inf]))   # absurdly radial halo
+
+    # ---- Task 4 (2c-ii): Engine B sampling + exact-quadrature Q_j oracle ----
+
+    def test_sampled_density_matches_each_component(self):
+        """Position pipeline: each component's sampled radial mass ECDF matches
+        its OWN normalized M_j(<r) row of _cdf_j (KS distance < 0.02 at >= 20k
+        stars per component; N_frac = [0.75, 0.25] for the fixture defaults)."""
+        m = self._model()
+        ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=84000, G=G)
+        r = np.asarray(jnp.linalg.norm(ic.positions, axis=1))
+        cid = np.asarray(ic.component_id)
+        for j in range(2):
+            rj = np.sort(r[cid == j])
+            n_j = rj.size
+            assert n_j >= 20000, f"component {j} undersampled (n={n_j})"
+            ecdf = (np.arange(n_j) + 0.5) / n_j
+            model_cdf = np.interp(rj, np.asarray(m._r_grid), np.asarray(m._cdf_j[j]))
+            ks = float(np.max(np.abs(ecdf - model_cdf)))
+            assert ks < 0.02, f"component {j}: KS distance {ks:.4f} >= 0.02"
+
+    def test_engine_b_global_virial_is_half_unscaled(self):
+        """THE headline gate: Plummer halo + EFF core (the REALIZABLE a_EFF=0.8
+        mix), N=30k, |Q - 0.5| < 0.02 with NO virial rescale anywhere in the
+        pipeline. The exact pairwise potential is row-chunked (a single 30k^2
+        block is ~22 GB); the math is identical to compute_potential_energy."""
+        m = self._model()
+        ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=30000, G=G)
+        pos = np.asarray(ic.positions
+                         - jnp.average(ic.positions, axis=0, weights=ic.masses))
+        vel = np.asarray(ic.velocities
+                         - jnp.average(ic.velocities, axis=0, weights=ic.masses))
+        mass = np.asarray(ic.masses)
+
+        T = 0.5 * float(np.sum(mass * np.sum(vel**2, axis=1)))
+        V2 = 0.0  # sum over ORDERED pairs i != j; V = -G/2 * V2
+        chunk = 2000
+        for i0 in range(0, pos.shape[0], chunk):
+            p = pos[i0:i0 + chunk]
+            d = np.sqrt(((p[:, None, :] - pos[None, :, :]) ** 2).sum(axis=2))
+            rows = np.arange(p.shape[0])
+            d[rows, i0 + rows] = np.inf  # drop self-pairs
+            V2 += float(np.sum(mass[i0:i0 + chunk, None] * mass[None, :] / d))
+        V = -0.5 * G * V2
+        Q = T / abs(V)
+        assert abs(Q - 0.5) < 0.02, f"Engine B global Q={Q:.4f} (expected 0.5, unscaled)"
+
+    def test_engine_b_theory_Qj_is_half(self):
+        """component_virial_ratios (B branch): the EXACT-quadrature oracle over
+        the DF speed moments in the shared Psi -- independent of all sampled
+        quantities, truncation-consistently weighted by the DF-side density
+        rho_DF,j (see engine_b_component_virials) -- returns Q_j = 0.5 +- 3e-3
+        for BOTH components."""
+        m = self._model()
+        Qj = np.asarray(m.component_virial_ratios())
+        assert Qj.shape == (2,)
+        np.testing.assert_allclose(Qj, 0.5, atol=3e-3,
+                                   err_msg=f"Engine B theory Q_j={Qj}")
+
+    def test_speed_scale_uses_sampled_mass(self):
+        """Doubling every stellar mass m_j doubles <v^2>: the velocity scale
+        comes from the ACTUAL sampled mass sum_i m_i (the Engine A lesson),
+        never an input M_total. N_frac is invariant under a uniform m_j scaling,
+        so the same key gives identical dimensionless draws -> ratio exactly 2."""
+        key = jax.random.PRNGKey(5)
+        ic1 = self._model().sample_cluster(key, n_stars=4000, G=G)
+        ic2 = self._model(m_j=jnp.array([1.0, 2.0])).sample_cluster(
+            key, n_stars=4000, G=G)
+        v2_1 = float(jnp.mean(jnp.sum(ic1.velocities**2, axis=1)))
+        v2_2 = float(jnp.mean(jnp.sum(ic2.velocities**2, axis=1)))
+        np.testing.assert_allclose(v2_2 / v2_1, 2.0, rtol=1e-12)
+
+    def test_om_directions_scalar_equals_array(self):
+        """assign_om_directions regression for the Task 4 per-star r_a ARRAY
+        extension: an array of one repeated scalar is BIT-IDENTICAL to the
+        scalar path (same key, same positions, same speeds)."""
+        from progenax.kinematics.eddington import assign_om_directions
+
+        kp, ks, kd = jax.random.split(jax.random.PRNGKey(7), 3)
+        pos = 2.0 * jax.random.normal(kp, (500, 3))
+        speeds = jnp.abs(jax.random.normal(ks, (500,)))
+        v_scalar = assign_om_directions(kd, pos, speeds, 1.7)
+        v_array = assign_om_directions(kd, pos, speeds, jnp.full((500,), 1.7))
+        np.testing.assert_array_equal(np.asarray(v_scalar), np.asarray(v_array))
