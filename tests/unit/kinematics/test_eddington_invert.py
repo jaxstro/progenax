@@ -10,7 +10,9 @@ import pytest
 # Re-captured 2026-06-10 (consolidation Task 8): the table's cumulative
 # trapezoid moved onto progenax.numerics.cumulative_trapezoid (scalar dx
 # OUTSIDE the cumsum; the old inline used the non-uniform jnp.diff(r)
-# INSIDE), shifting every pinned value by ~1 ulp (max rel. diff ~9e-16).
+# INSIDE), shifting the raw table integral by ~1 ulp (~9e-16); the
+# Eddington inversion (d2rho/dPsi2 + Abel weight) amplifies that to
+# <=8e-15 relative (~55 ulp, worst iso f[250]) on the pinned f values.
 PINS = {
     "iso": (
         5.5042467299701805,

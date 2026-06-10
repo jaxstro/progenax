@@ -153,9 +153,11 @@ def _density_and_derivative(profile, r: Float[Array, "n_r"]):
     f(E -> Psi0) (a single King read min f/max|f| = -0.68 that way; the true
     King ergodic DF is strictly positive).
 
-    The King branch's cumulative integral assumes `r` is a dense, ascending
-    grid anchored at ~0 -- exactly the Poisson grid both call sites
-    (shared_potential, build_engine_b_state) pass.
+    The King branch's cumulative integral assumes `r` is a dense, UNIFORM,
+    ascending grid anchored at ~0 (scalar-dx trapezoid) -- exactly the
+    Poisson linspace grid both call sites (shared_potential,
+    build_engine_b_state) pass. A non-uniform (e.g. log-spaced) grid would
+    give a silently wrong dW/dr.
     """
     if isinstance(profile, PlummerProfile):
         a = profile.a
