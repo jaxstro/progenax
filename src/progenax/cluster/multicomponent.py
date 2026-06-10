@@ -37,7 +37,6 @@ from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import lowered_exponential
 from progenax.profiles.limepy_multimass import (
     _N_C,
-    _N_SPEED,
     _aniso_density_fn,
     _aniso_v2hat_scalar,
     _bin_imf,
@@ -47,7 +46,7 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
-from progenax.profiles.limepy_tables import SpeedCDFTable
+from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
 
 
 def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
@@ -385,7 +384,7 @@ def _sample_cluster_arrays(model: MultiComponentCluster, key: PRNGKeyArray,
     batched E_gamma build per call, distributionally identical to the exact
     per-star sampler -- statistical oracles in test_limepy_tables.py).
     """
-    from progenax.kinematics.limepy_df import _sample_speed_angle
+    from progenax.kinematics.limepy_df import _sample_costheta_given_u
 
     k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
 
@@ -409,11 +408,27 @@ def _sample_cluster_arrays(model: MultiComponentCluster, key: PRNGKeyArray,
     speed_keys = jax.random.split(k_speed, n_stars)
 
     if model.is_aniso:
-        # Anisotropic: per-star (u_r, u_t) from the Michie/OM speed-angle DF.
+        # Anisotropic: the speed u comes from ONE precomputed 3-D speed-MARGINAL
+        # CDF table (Task 6) replacing the per-star 256-point quadrature of
+        # _sample_speed_angle; the angular conditional cos(theta)|u stays EXACT
+        # (_sample_costheta_given_u -- the same code _sample_speed_angle calls).
+        # The box covers every star exactly: W_i = rescale_i*psi <=
+        # max(rescale)*W0 and p_i = (r/r_c)/ra_hat_j[c] <= (r_t/r_c)/min(ra_hat)
+        # (radii never exceed r_t by construction of the mass-CDF draw); the
+        # 1e-3 p floor guards the degenerate all-isotropic corner like
+        # _solver_table. Built per call, differentiable in (W0, g, w_j, ra_hat_j).
         p_i = (radii / model.r_c) / model.ra_hat_j[c]
-        u_r, u_t = jax.vmap(
-            lambda kk, w, pp: _sample_speed_angle(kk, w, pp, model.g, _N_SPEED, _N_C)
-        )(speed_keys, W_i, p_i)
+        p_box = jnp.maximum((model.r_t / model.r_c) / jnp.min(model.ra_hat_j), 1e-3)
+        table = AnisoSpeedCDFTable.build(jnp.max(model.rescale_j) * model.W0,
+                                         p_box, model.g)
+        ku_kc = jax.vmap(jax.random.split)(speed_keys)
+        unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+        u_sp = jax.vmap(table.inverse)(W_i, p_i, unif)
+        cos_t = jax.vmap(
+            lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
+        )(ku_kc[:, 1], u_sp, p_i)
+        u_r = u_sp * cos_t
+        u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
         v_r, v_t = s_i * u_r, s_i * u_t
         # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
         r_hat = pos / (radii[:, None] + 1e-30)

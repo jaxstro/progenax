@@ -61,6 +61,24 @@ def _sample_unit_speed(
     return jnp.where(W > 1e-6, u, 0.0)
 
 
+def _sample_costheta_given_u(
+    key: PRNGKeyArray, u: Float[Array, ""], s: Float[Array, ""], n_c: int
+) -> Float[Array, ""]:
+    """Anisotropic angular conditional: sample c = cos(theta) | u with weight
+    exp(-(s^2 u^2/2)(1 - c^2)) via differentiable inverse-CDF (s = r/r_a, the
+    per-star anisotropy parameter). The EXACT conditional step of
+    `_sample_speed_angle`, shared with the table-accelerated sampler
+    (`AnisoSpeedCDFTable` draws u; the angle stays exact -- cheap exp
+    arithmetic, no special functions)."""
+    beta_u = s**2 * u**2 / 2.0
+    c_grid = jnp.linspace(-1.0, 1.0, n_c)
+    w_c = jnp.maximum(jnp.exp(-beta_u * (1.0 - c_grid**2)), 0.0)
+    dc = c_grid[1] - c_grid[0]
+    cdf_c = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (w_c[1:] + w_c[:-1])) * dc])
+    cdf_c = cdf_c / (cdf_c[-1] + 1e-30)
+    return jnp.interp(jax.random.uniform(key), cdf_c, c_grid)
+
+
 def _sample_speed_angle(
     key: PRNGKeyArray, W: Float[Array, ""], s: Float[Array, ""], g: Float[Array, ""],
     n_u: int, n_c: int,
@@ -83,14 +101,7 @@ def _sample_speed_angle(
     key_u, key_c = jax.random.split(key)
     u = jnp.interp(jax.random.uniform(key_u), cdf_u, u_grid)
 
-    # Conditional c = cos(theta) | u.
-    beta_u = s**2 * u**2 / 2.0
-    c_grid = jnp.linspace(-1.0, 1.0, n_c)
-    w_c = jnp.maximum(jnp.exp(-beta_u * (1.0 - c_grid**2)), 0.0)
-    dc = c_grid[1] - c_grid[0]
-    cdf_c = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (w_c[1:] + w_c[:-1])) * dc])
-    cdf_c = cdf_c / (cdf_c[-1] + 1e-30)
-    c = jnp.interp(jax.random.uniform(key_c), cdf_c, c_grid)
+    c = _sample_costheta_given_u(key_c, u, s, n_c)
 
     u_r = u * c
     u_t = u * jnp.sqrt(jnp.maximum(1.0 - c**2, 0.0))

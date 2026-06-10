@@ -398,3 +398,119 @@ class TestSpeedCDFTable:
             jnp.asarray(0.0), jnp.array([0.0, 0.3, 0.7, 1.0]))
         np.testing.assert_array_equal(np.asarray(u0), 0.0)
         assert bool(jnp.all(jnp.isfinite(u0)))
+
+
+class TestAnisoSpeedCDFTable:
+    """Tabulated ANISOTROPIC speed-marginal inverse-CDF (Tranche B, Task 6).
+
+    One (sqrt W, asinh p, x = u/sqrt(2W)) CDF table replaces the per-star
+    256-point quadrature of the speed-marginal step of _sample_speed_angle:
+    weight x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2) per row (the (2W)^(3/2)
+    prefactor cancels in the relative row normalization; T's argument is
+    beta = p^2 u^2 / 2 = p^2 W x^2 in normalized coordinates). The angular
+    conditional cos(theta)|u stays EXACT and is not tabulated.
+    """
+
+    def _table(self, W_max=10.0, p_max=10.0, g=1.0, n_W=192, n_p=48, n_x=192):
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+        return AnisoSpeedCDFTable.build(W_max=W_max, p_max=p_max, g=g,
+                                        n_W=n_W, n_p=n_p, n_x=n_x)
+
+    def test_marginal_moments_match_df_quadrature(self):
+        """Per (W, p) in {0.5, 2, 5, 9} x {0, 0.5, 2, 8}: table-drawn <u> and
+        <u^2> (30k draws) match the DIRECT quadrature of the exact marginal
+        u^2 E_gamma(g, W - u^2/2) T(p^2 u^2 / 2) to 1.5% relative. At p=0
+        the marginal must reduce to the ISOTROPIC marginal: cross-check the
+        table-drawn moments against the SpeedCDFTable draw to 1%.
+
+        30k draws -> ~0.6% MC noise on <u>; the 1.5% gate sits ~2.5 sigma up.
+        """
+        from progenax.profiles.limepy import _angle_integral_T, lowered_exponential
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        g = 1.0
+        tab = self._table(W_max=10.0, p_max=10.0, g=g)
+        iso = SpeedCDFTable.build(W_max=10.0, g=g)
+        n = 30_000
+        i = 0
+        for W0 in (0.5, 2.0, 5.0, 9.0):
+            for p0 in (0.0, 0.5, 2.0, 8.0):
+                u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W0), 4001)
+                wgt = (u_grid**2
+                       * lowered_exponential(jnp.asarray(g), W0 - u_grid**2 / 2.0)
+                       * _angle_integral_T(p0**2 * u_grid**2 / 2.0))
+                norm = jnp.trapezoid(wgt, u_grid)
+                mean_q = float(jnp.trapezoid(u_grid * wgt, u_grid) / norm)
+                u2_q = float(jnp.trapezoid(u_grid**2 * wgt, u_grid) / norm)
+
+                unif = jax.random.uniform(jax.random.PRNGKey(3000 + i), (n,))
+                u = jax.vmap(tab.inverse, in_axes=(None, None, 0))(
+                    jnp.asarray(W0), jnp.asarray(p0), unif)
+                mean_t, u2_t = float(jnp.mean(u)), float(jnp.mean(u**2))
+                assert abs(mean_t - mean_q) / mean_q < 0.015, (
+                    f"W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}")
+                assert abs(u2_t - u2_q) / u2_q < 0.015, (
+                    f"W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}")
+
+                if p0 == 0.0:
+                    u_iso = jax.vmap(iso.inverse)(jnp.full((n,), W0), unif)
+                    mean_i = float(jnp.mean(u_iso))
+                    u2_i = float(jnp.mean(u_iso**2))
+                    assert abs(mean_t - mean_i) / mean_i < 0.01, (
+                        f"W={W0}, p=0: aniso <u> {mean_t:.4f} vs iso table {mean_i:.4f}")
+                    assert abs(u2_t - u2_i) / u2_i < 0.01, (
+                        f"W={W0}, p=0: aniso <u^2> {u2_t:.4f} vs iso table {u2_i:.4f}")
+                i += 1
+
+    @pytest.mark.parametrize("g", [0.0, 2.5, 3.5])
+    def test_high_g_low_W_rows_normalized(self, g):
+        """Every CDF row ends at exactly 1.0 for g in {0, 2.5, 3.5} -- the
+        Task-5 lesson applied from the start: the raw row total scales as W^g
+        (times the T suppression at large p), so relative normalization with
+        a 1e-6 row-W floor is required; an absolute regularizer would swamp
+        low-W high-g rows and corrupt draws near the truncation radius."""
+        tab = self._table(W_max=10.0, p_max=10.0, g=g, n_W=48, n_p=16, n_x=96)
+        ends = np.asarray(tab.cdf[..., -1])
+        np.testing.assert_array_equal(
+            ends, 1.0, err_msg=f"g={g}: CDF row ends range "
+            f"[{ends.min():.3e}, {ends.max():.3e}], expected exactly 1.0")
+
+    def test_differentiable(self):
+        """grad through the table BUILD (g) and through a drawn-speed
+        functional (velocity multiplier and W) are finite; the multiplier
+        gradient is nonzero."""
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+
+        W = jnp.linspace(0.3, 9.0, 32)
+        p = jnp.linspace(0.0, 8.0, 32)
+        unif = jax.random.uniform(jax.random.PRNGKey(11), (32,))
+        tab = self._table(n_W=64, n_p=16, n_x=64)
+
+        def mean_speed(scale):
+            return jnp.mean(scale * jax.vmap(tab.inverse)(W, p, unif))
+
+        d_scale = jax.grad(mean_speed)(jnp.asarray(1.0))
+        assert bool(jnp.isfinite(d_scale)) and float(d_scale) > 0.0
+
+        def mean_speed_g(g):
+            t = AnisoSpeedCDFTable.build(W_max=10.0, p_max=10.0, g=g,
+                                         n_W=32, n_p=12, n_x=48)
+            return jnp.mean(jax.vmap(t.inverse)(W, p, unif))
+
+        d_g = jax.grad(mean_speed_g)(jnp.asarray(1.0))
+        assert bool(jnp.isfinite(d_g)), f"d<u>/dg through the build: {d_g}"
+
+        def mean_speed_W(w0):
+            return jnp.mean(jax.vmap(tab.inverse, in_axes=(None, 0, 0))(w0, p, unif))
+
+        d_W = jax.grad(mean_speed_W)(jnp.asarray(4.0))
+        assert bool(jnp.isfinite(d_W))
+
+    def test_w_zero_draw_is_zero(self):
+        """W = 0 (truncation radius) draws u = 0, no NaN, at any p."""
+        tab = self._table(n_W=48, n_p=16, n_x=96)
+        u0 = jax.vmap(tab.inverse, in_axes=(None, 0, 0))(
+            jnp.asarray(0.0), jnp.array([0.0, 1.0, 5.0, 9.0]),
+            jnp.array([0.0, 0.3, 0.7, 1.0]))
+        np.testing.assert_array_equal(np.asarray(u0), 0.0)
+        assert bool(jnp.all(jnp.isfinite(u0)))

@@ -29,7 +29,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from progenax.profiles.limepy import _aniso_density_scalar, lowered_exponential
+from progenax.profiles.limepy import (
+    _angle_integral_T,
+    _aniso_density_scalar,
+    lowered_exponential,
+)
 
 
 def _cubic_lagrange_weights(t: Float[Array, ""]) -> Float[Array, "4"]:
@@ -192,4 +196,107 @@ class SpeedCDFTable(eqx.Module):
         return jnp.where(W > 1e-6, u, 0.0)
 
 
-__all__ = ["AnisoDensityTable", "SpeedCDFTable"]
+class AnisoSpeedCDFTable(eqx.Module):
+    """Anisotropic speed-MARGINAL inverse-CDF table u(W, p, unif) for fixed g
+    (Tranche B, Task 6).
+
+    Replaces the per-star 256-point quadrature of the speed-marginal step of
+    `_sample_speed_angle` (u^2 E_gamma(g, W - u^2/2) T(p^2 u^2 / 2) on
+    [0, sqrt(2W)]) with ONE precomputed 3-D table in normalized coordinates
+    x = u / sqrt(2W) in [0, 1] on a (sqrt W, asinh p) grid:
+
+        u^2 E T du = (2W)^(3/2) x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2) dx,
+
+    so the W-only prefactor cancels in the relative row normalization and
+    each (sqrt W, asinh p) row stores the CDF of
+    x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2) alone (T's argument: beta =
+    p^2 u^2 / 2 = p^2 W x^2). The angular conditional cos(theta)|u is NOT
+    tabulated -- it stays exact (`_sample_costheta_given_u`, cheap exp
+    arithmetic). Axis choices mirror AnisoDensityTable (sqrt W stretches the
+    W -> 0 power law; asinh p gives log-like large-p resolution) and the
+    SpeedCDFTable normalization lesson applies: a 1e-6 row-W floor keeps raw
+    row totals (~W^g, further T-suppressed at large p) far above float64
+    underflow so plain relative division ends every row's CDF at exactly 1.0.
+    """
+
+    s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
+    q_nodes: Float[Array, "n_p"]  # asinh(p) nodes, uniform on [0, asinh(p_max)]
+    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W) nodes, uniform on [0, 1]
+    cdf: Float[Array, "n_W n_p n_x"]  # normalized speed-marginal CDF per row
+
+    @classmethod
+    def build(cls, W_max, p_max, g, n_W: int = 192, n_p: int = 48,
+              n_x: int = 192):
+        """Tabulate normalized speed-marginal CDFs on the (sqrt W, asinh p, x)
+        grid (1.8M float64 = 14 MB at the defaults).
+
+        Maps over sqrt(W) rows with `jax.lax.map` (scan-based, differentiable):
+        a fully batched build would materialize the (n_W, n_p, n_x, 91)
+        Poisson-sum intermediate of `_angle_integral_T` (~1.3 GB at the
+        defaults) -- the AnisoDensityTable build lesson. W_max gets the x1.001
+        safety factor so in-domain queries never clamp. Differentiable in g
+        and (W_max, p_max) through the nodes; the W = 0 row is floored to
+        W = 1e-6 (the `inverse` draw-guard threshold, see SpeedCDFTable).
+        """
+        s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
+        q = jnp.linspace(0.0, jnp.arcsinh(jnp.asarray(p_max)), n_p)
+        x = jnp.linspace(0.0, 1.0, n_x)
+        W = jnp.maximum(s**2, 1e-6)  # W=0-row floor at the draw guard
+        p = jnp.sinh(q)
+
+        def row(w):
+            E = lowered_exponential(g, w * (1.0 - x**2))  # (n_x,)
+            T = _angle_integral_T(p[:, None] ** 2 * w * x[None, :] ** 2)
+            wgt = jnp.maximum(x[None, :] ** 2 * E[None, :] * T, 0.0)
+            dx = x[1] - x[0]
+            c = jnp.concatenate(
+                [jnp.zeros((n_p, 1)),
+                 jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx],
+                axis=1,
+            )
+            # Relative normalization: the 1e-6 W floor keeps every row total
+            # strictly positive (>= O(1e-23) at g = 3.5, further suppressed
+            # only polynomially by T at large p), so the division is exact to
+            # an ulp and differentiable. Inside lax.map XLA rewrites x/x as
+            # x * (1/x) (1 ulp short of 1.0), so pin the last column to its
+            # mathematically identical value 1.0 (true gradient there is 0).
+            c = c / c[:, -1:]
+            return c.at[:, -1].set(1.0)
+
+        cdf = jax.lax.map(row, W)
+        return cls(s_nodes=s, q_nodes=q, x_nodes=x, cdf=cdf)
+
+    def inverse(self, W, p, unif):
+        """Inverse-CDF draw: unit speed u in [0, sqrt(2W)] at potential W and
+        anisotropy parameter p = r/r_a from the uniform variate unif in [0, 1].
+        Scalar in, scalar out; vmap over stars. Differentiable in (W, p) and
+        in g through the stored CDF rows.
+
+        Locates the (sqrt W, asinh p) cell, inverse-interpolates the FOUR
+        neighboring rows' CDFs at unif, bilinearly lerps the four x results,
+        and rescales u = x sqrt(2W). (W, p) clamp to the table box; W <= 1e-6
+        draws exactly 0 (matching _sample_speed_angle's bound guard).
+        """
+        # 1e-12 floor mirrors _sample_speed_angle: sqrt(0) has a NaN cotangent
+        # under jax.grad and the final where() masks only the primal.
+        W_safe = jnp.maximum(W, 1e-12)
+        s = jnp.clip(jnp.sqrt(W_safe), self.s_nodes[0], self.s_nodes[-1])
+        q = jnp.clip(jnp.arcsinh(jnp.maximum(p, 0.0)),
+                     self.q_nodes[0], self.q_nodes[-1])
+        hs = self.s_nodes[1] - self.s_nodes[0]  # uniform grids by construction
+        hq = self.q_nodes[1] - self.q_nodes[0]
+        i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
+        j = jnp.clip(jnp.searchsorted(self.q_nodes, q) - 1, 0, self.q_nodes.size - 2)
+        ts = jnp.clip((s - self.s_nodes[i]) / hs, 0.0, 1.0)
+        tq = jnp.clip((q - self.q_nodes[j]) / hq, 0.0, 1.0)
+        rows = jax.lax.dynamic_slice(self.cdf, (i, j, jnp.asarray(0, i.dtype)),
+                                     (2, 2, self.x_nodes.size))
+        x4 = jax.vmap(lambda c: jnp.interp(unif, c, self.x_nodes))(
+            rows.reshape(4, -1))
+        x = ((1.0 - ts) * (1.0 - tq) * x4[0] + (1.0 - ts) * tq * x4[1]
+             + ts * (1.0 - tq) * x4[2] + ts * tq * x4[3])
+        u = x * jnp.sqrt(2.0 * W_safe)
+        return jnp.where(W > 1e-6, u, 0.0)
+
+
+__all__ = ["AnisoDensityTable", "AnisoSpeedCDFTable", "SpeedCDFTable"]
