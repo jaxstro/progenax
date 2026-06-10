@@ -88,7 +88,11 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
                     f"edge is part of the prescribed physics -- raise the override "
                     f"to >= the King r_t or drop it."
                 )
-        return rt_arr, f"override (explicit r_t={float(rt_arr):.6g})"
+        # Provenance carries the RULE only, never the float value: the string
+        # is a STATIC PyTree field, so embedding the number would give models
+        # differing only in r_t distinct treedefs (per-value recompiles,
+        # vmap/stack breakage). The value itself is dynamic data (the r_t field).
+        return rt_arr, "override (explicit r_t)"
 
     finite = [(j, p, ext) for j, (p, ext) in enumerate(zip(profiles, extents)) if ext is not None]
     if finite:
@@ -117,7 +121,9 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
 
     (lo, hi), _ = jax.lax.scan(step, (jnp.zeros(()), hi0), None, length=80)
     rt_arr = 0.5 * (lo + hi)
-    return rt_arr, f"f_enc={f_enc} summed-mass radius (all components infinite)"
+    # Rule-only provenance (static field; f_enc is a constructor argument, not
+    # re-embedded here -- see the override branch's treedef rationale).
+    return rt_arr, "f_enc summed-mass radius (all components infinite)"
 
 
 def _king_drho_dW(W: Float[Array, "..."]) -> Float[Array, "..."]:

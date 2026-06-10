@@ -106,9 +106,19 @@ def sample_speed_from_f_table(
     """Sample one speed s ~ s^2 f(Psi_r - s^2/2) on [0, sqrt(2 Psi_r)].
 
     Differentiable tabulated inverse-CDF on a fixed grid. Returns 0 where the local
-    binding potential Psi_r <= 0 (escape speed vanishes, e.g. at/outside r_t).
+    binding potential Psi_r <= ~0 (escape speed vanishes, e.g. at/outside r_t).
+
+    Both numerical thresholds are RELATIVE to the table's energy scale
+    E_grid[-1] (~0.999 Psi0 by the eddington_invert grid convention), never
+    absolute: the sqrt floor is 1e-12 * E_scale and the zero-speed cutoff is
+    Psi_r > 1e-6 * E_scale. Engine B tables live in physical units where
+    Psi0 ~ 1/length (PlummerProfile(r_h=1e4 pc) -> Psi0 = 1.2e-4), so absolute
+    thresholds silently zeroed outer-star speeds; relative thresholds make the
+    draw exactly equivariant under a uniform energy rescale
+    (E' = lam E, Psi' = lam Psi  =>  s' = sqrt(lam) s).
     """
-    Psi_safe = jnp.maximum(Psi_r, 1e-12)
+    E_scale = E_grid[-1]
+    Psi_safe = jnp.maximum(Psi_r, 1e-12 * E_scale)
     w_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_safe), n_w)
     f_at = jnp.interp(Psi_r - w_grid**2 / 2.0, E_grid, f_grid)
     p = jnp.maximum(w_grid**2 * f_at, 0.0)
@@ -116,7 +126,7 @@ def sample_speed_from_f_table(
     cdf = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (p[1:] + p[:-1])) * dw])
     cdf = cdf / (cdf[-1] + 1e-30)
     s = jnp.interp(jax.random.uniform(key), cdf, w_grid)
-    return jnp.where(Psi_r > 1e-6, s, 0.0)
+    return jnp.where(Psi_r > 1e-6 * E_scale, s, 0.0)
 
 
 def assign_om_directions(

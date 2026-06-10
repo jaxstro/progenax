@@ -228,7 +228,20 @@ class MultiComponentCluster(eqx.Module):
 
     @property
     def rescale_j(self) -> Float[Array, "n_comp"]:
-        """Per-component potential-depth rescaling rescale_j = w_j^-2."""
+        """Per-component potential-depth rescaling rescale_j = w_j^-2 (Engine A).
+
+        Engine B models have no w_j -- their per-component DFs are Eddington
+        inversions of prescribed densities, not rescaled lowered isothermals --
+        so the concept is physically meaningless there: raises ValueError
+        instead of silently returning the NaN tripwire w_j ** -2.
+        """
+        if self.engine == "B":
+            raise ValueError(
+                "rescale_j (= w_j^-2) is an Engine A (lowered-isothermal) "
+                "quantity; this model is Engine B (from_density_profiles), "
+                "which has no per-component velocity-scale ratio w_j. The "
+                "Engine B per-component state lives on self.engine_b "
+                "(f_j_grid, mass_fractions, r_a_j, ...).")
         return self.w_j ** -2.0
 
     @classmethod
@@ -401,7 +414,26 @@ class MultiComponentCluster(eqx.Module):
         return jnp.stack(Qs)
 
     def total_density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Total (mass-weighted) volume density sum_j alpha_j rho_hat_j(r), 0 outside r_t."""
+        """Total dimensionless volume density at r (engine-dispatched), 0 outside r_t.
+
+        Engine A: sum_j alpha_j rho_hat_j(r) -- the model's dimensionless
+        density in the LIMEPY convention (each rho_hat_j normalized to its
+        central value, alpha_j the central density fractions), so the total is
+        1 at the center. Engine B (previously a silent NaN: the A formula on
+        the NaN tripwire fields): the PRESCRIBED total density interpolated
+        from the stored Poisson-grid rows sum_j engine_b.rho_j_poisson, each
+        component mass-normalized to its mass fraction (G = 1, total
+        dimensionless mass 1: 4 pi int_0^{r_t} rho r^2 dr = 1). The two
+        engines' amplitudes are therefore DIFFERENT dimensionless conventions
+        (A: unit central density; B: unit total mass) -- shapes are comparable,
+        amplitudes are not.
+        """
+        if self.engine == "B":
+            rho_tot = jnp.sum(self.engine_b.rho_j_poisson, axis=0)
+            r1 = jnp.atleast_1d(jnp.asarray(r))
+            tot = jnp.interp(r1, self.engine_b.r_poisson, rho_tot,
+                             left=rho_tot[0], right=0.0).reshape(jnp.shape(r))
+            return jnp.where(r <= self.r_t, tot, 0.0)
         r1 = jnp.atleast_1d(jnp.asarray(r))
         psi_r = jnp.interp(r1 / self.r_c, self.xi_grid, self.psi_grid,
                            left=self.W0, right=0.0)

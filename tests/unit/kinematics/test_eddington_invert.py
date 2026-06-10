@@ -150,3 +150,39 @@ class TestPlummerAnalyticOracle:
         E1, f1 = eddington_invert(r, rho, drho, Psi, dPsi, r_a=None)
         E2, f2 = eddington_invert(r, rho, drho, Psi, dPsi, r_a=jnp.inf)
         np.testing.assert_array_equal(np.asarray(f1), np.asarray(f2))
+
+
+class TestSpeedSamplerScaleRelativeThresholds:
+    """F3 (code-review batch 2026-06-10): sample_speed_from_f_table thresholds.
+
+    The Psi floor and the zero-speed cutoff must be RELATIVE to the table's
+    energy scale E_grid[-1] (~0.999 Psi0), never absolute: Engine B tables are
+    in physical units where Psi0 ~ 1/length (PlummerProfile(r_h=1e4 pc) ->
+    Psi0 = 1.2e-4), so the old absolute cutoff Psi_r > 1e-6 silently zeroed
+    speeds. Sampling must be exactly equivariant under a uniform energy
+    rescale: E' = lam*E, Psi' = lam*Psi  =>  s' = sqrt(lam) s.
+    """
+
+    def _table(self, lam):
+        Psi0 = 1.0 * lam
+        E = jnp.linspace(1e-4 * Psi0, 0.999 * Psi0, 400)
+        f = (E / Psi0) ** 3.5  # Plummer-shaped ergodic DF (shape-only)
+        return E, f
+
+    @pytest.mark.parametrize("lam", [1e-8, 1e-4, 1e8])
+    def test_speeds_scale_exactly_with_sqrt_energy(self, lam):
+        import jax
+        from progenax.kinematics.eddington import sample_speed_from_f_table
+
+        keys = jax.random.split(jax.random.PRNGKey(0), 64)
+        E1, f1 = self._table(1.0)
+        El, fl = self._table(lam)
+        Psi1 = jnp.linspace(0.05, 0.95, 64)  # interior binding potentials
+        s1 = jax.vmap(
+            lambda k, p: sample_speed_from_f_table(k, p, E1, f1))(keys, Psi1)
+        sl = jax.vmap(
+            lambda k, p: sample_speed_from_f_table(k, p, El, fl))(keys, lam * Psi1)
+        assert bool(jnp.all(s1 > 0.0))
+        assert bool(jnp.all(sl > 0.0)), "rescaled table produced spurious zero speeds"
+        np.testing.assert_allclose(np.asarray(sl),
+                                   np.asarray(jnp.sqrt(lam) * s1), rtol=1e-10)

@@ -741,6 +741,112 @@ class TestEngineB:
         v2_2 = float(jnp.mean(jnp.sum(ic2.velocities**2, axis=1)))
         np.testing.assert_allclose(v2_2 / v2_1, 2.0, rtol=1e-12)
 
+    # ---- code-review fix batch (2026-06-10): F1-F6 ----
+
+    def test_zero_anisotropy_radius_raises(self):
+        """F1a: r_a_j = 0 is not a model -- the OM augmented-density weight
+        1 + r^2/r_a^2 diverges as r_a -> 0; previously this built silently
+        with a non-finite f table and sample_cluster returned NaN velocities."""
+        with pytest.raises(ValueError, match=r"r_a_j\[0\]"):
+            self._model(r_a_j=jnp.array([0.0, jnp.inf]))
+
+    def test_zero_mass_fraction_raises(self):
+        """F1a: a 0.0 mass fraction is a user bug (the component should be
+        omitted); its f_j == 0 row previously fed 0/0 normalizations."""
+        with pytest.raises(ValueError, match=r"mass_fractions\[1\]"):
+            self._model(mass_fractions=jnp.array([1.0, 0.0]))
+
+    def test_nan_df_refused_with_nonfinite_message(self):
+        """F1b: the realizability gate is NaN-aware. float(nan) < threshold is
+        False, so a non-finite DF (here from a NaN profile parameter) used to
+        construct silently; it must refuse with its OWN message naming the
+        component."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        with pytest.raises(ValueError, match="(?i)non-finite"):
+            MultiComponentCluster.from_density_profiles(
+                [PlummerProfile(r_h=jnp.nan)], jnp.array([1.0]),
+                m_j=jnp.array([1.0]), n_r=500, n_e=100, n_grid=100)
+
+    def test_component_length_mismatch_raises(self):
+        """F2: 2 profiles + 3 fractions (summing to 1) previously built a
+        potential from the wrong mass and the categorical emitted phantom
+        component ids whose gathers clamp. Every per-component input length
+        is named in the refusal."""
+        with pytest.raises(ValueError) as exc:
+            self._model(mass_fractions=jnp.array([0.5, 0.3, 0.2]))
+        msg = str(exc.value)
+        for fragment in ("profiles", "mass_fractions", "m_j"):
+            assert fragment in msg, f"{fragment!r} missing from: {msg}"
+        with pytest.raises(ValueError, match="m_j"):
+            self._model(m_j=jnp.array([0.5, 1.0, 2.0]))
+        with pytest.raises(ValueError, match="r_a_j"):
+            self._model(r_a_j=jnp.array([jnp.inf]))
+
+    @pytest.mark.parametrize("r_h", [1e4, 1e-2])
+    def test_extreme_scale_sampling_clean(self, r_h):
+        """F3: the speed-sampler thresholds are RELATIVE to the table's energy
+        scale. Engine B tables are in physical units (Psi0 ~ 1/length:
+        Psi0 = 1.2e-4 at r_h = 1e4 pc), so the old ABSOLUTE cutoff
+        (Psi_r > 1e-6) zeroed ~0.12% of the speeds at r_h = 1e4 (80% at 1e6).
+        Both extreme scales must sample finite velocities with ZERO exact-zero
+        speeds."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        m = MultiComponentCluster.from_density_profiles(
+            [PlummerProfile(r_h=r_h)], jnp.array([1.0]), m_j=jnp.array([1.0]),
+            n_r=2000, n_e=400, n_grid=400)
+        ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=20000, G=G)
+        assert bool(jnp.all(jnp.isfinite(ic.velocities)))
+        speed = jnp.linalg.norm(ic.velocities, axis=1)
+        n_zero = int(jnp.sum(speed == 0.0))
+        assert n_zero == 0, f"{n_zero} exact-zero speeds at r_h={r_h}"
+
+    def test_engine_b_total_density_is_prescribed_density(self):
+        """F4: total_density dispatches on the engine (it used to evaluate the
+        Engine-A formula on the NaN tripwires -> silent NaN). The B branch
+        returns the prescribed mass-normalized dimensionless total density:
+        finite and positive inside r_t, zero outside, 4 pi int rho r^2 dr = 1."""
+        m = self._model()
+        r_in = jnp.linspace(1e-3, float(m.r_t) * 0.999, 512)
+        rho_in = m.total_density(r_in)
+        assert bool(jnp.all(jnp.isfinite(rho_in)))
+        assert bool(jnp.all(rho_in > 0.0))
+        r_out = jnp.array([float(m.r_t) * 1.001, 2.0 * float(m.r_t)])
+        np.testing.assert_array_equal(np.asarray(m.total_density(r_out)), 0.0)
+        r = jnp.linspace(1e-4, float(m.r_t), 4000)
+        mass = 4.0 * jnp.pi * jnp.trapezoid(m.total_density(r) * r**2, r)
+        assert abs(float(mass) - 1.0) < 5e-3, f"dimensionless mass {float(mass)}"
+
+    def test_engine_b_rescale_j_raises(self):
+        """F4: rescale_j = w_j^-2 is an Engine-A quantity; on B it used to
+        return the NaN tripwire silently -- it must refuse, naming the engine
+        and pointing at the engine_b field group."""
+        m = self._model()
+        with pytest.raises(ValueError, match="(?i)engine b"):
+            m.rescale_j
+
+    def test_treedef_independent_of_rt_override_value(self):
+        """F5: provenance strings carry the RULE only, never the float value --
+        two models differing only in the override r_t share ONE treedef (no
+        per-value recompiles; vmap/stack over models works)."""
+        kw = dict(profiles=[PlummerProfile(r_h=2.0)],
+                  mass_fractions=jnp.array([1.0]), m_j=jnp.array([1.0]),
+                  n_r=2000, n_e=300, n_grid=200)  # n_r >= 2000: gate-clean here
+        m20 = self._model(r_t=20.0, **kw)
+        m21 = self._model(r_t=21.0, **kw)
+        assert "override" in m20.engine_b.r_t_provenance
+        assert (jax.tree_util.tree_structure(m20)
+                == jax.tree_util.tree_structure(m21))
+
+    def test_is_aniso_truthful_for_engine_b(self):
+        """F6: is_aniso reports the model's OM content (it was hardcoded False
+        for every B model). The B sampler never reads it (sampling.py branches
+        on engine first), so this is an introspection-truth fix only."""
+        assert self._model().is_aniso is False
+        m_om = self._model(r_a_j=jnp.array([3.0, jnp.inf]))  # realizable OM halo
+        assert m_om.is_aniso is True
+
     def test_om_directions_scalar_equals_array(self):
         """assign_om_directions regression for the Task 4 per-star r_a ARRAY
         extension: an array of one repeated scalar is BIT-IDENTICAL to the

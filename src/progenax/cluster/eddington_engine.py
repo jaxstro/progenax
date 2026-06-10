@@ -53,6 +53,37 @@ def _is_concrete(x) -> bool:
         return False
 
 
+def _validate_engine_b_inputs(profiles, mass_fractions, r_a_j):
+    """Refuse (concrete inputs) the constructions that silently poison f tables.
+
+    r_a_j = 0 makes the Osipkov-Merritt augmented-density weight 1 + r^2/r_a^2
+    infinite (every orbit infinitely radial -- not a DF limit), and a zero
+    mass fraction yields f_j == 0 whose max|f_j| normalizations are 0/0; both
+    used to slip past the realizability gate (NaN compares False) and surface
+    only as NaN velocities from sample_cluster. NaN inputs fail the same
+    strict-positivity checks. Traced entries skip (two-tier contract:
+    grad/jit builds never raise; diagnostics are always stored).
+    """
+    for j in range(len(profiles)):
+        mf = mass_fractions[j]
+        if _is_concrete(mf) and not (float(mf) > 0.0):
+            raise ValueError(
+                f"mass_fractions[{j}] = {float(mf)!r} must be strictly positive: "
+                f"it is the M_j/M_total amplitude of component {j} "
+                f"({type(profiles[j]).__name__}). A zero fraction means the "
+                f"component carries no mass -- omit it from the profile list "
+                f"instead (its Eddington DF would be identically zero, and "
+                f"relative-amplitude normalizations divide by max|f_j|).")
+        ra = r_a_j[j]
+        if _is_concrete(ra) and not (float(ra) > 0.0):
+            raise ValueError(
+                f"r_a_j[{j}] = {float(ra)!r} must be > 0 (jnp.inf = isotropic) "
+                f"for component {j} ({type(profiles[j]).__name__}): the "
+                f"Osipkov-Merritt augmented-density weight 1 + r^2/r_a^2 "
+                f"diverges as r_a -> 0 (every orbit purely radial is not a "
+                f"DF limit), producing a non-finite f table.")
+
+
 class _EngineBState(eqx.Module):
     """Engine B tables + diagnostics (one field group on MultiComponentCluster).
 
@@ -120,6 +151,7 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
     """
     mass_fractions = jnp.asarray(mass_fractions, dtype=jnp.float64)
     r_a_j = jnp.asarray(r_a_j, dtype=jnp.float64)
+    _validate_engine_b_inputs(profiles, mass_fractions, r_a_j)
 
     r_t_arr, prov = derive_r_t(profiles, mass_fractions, r_t=r_t, f_enc=f_enc)
     pot = shared_potential(profiles, mass_fractions, r_t_arr, n_r=n_r,
@@ -158,13 +190,29 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
     f_min_j = jnp.stack(f_min_rows)
 
     # GENUINE-negativity gate (design decision 3): concrete inputs refuse loudly.
+    # NaN-AWARE: the test is NOT (fm > threshold), so a NaN diagnostic (which
+    # fails every comparison -- float(nan) < threshold is False, the old
+    # NaN-blind hole) refuses exactly like genuine negativity, with its own
+    # message. Traced builds still skip the raise and store f_min_j.
     for j in range(len(profiles)):
         fm = f_min_j[j]
-        if _is_concrete(fm) and float(fm) < _F_MIN_GENUINE:
+        if not _is_concrete(fm):
+            continue
+        fm_f = float(fm)
+        if not (fm_f > _F_MIN_GENUINE):
+            if fm_f != fm_f:  # NaN
+                raise ValueError(
+                    f"Engine B build produced a NON-FINITE Eddington DF for "
+                    f"component {j} ({type(profiles[j]).__name__}): "
+                    f"min f / max|f| is NaN. Common causes: a NaN or invalid "
+                    f"profile parameter (scale/radius/W0), a non-positive "
+                    f"mass fraction, or r_a_j <= 0 -- check this component's "
+                    f"inputs."
+                )
             raise ValueError(
                 f"Engine B realizability failure: component {j} "
                 f"({type(profiles[j]).__name__}) has a genuinely negative "
-                f"Eddington DF (min f / max|f| = {float(fm):.3e} < "
+                f"Eddington DF (min f / max|f| = {fm_f:.3e} < "
                 f"{_F_MIN_GENUINE:g}). This component's {_REMEDY}."
             )
 
@@ -306,6 +354,21 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
     mass_fractions = jnp.asarray(mass_fractions, dtype=jnp.float64)
     m_arr = jnp.asarray(m_j, dtype=jnp.float64)
     n_comp = len(profiles)
+
+    # Per-component input lengths must agree BEFORE any computation: a fraction
+    # vector longer than the profile list builds the potential from the wrong
+    # total mass, and the categorical draw emits phantom component ids whose
+    # gathers silently clamp to the last real component.
+    lens = {"profiles": n_comp, "mass_fractions": len(mass_fractions),
+            "m_j": len(m_arr)}
+    if r_a_j is not None:
+        lens["r_a_j"] = len(jnp.asarray(r_a_j, dtype=jnp.float64))
+    if len(set(lens.values())) > 1:
+        raise ValueError(
+            "Engine B per-component inputs must share one length (entry j is "
+            "ONE component); got "
+            + ", ".join(f"len({name}) = {n}" for name, n in lens.items()) + ".")
+
     ra_arr = (jnp.full((n_comp,), jnp.inf, dtype=jnp.float64) if r_a_j is None
               else jnp.asarray(r_a_j, dtype=jnp.float64))
 
@@ -320,6 +383,16 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
                         jnp.interp(r_grid, pot.r_grid, pot.Psi_grid))
     N_frac = (mass_fractions / m_arr) / jnp.sum(mass_fractions / m_arr)
 
+    # is_aniso reports the model's OM content TRUTHFULLY (it is a static field,
+    # decided here at assembly from the concrete constructor argument: ra_arr
+    # defaults to an inf array). The B sampler never reads it -- sampling.py
+    # dispatches on engine == "B" first -- so this is introspection truth, not
+    # a sampling switch. If r_a_j ever arrives traced, bool() would raise a
+    # ConcretizationTypeError; a static flag cannot follow a traced value, so
+    # default False under tracing (engine_b.r_a_j carries the real values).
+    any_finite_ra = jnp.any(jnp.isfinite(ra_arr))
+    is_aniso = bool(any_finite_ra) if _is_concrete(any_finite_ra) else False
+
     nan = jnp.asarray(jnp.nan, dtype=jnp.float64)
     nan_j = jnp.full((n_comp,), jnp.nan, dtype=jnp.float64)
     nan_2 = jnp.full((2,), jnp.nan, dtype=jnp.float64)
@@ -332,9 +405,9 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
         r_t=jnp.asarray(pot.r_t, dtype=jnp.float64), m_j=m_arr,
         N_frac_j=N_frac, residual=jnp.zeros((), dtype=jnp.float64),
         _r_grid=r_grid, _cdf_j=cdf_j,
-        # Engine dispatch: is_aniso is the A sampler's static switch only;
-        # Engine B dispatches on `engine` (Task 4) and carries r_a_j itself.
-        is_aniso=False, engine="B", engine_b=state,
+        # Engine dispatch: Engine B dispatches on `engine` (Task 4) and carries
+        # r_a_j itself; is_aniso (see above) is truthful introspection.
+        is_aniso=is_aniso, engine="B", engine_b=state,
     )
 
 
