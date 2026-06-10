@@ -50,6 +50,7 @@ project:
     - title: Getting started
       children:
         - file: 00-getting-started/index.md
+        - file: 00-getting-started/science-capabilities.md
         - file: 00-getting-started/installation.md
         - file: 00-getting-started/whats-new.md
         - file: 00-getting-started/first-plummer-sphere.md
