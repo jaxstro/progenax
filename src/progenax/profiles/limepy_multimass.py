@@ -151,10 +151,14 @@ def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method):
 
     "quadrature": the exact oracle path, verbatim; rhs_fn is None (the caller
     builds its closure RHS as before). Both paths are differentiable in
-    (alpha_j, rescale, ra_j, W0, g).
+    (rescale, ra_j); W0/g/alpha_j differentiability is inherited from the table
+    build and solver grad tests.
     """
     if aniso_method == "table":
-        tab = _build_density_table(jnp.max(rescale) * W0, xi_max / jnp.min(ra_j), g,
+        # All-inf ra_j (degenerate all-isotropic input; the caller's iso convention
+        # is ra_hat_j=None) would give p_max = 0 -> zero-width q grid -> NaN; floor it.
+        p_max = jnp.maximum(xi_max / jnp.min(ra_j), 1e-3)
+        tab = _build_density_table(jnp.max(rescale) * W0, p_max, g,
                                    n_W=_TAB_N_W, n_p=_TAB_N_P)
         rho0_j = jax.vmap(lambda res: tab.evaluate(res * W0, jnp.asarray(0.0)))(rescale)
         rhs_fn = _TableRHS(alpha_j, rescale, ra_j, rho0_j, tab)
@@ -284,6 +288,7 @@ def solve_multimass_limepy(
     n_points: int = 2000,
     ra_hat: float | None = None,
     eta: float = 0.0,
+    aniso_method: str = "table",
 ) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
     """Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
 
@@ -292,9 +297,11 @@ def solve_multimass_limepy(
     density-weighted mean mass, Eq. 26), and per-component anisotropy radius
     hat_r_{a,j} = ra_hat * mu_j^eta (eta=0 = mass-independent, the paper default). At
     delta=0 every rescaling is 1 -- identical to solve_limepy_profile. ra_hat=None is the
-    (fast) isotropic case.
+    (fast) isotropic case. aniso_method ("table" default, "quadrature" oracle) is passed
+    through to solve_multicomponent_limepy; ignored when ra_hat is None.
 
-    JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max static.
+    JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max,
+    aniso_method static.
 
     Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
     """
@@ -305,7 +312,8 @@ def solve_multimass_limepy(
     rescale_j = mu_j ** (2.0 * delta)  # mu_j^(2 delta) per component
     ra_hat_j = None if ra_hat is None else ra_hat * mu_j ** eta
     return solve_multicomponent_limepy(
-        alpha_j, rescale_j, W0, g, xi_max=xi_max, n_points=n_points, ra_hat_j=ra_hat_j
+        alpha_j, rescale_j, W0, g, xi_max=xi_max, n_points=n_points, ra_hat_j=ra_hat_j,
+        aniso_method=aniso_method,
     )
 
 
@@ -319,11 +327,13 @@ def _realized_fractions(
     n_points: int,
     ra_hat=None,
     eta: float = 0.0,
+    aniso_method: str = "table",
 ) -> Float[Array, "n_comp"]:
     """Realized mass fractions f_j' = alpha_j nu_j / sum_k alpha_k nu_k from a coupled
     solve, nu_j = int rho_hat_j xi^2 dxi (the per-component dimensionless mass)."""
     xi, _, rho_j = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_points,
-                                          ra_hat=ra_hat, eta=eta)
+                                          ra_hat=ra_hat, eta=eta,
+                                          aniso_method=aniso_method)
     nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
     M_real = alpha_j * nu_j
     return M_real / (jnp.sum(M_real) + 1e-300)
@@ -340,6 +350,7 @@ def find_alpha_for_masses(
     n_points: int = 2000,
     ra_hat=None,
     eta: float = 0.0,
+    aniso_method: str = "table",
 ) -> Tuple[Float[Array, "n_comp"], Float[Array, ""]]:
     """Find the central density fractions alpha_j that reproduce target masses M_j (Layer B).
 
@@ -353,10 +364,16 @@ def find_alpha_for_masses(
     jax.lax.scan (never while_loop) so the whole solve is differentiable in (M_j, delta,
     g, W0). Starts from alpha_j = f_j.
 
+    The eigenvalue iteration deliberately uses the SAME aniso_method as the final
+    solve (default "table") so the converged alpha_j are self-consistent with the
+    model actually built; the residual remains a reported diagnostic. Pass
+    aniso_method="quadrature" for the exact oracle path.
+
     Args:
         m_j: component representative masses. M_j: target mass per component.
         W0, g, delta: model parameters. n_iter: fixed iteration count.
-        xi_max, n_points: ODE grid (static).
+        xi_max, n_points: ODE grid (static). aniso_method: density-source path
+        ("table" default, "quadrature" oracle; static, ignored when ra_hat is None).
 
     Returns:
         (alpha_j, residual): converged central density fractions (sum to 1, positive)
@@ -366,13 +383,15 @@ def find_alpha_for_masses(
     f_target = jnp.asarray(M_j) / jnp.sum(jnp.asarray(M_j))
 
     def step(alpha, _):
-        f_real = _realized_fractions(alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta)
+        f_real = _realized_fractions(alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat,
+                                     eta, aniso_method)
         alpha_new = alpha * jnp.sqrt(f_target / (f_real + 1e-300))
         alpha_new = alpha_new / jnp.sum(alpha_new)
         return alpha_new, None
 
     alpha_final, _ = jax.lax.scan(step, f_target, None, length=n_iter)
-    f_real = _realized_fractions(alpha_final, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta)
+    f_real = _realized_fractions(alpha_final, m_j, W0, g, delta, xi_max, n_points, ra_hat,
+                                 eta, aniso_method)
     residual = jnp.max(jnp.abs(f_real - f_target))
     return alpha_final, residual
 

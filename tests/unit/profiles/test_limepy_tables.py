@@ -132,21 +132,39 @@ class TestTableBackedSolver:
     """solve_multicomponent_limepy(aniso_method='table') reproduces the exact
     quadrature solve to the stated budget and is the new default."""
 
-    def _solve(self, method):
+    def _solve(self, method, W0=7.0, rescale=(1.0, 1.6), ra=(10.0, 10.0),
+               xi_max=800.0, n_points=2000):
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
         return solve_multicomponent_limepy(
-            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), W0=7.0, g=1.0,
-            xi_max=800.0, n_points=2000, ra_hat_j=jnp.array([10.0, 10.0]),
+            jnp.array([0.6, 0.4]), jnp.array(rescale), W0=W0, g=1.0,
+            xi_max=xi_max, n_points=n_points, ra_hat_j=jnp.array(ra),
             aniso_method=method)
 
-    def test_table_solve_matches_quadrature_solve(self):
+    @pytest.mark.parametrize(
+        "W0, rescale, ra, xi_max, n_points",
+        [
+            # baseline (measured max|dpsi| 8.9e-5 vs budget 7e-4, 2026-06)
+            (7.0, (1.0, 1.6), (10.0, 10.0), 800.0, 2000),
+            # stronger anisotropy, shallower well (measured 1.14e-4 vs 5e-4)
+            pytest.param(5.0, (1.0, 1.6), (5.0, 5.0), 800.0, 2000,
+                         marks=pytest.mark.slow),
+            # deep well, wide rescale span, huge box (measured 1.93e-4 vs 9e-4)
+            pytest.param(9.0, (1.0, 2.2), (40.0, 40.0), 5000.0, 3000,
+                         marks=pytest.mark.slow),
+        ],
+    )
+    def test_table_solve_matches_quadrature_solve(self, W0, rescale, ra,
+                                                  xi_max, n_points):
         """|psi_table - psi_quad| <= 1e-4 * W0 everywhere; per-component
         densities match to 2e-4 absolute (normalized units)."""
-        xi_q, psi_q, rho_q = self._solve("quadrature")
-        xi_t, psi_t, rho_t = self._solve("table")
+        kw = dict(W0=W0, rescale=rescale, ra=ra, xi_max=xi_max, n_points=n_points)
+        xi_q, psi_q, rho_q = self._solve("quadrature", **kw)
+        xi_t, psi_t, rho_t = self._solve("table", **kw)
         np.testing.assert_allclose(np.asarray(xi_t), np.asarray(xi_q), rtol=0)
-        assert float(jnp.max(jnp.abs(psi_t - psi_q))) <= 1e-4 * 7.0
-        assert float(jnp.max(jnp.abs(rho_t - rho_q))) <= 2e-4
+        dpsi = float(jnp.max(jnp.abs(psi_t - psi_q)))
+        drho = float(jnp.max(jnp.abs(rho_t - rho_q)))
+        assert dpsi <= 1e-4 * W0, f"max|dpsi| {dpsi:.2e} > {1e-4 * W0:.1e}"
+        assert drho <= 2e-4, f"max|drho_j| {drho:.2e} > 2e-4"
 
     def test_table_is_default_and_iso_path_untouched(self):
         """Default aniso_method is 'table'; the ISOTROPIC path is bit-identical
@@ -174,6 +192,7 @@ class TestTableBackedSolver:
         assert jnp.all(jnp.isfinite(d_r)) and jnp.any(jnp.abs(d_r) > 0)
         assert jnp.all(jnp.isfinite(d_a)) and jnp.any(jnp.abs(d_a) > 0)
 
+    @pytest.mark.slow
     def test_table_solve_is_faster(self):
         """Warm table solve >= 3x faster than warm quadrature solve (the measured
         target is ~5-10x; assert a conservative 3x so the test is not flaky)."""

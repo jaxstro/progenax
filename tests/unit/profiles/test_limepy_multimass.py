@@ -187,6 +187,37 @@ class TestEigenvalueSolve:
         assert abs(float(jnp.sum(alpha_j)) - 1.0) < 1e-9
         assert bool(jnp.all(alpha_j > 0.0))
 
+    def test_anisotropic_realized_masses_match_targets(self):
+        """I1 gate: the eigenvalue solve must hit the mass budget on the ANISOTROPIC
+        path too, with the iteration using the SAME aniso_method as the final solve
+        (default "table") so the converged alpha_j are self-consistent with the model
+        actually built. Cross-checked against the exact-quadrature eigenvalue solve."""
+        from progenax.profiles.limepy_multimass import (
+            find_alpha_for_masses, solve_multimass_limepy,
+        )
+
+        m_j = jnp.array([0.5, 2.0])
+        M_j = jnp.array([1.0, 1.0])
+        alpha_j, residual = find_alpha_for_masses(
+            m_j, M_j, W0=5.0, g=1.0, delta=0.4, n_iter=20, xi_max=800.0,
+            n_points=1500, ra_hat=10.0,
+        )
+        assert float(residual) < 2e-3, f"aniso eigenvalue residual {float(residual):.2e}"
+        # independent recomputation of the realized mass fractions
+        xi, psi, rho_j = solve_multimass_limepy(
+            alpha_j, m_j, 5.0, 1.0, 0.4, 800.0, 1500, ra_hat=10.0)
+        nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
+        f_real = np.asarray(alpha_j * nu_j / jnp.sum(alpha_j * nu_j))
+        f_target = np.asarray(M_j / jnp.sum(M_j))
+        np.testing.assert_allclose(f_real, f_target, atol=3e-3)
+        # cross-method consistency: the exact-oracle eigenvalue solve lands on the
+        # same alpha_j (the table approximation does not bias the converged point)
+        alpha_q, _ = find_alpha_for_masses(
+            m_j, M_j, W0=5.0, g=1.0, delta=0.4, n_iter=20, xi_max=800.0,
+            n_points=1500, ra_hat=10.0, aniso_method="quadrature",
+        )
+        np.testing.assert_allclose(np.asarray(alpha_q), np.asarray(alpha_j), atol=2e-3)
+
     def test_differentiable_in_targets_and_delta(self):
         """Gradients flow through the fixed-iteration eigenvalue solve in (M_j, delta)
         -- target mass fractions and the equipartition degree are inferable."""
@@ -316,6 +347,18 @@ class TestDirectPerComponentScales:
             ra_hat_j=jnp.array([8.0, 8.0]))
         # anisotropy makes the model more radially extended (different potential profile)
         assert not np.allclose(np.asarray(psi_a), np.asarray(psi_i), atol=1e-3)
+
+    def test_all_inf_ra_hat_j_returns_finite_psi(self):
+        """M4 guard: all-isotropic ra_hat_j = [inf, inf] (the caller's iso convention
+        is ra_hat_j=None, but don't NaN if it arrives) must not collapse the table's
+        q grid to zero width -- psi stays finite on the table path."""
+        from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
+        xi, psi, rho_j = solve_multicomponent_limepy(
+            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), 7.0, 1.0,
+            xi_max=300.0, n_points=1000, ra_hat_j=jnp.array([jnp.inf, jnp.inf]))
+        assert bool(jnp.all(jnp.isfinite(psi)))
+        assert bool(jnp.all(jnp.isfinite(rho_j)))
 
     @pytest.mark.slow
     def test_differentiable_in_rescale(self):
