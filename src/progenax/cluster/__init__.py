@@ -1,37 +1,29 @@
 # progenax/src/progenax/cluster/__init__.py
 """
-Star cluster initial condition generator.
+Star cluster initial conditions: the unified multi-component equilibrium model
+plus the primordial (non-equilibrium) mass-segregation generator.
 
-This module provides tools for generating realistic initial conditions for
-star cluster simulations with optional mass segregation.
+Main Entry Points:
+    MultiComponentCluster: N populations in ONE self-consistent shared potential
+        (Engine A, lowered-isothermal/LIMEPY family) — mass segregation
+        (.from_mass_segregation), GC 1G/2G & halo+core (.from_components),
+        IMF-driven (.from_imf). Differentiable; samples to ICResult.
+    energy_sorted_segregation: Baumgardt+2008-style PRIMORDIAL segregation —
+        energy-ordered orbit assignment (not an equilibrium construction; the
+        fully-ordered state is a clean per-group equilibrium).
 
-Turbulent/fractal substructure ICs (the gravoturbulent + fractal-density-field
-pipeline) live in the experimental ``gravoturb_fdf`` package (follow-up paper),
-not in released progenax. The old subsystem modules (``fdf``, ``fdf_density``,
-``fdf_tail``, ``gravoturbulent``, ``fdf_config``, ``fdf_calibration``,
-``fdf_hyperparams``, and the ``gravoturb`` package) were removed in the 2026-06
-clean-room rewrite; their validated successors are in ``gravoturb_fdf``.
+Smooth single-population ICs are built with ``progenax.build_spatial_ic``
+(any SpatialProfile × VelocityDF). The legacy string-dispatch generator
+(``generate_cluster_ic``/``ClusterState``) and the ``lambda_seg`` blend were
+retired in the 2026-06 unified redesign (pre-launch, no backwards compat).
 
-Main Entry Point:
-    generate_cluster_ic: Generate complete cluster IC from parameters
-
-Data Classes:
-    ClusterState: Immutable container for masses, positions, velocities
-    SpatialStructureParams: Combined profile + structure parameters
-    MassSegregationLayer: Baumgardt+2008 mass segregation parameters
+Turbulent/fractal substructure ICs live in the experimental ``gravoturb_fdf``
+package (follow-up paper), not in released progenax.
 
 References:
+    Gieles & Zocchi (2015), MNRAS 454, 576 - LIMEPY family
     Baumgardt, De Marchi & Kroupa (2008), ApJ 685, 247
-    Küpper et al. (2011), MNRAS 417, 2300 - McLuster
 """
-
-from progenax.cluster.core import (
-    ClusterState,
-    MassSegregationLayer,
-    SpatialStructureParams,
-    generate_cluster_ic,
-    sample_velocities_for_profile,
-)
 
 from progenax.cluster.mass_segregation import energy_sorted_segregation
 from progenax.cluster.multicomponent import MultiComponentCluster
@@ -58,16 +50,10 @@ from progenax.cluster.turbulence import (
 )
 
 __all__ = [
-    # Core API
-    "ClusterState",
-    "MassSegregationLayer",
-    "SpatialStructureParams",
-    "generate_cluster_ic",
-    "sample_velocities_for_profile",
-    # Mass segregation
-    "energy_sorted_segregation",
     # Unified multi-component equilibrium model (Engine A)
     "MultiComponentCluster",
+    # Primordial (non-equilibrium) mass segregation
+    "energy_sorted_segregation",
     # Physical constants
     "G_KMS",
     "C_S_DEFAULT",

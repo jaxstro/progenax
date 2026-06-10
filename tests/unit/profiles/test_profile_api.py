@@ -47,3 +47,12 @@ def test_compute_profile_potential_negative_and_finite(name, kw):
 def test_compute_profile_potential_unknown_raises():
     with pytest.raises(ValueError, match="Unknown profile"):
         compute_profile_potential(jnp.zeros((2, 3)), "hernquist", M_total=1.0, R_half=1.0, G=STELLAR.G)
+
+
+def test_sample_density_profile_median_tracks_R_half():
+    """Quantitative sampling check (ported from the retired test_cluster_ic.py):
+    at N=1e4 the Plummer sample median radius converges on the true half-mass
+    radius to <5% (~6 sigma of the median's seed scatter)."""
+    pos = sample_density_profile(jax.random.PRNGKey(789), 10000, "plummer", R_half=2.0)
+    r_half_measured = jnp.median(jnp.linalg.norm(pos, axis=1))
+    assert jnp.isclose(r_half_measured, 2.0, rtol=0.05)

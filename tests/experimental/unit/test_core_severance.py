@@ -44,17 +44,16 @@ def test_no_fractal_layer_in_released_api():
     assert "FractalLayer" not in getattr(cluster, "__all__", [])
 
 
-def test_spatial_structure_params_has_no_fractal_field():
-    """SpatialStructureParams exposes only base_profile + mass_segregation."""
-    import dataclasses
+def test_no_spatial_structure_params_in_released_api():
+    """The string-dispatch SpatialStructureParams (which once carried the fractal
+    field) was retired wholesale in the 2026-06 unified redesign — the strongest
+    form of the Task-0.3 severance. Mass segregation stays in released core via
+    energy_sorted_segregation + MultiComponentCluster.from_mass_segregation."""
+    import progenax.cluster as cluster
 
-    from progenax.cluster import SpatialStructureParams
-
-    field_names = {f.name for f in dataclasses.fields(SpatialStructureParams)}
-    assert "fractal" not in field_names, (
-        f"SpatialStructureParams still has a `fractal` field: {field_names}"
-    )
-    assert "mass_segregation" in field_names  # mass-seg stays in released core
+    assert not hasattr(cluster, "SpatialStructureParams")
+    assert hasattr(cluster, "energy_sorted_segregation")
+    assert hasattr(cluster, "MultiComponentCluster")
 
 
 # ── Task 0.4: link #3 — birth_environment imports turbulence directly, not fdf_config ──

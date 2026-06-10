@@ -102,10 +102,6 @@ from .tidal import (
     fill_factor_to_r_h,
 )
 from .cluster import MultiComponentCluster, energy_sorted_segregation
-from .populations import (
-    TwoComponentConfig,
-    generate_two_component_cluster,
-)
 
 __version__ = "0.1.0"
 
@@ -204,9 +200,6 @@ __all__ = [
     "jacobi_radius_isothermal",
     "apply_tidal_truncation",
     "fill_factor_to_r_h",
-    # Mass segregation
+    # Primordial (non-equilibrium) mass segregation
     "energy_sorted_segregation",
-    # Two-component populations
-    "TwoComponentConfig",
-    "generate_two_component_cluster",
 ]
