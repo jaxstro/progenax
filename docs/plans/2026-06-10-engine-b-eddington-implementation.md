@@ -554,7 +554,13 @@ git commit -m "feat(cluster): Engine B sampler (shared-Psi Eddington draws) + ex
    EFF(γ=5, a) ≡ Engine B single Plummer(a math-matched: γ=5 EFF IS Plummer with
    a_Plummer = a_EFF) — same σ(r), same CDF.
 3. `test_plummer_halo_eff_core_equilibrium`: the science headline (global Q
-   0.5±0.02 unscaled, per-component Q_j 0.5±3e-3 theory, sampled Q_j → 0.5 with N).
+   0.5±0.02 unscaled, per-component Q_j 0.5±3e-3 theory; sampled per-component Q_j
+   matches the exact-quadrature HYBRID prediction — ρ_presc weights × DF speed
+   moments × prescribed-total Clausius field — within 3σ shot noise; the
+   hard-truncated halo's plateau below 0.5 (predicted 0.4953, sampled
+   0.4947±0.0014 over 18 seeds at N=16k) is verified physics, NOT a convergence
+   target of 0.5). (amended 2026-06-10 with Anna's approval — predict-the-offset
+   gate replaces "sampled Q_j → 0.5 with N".)
 4. `test_om_beta_profile_realized`: r_a_j on the halo only → sampled β_halo(r) ≡
    r²/(r²+r_a²) in resolved bins (tol 0.05, seed-averaged ≥4 seeds), core stays β≈0.
 

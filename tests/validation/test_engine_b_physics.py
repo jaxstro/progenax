@@ -14,8 +14,9 @@ for ANY positive f in a consistent (Psi, dPsi/dr) pair):
     EFF IS the Plummer density with a_Pl = a_EFF), so the two Engine B builds
     must agree to numerical-identity tolerances.
   - Plummer halo + EFF core: the science headline -- a two-family prescribed
-    mix is a true shared-potential equilibrium, globally AND per component,
-    UNSCALED.
+    mix is a true shared-potential equilibrium, globally UNSCALED; the sampled
+    per-component Q_j is gated against its exact-quadrature hybrid prediction
+    (the halo's truncation-edge plateau below 0.5 is verified physics).
   - OM anisotropy: a finite r_a on the halo realizes beta(r) = r^2/(r^2+r_a^2)
     in the sampled velocities while the isotropic core stays beta ~ 0.
   - DF-density fidelity: rho_DF,j reconstructed from the f_j tables matches
@@ -99,7 +100,15 @@ def _chunked_accelerations(pos, mass, chunk=1000):
 
 
 def _sampled_component_Q(model, seed, n_stars):
-    """Sampled per-component Q_j = T_j/|W_j| in the TOTAL field (Clausius)."""
+    """Sampled per-component Q_j = T_j/|W_j| in the TOTAL field (Clausius).
+
+    Estimator definition (the prediction in _predicted_component_Q MUST match
+    it): T_j = (1/2) sum_{i in j} m_i v_i^2 with v_i drawn from f_j at the
+    star's radius; W_j = sum_{i in j} m_i r_i . a_i with a_i the direct
+    pairwise acceleration of ALL sampled stars -- whose continuum limit is the
+    PRESCRIBED-total field G M_presc(<r)/r^2, because positions are drawn from
+    the prescribed rho_j (via _cdf_j), not from rho_DF,j.
+    """
     ic = model.sample_cluster(jax.random.PRNGKey(seed), n_stars=n_stars, G=G)
     p, v, mass = _com_arrays(ic)
     cid = np.asarray(ic.component_id)
@@ -108,6 +117,49 @@ def _sampled_component_Q(model, seed, n_stars):
     W_i = mass * np.sum(p * a, axis=1)
     return np.array([T_i[cid == j].sum() / abs(W_i[cid == j].sum())
                      for j in range(int(cid.max()) + 1)])
+
+
+def _predicted_component_Q(model, n_w=400):
+    """Exact-quadrature HYBRID expectation of _sampled_component_Q.
+
+    Engine B samples hybrid clusters: positions from the prescribed rho_j,
+    speeds from the Eddington f_j in the shared Psi. The continuum expectation
+    of the sampled estimator is therefore
+
+        T_j^pred = (1/2) int rho_presc,j(r) <v^2>_DF,j(r) 4 pi r^2 dr,
+        W_j^pred = -int rho_presc,j(r) r (M_presc(<r)/r^2) 4 pi r^2 dr,
+
+    with <v^2>_DF,j = (m2/m0)(1/3 + (2/3)/(1 + r^2/r_a_j^2)) from the f_j
+    speed moments m0 = int w^2 f_j dw, m2 = int w^4 f_j dw (w the OM
+    stretched-frame speed, f clamped at 0 exactly as the speed sampler clamps
+    grid ringing). This differs from engine_b_component_virials ONLY in the
+    weights: rho_presc,j and the prescribed-total dPhi/dr, not rho_DF,j --
+    because that is what the sampler realizes. For a hard-truncated component
+    rho_presc(r_t) > 0 is an edge offset NO ergodic f(E) can carry, so
+    Q_j^pred sits genuinely below 0.5: a quantitative prediction, not a bias.
+    """
+    st = model.engine_b
+    r, Psi = st.r_poisson, st.Psi_poisson
+    dphi_dr = -st.dPsi_dr_poisson           # = +M_presc(<r)/r^2 (G=1)
+    Psi_safe = jnp.maximum(Psi, 1e-12)
+
+    def moments(Psi_r, f_row):
+        w = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_r), n_w)
+        f_at = jnp.maximum(jnp.interp(Psi_r - 0.5 * w**2, st.E_grid, f_row), 0.0)
+        return jnp.trapezoid(w**2 * f_at, w), jnp.trapezoid(w**4 * f_at, w)
+
+    out = []
+    for j in range(st.f_j_grid.shape[0]):
+        m0, m2 = jax.vmap(lambda P: moments(P, st.f_j_grid[j]))(Psi_safe)
+        finite = jnp.isfinite(st.r_a_j[j])
+        ra_safe = jnp.where(finite, st.r_a_j[j], 1.0)
+        inv_st2 = jnp.where(finite, 1.0 / (1.0 + (r / ra_safe) ** 2), 1.0)
+        v2 = (m2 / (m0 + 1e-300)) * (1.0 / 3.0 + (2.0 / 3.0) * inv_st2)
+        rho_p = st.rho_j_poisson[j]
+        T = jnp.trapezoid(0.5 * rho_p * v2 * 4.0 * jnp.pi * r**2, r)
+        W = jnp.trapezoid(-rho_p * r * dphi_dr * 4.0 * jnp.pi * r**2, r)
+        out.append(float(T / jnp.abs(W)))
+    return np.array(out)
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +179,10 @@ def test_king_density_engine_b_matches_engine_a():
 
     Gates (the contract -- never loosen):
       - r_t agreement rtol 1e-3 (same physical r_c = 1; A's natural ODE r_t
-        vs B's KingProfile r_t);
+        vs B's KingProfile r_t). NOTE: this sub-check is partially CORRELATED
+        -- both r_t values descend from the same King-ODE machinery -- so it
+        is a consistency check only; the sigma_1d and KS gates below carry
+        the independent-anchor weight;
       - theory Q_j = 0.5 +- 3e-3 in BOTH engines;
       - sampled sigma_1d(r): |sigma_B/sigma_A - 1| < 0.02 in interior bins
         (N = 2e4 each, same seed -- the shared position/speed key structure
@@ -194,6 +249,10 @@ def test_eff_gamma5_single_component_matches_plummer():
     the same r_t are the SAME prescribed model up to normalization (which the
     mass-fraction scaling removes): the shared machinery must produce
     numerically identical Psi grids (rtol 1e-8) and f tables (rtol 1e-5).
+    Near-bit-identity is EXPECTED here -- at gamma=5 both builds execute the
+    same arithmetic through the same shared machinery -- so this is a
+    branch-reduction + domain-path regression test, NOT an
+    independent-machinery anchor (that role belongs to King A-vs-B).
     The Plummer r_h is the exact inverse of PlummerProfile's a(r_h) relation
     a = r_h sqrt(2^(2/3) - 1); the explicit r_t=12 override truncates the
     (infinite) Plummer at the EFF extent (the King-conflict rule does not
@@ -241,13 +300,24 @@ def test_plummer_halo_eff_core_equilibrium():
     """The headline: a two-family prescribed mix is a TRUE equilibrium.
 
     Gates:
-      - theory Q_j = 0.5 +- 3e-3 for both components (exact-quadrature oracle);
-      - sampled global Q within 0.02 of 0.5 UNSCALED at N=30k (the expected
-        value is ~0.496-0.498: genuine truncation-edge physics of the
-        hard-truncated halo -- the documented truncated-empirical-profile
-        approximation -- not a pipeline bias);
-      - sampled per-component Q_j converge toward the 0.5 theory with N
-        (loose trend over two N values, seed-averaged).
+      - theory Q_j = 0.5 +- 3e-3 for both components (DF-weighted
+        exact-quadrature oracle: the DF is consistent with the potential);
+      - sampled global Q within 0.02 of 0.5 UNSCALED at N=30k;
+      - PREDICT-THE-OFFSET gate (amended 2026-06-10, Anna-approved): the
+        sampled per-component Q_j does NOT converge to 0.5. Engine B samples
+        a HYBRID: positions from the prescribed rho_j, speeds from f_j in the
+        shared Psi. The hard-truncated Plummer halo has rho(r_t) > 0 -- a
+        constant edge offset NO ergodic f(E) can carry (the Eddington pair
+        represents rho(Psi) - rho(0)) -- so rho_DF,halo != rho_presc,halo
+        near the edge and the halo's sampled Q_j plateaus BELOW 0.5. The
+        plateau is a VERIFIED PREDICTION: _predicted_component_Q computes the
+        exact-quadrature expectation of the sampled estimator (rho_presc
+        weights x DF speed moments x prescribed-total Clausius field) and the
+        sampled values must match IT, not 0.5. Evidence (18 seeds, N=16k):
+        halo predicted 0.4953 vs sampled 0.4947 +- 0.0014 (sem, 0.4 sigma);
+        core predicted 0.4985 vs sampled 0.5007 +- 0.0018 (1.2 sigma);
+        per-seed scatter sigma ~ 0.006 (halo) / 0.008 (core). The historical
+        "plateau ~ 0.484" was a 2-seed downward fluctuation, not physics.
     """
     m = _headline_model()
 
@@ -262,17 +332,27 @@ def test_plummer_halo_eff_core_equilibrium():
     Q = T / abs(V)
     assert abs(Q - 0.5) < 0.02, f"headline global Q = {Q:.4f} (unscaled)"
 
-    # Loose convergence trend: per-component sampled Q_j error shrinks (or
-    # stays within noise) from N=4k to N=16k, and is small at N=16k.
-    errs = {}
-    for n in (4000, 16000):
-        Q_seeds = np.stack([_sampled_component_Q(m, seed, n) for seed in (1, 2)])
-        errs[n] = np.abs(Q_seeds.mean(axis=0) - 0.5)
-    assert np.all(errs[16000] < errs[4000] + 0.01), (
-        f"per-component |Q_j - 0.5| did not converge: "
-        f"N=4000 -> {errs[4000]}, N=16000 -> {errs[16000]}")
-    assert np.all(errs[16000] < 0.04), (
-        f"per-component |Q_j - 0.5| at N=16000: {errs[16000]}")
+    # The physics statement, gated on the PREDICTION itself: the nearly
+    # untruncated core (rho_EFF(r_t)/rho_EFF(0) ~ 5e-6) is at 0.5; the
+    # hard-truncated halo is visibly below (offset >= 1e-3, well above the
+    # ~4e-4 quadrature accuracy the DF-weighted oracle demonstrates).
+    Q_pred = _predicted_component_Q(m)
+    assert abs(Q_pred[1] - 0.5) < 5e-3, (
+        f"core predicted Q = {Q_pred[1]:.4f}, expected ~0.5")
+    assert 0.47 < Q_pred[0] < 0.499, (
+        f"halo predicted Q = {Q_pred[0]:.4f}, expected visibly below 0.5 "
+        f"(truncation-edge offset)")
+
+    # Sampled-vs-predicted: 3 seeds at N=16k. Tolerance 0.012 ~ 3 sigma on
+    # the 3-seed mean (sem ~ 0.0035-0.0046 from the measured per-seed
+    # scatter above) -- shot noise only, never a tuned offset.
+    Q_seeds = np.stack([_sampled_component_Q(m, seed, 16000)
+                        for seed in (1, 2, 3)])
+    Q_meas = Q_seeds.mean(axis=0)
+    np.testing.assert_allclose(
+        Q_meas, Q_pred, atol=0.012,
+        err_msg=(f"sampled per-component Q_j {Q_meas} does not match the "
+                 f"hybrid exact-quadrature prediction {Q_pred}"))
 
 
 # ---------------------------------------------------------------------------
@@ -345,44 +425,74 @@ def test_om_beta_profile_realized():
 
 
 def test_df_density_fidelity_interior():
-    """The DF must integrate back to the density it was inverted from.
+    """The DF must integrate back to the AUGMENTED density it was inverted from.
 
-    For the headline mix, reconstruct on the full Poisson grid
+    The Eddington/OM pair represents rho_Q(Psi) - rho_Q(0), where
+    rho_Q(r) = (1 + r^2/r_a^2) rho(r) is the Osipkov-Merritt augmented density
+    (factor 1 on isotropic components). For a hard-truncated component
+    rho_Q(0) = rho_Q(r_t) = (1 + r_t^2/r_a^2) rho(r_t) is an edge offset NO
+    ergodic f can carry -- and the OM augmentation AMPLIFIES the isotropic
+    edge offset by (1 + r_t^2/r_a^2): for the halo (r_t = 9, r_a = 3) that is
+    a 10x amplification. The earlier form of this test (divide out the OM
+    measure, compare to rho_presc directly) failed at 6.6e-3 on the OM halo
+    purely from this PREDICTED offset: the measured raw deficit
+    rho_Q,presc - rho_Q,DF ~ 4.1-5.0e-5 across interior radii matches the
+    predicted constant rho_Q(r_t) = 5.54e-5 (verified ~constant in r). So the
+    gate must be stated against the continuum statement the DF can actually
+    satisfy:
 
-        rho_DF,j(r) = (1 + r^2/r_a_j^2)^{-1} 4 pi int_0^sqrt(2 Psi) w^2
-                      f_j(Psi(r) - w^2/2) dw
+        rho_Q,DF(r) = 4 pi int_0^sqrt(2 Psi) w^2 f_j(Psi(r) - w^2/2) dw
+                      (w the OM stretched-frame speed; NO measure division)
+        ==  rho_Q,presc(r) - rho_Q,presc(r_t),
+        rho_Q,presc = (1 + r^2/r_a_j^2) rho_presc,j.
 
-    (w the OM stretched-frame speed; the factor is the d^3v = d^3w/(1+r^2/r_a^2)
-    measure, = 1 here since the mix is isotropic) and gate
-    |rho_DF,j/rho_presc,j - 1| < 5e-3 for r < r_h of EACH component -- the
-    known constant rho(r_t) offset (the edge term no ergodic f(E) can carry)
-    dominates only near the truncation edge. This is the direct
-    inversion-fidelity gate the DF-weighted virial oracle does not cover.
+    The SAME form is used for both builds and both components: for the
+    isotropic build and the near-untruncated core
+    (rho_EFF(r_t)/rho_EFF(0) ~ 5e-6) the subtraction is negligible, so this
+    is one uniform statement, not a special case. n_w = 1200: at n_w = 400
+    the w_max-endpoint under-resolution partially MASKED the deficit (the
+    measured deviation grows 6.6e-3 -> 9.0e-3 with n_w under the old form);
+    the corrected statement needs the honest quadrature. Gate
+    |rho_Q,DF/(rho_Q,presc - rho_Q,presc(r_t)) - 1| < 5e-3 for r < r_h of
+    EACH component -- UNCHANGED from the old form, now with ~5x margin:
+    measured worst case 1.06e-3 (OM build), 2.4e-4 (isotropic build, same
+    form). This is the direct inversion-fidelity gate the DF-weighted virial
+    oracle does not cover.
     """
-    m = _headline_model()
-    st = m.engine_b
-    r = np.asarray(st.r_poisson)
-    Psi = st.Psi_poisson
-    n_w = 400
+    n_w = 1200
+    builds = (
+        ("isotropic", _headline_model()),
+        ("OM r_a=3.0", _headline_model(r_a_j=jnp.array([3.0, jnp.inf]))),
+    )
+    for label, m in builds:
+        st = m.engine_b
+        r = np.asarray(st.r_poisson)
+        Psi = st.Psi_poisson
 
-    def rho_df_row(f_row):
-        def m0(Psi_r):
-            w = jnp.linspace(0.0, jnp.sqrt(2.0 * jnp.maximum(Psi_r, 1e-12)), n_w)
-            f_at = jnp.maximum(
-                jnp.interp(Psi_r - 0.5 * w**2, st.E_grid, f_row), 0.0)
-            return jnp.trapezoid(w**2 * f_at, w)
-        return 4.0 * np.pi * np.asarray(jax.vmap(m0)(Psi))
+        def rho_q_df_row(f_row, E_grid=st.E_grid, Psi=Psi):
+            def m0(Psi_r):
+                w = jnp.linspace(0.0, jnp.sqrt(2.0 * jnp.maximum(Psi_r, 1e-12)),
+                                 n_w)
+                f_at = jnp.maximum(
+                    jnp.interp(Psi_r - 0.5 * w**2, E_grid, f_row), 0.0)
+                return jnp.trapezoid(w**2 * f_at, w)
+            return 4.0 * np.pi * np.asarray(jax.vmap(m0)(Psi))
 
-    for j in range(2):
-        ra = float(st.r_a_j[j])
-        inv_st2 = 1.0 / (1.0 + (r / ra) ** 2) if np.isfinite(ra) else 1.0
-        rho_df = rho_df_row(st.f_j_grid[j]) * inv_st2
-        rho_presc = np.asarray(st.rho_j_poisson[j])
+        for j in range(2):
+            ra = float(st.r_a_j[j])
+            # OM augmentation (1 + r^2/r_a^2); factor 1 for infinite r_a
+            # (no division by inf -- the isotropic path needs the unit factor).
+            aug = (1.0 + (r / ra) ** 2) if np.isfinite(ra) else np.ones_like(r)
+            rho_q_df = rho_q_df_row(st.f_j_grid[j])
+            rho_q_presc = aug * np.asarray(st.rho_j_poisson[j])
+            # Truncation-consistent target: the DF represents
+            # rho_Q(Psi) - rho_Q(0), so subtract the edge value at r_t.
+            rho_q_target = rho_q_presc - rho_q_presc[-1]
 
-        # component half-mass radius from its own position CDF
-        r_h_j = float(jnp.interp(0.5, m._cdf_j[j], m._r_grid))
-        sel = r < r_h_j
-        dev = np.max(np.abs(rho_df[sel] / rho_presc[sel] - 1.0))
-        assert dev < 5e-3, (
-            f"component {j}: max |rho_DF/rho_presc - 1| = {dev:.2e} "
-            f"for r < r_h = {r_h_j:.3f}")
+            # component half-mass radius from its own position CDF
+            r_h_j = float(jnp.interp(0.5, m._cdf_j[j], m._r_grid))
+            sel = r < r_h_j
+            dev = np.max(np.abs(rho_q_df[sel] / rho_q_target[sel] - 1.0))
+            assert dev < 5e-3, (
+                f"[{label}] component {j}: max |rho_Q,DF/(rho_Q,presc - "
+                f"rho_Q,presc(r_t)) - 1| = {dev:.2e} for r < r_h = {r_h_j:.3f}")
