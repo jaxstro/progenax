@@ -267,6 +267,50 @@ class TestFisherInformationGN:
         np.testing.assert_allclose(np.asarray(F), np.asarray(J.T @ J), atol=1e-10)
 
 
+class TestRunNuts:
+    """Vendored blackjax NUTS wrapper (window adaptation -> NUTS -> draws + div count).
+
+    Sampled on a known correlated 2-D Gaussian; the wrapper must recover the mean
+    (within a few SE of the n_samples draws), the covariance (within ~15%), and
+    report 0 divergences (a well-conditioned Gaussian has none).
+    """
+
+    def test_recovers_correlated_gaussian(self):
+        mu = jnp.array([1.5, -0.7])
+        # Correlated 2-D covariance (rho = 0.6), well-conditioned.
+        cov = jnp.array([[1.0, 0.6 * 1.0 * 2.0],
+                         [0.6 * 1.0 * 2.0, 4.0]])
+        prec = jnp.linalg.inv(cov)
+
+        def logdensity_fn(z):
+            d = z - mu
+            return -0.5 * d @ (prec @ d)
+
+        key = jax.random.PRNGKey(0)
+        z0 = jnp.zeros(2)
+        out = di.run_nuts(logdensity_fn, z0, key, n_warmup=400, n_samples=2000)
+
+        assert out.samples.shape == (2000, 2)
+        # 0 divergences on a well-conditioned Gaussian.
+        assert int(out.n_divergent) == 0, int(out.n_divergent)
+
+        samp = out.samples
+        post_mean = jnp.mean(samp, axis=0)
+        # Mean within a few SE (SE = sqrt(diag(cov)/n_eff); use n_samples as a
+        # conservative n_eff floor -> 4 SE is generous but still a real check).
+        se = jnp.sqrt(jnp.diag(cov) / samp.shape[0])
+        for i in range(2):
+            dev = float(jnp.abs(post_mean[i] - mu[i]))
+            assert dev < 4.0 * float(se[i]), (i, dev, float(se[i]))
+
+        # Covariance within ~15% (entrywise relative, on the scale of the entry).
+        post_cov = jnp.cov(samp.T)
+        for i in range(2):
+            for k in range(2):
+                rel = float(jnp.abs(post_cov[i, k] - cov[i, k]) / jnp.abs(cov[i, k]))
+                assert rel < 0.15, (i, k, float(post_cov[i, k]), float(cov[i, k]), rel)
+
+
 class TestReparam:
     def test_logit_expit_roundtrip(self):
         lo, hi = -2.0, 5.0

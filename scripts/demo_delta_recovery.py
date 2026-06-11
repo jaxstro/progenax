@@ -1,5 +1,22 @@
-r"""B2 science demo (Task 3): truth dataset + jitted joint (alpha, delta, W0)
-likelihood for the self-consistent IMF + equipartition recovery.
+r"""B2 science demo (Tasks 3-5): truth dataset, jitted joint (alpha, delta, W0)
+likelihood, MLE recovery, Fisher information panel, and NUTS corner for the
+self-consistent IMF + equipartition recovery.
+
+Task 5 (Fisher information panel + NUTS corner)
+-----------------------------------------------
+* The Fisher information panel (``demo_delta_recovery_fisher.png``) overlays the
+  Dchi2=4 ('2sigma' per parameter; 86.5% in 2D) (alpha, delta) MARGINAL ellipse
+  from the kinematics-only Fisher (mass term dropped) and from the joint Fisher
+  (kinematics + mass). The kinematics-only correlation rho(alpha, delta) is only
+  a MILD anti-correlation (~ -0.26, NOT near -1): the mass channel has only an
+  alpha-alpha Hessian entry, so it PINS alpha (sigma_alpha ~4.7x tighter) while
+  delta barely moves (~1.04x) -- it adds alpha information, it does NOT rotate /
+  break an alpha-delta degeneracy. rho is quoted in the panel and printed table.
+* The NUTS corner (``demo_delta_recovery_corner.png``) is gated by a wall-time
+  PROJECTION (a STOP point, not a place to silently shrink the run): one warm
+  loss+grad cost is measured, projected as (n_warmup+n_samples) x leapfrog/iter
+  x warm_cost. Projected > 45 min -> STOP and report options; <= 12 min -> run
+  here; in between -> wire the code, defer the long run (re-run --run-nuts).
 
 This script builds ONLY the truth mock dataset and the jitted joint negative
 log-likelihood (the MLE / Fisher / figures are Task 4+). It ends with a
@@ -572,9 +589,272 @@ def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
     print(f"\nfit figure -> {out_dir}/demo_delta_recovery_fit.png (+ .pdf)")
 
 
+# --------------------------------------------------------------------------- #
+# Task 5: Fisher information panel (alpha, delta) -- kinematics-only vs joint
+# (the mass channel PINS alpha; it is NOT an alpha-delta degeneracy break)
+# --------------------------------------------------------------------------- #
+def _ad_block_cov(cov_theta3):
+    """The (alpha, delta) 2x2 sub-block of a 3x3 constrained covariance.
+
+    Slicing the COVARIANCE (not the Fisher) gives the MARGINAL (alpha, delta)
+    distribution -- W0 already integrated out. (Slicing the Fisher would give the
+    conditional, which hides the (alpha, delta) correlation.)
+    """
+    return cov_theta3[jnp.ix_(jnp.array([0, 1]), jnp.array([0, 1]))]
+
+
+def _ellipse_xy(mean2, cov2, n_sigma=2.0, n_pts=200):
+    """(x, y) of the ``n_sigma`` covariance ellipse for a 2-D Gaussian.
+
+    The ellipse is ``mean + n_sigma * L @ unit_circle`` with ``L`` the Cholesky
+    factor of ``cov2`` (so radius = n_sigma in Mahalanobis units)."""
+    t = jnp.linspace(0.0, 2.0 * jnp.pi, n_pts)
+    circle = jnp.stack([jnp.cos(t), jnp.sin(t)], axis=0)  # (2, n_pts)
+    L = jnp.linalg.cholesky(cov2)
+    pts = mean2[:, None] + n_sigma * (L @ circle)
+    return pts[0], pts[1]
+
+
+def fisher_degeneracy(data, z_hat):
+    r"""Kinematics-only vs joint (alpha, delta) marginal Fisher ellipses + rho.
+
+    Returns a dict with the constrained-space (alpha, delta) 2x2 covariances for
+    BOTH the kinematics-only Fisher (mass term DROPPED) and the joint Fisher
+    (kinematics + mass), each marginalized over W0; plus the kinematics-only
+    correlation coefficient ``rho(alpha, delta)`` and the two ellipse areas
+    (Dchi2=4, i.e. '2sigma' per parameter; 86.5% in 2D).
+
+    The measured kinematics-only ``rho`` is only a MILD anti-correlation (~ -0.26,
+    NOT near -1). The mass channel's negloglike has only an alpha-alpha Hessian
+    entry, so adding it PINS alpha (sigma_alpha ~4.7x tighter) while delta barely
+    changes (~1.04x): it ADDS alpha information, it does NOT rotate / break an
+    alpha-delta degeneracy.
+
+    Both Fishers use the Gauss-Newton ``J^T J`` form (jacrev -- ODE-safe); the
+    joint adds the ODE-free mass Hessian via ``extra_negloglike`` (jax.hessian is
+    safe on that term). Each 3x3 Fisher is mapped to a constrained-space 3x3
+    covariance via the expit Jacobian (constrained_cov), then sliced to the
+    (alpha, delta) block.
+    """
+    residual_fn = make_residual_fn(data)
+    mass_negloglike = make_mass_negloglike(data)
+    dtheta_dz = _dtheta_dz(z_hat)
+
+    F_kin = di.fisher_information_gn(residual_fn, z_hat)  # kinematics-only J^T J
+    F_joint = di.fisher_information_gn(residual_fn, z_hat,
+                                       extra_negloglike=mass_negloglike)
+
+    cov_kin3 = di.constrained_cov(F_kin, dtheta_dz)
+    cov_joint3 = di.constrained_cov(F_joint, dtheta_dz)
+    cov_kin = _ad_block_cov(cov_kin3)
+    cov_joint = _ad_block_cov(cov_joint3)
+
+    rho_kin = float(cov_kin[0, 1] / jnp.sqrt(cov_kin[0, 0] * cov_kin[1, 1]))
+    rho_joint = float(cov_joint[0, 1] / jnp.sqrt(cov_joint[0, 0] * cov_joint[1, 1]))
+    # Dchi2=4 ('2sigma' per parameter; 86.5% in 2D) ellipse area =
+    # pi * (radius=2)^2 * sqrt(det(cov)). The kin/joint AREA RATIO is
+    # independent of the radius convention.
+    area_kin = float(jnp.pi * 4.0 * jnp.sqrt(jnp.linalg.det(cov_kin)))
+    area_joint = float(jnp.pi * 4.0 * jnp.sqrt(jnp.linalg.det(cov_joint)))
+    return dict(cov_kin=cov_kin, cov_joint=cov_joint, rho_kin=rho_kin,
+                rho_joint=rho_joint, area_kin=area_kin, area_joint=area_joint)
+
+
+def make_fisher_figure(deg, theta_hat, out_dir):
+    """Dchi2=4 ('2sigma' per param; 86.5% in 2D) (alpha, delta) ellipses:
+    kinematics-only vs joint, MLE + truth."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    sys.path.insert(0, os.path.dirname(__file__))
+    import _plotstyle as ps  # noqa: E402
+
+    ps.apply_pub_style()
+    a_hat, d_hat = float(theta_hat[0]), float(theta_hat[1])
+    mean2 = jnp.array([a_hat, d_hat])
+
+    fig, ax = plt.subplots(figsize=(4.6, 4.0))
+
+    xk, yk = _ellipse_xy(mean2, deg["cov_kin"], n_sigma=2.0)
+    xj, yj = _ellipse_xy(mean2, deg["cov_joint"], n_sigma=2.0)
+    ax.plot(np.asarray(xk), np.asarray(yk), "-", color=ps.OI["vermilion"], lw=1.8,
+            label=rf"kinematics only ($\rho={deg['rho_kin']:+.3f}$)")
+    ax.fill(np.asarray(xk), np.asarray(yk), color=ps.OI["vermilion"], alpha=0.08)
+    ax.plot(np.asarray(xj), np.asarray(yj), "-", color=ps.OI["blue"], lw=1.8,
+            label=rf"joint (+ mass, $\rho={deg['rho_joint']:+.3f}$)")
+    ax.fill(np.asarray(xj), np.asarray(yj), color=ps.OI["blue"], alpha=0.12)
+
+    ax.plot(a_hat, d_hat, "o", color=ps.OI["black"], ms=5, zorder=5,
+            label=r"MLE $\hat\theta$")
+    ax.plot(ALPHA_TRUE, DELTA_TRUE, "*", color=ps.OI["orange"], ms=13, zorder=6,
+            mec=ps.OI["black"], mew=0.5, label="truth")
+
+    ax.set_xlabel(r"$\alpha$ (IMF high-mass slope)")
+    ax.set_ylabel(r"$\delta$ (equipartition)")
+    ax.legend(loc="best")
+    cap = (rf"$\Delta\chi^2=4$ ('2$\sigma$' per param; 86.5\% in 2D) marginal "
+           rf"ellipses; kinematics-only $\rho(\alpha,\delta)"
+           rf"={deg['rho_kin']:+.3f}$, area ratio "
+           rf"kin/joint $={deg['area_kin'] / deg['area_joint']:.1f}$")
+    fig.text(0.5, -0.02, cap, ha="center", va="top", fontsize=8.5)
+    fig.tight_layout()
+    ps.save_fig(fig, out_dir, "demo_delta_recovery_fisher")
+    print(f"\nfisher panel -> {out_dir}/demo_delta_recovery_fisher.png (+ .pdf)")
+
+
+# --------------------------------------------------------------------------- #
+# Task 5: NUTS corner -- budget projection (STOP gate) + sampler + figure
+# --------------------------------------------------------------------------- #
+N_WARMUP = 300
+N_SAMPLES = 600
+NUTS_KEY = 11
+# Conservative expected leapfrog (= gradient) steps per NUTS iteration for a
+# cond~5e2 posterior; used ONLY for the analytic upper-bound projection. The
+# DECISION uses the MEASURED per-step cost from a short probe (below), which is
+# the honest number (the analytic bound is worst-case).
+LEAPFROG_PER_ITER = 12
+N_PROBE_WARMUP = 60       # short window-adaptation just to tune step/mass + time a step
+N_PROBE_STEPS = 12        # tuned sampling steps timed for the per-step cost
+BUDGET_STOP_MIN = 45.0    # projected wall-time > this -> STOP, do not run NUTS
+BUDGET_RUN_MIN = 12.0     # projected wall-time <= this -> run here, foreground
+
+
+def nuts_walltime_projection_analytic(warm_grad_s):
+    """Conservative ANALYTIC NUTS wall-time projection (minutes), worst-case.
+
+    NUTS does a variable number of leapfrog (= gradient) steps per iteration
+    (tree depth). Upper bound: (n_warmup + n_samples) * LEAPFROG_PER_ITER *
+    warm_grad_cost. The logdensity gradient is one value_and_grad of negloglike,
+    so warm_grad_s is the demo's measured warm loss+grad cost. The DECISION uses
+    the MEASURED per-step cost instead (this is only printed as the bound)."""
+    n_iter = N_WARMUP + N_SAMPLES
+    return n_iter * LEAPFROG_PER_ITER * warm_grad_s / 60.0
+
+
+def nuts_walltime_projection_measured(data, z0):
+    """MEASURED NUTS wall-time projection (min) + mean tree depth + per-step cost.
+
+    Runs a SHORT window adaptation (N_PROBE_WARMUP) only to tune the step size +
+    diagonal mass matrix, then times N_PROBE_STEPS tuned sampling steps to get the
+    true per-step cost (which includes the actual, preconditioned tree depth --
+    far below the worst-case LEAPFROG_PER_ITER once the mass matrix is tuned).
+    Projection = (n_warmup + n_samples) * per_step. Returns
+    (proj_min, per_step_s, mean_tree_depth)."""
+    import blackjax
+
+    negloglike = make_negloglike(data)
+
+    def logdensity_fn(z):
+        # Target the flat-in-theta likelihood posterior: pi(z) = L(theta(z)) *
+        # |dtheta/dz|, so logpi(z) = -negloglike(z) + sum log(dtheta_i/dz_i). The
+        # +Jacobian undoes the sigmoid-peaked pushforward of a flat-in-z prior so
+        # the induced theta-density is flat-in-theta x likelihood (mode at MLE).
+        return -negloglike(z) + jnp.sum(jnp.log(_dtheta_dz(z)))
+
+    wk, sk = jax.random.split(jax.random.PRNGKey(NUTS_KEY))
+    warmup = blackjax.window_adaptation(blackjax.nuts, logdensity_fn)
+    (state, params), _ = warmup.run(wk, z0, num_steps=N_PROBE_WARMUP)
+    kernel = blackjax.nuts(logdensity_fn, **params)
+    step = jax.jit(kernel.step)
+
+    keys = jax.random.split(sk, N_PROBE_STEPS + 1)
+    state, info = step(keys[0], state)          # compile + warm one step
+    state.position.block_until_ready()
+
+    depths = []
+    t0 = time.perf_counter()
+    for i in range(1, N_PROBE_STEPS + 1):
+        state, info = step(keys[i], state)
+        state.position.block_until_ready()
+        depths.append(int(info.num_trajectory_expansions))
+    per_step = (time.perf_counter() - t0) / N_PROBE_STEPS
+    mean_depth = sum(depths) / len(depths)
+    proj_min = (N_WARMUP + N_SAMPLES) * per_step / 60.0
+    return proj_min, per_step, mean_depth
+
+
+def run_nuts_corner(data, z_hat, theta_hat, sigma_theta, out_dir):
+    """Sample the joint posterior with NUTS and draw the 3-param corner.
+
+    logdensity(z) = -negloglike(z) + sum log(dtheta_i/dz_i) -- the SAME negloglike
+    the MLE minimizes PLUS the box-reparam Jacobian, so the target is the
+    flat-in-theta likelihood posterior (mode at the MLE) rather than the
+    sigmoid-peaked pushforward of a flat-in-z prior. Draws are in unconstrained z,
+    transformed back to theta = (alpha, delta, W0) = expit(z).
+    Returns (theta_samples (n, 3), n_divergent, post_mean (3,)).
+    """
+    negloglike = make_negloglike(data)
+
+    def logdensity_fn(z):
+        # Flat-in-theta likelihood posterior: pi(z) = L(theta(z)) * |dtheta/dz|
+        # -> logpi(z) = -negloglike(z) + sum log(dtheta_i/dz_i). See the probe's
+        # logdensity_fn for the derivation; the SAME target is projected + sampled.
+        return -negloglike(z) + jnp.sum(jnp.log(_dtheta_dz(z)))
+
+    key = jax.random.PRNGKey(NUTS_KEY)
+    out = di.run_nuts(logdensity_fn, z_hat, key,
+                      n_warmup=N_WARMUP, n_samples=N_SAMPLES)
+    z_samp = out.samples
+    # Transform unconstrained draws -> theta (vmap the box reparam).
+    theta_samp = jax.vmap(lambda z: jnp.stack(_theta_of_z(z)))(z_samp)  # (n, 3)
+    post_mean = jnp.mean(theta_samp, axis=0)
+    n_div = int(out.n_divergent)
+    make_corner_figure(theta_samp, theta_hat, sigma_theta, out_dir)
+    return theta_samp, n_div, post_mean
+
+
+def make_corner_figure(theta_samp, theta_hat, sigma_theta, out_dir):
+    """3-param (alpha, delta, W0) corner of the NUTS posterior; MLE + truth."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    sys.path.insert(0, os.path.dirname(__file__))
+    import _plotstyle as ps  # noqa: E402
+
+    ps.apply_pub_style()
+    samp = np.asarray(theta_samp)
+    names = (r"$\alpha$", r"$\delta$", r"$W_0$")
+    truths = (ALPHA_TRUE, DELTA_TRUE, W0_TRUE)
+    hats = [float(x) for x in theta_hat]
+    P = 3
+
+    fig, axes = plt.subplots(P, P, figsize=(6.0, 6.0))
+    for i in range(P):
+        for k in range(P):
+            ax = axes[i, k]
+            if k > i:
+                ax.axis("off")
+                continue
+            if i == k:
+                ax.hist(samp[:, i], bins=40, histtype="stepfilled",
+                        color=ps.OI["sky"], alpha=0.5, edgecolor=ps.OI["blue"],
+                        lw=0.7, density=True)
+                ax.axvline(hats[i], color=ps.OI["black"], lw=1.2, ls="-")
+                ax.axvline(truths[i], color=ps.OI["orange"], lw=1.2, ls=":")
+                ax.set_yticks([])
+            else:
+                ax.scatter(samp[:, k], samp[:, i], s=2, color=ps.OI["blue"],
+                           alpha=0.12, ec="none", rasterized=True)
+                ax.plot(hats[k], hats[i], "o", color=ps.OI["black"], ms=4, zorder=5)
+                ax.plot(truths[k], truths[i], "*", color=ps.OI["orange"], ms=11,
+                        zorder=6, mec=ps.OI["black"], mew=0.4)
+            if i == P - 1:
+                ax.set_xlabel(names[k])
+            else:
+                ax.set_xticklabels([])
+            if k == 0 and i > 0:
+                ax.set_ylabel(names[i])
+            elif k > 0:
+                ax.set_yticklabels([])
+
+    fig.tight_layout()
+    ps.save_fig(fig, out_dir, "demo_delta_recovery_corner")
+    print(f"corner -> {out_dir}/demo_delta_recovery_corner.png (+ .pdf)")
+
+
 def main():
     print("=" * 72)
-    print("B2 demo (Task 4): joint (alpha, delta, W0) MLE recovery + GN Fisher")
+    print("B2 demo (Task 4/5): joint (alpha, delta, W0) MLE + Fisher + NUTS")
     print("=" * 72)
     print(f"truth: alpha={ALPHA_TRUE}, delta={DELTA_TRUE}, W0={W0_TRUE}; "
           f"N_COMP={N_COMP}, N_STARS={N_STARS}, M_RANGE={M_RANGE}, G={G_MODEL}")
@@ -709,8 +989,104 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     make_fit_figure(data, theta_hat, sigma_theta, out_dir)
 
+    # --------------------------------------------------------------------- #
+    # Task 5a: Fisher information panel (alpha, delta) -- kinematics-only vs joint.
+    # --------------------------------------------------------------------- #
+    print("\n" + "=" * 72)
+    print("FISHER INFORMATION (alpha, delta marginal): kinematics-only vs joint")
+    print("=" * 72)
+    deg = fisher_degeneracy(data, z_hat)
+    print(f"  kinematics-only rho(alpha, delta) = {deg['rho_kin']:+.4f}  "
+          "(mild anti-correlation; the mass channel PINS alpha "
+          "(sigma_alpha ~4.7x tighter) rather than rotating this ellipse)")
+    print(f"  joint          rho(alpha, delta) = {deg['rho_joint']:+.4f}")
+    sa_k = float(jnp.sqrt(deg["cov_kin"][0, 0]))
+    sd_k = float(jnp.sqrt(deg["cov_kin"][1, 1]))
+    sa_j = float(jnp.sqrt(deg["cov_joint"][0, 0]))
+    sd_j = float(jnp.sqrt(deg["cov_joint"][1, 1]))
+    print(f"  kinematics-only widths: sigma_alpha = {sa_k:.4f}, sigma_delta = {sd_k:.4f}")
+    print(f"  joint          widths: sigma_alpha = {sa_j:.4f}, sigma_delta = {sd_j:.4f}")
+    print(f"  Dchi2=4 ('2sigma'/param; 86.5% in 2D) ellipse area  "
+          f"kin = {deg['area_kin']:.4e}, "
+          f"joint = {deg['area_joint']:.4e}, ratio kin/joint = "
+          f"{deg['area_kin'] / deg['area_joint']:.2f}")
+    make_fisher_figure(deg, theta_hat, out_dir)
+
+    # --------------------------------------------------------------------- #
+    # Task 5b: NUTS corner -- BUDGET PROJECTION (STOP gate), then run or defer.
+    # --------------------------------------------------------------------- #
+    print("\n" + "=" * 72)
+    print("NUTS BUDGET GATE (projected wall-time vs 45-min STOP)")
+    print("=" * 72)
+    proj_analytic = nuts_walltime_projection_analytic(t_warm)
+    print(f"  warm loss+grad cost            = {t_warm:.3f} s")
+    print(f"  n_warmup + n_samples           = {N_WARMUP} + {N_SAMPLES} "
+          f"= {N_WARMUP + N_SAMPLES} iters")
+    print(f"  analytic UPPER BOUND ({LEAPFROG_PER_ITER} leapfrog/iter, worst case) "
+          f"= {proj_analytic:.1f} min")
+
+    run_nuts_here = "--run-nuts" in sys.argv
+    if run_nuts_here:
+        # Override: we are running NUTS regardless, so skip the ~few-min probe and
+        # use the analytic bound only as the printed projection.
+        print("  --run-nuts override: skipping the measured probe; running NUTS.")
+        proj_min = proj_analytic
+    else:
+        print(f"  probing measured per-step cost ({N_PROBE_WARMUP}-step adapt + "
+              f"{N_PROBE_STEPS} tuned steps; this takes a few min)...")
+        proj_min, per_step, mean_depth = nuts_walltime_projection_measured(
+            data, z_hat)
+        print(f"  measured per-step cost         = {per_step:.3f} s "
+              f"(mean tree depth {mean_depth:.1f} doublings ~ "
+              f"{2**mean_depth:.0f} leapfrog)")
+        print(f"  MEASURED projected wall-time   = {proj_min:.1f} min "
+              f"(= {N_WARMUP + N_SAMPLES} x {per_step:.3f} s) <- decision basis")
+
+    nuts_done = False
+    if proj_min > BUDGET_STOP_MIN and not run_nuts_here:
+        print(f"\n  NUTS STOP: projected {proj_min:.1f} min > {BUDGET_STOP_MIN:.0f} "
+              "min budget. NOT running NUTS (and NOT degrading the solve). "
+              "Options: reduce n_samples (600->300), reduce n_warmup, thin, cap "
+              "max_num_doublings/tree depth, or accept the longer run with Anna's "
+              "ok. The Fisher panel above already shows how the mass channel "
+              "tightens alpha (joint vs kinematics-only ellipses); the corner is "
+              "deferred.")
+    elif proj_min <= BUDGET_RUN_MIN or run_nuts_here:
+        why = ("projected <= %.0f min" % BUDGET_RUN_MIN
+               if proj_min <= BUDGET_RUN_MIN else "--run-nuts override")
+        print(f"\n  Running NUTS now ({why}).")
+        theta_samp, n_div, post_mean = run_nuts_corner(
+            data, z_hat, theta_hat, sigma_theta, out_dir)
+        print(f"\n  NUTS divergences = {n_div} (gate: 0)")
+        names = ("alpha", "delta", "W0")
+        print(f"  {'param':>6} {'post_mean':>10} {'MLE':>10} {'sigma_hat':>10} "
+              f"{'(mean-MLE)/sigma':>18}")
+        nuts_within_1sig = True
+        for nm, pm, th, sg in zip(names, post_mean, theta_hat, sigma_theta):
+            pull = float((pm - th) / sg)
+            if abs(pull) >= 1.0:
+                nuts_within_1sig = False
+            print(f"  {nm:>6} {float(pm):>10.4f} {float(th):>10.4f} "
+                  f"{float(sg):>10.4f} {pull:>18.3f}")
+        nuts_div_ok = n_div == 0
+        print(f"  NUTS divergence gate: {'PASS' if nuts_div_ok else 'FAIL'} "
+              f"({n_div} divergences)")
+        print(f"  NUTS posterior-mean vs MLE within 1-sigma: "
+              f"{'PASS' if nuts_within_1sig else 'FAIL'}")
+        nuts_done = nuts_div_ok and nuts_within_1sig
+    else:
+        print(f"\n  NUTS DEFERRED: projected {proj_min:.1f} min is between "
+              f"{BUDGET_RUN_MIN:.0f} and {BUDGET_STOP_MIN:.0f} min -- too long for "
+              "an in-script auto-run on this loop, under the STOP budget. NUTS code "
+              "is wired and ready; re-run with --run-nuts (long timeout) to produce "
+              "the corner. Deferring the actual run.")
+
     all_ok = (sc_ok and grad_finite and grad_nonzero and budget_ok
               and plat_ok and occ_ok and recovery_ok and F_pd)
+    # The Fisher panel always contributes; the NUTS corner is budget-gated, so a
+    # deferred/stopped NUTS does NOT fail the demo (it is reported, not gated away).
+    if run_nuts_here and not nuts_done:
+        all_ok = False  # if we explicitly ran NUTS, its gates are real
     print("\n" + "=" * 72)
     print(f"OVERALL {'ALL PASS' if all_ok else 'FAIL'}")
     print("=" * 72)

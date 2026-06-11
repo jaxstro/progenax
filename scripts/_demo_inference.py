@@ -298,6 +298,57 @@ def constrained_cov(F_z, dtheta_dz):
 
 
 # --------------------------------------------------------------------------- #
+# NUTS sampler (vendored)
+# --------------------------------------------------------------------------- #
+class NUTSResult(NamedTuple):
+    """Return of :func:`run_nuts`: posterior draws + the divergence count."""
+
+    samples: jax.Array          # (n_samples, P) unconstrained-space draws
+    n_divergent: jax.Array      # () int -- total divergent transitions (gate: 0)
+
+
+def run_nuts(logdensity_fn, z0, key, n_warmup=300, n_samples=600):
+    r"""Sample ``logdensity_fn`` with blackjax NUTS (window adaptation -> NUTS).
+
+    Vendored (NOT imported) from the experimental gravoturb_fdf NUTS driver
+    ``src/experimental/gravoturb_fdf/inference/hmc.py:38-55`` (released-core demo
+    scripts must not import experimental code). The single change is that this
+    wrapper ALSO accumulates the per-step ``is_divergent`` flag so the demo can
+    gate on 0 divergences (the gravoturb sibling ``run_nuts`` discards ``info``;
+    its ``run_nuts_diagnostic`` keeps it -- this is the minimal middle ground).
+
+    ``logdensity_fn`` maps an unconstrained position ``z`` (shape ``(P,)``) to a
+    scalar log-density (differentiable). For the B2 demo it is
+    ``-negloglike(z) + sum log(dtheta_i/dz_i)``: the negloglike the MLE minimizes
+    PLUS the box-reparam Jacobian, so the target is the flat-in-``theta``
+    likelihood posterior (the ``+`` Jacobian undoes the sigmoid-peaked pushforward
+    of a flat-in-``z`` prior; the induced ``theta``-density is then
+    proportional to ``L(theta)``, with its mode at the MLE). Draws in ``z`` are
+    transformed back to ``theta = expit(z)`` for the corner.
+
+    Window adaptation tunes the step size + diagonal mass matrix; the sampling
+    loop is a fixed-length ``jax.lax.scan``.
+
+    Returns a :class:`NUTSResult` (``samples`` shape ``(n_samples, P)``;
+    ``n_divergent`` the summed divergence count over the sampling phase).
+    """
+    import blackjax
+
+    warmup_key, sample_key = jax.random.split(key)
+    warmup = blackjax.window_adaptation(blackjax.nuts, logdensity_fn)
+    (state, params), _ = warmup.run(warmup_key, z0, num_steps=n_warmup)
+    kernel = blackjax.nuts(logdensity_fn, **params)
+
+    def one_step(state, k):
+        state, info = kernel.step(k, state)
+        return state, (state.position, info.is_divergent)
+
+    keys = jax.random.split(sample_key, n_samples)
+    _, (positions, divergent) = jax.lax.scan(one_step, state, keys)
+    return NUTSResult(samples=positions, n_divergent=jnp.sum(divergent))
+
+
+# --------------------------------------------------------------------------- #
 # Bounded reparametrizations (box [lo, hi])
 # --------------------------------------------------------------------------- #
 def logit(x, lo, hi):
