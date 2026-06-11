@@ -165,11 +165,6 @@ N_WTAB = 256
 _TINY = 1e-30
 
 
-def _truth_imf():
-    """The truth Maschberger over M_RANGE (class bounds == draw bounds)."""
-    return Maschberger(alpha=ALPHA_TRUE, m_min=M_RANGE[0], m_max=M_RANGE[1])
-
-
 # --------------------------------------------------------------------------- #
 # g(W) = I4(W)/I2(W)/3 table (Engine A 1-D moment ratio; built once per eval)
 # --------------------------------------------------------------------------- #
@@ -299,15 +294,22 @@ def sigma_oracle(theta, r_eval, m_fixed):
 # --------------------------------------------------------------------------- #
 # Mock data construction (run once; R_CUT, R_EDGES then frozen)
 # --------------------------------------------------------------------------- #
-def build_truth_data():
+def build_truth_data(key=None, alpha_true=ALPHA_TRUE):
     """Sample the truth cluster, truncate at R_CUT, bin sigma_1d,j(r), draw masses.
 
     Returns a dict of constants the loss closes over: R_EDGES (16 quantile bins
     on [0, R_CUT]), sig_hat, se, weight, n (kinematics), m_obs (Option A mass
     channel), M_FIXED, R_CUT.
+
+    ``key`` (default ``PRNGKey(0)``) and ``alpha_true`` (default the module
+    truth) are exposed for the Task 6 ensembles (independent seed datasets and
+    the alpha_true robustness grid); the defaults reproduce the Task 3-5
+    headline dataset bit-for-bit. delta / W0 truths stay at the module
+    constants in all cases.
     """
-    imf = _truth_imf()
-    key = jax.random.PRNGKey(0)
+    imf = Maschberger(alpha=alpha_true, m_min=M_RANGE[0], m_max=M_RANGE[1])
+    if key is None:
+        key = jax.random.PRNGKey(0)
     k_kin, k_mass = jax.random.split(key)
 
     model_true = MultiComponentCluster.from_imf(
@@ -506,9 +508,14 @@ def run_mle(negloglike, data):
     return z_hats[i_best], traces[i_best], finals, i_best, z0s
 
 
-def recovery_table(theta_hat, sigma_theta):
-    """Print param | truth | theta_hat | sigma_hat | (theta_hat-truth)/sigma_hat."""
-    truths = (ALPHA_TRUE, DELTA_TRUE, W0_TRUE)
+def recovery_table(theta_hat, sigma_theta, truths=None):
+    """Print param | truth | theta_hat | sigma_hat | (theta_hat-truth)/sigma_hat.
+
+    ``truths`` defaults to the module truth ``(ALPHA_TRUE, DELTA_TRUE, W0_TRUE)``;
+    the Task 6 robustness grid passes its per-dataset ``alpha_true``.
+    """
+    if truths is None:
+        truths = (ALPHA_TRUE, DELTA_TRUE, W0_TRUE)
     names = ("alpha", "delta", "W0")
     print(f"\n{'param':>6} {'truth':>8} {'theta_hat':>10} {'sigma_hat':>10} "
           f"{'(hat-truth)/sigma':>18}")
