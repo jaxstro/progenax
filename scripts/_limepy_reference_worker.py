@@ -21,10 +21,16 @@ m-bar = sum_j m_j alpha_j -- identical to progenax's ``bar_m`` (no Peuten
 eq 8-9 W0 translation needed).
 """
 import json
+import os
 import subprocess
 import sys
 
-REF_REPO = "/Users/anna/projects/jaxstro-dev/ref-repos/limepy"
+# <progenax repo root>/../ref-repos/limepy (scripts/ is one level below the
+# repo root); override with the LIMEPY_REF_REPO environment variable if set.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REF_REPO = os.environ.get(
+    "LIMEPY_REF_REPO",
+    os.path.join(os.path.dirname(_REPO_ROOT), "ref-repos", "limepy"))
 
 
 def main():

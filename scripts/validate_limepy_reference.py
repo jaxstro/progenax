@@ -25,8 +25,10 @@ m-bar convention: the reference is run with ``meanmassdef='central'`` so its mea
 mass is the GZ15 eq-26 central-density-weighted m-bar = sum_j m_j alpha_j --
 identical to progenax's ``bar_m``. No Peuten et al. (2017) eq 8-9 translation
 (W0* = W0 (mbar*/mbar)^(2 delta)) is then needed: both codes share one (W0, mbar)
-convention. Radial units also coincide: our xi = r/r_c uses the same -9 (King
-radius r0) nondimensionalization as the reference's r/r0 (config 1 confirms).
+convention. Radial units also coincide: both codes solve the dimensionless
+Poisson equation with the -9 right-hand side of the King-radius (r0)
+normalization, so our xi = r/r_c grid and the reference's r/r0 grid are
+directly comparable (config 1 confirms).
 
 Resolution note: parity is measured with a WELL-RESOLVED ours-side ODE grid
 (xi_max ~ 3 x xi_t, n_ode_points >= 4000). The released default (xi_max=300,

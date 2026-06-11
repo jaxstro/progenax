@@ -3,7 +3,8 @@
 Engine A (`MultiComponentCluster` / `find_alpha_for_masses`) is asserted to be a
 FAITHFUL reimplementation of the reference at ref-repos/limepy (git ef2a479):
 same alpha_j, density shapes rho_j(r)/rho_j(0), dispersion shapes
-sigma_j(r)/sigma_j(0), concentration log10(rt/r0), and rh/r0, at the gates
+sigma_j(r)/sigma_j(0), realized per-component mass fractions M_j/M,
+concentration log10(rt/r0), and rh/r0, at the gates
 frozen from the measured 2026-06-11 parity table (scripts/
 validate_limepy_reference.py; measured deviations 5e-7..1.5e-4, gates ~3-10x
 that, all <=5e-4 -- 20x below the 1% physics target).
@@ -44,15 +45,15 @@ CASES = {
     "single_g1": dict(
         W0=5.0, g=1.0, mj=None, Mj=None, delta=None, eta=None, ra=None,
         xi_max=30.0, n_ode=8000,
-        gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, c=5e-4, rh=1e-4)),
+        gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4)),
     "twocomp_iso": dict(
         W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=None,
         ra=None, xi_max=30.0, n_ode=8000,
-        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, c=5e-4, rh=1e-4)),
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
     "twocomp_ra_eta05": dict(
         W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=0.5,
         ra=5.0, xi_max=30.0, n_ode=6000,
-        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, c=5e-4, rh=1e-4)),
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
 }
 
 
@@ -109,8 +110,9 @@ def _ours_profiles(model, xi):
 
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_parity_with_reference_limepy(name):
-    """alpha_j, rho_j/sigma_j shapes, concentration, and r_h match the cached
-    canonical-LIMEPY model at the frozen (measured-first) gates."""
+    """alpha_j, rho_j/sigma_j shapes, mass fractions, concentration, and r_h
+    match the cached canonical-LIMEPY model at the frozen (measured-first)
+    gates."""
     cfg = CASES[name]
     ref = _load_reference(name)
     assert bool(ref["converged"]), f"{name}: cached reference model not converged"
@@ -148,3 +150,11 @@ def test_parity_with_reference_limepy(name):
     rh_ref = float(ref["rh"]) / r0
     assert abs(rh_ours - rh_ref) / rh_ref < gates["rh"], \
         f"{name}: |drh|/rh = {abs(rh_ours - rh_ref) / rh_ref:.2e}"
+
+    # realized per-component mass fractions vs the reference's Mj
+    nu_j = jnp.trapezoid(
+        model.alpha_j[:, None] * rho_g * xg[None, :] ** 2, xg, axis=1)
+    f_ours = nu_j / jnp.sum(nu_j)
+    f_ref = ref["Mj"] / ref["Mj"].sum()
+    d_mfrac = float(np.max(np.abs(np.asarray(f_ours) - f_ref)))
+    assert d_mfrac < gates["mfrac"], f"{name}: max|dM_j/M| = {d_mfrac:.2e}"
