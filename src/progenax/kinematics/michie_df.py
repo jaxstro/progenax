@@ -78,19 +78,20 @@ class MichieVelocityDF(eqx.Module):
     anisotropic dimensionless mass integral), so ICs are virial without external rescale.
 
     Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
-    marginal comes from one precomputed inverse-CDF table per call,
-    AnisoSpeedCDFTable.build(W0, p_box, g=1) — Michie IS the g=1 anisotropic
-    LIMEPY model (E_gamma(1, x) = e^x - 1 exactly; the standing
-    distributional proof is test_g1_aniso_matches_michie_velocity_df). The
-    angular conditional cos(theta)|u stays EXACT (_sample_costheta_given_u,
-    weight exp(-(s^2 u^2/2)(1 - cos^2 theta)) = exp(-s^2 u_t^2/2) under
+    marginal comes from the inverse-CDF table CACHED at construction
+    (AnisoSpeedCDFTable.build(W0, p_box, g=1)) via a jitted core — Michie IS
+    the g=1 anisotropic LIMEPY model (E_gamma(1, x) = e^x - 1 exactly; the
+    standing distributional proof is
+    test_g1_aniso_matches_michie_velocity_df). The angular conditional
+    cos(theta)|u stays EXACT (_sample_costheta_given_u, weight
+    exp(-(s^2 u^2/2)(1 - cos^2 theta)) = exp(-s^2 u_t^2/2) under
     u_t = u sin(theta)) — only the speed marginal is tabulated.
     speed_method="quadrature" retains the exact per-star 2-D
     (u_t-marginal-then-u_r) inverse-CDF as the oracle (statistical agreement
     asserted in tests/unit/kinematics/test_michie_df.py::
-    TestMichieTableRouting). Small-N note: the aniso table build (~160 ms
-    per sample_velocities call) dominates below ~3k stars — batch repeated
-    small draws into one call, or use the quadrature oracle there.
+    TestMichieTableRouting). Reuse one DF instance for repeated draws:
+    construction (ODE solve + mu integral + table) dominates; per-draw cost
+    is then milliseconds at any N.
 
     Attributes:
         W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.

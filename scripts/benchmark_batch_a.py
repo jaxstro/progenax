@@ -256,6 +256,11 @@ def main() -> int:
     parser.add_argument("--figures-only", action="store_true",
                         help="re-render the figures from the existing JSON "
                              "(no re-measurement)")
+    parser.add_argument("--only", action="append", default=[],
+                        metavar="PREFIX",
+                        help="run only cases whose id starts with PREFIX "
+                             "(repeatable); results MERGE into the existing "
+                             "JSON so unaffected cases keep their numbers")
     args = parser.parse_args()
 
     if args.figures_only:
@@ -276,10 +281,17 @@ def main() -> int:
     print("BATCH A BENCHMARK (subprocess-isolated; before = pre-batch worktree)")
     print(f"before ref: {PRE_REF}   reps: median of {TIME_REPS} (1 warm-up)")
     print("=" * 76)
+    cases = [c for c in CASES
+             if not args.only or any(c[0].startswith(p) for p in args.only)]
+    if args.only and not cases:
+        raise SystemExit(f"--only {args.only} matches no cases")
+    # Merge mode: start from the existing JSON so unaffected cases persist.
+    results = (json.loads(JSON_PATH.read_text())["results"]
+               if args.only and JSON_PATH.exists() else {})
+    failed = []
     _ensure_worktree(WORKTREE)
-    results, failed = {}, []
     try:
-        for case_id, kind, workload, n, version, extra in CASES:
+        for case_id, kind, workload, n, version, extra in cases:
             res, err = _run_subprocess(case_id, kind, workload, n, version,
                                        extra, WORKTREE)
             if res is None:

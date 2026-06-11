@@ -104,19 +104,21 @@ class LIMEPYVelocityDF(eqx.Module):
     King (isotropic) / Michie-King (anisotropic).
 
     Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
-    marginal comes from one precomputed inverse-CDF table per call
-    (SpeedCDFTable / AnisoSpeedCDFTable, the same path MultiComponentCluster
-    uses), so live memory is O(N * n_x) instead of the eager per-star
-    quadrature's O(N * 256 * 91) Poisson-sum buffers (measured 10.87 GB at
-    N=2e4 anisotropic; the table path passes the <3 GB gate in
-    scripts/profile_cluster_memory.py). The anisotropic angular conditional
-    cos(theta)|u stays EXACT (_sample_costheta_given_u) -- only the speed
-    marginal is tabulated. speed_method="quadrature" retains the exact
-    per-star quadrature as the oracle (statistical agreement asserted in
-    tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
-    Small-N note: the anisotropic table build costs ~160 ms per
-    sample_velocities call and dominates below ~3k stars -- batch repeated
-    small draws into one call, or use the quadrature oracle there.
+    marginal comes from the inverse-CDF table CACHED at construction
+    (SpeedCDFTable / AnisoSpeedCDFTable, the same machinery
+    MultiComponentCluster uses), and the whole draw runs through a jitted
+    core, so live memory is O(N) instead of the eager per-star quadrature's
+    O(N * 256 * 91) Poisson-sum buffers (measured at N=2e4 anisotropic:
+    10.87 GB pre-tables; draw-chain peak +0.20 GB cached+jitted; warm draw
+    0.015 s after the one-time ~0.5 s compile). The anisotropic angular
+    conditional cos(theta)|u stays EXACT (_sample_costheta_given_u) -- only
+    the speed marginal is tabulated. speed_method="quadrature" retains the
+    exact per-star quadrature as the oracle (statistical agreement asserted
+    in tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
+    Cost structure: CONSTRUCTION dominates (~2.6 s / ~1.8 GB peak for an
+    anisotropic model: two ODE solves + the mu integral + the cached table
+    build) -- reuse one DF instance for repeated draws; per-draw cost is
+    then milliseconds at any N.
 
     Attributes:
         W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).

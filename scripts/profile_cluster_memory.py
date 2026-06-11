@@ -38,7 +38,9 @@ STAGES = {
     "engineB_halo_core": (100_000, 4.0),
     "virial_pe": (20_000, 2.0),
     "group_virial": (20_000, 2.0),
-    "limepy_df_aniso": (20_000, 3.0),
+    # 2.5 GB: construction-dominated floor (~1.8 GB ODE solves + mu integral
+    # + cached table) + jitted draw (+0.2 GB) + macOS variance headroom.
+    "limepy_df_aniso": (20_000, 2.5),
 }
 _RESULT_PREFIX = "PEAK_RSS_GB"
 

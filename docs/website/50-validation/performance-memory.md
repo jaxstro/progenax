@@ -50,7 +50,7 @@ way; the blocked kernel is 0.41 GB at the same $N$.
 * - aniso `LIMEPYVelocityDF.sample_velocities`
   - 20,000
   - 14.6 GB (10.9 GB in the original probe)
-  - **2.37 GB** (≥ 4.6×)
+  - **2.02 GB** (≥ 5.4×; construction-dominated — see below)
 ```
 
 The pass gates live in `scripts/profile_cluster_memory.py` (7 stages,
@@ -75,11 +75,22 @@ measured: `jax.grad` of the potential energy at $N=2\times10^4$ now peaks at
 — verified against an independent dense oracle at rtol $10^{-13}$, gradient
 parity $\leq 2\times10^{-14}$ — only the float64 summation *order* changes
 across blocks. (2) The standalone DFs draw speeds from the same precomputed
-CDF tables the cluster sampler already used (built once per call, ~14 MB);
-the exact per-star quadrature is retained as the oracle behind
-`speed_method="quadrature"`.
+CDF tables the cluster sampler already used (~14 MB), **cached on the module
+at construction** and consumed through a **jitted sampling core**
+(`eqx.filter_jit`, the `cluster/sampling.py` pattern) so the draw chain fuses
+instead of materializing every eager intermediate. A staged profile
+(2026-06-10, $N=2\times10^4$ aniso) attributes the remaining footprint:
+**construction dominates** (~1.8 GB: two ODE solves + the $\mu$ integral +
+the cached table build, paid once per model), the jitted draw adds only
++0.20 GB (eager it was +0.63 GB), and warm draws take **15 ms** after the
+one-time ~0.5 s compile. The exact per-star quadrature is retained as the
+oracle behind `speed_method="quadrature"` (also jitted now). A further
+`lax.map` chunking of the table draw was evaluated and **rejected on
+measurement**: it would shave part of a 0.2 GB component inside a
+construction-dominated stage while adding scan overhead to a millisecond
+hot path.
 
-## Wall-clock: measured, including the honest small-$N$ regressions
+## Wall-clock: measured, including the honest small-$N$ crossover
 
 :::{figure} figures/performance_walltime.png
 :name: fig-performance-walltime
@@ -90,15 +101,14 @@ Median wall-clock per call vs $N$ (log–log; 2026-06-10). **(a)**
 (2.4× at $N=8{,}000$: 0.169 → 0.070 s) and is the only feasible option at
 $N = 2\times10^4$ (0.216 s); below the crossover the dense broadcast is
 faster (0.013 vs 0.045 s at $N=2{,}000$) — scan overhead dominates when the
-dense transient is only ~100 MB. **(b)** anisotropic LIMEPY sampling: the
-table path is nearly flat in $N$ (the ~0.3 s is dominated by the one-time
-table build, which amortizes), 1.5× faster than pre-batch at $N=10^4$ and
-increasingly far ahead as $N$ grows; at small $N$ the build dominates
-(documented in the DF docstrings — batch small repeated draws, or use the
-quadrature oracle there). The post-batch quadrature oracle (green) is slower
-than the pre-batch eager `vmap` because it is `lax.map`-chunked to bound its
-memory — the deliberate trade for an oracle that can run next to the table
-path in tests without filling RAM.
+dense transient is only ~100 MB. **(b)** anisotropic LIMEPY sampling, after
+the sampler-fusion follow-up (table cached at construction + jitted core):
+warm draws cost **3–16 ms** across $N = 2\times10^3$–$2\times10^4$ — 55×
+faster than the pre-batch quadrature at $N=10^4$ (0.497 → 0.009 s) — with the
+former small-$N$ table-build penalty eliminated (the build moved into
+construction, paid once per model; a ~0.5 s jit compile is paid on the first
+draw per $N$). The quadrature oracle (green) also runs in the jitted core
+(0.33 s at $N=10^4$, `lax.map`-chunked to bound its memory).
 :::
 
 Timings are reported, never gated (they vary with machine load); the memory
@@ -135,6 +145,11 @@ embedded on the [King](king-profile.md) and
 
 Exact potential energies, virial diagnostics, and their `jax.grad` at
 $N \gtrsim 10^5$ on a laptop (footprint linear in $N$; `block_size` is
-tunable); standalone anisotropic DF sampling at survey scale; and a CI-able
-memory regression gate. The $N=2\times10^4$ workloads that previously OOM'd
-this 68.7 GB machine now fit in half a GB.
+tunable); standalone anisotropic DF sampling at survey scale with
+millisecond repeated draws (build the DF once, draw many times — e.g. seed
+ensembles); and a CI-able memory regression gate (the `limepy_df_aniso` gate
+is tightened to 2.5 GB to lock in the fusion win). The $N=2\times10^4$
+virial workloads that previously OOM'd this 68.7 GB machine now fit in half
+a GB; the remaining DF-stage floor (~1.8 GB) is **model construction** (ODE
+solves + the $\mu$ integral), a future optimization target if it ever
+matters — it is paid once per model, not per draw.

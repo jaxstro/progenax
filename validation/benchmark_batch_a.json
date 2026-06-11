@@ -1,0 +1,140 @@
+{
+  "meta": {
+    "date": "2026-06-10",
+    "platform": "darwin",
+    "machine": "arm64",
+    "before_ref": "0dd1cd9",
+    "time_reps": 5
+  },
+  "results": {
+    "time_pe_2000_before": {
+      "wall_s_median": 0.0127,
+      "wall_s_all": [
+        0.0114,
+        0.013,
+        0.0118,
+        0.0127,
+        0.0127
+      ]
+    },
+    "time_pe_2000_after": {
+      "wall_s_median": 0.0453,
+      "wall_s_all": [
+        0.0453,
+        0.0452,
+        0.0464,
+        0.0442,
+        0.046
+      ]
+    },
+    "time_pe_8000_before": {
+      "wall_s_median": 0.169,
+      "wall_s_all": [
+        0.1577,
+        0.1709,
+        0.169,
+        0.1823,
+        0.161
+      ]
+    },
+    "time_pe_8000_after": {
+      "wall_s_median": 0.0705,
+      "wall_s_all": [
+        0.0696,
+        0.0765,
+        0.0724,
+        0.0703,
+        0.0705
+      ]
+    },
+    "time_pe_20000_after": {
+      "wall_s_median": 0.2158,
+      "wall_s_all": [
+        0.2163,
+        0.2158,
+        0.2178,
+        0.2119,
+        0.2128
+      ]
+    },
+    "time_df_2000_before": {
+      "wall_s_median": 0.0988,
+      "wall_s_all": [
+        0.0968,
+        0.0988,
+        0.1033,
+        0.0974,
+        0.104
+      ]
+    },
+    "time_df_2000_after": {
+      "wall_s_median": 0.0026,
+      "wall_s_all": [
+        0.0028,
+        0.0025,
+        0.0026,
+        0.0026,
+        0.0025
+      ]
+    },
+    "time_df_10000_before": {
+      "wall_s_median": 0.4973,
+      "wall_s_all": [
+        0.5081,
+        0.4682,
+        0.4912,
+        0.5005,
+        0.4973
+      ]
+    },
+    "time_df_10000_after": {
+      "wall_s_median": 0.0086,
+      "wall_s_all": [
+        0.0098,
+        0.0082,
+        0.0088,
+        0.0086,
+        0.0086
+      ]
+    },
+    "time_df_20000_after": {
+      "wall_s_median": 0.0157,
+      "wall_s_all": [
+        0.0157,
+        0.0159,
+        0.0159,
+        0.0155,
+        0.0155
+      ]
+    },
+    "time_df_10000_quad": {
+      "wall_s_median": 0.3292,
+      "wall_s_all": [
+        0.3228,
+        0.3292,
+        0.322,
+        0.3303,
+        0.3312
+      ]
+    },
+    "mem_pe_8000_before": {
+      "peak_rss_gb": 6.062
+    },
+    "mem_pe_8000_after": {
+      "peak_rss_gb": 0.38
+    },
+    "mem_pe_20000_before": {
+      "peak_rss_gb": 20.887
+    },
+    "mem_pe_20000_after": {
+      "peak_rss_gb": 0.411
+    },
+    "mem_df_20000_before": {
+      "peak_rss_gb": 14.649
+    },
+    "mem_df_20000_after": {
+      "peak_rss_gb": 2.024
+    }
+  },
+  "memory_gate_5x": true
+}

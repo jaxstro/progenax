@@ -7,6 +7,30 @@ description: Release-style changelog for progenax — most recent change first. 
 Release-style changelog. Most recent change first. Curated from the
 [development log](../90-development-log/index.md).
 
+## 2026-06-10 — Standalone-DF sampler fusion (cached tables + jitted cores)
+
+Profile-driven follow-up to the memory batch (staged peak-RSS decomposition
+at $N=2\times10^4$ anisotropic):
+
+- **Speed-CDF tables cached at construction** — the LIMEPY / King / Michie
+  standalone DFs build their inverse-CDF table once in `__init__` (it depends
+  only on construction-time parameters) instead of on every
+  `sample_velocities` call. The former small-$N$ per-call build penalty is
+  gone.
+- **Jitted sampling cores** (`eqx.filter_jit`, the cluster-sampler pattern) —
+  the draw chain fuses instead of materializing every eager intermediate:
+  draw-chain peak +0.63 GB → +0.20 GB; warm anisotropic draws
+  **0.35 s → 15 ms** at $N=2\times10^4$ (3–16 ms across
+  $N=2\times10^3$–$2\times10^4$; 55× vs the pre-batch quadrature at $N=10^4$).
+  Table-vs-oracle fidelity re-verified on the jitted path (identical KS /
+  moment / $\beta$ numbers, ALL PASS).
+- The `limepy_df_aniso` memory gate is **tightened 3.0 → 2.5 GB** (measured
+  2.02 GB; the remaining floor is model *construction*, paid once per model).
+  Full numbers and figures: [performance & memory](../50-validation/performance-memory.md).
+
+**Gate.** Released-core **1163 tests passing** (unit 895, integration 34,
+validation 234).
+
 ## 2026-06-10 — Memory-bounded kernels, table-routed standalone DFs, numerics consolidation
 
 A production-scale memory + consolidation pass over the cluster and kinematics stack:

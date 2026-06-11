@@ -71,15 +71,18 @@ class KingVelocityDF(eqx.Module):
     in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
     bound (v < v_esc(r)).
 
-    Speed draws are TABLE-BACKED by default (speed_method="table"): one
-    precomputed inverse-CDF table per call, SpeedCDFTable.build(W0, g=1) —
-    at g=1 the LIMEPY lowered exponential reduces EXACTLY to the King
-    lowering, E_gamma(1, x) = e^x - 1 (identity guarded to rtol 1e-12 in
+    Speed draws are TABLE-BACKED by default (speed_method="table"): the
+    inverse-CDF table is CACHED at construction (SpeedCDFTable.build(W0, g=1))
+    and the draw runs through a jitted core — at g=1 the LIMEPY lowered
+    exponential reduces EXACTLY to the King lowering, E_gamma(1, x) = e^x - 1
+    (identity guarded to rtol 1e-12 in
     tests/unit/kinematics/test_king_df.py::TestKingTableRouting), so the
     table weight x^2 E_gamma(1, W(1-x^2)) IS the King speed weight
     u^2 (exp(W - u^2/2) - 1). speed_method="quadrature" retains the exact
     per-star 256-point quadrature as the oracle (statistical agreement
-    asserted in TestKingTableRouting).
+    asserted in TestKingTableRouting). Reuse one DF instance for repeated
+    draws: construction (ODE solve + table) dominates; per-draw cost is then
+    milliseconds at any N.
 
     Attributes:
         W0: King concentration parameter (dimensionless central potential)

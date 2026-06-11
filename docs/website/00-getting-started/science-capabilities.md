@@ -381,7 +381,7 @@ here outruns the test suite.
 ## Why you can trust the numbers
 
 progenax's persuasion strategy is measured numbers, not adjectives. At
-the current close-out the released core carries **1150 tests** (882
+the current close-out the released core carries **1163 tests** (895
 unit / 34 integration / 234 physics-validation), and the validation
 tier is built on three habits worth knowing before you rely on the
 package:
