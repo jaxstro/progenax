@@ -113,6 +113,11 @@ Released-core suite (2026-06-10): **1150 tests**
   - ⚠️ pending
   - —
   - `pytest tests/validation -k pp20`
+* - [performance & memory](performance-memory.md)
+  - ✅ (gated: 7 RSS stages + 16× benchmark)
+  - ✅ 3
+  - 2026-06-10
+  - `python scripts/benchmark_batch_a.py`
 ```
 
 ## Map of the section

@@ -93,6 +93,23 @@ ceiling $r^2/(r^2+r_a^2)$ (dotted). $\beta\to0$ at the isotropic core, grows
 radially outward, and turns back toward isotropy at the tidal boundary.
 :::
 
+:::{figure} figures/speed_routing_michie.png
+:label: val-michie-speed-routing
+:width: 95%
+:align: center
+
+**Table-routed draws vs the exact $(u_r,u_t)$ quadrature oracle ($W_0=7$,
+$r_a=8$, $N=2\times10^4$).** Since the 2026-06 memory batch,
+`MichieVelocityDF` draws speeds from the anisotropic CDF table at $g=1$
+(Michie ≡ LIMEPY $g{=}1$ anisotropic — change-of-variables proven and
+brute-force verified), with the original 2-D quadrature retained as
+`speed_method="quadrature"`. (a) Speed distributions: KS $D = 6.7\times10^{-3}$
+(gate $<0.02$; unpaired comparison — the two paths consume keys in different
+orders). (b) Measured $\beta(r)$: $\max|\Delta\beta| = 0.042$ (gate $<0.06$).
+Script: `scripts/validate_speed_routing.py`; see
+[performance & memory](performance-memory.md).
+:::
+
 :::{figure} figures/michie_velocity_equilibrium.png
 :label: val-michie-velocity
 :width: 95%

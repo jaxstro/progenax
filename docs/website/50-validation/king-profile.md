@@ -105,6 +105,22 @@ $v \le v_{\rm esc}(r)$ — **100% bound**. (c) The unscaled IC sits at virial
 external rescale**.
 :::
 
+:::{figure} figures/speed_routing_king.png
+:label: val-king-speed-routing
+:width: 80%
+:align: center
+
+**Table-routed speed draws vs the exact quadrature oracle ($W_0=5$,
+$N=2\times10^4$).** Since the 2026-06 memory batch, `KingVelocityDF` draws
+speeds from a precomputed CDF table by default (`SpeedCDFTable` at $g=1$ —
+the exact King reduction $e^x-1 = E_\gamma(1,x)$, identity-test guarded); the
+per-star quadrature is retained as `speed_method="quadrature"`. The two
+distributions are variate-paired and statistically indistinguishable (KS
+$D = 1\times10^{-4}$, gate $<0.02$; moment ratios to $<10^{-5}$). Script:
+`scripts/validate_speed_routing.py`; see
+[performance & memory](performance-memory.md).
+:::
+
 :::{figure} figures/king_w0_sweep.png
 :label: val-king-w0-sweep
 :width: 80%

@@ -154,6 +154,7 @@ project:
         - file: 50-validation/index.md
         - file: 50-validation/audit-report.md
         - file: 50-validation/methodology.md
+        - file: 50-validation/performance-memory.md
         - file: 50-validation/plummer-equilibrium.md
         - file: 50-validation/king-profile.md
         - file: 50-validation/eff-profile.md
