@@ -107,6 +107,7 @@ class MichieVelocityDF(eqx.Module):
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
     mu: Float[Array, ""]
+    speed_table: AnisoSpeedCDFTable | None
     speed_method: str = eqx.field(static=True)
 
     def __init__(
@@ -132,6 +133,16 @@ class MichieVelocityDF(eqx.Module):
         s_grid = xi_grid / (r_a / r_c)
         rho_tilde = jax.vmap(michie_density)(psi_grid, s_grid) / rho0
         self.mu = jnp.trapezoid(rho_tilde * xi_grid**2, xi_grid)
+        # Aniso table cached at construction (depends only on (W0, r_t/r_a);
+        # g=1 is the exact Michie reduction) -- pre-fix it was rebuilt every
+        # sample_velocities call. Box covers every star: W <= W0, p <= r_t/r_a.
+        if speed_method == "table":
+            p_box = jnp.maximum(
+                self.r_c * _find_tidal_radius(xi_grid, psi_grid) / self.r_a, 1e-3
+            )
+            self.speed_table = AnisoSpeedCDFTable.build(self.W0, p_box, jnp.asarray(1.0))
+        else:
+            self.speed_table = None
 
     def sample_velocities(
         self, positions: Float[Array, "N 3"], masses: Float[Array, "N"],
@@ -140,56 +151,68 @@ class MichieVelocityDF(eqx.Module):
         """Sample velocities from the Michie-King DF via the 2-D (u_r, u_t) sampler."""
         if G is None:
             G = defaults.DEFAULT_UNITS.G
+        return _sample_velocities_core(
+            self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
+        )
 
-        N = positions.shape[0]
-        M_total = jnp.sum(masses)
-        radii = jnp.linalg.norm(positions, axis=1)
 
-        W = jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        W = jnp.maximum(W, 0.0)
-        s = radii / self.r_a
-        sigma = jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu))
+@eqx.filter_jit
+def _sample_velocities_core(
+    df: MichieVelocityDF,
+    positions: Float[Array, "N 3"],
+    masses: Float[Array, "N"],
+    key: PRNGKeyArray,
+    G: Float[Array, ""],
+) -> Float[Array, "N 3"]:
+    """Jitted sampling core (cluster/sampling.py pattern; see LIMEPYVelocityDF).
 
-        key_speed, key_dir = jax.random.split(key)
-        speed_keys = jax.random.split(key_speed, N)
-        if self.speed_method == "table":
-            # Mirror of LIMEPYVelocityDF's aniso table path at g=1 (the exact
-            # Michie reduction): the speed MARGINAL comes from ONE precomputed
-            # 3-D CDF table; the angular conditional cos(theta)|u stays EXACT
-            # (_sample_costheta_given_u — the same Michie factor
-            # exp(-s^2 u_t^2/2) reparametrized via u_t = u sin(theta)).
-            # Box covers every star: W <= W0, p <= r_t/r_a (radii <= r_t);
-            # the 1e-3 p floor guards the near-isotropic corner.
-            p_box = jnp.maximum(
-                self.r_c * _find_tidal_radius(self.xi_grid, self.psi_grid) / self.r_a,
-                1e-3,
-            )
-            table = AnisoSpeedCDFTable.build(self.W0, p_box, jnp.asarray(1.0))
-            ku_kc = jax.vmap(jax.random.split)(speed_keys)
-            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
-            u_sp = jax.vmap(table.inverse)(W, s, unif)
-            cos_t = jax.vmap(
-                lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
-            )(ku_kc[:, 1], u_sp, s)
-            ur = u_sp * cos_t
-            ut = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
-        else:
-            # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
-            # (vmap within each chunk) instead of one eager vmap over all N.
-            ur, ut = jax.lax.map(
-                lambda kws: _sample_ur_ut(kws[0], kws[1], kws[2]),
-                (speed_keys, W, s),
-                batch_size=_ORACLE_BATCH,
-            )
-        v_r = sigma * ur
-        v_t = sigma * ut
+    `df` is a pytree argument: speed_method selects the branch at trace time;
+    array leaves (incl. the CACHED speed_table) are traced, so gradients
+    w.r.t. (W0, r_c, r_a, M) flow unchanged. G is traced (no recompile per
+    value).
+    """
+    N = positions.shape[0]
+    M_total = jnp.sum(masses)
+    radii = jnp.linalg.norm(positions, axis=1)
 
-        # v_r along r_hat (signed), v_t in a random azimuthal direction perp to r_hat.
-        r_hat = positions / (radii[:, None] + 1e-30)
-        rand = jax.random.normal(key_dir, (N, 3))
-        rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
-        t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
-        return v_r[:, None] * r_hat + v_t[:, None] * t_hat
+    W = jnp.interp(radii / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+    W = jnp.maximum(W, 0.0)
+    s = radii / df.r_a
+    sigma = jnp.sqrt(G * M_total / (9.0 * df.r_c * df.mu))
+
+    key_speed, key_dir = jax.random.split(key)
+    speed_keys = jax.random.split(key_speed, N)
+    if df.speed_method == "table":
+        # The g=1 aniso table CACHED at construction (the exact Michie
+        # reduction): the speed MARGINAL comes from the 3-D CDF table; the
+        # angular conditional cos(theta)|u stays EXACT
+        # (_sample_costheta_given_u — the same Michie factor
+        # exp(-s^2 u_t^2/2) reparametrized via u_t = u sin(theta)).
+        ku_kc = jax.vmap(jax.random.split)(speed_keys)
+        unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+        u_sp = jax.vmap(df.speed_table.inverse)(W, s, unif)
+        cos_t = jax.vmap(
+            lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
+        )(ku_kc[:, 1], u_sp, s)
+        ur = u_sp * cos_t
+        ut = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
+    else:
+        # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+        # (vmap within each chunk) instead of one vmap over all N.
+        ur, ut = jax.lax.map(
+            lambda kws: _sample_ur_ut(kws[0], kws[1], kws[2]),
+            (speed_keys, W, s),
+            batch_size=_ORACLE_BATCH,
+        )
+    v_r = sigma * ur
+    v_t = sigma * ut
+
+    # v_r along r_hat (signed), v_t in a random azimuthal direction perp to r_hat.
+    r_hat = positions / (radii[:, None] + 1e-30)
+    rand = jax.random.normal(key_dir, (N, 3))
+    rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
+    t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
+    return v_r[:, None] * r_hat + v_t[:, None] * t_hat
 
 
 __all__ = ["MichieVelocityDF"]

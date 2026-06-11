@@ -164,3 +164,44 @@ class TestMichieTableRouting:
         assert df.speed_method == "table"
         with pytest.raises(ValueError, match="speed_method"):
             MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0, speed_method="exact")
+
+
+class TestMichieSamplerOptimization:
+    """2026-06 sampler-fusion micro-batch: aniso table cached at construction
+    (depends only on (W0, r_t/r_a); g=1 fixed) + jitted sampling core."""
+
+    def test_table_cached_at_construction(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
+        assert isinstance(df.speed_table, AnisoSpeedCDFTable)
+
+    def test_quadrature_method_has_no_table(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0,
+                              speed_method="quadrature")
+        assert df.speed_table is None
+
+    def test_cached_table_bit_identical_to_fresh_build(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+        from progenax.profiles.king import _find_tidal_radius
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
+        p_box = jnp.maximum(
+            df.r_c * _find_tidal_radius(df.xi_grid, df.psi_grid) / df.r_a, 1e-3)
+        fresh = AnisoSpeedCDFTable.build(df.W0, p_box, jnp.asarray(1.0))
+        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
+                                      np.asarray(fresh.cdf))
+
+    def test_same_key_same_velocities(self):
+        from progenax.kinematics.michie_df import MichieVelocityDF
+
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
+        pos = _shell(5.0, 500, seed=0)
+        m = jnp.ones(500)
+        v1 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=G)
+        v2 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=G)
+        np.testing.assert_array_equal(np.asarray(v1), np.asarray(v2))
