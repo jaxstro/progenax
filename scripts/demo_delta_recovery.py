@@ -74,6 +74,12 @@ Runtime budget gate (measured 2026-06-10, CPU/float64; recorded by ``main()``)
 Self-consistency at truth: predict_binned(truth) vs sig_hat over ALL populated
 (truncated, 16-bin) cells gives max |dev/se| = 1.93 -- no wide-outer-bin
 artifact (the binned-expectation comparison is like-with-like).
+
+Per-(group,bin) cell counts span ~17 (top group, outer bins) to ~6000 (light
+group, inner bins). Both data sig_hat and model prediction are sqrt of a
+number-weighted sigma^2, so the only inexactness is the O(1/n) Jensen bias of
+sqrt(.); at the sparsest cell (n~17) that is ~1/(12 n) ~ 0.5%, a factor ~20
+below the 1-SE width (sigma/sqrt(6 n) ~ 10%), hence negligible everywhere.
 """
 
 import os
