@@ -56,8 +56,15 @@ IFT's correctness gain is marginal — the real prizes are speed + robustness.
 - `find_alpha_for_masses` has **one** src caller: `from_imf`
   (`multicomponent.py:379`). `from_imf` has **one** released-core test
   (`test_multicomponent.py:296`) — **forward-only** (residual<2e-3, shapes,
-  equipartition ordering; no gradient). The released-core gradient tests touching
-  `cluster` differentiate **Engine B**, not `from_imf`.
+  equipartition ordering; no gradient).
+- **Released-core DOES differentiate `find_alpha` directly** (corrected after
+  v2 verification): `test_limepy_multimass.py::test_differentiable_in_targets_and_delta`
+  (lines 221–241) takes `jax.grad` w.r.t. (M_j, δ) through
+  `find_alpha_for_masses` **isotropic** (`ra_hat=None`, n_comp=3). This is a
+  *second* gradient consumer — and a benefit: the 1163 invariant now exercises
+  the new IFT gradient path (H2 Step 4 runs this test). The refactor MUST keep
+  it green (it crashes the naive single-solver `-None` backward → see the
+  two-solver requirement below).
 - The diffrax ODE *inside* keeps its own `custom_vjp` (we use its efficient
   reverse). Only the **outer eigenvalue scan** changes.
 - **Containment:** the refactored forward converges at least as tight as the old
@@ -70,8 +77,22 @@ IFT's correctness gain is marginal — the real prizes are speed + robustness.
 ### Part 1 — hand-rolled `jax.custom_vjp` on `find_alpha_for_masses` (released-core)
 
 Keep the signature and the Gieles & Zocchi 2015 §4.1 √-update map. Reference
-implementation: `docs/plans/_ift_prototype_reference.py` (Prototype 2 —
-benchmarked, exact). Structure:
+implementations: `docs/plans/_ift_prototype_reference.py` (Prototype 2 —
+benchmarked) and `docs/plans/_ift_realsig_reference.py` (the v2-verified
+real-signature fix). Structure:
+
+**Two `custom_vjp` solvers, dispatched on `ra_hat is None` (v2 verification —
+required).** A single solver crashes: with `ra_hat=None` the backward computes
+`−gra` where `gra=None` → `TypeError: bad operand for unary -`. So:
+- **Isotropic** (`ra_hat is None`, the demo + the released grad test): `ra_hat,
+  eta` are NONDIFF (closed over); differentiate `(m_j, M_j, W0, g, delta)`;
+  backward returns a 5-tuple. (Rejected alternative: a traced sentinel can't hit
+  the Python `is None` branch in `_realized_fractions`, so it would route the
+  isotropic case through the slow/wrong anisotropic table path.)
+- **Anisotropic** (`ra_hat` finite): differentiate
+  `(m_j, M_j, W0, g, delta, ra_hat, eta)`; 7-tuple backward.
+Share the `while_loop` body via the module-level `_alpha_map`/`_alpha_residual`;
+only the thin `fwd`/`bwd`/`defvjp` differ. Both verified: grad vs FD ≤2.2e-7.
 
 - **Forward (`fwd`, not differentiated):** adaptive `jax.lax.while_loop` running
   `α ← normalize(α·√(f_target/f_real(α,θ)))` until

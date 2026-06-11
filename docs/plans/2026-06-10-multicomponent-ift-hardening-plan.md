@@ -132,11 +132,29 @@ def _alpha_residual(alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat
     return alpha - _alpha_map(alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method)
 ```
 
-**Step 2:** Implement the solve as a `custom_vjp`. Differentiable args:
-`(m_j, M_j, W0, g, delta, ra_hat, eta)`; statics `(xi_max, n_points,
-aniso_method, tol, max_iter)` via `nondiff_argnums` (use `functools.partial`).
-Forward = adaptive `while_loop` to `tol`; backward = reverse-mode implicit VJP
-(R-residual, `vmap`'d `vjp` for the 4×4, `lstsq`, `−vjp_theta(w)`):
+**Step 2:** Implement TWO `custom_vjp` solvers dispatched on `ra_hat is None`
+(v2 verification — a single solver crashes on `−None` when `ra_hat=None`, which
+is BOTH the demo path AND the released grad test
+`test_limepy_multimass.py::test_differentiable_in_targets_and_delta`). **Read
+`docs/plans/_ift_realsig_reference.py` — it is the verified working code
+(grad vs FD ≤2.2e-7); adapt it directly.**
+
+- **Isotropic solver** (`ra_hat is None`): `ra_hat, eta` are NONDIFF (closed
+  over / not in the diff set); differentiate `(m_j, M_j, W0, g, delta)`;
+  `nondiff_argnums` covers `(ra_hat? eta? xi_max, n_points, aniso_method, tol,
+  max_iter)`; `fwd` saves `(a_star, m_j, M_j, W0, g, delta)`; `bwd` returns a
+  **5-tuple** `(-gm,-gM,-gW,-gg,-gd)` and `R_th` closes over `ra_hat`/`eta`.
+- **Anisotropic solver** (`ra_hat` finite): the 7-tuple version below.
+- `find_alpha_for_masses` branches: `if ra_hat is None: a = _solve_alpha_iso(...)
+  else: a = _solve_alpha_aniso(...)`.
+- Share the `while_loop` body via the module-level `_alpha_map`/`_alpha_residual`
+  (Step 1) so only the thin `fwd`/`bwd`/`defvjp` differ between the two.
+
+The anisotropic solver (differentiable args `(m_j, M_j, W0, g, delta, ra_hat,
+eta)`; statics via `nondiff_argnums`; forward = adaptive `while_loop` to `tol`;
+backward = reverse-mode implicit VJP — R-residual, `vmap`'d `vjp` for the n×n
+Jacobian (n=n_comp, general — `jnp.eye(a_star.shape[0])`), `lstsq`,
+`−vjp_theta(w)`):
 ```python
 import functools
 
@@ -188,13 +206,14 @@ def find_alpha_for_masses(m_j, M_j, W0, g, delta, n_iter=30, xi_max=300.0,
     residual = jnp.max(jnp.abs(f_real - M_j / jnp.sum(M_j)))
     return a, residual
 ```
-Implementer notes: handle `ra_hat=None` (the demo path) — `nondiff` won't accept
-a traced None mismatch; if `ra_hat is None`, either pass a sentinel and branch in
-`_alpha_map` (isotropic) or keep `ra_hat`/`eta` out of the differentiated set
-when None. The prototype uses the isotropic path; mirror it. If `lstsq` is
-unstable anywhere, `jnp.linalg.pinv(J.T) @ a_bar` is the drop-in fallback —
-STOP and report before switching residual definitions (do NOT use
-`f_real−f_target`, cond 1e16).
+Implementer notes: `ra_hat=None` MUST use the dedicated **isotropic solver**
+above (keep `ra_hat`/`eta` OUT of the differentiated set — closed over) — do NOT
+use a traced sentinel (a traced array can't hit the Python `is None` branch in
+`_realized_fractions`, so it would route the isotropic case through the slow,
+wrong anisotropic table path; v2-verified). `docs/plans/_ift_realsig_reference.py`
+is the working two-solver code — adapt it. If `lstsq` is unstable anywhere,
+`jnp.linalg.pinv(J.T) @ a_bar` is the drop-in fallback — STOP and report before
+switching residual definitions (do NOT use `f_real−f_target`, cond 1e16).
 
 **Step 3: Run the H1 pins — forward (consistency) + FD-grad must pass.**
 ```bash
