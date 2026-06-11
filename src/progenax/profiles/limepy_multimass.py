@@ -554,7 +554,9 @@ def find_alpha_for_masses(
     g = jnp.asarray(g)
     delta = jnp.asarray(delta)
     if ra_hat is None:
-        alpha = _solve_alpha_iso(m_j, M_j, W0, g, delta, None, jnp.asarray(eta),
+        # iso: eta passed bare -- it is nondiff here; jnp.asarray(eta) would become a
+        # tracer under jit in a nondiff_argnums slot and crash jit(grad).
+        alpha = _solve_alpha_iso(m_j, M_j, W0, g, delta, None, eta,
                                  xi_max, n_points, aniso_method, tol, n_iter)
     else:
         alpha = _solve_alpha_aniso(m_j, M_j, W0, g, delta, jnp.asarray(ra_hat),
