@@ -94,7 +94,7 @@ def _speed_panel(ax, s_t, s_q, D):
     ax.hist(s_t, bins=bins, density=True, histtype="step", lw=1.4,
             color=OI["blue"], label="table (default)")
     ax.annotate(f"KS $D = {D:.4f}$\n($N = {N:,}$, gate $< {KS_GATE}$)",
-                xy=(0.97, 0.78), xycoords="axes fraction", ha="right",
+                xy=(0.97, 0.55), xycoords="axes fraction", ha="right",
                 fontsize=8)
     ax.set_xlabel("speed $|v|$ [model units]")
     ax.set_ylabel("probability density")
