@@ -41,9 +41,13 @@ side only; no resampling in the loss). Demos are gated CLIs in the
 > 4. **Binning superseded (Anna-approved) — exact binned expectation, r_bar
 >    retired.** The bin-center oracle mispredicted the wide sparse outer bin
 >    (steep σ×density gradient → ~58 SE); a frozen r_bar centroid patched it but
->    deviated from plan. Root-cause replacement: (a) truncate the kinematic
->    analysis at R_CUT = 95th-percentile stellar radius; (b) 16 equal-count
->    radial bins in [0, R_CUT], frozen; (c) predict_fn compares binned DATA to
+>    deviated from plan. Root-cause replacement: (a) use ALL stars to the
+>    cluster edge R_CUT = max sampled radius (~r_t) — no truncation needed since
+>    the binned-expectation comparison is unbiased at any width (Anna's call:
+>    keep the light-group halo info; sparse heavy-group outer cells masked
+>    per-cell by n_min); (b) 16 equal-count radial bins in [0, R_CUT], frozen
+>    (16 is near-optimal — finer binning drops heavy-group equipartition cells
+>    below n_min; σ(r) smooth so Fisher info saturates); (c) predict_fn compares binned DATA to
 >    the model's binned EXPECTATION E[σ̂²_jk]=(∫_bin n_j σ_j² dr)/(∫_bin n_j dr),
 >    with n_j(r)∝d(cdf_j)/dr from the model's stored `_cdf_j`/`_r_grid`, and
 >    σ_j²(r)=s_j²·g(W(r)), g=I4/I2/3 precomputed once per eval on a W-table
