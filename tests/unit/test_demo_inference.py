@@ -74,9 +74,10 @@ class TestBinnedSigma1d:
         r_edges = jnp.linspace(0.0, 5.0, 4)
 
         sig_hat, se, weight, n_bin = di.binned_sigma1d(pos, vel, gid, 1, r_edges, n_min=30)
-        # SE of a dispersion estimate = sig_hat / sqrt(2 n) exactly, on populated bins.
+        # SE of the 3-component pooled dispersion = sig_hat / sqrt(6 n) exactly
+        # (|v|^2/sigma^2 ~ chi^2(3n) -> Var(sig_hat) ~ sigma^2/(6n)), on populated bins.
         mask = weight > 0
-        expected = jnp.where(mask, sig_hat / jnp.sqrt(2.0 * n_bin), 0.0)
+        expected = jnp.where(mask, sig_hat / jnp.sqrt(6.0 * n_bin), 0.0)
         np.testing.assert_allclose(
             np.asarray(se[mask]), np.asarray(expected[mask]), rtol=1e-10
         )

@@ -59,8 +59,13 @@ def binned_sigma1d(pos, vel, group_ids, n_groups, r_edges, n_min=30):
     r"""Per-group binned 1-D velocity dispersion sigma_1d(r).
 
     Isotropic estimator ``sigma_1d^2 = <|v|^2> / 3`` within each (group j,
-    radial bin k). Standard error of the dispersion estimate is the Gaussian
-    RMS standard error ``se = sig_hat / sqrt(2 n)``.
+    radial bin k). Standard error of the dispersion estimate is
+    ``se = sig_hat / sqrt(6 n)``. The estimator pools all 3 velocity
+    components, so the inner sum runs over ``3n`` iid one-D squared normals:
+    ``sum |v|^2 / sigma^2 ~ chi^2(3n)``, giving ``Var(sigma_hat^2) = 2 sigma^4
+    / (3n)`` and (delta method) ``Var(sigma_hat) ~ sigma^2 / (6n)``. The
+    effective sample size is ``3n``, not ``n`` -- hence ``sqrt(6 n)`` rather
+    than the single-component ``sqrt(2 n)``.
 
     Parameters
     ----------
@@ -85,7 +90,7 @@ def binned_sigma1d(pos, vel, group_ids, n_groups, r_edges, n_min=30):
 
     sigma_sq = jnp.where(populated, sum_v2 / safe_counts / 3.0, 0.0)
     sig_hat = jnp.sqrt(sigma_sq)
-    se = jnp.where(populated, sig_hat / jnp.sqrt(2.0 * safe_counts), 0.0)
+    se = jnp.where(populated, sig_hat / jnp.sqrt(6.0 * safe_counts), 0.0)
     weight = jnp.where(populated, 1.0, 0.0)
     return sig_hat, se, weight, counts
 
@@ -94,7 +99,7 @@ class SigmaBetaResult(NamedTuple):
     """Return of :func:`binned_sigma_beta`; all arrays shaped (C, K)."""
 
     sig_hat: jax.Array   # 1-D dispersion sqrt((sigma_r^2 + sigma_t^2)/3)
-    se: jax.Array        # Gaussian SE of sig_hat = sig_hat / sqrt(2 n)
+    se: jax.Array        # SE of sig_hat = sig_hat / sqrt(6 n) (3 pooled components)
     beta_hat: jax.Array  # Binney anisotropy 1 - sigma_t^2 / (2 sigma_r^2)
     weight: jax.Array    # 1.0 if populated (n >= n_min) else 0.0
     n: jax.Array         # member counts
@@ -109,7 +114,17 @@ def binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50):
     ``beta = 1 - sigma_t^2 / (2 sigma_r^2)`` and
     ``sig_hat = sqrt((sigma_r^2 + sigma_t^2) / 3)``.
 
+    The standard error of ``sig_hat`` is ``se = sig_hat / sqrt(6 n)``: all 3
+    velocity components are pooled into ``sig_hat^2``, so the inner sum is over
+    ``3n`` iid one-D squared normals (``chi^2(3n)``), giving effective sample
+    size ``3n`` (delta method ``Var(sig_hat) ~ sigma^2 / (6n)``), not ``n``.
+
     ``component_id=None`` treats all stars as a single component (C = 1).
+    Otherwise ``component_id`` must be a CONCRETE (static) array: ``n_comp`` is
+    read host-side via ``int(component_id.max()) + 1``, so this function is NOT
+    traceable over a traced ``component_id`` (unlike :func:`binned_sigma1d`,
+    which takes ``n_groups`` explicitly and stays fully traceable).
+
     Returns a :class:`SigmaBetaResult` namedtuple (``sig_hat, se, beta_hat,
     weight, n``), each (C, K), NaN-free.
     """
@@ -139,7 +154,7 @@ def binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50):
     sig_hat = jnp.sqrt(jnp.where(populated, (sigma_r_sq + sigma_t_sq) / 3.0, 0.0))
     safe_sigma_r_sq = jnp.where(sigma_r_sq > 0, sigma_r_sq, 1.0)
     beta_hat = jnp.where(populated, 1.0 - sigma_t_sq / (2.0 * safe_sigma_r_sq), 0.0)
-    se = jnp.where(populated, sig_hat / jnp.sqrt(2.0 * safe_counts), 0.0)
+    se = jnp.where(populated, sig_hat / jnp.sqrt(6.0 * safe_counts), 0.0)
     weight = jnp.where(populated, 1.0, 0.0)
     return SigmaBetaResult(sig_hat, se, beta_hat, weight, counts)
 
@@ -172,10 +187,16 @@ def gaussian_loglike(data, predict_fn):
 def mle_adam(negloglike, z0, n_steps=400, lr=3e-2):
     r"""Minimize ``negloglike(z)`` with optax Adam over a fixed ``jax.lax.scan``.
 
-    Deterministic (fixed ``n_steps``), jit/grad-safe. ``z0`` is the unconstrained
-    init. Returns ``(z_hat, loss_trace)`` where ``loss_trace`` has shape
-    ``(n_steps,)`` (the loss BEFORE each update step); the caller checks the
-    trace plateaued.
+    Deterministic (fixed ``n_steps``), jit/grad-safe. The ``value_and_grad`` +
+    update step is the ``scan`` body, so it is traced and fused by XLA; the
+    caller is expected to ``jax.jit`` the outer loss/driver (this function adds
+    no explicit ``jax.jit`` of its own). ``z0`` is the unconstrained init.
+
+    Returns ``(z_hat, loss_trace)`` where ``loss_trace`` has shape
+    ``(n_steps,)``. ``loss_trace[k]`` is the loss BEFORE update step ``k`` (the
+    loss at the iterate that step ``k`` then updates). Consequently the loss of
+    the FINAL returned ``z_hat`` (after the last update) is NOT recorded -- a
+    caller's plateau / convergence check should account for that one-step lag.
     """
     optimizer = optax.adam(lr)
     value_and_grad = jax.value_and_grad(negloglike)
