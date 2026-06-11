@@ -188,6 +188,7 @@ def make_figures(results: dict) -> None:
     stages = [("pe", 8_000), ("pe", 20_000), ("df", 20_000)]
     before = [r[f"mem_{w}_{n}_before"]["peak_rss_gb"] for w, n in stages]
     after = [r[f"mem_{w}_{n}_after"]["peak_rss_gb"] for w, n in stages]
+    tick = {"pe": "potential energy", "df": "aniso DF sampling"}
     x = np.arange(len(stages))
     fig, ax = plt.subplots(figsize=(4.6, 3.2))
     b1 = ax.bar(x - 0.18, before, 0.36, color=OI["vermilion"],
@@ -197,7 +198,8 @@ def make_figures(results: dict) -> None:
         ax.bar_label(bars, fmt="%.2f", padding=2, fontsize=7.5)
     ax.set_yscale("log")
     ax.set_ylim(0.05, 200)
-    ax.set_xticks(x, [_label(w, n).replace(" N=", "\nN=") for w, n in stages])
+    ax.set_xticks(x, [f"{tick[w]}\n$N = {n:,}$" for w, n in stages],
+                  fontsize=8)
     ax.set_ylabel("peak RSS [GB]")
     ax.legend(loc="upper left", bbox_to_anchor=(0.0, 0.88))
     save_fig(fig, PLOT_DIR, "performance_memory")
@@ -233,6 +235,7 @@ def make_figures(results: dict) -> None:
              color=OI["green"], label="Batch A quadrature oracle")
     axb.set_xscale("log")
     axb.set_yscale("log")
+    axb.margins(y=0.2)
     axb.set_xlabel("$N$ stars")
     axb.set_ylabel("median wall-clock [s]")
     axb.legend(loc="upper left")
@@ -250,7 +253,15 @@ def main() -> int:
                                        "(subprocess re-entry)")
     parser.add_argument("--keep-worktree", action="store_true",
                         help="keep the pre-batch worktree after the run")
+    parser.add_argument("--figures-only", action="store_true",
+                        help="re-render the figures from the existing JSON "
+                             "(no re-measurement)")
     args = parser.parse_args()
+
+    if args.figures_only:
+        results = json.loads(JSON_PATH.read_text())["results"]
+        make_figures(results)
+        return 0
 
     if args.case:
         matches = [c for c in CASES if c[0] == args.case]
