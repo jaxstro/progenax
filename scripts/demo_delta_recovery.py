@@ -93,6 +93,15 @@ Runtime budget gate + MLE config (measured 2026-06-11, CPU/float64)
                                      ~9x faster) and still recovers the reference
                                      theta_hat (alpha=2.2931, delta=0.3972,
                                      W0=4.9900) bit-for-bit.
+    NUTS corner (--run-nuts)         blackjax NUTS, 300 warmup + 600 samples,
+                                     target -negloglike(z) + sum log(dtheta/dz)
+                                     (flat-in-theta). MEASURED: 0 divergences;
+                                     posterior mean within 1 sigma of the MLE
+                                     (alpha -0.05, delta +0.27, W0 -0.38 sigma);
+                                     ~52 min wall (measured probe projected
+                                     39 min < 45-min STOP budget, deferred from
+                                     the default run -- pass --run-nuts to make
+                                     the corner). Fisher panel runs by default.
     compile  8.84 s   (cold: traces + differentiates the adaptive
                        find_alpha_for_masses while_loop + ODE)
     warm     0.302 s  (second call at a different z) -- PASS (<= 5 s budget)
