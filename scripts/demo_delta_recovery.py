@@ -14,9 +14,11 @@ the truth ``(alpha=2.3, delta=0.4, W0=5.0)``. Two observable channels constrain
 the joint fit:
 
 * **Kinematics** -- per-component binned 1-D velocity dispersion sigma_1d,j(r).
-  The kinematic analysis is truncated at the 95th-percentile stellar radius
-  ``R_CUT`` (dropping the low-signal halo tail), then split into 16 equal-count
-  (quantile) radial bins on [0, R_CUT] (``R_EDGES``, frozen after one draw).
+  ALL stars out to the cluster edge ``R_CUT`` (the outermost sampled radius ~ r_t)
+  are used, split into 16 equal-count (quantile) radial bins on [0, R_CUT]
+  (``R_EDGES``, frozen after one draw). No truncation: the binned-EXPECTATION
+  comparison is unbiased at any width, so the sparse halo cells are simply
+  down-weighted by their large SE rather than discarded.
 
   The model is compared to the data via the binned EXPECTATION of the estimator,
   NOT via the oracle evaluated at a single representative radius. The binned
@@ -56,7 +58,7 @@ expit boxes (di.expit), so the fit is unconstrained and gradient-safe.
 
 Runtime budget gate (measured 2026-06-10, CPU/float64; recorded by ``main()``)
 -----------------------------------------------------------------------------
-    R_CUT (95th-pct stellar radius)  4.5073 (model units)
+    R_CUT (cluster edge = max radius) ~7.0 (model units; all stars used)
     R_EDGES                          16 quantile bins on [0, R_CUT]
     M_FIXED                          57382.116 (measured total mass; a constant)
     per-group occupancy (truncated)  j=0: 61896, j=1: 25972, j=2: 5989,
@@ -251,14 +253,18 @@ def build_truth_data():
 
     r = jnp.linalg.norm(pos, axis=1)
 
-    # Truncate the kinematic analysis at the 95th-percentile stellar radius:
-    # drop the low-signal outer 5% halo tail (FROZEN data constant).
-    R_CUT = float(jnp.quantile(r, 0.95))
-    # 16 equal-count (quantile) radial bins inside [0, R_CUT] (FROZEN). Stars
-    # with r > R_CUT fall above the last edge and are excluded automatically by
-    # binned_sigma1d's _bin_index overflow handling (in_range needs r <= edge[-1]).
-    r_in = r[r <= R_CUT]
-    R_EDGES = jnp.quantile(r_in, jnp.linspace(0.0, 1.0, 17))  # 16 bins, FROZEN
+    # Use ALL stars out to the cluster edge (the outermost sampled radius ~ r_t).
+    # The binned-EXPECTATION comparison is unbiased at any bin width, so no
+    # truncation is needed: the sparse outer cells are down-weighted by their
+    # large SE (and masked per-cell if n < n_min). Keeping the halo recovers the
+    # light group's outer-sigma information, which constrains W0/concentration.
+    R_CUT = float(r.max())  # cluster edge (the outermost sampled star)
+    # 16 equal-count (quantile) radial bins on [0, R_CUT], FROZEN after one draw.
+    # 16 is near-optimal: the heavy (segregated) group has only ~1150 stars, so
+    # finer binning would push its outer cells below n_min and drop the very
+    # cells carrying the equipartition (delta) signal; sigma(r) is smooth so the
+    # Fisher information saturates past ~16 bins anyway.
+    R_EDGES = jnp.quantile(r, jnp.linspace(0.0, 1.0, 17))  # 16 bins, FROZEN
 
     sig_hat, se, weight, n = di.binned_sigma1d(pos, vel, cid, N_COMP, R_EDGES,
                                                n_min=30)
@@ -333,7 +339,7 @@ def main():
     n = data["n"]
     J = n.shape[0]
     print(f"\nM_FIXED (measured total mass) = {data['M_fixed']:.3f}")
-    print(f"R_CUT (95th-pct stellar radius) = {data['r_cut']:.4f}")
+    print(f"R_CUT (cluster edge = max radius) = {data['r_cut']:.4f}")
     print("R_EDGES (16 quantile bins on [0, R_CUT]) =",
           [round(float(x), 4) for x in data["r_edges"]])
     print("per-group counts (group x bin):")
