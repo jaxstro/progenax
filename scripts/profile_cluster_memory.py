@@ -23,6 +23,9 @@ Exits nonzero iff any stage whose gate is not marked --allow-fail exceeds it.
 stage that crashes (nonzero subprocess exit or no result line) always FAILs.
 """
 import argparse
+import datetime
+import json
+import platform
 import resource
 import subprocess
 import sys
@@ -145,6 +148,10 @@ def main() -> int:
                         help="mark this stage's gate ALLOWED-FAIL on gate "
                              "excess only; stage crashes always FAIL "
                              "(repeatable)")
+    parser.add_argument("--json", metavar="PATH",
+                        help="also write the stage results as JSON "
+                             "(machine-readable; consumed by "
+                             "scripts/benchmark_batch_a.py)")
     args = parser.parse_args()
 
     if args.stage:
@@ -186,6 +193,26 @@ def main() -> int:
     print("=" * 72)
     print("  MEMORY GATES PASS" if not any_fatal
           else "  MEMORY GATES FAILED (non-allowed gate excess or stage crash)")
+
+    if args.json:
+        payload = {
+            "meta": {
+                "date": datetime.date.today().isoformat(),
+                "platform": sys.platform,
+                "machine": platform.machine(),
+                "ru_maxrss_unit": "bytes" if sys.platform == "darwin" else "KB",
+            },
+            "stages": [
+                {"stage": stage, "N": n, "gate_gb": gate_gb,
+                 "measured_gb": measured, "status": status}
+                for stage, n, gate_gb, measured, status in rows
+            ],
+            "all_pass": not any_fatal,
+        }
+        with open(args.json, "w") as fh:
+            json.dump(payload, fh, indent=2)
+        print(f"  wrote {args.json}")
+
     return 1 if any_fatal else 0
 
 
