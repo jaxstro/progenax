@@ -56,16 +56,29 @@ the joint fit:
 The unconstrained parameter z in R^3 maps to theta = (alpha, delta, W0) via
 expit boxes (di.expit), so the fit is unconstrained and gradient-safe.
 
-Runtime budget gate (measured 2026-06-10, CPU/float64; recorded by ``main()``)
------------------------------------------------------------------------------
+Runtime budget gate + MLE config (measured 2026-06-11, CPU/float64)
+-------------------------------------------------------------------
     R_CUT (cluster edge = max radius) ~7.0 (model units; all stars used)
     R_EDGES                          16 quantile bins on [0, R_CUT]
     M_FIXED                          57382.116 (measured total mass; a constant)
     per-group occupancy (truncated)  j=0: 61896, j=1: 25972, j=2: 5989,
                                      j=3 (top): 1143 (>= 300 gate)
-    compile  6.24 s   (cold: traces + differentiates the 30-iter
-                       find_alpha_for_masses eigenvalue solve + ODE)
-    warm     0.550 s  (second call at a different z) -- PASS (<= 5 s budget)
+    find_alpha_for_masses            IFT-accelerated (hand-rolled jax.custom_vjp:
+                                     adaptive while_loop forward to tol=1e-6 +
+                                     reverse-mode implicit-VJP backward, flat in
+                                     n_iter) -- ~3x faster per value_and_grad than
+                                     the prior unrolled 30-iter eigenvalue scan.
+    MLE optimizer                    3 dispersed inits (z0=0 + 2 draws) x 300 Adam
+                                     steps (lr=3e-2). Right-sized from the prior
+                                     4 inits x 600 steps now that each loss eval is
+                                     ~3x cheaper: the full demo runs in ~5.7 min
+                                     (measured 5:40 wall; vs the prior ~50 min,
+                                     ~9x faster) and still recovers the reference
+                                     theta_hat (alpha=2.2931, delta=0.3972,
+                                     W0=4.9900) bit-for-bit.
+    compile  8.84 s   (cold: traces + differentiates the adaptive
+                       find_alpha_for_masses while_loop + ODE)
+    warm     0.302 s  (second call at a different z) -- PASS (<= 5 s budget)
     grad(z1) = [1762.96, -233.77, 1406.92]  -- finite AND nonzero in all 3 of
                (alpha, delta, W0). Independently grad-checked vs central finite
                differences: rel-err ~1e-9..1e-11 per component (correct, not
@@ -415,15 +428,15 @@ def self_consistency_check(data):
 # --------------------------------------------------------------------------- #
 # MLE recovery from dispersed inits + Gauss-Newton Fisher errors
 # --------------------------------------------------------------------------- #
-N_INITS = 4
+N_INITS = 3
 INIT_KEY = 7
 INIT_SCALE = 1.5
-N_ADAM_STEPS = 600
+N_ADAM_STEPS = 300
 ADAM_LR = 3e-2
 
 
 def dispersed_inits():
-    """4 unconstrained inits: z0=0 plus 3 draws from N(0, INIT_SCALE^2 I_3)."""
+    """3 unconstrained inits: z0=0 plus 2 draws from N(0, INIT_SCALE^2 I_3)."""
     key = jax.random.PRNGKey(INIT_KEY)
     draws = jax.random.normal(key, (N_INITS - 1, 3)) * INIT_SCALE
     return jnp.concatenate([jnp.zeros((1, 3)), draws], axis=0)
