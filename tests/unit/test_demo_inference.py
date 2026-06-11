@@ -207,6 +207,66 @@ class TestAdamMLE:
         raise AssertionError("fisher_cov should raise ValueError on non-PD Hessian")
 
 
+class TestFisherInformationGN:
+    """Gauss-Newton (reverse-mode only) Fisher information F = J^T J [+ Hess].
+
+    Used on the B2 demo loss because jax.hessian crashes through the diffrax
+    ODE inside from_imf (forward-mode over a custom_vjp). The Jacobian of the
+    standardized residual vector is reverse-mode (jacrev) only.
+    """
+
+    def test_linear_model_returns_AtA(self):
+        # r(z) = A z - b  =>  J = A  =>  F = J^T J = A^T A exactly.
+        A = jnp.array([[1.0, 2.0, 0.0],
+                       [0.0, 1.0, -1.0],
+                       [3.0, 0.0, 1.0],
+                       [1.0, 1.0, 1.0]])
+        b = jnp.array([0.5, -1.0, 2.0, 0.3])
+        residual_fn = lambda z: A @ z - b
+        z_hat = jnp.array([0.1, -0.2, 0.3])
+        F = di.fisher_information_gn(residual_fn, z_hat)
+        np.testing.assert_allclose(np.asarray(F), np.asarray(A.T @ A), atol=1e-10)
+        # Independent of z_hat for a linear residual.
+        F2 = di.fisher_information_gn(residual_fn, jnp.array([5.0, -3.0, 1.0]))
+        np.testing.assert_allclose(np.asarray(F2), np.asarray(A.T @ A), atol=1e-10)
+
+    def test_extra_negloglike_adds_its_hessian(self):
+        # Linear residual contributes A^T A; a quadratic extra term contributes
+        # its (constant) Hessian H. Total must be A^T A + H.
+        A = jnp.array([[1.0, 0.0, 0.0],
+                       [0.0, 2.0, 0.0],
+                       [0.0, 0.0, 1.0]])
+        residual_fn = lambda z: A @ z
+        # extra = 0.5 z^T H z  (H spd, diagonal) -> Hessian = H.
+        H = jnp.diag(jnp.array([4.0, 9.0, 16.0]))
+        extra = lambda z: 0.5 * z @ (H @ z)
+        z_hat = jnp.array([0.3, -0.1, 0.7])
+        F = di.fisher_information_gn(residual_fn, z_hat, extra_negloglike=extra)
+        np.testing.assert_allclose(
+            np.asarray(F), np.asarray(A.T @ A + H), atol=1e-10
+        )
+
+    def test_returns_symmetric_pd_for_well_posed(self):
+        # Full-rank residual Jacobian -> J^T J is symmetric PD.
+        A = jnp.array([[2.0, 1.0, 0.0],
+                       [1.0, 3.0, 1.0],
+                       [0.0, 1.0, 2.0],
+                       [1.0, 0.0, 1.0]])
+        residual_fn = lambda z: A @ z - jnp.ones(4)
+        F = di.fisher_information_gn(residual_fn, jnp.zeros(3))
+        np.testing.assert_allclose(np.asarray(F), np.asarray(F.T), atol=1e-12)
+        eigvals = jnp.linalg.eigvalsh(0.5 * (F + F.T))
+        assert bool(jnp.all(eigvals > 0)), np.asarray(eigvals)
+
+    def test_nonlinear_residual_uses_jacrev_at_z_hat(self):
+        # r(z) = [z0^2, z0 z1]  =>  J(z) = [[2 z0, 0], [z1, z0]].
+        residual_fn = lambda z: jnp.array([z[0] ** 2, z[0] * z[1]])
+        z_hat = jnp.array([1.5, -0.5])
+        J = jnp.array([[2.0 * 1.5, 0.0], [-0.5, 1.5]])
+        F = di.fisher_information_gn(residual_fn, z_hat)
+        np.testing.assert_allclose(np.asarray(F), np.asarray(J.T @ J), atol=1e-10)
+
+
 class TestReparam:
     def test_logit_expit_roundtrip(self):
         lo, hi = -2.0, 5.0

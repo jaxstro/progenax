@@ -228,6 +228,35 @@ def predict_binned(theta, r_edges, m_fixed):
     return jax.vmap(_per_group)(jnp.arange(N_COMP))            # (N_COMP, K)
 
 
+def sigma_oracle(theta, r_eval, m_fixed):
+    r"""Per-group 1-D dispersion sigma_j(r) at theta on radii r_eval (FOR PLOTTING).
+
+    Evaluates the SAME Engine A oracle predict_binned integrates, but pointwise:
+    sigma_j(r) = s * w_j * sqrt(g(W_j(r))), W_j(r) = rescale_j * psi(r). Returns
+    shape (N_COMP, len(r_eval)). This is a smooth-curve helper for the fit figure,
+    NOT used in the likelihood (the likelihood uses the unbiased binned
+    EXPECTATION predict_binned).
+    """
+    alpha, delta, W0 = theta
+    imf = Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1])
+    m = MultiComponentCluster.from_imf(imf, N_COMP, W0, g=1.0, delta=delta,
+                                       m_range=M_RANGE)
+    s = jnp.sqrt(G_MODEL * m_fixed / (9.0 * m.r_c * m.mu_tot))
+    W_max = jnp.max(m.rescale_j) * W0
+    W_tab, g_tab = _build_g_table(W_max, m.g)
+    psi_eval = jnp.interp(r_eval / m.r_c, m.xi_grid, m.psi_grid, left=W0, right=0.0)
+
+    def _per_group(j):
+        W_j = m.rescale_j[j] * jnp.maximum(psi_eval, 0.0)
+        g_j = jnp.interp(W_j, W_tab, g_tab)
+        s_j = s * m.w_j[j]
+        g_safe = jnp.where(g_j > 0.0, g_j, 1.0)
+        sig = s_j * jnp.sqrt(g_safe)
+        return jnp.where(g_j > 0.0, sig, 0.0)
+
+    return jax.vmap(_per_group)(jnp.arange(N_COMP))
+
+
 # --------------------------------------------------------------------------- #
 # Mock data construction (run once; R_CUT, R_EDGES then frozen)
 # --------------------------------------------------------------------------- #
@@ -269,35 +298,90 @@ def build_truth_data():
     sig_hat, se, weight, n = di.binned_sigma1d(pos, vel, cid, N_COMP, R_EDGES,
                                                n_min=30)
 
+    # Per-(group, bin) mean radius (for placing the figure's data points).
+    bin_ids = di._bin_index(r, R_EDGES)
+    r_sum, r_cnt = di._grouped_bin_sums(r, cid, bin_ids, N_COMP, R_EDGES.shape[0] - 1)
+    r_mean = jnp.where(r_cnt > 0, r_sum / jnp.where(r_cnt > 0, r_cnt, 1.0), 0.0)
+
     # Observed-mass sample (Option A): global, independent of kinematic group.
     m_obs = imf.ppf(jax.random.uniform(k_mass, (N_STARS,)))
     M_fixed = float(jnp.sum(ic.masses))  # measured total mass (a CONSTANT)
 
     return dict(r_edges=R_EDGES, r_cut=R_CUT, sig_hat=sig_hat, se=se,
-                weight=weight, n=n, m_obs=m_obs, M_fixed=M_fixed)
+                weight=weight, n=n, r_mean=r_mean, m_obs=m_obs, M_fixed=M_fixed)
 
 
 # --------------------------------------------------------------------------- #
 # Joint negative log-likelihood (one jit(value_and_grad)-able function)
 # --------------------------------------------------------------------------- #
-def make_negloglike(data):
-    """Build the joint negloglike(z) closure over the frozen truth data."""
+def _theta_of_z(z):
+    """Box-reparam z in R^3 -> theta = (alpha, delta, W0) in their open boxes."""
+    return (di.expit(z[0], *ALPHA_BOX),
+            di.expit(z[1], *DELTA_BOX),
+            di.expit(z[2], *W0_BOX))
+
+
+def _dtheta_dz(z):
+    """Per-component derivative dtheta_i/dz_i of the expit boxes at z (shape (3,))."""
+    return jnp.array([
+        jax.grad(lambda zi: di.expit(zi, *ALPHA_BOX))(z[0]),
+        jax.grad(lambda zi: di.expit(zi, *DELTA_BOX))(z[1]),
+        jax.grad(lambda zi: di.expit(zi, *W0_BOX))(z[2]),
+    ])
+
+
+def make_residual_fn(data):
+    r"""Build the STANDARDIZED kinematic residual vector r(z) (flattened cells).
+
+    ``r_i = sqrt(weight_i) * (sig_hat_i - sig_model_i(z)) / safe_se_i`` so that
+    ``-0.5 sum r_i^2`` equals the kinematic log-likelihood ``ll_kin`` exactly
+    (weight in {0, 1}, so sqrt(weight) = weight; masked cells -> 0, contributing
+    nothing to ``J^T J``). This is the Gauss-Newton residual whose ``jacrev``
+    gives the kinematic Fisher information.
+    """
     r_edges = data["r_edges"]
     sig_hat, se, weight = data["sig_hat"], data["se"], data["weight"]
-    m_obs = data["m_obs"]
     m_fixed = data["M_fixed"]
     safe_se = jnp.where(se > 0, se, 1.0)
+    sqrt_w = jnp.sqrt(weight)
+
+    def residual_fn(z):
+        sig_model = predict_binned(_theta_of_z(z), r_edges, m_fixed)
+        return (sqrt_w * (sig_hat - sig_model) / safe_se).ravel()
+
+    return residual_fn
+
+
+def make_mass_negloglike(data):
+    r"""Build the ODE-free mass-channel negloglike(z) = -sum logpdf(m_obs).
+
+    Contains NO diffrax ODE, so ``jax.hessian`` is safe on it (only the alpha-alpha
+    entry of its 3x3 Hessian is nonzero). Used as ``extra_negloglike`` for the
+    Gauss-Newton Fisher.
+    """
+    m_obs = data["m_obs"]
+
+    def mass_negloglike(z):
+        alpha = di.expit(z[0], *ALPHA_BOX)
+        return -jnp.sum(
+            Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_obs))
+
+    return mass_negloglike
+
+
+def make_negloglike(data):
+    """Build the joint negloglike(z) = kinematic + mass channel over the data.
+
+    Equivalent to ``-0.5 sum r(z)^2 + mass_negloglike(z)`` using the shared
+    residual / mass builders, so the loss and the Gauss-Newton Fisher are
+    guaranteed consistent.
+    """
+    residual_fn = make_residual_fn(data)
+    mass_negloglike = make_mass_negloglike(data)
 
     def negloglike(z):
-        alpha = di.expit(z[0], *ALPHA_BOX)
-        delta = di.expit(z[1], *DELTA_BOX)
-        W0 = di.expit(z[2], *W0_BOX)
-        sig_model = predict_binned((alpha, delta, W0), r_edges, m_fixed)
-        resid = (sig_hat - sig_model) / safe_se
-        ll_kin = -0.5 * jnp.sum(weight * resid * resid)
-        ll_mass = jnp.sum(
-            Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_obs))
-        return -(ll_kin + ll_mass)
+        r = residual_fn(z)
+        return 0.5 * jnp.sum(r * r) + mass_negloglike(z)
 
     return negloglike
 
@@ -328,9 +412,156 @@ def self_consistency_check(data):
     return max_dev
 
 
+# --------------------------------------------------------------------------- #
+# MLE recovery from dispersed inits + Gauss-Newton Fisher errors
+# --------------------------------------------------------------------------- #
+N_INITS = 4
+INIT_KEY = 7
+INIT_SCALE = 1.5
+N_ADAM_STEPS = 600
+ADAM_LR = 3e-2
+
+
+def dispersed_inits():
+    """4 unconstrained inits: z0=0 plus 3 draws from N(0, INIT_SCALE^2 I_3)."""
+    key = jax.random.PRNGKey(INIT_KEY)
+    draws = jax.random.normal(key, (N_INITS - 1, 3)) * INIT_SCALE
+    return jnp.concatenate([jnp.zeros((1, 3)), draws], axis=0)
+
+
+def plateau_ok(trace, frac=0.1, rel_tol=0.01):
+    r"""Convergence check: the improvement over the LAST ``frac`` of steps is a
+    small fraction of the TOTAL loss decrease.
+
+    ``trace[k]`` is the loss BEFORE update k, so ``trace[0]`` is the initial loss
+    and ``trace[-1]`` is the loss one step before the returned z_hat. Total
+    decrease = trace[0] - trace[-1]; tail decrease = trace[k_tail] - trace[-1].
+    Plateau iff tail_decrease < rel_tol * total_decrease (or total_decrease tiny).
+    """
+    n = trace.shape[0]
+    k_tail = int(n * (1.0 - frac))
+    total = float(trace[0] - trace[-1])
+    tail = float(trace[k_tail] - trace[-1])
+    if total <= 0:
+        return False, total, tail
+    return (tail < rel_tol * total), total, tail
+
+
+def run_mle(negloglike, data):
+    """Run Adam MLE from N_INITS dispersed inits; return the lowest-loss result.
+
+    Returns (z_hat, best_trace, finals, i_best) where ``finals`` is the final
+    negloglike per init (computed at the returned z_hat of each run).
+    """
+    loss_jit = jax.jit(negloglike)
+    z0s = dispersed_inits()
+    z_hats, traces, finals = [], [], []
+    for i in range(N_INITS):
+        z_hat, trace = di.mle_adam(negloglike, z0s[i],
+                                   n_steps=N_ADAM_STEPS, lr=ADAM_LR)
+        final = float(loss_jit(z_hat))
+        z_hats.append(z_hat)
+        traces.append(trace)
+        finals.append(final)
+    i_best = int(jnp.argmin(jnp.array(finals)))
+    return z_hats[i_best], traces[i_best], finals, i_best, z0s
+
+
+def recovery_table(theta_hat, sigma_theta):
+    """Print param | truth | theta_hat | sigma_hat | (theta_hat-truth)/sigma_hat."""
+    truths = (ALPHA_TRUE, DELTA_TRUE, W0_TRUE)
+    names = ("alpha", "delta", "W0")
+    print(f"\n{'param':>6} {'truth':>8} {'theta_hat':>10} {'sigma_hat':>10} "
+          f"{'(hat-truth)/sigma':>18}")
+    pulls = []
+    for nm, tr, th, sg in zip(names, truths, theta_hat, sigma_theta):
+        pull = (float(th) - tr) / float(sg)
+        pulls.append(pull)
+        print(f"{nm:>6} {tr:>8.4f} {float(th):>10.4f} {float(sg):>10.4f} "
+              f"{pull:>18.3f}")
+    return pulls
+
+
+# --------------------------------------------------------------------------- #
+# Fit figure (panel a: sigma_j(r) data + fit curves; panel b: mass histogram)
+# --------------------------------------------------------------------------- #
+def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
+    """Two-panel fit figure: kinematic sigma_j(r) + observed-mass IMF fit."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    sys.path.insert(0, os.path.dirname(__file__))
+    import _plotstyle as ps  # noqa: E402
+
+    ps.apply_pub_style()
+    colors = [ps.OI["blue"], ps.OI["green"], ps.OI["orange"], ps.OI["vermilion"]]
+
+    sig_hat = np.asarray(data["sig_hat"])
+    se = np.asarray(data["se"])
+    weight = np.asarray(data["weight"])
+    r_mean = np.asarray(data["r_mean"])
+    m_fixed = data["M_fixed"]
+    a_hat, d_hat, w0_hat = (float(x) for x in theta_hat)
+
+    fig, (axa, axb) = plt.subplots(1, 2, figsize=(8.5, 3.6))
+
+    # Panel (a): per-group sigma(r) data (SE bars) + best-fit smooth curves.
+    r_grid = jnp.linspace(1e-3, float(data["r_cut"]), 400)
+    sig_fit = np.asarray(sigma_oracle((a_hat, d_hat, w0_hat), r_grid, m_fixed))
+    sig_true = np.asarray(
+        sigma_oracle((ALPHA_TRUE, DELTA_TRUE, W0_TRUE), r_grid, m_fixed))
+    rg = np.asarray(r_grid)
+    for j in range(sig_hat.shape[0]):
+        mask = weight[j] > 0
+        axa.errorbar(r_mean[j][mask], sig_hat[j][mask], yerr=se[j][mask],
+                     fmt="o", ms=3.5, color=colors[j], capsize=1.5,
+                     elinewidth=0.8, mew=0.0, zorder=3,
+                     label=rf"group $j={j}$")
+        axa.plot(rg, sig_fit[j], "-", color=colors[j], lw=1.6, zorder=2)
+        axa.plot(rg, sig_true[j], ":", color=colors[j], lw=0.8, alpha=0.7,
+                 zorder=1)
+    axa.set_xlabel(r"$r$ (model units)")
+    axa.set_ylabel(r"$\sigma_{1\mathrm{D}, j}(r)$")
+    axa.set_xlim(0.0, float(data["r_cut"]))
+    axa.legend(loc="upper right", ncol=1)
+    ps.panel_label(axa, "(a)")
+
+    # Panel (b): observed-mass histogram + fitted Maschberger(alpha_hat).
+    m_obs = np.asarray(data["m_obs"])
+    bins = np.logspace(np.log10(M_RANGE[0]), np.log10(M_RANGE[1]), 40)
+    axb.hist(m_obs, bins=bins, density=True, histtype="stepfilled",
+             color=ps.OI["sky"], alpha=0.45, edgecolor=ps.OI["blue"],
+             lw=0.8, label=r"observed $m_{\rm obs}$")
+    m_fine = jnp.logspace(jnp.log10(M_RANGE[0]), jnp.log10(M_RANGE[1]), 300)
+    pdf_hat = jnp.exp(
+        Maschberger(alpha=a_hat, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_fine))
+    pdf_true = jnp.exp(
+        Maschberger(alpha=ALPHA_TRUE, m_min=M_RANGE[0],
+                    m_max=M_RANGE[1]).logpdf(m_fine))
+    axb.plot(np.asarray(m_fine), np.asarray(pdf_hat), "-", color=ps.OI["vermilion"],
+             lw=1.6, label=rf"fit $\alpha={a_hat:.3f}$")
+    axb.plot(np.asarray(m_fine), np.asarray(pdf_true), ":", color=ps.OI["black"],
+             lw=0.8, label=rf"truth $\alpha={ALPHA_TRUE}$")
+    axb.set_xscale("log")
+    axb.set_yscale("log")
+    axb.set_xlabel(r"$m\ (M_\odot)$")
+    axb.set_ylabel(r"$p(m)$")
+    axb.legend(loc="upper right")
+    ps.panel_label(axb, "(b)")
+
+    cap = (rf"$\hat\alpha={a_hat:.3f}\pm{float(sigma_theta[0]):.3f},\ "
+           rf"\hat\delta={d_hat:.3f}\pm{float(sigma_theta[1]):.3f},\ "
+           rf"\hat W_0={w0_hat:.3f}\pm{float(sigma_theta[2]):.3f}$")
+    fig.suptitle("")  # no in-figure title (paper caption carries it)
+    fig.text(0.5, -0.02, cap, ha="center", va="top", fontsize=9)
+    fig.tight_layout()
+    ps.save_fig(fig, out_dir, "demo_delta_recovery_fit")
+    print(f"\nfit figure -> {out_dir}/demo_delta_recovery_fit.png (+ .pdf)")
+
+
 def main():
     print("=" * 72)
-    print("B2 demo (Task 3): truth data + jitted joint (alpha, delta, W0) loss")
+    print("B2 demo (Task 4): joint (alpha, delta, W0) MLE recovery + GN Fisher")
     print("=" * 72)
     print(f"truth: alpha={ALPHA_TRUE}, delta={DELTA_TRUE}, W0={W0_TRUE}; "
           f"N_COMP={N_COMP}, N_STARS={N_STARS}, M_RANGE={M_RANGE}, G={G_MODEL}")
@@ -393,9 +624,87 @@ def main():
               "Report measured numbers + plan options to the orchestrator.")
         sys.exit(2)
 
-    ok = sc_ok and grad_finite and grad_nonzero and budget_ok
-    print(f"\nOVERALL {'ALL PASS' if ok else 'FAIL'}")
-    sys.exit(0 if ok else 1)
+    # --------------------------------------------------------------------- #
+    # MLE recovery from N_INITS dispersed inits.
+    # --------------------------------------------------------------------- #
+    print("\n" + "=" * 72)
+    print("MLE RECOVERY (Adam, %d dispersed inits)" % N_INITS)
+    print("=" * 72)
+    z_hat, best_trace, finals, i_best, z0s = run_mle(negloglike, data)
+    for i in range(N_INITS):
+        tag = "  <-- WON" if i == i_best else ""
+        print(f"  init {i} (z0={[round(float(x), 2) for x in z0s[i]]}): "
+              f"final negloglike = {finals[i]:.6e}{tag}")
+    plat_ok, total_dec, tail_dec = plateau_ok(best_trace)
+    print(f"\nplateau check (winning trace): total decrease = {total_dec:.4e}, "
+          f"last-10% decrease = {tail_dec:.4e}")
+    print(f"plateau {'PASS' if plat_ok else 'FAIL'} "
+          f"(tail {tail_dec:.3e} {'<' if plat_ok else '>='} "
+          f"1% of total {0.01 * total_dec:.3e})")
+
+    # Interior-optimum sanity: gradient norm small at z_hat.
+    _, g_hat = loss_and_grad(z_hat)
+    grad_norm = float(jnp.linalg.norm(g_hat))
+    print(f"grad norm at z_hat = {grad_norm:.4e} (interior-optimum check)")
+
+    # --------------------------------------------------------------------- #
+    # theta_hat + Gauss-Newton Fisher errors (reverse-mode only).
+    # --------------------------------------------------------------------- #
+    theta_hat = _theta_of_z(z_hat)
+    residual_fn = make_residual_fn(data)
+    mass_negloglike = make_mass_negloglike(data)
+    F_z = di.fisher_information_gn(residual_fn, z_hat,
+                                   extra_negloglike=mass_negloglike)
+    eig = jnp.linalg.eigvalsh(F_z)
+    F_pd = bool(jnp.all(eig > 0))
+    cond = float(eig[-1] / eig[0]) if F_pd else float("inf")
+    print(f"\nGauss-Newton Fisher F_z PD: {F_pd}; eigenvalues = "
+          f"{[float(x) for x in eig]}; cond = {cond:.3e}")
+    if not F_pd:
+        print("STOP: F_z is not positive definite -- degenerate / saddle fit. "
+              "Reporting rather than masking.")
+        sys.exit(3)
+
+    cov_theta = di.constrained_cov(F_z, _dtheta_dz(z_hat))
+    sigma_theta = jnp.sqrt(jnp.diag(cov_theta))
+    pulls = recovery_table(theta_hat, sigma_theta)
+
+    # --------------------------------------------------------------------- #
+    # GATES (real -- never weaken).
+    # --------------------------------------------------------------------- #
+    print("\n" + "=" * 72)
+    print("GATES")
+    print("=" * 72)
+    recovery_ok = all(abs(p) < 3.0 for p in pulls)
+    names = ("alpha", "delta", "W0")
+    for nm, p in zip(names, pulls):
+        print(f"  3-sigma {nm}: |pull| = {abs(p):.3f} "
+              f"{'<' if abs(p) < 3.0 else '>='} 3  "
+              f"({'PASS' if abs(p) < 3.0 else 'FAIL'})")
+    top_occ = int(n[J - 1].sum())
+    occ_ok = top_occ >= 300
+    print(f"  occupancy: top-group (j={J - 1}) total = {top_occ} "
+          f"{'>=' if occ_ok else '<'} 300  ({'PASS' if occ_ok else 'FAIL'})")
+    print(f"  plateau: {'PASS' if plat_ok else 'FAIL'}")
+    print(f"  recovery (3-sigma, all params): {'PASS' if recovery_ok else 'FAIL'}")
+
+    # --------------------------------------------------------------------- #
+    # Fit figure (regenerated; promoted in Task 8 -- gitignored).
+    # --------------------------------------------------------------------- #
+    out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                           "validation", "plots")
+    os.makedirs(out_dir, exist_ok=True)
+    make_fit_figure(data, theta_hat, sigma_theta, out_dir)
+
+    all_ok = (sc_ok and grad_finite and grad_nonzero and budget_ok
+              and plat_ok and occ_ok and recovery_ok and F_pd)
+    print("\n" + "=" * 72)
+    print(f"OVERALL {'ALL PASS' if all_ok else 'FAIL'}")
+    print("=" * 72)
+    if not all_ok and recovery_ok is False:
+        print("\nNOTE: the 3-sigma recovery gate is REAL. A >3-sigma miss is a "
+              "PHYSICS finding -- do NOT widen the gate. Report the table above.")
+    sys.exit(0 if all_ok else 1)
 
 
 if __name__ == "__main__":

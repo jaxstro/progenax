@@ -234,6 +234,69 @@ def fisher_cov(negloglike, z_hat):
     return jnp.linalg.inv(hess_sym)
 
 
+def fisher_information_gn(residual_fn, z_hat, extra_negloglike=None):
+    r"""Gauss-Newton Fisher information at ``z_hat`` (reverse-mode only).
+
+    For a Gaussian negative-log-likelihood ``-1/2 sum r_i(z)^2`` with a
+    standardized residual vector ``r`` (already divided by the per-cell SE and
+    with masked cells zeroed), the EXPECTED Fisher information is the
+    Gauss-Newton form ``F = J^T J`` with ``J = d r / d z``. The dropped term
+    ``sum r_i d^2 r_i`` vanishes in expectation (E[r]=0 at the truth) and is pure
+    noise at the optimum, so JtJ is the correct (expected-information) Fisher.
+
+    ``J`` is computed with :func:`jax.jacrev` (REVERSE mode): the B2 residual
+    runs the diffrax ODE inside ``from_imf``, whose ``custom_vjp`` makes
+    ``jax.hessian`` / ``jax.jacfwd`` crash ("can't apply forward-mode autodiff
+    to a custom_vjp"). Reverse-mode is safe through that ``custom_vjp``.
+
+    Parameters
+    ----------
+    residual_fn : callable z -> (M,) array
+        Standardized residual vector (divided by SE; masked cells zeroed so they
+        contribute 0 to ``J^T J``).
+    z_hat : (P,) array
+        Point at which to evaluate the information (the MLE).
+    extra_negloglike : callable z -> scalar, optional
+        An ADDITIONAL negative-log-likelihood term that is ODE-free (hence
+        ``jax.hessian``-safe). Its (P, P) Hessian at ``z_hat`` is added to
+        ``J^T J`` -- used for the B2 mass channel
+        ``-sum Maschberger(alpha(z)).logpdf(m_obs)``.
+
+    Returns
+    -------
+    F : (P, P) array
+        ``J^T J`` (+ ``Hess(extra_negloglike)`` if given), symmetrized.
+    """
+    J = jax.jacrev(residual_fn)(z_hat)          # (M, P), reverse-mode (ODE-safe)
+    F = J.T @ J
+    if extra_negloglike is not None:
+        F = F + jax.hessian(extra_negloglike)(z_hat)  # ODE-free -> hessian OK
+    return 0.5 * (F + F.T)
+
+
+def constrained_cov(F_z, dtheta_dz):
+    r"""Delta-method map of an unconstrained covariance to constrained space.
+
+    Given the unconstrained Fisher information ``F_z`` (P, P) and the per-component
+    Jacobian diagonal ``dtheta_dz`` (P,) of the box reparametrization
+    ``theta_i = expit(z_i, lo_i, hi_i)`` (so ``G = diag(dtheta_dz)``), returns
+    ``cov_theta = G cov_z G^T`` where ``cov_z = F_z^{-1}``.
+
+    Raises :class:`ValueError` if ``F_z`` is not positive definite (reported, not
+    masked -- a degenerate / saddle fit must surface).
+    """
+    F_z = 0.5 * (F_z + F_z.T)
+    eigvals = jnp.linalg.eigvalsh(F_z)
+    if not bool(jnp.all(eigvals > 0)):
+        raise ValueError(
+            f"Fisher information F_z is not positive definite "
+            f"(eigenvalues {jnp.asarray(eigvals)}); covariance is undefined."
+        )
+    cov_z = jnp.linalg.inv(F_z)
+    G = jnp.diag(dtheta_dz)
+    return G @ cov_z @ G.T
+
+
 # --------------------------------------------------------------------------- #
 # Bounded reparametrizations (box [lo, hi])
 # --------------------------------------------------------------------------- #
