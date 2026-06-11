@@ -318,3 +318,57 @@ class TestLimepyVelocityDifferentiable:
 
         grad = jax.grad(loss)(1.0)
         assert jnp.isfinite(grad) and jnp.abs(grad) > 0.0
+
+
+class TestSamplerOptimization:
+    """The 2026-06 sampler-fusion micro-batch: the speed-CDF table is built
+    ONCE at construction (it depends only on (W0, r_t/r_a, g), all fixed at
+    __init__) and stored on the module, and sample_velocities runs through a
+    jitted core (eqx.filter_jit, the cluster/sampling.py pattern) so the draw
+    chain fuses instead of materializing every eager intermediate (measured
+    pre-fix: eager draw +0.63 GB at N=2e4 vs +0.13 GB jitted)."""
+
+    def test_aniso_table_cached_at_construction(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)
+        assert isinstance(df.speed_table, AnisoSpeedCDFTable)
+
+    def test_iso_table_cached_at_construction(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0)
+        assert isinstance(df.speed_table, SpeedCDFTable)
+
+    def test_quadrature_method_has_no_table(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0,
+                              speed_method="quadrature")
+        assert df.speed_table is None
+
+    def test_cached_table_bit_identical_to_fresh_build(self):
+        """Caching must not change the table: same build inputs, same rows."""
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+        from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)
+        p_box = jnp.maximum(df.r_t / df.r_a, 1e-3)
+        fresh = AnisoSpeedCDFTable.build(df.W0, p_box, df.g)
+        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
+                                      np.asarray(fresh.cdf))
+
+    def test_same_key_same_velocities(self):
+        """Determinism through the jitted core: identical inputs, identical draws."""
+        from progenax.profiles.limepy import LIMEPYProfile
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
+        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)
+        m = jnp.ones(500)
+        pos = prof.sample_positions(m, jax.random.PRNGKey(0))
+        v1 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=G)
+        v2 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=G)
+        np.testing.assert_array_equal(np.asarray(v1), np.asarray(v2))

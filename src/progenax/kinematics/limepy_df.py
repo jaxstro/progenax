@@ -134,6 +134,7 @@ class LIMEPYVelocityDF(eqx.Module):
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
     mu: Float[Array, ""]
+    speed_table: SpeedCDFTable | AnisoSpeedCDFTable | None
     is_aniso: bool = eqx.field(static=True)
     speed_method: str = eqx.field(static=True)
 
@@ -175,6 +176,21 @@ class LIMEPYVelocityDF(eqx.Module):
         self.mu = jnp.trapezoid(rho_tilde * xi_grid**2, xi_grid)
         self.is_aniso = is_aniso
 
+        # Build the speed-CDF table ONCE here: it depends only on
+        # (W0, r_t/r_a, g), all fixed at construction. Pre-fix it was rebuilt
+        # inside EVERY sample_velocities call (~0.4 s + build transients per
+        # call at W0=7); caching also removes the small-N per-call penalty.
+        # Differentiable: the table leaves are functions of (W0, g, r_a), so
+        # gradients flow through construction exactly as before.
+        if speed_method == "table":
+            if is_aniso:
+                p_box = jnp.maximum(self.r_t / self.r_a, 1e-3)
+                self.speed_table = AnisoSpeedCDFTable.build(self.W0, p_box, self.g)
+            else:
+                self.speed_table = SpeedCDFTable.build(self.W0, self.g)
+        else:
+            self.speed_table = None  # quadrature oracle needs no table
+
     def _s(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:
         """Self-consistent central velocity scale s = sqrt(G M / (9 r_c mu))."""
         return jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu))
@@ -188,77 +204,93 @@ class LIMEPYVelocityDF(eqx.Module):
     ) -> Float[Array, "N 3"]:
         """Sample velocities from the general-g lowered DF (iso or Michie/OM aniso).
 
-        Differentiable in (W0, g, r_a, r_c) through the model.
+        Differentiable in (W0, g, r_a, r_c) through the model. Runs through a
+        jitted core (`_sample_velocities_core`, the cluster/sampling.py
+        pattern): the draw chain fuses under XLA instead of materializing
+        every eager intermediate (measured at N=2e4 aniso: draw-chain peak
+        +0.63 GB eager -> +0.13 GB jitted; warm call 0.35 -> 0.17 s).
         """
         if G is None:
             G = defaults.DEFAULT_UNITS.G
+        return _sample_velocities_core(
+            self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
+        )
 
-        N = positions.shape[0]
-        M_total = jnp.sum(masses)
-        radii = jnp.linalg.norm(positions, axis=1)
-        W = jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        W = jnp.maximum(W, 0.0)
-        s = self._s(M_total, G)
 
-        key_speed, key_dir = jax.random.split(key)
-        speed_keys = jax.random.split(key_speed, N)
+@eqx.filter_jit
+def _sample_velocities_core(
+    df: LIMEPYVelocityDF,
+    positions: Float[Array, "N 3"],
+    masses: Float[Array, "N"],
+    key: PRNGKeyArray,
+    G: Float[Array, ""],
+) -> Float[Array, "N 3"]:
+    """Jitted sampling core (one compiled unit per (N, engine-statics) combo).
 
-        if self.is_aniso:
-            s_local = radii / self.r_a  # = (r/r_c)/(r_a/r_c)
-            if self.speed_method == "table":
-                # Mirror of cluster/sampling.py's Engine A aniso path: the speed
-                # MARGINAL comes from ONE precomputed 3-D CDF table; the angular
-                # conditional cos(theta)|u stays EXACT (_sample_costheta_given_u).
-                # Box covers every star: W <= W0, p <= r_t/r_a (radii <= r_t);
-                # the 1e-3 p floor guards the near-isotropic corner.
-                p_box = jnp.maximum(self.r_t / self.r_a, 1e-3)
-                table = AnisoSpeedCDFTable.build(self.W0, p_box, self.g)
-                ku_kc = jax.vmap(jax.random.split)(speed_keys)
-                unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
-                u_sp = jax.vmap(table.inverse)(W, s_local, unif)
-                cos_t = jax.vmap(
-                    lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
-                )(ku_kc[:, 1], u_sp, s_local)
-                u_r = u_sp * cos_t
-                u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
-            else:
-                # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
-                # (vmap within each chunk) instead of one eager vmap over all N,
-                # bounding the (chunk, n_u, ~91) E_gamma Poisson-sum buffers.
-                u_r, u_t = jax.lax.map(
-                    lambda kws: _sample_speed_angle(
-                        kws[0], kws[1], kws[2], self.g, _N_SPEED_GRID, _N_C
-                    ),
-                    (speed_keys, W, s_local),
-                    batch_size=_ORACLE_BATCH,
-                )
-            v_r, v_t = s * u_r, s * u_t
-            # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
-            r_hat = positions / (radii[:, None] + 1e-30)
-            rand = jax.random.normal(key_dir, (N, 3))
-            rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
-            t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
-            return v_r[:, None] * r_hat + v_t[:, None] * t_hat
+    `df` is a pytree argument: its static fields (is_aniso, speed_method)
+    select the branch at trace time; its array leaves (incl. the CACHED
+    speed_table built at construction) are traced, so gradients w.r.t.
+    (W0, g, r_a, r_c) flow unchanged. G enters as a traced array so changing
+    G never recompiles.
+    """
+    N = positions.shape[0]
+    M_total = jnp.sum(masses)
+    radii = jnp.linalg.norm(positions, axis=1)
+    W = jnp.interp(radii / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+    W = jnp.maximum(W, 0.0)
+    s = df._s(M_total, G)
 
-        # Isotropic: speed * isotropic direction.
-        if self.speed_method == "table":
-            # One precomputed speed-CDF table replaces the per-star 256-point
-            # E_gamma quadrature (build amortized over N; see class docstring).
-            table = SpeedCDFTable.build(self.W0, self.g)
-            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
-            u = jax.vmap(table.inverse)(W, unif)
+    key_speed, key_dir = jax.random.split(key)
+    speed_keys = jax.random.split(key_speed, N)
+
+    if df.is_aniso:
+        s_local = radii / df.r_a  # = (r/r_c)/(r_a/r_c)
+        if df.speed_method == "table":
+            # The speed MARGINAL comes from the table CACHED at construction
+            # (box covers every star: W <= W0, p <= r_t/r_a); the angular
+            # conditional cos(theta)|u stays EXACT (_sample_costheta_given_u).
+            ku_kc = jax.vmap(jax.random.split)(speed_keys)
+            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+            u_sp = jax.vmap(df.speed_table.inverse)(W, s_local, unif)
+            cos_t = jax.vmap(
+                lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
+            )(ku_kc[:, 1], u_sp, s_local)
+            u_r = u_sp * cos_t
+            u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
         else:
             # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
-            # (vmap within each chunk) instead of one eager vmap over all N.
-            u = jax.lax.map(
-                lambda kw: _sample_unit_speed(kw[0], kw[1], self.g, _N_SPEED_GRID),
-                (speed_keys, W),
+            # (vmap within each chunk) instead of one vmap over all N,
+            # bounding the (chunk, n_u, ~91) E_gamma Poisson-sum buffers.
+            u_r, u_t = jax.lax.map(
+                lambda kws: _sample_speed_angle(
+                    kws[0], kws[1], kws[2], df.g, _N_SPEED_GRID, _N_C
+                ),
+                (speed_keys, W, s_local),
                 batch_size=_ORACLE_BATCH,
             )
-        speeds = s * u
-        dirs = jax.random.normal(key_dir, shape=(N, 3))
-        dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
-        return speeds[:, None] * dirs
+        v_r, v_t = s * u_r, s * u_t
+        # v_r along r_hat (signed); v_t in a random azimuth perpendicular to r_hat.
+        r_hat = positions / (radii[:, None] + 1e-30)
+        rand = jax.random.normal(key_dir, (N, 3))
+        rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
+        t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
+        return v_r[:, None] * r_hat + v_t[:, None] * t_hat
+
+    # Isotropic: speed * isotropic direction.
+    if df.speed_method == "table":
+        unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+        u = jax.vmap(df.speed_table.inverse)(W, unif)
+    else:
+        # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars.
+        u = jax.lax.map(
+            lambda kw: _sample_unit_speed(kw[0], kw[1], df.g, _N_SPEED_GRID),
+            (speed_keys, W),
+            batch_size=_ORACLE_BATCH,
+        )
+    speeds = s * u
+    dirs = jax.random.normal(key_dir, shape=(N, 3))
+    dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
+    return speeds[:, None] * dirs
 
 
 __all__ = ["LIMEPYVelocityDF"]
