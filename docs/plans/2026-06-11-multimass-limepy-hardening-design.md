@@ -38,8 +38,15 @@ harness:** GZ15/ours use the **central-density-weighted** m̄ (eq 26). The Peute
 era LIMEPY *code* switched to the **global** mean mass for speed (esp. with BHs),
 which rescales the meaning of `W₀` and `r_a` (they then refer to the m̄ group).
 The exact translation between an m̄ and an m̄* convention:
-- `W₀* = W₀·(m̄/m̄*)^{2δ}` (Peuten eq 8)
-- `r̂_a* = r̂_a·(m̄/m̄*)^{η+δ}` (Peuten eq 9)
+- `W₀* = W₀·(m̄*/m̄)^{2δ}` (Peuten eq 8)
+- `r̂_a* = r̂_a·(m̄*/m̄)^{η+δ}` (Peuten eq 9)
+
+> **Correction (2026-06-11, Task 3):** as first written this doc had the
+> ratio inverted (`m̄/m̄*`). The paper (p. 2738) reads `(m̄*/m̄)` — a heavier
+> reference mass means a colder reference velocity scale, hence a *deeper*
+> `W₀*`. Re-verified against the held PDF; also fixed in `peuten-2017.md`.
+> (Moot for the Task-1 harness, which runs the reference with
+> `meanmassdef='central'` so no translation is applied.)
 They describe the **same physical model** — the harness must apply eqs 8–9 (or
 configure the reference code's m̄ mode) so ours-vs-reference is like-for-like.
 

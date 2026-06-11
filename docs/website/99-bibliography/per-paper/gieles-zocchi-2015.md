@@ -206,7 +206,7 @@ parameter** rather than baking in $\delta=1/2$ or full equipartition — the dat
 it.
 ```
 
-```{admonition} Related notes + a provenance caution on `meq`/`zeta`
+```{admonition} Related notes + a provenance caution on meq/zeta
 :class: note
 The σ(m) consequences of this δ-power-law model are interpreted, and *derived from*
 {eq}`limepy-multimass-scalings`, in [Bianchini et al. 2016](bianchini-2016.md): its

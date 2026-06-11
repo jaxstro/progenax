@@ -11,8 +11,11 @@ Three layers (see docs/plans/2026-06-09-multimass-limepy-equilibrium-design.md):
   A. solve_multicomponent_limepy(alpha_j, rescale_j, ...) -- one coupled Poisson solve
      given central density fractions alpha_j and DIRECT per-component scales (Engine A
      core); solve_multimass_limepy is its thin mass-segregation wrapper.
-  B. find_alpha_for_masses(m_j, M_j, ...) -- fixed-iteration eigenvalue solve for the
-     alpha_j that reproduce target masses (this module).
+  B. find_alpha_for_masses(m_j, M_j, ...) -- the GZ15 Section 4 mass-function
+     iteration ("eigenvalue problem ... solved by iteration") for the alpha_j that
+     reproduce target masses, using the GZ15 stabilized sqrt-update
+     alpha_j <- alpha_j sqrt(M_j/M_j') -- NOT Gunn & Griffin's linear M_j/M_j'
+     update, which diverges for wide mass functions (this module).
   C. The user-facing model is progenax.cluster.multicomponent.MultiComponentCluster;
      this module keeps its grid/density/sampling helpers.
 

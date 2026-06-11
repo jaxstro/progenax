@@ -63,23 +63,42 @@ inconsistent with their present mass).
 
 This is the part progenax relies on. Bianchini shows the exponential is not
 ad hoc: it is the **low-mass Taylor expansion of the central velocity dispersion
-of a GZ15 multimass component.** The component central dispersion (eq A1):
+of a GZ15 multimass component.** The component central dispersion, in
+corrected form (eq A1 — see the typo note below):
 
 ```{math}
-\hat\sigma_{1d,j0} = \frac{1}{\mu_j^{2}}\,
-\frac{E_\gamma\!\left(g+\tfrac52;\; \mu_j^{2\delta}\hat\phi_0\right)}
-     {E_\gamma\!\left(g+\tfrac32;\; \mu_j^{2\delta}\hat\phi_0\right)},
+:label: bianchini-A1-corrected
+\hat\sigma_{1d,j0} = \mu_j^{-\delta}
+\left[\frac{E_\gamma\!\left(g+\tfrac52;\; \mu_j^{2\delta}\hat\phi_0\right)}
+     {E_\gamma\!\left(g+\tfrac32;\; \mu_j^{2\delta}\hat\phi_0\right)}\right]^{1/2},
 \qquad \mu_j = m_j/\bar m,
 ```
 
 with `m̄` the central-density-weighted mean mass and `δ` the GZ15 equipartition
-index (`δ=½` ⇒ `m_j s_j² = m̄ σ²` constant). Expanding for **low mass**
-(`μ_j ≪ 1`, `δ=½`) to second order (eq A2) and collecting terms gives (eq A3):
+index (`δ=½` ⇒ `m_j s_j² = m̄ σ²` constant).
+
+```{admonition} Paper typo in eq A1 (confirmed via the paper's own A2)
+:class: warning
+As printed, the paper's A1 omits the `^{1/2}` on the `E_γ` ratio (it gives
+`σ̂_{1d,j0}` with the prefactor `1/μ_j^δ` but the *unsquare-rooted* ratio) —
+internally inconsistent with its own eq A2, whose expansion prefactor
+`[(g+3/2)Γ(g+3/2) / ((g+5/2)Γ(g+5/2))]^{1/2} φ̂₀^{1/2}` matches only the
+square-rooted form [](#bianchini-A1-corrected). (Dimensionally, the ratio is
+a `σ̂²`, not a `σ̂`.) progenax validated [](#bianchini-A1-corrected) directly:
+the multimass solver's quadrature-oracle central dispersion agrees with this
+closed form to a max relative difference of `1.5–1.7e-7` across
+`W₀ ∈ {5,7,9}` (`scripts/validate_equipartition_saturation.py`, gate `1e-6`).
+An earlier revision of this note also mis-transcribed the prefactor as
+`1/μ_j²`; both fixed 2026-06-11.
+```
+
+Expanding for **low mass** (`μ_j ≪ 1`, `δ=½`) to second order (eq A2) and
+matching against the expansion of the exponential gives (eq A3):
 
 ```{math}
-\sigma \sim \sigma_0\left[1 - \tfrac12\frac{m}{m_{\rm eq}}
-                           + \tfrac18\left(\frac{m}{m_{\rm eq}}\right)^2\right]
-        = \text{Taylor series of } \sigma_0\exp\!\left(-\tfrac12 m/m_{\rm eq}\right),
+\sigma \sim \sigma_0\left[1 - \tfrac12\frac{m}{m_{\rm eq}} + \mathcal{O}(m^2)\right],
+\qquad \text{matching } \sigma_0\exp\!\left(-\tfrac12 m/m_{\rm eq}\right)
+\ \text{to FIRST order},
 ```
 
 and the **high-mass** limit (`μ_j ≫ 1`) gives `σ̂_{1d,j0} ∼ μ_j^{−δ} ∝ m^{−1/2}`
@@ -92,14 +111,35 @@ identifies the equipartition mass as a **derived** quantity:
 ```
 
 i.e. **`m_eq` is fixed by the mean mass `m̄`, the truncation order `g`, and the
-central concentration `Ŵ₀ = φ̂₀`** — it is *not* a free input to the DF. The
+central concentration `Ŵ₀ = φ̂₀`** — it is *not* a free input to the DF.
+
+```{admonition} Second order: the DF saturates SHARPER than the exponential
+:class: important
+The eq-3 exponential matches the DF only to **first** order. The exact
+quadratic Taylor coefficient of the DF's `σ(m)` — from eq A2's printed term,
+`(6+3a−4a²)/(8a²b²c)·φ̂₀²` with `a=g+5/2`, `b=g+7/2`, `c=g+9/2` — is
+**negative** for all cluster-relevant `g` (`6+3a−4a² < 0` for `a > 1.65`,
+i.e. any `g > −0.85`), *opposite in sign* to the exponential's
+`+1/(8 m_eq²)`. So A3's statement that A2 gives "the first terms of the Taylor
+expansion of the exponential" holds for the **linear term only**. Practical
+consequence (measured 2026-06-11,
+`scripts/validate_equipartition_saturation.py`): eq-3 exponential fits over a
+finite mass window recover a *window-dependent* `m_eq` biased low — over
+`μ = m/m̄ ∈ [0.14, 1.7]` (20 bins on `[0.1, 1] M_⊙`) such fits recover
+**~0.5×** the derived [](#bianchini-meq-derived) (measured `0.50–0.53`
+across `W₀ ∈ {5,7,9}`). Window-match before comparing fitted literature
+`m_eq` values with the derived one. See the
+[multimass-equipartition theory page](../../10-theory/spatial-profiles/multimass-equipartition.md).
+```
+
+The
 standard multimass model (`μ_j = m_j/m̄`, `δ=½`, no extra parameter) therefore
 *already* produces the Bianchini saturation. progenax uses
-[](bianchini-meq-derived) to validate that its differentiable Engine A model
+[](#bianchini-meq-derived) to validate that its differentiable Engine A model
 reproduces the equipartition relation analytically (see the multimass theory
 page). The LIMEPY *code*'s `meq` (in `μ_j=(m_j+meq)/m̄`) is a **separate
 phenomenological knob** that adds extra softening to decouple equipartition from
-`g/Ŵ₀`; it is *not* the [](bianchini-meq-derived) physics.
+`g/Ŵ₀`; it is *not* the [](#bianchini-meq-derived) physics.
 
 ## m_eq ↔ relaxation state (§4–6, the headline result — verified)
 
@@ -122,7 +162,7 @@ progenax).
 
 ## Use in progenax
 
-- **Derived-m_eq validation** ([](bianchini-meq-derived)): a zero-new-parameter
+- **Derived-m_eq validation** ([](#bianchini-meq-derived)): a zero-new-parameter
   check that our Engine A σ(m) matches Bianchini eq 3 with the derived `m_eq`.
 - **Honest provenance for the deferred `meq`/`zeta` knobs:** Bianchini motivates
   them physically but does *not* define the code's `(m_j+meq)` form — that is a

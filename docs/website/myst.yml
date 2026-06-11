@@ -68,6 +68,7 @@ project:
             - file: 10-theory/spatial-profiles/king.md
             - file: 10-theory/spatial-profiles/eff.md
             - file: 10-theory/spatial-profiles/lowered-model-family.md
+            - file: 10-theory/spatial-profiles/multimass-equipartition.md
         - title: Velocity distribution functions
           children:
             - file: 10-theory/velocity-dfs/index.md
@@ -198,6 +199,8 @@ project:
             - file: 99-bibliography/per-paper/plummer-1911.md
             - file: 99-bibliography/per-paper/king-1966.md
             - file: 99-bibliography/per-paper/gieles-zocchi-2015.md
+            - file: 99-bibliography/per-paper/peuten-2017.md
+            - file: 99-bibliography/per-paper/bianchini-2016.md
             - file: 99-bibliography/per-paper/elson-fall-freeman-1987.md
             - file: 99-bibliography/per-paper/salpeter-1955.md
             - file: 99-bibliography/per-paper/chabrier-2003.md

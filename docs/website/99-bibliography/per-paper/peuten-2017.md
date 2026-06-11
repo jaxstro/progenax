@@ -71,14 +71,27 @@ handle**:
   an `m̄` convention and an `m̄*` convention is (eqs 8–9):
 
 ```{math}
-W_0^{*} = W_0\left(\frac{\bar m}{\bar m^{*}}\right)^{2\delta} \quad(\text{eq 8}),
+W_0^{*} = W_0\left(\frac{\bar m^{*}}{\bar m}\right)^{2\delta} \quad(\text{eq 8}),
 \qquad
-\hat r_a^{*} = \hat r_a\left(\frac{\bar m}{\bar m^{*}}\right)^{\eta+\delta} \quad(\text{eq 9}).
+\hat r_a^{*} = \hat r_a\left(\frac{\bar m^{*}}{\bar m}\right)^{\eta+\delta} \quad(\text{eq 9}).
 ```
 
-A direct progenax-vs-reference-code comparison must apply eqs 8–9 (or set the
-reference code to the central-density-weighted mode) so the two describe the
-*same* physical model. (The `δ` in eq 9 comes from the `r_0` dependence of `r̂_a`.)
+The direction makes physical sense: a *heavier* reference mass
+(`m̄* > m̄`) means a *colder* reference velocity scale
+(`s* = s (m̄*/m̄)^{−δ}`), so the same physical central potential is a *deeper*
+`W₀* = φ₀/s*²` in the starred convention. A direct progenax-vs-reference-code
+comparison must apply eqs 8–9 (or set the reference code to the
+central-density-weighted mode, `meanmassdef='central'` — the route progenax's
+parity harness takes) so the two describe the *same* physical model. (The `δ`
+in eq 9 comes from the `r_0` dependence of `r̂_a`.)
+
+```{admonition} Transcription correction (2026-06-11)
+:class: warning
+An earlier revision of this note (and of the hardening design doc) had the
+eq 8–9 ratio inverted, `(m̄/m̄*)`. The paper (p. 2738) reads `(m̄*/m̄)` as
+written above — re-verified against the held PDF during Task 3 of the
+multimass validation arc.
+```
 
 ## N-body test setup (§3 — context, verified)
 
