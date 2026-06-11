@@ -98,6 +98,7 @@ class KingVelocityDF(eqx.Module):
     r_t: Float[Array, ""]
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
+    speed_table: SpeedCDFTable | None
     speed_method: str = eqx.field(static=True)
 
     def __init__(
@@ -127,6 +128,13 @@ class KingVelocityDF(eqx.Module):
         xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
+        # Table cached at construction (depends only on W0; g=1 is the exact
+        # King reduction) -- pre-fix it was rebuilt every sample_velocities
+        # call. Differentiable: the table leaves are functions of W0.
+        self.speed_table = (
+            SpeedCDFTable.build(self.W0, jnp.asarray(1.0))
+            if speed_method == "table" else None
+        )
 
     def _sigma(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:
         """Self-consistent central velocity scale sigma = sqrt(G M / (9 r_c mu(W0)))."""
@@ -163,41 +171,58 @@ class KingVelocityDF(eqx.Module):
         """
         if G is None:
             G = defaults.DEFAULT_UNITS.G
+        return _sample_velocities_core(
+            self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
+        )
 
-        N = positions.shape[0]
-        M_total = jnp.sum(masses)
-        radii = jnp.linalg.norm(positions, axis=1)
 
-        # Local dimensionless potential W(r) = psi(r) from the King ODE.
-        W = jnp.interp(radii / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
-        W = jnp.maximum(W, 0.0)
+@eqx.filter_jit
+def _sample_velocities_core(
+    df: KingVelocityDF,
+    positions: Float[Array, "N 3"],
+    masses: Float[Array, "N"],
+    key: PRNGKeyArray,
+    G: Float[Array, ""],
+) -> Float[Array, "N 3"]:
+    """Jitted sampling core (cluster/sampling.py pattern; see LIMEPYVelocityDF).
 
-        sigma = self._sigma(M_total, G)
+    `df` is a pytree argument: speed_method selects the branch at trace time;
+    array leaves (incl. the CACHED speed_table) are traced, so gradients
+    w.r.t. (W0, r_c, M) flow unchanged. G is traced (no recompile per value).
+    """
+    N = positions.shape[0]
+    M_total = jnp.sum(masses)
+    radii = jnp.linalg.norm(positions, axis=1)
 
-        key_speed, key_dir = jax.random.split(key)
-        speed_keys = jax.random.split(key_speed, N)
-        if self.speed_method == "table":
-            # One precomputed speed-CDF table replaces the per-star 256-point
-            # quadrature. g=1 is the EXACT King reduction:
-            # E_gamma(1, x) = e^x - 1 (see class docstring).
-            table = SpeedCDFTable.build(self.W0, jnp.asarray(1.0))
-            unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
-            u = jax.vmap(table.inverse)(W, unif)
-        else:
-            # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
-            # (vmap within each chunk) instead of one eager vmap over all N.
-            u = jax.lax.map(
-                lambda kw: _sample_unit_speed(kw[0], kw[1], _N_SPEED_GRID),
-                (speed_keys, W),
-                batch_size=_ORACLE_BATCH,
-            )
-        speeds = sigma * u
+    # Local dimensionless potential W(r) = psi(r) from the King ODE.
+    W = jnp.interp(radii / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+    W = jnp.maximum(W, 0.0)
 
-        # Isotropic directions (normalized Gaussian vectors).
-        dirs = jax.random.normal(key_dir, shape=(N, 3))
-        dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
+    sigma = df._sigma(M_total, G)
 
-        return speeds[:, None] * dirs
+    key_speed, key_dir = jax.random.split(key)
+    speed_keys = jax.random.split(key_speed, N)
+    if df.speed_method == "table":
+        # The table CACHED at construction replaces the per-star 256-point
+        # quadrature. g=1 is the EXACT King reduction:
+        # E_gamma(1, x) = e^x - 1 (see class docstring).
+        unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+        u = jax.vmap(df.speed_table.inverse)(W, unif)
+    else:
+        # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars
+        # (vmap within each chunk) instead of one vmap over all N.
+        u = jax.lax.map(
+            lambda kw: _sample_unit_speed(kw[0], kw[1], _N_SPEED_GRID),
+            (speed_keys, W),
+            batch_size=_ORACLE_BATCH,
+        )
+    speeds = sigma * u
+
+    # Isotropic directions (normalized Gaussian vectors).
+    dirs = jax.random.normal(key_dir, shape=(N, 3))
+    dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
+
+    return speeds[:, None] * dirs
 
 
 __all__ = ["KingVelocityDF"]

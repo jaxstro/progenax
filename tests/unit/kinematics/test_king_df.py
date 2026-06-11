@@ -135,3 +135,38 @@ class TestKingTableRouting:
             np.asarray(jnp.exp(x) - 1.0),
             rtol=1e-12,
         )
+
+
+class TestKingSamplerOptimization:
+    """2026-06 sampler-fusion micro-batch: table cached at construction
+    (depends only on W0; g=1 fixed) + jitted sampling core."""
+
+    def test_table_cached_at_construction(self):
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        assert isinstance(df.speed_table, SpeedCDFTable)
+
+    def test_quadrature_method_has_no_table(self):
+        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0,
+                            speed_method="quadrature")
+        assert df.speed_table is None
+
+    def test_cached_table_bit_identical_to_fresh_build(self):
+        from progenax.profiles.limepy_tables import SpeedCDFTable
+
+        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        fresh = SpeedCDFTable.build(df.W0, jnp.asarray(1.0))
+        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
+                                      np.asarray(fresh.cdf))
+
+    def test_same_key_same_velocities(self):
+        from progenax.profiles.king import KingProfile
+
+        prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        m = jnp.ones(500)
+        pos = prof.sample_positions(m, jax.random.PRNGKey(0))
+        v1 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=1.0)
+        v2 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=1.0)
+        np.testing.assert_array_equal(np.asarray(v1), np.asarray(v2))
