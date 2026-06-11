@@ -16,6 +16,29 @@ side only; no resampling in the loss). Demos are gated CLIs in the
 `validate_*` house style. Design doc (Anna-approved):
 `docs/plans/2026-06-10-batch-b-science-demos-design.md`.
 
+> **Plan amendments — 2026-06-10 (Phase-1 verification, Anna-approved):**
+> 1. **Mass-likelihood form pinned (Task 3 STOP resolved).** `sample_cluster`
+>    assigns each star its component's *representative* mass label
+>    (`sampling.py:39` `m_i = model.m_j[c]`) — `ic.masses` holds only J=4
+>    discrete values, so the design's `sum(logpdf(m_obs))` cannot run on it.
+>    **Anna's decision: Option A (global IMF sample)** — draw N observed masses
+>    globally from `Maschberger(α_true)` over the full `M_RANGE`, independent of
+>    kinematic group; mass term = `jnp.sum(Maschberger(α).logpdf(m_obs))`, NO
+>    truncation correction. α stays self-consistent at the population level (one
+>    α drives both the mass histogram and the equipartition groups). Pages must
+>    state: observed masses are a global IMF sample; per-star mass↔group
+>    correlation is not modeled (clean-mock choice).
+> 2. **Maschberger-Jacobian hedge RETIRED.** Maschberger is already fully
+>    differentiable in α: analytic `ppf` (`smooth.py:120-163`) and normalized
+>    `logpdf = _logpdf_unnorm(α) − _log_norm(α)` via the analytic `_primitive`
+>    at the bounds (`base.py:124-126`). No package TDD addition; no `argmax`/
+>    `argsort` in the α path; the loss never resamples, so even `ppf`
+>    differentiability is off the critical path.
+> 3. **Engine B β(r) is analytic (Task 7).** The Engine B moment recipe returns
+>    a combined ⟨v²⟩, so σ_1d = √(⟨v²⟩/3) from the recipe and
+>    **β(r) = r²/(r²+r_a²)** closed-form in r_a (OM definition), not from the
+>    f-moments. Headline `r_a=3.0` (`test_engine_b_physics.py:375`), m_j=[0.5,1.0].
+
 **Tech stack:** JAX, equinox, optax (Adam MLE; optimistix NOT available),
 blackjax NUTS (pattern: `src/experimental/gravoturb_fdf/inference/hmc.py:38-55`),
 `scripts/_plotstyle.py` figures.
@@ -30,7 +53,7 @@ blackjax NUTS (pattern: `src/experimental/gravoturb_fdf/inference/hmc.py:38-55`)
   through the trapezoid integrals); runs `find_alpha_for_masses` (n_iter=30
   fixed-scan eigenvalue solve — the expensive part, see Task 3 budget gate).
 - Engine A per-group σ oracle (VERBATIM recipe):
-  `tests/validation/test_multimass_equilibrium_physics.py:61-86` —
+  `tests/validation/test_multimass_equilibrium_physics.py:70-86` —
   σ_j(r) = s_j √[∫u⁴E du / ∫u²E du / 3], E = lowered_exponential(g, W_j−u²/2),
   W_j(r) = rescale_j · ψ(r), s_j = s·w_j, s² = G M /(9 r_c μ_tot).
 - Engine B per-component moment oracle:
@@ -152,12 +175,14 @@ bounds so `logpdf` normalization matches the sample).
 
 **Mock data:** `model = MultiComponentCluster.from_imf(imf, N_COMP, W0_TRUE,
 g=1.0, delta=DELTA_TRUE, m_range=M_RANGE)`;
-`ic = model.sample_cluster(key, N_STARS, G=G_MODEL)` (carries
-`component_id`); masses drawn via `imf.ppf(uniform)` assigned per component
-consistently with the group construction — CHECK how sample_cluster assigns
-masses (read it; if it samples representative m_j labels, draw observed
-masses from the IMF truncated to each star's group bin — document the choice;
-the mass-likelihood term then uses the same construction).
+`ic = model.sample_cluster(key, N_STARS, G=G_MODEL)` (carries `component_id`,
+used to BIN the kinematic summaries σ̂_j(r)). **Observed masses (Option A,
+amendment 1):** `ic.masses` holds only the J discrete `m_j` labels, so draw a
+SEPARATE global mass sample `m_obs = imf.ppf(jax.random.uniform(key2, (N_STARS,)))`
+from the SAME truth `Maschberger(α_true)` over the SAME `M_RANGE` — this is the
+observed-mass dataset for the mass-likelihood channel (it is NOT the kinematic
+group label; document on the page that per-star mass↔group correlation is not
+modeled).
 
 **Joint negloglike(z)** with z unconstrained for
 θ = (α ∈ [1.5, 3.2], δ ∈ [0, 1], W₀ ∈ [3, 8]):
@@ -165,9 +190,9 @@ the mass-likelihood term then uses the same construction).
   rebuilds `from_imf(Maschberger(alpha), N_COMP, W0, g=1, delta, M_RANGE)`
   inside the traced function and evaluates the Engine A σ_j oracle at the
   bin centers (verbatim recipe, vectorized over groups × bins);
-- mass term: `jnp.sum(Maschberger(alpha,...).logpdf(masses_obs))`
-  (+ the group-truncation correction if Task-3 mass-assignment check
-  requires it — STOP and report the chosen form before proceeding).
+- mass term (Option A, amendment 1): `jnp.sum(Maschberger(alpha, m_min,
+  m_max).logpdf(m_obs))` over the global mass sample — NO truncation
+  correction (full-range IMF-slope likelihood; analytic/differentiable in α).
 
 **RUNTIME BUDGET GATE (STOP point):** measure ONE warm
 `jit(value_and_grad(negloglike))` call. If > 5 s, STOP and report to Anna
@@ -227,13 +252,14 @@ Commit: `feat(demos): B2 wrong-IMF bias curve + robustness grid`.
 
 Truth: `from_density_profiles([PlummerProfile(r_h=2.0),
 EFFProfile(a=0.8, gamma=5.0, r_t=9.0)], jnp.array([0.6, 0.4]),
-m_j=jnp.array([0.5, 1.0]), r_a_j=jnp.array([3.0, jnp.inf]))` — CHECK the
-exact validated OM headline r_a value in `tests/validation/test_engine_b_physics.py`
-and use THAT. N=3×10⁴ mock stars. Observables: per-component σ̂(r)
-(`binned_sigma_beta` with component_id) + halo β̂(r). predict_fn: rebuild
-Engine B inside the traced loss from θ = (t ∈ logit[0.3,0.9],
-log r_a, log r_h); σ/β predictions via the f_j-row moment recipe
-(test_engine_b_physics.py:146-162). Realizability: report the traced-build
+m_j=jnp.array([0.5, 1.0]), r_a_j=jnp.array([3.0, jnp.inf]))` — **OM headline
+r_a=3.0 confirmed** (`test_engine_b_physics.py:375`; realizability f_min_j ≈
+[+0.085, +1.2e-4] there, so r_a=3.0 is used as-is). N=3×10⁴ mock stars.
+Observables: per-component σ̂(r) (`binned_sigma_beta` with component_id) +
+halo β̂(r). predict_fn: rebuild Engine B inside the traced loss from
+θ = (t ∈ logit[0.3,0.9], log r_a, log r_h); σ_1d(r) = √(⟨v²⟩/3) from the f_j-row
+moment recipe (test_engine_b_physics.py:146-162), and **β(r) = r²/(r²+r_a²)
+closed-form in r_a** (amendment 3 — the OM definition, not from the f-moments). Realizability: report the traced-build
 `engine_b` f_min diagnostic at θ̂ (must be ≥ −1e-3). MLE + Fisher only.
 Gates: 3σ recovery on all three; f_min check. Figure
 `demo_halo_core.png`: data-vs-fit σ/β panels + Fisher ellipses.
