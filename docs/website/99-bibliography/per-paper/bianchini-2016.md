@@ -122,8 +122,9 @@ quadratic Taylor coefficient of the DF's `σ(m)` — from eq A2's printed term,
 i.e. any `g > −0.85`), *opposite in sign* to the exponential's
 `+1/(8 m_eq²)`. So A3's statement that A2 gives "the first terms of the Taylor
 expansion of the exponential" holds for the **linear term only**. Practical
-consequence (measured 2026-06-11,
-`scripts/validate_equipartition_saturation.py`): eq-3 exponential fits over a
+consequence (measured 2026-06-11 in a one-off windowed-fit analysis, recorded
+in the docstring of `scripts/validate_equipartition_saturation.py` — the
+gated validation itself is fit-free): eq-3 exponential fits over a
 finite mass window recover a *window-dependent* `m_eq` biased low — over
 `μ = m/m̄ ∈ [0.14, 1.7]` (20 bins on `[0.1, 1] M_⊙`) such fits recover
 **~0.5×** the derived [](#bianchini-meq-derived) (measured `0.50–0.53`

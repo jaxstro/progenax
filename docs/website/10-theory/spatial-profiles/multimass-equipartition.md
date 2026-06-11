@@ -160,10 +160,13 @@ expansion of the exponential" holds for the linear term only.)
 :class: warning
 Because the true curve bends *below* the tangent exponential, an eq-3
 exponential fit over a finite mass window recovers an $m_{\rm eq}$ **biased
-low**, by an amount that depends on the window. Measured (2026-06-11): over
-$\mu = m/\bar m \in [0.14, 1.7]$ — the 20-bin $[0.1,1]\,M_\odot$ model, a
-typical observational main-sequence window — such fits recover **~0.5×** the
-DF-derived {eq}`meq-derived` (0.50–0.53 across $W_0 \in \{5,7,9\}$). So when
+low**, by an amount that depends on the window. Measured in a one-off
+windowed-fit analysis (2026-06-11; recorded in the validation script's
+docstring — the gated validation itself is deliberately fit-free): over
+$\mu = m/\bar m \in [0.1/\bar m,\, 1/\bar m]$ per model — the 20-bin
+$[0.1,1]\,M_\odot$ window, $\approx[0.14, 1.7]$ across the $W_0$ grid since
+$\bar m$ varies — such fits recover **~0.5×** the DF-derived
+{eq}`meq-derived` (0.50–0.53 across $W_0 \in \{5,7,9\}$). So when
 comparing a *fitted* literature $m_{\rm eq}$ with the derived one:
 **window-match first** (fit eq 3 to the model over the data's mass window), or
 — future work — skip eq 3 entirely and fit the exact differentiable
