@@ -298,6 +298,7 @@ def main() -> int:
                 failed.append(case_id)
                 print(f"  {case_id:<24} ERROR\n{err}", flush=True)
                 continue
+            res["measured"] = datetime.date.today().isoformat()
             results[case_id] = res
             val = (f"{res['peak_rss_gb']:8.2f} GB" if kind == "mem"
                    else f"{res['wall_s_median']:8.3f} s ")
@@ -311,6 +312,11 @@ def main() -> int:
         return 1
 
     # Sanity gate: blocked PE at N=8k must be >= 5x below the dense kernel.
+    if not {"mem_pe_8000_before", "mem_pe_8000_after"} <= results.keys():
+        raise SystemExit(
+            "--only merge mode requires an existing full-run JSON "
+            f"({JSON_PATH}) carrying the mem_pe_8000 gate cases -- run the "
+            "full benchmark once first.")
     ratio = (results["mem_pe_8000_before"]["peak_rss_gb"]
              / results["mem_pe_8000_after"]["peak_rss_gb"])
     gate_ok = ratio >= 5.0
