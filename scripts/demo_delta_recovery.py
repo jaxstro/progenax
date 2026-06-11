@@ -13,23 +13,34 @@ A 4-component equipartition LIMEPY cluster (Gieles & Zocchi 2015) is sampled at
 the truth ``(alpha=2.3, delta=0.4, W0=5.0)``. Two observable channels constrain
 the joint fit:
 
-* **Kinematics** -- per-component binned 1-D velocity dispersion sigma_1d,j(r),
-  predicted by the Engine A analytic moment oracle (verbatim from
-  ``tests/validation/test_multimass_equilibrium_physics.py:70-86``):
-  sigma_jk = s * w_j * sqrt(I4 / I2 / 3) with I_p = int_0^{sqrt(2 W_jk)}
-  u^p E_gamma(g, W_jk - u^2/2) du, W_jk = rescale_j * psi(r_bar_jk), and the
-  global velocity scale s = sqrt(G * M_FIXED / (9 r_c mu_tot)). M_FIXED is the
-  measured total cluster mass (a fixed observed scalar), so the dispersion scale
-  is data-anchored rather than re-derived from theta inside the loss.
+* **Kinematics** -- per-component binned 1-D velocity dispersion sigma_1d,j(r).
+  The kinematic analysis is truncated at the 95th-percentile stellar radius
+  ``R_CUT`` (dropping the low-signal halo tail), then split into 16 equal-count
+  (quantile) radial bins on [0, R_CUT] (``R_EDGES``, frozen after one draw).
 
-  The model is evaluated at the per-(group, bin) MEAN stellar radius r_bar_jk
-  (a frozen data constant from the truth draw), NOT the geometric bin center.
-  This matters in the wide outermost bin: the steeply-falling density toward
-  r_t front-loads the population, so the mean radius (~4.5) sits well inside the
-  bin center (~5.4) where psi -- hence sigma -- is much lower. Evaluating at the
-  mean radius is the physically correct comparison point for the binned summary;
-  at bin centers the outer bin mispredicts by ~60 SE (an artifact of the
-  comparison point, not the oracle, which matches interior bins to ~1 SE).
+  The model is compared to the data via the binned EXPECTATION of the estimator,
+  NOT via the oracle evaluated at a single representative radius. The binned
+  estimator's expectation is the number-weighted average of sigma^2 across the
+  bin:
+
+      E[sigma_hat^2_{jk}] = (int_bin n_j(r) sigma_j^2(r) dr) / (int_bin n_j(r) dr),
+
+  with n_j(r) = 4 pi r^2 rho_j(r) the model's OWN per-component number density
+  (encoded in the model's stored normalized cumulative number fraction
+  ``m._cdf_j`` on ``m._r_grid``, so the number weight between two radii is just
+  the cdf increment) and sigma_j^2(r) = s_j^2 * g(W_j(r)), W_j(r) = rescale_j *
+  psi(r), g(W) = I4(W)/I2(W)/3 with I_p(W) = int_0^{sqrt(2 W)} u^p
+  lowered_exponential(g, W - u^2/2) du. g(W) is a 1-D function of the local
+  potential only, so it is precomputed ONCE per loss eval on a 256-point
+  W-table and interpolated -- this keeps the runtime budget (a 256-point
+  I4/I2 quadrature per group/bin/subpoint would be ~64x too expensive).
+
+  This is a like-with-like comparison (binned DATA vs binned EXPECTATION) with
+  NO evaluation-point approximation; it is theta-dependent (cdf_j, psi,
+  rescale_j, w_j, mu_tot all rebuilt from theta) and fully differentiable. The
+  global velocity scale s = sqrt(G * M_FIXED / (9 r_c mu_tot)) uses the measured
+  total cluster mass M_FIXED (a fixed observed scalar), so the dispersion scale
+  is data-anchored rather than re-derived from theta inside the loss.
 
 * **Masses** (Option A, plan amendment 1) -- a SEPARATE global IMF sample
   ``m_obs`` drawn from the SAME truth ``Maschberger(alpha)`` over the full
@@ -45,17 +56,24 @@ expit boxes (di.expit), so the fit is unconstrained and gradient-safe.
 
 Runtime budget gate (measured 2026-06-10, CPU/float64; recorded by ``main()``)
 -----------------------------------------------------------------------------
-    compile  5.18 s   (cold: traces + differentiates the 30-iter
+    R_CUT (95th-pct stellar radius)  4.5073 (model units)
+    R_EDGES                          16 quantile bins on [0, R_CUT]
+    M_FIXED                          57382.116 (measured total mass; a constant)
+    per-group occupancy (truncated)  j=0: 61896, j=1: 25972, j=2: 5989,
+                                     j=3 (top): 1143 (>= 300 gate)
+    compile  6.24 s   (cold: traces + differentiates the 30-iter
                        find_alpha_for_masses eigenvalue solve + ODE)
-    warm     0.568 s  (second call at a different z) -- PASS (<= 5 s budget)
-    grad(z1) = [1291.5, 191.5, 1888.7]  -- finite AND nonzero in all 3 of
-               (alpha, delta, W0): gradients flow cleanly through from_imf's
-               eigenvalue solve. No degradation applied; n_ode_points/n_iter
-               left at defaults (2000 / 30).
-Self-consistency at truth: max |dev/se| = 2.74 over populated bins (interior
-bins < ~2 SE; the model is evaluated at the per-bin MEAN stellar radius, see
-``predict_sigma`` -- evaluating at geometric bin centers mispredicts the wide
-outer bin by ~60 SE, a comparison-point artifact, not the oracle).
+    warm     0.550 s  (second call at a different z) -- PASS (<= 5 s budget)
+    grad(z1) = [1762.96, -233.77, 1406.92]  -- finite AND nonzero in all 3 of
+               (alpha, delta, W0). Independently grad-checked vs central finite
+               differences: rel-err ~1e-9..1e-11 per component (correct, not
+               just finite). The g(W)-moment oracle uses the double-``where``
+               safe pattern at W=0 (clamp before sqrt, clamp the I4/I2
+               denominator before the divide) so the W-table's boundary node
+               does not poison the gradient.
+Self-consistency at truth: predict_binned(truth) vs sig_hat over ALL populated
+(truncated, 16-bin) cells gives max |dev/se| = 1.93 -- no wide-outer-bin
+artifact (the binned-expectation comparison is like-with-like).
 """
 
 import os
@@ -86,11 +104,18 @@ N_STARS = 100_000
 
 # Unconstrained-reparam boxes (expit):
 ALPHA_BOX = (1.5, 3.2)
-DELTA_BOX = (0.0, 1.0)
+# DELTA_BOX: delta >~ 0.9 is the Spitzer-unstable equipartition regime where
+# from_imf's eigenvalue/ODE solve hard-crashes (an uncatchable diffrax max_steps
+# error); delta <= 0.6 is the documented physical limit, so 0.7 gives margin
+# while keeping the box inside the realizable manifold.
+DELTA_BOX = (0.0, 0.7)
 W0_BOX = (3.0, 8.0)
 
 # Quadrature resolution for the I_p moment integrals (fixed-length -> grad-safe).
 N_QUAD = 256
+# Resolution of the precomputed g(W) = I4(W)/I2(W)/3 table (built once per eval).
+N_WTAB = 256
+_TINY = 1e-30
 
 
 def _truth_imf():
@@ -99,34 +124,60 @@ def _truth_imf():
 
 
 # --------------------------------------------------------------------------- #
-# Engine A per-group sigma_1d oracle (verbatim recipe; vectorized over j x k)
+# g(W) = I4(W)/I2(W)/3 table (Engine A 1-D moment ratio; built once per eval)
 # --------------------------------------------------------------------------- #
-def _sigma_moment(W_jk, g):
-    r"""sqrt(I4 / I2 / 3) for one cell, I_p = int_0^{sqrt(2 W)} u^p E_g(g, W - u^2/2) du.
+def _moment_ratio(W, g):
+    r"""g(W) = I4(W) / I2(W) / 3 for one potential value W (= sigma^2 / s_j^2).
 
-    Fixed-length quadrature on a shared normalized grid t in [0, 1] scaled per
-    cell by u_max = sqrt(2 W). The Jacobian u_max cancels in the I4/I2 ratio but
-    is carried explicitly. ``W_jk <= 0`` (escaped) returns 0 with no NaN.
+    I_p(W) = int_0^{sqrt(2 W)} u^p lowered_exponential(g, W - u^2/2) du, on a
+    shared normalized grid t in [0, 1] scaled per W by u_max = sqrt(2 W). The
+    Jacobian u_max cancels in the I4/I2 ratio but is carried explicitly. This is
+    the VERBATIM Engine A oracle of
+    ``tests/validation/test_multimass_equilibrium_physics.py:70-86`` (same
+    lowered_exponential, same I4 / I2 / 3).
+
+    ``W <= 0`` returns 0 with a FINITE gradient via the double-``where`` safe
+    pattern: ``W`` is clamped to a safe positive value BEFORE ``sqrt`` (whose
+    derivative is +inf at 0), and the ``I4/I2`` denominator is clamped BEFORE
+    the divide (0/0 -> NaN at W=0 would otherwise poison the cotangent even in
+    the dead branch). A single ``where(I2>0, ..., 0)`` is NOT enough -- the
+    ratio is still differentiated at W=0. (This boundary node only ever feeds
+    ``jnp.interp`` as an endpoint of the g-table; psi>0 strictly inside r_t, so
+    physical on-grid W values are positive.)
     """
-    W_pos = jnp.maximum(W_jk, 0.0)
-    u_max = jnp.sqrt(2.0 * W_pos)
+    W_safe = jnp.where(W > 0.0, W, 1.0)         # clamp BEFORE sqrt (deriv +inf at 0)
+    u_max = jnp.sqrt(2.0 * W_safe)
     t = jnp.linspace(0.0, 1.0, N_QUAD)
-    u = u_max * t  # (N_QUAD,)
-    E = lowered_exponential(g, W_pos - u * u / 2.0)
+    u = u_max * t
+    E = lowered_exponential(g, W_safe - u * u / 2.0)
     I2 = jnp.trapezoid(u**2 * E, u)
     I4 = jnp.trapezoid(u**4 * E, u)
-    ratio = jnp.where(I2 > 0.0, I4 / (I2 * 3.0), 0.0)
-    return jnp.sqrt(jnp.maximum(ratio, 0.0))
+    I2_safe = jnp.where(I2 > 0.0, I2, 1.0)      # clamp BEFORE divide (0/0 -> NaN)
+    ratio = I4 / (I2_safe * 3.0)
+    return jnp.where(W > 0.0, ratio, 0.0)
 
 
-def predict_sigma(theta, r_bar, m_fixed):
-    r"""Per-group sigma_1d,j(r_bar_jk) for theta = (alpha, delta, W0), shape (N_COMP, K).
+def _build_g_table(W_max, g):
+    """Tabulate g(W) on a fixed [0, W_max] grid (vmap over the W-table)."""
+    W_tab = jnp.linspace(0.0, W_max, N_WTAB)
+    g_tab = jax.vmap(lambda w: _moment_ratio(w, g))(W_tab)
+    return W_tab, g_tab
+
+
+# --------------------------------------------------------------------------- #
+# Binned-expectation predictor: E[sigma_hat^2_{jk}] under the model's n_j(r)
+# --------------------------------------------------------------------------- #
+def predict_binned(theta, r_edges, m_fixed):
+    r"""Per-(group, bin) sqrt(E[sigma_hat^2_{jk}]) for theta=(alpha,delta,W0).
 
     Rebuilds the Engine A model from theta inside the traced function (the
     find_alpha_for_masses eigenvalue solve is differentiable in alpha, delta,
-    W0), then evaluates the analytic moment oracle at the per-(group, bin) MEAN
-    stellar radii ``r_bar`` (frozen data constants). The velocity scale uses the
-    FIXED observed total mass ``m_fixed`` (a constant), so sigma is data-anchored.
+    W0), then returns the number-weighted bin-average dispersion: the binned
+    estimator's EXPECTATION under the model's own number density n_j(r) (from
+    the stored cumulative number fraction ``m._cdf_j`` on ``m._r_grid``). No
+    evaluation-point approximation -- a like-with-like comparison to the binned
+    data. The velocity scale uses the FIXED observed total mass ``m_fixed`` (a
+    constant), so sigma is data-anchored. Returns shape (N_COMP, K).
     """
     alpha, delta, W0 = theta
     imf = Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1])
@@ -134,22 +185,50 @@ def predict_sigma(theta, r_bar, m_fixed):
                                        m_range=M_RANGE)
     s = jnp.sqrt(G_MODEL * m_fixed / (9.0 * m.r_c * m.mu_tot))  # m_fixed constant
 
-    # psi at the per-(group, bin) mean radius: psi(r/r_c), left=W0, right=0.
-    psi_jk = jnp.interp((r_bar / m.r_c).ravel(), m.xi_grid, m.psi_grid,
-                        left=W0, right=0.0).reshape(r_bar.shape)  # (N_COMP, K)
-    W_jk = m.rescale_j[:, None] * psi_jk  # (N_COMP, K)
-    moment = jax.vmap(jax.vmap(lambda w: _sigma_moment(w, m.g)))(W_jk)
-    return s * m.w_j[:, None] * moment  # (N_COMP, K)
+    # g(W) table built ONCE per eval (W spans 0 .. max(rescale_j) * W0).
+    W_max = jnp.max(m.rescale_j) * W0
+    W_tab, g_tab = _build_g_table(W_max, m.g)
+
+    # psi on the model's own r-grid: psi(r/r_c), left=W0 (r->0), right=0 (r>r_t).
+    psi_grid = jnp.interp(m._r_grid / m.r_c, m.xi_grid, m.psi_grid,
+                          left=W0, right=0.0)  # (n_grid,)
+    r_grid = m._r_grid
+    edges_lo = r_edges[:-1]
+    edges_hi = r_edges[1:]
+
+    def _per_group(j):
+        W_grid_j = m.rescale_j[j] * jnp.maximum(psi_grid, 0.0)  # (n_grid,)
+        g_grid_j = jnp.interp(W_grid_j, W_tab, g_tab)           # sigma^2/s_j^2 on grid
+        cdf_j = m._cdf_j[j]                                     # cumulative number 0..1
+        # cumulative int_0^r g dN along the grid (trapezoid in dN = d cdf):
+        dN = jnp.diff(cdf_j)                                    # >= 0
+        gmid = 0.5 * (g_grid_j[1:] + g_grid_j[:-1])
+        C2 = jnp.concatenate([jnp.zeros(1), jnp.cumsum(gmid * dN)])  # (n_grid,)
+        # number-weighted <g> per bin via the cumulative ratio at the bin edges:
+        C2_lo = jnp.interp(edges_lo, r_grid, C2)
+        C2_hi = jnp.interp(edges_hi, r_grid, C2)
+        N_lo = jnp.interp(edges_lo, r_grid, cdf_j)
+        N_hi = jnp.interp(edges_hi, r_grid, cdf_j)
+        gbar_jk = (C2_hi - C2_lo) / ((N_hi - N_lo) + _TINY)    # <g> per bin
+        s_j = s * m.w_j[j]
+        # double-where: clamp BEFORE sqrt (deriv +inf at 0) so empty/zero-g bins
+        # (which carry data weight=0) keep a finite gradient through the model.
+        gbar_safe = jnp.where(gbar_jk > 0.0, gbar_jk, 1.0)
+        sig = s_j * jnp.sqrt(gbar_safe)
+        return jnp.where(gbar_jk > 0.0, sig, 0.0)              # sqrt(E[sigma_hat^2])
+
+    return jax.vmap(_per_group)(jnp.arange(N_COMP))            # (N_COMP, K)
 
 
 # --------------------------------------------------------------------------- #
-# Mock data construction (run once; R_EDGES then frozen)
+# Mock data construction (run once; R_CUT, R_EDGES then frozen)
 # --------------------------------------------------------------------------- #
 def build_truth_data():
-    """Sample the truth cluster, bin sigma_1d,j(r), draw the global mass sample.
+    """Sample the truth cluster, truncate at R_CUT, bin sigma_1d,j(r), draw masses.
 
-    Returns a dict of constants the loss closes over: R_CENTERS, sig_hat, se,
-    weight, n (kinematics), m_obs (Option A mass channel), M_FIXED, R_EDGES.
+    Returns a dict of constants the loss closes over: R_EDGES (16 quantile bins
+    on [0, R_CUT]), sig_hat, se, weight, n (kinematics), m_obs (Option A mass
+    channel), M_FIXED, R_CUT.
     """
     imf = _truth_imf()
     key = jax.random.PRNGKey(0)
@@ -165,26 +244,25 @@ def build_truth_data():
     cid = ic.component_id  # int in [0, N_COMP)
 
     r = jnp.linalg.norm(pos, axis=1)
-    r_edges = jnp.quantile(r, jnp.linspace(0.0, 1.0, 9))  # 8 bins, FROZEN
-    r_centers = 0.5 * (r_edges[:-1] + r_edges[1:])
 
-    sig_hat, se, weight, n = di.binned_sigma1d(pos, vel, cid, N_COMP, r_edges,
+    # Truncate the kinematic analysis at the 95th-percentile stellar radius:
+    # drop the low-signal outer 5% halo tail (FROZEN data constant).
+    R_CUT = float(jnp.quantile(r, 0.95))
+    # 16 equal-count (quantile) radial bins inside [0, R_CUT] (FROZEN). Stars
+    # with r > R_CUT fall above the last edge and are excluded automatically by
+    # binned_sigma1d's _bin_index overflow handling (in_range needs r <= edge[-1]).
+    r_in = r[r <= R_CUT]
+    R_EDGES = jnp.quantile(r_in, jnp.linspace(0.0, 1.0, 17))  # 16 bins, FROZEN
+
+    sig_hat, se, weight, n = di.binned_sigma1d(pos, vel, cid, N_COMP, R_EDGES,
                                                n_min=30)
-
-    # Per-(group, bin) MEAN stellar radius (frozen data constant; the physically
-    # correct evaluation point for predict_sigma, not the geometric bin center).
-    n_bins = r_edges.shape[0] - 1
-    bin_ids = di._bin_index(r, r_edges)
-    sum_r, _counts = di._grouped_bin_sums(r, cid, bin_ids, N_COMP, n_bins)
-    r_bar = jnp.where(n > 0, sum_r / jnp.where(n > 0, n, 1.0), r_centers[None, :])
 
     # Observed-mass sample (Option A): global, independent of kinematic group.
     m_obs = imf.ppf(jax.random.uniform(k_mass, (N_STARS,)))
     M_fixed = float(jnp.sum(ic.masses))  # measured total mass (a CONSTANT)
 
-    return dict(r_edges=r_edges, r_centers=r_centers, r_bar=r_bar,
-                sig_hat=sig_hat, se=se, weight=weight, n=n, m_obs=m_obs,
-                M_fixed=M_fixed)
+    return dict(r_edges=R_EDGES, r_cut=R_CUT, sig_hat=sig_hat, se=se,
+                weight=weight, n=n, m_obs=m_obs, M_fixed=M_fixed)
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +270,7 @@ def build_truth_data():
 # --------------------------------------------------------------------------- #
 def make_negloglike(data):
     """Build the joint negloglike(z) closure over the frozen truth data."""
-    r_bar = data["r_bar"]
+    r_edges = data["r_edges"]
     sig_hat, se, weight = data["sig_hat"], data["se"], data["weight"]
     m_obs = data["m_obs"]
     m_fixed = data["M_fixed"]
@@ -202,7 +280,7 @@ def make_negloglike(data):
         alpha = di.expit(z[0], *ALPHA_BOX)
         delta = di.expit(z[1], *DELTA_BOX)
         W0 = di.expit(z[2], *W0_BOX)
-        sig_model = predict_sigma((alpha, delta, W0), r_bar, m_fixed)
+        sig_model = predict_binned((alpha, delta, W0), r_edges, m_fixed)
         resid = (sig_hat - sig_model) / safe_se
         ll_kin = -0.5 * jnp.sum(weight * resid * resid)
         ll_mass = jnp.sum(
@@ -216,15 +294,14 @@ def make_negloglike(data):
 # Checks + budget gate
 # --------------------------------------------------------------------------- #
 def self_consistency_check(data):
-    """predict_sigma(truth) vs binned sig_hat in populated bins (units of se)."""
-    sig_model = predict_sigma((ALPHA_TRUE, DELTA_TRUE, W0_TRUE),
-                              data["r_bar"], data["M_fixed"])
+    """predict_binned(truth) vs binned sig_hat in populated bins (units of se)."""
+    sig_model = predict_binned((ALPHA_TRUE, DELTA_TRUE, W0_TRUE),
+                               data["r_edges"], data["M_fixed"])
     sig_hat, se, weight = data["sig_hat"], data["se"], data["weight"]
-    r_bar = data["r_bar"]
     dev = jnp.where(weight > 0, (sig_hat - sig_model) / jnp.where(se > 0, se, 1.0), 0.0)
 
-    print("\nSelf-consistency: predict_sigma(truth) vs sig_hat (deviation in SE)")
-    print(f"{'grp':>3} {'bin':>3} {'r_bar':>7} {'sig_hat':>9} {'sig_pred':>9} "
+    print("\nSelf-consistency: predict_binned(truth) vs sig_hat (deviation in SE)")
+    print(f"{'grp':>3} {'bin':>3} {'sig_hat':>9} {'sig_pred':>9} "
           f"{'se':>8} {'dev/se':>8}")
     max_dev = 0.0
     for j in range(sig_hat.shape[0]):
@@ -232,7 +309,7 @@ def self_consistency_check(data):
             if float(weight[j, k]) > 0:
                 d = float(dev[j, k])
                 max_dev = max(max_dev, abs(d))
-                print(f"{j:>3} {k:>3} {float(r_bar[j, k]):>7.3f} "
+                print(f"{j:>3} {k:>3} "
                       f"{float(sig_hat[j, k]):>9.4f} {float(sig_model[j, k]):>9.4f} "
                       f"{float(se[j, k]):>8.4f} {d:>8.2f}")
     print(f"max |dev/se| over populated bins = {max_dev:.2f}")
@@ -250,13 +327,15 @@ def main():
     n = data["n"]
     J = n.shape[0]
     print(f"\nM_FIXED (measured total mass) = {data['M_fixed']:.3f}")
-    print("R_EDGES =", [round(float(x), 4) for x in data["r_edges"]])
+    print(f"R_CUT (95th-pct stellar radius) = {data['r_cut']:.4f}")
+    print("R_EDGES (16 quantile bins on [0, R_CUT]) =",
+          [round(float(x), 4) for x in data["r_edges"]])
     print("per-group counts (group x bin):")
     for j in range(J):
         print(f"  group {j}: {[int(x) for x in n[j]]}  (total {int(n[j].sum())})")
     top_occ = int(n[J - 1].sum())
     print(f"top-group (j={J - 1}) occupancy = {top_occ}"
-          + ("  [WARN < 500 -- Task 4 has a >=300 gate]" if top_occ < 500 else ""))
+          + ("  [WARN < 300 -- Task 4 has a >=300 gate]" if top_occ < 300 else ""))
 
     # Self-consistency BEFORE the budget gate.
     max_dev = self_consistency_check(data)
@@ -264,7 +343,7 @@ def main():
     print(f"self-consistency {'OK' if sc_ok else 'FAIL'} "
           f"(max |dev/se| = {max_dev:.2f}, threshold 4.0)")
     if not sc_ok:
-        print("\nSTOP: predict_sigma(truth) does not match sig_hat -- "
+        print("\nSTOP: predict_binned(truth) does not match sig_hat -- "
               "miscalibrated oracle scale or group alignment. Not proceeding.")
         sys.exit(1)
 

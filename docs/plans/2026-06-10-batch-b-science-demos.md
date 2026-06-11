@@ -38,6 +38,20 @@ side only; no resampling in the loss). Demos are gated CLIs in the
 >    a combined ⟨v²⟩, so σ_1d = √(⟨v²⟩/3) from the recipe and
 >    **β(r) = r²/(r²+r_a²)** closed-form in r_a (OM definition), not from the
 >    f-moments. Headline `r_a=3.0` (`test_engine_b_physics.py:375`), m_j=[0.5,1.0].
+> 4. **Binning superseded (Anna-approved) — exact binned expectation, r_bar
+>    retired.** The bin-center oracle mispredicted the wide sparse outer bin
+>    (steep σ×density gradient → ~58 SE); a frozen r_bar centroid patched it but
+>    deviated from plan. Root-cause replacement: (a) truncate the kinematic
+>    analysis at R_CUT = 95th-percentile stellar radius; (b) 16 equal-count
+>    radial bins in [0, R_CUT], frozen; (c) predict_fn compares binned DATA to
+>    the model's binned EXPECTATION E[σ̂²_jk]=(∫_bin n_j σ_j² dr)/(∫_bin n_j dr),
+>    with n_j(r)∝d(cdf_j)/dr from the model's stored `_cdf_j`/`_r_grid`, and
+>    σ_j²(r)=s_j²·g(W(r)), g=I4/I2/3 precomputed once per eval on a W-table
+>    (keeps the runtime budget). Removes r_bar and the bin-center approximation
+>    — like-with-like, θ-dependent, differentiable. Also DELTA_BOX (0,1)→(0,0.7):
+>    δ≳0.9 is Spitzer-unstable and hard-crashes the ODE solve. Task 4/5 Fisher
+>    must use JᵀJ via jax.jacrev (not jax.hessian — forward-over-reverse fails on
+>    the ODE custom_vjp).
 
 **Tech stack:** JAX, equinox, optax (Adam MLE; optimistix NOT available),
 blackjax NUTS (pattern: `src/experimental/gravoturb_fdf/inference/hmc.py:38-55`),
