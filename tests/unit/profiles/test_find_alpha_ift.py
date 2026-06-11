@@ -46,7 +46,11 @@ class TestGradientMatchesFD:
         def loss(ai): a, _ = _alpha_of(ai, 5.0, 1.0, 0.4); return jnp.sum(a**2)
         g_ad = float(jax.grad(loss)(2.3)); h = 1e-4
         g_fd = float((loss(2.3+h)-loss(2.3-h))/(2*h))
-        assert abs(g_ad-g_fd)/(abs(g_fd)+1e-12) < 1e-5
+        # Gate 1e-6 (Anna 2026-06-11): the IFT gradient is exact; measured
+        # AD-vs-FD rel-err is ~4e-9 (FD-truncation-limited at h=1e-4, not AD),
+        # so 1e-6 locks today's near-exact agreement with ~250x margin and
+        # catches any ~1e-6 systematic gradient regression a 1e-5 gate would miss.
+        assert abs(g_ad-g_fd)/(abs(g_fd)+1e-12) < 1e-6
 
     def test_grad_delta_W0(self):
         def loss(t):
@@ -56,7 +60,9 @@ class TestGradientMatchesFD:
         for i in range(2):
             e=np.zeros(2); e[i]=h
             g_fd.append(float((loss(jnp.array([0.4,5.0])+e)-loss(jnp.array([0.4,5.0])-e))/(2*h)))
-        np.testing.assert_allclose(g_ad, np.array(g_fd), rtol=1e-5, atol=1e-7)
+        # Gate 1e-6 (Anna 2026-06-11); atol tightened to 1e-8 so rtol is the
+        # binding constraint (measured rel-err ~2-8e-9, FD-truncation-limited).
+        np.testing.assert_allclose(g_ad, np.array(g_fd), rtol=1e-6, atol=1e-8)
 
 
 class TestJitGradient:
