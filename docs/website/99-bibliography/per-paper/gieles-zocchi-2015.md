@@ -206,6 +206,24 @@ parameter** rather than baking in $\delta=1/2$ or full equipartition — the dat
 it.
 ```
 
+```{admonition} Related notes + a provenance caution on `meq`/`zeta`
+:class: note
+The σ(m) consequences of this δ-power-law model are interpreted, and *derived from*
+{eq}`limepy-multimass-scalings`, in [Bianchini et al. 2016](bianchini-2016.md): its
+Appendix A shows the partial-equipartition σ(m) is the Taylor expansion of the GZ15
+component dispersion, with a **derived** equipartition mass
+$m_{\rm eq} = \bar m\,(g+\tfrac52)(g+\tfrac72)/\hat\phi_0$ — so this model *already*
+saturates (no extra parameter needed). The multimass methods + the central-vs-global
+$\bar m$ convention (translation Eqs. 8–9) are in [Peuten et al. 2017](peuten-2017.md),
+the multimass follow-up this paper promised.
+
+**Caution (verified 2026-06-11):** `meq` and `zeta` (the LIMEPY *code*'s
+$\mu_j=(m_j+m_{\rm eq})/\bar m$ and high-mass $s_j^2$ scaling) are **not in this
+paper** — Eq. 24 is the pure power law $s_j=s\,\mu_j^{-\delta}$. The code's docstring
+citing "Eq. 24" for the `meq` form is incorrect; those are later code-only fitting
+knobs (deferred in progenax). Do not cite GZ15 for `meq`.
+```
+
 ## The LIMEPY code (§4)
 
 `limepy` solves {eq}`limepy-poisson` with `scipy`'s `dopri5` (adaptive RK4(5)), given

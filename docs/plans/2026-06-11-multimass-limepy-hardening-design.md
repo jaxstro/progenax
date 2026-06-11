@@ -5,11 +5,15 @@
 
 ## Purpose
 
-Harden progenax's Engine A multimass equilibrium (`MultiComponentCluster` /
-`find_alpha_for_masses` / the LIMEPY DF) into a **faithful, differentiable,
-validated superset of the canonical LIMEPY code** — by (1) building a direct
-ours-vs-reference-LIMEPY cross-validation harness, then (2) adding the two
-beyond-GZ15 code parameters we omitted (`meq`, `zeta`), with honest provenance.
+Establish progenax's Engine A multimass equilibrium (`MultiComponentCluster` /
+`find_alpha_for_masses` / the LIMEPY DF) as a **faithful, differentiable,
+validated reimplementation of the canonical LIMEPY** — by (1) a direct
+ours-vs-reference-LIMEPY cross-validation harness, (2) validating that our model
+reproduces Bianchini2016's equipartition-saturation σ(m) with the *derived*
+m_eq (no new parameter), and (3) documenting the methods + theory in per-paper
+notes and a theory page. The `meq`/`zeta` fitting knobs are **deferred** (Anna
+2026-06-11) — verified to be extra freedom, not the saturation mechanism.
+**This arc is validation + documentation: no released-core behavior change.**
 
 ## Equation verification (DONE before any code — Anna's instruction)
 
@@ -49,21 +53,44 @@ configure the reference code's m̄ mode) so ours-vs-reference is like-for-like.
   **exponential, observational σ(m) FITTING function** (a *different* functional
   form from the code's power-law softening), used to *measure* the degree of
   equipartition from data — not a self-consistent DF parametrization.
-- **Decision (Anna):** implement the reference *code*'s `meq` form
-  (`μ_j=(m_j+meq)/m̄`) for full reference-code parity, **documented honestly** as
-  a code heuristic physically motivated by Bianchini2016's observed saturation,
-  **NOT** a GZ15/Peuten equation. Validate it reproduces the reference code's meq
-  behavior (and, qualitatively, the Bianchini saturation direction).
-- **`zeta`/`zeta_lim`** (the code's `s²_j *= zeta` for `m_j>zeta_lim`,
-  massive-object decoupling): also code-only (not in these papers; conceptually
-  the BH/remnant decoupling Peuten2017 studies). Same honest-provenance treatment.
+
+**The Appendix-A finding (Bianchini2016 App. A — the bridge; read in full):**
+Bianchini *derives* the exponential σ(m) **from the GZ15 multimass DF** (our
+model). The component central dispersion (eq A1)
+`σ̂_{1d,j0} = (1/μ_j²)·E_γ(g+5/2; μ_j^{2δ}φ̂₀)/E_γ(g+3/2; μ_j^{2δ}φ̂₀)`,
+Taylor-expanded for low mass (μ_j≪1, δ=½), gives (eq A3)
+`σ ~ σ₀[1 − ½(m/m_eq) + ⅛(m/m_eq)²]` = the Taylor series of `σ₀exp(−m/2m_eq)`;
+the high-mass limit gives `σ ∝ m^{−1/2}`. **m_eq is therefore NOT an input — it
+EMERGES from the model:**
+> **`m_eq = m̄·(g+5/2)(g+7/2)/φ̂₀`** (matching App. A2↔A3 linear terms).
+
+So **our current code (μ_j=m_j/m̄, δ=½, no meq) ALREADY reproduces Bianchini's
+σ(m) saturation** with this derived m_eq, set by the mean mass, truncation g, and
+central concentration Ŵ₀=φ̂₀. The code's `μ_j=(m_j+meq)/m̄` is a **separate
+phenomenological knob** that adds *extra* low-mass softening to **decouple the
+equipartition degree from g/Ŵ₀** when fitting clusters — NOT "the saturation"
+(the model already has that). m_eq↔relaxation: Bianchini's headline result is
+`m_eq` correlates tightly with dynamical age `n_eq=T_age/T_rc` (clusters >~20 core
+relaxation times reach max equipartition) — a kinematic proxy for relaxation
+state. The Spitzer instability (heavy stars decoupling into a self-gravitating
+subsystem) is the physical origin of the `zeta` knob.
+
+- **Decision (Anna 2026-06-11): DEFER `meq` and `zeta`** — they are *knobs*
+  (extra fitting freedom), not needed to capture the saturation physics (the
+  model already does, per App. A). Revisit later if a fit demands decoupling
+  equipartition from g/Ŵ₀ (meq) or a BH/remnant subsystem (zeta). When added,
+  document honestly as code-heuristics (NOT GZ15/Peuten equations).
+- **Promoted instead (zero new released-core code):** *validate* that our model
+  reproduces Bianchini's σ(m) with the **derived** `m_eq=m̄(g+5/2)(g+7/2)/φ̂₀` —
+  proving progenax captures the equipartition-saturation physics with no new
+  parameters. High grounding payoff; a methods-paper figure.
 
 **Published realism lever we ALREADY have:** Peuten2017's actual method is to
 **fit δ freely** (not fix δ=0.5) against N-body — and progenax already exposes δ
 as a differentiable free parameter. So the headline "do it better the published
 way" is largely already in hand; meq/zeta are the *code-parity* extras.
 
-## Approach — two phases
+## Approach
 
 ### Phase 1a — reference cross-validation harness (fully grounded, build first)
 
@@ -86,44 +113,51 @@ figure via `_plotstyle`.
   4-component (binned Maschberger); iso + anisotropic (η=0 and η≠0); g∈{1,1.5}.
   Gates set AFTER measuring (honest); target ~1% shape agreement (same ODE).
 
-### Phase 1b — add `meq` + `zeta` (code parity, honest provenance)
+### Phase 1a+ — derived-m_eq saturation validation (zero new released-core code)
 
-- **meq:** `mu_j = (m_j + meq)/bar_m` (one-line at `limepy_multimass.py:334`);
-  flows into `w_j = mu_j^{−δ}` and `ra_hat_j = ra_hat·mu_j^η` automatically.
-  Differentiable in `meq` (smooth) → a new inferrable parameter. Default
-  `meq=0.0` ⇒ bit-identical to today.
-- **zeta/zeta_lim:** `s²_j *= zeta` for `m_j>zeta_lim` ⇒ in our terms
-  `w_j *= √zeta` (equivalently `rescale_j /= zeta`) on heavy bins, via a static
-  mask `jnp.where(m_j>zeta_lim, zeta, 1.0)` (m_j are fixed bin reps ⇒ jit/grad
-  safe; differentiable in `zeta`, not the hard `zeta_lim`). Default `zeta=1.0`.
-- **API:** add `meq=0.0, zeta=1.0, zeta_lim=3.0` to `find_alpha_for_masses`,
-  `MultiComponentCluster.from_imf`, `from_mass_segregation` (defaults = current
-  behavior ⇒ zero blast radius; the 1163 invariant stays green). `from_components`
-  (direct `w_j`) untouched. **Engine B untouched** (these are Engine-A
-  equipartition-ansatz params only). Do NOT change the √-update solver — only the
-  `mu_j`/`s²_j` it consumes.
-- **Validation:** extend the harness with `meq>0` and `zeta>1` configs cross-
-  checked ours-vs-reference (α_j, ρ_j, σ_j ~1%); grad wrt `meq`/`zeta` finite +
-  AD-vs-FD; physics check that `meq>0` flattens σ(m) at the heavy end (the
-  saturation direction, qualitatively consistent with Bianchini eq 3).
+Promoted from the deferred meq work (Anna 2026-06-11). With NO new model
+parameter, validate that our standard model (μ_j=m_j/m̄, δ=½) reproduces
+Bianchini's equipartition relation:
+- Compute the per-component central dispersion `σ̂_{1d,j0}` from our model across
+  a mass spectrum; fit / compare its `m`-dependence to Bianchini eq 3
+  `σ₀exp(−m/2m_eq)` (low-mass) + `m^{−1/2}` (high-mass).
+- Check the **derived** `m_eq = m̄(g+5/2)(g+7/2)/φ̂₀` (Bianchini App. A2↔A3)
+  against the m_eq recovered by fitting our model's σ(m) — they must agree (this
+  is the headline: progenax captures the saturation physics analytically).
+- Lives in the same `validate_limepy_reference.py` CLI + a σ(m)-vs-Bianchini
+  figure. Gate: derived vs fitted m_eq agreement (tolerance set after measuring).
 
-### Documentation deliverables
+### DEFERRED (Anna 2026-06-11) — `meq` + `zeta` as fitting knobs
+
+Not built now (they are extra fitting freedom, NOT the saturation mechanism —
+the model already saturates, per App. A). Recorded for a future arc:
+- **meq:** `mu_j=(m_j+meq)/bar_m` (one line at `limepy_multimass.py:334`),
+  default 0 ⇒ no-op; decouples the equipartition degree from g/Ŵ₀.
+- **zeta/zeta_lim:** `s²_j*=zeta` for `m_j>zeta_lim` via a static
+  `jnp.where(m_j>zeta_lim, zeta, 1.0)` mask, default 1 ⇒ no-op; BH/remnant
+  decoupling (Spitzer instability).
+- Both added as optional kwargs to `find_alpha_for_masses`/`from_imf`/
+  `from_mass_segregation` (defaults = current behavior ⇒ zero blast radius;
+  Engine A only; document as code-heuristics, NOT GZ15/Peuten equations).
+
+### Documentation deliverables (this arc)
 
 - New per-paper notes `peuten-2017.md`, `bianchini-2016.md` (verified equations,
-  page cites); update `gieles-zocchi-2015.md` with eqs 24–26/29 + the m̄-mode
-  note. Fix our `find_alpha_for_masses` docstring's "eigenvalue" wording to also
-  name the GZ15 √-update MF iteration; and ensure NO progenax docstring repeats
-  the code's wrong "meq = eq 24 GZ15" citation.
+  page cites, incl. Bianchini App. A derivation + the derived-m_eq formula);
+  update `gieles-zocchi-2015.md` with eqs 24–26/29 + the m̄-mode note (Peuten
+  eqs 8–9). Fix our `find_alpha_for_masses` docstring's "eigenvalue" wording to
+  also name the GZ15 √-update MF iteration; ensure NO progenax docstring repeats
+  the code's wrong "meq = eq 24 GZ15" citation. A theory/methods page documenting
+  the multimass equilibrium + the equipartition-saturation result.
 
 ## Validation gates (never weakened)
 
-1. Reference parity at meq=0: shape agreement <~1% (set after measuring), the
-   1163 released-core suite green, a stored regression pin.
-2. meq/zeta correctness: ours-vs-reference at meq>0/zeta>1 within the same
-   tolerance; grad wrt meq/zeta matches central FD <1e-5; meq=0/zeta=1 ≡ current
-   (regression pin).
-3. Physics: σ(m) saturates (flattens at heavy end) for meq>0, qualitatively
-   matching Bianchini eq 3.
+1. Reference parity: ours-vs-reference-LIMEPY shape agreement <~1% (set after
+   measuring) across the config set; the 1163 released-core suite green; a stored
+   regression pin.
+2. Derived-m_eq saturation: our model's fitted σ(m) m_eq agrees with the derived
+   `m̄(g+5/2)(g+7/2)/φ̂₀` (tolerance set after measuring); σ(m) flattens at low
+   mass and → m^{−1/2} at high mass (Bianchini eqs 3, A3).
 
 ## Out of scope
 
