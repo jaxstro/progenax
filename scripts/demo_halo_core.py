@@ -759,6 +759,7 @@ def main():
     if not occ_ok:
         print("\nSTOP: a component has too few resolved sigma bins to constrain "
               "the fit. NOT weakening n_min or the bin count -- report.")
+        sys.exit(4)   # stop BEFORE the figure (match the sc/budget early exits)
 
     # Figure.
     out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)),
