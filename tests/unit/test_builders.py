@@ -129,6 +129,36 @@ class TestVirialScale:
         assert Q < 0.5  # Subvirial
         assert jnp.abs(Q - 0.25) < 0.05
 
+    def test_virial_scale_zero_velocities_raises(self):
+        """Audit J5: cold input (T=0) used to return all-NaN velocities silently."""
+        from progenax.builders import virial_scale
+        pos = jax.random.normal(jax.random.PRNGKey(0), (50, 3))
+        vel = jnp.zeros((50, 3))
+        m = jnp.ones(50)
+        with pytest.raises(ValueError, match="zero kinetic"):
+            virial_scale(pos, vel, m, Q_target=0.5, G=0.00449)
+
+    def test_rescale_velocities_to_virial_zero_raises(self):
+        """The deduped sibling shares the same eager T=0 guard (audit J5)."""
+        from progenax.dynamics.virial import rescale_velocities_to_virial
+        pos = jax.random.normal(jax.random.PRNGKey(1), (50, 3))
+        vel = jnp.zeros((50, 3))
+        m = jnp.ones(50)
+        with pytest.raises(ValueError, match="zero kinetic"):
+            rescale_velocities_to_virial(pos, vel, m, G=0.00449, target_Q=0.5)
+
+    def test_virial_scale_traced_zero_returns_nan(self):
+        """Under tracing the guard can't fire; NaN is the honest sentinel."""
+        from progenax.builders import virial_scale
+        pos = jax.random.normal(jax.random.PRNGKey(2), (10, 3))
+        m = jnp.ones(10)
+
+        def f(vel):
+            return virial_scale(pos, vel, m, Q_target=0.5, G=0.00449)
+
+        out = jax.jit(f)(jnp.zeros((10, 3)))
+        assert jnp.all(jnp.isnan(out))
+
 
 class TestBuildSpatialIC:
     """Test main IC builder."""

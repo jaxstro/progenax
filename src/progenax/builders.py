@@ -21,7 +21,11 @@ from .protocols import SpatialProfile, VelocityDF
 # Single canonical energy implementation lives in dynamics.virial; re-export it
 # here so the public API (progenax.compute_*_energy) and virial_scale share one
 # gradient-safe source of truth (Batch 0, F1+F2).
-from .dynamics.virial import compute_kinetic_energy, compute_potential_energy
+from .dynamics.virial import (
+    compute_kinetic_energy,
+    compute_potential_energy,
+    rescale_velocities_to_virial,
+)
 from .binaries import resolve_binary_components
 
 # Seconds in one (SI) day — exact; used to convert sampled periods (days) into the
@@ -251,18 +255,18 @@ def virial_scale(
     Returns:
         Scaled velocities
 
+    Cold input (T=0) raises for concrete inputs / yields NaN under tracing —
+    see the delegate's docstring.
+
     References:
         Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
         Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
     """
-    T = compute_kinetic_energy(velocities, masses)
-    V = compute_potential_energy(positions, masses, G=G, softening=softening)
-
-    # Q = T / |V| (NOT 2T / |V|)
-    Q_current = T / jnp.abs(V)
-    scale = jnp.sqrt(Q_target / Q_current)
-
-    return velocities * scale
+    # Single implementation lives in dynamics.virial (audit J5 dedupe); this is
+    # the builders-level convenience signature (Q_target before G).
+    return rescale_velocities_to_virial(
+        positions, velocities, masses, G=G, target_Q=Q_target, softening=softening
+    )
 
 
 def build_spatial_ic(
