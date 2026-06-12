@@ -196,9 +196,16 @@ def per_group_virial_ratio(
     for ``1/r`` gravity, a single all-ones group reproduces the global virial ratio
     exactly (``W = V``), and the per-group ``W_j`` partition the global virial.
 
-    Positions enter only through differences (origin-independent); velocities are
-    measured relative to the mass-weighted mean (bulk motion removed) so a moving COM
-    does not inflate ``T_j``.
+    Velocities are measured relative to the mass-weighted mean (bulk motion removed)
+    so a moving COM does not inflate ``T_j``.
+
+    .. warning::
+       Per-group ``W_j = sum_{i in j} m_i r_i . a_i`` is ORIGIN-DEPENDENT for a
+       proper subgroup: under r -> r + d it shifts by ``d . sum_{i in j} m_i a_i``,
+       which is nonzero because a subgroup feels a net force from the rest of the
+       cluster (only the GLOBAL sum is origin-independent, ``sum_all m_i a_i = 0``).
+       Callers must therefore pass positions PRE-CENTERED on the cluster COM (all
+       in-tree callers do); an off-center origin biases the per-group Q_j (audit S16).
 
     Args:
         positions: Particle positions, shape (N, 3).

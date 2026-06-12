@@ -133,6 +133,14 @@ def apply_tidal_truncation(
     differentiable. Unlike boolean-mask indexing, the output keeps a static
     shape ``N``, so the function is ``jit`` / ``vmap`` / ``grad`` safe.
 
+    .. warning::
+       The survivors keep the velocities they were drawn with for the UNtruncated
+       potential, so the truncated set is SUPER-VIRIAL w.r.t. its own (now shallower)
+       potential — some stars near ``r_t`` are formally unbound and the set is not a
+       stationary equilibrium (audit S4). Re-virialize the survivors
+       (``virial_scale`` / ``rescale_velocities_to_virial``) or use an r_t-consistent
+       equilibrium model (King / LIMEPY) if you need a stationary IC.
+
     Args:
         positions: Particle positions (N, 3)
         velocities: Particle velocities (N, 3)

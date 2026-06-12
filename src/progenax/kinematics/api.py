@@ -199,7 +199,12 @@ def sample_velocities_pipeline(
 
     # Stage 3: Optional virial rescaling. target_Q=None keeps the DF's native
     # equilibrium (Plummer/King/EFF are already sampled in detailed equilibrium);
-    # pass a float only to deliberately force a virial ratio.
+    # pass a float only to deliberately force an overall virial ratio.
+    #
+    # NOTE (audit S3): this is an ISOTROPIC speed rescale. It does NOT restore
+    # stationarity after a rotation overlay (Stage 2) — it cannot remove the
+    # injected net angular momentum L_z, so the result stays non-stationary even
+    # at Q=0.5. Rescaling-to-0.5 is not a fix for the rotation-broken equilibrium.
     if model.target_Q is not None:
         v = rescale_velocities_to_virial(
             positions=positions,

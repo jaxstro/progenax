@@ -57,6 +57,13 @@ def energy_sorted_segregation(
     equilibrium family (MultiComponentCluster.from_mass_segregation), not a
     blend of this function's output.
 
+    .. warning::
+       Reassigning masses by energy rank changes the mass-weighted density, so it
+       no longer matches the parent profile the orbit pool was drawn from — the
+       self-consistent potential of the segregated system DIFFERS, and the output is
+       not exactly in equilibrium (audit S6). Callers should finalize with a global
+       virial rescale (``virial_scale``), as the validation suite does.
+
     Algorithm (Baumgardt+2008 Appendix, McLuster implementation):
         1. Sort masses descending → m_sorted[i] for mass rank i
         2. Cumulative-mass coordinate M_cum_norm[i] = sum(m_sorted[0:i+1]) / M_total,
