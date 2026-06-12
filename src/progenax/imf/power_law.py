@@ -89,10 +89,14 @@ class PowerLawIMF(eqx.Module):
             a = alphas[i]
             lo, hi = bounds[i], bounds[i + 1]
             e = 1.0 - a
+            # exp_safe double-where: keep BOTH branches finite so the VJP is
+            # finite at exactly alpha=1 (bare where backprops 0*NaN — audit R10).
+            # Same pattern as imf/differentiable.py power_integral.
+            e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
             return jnp.where(
                 jnp.abs(e) < 1e-12,
                 cont[i] * jnp.log(hi / lo),
-                cont[i] * (hi**e - lo**e) / e,
+                cont[i] * (hi**e_safe - lo**e_safe) / e_safe,
             )
 
         integrals = jax.vmap(segment_integral)(jnp.arange(n_segments))
@@ -197,10 +201,12 @@ class PowerLawIMF(eqx.Module):
         lo = bounds[idx]
         a = alphas[idx]
         e = 1.0 - a
+        # exp_safe double-where (audit R10): finite VJP at exactly alpha=1.
+        e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
         within_segment = jnp.where(
             jnp.abs(e) < 1e-12,
             self._continuity_factors[idx] * jnp.log(m / lo),
-            self._continuity_factors[idx] * (m**e - lo**e) / e,
+            self._continuity_factors[idx] * (m**e_safe - lo**e_safe) / e_safe,
         )
 
         return cum_before + within_segment
@@ -245,11 +251,15 @@ class PowerLawIMF(eqx.Module):
         hi = bounds[idx + 1]
         a = alphas[idx]
         e = 1.0 - a
+        # exp_safe double-where (audit R10): e_safe substitutes for e in EVERY
+        # power/division of the inverse-CDF branch (including the **(1/e) outer
+        # exponent), so the VJP is finite at exactly alpha=1.
+        e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
 
         return jnp.where(
             jnp.abs(e) < 1e-12,
             lo * jnp.exp(ur * jnp.log(hi / lo)),
-            (ur * (hi**e - lo**e) + lo**e) ** (1.0 / e),
+            (ur * (hi**e_safe - lo**e_safe) + lo**e_safe) ** (1.0 / e_safe),
         )
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
@@ -273,10 +283,14 @@ class PowerLawIMF(eqx.Module):
             a = alphas[i]
             lo, hi = bounds[i], bounds[i + 1]
             e = 2.0 - a  # antiderivative exponent of m·m^(-a) = m^(1-a)
+            # exp_safe double-where (audit R10): here the removable singularity
+            # is at alpha=2 (e=0); the alpha=1 NaN in mean_mass flows through Z
+            # (segment_integral, fixed above), but guard this branch too.
+            e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
             return jnp.where(
                 jnp.abs(e) < 1e-12,
                 cont[i] * jnp.log(hi / lo),
-                cont[i] * (hi**e - lo**e) / e,
+                cont[i] * (hi**e_safe - lo**e_safe) / e_safe,
             )
 
         moments = jax.vmap(first_moment)(jnp.arange(len(self.exponents)))

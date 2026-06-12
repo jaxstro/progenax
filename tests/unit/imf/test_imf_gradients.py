@@ -121,3 +121,66 @@ class TestParameterGradients:
         grad_val = jax.grad(loss)(0.2)
         assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
         assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
+
+
+class TestAlphaOneGradients:
+    """Audit R10: bare where(|1-a|<eps, log, pow/e) backprops 0*NaN at a=1.
+
+    The exp_safe double-where fix (ported from imf/differentiable.py:47-54 to
+    PowerLawIMF's 4 power/division sites) makes the gradient FINITE everywhere
+    and FD-EXACT in a neighborhood of a=1. At EXACTLY a=1 the double-where
+    selects the alpha-INDEPENDENT log branch, so AD there is branch-limited
+    (grad 0 for ppf; off for mean_mass via dZ/da=0) — a measure-zero point the
+    function is still smooth through. The exp_safe pattern guarantees finiteness,
+    not point-FD (same property as the reference differentiable.py, whose tests
+    likewise check finiteness, not point-FD).
+
+    These tests pin the achievable + honest guarantee, asserting MORE than the
+    existing convention: finite AT a=1, FD-exact at a=1±1e-3, and a smooth
+    (kink-free) forward value through a=1.
+    """
+
+    @staticmethod
+    def _imf(alpha):
+        from progenax.imf import PowerLawIMF
+        return PowerLawIMF(exponents=[alpha], breakpoints=[], m_min=0.1, m_max=100.0)
+
+    @staticmethod
+    def _stat_fn(stat):
+        if stat == "mean_mass":
+            return lambda a: TestAlphaOneGradients._imf(a).mean_mass()
+        return lambda a: TestAlphaOneGradients._imf(a).ppf(jnp.array(0.5))
+
+    @pytest.mark.parametrize("stat", ["mean_mass", "ppf"])
+    def test_grad_finite_at_exactly_alpha_one(self, stat):
+        """No NaN/Inf at exactly alpha=1 — the audit R10 failure mode."""
+        g = jax.grad(self._stat_fn(stat))(1.0)
+        assert jnp.isfinite(g), f"grad({stat}) at alpha=1 is {g}"
+
+    @pytest.mark.parametrize("stat", ["mean_mass", "ppf"])
+    @pytest.mark.parametrize("a0", [1.0 - 1e-3, 1.0 + 1e-3])
+    def test_grad_fd_exact_near_alpha_one(self, stat, a0):
+        """In a neighborhood of the removable singularity the gradient is exact
+        (the regular branch is active and FD-matches to <1e-4)."""
+        f = self._stat_fn(stat)
+        g = float(jax.grad(f)(a0))
+        h = 1e-4
+        fd = float((f(a0 + h) - f(a0 - h)) / (2 * h))
+        assert abs(g / fd - 1.0) < 1e-4, f"{stat} a={a0}: AD={g} FD={fd}"
+
+    @pytest.mark.parametrize("stat", ["mean_mass", "ppf"])
+    def test_value_smooth_through_alpha_one(self, stat):
+        """Forward value is continuous, monotone, and kink-free through alpha=1
+        (the singularity is removable — the value never had the NaN, only the
+        gradient). The near-zero second difference confirms no kink."""
+        f = lambda a: float(self._stat_fn(stat)(a))
+        lo, mid, hi = f(0.999), f(1.0), f(1.001)
+        assert lo > mid > hi  # both stats decrease as alpha steepens
+        second_diff = abs((lo - mid) - (mid - hi))
+        assert second_diff < 0.05 * abs(lo - hi)  # near-linear: no kink at a=1
+
+    def test_sample_statistic_grad_finite_at_alpha_one(self):
+        def loss(a):
+            m = self._imf(a).sample(jax.random.PRNGKey(0), 500)
+            return jnp.mean(jnp.log(m))
+        assert jnp.isfinite(jax.grad(loss)(1.0))
