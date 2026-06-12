@@ -106,8 +106,8 @@ import it. Users had two paths:
   - When to use
 * - **Migrate** to the new API
   - All new work, all production code. Most pre-redesign user code rewrites in $\sim 30$ minutes given the new API's verbosity
-* - **Keep using legacy**
-  - For reproducing old paper results bit-for-bit. `pip install progenax-legacy` still works
+* - **Reproduce pre-redesign results**
+  - Check out the pre-redesign commit from git history (the redesign is documented in the [development log](../90-development-log/2026-02-12-ic-redesign.md)). There is **no** separate legacy package or install.
 ```
 
 The migration guide (originally at `docs/migration_2026_02_12.md`,
