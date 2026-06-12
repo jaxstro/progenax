@@ -1,0 +1,51 @@
+name: physics-validation
+
+# Nightly + release-tag lane for the headline trust anchors that the PR gate skips:
+# the @pytest.mark.slow validations (LIMEPY reference parity, multimass equilibrium,
+# Engine A-vs-B anchor, Engine B AD-vs-FD). PROGENAX_STRICT_REFS=1 makes a missing
+# reference cache a hard failure here (audit R8/T4), so these gates cannot silently
+# no-op. Only the PUBLIC jaxstro sibling is needed (the lock is decoupled from the
+# private jaxstroviz/fluxax — audit R1/D2); jaxstroviz-dependent experimental SBC
+# tests import-skip.
+
+on:
+  schedule:
+    - cron: "17 9 * * *"   # nightly
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+env:
+  JAX_ENABLE_X64: "1"
+  XLA_PYTHON_CLIENT_PREALLOCATE: "false"
+  XLA_PYTHON_CLIENT_ALLOCATOR: platform
+  OMP_NUM_THREADS: "1"
+  PROGENAX_STRICT_REFS: "1"
+
+jobs:
+  slow-physics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (public path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Sync from lockfile (dev + experimental)
+        working-directory: progenax
+        run: uv sync --locked --extra dev --extra experimental
+      - name: Strict reference guard (cache must be present)
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/validation/test_strict_refs.py -q
+      - name: Slow physics-validation suite (the advertised trust anchors)
+        working-directory: progenax
+        run: uv run --no-sync pytest tests -m slow -q
