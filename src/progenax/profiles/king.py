@@ -32,7 +32,17 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, Bool, Float, PRNGKeyArray
+
+
+def _is_concrete(x) -> bool:
+    """True iff x is a concrete value (codebase idiom; cf. _auto_ode_domain)."""
+    try:
+        float(x)
+        return True
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
+            TypeError):
+        return False
 
 
 # ==============================================================================
@@ -328,6 +338,9 @@ class KingProfile(eqx.Module):
     psi_grid: Float[Array, "n_points"]
     _r_grid: Float[Array, "n_grid"]
     _cdf_grid: Float[Array, "n_grid"]
+    # Diagnostic (audit J4): True iff psi never crossed 0 within the ODE domain,
+    # so r_t was pinned to the grid boundary (a wrong tidal radius). Traced bool.
+    r_t_is_pinned: Bool[Array, ""]
 
     def __init__(
         self,
@@ -399,6 +412,11 @@ class KingProfile(eqx.Module):
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
 
+        # r_t pinning diagnostic (audit J4): if psi(xi) never reaches 0 within
+        # the solved domain there is no crossing, so _find_tidal_radius fell back
+        # to xi_grid[-1] (the boundary) — a wrong tidal radius. Traced bool.
+        r_t_is_pinned = jnp.logical_not(jnp.any(psi_grid_arr <= 0.0))
+
         # Store using object.__setattr__ (future-proof Equinox pattern)
         object.__setattr__(self, "W0", W0_arr)
         object.__setattr__(self, "r_c", r_c_arr)
@@ -407,6 +425,7 @@ class KingProfile(eqx.Module):
         object.__setattr__(self, "psi_grid", psi_grid_arr)
         object.__setattr__(self, "_r_grid", r_grid)
         object.__setattr__(self, "_cdf_grid", cdf_grid)
+        object.__setattr__(self, "r_t_is_pinned", r_t_is_pinned)
 
     @classmethod
     def from_W0_rc(
@@ -449,7 +468,7 @@ class KingProfile(eqx.Module):
         xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
         xi_t = _find_tidal_radius(xi_grid, psi_grid)
         r_t = r_c * xi_t
-        return cls(
+        prof = cls(
             W0=W0,
             r_c=r_c,
             r_t=r_t,
@@ -457,6 +476,19 @@ class KingProfile(eqx.Module):
             psi_grid=psi_grid,
             n_grid=n_grid,
         )
+        # Eager refusal (audit J4): for CONCRETE W0 a pinned r_t is a silent
+        # wrong answer — raise loudly. Under tracing the flag cannot be tested
+        # (traced bool), so the diagnostic prof.r_t_is_pinned is the only signal
+        # (mirrors the Engine-B concrete/traced guard, eddington_engine.py).
+        if _is_concrete(prof.r_t_is_pinned) and bool(prof.r_t_is_pinned):
+            raise ValueError(
+                f"King ODE domain too small: psi(xi) never reached 0 within "
+                f"xi_max={float(xi_max):.1f} for W0={float(W0):.2f}, so r_t is "
+                f"PINNED to the grid boundary (a wrong tidal radius). Increase "
+                f"xi_max (and n_ode_points), or omit them to auto-size. For "
+                f"traced/jit W0 pass an explicit xi_max sized for the largest W0."
+            )
+        return prof
 
     def sample_positions(
         self,
