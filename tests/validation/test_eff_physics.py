@@ -353,5 +353,36 @@ class TestEFFScaleRadius:
             f"Mass fraction within a should increase with a: a=[0.5,1,2] -> f={fractions}"
 
 
+@pytest.mark.slow
+class TestEFFHighRtOverACoreResolution:
+    """Audit R4 (EFF extension): the linear CDF grid under-resolves the core at
+    large r_t/a. Reference = dense quadrature of rho*r^2 (independent of the
+    profile's internal CDF). Measured pre-fix error at 0.3a (r_t/a=100): +4.2%;
+    the sqrt-stretched grid (r = r_t*u^2) brings it to <0.1%."""
+
+    def test_sampled_core_mass_matches_dense_reference_high_rt_over_a(self):
+        a, gamma, r_t = 1.0, 4.0, 100.0  # r_t/a = 100
+        s = jnp.linspace(0.0, r_t, 4_000_000)
+        rho = (1.0 + (s / a) ** 2) ** (-gamma / 2.0)
+        integ = s**2 * rho
+        M = jnp.concatenate(
+            [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(s))]
+        )
+        prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+        n = 4_000_000
+        r = jnp.linalg.norm(
+            prof.sample_positions(jnp.ones(n), jax.random.PRNGKey(3)), axis=1
+        )
+        for r_probe in (0.3, 1.0, 3.0):
+            m_ref = float(jnp.interp(r_probe, s, M) / M[-1])
+            m_samp = float(jnp.mean(r < r_probe))
+            shot = 3.0 / (m_ref * n) ** 0.5
+            tol = max(0.02, shot)  # 2% grid budget or 3-sigma shot, whichever larger
+            assert abs(m_samp / m_ref - 1.0) < tol, (
+                f"r={r_probe}a: sampled {m_samp:.4e} vs reference {m_ref:.4e} "
+                f"(rel err {(m_samp/m_ref-1)*100:+.2f}%, tol {tol*100:.2f}%)"
+            )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
