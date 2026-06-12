@@ -154,14 +154,22 @@ class ICResult(eqx.Module):
 
 def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     """
-    Estimate stellar radii from mass (main-sequence + brown dwarfs).
+    Main-sequence stellar radii from mass, in SOLAR RADII.
 
-    Returns radii in SOLAR RADII (R☉).
+    Demircan & Kahraman (1991), Ap&SS 181, 313 (their Eqs. 5-6):
+        R/Rsun = 1.06 (M/Msun)^0.945   for 0.08 <= M < 1.66 Msun
+        R/Rsun = 1.33 (M/Msun)^0.555   for M >= 1.66 Msun
+    Brown dwarfs (M < 0.08): R ~ 0.1 Rsun plateau (electron degeneracy),
+    R = 0.1 (M/0.08)^0.08. The D&K branches meet at 1.66 Msun with their
+    own ~3.5% fit discontinuity; the low-mass branch meets the BD plateau
+    nearly continuously (1.06 * 0.08^0.945 = 0.0975).
 
-    R/R☉ relations (3 regimes):
-    - M > 1 M☉: R ∝ M^0.8 (massive stars)
-    - 0.08 ≤ M ≤ 1 M☉: R ∝ M^0.57 (low-mass main sequence)
-    - M < 0.08 M☉: R ∝ M^0.08 (brown dwarfs, ~0.1 R☉)
+    Audit R6: the previous exponents were INVERTED vs MS homology (M^0.8
+    above 1 Msun instead of below), giving 10 Msun -> 6.3 Rsun (ZAMS ~4.8)
+    and 0.2 Msun -> 0.40 Rsun (observed ~0.23), with a factor-2.4 jump at
+    the hydrogen-burning limit.
+
+    Used for collision radii in downstream N-body; ZAMS values, no evolution.
 
     Args:
         masses: Particle masses (N,) [M☉]
@@ -171,17 +179,17 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     """
 
     def radius_high_mass(m):
-        return jnp.power(m, 0.8)
+        return 1.33 * jnp.power(m, 0.555)
 
     def radius_low_mass(m):
-        return jnp.power(m, 0.57)
+        return 1.06 * jnp.power(m, 0.945)
 
     def radius_brown_dwarf(m):
         return 0.1 * jnp.power(m / 0.08, 0.08)
 
-    radii = jax.vmap(
+    return jax.vmap(
         lambda m: jax.lax.cond(
-            m > 1.0,
+            m >= 1.66,
             radius_high_mass,
             lambda mv: jax.lax.cond(
                 mv >= 0.08, radius_low_mass, radius_brown_dwarf, mv
@@ -189,8 +197,6 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
             m,
         )
     )(masses)
-
-    return radii
 
 
 def to_com_frame(

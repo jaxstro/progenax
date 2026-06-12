@@ -4,31 +4,39 @@ import jax
 import jax.numpy as jnp
 import pytest
 
+from progenax.builders import compute_stellar_radii
 
-class TestStellarRadii:
-    """Test stellar radii mass-radius relation."""
 
-    def test_stellar_radii_solar_mass(self):
-        """1 Msun star should have ~1 Rsun radius (R ∝ M^0.8)."""
-        from progenax.builders import compute_stellar_radii
-        masses = jnp.array([1.0])
-        radii = compute_stellar_radii(masses)
-        assert jnp.abs(radii[0] - 1.0) < 0.1
+class TestComputeStellarRadii:
+    """Anchored to Demircan & Kahraman (1991) Ap&SS 181, 313 + observed radii.
 
-    def test_stellar_radii_massive_star(self):
-        """10 Msun star should have R ~ 10^0.8 ~ 6.3 Rsun."""
-        from progenax.builders import compute_stellar_radii
-        masses = jnp.array([10.0])
-        radii = compute_stellar_radii(masses)
-        expected = 10.0**0.8
-        assert jnp.abs(radii[0] - expected) < 0.5
+    Audit R6: the previous exponents were INVERTED vs MS homology
+    (M^0.8 above 1 Msun instead of below), giving 10 Msun -> 6.3 Rsun
+    (ZAMS ~4) and 0.2 Msun -> 0.40 Rsun (observed ~0.22). The old tests
+    asserted the code's own formula back at itself.
+    """
 
-    def test_stellar_radii_brown_dwarf(self):
-        """Brown dwarf (0.01 Msun) should have R ~ 0.1 Rsun."""
-        from progenax.builders import compute_stellar_radii
-        masses = jnp.array([0.01])
-        radii = compute_stellar_radii(masses)
-        assert 0.05 < radii[0] < 0.15
+    def test_solar(self):
+        r = compute_stellar_radii(jnp.array([1.0]))
+        assert abs(float(r[0]) - 1.06) < 0.01  # D&K91: 1.06 * 1^0.945
+
+    def test_massive_star_near_zams(self):
+        r = float(compute_stellar_radii(jnp.array([10.0]))[0])
+        assert abs(r - 1.33 * 10.0**0.555) < 1e-6  # = 4.77 Rsun
+        assert 3.0 < r < 5.5  # within ~25% of ZAMS ~4 Rsun
+
+    def test_m_dwarf(self):
+        r = float(compute_stellar_radii(jnp.array([0.2]))[0])
+        assert abs(r - 1.06 * 0.2**0.945) < 1e-6  # = 0.231 Rsun
+        assert 0.17 < r < 0.28  # observed ~0.22 Rsun
+
+    def test_brown_dwarf_plateau(self):
+        r = compute_stellar_radii(jnp.array([0.05, 0.02]))
+        assert jnp.all(jnp.abs(r - 0.1) < 0.05)
+
+    def test_near_continuous_at_hydrogen_burning_limit(self):
+        r = compute_stellar_radii(jnp.array([0.079, 0.081]))
+        assert abs(float(r[1]) / float(r[0]) - 1.0) < 0.1  # no factor-2.4 jump (audit F7)
 
 
 class TestToCOMFrame:
