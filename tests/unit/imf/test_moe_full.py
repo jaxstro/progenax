@@ -96,8 +96,16 @@ class TestMoeFullSampling:
         m1 = jnp.full(n, 1.0); P = jnp.full(n, 10.0)  # solar logP=1, Ftwin=0.30
         q = moe.sample(key, m1, P)
         assert jnp.all((q >= 0.1) & (q <= 1.0))
-        # twin fraction >= the excess weight (0.30), plus power-law content in [0.95,1]
-        assert jnp.mean(q > 0.95) > 0.28
+        # P(q>0.95) is the twin block PLUS the power-law content in [0.95,1],
+        # NOT F_twin itself (F_twin is the EXCESS over q>0.3 — audit R3). Derive
+        # the expectation by quadrature of the fixed pdf rather than a magic
+        # constant; the old 0.28 gate encoded the pre-fix +22% twin overweight.
+        qs = jnp.linspace(0.1, 1.0, 200_001)
+        p = jax.vmap(lambda qq: moe.pdf(qq, jnp.asarray(1.0), jnp.asarray(10.0)))(qs)
+        expected = float(
+            jnp.trapezoid(jnp.where(qs >= 0.95, p, 0.0), qs) / jnp.trapezoid(p, qs)
+        )
+        assert abs(float(jnp.mean(q > 0.95)) - expected) < 0.01
 
     def test_sampled_mean_matches_pdf(self):
         moe = _full()
@@ -136,6 +144,63 @@ class TestMoeFullSampling:
         h = 1e-5
         fd = (loss(0.1 + h) - loss(0.1 - h)) / (2 * h)
         assert jnp.abs(ad - fd) / (jnp.abs(ad) + 1e-12) < 1e-3, f"ad={ad} fd={fd}"
+
+
+class TestFTwinPaperConvention:
+    """MD17 p.5 / Fig.2: F_twin = excess-twin fraction of q > 0.3 companions.
+
+    Audit finding R3: the pre-fix mixture realized F_twin = 0.367 instead of
+    0.300 at (M1=1, logP=1). These tests pin the paper convention at four
+    Table-13 nodes via quadrature of the pdf's mixture components.
+    """
+
+    NODES = [(1.0, 1.0), (1.0, 3.0), (3.2, 1.0), (12.0, 3.0)]  # (M1 [Msun], logP)
+
+    def test_f_twin_excess_over_q_gt_03(self):
+        md = _full()
+        qs = jnp.linspace(md.q_min, 1.0, 200_001)
+        for m1, logP in self.NODES:
+            mass = jnp.asarray(m1)
+            period = jnp.asarray(10.0**logP)
+            ft_table = float(md.f_twin(period, mass))
+            p_pl, p_twin = md._components(qs, mass, period)
+            mask = qs >= 0.3
+            twin_mass = float(jnp.trapezoid(jnp.where(mask, p_twin, 0.0), qs))
+            total_gt03 = float(
+                jnp.trapezoid(jnp.where(mask, p_pl + p_twin, 0.0), qs)
+            )
+            realized = twin_mass / total_gt03
+            assert abs(realized - ft_table) < 2e-3, (
+                f"(M1={m1}, logP={logP}): realized paper-convention F_twin "
+                f"{realized:.4f} != Table 13 value {ft_table:.4f}"
+            )
+
+    def test_pdf_still_normalized(self):
+        md = _full()
+        qs = jnp.linspace(md.q_min, 1.0, 200_001)
+        for m1, logP in self.NODES:
+            p = jax.vmap(
+                lambda q: md.pdf(q, jnp.asarray(m1), jnp.asarray(10.0**logP))
+            )(qs)
+            Z = float(jnp.trapezoid(p, qs))
+            assert abs(Z - 1.0) < 1e-3
+
+    def test_sample_matches_pdf_twin_fraction(self):
+        """Sampled P(q >= 0.95) must match the quadrature of the FIXED pdf."""
+        md = _full()
+        n = 200_000
+        key = jax.random.PRNGKey(0)
+        m1 = jnp.full((n,), 1.0)
+        periods = jnp.full((n,), 10.0)
+        q = md.sample(key, m1, periods)
+        qs = jnp.linspace(md.q_min, 1.0, 200_001)
+        p = jax.vmap(lambda qq: md.pdf(qq, jnp.asarray(1.0), jnp.asarray(10.0)))(qs)
+        expected = float(
+            jnp.trapezoid(jnp.where(qs >= 0.95, p, 0.0), qs)
+            / jnp.trapezoid(p, qs)
+        )
+        observed = float(jnp.mean(q >= 0.95))
+        assert abs(observed - expected) < 0.01  # shot noise ~0.001 at n=2e5
 
 
 class TestMoePeriod:
