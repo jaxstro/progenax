@@ -8,6 +8,8 @@ Provides:
 - JAX configuration
 """
 
+import os
+
 import pytest
 import jax
 import jax.numpy as jnp
@@ -28,6 +30,21 @@ def pytest_configure(config):
         "filterwarnings",
         "ignore:Using.*field.*init=False.*:UserWarning"
     )
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _bound_jax_compilation_cache():
+    """Release the JAX compilation cache after each test MODULE in CI.
+
+    JAX caches every compiled executable; the profile/DF modules compile many
+    distinct diffrax-ODE / Eddington functions, so on the 2-core/7 GB CI runner
+    the cumulative cache OOM-kills a long shard (exit 143 — audit R1 follow-up).
+    Clearing between modules bounds the growth. Gated on CI (GitHub sets
+    ``CI=true``) so the local inner loop keeps its warm cache; force locally with
+    ``PROGENAX_CLEAR_JAX_CACHES=1``."""
+    yield
+    if os.environ.get("CI") or os.environ.get("PROGENAX_CLEAR_JAX_CACHES"):
+        jax.clear_caches()
 
 
 # =============================================================================

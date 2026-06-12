@@ -52,9 +52,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # imf and profiles are the two heaviest modules (profiles compiles the
+          # diffrax-ODE King/Michie/LIMEPY + Eddington families) -> each gets its
+          # own shard. unit-c is the catch-all (everything else) so a new subdir is
+          # still covered. The conftest CI cache-clear bounds per-module memory.
           - { name: unit-a, paths: "tests/unit/imf" }
-          - { name: unit-b, paths: "tests/unit/profiles tests/unit/binaries" }
-          - { name: unit-c, paths: "tests/unit --ignore=tests/unit/imf --ignore=tests/unit/profiles --ignore=tests/unit/binaries" }
+          - { name: unit-b, paths: "tests/unit/profiles" }
+          - { name: unit-c, paths: "tests/unit --ignore=tests/unit/imf --ignore=tests/unit/profiles" }
           - { name: integration, paths: "tests/integration" }
           - { name: validation, paths: "tests/validation" }
     runs-on: ubuntu-latest
@@ -106,22 +110,55 @@ jobs:
         working-directory: progenax
         run: uv run --no-sync pytest tests/experimental -m "not slow" -q
 
+  # Wheel-smoke (audit M6): build the wheel, install it in a CLEAN venv with only
+  # the public jaxstro sibling, and import the package + the diagnostics subpackage.
+  # Catches packaging regressions an editable dev install hides — missing runtime
+  # deps, experimental/gravoturb leakage, and the R9 eager numpy/scipy import (the
+  # clean venv has no scipy, so progenax.diagnostics must import lazily).
+  wheel-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Build wheel
+        working-directory: progenax
+        run: uv build --wheel -o dist/
+      - name: Install wheel in a clean venv and import
+        working-directory: progenax
+        run: |
+          uv venv /tmp/clean
+          uv pip install --python /tmp/clean/bin/python dist/*.whl ../jaxstro
+          /tmp/clean/bin/python -c "import progenax; import progenax.diagnostics; print(progenax.__name__, 'imports clean (no scipy in venv)')"
+
   # Aggregator gate: a single `tests` check that is green iff every required job above
   # succeeded — preserves the `tests` branch-protection check name. `if: always()` so a
   # failed/cancelled dependency reds it (a skipped dependent job would otherwise let
   # failures slip through branch protection).
   tests:
     if: always()
-    needs: [lock-check, released-core, experimental]
+    needs: [lock-check, released-core, experimental, wheel-smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: All required jobs succeeded
         run: |
-          echo "lock-check=${{ needs.lock-check.result }}  released-core=${{ needs.released-core.result }}  experimental=${{ needs.experimental.result }}"
+          echo "lock-check=${{ needs.lock-check.result }}  released-core=${{ needs.released-core.result }}  experimental=${{ needs.experimental.result }}  wheel-smoke=${{ needs.wheel-smoke.result }}"
           if [ "${{ needs.lock-check.result }}" = "success" ] \
              && [ "${{ needs.released-core.result }}" = "success" ] \
-             && [ "${{ needs.experimental.result }}" = "success" ]; then
+             && [ "${{ needs.experimental.result }}" = "success" ] \
+             && [ "${{ needs.wheel-smoke.result }}" = "success" ]; then
             echo "all required jobs green"
           else
             echo "::error::a required job did not succeed"

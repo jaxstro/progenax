@@ -49,3 +49,35 @@ jobs:
       - name: Slow physics-validation suite (the advertised trust anchors)
         working-directory: progenax
         run: uv run --no-sync pytest tests -m slow -q
+
+  # Version matrix (audit T3): requires-python is >=3.10 but only 3.13 is exercised
+  # on the PR lane. Nightly, run a representative memory-safe core slice (imf +
+  # profiles — the IMF maths + the diffrax ODE profiles, the most version-sensitive
+  # numerics) on the floor and ceiling Python. Not the PR lane (keeps PR latency flat).
+  version-matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (public path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Sync (dev) on Python ${{ matrix.python-version }}
+        working-directory: progenax
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
+      - name: Core version-compat slice (imf + profiles)
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/unit/imf tests/unit/profiles -m "not slow" -q
