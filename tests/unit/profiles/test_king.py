@@ -189,3 +189,18 @@ class TestRtBoundaryPinning:
     def test_traced_healthy_solve_constructs(self):
         prof = jax.jit(lambda w: KingProfile.from_W0_rc(W0=w, r_c=1.0))(7.0)
         assert jnp.isfinite(prof.r_t) and not bool(prof.r_t_is_pinned)
+
+
+class TestRtConsistencyWarning:
+    """Audit S1: the direct KingProfile constructor accepts an arbitrary r_t
+    inconsistent with c(W0) — KingProfile(W0=7, r_c=1, r_t=10) silently builds
+    a non-self-consistent, non-equilibrium model. Concrete inputs now warn."""
+
+    def test_inconsistent_r_t_warns(self):
+        xi_grid, psi_grid = solve_king_profile(7.0)  # c(7): r_t/r_c ~ 30, not 10
+        with pytest.warns(UserWarning, match="inconsistent"):
+            KingProfile(W0=7.0, r_c=1.0, r_t=10.0, xi_grid=xi_grid, psi_grid=psi_grid)
+
+    def test_consistent_r_t_no_warning(self, recwarn):
+        KingProfile.from_W0_rc(W0=7.0, r_c=1.0)  # derives r_t -> self-consistent
+        assert not any("inconsistent" in str(w.message) for w in recwarn.list)

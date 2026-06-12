@@ -77,7 +77,7 @@ class TestKingDFGradients:
         key = jax.random.PRNGKey(11)
 
         def loss(x):
-            kw = {"W0": 7.0, "r_c": 1.0, "r_t": 10.0}
+            kw = {"W0": 7.0, "r_c": 1.0}
             kw[param] = x
             v = KingVelocityDF(**kw).sample_velocities(pos, masses, key, G=G)
             return jnp.mean(jnp.sum(v**2, axis=1))
@@ -92,7 +92,7 @@ class TestKingDFGradients:
     def test_jit_compatible(self):
         pos = _fixed_positions(128, r_scale=3.0, seed=12)
         masses = jnp.ones(128)
-        df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=7.0, r_c=1.0)
         v = jax.jit(lambda p, m, k: df.sample_velocities(p, m, k, G=G))(
             pos, masses, jax.random.PRNGKey(2)
         )

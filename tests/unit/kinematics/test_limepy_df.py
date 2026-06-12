@@ -97,7 +97,7 @@ class TestLimepyVelocityCorner:
         from progenax.kinematics.king_df import KingVelocityDF
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 
-        king = KingVelocityDF(W0=7.0, r_c=1.0, r_t=30.0)
+        king = KingVelocityDF(W0=7.0, r_c=1.0)
         lim = LIMEPYVelocityDF(W0=7.0, g=1.0, r_c=1.0)
         M = jnp.asarray(5000.0)
         np.testing.assert_allclose(
@@ -115,7 +115,7 @@ class TestLimepyVelocityCorner:
         _, _, m, pos_l, vel_l = _build_ic(W0=7.0, g=1.0, N=N, seed=3)
         # King
         prof_k = KingProfile.from_W0_rc(7.0, 1.0)
-        df_k = KingVelocityDF(W0=7.0, r_c=1.0, r_t=float(prof_k.r_t))
+        df_k = KingVelocityDF(W0=7.0, r_c=1.0)
         kp, kv = jax.random.split(jax.random.PRNGKey(3))
         pos_k = prof_k.sample_positions(jnp.ones(N), kp)
         vel_k = df_k.sample_velocities(pos_k, jnp.ones(N), kv, G=G)

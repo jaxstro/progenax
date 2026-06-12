@@ -155,7 +155,7 @@ class TestKingVelocityDF:
         G = 1.0
 
         profile = KingProfile.from_W0_rc(W0, r_c)
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=float(profile.r_t))
+        df = KingVelocityDF(W0=W0, r_c=r_c)
 
         masses = jnp.ones(N_validation)
         key_pos, key_vel = jax.random.split(key)
@@ -178,7 +178,7 @@ class TestKingVelocityDF:
 
         xi_grid, psi_grid = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=r_t)
+        df = KingVelocityDF(W0=W0, r_c=r_c)
 
         masses = jnp.ones(N_stats)
         key_pos, key_vel = jax.random.split(key)
@@ -200,7 +200,7 @@ class TestKingVelocityDF:
         W0, r_c, r_t = 7.0, 1.0, 10.0
         G = 1.0
 
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=r_t)
+        df = KingVelocityDF(W0=W0, r_c=r_c)
         masses = jnp.ones(N_validation)
         M_total = float(jnp.sum(masses))
 
@@ -304,7 +304,7 @@ class TestKingEquilibriumVelocityDF:
     def _build_ic(self, W0=7.0, r_c=1.0, N=5000, seed=0):
         from jaxstro.units import STELLAR
         prof = KingProfile.from_W0_rc(W0, r_c)
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=float(prof.r_t))
+        df = KingVelocityDF(W0=W0, r_c=r_c)
         masses = jnp.ones(N)
         kp, kv = jax.random.split(jax.random.PRNGKey(seed))
         pos = prof.sample_positions(masses, kp)
@@ -336,7 +336,7 @@ class TestKingEquilibriumVelocityDF:
 
         def loss(r_c):
             prof = KingProfile.from_W0_rc(7.0, 1.0)
-            df = KingVelocityDF(W0=7.0, r_c=r_c, r_t=float(prof.r_t))
+            df = KingVelocityDF(W0=7.0, r_c=r_c)
             m = jnp.ones(200)
             kp, kv = jax.random.split(jax.random.PRNGKey(1))
             pos = prof.sample_positions(m, kp)
@@ -433,7 +433,7 @@ class TestKingAutoDomain:
         from progenax.builders import compute_kinetic_energy, compute_potential_energy
 
         prof = KingProfile.from_W0_rc(W0=12.0, r_c=1.0)
-        df = KingVelocityDF(W0=12.0, r_c=1.0, r_t=float(prof.r_t))  # auto domain
+        df = KingVelocityDF(W0=12.0, r_c=1.0)  # auto domain
         m = jnp.ones(3000)
         kp, kv = jax.random.split(jax.random.PRNGKey(0))
         pos = prof.sample_positions(m, kp)

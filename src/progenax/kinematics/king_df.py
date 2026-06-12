@@ -87,7 +87,6 @@ class KingVelocityDF(eqx.Module):
     Attributes:
         W0: King concentration parameter (dimensionless central potential)
         r_c: Core radius [length units] (the King core radius)
-        r_t: Tidal radius [length units]
         xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
         speed_method: static, "table" (default) or "quadrature" (exact oracle)
 
@@ -98,7 +97,6 @@ class KingVelocityDF(eqx.Module):
 
     W0: Float[Array, ""]
     r_c: Float[Array, ""]
-    r_t: Float[Array, ""]
     xi_grid: Float[Array, "n_ode"]
     psi_grid: Float[Array, "n_ode"]
     speed_table: SpeedCDFTable | None
@@ -108,7 +106,6 @@ class KingVelocityDF(eqx.Module):
         self,
         W0: float = 5.0,
         r_c: float = 1.0,
-        r_t: float = 10.0,
         xi_max: float | None = None,
         n_ode_points: int | None = None,
         speed_method: str = "table",
@@ -120,7 +117,6 @@ class KingVelocityDF(eqx.Module):
         self.speed_method = speed_method
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
-        self.r_t = jnp.asarray(r_t)
         # Auto-size the ODE domain from W0 (matches KingProfile.from_W0_rc) so the
         # matched DF stays self-consistent for high-concentration models.
         auto_xi_max, auto_n_points = _auto_ode_domain(W0)

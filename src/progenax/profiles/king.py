@@ -26,6 +26,7 @@ Notes:
 """
 
 import math
+import warnings
 from typing import Tuple
 
 import diffrax
@@ -416,6 +417,25 @@ class KingProfile(eqx.Module):
         # the solved domain there is no crossing, so _find_tidal_radius fell back
         # to xi_grid[-1] (the boundary) — a wrong tidal radius. Traced bool.
         r_t_is_pinned = jnp.logical_not(jnp.any(psi_grid_arr <= 0.0))
+
+        # r_t consistency (audit S1): the direct constructor accepts an arbitrary
+        # r_t. For concrete, non-pinned inputs, warn if r_t deviates from the
+        # c(W0) tidal radius r_c*xi_t by >5% — a non-self-consistent, non-
+        # equilibrium model. from_W0_rc derives r_t, so it never trips this.
+        if (_is_concrete(r_t_arr) and _is_concrete(W0_arr)
+                and not bool(r_t_is_pinned)):
+            xi_t = _find_tidal_radius(xi_grid_arr, psi_grid_arr)
+            r_t_consistent = float(r_c_arr * xi_t)
+            if abs(float(r_t_arr) - r_t_consistent) > 0.05 * r_t_consistent:
+                warnings.warn(
+                    f"KingProfile r_t={float(r_t_arr):.4g} is inconsistent with the "
+                    f"c(W0={float(W0_arr):.2f}) tidal radius r_c*xi_t="
+                    f"{r_t_consistent:.4g} (>5% deviation): this builds a NON-self-"
+                    f"consistent, non-equilibrium King model. Use "
+                    f"KingProfile.from_W0_rc(W0, r_c) to derive a consistent r_t.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         # Store using object.__setattr__ (future-proof Equinox pattern)
         object.__setattr__(self, "W0", W0_arr)
