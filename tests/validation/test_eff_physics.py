@@ -248,6 +248,35 @@ class TestEFFVelocityDF:
         )
         assert abs(Q - 0.5) < 0.05, f"unscaled Q={Q:.3f} (expected ~0.5 for mild truncation)"
 
+    def test_gamma3_default_subvirial_offset_is_pinned(self):
+        """Audit S2: the gamma=3 DEFAULT + sharp truncation is KNOWN ~8% sub-virial
+        by construction (a truncated rho with rho(r_t)>0 is not representable by an
+        f(E)). Pin the band so a regression (to -15%, Q~0.425) OR a vanished offset
+        (Q~0.5) cannot pass silently. This is a DOCUMENTED LIMITATION, not a target:
+        use the King model for a strict lowered-DF equilibrium (eff_df.py docstring).
+
+        Measured (N=20000, seeds 0/1/2, G=STELLAR.G): Q = 0.458 +/- 0.0004. The band
+        0.45<Q<0.47 absorbs seed/platform noise (>>3sigma) while still excluding the
+        two regressions (Q<=0.425 and Q>=0.49)."""
+        from jaxstro.units import STELLAR
+        from progenax.builders import compute_kinetic_energy, compute_potential_energy
+
+        a, gamma, r_t = 1.0, 3.0, 10.0  # the EFF default config
+        profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+        df = EFFVelocityDF(a=a, gamma=gamma, r_t=r_t)
+        masses = jnp.ones(20000)
+        kp, kv = jax.random.split(jax.random.PRNGKey(0))
+        pos = profile.sample_positions(masses, kp)
+        vel = df.sample_velocities(pos, masses, kv, G=STELLAR.G)
+        Q = float(
+            compute_kinetic_energy(vel, masses)
+            / jnp.abs(compute_potential_energy(pos, masses, G=STELLAR.G))
+        )
+        assert 0.45 < Q < 0.47, (
+            f"gamma=3 Q={Q:.4f} drifted out of the documented sub-virial band "
+            f"[0.45, 0.47] (measured 0.458 ~8% sub-virial)"
+        )
+
     def test_eff_eddington_f_is_physical(self):
         """The tabulated Eddington DF f(E) is non-negative and increases with energy."""
         df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
