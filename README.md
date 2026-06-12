@@ -341,4 +341,4 @@ Küpper+ (2011); Aarseth (2003).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE). Copyright 2026 Anna Rosen.

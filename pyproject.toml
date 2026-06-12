@@ -8,6 +8,19 @@ version = "0.1.0"
 description = "Differentiable initial conditions for N-body simulations"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Anna Rosen", email = "alrosen@sdsu.edu" }]
+keywords = ["astronomy", "n-body", "initial-conditions", "jax", "star-clusters", "differentiable"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
 dependencies = [
     "jax>=0.4.20",
     "jaxlib>=0.4.20",
@@ -16,6 +29,9 @@ dependencies = [
     "diffrax>=0.4.0",
     "jaxstro",
 ]
+
+[project.urls]
+Repository = "https://github.com/jaxstro/progenax"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0"]

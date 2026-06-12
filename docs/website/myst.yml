@@ -20,7 +20,7 @@ project:
       email: alrosen@sdsu.edu
   github: https://github.com/drannarosen/progenax
   license:
-    code: MIT
+    code: Apache-2.0
     content: CC-BY-4.0
   open_access: true
   subject: Astrophysics
