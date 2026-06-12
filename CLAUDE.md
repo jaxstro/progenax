@@ -6,8 +6,9 @@ Differentiable initial conditions for N-body simulations in JAX. Part of the **j
 
 **Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
 gravoturbulent-FDF clean-room rewrite + multi-component cluster arc (Engine A LIMEPY DF tables +
-Engine B density-defined Eddington) complete - 16,957 LOC released-core source, 1485 tests
-(released-core 1163: unit 895, integration 34, validation 234; experimental 322). King & EFF velocity DFs are true
+Engine B density-defined Eddington) + 2026-06 pre-release audit hardening complete.
+Released-core ~1243 tests (unit 956, integration 43, validation 244) + experimental 322;
+see CI for the live count. King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
 IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
@@ -28,18 +29,18 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-# Released-core invariant (1163 tests). The multimass-LIMEPY equilibrium tests make the
-# serial suite ~17 min; use pytest-xdist with XLA threads capped (one process per core).
-# FAST GATE (inner loop, 1121 tests, ~4 min): excludes @pytest.mark.slow
+# Released-core invariant (~1243 tests; see CI for the live count). The multimass-LIMEPY
+# equilibrium tests make the serial suite slow; use pytest-xdist with XLA threads capped.
+# FAST GATE (inner loop, ~1192 tests, ~4 min): excludes @pytest.mark.slow
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -m "not slow" -n auto
-# FULL GATE (phase/commit gate, 1163 tests, ~9 min parallel):
+# FULL GATE (phase/commit gate, ~1243 tests, ~9 min parallel):
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # 895 unit tests (released core)
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # 34 integration tests
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # 234 physics validation tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # ~956 unit tests (released core)
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # ~43 integration tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # ~244 physics validation tests
 
 # Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 322 tests
@@ -193,8 +194,8 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   1163 released-core tests
-├── unit/                895 tests
+tests/                   ~1243 released-core tests (see CI for the live count)
+├── unit/                ~956 tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, environment, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
@@ -203,12 +204,12 @@ tests/                   1163 released-core tests
 │   ├── cluster/         MultiComponentCluster (Engine A + Engine B) + mass-segregation IC tests
 │   ├── dynamics/        Virial / energy utilities
 │   └── substructure/    CW04 Q diagnostic (compute_q_parameter, q_approx, baselines)
-├── integration/         34 tests
+├── integration/         ~43 tests
 │   ├── test_jax_compatibility.py     JIT/grad/vmap tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          234 tests
+└── validation/          ~244 tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_multimass_equilibrium_physics.py  MultiComponentCluster shared-potential equilibrium
