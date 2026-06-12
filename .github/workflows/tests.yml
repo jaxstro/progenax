@@ -40,14 +40,23 @@ jobs:
         working-directory: progenax
         run: uv lock --check
 
-  # Released-core invariant, SHARDED across the three test tiers. Each shard runs in a
-  # fresh process on its own runner -> bounded memory (no OOM), parallel (fast wall-clock),
-  # and isolates which tier fails. fail-fast: false so all shards report.
+  # Released-core invariant, SHARDED. Each shard runs in a FRESH process on its own
+  # runner -> bounded memory, parallel wall-clock, isolates which shard fails.
+  # The ~900-test unit tier is split into 3 sub-shards (~300 each): one process
+  # accumulating all of it OOM-killed the 2-core/7 GB runner (exit 143, audit R1
+  # follow-up). unit-c is a CATCH-ALL (tests/unit minus the two heavy groups), so
+  # a NEW tests/unit subdir is still run without editing this matrix.
+  # fail-fast: false so all shards report.
   released-core:
     strategy:
       fail-fast: false
       matrix:
-        suite: [unit, integration, validation]
+        include:
+          - { name: unit-a, paths: "tests/unit/imf" }
+          - { name: unit-b, paths: "tests/unit/profiles tests/unit/binaries" }
+          - { name: unit-c, paths: "tests/unit --ignore=tests/unit/imf --ignore=tests/unit/profiles --ignore=tests/unit/binaries" }
+          - { name: integration, paths: "tests/integration" }
+          - { name: validation, paths: "tests/validation" }
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -67,9 +76,9 @@ jobs:
       - name: Sync from lockfile (dev extra)
         working-directory: progenax
         run: uv sync --locked --extra dev
-      - name: Run tests/${{ matrix.suite }}
+      - name: Run ${{ matrix.name }}
         working-directory: progenax
-        run: uv run --no-sync pytest tests/${{ matrix.suite }} -m "not slow" -q
+        run: uv run --no-sync pytest ${{ matrix.paths }} -m "not slow" -q
 
   # Experimental gravoturb_fdf subsystem (repo-only, NOT in the wheel). Needs the
   # [experimental] extra (blackjax, optax); runs the non-slow experimental suite.
