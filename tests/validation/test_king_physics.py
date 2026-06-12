@@ -444,5 +444,69 @@ class TestKingAutoDomain:
         assert abs(Q - 0.5) < 0.06, f"W0=12 auto-domain Q={Q:.3f} (expected ~0.5)"
 
 
+def _dense_king_cumulative_mass(W0):
+    """Reference M(<r)/M_total on a dense ODE solve, independent of the profile's
+    internal CDF grid. Returns (xi, M) with M cumulative (dimensionless, ∝ enclosed
+    mass; the rho0 normalization cancels in M/M[-1])."""
+    from progenax.profiles.king import (
+        solve_king_profile,
+        king_lowered_maxwellian_density,
+    )
+
+    xi, psi = solve_king_profile(W0, xi_max=600.0, n_points=20_000)
+    rho = king_lowered_maxwellian_density(jnp.maximum(psi, 0.0))
+    integ = rho * xi**2
+    M = jnp.concatenate(
+        [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xi))]
+    )
+    return xi, M
+
+
+@pytest.mark.slow
+class TestHighW0CoreResolution:
+    """Audit R4: the linear 1000-pt CDF grid under-resolves the core at W0 >= 9.
+
+    Reference = direct quadrature of rho_hat(psi) on a dense ODE solve
+    (xi_max=600, n_points=20000) — independent of the profile's internal CDF.
+    Measured pre-fix errors at 0.3 r_c: +18% (W0=9), +270% (W0=12).
+    """
+
+    @pytest.mark.parametrize("W0", [7.0, 9.0, 12.0])
+    def test_sampled_core_mass_matches_dense_reference(self, W0):
+        xi, M = _dense_king_cumulative_mass(W0)
+        prof = KingProfile.from_W0_rc(W0=W0, r_c=1.0)
+        n = 2_000_000
+        pos = prof.sample_positions(jnp.ones(n), jax.random.PRNGKey(3))
+        r = jnp.linalg.norm(pos, axis=1)
+        for r_probe in (0.3, 1.0, 3.0):
+            m_ref = float(jnp.interp(r_probe, xi, M) / M[-1])
+            m_samp = float(jnp.mean(r < r_probe))
+            shot = 3.0 / (m_ref * n) ** 0.5  # 3 sigma binomial
+            tol = max(0.03, shot)  # 3% grid budget or shot noise, whichever larger
+            assert abs(m_samp / m_ref - 1.0) < tol, (
+                f"W0={W0}, r={r_probe} r_c: sampled M(<r)/M = {m_samp:.3e} vs "
+                f"reference {m_ref:.3e} (rel err {(m_samp/m_ref-1)*100:+.1f}%)"
+            )
+
+
+def test_high_w0_core_mass_fast_enforcer():
+    """Non-slow PR-lane guard for the R4 core-resolution fix (single W0=9 / 0.3 r_c
+    probe, smaller N). The full W0 grid lives in the slow TestHighW0CoreResolution."""
+    xi, M = _dense_king_cumulative_mass(9.0)
+    prof = KingProfile.from_W0_rc(W0=9.0, r_c=1.0)
+    n = 500_000
+    pos = prof.sample_positions(jnp.ones(n), jax.random.PRNGKey(5))
+    r = jnp.linalg.norm(pos, axis=1)
+    r_probe = 0.3
+    m_ref = float(jnp.interp(r_probe, xi, M) / M[-1])
+    m_samp = float(jnp.mean(r < r_probe))
+    shot = 3.0 / (m_ref * n) ** 0.5
+    tol = max(0.05, shot)
+    assert abs(m_samp / m_ref - 1.0) < tol, (
+        f"W0=9, r=0.3 r_c: sampled {m_samp:.3e} vs reference {m_ref:.3e} "
+        f"(rel err {(m_samp/m_ref-1)*100:+.1f}%)"
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

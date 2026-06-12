@@ -355,8 +355,13 @@ class KingProfile(eqx.Module):
         xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
 
-        # Build radial grid for CDF
-        r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
+        # Build radial grid for CDF — sqrt-stretched (r = r_t * u^2): spacing
+        # dr ∝ sqrt(r) concentrates points in the core. A LINEAR grid leaves
+        # <10 points inside the core at W0 >= 9 (xi_t grows super-exponentially:
+        # 131 r_c at W0=9, 548 at W0=12), giving +18%..+270% core-mass errors
+        # (audit R4, measured). Smooth in r_t -> differentiable in W0/r_c.
+        u_grid = jnp.linspace(0.0, 1.0, n_grid)
+        r_grid = r_t_arr * u_grid**2
         xi_grid_local = r_grid / r_c_arr
 
         # Compute density on grid via interpolation of ODE solution
@@ -383,12 +388,12 @@ class KingProfile(eqx.Module):
         # Integrand: 4*pi*r^2*rho(r)
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
 
-        # Cumulative mass via the trapezoid rule (2nd-order); a 1st-order Riemann
-        # sum would bias the sampled radial distribution.
-        dr = r_grid[1] - r_grid[0]
+        # Cumulative mass via the NON-UNIFORM trapezoid rule (2nd-order): the
+        # sqrt-stretched grid has variable spacing, so the per-interval width
+        # diff(r_grid) must weight each trapezoid (a single dr would mis-integrate).
         M_cum = jnp.concatenate([
             jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
         ])
 
         # Normalize to [0, 1] for CDF

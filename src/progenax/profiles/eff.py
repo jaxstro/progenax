@@ -80,6 +80,12 @@ class EFFProfile(eqx.Module):
         r_t_arr = jnp.asarray(r_t, dtype=jnp.float64)
 
         # Build radial grid for CDF
+        # NOTE (audit R4): King/Michie use a sqrt-stretched (r = r_t * u^2) grid
+        # to resolve the core at high concentration. EFF deliberately keeps the
+        # LINEAR grid here: it has no measured core-resolution bug at typical
+        # r_t/a, and `compute_profile_potential` (profiles/api.py) reads this same
+        # _r_grid with a uniform-dr enclosed-mass integral — making the grid
+        # non-uniform would require a matching change there. See CHECKPOINT-1 note.
         r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
 
         # Compute density on grid: rho(r) = (1 + r^2/a^2)^(-gamma/2)
