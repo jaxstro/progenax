@@ -30,6 +30,14 @@ def test_velocity_dfs_conform(cls):
     assert issubclass(cls, VelocityDF)
 
 
+def test_velocity_df_protocol_single_source():
+    """Audit A1: kinematics.api must re-export the canonical protocols.VelocityDF,
+    not a structural duplicate (which would silently drift)."""
+    from progenax.protocols import VelocityDF as Canonical
+    from progenax.kinematics.api import VelocityDF as ApiExport
+    assert ApiExport is Canonical
+
+
 @pytest.mark.parametrize(
     "imf",
     [
