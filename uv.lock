@@ -2104,6 +2104,12 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
 ]
+diagnostics = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
 experimental = [
     { name = "arviz", version = "0.23.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "arviz", version = "1.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -2127,13 +2133,15 @@ requires-dist = [
     { name = "jaxlib", specifier = ">=0.4.20" },
     { name = "jaxstro", editable = "../jaxstro" },
     { name = "jaxtyping", specifier = ">=0.2.25" },
+    { name = "numpy", marker = "extra == 'diagnostics'", specifier = ">=1.24" },
     { name = "optax", marker = "extra == 'experimental'", specifier = ">=0.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.0" },
+    { name = "scipy", marker = "extra == 'diagnostics'", specifier = ">=1.11" },
     { name = "scipy", marker = "extra == 'experimental'", specifier = ">=1.11" },
 ]
-provides-extras = ["dev", "experimental"]
+provides-extras = ["dev", "diagnostics", "experimental"]
 
 [[package]]
 name = "pygments"

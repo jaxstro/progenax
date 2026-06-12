@@ -17,9 +17,27 @@ References:
     Küpper et al. (2011), MNRAS 417, 2300
 """
 
-import numpy as np
-from scipy.sparse.csgraph import minimum_spanning_tree
-from scipy.spatial.distance import pdist, squareform
+from __future__ import annotations
+
+
+def _diagnostics_deps():
+    """Lazy numpy+scipy import for the exact (non-differentiable) substructure
+    path. progenax core is JAX-native; numpy/scipy are only needed by these
+    scipy-backed estimators, so they are an OPTIONAL ``[diagnostics]`` extra
+    (audit R9). ``import progenax.diagnostics`` stays cheap; calling these
+    functions without the extra raises an actionable ImportError."""
+    try:
+        import numpy as np
+        from scipy.sparse.csgraph import minimum_spanning_tree
+        from scipy.spatial.distance import pdist, squareform
+    except ImportError as e:
+        raise ImportError(
+            "progenax.diagnostics substructure estimators (compute_q_parameter, "
+            "compute_azimuthal_variation) need numpy+scipy — the exact, "
+            "non-differentiable diagnostics path. Install them with: "
+            "uv pip install 'progenax[diagnostics]'"
+        ) from e
+    return np, minimum_spanning_tree, pdist, squareform
 
 
 def compute_q_parameter(positions: np.ndarray) -> float:
@@ -80,6 +98,8 @@ def compute_q_parameter(positions: np.ndarray) -> float:
     References:
         Cartwright & Whitworth (2004), MNRAS 348, 589
     """
+    np, minimum_spanning_tree, pdist, squareform = _diagnostics_deps()
+
     # 1. Project to 2D (CW04 always uses 2D projected positions)
     if positions.shape[1] == 3:
         xy = positions[:, :2]
@@ -169,6 +189,8 @@ def compute_azimuthal_variation(
     References:
         Küpper et al. (2011), MNRAS 417, 2300
     """
+    np = _diagnostics_deps()[0]
+
     # Project to x-y plane and compute azimuthal angle
     phi = np.arctan2(positions[:, 1], positions[:, 0])
 

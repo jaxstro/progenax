@@ -35,6 +35,11 @@ Repository = "https://github.com/jaxstro/progenax"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0"]
+# Exact (non-differentiable) CW04 Q / Lambda_MSR diagnostics path. progenax core
+# is JAX-native; numpy+scipy are needed ONLY by progenax.diagnostics' scipy-backed
+# estimators (compute_q_parameter, compute_lambda_msr), which import them lazily
+# and raise an actionable error if this extra is missing (audit R9).
+diagnostics = ["numpy>=1.24", "scipy>=1.11"]
 # Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
 # Differentiable-inference deps. blackjax 1.x `window_adaptation`/`nuts` API per
 # inference/hmc.py (verified against 1.5); arviz for HMC convergence diagnostics
