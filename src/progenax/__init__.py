@@ -25,13 +25,20 @@ from .protocols import (
 )
 from .profiles import (
     PlummerProfile, KingProfile, MichieProfile, EFFProfile,
-    LIMEPYProfile,
+    LIMEPYProfile, UniformSphereProfile,
     solve_king_profile, solve_michie_profile, solve_limepy_profile,
     solve_multimass_limepy, find_alpha_for_masses,
 )
 from .kinematics import (
     PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF,
     LIMEPYVelocityDF,
+)
+# IMF / binary statistics (audit R7: documented but not previously root-exported)
+from .imf import (
+    PowerLawIMF, ChabrierIMF, Maschberger, TruncatedIMF, BinaryIMF,
+    FlatMassRatio, PowerLawMassRatio, TwinPeakedMassRatio,
+    MoeDiStefano2017, MoeDiStefano2017Full, MoePeriod, MoeJointOrbit,
+    ConstantBinaryFraction, MassDependentBinaryFraction,
 )
 from .builders import (
     ICResult,
@@ -123,12 +130,28 @@ __all__ = [
     "MichieProfile",
     "EFFProfile",
     "LIMEPYProfile",
+    "UniformSphereProfile",
     "MultiComponentCluster",
     "solve_king_profile",
     "solve_michie_profile",
     "solve_limepy_profile",
     "solve_multimass_limepy",
     "find_alpha_for_masses",
+    # IMF / binary statistics
+    "PowerLawIMF",
+    "ChabrierIMF",
+    "Maschberger",
+    "TruncatedIMF",
+    "BinaryIMF",
+    "FlatMassRatio",
+    "PowerLawMassRatio",
+    "TwinPeakedMassRatio",
+    "MoeDiStefano2017",
+    "MoeDiStefano2017Full",
+    "MoePeriod",
+    "MoeJointOrbit",
+    "ConstantBinaryFraction",
+    "MassDependentBinaryFraction",
     # Velocity distribution functions
     "PlummerVelocityDF",
     "KingVelocityDF",

@@ -113,7 +113,7 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 |--------|---------|-------------|
 | `profiles/` | Spatial density profiles | `PlummerProfile`, `KingProfile`, `MichieProfile`, `EFFProfile` |
 | `kinematics/` | Velocity DFs + transforms | `PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF` |
-| `imf/` | Initial mass functions + binary stats | `PowerLawIMF`, `ChabrierIMF`, `IGIMF`, `BinaryIMF`, `MoeJointOrbit` |
+| `imf/` | Initial mass functions + binary stats | `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `BinaryIMF`, `MoeJointOrbit`; environment-dependent IMF via `BirthEnvironment` + `env_to_imf_params()` |
 | `binaries/` | Orbital mechanics + connector + diagnostics | `KeplerElements`, `resolve_binary_components()`, `IndependentCompanions`, `MoeCompanions`, `binary_energy_budget()` |
 | `analytical/` | Test cases with exact solutions | `two_body_kepler()`, `three_body_figure_eight()` |
 | `diagnostics/` | Substructure + mass-segregation diagnostics | `compute_q_parameter()` (CW04 Q, A=πR²), `q_approx` (differentiable kNN), `energy_sorted_segregation()` |
@@ -195,7 +195,7 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ```text
 tests/                   1163 released-core tests
 ├── unit/                895 tests
-│   ├── imf/             IMF tests (PowerLaw, Chabrier, IGIMF, Binary, Moe full P-q-e)
+│   ├── imf/             IMF tests (PowerLaw, Chabrier, environment, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
 │   ├── analytical/      Analytical test case tests
@@ -250,7 +250,7 @@ All public symbols exported from `progenax.__init__`:
 
 **Velocity DFs**: `PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` (Plummer/EFF take an optional `anisotropy_radius` for Osipkov-Merritt radial anisotropy, β(r)=r²/(r²+r_a²)), `MichieVelocityDF` (self-consistent anisotropic King = Michie 1963 + King 1966 cutoff; pairs with `MichieProfile`), `apply_solid_body_rotation()`, `apply_differential_rotation()`
 
-**IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`, `IGIMF`, `EnvironmentIMF`; mass-ratio: `FlatMassRatio`, `PowerLawMassRatio`, `TwinPeakedMassRatio`, `MoeDiStefano2017`, `MoeDiStefano2017Full`, `MoePeriod`, `MoeJointOrbit`; fractions: `ConstantBinaryFraction`, `MassDependentBinaryFraction`
+**IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`; mass-ratio: `FlatMassRatio`, `PowerLawMassRatio`, `TwinPeakedMassRatio`, `MoeDiStefano2017`, `MoeDiStefano2017Full`, `MoePeriod`, `MoeJointOrbit`; fractions: `ConstantBinaryFraction`, `MassDependentBinaryFraction`. The environment-dependent stellar IMF (Marks+2012 / Jeřábková+2018 α₃ relations) is the functional `BirthEnvironment` + `env_to_imf_params()` API — **not** a galaxy-wide IGIMF integration and **not** an `IGIMF`/`EnvironmentIMF` class (those never existed; audit R7).
 
 **Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`; **connector/composition**: `resolve_binary_components()`, `ResolvedBinaries`, `CompanionElements`, `IndependentCompanions`, `MoeCompanions`; **diagnostics**: `relative_energy()`, `find_bound_pairs()`, `find_bound_multiples()`, `primordial_survival()`, `binary_energy_budget()`, `BinaryEnergyBudget`
 
