@@ -4,40 +4,37 @@ description: Install progenax via UV (preferred) or pip — single-environment s
 ---
 # Installation
 
-progenax is a JAX-native Python package distributed through the
-[jaxstro monorepo](https://github.com/drannarosen/jaxstro-dev). The
-recommended installation tool is **UV**, which is 10–100× faster
-than pip for this codebase.
+progenax is a JAX-native Python package. It is **not on PyPI**; it
+(and its public sibling `jaxstro`) resolve from a standard
+side-by-side checkout. The recommended installation tool is **UV**,
+which is 10–100× faster than pip for this codebase.
 
 ## Quick install (UV — recommended)
 
+Clone progenax and `jaxstro` next to each other (the `[tool.uv.sources]`
+path dependency expects the sibling layout):
+
 ```bash
-git clone https://github.com/drannarosen/jaxstro-dev.git
-cd jaxstro-dev/progenax
-uv pip install -e ".[all]"
+git clone https://github.com/jaxstro/jaxstro.git
+git clone https://github.com/jaxstro/progenax.git
+cd progenax
+uv pip install -e ".[dev]"
 ```
 
-The `[all]` extra pulls in development tooling (pytest, black,
-mypy), I/O (orbax-checkpoint, h5py), visualisation (matplotlib,
-seaborn), and ML (optax, blackjax, numpyro). For minimal install:
+The `[dev]` extra adds the test/lint tooling (pytest, black, isort,
+flake8, mypy). For a minimal runtime-only install:
 
 ```bash
 uv pip install -e .
 ```
 
-For the broader jaxstro ecosystem (gravax, fluxax, etc.):
-
-```bash
-cd jaxstro-dev
-uv pip install -e ./jaxstro -e ./gravax -e ./progenax -e ./fluxax
-```
-
 ## Pip alternative
 
 ```bash
-git clone https://github.com/drannarosen/jaxstro-dev.git
-cd jaxstro-dev/progenax
-pip install -e ".[all]"
+git clone https://github.com/jaxstro/jaxstro.git
+git clone https://github.com/jaxstro/progenax.git
+cd progenax
+pip install -e ".[dev]"
 ```
 
 ## Smoke test
@@ -52,11 +49,11 @@ from progenax.profiles import PlummerProfile
 from progenax.kinematics import PlummerVelocityDF
 
 masses = jnp.ones(100)
-key = jax.random.PRNGKey(0)
+key_pos, key_vel = jax.random.split(jax.random.PRNGKey(0))  # never reuse a key
 profile = PlummerProfile(r_h=1.0)
 df = PlummerVelocityDF(r_h=1.0)
-positions = profile.sample_positions(masses, key)
-velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+positions = profile.sample_positions(masses, key_pos)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 print(f"Generated {positions.shape[0]} particles, mean radius {jnp.linalg.norm(positions, axis=1).mean():.3f} pc")
 ```
 
@@ -97,20 +94,14 @@ chain that benefits from GPU.
 * - Extra
   - Provides
 * - `[dev]`
-  - pytest, black, isort, flake8, mypy
-* - `[io]`
-  - orbax-checkpoint, h5py, pandas
-* - `[viz]`
-  - matplotlib, seaborn
-* - `[astro]`
-  - astropy, gala
-* - `[ml]`
-  - optax, blackjax, numpyro
-* - `[all]`
-  - All of the above
+  - pytest, pytest-cov, pytest-xdist
+* - `[experimental]`
+  - the repo-only `gravoturb_fdf` inference layer (blackjax, optax, arviz, scipy, flowjax)
+* - `[diagnostics]`
+  - numpy + scipy, for the exact (non-differentiable) CW04 `compute_q_parameter` path
 ```
 
-Install only what you need: `uv pip install -e ".[viz,ml]"`.
+Install only what you need: `uv pip install -e ".[dev,experimental]"`.
 
 ## Next step
 
