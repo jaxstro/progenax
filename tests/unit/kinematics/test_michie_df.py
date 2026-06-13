@@ -76,25 +76,10 @@ class TestMichieVelocityDF:
         )
         assert v.shape == (128, 3) and jnp.all(jnp.isfinite(v))
 
-    def test_grad_wrt_W0_matches_fd(self):
-        """jax.grad flows through the anisotropic ODE solve + 2-D sampler (W0)."""
-        from progenax.kinematics.michie_df import MichieVelocityDF
-
-        pos = jnp.array([[2.0, 0, 0], [5.0, 0, 0], [10.0, 0, 0], [20.0, 0, 0]])
-        masses = jnp.ones(4)
-        key = jax.random.PRNGKey(0)
-
-        def loss(W0):
-            df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=8.0)
-            v = df.sample_velocities(pos, masses, key, G=G)
-            return jnp.mean(jnp.sum(v**2, axis=1))
-
-        g = jax.grad(loss)(7.0)
-        g_fd = (loss(7.0 + 1e-3) - loss(7.0 - 1e-3)) / 2e-3
-        assert jnp.isfinite(g), "grad through the Michie ODE+sampler must be finite"
-        assert jnp.abs(g - g_fd) <= 5e-2 * jnp.abs(g_fd) + 1e-9, (
-            f"grad d<|v|^2>/dW0={float(g)} vs FD {float(g_fd)}"
-        )
+    # AD-vs-FD for MichieVelocityDF.sample_velocities(W0) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: MichieVelocityDF.sample_velocities);
+    # see docs/website/50-validation/differentiability-audit.md. The former
+    # test_grad_wrt_W0_matches_fd was removed here (audit T6 consolidation; registry is SoT).
 
 
 class TestMichieTableRouting:

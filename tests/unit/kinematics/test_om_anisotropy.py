@@ -113,25 +113,11 @@ class TestOMNonNegativity:
 
 
 class TestOMGradients:
-    def test_plummer_grad_wrt_r_a_matches_fd(self):
-        """d<|v|^2>/dr_a flows through both the OM f-table and the velocity stretch."""
-        N = 400
-        pos = _shell(1.5, N, seed=30)
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(31)
-
-        def loss(r_a):
-            df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=r_a)
-            v = df.sample_velocities(pos, masses, key, G=G)
-            return jnp.mean(jnp.sum(v**2, axis=1))
-
-        g = jax.grad(loss)(1.5)
-        g_fd = (loss(1.5 + 1e-3) - loss(1.5 - 1e-3)) / 2e-3
-        assert jnp.isfinite(g)
-        assert jnp.abs(g - g_fd) <= 5e-2 * jnp.abs(g_fd) + 1e-6, (
-            f"grad d<|v|^2>/dr_a={float(g)} vs FD {float(g_fd)}"
-        )
-
+    # AD-vs-FD for PlummerVelocityDF+OM.sample_velocities(r_a) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: PlummerVelocityDF+OM.sample_velocities,
+    # with an edge probing the Merritt 0.75a bound); see
+    # docs/website/50-validation/differentiability-audit.md. The former
+    # test_plummer_grad_wrt_r_a_matches_fd was removed here (audit T6 consolidation; registry is SoT).
     def test_plummer_om_jit(self):
         df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=1.5)
         N = 128
