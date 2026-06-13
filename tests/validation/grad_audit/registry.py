@@ -770,11 +770,13 @@ def _differential_R_peak(R_peak):
 #       (ratio 1.0 at N=2000/4000/8000) — the gradient is correct, the 0.86 was pure
 #       coarse-FD edge-straddle. tol=1e-3 (comfortable margin over the machine-exact
 #       residual; the band for the virial-rescale + COM + frozen-edge binner path).
-#   beta(r) (identity_sum over beta_hat), Osipkov-Merritt DF, r_a=2.0, h_rel=1e-5:
-#       AD=-1.000759e+00 vs FD=-1.000759e+00 (ratio 1.0000000); 0/2000 bin crossings at
-#       +-h even at the default h_rel (the anisotropy headline channel). r_a=2.0 is
-#       comfortably above the Merritt (1985) bound r_a >= 0.75 a ~ 0.575 for r_h=1, so
-#       the OM phase-space DF stays positive at r_a +- h. tol=1e-3.
+#   beta(r) (identity_sum over beta_hat), Osipkov-Merritt DF, r_a=2.0, ENGINE-DEFAULT
+#       h_rel=1e-4 (the beta channel needs NO override: r_a moves only velocities, so bin
+#       membership is r_a-invariant — 0/2000 crossings by construction, the sigma edge-
+#       straddle cannot happen here): AD=-1.000759e+00 vs FD=-1.000754e+00 (ratio
+#       1.0000054, the anisotropy headline channel). r_a=2.0 is comfortably above the
+#       Merritt (1985) bound r_a >= 0.75 a ~ 0.575 for r_h=1, so the OM phase-space DF
+#       stays positive at r_a +- h. tol=1e-3.
 # MUTATION CHECK (proving the case has Fisher teeth): wrapping the sampled (pos, vel)
 # in jax.lax.stop_gradient before binned_sigma1d drives AD -> 0.000000e+00 exactly
 # while the live FD stays -3.89e+00 (at h_rel=1e-4) / -3.35e+00 (at h_rel=1e-5) — see
@@ -1077,10 +1079,12 @@ REGISTRY: list[Case] = [
          fn=_binned_sigma1d_rh, param="r_h", theta0=1.0, reduce=identity_sum,
          expect="consistent", tol=1e-3, h_rel=1e-5),
     # beta(r): the anisotropy-Fisher headline channel. Osipkov-Merritt DF, vary r_a
-    # (>> Merritt bound 0.75a~0.575 for r_h=1). 0/2000 bin crossings at +-h even at the
-    # default h_rel; AD=-1.000759e+00 vs FD=-1.000759e+00 (ratio 1.0000000) at h_rel=1e-5.
-    # tol=1e-3.
+    # (>> Merritt bound 0.75a~0.575 for r_h=1). Uses the ENGINE-DEFAULT h_rel=1e-4 (NOT
+    # the sigma case's 1e-5 override): r_a scales only the VELOCITIES, so positions and
+    # bin membership are r_a-invariant and the sigma case's edge-straddle cannot occur
+    # (0/2000 bin crossings at +-h by construction). Measured at the default h_rel=1e-4:
+    # AD=-1.000759e+00 vs FD=-1.000754e+00 (ratio 1.0000054), clean within tol=1e-3.
     Case(id="binned_sigma_beta[Plummer+OM]", direction="params->summary",
          fn=_binned_beta_ra, param="r_a", theta0=_BK_OM_R_A, reduce=identity_sum,
-         expect="consistent", tol=1e-3, h_rel=1e-5),
+         expect="consistent", tol=1e-3),
 ]
