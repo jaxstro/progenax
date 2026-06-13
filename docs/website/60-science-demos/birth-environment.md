@@ -85,6 +85,38 @@ spectroscopic $[\mathrm{Fe/H}]$).
 This is the honest scientific message: *the IMF slope is an observable; the birth
 environment is an inference with two irreducible degeneracies.*
 
+## Interpretation — why the degeneracy is fundamental
+
+**It is the structure of the map, not measurement noise.** The two zero eigenvalues
+in {eq}`b5-eig` come from the three-to-one map itself, so they do not shrink with
+better data. More stars *do* tighten $\sigma_{\alpha_3}$ — the one well-measured
+eigenvalue (the $1.4\times10^{4}$) grows $\propto N$ — but the two machine-precision
+zeros **stay zero at any sample size**. This is qualitatively different from a "we
+need a bigger survey" degeneracy: no amount of data recovers the birth environment
+from the masses alone. That is what makes it a *floor* rather than a *forecast*.
+
+**Reading the one direction you do constrain.** The gradient {eq}`b5-grad` is the
+single combination of birth parameters that the mass spectrum measures, and its
+structure is physical. The signs match the environment-dependent IMF:
+$\partial\alpha_3/\partial[\mathrm{Fe/H}] > 0$ (metal-poor $\Rightarrow$ smaller
+$\alpha_3$ $\Rightarrow$ top-heavier) and $\partial\alpha_3/\partial\log M_{\rm ecl} < 0$
+(more massive $\Rightarrow$ top-heavier). And per a *natural* variation of each
+parameter ($\Delta[\mathrm{Fe/H}]\sim1$ dex, $\Delta\log M_{\rm ecl}\sim1$ dex,
+$\Delta\mathrm{sfe}\sim0.3$), the embedded-cluster mass and the star-formation
+efficiency are the **strong** levers and the metallicity the **weak** one — so in
+this regime the high-mass IMF slope encodes cluster mass and efficiency far more
+than metallicity.
+
+**The implication for IMF archaeology.** This is a caution for the IGIMF /
+top-heavy-IMF program. Inferring a cluster's birth conditions from its present-day
+mass function reads a **one-dimensional** quantity ($\alpha_3$) and projects it back
+onto a **three-dimensional** birth-parameter space — a non-invertible projection. The
+honest statement is *"the IMF is top-heavy, consistent with $\alpha_3 = X$"*, **not**
+*"therefore it formed at metallicity $Y$, embedded-cluster mass $Z$, and efficiency
+$W$."* Breaking the degeneracy requires supplying **two of the three independently**
+— e.g. a spectroscopic $[\mathrm{Fe/H}]$ *and* a dynamical $M_{\rm ecl}$ — at which
+point the third follows from $\alpha_3$.
+
 ## Figure
 
 :::{figure} figures/demo_birth_environment.png
