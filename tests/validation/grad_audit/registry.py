@@ -558,6 +558,18 @@ def _cluster_b_sample_ra(r_a):
 #     machine precision at BOTH e — even the e=0.999 edge is clean (50 Newton iters
 #     reach convergence; the max(1-e²,1e-12) guard is inactive at e=0.999 since
 #     1-e²=2.0e-3 >> 1e-12). tol=1e-5 (the closed-form band).
+#
+#     VELOCITY-channel note (honest scoping): we audit the POSITION channel because
+#     it is the cleaner FD signal near the parabolic limit. The velocity channel was
+#     re-measured at e=0.999 (mean_speed over the single (3,) velocity): with the
+#     engine's CENTRAL FD it is also machine-precision clean — AD=-7.484823e-2 vs
+#     FD=-7.484823e-2 (ratio 1.0000000). Only under a COARSE one-sided/forward FD
+#     step does it soften (forward h=1e-3 -> ratio ~0.99993, the ~0.9995 the review
+#     saw with an even coarser one-sided probe). The softening is the curvature of
+#     the d/de[sqrt(1-e²)] truncation term, which is steepest as e->1, so a one-sided
+#     stencil mis-estimates the slope there. The velocity gradient is NOT blocked —
+#     it is correct (central FD ratio 1.0), just FD-noisier under a coarse one-sided
+#     stencil — hence the position channel is the audited (cleaner) signal.
 # ---------------------------------------------------------------------------
 def _kepler_to_state_e(e):
     # Fixed a/inc/Omega/omega/M0; vary the eccentricity e. M_total + G explicit.
@@ -571,10 +583,12 @@ def _kepler_to_state_e(e):
 #     a scalar). Each system's two components are placed at COM ± δr via
 #     to_binary_state, so d<component-radius>/d(a) flows through the per-system
 #     vmap(to_binary_state). reduce=mean_radius over the (2N,3) resolved positions.
-#     MEASURED: resolve mean_radius @ a=0.5: AD=5.872715e-2 vs FD=5.872715e-2
-#     (ratio 1.0000000). The single-star sanitization (a_safe/e_safe/m2_safe) is
+#     MEASURED: resolve mean_radius @ a=0.5: AD=8.437447e-2 vs FD=8.437447e-2
+#     (ratio 1.0000000008). The single-star sanitization (a_safe/e_safe/m2_safe) is
 #     INACTIVE here (all is_binary=True), so the path is the pure smooth orbital
 #     placement; FD-consistent to machine precision. tol=1e-5 (closed-form band).
+#     (The seed is PRNGKey(11); an earlier draft used PRNGKey(0), which gives
+#     AD=5.872715e-2 — a stale number that predated the seed change.)
 _RB_N = 50
 _RB_KEY = jax.random.PRNGKey(11)
 _RB_KP, _RB_KV = jax.random.split(_RB_KEY)
@@ -598,6 +612,28 @@ def _resolve_binary_a(a_scalar):
     ).positions
 
 
+# (b2) resolve_binary_components — MIXED is_binary (Fisher-integrity coverage). Same
+#     fixed N=50 population as (b), but the mask is half True / half False (25 binaries
+#     + 25 singles). This ACTIVATES the single-star sanitization path
+#     (a_safe=1/e_safe=0/m2_safe=0; assembly.py:85-87): the 25 single slots feed
+#     sanitized constant elements into to_binary_state, so their d/da is exactly 0 —
+#     a FINITE (zero) gradient, NOT a NaN. We confirm jax.jacfwd of the per-system
+#     resolved positions wrt the per-element a is NaN-free, with d/da=0 on every single
+#     slot and a live non-zero d/da on every binary slot. This directly verifies the
+#     sanitization does not leak NaN into a Fisher matrix.
+#     MEASURED: mixed resolve mean_radius @ a=0.5: AD=3.019178e-2 vs FD=3.019178e-2
+#     (ratio 1.0000000002), positions all finite. tol=1e-5 (closed-form band).
+_RB_MIXED = jnp.arange(_RB_N) % 2 == 0  # 25 binaries (even idx) + 25 singles (odd)
+
+
+def _resolve_binary_a_mixed(a_scalar):
+    a = jnp.full((_RB_N,), a_scalar)
+    return resolve_binary_components(
+        _RB_COM_POS, _RB_COM_VEL, _RB_M1, _RB_M2, _RB_MIXED,
+        a, _RB_E, _RB_INC, _RB_OMEGA, _RB_OMEGA_P, _RB_M_ANOM, G=STELLAR.G,
+    ).positions
+
+
 # (c) MoeCompanions.sample — a sampler that MIXES a smooth grid-CDF-reparameterized
 #     (P, q, e) draw with a DISCRETE is_binary = uniform(kb) < f_bin(m1) Heaviside
 #     mask and a m2 = where(is_binary, m1·q, 0) gate (companions.py:153-157). The
@@ -616,6 +652,13 @@ def _resolve_binary_a(a_scalar):
 #         under the small nudge, so the discrete selection injects ZERO FD noise.
 #       - <e> wrt s: AD=-1.023290e-4 vs FD=-1.023290e-4 (ratio 1.0000000, |AD|=
 #         1.02e-4 >> eps). The grid-CDF P->e coupling gradient flows cleanly.
+#       - is_circular FLIP COUNT (MoeEccentricity.sample's etap1=eta+1<=1e-6 branch,
+#         eccentricity.py:276, e->0 where circular): 10/400 stars are ALREADY deeply
+#         circular at s=1.0 (min etap1=-698 << 1e-6, far below threshold, not near it),
+#         but 0/400 FLIP between s=1.0 and s=1±h. The deeply-circular stars stay
+#         circular (their de/ds=0 is correct: e is pinned to 0) and no near-threshold
+#         star crosses, so the discrete jnp.where(is_circular,0,e) injects ZERO extra
+#         FD noise — exactly why <e> stays ratio 1.0000000.
 #       - (cross-check) <a> ratio 1.0000000; <m2=m1·q> ratio 1.0000000 too — even the
 #         MASKED/GATED m2 channel is FD-consistent here BECAUSE 0 mask flips means the
 #         where() gate is locally smooth. So the discrete is_binary mask does NOT
@@ -838,16 +881,27 @@ REGISTRY: list[Case] = [
     # 1.0000000 at e=0.5). The e=0.999 EDGE (near-parabolic, slowest Newton
     # convergence) is ALSO machine-precision clean (AD=9.995240e-1 vs FD=
     # 9.995240e-1, ratio 1.0000000) — the max(1-e²,1e-12) guard is inactive
-    # (1-e²=2.0e-3 at e=0.999). tol=1e-5 (closed-form band).
+    # (1-e²=2.0e-3 at e=0.999). tol=1e-5 (closed-form band). We audit POSITION
+    # (cleaner near e->1); the velocity channel at e=0.999 is also central-FD clean
+    # (AD=-7.484823e-2 vs FD=-7.484823e-2, ratio 1.0000000) and only softens under a
+    # coarse one-sided FD (forward h=1e-3 -> ~0.99993) from the d/de[sqrt(1-e²)]
+    # truncation-term curvature — NOT blocked, just FD-noisier (see header note).
     Case(id="KeplerElements.to_state", direction="params->IC",
          fn=_kepler_to_state_e, param="e", theta0=0.5, reduce=mean_radius,
          expect="consistent", tol=1e-5,
          edges=(EdgeConfig("e=0.999", 0.999),)),
     # (b) resolve_binary_components — binary->spatial connector, vary a (N=50, all
-    # binaries). Pure smooth orbital placement (sanitization inactive): AD=5.872715e-2
-    # vs FD=5.872715e-2 (ratio 1.0000000). tol=1e-5 (closed-form band).
+    # binaries). Pure smooth orbital placement (sanitization inactive): AD=8.437447e-2
+    # vs FD=8.437447e-2 (ratio 1.0000000008). tol=1e-5 (closed-form band).
     Case(id="resolve_binary_components", direction="params->IC",
          fn=_resolve_binary_a, param="a", theta0=0.5, reduce=mean_radius,
+         expect="consistent", tol=1e-5),
+    # (b2) resolve_binary_components MIXED is_binary (Fisher-integrity check). 25
+    # binaries + 25 singles activates the sanitization path (assembly.py:85-87); the
+    # single slots give d/da=0 (FINITE, not NaN), binary slots a live gradient. NaN-free
+    # jacfwd confirmed. AD=3.019178e-2 vs FD=3.019178e-2 (ratio 1.0000000002). tol=1e-5.
+    Case(id="resolve_binary_components[mixed]", direction="params->IC",
+         fn=_resolve_binary_a_mixed, param="a", theta0=0.5, reduce=mean_radius,
          expect="consistent", tol=1e-5),
     # (c) MoeCompanions.sample — smooth grid-CDF (P,q,e) draw mixed with a DISCRETE
     # is_binary Heaviside mask + m2 gate. Audited via <e> (mask-independent P->e

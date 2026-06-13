@@ -672,6 +672,20 @@
     "status": "clean"
   },
   {
+    "id": "resolve_binary_components[mixed]",
+    "direction": "params->IC",
+    "param": "a",
+    "theta": 0.5,
+    "finite": true,
+    "ad": 0.030191776125247607,
+    "fd": 0.030191776118071445,
+    "ratio": 1.000000000237686,
+    "abs_ad": 0.030191776125247607,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "MoeCompanions.sample",
     "direction": "params->IC",
     "param": "m1_scale",
