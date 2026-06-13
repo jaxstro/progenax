@@ -3,8 +3,12 @@ Tiers are added incrementally (see the implementation plan)."""
 import jax, jax.numpy as jnp
 from jaxstro.units import STELLAR
 from progenax import (  # noqa: F401-adjacent — carries float64 on import
+    EFFProfile,
+    EFFVelocityDF,
     KingProfile,
     KingVelocityDF,
+    MichieProfile,
+    MichieVelocityDF,
     PlummerProfile,
     PlummerVelocityDF,
 )
@@ -94,6 +98,64 @@ def _king_r_t(W0):
         ).r_t
     )
 
+# ---------------------------------------------------------------------------
+# Michie-King anisotropic profile + DF (Task 1.3)
+# ---------------------------------------------------------------------------
+# solve_michie_profile RAISES (concrete-input guard) if the model does not truncate
+# within xi_max -- i.e. if r_a/r_c is too small (over-anisotropic, 1/r^2 radial-orbit
+# tail, infinite mass / no finite r_t). The prompt's suggested r_a=2.0 trips this at
+# W0=7 (measured psi(xi_max)=1.13 > 0). r_a=8.0 (ra_hat=8) is comfortably inside the
+# truncating regime: r_t ~ 56, stable across W0=7 +- h (no guard trips on the FD probes).
+_MICHIE_R_A = 8.0
+
+
+def _michie_positions_W0(W0):
+    profile = MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=_MICHIE_R_A)
+    return profile.sample_positions(_MASSES, _KEY_POS)
+
+
+def _michie_velocities_W0(W0):
+    profile = MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=_MICHIE_R_A)
+    positions = profile.sample_positions(_MASSES, _KEY_POS)
+    df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=_MICHIE_R_A)
+    return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
+
+
+def _michie_r_t(W0):
+    # Michie/LIMEPY r_t is now differentiable (Task 1.2b unclamped-psi crossing fed to
+    # _find_tidal_radius, same as King). d r_t/dW0 flows through the diffrax solve to
+    # grid accuracy. Measured at W0=7, r_a=8: AD=78.89 vs FD=79.26 (|ratio-1|=4.7e-3) --
+    # the honest FD band for a linear-interp estimate of a smooth derivative, so tol=1e-2
+    # (matches KingProfile.r_t).
+    return jnp.atleast_1d(
+        MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=_MICHIE_R_A).r_t
+    )
+
+
+# ---------------------------------------------------------------------------
+# EFF (Elson-Fall-Freeman 1987) profile + Eddington DF (Task 1.3)
+# ---------------------------------------------------------------------------
+# EFFProfile has NO eager guard: gamma and r_t are free parameters (r_t is prescribed,
+# not solved), already differentiable. The gamma=2.01 edge (just above the 3-D slope=2
+# divergent-mass regime) does NOT trip any guard -- it samples cleanly (measured
+# ratio 1.000 at gamma=2.01 +- h). EFFVelocityDF's only guard is the Osipkov-Merritt
+# negative-DF check (concrete r_a only); the isotropic gamma case is unguarded. gamma=5
+# is the mild-truncation ~virial point (the gamma=3 default is ~8% sub-virial by
+# construction, a documented limitation, not a gradient hazard).
+def _eff_positions_gamma(gamma):
+    return EFFProfile(a=1.0, gamma=gamma, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
+
+
+def _eff_positions_rt(r_t):
+    return EFFProfile(a=1.0, gamma=3.0, r_t=r_t).sample_positions(_MASSES, _KEY_POS)
+
+
+def _eff_velocities_gamma(gamma):
+    positions = EFFProfile(a=1.0, gamma=gamma, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
+    df = EFFVelocityDF(a=1.0, gamma=gamma, r_t=10.0)
+    return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -126,4 +188,31 @@ REGISTRY: list[Case] = [
     Case(id="KingProfile.r_t", direction="params->IC",
          fn=_king_r_t, param="W0", theta0=8.0, reduce=jnp.sum,
          expect="consistent", tol=1e-2),
+    # --- Michie-King anisotropic profile + DF (Task 1.3) ---
+    Case(id="MichieProfile.sample_positions", direction="params->IC",
+         fn=_michie_positions_W0, param="W0", theta0=7.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # Michie r_t: now differentiable (Task 1.2b). AD 78.89 vs FD 79.26 at W0=7
+    # (|ratio-1|=4.7e-3); tol=1e-2 is the linear-interp FD band (matches King r_t).
+    Case(id="MichieProfile.r_t", direction="params->IC",
+         fn=_michie_r_t, param="W0", theta0=7.0, reduce=jnp.sum,
+         expect="consistent", tol=1e-2),
+    Case(id="MichieVelocityDF.sample_velocities", direction="params->IC",
+         fn=_michie_velocities_W0, param="W0", theta0=7.0, reduce=mean_speed,
+         expect="consistent", tol=1e-3),
+    # --- EFF profile + Eddington DF (Task 1.3) ---
+    # EFF positions: differentiable in the slope gamma (with a gamma=2.01 near-divergent
+    # edge -- unguarded, samples cleanly) AND in the prescribed truncation radius r_t.
+    Case(id="EFFProfile.sample_positions", direction="params->IC",
+         fn=_eff_positions_gamma, param="gamma", theta0=3.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3,
+         edges=(EdgeConfig("gamma=2.01", 2.01),)),
+    Case(id="EFFProfile.sample_positions", direction="params->IC",
+         fn=_eff_positions_rt, param="r_t", theta0=10.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # EFF Eddington velocity DF: differentiable in gamma (gamma=5 mild-truncation
+    # ~virial point; the gamma=3 default is documented ~8% sub-virial, not a hazard).
+    Case(id="EFFVelocityDF.sample_velocities", direction="params->IC",
+         fn=_eff_velocities_gamma, param="gamma", theta0=5.0, reduce=mean_speed,
+         expect="consistent", tol=1e-3),
 ]
