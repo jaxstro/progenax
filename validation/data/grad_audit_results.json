@@ -628,5 +628,61 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "KeplerElements.to_state",
+    "direction": "params->IC",
+    "param": "e",
+    "theta": 0.5,
+    "finite": true,
+    "ad": 0.44395696715953137,
+    "fd": 0.4439569622216588,
+    "ratio": 1.0000000111224128,
+    "abs_ad": 0.44395696715953137,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "KeplerElements.to_state",
+    "direction": "params->IC",
+    "param": "e",
+    "theta": 0.999,
+    "finite": true,
+    "ad": 0.9995240266333603,
+    "fd": 0.999524023872489,
+    "ratio": 1.000000002762186,
+    "abs_ad": 0.9995240266333603,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "resolve_binary_components",
+    "direction": "params->IC",
+    "param": "a",
+    "theta": 0.5,
+    "finite": true,
+    "ad": 0.08437446981630453,
+    "fd": 0.08437446974540741,
+    "ratio": 1.0000000008402674,
+    "abs_ad": 0.08437446981630453,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "MoeCompanions.sample",
+    "direction": "params->IC",
+    "param": "m1_scale",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.00010232897220608075,
+    "fd": -0.00010232897529327545,
+    "ratio": 0.9999999698306888,
+    "abs_ad": 0.00010232897220608075,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
