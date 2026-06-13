@@ -222,5 +222,33 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "build_spatial_ic[Plummer]",
+    "direction": "params->IC",
+    "param": "r_h",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 1.4409153851320782,
+    "fd": 1.4409153851324685,
+    "ratio": 0.9999999999997291,
+    "abs_ad": 1.4409153851320782,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "build_spatial_ic[Plummer].velocities",
+    "direction": "params->IC",
+    "param": "r_h",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.3800252472190392,
+    "fd": -0.3800252495950174,
+    "ratio": 0.9999999937478412,
+    "abs_ad": 0.3800252472190392,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]

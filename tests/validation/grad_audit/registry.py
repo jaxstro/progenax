@@ -11,6 +11,7 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     MichieVelocityDF,
     PlummerProfile,
     PlummerVelocityDF,
+    build_spatial_ic,
 )
 from tests.validation.grad_audit.core import Case, EdgeConfig
 from tests.validation.grad_audit.reductions import mean_radius, mean_speed
@@ -156,6 +157,33 @@ def _eff_velocities_gamma(gamma):
     return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
 
 
+# ---------------------------------------------------------------------------
+# build_spatial_ic end-to-end (Task 1.4) — the headline params->IC path
+# ---------------------------------------------------------------------------
+# This is the flagship CLAUDE.md promise: jax.grad(loss)(r_h) flows through the
+# WHOLE assembly — profile.sample_positions x velocity_df.sample_velocities ->
+# to_com_frame -> virial_scale to Q=0.5. r_h enters BOTH the profile and the DF,
+# and virial scaling couples r_h into the velocities as well (it rescales speeds
+# to hit Q=T/|V|, and |V| depends on the positions which scale with r_h). G is
+# explicit (STELLAR.G); build_spatial_ic splits the frozen key internally (the
+# same pos/vel decorrelation the per-channel cases do by hand). tol=1e-3: the
+# path is NOT pure closed-form (virial rescale + COM centering), so the FD band
+# is wider than the bare-profile 1e-5.
+def _build_spatial_ic_rh(r_h):
+    profile = PlummerProfile(r_h=r_h)
+    df = PlummerVelocityDF(r_h=r_h)
+    return build_spatial_ic(profile, _MASSES, df, _KEY, G=STELLAR.G).positions
+
+
+def _build_spatial_ic_rh_velocities(r_h):
+    # Same end-to-end path, reducing the VELOCITIES: virial scaling injects r_h
+    # into the speeds (|V| ~ G M / r_h scaling), so d<speed>/d r_h flows through
+    # the virial_scale factor as well as the raw DF draw.
+    profile = PlummerProfile(r_h=r_h)
+    df = PlummerVelocityDF(r_h=r_h)
+    return build_spatial_ic(profile, _MASSES, df, _KEY, G=STELLAR.G).velocities
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -214,5 +242,15 @@ REGISTRY: list[Case] = [
     # ~virial point; the gamma=3 default is documented ~8% sub-virial, not a hazard).
     Case(id="EFFVelocityDF.sample_velocities", direction="params->IC",
          fn=_eff_velocities_gamma, param="gamma", theta0=5.0, reduce=mean_speed,
+         expect="consistent", tol=1e-3),
+    # --- build_spatial_ic end-to-end (Task 1.4): the headline assembly path ---
+    # profile x DF -> sample -> COM-center -> virial-scale to Q=0.5, all in r_h.
+    # positions channel (COM centering preserves the radial scaling with r_h):
+    Case(id="build_spatial_ic[Plummer]", direction="params->IC",
+         fn=_build_spatial_ic_rh, param="r_h", theta0=1.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # velocities channel (virial scaling couples r_h into the speeds):
+    Case(id="build_spatial_ic[Plummer].velocities", direction="params->IC",
+         fn=_build_spatial_ic_rh_velocities, param="r_h", theta0=1.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
 ]
