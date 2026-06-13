@@ -57,8 +57,8 @@ class TestSolveMichieProfileIsotropicLimit:
         from progenax.profiles.king import solve_king_profile
 
         # Match King's grid (xi_max, n_points) so psi can be compared pointwise.
-        xi_m, psi_m = solve_michie_profile(W0, ra_hat=1e5, xi_max=300.0, n_points=2000)
-        xi_k, psi_k = solve_king_profile(W0)
+        xi_m, psi_m, _ = solve_michie_profile(W0, ra_hat=1e5, xi_max=300.0, n_points=2000)
+        xi_k, psi_k, _ = solve_king_profile(W0)
         assert jnp.allclose(xi_m, xi_k), "grids must align for comparison"
         assert jnp.allclose(psi_m, psi_k, atol=5e-3, rtol=5e-3), (
             f"max |dpsi| = {float(jnp.max(jnp.abs(psi_m - psi_k))):.2e}"
@@ -68,7 +68,7 @@ class TestSolveMichieProfileIsotropicLimit:
         from progenax.profiles.michie import solve_michie_profile
 
         # ra_hat=10 is a physically valid (finitely truncated) anisotropic model.
-        xi, psi = solve_michie_profile(7.0, ra_hat=10.0)
+        xi, psi, _ = solve_michie_profile(7.0, ra_hat=10.0)
         assert abs(float(psi[0]) - 7.0) < 1e-2, "psi(0) = W0"
         # psi monotonically decreases from the centre outward (until it hits 0)
         dpsi = jnp.diff(psi)
@@ -88,7 +88,7 @@ class TestMichieMaxAnisotropy:
     def test_valid_anisotropy_truncates(self):
         from progenax.profiles.michie import solve_michie_profile
 
-        xi, psi = solve_michie_profile(7.0, ra_hat=10.0)
+        xi, psi, _ = solve_michie_profile(7.0, ra_hat=10.0)
         assert float(psi[-1]) == 0.0, "a valid model truncates within xi_max"
 
 

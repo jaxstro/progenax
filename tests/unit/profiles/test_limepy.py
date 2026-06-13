@@ -134,8 +134,8 @@ class TestSolveLimepyProfile:
         from progenax.profiles.limepy import solve_limepy_profile
 
         W0 = 7.0
-        xi_k, psi_k = solve_king_profile(W0, xi_max=300.0, n_points=3000)
-        xi_l, psi_l = solve_limepy_profile(W0, g=1.0, xi_max=300.0, n_points=3000)
+        xi_k, psi_k, _ = solve_king_profile(W0, xi_max=300.0, n_points=3000)
+        xi_l, psi_l, _ = solve_limepy_profile(W0, g=1.0, xi_max=300.0, n_points=3000)
         # Compare W(xi) inside the cluster (where psi_king > small) on King's grid.
         inside = psi_k > 1e-3
         psi_l_on_k = jnp.interp(xi_k, xi_l, psi_l)
@@ -150,7 +150,7 @@ class TestSolveLimepyProfile:
         on the historical King concentrations at g=1."""
         from progenax.profiles.limepy import solve_limepy_profile
 
-        xi, psi = solve_limepy_profile(W0, g=1.0)
+        xi, psi, _ = solve_limepy_profile(W0, g=1.0)
         xi_t = float(_find_tidal_radius(xi, psi))
         # Table II is quoted to ~3-4 sig figs; allow 3% (ODE-grid + interp).
         np.testing.assert_allclose(xi_t, c_table_ii, rtol=0.03)
@@ -166,7 +166,7 @@ class TestSolveLimepyProfile:
         W0 = 6.0
         xi_t = []
         for g in (0.0, 1.0, 2.0):
-            xi, psi = solve_limepy_profile(W0, g=g, xi_max=400.0, n_points=4000)
+            xi, psi, _ = solve_limepy_profile(W0, g=g, xi_max=400.0, n_points=4000)
             xi_t.append(float(_find_tidal_radius(xi, psi)))
         assert xi_t[0] < xi_t[1] < xi_t[2], f"extent not ordered in g: {xi_t}"
 
@@ -178,7 +178,7 @@ class TestSolveLimepyProfile:
         from progenax.profiles.limepy import solve_limepy_profile
 
         def shape_metric(W0, g):
-            xi, psi = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
+            xi, psi, _ = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
             # mean potential over the fixed inner grid: smooth in (W0, g)
             return jnp.mean(psi[:200])
 
@@ -278,8 +278,8 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.michie import solve_michie_profile
 
         W0, ra = 7.0, 8.0
-        xi_m, psi_m = solve_michie_profile(W0, ra, xi_max=800.0, n_points=4000)
-        xi_l, psi_l = solve_limepy_profile(W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000)
+        xi_m, psi_m, _ = solve_michie_profile(W0, ra, xi_max=800.0, n_points=4000)
+        xi_l, psi_l, _ = solve_limepy_profile(W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000)
         inside = psi_m > 1e-3
         psi_l_on_m = jnp.interp(xi_m, xi_l, psi_l)
         np.testing.assert_allclose(
@@ -315,7 +315,7 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.limepy import solve_limepy_profile
 
         def metric(ra_hat):
-            xi, psi = solve_limepy_profile(7.0, g=1.0, ra_hat=ra_hat, xi_max=800.0, n_points=3000)
+            xi, psi, _ = solve_limepy_profile(7.0, g=1.0, ra_hat=ra_hat, xi_max=800.0, n_points=3000)
             return jnp.mean(psi[:300])
 
         d = jax.grad(metric)(5.0)

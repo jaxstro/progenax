@@ -83,15 +83,14 @@ def _king_velocities_W0(W0):
 
 
 def _king_r_t(W0):
-    # The King tidal radius r_t = r_c * xi_t. xi_t comes from _find_tidal_radius,
-    # whose argmax crossing-index selection blocks AD (d r_t / dW0 = 0 by AD),
-    # while the *value* can still move continuously with W0 through the linear
-    # interpolation fraction. theta0=7.0 sits where r_t is grid-snapped (FD~0 too)
-    # so the pin classifies cleanly as known_zero. See the Task 1.2 report /
-    # docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md.
+    # The King tidal radius r_t = r_c * xi_t, with xi_t from _find_tidal_radius's
+    # linear-interpolation crossing. Task 1.2b feeds UNCLAMPED psi to the interp,
+    # so d r_t/dW0 now flows through the diffrax solve (the implicit-function-
+    # theorem result to grid accuracy). A FINE explicit grid (xi_max=400,
+    # n=8000) makes the linear-interp FD estimate grid-converged so AD~FD.
     return jnp.atleast_1d(
         KingProfile.from_W0_rc(
-            W0=W0, r_c=1.0, xi_max=_KING_XI_MAX, n_ode_points=_KING_N_ODE
+            W0=W0, r_c=1.0, xi_max=400.0, n_ode_points=8000
         ).r_t
     )
 
@@ -118,11 +117,13 @@ REGISTRY: list[Case] = [
     Case(id="KingVelocityDF.sample_velocities", direction="params->IC",
          fn=_king_velocities_W0, param="W0", theta0=7.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
-    # The King tidal-radius pin: d r_t / dW0 = 0 by AD (argmax index selection).
-    # At theta0=7.0 r_t is grid-snapped (FD~0 too) -> known-limitation. NB: at
-    # other W0 (e.g. 8.0) the r_t VALUE moves with W0 while AD stays 0 (FD!=0) --
-    # a genuine silent-zero flagged to Anna for triage (see Task 1.2 report).
+    # The King tidal radius r_t: now differentiable in W0 (Task 1.2b) via the
+    # unclamped-psi linear-interp crossing in _find_tidal_radius. d r_t/dW0 ~ 48
+    # at W0=8 (smooth, large; measured AD 47.999 vs FD 48.024); AD~FD to grid
+    # accuracy. tol=1e-2 is the honest FD
+    # band for a linear-interp estimate of a smooth derivative (measured ratio
+    # within ~1e-3; margin to 1e-2).
     Case(id="KingProfile.r_t", direction="params->IC",
-         fn=_king_r_t, param="W0", theta0=7.0, reduce=jnp.sum,
-         expect="known_zero"),
+         fn=_king_r_t, param="W0", theta0=8.0, reduce=jnp.sum,
+         expect="consistent", tol=1e-2),
 ]

@@ -37,8 +37,8 @@ class TestMultiMassCoreDelta0:
         W0 = 7.0
         alpha_j = jnp.array([0.6, 0.3, 0.1])
         m_j = jnp.array([0.3, 1.0, 8.0])
-        xi_s, psi_s = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
-        xi_m, psi_m, rho_j = solve_multimass_limepy(
+        xi_s, psi_s, _ = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
+        xi_m, psi_m, _, rho_j = solve_multimass_limepy(
             alpha_j, m_j, W0=W0, g=g, delta=0.0, xi_max=300.0, n_points=2000
         )
         np.testing.assert_allclose(np.asarray(xi_m), np.asarray(xi_s), rtol=0, atol=0)
@@ -53,7 +53,7 @@ class TestMultiMassCoreDelta0:
         W0 = 6.0
         alpha_j = jnp.array([0.5, 0.5])
         m_j = jnp.array([0.5, 5.0])
-        xi, psi, rho_j = solve_multimass_limepy(
+        xi, psi, _, rho_j = solve_multimass_limepy(
             alpha_j, m_j, W0=W0, g=1.0, delta=0.0, xi_max=300.0, n_points=2000
         )
         single = limepy_density_hat(psi, 1.0) / limepy_density_hat(jnp.asarray(W0), 1.0)
@@ -82,7 +82,7 @@ class TestMultiMassSegregation:
 
         m_j = jnp.array([0.3, 8.0])
         alpha_j = jnp.array([0.5, 0.5])
-        xi, psi, rho_j = solve_multimass_limepy(
+        xi, psi, _, rho_j = solve_multimass_limepy(
             alpha_j, m_j, W0=7.0, g=1.0, delta=0.5, xi_max=300.0, n_points=3000
         )
         xh_light = _half_mass_xi(xi, rho_j[0])
@@ -98,7 +98,7 @@ class TestMultiMassSegregation:
         alpha_j = jnp.array([0.5, 0.5])
         ratios = []
         for delta in (0.0, 0.2, 0.4, 0.6):
-            xi, psi, rho_j = solve_multimass_limepy(
+            xi, psi, _, rho_j = solve_multimass_limepy(
                 alpha_j, m_j, W0=7.0, g=1.0, delta=delta, xi_max=300.0, n_points=3000
             )
             ratios.append(_half_mass_xi(xi, rho_j[0]) / _half_mass_xi(xi, rho_j[1]))
@@ -114,7 +114,7 @@ class TestMultiMassSegregation:
         m_j = jnp.array([0.3, 1.0, 8.0])
 
         def shape_metric(W0, g, delta, alpha_j):
-            xi, psi, rho_j = solve_multimass_limepy(
+            xi, psi, _, rho_j = solve_multimass_limepy(
                 alpha_j, m_j, W0=W0, g=g, delta=delta, xi_max=300.0, n_points=2000
             )
             return jnp.mean(psi[:300]) + jnp.sum(rho_j[:, :300])
@@ -157,7 +157,7 @@ class TestEigenvalueSolve:
         )
         assert float(residual) < 1e-3, f"eigenvalue residual {float(residual):.2e} too large"
         # independent check of the realized mass fractions
-        xi, psi, rho_j = solve_multimass_limepy(alpha_j, m_j, 7.0, 1.0, 0.5, 300.0, 2000)
+        xi, psi, _, rho_j = solve_multimass_limepy(alpha_j, m_j, 7.0, 1.0, 0.5, 300.0, 2000)
         nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
         f_real = np.asarray(alpha_j * nu_j / jnp.sum(alpha_j * nu_j))
         f_target = np.asarray(M_j / jnp.sum(M_j))
@@ -204,7 +204,7 @@ class TestEigenvalueSolve:
         )
         assert float(residual) < 2e-3, f"aniso eigenvalue residual {float(residual):.2e}"
         # independent recomputation of the realized mass fractions
-        xi, psi, rho_j = solve_multimass_limepy(
+        xi, psi, _, rho_j = solve_multimass_limepy(
             alpha_j, m_j, 5.0, 1.0, 0.4, 800.0, 1500, ra_hat=10.0)
         nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
         f_real = np.asarray(alpha_j * nu_j / jnp.sum(alpha_j * nu_j))
@@ -252,8 +252,8 @@ class TestMultiMassAnisotropic:
         from progenax.profiles.limepy_multimass import solve_multimass_limepy
 
         alpha = jnp.array([0.6, 0.4]); m_j = jnp.array([0.5, 4.0])
-        xi_i, psi_i, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000)
-        xi_a, psi_a, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000, ra_hat=None)
+        xi_i, psi_i, _, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000)
+        xi_a, psi_a, _, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, 0.4, 300.0, 2000, ra_hat=None)
         np.testing.assert_allclose(np.asarray(psi_a), np.asarray(psi_i), rtol=1e-9, atol=1e-9)
 
     def test_single_component_recovers_single_mass_anisotropic(self):
@@ -262,8 +262,8 @@ class TestMultiMassAnisotropic:
         from progenax.profiles.limepy_multimass import solve_multimass_limepy
         from progenax.profiles.limepy import solve_limepy_profile
 
-        xi_s, psi_s = solve_limepy_profile(7.0, g=1.0, ra_hat=8.0, xi_max=800.0, n_points=3000)
-        xi_m, psi_m, _ = solve_multimass_limepy(
+        xi_s, psi_s, _ = solve_limepy_profile(7.0, g=1.0, ra_hat=8.0, xi_max=800.0, n_points=3000)
+        xi_m, psi_m, _, _ = solve_multimass_limepy(
             jnp.array([1.0]), jnp.array([1.0]), 7.0, 1.0, 0.5, 800.0, 3000, ra_hat=8.0)
         inside = psi_s > 1e-3
         np.testing.assert_allclose(np.asarray(jnp.interp(xi_s, xi_m, psi_m))[inside],
@@ -275,7 +275,7 @@ class TestMultiMassAnisotropic:
 
         m_j = jnp.array([1.0, 4.0]); alpha = jnp.array([0.6, 0.4])
         def metric(ra_hat, eta, delta):
-            xi, psi, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 800.0, 2000,
+            xi, psi, _, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 800.0, 2000,
                                                 ra_hat=ra_hat, eta=eta)
             return jnp.mean(psi[:300])
         d_ra = jax.grad(metric, 0)(10.0, 0.0, 0.4)
@@ -299,8 +299,8 @@ class TestDirectPerComponentScales:
         from progenax.profiles.limepy import solve_limepy_profile
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
-        xi_s, psi_s = solve_limepy_profile(7.0, g=1.0, xi_max=300.0, n_points=2000)
-        xi, psi, _ = solve_multicomponent_limepy(
+        xi_s, psi_s, _ = solve_limepy_profile(7.0, g=1.0, xi_max=300.0, n_points=2000)
+        xi, psi, _, _ = solve_multicomponent_limepy(
             jnp.array([0.6, 0.4]), jnp.array([1.0, 1.0]), W0=7.0, g=1.0,
             xi_max=300.0, n_points=2000)
         np.testing.assert_allclose(np.asarray(psi), np.asarray(psi_s), rtol=1e-9, atol=1e-9)
@@ -311,7 +311,7 @@ class TestDirectPerComponentScales:
         direct velocity-scale effect, no mass needed."""
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
-        xi, psi, rho_j = solve_multicomponent_limepy(
+        xi, psi, _, rho_j = solve_multicomponent_limepy(
             jnp.array([0.5, 0.5]), jnp.array([1.0, 4.0]), W0=7.0, g=1.0,
             xi_max=300.0, n_points=3000)
         assert _half_mass_xi(xi, rho_j[1]) < _half_mass_xi(xi, rho_j[0]), \
@@ -327,8 +327,8 @@ class TestDirectPerComponentScales:
         m_j = jnp.array([0.5, 4.0]); alpha = jnp.array([0.6, 0.4]); delta = 0.5
         bar_m = jnp.sum(m_j * alpha); mu_j = m_j / bar_m
         rescale = mu_j ** (2.0 * delta)
-        _, psi_a, rho_a = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
-        _, psi_b, rho_b = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
+        _, psi_a, _, rho_a = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
+        _, psi_b, _, rho_b = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
                                                       xi_max=300.0, n_points=2000)
         np.testing.assert_allclose(np.asarray(psi_b), np.asarray(psi_a), rtol=1e-11, atol=1e-11)
         np.testing.assert_allclose(np.asarray(rho_b), np.asarray(rho_a), rtol=1e-9, atol=1e-9)
@@ -340,9 +340,9 @@ class TestDirectPerComponentScales:
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
         alpha = jnp.array([0.6, 0.4]); rescale = jnp.array([1.0, 2.0])
-        xi_i, psi_i, _ = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
+        xi_i, psi_i, _, _ = solve_multicomponent_limepy(alpha, rescale, W0=7.0, g=1.0,
                                                      xi_max=800.0, n_points=2000)
-        xi_a, psi_a, _ = solve_multicomponent_limepy(
+        xi_a, psi_a, _, _ = solve_multicomponent_limepy(
             alpha, rescale, W0=7.0, g=1.0, xi_max=800.0, n_points=2000,
             ra_hat_j=jnp.array([8.0, 8.0]))
         # anisotropy makes the model more radially extended (different potential profile)
@@ -354,7 +354,7 @@ class TestDirectPerComponentScales:
         q grid to zero width -- psi stays finite on the table path."""
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
-        xi, psi, rho_j = solve_multicomponent_limepy(
+        xi, psi, _, rho_j = solve_multicomponent_limepy(
             jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), 7.0, 1.0,
             xi_max=300.0, n_points=1000, ra_hat_j=jnp.array([jnp.inf, jnp.inf]))
         assert bool(jnp.all(jnp.isfinite(psi)))
@@ -367,7 +367,7 @@ class TestDirectPerComponentScales:
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
         def metric(rescale):
-            xi, psi, _ = solve_multicomponent_limepy(
+            xi, psi, _, _ = solve_multicomponent_limepy(
                 jnp.array([0.5, 0.5]), rescale, W0=7.0, g=1.0, xi_max=300.0, n_points=1500)
             return jnp.mean(psi[:300])
 

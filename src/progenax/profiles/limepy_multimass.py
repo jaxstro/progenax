@@ -206,7 +206,7 @@ def solve_multicomponent_limepy(
     ra_hat_j: Float[Array, "n_comp"] | None = None,
     aniso_method: str = "table",
     aniso_table: AnisoDensityTable | None = None,
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
+) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
     """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
 
     Given central density fractions alpha_j (sum to 1) and a DIRECT per-component
@@ -240,8 +240,13 @@ def solve_multicomponent_limepy(
     JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max, aniso_method static.
 
     Returns:
-        (xi_grid, psi_grid, rho_j_grid): dimensionless radius, shared potential W(xi)>=0,
-        and per-component normalized densities rho_hat_j(xi), shape (n_comp, n_points).
+        (xi_grid, psi_grid, psi_raw, rho_j_grid): dimensionless radius, shared
+        CLAMPED potential W(xi)>=0 (for density/CDF/virial), the UNCLAMPED psi_raw
+        (negative past the zero-crossing; feed to `_find_tidal_radius` so d(r_t)/dW0
+        flows -- the clamp would zero the crossing-node gradient, as in
+        solve_king_profile), and per-component normalized densities rho_hat_j(xi),
+        shape (n_comp, n_points). The forward r_t value is interpolation-identical
+        to the clamped path; only the gradient differs.
     """
     alpha_j = jnp.asarray(alpha_j)
     rescale = jnp.asarray(rescale_j)
@@ -279,7 +284,8 @@ def solve_multicomponent_limepy(
     )
     xi_grid = solution.ts
     psi_end = solution.ys[-1, 0]
-    psi_grid = jnp.maximum(solution.ys[:, 0], 0.0)
+    psi_raw = solution.ys[:, 0]  # UNCLAMPED W(xi) (negative past r_t)
+    psi_grid = jnp.maximum(psi_raw, 0.0)
 
     rho_j_grid = jax.vmap(density_components, out_axes=1)(xi_grid, psi_grid)
     rho_j_grid = jnp.where(psi_grid[None, :] > 0.0, rho_j_grid, 0.0)
@@ -301,7 +307,7 @@ def solve_multicomponent_limepy(
                 f"does not truncate within xi_max={xi_max} (W(xi_max)={psi_end_val:.3f}): "
                 f"the anisotropy is too strong (no finite tidal radius). Increase ra / xi_max."
             )
-    return xi_grid, psi_grid, rho_j_grid
+    return xi_grid, psi_grid, psi_raw, rho_j_grid
 
 
 def solve_multimass_limepy(
@@ -315,7 +321,7 @@ def solve_multimass_limepy(
     ra_hat: float | None = None,
     eta: float = 0.0,
     aniso_method: str = "table",
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
+) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
     """Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
 
     The Gieles & Zocchi (2015) equipartition parametrization: per-component rescaling
@@ -329,7 +335,7 @@ def solve_multimass_limepy(
     JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max,
     aniso_method static.
 
-    Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
+    Returns (xi_grid, psi_grid, psi_raw, rho_j_grid) as solve_multicomponent_limepy.
     """
     alpha_j = jnp.asarray(alpha_j)
     m_j = jnp.asarray(m_j)
@@ -357,9 +363,9 @@ def _realized_fractions(
 ) -> Float[Array, "n_comp"]:
     """Realized mass fractions f_j' = alpha_j nu_j / sum_k alpha_k nu_k from a coupled
     solve, nu_j = int rho_hat_j xi^2 dxi (the per-component dimensionless mass)."""
-    xi, _, rho_j = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_points,
-                                          ra_hat=ra_hat, eta=eta,
-                                          aniso_method=aniso_method)
+    xi, _, _, rho_j = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_points,
+                                             ra_hat=ra_hat, eta=eta,
+                                             aniso_method=aniso_method)
     nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
     M_real = alpha_j * nu_j
     return M_real / (jnp.sum(M_real) + 1e-300)

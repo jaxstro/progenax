@@ -188,10 +188,18 @@ class TestMichieSamplerOptimization:
         from progenax.kinematics.michie_df import MichieVelocityDF
         from progenax.profiles.king import _find_tidal_radius
         from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
+        from progenax.profiles.michie import solve_michie_profile
 
         df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
+        # The constructor feeds the UNCLAMPED psi to _find_tidal_radius (audit
+        # Task 1.2b: differentiable r_t). The stored df.psi_grid is the CLAMPED
+        # array, so reconstruct p_box from a fresh solve (3rd return = psi_raw)
+        # to match the constructor's inputs exactly (default xi_max/n_ode_points).
+        _, _, psi_raw = solve_michie_profile(
+            7.0, 8.0 / 1.0, xi_max=800.0, n_points=3000
+        )
         p_box = jnp.maximum(
-            df.r_c * _find_tidal_radius(df.xi_grid, df.psi_grid) / df.r_a, 1e-3)
+            df.r_c * _find_tidal_radius(df.xi_grid, psi_raw) / df.r_a, 1e-3)
         fresh = AnisoSpeedCDFTable.build(df.W0, p_box, jnp.asarray(1.0))
         np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
                                       np.asarray(fresh.cdf))

@@ -41,7 +41,7 @@ def test_grad_of_psi_through_solve_king_profile_is_finite():
     from progenax.profiles.king import solve_king_profile
 
     def loss(w0):
-        _, psi = solve_king_profile(w0, n_points=200)
+        _, psi, _ = solve_king_profile(w0, n_points=200)
         return jnp.sum(psi)
 
     g = jax.grad(loss)(7.0)

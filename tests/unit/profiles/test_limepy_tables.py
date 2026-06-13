@@ -147,10 +147,11 @@ class TestTableBackedSolver:
     def _solve(self, method, W0=7.0, rescale=(1.0, 1.6), ra=(10.0, 10.0),
                xi_max=800.0, n_points=2000):
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
-        return solve_multicomponent_limepy(
+        xi, psi, _psi_raw, rho_j = solve_multicomponent_limepy(
             jnp.array([0.6, 0.4]), jnp.array(rescale), W0=W0, g=1.0,
             xi_max=xi_max, n_points=n_points, ra_hat_j=jnp.array(ra),
             aniso_method=method)
+        return xi, psi, rho_j
 
     @pytest.mark.parametrize(
         "W0, rescale, ra, xi_max, n_points",
@@ -185,7 +186,7 @@ class TestTableBackedSolver:
         xi_d, psi_d, _ = self._solve("table")
         from inspect import signature
         assert signature(solve_multicomponent_limepy).parameters["aniso_method"].default == "table"
-        xi_i, psi_i, _ = solve_multicomponent_limepy(
+        xi_i, psi_i, _, _ = solve_multicomponent_limepy(
             jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), W0=7.0, g=1.0,
             xi_max=300.0, n_points=2000)  # iso: no ra_hat_j
         assert bool(jnp.all(jnp.isfinite(psi_i)))
@@ -194,7 +195,7 @@ class TestTableBackedSolver:
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
         def metric(rescale, ra):
-            xi, psi, _ = solve_multicomponent_limepy(
+            xi, psi, _, _ = solve_multicomponent_limepy(
                 jnp.array([0.5, 0.5]), rescale, 7.0, 1.0, xi_max=800.0,
                 n_points=1500, ra_hat_j=ra, aniso_method="table")
             return jnp.mean(psi[:300])
@@ -220,8 +221,8 @@ class TestTableBackedSolver:
         ra = jnp.array([10.0, 10.0])
         tab = _solver_table(rescale, ra, 7.0, 1.0, 800.0)
         kw = dict(xi_max=800.0, n_points=500, ra_hat_j=ra, aniso_method="table")
-        xi_i, psi_i, rho_i = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0, **kw)
-        xi_e, psi_e, rho_e = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0,
+        xi_i, psi_i, _, rho_i = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0, **kw)
+        xi_e, psi_e, _, rho_e = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0,
                                                          aniso_table=tab, **kw)
         np.testing.assert_array_equal(np.asarray(psi_e), np.asarray(psi_i))
         np.testing.assert_array_equal(np.asarray(rho_e), np.asarray(rho_i))

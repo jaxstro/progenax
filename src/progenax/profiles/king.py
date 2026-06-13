@@ -178,8 +178,8 @@ def _auto_ode_domain(W0: float) -> Tuple[float, int]:
 
 
 def solve_king_profile(
-    W0: float, xi_max: float = 300.0, n_points: int = 2000
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"]]:
+    W0: float, xi_max: float = 300.0, n_points: int = 2000,
+):
     """
     Solve King's Poisson equation numerically using diffrax.
 
@@ -195,8 +195,18 @@ def solve_king_profile(
         n_points: Number of points in output grid
 
     Returns:
-        xi_grid: Dimensionless radii xi = r/r_c
-        psi_grid: Dimensionless potential psi(xi)
+        3-tuple ``(xi_grid, psi_clamped, psi_raw)``:
+
+        - ``xi_grid``: dimensionless radii (``solution.ts``).
+        - ``psi_clamped``: ``max(psi, 0)``, truncated at the tidal radius. This
+          is the physical potential used for density / CDF / mu / virial.
+        - ``psi_raw``: the UNCLAMPED ODE solution ``solution.ys[:, 0]`` (goes
+          negative beyond the zero-crossing). Feed ``psi_raw`` to
+          ``_find_tidal_radius`` so the zero-crossing linear interpolation
+          carries d(xi_t)/dW0 from the diffrax solve -- the clamp would
+          otherwise set psi=0 at the crossing node, killing the gradient (audit
+          Task 1.2b, RESOLVED). The forward value of xi_t is identical either
+          way; only the gradient differs.
 
     References:
         King (1966), AJ, 71, 64
@@ -241,12 +251,12 @@ def solve_king_profile(
     )
 
     xi_grid = solution.ts
-    psi_grid = solution.ys[:, 0]  # Extract psi(xi)
+    psi_raw = solution.ys[:, 0]  # Extract psi(xi), UNCLAMPED (negative past r_t)
 
     # Ensure psi >= 0 (truncate at tidal radius where psi -> 0)
-    psi_grid = jnp.maximum(psi_grid, 0.0)
+    psi_clamped = jnp.maximum(psi_raw, 0.0)
 
-    return xi_grid, psi_grid
+    return xi_grid, psi_clamped, psi_raw
 
 
 def _find_tidal_radius(
@@ -267,14 +277,19 @@ def _find_tidal_radius(
         Uses linear interpolation for precise crossing point.
         If no crossing found, returns last grid point.
 
-        Non-differentiable in W0: the argmax crossing + the psi>=0 clamp in
-        solve_king_profile force the interpolation onto a fixed grid node, so
-        d(xi_t)/dW0 = 0. This is intentional for now -- profile-*shape*
-        observables remain differentiable in W0, which covers structural-
-        parameter inference. Making xi_t differentiable (implicit function
-        theorem, dxi_t/dW0 = -psi_W0/psi_xi) is DEFERRED; rationale + design +
-        science cases (tidal-field/Jacobi coupling) in
-        docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md.
+        Differentiable in W0 (audit Task 1.2b, RESOLVED). Pass the UNCLAMPED psi
+        (``solve_king_profile(...)[2]`` / ``solve_michie_profile(...)[2]``,
+        i.e. ``psi_raw``): the crossing
+        interpolation xi_t = xi0 + psi0/(psi0-psi1)*(xi1-xi0) is already smooth in
+        (psi0, psi1), so with the unclamped psi negative just past the crossing,
+        d(xi_t)/dW0 flows through the diffrax solve -- this IS the implicit-
+        function-theorem result (dxi_t/dW0 = -psi_W0/psi_xi) to grid accuracy.
+        The forward VALUE is identical to the clamped path (psi1 enters only via
+        the same interpolation fraction); only the gradient differs. Feeding the
+        CLAMPED psi instead sets psi1=0 at the crossing node, zeroing
+        d(xi_t)/dW0 (the original silent-zero hazard). Rationale + design:
+        docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md
+        (RESOLVED).
     """
     # Find where psi drops to zero (or below due to numerics)
     crossing_mask = psi_grid <= 0
@@ -324,7 +339,7 @@ class KingProfile(eqx.Module):
         >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
 
         # Or manually with pre-computed ODE solution
-        >>> xi_grid, psi_grid = solve_king_profile(W0=7.0)
+        >>> xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
         >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0,
         ...                       xi_grid=xi_grid, psi_grid=psi_grid)
         >>> masses = jnp.ones(100)
@@ -485,8 +500,13 @@ class KingProfile(eqx.Module):
             xi_max = auto_xi_max
         if n_ode_points is None:
             n_ode_points = auto_n_points
-        xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
-        xi_t = _find_tidal_radius(xi_grid, psi_grid)
+        # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
+        # through the crossing interpolation (audit Task 1.2b). psi_grid
+        # (clamped) is what the profile stores + uses for density/CDF.
+        xi_grid, psi_grid, psi_raw = solve_king_profile(
+            W0, xi_max=xi_max, n_points=n_ode_points
+        )
+        xi_t = _find_tidal_radius(xi_grid, psi_raw)
         r_t = r_c * xi_t
         prof = cls(
             W0=W0,

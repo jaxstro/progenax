@@ -22,7 +22,7 @@ class TestKingODESolution:
     def test_boundary_conditions(self):
         """ODE solution satisfies boundary conditions: ψ(0) = W0, dψ/dξ|₀ = 0."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # ψ(0) = W0 (start near W0, not exactly at ξ=0 due to singularity)
         assert abs(float(psi_grid[0]) - W0) < 0.1, \
@@ -31,7 +31,7 @@ class TestKingODESolution:
     def test_potential_monotonic_decrease(self):
         """Dimensionless potential ψ(ξ) decreases with radius."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # After first few points, should be monotonically decreasing
         diffs = jnp.diff(psi_grid[5:])
@@ -40,7 +40,7 @@ class TestKingODESolution:
     def test_potential_reaches_zero(self):
         """Potential reaches zero at tidal radius (truncation)."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0, xi_max=50.0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0, xi_max=50.0)
 
         # Should reach ψ → 0 somewhere (tidal radius)
         min_psi = float(jnp.min(psi_grid))
@@ -49,7 +49,7 @@ class TestKingODESolution:
     @pytest.mark.parametrize("W0", [3.0, 5.0, 7.0, 9.0])
     def test_different_concentrations(self, W0):
         """ODE solver works for different W0 values."""
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # ψ(0) should be close to W0
         assert abs(float(psi_grid[0]) - W0) < 0.2
@@ -64,7 +64,7 @@ class TestKingTidalTruncation:
     def test_all_particles_within_tidal_radius(self, N_validation, key):
         """100% of particles at r ≤ r_t."""
         W0, r_c, r_t = 7.0, 1.0, 10.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
 
         masses = jnp.ones(N_validation)
@@ -90,7 +90,7 @@ class TestKingConcentration:
         """
         natural_tidal_radii = []
         for W0 in [3.0, 7.0, 11.0]:
-            xi_grid, psi_grid = solve_king_profile(W0, xi_max=200.0, n_points=2000)
+            xi_grid, psi_grid, _ = solve_king_profile(W0, xi_max=200.0, n_points=2000)
 
             # Find where ψ FIRST drops below 0.01 (approximate tidal radius)
             # Use threshold relative to W0 for robustness
@@ -119,7 +119,7 @@ class TestKingConcentration:
         """
         half_mass_radii = []
         for W0 in [3.0, 7.0, 11.0]:
-            xi_grid, psi_grid = solve_king_profile(W0)
+            xi_grid, psi_grid, _ = solve_king_profile(W0)
 
             # Use natural-ish truncation: r_t = natural_xi_t * r_c
             mask = psi_grid > 0.01
@@ -176,7 +176,7 @@ class TestKingVelocityDF:
         W0, r_c, r_t = 7.0, 1.0, 10.0
         G = 1.0
 
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
         df = KingVelocityDF(W0=W0, r_c=r_c)
 
@@ -228,7 +228,7 @@ class TestKingDensityProfile:
         """Density decreases monotonically with radius."""
         W0, r_c, r_t = 7.0, 1.0, 10.0
 
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
 
         masses = jnp.ones(N_validation)
@@ -453,7 +453,7 @@ def _dense_king_cumulative_mass(W0):
         king_lowered_maxwellian_density,
     )
 
-    xi, psi = solve_king_profile(W0, xi_max=600.0, n_points=20_000)
+    xi, psi, _ = solve_king_profile(W0, xi_max=600.0, n_points=20_000)
     rho = king_lowered_maxwellian_density(jnp.maximum(psi, 0.0))
     integ = rho * xi**2
     M = jnp.concatenate(

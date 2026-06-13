@@ -124,7 +124,11 @@ class KingVelocityDF(eqx.Module):
             xi_max = auto_xi_max
         if n_ode_points is None:
             n_ode_points = auto_n_points
-        xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
+        # King DF uses the clamped psi (density/mu); r_t is not needed here, so
+        # psi_raw is discarded.
+        xi_grid, psi_grid, _ = solve_king_profile(
+            W0, xi_max=xi_max, n_points=n_ode_points
+        )
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
         # Table cached at construction (depends only on W0; g=1 is the exact

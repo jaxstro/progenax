@@ -208,13 +208,19 @@ class MultiComponentCluster(eqx.Module):
     def __init__(self, alpha_j=None, w_j=None, m_j=None, W0=None, g=None,
                  r_c=None, xi_grid=None, psi_grid=None,
                  ra_hat_j=None, residual=0.0, n_grid: int = 1000,
-                 rho_on_xi=None, dens_fn=None, *, _fields=None):
+                 rho_on_xi=None, dens_fn=None, psi_raw=None, *, _fields=None):
         """Assemble model state from a finished coupled solve; constructors
         forward `rho_on_xi` (the solver's (n_comp, n_ode) density grid, reused
         verbatim for nu_j/mu_tot) and `dens_fn` (the solve's pointwise
         (xi, psi) -> (n_comp,) density source, e.g. the shared-table source,
         used for the r-grid mass CDF) -- either may be None to recompute /
         fall back to exact quadrature.
+
+        `psi_raw` (the solver's UNCLAMPED psi, negative past the zero-crossing)
+        is fed to `_find_tidal_radius` so the forward r_t is the interpolated
+        crossing and d(r_t)/dW0 flows (the clamped psi_grid zeros the
+        crossing-node gradient, as in solve_king_profile). None falls back to
+        psi_grid (e.g. legacy callers) -- the forward value is unchanged.
 
         `_fields` (internal, keyword-only): a complete name -> value dict
         assembled by a non-A constructor (`from_density_profiles`, Engine B);
@@ -269,7 +275,11 @@ class MultiComponentCluster(eqx.Module):
         M_real = alpha_j * nu_j
         N_frac = (M_real / m_j) / jnp.sum(M_real / m_j)
 
-        r_t = r_c * _find_tidal_radius(xi_grid, psi_grid)
+        # Feed UNCLAMPED psi_raw so d(r_t)/dW0 flows (the clamp zeros the
+        # crossing-node gradient); None falls back to clamped psi_grid (same
+        # forward value). Forward r_t is the interpolated crossing.
+        psi_for_rt = psi_grid if psi_raw is None else psi_raw
+        r_t = r_c * _find_tidal_radius(xi_grid, psi_for_rt)
         r_grid = jnp.linspace(0.0, r_t, n_grid)
         psi_r = jnp.interp(r_grid / r_c, xi_grid, psi_grid, left=W0, right=0.0)
         rho_j_r = dens(psi_r, r_grid / r_c)
@@ -330,11 +340,12 @@ class MultiComponentCluster(eqx.Module):
         w_arr = jnp.asarray(w_j, dtype=jnp.float64)
         tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_arr ** -2.0, ra_hat_j,
                                                  W0, g, xi_max, aniso_method)
-        xi, psi, rho_j = solve_multicomponent_limepy(
+        xi, psi, psi_raw, rho_j = solve_multicomponent_limepy(
             alpha_j, w_arr ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
             ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
         return cls(alpha_j, w_arr, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j, dens_fn=dens_fn)
+                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j, dens_fn=dens_fn,
+                   psi_raw=psi_raw)
 
     @classmethod
     def from_mass_segregation(cls, alpha_j, m_j, W0, g, delta, r_a=None, eta=0.0,
@@ -385,12 +396,12 @@ class MultiComponentCluster(eqx.Module):
         ra_hat_j = None if r_a is None else ra_hat * mu_j ** eta
         tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_j ** -2.0, ra_hat_j,
                                                  W0, g, xi_max, aniso_method)
-        xi, psi, rho_j = solve_multicomponent_limepy(
+        xi, psi, psi_raw, rho_j = solve_multicomponent_limepy(
             alpha_j, w_j ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
             ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
         return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
                    residual=residual, n_grid=n_grid, rho_on_xi=rho_j,
-                   dens_fn=dens_fn)
+                   dens_fn=dens_fn, psi_raw=psi_raw)
 
     @classmethod
     def from_density_profiles(cls, profiles, mass_fractions, m_j, r_a_j=None,

@@ -212,7 +212,7 @@ def solve_limepy_profile(
     ra_hat: float | None = None,
     xi_max: float = 300.0,
     n_points: int = 2000,
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"]]:
+) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"]]:
     """Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
 
     Integrates W(xi) from the centre (W=W0, dW/dxi=0) outward to the truncation
@@ -235,7 +235,16 @@ def solve_limepy_profile(
         n_points: Output grid size.
 
     Returns:
-        (xi_grid, psi_grid): dimensionless radius and potential W(xi) (>= 0).
+        3-tuple ``(xi_grid, psi_clamped, psi_raw)`` (mirrors ``solve_king_profile``):
+
+        - ``xi_grid``: dimensionless radii.
+        - ``psi_clamped``: ``max(psi, 0)`` -- the physical potential W(xi) >= 0
+          used for density / CDF / mu / virial.
+        - ``psi_raw``: the UNCLAMPED ODE solution (negative past the zero-crossing).
+          Feed ``psi_raw`` to ``_find_tidal_radius`` so the crossing interpolation
+          carries d(xi_t)/dW0 -- the clamp would zero psi at the crossing node and
+          kill that gradient (audit Task 1.2b pattern). The forward xi_t value is
+          identical either way; only the gradient differs.
     """
     isotropic = ra_hat is None  # static (Python) -> picks the RHS at trace time
     rhs = _limepy_poisson_rhs_iso if isotropic else _limepy_poisson_rhs_aniso
@@ -262,7 +271,8 @@ def solve_limepy_profile(
     )
     xi_grid = solution.ts
     psi_end = solution.ys[-1, 0]  # W at xi_max (negative once truncated)
-    psi_grid = jnp.maximum(solution.ys[:, 0], 0.0)
+    psi_raw = solution.ys[:, 0]  # UNCLAMPED W(xi) (negative past r_t)
+    psi_grid = jnp.maximum(psi_raw, 0.0)
 
     # Non-truncation guard for anisotropic models (concrete inputs only; skipped under
     # tracing). Too-small ra_hat builds a radial-orbit 1/r^2 density tail -> no finite
@@ -277,7 +287,7 @@ def solve_limepy_profile(
                 f"anisotropy is too strong (no finite tidal radius / infinite mass). "
                 f"Increase ra_hat, or raise xi_max if the model is genuinely this extended."
             )
-    return xi_grid, psi_grid
+    return xi_grid, psi_grid, psi_raw
 
 
 # ==============================================================================
@@ -379,14 +389,16 @@ class LIMEPYProfile(eqx.Module):
 
         JIT/grad-safe in (W0, g, r_a): the fixed (xi_max, n_ode_points) keep array
         sizes static, so the parameters may be tracers and profile-shape functionals
-        carry their gradients (the argmax truncation-radius crossing has zero
-        gradient, as in KingProfile -- structural-shape inference is unaffected).
+        carry their gradients. The truncation radius r_t is the interpolated
+        zero-crossing of the UNCLAMPED psi, so d(r_t)/dW0 flows (as in KingProfile).
         """
         ra_hat = None if r_a is None else r_a / r_c
-        xi_grid, psi_grid = solve_limepy_profile(
+        xi_grid, psi_grid, psi_raw = solve_limepy_profile(
             W0, g, ra_hat=ra_hat, xi_max=xi_max, n_points=n_ode_points
         )
-        xi_t = _find_tidal_radius(xi_grid, psi_grid)
+        # Feed UNCLAMPED psi_raw so d(r_t)/dW0 flows (clamped psi zeros the
+        # crossing node's gradient). Forward r_t is the interpolated crossing.
+        xi_t = _find_tidal_radius(xi_grid, psi_raw)
         r_t = r_c * xi_t
         return cls(W0=W0, g=g, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid,
                    r_a=r_a, n_grid=n_grid)

@@ -181,7 +181,7 @@ def test_delta0_is_single_mass_and_segregation_grows():
     from progenax.profiles.limepy_multimass import solve_multimass_limepy
 
     def half_mass_ratio(delta):
-        xi, psi, rho_j = solve_multimass_limepy(ALPHA_J, M_J, W0, GG, delta, 300.0, 3000)
+        xi, psi, _, rho_j = solve_multimass_limepy(ALPHA_J, M_J, W0, GG, delta, 300.0, 3000)
         def rh(rho):
             integ = rho * xi**2
             Mc = jnp.concatenate([jnp.zeros(1),
