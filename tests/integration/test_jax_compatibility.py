@@ -165,27 +165,13 @@ class TestPipelineDifferentiability:
         assert float(grad_val) < 0
 
 
-def test_build_spatial_ic_differentiable_wrt_r_h():
-    """jax.grad through the public build_spatial_ic (the CLAUDE.md 'fully
-    differentiable' example) must return a finite, correct gradient (audit CR-FU-2)."""
-    import jax
-    import jax.numpy as jnp
-    from jaxstro.units import STELLAR
-    from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
-
-    def loss(r_h):
-        masses = jnp.ones(64)
-        ic = build_spatial_ic(
-            PlummerProfile(r_h=r_h), masses, PlummerVelocityDF(r_h=r_h),
-            key=jax.random.PRNGKey(0), G=STELLAR.G,
-        )
-        return jnp.mean(jnp.linalg.norm(ic.positions, axis=1))
-
-    g = jax.grad(loss)(1.0)
-    assert jnp.isfinite(g), f"grad is {g}, expected finite"
-    # mean radius scales ~linearly with r_h -> positive, O(1) sensitivity
-    fd = (loss(1.0 + 1e-4) - loss(1.0 - 1e-4)) / 2e-4
-    assert abs(g - fd) / (abs(g) + abs(fd) + 1e-30) < 1e-4, f"grad {g} vs FD {fd}"
+# AD-vs-FD through the public build_spatial_ic (the CLAUDE.md headline 'fully
+# differentiable' path, audit CR-FU-2) is owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py :: build_spatial_ic[Plummer] [r_h positions]
+# + build_spatial_ic[Plummer].velocities [r_h speeds]); see
+# docs/website/50-validation/differentiability-audit.md. The former
+# test_build_spatial_ic_differentiable_wrt_r_h was removed here (audit T6 consolidation;
+# registry is SoT). (The finite-only smoke tests in this file are a separate batch.)
 
 
 def test_compute_potential_energy_grad_finite_at_default_softening():
