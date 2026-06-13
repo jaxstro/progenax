@@ -180,6 +180,14 @@ project:
         - file: 60-science-demos/cross-engine.md
         - file: 60-science-demos/imf-equipartition.md
         - file: 60-science-demos/halo-core.md
+        - file: 60-science-demos/binary-energy-budget.md
+        - file: 60-science-demos/king-concentration.md
+        - file: 60-science-demos/diff-diagnostics.md
+        - file: 60-science-demos/birth-environment.md
+        - file: 60-science-demos/binary-mass-function.md
+        - file: 60-science-demos/anisotropy.md
+        - file: 60-science-demos/tidal-radius.md
+        - file: 60-science-demos/rotation.md
     - title: Development log
       children:
         - file: 90-development-log/index.md

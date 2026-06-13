@@ -230,3 +230,8 @@ docs/core-papers/
 !docs/website/50-validation/figures/
 !docs/website/50-validation/figures/*.png
 !docs/website/50-validation/figures/*.pdf
+
+# Science-demo figures embedded in the website (same committed exception): the
+# rendered pages reference these PNGs, so a clean checkout / deploy build needs them.
+!docs/website/60-science-demos/figures/
+!docs/website/60-science-demos/figures/*.png
