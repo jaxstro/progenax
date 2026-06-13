@@ -159,6 +159,33 @@ def binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50):
     return SigmaBetaResult(sig_hat, se, beta_hat, weight, counts)
 
 
+def binned_number_density(pos, r_edges):
+    r"""Frozen per-shell star counts N_k for a radial number-density profile fit.
+
+    Returns the observed count in each of the ``K`` radial bins defined by
+    ``r_edges`` (K+1 monotone edges). Radii outside ``[r_edges[0], r_edges[-1]]``
+    are excluded. The counts are the FROZEN data of a Poisson profile likelihood
+    (:func:`poisson_loglike`): the model supplies the expected counts
+    ``mu_k(theta) = N_total * p_k(theta)`` (``p_k`` = the profile's enclosed-number
+    fraction in shell ``k``), and gradients flow through the model only.
+
+    A Poisson model (not a Gaussian on the counts or their logs) is used so that
+    low-occupancy OUTER bins -- the regime that constrains a tidal / truncation
+    radius -- carry honest counting errors (``Var = mu``) rather than an
+    ill-defined log-count Gaussian that diverges as the count approaches zero.
+
+    Returns
+    -------
+    counts : (K,) float array, NaN-free and traceable.
+    """
+    radii = jnp.linalg.norm(pos, axis=1)
+    bin_ids = _bin_index(radii, r_edges)  # -1 if outside [r0, rK]
+    n_bins = r_edges.shape[0] - 1
+    valid = bin_ids >= 0
+    b = jnp.where(valid, bin_ids, 0)
+    return jnp.zeros(n_bins).at[b].add(jnp.where(valid, 1.0, 0.0))
+
+
 # --------------------------------------------------------------------------- #
 # Gaussian (chi^2) likelihood
 # --------------------------------------------------------------------------- #
@@ -177,6 +204,32 @@ def gaussian_loglike(data, predict_fn):
     def loglike(theta):
         resid = (sig_hat - predict_fn(theta)) / safe_se
         return -0.5 * jnp.sum(weight * resid * resid)
+
+    return loglike
+
+
+def poisson_loglike(data, predict_mu_fn):
+    r"""Build a per-bin Poisson log-likelihood closure for binned counts.
+
+    ``data = (counts, weight)`` of matching shape; ``predict_mu_fn(theta)`` returns
+    the model expected counts ``mu_k(theta) > 0`` on the same shape. The returned
+    ``loglike(theta) = sum_k weight_k * (counts_k * log mu_k - mu_k)``
+    is the Poisson log-pmf up to the theta-independent ``-log(counts_k!)`` (which
+    drops out of inference). Differentiable in ``theta`` through ``predict_mu_fn``
+    only -- the data side is frozen.
+
+    ``mu`` is floored a tiny epsilon above 0 for the ``log`` via ``jnp.maximum``
+    (a clean subgradient, no NaN from a dead ``where`` branch), so empty bins stay
+    NaN-free; a POPULATED bin whose model ``mu -> 0`` still yields a large negative
+    loglike, correctly penalizing the model rather than masking it.
+    """
+    counts, weight = data
+    tiny = jnp.finfo(jnp.result_type(float)).tiny
+
+    def loglike(theta):
+        mu = predict_mu_fn(theta)
+        safe_mu = jnp.maximum(mu, tiny)
+        return jnp.sum(weight * (counts * jnp.log(safe_mu) - mu))
 
     return loglike
 
@@ -271,6 +324,40 @@ def fisher_information_gn(residual_fn, z_hat, extra_negloglike=None):
     F = J.T @ J
     if extra_negloglike is not None:
         F = F + jax.hessian(extra_negloglike)(z_hat)  # ODE-free -> hessian OK
+    return 0.5 * (F + F.T)
+
+
+def poisson_fisher_information(predict_mu_fn, z_hat, weight=None):
+    r"""Poisson expected Fisher information ``F = J^T diag(w / mu) J`` at ``z_hat``.
+
+    For a per-bin Poisson log-likelihood ``sum_k w_k (N_k log mu_k(z) - mu_k(z))``
+    the EXPECTED information is ``sum_k w_k (d mu_k / d z)(d mu_k / d z)^T / mu_k``
+    (the data-dependent term ``sum_k w_k (N_k/mu_k - 1) d^2 mu_k`` vanishes in
+    expectation, ``E[N_k] = mu_k``). This is the Poisson sibling of
+    :func:`fisher_information_gn`.
+
+    ``J = d mu / d z`` is taken with :func:`jax.jacrev` (REVERSE mode): the B11
+    King fit runs a diffrax ODE whose ``custom_vjp`` makes ``jax.hessian`` /
+    ``jax.jacfwd`` crash ("can't apply forward-mode autodiff to a custom_vjp");
+    reverse-mode is safe through it.
+
+    Parameters
+    ----------
+    predict_mu_fn : callable z -> (K,) array
+        Model expected counts ``mu_k(z) > 0``.
+    z_hat : (P,) array
+        Point at which to evaluate the information (the MLE).
+    weight : (K,) array, optional
+        Per-bin weights (1/0 mask, say); defaults to all ones.
+
+    Returns
+    -------
+    F : (P, P) array, symmetrized.
+    """
+    mu = predict_mu_fn(z_hat)
+    J = jax.jacrev(predict_mu_fn)(z_hat)          # (K, P), reverse-mode (ODE-safe)
+    w = jnp.ones_like(mu) if weight is None else weight
+    F = J.T @ ((w / mu)[:, None] * J)  # == J^T diag(w / mu) J
     return 0.5 * (F + F.T)
 
 

@@ -182,6 +182,130 @@ class TestChi2Loglike:
         assert jnp.abs(g) > 0.0
 
 
+class TestBinnedNumberDensity:
+    """Frozen per-shell counts N_k -- the data of a Poisson profile likelihood."""
+
+    def test_counts_match_known_bins(self):
+        # 5 stars in [0,1), 3 in [1,2), 2 in [2,3) -> counts (5, 3, 2).
+        r = jnp.array([0.1, 0.2, 0.3, 0.4, 0.5, 1.1, 1.2, 1.3, 2.5, 2.6])
+        dirs = jax.random.normal(jax.random.PRNGKey(0), (r.shape[0], 3))
+        dirs = dirs / jnp.linalg.norm(dirs, axis=1, keepdims=True)
+        pos = r[:, None] * dirs
+        r_edges = jnp.array([0.0, 1.0, 2.0, 3.0])
+
+        counts = di.binned_number_density(pos, r_edges)
+        assert counts.shape == (3,)
+        np.testing.assert_array_equal(np.asarray(counts), np.array([5.0, 3.0, 2.0]))
+
+    def test_out_of_range_excluded(self):
+        # Radii outside [r0, rK] do not count.
+        r = jnp.array([0.5, 1.5, 5.0])  # 5.0 is beyond the last edge (3.0)
+        dirs = jax.random.normal(jax.random.PRNGKey(1), (3, 3))
+        dirs = dirs / jnp.linalg.norm(dirs, axis=1, keepdims=True)
+        pos = r[:, None] * dirs
+        r_edges = jnp.array([0.0, 1.0, 2.0, 3.0])
+
+        counts = di.binned_number_density(pos, r_edges)
+        assert float(jnp.sum(counts)) == 2.0  # the 5.0-radius star is dropped
+
+    def test_no_nans_and_traceable(self):
+        pos = _uniform_radius_positions(jax.random.PRNGKey(2), 1000)
+        r_edges = jnp.linspace(0.0, 5.0, 9)
+        counts = jax.jit(di.binned_number_density)(pos, r_edges)
+        assert counts.shape == (8,)
+        assert not bool(jnp.any(jnp.isnan(counts)))
+        assert float(jnp.sum(counts)) == 1000.0  # all in range
+
+
+class TestPoissonLoglike:
+    """Per-bin Poisson log-likelihood; data frozen, gradient through predict only."""
+
+    def test_gradient_zero_at_analytic_mle(self):
+        # mu = theta * base; loglike maximized at theta_hat = sum(N) / sum(base)
+        # (d/dtheta sum[N log(theta base) - theta base] = sum[N/theta - base] = 0).
+        counts = jnp.array([10.0, 7.0, 3.0, 1.0])
+        base = jnp.array([4.0, 3.0, 2.0, 1.0])
+        weight = jnp.ones(4)
+        ll = di.poisson_loglike((counts, weight), lambda th: th * base)
+
+        th_star = float(jnp.sum(counts) / jnp.sum(base))
+        g = jax.grad(ll)(jnp.array(th_star))
+        assert abs(float(g)) < 1e-8, float(g)
+        # Below the optimum the loglike is still increasing (positive slope).
+        g_below = jax.grad(ll)(jnp.array(0.5 * th_star))
+        assert float(g_below) > 0.0
+
+    def test_recovers_scale_via_adam(self):
+        # Deterministic "expected" counts at theta_true -> MLE must hit theta_true.
+        base = jnp.array([20.0, 12.0, 6.0, 2.0])
+        theta_true = 1.7
+        counts = theta_true * base  # the expected (noise-free) counts
+        weight = jnp.ones(4)
+        # Reparametrize theta = exp(z) to stay positive.
+        ll = di.poisson_loglike((counts, weight), lambda z: jnp.exp(z) * base)
+        negloglike = lambda z: -ll(z[0])
+        z_hat, trace = di.mle_adam(negloglike, jnp.array([0.0]), n_steps=800, lr=3e-2)
+        np.testing.assert_allclose(float(jnp.exp(z_hat[0])), theta_true, rtol=1e-3)
+
+    def test_zero_count_bins_no_nan(self):
+        counts = jnp.array([5.0, 0.0, 0.0])
+        weight = jnp.ones(3)
+        ll = di.poisson_loglike((counts, weight), lambda th: th * jnp.ones(3))
+        val = ll(jnp.array(2.0))
+        g = jax.grad(ll)(jnp.array(2.0))
+        assert jnp.isfinite(val) and jnp.isfinite(g)
+
+    def test_weight_masks_bins(self):
+        # A zero-weight bin must not influence the loglike at all.
+        counts = jnp.array([10.0, 1000.0])
+        base = jnp.array([5.0, 5.0])
+        ll_masked = di.poisson_loglike((counts, jnp.array([1.0, 0.0])), lambda th: th * base)
+        ll_only0 = di.poisson_loglike((counts[:1], jnp.array([1.0])), lambda th: th * base[:1])
+        np.testing.assert_allclose(float(ll_masked(jnp.array(1.3))),
+                                   float(ll_only0(jnp.array(1.3))), rtol=1e-12)
+
+    def test_fisher_cov_runs_on_poisson(self):
+        # Observed-Hessian Fisher is PD for a well-identified 1-param Poisson fit.
+        base = jnp.array([20.0, 12.0, 6.0, 2.0])
+        counts = 1.7 * base
+        ll = di.poisson_loglike((counts, jnp.ones(4)), lambda z: jnp.exp(z) * base)
+        cov = di.fisher_cov(lambda z: -ll(z[0]), jnp.array([float(jnp.log(1.7))]))
+        assert cov.shape == (1, 1) and float(cov[0, 0]) > 0.0
+
+
+class TestPoissonFisherInformation:
+    """Reverse-mode (jacrev) Poisson expected information F = J^T diag(w/mu) J.
+
+    The Poisson sibling of :func:`fisher_information_gn`; reverse-mode only, so it
+    survives the diffrax-ODE ``custom_vjp`` in the King profile that B11 fits
+    (``jax.hessian`` would crash forward-mode over that ``custom_vjp``)."""
+
+    def test_linear_model_matches_closed_form(self):
+        # mu(z) = A z (>0 at z_hat) -> J = A -> F = A^T diag(1/mu) A.
+        A = jnp.array([[1.0, 0.5], [0.5, 1.0], [1.0, 1.0], [0.2, 0.8]])
+        z_hat = jnp.array([2.0, 3.0])
+        mu = A @ z_hat
+        expected = A.T @ jnp.diag(1.0 / mu) @ A
+        F = di.poisson_fisher_information(lambda z: A @ z, z_hat)
+        np.testing.assert_allclose(np.asarray(F), np.asarray(expected), atol=1e-10)
+
+    def test_weight_downweights_bins(self):
+        A = jnp.array([[1.0, 0.5], [0.5, 1.0], [1.0, 1.0]])
+        z_hat = jnp.array([2.0, 3.0])
+        mu = A @ z_hat
+        w = jnp.array([1.0, 0.0, 1.0])  # drop the middle bin
+        expected = A.T @ jnp.diag(w / mu) @ A
+        F = di.poisson_fisher_information(lambda z: A @ z, z_hat, weight=w)
+        np.testing.assert_allclose(np.asarray(F), np.asarray(expected), atol=1e-10)
+
+    def test_symmetric_pd_for_full_rank(self):
+        A = jnp.array([[2.0, 1.0], [1.0, 3.0], [0.0, 1.0], [1.0, 1.0]])
+        z_hat = jnp.array([1.5, 2.0])
+        F = di.poisson_fisher_information(lambda z: A @ z, z_hat)
+        np.testing.assert_allclose(np.asarray(F), np.asarray(F.T), atol=1e-12)
+        assert bool(jnp.all(jnp.linalg.eigvalsh(0.5 * (F + F.T)) > 0))
+
+
 class TestAdamMLE:
     def test_recovers_quadratic_minimum(self):
         negloglike = lambda z: (z[0] - 3.0) ** 2
