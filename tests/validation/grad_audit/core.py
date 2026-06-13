@@ -38,6 +38,7 @@ class Case:
     h_rel: float = 1e-4
     eps: float = 1e-9                        # |AD| silent-zero threshold
     edges: Tuple[EdgeConfig, ...] = ()
+    hazard_id: str | None = None             # set when confirmed-but-unfixed -> strict-xfail (D6)
 
 
 @dataclass(frozen=True)

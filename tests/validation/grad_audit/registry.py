@@ -1,8 +1,7 @@
 """The grad-audit case registry: every public entry point x direction x param.
 Tiers are added incrementally (see the implementation plan)."""
 import jax, jax.numpy as jnp
-from jaxstro.units import STELLAR
-from progenax import PlummerProfile
+from progenax import PlummerProfile  # noqa: F401-adjacent — carries float64 on import
 from tests.validation.grad_audit.core import Case
 from tests.validation.grad_audit.reductions import mean_radius
 
