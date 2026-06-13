@@ -394,16 +394,26 @@ def _lambda_msr_core_scale(core_scale):
 # the case design that side-steps the discreteness (small h + stable assignment),
 # rather than weakening tol to paper over noise.
 #
-# H2 PROBE (ψ=0 boundary masks @ multicomponent.py:266/272/286 + shared r_t kink):
-# CLEARED BENIGN. (1) The shared tidal radius r_t IS differentiable in W0 (Tier-1
-# unclamped-ψ fix, commit 9d3365a): measured AD=1.583973 vs FD=1.583973, ratio
-# 1.000000 at W0=5 (and 1.000000 at W0=7) through the from_imf path. (2) NO sampled
-# star ever lands where ψ(r)≤0: the mass-CDF draw places stars by mass, and the
-# boundary shell carries ~zero mass (min ψ(r_sampled)=0.227 at W0=5, 0/400 stars hit
-# the max(ψ,0) clamp at sampling.py:64). The jnp.where(psi>0,...) masks zero the
-# density OUTSIDE support where the CDF is built — correct, and inert for the
-# sampled stars. The W0=3 edge (most extended/boundary-dominated, r_t=4.26) is
-# FD-consistent (|ratio-1|=2.6e-4), confirming the boundary is benign. No H2 hazard.
+# H2 PROBE (ψ=0 / r≤r_t boundary masks + max(ψ,0) clamps + shared r_t kink):
+# the masks live at multicomponent.py:272 (the jnp.where(psi_grid>0, rho, 0)
+# xi-grid support mask) and multicomponent.py:286 (the jnp.where(r_grid<=r_t, rho, 0)
+# radial truncation mask used to build the mass-CDF). The max(ψ,0) clamps that a
+# sampled star could hit are at sampling.py:64-66 (the per-star W_i=rescale*max(interp
+# ψ(r),0) on the sampling path) and limepy.py:275 (psi_grid=max(psi_raw,0), the
+# model-build grid clamp). CLEARED BENIGN. (1) The shared tidal radius r_t IS
+# differentiable in W0 (Tier-1 unclamped-ψ fix, commit 9d3365a): measured AD=1.583973
+# vs FD=1.583973, ratio 1.000000 at W0=5 (and 1.000000 at W0=7) through the from_imf
+# path. (2) NO sampled star ever lands where ψ(r)≤0: the mass-CDF draw places stars by
+# mass, and the boundary shell carries ~zero mass. MEASURED AT THE W0=3 EDGE (the most
+# extended cluster, r_t=4.26 — boundary most stretched): min ψ(r_sampled)=0.153 (max
+# sampled radius 3.66 < r_t=4.26), 0/400 stars hit the sampling.py:64 max(ψ,0) clamp
+# (none even within 1e-6 of ψ=0), and 0/400 categorical assignments flip between W0=3
+# and W0=3+1e-4. (At the W0=5 baseline the margin is wider still: min ψ=0.227.) The
+# boundary is approached more closely at W0=3 but never reached; even if it were, the
+# jnp.where masks contribute ZERO gradient at the edge because the masked-out density
+# past r_t is ~0 there, so the where-discontinuity carries no live derivative. The
+# W0=3 edge is FD-consistent (|ratio-1|=2.6e-4), confirming the boundary is benign.
+# No H2 hazard.
 #
 # tol=1e-3: max measured |ratio-1| is 1.1e-4 (g) and 2.6e-4 (W0=3 edge); 1e-3 is the
 # honest band for the trapezoid mass-CDF + IMF-binning eigenvalue solve + categorical
@@ -591,7 +601,8 @@ REGISTRY: list[Case] = [
     # W0 (central potential): AD=4.709932e-1 vs FD=4.710074e-1 (|ratio-1|=3.0e-5).
     # Carries the H2 boundary edge at W0=3 (extended, r_t=4.26): AD=3.672140e-1 vs
     # FD=3.671194e-1 (|ratio-1|=2.6e-4) — the ψ=0 masks + shared r_t are benign
-    # (r_t flows ratio 1.000000; no sampled star reaches ψ(r)≤0). 0/400 categorical
+    # (r_t flows ratio 1.000000; min ψ(r_sampled)=0.153 with max radius 3.66 < r_t,
+    # so 0/400 sampled stars reach ψ(r)≤0 or hit the max(ψ,0) clamp). 0/400 categorical
     # assignment flips at h=1e-4, so FD is discreteness-free.
     Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
          fn=_cluster_sample_W0, param="W0", theta0=5.0, reduce=mean_radius,
