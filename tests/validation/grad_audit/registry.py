@@ -108,6 +108,21 @@ def _king_velocities_W0(W0):
     return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
 
 
+def _king_velocities_rc(r_c):
+    # r_c channel of the King lowered-Maxwellian velocity DF (Task 4.2a). W0 fixed
+    # CONCRETE at 7.0 so the King ODE auto-sizes its integration domain (no explicit
+    # xi_max/n_ode needed -- the W0-tracing domain-overflow problem only afflicts the
+    # _king_velocities_W0 closure). r_c is the audited param; it sets the spatial scale
+    # that maps into the velocity normalisation sigma ~ sqrt(G M / r_c). MEASURED at
+    # r_c=1.0: AD=-1.906048e-1 vs FD=-1.906048e-1 (|ratio-1|=6.3e-9) -- machine-exact.
+    # This is the registry replacement for test_df_gradients.py::TestKingDFGradients's
+    # r_c part (registry previously had only the W0 channel of this DF).
+    profile = KingProfile.from_W0_rc(W0=7.0, r_c=r_c)
+    positions = profile.sample_positions(_MASSES, _KEY_POS)
+    df = KingVelocityDF(W0=7.0, r_c=r_c)
+    return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
+
+
 def _king_r_t(W0):
     # The King tidal radius r_t = r_c * xi_t, with xi_t from _find_tidal_radius's
     # linear-interpolation crossing. Task 1.2b feeds UNCLAMPED psi to the interp,
@@ -154,6 +169,24 @@ def _michie_r_t(W0):
     )
 
 
+# Fixed query radius for the Michie density-observable channel (interior, r=1.5 < r_t~56).
+_MICHIE_RHO_QUERY = jnp.array([1.5])
+
+
+def _michie_log_density_rc(r_c):
+    # Michie/LIMEPY density-OBSERVABLE channel in r_c (Task 4.2a). The registry already
+    # has MichieProfile.sample_positions(W0) but NOT the r_c channel NOR a density
+    # observable -- this case fills BOTH gaps in one clean replacement for the r_c part
+    # of test_michie_physics.py::TestMichieDifferentiability::test_grad_profile_observable
+    # (which FD-tests d log rho(r=1.5) / d{W0, r_c}; W0 of the SAMPLER is already covered,
+    # r_c of the DENSITY is the unique uncovered piece). The observable is
+    # log(density(r=1.5)) at a fixed interior query, matching the scattered test verbatim
+    # (W0=7, r_a=8). MEASURED at r_c=1.0: AD=2.209859e+0 vs FD=2.209859e+0
+    # (|ratio-1|=1.3e-8) -- machine-exact closed-form density; tol=1e-5 (the density band).
+    p = MichieProfile.from_W0_rc(W0=7.0, r_c=r_c, r_a=_MICHIE_R_A)
+    return jnp.atleast_1d(jnp.log(p.density(_MICHIE_RHO_QUERY)[0] + 1e-30))
+
+
 # ---------------------------------------------------------------------------
 # EFF (Elson-Fall-Freeman 1987) profile + Eddington DF (Task 1.3)
 # ---------------------------------------------------------------------------
@@ -175,6 +208,19 @@ def _eff_positions_rt(r_t):
 def _eff_velocities_gamma(gamma):
     positions = EFFProfile(a=1.0, gamma=gamma, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
     df = EFFVelocityDF(a=1.0, gamma=gamma, r_t=10.0)
+    return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
+
+
+def _eff_velocities_a(a):
+    # EFF scale-radius channel of the Eddington velocity DF (Task 4.2a). gamma fixed at
+    # 5.0 (the mild-truncation ~virial point, matching _eff_velocities_gamma's audited
+    # value) and r_t=10.0; a is the audited scale that flows through BOTH the positions
+    # and the Eddington-DF velocity normalisation. MEASURED at a=1.0: AD=-3.160765e-1 vs
+    # FD=-3.160774e-1 (|ratio-1|=2.8e-6) -- clean within tol=1e-3 (the Eddington-table +
+    # inverse-CDF band, matching the gamma case). Replaces test_df_gradients.py::
+    # TestEFFDFGradients's `a` part (registry previously had only the gamma channel).
+    positions = EFFProfile(a=a, gamma=5.0, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
+    df = EFFVelocityDF(a=a, gamma=5.0, r_t=10.0)
     return df.sample_velocities(positions, _MASSES, _KEY_VEL, G=STELLAR.G)
 
 
@@ -269,6 +315,18 @@ _H4_QUERY = jnp.array([_PL_M_MIN + 1e-3])
 def _powerlaw_cdf_mmin(m_min):
     return PowerLawIMF(exponents=[2.35], breakpoints=[],
                        m_min=m_min, m_max=_PL_M_MAX).cdf(_H4_QUERY)
+
+
+def _powerlaw_ppf_mmin(m_min):
+    # d(ppf)/d(m_min) for the Salpeter single-segment power law (Task 4.2a). m_min sets
+    # the LOWER support edge, so it enters the inverse-CDF closed form directly (every
+    # sampled mass shifts with the floor). Fixed slope alpha=2.35, fixed uniform draw _U,
+    # reduced by identity_sum over the sampled masses. MEASURED at m_min=0.1:
+    # AD=1.572808e+3 vs FD=1.572808e+3 (|ratio-1|=2.4e-9) -- machine-exact; tol=1e-5
+    # (closed-form band). Replaces test_imf_gradients.py::test_powerlaw_ppf_grad_mmin
+    # (registry had cdf[H4](m_min) and ppf(alpha) but not ppf(m_min)).
+    return PowerLawIMF(exponents=[2.35], breakpoints=[],
+                       m_min=m_min, m_max=_PL_M_MAX).ppf(_U)
 
 
 def _chabrier_ppf_mc(m_c):
@@ -586,6 +644,52 @@ def _kepler_to_state_e(e):
     return el.to_state(M_total=2.0, G=STELLAR.G).position
 
 
+# (a2/a3) KeplerElements.to_state — the semi-major-axis a and mean-anomaly M0 columns
+#     of the elements->Cartesian Jacobian (Task 4.2a). The registry previously audited
+#     only the e column; the differentiable-IC binary pipeline depends on the a and M0
+#     columns too. Same closed-form-ish map (fixed-iteration Newton Kepler solve + trig
+#     rotation), reduced by mean_radius over the single (3,) position (matching the e
+#     case). MEASURED, M_total=2.0, G=STELLAR.G explicit:
+#       to_state mean_radius @ a=1.5 : AD=9.163137e-1 vs FD=9.163137e-1 (|ratio-1|=2.4e-13)
+#       to_state mean_radius @ M0=1.0: AD=3.144025e-1 vs FD=3.144025e-1 (|ratio-1|=2.1e-9)
+#     Both machine-precision clean; tol=1e-5 (closed-form band). These replace the a and
+#     M0 parts of test_binary_physics.py::TestKeplerTransformGradients (the registry
+#     position channel is an equal/stronger FD replacement -- that test FD-checks d|v|^2/da
+#     and d|r|/dM0; the position-radius channel here is the cleaner near-degenerate signal).
+def _kepler_to_state_a(a):
+    el = KeplerElements(a=a, e=0.3, i=0.3, Omega=0.4, omega=0.5, M0=1.0)
+    return el.to_state(M_total=2.0, G=STELLAR.G).position
+
+
+def _kepler_to_state_M0(M0):
+    el = KeplerElements(a=1.0, e=0.3, i=0.3, Omega=0.4, omega=0.5, M0=M0)
+    return el.to_state(M_total=2.0, G=STELLAR.G).position
+
+
+# (a4) KeplerElements.from_state — the INVERSE map (state->elements), the
+#     angular-momentum / eccentricity-vector method in kepler_inverse. We build a
+#     concrete reference state from a known orbit, then audit how the recovered
+#     semi-major axis a moves as a velocity-magnitude scale s rescales the input
+#     velocity (scaling v rescales the orbital energy E=-GM/2a, so a moves smoothly).
+#     This is the exact transform/param test_binary_physics.py::
+#     TestKeplerTransformGradients::test_from_state_grad_wrt_velocity_scale FD-checks
+#     (d a / d(v-scale)); we reduce identity_sum over the recovered a. MEASURED at s=1.0,
+#     M_total=2.0, G=STELLAR.G: AD=2.365317e+0 vs FD=2.365317e+0 (|ratio-1|=8.0e-8) --
+#     clean; tol=1e-4 (the from_state vector-algebra band, matching the scattered test's
+#     rel<1e-4 tolerance).
+_KEPLER_FROM_STATE_BASE = KeplerElements(
+    a=1.0, e=0.3, i=0.4, M0=1.0).to_state(M_total=2.0, G=STELLAR.G)
+_KEPLER_R0 = _KEPLER_FROM_STATE_BASE.position
+_KEPLER_V0 = _KEPLER_FROM_STATE_BASE.velocity
+
+
+def _kepler_from_state_vscale(s):
+    return jnp.atleast_1d(
+        KeplerElements.from_state(_KEPLER_R0, s * _KEPLER_V0,
+                                  M_total=2.0, G=STELLAR.G).a
+    )
+
+
 # (b) resolve_binary_components — the binary->spatial connector. A SMALL fixed
 #     binary population (N=50, all is_binary=True, fixed COM pos/vel, fixed m1/m2,
 #     fixed angles) with ONE traced element: the semi-major axis a (broadcast from
@@ -879,6 +983,12 @@ REGISTRY: list[Case] = [
     Case(id="KingVelocityDF.sample_velocities", direction="params->IC",
          fn=_king_velocities_W0, param="W0", theta0=7.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
+    # King DF r_c channel (Task 4.2a): W0=7 concrete (ODE auto-sizes), vary r_c.
+    # AD=-1.906048e-1 vs FD=-1.906048e-1 (|ratio-1|=6.3e-9), machine-exact. tol=1e-3.
+    # Replaces test_df_gradients.py::TestKingDFGradients r_c part.
+    Case(id="KingVelocityDF.sample_velocities", direction="params->IC",
+         fn=_king_velocities_rc, param="r_c", theta0=1.0, reduce=mean_speed,
+         expect="consistent", tol=1e-3),
     # The King tidal radius r_t: now differentiable in W0 (Task 1.2b) via the
     # unclamped-psi linear-interp crossing in _find_tidal_radius. d r_t/dW0 ~ 48
     # at W0=8 (smooth, large; measured AD 47.999 vs FD 48.024); AD~FD to grid
@@ -900,6 +1010,13 @@ REGISTRY: list[Case] = [
     Case(id="MichieVelocityDF.sample_velocities", direction="params->IC",
          fn=_michie_velocities_W0, param="W0", theta0=7.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
+    # Michie density-OBSERVABLE channel in r_c (Task 4.2a): log rho(r=1.5) vs r_c.
+    # Fills the registry gap (had sample_positions(W0), not r_c, not a density obs).
+    # AD=2.209859e+0 vs FD=2.209859e+0 (|ratio-1|=1.3e-8), closed-form. tol=1e-5.
+    # Replaces the r_c part of test_michie_physics.py::test_grad_profile_observable.
+    Case(id="MichieProfile.density[log rho(r)]", direction="params->summary",
+         fn=_michie_log_density_rc, param="r_c", theta0=1.0, reduce=identity_sum,
+         expect="consistent", tol=1e-5),
     # --- EFF profile + Eddington DF (Task 1.3) ---
     # EFF positions: differentiable in the slope gamma (with a gamma=2.01 near-divergent
     # edge -- unguarded, samples cleanly) AND in the prescribed truncation radius r_t.
@@ -914,6 +1031,13 @@ REGISTRY: list[Case] = [
     # ~virial point; the gamma=3 default is documented ~8% sub-virial, not a hazard).
     Case(id="EFFVelocityDF.sample_velocities", direction="params->IC",
          fn=_eff_velocities_gamma, param="gamma", theta0=5.0, reduce=mean_speed,
+         expect="consistent", tol=1e-3),
+    # EFF DF scale-radius channel `a` (Task 4.2a): gamma=5 (virial point), r_t=10,
+    # vary a (flows through positions + Eddington-DF normalisation). AD=-3.160765e-1
+    # vs FD=-3.160774e-1 (|ratio-1|=2.8e-6), clean. tol=1e-3 (Eddington-table band).
+    # Replaces test_df_gradients.py::TestEFFDFGradients `a` part.
+    Case(id="EFFVelocityDF.sample_velocities", direction="params->IC",
+         fn=_eff_velocities_a, param="a", theta0=1.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
     # --- build_spatial_ic end-to-end (Task 1.4): the headline assembly path ---
     # profile x DF -> sample -> COM-center -> virial-scale to Q=0.5, all in r_h.
@@ -941,10 +1065,24 @@ REGISTRY: list[Case] = [
     # ChabrierIMF.ppf (Newton solver): differentiable in m_c, sigma, alpha.
     Case(id="ChabrierIMF.ppf", direction="params->IC",
          fn=_chabrier_ppf_mc, param="m_c", theta0=0.08, reduce=identity_sum,
-         expect="consistent", tol=1e-3,
-         # H6 boundary probe: u pinned to the m_min floor (Newton clamp suspect).
-         # MEASURED BENIGN (live gradient, ratio ~1) -> consistent, no hazard_id.
-         edges=(EdgeConfig("u->m_min[H6]", 0.08),)),
+         expect="consistent", tol=1e-3),
+    # H6 BOUNDARY probe (Task 4.2a fix): d(ppf)/d(m_c) with u pinned to the m_min floor
+    # (_H6_U=1e-12), the Newton clamp jnp.clip(m_new, m_min, m_max) (chabrier.py:371)
+    # suspect. This is now a STANDALONE Case using the dedicated _chabrier_ppf_mc_boundary
+    # closure -- the previous EdgeConfig("u->m_min[H6]", 0.08) was a NO-OP: the edge
+    # mechanism (core.py audit_entry_point) only overrides theta/tol/expect, it always
+    # calls case.fn, so the edge reused the baseline _chabrier_ppf_mc (full _U draw) at
+    # theta=0.08==theta0 and emitted a DUPLICATE row that never ran the boundary probe.
+    # MEASURED BENIGN: AD=9.343597e-11 vs FD=9.346690e-11 (|ratio-1|=3.3e-4) -- the
+    # gradient is LIVE and FD-consistent even at the m_min floor; the Newton clamp does
+    # NOT zero it. |AD|=9.34e-11 is genuinely tiny (the sample is pinned at the floor, so
+    # m_c barely moves it) but strictly non-zero and FD-matched -- the teeth are in the
+    # ratio, not the magnitude. We therefore set eps=1e-12 (below |AD|) so this live-but-
+    # tiny gradient classifies clean rather than tripping the eps=1e-9 silent-zero default
+    # (a blocked gradient would give |ratio-1|~1, not a near-perfect match). tol=1e-3.
+    Case(id="ChabrierIMF.ppf[H6 boundary]", direction="params->IC",
+         fn=_chabrier_ppf_mc_boundary, param="m_c", theta0=0.08, reduce=identity_sum,
+         expect="consistent", tol=1e-3, eps=1e-12),
     Case(id="ChabrierIMF.ppf", direction="params->IC",
          fn=_chabrier_ppf_sigma, param="sigma", theta0=0.69, reduce=identity_sum,
          expect="consistent", tol=1e-3),
@@ -969,6 +1107,14 @@ REGISTRY: list[Case] = [
     # MEASURED ratio 1.0000000 (AD/FD -13.321) -> BENIGN (clip inactive in-support).
     Case(id="PowerLawIMF.cdf[H4]", direction="params->IC",
          fn=_powerlaw_cdf_mmin, param="m_min", theta0=_PL_M_MIN, reduce=identity_sum,
+         expect="consistent", tol=1e-5),
+    # PowerLawIMF.ppf(m_min) (Task 4.2a): d(ppf)/d(m_min), the lower-support-edge column
+    # of the inverse-CDF Jacobian. Salpeter single-segment, fixed alpha=2.35 + fixed _U.
+    # AD=1.572808e+3 vs FD=1.572808e+3 (|ratio-1|=2.4e-9), closed-form. tol=1e-5.
+    # Replaces test_imf_gradients.py::test_powerlaw_ppf_grad_mmin (registry had
+    # cdf[H4](m_min) and ppf(alpha) but not ppf(m_min)).
+    Case(id="PowerLawIMF.ppf[m_min]", direction="params->IC",
+         fn=_powerlaw_ppf_mmin, param="m_min", theta0=_PL_M_MIN, reduce=identity_sum,
          expect="consistent", tol=1e-5),
     # --- params->summary mass-function channel ---
     # PowerLawIMF.mean_mass (analytic E[m]) in the single-segment slope alpha.
@@ -1064,6 +1210,24 @@ REGISTRY: list[Case] = [
          fn=_kepler_to_state_e, param="e", theta0=0.5, reduce=mean_radius,
          expect="consistent", tol=1e-5,
          edges=(EdgeConfig("e=0.999", 0.999),)),
+    # (a2) to_state a-column: AD=9.163137e-1 vs FD=9.163137e-1 (|ratio-1|=2.4e-13),
+    # machine-exact. tol=1e-5. Replaces test_binary_physics.py::
+    # TestKeplerTransformGradients::test_to_state_grad_wrt_a.
+    Case(id="KeplerElements.to_state", direction="params->IC",
+         fn=_kepler_to_state_a, param="a", theta0=1.5, reduce=mean_radius,
+         expect="consistent", tol=1e-5),
+    # (a3) to_state M0-column: AD=3.144025e-1 vs FD=3.144025e-1 (|ratio-1|=2.1e-9),
+    # machine-exact. tol=1e-5. Replaces test_to_state_grad_wrt_M0.
+    Case(id="KeplerElements.to_state", direction="params->IC",
+         fn=_kepler_to_state_M0, param="M0", theta0=1.0, reduce=mean_radius,
+         expect="consistent", tol=1e-5),
+    # (a4) from_state (state->elements inverse): d(recovered a)/d(v-scale).
+    # AD=2.365317e+0 vs FD=2.365317e+0 (|ratio-1|=8.0e-8), clean. tol=1e-4 (the
+    # from_state vector-algebra band, matching the scattered test's rel<1e-4).
+    # Replaces test_from_state_grad_wrt_velocity_scale.
+    Case(id="KeplerElements.from_state", direction="params->IC",
+         fn=_kepler_from_state_vscale, param="v_scale", theta0=1.0, reduce=identity_sum,
+         expect="consistent", tol=1e-4),
     # (b) resolve_binary_components — binary->spatial connector, vary a (N=50, all
     # binaries). Pure smooth orbital placement (sanitization inactive): AD=8.437447e-2
     # vs FD=8.437447e-2 (ratio 1.0000000008). tol=1e-5 (closed-form band).

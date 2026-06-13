@@ -112,6 +112,20 @@
     "status": "clean"
   },
   {
+    "id": "KingVelocityDF.sample_velocities",
+    "direction": "params->IC",
+    "param": "r_c",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.19060475196196613,
+    "fd": -0.19060475315357817,
+    "ratio": 0.9999999937482564,
+    "abs_ad": 0.19060475196196613,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
     "id": "KingProfile.r_t",
     "direction": "params->IC",
     "param": "W0",
@@ -168,6 +182,20 @@
     "status": "clean"
   },
   {
+    "id": "MichieProfile.density[log rho(r)]",
+    "direction": "params->summary",
+    "param": "r_c",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 2.2098590819084674,
+    "fd": 2.2098591103780763,
+    "ratio": 0.9999999871170028,
+    "abs_ad": 2.2098590819084674,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "EFFProfile.sample_positions",
     "direction": "params->IC",
     "param": "gamma",
@@ -219,6 +247,20 @@
     "fd": 0.11917094039826104,
     "ratio": 1.0000129823682076,
     "abs_ad": 0.11917248751928892,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "EFFVelocityDF.sample_velocities",
+    "direction": "params->IC",
+    "param": "a",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.31607647135362327,
+    "fd": -0.31607736493965977,
+    "ratio": 0.9999971728882369,
+    "abs_ad": 0.31607647135362327,
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
@@ -322,15 +364,15 @@
     "status": "clean"
   },
   {
-    "id": "ChabrierIMF.ppf",
+    "id": "ChabrierIMF.ppf[H6 boundary]",
     "direction": "params->IC",
     "param": "m_c",
     "theta": 0.08,
     "finite": true,
-    "ad": 1271.314258347055,
-    "fd": 1271.3146524532704,
-    "ratio": 0.9999996900010438,
-    "abs_ad": 1271.314258347055,
+    "ad": 9.343597334871843e-11,
+    "fd": 9.346690088563037e-11,
+    "ratio": 0.9996691070676477,
+    "abs_ad": 9.343597334871843e-11,
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
@@ -429,6 +471,20 @@
     "fd": -13.321038460666093,
     "ratio": 1.0000000378745428,
     "abs_ad": 13.321038965194337,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "PowerLawIMF.ppf[m_min]",
+    "direction": "params->IC",
+    "param": "m_min",
+    "theta": 0.1,
+    "finite": true,
+    "ad": 1572.808434477395,
+    "fd": 1572.8084382794805,
+    "ratio": 0.9999999975826137,
+    "abs_ad": 1572.808434477395,
     "expect": "consistent",
     "tol": 1e-05,
     "status": "clean"
@@ -655,6 +711,48 @@
     "abs_ad": 0.9995240266333603,
     "expect": "consistent",
     "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "KeplerElements.to_state",
+    "direction": "params->IC",
+    "param": "a",
+    "theta": 1.5,
+    "finite": true,
+    "ad": 0.9163137092954955,
+    "fd": 0.9163137092952726,
+    "ratio": 1.0000000000002434,
+    "abs_ad": 0.9163137092954955,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "KeplerElements.to_state",
+    "direction": "params->IC",
+    "param": "M0",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 0.314402491514981,
+    "fd": 0.3144024908480203,
+    "ratio": 1.0000000021213595,
+    "abs_ad": 0.314402491514981,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "KeplerElements.from_state",
+    "direction": "params->IC",
+    "param": "v_scale",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 2.3653172046016695,
+    "fd": 2.365317392881705,
+    "ratio": 0.999999920399674,
+    "abs_ad": 2.3653172046016695,
+    "expect": "consistent",
+    "tol": 0.0001,
     "status": "clean"
   },
   {
