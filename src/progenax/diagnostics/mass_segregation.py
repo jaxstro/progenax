@@ -13,11 +13,28 @@ References:
     Allison et al. (2009), MNRAS 395, 1449
 """
 
+from __future__ import annotations
+
 from typing import Tuple
 
-import numpy as np
-from scipy.sparse.csgraph import minimum_spanning_tree
-from scipy.spatial.distance import pdist, squareform
+
+def _diagnostics_deps():
+    """Lazy numpy+scipy import for the exact (non-differentiable) mass-segregation
+    path. progenax core is JAX-native; numpy/scipy are only needed by these
+    scipy-backed estimators, so they are an OPTIONAL ``[diagnostics]`` extra
+    (audit R9). ``import progenax.diagnostics`` stays cheap; calling these
+    functions without the extra raises an actionable ImportError."""
+    try:
+        import numpy as np
+        from scipy.sparse.csgraph import minimum_spanning_tree
+        from scipy.spatial.distance import pdist, squareform
+    except ImportError as e:
+        raise ImportError(
+            "progenax.diagnostics.compute_lambda_msr needs numpy+scipy — the "
+            "exact, non-differentiable diagnostics path. Install them with: "
+            "uv pip install 'progenax[diagnostics]'"
+        ) from e
+    return np, minimum_spanning_tree, pdist, squareform
 
 
 def compute_lambda_msr(
@@ -78,6 +95,7 @@ def compute_lambda_msr(
         Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
             Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
     """
+    np, minimum_spanning_tree, pdist, squareform = _diagnostics_deps()
     rng = np.random.default_rng(seed)
     N = len(masses)
 
@@ -122,6 +140,8 @@ def _compute_mst_length(positions: np.ndarray) -> float:
     """
     if len(positions) < 2:
         return 0.0
+
+    _, minimum_spanning_tree, pdist, squareform = _diagnostics_deps()
 
     # Compute pairwise distance matrix
     dist_matrix = squareform(pdist(positions))

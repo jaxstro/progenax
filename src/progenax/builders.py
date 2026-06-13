@@ -21,7 +21,11 @@ from .protocols import SpatialProfile, VelocityDF
 # Single canonical energy implementation lives in dynamics.virial; re-export it
 # here so the public API (progenax.compute_*_energy) and virial_scale share one
 # gradient-safe source of truth (Batch 0, F1+F2).
-from .dynamics.virial import compute_kinetic_energy, compute_potential_energy
+from .dynamics.virial import (
+    compute_kinetic_energy,
+    compute_potential_energy,
+    rescale_velocities_to_virial,
+)
 from .binaries import resolve_binary_components
 
 # Seconds in one (SI) day — exact; used to convert sampled periods (days) into the
@@ -154,14 +158,30 @@ class ICResult(eqx.Module):
 
 def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     """
-    Estimate stellar radii from mass (main-sequence + brown dwarfs).
+    Main-sequence stellar radii from mass, in SOLAR RADII.
 
-    Returns radii in SOLAR RADII (R☉).
+    Demircan & Kahraman (1991), Ap&SS 181, 313 (their Eqs. 5-6):
+        R/Rsun = 1.06 (M/Msun)^0.945   for 0.08 <= M < 1.66 Msun
+        R/Rsun = 1.33 (M/Msun)^0.555   for M >= 1.66 Msun
+    Brown dwarfs (M < 0.08): R ~ 0.1 Rsun plateau (electron degeneracy),
+    R = 0.1 (M/0.08)^0.08. The D&K branches meet at 1.66 Msun with their
+    own ~3.5% fit discontinuity; the low-mass branch meets the BD plateau
+    nearly continuously (1.06 * 0.08^0.945 = 0.0975).
 
-    R/R☉ relations (3 regimes):
-    - M > 1 M☉: R ∝ M^0.8 (massive stars)
-    - 0.08 ≤ M ≤ 1 M☉: R ∝ M^0.57 (low-mass main sequence)
-    - M < 0.08 M☉: R ∝ M^0.08 (brown dwarfs, ~0.1 R☉)
+    Audit R6: the previous exponents were INVERTED vs MS homology (M^0.8
+    above 1 Msun instead of below), giving 10 Msun -> 6.3 Rsun (ZAMS ~4.8)
+    and 0.2 Msun -> 0.40 Rsun (observed ~0.23), with a factor-2.4 jump at
+    the hydrogen-burning limit.
+
+    Used for collision radii in downstream N-body; ZAMS values, no evolution.
+
+    .. note::
+       TEMPORARY single-relation stand-in. This will be REPLACED by the
+       ``startrax`` package once it lands: first Tout et al. (1996) ZAMS radii
+       (metallicity-dependent rational-polynomial fits), then MIST and the
+       Hurley+2000 SSE tracks (mass- AND age-dependent radii with real stellar
+       evolution). The D&K91 fit here is a static main-sequence approximation
+       chosen only to be cited and correct in the ZAMS limit until then.
 
     Args:
         masses: Particle masses (N,) [M☉]
@@ -171,17 +191,17 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     """
 
     def radius_high_mass(m):
-        return jnp.power(m, 0.8)
+        return 1.33 * jnp.power(m, 0.555)
 
     def radius_low_mass(m):
-        return jnp.power(m, 0.57)
+        return 1.06 * jnp.power(m, 0.945)
 
     def radius_brown_dwarf(m):
         return 0.1 * jnp.power(m / 0.08, 0.08)
 
-    radii = jax.vmap(
+    return jax.vmap(
         lambda m: jax.lax.cond(
-            m > 1.0,
+            m >= 1.66,
             radius_high_mass,
             lambda mv: jax.lax.cond(
                 mv >= 0.08, radius_low_mass, radius_brown_dwarf, mv
@@ -189,8 +209,6 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
             m,
         )
     )(masses)
-
-    return radii
 
 
 def to_com_frame(
@@ -245,18 +263,18 @@ def virial_scale(
     Returns:
         Scaled velocities
 
+    Cold input (T=0) raises for concrete inputs / yields NaN under tracing —
+    see the delegate's docstring.
+
     References:
         Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
         Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
     """
-    T = compute_kinetic_energy(velocities, masses)
-    V = compute_potential_energy(positions, masses, G=G, softening=softening)
-
-    # Q = T / |V| (NOT 2T / |V|)
-    Q_current = T / jnp.abs(V)
-    scale = jnp.sqrt(Q_target / Q_current)
-
-    return velocities * scale
+    # Single implementation lives in dynamics.virial (audit J5 dedupe); this is
+    # the builders-level convenience signature (Q_target before G).
+    return rescale_velocities_to_virial(
+        positions, velocities, masses, G=G, target_Q=Q_target, softening=softening
+    )
 
 
 def build_spatial_ic(

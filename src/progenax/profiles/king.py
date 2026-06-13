@@ -26,13 +26,24 @@ Notes:
 """
 
 import math
+import warnings
 from typing import Tuple
 
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, Bool, Float, PRNGKeyArray
+
+
+def _is_concrete(x) -> bool:
+    """True iff x is a concrete value (codebase idiom; cf. _auto_ode_domain)."""
+    try:
+        float(x)
+        return True
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
+            TypeError):
+        return False
 
 
 # ==============================================================================
@@ -328,6 +339,9 @@ class KingProfile(eqx.Module):
     psi_grid: Float[Array, "n_points"]
     _r_grid: Float[Array, "n_grid"]
     _cdf_grid: Float[Array, "n_grid"]
+    # Diagnostic (audit J4): True iff psi never crossed 0 within the ODE domain,
+    # so r_t was pinned to the grid boundary (a wrong tidal radius). Traced bool.
+    r_t_is_pinned: Bool[Array, ""]
 
     def __init__(
         self,
@@ -355,8 +369,13 @@ class KingProfile(eqx.Module):
         xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
 
-        # Build radial grid for CDF
-        r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
+        # Build radial grid for CDF — sqrt-stretched (r = r_t * u^2): spacing
+        # dr ∝ sqrt(r) concentrates points in the core. A LINEAR grid leaves
+        # <10 points inside the core at W0 >= 9 (xi_t grows super-exponentially:
+        # 131 r_c at W0=9, 548 at W0=12), giving +18%..+270% core-mass errors
+        # (audit R4, measured). Smooth in r_t -> differentiable in W0/r_c.
+        u_grid = jnp.linspace(0.0, 1.0, n_grid)
+        r_grid = r_t_arr * u_grid**2
         xi_grid_local = r_grid / r_c_arr
 
         # Compute density on grid via interpolation of ODE solution
@@ -383,16 +402,40 @@ class KingProfile(eqx.Module):
         # Integrand: 4*pi*r^2*rho(r)
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
 
-        # Cumulative mass via the trapezoid rule (2nd-order); a 1st-order Riemann
-        # sum would bias the sampled radial distribution.
-        dr = r_grid[1] - r_grid[0]
+        # Cumulative mass via the NON-UNIFORM trapezoid rule (2nd-order): the
+        # sqrt-stretched grid has variable spacing, so the per-interval width
+        # diff(r_grid) must weight each trapezoid (a single dr would mis-integrate).
         M_cum = jnp.concatenate([
             jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
         ])
 
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
+
+        # r_t pinning diagnostic (audit J4): if psi(xi) never reaches 0 within
+        # the solved domain there is no crossing, so _find_tidal_radius fell back
+        # to xi_grid[-1] (the boundary) — a wrong tidal radius. Traced bool.
+        r_t_is_pinned = jnp.logical_not(jnp.any(psi_grid_arr <= 0.0))
+
+        # r_t consistency (audit S1): the direct constructor accepts an arbitrary
+        # r_t. For concrete, non-pinned inputs, warn if r_t deviates from the
+        # c(W0) tidal radius r_c*xi_t by >5% — a non-self-consistent, non-
+        # equilibrium model. from_W0_rc derives r_t, so it never trips this.
+        if (_is_concrete(r_t_arr) and _is_concrete(W0_arr)
+                and not bool(r_t_is_pinned)):
+            xi_t = _find_tidal_radius(xi_grid_arr, psi_grid_arr)
+            r_t_consistent = float(r_c_arr * xi_t)
+            if abs(float(r_t_arr) - r_t_consistent) > 0.05 * r_t_consistent:
+                warnings.warn(
+                    f"KingProfile r_t={float(r_t_arr):.4g} is inconsistent with the "
+                    f"c(W0={float(W0_arr):.2f}) tidal radius r_c*xi_t="
+                    f"{r_t_consistent:.4g} (>5% deviation): this builds a NON-self-"
+                    f"consistent, non-equilibrium King model. Use "
+                    f"KingProfile.from_W0_rc(W0, r_c) to derive a consistent r_t.",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         # Store using object.__setattr__ (future-proof Equinox pattern)
         object.__setattr__(self, "W0", W0_arr)
@@ -402,6 +445,7 @@ class KingProfile(eqx.Module):
         object.__setattr__(self, "psi_grid", psi_grid_arr)
         object.__setattr__(self, "_r_grid", r_grid)
         object.__setattr__(self, "_cdf_grid", cdf_grid)
+        object.__setattr__(self, "r_t_is_pinned", r_t_is_pinned)
 
     @classmethod
     def from_W0_rc(
@@ -444,7 +488,7 @@ class KingProfile(eqx.Module):
         xi_grid, psi_grid = solve_king_profile(W0, xi_max=xi_max, n_points=n_ode_points)
         xi_t = _find_tidal_radius(xi_grid, psi_grid)
         r_t = r_c * xi_t
-        return cls(
+        prof = cls(
             W0=W0,
             r_c=r_c,
             r_t=r_t,
@@ -452,6 +496,19 @@ class KingProfile(eqx.Module):
             psi_grid=psi_grid,
             n_grid=n_grid,
         )
+        # Eager refusal (audit J4): for CONCRETE W0 a pinned r_t is a silent
+        # wrong answer — raise loudly. Under tracing the flag cannot be tested
+        # (traced bool), so the diagnostic prof.r_t_is_pinned is the only signal
+        # (mirrors the Engine-B concrete/traced guard, eddington_engine.py).
+        if _is_concrete(prof.r_t_is_pinned) and bool(prof.r_t_is_pinned):
+            raise ValueError(
+                f"King ODE domain too small: psi(xi) never reached 0 within "
+                f"xi_max={float(xi_max):.1f} for W0={float(W0):.2f}, so r_t is "
+                f"PINNED to the grid boundary (a wrong tidal radius). Increase "
+                f"xi_max (and n_ode_points), or omit them to auto-size. For "
+                f"traced/jit W0 pass an explicit xi_max sized for the largest W0."
+            )
+        return prof
 
     def sample_positions(
         self,

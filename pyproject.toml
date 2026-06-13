@@ -8,6 +8,19 @@ version = "0.1.0"
 description = "Differentiable initial conditions for N-body simulations"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Anna Rosen", email = "alrosen@sdsu.edu" }]
+keywords = ["astronomy", "n-body", "initial-conditions", "jax", "star-clusters", "differentiable"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
 dependencies = [
     "jax>=0.4.20",
     "jaxlib>=0.4.20",
@@ -17,33 +30,46 @@ dependencies = [
     "jaxstro",
 ]
 
+[project.urls]
+Repository = "https://github.com/jaxstro/progenax"
+
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0"]
+# Exact (non-differentiable) CW04 Q / Lambda_MSR diagnostics path. progenax core
+# is JAX-native; numpy+scipy are needed ONLY by progenax.diagnostics' scipy-backed
+# estimators (compute_q_parameter, compute_lambda_msr), which import them lazily
+# and raise an actionable error if this extra is missing (audit R9).
+diagnostics = ["numpy>=1.24", "scipy>=1.11"]
 # Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
 # Differentiable-inference deps. blackjax 1.x `window_adaptation`/`nuts` API per
 # inference/hmc.py (verified against 1.5); arviz for HMC convergence diagnostics
 # (R-hat/ESS/divergences/BFMI, inference/diagnostics.py); scipy for the SBC rank-histogram
-# chi^2 uniformity test (validation oracle side); jaxstroviz for the reusable validation
-# figure gallery + the integer-aware SBC chi^2 helpers (AC18). All CPU-only, validation side.
+# chi^2 uniformity test (validation oracle side). All CPU-only, validation side.
+#
+# NOTE (audit R1/D2): jaxstroviz is deliberately NOT declared here. It is a PRIVATE,
+# unpublished sibling, and pinning its editable path in the lock made `uv lock --check`
+# / `uv sync --locked` fail in CI (and would break any non-sibling install) because the
+# lock graph then requires a repo the default GITHUB_TOKEN cannot check out. The only
+# code that needs it is the experimental SBC figure gallery + integer-aware chi^2 helpers
+# (AC18), which already `pytest.importorskip("jaxstroviz")` and are xfail. To use the
+# figure gallery locally, install it editable from the sibling checkout:
+#     uv pip install -e ../jaxstroviz
+# A nightly/release lane may check it out with a PAT and install it the same way.
 experimental = [
     "blackjax>=1.2,<2",
     "optax>=0.2",
     "arviz>=0.18",
     "scipy>=1.11",
-    "jaxstroviz",
     "flowjax>=17",  # conditional normalizing flow for the SBI/NPE low-N beta likelihood (Path C)
     # "numpyro>=0.13",  # reserved for the hierarchical population model (Decision #7)
 ]
 
-# jaxstro and jaxstroviz are sibling ecosystem packages (not published to PyPI). Resolve
-# them from the standard side-by-side checkout so `uv lock` / `uv sync --locked` work.
-# CI checks the siblings out as adjacent directories (see .github/workflows/tests.yml).
-# jaxstroviz is the shared viz/validation package: progenax's validation scripts + figures
-# live here and call it (like jaxstro for core utilities); it stays validation-side only
-# (released progenax core never imports it; the experimental figure orchestrator import-guards).
+# jaxstro is the only sibling ecosystem package in the lock graph. It is PUBLIC
+# (github.com/jaxstro/jaxstro), so CI checks it out as an adjacent directory and
+# `uv lock` / `uv sync --locked` resolve with no private-repo credentials.
+# (jaxstroviz is intentionally absent — see the [experimental] note above.)
 [tool.uv.sources]
 jaxstro = { path = "../jaxstro", editable = true }
-jaxstroviz = { path = "../jaxstroviz", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/progenax"]

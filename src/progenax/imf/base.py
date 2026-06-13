@@ -235,12 +235,35 @@ class BaseIMF(eqx.Module):
         max_steps: int = 50,
     ) -> Float[Array, "n"]:
         """
-        Fixed-N mode: exactly n masses summing to m_total via quantile stretching.
+        Fixed-N mode: n masses whose total APPROXIMATES m_total via quantile
+        stretching (the realized total carries the residual of the final random
+        jitter — it is not exact).
 
-        Uses stratified quantile sampling with stretching factor q* solved to
-        hit target total mass. Differentiable w.r.t. m_total.
+        Uses stratified quantile sampling with a stretch factor q* (<= 1) solved
+        to hit the target total mass. Because the stretch is one-sided (q* <= 1)
+        AND stratification truncates the heavy tail, the achievable total is
+        capped at sum(ppf((i+0.5)/n)) — a ceiling that sits a few percent BELOW
+        n*E[m]. A target ABOVE that ceiling is UNREACHABLE: eager (concrete)
+        inputs now raise ValueError instead of silently undershooting (audit R5:
+        target 500 Msun, n=1000 used to return ~349 Msun with no warning). Traced
+        m_total cannot be checked under jit/grad — the caller owns reachability.
+        Differentiable w.r.t. m_total.
         """
         u_base = (jnp.arange(n) + 0.5) / n
+
+        # Reachability guard (eager inputs only). The one-sided stretch caps the
+        # total at sum(ppf(u_base)); a target above it silently undershot before.
+        try:
+            m_ceiling = float(jnp.sum(self.ppf(u_base)))
+            if float(m_total) > m_ceiling:
+                raise ValueError(
+                    f"m_total={float(m_total):.6g} Msun is unreachable for n={n}: "
+                    f"the stratified-quantile ceiling is {m_ceiling:.6g} Msun. "
+                    f"Increase n, lower m_total, or use sample_m_total()."
+                )
+        except (jax.errors.ConcretizationTypeError,
+                jax.errors.TracerArrayConversionError):
+            pass  # traced m_total / params: caller owns reachability
 
         q_star = self._solve_q_for_m_total(u_base, m_total, max_steps)
 

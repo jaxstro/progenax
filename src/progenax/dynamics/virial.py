@@ -196,9 +196,16 @@ def per_group_virial_ratio(
     for ``1/r`` gravity, a single all-ones group reproduces the global virial ratio
     exactly (``W = V``), and the per-group ``W_j`` partition the global virial.
 
-    Positions enter only through differences (origin-independent); velocities are
-    measured relative to the mass-weighted mean (bulk motion removed) so a moving COM
-    does not inflate ``T_j``.
+    Velocities are measured relative to the mass-weighted mean (bulk motion removed)
+    so a moving COM does not inflate ``T_j``.
+
+    .. warning::
+       Per-group ``W_j = sum_{i in j} m_i r_i . a_i`` is ORIGIN-DEPENDENT for a
+       proper subgroup: under r -> r + d it shifts by ``d . sum_{i in j} m_i a_i``,
+       which is nonzero because a subgroup feels a net force from the rest of the
+       cluster (only the GLOBAL sum is origin-independent, ``sum_all m_i a_i = 0``).
+       Callers must therefore pass positions PRE-CENTERED on the cluster COM (all
+       in-tree callers do); an off-center origin biases the per-group Q_j (audit S16).
 
     Args:
         positions: Particle positions, shape (N, 3).
@@ -226,6 +233,16 @@ def per_group_virial_ratio(
     return T_j / (jnp.abs(W_j) + 1e-30)
 
 
+def _is_concrete(x) -> bool:
+    """True iff x is a concrete value (codebase idiom; cf. king.py auto-sizing)."""
+    try:
+        float(x)
+        return True
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
+            TypeError):
+        return False
+
+
 def rescale_velocities_to_virial(
     positions: Float[Array, "N 3"],
     velocities: Float[Array, "N 3"],
@@ -235,6 +252,14 @@ def rescale_velocities_to_virial(
     softening: float = 0.0,
 ) -> Float[Array, "N 3"]:
     """Rescale velocities to achieve target virial ratio Q = T/|V|.
+
+    This is the single implementation of virial velocity rescaling;
+    ``builders.virial_scale`` delegates here (audit J5 dedupe).
+
+    Cold input (T=0 -> Q_current=0) makes the rescale undefined (0/0). A
+    CONCRETE T=0 refuses loudly (ValueError); a TRACED T=0 yields NaN — the
+    honest sentinel, since a traced scalar cannot gate a Python raise (audit J5;
+    the previous +1e-10 hack silently mapped cold input to ~0 velocities).
 
     Args:
         positions: Particle positions, shape (N, 3)
@@ -248,5 +273,13 @@ def rescale_velocities_to_virial(
         Rescaled velocities with Q = target_Q
     """
     Q_current = compute_virial_ratio(positions, velocities, masses, G=G, softening=softening)
-    scale = jnp.sqrt(target_Q / (Q_current + 1e-10))
+    if _is_concrete(Q_current) and float(Q_current) <= 0.0:
+        raise ValueError(
+            "cannot rescale from zero kinetic energy (T=0): velocities are all "
+            "zero, so the virial ratio is undefined. Provide non-zero velocities "
+            "(e.g. sample from a velocity DF) before virial scaling."
+        )
+    # double-where keeps the untaken (Q<=0) branch finite; traced T=0 -> NaN.
+    Q_safe = jnp.where(Q_current > 0.0, Q_current, 1.0)
+    scale = jnp.where(Q_current > 0.0, jnp.sqrt(target_Q / Q_safe), jnp.nan)
     return velocities * scale

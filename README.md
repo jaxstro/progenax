@@ -2,11 +2,21 @@
 
 Differentiable initial conditions for N-body simulations in JAX.
 
-Part of the **jaxstro ecosystem** - providing IC generation that can be differentiated through for gradient-based inference.
+Part of the **jaxstro ecosystem** — providing IC generation that can be differentiated through for gradient-based inference.
 
 ## Status
 
-**Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) + gravoturbulent-FDF clean-room rewrite complete**: 14,731 LOC released-core source code, 965 tests passing (released-core 815: unit 653, integration 34, validation 128). King & EFF velocity DFs are true equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized — `build_binary_cluster` composes `primary_imf × companion_model × target` (Systems / Stars / TotalMass budgets), with the faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`) and energy-budget diagnostics. The gravoturbulent + fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only `gravoturb_fdf` package** (1,400 LOC, 150 tests; `src/experimental/`, **not** in the released wheel).
+**Research software, release-candidate core.** King, Michie, EFF, and multi-component
+(LIMEPY / density-defined Eddington) velocity DFs are true equilibria (lowered-Maxwellian /
+Eddington inversion, no external virial rescale). The binary-population engine is finalized —
+`build_binary_cluster` composes `primary_imf × companion_model × target` with the faithful
+Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`). The gravoturbulent + fractal-
+density-field subsystem lives in the **experimental, repo-only `gravoturb_fdf` package**
+(`src/experimental/`, **not** shipped in the wheel). For current test/LOC counts see CI and
+`tests/README.md` (counts are not duplicated here to avoid drift).
+
+> **Not on PyPI yet.** progenax depends on the sibling package `jaxstro` (also unpublished),
+> resolved from a side-by-side checkout. See [Installation](#installation).
 
 ## Features
 
@@ -14,9 +24,12 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 
 | Profile | Class | Description | Reference |
 |---------|-------|-------------|-----------|
-| **Plummer** | `PlummerProfile` | Plummer (1911) sphere ρ ∝ (1 + r²/a²)^(-5/2) | Plummer (1911) |
+| **Plummer** | `PlummerProfile` | Plummer (1911) sphere ρ ∝ (1 + r²/a²)^(−5/2) | Plummer (1911) |
 | **King** | `KingProfile` | King (1966) lowered isothermal model | King (1966) |
-| **EFF** | `EFFProfile` | Elson-Fall-Freeman (1987) truncated power law | EFF (1987) |
+| **Michie** | `MichieProfile` | Anisotropic King (Michie 1963 + King 1966 cutoff) | Michie (1963) |
+| **EFF** | `EFFProfile` | Elson–Fall–Freeman (1987) truncated power law | EFF (1987) |
+| **LIMEPY** | `LIMEPYProfile` | Lowered-isothermal multi-mass family (single- or multi-component) | Gieles & Zocchi (2015) |
+| **Uniform sphere** | `UniformSphereProfile` | Uniform-density ball (baselines/tests) | — |
 | **King ODE** | `solve_king_profile()` | Numerical King profile via Diffrax | King (1966) |
 
 ### Velocity Distribution Functions
@@ -24,16 +37,27 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | DF | Class | Method | Notes |
 |----|-------|--------|-------|
 | **Plummer DF** | `PlummerVelocityDF` | Beta(3/2, 9/2) sampling | Exact, no rejection |
-| **King DF** | `KingVelocityDF` | Lowered-Maxwellian f(E) ∝ e^{E/σ²}−1, σ self-consistent | True equilibrium (Q≈0.5 unscaled) |
-| **EFF DF** | `EFFVelocityDF` | Isotropic Eddington inversion f(E) from ρ(Ψ) | True equilibrium (Q≈0.5 unscaled) |
+| **King DF** | `KingVelocityDF` | Lowered-Maxwellian f(E), σ self-consistent | True equilibrium (Q≈0.5 unscaled) |
+| **Michie DF** | `MichieVelocityDF` | Self-consistent anisotropic King | True equilibrium; pairs with `MichieProfile` |
+| **EFF DF** | `EFFVelocityDF` | Isotropic Eddington inversion f(E) from ρ(Ψ) | γ=3 default ~8% sub-virial (documented); γ≥5 ~equilibrium |
+| **LIMEPY DF** | `LIMEPYVelocityDF` | Lowered-isothermal f(E) (multi-mass) | Parity vs canonical LIMEPY code |
 
-**Velocity Transforms:**
+`PlummerVelocityDF` and `EFFVelocityDF` take an optional `anisotropy_radius` (Osipkov–Merritt
+radial anisotropy, β(r) = r²/(r²+r_a²)). Rotation overlays: `apply_solid_body_rotation()`,
+`apply_differential_rotation()` (kinematic overlays — they inject energy/L_z and are NOT
+stationary equilibria).
 
-| Transform | Function | Description |
-|-----------|----------|-------------|
-| **Osipkov-Merritt** | `apply_osipkov_merritt()` | Radial anisotropy β(r) = r²/(r²+r_a²) |
-| **Solid Body Rotation** | `apply_solid_body_rotation()` | v_rot = ω × r |
-| **Differential Rotation** | `apply_differential_rotation()` | Peaked rotation curve |
+### Multi-component clusters
+
+`MultiComponentCluster` builds a self-consistent multi-component equilibrium in a shared
+potential (replaces the deleted `TwoComponentConfig`/`generate_two_component_cluster`):
+
+| Constructor | Engine | Description |
+|-------------|--------|-------------|
+| `from_components()` | A | GZ15 multi-mass LIMEPY (one ψ ODE, Σ_j α_j ρ̂_j) |
+| `from_imf()` | A | components binned from an IMF |
+| `from_mass_segregation()` | A | primordial mass segregation |
+| `from_density_profiles()` | B | prescribed Plummer/EFF/King densities → shared-Ψ Eddington/OM DFs |
 
 ### Initial Mass Functions
 
@@ -43,10 +67,13 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 | **Kroupa** | `PowerLawIMF.kroupa()` | 3-segment Kroupa (2001) | Kroupa (2001) |
 | **Maschberger** | `Maschberger` | Smooth transitions | Maschberger (2013) |
 | **Chabrier** | `ChabrierIMF` | Log-normal + power law | Chabrier (2003) |
-| **Truncated** | `TruncatedIMF` | Mass limits wrapper | - |
+| **Truncated** | `TruncatedIMF` | Mass-limit wrapper | — |
 | **Binary** | `BinaryIMF` | Primary IMF + mass-dependent companions (q, f_b) | Moe & Di Stefano (2017) |
-| **IGIMF** | `IGIMF` | Integrated galactic IMF | Weidner+ (2013) |
-| **Environment** | `EnvironmentIMF` | Metallicity/SFR dependent | Jeans mass theory |
+
+The **environment-dependent stellar IMF** (top-heavy α₃ from cluster density/metallicity) is
+the functional `BirthEnvironment` + `env_to_imf_params()` API (Marks+2012 Fundamental Plane /
+Jeřábková+2018 relations) — **not** a galaxy-wide IGIMF integration, and not an
+`IGIMF`/`EnvironmentIMF` class.
 
 ### Binary Orbital Mechanics
 
@@ -54,384 +81,264 @@ Part of the **jaxstro ecosystem** - providing IC generation that can be differen
 |-----------|----------------|-------------|
 | **Keplerian Elements** | `KeplerElements` | (a, e, i, Ω, ω, M₀) + masses |
 | **Orbital State** | `BinaryOrbitalState` | 6D position/velocity + masses |
-| **Period Calculation** | `compute_period()` | T = 2π√(a³/GM) |
+| **Period** | `compute_period()` | T = 2π√(a³/GM) |
 | **Inverse Period** | `period_to_semimajor_axis()` | a from T and M |
-| **Batch Conversion** | `batch_elements_to_resolved()` | Vectorized element → state |
 
-**Period Distributions:**
+**Period distributions:** `LogUniformPeriod` (Öpik), `LogNormalPeriod` (Duquennoy & Mayor 1991),
+`SanaOBPeriod` (Sana+ 2012), `MoePeriod` (Moe & Di Stefano 2017).
+**Eccentricity distributions:** `ThermalEccentricity` (f(e)=2e), `UniformEccentricity`,
+`MoeEccentricity` (p(e) ∝ e^η + Roche cap).
 
-| Distribution | Class | Description |
-|--------------|-------|-------------|
-| Log-Uniform | `LogUniformPeriod` | Öpik's law |
-| Log-Normal | `LogNormalPeriod` | Duquennoy & Mayor (1991) |
-| Sana O/B | `SanaOBPeriod` | O-star periods (Sana+ 2012) |
-
-**Eccentricity Distributions:**
-
-| Distribution | Class | Description |
-|--------------|-------|-------------|
-| Thermal | `ThermalEccentricity` | f(e) = 2e (Heggie 1975) |
-| Uniform | `UniformEccentricity` | f(e) = 1 |
-| Moe+2017 | `MoeEccentricity` | p(e) ∝ e^η(logP, M₁) + Roche cap (Moe & Di Stefano 2017) |
-| Logistic-thermal | `LogisticThermalEccentricity` | Circular→thermal heuristic (Duquennoy & Mayor 1991) |
-
-**Binary-cluster composition** (`build_binary_cluster`): composes a primary IMF with a
-`CompanionModel` and a population-size budget.
-
-| Component | Class | Description |
-|-----------|-------|-------------|
-| Budget | `Systems` / `Stars` / `TotalMass` | fix #systems (companions not counted) / #stars / total mass |
-| Companions (versatile) | `IndependentCompanions` | independent f_b × q × P × e marginals |
-| Companions (faithful) | `MoeCompanions` | Moe+2017 joint P–q–e; same q sets m₂ (self-consistent) |
-| Connector | `resolve_binary_components()` | binary COMs → 2N components (COM-preserving) |
-
-**Binary diagnostics:** `find_bound_pairs()`, `find_bound_multiples()`,
-`primordial_survival()`, and `binary_energy_budget()` (separates the cluster COM virial
-from the internal binary binding-energy reservoir).
+**Binary-cluster composition** (`build_binary_cluster`): a primary IMF × a `CompanionModel`
+(`IndependentCompanions` or the faithful `MoeCompanions`) × a population budget
+(`Systems` / `Stars` / `TotalMass`). Connector `resolve_binary_components()` maps binary COMs
+to 2N components. Diagnostics: `find_bound_pairs()`, `find_bound_multiples()`,
+`primordial_survival()`, `binary_energy_budget()`.
 
 ### Analytical Test Cases
 
-| System | Function | Description |
-|--------|----------|-------------|
-| **Kepler Orbit** | `two_body_kepler()` | Circular/eccentric two-body |
-| **Figure-8** | `three_body_figure_eight()` | Moore (2001) periodic solution |
-| **Earth-Sun** | `earth_sun_2body()` | JPL ephemerides |
-| **Solar System** | `solar_system_inner_4()` | Sun + inner 4 planets |
-| **Full Solar System** | `solar_system_full()` | Sun + 8 planets |
-| **Harmonic Oscillator** | `harmonic_oscillator()` | 1D/2D SHO |
+`two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`,
+`solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`.
 
 ### Utilities
 
-| Category | Functions |
-|----------|-----------|
-| **IC Builder** | `build_spatial_ic()`, `ICResult` |
-| **Energetics** | `compute_kinetic_energy()`, `compute_potential_energy()` |
-| **Transforms** | `to_com_frame()`, `virial_scale()` |
-| **Stellar Radii** | `compute_stellar_radii()` (3-regime M-R relation) |
-| **Tidal Physics** | `jacobi_radius()`, `jacobi_radius_isothermal()`, `apply_tidal_truncation()` |
-| **Substructure diagnostic** | `compute_q_parameter()` (CW04 Q), `q_approx` (differentiable kNN) |
-| **Two-Component** | `TwoComponentConfig`, `generate_two_component_cluster()` |
-| **Mass Segregation** | `energy_sorted_segregation()` |
+`build_spatial_ic()` / `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`,
+`to_com_frame()`, `virial_scale()`, `compute_stellar_radii()` (Demircan & Kahraman 1991 M–R),
+`jacobi_radius()` / `apply_tidal_truncation()`, `energy_sorted_segregation()`,
+substructure diagnostics `compute_q_parameter()` (CW04 Q) and `q_approx` (differentiable kNN;
+needs the `[diagnostics]` extra for the exact scipy path).
 
 ## Installation
 
-```bash
-conda activate astro
-pip install -e ".[dev]"
-```
-
-Or with UV (faster):
+progenax is **not on PyPI**; it (and its sibling `jaxstro`) resolve from a standard
+side-by-side checkout. Use **uv** (preferred):
 
 ```bash
+# Clone progenax and its public sibling jaxstro next to each other
+git clone https://github.com/jaxstro/jaxstro.git
+git clone https://github.com/jaxstro/progenax.git
+cd progenax
+
+# Install the released core + dev tools (uses the project .venv)
 uv pip install -e ".[dev]"
 ```
 
+Optional extras: `[experimental]` (the repo-only `gravoturb_fdf` inference layer — blackjax,
+optax, …), `[diagnostics]` (numpy + scipy, for the exact non-differentiable CW04 Q path).
+
 ## Quick Start
 
-### Plummer Sphere IC
+### Plummer sphere IC
 
 ```python
 import jax
 import jax.numpy as jnp
 from jaxstro.units import STELLAR
-from progenax.profiles import PlummerProfile
-from progenax.kinematics import PlummerVelocityDF
+from progenax import PlummerProfile, PlummerVelocityDF
 
-# Create profile and velocity DF
-profile = PlummerProfile(r_h=1.0)  # Half-mass radius = 1 pc
+profile = PlummerProfile(r_h=1.0)        # half-mass radius = 1 pc
 velocity_df = PlummerVelocityDF(r_h=1.0)
 
-# Sample positions and velocities
 N = 1000
-masses = jnp.ones(N)  # 1000 Msun total
-key = jax.random.PRNGKey(42)
-key_pos, key_vel = jax.random.split(key)
-
+masses = jnp.ones(N)                      # 1000 Msun total
+key_pos, key_vel = jax.random.split(jax.random.PRNGKey(42))
 positions = profile.sample_positions(masses, key_pos)
 velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
-### Two-Component Cluster
-
-```python
-from jaxstro.units import STELLAR
-from progenax import (
-    PlummerProfile, PlummerVelocityDF,
-    TwoComponentConfig, generate_two_component_cluster,
-)
-
-# Extended halo + concentrated core
-config = TwoComponentConfig(
-    f_A=0.3,  # 30% in extended halo
-    profile_A=PlummerProfile(r_h=2.0),
-    profile_B=PlummerProfile(r_h=0.5),
-    velocity_df_A=PlummerVelocityDF(r_h=2.0),
-    velocity_df_B=PlummerVelocityDF(r_h=0.5),
-)
-
-positions, velocities, pop_id = generate_two_component_cluster(
-    masses, config, key, G=STELLAR.G
-)
-```
-
-### IMF Sampling
+### One-call IC assembly
 
 ```python
 import jax
-from progenax.imf import PowerLawIMF, ChabrierIMF
+import jax.numpy as jnp
+from jaxstro.units import STELLAR
+from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
 
-# Kroupa IMF
-imf = PowerLawIMF.kroupa()
-key = jax.random.PRNGKey(42)
-masses = imf.sample(key, 1000)  # Sample 1000 stellar masses
-
-# Chabrier IMF
-imf = ChabrierIMF()
-masses = imf.sample(key, 1000)
+masses = jnp.ones(500)
+ic = build_spatial_ic(
+    PlummerProfile(r_h=1.0), masses, PlummerVelocityDF(r_h=1.0),
+    key=jax.random.PRNGKey(0), G=STELLAR.G,
+)
+positions, velocities = ic.positions, ic.velocities
 ```
 
-### Binary Orbital Elements
+### Multi-component cluster (extended halo + concentrated core)
+
+```python
+import jax
+import jax.numpy as jnp
+from jaxstro.units import STELLAR
+from progenax import MultiComponentCluster
+
+# Two mass components in a shared self-consistent potential (Engine A, LIMEPY).
+model = MultiComponentCluster.from_components(
+    alpha_j=jnp.array([0.6, 0.4]),   # mass fractions
+    w_j=jnp.array([1.0, 1.0]),       # relative velocity scales
+    m_j=jnp.array([0.4, 5.0]),       # mean masses [Msun]
+    W0=7.0, g=1.0, r_c=1.0,
+)
+ic = model.sample_cluster(jax.random.PRNGKey(1), n_stars=2000, G=STELLAR.G)
+positions, velocities, masses = ic.positions, ic.velocities, ic.masses
+```
+
+### IMF sampling
+
+```python
+import jax
+from progenax import PowerLawIMF, ChabrierIMF
+
+k1, k2 = jax.random.split(jax.random.PRNGKey(42))
+kroupa_masses = PowerLawIMF.kroupa().sample(k1, 1000)   # Kroupa (2001)
+chabrier_masses = ChabrierIMF().sample(k2, 1000)        # Chabrier (2003)
+```
+
+### Binary orbital elements
 
 ```python
 from jaxstro.units import PLANETARY
-from progenax.binaries import KeplerElements, compute_period
+from progenax import KeplerElements, compute_period
 
-# Create Keplerian elements
-elements = KeplerElements(
-    a=1.0,      # Semi-major axis [AU]
-    e=0.3,      # Eccentricity
-    i=0.1,      # Inclination [rad]
-    Omega=0.0,  # Longitude of ascending node
-    omega=0.0,  # Argument of periapsis
-    M0=0.0,     # Mean anomaly at epoch
-)
-
-# Convert to Cartesian state
-M_total = 2.0  # Solar masses
-state = elements.to_state(M_total, G=PLANETARY.G)
-r, v = state['position'], state['velocity']
-
-# Compute orbital period
+elements = KeplerElements(a=1.0, e=0.3, i=0.1, Omega=0.0, omega=0.0, M0=0.0)
+state = elements.to_state(M_total=2.0, G=PLANETARY.G)   # CartesianState
+r, v = state.position, state.velocity
 period = compute_period(a=1.0, M_total=2.0, G=PLANETARY.G)
 ```
 
-### Analytical Test Case
+### Analytical test case (Earth–Sun)
 
 ```python
 from jaxstro.units import PLANETARY
-from progenax.analytical import two_body_kepler
+from progenax import two_body_kepler
 
-# Create Earth-like orbit around Sun
-ic = two_body_kepler(
-    a=1.0,      # 1 AU
-    e=0.017,    # Earth's eccentricity
-    m1=1.0,     # 1 Msun
-    m2=3e-6,    # ~1 Earth mass
-    G=PLANETARY.G,
-)
+ic = two_body_kepler(M1=1.0, M2=3e-6, a=1.0, G=PLANETARY.G, e=0.017)
+positions, velocities, masses = ic.positions, ic.velocities, ic.masses
+```
 
-positions = ic.positions   # (2, 3)
-velocities = ic.velocities # (2, 3)
-masses = ic.masses         # (2,)
+### Differentiability
+
+```python
+import jax
+import jax.numpy as jnp
+from progenax import PlummerProfile
+
+masses = jnp.ones(100)
+key = jax.random.PRNGKey(0)
+
+def loss(r_h):
+    pos = PlummerProfile(r_h=r_h).sample_positions(masses, key)
+    return jnp.mean(jnp.linalg.norm(pos, axis=1))
+
+gradient = jax.grad(loss)(1.0)   # ∂⟨r⟩/∂r_h — fully differentiable
 ```
 
 ## Unit Systems
 
-progenax uses **jaxstro.units** for gravitational constant management:
-
-```python
-from jaxstro.units import STELLAR, PLANETARY
-
-# STELLAR.G for star clusters (~0.00450 pc³ Msun⁻¹ Myr⁻²)
-velocities = velocity_df.sample_velocities(positions, masses, key, G=STELLAR.G)
-
-# PLANETARY.G for binaries/planets (~39.478 AU³ Msun⁻¹ yr⁻² = 4π²)
-orbit = two_body_kepler(a=1.0, e=0.3, m1=1.0, m2=1.0, G=PLANETARY.G)
-
-# Convenience default (wrapper behavior only)
-from progenax import DEFAULT_UNITS
-velocities = velocity_df.sample_velocities(positions, masses, key, G=DEFAULT_UNITS.G)
-```
+progenax uses **jaxstro.units** for explicit gravitational-constant management. Core APIs
+require an explicit `G` (or `units`); convenience wrappers may resolve `G=None` to
+`DEFAULT_UNITS` (= `STELLAR`).
 
 | Unit System | G Value | Units | Use Case |
 |-------------|---------|-------|----------|
 | `STELLAR` | ~0.00450 | pc³ Msun⁻¹ Myr⁻² | Star clusters, galaxies |
 | `PLANETARY` | ~39.478 | AU³ Msun⁻¹ yr⁻² | Binaries, planets |
-| `DEFAULT_UNITS` | = STELLAR | - | Default for progenax |
+| `DEFAULT_UNITS` | = STELLAR | — | progenax default (wrappers only) |
+
+## Key Patterns
+
+### Protocol-based composition
+
+Any `SpatialProfile` pairs with any `VelocityDF` (9 runtime-checkable protocols total):
+
+```python
+import jax
+import jax.numpy as jnp
+from jaxstro.units import STELLAR
+from progenax import PlummerProfile, KingVelocityDF
+
+masses = jnp.ones(500)
+k_pos, k_vel = jax.random.split(jax.random.PRNGKey(0))
+profile = PlummerProfile(r_h=1.0)
+df = KingVelocityDF(W0=7.0, r_c=1.0)            # r_t derived from W0 (self-consistent)
+positions = profile.sample_positions(masses, k_pos)
+velocities = df.sample_velocities(positions, masses, k_vel, G=STELLAR.G)
+```
+
+### Equinox modules
+
+All stateful classes are immutable Equinox PyTrees (e.g. `PlummerProfile` carries `r_h` and a
+computed scale radius `a`), so sampling is differentiable through JAX and JIT/vmap-friendly.
+
+### Critical formula (Plummer scale radius)
+
+```python
+import jax.numpy as jnp
+r_h = 1.0
+a = r_h * jnp.sqrt(2 ** (2 / 3) - 1)   # ≈ 0.7664 * r_h  (NOT the inverse!)
+```
+
+Virial ratio convention: **Q = T/|V|**, with **Q = 0.5** the equilibrium (2T + V = 0).
 
 ## Architecture
 
 ```text
-progenax/
-├── src/progenax/
-│   ├── __init__.py          # Public API (57+ exports)
-│   ├── protocols.py         # 3 runtime-checkable protocols
-│   ├── builders.py          # ICResult + build_spatial_ic
-│   ├── populations.py       # Two-component clusters
-│   ├── tidal.py             # Jacobi radius + truncation
-│   ├── profiles/
-│   │   ├── plummer.py       # PlummerProfile
-│   │   ├── king.py          # KingProfile + ODE solver
-│   │   ├── eff.py           # EFFProfile
-│   │   └── mass_segregation.py
-│   ├── kinematics/
-│   │   ├── plummer_df.py    # PlummerVelocityDF (Beta sampling)
-│   │   ├── king_df.py       # KingVelocityDF
-│   │   ├── eff_df.py        # EFFVelocityDF
-│   │   ├── anisotropy.py    # Osipkov-Merritt
-│   │   └── rotation.py      # Solid body, differential
-│   ├── imf/
-│   │   ├── base.py          # BaseIMF with custom JVP
-│   │   ├── power_law.py     # PowerLawIMF (Kroupa, Salpeter)
-│   │   ├── chabrier.py      # ChabrierIMF
-│   │   ├── environment.py   # EnvironmentIMF
-│   │   ├── binary.py        # BinaryIMF
-│   │   └── igimf.py         # IGIMF
-│   ├── binaries/
-│   │   ├── kepler.py        # KeplerElements, Kepler solver
-│   │   ├── orbital_state.py # BinaryOrbitalState
-│   │   └── population.py    # Period/eccentricity distributions
-│   ├── diagnostics/
-│   │   ├── substructure.py  # CW04 Q parameter (compute_q_parameter, A=πR²)
-│   │   ├── q_approx.py      # differentiable kNN Q approximation
-│   │   └── mass_segregation.py
-│   └── analytical/
-│       └── core.py          # Solar system, Kepler orbits
-└── tests/
-    ├── unit/                # 653 unit tests
-    ├── integration/         # 34 integration tests
-    └── validation/          # 128 physics validation tests
-```
-
-> **Note (2026-06):** the gravoturbulent + fractal-density-field subsystem (and the
-> `generate_fractal_positions` GW04 generator) was rebuilt clean-room as the experimental,
-> repo-only `gravoturb_fdf` package under `src/experimental/` — not shipped in the wheel.
-
-## Key Patterns
-
-### Protocol-Based Composition
-
-Any `SpatialProfile` can pair with any `VelocityDF`:
-
-```python
-from progenax.protocols import SpatialProfile, VelocityDF
-
-profile: SpatialProfile = PlummerProfile(r_h=1.0)
-df: VelocityDF = KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
-
-# Mix Plummer positions with King velocities!
-positions = profile.sample_positions(masses, key_pos)
-velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
-```
-
-### Equinox Modules
-
-All stateful classes are Equinox modules (immutable PyTrees):
-
-```python
-import equinox as eqx
-
-class PlummerProfile(eqx.Module):
-    r_h: Float[Array, ""]  # Half-mass radius
-    a: Float[Array, ""]    # Scale radius (computed)
-```
-
-### Differentiability
-
-All sampling is differentiable through JAX:
-
-```python
-def loss(r_h):
-    profile = PlummerProfile(r_h=r_h)
-    positions = profile.sample_positions(masses, key)
-    return jnp.mean(jnp.linalg.norm(positions, axis=1))
-
-grad_fn = jax.grad(loss)
-gradient = grad_fn(1.0)  # Fully differentiable!
-```
-
-### Critical Formulas
-
-**Plummer Scale Radius:**
-```python
-# From half-mass radius to scale radius
-a = r_h * jnp.sqrt(2**(2/3) - 1)  # ≈ 0.7664 * r_h
-```
-
-**Virial Ratio:**
-```python
-Q = T / |V|  # Q ≈ 0.5 for equilibrium (virial theorem: 2T + V = 0)
+src/progenax/
+├── __init__.py        # public API
+├── protocols.py       # 9 runtime-checkable protocols
+├── builders.py        # ICResult + build_spatial_ic + build_binary_cluster
+├── tidal.py           # Jacobi radius + truncation
+├── profiles/          # Plummer, King, Michie, EFF, LIMEPY, UniformSphere
+├── kinematics/        # velocity DFs (+ Osipkov–Merritt anisotropy, rotation overlays)
+├── imf/               # PowerLaw, Chabrier, Maschberger, Binary; environment/ (BirthEnvironment)
+├── binaries/          # Kepler elements/solver, period & eccentricity distributions, connector
+├── cluster/           # MultiComponentCluster (Engine A + B), mass segregation, turbulence
+├── diagnostics/       # CW04 Q (compute_q_parameter), differentiable q_approx
+└── analytical/        # solar system, Kepler orbits, figure-eight
+src/experimental/      # gravoturb_fdf (repo-only; NOT in the wheel)
 ```
 
 ## Testing
 
 ```bash
-# All released-core tests
-pytest tests/ -v                    # 815 tests, ~55s
+# FAST gate (inner loop): released-core, excluding slow
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
+  uv run --no-sync pytest tests/unit tests/integration tests/validation -m "not slow" -n auto
 
-# By tier
-pytest tests/unit/ -v               # 653 unit tests
-pytest tests/integration/ -v        # 34 integration tests
-pytest tests/validation/ -v         # 128 physics validation tests
+# FULL gate (phase/commit gate): includes the slow trust anchors
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
+  uv run --no-sync pytest tests/unit tests/integration tests/validation -n auto
 
 # Experimental gravoturb_fdf subsystem (repo-only)
-PYTHONPATH=src:src/experimental pytest tests/experimental -v   # 150 tests
-
-# Specific modules
-pytest tests/unit/imf/ -v
-pytest tests/validation/test_plummer_physics.py -v
+PYTHONPATH=src:src/experimental uv run --no-sync pytest tests/experimental
 ```
 
-### Physics Validation
+See `tests/README.md` for the 3-tier architecture and current counts.
 
-From `tests/validation/` (Q ≡ T/|V|; 0.5 = equilibrium). King & EFF DFs are
-sampled in detailed equilibrium with no external virial rescale:
+### Physics validation (selected)
 
-- **Plummer virial ratio**: Q = 0.502 (expected 0.5)
-- **King true-DF virial ratio**: Q ≈ 0.51 unscaled (lowered-Maxwellian DF)
-- **EFF Eddington-DF virial ratio**: Q ≈ 0.50 unscaled (γ=5, mild truncation)
-- **King concentration c(W₀)**: matches King (1966) Table II to Δ ≤ 0.02
-- **Bound particles**: 100% within escape velocity
-- **Kepler orbits**: energy & angular momentum conserved to ~1e-16; period exact to 1e-10
+From `tests/validation/` (Q ≡ T/|V|; 0.5 = equilibrium), sampled with no external rescale:
+
+- **Plummer** virial Q = 0.502 (expected 0.5)
+- **King** true-DF virial Q ≈ 0.51 unscaled (lowered-Maxwellian)
+- **EFF** Eddington-DF virial Q ≈ 0.50 unscaled (γ=5, mild truncation)
+- **King c(W₀)** matches King (1966) Table II to |Δlog₁₀c| ≤ 0.002 (hi-res)
+- **Engine B** King A-vs-B σ_1d / radial KS ≤ 3e-4 (N=2e4)
+- **Kepler** energy & angular momentum conserved to ~1e-16; period exact to 1e-10
 
 ## Dependencies
 
-- `jax>=0.4.20`
-- `jaxlib>=0.4.20`
-- `equinox>=0.11.0`
-- `jaxtyping>=0.2.25`
-- `diffrax>=0.4.0` (for King profile ODE integration)
-- `jaxstro` (core utilities)
+`jax>=0.4.20`, `jaxlib>=0.4.20`, `equinox>=0.11.0`, `jaxtyping>=0.2.25`,
+`diffrax>=0.4.0` (King ODE), and the sibling `jaxstro` (core utilities; side-by-side checkout).
 
 ## References
 
-**Density Profiles:**
-- Plummer (1911), MNRAS 71, 460
-- King (1966), AJ 71, 64
-- Elson, Fall & Freeman (1987), ApJ 323, 54
-
-**Velocity Distribution Functions:**
-- Dehnen (1993), MNRAS 265, 250 - Exact Plummer DF
-- Binney & Tremaine (2008), "Galactic Dynamics"
-
-**Initial Mass Functions:**
-- Salpeter (1955), ApJ 121, 161
-- Kroupa (2001), MNRAS 322, 231
-- Chabrier (2003), PASP 115, 763
-- Maschberger (2013), MNRAS 429, 1725
-
-**Binary Populations:**
-- Duquennoy & Mayor (1991), A&A 248, 485
-- Sana+ (2012), Science 337, 444
-- Moe & Di Stefano (2017), ApJS 230, 15
-
-**Substructure:**
-- Goodwin & Whitworth (2004), A&A 413, 929
-- Kupper+ (2011), MNRAS 417, 2300 - McLuster
-
-**N-body Methods:**
-- Aarseth (2003), "Gravitational N-Body Simulations"
+**Profiles/DFs:** Plummer (1911); King (1966); Michie (1963); Elson, Fall & Freeman (1987);
+Gieles & Zocchi (2015); Dehnen (1993); Binney & Tremaine (2008); Merritt (1985).
+**IMFs:** Salpeter (1955); Kroupa (2001); Chabrier (2003); Maschberger (2013);
+Marks+ (2012); Jeřábková+ (2018).
+**Binaries:** Duquennoy & Mayor (1991); Sana+ (2012); Moe & Di Stefano (2017).
+**Substructure/Methods:** Cartwright & Whitworth (2004); Goodwin & Whitworth (2004);
+Küpper+ (2011); Aarseth (2003).
 
 ## License
 
-MIT
+Apache License 2.0 — see [LICENSE](LICENSE). Copyright 2026 Anna Rosen.

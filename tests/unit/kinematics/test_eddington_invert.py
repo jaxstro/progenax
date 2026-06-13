@@ -4,15 +4,16 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-# Exact-value pins from _eff_eddington_table(1.0, 4.0, 12.0, r_a)
-# (full repr precision). Re-capture (never loosen) on JAX upgrades or
-# DELIBERATE op-order changes only.
-# Re-captured 2026-06-10 (consolidation Task 8): the table's cumulative
-# trapezoid moved onto progenax.numerics.cumulative_trapezoid (scalar dx
-# OUTSIDE the cumsum; the old inline used the non-uniform jnp.diff(r)
-# INSIDE), shifting the raw table integral by ~1 ulp (~9e-16); the
-# Eddington inversion (d2rho/dPsi2 + Abel weight) amplifies that to
-# <=8e-15 relative (~55 ulp, worst iso f[250]) on the pinned f values.
+# Value pins from _eff_eddington_table(1.0, 4.0, 12.0, r_a), captured
+# 2026-06-10 (consolidation Task 8). Compared with a TIGHT relative tolerance
+# (rel=1e-9), NOT bit-exact == : the table's cumulative-trapezoid op order
+# shifts the raw integral by ~1 ulp and the Eddington inversion (d2rho/dPsi2 +
+# Abel weight) amplifies that to <=8e-15 relative locally; cross-platform FP
+# (macOS-ARM dev vs Linux-x86 CI) pushes a few more ulp, which made the old
+# `==` fail in CI (audit T8: bit-exact across platforms is non-portable).
+# rel=1e-9 sits ~6 orders above that noise floor, so it still catches any real
+# refactoring drift while staying portable. Re-capture on DELIBERATE op-order
+# changes only.
 PINS = {
     "iso": (
         5.5042467299701805,
@@ -41,16 +42,19 @@ PINS = {
 
 class TestExtractionRegression:
     @pytest.mark.parametrize("tag,ra", [("iso", None), ("om", 2.0)])
-    def test_eff_table_bit_identical_after_refactor(self, tag, ra):
+    def test_eff_table_stable_after_refactor(self, tag, ra):
         """The refactored _eff_eddington_table (now calling eddington_invert)
-        reproduces the pre-refactor values EXACTLY (same grids, same ops)."""
+        reproduces the pre-refactor values to a tight relative tolerance
+        (rel=1e-9) — a PORTABLE refactoring guard. Not bit-exact: == failed
+        cross-platform by ~1 ulp (audit T8)."""
         from progenax.kinematics.eff_df import _eff_eddington_table
 
         r, Psi, E, f, mu = _eff_eddington_table(1.0, 4.0, 12.0, ra)
         Psi0, mu_pin, f_pins = PINS[tag]
-        assert float(Psi[0]) == Psi0 and float(mu) == mu_pin
+        assert float(Psi[0]) == pytest.approx(Psi0, rel=1e-9)
+        assert float(mu) == pytest.approx(mu_pin, rel=1e-9)
         for idx, pin in zip((1, 250, 500, 750, 998), f_pins):
-            assert float(f[idx]) == pin, f"f[{idx}] drifted"
+            assert float(f[idx]) == pytest.approx(pin, rel=1e-9), f"f[{idx}] drifted"
 
 
 def _plummer_grids(a=1.0, rt=100.0, n=20000):

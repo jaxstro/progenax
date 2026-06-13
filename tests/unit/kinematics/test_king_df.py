@@ -17,12 +17,25 @@ from progenax.kinematics.king_df import KingVelocityDF
 G = STELLAR.G
 
 
+class TestKingVelocityDFApi:
+    """Audit A3: r_t was a stored-but-never-used field (sigma^2 = GM/(9 r_c mu),
+    truncation comes from psi(xi)). Removed — no backwards-compat shim."""
+
+    def test_constructs_without_r_t(self):
+        df = KingVelocityDF(W0=7.0, r_c=1.0)
+        assert not hasattr(df, "r_t")
+
+    def test_passing_r_t_is_rejected(self):
+        with pytest.raises(TypeError):
+            KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
+
+
 class TestKingVelocityDFPhysics:
     """Test King velocity DF physical properties."""
 
     def test_isotropic_distribution(self):
         """Velocities are isotropically distributed."""
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         N = 1000
         r = 2.0
         positions = jnp.array([[r, 0.0, 0.0]] * N)
@@ -40,7 +53,7 @@ class TestKingVelocityDFPhysics:
 
     def test_mean_velocity_zero(self):
         """Mean velocity is zero (no bulk motion)."""
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         N = 1000
         r = 2.0
         positions = jnp.array([[r, 0.0, 0.0]] * N)
@@ -57,7 +70,7 @@ class TestKingVelocityDFPhysics:
 
     def test_dispersion_decreases_outward(self):
         """Velocity dispersion decreases with radius."""
-        df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=7.0, r_c=1.0)
         N = 500
 
         r_inner = 1.0
@@ -89,7 +102,7 @@ class TestKingTableRouting:
     draws are variate-paired (same per-star key splits)."""
 
     def _two_dfs(self):
-        kw = dict(W0=5.0, r_c=1.0, r_t=10.0)
+        kw = dict(W0=5.0, r_c=1.0)
         return (KingVelocityDF(**kw),                       # default: table
                 KingVelocityDF(**kw, speed_method="quadrature"))
 
@@ -117,10 +130,10 @@ class TestKingTableRouting:
         assert D < 0.02
 
     def test_table_default_and_quadrature_static(self):
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         assert df.speed_method == "table"
         with pytest.raises(ValueError, match="speed_method"):
-            KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0, speed_method="exact")
+            KingVelocityDF(W0=5.0, r_c=1.0, speed_method="exact")
 
     def test_g1_lowered_exponential_is_king_weight(self):
         """The exact identity the routing relies on: the LIMEPY lowered
@@ -144,18 +157,18 @@ class TestKingSamplerOptimization:
     def test_table_cached_at_construction(self):
         from progenax.profiles.limepy_tables import SpeedCDFTable
 
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         assert isinstance(df.speed_table, SpeedCDFTable)
 
     def test_quadrature_method_has_no_table(self):
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0,
+        df = KingVelocityDF(W0=5.0, r_c=1.0,
                             speed_method="quadrature")
         assert df.speed_table is None
 
     def test_cached_table_bit_identical_to_fresh_build(self):
         from progenax.profiles.limepy_tables import SpeedCDFTable
 
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         fresh = SpeedCDFTable.build(df.W0, jnp.asarray(1.0))
         np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
                                       np.asarray(fresh.cdf))
@@ -164,7 +177,7 @@ class TestKingSamplerOptimization:
         from progenax.profiles.king import KingProfile
 
         prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
-        df = KingVelocityDF(W0=5.0, r_c=1.0, r_t=10.0)
+        df = KingVelocityDF(W0=5.0, r_c=1.0)
         m = jnp.ones(500)
         pos = prof.sample_positions(m, jax.random.PRNGKey(0))
         v1 = df.sample_velocities(pos, m, jax.random.PRNGKey(1), G=1.0)

@@ -248,6 +248,35 @@ class TestEFFVelocityDF:
         )
         assert abs(Q - 0.5) < 0.05, f"unscaled Q={Q:.3f} (expected ~0.5 for mild truncation)"
 
+    def test_gamma3_default_subvirial_offset_is_pinned(self):
+        """Audit S2: the gamma=3 DEFAULT + sharp truncation is KNOWN ~8% sub-virial
+        by construction (a truncated rho with rho(r_t)>0 is not representable by an
+        f(E)). Pin the band so a regression (to -15%, Q~0.425) OR a vanished offset
+        (Q~0.5) cannot pass silently. This is a DOCUMENTED LIMITATION, not a target:
+        use the King model for a strict lowered-DF equilibrium (eff_df.py docstring).
+
+        Measured (N=20000, seeds 0/1/2, G=STELLAR.G): Q = 0.458 +/- 0.0004. The band
+        0.45<Q<0.47 absorbs seed/platform noise (>>3sigma) while still excluding the
+        two regressions (Q<=0.425 and Q>=0.49)."""
+        from jaxstro.units import STELLAR
+        from progenax.builders import compute_kinetic_energy, compute_potential_energy
+
+        a, gamma, r_t = 1.0, 3.0, 10.0  # the EFF default config
+        profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+        df = EFFVelocityDF(a=a, gamma=gamma, r_t=r_t)
+        masses = jnp.ones(20000)
+        kp, kv = jax.random.split(jax.random.PRNGKey(0))
+        pos = profile.sample_positions(masses, kp)
+        vel = df.sample_velocities(pos, masses, kv, G=STELLAR.G)
+        Q = float(
+            compute_kinetic_energy(vel, masses)
+            / jnp.abs(compute_potential_energy(pos, masses, G=STELLAR.G))
+        )
+        assert 0.45 < Q < 0.47, (
+            f"gamma=3 Q={Q:.4f} drifted out of the documented sub-virial band "
+            f"[0.45, 0.47] (measured 0.458 ~8% sub-virial)"
+        )
+
     def test_eff_eddington_f_is_physical(self):
         """The tabulated Eddington DF f(E) is non-negative and increases with energy."""
         df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
@@ -351,6 +380,37 @@ class TestEFFScaleRadius:
         # Larger a should have more mass within a (since a is bigger)
         assert fractions[0] < fractions[1] < fractions[2], \
             f"Mass fraction within a should increase with a: a=[0.5,1,2] -> f={fractions}"
+
+
+@pytest.mark.slow
+class TestEFFHighRtOverACoreResolution:
+    """Audit R4 (EFF extension): the linear CDF grid under-resolves the core at
+    large r_t/a. Reference = dense quadrature of rho*r^2 (independent of the
+    profile's internal CDF). Measured pre-fix error at 0.3a (r_t/a=100): +4.2%;
+    the sqrt-stretched grid (r = r_t*u^2) brings it to <0.1%."""
+
+    def test_sampled_core_mass_matches_dense_reference_high_rt_over_a(self):
+        a, gamma, r_t = 1.0, 4.0, 100.0  # r_t/a = 100
+        s = jnp.linspace(0.0, r_t, 4_000_000)
+        rho = (1.0 + (s / a) ** 2) ** (-gamma / 2.0)
+        integ = s**2 * rho
+        M = jnp.concatenate(
+            [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(s))]
+        )
+        prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+        n = 4_000_000
+        r = jnp.linalg.norm(
+            prof.sample_positions(jnp.ones(n), jax.random.PRNGKey(3)), axis=1
+        )
+        for r_probe in (0.3, 1.0, 3.0):
+            m_ref = float(jnp.interp(r_probe, s, M) / M[-1])
+            m_samp = float(jnp.mean(r < r_probe))
+            shot = 3.0 / (m_ref * n) ** 0.5
+            tol = max(0.02, shot)  # 2% grid budget or 3-sigma shot, whichever larger
+            assert abs(m_samp / m_ref - 1.0) < tol, (
+                f"r={r_probe}a: sampled {m_samp:.4e} vs reference {m_ref:.4e} "
+                f"(rel err {(m_samp/m_ref-1)*100:+.2f}%, tol {tol*100:.2f}%)"
+            )
 
 
 if __name__ == "__main__":

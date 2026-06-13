@@ -236,7 +236,12 @@ def _compute_s_bar_subsampled(
         diffs = xy[idx_i] - xy[idx_j]
         return jnp.mean(jnp.sqrt(jnp.sum(diffs ** 2, axis=-1) + 1e-12)) / R_cluster
 
-    return jax.lax.cond(n_pairs <= max_pairs, lambda _: exact(), lambda _: subsampled(), None)
+    # n_pairs and max_pairs are STATIC Python ints; a Python if avoids tracing
+    # and compiling the O(N^2) exact() branch when subsampling (audit J6 — saves
+    # both compile time and the (N,N) allocation for large N).
+    if n_pairs <= max_pairs:
+        return exact()
+    return subsampled()
 
 
 def q_approx(
@@ -266,13 +271,12 @@ def q_approx(
     elif method == "fast":
         return q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs)
     elif method == "auto":
-        # Use naive for small N (JIT overhead dominates), fast for large N
-        return jax.lax.cond(
-            N > 1000,
-            lambda _: q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs),
-            lambda _: q_approx_naive(positions, project_to_2d, calibration),
-            operand=None,
-        )
+        # N is a STATIC Python int, so a lax.cond would compile BOTH branches
+        # every shape (~0.4 s + the fast branch's extra memory). A Python if
+        # selects exactly one — identical semantics, half the compile (audit J6).
+        if N > 1000:
+            return q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs)
+        return q_approx_naive(positions, project_to_2d, calibration)
     else:
         raise ValueError(f"method must be 'auto', 'naive', or 'fast'")
 

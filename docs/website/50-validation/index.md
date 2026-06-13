@@ -18,6 +18,10 @@ tolerances.
 
 See the [**validation audit report**](audit-report.md) for trustworthiness tiers, limits, recommendations, and the remaining/incomplete roadmap (point-in-time, 2026-06-08).
 
+Where this section proves each model reproduces its ground truth, the
+[**science demos**](../60-science-demos/index.md) run the models *backwards* —
+recovering cluster parameters from mock observations by differentiable MLE / NUTS.
+
 ## Status dashboard
 
 The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)

@@ -174,7 +174,11 @@ class MichieProfile(eqx.Module):
         xi_a = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_a = jnp.asarray(psi_grid, dtype=jnp.float64)
 
-        r_grid = jnp.linspace(0.0, r_t_a, n_grid)
+        # sqrt-stretched grid (r = r_t * u^2): concentrates points in the core,
+        # which a linear grid under-resolves at high W0 (audit R4 — same fix as
+        # KingProfile). Smooth in r_t -> differentiable.
+        u_grid = jnp.linspace(0.0, 1.0, n_grid)
+        r_grid = r_t_a * u_grid**2
         psi_vals = jnp.interp(r_grid / r_c_a, xi_a, psi_a, left=W0_a, right=0.0)
         s_vals = r_grid / r_a_a  # = (r/r_c) / (r_a/r_c)
 
@@ -183,11 +187,11 @@ class MichieProfile(eqx.Module):
         rho_grid = jnp.where(rho0 > 1e-10, rho_vals / rho0, 0.0)
         rho_grid = jnp.where(r_grid <= r_t_a, rho_grid, 0.0)
 
+        # Non-uniform trapezoid: variable spacing -> weight by diff(r_grid).
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
-        dr = r_grid[1] - r_grid[0]
         M_cum = jnp.concatenate([
             jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
         ])
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
 

@@ -2,7 +2,8 @@
 
 Comprehensive physics validation for stellar initial conditions generation.
 
-**874 tests** across 3 tiers validating astrophysics from published literature (1911-2018).
+**~1243 released-core tests** across 3 tiers validating astrophysics from published
+literature (1911–2018). Counts drift as the suite grows — **see CI for the live number**.
 
 ## Table of Contents
 
@@ -45,10 +46,10 @@ pytest tests/validation/test_plummer_physics.py -v
 
 | Tier | Tests | Purpose | Runtime |
 |------|-------|---------|---------|
-| **Unit** | 742 | Functional correctness (shapes, bounds, roundtrips) | ~30s |
-| **Integration** | 24 | JAX transformations (JIT, grad, vmap) | ~10s |
-| **Validation** | 108 | Physics accuracy against literature | ~15s |
-| **Total** | **874** | Comprehensive coverage | ~55s |
+| **Unit** | ~956 | Functional correctness (shapes, bounds, roundtrips) | — |
+| **Integration** | ~43 | JAX transformations (JIT, grad, vmap) | — |
+| **Validation** | ~244 | Physics accuracy against literature | — |
+| **Total** | **~1243** | Comprehensive coverage (see CI for the live count) | — |
 
 ---
 
@@ -561,4 +562,4 @@ N_stats = 10000       # Precise statistics
 
 ---
 
-*Last updated: 2026-06-03 | 874 tests | progenax v0.1.0*
+*Last updated: 2026-06-12 | ~1243 released-core tests (see CI for the live count) | progenax v0.1.0*

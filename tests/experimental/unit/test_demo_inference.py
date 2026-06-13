@@ -17,8 +17,12 @@ import sys
 import jax.numpy as jnp
 import numpy as np
 
-# tests/unit/test_demo_inference.py -> parents[0]=unit, [1]=tests, [2]=repo root.
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+# tests/experimental/unit/test_demo_inference.py
+#   -> parents[0]=unit, [1]=experimental, [2]=tests, [3]=repo root.
+# Lives in the experimental tier: the helper pulls optax/blackjax (the
+# [experimental] extra), so it must NOT gate the released-core unit shard,
+# which syncs --extra dev only (audit R1 follow-up: red CI had hidden this).
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
 import _demo_inference as di  # noqa: E402

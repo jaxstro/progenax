@@ -34,7 +34,7 @@ Example:
     ... )
 """
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import Optional
 
 import equinox as eqx
 import jax
@@ -48,35 +48,10 @@ from progenax.kinematics.rotation import (
     apply_differential_rotation,
 )
 from progenax.dynamics.virial import rescale_velocities_to_virial
-
-
-@runtime_checkable
-class VelocityDF(Protocol):
-    """Protocol for velocity distribution functions.
-
-    All velocity DFs must implement this interface for use with the
-    kinematics API pipeline.
-    """
-
-    def sample_velocities(
-        self,
-        positions: Float[Array, "N 3"],
-        masses: Float[Array, "N"],
-        key: PRNGKeyArray,
-        G: float | None = None,
-    ) -> Float[Array, "N 3"]:
-        """Sample velocities from the distribution function.
-
-        Args:
-            positions: Particle positions (N, 3) [length units]
-            masses: Particle masses (N,) [mass units]
-            key: JAX random key
-            G: Gravitational constant. If None, uses default.
-
-        Returns:
-            Cartesian velocities (N, 3) [velocity units]
-        """
-        ...
+# Single source of truth for the VelocityDF protocol (audit A1): re-exported
+# here so progenax.kinematics.api.VelocityDF stays importable, but defined once
+# in progenax.protocols to prevent structural drift.
+from progenax.protocols import VelocityDF
 
 
 class RotationParams(eqx.Module):
@@ -224,7 +199,12 @@ def sample_velocities_pipeline(
 
     # Stage 3: Optional virial rescaling. target_Q=None keeps the DF's native
     # equilibrium (Plummer/King/EFF are already sampled in detailed equilibrium);
-    # pass a float only to deliberately force a virial ratio.
+    # pass a float only to deliberately force an overall virial ratio.
+    #
+    # NOTE (audit S3): this is an ISOTROPIC speed rescale. It does NOT restore
+    # stationarity after a rotation overlay (Stage 2) — it cannot remove the
+    # injected net angular momentum L_z, so the result stays non-stationary even
+    # at Q=0.5. Rescaling-to-0.5 is not a fix for the rotation-broken equilibrium.
     if model.target_Q is not None:
         v = rescale_velocities_to_virial(
             positions=positions,

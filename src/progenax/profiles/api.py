@@ -281,11 +281,21 @@ def compute_profile_potential(
         rho_t = (1.0 + (rgrid / profile_instance.a) ** 2) ** (
             -profile_instance.gamma / 2.0
         )
-        dr = rgrid[1] - rgrid[0]
+        # EFFProfile uses a NON-UNIFORM (sqrt-stretched) _r_grid (audit R4), so
+        # the enclosed-mass / outer-shell integrals must weight each trapezoid by
+        # its own width diff(rgrid) — a single dr would mis-integrate the core.
+        # This keeps M_enc_frac == profile._cdf_grid (the test pins it).
+        dr = jnp.diff(rgrid)
 
-        I2 = cumulative_trapezoid(rho_t * rgrid**2, dx=dr)  # propto M(<r); I2[-1] propto M_total
+        def _cumtrap_nonuniform(y):
+            return jnp.concatenate([
+                jnp.zeros(1, dtype=y.dtype),
+                jnp.cumsum(0.5 * (y[1:] + y[:-1]) * dr),
+            ])
+
+        I2 = _cumtrap_nonuniform(rho_t * rgrid**2)  # propto M(<r); I2[-1] propto M_total
         M_enc_frac = I2 / (I2[-1] + 1e-30)  # M(<r)/M_total (= profile CDF)
-        J_outer = cumulative_trapezoid(rho_t * rgrid, dx=dr)
+        J_outer = _cumtrap_nonuniform(rho_t * rgrid)
         J_outer = J_outer[-1] - J_outer  # int_r^rt rho_t s ds
         phi_grid = -G * M_total * (
             M_enc_frac / jnp.maximum(rgrid, 1e-3 * profile_instance.a)

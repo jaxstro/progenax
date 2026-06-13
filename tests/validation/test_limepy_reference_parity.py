@@ -60,8 +60,13 @@ CASES = {
 def _load_reference(name):
     path = os.path.join(CACHE_DIR, f"{name}.npz")
     if not os.path.exists(path):
-        pytest.skip(f"reference-LIMEPY cache absent: {path} "
-                    "(run scripts/validate_limepy_reference.py --regen)")
+        msg = (f"reference-LIMEPY cache absent: {path} "
+               "(run scripts/validate_limepy_reference.py --regen)")
+        # In strict (nightly/release) mode a missing cache must NOT silently
+        # disable the strongest external-reference gate (audit T4/H2).
+        if os.environ.get("PROGENAX_STRICT_REFS") == "1":
+            pytest.fail(msg + " [PROGENAX_STRICT_REFS=1]")
+        pytest.skip(msg)
     return np.load(path)
 
 

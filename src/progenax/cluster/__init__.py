@@ -43,7 +43,8 @@ from progenax.cluster.constants import (
     ALPHA_LARSON,
 )
 
-# Turbulence physics (stays in core; used by EnvironmentIMF)
+# Turbulence physics (stays in core; used by the environment-dependent IMF —
+# BirthEnvironment / env_to_imf_params, NOT a phantom "EnvironmentIMF" class)
 from progenax.cluster.turbulence import (
     sigma_ln_rho_from_mach,
     spectral_slope_from_mach,

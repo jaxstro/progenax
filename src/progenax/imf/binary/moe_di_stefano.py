@@ -230,14 +230,20 @@ def _pl_integral(a, b, gamma):
 class MoeDiStefano2017Full(eqx.Module):
     """Faithful two-slope, period-dependent Moe & Di Stefano (2017) mass-ratio model.
 
-    The mass-ratio pdf is (their §9.1, Eq. 2 + the worked twin example, p.5):
+    The mass-ratio pdf is a two-slope power law plus a twin excess block,
+    jointly normalized over [q_min, 1.0]:
 
-        p_q(q | M1, P) = (1 - F_twin) * p_2slope(q) + F_twin * Uniform[0.95, 1.0]
+        p_q(q | M1, P) ∝ p_2slope(q) + [twin block on [0.95, 1.0]]
 
     where p_2slope ∝ q^γsmallq on [q_min, 0.3] then q^γlargeq on [0.3, 1.0]
-    (continuous at q=0.3), normalized over [q_min, 1.0]; F_twin is the EXCESS twin
-    weight (the fraction of systems that are pure twins, not the total q>0.95
-    fraction). γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
+    (continuous at q=0.3). F_twin is the EXCESS-twin fraction of the q > 0.3
+    population (MD17 p.5, Fig. 2 — NOT the fraction of all q > q_min companions,
+    and NOT the total q > 0.95 fraction). To realize that convention the twin
+    block carries unnormalized mass ft/(1-ft)·I_B (I_B = power-law mass on
+    [0.3, 1]), so twin/(twin + I_B) = ft exactly (see `_components`). The pre-fix
+    code mixed ft against the whole [q_min, 1] population, over-weighting twins
+    by ~22% at solar logP=1 (realized 0.367 vs Table-13 0.300) — audit R3.
+    γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
     Table 13 (verified against the PDF p.52). η(P,M1) for eccentricity is handled by
     `progenax.binaries.MoeEccentricity` (which reproduces Table 13's η).
 
@@ -276,17 +282,38 @@ class MoeDiStefano2017Full(eqx.Module):
         I_B = C * _pl_integral(self.q_break, 1.0, gl)
         return gs, gl, C, I_A, I_B
 
-    def pdf(self, q, masses, periods):
-        """Conditional mass-ratio pdf p(q | M1, P), normalized on [q_min, 1]."""
+    def _components(self, q, masses, periods):
+        """Normalized (power-law, twin-excess) mixture components.
+
+        Paper convention (MD17 p.5, Fig. 2): F_twin is the excess-twin fraction
+        of q > 0.3 companions. The unnormalized twin block therefore carries
+        mass ft/(1-ft) * I_B (I_B = power-law mass on [q_break, 1]), so that
+        twin/(twin + I_B) = ft exactly after joint normalization.
+        """
         gs, gl, C, I_A, I_B = self._two_slope(periods, masses)
         ft = self.f_twin(periods, masses)
-        Z = I_A + I_B
         p_lo = jnp.power(q, gs)
         p_hi = C * jnp.power(q, gl)
-        p_pl = jnp.where(q < self.q_break, p_lo, p_hi) / Z
-        twin = jnp.where((q >= 0.95) & (q <= 1.0), 1.0 / 0.05, 0.0)
-        p = (1.0 - ft) * p_pl + ft * twin
-        return jnp.where((q >= self.q_min) & (q <= 1.0), p, 0.0)
+        p_pl_unnorm = jnp.where(q < self.q_break, p_lo, p_hi)
+        ft_safe = jnp.minimum(ft, 0.95)  # Table 13 max is ~0.3; guard 1/(1-ft)
+        twin_mass = ft_safe / (1.0 - ft_safe) * I_B
+        twin_unnorm = twin_mass * jnp.where(
+            (q >= 0.95) & (q <= 1.0), 1.0 / 0.05, 0.0
+        )
+        Z_tot = I_A + I_B + twin_mass
+        in_range = (q >= self.q_min) & (q <= 1.0)
+        p_pl = jnp.where(in_range, p_pl_unnorm / Z_tot, 0.0)
+        p_twin = jnp.where(in_range, twin_unnorm / Z_tot, 0.0)
+        return p_pl, p_twin
+
+    def pdf(self, q, masses, periods):
+        """Conditional mass-ratio pdf p(q | M1, P), normalized on [q_min, 1].
+
+        F_twin follows the paper convention: excess-twin fraction of the
+        q > 0.3 population (NOT of all q > q_min companions — audit R3).
+        """
+        p_pl, p_twin = self._components(q, masses, periods)
+        return p_pl + p_twin
 
     def sample(self, key: PRNGKeyArray, masses, periods):
         """Sample q | (M1 [Msun], P [days]) from the two-slope + twin mixture.

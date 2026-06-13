@@ -150,6 +150,18 @@ class TestQApproxUnified:
         Q_fast = q_approx(positions, method="fast")
         assert jnp.isfinite(Q_naive) and jnp.isfinite(Q_fast)
 
+    def test_auto_dispatch_small_n_equals_naive(self):
+        """Audit J6: auto picks the naive path for small N (Python-if dispatch)."""
+        from progenax.diagnostics.q_approx import q_approx
+        pos = jax.random.normal(jax.random.PRNGKey(0), (200, 3))
+        assert jnp.allclose(q_approx(pos, method="auto"), q_approx(pos, method="naive"))
+
+    def test_auto_dispatch_large_n_equals_fast(self):
+        """Audit J6: auto picks the fast path for large N (Python-if dispatch)."""
+        from progenax.diagnostics.q_approx import q_approx
+        pos = jax.random.normal(jax.random.PRNGKey(0), (1500, 3))
+        assert jnp.allclose(q_approx(pos, method="auto"), q_approx(pos, method="fast"))
+
 
 class TestExports:
     """Test module exports from progenax.diagnostics."""

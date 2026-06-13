@@ -2,13 +2,40 @@
 
 Adds streaming rotation to velocity distributions.
 
+.. warning::
+   These are ADDITIVE KINEMATIC OVERLAYS (``velocities + v_rotation``): they
+   inject kinetic energy and net angular momentum L_z, so the output is NOT a
+   stationary equilibrium — the virial ratio Q = T/|V| rises above 0.5 (audit
+   S3). They do not solve a rotating-equilibrium DF. An isotropic re-virial
+   (e.g. ``virial_scale``) does NOT restore stationarity (it rescales speeds
+   uniformly but cannot remove the rotational L_z). Use only when you want a
+   deliberately rotating, non-stationary IC.
+
 References:
     Lynden-Bell (1960) MNRAS 120, 204 - Rotating stellar systems
     Binney & Tremaine (2008) "Galactic Dynamics" Section 4.8
 """
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
+
+
+def _normalized_rotation_axis(axis: Float[Array, "3"]) -> Float[Array, "3"]:
+    """Unit rotation axis. A CONCRETE zero axis raises (it has no rotation
+    direction — the old `/max(mag,1e-30)` silently returned a 0 axis, a no-op,
+    which the stale 'result will be NaN' comment mis-described — audit S15). A
+    TRACED zero axis cannot be checked and falls through to the 0-axis no-op."""
+    axis_mag = jnp.linalg.norm(axis)
+    try:
+        if float(axis_mag) == 0.0:
+            raise ValueError(
+                "rotation axis is the zero vector — it has no rotation "
+                "direction. Pass a nonzero axis (e.g. jnp.array([0., 0., 1.]))."
+            )
+    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError):
+        pass  # traced axis: cannot check; falls through to the no-op below
+    return axis / jnp.maximum(axis_mag, 1e-30)
 
 
 def apply_solid_body_rotation(
@@ -23,6 +50,11 @@ def apply_solid_body_rotation(
 
     For solid body rotation, all particles rotate with the same
     angular velocity omega, giving v_phi = omega * R (cylindrical R).
+
+    .. warning::
+       Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
+       stationary equilibrium (Q = T/|V| rises above 0.5); see the module
+       caveat (audit S3).
 
     Args:
         velocities: Input velocities (N, 3)
@@ -44,10 +76,7 @@ def apply_solid_body_rotation(
     Reference:
         Binney & Tremaine (2008) Section 4.8
     """
-    # Normalize axis with epsilon safeguard
-    axis_mag = jnp.linalg.norm(axis)
-    # Use safe division - if axis is zero, result will be NaN which is appropriate
-    axis_norm = axis / jnp.maximum(axis_mag, 1e-30)
+    axis_norm = _normalized_rotation_axis(axis)  # raises on a concrete zero axis
 
     # Rotation velocity: v_rot = omega x r = omega * (axis x r)
     omega_vec = omega * axis_norm  # (3,)
@@ -74,6 +103,10 @@ def apply_differential_rotation(
         - v_phi(R_peak) = v_peak (maximum rotation)
         - v_phi -> 0 as R -> infinity (decreasing at large R)
 
+    .. warning::
+       Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
+       stationary equilibrium (Q rises above 0.5); see the module caveat (S3).
+
     Args:
         velocities: Input velocities (N, 3)
         positions: Particle positions (N, 3)
@@ -91,9 +124,7 @@ def apply_differential_rotation(
         Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
         stellar systems in general, not for this functional form.
     """
-    # Normalize axis with epsilon safeguard
-    axis_mag = jnp.linalg.norm(axis)
-    axis_norm = axis / jnp.maximum(axis_mag, 1e-30)
+    axis_norm = _normalized_rotation_axis(axis)  # raises on a concrete zero axis
 
     # Compute cylindrical radius R (distance from rotation axis)
     # R^2 = |r|^2 - (r . axis)^2

@@ -120,3 +120,21 @@ class TestDifferentialRotation:
         )
 
         assert jnp.allclose(v_out, 0.0, atol=1e-10)
+
+
+class TestZeroAxisRefused:
+    """Audit S15: a concrete zero rotation axis has no rotation direction; the
+    old code silently no-op'd (axis/max(mag,1e-30)=0) under a stale 'NaN'
+    comment. Concrete zero axis now raises."""
+
+    def test_solid_body_zero_axis_raises(self):
+        v = jnp.zeros((5, 3))
+        pos = jax.random.normal(jax.random.PRNGKey(0), (5, 3))
+        with pytest.raises(ValueError, match="zero vector|rotation direction"):
+            apply_solid_body_rotation(v, pos, omega=0.1, axis=jnp.zeros(3))
+
+    def test_differential_zero_axis_raises(self):
+        v = jnp.zeros((5, 3))
+        pos = jax.random.normal(jax.random.PRNGKey(1), (5, 3))
+        with pytest.raises(ValueError, match="zero vector|rotation direction"):
+            apply_differential_rotation(v, pos, v_peak=1.0, R_peak=1.0, axis=jnp.zeros(3))

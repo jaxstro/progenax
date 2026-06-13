@@ -63,7 +63,10 @@ class TestEFFTruePotential:
         # equals the profile's own CDF (both = cumulative trapezoid of rho*r^2).
         rgrid = prof._r_grid
         rho_t = (1.0 + (rgrid / prof.a) ** 2) ** (-prof.gamma / 2.0)
-        dr = rgrid[1] - rgrid[0]
+        # NON-UNIFORM trapezoid: _r_grid is sqrt-stretched (audit R4), so weight
+        # each trapezoid by its own width diff(rgrid). The invariant is unchanged
+        # (potential's enclosed mass == profile CDF, both = cumtrap of rho*r^2).
+        dr = jnp.diff(rgrid)
         I2 = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (rho_t[1:] * rgrid[1:] ** 2 + rho_t[:-1] * rgrid[:-1] ** 2) * dr)])
         cdf_from_pot = I2 / I2[-1]
         assert jnp.max(jnp.abs(cdf_from_pot - prof._cdf_grid)) < 1e-9

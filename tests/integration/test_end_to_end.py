@@ -54,9 +54,8 @@ class TestIMFToICPipeline:
 
         # Create King IC
         W0 = 6.0
-        xi_grid, psi_grid = solve_king_profile(W0=W0)
-        profile = KingProfile(W0=W0, r_c=1.0, r_t=10.0, xi_grid=xi_grid, psi_grid=psi_grid)
-        velocity_df = KingVelocityDF(W0=W0, r_c=profile.r_c, r_t=profile.r_t)
+        profile = KingProfile.from_W0_rc(W0=W0, r_c=1.0)  # self-consistent r_t
+        velocity_df = KingVelocityDF(W0=W0, r_c=profile.r_c)
         G = 1.0
 
         result = build_spatial_ic(

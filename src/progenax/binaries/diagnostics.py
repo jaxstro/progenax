@@ -206,13 +206,17 @@ class BinaryEnergyBudget(NamedTuple):
     Attributes:
         E_internal: total internal orbital energy of the primordial binaries
             (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the
-            global virial scaling (``Q``) does NOT touch.
+            global virial scaling (``Q``) does NOT touch. NB the ``softening`` passed
+            to the bound-pair finders does NOT soften this internal binding energy —
+            it only regularizes the inter-system potential (audit S18).
         T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the
             scale the cluster is virialized on.
         Q_com: ``T_com / |W_com|`` — the virial ratio the cluster was scaled to
             (≈ the ``Q`` passed to ``build_binary_cluster``).
         Q_resolved: ``T / |W|`` on the *resolved* stars — the naive ratio that mixes
-            the cluster and internal-binary scales (inflated by internal binary KE).
+            the cluster and internal-binary scales. The deep internal binary binding
+            dominates |W|, so Q_resolved is DEFLATED below the cluster Q (measured
+            ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10).
         n_binaries: number of primordial binaries (two positive-mass members).
     """
 

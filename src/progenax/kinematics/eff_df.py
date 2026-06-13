@@ -75,6 +75,16 @@ class EFFVelocityDF(eqx.Module):
     velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t), so no
     external virial rescale is needed.
 
+    .. warning::
+       The DEFAULT (gamma=3, sharp truncation) is KNOWN ~8% sub-virial by
+       construction: a truncated rho with rho(r_t)>0 cannot be represented by an
+       f(E), so the sampled cluster is only approximately stationary (measured
+       Q = T/|V| ~ 0.458, not 0.5; pinned by test_eff_physics
+       test_gamma3_default_subvirial_offset_is_pinned). This is a documented
+       limitation, NOT an inversion error. For mild truncation (gamma>=5) the
+       offset shrinks to ~1% (Q ~ 0.495); for a strict lowered-DF equilibrium
+       use the King/Michie models instead.
+
     With ``anisotropy_radius`` (r_a) set, the DF is the Osipkov-Merritt radially
     anisotropic model for the same EFF density: f = f(Q), Q = E + J^2/2r_a^2, built by
     Eddington inversion of the augmented density rho_Q = (1 + r^2/r_a^2) rho (Merritt
