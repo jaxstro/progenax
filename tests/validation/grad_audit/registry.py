@@ -676,9 +676,13 @@ def _kepler_to_state_M0(M0):
 #     (d a / d(v-scale)); we reduce identity_sum over the recovered a. MEASURED at s=1.0,
 #     M_total=2.0, G=STELLAR.G: AD=2.365317e+0 vs FD=2.365317e+0 (|ratio-1|=8.0e-8) --
 #     clean; tol=1e-4 (the from_state vector-algebra band, matching the scattered test's
-#     rel<1e-4 tolerance).
+#     rel<1e-4 tolerance). The base orbit uses a NON-DEGENERATE geometry (i=0.3, Omega=0.4,
+#     omega=0.5, matching the other Kepler cases) so from_state's angular-momentum/
+#     eccentricity-vector inversion runs its general path, not a coordinate-plane special
+#     case; the recovered a is rotation-invariant (a depends only on E=v^2/2-GM/|r|), so the
+#     measured value is unchanged by the orientation -- this hardens the codepath, not the number.
 _KEPLER_FROM_STATE_BASE = KeplerElements(
-    a=1.0, e=0.3, i=0.4, M0=1.0).to_state(M_total=2.0, G=STELLAR.G)
+    a=1.0, e=0.3, i=0.3, Omega=0.4, omega=0.5, M0=1.0).to_state(M_total=2.0, G=STELLAR.G)
 _KEPLER_R0 = _KEPLER_FROM_STATE_BASE.position
 _KEPLER_V0 = _KEPLER_FROM_STATE_BASE.velocity
 
