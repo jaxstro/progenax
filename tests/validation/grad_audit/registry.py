@@ -16,6 +16,8 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     PowerLawIMF,
     build_spatial_ic,
 )
+from progenax.diagnostics.q_approx import q_approx
+from progenax.diagnostics.segregation_approx import lambda_msr_approx
 from progenax.imf.differentiable import log_prob_masses
 from progenax.imf.params import IMFParams
 from progenax.imf.smooth import Schechter
@@ -304,6 +306,69 @@ def _imf_logprob_nll_alpha3(alpha3):
     return jnp.atleast_1d(-jnp.sum(log_prob_masses(_IMF_MASSES, params)))
 
 
+# ---------------------------------------------------------------------------
+# Differentiable summary diagnostics (Task 1.6) — the params->summary path
+# through the CW04 substructure-Q surrogate (q_approx) and the Allison+2009
+# mass-segregation surrogate (lambda_msr_approx). Both are reduced by an
+# identity sum over the scalar statistic.
+#
+#   q_approx: the substructure-Q is a DIMENSIONLESS length-scale ratio, so it
+#       is SCALE-INVARIANT — d(Q)/d(r_h) is genuinely ~0 (measured |AD|~2e-10 for
+#       a Plummer r_h rescale, pure float64 round-off: Q(r_h=0.5..4) is constant
+#       to 1e-9). r_h is therefore the WRONG audited param (it produces a true
+#       known_zero, not a live-gradient consistent case with teeth). We instead
+#       audit the EFF slope gamma, which MORPHS THE SHAPE (radial concentration)
+#       and so moves Q with a large live gradient: Q(gamma=2.5..5)=1.03..1.38,
+#       d(Q)/d(gamma) ~ 9.2e-2 (measured AD 9.239e-2 vs FD 9.237e-2, ratio
+#       1.000183). Mutation: wrapping the positions in stop_gradient before
+#       q_approx drives AD->0 with a live FD (9.24e-2) -> hazard, proving teeth.
+#
+#   lambda_msr_approx: the soft Lambda_MSR (MST-ratio surrogate). The intentional
+#       non-diff site at segregation_approx.py:145 — stop_gradient(median(min(dist)))
+#       — sets the softmin scale ONLY; the gradient SHOULD still flow through `dist`.
+#       Confirmed: a geometry param (the massive-core scale) gives a large, finite,
+#       NON-ZERO d(Lambda)/d(core_scale) (AD=-4.22 at core_scale=0.2), so the
+#       stop_gradient does NOT block the real gradient through dist — the design
+#       refinement holds. FD-consistency depends on the softmin temperature beta:
+#       at the default beta=0.1 the stopped median-scale's omitted derivative is a
+#       real ~27% AD/FD gap (measured ratio 0.727 at core_scale=0.3); as beta->0
+#       the softmin -> true 1-NN min and the scale only sets sharpness, so AD
+#       reconciles with FD (ratio 0.994 @ beta=0.03, 0.997 @ beta=0.01). We audit
+#       at beta=0.03 (sharp softmin), core_scale=0.2 (tight core, strong signal):
+#       AD=-4.2157 vs FD=-4.2156, ratio 1.000026 -> the gradient flows through dist,
+#       is non-zero, AND is FD-consistent.
+_SEG_N_MASSIVE = 40
+# Segregated-cluster masses: a light halo + a heavy central core. The massive bin
+# (m > m_cut=2) is the central core, so a TIGHTER core (smaller core_scale) is MORE
+# segregated -> larger Lambda. m_cut=2 sits cleanly between the 0.5 and 10.0 masses.
+_SEG_MASSES = jnp.concatenate(
+    [jnp.full(_MASSES.shape[0] - _SEG_N_MASSIVE, 0.5),
+     jnp.full(_SEG_N_MASSIVE, 10.0)]
+)
+
+
+def _q_approx_gamma(gamma):
+    # CW04 substructure-Q surrogate over EFF-sampled positions; gamma morphs the
+    # radial concentration so Q moves (r_h would be scale-invariant -> ~0 gradient).
+    positions = EFFProfile(a=1.0, gamma=gamma, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
+    return jnp.atleast_1d(q_approx(positions, method="naive"))
+
+
+def _lambda_msr_core_scale(core_scale):
+    # Soft Lambda_MSR over a segregated cluster: light halo (sigma=1) + heavy core
+    # (sigma=core_scale). core_scale flows through the positions into the softmin NN
+    # distances `dist` -> proves the stop_gradient(median) scale does NOT block the
+    # gradient. beta=0.03 (sharp softmin) keeps the stopped-scale's omitted derivative
+    # negligible so AD is FD-consistent (vs the ~27% gap at the default beta=0.1).
+    k_halo, k_core = jax.random.split(_KEY_POS)
+    halo = jax.random.normal(k_halo, (_MASSES.shape[0] - _SEG_N_MASSIVE, 3)) * 1.0
+    core = jax.random.normal(k_core, (_SEG_N_MASSIVE, 3)) * core_scale
+    positions = jnp.concatenate([halo, core], axis=0)
+    return jnp.atleast_1d(
+        lambda_msr_approx(positions, _SEG_MASSES, m_cut=2.0, tau=0.5, beta=0.03)
+    )
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -433,4 +498,21 @@ REGISTRY: list[Case] = [
          fn=_imf_logprob_nll_alpha3, param="alpha3", theta0=2.35, reduce=identity_sum,
          expect="consistent", tol=1e-3,
          edges=(EdgeConfig("alpha3=1.0", 1.0, expect="known_blocked"),)),
+    # --- Differentiable summary diagnostics (Task 1.6) ---
+    # CW04 substructure-Q surrogate, audited in the EFF slope gamma (Q is
+    # scale-invariant so r_h gives ~0; gamma morphs the shape). AD 9.239e-2 vs
+    # FD 9.237e-2 (ratio 1.000183). tol=1e-3 for the kNN-softmin finite-N band.
+    Case(id="q_approx[EFF]", direction="params->summary",
+         fn=_q_approx_gamma, param="gamma", theta0=3.0,
+         reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
+         expect="consistent", tol=1e-3),
+    # Soft Lambda_MSR mass-segregation surrogate, audited in the massive-core scale
+    # (flows through `dist`). The stop_gradient(median) softmin scale does NOT block
+    # the gradient: AD=-4.2157 vs FD=-4.2156 (ratio 1.000026), finite + non-zero.
+    # beta=0.03 (sharp softmin) so the stopped-scale derivative is negligible; the
+    # design-refinement check is consistent + |AD|>eps (NOT known_zero).
+    Case(id="lambda_msr_approx", direction="params->summary",
+         fn=_lambda_msr_core_scale, param="core_scale", theta0=0.2,
+         reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
+         expect="consistent", tol=1e-3),
 ]

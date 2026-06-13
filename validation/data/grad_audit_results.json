@@ -502,5 +502,33 @@
     "expect": "known_blocked",
     "tol": 0.001,
     "status": "known-limitation"
+  },
+  {
+    "id": "q_approx[EFF]",
+    "direction": "params->summary",
+    "param": "gamma",
+    "theta": 3.0,
+    "finite": true,
+    "ad": 0.09238875632506874,
+    "fd": 0.09237185988479149,
+    "ratio": 1.0001829176147186,
+    "abs_ad": 0.09238875632506874,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "lambda_msr_approx",
+    "direction": "params->summary",
+    "param": "core_scale",
+    "theta": 0.2,
+    "finite": true,
+    "ad": -4.215665584038434,
+    "fd": -4.215557137272619,
+    "ratio": 1.0000257253696923,
+    "abs_ad": 4.215665584038434,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
