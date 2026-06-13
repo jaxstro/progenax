@@ -14,7 +14,6 @@ central finite difference a faithful reference.
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from jaxstro.units import STELLAR
 from progenax.kinematics.plummer_df import PlummerVelocityDF
@@ -22,11 +21,6 @@ from progenax.kinematics.king_df import KingVelocityDF
 from progenax.kinematics.eff_df import EFFVelocityDF
 
 G = STELLAR.G
-
-
-def _fd(f, x, eps):
-    """Central finite difference of scalar->scalar f at x."""
-    return (f(x + eps) - f(x - eps)) / (2.0 * eps)
 
 
 def _fixed_positions(N, r_scale, seed):
@@ -40,22 +34,9 @@ def _fixed_positions(N, r_scale, seed):
 
 
 class TestPlummerDFGradients:
-    def test_grad_wrt_r_h_matches_fd(self):
-        pos = _fixed_positions(300, r_scale=1.5, seed=0)
-        masses = jnp.ones(300)
-        key = jax.random.PRNGKey(7)
-
-        def loss(r_h):
-            v = PlummerVelocityDF(r_h=r_h).sample_velocities(pos, masses, key, G=G)
-            return jnp.mean(jnp.sum(v**2, axis=1))
-
-        g = jax.grad(loss)(1.0)
-        g_fd = _fd(loss, 1.0, 1e-4)
-        assert jnp.isfinite(g)
-        assert jnp.abs(g - g_fd) <= 1e-3 * jnp.abs(g_fd) + 1e-6, (
-            f"Plummer grad d<|v|^2>/dr_h={float(g)} vs FD {float(g_fd)}"
-        )
-
+    # AD-vs-FD for PlummerVelocityDF.sample_velocities(r_h) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: PlummerVelocityDF.sample_velocities);
+    # see docs/website/50-validation/differentiability-audit.md. (audit T6 consolidation; registry is SoT)
     def test_jit_compatible(self):
         pos = _fixed_positions(128, r_scale=1.0, seed=3)
         masses = jnp.ones(128)
@@ -67,28 +48,10 @@ class TestPlummerDFGradients:
 
 
 class TestKingDFGradients:
-    @pytest.mark.parametrize("param,base,eps,rtol", [
-        ("r_c", 1.0, 1e-4, 2e-3),
-        ("W0", 7.0, 1e-3, 5e-2),  # W0 flows through the King ODE solve
-    ])
-    def test_grad_matches_fd(self, param, base, eps, rtol):
-        pos = _fixed_positions(300, r_scale=3.0, seed=10)
-        masses = jnp.ones(300)
-        key = jax.random.PRNGKey(11)
-
-        def loss(x):
-            kw = {"W0": 7.0, "r_c": 1.0}
-            kw[param] = x
-            v = KingVelocityDF(**kw).sample_velocities(pos, masses, key, G=G)
-            return jnp.mean(jnp.sum(v**2, axis=1))
-
-        g = jax.grad(loss)(base)
-        g_fd = _fd(loss, base, eps)
-        assert jnp.isfinite(g)
-        assert jnp.abs(g - g_fd) <= rtol * jnp.abs(g_fd) + 1e-6, (
-            f"King grad d<|v|^2>/d{param}={float(g)} vs FD {float(g_fd)}"
-        )
-
+    # AD-vs-FD for KingVelocityDF.sample_velocities(W0) and (r_c) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: KingVelocityDF.sample_velocities,
+    # both the W0 and r_c channels); see docs/website/50-validation/differentiability-audit.md.
+    # (audit T6 consolidation; registry is SoT)
     def test_jit_compatible(self):
         pos = _fixed_positions(128, r_scale=3.0, seed=12)
         masses = jnp.ones(128)
@@ -100,28 +63,10 @@ class TestKingDFGradients:
 
 
 class TestEFFDFGradients:
-    @pytest.mark.parametrize("param,base,eps,rtol", [
-        ("a", 1.0, 1e-4, 5e-2),
-        ("gamma", 3.0, 1e-3, 5e-2),  # gamma flows through the Eddington table
-    ])
-    def test_grad_matches_fd(self, param, base, eps, rtol):
-        pos = _fixed_positions(300, r_scale=4.0, seed=20)
-        masses = jnp.ones(300)
-        key = jax.random.PRNGKey(21)
-
-        def loss(x):
-            kw = {"a": 1.0, "gamma": 3.0, "r_t": 10.0}
-            kw[param] = x
-            v = EFFVelocityDF(**kw).sample_velocities(pos, masses, key, G=G)
-            return jnp.mean(jnp.sum(v**2, axis=1))
-
-        g = jax.grad(loss)(base)
-        g_fd = _fd(loss, base, eps)
-        assert jnp.isfinite(g), f"EFF grad w.r.t. {param} not finite"
-        assert jnp.abs(g - g_fd) <= rtol * jnp.abs(g_fd) + 1e-5, (
-            f"EFF grad d<|v|^2>/d{param}={float(g)} vs FD {float(g_fd)}"
-        )
-
+    # AD-vs-FD for EFFVelocityDF.sample_velocities(gamma) and (a) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: EFFVelocityDF.sample_velocities,
+    # both the gamma and a channels); see docs/website/50-validation/differentiability-audit.md.
+    # (audit T6 consolidation; registry is SoT)
     def test_jit_compatible(self):
         pos = _fixed_positions(128, r_scale=4.0, seed=22)
         masses = jnp.ones(128)
