@@ -9,7 +9,7 @@ Every demo in this section is the **same inverse problem**: *given a present-day
 snapshot of a star cluster, which birth and structural parameters can you actually
 recover, and what are the fundamental limits?* That is the inverse of what progenax
 does in the forward direction (parameters → initial conditions), run through one
-[physics-direct differentiable inference engine](index.md#the-shared-method-physics-direct-differentiable-inference):
+[physics-direct differentiable inference engine](index.md):
 forward model → analytic predicted statistic → Gaussian/Poisson likelihood → MLE +
 **Fisher information**.
 
