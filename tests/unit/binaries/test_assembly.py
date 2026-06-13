@@ -90,22 +90,18 @@ class TestResolveBinaryComponents:
         assert jnp.allclose(rb.masses[jnp.array([0, 2, 4])], jnp.array([1.0, 2.0, 1.5]))
         assert jnp.allclose(rb.masses[jnp.array([3, 5])], jnp.array([1.0, 1.5]))
 
-    def test_jit_and_grad_safe(self):
-        """jit compiles; grad of a binary separation wrt its semi-major axis is finite."""
+    def test_jit_safe(self):
+        """jit compiles and returns finite positions.
+
+        AD-vs-FD for resolve_binary_components(a) (the d|sep|/da gradient that this
+        test formerly also smoke-checked) is owned by the grad-audit registry
+        (tests/validation/grad_audit/registry.py :: resolve_binary_components [+ the
+        mixed-is_binary Fisher-integrity variant]); see
+        docs/website/50-validation/differentiability-audit.md.
+        (audit T6 consolidation; registry is SoT)
+        """
         args = _example()
         from progenax.binaries import resolve_binary_components
         jitted = jax.jit(lambda *a: resolve_binary_components(*a, G=G).positions)
         pos = jitted(*args)
         assert jnp.all(jnp.isfinite(pos))
-
-        com_pos, com_vel, m1, m2, is_binary, a, e, inc, Omega, omega, M_anom = args
-
-        def separation(a1):
-            a_v = a.at[1].set(a1)
-            rb = resolve_binary_components(
-                com_pos, com_vel, m1, m2, is_binary, a_v, e, inc, Omega, omega, M_anom, G=G
-            )
-            return jnp.linalg.norm(rb.positions[3] - rb.positions[2])
-
-        g = jax.grad(separation)(0.5)
-        assert jnp.isfinite(g) and g > 0.0, f"d|sep|/da = {g}"
