@@ -298,9 +298,13 @@ new hazards**.
   - ✅ clean
 * - `apply_differential_rotation`
   - $R_{\rm peak}$
-  - $1.000000$
+  - $1.0000001$
   - ✅ clean
 ```
+
+The two linear overlays ($\omega$, $v_{\rm peak}$) are machine-exact ($|\text{ratio}-1|\sim10^{-13}$); the
+$R_{\rm peak}$ case is genuinely nonlinear (it enters both the $(R/R_{\rm peak})$ prefactor and the
+$e^{1-R/R_{\rm peak}}$ rotation curve) and so carries the real teeth, FD-consistent to $|\text{ratio}-1|=5.5\times10^{-8}$.
 
 ### Tier-2 findings (all suspects cleared with a measured number)
 
