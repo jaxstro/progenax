@@ -1,6 +1,6 @@
 ---
 title: Peuten et al. (2017)
-description: Annotated reference for Peuten, Zocchi, Gieles, Gualandris & Hénault-Brunet — "Testing isothermal models II: Multimass" / the LIMEPY multimass methods paper, with the verified velocity-scale, anisotropy, and mean-mass-convention equations.
+description: 'Annotated reference for Peuten, Zocchi, Gieles, Gualandris & Hénault-Brunet — "Testing isothermal models II: Multimass" / the LIMEPY multimass methods paper, with the verified velocity-scale, anisotropy, and mean-mass-convention equations.'
 ---
 
 # Peuten et al. (2017)
