@@ -5,7 +5,7 @@ audit_entry_point(case) returns an AuditResult whose `status` is COMPUTED from
 gate (tests/validation/test_grad_audit.py) and scripts/audit_gradients.py -> results.json.
 Reverse-mode jax.grad only (ODE custom_vjp-safe, mirrors _demo_inference.fisher_information_gn).
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Literal, Tuple
 
 import jax
@@ -62,9 +62,12 @@ def _scalar(case: Case, theta: jax.Array) -> jax.Array:
 
 def _classify(expect, finite, ad, fd, ratio, tol, eps) -> str:
     if expect == "known_zero":
-        # Pinned: AD must be (and stay) zero. FD of a grid-snapped step is ~0 off node
-        # crossings; we require AD~0 and treat a re-appeared gradient as a hazard.
-        return "known-limitation" if abs(ad) < eps else "hazard"
+        # Design D2: BOTH |AD|~0 AND |FD|~0 for a known-limitation. AD~0 alone is not
+        # enough -- a live FD with blocked AD means the value genuinely moves with the
+        # param while the gradient is silently zero, the unannounced-change detector's
+        # headline catch, so it is a hazard. (known_zero cases must pick theta0 off any
+        # grid-node crossing so FD~0 holds for the genuinely-constant quantity.)
+        return "known-limitation" if (abs(ad) < eps and abs(fd) < eps) else "hazard"
     if expect == "known_blocked":
         return "known-limitation" if finite else "hazard"
     # consistent
@@ -78,6 +81,10 @@ def audit_entry_point(case: Case, theta: float | None = None,
     theta = case.theta0 if theta is None else theta
     tol = case.tol if tol is None else tol
     expect = case.expect if expect is None else expect
+
+    from typing import get_args
+    assert (expect if expect is not None else case.expect) in get_args(Expect), \
+        f"unknown expect class: {expect!r}"
 
     t = jnp.asarray(theta, dtype=jnp.float64)
     ad = float(jax.grad(lambda x: _scalar(case, x))(t))

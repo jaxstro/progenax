@@ -53,6 +53,15 @@ def test_known_zero_flags_if_gradient_appears():
     assert r.status == "hazard"
 
 
+def test_known_zero_with_live_fd_is_hazard():
+    # AD blocked at 0 but FD non-zero => the value genuinely depends on x while the
+    # gradient is silently zero. Design D2 requires |ad|<eps AND |fd|<eps for a
+    # known-limitation; a live FD must be a HAZARD (unannounced physics change).
+    r = audit_entry_point(_case(lambda x: jax.lax.stop_gradient(3.0 * x) * jnp.ones(2),
+                                expect="known_zero"))
+    assert r.status == "hazard" and r.abs_ad < 1e-12
+
+
 def test_known_blocked_requires_only_finite():
     r = audit_entry_point(_case(lambda x: jax.lax.stop_gradient(x) * jnp.ones(2),
                                 expect="known_blocked"))
