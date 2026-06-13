@@ -187,6 +187,19 @@ def _michie_log_density_rc(r_c):
     return jnp.atleast_1d(jnp.log(p.density(_MICHIE_RHO_QUERY)[0] + 1e-30))
 
 
+def _michie_log_density_W0(W0):
+    # Michie/LIMEPY density-OBSERVABLE channel in W0 (Task 4.2b review-fix). The W0 half of
+    # test_michie_physics.py::test_grad_profile_observable runs through the CLOSED-FORM
+    # density() formula, a DIFFERENT code path than MichieProfile.sample_positions(W0) (the
+    # stochastic inverse-CDF sampler) -- so the sampler-W0 case does NOT subsume it (a
+    # stop_gradient on density()'s W0 dependence would pass the sampler case but fail this).
+    # Same observable as the r_c case: log(density(r=1.5)) at a fixed interior query (r_c=1.0,
+    # r_a=8). MEASURED at W0=7: AD=2.573508e-2 vs FD=2.573507e-2 (|ratio-1|=2.3e-7) --
+    # machine-exact closed-form density; tol=1e-5 (the density band).
+    p = MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=_MICHIE_R_A)
+    return jnp.atleast_1d(jnp.log(p.density(_MICHIE_RHO_QUERY)[0] + 1e-30))
+
+
 # ---------------------------------------------------------------------------
 # EFF (Elson-Fall-Freeman 1987) profile + Eddington DF (Task 1.3)
 # ---------------------------------------------------------------------------
@@ -203,6 +216,18 @@ def _eff_positions_gamma(gamma):
 
 def _eff_positions_rt(r_t):
     return EFFProfile(a=1.0, gamma=3.0, r_t=r_t).sample_positions(_MASSES, _KEY_POS)
+
+
+def _eff_positions_a(a):
+    # EFF scale-radius channel of the POSITION sampler (Task 4.2b review-fix). The registry
+    # had EFFProfile.sample_positions in gamma + r_t, and EFFVelocityDF.sample_velocities in
+    # a, but NOT the position sampler's a channel -- so test_profile_gradients.py::
+    # test_eff_grad_a had no equal/stronger registry case and was held back by the migrate
+    # interlock. gamma=3.0 (the scattered test's value), r_t=10.0; a flows through the
+    # inverse-CDF radial draw. MEASURED at a=1.0: AD=1.143671e+0 vs FD=1.143689e+0
+    # (|ratio-1|=1.5e-5) -- clean within tol=1e-3 (the EFF inverse-CDF band, matching the
+    # sibling EFFProfile.sample_positions gamma/r_t cases).
+    return EFFProfile(a=a, gamma=3.0, r_t=10.0).sample_positions(_MASSES, _KEY_POS)
 
 
 def _eff_velocities_gamma(gamma):
@@ -1021,6 +1046,13 @@ REGISTRY: list[Case] = [
     Case(id="MichieProfile.density[log rho(r)]", direction="params->summary",
          fn=_michie_log_density_rc, param="r_c", theta0=1.0, reduce=identity_sum,
          expect="consistent", tol=1e-5),
+    # Michie density-OBSERVABLE channel in W0 (Task 4.2b review-fix): log rho(r=1.5) vs W0.
+    # The W0 part of the density() formula is a DIFFERENT code path than the W0 sampler
+    # case, so it needs its own pin. AD=2.573508e-2 vs FD=2.573507e-2 (|ratio-1|=2.3e-7),
+    # closed-form. tol=1e-5. Completes the migration of test_grad_profile_observable.
+    Case(id="MichieProfile.density[log rho(r)]", direction="params->summary",
+         fn=_michie_log_density_W0, param="W0", theta0=7.0, reduce=identity_sum,
+         expect="consistent", tol=1e-5),
     # --- EFF profile + Eddington DF (Task 1.3) ---
     # EFF positions: differentiable in the slope gamma (with a gamma=2.01 near-divergent
     # edge -- unguarded, samples cleanly) AND in the prescribed truncation radius r_t.
@@ -1030,6 +1062,13 @@ REGISTRY: list[Case] = [
          edges=(EdgeConfig("gamma=2.01", 2.01),)),
     Case(id="EFFProfile.sample_positions", direction="params->IC",
          fn=_eff_positions_rt, param="r_t", theta0=10.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # EFF POSITION-sampler scale-radius channel `a` (Task 4.2b review-fix): gamma=3, r_t=10.
+    # Distinct from EFFVelocityDF.sample_velocities(a) (velocity observable) -- this is the
+    # position inverse-CDF in a. AD=1.143671e+0 vs FD=1.143689e+0 (|ratio-1|=1.5e-5). tol=1e-3.
+    # Lets test_profile_gradients.py::test_eff_grad_a migrate (closes the interlock skip).
+    Case(id="EFFProfile.sample_positions", direction="params->IC",
+         fn=_eff_positions_a, param="a", theta0=1.0, reduce=mean_radius,
          expect="consistent", tol=1e-3),
     # EFF Eddington velocity DF: differentiable in gamma (gamma=5 mild-truncation
     # ~virial point; the gamma=3 default is documented ~8% sub-virial, not a hazard).

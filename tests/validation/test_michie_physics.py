@@ -188,10 +188,12 @@ class TestMichieAnisotropyStructure:
 
 class TestMichieDifferentiability:
     # AD-vs-FD for the Michie density observable log rho(r=1.5) is owned by the grad-audit
-    # registry (tests/validation/grad_audit/registry.py :: MichieProfile.density[log rho(r)]
-    # [r_c, the verbatim log rho(1.5) observable at W0=7, r_a=8]; the W0 channel flows through
-    # the same Michie ODE/profile build audited by MichieProfile.sample_positions [W0]); see
-    # docs/website/50-validation/differentiability-audit.md. The former
+    # registry (tests/validation/grad_audit/registry.py :: MichieProfile.density[log rho(r)],
+    # which has BOTH the r_c AND the W0 channel of the verbatim log rho(1.5) observable at
+    # r_a=8). NOTE: the density() formula is a DIFFERENT code path than the inverse-CDF
+    # sampler MichieProfile.sample_positions[W0], so the W0 density channel has its OWN
+    # registry case (added in the 4.2b review-fix) rather than relying on the sampler case.
+    # See docs/website/50-validation/differentiability-audit.md. The former
     # test_grad_profile_observable was removed here (audit T6 consolidation; registry is SoT).
     # test_grad_wrt_mass_velocity_scale (closed-form sigma(M)) and all physics tests stay.
     def test_grad_wrt_mass_velocity_scale(self):

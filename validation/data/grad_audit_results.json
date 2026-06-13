@@ -196,6 +196,20 @@
     "status": "clean"
   },
   {
+    "id": "MichieProfile.density[log rho(r)]",
+    "direction": "params->summary",
+    "param": "W0",
+    "theta": 7.0,
+    "finite": true,
+    "ad": 0.025735077370800344,
+    "fd": 0.025735071347446743,
+    "ratio": 1.0000002340523373,
+    "abs_ad": 0.025735077370800344,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "EFFProfile.sample_positions",
     "direction": "params->IC",
     "param": "gamma",
@@ -233,6 +247,20 @@
     "fd": 0.3010400799352553,
     "ratio": 1.0000057830963105,
     "abs_ad": 0.30104182087903086,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "EFFProfile.sample_positions",
+    "direction": "params->IC",
+    "param": "a",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 1.1436712016362551,
+    "fd": 1.1436886148086245,
+    "ratio": 0.9999847745512687,
+    "abs_ad": 1.1436712016362551,
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
