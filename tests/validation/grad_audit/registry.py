@@ -3,18 +3,24 @@ Tiers are added incrementally (see the implementation plan)."""
 import jax, jax.numpy as jnp
 from jaxstro.units import STELLAR
 from progenax import (  # noqa: F401-adjacent — carries float64 on import
+    ChabrierIMF,
     EFFProfile,
     EFFVelocityDF,
     KingProfile,
     KingVelocityDF,
+    Maschberger,
     MichieProfile,
     MichieVelocityDF,
     PlummerProfile,
     PlummerVelocityDF,
+    PowerLawIMF,
     build_spatial_ic,
 )
+from progenax.imf.differentiable import log_prob_masses
+from progenax.imf.params import IMFParams
+from progenax.imf.smooth import Schechter
 from tests.validation.grad_audit.core import Case, EdgeConfig
-from tests.validation.grad_audit.reductions import mean_radius, mean_speed
+from tests.validation.grad_audit.reductions import identity_sum, mean_mass, mean_radius, mean_speed
 
 _KEY = jax.random.PRNGKey(0)
 _MASSES = jnp.ones(400)
@@ -184,6 +190,120 @@ def _build_spatial_ic_rh_velocities(r_h):
     return build_spatial_ic(profile, _MASSES, df, _KEY, G=STELLAR.G).velocities
 
 
+# ---------------------------------------------------------------------------
+# IMF samplers + mass-function summary (Task 1.5) — the params->IC path through
+# the inverse-CDF/Newton mass samplers, plus the params->summary mass-function
+# Fisher channel. Two suspected hazards are probed explicitly:
+#
+#   H4: PowerLawIMF.cdf clips m to [m_min, m_max] (power_law.py:~227) before the
+#       unnormalised CDF. Probed by d(cdf)/d(m_min) at a FIXED query just inside
+#       the support (m=0.101, i.e. m_min0 + 1e-3). MEASURED ratio 1.0000000
+#       (AD -13.321 vs FD -13.321) -> BENIGN: the clip is inactive for an in-support
+#       query, so m_min flows through the lower integration bound cleanly. Below
+#       support (m=0.099 < m_min) AD=FD=0 (correct: F=0 below the support edge).
+#
+#   H6: ChabrierIMF.ppf Newton clamp jnp.clip(m_new, m_min, m_max) (chabrier.py:371).
+#       Probed by d(ppf)/d(m_c) at a tiny u=1e-12 (sample pinned at the m_min floor).
+#       MEASURED ratio 0.99967 (AD 9.344e-11 vs FD 9.347e-11) -> BENIGN: the gradient
+#       is LIVE and tracks FD even at the boundary; the clamp does not zero it (the
+#       sampled mass still moves smoothly with m_c through the Newton residual).
+#
+#   alpha=1.0: the exp_safe double-where removable-singularity guards keep the VJP
+#       FINITE at exactly alpha=1, but the value/gradient there is BRANCH-LIMITED:
+#       - PowerLawIMF.ppf  @alpha=1.0: AD=0 vs FD=-1.384e4 (the log branch is
+#         alpha-independent, so AD=0) -> known_blocked.
+#       - PowerLawIMF.mean_mass @alpha=1.0: AD=-52.2 vs FD=-35.6 (ratio 1.47); the
+#         Z-denominator's alpha=1 branch flips while the numerator's does not, so AD
+#         is finite-but-inconsistent -> known_blocked.
+#       - IMFParams log_prob NLL @alpha3=1.0: AD=23.8 vs FD=-274.7 -> known_blocked.
+#       In ALL cases alpha=1.0 is FINITE (no NaN) and alpha=1+-1e-3 is FD-consistent.
+# ---------------------------------------------------------------------------
+# Fixed uniform draw for the ppf/sample cases (same N as the spatial cases). The
+# ppf cases reduce identity_sum over this vector; the sample cases reduce mean_mass.
+_U = jax.random.uniform(_KEY, (_MASSES.shape[0],))
+# Salpeter single-segment bounds (PowerLawIMF.salpeter defaults).
+_PL_M_MIN, _PL_M_MAX = 0.1, 100.0
+
+
+def _powerlaw_ppf_alpha(alpha):
+    # Single-segment Salpeter; alpha is the (traced) slope. exponents is NOT static
+    # on PowerLawIMF, so the tracer flows through the inverse-CDF closed form.
+    return PowerLawIMF(exponents=[alpha], breakpoints=[],
+                       m_min=_PL_M_MIN, m_max=_PL_M_MAX).ppf(_U)
+
+
+def _powerlaw_sample_alpha(alpha):
+    # Sampled masses (reparam: fixed key -> fixed u -> ppf), reduced by mean_mass.
+    return PowerLawIMF(exponents=[alpha], breakpoints=[],
+                       m_min=_PL_M_MIN, m_max=_PL_M_MAX).sample(_KEY, _MASSES.shape[0])
+
+
+def _powerlaw_mean_mass_alpha(alpha):
+    # params->summary: analytic E[m] for the single-segment power law. The alpha=1.0
+    # edge is branch-limited (Z's removable singularity), known_blocked.
+    return jnp.atleast_1d(
+        PowerLawIMF(exponents=[alpha], breakpoints=[],
+                    m_min=_PL_M_MIN, m_max=_PL_M_MAX).mean_mass()
+    )
+
+
+# H4 probe: d(cdf)/d(m_min) at a FIXED in-support query mass = m_min0 + 1e-3 = 0.101.
+_H4_QUERY = jnp.array([_PL_M_MIN + 1e-3])
+
+
+def _powerlaw_cdf_mmin(m_min):
+    return PowerLawIMF(exponents=[2.35], breakpoints=[],
+                       m_min=m_min, m_max=_PL_M_MAX).cdf(_H4_QUERY)
+
+
+def _chabrier_ppf_mc(m_c):
+    return ChabrierIMF(m_c=m_c).ppf(_U)
+
+
+def _chabrier_ppf_sigma(sigma):
+    return ChabrierIMF(sigma=sigma).ppf(_U)
+
+
+def _chabrier_ppf_alpha(alpha):
+    return ChabrierIMF(alpha=alpha).ppf(_U)
+
+
+# H6 probe: d(ppf)/d(m_c) with u pinned to the m_min floor (tiny u). The Newton clamp
+# at chabrier.py:371 is the suspect; measured BENIGN (live gradient, ratio ~1).
+_H6_U = jnp.array([1e-12])
+
+
+def _chabrier_ppf_mc_boundary(m_c):
+    return ChabrierIMF(m_c=m_c).ppf(_H6_U)
+
+
+def _maschberger_ppf_mu(mu):
+    return Maschberger(mu=mu).ppf(_U)
+
+
+def _maschberger_ppf_alpha(alpha):
+    return Maschberger(alpha=alpha).ppf(_U)
+
+
+def _maschberger_ppf_beta(beta):
+    return Maschberger(beta=beta).ppf(_U)
+
+
+def _schechter_ppf_alpha(alpha):
+    return Schechter(alpha=alpha).ppf(_U)
+
+
+# params->summary mass-function Fisher channel: d(NLL)/d(alpha3) for the 4-segment
+# IMFParams log_prob over a FIXED Kroupa-sampled mass set. alpha3 is a traced leaf.
+_IMF_MASSES = PowerLawIMF.kroupa().sample(_KEY, _MASSES.shape[0])
+
+
+def _imf_logprob_nll_alpha3(alpha3):
+    params = IMFParams(alpha0=jnp.array(0.3), alpha1=jnp.array(1.3),
+                       alpha2=jnp.array(2.3), alpha3=alpha3)
+    return jnp.atleast_1d(-jnp.sum(log_prob_masses(_IMF_MASSES, params)))
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -253,4 +373,64 @@ REGISTRY: list[Case] = [
     Case(id="build_spatial_ic[Plummer].velocities", direction="params->IC",
          fn=_build_spatial_ic_rh_velocities, param="r_h", theta0=1.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
+    # --- IMF samplers (params->IC) + mass-function summary (Task 1.5) ---
+    # PowerLawIMF.ppf Salpeter single-segment: closed-form inverse CDF, tol=1e-5.
+    # alpha=1.0 is the branch-limited point (AD=0 vs live FD) -> known_blocked edge;
+    # alpha=0.999 is FD-consistent (ratio 1.0000000).
+    Case(id="PowerLawIMF.ppf[Salpeter]", direction="params->IC",
+         fn=_powerlaw_ppf_alpha, param="alpha", theta0=2.35, reduce=identity_sum,
+         expect="consistent", tol=1e-5,
+         edges=(EdgeConfig("alpha=0.999", 0.999),
+                EdgeConfig("alpha=1.0", 1.0, expect="known_blocked"))),
+    # PowerLawIMF.sample (reparam ppf), reduced by mean_mass over the sampled set.
+    Case(id="PowerLawIMF.sample[Salpeter]", direction="params->IC",
+         fn=_powerlaw_sample_alpha, param="alpha", theta0=2.35, reduce=mean_mass,
+         expect="consistent", tol=1e-3),
+    # ChabrierIMF.ppf (Newton solver): differentiable in m_c, sigma, alpha.
+    Case(id="ChabrierIMF.ppf", direction="params->IC",
+         fn=_chabrier_ppf_mc, param="m_c", theta0=0.08, reduce=identity_sum,
+         expect="consistent", tol=1e-3,
+         # H6 boundary probe: u pinned to the m_min floor (Newton clamp suspect).
+         # MEASURED BENIGN (live gradient, ratio ~1) -> consistent, no hazard_id.
+         edges=(EdgeConfig("u->m_min[H6]", 0.08),)),
+    Case(id="ChabrierIMF.ppf", direction="params->IC",
+         fn=_chabrier_ppf_sigma, param="sigma", theta0=0.69, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    Case(id="ChabrierIMF.ppf", direction="params->IC",
+         fn=_chabrier_ppf_alpha, param="alpha", theta0=2.3, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    # Maschberger.ppf: analytical inverse CDF (closed form) in mu, alpha, beta.
+    Case(id="Maschberger.ppf", direction="params->IC",
+         fn=_maschberger_ppf_mu, param="mu", theta0=0.2, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    Case(id="Maschberger.ppf", direction="params->IC",
+         fn=_maschberger_ppf_alpha, param="alpha", theta0=2.3, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    Case(id="Maschberger.ppf", direction="params->IC",
+         fn=_maschberger_ppf_beta, param="beta", theta0=1.4, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    # Schechter.ppf: grid-CDF + Newton (BaseIMF.ppf); tol=1e-3 for the grid/Newton band.
+    Case(id="Schechter.ppf", direction="params->IC",
+         fn=_schechter_ppf_alpha, param="alpha", theta0=2.3, reduce=identity_sum,
+         expect="consistent", tol=1e-3),
+    # H4 explicit: d(PowerLawIMF.cdf)/d(m_min) at an in-support query (m=0.101).
+    # MEASURED ratio 1.0000000 (AD/FD -13.321) -> BENIGN (clip inactive in-support).
+    Case(id="PowerLawIMF.cdf[H4]", direction="params->IC",
+         fn=_powerlaw_cdf_mmin, param="m_min", theta0=_PL_M_MIN, reduce=identity_sum,
+         expect="consistent", tol=1e-5),
+    # --- params->summary mass-function channel ---
+    # PowerLawIMF.mean_mass (analytic E[m]) in the single-segment slope alpha.
+    # alpha=1.0 is branch-limited (Z removable singularity): AD=-52.2 vs FD=-35.6
+    # (finite but inconsistent) -> known_blocked; alpha=0.999 is FD-consistent.
+    Case(id="PowerLawIMF.mean_mass", direction="params->summary",
+         fn=_powerlaw_mean_mass_alpha, param="alpha", theta0=2.35, reduce=identity_sum,
+         expect="consistent", tol=1e-3,
+         edges=(EdgeConfig("alpha=0.999", 0.999),
+                EdgeConfig("alpha=1.0", 1.0, expect="known_blocked"))),
+    # IMFParams log_prob NLL (the 4-segment mass-function Fisher channel) in alpha3.
+    # alpha3=1.0 branch-limited: AD=23.8 vs FD=-274.7 (finite) -> known_blocked edge.
+    Case(id="IMFParams.log_prob_nll", direction="params->summary",
+         fn=_imf_logprob_nll_alpha3, param="alpha3", theta0=2.35, reduce=identity_sum,
+         expect="consistent", tol=1e-3,
+         edges=(EdgeConfig("alpha3=1.0", 1.0, expect="known_blocked"),)),
 ]
