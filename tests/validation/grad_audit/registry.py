@@ -29,6 +29,7 @@ from progenax.kinematics.rotation import (
     apply_differential_rotation,
     apply_solid_body_rotation,
 )
+from tests.validation.grad_audit.binners import binned_sigma1d, binned_sigma_beta
 from tests.validation.grad_audit.core import Case, EdgeConfig
 from tests.validation.grad_audit.reductions import identity_sum, mean_mass, mean_radius, mean_speed
 
@@ -733,6 +734,84 @@ def _differential_R_peak(R_peak):
     return apply_differential_rotation(_ROT_VEL, _ROT_POS, 1.0, R_peak, _ROT_AXIS)
 
 
+# ---------------------------------------------------------------------------
+# Tier 3 — the binned-kinematic Fisher path (Task 3.1): params -> binned summary
+# statistic (sigma_1d(r), beta(r)) via the FROZEN-EDGE binners vendored in
+# tests/validation/grad_audit/binners.py. This is the Fisher channel itself:
+# F = JᵀJ with J = d(binned summary)/d(theta), so a silently-zero or wrong column
+# of J would be a confidently-wrong forecast. The data-side bin geometry r_edges is
+# STATIC (the observer freezes the bins; gradients flow through the velocities that
+# fill them) — correct and in-scope-as-frozen.
+#
+# These ARE legitimately differentiable: the per-bin sigma_k and beta_k have
+# CONTINUOUS values that move smoothly as r_h / r_a scale the velocity magnitudes.
+# The bin-membership (searchsorted on frozen edges) is a sub-leading discreteness on
+# top of the smooth dispersion gradient. We isolate the smooth channel by choosing an
+# FD step small enough that NO star crosses a frozen edge across theta +- h (the same
+# "small h + stable membership" design the Engine-A/B categorical-flip cases use,
+# NOT a weakened tol).
+#
+# CONFIG: a Plummer IC built end-to-end (build_spatial_ic: profile x DF ->
+# COM-center -> virial-scale to Q=0.5), N=2000 stars (well-occupied bins under the
+# n_min=30 floor), and K=7 frozen edges [0, 0.4, 0.8, 1.2, 1.8, 2.6, 4.0, 8.0]
+# spanning the populated radii. Baseline occupancy @ r_h=1: bins
+# [206, 588, 435, 332, 206, 116, 85] (32 stars beyond r=8). G is explicit (STELLAR.G).
+#
+# FD-STEP / BIN-CROSSING DIAGNOSTIC (the headline measurement). At the engine
+# DEFAULT h_rel=1e-4 the symmetric FD probe r_h=1 +- 1e-4 makes exactly ONE star
+# (#821, r=7.99977, sitting right on the r=8.0 outer edge) cross bin 6 -> out-of-range.
+# That single Heaviside flip injects a discrete jump that corrupts the COARSE central
+# FD (measured ratio 0.86 at h_rel=1e-4 — NOT an autodiff bug). Shrinking the FD step
+# to h_rel=1e-5 moves the probe inside the edge so 0/2000 stars cross at +-h, and the
+# central FD then matches AD to MACHINE PRECISION:
+#   sigma_1d(r) (identity_sum over sig_hat), r_h=1, h_rel=1e-5:
+#       AD=-3.345969e+00 vs FD=-3.345969e+00 (ratio 1.0000000); per-bin all ratios 1.0;
+#       AD/FD ratio stable at 1.000000 for h in {1e-5, 1e-6, 1e-7} and scales with N
+#       (ratio 1.0 at N=2000/4000/8000) — the gradient is correct, the 0.86 was pure
+#       coarse-FD edge-straddle. tol=1e-3 (comfortable margin over the machine-exact
+#       residual; the band for the virial-rescale + COM + frozen-edge binner path).
+#   beta(r) (identity_sum over beta_hat), Osipkov-Merritt DF, r_a=2.0, h_rel=1e-5:
+#       AD=-1.000759e+00 vs FD=-1.000759e+00 (ratio 1.0000000); 0/2000 bin crossings at
+#       +-h even at the default h_rel (the anisotropy headline channel). r_a=2.0 is
+#       comfortably above the Merritt (1985) bound r_a >= 0.75 a ~ 0.575 for r_h=1, so
+#       the OM phase-space DF stays positive at r_a +- h. tol=1e-3.
+# MUTATION CHECK (proving the case has Fisher teeth): wrapping the sampled (pos, vel)
+# in jax.lax.stop_gradient before binned_sigma1d drives AD -> 0.000000e+00 exactly
+# while the live FD stays -3.89e+00 (at h_rel=1e-4) / -3.35e+00 (at h_rel=1e-5) — see
+# test_grad_audit.py::test_binned_sigma_mutation_has_teeth. The collapse to 0 proves
+# the case genuinely tests the params->summary gradient (not a trivial constant).
+_BK_N = 2000
+_BK_MASSES = jnp.ones(_BK_N)
+_BK_GROUP = jnp.zeros(_BK_N, dtype=jnp.int32)
+# Frozen radial bin edges (STATIC — the data-side bin geometry; in-scope-as-frozen).
+_BK_R_EDGES = jnp.array([0.0, 0.4, 0.8, 1.2, 1.8, 2.6, 4.0, 8.0])
+_BK_N_MIN = 30
+# r_a=2.0 >> Merritt bound 0.75 a (~0.575 for r_h=1): mild anisotropy, DF stays positive.
+_BK_OM_R_A = 2.0
+
+
+def _binned_sigma1d_rh(r_h):
+    # build_spatial_ic end-to-end (positions AND velocities in r_h via virial scaling);
+    # the FROZEN-edge binner returns per-bin sig_hat that moves smoothly with r_h.
+    profile = PlummerProfile(r_h=r_h)
+    df = PlummerVelocityDF(r_h=r_h)
+    ic = build_spatial_ic(profile, _BK_MASSES, df, _KEY, G=STELLAR.G)
+    sig_hat, _se, _w, _n = binned_sigma1d(
+        ic.positions, ic.velocities, _BK_GROUP, 1, _BK_R_EDGES, n_min=_BK_N_MIN)
+    return sig_hat
+
+
+def _binned_beta_ra(r_a):
+    # Isotropic Plummer positions (r_h=1) with an Osipkov-Merritt anisotropic DF;
+    # the audited param is the anisotropy radius r_a (it enters the velocities only).
+    profile = PlummerProfile(r_h=1.0)
+    df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=r_a)
+    ic = build_spatial_ic(profile, _BK_MASSES, df, _KEY, G=STELLAR.G)
+    res = binned_sigma_beta(
+        ic.positions, ic.velocities, _BK_R_EDGES, component_id=None, n_min=_BK_N_MIN)
+    return res.beta_hat
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -986,4 +1065,22 @@ REGISTRY: list[Case] = [
     Case(id="apply_differential_rotation", direction="params->IC",
          fn=_differential_R_peak, param="R_peak", theta0=1.0, reduce=mean_speed,
          expect="consistent", tol=1e-5),
+    # --- Tier 3: binned-kinematic Fisher path (Task 3.1) ---
+    # sigma_1d(r): params->summary through build_spatial_ic + the frozen-edge binner.
+    # h_rel=1e-5 keeps the FD probe off the r=8 edge-crossing (0/2000 flips), so the
+    # central FD matches AD to machine precision: AD=-3.345969e+00 vs FD=-3.345969e+00
+    # (ratio 1.0000000). At the default h_rel=1e-4 one boundary star (#821, r=7.99977)
+    # crosses out-of-range and corrupts the coarse FD to ratio 0.86 — a coarse-FD
+    # edge-straddle, NOT an autodiff bug (per-bin ratios all 1.0; ratio stable in
+    # h<=1e-5 and across N). tol=1e-3. Mutation-checked (stop_gradient -> AD=0).
+    Case(id="binned_sigma1d[Plummer]", direction="params->summary",
+         fn=_binned_sigma1d_rh, param="r_h", theta0=1.0, reduce=identity_sum,
+         expect="consistent", tol=1e-3, h_rel=1e-5),
+    # beta(r): the anisotropy-Fisher headline channel. Osipkov-Merritt DF, vary r_a
+    # (>> Merritt bound 0.75a~0.575 for r_h=1). 0/2000 bin crossings at +-h even at the
+    # default h_rel; AD=-1.000759e+00 vs FD=-1.000759e+00 (ratio 1.0000000) at h_rel=1e-5.
+    # tol=1e-3.
+    Case(id="binned_sigma_beta[Plummer+OM]", direction="params->summary",
+         fn=_binned_beta_ra, param="r_a", theta0=_BK_OM_R_A, reduce=identity_sum,
+         expect="consistent", tol=1e-3, h_rel=1e-5),
 ]

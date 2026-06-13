@@ -740,5 +740,33 @@
     "expect": "consistent",
     "tol": 1e-05,
     "status": "clean"
+  },
+  {
+    "id": "binned_sigma1d[Plummer]",
+    "direction": "params->summary",
+    "param": "r_h",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -3.3459688419013176,
+    "fd": -3.3459688420833795,
+    "ratio": 0.9999999999455876,
+    "abs_ad": 3.3459688419013176,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "binned_sigma_beta[Plummer+OM]",
+    "direction": "params->summary",
+    "param": "r_a",
+    "theta": 2.0,
+    "finite": true,
+    "ad": -1.0007593029266972,
+    "fd": -1.0007593030048056,
+    "ratio": 0.9999999999219509,
+    "abs_ad": 1.0007593029266972,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
