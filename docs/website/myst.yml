@@ -185,6 +185,7 @@ project:
         - file: 60-science-demos/diff-diagnostics.md
         - file: 60-science-demos/birth-environment.md
         - file: 60-science-demos/binary-mass-function.md
+        - file: 60-science-demos/anisotropy.md
     - title: Development log
       children:
         - file: 90-development-log/index.md
