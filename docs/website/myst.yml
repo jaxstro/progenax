@@ -181,6 +181,7 @@ project:
         - file: 60-science-demos/imf-equipartition.md
         - file: 60-science-demos/halo-core.md
         - file: 60-science-demos/binary-energy-budget.md
+        - file: 60-science-demos/king-concentration.md
     - title: Development log
       children:
         - file: 90-development-log/index.md
