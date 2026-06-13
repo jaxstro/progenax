@@ -21,6 +21,10 @@ See the [**validation audit report**](audit-report.md) for trustworthiness tiers
 Where this section proves each model reproduces its ground truth, the
 [**science demos**](../60-science-demos/index.md) run the models *backwards* —
 recovering cluster parameters from mock observations by differentiable MLE / NUTS.
+That inference rests on gradient integrity: the
+[**differentiability gradient audit**](differentiability-audit.md) measures every public
+entry point's autodiff gradient against finite differences (gradient integrity = Fisher
+integrity), and reports the two hazards it found and fixed.
 
 ## Status dashboard
 
