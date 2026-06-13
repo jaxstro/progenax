@@ -244,17 +244,8 @@ class TestDifferentiableTidalRadius:
         prof = KingProfile.from_W0_rc(W0=W0, r_c=1.0, xi_max=400.0, n_ode_points=8000)
         assert float(prof.r_t) == pytest.approx(r_t_expected, abs=1e-10)
 
-    def test_r_t_grad_is_nonzero_and_fd_consistent(self):
-        """d(r_t)/dW0 via autodiff is large, smooth, and matches central FD —
-        the silent-zero is gone. (RED pre-fix: AD~8e-15, FD~48; ratio~0.)"""
-        def king_rt(W0):
-            return KingProfile.from_W0_rc(
-                W0=W0, r_c=1.0, xi_max=400.0, n_ode_points=8000
-            ).r_t
-
-        W0 = 8.0
-        ad = float(jax.grad(king_rt)(jnp.asarray(W0, dtype=jnp.float64)))
-        h = 1e-4 * W0
-        fd = (float(king_rt(W0 + h)) - float(king_rt(W0 - h))) / (2.0 * h)
-        assert abs(ad) > 1.0  # large, not a silent zero
-        assert ad / fd == pytest.approx(1.0, abs=1e-2)  # AD ~ FD (grid-band)
+    # AD-vs-FD for KingProfile.r_t(W0) is owned by the grad-audit registry
+    # (tests/validation/grad_audit/registry.py :: KingProfile.r_t, same xi_max=400/
+    # n_ode_points=8000 config); see docs/website/50-validation/differentiability-audit.md.
+    # The former test_r_t_grad_is_nonzero_and_fd_consistent was removed here (audit T6
+    # consolidation; registry is SoT). The forward-VALUE pin above stays (unique regression).

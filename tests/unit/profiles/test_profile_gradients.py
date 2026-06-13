@@ -7,7 +7,7 @@ difference, so a silently wrong or stop_gradient'd sampler gradient is caught.
 import jax
 import jax.numpy as jnp
 
-from progenax import PlummerProfile, EFFProfile, KingProfile
+from progenax import EFFProfile
 
 _MASSES = jnp.ones(300)
 _KEY = jax.random.PRNGKey(0)
@@ -23,29 +23,17 @@ def _central_fd(f, x, h):
 
 
 class TestSamplerGradients:
-    def test_plummer_grad_rh(self):
-        f = lambda r_h: _mean_radius(PlummerProfile(r_h=r_h))
-        ad, fd = jax.grad(f)(1.5), _central_fd(f, 1.5, 1e-4)
-        assert jnp.isfinite(ad) and jnp.isclose(ad, fd, rtol=1e-3)
-
+    # AD-vs-FD for the profile sample_positions FD cases is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: PlummerProfile.sample_positions
+    # [r_h], EFFProfile.sample_positions [gamma, r_t], KingProfile.sample_positions [r_c, W0]);
+    # see docs/website/50-validation/differentiability-audit.md. (audit T6 consolidation; registry is SoT)
+    #
+    # TODO(grad-audit): EFFProfile.sample_positions(a) — the EFF scale-radius channel on the
+    # POSITION sampler — is NOT directly owned by the registry. The registry has
+    # EFFProfile.sample_positions(gamma) + (r_t) and EFFVelocityDF.sample_velocities(a) [the
+    # VELOCITY observable], but no EFFProfile.sample_positions(a) mean-radius case. Kept here
+    # (the safety interlock against silent coverage loss) pending an equal/stronger registry Case.
     def test_eff_grad_a(self):
         f = lambda a: _mean_radius(EFFProfile(a=a, gamma=3.0, r_t=10.0))
         ad, fd = jax.grad(f)(1.0), _central_fd(f, 1.0, 1e-4)
         assert jnp.isfinite(ad) and jnp.isclose(ad, fd, rtol=5e-3)
-
-    def test_eff_grad_gamma(self):
-        f = lambda g: _mean_radius(EFFProfile(a=1.0, gamma=g, r_t=10.0))
-        ad, fd = jax.grad(f)(3.0), _central_fd(f, 3.0, 1e-4)
-        assert jnp.isfinite(ad) and jnp.isclose(ad, fd, rtol=1e-2)
-
-    def test_king_grad_rc(self):
-        # r_c is a pure length scale: mean radius is linear in r_c.
-        f = lambda r_c: _mean_radius(KingProfile.from_W0_rc(7.0, r_c))
-        ad, fd = jax.grad(f)(1.0), _central_fd(f, 1.0, 1e-4)
-        assert jnp.isfinite(ad) and jnp.isclose(ad, fd, rtol=5e-3)
-
-    def test_king_grad_w0_through_ode(self):
-        # Gradient flows through the diffrax King ODE + tidal radius + CDF.
-        f = lambda W0: _mean_radius(KingProfile.from_W0_rc(W0, 1.0))
-        ad, fd = jax.grad(f)(7.0), _central_fd(f, 7.0, 1e-3)
-        assert jnp.isfinite(ad) and jnp.isclose(ad, fd, rtol=3e-2)
