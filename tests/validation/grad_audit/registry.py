@@ -523,6 +523,14 @@ def _cluster_b_sample_ra(r_a):
     # OM anisotropy lives in the VELOCITIES (beta(r)=r^2/(r^2+r_a^2)), so reduce
     # the speeds. r_a=3.0 is comfortably inside the realizable regime (f_min_halo
     # = 0.085); the FD probes r_a +- h both stay realizable (see block above).
+    # |AD|=1.77e-3 is small *physically*, not weakly: r_a=3.0 >> r_h=2.0 puts the
+    # halo in the MILD-anisotropy regime (beta(r) only reaches ~0.3 at r~r_a), so
+    # d<speed>/dr_a is genuinely small. The teeth are in the ratio, not the
+    # magnitude: |ratio-1|=2.7e-9 (a blocked gradient would give |ratio-1|~1, FD
+    # finite & AD~0 -- the silent-zero signature -- not a near-perfect match).
+    # NOTE the core leaf r_a_j[1]=inf: under jax.grad the whole stacked r_a_j is a
+    # tracer, so _validate_engine_b_inputs's concrete >0 guard skips BOTH leaves
+    # (two-tier contract); the inf is the isotropic-core sentinel, valid by design.
     profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]
     r_a_j = jnp.stack([r_a, jnp.asarray(jnp.inf)])
     return _cluster_engine_b(profiles, r_a_j=r_a_j).sample_cluster(
