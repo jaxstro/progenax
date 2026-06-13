@@ -16,6 +16,7 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     PowerLawIMF,
     build_spatial_ic,
 )
+from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.diagnostics.q_approx import q_approx
 from progenax.diagnostics.segregation_approx import lambda_msr_approx
 from progenax.imf.differentiable import log_prob_masses
@@ -369,6 +370,75 @@ def _lambda_msr_core_scale(core_scale):
     )
 
 
+# ---------------------------------------------------------------------------
+# MultiComponentCluster Engine A: sample_cluster (Task 2.1) — params->IC through
+# the lowered-isothermal multimass equilibrium. from_imf bins the IMF into n_comp
+# components, runs the eigenvalue solve for the central density fractions alpha_j,
+# then sample_cluster draws each star's (component, position, velocity). W0, g,
+# delta are the three traceable equilibrium drivers (W0 = central dimensionless
+# potential, g = truncation sharpness exponent, delta = Gieles-Zocchi mass-
+# segregation exponent w_j = mu_j^-delta). G is explicit (STELLAR.G).
+#
+# Baseline: W0=5, g=1, delta=0.5, n_comp=3, n_stars=400 (small for the inner-loop
+# gate). reduce=mean_radius weights the OUTER particles, so it is sensitive to the
+# ψ=0 boundary shell — the H2 probe target.
+#
+# CATEGORICAL-ASSIGNMENT DISCRETENESS (the design hazard, OUT of scope): each star
+# is assigned a component by jax.random.categorical(k_assign, log(N_frac_j)) with a
+# FIXED key (sampling.py:37). N_frac_j depends on (W0, g, delta), so in principle a
+# param nudge can flip a star's argmax(log N_frac + gumbel) assignment DISCONTINUOUSLY
+# and inject FD noise that is NOT an autodiff bug. MEASURED: at h=1e-4 the assignment
+# is STABLE — ZERO flips out of 400 stars for ALL of W0, g, delta at these baselines
+# (the fixed gumbel key + tiny h never crosses an argmax boundary). So the FD here is
+# the pure smooth position-physics derivative, uncontaminated by discreteness. This is
+# the case design that side-steps the discreteness (small h + stable assignment),
+# rather than weakening tol to paper over noise.
+#
+# H2 PROBE (ψ=0 boundary masks @ multicomponent.py:266/272/286 + shared r_t kink):
+# CLEARED BENIGN. (1) The shared tidal radius r_t IS differentiable in W0 (Tier-1
+# unclamped-ψ fix, commit 9d3365a): measured AD=1.583973 vs FD=1.583973, ratio
+# 1.000000 at W0=5 (and 1.000000 at W0=7) through the from_imf path. (2) NO sampled
+# star ever lands where ψ(r)≤0: the mass-CDF draw places stars by mass, and the
+# boundary shell carries ~zero mass (min ψ(r_sampled)=0.227 at W0=5, 0/400 stars hit
+# the max(ψ,0) clamp at sampling.py:64). The jnp.where(psi>0,...) masks zero the
+# density OUTSIDE support where the CDF is built — correct, and inert for the
+# sampled stars. The W0=3 edge (most extended/boundary-dominated, r_t=4.26) is
+# FD-consistent (|ratio-1|=2.6e-4), confirming the boundary is benign. No H2 hazard.
+#
+# tol=1e-3: max measured |ratio-1| is 1.1e-4 (g) and 2.6e-4 (W0=3 edge); 1e-3 is the
+# honest band for the trapezoid mass-CDF + IMF-binning eigenvalue solve + categorical
+# reparam, with comfortable margin.
+_CLUSTER_IMF = PowerLawIMF.kroupa()
+_CLUSTER_N_COMP = 3
+_CLUSTER_N_STARS = 400
+
+
+def _cluster_engine_a(W0, g, delta):
+    # n_comp=3 log-spaced bins; the eigenvalue solve auto-sizes from CONCRETE
+    # other params, but ALL THREE of (W0, g, delta) appear traced across the three
+    # cases, so pass the default xi_max=300/n_ode=2000 explicitly (the W0/g/delta
+    # baselines are mild — xi_t(W0=5)~9 — so the historical default domain is ample;
+    # no W0>=10 domain-overflow as in the King cases).
+    return MultiComponentCluster.from_imf(
+        _CLUSTER_IMF, n_comp=_CLUSTER_N_COMP, W0=W0, g=g, delta=delta,
+        xi_max=300.0, n_ode_points=2000)
+
+
+def _cluster_sample_W0(W0):
+    return _cluster_engine_a(W0, 1.0, 0.5).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
+
+
+def _cluster_sample_g(g):
+    return _cluster_engine_a(5.0, g, 0.5).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
+
+
+def _cluster_sample_delta(delta):
+    return _cluster_engine_a(5.0, 1.0, delta).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -514,5 +584,27 @@ REGISTRY: list[Case] = [
     Case(id="lambda_msr_approx", direction="params->summary",
          fn=_lambda_msr_core_scale, param="core_scale", theta0=0.3,
          reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
+         expect="consistent", tol=1e-3),
+    # --- MultiComponentCluster Engine A sample_cluster (Task 2.1) ---
+    # params->IC through the lowered-isothermal multimass equilibrium + per-star
+    # (component, position, velocity) draw. Three traceable equilibrium drivers.
+    # W0 (central potential): AD=4.709932e-1 vs FD=4.710074e-1 (|ratio-1|=3.0e-5).
+    # Carries the H2 boundary edge at W0=3 (extended, r_t=4.26): AD=3.672140e-1 vs
+    # FD=3.671194e-1 (|ratio-1|=2.6e-4) — the ψ=0 masks + shared r_t are benign
+    # (r_t flows ratio 1.000000; no sampled star reaches ψ(r)≤0). 0/400 categorical
+    # assignment flips at h=1e-4, so FD is discreteness-free.
+    Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
+         fn=_cluster_sample_W0, param="W0", theta0=5.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3,
+         edges=(EdgeConfig("W0=3[H2-boundary]", 3.0),)),
+    # g (truncation sharpness): AD=1.459179e-1 vs FD=1.459341e-1 (|ratio-1|=1.1e-4).
+    Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
+         fn=_cluster_sample_g, param="g", theta0=1.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # delta (Gieles-Zocchi mass-segregation exponent w_j=mu_j^-delta):
+    # AD=8.716899e-1 vs FD=8.716973e-1 (|ratio-1|=8.5e-6) — the cleanest of the three
+    # (delta enters via w_j, no boundary interplay).
+    Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
+         fn=_cluster_sample_delta, param="delta", theta0=0.5, reduce=mean_radius,
          expect="consistent", tol=1e-3),
 ]

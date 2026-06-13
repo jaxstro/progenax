@@ -530,5 +530,61 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineA]",
+    "direction": "params->IC",
+    "param": "W0",
+    "theta": 5.0,
+    "finite": true,
+    "ad": 0.47099315151425847,
+    "fd": 0.4710074263902797,
+    "ratio": 0.9999696928854591,
+    "abs_ad": 0.47099315151425847,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineA]",
+    "direction": "params->IC",
+    "param": "W0",
+    "theta": 3.0,
+    "finite": true,
+    "ad": 0.36721399960211076,
+    "fd": 0.3671193594330842,
+    "ratio": 1.0002577912784896,
+    "abs_ad": 0.36721399960211076,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineA]",
+    "direction": "params->IC",
+    "param": "g",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 0.1459178670616724,
+    "fd": 0.14593412065000422,
+    "ratio": 0.9998886237964129,
+    "abs_ad": 0.1459178670616724,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineA]",
+    "direction": "params->IC",
+    "param": "delta",
+    "theta": 0.5,
+    "finite": true,
+    "ad": 0.8716899260261972,
+    "fd": 0.8716973007349971,
+    "ratio": 0.9999915398283399,
+    "abs_ad": 0.8716899260261972,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
