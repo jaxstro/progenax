@@ -357,15 +357,15 @@ def _q_approx_gamma(gamma):
 def _lambda_msr_core_scale(core_scale):
     # Soft Lambda_MSR over a segregated cluster: light halo (sigma=1) + heavy core
     # (sigma=core_scale). core_scale flows through the positions into the softmin NN
-    # distances `dist` -> proves the stop_gradient(median) scale does NOT block the
-    # gradient. beta=0.03 (sharp softmin) keeps the stopped-scale's omitted derivative
-    # negligible so AD is FD-consistent (vs the ~27% gap at the default beta=0.1).
+    # distances `dist`. Audited at the DEFAULT beta=0.1: the median softmin scale's
+    # derivative now flows (the stop_gradient was removed -- it had omitted ~27% of the
+    # true gradient at this beta), so AD is FD-consistent.
     k_halo, k_core = jax.random.split(_KEY_POS)
     halo = jax.random.normal(k_halo, (_MASSES.shape[0] - _SEG_N_MASSIVE, 3)) * 1.0
     core = jax.random.normal(k_core, (_SEG_N_MASSIVE, 3)) * core_scale
     positions = jnp.concatenate([halo, core], axis=0)
     return jnp.atleast_1d(
-        lambda_msr_approx(positions, _SEG_MASSES, m_cut=2.0, tau=0.5, beta=0.03)
+        lambda_msr_approx(positions, _SEG_MASSES, m_cut=2.0, tau=0.5, beta=0.1)
     )
 
 
@@ -507,12 +507,12 @@ REGISTRY: list[Case] = [
          reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
          expect="consistent", tol=1e-3),
     # Soft Lambda_MSR mass-segregation surrogate, audited in the massive-core scale
-    # (flows through `dist`). The stop_gradient(median) softmin scale does NOT block
-    # the gradient: AD=-4.2157 vs FD=-4.2156 (ratio 1.000026), finite + non-zero.
-    # beta=0.03 (sharp softmin) so the stopped-scale derivative is negligible; the
-    # design-refinement check is consistent + |AD|>eps (NOT known_zero).
+    # (flows through `dist`) at the DEFAULT beta=0.1, theta0=0.3 -- the config where the
+    # old stop_gradient(median) softmin scale omitted ~27% of the gradient (was a
+    # ratio~0.73 hazard). With the stop_gradient removed the median scale's derivative
+    # flows: AD=-0.2853 vs FD=-0.2852 (ratio 1.0004), finite + non-zero, consistent.
     Case(id="lambda_msr_approx", direction="params->summary",
-         fn=_lambda_msr_core_scale, param="core_scale", theta0=0.2,
+         fn=_lambda_msr_core_scale, param="core_scale", theta0=0.3,
          reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
          expect="consistent", tol=1e-3),
 ]
