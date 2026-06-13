@@ -357,7 +357,11 @@ def poisson_fisher_information(predict_mu_fn, z_hat, weight=None):
     mu = predict_mu_fn(z_hat)
     J = jax.jacrev(predict_mu_fn)(z_hat)          # (K, P), reverse-mode (ODE-safe)
     w = jnp.ones_like(mu) if weight is None else weight
-    F = J.T @ ((w / mu)[:, None] * J)  # == J^T diag(w / mu) J
+    # Floor mu (as poisson_loglike does): a TRUNCATION fit has empty bins with
+    # mu==0 AND dmu/dz==0 (beyond the edge), where 1/mu would be inf and 0*inf=NaN.
+    # Flooring makes 1/mu finite; those zero-Jacobian bins then contribute exactly 0.
+    safe_mu = jnp.maximum(mu, jnp.finfo(jnp.result_type(float)).tiny)
+    F = J.T @ ((w / safe_mu)[:, None] * J)  # == J^T diag(w / mu) J
     return 0.5 * (F + F.T)
 
 

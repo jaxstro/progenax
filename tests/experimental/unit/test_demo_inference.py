@@ -305,6 +305,23 @@ class TestPoissonFisherInformation:
         np.testing.assert_allclose(np.asarray(F), np.asarray(F.T), atol=1e-12)
         assert bool(jnp.all(jnp.linalg.eigvalsh(0.5 * (F + F.T)) > 0))
 
+    def test_empty_mu_bins_no_nan(self):
+        # A truncation fit has bins where mu==0 and dmu/dz==0 (beyond the edge):
+        # 1/mu would be inf and 0*inf -> NaN. The flooring must keep F finite, with
+        # those zero-mu/zero-Jacobian bins contributing nothing.
+        def predict_mu(z):
+            full = z[0] * jnp.array([4.0, 3.0, 2.0, 1.0])
+            mask = jnp.array([1.0, 1.0, 0.0, 0.0])  # last two bins truncated to 0
+            return full * mask
+        z_hat = jnp.array([1.5])
+        F = di.poisson_fisher_information(predict_mu, z_hat)
+        assert jnp.isfinite(F).all()
+        # equals the closed form over the populated bins only.
+        base = jnp.array([4.0, 3.0])
+        mu = 1.5 * base
+        expected = jnp.sum(base**2 / mu)
+        np.testing.assert_allclose(float(F[0, 0]), float(expected), rtol=1e-10)
+
 
 class TestAdamMLE:
     def test_recovers_quadratic_minimum(self):
