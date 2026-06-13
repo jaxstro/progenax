@@ -26,7 +26,7 @@ that file — every ratio below is a real measured number).
 
 :::{admonition} Key result: the audit found two real hazards — both in "intentional" sites — and fixed both
 :class: important
-Across **53** entry-point × parameter cases, the audit found **exactly two** gradient bugs,
+Across **57** entry-point × parameter cases, the audit found **exactly two** gradient bugs,
 both in sites previously believed correct-by-design, and fixed both **gradient-only** (the
 forward physics is bit-identical):
 
@@ -49,6 +49,17 @@ hazards** — every Tier-2 suspect was cleared with a measured number (see the T
 below): the multicomponent $\psi=0$ boundary masks are benign, the discrete `is_binary` /
 `is_circular` branches do not block the smooth $q$/$e$ gradient, and the single-star
 sanitization is NaN-safe under `jacfwd`.
+
+**Tier 3** audits the **binned-kinematic Fisher path** itself — the `params → binned summary`
+direction that a Fisher matrix is actually built from. The dispersion $\sigma(r)$ and
+anisotropy $\beta(r)$ channels are **clean and have teeth** (a mutation check wrapping the
+sampled phase space in `stop_gradient` collapses AD to $0$ while FD stays live, proving the
+case differentiates the real summary, not a constant). The radial number-density $N(r)$
+channel is the crisp illustration of the arc's principle: its Fisher gradient lives in the
+**model** per-shell occupancy $p_k(\theta)$ (the new `PlummerProfile.enclosed_mass_fraction`
+CDF, ratio $1.0$ machine-exact), while the **binned data count** is correctly
+non-differentiable (AD $=0$ by design — a pinned known-limitation). Frozen data is
+out-of-scope; the gradient is in the model.
 :::
 
 ## How a case is classified
@@ -336,6 +347,60 @@ $e^{1-R/R_{\rm peak}}$ rotation curve) and so carries the real teeth, FD-consist
   $<10^{-12}$, and the nonlinear differential-$R_{\rm peak}$ derivative is FD-consistent to
   $5.5\times10^{-8}$.
 
+## Status — binned-kinematic Fisher path (params → summary)
+
+The Tier-3 layer: the binned summary statistics a Fisher matrix $F = J^\mathsf{T}J$ is
+actually built from, with $J = \partial(\text{binned summary})/\partial\theta$. The radial
+bin edges are **frozen** (the observer fixes the bins; gradients flow through the model that
+fills them). The dispersion $\sigma(r)$ and anisotropy $\beta(r)$ bin *values* move smoothly
+with the parameters, so their gradients are genuinely live; the $N(r)$ count is the
+illustration that the Fisher gradient lives in the **model** $p_k(\theta)$, not the frozen
+data.
+
+```{list-table}
+:header-rows: 1
+
+* - Entry point
+  - Param
+  - AD/FD ratio
+  - Status
+* - `binned_sigma1d` (Plummer, e2e through `build_spatial_ic`)
+  - $r_h$
+  - $1.000000$
+  - ✅ clean (teeth-checked)
+* - `binned_sigma_beta` (Plummer + Osipkov–Merritt, anisotropy headline)
+  - $r_a$
+  - $1.000005$
+  - ✅ clean
+* - `PlummerProfile.enclosed_mass_fraction` — $N(r)$ **model** $p_k(\theta)$
+  - $r_h$
+  - $1.000000$
+  - ✅ clean
+* - `binned_number_density` — $N(r)$ **data** count (frozen)
+  - $r_h$
+  - $0$ (AD $=0$ by design; FD $=-5{\times}10^{3}$ bin-crossing)
+  - ⚠ known-limitation (pinned non-diff)
+```
+
+The $\sigma(r)$ case carries the **mutation-check teeth**: wrapping the sampled $(\text{pos},
+\text{vel})$ in `jax.lax.stop_gradient` before the binner collapses AD to $0$ exactly while
+the finite difference stays live ($\sim -3.35$), proving the case differentiates the real
+`params → summary` channel and not a constant
+(`test_grad_audit.py::test_binned_sigma_mutation_has_teeth`).
+
+The **$N(r)$ split** is the arc's headline principle made concrete. A Poisson number-density
+likelihood writes the expected per-shell count $\mu_k(\theta) = N_{\rm total}\,p_k(\theta)$,
+where $p_k = F(r_{k+1}) - F(r_k)$ and $F(r) = M(<r)/M = r^3/(r^2+a^2)^{3/2}$ is the new public
+`PlummerProfile.enclosed_mass_fraction` CDF. The gradient flows through $\mu_k$ — i.e.
+through the **model** $p_k$ — and is closed-form machine-exact (ratio $1.0$). The **observed
+binned count** $N_k$, by contrast, is a sum of indicator functions on frozen edges: its
+autodiff gradient is identically $0$ (a finite, correct-by-design answer), while a finite
+difference registers a nonzero discrete step as stars cross the frozen edges. That FD step is
+the data-side bin-crossing the audit treats as frozen and out-of-scope; AD $=0$ is the right
+answer, so the case is pinned `known_blocked` (it passes because AD is finite — not
+`known_zero`, which would mis-flag the nonzero FD as a hazard). **Frozen data is out of
+scope; the Fisher gradient lives in the model.**
+
 (label)=
 ## Intentional non-differentiable sites
 
@@ -375,6 +440,10 @@ correct."
   - AD/FD $=0.727$ at default $\beta=0.1$ (~27% of the gradient omitted)
   - dropped the `stop_gradient`; forward $\Lambda_{\rm MSR}$ unchanged (size-invariance is a forward property); now FD-consistent at all $\beta$
   - `6fa665c`
+* - `PlummerProfile.enclosed_mass_fraction` (Tier-3 addition, not a fix)
+  - the $N(r)$ Fisher gradient had no model-side entry point; the binned data count is non-diff (AD $=0$)
+  - new public CDF $M(<r)/M = r^3/(r^2+a^2)^{3/2}$ supplies the differentiable per-shell occupancy $p_k(\theta)$ — the model-side $N(r)$ Fisher channel (ratio $1.0$); pins the data-count limitation
+  - (this commit)
 ```
 
 ## What this proves, and what it does not

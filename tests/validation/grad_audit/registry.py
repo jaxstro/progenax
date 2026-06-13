@@ -29,7 +29,11 @@ from progenax.kinematics.rotation import (
     apply_differential_rotation,
     apply_solid_body_rotation,
 )
-from tests.validation.grad_audit.binners import binned_sigma1d, binned_sigma_beta
+from tests.validation.grad_audit.binners import (
+    binned_number_density,
+    binned_sigma1d,
+    binned_sigma_beta,
+)
 from tests.validation.grad_audit.core import Case, EdgeConfig
 from tests.validation.grad_audit.reductions import identity_sum, mean_mass, mean_radius, mean_speed
 
@@ -814,6 +818,44 @@ def _binned_beta_ra(r_a):
     return res.beta_hat
 
 
+# --- N(r) number-density Fisher channel: the MODEL side, NOT the data ---------
+# The N(r) Fisher gradient lives in the MODEL's expected per-shell occupancy
+# p_k(theta) = F(r_{k+1}) - F(r_k), where F = PlummerProfile.enclosed_mass_fraction
+# is the analytic Plummer CDF M(<r)/M = r^3/(r^2+a^2)^(3/2) (the new public method,
+# Task 3.1 N(r)). A Poisson number-density likelihood writes mu_k = N_total*p_k(theta)
+# and differentiates THROUGH mu_k (= through p_k), NOT through the frozen observed
+# counts. p_k is smooth closed-form in r_h (via a = r_h*sqrt(2^(2/3)-1)), so this is
+# the clean, machine-exact Fisher column for the radial-profile channel.
+# MEASURED @ r_h=1 over the frozen _BK_R_EDGES: AD=-2.691265e-2 vs FD=-2.691265e-2
+# (ratio 1.0000000) -> consistent, tol=1e-5 (the closed-form analytic band).
+def _model_pk_rh(r_h):
+    profile = PlummerProfile(r_h=r_h)
+    # Expected per-shell occupancy over the FROZEN Tier-3 edges (model, not data).
+    return (profile.enclosed_mass_fraction(_BK_R_EDGES[1:])
+            - profile.enclosed_mass_fraction(_BK_R_EDGES[:-1]))
+
+
+# --- N(r) DATA side: the frozen binned count, correctly non-differentiable -----
+# PINNED known-limitation. binned_number_density is a sum of indicator functions on
+# FROZEN edges: N_k = sum_i 1[r_edge_k <= r_i < r_edge_{k+1}]. Its derivative wrt any
+# model parameter is a.e. exactly 0 (the indicators are piecewise-constant in r_h),
+# so jax.grad returns AD=0 — a FINITE, correct-by-design answer: the N(r) gradient
+# lives in the MODEL p_k above, not in the frozen data. The finite-difference probe,
+# by contrast, is a NONZERO discrete step (MEASURED FD=-5.000e3 @ r_h=1, h=1e-4): as
+# r_h nudges, individual stars cross the frozen bin edges and the integer count jumps.
+# That FD step is the data-side bin-crossing the audit treats as frozen/out-of-scope,
+# NOT an autodiff bug. We therefore classify this expect="known_blocked" (passes iff
+# AD is FINITE — AD=0 is finite and correct), NOT "known_zero": known_zero requires
+# BOTH |AD|<eps AND |FD|<eps, but here |FD|=5e3 >> eps, so known_zero would mis-flag
+# the correct AD=0 as a hazard. known_blocked is the right pin: it documents that the
+# binned DATA count is correctly non-differentiable.
+def _binned_number_density_rh(r_h):
+    profile = PlummerProfile(r_h=r_h)
+    df = PlummerVelocityDF(r_h=r_h)
+    ic = build_spatial_ic(profile, _BK_MASSES, df, _KEY, G=STELLAR.G)
+    return binned_number_density(ic.positions, _BK_R_EDGES)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1087,4 +1129,25 @@ REGISTRY: list[Case] = [
     Case(id="binned_sigma_beta[Plummer+OM]", direction="params->summary",
          fn=_binned_beta_ra, param="r_a", theta0=_BK_OM_R_A, reduce=identity_sum,
          expect="consistent", tol=1e-3),
+    # N(r) number-density Fisher channel — the MODEL side. The Fisher gradient lives
+    # in the expected per-shell occupancy p_k(r_h) = F(r_{k+1}) - F(r_k) via the new
+    # PlummerProfile.enclosed_mass_fraction CDF (a Poisson likelihood differentiates
+    # mu_k = N*p_k, NOT the frozen counts). Closed-form analytic -> machine-exact:
+    # AD=-2.691265e-2 vs FD=-2.691265e-2 (ratio 1.0000000). tol=1e-5 (closed-form band).
+    Case(id="PlummerProfile.enclosed_mass_fraction[N(r) model]",
+         direction="params->summary",
+         fn=_model_pk_rh, param="r_h", theta0=1.0, reduce=identity_sum,
+         expect="consistent", tol=1e-5),
+    # N(r) DATA side — PINNED known-limitation: the binned count is correctly NON-diff.
+    # binned_number_density is a sum of frozen-edge indicators, so its autodiff gradient
+    # is identically 0 (AD=0, FINITE — the right answer; the N(r) gradient is in the
+    # model p_k above). The FD is a NONZERO discrete bin-crossing step (FD=-5.000e3 @
+    # r_h=1) the audit treats as frozen/out-of-scope. known_blocked passes iff AD is
+    # finite (AD=0 qualifies); known_zero would WRONGLY flag this a hazard since the FD
+    # step is far from 0. This PINS that frozen data is out-of-scope and the Fisher
+    # gradient lives in the model — the arc's headline principle.
+    Case(id="binned_number_density[data, pinned non-diff]",
+         direction="params->summary",
+         fn=_binned_number_density_rh, param="r_h", theta0=1.0, reduce=identity_sum,
+         expect="known_blocked", tol=1e-3),
 ]
