@@ -698,5 +698,47 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "apply_solid_body_rotation",
+    "direction": "params->IC",
+    "param": "omega",
+    "theta": 0.5,
+    "finite": true,
+    "ad": 1.1226200070504277,
+    "fd": 1.1226200070496573,
+    "ratio": 1.0000000000006863,
+    "abs_ad": 1.1226200070504277,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "apply_differential_rotation",
+    "direction": "params->IC",
+    "param": "v_peak",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 0.7635383829813772,
+    "fd": 0.763538382981821,
+    "ratio": 0.9999999999994188,
+    "abs_ad": 0.7635383829813772,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "apply_differential_rotation",
+    "direction": "params->IC",
+    "param": "R_peak",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.04356503544180393,
+    "fd": -0.04356503304436821,
+    "ratio": 1.0000000550311925,
+    "abs_ad": 0.04356503544180393,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
   }
 ]

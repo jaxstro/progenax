@@ -26,7 +26,7 @@ that file — every ratio below is a real measured number).
 
 :::{admonition} Key result: the audit found two real hazards — both in "intentional" sites — and fixed both
 :class: important
-Across **38** entry-point × parameter cases, the audit found **exactly two** gradient bugs,
+Across **53** entry-point × parameter cases, the audit found **exactly two** gradient bugs,
 both in sites previously believed correct-by-design, and fixed both **gradient-only** (the
 forward physics is bit-identical):
 
@@ -41,6 +41,14 @@ forward physics is bit-identical):
 Every other suspect was *cleared with a measured number*: the power-law CDF clip (ratio
 $1.0000000$), the Chabrier Newton clamp ($0.99967$), and the $\alpha=1$ IMF singularity (a
 documented branch-limited point, finite and consistent at $\alpha = 1 \pm 10^{-3}$).
+
+**Tier 2** extended the coverage map by **15 cases** through the multi-component cluster
+engines (Engine A lowered-isothermal + Engine B density-defined Eddington/OM), the binary
+orbital-mechanics layer, and the rotation overlays. All **15 are clean** and found **0 new
+hazards** — every Tier-2 suspect was cleared with a measured number (see the Tier-2 narrative
+below): the multicomponent $\psi=0$ boundary masks are benign, the discrete `is_binary` /
+`is_circular` branches do not block the smooth $q$/$e$ gradient, and the single-star
+sanitization is NaN-safe under `jacfwd`.
 :::
 
 ## How a case is classified
@@ -226,6 +234,103 @@ Generic and edge/boundary parameters; every ratio measured this run.
   - $1.000368$
   - 🔧 fixed (`stop_gradient` removed)
 ```
+
+## Status — multi-component clusters, binaries & rotation (params → IC)
+
+The Tier-2 layer: the two multi-component cluster engines, the binary orbital-mechanics
+layer, and the rotation kinematic overlays. Every ratio measured this run; **all clean, no
+new hazards**.
+
+```{list-table}
+:header-rows: 1
+
+* - Entry point
+  - Param
+  - AD/FD ratio
+  - Status
+* - `MultiComponentCluster.sample_cluster` (Engine A)
+  - $W_0$ (+ edge $W_0{=}3$, the H2 $\psi{=}0$ boundary probe)
+  - $0.999970$ / $1.000258$
+  - ✅ clean
+* - `MultiComponentCluster.sample_cluster` (Engine A)
+  - $g$ (truncation sharpness)
+  - $0.999889$
+  - ✅ clean
+* - `MultiComponentCluster.sample_cluster` (Engine A)
+  - $\delta$ (Gieles–Zocchi segregation exponent)
+  - $0.999992$
+  - ✅ clean
+* - `MultiComponentCluster.sample_cluster` (Engine B)
+  - $r_h$ (halo Plummer scale, prescribed density)
+  - $0.999936$
+  - ✅ clean
+* - `MultiComponentCluster.sample_cluster` (Engine B)
+  - $\gamma$ (core EFF slope, prescribed density)
+  - $0.999704$
+  - ✅ clean
+* - `MultiComponentCluster.sample_cluster` (Engine B)
+  - $r_a$ (halo Osipkov–Merritt anisotropy → velocities)
+  - $1.000000$
+  - ✅ clean
+* - `KeplerElements.to_state`
+  - $e$ (+ edge $e{=}0.999$, near-parabolic)
+  - $1.000000$ / $1.000000$
+  - ✅ clean
+* - `resolve_binary_components` (all binaries)
+  - $a$
+  - $1.000000$
+  - ✅ clean
+* - `resolve_binary_components` (mixed `is_binary`, sanitization active)
+  - $a$
+  - $1.000000$
+  - ✅ clean (NaN-safe)
+* - `MoeCompanions.sample`
+  - $m_1$ scale (→ $\langle e\rangle$)
+  - $1.000000$
+  - ✅ clean
+* - `apply_solid_body_rotation`
+  - $\omega$
+  - $1.000000$
+  - ✅ clean
+* - `apply_differential_rotation`
+  - $v_{\rm peak}$
+  - $1.000000$
+  - ✅ clean
+* - `apply_differential_rotation`
+  - $R_{\rm peak}$
+  - $1.000000$
+  - ✅ clean
+```
+
+### Tier-2 findings (all suspects cleared with a measured number)
+
+- **The H2 $\psi=0$ boundary is benign (Engine A).** The lowered-isothermal mass-CDF draw
+  places stars by mass, and the truncation-shell carries $\sim$zero mass, so no sampled star
+  ever reaches the `jnp.where(psi>0, ...)` support mask or the `max(\psi,0)` sampling clamp.
+  Measured at the most extended $W_0=3$ edge (the boundary most stretched, $r_t=4.26$): the
+  minimum sampled $\psi(r)$ is $0.153$ (max sampled radius $3.66 < r_t$), with **0/400** stars
+  hitting the clamp and **0/400** categorical-assignment flips at $h$. The $W_0=3$ edge is
+  FD-consistent ($|\text{ratio}-1| = 2.6\times10^{-4}$). The shared tidal radius $r_t$ is itself
+  differentiable in $W_0$ through `from_imf` (Tier-1 unclamped-$\psi$ fix, ratio $1.000000$).
+- **The discrete `is_binary` / `is_circular` branches do not block the $q$/$e$ gradient
+  (`MoeCompanions`).** The $(P, q, e)$ draw is a smooth grid-CDF inverse; the only discrete
+  selections are the `is_binary` Heaviside mask and the `is_circular` ($e\to 0$) gate. Measured
+  at the baseline: **0/400** `is_binary` flips and **0/400** `is_circular` flips at $h$, so the
+  discrete selection injects zero finite-difference noise and the mask-independent
+  $\langle e\rangle$ channel flows cleanly (ratio $1.000000$).
+- **The single-star sanitization is NaN-safe (a Fisher-integrity win).** The mixed-`is_binary`
+  `resolve_binary_components` case (25 binaries + 25 singles) activates the
+  $a_{\rm safe}/e_{\rm safe}/m_{2,\rm safe}$ sanitization path. `jacfwd` of the resolved
+  positions w.r.t. the per-element $a$ is **NaN-free**, with $\mathrm{d}/\mathrm{d}a = 0$ on every
+  single slot (a finite zero, not a `NaN`) and a live non-zero gradient on every binary slot —
+  directly verifying the sanitization cannot leak a `NaN` into a Fisher matrix.
+- **Engine A/B $r_t$ and the OM anisotropy are differentiable.** The Engine B density-defined
+  Eddington/OM build (Poisson quadrature + Abel/Eddington inversion, no ODE) is FD-consistent in
+  the prescribed-density scale leaves ($r_h$, $\gamma$) and in the Osipkov–Merritt anisotropy
+  radius $r_a$ (whose gradient lives in the velocities). The rotation overlays are exact: the
+  solid-body $\omega$ gradient matches the closed form $\langle|\hat{n}\times\mathbf{r}|\rangle$ to
+  $<10^{-12}$, and the nonlinear differential-$R_{\rm peak}$ derivative is FD-consistent to
+  $5.5\times10^{-8}$.
 
 (label)=
 ## Intentional non-differentiable sites

@@ -25,6 +25,10 @@ from progenax.diagnostics.segregation_approx import lambda_msr_approx
 from progenax.imf.differentiable import log_prob_masses
 from progenax.imf.params import IMFParams
 from progenax.imf.smooth import Schechter
+from progenax.kinematics.rotation import (
+    apply_differential_rotation,
+    apply_solid_body_rotation,
+)
 from tests.validation.grad_audit.core import Case, EdgeConfig
 from tests.validation.grad_audit.reductions import identity_sum, mean_mass, mean_radius, mean_speed
 
@@ -682,6 +686,53 @@ def _moe_companions_mean_e(s):
     return jnp.atleast_1d(jnp.mean(comp.e))
 
 
+# ---------------------------------------------------------------------------
+# Rotation kinematic overlays (Task 2.4): params->IC through the additive
+# streaming-rotation transforms (kinematics/rotation.py). Both are pure
+# velocity overlays — v_out = v_base + v_rot(theta, positions) — over a FIXED
+# Plummer position sample (r_h=1) and a FIXED z-axis (axis=[0,0,1], nonzero so
+# _normalized_rotation_axis does NOT raise). We start from ZERO base velocities
+# so the audited channel is the PURE rotation field (no Plummer-draw speed term
+# in the denominator of mean_speed), isolating d<speed>/d(theta) of the overlay
+# itself. reduce=mean_speed.
+#
+# (a) apply_solid_body_rotation vs omega. v_rot = omega·(axis × r), so for omega>0
+#     mean_speed = omega·mean(|axis × r|) is EXACTLY LINEAR in omega — the gradient
+#     is the closed form d<speed>/d(omega) = mean(|axis × r|), independent of omega.
+#     VERIFIED: AD = mean(|axis × r|) = 1.1226200071 to <1e-12 (closed-form match),
+#     and AD=1.122620e+00 vs central FD=1.122620e+00 (|ratio-1|=6.9e-13, machine-
+#     exact — the linear overlay has zero FD truncation error). tol=1e-5 (closed-form
+#     band, with enormous margin).
+#
+# (b) apply_differential_rotation vs v_peak. v_phi(R)=v_peak·(R/R_peak)·exp(1-R/R_peak)
+#     is LINEAR in v_peak (v_peak only scales the curve), so the overlay speed is again
+#     linear in v_peak and AD is machine-exact: AD=7.635384e-01 vs FD=7.635384e-01
+#     (|ratio-1|=5.8e-13). tol=1e-5.
+#
+# (c) apply_differential_rotation vs R_peak. R_peak enters x=R/R_peak inside BOTH the
+#     (R/R_peak) prefactor and the exp(1-R/R_peak) — genuinely NONLINEAR, so this is
+#     the real teeth: the central FD carries truncation error. Even so it is FD-
+#     consistent to ~5.5e-8: AD=-4.356504e-02 vs FD=-4.356503e-02 (|ratio-1|=5.5e-8).
+#     The gradient is negative (R_peak0=1.0 is below the position-weighted mean R, so
+#     pushing the peak outward lowers the mean rotation speed of the inner-weighted
+#     sample). tol=1e-5 (the nonlinear FD band, with comfortable margin).
+_ROT_AXIS = jnp.array([0.0, 0.0, 1.0])
+_ROT_POS = PlummerProfile(r_h=1.0).sample_positions(_MASSES, _KEY_POS)
+_ROT_VEL = jnp.zeros_like(_ROT_POS)  # zero base -> audit the pure rotation overlay
+
+
+def _solid_body_omega(omega):
+    return apply_solid_body_rotation(_ROT_VEL, _ROT_POS, omega, _ROT_AXIS)
+
+
+def _differential_v_peak(v_peak):
+    return apply_differential_rotation(_ROT_VEL, _ROT_POS, v_peak, 1.0, _ROT_AXIS)
+
+
+def _differential_R_peak(R_peak):
+    return apply_differential_rotation(_ROT_VEL, _ROT_POS, 1.0, R_peak, _ROT_AXIS)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -915,4 +966,24 @@ REGISTRY: list[Case] = [
          fn=_moe_companions_mean_e, param="m1_scale", theta0=1.0,
          reduce=lambda x: jnp.sum(jnp.atleast_1d(x)),
          expect="consistent", tol=1e-3),
+    # --- Rotation kinematic overlays (Task 2.4) ---
+    # (a) apply_solid_body_rotation in omega: EXACTLY LINEAR overlay, AD = closed-form
+    # mean(|axis × r|) = 1.1226200071 (verified <1e-12); AD=1.122620e+00 vs FD=
+    # 1.122620e+00 (|ratio-1|=6.9e-13, machine-exact). tol=1e-5 (closed-form band).
+    Case(id="apply_solid_body_rotation", direction="params->IC",
+         fn=_solid_body_omega, param="omega", theta0=0.5, reduce=mean_speed,
+         expect="consistent", tol=1e-5),
+    # (b) apply_differential_rotation in v_peak: LINEAR in v_peak (scales the curve),
+    # AD=7.635384e-01 vs FD=7.635384e-01 (|ratio-1|=5.8e-13, machine-exact). tol=1e-5.
+    Case(id="apply_differential_rotation", direction="params->IC",
+         fn=_differential_v_peak, param="v_peak", theta0=1.0, reduce=mean_speed,
+         expect="consistent", tol=1e-5),
+    # (c) apply_differential_rotation in R_peak: NONLINEAR (R_peak in both the (R/R_peak)
+    # prefactor and exp(1-R/R_peak)) — the real teeth. AD=-4.356504e-02 vs FD=
+    # -4.356503e-02 (|ratio-1|=5.5e-8, the nonlinear central-FD band). Negative grad:
+    # R_peak0=1.0 below the position-weighted mean R, so widening the peak lowers the
+    # inner-weighted mean speed. tol=1e-5 (with margin to the 5.5e-8 residual).
+    Case(id="apply_differential_rotation", direction="params->IC",
+         fn=_differential_R_peak, param="R_peak", theta0=1.0, reduce=mean_speed,
+         expect="consistent", tol=1e-5),
 ]
