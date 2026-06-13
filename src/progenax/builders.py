@@ -175,6 +175,14 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
 
     Used for collision radii in downstream N-body; ZAMS values, no evolution.
 
+    .. note::
+       TEMPORARY single-relation stand-in. This will be REPLACED by the
+       ``startrax`` package once it lands: first Tout et al. (1996) ZAMS radii
+       (metallicity-dependent rational-polynomial fits), then MIST and the
+       Hurley+2000 SSE tracks (mass- AND age-dependent radii with real stellar
+       evolution). The D&K91 fit here is a static main-sequence approximation
+       chosen only to be cited and correct in the ZAMS limit until then.
+
     Args:
         masses: Particle masses (N,) [M☉]
 
