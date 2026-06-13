@@ -168,7 +168,8 @@ def main():
 
     # forecast: sigma(r_a) ~ N^-1/2 from the per-star Fisher info.
     info_per_star = 1.0 / (ra_sig**2 * N_STARS)
-    n_grid = np.array([1e3, 3e3, 1e4, 3e4, 1e5, 3e5])
+    # span low N so the 3-sigma detection N (~150) is in-range, not clipped at the edge.
+    n_grid = np.array([3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5])
     sigma_grid = 1.0 / np.sqrt(n_grid * info_per_star)
     slope = float(np.polyfit(np.log(n_grid), np.log(sigma_grid), 1)[0])
     n_detect = 9.0 / (info_per_star * RA_OM_TRUE**2)  # 3-sigma r_a vs isotropic
@@ -253,8 +254,8 @@ def make_figure(r_a_mid, beta_a, bse_a, w_a, ra_hat,
     ax = axes[2]
     ax.loglog(n_grid, sigma_grid, "o-", color=OI["green"])
     ax.axvline(n_detect, color="0.6", ls=":")
-    ax.text(n_detect, sigma_grid.max(), fr"$N\approx{n_detect:.0f}$", fontsize=7.5,
-            ha="center", color="0.3")
+    ax.text(n_detect * 1.25, sigma_grid.min() * 1.5, fr"$N\approx{n_detect:.0f}$",
+            fontsize=7.5, ha="left", va="bottom", color="0.3")
     ax.set_xlabel(r"$N_\star$")
     ax.set_ylabel(r"$\sigma(r_a)$  [pc]")
     panel_label(ax, "(c)")

@@ -146,7 +146,8 @@ def main():
 
     # --- forecast: sigma(alpha3) vs N from the per-star Fisher info --------- #
     info_per_star = 1.0 / (sigma_a3**2 * N_STARS)  # I_total = N * I_1 (CRLB)
-    n_grid = np.array([1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6])
+    # span low N so the 3-sigma detection N (~60) is in-range, not clipped at the edge.
+    n_grid = np.array([3e1, 1e2, 3e2, 1e3, 3e3, 1e4, 3e4, 1e5, 3e5, 1e6])
     sigma_grid = 1.0 / np.sqrt(n_grid * info_per_star)
     delta = abs(ALPHA3_TRUE - ALPHA3_CANON)
     n_3sig = 9.0 / (info_per_star * delta**2)  # N for a 3-sigma top-heavy detection
@@ -250,8 +251,8 @@ def make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig, n_emp, sig
     ax.axhline(target, color=OI["vermilion"], ls="--",
                label=r"$\sigma=|\Delta\alpha_3|/3$")
     ax.axvline(n_3sig, color="0.6", ls=":")
-    ax.text(n_3sig, target * 1.4, fr"$N\approx{n_3sig:.0f}$", fontsize=7.5,
-            ha="center", color="0.3")
+    ax.text(n_3sig * 1.25, sigma_grid.min() * 1.5, fr"$N\approx{n_3sig:.0f}$",
+            fontsize=7.5, ha="left", va="bottom", color="0.3")
     ax.set_xlabel(r"$N_\star$")
     ax.set_ylabel(r"$\sigma(\alpha_3)$")
     ax.legend(fontsize=7)
