@@ -151,32 +151,12 @@ class TestOsipkovMerrittAnisotropy:
         assert np.all(np.abs(beta) < 0.04), f"isotropic beta should be ~0: {beta}"
 
 
-class TestRotationDifferentiability:
-    def test_grad_wrt_omega(self):
-        """Rotational kinetic energy is differentiable in Omega (AD = FD)."""
-        m, pos, vel = _isotropic_ic(n=2000)
-
-        def rot_ke(omega):
-            v = apply_solid_body_rotation(vel, pos, omega, ZAXIS)
-            return jnp.sum(m * jnp.sum(v ** 2, axis=1))
-
-        ad = float(jax.grad(rot_ke)(0.3))
-        fd = float((rot_ke(0.3 + 1e-5) - rot_ke(0.3 - 1e-5)) / 2e-5)
-        rel = abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30)
-        assert np.isfinite(ad) and rel < 1e-5, f"AD={ad}, FD={fd}, rel={rel:.2e}"
-
-    def test_grad_wrt_v_peak(self):
-        """Differential-rotation amplitude is differentiable in v_peak."""
-        m, pos, vel = _isotropic_ic(n=2000)
-
-        def rot_ke(v_peak):
-            v = apply_differential_rotation(vel, pos, v_peak, 1.0, ZAXIS)
-            return jnp.sum(m * jnp.sum(v ** 2, axis=1))
-
-        ad = float(jax.grad(rot_ke)(2.0))
-        fd = float((rot_ke(2.0 + 1e-5) - rot_ke(2.0 - 1e-5)) / 2e-5)
-        rel = abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30)
-        assert np.isfinite(ad) and rel < 1e-5, f"AD={ad}, FD={fd}, rel={rel:.2e}"
+# AD-vs-FD for apply_solid_body_rotation(omega) and apply_differential_rotation(v_peak)
+# is owned by the grad-audit registry (tests/validation/grad_audit/registry.py ::
+# apply_solid_body_rotation, apply_differential_rotation); see
+# docs/website/50-validation/differentiability-audit.md. The former
+# TestRotationDifferentiability class was removed here (audit T6 consolidation; registry is SoT).
+# All physics tests in this file (solid-body / differential rotation curves, OM anisotropy) stay.
 
 
 if __name__ == "__main__":
