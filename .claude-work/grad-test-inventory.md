@@ -2,6 +2,23 @@
 
 **Branch:** `feat/differentiability-audit` · **Date:** 2026-06-13 · **Author:** grad-audit Tier-4 inventory pass
 
+## ✅ CHECKPOINT 4a — Anna's ratified decisions (2026-06-13)
+
+1. **Scope = consolidate + fill migration gaps.** Migrate the ~24 duplicates, delete the ~12 T6
+   finite-only smoke tests, AND add the **7 new registry cases** the migrations require (King-DF
+   `r_c`, EFF-DF `a`, `PowerLawIMF.ppf(m_min)`, Kepler `to_state(a)`, `to_state(M0)`,
+   `from_state(v-scale)`, optional Michie density channel). The broader inference-target gaps
+   (Engine-A `w_j`/`r_a`, `build_binary_cluster`, the binary orbital-distribution params) are
+   **documented as future work**, NOT filled in this arc.
+2. **Borderline keep(verify) → KEEP ALL (conservative).** The 9 internal-machinery finite-only pins
+   in `test_limepy.py` / `test_limepy_multimass.py` AND `test_multicomponent::test_sample_differentiable_in_delta`
+   STAY (with a registry-pointer comment). No internal-solver guard is lost.
+3. **Gate cadence = fast per-file + full per batch.** Fast gate (`-m "not slow"`, ~4 min) after each
+   file edit; full released-core gate once per logical batch (new-cases, migrates, deletes) before commit.
+
+The migrate/keep/delete columns below are otherwise ratified as written (with the borderline rows
+moved to KEEP per decision 2).
+
 ## What this is
 
 The grad-audit registry (`tests/validation/grad_audit/registry.py`, **57 `Case`s** across
