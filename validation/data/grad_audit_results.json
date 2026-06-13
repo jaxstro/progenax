@@ -1,0 +1,16 @@
+[
+  {
+    "id": "PlummerProfile.sample_positions",
+    "direction": "params->IC",
+    "param": "r_h",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 1.5725582023935931,
+    "fd": 1.572558202392882,
+    "ratio": 1.0000000000004523,
+    "abs_ad": 1.5725582023935931,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  }
+]
