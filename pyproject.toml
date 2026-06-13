@@ -55,6 +55,14 @@ diagnostics = ["numpy>=1.24", "scipy>=1.11"]
 # figure gallery locally, install it editable from the sibling checkout:
 #     uv pip install -e ../jaxstroviz
 # A nightly/release lane may check it out with a PAT and install it the same way.
+#
+# NOTE (Batch C, same rationale): fluxax is ALSO a private, unpublished sibling and is
+# likewise NOT declared/locked here. The B4 binary-mass-function demo
+# (scripts/demo_binary_mass_function.py) imports fluxax.photometry's Tout+1996 ZAMS
+# mass-luminosity relations (zams_luminosity / inverse_zams_luminosity) for the
+# photometric blending of unresolved binaries. The demo guards the import with an
+# actionable message; install it locally to run B4:
+#     uv pip install -e ../fluxax --no-deps
 experimental = [
     "blackjax>=1.2,<2",
     "optax>=0.2",
