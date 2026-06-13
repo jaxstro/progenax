@@ -449,6 +449,86 @@ def _cluster_sample_delta(delta):
         _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
 
 
+# ---------------------------------------------------------------------------
+# MultiComponentCluster Engine B: from_density_profiles -> sample_cluster
+# (Task 2.2) — params->IC through the density-defined shared-Psi Eddington/OM
+# build (Poisson quadrature + Abel/Eddington inversion, NO ODE) and the per-star
+# (component, position, velocity) draw. The audited params are the traceable
+# scale leaves on the PRESCRIBED component profiles (multicomponent.py:407).
+#
+# REALIZABLE CONFIG (reused verbatim from tests/validation/test_engine_b_physics.py
+# _headline_model): a Plummer halo + EFF(gamma=5) core,
+#   profiles      = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]
+#   mass_fractions= [0.6, 0.4],  m_j = [0.5, 1.0]
+# This is the science-headline mix and a PROVEN shared-potential equilibrium
+# (theory Q_j = 0.5 +- 3e-3; physics test test_plummer_halo_eff_core_equilibrium).
+# The core scale a=0.8 is itself a realizability constraint (a=0.4 has NO
+# equilibrium — genuinely negative Eddington DF; see _headline_model's docstring
+# and TestEngineB), so we start from a known-good, comfortably-realizable point.
+#
+# REALIZABILITY MARGIN AT THE FD PROBES (eddington_engine.py:212-216 raises on a
+# CONCRETE negative DF; the central FD evaluates the build at theta +- h on
+# CONCRETE values, so BOTH probes must stay realizable). MEASURED min f / max|f|
+# (f_min_j) at every probe point — all positive with margin:
+#   r_h   in {1.99980, 2.0, 2.00020}: f_min_j = [~0.0164, ~1.185e-4] (>0)
+#   gamma in {4.99950, 5.0, 5.00050}: f_min_j = [~0.0164, ~1.185e-4] (>0)
+#   r_a   in {2.99970, 3.0, 3.00030}: f_min_j = [~0.0848, ~1.185e-4] (>0)
+# (The OM r_a=3.0 f_min_halo=0.085 reproduces test_om_beta_profile_realized's
+# stated [+0.085, +1.2e-4].) The tightest margin is the EFF core's ~1.185e-4 —
+# small but strictly positive and essentially flat across all probes, so neither
+# FD probe trips the realizability ValueError. AD-vs-FD identity is a property of
+# the computational graph (both sides share the same grids), so the gate uses the
+# REDUCED resolution n_r=3000, n_e=500 (same as the physics test's
+# test_gradients_ad_vs_fd) to stay in the inner-loop budget.
+#
+# CATEGORICAL-ASSIGNMENT DISCRETENESS (the design hazard, OUT of scope, same as
+# Engine A): each star's component is jax.random.categorical(...) with a FIXED key
+# off N_frac_j ∝ mass_fractions_j / m_j. mass_fractions and m_j are CONCRETE here
+# (the audited leaves are the profile scales), and a profile-scale nudge can in
+# principle reshape N_frac via the mass-normalization — but MEASURED: 0/400
+# assignment flips at h for ALL THREE params (r_h, gamma, r_a), so the FD is the
+# pure smooth position/velocity-physics derivative, discreteness-free.
+#
+# tol=1e-3: max measured |ratio-1| is 3.0e-4 (gamma); 1e-3 is the honest band for
+# the Poisson-quadrature + Eddington-inversion + mass-CDF + categorical reparam,
+# with comfortable margin (matches the Engine A cases).
+_CLUSTER_B_MF = jnp.array([0.6, 0.4])
+_CLUSTER_B_MJ = jnp.array([0.5, 1.0])
+# Reduced resolution (AD==FD is a graph property; both sides use the same grids).
+_CLUSTER_B_N_R, _CLUSTER_B_N_E, _CLUSTER_B_N_GRID = 3000, 500, 1000
+
+
+def _cluster_engine_b(profiles, r_a_j=None):
+    return MultiComponentCluster.from_density_profiles(
+        profiles, _CLUSTER_B_MF, m_j=_CLUSTER_B_MJ, r_a_j=r_a_j,
+        n_r=_CLUSTER_B_N_R, n_e=_CLUSTER_B_N_E, n_grid=_CLUSTER_B_N_GRID)
+
+
+def _cluster_b_sample_rh(r_h):
+    # Halo Plummer scale r_h (the prescribed-density leaf) -> positions.
+    profiles = [PlummerProfile(r_h=r_h), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]
+    return _cluster_engine_b(profiles).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
+
+
+def _cluster_b_sample_gamma(gamma):
+    # Core EFF slope gamma (the prescribed-density leaf) -> positions.
+    profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=gamma, r_t=9.0)]
+    return _cluster_engine_b(profiles).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).positions
+
+
+def _cluster_b_sample_ra(r_a):
+    # Halo Osipkov-Merritt anisotropy radius r_a_j[0] (core isotropic, r_a=inf).
+    # OM anisotropy lives in the VELOCITIES (beta(r)=r^2/(r^2+r_a^2)), so reduce
+    # the speeds. r_a=3.0 is comfortably inside the realizable regime (f_min_halo
+    # = 0.085); the FD probes r_a +- h both stay realizable (see block above).
+    profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]
+    r_a_j = jnp.stack([r_a, jnp.asarray(jnp.inf)])
+    return _cluster_engine_b(profiles, r_a_j=r_a_j).sample_cluster(
+        _KEY, _CLUSTER_N_STARS, G=STELLAR.G).velocities
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -617,5 +697,28 @@ REGISTRY: list[Case] = [
     # (delta enters via w_j, no boundary interplay).
     Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
          fn=_cluster_sample_delta, param="delta", theta0=0.5, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
+    # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson
+    # quadrature + Eddington inversion, NO ODE) + per-star draw. Realizable headline
+    # mix (Plummer halo + EFF core) reused from test_engine_b_physics._headline_model.
+    # halo Plummer scale r_h (prescribed-density leaf) -> positions:
+    # AD=6.767522e-1 vs FD=6.767957e-1 (|ratio-1|=6.4e-5); f_min_j > 0 at r_h +- h.
+    Case(id="MultiComponentCluster.sample_cluster[EngineB]", direction="params->IC",
+         fn=_cluster_b_sample_rh, param="r_h", theta0=2.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # core EFF slope gamma (prescribed-density leaf) -> positions:
+    # AD=-1.204971e-1 vs FD=-1.205328e-1 (|ratio-1|=3.0e-4 — the widest of the three,
+    # sets the tol); 0/400 categorical flips at h; f_min_j > 0 at gamma +- h.
+    Case(id="MultiComponentCluster.sample_cluster[EngineB]", direction="params->IC",
+         fn=_cluster_b_sample_gamma, param="gamma", theta0=5.0, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # halo Osipkov-Merritt anisotropy radius r_a_j[0] -> VELOCITIES (anisotropy lives
+    # in the speeds): AD=1.768007e-3 vs FD=1.768007e-3 (|ratio-1|=2.7e-9 — essentially
+    # exact). |AD|=1.77e-3 is small but >> eps=1e-9 (a live, non-zero gradient). r_a=3.0
+    # is well inside the realizable OM regime (f_min_halo=0.085; FD probes r_a +- h both
+    # realizable). Core stays isotropic (r_a=inf).
+    Case(id="MultiComponentCluster.sample_cluster[EngineB]", direction="params->IC",
+         fn=_cluster_b_sample_ra, param="r_a", theta0=3.0, reduce=mean_speed,
          expect="consistent", tol=1e-3),
 ]

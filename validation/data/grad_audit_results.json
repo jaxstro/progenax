@@ -586,5 +586,47 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineB]",
+    "direction": "params->IC",
+    "param": "r_h",
+    "theta": 2.0,
+    "finite": true,
+    "ad": 0.6767522474315355,
+    "fd": 0.6767956950726184,
+    "ratio": 0.9999358039044881,
+    "abs_ad": 0.6767522474315355,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineB]",
+    "direction": "params->IC",
+    "param": "gamma",
+    "theta": 5.0,
+    "finite": true,
+    "ad": -0.12049713122683248,
+    "fd": -0.1205328224593849,
+    "ratio": 0.9997038878554059,
+    "abs_ad": 0.12049713122683248,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "MultiComponentCluster.sample_cluster[EngineB]",
+    "direction": "params->IC",
+    "param": "r_a",
+    "theta": 3.0,
+    "finite": true,
+    "ad": 0.0017680065985731259,
+    "fd": 0.0017680065937201541,
+    "ratio": 1.0000000027448832,
+    "abs_ad": 0.0017680065985731259,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
