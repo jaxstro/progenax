@@ -1,0 +1,135 @@
+---
+title: Birth-environment archaeology (B5)
+description: "A paper-seed inference demo on the environment-dependent IMF. Given a present-day stellar mass spectrum, the high-mass slope alpha3 is cleanly recovered (a ~40-sigma top-heavy detection at N=1e4), but the birth environment (metallicity, embedded-cluster mass, star-formation efficiency) is formally UNrecoverable: the environment->alpha3 map is three-to-one, so the environment-space Fisher information is rank 1 (two flat directions). You can read the IMF slope off the masses; you cannot read the birth conditions off the slope."
+---
+
+# Birth-environment archaeology (B5)
+
+The environment-dependent IMF {cite:p}`Marks2012,Jerabkova2018` predicts that
+**metal-poor, massive clusters form top-heavy** — a shallower high-mass slope
+$\alpha_3$. This demo asks the inverse question honestly: given a present-day
+stellar mass spectrum, *what about the cluster's birth conditions can you actually
+recover?* The answer is a sharp two-part contrast.
+
+## The forward model
+
+`BirthEnvironment` carries three birth parameters — metallicity $[\mathrm{Fe/H}]$,
+embedded-cluster mass $\log M_{\rm ecl}$, and star-formation efficiency
+$\mathrm{sfe}$ — and `env_to_imf_params` (the Jerabkova generalized relation) maps
+them to the high-mass IMF slope $\alpha_3$, holding the low-mass slopes at their
+canonical Kroupa {cite:p}`Kroupa2001` values. The truth here is a metal-poor,
+massive cluster:
+
+```{math}
+:label: b5-truth
+[\mathrm{Fe/H}] = -1.5,\quad \log M_{\rm ecl} = 6.5,\quad \mathrm{sfe}=0.3
+\;\xrightarrow{\;\text{Jerabkova}\;}\; \alpha_3 = 1.625
+```
+
+— strongly **top-heavy** versus the canonical $\alpha_3=2.3$. We sample
+$N=10^5$ stars from this IMF and ask what they reveal.
+
+## What you CAN read off the masses: $\alpha_3$
+
+A direct maximum-likelihood fit of the high-mass slope (the per-star IMF
+log-likelihood $\sum_i \log p(m_i\mid\alpha_3)$, differentiable in $\alpha_3$)
+recovers it cleanly:
+
+```{list-table}
+:header-rows: 1
+
+* - quantity
+  - truth
+  - recovered
+* - $\alpha_3$
+  - $1.6247$
+  - $1.6249 \pm 0.0054$  (pull $+0.04\sigma$)
+```
+
+The uncertainty scales as the textbook $\sigma(\alpha_3)\propto N^{-1/2}$, and we
+**validate the Cramér–Rao bound empirically**: refitting $\alpha_3$ on independent
+$N=10^4$-star draws gives a measured scatter $0.0144$ against the analytic CRLB
+$0.0170$ (ratio $0.85$, within the 12-sample noise). At a realistic
+$N=10^4$ complete sample the top-heavy slope is a **$\sim 40\sigma$ detection** —
+$\alpha_3$ is *easy*.
+
+## What you CANNOT: the birth environment
+
+The map $(\,[\mathrm{Fe/H}],\,\log M_{\rm ecl},\,\mathrm{sfe})\to\alpha_3$ is
+**three-to-one**. The masses constrain exactly one combination — the gradient
+direction
+
+```{math}
+:label: b5-grad
+\frac{\partial\alpha_3}{\partial([\mathrm{Fe/H}],\,\log M_{\rm ecl},\,\mathrm{sfe})}
+= (0.057,\; -0.248,\; 0.588),
+```
+
+so the environment-space Fisher information $\,\mathcal F_{\rm env} =
+(\nabla_{\rm env}\alpha_3)(\nabla_{\rm env}\alpha_3)^\top/\sigma_{\alpha_3}^2\,$ is
+**rank 1**. Its eigenvalues come out
+
+```{math}
+:label: b5-eig
+\lambda(\mathcal F_{\rm env}) = (-1.8\times10^{-12},\;\; 1.8\times10^{-12},\;\;
+1.4\times10^{4}),
+```
+
+— two of them machine-precision zero (condition number $\sim 10^{304}$). There are
+**two flat directions**: a continuum of metallicities, cluster masses, and
+efficiencies all produce the *same* $\alpha_3$ and hence the *same* mass spectrum.
+Recovering any single birth parameter requires an **external constraint** on the
+other two (e.g. an independent $\log M_{\rm ecl}$ from the cluster luminosity, or a
+spectroscopic $[\mathrm{Fe/H}]$).
+
+This is the honest scientific message: *the IMF slope is an observable; the birth
+environment is an inference with two irreducible degeneracies.*
+
+## Figure
+
+:::{figure} figures/demo_birth_environment.png
+:label: sci-birth-environment
+:width: 100%
+
+**Birth-environment archaeology** (`scripts/demo_birth_environment.py`, ALL PASS).
+**(a)** The sampled high-mass IMF $dN/d\log m$ with the top-heavy truth slope
+($\alpha_3=1.62$) and the canonical $2.3$ for reference. **(b)** Forecast: the
+analytic CRLB $\sigma(\alpha_3)\propto N^{-1/2}$ (green) with the empirical
+validation point (black square) and the $|\Delta\alpha_3|/3$ detection threshold.
+**(c)** The environment degeneracy: $\alpha_3$ over the $([\mathrm{Fe/H}],\log
+M_{\rm ecl})$ plane (sfe fixed); the recovered-$\alpha_3$ **ridge** (vermilion)
+passes through the truth ★, and every point on it is an equally good fit.
+:::
+
+## Caveats
+
+```{warning}
+- **Mass channel only, complete census.** The likelihood assumes every star is
+  observed with a known mass and no selection/incompleteness. The strong $\alpha_3$
+  constraint partly comes from the high-mass *fraction* (the normalization), which a
+  realistic high-mass-only survey would not deliver; the slope alone is weaker.
+- **The "$N\sim60$" asymptotic number is optimistic.** It is the small-$N$
+  extrapolation of the CRLB; the empirically validated point is $N=10^4$, and the
+  small-sample regime does not achieve the bound. The robust statement is the
+  $N^{-1/2}$ scaling and the $\sim40\sigma$ detection at $N=10^4$.
+- **Default (high-mass-only) environment dependence.** Only $\alpha_3$ varies with
+  the environment here (`include_lowmass_variation=False`); turning on the Marks
+  low-mass-slope variation would add weak constraints from $\alpha_1,\alpha_2$ but
+  not break the leading degeneracy.
+- **Clean Jerabkova relation.** Truth and fit share the same $\alpha_3(\text{env})$
+  map; the demo isolates the *inverse-problem structure*, not relation
+  uncertainty.
+```
+
+## How to run
+
+```bash
+env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_birth_environment.py
+```
+
+## References
+
+The environment-dependent IMF relations are {cite:t}`Marks2012` and
+{cite:t}`Jerabkova2018`; the canonical low-mass slopes are {cite:t}`Kroupa2001`.
+The `BirthEnvironment` + `env_to_imf_params` API is documented on the
+[environment-dependent IMF](../10-theory/imfs/environment.md) theory page.
