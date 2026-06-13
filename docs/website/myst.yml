@@ -177,6 +177,7 @@ project:
     - title: Science demos
       children:
         - file: 60-science-demos/index.md
+        - file: 60-science-demos/throughline.md
         - file: 60-science-demos/cross-engine.md
         - file: 60-science-demos/imf-equipartition.md
         - file: 60-science-demos/halo-core.md

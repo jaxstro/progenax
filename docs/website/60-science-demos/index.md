@@ -1,6 +1,6 @@
 ---
 title: Science demos
-description: "Three end-to-end methods demonstrations that turn progenax's differentiable initial conditions into inference: cross-engine agreement, self-consistent IMF+equipartition recovery, and halo+core anisotropy recovery — each a gated CLI with measured recovery tables."
+description: "End-to-end methods demonstrations that turn progenax's differentiable initial conditions into inference — recovering cluster birth and structural parameters from mock observations, each a gated CLI with measured recovery tables. See 'The scientific throughline' for the synthesis: what is measurable, what is degenerate, and what will bias you."
 ---
 
 # Science demos
@@ -13,28 +13,67 @@ land on truth?** That is the use case the whole package is built for: a
 *differentiable* forward model whose gradients drive maximum-likelihood and
 Hamiltonian-Monte-Carlo inference.
 
-Three demos, each a standalone gated CLI in `scripts/` (the same `validate_*`
-house style — it exits nonzero if any recovery gate fails):
+```{tip}
+**Read [The scientific throughline](throughline.md) first** for the synthesis — the
+demos sort onto three axes (*measurable*, *degenerate*, *biased*), and the valuable
+results turn out to be the degeneracies and systematics, not the point estimates.
+```
+
+Each demo is a standalone gated CLI in `scripts/` (the same `validate_*` house style
+— it exits nonzero if any recovery gate fails).
+
+**Batch B** (kinematic recovery, the $\sigma(r)$ channel):
 
 ```{list-table}
 :header-rows: 1
 
 * - Demo
   - Question
-  - Engine
   - Recovered
 * - [Cross-engine agreement](cross-engine.md) (B1)
   - Do the DF-defined and density-defined engines build the *same* cluster?
-  - A vs B
   - (none — a consistency check)
-* - [IMF + equipartition recovery](imf-equipartition.md) (B2)
+* - [IMF + equipartition](imf-equipartition.md) (B2)
   - Can one IMF slope $\alpha$ be measured jointly from masses *and* kinematics?
-  - A (LIMEPY multimass)
   - $(\alpha,\ \delta,\ W_0)$
-* - [Halo + core recovery](halo-core.md) (B3)
+* - [Halo + core](halo-core.md) (B3)
   - Can a two-family cluster's mass split + anisotropy be recovered?
-  - B (Eddington)
   - $(t,\ r_a,\ r_h)$
+```
+
+**Batch C** (binaries, environment IMF, structural recovery, diagnostics — paper
+seeds + methods showcases):
+
+```{list-table}
+:header-rows: 1
+
+* - Demo
+  - Question
+  - Result
+* - [Binary energy budget](binary-energy-budget.md) (B9)
+  - How big is the primordial-binary energy reservoir?
+  - dwarfs $|W|$ 12–1900×; environment-dependent
+* - [King concentration](king-concentration.md) (B11)
+  - Recover $(W_0, r_c)$ from star **counts** alone?
+  - yes — with a $\rho=-0.91$ degeneracy
+* - [Differentiable diagnostics](diff-diagnostics.md) (B10)
+  - Do JAX $Q$ / $\Lambda_{\rm MSR}$ surrogates track the exact statistics?
+  - yes (substructure regime); usable as a loss
+* - [Birth environment](birth-environment.md) (B5)
+  - Read the birth conditions off the IMF?
+  - $\alpha_3$ yes; environment **rank-1 unrecoverable**
+* - [Binary mass function](binary-mass-function.md) (B4)
+  - Recover $f_b$ from the unresolved-binary distortion?
+  - yes — ignoring Moe $P$–$q$ coupling biases it $-3.6\sigma$
+* - [Anisotropy](anisotropy.md) (B6)
+  - Measure the anisotropy radius from $\beta(r)$?
+  - yes (OM); a Michie cluster mis-fits $12.9\times$
+* - [Tidal radius](tidal-radius.md) (B7)
+  - Recover $r_t$ → Galactocentric distance?
+  - from the count-limited outskirts (93% of the info)
+* - [Rotation + projection](rotation.md) (B8)
+  - Recover the rotation rate from $\langle v_{\rm los}\rangle$?
+  - only $\omega\sin i$ — rank-1 with inclination
 ```
 
 ## The shared method: physics-direct differentiable inference
@@ -104,21 +143,24 @@ differentiable.
 ```{warning}
 The demos demonstrate the **inference machinery on mock data drawn from the same
 model family**, with deliberately idealized observations. They do **not** claim
-recovery from real data. Specifically, none of the three model:
+recovery from real data. With few exceptions, the demos do not model:
 
-- **line-of-sight projection** — the kinematic observables are the full 3-D
-  $\sigma_{1\mathrm D}(r)$ and $\beta(r)$, not projected/proper-motion quantities;
+- **line-of-sight projection** — most kinematic observables are the full 3-D
+  $\sigma_{1\mathrm D}(r)$ and $\beta(r)$, not projected/proper-motion quantities
+  ([B8](rotation.md) is the exception that *introduces* a projection helper — the
+  realism-axis bridge);
 - **measurement errors or selection / incompleteness** — every star is observed
   with its exact phase-space coordinates;
-- **model misspecification of the family** — truth and fit share the same
-  generative model (the B2 *wrong-IMF* curve is the one deliberate exception, and
-  it is reported, not gated);
-- **SBC-calibrated posteriors** — the NUTS corner is shown to be non-divergent
-  with posterior mean ≈ MLE, but simulation-based calibration of the credible
-  intervals is future work.
+- **model misspecification of the family** — truth and fit usually share the same
+  generative model (the deliberate exceptions are [B2d](imf-equipartition.md)'s
+  wrong-IMF curve, [B4](binary-mass-function.md)'s wrong $P$–$q$ coupling, and
+  [B6](anisotropy.md)'s OM-vs-Michie misfit — each *reported* as the result);
+- **SBC-calibrated posteriors** — where NUTS is run, the corner is non-divergent
+  with posterior mean ≈ MLE, but simulation-based calibration is future work.
 
-Adding observational realism (projection, errors, incompleteness) is the natural
-next step and is out of scope here.
+Adding full observational realism (projection, errors, incompleteness) across all
+demos is the natural next arc; see [the throughline](throughline.md) for why the
+*degeneracies* survive it while the *measurable* numbers are optimistic ceilings.
 ```
 
 ## Running the demos
@@ -130,11 +172,21 @@ NUTS, optax for Adam):
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
 # each demo is a gated CLI (exits nonzero on a recovery-gate failure)
+# --- Batch B (kinematic recovery) ---
 python scripts/demo_cross_engine.py        # B1 (seconds)
 python scripts/demo_delta_recovery.py      # B2 headline MLE + Fisher (minutes)
 python scripts/demo_delta_recovery.py --run-nuts   # + the ~52 min NUTS corner
 python scripts/demo_delta_recovery_bias.py # B2 wrong-IMF curve + robustness grid
 python scripts/demo_halo_core.py           # B3 (~4 min, MLE-compile-dominated)
+# --- Batch C (binaries, environment IMF, structure, diagnostics) ---
+python scripts/demo_binary_energy_budget.py  # B9 (~30 s)
+python scripts/demo_king_concentration.py    # B11 (~30 s)
+python scripts/demo_diff_diagnostics.py      # B10 (~6 s)
+python scripts/demo_birth_environment.py     # B5 (~7 s)
+python scripts/demo_binary_mass_function.py  # B4 (needs fluxax: uv pip install -e ../fluxax --no-deps)
+python scripts/demo_anisotropy.py            # B6 (~9 s)
+python scripts/demo_tidal_radius.py          # B7 (~5 s)
+python scripts/demo_rotation.py              # B8 (~4 s)
 ```
 
 Figures are written to `validation/plots/` (a gitignored, regeneratable
