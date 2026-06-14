@@ -2,13 +2,30 @@
 
 Task 1.2: the inventory collector reads per-module test counts across the three
 tiers (unit / integration / validation) by parsing ``pytest --collect-only``.
+
+Task 1.4: introspection-only readers for registry status, per-module durations,
+and validation-script exit codes. NONE of these run the suite, ``pytest
+--durations``, or the ``validate_*.py`` scripts — they only import frozen-literal
+modules and parse COMMITTED artifacts (so the Task-1.6 staleness gate stays cheap).
 """
 from pathlib import Path
 
-from scripts.build_test_dashboard import collect_test_inventory, load_coverage
+from scripts.build_test_dashboard import (
+    collect_test_inventory,
+    load_coverage,
+    read_durations,
+    read_registry_status,
+    read_validation_scripts,
+)
 
 _FIXTURE = str(
     Path(__file__).parent / "fixtures" / "coverage_sample.json"
+)
+_DURATIONS_FIXTURE = str(
+    Path(__file__).parent / "fixtures" / "durations_sample.json"
+)
+_VALRUNS_FIXTURE = str(
+    Path(__file__).parent / "fixtures" / "validation_runs_sample.json"
 )
 
 
@@ -29,3 +46,59 @@ def test_load_coverage_parses_totals_and_per_module():
     assert "tests/conftest" not in cov["per_module"]
     # coverage_provenance passes through when present (None when absent)
     assert "coverage_provenance" in cov
+
+
+# --- Task 1.4: read_registry_status -----------------------------------------
+
+def test_registry_status_grad_audit_built_others_not():
+    status = read_registry_status()
+    # The one real registry (grad-audit) is built from frozen literals + JSON.
+    ga = status["differentiability"]
+    assert ga["status"] == "built"
+    assert ga["audited"] > 0
+    assert ga["must_audit"] > 0
+    assert ga["json_rows"] > 0
+    # hazards is an int (0 in a clean state) derived from the status histogram.
+    assert isinstance(ga["hazards"], int)
+    assert ga["hazards"] == 0
+    # The histogram only carries the grad-audit status vocabulary.
+    assert set(ga["status_histogram"]) <= {"clean", "known-limitation", "hazard"}
+    # audited count is consistent with the AUDITED bucket of SYMBOL_CATEGORY.
+    assert sum(ga["exempt"].values()) + ga["audited"] == 114
+    # The other three registries do not exist yet -> not-built placeholders.
+    for reg in ("api_coverage", "physics_validation", "provenance"):
+        assert status[reg] == {"status": "not-built"}
+
+
+# --- Task 1.4: read_durations -----------------------------------------------
+
+def test_durations_parses_committed_artifact():
+    dur = read_durations(path=_DURATIONS_FIXTURE)
+    # slowest-per-module schema: each module -> {slowest_test, seconds}
+    assert dur["cluster"]["seconds"] == 42.7
+    assert "test_multimass_equilibrium_physics" in dur["cluster"]["slowest_test"]
+    assert dur["builders"]["seconds"] == 3.1
+
+
+def test_durations_absent_returns_not_measured():
+    dur = read_durations(path="validation/data/__nope_durations__.json")
+    assert dur == {"status": "not-measured"}
+
+
+# --- Task 1.4: read_validation_scripts --------------------------------------
+
+def test_validation_scripts_enumerates_all_23_with_exit_codes():
+    runs = read_validation_scripts(path=_VALRUNS_FIXTURE)
+    # All 23 scripts/validate_*.py are enumerated.
+    assert len(runs) == 23
+    assert all(name.startswith("validate_") and name.endswith(".py") for name in runs)
+    # Recorded exit codes come through; unrecorded scripts are "unknown".
+    assert runs["validate_plummer.py"] == 0
+    assert runs["validate_eff.py"] == 1
+    assert runs["validate_tidal.py"] == "unknown"
+
+
+def test_validation_scripts_absent_artifact_all_unknown():
+    runs = read_validation_scripts(path="validation/data/__nope_valruns__.json")
+    assert len(runs) == 23
+    assert all(code == "unknown" for code in runs.values())

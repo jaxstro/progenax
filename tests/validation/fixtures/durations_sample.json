@@ -1,0 +1,8 @@
+{
+  "schema": "slowest-per-module",
+  "modules": {
+    "cluster": {"slowest_test": "tests/validation/test_multimass_equilibrium_physics.py::test_shared_potential_equilibrium", "seconds": 42.7},
+    "builders": {"slowest_test": "tests/unit/builders/test_cluster_builders.py::test_build_cluster_plummer", "seconds": 3.1},
+    "kinematics": {"slowest_test": "tests/validation/test_king_physics.py::test_king_virial", "seconds": 8.4}
+  }
+}

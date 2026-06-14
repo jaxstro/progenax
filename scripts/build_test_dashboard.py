@@ -158,6 +158,111 @@ def load_coverage(path: str) -> dict:
     }
 
 
+# grad-audit row statuses are COMPUTED by grad_audit/core.py::_classify into exactly
+# three values (see its docstring + AuditResult.status comment): "clean" and
+# "known-limitation" are benign/expected (FD-consistent, or a deliberately annotated
+# known_blocked/known_zero edge); "hazard" is the non-benign value — a silently zeroed
+# or FD-inconsistent gradient. The HAZARD RULE here mirrors that: a row is a hazard iff
+# its status is NOT one of the benign values. (Equivalently: status == "hazard", but we
+# express it as "not benign" so a NEW non-benign status string can never slip through as
+# safe.) The committed JSON should carry zero hazards in a healthy tree.
+_GRAD_AUDIT_BENIGN_STATUSES = frozenset({"clean", "known-limitation"})
+
+# The three registries that Phases 2/4/5 will build. Until then read_registry_status
+# returns a not-built placeholder for each (the grad-audit block is the only real one).
+_NOT_BUILT_REGISTRIES = ("api_coverage", "physics_validation", "provenance")
+
+_GRAD_AUDIT_JSON = "validation/data/grad_audit_results.json"
+
+
+def read_registry_status() -> dict:
+    """Summarize the validation registries for the dashboard (introspection-only).
+
+    Imports the frozen-literal ``tests.validation.grad_audit.manifest`` (a pure
+    module with NO pytest-collection side effects — safe to import here; it must
+    NEVER run the suite) and parses the COMMITTED grad-audit results JSON. It does
+    NOT run the audit, pytest, or any registry test.
+
+    The grad-audit block reports, from the manifest literals: the AUDITED symbol
+    count and the per-category EXEMPT_* histogram (from ``SYMBOL_CATEGORY``), the
+    ``MUST_AUDIT`` size, and from the committed JSON the row count, the per-status
+    histogram, and a derived ``hazards`` count (rows whose status is NOT a benign
+    value — see ``_GRAD_AUDIT_BENIGN_STATUSES``).
+
+    The other three registries do not exist yet -> ``{"status": "not-built"}``
+    placeholders (Phases 2/4/5 replace them).
+
+    Returns ``{"differentiability": {...}, "api_coverage": {...}, ...}``.
+    """
+    from collections import Counter
+
+    from tests.validation.grad_audit.manifest import MUST_AUDIT, SYMBOL_CATEGORY
+
+    category_hist = Counter(SYMBOL_CATEGORY.values())
+    audited = category_hist.pop("AUDITED", 0)
+    exempt = {cat: n for cat, n in sorted(category_hist.items())}
+
+    rows = json.loads((_REPO_ROOT / _GRAD_AUDIT_JSON).read_text())
+    status_hist = dict(Counter(r["status"] for r in rows))
+    hazards = sum(
+        n for status, n in status_hist.items()
+        if status not in _GRAD_AUDIT_BENIGN_STATUSES
+    )
+
+    differentiability = {
+        "status": "built",
+        "audited": audited,
+        "exempt": exempt,
+        "must_audit": len(MUST_AUDIT),
+        "json_rows": len(rows),
+        "hazards": hazards,
+        "status_histogram": status_hist,
+    }
+    result = {"differentiability": differentiability}
+    for reg in _NOT_BUILT_REGISTRIES:
+        result[reg] = {"status": "not-built"}
+    return result
+
+
+def read_durations(path: str = "validation/data/durations.json") -> dict:
+    """Read the COMMITTED per-module slowest-test durations artifact (no run).
+
+    The generator NEVER runs ``pytest --durations`` itself — that is a slow,
+    manual, FULL-suite step (deferred to Phase 3 re-profiling). This reader only
+    parses a committed artifact: a JSON ``{"modules": {module: {"slowest_test":
+    str, "seconds": float}}}`` map. If the file is ABSENT it returns
+    ``{"status": "not-measured"}`` so the dashboard can render an honest
+    "not measured yet" cell without triggering any measurement.
+
+    Returns the ``modules`` mapping (``{module: {slowest_test, seconds}}``) when
+    present, else ``{"status": "not-measured"}``.
+    """
+    p = _REPO_ROOT / path
+    if not p.exists():
+        return {"status": "not-measured"}
+    return json.loads(p.read_text())["modules"]
+
+
+def read_validation_scripts(
+    path: str = "validation/data/validation_runs.json",
+) -> dict:
+    """Map every ``scripts/validate_*.py`` to its last recorded exit code (no run).
+
+    Globs the 23 ``scripts/validate_*.py`` files and, for each, reports the exit
+    code recorded in the COMMITTED ``{script_name: exit_code}`` artifact at
+    ``path`` (else ``"unknown"``). The generator does NOT run the scripts — they
+    are too slow; a separate ``--run-validations`` flag (Task 1.5 / future)
+    refreshes the artifact. Enumerating from the glob (not from the artifact keys)
+    means a newly-added validate script shows up immediately as ``"unknown"``.
+
+    Returns ``{script_name: exit_code_or_"unknown"}`` for all 23 scripts.
+    """
+    p = _REPO_ROOT / path
+    recorded = json.loads(p.read_text()) if p.exists() else {}
+    scripts = sorted((_REPO_ROOT / "scripts").glob("validate_*.py"))
+    return {s.name: recorded.get(s.name, "unknown") for s in scripts}
+
+
 if __name__ == "__main__":
     # Minimal entrypoint for Task 1.2 (the --emit / --render CLI lands in Task 1.5).
     inv = collect_test_inventory()
