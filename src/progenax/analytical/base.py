@@ -34,12 +34,14 @@ class AnalyticalIC(eqx.Module):
 # Solar System Data (Single Source of Truth)
 # ============================================================================
 
-# Orbital elements (a, e, inc, Omega, omega) are J2000.0 osculating elements from
-#   JPL Horizons / Standish & Williams (2012). The `nu` (true anomaly) values are an
-#   arbitrary phase spread (0, 45, 90, ... deg) so the planets are not all aligned —
-#   a test-IC convenience, not ephemeris positions.
-# Masses `M` are planet/Sun mass ratios from the IAU (2009) best estimates
-#   (Earth: M_sun/M_E = 332946.05 -> 3.0035e-6; Jupiter: 1/1047.35 -> 9.5479e-4). The
+# Orbital elements (a, e, inc, Omega, omega) are standard J2000.0 osculating elements
+#   (JPL Horizons / Standish & Williams 2012). Accepted as standard values — the
+#   Standish/JPL source is NOT held in docs/core-papers/ (test-IC convenience, not
+#   ephemeris positions). The `nu` (true anomaly) values are an arbitrary phase spread
+#   (0, 45, 90, ... deg) so the planets are not all aligned.
+# Masses `M` are planet/Sun mass ratios from IAU (2009) — VERIFIED against Luzum et al.
+#   (2011) Table 1 (M_sun/M_planet reciprocals; e.g. Jupiter 1.047348644e3 -> 9.5479e-4,
+#   Earth M_sun/M_E = 332946.05 -> 3.0035e-6). The
 #   solar-mass UNIT itself is the IAU 2015 Resolution B3 nominal mass parameter
 #   (Prša et al. 2016, AJ 152, 41 — (GM_sun)^N = 1.3271244e20 m^3 s^-2).
 # Used by solar_system_full(), solar_system_inner_4(), and validation scripts.

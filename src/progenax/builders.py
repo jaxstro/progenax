@@ -160,9 +160,12 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     """
     Main-sequence stellar radii from mass, in SOLAR RADII.
 
-    Demircan & Kahraman (1991), Ap&SS 181, 313 (their Eqs. 5-6):
-        R/Rsun = 1.06 (M/Msun)^0.945   for 0.08 <= M < 1.66 Msun
-        R/Rsun = 1.33 (M/Msun)^0.555   for M >= 1.66 Msun
+    Demircan & Kahraman (1991), Ap&SS 181, 313, Table II — the EMPIRICAL fits to
+    MS binary data (log R = a + b log M, so R = 10^a M^b), NOT their ZAMS fit:
+        R/Rsun = 1.06 (M/Msun)^0.945   for 0.08 <= M < 1.66 Msun  (a=0.026, b=0.945)
+        R/Rsun = 1.33 (M/Msun)^0.555   for M >= 1.66 Msun         (a=0.124, b=0.555)
+    The 1.66 Msun break is D&K91's measured knee (1.66 +/- 0.08, their Section 4).
+    (D&K91's ZAMS fit is different: R ~ 0.89 M^0.89 / 1.01 M^0.57 — not used here.)
     Brown dwarfs (M < 0.08): R ~ 0.1 Rsun plateau (electron degeneracy),
     R = 0.1 (M/0.08)^0.08. The D&K branches meet at 1.66 Msun with their
     own ~3.5% fit discontinuity; the low-mass branch meets the BD plateau
@@ -173,15 +176,15 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     and 0.2 Msun -> 0.40 Rsun (observed ~0.23), with a factor-2.4 jump at
     the hydrogen-burning limit.
 
-    Used for collision radii in downstream N-body; ZAMS values, no evolution.
+    Used for collision radii in downstream N-body; empirical MS radii, no evolution.
 
     .. note::
        TEMPORARY single-relation stand-in. This will be REPLACED by the
        ``startrax`` package once it lands: first Tout et al. (1996) ZAMS radii
        (metallicity-dependent rational-polynomial fits), then MIST and the
        Hurley+2000 SSE tracks (mass- AND age-dependent radii with real stellar
-       evolution). The D&K91 fit here is a static main-sequence approximation
-       chosen only to be cited and correct in the ZAMS limit until then.
+       evolution). The D&K91 fit here is a static empirical main-sequence
+       approximation chosen only to be cited and correct until then.
 
     Args:
         masses: Particle masses (N,) [M☉]

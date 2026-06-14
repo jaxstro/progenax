@@ -51,7 +51,7 @@ filenames are fragile for tooling (consolidation candidate).
 | paper | tier | status | needed for |
 |-------|------|--------|------------|
 | Demircan & Kahraman 1991, Ap&SS 181, 313 | 1 | ✅ fetched | mass–radius fit `builders.py:compute_stellar_radii` |
-| Standish & Williams 2012 / JPL Horizons | 1 | ✅ fetched | planet orbital elements `analytical/base.py` |
+| Standish & Williams 2012 / JPL Horizons | 1 | 📄 NOT held | planet orbital elements `analytical/base.py` — accepted as standard J2000 (Batch 4, Anna's call); no fetch needed |
 | IAU 2009 CBE / Luzum et al. 2011 | 1 | ✅ fetched | planet/Sun mass ratios `analytical/base.py` |
 | Zahn 1977, A&A 57, 383 | 2 | ✅ fetched | tidal circularization, `LogisticThermalEccentricity` |
 | Hurley, Pols & Tout 2000 (+ Tout, Pols 2002) | 2 | ✅ fetched | tidal-circularization timescale, `eccentricity.md` |
@@ -111,6 +111,20 @@ PDFs read directly (rendered): King 1966 Table II (p. 73), LIMEPY Eqs. 8/11 (p. 
 | CW04 fractal Q mislabeled "Table 1 reproduced to <0.01" | `diagnostics/substructure.py:69` | CW04 Table 1 F1.5/F2.0/F2.5 = 0.45/0.61/0.73 (p. 590) | 🔧 fixed — listed CW04's real published Q; relabeled 0.47/0.58/0.70 as the A=πR² estimator output (offset ~0.02-0.03; area convention) |
 
 **Verification:** docstring-only `src/` edits (no value/behavior change — imports clean, `limepy_density_hat` forward value bit-identical). Released-core gate unaffected. (API-reference pages `30-api/*` are pre-generated snapshots; regenerating them to propagate these docstrings is tracked as consolidation.)
+
+### Batch 4 — Tier-1 newly-fetched verify: D&K91 + IAU mass ratios (2026-06-14)
+
+PDFs read directly: Demircan & Kahraman 1991 Table II + §4 (scanned, rendered p. 318-319); Luzum et al. 2011 Table 1.
+
+| item | location | source (held PDF) | verdict |
+|------|----------|-------------------|---------|
+| mass-radius coeffs 1.06/0.945, 1.33/0.555 + 1.66 knee | `builders.py:compute_stellar_radii` | D&K91 Table II **empirical** (R = 10^a M^b; a=0.026/0.124, b=0.945/0.555) + §4 knee 1.66±0.08 | ✅ verified exact |
+| docstring labeled these "ZAMS values" | `builders.py` | D&K91's ZAMS fit differs (R ≈ 0.89 M^0.89 / 1.01 M^0.57) | 🔧 fixed — relabeled **empirical** (Anna's call), cite Table II not "Eqs 5-6"; values kept, forward bit-identical |
+| 8 planet/Sun mass ratios | `analytical/base.py:46-127` | IAU 2009 / Luzum et al. 2011 Table 1 | ✅ verified all 8 (Mercury 6.0236e6 / Venus 4.08523719e5 / Mars 3.09870359e6 / Jupiter 1.047348644e3 / Saturn 3.4979018e3 / Uranus 2.290298e4 / Neptune 1.941226e4 reciprocals; Earth 332946.05) |
+| planet orbital elements (a,e,inc,Ω,ω) | `analytical/base.py` | Standish 2012 / JPL — **NOT held** | 📄 accepted as standard J2000 (Anna's call); source-not-held noted in the comment |
+
+**Verification:** docstring/comment-only `src/` edits (no behavior change — `compute_stellar_radii` forward values bit-identical). Released-core gate unaffected.
+**Tier-2 citation checks (Zahn 1977, Lucy 2006, King 1962, Aarseth 1974, Hurley 2000/2002) — queued.**
 
 ---
 
