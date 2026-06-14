@@ -86,6 +86,11 @@ Released-core suite (2026-06-10): **1163 tests**
   - ✅ 1
   - 2026-06-10
   - `python scripts/validate_cluster_ic.py`
+* - [builders/`build_cluster` convenience API](cluster-builders.md)
+  - ✅ (43 unit + 7 integ + 8 grad-audit)
+  - ✅ 4
+  - 2026-06-14
+  - `python scripts/validate_cluster_builders.py`
 * - [diagnostics/Λ_MSR + segregation](mass-segregation.md)
   - ✅ (8 + 13 + 27 + 4 primordial)
   - ✅ 9
@@ -164,6 +169,8 @@ Released-core suite (2026-06-10): **1163 tests**
   - Engine B: prescribed-density shared-potential Eddington equilibria — King A-vs-B cross-engine anchor, analytic Plummer DF oracles, OM anisotropy, realizability
 * - [](two-component.md)
   - Superseded API (deleted 2026-06); pointer to the MultiComponentCluster engines + the surviving two-population check
+* - [](cluster-builders.md)
+  - The `build_cluster` convenience layer — virial Q across all 5 aliases, density recovery, tidal cut, rotation $L_z$, OM anisotropy; bit-identical-to-`build_spatial_ic` sugar
 * - [](tidal-truncation.md)
   - Jacobi-radius computation and truncation behaviour
 * - [](analytical-test-cases.md)

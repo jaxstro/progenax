@@ -171,6 +171,7 @@ project:
         - file: 50-validation/engine-b-eddington.md
         - file: 50-validation/gravoturbulent-pp20.md
         - file: 50-validation/two-component.md
+        - file: 50-validation/cluster-builders.md
         - file: 50-validation/tidal-truncation.md
         - file: 50-validation/analytical-test-cases.md
         - file: 50-validation/physics-tests.md
