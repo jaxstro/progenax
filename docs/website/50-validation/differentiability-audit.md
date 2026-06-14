@@ -26,7 +26,8 @@ that file — every ratio below is a real measured number).
 
 :::{admonition} Key result: the audit found two real hazards — both in "intentional" sites — and fixed both
 :class: important
-Across **57** entry-point × parameter cases, the audit found **exactly two** gradient bugs,
+Across **66** entry-point × parameter cases (**62 clean**, **4 pinned known-limitations**, **0
+unresolved hazards**), the audit found **exactly two** gradient bugs,
 both in sites previously believed correct-by-design, and fixed both **gradient-only** (the
 forward physics is bit-identical):
 
@@ -60,6 +61,16 @@ channel is the crisp illustration of the arc's principle: its Fisher gradient li
 CDF, ratio $1.0$ machine-exact), while the **binned data count** is correctly
 non-differentiable (AD $=0$ by design — a pinned known-limitation). Frozen data is
 out-of-scope; the gradient is in the model.
+
+**Tier 4** turned the registry into the **release gradient-gate** and consolidated the
+codebase's scattered ad-hoc gradient tests into it. An inventory of every released-core test
+whose *assertion* is about a gradient found ~24 duplicate AD-vs-FD checks (migrated into the
+registry) and ~15 finite-only `isfinite(grad)` smoke tests (deleted — a silently zeroed
+gradient passes them, audit finding T6). The migration surfaced **9 new entry-point × parameter
+cases** the duplicates exercised but the registry did not yet own (the King/EFF velocity-DF
+scale params, `PowerLawIMF.ppf` in $m_{\min}$, the full Kepler `to_state`/`from_state` Jacobian
+columns, and the Michie density observable), grew the gate to **66 cases**, and found **0 new
+hazards**.
 :::
 
 ## How a case is classified
@@ -126,6 +137,10 @@ Generic and edge/boundary parameters; every ratio measured this run.
   - $W_0$
   - $1.000140$
   - ✅ clean
+* - `KingVelocityDF.sample_velocities`
+  - $r_c$
+  - $1.000000$
+  - ✅ clean (Tier 4)
 * - `KingProfile.r_t`
   - $W_0$
   - $0.999494$
@@ -142,6 +157,10 @@ Generic and edge/boundary parameters; every ratio measured this run.
   - $W_0$
   - $0.999839$
   - ✅ clean
+* - `MichieProfile.density` ($\log\rho(r)$ observable)
+  - $r_c$ / $W_0$
+  - $1.000000$ / $1.000000$
+  - ✅ clean (Tier 4)
 * - `EFFProfile.sample_positions`
   - $\gamma$ (+ edge $\gamma{=}2.01$)
   - $0.999982$ / $0.999998$
@@ -150,10 +169,18 @@ Generic and edge/boundary parameters; every ratio measured this run.
   - $r_t$
   - $1.000006$
   - ✅ clean
+* - `EFFProfile.sample_positions`
+  - $a$ (scale radius)
+  - $0.999985$
+  - ✅ clean (Tier 4)
 * - `EFFVelocityDF.sample_velocities`
   - $\gamma$
   - $1.000013$
   - ✅ clean
+* - `EFFVelocityDF.sample_velocities`
+  - $a$ (scale radius)
+  - $0.999997$
+  - ✅ clean (Tier 4)
 * - `build_spatial_ic` (Plummer, e2e: virial + COM)
   - $r_h$ (positions / velocities)
   - $1.000000$ / $1.000000$
@@ -190,11 +217,21 @@ Generic and edge/boundary parameters; every ratio measured this run.
   - summary
   - $1.000000$
   - ✅ clean (clip benign)
+* - `PowerLawIMF.ppf`
+  - $m_{\min}$
+  - IC
+  - $1.000000$
+  - ✅ clean (Tier 4)
 * - `ChabrierIMF.ppf`
-  - $m_c$ (+ H6 boundary $u\to m_{\min}$)
+  - $m_c$
   - IC
   - $1.000000$
   - ✅ clean (clamp benign)
+* - `ChabrierIMF.ppf` (H6 boundary, $u\to m_{\min}$)
+  - $m_c$
+  - IC
+  - $0.999669$
+  - ✅ clean (Tier 4 — real $u{=}10^{-12}$ probe)
 * - `ChabrierIMF.ppf`
   - $\sigma$, $\alpha$
   - IC
@@ -287,6 +324,18 @@ new hazards**.
   - $e$ (+ edge $e{=}0.999$, near-parabolic)
   - $1.000000$ / $1.000000$
   - ✅ clean
+* - `KeplerElements.to_state`
+  - $a$ (semi-major axis)
+  - $1.000000$
+  - ✅ clean (Tier 4)
+* - `KeplerElements.to_state`
+  - $M_0$ (mean anomaly)
+  - $1.000000$
+  - ✅ clean (Tier 4)
+* - `KeplerElements.from_state` (inverse map)
+  - velocity scale
+  - $1.000000$
+  - ✅ clean (Tier 4)
 * - `resolve_binary_components` (all binaries)
   - $a$
   - $1.000000$
@@ -401,6 +450,76 @@ answer, so the case is pinned `known_blocked` (it passes because AD is finite �
 `known_zero`, which would mis-flag the nonzero FD as a hazard). **Frozen data is out of
 scope; the Fisher gradient lives in the model.**
 
+## Tier 4 — the registry as the release gradient-gate
+
+Tiers 0–3 built the harness and a 57-case coverage map. **Tier 4 makes the registry the
+single source of truth for gradient correctness** — the release gradient-gate — and
+consolidates the scattered ad-hoc gradient tests the codebase had accumulated.
+
+A read-only inventory catalogued **every released-core test whose *assertion* is about a
+gradient** (autodiff finiteness, AD-vs-FD consistency, gradient sign/value,
+differentiability-through-a-path). Each was classified **migrate / keep / delete**:
+
+- **~24 duplicate AD-vs-FD assertions were migrated** into the registry. These re-derived a
+  finite-difference comparison the registry already owns (or now owns); the duplicate
+  assertion was removed and the scattered test carries a one-line **pointer comment** to the
+  registry Case that is the source of truth.
+- **~15 finite-only `isfinite(grad)` smoke tests were deleted.** This is **audit finding T6**:
+  an `assert jnp.isfinite(jax.grad(f)(x))` with no finite-difference comparison gives *false
+  confidence* — a **silently zeroed gradient passes it**. The silent-zero is exactly the
+  Fisher-corrupting failure mode this arc exists to catch, so a test that cannot see it is
+  worse than no test. The registry's $|\mathrm{AD}|>\varepsilon$ guard, paired with the FD
+  comparison, has the teeth those smoke tests lacked.
+- **~62 tests were kept** — genuine non-gradient physics, or *unique* gradient properties the
+  registry should not absorb: the `find_alpha` custom-VJP / implicit-function-theorem
+  regression, the $\alpha=1$ kink pins (forward value smoothness, which the registry's
+  `known_blocked` pin does not assert), the Engine-B $\beta(r)$ anisotropy anchor, the
+  energy-kernel double-`where` softening=0 guards, and the uncovered-channel grad-correctness
+  pins (binary period/eccentricity distributions, mass-ratio samplers, the environment-IMF
+  $\alpha_3$ relations). Each kept test gained a registry-pointer comment.
+
+The migration surfaced **9 new entry-point × parameter Cases** the duplicates exercised but
+the registry did not yet own — added in Tier 4 and visible in the tables above tagged
+**(Tier 4)**: `KingVelocityDF.sample_velocities`$(r_c)$,
+`EFFProfile.sample_positions`$(a)$, `EFFVelocityDF.sample_velocities`$(a)$,
+`PowerLawIMF.ppf`$(m_{\min})$, the three Kepler Jacobian columns
+(`KeplerElements.to_state` in $a$ and $M_0$, and `KeplerElements.from_state`), the Michie
+density observable ($r_c$, $W_0$), and the standalone **H6 boundary probe**. The H6 case was
+*promoted*: it had been a folded edge on the Chabrier $m_c$ Case (which never actually drove
+$u$ to the clamp); it is now a standalone Case with the real $u = 10^{-12}$ boundary draw,
+measured FD-consistent at ratio $0.999669$.
+
+A safety interlock guarded the consolidation: a fast per-file gate after each edit and a full
+released-core gate per logical batch (new-cases, migrates, deletes). The interlock earned its
+keep — the migrate batch **surfaced two real coverage gaps** the duplicates had quietly
+covered (the Michie density-$W_0$ channel and the EFF positions-$a$ channel), which were then
+added as Cases rather than lost. **Tier 4 grew the gate from 57 to 66 cases and found 0 new
+hazards.**
+
+```{figure} figures/grad_audit_ratio.png
+:label: grad-audit-ratio
+:width: 100%
+
+Per-case AD-vs-FD residual $|\mathrm{AD}/\mathrm{FD}-1|$ on a log axis, one point per registry
+Case (66 total), generated by `scripts/audit_gradients.py --plots` directly from
+`validation/data/grad_audit_results.json` — the same file this page's tables cite. Every
+**clean** (consistent) case sits below its per-class tolerance band (the loosest gate, the
+$r_t$ linear-interpolation derivative at $10^{-2}$, is dashed; the tightest closed-form gate at
+$10^{-5}$ is dotted). The **known-limitation** cases (orange $\times$) have an undefined or
+blocked ratio and are annotated rather than plotted on the residual axis. **0 hazards.**
+```
+
+```{figure} figures/grad_audit_summary.png
+:label: grad-audit-summary
+:width: 80%
+:align: center
+
+One-glance summary of the 66-case release gradient-gate, by protected direction (params
+$\rightarrow$ IC vs params $\rightarrow$ summary) and status. **52 clean / 1 known-limitation**
+in the IC direction, **10 clean / 3 known-limitation** in the summary direction — **62 clean,
+4 pinned known-limitations, 0 hazards** overall.
+```
+
 (label)=
 ## Intentional non-differentiable sites
 
@@ -443,6 +562,10 @@ correct."
 * - `PlummerProfile.enclosed_mass_fraction` (Tier-3 addition, not a fix)
   - the $N(r)$ Fisher gradient had no model-side entry point; the binned data count is non-diff (AD $=0$)
   - new public CDF $M(<r)/M = r^3/(r^2+a^2)^{3/2}$ supplies the differentiable per-shell occupancy $p_k(\theta)$ — the model-side $N(r)$ Fisher channel (ratio $1.0$); pins the data-count limitation
+  - `7afda9c`
+* - Tier 4 — registry consolidated into the release gradient-gate (**no new hazards**)
+  - the codebase had ~24 duplicate AD-vs-FD assertions and ~15 finite-only `isfinite(grad)` smoke tests (T6 false confidence) scattered across the suite
+  - migrated the 24 duplicates into the registry (scattered tests now carry pointer comments), deleted the 15 smoke tests, **added 9 new Cases** (King/EFF DF scale params, `PowerLawIMF.ppf`$(m_{\min})$, the 3 Kepler Jacobian columns, the Michie density observable) growing the gate $57 \to 66$; the H6 boundary probe was fixed (folded edge → real $u{=}10^{-12}$ standalone Case)
   - (this commit)
 ```
 
