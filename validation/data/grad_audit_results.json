@@ -686,6 +686,20 @@
     "status": "clean"
   },
   {
+    "id": "MultiComponentCluster.from_mass_segregation[EngineA]",
+    "direction": "params->IC",
+    "param": "r_a",
+    "theta": 4.0,
+    "finite": true,
+    "ad": 0.012552775526918816,
+    "fd": 0.012533452590363092,
+    "ratio": 1.0015417089917091,
+    "abs_ad": 0.012552775526918816,
+    "expect": "consistent",
+    "tol": 0.003,
+    "status": "clean"
+  },
+  {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
     "direction": "params->IC",
     "param": "r_h",
