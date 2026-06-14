@@ -142,23 +142,58 @@ jobs:
           uv pip install --python /tmp/clean/bin/python dist/*.whl ../jaxstro
           /tmp/clean/bin/python -c "import progenax; import progenax.diagnostics; print(progenax.__name__, 'imports clean (no scipy in venv)')"
 
+  # Gradient-integrity gate (design D2): the grad-audit run-gate + the Layer-2 staleness
+  # comparator + the Layer-3 coverage ratchet / __all__ cross-check, PLUS the audit-script
+  # exit-0 (0 hazards). A reintroduced silent-zero, a registry<->JSON drift, or a new/removed
+  # entry point without a case reds this job. Fast (the grad-audit subset only — NOT the whole
+  # validation shard), runtime-isolated, and a clearly-named branch-protection signal. The
+  # staleness comparator regenerates the JSON on x86 and tolerance-compares to the committed
+  # arm64 artifact (test_json_fresh._RTOL); this job's first run is the cross-arch rtol basis.
+  gradient-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout progenax
+        uses: actions/checkout@v4
+        with:
+          path: progenax
+      - name: Checkout jaxstro (path dependency, sibling layout)
+        uses: actions/checkout@v4
+        with:
+          repository: jaxstro/jaxstro
+          path: jaxstro
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+      - name: Sync from lockfile (dev extra)
+        working-directory: progenax
+        run: uv sync --locked --extra dev
+      - name: Run gate + staleness + coverage ratchet
+        working-directory: progenax
+        run: uv run --no-sync pytest tests/validation/grad_audit tests/validation/test_grad_audit.py -q
+      - name: Audit script exits 0 (0 hazards)
+        working-directory: progenax
+        run: uv run --no-sync python scripts/audit_gradients.py
+
   # Aggregator gate: a single `tests` check that is green iff every required job above
   # succeeded — preserves the `tests` branch-protection check name. `if: always()` so a
   # failed/cancelled dependency reds it (a skipped dependent job would otherwise let
   # failures slip through branch protection).
   tests:
     if: always()
-    needs: [lock-check, released-core, experimental, wheel-smoke]
+    needs: [lock-check, released-core, experimental, wheel-smoke, gradient-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: All required jobs succeeded
         run: |
-          echo "lock-check=${{ needs.lock-check.result }}  released-core=${{ needs.released-core.result }}  experimental=${{ needs.experimental.result }}  wheel-smoke=${{ needs.wheel-smoke.result }}"
+          echo "lock-check=${{ needs.lock-check.result }}  released-core=${{ needs.released-core.result }}  experimental=${{ needs.experimental.result }}  wheel-smoke=${{ needs.wheel-smoke.result }}  gradient-gate=${{ needs.gradient-gate.result }}"
           if [ "${{ needs.lock-check.result }}" = "success" ] \
              && [ "${{ needs.released-core.result }}" = "success" ] \
              && [ "${{ needs.experimental.result }}" = "success" ] \
-             && [ "${{ needs.wheel-smoke.result }}" = "success" ]; then
+             && [ "${{ needs.wheel-smoke.result }}" = "success" ] \
+             && [ "${{ needs.gradient-gate.result }}" = "success" ]; then
             echo "all required jobs green"
           else
             echo "::error::a required job did not succeed"
