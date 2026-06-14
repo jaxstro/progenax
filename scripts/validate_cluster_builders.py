@@ -145,7 +145,7 @@ def _shell_weighted_density(profile, bin_lo, bin_hi, n_sub=200):
     return float(np.trapezoid(rho * w, rr) / np.trapezoid(w, rr))
 
 
-def _density_recovery(profile, radii, r_lo, r_hi, n_bins):
+def _density_recovery(profile, radii, r_lo, r_hi, n_bins, min_counts=50):
     """Sampled shell number-density (normalized) vs the SHELL-WEIGHTED analytic
     density (the matched estimator). Returns
     (centers, counts, rho_sampled_norm, rho_analytic_norm, rel_err, valid).
@@ -166,7 +166,12 @@ def _density_recovery(profile, radii, r_lo, r_hi, n_bins):
     rho_an_n = rho_an / rho0
 
     valid = (hist > 0) & (rho_an > 0)
-    scale = np.median(rho_an_n[valid] / (rho_samp[valid] + 1e-30))
+    # Fit the single global amplitude over the SAME well-sampled band (>= min_counts)
+    # the PASS metric judges, not all valid bins (M1: removes a subtle coupling where a
+    # noisy low-count tail bin perturbs the median amplitude and the well-bin residuals).
+    well = (hist >= min_counts) & (rho_an > 0)
+    band = well if bool(np.any(well)) else valid
+    scale = np.median(rho_an_n[band] / (rho_samp[band] + 1e-30))
     rho_samp_n = rho_samp * scale
     rel = np.abs(rho_samp_n - rho_an_n) / (rho_an_n + 1e-30)
     return centers, hist, rho_samp_n, rho_an_n, rel, valid
@@ -371,7 +376,11 @@ def fig_rotation_Lz(output_dir):
     Lz = np.array(Lz)
     slope, intercept = np.polyfit(omegas, Lz, 1)
     slope_rel = abs(slope - Sigma_mR2) / Sigma_mR2
-    slope_pass = slope_rel < 1e-3
+    # The rotation overlay leaves positions bit-identical, so L_z = L_z0 + omega*Sigma m R^2
+    # is EXACT to float64 round-off -> a strong sentinel (measured ~5e-16, ~7 orders under
+    # this bound). 1e-9 still catches any real regression (wrong axis / position perturbation)
+    # while staying far above cross-arch round-off (M3).
+    slope_pass = slope_rel < 1e-9
 
     print(f"  {'quantity':<28}{'expected':>14}{'measured':>14}{'rel err':>11}{'pass':>7}")
     print(f"  {'L_z slope d L_z/d omega':<28}{Sigma_mR2:>14.3f}{slope:>14.3f}"
