@@ -62,11 +62,18 @@ def compute_q_parameter(positions: np.ndarray) -> float:
     Returns:
         Q: Cartwright-Whitworth Q parameter
 
-    CW04 Table 1 (3D projected to 2D, N≈100-300); reproduced to <0.01 with A=πR²:
-        - Uniform sphere (3D0): s̄ ≈ 0.80, m̄ ≈ 0.63, Q ≈ 0.79 ± 0.02
-        - r^-1 profile (3D1): Q ≈ 0.84 ± 0.03
-        - r^-2 profile (3D2): Q ≈ 0.93 ± 0.03
-        - Fractal D=1.5: Q ≈ 0.47;  D=2.0: Q ≈ 0.58;  D=2.5: Q ≈ 0.70
+    CW04 Table 1 — published Q = m̄/s̄ (artificial clusters, N≈100-300, 3D→2D projected):
+        - Uniform sphere (3D0): s̄=0.80, m̄=0.63, Q=0.79 ± 0.02
+        - r^-1 radial (3D1):    Q = 0.84 ± 0.02
+        - r^-2 radial (3D2):    Q = 0.93 ± 0.03
+        - Fractal D=2.5 (F2.5): Q = 0.73 ± 0.06
+        - Fractal D=2.0 (F2.0): Q = 0.61 ± 0.08
+        - Fractal D=1.5 (F1.5): Q = 0.45 ± 0.09
+    This estimator (area A=πR²) reproduces the RADIAL Q to <0.01. For the FRACTAL
+    clusters it returns Q ≈ 0.47/0.58/0.70 at D=1.5/2.0/2.5 — consistent within CW04's
+    ±0.06-0.09 but offset ~0.02-0.03 from the published values, most likely because
+    CW04 normalize by a different cluster-footprint area (a clumpy fractal deviates
+    most from πR²). Only the radial anchors trace verbatim to CW04 Table 1.
 
     Interpretation:
         - Q < 0.80: Substructured (fractal, clumpy)

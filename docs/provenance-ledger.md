@@ -98,6 +98,20 @@ PDFs read directly (rendered): Table 13 (p. 52), Table 10 (p. 27).
 
 **Verification:** `make build` → 161 pages, **0 warnings**, exit 0. `src/` untouched → released-core gate unaffected.
 
+### Batch 3 — Profiles bundle: King Table II + LIMEPY index + CW04 Q (2026-06-14)
+
+PDFs read directly (rendered): King 1966 Table II (p. 73), LIMEPY Eqs. 8/11 (p. 578) + erratum, CW04 Table 1 (p. 590).
+
+| item | location | source (held PDF) | verdict |
+|------|----------|-------------------|---------|
+| King Table II ξ_t = r_t/r_c (c = 4.699 / 131.4 / 2272 @ W₀ = 3/9/15) | `profiles/king.py:153` | King 1966 Table II, p. 73 | ✅ verified — matches exactly; re-confirms the real log c (0.672/1.029/1.528/2.119), NOT the debunked 0.84/1.18/1.48/1.76 |
+| LIMEPY density index g+3/2 | `profiles/limepy.py:10,92` | GZ15 Eq. 8 (p. 578) + erratum Eqs. 20/21 | ✅ index verified (main-text Eq. 8 = E_γ(g+3/2,φ̂); King g=1 corner) |
+| LIMEPY "main-text g+1/2 typo" narrative | `profiles/limepy.py:22-23` | GZ15 p. 578: Eqs. 8 **and** 11 both print g+3/2 — no g+1/2 misprint | 🔧 fixed — removed the false typo claim (a prior-session error; STATUS.md historical echo superseded by this ledger + the corrected docstring) |
+| CW04 Table 1 radial Q (3D0/3D1/3D2 = 0.79/0.84/0.93) | `diagnostics/substructure.py:66-68` | CW04 Table 1, p. 590 | ✅ verified — exact (3D1 ± corrected 0.03→0.02) |
+| CW04 fractal Q mislabeled "Table 1 reproduced to <0.01" | `diagnostics/substructure.py:69` | CW04 Table 1 F1.5/F2.0/F2.5 = 0.45/0.61/0.73 (p. 590) | 🔧 fixed — listed CW04's real published Q; relabeled 0.47/0.58/0.70 as the A=πR² estimator output (offset ~0.02-0.03; area convention) |
+
+**Verification:** docstring-only `src/` edits (no value/behavior change — imports clean, `limepy_density_hat` forward value bit-identical). Released-core gate unaffected. (API-reference pages `30-api/*` are pre-generated snapshots; regenerating them to propagate these docstrings is tracked as consolidation.)
+
 ---
 
 ## Open flags (⚠ awaiting adjudication) & queued work
@@ -107,9 +121,9 @@ PDFs read directly (rendered): Table 13 (p. 52), Table 10 (p. 27).
   `build_plummer_cluster`; `tidal-and-substructure/index.md` removed-fractal frontmatter; `physics-tests.md`
   stale Measured rows. → reframe to `BirthEnvironment`/`env_to_imf_params`/`build_spatial_ic`; drop the
   galaxy-wide-IGIMF overclaim (per CLAUDE.md R7).
-- **Bucket B — held-PDF deep-verify:** ✅ Moe Table 13 (Batch 2). **Queued:** King Table II ξ_t / LIMEPY
-  g+3/2 / CW04 Table 1 profiles bundle; IMF classic + Sana; Maschberger & Clarke Eq.4 (likely Casertano &
-  Hut 1985 mis-attribution).
+- **Bucket B — held-PDF deep-verify:** ✅ Moe Table 13 (Batch 2); ✅ Profiles bundle — King Table II /
+  LIMEPY g+3/2 / CW04 (Batch 3, 2 docstring fixes). **Queued:** IMF classic + Sana; Maschberger & Clarke
+  Eq.4 (likely Casertano & Hut 1985 mis-attribution).
 - **⚠ cross-note η (queued, Sana batch):** `moe-distefano-2017.md:79` states "Sana et al. (2012) measure
   η = −0.4 ± 0.2 for short-period O-stars" — Phase-1 flagged this as inconsistent with `sana-2012.md:47`;
   verify both against the held `sana-2012.pdf` in the Sana/eccentricity batch.

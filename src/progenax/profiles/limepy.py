@@ -17,16 +17,19 @@ and P is the regularized lower incomplete gamma function (`jax.scipy.special.
 gammainc`), which is differentiable in BOTH arguments — so the truncation index
 g (entering as a = g + 3/2) carries gradients.
 
-Index note (verified against the source, not assumed): the closed form uses
-g + 3/2, established in the paper's Appendix B (Eqs. B4-B9) via the E_gamma
-convolution identity (Eq. D11). The main-text Eqs. 8/11 print "g + 1/2"; this is
-a typesetting slip relative to the appendix and the released `limepy` code. The
-2018 erratum's corrected Eqs. 20/21 carry the same g + 3/2 normalization
-(E_gamma(g + 3/2, W0)). Three independent confirmations agree:
+Index note (verified against the held PDF, MNRAS 454, 576, p. 578): the density
+uses g + 3/2, given DIRECTLY by the main-text Eq. 8,
+
+    I_rho = (2/sqrt pi) int_0^W dk k^{1/2} E_gamma(g, W - k) = E_gamma(g + 3/2, W),
+
+which follows from the E_gamma convolution identity (Eq. D11); an alternative
+fractional-calculus derivation is in Appendix B. (There is NO "g + 1/2" misprint
+in the main text -- Eqs. 8 and 11 both print g + 3/2 in the held PDF; an earlier
+provenance note claiming a main-text typo was mistaken.) The 2018 erratum's
+Eqs. 20/21 carry the same E_gamma(g + 3/2, W0) normalization. Two cross-checks:
   1. E_gamma(5/2, W) expands exactly to the King volume density
      e^W erf(sqrt W) - (2/sqrt pi) sqrt(W) (1 + 2W/3)  -> g=1 corner.
-  2. The erratum normalization denominator is E_gamma(g + 3/2, W0).
-  3. The convolution Eq. D11 with b = 3/2 lifts the index by exactly 3/2.
+  2. The erratum (Eqs. 20/21) normalization denominator is E_gamma(g + 3/2, W0).
 
 References:
     Gieles, M. & Zocchi, A. (2015), MNRAS, 454, 576 (Eqs. 1-9, App. B, D).
