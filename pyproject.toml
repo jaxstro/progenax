@@ -99,6 +99,12 @@ markers = [
 [tool.coverage.run]
 source = ["progenax"]
 branch = true
+omit = ["*/experimental/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
 show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
