@@ -11,7 +11,6 @@ JAX-differentiable `q_approx` (used for substructure inference).
 
 Reference: Cartwright & Whitworth (2004), MNRAS 348, 589.
 """
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -117,29 +116,12 @@ class TestQApprox:
         qc = float(q_approx(jnp.asarray(_clumpy(400, 1))))
         assert qc < qu < qp, f"q_approx ordering: clumpy={qc:.3f}, unif={qu:.3f}, conc={qp:.3f}"
 
-    def test_differentiable_wrt_concentration(self):
-        """q_approx is differentiable wrt a radial-concentration parameter.
-
-        q_approx is a kNN-based estimator, so the autodiff gradient is exact
-        *within* a neighbour-set cell while a finite difference crosses cell
-        boundaries -- the AD vs FD gap is FD truncation that shrinks as h->0
-        (measured: 7% at h=1e-2 -> 2.4% at h=3e-4). AD is the correct local
-        gradient; we require finite AD and few-% agreement at h=1e-3.
-        """
-        rng = np.random.default_rng(3)
-        dirs = rng.normal(0, 1, (400, 3))
-        dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-        u = jnp.asarray(rng.uniform(0.02, 1.0, 400))
-        D = jnp.asarray(dirs)
-
-        def q_of_p(p):
-            r = u ** p                       # larger p -> more centrally concentrated
-            return q_approx(r[:, None] * D)
-
-        ad = float(jax.grad(q_of_p)(0.5))
-        fd = float((q_of_p(0.5 + 1e-3) - q_of_p(0.5 - 1e-3)) / 2e-3)
-        rel = abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30)
-        assert np.isfinite(ad) and rel < 0.05, f"AD={ad:.4f}, FD={fd:.4f}, rel={rel:.2e}"
+    # AD-vs-FD for q_approx wrt a radial-concentration parameter is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: q_approx[EFF], where the EFF slope
+    # gamma is the canonical concentration channel); see
+    # docs/website/50-validation/differentiability-audit.md. The former
+    # test_differentiable_wrt_concentration was removed here (audit T6 consolidation; registry
+    # is SoT). The physics tests (CW04 baselines, ordering, exact-vs-approx) stay.
 
 
 if __name__ == "__main__":

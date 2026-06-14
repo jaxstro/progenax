@@ -10,8 +10,6 @@ See docs/website/99-bibliography/per-paper/michie-1963.md and
 docs/plans/2026-06-03-michie-king-anisotropic-model-design.md.
 """
 
-from typing import Tuple
-
 import diffrax
 import equinox as eqx
 import jax
@@ -81,8 +79,8 @@ def _michie_poisson_rhs(xi, y, args):
 
 
 def solve_michie_profile(
-    W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"]]:
+    W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000,
+):
     """Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
 
     Args:
@@ -96,7 +94,12 @@ def solve_michie_profile(
         n_points: output grid size.
 
     Returns:
-        xi_grid (= r/r_c), psi_grid (psi >= 0, truncated at the tidal radius).
+        3-tuple ``(xi_grid, psi_clamped, psi_raw)``. ``psi_clamped`` is psi >= 0,
+        truncated at the tidal radius (the physical potential used for density /
+        CDF / mu). ``psi_raw`` is the UNCLAMPED ODE solution (negative past the
+        crossing) -- feed it to ``_find_tidal_radius`` so d(xi_t)/dW0 flows (audit
+        Task 1.2b; see ``solve_king_profile``). The forward value of xi_t is the
+        same either way; only the gradient differs.
 
     References:
         Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
@@ -121,7 +124,8 @@ def solve_michie_profile(
     )
     xi_grid = solution.ts
     psi_end = solution.ys[-1, 0]  # psi at xi_max (negative once truncated)
-    psi_grid = jnp.maximum(solution.ys[:, 0], 0.0)
+    psi_raw = solution.ys[:, 0]  # UNCLAMPED (negative past r_t); for _find_tidal_radius
+    psi_grid = jnp.maximum(psi_raw, 0.0)
 
     # Non-truncation guard (concrete inputs only; skipped under tracing). If psi has not
     # crossed 0 by xi_max, the radial-orbit 1/r^2 tail prevents truncation -> no finite
@@ -135,7 +139,7 @@ def solve_michie_profile(
                 f"Increase anisotropy_radius, or raise xi_max if the model is genuinely "
                 f"this extended."
             )
-    return xi_grid, psi_grid
+    return xi_grid, psi_grid, psi_raw
 
 
 _michie_density_vec = jax.vmap(michie_density)  # over (W, s) grids
@@ -214,10 +218,12 @@ class MichieProfile(eqx.Module):
         Raises ValueError (via solve_michie_profile) if r_a is too small for a finite
         tidal radius (the radial-orbit pathology).
         """
-        xi_grid, psi_grid = solve_michie_profile(
+        # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
+        # through the crossing interpolation (audit Task 1.2b).
+        xi_grid, psi_grid, psi_raw = solve_michie_profile(
             W0, r_a / r_c, xi_max=xi_max, n_points=n_ode_points
         )
-        xi_t = _find_tidal_radius(xi_grid, psi_grid)
+        xi_t = _find_tidal_radius(xi_grid, psi_raw)
         return cls(W0, r_c, r_a, r_c * xi_t, xi_grid, psi_grid, n_grid=n_grid)
 
     def sample_positions(

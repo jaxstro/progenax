@@ -34,21 +34,12 @@ class TestProfileJAXCompatibility:
         assert positions.shape == (100, 3)
         assert jnp.all(jnp.isfinite(positions))
 
-    def test_plummer_grad(self):
-        """Gradient flows through Plummer position sampling."""
-        def loss(r_h):
-            profile = PlummerProfile(r_h=r_h)
-            masses = jnp.ones(50)
-            key = jax.random.PRNGKey(42)
-            positions = profile.sample_positions(masses, key)
-            return jnp.mean(jnp.linalg.norm(positions, axis=1))
-
-        grad_fn = jax.grad(loss)
-        grad_val = grad_fn(1.0)
-
-        assert jnp.isfinite(grad_val)
-        # Larger r_h should give larger radii, so gradient should be positive
-        assert float(grad_val) > 0
+    # The gradient of PlummerProfile.sample_positions wrt r_h is FD-audited by the
+    # grad-audit registry (tests/validation/grad_audit/registry.py ::
+    # PlummerProfile.sample_positions [r_h]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_plummer_grad smoke was removed (audit T6: a silently-zeroed grad would PASS
+    # isfinite; the registry FD case is strictly stronger; registry is SoT).
 
 
 class TestVelocityDFJAXCompatibility:
@@ -69,22 +60,12 @@ class TestVelocityDFJAXCompatibility:
         assert velocities.shape == (N, 3)
         assert jnp.all(jnp.isfinite(velocities))
 
-    def test_plummer_df_grad(self):
-        """Gradient flows through Plummer velocity sampling."""
-        N = 50
-
-        def loss(r_h):
-            df = PlummerVelocityDF(r_h=r_h)
-            positions = jnp.ones((N, 3)) * 0.5  # Fixed positions
-            masses = jnp.ones(N)
-            key = jax.random.PRNGKey(42)
-            velocities = df.sample_velocities(positions, masses, key, G=G)
-            return jnp.mean(jnp.sum(velocities**2, axis=1))
-
-        grad_fn = jax.grad(loss)
-        grad_val = grad_fn(1.0)
-
-        assert jnp.isfinite(grad_val)
+    # The gradient of PlummerVelocityDF.sample_velocities wrt r_h is FD-audited by the
+    # grad-audit registry (tests/validation/grad_audit/registry.py ::
+    # PlummerVelocityDF.sample_velocities [r_h]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_plummer_df_grad smoke was removed (audit T6: isfinite passes a silently-zeroed
+    # grad; the registry FD case is strictly stronger; registry is SoT).
 
 
 class TestIMFJAXCompatibility:
@@ -138,54 +119,23 @@ class TestIMFJAXCompatibility:
         assert jnp.all(jnp.isfinite(masses))
 
 
-class TestPipelineDifferentiability:
-    """Test complete IC generation pipeline is differentiable."""
-
-    def test_plummer_ic_grad_wrt_r_h(self):
-        """Full Plummer IC is differentiable w.r.t. r_h."""
-        def loss(r_h):
-            profile = PlummerProfile(r_h=r_h)
-            df = PlummerVelocityDF(r_h=r_h)
-
-            masses = jnp.ones(50)
-            key = jax.random.PRNGKey(42)
-            key_pos, key_vel = jax.random.split(key)
-
-            positions = profile.sample_positions(masses, key_pos)
-            velocities = df.sample_velocities(positions, masses, key_vel, G=G)
-
-            # Loss: total kinetic energy
-            return 0.5 * jnp.sum(masses * jnp.sum(velocities**2, axis=1))
-
-        grad_fn = jax.grad(loss)
-        grad_val = grad_fn(1.0)
-
-        assert jnp.isfinite(grad_val)
-        # Larger r_h means lower density → lower escape velocity → lower KE
-        assert float(grad_val) < 0
+# The full Plummer IC pipeline gradient wrt r_h (profile x DF) is FD-audited by the
+# grad-audit registry (tests/validation/grad_audit/registry.py ::
+# build_spatial_ic[Plummer] [r_h positions] + build_spatial_ic[Plummer].velocities
+# [r_h speeds], which run the SAME params->IC path end-to-end); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestPipelineDifferentiability::test_plummer_ic_grad_wrt_r_h smoke was removed (audit
+# T6: isfinite passes a silently-zeroed grad; the registry FD cases are strictly
+# stronger; registry is SoT).
 
 
-def test_build_spatial_ic_differentiable_wrt_r_h():
-    """jax.grad through the public build_spatial_ic (the CLAUDE.md 'fully
-    differentiable' example) must return a finite, correct gradient (audit CR-FU-2)."""
-    import jax
-    import jax.numpy as jnp
-    from jaxstro.units import STELLAR
-    from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
-
-    def loss(r_h):
-        masses = jnp.ones(64)
-        ic = build_spatial_ic(
-            PlummerProfile(r_h=r_h), masses, PlummerVelocityDF(r_h=r_h),
-            key=jax.random.PRNGKey(0), G=STELLAR.G,
-        )
-        return jnp.mean(jnp.linalg.norm(ic.positions, axis=1))
-
-    g = jax.grad(loss)(1.0)
-    assert jnp.isfinite(g), f"grad is {g}, expected finite"
-    # mean radius scales ~linearly with r_h -> positive, O(1) sensitivity
-    fd = (loss(1.0 + 1e-4) - loss(1.0 - 1e-4)) / 2e-4
-    assert abs(g - fd) / (abs(g) + abs(fd) + 1e-30) < 1e-4, f"grad {g} vs FD {fd}"
+# AD-vs-FD through the public build_spatial_ic (the CLAUDE.md headline 'fully
+# differentiable' path, audit CR-FU-2) is owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py :: build_spatial_ic[Plummer] [r_h positions]
+# + build_spatial_ic[Plummer].velocities [r_h speeds]); see
+# docs/website/50-validation/differentiability-audit.md. The former
+# test_build_spatial_ic_differentiable_wrt_r_h was removed here (audit T6 consolidation;
+# registry is SoT). (The finite-only smoke tests in this file are a separate batch.)
 
 
 def test_compute_potential_energy_grad_finite_at_default_softening():

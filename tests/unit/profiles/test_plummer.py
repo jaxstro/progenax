@@ -69,24 +69,89 @@ class TestPlummerPhysics:
         assert jnp.isclose(profile.characteristic_radius(), 2.5)
 
 
+class TestEnclosedMassFraction:
+    """Test the public Plummer CDF M(<r)/M_total = r³/(r²+a²)^(3/2)."""
+
+    @pytest.mark.parametrize("R", [0.5, 1.0, 2.5, 7.0])
+    def test_half_mass_at_r_h(self, R):
+        """M(<r_h) = 0.5 exactly (the defining half-mass condition) for any r_h."""
+        profile = PlummerProfile(r_h=R)
+        assert jnp.isclose(profile.enclosed_mass_fraction(R), 0.5, rtol=1e-12)
+
+    def test_value_at_scale_radius(self):
+        """M(<a) = 1/(2√2) ≈ 0.35355 (the a-scale-radius value)."""
+        profile = PlummerProfile(r_h=1.0)
+        expected = 1.0 / (2.0 * jnp.sqrt(2.0))  # ≈ 0.353553
+        assert jnp.isclose(profile.enclosed_mass_fraction(profile.a), expected, rtol=1e-12)
+
+    def test_zero_at_origin(self):
+        """M(<0) = 0."""
+        profile = PlummerProfile(r_h=1.0)
+        assert jnp.isclose(profile.enclosed_mass_fraction(0.0), 0.0, atol=1e-15)
+
+    def test_unit_at_large_radius(self):
+        """M(<r) → 1 as r → ∞ (r = 1e6·a within 1e-6 of 1)."""
+        profile = PlummerProfile(r_h=1.0)
+        far = 1e6 * profile.a
+        assert jnp.isclose(profile.enclosed_mass_fraction(far), 1.0, atol=1e-6)
+
+    def test_monotone_increasing(self):
+        """M(<r) is strictly monotone increasing on a radial grid."""
+        profile = PlummerProfile(r_h=1.0)
+        r_grid = jnp.linspace(0.0, 10.0, 200)
+        F = profile.enclosed_mass_fraction(r_grid)
+        assert jnp.all(jnp.diff(F) > 0.0)
+
+    def test_vectorized_shape(self):
+        """Accepts an array r and returns a matching shape."""
+        profile = PlummerProfile(r_h=1.0)
+        r = jnp.array([0.1, 0.5, 1.0, 2.0, 5.0])
+        F = profile.enclosed_mass_fraction(r)
+        assert F.shape == r.shape
+        assert jnp.all(jnp.isfinite(F))
+
+    def test_jit_compatible(self):
+        """enclosed_mass_fraction() works under jax.jit."""
+        profile = PlummerProfile(r_h=1.0)
+
+        @jax.jit
+        def f(r):
+            return profile.enclosed_mass_fraction(r)
+
+        out = f(jnp.array([0.5, 1.0, 2.0]))
+        assert jnp.all(jnp.isfinite(out))
+
+    def test_differentiable_in_r(self):
+        """d(M(<r))/dr is finite and positive (the density is positive)."""
+        profile = PlummerProfile(r_h=1.0)
+        grad = jax.grad(lambda r: profile.enclosed_mass_fraction(r))(1.0)
+        assert jnp.isfinite(grad)
+        assert grad > 0.0
+
+    def test_differentiable_in_r_h(self):
+        """d(M(<r_fixed))/d(r_h) is finite (flows through the scale radius a)."""
+        r_fixed = 1.5
+
+        def f(r_h):
+            return PlummerProfile(r_h=r_h).enclosed_mass_fraction(r_fixed)
+
+        grad = jax.grad(f)(1.0)
+        assert jnp.isfinite(grad)
+        # Increasing r_h dilutes the profile -> less mass within a fixed radius.
+        assert grad < 0.0
+
+
 class TestPlummerDifferentiability:
     """Test differentiability for gradient-based inference."""
 
-    def test_gradient_through_r_h(self):
-        """Can compute gradients through r_h parameter."""
-        def loss(r_h):
-            profile = PlummerProfile(r_h=r_h)
-            masses = jnp.ones(10)
-            key = jax.random.PRNGKey(42)
-            positions = profile.sample_positions(masses, key)
-            radii = jnp.linalg.norm(positions, axis=1)
-            return jnp.mean(radii**2)
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(1.0)
-
-        assert jnp.isfinite(gradient)
-        assert gradient != 0.0
+    # grad through PlummerProfile.sample_positions wrt r_h is FD-audited by the
+    # grad-audit registry (tests/validation/grad_audit/registry.py ::
+    # PlummerProfile.sample_positions [r_h]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_gradient_through_r_h smoke (isfinite + != 0, NO FD) was removed (audit T6: a
+    # silently-zeroed grad would PASS isfinite; the registry FD case is strictly
+    # stronger; registry is SoT). (test_differentiable_in_r, grad wrt the query radius,
+    # is a distinct channel kept in TestEnclosedMassFraction.)
 
     def test_jit_compatible(self):
         """sample_positions() works with JIT compilation."""

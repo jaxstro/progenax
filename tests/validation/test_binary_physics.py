@@ -252,22 +252,14 @@ class TestInclinationAndOrientation:
         assert abs(float(r[1])) < 1e-10, f"y position = {float(r[1])}"
 
 
-class TestDifferentiability:
-    """Verify orbital mechanics are differentiable."""
-
-    def test_grad_through_kepler_solve(self):
-        """Gradient flows through Kepler equation solver."""
-        def energy_from_a(a):
-            elements = KeplerElements(a=a, e=0.3, M0=1.0)
-            state = elements.to_state(M_total=1.0, G=G)
-            return jnp.sum(state.velocity**2)
-
-        grad_fn = jax.grad(energy_from_a)
-        grad_val = grad_fn(1.0)
-
-        assert jnp.isfinite(grad_val), f"Gradient = {grad_val}, expected finite"
-        assert float(grad_val) < 0, \
-            "dE/da should be negative (larger orbit → slower velocity)"
+# grad through the Kepler-equation solver (KeplerElements.to_state) is FD-audited by
+# the grad-audit registry (tests/validation/grad_audit/registry.py ::
+# KeplerElements.to_state [e, a, M0]); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestDifferentiability::test_grad_through_kepler_solve smoke (grad of |v|^2 wrt a,
+# isfinite + sign, NO FD) was removed (audit T6: a silently-zeroed grad would PASS
+# isfinite; the registry FD cases are strictly stronger; registry is SoT). (The unique
+# e->1 boundary test test_grad_finite_through_e_to_one is kept below.)
 
 
 class TestSmallSemiMajorAxisSTELLAR:
@@ -307,46 +299,13 @@ class TestKeplerEccentricityGradientBoundary:
         assert jnp.isfinite(g_one), f"grad at e=1.0 = {float(g_one)} (NaN before the B4-3 fix)"
 
 
-class TestKeplerTransformGradients:
-    """B4-15: FD-vs-autodiff grad-checks for the KeplerElements transforms.
-
-    The differentiable-IC pipeline depends on grads through to_state/from_state;
-    these pin autodiff against a central finite difference (rel-err) so a future
-    refactor or guard cannot silently break them. (Prior coverage only checked
-    sign + finiteness via test_grad_through_kepler_solve.)
-    """
-
-    @staticmethod
-    def _fd_relerr(f, x, hs=(1e-4, 1e-5, 1e-6)):
-        g_ad = jax.grad(f)(x)
-        rel = min(
-            float(jnp.abs(g_ad - (f(x + h) - f(x - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
-            for h in hs
-        )
-        return g_ad, rel
-
-    def test_to_state_grad_wrt_a(self):
-        loss = lambda a: jnp.sum(KeplerElements(a=a, e=0.3, M0=1.0).to_state(1.0, G).velocity ** 2)
-        g, rel = self._fd_relerr(loss, 1.5)
-        assert jnp.isfinite(g) and rel < 1e-5, f"d|v|^2/da FD rel-err {rel:.2e}"
-
-    def test_to_state_grad_wrt_e(self):
-        loss = lambda e: jnp.sum(KeplerElements(a=1.0, e=e, M0=1.0).to_state(1.0, G).velocity ** 2)
-        g, rel = self._fd_relerr(loss, 0.3)
-        assert jnp.isfinite(g) and rel < 1e-5, f"d|v|^2/de FD rel-err {rel:.2e}"
-
-    def test_to_state_grad_wrt_M0(self):
-        loss = lambda M0: jnp.linalg.norm(KeplerElements(a=1.0, e=0.3, M0=M0).to_state(1.0, G).position)
-        g, rel = self._fd_relerr(loss, 1.0)
-        assert jnp.isfinite(g) and rel < 1e-5, f"d|r|/dM0 FD rel-err {rel:.2e}"
-
-    def test_from_state_grad_wrt_velocity_scale(self):
-        base = KeplerElements(a=1.0, e=0.3, i=0.4, M0=1.0).to_state(1.0, G)
-        r0, v0 = base.position, base.velocity
-        # Scaling v rescales the orbital energy -> changes the recovered a.
-        loss = lambda s: KeplerElements.from_state(r0, s * v0, M_total=1.0, G=G).a
-        g, rel = self._fd_relerr(loss, 1.0)
-        assert jnp.isfinite(g) and rel < 1e-4, f"from_state d a/d(v-scale) FD rel-err {rel:.2e}"
+# B4-15: AD-vs-FD grad-checks for the KeplerElements transforms (to_state a/e/M0,
+# from_state velocity-scale) are owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py :: KeplerElements.to_state [e, a, M0] +
+# KeplerElements.from_state [v_scale]); see
+# docs/website/50-validation/differentiability-audit.md. The former
+# TestKeplerTransformGradients class was removed here (audit T6 consolidation; registry is SoT).
+# test_grad_finite_through_e_to_one (the unique e->1 boundary, B4-3) and all physics stay.
 
 
 if __name__ == "__main__":

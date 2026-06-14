@@ -187,20 +187,15 @@ class TestMichieAnisotropyStructure:
 
 
 class TestMichieDifferentiability:
-    @pytest.mark.parametrize("param,base,h", [("W0", 7.0, 1e-3), ("r_c", 1.0, 1e-4)])
-    def test_grad_profile_observable(self, param, base, h):
-        """AD gradient of a density observable matches central finite difference."""
-        def obs(x):
-            kw = {"W0": W0, "r_c": RC, "r_a": RA_ANISO}
-            kw[param] = x
-            p = MichieProfile.from_W0_rc(kw["W0"], kw["r_c"], kw["r_a"])
-            return jnp.log(p.density(jnp.array([1.5]))[0] + 1e-30)
-
-        ad = float(jax.grad(obs)(base))
-        fd = float((obs(base + h) - obs(base - h)) / (2 * h))
-        rel = abs(ad - fd) / (abs(ad) + abs(fd) + 1e-30)
-        assert np.isfinite(ad) and rel < 1e-4, f"{param}: AD={ad}, FD={fd}, rel={rel:.2e}"
-
+    # AD-vs-FD for the Michie density observable log rho(r=1.5) is owned by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py :: MichieProfile.density[log rho(r)],
+    # which has BOTH the r_c AND the W0 channel of the verbatim log rho(1.5) observable at
+    # r_a=8). NOTE: the density() formula is a DIFFERENT code path than the inverse-CDF
+    # sampler MichieProfile.sample_positions[W0], so the W0 density channel has its OWN
+    # registry case (added in the 4.2b review-fix) rather than relying on the sampler case.
+    # See docs/website/50-validation/differentiability-audit.md. The former
+    # test_grad_profile_observable was removed here (audit T6 consolidation; registry is SoT).
+    # test_grad_wrt_mass_velocity_scale (closed-form sigma(M)) and all physics tests stay.
     def test_grad_wrt_mass_velocity_scale(self):
         """Velocity scale sigma ~ sqrt(M) is differentiable in total mass."""
         def sigma(M):

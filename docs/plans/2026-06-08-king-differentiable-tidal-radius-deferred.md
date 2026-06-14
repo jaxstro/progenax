@@ -1,14 +1,43 @@
-# Deferred: differentiable King tidal radius (∂r_t/∂W₀) — Approach B (IFT)
+# Differentiable King tidal radius (∂r_t/∂W₀) — RESOLVED (Approach B, IFT)
 
-**Status:** DEFERRED (2026-06-08). Decision: keep the current `argmax`-based
-tidal-radius finder; implement the differentiable version (Approach B below)
-**when a scalar-`r_t` use case becomes concrete** — most likely the tidal-field /
-Jacobi-radius coupling, which Anna plans to integrate (progenax already has the
-tidal machinery: `progenax.tidal.jacobi_radius`, `apply_tidal_truncation`).
+**Status:** RESOLVED (2026-06-13, audit Task 1.2b). The unclamped-ψ root-find
+recommended below (the "fix must keep the density safe while recovering the
+crossing slope" line) is now implemented for **both** King and Michie.
+`solve_king_profile` and `solve_michie_profile` now unconditionally return the
+3-tuple `(xi_grid, psi_clamped, psi_raw)`, where `psi_raw` is the UNCLAMPED ODE
+solution (`solution.ys[:,0]`, negative past the crossing). `KingProfile.from_W0_rc`,
+`MichieProfile.from_W0_rc`, and `MichieVelocityDF` feed that raw ψ to
+`_find_tidal_radius`, so ∂r_t/∂W₀ now flows through the diffrax solve (the IFT
+result to grid accuracy). The density/CDF/mu/virial paths and `KingVelocityDF`
+keep using `psi_clamped`. There is **no backward-compat shim/flag** (house rule);
+all callsites were updated directly to unpack the 3-tuple (those that don't need
+`psi_raw` discard it with `_`). Validated AD-vs-FD: King W₀=8 AD≈48,
+FD≈48 (ratio within ~1e-3), Michie W₀=8/r_a=10 ratio ≈1.00002; grad-audit case
+`KingProfile.r_t` (theta0=8.0) now classifies `consistent`.
 
-This is a **non-breaking add-later**: the forward value of `r_t` is unchanged by
-Approach B, so deferring costs nothing and the limitation is already documented +
-gradient-validated on the [King validation page](../website/50-validation/king-profile.md).
+**Forward-value caveat (the one place this doc was wrong):** the original header
+claimed the forward `r_t` value is *unchanged* by Approach B — it is NOT. The
+pre-fix clamped path SNAPPED ξ_t to the grid node (ψ₁ clamped to 0 → t=1); the fix
+interpolates the true crossing (ψ₁<0 → t<1). At W₀=8 (xi_max=400,n=8000) r_t
+shifts 68.15852 → 68.14678 (~6e-4 relative, ~23% of one grid cell) — far below
+ODE/grid accuracy, and the unclamped interpolation is the *more accurate* crossing,
+not a regression. The unit regression test pins the new (interpolated) values:
+`tests/unit/profiles/test_king.py::TestDifferentiableTidalRadius`.
+
+---
+
+_Original deferral note (2026-06-08) preserved below for context._
+
+**Status (original):** DEFERRED (2026-06-08). Decision: keep the current
+`argmax`-based tidal-radius finder; implement the differentiable version (Approach
+B below) **when a scalar-`r_t` use case becomes concrete** — most likely the
+tidal-field / Jacobi-radius coupling, which Anna plans to integrate (progenax
+already has the tidal machinery: `progenax.tidal.jacobi_radius`,
+`apply_tidal_truncation`).
+
+This was framed as a **non-breaking add-later**; in practice the forward value
+shifts marginally (see caveat above), but no caller or test relied on the snapped
+value, so the change is safe.
 
 ## What is and isn't differentiable today (verified 2026-06-08)
 

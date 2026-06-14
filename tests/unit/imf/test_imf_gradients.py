@@ -12,66 +12,13 @@ import pytest
 
 from progenax.imf import ChabrierIMF, Maschberger, Schechter, PowerLawIMF
 
-U = jnp.array([0.2, 0.4, 0.6, 0.8])
-
-
-def _central_fd(f, x, h):
-    """Central finite difference of a scalar->scalar function."""
-    return (f(x + h) - f(x - h)) / (2.0 * h)
-
-
-def _assert_grad_matches_fd(f, x0, h=1e-5, rtol=1e-5, atol=1e-9):
-    """Autodiff grad of f at x0 matches the central FD (and is finite/non-zero)."""
-    g = jax.grad(f)(x0)
-    g_fd = _central_fd(f, x0, h)
-    assert jnp.isfinite(g), f"autodiff grad is {g}"
-    assert jnp.abs(g) > 1e-6, f"grad effectively zero ({g}); FD says {g_fd}"
-    assert jnp.abs(g - g_fd) <= rtol * jnp.abs(g_fd) + atol, (
-        f"autodiff {float(g):.6e} vs FD {float(g_fd):.6e} "
-        f"(rel {float(jnp.abs(g - g_fd) / (jnp.abs(g_fd) + 1e-12)):.2e})"
-    )
-
-
-class TestFDvsAutodiff:
-    """Autodiff ppf-parameter gradients match central finite differences."""
-
-    def test_chabrier_ppf_grad_alpha(self):
-        _assert_grad_matches_fd(lambda a: jnp.sum(ChabrierIMF(alpha=a).ppf(U)), 2.3)
-
-    def test_chabrier_ppf_grad_sigma(self):
-        _assert_grad_matches_fd(lambda s: jnp.sum(ChabrierIMF(sigma=s).ppf(U)), 0.69)
-
-    def test_chabrier_ppf_grad_mc(self):
-        _assert_grad_matches_fd(lambda mc: jnp.sum(ChabrierIMF(m_c=mc).ppf(U)), 0.08)
-
-    def test_maschberger_ppf_grad_mu(self):
-        _assert_grad_matches_fd(lambda mu: jnp.sum(Maschberger(mu=mu).ppf(U)), 0.2)
-
-    def test_maschberger_ppf_grad_alpha(self):
-        _assert_grad_matches_fd(lambda a: jnp.sum(Maschberger(alpha=a).ppf(U)), 2.3)
-
-    def test_maschberger_ppf_grad_beta(self):
-        _assert_grad_matches_fd(lambda b: jnp.sum(Maschberger(beta=b).ppf(U)), 1.4)
-
-    def test_schechter_ppf_grad_alpha(self):
-        _assert_grad_matches_fd(lambda a: jnp.sum(Schechter(alpha=a).ppf(U)), 2.3)
-
-    def test_powerlaw_ppf_grad_exponent(self):
-        """Salpeter single-segment: grad flows through the analytic ppf w.r.t. the slope."""
-        _assert_grad_matches_fd(
-            lambda a: jnp.sum(
-                PowerLawIMF(exponents=[a], breakpoints=[], m_min=0.1, m_max=100.0).ppf(U)
-            ),
-            2.35,
-        )
-
-    def test_powerlaw_ppf_grad_mmin(self):
-        _assert_grad_matches_fd(
-            lambda mm: jnp.sum(
-                PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=mm, m_max=100.0).ppf(U)
-            ),
-            0.1,
-        )
+# The AD-vs-FD ppf-parameter gradient checks (ChabrierIMF.ppf m_c/sigma/alpha,
+# Maschberger.ppf mu/alpha/beta, Schechter.ppf alpha, PowerLawIMF.ppf[Salpeter]
+# alpha, and PowerLawIMF.ppf[m_min]) are owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py :: ChabrierIMF.ppf / Maschberger.ppf /
+# Schechter.ppf / PowerLawIMF.ppf[Salpeter] / PowerLawIMF.ppf[m_min]);
+# see docs/website/50-validation/differentiability-audit.md. The former
+# TestFDvsAutodiff class was removed here (audit T6 consolidation; registry is SoT).
 
 
 class TestBoundaryGradients:
@@ -84,6 +31,12 @@ class TestBoundaryGradients:
             Maschberger(),
             Schechter(),
             PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=0.1, m_max=100.0),
+            # Multi-segment Kroupa: pins d(ppf)/du finiteness across the piecewise
+            # breakpoints too (the broken-power-law inverse-CDF has a distinct
+            # segment-selection path from the single-segment Salpeter form above).
+            # This preserves the multi-segment du-grad coverage from the deleted
+            # finite-only du-monotonicity smokes (4.2c review note).
+            PowerLawIMF.kroupa(),
         ],
     )
     def test_grad_finite_at_boundary(self, imf):
@@ -92,35 +45,13 @@ class TestBoundaryGradients:
         assert jnp.all(jnp.isfinite(g)), f"non-finite boundary grad: {g}"
 
 
-class TestParameterGradients:
-    """Gradients flow through IMF parameters (finiteness + non-zero)."""
-
-    def test_chabrier_grad_wrt_alpha(self):
-        """Gradient w.r.t. alpha is finite and non-zero through ppf."""
-        def loss(alpha):
-            return jnp.sum(ChabrierIMF(alpha=alpha).ppf(U))
-
-        grad_val = jax.grad(loss)(2.3)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
-
-    def test_chabrier_grad_wrt_sigma(self):
-        """Gradient w.r.t. sigma is finite and non-zero through ppf."""
-        def loss(sigma):
-            return jnp.sum(ChabrierIMF(sigma=sigma).ppf(U))
-
-        grad_val = jax.grad(loss)(0.69)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
-
-    def test_maschberger_grad_wrt_mu(self):
-        """Gradient w.r.t. mu is finite and non-zero through ppf."""
-        def loss(mu):
-            return jnp.sum(Maschberger(mu=mu).ppf(U))
-
-        grad_val = jax.grad(loss)(0.2)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
+# The IMF-parameter ppf gradients (ChabrierIMF.ppf alpha/sigma, Maschberger.ppf mu)
+# are FD-audited by the grad-audit registry (tests/validation/grad_audit/registry.py ::
+# ChabrierIMF.ppf [alpha] / [sigma], Maschberger.ppf [mu]); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestParameterGradients (isfinite + non-zero, NO FD) was removed (audit T6: a
+# silently-zeroed grad would PASS isfinite; the registry FD cases are strictly
+# stronger; registry is SoT).
 
 
 class TestAlphaOneGradients:

@@ -151,7 +151,7 @@ class TestFromMassSegregation:
         alpha = jnp.array([0.6, 0.4]); m_j = jnp.array([0.5, 4.0]); delta = 0.5
         model = MultiComponentCluster.from_mass_segregation(
             alpha_j=alpha, m_j=m_j, W0=7.0, g=1.0, delta=delta, r_c=1.0)
-        _, psi_ref, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
+        _, psi_ref, _, _ = solve_multimass_limepy(alpha, m_j, 7.0, 1.0, delta, 300.0, 2000)
         np.testing.assert_allclose(np.asarray(model.psi_grid), np.asarray(psi_ref),
                                    rtol=1e-11, atol=1e-11)
         # and the w_j are the equipartition law w_j = mu_j^(-delta)

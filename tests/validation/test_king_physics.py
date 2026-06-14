@@ -22,7 +22,7 @@ class TestKingODESolution:
     def test_boundary_conditions(self):
         """ODE solution satisfies boundary conditions: ψ(0) = W0, dψ/dξ|₀ = 0."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # ψ(0) = W0 (start near W0, not exactly at ξ=0 due to singularity)
         assert abs(float(psi_grid[0]) - W0) < 0.1, \
@@ -31,7 +31,7 @@ class TestKingODESolution:
     def test_potential_monotonic_decrease(self):
         """Dimensionless potential ψ(ξ) decreases with radius."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # After first few points, should be monotonically decreasing
         diffs = jnp.diff(psi_grid[5:])
@@ -40,7 +40,7 @@ class TestKingODESolution:
     def test_potential_reaches_zero(self):
         """Potential reaches zero at tidal radius (truncation)."""
         W0 = 7.0
-        xi_grid, psi_grid = solve_king_profile(W0, xi_max=50.0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0, xi_max=50.0)
 
         # Should reach ψ → 0 somewhere (tidal radius)
         min_psi = float(jnp.min(psi_grid))
@@ -49,7 +49,7 @@ class TestKingODESolution:
     @pytest.mark.parametrize("W0", [3.0, 5.0, 7.0, 9.0])
     def test_different_concentrations(self, W0):
         """ODE solver works for different W0 values."""
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
 
         # ψ(0) should be close to W0
         assert abs(float(psi_grid[0]) - W0) < 0.2
@@ -64,7 +64,7 @@ class TestKingTidalTruncation:
     def test_all_particles_within_tidal_radius(self, N_validation, key):
         """100% of particles at r ≤ r_t."""
         W0, r_c, r_t = 7.0, 1.0, 10.0
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
 
         masses = jnp.ones(N_validation)
@@ -90,7 +90,7 @@ class TestKingConcentration:
         """
         natural_tidal_radii = []
         for W0 in [3.0, 7.0, 11.0]:
-            xi_grid, psi_grid = solve_king_profile(W0, xi_max=200.0, n_points=2000)
+            xi_grid, psi_grid, _ = solve_king_profile(W0, xi_max=200.0, n_points=2000)
 
             # Find where ψ FIRST drops below 0.01 (approximate tidal radius)
             # Use threshold relative to W0 for robustness
@@ -119,7 +119,7 @@ class TestKingConcentration:
         """
         half_mass_radii = []
         for W0 in [3.0, 7.0, 11.0]:
-            xi_grid, psi_grid = solve_king_profile(W0)
+            xi_grid, psi_grid, _ = solve_king_profile(W0)
 
             # Use natural-ish truncation: r_t = natural_xi_t * r_c
             mask = psi_grid > 0.01
@@ -176,7 +176,7 @@ class TestKingVelocityDF:
         W0, r_c, r_t = 7.0, 1.0, 10.0
         G = 1.0
 
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
         df = KingVelocityDF(W0=W0, r_c=r_c)
 
@@ -228,7 +228,7 @@ class TestKingDensityProfile:
         """Density decreases monotonically with radius."""
         W0, r_c, r_t = 7.0, 1.0, 10.0
 
-        xi_grid, psi_grid = solve_king_profile(W0)
+        xi_grid, psi_grid, _ = solve_king_profile(W0)
         profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
 
         masses = jnp.ones(N_validation)
@@ -330,21 +330,14 @@ class TestKingEquilibriumVelocityDF:
         frac_bound = float(jnp.mean(v <= v_esc + 1e-9))
         assert frac_bound == 1.0, f"only {frac_bound*100:.1f}% bound (v < v_esc)"
 
-    def test_velocity_sampling_is_differentiable(self):
-        """grad of mean kinetic energy w.r.t. r_c flows through the DF sampling."""
-        from jaxstro.units import STELLAR
-
-        def loss(r_c):
-            prof = KingProfile.from_W0_rc(7.0, 1.0)
-            df = KingVelocityDF(W0=7.0, r_c=r_c)
-            m = jnp.ones(200)
-            kp, kv = jax.random.split(jax.random.PRNGKey(1))
-            pos = prof.sample_positions(m, kp)
-            vel = df.sample_velocities(pos, m, kv, G=STELLAR.G)
-            return jnp.mean(jnp.sum(vel**2, axis=1))
-
-        g = jax.grad(loss)(1.0)
-        assert jnp.isfinite(g), f"grad through King DF sampling is non-finite: {g}"
+    # grad through KingVelocityDF.sample_velocities is FD-audited by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py ::
+    # KingVelocityDF.sample_velocities [r_c] + [W0]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_velocity_sampling_is_differentiable smoke (grad of mean KE wrt r_c, isfinite
+    # only) was removed (audit T6: isfinite passes a silently-zeroed grad; the registry
+    # FD cases are strictly stronger; registry is SoT). (The distinct auto-domain
+    # high-W0 FD test test_auto_domain_preserves_differentiability_high_W0 is kept.)
 
     def test_dispersion_profile_matches_king_moment(self):
         """Sampled sigma_1d(r) matches the analytic lowered-Maxwellian 2nd moment."""
@@ -453,7 +446,7 @@ def _dense_king_cumulative_mass(W0):
         king_lowered_maxwellian_density,
     )
 
-    xi, psi = solve_king_profile(W0, xi_max=600.0, n_points=20_000)
+    xi, psi, _ = solve_king_profile(W0, xi_max=600.0, n_points=20_000)
     rho = king_lowered_maxwellian_density(jnp.maximum(psi, 0.0))
     integ = rho * xi**2
     M = jnp.concatenate(

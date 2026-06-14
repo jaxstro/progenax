@@ -132,17 +132,21 @@ def _softmin_nn_distance(
     masked with a large value so their softmax weight underflows to 0.
 
     ``beta`` is **scale-relative**: distances are normalised by the median hard 1-NN
-    distance (a ``stop_gradient`` constant) before applying the temperature, so ``beta``
-    is dimensionless and the observable is invariant to the cluster's physical size --
-    essential for inference across clusters spanning orders of magnitude in extent.
+    distance before applying the temperature, so ``beta`` is dimensionless and the
+    observable is invariant to the cluster's physical size -- essential for inference
+    across clusters spanning orders of magnitude in extent. Both dimensionlessness and
+    size-invariance are *forward* properties (the scale enters as a ratio with ``dist``),
+    so they are unaffected by whether the scale's derivative flows.
     """
     N = xy.shape[0]
     diff = xy[:, None, :] - xy[None, :, :]
     dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)  # (N, N)
     dist = dist + jnp.eye(N) * 1e10  # exclude self
-    # Scale-relative temperature: normalise by the median hard 1-NN distance. The scale
-    # only sets the softmin sharpness (stop_gradient) so gradients flow through `dist`.
-    scale = jax.lax.stop_gradient(jnp.median(jnp.min(dist, axis=1)) + 1e-12)
+    # Scale-relative temperature: normalise by the median hard 1-NN distance. The median
+    # scale depends on the positions, so its derivative is a genuine part of d(softmin)/d(x):
+    # a stop_gradient here omitted ~27% of the true gradient at the default beta=0.1
+    # (audit finding, Anna-ratified). Let it flow -- the forward value is identical.
+    scale = jnp.median(jnp.min(dist, axis=1)) + 1e-12
     s = jax.nn.softmax(-dist / (scale * beta), axis=1)  # (N, N) soft 1-NN selector
     return jnp.sum(s * dist, axis=1)  # (N,)
 

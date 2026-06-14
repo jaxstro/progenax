@@ -133,6 +133,26 @@ class PlummerProfile(eqx.Module):
         """
         return self.r_h
 
+    def enclosed_mass_fraction(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
+        """
+        Cumulative Plummer mass (== number, equal-mass) fraction M(<r)/M_total.
+
+        The Plummer CDF  M(<r)/M = r³ / (r² + a²)^(3/2)  (the exact inverse of the
+        inverse-CDF sampler in :meth:`_sample_radii`). For an equal-mass population
+        the enclosed *number* fraction equals the enclosed *mass* fraction, so this
+        supplies the expected per-shell occupancy p_k = F(r_{k+1}) - F(r_k) that a
+        Poisson number-density likelihood differentiates (the N(r) Fisher channel).
+        Smooth and fully differentiable in r and in r_h (through a). r may be any
+        shape; r=0 → 0, r→∞ → 1.
+
+        Args:
+            r: Radial distances [length units]. Can be any shape.
+
+        Returns:
+            Enclosed mass/number fraction at each radius (same shape as input).
+        """
+        return r**3 / (r**2 + self.a**2) ** 1.5
+
     def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
         """
         Unnormalized density profile ρ(r) ∝ (1 + r²/a²)^(-5/2).

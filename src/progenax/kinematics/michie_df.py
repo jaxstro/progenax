@@ -124,7 +124,10 @@ class MichieVelocityDF(eqx.Module):
         self.W0 = jnp.asarray(W0)
         self.r_c = jnp.asarray(r_c)
         self.r_a = jnp.asarray(r_a)
-        xi_grid, psi_grid = solve_michie_profile(
+        # psi_raw (unclamped) feeds _find_tidal_radius below so the cached
+        # aniso-table box edge p_box carries d/dW0 (audit Task 1.2b).
+        # psi_grid (clamped) is stored + used for mu / density as before.
+        xi_grid, psi_grid, psi_raw = solve_michie_profile(
             W0, r_a / r_c, xi_max=xi_max, n_points=n_ode_points
         )
         self.xi_grid = xi_grid
@@ -139,7 +142,7 @@ class MichieVelocityDF(eqx.Module):
         # sample_velocities call. Box covers every star: W <= W0, p <= r_t/r_a.
         if speed_method == "table":
             p_box = jnp.maximum(
-                self.r_c * _find_tidal_radius(xi_grid, psi_grid) / self.r_a, 1e-3
+                self.r_c * _find_tidal_radius(xi_grid, psi_raw) / self.r_a, 1e-3
             )
             self.speed_table = AnisoSpeedCDFTable.build(self.W0, p_box, jnp.asarray(1.0))
         else:

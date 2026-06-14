@@ -161,12 +161,14 @@ class LIMEPYVelocityDF(eqx.Module):
         self.r_c = jnp.asarray(r_c, dtype=jnp.float64)
         self.r_a = jnp.asarray(jnp.inf if r_a is None else r_a, dtype=jnp.float64)
         ra_hat = None if r_a is None else r_a / r_c
-        xi_grid, psi_grid = solve_limepy_profile(
+        xi_grid, psi_grid, psi_raw = solve_limepy_profile(
             W0, g, ra_hat=ra_hat, xi_max=xi_max, n_points=n_ode_points
         )
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
-        self.r_t = self.r_c * _find_tidal_radius(xi_grid, psi_grid)
+        # Feed UNCLAMPED psi_raw so d(r_t)/dW0 flows (the clamp zeros the crossing
+        # node's gradient). Forward r_t is the interpolated crossing.
+        self.r_t = self.r_c * _find_tidal_radius(xi_grid, psi_raw)
 
         # mu = int rho_tilde xi^2 dxi, rho_tilde normalized to 1 at the centre.
         if is_aniso:
