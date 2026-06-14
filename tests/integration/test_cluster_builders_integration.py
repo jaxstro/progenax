@@ -62,6 +62,7 @@ def _Q(ic):
             marks=pytest.mark.slow,
         ),
     ],
+    ids=["plummer", "eff", "king", "michie", "limepy"],
 )
 def test_each_profile_builds_near_virial(profile):
     """build_cluster applies Q=0.5 virial scaling by default, so every profile family
@@ -90,19 +91,53 @@ def test_jit_through_build_cluster():
     assert jnp.all(jnp.isfinite(f(1.0)))
 
 
-def test_grad_through_build_cluster_from_params():
+def _Lz(ic):
+    """Net angular momentum about z (rotation injects L_z > 0)."""
+    x, y = ic.positions[:, 0], ic.positions[:, 1]
+    vx, vy = ic.velocities[:, 0], ic.velocities[:, 1]
+    return jnp.sum(ic.masses * (x * vy - y * vx))
+
+
+def test_grad_through_build_cluster_from_params_bites_each_channel():
     """jax.grad flows through build_cluster_from_params (the theta -> ICResult inference
-    map), even with tidal-truncation + rotation modifiers active, giving a finite,
-    non-zero gradient in r_h."""
+    map) on EACH differentiable channel of the ClusterParams PyTree, with a reduction
+    chosen so that channel actually carries the gradient:
+
+      - r_h (profile leaf):        d<radius>/d r_h            (positions scale with r_h)
+      - tidal_radius (straight-through surrogate): d(Sigma m)/d r_t on the MASSES
+            (mean_radius is r_t-invariant -- the cut moves no surviving position -- so the
+            mass reduction is the correct probe for this channel)
+      - rotation omega (overlay):  d L_z / d omega            (L_z = omega * Sigma m R^2)
+
+    Each gradient must be finite AND non-zero, proving the wrapper differentiates through
+    the profile AND the modifier knobs (the unit-level channels are pinned in the Batch-5
+    grad-audit; this is the integration-level confirmation that they compose through the
+    ClusterParams -> build_cluster path)."""
     m = jnp.ones(200)
 
-    def loss(r_h):
-        params = ClusterParams(
-            profile=PlummerProfile(r_h=r_h), tidal_radius=3.0, rotation=0.1
-        )
-        ic = build_cluster_from_params(params, masses=m, key=_K)
+    # (1) profile leaf r_h -> mean radius (modifiers present but r_h-orthogonal here).
+    def loss_rh(r_h):
+        p = ClusterParams(profile=PlummerProfile(r_h=r_h), tidal_radius=3.0, rotation=0.1)
+        ic = build_cluster_from_params(p, masses=m, key=_K)
         return jnp.mean(jnp.linalg.norm(ic.positions, axis=1))
 
-    g = jax.grad(loss)(1.0)
-    assert jnp.isfinite(g)
-    assert abs(g) > 1e-6
+    g_rh = jax.grad(loss_rh)(1.0)
+    assert jnp.isfinite(g_rh) and abs(g_rh) > 1e-6, f"r_h gradient dead: {g_rh}"
+
+    # (2) tidal_radius channel -> surviving mass (the straight-through surrogate is live).
+    def loss_rt(r_t):
+        p = ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t)
+        ic = build_cluster_from_params(p, masses=m, key=_K)
+        return jnp.sum(ic.masses)
+
+    g_rt = jax.grad(loss_rt)(1.5)
+    assert jnp.isfinite(g_rt) and abs(g_rt) > 1e-6, f"tidal_radius gradient dead: {g_rt}"
+
+    # (3) rotation omega channel -> L_z (the solid-body overlay injects angular momentum).
+    def loss_omega(omega):
+        p = ClusterParams(profile=PlummerProfile(r_h=1.0), rotation=omega)
+        ic = build_cluster_from_params(p, masses=m, key=_K)
+        return _Lz(ic)
+
+    g_omega = jax.grad(loss_omega)(0.3)
+    assert jnp.isfinite(g_omega) and abs(g_omega) > 1e-6, f"omega gradient dead: {g_omega}"
