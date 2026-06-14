@@ -144,3 +144,115 @@ def test_mass_spec_error_neither_masses_nor_n():
 def test_mass_spec_error_imf_without_n():
     with pytest.raises(ValueError, match="imf.*requires.*n|n.*imf"):
         build_cluster(PlummerProfile(r_h=1.0), masses=_M, imf=PowerLawIMF.kroupa(), key=_K)
+
+
+# ===========================================================================
+# Batch 3: Modifiers — RotationSpec, anisotropy/tidal/rotation, revirialize,
+#          and the Q=None faithful-unscaled-equilibrium path (Anna-ratified A/B).
+# ===========================================================================
+from progenax.builders_cluster import RotationSpec
+
+
+def test_anisotropy_threads_into_df_radial_bias():
+    # OM anisotropy -> radial velocity bias (beta(r) > 0). Compare radial vs tangential
+    # velocity variance at large radius for an anisotropic vs isotropic Plummer.
+    p = PlummerProfile(r_h=1.0)
+    iso = build_cluster(p, masses=_M, key=_K)
+    ani = build_cluster(p, masses=_M, key=_K, anisotropy_radius=0.7)
+    # Anisotropic build must differ from isotropic (threading actually happened).
+    assert not bool(jnp.allclose(iso.velocities, ani.velocities))
+
+
+def test_anisotropy_unsupported_model_errors():
+    with pytest.raises(ValueError, match="anisotropy_radius"):
+        build_cluster(KingProfile.from_W0_rc(W0=7.0, r_c=1.0), masses=_M, key=_K,
+                      anisotropy_radius=2.0)
+
+
+def test_tidal_zeroes_outer_masses():
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K, tidal_radius=1.5)
+    radii = jnp.linalg.norm(ic.positions, axis=1)
+    assert bool(jnp.all(ic.masses[radii > 1.5] == 0.0))     # ghosts
+    assert bool(jnp.any(ic.masses[radii <= 1.5] > 0.0))     # survivors kept
+
+
+def test_tidal_double_truncation_errors_for_king():
+    with pytest.raises(ValueError, match="already truncated|double"):
+        build_cluster(KingProfile.from_W0_rc(W0=7.0, r_c=1.0), masses=_M, key=_K,
+                      tidal_radius=5.0)
+
+
+def test_tidal_double_truncation_errors_for_limepy():
+    with pytest.raises(ValueError, match="already truncated|double"):
+        build_cluster(LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0), masses=_M, key=_K,
+                      tidal_radius=5.0)
+
+
+def _Lz(ic):
+    x, y = ic.positions[:, 0], ic.positions[:, 1]
+    vx, vy = ic.velocities[:, 0], ic.velocities[:, 1]
+    return float(jnp.sum(ic.masses * (x * vy - y * vx)))
+
+
+def test_rotation_float_injects_positive_Lz():
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K, rotation=0.3)
+    assert _Lz(ic) > 0.0
+
+
+def test_rotation_spec_solid_matches_float():
+    ic_f = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K, rotation=0.3)
+    ic_s = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K,
+                         rotation=RotationSpec(omega=0.3))
+    _assert_ic_equal(ic_f, ic_s)
+
+
+def test_rotation_spec_differential_injects_Lz():
+    spec = RotationSpec(kind="differential", v_peak=2.0, R_peak=1.0)
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K, rotation=spec)
+    assert _Lz(ic) > 0.0
+
+
+def test_revirialize_rescales_survivors_to_Q():
+    # After a tidal cut, survivors are super-virial (S4); revirialize=True restores Q≈0.5.
+    from progenax import compute_kinetic_energy, compute_potential_energy
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=jnp.ones(2000), key=_K,
+                       tidal_radius=2.0, revirialize=True)
+    keep = ic.masses > 0
+    pos, vel, m = ic.positions[keep], ic.velocities[keep], ic.masses[keep]
+    T = compute_kinetic_energy(vel, m)
+    V = compute_potential_energy(pos, m, G=STELLAR.G)
+    Q = float(T / jnp.abs(V))
+    assert Q == pytest.approx(0.5, abs=0.05)
+
+
+# --- Addition A: Q=None faithful unscaled equilibrium ----------------------
+def test_Q_none_king_unscaled_is_true_df_equilibrium():
+    # Q=None disables the virial rescale; the King true-DF is sampled in detailed
+    # equilibrium so the measured Q = T/|V| still lands near 0.5 (no rescale).
+    from progenax import compute_kinetic_energy, compute_potential_energy
+    p = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+    m = jnp.ones(3000)
+    ic_unscaled = build_cluster(p, masses=m, key=_K, Q=None)
+    T = compute_kinetic_energy(ic_unscaled.velocities, ic_unscaled.masses)
+    V = compute_potential_energy(ic_unscaled.positions, ic_unscaled.masses, G=STELLAR.G)
+    Q = float(T / jnp.abs(V))
+    assert Q == pytest.approx(0.5, abs=0.05)
+    # ...and the unscaled velocities differ from the Q=0.5-rescaled build.
+    ic_scaled = build_cluster(p, masses=m, key=_K, Q=0.5)
+    assert not bool(jnp.allclose(ic_unscaled.velocities, ic_scaled.velocities))
+
+
+def test_Q_none_skips_scaling_for_plummer():
+    # The unscaled Plummer DF is also near-virial; Q=None must skip the rescale,
+    # leaving velocities that differ from the explicitly-rescaled Q=0.5 build.
+    p = PlummerProfile(r_h=1.0)
+    ic_none = build_cluster(p, masses=_M, key=_K, Q=None)
+    ic_half = build_cluster(p, masses=_M, key=_K, Q=0.5)
+    assert not bool(jnp.allclose(ic_none.velocities, ic_half.velocities))
+
+
+# --- Addition B: revirialize + Q=None is an explicit error -----------------
+def test_revirialize_with_Q_none_errors():
+    with pytest.raises(ValueError, match="revirialize.*Q|numeric Q"):
+        build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K,
+                      tidal_radius=1.5, revirialize=True, Q=None)

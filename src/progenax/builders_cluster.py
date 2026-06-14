@@ -104,14 +104,21 @@ def build_cluster(
     n: Optional[int] = None,
     imf=None,
     units=None,
-    Q: float = 0.5,
-    anisotropy_radius: Optional[float] = None,
-    tidal_radius: Optional[float] = None,
+    Q: Optional[float] = 0.5,
+    anisotropy_radius: Optional[Float[Array, ""]] = None,
+    tidal_radius: Optional[Float[Array, ""]] = None,
     rotation: Optional[Union[float, "RotationSpec"]] = None,
     revirialize: bool = False,
     softening: float = 0.0,
 ) -> ICResult:
-    """Build a single-population cluster IC from a profile object (see design doc)."""
+    """Build a single-population cluster IC from a profile object (see design doc).
+
+    `Q` is the target virial ratio Q = T/|V| passed through to `build_spatial_ic`:
+    `Q=0.5` virial-scales the IC to equilibrium (default); `Q=None` disables the
+    rescale entirely, yielding the faithful UNSCALED equilibrium of the matched DF
+    (the King/EFF/Michie/LIMEPY true-DF samplers are already in detailed equilibrium,
+    so their measured Q lands near 0.5 with no rescale).
+    """
     units = DEFAULT_UNITS if units is None else units
     masses, key_spatial = _resolve_masses(masses, n, imf, key)
     df = matched_velocity_df(profile, anisotropy_radius)
@@ -122,5 +129,61 @@ def build_cluster(
     return _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, units.G, softening)
 
 
+class RotationSpec(eqx.Module):
+    """Rotation overlay spec. kind='solid' uses omega; kind='differential' uses (v_peak, R_peak).
+
+    Additive kinematic overlay — injects L_z and raises Q above 0.5 (audit S3, NOT a stationary
+    equilibrium). Differentiable in omega / v_peak / R_peak.
+    """
+    kind: str = eqx.field(static=True, default="solid")
+    omega: Optional[Float[Array, ""]] = None
+    v_peak: Optional[Float[Array, ""]] = None
+    R_peak: Optional[Float[Array, ""]] = None
+    # Array class-defaults are rejected by eqx/dataclasses ("mutable default ... use
+    # default_factory"), so the z-hat axis is supplied via a default_factory.
+    axis: Float[Array, "3"] = eqx.field(default_factory=lambda: jnp.array([0.0, 0.0, 1.0]))
+
+    def __post_init__(self):
+        if self.kind == "solid" and self.omega is None:
+            raise ValueError("RotationSpec(kind='solid') requires omega=...")
+        if self.kind == "differential" and (self.v_peak is None or self.R_peak is None):
+            raise ValueError("RotationSpec(kind='differential') requires v_peak=... and R_peak=...")
+        if self.kind not in ("solid", "differential"):
+            raise ValueError(f"RotationSpec.kind must be 'solid' or 'differential', got {self.kind!r}")
+
+
+_TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile)   # carry a native r_t (stationary truncation)
+
+
 def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, softening):
-    return ic  # filled in Batch 3
+    positions, velocities, masses = ic.positions, ic.velocities, ic.masses
+
+    if tidal_radius is not None:
+        if isinstance(profile, _TRUNCATED_PROFILES):
+            raise ValueError(
+                f"{type(profile).__name__} is already tidally truncated (native r_t); passing "
+                f"tidal_radius would double-truncate. For a stationary truncated equilibrium set "
+                f"r_t on the profile instead (it is the recommended route — no audit-S4 issue)."
+            )
+        if revirialize and Q is None:
+            raise ValueError("revirialize=True needs a numeric Q target; got Q=None")
+        from .tidal import apply_tidal_truncation
+        positions, velocities, masses, _keep = apply_tidal_truncation(
+            positions, velocities, masses, tidal_radius)
+        if revirialize:
+            velocities = virial_scale(positions, velocities, masses, Q, G, softening)
+
+    if rotation is not None:
+        spec = RotationSpec(omega=rotation) if not isinstance(rotation, RotationSpec) else rotation
+        if spec.kind == "solid":
+            velocities = apply_solid_body_rotation(velocities, positions, spec.omega, spec.axis)
+        else:
+            velocities = apply_differential_rotation(
+                velocities, positions, spec.v_peak, spec.R_peak, spec.axis)
+
+    return ICResult(
+        positions=positions, velocities=velocities, masses=masses,
+        stellar_radii=compute_stellar_radii(masses), ids=ic.ids,
+        primordial_system_id=ic.primordial_system_id,
+        is_primordial_secondary=ic.is_primordial_secondary, component_id=ic.component_id,
+    )
