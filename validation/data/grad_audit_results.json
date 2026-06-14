@@ -700,6 +700,20 @@
     "status": "clean"
   },
   {
+    "id": "build_binary_cluster",
+    "direction": "params->IC",
+    "param": "r_h",
+    "theta": 1.0,
+    "finite": true,
+    "ad": 1.3464086739680754,
+    "fd": 1.3464086739689574,
+    "ratio": 0.999999999999345,
+    "abs_ad": 1.3464086739680754,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
     "direction": "params->IC",
     "param": "r_h",

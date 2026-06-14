@@ -11,14 +11,19 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     Maschberger,
     MichieProfile,
     MichieVelocityDF,
+    LogUniformPeriod,
     PlummerProfile,
     PlummerVelocityDF,
     PowerLawIMF,
+    ThermalEccentricity,
     build_spatial_ic,
 )
+from progenax.binaries import IndependentCompanions
 from progenax.binaries.assembly import resolve_binary_components
 from progenax.binaries.companions import MoeCompanions
 from progenax.binaries.kepler import KeplerElements
+from progenax.builders import Systems, build_binary_cluster
+from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.diagnostics.q_approx import q_approx
 from progenax.diagnostics.segregation_approx import lambda_msr_approx
@@ -644,6 +649,79 @@ def _cluster_a_r_a(r_a):
     # (r_a/r_c)*mu_j^eta internally. reduce=mean_speed (anisotropy is in the velocities).
     model = MultiComponentCluster.from_mass_segregation(r_a=r_a, **_CLUSTER_A_RA_CFG)
     return model.sample_cluster(_KEY, _CLUSTER_N_STARS, G=STELLAR.G).velocities
+
+
+# ---------------------------------------------------------------------------
+# build_binary_cluster END-TO-END (Task B3) — the flagship binary-cluster Fisher
+# path: IMF -> companion(P,q,e) composition -> system COMs (build_spatial_ic,
+# virial-scaled to Q) -> resolve_binary_components places each binary's two stars
+# around its COM. r_h is the spatial-scale leaf an inference treats as free; it is
+# the headline parameter for the binary-cluster forward model.
+#
+# r_h enters ONLY the spatial assembly (PlummerProfile.sample_positions x
+# PlummerVelocityDF.sample_velocities, then virial-scaled to Q=0.5). The IMF mass
+# sampling and the companion (P, q, e) draws are r_h-INDEPENDENT — masses/orbits do
+# not depend on r_h — so the is_binary multiplicity mask and every categorical /
+# Heaviside selection are r_h-invariant. The discreteness CANNOT move with r_h, so
+# the is_binary/is_real mask has 0 flips at +-h BY CONSTRUCTION (confirmed below),
+# leaving a pure smooth positions channel: r_h linearly rescales the system COMs.
+#
+# COMPACT CHOICE: compact=True (the eagerly-compacted ICResult: the real
+# n_systems + n_binaries particles, no ghost slots). MEASURED cleaner than
+# compact=False (the masked 2N ResolvedBinaries, whose single-star "secondary"
+# ghost slots sit at COM + the m2=0 relative offset and dilute the reduction):
+#   compact=True  |ratio-1| ~ 5e-14..2e-12  (machine-exact)
+#   compact=False |ratio-1| ~ 1e-10          (clean too, but ICResult is the
+#                                             flagship user-facing output)
+# The audit engine never jits (it jax.grad's the closure and calls the FD probes as
+# plain Python), so the ICResult's data-dependent compacted shape is fine — and
+# since the is_binary mask is identical at r_h +- h (0 flips), the compacted shape
+# is the SAME at both FD probes, so the central FD is well-defined.
+#
+# Config = the known-clean test_binary_cluster.py::test_grad_through_r_h:
+# IndependentCompanions(fbin=0.5, q~Flat(q_min=0.2), P~LogUniform[2,4], e~Thermal),
+# target=Systems(100), units=STELLAR, Q=0.5 (default). reduce=mean_radius (r_h sets
+# the spatial scale, so the positions carry the gradient).
+#
+# MEASURED (theta0=r_h=1.0, h=1e-4, mean_radius over ICResult.positions), 5 seeds:
+#   seed 0: AD=1.346409e+0  FD=1.346409e+0  |ratio-1|=6.6e-13  flips=0/400
+#   seed 1: AD=2.016999e+0  FD=2.016999e+0  |ratio-1|=5.1e-14  flips=0/400
+#   seed 2: AD=1.713738e+0  FD=1.713738e+0  |ratio-1|=2.0e-12  flips=0/400
+#   seed 5: AD=1.744199e+0  FD=1.744199e+0  |ratio-1|=9.0e-13  flips=0/400
+#   seed 7: AD=1.932542e+0  FD=1.932542e+0  |ratio-1|=5.7e-14  flips=0/400
+# |AD|~1.3-2.0 >> eps=1e-9 (live, non-zero; sign positive: bigger r_h -> bigger
+# cluster -> bigger mean radius); seed-stable; 0/400 is_real-mask flips at +-h for
+# ALL seeds (r_h-invariant multiplicity, as argued above). max |ratio-1| over seeds
+# = 2.0e-12. The end-to-end virial-scale + COM-center path is r_h-LINEAR here (r_h
+# just scales the Plummer COMs and the resolve offsets ride along), so unlike the
+# stochastic cluster samplers this is essentially machine-exact. tol=1e-5 is a
+# comfortable >5e6x margin over the measured 2e-12 (NOT a weakened tol — a blocked
+# gradient would give |ratio-1|~1, the silent-zero signature, not 2e-12).
+def _independent_companions_b3():
+    # The known-clean IndependentCompanions config from test_binary_cluster.py.
+    return IndependentCompanions(
+        binary_fraction=ConstantBinaryFraction(0.5),
+        q_distribution=FlatMassRatio(q_min=0.2),
+        period_distribution=LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
+        eccentricity_distribution=ThermalEccentricity(),
+    )
+
+
+def _build_binary_cluster_rh(r_h):
+    # r_h threads BOTH the Plummer profile and the Plummer velocity DF (same r_h, as
+    # the equilibrium requires); IMF + companion draws are r_h-independent. compact=True
+    # -> the real-particle ICResult; reduce its positions with mean_radius.
+    ic = build_binary_cluster(
+        profile=PlummerProfile(r_h=r_h),
+        velocity_df=PlummerVelocityDF(r_h=r_h),
+        primary_imf=PowerLawIMF.kroupa(),
+        companion_model=_independent_companions_b3(),
+        target=Systems(100),
+        key=_KEY,
+        units=STELLAR,
+        compact=True,
+    )
+    return ic.positions
 
 
 # ---------------------------------------------------------------------------
@@ -1334,6 +1412,15 @@ REGISTRY: list[Case] = [
     Case(id="MultiComponentCluster.from_mass_segregation[EngineA]", direction="params->IC",
          fn=_cluster_a_r_a, param="r_a", theta0=4.0, reduce=mean_speed,
          expect="consistent", tol=3e-3),
+    # --- build_binary_cluster end-to-end (Task B3) ---
+    # The flagship IMF->companion(P,q,e)->spatial Fisher path; r_h is the spatial-scale
+    # leaf. r_h enters ONLY the assembly (masses/orbits r_h-independent), so the is_binary
+    # multiplicity mask is r_h-invariant -> 0/400 flips at +-h BY CONSTRUCTION. compact=True
+    # (real-particle ICResult). MEASURED 5 seeds at r_h=1.0: |ratio-1| <= 2.0e-12, |AD|~1.3-2.0
+    # (live, +ve), 0/400 mask flips. r_h-LINEAR end-to-end -> machine-exact; tol=1e-5.
+    Case(id="build_binary_cluster", direction="params->IC",
+         fn=_build_binary_cluster_rh, param="r_h", theta0=1.0, reduce=mean_radius,
+         expect="consistent", tol=1e-5),
     # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
     # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson
     # quadrature + Eddington inversion, NO ODE) + per-star draw. Realizable headline

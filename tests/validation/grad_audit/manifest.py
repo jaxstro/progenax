@@ -83,6 +83,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("binned_number_density[data, pinned non-diff]", "r_h"): "frozen-count data side, pinned non-diff",
     ("binned_sigma1d[Plummer]", "r_h"): "binned sigma_1d Fisher channel in r_h",
     ("binned_sigma_beta[Plummer+OM]", "r_a"): "binned beta(r) anisotropy Fisher channel",
+    ("build_binary_cluster", "r_h"): "flagship IMF->companion->spatial binary-cluster Fisher path in r_h",
     ("build_spatial_ic[Plummer]", "r_h"): "headline end-to-end IC positions in r_h",
     ("build_spatial_ic[Plummer].velocities", "r_h"): "end-to-end IC velocities (virial-scaled) in r_h",
     ("lambda_msr_approx", "core_scale"): "soft Lambda_MSR segregation surrogate",
@@ -113,6 +114,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "KeplerElements": AUDITED,
     "apply_solid_body_rotation": AUDITED,   # rotation overlay omega case (now root-exported)
     "apply_differential_rotation": AUDITED,  # rotation overlay v_peak/R_peak cases
+    "build_binary_cluster": AUDITED,        # B3: end-to-end IMF->companion->spatial Fisher path (r_h)
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,
@@ -205,7 +207,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "UniformEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "MoeEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "IndependentCompanions": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
-    "build_binary_cluster": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
+    # build_binary_cluster promoted to AUDITED above (B3)
 }
 
 # --- PARAM_ALLOWLIST: registry (id, param) legitimately not FD-consistent ----
