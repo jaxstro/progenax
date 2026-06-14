@@ -33,7 +33,7 @@ differentiability, the antipatterns it forbids, and the
   - Newton solvers, ODE integrators, inverse-CDF lookups
 * - **Smooth threshold (sigmoid)**
   - Hard mask `where(x > t, 1, 0)`
-  - BM19 transition density, Fundamental Plane $\hat x \ge 0.87$ threshold
+  - BM19 transition density, Fundamental Plane $\hat x \ge -0.87$ threshold
 * - **Sort-by-value gradient flow**
   - argmax / argmin in critical paths
   - Fractal radial remap (gradients flow through values, not permutation)
@@ -132,7 +132,7 @@ exposed as a free parameter for inference if needed.
 
 The same pattern applies elsewhere:
 
-- The Fundamental Plane threshold $\hat x \ge 0.87$ in
+- The Fundamental Plane threshold $\hat x \ge -0.87$ in
   [](../10-theory/imfs/environment.md) uses a sigmoid.
 - The "in or out of bounds" check in `apply_tidal_truncation` uses a
   sigmoid by default (the hard-mask version is available but breaks

@@ -211,19 +211,22 @@ with a weak negative metallicity contribution. The fit reads
 :label: fundamental-fit
 \alpha_3(\hat x) \;=\;
 \begin{cases}
-  -0.4072\,\hat x + 1.9383, & \hat x \ge 0.87 \\
-  2.3, & \hat x < 0.87
+  -0.4072\,\hat x + 1.9383, & \hat x \ge -0.87 \\
+  2.3, & \hat x < -0.87
 \end{cases}
 ```
 
 ```{warning}
-**The threshold is $\hat x \ge +0.87$ (positive)** — the decision
-criterion is whether $\hat x$ falls in the *fitted region*, not whether
-the resulting $\alpha_3$ undercuts $2.3$. Conflating the two conditions
-produces a soft floor at $\alpha_3 = 2.3$ that misses real top-heavy
-predictions. progenax's `alpha3_marks_plane` helper encodes the
-threshold correctly; current coverage is in unit tests under
-`tests/unit/imf/`.
+**The threshold is $\hat x \ge -0.87$ (negative).** The *printed* {cite:t}`Marks2012`
+Eq. 14/15 (p. 2252) give "$\hat x \ge +0.87$", but this is a missing-minus-sign typo
+corrected by the {cite:t}`Marks2014` erratum (MNRAS **442**, 3315; held at
+`docs/core-papers/marks-2014-erratum.pdf`). With the corrected $-0.87$, the fitted line
+meets the canonical $\alpha_3 = 2.3$ *continuously* at the knee ($\hat x \approx -0.888$).
+The uncorrected $+0.87$ is not merely shifted — it is **discontinuous**, spuriously pinning
+$\alpha_3 = 2.3$ out to $\hat x = +0.87$ and then dropping to $\alpha_3 \approx 1.58$.
+progenax's `alpha3_marks_plane` helper encodes the corrected $-0.87$ threshold; see
+[](../../50-validation/environment-imf.md) for the erratum-vs-typo comparison and
+`tests/unit/imf/` for coverage.
 ```
 
 Substituting the rotation back yields the expanded form ({cite:t}`Marks2012`
@@ -235,7 +238,7 @@ Eq. 15):
 \;=\; 0.0572\,[\mathrm{Fe/H}] - 0.4072\,\log_{10}\!\left(\frac{\rho_{\mathrm{cl}}}{10^6\,\Msun\,\mathrm{pc}^{-3}}\right) + 1.9383
 ```
 
-valid when $\hat x \ge 0.87$, with $\alpha_3 = 2.3$ otherwise.
+valid when $\hat x \ge -0.87$, with $\alpha_3 = 2.3$ otherwise.
 
 ## Jeřábková+2018: the IGIMF framework
 
@@ -345,7 +348,7 @@ Both classes are differentiable in $\rho_{\mathrm{cl}}$, [Fe/H], $M_{\mathrm{ecl
 and SFR. The Fundamental Plane threshold {eq}`fundamental-fit` uses
 `jax.nn.sigmoid` rather than `jnp.where` to keep gradients flowing
 through the threshold region — this matters when fitting $\alpha_3$
-directly to data near the boundary $\hat x = 0.87$.
+directly to data near the boundary $\hat x = -0.87$.
 
 See [](../../30-api/imf.md) for the full API and
 [](../../50-validation/imf-statistics.md) for the regression suite that

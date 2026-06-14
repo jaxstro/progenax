@@ -96,17 +96,26 @@ $\epsilon = M_{\rm ecl}/(M_{\rm ecl}+M_{\rm gas})$, $0.1<\epsilon<0.5$ (Eq. 1).
 | $\log_{10}(\rho_{\rm cl}/10^6 M_\odot{\rm pc}^{-3})$ | $-0.43$ | $1.86$ | $0.095$ | $>$ |
 | ${\rm [Fe/H]}$ | $0.66$ | $2.63$ | $-0.5$ | $<$ |
 
-**Fundamental Plane (Eqs. 13–14, p. 2252).** With $\vartheta = 98°$,
+**Fundamental Plane (Eqs. 13–14, p. 2252; range corrected by the 2014 erratum).** With $\vartheta = 98°$,
 
 ```{math}
 :label: marks-fp
 x' = \cos\vartheta\,{\rm [Fe/H]} + \sin\vartheta\,\log_{10}\!\Big(\tfrac{\rho_{\rm cl}}{10^6 M_\odot{\rm pc}^{-3}}\Big),
 \qquad
-\alpha_3 = \begin{cases} -0.4072\,x' + 1.9383, & x' \ge 0.87\\ 2.3, & \text{otherwise}\end{cases}
+\alpha_3 = \begin{cases} -0.4072\,x' + 1.9383, & x' \ge -0.87\\ 2.3, & \text{otherwise}\end{cases}
 ```
 
 with $\cos 98° = -0.139$, $\sin 98° = 0.990$. Density dominates metallicity in setting
 $\alpha_3$ (smaller scatter in Fig. 3 than Fig. 4).
+
+```{warning}
+The **printed** Eq. 14/15 give the range as $x' \ge +0.87$; this is a missing-minus-sign
+typo corrected by the {cite:t}`Marks2014` erratum to $x' \ge -0.87$ (the same typo also
+appears just before Eq. 15). The slope/intercept are unchanged. The authors confirm the
+correct $-0.87$ range was used in their analysis, and Fig. 6 shows the canonical-plateau
+knee at $x' \approx -0.87$ (the fitted line meets $2.3$ continuously: $2.3 = -0.4072\,x' +
+1.9383 \Rightarrow x' = -0.888$). progenax uses the corrected $-0.87$.
+```
 
 **Low-mass metallicity dependence (Eq. 12, p. 2251).**
 
@@ -127,9 +136,17 @@ reproducing the Table 4 grid (e.g. ${\rm [Fe/H]}=-2 \Rightarrow \alpha_1=0.30,\ 
 
 ## Notes
 
-The α₃(x) form was slightly revised in the **Marks et al. (2014) erratum** to
-$-0.41\,x + 1.94$; that revised form is the one adopted by [](jerabkova-2018.md) Eq. 6 and
-used in progenax's `JERABKOVA_COEFFICIENTS` (kept distinct from this paper's MNRAS Fundamental-Plane
-fit $-0.4072/1.9383$). The radius–mass relation $r_h = 0.1\,(M_{\rm ecl}/M_\odot)^{0.13}$ pc used
-in the density chain comes from the companion paper **Marks & Kroupa (2012), A&A 543, A8** (a
-*different* paper), not this one.
+**The 2014 erratum.** {cite:t}`Marks2014` (MNRAS **442**, 3315; PDF held at
+`docs/core-papers/marks-2014-erratum.pdf`) reports a **missing minus sign in the *range of
+validity* of Eq. 14**: the printed "$x' \ge 0.87$" should read "$x' \ge -0.87$" (the same
+typo also appears just before Eq. 15). The slope and intercept are unchanged; the erratum
+quotes the rounded form $\alpha_3 = -0.41\,x' + 1.94$. The authors state the correct
+($-0.87$) range was used in their own analysis and codes, so the paper's results and Table 1
+are unaffected. progenax encodes the negative $-0.87$ threshold in both `MARKS_COEFFICIENTS`
+and `JERABKOVA_COEFFICIENTS` (the latter via [](jerabkova-2018.md) Eq. 6), and keeps this
+paper's full-precision MNRAS slope/intercept $-0.4072/1.9383$ rather than the erratum's
+rounded $-0.41/1.94$.
+
+The radius–mass relation $r_h = 0.1\,(M_{\rm ecl}/M_\odot)^{0.13}$ pc used in the density
+chain comes from the companion paper **Marks & Kroupa (2012), A&A 543, A8** (a *different*
+paper), not this one.
