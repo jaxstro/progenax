@@ -83,8 +83,12 @@ params and returns its equilibrium DF, so `r_h` can never desync:
     Optional `revirialize=True` rescales survivors to Q.
   - **Recommended stationary route:** use **King/LIMEPY** — `r_t` is a native profile param, so
     `build_cluster(KingProfile(W0, r_c, r_t), …)` is a self-consistent truncated equilibrium (no S4).
-  - Passing `tidal_radius` when the profile is already truncated (King/LIMEPY) → **error** (no
-    double-truncation).
+  - Passing `tidal_radius` when the profile is already truncated → **error** (no double-truncation).
+    **Updated during implementation (review I1, Anna-ratified):** the guard covers **all four**
+    truncated `build_cluster` profiles — `King`, `LIMEPY`, `Michie`, `EFF` — not just King/LIMEPY.
+    `tidal_radius` is therefore valid **only for Plummer** (the one untruncated profile); the
+    truncated families set `r_t` on the profile (already differentiable for inference). The original
+    "King/LIMEPY" wording predated the Q1 decision to ship Michie/EFF as first-class aliases.
 - **`rotation`:** `float ω` (solid-body about ẑ via `apply_solid_body_rotation`) or a small
   `RotationSpec(kind="solid"|"differential", omega, axis)` (differential → `apply_differential_rotation`).
   Differentiable in ω.

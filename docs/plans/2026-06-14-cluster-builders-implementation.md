@@ -574,7 +574,7 @@ class RotationSpec(eqx.Module):
             raise ValueError(f"RotationSpec.kind must be 'solid' or 'differential', got {self.kind!r}")
 
 
-_TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile)   # carry a native r_t (stationary truncation)
+_TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile, MichieProfile, EFFProfile)  # native r_t; tidal_radius is Plummer-only (review I1, Anna-ratified)
 
 
 def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, softening):
