@@ -105,6 +105,8 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "resolve_binary_components": AUDITED,
     "MoeCompanions": AUDITED,
     "KeplerElements": AUDITED,
+    "apply_solid_body_rotation": AUDITED,   # rotation overlay omega case (now root-exported)
+    "apply_differential_rotation": AUDITED,  # rotation overlay v_peak/R_peak cases
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,
@@ -188,8 +190,8 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "solve_limepy_profile": EXEMPT_COVERED_ELSEWHERE,
     "solve_multimass_limepy": EXEMPT_COVERED_ELSEWHERE,
     "find_alpha_for_masses": EXEMPT_COVERED_ELSEWHERE,
-    "LogisticThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,
     # Phase-B D4 targets — promote to AUDITED when each one's registry case lands.
+    "LogisticThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target (Anna A1) — promote to AUDITED when case lands
     "SanaOBPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "LogNormalPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "LogUniformPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
