@@ -39,7 +39,7 @@ def build_cluster(
     n: int | None = None,
     imf: IMFProtocol | None = None,
     units: UnitSystem | None = None,          # None -> DEFAULT_UNITS (STELLAR)
-    Q: float = 0.5,
+    Q: float | None = 0.5,                    # None -> no virial rescale (faithful unscaled eq.)
     anisotropy_radius: float | None = None,   # OM r_a; None -> isotropic
     tidal_radius: float | None = None,        # Jacobi r_t; None -> untruncated
     rotation: float | RotationSpec | None = None,  # omega overlay; None -> none
@@ -168,6 +168,21 @@ it. All were ratified one-at-a-time via the brainstorming skill.
 6. **Tidal `revirialize` (Q6): default `False`** + loud S4 docs; King/LIMEPY (native `r_t`) is the
    recommended stationary route; `revirialize=True` is explicit opt-in.
 
+### Implementation deltas on top of the round-2 ratification (review-driven)
+
+- **`Q: float | None = 0.5`** (was `Q: float`). `Q=None` disables the virial rescale → the faithful
+  **unscaled** equilibrium of the true-DF samplers (King/EFF/Michie/LIMEPY land near 0.5 unscaled).
+  `Q` is a differentiable (traced) leaf, but it is **NOT in the audited Fisher set**: it is a
+  configuration target (the equilibrium prior), not an inference parameter, so it has no grad-audit
+  Case by design (the audited set is the inference-relevant params r_h/r_a/r_t/ω + the per-family
+  scales). `revirialize=True` requires a numeric `Q` (errors on `Q=None`).
+- **Tidal guard widened to all 4 truncated profiles** → `tidal_radius` is **Plummer-only** (review I1;
+  see the modifier-semantics note above).
+- **`tidal_radius` is a teeth-test, not an FD-consistent grad-audit Case** — it flows through
+  `apply_tidal_truncation`'s straight-through surrogate (live but not FD-consistent by design;
+  inherits the source op's `EXEMPT_HELPER` status). King audits `r_c` (not `W0`) to dodge the
+  auto-ODE-domain tracer/concrete grid mismatch.
+
 ### New public surface (10 symbols)
 
 `build_cluster`, `build_plummer_cluster`, `build_king_cluster`, `build_eff_cluster`,
@@ -182,7 +197,7 @@ class ClusterParams(eqx.Module):
     anisotropy_radius: float | None = None          # traced when set; None -> empty PyTree node
     tidal_radius: float | None = None
     rotation: float | RotationSpec | None = None
-    Q: float = 0.5
+    Q: float | None = 0.5                           # None -> faithful unscaled equilibrium
 
 def build_cluster_from_params(
     params: ClusterParams, *, key, masses=None, n=None, imf=None, units=None,

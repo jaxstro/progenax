@@ -25,7 +25,7 @@ EXEMPT_COVERED_ELSEWHERE = "EXEMPT_COVERED_ELSEWHERE"  # differentiable sampler 
 
 # --- MUST_AUDIT: (id, param) -> rationale -----------------------------------
 # Seeded from REGISTRY (Phase A = current coverage only; D4 entries appended in Phase B).
-# Every (id, param) coverage unit the registry MUST keep covering (56 units).
+# Every (id, param) coverage unit the registry MUST keep covering (75 units).
 # NOTE: MUST_AUDIT ids are NOT a subset of the AUDITED public symbols — several are
 # internal/submodule entry points legitimately absent from progenax.__all__ (the frozen-edge
 # binners, q_approx, lambda_msr_approx, Schechter, IMFParams, PlummerVelocityDF+OM). They are
@@ -109,7 +109,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
 }
 
 # --- SYMBOL_CATEGORY: every __all__ symbol -> category ----------------------
-# Every progenax.__all__ symbol (104) categorized exactly once.
+# Every progenax.__all__ symbol (114) categorized exactly once.
 SYMBOL_CATEGORY: dict[str, str] = {
     # --- AUDITED (owns >=1 registry id) ---
     "PlummerProfile": AUDITED,
