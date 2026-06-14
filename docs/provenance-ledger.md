@@ -264,6 +264,21 @@ Surfaced in Phase-1 (56 candidates); retired only with Anna's approval. Highligh
 - **Duplicated Moe doc-tables (now consistent, Batch 2):** the f_b table (`binary.md` + `multiplicity-statistics.md`) and the γ(M₁)/f_twin tables (`binary.md` + `mass-ratio-distributions.md`) — reconciled + correctly labeled; full dedup to one canonical copy deferred (binary.md's narrative uses them inline).
 - **Stale docs:** `physics-tests.md` (pre-fractal-removal Measured rows); dup `90-development-log` review; divergent test-count snapshots (1163/866/~1243).
 - **Missing per-paper notes — RESOLVED (Batch 7):** `prsa-2016` + `kroupa-1995` (live-cited) → grounded notes added & wired into nav; `zocchi2016` is archival-dev-log-only (left, no note). ~11 held-but-uncited reference PDFs remain (reference material; no notes needed).
+- **🔭 IMF ↔ binaries mass-pairing duplication (architectural — DEFERRED, revisit later; brainstormed 2026-06-14, Anna chose keep-as-is + note):**
+  the binary **mass-pairing** logic (q-distribution + binary-fraction → `(m₁, m₂, is_binary)`) is implemented
+  **twice** — in `imf.binary.BinaryIMF` (mass-only) and *mirrored by hand* inside
+  `binaries.companions.CompanionModel` (the IC-wired path used by `build_binary_cluster`; `companions.py`
+  comments literally read "matches `BinaryIMF`" / "mirrors `BinaryIMF.sample_mass_ratios`"). Binary-fraction
+  *implementations* are also scattered across `imf/binary/binary_fraction.py`, `binaries/mass_dependent.py`,
+  and `companions.py` (interface-unified by the `BinaryFractionModel` protocol). The mass-vs-orbit **axis
+  split is sound** — only the mass-pairing is duplicated (an evolution artifact: the Batch-4k
+  `CompanionModel`/`build_binary_cluster` is the newer canonical IC path; `BinaryIMF` is the older mass-only
+  object the new design consciously departs from). **Recommended future fix (not done):** extract ONE shared
+  mass-pairing primitive — e.g. `sample_pairing(primary_imf, q_dist, binary_fraction, key) → (m₁, m₂,
+  is_binary)` or a small `MassPairing` eqx module — that **both** `BinaryIMF` and `CompanionModel` *compose*
+  (kill the hand-mirror → one source of truth); and consolidate the **mass-dependent** f_b models behind
+  `BinaryFractionModel` in one home (keep `RadialBinaryFraction` separate — it's a genuinely different
+  *spatial* axis). Pairs naturally with the `build_cluster`/builder-API arc (`0a7a424`).
 
 ---
 
