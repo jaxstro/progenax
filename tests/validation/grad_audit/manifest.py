@@ -50,6 +50,8 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("KingProfile.sample_positions", "r_c"): "King position sampler in core radius",
     ("KingVelocityDF.sample_velocities", "W0"): "King lowered-Maxwellian DF in W0",
     ("KingVelocityDF.sample_velocities", "r_c"): "King DF in core radius",
+    ("LogNormalPeriod.sample", "mu_log_P"): "Raghavan+2010 log-normal period location",
+    ("LogUniformPeriod.sample", "log_P_max"): "Opik log-uniform period upper bound",
     ("Maschberger.ppf", "alpha"): "Maschberger inverse-CDF in slope",
     ("Maschberger.ppf", "beta"): "Maschberger inverse-CDF in beta",
     ("Maschberger.ppf", "mu"): "Maschberger inverse-CDF in mu",
@@ -76,6 +78,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("PowerLawIMF.ppf[Salpeter]", "alpha"): "Salpeter inverse-CDF in slope (alpha=1 edge)",
     ("PowerLawIMF.ppf[m_min]", "m_min"): "Salpeter inverse-CDF lower-support edge",
     ("PowerLawIMF.sample[Salpeter]", "alpha"): "Salpeter reparam sampler in slope",
+    ("SanaOBPeriod.sample", "power"): "Sana+2012 OB period power-law index",
     ("Schechter.ppf", "alpha"): "Schechter grid-CDF+Newton inverse in slope",
     ("apply_differential_rotation", "R_peak"): "differential rotation overlay, nonlinear R_peak",
     ("apply_differential_rotation", "v_peak"): "differential rotation overlay, linear v_peak",
@@ -115,6 +118,9 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "apply_solid_body_rotation": AUDITED,   # rotation overlay omega case (now root-exported)
     "apply_differential_rotation": AUDITED,  # rotation overlay v_peak/R_peak cases
     "build_binary_cluster": AUDITED,        # B3: end-to-end IMF->companion->spatial Fisher path (r_h)
+    "SanaOBPeriod": AUDITED,                 # B4: Sana+2012 OB period power-law index (power)
+    "LogNormalPeriod": AUDITED,              # B4: log-normal period location (mu_log_P, closed-form grad=1)
+    "LogUniformPeriod": AUDITED,             # B4: Opik log-uniform period upper bound (log_P_max, <u>~0.5)
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,
@@ -200,9 +206,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "find_alpha_for_masses": EXEMPT_COVERED_ELSEWHERE,
     # Phase-B D4 targets — promote to AUDITED when each one's registry case lands.
     "LogisticThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target (Anna A1) — promote to AUDITED when case lands
-    "SanaOBPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
-    "LogNormalPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
-    "LogUniformPeriod": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
+    # SanaOBPeriod / LogNormalPeriod / LogUniformPeriod promoted to AUDITED above (B4)
     "ThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "UniformEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     "MoeEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands

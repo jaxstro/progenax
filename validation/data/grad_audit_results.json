@@ -714,6 +714,48 @@
     "status": "clean"
   },
   {
+    "id": "SanaOBPeriod.sample",
+    "direction": "params->IC",
+    "param": "power",
+    "theta": -0.55,
+    "finite": true,
+    "ad": 0.7920134119280207,
+    "fd": 0.7920134107985977,
+    "ratio": 1.000000001426015,
+    "abs_ad": 0.7920134119280207,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "LogNormalPeriod.sample",
+    "direction": "params->IC",
+    "param": "mu_log_P",
+    "theta": 4.8,
+    "finite": true,
+    "ad": 1.0000000000000007,
+    "fd": 1.0000000000000748,
+    "ratio": 0.9999999999999258,
+    "abs_ad": 1.0000000000000007,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
+    "id": "LogUniformPeriod.sample",
+    "direction": "params->IC",
+    "param": "log_P_max",
+    "theta": 8.0,
+    "finite": true,
+    "ad": 0.4938855194259164,
+    "fd": 0.49388551942558534,
+    "ratio": 1.0000000000006704,
+    "abs_ad": 0.4938855194259164,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
     "direction": "params->IC",
     "param": "r_h",

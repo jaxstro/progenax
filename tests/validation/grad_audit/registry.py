@@ -11,7 +11,9 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     Maschberger,
     MichieProfile,
     MichieVelocityDF,
+    LogNormalPeriod,
     LogUniformPeriod,
+    SanaOBPeriod,
     PlummerProfile,
     PlummerVelocityDF,
     PowerLawIMF,
@@ -1169,6 +1171,58 @@ def _binned_number_density_rh(r_h):
     return binned_number_density(ic.positions, _BK_R_EDGES)
 
 
+# ---------------------------------------------------------------------------
+# Task B4: binary period distributions — the pure params->IC period draws (no G,
+# no units; period in days). Each is a smooth inverse-CDF / location-scale
+# reparameterization at the FIXED module key _KEY, so the observable
+# mean(log10(periods)) is a differentiable function of the distribution param and
+# central FD is clean. Reduce = mean(log10(.)) inline (matches the scattered
+# tests' observable in tests/unit/binaries/test_population.py). N=4000 (inner-loop;
+# the smooth reparam'd mean is N-stable — measured ratio identical at N=2000/4000/
+# 20000 for all three). Three PRNG seeds measured to confirm seed-stability; the
+# Case freezes the module key.
+#
+#   (1) SanaOBPeriod.power — p(logP) ∝ (logP)^power inverted via jnp.power. The
+#       FD-tested target (test_sana_power_gradient_matches_finite_difference). The
+#       index threads through the inverse-CDF power, a non-trivial gradient.
+#       MEASURED (theta0=-0.55, h=1e-4, mean(log10 P) over N=4000), 3 seeds:
+#         seed 0: AD=7.920134e-1  FD=7.920134e-1  |ratio-1|=1.4e-9
+#         seed 1: AD=8.044817e-1  FD=8.044817e-1  |ratio-1|=1.4e-9
+#         seed 2: AD=7.984597e-1  FD=7.984597e-1  |ratio-1|=1.4e-9
+#       |AD|~0.79 >> eps (live); seed-stable; max |ratio-1| = 1.4e-9. tol=1e-5
+#       (>7000x margin over the measured residual; a blocked gradient -> |ratio-1|~1).
+#
+#   (2) LogNormalPeriod.mu_log_P — log10 P = mu + sigma*z (z = erfinv reparam of u),
+#       so d<log10 P>/dmu = 1 EXACTLY (CLOSED-FORM ANALYTIC; the location shifts every
+#       sample by the same dmu). MEASURED (theta0=4.8, h=4.8e-4), 3 seeds:
+#         seed 0: AD=1.000000e+0  FD=1.000000e+0  |ratio-1|=7.4e-14
+#         seed 1: AD=1.000000e+0  FD=1.000000e+0  |ratio-1|=7.4e-14
+#         seed 2: AD=1.000000e+0  FD=1.000000e+0  |ratio-1|=2.7e-12
+#       AD=1.0 to machine precision, exactly the closed form. tol=1e-5.
+#
+#   (3) LogUniformPeriod.log_P_max — log10 P = lo + u*(hi - lo), so
+#       d<log10 P>/d(hi) = <u> ≈ 0.5 (CLOSED-FORM ANALYTIC; the mean uniform draw).
+#       MEASURED (theta0=8.0, h=8e-4), 3 seeds:
+#         seed 0: AD=4.938855e-1  FD=4.938855e-1  |ratio-1|=6.7e-13
+#         seed 1: AD=5.042832e-1  FD=5.042832e-1  |ratio-1|=4.0e-13
+#         seed 2: AD=5.078402e-1  FD=5.078402e-1  |ratio-1|=1.5e-12
+#       <u>~0.49-0.51 (the finite-N mean uniform draw, -> 0.5); seed-stable. tol=1e-5.
+_PERIOD_N = 4000  # inner-loop sample size (N-stable for the smooth reparam'd mean)
+_log10_mean = lambda periods: jnp.mean(jnp.log10(periods))  # the scattered-test observable
+
+
+def _sana_period_power(power):
+    return SanaOBPeriod(power=power).sample(_KEY, _PERIOD_N)
+
+
+def _lognormal_period_mu(mu_log_P):
+    return LogNormalPeriod(mu_log_P=mu_log_P).sample(_KEY, _PERIOD_N)
+
+
+def _loguniform_period_logpmax(log_P_max):
+    return LogUniformPeriod(log_P_max=log_P_max).sample(_KEY, _PERIOD_N)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1420,6 +1474,25 @@ REGISTRY: list[Case] = [
     # (live, +ve), 0/400 mask flips. r_h-LINEAR end-to-end -> machine-exact; tol=1e-5.
     Case(id="build_binary_cluster", direction="params->IC",
          fn=_build_binary_cluster_rh, param="r_h", theta0=1.0, reduce=mean_radius,
+         expect="consistent", tol=1e-5),
+    # --- Task B4: binary period distributions ---
+    # Pure params->IC period draws (no G/units). Observable mean(log10 P) at the fixed
+    # module key; smooth reparam'd ppf -> central FD clean + N-stable. See the B4 block
+    # above for the per-seed measured table.
+    # (1) SanaOBPeriod.power: p(logP) ∝ (logP)^power inverse-CDF. MEASURED 3 seeds at
+    # power=-0.55: |ratio-1| ~ 1.4e-9, |AD|~0.79 (live). tol=1e-5 (>7000x margin).
+    Case(id="SanaOBPeriod.sample", direction="params->IC",
+         fn=_sana_period_power, param="power", theta0=-0.55, reduce=_log10_mean,
+         expect="consistent", tol=1e-5),
+    # (2) LogNormalPeriod.mu_log_P: CLOSED-FORM d<log10 P>/dmu = 1 exactly (location
+    # shift). MEASURED 3 seeds at mu=4.8: AD=1.000000, |ratio-1| <= 2.7e-12. tol=1e-5.
+    Case(id="LogNormalPeriod.sample", direction="params->IC",
+         fn=_lognormal_period_mu, param="mu_log_P", theta0=4.8, reduce=_log10_mean,
+         expect="consistent", tol=1e-5),
+    # (3) LogUniformPeriod.log_P_max: CLOSED-FORM d<log10 P>/d(hi) = <u> ≈ 0.5.
+    # MEASURED 3 seeds at hi=8.0: AD~0.49-0.51, |ratio-1| <= 1.5e-12. tol=1e-5.
+    Case(id="LogUniformPeriod.sample", direction="params->IC",
+         fn=_loguniform_period_logpmax, param="log_P_max", theta0=8.0, reduce=_log10_mean,
          expect="consistent", tol=1e-5),
     # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
     # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson
