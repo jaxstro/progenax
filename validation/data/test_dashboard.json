@@ -8,7 +8,7 @@
     "line_cov_measured": null,
     "registries_full": false
   },
-  "generated_utc": "2026-06-14T22:47:16.879853+00:00",
+  "generated_utc": "2026-06-14T23:03:24.248828+00:00",
   "line_coverage": {
     "status": "not-measured"
   },
@@ -114,6 +114,12 @@
       "line_cov": null,
       "unit": 0,
       "validation": 0
+    },
+    "test_dashboard_fresh": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 1
     },
     "test_dashboard_gen": {
       "integration": 0,
