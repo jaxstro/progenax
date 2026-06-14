@@ -165,15 +165,49 @@ change). Released-core gate unaffected. **Bucket B held-PDF deep-verify COMPLETE
 range; Sana period range `[0.15, 3.5]` lower bound is figure-read (cite "Fig. 2" → SOM); Sana π/κ
 uncertainty mixing (±0.22/±0.58 vs ±0.2/±0.6) across files; Chabrier `m_trans=1.0` lacks an inline cite.
 
+### Batch 6 — Bucket A: phantom-API doc cleanup (2026-06-14)
+
+Grep-grounded against `src/` (4-lens read-only sweep + main-loop verification; no PDF needed). Real
+API confirmed at definition sites: env-IMF = **functional** `BirthEnvironment` + `env_to_imf_params`
+(NOT an `IGIMF`/`EnvironmentIMF` class, NOT a galaxy-wide integration — CLAUDE.md R7); builders =
+`build_spatial_ic` / `build_binary_cluster`.
+
+| item | location | fix | verdict |
+|------|----------|-----|---------|
+| `progenax.imf.IGIMF` docstring pointer | `environment.md:292` | → `env_to_imf_params` / `alpha3_jerabkova_*` | 🔧 fixed |
+| `gwimf.sample(...)` runnable code | `environment.md:344` | removed (no galaxy-wide sampler) | 🔧 fixed |
+| "Both classes … differentiable … SFR" | `environment.md:347` | → the `env_to_imf_params` *function* is diff in ρ_cl/[Fe/H]/M_ecl/ε | 🔧 fixed |
+| galaxy-wide-IGIMF overclaim | `environment.md:3,26,seealso` | reframed: progenax implements the cluster-scale α₃ input; the IGIMF integral is background theory | 🔧 fixed |
+| §IGIMF reads as implemented | `environment.md:243` | added a **scope admonition** (ξ_cl only; no ECMF integration) | 🔧 fixed |
+| "BM19→ECMF→IGIMF differentiable end-to-end" | `environment.md:368` | honest scope (galaxy-wide chain not implemented) | 🔧 fixed |
+| "fractal IC generation via the FDF method" | `tidal-and-substructure/index.md:3` | → fractal-substructure *theory* + CW04 Q (generator → experimental) | 🔧 fixed |
+| "Energy conservation under fractal substructure" anchor | `physics-tests.md:25-27` | removed (fractal generator retired) | 🗑 removed |
+| §7 "IGIMF" — 8 phantom tests | `tests/README.md:380-420` + TOC + refs | replaced with a scope note → real env-IMF tests; a guard test (`test_documented_api.py`) already asserts IGIMF absent | 🗑 + reframed |
+| IGIMF/EnvironmentIMF claimed *shipped* | `90-development-log/phase1-complete.md`, `docs/PHASE1_COMPLETE.md` | corrected claims + **Archived banner**; root file **moved** to `docs/archive/` | 🔧 + archived |
+| IGIMF/EnvironmentIMF in module table | `2025-12-07-progenax-review.md` | extended the existing retirement banner (body preserved unedited) | 🔧 fixed |
+
+**Deferred to the build_cluster batch** (Anna: make `build_plummer_cluster` a *real* API — design
+`docs/plans/2026-06-14-cluster-builder-api-design.md`, commit `0a7a424`): `methodology.md:117` +
+`units-policy.md:103` / `three-brick-state.md:151` `build_plummer_cluster` snippets → repoint to the
+real builder once it exists (avoids double-editing).
+
+**Verified leave-alone:** correct-negative docs (`environment.md:96/323`, `whats-new` Retired,
+`fractal.md`, `gieles-zocchi` MultiMassLIMEPY-superseded) and legitimate **IGIMF-as-physics-theory**
+prose (bibliography notes, `imf.md`, `science-capabilities.md`).
+
+**Verification:** `make build` → 161 pages, **0 warnings**. `tests/README.md` is GitHub-rendered (not
+in the myst build). **Bucket A COMPLETE** (modulo the deferred build_plummer_cluster repoint).
+
 ---
 
 ## Open flags (⚠ awaiting adjudication) & queued work
 
-- **Bucket A — phantom-API docs (Anna: rewrite to real API):** `imfs/environment.md` IGIMF section +
-  `progenax.imf.IGIMF`/`gwimf.sample()` (240–291, 341); `tests/README.md` §7 IGIMF; `methodology.md`
-  `build_plummer_cluster`; `tidal-and-substructure/index.md` removed-fractal frontmatter; `physics-tests.md`
-  stale Measured rows. → reframe to `BirthEnvironment`/`env_to_imf_params`/`build_spatial_ic`; drop the
-  galaxy-wide-IGIMF overclaim (per CLAUDE.md R7).
+- ✅ **Bucket A — phantom-API docs — COMPLETE (Batch 6):** environment.md IGIMF/`gwimf` reframed to the
+  cluster-scale `BirthEnvironment`/`env_to_imf_params` API; `tests/README` §7 + `physics-tests` fractal
+  row retired; tidal frontmatter fixed; the `phase1-complete`/`PHASE1_COMPLETE`/`2025-12-07-review`
+  snapshots banner-archived (root file moved to `docs/archive/`). **Deferred:** the `build_plummer_cluster`
+  doc snippets (`methodology.md`, architecture pages) → repoint to the real builder once it ships
+  (design `0a7a424`).
 - ✅ **Bucket B — held-PDF deep-verify — COMPLETE:** Moe Table 13 (Batch 2); Profiles bundle — King
   Table II / LIMEPY g+3/2 / CW04 (Batch 3); IMF classic + Sana + Maschberger & Clarke Eq. 4 (Batch 5 —
   M&C estimator/k=6 re-credited to von Hoerner 1963 / Casertano & Hut 1985 per the held M&C 2011 PDF).

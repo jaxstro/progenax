@@ -16,7 +16,7 @@ literature (1911–2018). Counts drift as the suite grows — **see CI for the l
   - [4. Initial Mass Functions](#4-initial-mass-functions)
   - [5. Binary Orbital Mechanics](#5-binary-orbital-mechanics)
   - [6. Environment-Conditioned IMF](#6-environment-conditioned-imf)
-  - [7. IGIMF Theory](#7-igimf-integrated-galactic-imf)
+  - [7. Galaxy-wide IMF (IGIMF) — scope](#7-environment-conditioned-imf--galaxy-wide-igimf-scope)
 - [Unit Tests](#unit-tests)
 - [Integration Tests](#integration-tests)
 - [Test Fixtures & Constants](#test-fixtures--constants)
@@ -377,47 +377,17 @@ $\alpha$ depends on both metallicity $Z$ and density $n_H$:
 
 ---
 
-### 7. IGIMF (Integrated Galactic IMF)
+### 7. Environment-conditioned IMF — galaxy-wide (IGIMF) scope
 
-**Source:** Weidner & Kroupa (2004) MNRAS 348:187, Weidner et al. (2013) MNRAS 434:84
+progenax implements the **cluster-scale** environment→IMF mapping (see §6:
+`BirthEnvironment` + `env_to_imf_params`), validated in
+`tests/validation/test_environment_physics.py` and `tests/unit/imf/test_environment.py`.
 
-#### Embedded Cluster Mass Function (ECMF)
-
-$$\xi(M_{\rm ecl}) \propto M_{\rm ecl}^{-\beta}, \quad \beta \approx 2$$
-
-#### Maximum Stellar Mass Relation
-
-Maximum stellar mass in a cluster scales with cluster mass:
-
-$$m_{\rm max}(M_{\rm ecl}) \lesssim 150 \, M_\odot$$
-
-Multiple models: Weidner (2004), analytical, sorted sampling.
-
-#### Maximum Cluster Mass vs SFR
-
-$$M_{\rm ecl,max}(\text{SFR}) \propto \text{SFR}^{0.75}$$
-
-Milky Way (SFR $\sim 1 \, M_\odot$/yr): $M_{\rm ecl,max} \sim 10^5 \, M_\odot$
-
-#### IGIMF Steepening
-
-**Key physics:** Galaxy-wide IMF is steeper than cluster-scale IMF because:
-1. Most clusters are low-mass
-2. Low-mass clusters lack massive stars
-3. Integrating over ECMF suppresses high-mass tail
-
-#### Tests & Tolerances
-
-| Test | Physics Validated | Tolerance | Justification |
-|------|-------------------|-----------|---------------|
-| `test_pdf_normalization` | ECMF PDF integrates to 1 | 0.01 | Normalization |
-| `test_ppf_inverse_of_cdf` | CDF(PPF(u)) = u | 1e-4 | Inverse functions |
-| `test_power_law_slope` | ECMF follows $M^{-\beta}$ | 0.01 | Exact slope |
-| `test_weidner04_monotonic_and_capped` | $m_{\rm max}$ increases, $\leq 150 M_\odot$ | qualitative | Physical bounds |
-| `test_increasing_with_sfr` | Higher SFR $\to$ larger $M_{\rm ecl,max}$ | qualitative | Physical trend |
-| `test_milky_way_like` | SFR $\sim 1 \to M_{\rm ecl,max} \sim 10^5$ | order of magnitude | Literature value |
-| `test_steeper_than_stellar_imf` | IGIMF has fewer massive stars | qualitative | Core IGIMF prediction |
-| `test_sfr_affects_M_ecl_max` | Higher SFR $\to$ larger $M_{\rm ecl,max}$ | qualitative | Physical trend |
+The **galaxy-wide IGIMF integration** (ECMF aggregation + a Weidner–Kroupa
+$M_{\rm ecl,max}(\mathrm{SFR})$ cap; Weidner & Kroupa 2004, Weidner et al. 2013) is
+**background theory only — it is not implemented.** There is no `IGIMF`/`EnvironmentIMF`
+class, no ECMF sampler, and no IGIMF/ECMF test suite. `tests/unit/test_documented_api.py`
+asserts those phantom classes stay absent.
 
 ---
 
@@ -550,11 +520,6 @@ N_stats = 10000       # Precise statistics
 
 - **Marks et al. (2012)** "Evidence for top-heavy stellar initial mass functions..." MNRAS 422:2246
 - **Jeřábková et al. (2018)** "Impact of metallicity and star formation rate on the time-dependent IMF" A&A 620:A39
-
-### IGIMF Theory
-
-- **Weidner & Kroupa (2004)** "Evidence for a fundamental stellar upper mass limit..." MNRAS 348:187
-- **Weidner et al. (2013)** "The galaxy-wide initial mass function of dwarf late-type..." MNRAS 434:84
 
 ### Binary Mechanics
 

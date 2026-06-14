@@ -3,6 +3,13 @@
 **Date**: 2025-12-06
 **Status**: Phase 1 implementation complete, all tests passing
 
+> **ARCHIVED (2025-12-06 snapshot) — superseded.** Moved out of the live docs tree to
+> `docs/archive/` on 2026-06-14 (provenance audit, Bucket A). Correction: the
+> environment-dependent IMF shipped as the *functional* `BirthEnvironment` +
+> `env_to_imf_params()` API — NOT `IGIMF`/`EnvironmentIMF` *classes* (never realized; CLAUDE.md
+> audit R7). A near-duplicate historical copy lives at
+> `docs/website/90-development-log/phase1-complete.md`.
+
 ## Summary
 
 Successfully ported the complete legacy `gravax.ic` module (~6000 LOC, 30+ files) to a standalone `progenax` package with full JAX-native implementation, comprehensive test coverage, and protocol-based architecture.
@@ -28,8 +35,7 @@ Successfully ported the complete legacy `gravax.ic` module (~6000 LOC, 30+ files
 - **Maschberger**, **TaperedPowerLaw**, **Schechter** - advanced IMFs
 - **TruncatedIMF** wrapper - hard mass cutoffs
 - **BinaryIMF** with mass ratio distributions (q-distributions)
-- **IGIMF** (Integrated Galactic IMF) - mass-dependent sampling
-- **EnvironmentIMF** - gas-dependent IMF variations
+- **Environment-dependent IMF** — the *functional* `BirthEnvironment` + `env_to_imf_params()` API (Marks+2012 / Jeřábková+2018 α₃); NOT an `IGIMF`/`EnvironmentIMF` *class* (never realized — CLAUDE.md audit R7)
 
 **Key Features**:
 - Differentiable through inverse CDF sampling (custom_jvp)
@@ -466,7 +472,7 @@ ic = build_spatial_ic(profile, masses, velocity_df, Q=1.0, key=key, G=1.0)
 - ✅ Zero dependencies on legacy code
 
 **The package provides**:
-- 8 IMF variants (Kroupa, Chabrier, IGIMF, etc.)
+- IMF variants (PowerLaw [Kroupa/Salpeter], Chabrier, Maschberger, Truncated, Binary) + the functional environment-dependent IMF API
 - 3 spatial profiles (Plummer, King, EFF)
 - 3 velocity DFs (isotropic, virial equilibrium)
 - Analytical test cases (two-body, figure-8, SHO)

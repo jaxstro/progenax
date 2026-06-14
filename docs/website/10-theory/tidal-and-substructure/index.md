@@ -1,6 +1,6 @@
 ---
 title: Tidal physics & substructure
-description: progenax's tidal physics and substructure section — Jacobi-radius computation, fractal IC generation via the FDF method, and Baumgardt energy-ranked mass segregation.
+description: progenax's tidal physics and substructure section — Jacobi-radius computation, fractal-substructure theory + the CW04 Q diagnostic (the FDF generator moved to the experimental gravoturb_fdf package), and Baumgardt energy-ranked mass segregation.
 ---
 
 # Tidal physics & substructure

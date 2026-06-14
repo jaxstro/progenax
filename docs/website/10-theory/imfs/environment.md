@@ -1,6 +1,6 @@
 ---
 title: Environment-dependent IMFs
-description: Marks+2012 high-mass IMF variation as a function of cloud-core density and metallicity, and the Jeřábková+2018 IGIMF framework that aggregates cluster-scale IMFs into galaxy-wide IMFs.
+description: Marks+2012 high-mass IMF variation as a function of cloud-core density and metallicity, and the Jeřábková+2018 density relation for the cluster-scale high-mass slope (the per-cluster input to the IGIMF framework). progenax implements the cluster-scale mapping; the galaxy-wide IGIMF integral is background theory, not an implemented sampler.
 ---
 
 # Environment-dependent IMFs
@@ -9,7 +9,9 @@ description: Marks+2012 high-mass IMF variation as a function of cloud-core dens
 This chapter covers the **environment-dependent** branch of IMF theory:
 how the high-mass slope $\alpha_3$ and the low-mass slopes
 $\alpha_{1,2}$ vary with cloud-core density and metallicity, and how
-those variations aggregate into galaxy-wide IMFs (gwIMFs). For the
+those variations feed the galaxy-wide IMF (gwIMF) framework — background
+theory here, since progenax implements the cluster-scale input, not the
+gwIMF integral. For the
 **universal** IMF baseline (Salpeter, Kroupa, Chabrier, Maschberger),
 see [](classic.md). For binary-induced biases on inferred $\alpha$,
 see [](binary.md).
@@ -22,9 +24,11 @@ ultra-compact dwarfs and massive globular cluster progenitors require
 *top-heavy* IMFs ($\alpha_3 < 2.3$) to reproduce their stellar
 populations and integrated colours, while metal-poor populations show
 hints of low-mass-suppressed IMFs {cite:p}`Marks2012,Jerabkova2018`.
-progenax implements both the {cite:t}`Marks2012` cluster-scale variation
-and the {cite:t}`Jerabkova2018` galaxy-wide aggregation (IGIMF) as
-fully differentiable models.
+progenax implements the {cite:t}`Marks2012` cluster-scale variation and
+the {cite:t}`Jerabkova2018` density relation for the high-mass slope (the
+cluster-IMF input to the IGIMF framework) as fully differentiable models.
+The galaxy-wide IGIMF *integral* itself is background theory here, not an
+implemented sampler — see the scope note below.
 
 ## Two physical drivers of IMF variation
 
@@ -242,6 +246,15 @@ valid when $\hat x \ge -0.87$, with $\alpha_3 = 2.3$ otherwise.
 
 ## Jeřábková+2018: the IGIMF framework
 
+```{admonition} Scope — progenax implements the cluster-scale input, not the galaxy-wide integral
+:class: important
+progenax provides the **per-cluster** IMF $\xi_{\mathrm{cl}}(m \mid M_{\mathrm{ecl}}, [\mathrm{Fe/H}])$ —
+the integrand of {eq}`igimf` — via `env_to_imf_params`. It does **not** perform the galaxy-wide
+ECMF integration {eq}`igimf` (no ECMF sampler, no SFR$\to M_{\mathrm{ecl,max}}$ integration, no
+`gwimf` object). The IGIMF material in this section is **background theory** showing what the
+cluster-scale mapping feeds into.
+```
+
 The cluster-scale IMF variation in {cite:t}`Marks2012` propagates to
 *galaxy-wide* IMFs via the Integrated Galaxy-wide IMF (IGIMF) framework
 of {cite:t}`Jerabkova2018`. Stars in a galaxy do not form in a single
@@ -289,8 +302,9 @@ exactly), the consistent coefficient is **0.2161**. progenax adopts the
 internally-consistent {cite:t}`Marks2012` convention; the 2.83 in
 Jeřábková+2018 Eq. 9 likely reflects a different density convention or
 a typo. progenax also exposes the star-formation efficiency $\varepsilon$
-explicitly so the cluster-mass scaling is auditable. See `progenax.imf.IGIMF`
-docstring for the conversion.
+explicitly so the cluster-mass scaling is auditable. See `env_to_imf_params`
+and the `alpha3_jerabkova_*` helpers (`progenax.imf.environment.mapping`)
+for the conversion.
 ```
 
 ## Domain of validity
@@ -341,11 +355,11 @@ imf = PowerLawIMF(
     m_max=params.m_max,
 )
 masses = imf.sample(key, 10000)
-masses_galaxy = gwimf.sample(N=100000, key=key)
 ```
 
-Both classes are differentiable in $\rho_{\mathrm{cl}}$, [Fe/H], $M_{\mathrm{ecl}}$,
-and SFR. The Fundamental Plane threshold {eq}`fundamental-fit` uses
+The `env_to_imf_params` mapping is differentiable in $\rho_{\mathrm{cl}}$,
+[Fe/H], and $M_{\mathrm{ecl}}$ (and the SFE $\varepsilon$); gradients flow
+from `IMFParams` back to `BirthEnvironment`. The Fundamental Plane threshold {eq}`fundamental-fit` uses
 `jax.nn.sigmoid` rather than `jnp.where` to keep gradients flowing
 through the threshold region — this matters when fitting $\alpha_3$
 directly to data near the boundary $\hat x = -0.87$.
@@ -365,9 +379,10 @@ The environment IMF feeds into:
   single-star, universal-IMF fit to a metal-poor binary-rich cluster
   returns an $\alpha$ that is biased by both effects.
 - [](../gravoturbulence/bm19.md) — the BM19 dense-gas SFR framework
-  predicts $\alpha_{\mathrm{ECMF}}$ from cloud properties, which IGIMF
-  then folds into the gwIMF. The full chain is BM19 $\to$ ECMF $\to$
-  IGIMF, all differentiable end-to-end.
+  predicts cloud/ECMF-scale properties that the IGIMF folds into a
+  galaxy-wide IMF. progenax implements the cluster-scale link (cloud
+  properties $\to \alpha_3$); the galaxy-wide ECMF integration is
+  background theory, not an implemented end-to-end chain.
 
 ## References
 

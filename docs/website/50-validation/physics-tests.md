@@ -22,9 +22,6 @@ There are no `tests/validation/test_cross_cutting.py` or
 * - Energy conservation under tidal truncation
   - 1% rel
   - Truncation removes high-radius particles cleanly
-* - Energy conservation under fractal substructure
-  - 1% rel after virial rescale
-  - Substructure preserves total mass
 * - Energy conservation under mass segregation
   - $10^{-3}$ rel
   - Re-pairing preserves total energy

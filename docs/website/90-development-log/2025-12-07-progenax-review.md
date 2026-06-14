@@ -10,8 +10,12 @@ redesign. APIs it discusses as current were since **retired**:
 (the fractal generator moved to the experimental `gravoturb_fdf`
 package). Multi-population clusters are now built with
 `MultiComponentCluster` — see [](../10-theory/populations/index.md) and
-[](../30-api/cluster.md). This page is preserved unedited as a
-historical record.
+[](../30-api/cluster.md). The `imf/` table below also lists `IGIMF` and
+`EnvironmentIMF` *classes*: those were never realized — the
+environment-dependent IMF is the functional `BirthEnvironment` +
+`env_to_imf_params()` API (CLAUDE.md audit R7;
+`tests/unit/test_documented_api.py` asserts the phantom classes stay
+absent). This page is otherwise preserved unedited as a historical record.
 ```
 
 **Document Type:** Full-Package Technical Review
