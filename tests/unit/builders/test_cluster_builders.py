@@ -188,6 +188,27 @@ def test_tidal_double_truncation_errors_for_limepy():
                       tidal_radius=5.0)
 
 
+def test_tidal_double_truncation_errors_for_michie():
+    # Michie (the anisotropic King) carries a native derived r_t -> tidal_radius double-truncates.
+    with pytest.raises(ValueError, match="already truncated|double"):
+        build_cluster(MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0), masses=_M, key=_K,
+                      tidal_radius=5.0)
+
+
+def test_tidal_double_truncation_errors_for_eff():
+    # EFF carries a native (prescribed) r_t -> tidal_radius double-truncates / no-ops.
+    with pytest.raises(ValueError, match="already truncated|double"):
+        build_cluster(EFFProfile(a=1.0, gamma=3.0, r_t=10.0), masses=_M, key=_K,
+                      tidal_radius=5.0)
+
+
+def test_tidal_allowed_for_plummer_only():
+    # Plummer is the one untruncated profile -> tidal_radius is valid (no raise).
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K, tidal_radius=2.0)
+    radii = jnp.linalg.norm(ic.positions, axis=1)
+    assert bool(jnp.all(ic.masses[radii > 2.0] == 0.0))
+
+
 def _Lz(ic):
     x, y = ic.positions[:, 0], ic.positions[:, 1]
     vx, vy = ic.velocities[:, 0], ic.velocities[:, 1]

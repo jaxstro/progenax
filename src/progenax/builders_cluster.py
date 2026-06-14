@@ -23,8 +23,7 @@ from .kinematics import (
     PlummerVelocityDF, EFFVelocityDF, KingVelocityDF, MichieVelocityDF, LIMEPYVelocityDF,
     apply_solid_body_rotation, apply_differential_rotation,
 )
-
-_ZHAT = jnp.array([0.0, 0.0, 1.0])
+from .tidal import apply_tidal_truncation
 
 __all__ = [
     "build_cluster", "matched_velocity_df", "RotationSpec", "ClusterParams",
@@ -152,7 +151,13 @@ class RotationSpec(eqx.Module):
             raise ValueError(f"RotationSpec.kind must be 'solid' or 'differential', got {self.kind!r}")
 
 
-_TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile)   # carry a native r_t (stationary truncation)
+# All non-Plummer build_cluster profiles carry a native truncation radius r_t, so the
+# `tidal_radius` modifier would double-truncate them (audit-S4 inner cut) or be a silent
+# outer no-op. `tidal_radius` is therefore valid ONLY for Plummer (the one untruncated
+# profile); the truncated families set r_t on the profile (already differentiable for
+# inference). King/Michie/LIMEPY derive r_t from where ψ→0; EFF's r_t is a prescribed
+# truncation — both make `tidal_radius` illegitimate.
+_TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile, MichieProfile, EFFProfile)
 
 
 def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, softening):
@@ -167,7 +172,6 @@ def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, sof
             )
         if revirialize and Q is None:
             raise ValueError("revirialize=True needs a numeric Q target; got Q=None")
-        from .tidal import apply_tidal_truncation
         positions, velocities, masses, _keep = apply_tidal_truncation(
             positions, velocities, masses, tidal_radius)
         if revirialize:
