@@ -299,20 +299,13 @@ class TestEFFVelocityDF:
         v = jnp.linalg.norm(vel, axis=1)
         assert float(jnp.mean(v <= v_esc + 1e-9)) == 1.0, "all EFF velocities must be bound"
 
-    def test_eff_velocity_sampling_differentiable(self):
-        """grad through the inverse-CDF sampling (via a position scale) is finite."""
-        a, gamma, r_t, G = 1.0, 3.0, 10.0, 1.0
-        profile = EFFProfile(a=a, gamma=gamma, r_t=r_t)
-        df = EFFVelocityDF(a=a, gamma=gamma, r_t=r_t)
-        kp, kv = jax.random.split(jax.random.PRNGKey(2))
-        pos = profile.sample_positions(jnp.ones(200), kp)
-
-        def loss(pos_scale):
-            vel = df.sample_velocities(pos * pos_scale, jnp.ones(200), kv, G=G)
-            return jnp.mean(jnp.sum(vel**2, axis=1))
-
-        g = jax.grad(loss)(1.0)
-        assert jnp.isfinite(g), f"grad through EFF DF sampling is non-finite: {g}"
+    # grad through EFFVelocityDF.sample_velocities is FD-audited by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py ::
+    # EFFVelocityDF.sample_velocities [gamma] + [a], which FD-check the same inverse-CDF
+    # velocity-sampling path in its parameter channels); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_eff_velocity_sampling_differentiable smoke was removed (audit T6: isfinite
+    # passes a silently-zeroed grad; the registry FD cases are strictly stronger; SoT).
 
     def test_zero_bulk_velocity(self, N_stats, key):
         """Mean velocity is zero (no net motion)."""
