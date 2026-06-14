@@ -31,6 +31,12 @@ class TestBoundaryGradients:
             Maschberger(),
             Schechter(),
             PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=0.1, m_max=100.0),
+            # Multi-segment Kroupa: pins d(ppf)/du finiteness across the piecewise
+            # breakpoints too (the broken-power-law inverse-CDF has a distinct
+            # segment-selection path from the single-segment Salpeter form above).
+            # This preserves the multi-segment du-grad coverage from the deleted
+            # finite-only du-monotonicity smokes (4.2c review note).
+            PowerLawIMF.kroupa(),
         ],
     )
     def test_grad_finite_at_boundary(self, imf):

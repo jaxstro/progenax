@@ -297,7 +297,9 @@ class TestIMFMassiveStars:
 # TestIMFDifferentiability smoke tests were removed (audit T6: isfinite passes a
 # silently-zeroed grad; the registry FD cases are strictly stronger; registry is SoT):
 #   - test_grad_through_sample (grad wrt m_min) -> PowerLawIMF.ppf[m_min] +
-#     PowerLawIMF.cdf[H4] [m_min] (both FD-audited).
+#     PowerLawIMF.cdf[H4] [m_min] (both FD-audited). .sample(key, N) is a
+#     reparameterization through .ppf() at a FIXED key -> fixed u, so the m_min
+#     gradient flows through the SAME inverse-CDF graph the ppf[m_min] case audits.
 #   - test_grad_through_ppf (grad wrt the uniform draw u, a non-param du-monotonicity
 #     smoke) is redundant -- the IMF PPF parameter channels are FD-audited by the
 #     registry's ChabrierIMF/Maschberger/PowerLawIMF .ppf cases.
