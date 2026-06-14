@@ -154,25 +154,70 @@ def load_coverage(path: str) -> dict:
     ``--cov`` run does NOT have it, so it is OPTIONAL: passed through when present,
     ``None`` when absent.
 
+    ``per_file_lines`` retains the raw ``covered_lines`` + ``num_statements`` for
+    each file (keyed the same as ``per_module``) so :func:`rollup_coverage_by_dir`
+    can fold them up to a STATEMENT-WEIGHTED per-directory percentage (M1) — the
+    census buckets by directory, not by file.
+
     Returns::
 
         {
             "total_percent": float,            # totals.percent_covered
-            "per_module": {module: float},     # src/progenax/<...> only
+            "per_module": {module: float},     # per-FILE percent, src/progenax/<...>
+            "per_file_lines": {module: {"covered_lines": int, "num_statements": int}},
             "coverage_provenance": dict | None,
         }
     """
     data = json.loads(Path(path).read_text())
     per_module: dict[str, float] = {}
+    per_file_lines: dict[str, dict[str, int]] = {}
     for file_key, file_data in data.get("files", {}).items():
         module = _file_key_to_module(file_key)
         if not module:
             continue
-        per_module[module] = float(file_data["summary"]["percent_covered"])
+        summary = file_data["summary"]
+        per_module[module] = float(summary["percent_covered"])
+        per_file_lines[module] = {
+            "covered_lines": int(summary["covered_lines"]),
+            "num_statements": int(summary["num_statements"]),
+        }
     return {
         "total_percent": float(data["totals"]["percent_covered"]),
         "per_module": per_module,
+        "per_file_lines": per_file_lines,
         "coverage_provenance": data.get("coverage_provenance"),
+    }
+
+
+def rollup_coverage_by_dir(coverage: dict) -> dict[str, float]:
+    """Fold per-file line counts up to a statement-weighted per-DIRECTORY percent.
+
+    ``load_coverage`` keys coverage per FILE (``profiles/plummer``,
+    ``analytical/base``), but :func:`collect_test_inventory` buckets the census by
+    the top-level DIRECTORY (``profiles``, ``analytical``) — or, for a source file
+    sitting directly under ``src/progenax/``, by the bare file stem (``builders``),
+    which matches how a top-level test file is bucketed. So the per-module join in
+    :func:`build_dashboard` needs coverage keyed by that SAME top-level component.
+
+    For each per-file entry we take its first path component as the rollup key and
+    sum ``covered_lines`` / ``num_statements`` into that bucket, then report
+    ``100 * sum(covered) / sum(statements)`` per bucket. Buckets with zero
+    statements are dropped (avoids a 0/0). Non-``src/progenax`` files never enter
+    ``per_file_lines``, so they cannot appear here.
+
+    Example: ``profiles/plummer`` 80/100 + ``profiles/king`` 40/100 ->
+    ``profiles`` = 100*(120/200) = 60.0; ``builders`` 30/50 -> ``builders`` = 60.0.
+    """
+    buckets: dict[str, dict[str, int]] = {}
+    for module, lines in coverage.get("per_file_lines", {}).items():
+        top = module.split("/", 1)[0]  # first path component = census key
+        acc = buckets.setdefault(top, {"covered_lines": 0, "num_statements": 0})
+        acc["covered_lines"] += lines["covered_lines"]
+        acc["num_statements"] += lines["num_statements"]
+    return {
+        top: 100.0 * acc["covered_lines"] / acc["num_statements"]
+        for top, acc in buckets.items()
+        if acc["num_statements"] > 0
     }
 
 
@@ -249,8 +294,15 @@ def read_registry_status() -> dict:
         if status not in _GRAD_AUDIT_BENIGN_STATUSES
     )
 
+    # CONTRACT: every BUILT registry block MUST emit `full: bool` — the per-registry
+    # all-clear that `gate.registries_full` aggregates over (build_dashboard).
+    # not-built placeholders OMIT `full`, so registries_full stays False until all 4
+    # registries are present AND full. For grad-audit, "full" == hazard-free (0
+    # hazards): MUST_AUDIT manifest-coverage is enforced SEPARATELY by
+    # grad_audit/test_manifest_coverage.py, so it is not re-litigated here.
     differentiability = {
         "status": "built",
+        "full": hazards == 0,
         "audited": audited,
         "exempt": exempt,
         "must_audit": len(MUST_AUDIT),
@@ -260,7 +312,7 @@ def read_registry_status() -> dict:
     }
     result = {"differentiability": differentiability}
     for reg in _NOT_BUILT_REGISTRIES:
-        result[reg] = {"status": "not-built"}
+        result[reg] = {"status": "not-built"}  # no `full` -> holds registries_full False
     return result
 
 
@@ -280,7 +332,17 @@ def read_durations(path: str = "validation/data/durations.json") -> dict:
     p = _REPO_ROOT / path
     if not p.exists():
         return {"status": "not-measured"}
-    return json.loads(p.read_text())["modules"]
+    data = json.loads(p.read_text())
+    if "modules" not in data:
+        # ABSENT (handled above) is honest "not measured"; a committed-but-malformed
+        # artifact lacking "modules" is a broken artifact -> surface it loudly
+        # (mirrors collect_test_inventory's empty-collect RuntimeError) rather than
+        # a bare KeyError from data["modules"].
+        raise RuntimeError(
+            f"durations artifact {path} lacks the required top-level 'modules' key "
+            f"(found keys: {sorted(data)}); the committed artifact is malformed."
+        )
+    return data["modules"]
 
 
 def read_validation_scripts(
@@ -311,11 +373,18 @@ def _line_coverage_block() -> dict:
     ``{"status": "not-measured"}``. The full-suite ``--cov`` run is a documented
     manual step (~13-15 min, Phase-2 Task 2.1) — ``build_dashboard`` NEVER triggers
     it; it only reads what is already committed.
+
+    The block ALWAYS carries a ``status`` key so downstream consumers (the
+    ``line_cov_measured`` gate flag, the renderer, and the staleness gate's
+    provenance teeth) can key off ONE field (C1): ``"measured"`` when the parsed
+    coverage is present, ``"not-measured"`` when absent. Without this, ``measured``
+    was never emitted and the gate's ``status == "measured"`` provenance branch was
+    dead.
     """
     p = _REPO_ROOT / _COVERAGE_JSON
     if not p.exists():
         return {"status": "not-measured"}
-    return load_coverage(str(p))
+    return {"status": "measured", **load_coverage(str(p))}
 
 
 def build_dashboard(timestamp: str) -> dict:
@@ -337,9 +406,11 @@ def build_dashboard(timestamp: str) -> dict:
     registries = read_registry_status()
     line_coverage = _line_coverage_block()
 
-    # Per-module line coverage: present only when the committed coverage.json is a
-    # parsed pytest-cov file (it has "per_module"); None otherwise.
-    per_module_cov = line_coverage.get("per_module", {})
+    # Per-module line coverage, keyed to match the census buckets. The census
+    # buckets by top-level DIRECTORY (`profiles`), so we roll the per-FILE coverage
+    # up to a statement-weighted per-directory percentage (M1). Empty (-> None
+    # everywhere) when coverage is not measured.
+    per_module_cov = rollup_coverage_by_dir(line_coverage)
     modules: dict[str, dict] = {}
     for module, counts in sorted(inventory.items()):
         modules[module] = {
@@ -349,7 +420,14 @@ def build_dashboard(timestamp: str) -> dict:
             "line_cov": per_module_cov.get(module),
         }
 
-    line_cov_measured = line_coverage.get("total_percent")  # None when not-measured
+    # line_cov_measured is the total percent when MEASURED, else None — keyed off the
+    # single `status` field the block always carries (C1), so it stays consistent
+    # with the renderer and the gate's provenance teeth.
+    line_cov_measured = (
+        line_coverage.get("total_percent")
+        if line_coverage.get("status") == "measured"
+        else None
+    )
     registries_full = all(
         block.get("status") == "built" and block.get("full") is True
         for block in registries.values()

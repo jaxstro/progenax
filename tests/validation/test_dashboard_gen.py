@@ -10,6 +10,8 @@ modules and parse COMMITTED artifacts (so the Task-1.6 staleness gate stays chea
 """
 from pathlib import Path
 
+import pytest
+
 from scripts.build_test_dashboard import (
     build_dashboard,
     collect_test_inventory,
@@ -17,6 +19,7 @@ from scripts.build_test_dashboard import (
     read_durations,
     read_registry_status,
     read_validation_scripts,
+    rollup_coverage_by_dir,
     write_coverage_json,
 )
 
@@ -26,8 +29,14 @@ _FIXTURE = str(
 _DURATIONS_FIXTURE = str(
     Path(__file__).parent / "fixtures" / "durations_sample.json"
 )
+_DURATIONS_NO_MODULES_FIXTURE = str(
+    Path(__file__).parent / "fixtures" / "durations_no_modules.json"
+)
 _VALRUNS_FIXTURE = str(
     Path(__file__).parent / "fixtures" / "validation_runs_sample.json"
+)
+_ROLLUP_FIXTURE = str(
+    Path(__file__).parent / "fixtures" / "coverage_rollup_sample.json"
 )
 
 
@@ -48,6 +57,37 @@ def test_load_coverage_parses_totals_and_per_module():
     assert "tests/conftest" not in cov["per_module"]
     # coverage_provenance passes through when present (None when absent)
     assert "coverage_provenance" in cov
+    # per-file line counts are retained for the directory rollup (M1).
+    assert cov["per_file_lines"]["builders"] == {
+        "covered_lines": 90,
+        "num_statements": 100,
+    }
+    assert cov["per_file_lines"]["analytical/base"] == {
+        "covered_lines": 30,
+        "num_statements": 40,
+    }
+
+
+def test_rollup_coverage_by_dir_is_weighted_by_statements():
+    """The per-module join key in ``build_dashboard`` is the census DIRECTORY
+    (``profiles``, ``imf``), but ``load_coverage`` keys per FILE
+    (``profiles/plummer``). The rollup folds per-file line counts up to the
+    top-level directory as a STATEMENT-WEIGHTED percentage (M1), so the join key
+    lines up with the census key.
+
+    Fixture: profiles/plummer.py 80/100, profiles/king.py 40/100 ->
+    profiles = 100*(80+40)/(100+100) = 60.0 (weighted, NOT the 60.0 mean by luck:
+    builders.py 30/50 = 60.0 too, a top-level single-file module that still works).
+    """
+    cov = load_coverage(_ROLLUP_FIXTURE)
+    rolled = rollup_coverage_by_dir(cov)
+    # Two files under one directory -> one weighted bucket under the census key.
+    assert rolled["profiles"] == pytest.approx(60.0)  # 120/200
+    # A top-level single-file module keeps working (keyed by its bare stem).
+    assert rolled["builders"] == pytest.approx(60.0)  # 30/50
+    # Non-src files (tests/conftest) never enter the rollup.
+    assert "tests" not in rolled
+    assert "conftest" not in rolled
 
 
 # --- Task 1.4: read_registry_status -----------------------------------------
@@ -63,13 +103,38 @@ def test_registry_status_grad_audit_built_others_not():
     # hazards is an int (0 in a clean state) derived from the status histogram.
     assert isinstance(ga["hazards"], int)
     assert ga["hazards"] == 0
+    # Every BUILT registry block must emit a `full: bool` flag (I2 contract);
+    # grad-audit is full iff it is hazard-free (0 hazards -> True).
+    assert ga["full"] is True
     # The histogram only carries the grad-audit status vocabulary.
     assert set(ga["status_histogram"]) <= {"clean", "known-limitation", "hazard"}
     # audited count is consistent with the AUDITED bucket of SYMBOL_CATEGORY.
     assert sum(ga["exempt"].values()) + ga["audited"] == 114
     # The other three registries do not exist yet -> not-built placeholders.
+    # Per the I2 contract, not-built placeholders OMIT `full` (so registries_full
+    # stays False until all 4 are built+full).
     for reg in ("api_coverage", "physics_validation", "provenance"):
         assert status[reg] == {"status": "not-built"}
+        assert "full" not in status[reg]
+
+
+def test_registries_full_flag_gates_on_built_and_full():
+    """``gate["registries_full"]`` is the all-clear flag: every registry must be
+    BUILT and ``full is True``. The differentiability registry now contributes a
+    real ``full`` (I2) — it is built+full, but the other 3 are not-built, so the
+    aggregate flag is still False (and provably NOT because of a missing flag).
+    """
+    dash = build_dashboard("2026-01-01T00:00:00Z")
+    regs = dash["registries"]
+    # The one built registry IS full (0 hazards) -> it would not, by itself, hold
+    # the gate down. The gate is held down solely by the 3 not-built registries.
+    assert regs["differentiability"]["full"] is True
+    assert dash["gate"]["registries_full"] is False
+    built_and_full = [
+        name for name, b in regs.items()
+        if b.get("status") == "built" and b.get("full") is True
+    ]
+    assert built_and_full == ["differentiability"]
 
 
 # --- Task 1.4: read_durations -----------------------------------------------
@@ -85,6 +150,15 @@ def test_durations_parses_committed_artifact():
 def test_durations_absent_returns_not_measured():
     dur = read_durations(path="validation/data/__nope_durations__.json")
     assert dur == {"status": "not-measured"}
+
+
+def test_durations_missing_modules_key_raises_runtime_error():
+    """A committed durations artifact lacking the top-level ``modules`` key is a
+    malformed artifact, not an absent one — surface it loudly (M2), not as a bare
+    KeyError from ``json.loads(...)["modules"]``.
+    """
+    with pytest.raises(RuntimeError, match="modules"):
+        read_durations(path=_DURATIONS_NO_MODULES_FIXTURE)
 
 
 # --- Task 1.4: read_validation_scripts --------------------------------------

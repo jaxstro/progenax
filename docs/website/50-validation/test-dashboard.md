@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-06-14T22:47:16.879853+00:00`. Line coverage: pending (Phase 2, full-suite `--cov` run). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists (Task 2.1). The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count); the other three registries (API-coverage, physics-validation, provenance) are not built yet.
+Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2, full-suite `--cov` run). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists (Task 2.1). The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count); the other three registries (API-coverage, physics-validation, provenance) are not built yet.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -162,10 +162,18 @@ Generated at `2026-06-14T22:47:16.879853+00:00`. Line coverage: pending (Phase 2
   - 33/114 audited, 0 haz
   - —
   - —
+* - `test_dashboard_fresh`
+  - 0
+  - 0
+  - 3
+  - pending (Phase 2)
+  - 33/114 audited, 0 haz
+  - —
+  - —
 * - `test_dashboard_gen`
   - 0
   - 0
-  - 11
+  - 14
   - pending (Phase 2)
   - 33/114 audited, 0 haz
   - —

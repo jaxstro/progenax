@@ -8,7 +8,7 @@
     "line_cov_measured": null,
     "registries_full": false
   },
-  "generated_utc": "2026-06-14T23:03:24.248828+00:00",
+  "generated_utc": "2026-06-14T23:21:50.566082+00:00",
   "line_coverage": {
     "status": "not-measured"
   },
@@ -119,13 +119,13 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 1
+      "validation": 3
     },
     "test_dashboard_gen": {
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 11
+      "validation": 14
     },
     "test_documented_api": {
       "integration": 0,
@@ -298,6 +298,7 @@
         "EXEMPT_NON_FISHER_DIAGNOSTIC": 11,
         "EXEMPT_PROTOCOL": 9
       },
+      "full": true,
       "hazards": 0,
       "json_rows": 85,
       "must_audit": 75,

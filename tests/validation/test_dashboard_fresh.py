@@ -34,7 +34,13 @@ import time
 
 import pytest
 
-from scripts.build_test_dashboard import _DASHBOARD_JSON, _REPO_ROOT, build_dashboard
+from scripts._dashboard_render import render_dashboard_page
+from scripts.build_test_dashboard import (
+    _DASHBOARD_JSON,
+    _DASHBOARD_PAGE,
+    _REPO_ROOT,
+    build_dashboard,
+)
 
 # Stamped verbatim into generated_utc by build_dashboard; the gate IGNORES this
 # field, so any fixed value works. A literal sentinel makes the intent explicit.
@@ -111,6 +117,81 @@ def _head_sha() -> str:
     ).stdout.strip()
 
 
+def assert_coverage_provenance_fresh(line_coverage: dict, head_sha: str) -> None:
+    """Phase-2 provenance teeth: a MEASURED coverage block must stamp HEAD's sha.
+
+    When ``line_coverage["status"] == "measured"`` the committed ``coverage.json``
+    carries a ``coverage_provenance.git_sha``; a stale coverage file (measured on an
+    old tree) must NOT pass silently. We do not re-run ``--cov`` — we only compare
+    the recorded stamp against ``head_sha``. When not-measured there is no stamp ->
+    no-op. Extracted so the C1 regression test can exercise this branch with a
+    deliberately-mismatched sha (it is unreachable while coverage is not-measured).
+    """
+    if line_coverage.get("status") != "measured":
+        return
+    committed_sha = line_coverage["coverage_provenance"]["git_sha"]
+    assert committed_sha == head_sha, (
+        f"stale coverage.json: provenance git_sha={committed_sha} != HEAD={head_sha} "
+        f"— regenerate the FULL-suite coverage at the current commit."
+    )
+
+
+def _page_minus_timestamp(page_text: str) -> list[str]:
+    """The page lines with the volatile ``Generated at ...`` line dropped.
+
+    The rendered page embeds ``Generated at `<utc>`.`` which always differs (like
+    the JSON's ``generated_utc``). The page-freshness gate ignores exactly that one
+    line so it compares structural content, not the timestamp.
+    """
+    return [
+        line for line in page_text.splitlines()
+        if not line.startswith("Generated at `")
+    ]
+
+
+def test_coverage_provenance_teeth_fire_on_stale_sha():
+    """C1: prove the (currently dead) provenance branch is LIVE.
+
+    With coverage not-measured the gate's provenance assertion can never fire. Build
+    a committed-shaped MEASURED ``line_coverage`` block whose recorded git_sha is
+    WRONG and assert the provenance check RAISES — i.e. a stale coverage.json is
+    caught, not waved through.
+    """
+    measured_block = {
+        "status": "measured",
+        "total_percent": 92.3,
+        "per_module": {"builders": 90.0},
+        "per_file_lines": {"builders": {"covered_lines": 90, "num_statements": 100}},
+        "coverage_provenance": {
+            "selector": "tests/unit tests/integration tests/validation",
+            "git_sha": "0000000000000000000000000000000000000000",  # deliberately wrong
+        },
+    }
+    with pytest.raises(AssertionError, match="stale coverage.json"):
+        assert_coverage_provenance_fresh(measured_block, head_sha=_head_sha())
+
+    # And the SAME block with the correct sha passes (the teeth bite only on drift).
+    measured_block["coverage_provenance"]["git_sha"] = _head_sha()
+    assert_coverage_provenance_fresh(measured_block, head_sha=_head_sha())  # no raise
+
+    # not-measured is always a no-op (no stamp to check).
+    assert_coverage_provenance_fresh({"status": "not-measured"}, head_sha="whatever")
+
+
+def test_committed_page_matches_render_of_committed_json():
+    """I1: the rendered page must match a fresh in-process render of the committed
+    JSON (ignoring the volatile ``Generated at ...`` line). A drifted/stale page —
+    e.g. one missing a module row — fails this gate.
+    """
+    committed_json = json.loads((_REPO_ROOT / _DASHBOARD_JSON).read_text())
+    committed_page = (_REPO_ROOT / _DASHBOARD_PAGE).read_text()
+    fresh_page = render_dashboard_page(committed_json)
+    assert _page_minus_timestamp(committed_page) == _page_minus_timestamp(fresh_page), (
+        "rendered test-dashboard.md is stale vs the committed JSON — re-render with "
+        "`build_test_dashboard.py --render` and recommit the page."
+    )
+
+
 @pytest.mark.slow  # re-collects the whole suite (~10-35s); FULL-gate work, see docstring.
 def test_committed_dashboard_matches_fresh_regeneration():
     committed = json.loads((_REPO_ROOT / _DASHBOARD_JSON).read_text())
@@ -152,19 +233,26 @@ def test_committed_dashboard_matches_fresh_regeneration():
             f"only fresh={sorted(fdash_keys - cdash_keys)}"
         )
 
+    # Page freshness (I1): the rendered MyST page must match a fresh in-process
+    # render of the committed JSON, ignoring the volatile `Generated at ...` line
+    # (mirrors how the JSON gate ignores generated_utc). A stale page — e.g. missing
+    # a module row — REDs here until re-rendered.
+    committed_page = (_REPO_ROOT / _DASHBOARD_PAGE).read_text()
+    fresh_page = render_dashboard_page(committed)
+    if _page_minus_timestamp(committed_page) != _page_minus_timestamp(fresh_page):
+        drift.append(
+            "rendered test-dashboard.md is stale vs the committed JSON — re-render "
+            "with `build_test_dashboard.py --render` and recommit the page."
+        )
+
     assert not drift, (
         "dashboard staleness drift (regenerate + recommit "
-        f"{_DASHBOARD_JSON} if intended):\n  " + "\n  ".join(drift)
+        f"{_DASHBOARD_JSON} (and re-render the page) if intended):\n  "
+        + "\n  ".join(drift)
     )
 
     # Provenance check (conditional, Phase 2+): once line coverage is MEASURED, the
     # committed coverage carries a git_sha; a stale coverage.json (measured on an old
     # tree) must not pass silently. We do NOT re-run --cov — we only read the stamp.
-    # When not-measured (now), there is no stamp to check -> skip.
-    line_cov = committed["line_coverage"]
-    if line_cov.get("status") == "measured":
-        committed_sha = line_cov["coverage_provenance"]["git_sha"]
-        assert committed_sha == _head_sha(), (
-            f"stale coverage.json: provenance git_sha={committed_sha} != HEAD={_head_sha()} "
-            f"— regenerate the FULL-suite coverage at the current commit."
-        )
+    # When not-measured (now), there is no stamp to check -> no-op. See C1.
+    assert_coverage_provenance_fresh(committed["line_coverage"], _head_sha())

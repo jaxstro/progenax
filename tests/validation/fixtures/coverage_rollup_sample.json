@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "format": 3,
+    "version": "7.6.0",
+    "timestamp": "2026-06-14T00:00:00",
+    "branch_coverage": true,
+    "show_contexts": false
+  },
+  "files": {
+    "src/progenax/profiles/plummer.py": {
+      "summary": {
+        "covered_lines": 80,
+        "num_statements": 100,
+        "percent_covered": 80.0,
+        "percent_covered_display": "80",
+        "missing_lines": 20,
+        "excluded_lines": 0
+      }
+    },
+    "src/progenax/profiles/king.py": {
+      "summary": {
+        "covered_lines": 40,
+        "num_statements": 100,
+        "percent_covered": 40.0,
+        "percent_covered_display": "40",
+        "missing_lines": 60,
+        "excluded_lines": 0
+      }
+    },
+    "src/progenax/builders.py": {
+      "summary": {
+        "covered_lines": 30,
+        "num_statements": 50,
+        "percent_covered": 60.0,
+        "percent_covered_display": "60",
+        "missing_lines": 20,
+        "excluded_lines": 0
+      }
+    },
+    "tests/conftest.py": {
+      "summary": {
+        "covered_lines": 5,
+        "num_statements": 5,
+        "percent_covered": 100.0,
+        "percent_covered_display": "100",
+        "missing_lines": 0,
+        "excluded_lines": 0
+      }
+    }
+  },
+  "totals": {
+    "covered_lines": 150,
+    "num_statements": 250,
+    "percent_covered": 60.0,
+    "percent_covered_display": "60",
+    "missing_lines": 100,
+    "excluded_lines": 0
+  }
+}

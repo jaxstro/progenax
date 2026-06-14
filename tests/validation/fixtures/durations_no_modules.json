@@ -1,0 +1,4 @@
+{
+  "schema": "slowest-per-module",
+  "comment": "Malformed: lacks the required top-level 'modules' key (M2 guard fixture)."
+}
