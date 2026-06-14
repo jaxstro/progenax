@@ -28,7 +28,7 @@ purpose, frequency, and tolerance convention.
   - "`PlummerProfile.density(r=1.0)` returns a positive scalar"
 * - **Integration** (`tests/integration/`)
   - End-to-end builder/pipeline behaviour
-  - "`build_plummer_cluster` produces a `ParticleSystem` with N matching particles, finite kinetic energy, COM at origin"
+  - "`build_plummer_cluster` produces an `ICResult` with N matching particles, finite kinetic energy, COM at origin"
 * - **Validation** (`tests/validation/`)
   - Quantitative match to analytic or published physics
   - "$\zeta(p=1.67) = 1.789$ to $\pm 0.02$ per {cite:t}`Kainulainen2014`"
@@ -114,11 +114,12 @@ def test_plummer_virial_at_equilibrium():
     in [](../10-theory/velocity-dfs/plummer-dfs.md) is the source of
     truth.
     """
-    masses, positions, velocities = build_plummer_cluster(
-        N=10_000, r_h=1.0, alpha=2.3, key=jax.random.PRNGKey(0),
-    )
-    T = compute_kinetic_energy(velocities, masses)
-    V = compute_potential_energy(positions, masses, G=STELLAR.G)
+    # Q=None -> the faithful UNSCALED Plummer equilibrium (no virial rescale), so
+    # 2T + V = 0 is a genuine test of the matched DF, not a value imposed by the
+    # builder. (The default Q=0.5 would force 2T + V = 0 by construction.)
+    ic = build_plummer_cluster(n=10_000, r_h=1.0, key=jax.random.PRNGKey(0), Q=None)
+    T = compute_kinetic_energy(ic.velocities, ic.masses)
+    V = compute_potential_energy(ic.positions, ic.masses, G=STELLAR.G)
     assert (2 * T + V) / abs(V) == pytest.approx(0.0, abs=5e-3)
 ```
 

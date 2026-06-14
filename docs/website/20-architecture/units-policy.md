@@ -97,24 +97,26 @@ applies to **core APIs** but not to **convenience wrappers**. A
 convenience wrapper *resolves* `units=None` to `DEFAULT_UNITS` at
 the API boundary, then passes the resolved value through to the core:
 
+The real `build_cluster` convenience builder is exactly this pattern. Its body resolves
+`units=None` to `DEFAULT_UNITS` (= `STELLAR`) at the API surface, then threads the
+explicit `G = units.G` into every core call (`build_spatial_ic`, the velocity DF) — the
+core never sees a `None`:
+
 ```python
-from progenax import DEFAULT_UNITS  # = STELLAR
+from progenax import build_cluster, PlummerProfile
+from jaxstro.units import STELLAR
 
-def build_plummer_cluster(N, r_h, alpha, key, *, units=None):
-    """Convenience wrapper. units=None resolves to DEFAULT_UNITS."""
-    units = units if units is not None else DEFAULT_UNITS
-
-    # Now pass explicit `units` (or `units.G`) to every core call
-    masses = sample_masses(N, key, alpha=alpha)
-    positions = sample_positions(masses, key, r_h=r_h)
-    velocities = sample_velocities(positions, masses, key, r_h=r_h, G=units.G)
-    return ParticleSystem(...)
+# units=None -> DEFAULT_UNITS (= STELLAR) is resolved inside build_cluster, which then
+# passes the explicit G = units.G to the core build_spatial_ic.
+ic = build_cluster(PlummerProfile(r_h=1.0), n=1000, key=key)                # units=None -> STELLAR
+ic = build_cluster(PlummerProfile(r_h=1.0), n=1000, key=key, units=STELLAR)  # explicit units
 ```
 
-The wrapper resolves None at the API surface; the core sees only
-explicit values. This satisfies the "no globals in core" rule while
-still providing the ergonomic default for users who don't want to
-think about units.
+The wrapper resolves `None` at the API surface; the core sees only explicit values. This
+satisfies the "no globals in core" rule while still providing the ergonomic default for
+users who don't want to think about units. (The same holds for the named aliases —
+`build_plummer_cluster`, `build_king_cluster`, …, — which construct the profile and
+delegate to `build_cluster`.)
 
 ## Each package defines its own DEFAULT_UNITS
 

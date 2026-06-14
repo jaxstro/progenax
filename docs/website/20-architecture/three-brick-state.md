@@ -143,38 +143,28 @@ through the call chain unchanged.
 
 ## Builder pattern
 
-ICs are constructed by *builder* functions that produce a
-`ParticleSystem` from a parameter vector and a PRNG key:
+ICs are constructed in two steps that map cleanly onto the three bricks. **progenax**
+builds the *physical state* — an `ICResult` (positions, velocities, masses, stellar radii)
+— and **gravax** assembles the `ParticleSystem` (`State` + `SystemParams`) from it:
 
 ```python
-@jax.jit
-def build_plummer_cluster(N, r_h, alpha, key, *, units=STELLAR):
-    # Sample masses, positions, velocities
-    masses = sample_masses(N, key, alpha=alpha)
-    positions = sample_positions(masses, key, r_h=r_h)
-    velocities = sample_velocities(positions, masses, key, r_h=r_h, G=units.G)
+from progenax import build_plummer_cluster   # -> ICResult (pure physical state)
+from gravax import ParticleSystem
+from jaxstro.units import STELLAR
 
-    # Construct State
-    state = State(
-        positions=positions, velocities=velocities,
-        masses=masses, time=jnp.zeros(()),
-    )
+# 1. progenax builder: parameters + PRNG key -> ICResult (the State data).
+ic = build_plummer_cluster(n=1000, r_h=1.0, key=key)   # differentiable in r_h
 
-    # Construct SystemParams (static config)
-    params = SystemParams(
-        gravity_policy=NewtonianPlummer(),
-        softening_policy=ConstantSoftening(eps=0.05 * r_h),
-        units=units,
-        G=units.G,
-    )
-
-    return ParticleSystem(state=state, params=params)
+# 2. gravax assembles the bricks: State from the ICResult, SystemParams from the
+#    units + default policies (e.g. ConstantSoftening eps ~ 0.05 * d_mean for the
+#    collisionless integrators, gravity_policy=NewtonianPlummer).
+system = ParticleSystem.from_ic(ic, units=STELLAR)
 ```
 
-Builders are JIT-compatible and differentiable in `r_h` and `alpha` —
-the parameters that flow through `state`. They are *not* differentiable
-in `units`, `gravity_policy`, or other `SystemParams` fields, which is
-the right behaviour: those are configuration choices, not inference
+The builder is JIT-compatible and differentiable in the profile parameters (`r_h`, plus the
+IMF / anisotropy / tidal / rotation knobs) — they flow through the `ICResult`'s `State`
+data. It is *not* differentiable in `units`, `gravity_policy`, or other `SystemParams`
+fields, which is the right behaviour: those are configuration choices, not inference
 targets.
 
 ## Gotchas and rules
