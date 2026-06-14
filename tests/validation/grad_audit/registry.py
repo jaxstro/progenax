@@ -545,6 +545,47 @@ def _cluster_sample_delta(delta):
 
 
 # ---------------------------------------------------------------------------
+# MultiComponentCluster Engine A: from_components(w_j) (Task B1) — the DIRECT
+# velocity-scale-ratio channel (the Fisher target). from_components builds the
+# lowered-isothermal multimass equilibrium from per-component w_j (rescale_j =
+# w_j^-2; smaller w_j = colder = more concentrated) rather than from the IMF-binning
+# / equipartition path of from_imf (which the sample_cluster[EngineA] W0/g/delta
+# cases cover). w_j is the leaf an inference would treat as the free per-component
+# velocity scale, so it is the primary Fisher parameter for direct-component models.
+#
+# SCALAR-theta contract: w_j is a shape-(n_comp) vector but audit_entry_point drives a
+# SCALAR theta. We vary the SECOND (heavy) component's ratio and hold the first fixed
+# via jnp.stack([w0_fixed, w1]) — the Engine-B _cluster_b_sample_ra jnp.stack pattern.
+# This perturbs the physically-meaningful RATIO w_j[1]/w_j[0] (uniform-scaling all of
+# w_j would be a near-degenerate global rescale); w0=1.0 fixed, w1 (heavy) is theta.
+# Config from tests/unit/cluster/test_multicomponent.py::test_differentiable_in_w_j
+# (alpha_j=[0.6,0.4], m_j=[0.5,2.0], W0=7, g=1, r_c=1, n_ode=1500, n_grid=600) — the
+# known-clean-sampling config. reduce=mean_speed (w_j sets the velocity scales, so the
+# speeds carry the gradient).
+#
+# MEASURED (theta0=w1=0.8, h=1e-4, mean_speed over velocities), 3 PRNG seeds:
+#   seed 0: AD=1.161003e-1  FD=1.161044e-1  |ratio-1|=3.5e-5  flips=0/400
+#   seed 1: AD=1.099080e-1  FD=1.099169e-1  |ratio-1|=8.1e-5  flips=0/400
+#   seed 2: AD=1.057982e-1  FD=1.057937e-1  |ratio-1|=4.2e-5  flips=0/400
+# |AD|~0.11 >> eps=1e-9 (live, non-zero gradient); seed-stable (AD 0.106..0.116, FD
+# tracks); 0/400 categorical-assignment flips at +-h for ALL seeds (FD is discreteness-
+# free — the fixed gumbel key + tiny h never crosses an argmax boundary, same as the
+# from_imf Engine-A cases). max |ratio-1| over seeds = 8.1e-5; tol=1e-3 is the honest
+# band for the trapezoid mass-CDF + lowered-isothermal solve + categorical reparam,
+# matching the sibling sample_cluster[EngineA] cases (comfortable >10x margin).
+_CLUSTER_A_W0_FIXED = 1.0  # the light component's w_j, held fixed
+
+
+def _cluster_a_w_j(w1):
+    # Heavy-component velocity-scale ratio w_j[1] is the scalar theta; w_j[0] fixed.
+    w_j = jnp.stack([jnp.asarray(_CLUSTER_A_W0_FIXED, dtype=jnp.float64), w1])
+    model = MultiComponentCluster.from_components(
+        alpha_j=jnp.array([0.6, 0.4]), w_j=w_j, m_j=jnp.array([0.5, 2.0]),
+        W0=7.0, g=1.0, r_c=1.0, n_ode_points=1500, n_grid=600)
+    return model.sample_cluster(_KEY, _CLUSTER_N_STARS, G=STELLAR.G).velocities
+
+
+# ---------------------------------------------------------------------------
 # MultiComponentCluster Engine B: from_density_profiles -> sample_cluster
 # (Task 2.2) — params->IC through the density-defined shared-Psi Eddington/OM
 # build (Poisson quadrature + Abel/Eddington inversion, NO ODE) and the per-star
@@ -1213,6 +1254,14 @@ REGISTRY: list[Case] = [
     # (delta enters via w_j, no boundary interplay).
     Case(id="MultiComponentCluster.sample_cluster[EngineA]", direction="params->IC",
          fn=_cluster_sample_delta, param="delta", theta0=0.5, reduce=mean_radius,
+         expect="consistent", tol=1e-3),
+    # --- MultiComponentCluster Engine A from_components(w_j) (Task B1) ---
+    # The DIRECT velocity-scale-ratio channel (the Fisher target): vary the heavy
+    # component's w_j[1] (light w_j[0]=1.0 fixed via jnp.stack), reduce mean_speed.
+    # MEASURED 3 seeds at w1=0.8: |ratio-1| in {3.5e-5, 8.1e-5, 4.2e-5}, |AD|~0.11,
+    # 0/400 categorical flips at +-h (FD discreteness-free). tol=1e-3 (sibling band).
+    Case(id="MultiComponentCluster.from_components[EngineA]", direction="params->IC",
+         fn=_cluster_a_w_j, param="w_j", theta0=0.8, reduce=mean_speed,
          expect="consistent", tol=1e-3),
     # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
     # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson

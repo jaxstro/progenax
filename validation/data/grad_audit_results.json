@@ -672,6 +672,20 @@
     "status": "clean"
   },
   {
+    "id": "MultiComponentCluster.from_components[EngineA]",
+    "direction": "params->IC",
+    "param": "w_j",
+    "theta": 0.8,
+    "finite": true,
+    "ad": 0.11610027230843362,
+    "fd": 0.11610437517739491,
+    "ratio": 0.9999646622364142,
+    "abs_ad": 0.11610027230843362,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
     "direction": "params->IC",
     "param": "r_h",

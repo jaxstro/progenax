@@ -59,6 +59,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("MichieProfile.sample_positions", "W0"): "Michie anisotropic position sampler in W0",
     ("MichieVelocityDF.sample_velocities", "W0"): "Michie anisotropic DF in W0",
     ("MoeCompanions.sample", "m1_scale"): "Moe P-q-e companion sampler, <e> vs m1 scale",
+    ("MultiComponentCluster.from_components[EngineA]", "w_j"): "Engine-A velocity-scale ratio (Fisher target)",
     ("MultiComponentCluster.sample_cluster[EngineA]", "W0"): "Engine A multimass in W0 (H2 edge)",
     ("MultiComponentCluster.sample_cluster[EngineA]", "delta"): "Engine A mass-segregation exponent",
     ("MultiComponentCluster.sample_cluster[EngineA]", "g"): "Engine A truncation sharpness",
