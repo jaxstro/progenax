@@ -627,6 +627,12 @@ def _cluster_a_w_j(w1):
 # (mean_speed over a stochastic anisotropic mass-CDF sample is intrinsically FD-noisier
 # than a closed form); 3e-3 is ~2x the measured max -- the honest band, NOT a weakened tol
 # to mask a mismatch (a blocked gradient would give |ratio-1|~1, the silent-zero signature).
+# The FD floor here is ROUNDING-limited, not truncation-limited (the table-based anisotropic
+# build + categorical-reparam draw quantizes mean_speed): h=4e-4 is a signal/rounding-noise
+# sweet-spot (h=1e-4 is WORSE, |ratio-1|~2.6e-2), and a wide-secant H=5e-2 cross-check at the
+# test's r_a=10 gives |ratio-1|=2e-4 -- so AD is provably correct, the band is pure FD noise.
+# This architectural noise source (table+categorical) is why the sibling Engine-B r_a (density-
+# defined Eddington quadrature, no table) is machine-exact at tol=1e-3 while this one needs 3e-3.
 _CLUSTER_A_RA_CFG = dict(
     alpha_j=jnp.array([0.6, 0.4]), m_j=jnp.array([1.0, 4.0]),
     W0=7.0, g=1.0, delta=0.4, eta=0.0, r_c=1.0,
