@@ -138,3 +138,112 @@ The phantom `build_plummer_cluster` doc references (`methodology.md`, the `units
 `three-brick-state.md` architecture snippets) should be repointed to the **real** builder **after**
 this lands. Until then, the other Bucket-A fixes (environment.md IGIMF/gwimf, the fractal/§7
 deletions, archival snapshots) proceed independently.
+
+---
+
+## Brainstorm round 2 (2026-06-14) — ratified deltas + implementation contract
+
+A second brainstorm (the six OPEN questions in the implementation kickoff) ran with Anna on the
+`feat/cluster-builders` branch. Two decisions **extend** the original design; the rest **confirm**
+it. All were ratified one-at-a-time via the brainstorming skill.
+
+### Ratified answers
+
+1. **Aliases (Q1): ship all 5** — `build_plummer_cluster`, `build_king_cluster`, `build_eff_cluster`,
+   **`build_michie_cluster`, `build_limepy_cluster`** (was: canonical 3). Full symmetry; Michie/LIMEPY
+   are low-cost thin wrappers, and each adds a per-family AD-vs-FD case *through the builder*.
+2. **Multi-component (Q2): single-population only.** `MultiComponentCluster.from_*` stays the multi
+   path — it samples positions+velocities+`component_id` directly and is **not** a profile+DF pair,
+   so folding it in would force a type-branch and muddy the flow.
+3. **Binaries (Q3): separate.** `build_binary_cluster` keeps the `primary_imf × companion_model ×
+   target` API (too rich to inline; different mass-spec regime — whole-system draws vs `masses`/`n`).
+4. **`matched_velocity_df` (Q4): first-class public** — exported, own docs/tests/grad-audit entry.
+5. **Inference wrapper (Q5/Q5b): ADD `ClusterParams` + `build_cluster_from_params`** (was:
+   signature-only). A typed `eqx.Module` θ-PyTree bundling profile + modifier knobs; `jax.grad` gives
+   joint gradients over profile params **and** modifiers in one call (the leaves declare what's free).
+6. **Tidal `revirialize` (Q6): default `False`** + loud S4 docs; King/LIMEPY (native `r_t`) is the
+   recommended stationary route; `revirialize=True` is explicit opt-in.
+
+### New public surface (10 symbols)
+
+`build_cluster`, `build_plummer_cluster`, `build_king_cluster`, `build_eff_cluster`,
+`build_michie_cluster`, `build_limepy_cluster`, `matched_velocity_df`, `RotationSpec`,
+`ClusterParams`, `build_cluster_from_params`.
+
+### `ClusterParams` + `build_cluster_from_params`
+
+```python
+class ClusterParams(eqx.Module):
+    profile: SpatialProfile                         # float leaves traced (r_h, W0, ...)
+    anisotropy_radius: float | None = None          # traced when set; None -> empty PyTree node
+    tidal_radius: float | None = None
+    rotation: float | RotationSpec | None = None
+    Q: float = 0.5
+
+def build_cluster_from_params(
+    params: ClusterParams, *, key, masses=None, n=None, imf=None, units=None,
+    revirialize=False, softening=0.0,            # STATIC config -> kwargs, NOT theta leaves
+) -> ICResult:
+    return build_cluster(
+        params.profile, key=key, masses=masses, n=n, imf=imf, units=units,
+        anisotropy_radius=params.anisotropy_radius, tidal_radius=params.tidal_radius,
+        rotation=params.rotation, Q=params.Q, revirialize=revirialize, softening=softening)
+```
+
+`revirialize`/`softening` are static/force-model config, so they are **kwargs of the wrapper**, not
+`ClusterParams` fields — θ stays purely the inference leaves.
+
+### `matched_velocity_df` mapping + error semantics (verified against real fields)
+
+| Profile (fields) | Matched DF | `anisotropy_radius` kwarg |
+|---|---|---|
+| `PlummerProfile(r_h)` | `PlummerVelocityDF(r_h=p.r_h, anisotropy_radius=r_a)` | ✅ valid (OM) |
+| `EFFProfile(a, gamma, r_t)` | `EFFVelocityDF(a=p.a, gamma=p.gamma, r_t=p.r_t, anisotropy_radius=r_a)` | ✅ valid (OM) |
+| `KingProfile(W0, r_c, r_t)` | `KingVelocityDF(W0=p.W0, r_c=p.r_c)` (auto-sizes ODE from W0) | ❌ error (isotropic) |
+| `MichieProfile(W0, r_c, r_a)` | `MichieVelocityDF(W0=p.W0, r_c=p.r_c, r_a=p.r_a)` | ❌ error (intrinsic) |
+| `LIMEPYProfile(W0, g, r_c, r_a)` | `LIMEPYVelocityDF(W0=p.W0, g=p.g, r_c=p.r_c, r_a=None if isotropic else p.r_a)` | ❌ error (intrinsic) |
+
+- `anisotropy_radius` valid **only** for Plummer/EFF. For King it errors (isotropic); for
+  Michie/LIMEPY it errors (anisotropy is intrinsic → pass `r_a` on the profile's `from_W0_rc`). No
+  silent ignore.
+- **Caveat (a):** matched King/Michie/LIMEPY DFs re-solve their ODE at **default** domains (King
+  auto-sizes from W0; Michie 800/3000; LIMEPY 300/2000) — consistent with the *default* profile
+  constructors, but a profile built with a custom `xi_max` cannot round-trip its domain (not stored
+  as a field) → hand-compose for that case.
+- **Caveat (b):** LIMEPY stores `r_a=inf` for the isotropic model; branch on the **static**
+  `is_aniso` flag (not a traced `jnp.isfinite`) to pass `r_a=None` vs `p.r_a` to the DF.
+
+### `RotationSpec`
+
+Small `eqx.Module`: `kind` (`"solid"`|`"differential"`, **static**) + the relevant traced params +
+`axis` (default ẑ). Solid → `apply_solid_body_rotation(omega, axis)`; differential →
+`apply_differential_rotation(v_peak, R_peak, axis)`. A bare `float` `rotation` is sugar for solid-body
+ω about ẑ. The builder's rotation grad-case is the **solid-body ω** path (the differential overlay's
+`v_peak`/`R_peak` are already audited on `apply_differential_rotation`).
+
+### Grad-audit categorization (non-redundant coverage — ratified)
+
+| Symbol | Category | Registry cases |
+|---|---|---|
+| `build_cluster` | `AUDITED` | Plummer `r_h`, `anisotropy_radius` `r_a`, `tidal_radius` `r_t`, rotation `ω` (4 modifier cases) |
+| `build_king_cluster` | `AUDITED` | `W0` (King family *through the builder*) |
+| `build_eff_cluster` | `AUDITED` | `gamma` (EFF family through the builder) |
+| `build_michie_cluster` | `AUDITED` | `W0` (Michie family through the builder) |
+| `build_limepy_cluster` | `AUDITED` | `W0` (LIMEPY family through the builder) |
+| `build_cluster_from_params` | `AUDITED` | `ClusterParams` `r_h` + `tidal_radius` (PyTree θ path) |
+| `build_plummer_cluster` | `EXEMPT_HELPER` | subsumed — gradient path identical to `build_cluster[Plummer]` (audited) |
+| `matched_velocity_df` | `EXEMPT_HELPER` | factory; param→velocity gradient audited through `build_cluster` `r_h`/`r_a` |
+| `RotationSpec` | `EXEMPT_CONTAINER` | — |
+| `ClusterParams` | `EXEMPT_CONTAINER` | — |
+
+~10 new registry `Case`s, each carrying **measured** AD-vs-FD provenance (the registry convention).
+Every new symbol gets a `SYMBOL_CATEGORY` entry (the `__all__` cross-check) and the `AUDITED` ones
+get `MUST_AUDIT` `(id, param)` units (the coverage ratchet). `build_plummer_cluster` and
+`matched_velocity_df` are `EXEMPT_HELPER` with explicit "subsumed/factory" rationales.
+
+### Placement
+
+`src/progenax/builders_cluster.py` (builders.py is at the 523-LOC limit) holds `build_cluster`,
+`matched_velocity_df`, `RotationSpec`, `ClusterParams`, `build_cluster_from_params`, and the 5
+aliases. Re-exported from `progenax/__init__.py` `__all__`. If the module approaches 500 LOC, split
+the aliases into `builders_cluster_aliases.py`.
