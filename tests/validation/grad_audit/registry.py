@@ -18,9 +18,14 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     PlummerVelocityDF,
     PowerLawIMF,
     ThermalEccentricity,
+    UniformEccentricity,
     build_spatial_ic,
 )
-from progenax.binaries import IndependentCompanions
+from progenax.binaries import (
+    IndependentCompanions,
+    LogisticThermalEccentricity,
+    MoeEccentricity,
+)
 from progenax.binaries.assembly import resolve_binary_components
 from progenax.binaries.companions import MoeCompanions
 from progenax.binaries.kepler import KeplerElements
@@ -1225,6 +1230,78 @@ def _loguniform_period_logpmax(log_P_max):
     return LogUniformPeriod(log_P_max=log_P_max).sample(_KEY, _PERIOD_N)
 
 
+# Task B5: binary eccentricity distributions — the pure e_max->ecc draws (bounded
+# [0,1]; no G, no units). Each samples at the FIXED module key _KEY; the observable
+# is mean(e) (NOT mean(log10), unlike the periods), reduced inline. N=4000 (inner
+# loop): the AD-vs-FD RATIO (the gate quantity) is machine-clean at this N for all
+# four (residual ~1e-12..1e-13; flat in N). Three PRNG seeds measured to confirm
+# seed-stability; each Case freezes the module key. Two are closed-form analytic
+# location-scale derivatives (Thermal->2/3, Uniform->1/2), two are FD-targets where
+# e_max threads a period/mass-conditional sampler (Moe, LogisticThermal).
+#
+#   (1) ThermalEccentricity.e_max — e = e_max*sqrt(u), so d<e>/de_max = <sqrt(u)>
+#       (CLOSED-FORM ANALYTIC) -> 2/3 in the N->inf limit (<sqrt u> for u~U(0,1)).
+#       MEASURED (theta0=0.99, h=1e-4, mean(e) over N=4000), 3 seeds:
+#         seed 0: AD=6.619815e-1  FD=6.619815e-1  |ratio-1|=1.2e-13
+#         seed 1: AD=6.708214e-1  FD=6.708214e-1  |ratio-1|=1.0e-12
+#         seed 2: AD=6.728200e-1  FD=6.728200e-1  |ratio-1|=4.4e-13
+#       <sqrt u>~0.66-0.67 (the finite-N draw, -> 2/3); seed-stable. tol=1e-5.
+#
+#   (2) UniformEccentricity.e_max — e = u*e_max (e_min=0), so d<e>/de_max = <u>
+#       (CLOSED-FORM ANALYTIC) -> 1/2. MEASURED (theta0=0.9, h=9e-5), 3 seeds:
+#         seed 0: AD=4.938855e-1  FD=4.938855e-1  |ratio-1|=6.7e-13
+#         seed 1: AD=5.042832e-1  FD=5.042832e-1  |ratio-1|=4.0e-13
+#         seed 2: AD=5.078402e-1  FD=5.078402e-1  |ratio-1|=9.2e-13
+#       <u>~0.49-0.51 (-> 0.5); seed-stable. tol=1e-5.
+#
+#   (3) MoeEccentricity.e_max — e = e_max(P) * u^(1/(eta+1)) with e_max(P) the Roche
+#       ceiling clipped to the e_max FIELD. FIXED P=1e8 d, M1=20 Msun (scattered
+#       test config): at this long P the raw Roche relation >= 1, so the clip
+#       e_max(P)=min(roche, e_max) BINDS on the field and d<e>/de_max is the live
+#       <u^(1/(eta+1))> (eta=0.873 -> exponent ~0.534). At shorter P the period cap
+#       is non-binding and the field gradient is legitimately 0 (not tested here).
+#       DISCRETENESS CHECK: the is_circular branch (etap1<=1e-6 -> e=0) flips ZERO
+#       stars at e_max0+/-h (eta=0.873 >> -1 everywhere at P=1e8); measured circular
+#       count = 0 at 0.9899 / 0.99 / 0.9901, so no FD contamination from the gate.
+#       MEASURED (theta0=0.99, h=1e-4, mean(e) over N=4000), 3 seeds:
+#         seed 0: AD=6.471313e-1  FD=6.471313e-1  |ratio-1|=1.2e-12
+#         seed 1: AD=6.562164e-1  FD=6.562164e-1  |ratio-1|=2.2e-13
+#         seed 2: AD=6.583287e-1  FD=6.583287e-1  |ratio-1|=2.4e-14
+#       |AD|~0.65 >> eps (live); seed-stable; max |ratio-1| = 1.2e-12. tol=1e-5.
+#
+#   (4) LogisticThermalEccentricity.e_max — e = blend(P)*e_max*sqrt(u), so
+#       d<e>/de_max = <blend(P)*sqrt(u)>. FIXED periods = logspace(0.5, 3.5, N)
+#       (scattered test config) span the circular->thermal transition, so the blend
+#       half-suppresses the thermal scale -> AD~0.33 (vs Thermal's 0.66). The e_max
+#       field threads linearly through every sample (mass-independent).
+#       MEASURED (theta0=0.99, h=1e-4, mean(e) over N=4000), 3 seeds:
+#         seed 0: AD=3.308037e-1  FD=3.308037e-1  |ratio-1|=4.7e-13
+#         seed 1: AD=3.362300e-1  FD=3.362300e-1  |ratio-1|=1.3e-13
+#         seed 2: AD=3.363630e-1  FD=3.363630e-1  |ratio-1|=9.7e-13
+#       |AD|~0.33 >> eps (live); seed-stable; max |ratio-1| = 9.7e-13. tol=1e-5.
+_ECC_N = 4000  # inner-loop sample size (N-stable for the bounded ecc mean)
+_mean_ecc = lambda e: jnp.mean(e)  # the scattered-test observable (mean ecc, not log)
+_MOE_PERIODS = jnp.full(_ECC_N, 1e8)   # long-P: e_max FIELD binds (Roche cap >= 1)
+_MOE_MASSES = jnp.full(_ECC_N, 20.0)   # 20 Msun O-star (eta=0.873, non-circular)
+_LT_PERIODS = jnp.logspace(0.5, 3.5, _ECC_N)  # spans the circular->thermal transition
+
+
+def _thermal_ecc_emax(e_max):
+    return ThermalEccentricity(e_max=e_max).sample(_KEY, _ECC_N)
+
+
+def _uniform_ecc_emax(e_max):
+    return UniformEccentricity(e_min=0.0, e_max=e_max).sample(_KEY, _ECC_N)
+
+
+def _moe_ecc_emax(e_max):
+    return MoeEccentricity(e_max=e_max).sample(_KEY, _MOE_PERIODS, _MOE_MASSES)
+
+
+def _logistic_thermal_ecc_emax(e_max):
+    return LogisticThermalEccentricity(e_max=e_max).sample(_KEY, _LT_PERIODS)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1495,6 +1572,32 @@ REGISTRY: list[Case] = [
     # MEASURED 3 seeds at hi=8.0: AD~0.49-0.51, |ratio-1| <= 1.5e-12. tol=1e-5.
     Case(id="LogUniformPeriod.sample", direction="params->IC",
          fn=_loguniform_period_logpmax, param="log_P_max", theta0=8.0, reduce=_log10_mean,
+         expect="consistent", tol=1e-5),
+    # --- Task B5: binary eccentricity distributions ---
+    # Pure e_max->ecc draws (bounded [0,1]; no G/units). Observable mean(e) at the fixed
+    # module key. See the B5 block above for the per-seed measured table + the Moe
+    # circular-flip diagnostic (0 flips at the chosen long-P config).
+    # (1) ThermalEccentricity.e_max: CLOSED-FORM d<e>/de_max = <sqrt(u)> -> 2/3.
+    # MEASURED 3 seeds at e_max=0.99: AD~0.66-0.67, |ratio-1| <= 1.0e-12. tol=1e-5.
+    Case(id="ThermalEccentricity.sample", direction="params->IC",
+         fn=_thermal_ecc_emax, param="e_max", theta0=0.99, reduce=_mean_ecc,
+         expect="consistent", tol=1e-5),
+    # (2) UniformEccentricity.e_max: CLOSED-FORM d<e>/de_max = <u> -> 0.5.
+    # MEASURED 3 seeds at e_max=0.9: AD~0.49-0.51, |ratio-1| <= 9.2e-13. tol=1e-5.
+    Case(id="UniformEccentricity.sample", direction="params->IC",
+         fn=_uniform_ecc_emax, param="e_max", theta0=0.9, reduce=_mean_ecc,
+         expect="consistent", tol=1e-5),
+    # (3) MoeEccentricity.e_max: FD-target. P=1e8 d, M1=20 Msun -> Roche cap binds on
+    # the e_max field; <u^(1/(eta+1))> live (eta=0.873). 0 circular flips at +/-h.
+    # MEASURED 3 seeds at e_max=0.99: AD~0.65, |ratio-1| <= 1.2e-12. tol=1e-5.
+    Case(id="MoeEccentricity.sample", direction="params->IC",
+         fn=_moe_ecc_emax, param="e_max", theta0=0.99, reduce=_mean_ecc,
+         expect="consistent", tol=1e-5),
+    # (4) LogisticThermalEccentricity.e_max: FD-target. e = blend(P)*e_max*sqrt(u) over
+    # logspace(0.5,3.5) periods -> AD~0.33 (blend half-suppresses the thermal scale).
+    # MEASURED 3 seeds at e_max=0.99: AD~0.33, |ratio-1| <= 9.7e-13. tol=1e-5.
+    Case(id="LogisticThermalEccentricity.sample", direction="params->IC",
+         fn=_logistic_thermal_ecc_emax, param="e_max", theta0=0.99, reduce=_mean_ecc,
          expect="consistent", tol=1e-5),
     # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
     # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson

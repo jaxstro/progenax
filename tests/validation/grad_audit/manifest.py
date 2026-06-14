@@ -52,6 +52,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("KingVelocityDF.sample_velocities", "r_c"): "King DF in core radius",
     ("LogNormalPeriod.sample", "mu_log_P"): "Raghavan+2010 log-normal period location",
     ("LogUniformPeriod.sample", "log_P_max"): "Opik log-uniform period upper bound",
+    ("LogisticThermalEccentricity.sample", "e_max"): "DM91 circular->thermal blend ecc ceiling (FD-target)",
     ("Maschberger.ppf", "alpha"): "Maschberger inverse-CDF in slope",
     ("Maschberger.ppf", "beta"): "Maschberger inverse-CDF in beta",
     ("Maschberger.ppf", "mu"): "Maschberger inverse-CDF in mu",
@@ -61,6 +62,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("MichieProfile.sample_positions", "W0"): "Michie anisotropic position sampler in W0",
     ("MichieVelocityDF.sample_velocities", "W0"): "Michie anisotropic DF in W0",
     ("MoeCompanions.sample", "m1_scale"): "Moe P-q-e companion sampler, <e> vs m1 scale",
+    ("MoeEccentricity.sample", "e_max"): "Moe+2017 ecc ceiling at long P (Roche cap binds; FD-target)",
     ("MultiComponentCluster.from_components[EngineA]", "w_j"): "Engine-A velocity-scale ratio (Fisher target)",
     ("MultiComponentCluster.from_mass_segregation[EngineA]", "r_a"): "Engine-A equipartition anisotropy radius (OM, Fisher target)",
     ("MultiComponentCluster.sample_cluster[EngineA]", "W0"): "Engine A multimass in W0 (H2 edge)",
@@ -80,6 +82,8 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("PowerLawIMF.sample[Salpeter]", "alpha"): "Salpeter reparam sampler in slope",
     ("SanaOBPeriod.sample", "power"): "Sana+2012 OB period power-law index",
     ("Schechter.ppf", "alpha"): "Schechter grid-CDF+Newton inverse in slope",
+    ("ThermalEccentricity.sample", "e_max"): "Heggie+1975 thermal f(e)=2e ecc scale (<sqrt u>~2/3 closed-form)",
+    ("UniformEccentricity.sample", "e_max"): "uniform ecc upper bound (<u>~0.5 closed-form)",
     ("apply_differential_rotation", "R_peak"): "differential rotation overlay, nonlinear R_peak",
     ("apply_differential_rotation", "v_peak"): "differential rotation overlay, linear v_peak",
     ("apply_solid_body_rotation", "omega"): "solid-body rotation overlay, linear omega",
@@ -205,11 +209,11 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "solve_multimass_limepy": EXEMPT_COVERED_ELSEWHERE,
     "find_alpha_for_masses": EXEMPT_COVERED_ELSEWHERE,
     # Phase-B D4 targets — promote to AUDITED when each one's registry case lands.
-    "LogisticThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target (Anna A1) — promote to AUDITED when case lands
+    "LogisticThermalEccentricity": AUDITED,  # B5: DM91 circular->thermal blend ecc ceiling (e_max, Anna A1)
     # SanaOBPeriod / LogNormalPeriod / LogUniformPeriod promoted to AUDITED above (B4)
-    "ThermalEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
-    "UniformEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
-    "MoeEccentricity": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
+    "ThermalEccentricity": AUDITED,  # B5: thermal f(e)=2e ecc scale (e_max, <sqrt u>~2/3 closed-form)
+    "UniformEccentricity": AUDITED,  # B5: uniform ecc upper bound (e_max, <u>~0.5 closed-form)
+    "MoeEccentricity": AUDITED,  # B5: Moe+2017 ecc ceiling at long P (e_max, FD-target)
     "IndependentCompanions": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
     # build_binary_cluster promoted to AUDITED above (B3)
 }
