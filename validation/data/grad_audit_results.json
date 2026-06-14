@@ -812,6 +812,20 @@
     "status": "clean"
   },
   {
+    "id": "IndependentCompanions.sample",
+    "direction": "params->IC",
+    "param": "e_max",
+    "theta": 0.99,
+    "finite": true,
+    "ad": 0.6681601326323479,
+    "fd": 0.6681601326330444,
+    "ratio": 0.9999999999989575,
+    "abs_ad": 0.6681601326323479,
+    "expect": "consistent",
+    "tol": 1e-05,
+    "status": "clean"
+  },
+  {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
     "direction": "params->IC",
     "param": "r_h",

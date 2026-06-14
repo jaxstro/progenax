@@ -41,6 +41,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("EFFVelocityDF.sample_velocities", "a"): "EFF Eddington DF scale radius",
     ("EFFVelocityDF.sample_velocities", "gamma"): "EFF Eddington DF slope (virial point)",
     ("IMFParams.log_prob_nll", "alpha3"): "4-segment IMF NLL Fisher channel",
+    ("IndependentCompanions.sample", "e_max"): "thermal ecc ceiling THROUGH the full companion assembly (is_binary draw + m2 gate + pytree); complements B5's bare-dist case",
     ("KeplerElements.from_state", "v_scale"): "state->elements inverse, recovered a",
     ("KeplerElements.to_state", "M0"): "elements->Cartesian M0 column",
     ("KeplerElements.to_state", "a"): "elements->Cartesian a column",
@@ -208,13 +209,13 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "solve_limepy_profile": EXEMPT_COVERED_ELSEWHERE,
     "solve_multimass_limepy": EXEMPT_COVERED_ELSEWHERE,
     "find_alpha_for_masses": EXEMPT_COVERED_ELSEWHERE,
-    # Phase-B D4 targets — promote to AUDITED when each one's registry case lands.
+    # Phase-B D4 targets — ALL promoted to AUDITED (B3-B6 cases landed; no holes remain).
     "LogisticThermalEccentricity": AUDITED,  # B5: DM91 circular->thermal blend ecc ceiling (e_max, Anna A1)
     # SanaOBPeriod / LogNormalPeriod / LogUniformPeriod promoted to AUDITED above (B4)
     "ThermalEccentricity": AUDITED,  # B5: thermal f(e)=2e ecc scale (e_max, <sqrt u>~2/3 closed-form)
     "UniformEccentricity": AUDITED,  # B5: uniform ecc upper bound (e_max, <u>~0.5 closed-form)
     "MoeEccentricity": AUDITED,  # B5: Moe+2017 ecc ceiling at long P (e_max, FD-target)
-    "IndependentCompanions": EXEMPT_COVERED_ELSEWHERE,  # Phase-B D4 target — promote to AUDITED when case lands
+    "IndependentCompanions": AUDITED,  # B6: thermal e_max through the full companion assembly (FD-target; complements B5)
     # build_binary_cluster promoted to AUDITED above (B3)
 }
 

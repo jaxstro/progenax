@@ -1302,6 +1302,39 @@ def _logistic_thermal_ecc_emax(e_max):
     return LogisticThermalEccentricity(e_max=e_max).sample(_KEY, _LT_PERIODS)
 
 
+# Task B6: IndependentCompanions.e_max — the SAME mean(e) observable as B5's bare
+# ThermalEccentricity case, but routed through the FULL IndependentCompanions
+# ASSEMBLY (companions.py:91-112): the kb is_binary = uniform < f_bin Heaviside draw,
+# the q->m2 = where(is_binary, m1·q, 0) gate, the period->a Kepler map, and the
+# 7-field CompanionElements pytree. This confirms the e_max gradient SURVIVES the
+# assembly graph — a stop_gradient anywhere in the connector (or an e field
+# accidentally gated by is_binary) would zero it. COMPLEMENTARY to B5: B5 audits
+# ThermalEccentricity.sample in ISOLATION; B6 audits the same e_max flowing through
+# the companion-model assembly. Config reproduces test_companions.py::
+# test_grad_fd_accurate_eccentricity: m1 = full(4000, 2.0), FlatMassRatio(q_min=0.2),
+# LogUniformPeriod(2,4), ConstantBinaryFraction(0.5), ThermalEccentricity(e_max).
+# REDUCTION = mean(comp.e) over ALL N (matches the scattered test). e is NOT gated by
+# is_binary (companions.py:110 — e is sampled unconditionally; only m2 is gated), so
+# singles carry the full thermal scale and mean(e) over all N is the clean observable.
+# The closure REBUILDS IndependentCompanions with a fresh ThermalEccentricity(e_max=
+# theta) so the traced e_max threads the assembly.
+def _independent_companions_e_max(e_max):
+    from progenax.binaries import IndependentCompanions
+    from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
+
+    model = IndependentCompanions(
+        binary_fraction=ConstantBinaryFraction(0.5),
+        q_distribution=FlatMassRatio(q_min=0.2),
+        period_distribution=LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
+        eccentricity_distribution=ThermalEccentricity(e_max=e_max),
+    )
+    _, comp = model.sample(_KEY, _IC_M1, G=STELLAR.G, day_in_time_units=_MOE_DAY)
+    return comp.e
+
+
+_IC_M1 = jnp.full(_ECC_N, 2.0)  # fixed 2 Msun primaries (scattered-test config)
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1598,6 +1631,26 @@ REGISTRY: list[Case] = [
     # MEASURED 3 seeds at e_max=0.99: AD~0.33, |ratio-1| <= 9.7e-13. tol=1e-5.
     Case(id="LogisticThermalEccentricity.sample", direction="params->IC",
          fn=_logistic_thermal_ecc_emax, param="e_max", theta0=0.99, reduce=_mean_ecc,
+         expect="consistent", tol=1e-5),
+    # --- Task B6: IndependentCompanions.e_max (the FINAL D4 hole) ---
+    # Same mean(e) observable as B5's ThermalEccentricity.sample, but routed THROUGH
+    # the full IndependentCompanions ASSEMBLY (is_binary Heaviside draw + q->m2 gate +
+    # period->a Kepler map + 7-field CompanionElements pytree). Confirms the e_max
+    # gradient SURVIVES the assembly graph (a stop_gradient in the connector, or an e
+    # field gated by is_binary, would zero it). COMPLEMENTARY to B5's bare-dist case.
+    # DISCRETENESS: is_binary depends on the kb-uniform draw + fbin, NOT on e_max, so
+    # it is e_max-invariant by construction -> 0 flips at +/-h (MEASURED: n_binary=
+    # 2023/4000, flips(+h)=0, flips(-h)=0). e is NOT gated by is_binary, so mean(e)
+    # over ALL N is FD-clean (singles carry the full thermal scale; max e_single=0.99).
+    # AD ~ <sqrt u> ~ 0.66 -> 2/3 (the thermal location-scale derivative flowing
+    # through the assembly). MEASURED (theta0=0.99, h=1e-4, mean(comp.e) over N=4000),
+    # 3 seeds:
+    #   seed 0: AD=6.681601e-1  FD=6.681601e-1  |ratio-1|=1.0e-12
+    #   seed 1: AD=6.667383e-1  FD=6.667383e-1  |ratio-1|=9.6e-13
+    #   seed 2: AD=6.624480e-1  FD=6.624480e-1  |ratio-1|=2.4e-13
+    # |AD|~0.66 >> eps (live); seed-stable; max |ratio-1| = 1.0e-12. tol=1e-5.
+    Case(id="IndependentCompanions.sample", direction="params->IC",
+         fn=_independent_companions_e_max, param="e_max", theta0=0.99, reduce=_mean_ecc,
          expect="consistent", tol=1e-5),
     # --- MultiComponentCluster Engine B from_density_profiles (Task 2.2) ---
     # params->IC through the density-defined shared-Psi Eddington/OM build (Poisson
