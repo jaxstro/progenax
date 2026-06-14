@@ -63,9 +63,9 @@ class TestKingTidalTruncation:
 
     def test_all_particles_within_tidal_radius(self, N_validation, key):
         """100% of particles at r ≤ r_t."""
-        W0, r_c, r_t = 7.0, 1.0, 10.0
-        xi_grid, psi_grid, _ = solve_king_profile(W0)
-        profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+        r_t = float(profile.r_t)
 
         masses = jnp.ones(N_validation)
         positions = profile.sample_positions(masses, key)
@@ -173,11 +173,11 @@ class TestKingVelocityDF:
 
     def test_velocity_isotropy(self, N_stats, key):
         """Velocities are isotropically distributed."""
-        W0, r_c, r_t = 7.0, 1.0, 10.0
+        W0, r_c = 7.0, 1.0
         G = 1.0
 
-        xi_grid, psi_grid, _ = solve_king_profile(W0)
-        profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=W0, r_c=r_c)
         df = KingVelocityDF(W0=W0, r_c=r_c)
 
         masses = jnp.ones(N_stats)
@@ -226,10 +226,9 @@ class TestKingDensityProfile:
 
     def test_density_decreases_with_radius(self, N_validation, key):
         """Density decreases monotonically with radius."""
-        W0, r_c, r_t = 7.0, 1.0, 10.0
-
-        xi_grid, psi_grid, _ = solve_king_profile(W0)
-        profile = KingProfile(W0=W0, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid)
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+        r_t = float(profile.r_t)
 
         masses = jnp.ones(N_validation)
         positions = profile.sample_positions(masses, key)

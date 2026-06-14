@@ -55,32 +55,19 @@ class TestKingPhysics:
 
     def test_tidal_truncation(self):
         """All particles are within tidal radius r_t."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
-        r_t = 10.0
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=r_t,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
         masses = jnp.ones(1000)
         key = jax.random.PRNGKey(42)
         positions = profile.sample_positions(masses, key)
 
         radii = jnp.linalg.norm(positions, axis=1)
-        assert jnp.all(radii <= r_t * 1.01)  # Allow small numerical tolerance
+        assert jnp.all(radii <= float(profile.r_t) * 1.01)  # Allow small numerical tolerance
 
     def test_isotropy(self):
         """Angular distribution is isotropic."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=5.0)
-        profile = KingProfile(
-            W0=5.0,
-            r_c=1.0,
-            r_t=8.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
         N = 1000
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(42)
@@ -101,13 +88,12 @@ class TestKingPhysics:
 
     def test_concentration_effect(self):
         """Higher W0 gives more concentrated distribution."""
+        # self-consistent constructor (recommended API); r_t derived from W0
         # Low concentration
-        xi1, psi1, _ = solve_king_profile(W0=3.0, xi_max=30.0)
-        profile1 = KingProfile(W0=3.0, r_c=1.0, r_t=20.0, xi_grid=xi1, psi_grid=psi1)
+        profile1 = KingProfile.from_W0_rc(W0=3.0, r_c=1.0)
 
         # High concentration
-        xi2, psi2, _ = solve_king_profile(W0=9.0, xi_max=50.0)
-        profile2 = KingProfile(W0=9.0, r_c=1.0, r_t=20.0, xi_grid=xi2, psi_grid=psi2)
+        profile2 = KingProfile.from_W0_rc(W0=9.0, r_c=1.0)
 
         masses = jnp.ones(5000)
 
@@ -124,31 +110,19 @@ class TestKingPhysics:
 
         assert median_r1 > 0.0
         assert median_r2 > 0.0
-        assert median_r1 < 20.0
-        assert median_r2 < 20.0
+        assert median_r1 < float(profile1.r_t)
+        assert median_r2 < float(profile2.r_t)
 
     def test_characteristic_radius_returns_r_t(self):
         """characteristic_radius() returns r_t (tidal radius)."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=12.5,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
-        assert jnp.isclose(profile.characteristic_radius(), 12.5)
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+        assert jnp.isclose(profile.characteristic_radius(), profile.r_t)
 
     def test_jit_compatible(self):
         """sample_positions() works with JIT compilation."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
-        profile = KingProfile(
-            W0=7.0,
-            r_c=1.0,
-            r_t=10.0,
-            xi_grid=xi_grid,
-            psi_grid=psi_grid
-        )
+        # self-consistent constructor (recommended API); r_t derived from W0
+        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
         masses = jnp.ones(100)
         key = jax.random.PRNGKey(42)
 
