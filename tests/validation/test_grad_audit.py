@@ -116,3 +116,58 @@ def test_binned_sigma_mutation_has_teeth():
         f"stop_gradient did NOT kill the gradient (stopped AD={stopped_ad:.3e}); "
         f"the case may be differentiating a constant, not the params->summary channel"
     )
+
+
+def test_cluster_tidal_gradient_has_teeth():
+    r"""The build_cluster ``tidal_radius`` gradient is a LIVE straight-through surrogate.
+
+    The tidal channel is DELIBERATELY not an FD-consistent registry Case: it flows through
+    ``apply_tidal_truncation``'s straight-through estimator (exact hard cut forward + a
+    logistic grad backward), so the finite-N FD is a discrete bin-crossing staircase
+    (0/33/67/117), NOT the smooth surrogate (~109.6). ``apply_tidal_truncation`` is
+    EXEMPT_HELPER in the manifest for exactly this reason, and ``build_cluster``'s tidal
+    channel inherits that. This teeth test instead (1) asserts the gradient is LIVE and
+    finite through BOTH ``build_cluster`` and the ``ClusterParams`` wrapper — catching a
+    silent-zero regression if the custom_jvp is ever broken — and (2) proves the liveness
+    comes FROM the surrogate: a plain ``jnp.where`` hard cut (no custom_jvp) has ~0 gradient
+    a.e., while the real path is ~109.6.
+
+    MEASURED (N=400, key 0, r_t=1.5): live AD = +1.0958e+02 (finite, non-zero);
+    plain-where AD = 0 (Heaviside grad is 0 a.e. -> the mutation kills it).
+    """
+    from progenax import (
+        PlummerProfile, build_cluster, build_cluster_from_params, ClusterParams,
+    )
+    masses = jnp.ones(400)
+    key = jax.random.PRNGKey(0)
+    total_mass = lambda m: jnp.sum(m)
+    r_t0 = jnp.asarray(1.5)
+
+    # LIVE: tidal_radius gradient through build_cluster (the straight-through surrogate).
+    live = lambda r_t: total_mass(
+        build_cluster(PlummerProfile(r_h=1.0), masses=masses, key=key, tidal_radius=r_t).masses)
+    live_ad = float(jax.grad(live)(r_t0))
+    assert jnp.isfinite(live_ad), f"tidal AD not finite: {live_ad}"
+    assert abs(live_ad) > 1e-3, f"tidal AD unexpectedly ~0 (silent-zero regression?): {live_ad:.3e}"
+
+    # Same LIVE gradient through the ClusterParams wrapper (the inference path).
+    live_w = lambda r_t: total_mass(build_cluster_from_params(
+        ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t),
+        masses=masses, key=key).masses)
+    live_w_ad = float(jax.grad(live_w)(r_t0))
+    assert jnp.isfinite(live_w_ad) and abs(live_w_ad) > 1e-3, (
+        f"build_cluster_from_params tidal AD unexpectedly ~0: {live_w_ad:.3e}")
+
+    # MUTATION: a plain hard cut (no straight-through custom_jvp) -> gradient dies a.e.,
+    # proving the live gradient is the apply_tidal_truncation surrogate (not a constant,
+    # and not an FD-consistent quantity).
+    def plain_cut(r_t):
+        ic = build_cluster(PlummerProfile(r_h=1.0), masses=masses, key=key)
+        radii = jnp.linalg.norm(ic.positions, axis=1)
+        m = jnp.where(radii <= r_t, ic.masses, 0.0)   # Heaviside: 0 grad wrt r_t a.e.
+        return total_mass(m)
+    plain_ad = float(jax.grad(plain_cut)(r_t0))
+    assert abs(plain_ad) < 1e-12, (
+        f"plain hard cut should have ~0 gradient a.e. (got {plain_ad:.3e}); the LIVE "
+        f"gradient {live_ad:.3e} is therefore the straight-through surrogate, NOT an "
+        f"FD-consistent quantity (so tidal is correctly a teeth test, not a Case)")

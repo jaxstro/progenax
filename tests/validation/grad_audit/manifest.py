@@ -92,6 +92,14 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("binned_sigma1d[Plummer]", "r_h"): "binned sigma_1d Fisher channel in r_h",
     ("binned_sigma_beta[Plummer+OM]", "r_a"): "binned beta(r) anisotropy Fisher channel",
     ("build_binary_cluster", "r_h"): "flagship IMF->companion->spatial binary-cluster Fisher path in r_h",
+    ("build_cluster[Plummer]", "r_h"): "convenience builder headline (bit-identical sugar; machine-exact)",
+    ("build_cluster[Plummer+OM]", "anisotropy_radius"): "build_cluster OM anisotropy channel via matched DF",
+    ("build_cluster[Plummer+rotation]", "omega"): "build_cluster solid-body rotation overlay channel",
+    ("build_king_cluster", "r_c"): "King family THROUGH the alias (r_c; W0 concrete -> consistent ODE domain)",
+    ("build_eff_cluster", "gamma"): "EFF family through the alias (density slope)",
+    ("build_michie_cluster", "W0"): "Michie family through the alias (fixed xi_max=800 -> W0 consistent)",
+    ("build_limepy_cluster", "W0"): "LIMEPY family through the alias (fixed xi_max=300 -> W0 consistent)",
+    ("build_cluster_from_params[ClusterParams]", "r_h"): "ClusterParams theta-PyTree wrapper path (r_h leaf)",
     ("build_spatial_ic[Plummer]", "r_h"): "headline end-to-end IC positions in r_h",
     ("build_spatial_ic[Plummer].velocities", "r_h"): "end-to-end IC velocities (virial-scaled) in r_h",
     ("lambda_msr_approx", "core_scale"): "soft Lambda_MSR segregation surrogate",
@@ -123,6 +131,21 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "apply_solid_body_rotation": AUDITED,   # rotation overlay omega case (now root-exported)
     "apply_differential_rotation": AUDITED,  # rotation overlay v_peak/R_peak cases
     "build_binary_cluster": AUDITED,        # B3: end-to-end IMF->companion->spatial Fisher path (r_h)
+    # --- cluster convenience builders (cluster-builders arc) ---
+    "build_cluster": AUDITED,               # r_h + anisotropy_radius + omega (3 FD-consistent cases)
+    "build_king_cluster": AUDITED,          # King family through the alias (r_c)
+    "build_eff_cluster": AUDITED,           # EFF family through the alias (gamma)
+    "build_michie_cluster": AUDITED,        # Michie family through the alias (W0)
+    "build_limepy_cluster": AUDITED,        # LIMEPY family through the alias (W0)
+    "build_cluster_from_params": AUDITED,   # ClusterParams theta-PyTree wrapper (r_h)
+    # build_plummer_cluster / matched_velocity_df: gradient path is identical to / subsumed
+    # by build_cluster[Plummer] (audited). The tidal_radius channel inherits apply_tidal_
+    # truncation's EXEMPT_HELPER straight-through status (covered by a LIVE-gradient teeth test,
+    # NOT an FD-consistent Case — see test_grad_audit.py::test_cluster_tidal_gradient_has_teeth).
+    "build_plummer_cluster": EXEMPT_HELPER,
+    "matched_velocity_df": EXEMPT_HELPER,   # factory pairing profile->equilibrium DF
+    "RotationSpec": EXEMPT_CONTAINER,       # rotation-overlay spec PyTree
+    "ClusterParams": EXEMPT_CONTAINER,      # theta-PyTree bundle (profile + modifier knobs)
     "SanaOBPeriod": AUDITED,                 # B4: Sana+2012 OB period power-law index (power)
     "LogNormalPeriod": AUDITED,              # B4: log-normal period location (mu_log_P, closed-form grad=1)
     "LogUniformPeriod": AUDITED,             # B4: Opik log-uniform period upper bound (log_P_max, <u>~0.5)

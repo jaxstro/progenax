@@ -20,6 +20,13 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     ThermalEccentricity,
     UniformEccentricity,
     build_spatial_ic,
+    build_cluster,
+    build_king_cluster,
+    build_eff_cluster,
+    build_michie_cluster,
+    build_limepy_cluster,
+    ClusterParams,
+    build_cluster_from_params,
 )
 from progenax.binaries import (
     IndependentCompanions,
@@ -729,6 +736,82 @@ def _build_binary_cluster_rh(r_h):
         compact=True,
     )
     return ic.positions
+
+
+# ---------------------------------------------------------------------------
+# Cluster convenience builders (build_cluster + aliases + ClusterParams wrapper).
+# The thin sugar layer over build_spatial_ic. ALL MEASURED 2026-06-14 (N=400, key 0):
+#   build_cluster[Plummer] r_h               AD=+1.4409e0  FD=+1.4409e0  |ratio-1|=2.7e-13
+#   build_cluster[Plummer+OM] r_a            AD=+2.7280e-2 FD=+2.7280e-2 |ratio-1|=4.7e-6
+#   build_cluster[Plummer+rotation] omega    AD=+6.4243e-1 FD=+6.4243e-1 |ratio-1|=4.2e-9
+#   build_king_cluster r_c                   AD=+5.7318e0  FD=+5.7318e0  |ratio-1|=4.9e-12
+#   build_eff_cluster gamma                  AD=-1.5850e0  FD=-1.5850e0  |ratio-1|=1.8e-5
+#   build_michie_cluster W0                  AD=+5.4395e0  FD=+5.4415e0  |ratio-1|=3.7e-4
+#   build_limepy_cluster W0                  AD=+7.7293e-1 FD=+7.7287e-1 |ratio-1|=7.6e-5
+#   build_cluster_from_params r_h            AD=+1.4409e0  FD=+1.4409e0  |ratio-1|=2.7e-13
+# build_cluster is pure sugar (bit-identical to build_spatial_ic in the base case), so the
+# Plummer r_h case is machine-exact like build_spatial_ic[Plummer]. The modifier channels
+# anisotropy_radius (matched OM DF) and omega (apply_solid_body_rotation overlay) are
+# FD-consistent. The per-FAMILY alias cases prove King/EFF/Michie/LIMEPY flow THROUGH the
+# new builder path (build_cluster's own cases are Plummer-only).
+#
+# KING audits r_c (NOT W0): KingProfile.from_W0_rc AUTO-sizes its ODE domain, so a TRACED
+# W0 (AD, fallback grid) and a CONCRETE W0 (FD, auto grid) would use different grids (a grid
+# artifact, not a real gradient bug). With W0 concrete=7.0 the domain is consistent for both
+# AD and FD, and r_c is machine-exact (4.9e-12). Michie (fixed xi_max=800) and LIMEPY (fixed
+# xi_max=300) use FIXED domains, so their W0 IS consistent (measured clean).
+#
+# TIDAL_RADIUS is INTENTIONALLY NOT a consistent Case here: it flows through
+# apply_tidal_truncation's straight-through surrogate (an exact hard cut forward + a logistic
+# grad backward), which is DELIBERATELY not FD-consistent (the AD is the smooth surrogate
+# ~109.6; the finite-N FD is a discrete bin-crossing staircase 0/33/67/117). apply_tidal_
+# truncation is EXEMPT_HELPER in the manifest for exactly this reason, and build_cluster's
+# tidal channel inherits that. It is instead covered by a dedicated LIVE-gradient teeth test
+# (test_grad_audit.py::test_cluster_tidal_gradient_has_teeth) that asserts |AD|>eps + finite
+# (catching a silent-zero regression) WITHOUT a false FD-consistency claim.
+# ---------------------------------------------------------------------------
+def _bc_plummer_rh(r_h):
+    return build_cluster(PlummerProfile(r_h=r_h), masses=_MASSES, key=_KEY).positions
+
+
+def _bc_plummer_om(r_a):
+    # OM anisotropy threaded via the matched Plummer DF; r_a=0.7 is above the Merritt
+    # bound 0.75a (~0.575 for r_h=1), so the FD probe stays in the realizable regime.
+    return build_cluster(PlummerProfile(r_h=1.0), masses=_MASSES, key=_KEY,
+                         anisotropy_radius=r_a).velocities
+
+
+def _bc_plummer_omega(omega):
+    # Solid-body rotation overlay (apply_solid_body_rotation); omega enters the velocities.
+    return build_cluster(PlummerProfile(r_h=1.0), masses=_MASSES, key=_KEY,
+                         rotation=omega).velocities
+
+
+def _bk_rc(r_c):
+    # King FAMILY through the alias; audit r_c with W0 CONCRETE=7.0 (consistent ODE domain).
+    return build_king_cluster(masses=_MASSES, W0=7.0, r_c=r_c, key=_KEY).positions
+
+
+def _beff_gamma(gamma):
+    # EFF family through the alias; gamma morphs the density slope (no ODE, precomputed CDF).
+    return build_eff_cluster(masses=_MASSES, a=1.0, gamma=gamma, r_t=10.0, key=_KEY).positions
+
+
+def _bmich_W0(W0):
+    # Michie family through the alias; fixed xi_max=800 -> W0 grid consistent for AD and FD.
+    return build_michie_cluster(masses=_MASSES, W0=W0, r_c=1.0, r_a=8.0, key=_KEY).positions
+
+
+def _blim_W0(W0):
+    # LIMEPY family through the alias; fixed xi_max=300 -> W0 grid consistent for AD and FD.
+    return build_limepy_cluster(masses=_MASSES, W0=W0, g=1.0, r_c=1.0, key=_KEY).positions
+
+
+def _bcfp_rh(r_h):
+    # build_cluster_from_params: scalar r_h -> ClusterParams PyTree -> wrapper -> ICResult.
+    # The PyTree-theta path; r_h is the profile's traced leaf (machine-exact, like build_cluster).
+    return build_cluster_from_params(
+        ClusterParams(profile=PlummerProfile(r_h=r_h)), masses=_MASSES, key=_KEY).positions
 
 
 # ---------------------------------------------------------------------------
@@ -1795,4 +1878,21 @@ REGISTRY: list[Case] = [
          direction="params->summary",
          fn=_binned_number_density_rh, param="r_h", theta0=1.0, reduce=identity_sum,
          expect="known_blocked", tol=1e-3),
+    # --- cluster convenience builders (cluster-builders arc, measured 2026-06-14) ---
+    Case(id="build_cluster[Plummer]", direction="params->IC", fn=_bc_plummer_rh,
+         param="r_h", theta0=1.0, reduce=mean_radius, tol=1e-5),         # |ratio-1|=2.7e-13
+    Case(id="build_cluster[Plummer+OM]", direction="params->IC", fn=_bc_plummer_om,
+         param="anisotropy_radius", theta0=0.7, reduce=mean_speed, tol=1e-3),  # 4.7e-6
+    Case(id="build_cluster[Plummer+rotation]", direction="params->IC", fn=_bc_plummer_omega,
+         param="omega", theta0=0.3, reduce=mean_speed, tol=1e-4),       # |ratio-1|=4.2e-9
+    Case(id="build_king_cluster", direction="params->IC", fn=_bk_rc,
+         param="r_c", theta0=1.0, reduce=mean_radius, tol=1e-5),        # |ratio-1|=4.9e-12
+    Case(id="build_eff_cluster", direction="params->IC", fn=_beff_gamma,
+         param="gamma", theta0=3.0, reduce=mean_radius, tol=1e-3),      # |ratio-1|=1.8e-5
+    Case(id="build_michie_cluster", direction="params->IC", fn=_bmich_W0,
+         param="W0", theta0=7.0, reduce=mean_radius, tol=1e-3),         # |ratio-1|=3.7e-4
+    Case(id="build_limepy_cluster", direction="params->IC", fn=_blim_W0,
+         param="W0", theta0=5.0, reduce=mean_radius, tol=1e-3),         # |ratio-1|=7.6e-5
+    Case(id="build_cluster_from_params[ClusterParams]", direction="params->IC", fn=_bcfp_rh,
+         param="r_h", theta0=1.0, reduce=mean_radius, tol=1e-5),        # |ratio-1|=2.7e-13
 ]
