@@ -40,7 +40,8 @@ test everything?" from a hope into a checkable invariant — the SoTA move that 
 3. **"100% coverage" = three checkable invariants** (not strict 100% line, which is a false god given
    defensive/error branches and JAX-traced dead branches):
    - **API-coverage:** 100% of `progenax.__all__` has ≥1 real test.
-   - **Line coverage** (pytest-cov) ≥ a high floor (start **90%**, ratchet-up-only), every exclusion an
+   - **Line coverage** (pytest-cov, FULL suite only — a `-m "not slow"` pass understates and would spuriously
+     fail) ≥ a high floor (start **90%**, ratchet-up-only via the `LINE_COV_FLOOR` literal), every exclusion an
      explicit `# pragma: no cover` **with a reason**.
    - **Zero registry holes:** all 4 registries full.
 
@@ -59,13 +60,16 @@ Three layers:
 | Registry | Manifest enumerates | Ratchet reds when | Status |
 |---|---|---|---|
 | **Differentiability** | every public entry × param → measured AD-vs-FD | new `__all__` symbol uncategorized / case deleted | ✅ exists (85 cases) |
-| **API-coverage** | every `__all__` symbol → ≥1 real test; a line-coverage floor | a public symbol untested / line-cov < floor | 🆕 |
-| **Physics-validation** | every public model (profile/DF/IMF/builder/cluster) → its physics invariants (equilibrium Q, density recovery, conservation, closed-form anchors) | a new public model has no physics-validation entry | 🆕 |
-| **Provenance-of-constants** | every hardcoded constant/coefficient/fit in `src/` → a cited source | a magic number ships without a provenance comment | 🆕 (the 2026-06 audit did this by hand once; make it self-policing) |
+| **API-coverage** | every `__all__` symbol → ≥1 test that CONSTRUCTS/CALLS it and ASSERTS on its output (NOT a grep-mention); a full-suite line-coverage floor | a public symbol untested / line-cov < floor | 🆕 |
+| **Physics-validation** | every public model (defined operationally: implements `SpatialProfile`/`VelocityDF`/`IMFProtocol` or is a `build_*_cluster`) → its physics invariants (equilibrium Q, density recovery, conservation, closed-form anchors, OR reference-parity for tabulated models like LIMEPY) | a new public model has no physics-validation entry | 🆕 |
+| **Provenance-of-constants** | hand-curated allowlist of constant-bearing literals in `src/` (ported from `docs/provenance-ledger.md`, NOT a regex float-scanner — ~2,525 noisy matches) → a cited source | an unprovenanced literal in an allowlisted location ships without a `# provenance:` comment | 🆕 (the 2026-06 audit did this by hand once; make it self-policing) |
 
 Each registry follows the grad-audit's frozen-literal pattern: a hand-curated manifest (NOT computed
 from the live system at runtime — a derived manifest can't catch a deletion), an `__all__` cross-check,
-and a coverage ratchet, all as pytest tests in a fast dedicated job.
+and a coverage ratchet, all as pytest tests in a fast dedicated job. Note the grad-audit ALREADY maintains a
+full `__all__`→`AUDITED|EXEMPT_*` partition (`SYMBOL_CATEGORY`, 7 EXEMPT categories); API-coverage and
+physics-validation are additional partitions over the SAME `__all__`, so each must cross-check its EXEMPT set
+against the grad-audit's to keep the partitions from drifting apart.
 
 ### The generated dashboard (the source of truth)
 
@@ -102,10 +106,18 @@ The FULL gate is **10:32**, dominated by a handful of tests (measured `--duratio
 `@slow`-marking these high-value-but-slow tests (and consolidating the two JSON regenerators) drops the
 **FAST inner loop to minutes** with **zero coverage loss**; the FULL gate stays complete. Then:
 - **Consolidate cross-tier redundancy** — the King pattern (unit `test_king.py` duplicated validation
-  `test_king_physics.py`, already done) repeats for **Plummer / EFF / Michie / LIMEPY** (each has unit
-  *and* validation physics files). Per-file: keep the higher-value validation test, remove the unit
-  duplicate, keep unit-UNIQUE guards.
-- **Kill orphan low-value tests** — any test not tracing to a registry entry or a physics claim.
+  `test_king_physics.py`, already done) repeats for **Plummer / EFF / Michie** (each has a unit *and* a
+  validation `test_<p>_physics.py`). Per-file: keep the higher-value validation test, remove the unit
+  duplicate, keep unit-UNIQUE guards. Verified scope: Plummer = partial (keep virial-Q / q²-variance
+  unit-unique), EFF = clean (remove ~6, keep ~5), Michie = partial (keep the table-routing guards).
+  **LIMEPY is NOT symmetric** — it has NO `test_limepy_physics.py`; its validation tier is
+  `test_limepy_reference_parity.py` (a reference-parity oracle) + `test_multimass_equilibrium_physics.py`,
+  which do not duplicate the unit limepy files. Treat LIMEPY as a separate "inspect, likely no-op" task
+  (at most de-dup AMONG the unit files).
+- **Kill orphan low-value tests** — any test not tracing to a registry entry, a physics claim, OR a listed
+  cross-cutting invariant. **Cross-cutting tests are PROTECTED:** units/G-threading
+  (`test_units_through_pipeline.py`), protocol-conformance (`test_protocols.py`), end-to-end energy — these
+  trace to a named design requirement, not a per-symbol row, and must NOT be deleted as orphans.
 
 ### Documentation layer
 
@@ -123,9 +135,10 @@ The FULL gate is **10:32**, dominated by a handful of tests (measured `--duratio
 Each phase is its own batch with local verification + an Anna checkpoint; CI minutes are exhausted →
 verify LOCALLY, no PR until the arc closes.
 
-1. **Coverage + dashboard scaffold** — wire `pytest-cov` (add to `[dev]` if absent), build
-   `build_test_dashboard.py` + the JSON + the rendered page + the staleness gate. The keystone;
-   immediately useful even before the new registries exist.
+1. **Coverage + dashboard scaffold** — confirm `pytest-cov` (already in `[dev]`, installed) + EXTEND the
+   existing `[tool.coverage]` config (keep `source=["progenax"]`), build `build_test_dashboard.py` + the JSON +
+   the committed full-suite `coverage.json` (with provenance) + the rendered page + the staleness gate. The
+   keystone; immediately useful even before the new registries exist.
 2. **API-coverage registry** — manifest of `__all__` → test + the line-cov floor; ratchet. Fastest
    registry; surfaces every untested public symbol.
 3. **Suite refactor** — `@slow`-mark the runtime sinks (the table above), consolidate the

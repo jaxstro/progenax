@@ -37,7 +37,18 @@ dashboard page; the existing `tests/validation/grad_audit/` registry as the temp
   `test_audit_script` 406s (both regenerate the grad-audit JSON), `test_find_alpha_ift` ~620s,
   `test_engine_b_physics::test_plummer_halo_eff_core_equilibrium` 186s, the Engine-A grad-audit cases
   ~370s, `test_limepy_multimass` ~255s.
-- `pytest-cov` may NOT be installed (`[dev]` lists pytest/black/isort/flake8/mypy). Task 1.1 checks + adds.
+- `pytest-cov` IS already installed (7.1.0) and IS in `[dev]` (`["pytest>=7.0","pytest-cov","pytest-xdist>=3.0"]`).
+  A `[tool.coverage]` config ALREADY EXISTS (`[tool.coverage.run] source=["progenax"] branch=true`;
+  `[tool.coverage.report] show_missing=true`). Task 1.1 **EXTENDS** it — it does NOT add a second block, and does
+  NOT switch `source` to `src/progenax` (the package installs top-level as `progenax`, and a smoke `--cov` run
+  confirms per-file keys are `src/progenax/<module>`).
+- Many of the design-doc runtime sinks are ALREADY `@pytest.mark.slow` (`test_find_alpha_ift`,
+  `test_limepy_multimass`, `test_engine_b_physics`, …); the only DOMINANT unmarked sinks are the two grad-audit
+  JSON regenerators (`test_json_fresh` 429s + `test_audit_script` 406s) — Phase 3.1's real new work.
+- The committed line-coverage artifact is **`validation/data/coverage.json`**, produced ONLY by a FULL-suite
+  `--cov` run (NOT `-m "not slow"`, which understates coverage and would spuriously fail the floor), written by
+  the dashboard `--emit`, stamped with a `coverage_provenance` field (`{selector, git_sha}`), and read by the
+  Phase-2 floor gate. The staleness gate checks `coverage_provenance.git_sha == HEAD`; it does NOT re-run `--cov`.
 
 **Env prefix (uv, NOT conda):**
 ```
@@ -51,7 +62,7 @@ XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
 
 ### Task 0.1: Create the branch
 ```bash
-git switch -c feat/test-backbone   # off main (303cd2b: build_cluster + website follow-ups)
+git switch -c feat/test-backbone   # off main (552b87c: build_cluster + website follow-ups + planning docs + this review)
 ```
 `=== CHECKPOINT 0 → Anna ===`
 
@@ -63,31 +74,35 @@ git switch -c feat/test-backbone   # off main (303cd2b: build_cluster + website 
 
 **Files:** Modify `pyproject.toml`.
 
-**Step 1:** Check: `env -u VIRTUAL_ENV uv run --no-sync python -c "import pytest_cov"`. If ImportError,
-add `pytest-cov` to the `[dev]` optional-dependencies in `pyproject.toml` and
-`env -u VIRTUAL_ENV uv pip install -e ".[dev]"`.
+**Step 1:** Smoke-assert the tooling is present (it IS): `env -u VIRTUAL_ENV uv run --no-sync python -c
+"import pytest_cov"`. pytest-cov 7.1.0 + pytest-xdist are already installed and in `[dev]` — there is NO
+install/add-to-`[dev]` step.
 
-**Step 2:** Add a coverage config to `pyproject.toml`:
+**Step 2:** **EXTEND the EXISTING `[tool.coverage]` block** (do NOT add a second one; do NOT switch `source`).
+Keep `source = ["progenax"]` + `branch = true` + `show_missing = true`; only APPEND the new keys:
 ```toml
 [tool.coverage.run]
-source = ["src/progenax"]
-branch = true
-omit = ["*/experimental/*", "*/__pycache__/*"]
+source = ["progenax"]          # already present — KEEP; resolves to src/progenax/*.py
+branch = true                  # already present
+omit = ["*/experimental/*", "*/__pycache__/*"]   # ADD
 
 [tool.coverage.report]
-exclude_lines = [
+show_missing = true            # already present
+exclude_lines = [              # ADD
     "pragma: no cover",
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]
 ```
 
-**Step 3:** Run a smoke coverage pass on a fast subset:
+**Step 3:** Run a smoke coverage pass to confirm the per-file key format BEFORE writing the parser:
 ```
 XLA_FLAGS=... env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/builders -q \
-  --cov=progenax --cov-report=json:/tmp/cov.json
+  --cov=progenax --cov-report=json:/tmp/cov_smoke.json
 ```
-Expected: writes `/tmp/cov.json` with a `totals.percent_covered` field. Confirm it parses.
+Expected: `totals.percent_covered` present; per-file keys are `src/progenax/<module>` (verified: 78 files).
+`/tmp` is fine for THIS smoke only; the COMMITTED artifact (`validation/data/coverage.json`) is written by the
+FULL-suite run in Task 1.5 / Task 2.1 — never `/tmp`.
 
 **Step 4:** Commit (`chore(coverage): wire pytest-cov + coverage config`).
 
@@ -110,7 +125,11 @@ Run → FAIL (no module).
 **Step 2 (GREEN):** implement `collect_test_inventory()` using `pytest --collect-only -q` (parse the
 node ids → module/tier). Reductions: map a node id `tests/unit/builders/test_x.py::...` → module
 `builders`, tier `unit`. Use `subprocess` to run collect-only (the generator is a script, not core code,
-so subprocess + parsing is acceptable — NOT JAX-native-constrained). Run → PASS. Commit.
+so subprocess + parsing is acceptable — NOT JAX-native-constrained). **`build_test_dashboard.py` MUST insert
+the repo root into `sys.path` at top-of-file (mirror `scripts/audit_gradients.py`) so `import tests.*` /
+`import scripts.*` resolve under direct `python scripts/build_test_dashboard.py` invocation** —
+`pythonpath=["src","src/experimental"]` does NOT include the repo root, so the standalone entrypoint
+ImportErrors otherwise. Run → PASS. Commit.
 
 ### Task 1.3: Dashboard generator — line coverage
 
@@ -128,8 +147,10 @@ def test_inventory_attaches_line_coverage(tmp_path):
 
 **Step 1:** add functions that read:
 - **grad-audit** fill: import `tests.validation.grad_audit.manifest` (counts AUDITED/EXEMPT, MUST_AUDIT,
-  the committed `validation/data/grad_audit_results.json` hazard count). The OTHER 3 registries don't
-  exist yet → return `{"status": "not-built"}` placeholders (filled in Phases 2/4/5).
+  the committed `validation/data/grad_audit_results.json` hazard count). Safe because `manifest.py` is a pure
+  frozen-literal module with NO pytest-collection side effects — keep every registry manifest side-effect-free
+  so the generator can import it. The OTHER 3 registries don't exist yet → return `{"status": "not-built"}`
+  placeholders (filled in Phases 2/4/5).
 - **durations**: parse a committed `--durations` artifact (or run a `-m "not slow"` quick pass and
   capture the slowest per module). Keep it cheap.
 - **validation scripts**: map each `scripts/validate_*.py` → last exit code (store in the JSON; the
@@ -139,8 +160,9 @@ def test_inventory_attaches_line_coverage(tmp_path):
 
 ### Task 1.5: Emit the JSON + render the website page
 
-**Files:** Create `validation/data/test_dashboard.json` (generated); Create
-`docs/website/50-validation/test-dashboard.md`; Modify `docs/website/myst.yml` (nav).
+**Files:** Create `validation/data/test_dashboard.json` (generated); Create `validation/data/coverage.json`
+(generated, FULL-suite, with `coverage_provenance`); Create `docs/website/50-validation/test-dashboard.md`;
+Modify `docs/website/myst.yml` (nav).
 
 **Step 1:** `build_test_dashboard.py --emit` writes the timestamped JSON:
 ```json
@@ -148,7 +170,10 @@ def test_inventory_attaches_line_coverage(tmp_path):
  "line_coverage": {...}, "gate": {"registries_full": false, "line_cov_floor": 90, ...}}
 ```
 NOTE: `Date.now()`/`datetime.now()` are fine in a plain script (this is NOT a workflow); stamp the UTC
-time at generation.
+time at generation. Also: `--emit` reads/writes the COMMITTED `validation/data/coverage.json` (the SAME file
+the Phase-2 floor gate reads — ONE copy, not two) and records `coverage_provenance: {selector, git_sha}`; the
+dashboard's `line_coverage` block is derived from that committed file. The full-suite `--cov` run that produces
+`coverage.json` is a documented manual step (slow — gate it), NOT run by the staleness gate.
 
 **Step 2:** `--render` reads the JSON and writes `test-dashboard.md` — a MyST `{list-table}` matrix
 (per-module rows × {tests unit/int/val, line-cov %, grad-audit fill, validation PASS, @slow count,
@@ -165,7 +190,9 @@ to `myst.yml` `project.toc` under `50-validation`.
 semantic-diff vs the committed `validation/data/test_dashboard.json` (exact on discrete fields, rtol on
 floats, IGNORE the `generated_utc` timestamp field). Assert they match. Run → it should PASS (just
 committed). Then mutate the committed JSON (e.g. bump a count) and confirm the test REDS — proving teeth.
-Revert.
+Revert. The gate is **introspection-only** (re-collect node ids + parse committed artifacts); it does NOT
+re-run `--cov` or the suite. It also asserts `coverage_provenance.git_sha == HEAD` to catch a stale
+`coverage.json` without regenerating it. If any sub-step must run something heavy, mark the test `@slow`.
 
 **Step 2:** Commit.
 
@@ -207,18 +234,25 @@ def test_every_public_symbol_is_mapped():
 ```
 Run → FAIL until you populate `SYMBOL_TESTS` for all 114 symbols.
 
-**Step 2 (GREEN):** populate `SYMBOL_TESTS` by, for each `__all__` symbol, finding the test that exercises
-it (`grep -rl "<Symbol>" tests/`). Anything genuinely untested → either it IS untested (a real hole to
-fill in Task 2.3) or EXEMPT with a reason (Anna approves each EXEMPT). Run → PASS.
+**Step 2 (GREEN):** populate `SYMBOL_TESTS` by, for each `__all__` symbol, naming a test **function** that
+CONSTRUCTS/CALLS the symbol and ASSERTS on its output — **NOT** a mere `grep -rl "<Symbol>" tests/` hit (a
+substring match is coverage *theater*: e.g. `UniformSphereProfile` appears only as a Q-baseline fixture, and
+`BinaryState` matches zero test files). Use grep to LOCATE candidates, then verify each names an asserting
+test. Anything genuinely untested → a real hole (Task 2.3) or EXEMPT with a reason (Anna approves each EXEMPT;
+mirror the grad-audit `SYMBOL_CATEGORY` EXEMPT taxonomy, and cross-check the two EXEMPT sets agree so the two
+`__all__` partitions cannot drift). Run → PASS.
 
-**Step 3:** add the line-coverage-floor test:
+**Step 3:** add the line-coverage-floor test — reading the COMMITTED full-suite artifact and refusing to pass
+on a partial one (a `-m "not slow"` pass understates coverage and would spuriously fail the floor):
 ```python
 def test_line_coverage_above_floor():
-    cov = load_coverage("validation/data/coverage.json")  # committed by the dashboard run
+    cov = load_coverage("validation/data/coverage.json")  # committed by Task 1.5 --emit (FULL suite)
+    assert cov["coverage_provenance"]["selector"] == FULL_SELECTOR, (
+        "coverage.json is not from the FULL suite — regenerate with the full selector")
     assert cov["total_percent"] >= LINE_COV_FLOOR, f"line cov {cov['total_percent']:.1f} < {LINE_COV_FLOOR}"
 ```
-Run a FULL `--cov` pass to generate the committed `coverage.json`; if below 90%, list the under-covered
-modules (those become Task 2.3 / Phase 3 holes). Commit.
+Generate the committed `coverage.json` with the FULL suite (`tests/unit tests/integration tests/validation`,
+NO `-m "not slow"`); if below 90%, list the under-covered modules (those become Task 2.3 / Phase 3 holes). Commit.
 
 ### Task 2.2: Wire API-coverage into the dashboard
 
@@ -255,7 +289,7 @@ weaken either assertion — only remove the duplicate work.
 **Step 3:** Re-profile the FAST gate: `pytest tests/unit tests/integration tests/validation -m "not slow"
 -q -n auto --durations=10`. Confirm it dropped to minutes. Commit.
 
-### Tasks 3.2–3.5: Consolidate cross-tier redundancy (Plummer / EFF / Michie / LIMEPY)
+### Tasks 3.2–3.5: Consolidate cross-tier redundancy (Plummer / EFF / Michie; LIMEPY handled separately, see below)
 
 For EACH profile, repeat the King-consolidation pattern (already done for King in `9bb1f79`):
 1. Inventory the unit-tier physics tests (`tests/unit/profiles/test_<p>.py`,
@@ -268,6 +302,15 @@ For EACH profile, repeat the King-consolidation pattern (already done for King i
    maps every symbol.
 5. STOP and report the per-profile removal list to Anna BEFORE deleting (per-item approval — removing
    tests removes coverage). Per-profile commit.
+
+**LIMEPY is NOT symmetric — handle separately.** There is no `tests/validation/test_limepy_physics.py`;
+LIMEPY's validation tier is `test_limepy_reference_parity.py` (a reference-parity oracle) +
+`test_multimass_equilibrium_physics.py`, which do NOT duplicate the four unit limepy files. The King
+consolidation does NOT apply. Demote LIMEPY (Task 3.5) to a separate "inspect, likely no-op" task: at most
+de-duplicate AMONG the unit limepy files, with its own acceptance check. Verified per-profile scope (from the
+review): **Plummer = partial** (keep virial-Q / q²-variance unit-unique guards), **EFF = clean** (remove ~6,
+keep ~5 incl. spatial isotropy + the σ∝√M / σ∝1/√a virial channels + JIT guard), **Michie = partial** (keep
+the table-routing / quadrature-oracle guards), **LIMEPY = no-op-likely**.
 
 ### Task 3.6: Re-profile + update the dashboard
 
@@ -295,8 +338,15 @@ MODEL_INVARIANTS: dict[str, list[str]] = {
 }
 EXEMPT_NON_MODEL = {...}  # non-model symbols (utilities, containers) — no physics invariant required
 ```
-Ratchet: every `__all__` symbol that is a *model* (per a curated `IS_MODEL` set) must have a
-`MODEL_INVARIANTS` entry; a new model with no entry reds CI.
+Ratchet: every `__all__` symbol that is a *model* must have a `MODEL_INVARIANTS` entry; a new model with no
+entry reds CI. Define `IS_MODEL` **operationally**, not by hand-list intuition (the grad-audit shows hand-lists
+go inconsistent — `build_plummer_cluster` is `EXEMPT_HELPER` while `build_king_cluster` is `AUDITED`): a symbol
+is a model iff it implements `SpatialProfile`/`VelocityDF`/`IMFProtocol` (the runtime-checkable protocols) OR is
+a `build_*_cluster` entry point. For models whose physics is reference-parity rather than equilibrium-Q (LIMEPY,
+UniformSphere), EITHER accept "reference parity" / "uniform-density recovery" as a valid invariant class in
+`MODEL_INVARIANTS`, OR carve a documented `EXEMPT_NON_EQUILIBRIUM_MODEL` category (mirror the grad-audit EXEMPT
+taxonomy) so the exclusion is auditable, not silent. Cross-check `IS_MODEL`/EXEMPT against the grad-audit
+`SYMBOL_CATEGORY` so the two `__all__` partitions cannot drift apart.
 
 **Step 1 (RED):** `test_every_model_has_invariants()` cross-checks `IS_MODEL` ⊆ `MODEL_INVARIANTS`.
 **Step 2 (GREEN):** populate from the existing validation tests (each `test_<p>_physics.py` already
@@ -317,10 +367,15 @@ EXEMPT with Anna's sign-off. Regenerate + staleness gate.
 
 **Files:** Create `tests/validation/provenance_registry/manifest.py` + `test_provenance_coverage.py`.
 
-Per @research-workflow:provenance-of-constants. A scanner enumerates numeric literals / fit coefficients
-in `src/progenax/` (grep for float literals, `* M`, exponents, hardcoded constants), and the manifest
-maps each to a citation (the source comment / paper / CODATA). The ratchet: every flagged constant must
-appear in the manifest with a provenance string; a new unprovenanced literal reds CI.
+Per @research-workflow:provenance-of-constants. Do **NOT** build a regex float-literal scanner over all of
+`src/progenax/` — `grep -rEo '[0-9]+\.[0-9]+'` returns ~2,525 matches dominated by `1.0/0.0/0.5`, array fills,
+and exponents a regex cannot distinguish from citable coefficients (a massive false-positive triage trap).
+Instead, make the manifest a HAND-CURATED port of the constants `docs/provenance-ledger.md` already verified
+(the 2026-06 audit found ZERO fabricated values), each mapped to a citation (source comment / paper / CODATA).
+The ratchet is a `# provenance:`-comment-presence check over a hand-curated allowlist of constant-bearing
+files/lines (e.g. `limepy_tables.py`, `mapping.py`, `moe_di_stefano.py`); a new unprovenanced literal in an
+allowlisted location reds CI. A genuinely new unsourced number elsewhere is added to the allowlist with Anna's
+sign-off.
 
 **Step 1 (RED):** `test_every_flagged_constant_has_provenance()` — the scanner's flagged set ⊆ the
 manifest keys.
@@ -378,16 +433,25 @@ hand-maintained table that drifts). Update `tests/README.md` to reference the re
 | Docs (architecture + dashboard) | 6 | `testing-architecture.md` + the matrix |
 
 ## Risks / watch-items
-- **pytest-cov + xdist + JAX**: coverage under `-n auto` needs `pytest-cov`'s xdist support; run the
-  authoritative `--cov` pass WITHOUT `-n auto` if attribution is flaky (slower but correct), or use
-  `coverage combine`.
-- **Line coverage of JAX-traced code**: branches inside `jax.lax.cond`/`vmap` may not register as
-  "covered" by line tracing. Document such exclusions with `# pragma: no cover` + a reason; do NOT chase
-  them with artificial tests (the design rejects strict 100% line for exactly this).
-- **Registry manifests are hand-curated frozen literals** — that is intentional (a derived manifest
-  can't catch a deletion). Do not "DRY" them into a computed structure.
+- **pytest-cov + xdist + JAX — VERIFIED BENIGN (2026-06-14):** a serial-vs-`-n auto` smoke on `tests/unit`
+  subsets gave bit-identical line attribution (pytest-cov combines xdist workers natively), and `branch=true`
+  did NOT flag `jax.lax.cond`/`vmap` branches as partial (no false-RED to chase with pragmas). Keep the FULL
+  `--cov` run as the authoritative source anyway; no `coverage combine` step is needed.
+- **`validation/data/coverage.json` provenance (the floor's teeth):** ONE committed file, produced ONLY by the
+  FULL suite (NOT `-m "not slow"`), stamped `coverage_provenance: {selector, git_sha}`. The floor gate xfails if
+  `selector != FULL_SELECTOR`, and the staleness gate asserts `git_sha == HEAD` WITHOUT re-running `--cov`.
+  Without this, the floor is ungated/gameable (hand-edit a high number → green forever).
+- **Line coverage of JAX-traced code**: document any genuine exclusion with `# pragma: no cover` + a reason; do
+  NOT chase coverage with artificial tests (the design rejects strict 100% line for exactly this).
+- **Registry manifests are hand-curated frozen literals** — intentional (a derived manifest can't catch a
+  deletion). Do not "DRY" them into a computed structure.
+- **Cross-cutting tests are PROTECTED from the "kill orphans" rule:** units/G-threading
+  (`test_units_through_pipeline.py`), protocol-conformance (`test_protocols.py`), and end-to-end energy tests
+  trace to a named design requirement, NOT a per-symbol registry row — do NOT delete them as "orphans."
 - **Removing tests removes coverage** — every consolidation/removal in Phases 2.3 + 3.2-3.5 needs Anna's
   per-item approval before it lands.
-- **The staleness gate's own runtime**: the dashboard regeneration must be cheap (introspection +
-  parsing committed artifacts), NOT a full re-run — else it becomes the next `test_json_fresh` sink.
-  Mark it `@slow` if it must run anything heavy.
+- **Re-commit cadence:** Phases 2/3/4/5 each change registry-fill / `@slow` / per-module counts, so each MUST
+  regenerate + re-commit `test_dashboard.json` (+ `coverage.json` when coverage changes) and re-run the
+  staleness gate as an EXPLICIT task step — else the committed dashboard is stale the moment the phase lands.
+- **The staleness gate's own runtime**: the dashboard regeneration must be cheap (introspection + parsing
+  committed artifacts), NOT a full re-run — else it becomes the next `test_json_fresh` sink. Mark `@slow` if heavy.
