@@ -15,6 +15,7 @@ Direct invocation (``python scripts/build_test_dashboard.py``) puts only
 so ``import tests.*`` / ``import scripts.*`` would ImportError. We mirror the
 bootstrap in ``scripts/audit_gradients.py`` and insert the repo root first.
 """
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +27,10 @@ if str(_REPO_ROOT) not in sys.path:
 # The three released-core tiers, in dashboard order.
 _TIERS = ("unit", "integration", "validation")
 _TIER_DIRS = tuple(f"tests/{tier}" for tier in _TIERS)
+
+# pytest-cov keys each covered file by its repo-relative path; the released
+# package lives under this prefix. We only report coverage for these files.
+_SRC_PREFIX = "src/progenax/"
 
 
 def _node_id_to_module_tier(node_id: str) -> tuple[str, str] | None:
@@ -90,6 +95,67 @@ def collect_test_inventory() -> dict[str, dict[str, int]]:
             f"stdout tail:\n{proc.stdout[-2000:]}"
         )
     return inventory
+
+
+def _file_key_to_module(file_key: str) -> str:
+    """Map a pytest-cov ``files`` key to a per-file module name, or ``""`` to skip.
+
+    pytest-cov keys are repo-relative paths, e.g. ``src/progenax/builders.py`` or
+    ``src/progenax/analytical/base.py``. The module name is the path RELATIVE to
+    ``src/progenax/`` with the ``.py`` suffix dropped:
+
+    - ``src/progenax/builders.py``        -> ``builders``
+    - ``src/progenax/analytical/base.py`` -> ``analytical/base``
+    - ``src/progenax/__init__.py``        -> ``__init__``
+
+    Per-FILE granularity (the plan permits this). Top-level files collapse to a
+    bare name (``builders``), which lines up with how ``collect_test_inventory``
+    buckets top-level test files; nested files keep their package path so distinct
+    modules never collapse together. Files outside ``src/progenax/`` (e.g. tests,
+    conftest) return ``""`` and are dropped by the caller.
+    """
+    if not file_key.startswith(_SRC_PREFIX):
+        return ""
+    rel = file_key[len(_SRC_PREFIX):]
+    if rel.endswith(".py"):
+        rel = rel[: -len(".py")]
+    return rel
+
+
+def load_coverage(path: str) -> dict:
+    """Parse a pytest-cov ``coverage.json`` into dashboard-friendly coverage.
+
+    Reads the top-level ``totals.percent_covered`` and each ``files`` entry's
+    ``summary.percent_covered``, mapping every ``src/progenax/<...>.py`` file to a
+    per-file module name (see :func:`_file_key_to_module`). Non-``src/progenax``
+    files are ignored.
+
+    The committed ``validation/data/coverage.json`` (Task 1.5) is a pytest-cov
+    JSON with an ADDED top-level ``coverage_provenance`` block
+    ``{"selector": ..., "git_sha": ...}`` that the Phase-2 floor gate reads. A raw
+    ``--cov`` run does NOT have it, so it is OPTIONAL: passed through when present,
+    ``None`` when absent.
+
+    Returns::
+
+        {
+            "total_percent": float,            # totals.percent_covered
+            "per_module": {module: float},     # src/progenax/<...> only
+            "coverage_provenance": dict | None,
+        }
+    """
+    data = json.loads(Path(path).read_text())
+    per_module: dict[str, float] = {}
+    for file_key, file_data in data.get("files", {}).items():
+        module = _file_key_to_module(file_key)
+        if not module:
+            continue
+        per_module[module] = float(file_data["summary"]["percent_covered"])
+    return {
+        "total_percent": float(data["totals"]["percent_covered"]),
+        "per_module": per_module,
+        "coverage_provenance": data.get("coverage_provenance"),
+    }
 
 
 if __name__ == "__main__":

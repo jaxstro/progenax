@@ -1,0 +1,49 @@
+{
+  "meta": {
+    "format": 3,
+    "version": "7.6.0",
+    "timestamp": "2026-06-14T00:00:00",
+    "branch_coverage": true,
+    "show_contexts": false
+  },
+  "files": {
+    "src/progenax/builders.py": {
+      "summary": {
+        "covered_lines": 90,
+        "num_statements": 100,
+        "percent_covered": 90.0,
+        "percent_covered_display": "90",
+        "missing_lines": 10,
+        "excluded_lines": 0
+      }
+    },
+    "src/progenax/analytical/base.py": {
+      "summary": {
+        "covered_lines": 30,
+        "num_statements": 40,
+        "percent_covered": 75.0,
+        "percent_covered_display": "75",
+        "missing_lines": 10,
+        "excluded_lines": 0
+      }
+    },
+    "tests/conftest.py": {
+      "summary": {
+        "covered_lines": 5,
+        "num_statements": 5,
+        "percent_covered": 100.0,
+        "percent_covered_display": "100",
+        "missing_lines": 0,
+        "excluded_lines": 0
+      }
+    }
+  },
+  "totals": {
+    "covered_lines": 120,
+    "num_statements": 140,
+    "percent_covered": 85.71428571428571,
+    "percent_covered_display": "86",
+    "missing_lines": 20,
+    "excluded_lines": 0
+  }
+}
