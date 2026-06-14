@@ -11,11 +11,13 @@ modules and parse COMMITTED artifacts (so the Task-1.6 staleness gate stays chea
 from pathlib import Path
 
 from scripts.build_test_dashboard import (
+    build_dashboard,
     collect_test_inventory,
     load_coverage,
     read_durations,
     read_registry_status,
     read_validation_scripts,
+    write_coverage_json,
 )
 
 _FIXTURE = str(
@@ -102,3 +104,61 @@ def test_validation_scripts_absent_artifact_all_unknown():
     runs = read_validation_scripts(path="validation/data/__nope_valruns__.json")
     assert len(runs) == 23
     assert all(code == "unknown" for code in runs.values())
+
+
+# --- Task 1.5: write_coverage_json (provenance injection) -------------------
+
+def test_write_coverage_json_injects_provenance(tmp_path):
+    """The Phase-2 path: read a raw pytest-cov json, inject a top-level
+    coverage_provenance block, write the merged json, and confirm it round-trips
+    through load_coverage with provenance now populated.
+    """
+    out = tmp_path / "coverage.json"
+    write_coverage_json(
+        raw_cov_path=_FIXTURE,
+        out_path=str(out),
+        selector="tests/unit tests/integration tests/validation",
+        git_sha="deadbeef",
+    )
+    cov = load_coverage(str(out))
+    # round-trips: same totals + per-module mapping as the raw fixture.
+    raw = load_coverage(_FIXTURE)
+    assert cov["total_percent"] == raw["total_percent"]
+    assert cov["per_module"] == raw["per_module"]
+    # ...but now provenance is populated (the raw fixture has None).
+    assert raw["coverage_provenance"] is None
+    assert cov["coverage_provenance"] == {
+        "selector": "tests/unit tests/integration tests/validation",
+        "git_sha": "deadbeef",
+    }
+
+
+# --- Task 1.5: build_dashboard ----------------------------------------------
+
+def test_build_dashboard_has_all_blocks():
+    dash = build_dashboard("2026-01-01T00:00:00Z")
+    # generated_utc is stamped EXACTLY as passed (staleness gate ignores it).
+    assert dash["generated_utc"] == "2026-01-01T00:00:00Z"
+    for key in ("modules", "registries", "line_coverage", "durations",
+                "validation_scripts", "gate"):
+        assert key in dash, f"missing top-level block: {key}"
+
+
+def test_build_dashboard_modules_merge_inventory():
+    dash = build_dashboard("2026-01-01T00:00:00Z")
+    builders = dash["modules"]["builders"]
+    assert builders["unit"] > 0
+    for tier in ("unit", "integration", "validation"):
+        assert tier in builders
+    # line_cov is present (float when coverage measured, else None).
+    assert "line_cov" in builders
+
+
+def test_build_dashboard_registry_and_gate_state():
+    dash = build_dashboard("2026-01-01T00:00:00Z")
+    # api_coverage registry is not built yet in Phase 1.
+    assert dash["registries"]["api_coverage"]["status"] == "not-built"
+    # gate: registries are NOT all full (3 of 4 not built) and the floor is 90.
+    assert dash["gate"]["registries_full"] is False
+    assert dash["gate"]["line_cov_floor"] == 90
+    assert dash["gate"]["full_suite_green"] is None

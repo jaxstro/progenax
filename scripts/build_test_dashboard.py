@@ -6,8 +6,13 @@ out to ``pytest --collect-only`` and parses node ids, which is acceptable here
 (it is NOT bound by the JAX-native constraint that governs ``src/progenax``).
 
 Task 1.2 implements ``collect_test_inventory()`` — the per-module test census
-across the three tiers (unit / integration / validation). Later tasks (1.3-1.5)
-add line coverage, registry status, durations, and JSON/MyST emission.
+across the three tiers (unit / integration / validation). Tasks 1.3-1.4 add line
+coverage, registry status, durations, and validation-script readers. Task 1.5
+assembles them into a timestamped dashboard dict (:func:`build_dashboard`),
+stamps + writes the committed JSON (``--emit``), injects coverage provenance
+(:func:`write_coverage_json`, the Phase-2 ``coverage.json`` stamp path), and
+renders the MyST matrix page (``--render``, delegated to
+:mod:`scripts._dashboard_render` to keep this file under the 500-LOC cap).
 
 Direct invocation (``python scripts/build_test_dashboard.py``) puts only
 ``scripts/`` on ``sys.path``; ``pyproject.toml`` sets
@@ -15,14 +20,27 @@ Direct invocation (``python scripts/build_test_dashboard.py``) puts only
 so ``import tests.*`` / ``import scripts.*`` would ImportError. We mirror the
 bootstrap in ``scripts/audit_gradients.py`` and insert the repo root first.
 """
+import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+# The committed line-coverage artifact (FULL-suite, stamped with provenance) and
+# the committed timestamped dashboard JSON, plus the rendered MyST page. All three
+# are relative to the repo root; the dashboard's ``line_coverage`` block is derived
+# from ``coverage.json`` IF it exists (else a not-measured placeholder).
+_COVERAGE_JSON = "validation/data/coverage.json"
+_DASHBOARD_JSON = "validation/data/test_dashboard.json"
+_DASHBOARD_PAGE = "docs/website/50-validation/test-dashboard.md"
+
+# Phase-2 line-coverage floor (ratchet-up-only); echoed into the gate block.
+_LINE_COV_FLOOR = 90
 
 # The three released-core tiers, in dashboard order.
 _TIERS = ("unit", "integration", "validation")
@@ -158,6 +176,28 @@ def load_coverage(path: str) -> dict:
     }
 
 
+def write_coverage_json(
+    raw_cov_path: str, out_path: str, selector: str, git_sha: str
+) -> None:
+    """Stamp a raw pytest-cov JSON with provenance and write it to ``out_path``.
+
+    This is the EXACT path Phase-2 Task 2.1 uses to produce the committed
+    ``validation/data/coverage.json``: it reads a raw ``--cov-report=json`` file,
+    injects a top-level ``coverage_provenance`` block::
+
+        {"selector": <full-suite selector>, "git_sha": <HEAD sha>}
+
+    and writes the merged JSON. The ``selector`` records which suite produced the
+    numbers (the floor gate refuses a partial ``-m "not slow"`` run); ``git_sha``
+    lets the staleness gate detect a stale ``coverage.json`` without re-running
+    ``--cov``. The resulting file round-trips through :func:`load_coverage` with
+    ``coverage_provenance`` populated (it is ``None`` in a raw, unstamped file).
+    """
+    data = json.loads(Path(raw_cov_path).read_text())
+    data["coverage_provenance"] = {"selector": selector, "git_sha": git_sha}
+    Path(out_path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
 # grad-audit row statuses are COMPUTED by grad_audit/core.py::_classify into exactly
 # three values (see its docstring + AuditResult.status comment): "clean" and
 # "known-limitation" are benign/expected (FD-consistent, or a deliberately annotated
@@ -263,8 +303,117 @@ def read_validation_scripts(
     return {s.name: recorded.get(s.name, "unknown") for s in scripts}
 
 
+def _line_coverage_block() -> dict:
+    """The dashboard ``line_coverage`` block: parsed committed coverage or a stub.
+
+    Derived from the COMMITTED ``validation/data/coverage.json`` IF it exists
+    (written by a FULL-suite ``--cov`` run + :func:`write_coverage_json`), else
+    ``{"status": "not-measured"}``. The full-suite ``--cov`` run is a documented
+    manual step (~13-15 min, Phase-2 Task 2.1) — ``build_dashboard`` NEVER triggers
+    it; it only reads what is already committed.
+    """
+    p = _REPO_ROOT / _COVERAGE_JSON
+    if not p.exists():
+        return {"status": "not-measured"}
+    return load_coverage(str(p))
+
+
+def build_dashboard(timestamp: str) -> dict:
+    """Assemble the timestamped dashboard dict from the introspection readers.
+
+    Unions the per-module test census (:func:`collect_test_inventory`) with
+    per-module line coverage (``None`` where coverage is not measured), the
+    registry status (:func:`read_registry_status`), the line-coverage block
+    (:func:`_line_coverage_block`), durations (:func:`read_durations`), and
+    validation-script exit codes (:func:`read_validation_scripts`), plus a release
+    ``gate`` summary.
+
+    ``timestamp`` is stamped verbatim into ``generated_utc`` (the CLI passes a real
+    UTC time; the staleness gate IGNORES this field). Everything else is
+    deterministic from committed artifacts + node-id collection, so the gate can
+    regenerate and semantic-diff cheaply.
+    """
+    inventory = collect_test_inventory()
+    registries = read_registry_status()
+    line_coverage = _line_coverage_block()
+
+    # Per-module line coverage: present only when the committed coverage.json is a
+    # parsed pytest-cov file (it has "per_module"); None otherwise.
+    per_module_cov = line_coverage.get("per_module", {})
+    modules: dict[str, dict] = {}
+    for module, counts in sorted(inventory.items()):
+        modules[module] = {
+            "unit": counts["unit"],
+            "integration": counts["integration"],
+            "validation": counts["validation"],
+            "line_cov": per_module_cov.get(module),
+        }
+
+    line_cov_measured = line_coverage.get("total_percent")  # None when not-measured
+    registries_full = all(
+        block.get("status") == "built" and block.get("full") is True
+        for block in registries.values()
+    )
+
+    return {
+        "generated_utc": timestamp,
+        "modules": modules,
+        "registries": registries,
+        "line_coverage": line_coverage,
+        "durations": read_durations(),
+        "validation_scripts": read_validation_scripts(),
+        "gate": {
+            "registries_full": registries_full,
+            "line_cov_floor": _LINE_COV_FLOOR,
+            "line_cov_measured": line_cov_measured,
+            "full_suite_green": None,
+        },
+    }
+
+
+def _emit(out_path: Path) -> None:
+    """Stamp the UTC time, build the dashboard, and write the committed JSON.
+
+    ``datetime.now`` is fine here — this is a plain script, NOT a workflow. The
+    JSON is pretty-printed with stable key order so diffs stay clean and the
+    staleness gate is deterministic.
+    """
+    timestamp = datetime.now(timezone.utc).isoformat()
+    dashboard = build_dashboard(timestamp)
+    out_path.write_text(json.dumps(dashboard, indent=2, sort_keys=True) + "\n")
+    print(f"wrote {out_path.relative_to(_REPO_ROOT)} ({timestamp})")
+
+
+def _render(json_path: Path, page_path: Path) -> None:
+    """Render the committed dashboard JSON to the MyST matrix page."""
+    from scripts._dashboard_render import render_dashboard_page
+
+    dashboard = json.loads(json_path.read_text())
+    page_path.write_text(render_dashboard_page(dashboard))
+    print(f"wrote {page_path.relative_to(_REPO_ROOT)}")
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--emit", action="store_true",
+        help="build + write the timestamped dashboard JSON (validation/data/).",
+    )
+    parser.add_argument(
+        "--render", action="store_true",
+        help="render the committed dashboard JSON to the MyST matrix page.",
+    )
+    args = parser.parse_args(argv)
+
+    if args.emit:
+        _emit(_REPO_ROOT / _DASHBOARD_JSON)
+    if args.render:
+        _render(_REPO_ROOT / _DASHBOARD_JSON, _REPO_ROOT / _DASHBOARD_PAGE)
+    if not (args.emit or args.render):
+        inv = collect_test_inventory()
+        total = sum(t for m in inv.values() for t in m.values())
+        print(f"collected {total} tests across {len(inv)} modules")
+
+
 if __name__ == "__main__":
-    # Minimal entrypoint for Task 1.2 (the --emit / --render CLI lands in Task 1.5).
-    inv = collect_test_inventory()
-    total = sum(t for m in inv.values() for t in m.values())
-    print(f"collected {total} tests across {len(inv)} modules")
+    main()

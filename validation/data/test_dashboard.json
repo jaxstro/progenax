@@ -1,0 +1,336 @@
+{
+  "durations": {
+    "status": "not-measured"
+  },
+  "gate": {
+    "full_suite_green": null,
+    "line_cov_floor": 90,
+    "line_cov_measured": null,
+    "registries_full": false
+  },
+  "generated_utc": "2026-06-14T22:47:16.879853+00:00",
+  "line_coverage": {
+    "status": "not-measured"
+  },
+  "modules": {
+    "analytical": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 7,
+      "validation": 0
+    },
+    "binaries": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 128,
+      "validation": 0
+    },
+    "builders": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 43,
+      "validation": 0
+    },
+    "cluster": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 63,
+      "validation": 0
+    },
+    "diagnostics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 28,
+      "validation": 0
+    },
+    "dynamics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 28,
+      "validation": 0
+    },
+    "grad_audit": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 26
+    },
+    "imf": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 269,
+      "validation": 0
+    },
+    "kinematics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 106,
+      "validation": 0
+    },
+    "profiles": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 207,
+      "validation": 0
+    },
+    "substructure": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 34,
+      "validation": 0
+    },
+    "test_analytical_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 12
+    },
+    "test_azimuthal_variation_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 5
+    },
+    "test_binary_cluster": {
+      "integration": 11,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    },
+    "test_binary_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 19
+    },
+    "test_builders": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 14,
+      "validation": 0
+    },
+    "test_cluster_builders_integration": {
+      "integration": 7,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    },
+    "test_dashboard_gen": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 11
+    },
+    "test_documented_api": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 16,
+      "validation": 0
+    },
+    "test_eff_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 24
+    },
+    "test_end_to_end": {
+      "integration": 9,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    },
+    "test_engine_b_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 6
+    },
+    "test_environment_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 15
+    },
+    "test_grad_audit": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 87
+    },
+    "test_imf_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 23
+    },
+    "test_jax_compatibility": {
+      "integration": 6,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    },
+    "test_king_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 35
+    },
+    "test_limepy_reference_parity": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 3
+    },
+    "test_mass_segregation_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 9
+    },
+    "test_michie_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 10
+    },
+    "test_multimass_equilibrium_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 6
+    },
+    "test_numerics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 8,
+      "validation": 0
+    },
+    "test_plummer_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 20
+    },
+    "test_protocols": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 14,
+      "validation": 0
+    },
+    "test_public_api": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 2,
+      "validation": 0
+    },
+    "test_readme_examples": {
+      "integration": 9,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    },
+    "test_rotation_anisotropy_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 8
+    },
+    "test_segregation_approx_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 13
+    },
+    "test_segregation_equilibrium_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 4
+    },
+    "test_strict_refs": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 1
+    },
+    "test_substructure_q_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 8
+    },
+    "test_tidal": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 15,
+      "validation": 0
+    },
+    "test_tidal_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 9
+    },
+    "test_units_through_pipeline": {
+      "integration": 2,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 0
+    }
+  },
+  "registries": {
+    "api_coverage": {
+      "status": "not-built"
+    },
+    "differentiability": {
+      "audited": 33,
+      "exempt": {
+        "EXEMPT_ANALYTICAL_IC": 14,
+        "EXEMPT_CONTAINER": 15,
+        "EXEMPT_COVERED_ELSEWHERE": 21,
+        "EXEMPT_HELPER": 11,
+        "EXEMPT_NON_FISHER_DIAGNOSTIC": 11,
+        "EXEMPT_PROTOCOL": 9
+      },
+      "hazards": 0,
+      "json_rows": 85,
+      "must_audit": 75,
+      "status": "built",
+      "status_histogram": {
+        "clean": 81,
+        "known-limitation": 4
+      }
+    },
+    "physics_validation": {
+      "status": "not-built"
+    },
+    "provenance": {
+      "status": "not-built"
+    }
+  },
+  "validation_scripts": {
+    "validate_analytical.py": "unknown",
+    "validate_azimuthal_variation.py": "unknown",
+    "validate_binaries.py": "unknown",
+    "validate_cluster_builders.py": "unknown",
+    "validate_cluster_ic.py": "unknown",
+    "validate_df_tables.py": "unknown",
+    "validate_eff.py": "unknown",
+    "validate_environment.py": "unknown",
+    "validate_equipartition_saturation.py": "unknown",
+    "validate_imfs.py": "unknown",
+    "validate_king.py": "unknown",
+    "validate_limepy_reference.py": "unknown",
+    "validate_mass_segregation.py": "unknown",
+    "validate_michie.py": "unknown",
+    "validate_multicomponent_eddington.py": "unknown",
+    "validate_multimass_anisotropy.py": "unknown",
+    "validate_multimass_equilibrium.py": "unknown",
+    "validate_plummer.py": "unknown",
+    "validate_rotation_anisotropy.py": "unknown",
+    "validate_segregation_approx.py": "unknown",
+    "validate_speed_routing.py": "unknown",
+    "validate_substructure_q.py": "unknown",
+    "validate_tidal.py": "unknown"
+  }
+}

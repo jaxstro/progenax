@@ -153,6 +153,7 @@ project:
     - title: Validation
       children:
         - file: 50-validation/index.md
+        - file: 50-validation/test-dashboard.md
         - file: 50-validation/audit-report.md
         - file: 50-validation/methodology.md
         - file: 50-validation/differentiability-audit.md
