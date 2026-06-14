@@ -9,7 +9,6 @@ Tests verify that implementations match theoretical predictions from:
 Each test has quantitative error bounds based on literature values.
 """
 
-import jax
 import jax.numpy as jnp
 import pytest
 
@@ -292,38 +291,16 @@ class TestIMFMassiveStars:
             f"Shallower slope should produce more massive stars: {frac_shallow*100:.2f}% vs {frac_steep*100:.2f}%"
 
 
-class TestIMFDifferentiability:
-    """Verify IMF sampling is differentiable."""
-
-    def test_grad_through_ppf(self):
-        """Gradient flows through PPF (inverse CDF)."""
-        imf = ChabrierIMF()
-
-        def mean_mass_from_u(u):
-            masses = imf.ppf(u)
-            return jnp.mean(masses)
-
-        u_test = jnp.linspace(0.1, 0.9, 10)
-        grad_fn = jax.grad(mean_mass_from_u)
-
-        # Should compute gradient without error
-        grad_val = grad_fn(u_test)
-        assert jnp.all(jnp.isfinite(grad_val)), "Gradient contains non-finite values"
-
-    def test_grad_through_sample(self):
-        """Total mass is differentiable w.r.t. IMF parameters."""
-        # Use fixed uniform samples (not random key) for differentiability
-        u = jnp.linspace(0.1, 0.9, 100)
-
-        def total_mass_fn(m_min):
-            # Use Salpeter with varying m_min
-            imf = PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=m_min, m_max=100.0)
-            return jnp.sum(imf.ppf(u))
-
-        grad_fn = jax.grad(total_mass_fn)
-        grad_val = grad_fn(0.1)
-
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}, expected finite"
+# IMF-sampler differentiability is owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestIMFDifferentiability smoke tests were removed (audit T6: isfinite passes a
+# silently-zeroed grad; the registry FD cases are strictly stronger; registry is SoT):
+#   - test_grad_through_sample (grad wrt m_min) -> PowerLawIMF.ppf[m_min] +
+#     PowerLawIMF.cdf[H4] [m_min] (both FD-audited).
+#   - test_grad_through_ppf (grad wrt the uniform draw u, a non-param du-monotonicity
+#     smoke) is redundant -- the IMF PPF parameter channels are FD-audited by the
+#     registry's ChabrierIMF/Maschberger/PowerLawIMF .ppf cases.
 
 
 class TestMeanMassAccuracy:
