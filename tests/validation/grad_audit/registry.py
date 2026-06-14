@@ -1889,6 +1889,10 @@ REGISTRY: list[Case] = [
          param="r_c", theta0=1.0, reduce=mean_radius, tol=1e-5),        # |ratio-1|=4.9e-12
     Case(id="build_eff_cluster", direction="params->IC", fn=_beff_gamma,
          param="gamma", theta0=3.0, reduce=mean_radius, tol=1e-3),      # |ratio-1|=1.8e-5
+    # tol=1e-3 is the tightest margin (2.7x over measured): the Michie W0 channel runs
+    # through the diffrax ODE solve, so its FD floor tracks the solver tolerance / n_ode_points
+    # default. If those defaults change this case is the most likely to flicker (King sidesteps
+    # this by auditing the non-ODE r_c channel; Michie has no comparably clean non-ODE scale).
     Case(id="build_michie_cluster", direction="params->IC", fn=_bmich_W0,
          param="W0", theta0=7.0, reduce=mean_radius, tol=1e-3),         # |ratio-1|=3.7e-4
     Case(id="build_limepy_cluster", direction="params->IC", fn=_blim_W0,
