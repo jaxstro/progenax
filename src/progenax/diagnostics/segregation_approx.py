@@ -234,8 +234,10 @@ def sigma_m_approx(
 
         S = corr_i( w_i , log Sigma_i ),   Sigma_i = (k - 1) / (pi r_ik^2)
 
-    where ``r_ik`` is the distance to the ``k``-th nearest neighbour (Maschberger &
-    Clarke 2011, Eq. 4; ``k = 6`` standard). The k-NN radius is computed with
+    where ``r_ik`` is the distance to the ``k``-th nearest neighbour. The local
+    surface-density estimator ``Sigma = (k-1)/(pi r_k^2)`` and the ``k = 6`` choice
+    follow von Hoerner (1963) / Casertano & Hut (1985), as adopted by Maschberger &
+    Clarke (2011, Eq. 4). The k-NN radius is computed with
     ``jnp.sort`` -- the **exact** k-th order statistic, which (unlike ``argsort``) has a
     well-defined JVP, so the observable is differentiable in positions without any
     softening of the radius.
@@ -250,8 +252,8 @@ def sigma_m_approx(
         masses: Stellar masses ``(N,)``.
         m_cut: Mass cut for the massive population.
         tau: Soft mass-cut softness (> 0).
-        k: Nearest-neighbour rank for the local-density estimator (Maschberger-Clarke
-            ``k = 6``). Must satisfy ``2 <= k < N``.
+        k: Nearest-neighbour rank for the local-density estimator (``k = 6``;
+            Casertano & Hut 1985, via Maschberger & Clarke 2011). Must satisfy ``2 <= k < N``.
         project_to_2d: Use projected (x, y) positions if True (observer-faithful;
             surface density is intrinsically a projected quantity).
         calibration: Multiplicative calibration vs the exact Sigma--m oracle.

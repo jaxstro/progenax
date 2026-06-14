@@ -184,10 +184,10 @@ class MoeEccentricity(eqx.Module):
         Eq. 18 (early-type, M1 > 7 Msun):       η = 0.9 - 0.2 / (logP - 0.5)
 
     with a linear interpolation in M1 for 3 <= M1 <= 7 Msun. η = 0 is uniform
-    (<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Sana et al. (2012)
-    measure η ≈ -0.4 for short-period (P < 10 d) O-stars; solar-type binaries
-    asymptote to η ≈ 0.5 at long P; intermediate-period massive binaries reach
-    η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
+    (<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Eqs. 17-18 themselves
+    drive short-period (logP ≲ 1) massive binaries to η < 0 (tidal
+    circularization); solar-type binaries asymptote to η ≈ 0.5 at long P;
+    intermediate-period massive binaries reach η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
     the orbit is tidally circularized and this returns e ≈ 0 (Moe notes η is "not
     well defined" for logP ≲ 1).
 
@@ -205,7 +205,9 @@ class MoeEccentricity(eqx.Module):
 
     Reference:
         Moe & Di Stefano (2017) ApJS 230, 15, §9.2 Eqs. 17-18, Eq. 3, Fig. 36.
-        Sana et al. (2012) Science 337, 444 - η = -0.4 ± 0.2 short-period O-stars.
+        Sana et al. (2012) Science 337, 444 - short-period O-star binaries are
+            eccentricity-poor; the precise slope is in their supplementary Table S3
+            (not reproduced in the held main report).
 
     Parameters:
         e_max: Numerical eccentricity ceiling at long P (default: 0.99); the

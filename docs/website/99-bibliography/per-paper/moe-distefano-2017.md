@@ -75,8 +75,9 @@ $\eta = 0$ is uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e
 with linear interpolation in $M_1$ for $3 \le M_1 \le 7\,M_\odot$ (Eqs. 17–18 valid
 $0.5 < \log P < 6$/$5$). Late-type binaries asymptote to $\eta \approx 0.5$ at long $P$; early-type
 intermediate-period binaries reach $\eta \approx 0.8$ (near-thermal); short periods circularize
-($\eta$ "not well defined" for $\log P \lesssim 1$). Sana et al. (2012) measure
-$\eta = -0.4 \pm 0.2$ for short-period O-stars.
+($\eta$ "not well defined" for $\log P \lesssim 1$). Sana et al. (2012) likewise find
+short-period O-star binaries are eccentricity-poor ($\eta < 0$); their precise slope is
+tabulated in the supplementary Table S3 (paywalled, not in the held main report).
 
 ## Use in progenax
 

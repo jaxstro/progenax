@@ -96,7 +96,7 @@ class PowerLawMassRatio(eqx.Module):
     """Power-law mass-ratio distribution p(q) ∝ q^γ.
 
     Reference:
-        Sana et al. (2012) Science 337, 444 - Eq. 3
+        Sana et al. (2012) Science 337, 444 - main text & Fig. 1 (κ ≈ -0.1; Science Report, no numbered eqs)
         O-star binaries: γ ≈ -0.1 (nearly flat, slight preference for unequal)
 
         Moe & Di Stefano (2017) ApJS 230, 15 - Section 9.1

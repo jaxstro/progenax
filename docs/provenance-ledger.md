@@ -136,6 +136,35 @@ PDFs read directly: Demircan & Kahraman 1991 Table II + §4 (scanned, rendered p
 
 **Verification:** 1 docstring fix (no behavior change). Consolidation: TWO Aarseth-1974 PDFs held (`AarsethHenonWielen1974.pdf` = the cited A&A 37,183; `aarseth1974.pdf` = scanned, likely a different/duplicate Aarseth-1974 — disambiguate). **Bucket C (Tier 1+2) COMPLETE.**
 
+### Batch 5 — IMF classic (Salpeter/Kroupa/Chabrier/Maschberger) + Sana 2012 (2026-06-14)
+
+PDFs read directly: `salpeter-1955.pdf` (scanned, rendered p. 165), `kroupa-2001.pdf` (Eq. 2 p. 234,
+⟨m⟩ p. 235), `Chabrier_2003_PASP_115_763.pdf` (Table 1 p. 769), `maschberger-2013.pdf` (Table 1
+p. 1727), `maschberger-2011-mnras0416-0541.pdf` (estimator p. 544), `sana-2012.pdf` (main report; p. 3
++ Fig. 1 caption). Inventory fan-out: 5 read-only agents (leads only); **every value adjudicated by
+the main loop against the actual PDF**.
+
+| item | location | source (held PDF) | verdict |
+|------|----------|-------------------|---------|
+| Salpeter α = 2.35 | `power_law.py:147` | Salpeter 1955 p. 165 (ξ ∝ m^−1.35 per d log m = α = 2.35 per dm) | ✅ verified |
+| Kroupa exponents [0.3, 1.3, 2.3(, 2.3)] + breaks [0.08, 0.5, 1.0] | `power_law.py:130-131`, `params.py:69-90` | Kroupa 2001 Eq. 2 p. 234 (verbatim) | ✅ verified (3-seg merge of α₂=α₃=2.3 is exact) |
+| Kroupa ⟨m⟩ range "0.01–1 M⊙" | `kroupa-2001.md:51` | Kroupa 2001 p. 235: ⟨m⟩ = 0.36 over **0.01–50** M⊙ | 🔧 fixed → 0.01–50 (value 0.36 correct; range was wrong) |
+| Chabrier single-star m_c = 0.079≈0.08, σ = 0.69, A = 0.158 | `chabrier.py:65-69` | Chabrier 2003 Table 1 p. 769 (single ≠ system m_c≈0.2/σ≈0.6 — correctly distinguished) | ✅ verified |
+| Maschberger α = 2.3, β = 1.4, μ = 0.2, m_l = 0.01 | `smooth.py:74-77` | Maschberger 2013 Table 1 p. 1727 (verbatim) | ✅ verified |
+| Σ-estimator (k−1)/(π r_k²) + k = 6 credited only "M&C 2011 Eq. 4" | `segregation_approx.py:237,253` | M&C 2011 p. 544: "follow von Hoerner (1963) / Casertano & Hut (1985)" | 🔧 fixed — credited the upstream origin (formula/value correct) |
+| Sana π = −0.55±0.22, κ = −0.10±0.58, f_bin = 0.69±0.09, 71% interact | `period.py:138`, `imf.py:342-343`, `sana-2012.md` | Sana 2012 main text p. 3 + Fig. 1 caption + p. 446 (verbatim) | ✅ verified |
+| Sana q-slope cited "Eq. 3" | `mass_ratio.py:99` | Sana 2012 is a Science Report — **no numbered equations** (κ in main text + Fig. 1) | 🔧 fixed → "main text & Fig. 1" |
+| **Sana eccentricity η = −0.4 ± 0.2** | `eccentricity.py:188,208`; `sana-2012.md:46`; `moe-distefano-2017.md:79` | **NOT in held main paper** (value lives in supplementary Table S3, paywalled); **absent from ALL held secondaries** (Moe 2017 / D&K 2013 / COMPAS ×2 / Sana-HM 2025 / Raghavan 2010 — searched, 0 hits) | 🔧 fixed — the −0.4±0.2 **backs no code** (`MoeEccentricity` computes η from Moe Eqs. 17–18, held + Batch-2-verified); it was docstring/note context only → **de-asserted to an honest SOM pointer** (Anna-approved). First "value in no held source" finding of the audit. |
+
+**Verification:** `make build` → 161 pages, **0 warnings**, exit 0 (Kroupa ⟨m⟩ journal page re-confirmed
+p. 235; M&C 2011 upstream-origin re-confirmed p. 544). All `src/` edits docstring-only (no value/behavior
+change). Released-core gate unaffected. **Bucket B held-PDF deep-verify COMPLETE.**
+
+*Low-priority hygiene (NOT applied — optional, Anna's call):* Salpeter code comment omits the
+−1.35→−2.35 convention + `m_min=0.1`/`m_max=100` defaults unsourced & outside the fitted ~0.4–10 M⊙
+range; Sana period range `[0.15, 3.5]` lower bound is figure-read (cite "Fig. 2" → SOM); Sana π/κ
+uncertainty mixing (±0.22/±0.58 vs ±0.2/±0.6) across files; Chabrier `m_trans=1.0` lacks an inline cite.
+
 ---
 
 ## Open flags (⚠ awaiting adjudication) & queued work
@@ -145,12 +174,14 @@ PDFs read directly: Demircan & Kahraman 1991 Table II + §4 (scanned, rendered p
   `build_plummer_cluster`; `tidal-and-substructure/index.md` removed-fractal frontmatter; `physics-tests.md`
   stale Measured rows. → reframe to `BirthEnvironment`/`env_to_imf_params`/`build_spatial_ic`; drop the
   galaxy-wide-IGIMF overclaim (per CLAUDE.md R7).
-- **Bucket B — held-PDF deep-verify:** ✅ Moe Table 13 (Batch 2); ✅ Profiles bundle — King Table II /
-  LIMEPY g+3/2 / CW04 (Batch 3, 2 docstring fixes). **Queued:** IMF classic + Sana; Maschberger & Clarke
-  Eq.4 (likely Casertano & Hut 1985 mis-attribution).
-- **⚠ cross-note η (queued, Sana batch):** `moe-distefano-2017.md:79` states "Sana et al. (2012) measure
-  η = −0.4 ± 0.2 for short-period O-stars" — Phase-1 flagged this as inconsistent with `sana-2012.md:47`;
-  verify both against the held `sana-2012.pdf` in the Sana/eccentricity batch.
+- ✅ **Bucket B — held-PDF deep-verify — COMPLETE:** Moe Table 13 (Batch 2); Profiles bundle — King
+  Table II / LIMEPY g+3/2 / CW04 (Batch 3); IMF classic + Sana + Maschberger & Clarke Eq. 4 (Batch 5 —
+  M&C estimator/k=6 re-credited to von Hoerner 1963 / Casertano & Hut 1985 per the held M&C 2011 PDF).
+- ✅ **⚠ cross-note η (Sana batch) — RESOLVED (Batch 5):** the "Sana η = −0.4 ± 0.2" eccentricity slope
+  is **in no held source** (Sana main paper defers it to supplementary Table S3, paywalled; absent from
+  all held secondaries) and **backs no code** (`MoeEccentricity` uses Moe Eqs. 17–18). De-asserted to an
+  honest SOM pointer in all 3 repo locations. The Sana 2012 SOM (Table S3) is **not fetchable**
+  (paywall) — and not needed, since nothing computes from the value.
 - ✅ **Bucket C — newly-fetched (Tier 1+2) verify — COMPLETE (Batch 4):** D&K91 (relabeled empirical),
   base.py mass ratios (verified) + elements (accepted-standard), Zahn/Lucy/King1962/Aarseth/Hurley
   citations all appropriate. Remaining: Tier-3 experimental gravoturb/SBC anchors stay deferred.

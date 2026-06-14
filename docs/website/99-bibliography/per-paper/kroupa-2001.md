@@ -48,7 +48,7 @@ with, for *single* stars, $\xi(m)\,dm$ the number in $[m, m+dm]$ (Eq. 2):
 The breaks are at the hydrogen-burning limit ($0.08\,M_\odot$) and at $0.5\,M_\odot$.
 Kroupa quotes the original Salpeter value as $\alpha = 2.35$ and adopts the rounded
 $\alpha = 2.3 \pm 0.3$ for the high-mass slope (p. 234). The mean stellar mass of this
-IMF is $\langle m\rangle = 0.36\,M_\odot$ over $0.01$–$1\,M_\odot$ (p. 235).
+IMF is $\langle m\rangle = 0.36\,M_\odot$ over $0.01$–$50\,M_\odot$ (p. 235).
 
 Because $\alpha_2 = \alpha_3 = 2.3$, the two highest segments can be merged into a single
 $\ge 0.5\,M_\odot$ segment with no change to the IMF.
