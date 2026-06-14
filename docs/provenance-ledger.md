@@ -124,7 +124,17 @@ PDFs read directly: Demircan & Kahraman 1991 Table II + §4 (scanned, rendered p
 | planet orbital elements (a,e,inc,Ω,ω) | `analytical/base.py` | Standish 2012 / JPL — **NOT held** | 📄 accepted as standard J2000 (Anna's call); source-not-held noted in the comment |
 
 **Verification:** docstring/comment-only `src/` edits (no behavior change — `compute_stellar_radii` forward values bit-identical). Released-core gate unaffected.
-**Tier-2 citation checks (Zahn 1977, Lucy 2006, King 1962, Aarseth 1974, Hurley 2000/2002) — queued.**
+**Tier-2 citation-appropriateness checks** (PDFs read directly; Zahn/Aarseth are scanned → rendered):
+
+| citation | claim | source (held PDF) | verdict |
+|----------|-------|-------------------|---------|
+| Zahn 1977 (`eccentricity.py:119`) | tidal-circularization physics motivating `LogisticThermalEccentricity` | "Tidal Friction in Close Binary Stars", A&A 57, 383 | ✅ appropriate |
+| King 1962 (`tidal.py:6,45`) | tidal-radius concept ((m/3M)^⅓ via BT08 Eq. 8.91) | "Structure of Star Clusters I. An Empirical Density Law" (tidal cutoff) | ✅ appropriate |
+| Aarseth, Hénon & Wielen 1974 (docs ×13) | Plummer IC recipe + Q≡T/\|V\| convention | A&A 37, 183 — defines the Plummer model (Eq. 1) as the N-body test problem | ✅ appropriate |
+| Hurley 2002 (`eccentricity.md:154`) | τ_circ ∝ (a/R)⁸/[q(1+q)] | Hurley, Tout & Pols 2002 §2.3 (equilibrium tide) | ✅ appropriate (standard equilibrium-tide scaling) |
+| Lucy 2006 (`mass_ratio.py:233`) | "First systematic study of twin excess" | A&A 457, 629 — twin hypothesis attributed to Lucy & Ricco 1979 | 🔧 fixed — dropped "First"; relabeled "systematic statistical study" (Lucy & Ricco 1979 was first) |
+
+**Verification:** 1 docstring fix (no behavior change). Consolidation: TWO Aarseth-1974 PDFs held (`AarsethHenonWielen1974.pdf` = the cited A&A 37,183; `aarseth1974.pdf` = scanned, likely a different/duplicate Aarseth-1974 — disambiguate). **Bucket C (Tier 1+2) COMPLETE.**
 
 ---
 
@@ -141,8 +151,9 @@ PDFs read directly: Demircan & Kahraman 1991 Table II + §4 (scanned, rendered p
 - **⚠ cross-note η (queued, Sana batch):** `moe-distefano-2017.md:79` states "Sana et al. (2012) measure
   η = −0.4 ± 0.2 for short-period O-stars" — Phase-1 flagged this as inconsistent with `sana-2012.md:47`;
   verify both against the held `sana-2012.pdf` in the Sana/eccentricity batch.
-- **Bucket C — newly-fetched (Tier 1+2) verify:** D&K91 mass-radius; base.py planet table (Standish/IAU);
-  eccentricity Zahn/Hurley; King1962/Aarseth1974 convention citations.
+- ✅ **Bucket C — newly-fetched (Tier 1+2) verify — COMPLETE (Batch 4):** D&K91 (relabeled empirical),
+  base.py mass ratios (verified) + elements (accepted-standard), Zahn/Lucy/King1962/Aarseth/Hurley
+  citations all appropriate. Remaining: Tier-3 experimental gravoturb/SBC anchors stay deferred.
 
 ---
 

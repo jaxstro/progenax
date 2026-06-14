@@ -230,7 +230,8 @@ class TwinPeakedMassRatio(eqx.Module):
         we measure an excess fraction of twins F_twin ≈ 0.1 above the
         baseline power-law distribution."
 
-        Lucy (2006) A&A 457, 629 - First systematic study of twin excess
+        Lucy (2006) A&A 457, 629 - systematic statistical study of the twin
+        excess at q≈1 (the strong twin hypothesis itself traces to Lucy & Ricco 1979)
 
     Model:
         p(q) = (1 - f_twin) × q^γ / Z_pl + f_twin × N(q | μ=1, σ_twin)
