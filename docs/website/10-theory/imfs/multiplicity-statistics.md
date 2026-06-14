@@ -92,7 +92,7 @@ documented at [](binary.md#binary-imf-limitations).
 
 ## Mass-dependent binary fraction
 
-```{list-table} {cite:t}`MoeDiStefano2017` Table 13 — companion frequency above $q > 0.1$.
+```{list-table} Multiplicity fraction $f_b = 1 - \mathcal{F}_{n=0}$ ($\le 1$; **not** the companion *frequency* $f_{\mathrm{mult}}$): {cite:t}`MoeDiStefano2017` Table 13 single-star row for $M_1 \ge 0.8\,\Msun$, M-dwarf surveys below.
 :header-rows: 1
 
 * - Primary mass
@@ -151,7 +151,7 @@ inferences from binary-rich populations are biased — see
 The three regimes have distinct mass-ratio distributions, which is
 the source of the period-conditional structure in $g(q \mid M_1, P)$.
 progenax's default `BinaryIMF` uses *period-averaged* mass-ratio
-parameters from {cite:t}`MoeDiStefano2017` Table 10; surveys sensitive to a
+parameters reduced from {cite:t}`MoeDiStefano2017` Table 13; surveys sensitive to a
 specific period range (spectroscopic = short-period, visual = wide)
 need a full period-conditional likelihood layer. That layer is
 described conceptually in [](mass-ratio-distributions.md), but the

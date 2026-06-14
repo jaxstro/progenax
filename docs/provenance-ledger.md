@@ -83,6 +83,21 @@ PDFs read directly: `marks-2014-erratum.pdf`, `Marks-IMF-mnras-2012.pdf`, `Jerab
 
 **Verification:** `make build` → 161 pages, **0 warnings**, exit 0. `src/` untouched → released-core gate unaffected.
 
+### Batch 2 — Moe & Di Stefano (2017) Table 13 + theory-doc reconciliation (2026-06-14)
+
+PDFs read directly (rendered): Table 13 (p. 52), Table 10 (p. 27).
+
+| item | location | source (held PDF) | verdict |
+|------|----------|-------------------|---------|
+| Table 13 grids: γ_largeq, γ_smallq, F_twin (logP×mass) + companion freq f_logP | `imf/binary/moe_di_stefano.py:186-205, 342-347` | Moe 2017 Table 13, p. 52 | ✅ verified — **all 80 cells match exactly** (incl. the `<0.03→0` twin convention and the −1.1/−2.0 tail) |
+| Per-paper note Table 13 (F_{n=0}/F_{n=1}, f_mult, γ_largeq, F_twin) | `moe-distefano-2017.md:35-48` | Moe 2017 Table 13, p. 52 | ✅ verified |
+| η(M₁,P) Eqs. 17/18 reproduce Table 13 η; e_max(P) Roche cap | `moe-distefano-2017.md:50-79` | Moe 2017 Eqs. 3/17/18 + Table 13 | ✅ verified (spot: solar logP=2 → 0.6−0.7/1.5=0.13≈0.1; e_max(10 d)=0.66) |
+| f_b table mislabeled "Table 13 — companion frequency" | `binary.md:108`, `multiplicity-statistics.md:95` | code `MassDependentBinaryFraction` + Moe Table 13 F_{n=0} row | 🔧 fixed — values correct (match code); relabeled **multiplicity fraction** (1−F_{n=0}, ≤1), NOT the frequency f_mult; fraction-vs-frequency prose clarified |
+| γ(M₁) wrongly cited "Moe **Table 10**" | `binary.md:156,161,365`, `multiplicity-statistics.md:154`, `mass-ratio-distributions.md:3,45` | Moe **Table 10 (p. 27) is the VB eccentricity-η table**, NOT γ(M₁) | 🔧 fixed — corrected to "period-averaged reduction of Table 13" (matches the code's own attribution; a progenax approximation) |
+| f_twin period-averaged caption | `mass-ratio-distributions.md:74` | Moe Table 13 F_twin (avg over logP) | 🔧 fixed — clarified |
+
+**Verification:** `make build` → 161 pages, **0 warnings**, exit 0. `src/` untouched → released-core gate unaffected.
+
 ---
 
 ## Open flags (⚠ awaiting adjudication) & queued work
@@ -92,9 +107,12 @@ PDFs read directly: `marks-2014-erratum.pdf`, `Marks-IMF-mnras-2012.pdf`, `Jerab
   `build_plummer_cluster`; `tidal-and-substructure/index.md` removed-fractal frontmatter; `physics-tests.md`
   stale Measured rows. → reframe to `BirthEnvironment`/`env_to_imf_params`/`build_spatial_ic`; drop the
   galaxy-wide-IGIMF overclaim (per CLAUDE.md R7).
-- **Bucket B — held-PDF deep-verify (queued):** Moe & Di Stefano Table 13 bundle (Anna pre-verified — re-confirm
-  + remove stale text); King Table II ξ_t / LIMEPY g+3/2 / CW04 Table 1 profiles bundle; IMF classic +
-  Sana; Maschberger & Clarke Eq.4 (likely Casertano & Hut 1985 mis-attribution).
+- **Bucket B — held-PDF deep-verify:** ✅ Moe Table 13 (Batch 2). **Queued:** King Table II ξ_t / LIMEPY
+  g+3/2 / CW04 Table 1 profiles bundle; IMF classic + Sana; Maschberger & Clarke Eq.4 (likely Casertano &
+  Hut 1985 mis-attribution).
+- **⚠ cross-note η (queued, Sana batch):** `moe-distefano-2017.md:79` states "Sana et al. (2012) measure
+  η = −0.4 ± 0.2 for short-period O-stars" — Phase-1 flagged this as inconsistent with `sana-2012.md:47`;
+  verify both against the held `sana-2012.pdf` in the Sana/eccentricity batch.
 - **Bucket C — newly-fetched (Tier 1+2) verify:** D&K91 mass-radius; base.py planet table (Standish/IAU);
   eccentricity Zahn/Hurley; King1962/Aarseth1974 convention citations.
 
@@ -106,5 +124,6 @@ Surfaced in Phase-1 (56 candidates); retired only with Anna's approval. Highligh
 
 - **Duplicate PDFs:** `szapudi-2005.pdf` vs `Szapudi_2005_ApJ_631_L1.pdf`; two `Bairagi_2026` copies (diff md5); `Kuepper2011` duplicate bibkey.
 - **Duplicated code constants:** King −9 Poisson factor (×5 files); Plummer scale-radius factor (×2); factor-of-9 σ (×3 DF files); planet table `base.py` vs `solar_system.py` (mismatched 4th digits).
+- **Duplicated Moe doc-tables (now consistent, Batch 2):** the f_b table (`binary.md` + `multiplicity-statistics.md`) and the γ(M₁)/f_twin tables (`binary.md` + `mass-ratio-distributions.md`) — reconciled + correctly labeled; full dedup to one canonical copy deferred (binary.md's narrative uses them inline).
 - **Stale docs:** `physics-tests.md` (pre-fractal-removal Measured rows); dup `90-development-log` review; divergent test-count snapshots (1163/866/~1243).
 - **Missing per-paper notes** for cited held PDFs: `kroupa-1995`, `Prša_2016`, `zocchi2016`; 11 held-but-uncited PDFs.

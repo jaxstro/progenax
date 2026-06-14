@@ -1,6 +1,6 @@
 ---
 title: Mass-ratio distributions
-description: The conditional mass-ratio distribution g(q | M₁) — power-law plus twin-excess parameterisation, period-averaged vs period-conditional treatments, and the per-mass γ values from Moe & Di Stefano 2017 Table 10.
+description: The conditional mass-ratio distribution g(q | M₁) — power-law plus twin-excess parameterisation, period-averaged vs period-conditional treatments, and the per-mass γ values reduced from Moe & Di Stefano 2017 Table 13.
 ---
 
 # Mass-ratio distributions
@@ -42,7 +42,7 @@ below).
 
 ## The power-law slope $\gamma(M_1)$
 
-```{list-table} {cite:t}`MoeDiStefano2017` Table 10 — period-averaged $\gamma(M_1)$.
+```{list-table} Period-averaged single-slope $\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13 ($\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ averaged over $\log P$); a progenax approximation, not a verbatim Moe row.
 :header-rows: 1
 
 * - Primary mass
@@ -71,7 +71,7 @@ companions in shared accretion environments.
 
 ## The twin fraction $f_{\mathrm{twin}}(M_1)$
 
-```{list-table} {cite:t}`MoeDiStefano2017` twin-excess fractions.
+```{list-table} Period-averaged twin-excess fraction $f_{\mathrm{twin}}(M_1)$ — reduced from {cite:t}`MoeDiStefano2017` Table 13 ($\mathcal{F}_{\mathrm{twin}}$ averaged over $\log P$).
 :header-rows: 1
 
 * - Primary mass

@@ -105,7 +105,7 @@ implementation:
 
 ### Binary fraction $f_b(M_1)$
 
-```{list-table} {cite:t}`MoeDiStefano2017` Table 13 — companion frequency above $q > 0.1$.
+```{list-table} Multiplicity fraction $f_b = 1 - \mathcal{F}_{n=0}$ ($\le 1$; **not** the companion *frequency* $f_{\mathrm{mult}}$): {cite:t}`MoeDiStefano2017` Table 13 single-star row for $M_1 \ge 0.8\,\Msun$, M-dwarf surveys below.
 :header-rows: 1
 
 * - Primary mass
@@ -135,10 +135,12 @@ implementation:
 ```
 
 The trend is steep: O-type stars are almost always in multiples, while
-M-dwarfs are mostly single. For O-type primaries the *companion frequency*
-exceeds 1.0 ($\sim 2.1$ per primary), reflecting hierarchical triples and
-higher-order systems — see [Limitations](#binary-imf-limitations) below for the
-single-companion approximation progenax adopts.
+M-dwarfs are mostly single. The table is the multiplicity *fraction* ($\le 1$, the
+probability of $\ge 1$ companion); the companion *frequency* $f_{\mathrm{mult}}$ is a
+distinct quantity that exceeds 1.0 ($\sim 2.1$ per O-type primary, {cite:t}`MoeDiStefano2017`
+Table 13) once hierarchical triples and higher-order systems are counted — see
+[Limitations](#binary-imf-limitations) below for the single-companion approximation
+progenax adopts.
 
 ### Mass-ratio distribution $g(q \mid M_1)$
 
@@ -152,13 +154,14 @@ p(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{p
 ```
 
 where $Z_{\mathrm{pl}} = \int_{q_{\min}}^{1} q^\gamma\,\mathrm{d}q$ and
-$\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses period-averaged values
-of $\gamma(M_1)$ from {cite:t}`MoeDiStefano2017` Table 10 — appropriate for total
-mass-function analyses, but loses the small-$q$ structure that matters
+$\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses a period-averaged single-slope
+$\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13's period-dependent
+$\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ (averaged over $\log P$) — appropriate
+for total mass-function analyses, but loses the small-$q$ structure that matters
 for surveys sensitive to specific period ranges (see
 [Limitations](#binary-imf-limitations)):
 
-```{list-table} Period-averaged $\gamma(M_1)$ from {cite:t}`MoeDiStefano2017` Table 10.
+```{list-table} Period-averaged single-slope $\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13 ($\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ averaged over $\log P$); a progenax approximation, not a verbatim Moe row.
 :header-rows: 1
 
 * - Primary mass
@@ -361,8 +364,8 @@ high-mass distortion.
 
 ```{admonition} Period-averaged mass-ratio distribution
 :class: note
-progenax uses the period-averaged $\gamma$ and $f_{\mathrm{twin}}$ from
-{cite:t}`MoeDiStefano2017` Table 10. Surveys sensitive to specific period ranges
+progenax uses period-averaged $\gamma$ and $f_{\mathrm{twin}}$ reduced from
+{cite:t}`MoeDiStefano2017` Table 13. Surveys sensitive to specific period ranges
 (spectroscopic = short-period, visual = wide) need the full
 period-conditional $g(q \mid M_1, P)$.
 ```
