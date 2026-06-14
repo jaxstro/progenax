@@ -484,7 +484,9 @@ the registry did not yet own — added in Tier 4 and visible in the tables above
 `EFFProfile.sample_positions`$(a)$, `EFFVelocityDF.sample_velocities`$(a)$,
 `PowerLawIMF.ppf`$(m_{\min})$, the three Kepler Jacobian columns
 (`KeplerElements.to_state` in $a$ and $M_0$, and `KeplerElements.from_state`), the Michie
-density observable ($r_c$, $W_0$), and the standalone **H6 boundary probe**. The H6 case was
+density observable ($r_c$, $W_0$), and the standalone **H6 boundary probe**. (The Michie density
+observable's two parameter channels count as one Case here, matching its single dual-param table
+row — so the gate's full row count is 66, of which these are the nine additions.) The H6 case was
 *promoted*: it had been a folded edge on the Chabrier $m_c$ Case (which never actually drove
 $u$ to the clamp); it is now a standalone Case with the real $u = 10^{-12}$ boundary draw,
 measured FD-consistent at ratio $0.999669$.
