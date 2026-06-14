@@ -221,6 +221,7 @@ project:
             - file: 99-bibliography/per-paper/salpeter-1955.md
             - file: 99-bibliography/per-paper/chabrier-2003.md
             - file: 99-bibliography/per-paper/kroupa-2001.md
+            - file: 99-bibliography/per-paper/kroupa-1995.md
             - file: 99-bibliography/per-paper/maschberger-2013.md
             - file: 99-bibliography/per-paper/marks-2012.md
             - file: 99-bibliography/per-paper/marks-kroupa-2012.md
@@ -241,6 +242,7 @@ project:
             - file: 99-bibliography/per-paper/parmentier-pasquali-2020.md
             - file: 99-bibliography/per-paper/kainulainen-2014.md
             - file: 99-bibliography/per-paper/hurley-2000.md
+            - file: 99-bibliography/per-paper/prsa-2016.md
 
 site:
   template: book-theme

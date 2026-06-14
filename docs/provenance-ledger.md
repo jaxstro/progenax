@@ -198,6 +198,33 @@ prose (bibliography notes, `imf.md`, `science-capabilities.md`).
 **Verification:** `make build` → 161 pages, **0 warnings**. `tests/README.md` is GitHub-rendered (not
 in the myst build). **Bucket A COMPLETE** (modulo the deferred build_plummer_cluster repoint).
 
+### Batch 7 — LOW spot-sample + consolidation (2026-06-14)
+
+**LOW-set spot-sample (D3): PASS — no systemic rot in the LOW tail.** Verified via the inventory's
+per-surface LOW classifications + concrete spot-checks: the Plummer scale-radius factor is the
+canonical √(2^(2/3)−1) form (`plummer.py:48`, algebraically exact — NOT the inverted-a bug); all 116
+`__all__` exports resolve; phantom classes confirmed absent; `reg=1e-30` guards carry stated rationale.
+
+| consolidation item | verdict | action |
+|--------------------|---------|--------|
+| missing per-paper notes (cited) | `prsa-2016`, `kroupa-1995` were live-cited but note-less | 🔧 added 2 grounded notes (read the PDFs) + wired into `myst.yml` toc + `per-paper/index.md` |
+| `zocchi2016` note | only an archival dev-log mention (not live-cited) | left — no note (orphan-ish reference PDF) |
+| planet table `base.py` vs `solar_system.py` | benign — ss.py *imports* the table (single source); standalone fixtures are independent | 🔧 harmonized the standalone `e_jupiter` 0.0489→0.04839 (table J2000 value; no test pinned it) |
+| szapudi "duplicate" PDFs | **FALSE ALARM** — two *distinct* papers (review `arXiv:astro-ph/0505391` vs 4-author `ApJ 631:L1`) | kept both; no deletion |
+| Bairagi "duplicate" PDFs | confirmed same paper (Bairagi & Wandelt JCAP03(2026)028) | 🗑 removed the redundant `(1)` download (gitignored core-papers) |
+| `references.bib` bibkeys | no duplicate keys | benign (the "Kuepper2011" flag was already resolved) |
+| King −9 / Plummer / σ duplicated factors | distinct uses, each internally consistent | benign DRY |
+| figure-eight period cite | already cited (Chenciner & Montgomery 2000, `few_body.py:24/64`) | benign |
+
+**NEW ⚠ (surfaced while writing the Kroupa note):** `imf.py:52` cites "Kroupa (1995) MNRAS 277, **1507**"
+but the **held** PDF — and the topic-matching paper for "IMF-consistent binary populations" — is MNRAS
+277, **1491** (Paper I, inverse dynamical population synthesis). 1507 is the companion Paper II. Likely
+a page typo → **recommend correcting to 1491; awaiting Anna's adjudication** (code-citation change).
+
+**Verification:** `make build` → **163 pages** (+2 notes), **0 warnings**; `sun_earth_jupiter_3body`
+imports + builds (N=3). Released-core gate unaffected (the `solar_system.py` change is a fixture-value
++ docstring; no test pinned 0.0489).
+
 ---
 
 ## Open flags (⚠ awaiting adjudication) & queued work
@@ -219,6 +246,12 @@ in the myst build). **Bucket A COMPLETE** (modulo the deferred build_plummer_clu
 - ✅ **Bucket C — newly-fetched (Tier 1+2) verify — COMPLETE (Batch 4):** D&K91 (relabeled empirical),
   base.py mass ratios (verified) + elements (accepted-standard), Zahn/Lucy/King1962/Aarseth/Hurley
   citations all appropriate. Remaining: Tier-3 experimental gravoturb/SBC anchors stay deferred.
+- **⚠ Remaining adjudications (non-blocking — Anna's call):** (1) Kroupa 1995 `imf.py:52` page
+  **1507 → 1491** (held-PDF + topic match; likely typo — Batch 7); (2) the `build_plummer_cluster`
+  doc-snippet repoint (deferred to the `build_cluster` implementation, design `0a7a424`); (3) optional
+  low-priority hygiene — Salpeter −1.35→−2.35 code comment + unsourced `m_min`/`m_max`; Sana
+  period-range "Fig.2" cite; Sana π/κ uncertainty mixing; Chabrier `m_trans` cite; `limepy_df`
+  "measured runtime" docstrings; deprecated `G_KMS` 2-sig-fig.
 
 ---
 
@@ -226,8 +259,43 @@ in the myst build). **Bucket A COMPLETE** (modulo the deferred build_plummer_clu
 
 Surfaced in Phase-1 (56 candidates); retired only with Anna's approval. Highlights:
 
-- **Duplicate PDFs:** `szapudi-2005.pdf` vs `Szapudi_2005_ApJ_631_L1.pdf`; two `Bairagi_2026` copies (diff md5); `Kuepper2011` duplicate bibkey.
-- **Duplicated code constants:** King −9 Poisson factor (×5 files); Plummer scale-radius factor (×2); factor-of-9 σ (×3 DF files); planet table `base.py` vs `solar_system.py` (mismatched 4th digits).
+- **Duplicate PDFs — RESOLVED (Batch 7):** `szapudi-2005` vs `Szapudi_2005_ApJ_631_L1` are **two distinct papers** (the higher-order-statistics review `arXiv:astro-ph/0505391` vs the 4-author `ApJ 631:L1`) → both kept; the two `Bairagi_2026` copies **were** the same paper → `(1)` removed; `Kuepper2011` bibkey — **no duplicate found** (already clean).
+- **Duplicated code constants — RESOLVED (Batch 7, all benign):** King −9 / Plummer-scale / factor-9 σ are distinct uses or consistent copies (no silent divergence); the planet table is **single-sourced** (`solar_system.py` imports `base.py`) — the standalone-fixture `e_jupiter` 4th-digit mismatch harmonized 0.0489→0.04839.
 - **Duplicated Moe doc-tables (now consistent, Batch 2):** the f_b table (`binary.md` + `multiplicity-statistics.md`) and the γ(M₁)/f_twin tables (`binary.md` + `mass-ratio-distributions.md`) — reconciled + correctly labeled; full dedup to one canonical copy deferred (binary.md's narrative uses them inline).
 - **Stale docs:** `physics-tests.md` (pre-fractal-removal Measured rows); dup `90-development-log` review; divergent test-count snapshots (1163/866/~1243).
-- **Missing per-paper notes** for cited held PDFs: `kroupa-1995`, `Prša_2016`, `zocchi2016`; 11 held-but-uncited PDFs.
+- **Missing per-paper notes — RESOLVED (Batch 7):** `prsa-2016` + `kroupa-1995` (live-cited) → grounded notes added & wired into nav; `zocchi2016` is archival-dev-log-only (left, no note). ~11 held-but-uncited reference PDFs remain (reference material; no notes needed).
+
+---
+
+## Audit close-out (2026-06-14)
+
+**Scope completed:** Phase-1 triage (270 findings) → deep-verify of every HIGH/MEDIUM held-PDF item
+(Batches 1–5), Bucket-A phantom-API cleanup (Batch 6), LOW-set spot-sample + consolidation (Batch 7).
+
+**Verdict: release-credible — NO systemic rot, ZERO fabricated values in released-core.** Every defect
+found was a *wrong/incomplete provenance narrative around a correct value*, plus one
+untraceable-but-loads-nothing value and the phantom-API docs:
+
+- **Provenance-text fixes (value correct):** Marks +0.87→−0.87 (2014 erratum); Moe "Table 10"→Table 13;
+  Moe f_b frequency-vs-fraction; LIMEPY false "g+1/2 typo" narrative; CW04 fractal-Q label; D&K91
+  "ZAMS"→empirical; Lucy "First"; Kroupa ⟨m⟩ range 0.01–1→0.01–50; Sana "Eq.3"→main-text; M&C
+  estimator → von Hoerner / Casertano & Hut.
+- **Untraceable value, de-asserted:** Sana eccentricity η = −0.4 ± 0.2 — in NO held source (paywalled
+  SOM Table S3) and load-bearing for nothing (`MoeEccentricity` uses Moe Eqs. 17–18) → honest SOM pointer.
+- **Phantom-API docs (Bucket A):** IGIMF/EnvironmentIMF/`gwimf`/`build_plummer_cluster` reframed or
+  retired; galaxy-wide-IGIMF overclaim scoped; stale snapshots banner-archived.
+
+**Spin-off (ratified):** the phantom `build_plummer_cluster` → a real SoTA differentiable IC-builder
+API (design `docs/plans/2026-06-14-cluster-builder-api-design.md`, `0a7a424`), implementation pending.
+
+**Remaining (Anna's adjudication, non-blocking):** see the ⚠ bullet above (Kroupa 1995 page;
+build_plummer_cluster repoint; low-priority hygiene). Needs-fetch deferred (Tier-3/experimental +
+textbooks): BT08, Larson 1981, Solomon 1987, Federrath 2013, Kainulainen 2014, Hurley 2000 paper PDF,
+Allison MNRAS 395,1449.
+
+**Merge/PR:** the arc is **all-local, nothing pushed** (CI minutes exhausted per Anna); `make build`
+0 warnings throughout; `src/` edits are docstring/comment/fixture-value only (no behaviour change) →
+released-core gate unaffected. **Recommended:** merge `feat/provenance-credibility-audit` → local main
+on Anna's go (no PR while CI minutes are out), with `build_cluster` on its own `feat/cluster-builders`
+branch — **or** hold the audit merge until build_cluster lands so the `build_plummer_cluster` doc
+repoint ships in one coherent release. **Anna's call.**

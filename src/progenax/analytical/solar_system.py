@@ -142,7 +142,7 @@ def sun_earth_jupiter_3body(G: float) -> AnalyticalIC:
         - M_earth = 3.0035e-6 Msun
         - M_jupiter = 9.548e-4 Msun (1 Jupiter mass)
         - a_earth = 1.0 AU, e_earth = 0.0167
-        - a_jupiter = 5.2044 AU, e_jupiter = 0.0489
+        - a_jupiter = 5.2044 AU, e_jupiter = 0.04839
 
     Args:
         G: Gravitational constant [appropriate units]
@@ -179,7 +179,7 @@ def sun_earth_jupiter_3body(G: float) -> AnalyticalIC:
 
     # Jupiter orbit
     a_jupiter = 5.2044
-    e_jupiter = 0.0489
+    e_jupiter = 0.04839
 
     # Create 2-body systems for each planet
     # Earth at perihelion (nu=0), Jupiter at aphelion (nu=π) for good separation
