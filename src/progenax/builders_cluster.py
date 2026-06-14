@@ -78,3 +78,49 @@ def matched_velocity_df(
         f"matched_velocity_df: unknown profile type {type(profile).__name__}. "
         f"Supported: Plummer, EFF, King, Michie, LIMEPY."
     )
+
+
+def _resolve_masses(masses, n, imf, key):
+    """Return (masses, key_spatial). Split the key ONLY when an IMF draw is needed."""
+    if masses is not None:
+        if n is not None:
+            raise ValueError("pass exactly one of `masses` or `n` (got both).")
+        if imf is not None:
+            raise ValueError("`imf` requires `n` (the count to sample); pass `n=...`, not `masses=...`.")
+        return masses, key
+    if n is None:
+        raise ValueError("pass exactly one of `masses` or `n` (got neither).")
+    if imf is None:
+        return jnp.ones(n), key                       # equal 1 M_sun, no PRNG needed
+    key_imf, key_spatial = jax.random.split(key)
+    return imf.sample(key_imf, n), key_spatial
+
+
+def build_cluster(
+    profile: SpatialProfile,
+    *,
+    key: PRNGKeyArray,
+    masses: Optional[Float[Array, "N"]] = None,
+    n: Optional[int] = None,
+    imf=None,
+    units=None,
+    Q: float = 0.5,
+    anisotropy_radius: Optional[float] = None,
+    tidal_radius: Optional[float] = None,
+    rotation: Optional[Union[float, "RotationSpec"]] = None,
+    revirialize: bool = False,
+    softening: float = 0.0,
+) -> ICResult:
+    """Build a single-population cluster IC from a profile object (see design doc)."""
+    units = DEFAULT_UNITS if units is None else units
+    masses, key_spatial = _resolve_masses(masses, n, imf, key)
+    df = matched_velocity_df(profile, anisotropy_radius)
+    ic = build_spatial_ic(profile, masses, df, key_spatial, G=units.G, Q=Q, softening=softening)
+
+    if tidal_radius is None and rotation is None:
+        return ic                                     # base case: bit-identical to build_spatial_ic
+    return _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, units.G, softening)
+
+
+def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, softening):
+    return ic  # filled in Batch 3

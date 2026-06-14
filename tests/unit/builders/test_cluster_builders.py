@@ -77,3 +77,70 @@ def test_unknown_profile_type_errors():
         pass
     with pytest.raises(TypeError, match="matched_velocity_df"):
         matched_velocity_df(Bogus())
+
+
+# ===========================================================================
+# Batch 2: build_cluster base — mass-spec resolution + bit-identical purity
+# ===========================================================================
+from progenax import build_spatial_ic, PowerLawIMF, DEFAULT_UNITS
+from progenax.builders_cluster import build_cluster
+
+_K = jax.random.PRNGKey(0)
+_M = jnp.ones(200)
+
+
+def _assert_ic_equal(a, b):
+    for field in ("positions", "velocities", "masses", "stellar_radii"):
+        assert bool(jnp.all(getattr(a, field) == getattr(b, field))), f"{field} differs"
+
+
+def test_build_cluster_is_bit_identical_to_manual_base_case():
+    # The linchpin: build_cluster(profile, masses, key) MUST equal the manual
+    # build_spatial_ic composition exactly (pure sugar, no physics drift).
+    p = PlummerProfile(r_h=1.0)
+    ic = build_cluster(p, masses=_M, key=_K)                       # units=None -> STELLAR
+    df = matched_velocity_df(p)
+    manual = build_spatial_ic(p, _M, df, _K, G=STELLAR.G, Q=0.5)
+    _assert_ic_equal(ic, manual)
+
+
+def test_units_none_resolves_to_default_stellar():
+    p = PlummerProfile(r_h=1.0)
+    ic_none = build_cluster(p, masses=_M, key=_K, units=None)
+    ic_stellar = build_cluster(p, masses=_M, key=_K, units=STELLAR)
+    _assert_ic_equal(ic_none, ic_stellar)
+    assert DEFAULT_UNITS is STELLAR  # documents the resolution target
+
+
+def test_mass_spec_n_only_is_equal_one_msun():
+    ic = build_cluster(PlummerProfile(r_h=1.0), n=128, key=_K)
+    assert ic.masses.shape == (128,)
+    assert bool(jnp.allclose(ic.masses, 1.0))
+
+
+def test_mass_spec_n_plus_imf_samples():
+    imf = PowerLawIMF.kroupa()
+    ic = build_cluster(PlummerProfile(r_h=1.0), n=256, imf=imf, key=_K)
+    assert ic.masses.shape == (256,)
+    assert float(jnp.std(ic.masses)) > 0.0          # not all equal -> IMF actually sampled
+
+
+def test_mass_spec_masses_array_used_verbatim():
+    m = jnp.linspace(0.5, 3.0, 64)
+    ic = build_cluster(PlummerProfile(r_h=1.0), masses=m, key=_K)
+    assert bool(jnp.all(ic.masses == m))
+
+
+def test_mass_spec_error_both_masses_and_n():
+    with pytest.raises(ValueError, match="masses.*or.*n|exactly one"):
+        build_cluster(PlummerProfile(r_h=1.0), masses=_M, n=10, key=_K)
+
+
+def test_mass_spec_error_neither_masses_nor_n():
+    with pytest.raises(ValueError, match="masses.*or.*n|exactly one"):
+        build_cluster(PlummerProfile(r_h=1.0), key=_K)
+
+
+def test_mass_spec_error_imf_without_n():
+    with pytest.raises(ValueError, match="imf.*requires.*n|n.*imf"):
+        build_cluster(PlummerProfile(r_h=1.0), masses=_M, imf=PowerLawIMF.kroupa(), key=_K)
