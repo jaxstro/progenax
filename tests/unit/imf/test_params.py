@@ -70,21 +70,9 @@ class TestIMFParamsJAXCompatibility:
 
         assert jnp.isclose(result, 0.3 + 1.3 + 2.3 + 2.3)
 
-    def test_grad_through_alpha3(self):
-        """Can compute gradient through alpha3."""
-        from progenax.imf.params import IMFParams
-
-        def loss(alpha3):
-            params = IMFParams(
-                alpha0=jnp.array(0.3),
-                alpha1=jnp.array(1.3),
-                alpha2=jnp.array(2.3),
-                alpha3=alpha3,
-            )
-            return params.alpha3 ** 2
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(jnp.array(2.3))
-
-        # d/dx(x^2) = 2x, so gradient should be 2*2.3 = 4.6
-        assert jnp.isclose(gradient, 4.6)
+    # The former test_grad_through_alpha3 was a trivial d/dx(x^2)==2x PyTree-leaf sanity
+    # check (it grad'd params.alpha3**2, exercising NO IMF graph) -- pure smoke, removed
+    # (audit T6). The real params->summary alpha3 gradient through the IMF likelihood is
+    # FD-audited by the grad-audit registry (tests/validation/grad_audit/registry.py ::
+    # IMFParams.log_prob_nll [alpha3]); see
+    # docs/website/50-validation/differentiability-audit.md (registry is SoT).
