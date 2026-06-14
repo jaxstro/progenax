@@ -106,7 +106,7 @@ def build_cluster(
     Q: Optional[float] = 0.5,
     anisotropy_radius: Optional[Float[Array, ""]] = None,
     tidal_radius: Optional[Float[Array, ""]] = None,
-    rotation: Optional[Union[float, "RotationSpec"]] = None,
+    rotation: Optional[Union[float, RotationSpec]] = None,
     revirialize: bool = False,
     softening: float = 0.0,
 ) -> ICResult:
