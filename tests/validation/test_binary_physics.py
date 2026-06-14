@@ -252,22 +252,14 @@ class TestInclinationAndOrientation:
         assert abs(float(r[1])) < 1e-10, f"y position = {float(r[1])}"
 
 
-class TestDifferentiability:
-    """Verify orbital mechanics are differentiable."""
-
-    def test_grad_through_kepler_solve(self):
-        """Gradient flows through Kepler equation solver."""
-        def energy_from_a(a):
-            elements = KeplerElements(a=a, e=0.3, M0=1.0)
-            state = elements.to_state(M_total=1.0, G=G)
-            return jnp.sum(state.velocity**2)
-
-        grad_fn = jax.grad(energy_from_a)
-        grad_val = grad_fn(1.0)
-
-        assert jnp.isfinite(grad_val), f"Gradient = {grad_val}, expected finite"
-        assert float(grad_val) < 0, \
-            "dE/da should be negative (larger orbit → slower velocity)"
+# grad through the Kepler-equation solver (KeplerElements.to_state) is FD-audited by
+# the grad-audit registry (tests/validation/grad_audit/registry.py ::
+# KeplerElements.to_state [e, a, M0]); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestDifferentiability::test_grad_through_kepler_solve smoke (grad of |v|^2 wrt a,
+# isfinite + sign, NO FD) was removed (audit T6: a silently-zeroed grad would PASS
+# isfinite; the registry FD cases are strictly stronger; registry is SoT). (The unique
+# e->1 boundary test test_grad_finite_through_e_to_one is kept below.)
 
 
 class TestSmallSemiMajorAxisSTELLAR:
