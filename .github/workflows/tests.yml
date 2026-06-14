@@ -1,10 +1,17 @@
 name: tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# Runs on PRs + manual dispatch only (NOT every push to main): a green PR already
+# certifies the merge commit, so re-running ~9 runner-jobs on every main push just
+# burns Actions minutes. Re-add `push: branches: [main]` if you want post-merge runs.
+concurrency:
+  # Cancel superseded in-progress runs on the same ref (e.g. rapid PR pushes) so we
+  # never pay for a stale run that a newer commit has already obsoleted.
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Global env for every job. JAX float64 + low-memory settings: the ~815-test released-core
 # suite was OOM-cancelled when run as ONE process on the 2-core / 7 GB ubuntu-latest runner.

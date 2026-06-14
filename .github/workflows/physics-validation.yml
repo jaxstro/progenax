@@ -1,6 +1,6 @@
 name: physics-validation
 
-# Nightly + release-tag lane for the headline trust anchors that the PR gate skips:
+# Release-tag + manual lane for the headline trust anchors that the PR gate skips:
 # the @pytest.mark.slow validations (LIMEPY reference parity, multimass equilibrium,
 # Engine A-vs-B anchor, Engine B AD-vs-FD). PROGENAX_STRICT_REFS=1 makes a missing
 # reference cache a hard failure here (audit R8/T4), so these gates cannot silently
@@ -9,8 +9,9 @@ name: physics-validation
 # tests import-skip.
 
 on:
-  schedule:
-    - cron: "17 9 * * *"   # nightly
+  # Nightly cron REMOVED: it ran ~daily AND was failing every night, burning Actions
+  # minutes (slow-physics has a 90-min timeout). Now release-tags + manual only.
+  # Re-add `schedule: - cron: "17 9 * * *"` to restore a nightly lane.
   workflow_dispatch:
   push:
     tags: ["v*"]
