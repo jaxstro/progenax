@@ -277,3 +277,73 @@ def test_revirialize_with_Q_none_errors():
     with pytest.raises(ValueError, match="revirialize.*Q|numeric Q"):
         build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K,
                       tidal_radius=1.5, revirialize=True, Q=None)
+
+
+# ===========================================================================
+# Batch 4: Aliases + ClusterParams + build_cluster_from_params + exports
+# ===========================================================================
+from progenax.builders_cluster import (
+    build_plummer_cluster, build_king_cluster, build_eff_cluster,
+    build_michie_cluster, build_limepy_cluster,
+    ClusterParams, build_cluster_from_params,
+)
+
+
+def test_plummer_alias_identical():
+    ic_a = build_plummer_cluster(masses=_M, r_h=1.7, key=_K)
+    ic_b = build_cluster(PlummerProfile(r_h=1.7), masses=_M, key=_K)
+    _assert_ic_equal(ic_a, ic_b)
+
+
+def test_plummer_alias_n_path():
+    ic = build_plummer_cluster(n=100, r_h=1.0, key=_K)
+    assert ic.masses.shape == (100,)
+
+
+def test_king_alias_identical():
+    ic_a = build_king_cluster(masses=_M, W0=7.0, r_c=1.2, key=_K)
+    ic_b = build_cluster(KingProfile.from_W0_rc(W0=7.0, r_c=1.2), masses=_M, key=_K)
+    _assert_ic_equal(ic_a, ic_b)
+
+
+def test_eff_alias_identical():
+    ic_a = build_eff_cluster(masses=_M, a=1.0, gamma=3.0, r_t=10.0, key=_K)
+    ic_b = build_cluster(EFFProfile(a=1.0, gamma=3.0, r_t=10.0), masses=_M, key=_K)
+    _assert_ic_equal(ic_a, ic_b)
+
+
+def test_michie_alias_identical():
+    ic_a = build_michie_cluster(masses=_M, W0=7.0, r_c=1.0, r_a=8.0, key=_K)
+    ic_b = build_cluster(MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0), masses=_M, key=_K)
+    _assert_ic_equal(ic_a, ic_b)
+
+
+def test_limepy_alias_identical():
+    ic_a = build_limepy_cluster(masses=_M, W0=5.0, g=1.0, r_c=1.0, key=_K)
+    ic_b = build_cluster(LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0), masses=_M, key=_K)
+    _assert_ic_equal(ic_a, ic_b)
+
+
+def test_cluster_params_wrapper_identical_to_build_cluster():
+    params = ClusterParams(profile=PlummerProfile(r_h=1.3), tidal_radius=3.0, rotation=0.2)
+    ic_w = build_cluster_from_params(params, masses=_M, key=_K)
+    ic_d = build_cluster(PlummerProfile(r_h=1.3), masses=_M, key=_K,
+                         tidal_radius=3.0, rotation=0.2)
+    _assert_ic_equal(ic_w, ic_d)
+
+
+def test_cluster_params_defaults_base_case():
+    params = ClusterParams(profile=PlummerProfile(r_h=1.0))
+    ic_w = build_cluster_from_params(params, masses=_M, key=_K)
+    ic_d = build_cluster(PlummerProfile(r_h=1.0), masses=_M, key=_K)
+    _assert_ic_equal(ic_w, ic_d)
+
+
+def test_all_new_symbols_exported_from_progenax():
+    import progenax
+    for sym in ("build_cluster", "build_plummer_cluster", "build_king_cluster",
+                "build_eff_cluster", "build_michie_cluster", "build_limepy_cluster",
+                "matched_velocity_df", "RotationSpec", "ClusterParams",
+                "build_cluster_from_params"):
+        assert sym in progenax.__all__, f"{sym} missing from progenax.__all__"
+        assert hasattr(progenax, sym), f"progenax.{sym} not importable"

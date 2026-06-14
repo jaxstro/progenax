@@ -191,3 +191,53 @@ def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, sof
         primordial_system_id=ic.primordial_system_id,
         is_primordial_secondary=ic.is_primordial_secondary, component_id=ic.component_id,
     )
+
+
+def build_plummer_cluster(*, key, masses=None, n=None, r_h=1.0, imf=None, **kw):
+    return build_cluster(PlummerProfile(r_h=r_h), key=key, masses=masses, n=n, imf=imf, **kw)
+
+
+def build_king_cluster(*, key, masses=None, n=None, W0=7.0, r_c=1.0, imf=None, **kw):
+    return build_cluster(KingProfile.from_W0_rc(W0=W0, r_c=r_c), key=key,
+                         masses=masses, n=n, imf=imf, **kw)
+
+
+def build_eff_cluster(*, key, masses=None, n=None, a=1.0, gamma=3.0, r_t=10.0, imf=None, **kw):
+    return build_cluster(EFFProfile(a=a, gamma=gamma, r_t=r_t), key=key,
+                         masses=masses, n=n, imf=imf, **kw)
+
+
+def build_michie_cluster(*, key, masses=None, n=None, W0=7.0, r_c=1.0, r_a=8.0, imf=None, **kw):
+    return build_cluster(MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a), key=key,
+                         masses=masses, n=n, imf=imf, **kw)
+
+
+def build_limepy_cluster(*, key, masses=None, n=None, W0=5.0, g=1.0, r_c=1.0, r_a=None,
+                         imf=None, **kw):
+    return build_cluster(LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=r_c, r_a=r_a), key=key,
+                         masses=masses, n=n, imf=imf, **kw)
+
+
+class ClusterParams(eqx.Module):
+    """Differentiable θ-PyTree: profile + named modifier knobs (see design doc).
+
+    jax.grad over a ClusterParams gives joint gradients over the profile's float leaves AND
+    any non-None modifier (the structure declares which params are free). `revirialize`/
+    `softening` are static force-model config -> kwargs of build_cluster_from_params, not fields.
+    """
+    profile: SpatialProfile
+    anisotropy_radius: Optional[Float[Array, ""]] = None
+    tidal_radius: Optional[Float[Array, ""]] = None
+    rotation: Optional[Union[float, RotationSpec]] = None
+    Q: Optional[float] = 0.5
+
+
+def build_cluster_from_params(
+    params: ClusterParams, *, key, masses=None, n=None, imf=None, units=None,
+    revirialize: bool = False, softening: float = 0.0,
+) -> ICResult:
+    """Unpack a ClusterParams θ-PyTree into build_cluster (the inference forward map)."""
+    return build_cluster(
+        params.profile, key=key, masses=masses, n=n, imf=imf, units=units,
+        anisotropy_radius=params.anisotropy_radius, tidal_radius=params.tidal_radius,
+        rotation=params.rotation, Q=params.Q, revirialize=revirialize, softening=softening)

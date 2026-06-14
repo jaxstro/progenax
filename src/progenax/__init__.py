@@ -54,6 +54,18 @@ from .builders import (
     compute_kinetic_energy,
     compute_potential_energy,
 )
+from .builders_cluster import (
+    build_cluster,
+    matched_velocity_df,
+    RotationSpec,
+    ClusterParams,
+    build_cluster_from_params,
+    build_plummer_cluster,
+    build_king_cluster,
+    build_eff_cluster,
+    build_michie_cluster,
+    build_limepy_cluster,
+)
 from .analytical import (
     AnalyticalIC,
     SOLAR_SYSTEM_PLANETS,
@@ -185,6 +197,17 @@ __all__ = [
     "compute_stellar_radii",
     "compute_kinetic_energy",
     "compute_potential_energy",
+    # Cluster convenience builders
+    "build_cluster",
+    "matched_velocity_df",
+    "RotationSpec",
+    "ClusterParams",
+    "build_cluster_from_params",
+    "build_plummer_cluster",
+    "build_king_cluster",
+    "build_eff_cluster",
+    "build_michie_cluster",
+    "build_limepy_cluster",
     # Analytical test cases
     "AnalyticalIC",
     "SOLAR_SYSTEM_PLANETS",
