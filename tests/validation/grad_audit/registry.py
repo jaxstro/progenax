@@ -1177,10 +1177,12 @@ def _binned_number_density_rh(r_h):
 # reparameterization at the FIXED module key _KEY, so the observable
 # mean(log10(periods)) is a differentiable function of the distribution param and
 # central FD is clean. Reduce = mean(log10(.)) inline (matches the scattered
-# tests' observable in tests/unit/binaries/test_population.py). N=4000 (inner-loop;
-# the smooth reparam'd mean is N-stable — measured ratio identical at N=2000/4000/
-# 20000 for all three). Three PRNG seeds measured to confirm seed-stability; the
-# Case freezes the module key.
+# tests' observable in tests/unit/binaries/test_population.py). N=4000 (inner-loop):
+# the AD-vs-FD RATIO (the gate quantity) is clean at N=2000/4000/20000 for all three
+# (residual ~1e-10..1e-13 at every N). The gradient VALUE itself converges with N for
+# the two finite-mean cases (Sana ~0.792, LogUniform ~0.49 drift <1% across N; LogNormal's
+# is exactly 1.0 at any N), so reduced N is a pure compute saving with no AD/FD-fidelity
+# cost. Three PRNG seeds measured to confirm seed-stability; the Case freezes the module key.
 #
 #   (1) SanaOBPeriod.power — p(logP) ∝ (logP)^power inverted via jnp.power. The
 #       FD-tested target (test_sana_power_gradient_matches_finite_difference). The
