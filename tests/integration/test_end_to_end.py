@@ -154,40 +154,15 @@ class TestBinaryICGeneration:
         assert r2.shape == (N, 3)
 
 
-class TestDifferentiability:
-    """Test that key operations are differentiable."""
-
-    def test_imf_ppf_gradient(self):
-        """IMF PPF should be differentiable."""
-        from progenax.imf import PowerLawIMF
-
-        imf = PowerLawIMF.kroupa()
-
-        def loss(u):
-            return jnp.sum(imf.ppf(u))
-
-        grad_fn = jax.grad(loss)
-        u = jnp.array([0.3, 0.5, 0.7])
-        grads = grad_fn(u)
-
-        assert jnp.all(jnp.isfinite(grads))
-        assert jnp.all(grads > 0)  # dm/du > 0 (monotonic)
-
-    def test_spatial_profile_gradient(self):
-        """Spatial profile should be differentiable w.r.t. r_h."""
-        from progenax.profiles import PlummerProfile
-
-        def total_radius(r_h):
-            profile = PlummerProfile(r_h=r_h)
-            key = jax.random.PRNGKey(42)
-            masses = jnp.ones(10)
-            positions = profile.sample_positions(masses, key)
-            return jnp.sum(jnp.linalg.norm(positions, axis=1))
-
-        grad_fn = jax.grad(total_radius)
-        grad = grad_fn(1.0)
-
-        assert jnp.isfinite(grad)
+# Differentiability of the public IC operations is owned by the grad-audit registry
+# (tests/validation/grad_audit/registry.py); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestDifferentiability smoke tests were removed (audit T6: isfinite passes a
+# silently-zeroed grad; the registry FD cases are strictly stronger; registry is SoT):
+#   - test_spatial_profile_gradient -> PlummerProfile.sample_positions [r_h] (FD-covered).
+#   - test_imf_ppf_gradient (grad wrt the uniform draw u, a non-param du-monotonicity
+#     smoke) is redundant -- the parameter channels of the IMF PPFs are FD-audited by
+#     the registry's PowerLawIMF/ChabrierIMF/Maschberger .ppf cases.
 
 
 class TestProtocolCompliance:
