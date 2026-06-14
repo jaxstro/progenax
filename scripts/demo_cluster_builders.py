@@ -62,8 +62,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-jax.config.update("jax_enable_x64", True)
-
+# float64 is enabled by `import progenax` below (jaxstro.jaxconfig.enable_high_precision);
+# STELLAR.G is a plain Python float and no jnp array is created before that import, so no
+# explicit jax.config.update is needed here (matches the sibling B-series demos).
 from jaxstro.units import STELLAR
 from progenax import (
     build_plummer_cluster,
@@ -217,6 +218,8 @@ def _fisher_for_knob(summary_at, theta0, se_floor=1e-3):
     s0j = jnp.asarray(s0)
 
     def residual(theta):
+        # theta0 is the truth-point, so r(theta0)=0 by construction -> F = J^T J is the
+        # exact expected (Gauss-Newton) information here, not a self-referential tautology.
         return (summary_at(theta[0]) - s0j) / se
 
     F = fisher_information_gn(residual, jnp.array([theta0]))
