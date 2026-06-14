@@ -330,21 +330,14 @@ class TestKingEquilibriumVelocityDF:
         frac_bound = float(jnp.mean(v <= v_esc + 1e-9))
         assert frac_bound == 1.0, f"only {frac_bound*100:.1f}% bound (v < v_esc)"
 
-    def test_velocity_sampling_is_differentiable(self):
-        """grad of mean kinetic energy w.r.t. r_c flows through the DF sampling."""
-        from jaxstro.units import STELLAR
-
-        def loss(r_c):
-            prof = KingProfile.from_W0_rc(7.0, 1.0)
-            df = KingVelocityDF(W0=7.0, r_c=r_c)
-            m = jnp.ones(200)
-            kp, kv = jax.random.split(jax.random.PRNGKey(1))
-            pos = prof.sample_positions(m, kp)
-            vel = df.sample_velocities(pos, m, kv, G=STELLAR.G)
-            return jnp.mean(jnp.sum(vel**2, axis=1))
-
-        g = jax.grad(loss)(1.0)
-        assert jnp.isfinite(g), f"grad through King DF sampling is non-finite: {g}"
+    # grad through KingVelocityDF.sample_velocities is FD-audited by the grad-audit
+    # registry (tests/validation/grad_audit/registry.py ::
+    # KingVelocityDF.sample_velocities [r_c] + [W0]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_velocity_sampling_is_differentiable smoke (grad of mean KE wrt r_c, isfinite
+    # only) was removed (audit T6: isfinite passes a silently-zeroed grad; the registry
+    # FD cases are strictly stronger; registry is SoT). (The distinct auto-domain
+    # high-W0 FD test test_auto_domain_preserves_differentiability_high_W0 is kept.)
 
     def test_dispersion_profile_matches_king_moment(self):
         """Sampled sigma_1d(r) matches the analytic lowered-Maxwellian 2nd moment."""
