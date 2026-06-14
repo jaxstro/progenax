@@ -1,0 +1,99 @@
+"""Build the progenax test/validation dashboard.
+
+This is the generator behind the website's ``test-dashboard`` page and the
+staleness gate (Task 1.6). It is a plain SCRIPT, not core library code: it shells
+out to ``pytest --collect-only`` and parses node ids, which is acceptable here
+(it is NOT bound by the JAX-native constraint that governs ``src/progenax``).
+
+Task 1.2 implements ``collect_test_inventory()`` — the per-module test census
+across the three tiers (unit / integration / validation). Later tasks (1.3-1.5)
+add line coverage, registry status, durations, and JSON/MyST emission.
+
+Direct invocation (``python scripts/build_test_dashboard.py``) puts only
+``scripts/`` on ``sys.path``; ``pyproject.toml`` sets
+``pythonpath=["src","src/experimental"]`` which does NOT include the repo root,
+so ``import tests.*`` / ``import scripts.*`` would ImportError. We mirror the
+bootstrap in ``scripts/audit_gradients.py`` and insert the repo root first.
+"""
+import subprocess
+import sys
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# The three released-core tiers, in dashboard order.
+_TIERS = ("unit", "integration", "validation")
+_TIER_DIRS = tuple(f"tests/{tier}" for tier in _TIERS)
+
+
+def _node_id_to_module_tier(node_id: str) -> tuple[str, str] | None:
+    """Map a pytest node id to ``(module, tier)`` or ``None`` if outside the tiers.
+
+    Node id forms (the part before ``::`` is the file path):
+
+    - ``tests/unit/builders/test_x.py::test_name`` -> module ``builders``, tier ``unit``
+      (a test inside a tier SUBDIRECTORY: module is the first subdir component).
+    - ``tests/unit/test_protocols.py::test_name`` -> module ``test_protocols``, tier ``unit``
+      (a test file DIRECTLY under the tier: module is the file stem — deterministic,
+      and avoids collapsing several unrelated top-level files into one ``_root`` bucket).
+    """
+    file_path = node_id.split("::", 1)[0]
+    parts = Path(file_path).parts
+    if len(parts) < 3 or parts[0] != "tests" or parts[1] not in _TIERS:
+        return None
+    tier = parts[1]
+    # parts[2:] is everything below the tier dir, ending in the test file.
+    rest = parts[2:]
+    if len(rest) >= 2:
+        module = rest[0]  # first subdirectory under the tier
+    else:
+        module = Path(rest[0]).stem  # file directly under the tier -> file stem
+    return module, tier
+
+
+def collect_test_inventory() -> dict[str, dict[str, int]]:
+    """Collect per-module test counts across the three tiers.
+
+    Runs ``pytest --collect-only -q`` over ``tests/unit tests/integration
+    tests/validation`` in a subprocess and parses the node ids.
+
+    Returns ``{module: {"unit": n, "integration": n, "validation": n}}`` with all
+    three tier keys present (zero-filled) for every module that has any tests.
+    """
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", *_TIER_DIRS, "--collect-only", "-q",
+         "-p", "no:cacheprovider"],
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+    inventory: dict[str, dict[str, int]] = {}
+    for line in proc.stdout.splitlines():
+        line = line.strip()
+        if "::" not in line:
+            continue  # skip blank lines and the "N tests collected" summary
+        mapped = _node_id_to_module_tier(line)
+        if mapped is None:
+            continue
+        module, tier = mapped
+        counts = inventory.setdefault(module, {t: 0 for t in _TIERS})
+        counts[tier] += 1
+    if not inventory:
+        # No node ids parsed at all -> the collect failed (e.g. a collection error).
+        # Surface it loudly rather than silently returning an empty census.
+        raise RuntimeError(
+            "pytest --collect-only produced no node ids; collection likely failed.\n"
+            f"return code: {proc.returncode}\n"
+            f"stderr:\n{proc.stderr}\n"
+            f"stdout tail:\n{proc.stdout[-2000:]}"
+        )
+    return inventory
+
+
+if __name__ == "__main__":
+    # Minimal entrypoint for Task 1.2 (the --emit / --render CLI lands in Task 1.5).
+    inv = collect_test_inventory()
+    total = sum(t for m in inv.values() for t in m.values())
+    print(f"collected {total} tests across {len(inv)} modules")
