@@ -24,8 +24,9 @@ from scripts.audit_gradients import run_audit, _DEFAULT_JSON  # run_audit(out_js
 _DISCRETE = ("id", "direction", "param", "expect", "tol", "status")
 _FLOAT = ("ad", "fd", "ratio", "abs_ad")
 _RTOL = 2e-3   # PROVISIONAL — see module docstring; calibrated cross-arch in Task A5.
-# Non-vacuous floor: the registry currently has 66 rows; guard against a silently-emptied
-# registry/JSON (an emptied set passes cset==fset trivially — the classic staleness blind spot).
+# Non-vacuous floor: the registry has many tens of rows (66+ and growing through the D4
+# completion); guard against a silently-emptied registry/JSON (an emptied set passes cset==fset
+# trivially — the classic staleness blind spot). Count-agnostic so it needn't track the exact total.
 _MIN_ROWS = 60
 
 
