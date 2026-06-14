@@ -246,8 +246,8 @@ imports + builds (N=3). Released-core gate unaffected (the `solar_system.py` cha
 - ✅ **Bucket C — newly-fetched (Tier 1+2) verify — COMPLETE (Batch 4):** D&K91 (relabeled empirical),
   base.py mass ratios (verified) + elements (accepted-standard), Zahn/Lucy/King1962/Aarseth/Hurley
   citations all appropriate. Remaining: Tier-3 experimental gravoturb/SBC anchors stay deferred.
-- **⚠ Remaining adjudications (non-blocking — Anna's call):** (1) Kroupa 1995 `imf.py:52` page
-  **1507 → 1491** (held-PDF + topic match; likely typo — Batch 7); (2) the `build_plummer_cluster`
+- **⚠ Remaining adjudications (non-blocking — Anna's call):** (1) ✅ Kroupa 1995 `imf.py:52` page
+  **1507 → 1491 — FIXED** (Anna-approved; held-PDF + topic match); (2) the `build_plummer_cluster`
   doc-snippet repoint (deferred to the `build_cluster` implementation, design `0a7a424`); (3) optional
   low-priority hygiene — Salpeter −1.35→−2.35 code comment + unsourced `m_min`/`m_max`; Sana
   period-range "Fig.2" cite; Sana π/κ uncertainty mixing; Chabrier `m_trans` cite; `limepy_df`

@@ -33,10 +33,9 @@ $R_{0.5}\approx 0.8$ pc.
 - `progenax.imf.binary` (`imf.py`) — cited as the IMF-consistent **birth binary-population**
   framework (period distribution flat in $\log_{10}P$), alongside Moe & Di Stefano (2017).
 
-```{warning}
-**Citation-page discrepancy (flagged in the 2026-06 provenance audit).** The `imf.py`
-reference reads "Kroupa (1995) MNRAS 277, **1507**", but the **held** paper — and the one
-whose content matches "IMF-consistent binary populations" — is MNRAS 277, **1491** (Paper I,
-this note). MNRAS 277, 1507 is the companion Paper II ("The dynamical properties of stellar
-systems in the Galactic disc"). The page is most likely a typo for 1491; pending adjudication.
+```{note}
+**Citation-page correction (2026-06 provenance audit).** `imf.py` previously cited "MNRAS 277,
+**1507**" (the companion Paper II, *"The dynamical properties of stellar systems in the Galactic
+disc"*); this was corrected to **1491** — the held paper, and the one whose content matches
+"IMF-consistent binary populations" (Paper I, this note).
 ```

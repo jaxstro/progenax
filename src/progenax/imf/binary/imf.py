@@ -49,7 +49,7 @@ class BinaryIMF(eqx.Module):
     characterization of binary statistics to date.
 
     Reference:
-        Kroupa (1995) MNRAS 277, 1507 - IMF-consistent binary populations
+        Kroupa (1995) MNRAS 277, 1491 - IMF-consistent binary populations
         Moe & Di Stefano (2017) ApJS 230, 15 - Modern comprehensive model
         Raghavan et al. (2010) ApJS 190, 1 - Solar-type binary statistics
         Sana et al. (2012) Science 337, 444 - O-star binary statistics
