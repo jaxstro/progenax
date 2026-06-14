@@ -12,8 +12,6 @@ import pytest
 
 from progenax.imf import ChabrierIMF, Maschberger, Schechter, PowerLawIMF
 
-U = jnp.array([0.2, 0.4, 0.6, 0.8])
-
 # The AD-vs-FD ppf-parameter gradient checks (ChabrierIMF.ppf m_c/sigma/alpha,
 # Maschberger.ppf mu/alpha/beta, Schechter.ppf alpha, PowerLawIMF.ppf[Salpeter]
 # alpha, and PowerLawIMF.ppf[m_min]) are owned by the grad-audit registry
@@ -41,35 +39,13 @@ class TestBoundaryGradients:
         assert jnp.all(jnp.isfinite(g)), f"non-finite boundary grad: {g}"
 
 
-class TestParameterGradients:
-    """Gradients flow through IMF parameters (finiteness + non-zero)."""
-
-    def test_chabrier_grad_wrt_alpha(self):
-        """Gradient w.r.t. alpha is finite and non-zero through ppf."""
-        def loss(alpha):
-            return jnp.sum(ChabrierIMF(alpha=alpha).ppf(U))
-
-        grad_val = jax.grad(loss)(2.3)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
-
-    def test_chabrier_grad_wrt_sigma(self):
-        """Gradient w.r.t. sigma is finite and non-zero through ppf."""
-        def loss(sigma):
-            return jnp.sum(ChabrierIMF(sigma=sigma).ppf(U))
-
-        grad_val = jax.grad(loss)(0.69)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
-
-    def test_maschberger_grad_wrt_mu(self):
-        """Gradient w.r.t. mu is finite and non-zero through ppf."""
-        def loss(mu):
-            return jnp.sum(Maschberger(mu=mu).ppf(U))
-
-        grad_val = jax.grad(loss)(0.2)
-        assert jnp.isfinite(grad_val), f"Gradient is {grad_val}"
-        assert jnp.abs(grad_val) > 1e-6, f"Gradient is effectively zero: {grad_val}"
+# The IMF-parameter ppf gradients (ChabrierIMF.ppf alpha/sigma, Maschberger.ppf mu)
+# are FD-audited by the grad-audit registry (tests/validation/grad_audit/registry.py ::
+# ChabrierIMF.ppf [alpha] / [sigma], Maschberger.ppf [mu]); see
+# docs/website/50-validation/differentiability-audit.md. The former finite-only
+# TestParameterGradients (isfinite + non-zero, NO FD) was removed (audit T6: a
+# silently-zeroed grad would PASS isfinite; the registry FD cases are strictly
+# stronger; registry is SoT).
 
 
 class TestAlphaOneGradients:
