@@ -144,21 +144,14 @@ class TestEnclosedMassFraction:
 class TestPlummerDifferentiability:
     """Test differentiability for gradient-based inference."""
 
-    def test_gradient_through_r_h(self):
-        """Can compute gradients through r_h parameter."""
-        def loss(r_h):
-            profile = PlummerProfile(r_h=r_h)
-            masses = jnp.ones(10)
-            key = jax.random.PRNGKey(42)
-            positions = profile.sample_positions(masses, key)
-            radii = jnp.linalg.norm(positions, axis=1)
-            return jnp.mean(radii**2)
-
-        grad_fn = jax.grad(loss)
-        gradient = grad_fn(1.0)
-
-        assert jnp.isfinite(gradient)
-        assert gradient != 0.0
+    # grad through PlummerProfile.sample_positions wrt r_h is FD-audited by the
+    # grad-audit registry (tests/validation/grad_audit/registry.py ::
+    # PlummerProfile.sample_positions [r_h]); see
+    # docs/website/50-validation/differentiability-audit.md. The former finite-only
+    # test_gradient_through_r_h smoke (isfinite + != 0, NO FD) was removed (audit T6: a
+    # silently-zeroed grad would PASS isfinite; the registry FD case is strictly
+    # stronger; registry is SoT). (test_differentiable_in_r, grad wrt the query radius,
+    # is a distinct channel kept in TestEnclosedMassFraction.)
 
     def test_jit_compatible(self):
         """sample_positions() works with JIT compilation."""
