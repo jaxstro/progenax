@@ -1,138 +1,20 @@
 # progenax/tests/unit/profiles/test_king.py
 """
-Unit tests for KingProfile.
+Unit tests for KingProfile audit invariants.
 
-Physics tests only - ODE solution and profile properties.
+Covers the unit-specific guards: r_t boundary-pinning (audit J4), the
+r_t-consistency UserWarning (audit S1), and the differentiable tidal radius.
+
+ODE-solution and profile-property physics (truncation, isotropy, concentration,
+density, equilibrium DF, King Table II) is covered more thoroughly in the
+validation tier: tests/validation/test_king_physics.py. The redundant unit
+duplicates were removed in the 2026-06 pre-release test consolidation.
 """
 
 import jax
 import jax.numpy as jnp
 import pytest
 from progenax.profiles import KingProfile, solve_king_profile
-
-
-class TestSolveKingProfile:
-    """Test solve_king_profile() ODE solver."""
-
-    def test_boundary_conditions(self):
-        """ψ(0) ≈ W0, ψ → 0 at tidal radius."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=7.0, xi_max=50.0, n_points=500)
-
-        # Central potential should be close to W0
-        assert jnp.isclose(psi_grid[0], 7.0, atol=0.1)
-
-        # Potential should decay to zero
-        assert psi_grid[-1] < 0.5  # Should be nearly zero at large xi
-
-    def test_monotonic_decrease(self):
-        """ψ(ξ) decreases monotonically."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=5.0, xi_max=30.0, n_points=500)
-
-        # Check that potential is non-increasing
-        diff = jnp.diff(psi_grid)
-        assert jnp.all(diff <= 1e-6)  # Allow small numerical noise
-
-    def test_different_W0(self):
-        """Higher W0 gives steeper profile (tidal radius at larger xi)."""
-        xi1, psi1, _ = solve_king_profile(W0=3.0, xi_max=20.0, n_points=500)
-        xi2, psi2, _ = solve_king_profile(W0=7.0, xi_max=50.0, n_points=500)
-
-        # Find where ψ drops to 0.1
-        idx1 = jnp.argmax(psi1 < 0.1)
-        idx2 = jnp.argmax(psi2 < 0.1)
-
-        # Higher W0 should have larger dimensionless tidal radius
-        assert xi2[idx2] > xi1[idx1]
-
-    def test_non_negative_potential(self):
-        """All ψ values are non-negative."""
-        xi_grid, psi_grid, _ = solve_king_profile(W0=7.0, xi_max=50.0, n_points=500)
-        assert jnp.all(psi_grid >= 0.0)
-
-
-class TestKingPhysics:
-    """Test KingProfile physical properties."""
-
-    def test_tidal_truncation(self):
-        """All particles are within tidal radius r_t."""
-        # self-consistent constructor (recommended API); r_t derived from W0
-        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-        masses = jnp.ones(1000)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        assert jnp.all(radii <= float(profile.r_t) * 1.01)  # Allow small numerical tolerance
-
-    def test_isotropy(self):
-        """Angular distribution is isotropic."""
-        # self-consistent constructor (recommended API); r_t derived from W0
-        profile = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
-        N = 1000
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        # Check mean position is near origin (within ~3σ/√N tolerance)
-        mean_pos = jnp.mean(positions, axis=0)
-        assert jnp.all(jnp.abs(mean_pos) < 0.1), f"Mean pos {mean_pos} too far from origin"
-
-        # Check each axis has similar spread (ratio < 1.3)
-        stds = jnp.array([
-            jnp.std(positions[:, 0]),
-            jnp.std(positions[:, 1]),
-            jnp.std(positions[:, 2]),
-        ])
-        ratio = jnp.max(stds) / jnp.min(stds)
-        assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
-
-    def test_concentration_effect(self):
-        """Higher W0 gives more concentrated distribution."""
-        # self-consistent constructor (recommended API); r_t derived from W0
-        # Low concentration
-        profile1 = KingProfile.from_W0_rc(W0=3.0, r_c=1.0)
-
-        # High concentration
-        profile2 = KingProfile.from_W0_rc(W0=9.0, r_c=1.0)
-
-        masses = jnp.ones(5000)
-
-        # Use different seeds to ensure independent samples
-        pos1 = profile1.sample_positions(masses, jax.random.PRNGKey(42))
-        pos2 = profile2.sample_positions(masses, jax.random.PRNGKey(43))
-
-        radii1 = jnp.linalg.norm(pos1, axis=1)
-        radii2 = jnp.linalg.norm(pos2, axis=1)
-
-        # Both distributions should be reasonable
-        median_r1 = jnp.median(radii1)
-        median_r2 = jnp.median(radii2)
-
-        assert median_r1 > 0.0
-        assert median_r2 > 0.0
-        assert median_r1 < float(profile1.r_t)
-        assert median_r2 < float(profile2.r_t)
-
-    def test_characteristic_radius_returns_r_t(self):
-        """characteristic_radius() returns r_t (tidal radius)."""
-        # self-consistent constructor (recommended API); r_t derived from W0
-        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-        assert jnp.isclose(profile.characteristic_radius(), profile.r_t)
-
-    def test_jit_compatible(self):
-        """sample_positions() works with JIT compilation."""
-        # self-consistent constructor (recommended API); r_t derived from W0
-        profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-        masses = jnp.ones(100)
-        key = jax.random.PRNGKey(42)
-
-        @jax.jit
-        def sample_and_sum(m, k):
-            pos = profile.sample_positions(m, k)
-            return jnp.sum(pos**2)
-
-        result = sample_and_sum(masses, key)
-        assert jnp.isfinite(result)
 
 
 class TestRtBoundaryPinning:
