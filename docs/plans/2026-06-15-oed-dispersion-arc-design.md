@@ -29,31 +29,39 @@ and must meet the full Definition of Complete before any demo code).
 
 ## Phase 0 — packaged differentiable dispersion capability
 
-**New public API** (explicit-units policy; population moments, not sample estimates):
+**New public API** (explicit-units policy; population moments, not sample estimates). Placement
+**revised 2026-06-15 (Anna)**: a **free function on the profile**, not a method on the DF — the
+dispersion is a property of the *(potential, anisotropy)* pair, so it lives with the profile (which
+owns ρ, M, Φ), not the sampler. This kills the ρ/M duplication and the mixed-pairing footgun (you pass
+the *actual* profile), and decouples the forward model from the stochastic sampler:
 
 ```python
-result = df.dispersion_profile(r, M, G)   # r:(R,) radii; M: total mass; G explicit
-# -> NamedTuple DispersionProfile(sigma_r, sigma_t, sigma_1d, beta)  each (R,)
+from progenax import jeans_dispersion        # exported in progenax.__all__
+result = jeans_dispersion(profile, r_a, r, M, G)   # profile: SpatialProfile; r_a: OM radius or None
+# -> NamedTuple DispersionProfile(r, sigma_r, sigma_t, sigma_1d, beta)  each (R,)
 ```
 
-Added to `PlummerVelocityDF`, `EFFVelocityDF`, `MichieVelocityDF`. (Michie's anisotropy arg is `r_a`,
-not `anisotropy_radius` — a known naming difference, preserved.)
+Works for `PlummerProfile`, `EFFProfile`, `MichieProfile` (and any profile exposing `density(r)`).
 
-**Implementation (ratified):**
-- **Plummer-OM → analytic.** Isotropic `σ_1d²(r) = GM/(6√(r²+a²))` is closed-form (already in the DF
-  docstring). OM via a single differentiable anisotropic-Jeans quadrature with `β(r)=r²/(r²+r_a²)`
-  and the analytic Plummer ρ, M, Φ.
-- **EFF-OM & Michie → second velocity moment of the existing `f`-table.** `σ_r²(r) = ∫ v_r² f d³v / ρ`
-  by quadrature over the same `(E_grid, f_grid)` that `eddington_invert` already builds for the
-  sampler. **Self-consistent with the sampler by construction** — no re-derivation of `M(r)`.
-- `σ_t = σ_r / √(1 + r²/r_a²)`; `σ_1d² = (σ_r² + 2σ_t²)/3` (exact OM relation, Merritt 1985 Eq. 15).
+**Implementation (ratified, revised):**
+- **Unified anisotropic-Jeans quadrature** over the profile's own `density(s)`:
+  `ρσ_r²(r) = 1/(r²+r_a²) · ∫_r^∞ (s²+r_a²) ρ(s) GM(<s)/s² ds`, with the **enclosed mass from a
+  quadrature of `profile.density`** (`M(<s) = M·∫₀ˢρs'²ds'/∫₀^∞ρs'²ds'`) — builder-quality, NOT a
+  re-differentiated Ψ (Anna's call: avoids boundary noise near r=0/r_t). For Plummer the closed forms
+  agree analytically; the isotropic closed form `σ_1d²=GM/(6√(r²+a²))` is the validation truth.
+- `σ_t² = σ_r²·r_a²/(r_a²+r²)`; `σ_1d² = (σ_r²+2σ_t²)/3`; `β = r²/(r²+r_a²)` (exact OM, Merritt 1985 Eq. 15).
+- **f-table second moment stays a DF-side cross-check** (`σ_r²=∫v_r²f d³v/ρ` over the DF's stored
+  `f`-table): per Anna's "both, cross-checked" call, Jeans (primary) and f-moment are gated to agree
+  to table resolution — a numerical-convergence discriminator, not a loosened tolerance.
 
-**Shared primitive:** `src/progenax/kinematics/dispersion.py` holds the Jeans quadrature + the
-f-table second-moment kernel; the three DF methods are thin wrappers.
+**Shared module:** `src/progenax/kinematics/dispersion.py` holds `DispersionProfile`,
+`jeans_dispersion`, and the `f`-table second-moment kernel.
 
-**Mixed-pairing caveat (documented in the API):** the getter returns the dispersion self-consistent
-with **the DF's own potential**. In a mixed pairing (e.g. Plummer positions + King velocities) that is
-not the dispersion of the position profile — stated explicitly in the docstring.
+**Registry cost of the free-function placement:** `jeans_dispersion` is a new `progenax.__all__`
+symbol → it is categorized in all four registries (api_coverage SYMBOL_TESTS; physics
+EXEMPT_NON_MODEL — a forward-model helper, not an equilibrium model; grad_audit SYMBOL_CATEGORY=AUDITED
++ MUST_AUDIT pairs + Cases; provenance the Jeans/Merritt row). Accepted: the capability should be
+first-class and gated.
 
 **Gates (Definition of Complete):**
 - **Physics (3-way anchor):** analytic/f-table `σ_r(r)` agrees with the empirical binned dispersion
@@ -121,8 +129,8 @@ self-consistent mock (no real catalog, no cross-channel systematics).
 ## File layout
 
 ```
-src/progenax/kinematics/dispersion.py            # NEW (Phase 0): Jeans + f-table 2nd-moment primitives
-  └ dispersion_profile() on Plummer/EFF/Michie DF classes
+src/progenax/kinematics/dispersion.py            # NEW (Phase 0): jeans_dispersion() free fn + f-table 2nd-moment cross-check
+  └ jeans_dispersion exported in progenax.__all__ (profile-based; DF only for the f-moment check)
 tests/unit/kinematics/test_dispersion.py         # NEW: API, shapes, grads
 tests/validation/test_dispersion_physics.py      # NEW: 3-way physics anchor
   └ + registry updates (api_coverage, physics_registry, grad_audit, provenance_registry)
