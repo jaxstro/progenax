@@ -53,6 +53,31 @@ pytest tests/validation/test_plummer_physics.py -v
 
 ---
 
+## Registries & the generated dashboard
+
+Beyond the per-tier tests, the suite carries **four frozen-literal registries** under
+`tests/validation/`. Each freezes a mapping from a population (every `__all__` symbol, every
+model, every cited constant, every audited entry point) to its required assertion, so coverage
+**ratchets**: adding a public symbol or model without a matching test fails the registry's
+completeness check. A separate generated dashboard rolls all of this up.
+
+| Registry | Manifest | What it ratchets | Current fill |
+|----------|----------|------------------|--------------|
+| **API-coverage** | `tests/validation/api_coverage/manifest.py` | Every `progenax.__all__` symbol → an asserting test | 112 mapped, 2 exempt, 0 untested; line-cov floor 90%, measured 94.77% |
+| **Physics-validation** | `tests/validation/physics_registry/manifest.py` | Every model → a physics invariant (operational `IS_MODEL` = conforms to `SpatialProfile`/`VelocityDF`/`IMFProtocol` or is `build_*_cluster`) | 21 models, 90 non-model exempt, 3 carve-outs, 0 untested |
+| **Provenance** | `tests/validation/provenance_registry/manifest.py` | Every cited constant → a citation | 29 constants, 8 allowlisted modules, 0 unprovenanced |
+| **Differentiability** | `tests/validation/grad_audit/manifest.py` | Every `__all__` symbol AUDITED or EXEMPT, AD-vs-FD per case | (the pre-existing template registry) |
+
+**Generated dashboard.** `scripts/build_test_dashboard.py` emits
+`validation/data/test_dashboard.json` + the website page
+`docs/website/50-validation/test-dashboard.md` (per-module test census, coverage, registry fill).
+It is **never hand-edited**; `tests/validation/test_dashboard_fresh.py` gates it for staleness.
+
+See the website page `docs/website/50-validation/testing-architecture.md` for the full concept
+writeup of the registries and dashboard.
+
+---
+
 ## Physics Validation
 
 Each section documents the physics equations being tested, literature sources, and tolerance justifications.
@@ -210,7 +235,6 @@ $$\rho(r) \propto r^{-\gamma}$$
 | `test_density_at_scale_radius` | $\rho(a) = \rho_0 / 2^{\gamma/2}$ | exact | Formula |
 | `test_power_law_slope_asymptotic` | $\rho \propto r^{-\gamma}$ at large $r$ | 1% | Asymptotic limit |
 | `test_density_monotonic_decrease` | $d\rho/dr < 0$ | exact | Physical requirement |
-| `test_gamma_affects_concentration` | Higher $\gamma \to$ more concentrated | qualitative | Physical trend |
 | `test_all_particles_within_tidal_radius` | 100% at $r \leq r_t$ | exact | Hard boundary |
 
 ---

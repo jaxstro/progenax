@@ -26,112 +26,20 @@ That inference rests on gradient integrity: the
 entry point's autodiff gradient against finite differences (gradient integrity = Fisher
 integrity), and reports the two hazards it found and fixed.
 
-## Status dashboard
+## Live status
 
-The single place to see the V&V state. ✅ = tests pass *and* verified figure(s)
-embedded on the page; ⚠️ = tested but page/figures pending the module audit.
-Released-core suite (2026-06-10): **1163 tests**
-(unit 895 / integration 34 / **validation 234**), full gate green.
+:::{important} The V&V state is generated, not hand-maintained
+The per-module test census, line-coverage, and registry fill now live in the
+**generated** [](test-dashboard.md) — built by `scripts/build_test_dashboard.py`
+from the test suite + the four registry manifests, staleness-gated in CI, and
+**never hand-edited**. That page is the single source of truth for "what is
+validated"; this section's prose pages explain *how* each model is validated.
 
-```{list-table}
-:header-rows: 1
-
-* - Module
-  - Validated (tests pass)
-  - Figures on page
-  - Last verified
-  - Run command
-* - [profiles/Plummer](plummer-equilibrium.md)
-  - ✅ (20)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_plummer.py`
-* - [profiles/King](king-profile.md)
-  - ✅ (32)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_king.py`
-* - [profiles/EFF](eff-profile.md)
-  - ✅ (23)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_eff.py`
-* - [kinematics/Michie-King](michie-anisotropy.md)
-  - ✅ (12)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_michie.py`
-* - [kinematics/rotation & anisotropy](rotation-om-anisotropy.md)
-  - ✅ (10)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_rotation_anisotropy.py`
-* - [substructure/CW04 Q + azimuthal](fractal-substructure.md)
-  - ✅ (14)
-  - ✅ 8
-  - 2026-06-08
-  - `python scripts/validate_substructure_q.py`
-* - [cluster/multi-mass LIMEPY equilibrium — Engine A](multimass-equilibrium.md)
-  - ✅ (6 + 42 unit)
-  - ✅ 3
-  - 2026-06-10
-  - `python scripts/validate_multimass_equilibrium.py` (+ `_anisotropy`, `_df_tables`)
-* - [cluster/multi-component Eddington — Engine B](engine-b-eddington.md)
-  - ✅ (6)
-  - ✅ 1
-  - 2026-06-10
-  - `python scripts/validate_multicomponent_eddington.py`
-* - [cluster/two-component (superseded)](two-component.md)
-  - ✅ (via `MultiComponentCluster`)
-  - ✅ 1
-  - 2026-06-10
-  - `python scripts/validate_cluster_ic.py`
-* - [builders/`build_cluster` convenience API](cluster-builders.md)
-  - ✅ (43 unit + 7 integ + 8 grad-audit)
-  - ✅ 4
-  - 2026-06-14
-  - `python scripts/validate_cluster_builders.py`
-* - [diagnostics/Λ_MSR + segregation](mass-segregation.md)
-  - ✅ (8 + 13 + 27 + 4 primordial)
-  - ✅ 9
-  - 2026-06-10
-  - `python scripts/validate_segregation_approx.py`
-* - [imf statistics](imf-statistics.md)
-  - ✅ (25)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_imfs.py`
-* - [binary / Moe IMF](binary-imf.md)
-  - ✅ (24)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_binaries.py`
-* - [environment IMF (Marks/IGIMF)](environment-imf.md)
-  - ✅ (12)
-  - ✅ 5
-  - 2026-06-08
-  - `python scripts/validate_environment.py`
-* - [analytical test cases](analytical-test-cases.md)
-  - ✅ (12)
-  - ✅ 5
-  - 2026-06-09
-  - `python scripts/validate_analytical.py`
-* - [tidal truncation](tidal-truncation.md)
-  - ✅ (9 + 15 unit)
-  - ✅ 5
-  - 2026-06-09
-  - `python scripts/validate_tidal.py`
-* - [gravoturbulent / PP20](gravoturbulent-pp20.md)
-  - ✅
-  - ⚠️ pending
-  - —
-  - `pytest tests/validation -k pp20`
-* - [performance & memory](performance-memory.md)
-  - ✅ (gated: 7 RSS stages + 16× benchmark)
-  - ✅ 3
-  - 2026-06-10
-  - `python scripts/benchmark_batch_a.py`
-```
+The concepts behind the dashboard — the four frozen-literal registries
+(API-coverage, physics-validation, provenance, differentiability) and how they
+ratchet coverage against `progenax.__all__` — are documented in
+[](testing-architecture.md).
+:::
 
 ## Map of the section
 
