@@ -18,14 +18,13 @@ this test is ``@pytest.mark.slow``: it re-collects the whole suite, which is ful
 gate work, not fast-inner-loop work. The FAST gate stays fast; the FULL gate
 catches dashboard drift.
 
-_RTOL is for the line-coverage floats. There are NO measured floats yet
-(``line_coverage`` is ``"not-measured"``, every per-module ``line_cov`` is
-``None``), so the float path is forward-looking for Phase 2. It is implemented now
-so the gate is ready the moment coverage is wired in. Same-process regeneration
-re-parses the SAME committed ``coverage.json`` byte-for-byte, so the deltas will be
-exactly zero; 1e-6 is an ample float64 round-trip margin. If Phase 2's CI ever
-regenerates coverage on a different arch, widen to the measured max (do NOT loosen
-blindly — a large reldiff on a same-suite parse is a real drift, not noise).
+_RTOL is for the line-coverage floats. As of Task 2.2 ``line_coverage`` is
+``"measured"`` (the committed full-suite ``coverage.json`` exists) and the
+src-bearing module rows carry a real per-directory ``line_cov`` percentage. Same-
+process regeneration re-parses the SAME committed ``coverage.json`` byte-for-byte,
+so the deltas are exactly zero; 1e-6 is an ample float64 round-trip margin. If CI
+ever regenerates coverage on a different arch, widen to the measured max (do NOT
+loosen blindly — a large reldiff on a same-suite parse is a real drift, not noise).
 """
 import json
 import math
@@ -117,22 +116,81 @@ def _head_sha() -> str:
     ).stdout.strip()
 
 
-def assert_coverage_provenance_fresh(line_coverage: dict, head_sha: str) -> None:
-    """Phase-2 provenance teeth: a MEASURED coverage block must stamp HEAD's sha.
+# The measured package prefix. Coverage measures ONLY src/progenax (the released
+# wheel); a change anywhere else (tests, scripts, docs, experimental) cannot invalidate
+# the line-coverage of unchanged source. So the freshness diff is scoped to this path.
+_SRC_PREFIX = "src/progenax/"
 
-    When ``line_coverage["status"] == "measured"`` the committed ``coverage.json``
-    carries a ``coverage_provenance.git_sha``; a stale coverage file (measured on an
-    old tree) must NOT pass silently. We do not re-run ``--cov`` — we only compare
-    the recorded stamp against ``head_sha``. When not-measured there is no stamp ->
-    no-op. Extracted so the C1 regression test can exercise this branch with a
-    deliberately-mismatched sha (it is unreachable while coverage is not-measured).
+# The full-suite selector the floor/freshness gate requires (mirrors the api-coverage
+# manifest's FULL_SELECTOR — a `-m "not slow"` pass understates coverage).
+_FULL_SELECTOR = "full"
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    """Run a git command at the repo root (NOT check=True — callers read returncode)."""
+    return subprocess.run(
+        ["git", *args], cwd=str(_REPO_ROOT), capture_output=True, text=True
+    )
+
+
+def assert_coverage_provenance_fresh(line_coverage: dict, head_sha: str) -> None:
+    """Phase-2 provenance teeth: a MEASURED coverage block must be SRC-FRESH at HEAD.
+
+    RATIONALE (Task 2.2 correctness fix). The naive check ``git_sha == HEAD`` is
+    unworkable: it forces a ~14-min full-suite ``--cov`` re-measure on EVERY commit,
+    including test-only / docs-only commits that cannot change the line-coverage of
+    ``src/progenax``. A test-only commit only ever RAISES coverage (more tests exercise
+    the same unchanged source), so the committed floor stays a valid LOWER BOUND — there
+    is nothing to invalidate.
+
+    The right invariant is SOURCE-based: the committed coverage is STALE iff the measured
+    SOURCE changed since it was measured, i.e.::
+
+        git diff --name-only <coverage_provenance.git_sha> HEAD -- src/progenax/
+
+    is NON-EMPTY. Adding/removing TESTS does not invalidate it. We never re-run ``--cov``;
+    we only diff the source tree, which is cheap.
+
+    Two stale conditions raise (a measured block must NOT pass silently if either holds):
+
+    1. ``selector != "full"`` — a partial run that understates coverage.
+    2. The measured ``git_sha`` is not an ANCESTOR of HEAD (e.g. a rebased/orphaned sha,
+       or a sha from a sibling branch). We cannot compute a meaningful src diff against a
+       commit HEAD did not descend from, so we conservatively treat it as stale with a
+       clear message rather than silently passing.
+    3. ``git diff <git_sha> HEAD -- src/progenax/`` is non-empty — the measured source
+       moved.
+
+    When not-measured there is no stamp -> no-op. Extracted so the regression test can
+    exercise the teeth with a sha after which a ``src/progenax`` file changed.
     """
     if line_coverage.get("status") != "measured":
         return
-    committed_sha = line_coverage["coverage_provenance"]["git_sha"]
-    assert committed_sha == head_sha, (
-        f"stale coverage.json: provenance git_sha={committed_sha} != HEAD={head_sha} "
-        f"— regenerate the FULL-suite coverage at the current commit."
+    provenance = line_coverage["coverage_provenance"]
+
+    selector = provenance.get("selector")
+    assert selector == _FULL_SELECTOR, (
+        f"stale coverage.json: selector={selector!r} (not {_FULL_SELECTOR!r}) — the "
+        f"committed coverage must come from the FULL suite, not a partial run."
+    )
+
+    git_sha = provenance["git_sha"]
+    # git_sha must be an ancestor of HEAD for the src diff to be meaningful. `git
+    # merge-base --is-ancestor A B` exits 0 iff A is an ancestor of B. A non-zero exit
+    # (1 = not ancestor; 128 = bad/unknown sha) => we cannot trust the diff => stale.
+    ancestor = _git("merge-base", "--is-ancestor", git_sha, head_sha)
+    assert ancestor.returncode == 0, (
+        f"stale coverage.json: provenance git_sha={git_sha} is not an ancestor of "
+        f"HEAD={head_sha} (git exit {ancestor.returncode}) — the measured commit is not "
+        f"on HEAD's history; re-measure FULL-suite coverage at the current commit."
+    )
+
+    diff = _git("diff", "--name-only", git_sha, head_sha, "--", _SRC_PREFIX)
+    changed = [ln for ln in diff.stdout.splitlines() if ln.strip()]
+    assert not changed, (
+        f"stale coverage.json: {len(changed)} {_SRC_PREFIX} file(s) changed since the "
+        f"coverage was measured at {git_sha} (e.g. {changed[:3]}) — re-run the FULL-suite "
+        f"--cov and re-stamp. (Test-only changes do NOT invalidate coverage; source ones do.)"
     )
 
 
@@ -149,30 +207,76 @@ def _page_minus_timestamp(page_text: str) -> list[str]:
     ]
 
 
-def test_coverage_provenance_teeth_fire_on_stale_sha():
-    """C1: prove the (currently dead) provenance branch is LIVE.
+def _last_src_changing_parent() -> str | None:
+    """The PARENT of the most recent commit that touched ``src/progenax/``.
 
-    With coverage not-measured the gate's provenance assertion can never fire. Build
-    a committed-shaped MEASURED ``line_coverage`` block whose recorded git_sha is
-    WRONG and assert the provenance check RAISES — i.e. a stale coverage.json is
-    caught, not waved through.
+    Coverage stamped at THIS sha is, by construction, STALE: a ``src/progenax`` file
+    changed in the very next commit, so ``git diff <parent> HEAD -- src/progenax/`` is
+    non-empty. Returns ``None`` if the history is too shallow to have such a parent
+    (then the stale-on-src-change leg is skipped — the synthetic-sha legs still run).
     """
-    measured_block = {
+    last_src = _git("log", "-1", "--format=%H", "--", _SRC_PREFIX).stdout.strip()
+    if not last_src:
+        return None
+    parent = _git("rev-parse", f"{last_src}^").stdout.strip()
+    if not parent:
+        return None
+    # Sanity: confirm this really is a stale anchor (src changed between parent..HEAD).
+    diff = _git("diff", "--name-only", parent, _head_sha(), "--", _SRC_PREFIX)
+    return parent if diff.stdout.strip() else None
+
+
+def _measured_block(git_sha: str, selector: str = "full") -> dict:
+    """A committed-shaped MEASURED ``line_coverage`` block with the given stamp."""
+    return {
         "status": "measured",
         "total_percent": 92.3,
         "per_module": {"builders": 90.0},
         "per_file_lines": {"builders": {"covered_lines": 90, "num_statements": 100}},
         "coverage_provenance": {
-            "selector": "tests/unit tests/integration tests/validation",
-            "git_sha": "0000000000000000000000000000000000000000",  # deliberately wrong
+            "selector": selector,
+            "git_sha": git_sha,
+            "total_percent": 92.3,
+            "measured_utc": "2026-06-14T00:00:00+00:00",
         },
     }
-    with pytest.raises(AssertionError, match="stale coverage.json"):
-        assert_coverage_provenance_fresh(measured_block, head_sha=_head_sha())
 
-    # And the SAME block with the correct sha passes (the teeth bite only on drift).
-    measured_block["coverage_provenance"]["git_sha"] = _head_sha()
-    assert_coverage_provenance_fresh(measured_block, head_sha=_head_sha())  # no raise
+
+def test_coverage_provenance_teeth_fire_on_stale_src():
+    """C1 (src-based): prove the provenance teeth bite on a SOURCE change, not on tests.
+
+    The freshness invariant is src-based (Task 2.2): coverage is stale iff a
+    ``src/progenax`` file changed since it was measured. We assert:
+
+    - FRESH: stamped at HEAD (no src diff HEAD..HEAD) -> passes.
+    - STALE on src change: stamped at the parent of the last src-touching commit (a real
+      ``src/progenax`` file changed since) -> RAISES.
+    - STALE on non-ancestor sha: an all-zero sha is not on HEAD's history -> RAISES.
+    - STALE on partial selector: a non-"full" selector -> RAISES (understates coverage).
+    - not-measured -> no-op (no stamp to check).
+    """
+    head = _head_sha()
+
+    # FRESH: stamped at HEAD; diff HEAD..HEAD over src/progenax is empty -> no raise.
+    assert_coverage_provenance_fresh(_measured_block(head), head_sha=head)
+
+    # STALE on a real src change: parent of the last src-touching commit.
+    stale_src_sha = _last_src_changing_parent()
+    if stale_src_sha is not None:
+        with pytest.raises(AssertionError, match=r"file\(s\) changed since"):
+            assert_coverage_provenance_fresh(_measured_block(stale_src_sha), head_sha=head)
+
+    # STALE on a non-ancestor (orphaned/unknown) sha -> the merge-base leg raises.
+    with pytest.raises(AssertionError, match="not an ancestor"):
+        assert_coverage_provenance_fresh(
+            _measured_block("0" * 40), head_sha=head
+        )
+
+    # STALE on a partial selector -> the selector leg raises (even at a fresh sha).
+    with pytest.raises(AssertionError, match="not 'full'"):
+        assert_coverage_provenance_fresh(
+            _measured_block(head, selector="tests/unit -m 'not slow'"), head_sha=head
+        )
 
     # not-measured is always a no-op (no stamp to check).
     assert_coverage_provenance_fresh({"status": "not-measured"}, head_sha="whatever")

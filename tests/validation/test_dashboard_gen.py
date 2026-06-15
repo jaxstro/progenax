@@ -110,10 +110,21 @@ def test_registry_status_grad_audit_built_others_not():
     assert set(ga["status_histogram"]) <= {"clean", "known-limitation", "hazard"}
     # audited count is consistent with the AUDITED bucket of SYMBOL_CATEGORY.
     assert sum(ga["exempt"].values()) + ga["audited"] == 114
-    # The other three registries do not exist yet -> not-built placeholders.
+
+    # api-coverage is now BUILT (Task 2.2): it partitions __all__ into
+    # SYMBOL_TESTS / EXEMPT / UNTESTED. It is built-but-NOT-full while UNTESTED holes
+    # remain (closed in Task 2.3), so it carries `full: False` and a `untested` count.
+    api = status["api_coverage"]
+    assert api["status"] == "built"
+    assert api["full"] is False  # 6 UNTESTED holes remain (Task 2.3)
+    assert api["untested"] > 0
+    # The three partition sizes sum to the full __all__ (114).
+    assert api["symbol_tests"] + api["exempt"] + api["untested"] == 114
+
+    # The remaining two registries do not exist yet -> not-built placeholders.
     # Per the I2 contract, not-built placeholders OMIT `full` (so registries_full
     # stays False until all 4 are built+full).
-    for reg in ("api_coverage", "physics_validation", "provenance"):
+    for reg in ("physics_validation", "provenance"):
         assert status[reg] == {"status": "not-built"}
         assert "full" not in status[reg]
 
@@ -186,13 +197,19 @@ def test_write_coverage_json_injects_provenance(tmp_path):
     """The Phase-2 path: read a raw pytest-cov json, inject a top-level
     coverage_provenance block, write the merged json, and confirm it round-trips
     through load_coverage with provenance now populated.
+
+    Task 2.2 extended the provenance block to also carry ``total_percent`` (lifted
+    from ``totals.percent_covered`` so the floor gate reads ONE field) and a
+    ``measured_utc`` stamp. When not passed, both default (total from the totals,
+    measured_utc from the clock).
     """
     out = tmp_path / "coverage.json"
     write_coverage_json(
         raw_cov_path=_FIXTURE,
         out_path=str(out),
-        selector="tests/unit tests/integration tests/validation",
+        selector="full",
         git_sha="deadbeef",
+        measured_utc="2026-06-14T12:00:00+00:00",  # pin for a deterministic assert
     )
     cov = load_coverage(str(out))
     # round-trips: same totals + per-module mapping as the raw fixture.
@@ -201,10 +218,19 @@ def test_write_coverage_json_injects_provenance(tmp_path):
     assert cov["per_module"] == raw["per_module"]
     # ...but now provenance is populated (the raw fixture has None).
     assert raw["coverage_provenance"] is None
-    assert cov["coverage_provenance"] == {
-        "selector": "tests/unit tests/integration tests/validation",
-        "git_sha": "deadbeef",
-    }
+    prov = cov["coverage_provenance"]
+    assert prov["selector"] == "full"
+    assert prov["git_sha"] == "deadbeef"
+    assert prov["measured_utc"] == "2026-06-14T12:00:00+00:00"
+    # total_percent in the stamp defaults to totals.percent_covered (the headline).
+    assert prov["total_percent"] == raw["total_percent"]
+
+    # And the defaulted measured_utc path: a real UTC isoformat stamp is injected.
+    out2 = tmp_path / "coverage2.json"
+    write_coverage_json(_FIXTURE, str(out2), selector="full", git_sha="cafef00d")
+    prov2 = load_coverage(str(out2))["coverage_provenance"]
+    assert prov2["measured_utc"].endswith("+00:00")  # UTC-stamped
+    assert prov2["total_percent"] == raw["total_percent"]
 
 
 # --- Task 1.5: build_dashboard ----------------------------------------------
@@ -230,9 +256,12 @@ def test_build_dashboard_modules_merge_inventory():
 
 def test_build_dashboard_registry_and_gate_state():
     dash = build_dashboard("2026-01-01T00:00:00Z")
-    # api_coverage registry is not built yet in Phase 1.
-    assert dash["registries"]["api_coverage"]["status"] == "not-built"
-    # gate: registries are NOT all full (3 of 4 not built) and the floor is 90.
+    # api_coverage registry is BUILT as of Task 2.2 (but not full -> holds the gate).
+    assert dash["registries"]["api_coverage"]["status"] == "built"
+    assert dash["registries"]["api_coverage"]["full"] is False
+    # gate: registries are NOT all full and the floor is 90. registries_full stays
+    # False because physics_validation + provenance are not-built AND api_coverage is
+    # built-but-not-full (UNTESTED holes).
     assert dash["gate"]["registries_full"] is False
     assert dash["gate"]["line_cov_floor"] == 90
     assert dash["gate"]["full_suite_green"] is None

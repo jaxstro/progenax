@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2, full-suite `--cov` run). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists (Task 2.1). The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count); the other three registries (API-coverage, physics-validation, provenance) are not built yet.
+Generated at `2026-06-15T00:05:07.631686+00:00`. Line coverage: 94.8% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage (6 hole(s)). Not built yet: physics-validation, provenance.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -30,6 +30,14 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 7
   - 0
   - 0
+  - 67.4
+  - 33/114 audited, 0 haz
+  - —
+  - —
+* - `api_coverage`
+  - 0
+  - 0
+  - 5
   - pending (Phase 2)
   - 33/114 audited, 0 haz
   - —
@@ -38,7 +46,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 128
   - 0
   - 0
-  - pending (Phase 2)
+  - 95.8
   - 33/114 audited, 0 haz
   - —
   - —
@@ -46,7 +54,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 43
   - 0
   - 0
-  - pending (Phase 2)
+  - 93.7
   - 33/114 audited, 0 haz
   - —
   - —
@@ -54,7 +62,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 63
   - 0
   - 0
-  - pending (Phase 2)
+  - 98.6
   - 33/114 audited, 0 haz
   - —
   - —
@@ -62,7 +70,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 28
   - 0
   - 0
-  - pending (Phase 2)
+  - 92.4
   - 33/114 audited, 0 haz
   - —
   - —
@@ -70,7 +78,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 28
   - 0
   - 0
-  - pending (Phase 2)
+  - 97.8
   - 33/114 audited, 0 haz
   - —
   - —
@@ -86,7 +94,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 269
   - 0
   - 0
-  - pending (Phase 2)
+  - 97.1
   - 33/114 audited, 0 haz
   - —
   - —
@@ -94,7 +102,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 106
   - 0
   - 0
-  - pending (Phase 2)
+  - 99.1
   - 33/114 audited, 0 haz
   - —
   - —
@@ -102,7 +110,7 @@ Generated at `2026-06-14T23:21:50.566082+00:00`. Line coverage: pending (Phase 2
   - 207
   - 0
   - 0
-  - pending (Phase 2)
+  - 98.8
   - 33/114 audited, 0 haz
   - —
   - —

@@ -222,25 +222,81 @@ def rollup_coverage_by_dir(coverage: dict) -> dict[str, float]:
 
 
 def write_coverage_json(
-    raw_cov_path: str, out_path: str, selector: str, git_sha: str
+    raw_cov_path: str,
+    out_path: str,
+    selector: str,
+    git_sha: str,
+    total_percent: float | None = None,
+    measured_utc: str | None = None,
 ) -> None:
     """Stamp a raw pytest-cov JSON with provenance and write it to ``out_path``.
 
-    This is the EXACT path Phase-2 Task 2.1 uses to produce the committed
+    This is the EXACT path Phase-2 Task 2.2 uses to produce the committed
     ``validation/data/coverage.json``: it reads a raw ``--cov-report=json`` file,
     injects a top-level ``coverage_provenance`` block::
 
-        {"selector": <full-suite selector>, "git_sha": <HEAD sha>}
+        {"selector": <full-suite selector>, "git_sha": <HEAD sha>,
+         "total_percent": <totals.percent_covered>, "measured_utc": <UTC stamp>}
 
-    and writes the merged JSON. The ``selector`` records which suite produced the
-    numbers (the floor gate refuses a partial ``-m "not slow"`` run); ``git_sha``
-    lets the staleness gate detect a stale ``coverage.json`` without re-running
-    ``--cov``. The resulting file round-trips through :func:`load_coverage` with
+    and writes the merged JSON. The fields:
+
+    - ``selector`` records which suite produced the numbers (the floor gate refuses
+      a partial ``-m "not slow"`` run, which understates coverage).
+    - ``git_sha`` is the commit the coverage was MEASURED at; the staleness gate uses
+      it for a SRC-based freshness check (``git diff <git_sha> HEAD -- src/progenax``)
+      without re-running the ~14-min ``--cov``.
+    - ``total_percent`` is the headline ``totals.percent_covered`` lifted to the
+      provenance block so the floor gate reads ONE field (it does not have to know
+      pytest-cov's nested ``totals`` schema); defaults to ``totals.percent_covered``.
+    - ``measured_utc`` is when the measurement was taken (human-facing provenance);
+      defaults to ``datetime.now(timezone.utc)``. ``datetime.now`` is fine here — this
+      is a plain SCRIPT, not a workflow.
+
+    The resulting file round-trips through :func:`load_coverage` with
     ``coverage_provenance`` populated (it is ``None`` in a raw, unstamped file).
     """
     data = json.loads(Path(raw_cov_path).read_text())
-    data["coverage_provenance"] = {"selector": selector, "git_sha": git_sha}
+    if total_percent is None:
+        total_percent = float(data["totals"]["percent_covered"])
+    if measured_utc is None:
+        measured_utc = datetime.now(timezone.utc).isoformat()
+    data["coverage_provenance"] = {
+        "selector": selector,
+        "git_sha": git_sha,
+        "total_percent": total_percent,
+        "measured_utc": measured_utc,
+    }
     Path(out_path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def _git(*args: str) -> subprocess.CompletedProcess:
+    """Run a git command at the repo root and return the CompletedProcess.
+
+    A thin wrapper so the coverage-provenance stamping (``--stamp-coverage``) can
+    read the current HEAD sha, mirroring the ``--collect-only`` subprocess pattern.
+    NOT ``check=True`` — callers inspect ``returncode`` (the freshness gate needs to
+    distinguish a non-ancestor sha from a clean diff).
+    """
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+
+def _stamp_coverage(raw_cov_path: str) -> None:
+    """Stamp ``raw_cov_path`` as the committed FULL-suite ``coverage.json``.
+
+    Records ``selector="full"`` (the value the floor gate requires) and the current
+    HEAD sha, lifting ``total_percent`` + ``measured_utc`` from the raw file / clock.
+    """
+    git_sha = _git("rev-parse", "HEAD").stdout.strip()
+    out_path = _REPO_ROOT / _COVERAGE_JSON
+    write_coverage_json(raw_cov_path, str(out_path), selector="full", git_sha=git_sha)
+    total = json.loads(out_path.read_text())["coverage_provenance"]["total_percent"]
+    print(f"wrote {out_path.relative_to(_REPO_ROOT)} (selector=full, "
+          f"sha={git_sha[:8]}, total={total:.2f}%)")
 
 
 # grad-audit row statuses are COMPUTED by grad_audit/core.py::_classify into exactly
@@ -253,9 +309,9 @@ def write_coverage_json(
 # safe.) The committed JSON should carry zero hazards in a healthy tree.
 _GRAD_AUDIT_BENIGN_STATUSES = frozenset({"clean", "known-limitation"})
 
-# The three registries that Phases 2/4/5 will build. Until then read_registry_status
-# returns a not-built placeholder for each (the grad-audit block is the only real one).
-_NOT_BUILT_REGISTRIES = ("api_coverage", "physics_validation", "provenance")
+# The registries that Phases 4/5 will build. api_coverage is now built (Task 2.2);
+# physics_validation + provenance stay not-built placeholders until their phases.
+_NOT_BUILT_REGISTRIES = ("physics_validation", "provenance")
 
 _GRAD_AUDIT_JSON = "validation/data/grad_audit_results.json"
 
@@ -310,7 +366,24 @@ def read_registry_status() -> dict:
         "hazards": hazards,
         "status_histogram": status_hist,
     }
-    result = {"differentiability": differentiability}
+
+    # api-coverage registry (Task 2.2): the frozen-literal manifest partitions every
+    # progenax.__all__ symbol into SYMBOL_TESTS / EXEMPT / UNTESTED. We import the pure
+    # manifest module (NO pytest-collection side effects — same contract as the grad-audit
+    # manifest) and report the partition sizes. CONTRACT: `full` == zero UNTESTED holes
+    # (every public symbol either has an asserting test or is justified EXEMPT). With holes
+    # still open it is False, holding registries_full False until Task 2.3 closes them.
+    from tests.validation.api_coverage.manifest import EXEMPT, SYMBOL_TESTS, UNTESTED
+
+    api_coverage = {
+        "status": "built",
+        "full": len(UNTESTED) == 0,
+        "symbol_tests": len(SYMBOL_TESTS),
+        "exempt": len(EXEMPT),
+        "untested": len(UNTESTED),
+    }
+
+    result = {"differentiability": differentiability, "api_coverage": api_coverage}
     for reg in _NOT_BUILT_REGISTRIES:
         result[reg] = {"status": "not-built"}  # no `full` -> holds registries_full False
     return result
@@ -481,13 +554,21 @@ def main(argv: list[str] | None = None) -> None:
         "--render", action="store_true",
         help="render the committed dashboard JSON to the MyST matrix page.",
     )
+    parser.add_argument(
+        "--stamp-coverage", metavar="RAW_COV_JSON", default=None,
+        help="stamp a raw pytest-cov JSON (from a FULL-suite --cov run) with "
+             "provenance (selector=full, HEAD sha, total_percent, measured_utc) "
+             "and write it to validation/data/coverage.json.",
+    )
     args = parser.parse_args(argv)
 
+    if args.stamp_coverage:
+        _stamp_coverage(args.stamp_coverage)
     if args.emit:
         _emit(_REPO_ROOT / _DASHBOARD_JSON)
     if args.render:
         _render(_REPO_ROOT / _DASHBOARD_JSON, _REPO_ROOT / _DASHBOARD_PAGE)
-    if not (args.emit or args.render):
+    if not (args.emit or args.render or args.stamp_coverage):
         inv = collect_test_inventory()
         total = sum(t for m in inv.values() for t in m.values())
         print(f"collected {total} tests across {len(inv)} modules")

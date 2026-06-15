@@ -104,6 +104,41 @@ def _matrix_rows(dashboard: dict) -> list[str]:
     return rows
 
 
+# Human labels for the four registries, in dashboard/key order. The prose sentence
+# derives BUILT/not-built from the JSON so it can never drift from the actual blocks.
+_REGISTRY_LABELS = {
+    "differentiability": "differentiability",
+    "api_coverage": "API-coverage",
+    "physics_validation": "physics-validation",
+    "provenance": "provenance",
+}
+
+
+def _registry_status_phrase(registries: dict) -> str:
+    """A prose sentence naming which registries are built vs not (derived from JSON).
+
+    Partitions the four registry blocks by their ``status`` so the intro paragraph
+    cannot claim a registry is "not built" once it lands. An ``api_coverage`` block
+    additionally reports its ``untested`` hole count when built-but-not-full.
+    """
+    built, not_built = [], []
+    for key, label in _REGISTRY_LABELS.items():
+        block = registries.get(key, {})
+        if block.get("status") == "built":
+            tag = label
+            if block.get("full") is False and "untested" in block:
+                tag += f" ({block['untested']} hole(s))"
+            built.append(tag)
+        else:
+            not_built.append(label)
+    parts = []
+    if built:
+        parts.append(f"Built registries: {', '.join(built)}.")
+    if not_built:
+        parts.append(f"Not built yet: {', '.join(not_built)}.")
+    return " ".join(parts)
+
+
 def render_dashboard_page(dashboard: dict) -> str:
     """Return the full MyST page text for the dashboard JSON.
 
@@ -112,12 +147,14 @@ def render_dashboard_page(dashboard: dict) -> str:
     """
     generated_utc = dashboard.get("generated_utc", "unknown")
     gate = dashboard.get("gate", {})
+    registries = dashboard.get("registries", {})
     line_cov = gate.get("line_cov_measured")
     line_cov_str = (
         "pending (Phase 2, full-suite `--cov` run)"
         if line_cov is None
         else f"{line_cov:.1f}% (floor {gate.get('line_cov_floor')}%)"
     )
+    registry_phrase = _registry_status_phrase(registries)
 
     header = [
         "* - Module",
@@ -149,10 +186,10 @@ def render_dashboard_page(dashboard: dict) -> str:
         "",
         f"Generated at `{generated_utc}`. Line coverage: {line_cov_str}. "
         "`Line-cov %` cells read **pending (Phase 2)** until the committed "
-        "full-suite `coverage.json` exists (Task 2.1). The `Grad-audit fill` "
-        "column reports the repo-wide differentiability registry "
-        "(audited / audited+exempt, hazard count); the other three registries "
-        "(API-coverage, physics-validation, provenance) are not built yet.",
+        "full-suite `coverage.json` exists, then show the statement-weighted "
+        "per-directory coverage. The `Grad-audit fill` column reports the "
+        "repo-wide differentiability registry "
+        f"(audited / audited+exempt, hazard count). {registry_phrase}",
         "",
         "```{list-table} Per-module test + coverage matrix",
         ":header-rows: 1",

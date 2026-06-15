@@ -5,47 +5,454 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": null,
+    "line_cov_measured": 94.77173707141505,
     "registries_full": false
   },
-  "generated_utc": "2026-06-14T23:21:50.566082+00:00",
+  "generated_utc": "2026-06-15T00:05:07.631686+00:00",
   "line_coverage": {
-    "status": "not-measured"
+    "coverage_provenance": {
+      "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
+      "measured_utc": "2026-06-15T00:02:01.857631+00:00",
+      "selector": "full",
+      "total_percent": 94.77173707141505
+    },
+    "per_file_lines": {
+      "__init__": {
+        "covered_lines": 16,
+        "num_statements": 16
+      },
+      "analytical/__init__": {
+        "covered_lines": 5,
+        "num_statements": 5
+      },
+      "analytical/base": {
+        "covered_lines": 17,
+        "num_statements": 19
+      },
+      "analytical/few_body": {
+        "covered_lines": 23,
+        "num_statements": 47
+      },
+      "analytical/solar_system": {
+        "covered_lines": 22,
+        "num_statements": 55
+      },
+      "analytical/two_body": {
+        "covered_lines": 55,
+        "num_statements": 55
+      },
+      "binaries/__init__": {
+        "covered_lines": 11,
+        "num_statements": 11
+      },
+      "binaries/assembly": {
+        "covered_lines": 37,
+        "num_statements": 37
+      },
+      "binaries/companions": {
+        "covered_lines": 60,
+        "num_statements": 64
+      },
+      "binaries/diagnostics": {
+        "covered_lines": 103,
+        "num_statements": 103
+      },
+      "binaries/eccentricity": {
+        "covered_lines": 73,
+        "num_statements": 83
+      },
+      "binaries/kepler": {
+        "covered_lines": 91,
+        "num_statements": 91
+      },
+      "binaries/kepler_inverse": {
+        "covered_lines": 40,
+        "num_statements": 40
+      },
+      "binaries/kepler_period": {
+        "covered_lines": 14,
+        "num_statements": 14
+      },
+      "binaries/mass_dependent": {
+        "covered_lines": 50,
+        "num_statements": 51
+      },
+      "binaries/orbital_state": {
+        "covered_lines": 36,
+        "num_statements": 36
+      },
+      "binaries/orientation": {
+        "covered_lines": 14,
+        "num_statements": 14
+      },
+      "binaries/period": {
+        "covered_lines": 81,
+        "num_statements": 93
+      },
+      "builders": {
+        "covered_lines": 118,
+        "num_statements": 126
+      },
+      "builders_cluster": {
+        "covered_lines": 94,
+        "num_statements": 97
+      },
+      "cluster/__init__": {
+        "covered_lines": 5,
+        "num_statements": 5
+      },
+      "cluster/constants": {
+        "covered_lines": 11,
+        "num_statements": 11
+      },
+      "cluster/eddington_engine": {
+        "covered_lines": 113,
+        "num_statements": 114
+      },
+      "cluster/mass_segregation": {
+        "covered_lines": 37,
+        "num_statements": 37
+      },
+      "cluster/multicomponent": {
+        "covered_lines": 185,
+        "num_statements": 188
+      },
+      "cluster/sampling": {
+        "covered_lines": 48,
+        "num_statements": 48
+      },
+      "cluster/turbulence": {
+        "covered_lines": 23,
+        "num_statements": 25
+      },
+      "defaults": {
+        "covered_lines": 2,
+        "num_statements": 2
+      },
+      "diagnostics/__init__": {
+        "covered_lines": 5,
+        "num_statements": 5
+      },
+      "diagnostics/mass_segregation": {
+        "covered_lines": 36,
+        "num_statements": 40
+      },
+      "diagnostics/q_approx": {
+        "covered_lines": 112,
+        "num_statements": 125
+      },
+      "diagnostics/segregation_approx": {
+        "covered_lines": 94,
+        "num_statements": 96
+      },
+      "diagnostics/substructure": {
+        "covered_lines": 44,
+        "num_statements": 49
+      },
+      "dynamics/__init__": {
+        "covered_lines": 2,
+        "num_statements": 2
+      },
+      "dynamics/virial": {
+        "covered_lines": 85,
+        "num_statements": 87
+      },
+      "imf/__init__": {
+        "covered_lines": 10,
+        "num_statements": 10
+      },
+      "imf/base": {
+        "covered_lines": 107,
+        "num_statements": 111
+      },
+      "imf/binary/__init__": {
+        "covered_lines": 5,
+        "num_statements": 5
+      },
+      "imf/binary/binary_fraction": {
+        "covered_lines": 17,
+        "num_statements": 17
+      },
+      "imf/binary/imf": {
+        "covered_lines": 78,
+        "num_statements": 82
+      },
+      "imf/binary/mass_ratio": {
+        "covered_lines": 139,
+        "num_statements": 147
+      },
+      "imf/binary/moe_di_stefano": {
+        "covered_lines": 155,
+        "num_statements": 155
+      },
+      "imf/chabrier": {
+        "covered_lines": 124,
+        "num_statements": 128
+      },
+      "imf/differentiable": {
+        "covered_lines": 100,
+        "num_statements": 100
+      },
+      "imf/differentiable_binary": {
+        "covered_lines": 33,
+        "num_statements": 34
+      },
+      "imf/environment/__init__": {
+        "covered_lines": 5,
+        "num_statements": 5
+      },
+      "imf/environment/birth_environment": {
+        "covered_lines": 59,
+        "num_statements": 62
+      },
+      "imf/environment/coefficients": {
+        "covered_lines": 7,
+        "num_statements": 7
+      },
+      "imf/environment/density": {
+        "covered_lines": 13,
+        "num_statements": 13
+      },
+      "imf/environment/mapping": {
+        "covered_lines": 104,
+        "num_statements": 107
+      },
+      "imf/params": {
+        "covered_lines": 17,
+        "num_statements": 17
+      },
+      "imf/power_law": {
+        "covered_lines": 118,
+        "num_statements": 126
+      },
+      "imf/smooth": {
+        "covered_lines": 68,
+        "num_statements": 68
+      },
+      "imf/truncated": {
+        "covered_lines": 42,
+        "num_statements": 43
+      },
+      "kinematics/__init__": {
+        "covered_lines": 8,
+        "num_statements": 8
+      },
+      "kinematics/_speed_kernels": {
+        "covered_lines": 12,
+        "num_statements": 12
+      },
+      "kinematics/api": {
+        "covered_lines": 40,
+        "num_statements": 40
+      },
+      "kinematics/eddington": {
+        "covered_lines": 58,
+        "num_statements": 58
+      },
+      "kinematics/eff_df": {
+        "covered_lines": 65,
+        "num_statements": 66
+      },
+      "kinematics/king_df": {
+        "covered_lines": 67,
+        "num_statements": 68
+      },
+      "kinematics/limepy_df": {
+        "covered_lines": 109,
+        "num_statements": 110
+      },
+      "kinematics/michie_df": {
+        "covered_lines": 86,
+        "num_statements": 87
+      },
+      "kinematics/plummer_df": {
+        "covered_lines": 65,
+        "num_statements": 65
+      },
+      "kinematics/rotation": {
+        "covered_lines": 28,
+        "num_statements": 29
+      },
+      "numerics": {
+        "covered_lines": 12,
+        "num_statements": 12
+      },
+      "profiles/__init__": {
+        "covered_lines": 9,
+        "num_statements": 9
+      },
+      "profiles/api": {
+        "covered_lines": 58,
+        "num_statements": 58
+      },
+      "profiles/density_poisson": {
+        "covered_lines": 131,
+        "num_statements": 133
+      },
+      "profiles/eff": {
+        "covered_lines": 49,
+        "num_statements": 49
+      },
+      "profiles/king": {
+        "covered_lines": 135,
+        "num_statements": 136
+      },
+      "profiles/limepy": {
+        "covered_lines": 153,
+        "num_statements": 155
+      },
+      "profiles/limepy_multimass": {
+        "covered_lines": 206,
+        "num_statements": 207
+      },
+      "profiles/limepy_tables": {
+        "covered_lines": 104,
+        "num_statements": 104
+      },
+      "profiles/michie": {
+        "covered_lines": 101,
+        "num_statements": 102
+      },
+      "profiles/plummer": {
+        "covered_lines": 38,
+        "num_statements": 39
+      },
+      "profiles/uniform": {
+        "covered_lines": 33,
+        "num_statements": 37
+      },
+      "protocols": {
+        "covered_lines": 43,
+        "num_statements": 63
+      },
+      "tidal": {
+        "covered_lines": 32,
+        "num_statements": 32
+      }
+    },
+    "per_module": {
+      "__init__": 100.0,
+      "analytical/__init__": 100.0,
+      "analytical/base": 86.95652173913044,
+      "analytical/few_body": 43.39622641509434,
+      "analytical/solar_system": 38.59649122807018,
+      "analytical/two_body": 100.0,
+      "binaries/__init__": 100.0,
+      "binaries/assembly": 100.0,
+      "binaries/companions": 88.88888888888889,
+      "binaries/diagnostics": 100.0,
+      "binaries/eccentricity": 87.95180722891567,
+      "binaries/kepler": 100.0,
+      "binaries/kepler_inverse": 100.0,
+      "binaries/kepler_period": 100.0,
+      "binaries/mass_dependent": 96.22641509433963,
+      "binaries/orbital_state": 100.0,
+      "binaries/orientation": 100.0,
+      "binaries/period": 87.36842105263158,
+      "builders": 91.55844155844156,
+      "builders_cluster": 95.68345323741008,
+      "cluster/__init__": 100.0,
+      "cluster/constants": 100.0,
+      "cluster/eddington_engine": 98.57142857142857,
+      "cluster/mass_segregation": 100.0,
+      "cluster/multicomponent": 97.24770642201835,
+      "cluster/sampling": 100.0,
+      "cluster/turbulence": 92.0,
+      "defaults": 100.0,
+      "diagnostics/__init__": 100.0,
+      "diagnostics/mass_segregation": 88.0,
+      "diagnostics/q_approx": 86.39455782312925,
+      "diagnostics/segregation_approx": 96.07843137254902,
+      "diagnostics/substructure": 86.88524590163935,
+      "dynamics/__init__": 100.0,
+      "dynamics/virial": 95.78947368421052,
+      "imf/__init__": 100.0,
+      "imf/base": 92.8,
+      "imf/binary/__init__": 100.0,
+      "imf/binary/binary_fraction": 100.0,
+      "imf/binary/imf": 93.0,
+      "imf/binary/mass_ratio": 93.54838709677419,
+      "imf/binary/moe_di_stefano": 100.0,
+      "imf/chabrier": 94.20289855072464,
+      "imf/differentiable": 100.0,
+      "imf/differentiable_binary": 97.05882352941177,
+      "imf/environment/__init__": 100.0,
+      "imf/environment/birth_environment": 90.0,
+      "imf/environment/coefficients": 100.0,
+      "imf/environment/density": 100.0,
+      "imf/environment/mapping": 95.86206896551724,
+      "imf/params": 100.0,
+      "imf/power_law": 93.18181818181819,
+      "imf/smooth": 100.0,
+      "imf/truncated": 95.55555555555556,
+      "kinematics/__init__": 100.0,
+      "kinematics/_speed_kernels": 100.0,
+      "kinematics/api": 100.0,
+      "kinematics/eddington": 100.0,
+      "kinematics/eff_df": 97.22222222222223,
+      "kinematics/king_df": 97.43589743589743,
+      "kinematics/limepy_df": 98.41269841269842,
+      "kinematics/michie_df": 97.89473684210526,
+      "kinematics/plummer_df": 100.0,
+      "kinematics/rotation": 96.7741935483871,
+      "numerics": 100.0,
+      "profiles/__init__": 100.0,
+      "profiles/api": 100.0,
+      "profiles/density_poisson": 97.48427672955975,
+      "profiles/eff": 100.0,
+      "profiles/king": 99.31506849315069,
+      "profiles/limepy": 98.15950920245399,
+      "profiles/limepy_multimass": 99.11111111111111,
+      "profiles/limepy_tables": 100.0,
+      "profiles/michie": 99.05660377358491,
+      "profiles/plummer": 97.43589743589743,
+      "profiles/uniform": 87.17948717948718,
+      "protocols": 68.25396825396825,
+      "tidal": 100.0
+    },
+    "status": "measured",
+    "total_percent": 94.77173707141505
   },
   "modules": {
     "analytical": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 67.40331491712708,
       "unit": 7,
       "validation": 0
     },
-    "binaries": {
+    "api_coverage": {
       "integration": 0,
       "line_cov": null,
+      "unit": 0,
+      "validation": 5
+    },
+    "binaries": {
+      "integration": 0,
+      "line_cov": 95.76138147566719,
       "unit": 128,
       "validation": 0
     },
     "builders": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 93.65079365079364,
       "unit": 43,
       "validation": 0
     },
     "cluster": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 98.59813084112149,
       "unit": 63,
       "validation": 0
     },
     "diagnostics": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 92.38095238095238,
       "unit": 28,
       "validation": 0
     },
     "dynamics": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 97.75280898876404,
       "unit": 28,
       "validation": 0
     },
@@ -57,19 +464,19 @@
     },
     "imf": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 97.08973322554567,
       "unit": 269,
       "validation": 0
     },
     "kinematics": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 99.0791896869245,
       "unit": 106,
       "validation": 0
     },
     "profiles": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 98.83381924198251,
       "unit": 207,
       "validation": 0
     },
@@ -286,7 +693,11 @@
   },
   "registries": {
     "api_coverage": {
-      "status": "not-built"
+      "exempt": 2,
+      "full": false,
+      "status": "built",
+      "symbol_tests": 106,
+      "untested": 6
     },
     "differentiability": {
       "audited": 33,

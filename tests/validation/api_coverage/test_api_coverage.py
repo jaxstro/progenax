@@ -62,18 +62,22 @@ def test_no_untested_holes():
 def test_line_coverage_above_floor():
     """Enforce the ratchet-up line-coverage floor against the COMMITTED full-suite artifact.
 
-    SKIPs (green) until the full-suite ``--cov`` run commits ``validation/data/coverage.json``
-    (Task 2.2). Once committed, this becomes a hard floor: the artifact must come from the FULL
-    suite (a ``-m "not slow"`` pass understates coverage), and total >= LINE_COV_FLOOR.
+    HARD as of Task 2.2: the committed ``validation/data/coverage.json`` exists, so there is no
+    skip path. The artifact must come from the FULL suite (a ``-m "not slow"`` pass understates
+    coverage and would game the floor), and its recorded ``total_percent`` must be
+    >= LINE_COV_FLOOR. Both fields are read from the ``coverage_provenance`` stamp written by
+    ``write_coverage_json`` (selector / total_percent live together there).
     """
-    if not _COVERAGE_JSON.exists():
-        pytest.skip("coverage.json not committed yet — Task 2.2")
+    assert _COVERAGE_JSON.exists(), (
+        f"committed full-suite coverage.json missing at {_COVERAGE_JSON} — regenerate it with "
+        f"`build_test_dashboard.py --stamp-coverage <raw --cov json>` (Task 2.2).")
     cov = json.loads(_COVERAGE_JSON.read_text())
-    selector = cov["coverage_provenance"]["selector"]
+    provenance = cov["coverage_provenance"]
+    selector = provenance["selector"]
     assert selector == FULL_SELECTOR, (
         f"coverage.json selector={selector!r} (not {FULL_SELECTOR!r}) — regenerate with the "
         f"FULL suite; a partial selector understates coverage and would game the floor.")
-    total = float(cov["total_percent"])
+    total = float(provenance["total_percent"])
     assert total >= LINE_COV_FLOOR, (
         f"line coverage {total:.1f}% < floor {LINE_COV_FLOOR:.1f}% — raise coverage, do not "
         f"lower the floor (ratchet-up-only).")
