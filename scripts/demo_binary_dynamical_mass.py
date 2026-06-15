@@ -509,3 +509,119 @@ def _plot_forecast(info):
     panel_label(ax, "B12")
     save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_fisher_vs_N")
     plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# Headline figure -- the v_los distribution and its non-Gaussian wings
+# --------------------------------------------------------------------------- #
+def plot_vlos_distribution(key, korb_grid, korb):
+    """Observed v_los vs the single-only Gaussian: the binary wings made visible.
+
+    Log-y histogram of a mock ``v_obs`` (f_b=0.5) overlaid with (a) the single-
+    only model 𝒩(0, sigma_true^2 + eps^2) and (b) the full single+binary mixture.
+    The excess over the Gaussian in the wings is the f_b signal the joint fit uses.
+    """
+    import matplotlib.pyplot as plt
+
+    v_obs = np.asarray(build_mock_vlos(key, f_b=F_B_TRUE))
+    counts, _ = np.histogram(v_obs, bins=V_EDGES)
+    ctr = 0.5 * (V_EDGES[:-1] + V_EDGES[1:])
+
+    mu_single = np.asarray(predict_vlos_counts(
+        SIGMA_TRUE, 0.0, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS))
+    mu_full = np.asarray(predict_vlos_counts(
+        SIGMA_TRUE, F_B_TRUE, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS))
+
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    ax.step(ctr, np.maximum(counts, 0.1), where="mid", color="0.55", lw=1.0,
+            label=f"mock $v_{{\\rm obs}}$ ($f_b={F_B_TRUE}$)")
+    ax.plot(ctr, mu_single, color=OI["orange"], lw=1.6,
+            label=r"single-only $\mathcal{N}(0,\sigma_{\rm true}^2+\epsilon^2)$")
+    ax.plot(ctr, mu_full, color=OI["blue"], lw=1.6,
+            label="single + binary mixture")
+
+    # Shade the wing regions where the binary excess lives.
+    wing = 2.5 * np.sqrt(SIGMA_TRUE ** 2 + EPS_KMS ** 2)
+    ax.axvspan(wing, V_EDGES[-1], color=OI["vermilion"], alpha=0.08)
+    ax.axvspan(V_EDGES[0], -wing, color=OI["vermilion"], alpha=0.08)
+    ax.text(0.97, 0.6, "non-Gaussian\nbinary wings", transform=ax.transAxes,
+            fontsize=8, color=OI["vermilion"], ha="right")
+
+    ax.set_yscale("log")
+    ax.set_ylim(0.5, 1.5 * counts.max())
+    ax.set_xlabel(r"line-of-sight velocity $v_{\rm los}$ [km/s]")
+    ax.set_ylabel("stars per bin")
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    panel_label(ax, "B12", loc="upper right")
+    save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_distribution")
+    plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# Gated CLI
+# --------------------------------------------------------------------------- #
+def main():
+    """Run all six gates, print an expected-vs-measured PASS/FAIL table, exit 0/1."""
+    print("=" * 72)
+    print("B12 -- binary-inflated dynamical mass (gated demo)")
+    print(f"  sigma_true={SIGMA_TRUE} km/s  f_b={F_B_TRUE}  N={N_STARS}  "
+          f"eps={EPS_KMS} km/s  Z={Z_MET}  r_h={R_H_PC} pc")
+    print("=" * 72)
+
+    # Build the sigma-independent contamination kernel ONCE.
+    korb_grid, korb = build_korb_kernel(
+        n_pool=N_POOL, Z=Z_MET, seed=SEED,
+        grid_max=KORB_GRID_MAX, n_grid=KORB_N_GRID)
+    var_korb = _kernel_std(korb_grid, korb) ** 2
+    print(f"K_orb: std={np.sqrt(var_korb):.3f} km/s  (n_pool={N_POOL})\n")
+
+    key = jax.random.PRNGKey(SEED)
+    k1, k3, k4, k5, kN, kd = jax.random.split(key, 6)
+
+    rows = []  # (gate, expected, measured, passed)
+
+    p1, i1 = gate1_bias(k1, var_korb)
+    rows.append(("1 bias", "M_ratio(0.5)>1.10",
+                 f"{i1['m_ratio_50']:.3f} (sigma_obs={i1['sigma_obs_50']:.2f})", p1))
+
+    p2, i2 = gate2_dispersion_degeneracy(var_korb)
+    rows.append(("2 degeneracy", "cond>1e8 (rank-1)", f"{i2['cond']:.1e}", p2))
+
+    p3a, p3b, i3 = gate3_recovery(k3, korb_grid, korb, var_korb)
+    rows.append(("3a recovery", "M_ratio~1, <3sigma",
+                 f"sigma={i3['sigma_hat']:.2f}+/-{i3['sigma_err']:.2f}, "
+                 f"M={i3['m_ratio_rec']:.3f}", p3a))
+    rows.append(("3b full-rank", "cond<1e6", f"{i3['cond']:.0f}", p3b))
+
+    p4, i4 = gate4_eps_floor(k4, korb_grid, korb)
+    rows.append(("4 eps-floor", "precision degrades, M~1",
+                 f"sigma_err {i4['sig_err'][0]:.3f}->{i4['sig_err'][-1]:.3f}, "
+                 f"max|M-1|={np.max(np.abs(i4['m_ratio']-1)):.3f}", p4))
+
+    p5, i5 = gate5_null(k5, korb_grid, korb)
+    rows.append(("5 null", "fb_hat<0.05",
+                 f"fb={i5['fb_mean']:.3f}, sigma={i5['sig_mean']:.2f}", p5))
+
+    p6, i6 = gate6_ad_vs_fd(korb_grid, korb)
+    rows.append(("6 AD-vs-FD", "rel-err<1e-4", f"{i6['max_rel_err']:.1e}", p6))
+
+    # Forecast + headline figure (not gated).
+    forecast_vs_N(kN, korb_grid, korb)
+    plot_vlos_distribution(kd, korb_grid, korb)
+
+    print(f"{'GATE':<14}{'EXPECTED':<26}{'MEASURED':<42}{'RESULT'}")
+    print("-" * 88)
+    for name, exp, meas, ok in rows:
+        print(f"{name:<14}{exp:<26}{meas:<42}{'PASS' if ok else 'FAIL'}")
+    print("-" * 88)
+
+    all_pass = all(ok for *_, ok in rows)
+    print(f"\n{'ALL GATES PASS' if all_pass else 'SOME GATES FAILED'} "
+          f"({sum(ok for *_, ok in rows)}/{len(rows)})")
+    print("Figures: validation/plots/demo_binary_dynamical_mass_"
+          "{distribution,bias,constraint,eps_floor,fisher_vs_N}.png")
+    return 0 if all_pass else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
