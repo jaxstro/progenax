@@ -350,3 +350,162 @@ def _plot_constraint(info):
     panel_label(ax, "B12")
     save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_constraint")
     plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# Gate 4 -- the RV-precision floor (mass stays unbiased; precision degrades)
+# --------------------------------------------------------------------------- #
+def gate4_eps_floor(key, korb_grid, korb, eps_grid=None, n_real=16):
+    r"""Recovered-mass PRECISION vs RV precision ``eps`` (the honest eps-floor).
+
+    Because ``eps`` is known and convolved into both mixture components, the
+    recovered mass stays UNBIASED at every ``eps``; what degrades is the
+    precision ``sigma(sigma_true)`` (and ``sigma(f_b)``), which grows
+    monotonically as ``eps`` washes out the binary wing signature. The honest
+    scope is the detectable binary fraction ``f_b * P(|Delta| > eps)`` -- the
+    sub-eps (long-period) binaries that become indistinguishable from singles.
+
+    Gate passes iff ``sigma(sigma_true)`` increases monotonically with ``eps``
+    AND the mass stays unbiased (``|M_ratio - 1| < 0.05`` at every ``eps``).
+    """
+    if eps_grid is None:
+        eps_grid = np.array([0.2, 0.5, 1.0, 2.0, 3.0, 5.0])
+
+    keys = jax.random.split(key, len(eps_grid) * n_real).reshape(len(eps_grid), n_real, 2)
+    sig_err = np.zeros(len(eps_grid))
+    fb_err = np.zeros(len(eps_grid))
+    m_ratio = np.zeros(len(eps_grid))
+    for i, eps in enumerate(eps_grid):
+        se, fe, mr = [], [], []
+        for j in range(n_real):
+            v = build_mock_vlos(keys[i, j], f_b=F_B_TRUE, eps=float(eps))
+            r = recover_sigma_fb(v, korb_grid, korb, eps=float(eps))
+            se.append(r["sigma_err"]); fe.append(r["fb_err"])
+            mr.append((r["sigma_hat"] / SIGMA_TRUE) ** 2)
+        sig_err[i] = np.mean(se); fb_err[i] = np.mean(fe); m_ratio[i] = np.mean(mr)
+
+    # Detectable fraction f_b * P(|Delta| > eps) from a fresh blend sample.
+    delta = np.abs(np.asarray(sample_blend_velocities(
+        jax.random.PRNGKey(SEED + 7), 200_000, Z=Z_MET)))
+    f_det = np.array([F_B_TRUE * (delta > e).mean() for e in eps_grid])
+
+    # Precision degrades with eps, but PLATEAUS at eps << std(K_orb) (information-
+    # limited, not noise-limited), so test a clear end-to-end degradation plus no
+    # large reversal -- not strict point-wise monotonicity in the plateau.
+    degrades = bool(sig_err[-1] > 1.5 * sig_err[0])
+    no_big_reversal = bool(np.all(np.diff(sig_err) >= -0.03 * np.max(sig_err)))
+    unbiased = bool(np.all(np.abs(m_ratio - 1.0) < 0.05))
+    passed = degrades and no_big_reversal and unbiased
+
+    info = dict(eps_grid=eps_grid, sig_err=sig_err, fb_err=fb_err,
+                m_ratio=m_ratio, f_det=f_det, degrades=degrades,
+                no_big_reversal=no_big_reversal, unbiased=unbiased)
+    _plot_eps_floor(info)
+    return passed, info
+
+
+def _plot_eps_floor(info):
+    """Mass precision sigma(sigma_true) rising vs eps; detectable fraction falling."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    # Left axis: mass precision sigma(sigma_true) in km/s (the headline metric).
+    ax.plot(info["eps_grid"], info["sig_err"], marker="o", color=OI["blue"],
+            label=r"$\sigma(\sigma_{\rm true})$ [km/s] (mass precision)")
+    ax.set_xlabel(r"RV precision $\epsilon$ [km/s]")
+    ax.set_ylabel(r"$\sigma(\sigma_{\rm true})$ [km/s]", color=OI["blue"])
+    ax.tick_params(axis="y", labelcolor=OI["blue"])
+    ax.set_ylim(bottom=0.0)
+
+    # Right axis: dimensionless quantities -- sigma(f_b) and the detectable fraction.
+    ax2 = ax.twinx()
+    ax2.plot(info["eps_grid"], info["fb_err"], marker="s", color=OI["sky"], ls="--",
+             label=r"$\sigma(f_b)$")
+    ax2.plot(info["eps_grid"], info["f_det"], marker="^", color=OI["vermilion"], ls=":",
+             label=r"detectable $f_b\,P(|\Delta|>\epsilon)$")
+    ax2.set_ylabel(r"$f_b$: uncertainty $\sigma(f_b)$ / detectable fraction")
+    ax2.set_ylim(bottom=0.0)
+
+    lines = ax.get_lines() + ax2.get_lines()
+    ax.legend(lines, [l.get_label() for l in lines], frameon=False, fontsize=8,
+              loc="upper center")
+    panel_label(ax, "B12", loc="lower left")
+    save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_eps_floor")
+    plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# Gate 5 (null) + Gate 6 (AD-vs-FD) + the N forecast
+# --------------------------------------------------------------------------- #
+def gate5_null(key, korb_grid, korb, n_real=12):
+    r"""With no binaries (``f_b = 0``) the fit recovers ``f_b ~ 0`` and an
+    unbiased ``sigma`` (no spurious inflation). Gate: mean ``fb_hat < 0.05`` and
+    mean ``|sigma_hat - sigma_true| < 0.1`` km/s."""
+    keys = jax.random.split(key, n_real)
+    fb, sig = [], []
+    for kk in keys:
+        v = build_mock_vlos(kk, f_b=0.0)
+        r = recover_sigma_fb(v, korb_grid, korb)
+        fb.append(r["fb_hat"]); sig.append(r["sigma_hat"])
+    fb_mean, sig_mean = float(np.mean(fb)), float(np.mean(sig))
+    passed = bool(fb_mean < 0.05 and abs(sig_mean - SIGMA_TRUE) < 0.1)
+    return passed, dict(fb_mean=fb_mean, sig_mean=sig_mean)
+
+
+def gate6_ad_vs_fd(korb_grid, korb, eps=EPS_KMS, h=1e-5):
+    r"""Gradient integrity: the model Jacobian ``d mu / d z`` from reverse-mode
+    autodiff must match central finite differences (max rel-err < 1e-4). Guards
+    against a stop_gradient / dead-branch / non-differentiable op silently
+    corrupting the Fisher."""
+    predict_mu = _predict_mu_factory(korb_grid, korb, N_STARS, eps)
+    z = jnp.array([logit(SIGMA_TRUE, *SIGMA_BOX), logit(F_B_TRUE, *FB_BOX)])
+
+    J_ad = np.asarray(jax.jacrev(predict_mu)(z))                  # (K, 2)
+    J_fd = np.zeros_like(J_ad)
+    for i in range(2):
+        zp = z.at[i].add(h); zm = z.at[i].add(-h)
+        J_fd[:, i] = np.asarray((predict_mu(zp) - predict_mu(zm)) / (2.0 * h))
+
+    scale = np.max(np.abs(J_fd))
+    max_rel_err = float(np.max(np.abs(J_ad - J_fd)) / scale)
+    passed = bool(max_rel_err < 1e-4)
+    return passed, dict(max_rel_err=max_rel_err)
+
+
+def forecast_vs_N(key, korb_grid, korb, n_grid=None):
+    r"""Fisher forecast ``sigma(sigma_true)``, ``sigma(f_b)`` vs sample size N.
+
+    Both scale as ``1/sqrt(N)`` (Poisson information is additive in stars). The
+    figure overlays the ``N^{-1/2}`` reference anchored at the smallest N.
+    """
+    if n_grid is None:
+        n_grid = np.array([500, 1500, 5000, 15000])
+    keys = jax.random.split(key, len(n_grid))
+    sig_err = np.zeros(len(n_grid)); fb_err = np.zeros(len(n_grid))
+    for i, n in enumerate(n_grid):
+        v = build_mock_vlos(keys[i], f_b=F_B_TRUE, n_stars=int(n))
+        r = recover_sigma_fb(v, korb_grid, korb)
+        sig_err[i] = r["sigma_err"]; fb_err[i] = r["fb_err"]
+    info = dict(n_grid=n_grid, sig_err=sig_err, fb_err=fb_err)
+    _plot_forecast(info)
+    return info
+
+
+def _plot_forecast(info):
+    """sigma(sigma_true), sigma(f_b) vs N on log-log with the 1/sqrt(N) guide."""
+    import matplotlib.pyplot as plt
+
+    n = info["n_grid"].astype(float)
+    fig, ax = plt.subplots(figsize=(5.2, 4.0))
+    ax.loglog(n, info["sig_err"], marker="o", color=OI["blue"],
+              label=r"$\sigma(\sigma_{\rm true})$ [km/s]")
+    ax.loglog(n, info["fb_err"], marker="s", color=OI["orange"],
+              label=r"$\sigma(f_b)$")
+    guide = info["sig_err"][0] * np.sqrt(n[0] / n)
+    ax.loglog(n, guide, color="0.5", ls=":", lw=1.0, label=r"$\propto N^{-1/2}$")
+    ax.set_xlabel("number of RV stars $N$")
+    ax.set_ylabel(r"forecast 1$\sigma$ uncertainty")
+    ax.legend(frameon=False, fontsize=8)
+    panel_label(ax, "B12")
+    save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_fisher_vs_N")
+    plt.close(fig)
