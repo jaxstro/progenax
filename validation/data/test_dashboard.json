@@ -5,16 +5,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 94.77173707141505,
+    "line_cov_measured": 95.73782913430574,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T02:15:37.525861+00:00",
+  "generated_utc": "2026-06-15T03:14:19.601791+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
-      "measured_utc": "2026-06-15T00:02:01.857631+00:00",
+      "git_sha": "4c79a321553a813a7a1d697dffcfb2d561de832f",
+      "measured_utc": "2026-06-15T03:14:08.511201+00:00",
       "selector": "full",
-      "total_percent": 94.77173707141505
+      "total_percent": 95.73782913430574
     },
     "per_file_lines": {
       "__init__": {
@@ -30,11 +30,11 @@
         "num_statements": 19
       },
       "analytical/few_body": {
-        "covered_lines": 23,
+        "covered_lines": 37,
         "num_statements": 47
       },
       "analytical/solar_system": {
-        "covered_lines": 22,
+        "covered_lines": 55,
         "num_statements": 55
       },
       "analytical/two_body": {
@@ -334,8 +334,8 @@
       "__init__": 100.0,
       "analytical/__init__": 100.0,
       "analytical/base": 86.95652173913044,
-      "analytical/few_body": 43.39622641509434,
-      "analytical/solar_system": 38.59649122807018,
+      "analytical/few_body": 73.58490566037736,
+      "analytical/solar_system": 100.0,
       "analytical/two_body": 100.0,
       "binaries/__init__": 100.0,
       "binaries/assembly": 100.0,
@@ -411,12 +411,12 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 94.77173707141505
+    "total_percent": 95.73782913430574
   },
   "modules": {
     "analytical": {
       "integration": 0,
-      "line_cov": 67.40331491712708,
+      "line_cov": 93.37016574585635,
       "unit": 7,
       "validation": 0
     },
