@@ -2,331 +2,255 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this
 > plan task-by-task (one subagent per task, independent code review between tasks, Anna HITL at the
-> phase boundary). Verify LOCALLY; nothing pushed/merged without Anna's explicit go.
+> phase boundary). Use research-workflow:numerical-method-validation for the convergence study (Task 3).
+> Verify LOCALLY; nothing pushed/merged without Anna's explicit go.
 
-**Goal:** Add a packaged, differentiable `jeans_dispersion(profile, r_a, r, M, G)` returning the
-population velocity-dispersion profiles (σ_r, σ_t, σ_1d, β) for any spatial profile under Osipkov–Merritt
-anisotropy — closing the verification-found gap (the DFs are samplers and expose no σ getter). This is
-the packaged forward model the OED demo (Phase 1) rides on.
+**Goal:** Add two packaged, differentiable forward models for cluster kinematics: `jeans_dispersion`
+(3-D σ_r/σ_t/σ_1d/β via anisotropic Jeans) and `project_dispersion` (the OBSERVED σ_los/σ_pm,R/σ_pm,T
+via Binney & Mamon 1982 line-of-sight projection). Closes the verification-found gap (DFs are samplers,
+expose no σ getter) and makes the OED's "RV↔σ_los, PM↔σ_pm" claim physically honest / Gaia-ready.
 
-**Architecture (revised 2026-06-15, Anna):** A **free function** in
-`src/progenax/kinematics/dispersion.py`, exported in `progenax.__all__`. The dispersion is a property
-of the *(potential, anisotropy)* pair, so it lives with the **profile** (which owns ρ, M, Φ), not the
-DF — this eliminates the ρ/M duplication and the mixed-pairing footgun (you pass the *actual* profile),
-and decouples the forward model from the stochastic sampler. The enclosed mass `M(<s)` comes from a
-**quadrature of `profile.density`** (builder-quality, no re-differentiated Ψ). The DF's stored `f`-table
-second moment is a **cross-check** (Anna's "both, cross-checked": Jeans primary, f-moment gated to agree
-to table resolution). Validation is a **3-way anchor** (Jeans = f-moment = empirical-binned), Plummer
-4-way (+ analytic closed form). Differentiability gated by AD-vs-FD on ∂σ_r/∂(r_a, M).
+**Architecture (revised 2026-06-15, Anna):** Free functions in
+`src/progenax/kinematics/dispersion.py`, both exported in `progenax.__all__`. The dispersion is a
+property of the *(potential, anisotropy)* pair, so it lives with the **profile** (owns ρ, M, Φ), not
+the DF — eliminating ρ/M duplication and the mixed-pairing footgun, and decoupling the forward model
+from the stochastic sampler. Enclosed mass `M(<s)` is a **quadrature of `profile.density`**
+(builder-quality, no re-differentiated Ψ). The DF's stored `f`-table second moment is an
+**isotropic-only** cross-check. Validation: a **3-way anchor** (Jeans = isotropic-f-moment =
+empirical) + a tight **analytic Merritt OM-Plummer oracle** + a **quadrature convergence study**.
+`project_dispersion` adds the B&M82 LOS integrals (singularity removed by `r²=R²+u²`).
 
-**Tech Stack:** JAX (`jax.numpy`, `jax.grad`/`jacrev`), Equinox, `jaxtyping`, `progenax.numerics`
-(`cumulative_trapezoid`), pytest 3-tier suite. **Zero new deps.**
+**Tech Stack:** JAX (`jax.numpy`, `jax.grad`/`jacrev`, `jax.jit`), Equinox, `jaxtyping`,
+`progenax.numerics` (`cumulative_trapezoid`), pytest 3-tier. **Zero new deps.**
 
-**Ratified design:** `docs/plans/2026-06-15-oed-dispersion-arc-design.md`. Phase 0 is gated separately
-from Phase 1: FULL released-core gate green + Anna merge-go before any Phase-1 code.
-
----
-
-## Physics reference (the math every task implements)
-
-**Anisotropic Jeans (Osipkov–Merritt), Binney & Tremaine (2008) §4.8.3 + Merritt (1985) Eq. 15.**
-With `β(r)=r²/(r²+r_a²)` the integrating factor is `(r²+r_a²)`:
-
-```
-ρ(r) σ_r²(r) = 1/(r²+r_a²) · ∫_r^∞ (s²+r_a²) ρ(s) · (G M(<s)/s²) ds
-σ_t²(r) = σ_r²(r) · r_a²/(r_a²+r²)            # one tangential component (σ_θ²=σ_φ²=σ_t²)
-σ_1d²(r) = (σ_r² + 2σ_t²)/3
-β(r)     = 1 − σ_t²/σ_r² = r²/(r²+r_a²)       # r_a=None ⇒ factor 1, σ_r=σ_t=σ_1d, β=0
-```
-(Re-derived from d(ρσ_r²)/dr + (2β/r)ρσ_r² = −ρGM/r²; integrating factor exp(∫2β/r dr)=r²+r_a².
-The boundary term at ∞ vanishes; at r=0 the (r²+r_a²)→r_a² denominator is finite, so no singularity.)
-
-**Enclosed mass (all profiles, no Ψ re-differentiation):**
-```
-M(<s) = M · cumtrap(ρ(s)·s²) / cumtrap_total(ρ(s)·s²)   # ρ = profile.density(s), normalization cancels
-```
-For Plummer this equals the closed form `M·s³/(s²+a²)^{3/2}` analytically. Validation truth (isotropic
-Plummer): `σ_1d²(r) = GM/(6√(r²+a²))`.
-
-**β convention vs the grad-audit binner:** `DispersionProfile.beta` uses the OM identity
-`β=r²/(r²+r_a²)`. `binned_sigma_beta` uses Binney `β=1−σ_t,sum²/(2σ_r²)` with σ_t,sum²=2σ_t²; both
-reduce to `1−σ_t²/σ_r²` — assert equality through that conversion.
-
-**Integration grid extent:** `r_max = getattr(profile, "r_t", None)` for truncated profiles
-(EFF/King/Michie); for Plummer (no `r_t`) use `r_max = 30·profile.a`. Query radii `r` must lie within
-`[s_min, r_max]` (else `jnp.interp` clamps → wrong σ with a silent-zero gradient); assert/clip in-range.
+**Ratified design:** `docs/plans/2026-06-15-oed-dispersion-arc-design.md`. Phase 0 is gated separately:
+FULL released-core gate green + Anna merge-go before any Phase-1 code.
 
 ---
 
-## Task 1 — Scaffold `dispersion.py` (NamedTuple + free-fn signature) + exports
+## Physics reference
 
-**Files:**
-- Create: `src/progenax/kinematics/dispersion.py`
-- Modify: `src/progenax/kinematics/__init__.py` (add `jeans_dispersion`, `DispersionProfile` to its `__all__`)
-- Modify: `src/progenax/__init__.py` (re-export `jeans_dispersion` into `progenax.__all__`)
-- Test: `tests/unit/kinematics/test_dispersion.py`
+**Anisotropic Jeans (B&T 2008 §4.8.3; Merritt 1985 Eq. 15), OM `β=r²/(r²+r_a²)`:**
+```
+ρ σ_r²(r) = 1/(r²+r_a²) · ∫_r^∞ (s²+r_a²) ρ(s) G M(<s)/s² ds
+σ_t² = σ_r²·r_a²/(r_a²+r²);  σ_1d² = (σ_r²+2σ_t²)/3;  β = r²/(r²+r_a²)
+M(<s) = M·cumtrap(ρ s²)/cumtrap_total(ρ s²)          # any profile.density, no dΨ/ds
+isotropic Plummer truth: σ_1d²(r) = GM/(6√(r²+a²))
+```
+
+**Projection — Binney & Mamon (1982), ν=ρ (tracer = mass here):**
+```
+Σ(R)           = 2 ∫_R^∞ ρ                       r/√(r²−R²) dr
+Σ σ_los²(R)    = 2 ∫_R^∞ (1 − β R²/r²)   ρ σ_r²  r/√(r²−R²) dr     # RV channel
+Σ σ_pm,R²(R)   = 2 ∫_R^∞ (1 − β + β R²/r²) ρ σ_r² r/√(r²−R²) dr     # PM, on-sky radial
+Σ σ_pm,T²(R)   = 2 ∫_R^∞ (1 − β)         ρ σ_r²  r/√(r²−R²) dr     # PM, on-sky tangential
+```
+Singularity removed by `r²=R²+u²` ⇒ `∫_R^∞ g(r) r/√(r²−R²) dr = ∫_0^{√(r_max²−R²)} g(√(R²+u²)) du`.
+**Isotropic check (β=0): σ_los = σ_pm,R = σ_pm,T = σ_1d.** Anisotropy is in the ratios.
+
+**Grid extent:** `r_max = getattr(profile,"r_t",None)`; Plummer → `30·profile.a`. Query r/R must lie in
+`[s_min, r_max]` (else `jnp.interp` clamps → silent-zero gradient): assert/clip in-range.
+**β-convention vs binner:** `beta` uses `r²/(r²+r_a²)`; convert to Binney `1−σ_t,sum²/(2σ_r²)` when
+comparing to `binned_sigma_beta`.
+
+---
+
+## Task 1 — Scaffold (two NamedTuples, two free-fn stubs, exports)
+
+**Files:** Create `src/progenax/kinematics/dispersion.py`; modify `kinematics/__init__.py` +
+`src/progenax/__init__.py` (export `jeans_dispersion`, `project_dispersion`); test
+`tests/unit/kinematics/test_dispersion.py`.
 
 **Step 1 — Failing test:**
 ```python
-import jax.numpy as jnp
 import progenax
-from progenax import jeans_dispersion
-from progenax.kinematics.dispersion import DispersionProfile
+from progenax import jeans_dispersion, project_dispersion
+from progenax.kinematics.dispersion import DispersionProfile, ProjectedDispersion
 
-def test_jeans_dispersion_exported_and_namedtuple():
-    assert "jeans_dispersion" in progenax.__all__
-    dp = DispersionProfile(r=jnp.zeros(3), sigma_r=jnp.zeros(3), sigma_t=jnp.zeros(3),
-                           sigma_1d=jnp.zeros(3), beta=jnp.zeros(3))
-    assert dp._fields == ("r", "sigma_r", "sigma_t", "sigma_1d", "beta")
+def test_exports_and_namedtuples():
+    assert {"jeans_dispersion", "project_dispersion"} <= set(progenax.__all__)
+    assert DispersionProfile._fields == ("r", "sigma_r", "sigma_t", "sigma_1d", "beta")
+    assert ProjectedDispersion._fields == ("R", "sigma_los", "sigma_pm_r", "sigma_pm_t", "Sigma")
 ```
-
-**Step 2 — Run, expect FAIL** (import error / not in `__all__`):
+**Step 2 — Run, expect FAIL.** Command:
 `XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/kinematics/test_dispersion.py -q`
-
-**Step 3 — Minimal implementation** (`dispersion.py`): the `DispersionProfile` NamedTuple, a
-`_sigma_components(sigma_r2, r, r_a)` helper (returns σ_r/σ_t/σ_1d/β per the physics ref), a
-`jeans_sigma_r(...)` quadrature stub raising `NotImplementedError`, and `jeans_dispersion(profile, r_a,
-r, M, G)` raising `NotImplementedError`. Wire both into `kinematics/__init__.py:__all__` and re-export
-`jeans_dispersion` from `src/progenax/__init__.py` (follow the existing kinematics re-export pattern;
-do **not** export `DispersionProfile` at top level — it is a return type, not an entry point).
-
-**Step 4 — Run, expect PASS** (export + NamedTuple resolve; stub bodies unreached). Command as Step 2.
-
-**Step 5 — Commit:**
-```bash
-git add src/progenax/kinematics/dispersion.py src/progenax/kinematics/__init__.py \
-        src/progenax/__init__.py tests/unit/kinematics/test_dispersion.py
-git commit -m "feat(kinematics): scaffold jeans_dispersion + DispersionProfile (Phase 0 Task 1)
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
+**Step 3 — Implement** both NamedTuples, `_sigma_components`, and `jeans_dispersion`/`project_dispersion`
+stubs (`raise NotImplementedError`); wire exports (do NOT export the NamedTuples at top level).
+**Step 4 — Run, expect PASS.** **Step 5 — Commit** (`feat(kinematics): scaffold dispersion + projection (Phase 0 Task 1)` + trailer).
 
 ---
 
-## Task 2 — Implement `jeans_dispersion` (Plummer truth) — works for any profile
+## Task 2 — `jeans_dispersion` (3-D) + invariants + domain guard + jit
 
-**Files:**
-- Modify: `src/progenax/kinematics/dispersion.py`
-- Test: `tests/unit/kinematics/test_dispersion.py`
+**Files:** Modify `dispersion.py`; test `tests/unit/kinematics/test_dispersion.py`.
 
-**Step 1 — Failing tests (Plummer analytic truth + OM β identity):**
+**Step 1 — Failing tests:**
 ```python
-import jax.numpy as jnp
+import jax, jax.numpy as jnp
 from progenax import jeans_dispersion
 from progenax.profiles import PlummerProfile
 
-def test_plummer_isotropic_matches_closed_form():
-    G, M = 0.00449, 400.0
+def test_plummer_isotropic_closed_form():
+    prof = PlummerProfile(r_h=1.0); r = jnp.array([0.3,0.7,1.0,2.0])
+    dp = jeans_dispersion(prof, None, r, M=400.0, G=0.00449)
+    truth = jnp.sqrt(0.00449*400.0/(6.0*jnp.sqrt(r**2+prof.a**2)))
+    assert jnp.allclose(dp.sigma_1d, truth, rtol=3e-3)
+    assert jnp.allclose(dp.beta, 0.0, atol=1e-10) and jnp.allclose(dp.sigma_r, dp.sigma_t, rtol=1e-6)
+
+def test_gm_scaling_invariants():
+    prof = PlummerProfile(r_h=1.0); r = jnp.array([1.0])
+    s1 = jeans_dispersion(prof, 2.0, r, 400.0, 0.00449).sigma_r
+    assert jnp.allclose(jeans_dispersion(prof, 2.0, r, 800.0, 0.00449).sigma_r**2, 2*s1**2, rtol=1e-4)
+    assert jnp.allclose(jeans_dispersion(prof, 2.0, r, 400.0, 2*0.00449).sigma_r**2, 2*s1**2, rtol=1e-4)
+
+def test_r_a_domain_guard():
+    import pytest
     prof = PlummerProfile(r_h=1.0)
-    r = jnp.array([0.3, 0.7, 1.0, 2.0])
-    dp = jeans_dispersion(prof, None, r, M, G)
-    sigma_1d_theory = jnp.sqrt(G * M / (6.0 * jnp.sqrt(r**2 + prof.a**2)))
-    assert jnp.allclose(dp.sigma_1d, sigma_1d_theory, rtol=3e-3)
-    assert jnp.allclose(dp.beta, 0.0, atol=1e-10)
-    assert jnp.allclose(dp.sigma_r, dp.sigma_t, rtol=1e-6)
+    with pytest.raises(ValueError):           # r_a < 0.75 a is unphysical for Plummer OM
+        jeans_dispersion(prof, 0.1*prof.a, jnp.array([1.0]), 400.0, 0.00449)
 
-def test_plummer_om_beta_identity_and_radial_bias():
-    G, M, r_a = 0.00449, 400.0, 2.0
+def test_jit_smoke():
     prof = PlummerProfile(r_h=1.0)
-    r = jnp.array([0.5, 1.0, 2.0, 4.0])
-    dp = jeans_dispersion(prof, r_a, r, M, G)
-    assert jnp.allclose(dp.beta, r**2 / (r**2 + r_a**2), rtol=1e-6)
-    assert jnp.all(dp.sigma_r >= dp.sigma_t)
+    f = jax.jit(lambda ra: jeans_dispersion(prof, ra, jnp.array([1.0]), 400.0, 0.00449).sigma_r)
+    assert jnp.isfinite(f(2.0)).all()
 ```
-
-**Step 2 — Run, expect FAIL** (NotImplementedError).
-
-**Step 3 — Implement** `jeans_sigma_r` (reverse cumulative quadrature on a uniform s-grid) and
-`jeans_dispersion`:
-```python
-from progenax.numerics import cumulative_trapezoid
-
-def jeans_sigma_r(r, rho, M_enc, s, G, r_a=None):
-    ra_finite = r_a is not None
-    fac = (s**2 + r_a**2) if ra_finite else 1.0
-    integrand = fac * rho * G * M_enc / jnp.maximum(s**2, 1e-30)
-    dx = s[1] - s[0]
-    I_rev = cumulative_trapezoid(jnp.flip(integrand), dx=dx)     # ∫ from outer edge inward
-    I_of_s = jnp.flip(I_rev)                                     # I(s) = ∫_s^∞ integrand ds
-    rho_r = jnp.interp(r, s, rho)
-    I_r = jnp.interp(r, s, I_of_s)
-    denom = ((r**2 + r_a**2) if ra_finite else 1.0) * jnp.maximum(rho_r, 1e-30)
-    return I_r / denom
-
-def jeans_dispersion(profile, r_a, r, M, G):
-    """Population velocity-dispersion profiles (sigma_r/sigma_t/sigma_1d/beta) for `profile`
-    under Osipkov-Merritt anisotropy r_a (None = isotropic). Forward model for kinematic
-    inference; differentiable in (r_a, M, profile params). See module docstring + B&T 4.8.3."""
-    r = jnp.atleast_1d(jnp.asarray(r))
-    r_max = getattr(profile, "r_t", None)
-    r_max = 30.0 * profile.a if r_max is None else r_max         # Plummer has no r_t
-    s = jnp.linspace(1e-4 * r_max, r_max, 4000)
-    rho = profile.density(s)
-    cum = cumulative_trapezoid(rho * s**2, dx=s[1] - s[0])
-    M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
-    sigma_r2 = jeans_sigma_r(r, rho, M_enc, s, G, r_a=r_a)
-    sr, st, s1, beta = _sigma_components(sigma_r2, r, r_a)
-    return DispersionProfile(r=r, sigma_r=sr, sigma_t=st, sigma_1d=s1, beta=beta)
-```
-
-**Step 4 — Run, expect PASS.** If isotropic σ_1d is biased, check the s-grid extent (30·a) and the
-`M_enc` normalization — NOT the tolerance.
-
-**Step 5 — Commit** (`feat(kinematics): jeans_dispersion forward model (Phase 0 Task 2)` + trailer).
+**Step 2 — Run, expect FAIL.** **Step 3 — Implement** `jeans_sigma_r` (reverse `cumulative_trapezoid`
+on `jnp.flip(integrand)`) and `jeans_dispersion` (profile.density quadrature for `M_enc`; grid extent
+per `r_t`/`30a`; the `r_a < 0.75a` guard is eager for a concrete `r_a`, skipped under tracing — mirror
+`plummer_df.py:128`). **Step 4 — Run, expect PASS** (fix grid extent/normalization, never the tol).
+**Step 5 — Commit** (`feat(kinematics): jeans_dispersion 3-D + invariants/guard/jit (Phase 0 Task 2)`).
 
 ---
 
-## Task 3 — Plummer 4-way anchor (analytic = Jeans = f-moment = empirical)
+## Task 3 — Plummer anchor: analytic Merritt oracle + isotropic f-moment + convergence
 
-**Files:**
-- Modify: `src/progenax/kinematics/dispersion.py` (add `ftable_sigma_r(E_grid, f_grid, Psi_r, r, r_a, ...)`
-  — second moment of `s²f(Ψ−s²/2)` for the DF cross-check)
-- Create: `tests/validation/test_dispersion_physics.py`
+**Files:** Modify `dispersion.py` (add `ftable_sigma_r_isotropic`); create
+`tests/validation/test_dispersion_physics.py`.
 
-**Step 1 — Failing physics tests** (empirical-binned, reuse the `test_plummer_physics.py:166` pattern —
-sample N≈2e5 at fixed radii, compare σ_r=std(v_x), σ_t from var(v_y),var(v_z)):
-```python
-def test_plummer_om_jeans_matches_sampler():
-    G, M, r_a = 0.00449, 400.0, 2.0
-    prof = PlummerProfile(r_h=1.0); df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=r_a)
-    for r0 in (0.5, 1.0, 2.0):
-        dp = jeans_dispersion(prof, r_a, jnp.array([r0]), M, G)
-        emp_r, emp_t = _empirical_sigma_at(df, r0, M, G)   # helper as in design plan
-        assert abs(float(dp.sigma_r[0]) - emp_r) / emp_r < 0.05
-        assert abs(float(dp.sigma_t[0]) - emp_t) / emp_t < 0.05
-```
-Plus `test_plummer_jeans_equals_ftable` (Jeans vs `ftable_sigma_r` on the DF's analytic OM table
-`_om_E_grid/_om_f_grid`, scaled by `sigma0²=GM/(6a)`) to table resolution.
+**Step 1 — Failing tests:**
+- `test_plummer_om_vs_merritt_analytic`: Jeans σ_r vs the **closed-form Merritt (1985) OM-Plummer**
+  dispersion at sample radii, **rtol 1e-3** (the tight oracle — derive/encode the analytic σ_r²(r) for
+  the OM Plummer DF; cite Merritt 1985 in a comment).
+- `test_plummer_isotropic_jeans_equals_ftable`: `jeans_sigma_r` vs `ftable_sigma_r_isotropic` over the
+  DF speed pdf `s²f(Ψ−s²/2)` (isotropic Plummer), rtol to table resolution.
+- `test_jeans_quadrature_convergence`: σ_r at fixed r for n_s ∈ {500,1000,2000,4000}; assert the error
+  vs the analytic oracle **falls ~4× per doubling** (trapezoid O(h²)) — the method is *verified*, not
+  asserted at one resolution. (numerical-method-validation skill.)
+- `test_plummer_om_jeans_matches_sampler`: empirical-binned σ_r/σ_t (sample N≈2e5 at fixed radii) within
+  5% MC — the looser sampler leg of the anchor.
 
-**Step 2 — Run, expect FAIL.** **Step 3 — implement `ftable_sigma_r`** (makes the f-moment leg pass;
-Jeans leg already passes from Task 2). **Step 4 — Run, expect PASS** (mark heaviest tests `@pytest.mark.slow`).
-**Step 5 — Commit** (`test(validation): Plummer 4-way dispersion anchor (Phase 0 Task 3)`).
+**Step 2 — Run, expect FAIL.** **Step 3 — implement `ftable_sigma_r_isotropic`** + encode the Merritt
+analytic oracle in the test. **Step 4 — Run, expect PASS** (mark heavy tests `@pytest.mark.slow`).
+**Step 5 — Commit** (`test(validation): Plummer dispersion anchor + Merritt oracle + convergence (Phase 0 Task 3)`).
 
 ---
 
-## Task 4 — EFF 3-way anchor (Jeans via EFFProfile + f-moment via EFF DF table)
-
-**Files:** Modify `tests/validation/test_dispersion_physics.py` (+ `ftable_sigma_r` call wiring for the
-EFF DF's stored `E_grid/f_grid/Psi_grid`).
-
-**Note:** `jeans_dispersion(EFFProfile(...), r_a, ...)` **already works** from Task 2 (EFFProfile has
-`density`). This task ADDS the EFF DF f-moment cross-check + the empirical anchor.
-
-**Step 1 — Failing tests:** isotropic EFF σ_r matches empirical binned (MC tol 5%); OM EFF β tracks the
-identity; `jeans_sigma_r` vs `ftable_sigma_r` agree to table resolution (rtol ~ 0.02) — **and** a
-resolution-refinement check that the Jeans-vs-f-moment gap *shrinks* with grid size (the discriminator
-that the residual is numerical, not a physics bug — do NOT loosen tol to pass).
-**Steps 2–5** as Task 3 (`feat/test: EFF dispersion anchor (Phase 0 Task 4)`).
-
----
-
-## Task 5 — Michie 3-way anchor + isotropic→King limit
+## Task 4 — EFF + Michie 3-D anchors (Jeans vs empirical; iso f-moment; King limit)
 
 **Files:** Modify `tests/validation/test_dispersion_physics.py`.
 
-`jeans_dispersion(MichieProfile(...), r_a, ...)` works from Task 2 (MichieProfile has `density`).
-**Step 1 — Failing tests:** Michie σ_r matches empirical binned; β increases outward
-(`beta[-1] > beta[0]`); large-`r_a` limit → β ≈ 0; Jeans vs f-moment agree to table resolution.
-**Steps 2–5** as Task 4 (`test: Michie dispersion anchor + King limit (Phase 0 Task 5)`).
+`jeans_dispersion(EFFProfile/MichieProfile, …)` already works from Task 2 (both expose `density`).
+**Step 1 — Failing tests:** EFF + Michie isotropic σ_r vs empirical binned (5% MC); OM β tracks the
+identity; isotropic Jeans-vs-f-moment to table resolution **with a resolution-refinement check that the
+gap shrinks** (numerical, not a bug); Michie large-`r_a` → β≈0 (King limit). **Steps 2–5** as Task 3
+(`test(validation): EFF + Michie dispersion anchors (Phase 0 Task 4)`).
 
 ---
 
-## Task 6 — Differentiability (AD-vs-FD)
+## Task 5 — `project_dispersion` (B&M82) + isotropic limit + analytic oracle
+
+**Files:** Modify `dispersion.py`; test `tests/validation/test_dispersion_physics.py`.
+
+**Step 1 — Failing tests:**
+```python
+from progenax import project_dispersion
+def test_projection_isotropic_all_equal():
+    prof = PlummerProfile(r_h=1.0); R = jnp.array([0.5,1.0,2.0])
+    pj = project_dispersion(prof, None, R, 400.0, 0.00449)        # beta=0
+    assert jnp.allclose(pj.sigma_los, pj.sigma_pm_r, rtol=1e-3)
+    assert jnp.allclose(pj.sigma_los, pj.sigma_pm_t, rtol=1e-3)
+def test_projection_isotropic_plummer_los_oracle():
+    # isotropic Plummer has an analytic projected sigma_los(R); assert rtol 3e-3
+    ...
+def test_projection_anisotropy_signature():
+    prof = PlummerProfile(r_h=1.0); R = jnp.array([2.0,4.0])
+    pj = project_dispersion(prof, 1.0, R, 400.0, 0.00449)         # radial bias
+    assert jnp.all(pj.sigma_pm_t < pj.sigma_los)                  # tangential PM suppressed outward
+```
+**Step 2 — Run, expect FAIL.** **Step 3 — Implement** `project_dispersion`: a shared LOS integrator
+`_los(g, R, r_max)` via `r²=R²+u²` (`u = linspace(0, √(r_max²−R²)); r=√(R²+u²); trapezoid(g(r), u)`),
+vmapped over R; build `σ_r²(r)`, `β(r)`, `ρ(r)` from `jeans_dispersion`/`profile.density`; apply the
+three B&M82 kernels; return `ProjectedDispersion(R, σ_los, σ_pm_r, σ_pm_t, Σ)`. **Step 4 — Run, PASS.**
+**Step 5 — Commit** (`feat(kinematics): project_dispersion (B&M82) + isotropic oracle (Phase 0 Task 5)`).
+
+---
+
+## Task 6 — Projected empirical anchor + β-recovery
+
+**Files:** Modify `tests/validation/test_dispersion_physics.py`.
+
+**Step 1 — Failing tests:** sample the OM DF, **project to sky** (pick a LOS axis; on-sky radius
+`R=√(y²+z²)`; σ_los from `v_x`, σ_pm,R/σ_pm,T from the in-plane velocity decomposition), bin in R, and
+assert the analytic `project_dispersion` matches the empirical projected dispersions within MC tol;
+plus a β-recovery check (the σ_pm,T/σ_los ratio reflects the input r_a). **Steps 2–5**
+(`test(validation): projected-dispersion empirical anchor + beta recovery (Phase 0 Task 6)`).
+
+---
+
+## Task 7 — Differentiability (AD-vs-FD), both forward models
 
 **Files:** Modify `tests/unit/kinematics/test_dispersion.py`.
 
-**Step 1 — Failing grad tests** (reverse-mode; FD-consistent; not silent-zero):
-```python
-import jax
-def _sig_r_sum(r_a):
-    prof = PlummerProfile(r_h=1.0)
-    return jnp.sum(jeans_dispersion(prof, r_a, jnp.array([0.5, 1.0, 2.0]), 400.0, 0.00449).sigma_r)
-
-def test_grad_wrt_r_a_matches_fd():
-    ra0 = 2.0; h = 1e-4 * ra0
-    g_ad = jax.grad(_sig_r_sum)(ra0)
-    g_fd = (_sig_r_sum(ra0 + h) - _sig_r_sum(ra0 - h)) / (2 * h)
-    assert abs(g_ad - g_fd) / (abs(g_fd) + 1e-12) < 1e-3
-    assert abs(g_ad) > 1e-9
-```
-Plus `∂/∂M` and EFF/Michie variants (and `∂/∂r_h`/`∂/∂gamma`/`∂/∂W0` through the profile params).
-**Step 2 — Run, expect FAIL if any path is non-diff** (e.g. an `interp` clamp or a `where` dead branch
-— FIX the numerics, never loosen `tol`). **Steps 3–5** (`test(kinematics): AD-vs-FD dispersion grads (Phase 0 Task 6)`).
+**Step 1 — Failing grad tests** (reverse-mode; FD-consistent <1e-3; |AD|>1e-9): `∂σ_r/∂(r_a, M)` for
+`jeans_dispersion`, and `∂σ_los/∂(r_a, M)`, `∂σ_pm_t/∂r_a` for `project_dispersion`; plus through the
+profile params (`r_h`, `gamma`, `W0`). **Step 2 — Run, expect FAIL where non-diff** (interp clamp / a
+`where` dead branch — FIX numerics, never the tol). **Steps 3–5**
+(`test(kinematics): AD-vs-FD grads, jeans + projection (Phase 0 Task 7)`).
 
 ---
 
-## Task 7 — Self-policing registry updates (4 registries; `jeans_dispersion` is a NEW `__all__` symbol)
+## Task 8 — Registries (TWO new `__all__` symbols → all four)
 
-**Files:**
-- `tests/validation/api_coverage/manifest.py` — add to `SYMBOL_TESTS`:
-  ```python
-  "jeans_dispersion": "tests/unit/kinematics/test_dispersion.py::test_plummer_isotropic_matches_closed_form",  # assert sigma_1d == GM/(6 sqrt(r^2+a^2))
-  ```
-- `tests/validation/physics_registry/manifest.py` — add to `EXEMPT_NON_MODEL`:
-  ```python
-  "jeans_dispersion": "anisotropic-Jeans dispersion forward model (sigma_r/sigma_t(r) for a profile+OM r_a); a forward-model helper, not an equilibrium model. Physics anchored in test_dispersion_physics.py.",
-  ```
-  Also add ONE invariant line to each DF dict (`PlummerVelocityDF`/`EFFVelocityDF`/`MichieVelocityDF`)
-  for the 3/4-way anchor pointing at the new validation tests.
-- `tests/validation/grad_audit/manifest.py` — add `"jeans_dispersion": AUDITED` to `SYMBOL_CATEGORY`,
-  and `MUST_AUDIT` entries:
-  ```python
-  ("jeans_dispersion[Plummer+OM]", "r_a"): "OM Jeans dispersion sigma_r in anisotropy radius",
-  ("jeans_dispersion[Plummer]", "M"): "Jeans dispersion sigma_r in total mass",
-  ("jeans_dispersion[EFF+OM]", "r_a"): "EFF Jeans dispersion in r_a",
-  ("jeans_dispersion[Michie+OM]", "r_a"): "Michie Jeans dispersion in r_a",
-  ```
-- `tests/validation/grad_audit/registry.py` — add matching `Case(...)` entries (`core.py` `Case`:
-  `direction="params->summary"`, `fn=closure(theta)->sigma_r array`, `param`, `theta0`,
-  `reduce=identity_sum`, `expect="consistent"`, `tol=1e-3`; mirror the `PlummerVelocityDF+OM` case ~L1483).
-- `tests/validation/provenance_registry/manifest.py` — add to `PROVENANCE`:
-  ```python
-  "kinematics/dispersion.py::anisotropic-Jeans sigma_r quadrature (OM integrating factor r^2+r_a^2)":
-      "Binney & Tremaine (2008) Galactic Dynamics sec. 4.8.3 + Merritt (1985) AJ 90, 1027, Eq. 15 "
-      "(OM sigma_r^2/sigma_t^2 = 1 + r^2/r_a^2) — derivable identity.",
-  ```
-  (If the coverage scanner flags a numeric literal in `dispersion.py`, add it to
-  `ALLOWLIST_NON_COEFFICIENT` with a reason — `4000` grid size, `30.0` Plummer extent, `1e-30` guards.)
+**Files:** as in the prior plan, but register **both** `jeans_dispersion` and `project_dispersion`:
+- `api_coverage/manifest.py::SYMBOL_TESTS` — one asserting test each.
+- `physics_registry/manifest.py::EXEMPT_NON_MODEL` — both ("forward-model helper, not an equilibrium
+  model; physics anchored in test_dispersion_physics.py"); + one anchor invariant line per DF dict.
+- `grad_audit/manifest.py` — `SYMBOL_CATEGORY`: both `AUDITED`; `MUST_AUDIT`: the (id,param) pairs for
+  `jeans_dispersion[Plummer/EFF/Michie+OM]` and `project_dispersion[Plummer+OM]` in `r_a`/`M`; add the
+  matching `Case(...)` in `registry.py` (`direction="params->summary"`, `reduce=identity_sum`,
+  `expect="consistent"`, `tol=1e-3`).
+- `provenance_registry/manifest.py::PROVENANCE` — the Jeans/Merritt row **and** a B&M82 projection row
+  ("Binney & Mamon (1982) MNRAS 200, 361 — LOS projection integrals; derivable identity"). Add any
+  `dispersion.py` grid/guard literals to `ALLOWLIST_NON_COEFFICIENT`.
 
-**Step — Run the four coverage suites + grad audit:**
-```
-XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
-  env -u VIRTUAL_ENV uv run --no-sync pytest \
-  tests/validation/api_coverage tests/validation/physics_registry \
-  tests/validation/provenance_registry tests/validation/grad_audit -q
-```
-Expected: PASS (every new `MUST_AUDIT` (id,param) has a covering `Case`; the new `__all__` symbol is
-categorized in all four). If red, the manifest is incomplete — fix it, don't skip.
-**Step — Commit** (`test(registries): register jeans_dispersion physics/grad/provenance (Phase 0 Task 7)`).
+**Step — Run the four coverage suites + grad audit** (command as prior plan). Expected PASS; if red,
+the manifest is incomplete — fix, don't skip. **Step — Commit** (`test(registries): register jeans + projection (Phase 0 Task 8)`).
 
 ---
 
-## Task 8 — Docstrings, FULL gate, completion doc, HITL pause
+## Task 9 — Docstrings, FULL gate, completion doc, HITL pause
 
-**Files:**
-- `dispersion.py` docstring — state units (`M`, `G` explicit), differentiability (reverse-mode;
-  forward-mode forbidden by diffrax `custom_vjp`), and that it returns the **equilibrium dispersion of
-  `profile` under OM `r_a`** (no mixed-pairing ambiguity — the caller supplies the profile).
-- Create `.claude-work/PHASE0_DISPERSION_COMPLETE.md` (files, API, anchor results table, grad results,
-  lessons, Phase-1 handoff).
+**Files:** `dispersion.py` docstrings (units; reverse-mode only; equilibrium dispersion of `profile`
+under OM `r_a`; B&M82 cite + the LOS substitution); create `.claude-work/PHASE0_DISPERSION_COMPLETE.md`.
 
-**Step — FULL released-core gate (merge gate):**
+**Step — FULL released-core gate:**
 ```
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 ```
-Expected: ALL PASS (~1243 + new dispersion tests; capture the count). **Step — Commit**
-(`docs(phase0): dispersion capability complete + run-record`), update `STATUS.md` (`next:` Phase 1),
-`brain "..."` capture, then **PAUSE at the Anna HITL checkpoint** — present the gate output and await
-explicit merge-go before any Phase-1 code.
+Expected: ALL PASS (capture count). **Step — Commit** (`docs(phase0): dispersion + projection complete + run-record`),
+update `STATUS.md` (`next:` Phase 1 OED), `brain "..."` capture, then **PAUSE at the Anna HITL
+checkpoint** — present the gate output, await explicit merge-go before any Phase-1 code.
 
 ---
 
 ## Definition of Complete (Phase 0)
 
-- [ ] `jeans_dispersion(profile, r_a, r, M, G)` in `progenax.__all__`; `DispersionProfile` NamedTuple (not top-level).
-- [ ] Plummer 4-way anchor (analytic = Jeans = f-moment = empirical) passes.
-- [ ] EFF + Michie 3-way anchor passes; Jeans-vs-f-moment gap shown to shrink with resolution (numerical, not a bug); Michie isotropic→King limit.
-- [ ] AD-vs-FD grads consistent for ∂σ_r/∂(r_a, M, profile params), all three; no silent zeros.
-- [ ] Four registries updated (incl. the new `__all__` symbol); coverage suites green.
-- [ ] FULL released-core gate green (count captured).
-- [ ] Completion doc + STATUS + brain; **Anna merge-go obtained** before Phase 1.
+- [ ] `jeans_dispersion` + `project_dispersion` in `progenax.__all__`; NamedTuples (not top-level).
+- [ ] Plummer: analytic Merritt oracle (rtol 1e-3) + isotropic Jeans=f-moment + quadrature O(h²) convergence + 5% sampler anchor.
+- [ ] EFF + Michie 3-way anchors; Michie isotropic→King limit; Jeans-vs-f-moment gap shrinks with resolution.
+- [ ] Projection: isotropic limit (3 projections equal) + analytic isotropic-Plummer σ_los oracle + empirical projected anchor + β-recovery.
+- [ ] Invariants (σ²∝GM), r_a domain guard, jit smoke test pass.
+- [ ] AD-vs-FD grads consistent for both forward models in (r_a, M, profile params); no silent zeros.
+- [ ] Four registries updated (both new symbols); coverage suites green.
+- [ ] FULL released-core gate green (count captured); completion doc + STATUS + brain; **Anna merge-go** before Phase 1.

@@ -50,9 +50,33 @@ Works for `PlummerProfile`, `EFFProfile`, `MichieProfile` (and any profile expos
   re-differentiated Ψ (Anna's call: avoids boundary noise near r=0/r_t). For Plummer the closed forms
   agree analytically; the isotropic closed form `σ_1d²=GM/(6√(r²+a²))` is the validation truth.
 - `σ_t² = σ_r²·r_a²/(r_a²+r²)`; `σ_1d² = (σ_r²+2σ_t²)/3`; `β = r²/(r²+r_a²)` (exact OM, Merritt 1985 Eq. 15).
-- **f-table second moment stays a DF-side cross-check** (`σ_r²=∫v_r²f d³v/ρ` over the DF's stored
-  `f`-table): per Anna's "both, cross-checked" call, Jeans (primary) and f-moment are gated to agree
-  to table resolution — a numerical-convergence discriminator, not a loosened tolerance.
+- **f-table second moment is the cross-check, ISOTROPIC-ONLY** (`σ_r²=∫v_r²f d³v/ρ`, a clean 1-D speed
+  moment over the DF's stored `f`-table): per Anna's "both, cross-checked" call, Jeans (primary) and
+  f-moment are gated to agree to table resolution — a numerical-convergence discriminator, not a
+  loosened tolerance. (The OM f-moment is a 2-D `(v_r,v_t)` integral — *not* the 1-D speed moment; for
+  the anisotropic case the cross-check is Jeans-vs-empirical-sampler instead.)
+
+**Projected (OBSERVED) dispersions — `project_dispersion` (ratified 2026-06-15, Anna).** The 3-D
+σ_r/σ_t are *not* observable; telescopes measure **projections** along the line of sight. A companion
+free function delivers the three observables via the Binney & Mamon (1982) integrals:
+
+```python
+from progenax import project_dispersion
+proj = project_dispersion(profile, r_a, R, M, G)   # R: projected (on-sky) radii
+# -> ProjectedDispersion(R, sigma_los, sigma_pm_r, sigma_pm_t, beta_proj)
+#    sigma_los  = RV channel; sigma_pm_r/sigma_pm_t = PM channels (B&M82 kernels)
+```
+The singular LOS integral `∫_R^∞ g(r) r/√(r²−R²) dr` is evaluated via the substitution `r²=R²+u²`
+(→ `∫₀^∞ g(√(R²+u²)) du`, singularity cancels, fully differentiable). Isotropic limit (β=0):
+σ_los = σ_pm_r = σ_pm_t = σ_1d (a free correctness check). This makes the OED's "RV↔σ_r, PM↔σ_t"
+claim physically honest and the capability Gaia-ready.
+
+**Validation strengthening (Anna, gaps 2–5):** (a) f-moment cross-check isotropic-only (above);
+(b) tight **analytic Merritt (1985) OM-Plummer oracle** (rtol ~1e-3) replaces the 5% MC anchor where a
+closed form exists; (c) a **quadrature self-convergence study** (trapezoid O(h²) under s-grid
+refinement); (d) cheap **invariants** (`σ²(2M)=2σ²(M)`, `σ²(λG)=λσ²(G)`), an **r_a validity-domain
+guard** (the free fn must not silently accept `r_a < 0.75a` where the Plummer OM DF is unphysical), and
+a **jit smoke test** (OED evaluates this many times).
 
 **Shared module:** `src/progenax/kinematics/dispersion.py` holds `DispersionProfile`,
 `jeans_dispersion`, and the `f`-table second-moment kernel.
@@ -80,10 +104,12 @@ by the differentiability-gradient-audit arc, not this one. Flagged, not solved.
 
 ## Phase 1 — the scaffolded pedagogical OED demo (B14)
 
-**Forward model & likelihood.** Mock = stars from the OM DF → binned `σ_1d(r)`, `β(r)` with honest
-standard errors (`binned_sigma_beta`). The *predicted* observable for the Fisher is the deterministic
-Phase-0 `dispersion_profile()`. Likelihood = weighted Gaussian on the binned dispersions
-(`gaussian_loglike`).
+**Forward model & likelihood.** Mock = stars from the OM DF, projected to on-sky radius `R` → binned
+**projected** dispersions `σ_los(R)` (RV channel) and `σ_pm,R(R)`/`σ_pm,T(R)` (PM channels) with honest
+standard errors. The *predicted* observable for the Fisher is the deterministic Phase-0
+**`project_dispersion()`** (B&M82) — RV and PM are genuine, distinct projections of the *same* σ_r/β,
+not an idealized "measure σ_r directly." Likelihood = weighted Gaussian on the binned projected
+dispersions (`gaussian_loglike`).
 
 **Additive-Fisher backbone (the load-bearing idea).** Fisher information is additive over independent
 data, so
@@ -92,11 +118,12 @@ data, so
 F(design) = Σ_bins Σ_channels  w[bin, channel] · F_block[bin, channel]
 ```
 
-where each per-(radius-bin × {RV→σ_r, PM→σ_t}) `F_block` is computed **once** via `jacrev` through
-`dispersion_profile`. The design variables are the weights `w`; optimizing them is a tiny smooth
-problem with **gradients trivial and linear in `w`** — the forward model is never re-differentiated,
-and the forward-mode ban never bites. The RV/PM coupling then *emerges*: since `β(r)` grows outward,
-the c-optimal design spends PM stars in the outskirts.
+where each per-(radius-bin × {RV→σ_los, PM_R→σ_pm,R, PM_T→σ_pm,T}) `F_block` is computed **once** via
+`jacrev` through `project_dispersion`. The design variables are the weights `w`; optimizing them is a
+tiny smooth problem with **gradients trivial and linear in `w`** — the forward model is never
+re-differentiated, and the forward-mode ban never bites. The RV/PM coupling then *emerges* from the
+B&M82 kernels: the σ_pm,T/σ_los and σ_pm,R/σ_los ratios carry β(r), which grows outward, so the
+c-optimal design spends PM stars in the outskirts.
 
 **Optimality criterion (ratified):** **c-optimality** headlines — minimize the marginal target
 variance `(F⁻¹)_{target,target}` after marginalizing nuisances (`r_h`, `M`, …). **D-optimality**
@@ -129,8 +156,8 @@ self-consistent mock (no real catalog, no cross-channel systematics).
 ## File layout
 
 ```
-src/progenax/kinematics/dispersion.py            # NEW (Phase 0): jeans_dispersion() free fn + f-table 2nd-moment cross-check
-  └ jeans_dispersion exported in progenax.__all__ (profile-based; DF only for the f-moment check)
+src/progenax/kinematics/dispersion.py            # NEW (Phase 0): jeans_dispersion() + project_dispersion() (B&M82) free fns
+  └ both exported in progenax.__all__ (profile-based; DF only for the isotropic f-moment cross-check)
 tests/unit/kinematics/test_dispersion.py         # NEW: API, shapes, grads
 tests/validation/test_dispersion_physics.py      # NEW: 3-way physics anchor
   └ + registry updates (api_coverage, physics_registry, grad_audit, provenance_registry)
