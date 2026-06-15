@@ -5,16 +5,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 95.77781947832614,
+    "line_cov_measured": 95.86473074802426,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T22:45:44.622279+00:00",
+  "generated_utc": "2026-06-15T23:00:30.488714+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "c05b73a46a9873e161084fb90ae399e1f037c474",
-      "measured_utc": "2026-06-15T05:54:01.858484+00:00",
+      "git_sha": "796ff74fe630ed37f9b6d9e318fa2c866e8c291a",
+      "measured_utc": "2026-06-15T23:00:21.358423+00:00",
       "selector": "full",
-      "total_percent": 95.77781947832614
+      "total_percent": 95.86473074802426
     },
     "per_file_lines": {
       "__init__": {
@@ -234,8 +234,8 @@
         "num_statements": 43
       },
       "kinematics/__init__": {
-        "covered_lines": 8,
-        "num_statements": 8
+        "covered_lines": 9,
+        "num_statements": 9
       },
       "kinematics/_speed_kernels": {
         "covered_lines": 12,
@@ -244,6 +244,10 @@
       "kinematics/api": {
         "covered_lines": 40,
         "num_statements": 40
+      },
+      "kinematics/dispersion": {
+        "covered_lines": 97,
+        "num_statements": 97
       },
       "kinematics/eddington": {
         "covered_lines": 58,
@@ -314,7 +318,7 @@
         "num_statements": 102
       },
       "profiles/plummer": {
-        "covered_lines": 38,
+        "covered_lines": 39,
         "num_statements": 39
       },
       "profiles/uniform": {
@@ -392,6 +396,7 @@
       "kinematics/__init__": 100.0,
       "kinematics/_speed_kernels": 100.0,
       "kinematics/api": 100.0,
+      "kinematics/dispersion": 99.09909909909909,
       "kinematics/eddington": 100.0,
       "kinematics/eff_df": 97.22222222222223,
       "kinematics/king_df": 97.43589743589743,
@@ -409,14 +414,14 @@
       "profiles/limepy_multimass": 99.11111111111111,
       "profiles/limepy_tables": 100.0,
       "profiles/michie": 99.05660377358491,
-      "profiles/plummer": 97.43589743589743,
+      "profiles/plummer": 100.0,
       "profiles/uniform": 87.17948717948718,
       "protocols": 68.25396825396825,
       "stellar": 100.0,
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 95.77781947832614
+    "total_percent": 95.86473074802426
   },
   "modules": {
     "analytical": {
@@ -475,7 +480,7 @@
     },
     "kinematics": {
       "integration": 0,
-      "line_cov": 99.0791896869245,
+      "line_cov": 99.21996879875195,
       "unit": 114,
       "validation": 0
     },
@@ -487,7 +492,7 @@
     },
     "profiles": {
       "integration": 0,
-      "line_cov": 98.83381924198251,
+      "line_cov": 98.9310009718173,
       "unit": 201,
       "validation": 0
     },
