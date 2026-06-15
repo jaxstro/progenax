@@ -32,6 +32,7 @@ arrive in Tasks 2 and 5.
 
 from typing import NamedTuple, Optional
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
@@ -286,11 +287,106 @@ def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfil
     return DispersionProfile(r=r, sigma_r=sr, sigma_t=st, sigma_1d=s1d, beta=beta)
 
 
-def project_dispersion(profile, r_a, R, M, G) -> ProjectedDispersion:
+def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispersion:
     """Observed projected dispersions of ``profile`` via Binney & Mamon (1982).
 
-    Stub (Phase 0 Task 1) — implemented in Task 5.
+    Projects the 3-D anisotropic Jeans model (:func:`jeans_dispersion`) onto the
+    sky along the line of sight, returning the OBSERVED dispersions at on-sky
+    radii ``R`` (Binney & Mamon 1982, MNRAS 200, 361). With Osipkov-Merritt
+    anisotropy ``beta(r) = r^2 / (r^2 + r_a^2)``::
+
+        Sigma(R)            = 2 int_R^inf rho                       r/sqrt(r^2-R^2) dr
+        Sigma sigma_los^2   = 2 int_R^inf (1 - beta R^2/r^2)  rho sr^2 r/sqrt(r^2-R^2) dr
+        Sigma sigma_pmR^2   = 2 int_R^inf (1 - beta + beta R^2/r^2) rho sr^2 r/sqrt(...) dr
+        Sigma sigma_pmT^2   = 2 int_R^inf (1 - beta)         rho sr^2 r/sqrt(r^2-R^2) dr
+
+    where ``sr^2 = sigma_r^2(r)`` (radial), ``sigma_los`` is the line-of-sight
+    (RV) channel, and ``sigma_pmR`` / ``sigma_pmT`` are the on-sky radial /
+    tangential proper-motion dispersions. ``rho`` cancels in the sigma ratios; in
+    ``Sigma`` it is the projected surface density in ``profile.density`` units.
+
+    Singularity removal (load-bearing, keeps it differentiable): the
+    ``1/sqrt(r^2-R^2)`` pole at ``r=R`` is removed ANALYTICALLY by the
+    substitution ``r^2 = R^2 + u^2`` (so ``r dr / sqrt(r^2-R^2) = du``)::
+
+        int_R^inf g(r) r/sqrt(r^2-R^2) dr = int_0^sqrt(r_max^2-R^2) g(sqrt(R^2+u^2)) du
+
+    so NO ``1/sqrt(r^2-R^2)`` is ever evaluated — only a smooth uniform-``u``
+    trapezoid quadrature. ``sigma_r^2(r)`` and ``beta(r)`` come straight from
+    :func:`jeans_dispersion` (not re-derived); ``rho`` from ``profile.density``.
+
+    The outward extent ``r_max`` is ``profile.r_t`` if present (King/EFF), else
+    ``30 * profile.a`` (Plummer; matches :func:`jeans_dispersion`). The per-``R``
+    ``u``-integral is vmapped over the ``R`` array. Fully reverse-mode
+    differentiable; ``jax.jit``-able.
+
+    Parameters
+    ----------
+    profile : spatial profile exposing ``density(r)`` (and optionally ``r_t``, ``a``).
+    r_a : Osipkov-Merritt anisotropy radius, or ``None`` for isotropic (beta=0).
+    R : projected (on-sky) radii (array-like; broadcast to at least 1-D).
+    M : total mass normalising the enclosed-mass quadrature (passed through to
+        :func:`jeans_dispersion`).
+    G : gravitational constant (sets the velocity units).
+    n_u : number of points on the uniform ``u``-quadrature grid (default 4000).
+
+    Returns
+    -------
+    ProjectedDispersion
     """
-    raise NotImplementedError(
-        "project_dispersion is a Phase 0 Task 1 scaffold; physics lands in Task 5."
+    R = jnp.atleast_1d(jnp.asarray(R))
+
+    # Outward extent: tidal radius if finite, else 30 scale radii (matches jeans).
+    r_max = getattr(profile, "r_t", None)
+    if r_max is None:
+        r_max = 30.0 * profile.a
+    r_max = jnp.asarray(r_max)
+
+    # Pull the outer integration radius a hair inside r_max. At r == r_max the
+    # outward Jeans integral I(r_max) = 0 EXACTLY, so sigma_r^2 = 0 there and
+    # jnp.sqrt has an infinite (NaN) gradient at that zero-measure endpoint —
+    # which would poison jax.grad of the whole reduction. The endpoint carries
+    # rho * sigma_r^2 -> 0, i.e. ~no weight, so stopping at r_edge = (1 - 1e-6)
+    # r_max removes the NaN without changing the integral (mirrors how
+    # jeans_dispersion starts its own s-grid at 1e-4 r_max, not 0).
+    r_edge = (1.0 - 1e-6) * r_max
+
+    def _los_quantities(R_i):
+        # r^2 = R^2 + u^2 substitution: u in [0, sqrt(r_edge^2 - R^2)] (clip the
+        # upper limit to be non-negative if R_i ever brushes r_edge).
+        u_max = jnp.sqrt(jnp.maximum(r_edge**2 - R_i**2, 0.0))
+        u = jnp.linspace(0.0, u_max, n_u)
+        r = jnp.sqrt(R_i**2 + u**2)
+
+        # rho, sigma_r^2, beta at the integration radii (sigma_r/beta straight
+        # from the anisotropic Jeans solution — NOT re-derived here).
+        rho = profile.density(r)
+        dp = jeans_dispersion(profile, r_a, r, M, G)
+        sigma_r2 = dp.sigma_r**2
+        beta = dp.beta
+
+        ratio = R_i**2 / jnp.maximum(r**2, 1e-30)  # R^2 / r^2
+        w = rho * sigma_r2  # common rho*sigma_r^2 weight
+
+        # B&M82 kernels (integrands in u; the 2x and 1/sqrt cancellation are
+        # folded into the substitution -> trapezoid over u, times 2).
+        Sigma = 2.0 * jnp.trapezoid(rho, u)
+        S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w, u)
+        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w, u)
+        S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w, u)
+        return Sigma, S_los, S_pmr, S_pmt
+
+    Sigma, S_los, S_pmr, S_pmt = jax.vmap(_los_quantities)(R)
+
+    Sigma_safe = jnp.maximum(Sigma, 1e-30)
+    sigma_los = jnp.sqrt(jnp.maximum(S_los / Sigma_safe, 0.0))
+    sigma_pm_r = jnp.sqrt(jnp.maximum(S_pmr / Sigma_safe, 0.0))
+    sigma_pm_t = jnp.sqrt(jnp.maximum(S_pmt / Sigma_safe, 0.0))
+
+    return ProjectedDispersion(
+        R=R,
+        sigma_los=sigma_los,
+        sigma_pm_r=sigma_pm_r,
+        sigma_pm_t=sigma_pm_t,
+        Sigma=Sigma,
     )
