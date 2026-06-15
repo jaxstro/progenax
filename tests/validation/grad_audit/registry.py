@@ -33,6 +33,13 @@ from progenax.binaries import (
     LogisticThermalEccentricity,
     MoeEccentricity,
 )
+from progenax.stellar import (
+    inverse_zams_luminosity,
+    zams_effective_temperature,
+    zams_luminosity,
+    zams_radius,
+    zams_surface_gravity,
+)
 from progenax.binaries.assembly import resolve_binary_components
 from progenax.binaries.companions import MoeCompanions
 from progenax.binaries.kepler import KeplerElements
@@ -1418,6 +1425,54 @@ def _independent_companions_e_max(e_max):
 _IC_M1 = jnp.full(_ECC_N, 2.0)  # fixed 2 Msun primaries (scattered-test config)
 
 
+# ---------------------------------------------------------------------------
+# ZAMS stellar relations (Tout+1996) — P3 grad-audit cases. The four forward
+# functions are elementwise rational/composite functions of mass; the inverse is
+# the differentiable fixed-iteration Newton/scan invert dM/dL. All are scalar-in /
+# scalar-out at a single mass, so we wrap in jnp.atleast_1d and reduce by
+# identity_sum (the params->summary scalar-observable form). theta0 is a
+# representative main-sequence mass M=5 (well inside the fitted 0.1-100 Msun range,
+# off any clip), so the gradient is the smooth interior derivative.
+#
+# INVERSE M1 (critical): the inverse case MUST probe an IN-RANGE L_target. We pick
+# L_target = zams_luminosity(5.0) ~ 530.13 Lsun so the audited point is M~5 (NOT a
+# clipped plateau at M>150 where dM/dL is a dead zero). Measured dM/dL = 2.64e-3 at
+# this L (live, non-zero); the round-trip inverse(zams_luminosity(5))~5 is exact.
+#
+# MEASURED (theta0 as below, h_rel=1e-4, identity_sum), all clean:
+#   zams_luminosity            mass=5    AD=3.785187e+2  FD=3.785187e+2  |ratio-1|=4.9e-9
+#   zams_radius                mass=5    AD=3.002906e-1  FD=3.002906e-1  |ratio-1|=9.1e-10
+#   zams_effective_temperature mass=5    AD=2.073397e+3  FD=2.073397e+3  |ratio-1|=1.4e-9
+#   zams_surface_gravity       mass=5    AD=-1.210520e-2 FD=-1.210520e-2 |ratio-1|=1.1e-9
+#   inverse_zams_luminosity    L~530.13  AD=2.641877e-3  FD=2.641877e-3  |ratio-1|=1.9e-9
+# All closed-form / smooth-Newton => tol=1e-5 is comfortable (>100x margin; a blocked
+# gradient would give |ratio-1|~1, the silent-zero signature, not ~1e-9).
+_ZAMS_MASS = 5.0  # representative MS mass, interior to the fitted 0.1-100 Msun range
+_ZAMS_INVERSE_L = float(zams_luminosity(jnp.asarray(_ZAMS_MASS)))  # ~530.13 Lsun -> M~5
+
+
+def _zams_luminosity_mass(mass):
+    return jnp.atleast_1d(zams_luminosity(mass))
+
+
+def _zams_radius_mass(mass):
+    return jnp.atleast_1d(zams_radius(mass))
+
+
+def _zams_teff_mass(mass):
+    return jnp.atleast_1d(zams_effective_temperature(mass))
+
+
+def _zams_logg_mass(mass):
+    return jnp.atleast_1d(zams_surface_gravity(mass))
+
+
+def _inverse_zams_L(L_target):
+    # In-range L_target (~530.13 Lsun => M~5); the Newton/scan invert is differentiable
+    # via the fixed-iteration lax.scan. Scalar in -> scalar out, wrapped to (1,).
+    return jnp.atleast_1d(inverse_zams_luminosity(L_target))
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1899,4 +1954,18 @@ REGISTRY: list[Case] = [
          param="W0", theta0=5.0, reduce=mean_radius, tol=1e-3),         # |ratio-1|=7.6e-5
     Case(id="build_cluster_from_params[ClusterParams]", direction="params->IC", fn=_bcfp_rh,
          param="r_h", theta0=1.0, reduce=mean_radius, tol=1e-5),        # |ratio-1|=2.7e-13
+    # --- ZAMS stellar relations (Tout+1996) — P3 ---
+    # Forward L/R/T_eff/log g differentiable in mass at the interior MS point M=5;
+    # the inverse audits dM/dL at an IN-RANGE L_target (~530.13 Lsun -> M~5), NOT a
+    # clipped plateau (M1). All closed-form / smooth-Newton -> tol=1e-5.
+    Case(id="zams_luminosity", direction="params->summary", fn=_zams_luminosity_mass,
+         param="mass", theta0=_ZAMS_MASS, reduce=identity_sum, tol=1e-5),   # |ratio-1|=4.9e-9
+    Case(id="zams_radius", direction="params->summary", fn=_zams_radius_mass,
+         param="mass", theta0=_ZAMS_MASS, reduce=identity_sum, tol=1e-5),   # |ratio-1|=9.1e-10
+    Case(id="zams_effective_temperature", direction="params->summary", fn=_zams_teff_mass,
+         param="mass", theta0=_ZAMS_MASS, reduce=identity_sum, tol=1e-5),   # |ratio-1|=1.4e-9
+    Case(id="zams_surface_gravity", direction="params->summary", fn=_zams_logg_mass,
+         param="mass", theta0=_ZAMS_MASS, reduce=identity_sum, tol=1e-5),   # |ratio-1|=1.1e-9
+    Case(id="inverse_zams_luminosity", direction="params->summary", fn=_inverse_zams_L,
+         param="L_target", theta0=_ZAMS_INVERSE_L, reduce=identity_sum, tol=1e-5),  # |ratio-1|=1.9e-9
 ]

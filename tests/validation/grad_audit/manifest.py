@@ -106,6 +106,12 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("q_approx[EFF]", "gamma"): "CW04 substructure-Q surrogate in EFF slope",
     ("resolve_binary_components", "a"): "binary->spatial connector, all-binary",
     ("resolve_binary_components[mixed]", "a"): "connector mixed mask (sanitization Fisher check)",
+    ("zams_luminosity", "mass"): "Tout+1996 L(M) rational-function differentiability in mass",
+    ("zams_radius", "mass"): "Tout+1996 R(M) rational-function differentiability in mass",
+    ("zams_effective_temperature", "mass"): "ZAMS T_eff(M) (Stefan-Boltzmann L,R composite) in mass",
+    ("zams_surface_gravity", "mass"): "ZAMS log g(M) = log10(G M / R^2) in mass",
+    ("inverse_zams_luminosity", "L_target"): "differentiable Newton/scan invert dM/dL at an "
+        "in-range L_target (M~5 MS point, NOT a clipped plateau)",
 }
 
 # --- SYMBOL_CATEGORY: every __all__ symbol -> category ----------------------
@@ -146,6 +152,12 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "matched_velocity_df": EXEMPT_HELPER,   # factory pairing profile->equilibrium DF
     "RotationSpec": EXEMPT_CONTAINER,       # rotation-overlay spec PyTree
     "ClusterParams": EXEMPT_CONTAINER,      # theta-PyTree bundle (profile + modifier knobs)
+    # --- ZAMS stellar relations (Tout+1996; P3 grad-audit cases) ---
+    "zams_luminosity": AUDITED,              # P3: Tout L(M) in mass (M=5 MS point)
+    "zams_radius": AUDITED,                  # P3: Tout R(M) in mass (M=5 MS point)
+    "zams_effective_temperature": AUDITED,   # P3: T_eff(M) Stefan-Boltzmann composite in mass
+    "zams_surface_gravity": AUDITED,         # P3: log g(M) in mass
+    "inverse_zams_luminosity": AUDITED,      # P3: Newton/scan invert dM/dL at in-range L
     "SanaOBPeriod": AUDITED,                 # B4: Sana+2012 OB period power-law index (power)
     "LogNormalPeriod": AUDITED,              # B4: log-normal period location (mu_log_P, closed-form grad=1)
     "LogUniformPeriod": AUDITED,             # B4: Opik log-uniform period upper bound (log_P_max, <u>~0.5)
