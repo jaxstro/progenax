@@ -65,6 +65,9 @@ seeds + methods showcases):
 * - [Binary mass function](binary-mass-function.md) (B4)
   - Recover $f_b$ from the unresolved-binary distortion?
   - yes — ignoring Moe $P$–$q$ coupling biases it $-3.6\sigma$
+* - [Binary dynamical mass](binary-dynamical-mass.md) (B12)
+  - Remove the binary-inflated virial-mass bias?
+  - yes — from the velocity wings ($1.28\times$ bias removed; dispersion-only is rank-1)
 * - [Anisotropy](anisotropy.md) (B6)
   - Measure the anisotropy radius from $\beta(r)$?
   - yes (OM); a Michie cluster mis-fits $12.9\times$
@@ -184,6 +187,7 @@ python scripts/demo_king_concentration.py    # B11 (~30 s)
 python scripts/demo_diff_diagnostics.py      # B10 (~6 s)
 python scripts/demo_birth_environment.py     # B5 (~7 s)
 python scripts/demo_binary_mass_function.py  # B4 (ZAMS relations in-package via progenax.stellar)
+python scripts/demo_binary_dynamical_mass.py # B12 (~90 s; kinematic companion to B4)
 python scripts/demo_anisotropy.py            # B6 (~9 s)
 python scripts/demo_tidal_radius.py          # B7 (~5 s)
 python scripts/demo_rotation.py              # B8 (~4 s)
