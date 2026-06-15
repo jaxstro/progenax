@@ -68,6 +68,67 @@ def _component_los_velocities(a, e, i, Omega, omega, M0, m1, m2, los_hat):
     return v1_los, v2_los
 
 
+def sample_blend_velocities(key, n, Z=1e-3, q_fixed=None, imf=None, joint=None):
+    r"""Per-system unresolved flux-weighted blend velocity ``Delta`` [km/s].
+
+    The reusable core of the binary contamination: draw ``n`` Moe & Di Stefano
+    binaries (primary mass from the IMF; coupled ``(P, q, e)``), build each
+    Keplerian orbit in BINARY units, project the barycentric component velocities
+    onto a random isotropic LOS, and flux-weight by the ZAMS luminosities ---
+    returning the raw ``Delta`` array (NOT histogrammed). ``build_korb_kernel``
+    histograms these into the kernel ``K_orb``; the forward model adds them
+    directly to the cluster COM velocities of the binary subset.
+
+    ``Delta`` is independent of the cluster dispersion ``sigma_true``.
+
+    Parameters
+    ----------
+    key : PRNGKey
+    n : int
+        Number of binaries to draw.
+    Z : float
+        Metallicity for the ZAMS luminosity weighting.
+    q_fixed : float or None
+        Override the Moe mass ratio with a fixed ``q`` (test knob).
+    imf, joint : optional
+        Override the default ``Maschberger`` IMF / ``MoeJointOrbit`` sampler.
+
+    Returns
+    -------
+    delta : (n,) ndarray of blend velocities [km/s].
+    """
+    imf = imf if imf is not None else Maschberger(alpha=2.3, m_min=0.08, m_max=100.0)
+    joint = joint if joint is not None else MoeJointOrbit.default()
+
+    k_imf, k_joint, k_phase, k_los = jax.random.split(key, 4)
+
+    m1 = imf.sample(k_imf, n)
+    P_days, q, e = joint.sample(k_joint, m1)
+    if q_fixed is not None:
+        q = jnp.full_like(q, q_fixed)
+    m2 = q * m1
+    M_total = m1 + m2
+
+    a = period_to_semimajor_axis(P_days * _DAY_YR, M_total, G=_G_BIN)  # AU
+
+    # Uniform mean anomaly = uniform-in-time orbital phase. Orbit angles are left
+    # at zero (orbit in the xy-plane); the per-system random isotropic LOS then
+    # samples all viewing geometries -- equivalent to randomizing (i, Omega, omega)
+    # by rotational symmetry, but cheaper.
+    M0 = jax.random.uniform(k_phase, (n,), maxval=2.0 * jnp.pi)
+    los = jax.random.normal(k_los, (n, 3))
+    los = los / jnp.linalg.norm(los, axis=1, keepdims=True)
+    zeros = jnp.zeros(n)
+
+    v1_los, v2_los = jax.vmap(_component_los_velocities)(
+        a, e, zeros, zeros, zeros, M0, m1, m2, los
+    )
+
+    L1 = zams_luminosity(m1, Z)
+    L2 = zams_luminosity(m2, Z)
+    return np.asarray((L1 * v1_los + L2 * v2_los) / (L1 + L2))  # km/s
+
+
 def build_korb_kernel(
     n_pool=20000,
     q_fixed=None,
@@ -122,37 +183,10 @@ def build_korb_kernel(
     density : (n_grid,) float ndarray
         Normalized kernel density (``sum(density) * dv ~ 1``).
     """
-    imf = imf if imf is not None else Maschberger(alpha=2.3, m_min=0.08, m_max=100.0)
-    joint = joint if joint is not None else MoeJointOrbit.default()
-
     key = jax.random.PRNGKey(seed)
-    k_imf, k_joint, k_phase, k_los = jax.random.split(key, 4)
-
-    m1 = imf.sample(k_imf, n_pool)
-    P_days, q, e = joint.sample(k_joint, m1)
-    if q_fixed is not None:
-        q = jnp.full_like(q, q_fixed)
-    m2 = q * m1
-    M_total = m1 + m2
-
-    a = period_to_semimajor_axis(P_days * _DAY_YR, M_total, G=_G_BIN)  # AU
-
-    # Uniform mean anomaly = uniform-in-time orbital phase. Orbit angles are left
-    # at zero (orbit in the xy-plane); the per-system random isotropic LOS then
-    # samples all viewing geometries -- equivalent to randomizing (i, Omega, omega)
-    # by rotational symmetry, but cheaper.
-    M0 = jax.random.uniform(k_phase, (n_pool,), maxval=2.0 * jnp.pi)
-    los = jax.random.normal(k_los, (n_pool, 3))
-    los = los / jnp.linalg.norm(los, axis=1, keepdims=True)
-    zeros = jnp.zeros(n_pool)
-
-    v1_los, v2_los = jax.vmap(_component_los_velocities)(
-        a, e, zeros, zeros, zeros, M0, m1, m2, los
+    delta = sample_blend_velocities(
+        key, n_pool, Z=Z, q_fixed=q_fixed, imf=imf, joint=joint
     )
-
-    L1 = zams_luminosity(m1, Z)
-    L2 = zams_luminosity(m2, Z)
-    delta = np.asarray((L1 * v1_los + L2 * v2_los) / (L1 + L2))  # km/s
 
     edges = np.linspace(-grid_max, grid_max, n_grid + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
