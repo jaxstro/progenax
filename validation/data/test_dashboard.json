@@ -8,7 +8,7 @@
     "line_cov_measured": 94.77173707141505,
     "registries_full": false
   },
-  "generated_utc": "2026-06-15T01:09:07.027225+00:00",
+  "generated_utc": "2026-06-15T01:53:47.147587+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
@@ -474,6 +474,12 @@
       "unit": 101,
       "validation": 0
     },
+    "physics_registry": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 6
+    },
     "profiles": {
       "integration": 0,
       "line_cov": 98.83381924198251,
@@ -720,7 +726,12 @@
       }
     },
     "physics_validation": {
-      "status": "not-built"
+      "exempt_non_equilibrium": 3,
+      "exempt_non_model": 90,
+      "full": true,
+      "models": 21,
+      "status": "built",
+      "untested": 0
     },
     "provenance": {
       "status": "not-built"

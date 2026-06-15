@@ -309,9 +309,10 @@ def _stamp_coverage(raw_cov_path: str) -> None:
 # safe.) The committed JSON should carry zero hazards in a healthy tree.
 _GRAD_AUDIT_BENIGN_STATUSES = frozenset({"clean", "known-limitation"})
 
-# The registries that Phases 4/5 will build. api_coverage is now built (Task 2.2);
-# physics_validation + provenance stay not-built placeholders until their phases.
-_NOT_BUILT_REGISTRIES = ("physics_validation", "provenance")
+# The registries that Phase 5 will build. api_coverage (Task 2.2) and
+# physics_validation (Task 4.2) are now built; provenance stays a not-built
+# placeholder until Phase 5.
+_NOT_BUILT_REGISTRIES = ("provenance",)
 
 _GRAD_AUDIT_JSON = "validation/data/grad_audit_results.json"
 
@@ -330,8 +331,8 @@ def read_registry_status() -> dict:
     histogram, and a derived ``hazards`` count (rows whose status is NOT a benign
     value — see ``_GRAD_AUDIT_BENIGN_STATUSES``).
 
-    The other three registries do not exist yet -> ``{"status": "not-built"}``
-    placeholders (Phases 2/4/5 replace them).
+    The remaining registry (provenance) does not exist yet ->
+    ``{"status": "not-built"}`` placeholder (Phase 5 replaces it).
 
     Returns ``{"differentiability": {...}, "api_coverage": {...}, ...}``.
     """
@@ -383,7 +384,37 @@ def read_registry_status() -> dict:
         "untested": len(UNTESTED),
     }
 
-    result = {"differentiability": differentiability, "api_coverage": api_coverage}
+    # physics-validation registry (Task 4.2): the frozen-literal manifest partitions
+    # every model among MODEL_INVARIANTS (asserting-test-backed physics invariants),
+    # EXEMPT_NON_MODEL (utilities/containers/distributions/helpers/analytical ICs),
+    # EXEMPT_NON_EQUILIBRIUM_MODEL (reference-parity / uniform-density carves), and
+    # UNTESTED_MODELS (real holes). We import the pure manifest module (NO pytest-collection
+    # side effects — same contract as the grad-audit / api-coverage manifests) and report the
+    # partition sizes. CONTRACT: `full` == zero UNTESTED holes (every operational model has
+    # an asserting validation invariant or is a documented exempt carve); True at Task 4.1
+    # (0 holes), so this registry no longer holds registries_full down — only the not-built
+    # provenance registry (Phase 5) does.
+    from tests.validation.physics_registry.manifest import (
+        EXEMPT_NON_EQUILIBRIUM_MODEL,
+        EXEMPT_NON_MODEL,
+        MODEL_INVARIANTS,
+        UNTESTED_MODELS,
+    )
+
+    physics_validation = {
+        "status": "built",
+        "full": len(UNTESTED_MODELS) == 0,
+        "models": len(MODEL_INVARIANTS),
+        "exempt_non_model": len(EXEMPT_NON_MODEL),
+        "exempt_non_equilibrium": len(EXEMPT_NON_EQUILIBRIUM_MODEL),
+        "untested": len(UNTESTED_MODELS),
+    }
+
+    result = {
+        "differentiability": differentiability,
+        "api_coverage": api_coverage,
+        "physics_validation": physics_validation,
+    }
     for reg in _NOT_BUILT_REGISTRIES:
         result[reg] = {"status": "not-built"}  # no `full` -> holds registries_full False
     return result

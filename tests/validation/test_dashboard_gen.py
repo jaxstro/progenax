@@ -92,7 +92,7 @@ def test_rollup_coverage_by_dir_is_weighted_by_statements():
 
 # --- Task 1.4: read_registry_status -----------------------------------------
 
-def test_registry_status_grad_audit_built_others_not():
+def test_registry_status_three_built_provenance_not():
     status = read_registry_status()
     # The one real registry (grad-audit) is built from frozen literals + JSON.
     ga = status["differentiability"]
@@ -120,32 +120,41 @@ def test_registry_status_grad_audit_built_others_not():
     # The three partition sizes sum to the full __all__ (114).
     assert api["symbol_tests"] + api["exempt"] + api["untested"] == 114
 
-    # The remaining two registries do not exist yet -> not-built placeholders.
+    # physics-validation is BUILT and FULL (Task 4.2): the manifest partitions every
+    # model into MODEL_INVARIANTS / EXEMPT_NON_MODEL / EXEMPT_NON_EQUILIBRIUM_MODEL /
+    # UNTESTED_MODELS, and UNTESTED_MODELS is empty (0 holes as of Task 4.1).
+    phys = status["physics_validation"]
+    assert phys["status"] == "built"
+    assert phys["full"] is True  # 0 untested holes
+    assert phys["models"] > 0
+    assert phys["untested"] == 0
+
+    # The remaining registry does not exist yet -> not-built placeholder.
     # Per the I2 contract, not-built placeholders OMIT `full` (so registries_full
     # stays False until all 4 are built+full).
-    for reg in ("physics_validation", "provenance"):
-        assert status[reg] == {"status": "not-built"}
-        assert "full" not in status[reg]
+    assert status["provenance"] == {"status": "not-built"}
+    assert "full" not in status["provenance"]
 
 
 def test_registries_full_flag_gates_on_built_and_full():
     """``gate["registries_full"]`` is the all-clear flag: every registry must be
-    BUILT and ``full is True``. Two registries are now built+full (differentiability
-    + api-coverage), but physics_validation + provenance are not-built, so the
+    BUILT and ``full is True``. Three registries are now built+full (differentiability
+    + api-coverage + physics-validation), but provenance is not-built, so the
     aggregate flag is still False (and provably NOT because of a missing flag).
     """
     dash = build_dashboard("2026-01-01T00:00:00Z")
     regs = dash["registries"]
-    # Two registries are built+full -> they would not, by themselves, hold the gate
-    # down. The gate is held down solely by the 2 not-built registries.
+    # Three registries are built+full -> they would not, by themselves, hold the gate
+    # down. The gate is held down solely by the 1 not-built registry (provenance).
     assert regs["differentiability"]["full"] is True
     assert regs["api_coverage"]["full"] is True
+    assert regs["physics_validation"]["full"] is True
     assert dash["gate"]["registries_full"] is False
     built_and_full = {
         name for name, b in regs.items()
         if b.get("status") == "built" and b.get("full") is True
     }
-    assert built_and_full == {"differentiability", "api_coverage"}
+    assert built_and_full == {"differentiability", "api_coverage", "physics_validation"}
 
 
 # --- Task 1.4: read_durations -----------------------------------------------
@@ -259,8 +268,11 @@ def test_build_dashboard_registry_and_gate_state():
     # api_coverage registry is BUILT and FULL as of Task 2.3 (all holes closed).
     assert dash["registries"]["api_coverage"]["status"] == "built"
     assert dash["registries"]["api_coverage"]["full"] is True
+    # physics_validation registry is BUILT and FULL as of Task 4.2 (0 untested holes).
+    assert dash["registries"]["physics_validation"]["status"] == "built"
+    assert dash["registries"]["physics_validation"]["full"] is True
     # gate: registries are NOT all full and the floor is 90. registries_full stays
-    # False because physics_validation + provenance are still not-built.
+    # False because the provenance registry is still not-built (Phase 5).
     assert dash["gate"]["registries_full"] is False
     assert dash["gate"]["line_cov_floor"] == 90
     assert dash["gate"]["full_suite_green"] is None
