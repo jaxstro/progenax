@@ -192,10 +192,10 @@ def test_durations_missing_modules_key_raises_runtime_error():
 
 # --- Task 1.4: read_validation_scripts --------------------------------------
 
-def test_validation_scripts_enumerates_all_23_with_exit_codes():
+def test_validation_scripts_enumerates_all_24_with_exit_codes():
     runs = read_validation_scripts(path=_VALRUNS_FIXTURE)
-    # All 23 scripts/validate_*.py are enumerated.
-    assert len(runs) == 23
+    # All 24 scripts/validate_*.py are enumerated (24 = 23 + validate_zams.py, ZAMS migration).
+    assert len(runs) == 24
     assert all(name.startswith("validate_") and name.endswith(".py") for name in runs)
     # Recorded exit codes come through; unrecorded scripts are "unknown".
     assert runs["validate_plummer.py"] == 0
@@ -205,7 +205,7 @@ def test_validation_scripts_enumerates_all_23_with_exit_codes():
 
 def test_validation_scripts_absent_artifact_all_unknown():
     runs = read_validation_scripts(path="validation/data/__nope_valruns__.json")
-    assert len(runs) == 23
+    assert len(runs) == 24
     assert all(code == "unknown" for code in runs.values())
 
 

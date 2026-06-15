@@ -8,7 +8,7 @@
     "line_cov_measured": 95.73782913430574,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T05:10:54.991508+00:00",
+  "generated_utc": "2026-06-15T05:31:05.651237+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "4c79a321553a813a7a1d697dffcfb2d561de832f",
@@ -707,6 +707,12 @@
       "line_cov": null,
       "unit": 0,
       "validation": 0
+    },
+    "test_zams_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 34
     }
   },
   "registries": {
@@ -776,6 +782,7 @@
     "validate_segregation_approx.py": "unknown",
     "validate_speed_routing.py": "unknown",
     "validate_substructure_q.py": "unknown",
-    "validate_tidal.py": "unknown"
+    "validate_tidal.py": "unknown",
+    "validate_zams.py": "unknown"
   }
 }
