@@ -5,21 +5,21 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 95.73782913430574,
+    "line_cov_measured": 95.77781947832614,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T05:31:05.651237+00:00",
+  "generated_utc": "2026-06-15T05:54:15.932936+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "4c79a321553a813a7a1d697dffcfb2d561de832f",
-      "measured_utc": "2026-06-15T03:14:08.511201+00:00",
+      "git_sha": "c05b73a46a9873e161084fb90ae399e1f037c474",
+      "measured_utc": "2026-06-15T05:54:01.858484+00:00",
       "selector": "full",
-      "total_percent": 95.73782913430574
+      "total_percent": 95.77781947832614
     },
     "per_file_lines": {
       "__init__": {
-        "covered_lines": 16,
-        "num_statements": 16
+        "covered_lines": 17,
+        "num_statements": 17
       },
       "analytical/__init__": {
         "covered_lines": 5,
@@ -325,6 +325,10 @@
         "covered_lines": 43,
         "num_statements": 63
       },
+      "stellar": {
+        "covered_lines": 49,
+        "num_statements": 49
+      },
       "tidal": {
         "covered_lines": 32,
         "num_statements": 32
@@ -408,10 +412,11 @@
       "profiles/plummer": 97.43589743589743,
       "profiles/uniform": 87.17948717948718,
       "protocols": 68.25396825396825,
+      "stellar": 100.0,
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 95.73782913430574
+    "total_percent": 95.77781947832614
   },
   "modules": {
     "analytical": {
@@ -494,7 +499,7 @@
     },
     "stellar": {
       "integration": 0,
-      "line_cov": null,
+      "line_cov": 100.0,
       "unit": 25,
       "validation": 0
     },
