@@ -72,6 +72,20 @@ def test_predict_differentiable_in_sigma_and_fb():
     assert jnp.isfinite(gs) and jnp.isfinite(gfb)
 
 
+def test_predict_binary_term_is_symmetric():
+    """Regression: with a symmetric K_orb and symmetric bins, the binned mixture
+    must be symmetric. A grid/bin-misaligned membership-mask integration injected
+    a one-sided spike at v=+0.5 that biased the joint (sigma, f_b) fit; the
+    cumulative-CDF integration fixes it. f_b>0 so the binary term is exercised."""
+    # Symmetric K_orb on a symmetric grid, misaligned with the (1 km/s) bins.
+    korb_grid = np.linspace(-150.0, 150.0, 601)
+    korb = np.exp(-0.5 * (korb_grid / 3.0) ** 2)
+    korb = korb / (np.sum(korb) * (korb_grid[1] - korb_grid[0]))
+    v_edges = np.linspace(-40.0, 40.0, 81)
+    mu = np.asarray(predict_vlos_counts(5.0, 0.5, 1500, v_edges, korb_grid, korb, 1.0))
+    assert np.allclose(mu, mu[::-1], rtol=1e-6, atol=1e-9)
+
+
 def test_dyn_mass_ratio_virial_scaling():
     """Virial mass M ~ sigma^2: the ratio is 1 at equality and inflated when
     sigma_obs > sigma_true (the naive dynamical-mass bias)."""

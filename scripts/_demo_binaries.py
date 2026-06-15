@@ -212,9 +212,11 @@ def predict_vlos_counts(sigma, f_b, N, v_edges, korb_grid, korb, eps):
     Gaussian CDF (``erf``) -- exact and differentiable in ``sigma`` -- so the
     total count is conserved to ~1e-9 (a grid sum would carry ~1e-3 trapezoid
     error). The BINARY term is convolved on ``korb_grid`` (``jnp.convolve``,
-    differentiable in ``sigma``) and integrated over each bin with a STATIC
-    membership mask (gradient flows through the density, not the mask). The
-    mixture weight ``f_b`` enters linearly.
+    differentiable in ``sigma``); its per-bin probability comes from a trapezoid
+    cumulative CDF interpolated at the (arbitrary) bin edges -- exact to the grid
+    resolution and robust to ``korb_grid``/``v_edges`` misalignment (a plain
+    membership-mask sum mis-assigns the peak grid point and injects a spurious
+    asymmetric spike that biases the joint fit). ``f_b`` enters linearly.
 
     Parameters
     ----------
@@ -248,15 +250,19 @@ def predict_vlos_counts(sigma, f_b, N, v_edges, korb_grid, korb, eps):
     cdf_edges = norm.cdf(v_edges, loc=0.0, scale=sig_obs)
     phi_single = cdf_edges[1:] - cdf_edges[:-1]                      # (K,)
 
-    # Binary component: (Gaussian (*) K_orb) integrated per bin on korb_grid.
+    # Binary component: (Gaussian (*) K_orb) integrated per bin via a trapezoid
+    # cumulative CDF interpolated at the bin edges (exact to the grid resolution,
+    # alignment-robust). A membership-mask rectangle sum would dump the v=0 peak
+    # grid point wholly into one bin and bias the fit.
     dv = korb_grid[1] - korb_grid[0]
     g = norm.pdf(korb_grid, loc=0.0, scale=sig_obs)                  # (G,) density
     b_density = jnp.convolve(g, korb, mode="same") * dv             # (G,) density
-    # Static membership mask: grid point in bin k iff edges[k] <= v < edges[k+1].
-    in_bin = (korb_grid[None, :] >= v_edges[:-1, None]) & (
-        korb_grid[None, :] < v_edges[1:, None]
-    )                                                                # (K, G) bool
-    phi_binary = jnp.sum(in_bin * b_density[None, :], axis=1) * dv  # (K,)
+    cdf_b = jnp.concatenate([
+        jnp.zeros(1),
+        jnp.cumsum(0.5 * (b_density[1:] + b_density[:-1]) * dv),
+    ])                                                               # (G,) trapezoid CDF
+    cdf_at_edges = jnp.interp(v_edges, korb_grid, cdf_b)            # (K+1,)
+    phi_binary = cdf_at_edges[1:] - cdf_at_edges[:-1]               # (K,)
 
     phi = (1.0 - f_b) * phi_single + f_b * phi_binary
     return N * phi
