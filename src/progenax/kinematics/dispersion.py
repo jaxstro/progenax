@@ -250,14 +250,18 @@ def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfil
     validity domains) do not trip it.
     """
     # Eager r_a validity-domain guard (Plummer OM): mirror plummer_df.py:128.
-    # Concrete = a Python scalar or a non-traced array; under tracing (jax.grad
-    # / jax.jit over r_a) the value is a Tracer and the check is skipped so the
-    # caller owns the r_a >= 0.75 a bound. Gated on hasattr(profile, "a") so
-    # non-Plummer profiles (different validity domains) do not trip it.
+    # Concrete = a Python scalar or a non-traced array; under tracing the value
+    # is a Tracer and the check is skipped so the caller owns the r_a >= 0.75 a
+    # bound. Gated on hasattr(profile, "a") so non-Plummer profiles (different
+    # validity domains) do not trip it. BOTH r_a AND profile.a must be concrete:
+    # differentiating through r_h (jax.grad over a Plummer r_h) makes profile.a a
+    # tracer even when r_a is a plain float, so float(profile.a) would raise a
+    # ConcretizationTypeError — skip the eager guard in that case too.
     if (
         r_a is not None
         and not isinstance(r_a, jax.core.Tracer)
         and hasattr(profile, "a")
+        and not isinstance(profile.a, jax.core.Tracer)
     ):
         a_val = float(profile.a)
         if float(r_a) < 0.75 * a_val:
