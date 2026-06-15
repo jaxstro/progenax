@@ -138,6 +138,13 @@ SYMBOL_TESTS: dict[str, str] = {
     "compute_stellar_radii": "tests/unit/test_builders.py::TestComputeStellarRadii::test_solar",  # assert |R(1 Msun) - 1.06| < 0.01
     "energy_sorted_segregation": "tests/unit/cluster/test_mass_segregation.py::TestEnergySortedSegregation::test_no_orbit_reuse_for_any_mass_spectrum",  # assert n_unique == N (no orbit reuse)
 
+    # --- ZAMS stellar relations (Tout+1996; asserting on published solar anchors / round-trip) ---
+    "zams_luminosity": "tests/unit/stellar/test_zams.py::TestZAMSLuminosity::test_sun_anchor",  # assert zams_luminosity(1 Msun) ~ 0.698 Lsun (Tout+1996 Sun anchor)
+    "zams_radius": "tests/unit/stellar/test_zams.py::TestZAMSRadius::test_sun_anchor",  # assert zams_radius(1 Msun) ~ 0.888 Rsun (Tout+1996 Sun anchor)
+    "zams_effective_temperature": "tests/unit/stellar/test_zams.py::TestZAMSEffectiveTemperature::test_sun_anchor",  # assert zams_effective_temperature(1 Msun) ~ 5600 K (Stefan-Boltzmann from verified L,R)
+    "zams_surface_gravity": "tests/unit/stellar/test_zams.py::TestZAMSSurfaceGravity::test_sun_anchor",  # assert zams_surface_gravity(1 Msun) ~ 4.54 dex (log10 G M / R^2)
+    "inverse_zams_luminosity": "tests/unit/stellar/test_zams.py::TestInverseZAMSLuminosity::test_round_trip",  # assert inverse_zams_luminosity(zams_luminosity(m)) ~ m (rtol 1e-5 over M in [0.5,20])
+
     # --- Tidal physics ---
     "jacobi_radius": "tests/unit/test_tidal.py::TestJacobiRadius::test_jacobi_radius_formula",  # assert r_J^3 == R^3 M_c/(3 M_g)
     "jacobi_radius_isothermal": "tests/unit/test_tidal.py::TestJacobiRadiusIsothermal::test_satisfies_defining_relation",  # assert r_J^3 == G M R^2/(2 V^2)
