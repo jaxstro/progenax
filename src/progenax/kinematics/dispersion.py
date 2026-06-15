@@ -163,7 +163,52 @@ def jeans_sigma_r(
     return jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
 
 
-def jeans_dispersion(profile, r_a, r, M, G) -> DispersionProfile:
+def ftable_sigma_r_isotropic(
+    E_grid: Float[Array, " n_e"],
+    f_grid: Float[Array, " n_e"],
+    Psi_r: Float[Array, ""],
+    n_s: int = 512,
+) -> Float[Array, ""]:
+    """Isotropic radial dispersion sigma_r^2 from a tabulated DF speed second moment.
+
+    At relative potential ``Psi_r = Psi(r)`` the (unnormalised) speed pdf of an
+    *isotropic* ergodic model is ``p(s) ∝ s^2 f(Psi_r - s^2/2)`` on
+    ``s in [0, sqrt(2 Psi_r)]`` (the energy is ``E = Psi - s^2/2 >= 0``). The speed
+    second moment is ``<s^2> = int s^2 p(s) ds / int p(s) ds``, and for an isotropic
+    velocity ellipsoid each component carries one third::
+
+        sigma_r^2 = <s^2> / 3        (sigma_r = sigma_t = sigma_1d, isotropic)
+
+    This is the DF-side cross-check of :func:`jeans_sigma_r`: a *different* code path
+    (speed quadrature over the tabulated ``f``) for the same physical quantity. It is
+    isotropic-only by design — the Osipkov-Merritt second moment is a 2-D (energy,
+    angular-momentum) integral, out of scope here.
+
+    The DF table ``(E_grid, f_grid)`` and ``Psi_r`` must share an energy scale
+    (e.g. the dimensionless isotropic Plummer table ``f(E) ∝ E^(7/2)`` with
+    ``Psi_r = 6 / sqrt(1 + r^2/a^2)``); the returned ``sigma_r^2`` is then in those
+    same (Psi) units — rescale by ``sigma0^2`` for physical velocities. Differentiable
+    trapezoid quadrature on a fixed ``n_s`` speed grid; ``f`` is interpolated with
+    ``jnp.interp`` (which clamps off-grid, harmless here since the integrand support
+    ``E in [0, Psi_r]`` lies inside the table when ``Psi_r <= E_grid[-1]``).
+
+    Parameters
+    ----------
+    E_grid, f_grid : tabulated energy grid and DF values (any positive normalisation).
+    Psi_r : relative potential at the query radius (same energy units as ``E_grid``).
+    n_s : number of speed-quadrature points.
+    """
+    Psi_safe = jnp.maximum(Psi_r, 1e-30)
+    s = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_safe), n_s)
+    f_at = jnp.interp(Psi_r - s**2 / 2.0, E_grid, f_grid)
+    p = jnp.maximum(s**2 * f_at, 0.0)  # speed pdf (unnormalised)
+    num = jnp.trapezoid(s**2 * p, s)   # int s^2 p(s) ds
+    den = jnp.trapezoid(p, s)          # int p(s) ds (normalisation)
+    s2_mean = num / jnp.maximum(den, 1e-30)
+    return s2_mean / 3.0
+
+
+def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfile:
     """3-D anisotropic Jeans dispersion of ``profile`` under OM ``r_a``.
 
     Returns the equilibrium ``(sigma_r, sigma_t, sigma_1d, beta)`` of the
@@ -185,6 +230,10 @@ def jeans_dispersion(profile, r_a, r, M, G) -> DispersionProfile:
     r : query radii (array-like; broadcast to at least 1-D).
     M : total mass normalising the enclosed-mass quadrature.
     G : gravitational constant (sets the velocity units).
+    n_s : number of points on the fine radial s-grid (default 4000). The trapezoid
+        quadrature is O(h^2 = (r_max/n_s)^2); exposed so a convergence study can
+        refine it. Backward-compatible (keyword, default unchanged) and traced-safe
+        (a static Python int, not a JAX value).
 
     Returns
     -------
@@ -224,7 +273,7 @@ def jeans_dispersion(profile, r_a, r, M, G) -> DispersionProfile:
     r_max = getattr(profile, "r_t", None)
     if r_max is None:
         r_max = 30.0 * profile.a
-    s = jnp.linspace(1e-4 * r_max, r_max, 4000)
+    s = jnp.linspace(1e-4 * r_max, r_max, n_s)
     rho = profile.density(s)
 
     # Enclosed mass by quadrature of profile.density: M(<s) = M * cumtrap(rho s^2)
