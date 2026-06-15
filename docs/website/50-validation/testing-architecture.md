@@ -99,7 +99,6 @@ The dashboard's registry block is generated from these manifests.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Ratchets
   - Every `progenax.__all__` symbol has an *asserting* test (one that
@@ -122,7 +121,6 @@ against the committed full-suite `coverage.json`.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Ratchets
   - Every *model* has at least one enumerated physics invariant mapped
@@ -154,7 +152,6 @@ conforms to a protocol but has no invariant, the ratchet reds CI.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Ratchets
   - Every cited physical constant / empirical coefficient carries a
@@ -179,7 +176,6 @@ citable-shaped literal there with no citation reds CI.
 
 ```{list-table}
 :header-rows: 1
-:widths: 30 70
 
 * - Ratchets
   - Every `progenax.__all__` symbol is `AUDITED` or `EXEMPT_*`, and each
@@ -251,7 +247,6 @@ The workflow:
 
 ```{list-table}
 :header-rows: 1
-:widths: 45 55
 
 * - If you add...
   - You must register it in...
