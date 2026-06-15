@@ -228,6 +228,17 @@ def predict_vlos_counts(sigma, f_b, N, v_edges, korb_grid, korb, eps):
     return N * phi
 
 
+def dyn_mass_ratio(sigma_obs, sigma_true):
+    r"""Naive virial dynamical-mass bias factor ``(sigma_obs / sigma_true)^2``.
+
+    The virial / dynamical mass scales as ``M ~ sigma^2 r_h / G`` at fixed ``r_h``,
+    so a dispersion inflated by unresolved binaries (``sigma_obs > sigma_true``)
+    biases the inferred mass high by exactly ``(sigma_obs / sigma_true)^2``. Equals
+    1 when the measured dispersion is unbiased.
+    """
+    return (sigma_obs / sigma_true) ** 2
+
+
 def _kernel_std(v_grid, k):
     """Standard deviation of a (grid, density) kernel via discrete moments."""
     v_grid = np.asarray(v_grid)

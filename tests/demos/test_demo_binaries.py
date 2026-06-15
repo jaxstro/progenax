@@ -15,6 +15,7 @@ from scripts._demo_binaries import (
     build_korb_kernel,
     _kernel_std,
     predict_vlos_counts,
+    dyn_mass_ratio,
 )
 
 
@@ -69,3 +70,11 @@ def test_predict_differentiable_in_sigma_and_fb():
     )
     gs, gfb = jax.grad(f, argnums=(0, 1))(5.0, 0.5)
     assert jnp.isfinite(gs) and jnp.isfinite(gfb)
+
+
+def test_dyn_mass_ratio_virial_scaling():
+    """Virial mass M ~ sigma^2: the ratio is 1 at equality and inflated when
+    sigma_obs > sigma_true (the naive dynamical-mass bias)."""
+    assert np.isclose(float(dyn_mass_ratio(5.0, 5.0)), 1.0)
+    assert float(dyn_mass_ratio(6.0, 5.0)) > 1.0
+    assert np.isclose(float(dyn_mass_ratio(10.0, 5.0)), 4.0)  # (10/5)^2
