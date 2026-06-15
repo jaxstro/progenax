@@ -112,3 +112,42 @@ def zams_surface_gravity(
     M_cgs = jnp.asarray(mass, float) * MSUN_G
     R_cgs = zams_radius(mass, Z) * RSUN_CM
     return jnp.log10(G_CGS * M_cgs / R_cgs**2)
+
+
+def _inverse_scalar(L_target: Float[Array, ""], Z: float) -> Float[Array, ""]:
+    """Scalar Newton solve for M s.t. zams_luminosity(M,Z) = L_target.
+
+    Fixed-iteration ``lax.scan`` (NOT while_loop) so the invert is differentiable.
+    The scalar ``zams_luminosity`` has scalar output, so its ``jax.grad`` is the
+    Newton slope dL/dM.
+    """
+    L_safe = jnp.clip(L_target, 1e-15, 1e8)
+    # Homology-motivated initial guess: low mass L~M^5.5, high mass L~M^3.5.
+    m0 = jnp.clip(
+        jnp.where(L_safe < 1e-3, L_safe ** (1 / 5.5), L_safe ** (1 / 3.5)),
+        0.005,
+        125.0,
+    )
+    dLdm = jax.grad(lambda m: zams_luminosity(m, Z))
+
+    def step(m, _):
+        resid = zams_luminosity(m, Z) - L_target
+        slope = dLdm(m)
+        m_new = m - resid / jnp.where(jnp.abs(slope) > 1e-30, slope, 1e-30)
+        return jnp.clip(m_new, 0.005, 150.0), None
+
+    m_final, _ = jax.lax.scan(step, m0, None, length=_INVERSE_NEWTON_ITERS)
+    return m_final
+
+
+def inverse_zams_luminosity(
+    L_target: Float[Array, "..."], Z: float = 0.02
+) -> Float[Array, "..."]:
+    """Invert L(M,Z): find M [M_sun] s.t. zams_luminosity(M,Z) = L_target.
+
+    Array-aware (vmaps the scalar Newton core internally) and differentiable via the
+    fixed-iteration ``lax.scan`` Newton. Returns a scalar for scalar input.
+    """
+    L = jnp.atleast_1d(jnp.asarray(L_target, float))
+    out = jax.vmap(lambda Lt: _inverse_scalar(Lt, Z))(L)
+    return out if jnp.ndim(L_target) else out[0]
