@@ -78,6 +78,65 @@ and, through the non-Gaussian wings it imprints on $p(v)$, makes the bias
 *removable*.
 ```
 
+## Inputs and assumptions
+
+The fit recovers **only two parameters**, $(\sigma_{\rm true}, f_b)$; every other
+quantity is an **assumed-known input**. Making that split explicit is essential —
+the demo's optimism lives entirely in what it treats as known.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b12-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $\sigma_{\rm true}$
+  - Intrinsic cluster LOS velocity dispersion; **the science target** — sets the dynamical mass $M\propto\sigma_{\rm true}^2\,r_h/G$.
+  - **recovered** (5 km/s)
+* - $f_b$
+  - Unresolved binary fraction (the contamination weight in [](#b12-mixture)).
+  - **recovered** (0.5)
+* - $\epsilon$
+  - Per-star RV **measurement** precision (spectrograph noise), added in quadrature to *both* mixture components. Distinct from $\sigma_{\rm true}$ (gravity) and $K_{\rm orb}$ (orbits).
+  - known / fixed (1 km/s) — see [](#imp-b12-eps)
+* - $Z$
+  - Metallicity for the Tout ZAMS $L(m)$ used to flux-weight the blend $\Delta$ ([](#b12-blend)).
+  - known / fixed ($10^{-3}$)
+* - $N$
+  - Number of RV stars; sets the Poisson normalization and the precision floor ($\sigma\propto N^{-1/2}$, [](#fig-b12-fisher-vs-n)).
+  - known / fixed (1500)
+* - $r_h$
+  - Half-mass radius; enters **only** the $\sigma_{\rm true}^2\to M_{\rm dyn}$ conversion, *not* the velocity-distribution fit.
+  - known / fixed (30 pc)
+* - IMF
+  - Maschberger ($\alpha=2.3$, $0.08$–$100\,M_\odot$): draws primary masses $m_1$, hence $L_1, L_2$ and the shape of $K_{\rm orb}$.
+  - known / fixed
+* - Moe $P$–$q$–$e$, $q_{\min}=0.1$
+  - The orbital statistics ($q=m_2/m_1$, period, eccentricity coupling) that define $K_{\rm orb}$.
+  - known / fixed
+* - `V_EDGES`
+  - Likelihood bin edges ($\pm60$ km/s, 120 bins of 1 km/s); must span the wings (next section).
+  - numerical choice
+* - $K_{\rm orb}$ grid / pool
+  - Template grid $\pm150$ km/s and pool size $n_{\rm pool}=2\times10^5$ (sets template noise).
+  - numerical choice
+```
+
+```{important}
+:label: imp-b12-eps
+**$\epsilon$ must be externally known — it cannot be fitted.** In [](#b12-mixture)
+$\sigma_{\rm true}$ appears *only* in the combination $\sigma_{\rm true}^2+\epsilon^2$,
+so the line shape constrains the quadrature sum, not the two pieces: $\sigma_{\rm true}$
+and $\epsilon$ are **perfectly degenerate** if $\epsilon$ is free. The non-Gaussian
+wings break the $\sigma_{\rm true}$–$f_b$ degeneracy (because $K_{\rm orb}$ is
+*non-Gaussian*), but they do **nothing** to separate $\sigma_{\rm true}$ from
+$\epsilon$ — both are Gaussian and enter identically. Recovering an unbiased mass
+therefore *requires* an instrumentally calibrated $\epsilon$, which the model
+subtracts in quadrature. This is exactly what a real RV pipeline does, and it is
+why the demo treats $\epsilon$ as a fixed input rather than a free parameter.
+```
+
 ## Result — freshly run, ALL GATES PASS
 
 UFD-like regime: $\sigma_{\rm true}=5$ km/s, $f_b=0.5$, $N=1500$ RV stars,
@@ -218,6 +277,13 @@ the guide — the few-star regime is more degenerate than the asymptotic CRLB.
   Moe (2017) $P$–$q$–$e$ coupling at fixed IMF, $q_{\min}$, and metallicity; its own
   uncertainty (and age/metallicity dependence) is not marginalized. A misspecified
   kernel would re-introduce bias.
+- **Single, homoscedastic $\epsilon$.** Every star carries the *same* RV precision
+  $\epsilon$ ([](#imp-b12-eps)). Real surveys have per-star, brightness-dependent
+  errors $\epsilon_i$ — bright stars (which dominate the blend light) are precise,
+  the faint majority noisy — and would carry $\epsilon_i$ through the quadrature
+  star-by-star. Treating $\epsilon$ as a single known number is the idealization
+  here; treating it as *known at all* is the load-bearing assumption (the mass is
+  unbiased only because $\epsilon$ is calibrated, not fitted).
 - **Single epoch.** Multi-epoch RVs see the orbital phase change between visits —
   additional information this single-epoch demo does not use (it marginalizes over
   phase). Real binary surveys would do better than this forecast.
