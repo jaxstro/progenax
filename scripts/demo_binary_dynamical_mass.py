@@ -49,8 +49,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _demo_binaries import (  # noqa: E402
     build_korb_kernel,
     dyn_mass_ratio,
+    predict_vlos_counts,
     sample_blend_velocities,
     _kernel_std,
+)
+from _demo_inference import (  # noqa: E402
+    constrained_cov,
+    expit,
+    logit,
+    mle_adam,
+    poisson_fisher_information,
+    poisson_loglike,
 )
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
 
@@ -68,9 +77,9 @@ N_STARS = 1500            # RV stars in the mock survey
 EPS_KMS = 1.0             # per-star RV measurement precision [km/s]
 R_H_PC = 30.0             # half-mass radius [pc] (sets the virial-mass scale)
 
-# Binned-likelihood velocity grid: wide enough (~+/-7 sigma_obs) to hold the
+# Binned-likelihood velocity grid: wide enough (~+/-10 sigma_obs) to hold the
 # non-Gaussian binary wings that break the degeneracy.
-V_EDGES = np.linspace(-40.0, 40.0, 81)   # 80 bins of 1 km/s
+V_EDGES = np.linspace(-60.0, 60.0, 121)   # 120 bins of 1 km/s
 N_POOL = 200_000          # K_orb template pool (low template noise)
 KORB_GRID_MAX = 150.0     # K_orb grid half-width [km/s] (must span the wings)
 KORB_N_GRID = 601
@@ -206,3 +215,138 @@ def gate2_dispersion_degeneracy(var_korb, eps=EPS_KMS):
     info = dict(J=np.asarray(J), eigs=np.asarray(eigs), cond=cond,
                 smallest=smallest, largest=largest)
     return passed, info
+
+
+# --------------------------------------------------------------------------- #
+# Gate 3 -- joint recovery from the wings is unbiased + full-rank
+# --------------------------------------------------------------------------- #
+def _predict_mu_factory(korb_grid, korb, n_stars, eps):
+    """Bounded predicted-counts closure ``predict_mu(z)`` over unconstrained z.
+
+    ``sigma = expit(z[0]; SIGMA_BOX)``, ``f_b = expit(z[1]; FB_BOX)`` keep the
+    optimizer in-bounds; ``predict_vlos_counts`` supplies the differentiable
+    binned single+binary mixture.
+    """
+    korb = jnp.asarray(korb)
+
+    def predict_mu(z):
+        sigma = expit(z[0], *SIGMA_BOX)
+        f_b = expit(z[1], *FB_BOX)
+        return predict_vlos_counts(sigma, f_b, n_stars, V_EDGES, korb_grid, korb, eps)
+
+    return predict_mu
+
+
+def recover_sigma_fb(v_obs, korb_grid, korb, eps=EPS_KMS, fb_guess=0.3):
+    r"""Joint Poisson MLE of ``(sigma_true, f_b)`` from a binned ``v_obs`` sample.
+
+    Bins ``v_obs`` over ``V_EDGES``, fits the differentiable mixture by Adam in
+    the unconstrained ``z`` space, then maps the Poisson Fisher information back
+    to ``(sigma, f_b)`` space via the delta method. Reused by the eps-floor sweep
+    and the null gate.
+
+    Returns a dict with ``sigma_hat, fb_hat, sigma_err, fb_err, cov, F, cond,
+    z_hat, counts``.
+    """
+    v_obs = np.asarray(v_obs)
+    n_stars = v_obs.shape[0]
+    counts = jnp.asarray(np.histogram(v_obs, bins=V_EDGES)[0].astype(float))
+    weight = jnp.ones_like(counts)
+
+    predict_mu = _predict_mu_factory(korb_grid, korb, n_stars, eps)
+
+    sigma_guess = float(np.clip(v_obs.std(), SIGMA_BOX[0] + 1e-3, SIGMA_BOX[1] - 1e-3))
+    z0 = jnp.array([logit(sigma_guess, *SIGMA_BOX), logit(fb_guess, *FB_BOX)])
+
+    nll = lambda z: -poisson_loglike((counts, weight), predict_mu)(z)
+    z_hat, _trace = mle_adam(nll, z0, n_steps=N_ADAM, lr=ADAM_LR)
+
+    sigma_hat = float(expit(z_hat[0], *SIGMA_BOX))
+    fb_hat = float(expit(z_hat[1], *FB_BOX))
+
+    # Fisher in z-space -> (sigma, f_b)-space via the expit Jacobian diagonal.
+    F = poisson_fisher_information(predict_mu, z_hat, weight)
+    dsig = float(jax.grad(lambda zi: expit(zi, *SIGMA_BOX))(z_hat[0]))
+    dfb = float(jax.grad(lambda zi: expit(zi, *FB_BOX))(z_hat[1]))
+    cov = np.asarray(constrained_cov(F, jnp.array([dsig, dfb])))
+    eigs = np.linalg.eigvalsh(np.asarray(F))
+    cond = float(eigs[-1] / max(eigs[0], np.finfo(float).tiny))
+
+    return dict(
+        sigma_hat=sigma_hat, fb_hat=fb_hat,
+        sigma_err=float(np.sqrt(cov[0, 0])), fb_err=float(np.sqrt(cov[1, 1])),
+        cov=cov, F=np.asarray(F), cond=cond, z_hat=np.asarray(z_hat),
+        counts=np.asarray(counts),
+    )
+
+
+def gate3_recovery(key, korb_grid, korb, var_korb, eps=EPS_KMS):
+    r"""Joint recovery (Gate 3a) + full-rank Fisher and constraint figure (3b).
+
+    Gate 3a: the recovered ``sigma_hat`` is within ``3 sigma_err`` of the truth
+    and the recovered ``M_dyn`` bias ``(sigma_hat/sigma_true)^2`` is ~1.
+    Gate 3b: the full-distribution Poisson Fisher is well-conditioned (cond < 1e6)
+    -- the non-Gaussian wings broke the dispersion-only rank-1 degeneracy.
+    """
+    v_obs = build_mock_vlos(key, f_b=F_B_TRUE, eps=eps)
+    sigma_obs = float(np.asarray(v_obs).std())
+    rec = recover_sigma_fb(v_obs, korb_grid, korb, eps=eps)
+
+    m_ratio_rec = (rec["sigma_hat"] / SIGMA_TRUE) ** 2
+    within_3sig = abs(rec["sigma_hat"] - SIGMA_TRUE) < 3.0 * rec["sigma_err"]
+    mass_unbiased = abs(m_ratio_rec - 1.0) < 0.10
+    passed_3a = bool(within_3sig and mass_unbiased)
+    passed_3b = bool(rec["cond"] < 1e6)
+
+    info = dict(sigma_obs=sigma_obs, var_korb=var_korb, eps=eps,
+                m_ratio_rec=m_ratio_rec, **rec)
+    _plot_constraint(info)
+    return passed_3a, passed_3b, info
+
+
+def _cov_ellipse(ax, mean, cov, nsig=1.0, **kw):
+    """Add an ``nsig``-sigma covariance ellipse centered at ``mean`` to ``ax``."""
+    from matplotlib.patches import Ellipse
+
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+    angle = np.degrees(np.arctan2(vecs[1, 0], vecs[0, 0]))
+    width, height = 2.0 * nsig * np.sqrt(np.maximum(vals, 0.0))
+    ax.add_patch(Ellipse(mean, width, height, angle=angle, fill=False, **kw))
+
+
+def _plot_constraint(info):
+    """Dispersion-only degenerate ridge vs the tight full-distribution ellipse."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(5.2, 4.2))
+
+    # Dispersion-only ridge: every (sigma, f_b) with the SAME sigma_obs.
+    fb_line = np.linspace(FB_BOX[0], FB_BOX[1], 300)
+    sig_ridge = np.sqrt(np.clip(
+        info["sigma_obs"] ** 2 - info["eps"] ** 2 - fb_line * info["var_korb"],
+        0.0, None))
+    keep = sig_ridge > 0
+    ax.plot(sig_ridge[keep], fb_line[keep], color=OI["orange"], lw=1.8,
+            label="dispersion-only ridge (rank-1)")
+
+    # Full-distribution constraint: 1- and 2-sigma ellipses at the joint MLE.
+    mean = (info["sigma_hat"], info["fb_hat"])
+    for nsig, a in ((1.0, 0.9), (2.0, 0.45)):
+        _cov_ellipse(ax, mean, info["cov"], nsig=nsig, color=OI["blue"],
+                     lw=1.6, alpha=a)
+    ax.scatter([info["sigma_hat"]], [info["fb_hat"]], color=OI["blue"], s=20,
+               zorder=5, label="joint MLE (full distribution)")
+    ax.scatter([SIGMA_TRUE], [F_B_TRUE], color=OI["vermilion"], marker="*",
+               s=120, zorder=6, label="truth")
+
+    ax.set_xlabel(r"$\sigma_{\rm true}$ [km/s]")
+    ax.set_ylabel(r"binary fraction $f_b$")
+    ax.set_xlim(SIGMA_TRUE - 5.0 * info["sigma_err"] - 0.5,
+                info["sigma_obs"] + 0.5)
+    ax.set_ylim(FB_BOX[0], FB_BOX[1])
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
+    panel_label(ax, "B12")
+    save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_constraint")
+    plt.close(fig)
