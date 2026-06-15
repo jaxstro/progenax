@@ -6,9 +6,18 @@
 
 **Architecture:** A forward model (cluster LOS velocity DF + Moe P–q–e binaries whose unresolved RV is a ZAMS-flux-weighted blend) produces a mock `v_los` sample. The binary contamination is a precomputed σ-independent kernel `K_orb`. A binned Poisson mixture likelihood `μ_k(σ,f_b)=N[(1−f_b)𝒩_k(σ)+f_b(𝒩(σ)⊛K_orb)_k]` is fit with the existing `_demo_inference` toolkit; the Fisher quantifies how the wings break the `σ_true`–`f_b` degeneracy.
 
-**Tech Stack:** JAX (`jax.numpy`, `jax.grad`, `jax.vmap`), `progenax.stellar.zams_luminosity`, `progenax.imf.binary.MoeJointOrbit`, `progenax.binaries.KeplerElements.to_state`, `progenax.{PlummerProfile,PlummerVelocityDF}` (or King), `scripts/_demo_inference.py` (poisson_loglike, mle_adam, poisson_fisher_information, constrained_cov, logit/expit), matplotlib.
+**Tech Stack:** JAX (`jax.numpy`, `jax.grad`, `jax.vmap`), `progenax.stellar.zams_luminosity`, `progenax.imf.binary.MoeJointOrbit` (`.default()`), `progenax.binaries.{period_to_semimajor_axis, KeplerElements}` (`to_state` / `to_binary_state`), `progenax.{PlummerProfile,PlummerVelocityDF}` (or King), `jaxstro.units.BINARY` (kernel units; `BINARY.velocity_scale_km_s`), `scripts/_demo_inference.py` (poisson_loglike, mle_adam, poisson_fisher_information, constrained_cov, logit/expit), matplotlib.
 
 **Design doc:** `docs/plans/2026-06-14-binary-dynamical-mass-demo-design.md` (4 ratified decisions).
+
+**Amendment (2026-06-15, post repo-verification, Anna-approved):** the kernel is built in
+**`BINARY` units (Msun, AU, yr)** — verified cleaner than STELLAR for day-scale binary periods.
+Folded fixes: (E1) velocity→km/s via `BINARY.velocity_scale_km_s` (≈4.74; the attr `velocity_scale`
+does **not** exist); (E2) explicit `period_to_semimajor_axis(P_yr, m1+m2, G=BINARY.G)` step — Moe
+gives `P[days]`, `KeplerElements` needs `a`; (E3) `poisson_loglike` takes `data=(counts, weight)`
+**tuple**; (E4) `mle_adam` returns `(z_hat, trace)` — unpack. Cleanups: (C1) `to_binary_state(m1,m2,G)`
+already does the barycentric split; (C2) short-P binaries reach >100 km/s — `korb_grid` must span
+≥ `V_EDGES`; (C3) `MoeJointOrbit.sample` needs `masses` as a `(n,)` array.
 
 **Branch:** `feat/binary-dynamical-mass-demo` (already cut). **Demo only — `scripts/` + `docs/` + demo-harness `tests/`; NO `src/progenax/` change → released-core gate unaffected.** All LOCAL; nothing pushed/merged without Anna.
 
@@ -41,7 +50,7 @@ def test_los_projection_is_isotropic_mean_zero():
 
 ### Task P1.2: `build_korb_kernel` — the σ-independent flux-weighted blend kernel
 
-The kernel = histogram of the internal blend velocity `Δ` over a large Moe pool. For each system: draw `m1` (IMF), `(P,q,e)=MoeJointOrbit.sample`, `m2=q*m1`; build `KeplerElements` at a **random orbital phase** (mean anomaly ~U(0,2π)); `to_state(M_total=m1+m2, G)` → relative `(pos, v_rel)`; component velocities `v1=(m2/M)v_rel`, `v2=-(m1/M)v_rel`; project each onto a **random isotropic LOS** `los_hat` (one per system); flux-weight `Δ=(L1*v1_los+L2*v2_los)/(L1+L2)` with `L=zams_luminosity(m,Z)`; histogram `Δ` on a fixed velocity grid → normalized density.
+The kernel = histogram of the internal blend velocity `Δ` over a large Moe pool, built **entirely in `BINARY` units (Msun, AU, yr)**. For each system: draw `m1` (IMF), `(P,q,e)=MoeJointOrbit.default().sample(key, m1_arr)` (`P` in **days**; `m1_arr` is a `(n,)` array), `m2=q*m1`; convert `P_yr=P/365.25` then **`a=period_to_semimajor_axis(P_yr, M_total=m1+m2, G=BINARY.G)`** [AU]; build `KeplerElements(a, e, i, Omega, omega, M0)` with a **random orbital phase** `M0~U(0,2π)` (mean anomaly = uniform-in-time weighting) and random isotropic angles `(i, Omega, omega)`; component velocities via **`to_binary_state(m1, m2, G=BINARY.G)` → `(r1,v1,r2,v2)`** (already the exact barycentric split `v1=-(m2/M)v_rel`, `v2=+(m1/M)v_rel`; AU/yr); project each component velocity onto a **random isotropic LOS** `los_hat` (one per system) and convert to km/s with `* BINARY.velocity_scale_km_s` (≈4.74); flux-weight `Δ=(L1*v1_los+L2*v2_los)/(L1+L2)` with `L=zams_luminosity(m,Z)` (km/s); histogram `Δ` on a fixed symmetric velocity grid → normalized density.
 
 **Step 1 (failing tests):**
 ```python
@@ -60,9 +69,9 @@ def test_korb_normalized_and_zero_mean():
     assert np.isclose(np.sum(k)*dv, 1.0, atol=1e-3)         # normalized density
     assert abs(np.sum(k*v_grid)*dv) < 0.5                   # ~zero mean (random phase+orientation)
 ```
-**Step 3 (implement):** the function above; `q_fixed` optional override for the test (else draw from Moe). Use `progenax.imf.binary.MoeJointOrbit` with the project defaults (mirror B4's `JOINT`), an IMF (`Maschberger`), `KeplerElements` (read `src/progenax/binaries/kepler.py` for the field names incl. the phase/anomaly field — set it from a uniform draw), `STELLAR.G`. Build on a symmetric `v_grid` (e.g. `np.linspace(-150,150,601)` km/s in code units). Provide `_kernel_std(v_grid,k)` helper. **Step 4:** PASS. **Step 5:** commit `feat(demo): build_korb_kernel (Moe+ZAMS flux-weighted blend kernel, sigma-independent)`.
+**Step 3 (implement):** the function above; `q_fixed` optional override for the test (else draw from Moe). Use `progenax.imf.binary.MoeJointOrbit.default()` (mirror B4's `JOINT`), an IMF (`Maschberger`), `KeplerElements` (fields `a,e,i,Omega,omega,M0`; phase = **`M0`**, set from `U(0,2π)`), and **`BINARY.G` throughout** (kernel in Msun/AU/yr; see the P→a step above). Build on a symmetric **km/s** `v_grid` (e.g. `np.linspace(-150,150,601)` km/s — must span the short-period tail, C2). Provide `_kernel_std(v_grid,k)` helper. **Step 4:** PASS. **Step 5:** commit `feat(demo): build_korb_kernel (Moe+ZAMS flux-weighted blend kernel, sigma-independent)`.
 
-> NOTE: if `KeplerElements.to_state` returns velocity in code units (pc/Myr), convert to km/s with `STELLAR` (`* STELLAR.velocity_scale` or the documented factor — check `jaxstro.units`); keep ALL velocities in ONE unit system (km/s) end-to-end.
+> NOTE (units — risk #1): `to_state`/`to_binary_state` return velocity in the unit system of the `G` you pass. Build the kernel in **`BINARY` (Msun, AU, yr)** so `a` is AU and `v` is AU/yr, then convert ONCE to km/s with **`* BINARY.velocity_scale_km_s`** (≈4.74). The attribute is `velocity_scale_km_s` (there is NO `velocity_scale`). Keep ALL velocities in km/s end-to-end; the cluster σ side is already km/s.
 
 ### Task P1.3: `predict_vlos_counts` — the differentiable binned mixture model
 
@@ -118,7 +127,7 @@ Build the **dispersion-only** Fisher: the single summary `sigma_obs` as the data
 ## Phase P4 — Gate 3 (joint recovery + full-rank Fisher)
 
 ### Task P4.1: joint MLE recovery
-Precompute `KORB` once. Define `predict_mu(z)` = `predict_vlos_counts(expit_sigma(z[0]), expit_fb(z[1]), N_STARS, V_EDGES, KORB_GRID, KORB, EPS)` with `logit/expit` bounds (`sigma∈(0.5,30)`, `f_b∈(0,0.95)`). Data = `binned counts of v_obs over V_EDGES`. `nll = lambda z: -poisson_loglike(counts, predict_mu)(z)`; `z_hat = mle_adam(nll, z0)`; map back to `(sigma_hat, fb_hat)`. **Gate 3a:** `|sigma_hat - SIGMA_TRUE| < 3*Fisher_sigma` AND `(sigma_hat/SIGMA_TRUE)**2` consistent with 1 (unbiased M_dyn) — i.e. recovered mass bias removed. Commit.
+Precompute `KORB` once. Define `predict_mu(z)` = `predict_vlos_counts(expit_sigma(z[0]), expit_fb(z[1]), N_STARS, V_EDGES, KORB_GRID, KORB, EPS)` with `logit/expit` bounds (`sigma∈(0.5,30)`, `f_b∈(0,0.95)`). Data = `binned counts of v_obs over V_EDGES`. `nll = lambda z: -poisson_loglike((counts, jnp.ones_like(counts)), predict_mu)(z)` (the helper takes `data=(counts, weight)` as a **tuple**); `z_hat, _trace = mle_adam(nll, z0)` (**returns `(z_hat, trace)`** — unpack); map back to `(sigma_hat, fb_hat)`. **Gate 3a:** `|sigma_hat - SIGMA_TRUE| < 3*Fisher_sigma` AND `(sigma_hat/SIGMA_TRUE)**2` consistent with 1 (unbiased M_dyn) — i.e. recovered mass bias removed. Commit.
 
 ### Task P4.2: full-rank Fisher + the constraint figure
 `F = poisson_fisher_information(predict_mu, z_hat)` → `constrained_cov(F, dtheta_dz)` → `Cov(sigma,f_b)`. **Gate 3b:** `F` well-conditioned (cond `< 1e6`) — the wings broke the degeneracy. Figure `..._constraint.png`: the dispersion-only degenerate ridge (from P3.2) vs the tight full-distribution 1σ ellipse. Optional: `run_nuts` corner as a cross-check (stretch). Commit `feat(demo): Gate 3 joint recovery + full-rank Fisher + constraint figure`.
@@ -164,8 +173,8 @@ Use @myst:myst-expert. Sections: the premise (binary-inflated virial mass; UFD M
 - [ ] FULL released-core gate unaffected (verified); completion doc; STATUS/brain.
 
 ## Risks / watch-items
-- **Units:** keep ALL velocities in km/s end-to-end; `to_state` returns code units — convert once. The single biggest bug risk.
-- **K_orb tails vs bin range:** `V_EDGES` must span the wings (short-period binaries reach tens of km/s) or the Poisson likelihood loses the f_b information. Set `V_EDGES` wide (±~6σ_obs) and check tail occupancy.
-- **Orbital phase + isotropic orientation** must both be randomized in `build_korb_kernel` (eccentric orbits spend more time slow at apocenter — a uniform *mean anomaly* draw, not eccentric/true anomaly, gives the correct time-weighting).
+- **Units (biggest bug risk):** build the kernel in `BINARY` (Msun, AU, yr) — `P_yr=P_days/365.25`, `a=period_to_semimajor_axis(P_yr, m1+m2, BINARY.G)` [AU], `to_binary_state(..., BINARY.G)` → AU/yr — then convert ONCE to km/s via `* BINARY.velocity_scale_km_s` (≈4.74; NOT `velocity_scale`, which doesn't exist). Keep ALL velocities km/s end-to-end.
+- **K_orb tails vs bin range (C2):** short-period binaries reach **>100 km/s** (1-day, 1 M☉ → ~210 km/s pre-flux-weighting), so `korb_grid` must span ≥ `V_EDGES`, and `V_EDGES` must span the wings or the Poisson likelihood loses the f_b information. Set `V_EDGES` wide (±~6σ_obs) and check tail occupancy; flux-weighting + projection tame most of the extreme tail.
+- **Orbital phase + isotropic orientation** must both be randomized in `build_korb_kernel`: set `KeplerElements.M0 ~ U(0,2π)` (the **mean anomaly** — `M=n·t`, so uniform-in-time, correctly over-weighting slow apocenter) plus random `(i, Omega, omega)`. NOT eccentric/true anomaly (those over-weight pericenter).
 - **Convolution differentiability:** use `jnp.convolve` (differentiable) on a fixed grid; the Gaussian is analytic in σ. Avoid histogramming inside the predict (non-differentiable) — `K_orb` is histogrammed ONCE (data, not a parameter).
 - Demo only — if any task tempts a `src/progenax/` change, STOP and reconsider (it would pull in the registry/coverage dance).
