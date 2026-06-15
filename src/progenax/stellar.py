@@ -62,3 +62,15 @@ def _metallicity_coeffs(coeff_matrix: Float[Array, "n 5"], Z: float) -> Float[Ar
     log_Z = jnp.log10(jnp.clip(Z, 1e-4, 0.03) / _Z_SUN)
     basis = log_Z ** jnp.arange(5)            # (5,)
     return coeff_matrix @ basis               # (n,)
+
+
+def zams_luminosity(mass: Float[Array, "..."], Z: float = 0.02) -> Float[Array, "..."]:
+    """ZAMS luminosity [L_sun] from mass [M_sun] and metallicity Z. Tout+1996 Table 1.
+
+    Elementwise over ``mass``; ``Z`` is a scalar (default solar, 0.02). Differentiable.
+    """
+    M = jnp.asarray(mass, float)
+    a, b, g, d, e, z, h = _metallicity_coeffs(_TOUT_L_COEFFS, Z)
+    num = a * M**5.5 + b * M**11
+    den = g + M**3 + d * M**5 + e * M**7 + z * M**8 + h * M**9.5
+    return num / jnp.maximum(den, 1e-10)
