@@ -203,6 +203,14 @@ caveats become a roadmap, not a permanent ceiling. Each is a self-contained late
 4. **The `r_t` truncation kink** (hard cutoff) — owned by the differentiability-gradient-audit arc;
    confirm the dispersion paths inherit a clean (or documented-blocked) gradient there.
 5. **Multi-population / multi-mass** kinematics (per-species σ via `MultiComponentCluster`).
+6. **Arbitrary / native anisotropy β(r)** (Phase-0 finding, Anna 2026-06-15). `jeans_dispersion`
+   currently imposes the **Osipkov–Merritt** law β(r)=r²/(r²+r_a²) on any profile — exact for
+   Plummer/EFF, but the **Michie–King** model has its OWN anisotropy law (agrees in the core, diverges
+   outward), so `jeans_dispersion(MichieProfile, r_a)` is "Michie density under OM," not the Michie
+   equilibrium (validated only at inner radii in Phase 0). Generalize the solver to accept a native
+   β(r) via the general integrating factor `f(r)=exp(2∫β(s)/s ds)`,
+   `ρσ_r²(r)=1/f(r)·∫_r^∞ f(s)ρ(s)GM/s² ds` — makes Michie and any custom anisotropy fully correct at
+   all radii. Self-contained later increment.
 
 **Action:** these go in the B14 MyST caveat audit as "current scope / planned extensions," in
 `STATUS.md`, and as a `brain` capture so they resurface. Revisit after the OED demo (Phase 1) lands —
