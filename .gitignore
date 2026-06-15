@@ -235,3 +235,5 @@ docs/core-papers/
 # rendered pages reference these PNGs, so a clean checkout / deploy build needs them.
 !docs/website/60-science-demos/figures/
 !docs/website/60-science-demos/figures/*.png
+
+.adr/

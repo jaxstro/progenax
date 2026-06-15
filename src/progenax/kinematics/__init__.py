@@ -29,6 +29,7 @@ from progenax.kinematics.michie_df import MichieVelocityDF
 from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 from progenax.kinematics.eff_df import EFFVelocityDF
 from progenax.kinematics.rotation import apply_solid_body_rotation, apply_differential_rotation
+from progenax.kinematics.dispersion import jeans_dispersion, project_dispersion
 from progenax.kinematics.api import (
     VelocityDF,
     RotationParams,
@@ -46,6 +47,9 @@ __all__ = [
     # Transforms
     "apply_solid_body_rotation",
     "apply_differential_rotation",
+    # Dispersion forward models
+    "jeans_dispersion",
+    "project_dispersion",
     # High-level API
     "VelocityDF",
     "RotationParams",

@@ -33,6 +33,7 @@ from .kinematics import (
     PlummerVelocityDF, KingVelocityDF, MichieVelocityDF, EFFVelocityDF,
     LIMEPYVelocityDF,
     apply_solid_body_rotation, apply_differential_rotation,
+    jeans_dispersion, project_dispersion,
 )
 # IMF / binary statistics (audit R7: documented but not previously root-exported)
 from .imf import (
@@ -181,6 +182,9 @@ __all__ = [
     # Rotation overlays (audited entry points; previously not root-exported)
     "apply_solid_body_rotation",
     "apply_differential_rotation",
+    # Dispersion forward models (3-D Jeans + B&M82 projection)
+    "jeans_dispersion",
+    "project_dispersion",
     # Builders
     "ICResult",
     "Systems",
