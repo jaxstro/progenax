@@ -8,7 +8,7 @@
     "line_cov_measured": 95.77781947832614,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T05:54:15.932936+00:00",
+  "generated_utc": "2026-06-15T22:45:44.622279+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "c05b73a46a9873e161084fb90ae399e1f037c474",
@@ -476,7 +476,7 @@
     "kinematics": {
       "integration": 0,
       "line_cov": 99.0791896869245,
-      "unit": 101,
+      "unit": 114,
       "validation": 0
     },
     "physics_registry": {
@@ -557,6 +557,12 @@
       "unit": 0,
       "validation": 14
     },
+    "test_dispersion_physics": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 18
+    },
     "test_documented_api": {
       "integration": 0,
       "line_cov": null,
@@ -591,7 +597,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 92
+      "validation": 96
     },
     "test_imf_physics": {
       "integration": 0,
@@ -725,11 +731,11 @@
       "exempt": 2,
       "full": true,
       "status": "built",
-      "symbol_tests": 117,
+      "symbol_tests": 119,
       "untested": 0
     },
     "differentiability": {
-      "audited": 38,
+      "audited": 40,
       "exempt": {
         "EXEMPT_ANALYTICAL_IC": 14,
         "EXEMPT_CONTAINER": 15,
@@ -740,17 +746,17 @@
       },
       "full": true,
       "hazards": 0,
-      "json_rows": 90,
-      "must_audit": 80,
+      "json_rows": 94,
+      "must_audit": 84,
       "status": "built",
       "status_histogram": {
-        "clean": 86,
+        "clean": 90,
         "known-limitation": 4
       }
     },
     "physics_validation": {
       "exempt_non_equilibrium": 3,
-      "exempt_non_model": 95,
+      "exempt_non_model": 97,
       "full": true,
       "models": 21,
       "status": "built",
@@ -758,7 +764,7 @@
     },
     "provenance": {
       "allowlist_modules": 9,
-      "constants": 31,
+      "constants": 33,
       "full": true,
       "status": "built",
       "unprovenanced": 0

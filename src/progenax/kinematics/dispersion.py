@@ -20,14 +20,23 @@ Physics references
   beta(r) = r^2 / (r^2 + r_a^2); closed-form OM-Plummer dispersion oracle.
 - Binney, J. & Mamon, G. A. (1982), MNRAS 200, 361 — line-of-sight
   projection of an anisotropic spherical model.
+- Dejonghe, H. (1987), MNRAS 224, 13 — Plummer-family projected dispersion;
+  the isotropic ``sigma_los^2(R) = (3 pi / 64) G M / sqrt(a^2 + R^2)`` oracle.
 
-Units follow the caller-supplied ``G`` (progenax DEFAULT_UNITS is STELLAR:
-Msun, pc, Myr). All public functions are reverse-mode differentiable.
+Units follow the caller-supplied ``G`` and ``M`` (progenax DEFAULT_UNITS is
+STELLAR: Msun, pc, Myr): the returned dispersions are in whatever velocity unit
+``sqrt(G M / length)`` implies, set entirely by the caller.
 
-NOTE (Phase 0 Task 1): scaffold only. The two NamedTuple return types and the
-``_sigma_components`` helper are implemented; ``jeans_dispersion`` and
-``project_dispersion`` are stubs raising ``NotImplementedError`` — their bodies
-arrive in Tasks 2 and 5.
+All public functions are **reverse-mode differentiable only**
+(``jax.grad`` / ``jax.jacrev``). Forward-mode (``jax.jacfwd`` / ``jax.jvp``) is
+**not** supported: the underlying ``progenax.numerics.cumulative_trapezoid``
+path uses a ``diffrax``-style ``custom_vjp`` that defines no ``jvp`` rule, so
+forward-mode AD raises. The OED Fisher uses reverse-mode, so this is sufficient.
+
+Scope (Phase 0): spherical, single-population, mass-follows-light, Osipkov-Merritt
+anisotropy. Rotation, non-sphericity, tracer != mass, native (non-OM) anisotropy,
+and multi-population kinematics are tracked extensions — see the versatility
+roadmap in ``docs/plans/2026-06-15-oed-dispersion-arc-design.md``.
 """
 
 from typing import NamedTuple, Optional
@@ -218,6 +227,29 @@ def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfil
     the anisotropic Jeans solution (:func:`jeans_sigma_r`); the tangential /
     1-D components and ``beta`` follow from OM (:func:`_sigma_components`).
 
+    Anisotropy model (IMPORTANT — read before using on a Michie/King profile).
+    This function **imposes the Osipkov-Merritt anisotropy law**
+    ``beta(r) = r^2 / (r^2 + r_a^2)`` on the *density* of ``profile``, regardless
+    of the profile's own intrinsic anisotropy. Consequences:
+
+    - **Plummer / EFF** are intrinsically isotropic, so layering OM on their
+      density is the EXACT Osipkov-Merritt model — correct at all radii.
+    - **Michie** is intrinsically anisotropic with its OWN (Michie-King)
+      anisotropy law, which agrees with OM in the core but DIVERGES outward.
+      ``jeans_dispersion(MichieProfile, r_a)`` is therefore "the Michie *density*
+      under OM anisotropy", NOT the native Michie equilibrium — validated only in
+      the inner region (r << r_t) where OM is a good model of the Michie law.
+
+    Units follow the caller-supplied ``G`` and ``M``; the returned velocities are
+    in whatever ``sqrt(G M / length)`` implies. **Reverse-mode differentiable
+    only** (forward-mode forbidden by the ``cumulative_trapezoid`` ``custom_vjp``;
+    see the module docstring).
+
+    See also: a general-``beta(r)`` generalisation (native Michie/King anisotropy
+    and arbitrary custom ``beta(r)`` via the integrating factor
+    ``f(r) = exp(2 int beta(s)/s ds)``) is on the versatility roadmap
+    (``docs/plans/2026-06-15-oed-dispersion-arc-design.md``).
+
     The enclosed mass ``M(<s)`` is a *quadrature of ``profile.density``*
     (builder-quality, no re-differentiated Psi): ``M_enc = M * cumtrap(rho s^2)
     / cumtrap_total(rho s^2)``. A fine radial s-grid runs to ``profile.r_t`` if
@@ -305,9 +337,16 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         Sigma sigma_pmT^2   = 2 int_R^inf (1 - beta)         rho sr^2 r/sqrt(r^2-R^2) dr
 
     where ``sr^2 = sigma_r^2(r)`` (radial), ``sigma_los`` is the line-of-sight
-    (RV) channel, and ``sigma_pmR`` / ``sigma_pmT`` are the on-sky radial /
-    tangential proper-motion dispersions. ``rho`` cancels in the sigma ratios; in
+    (the RV channel), and ``sigma_pmR`` / ``sigma_pmT`` are the on-sky radial /
+    tangential proper-motion (PM) channels. ``rho`` cancels in the sigma ratios; in
     ``Sigma`` it is the projected surface density in ``profile.density`` units.
+    The isotropic limit (``r_a=None`` -> ``beta=0``) collapses all three kernels to
+    1, so ``sigma_los = sigma_pm_r = sigma_pm_t``; anisotropy lives in the ratios.
+
+    Isotropic-Plummer ``sigma_los`` oracle: for the isotropic Plummer member this
+    projection has the closed form ``sigma_los^2(R) = (3 pi / 64) G M /
+    sqrt(a^2 + R^2)`` (Dejonghe 1987, MNRAS 224, 13), used as the tight absolute
+    validation anchor in ``test_dispersion_physics.py``.
 
     Singularity removal (load-bearing, keeps it differentiable): the
     ``1/sqrt(r^2-R^2)`` pole at ``r=R`` is removed ANALYTICALLY by the
