@@ -510,3 +510,208 @@ def test_projection_jit_and_grad():
     g = jax.grad(loss)(2.0)
     assert jnp.isfinite(g)
     assert jnp.abs(g) > 1e-9
+
+
+# =============================================================================
+# Phase 0 Task 6 — projected EMPIRICAL anchor + beta recovery
+# =============================================================================
+#
+# The closing leg of the projection anchor: sample a REAL anisotropic Plummer
+# population, project it to the sky EXACTLY as an observer would, and confirm
+# ``project_dispersion`` reproduces the empirical line-of-sight + proper-motion
+# dispersions and that the projected observables CARRY the input anisotropy
+# (the OED's whole premise: RV<->sigma_los, PM<->sigma_pm,R/T encode beta).
+#
+# Projection geometry (line of sight = the x-axis):
+#   - on-sky (projected) radius:  R = sqrt(y^2 + z^2)   (positions[:,1], [:,2])
+#   - sigma_los:                  std of v_x            (velocities[:,0])
+#   - on-sky radial unit vector:  e_R = (y, z) / R
+#   - on-sky tangential unit vec: e_T = (-z, y) / R     (perp to e_R, in-plane)
+#   - v_pmR = (v_y, v_z) . e_R ;  v_pmT = (v_y, v_z) . e_T
+#   - sigma_pm,R = std(v_pmR) ;   sigma_pm,T = std(v_pmT)
+#
+# We sample BOTH positions (Plummer density) and velocities (OM Plummer DF),
+# i.e. the same full realisation an N-body IC builder produces, then bin in
+# projected R and compare to ``project_dispersion`` at the bin's mean R.
+#
+# MC-noise note (root-caused, NOT a tolerance loosening): a projected annulus
+# holds far fewer stars than a 3-D shell, and the dispersion VARIES across a
+# finite-width bin, so we (a) use a large N, (b) keep bins narrow at
+# small/intermediate R where they are well populated, and (c) compare the
+# prediction at the bin's MEAN R. The outermost annuli (large R) thin out and
+# carry larger MC scatter; we restrict the tight assertion to the
+# well-populated bins (each >= a few thousand stars) and document the per-bin
+# counts in the assertion messages. The residual is sampling noise, not model
+# error (the analytic legs — isotropic-all-equal, the (3 pi/64) LOS oracle, the
+# anisotropy-signature kernel ordering — are gated tightly above).
+
+# Shared geometry / binning configuration for the empirical projection anchor.
+_PROJ_R_A = 1.5  # OM anisotropy radius (>= 0.75 a; a ~ 0.766 -> 0.75a ~ 0.575)
+_PROJ_M = 400.0
+_PROJ_N = 500_000  # 5e5: projected annuli hold fewer stars than 3-D shells; this
+#                    gives >= a few thousand stars/bin out to R ~ 3 with <5% MC.
+_PROJ_BIN_EDGES = jnp.array([0.3, 0.5, 0.8, 1.2, 1.8, 3.0])
+
+
+def _project_population(positions, velocities):
+    """Project a 3-D (pos, vel) population to the sky with LOS = x-axis.
+
+    Returns (R, v_los, v_pmR, v_pmT): the on-sky radius and the three projected
+    velocity components per star (see the module note for the geometry).
+    """
+    y, z = positions[:, 1], positions[:, 2]
+    R = jnp.sqrt(y**2 + z**2)
+    R_safe = jnp.maximum(R, 1e-12)
+    e_Ry, e_Rz = y / R_safe, z / R_safe           # on-sky radial unit vector
+    e_Ty, e_Tz = -z / R_safe, y / R_safe          # on-sky tangential (perp)
+    v_los = velocities[:, 0]                        # LOS = x
+    v_y, v_z = velocities[:, 1], velocities[:, 2]
+    v_pmR = v_y * e_Ry + v_z * e_Rz
+    v_pmT = v_y * e_Ty + v_z * e_Tz
+    return R, v_los, v_pmR, v_pmT
+
+
+def _bin_empirical(R, v_los, v_pmR, v_pmT, edges):
+    """Per-annulus empirical (R_center, n, sigma_los, sigma_pm,R, sigma_pm,T)."""
+    centers, counts, slos, spmr, spmt = [], [], [], [], []
+    for i in range(len(edges) - 1):
+        m = (R >= edges[i]) & (R < edges[i + 1])
+        centers.append(float(jnp.mean(R[m])))
+        counts.append(int(jnp.sum(m)))
+        slos.append(float(jnp.std(v_los[m])))
+        spmr.append(float(jnp.std(v_pmR[m])))
+        spmt.append(float(jnp.std(v_pmT[m])))
+    return (
+        jnp.array(centers),
+        counts,
+        jnp.array(slos),
+        jnp.array(spmr),
+        jnp.array(spmt),
+    )
+
+
+def _sample_om_plummer_population(r_a, M, N, seed):
+    """Sample an OM Plummer population (positions from rho, velocities from the OM DF)."""
+    prof = PlummerProfile(r_h=1.0)
+    df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=r_a)
+    key = jax.random.PRNGKey(seed)
+    key_pos, key_vel = jax.random.split(key)
+    masses = jnp.full((N,), M / N)               # sum == M (the mass jeans uses)
+    positions = prof.sample_positions(masses, key_pos)
+    velocities = df.sample_velocities(positions, masses, key_vel, G=G)
+    return prof, positions, velocities
+
+
+def test_projection_isotropic_geometry_sanity():
+    """SANITY (cheap, not slow): isotropic population -> the three projected
+    dispersions are empirically EQUAL in every bin.
+
+    This pins the projection GEOMETRY (LOS axis, R = sqrt(y^2+z^2), the
+    radial/tangential PM decomposition) BEFORE the anisotropic assertions: with
+    beta=0 there is no preferred on-sky direction, so sigma_los, sigma_pm,R and
+    sigma_pm,T must agree to MC tol. If the decomposition were swapped or wrong,
+    this isotropic check is what would catch it (per the Task 6 brief). Uses a
+    smaller N (this is a structural geometry check, not a precision anchor).
+    """
+    prof, pos, vel = _sample_om_plummer_population(r_a=None, M=_PROJ_M, N=200_000, seed=0)
+    R, v_los, v_pmR, v_pmT = _project_population(pos, vel)
+    centers, counts, slos, spmr, spmt = _bin_empirical(
+        R, v_los, v_pmR, v_pmT, _PROJ_BIN_EDGES
+    )
+    # Isotropic: all three projected dispersions equal per bin (3% MC, finite N).
+    assert jnp.allclose(slos, spmr, rtol=0.03), (
+        f"isotropic geometry: sigma_los vs sigma_pm,R differ "
+        f"(los={slos}, pmR={spmr}, counts={counts})"
+    )
+    assert jnp.allclose(slos, spmt, rtol=0.03), (
+        f"isotropic geometry: sigma_los vs sigma_pm,T differ "
+        f"(los={slos}, pmT={spmt}, counts={counts})"
+    )
+
+
+@pytest.mark.slow
+def test_projection_empirical_los_and_pm():
+    """Empirical projected anchor: project_dispersion vs the binned empirical
+    sigma_los / sigma_pm,R / sigma_pm,T of a sampled OM Plummer population (5% MC).
+
+    Sample N=5e5 stars (positions from the Plummer density, velocities from the
+    OM Plummer DF, r_a=1.5), project along x (R = sqrt(y^2+z^2)), bin in
+    projected R, and compare each empirical bin dispersion to
+    ``project_dispersion(...)`` evaluated at the bin's MEAN R. Within 5% MC.
+
+    Bin edges = [0.3, 0.5, 0.8, 1.2, 1.8, 3.0] (the per-bin counts are reported in
+    the assertion messages). Every bin here holds >= a few thousand stars; the
+    residual is sampling noise (the tight ANALYTIC legs are gated separately
+    above), so the tolerance is NOT loosened to mask model error.
+    """
+    prof, pos, vel = _sample_om_plummer_population(
+        r_a=_PROJ_R_A, M=_PROJ_M, N=_PROJ_N, seed=7
+    )
+    R, v_los, v_pmR, v_pmT = _project_population(pos, vel)
+    centers, counts, slos, spmr, spmt = _bin_empirical(
+        R, v_los, v_pmR, v_pmT, _PROJ_BIN_EDGES
+    )
+
+    # Require each bin to be well populated (>= a few thousand) for a 5% MC anchor.
+    assert min(counts) >= 3000, f"under-populated bin: counts={counts}"
+
+    pj = project_dispersion(prof, _PROJ_R_A, centers, _PROJ_M, G)
+
+    assert jnp.allclose(pj.sigma_los, slos, rtol=0.05), (
+        f"sigma_los: pred={pj.sigma_los} emp={slos} "
+        f"R={centers} counts={counts}"
+    )
+    assert jnp.allclose(pj.sigma_pm_r, spmr, rtol=0.05), (
+        f"sigma_pm,R: pred={pj.sigma_pm_r} emp={spmr} "
+        f"R={centers} counts={counts}"
+    )
+    assert jnp.allclose(pj.sigma_pm_t, spmt, rtol=0.05), (
+        f"sigma_pm,T: pred={pj.sigma_pm_t} emp={spmt} "
+        f"R={centers} counts={counts}"
+    )
+
+
+@pytest.mark.slow
+def test_projection_recovers_anisotropy():
+    """beta-recovery: the projected observables CARRY the input radial bias, and
+    project_dispersion predicts the SAME anisotropy signature (within MC tol).
+
+    The OED's premise is that the on-sky PM/RV ratio encodes beta. With a
+    radially-biased OM model (r_a=1.5) the on-sky tangential PM is suppressed
+    relative to the LOS channel, GROWING outward as beta(r)=r^2/(r^2+r_a^2)
+    builds. We assert, EMPIRICALLY (from the sampled population):
+
+      1. sigma_pm,T < sigma_los in every well-populated bin (radial bias present),
+      2. the ratio sigma_pm,T/sigma_los DECREASES outward (bias builds with R),
+      3. project_dispersion reproduces that empirical ratio per bin (5% MC).
+
+    (3) is the load-bearing claim: the analytic forward model and the sampled sky
+    carry the SAME beta signature, so an OED inversion of the ratio recovers r_a.
+    """
+    prof, pos, vel = _sample_om_plummer_population(
+        r_a=_PROJ_R_A, M=_PROJ_M, N=_PROJ_N, seed=7
+    )
+    R, v_los, v_pmR, v_pmT = _project_population(pos, vel)
+    centers, counts, slos, spmr, spmt = _bin_empirical(
+        R, v_los, v_pmR, v_pmT, _PROJ_BIN_EDGES
+    )
+    assert min(counts) >= 3000, f"under-populated bin: counts={counts}"
+
+    ratio_emp = spmt / slos
+    pj = project_dispersion(prof, _PROJ_R_A, centers, _PROJ_M, G)
+    ratio_pred = pj.sigma_pm_t / pj.sigma_los
+
+    # (1) radial-anisotropy signature: tangential PM suppressed below LOS.
+    assert jnp.all(ratio_emp < 1.0), (
+        f"expected sigma_pm,T < sigma_los (radial bias); ratio_emp={ratio_emp} "
+        f"R={centers}"
+    )
+    # (2) the suppression DEEPENS outward (beta builds with radius).
+    assert ratio_emp[-1] < ratio_emp[0], (
+        f"anisotropy ratio should drop outward; ratio_emp={ratio_emp} R={centers}"
+    )
+    # (3) the analytic forward model carries the SAME beta signature (5% MC).
+    assert jnp.allclose(ratio_emp, ratio_pred, rtol=0.05), (
+        f"beta signature mismatch: emp={ratio_emp} pred={ratio_pred} "
+        f"R={centers} counts={counts}"
+    )
