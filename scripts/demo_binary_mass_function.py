@@ -20,9 +20,9 @@ pairs and BLENDS close ones (separation below the resolution limit, a < a_crit).
                         m_obs = L^{-1}(L_obs) > m1 (the photometric blend mass).
   * Single star      -> one catalogue star at m1.
 
-The Tout ZAMS mass-luminosity relation is imported from the **fluxax** sibling
-(``fluxax.photometry``); progenax is decoupled from that private package, so the
-demo guards the import (install locally: ``uv pip install -e ../fluxax --no-deps``).
+The Tout et al. (1996) ZAMS mass-luminosity relation is provided in-package by
+``progenax.stellar`` (a startrax placeholder), so this demo needs no external
+sibling — it runs in a clean environment / CI.
 
 Inference
 ---------
@@ -77,13 +77,7 @@ from progenax.binaries.eccentricity import MoeEccentricity
 from progenax.imf import Maschberger
 from progenax.imf.binary import MoeDiStefano2017Full, MoeJointOrbit, MoePeriod
 
-try:
-    from fluxax.photometry import inverse_zams_luminosity, zams_luminosity
-except ImportError as exc:  # pragma: no cover - local-only demo dependency
-    raise SystemExit(
-        "B4 needs the Tout+1996 ZAMS relations from the (private) fluxax sibling.\n"
-        "Install it editable:  uv pip install -e ../fluxax --no-deps"
-    ) from exc
+from progenax.stellar import inverse_zams_luminosity, zams_luminosity
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _demo_inference import expit, fisher_cov, mle_adam, poisson_loglike
@@ -131,9 +125,9 @@ def _semimajor_axis(m1, m2, P_days):
         jnp.asarray(P_days) * DAY, jnp.asarray(m1 + m2), G))  # pc
 
 
-# inverse_zams_luminosity uses jax.grad(zams_luminosity) internally (scalar-only),
-# so map it over the luminosity array (per the fluxax docstring).
-_inv_zams_L_vec = jax.vmap(inverse_zams_luminosity, in_axes=(0, None))
+# progenax.stellar.inverse_zams_luminosity is array-aware (it vmaps its scalar
+# Newton/scan core internally), so it maps over a luminosity array directly.
+_inv_zams_L_vec = inverse_zams_luminosity
 
 
 def _blend_mass(m1, m2):

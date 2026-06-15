@@ -28,7 +28,7 @@ law. A survey **resolves** wide pairs and **blends** close ones, $a < a_{\rm cri
 ```
 
 where $L(m)$ is the **Tout et al. (1996) ZAMS mass–luminosity relation**
-{cite:p}`Tout1996` (imported from the `fluxax.photometry` sibling). The observed
+{cite:p}`Tout1996` (provided in-package by `progenax.stellar`). The observed
 mass function is a linear mixture in $f_b$,
 
 ```{math}
@@ -117,12 +117,11 @@ while the independent template is biased low.
 
 ```{warning}
 - **Photometry is the Tout (1996) ZAMS relation** ($L$–$M$ at fixed metallicity),
-  from the `fluxax` sibling — a clean main-sequence stand-in. Real surveys add
-  band-dependent blending, extinction, and unequal evolutionary states; those live
-  in `fluxax` proper, not this demo.
-- **`fluxax` is a private, unlocked experimental dependency.** progenax is decoupled
-  from it (the demos are local), so install it to run B4:
-  `uv pip install -e ../fluxax --no-deps`.
+  from `progenax.stellar` (a startrax placeholder) — a clean main-sequence stand-in.
+  Real surveys add band-dependent blending, extinction, and unequal evolutionary
+  states; full SED/bandpass photometry is the `fluxax` package's job, not this demo.
+- **No external dependency.** The ZAMS relations are in-package, so B4 runs in a
+  clean environment / CI — nothing to install beyond progenax.
 - **f_b only.** The demo recovers the binary fraction and *shows* (not fits) that the
   $q$-coupling drives the bias; jointly recovering the $q$-distribution shape is a
   natural extension. The recovery assumes a known IMF and resolution limit.
@@ -133,7 +132,6 @@ while the independent template is biased low.
 ## How to run
 
 ```bash
-uv pip install -e ../fluxax --no-deps   # one-time: the Tout ZAMS photometry
 env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_binary_mass_function.py
 ```
 
