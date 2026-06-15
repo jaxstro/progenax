@@ -183,3 +183,27 @@ already imported by `_demo_inference.py`) for Phase 1.
 
 Anna approves every design decision, plan, and merge. Verify **locally** (CI minutes tight); nothing
 pushed/merged without explicit go. Commit per task; messages end with the Co-Authored-By trailer.
+
+## Deferred caveats & versatility roadmap (FOLLOW-UP — Anna, 2026-06-15)
+
+Phase 0 ships the **spherical, single-population, mass-follows-light** dispersion forward model. These
+are *documented scope boundaries*, not flaws — but Anna's stated goal is to eventually make the
+kinematic forward model **fully complete and versatile**. Captured here as a tracked follow-up so the
+caveats become a roadmap, not a permanent ceiling. Each is a self-contained later increment:
+
+1. **Rotation.** B&M82 assumes no streaming. Real clusters rotate; `apply_solid_body_rotation` /
+   `apply_differential_rotation` already exist. Add a rotational mean-velocity field to the projected
+   observables (σ_los acquires a `v_los(R, φ)` mean; PM gains a systemic-rotation signature).
+2. **Non-sphericity / flattening.** B&M82 is spherical. A versatile model needs axisymmetric (or
+   triaxial) Jeans — a much larger increment; flag as a separate research arc, not a quick add.
+3. **Tracer ≠ mass (mass-follows-light relaxation).** Phase 0 uses `ν = ρ`. Generalize to an
+   independent tracer density `ν(r)` ≠ mass density `ρ(r)` (the standard Jeans-modeling separation of
+   luminous tracers from total mass) so the forward model can fit real photometric tracers in a DM/
+   total-mass potential.
+4. **The `r_t` truncation kink** (hard cutoff) — owned by the differentiability-gradient-audit arc;
+   confirm the dispersion paths inherit a clean (or documented-blocked) gradient there.
+5. **Multi-population / multi-mass** kinematics (per-species σ via `MultiComponentCluster`).
+
+**Action:** these go in the B14 MyST caveat audit as "current scope / planned extensions," in
+`STATUS.md`, and as a `brain` capture so they resurface. Revisit after the OED demo (Phase 1) lands —
+ideally fold (1) and (3) in first (smallest, highest-value for real-data versatility).
