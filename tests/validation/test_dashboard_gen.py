@@ -111,13 +111,12 @@ def test_registry_status_grad_audit_built_others_not():
     # audited count is consistent with the AUDITED bucket of SYMBOL_CATEGORY.
     assert sum(ga["exempt"].values()) + ga["audited"] == 114
 
-    # api-coverage is now BUILT (Task 2.2): it partitions __all__ into
-    # SYMBOL_TESTS / EXEMPT / UNTESTED. It is built-but-NOT-full while UNTESTED holes
-    # remain (closed in Task 2.3), so it carries `full: False` and a `untested` count.
+    # api-coverage is BUILT and FULL (Task 2.3 closed all 6 UNTESTED holes): it
+    # partitions __all__ into SYMBOL_TESTS / EXEMPT / UNTESTED, and UNTESTED is now empty.
     api = status["api_coverage"]
     assert api["status"] == "built"
-    assert api["full"] is False  # 6 UNTESTED holes remain (Task 2.3)
-    assert api["untested"] > 0
+    assert api["full"] is True  # all 6 holes closed (Task 2.3)
+    assert api["untested"] == 0
     # The three partition sizes sum to the full __all__ (114).
     assert api["symbol_tests"] + api["exempt"] + api["untested"] == 114
 
@@ -131,21 +130,22 @@ def test_registry_status_grad_audit_built_others_not():
 
 def test_registries_full_flag_gates_on_built_and_full():
     """``gate["registries_full"]`` is the all-clear flag: every registry must be
-    BUILT and ``full is True``. The differentiability registry now contributes a
-    real ``full`` (I2) — it is built+full, but the other 3 are not-built, so the
+    BUILT and ``full is True``. Two registries are now built+full (differentiability
+    + api-coverage), but physics_validation + provenance are not-built, so the
     aggregate flag is still False (and provably NOT because of a missing flag).
     """
     dash = build_dashboard("2026-01-01T00:00:00Z")
     regs = dash["registries"]
-    # The one built registry IS full (0 hazards) -> it would not, by itself, hold
-    # the gate down. The gate is held down solely by the 3 not-built registries.
+    # Two registries are built+full -> they would not, by themselves, hold the gate
+    # down. The gate is held down solely by the 2 not-built registries.
     assert regs["differentiability"]["full"] is True
+    assert regs["api_coverage"]["full"] is True
     assert dash["gate"]["registries_full"] is False
-    built_and_full = [
+    built_and_full = {
         name for name, b in regs.items()
         if b.get("status") == "built" and b.get("full") is True
-    ]
-    assert built_and_full == ["differentiability"]
+    }
+    assert built_and_full == {"differentiability", "api_coverage"}
 
 
 # --- Task 1.4: read_durations -----------------------------------------------
@@ -256,12 +256,11 @@ def test_build_dashboard_modules_merge_inventory():
 
 def test_build_dashboard_registry_and_gate_state():
     dash = build_dashboard("2026-01-01T00:00:00Z")
-    # api_coverage registry is BUILT as of Task 2.2 (but not full -> holds the gate).
+    # api_coverage registry is BUILT and FULL as of Task 2.3 (all holes closed).
     assert dash["registries"]["api_coverage"]["status"] == "built"
-    assert dash["registries"]["api_coverage"]["full"] is False
+    assert dash["registries"]["api_coverage"]["full"] is True
     # gate: registries are NOT all full and the floor is 90. registries_full stays
-    # False because physics_validation + provenance are not-built AND api_coverage is
-    # built-but-not-full (UNTESTED holes).
+    # False because physics_validation + provenance are still not-built.
     assert dash["gate"]["registries_full"] is False
     assert dash["gate"]["line_cov_floor"] == 90
     assert dash["gate"]["full_suite_green"] is None
