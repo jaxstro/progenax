@@ -309,10 +309,12 @@ def _stamp_coverage(raw_cov_path: str) -> None:
 # safe.) The committed JSON should carry zero hazards in a healthy tree.
 _GRAD_AUDIT_BENIGN_STATUSES = frozenset({"clean", "known-limitation"})
 
-# The registries that Phase 5 will build. api_coverage (Task 2.2) and
-# physics_validation (Task 4.2) are now built; provenance stays a not-built
-# placeholder until Phase 5.
-_NOT_BUILT_REGISTRIES = ("provenance",)
+# All four registries are now built. api_coverage (Task 2.2), physics_validation
+# (Task 4.2), and provenance (Task 5.2) joined differentiability — none stay a
+# not-built placeholder. This tuple is empty (kept as the explicit not-built carve so
+# a FUTURE registry that lands not-built has a documented home that holds
+# registries_full False until it is built+full).
+_NOT_BUILT_REGISTRIES: tuple[str, ...] = ()
 
 _GRAD_AUDIT_JSON = "validation/data/grad_audit_results.json"
 
@@ -331,8 +333,9 @@ def read_registry_status() -> dict:
     histogram, and a derived ``hazards`` count (rows whose status is NOT a benign
     value — see ``_GRAD_AUDIT_BENIGN_STATUSES``).
 
-    The remaining registry (provenance) does not exist yet ->
-    ``{"status": "not-built"}`` placeholder (Phase 5 replaces it).
+    The provenance registry (Task 5.2) is now built+full from its frozen-literal
+    manifest (0 UNPROVENANCED holes), so ALL FOUR registries are built and
+    ``_NOT_BUILT_REGISTRIES`` is empty -> ``gate.registries_full`` becomes True.
 
     Returns ``{"differentiability": {...}, "api_coverage": {...}, ...}``.
     """
@@ -410,10 +413,34 @@ def read_registry_status() -> dict:
         "untested": len(UNTESTED_MODELS),
     }
 
+    # provenance-of-constants registry (Task 5.2): the frozen-literal manifest (a faithful
+    # PORT of docs/provenance-ledger.md, NOT a float-literal scan) carries one PROVENANCE row
+    # per cited constant/coefficient, the C6-scoped ALLOWLIST_MODULES, and an UNPROVENANCED
+    # hole list. We import the pure manifest module (NO pytest-collection side effects — same
+    # frozen-literal contract as the grad-audit / api-coverage / physics manifests) and report
+    # the partition sizes. CONTRACT: `full` == zero UNPROVENANCED holes (every allowlisted
+    # constant carries a citation). The 2026-06 audit found ZERO fabricated values, so
+    # UNPROVENANCED is empty -> full=True. This is the LAST registry: wiring it built+full
+    # flips gate.registries_full to True (build_dashboard aggregates over all four).
+    from tests.validation.provenance_registry.manifest import (
+        ALLOWLIST_MODULES,
+        PROVENANCE,
+        UNPROVENANCED,
+    )
+
+    provenance = {
+        "status": "built",
+        "full": len(UNPROVENANCED) == 0,
+        "constants": len(PROVENANCE),
+        "allowlist_modules": len(ALLOWLIST_MODULES),
+        "unprovenanced": len(UNPROVENANCED),
+    }
+
     result = {
         "differentiability": differentiability,
         "api_coverage": api_coverage,
         "physics_validation": physics_validation,
+        "provenance": provenance,
     }
     for reg in _NOT_BUILT_REGISTRIES:
         result[reg] = {"status": "not-built"}  # no `full` -> holds registries_full False

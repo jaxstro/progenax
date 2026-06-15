@@ -6,9 +6,9 @@
     "full_suite_green": null,
     "line_cov_floor": 90,
     "line_cov_measured": 94.77173707141505,
-    "registries_full": false
+    "registries_full": true
   },
-  "generated_utc": "2026-06-15T01:53:47.147587+00:00",
+  "generated_utc": "2026-06-15T02:15:37.525861+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
@@ -486,6 +486,12 @@
       "unit": 201,
       "validation": 0
     },
+    "provenance_registry": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 7
+    },
     "substructure": {
       "integration": 0,
       "line_cov": null,
@@ -734,7 +740,11 @@
       "untested": 0
     },
     "provenance": {
-      "status": "not-built"
+      "allowlist_modules": 8,
+      "constants": 29,
+      "full": true,
+      "status": "built",
+      "unprovenanced": 0
     }
   },
   "validation_scripts": {

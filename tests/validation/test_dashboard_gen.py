@@ -92,7 +92,7 @@ def test_rollup_coverage_by_dir_is_weighted_by_statements():
 
 # --- Task 1.4: read_registry_status -----------------------------------------
 
-def test_registry_status_three_built_provenance_not():
+def test_registry_status_all_four_built():
     status = read_registry_status()
     # The one real registry (grad-audit) is built from frozen literals + JSON.
     ga = status["differentiability"]
@@ -129,32 +129,40 @@ def test_registry_status_three_built_provenance_not():
     assert phys["models"] > 0
     assert phys["untested"] == 0
 
-    # The remaining registry does not exist yet -> not-built placeholder.
-    # Per the I2 contract, not-built placeholders OMIT `full` (so registries_full
-    # stays False until all 4 are built+full).
-    assert status["provenance"] == {"status": "not-built"}
-    assert "full" not in status["provenance"]
+    # provenance is BUILT and FULL (Task 5.2): the frozen-literal manifest ports every
+    # cited constant from docs/provenance-ledger.md and carries an UNPROVENANCED hole list
+    # that the 2026-06 audit left empty (0 fabricated values). This is the LAST registry —
+    # built+full here flips gate.registries_full to True.
+    prov = status["provenance"]
+    assert prov["status"] == "built"
+    assert prov["full"] is True  # 0 unprovenanced holes
+    assert prov["constants"] > 0
+    assert prov["unprovenanced"] == 0
+    assert prov["allowlist_modules"] > 0
 
 
 def test_registries_full_flag_gates_on_built_and_full():
     """``gate["registries_full"]`` is the all-clear flag: every registry must be
-    BUILT and ``full is True``. Three registries are now built+full (differentiability
-    + api-coverage + physics-validation), but provenance is not-built, so the
-    aggregate flag is still False (and provably NOT because of a missing flag).
+    BUILT and ``full is True``. As of Task 5.2 ALL FOUR registries (differentiability
+    + api-coverage + physics-validation + provenance) are built+full, so the gate's
+    registry condition is now MET and the aggregate flag is True. This is the milestone:
+    the last registry (provenance) became built+full, flipping registries_full.
     """
     dash = build_dashboard("2026-01-01T00:00:00Z")
     regs = dash["registries"]
-    # Three registries are built+full -> they would not, by themselves, hold the gate
-    # down. The gate is held down solely by the 1 not-built registry (provenance).
+    # All four registries are built+full -> the gate's registry condition is satisfied.
     assert regs["differentiability"]["full"] is True
     assert regs["api_coverage"]["full"] is True
     assert regs["physics_validation"]["full"] is True
-    assert dash["gate"]["registries_full"] is False
+    assert regs["provenance"]["full"] is True
+    assert dash["gate"]["registries_full"] is True
     built_and_full = {
         name for name, b in regs.items()
         if b.get("status") == "built" and b.get("full") is True
     }
-    assert built_and_full == {"differentiability", "api_coverage", "physics_validation"}
+    assert built_and_full == {
+        "differentiability", "api_coverage", "physics_validation", "provenance"
+    }
 
 
 # --- Task 1.4: read_durations -----------------------------------------------
@@ -271,8 +279,11 @@ def test_build_dashboard_registry_and_gate_state():
     # physics_validation registry is BUILT and FULL as of Task 4.2 (0 untested holes).
     assert dash["registries"]["physics_validation"]["status"] == "built"
     assert dash["registries"]["physics_validation"]["full"] is True
-    # gate: registries are NOT all full and the floor is 90. registries_full stays
-    # False because the provenance registry is still not-built (Phase 5).
-    assert dash["gate"]["registries_full"] is False
+    # provenance registry is BUILT and FULL as of Task 5.2 (0 unprovenanced holes).
+    assert dash["registries"]["provenance"]["status"] == "built"
+    assert dash["registries"]["provenance"]["full"] is True
+    # gate: ALL FOUR registries are built+full as of Task 5.2, so registries_full is
+    # now True (the milestone). The line-coverage floor is 90.
+    assert dash["gate"]["registries_full"] is True
     assert dash["gate"]["line_cov_floor"] == 90
     assert dash["gate"]["full_suite_green"] is None

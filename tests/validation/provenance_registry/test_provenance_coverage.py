@@ -27,8 +27,6 @@ import re
 import tokenize
 from pathlib import Path
 
-import pytest
-
 from tests.validation.provenance_registry.manifest import (
     ALLOWLIST_MODULES,
     ALLOWLIST_NON_COEFFICIENT,
@@ -339,12 +337,13 @@ def test_allowlist_non_coefficient_carve_is_not_stale():
 # ======================================================================================
 
 
-@pytest.mark.xfail(strict=False, reason="UNPROVENANCED holes are Task-5.2 / Anna "
-                   "adjudication items; empty today (audit found ZERO fabricated values).")
 def test_no_unprovenanced_constants():
-    """HONEST-HOLE gate (mirrors api_coverage's xfail holes): every allowlisted constant has
-    a citation, so UNPROVENANCED is empty. A NEW genuinely-unsourced number re-populates it
-    and this stays xfail (visible as XPASS->RED only when strict) until Anna adjudicates."""
+    """HARD honest-hole gate (Task 5.2 flip; mirrors api_coverage's holes test once closed):
+    every allowlisted constant has a citation, so UNPROVENANCED is empty. Holes are genuinely
+    0 (the 2026-06 audit found ZERO fabricated values), so this is now a HARD assertion — no
+    xfail. A NEW genuinely-unsourced number re-populates UNPROVENANCED and turns this RED, an
+    Anna-adjudication item: port a source into PROVENANCE or de-assert the constant. NEVER
+    fabricate a citation to make this pass."""
     assert not UNPROVENANCED, (
         f"allowlisted constants with NO citation (Anna adjudicates each — port a source or "
         f"de-assert): {sorted(UNPROVENANCED)}")
