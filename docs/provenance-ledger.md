@@ -227,6 +227,31 @@ imports + builds (N=3). Released-core gate unaffected (the `solar_system.py` cha
 
 ---
 
+### ZAMS migration — Tout+1996 Table 1/2 (2026-06-14, separate `feat/zams-stellar` arc)
+
+Part of the **fluxax-decoupling** arc (internalize the Tout ZAMS relations into
+`src/progenax/stellar.py` as a startrax placeholder). Main-loop adjudication of the held
+`~/Desktop/Tout1996-ZAMS-Formulae.pdf` (MNRAS 281, 257, 6 pp.) against the
+`fluxax/photometry/stellar_physics.py` transcription that the port copies.
+
+| table | scope | verdict |
+|-------|-------|---------|
+| Table 1 — L(M,Z) coefficients α…η (eq. 3) | 7 rows × 5 (degree-4 in log₁₀(Z/Z☉)) | **35/35 EXACT vs PDF** |
+| Table 2 — R(M,Z) coefficients θ…π + scalar ν (eq. 4) | 8 rows × 5 + ν | **40/40 EXACT vs PDF** (ν Z-independent, fixed at Z=0.02 optimum — PDF p. 258) |
+
+**75/75 coefficients match; zero corrections.** Three facts captured that fluxax's docstring
+got loosely: (1) the fitted **mass range is 0.1–100 M☉**, NOT 125; (2) **Z extrapolation is
+forbidden** (rational functions go negative outside [1e-4, 0.03] — PDF p. 262) → the `stellar.py`
+Z-clip is the paper's own guidance; (3) accuracy L < 3% / R < 1.2% at solar (< 7.5% / < 5% over
+all Z). Solar ZAMS anchors computed from the verified coefficients (ζ=0): **L(1 M☉)=0.6977,
+R(1 M☉)=0.8882, T_eff≈5600 K, log g≈4.54** — these anchor `tests/validation/test_zams_physics.py`.
+
+Detailed cell-by-cell ledger: `docs/core-papers/tout1996_zams_coefficients_verified.md`
+(local, gitignored — alongside the PDF). Provenance-registry citation ids:
+`stellar.py::_TOUT_L_COEFFS` (Table 1), `stellar.py::_TOUT_R_COEFFS + _TOUT_R_NU` (Table 2).
+
+---
+
 ## Open flags (⚠ awaiting adjudication) & queued work
 
 - ✅ **Bucket A — phantom-API docs — COMPLETE (Batch 6):** environment.md IGIMF/`gwimf` reframed to the
