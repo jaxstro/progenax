@@ -112,6 +112,11 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("zams_surface_gravity", "mass"): "ZAMS log g(M) = log10(G M / R^2) in mass",
     ("inverse_zams_luminosity", "L_target"): "differentiable Newton/scan invert dM/dL at an "
         "in-range L_target (M~5 MS point, NOT a clipped plateau)",
+    # --- Dispersion forward models (Phase 0 Task 8) ---
+    ("jeans_dispersion[Plummer+OM]", "r_a"): "OM Jeans sigma_r in anisotropy radius",
+    ("jeans_dispersion[Plummer]", "M"): "Jeans sigma_r in total mass",
+    ("project_dispersion[Plummer+OM]", "r_a"): "B&M82 sigma_los in anisotropy radius",
+    ("project_dispersion[Plummer+OM].pm_t", "r_a"): "B&M82 sigma_pm_t (beta-carrying) in r_a",
 }
 
 # --- SYMBOL_CATEGORY: every __all__ symbol -> category ----------------------
@@ -161,6 +166,9 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "SanaOBPeriod": AUDITED,                 # B4: Sana+2012 OB period power-law index (power)
     "LogNormalPeriod": AUDITED,              # B4: log-normal period location (mu_log_P, closed-form grad=1)
     "LogUniformPeriod": AUDITED,             # B4: Opik log-uniform period upper bound (log_P_max, <u>~0.5)
+    # --- Dispersion forward models (Phase 0 Task 8) ---
+    "jeans_dispersion": AUDITED,             # OM Jeans sigma_r in r_a + M (interior radii; FD-consistent)
+    "project_dispersion": AUDITED,           # B&M82 sigma_los + sigma_pm_t (beta-carrying) in r_a
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,

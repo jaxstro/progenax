@@ -314,6 +314,14 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "apply_solid_body_rotation": "velocity overlay (adds Omega x R), not a model",
     "apply_differential_rotation": "velocity overlay, not a model",
     "sample_isotropic_orientations": "isotropic orientation sampler, not a model",
+    # --- Dispersion forward models (free functions over a profile, not equilibrium models) ---
+    "jeans_dispersion": "anisotropic-Jeans (Osipkov-Merritt) dispersion forward model "
+                        "(sigma_r/sigma_t/sigma_1d/beta for a profile under OM r_a); a "
+                        "forward-model helper, not an equilibrium model. Physics anchored in "
+                        "tests/validation/test_dispersion_physics.py.",
+    "project_dispersion": "Binney & Mamon (1982) line-of-sight projection forward model "
+                          "(sigma_los/sigma_pm_r/sigma_pm_t); a forward-model helper, not an "
+                          "equilibrium model. Anchored in test_dispersion_physics.py.",
     # --- Binary connector + diagnostics + energy/kinematic kernels ---
     "resolve_binary_components": "binary->spatial connector, not a model (grad-audit AUDITED "
                                  "as a Fisher path, but it is a transform, not a model object)",

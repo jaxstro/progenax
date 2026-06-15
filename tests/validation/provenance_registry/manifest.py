@@ -162,6 +162,15 @@ PROVENANCE: dict[str, str] = {
         "Chenciner & Montgomery (2000) Ann. Math. 152, 881 — dimensionless (G=1, m=1, "
         "scale=1) figure-eight choreography period; canonical Chenciner-Montgomery-Simo IC. "
         "Ledger: figure-eight cite already correct (NOT the debunked Aarseth 1974 mis-cite).",
+
+    # ============================ Dispersion forward models (Phase 0) ================
+    "kinematics/dispersion.py::anisotropic-Jeans sigma_r quadrature (OM integrating factor r^2+r_a^2)":
+        "Binney & Tremaine (2008) Galactic Dynamics sec. 4.8.3 + Merritt (1985) AJ 90, 1027, "
+        "Eq. 15 (OM sigma_r^2/sigma_t^2 = 1 + r^2/r_a^2) — derivable identity.",
+    "kinematics/dispersion.py::Binney & Mamon (1982) LOS projection kernels + isotropic-Plummer sigma_los oracle":
+        "Binney & Mamon (1982) MNRAS 200, 361 (projection integrals); isotropic-Plummer "
+        "sigma_los^2 = (3 pi/64) G M / sqrt(a^2+R^2) per Dejonghe (1987) MNRAS 224, 13 — "
+        "both derivable/cited identities.",
 }
 
 # --- ALLOWLIST_MODULES: the SCOPED constant-bearing files the new-literal ratchet covers -

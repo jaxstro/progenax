@@ -50,6 +50,10 @@ SYMBOL_TESTS: dict[str, str] = {
     "apply_differential_rotation": "tests/unit/kinematics/test_rotation.py::TestDifferentialRotation::test_peak_at_R_peak",  # assert |v| == v_peak at R_peak
     "sample_isotropic_orientations": "tests/unit/binaries/test_population.py::TestIsotropicOrientations::test_inclination_isotropic",  # assert <cos i> ~ 0 on sampled inclinations
 
+    # --- Dispersion forward models (jeans / B&M82 projection) ---
+    "jeans_dispersion": "tests/unit/kinematics/test_dispersion.py::test_plummer_isotropic_closed_form",  # assert dp.sigma_1d == sqrt(GM/(6 sqrt(r^2+a^2))) (rtol 3e-3) + beta==0 + sigma_r==sigma_t on jeans_dispersion output
+    "project_dispersion": "tests/validation/test_dispersion_physics.py::test_projection_isotropic_all_equal",  # assert pj.sigma_los == sigma_pm_r == sigma_pm_t (beta=0 B&M82 kernel collapse) on project_dispersion output
+
     # --- IMFs ---
     "PowerLawIMF": "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_min",  # assert |cdf(m_min)| < 1e-6
     "ChabrierIMF": "tests/unit/imf/test_imf_core.py::TestChabrierSpecific::test_A_pl_continuity",  # assert lognormal/power-law continuity at m_c

@@ -19,6 +19,8 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     PowerLawIMF,
     ThermalEccentricity,
     UniformEccentricity,
+    jeans_dispersion,
+    project_dispersion,
     build_spatial_ic,
     build_cluster,
     build_king_cluster,
@@ -1473,6 +1475,55 @@ def _inverse_zams_L(L_target):
     return jnp.atleast_1d(inverse_zams_luminosity(L_target))
 
 
+# ---------------------------------------------------------------------------
+# Dispersion forward models (Phase 0 Task 8) — jeans_dispersion (3-D anisotropic
+# Jeans) and project_dispersion (B&M82 LOS/PM projection). Both are reverse-mode
+# differentiable forward models that expose the EQUILIBRIUM velocity dispersion of
+# a (potential, anisotropy) pair — Task 7 proved AD-vs-FD consistency. These
+# params->summary cases probe the two leaves an inference would treat as free: the
+# Osipkov-Merritt anisotropy radius r_a and the total mass M. The closures sample at
+# INTERIOR radii r in [0.5, 2.0] (well inside the s-grid [1e-4 r_max, r_max] with
+# r_max = 30 a ~ 23 for r_h=1, so jnp.interp never clamps -> no silent-zero edge) and
+# reduce the sigma vector by identity_sum.
+#
+# MEASURED (theta0 as below, h_rel=1e-4 default, identity_sum over sigma at the three
+# interior radii), STELLAR.G:
+#   jeans_dispersion[Plummer+OM]      r_a=2.0  AD=-7.779763e-2 FD=-7.779763e-2 |ratio-1|=1e-8
+#   jeans_dispersion[Plummer]         M=400.0  AD= 1.938686e-3 FD= 1.938686e-3 |ratio-1|<1e-9
+#   project_dispersion[Plummer+OM]    r_a=2.0  AD= 4.027117e-2 FD= 4.027117e-2 |ratio-1|=1e-8
+#   project_dispersion[Plummer+OM].pm_t r_a=2.0 AD=9.151713e-2 FD=9.151713e-2 |ratio-1|=1e-8
+# All |AD| >> eps=1e-9 (live, non-zero) and machine-exact FD-consistent (the integrands
+# are smooth trapezoid quadratures in r_a / M with no branch crossings), so tol=1e-3 is a
+# comfortable margin (the honest band for the trapezoid Jeans + B&M82 u-quadrature).
+_DISP_R_INTERIOR = jnp.array([0.5, 1.0, 2.0])
+_DISP_R_A = 2.0  # OM anisotropy radius (>> 0.75 a ~ 0.575, well inside the valid domain)
+
+
+def _jeans_dispersion_om_r_a(r_a):
+    # Plummer OM radial dispersion sigma_r in the anisotropy radius r_a.
+    prof = PlummerProfile(r_h=1.0)
+    return jeans_dispersion(prof, r_a, _DISP_R_INTERIOR, 400.0, STELLAR.G).sigma_r
+
+
+def _jeans_dispersion_M(M):
+    # Plummer Jeans radial dispersion sigma_r in total mass M (sigma_r^2 ∝ G M).
+    prof = PlummerProfile(r_h=1.0)
+    return jeans_dispersion(prof, _DISP_R_A, _DISP_R_INTERIOR, M, STELLAR.G).sigma_r
+
+
+def _project_dispersion_om_r_a(r_a):
+    # B&M82 projected line-of-sight dispersion sigma_los in the anisotropy radius r_a.
+    prof = PlummerProfile(r_h=1.0)
+    return project_dispersion(prof, r_a, _DISP_R_INTERIOR, 400.0, STELLAR.G).sigma_los
+
+
+def _project_dispersion_om_r_a_pmt(r_a):
+    # B&M82 projected tangential proper-motion dispersion sigma_pm_t (the beta-carrying
+    # channel: kernel (1 - beta)) in the anisotropy radius r_a.
+    prof = PlummerProfile(r_h=1.0)
+    return project_dispersion(prof, r_a, _DISP_R_INTERIOR, 400.0, STELLAR.G).sigma_pm_t
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -1968,4 +2019,19 @@ REGISTRY: list[Case] = [
          param="mass", theta0=_ZAMS_MASS, reduce=identity_sum, tol=1e-5),   # |ratio-1|=1.1e-9
     Case(id="inverse_zams_luminosity", direction="params->summary", fn=_inverse_zams_L,
          param="L_target", theta0=_ZAMS_INVERSE_L, reduce=identity_sum, tol=1e-5),  # |ratio-1|=1.9e-9
+    # --- Dispersion forward models (Phase 0 Task 8) ---
+    # jeans_dispersion (3-D anisotropic Jeans) + project_dispersion (B&M82 LOS/PM); all
+    # FD-consistent at interior radii r in [0.5,2.0] (Task 7). tol=1e-3 (smooth quadratures).
+    Case(id="jeans_dispersion[Plummer+OM]", direction="params->summary",
+         fn=_jeans_dispersion_om_r_a, param="r_a", theta0=_DISP_R_A,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|=1e-8
+    Case(id="jeans_dispersion[Plummer]", direction="params->summary",
+         fn=_jeans_dispersion_M, param="M", theta0=400.0,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|<1e-9
+    Case(id="project_dispersion[Plummer+OM]", direction="params->summary",
+         fn=_project_dispersion_om_r_a, param="r_a", theta0=_DISP_R_A,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|=1e-8
+    Case(id="project_dispersion[Plummer+OM].pm_t", direction="params->summary",
+         fn=_project_dispersion_om_r_a_pmt, param="r_a", theta0=_DISP_R_A,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|=1e-8
 ]

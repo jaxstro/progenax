@@ -1258,5 +1258,61 @@
     "expect": "consistent",
     "tol": 1e-05,
     "status": "clean"
+  },
+  {
+    "id": "jeans_dispersion[Plummer+OM]",
+    "direction": "params->summary",
+    "param": "r_a",
+    "theta": 2.0,
+    "finite": true,
+    "ad": -0.07779762705393178,
+    "fd": -0.0777976276783443,
+    "ratio": 0.9999999919738873,
+    "abs_ad": 0.07779762705393178,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "jeans_dispersion[Plummer]",
+    "direction": "params->summary",
+    "param": "M",
+    "theta": 400.0,
+    "finite": true,
+    "ad": 0.0019386856668267597,
+    "fd": 0.0019386856692532595,
+    "ratio": 0.999999998748379,
+    "abs_ad": 0.0019386856668267597,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "project_dispersion[Plummer+OM]",
+    "direction": "params->summary",
+    "param": "r_a",
+    "theta": 2.0,
+    "finite": true,
+    "ad": 0.040271166172943185,
+    "fd": 0.04027116657256968,
+    "ratio": 0.9999999900766098,
+    "abs_ad": 0.040271166172943185,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "project_dispersion[Plummer+OM].pm_t",
+    "direction": "params->summary",
+    "param": "r_a",
+    "theta": 2.0,
+    "finite": true,
+    "ad": 0.09151712548457935,
+    "fd": 0.0915171263915493,
+    "ratio": 0.9999999900896152,
+    "abs_ad": 0.09151712548457935,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]
