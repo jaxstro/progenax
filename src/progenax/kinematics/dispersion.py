@@ -27,11 +27,15 @@ Units follow the caller-supplied ``G`` and ``M`` (progenax DEFAULT_UNITS is
 STELLAR: Msun, pc, Myr): the returned dispersions are in whatever velocity unit
 ``sqrt(G M / length)`` implies, set entirely by the caller.
 
-All public functions are **reverse-mode differentiable only**
-(``jax.grad`` / ``jax.jacrev``). Forward-mode (``jax.jacfwd`` / ``jax.jvp``) is
-**not** supported: the underlying ``progenax.numerics.cumulative_trapezoid``
-path uses a ``diffrax``-style ``custom_vjp`` that defines no ``jvp`` rule, so
-forward-mode AD raises. The OED Fisher uses reverse-mode, so this is sufficient.
+All public functions are differentiated with **reverse-mode** AD
+(``jax.grad`` / ``jax.jacrev``) — that is what the OED Fisher uses and what the
+grad-audit gate tests. For the *analytic-density* profiles (Plummer, EFF) the
+quadratures here are plain ``jnp`` (``cumulative_trapezoid`` is a ``jnp.cumsum``,
+no custom rule), so forward-mode (``jax.jacfwd`` / ``jax.jvp``) also works. The
+forward-mode restriction is profile-specific: differentiating through the
+*equilibrium-solver* profiles (King / Michie) hits ``custom_vjp`` ODE solvers
+that define no ``jvp`` rule, so ``jacfwd`` through those raises. Reverse-mode
+works for all profiles and is the supported/tested path.
 
 Scope (Phase 0): spherical, single-population, mass-follows-light, Osipkov-Merritt
 anisotropy. Rotation, non-sphericity, tracer != mass, native (non-OM) anisotropy,
@@ -241,9 +245,10 @@ def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfil
       the inner region (r << r_t) where OM is a good model of the Michie law.
 
     Units follow the caller-supplied ``G`` and ``M``; the returned velocities are
-    in whatever ``sqrt(G M / length)`` implies. **Reverse-mode differentiable
-    only** (forward-mode forbidden by the ``cumulative_trapezoid`` ``custom_vjp``;
-    see the module docstring).
+    in whatever ``sqrt(G M / length)`` implies. Differentiated with **reverse-mode**
+    AD (the supported/tested path); forward-mode also works for analytic-density
+    profiles (Plummer/EFF) but not through the King/Michie equilibrium-solver
+    profiles — see the module docstring.
 
     See also: a general-``beta(r)`` generalisation (native Michie/King anisotropy
     and arbitrary custom ``beta(r)`` via the integrating factor
