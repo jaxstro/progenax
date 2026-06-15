@@ -175,6 +175,7 @@ project:
         - file: 50-validation/two-component.md
         - file: 50-validation/cluster-builders.md
         - file: 50-validation/tidal-truncation.md
+        - file: 50-validation/zams-relations.md
         - file: 50-validation/analytical-test-cases.md
         - file: 50-validation/physics-tests.md
         - file: 50-validation/plot-gallery.md
