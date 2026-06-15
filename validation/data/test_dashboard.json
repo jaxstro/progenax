@@ -8,7 +8,7 @@
     "line_cov_measured": 94.77173707141505,
     "registries_full": false
   },
-  "generated_utc": "2026-06-15T00:05:07.631686+00:00",
+  "generated_utc": "2026-06-15T00:23:20.402333+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
@@ -490,7 +490,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 12
+      "validation": 28
     },
     "test_azimuthal_variation_physics": {
       "integration": 0,
@@ -694,10 +694,10 @@
   "registries": {
     "api_coverage": {
       "exempt": 2,
-      "full": false,
+      "full": true,
       "status": "built",
-      "symbol_tests": 106,
-      "untested": 6
+      "symbol_tests": 112,
+      "untested": 0
     },
     "differentiability": {
       "audited": 33,

@@ -3,14 +3,15 @@
 The manifest must partition EVERY ``progenax.__all__`` symbol into exactly one of
 SYMBOL_TESTS / EXEMPT / UNTESTED, with no overlaps and no stale entries. A new public
 symbol with no categorization -> RED; a categorized symbol removed from ``__all__`` -> RED.
-The UNTESTED holes are tracked (xfail) until Task 2.3 fills them; the line-coverage floor
-SKIPs until the committed full-suite coverage.json lands (Task 2.2).
+As of Task 2.3 the UNTESTED holes are filled (six analytical-IC factories/helpers each got
+an asserting physics test), so ``test_no_untested_holes`` is a HARD assertion (no longer
+xfail) and ``UNTESTED`` is empty; the line-coverage floor is HARD against the committed
+full-suite coverage.json (Task 2.2).
 """
 import json
 from pathlib import Path
 
 import progenax
-import pytest
 
 from tests.validation.api_coverage.manifest import (
     EXEMPT,
@@ -49,14 +50,18 @@ def test_no_stale_mappings():
         f"manifest entries for symbols no longer in progenax.__all__ (remove them): {stale}")
 
 
-@pytest.mark.xfail(
-    reason="holes pending Task 2.3 + Anna per-item approval",
-    strict=False,
-)
 def test_no_untested_holes():
-    """Task 2.3 fills UNTESTED, then this flips to a hard, always-passing assert (strict)."""
+    """HARD as of Task 2.3: every public symbol has an asserting test or is justified EXEMPT.
+
+    The six analytical-IC holes (earth_sun_2body, earth_sun_eccentric,
+    sun_earth_jupiter_3body, harmonic_oscillator, harmonic_solution, figure_eight_period)
+    were filled with asserting physics tests in tests/validation/test_analytical_physics.py
+    and moved to SYMBOL_TESTS, so UNTESTED is empty. A NEW honest hole (a public symbol with
+    no asserting test) re-populates UNTESTED and turns this RED until it is filled.
+    """
     assert not UNTESTED, (
-        f"public symbols with NO asserting test (real holes for Task 2.3): {sorted(UNTESTED)}")
+        f"public symbols with NO asserting test (real holes — fill them with an asserting "
+        f"test and move to SYMBOL_TESTS, or justify EXEMPT with Anna): {sorted(UNTESTED)}")
 
 
 def test_line_coverage_above_floor():

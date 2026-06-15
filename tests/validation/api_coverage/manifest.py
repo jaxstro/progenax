@@ -153,6 +153,12 @@ SYMBOL_TESTS: dict[str, str] = {
     "solar_system_full": "tests/validation/test_analytical_physics.py::TestSolarSystemPhysics::test_barycentric_and_finite",  # assert full-system mass shape + barycentric/finite
     "get_planet": "tests/unit/analytical/test_analytical.py::TestSolarSystemData::test_get_planet_earth",  # assert get_planet('earth')['a'] == approx(1.0)
     "SOLAR_SYSTEM_PLANETS": "tests/unit/analytical/test_analytical.py::TestSolarSystemData::test_solar_system_planets_count",  # assert len(SOLAR_SYSTEM_PLANETS) == 8
+    "earth_sun_2body": "tests/validation/test_analytical_physics.py::TestEarthSunTwoBody::test_bound_energy_matches_vis_viva",  # assert E < 0 and E == -G M1 M2/2a (bound vis-viva); class also asserts COM=0, mass, Kepler-III period ~1yr
+    "earth_sun_eccentric": "tests/validation/test_analytical_physics.py::TestEarthSunEccentric::test_recovers_specified_eccentricity",  # assert LRL |e| == 0.0167 (factory's specified e) + vis-viva a==1; class also asserts bound + barycentric
+    "sun_earth_jupiter_3body": "tests/validation/test_analytical_physics.py::TestSunEarthJupiterThreeBody::test_bound_and_finite",  # assert 3-body bound (E<0) + finite; class also asserts total mass = M_sun+M_earth+M_jup, COM=0
+    "harmonic_oscillator": "tests/validation/test_analytical_physics.py::TestHarmonicOscillator::test_energy_is_sho_constant",  # assert E = 1/2 m v^2 + 1/2 m w^2 x^2 == 1/2 m w^2 A^2 (SHO energy); class also pins x0/v0/period
+    "harmonic_solution": "tests/validation/test_analytical_physics.py::TestHarmonicSolution::test_satisfies_sho_ode",  # assert closed-form x(t) satisfies xddot = -w^2 x (central diff) at several t; sibling pins x(0)/v(0) to oscillator IC
+    "figure_eight_period": "tests/validation/test_analytical_physics.py::TestFigureEightPeriod::test_default_is_chenciner_montgomery_constant",  # assert default period == 6.32591398 (Chenciner-Montgomery-Simo); class also asserts factory-consistency + scaling law
 
     # --- Protocols (asserted via runtime conformance: isinstance/issubclass) ---
     "SpatialProfile": "tests/unit/test_protocols.py::test_spatial_profiles_conform",  # assert issubclass(Plummer/King/EFF, SpatialProfile)
@@ -185,17 +191,13 @@ EXEMPT: dict[str, str] = {
 # Honest holes: NO test constructs the symbol and asserts on its output. Existence guards
 # (`hasattr(progenax, name)` in test_public_api.py) do NOT count — they assert importability,
 # not behavior (exactly the coverage-theater the C2 rule rejects).
-UNTESTED: dict[str, str] = {
-    "harmonic_oscillator": "analytical IC factory; only in test_public_api.py's hasattr "
-                           "existence-guard list — no test constructs it and asserts on the IC.",
-    "harmonic_solution": "closed-form SHO trajectory; zero references in any test file.",
-    "earth_sun_2body": "analytical IC factory; only in test_public_api.py's hasattr "
-                       "existence-guard list — no test asserts on its IC output.",
-    "earth_sun_eccentric": "analytical IC factory; zero references in any test file.",
-    "sun_earth_jupiter_3body": "analytical IC factory; zero references in any test file.",
-    "figure_eight_period": "period helper; executed indirectly inside three_body_figure_eight "
-                           "but no test asserts the returned period value (COM tests don't use it).",
-}
+#
+# CLOSED in Task 2.3 (Anna-approved): the six analytical-IC factories/helpers
+# (earth_sun_2body, earth_sun_eccentric, sun_earth_jupiter_3body, harmonic_oscillator,
+# harmonic_solution, figure_eight_period) now each have an asserting physics test in
+# tests/validation/test_analytical_physics.py and were moved to SYMBOL_TESTS. Zero holes
+# remain, so test_no_untested_holes is now a HARD assertion.
+UNTESTED: dict[str, str] = {}
 
 # Line-coverage floor (ratchet-up-only). Enforced by test_line_coverage_above_floor against
 # the COMMITTED full-suite validation/data/coverage.json (Task 2.2). SKIPs until that file is
