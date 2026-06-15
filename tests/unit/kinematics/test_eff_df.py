@@ -1,7 +1,13 @@
 """
 Tests for EFF (Elson-Fall-Freeman) velocity distribution function.
 
-Physics tests only - isotropy and virial scaling.
+Covers the unit-specific guards: the virial σ∝√M and σ∝1/√a scaling trends.
+
+Velocity-isotropy and zero-bulk-motion physics is covered more thoroughly in
+the validation tier: tests/validation/test_eff_physics.py (TestEFFVelocityDF::
+test_velocity_isotropy with equilibrium-sampled positions, ::test_zero_bulk_velocity
+with a per-component 5σ/√N bound). The redundant unit duplicates were removed in
+the 2026-06 pre-release cross-tier test consolidation.
 """
 
 import jax
@@ -16,40 +22,6 @@ G = STELLAR.G
 
 class TestEFFVelocityDFPhysics:
     """Test EFF velocity DF physical properties."""
-
-    def test_isotropic_distribution(self):
-        """Velocities are isotropically distributed."""
-        df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
-        N = 1000
-        positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-
-        velocities = df.sample_velocities(positions, masses, key, G=G)
-
-        v2_means = jnp.array([
-            jnp.mean(velocities[:, 0]**2),
-            jnp.mean(velocities[:, 1]**2),
-            jnp.mean(velocities[:, 2]**2),
-        ])
-        ratio = jnp.max(v2_means) / jnp.min(v2_means)
-        assert ratio < 1.3, f"Velocity variance ratio {float(ratio):.3f} > 1.3 (not isotropic)"
-
-    def test_mean_velocity_zero(self):
-        """Mean velocity is zero (no bulk motion)."""
-        df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)
-        N = 1000
-        positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-
-        velocities = df.sample_velocities(positions, masses, key, G=G)
-
-        mean_vel = jnp.mean(velocities, axis=0)
-        v_std = jnp.std(velocities, axis=0)
-
-        for i in range(3):
-            assert jnp.abs(mean_vel[i]) < 3 * v_std[i] / jnp.sqrt(N)
 
     def test_velocity_scales_with_mass(self):
         """Velocity dispersion scales as σ ∝ √M (virial equilibrium)."""

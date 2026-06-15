@@ -2,6 +2,13 @@
 
 Built test-first in stages. Stage 1: the anisotropic density integral michie_density(W, s),
 s = r/r_a, must reduce to the King lowered-Maxwellian density at s=0 (the isotropic limit).
+
+The isotropic-limit r_t agreement with King (the sampled-density physics) is covered
+more thoroughly in the validation tier: tests/validation/test_michie_physics.py
+(TestMichieIsotropicLimit::test_density_matches_king_at_large_ra,
+TestMichieAnisotropyStructure::test_more_anisotropic_more_extended). The redundant
+unit duplicate (test_isotropic_limit_matches_king_rt) was removed in the 2026-06
+pre-release cross-tier test consolidation.
 """
 
 import jax
@@ -103,16 +110,6 @@ class TestMichieProfile:
         assert pos.shape == (3000, 3)
         r = jnp.linalg.norm(pos, axis=1)
         assert jnp.all(r <= float(prof.r_t) * 1.001), "all particles within r_t"
-
-    def test_isotropic_limit_matches_king_rt(self):
-        from progenax.profiles.michie import MichieProfile
-        from progenax.profiles.king import KingProfile
-
-        m = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=1e5)
-        k = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-        assert abs(float(m.r_t) - float(k.r_t)) < 0.05 * float(k.r_t), (
-            f"Michie r_t={float(m.r_t):.2f} vs King r_t={float(k.r_t):.2f}"
-        )
 
     def test_more_anisotropic_is_more_extended(self):
         """Stronger anisotropy (smaller r_a) gives a larger tidal radius."""

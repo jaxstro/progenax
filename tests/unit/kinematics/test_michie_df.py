@@ -1,7 +1,13 @@
 """MichieVelocityDF: the 2-D (v_r, v_t) sampler for the Michie-King anisotropic model.
 
 Headline checks: beta(r) ~ 0 at the centre and increases outward (radial anisotropy);
-virial equilibrium Q ~ 0.5 unscaled; large r_a -> isotropic; JIT.
+large r_a -> isotropic; JIT; table-vs-quadrature routing; sampler-fusion caching.
+
+Virial-equilibrium (unscaled Q ~ 0.5) physics is covered more thoroughly in the
+validation tier: tests/validation/test_michie_physics.py
+(TestMichieEquilibrium::test_virial_ratio_half_unscaled, with a companion
+all-particles-bound check). The redundant unit duplicate (test_virial_equilibrium)
+was removed in the 2026-06 pre-release cross-tier test consolidation.
 """
 
 import jax
@@ -51,19 +57,6 @@ class TestMichieVelocityDF:
         pos = _shell(10.0, N, seed=3)
         v = df.sample_velocities(pos, jnp.ones(N), jax.random.PRNGKey(13), G=G)
         assert abs(float(_beta(v, pos))) < 0.05, "large r_a must be ~isotropic"
-
-    def test_virial_equilibrium(self):
-        from progenax.kinematics.michie_df import MichieVelocityDF
-        from progenax.dynamics.virial import compute_virial_ratio
-
-        N = 4000
-        masses = jnp.ones(N)
-        prof = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
-        pos = prof.sample_positions(masses, jax.random.PRNGKey(0))
-        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0)
-        v = df.sample_velocities(pos, masses, jax.random.PRNGKey(1), G=G)
-        Q = float(compute_virial_ratio(pos, v, masses, G=G))
-        assert abs(Q - 0.5) < 0.08, f"Michie-King Q={Q:.3f} should be ~0.5 unscaled"
 
     def test_jit_compatible(self):
         from progenax.kinematics.michie_df import MichieVelocityDF

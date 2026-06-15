@@ -8,7 +8,7 @@
     "line_cov_measured": 94.77173707141505,
     "registries_full": false
   },
-  "generated_utc": "2026-06-15T00:23:20.402333+00:00",
+  "generated_utc": "2026-06-15T01:09:07.027225+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "7beee46113739f6e7bbabb99e417e475d249fd8a",
@@ -471,13 +471,13 @@
     "kinematics": {
       "integration": 0,
       "line_cov": 99.0791896869245,
-      "unit": 106,
+      "unit": 101,
       "validation": 0
     },
     "profiles": {
       "integration": 0,
       "line_cov": 98.83381924198251,
-      "unit": 207,
+      "unit": 201,
       "validation": 0
     },
     "substructure": {

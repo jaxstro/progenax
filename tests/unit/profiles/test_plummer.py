@@ -2,7 +2,14 @@
 """
 Unit tests for PlummerProfile.
 
-Physics tests only - radial distribution and half-mass radius.
+Covers the unit-specific guards: the scale-radius/half-mass formula, the
+characteristic-radius accessor, the enclosed-mass CDF accessor, and JIT/grad
+on sample_positions.
+
+Sampled-distribution physics (radial CDF match, position isotropy) is covered
+more thoroughly in the validation tier: tests/validation/test_plummer_physics.py
+(parametrized N/key fixtures, CDF-formula accuracy, isotropy). The redundant unit
+duplicates were removed in the 2026-06 pre-release cross-tier test consolidation.
 """
 
 import jax
@@ -23,45 +30,6 @@ class TestPlummerPhysics:
         profile = PlummerProfile(r_h=1.0)
         M_frac = profile.r_h**3 / (profile.r_h**2 + profile.a**2)**(3/2)
         assert jnp.isclose(M_frac, 0.5, rtol=1e-6)
-
-    def test_radial_distribution_matches_plummer_cdf(self):
-        """Sampled radii follow Plummer CDF: M(<r)/M = r³/(r²+a²)^(3/2)."""
-        profile = PlummerProfile(r_h=1.0)
-        N = 1000
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-
-        # Test at r = a: M(<a)/M = a³/(2a²)^(3/2) = 1/2^(3/2) ≈ 0.354
-        frac_inside_a = jnp.sum(radii <= profile.a) / N
-        assert jnp.isclose(frac_inside_a, 0.354, atol=0.03)
-
-        # Test at r = r_h (half-mass radius)
-        frac_inside_rh = jnp.sum(radii <= profile.r_h) / N
-        assert jnp.isclose(frac_inside_rh, 0.5, atol=0.03)
-
-    def test_isotropy(self):
-        """Angular distribution is isotropic (no preferred direction)."""
-        profile = PlummerProfile(r_h=1.0)
-        N = 500
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        # Check mean position is near origin (within ~3σ/√N tolerance)
-        mean_pos = jnp.mean(positions, axis=0)
-        assert jnp.all(jnp.abs(mean_pos) < 0.1), f"Mean pos {mean_pos} too far from origin"
-
-        # Check each axis has similar spread
-        stds = jnp.array([
-            jnp.std(positions[:, 0]),
-            jnp.std(positions[:, 1]),
-            jnp.std(positions[:, 2]),
-        ])
-        ratio = jnp.max(stds) / jnp.min(stds)
-        assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 
     def test_characteristic_radius_returns_r_h(self):
         """characteristic_radius() returns r_h (half-mass radius)."""

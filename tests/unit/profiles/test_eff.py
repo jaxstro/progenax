@@ -2,7 +2,16 @@
 """
 Unit tests for EFFProfile (Elson-Fall-Freeman 1987).
 
-Physics tests only - profile properties and parameter effects.
+Covers the unit-specific guards: the scale-radius (a) extent trend, the
+characteristic-radius accessor, and JIT on sample_positions.
+
+Tidal-truncation, gamma-concentration, and sampled-density-shape physics is
+covered more thoroughly in the validation tier:
+tests/validation/test_eff_physics.py (TestEFFTidalTruncation parametrized over
+r_t with a 100%-within assertion, TestEFFGammaConcentration over the full
+gamma grid, TestEFFDensityProfile with binned shell densities). The redundant
+unit duplicates were removed in the 2026-06 pre-release cross-tier test
+consolidation.
 """
 
 import jax
@@ -13,17 +22,6 @@ from progenax.profiles import EFFProfile
 
 class TestEFFPhysics:
     """Test EFF profile physical properties."""
-
-    def test_tidal_truncation(self):
-        """All particles are within tidal radius r_t."""
-        r_t = 10.0
-        profile = EFFProfile(a=1.0, gamma=3.0, r_t=r_t)
-        masses = jnp.ones(1000)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        assert jnp.all(radii <= r_t * 1.01)  # Allow small numerical tolerance
 
     def test_isotropy(self):
         """Angular distribution is isotropic."""
@@ -46,28 +44,6 @@ class TestEFFPhysics:
         ratio = jnp.max(stds) / jnp.min(stds)
         assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 
-    def test_gamma_affects_concentration(self):
-        """Higher gamma gives more concentrated distribution."""
-        # Shallow profile (extended)
-        profile1 = EFFProfile(a=1.0, gamma=2.0, r_t=10.0)
-
-        # Steep profile (concentrated)
-        profile2 = EFFProfile(a=1.0, gamma=4.0, r_t=10.0)
-
-        masses = jnp.ones(5000)
-        key = jax.random.PRNGKey(42)
-
-        pos1 = profile1.sample_positions(masses, key)
-        pos2 = profile2.sample_positions(masses, key)
-
-        radii1 = jnp.linalg.norm(pos1, axis=1)
-        radii2 = jnp.linalg.norm(pos2, axis=1)
-
-        # Higher gamma should have smaller median radius
-        median_r1 = jnp.median(radii1)
-        median_r2 = jnp.median(radii2)
-        assert median_r2 < median_r1
-
     def test_scale_radius_effect(self):
         """Larger scale radius a gives more extended distribution."""
         # Small scale radius
@@ -89,21 +65,6 @@ class TestEFFPhysics:
         median_r1 = jnp.median(radii1)
         median_r2 = jnp.median(radii2)
         assert median_r2 > median_r1
-
-    def test_density_profile_shape(self):
-        """Radial density follows expected EFF form."""
-        profile = EFFProfile(a=1.0, gamma=3.0, r_t=10.0)
-        N = 1000
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-        positions = profile.sample_positions(masses, key)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-
-        # Most mass should be within first half of r_t
-        # For EFF: ρ(r) ∝ (1 + r²/a²)^(-gamma/2)
-        mass_inner_half = jnp.sum(radii < 5.0) / N
-        assert mass_inner_half > 0.5  # Most mass should be concentrated
 
     def test_characteristic_radius_returns_r_t(self):
         """characteristic_radius() returns r_t (tidal radius)."""

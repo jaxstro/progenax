@@ -1,7 +1,15 @@
 """
 Tests for Plummer velocity distribution function.
 
-Physics tests only - velocity bounds, isotropy, dispersion relations.
+Covers the unit-specific guards: velocity isotropy, the σ²(r) dispersion
+relation, and the default-units (G=None) resolution path.
+
+Bound-velocity (v < v_esc) and Beta(3/2, 9/2) speed-statistics physics is
+covered more thoroughly in the validation tier:
+tests/validation/test_plummer_physics.py (TestPlummerBoundParticles,
+TestPlummerBetaDistribution — equilibrium-sampled positions, ⟨q²⟩ mean+variance,
+100%-bound assertion). The redundant unit duplicates were removed in the 2026-06
+pre-release cross-tier test consolidation.
 """
 
 import jax
@@ -16,23 +24,6 @@ G = STELLAR.G
 
 class TestPlummerVelocityDFPhysics:
     """Test Plummer velocity DF physical properties."""
-
-    def test_velocities_below_escape(self):
-        """All velocities are below escape velocity."""
-        df = PlummerVelocityDF(r_h=1.0)
-        N = 1000
-        positions = 0.1 * jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-
-        velocities = df.sample_velocities(positions, masses, key, G=G)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        M_total = jnp.sum(masses)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + df.a**2))
-        v_mag = jnp.linalg.norm(velocities, axis=1)
-
-        assert jnp.all(v_mag < v_esc)
 
     def test_isotropic_distribution(self):
         """Velocities are isotropically distributed."""
@@ -68,28 +59,6 @@ class TestPlummerVelocityDFPhysics:
 
         relative_error = jnp.abs(sigma_measured - sigma_theory) / sigma_theory
         assert relative_error < 0.15
-
-    def test_beta_distribution_q_squared(self):
-        """Velocity ratios q² = (v/v_esc)² follow Beta(3/2, 9/2).
-
-        Mean of q² should be a/(a+b) = 1.5/(1.5+4.5) = 0.25.
-        """
-        df = PlummerVelocityDF(r_h=1.0)
-        N = 1000
-        positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
-        masses = jnp.ones(N)
-        key = jax.random.PRNGKey(42)
-
-        velocities = df.sample_velocities(positions, masses, key, G=G)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        M_total = jnp.sum(masses)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + df.a**2))
-        v_mag = jnp.linalg.norm(velocities, axis=1)
-        q = v_mag / v_esc
-
-        q2_mean = jnp.mean(q**2)
-        assert jnp.abs(q2_mean - 0.25) < 0.01
 
 
 class TestPlummerVelocityDFDefaults:
