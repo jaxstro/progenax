@@ -39,6 +39,53 @@ $\langle v_{\rm los}\rangle$) is
   - $1.69 \pm 0.03$  (pull $-1.34$)
 ```
 
+## Inputs and assumptions
+
+The fit recovers **one observable**, the slope $k=\omega\sin i$ — *not* the
+rotation rate $\omega$ itself (see [the degeneracy](#b8-degeneracy)).
+The physical $\omega$ and inclination $i$ are inputs held at truth.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b8-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $k=\omega\sin i$
+  - Slope of $\langle v_{\rm los}\rangle$ vs sky-$x$ — **what the data actually constrain** (`z[0]`).
+  - **recovered** ($k_{\rm true}=1.73$)
+* - $\omega$
+  - Solid-body rotation rate; the *physical* target, but only the product $\omega\sin i$ is measurable from $\langle v_{\rm los}\rangle$.
+  - known / fixed (2.0 /Myr); **degenerate**, not recovered
+* - $i$
+  - Inclination of the spin axis to the line of sight; degenerate with $\omega$ (needs external info, e.g. flattening).
+  - known / fixed ($60^\circ$); degenerate
+* - $r_h$, spin axis, masses, $G$
+  - Plummer half-mass radius (1 pc); spin axis $=\hat z$ tilted about sky-$x$ only (no position angle); equal-mass tracers; $G$ (STELLAR).
+  - known / fixed
+* - projection model
+  - The assumed linear forward model $\langle v_{\rm los}\rangle = k\,x_{\rm sky}$ from a pure-inclination tilt about one axis.
+  - known / fixed (model assumption)
+* - $N$, bins, box, MLE, gates
+  - $2\times10^4$ stars; 16 sky-$x$ quantile bins (min 30/bin); slope box $(-20,20)$; 3 Adam starts; gates self-consistency $4\sigma$, recovery $3\sigma$, degeneracy cond $10^8$.
+  - numerical choices
+```
+
+```{important}
+:label: imp-b8-model
+**Beyond the $\omega$–$i$ degeneracy (the headline below), two modeling
+assumptions are load-bearing.** First, the projection geometry is a *pure
+inclination tilt about a single sky axis* with **no position angle**, so the
+geometry is captured by the one angle $i$ and the mean field is exactly linear,
+$\langle v_{\rm los}\rangle=k\,x_{\rm sky}$ (a through-origin slope — systemic
+velocity and center are assumed known/zero). Second, the rotating configuration is
+**not a self-consistent rotating equilibrium**: solid-body rotation is *added* on
+top of an isotropic, non-rotating Plummer DF, a kinematic overlay rather than a
+true rotating model.
+```
+
+(b8-degeneracy)=
 ## The degeneracy (the headline)
 
 Because $\langle v_{\rm los}\rangle$ depends only on the product, $\omega$ and $i$
@@ -87,6 +134,10 @@ equally well; the truth ★ lies on it.
 - **Clean census, known projection geometry** otherwise (the tilt is a pure
   inclination about one axis; a real cluster also has a position-angle and possibly
   internal structure).
+- **No velocity measurement noise.** Bin standard errors come purely from sampling
+  scatter ($\mathrm{std}/\sqrt n$); there is no per-star RV error $\epsilon$ (the
+  ε-analogue that B12 carries). Stars are also equal-mass tracers, and only the
+  slope is fitted — the systemic velocity and cluster center are assumed known.
 ```
 
 ## How to run

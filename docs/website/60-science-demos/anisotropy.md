@@ -11,6 +11,49 @@ $\beta(r) = 1 - \sigma_t^2/(2\sigma_r^2)$ — zero for isotropic orbits, rising 
 This demo asks two questions: how well can $r_a$ be measured, and does it matter
 *which anisotropy formalism* you assume?
 
+## Inputs and assumptions
+
+The fit recovers **one parameter**, the anisotropy radius $r_a$ — but always *under
+the assumed OM formalism*. Part (b) makes the point that this assumed model form is
+itself the load-bearing input: fit the wrong formalism and $r_a$ is biased.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b6-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $r_a$
+  - Osipkov–Merritt anisotropy radius — **the science target**; sets where orbits turn radial via $\beta_{\rm OM}=r^2/(r^2+r_a^2)$.
+  - **recovered** (1.5 pc; part (b) truth 6.0 pc fit under the *wrong* model)
+* - anisotropy model form
+  - The **assumed** fit model $\beta_{\rm OM}(r;r_a)=r^2/(r^2+r_a^2)$ — the load-bearing choice that part (b) deliberately violates.
+  - known / fixed (model assumption)
+* - $r_h$ / $W_0$, $r_c$
+  - Plummer half-mass radius (1 pc) for part (a); King $W_0=7$, $r_c=1$ pc for the part-(b) Michie cluster — concentration/scale held at truth.
+  - known / fixed
+* - masses, $G$
+  - Equal-mass tracers (1 $M_\odot$); $G$ (STELLAR) threaded into velocity sampling.
+  - known / fixed
+* - $N$, bins, occupancy, box, MLE, $\beta$-SE
+  - $3\times10^4$ stars; 18 log radial bins (min 80/bin); $r_a\in(0.2,60)$ pc; 500 Adam steps; conservative per-bin $\beta$ error $(1+|\beta|)/\sqrt n$.
+  - numerical choices
+```
+
+```{important}
+:label: imp-b6-formalism
+**The anisotropy formalism is the load-bearing assumption — $r_a$ is not a single
+number read off $\beta(r)$ independent of the DF family.** The fit always uses the
+OM closed form $\beta_{\rm OM}(r;r_a)=r^2/(r^2+r_a^2)$, which assumes the DF depends
+on a single variable $Q=E-L^2/2r_a^2$. A genuinely different formalism (Michie's
+anisotropic-King DF, *not* a function of one $Q$) produces a different $\beta(r)$
+shape. Fitting the OM form to a Michie sample both **mis-estimates** $r_a$ (8.9 vs
+6.0 pc) and leaves a systematic shape residual (reduced $\chi^2$ inflated
+$12.9\times$). The model you assume shapes what you infer — the analogue, in model
+space, of B12's known-$\epsilon$ requirement.
+```
+
 ## (a) Well-specified: recovering Osipkov–Merritt $r_a$
 
 The Osipkov–Merritt (OM) ansatz {cite:p}`Merritt1985` makes the DF a function of
@@ -104,6 +147,11 @@ well-specified OM case.
 - **The forecast $N\sim150$ is the asymptotic CRLB** for this strong anisotropy
   ($r_a\sim r_h$); the small-$N$ bound is optimistic, and weaker anisotropy needs
   far more stars.
+- **Perfect 3-D phase space, equal-mass tracers, clean census.** $\beta$ is built
+  from full 3-D radial/tangential velocity moments — no line-of-sight projection, no
+  proper-motion or RV errors; all stars are equal-mass ($1\,M_\odot$) tracers with no
+  mass-dependent anisotropy or segregation; and there is no foreground/membership
+  contamination (only the per-bin occupancy cut applies).
 ```
 
 ## How to run

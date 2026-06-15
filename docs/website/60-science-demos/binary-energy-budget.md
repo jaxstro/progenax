@@ -56,6 +56,57 @@ Moe & Di Stefano (2017) {cite:p}`MoeDiStefano2017` model). Two controlled sweeps
   binding (vis-viva).
 - **Binary fraction** — $f_b$ swept $0.1\!\to\!1.0$ at a fixed broad period band.
 
+## Inputs and assumptions
+
+This demo **fits nothing** — it is a controlled sweep over hardness and binary
+fraction, gating the *energy separation* and reporting diagnostics. Every quantity
+is a known/fixed physical input or a swept/numerical choice.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b9-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - EFF $a,\gamma,r_t$
+  - Young-cluster profile (scale, slope, truncation) — the primary cluster potential $W_{\rm com}$.
+  - known / fixed (1.0, 2.5, 15.0)
+* - King $W_0, r_c$
+  - Concentrated GC-like comparison potential (environment figure only).
+  - known / fixed (7.0, 1.0)
+* - primary IMF
+  - Maschberger ($\alpha=2.3$, $0.08$–$100\,M_\odot$) — draws primaries, hence $m_1 m_2$ and $E_{\rm internal}$.
+  - known / fixed
+* - $q$ distribution, eccentricity
+  - Flat mass ratio with $q_{\min}=0.3$, and a thermal $e$ distribution (the headline sweeps use these *independent* distributions, not the Moe coupling).
+  - known / fixed
+* - $Q$ (virial)
+  - Build-time virial ratio the system **centres of mass** are scaled to.
+  - known / fixed (0.5)
+* - $N_{\rm sys}$, $G$
+  - System count (2000); STELLAR units.
+  - known / fixed
+* - period band, $f_b$ sweeps, seeds, gates
+  - `LOGP_CENTERS` (hard$\to$soft) and `FB_VALUES` ($0.1$–$1.0$); per-point seeds `SEED+i`; gates $|Q_{\rm com}-0.5|<10^{-2}$, realized-$f_b$ $3\sigma$ Poisson.
+  - sweep / numerical choices
+```
+
+```{important}
+:label: imp-b9-scaleseparation
+**The internal binary binding is a separate energy reservoir that the global virial
+scaling never touches** {cite:p}`Kuepper2011_McLuster`. `build_binary_cluster`
+virializes only the system *centres of mass* to $Q=0.5$, treating each binary as a
+single point mass, so $E_{\rm internal}=\sum_b(-Gm_1m_2/2a_b)$ is untouched and
+unbalanced by the bulk scaling. This is why $Q_{\rm com}\approx0.5$ exactly while
+$Q_{\rm resolved}$ (computed on the *resolved* stars) is **not** the cluster's
+virial ratio — it mixes the bulk and internal scales, and because a hard binary's
+internal virial is itself $\approx0.5$, $Q_{\rm resolved}$ scatters about 0.5 at
+random orbital phase rather than deflating monotonically. The demo therefore gates
+the robust *separation* ($Q_{\rm com}$, reservoir magnitude) and reports
+$Q_{\rm resolved}$ only as a contaminated cautionary diagnostic.
+```
+
 ## Result — freshly run, ALL PASS
 
 Measured 2026-06-12 (CPU/float64, $N_{\rm sys}=2000$, seeds from `PRNGKey(0)`; wall
@@ -211,6 +262,14 @@ $r_h$ for each cluster is annotated.
 - **Point-mass binaries.** The hardest band ($\log P = 1.5$, $\sim$30 d) keeps $a$
   well above stellar radii for these masses; the point-mass orbital treatment is
   valid across the sampled range.
+- **Idealized, independent orbital distributions for the sweeps.** The headline
+  hardness and $f_b$ sweeps use a flat mass ratio with a $q_{\min}=0.3$ floor and a
+  thermal eccentricity — *independent* distributions, not the Moe $P$–$q$–$e$
+  coupling (only the single environment point uses `MoeCompanions`). Lower-$q$
+  (faint, weakly-bound) systems are excluded by the floor.
+- **One realization per sweep point.** Each point is a single draw (`SEED+i`) at a
+  fixed $N_{\rm sys}=2000$, so $|E_{\rm internal}|$, $Q_{\rm resolved}$, and the
+  reservoir ratio carry single-draw scatter with no error bars, at one cluster size.
 ```
 
 ## How to run

@@ -49,6 +49,59 @@ correlation. So any bias is attributable to the coupling alone. The truth is
 Moe-coupled; we fit $f_b$ with the (correct) Moe template and the (wrong)
 independent template.
 
+## Inputs and assumptions
+
+The fit recovers **one parameter**, the binary fraction $f_b$; everything else is
+an **assumed-known input**. The recovered-vs-known split is the key onboarding
+lesson — the demo's punchline (that the $P$–$q$ coupling must be right) is a
+statement about one of those *assumed* inputs.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b4-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $f_b$
+  - Binary fraction — **the science target**, recovered from the Poisson mixture $\mu_k=N_{\rm sys}[(1-f_b)S_k+f_b B_k]$ (`FB_BOX=(0.05,0.95)`).
+  - **recovered** (truth 0.5)
+* - Moe $P$–$q$–$e$ coupling
+  - The joint orbital model (`MoeJointOrbit`) that builds the *correct* binary template $B_k$; its $P$–$q$ correlation is the whole point.
+  - known / fixed (assumed correct)
+* - $q_{\min}$
+  - Minimum mass ratio in `MoeDiStefano2017Full`; truncates the secondary masses feeding the blend.
+  - known / fixed (0.1)
+* - $a_{\rm crit}$
+  - Resolution limit: pairs with semimajor axis $a<a_{\rm crit}$ **blend**, wider ones **resolve** (selects which binaries distort the MF).
+  - known / fixed (`A_CRIT_AU=50` AU)
+* - $Z$
+  - Metallicity for the Tout ZAMS $L(m)$ used to compute the blend mass $m_{\rm obs}=L^{-1}(L_1+L_2)$.
+  - known / fixed (`Z_MET=0.02`, solar)
+* - IMF
+  - Maschberger ($\alpha=2.3$, $0.08$–$100\,M_\odot$): draws primaries $m_1$, hence the single template $S_k$ and the blend masses.
+  - known / fixed
+* - $N_{\rm sys}$
+  - Systems in the mock cluster; sets the Poisson counts and the **significance** of the wrong-model systematic ($\propto\sqrt{N_{\rm sys}}$).
+  - known / fixed ($3\times10^5$)
+* - $N_{\rm pool}$, `M_BINS`, `SEED`
+  - Template pool size ($6\times10^5$), mass-function bins (30 log bins), and PRNG seeds (templates / data / $q$-shuffle).
+  - numerical choices
+```
+
+```{important}
+:label: imp-b4-coupling
+**An unbiased $f_b$ requires the correct $P$–$q$ coupling — it cannot be inferred
+from the marginals.** The blended subset is selected by $a<a_{\rm crit}$, i.e. by
+*short period*, and under the Moe coupling short periods are preferentially
+**high-$q$** (median $q=0.54$ for blends vs $0.48$ when $q$ is shuffled against
+$P$). The blend bump is therefore set by the *correlation*, which the shuffle
+destroys while preserving the $P$ and $q$ marginals exactly. Fitting with an
+independent-$(P,q)$ template biases $f_b$ low by $\sim$5% — a **systematic** whose
+fractional size is fixed but whose significance grows as $\sqrt{N_{\rm sys}}$. The
+coupling is an *assumed-known model input*, not something the masses reveal.
+```
+
 ## Result — freshly run, ALL PASS
 
 Measured 2026-06-12 ($N_{\rm sys}=3\times10^5$, $N_{\rm pool}=6\times10^5$,
@@ -127,6 +180,19 @@ while the independent template is biased low.
   natural extension. The recovery assumes a known IMF and resolution limit.
 - **Clean census + flat $f_b$.** A constant binary fraction and complete catalogue;
   Moe's own mass-dependent $f_b(m_1)$ and selection are not modelled here.
+- **$a_{\rm crit}$ is a single sharp, period-only cut.** Blending is a hard step at
+  $a<a_{\rm crit}$ on the *physical* semimajor axis — no distance, projection, or
+  flux-contrast dependence, and **eccentricity is drawn but unused** (resolution
+  depends only on $a$, so eccentric pairs that would be resolvable near apocenter
+  are not modelled).
+- **Self-consistent by construction.** Templates and data share the same IMF,
+  $q_{\min}$, $Z$ (=solar), $a_{\rm crit}$ and pool family; only the $P$–$q$
+  coupling is varied between the right/wrong models. The mechanism is *shown*, not
+  stress-tested against IMF / $a_{\rm crit}$ / metallicity misspecification.
+- **No photometric noise.** The blend mass is the exact $L^{-1}(L_1+L_2)$ with no
+  measurement scatter; binning is the only smoothing. The $f_b$ uncertainty is the
+  inverse-Hessian (`fisher_cov`) Gaussian approximation, and the MLE is seeded at
+  the truth (a clean-start convergence check, not a multimodality test).
 ```
 
 ## How to run

@@ -81,6 +81,64 @@ at the population level; the demo does not claim to model the joint mass–veloc
 covariance of individual stars.
 ```
 
+## Inputs and assumptions
+
+The fit recovers **three parameters** $(\alpha, \delta, W_0)$; the truncation order,
+the total mass, and the mass range are assumed known. The headline result — that the
+mass channel *pins* $\alpha$ and breaks the kinematic $(\alpha,\delta)$ degeneracy —
+rests on the clean-mock decoupling described above.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b2-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $\alpha$
+  - IMF high-mass slope; drives **both** the mass histogram and the equipartition group masses/weights — the self-consistency hinge.
+  - **recovered** (2.3)
+* - $\delta$
+  - Equipartition degree ($s_j=s\,\mu_j^{-\delta}$); $\tfrac12$ = full equipartition.
+  - **recovered** (0.4)
+* - $W_0$
+  - LIMEPY central concentration.
+  - **recovered** (5.0)
+* - $J$, $g$
+  - Number of IMF mass groups (4); LIMEPY truncation order fixed to the King limit ($g=1$).
+  - known / fixed
+* - $M_{\rm fixed}$
+  - **Measured** total cluster mass anchoring the velocity scale $s=\sqrt{GM/(9r_c\mu_{\rm tot})}$ — treated as exactly known (see below).
+  - known / fixed (data scalar)
+* - mass range, $G$
+  - Maschberger bounds $[0.1,20]\,M_\odot$ (class bounds = draw bounds, so no truncation correction); $G$ in model units.
+  - known / fixed
+* - $N$, bins, occupancy, quadrature
+  - $10^5$ stars; 16 equal-count radial bins; per-cell occupancy floor `n_min=30`; quadrature ($I_p$ moments 256 pts, $g(W)$ table 256).
+  - numerical choices
+* - boxes
+  - expit bounds α $(1.5,3.2)$, $W_0$ $(3,8)$, and **$\delta\in(0,0.7)$ — physical, not just numerical**: it caps short of the Spitzer-unstable $\delta\gtrsim0.9$ that crashes the ODE.
+  - known/fixed bounds
+* - MLE / NUTS / bias-grid
+  - 3 dispersed Adam starts (300 steps); NUTS 300+600 (off by default); wrong-$\alpha$ grid {1.9…2.7} and robustness truths {1.9,2.3,2.7}.
+  - numerical choices
+```
+
+```{important}
+:label: imp-b2-decoupling
+**The headline degeneracy-breaking depends on the clean-mock "Option A" decoupling
+of the mass channel from the kinematics.** The per-star mass likelihood is evaluated
+on a *separate, global* draw $m_{\rm obs}\sim\mathrm{Maschberger}(\alpha)$ over the
+full mass range, with no per-star mass$\leftrightarrow$group$\leftrightarrow$velocity
+correlation. This is what makes the mass channel a clean analytic log-pdf in
+$\alpha$ alone (its Hessian has only an $\alpha\alpha$ entry), and *why* the mass
+channel **pins $\alpha$ rather than rotating the $(\alpha,\delta)$ ellipse** — the
+entire result. If real mass–velocity covariance were modeled, the mass channel would
+also carry $\delta$ information and this clean separation would not hold. The total
+mass $M_{\rm fixed}$ is likewise treated as an exactly-known anchor; in a real
+cluster it is itself uncertain and partly the quantity one wants.
+```
+
 ## Result 1 — joint recovery (freshly run, ALL PASS)
 
 Measured 2026-06-11 ($N=10^5$, three dispersed Adam starts; exit 0):
@@ -247,6 +305,14 @@ $\alpha_{\rm true}$, all within $3\sigma$.
 - **$\delta$ is fit on $[0, 0.7]$** — $\delta\gtrsim 0.9$ approaches the Spitzer
   instability (heavy stars decouple) and hard-crashes the equilibrium ODE solve,
   so the box stops short of it by construction.
+- **The wrong-IMF bias is peaked at truth, not linear.** $\hat\delta$ is *maximal*
+  at the true $\alpha$ and biased low for a wrong $\alpha$ in **either** direction,
+  so the quoted slope $d\hat\delta/d\alpha\approx0$ is not "no bias" — read the
+  curve's shape, not its local slope.
+- **Truncation order and binning are fixed inputs.** Only $(\alpha,\delta,W_0)$
+  vary; $g=1$ (King truncation) is assumed known, and the 16-bin / `n_min=30`
+  scheme (tuned to keep the sparse heavy group resolved) is a choice the result
+  depends on. Uncertainties are inverse-Hessian Gaussian approximations.
 ```
 
 ## How to run

@@ -48,6 +48,57 @@ $\sum_k\left(N_k\log\mu_k - \mu_k\right)$. The Fisher information is the
 so `jax.hessian` would crash — exactly the constraint that makes the
 [B2 demo](imf-equipartition.md) use Gauss–Newton.
 
+## Inputs and assumptions
+
+The fit recovers **two parameters** $(W_0, r_c)$ from star counts alone; the
+concentration $c=\log_{10}(r_t/r_c)$ is *derived* at the solution, not separately
+fit. Everything else is an assumed-known input or a numerical choice.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b11-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $W_0$
+  - Dimensionless central potential (concentration); sets the profile shape and $r_t/r_c$. **A science target.**
+  - **recovered** (6.0)
+* - $r_c$
+  - Core radius — the physical break scale. **The second science target.**
+  - **recovered** (1.0 pc)
+* - $c=\log_{10}(r_t/r_c)$
+  - King concentration — *reported* at the MLE, derived from $(W_0,r_c)$, not independently fit.
+  - derived
+* - $g$
+  - LIMEPY truncation index fixed to the King limit.
+  - known / fixed (1.0)
+* - $N$, $G$
+  - Stars sampled / Poisson normalization ($3\times10^4$); gravitational constant (STELLAR) for the sampling.
+  - known / fixed
+* - bins, $r_{\rm lo}$, $N_{\rm fine}$, boxes
+  - 20 log-spaced count bins; inner edge $0.10$ pc (excludes the flat core); 3000-pt enclosed-number integration grid; sigmoid boxes $W_0\in(3.5,7.5)$ (capped — the ODE hits `max_steps` above $\sim$8), $r_c\in(0.3,3.0)$.
+  - numerical choices
+* - $N_{\rm inits}$, Adam, gates, seeds
+  - 3 dispersed Adam starts (400 steps, lr 3e-2); gates self-consistency $4\sigma$, recovery $3\sigma$; seeds (data / inits).
+  - numerical choices
+```
+
+```{important}
+:label: imp-b11-degeneracy
+**The count channel alone carries a strong $W_0$–$r_c$ degeneracy** ($\rho=-0.91$):
+a more concentrated model ($W_0\uparrow$) with a smaller core ($r_c\downarrow$)
+reproduces nearly the same radial count profile. The counts pin *both* parameters
+only because the data carry two distinct features — the profile shape pins $W_0$
+and the physical break radius pins $r_c$ — with most of the $W_0$ leverage coming
+from the low-occupancy **outer** bins (the hard truncation at $r_t$, where the
+density is exactly zero). This is why the per-bin **Poisson** likelihood (not a
+Gaussian on counts) is essential: it gives those near-empty outer bins honest
+weight. The marginals stay tight ($\lesssim2\%$), but the parameters are far from
+independent; breaking the correlation needs the *velocity* channel $\sigma(r)$,
+which this count-only demo deliberately omits.
+```
+
 ## Result — freshly run, ALL PASS
 
 Measured 2026-06-12 ($N=3\times10^4$ stars, $K=20$ log-spaced bins over
@@ -123,6 +174,13 @@ near the MLE.
   is over the binned range.
 - **$W_0$ box capped at $7.5$.** Above $W_0\sim 8$ the Engine A diffrax solve hits
   its step limit; the fit is bounded to the safe range (truth $6$ is well interior).
+  The $r_c$ box $(0.3,3.0)$ is a bound of the same kind.
+- **3-D radial counts, not projected.** The demo bins true 3-D radii; a real survey
+  delivers the *projected* surface-density profile (an Abel-related but distinct
+  observable), which this demo does not model.
+- **Single realization.** One seed (`SEED=0`) draws the data; the headline pulls and
+  uncertainties are from a single mock (not an ensemble), and the outer bin edge is
+  data-dependent ($\min(r_{\max},r_t)$), a minor reproducibility subtlety.
 ```
 
 ## How to run

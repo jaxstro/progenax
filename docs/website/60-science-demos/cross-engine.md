@@ -61,6 +61,56 @@ f(E) = \frac{1}{\sqrt8\,\pi^2}
 The two routes invert each other in principle — A maps DF$\to$density, B maps
 density$\to$DF — so agreement is a true round-trip cross-validation.
 
+## Inputs and assumptions
+
+This demo **fits nothing** — there are no recovered parameters. It builds one King
+model two ways and compares them, so every quantity is either a known/fixed model
+input or a numerical choice.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b1-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $W_0$
+  - King central dimensionless potential (concentration); the shared model both engines build (`W0`).
+  - known / fixed (5.0)
+* - $g$
+  - LIMEPY truncation order; $g=1$ is the classic King DF (`GG`).
+  - known / fixed (1.0)
+* - $r_c$
+  - King core radius — the length scale (`R_C`).
+  - known / fixed (1.0 pc)
+* - $\alpha_j, w_j, m_j$
+  - Single mass component (weight, velocity-scale weight, mass label all $=1$), so the two engines compare like-for-like.
+  - known / fixed (one component)
+* - $G$
+  - Gravitational constant (STELLAR units); sets the physical velocity scale.
+  - known / fixed
+* - $N$
+  - Stars drawn from **each** engine to measure the sampled radial CDF and binned $\sigma$, at the **same** PRNG key so residuals isolate model (not shot) differences.
+  - numerical choice ($2\times10^4$, seed 0)
+* - $\sigma$-bins, oracle grids, quadrature, gates
+  - 6 bins over the 5%–90% radial quantiles; 300–400-pt analytic-oracle grids; 400-pt speed-moment quadrature; gate thresholds (KS $<0.02$, $|\sigma_B/\sigma_A-1|<0.02$, $Q_j=0.5\pm3\times10^{-3}$).
+  - numerical choices
+```
+
+```{important}
+:label: imp-b1-conventions
+**The two engines are handed the *same physics under two incompatible
+conventions*, so the comparison is fair only as a shape comparison.** Engine A's DF
+lives on a dimensionless lowered-potential argument $\hat E\in[0,W_0]$; Engine B's
+Eddington $f$ lives on physical relative energy $E\in[0,\Psi_0]$. They are
+reconciled only through the linear map $\hat E=(W_0/\Psi_0)E$ and a peak
+normalization, and the $\rho(r)$ residual is taken after re-normalizing each curve
+to its central value. The agreement claim therefore rests on the *convention-free*
+gates — the sampled-CDF KS distance and the binned dispersion ratio — while the
+$f(E)$ overlay is a diagnostic that already carries a $\sim$5% edge residual *by
+construction of the matching*, not a tested gate.
+```
+
 ## What is measured (freshly run, ALL PASS)
 
 Both engines are sampled at $N = 2\times10^4$ with the **same** PRNG key, so the
@@ -142,6 +192,14 @@ shape (A) and the Eddington $f$-row (B), peak-matched.
   by the [Engine B validation suite](../50-validation/engine-b-eddington.md),
   whose King A-vs-B anchor measures $0.0002$ / $0.0003$ across its own headline
   mix.
+- **Single shared seed; interior bins only.** The headline KS / $\sigma$-deviation
+  numbers are *one-seed* measurements (`key=0`, deliberately shared to cancel shot
+  noise), not an ensemble; and the $\sigma$ gate is evaluated only over the 5%–90%
+  radial quantiles — the cusp and truncation edge (exactly where the $f(E)$
+  residual peaks) are excluded.
+- **Single mass component.** The cross-check uses a one-component ($w_j=m_j=1$)
+  model; the multimass machinery both engines support is exercised in the Engine B
+  validation suite, not here.
 ```
 
 ## How to run

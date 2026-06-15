@@ -29,6 +29,54 @@ massive cluster:
 — strongly **top-heavy** versus the canonical $\alpha_3=2.3$. We sample
 $N=10^5$ stars from this IMF and ask what they reveal.
 
+## Inputs and assumptions
+
+The fit recovers **one parameter**, the high-mass IMF slope $\alpha_3$. The three
+*birth-environment* axes are the scientific quantities of interest, but — as the
+next sections show — they are **not** individually recoverable; they are held at
+truth and enter only through $\alpha_3$.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b5-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $\alpha_3$
+  - High-mass IMF slope — **the one observable**, read from the masses via $\sum_i\log p(m_i\mid\alpha_3)$ (`A3_BOX=(1.0,3.0)`).
+  - **recovered** (truth $\approx1.62$)
+* - $[\mathrm{Fe/H}]$, $\log M_{\rm ecl}$, sfe
+  - The three `BirthEnvironment` axes that map to $\alpha_3$ via `env_to_imf_params`; gradients $(0.057,-0.248,+0.588)$ — $\log M_{\rm ecl}$ is the strongest lever.
+  - known / fixed at truth (`-1.5, 6.5, 0.3`); **degenerate** (see below)
+* - $\alpha_3^{\rm canon}$
+  - Canonical (Kroupa) slope the top-heavy detection is measured against (sets $\Delta\alpha_3$ for the forecast).
+  - known / fixed (`ALPHA3_CANON=2.3`)
+* - IMF (low-mass)
+  - Maschberger low-mass slopes/bounds held canonical; `env_to_imf_params` varies **only** $\alpha_3$.
+  - known / fixed
+* - $N_\star$
+  - Number of sampled stars; sets the Fisher normalization and the $N^{-1/2}$ precision floor.
+  - known / fixed ($10^5$)
+* - `N_ADAM`, `n_emp`, `SEED`, `COND_GATE`, `RECOVERY_NSIG`
+  - Adam steps (400), empirical-CRLB draw size ($10^4$), seeds, the rank-deficiency condition gate ($10^8$), recovery pull gate ($3\sigma$).
+  - numerical choices
+```
+
+```{important}
+:label: imp-b5-degeneracy
+**The environment→$\alpha_3$ map is three-to-one, so the masses constrain exactly
+one combination of the three birth parameters.** The environment-space Fisher
+$\mathcal F_{\rm env}=(\nabla\alpha_3)(\nabla\alpha_3)^\top/\sigma_{\alpha_3}^2$ is
+the outer product of a single gradient vector — **rank 1, with two exactly-zero
+eigenvalues** (cond $\sim10^{304}$). This is *structural*, not noise-limited: more
+stars shrink $\sigma_{\alpha_3}$ but the two flat directions stay flat at any $N$.
+Recovering any single birth parameter requires **externally fixing the other two**
+— the same role that an externally-calibrated $\epsilon$ plays in B12. Note the
+gradient magnitudes (and which axis is the weak one) are a *local* linearization at
+the fiducial point; the Jeřábková relation is nonlinear.
+```
+
 ## What you CAN read off the masses: $\alpha_3$
 
 A direct maximum-likelihood fit of the high-mass slope (the per-star IMF
@@ -151,6 +199,14 @@ passes through the truth ★, and every point on it is an equally good fit.
 - **Clean Jerabkova relation.** Truth and fit share the same $\alpha_3(\text{env})$
   map; the demo isolates the *inverse-problem structure*, not relation
   uncertainty.
+- **Perfect, complete mass census.** Every star's mass is known exactly — there is
+  no mass-measurement error and no $\epsilon$-analogue (contrast B12); the
+  $\alpha_3$ uncertainty is the inverse-Hessian (`fisher_cov`) Gaussian
+  approximation, and the MLE is seeded at the truth (a convergence check, not a
+  multimodality test).
+- **The degeneracy figure is a 2-D slice.** Panel (c) plots $\alpha_3$ over
+  $([\mathrm{Fe/H}],\log M_{\rm ecl})$ at **fixed** sfe; the visualized ridge is one
+  slice of the true 3-D degenerate surface.
 ```
 
 ## How to run

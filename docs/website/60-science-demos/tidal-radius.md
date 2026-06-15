@@ -34,6 +34,56 @@ and normalizes by $\mathrm{enc}(r_t)$ — so $r_t$ flows through the differentia
 truncation. (The same lesson underlies progenax's custom-JVP `apply_tidal_truncation`.)
 ```
 
+## Inputs and assumptions
+
+The fit recovers **one parameter**, the truncation/tidal radius $r_t$; the scale
+radius, the profile family, and both masses in the Jacobi conversion are assumed
+known. The mass assumptions matter most — they, not the count statistics, would
+dominate a real $R_{\rm gal}$ error budget.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b7-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $r_t$
+  - EFF truncation = Jacobi/tidal radius — **the science target**, read from the count-limited outer bins and converted to $R_{\rm gal}$.
+  - **recovered** (12.0 pc)
+* - $a$
+  - EFF scale radius; pinned by the *inner* profile and held fixed (jointly fitting $(a,r_t)$ from counts is degenerate).
+  - known / fixed (1.0 pc)
+* - $\gamma$
+  - EFF outer slope; shallow enough that stars reach $r_t$ (a steep $\gamma$ self-truncates and hides $r_t$).
+  - known / fixed (2.5)
+* - $M_{\rm gal}$
+  - Interior Galaxy (point-mass) for the Jacobi $\to R_{\rm gal}$ conversion.
+  - known / fixed ($5\times10^{10}\,M_\odot$)
+* - $M_{\rm cl}$
+  - Cluster mass entering $R_{\rm gal}=r_t(3M_{\rm gal}/M_{\rm cl})^{1/3}$ — summed from the IMF draw, treated as exactly known.
+  - known / fixed ($\sim10^4\,M_\odot$, derived)
+* - IMF
+  - Maschberger ($\alpha=2.3$, $0.08$–$100\,M_\odot$) — fixes $M_{\rm cl}$; the mass spectrum does *not* enter the count fit (positions only).
+  - known / fixed
+* - $N$, bins, $r_{\rm hi}$ factor, boxes, MLE
+  - $2\times10^4$ stars; 22 geometric bins from $r_{\rm lo}=0.2$ pc to $1.3\,r_t$ (so outer bins are **empty** — the Poisson $-\mu$ term is what pins $r_t$); 3000-pt cumulative-EFF grid; $r_t\in(6,18)$ pc; 3 Adam starts.
+  - numerical choices
+```
+
+```{important}
+:label: imp-b7-assumptions
+**The scale radius $a$ is held fixed, and the constraint lives in the empty outer
+bins.** Jointly fitting $(a,r_t)$ from number counts alone is degenerate — the
+normalized profile shape trades them off — so $a$ is asserted to be pinned by the
+star-rich inner profile and $r_t$ is read purely from the outskirts (bins extending
+to $1.3\,r_t$, mostly empty, supply $\sim$93% of the Fisher information via the
+Poisson $-\mu$ penalty). The conversion to Galactocentric distance then assumes
+$M_{\rm gal}$ and $M_{\rm cl}$ are **error-free**, so $\sigma(R_{\rm gal})/R_{\rm
+gal}=\sigma(r_t)/r_t$ inherits only the counting uncertainty — in reality a
+cluster-mass error (M/L, unseen low-mass stars, remnants) would dominate.
+```
+
 ## Result — freshly run, ALL PASS
 
 Measured 2026-06-12 ($N=2\times10^4$, $\gamma=2.5$, true $r_t=12$ pc; wall $\approx 5$ s).
@@ -103,6 +153,14 @@ $\sigma(r_t)\propto N^{-1/2}$, annotated with the derived Galactocentric distanc
 - **Point-mass Galaxy for the Jacobi step.** $M_{\rm gal}$ is a fixed representative
   interior mass; a realistic mass profile and an eccentric orbit shift $R_{\rm gal}$.
   The point is the *method* — outer counts → $r_t$ → orbit.
+- **$M_{\rm cl}$ assumed exactly known.** Only $\sigma(r_t)$ propagates into
+  $\sigma(R_{\rm gal})$; a real cluster-mass uncertainty would dominate it.
+- **$\gamma$ and the EFF family are fixed at truth.** A wrong outer slope or a
+  non-EFF profile would bias $r_t$ (only a shallow enough $\gamma$ lets stars reach
+  $r_t$); profile-family misspecification is not explored here (contrast B6).
+- **3-D radii, complete outskirts.** True 3-D radii are binned (no projection to
+  surface density), and the result leans heavily on a few near-empty outer bins —
+  robustness to a handful of interlopers there is not quantified.
 ```
 
 ## How to run

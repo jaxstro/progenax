@@ -69,6 +69,59 @@ amplitude and shape of the two components' dispersion profiles; $r_a$ is read
 almost entirely from the rising $\beta(r)$. The three are nearly orthogonal —
 borne out by the near-zero Fisher correlations below.
 
+## Inputs and assumptions
+
+The fit recovers **three halo parameters** $(t, r_a, r_h)$; the *core* family, the
+domain radius, and the total mass are all assumed known. The split matters: the
+recovery looks clean partly because the hardest potential degeneracy ($r_h$ vs the
+cluster's outer extent) is removed by fixing the domain.
+
+```{list-table} Model inputs
+:header-rows: 1
+:label: tbl-b3-inputs
+
+* - Input
+  - Meaning and role
+  - Status (fiducial)
+* - $t$
+  - Halo (Plummer) mass fraction; core carries $1-t$. Read from the relative dispersion amplitudes.
+  - **recovered** (0.6)
+* - $r_a$
+  - Halo Osipkov–Merritt anisotropy radius; read from the rising $\beta(r)$.
+  - **recovered** (3.0 pc)
+* - $r_h$
+  - Halo Plummer half-mass radius; sets where $\sigma(r)$ falls off.
+  - **recovered** (2.0 pc)
+* - core EFF $(a,\gamma)$, isotropy
+  - Fixed core density profile ($a=0.8$ pc, $\gamma=5$) and isotropic core ($r_a=\infty$) — not fitted.
+  - known / fixed
+* - $r_t$
+  - Domain outer radius = the fixed EFF extent, passed **explicitly** so a traced $r_h$ never re-derives the boundary.
+  - known / fixed (9.0 pc)
+* - $m_j$
+  - Stellar-mass labels [halo 0.5, core 1.0] $M_\odot$; the $1/m_j$ cancels in the per-bin $\sigma$ ratio.
+  - known / fixed
+* - $M_{\rm fixed}$
+  - **Measured** total mass anchoring the physical velocity scale $\sqrt{GM/(4\pi\mu)}$ — treated as exactly known (see below).
+  - known / fixed (data scalar)
+* - $N$, bins, occupancy, quadrature, MLE
+  - $3\times10^4$ stars; 16 equal-count radial bins; occupancy floors `N_MIN=50`, `MIN_BINS_PER_CMP=8`; 400-pt speed-moment quadrature; 3 dispersed Adam starts.
+  - numerical choices
+```
+
+```{important}
+:label: imp-b3-domain
+**Truth and fit share the same Engine-B family, and the domain radius $r_t$ is held
+fixed rather than recovered.** Because $r_t$ is concretized to the EFF extent and
+passed explicitly into every traced rebuild, the recovered $r_h$ never has to
+re-derive the cluster's outer boundary — which is what keeps the build traceable
+and removes the strongest potential degeneracy ($r_h$ vs domain extent). The three
+recovered parameters then come out nearly orthogonal ($\rho\approx0$) precisely
+because each is pinned by a distinct, confound-free observable. The total mass
+$M_{\rm fixed}$ is likewise an *exactly-known anchor*; in a real cluster it is
+itself uncertain and partly the quantity one wants.
+```
+
 ## Result — joint MLE + Fisher (freshly run, ALL PASS)
 
 Measured 2026-06-11 ($N=3\times10^4$, three dispersed Adam starts; exit 0):
@@ -146,6 +199,14 @@ ellipses are nearly axis-aligned, reflecting the near-zero correlations.
   likelihood-and-gradient eval is $0.14$ s, but each of the three Adam runs is a
   jit-compiled 400-step `lax.scan` whose body rebuilds Engine B and backprops, so
   the three *scan compiles* dominate.
+- **The core is assumed fully known.** Only the halo's $r_a$ is fitted; the core's
+  EFF shape $(a,\gamma)$ and its isotropy ($r_a=\infty$) are fixed inputs, as is the
+  two-component structure with masses $[0.5,1.0]\,M_\odot$.
+- **Approximate $\beta$-channel errors; single seed.** The anisotropy channel's
+  standard error is a conservative delta-method heuristic $\propto(1+|\beta|)/\sqrt n$
+  (used only as a weight, not a loosened gate), and the recovery is reported for a
+  **single** truth draw (`PRNGKey(0)`) — there is no multi-seed robustness ensemble
+  (unlike B2's grid).
 ```
 
 ## How to run
