@@ -16,7 +16,9 @@ import json
 import math
 from pathlib import Path
 
-from scripts.audit_gradients import run_audit, _DEFAULT_JSON  # run_audit(out_json) -> rows
+import pytest
+
+from scripts.audit_gradients import _DEFAULT_JSON
 
 # Exact-compared, arch-invariant structural fields. `tol` is the per-case tolerance from the
 # registry (a discrete input, not a measured float) — a hand-edit loosening a gate that does NOT
@@ -34,9 +36,10 @@ def _key(row):
     return (row["id"], row["param"], round(float(row["theta"]), 12))
 
 
-def test_committed_json_matches_fresh_regeneration(tmp_path):
+@pytest.mark.slow
+def test_committed_json_matches_fresh_regeneration(fresh_audit):
     committed = json.loads(Path(_DEFAULT_JSON).read_text())
-    fresh = run_audit(out_json=tmp_path / "fresh.json")
+    fresh, _ = fresh_audit  # rows from the session's single grad-audit regeneration
     # Floor first: a comparator over two empty sets passes vacuously; pin that neither side
     # collapsed (a zeroed registry is itself a drift the gate must catch).
     assert len(committed) >= _MIN_ROWS and len(fresh) >= _MIN_ROWS, (
