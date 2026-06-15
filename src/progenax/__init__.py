@@ -115,6 +115,13 @@ from .binaries import (
     BinaryEnergyBudget,
     binary_energy_budget,
 )
+from .stellar import (
+    zams_luminosity,
+    zams_radius,
+    zams_effective_temperature,
+    zams_surface_gravity,
+    inverse_zams_luminosity,
+)
 from .tidal import (
     jacobi_radius,
     jacobi_radius_isothermal,
@@ -197,6 +204,12 @@ __all__ = [
     "compute_stellar_radii",
     "compute_kinetic_energy",
     "compute_potential_energy",
+    # ZAMS stellar relations (Tout+1996; photometric, distinct from collision radii)
+    "zams_luminosity",
+    "zams_radius",
+    "zams_effective_temperature",
+    "zams_surface_gravity",
+    "inverse_zams_luminosity",
     # Cluster convenience builders
     "build_cluster",
     "matched_velocity_df",

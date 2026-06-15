@@ -177,6 +177,8 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     the hydrogen-burning limit.
 
     Used for collision radii in downstream N-body; empirical MS radii, no evolution.
+    See :func:`progenax.zams_radius` for the Tout+1996 *photometric* ZAMS radii (this
+    function is the D&K91 *collision* radius — a different relation for a different use).
 
     .. note::
        TEMPORARY single-relation stand-in. This will be REPLACED by the
