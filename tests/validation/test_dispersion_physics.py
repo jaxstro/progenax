@@ -31,9 +31,15 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.profiles import PlummerProfile
-from progenax.kinematics import PlummerVelocityDF, jeans_dispersion
+from progenax.profiles import PlummerProfile, EFFProfile, MichieProfile
+from progenax.kinematics import (
+    PlummerVelocityDF,
+    EFFVelocityDF,
+    MichieVelocityDF,
+    jeans_dispersion,
+)
 from progenax.kinematics.dispersion import jeans_sigma_r, ftable_sigma_r_isotropic
+from progenax.kinematics.eff_df import _eff_eddington_table
 
 G = 0.00449
 
@@ -179,3 +185,215 @@ def test_plummer_om_jeans_matches_sampler():
 def test_plummer_om_jeans_vs_analytic():
     """DEFERRED — see skip reason. Placeholder for a future source-verified OM oracle."""
     raise NotImplementedError
+
+
+# =============================================================================
+# Phase 0 Task 4 — EFF + Michie 3-D anchors
+# =============================================================================
+#
+# ``jeans_dispersion`` already works for any profile exposing ``.density(r)``
+# (and ``.r_t`` for the finite outward-integral extent), so this is mostly
+# *tests*. Two model families:
+#
+#   EFF (truncated power law, Elson-Fall-Freeman 1987): finite ``r_t`` -> the
+#   Jeans s-grid is finite (no Plummer-style truncation-tail bias). With
+#   gamma=5 the EFF reduces to Plummer and the sharp-truncation virial offset
+#   is small (~1%), so it is a near-equilibrium sampler anchor. The isotropic
+#   EFF DF stores ``(E_grid, f_grid, Psi_grid, mu)`` -> we can cross-check the
+#   isotropic Jeans sigma_r against ``ftable_sigma_r_isotropic`` (a different
+#   code path: speed second moment over the Eddington f-table).
+#
+#   Michie (Michie 1963 anisotropy + King 1966 cutoff): INTRINSICALLY
+#   anisotropic, so its stored f-table is NOT isotropic and
+#   ``ftable_sigma_r_isotropic`` does not apply. Crucially, the Michie-King
+#   anisotropy law is NOT identical to the Osipkov-Merritt beta = r^2/(r^2+r_a^2)
+#   that ``jeans_dispersion`` assumes; the two agree well in the core / inner
+#   region but diverge in the far outskirts (the anisotropy *profiles* differ).
+#   So Michie is validated by (a) the sampler in the inner region where OM is a
+#   good model, and (b) the King/isotropic limit (large r_a -> beta -> 0).
+
+
+@pytest.mark.slow
+def test_eff_isotropic_jeans_matches_sampler():
+    """EFF isotropic Jeans sigma_r vs empirical std of an EFF-sampled population (5% MC).
+
+    gamma=5 (Plummer-reducing, mild truncation) is a near-equilibrium EFF, so the
+    Eddington sampler is a faithful realisation of the same density the Jeans
+    integral uses. Sample N stars at fixed radii (all on the x-axis: radial = x),
+    inside r_t, and compare std(v_x) to ``jeans_dispersion(...).sigma_r``.
+    """
+    a, gamma, r_t = 1.0, 5.0, 10.0
+    M = 400.0
+    N = 200_000
+    prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+    df = EFFVelocityDF(a=a, gamma=gamma, r_t=r_t)  # isotropic (anisotropy_radius=None)
+
+    for r0 in (0.5, 1.0, 2.0):
+        positions = jnp.zeros((N, 3)).at[:, 0].set(r0)
+        masses = jnp.full((N,), M / N)  # sum == M, the mass passed to jeans
+        key = jax.random.PRNGKey(int(r0 * 1000) + 11)
+        v = df.sample_velocities(positions, masses, key, G=G)
+
+        sigma_r_emp = jnp.std(v[:, 0])
+        dp = jeans_dispersion(prof, None, jnp.array([r0]), M=M, G=G)
+        assert jnp.allclose(dp.sigma_r[0], sigma_r_emp, rtol=0.05), (
+            f"EFF sigma_r r0={r0}: jeans={float(dp.sigma_r[0]):.4f} "
+            f"emp={float(sigma_r_emp):.4f}"
+        )
+
+
+def test_eff_om_beta_identity():
+    """OM EFF: beta(r) == r^2/(r^2+r_a^2) (rtol 1e-6) and sigma_r >= sigma_t.
+
+    For an Osipkov-Merritt model the realised anisotropy IS the OM identity by
+    construction; this asserts ``jeans_dispersion`` propagates it correctly for a
+    truncated (EFF) profile and that the radial dispersion is the larger one (the
+    radial-anisotropy signature, beta >= 0).
+    """
+    a, gamma, r_t = 1.0, 5.0, 10.0
+    M = 400.0
+    r_a = 4.0
+    prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+    r = jnp.array([0.5, 1.0, 2.0, 4.0])
+
+    dp = jeans_dispersion(prof, r_a, r, M=M, G=G)
+    beta_id = r**2 / (r**2 + r_a**2)
+    assert jnp.allclose(dp.beta, beta_id, rtol=1e-6)
+    assert jnp.all(dp.sigma_r >= dp.sigma_t)
+
+
+def test_eff_isotropic_jeans_equals_ftable():
+    """Cross-check: isotropic EFF Jeans sigma_r == Eddington f-table speed 2nd moment.
+
+    The EFF isotropic DF stores the Eddington f(E) (``E_grid, f_grid``), the
+    dimensionless relative potential ``Psi(r)`` (``r_grid, Psi_grid``), and the mass
+    integral ``mu``. The speed-second-moment ``<s^2>/3`` over the (dimensionless)
+    speed pdf ``s^2 f(Psi(r) - s^2/2)`` is sigma_r^2 in DF units; the physical scale
+    is ``kappa = G M / (4 pi mu)`` (the same self-consistent velocity scale the
+    sampler uses). This is a fully INDEPENDENT code path from the Jeans integral
+    (the Eddington inversion of the same density), so agreement validates both.
+
+    We restrict to the core/mid radii [0.5, 1.0, 1.5] (well inside r_t=10): near
+    the truncation edge both the Eddington-table accuracy and the EFF sharp-cutoff
+    non-stationarity degrade, which is a known EFF limitation, not a Jeans bug.
+
+    Tolerance 2e-2 is a TABLE-RESOLUTION floor, NOT a physics tol: the residual is
+    the two methods' independent discretisation error (Eddington f(E) grid + speed
+    quadrature vs the Jeans s-grid). The resolution-refinement block below is the
+    numerical-vs-bug discriminator: as the speed quadrature n_s is refined from
+    coarse to its plateau the gap SHRINKS (~3x per step) toward a fixed
+    Jeans-vs-Eddington-table floor of ~2-3e-4 — a converging numerical residual,
+    not a model disagreement. It must NOT be loosened to hide a physics bug.
+    """
+    a, gamma, r_t = 1.0, 5.0, 10.0
+    M = 400.0
+    r = jnp.array([0.5, 1.0, 1.5])  # core/mid, away from the r_t truncation edge
+
+    prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+    df = EFFVelocityDF(a=a, gamma=gamma, r_t=r_t)  # isotropic Eddington DF
+
+    # Physical velocity scale kappa = G M / (4 pi mu) (sampler's self-consistent scale).
+    kappa = G * M / (4.0 * jnp.pi * df.mu)
+    Psi_r = jnp.interp(r, df.r_grid, df.Psi_grid, left=df.Psi_grid[0], right=0.0)
+
+    sigma_r_ft = jnp.sqrt(
+        jax.vmap(lambda psi: ftable_sigma_r_isotropic(df.E_grid, df.f_grid, psi))(Psi_r)
+        * kappa
+    )
+    sigma_r_jeans = jeans_dispersion(prof, None, r, M=M, G=G).sigma_r
+    assert jnp.allclose(sigma_r_ft, sigma_r_jeans, rtol=2e-2)
+
+    # --- Resolution-refinement check (the numerical-vs-bug discriminator) ---
+    # Fixed high-resolution Eddington table + fixed high-resolution Jeans reference;
+    # refine ONLY the f-table speed quadrature n_s. A genuine numerical floor SHRINKS
+    # as n_s grows (until it hits the fixed Jeans-vs-table residual); a physics bug
+    # would leave a non-vanishing, n_s-independent gap.
+    rr, Psi, E_grid, f_grid, mu = _eff_eddington_table(
+        a, gamma, r_t, None, n_r=12000, n_e=4000
+    )
+    kappa_hi = G * M / (4.0 * jnp.pi * mu)
+    Psi_hi = jnp.interp(r, rr, Psi, left=Psi[0], right=0.0)
+    sigma_jeans_hi = jeans_dispersion(prof, None, r, M=M, G=G, n_s=8000).sigma_r
+
+    def ft_gap(n_s):
+        sft = jnp.sqrt(
+            jax.vmap(
+                lambda psi: ftable_sigma_r_isotropic(E_grid, f_grid, psi, n_s=n_s)
+            )(Psi_hi)
+            * kappa_hi
+        )
+        return float(jnp.max(jnp.abs(sft - sigma_jeans_hi) / sigma_jeans_hi))
+
+    gaps = [ft_gap(n_s) for n_s in (64, 128, 256)]
+    # Monotone shrink as the speed quadrature is refined toward the floor.
+    assert gaps[0] > gaps[1] > gaps[2], (
+        f"f-table gap did not shrink with n_s refinement: {gaps} "
+        f"(non-converging gap -> suspect a physics bug, not a numerical floor)"
+    )
+    # Converged gap is a small numerical floor (Jeans s-grid vs Eddington table).
+    assert gaps[-1] < 1e-3, f"converged f-table gap {gaps[-1]:.2e} too large"
+
+
+@pytest.mark.slow
+def test_michie_jeans_matches_sampler():
+    """Michie OM-Jeans sigma_r/sigma_t vs empirical std of a Michie-sampled population.
+
+    The Jeans solver assumes Osipkov-Merritt beta = r^2/(r^2+r_a^2); the Michie-King
+    DF has its OWN (similar but not identical) anisotropy law. They agree to MC tol
+    in the inner region (r << r_t) where OM is a good model of the Michie anisotropy,
+    and diverge in the far outskirts (a real OM-vs-Michie-King model difference, NOT
+    a Jeans bug — documented in the module note above). We therefore validate at
+    inner radii r in [0.5, 3.0] for a model with r_t ~ 28 (so r < ~0.1 r_t).
+    """
+    W0, r_c, r_a = 6.0, 1.0, 5.0
+    M = 400.0
+    N = 200_000
+    prof = MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a)
+    df = MichieVelocityDF(W0=W0, r_c=r_c, r_a=r_a)
+
+    for r0 in (0.5, 1.0, 2.0, 3.0):
+        positions = jnp.zeros((N, 3)).at[:, 0].set(r0)
+        masses = jnp.full((N,), M / N)
+        key = jax.random.PRNGKey(int(r0 * 1000) + 3)
+        v = df.sample_velocities(positions, masses, key, G=G)
+
+        sigma_r_emp = jnp.std(v[:, 0])
+        sigma_t_emp = jnp.sqrt(0.5 * (jnp.var(v[:, 1]) + jnp.var(v[:, 2])))
+
+        # Michie's anisotropy radius is ``r_a`` (length), exposed as prof.r_a.
+        dp = jeans_dispersion(prof, float(prof.r_a), jnp.array([r0]), M=M, G=G)
+        assert jnp.allclose(dp.sigma_r[0], sigma_r_emp, rtol=0.05), (
+            f"Michie sigma_r r0={r0}: jeans={float(dp.sigma_r[0]):.4f} "
+            f"emp={float(sigma_r_emp):.4f}"
+        )
+        assert jnp.allclose(dp.sigma_t[0], sigma_t_emp, rtol=0.05), (
+            f"Michie sigma_t r0={r0}: jeans={float(dp.sigma_t[0]):.4f} "
+            f"emp={float(sigma_t_emp):.4f}"
+        )
+
+
+def test_michie_beta_increases_outward():
+    """Michie OM-Jeans beta(r) grows with radius (radial anisotropy builds outward)."""
+    W0, r_c, r_a = 6.0, 1.0, 5.0
+    M = 400.0
+    prof = MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a)
+    r = jnp.linspace(0.3, 0.3 * float(prof.r_t), 8)
+    dp = jeans_dispersion(prof, float(prof.r_a), r, M=M, G=G)
+    assert float(dp.beta[-1]) > float(dp.beta[0])
+    assert jnp.all(jnp.diff(dp.beta) >= 0.0)  # monotone non-decreasing (OM identity)
+
+
+def test_michie_isotropic_limit():
+    """King/isotropic limit: large r_a -> beta ~ 0 across r, sigma_r ~ sigma_t.
+
+    With r_a >> the query radii the Michie model approaches the isotropic King limit,
+    and the OM beta = r^2/(r^2+r_a^2) collapses toward 0 (the realised Michie
+    anisotropy likewise vanishes). Asserts beta < a few e-2 everywhere.
+    """
+    W0, r_c, r_a = 7.0, 1.0, 50.0  # r_a >> the [0.5, 4] query radii
+    M = 400.0
+    prof = MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a)
+    r = jnp.array([0.5, 1.0, 2.0, 4.0])
+    dp = jeans_dispersion(prof, float(prof.r_a), r, M=M, G=G)
+    assert jnp.allclose(dp.beta, 0.0, atol=2e-2)
+    assert jnp.allclose(dp.sigma_r, dp.sigma_t, rtol=2e-2)
