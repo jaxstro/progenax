@@ -137,6 +137,19 @@ PROVENANCE: dict[str, str] = {
         "a=0.026/0.124, b=0.945/0.555) + Section 4 knee 1.66±0.08 Msun. Batch-4 ✅ verified "
         "exact; 🔧 relabeled 'empirical' (not 'ZAMS').",
 
+    # ============================ ZAMS relations (Tout et al. 1996) ==================
+    "stellar.py::_TOUT_L_COEFFS (Tout+1996 Table 1, L(M,Z))":
+        "Tout, Pols, Eggleton & Han (1996), MNRAS 281, 257, Table 1 (eq. 3) — 35/35 cells "
+        "verified cell-by-cell vs held PDF; see "
+        "docs/core-papers/tout1996_zams_coefficients_verified.md + provenance-ledger.md.",
+    "stellar.py::_TOUT_R_COEFFS + _TOUT_R_NU (Tout+1996 Table 2, R(M,Z))":
+        "Tout, Pols, Eggleton & Han (1996), MNRAS 281, 257, Table 2 (eq. 4) — 40 cells + "
+        "Z-independent scalar ν verified cell-by-cell vs held PDF; see "
+        "docs/core-papers/tout1996_zams_coefficients_verified.md + provenance-ledger.md. "
+        "M2: Z is clipped to [1e-4, 0.03] per Tout p. 262 (extrapolation forbidden — the "
+        "rational functions go negative); dL/dZ is therefore zero outside that band "
+        "(Z-band-limited differentiability).",
+
     # ============================ Analytical ICs (IAU masses, figure-eight) ==========
     "analytical/base.py::planet/Sun mass ratios (IAU 2009 / Luzum et al. 2011 Table 1)":
         "IAU (2009) Current Best Estimates / Luzum et al. (2011) Cel. Mech. Dyn. Astron. "
@@ -169,6 +182,7 @@ ALLOWLIST_MODULES: tuple[str, ...] = (
     "src/progenax/imf/binary/moe_di_stefano.py",
     "src/progenax/imf/binary/mass_ratio.py",
     "src/progenax/binaries/period.py",
+    "src/progenax/stellar.py",
 )
 
 # --- ALLOWLIST_NON_COEFFICIENT: per-module literals that are NOT citable coefficients -----
@@ -219,6 +233,39 @@ ALLOWLIST_NON_COEFFICIENT: dict[str, dict[float, str]] = {
              "the file; cited to Duquennoy & Mayor 1991 in the class docstring)",
         8.0: "MoePeriod logP upper bound [days] (sampling-range default)",
         10.0: "log base / decade arithmetic; not a coefficient",
+    },
+    "src/progenax/stellar.py": {
+        # Tout L(M) exponents (eq. 1 formula structure, NOT fitted coefficients):
+        5.5: "Tout L(M) numerator mass exponent M**5.5 (eq.1 structure, not a fitted coeff)",
+        11.0: "Tout L/R mass exponent M**11 (eq.1/2 formula structure, not a fitted coeff)",
+        3.0: "Tout L(M) denominator mass exponent M**3 (eq.1 structure, not a fitted coeff)",
+        5.0: "Tout L(M) denominator mass exponent M**5 (eq.1 structure, not a fitted coeff)",
+        7.0: "Tout L(M) denominator mass exponent M**7 (eq.1 structure, not a fitted coeff)",
+        8.0: "Tout L(M) denominator mass exponent M**8 (eq.1 structure, not a fitted coeff)",
+        9.5: "Tout L(M) denominator mass exponent M**9.5 (eq.1 structure, not a fitted coeff)",
+        # Tout R(M) exponents (eq. 2 formula structure, NOT fitted coefficients):
+        2.5: "Tout R(M) numerator mass exponent M**2.5 (eq.2 structure, not a fitted coeff)",
+        6.5: "Tout R(M) numerator mass exponent M**6.5 (eq.2 structure, not a fitted coeff)",
+        19.0: "Tout R(M) numerator mass exponent M**19 (eq.2 structure, not a fitted coeff)",
+        19.5: "Tout R(M) numerator/denominator mass exponent M**19.5 (eq.2 structure, not a coeff)",
+        2.0: "Tout R(M) denominator mass exponent M**2 (eq.2 structure, not a fitted coeff)",
+        8.5: "Tout R(M) denominator mass exponent M**8.5 (eq.2 structure, not a fitted coeff)",
+        18.5: "Tout R(M) denominator mass exponent M**18.5 (eq.2 structure, not a fitted coeff)",
+        # Numerical guards (avoid 0/0 and NaN slopes; not paper coefficients):
+        1e-10: "denominator guard jnp.maximum(den, 1e-10) (numerical-method literal)",
+        1e-15: "inverse-Newton L_target floor jnp.clip(..., 1e-15, 1e8) (guard, not a coeff)",
+        1e-30: "inverse-Newton slope/log-density floor (divide-by-zero guard, not a coeff)",
+        # Inverse-Newton clip bounds / initial-guess + iteration count (numerical method):
+        0.005: "inverse-Newton mass lower clip [Msun] (sampling-domain guard, not a coeff)",
+        125.0: "inverse-Newton initial-guess upper clip [Msun] (numerical-method literal)",
+        150.0: "inverse-Newton step upper clip [Msun] (numerical-method literal)",
+        1e8: "inverse-Newton L_target ceiling jnp.clip(..., 1e-15, 1e8) (guard, not a coeff)",
+        20.0: "_INVERSE_NEWTON_ITERS fixed lax.scan length (numerical-method literal)",
+        # Solar-metallicity reference + Tout-mandated Z-clip range (cited in PROVENANCE/inline):
+        0.02: "_Z_SUN Tout+1996 reference solar metallicity + default Z (cited inline; also "
+              "the Z-band centre for the log10(Z/Zsun) basis)",
+        1e-4: "Tout+1996 lower Z-clip bound (p.262 extrapolation guard, not a fitted coeff)",
+        0.03: "Tout+1996 upper Z-clip bound (p.262 extrapolation guard, not a fitted coeff)",
     },
 }
 
