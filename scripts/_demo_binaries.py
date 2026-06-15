@@ -162,6 +162,72 @@ def build_korb_kernel(
     return centers, density
 
 
+def predict_vlos_counts(sigma, f_b, N, v_edges, korb_grid, korb, eps):
+    r"""Differentiable binned LOS-velocity counts for the single+binary mixture.
+
+    The observed density is
+
+        ``p(v) = (1 - f_b) N(v; 0, sigma^2 + eps^2)
+                  + f_b [ N(.; 0, sigma^2 + eps^2) (*) K_orb ](v)``,
+
+    i.e. singles are a Gaussian broadened by the RV precision ``eps``, and
+    binaries are that same Gaussian convolved with the sigma-independent blend
+    kernel ``K_orb``. The expected counts are ``mu_k = N * integral_{bin k} p``.
+
+    Differentiability: the SINGLE term is integrated analytically per bin via the
+    Gaussian CDF (``erf``) -- exact and differentiable in ``sigma`` -- so the
+    total count is conserved to ~1e-9 (a grid sum would carry ~1e-3 trapezoid
+    error). The BINARY term is convolved on ``korb_grid`` (``jnp.convolve``,
+    differentiable in ``sigma``) and integrated over each bin with a STATIC
+    membership mask (gradient flows through the density, not the mask). The
+    mixture weight ``f_b`` enters linearly.
+
+    Parameters
+    ----------
+    sigma : scalar
+        Cluster LOS velocity dispersion [km/s] (the parameter of interest).
+    f_b : scalar
+        Unresolved binary fraction in (0, 1).
+    N : scalar
+        Total number of stars (sets the Poisson normalization).
+    v_edges : (K+1,) array
+        Monotone bin edges [km/s] for the observed histogram.
+    korb_grid : (G,) array
+        Velocity-grid bin centers of ``K_orb`` [km/s] (from ``build_korb_kernel``).
+    korb : (G,) array
+        ``K_orb`` density on ``korb_grid``.
+    eps : scalar
+        Per-star RV measurement precision [km/s] (Gaussian, added in quadrature).
+
+    Returns
+    -------
+    mu : (K,) array of expected counts per bin, differentiable in (sigma, f_b).
+    """
+    from jax.scipy.stats import norm
+
+    v_edges = jnp.asarray(v_edges)
+    korb_grid = jnp.asarray(korb_grid)
+    korb = jnp.asarray(korb)
+    sig_obs = jnp.sqrt(sigma ** 2 + eps ** 2)
+
+    # Single component: exact analytic CDF differences per bin.
+    cdf_edges = norm.cdf(v_edges, loc=0.0, scale=sig_obs)
+    phi_single = cdf_edges[1:] - cdf_edges[:-1]                      # (K,)
+
+    # Binary component: (Gaussian (*) K_orb) integrated per bin on korb_grid.
+    dv = korb_grid[1] - korb_grid[0]
+    g = norm.pdf(korb_grid, loc=0.0, scale=sig_obs)                  # (G,) density
+    b_density = jnp.convolve(g, korb, mode="same") * dv             # (G,) density
+    # Static membership mask: grid point in bin k iff edges[k] <= v < edges[k+1].
+    in_bin = (korb_grid[None, :] >= v_edges[:-1, None]) & (
+        korb_grid[None, :] < v_edges[1:, None]
+    )                                                                # (K, G) bool
+    phi_binary = jnp.sum(in_bin * b_density[None, :], axis=1) * dv  # (K,)
+
+    phi = (1.0 - f_b) * phi_single + f_b * phi_binary
+    return N * phi
+
+
 def _kernel_std(v_grid, k):
     """Standard deviation of a (grid, density) kernel via discrete moments."""
     v_grid = np.asarray(v_grid)

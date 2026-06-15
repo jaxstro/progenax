@@ -6,6 +6,7 @@ sigma-independent flux-weighted blend kernel K_orb (Moe P-q-e + ZAMS L), and the
 differentiable binned single+binary mixture model.
 """
 import numpy as np
+import jax
 import jax.numpy as jnp
 import progenax  # noqa: F401  -- enables float64 at import
 
@@ -13,6 +14,7 @@ from scripts._demo_binaries import (
     project_los_velocity,
     build_korb_kernel,
     _kernel_std,
+    predict_vlos_counts,
 )
 
 
@@ -45,3 +47,25 @@ def test_korb_normalized_and_zero_mean():
     dv = v_grid[1] - v_grid[0]
     assert np.isclose(np.sum(k) * dv, 1.0, atol=1e-3)   # normalized density
     assert abs(np.sum(k * v_grid) * dv) < 0.5           # ~zero mean
+
+
+def test_predict_reduces_to_gaussian_at_fb0():
+    """At f_b=0 the model is a pure Gaussian(sigma_obs=sqrt(sigma^2+eps^2)) binned;
+    the analytic CDF path conserves the total count to high precision."""
+    v_edges = np.linspace(-30, 30, 61)
+    v_grid, k = build_korb_kernel(n_pool=20000, Z=1e-3, seed=3)
+    mu = predict_vlos_counts(sigma=5.0, f_b=0.0, N=1500, v_edges=v_edges,
+                             korb_grid=v_grid, korb=k, eps=1.0)
+    assert np.isclose(float(jnp.sum(mu)), 1500, rtol=1e-6)   # count conserved
+    assert int(jnp.argmax(mu)) in (len(mu) // 2 - 1, len(mu) // 2)  # peaked, symmetric
+
+
+def test_predict_differentiable_in_sigma_and_fb():
+    """jax.grad flows through the binned single+binary mixture in both params."""
+    v_edges = jnp.linspace(-30, 30, 61)
+    v_grid, k = build_korb_kernel(n_pool=20000, Z=1e-3, seed=4)
+    f = lambda s, fb: jnp.sum(
+        predict_vlos_counts(s, fb, 1500, v_edges, v_grid, jnp.asarray(k), 1.0) ** 2
+    )
+    gs, gfb = jax.grad(f, argnums=(0, 1))(5.0, 0.5)
+    assert jnp.isfinite(gs) and jnp.isfinite(gfb)
