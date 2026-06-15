@@ -86,3 +86,29 @@ def zams_radius(mass: Float[Array, "..."], Z: float = 0.02) -> Float[Array, "...
     num = th * M**2.5 + io * M**6.5 + ka * M**11 + la * M**19 + mu * M**19.5
     den = _TOUT_R_NU + xi * M**2 + om * M**8.5 + M**18.5 + pi_ * M**19.5
     return num / jnp.maximum(den, 1e-10)
+
+
+def zams_effective_temperature(
+    mass: Float[Array, "..."], Z: float = 0.02
+) -> Float[Array, "..."]:
+    """ZAMS effective temperature [K] from mass [M_sun] via Stefan-Boltzmann.
+
+    T_eff = (L / (4 pi R^2 sigma))^(1/4), with L,R from the Tout+1996 relations
+    converted to cgs. Elementwise over ``mass``; differentiable.
+    """
+    L = zams_luminosity(mass, Z) * LSUN_ERG_S
+    R = zams_radius(mass, Z) * RSUN_CM
+    return (L / (4.0 * jnp.pi * R**2 * SIGMA_SB)) ** 0.25
+
+
+def zams_surface_gravity(
+    mass: Float[Array, "..."], Z: float = 0.02
+) -> Float[Array, "..."]:
+    """ZAMS surface gravity [log10(cm/s^2), dex] from mass [M_sun].
+
+    log g = log10(G M / R^2) in cgs, with R from the Tout+1996 relation.
+    Elementwise over ``mass``; differentiable.
+    """
+    M_cgs = jnp.asarray(mass, float) * MSUN_G
+    R_cgs = zams_radius(mass, Z) * RSUN_CM
+    return jnp.log10(G_CGS * M_cgs / R_cgs**2)
