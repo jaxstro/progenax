@@ -330,6 +330,17 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "to_com_frame": "COM-frame transform utility, not a model",
     "virial_scale": "virial-rescale utility, not a model",
     "compute_stellar_radii": "mass->radius ZAMS helper, not a model",
+    # --- ZAMS stellar relations (Tout+1996 mass-relations, not equilibrium models) ---
+    "zams_luminosity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
+                       "validated vs published anchors in test_zams_physics.py.",
+    "zams_radius": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
+                   "validated vs published anchors in test_zams_physics.py.",
+    "zams_effective_temperature": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium "
+                                  "model; validated vs published anchors in test_zams_physics.py.",
+    "zams_surface_gravity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
+                            "validated vs published anchors in test_zams_physics.py.",
+    "inverse_zams_luminosity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium "
+                               "model; validated vs published anchors in test_zams_physics.py.",
     "compute_period": "Kepler-III period helper, not a model",
     "period_to_semimajor_axis": "Kepler-III inverse helper, not a model",
     # --- Tidal physics helpers ---
