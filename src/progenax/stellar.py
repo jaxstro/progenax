@@ -74,3 +74,15 @@ def zams_luminosity(mass: Float[Array, "..."], Z: float = 0.02) -> Float[Array, 
     num = a * M**5.5 + b * M**11
     den = g + M**3 + d * M**5 + e * M**7 + z * M**8 + h * M**9.5
     return num / jnp.maximum(den, 1e-10)
+
+
+def zams_radius(mass: Float[Array, "..."], Z: float = 0.02) -> Float[Array, "..."]:
+    """ZAMS radius [R_sun] from mass [M_sun] and metallicity Z. Tout+1996 Table 2.
+
+    Elementwise over ``mass``; ``Z`` is a scalar (default solar, 0.02). Differentiable.
+    """
+    M = jnp.asarray(mass, float)
+    th, io, ka, la, mu, xi, om, pi_ = _metallicity_coeffs(_TOUT_R_COEFFS, Z)
+    num = th * M**2.5 + io * M**6.5 + ka * M**11 + la * M**19 + mu * M**19.5
+    den = _TOUT_R_NU + xi * M**2 + om * M**8.5 + M**18.5 + pi_ * M**19.5
+    return num / jnp.maximum(den, 1e-10)
