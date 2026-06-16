@@ -29,6 +29,7 @@ Physics references
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from progenax import project_dispersion
@@ -38,6 +39,7 @@ from progenax.kinematics import (
     EFFVelocityDF,
     MichieVelocityDF,
     jeans_dispersion,
+    df_moment_dispersion,
 )
 from progenax.kinematics.dispersion import jeans_sigma_r, ftable_sigma_r_isotropic
 from progenax.kinematics.eff_df import _eff_eddington_table
@@ -786,3 +788,141 @@ def test_projection_recovers_anisotropy():
         f"beta signature mismatch: emp={ratio_emp} pred={ratio_pred} "
         f"R={centers} counts={counts}"
     )
+
+
+# =============================================================================
+# Phase 0.5 Task D3 — Michie DF-moment (Tier B) all-radii anchor
+# =============================================================================
+#
+# ``df_moment_dispersion`` (Tier B) is the EXACT second-moment dispersion of the
+# Michie (1963) anisotropic DF: it integrates the DF's own velocity moments at
+# each radius, so it is correct at ALL radii — including the far outskirts where
+# the OM-Jeans approximation (``jeans_dispersion`` with an OM ``r_a``) is 6-8%
+# wrong because the Michie-King anisotropy law diverges from the OM
+# beta = r^2/(r^2+r_a^2). This multi-leg anchor proves that claim:
+#
+#   Leg 1 (headline) — Tier B vs the Michie SAMPLER at ALL radii (r in [0.5, 8]),
+#     including the outer radii r=4,8 where OM-Jeans diverges. 5% MC tol.
+#   Leg 2 — Tier-A / Tier-B consistency: a TRUE equilibrium satisfies the Jeans
+#     equation, so feeding the DF's OWN beta(r) (from Tier B) into the general-beta
+#     Jeans solver must reproduce Tier B's sigma_r (a pure numerical-consistency
+#     check, 2% tol — NOT a fitted tolerance).
+#   Leg 3 — beta(r) vs the established Michie beta oracle (the same 2-D moment
+#     integral used in test_michie_physics.py), atol 1e-2.
+#
+# (Leg 4, a zeroth-moment / density self-consistency check, is INTENTIONALLY
+# OMITTED: ``df_moment_dispersion`` returns only ``(sigma_r, sigma_t, sigma_1d,
+# beta)`` and does NOT expose its internal velocity-space normalisation, so a
+# zeroth-moment vs ``michie_density`` comparison would require either a contrived
+# re-implementation of the integral or a src-side accessor. Density
+# self-consistency is already covered by ``test_density_matches_king_at_large_ra``
+# in test_michie_physics.py plus the all-radii sampler leg below, so no contrived
+# test is added — per the Task D3 brief.)
+
+
+def _michie_beta_oracle(W, s, n=400):
+    """Analytic Michie anisotropy beta(W, s) from the 2nd moments of the EXACT
+    sampled density p(u_r, u_t) ∝ u_t exp(-s^2 u_t^2/2)[exp(W-(u_r^2+u_t^2)/2)-1]
+    on u_r^2+u_t^2 < 2W.
+
+    This is the model's OWN beta (the lowering term breaks the pure f(Q) form, so
+    it sits below the OM ceiling r^2/(r^2+r_a^2)). Replicated verbatim from
+    test_michie_physics.py::_michie_beta_oracle (numpy helper, independent of the
+    JAX df_moment_dispersion code path it validates).
+    """
+    if W <= 0:
+        return 0.0
+    umax = np.sqrt(2.0 * W)
+    ur = np.linspace(-umax, umax, n)
+    ut = np.linspace(0.0, umax, n)
+    UR, UT = np.meshgrid(ur, ut)
+    bound = UR**2 + UT**2 < 2.0 * W
+    w = UT * np.exp(-(s**2) * UT**2 / 2.0) * (np.exp(W - (UR**2 + UT**2) / 2.0) - 1.0)
+    w = np.where(bound, np.maximum(w, 0.0), 0.0)
+    norm = w.sum()
+    ur2 = (w * UR**2).sum() / norm
+    ut2 = (w * UT**2).sum() / norm
+    return 1.0 - ut2 / (2.0 * ur2)
+
+
+@pytest.mark.slow
+def test_df_moment_matches_sampler_all_radii():
+    """HEADLINE: Tier B (DF-moment) vs the Michie sampler at ALL radii (incl. outer).
+
+    Place N stars at fixed radii r0 on the x-axis, draw Michie velocities, and
+    compare the empirical std of v_x (radial) and of the tangential plane to
+    ``df_moment_dispersion(...).sigma_r/.sigma_t`` within 5% MC. The point is the
+    OUTER radii r=4,8 where the OM-Jeans model is 6-8% wrong — the EXACT DF moment
+    tracks the sampler there too (orchestrator measured 0.0-0.3% actual), so this is
+    the test that KILLS the 'inner-region-only' limitation of OM-Jeans.
+    """
+    W0, r_c, r_a, M, N = 6.0, 1.0, 5.0, 400.0, 200_000
+    df = MichieVelocityDF(W0=W0, r_c=r_c, r_a=r_a)
+    for r0 in (0.5, 1.0, 2.0, 4.0, 8.0):  # outer radii where OM-Jeans diverged
+        positions = jnp.zeros((N, 3)).at[:, 0].set(r0)
+        masses = jnp.full((N,), M / N)
+        key = jax.random.PRNGKey(int(r0 * 1000) + 7)
+        v = df.sample_velocities(positions, masses, key, G=G)
+        sr_emp = jnp.std(v[:, 0])
+        st_emp = jnp.sqrt(0.5 * (jnp.var(v[:, 1]) + jnp.var(v[:, 2])))
+        dp = df_moment_dispersion(df, jnp.array([r0]), M, G)
+        assert jnp.allclose(dp.sigma_r[0], sr_emp, rtol=0.05), (
+            f"Tier-B sigma_r r0={r0}: df_moment={float(dp.sigma_r[0]):.4f} "
+            f"emp={float(sr_emp):.4f} rel={float(abs(dp.sigma_r[0]/sr_emp - 1)):.3e}"
+        )
+        assert jnp.allclose(dp.sigma_t[0], st_emp, rtol=0.05), (
+            f"Tier-B sigma_t r0={r0}: df_moment={float(dp.sigma_t[0]):.4f} "
+            f"emp={float(st_emp):.4f} rel={float(abs(dp.sigma_t[0]/st_emp - 1)):.3e}"
+        )
+
+
+@pytest.mark.slow
+def test_tierA_jeans_consistent_with_tierB():
+    """Tier-A / Tier-B consistency: a true equilibrium satisfies Jeans.
+
+    Build the DF's OWN beta(r) from Tier B on a grid, feed it to the general-beta
+    Jeans solver (Tier A), and assert the resulting sigma_r matches Tier B's sigma_r
+    within rtol 0.02. This is a NUMERICAL-CONSISTENCY check (the integrating-factor
+    Jeans solve vs the direct DF moment), not a fitted tolerance: a true equilibrium
+    must satisfy its own Jeans equation with its own anisotropy. The actual max rel
+    achieved is reported in the assertion message.
+    """
+    W0, r_c, r_a, M = 6.0, 1.0, 5.0, 400.0
+    df = MichieVelocityDF(W0=W0, r_c=r_c, r_a=r_a)
+    prof = MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a)
+    s = jnp.linspace(0.1, 0.9 * float(prof.r_t), 60)
+    b = df_moment_dispersion(df, s, M, G).beta
+    beta_fn = lambda rr: jnp.interp(rr, s, b)
+    A = jeans_dispersion(prof, None, s, M, G, beta_fn=beta_fn).sigma_r
+    B = df_moment_dispersion(df, s, M, G).sigma_r
+    max_rel = float(jnp.max(jnp.abs(A / B - 1.0)))
+    assert max_rel < 0.02, (
+        f"Tier-A (Jeans w/ DF's own beta) vs Tier-B sigma_r max rel {max_rel:.3e} "
+        f">= 0.02 (numerical-consistency tol — investigate, do NOT loosen blindly)"
+    )
+
+
+def test_df_moment_beta_matches_michie_oracle():
+    """Tier B beta(r) vs the established Michie beta oracle (atol 1e-2).
+
+    The 2-D moment integral ``_michie_beta_oracle(W(r), r/r_a)`` (numpy, the same
+    helper that anchors test_michie_physics.py) is an INDEPENDENT computation of the
+    model's own anisotropy from the EXACT sampled DF density. ``df_moment_dispersion``
+    must reproduce it (orchestrator measured 1.5e-4). W(r) is read off the stored
+    Michie ODE solution, interp at r/r_c on xi_grid/psi_grid, clamped >= 0.
+    """
+    W0, r_c, r_a, M = 6.0, 1.0, 5.0, 400.0
+    df = MichieVelocityDF(W0=W0, r_c=r_c, r_a=r_a)
+    radii = (0.5, 1.0, 2.0, 4.0, 8.0)
+    max_dev = 0.0
+    for r0 in radii:
+        W = jnp.interp(r0 / r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+        W = float(jnp.maximum(W, 0.0))
+        oracle = float(_michie_beta_oracle(W, r0 / r_a))
+        beta = float(df_moment_dispersion(df, jnp.array([r0]), M, G).beta[0])
+        dev = abs(beta - oracle)
+        max_dev = max(max_dev, dev)
+        assert dev < 1e-2, (
+            f"Tier-B beta r0={r0}: df_moment={beta:.5f} oracle={oracle:.5f} "
+            f"dev={dev:.3e} >= 1e-2"
+        )

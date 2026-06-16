@@ -319,6 +319,24 @@ def test_grad_jeans_beta_fn_wrt_M():
     _assert_ad_fd(f, 400.0, name="general-beta jeans / M")
 
 
+def test_beta_fn_constant_sigma_ratio():
+    """Non-OM beta_fn anchor: a CONSTANT beta(r)=0.5 -> sigma_t/sigma_r == sqrt(1-0.5).
+
+    The D1 general-beta path accepts an ARBITRARY anisotropy law, not just the OM
+    family. With a constant beta the Jeans tangential relation
+    ``sigma_t^2 = (1 - beta) sigma_r^2`` is exact and radius-independent, so
+    ``sigma_t/sigma_r = sqrt(1 - beta) = 1/sqrt(2)`` at EVERY radius. This pins the
+    genuinely-new arbitrary-beta capability at the unit tier, independent of D3's
+    Michie validation legs (which exercise the OM-like / true-Michie laws).
+    """
+    prof = PlummerProfile(r_h=1.0)
+    r = jnp.array([0.5, 1.0, 2.0, 4.0])
+    beta_const = lambda rr: 0.5 * jnp.ones_like(rr)
+    dp = jeans_dispersion(prof, None, r, 400.0, G_STELLAR, beta_fn=beta_const)
+    assert jnp.allclose(dp.sigma_t / dp.sigma_r, 1.0 / jnp.sqrt(2.0), rtol=1e-6)
+    assert jnp.allclose(dp.beta, 0.5, rtol=1e-6)
+
+
 def test_jit_both_forward_models():
     """jax.jit compiles both forward models and returns finite arrays (OED jits these)."""
     prof = PlummerProfile(r_h=1.0)
