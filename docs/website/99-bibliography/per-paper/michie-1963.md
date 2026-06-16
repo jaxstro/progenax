@@ -29,6 +29,15 @@ lowered-Maxwellian now universally combined with King's (1966) cutoff as the
 
 ## The distribution function (verified against the paper, §4–5)
 
+```{note}
+Re-verified equation-by-equation against the PDF on 2026-06-16 (Eqs. 4.0–4.3, 4.8, 5.0,
+5.3, 5.4–5.9) as the provenance grounding for the packaged differentiable Michie DF
+second-moment forward model `df_moment_dispersion` (progenax `kinematics/dispersion.py`).
+The anisotropy term $\exp(-\beta J^2)$ (Eq. 4.0, $J^2=r^2v^2(1-\mu^2)$) maps to
+$\exp(-s^2 u_t^2/2)$ ($s=r/r_a$, $u_t=v_t/\sigma$, $\beta\equiv 1/2r_a^2\sigma^2$); the
+$[\exp(-E/\sigma^2)-1]$ cutoff is King (1966), **not** Michie's Fokker–Planck $Q$ (Eq. 4.8).
+```
+
 Michie writes (Eqs. 4.0–4.3, 5.0)
 
 ```{math}
