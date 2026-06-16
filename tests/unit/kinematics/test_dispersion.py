@@ -7,6 +7,7 @@ invariants, r_a domain guard, jit smoke.
 
 import jax
 import jax.numpy as jnp
+import pytest
 import progenax
 from progenax import jeans_dispersion, project_dispersion
 from progenax.kinematics.dispersion import DispersionProfile, ProjectedDispersion
@@ -157,6 +158,94 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
         return jnp.sum(project_dispersion(prof, r_a, R_QUERY, 400.0, G_STELLAR).sigma_pm_t)
 
     _assert_ad_fd(f, 2.0, name="project sigma_pm_t / r_a")
+
+
+# --- Phase 0.5 Task B: regression-gate profile-parameter dispersion gradients ---
+#
+# EFF (prescribed r_t/gamma, no ODE solve) gradients are CLEAN (measured rel
+# ~1e-8). The SOLVED-equilibrium W0 gradients (King/Michie, both via
+# solve_*_profile + _find_tidal_radius) are measured honestly here:
+#   - King W0:  rel ~9e-5 at the helper's default FD step; AD->FD CONVERGES as
+#     h shrinks (1.4e-3 @ h=1e-2 -> 2e-5 @ h=1e-4) => genuinely CLEAN, gated.
+#   - Michie W0: rel ~5e-3 and does NOT converge as h shrinks (the upstream
+#     ODE-solver FD-inconsistency, deferred to the gradient-audit arc) => xfail.
+# Despite sharing solve_*/_find_tidal_radius, King is FD-consistent here while
+# Michie (with r_a anisotropy) is not.
+
+
+def test_grad_jeans_eff_wrt_r_t():
+    """EFF sigma_r gradient w.r.t. truncation radius r_t (prescribed, no ODE; clean)."""
+
+    def f(r_t):
+        return jnp.sum(
+            jeans_dispersion(
+                EFFProfile(a=1.0, gamma=4.0, r_t=r_t), None, jnp.array([1.0]), 400.0, G_STELLAR
+            ).sigma_r
+        )
+
+    _assert_ad_fd(f, 8.0, name="jeans EFF sigma_r / r_t")  # measured rel ~4.8e-8
+
+
+def test_grad_jeans_eff_wrt_gamma():
+    """EFF sigma_r gradient w.r.t. outer slope gamma (prescribed, no ODE; clean)."""
+
+    def f(g):
+        return jnp.sum(
+            jeans_dispersion(
+                EFFProfile(a=1.0, gamma=g, r_t=8.0), None, jnp.array([1.0]), 400.0, G_STELLAR
+            ).sigma_r
+        )
+
+    _assert_ad_fd(f, 4.0, name="jeans EFF sigma_r / gamma")  # measured rel ~5.7e-9
+
+
+def test_grad_jeans_king_wrt_W0():
+    """King sigma_r gradient w.r.t. W0 (solved equilibrium; FD-consistent, gated clean).
+
+    Despite King sharing solve_king_profile + _find_tidal_radius with the
+    FD-inconsistent Michie path, the King W0 gradient CONVERGES to FD as the
+    step shrinks (rel ~9e-5 at the default step) -- a genuine clean gate, not
+    the deferred limitation.
+    """
+    from progenax.profiles import KingProfile
+
+    def f(W0):
+        return jnp.sum(
+            jeans_dispersion(
+                KingProfile.from_W0_rc(W0=W0, r_c=1.0), None, jnp.array([1.0]), 400.0, G_STELLAR
+            ).sigma_r
+        )
+
+    _assert_ad_fd(f, 6.0, name="jeans King sigma_r / W0")  # measured rel ~9.1e-5
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="upstream Michie ODE-solver gradient (~5e-3 FD-inconsistent); deferred to "
+    "gradient-audit arc, see "
+    "docs/plans/2026-06-16-michie-king-equilibrium-gradient-redesign-deferred.md",
+)
+def test_grad_jeans_michie_wrt_W0_DEFERRED():
+    """Michie sigma_r gradient w.r.t. W0 (solved equilibrium; ~5e-3 FD-inconsistent).
+
+    Wraps a strict _assert_ad_fd so this xfails NOW (documenting the deferred
+    limitation) and auto-alerts via xpass if the gradient-audit arc later lands
+    the FD-consistent equilibrium-solve redesign.
+    """
+    from progenax.profiles import MichieProfile
+
+    def f(W0):
+        return jnp.sum(
+            jeans_dispersion(
+                MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=5.0),
+                None,
+                jnp.array([1.0]),
+                400.0,
+                G_STELLAR,
+            ).sigma_r
+        )
+
+    _assert_ad_fd(f, 6.0, name="jeans Michie sigma_r / W0")  # measured rel ~5.1e-3 > 1e-3
 
 
 # --- Phase 0.5 Task A: tabulate-once project_dispersion equivalence regression ---
