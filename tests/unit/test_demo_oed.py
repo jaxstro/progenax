@@ -66,3 +66,36 @@ def test_fisher_dimensionless_well_conditioned():
     assert jnp.linalg.cond(F) < 1e3                       # dimensionless (was ~1.7e9 raw)
     frac_sigma_ra = jnp.linalg.inv(F)[0, 0] ** 0.5        # FRACTIONAL precision on r_a
     assert 0.01 < frac_sigma_ra < 0.5                     # ~0.12 at the working mock
+
+
+# --- Task 3: c / D / A optimality criteria + AD-vs-FD gradient gate ---
+
+
+def _crits():
+    th = oed.theta_truth()
+    Mb, _ = oed.per_star_blocks(th, oed.R_BINS, oed.EPS, STELLAR.G)
+    cb = oed.completeness(oed.R_BINS)
+    return Mb, cb
+
+
+def test_criteria_values_positive():
+    Mb, cb = _crits()
+    z = jnp.zeros(3 * oed.R_BINS.shape[0])
+    F = oed.fisher(z, Mb, cb, 2000.0, oed.PRIOR_DIAG)
+    assert oed.c_criterion(F) > 0                       # marginal var of r_a
+    assert jnp.isfinite(oed.d_criterion(F))             # -logdet
+    assert oed.a_criterion(F) > 0                       # tr F^-1
+
+
+def test_criteria_grads_AD_vs_FD():
+    Mb, cb = _crits()
+    z = jax.random.normal(jax.random.PRNGKey(0), (3 * oed.R_BINS.shape[0],)) * 0.1
+    for crit in (oed.c_criterion, oed.d_criterion, oed.a_criterion):
+        loss = lambda zz: crit(oed.fisher(zz, Mb, cb, 2000.0, oed.PRIOR_DIAG))
+        g_ad = jax.grad(loss)(z)
+        # central FD on a few coords
+        eps = 1e-5
+        for i in (0, 5, 17, 31):
+            zp = z.at[i].add(eps); zm = z.at[i].add(-eps)
+            g_fd = (loss(zp) - loss(zm)) / (2 * eps)
+            assert jnp.allclose(g_ad[i], g_fd, rtol=1e-4, atol=1e-8), (crit.__name__, i)

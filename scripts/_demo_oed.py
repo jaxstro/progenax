@@ -161,3 +161,51 @@ def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
     if prior_diag is not None:
         F = F + jnp.diag(prior_diag)
     return F
+
+
+# ===========================================================================
+# Task 3: c / D / A optimality criteria (all minimized)
+# ===========================================================================
+#
+# F is the dimensionless ln-theta Fisher (Task 2.5), so every F^-1 entry is a
+# FRACTIONAL variance (ADR 0011). The three classical alphabet-optimality
+# criteria below are therefore all in the fractional metric and are each cast
+# as a quantity to MINIMIZE, so the same optax loop (Task 4) drives all three:
+#   c-optimality: minimize the marginal fractional variance of the TARGET r_a
+#                 (the (r_a, r_a) entry of F^-1) -- the headline science goal.
+#   D-optimality: maximize the information volume det(F) <=> minimize -logdet F
+#                 (slogdet for numerical stability; sign is +1 for SPD F).
+#   A-optimality: minimize the TOTAL fractional variance tr(F^-1) (the trace of
+#                 the covariance) -- the average over all three parameters.
+# Each is a smooth function of the SPD F, so jax.grad flows cleanly through the
+# 3x3 inverse / slogdet (AD-vs-FD gate, rtol 1e-4, at cond(F) ~ 45).
+
+_TARGET = 0   # index of r_a in theta = (r_a, M, r_h)
+
+
+def c_criterion(F):
+    """c-optimality (MINIMIZE): marginal FRACTIONAL variance of the target r_a.
+
+    The (r_a, r_a) entry of F^-1 in the dimensionless ln-theta metric (ADR
+    0011), i.e. [sigma(r_a)/r_a]^2 -- the squared fractional precision on the
+    anisotropy radius. This is the Stage-1 headline objective.
+    """
+    return jnp.linalg.inv(F)[_TARGET, _TARGET]
+
+
+def d_criterion(F):
+    """D-optimality (MINIMIZE): -logdet F == maximize the information volume det F.
+
+    Uses slogdet (returns (sign, logabsdet)); for the SPD design Fisher the sign
+    is +1, so the logdet term is the signed log-determinant.
+    """
+    return -jnp.linalg.slogdet(F)[1]
+
+
+def a_criterion(F):
+    """A-optimality (MINIMIZE): total FRACTIONAL variance tr(F^-1).
+
+    The trace of the covariance in the ln-theta metric -- the sum of the
+    fractional variances of (r_a, M, r_h).
+    """
+    return jnp.trace(jnp.linalg.inv(F))
