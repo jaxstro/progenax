@@ -12,8 +12,14 @@ properly-scoped sub-arc here, not rushed into dispersion hardening.
 `jax.grad` of a Michie-equilibrium observable w.r.t. `W0` is **FD-inconsistent at ~5e-3 relative**
 (above the 1e-3 grad gate). Reproduced via `jeans_dispersion(MichieProfile.from_W0_rc(W0,...))`:
 `σ_r(r=1)` at `W0=6, r_c=1, r_a=5`, `AD=−5.1554778e-2` vs converged `FD≈−5.176e-2`.
-EFF (prescribed `r_t`, no ODE) is **clean** (rel ~1e-8); the defect is specific to the **solved**
-equilibrium (King shares the identical solver pattern → same latent issue w.r.t. `W0`).
+EFF (prescribed `r_t`, no ODE) is **clean** (rel ~1e-8). **King `W0` is ALSO clean** (Task B,
+2026-06-16): AD-vs-FD *converges* as h→0 (1.4e-3 @ h=1e-2 → 2.1e-5 @ h=1e-4), gated clean. So even
+though King shares the **identical** `solve_king_profile` (Tsit5+PIDController) + `_find_tidal_radius`,
+it does NOT trip the defect. **The defect is MICHIE-ANISOTROPIC-SPECIFIC** — it appears only on the
+`r_a`-dependent anisotropic path (`michie_density(psi, s=xi/ra_hat)` in the ODE RHS / the extended
+`xi_max=800` anisotropic models). This RULES OUT the adaptive controller and `_find_tidal_radius` as
+*sufficient* causes (King has both, clean) — narrowing the gradient-audit investigation to the Michie
+anisotropic structure.
 
 ## Root cause (systematic-debugging, 3 hypotheses tested 2026-06-16)
 
@@ -51,7 +57,9 @@ A robust <1e-3, FD-consistent gradient needs the differentiable equilibrium-solv
   forward-solve change **must** re-validate the full King/Michie suites, especially the sensitive
   **King c(W₀) vs King (1966) Table II anchor at max|Δlog₁₀c| = 0.002** — a fixed-step switch *will*
   perturb it. Re-tune resolution to hold that anchor, or the fix is not acceptable.
-- Cross-check both King AND Michie `∂σ/∂W0` AD-vs-FD <1e-3 after the fix.
+- King `∂σ/∂W0` is ALREADY clean — the fix must NOT regress it; target is Michie `∂σ/∂W0` <1e-3.
+  Because King (same solver, isotropic) is clean, start the investigation at the Michie *anisotropic*
+  path (`michie_density` r_a/s dependence, the anisotropic ODE RHS, `xi_max=800`), not the shared solver.
 
 ## What the dispersion arc does instead (Option A, now)
 
