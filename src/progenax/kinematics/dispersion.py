@@ -144,60 +144,6 @@ def _sigma_components(
     return sigma_r, sigma_t, sigma_1d, beta
 
 
-def jeans_sigma_r(
-    r: Float[Array, " n"],
-    rho: Float[Array, " ns"],
-    M_enc: Float[Array, " ns"],
-    s: Float[Array, " ns"],
-    G,
-    r_a: Optional[float] = None,
-) -> Float[Array, " n"]:
-    """Anisotropic-Jeans radial velocity dispersion sqrt(sigma_r^2) at radii ``r``.
-
-    Solves the spherical anisotropic Jeans equation (Binney & Tremaine 2008,
-    sec. 4.8.3; Merritt 1985, Eq. 15) for an Osipkov-Merritt anisotropy
-    ``beta(r) = r^2 / (r^2 + r_a^2)``::
-
-        rho sigma_r^2(r) = 1/(r^2 + r_a^2) * int_r^inf (s^2 + r_a^2) rho(s) G M(<s)/s^2 ds
-
-    The isotropic limit (``r_a is None``) drops the ``(s^2 + r_a^2)`` weight and
-    the ``1/(r^2 + r_a^2)`` prefactor (both -> 1).
-
-    The outward integral ``I(s) = int_s^inf (...) ds`` is evaluated by a *reverse*
-    cumulative trapezoid: flip the integrand, run :func:`cumulative_trapezoid`
-    (which integrates from the leading edge), then flip back. ``rho(s)`` and
-    ``I(s)`` are interpolated onto the query radii ``r`` with ``jnp.interp``.
-    Fully reverse-mode differentiable; uniform ``s`` spacing assumed.
-
-    Parameters
-    ----------
-    r : query radii.
-    rho, M_enc, s : profile density, enclosed mass M(<s), and the (uniform) s-grid.
-    G : gravitational constant (sets the velocity units).
-    r_a : Osipkov-Merritt anisotropy radius, or ``None`` for isotropic.
-    """
-    ds = s[1] - s[0]
-    s2 = s**2
-    # Integrand g(s) = w(s) * rho(s) * G M(<s) / s^2, with the OM weight
-    # w(s) = (s^2 + r_a^2) (isotropic: w == 1). Guard s^2 against the s=0 edge.
-    if r_a is None:
-        weight = jnp.ones_like(s)
-    else:
-        weight = s2 + jnp.asarray(r_a) ** 2
-    integrand = weight * rho * G * M_enc / jnp.maximum(s2, 1e-30)
-    # Reverse cumulative trapezoid -> I(s) = int_s^inf integrand ds.
-    I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=ds))
-    # Interpolate rho and the outward integral onto the query radii.
-    rho_r = jnp.interp(r, s, rho)
-    I_r = jnp.interp(r, s, I_outward)
-    if r_a is None:
-        prefactor = jnp.ones_like(r)
-    else:
-        prefactor = 1.0 / jnp.maximum(r**2 + jnp.asarray(r_a) ** 2, 1e-30)
-    sigma_r2 = prefactor * I_r / jnp.maximum(rho_r, 1e-30)
-    return jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
-
-
 def _log_factor(beta_fn, s):
     """Log integrating factor ``F(s) = 2 int beta(s)/s ds`` (general-beta path).
 
@@ -254,7 +200,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
       :func:`_log_factor`); the matching prefactor is ``exp(-(F(r) - Fmax))``.
 
     This is the same construction the old per-call
-    :func:`jeans_dispersion`/:func:`jeans_sigma_r` path did, factored out so
+    :func:`jeans_dispersion` radial-dispersion path did, factored out so
     :func:`project_dispersion` can solve the Jeans equation exactly once and
     interpolate per projected radius ``R`` (instead of a fresh master solve
     inside every vmapped ``_los_quantities``).
@@ -361,8 +307,9 @@ def _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=None):
       ``1/f(r)`` (the max-subtraction cancels with the same constant folded into
       ``I_outward``'s integrand), interpolating ``F - Fmax`` onto ``r``.
 
-    This is exactly the tail of the old :func:`jeans_sigma_r` (same operations),
-    minus the (now R-independent) integrand/``I_outward`` build.
+    This is exactly the tail of the anisotropic-Jeans ``sigma_r`` solve (same
+    operations: interpolate + prefactor), minus the (now R-independent)
+    integrand/``I_outward`` build done in :func:`_jeans_tables`.
     """
     rho_r = jnp.interp(r, s, rho)
     I_r = jnp.interp(r, s, I_outward)
@@ -391,7 +338,8 @@ def ftable_sigma_r_isotropic(
 
         sigma_r^2 = <s^2> / 3        (sigma_r = sigma_t = sigma_1d, isotropic)
 
-    This is the DF-side cross-check of :func:`jeans_sigma_r`: a *different* code path
+    This is the DF-side cross-check of the anisotropic-Jeans ``sigma_r`` solve
+    (:func:`_jeans_tables` / :func:`_sigma_r2_from_tables`): a *different* code path
     (speed quadrature over the tabulated ``f``) for the same physical quantity. It is
     isotropic-only by design — the Osipkov-Merritt second moment is a 2-D (energy,
     angular-momentum) integral, out of scope here.
@@ -429,9 +377,8 @@ def jeans_dispersion(
     spatial ``profile`` (which owns rho, M, Phi) for an Osipkov-Merritt (1985)
     anisotropy radius ``r_a`` (``None`` -> isotropic). The radial dispersion is
     the anisotropic Jeans solution (master tables from :func:`_jeans_tables`,
-    evaluated by :func:`_sigma_r2_from_tables` — the same construction the public
-    :func:`jeans_sigma_r` exposes); the tangential / 1-D components and ``beta``
-    follow from OM (:func:`_sigma_components`).
+    evaluated by :func:`_sigma_r2_from_tables`); the tangential / 1-D components
+    and ``beta`` follow from OM (:func:`_sigma_components`).
 
     Anisotropy model (IMPORTANT — read before using on a Michie/King profile).
     This function **imposes the Osipkov-Merritt anisotropy law**
@@ -530,8 +477,8 @@ def jeans_dispersion(
     r = jnp.atleast_1d(jnp.asarray(r))
 
     # One master anisotropic-Jeans solve (R-independent tables), then evaluate
-    # sigma_r^2 at the query radii. Bit-identical to the old
-    # jeans_sigma_r(rho, M_enc, s, ...) path — same grid, integrand, I_outward,
+    # sigma_r^2 at the query radii. Bit-identical to the old inlined
+    # rho/M_enc/s -> I_outward path — same grid, integrand, I_outward,
     # prefactor, and interpolation, just factored into reusable helpers.
     s, rho, I_outward, F_shifted = _jeans_tables(profile, r_a, M, G, n_s, beta_fn=beta_fn)
     sigma_r2 = jnp.maximum(

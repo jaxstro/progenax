@@ -41,7 +41,7 @@ from progenax.kinematics import (
     jeans_dispersion,
     df_moment_dispersion,
 )
-from progenax.kinematics.dispersion import jeans_sigma_r, ftable_sigma_r_isotropic
+from progenax.kinematics.dispersion import ftable_sigma_r_isotropic
 from progenax.kinematics.eff_df import _eff_eddington_table
 
 G = 0.00449
@@ -467,6 +467,41 @@ def test_projection_isotropic_all_equal():
     prof = PlummerProfile(r_h=1.0)
     R = jnp.array([0.5, 1.0, 2.0, 4.0])
     pj = project_dispersion(prof, None, R, 400.0, G)  # r_a=None -> beta=0
+    assert jnp.allclose(pj.sigma_los, pj.sigma_pm_r, rtol=1e-3)
+    assert jnp.allclose(pj.sigma_los, pj.sigma_pm_t, rtol=1e-3)
+
+
+def test_projection_eff_finite_rt():
+    """Finite-r_t projection branch: project an isotropic EFF (King-like cutoff).
+
+    Both isotropic projection oracles above use Plummer, which takes the
+    SEMI-INFINITE (compactified-tau) u-grid branch of ``project_dispersion``. A
+    finite-``r_t`` profile (EFF / King) instead takes the uniform-``u`` branch
+    (``u_max = sqrt(r_edge^2 - R^2)``, ``jac = 1``) — exercised here for the first
+    time. No closed-form oracle is asserted (none is source-verified for the
+    truncated EFF projection); this is a STRUCTURAL gate: finite, positive outputs
+    plus the isotropic kernel identity. With beta=0 (r_a=None) every B&M82 kernel
+    collapses to 1, so sigma_los == sigma_pm_r == sigma_pm_t exactly (rtol 1e-3) —
+    the same algebraic identity as ``test_projection_isotropic_all_equal``, now on
+    the finite-r_t code path.
+    """
+    a, gamma, r_t = 1.0, 5.0, 12.0
+    M = 400.0
+    prof = EFFProfile(a=a, gamma=gamma, r_t=r_t)
+    R = jnp.array([1.0, 3.0, 6.0])  # all well inside r_t
+
+    pj = project_dispersion(prof, None, R, M, G)  # isotropic -> beta=0
+
+    # Shapes propagate the input R.
+    assert pj.sigma_los.shape == R.shape
+    assert pj.Sigma.shape == R.shape
+    # Surface density strictly positive.
+    assert jnp.all(pj.Sigma > 0.0)
+    # All three dispersions finite and strictly positive.
+    for sig in (pj.sigma_los, pj.sigma_pm_r, pj.sigma_pm_t):
+        assert jnp.all(jnp.isfinite(sig))
+        assert jnp.all(sig > 0.0)
+    # Isotropic identity (beta=0): the three kernels collapse to 1.
     assert jnp.allclose(pj.sigma_los, pj.sigma_pm_r, rtol=1e-3)
     assert jnp.allclose(pj.sigma_los, pj.sigma_pm_t, rtol=1e-3)
 
