@@ -248,8 +248,22 @@ class TestTableBackedSolver:
     @pytest.mark.slow
     def test_table_solve_is_faster(self):
         """Warm table solve >= 3x faster than warm quadrature solve (the measured
-        target is ~5-10x; assert a conservative 3x so the test is not flaky)."""
+        target is ~5-10x; assert a conservative 3x).
+
+        Skipped under coverage tracing or xdist parallelism: a wall-clock *ratio*
+        is physically meaningless there — coverage's per-line C-tracing overhead
+        does not scale equally between the (Python-heavy) quadrature path and the
+        (light) table path, and ``-n auto`` workers contend for cores. Both
+        compress the ratio below the floor non-deterministically. The benchmark
+        still runs and asserts in a clean serial, un-instrumented context (where
+        it measures ~5-10x); it is not a meaningful CI gate under instrumentation.
+        """
+        import os
+        import sys
         import time
+
+        if os.environ.get("PYTEST_XDIST_WORKER") is not None or sys.gettrace() is not None:
+            pytest.skip("timing-ratio benchmark unreliable under coverage/xdist; runs serially")
 
         def timed(method):
             self._solve(method)  # warm/compile
