@@ -172,6 +172,10 @@ PROVENANCE: dict[str, str] = {
         "Binney & Mamon (1982) MNRAS 200, 361 (projection integrals); isotropic-Plummer "
         "sigma_los^2 = (3 pi/64) G M / sqrt(a^2+R^2) per Dejonghe (1987) MNRAS 224, 13 — "
         "both derivable/cited identities.",
+    "kinematics/dispersion.py::Michie-King DF second-moment quadrature (df_moment_dispersion)":
+        "Michie (1963) MNRAS 125, 127 (anisotropy exp(-beta J^2), Eq 4.0/4.2) + King (1966) "
+        "AJ 71, 64 (lowered-Maxwellian cutoff); 2nd velocity moment of the DF — derivable "
+        "identity. Verified vs PDF 2026-06-16 (per-paper note michie-1963.md).",
 }
 
 # --- ALLOWLIST_MODULES: the SCOPED constant-bearing files the new-literal ratchet covers -

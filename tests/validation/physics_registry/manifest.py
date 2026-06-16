@@ -322,6 +322,11 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "project_dispersion": "Binney & Mamon (1982) line-of-sight projection forward model "
                           "(sigma_los/sigma_pm_r/sigma_pm_t); a forward-model helper, not an "
                           "equilibrium model. Anchored in test_dispersion_physics.py.",
+    "df_moment_dispersion": "exact Michie-King DF second-moment dispersion "
+                            "(sigma_r/sigma_t/sigma_1d/beta); a forward-model helper, not an "
+                            "equilibrium model. Physics anchored in "
+                            "tests/validation/test_dispersion_physics.py (sampler all-radii + "
+                            "Tier-A Jeans consistency + beta-vs-_michie_beta_oracle).",
     # --- Binary connector + diagnostics + energy/kinematic kernels ---
     "resolve_binary_components": "binary->spatial connector, not a model (grad-audit AUDITED "
                                  "as a Fisher path, but it is a transform, not a model object)",

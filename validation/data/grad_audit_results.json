@@ -1314,5 +1314,19 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "df_moment_dispersion[Michie]",
+    "direction": "params->summary",
+    "param": "M",
+    "theta": 400.0,
+    "finite": true,
+    "ad": 0.0013407431625041715,
+    "fd": 0.0013407431641798695,
+    "ratio": 0.9999999987501723,
+    "abs_ad": 0.0013407431625041715,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]

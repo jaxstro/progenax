@@ -117,6 +117,7 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("jeans_dispersion[Plummer]", "M"): "Jeans sigma_r in total mass",
     ("project_dispersion[Plummer+OM]", "r_a"): "B&M82 sigma_los in anisotropy radius",
     ("project_dispersion[Plummer+OM].pm_t", "r_a"): "B&M82 sigma_pm_t (beta-carrying) in r_a",
+    ("df_moment_dispersion[Michie]", "M"): "Michie DF-moment sigma_r in total mass",
 }
 
 # --- SYMBOL_CATEGORY: every __all__ symbol -> category ----------------------
@@ -169,6 +170,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     # --- Dispersion forward models (Phase 0 Task 8) ---
     "jeans_dispersion": AUDITED,             # OM Jeans sigma_r in r_a + M (interior radii; FD-consistent)
     "project_dispersion": AUDITED,           # B&M82 sigma_los + sigma_pm_t (beta-carrying) in r_a
+    "df_moment_dispersion": AUDITED,         # Michie DF-moment sigma_r in M (interior radii; FD-consistent; W0 deferred)
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,

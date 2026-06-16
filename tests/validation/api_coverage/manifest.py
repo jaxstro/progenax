@@ -53,6 +53,7 @@ SYMBOL_TESTS: dict[str, str] = {
     # --- Dispersion forward models (jeans / B&M82 projection) ---
     "jeans_dispersion": "tests/unit/kinematics/test_dispersion.py::test_plummer_isotropic_closed_form",  # assert dp.sigma_1d == sqrt(GM/(6 sqrt(r^2+a^2))) (rtol 3e-3) + beta==0 + sigma_r==sigma_t on jeans_dispersion output
     "project_dispersion": "tests/validation/test_dispersion_physics.py::test_projection_isotropic_all_equal",  # assert pj.sigma_los == sigma_pm_r == sigma_pm_t (beta=0 B&M82 kernel collapse) on project_dispersion output
+    "df_moment_dispersion": "tests/unit/kinematics/test_dispersion.py::test_df_moment_export_and_shapes",  # assert df_moment_dispersion exported + returns DispersionProfile with correct (sigma_r/sigma_t/sigma_1d/beta) shapes
 
     # --- IMFs ---
     "PowerLawIMF": "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_min",  # assert |cdf(m_min)| < 1e-6

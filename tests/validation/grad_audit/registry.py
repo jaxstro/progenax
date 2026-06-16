@@ -21,6 +21,7 @@ from progenax import (  # noqa: F401-adjacent — carries float64 on import
     UniformEccentricity,
     jeans_dispersion,
     project_dispersion,
+    df_moment_dispersion,
     build_spatial_ic,
     build_cluster,
     build_king_cluster,
@@ -1524,6 +1525,21 @@ def _project_dispersion_om_r_a_pmt(r_a):
     return project_dispersion(prof, r_a, _DISP_R_INTERIOR, 400.0, STELLAR.G).sigma_pm_t
 
 
+# Michie-King DF (built ONCE; W0=6.0, r_c=1.0, r_a=5.0 — mild anisotropy, interior radii
+# well inside the bound region). df_moment_dispersion integrates the DF's 2nd velocity
+# moments by polar quadrature (smooth, no boundary mask), so sigma_r is a clean trapezoid
+# function of M (sigma^2 ∝ G M). M-gradient ONLY — the W0 path is the deferred Michie-W0
+# limitation (docs/plans/2026-06-16-michie-king-equilibrium-gradient-redesign-deferred.md).
+# MEASURED (theta0=400.0, identity_sum over sigma_r at the three interior radii), STELLAR.G:
+# AD/FD |ratio-1| ~ 4.2e-4 -- consistent (tol=1e-3).
+_DISP_MICHIE_DF = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)
+
+
+def _df_moment_dispersion_M(M):
+    # Michie DF-moment radial dispersion sigma_r in total mass M (sigma_r^2 ∝ G M).
+    return df_moment_dispersion(_DISP_MICHIE_DF, _DISP_R_INTERIOR, M, STELLAR.G).sigma_r
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -2034,4 +2050,9 @@ REGISTRY: list[Case] = [
     Case(id="project_dispersion[Plummer+OM].pm_t", direction="params->summary",
          fn=_project_dispersion_om_r_a_pmt, param="r_a", theta0=_DISP_R_A,
          reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|=1e-8
+    # df_moment_dispersion (exact Michie DF 2nd-moment quadrature); M-gradient only (W0
+    # deferred). FD-consistent at interior radii r in [0.5,2.0]. tol=1e-3 (smooth quadrature).
+    Case(id="df_moment_dispersion[Michie]", direction="params->summary",
+         fn=_df_moment_dispersion_M, param="M", theta0=400.0,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|~4.2e-4
 ]

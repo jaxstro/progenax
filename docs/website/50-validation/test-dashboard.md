@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
+Generated at `2026-06-16T16:19:14.150188+00:00`. Line coverage: 95.9% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -31,7 +31,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 93.4
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `api_coverage`
@@ -39,7 +39,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 5
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `binaries`
@@ -47,7 +47,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 95.8
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `builders`
@@ -55,7 +55,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 93.7
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `cluster`
@@ -63,7 +63,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 98.6
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `diagnostics`
@@ -71,7 +71,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 92.4
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `dynamics`
@@ -79,7 +79,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 97.8
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `grad_audit`
@@ -87,7 +87,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 26
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `imf`
@@ -95,15 +95,15 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 97.1
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `kinematics`
-  - 115
+  - 125
   - 0
   - 0
   - 99.2
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `physics_registry`
@@ -111,7 +111,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 6
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `profiles`
@@ -119,7 +119,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 98.9
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `provenance_registry`
@@ -127,7 +127,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 7
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `stellar`
@@ -135,7 +135,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - 100.0
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `substructure`
@@ -143,7 +143,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_analytical_physics`
@@ -151,7 +151,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 28
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_azimuthal_variation_physics`
@@ -159,7 +159,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 5
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_binary_cluster`
@@ -167,7 +167,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 11
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_binary_physics`
@@ -175,7 +175,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 19
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_builders`
@@ -183,7 +183,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_cluster_builders_integration`
@@ -191,7 +191,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 7
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_dashboard_fresh`
@@ -199,7 +199,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 3
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_dashboard_gen`
@@ -207,15 +207,15 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 14
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_dispersion_physics`
   - 0
   - 0
-  - 20
+  - 23
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_documented_api`
@@ -223,7 +223,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_eff_physics`
@@ -231,7 +231,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 24
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_end_to_end`
@@ -239,7 +239,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 9
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_engine_b_physics`
@@ -247,7 +247,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 6
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_environment_physics`
@@ -255,15 +255,15 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 15
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_grad_audit`
   - 0
   - 0
-  - 96
+  - 97
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_imf_physics`
@@ -271,7 +271,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 23
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_jax_compatibility`
@@ -279,7 +279,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 6
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_king_physics`
@@ -287,7 +287,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 35
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_limepy_reference_parity`
@@ -295,7 +295,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 3
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_mass_segregation_physics`
@@ -303,7 +303,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 9
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_michie_physics`
@@ -311,7 +311,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 10
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_multimass_equilibrium_physics`
@@ -319,7 +319,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 6
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_numerics`
@@ -327,7 +327,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_plummer_physics`
@@ -335,7 +335,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 20
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_protocols`
@@ -343,7 +343,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_public_api`
@@ -351,7 +351,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_readme_examples`
@@ -359,7 +359,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 9
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_rotation_anisotropy_physics`
@@ -367,7 +367,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 8
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_segregation_approx_physics`
@@ -375,7 +375,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 13
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_segregation_equilibrium_physics`
@@ -383,7 +383,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 4
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_strict_refs`
@@ -391,7 +391,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 1
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_substructure_q_physics`
@@ -399,7 +399,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 8
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_tidal`
@@ -407,7 +407,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_tidal_physics`
@@ -415,7 +415,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 9
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_units_through_pipeline`
@@ -423,7 +423,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 2
   - 0
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 * - `test_zams_physics`
@@ -431,7 +431,7 @@ Generated at `2026-06-16T14:57:09.757646+00:00`. Line coverage: 95.9% (floor 90%
   - 0
   - 34
   - pending (Phase 2)
-  - 40/121 audited, 0 haz
+  - 41/122 audited, 0 haz
   - —
   - —
 ```

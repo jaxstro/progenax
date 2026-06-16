@@ -8,7 +8,7 @@
     "line_cov_measured": 95.86473074802426,
     "registries_full": true
   },
-  "generated_utc": "2026-06-16T14:57:09.757646+00:00",
+  "generated_utc": "2026-06-16T16:19:14.150188+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "57860ae1a57ded7a4c68e3e93f11aa39b3df90cf",
@@ -481,7 +481,7 @@
     "kinematics": {
       "integration": 0,
       "line_cov": 99.21996879875195,
-      "unit": 115,
+      "unit": 125,
       "validation": 0
     },
     "physics_registry": {
@@ -566,7 +566,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 20
+      "validation": 23
     },
     "test_documented_api": {
       "integration": 0,
@@ -602,7 +602,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 96
+      "validation": 97
     },
     "test_imf_physics": {
       "integration": 0,
@@ -736,11 +736,11 @@
       "exempt": 2,
       "full": true,
       "status": "built",
-      "symbol_tests": 119,
+      "symbol_tests": 120,
       "untested": 0
     },
     "differentiability": {
-      "audited": 40,
+      "audited": 41,
       "exempt": {
         "EXEMPT_ANALYTICAL_IC": 14,
         "EXEMPT_CONTAINER": 15,
@@ -751,17 +751,17 @@
       },
       "full": true,
       "hazards": 0,
-      "json_rows": 94,
-      "must_audit": 84,
+      "json_rows": 95,
+      "must_audit": 85,
       "status": "built",
       "status_histogram": {
-        "clean": 90,
+        "clean": 91,
         "known-limitation": 4
       }
     },
     "physics_validation": {
       "exempt_non_equilibrium": 3,
-      "exempt_non_model": 97,
+      "exempt_non_model": 98,
       "full": true,
       "models": 21,
       "status": "built",
@@ -769,7 +769,7 @@
     },
     "provenance": {
       "allowlist_modules": 9,
-      "constants": 33,
+      "constants": 34,
       "full": true,
       "status": "built",
       "unprovenanced": 0
