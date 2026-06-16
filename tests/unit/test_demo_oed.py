@@ -30,3 +30,25 @@ def test_per_star_blocks_shape_and_symmetry():
     assert jnp.allclose(Mb, jnp.swapaxes(Mb, -1, -2), atol=1e-12)
     # diagonal entries non-negative
     assert jnp.all(jnp.diagonal(Mb, axis1=-2, axis2=-1) >= -1e-12)
+
+
+# --- Task 2: design allocation, completeness, additive Fisher F = Sum n*c*M ---
+
+
+def test_fisher_additivity_and_linearity():
+    th = oed.theta_truth()
+    Mb, _ = oed.per_star_blocks(th, oed.R_BINS, oed.EPS, STELLAR.G)
+    K = oed.R_BINS.shape[0]
+    z = jnp.zeros(3 * K)                         # uniform softmax
+    F1 = oed.fisher(z, Mb, oed.completeness(oed.R_BINS), N_total=1000.0)
+    F2 = oed.fisher(z, Mb, oed.completeness(oed.R_BINS), N_total=2000.0)
+    # F linear in N_total at fixed design fractions
+    assert jnp.allclose(F2, 2.0 * F1, rtol=1e-10)
+    assert F1.shape == (3, 3)
+    assert jnp.allclose(F1, F1.T, atol=1e-10)
+
+
+def test_completeness_rolls_off_outward():
+    c = oed.completeness(oed.R_BINS)
+    assert c[0] > c[-1]                          # core more complete than outskirts
+    assert jnp.all((c > 0) & (c <= 1.0))

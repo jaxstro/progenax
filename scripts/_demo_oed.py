@@ -87,3 +87,69 @@ def per_star_blocks(theta, R_bins, eps, G):
     denom = sig**2 + (eps[:, None])**2                          # (3, K)
     Mb = 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
     return Mb, sig
+
+
+# ===========================================================================
+# Task 2: design allocation, completeness, and the additive Fisher F = Sum n*c*M
+# ===========================================================================
+#
+# The Fisher information is ADDITIVE and LINEAR in the design (ADR 0004): each
+# per-star block M_{c,b} (Task 1) is design-independent, so the full design
+# Fisher is just the weighted sum F = sum_{c,b} n_eff,{c,b} M_{c,b}, where the
+# effective per-(channel,bin) star count is the budget allocated via a softmax
+# over the free design vector z, then attenuated by an illustrative completeness
+# (selection) curve. Optimization (Tasks 3-4) is therefore pure 3x3 linear
+# algebra; nothing below differentiates through the forward model.
+
+
+def completeness(R_bins, R_turn=None, width=None):
+    """Smooth faint-end roll-off (logistic in R): ~1 in the core -> <1 outskirts.
+
+    An ILLUSTRATIVE selection function, NOT a real survey curve: a logistic
+    that is ~1 where crowding/depth let nearly every star be measured and rolls
+    smoothly below 1 in the outskirts. Defaults: turnover R_turn = 2*r_h, scale
+    width = 0.5*r_h (both from the mock half-mass radius).
+    """
+    R_turn = 2.0 * MOCK["r_h"] if R_turn is None else R_turn
+    width = 0.5 * MOCK["r_h"] if width is None else width
+    return 1.0 / (1.0 + jnp.exp((R_bins - R_turn) / width))
+
+
+def design_counts(z, completeness_b, N_total):
+    """Effective per-(channel, bin) star counts n_eff (3, K).
+
+    The free design vector z (length 3*K) is mapped to non-negative allocation
+    fractions via a softmax (budget-conserving, unconstrained-optimizable),
+    scaled by the total star budget N_total and attenuated per bin by the
+    completeness curve. Differentiable in z (pure softmax + multiply).
+    """
+    K = completeness_b.shape[0]
+    n = N_total * jax.nn.softmax(z).reshape(3, K)
+    return n * completeness_b[None, :]
+
+
+# Weak prior precision on the NUISANCES only -- diag in theta = (r_a, M, r_h).
+# Rationale: M and r_h have independent observational constraints outside the
+# kinematic dataset (M from integrated light / total luminosity x M/L; r_h from
+# the photometric surface-brightness profile), so we encode them as a weak
+# Gaussian prior. This keeps the design Fisher F well-conditioned (the
+# nuisances cannot run away) WITHOUT placing any prior on the TARGET r_a -- the
+# anisotropy radius must be constrained by the kinematic design alone, so its
+# prior precision is exactly 0. 30% fractional priors are deliberately weak.
+_sigma_prior_M = 0.3 * MOCK["M"]
+_sigma_prior_rh = 0.3 * MOCK["r_h"]
+PRIOR_DIAG = jnp.array([0.0, 1.0 / _sigma_prior_M**2, 1.0 / _sigma_prior_rh**2])
+
+
+def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
+    """Additive design Fisher F = sum_{c,b} n_eff,{c,b} M_{c,b}  (+ optional prior).
+
+    Linear in the effective counts n_eff (and hence in N_total at fixed design
+    fractions). With prior_diag (e.g. PRIOR_DIAG) the nuisance prior precision
+    is added on the diagonal. Returns a symmetric (3, 3) Fisher in theta.
+    """
+    n_eff = design_counts(z, completeness_b, N_total)            # (3, K)
+    F = jnp.einsum("ck,ckpq->pq", n_eff, Mb)
+    if prior_diag is not None:
+        F = F + jnp.diag(prior_diag)
+    return F
