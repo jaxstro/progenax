@@ -1,11 +1,11 @@
 {
   "demo": "demo_oed (B14, Stage 1)",
-  "timestamp_utc": "2026-06-16T23:35:39.319302+00:00",
+  "timestamp_utc": "2026-06-16T23:47:23.796930+00:00",
   "params": {
     "seed": 0,
     "n_total": 4000.0,
-    "full_calibration": false,
-    "n_draws": 12,
+    "full_calibration": true,
+    "n_draws": 64,
     "n_starts": 6,
     "n_steps": 400,
     "K_bins": 12,
@@ -59,10 +59,10 @@
       0.9111581780933534
     ],
     "calibration": {
-      "realized_frac_sigma_ra": 0.14309076465217388,
+      "realized_frac_sigma_ra": 0.10886723153266437,
       "fisher_frac_sigma_ra": 0.12099463045557161,
-      "fractional_dev": 0.3985919172438571,
-      "gate_tol": 0.816496580927726
+      "fractional_dev": 0.19041554016949686,
+      "gate_tol": 0.3535533905932738
     }
   },
   "designs_z": {
@@ -184,7 +184,7 @@
   "gates": {
     "headline factor > 1.3": true,
     "PM fraction outer > inner": true,
-    "calibration dev < 82%": true
+    "calibration dev < 35%": true
   },
   "all_pass": true
 }

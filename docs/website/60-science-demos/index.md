@@ -77,6 +77,9 @@ seeds + methods showcases):
 * - [Rotation + projection](rotation.md) (B8)
   - Recover the rotation rate from $\langle v_{\rm los}\rangle$?
   - only $\omega\sin i$ — rank-1 with inclination
+* - [Optimal experimental design](optimal-design.md) (B14)
+  - *Pre-data:* where to spend a star budget to pin $r_a$?
+  - PMs to the outskirts; $3.66\times$ fewer stars at equal precision
 ```
 
 ## The shared method: physics-direct differentiable inference
