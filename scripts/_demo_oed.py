@@ -66,15 +66,21 @@ def predict_sigma(theta, R_bins, G):
 
 
 def per_star_blocks(theta, R_bins, eps, G):
-    """Design-INDEPENDENT per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2).
+    """Design-INDEPENDENT per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2),
+    in the DIMENSIONLESS fractional (d ln theta) metric (ADR 0011).
 
     A dispersion measured from n stars (per-star error eps, predicted dispersion
     sigma) has Gaussian error delta_sigma^2 = (sigma^2 + eps^2) / (2 n), so the
     per-star Fisher contribution of channel c, bin b is the rank-1 3x3 block
     M_{c,b} = 2 J_{c,b} J_{c,b}^T / (sigma_{c,b}^2 + eps_c^2), with
-    J_{c,b} = d sigma_pred,{c,b} / d theta. The full design Fisher is then the linear
+    J_{c,b} = d sigma_pred,{c,b} / d ln theta. The full design Fisher is then the linear
     sum F = sum_{c,b} n_eff,{c,b} M_{c,b} (Task 2), so this jacrev is computed ONCE
     and the optimization is pure 3x3 linear algebra.
+
+    The raw-unit theta = (r_a, M, r_h) spans ~5 orders of magnitude, so the raw Fisher
+    is ill-conditioned (cond ~ 1.7e9). Differentiating wrt ln theta (J -> J * diag(theta))
+    makes F dimensionless (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance; the
+    c-headline is then the fractional precision sigma(r_a)/r_a.
 
     Reverse-mode jacrev by policy (the supported/tested grad path for all profiles;
     forward-mode also works for the analytic-density Plummer path but would crash through
@@ -83,7 +89,8 @@ def per_star_blocks(theta, R_bins, eps, G):
     Returns (Mb (3, K, 3, 3): channel x bin x P x P, sigma (3, K)).
     """
     sig = predict_sigma(theta, R_bins, G)                       # (3, K)
-    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)  # (3, K, 3) -- wrt theta
+    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)  # (3, K, 3) -- d sigma / d theta
+    J = J * theta[None, None, :]                                # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
     denom = sig**2 + (eps[:, None])**2                          # (3, K)
     Mb = 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
     return Mb, sig
@@ -128,17 +135,18 @@ def design_counts(z, completeness_b, N_total):
     return n * completeness_b[None, :]
 
 
-# Weak prior precision on the NUISANCES only -- diag in theta = (r_a, M, r_h).
+# Weak prior precision on the NUISANCES only -- diag in ln theta = ln (r_a, M, r_h).
 # Rationale: M and r_h have independent observational constraints outside the
 # kinematic dataset (M from integrated light / total luminosity x M/L; r_h from
 # the photometric surface-brightness profile), so we encode them as a weak
 # Gaussian prior. This keeps the design Fisher F well-conditioned (the
 # nuisances cannot run away) WITHOUT placing any prior on the TARGET r_a -- the
 # anisotropy radius must be constrained by the kinematic design alone, so its
-# prior precision is exactly 0. 30% fractional priors are deliberately weak.
-_sigma_prior_M = 0.3 * MOCK["M"]
-_sigma_prior_rh = 0.3 * MOCK["r_h"]
-PRIOR_DIAG = jnp.array([0.0, 1.0 / _sigma_prior_M**2, 1.0 / _sigma_prior_rh**2])
+# prior precision is exactly 0. In the dimensionless (d ln theta) metric (ADR
+# 0011) the prior is a FRACTIONAL precision: a 30% fractional prior on each
+# nuisance is precision 1/0.3**2; deliberately weak.
+_FRAC_PRIOR = 0.3   # 30% fractional prior on each nuisance (M, r_h); none on the target r_a
+PRIOR_DIAG = jnp.array([0.0, 1.0 / _FRAC_PRIOR**2, 1.0 / _FRAC_PRIOR**2])   # fractional precision
 
 
 def fisher(z, Mb, completeness_b, N_total, prior_diag=None):

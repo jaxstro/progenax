@@ -52,3 +52,17 @@ def test_completeness_rolls_off_outward():
     c = oed.completeness(oed.R_BINS)
     assert c[0] > c[-1]                          # core more complete than outskirts
     assert jnp.all((c > 0) & (c <= 1.0))
+
+
+# --- Task 2.5: dimensionless (ln-theta) Fisher (ADR 0011) ---
+
+
+def test_fisher_dimensionless_well_conditioned():
+    th = oed.theta_truth()
+    Mb, _ = oed.per_star_blocks(th, oed.R_BINS, oed.EPS, STELLAR.G)
+    cb = oed.completeness(oed.R_BINS)
+    z = jnp.zeros(3 * oed.R_BINS.shape[0])
+    F = oed.fisher(z, Mb, cb, 4000.0, oed.PRIOR_DIAG)
+    assert jnp.linalg.cond(F) < 1e3                       # dimensionless (was ~1.7e9 raw)
+    frac_sigma_ra = jnp.linalg.inv(F)[0, 0] ** 0.5        # FRACTIONAL precision on r_a
+    assert 0.01 < frac_sigma_ra < 0.5                     # ~0.12 at the working mock
