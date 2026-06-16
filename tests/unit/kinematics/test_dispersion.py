@@ -487,3 +487,25 @@ def test_grad_project_finite_rt_grad_finite_beyond_r_t():
         return jnp.sum(project_dispersion(p, None, jnp.array([2.0, 6.0, 10.0]), 400.0, G_STELLAR).sigma_los)
 
     assert jnp.isfinite(jax.grad(f_eff_a)(1.0))
+
+
+def test_grad_project_king_rc_finite_beyond_r_t():
+    """project_dispersion grad is finite when r_t MOVES with the differentiated param.
+
+    Second regression for the Phase 0.5 final-review defect: the EFF case above keeps
+    r_t fixed (constructor arg), so it does NOT exercise the ``u_max = sqrt(r_edge^2 -
+    R^2)`` endpoint, whose r_edge moves with King r_c/W0. Differentiating w.r.t. King
+    r_c over an on-sky grid spanning r_t hit that second sqrt-at-0 (inf*0=NaN) until
+    u_max was switched to _safe_sqrt. The jacrev of the sigma_los VECTOR (the OED Fisher
+    pattern) must be all-finite, with the beyond-r_t bin carrying a clean 0.
+    """
+    from progenax.profiles import KingProfile
+
+    def f_king_rc(r_c):
+        p = KingProfile.from_W0_rc(W0=6.0, r_c=r_c)
+        return project_dispersion(p, None, jnp.array([2.0, 6.0, 40.0]), 400.0, G_STELLAR).sigma_los
+
+    jac = jax.jacrev(lambda rc: jnp.sum(f_king_rc(rc)))(1.0)
+    assert jnp.isfinite(jac)
+    vec_jac = jax.jacrev(f_king_rc)(1.0)
+    assert jnp.all(jnp.isfinite(vec_jac))

@@ -743,8 +743,11 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
             jac = u_c / (1.0 - grid) ** 2  # du/dtau
         else:
             # Finite r_t (King / EFF): uniform u in [0, sqrt(r_edge^2 - R^2)] to the
-            # cutoff (clip non-negative if R_i brushes r_edge). du/du = 1 (no Jacobian).
-            u_max = jnp.sqrt(jnp.maximum(r_edge**2 - R_i**2, 0.0))
+            # cutoff. _safe_sqrt (NOT sqrt(maximum(.,0))) so that when r_edge moves with
+            # a differentiated profile param (e.g. King r_c/W0) and R >= r_edge, the
+            # u_max=0 endpoint carries a finite (0) gradient instead of sqrt(0)'s inf —
+            # else a jacrev over a projected grid spanning r_t poisons the OED Fisher.
+            u_max = _safe_sqrt(r_edge**2 - R_i**2)
             grid = jnp.linspace(0.0, u_max, n_u)  # u
             u = grid
             jac = jnp.ones_like(u)
