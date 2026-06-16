@@ -364,3 +364,39 @@ def test_df_moment_isotropic_limit_beta_near_zero():
     df = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=1e4)
     dp = df_moment_dispersion(df, jnp.array([0.5, 1.0, 2.0]), 400.0, G_STELLAR)
     assert jnp.allclose(dp.beta, 0.0, atol=5e-2)
+
+
+def test_df_moment_grad_finite_beyond_r_t():
+    """grad of df_moment_dispersion is finite at/beyond r_t (NaN-safe outer sqrt).
+
+    Regression for the Phase 0.5 D2 review defect: the outer
+    ``sqrt(maximum(sigma_r2, 0))`` had derivative ``1/(2 sqrt(0)) = inf`` when
+    ``sigma_r2 == 0`` exactly (r >= r_t, clamped W -> 0), giving ``inf * 0 = NaN``
+    on the backward pass. A single beyond-r_t point in a jacrev/grad over a
+    radial grid then poisoned the ENTIRE OED Fisher result to NaN. The forward
+    value at r >= r_t is a clean 0.0 and must stay exactly 0.0.
+    """
+    from progenax import df_moment_dispersion
+    from progenax.kinematics import MichieVelocityDF
+
+    df = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)  # r_t ~ 27.89
+
+    # Forward sigma_r at r=30 (> r_t) is exactly 0.0.
+    dp = df_moment_dispersion(df, jnp.array([30.0]), 400.0, G_STELLAR)
+    assert dp.sigma_r[0] == 0.0
+
+    # (a) grad of a single beyond-r_t point wrt M is finite.
+    g_single = jax.grad(
+        lambda M: df_moment_dispersion(df, jnp.array([30.0]), M, G_STELLAR).sigma_r[0]
+    )(400.0)
+    assert jnp.isfinite(g_single)
+
+    # (b) grad over a radial grid that SPANS r_t (the Fisher case) is finite.
+    g_grid = jax.grad(
+        lambda M: jnp.sum(
+            df_moment_dispersion(
+                df, jnp.array([1.0, 5.0, 15.0, 30.0]), M, G_STELLAR
+            ).sigma_r
+        )
+    )(400.0)
+    assert jnp.isfinite(g_grid)

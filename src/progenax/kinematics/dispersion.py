@@ -648,9 +648,21 @@ def df_moment_dispersion(
 
     sigma_r2 = sigma**2 * ur2_mean
     sigma_t2 = 0.5 * sigma**2 * ut2_mean  # <v_t^2> = 2 sigma_t^2
-    sigma_r = jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
-    sigma_t = jnp.sqrt(jnp.maximum(sigma_t2, 0.0))
-    sigma_1d = jnp.sqrt(jnp.maximum((sigma_r2 + 2.0 * sigma_t2) / 3.0, 0.0))
+
+    # NaN-safe outer sqrt: at/beyond r_t the clamped W -> 0 makes sigma_*2 == 0
+    # exactly, where sqrt has derivative 1/(2 sqrt(0)) = inf -> inf*0 = NaN on the
+    # backward pass. A single beyond-r_t point in a jacrev/grad over a radial grid
+    # would otherwise poison the entire OED Fisher to NaN. Canonical double-where
+    # safe sqrt (cf. michie_df.py:50,60, project_dispersion r_edge): forward is
+    # bit-exact 0 at 0 and the gradient there is a finite 0; a no-op at interior
+    # radii where the argument is strictly positive.
+    def _safe_sqrt(x):
+        pos = x > 0.0
+        return jnp.where(pos, jnp.sqrt(jnp.where(pos, x, 1.0)), 0.0)
+
+    sigma_r = _safe_sqrt(sigma_r2)
+    sigma_t = _safe_sqrt(sigma_t2)
+    sigma_1d = _safe_sqrt((sigma_r2 + 2.0 * sigma_t2) / 3.0)
     beta = 1.0 - ut2_mean / (2.0 * jnp.maximum(ur2_mean, 1e-300))
     return DispersionProfile(
         r=r, sigma_r=sigma_r, sigma_t=sigma_t, sigma_1d=sigma_1d, beta=beta
