@@ -4,10 +4,15 @@ See docs/plans/2026-06-16-oed-demo-stage1-design.md.
 
 Task 1 (this commit): the predicted observable g(theta) and the design-INDEPENDENT
 per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2), computed via ONE
-reverse-mode jacrev through project_dispersion (the only place the diffrax-backed ODE
-forward model is differentiated). jacrev (reverse-mode) is mandatory here: the
-project_dispersion custom_vjp defines no jvp rule, so forward-mode (jacfwd/hessian)
-would crash through the ODE -- see src/progenax/kinematics/dispersion.py module docstring.
+reverse-mode jacrev through project_dispersion (the only place the forward model is
+differentiated). We use jacrev (reverse-mode) by policy: it is the supported/tested
+gradient path for project_dispersion across ALL profiles, and it keeps the demo robust
+to a future King/Michie swap, where the equilibrium-solver profiles hit custom_vjp ODE
+solvers with no jvp rule so forward-mode (jacfwd/hessian) would genuinely crash. For the
+Plummer profile used here the quadratures are plain jnp (no ODE / custom_vjp), so
+forward-mode also happens to work -- but reverse-mode is the canonical choice. See the
+src/progenax/kinematics/dispersion.py module docstring for the per-profile forward-mode
+support matrix.
 """
 import jax
 import jax.numpy as jnp
@@ -71,13 +76,14 @@ def per_star_blocks(theta, R_bins, eps, G):
     sum F = sum_{c,b} n_eff,{c,b} M_{c,b} (Task 2), so this jacrev is computed ONCE
     and the optimization is pure 3x3 linear algebra.
 
-    Reverse-mode jacrev ONLY: project_dispersion is a diffrax-backed custom_vjp with
-    no jvp rule; jacfwd/hessian through it would crash (see dispersion.py docstring).
+    Reverse-mode jacrev by policy (the supported/tested grad path for all profiles;
+    forward-mode also works for the analytic-density Plummer path but would crash through
+    the King/Michie equilibrium-solver custom_vjp ODEs -- see the module docstring).
 
     Returns (Mb (3, K, 3, 3): channel x bin x P x P, sigma (3, K)).
     """
     sig = predict_sigma(theta, R_bins, G)                       # (3, K)
-    J = jax.jacrev(predict_sigma)(theta, R_bins, G)             # (3, K, 3)
+    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)  # (3, K, 3) -- wrt theta
     denom = sig**2 + (eps[:, None])**2                          # (3, K)
     Mb = 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
     return Mb, sig
