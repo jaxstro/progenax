@@ -1328,5 +1328,33 @@
     "expect": "consistent",
     "tol": 0.001,
     "status": "clean"
+  },
+  {
+    "id": "jeans_dispersion[EFF spans r_t]",
+    "direction": "params->summary",
+    "param": "gamma",
+    "theta": 4.0,
+    "finite": true,
+    "ad": 0.05729633760803024,
+    "fd": 0.057296337317019885,
+    "ratio": 1.0000000050790394,
+    "abs_ad": 0.05729633760803024,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
+  },
+  {
+    "id": "project_dispersion[EFF spans r_t]",
+    "direction": "params->summary",
+    "param": "a",
+    "theta": 1.0,
+    "finite": true,
+    "ad": -0.02712622511444683,
+    "fd": -0.027126225059515008,
+    "ratio": 1.0000000020250448,
+    "abs_ad": 0.02712622511444683,
+    "expect": "consistent",
+    "tol": 0.001,
+    "status": "clean"
   }
 ]

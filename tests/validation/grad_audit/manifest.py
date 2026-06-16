@@ -118,6 +118,8 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("project_dispersion[Plummer+OM]", "r_a"): "B&M82 sigma_los in anisotropy radius",
     ("project_dispersion[Plummer+OM].pm_t", "r_a"): "B&M82 sigma_pm_t (beta-carrying) in r_a",
     ("df_moment_dispersion[Michie]", "M"): "Michie DF-moment sigma_r in total mass",
+    ("jeans_dispersion[EFF spans r_t]", "gamma"): "EFF Jeans sigma_r over a grid spanning r_t (safe-sqrt-at-0)",
+    ("project_dispersion[EFF spans r_t]", "a"): "EFF B&M82 sigma_los over a grid spanning r_t (safe-sqrt-at-0)",
 }
 
 # --- SYMBOL_CATEGORY: every __all__ symbol -> category ----------------------

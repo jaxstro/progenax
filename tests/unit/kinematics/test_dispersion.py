@@ -89,7 +89,7 @@ def test_jit_smoke():
 R_QUERY = jnp.array([0.5, 1.0, 2.0])
 
 
-def test_grad_jeans_sigma_r_wrt_r_a():
+def test_grad_jeans_dispersion_wrt_r_a():
     """1. d(sum sigma_r)/d(r_a) — Plummer Osipkov-Merritt."""
     prof = PlummerProfile(r_h=1.0)
 
@@ -99,7 +99,7 @@ def test_grad_jeans_sigma_r_wrt_r_a():
     _assert_ad_fd(f, 2.0, name="jeans sigma_r / r_a")
 
 
-def test_grad_jeans_sigma_r_wrt_M():
+def test_grad_jeans_dispersion_wrt_M():
     """2. d(sum sigma_r)/d(M) — Plummer OM."""
     prof = PlummerProfile(r_h=1.0)
 
@@ -109,7 +109,7 @@ def test_grad_jeans_sigma_r_wrt_M():
     _assert_ad_fd(f, 400.0, name="jeans sigma_r / M")
 
 
-def test_grad_jeans_sigma_r_wrt_r_h():
+def test_grad_jeans_dispersion_wrt_r_h():
     """3. d(sum sigma_r)/d(r_h) — through the Plummer profile param."""
 
     def f(r_h):
@@ -119,7 +119,7 @@ def test_grad_jeans_sigma_r_wrt_r_h():
     _assert_ad_fd(f, 1.0, name="jeans sigma_r / r_h")
 
 
-def test_grad_jeans_sigma_r_wrt_gamma():
+def test_grad_jeans_dispersion_wrt_gamma():
     """4. d(sum sigma_r)/d(gamma) — through EFFProfile (isotropic, mild trunc)."""
     # a=1.0, r_t=30.0 (wide truncation); query radii [0.5,2.0] well inside.
     # Isotropic (r_a=None) so no OM validity domain to worry about for EFF.
@@ -418,3 +418,72 @@ def test_df_moment_grad_finite_beyond_r_t():
         )
     )(400.0)
     assert jnp.isfinite(g_grid)
+
+
+# ---------------------------------------------------------------------------
+# Phase 0.5 final-review — generalize the NaN-safe outer sqrt to jeans + project.
+#
+# The SAME sqrt(0) -> inf-derivative defect that D2 fixed in df_moment_dispersion
+# ALSO lived in jeans_dispersion (_sigma_components: bare sqrt(sigma_r2) and
+# sqrt((sigma_r2 + 2 sigma_t2)/3)) and project_dispersion (sqrt(maximum(S/Sigma,
+# 0)) — maximum(x, 0) does NOT fix the sqrt-at-0 gradient: 1/(2 sqrt(0)) = inf,
+# inf * 0 = NaN). For finite-r_t profiles (King/Michie/EFF), differentiating
+# either model wrt a PROFILE parameter over a radial grid that includes points
+# r/R >= r_t returned a NaN gradient that poisoned the whole Fisher. Forward
+# values at r/R >= r_t are an exact 0.0; only the gradient was broken.
+# ---------------------------------------------------------------------------
+
+
+def test_grad_jeans_finite_rt_grad_finite_beyond_r_t():
+    """jeans_dispersion grad is finite at/beyond r_t for finite-r_t profiles.
+
+    Regression for the Phase 0.5 final-review defect: _sigma_components used a
+    bare ``jnp.sqrt(sigma_r2)`` whose derivative is ``1/(2 sqrt(0)) = inf`` where
+    ``sigma_r2 == 0`` exactly (r >= r_t), giving ``inf * 0 = NaN`` on the backward
+    pass. One beyond-r_t point in a grad/jacrev over a radial grid then poisoned
+    the whole result to NaN. Forward sigma_r at r >= r_t must stay exactly 0.0.
+    """
+    from progenax.profiles import KingProfile
+
+    # EFF, r_t = 8.0 (a constructor arg). Forward sigma_r at r=10 (> r_t) is 0.0.
+    prof = EFFProfile(a=1.0, gamma=4.0, r_t=8.0)
+    dp = jeans_dispersion(prof, None, jnp.array([10.0]), 400.0, G_STELLAR)
+    assert dp.sigma_r[0] == 0.0
+
+    # (a) grad of a single beyond-r_t point wrt M is finite.
+    g_single = jax.grad(
+        lambda M: jeans_dispersion(prof, None, jnp.array([10.0]), M, G_STELLAR).sigma_r[0]
+    )(400.0)
+    assert jnp.isfinite(g_single)
+
+    # (b) grad over an EFF grid SPANNING r_t wrt gamma (rebuild profile inside) is finite.
+    def f_eff_gamma(gamma):
+        p = EFFProfile(a=1.0, gamma=gamma, r_t=8.0)
+        return jnp.sum(jeans_dispersion(p, None, jnp.array([1.0, 5.0, 10.0]), 400.0, G_STELLAR).sigma_r)
+
+    assert jnp.isfinite(jax.grad(f_eff_gamma)(4.0))
+
+    # (c) King: grad over a grid SPANNING r_t wrt r_c (rebuild profile inside) is finite.
+    def f_king_rc(r_c):
+        p = KingProfile.from_W0_rc(W0=6.0, r_c=r_c)  # r_t ~ a few r_c
+        return jnp.sum(jeans_dispersion(p, None, jnp.array([1.0, 5.0, 50.0]), 400.0, G_STELLAR).sigma_r)
+
+    assert jnp.isfinite(jax.grad(f_king_rc)(1.0))
+
+
+def test_grad_project_finite_rt_grad_finite_beyond_r_t():
+    """project_dispersion grad is finite at/beyond r_t for finite-r_t profiles.
+
+    Regression for the Phase 0.5 final-review defect: project_dispersion built
+    sigma_los/pm via ``sqrt(maximum(S/Sigma, 0))`` — ``maximum(x, 0)`` clamps the
+    VALUE but NOT the sqrt-at-0 gradient (1/(2 sqrt(0)) = inf, inf * 0 = NaN), so
+    a grad/jacrev over an on-sky grid spanning r_t returned NaN. _safe_sqrt fixes
+    both the value (exact 0) and the gradient (finite 0) at the argument's 0.
+    """
+    prof = EFFProfile(a=1.0, gamma=5.0, r_t=8.0)
+
+    def f_eff_a(a):
+        p = EFFProfile(a=a, gamma=5.0, r_t=8.0)
+        return jnp.sum(project_dispersion(p, None, jnp.array([2.0, 6.0, 10.0]), 400.0, G_STELLAR).sigma_los)
+
+    assert jnp.isfinite(jax.grad(f_eff_a)(1.0))

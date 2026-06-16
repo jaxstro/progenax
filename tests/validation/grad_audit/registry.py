@@ -1540,6 +1540,33 @@ def _df_moment_dispersion_M(M):
     return df_moment_dispersion(_DISP_MICHIE_DF, _DISP_R_INTERIOR, M, STELLAR.G).sigma_r
 
 
+# Finite-r_t dispersion gradient over a radial grid that SPANS r_t (Phase 0.5
+# final-review fix). The sqrt(0)->inf-derivative defect lived in _sigma_components
+# (jeans) and project_dispersion's sigma_*; a single beyond-r_t point in a
+# jacrev/grad over the grid poisoned the whole Fisher to NaN. EFF is chosen because
+# r_t is a FIXED constructor arg while gamma/a are CLEAN (analytic-density) gradients
+# — this avoids the deferred Michie/King-W0 ODE-adjoint limitation. The grid spans
+# r_t=8.0 (r=10 > r_t, forward sigma==0), so it exercises the safe-sqrt-at-0 path.
+# MEASURED (h_rel=1e-4 default, identity_sum), STELLAR.G: both |ratio-1| < 1e-3,
+# |AD| >> eps (live, non-zero); finite (not NaN) only after _safe_sqrt generalization.
+_DISP_R_SPAN_RT_JEANS = jnp.array([1.0, 5.0, 10.0])   # spans EFF r_t=8.0
+_DISP_R_SPAN_RT_PROJ = jnp.array([2.0, 6.0, 10.0])    # spans EFF r_t=8.0
+
+
+def _jeans_dispersion_eff_gamma(gamma):
+    # EFF (fixed r_t=8.0) radial dispersion sigma_r in slope gamma, grid SPANS r_t.
+    return jeans_dispersion(
+        EFFProfile(a=1.0, gamma=gamma, r_t=8.0), None, _DISP_R_SPAN_RT_JEANS, 400.0, STELLAR.G
+    ).sigma_r
+
+
+def _project_dispersion_eff_a(a):
+    # EFF (fixed r_t=8.0) projected line-of-sight dispersion sigma_los in scale a, grid SPANS r_t.
+    return project_dispersion(
+        EFFProfile(a=a, gamma=5.0, r_t=8.0), None, _DISP_R_SPAN_RT_PROJ, 400.0, STELLAR.G
+    ).sigma_los
+
+
 REGISTRY: list[Case] = [
     Case(id="PlummerProfile.sample_positions", direction="params->IC",
          fn=_plummer_positions, param="r_h", theta0=1.0, reduce=mean_radius,
@@ -2055,4 +2082,13 @@ REGISTRY: list[Case] = [
     Case(id="df_moment_dispersion[Michie]", direction="params->summary",
          fn=_df_moment_dispersion_M, param="M", theta0=400.0,
          reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|~4.2e-4
+    # Finite-r_t gradient over a grid SPANNING r_t (Phase 0.5 final-review fix):
+    # EFF (fixed r_t=8.0, clean gamma/a gradients) exercises the safe-sqrt-at-0 path
+    # that the jeans/project models previously NaN-poisoned beyond r_t.
+    Case(id="jeans_dispersion[EFF spans r_t]", direction="params->summary",
+         fn=_jeans_dispersion_eff_gamma, param="gamma", theta0=4.0,
+         reduce=identity_sum, expect="consistent", tol=1e-3),
+    Case(id="project_dispersion[EFF spans r_t]", direction="params->summary",
+         fn=_project_dispersion_eff_a, param="a", theta0=1.0,
+         reduce=identity_sum, expect="consistent", tol=1e-3),
 ]

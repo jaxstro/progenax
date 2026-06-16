@@ -68,6 +68,13 @@ _T_MIN = 1e-4
 _T_MAX = 1.0 - 1e-6
 
 
+def _safe_sqrt(x):
+    """sqrt with an exact-0 forward value and a finite (0) gradient at x==0 (avoids the
+    inf-derivative of sqrt at 0 that poisons jacrev over a radial grid past r_t)."""
+    pos = x > 0.0
+    return jnp.where(pos, jnp.sqrt(jnp.where(pos, x, 1.0)), 0.0)
+
+
 class DispersionProfile(NamedTuple):
     """3-D anisotropic Jeans dispersion evaluated at radii ``r``.
 
@@ -129,7 +136,7 @@ def _sigma_components(
     -------
     (sigma_r, sigma_t, sigma_1d, beta) : tuple of arrays shaped like ``r``.
     """
-    sigma_r = jnp.sqrt(sigma_r2)
+    sigma_r = _safe_sqrt(sigma_r2)
     if beta is not None:
         sigma_t2 = (1.0 - beta) * sigma_r2
     elif r_a is None:
@@ -139,8 +146,8 @@ def _sigma_components(
         r_a2 = jnp.asarray(r_a) ** 2
         beta = r**2 / (r**2 + r_a2)
         sigma_t2 = sigma_r2 * r_a2 / (r_a2 + r**2)
-    sigma_t = jnp.sqrt(jnp.maximum(sigma_t2, 0.0))
-    sigma_1d = jnp.sqrt((sigma_r2 + 2.0 * sigma_t2) / 3.0)
+    sigma_t = _safe_sqrt(sigma_t2)
+    sigma_1d = _safe_sqrt((sigma_r2 + 2.0 * sigma_t2) / 3.0)
     return sigma_r, sigma_t, sigma_1d, beta
 
 
@@ -599,14 +606,9 @@ def df_moment_dispersion(
     # NaN-safe outer sqrt: at/beyond r_t the clamped W -> 0 makes sigma_*2 == 0
     # exactly, where sqrt has derivative 1/(2 sqrt(0)) = inf -> inf*0 = NaN on the
     # backward pass. A single beyond-r_t point in a jacrev/grad over a radial grid
-    # would otherwise poison the entire OED Fisher to NaN. Canonical double-where
-    # safe sqrt (cf. michie_df.py:50,60, project_dispersion r_edge): forward is
-    # bit-exact 0 at 0 and the gradient there is a finite 0; a no-op at interior
-    # radii where the argument is strictly positive.
-    def _safe_sqrt(x):
-        pos = x > 0.0
-        return jnp.where(pos, jnp.sqrt(jnp.where(pos, x, 1.0)), 0.0)
-
+    # would otherwise poison the entire OED Fisher to NaN. Module-level _safe_sqrt
+    # (cf. michie_df.py:50,60): forward is bit-exact 0 at 0 and the gradient there
+    # is a finite 0; a no-op at interior radii where the argument is strictly positive.
     sigma_r = _safe_sqrt(sigma_r2)
     sigma_t = _safe_sqrt(sigma_t2)
     sigma_1d = _safe_sqrt((sigma_r2 + 2.0 * sigma_t2) / 3.0)
@@ -774,9 +776,9 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     Sigma, S_los, S_pmr, S_pmt = jax.vmap(_los_quantities)(R)
 
     Sigma_safe = jnp.maximum(Sigma, 1e-30)
-    sigma_los = jnp.sqrt(jnp.maximum(S_los / Sigma_safe, 0.0))
-    sigma_pm_r = jnp.sqrt(jnp.maximum(S_pmr / Sigma_safe, 0.0))
-    sigma_pm_t = jnp.sqrt(jnp.maximum(S_pmt / Sigma_safe, 0.0))
+    sigma_los = _safe_sqrt(S_los / Sigma_safe)
+    sigma_pm_r = _safe_sqrt(S_pmr / Sigma_safe)
+    sigma_pm_t = _safe_sqrt(S_pmt / Sigma_safe)
 
     return ProjectedDispersion(
         R=R,
