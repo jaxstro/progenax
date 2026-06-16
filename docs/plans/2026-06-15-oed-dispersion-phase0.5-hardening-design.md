@@ -20,7 +20,7 @@ real-data-ready versatility), and doing it now is cheaper than re-loading the di
 | 1 | OM-only anisotropy; Michie-under-OM valid inner-region only | physics model | general-β Jeans (Tier A) + exact Michie **DF-moment** (Tier B) | **D** |
 | 2 | ~8.6e-4 Plummer truncation-tail bias (∫ to 30a, not ∞) | numerical | algebraic **coordinate compactification** `s=a·t/(1−t)` | **C** |
 | 3 | `project_dispersion` re-solves Jeans per-R inside the vmap | numerical (perf) | **tabulate-once-then-project** (1 master solve + interp) | **A** |
-| 4 | `r_t` hard-truncation kink (moving-endpoint gradient) | numerical (grad) | **normalized `x=r/r_t`** integration w/ explicit Jacobian | **B** |
+| 4 | `r_t` gradient (re-scoped 2026-06-16, see below) | numerical (grad) | **regression-gate** clean paths; defer the Michie/King solver-gradient redesign | **B** |
 
 Three are *numerical-method* fixes that change **zero physics** (validated as regression against the
 existing 31 anchors). Only #1 grows the physics surface and gets a new validation anchor + a HITL
@@ -62,10 +62,17 @@ independent truth-leg.
   ρ(s)`; per-R projection `jnp.interp`s those onto `r=√(R²+u²)` instead of re-calling
   `jeans_dispersion`. Regression: `project_dispersion` numerically identical (~1e-9) + structural
   speedup (m→1 solves).
-- **B (normalized x=r/r_t):** truncated-profile radial quadratures integrate in `x=r/r_t∈[0,1]` with
-  `r_t` as an explicit Jacobian (`∫₀^{r_t}g ds = r_t∫₀¹ g(x r_t)dx`) — fixed domain, boundary term
-  captured automatically, clean even for EFF's hard cutoff. New AD-vs-FD grad gate
-  `∂σ/∂(W0, r_t, γ)` for King **and** EFF.
+- **B (RE-SCOPED 2026-06-16 — regression-gate, no reparam):** adversarial pre-verification (TDD)
+  showed the planned normalized-`x=r/r_t` reparam is **empirically unnecessary** — EFF `∂σ/∂(r_t, γ)`
+  and the dispersion integrator's own `r_t` handling are **already clean** (rel ~1e-8), because the
+  existing `linspace(·, r_t, n_s)` already scales grid points with `r_t`. The one real defect found is
+  **upstream**: Michie/King `∂σ/∂W0` is FD-inconsistent at ~5e-3, rooted in the *equilibrium ODE
+  solver* (adaptive-controller schedule + `argmax`/linear-interp tidal-radius crossing), NOT in
+  `dispersion.py`. Per Anna's HITL decision (Option 1), the solver-gradient redesign is **deferred to
+  the differentiability-gradient-audit arc** (spec: `2026-06-16-michie-king-equilibrium-gradient-
+  redesign-deferred.md`). Task B therefore: add AD-vs-FD **regression grad-gates** locking the clean
+  paths (EFF `r_t`/`γ`; King `W0`, Michie `W0` *only if* they pass), and one **documented** gate
+  recording the Michie-`W0` upstream limitation with a cross-ref. No integrator/physics change.
 - **C (compactification):** Plummer's `[s_min, 30a]` → algebraic map `s = a·t/(1−t)`, `t∈[0,1)`,
   integrate in **uniform t** with `ds/dt = a/(1−t)²` folded into the integrand (preserves
   `cumulative_trapezoid`'s uniform-dx contract). Residual → toward machine precision; O(h²) preserved;
@@ -92,8 +99,9 @@ independent truth-leg.
 **Tier 1 — safe numerical refactors (no physics change; regression against existing 31 anchors):**
 - **A — tabulate-once-then-project (#3).** Restructure the projection integrator. *First*, because B
   touches the same code. DoD: ~1e-9 regression + projection physics green + speedup + docs reconciled.
-- **B — normalized x=r/r_t reparam (#4).** Coordinates with A. DoD: physics unchanged + new King/EFF
-  `∂σ/∂(W0,r_t,γ)` grad gate clean + docs reconciled.
+- **B — regression-gate `r_t`/profile-param gradients (#4, re-scoped).** No reparam (empirically
+  unneeded). DoD: AD-vs-FD regression gates for EFF `r_t`/`γ` + King `W0` (clean); one documented gate
+  for Michie `W0` cross-ref'ing `2026-06-16-michie-king-equilibrium-gradient-redesign-deferred.md`.
 - **C — algebraic compactification (#2).** DoD: Plummer residual → machine precision, O(h²) preserved,
   King/EFF untouched + docs reconciled.
 
@@ -114,7 +122,8 @@ independent truth-leg.
 ## Definition of Complete (Phase 0.5)
 
 - [ ] A: `project_dispersion` ~1e-9 regression + structural speedup; projection physics green.
-- [ ] B: King+EFF `∂σ/∂(W0,r_t,γ)` AD-vs-FD clean; existing physics unchanged.
+- [ ] B: EFF `r_t`/`γ` + King `W0` AD-vs-FD regression gates clean; Michie `W0` documented gate +
+      deferred-note cross-ref; existing physics unchanged.
 - [ ] C: Plummer isotropic residual → machine precision; O(h²) convergence preserved.
 - [ ] D0: Michie-1963 DF form verified against PDF; per-paper note + website pages reconciled.
 - [ ] D: general-β Jeans (OM regression bit-preserved) + `df_moment_dispersion`; Michie correct at ALL
