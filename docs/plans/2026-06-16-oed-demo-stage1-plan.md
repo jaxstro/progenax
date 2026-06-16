@@ -479,7 +479,11 @@ def test_headline_design_beats_uniform():
                               key=jax.random.PRNGKey(3), n_starts=6, n_steps=400)
     z_unif = jnp.zeros(3 * oed.R_BINS.shape[0])
     c_unif = oed.c_criterion(oed.fisher(z_unif, Mb, cb, 4000.0, oed.PRIOR_DIAG))
-    # equal-precision star factor = c_uniform / c_designed (since c ∝ 1/N)
+    # equal-precision factor = c_uniform / c_designed, BOTH AT THE SAME N (prior cancels exactly).
+    # CAVEAT (Task-4 review): converting this to an "equivalent uniform star count" via c∝1/N is
+    # only exact in the prior-free limit; with PRIOR_DIAG the fixed prior dilutes as N grows, so
+    # c·N drifts ~18% over N=1e3..8e3. Report the fixed-N factor as the headline; flag any
+    # star-count gloss as approximate (Task 6 CLI + Task 8 MyST prose).
     factor = c_unif / res.criterion
     assert factor > 1.3                       # report the actual number in the CLI/page
 
@@ -516,7 +520,10 @@ Implement the five figures from the design doc, saved to
 1. `demo_oed_optpath.png` — c-criterion vs iteration, multi-start traces.
 2. `demo_oed_headline.png` — optimal radial weighting + RV/PM split over `σ(r)` / `β(r)`.
 3. `demo_oed_cda.png` — c-vs-D-vs-A allocations side-by-side.
-4. `demo_oed_frontier.png` — precision vs budget, designed vs uniform (the N× factor).
+4. `demo_oed_frontier.png` — precision vs budget, designed vs uniform (the N× factor). Plot the
+   measured `σ(r_a)/r_a` vs N for both designs directly (do NOT extrapolate via an idealized
+   `c∝1/N` star-count claim — with the nuisance prior, `c·N` drifts ~18% over N=1e3..8e3; the
+   curves show the real, mildly-non-1/N frontier).
 5. `demo_oed_calibration.png` — realized MLE Cov vs `F⁻¹`.
 
 Use `scripts/_plotstyle.py`. **Step: visually inspect each PNG** before committing
