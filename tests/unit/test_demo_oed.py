@@ -99,3 +99,25 @@ def test_criteria_grads_AD_vs_FD():
             zp = z.at[i].add(eps); zm = z.at[i].add(-eps)
             g_fd = (loss(zp) - loss(zm)) / (2 * eps)
             assert jnp.allclose(g_ad[i], g_fd, rtol=1e-4, atol=1e-8), (crit.__name__, i)
+
+
+# --- Task 4: optax multi-start optimizer ---
+
+
+def test_optimizer_reduces_c_criterion():
+    Mb, cb = _crits()
+    z0 = jnp.zeros(3 * oed.R_BINS.shape[0])
+    F0 = oed.fisher(z0, Mb, cb, 2000.0, oed.PRIOR_DIAG)
+    res = oed.optimize_design(oed.c_criterion, Mb, cb, 2000.0,
+                              key=jax.random.PRNGKey(1), n_starts=4, n_steps=300)
+    Fopt = oed.fisher(res.z, Mb, cb, 2000.0, oed.PRIOR_DIAG)
+    assert oed.c_criterion(Fopt) < oed.c_criterion(F0)   # design beats uniform
+    assert res.trace[-1] <= res.trace[0]
+
+
+def test_optimizer_allocation_normalized():
+    Mb, cb = _crits()
+    res = oed.optimize_design(oed.c_criterion, Mb, cb, 2000.0,
+                              key=jax.random.PRNGKey(2), n_starts=2, n_steps=100)
+    n = 2000.0 * jax.nn.softmax(res.z)
+    assert jnp.allclose(jnp.sum(n), 2000.0, rtol=1e-6)   # budget conserved (pre-completeness)

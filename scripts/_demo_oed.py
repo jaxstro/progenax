@@ -14,8 +14,11 @@ forward-mode also happens to work -- but reverse-mode is the canonical choice. S
 src/progenax/kinematics/dispersion.py module docstring for the per-profile forward-mode
 support matrix.
 """
+from typing import NamedTuple
+
 import jax
 import jax.numpy as jnp
+import optax
 
 from progenax import PlummerProfile, project_dispersion
 from jaxstro.units import STELLAR  # noqa: F401  -- re-exported for the demo's callers
@@ -196,8 +199,11 @@ def c_criterion(F):
 def d_criterion(F):
     """D-optimality (MINIMIZE): -logdet F == maximize the information volume det F.
 
-    Uses slogdet (returns (sign, logabsdet)); for the SPD design Fisher the sign
-    is +1, so the logdet term is the signed log-determinant.
+    Uses slogdet (returns (sign, logabsdet)) and returns -logabsdet. The sign is
+    +1 only when the caller passes a Fisher that is SPD -- in this demo that is
+    guaranteed by the prior-regularized fisher(..., PRIOR_DIAG) (see the
+    SPD-invariant note on optimize_design); a bare, prior-free F is not
+    guaranteed SPD and this term then ignores the slogdet sign by construction.
     """
     return -jnp.linalg.slogdet(F)[1]
 
@@ -209,3 +215,73 @@ def a_criterion(F):
     fractional variances of (r_a, M, r_h).
     """
     return jnp.trace(jnp.linalg.inv(F))
+
+
+# ===========================================================================
+# Task 4: optax multi-start design optimizer
+# ===========================================================================
+#
+# Optimize the unconstrained design vector z (length 3*K) by Adam over the
+# chosen criterion (c/D/A). Because the per-star blocks Mb are design-
+# independent (Task 1), each gradient step is pure 3x3 linear algebra -- no
+# differentiation through the forward model. The softmax in design_counts keeps
+# the allocation a budget-conserving probability simplex for every (finite) z,
+# so the optimization is genuinely unconstrained. We run n_starts independent
+# Adam trajectories (the criterion landscape over the simplex can be multimodal)
+# and keep the lowest-criterion result.
+
+
+class DesignResult(NamedTuple):
+    """Result of optimize_design: best design vector z (3*K,), the per-step
+    criterion trace of that start, and the final scalar criterion value."""
+    z: jnp.ndarray
+    trace: jnp.ndarray
+    criterion: float
+
+
+def _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr):
+    """One Adam trajectory: returns (z_final, trace) where trace is the per-step
+    criterion value. The step is jit-compiled and unrolled via jax.lax.scan."""
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: criterion_fn(fisher(z, Mb, cb, N_total, PRIOR_DIAG))
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam over the design vector z; keep the lowest-criterion result.
+
+    Returns a DesignResult (z, trace, criterion) for the best start.
+
+    SPD invariant (load-bearing -- do NOT silently break it on a refactor): the
+    Fisher F = fisher(z, Mb, cb, N_total, PRIOR_DIAG) stays symmetric
+    positive-definite throughout the optimization, so c/D/A's inv/slogdet never
+    hit a singular F. Two facts guarantee this jointly:
+      (1) jax.nn.softmax(z) is strictly positive for every finite z, so every
+          n_eff,{c,b} > 0 and the additive sum F = sum n_eff*Mb is at least PSD
+          (each Mb is rank-1 PSD); and
+      (2) PRIOR_DIAG adds strictly positive precision on the nuisance subspace
+          (M, r_h), covering the directions the data may not constrain, so the
+          regularized F is strictly PD.
+    A future change that allocates with a hard top-k (softmax -> argmax, exact
+    zeros) or zeroes the nuisance prior could reintroduce a singular F here --
+    keep both (1) and (2) intact.
+    """
+    K = cb.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (3 * K,)) * 0.5
+        z, trace = _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr)
+        crit = float(criterion_fn(fisher(z, Mb, cb, N_total, PRIOR_DIAG)))
+        if best is None or crit < best.criterion:
+            best = DesignResult(z=z, trace=trace, criterion=crit)
+    return best
