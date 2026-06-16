@@ -35,6 +35,10 @@ registry burden** (this is a consumer of already-registered symbols).
   ```
 - **Parameter vector** `theta = (r_a, M, r_h)` — index 0 = `r_a` (TARGET), 1 = `M`, 2 = `r_h`
   (nuisances). `P = 3`.
+- **Dimensionless metric (ADR 0011, added Task 2.5):** the Fisher is built wrt `ln theta`
+  (`J → J·diag(theta_fid)`), so `F` is dimensionless (cond≈45, not 1.7e9), covariances are
+  **fractional variances**, the c-headline is the **fractional precision** `σ(r_a)/r_a ≈ 12%`, and
+  `PRIOR_DIAG` is fractional `[0, 1/0.3², 1/0.3²]`.
 - **Channels** order `(los, pm_r, pm_t)` → index `c ∈ {0,1,2}`. Per-channel per-star error
   `eps = (eps_RV, eps_PM, eps_PM)` (both PM axes share the astrometric error).
 - **Units:** `STELLAR` (M⊙, pc, Myr). `project_dispersion` returns σ in **pc/Myr**. Errors must be in
@@ -204,6 +208,60 @@ without constraining the target. Document it in the docstring and the MyST page.
 
 **Step 4–5: Test pass, commit** (`feat(oed): additive Fisher F=Σ n·c·M + completeness + prior`).
 
+> **NOTE (ADR 0011 retrofit):** Tasks 1–2 were committed with raw-unit `theta` and the raw
+> `PRIOR_DIAG = [0, 1/(0.3M)², 1/(0.3 r_h)²]`. Task 2.5 (below) converts both to the dimensionless
+> metric. The text above is the as-built history; the live code after Task 2.5 differs as specified
+> in Task 2.5.
+
+---
+
+## Task 2.5: Dimensionless (log/fiducial-scaled) Fisher (ADR 0011)
+
+**Why:** raw-unit `F` has cond≈1.7e9 and `tr(F⁻¹)` is dominated by `M`'s absolute variance, so
+A/D-optimality are not scale-invariant and the c-vs-D-vs-A contrast is meaningless. Differentiating
+wrt `ln theta` fixes this (cond≈45) and makes the headline a fractional precision.
+
+**Files:** Modify `scripts/_demo_oed.py`; Test `tests/unit/test_demo_oed.py`.
+
+**Step 1: Failing test**
+
+```python
+def test_fisher_dimensionless_well_conditioned():
+    th = oed.theta_truth()
+    Mb, _ = oed.per_star_blocks(th, oed.R_BINS, oed.EPS, STELLAR.G)
+    cb = oed.completeness(oed.R_BINS)
+    z = jnp.zeros(3 * oed.R_BINS.shape[0])
+    F = oed.fisher(z, Mb, cb, 4000.0, oed.PRIOR_DIAG)
+    assert jnp.linalg.cond(F) < 1e3                       # dimensionless (was ~1.7e9 raw)
+    frac_sigma_ra = jnp.linalg.inv(F)[0, 0] ** 0.5        # FRACTIONAL precision on r_a
+    assert 0.01 < frac_sigma_ra < 0.5                     # ~0.12 at the working mock
+```
+
+**Step 2: Verify fail** (cond ~1.7e9 with the raw blocks).
+
+**Step 3: Implementation** — in `per_star_blocks`, scale the Jacobian to `∂σ/∂ln θ` before forming
+the blocks; redefine `PRIOR_DIAG` as fractional:
+
+```python
+def per_star_blocks(theta, R_bins, eps, G):
+    sig = predict_sigma(theta, R_bins, G)                          # (3, K)
+    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)     # (3, K, P) = dσ/dθ
+    J = J * theta[None, None, :]                                   # -> dσ/d ln θ  (DIMENSIONLESS, ADR 0011)
+    denom = sig**2 + (eps[:, None])**2
+    Mb = 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
+    return Mb, sig
+
+_FRAC_PRIOR = 0.3   # 30% fractional prior on each nuisance (M, r_h); none on the target r_a
+PRIOR_DIAG = jnp.array([0.0, 1.0 / _FRAC_PRIOR**2, 1.0 / _FRAC_PRIOR**2])   # fractional precision
+```
+
+Document in both docstrings that the Fisher/covariance are in the **fractional (d ln θ) metric**.
+
+**Step 4: Test pass** (incl. the unchanged additivity/linearity/shape tests — scaling `J` doesn't
+break linearity in `N_total` or block symmetry).
+
+**Step 5: Commit** (`feat(oed): dimensionless ln-θ Fisher + fractional prior (ADR 0011)`).
+
 ---
 
 ## Task 3: c / D / A criteria + AD-vs-FD gradient gate
@@ -243,20 +301,23 @@ def test_criteria_grads_AD_vs_FD():
 
 **Step 3: Implementation**
 
+`F` is the dimensionless ln-θ Fisher (Task 2.5), so these criteria are in the **fractional metric**:
+c = fractional variance of r_a; A = total fractional variance; D = log det of the dimensionless F.
+
 ```python
 _TARGET = 0   # index of r_a in theta
 
-def c_criterion(F):                       # minimize: marginal variance of r_a
+def c_criterion(F):                       # minimize: marginal FRACTIONAL variance of r_a (ADR 0011 metric)
     return jnp.linalg.inv(F)[_TARGET, _TARGET]
 
 def d_criterion(F):                       # minimize -logdet  (== maximize logdet, D-opt)
     return -jnp.linalg.slogdet(F)[1]
 
-def a_criterion(F):                       # minimize trace of covariance (A-opt)
+def a_criterion(F):                       # minimize total fractional variance, tr F^-1 (A-opt)
     return jnp.trace(jnp.linalg.inv(F))
 ```
 
-(Define `PRIOR_DIAG` as a module constant per Task 2's note.)
+(`PRIOR_DIAG` is the fractional nuisance prior from Task 2.5.)
 
 **Step 4–5: Test pass, commit** (`feat(oed): c/D/A optimality criteria + AD-vs-FD grad gate`).
 

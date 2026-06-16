@@ -55,6 +55,13 @@ optimal split is decided purely by *where each channel carries more information 
 c-optimality minimizes `(F⁻¹)_{r_a,r_a}` — the marginal target variance after profiling nuisances
 (automatically given by the (r_a,r_a) element of the *full* inverse).
 
+**Dimensionless metric (ADR 0011).** θ spans five orders of magnitude (M≈1e5 vs r_h≈3), so the raw
+Fisher is ill-conditioned (cond≈1.7e9) and A/D-optimality are not scale-invariant. We differentiate
+wrt **`ln θ`** (`J → J·diag(θ_fid)`), making `F` **dimensionless** (cond≈45), every covariance entry
+a **fractional variance**, and the c-headline a **fractional precision** `σ(r_a)/r_a ≈ 12%`. The
+nuisance prior is fractional too (`[0, 1/0.3², 1/0.3²]`). This folds into the design-independent
+blocks `M_{b,c}`, so the additive backbone below is untouched.
+
 **Predicted observable.** Three channels from `project_dispersion(profile, r_a, R, M, G)` evaluated
 at `K=12` log-spaced on-sky bin-centre radii `R_k` out to `~3 r_h`:
 
