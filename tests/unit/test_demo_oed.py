@@ -144,3 +144,31 @@ def test_fisher_calibration_matches_realized_scatter():
                                N_total=4000.0, n_draws=64, key=jax.random.PRNGKey(7))
     # tolerance set by MC error on a variance from 64 draws (~sqrt(2/64)~18%): allow 35%
     assert jnp.abs(cal.realized_var_ra - cal.fisher_var_ra) / cal.fisher_var_ra < 0.35
+
+
+# --- Task 6: headline (design beats uniform) + interpretability (PMs outward) gates ---
+
+
+def test_headline_design_beats_uniform():
+    Mb, cb = _crits()
+    res = oed.optimize_design(oed.c_criterion, Mb, cb, 4000.0,
+                              key=jax.random.PRNGKey(3), n_starts=6, n_steps=400)
+    z_unif = jnp.zeros(3 * oed.R_BINS.shape[0])
+    c_unif = oed.c_criterion(oed.fisher(z_unif, Mb, cb, 4000.0, oed.PRIOR_DIAG))
+    # equal-precision factor = c_uniform / c_designed, BOTH AT THE SAME N (prior cancels exactly).
+    # CAVEAT (Task-4 review): converting this to an "equivalent uniform star count" via c proportional
+    # to 1/N is only exact in the prior-free limit; with PRIOR_DIAG the fixed nuisance prior dilutes
+    # as N grows, so c*N drifts ~18% over N=1e3..8e3. Report the fixed-N factor as the headline; any
+    # star-count gloss is approximate (Task 6 CLI + Task 8 MyST prose).
+    factor = c_unif / res.criterion
+    assert factor > 1.3                       # report the actual number in the CLI/page (~3.65)
+
+
+def test_pm_fraction_increases_outward():
+    Mb, cb = _crits()
+    res = oed.optimize_design(oed.c_criterion, Mb, cb, 4000.0,
+                              key=jax.random.PRNGKey(4), n_starts=6, n_steps=400)
+    n = (4000.0 * jax.nn.softmax(res.z)).reshape(3, oed.R_BINS.shape[0])
+    pm_frac = (n[1] + n[2]) / jnp.sum(n, axis=0)      # per-bin PM fraction
+    K = oed.R_BINS.shape[0]
+    assert jnp.mean(pm_frac[K // 2:]) > jnp.mean(pm_frac[:K // 2])   # PMs favored outward
