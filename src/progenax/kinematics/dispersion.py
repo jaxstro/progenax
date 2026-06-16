@@ -53,6 +53,11 @@ import jax.core
 
 from progenax.numerics import cumulative_trapezoid
 
+# Default resolution of the master anisotropic-Jeans radial s-grid. Single source
+# of truth shared by jeans_dispersion (its n_s default) and project_dispersion
+# (which solves the Jeans equation once at this resolution, independent of n_u).
+_JEANS_N_S_DEFAULT = 4000
+
 
 class DispersionProfile(NamedTuple):
     """3-D anisotropic Jeans dispersion evaluated at radii ``r``.
@@ -177,6 +182,71 @@ def jeans_sigma_r(
     return jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
 
 
+def _jeans_tables(profile, r_a, M, G, n_s: int):
+    """R-independent master tables for the anisotropic-Jeans ``sigma_r``.
+
+    Builds, ONCE, the radial grid ``s`` and the two quantities the per-radius
+    ``sigma_r^2`` needs: the density ``rho(s)`` and the outward integral
+    ``I_outward(s) = int_s^inf w(s) rho(s) G M(<s) / s^2 ds`` (OM weight
+    ``w = s^2 + r_a^2``; isotropic ``w == 1``). This is the same construction
+    the old per-call :func:`jeans_dispersion`/:func:`jeans_sigma_r` path did,
+    factored out so :func:`project_dispersion` can solve the Jeans equation
+    exactly once and interpolate per projected radius ``R`` (instead of a fresh
+    master solve inside every vmapped ``_los_quantities``).
+
+    The enclosed mass ``M(<s)`` is a quadrature of ``profile.density``:
+    ``M_enc = M * cumtrap(rho s^2) / cumtrap_total(rho s^2)``. The s-grid runs to
+    ``profile.r_t`` if present (King/EFF), else ``30 a`` (Plummer). Uniform ``s``
+    spacing; fully reverse-mode differentiable.
+
+    Returns ``(s, rho, I_outward)`` — pass these straight to
+    :func:`_sigma_r2_from_tables`.
+    """
+    r_max = getattr(profile, "r_t", None)
+    if r_max is None:
+        r_max = 30.0 * profile.a
+    s = jnp.linspace(1e-4 * r_max, r_max, n_s)
+    rho = profile.density(s)
+    ds = s[1] - s[0]
+
+    # Enclosed mass by quadrature of profile.density (builder-quality).
+    cum = cumulative_trapezoid(rho * s**2, dx=ds)
+    M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
+
+    # Integrand g(s) = w(s) * rho(s) * G M(<s) / s^2 with OM weight
+    # w(s) = (s^2 + r_a^2) (isotropic: w == 1). Guard s^2 at the s=0 edge.
+    s2 = s**2
+    if r_a is None:
+        weight = jnp.ones_like(s)
+    else:
+        weight = s2 + jnp.asarray(r_a) ** 2
+    integrand = weight * rho * G * M_enc / jnp.maximum(s2, 1e-30)
+    # Reverse cumulative trapezoid -> I(s) = int_s^inf integrand ds.
+    I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=ds))
+    return s, rho, I_outward
+
+
+def _sigma_r2_from_tables(r, s, rho, I_outward, r_a):
+    """Anisotropic-Jeans ``sigma_r^2(r)`` from the master tables (no master solve).
+
+    Interpolates ``rho`` and ``I_outward`` (built by :func:`_jeans_tables`) onto
+    the query radii ``r`` and applies the OM prefactor
+    ``1/(r^2 + r_a^2)`` (isotropic: 1)::
+
+        sigma_r^2(r) = prefactor(r) * I_outward(r) / rho(r)
+
+    This is exactly the tail of the old :func:`jeans_sigma_r` (same operations),
+    minus the (now R-independent) integrand/``I_outward`` build.
+    """
+    rho_r = jnp.interp(r, s, rho)
+    I_r = jnp.interp(r, s, I_outward)
+    if r_a is None:
+        prefactor = jnp.ones_like(r)
+    else:
+        prefactor = 1.0 / jnp.maximum(r**2 + jnp.asarray(r_a) ** 2, 1e-30)
+    return prefactor * I_r / jnp.maximum(rho_r, 1e-30)
+
+
 def ftable_sigma_r_isotropic(
     E_grid: Float[Array, " n_e"],
     f_grid: Float[Array, " n_e"],
@@ -222,14 +292,18 @@ def ftable_sigma_r_isotropic(
     return s2_mean / 3.0
 
 
-def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfile:
+def jeans_dispersion(
+    profile, r_a, r, M, G, n_s: int = _JEANS_N_S_DEFAULT
+) -> DispersionProfile:
     """3-D anisotropic Jeans dispersion of ``profile`` under OM ``r_a``.
 
     Returns the equilibrium ``(sigma_r, sigma_t, sigma_1d, beta)`` of the
     spatial ``profile`` (which owns rho, M, Phi) for an Osipkov-Merritt (1985)
     anisotropy radius ``r_a`` (``None`` -> isotropic). The radial dispersion is
-    the anisotropic Jeans solution (:func:`jeans_sigma_r`); the tangential /
-    1-D components and ``beta`` follow from OM (:func:`_sigma_components`).
+    the anisotropic Jeans solution (master tables from :func:`_jeans_tables`,
+    evaluated by :func:`_sigma_r2_from_tables` — the same construction the public
+    :func:`jeans_sigma_r` exposes); the tangential / 1-D components and ``beta``
+    follow from OM (:func:`_sigma_components`).
 
     Anisotropy model (IMPORTANT — read before using on a Michie/King profile).
     This function **imposes the Osipkov-Merritt anisotropy law**
@@ -310,21 +384,13 @@ def jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000) -> DispersionProfil
 
     r = jnp.atleast_1d(jnp.asarray(r))
 
-    # Fine radial s-grid: out to the tidal radius if the profile has one,
-    # else 30 scale radii (Plummer has no finite cutoff).
-    r_max = getattr(profile, "r_t", None)
-    if r_max is None:
-        r_max = 30.0 * profile.a
-    s = jnp.linspace(1e-4 * r_max, r_max, n_s)
-    rho = profile.density(s)
-
-    # Enclosed mass by quadrature of profile.density: M(<s) = M * cumtrap(rho s^2)
-    # / cumtrap_total(rho s^2). Builder-quality, no re-differentiated Psi.
-    cum = cumulative_trapezoid(rho * s**2, dx=s[1] - s[0])
-    M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
-
-    sigma_r = jeans_sigma_r(r, rho, M_enc, s, G, r_a=r_a)
-    sr, st, s1d, beta = _sigma_components(sigma_r**2, r, r_a)
+    # One master anisotropic-Jeans solve (R-independent tables), then evaluate
+    # sigma_r^2 at the query radii. Bit-identical to the old
+    # jeans_sigma_r(rho, M_enc, s, ...) path — same grid, integrand, I_outward,
+    # prefactor, and interpolation, just factored into reusable helpers.
+    s, rho, I_outward = _jeans_tables(profile, r_a, M, G, n_s)
+    sigma_r2 = jnp.maximum(_sigma_r2_from_tables(r, s, rho, I_outward, r_a), 0.0)
+    sr, st, s1d, beta = _sigma_components(sigma_r2, r, r_a)
     return DispersionProfile(r=r, sigma_r=sr, sigma_t=st, sigma_1d=s1d, beta=beta)
 
 
@@ -399,6 +465,21 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     # jeans_dispersion starts its own s-grid at 1e-4 r_max, not 0).
     r_edge = (1.0 - 1e-6) * r_max
 
+    # ONE master anisotropic-Jeans solve, hoisted out of the per-R vmap. The old
+    # code called jeans_dispersion (a full master solve) inside every vmapped
+    # _los_quantities; here the R-independent tables (s, rho_tab, I_outward) are
+    # built once and sigma_r^2 is interpolated per integration radius via
+    # _sigma_r2_from_tables. This is pure code-motion: bit-identical operations
+    # to the old per-R jeans_dispersion(...).sigma_r**2 path. The master Jeans
+    # grid uses jeans_dispersion's own default n_s (4000) — independent of the
+    # u-quadrature resolution n_u, exactly as the old per-R call did.
+    s, rho_tab, I_outward = _jeans_tables(profile, r_a, M, G, _JEANS_N_S_DEFAULT)
+
+    if r_a is None:
+        r_a2 = None
+    else:
+        r_a2 = jnp.asarray(r_a) ** 2
+
     def _los_quantities(R_i):
         # r^2 = R^2 + u^2 substitution: u in [0, sqrt(r_edge^2 - R^2)] (clip the
         # upper limit to be non-negative if R_i ever brushes r_edge).
@@ -406,12 +487,15 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         u = jnp.linspace(0.0, u_max, n_u)
         r = jnp.sqrt(R_i**2 + u**2)
 
-        # rho, sigma_r^2, beta at the integration radii (sigma_r/beta straight
-        # from the anisotropic Jeans solution — NOT re-derived here).
+        # rho (kernel weight) at the integration radii from the exact density;
+        # sigma_r^2/beta straight from the master Jeans tables (interpolated),
+        # NOT a fresh per-R re-solve.
         rho = profile.density(r)
-        dp = jeans_dispersion(profile, r_a, r, M, G)
-        sigma_r2 = dp.sigma_r**2
-        beta = dp.beta
+        sigma_r2 = jnp.maximum(_sigma_r2_from_tables(r, s, rho_tab, I_outward, r_a), 0.0)
+        if r_a is None:
+            beta = jnp.zeros_like(r)
+        else:
+            beta = r**2 / (r**2 + r_a2)
 
         ratio = R_i**2 / jnp.maximum(r**2, 1e-30)  # R^2 / r^2
         w = rho * sigma_r2  # common rho*sigma_r^2 weight

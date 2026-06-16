@@ -159,6 +159,31 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
     _assert_ad_fd(f, 2.0, name="project sigma_pm_t / r_a")
 
 
+# --- Phase 0.5 Task A: tabulate-once project_dispersion equivalence regression ---
+#
+# Baseline captured from the PRE-refactor project_dispersion (main@54f5437) for
+# PlummerProfile(r_h=1.0), r_a=2.0, R=[0.5,1.0,2.0,4.0], M=400.0, G=0.00449.
+# The Task-A refactor (one master Jeans solve, interpolated per-R, instead of a
+# per-R re-solve) is PURE code-motion: the math/operations are identical, so the
+# outputs must be bit-equivalent to rtol 1e-9. NEVER loosen this tolerance — a
+# mismatch means the refactor changed the physics.
+_BL_LOS = jnp.array(
+    [0.5530860064022423, 0.450633657883771, 0.301176907787219, 0.17198970776636632]
+)
+_BL_PMT = jnp.array(
+    [0.5372960641506553, 0.4286141692075936, 0.267333398791882, 0.12558509737916926]
+)
+
+
+def test_project_equivalence_after_tabulate():
+    """project_dispersion is numerically unchanged by the tabulate-once refactor."""
+    prof = PlummerProfile(r_h=1.0)
+    R = jnp.array([0.5, 1.0, 2.0, 4.0])
+    pj = project_dispersion(prof, 2.0, R, 400.0, G_STELLAR)
+    assert jnp.allclose(pj.sigma_los, _BL_LOS, rtol=1e-9)
+    assert jnp.allclose(pj.sigma_pm_t, _BL_PMT, rtol=1e-9)
+
+
 def test_jit_both_forward_models():
     """jax.jit compiles both forward models and returns finite arrays (OED jits these)."""
     prof = PlummerProfile(r_h=1.0)
