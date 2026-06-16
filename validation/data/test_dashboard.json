@@ -8,7 +8,7 @@
     "line_cov_measured": 95.86473074802426,
     "registries_full": true
   },
-  "generated_utc": "2026-06-16T00:31:53.067939+00:00",
+  "generated_utc": "2026-06-16T14:57:09.757646+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "57860ae1a57ded7a4c68e3e93f11aa39b3df90cf",
@@ -481,7 +481,7 @@
     "kinematics": {
       "integration": 0,
       "line_cov": 99.21996879875195,
-      "unit": 114,
+      "unit": 115,
       "validation": 0
     },
     "physics_registry": {
@@ -566,7 +566,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 18
+      "validation": 20
     },
     "test_documented_api": {
       "integration": 0,

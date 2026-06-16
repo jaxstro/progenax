@@ -166,20 +166,23 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
 # a structural change silently altered the physics. NEVER loosen this tolerance.
 #
 # Task C compactification intentionally shifted Plummer values toward the analytic
-# oracle; baseline re-captured. The original Task-A baseline pinned the OLD 30a-
-# truncated Jeans tail; Task C replaced that truncation with an algebraic
-# compactification (s = a t/(1-t)), which moves the master-Jeans sigma_r — and hence
-# the projected sigma_los/sigma_pm_t — toward the exact tail. PROOF this is an
-# improvement (isotropic Dejonghe oracle (3pi/64) GM/sqrt(a^2+R^2), same R): the
-# isotropic sigma_los's max relative error to the oracle dropped from 8.58e-4 (OLD,
-# the n_s-independent truncation floor) to 1.63e-4 (NEW), i.e. ~5x closer at the
-# worst R and ~1000x closer at the inner R. So the re-captured baseline is MORE
-# accurate, not a regression.
+# oracle; baseline re-captured TWICE. (1) Task C compactified the master-Jeans
+# s-grid (s = a t/(1-t)). (2) Task C (cont.) ALSO compactified project_dispersion's
+# OWN outward u-quadrature (u = u_c tau/(1-tau)), which had still truncated the
+# Plummer tail at u_max = sqrt((30a)^2 - R^2) and left an n_u-INDEPENDENT
+# truncation floor of 1.634e-4 (rel.) in the projected sigma_los at the outer
+# radius R=4a. PROOF each re-capture is an improvement (isotropic Dejonghe oracle
+# (3pi/64) GM/sqrt(a^2+R^2), same R): the isotropic sigma_los's max relative error
+# to the oracle fell 8.58e-4 (pre-Task-C, the master-Jeans truncation floor) ->
+# 1.634e-4 (after the master-Jeans compactification, now limited by the projection
+# u-truncation) -> 7.10e-6 (NEW, after compactifying the projection u-grid too),
+# i.e. ~23x closer at the worst R. So each re-captured baseline is MORE accurate,
+# not a regression.
 _BL_LOS = jnp.array(
-    [0.5526182093971023, 0.45025621495272133, 0.30095652307703347, 0.17217034726494965]
+    [0.5526179625033003, 0.4502555137882001, 0.3009530000018737, 0.17215480378111833]
 )
 _BL_PMT = jnp.array(
-    [0.5368411143951076, 0.42825318351354813, 0.2671228981094181, 0.1255732563602721]
+    [0.5368408615363569, 0.42825246120297417, 0.26711912900399826, 0.12555000455977777]
 )
 
 

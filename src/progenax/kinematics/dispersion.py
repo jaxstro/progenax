@@ -472,17 +472,29 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     ``1/sqrt(r^2-R^2)`` pole at ``r=R`` is removed ANALYTICALLY by the
     substitution ``r^2 = R^2 + u^2`` (so ``r dr / sqrt(r^2-R^2) = du``)::
 
-        int_R^inf g(r) r/sqrt(r^2-R^2) dr = int_0^sqrt(r_max^2-R^2) g(sqrt(R^2+u^2)) du
+        int_R^inf g(r) r/sqrt(r^2-R^2) dr = int_0^Umax g(sqrt(R^2+u^2)) du
 
-    so NO ``1/sqrt(r^2-R^2)`` is ever evaluated — only a smooth uniform-``u``
-    trapezoid quadrature. ``sigma_r^2(r)`` is read from the ONE master Jeans solve —
+    so NO ``1/sqrt(r^2-R^2)`` is ever evaluated — only a smooth trapezoid quadrature
+    in ``u`` (``Umax = sqrt(r_t^2 - R^2)`` for finite ``r_t``; ``Umax = inf`` for
+    Plummer, see below). ``sigma_r^2(r)`` is read from the ONE master Jeans solve —
     :func:`_jeans_tables` is built once (hoisted out of the per-``R`` vmap) and
     :func:`_sigma_r2_from_tables` interpolates it per integration radius — and
     ``beta(r)`` is the closed-form OM law; ``rho`` from ``profile.density``.
 
-    The outward extent ``r_max`` is ``profile.r_t`` if present (King/EFF), else
-    ``30 * profile.a`` (Plummer; matches :func:`jeans_dispersion`). The per-``R``
-    ``u``-integral is vmapped over the ``R`` array. Fully reverse-mode
+    The outward ``u``-grid is branched on ``profile.r_t``:
+
+    - **Finite ``r_t`` (King / EFF):** a uniform ``u`` grid on
+      ``[0, sqrt(r_t^2 - R^2)]`` (the density has a hard cutoff, so the integral is
+      naturally finite). UNCHANGED.
+    - **No ``r_t`` (Plummer):** the ``u``-integral is SEMI-INFINITE. The grid is
+      algebraically compactified, ``u = u_c tau/(1-tau)`` with ``u_c = profile.a`` and
+      ``tau in [0, _T_MAX]`` (Jacobian ``du/dtau = u_c/(1-tau)^2`` folded into every
+      trapezoid), so the full Plummer tail is integrated. This removes the former
+      ``30a`` ``u``-truncation, which left an ``n_u``-independent tail floor of
+      ~1.6e-4 (rel.) in ``sigma_los`` at outer ``R``; the residual is now pure
+      O(h^2). (Mirrors the :func:`_jeans_tables` Task-C master-grid compactification.)
+
+    The per-``R`` ``u``-integral is vmapped over the ``R`` array. Fully reverse-mode
     differentiable; ``jax.jit``-able.
 
     Parameters
@@ -501,18 +513,30 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     """
     R = jnp.atleast_1d(jnp.asarray(R))
 
-    # Outward extent: tidal radius if finite, else 30 scale radii (matches jeans).
-    r_max = getattr(profile, "r_t", None)
-    if r_max is None:
-        r_max = 30.0 * profile.a
-    r_max = jnp.asarray(r_max)
-
-    # Pull the outer integration radius a hair inside r_max. At r == r_max the
-    # outward Jeans integral I(r_max) = 0 EXACTLY, so sigma_r^2 = 0 there and
-    # jnp.sqrt has an infinite (NaN) gradient at that zero-measure endpoint —
-    # which would poison jax.grad of the whole reduction. The endpoint carries
-    # rho * sigma_r^2 -> 0, i.e. ~no weight, so stopping at r_edge = (1 - 1e-6)
-    # r_max removes the NaN without changing the integral (mirrors how
+    # Outward extent / u-grid strategy, branched on profile.r_t:
+    #   - Finite r_t (King / EFF): the density has a hard cutoff, so the outward
+    #     u-integral is naturally finite. Use a uniform u in [0, u_max] grid to the
+    #     edge (UNCHANGED). r_edge is pulled a hair inside r_t so that the I(r)=0
+    #     endpoint (where sigma_r^2=0 -> jnp.sqrt has NaN gradient) is excluded.
+    #   - Plummer (no r_t): the tail is semi-infinite. The OLD code truncated the
+    #     u-grid at u_max = sqrt((30a)^2 - R^2), leaving an n_u-INDEPENDENT tail
+    #     floor of ~1.6e-4 (rel.) in sigma_los at outer R. We instead compactify
+    #     u in [0, inf) -> tau in [0, _T_MAX] via u = u_c tau/(1-tau) (u_c = a),
+    #     Jacobian du/dtau = u_c/(1-tau)^2, integrating in uniform tau so the full
+    #     Plummer tail is captured. (Same family as the _jeans_tables Task-C grid.)
+    r_t = getattr(profile, "r_t", None)
+    is_plummer = r_t is None
+    if is_plummer:
+        u_c = jnp.asarray(profile.a)  # compactification scale for the u-grid
+        r_max = jnp.asarray(30.0 * profile.a)  # only feeds _jeans_tables guard below
+    else:
+        r_max = jnp.asarray(r_t)
+    # Pull the outer integration radius a hair inside r_max (finite-r_t branch). At
+    # r == r_max the outward Jeans integral I(r_max) = 0 EXACTLY, so sigma_r^2 = 0
+    # there and jnp.sqrt has an infinite (NaN) gradient at that zero-measure
+    # endpoint — which would poison jax.grad of the whole reduction. The endpoint
+    # carries rho * sigma_r^2 -> 0, i.e. ~no weight, so stopping at r_edge =
+    # (1 - 1e-6) r_max removes the NaN without changing the integral (mirrors how
     # jeans_dispersion starts its own s-grid at 1e-4 r_max, not 0).
     r_edge = (1.0 - 1e-6) * r_max
 
@@ -532,10 +556,23 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         r_a2 = jnp.asarray(r_a) ** 2
 
     def _los_quantities(R_i):
-        # r^2 = R^2 + u^2 substitution: u in [0, sqrt(r_edge^2 - R^2)] (clip the
-        # upper limit to be non-negative if R_i ever brushes r_edge).
-        u_max = jnp.sqrt(jnp.maximum(r_edge**2 - R_i**2, 0.0))
-        u = jnp.linspace(0.0, u_max, n_u)
+        # r^2 = R^2 + u^2 substitution removes the 1/sqrt(r^2-R^2) pole at r=R, so
+        # we integrate a smooth g(sqrt(R^2+u^2)) du. Two u-grids:
+        if is_plummer:
+            # Plummer: compactify the SEMI-INFINITE u in [0, inf). u = u_c tau/(1-tau)
+            # maps tau in [0, _T_MAX] -> u in [0, ~u_c 1e6], du/dtau = u_c/(1-tau)^2.
+            # Integrate in UNIFORM tau (jnp.trapezoid sees a uniform grid) with the
+            # Jacobian du/dtau folded into every integrand: int f du = int f (du/dtau) dtau.
+            grid = jnp.linspace(0.0, _T_MAX, n_u)  # tau
+            u = u_c * grid / (1.0 - grid)
+            jac = u_c / (1.0 - grid) ** 2  # du/dtau
+        else:
+            # Finite r_t (King / EFF): uniform u in [0, sqrt(r_edge^2 - R^2)] to the
+            # cutoff (clip non-negative if R_i brushes r_edge). du/du = 1 (no Jacobian).
+            u_max = jnp.sqrt(jnp.maximum(r_edge**2 - R_i**2, 0.0))
+            grid = jnp.linspace(0.0, u_max, n_u)  # u
+            u = grid
+            jac = jnp.ones_like(u)
         r = jnp.sqrt(R_i**2 + u**2)
 
         # rho (kernel weight) at the integration radii from the exact density;
@@ -551,12 +588,14 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         ratio = R_i**2 / jnp.maximum(r**2, 1e-30)  # R^2 / r^2
         w = rho * sigma_r2  # common rho*sigma_r^2 weight
 
-        # B&M82 kernels (integrands in u; the 2x and 1/sqrt cancellation are
-        # folded into the substitution -> trapezoid over u, times 2).
-        Sigma = 2.0 * jnp.trapezoid(rho, u)
-        S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w, u)
-        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w, u)
-        S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w, u)
+        # B&M82 kernels (integrands in u; the 2x and 1/sqrt cancellation are folded
+        # into the substitution -> trapezoid over the integration variable `grid`,
+        # times 2). For the Plummer (tau) grid `jac` carries du/dtau; for finite
+        # r_t (u grid) jac == 1, so this reduces to the unchanged uniform-u quadrature.
+        Sigma = 2.0 * jnp.trapezoid(rho * jac, grid)
+        S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w * jac, grid)
+        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w * jac, grid)
+        S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w * jac, grid)
         return Sigma, S_los, S_pmr, S_pmt
 
     Sigma, S_los, S_pmr, S_pmt = jax.vmap(_los_quantities)(R)

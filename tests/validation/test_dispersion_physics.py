@@ -70,16 +70,18 @@ def test_plummer_isotropic_jeans_vs_analytic():
 def test_jeans_quadrature_convergence():
     """Order-of-accuracy: the trapezoid s-quadrature converges at O(h^2) (~4x/doubling).
 
-    SELF-CONVERGENCE (Cauchy) study, NOT error-vs-analytic. Subtlety (root-caused,
-    not papered over): ``jeans_dispersion`` truncates the outward Jeans integral at
-    ``r_max = 30 a`` (Plummer has no finite cutoff), which leaves a FIXED,
-    n_s-INDEPENDENT tail bias of ~4e-4 (rel.) in sigma_r at r=1. That truncation
-    floor swamps the trapezoid error once h is small, so |sigma(n) - analytic|
-    plateaus and its ratio is NOT 4. The honest order-of-accuracy probe is the
-    self-difference ``d_n = |sigma(n) - sigma(2n)|``: the fixed tail bias CANCELS in
-    the difference, isolating the pure O(h^2) discretisation term, so ``d_n`` falls
-    ~4x per doubling. (numerical-method-validation: self-convergence when the cheap
-    oracle carries a separate, non-vanishing modelling/truncation error.)
+    SELF-CONVERGENCE (Cauchy) study, NOT error-vs-analytic. As of Task C,
+    ``jeans_dispersion`` no longer truncates the Plummer tail: the outward Jeans
+    integral is now evaluated on an algebraically compactified s-grid
+    (s = a t/(1-t), the full semi-infinite tail mapped to a finite uniform-t grid),
+    so there is no n_s-independent truncation floor to remove. The self-difference
+    ``d_n = |sigma(n) - sigma(2n)|`` is therefore a DEFENSIVE O(h^2) probe: with the
+    truncation floor gone, both |sigma(n) - analytic| AND d_n are dominated by the
+    pure discretisation term, and d_n falls ~4x per doubling (textbook trapezoid).
+    Using the self-difference (rather than the absolute error) keeps the probe robust
+    to any residual sub-leading modelling term and to interpolation noise at the
+    finest grids. (numerical-method-validation: self-convergence as an order-of-
+    accuracy check that is insensitive to the absolute-error constant.)
 
     The tight absolute accuracy vs the exact closed form is gated separately, at the
     production resolution, by ``test_plummer_isotropic_jeans_vs_analytic`` (rtol 1e-3).
@@ -489,6 +491,45 @@ def test_projection_isotropic_plummer_los_oracle():
     pj = project_dispersion(prof, None, R, M, G)
     los2_oracle = (3.0 * jnp.pi / 64.0) * G * M / jnp.sqrt(prof.a**2 + R**2)
     assert jnp.allclose(pj.sigma_los, jnp.sqrt(los2_oracle), rtol=3e-3)
+
+
+@pytest.mark.slow
+def test_projection_plummer_los_oracle_converges():
+    """The compactified projection u-grid kills the outer-R truncation floor.
+
+    Before Task C (cont.), ``project_dispersion``'s OWN outward u-quadrature
+    truncated the Plummer tail at u_max = sqrt((30a)^2 - R^2), leaving a FIXED,
+    n_u-INDEPENDENT truncation floor of 1.634e-4 (rel.) in sigma_los at the outer
+    radius R=4a vs the exact Dejonghe (1987) isotropic oracle
+    sigma_los^2(R) = (3 pi / 64) G M / sqrt(a^2 + R^2). Replacing the truncated
+    u = linspace(0, u_max, n_u) with an algebraic compactification of the
+    semi-infinite u in [0, inf) (u = u_c t/(1-t)) integrates the full tail, so the
+    residual is now PURE O(h^2) trapezoid error: it DECREASES as n_u grows (the
+    old floor was n_u-independent — that is the proof the floor is gone).
+    """
+    prof = PlummerProfile(r_h=1.0)
+    M = 400.0
+    R = jnp.array([0.5, 1.0, 2.0, 4.0])
+    oracle = jnp.sqrt((3.0 * jnp.pi / 64.0) * G * M / jnp.sqrt(prof.a**2 + R**2))
+
+    pj_2k = project_dispersion(prof, None, R, M, G, n_u=2000)
+    pj_8k = project_dispersion(prof, None, R, M, G, n_u=8000)
+    err_2k = float(jnp.max(jnp.abs(pj_8k.sigma_los / oracle - 1.0)))
+    err_8k_pointwise = jnp.abs(pj_8k.sigma_los / oracle - 1.0)
+    err_2k_pointwise = jnp.abs(pj_2k.sigma_los / oracle - 1.0)
+
+    # 1. Floor is GONE: max rel err << the old 1.634e-4 truncation floor.
+    assert err_2k < 2e-5, (
+        f"projection LOS max rel err {err_2k:.3e} not < 2e-5 — truncation floor "
+        f"still present (was 1.634e-4 n_u-independent before compactification)"
+    )
+    # 2. Error DECREASES with n_u (n_u=2000 -> 8000), proving the residual is now
+    #    pure O(h^2) discretisation, not an n_u-independent truncation floor.
+    assert float(jnp.max(err_8k_pointwise)) < float(jnp.max(err_2k_pointwise)), (
+        f"projection LOS error did not decrease with n_u "
+        f"(2000: {float(jnp.max(err_2k_pointwise)):.3e}, "
+        f"8000: {float(jnp.max(err_8k_pointwise)):.3e}) — floor not removed"
+    )
 
 
 def test_projection_anisotropy_signature():
