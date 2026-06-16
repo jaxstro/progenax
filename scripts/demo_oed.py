@@ -51,6 +51,7 @@ from datetime import datetime, timezone
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from jaxstro.units import STELLAR
 
@@ -184,7 +185,7 @@ def main(argv=None):
     print(f"  calibration (uniform, {n_draws} draws):")
     print(f"     realized  sigma(r_a)/r_a = {cal_realized:.4f}")
     print(f"     Fisher    sigma(r_a)/r_a = {cal_fisher:.4f}   "
-          f"(fractional dev {cal_dev*100:.1f}%, gate {cal_tol*100:.0f}% = 2 sqrt(2/{n_draws}))")
+          f"(variance-space dev {cal_dev*100:.1f}%, gate {cal_tol*100:.0f}% = 2 sqrt(2/{n_draws}))")
     print("     NOTE: the Fisher is mildly CONSERVATIVE -- with the binned-dispersion")
     print("     estimator the realized scatter tracks the per-star Fisher prediction to")
     print("     within its MC error; at the @slow 64-draw setting it sits slightly below it.")
@@ -266,6 +267,7 @@ def main(argv=None):
         make_figures(
             Mb, cb, n_total, designs, z_unif, pm_frac, cal,
             factor=factor, frac_sig_unif=frac_sig_unif, frac_sig_c=frac_sig_c,
+            n_draws=n_draws,
         )
 
     print("=" * 78)
@@ -274,32 +276,227 @@ def main(argv=None):
 
 
 # --------------------------------------------------------------------------- #
-# Task 7 will implement the five figures, saved to FIGURE_DIR:
-#   1. demo_oed_optpath.png     -- c-criterion vs iteration, multi-start traces
-#   2. demo_oed_headline.png    -- optimal radial weighting + RV/PM split over sigma(r)/beta(r)
-#   3. demo_oed_cda.png         -- c-vs-D-vs-A allocations side-by-side
-#   4. demo_oed_frontier.png    -- measured sigma(r_a)/r_a vs N, designed vs uniform
-#   5. demo_oed_calibration.png -- realized MLE Cov vs F^-1
-# All the data handles each figure needs are passed into make_figures() below
-# (DesignResult.trace for fig 1; Mb/cb/designs/z_unif for figs 2-3; the c-design
-# + uniform criteria as a function of N for fig 4 via oed.fisher; the CalibResult
-# for fig 5). For now this is a clearly-marked stub so the CLI runs end-to-end and
-# exits 0 WITHOUT the figures; Task 7 fills it in using scripts/_plotstyle.py.
-def make_figures(Mb, cb, n_total, designs, z_unif, pm_frac, cal, *,
-                 factor, frac_sig_unif, frac_sig_c):
-    """STUB (Task 7): generate the five Stage-1 figures into FIGURE_DIR.
+# Task 7: the five Stage-1 figures, saved to FIGURE_DIR. All use the shared
+# publication style (scripts/_plotstyle.py: Okabe-Ito palette, serif/CM math,
+# inward ticks, no in-figure titles -- the MyST caption carries the title).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
 
-    Handles available for each figure:
+# Channel labels + colours shared across figures (los, pm_r, pm_t).
+_CH_LABELS = (r"RV ($v_{\rm los}$)", r"PM$_R$", r"PM$_T$")
+_CH_COLORS = (OI["blue"], OI["orange"], OI["green"])
+
+
+def _fig_optpath(designs, fig_dir):
+    """Fig 1: each criterion's best-start optimizer trace vs Adam iteration.
+
+    The c/D/A objectives live on different scales and signs (c, A are fractional
+    variances; D is -logdet, which is negative), so a raw or start-normalised
+    overlay would be misleading. We instead plot the suboptimality gap to each
+    objective's own converged value, normalised to its initial gap:
+    g(t) = (crit_t - crit_min) / (crit_0 - crit_min). For all three this is a
+    monotone descent from 1 toward ~0 -- the shared story is clean convergence of
+    every alphabet-optimality objective (all are being MINIMISED)."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(5.0, 3.6))
+    crit_meta = (("c", "c-optimal  (var $r_a$)", OI["vermilion"]),
+                 ("d", "D-optimal  ($-\\log\\det F$)", OI["blue"]),
+                 ("a", "A-optimal  (tr $F^{-1}$)", OI["green"]))
+    floor = 1e-4   # log-axis floor so a fully-converged gap stays visible
+    for name, label, color in crit_meta:
+        tr = jnp.asarray(designs[name].trace)
+        it = jnp.arange(tr.shape[0])
+        gap0 = tr[0] - jnp.min(tr)
+        gap = (tr - jnp.min(tr)) / gap0           # 1 -> ~0, monotone for all three
+        gap = jnp.maximum(gap, floor)
+        ax.plot(it, gap, "-", color=color, label=label)
+    ax.set_yscale("log")
+    ax.set_xlabel("Adam iteration")
+    ax.set_ylabel(r"suboptimality gap  $(c_t-c_\infty)/(c_0-c_\infty)$")
+    ax.legend(loc="upper right")
+    panel_label(ax, "optimizer convergence", loc="lower left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed_optpath")
+
+
+def _fig_headline(Mb, cb, n_total, designs, fig_dir):
+    """Fig 2 (HEADLINE): the c-optimal PM allocation grows where the OM
+    anisotropy beta(r) grows (the outskirts), overlaid on the three sigma(r)
+    channels. Twin axis: left = dispersion [km/s], right = fraction (PM share of
+    the per-bin budget) and beta(r) (both dimensionless 0..1)."""
+    import matplotlib.pyplot as plt
+
+    R = jnp.asarray(oed.R_BINS)
+    theta = oed.theta_truth()
+    sig = oed.predict_sigma(theta, oed.R_BINS, G)          # (3, K) pc/Myr
+    sig_kms = sig * oed.KMS_PER_PC_PER_MYR                  # -> km/s for the reader
+    r_a = oed.MOCK["r_a"]
+    beta = R**2 / (R**2 + r_a**2)                          # OM anisotropy beta(r)
+
+    n = oed.design_counts(designs["c"].z, cb, n_total)     # (3, K)
+    pm_frac = (n[1] + n[2]) / jnp.sum(n, axis=0)           # PM share per bin
+
+    fig, ax = plt.subplots(figsize=(6.0, 4.0))
+    # Left axis: the three dispersion channels (km/s).
+    for c, (lbl, col) in enumerate(zip(_CH_LABELS, _CH_COLORS)):
+        ax.plot(R, sig_kms[c], "-", color=col, lw=1.4, label=lbl)
+    ax.set_xscale("log")
+    ax.set_xlabel(r"projected radius $R$  [pc]")
+    ax.set_ylabel(r"dispersion  $\sigma(R)$  [km s$^{-1}$]")
+    ax.axvline(r_a, color="0.6", ls=":", lw=1.0)
+    ax.text(r_a * 1.04, ax.get_ylim()[1] * 0.97, r"$r_a$", color="0.4",
+            fontsize=8, ha="left", va="top")
+
+    # Right axis: PM allocation fraction + beta(r), both dimensionless 0..1.
+    axr = ax.twinx()
+    axr.plot(R, pm_frac, "o-", color=OI["purple"], ms=4.0, lw=1.6,
+             label="PM allocation fraction (c-opt)")
+    axr.plot(R, beta, "--", color=OI["black"], lw=1.3,
+             label=r"$\beta_{\rm OM}(R)=R^2/(R^2+r_a^2)$")
+    axr.set_ylabel(r"PM allocation fraction   /   $\beta_{\rm OM}(R)$")
+    axr.set_ylim(0.0, 1.05)
+
+    # One combined legend (both axes).
+    h1, l1 = ax.get_legend_handles_labels()
+    h2, l2 = axr.get_legend_handles_labels()
+    axr.legend(h1 + h2, l1 + l2, loc="center left", fontsize=7.5)
+    panel_label(ax, "PMs to the outskirts", loc="upper right")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed_headline")
+
+
+def _fig_cda(cb, n_total, designs, fig_dir):
+    """Fig 3: the c-, D-, A-optimal channel allocations side by side. Each panel
+    is a stacked bar over radius of n_eff per channel -- the three designs differ
+    (c pushes PM outward hardest; D/A spread information differently)."""
+    import matplotlib.pyplot as plt
+
+    R = np.asarray(oed.R_BINS)
+    # Log-uniform bins: constant width in log R -> equal-width bars on a log axis.
+    logR = np.log10(R)
+    bw = 0.9 * (logR[1] - logR[0])
+
+    fig, axes = plt.subplots(1, 3, figsize=(10.4, 3.4), sharey=True)
+    titles = {"c": "c-optimal", "d": "D-optimal", "a": "A-optimal"}
+    for ax, name in zip(axes, ("c", "d", "a")):
+        n = np.asarray(oed.design_counts(designs[name].z, cb, n_total))  # (3, K)
+        bottom = np.zeros_like(R)
+        for c, (lbl, col) in enumerate(zip(_CH_LABELS, _CH_COLORS)):
+            ax.bar(logR, n[c], width=bw, bottom=bottom, color=col,
+                   edgecolor="white", linewidth=0.2, label=lbl)
+            bottom = bottom + n[c]
+        ax.set_xlabel(r"$\log_{10}(R\,/\,{\rm pc})$")
+        panel_label(ax, titles[name], loc="upper right")
+    axes[0].set_ylabel(r"effective star count  $n_{\rm eff}$")
+    axes[0].legend(loc="upper left", fontsize=7.5)
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed_cda")
+
+
+def _fig_frontier(Mb, cb, designs, fig_dir):
+    """Fig 4: realized fractional precision sigma(r_a)/r_a = sqrt(c) vs budget N,
+    for the c-optimal design fractions and uniform, each recomputed (NOT an
+    idealized 1/N extrapolation). The horizontal gap between the curves is the
+    equal-precision star factor (~3.66x); the curves are mildly non-1/N because
+    the fixed nuisance prior dilutes as N grows."""
+    import matplotlib.pyplot as plt
+
+    z_c = designs["c"].z
+    z_u = jnp.zeros(3 * oed.R_BINS.shape[0])
+    n_grid = jnp.asarray(np.geomspace(1e3, 1e4, 18))
+
+    def _frac_sig(z):
+        return jnp.array([
+            oed.c_criterion(oed.fisher(z, Mb, cb, float(N), oed.PRIOR_DIAG)) ** 0.5
+            for N in n_grid
+        ])
+
+    fs_c = np.asarray(_frac_sig(z_c))
+    fs_u = np.asarray(_frac_sig(z_u))
+    ng = np.asarray(n_grid)
+
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    ax.loglog(ng, fs_u, "o-", color="0.5", ms=4, label="uniform design")
+    ax.loglog(ng, fs_c, "o-", color=OI["vermilion"], ms=4, label="c-optimal design")
+
+    # Equal-precision star factor: horizontal gap at a reference precision. Pick the
+    # uniform precision at the largest N; find the N where the c-design matches it.
+    ref = fs_u[-1]
+    n_c_match = float(np.interp(np.log(ref), np.log(fs_c[::-1]), np.log(ng[::-1])))
+    n_c_match = float(np.exp(n_c_match))
+    factor = ng[-1] / n_c_match
+    ax.axhline(ref, color="0.7", ls=":", lw=1.0)
+    ax.annotate("", xy=(ng[-1], ref), xytext=(n_c_match, ref),
+                arrowprops=dict(arrowstyle="<->", color=OI["black"], lw=1.1))
+    ax.text(np.sqrt(ng[-1] * n_c_match), ref * 1.06,
+            fr"$\approx{factor:.1f}\times$ fewer stars",
+            ha="center", va="bottom", fontsize=8.5, color=OI["black"])
+
+    ax.set_xlabel(r"star budget  $N_{\rm total}$")
+    ax.set_ylabel(r"realized fractional precision  $\sigma(r_a)/r_a=\sqrt{c}$")
+    ax.legend(loc="upper right")
+    panel_label(ax, "precision frontier", loc="upper left")
+    # Note the mild departure from an ideal 1/N (-1/2 in sqrt) slope.
+    slope_c = float(np.polyfit(np.log(ng), np.log(fs_c), 1)[0])
+    ax.text(0.035, 0.08,
+            fr"c-opt slope $={slope_c:.2f}$" + "\n(mildly non-$1/N$: prior dilution)",
+            transform=ax.transAxes, fontsize=7, va="bottom", color="0.3")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed_frontier")
+
+
+def _fig_calibration(cal, n_draws, fig_dir):
+    """Fig 5: realized vs Fisher-predicted fractional precision sigma(r_a)/r_a.
+    The realized point carries an MC error band (~sqrt(2/n_draws) on a sample
+    variance, propagated to the sqrt); the two agree within it, with the Fisher
+    mildly conservative."""
+    import matplotlib.pyplot as plt
+
+    realized = float(cal.realized_var_ra) ** 0.5
+    fisher_p = float(cal.fisher_var_ra) ** 0.5
+    # MC error on a sample variance from n_draws draws is ~sqrt(2/n_draws);
+    # propagated to sigma = sqrt(var) it halves -> sigma * 0.5 * sqrt(2/n_draws).
+    mc_rel = (2.0 / n_draws) ** 0.5
+    realized_err = realized * 0.5 * mc_rel
+
+    fig, ax = plt.subplots(figsize=(4.6, 3.8))
+    ax.errorbar([0], [realized], yerr=[realized_err], fmt="o", ms=7,
+                color=OI["vermilion"], capsize=4,
+                label=fr"realized ({n_draws} mock draws)")
+    ax.plot([1], [fisher_p], "s", ms=7, color=OI["blue"],
+            label="design Fisher  $\\sqrt{(F^{-1})_{r_a r_a}}$")
+    ax.axhline(fisher_p, color=OI["blue"], ls=":", lw=1.0, alpha=0.7)
+    ax.set_xlim(-0.6, 1.6)
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["realized", "Fisher"])
+    ax.set_ylabel(r"fractional precision  $\sigma(r_a)/r_a$")
+    dev = abs(realized - fisher_p) / fisher_p * 100.0
+    ax.legend(loc="upper center", fontsize=7.5)
+    panel_label(ax, fr"agree to {dev:.0f}%", loc="lower left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed_calibration")
+
+
+def make_figures(Mb, cb, n_total, designs, z_unif, pm_frac, cal, *,
+                 factor, frac_sig_unif, frac_sig_c, n_draws):
+    """Generate the five Stage-1 figures into FIGURE_DIR (PNG + PDF via save_fig).
+
       * fig 1 (optpath):     designs['c'/'d'/'a'].trace (per-step criterion).
-      * fig 2 (headline):    designs['c'].z + cb + n_total -> oed.design_counts;
-                             oed.predict_sigma(theta_truth, R_BINS, G) for sigma(r);
-                             beta_OM(r) = R_BINS^2/(R_BINS^2 + r_a^2).
+      * fig 2 (headline):    designs['c'].z + cb -> oed.design_counts; sigma(r)
+                             from oed.predict_sigma; beta_OM(R)=R^2/(R^2+r_a^2).
       * fig 3 (cda):         oed.design_counts for each of designs['c'/'d'/'a'].z.
-      * fig 4 (frontier):    sweep N, recompute oed.fisher/c_criterion for the
-                             c-design fractions and the uniform design.
+      * fig 4 (frontier):    sweep N, recompute oed.fisher/c_criterion (c vs unif).
       * fig 5 (calibration): cal.realized_var_ra vs cal.fisher_var_ra.
     """
-    print("  figures: TODO (Task 7) -- handles wired in make_figures(); skipping for now")
+    apply_pub_style()
+    os.makedirs(FIGURE_DIR, exist_ok=True)
+    _fig_optpath(designs, FIGURE_DIR)
+    _fig_headline(Mb, cb, n_total, designs, FIGURE_DIR)
+    _fig_cda(cb, n_total, designs, FIGURE_DIR)
+    _fig_frontier(Mb, cb, designs, FIGURE_DIR)
+    _fig_calibration(cal, n_draws, FIGURE_DIR)
+    print(f"  figures: wrote 5 PNG+PDF to {FIGURE_DIR}/demo_oed_*.png")
 
 
 if __name__ == "__main__":
