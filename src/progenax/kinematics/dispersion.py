@@ -110,29 +110,36 @@ def _sigma_components(
     sigma_r2: Float[Array, " n"],
     r: Float[Array, " n"],
     r_a: Optional[float],
+    beta: Optional[Float[Array, " n"]] = None,
 ):
-    """Build (sigma_r, sigma_t, sigma_1d, beta) from sigma_r^2(r) under OM anisotropy.
+    """Build (sigma_r, sigma_t, sigma_1d, beta) from sigma_r^2(r).
 
-    Osipkov-Merritt (Merritt 1985): beta(r) = r^2 / (r^2 + r_a^2), giving
-    sigma_t^2 = sigma_r^2 * r_a^2 / (r_a^2 + r^2) and
-    sigma_1d^2 = (sigma_r^2 + 2 sigma_t^2) / 3.
+    Two anisotropy sources:
 
-    Isotropic branch (``r_a is None``): beta = 0, sigma_t = sigma_r, so
-    sigma_1d = sigma_r.
+    - **Explicit ``beta`` array (general-beta path):** when ``beta`` is given,
+      ``sigma_t^2 = (1 - beta) sigma_r^2`` and ``sigma_1d^2 = (sigma_r^2 +
+      2 sigma_t^2)/3`` directly (the arbitrary-beta(r) integrating-factor path of
+      :func:`jeans_dispersion`'s ``beta_fn``). ``r_a`` is ignored in this branch.
+    - **OM / isotropic closed form (``beta`` is None):** Osipkov-Merritt
+      (Merritt 1985) ``beta(r) = r^2 / (r^2 + r_a^2)``, giving
+      ``sigma_t^2 = sigma_r^2 * r_a^2 / (r_a^2 + r^2)``; isotropic
+      (``r_a is None``) -> ``beta = 0``, ``sigma_t = sigma_r``.
 
     Returns
     -------
     (sigma_r, sigma_t, sigma_1d, beta) : tuple of arrays shaped like ``r``.
     """
     sigma_r = jnp.sqrt(sigma_r2)
-    if r_a is None:
+    if beta is not None:
+        sigma_t2 = (1.0 - beta) * sigma_r2
+    elif r_a is None:
         beta = jnp.zeros_like(r)
         sigma_t2 = sigma_r2
     else:
         r_a2 = jnp.asarray(r_a) ** 2
         beta = r**2 / (r**2 + r_a2)
         sigma_t2 = sigma_r2 * r_a2 / (r_a2 + r**2)
-    sigma_t = jnp.sqrt(sigma_t2)
+    sigma_t = jnp.sqrt(jnp.maximum(sigma_t2, 0.0))
     sigma_1d = jnp.sqrt((sigma_r2 + 2.0 * sigma_t2) / 3.0)
     return sigma_r, sigma_t, sigma_1d, beta
 
@@ -191,17 +198,64 @@ def jeans_sigma_r(
     return jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
 
 
-def _jeans_tables(profile, r_a, M, G, n_s: int):
+def _log_factor(beta_fn, s):
+    """Log integrating factor ``F(s) = 2 int beta(s)/s ds`` (general-beta path).
+
+    The anisotropic Jeans equation uses the integrating factor
+    ``f(r) = exp(2 int beta(s)/s ds)``; only the RATIO ``f(s)/f(r)`` enters
+    ``sigma_r^2``, so the (arbitrary) lower-limit constant of the indefinite
+    integral cancels and we may build the cumulative integral from the grid's
+    leading edge. Returned MAX-SUBTRACTED (``F - max F``) so the downstream
+    ``exp(F)`` never overflows: the subtracted constant is the same in numerator
+    (folded into the integrand) and denominator (the ``exp(-(F(r)-Fmax))``
+    prefactor), so it cancels exactly.
+
+    Integration is done in ``ln(s)`` — the exact change of variable
+    ``2 beta(s)/s ds = 2 beta(s) d(ln s)`` — rather than in the master grid's own
+    variable. This is the SAME integral on BOTH branches (uniform-s for finite
+    ``r_t``; compactified uniform-t for Plummer): ``ln(s)`` is smooth across both
+    grids, whereas the raw ``2 beta/s`` integrand (or its ``jac``-folded t form
+    ``2 beta/((1-t) t)``) has a ``1/(1-t)`` blow-up at the Plummer grid's outer
+    edge (``t -> 1``) that a uniform-dx trapezoid resolves poorly — a single
+    contaminated last panel that corrupts ``max F``. Because ``beta`` is bounded
+    and ``ln(s)`` is well-spaced, the ``ln(s)`` trapezoid reproduces the analytic
+    OM factor ``ln(s^2 + r_a^2)`` to ~1e-6 at every radius (the OM-reduction
+    proof). A variable-spacing trapezoid is used (the compactified ``ln(s)`` is
+    non-uniform); fully reverse-mode differentiable.
+
+    Returns ``(F_shifted, Fmax)`` with ``F_shifted = F - Fmax``.
+    """
+    beta_s = beta_fn(s)
+    ln_s = jnp.log(jnp.maximum(s, 1e-30))
+    # Variable-spacing cumulative trapezoid of 2*beta in ln(s) (leading zero).
+    dx = jnp.diff(ln_s)
+    panel = 0.5 * (beta_s[1:] + beta_s[:-1]) * dx
+    F = 2.0 * jnp.concatenate([jnp.zeros(1, dtype=panel.dtype), jnp.cumsum(panel)])
+    Fmax = jnp.max(F)
+    return F - Fmax, Fmax
+
+
+def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
     """R-independent master tables for the anisotropic-Jeans ``sigma_r``.
 
-    Builds, ONCE, the radial grid ``s`` and the two quantities the per-radius
+    Builds, ONCE, the radial grid ``s`` and the quantities the per-radius
     ``sigma_r^2`` needs: the density ``rho(s)`` and the outward integral
-    ``I_outward(s) = int_s^inf w(s) rho(s) G M(<s) / s^2 ds`` (OM weight
-    ``w = s^2 + r_a^2``; isotropic ``w == 1``). This is the same construction
-    the old per-call :func:`jeans_dispersion`/:func:`jeans_sigma_r` path did,
-    factored out so :func:`project_dispersion` can solve the Jeans equation
-    exactly once and interpolate per projected radius ``R`` (instead of a fresh
-    master solve inside every vmapped ``_los_quantities``).
+    ``I_outward(s) = int_s^inf f(s) rho(s) G M(<s) / s^2 ds``. The integrating
+    factor ``f(s)`` takes one of two forms:
+
+    - **OM / isotropic (``beta_fn is None``):** ``f = s^2 + r_a^2`` (isotropic
+      ``f == 1``) — the analytic Osipkov-Merritt weight, with the matching
+      ``1/(r^2 + r_a^2)`` prefactor applied in :func:`_sigma_r2_from_tables`.
+      BIT-IDENTICAL to the pre-D1 path.
+    - **General-beta (``beta_fn`` given):** ``f(s) = exp(2 int beta(s)/s ds)``,
+      built NUMERICALLY in max-subtracted log form ``exp(F(s) - Fmax)`` (see
+      :func:`_log_factor`); the matching prefactor is ``exp(-(F(r) - Fmax))``.
+
+    This is the same construction the old per-call
+    :func:`jeans_dispersion`/:func:`jeans_sigma_r` path did, factored out so
+    :func:`project_dispersion` can solve the Jeans equation exactly once and
+    interpolate per projected radius ``R`` (instead of a fresh master solve
+    inside every vmapped ``_los_quantities``).
 
     The enclosed mass ``M(<s)`` is a quadrature of ``profile.density``:
     ``M_enc = M * cumtrap(rho s^2) / cumtrap_total(rho s^2)``.
@@ -215,14 +269,19 @@ def _jeans_tables(profile, r_a, M, G, n_s: int):
       ``ds/dt = a/(1-t)^2``). Both the ``M(<s)`` quadrature and the outward integral
       ``I_outward`` are evaluated in UNIFORM ``t`` with the Jacobian folded into the
       integrand — preserving ``cumulative_trapezoid``'s uniform-``dx`` contract — so
-      the full Plummer tail is captured (killing the old 30a truncation bias).
+      the full Plummer tail is captured (killing the old 30a truncation bias). On the
+      general-beta path the ``F = 2 int beta/s ds`` cumulative integral is done in
+      ``ln(s)`` (the exact ``2 beta/s ds = 2 beta d(ln s)`` change of variable), which
+      is smooth on BOTH grids and avoids the t-grid edge singularity (see
+      :func:`_log_factor`).
 
     Both ``s`` grids are monotone increasing, so the downstream ``jnp.interp(r, s,
     ...)`` works (the compactified ``s`` is non-uniform but still sorted). Fully
     reverse-mode differentiable.
 
-    Returns ``(s, rho, I_outward)`` — pass these straight to
-    :func:`_sigma_r2_from_tables`.
+    Returns ``(s, rho, I_outward, F_shifted)`` — ``F_shifted`` is ``None`` on the
+    OM/isotropic path and ``F(s) - Fmax`` on the general-beta path; pass these
+    straight to :func:`_sigma_r2_from_tables`.
     """
     r_max = getattr(profile, "r_t", None)
 
@@ -242,14 +301,20 @@ def _jeans_tables(profile, r_a, M, G, n_s: int):
         cum = cumulative_trapezoid(rho * s2 * jac, dx=dt)
         M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
 
-        if r_a is None:
-            weight = jnp.ones_like(s)
+        if beta_fn is not None:
+            # f(s) = exp(F-Fmax); F = 2 int beta d(ln s) (smooth on the t-grid).
+            F_shifted, _ = _log_factor(beta_fn, s)
+            f_weight = jnp.exp(F_shifted)
+        elif r_a is None:
+            f_weight = jnp.ones_like(s)
+            F_shifted = None
         else:
-            weight = s2 + jnp.asarray(r_a) ** 2
-        # I(s) = int_s^inf w rho G M(<s)/s^2 ds; in t the integrand carries `jac`.
-        integrand = weight * rho * G * M_enc / jnp.maximum(s2, 1e-30) * jac
+            f_weight = s2 + jnp.asarray(r_a) ** 2
+            F_shifted = None
+        # I(s) = int_s^inf f rho G M(<s)/s^2 ds; in t the integrand carries `jac`.
+        integrand = f_weight * rho * G * M_enc / jnp.maximum(s2, 1e-30) * jac
         I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=dt))
-        return s, rho, I_outward
+        return s, rho, I_outward, F_shifted
 
     # Finite r_t (King / EFF): uniform s grid, no compactification needed.
     s = jnp.linspace(1e-4 * r_max, r_max, n_s)
@@ -260,34 +325,48 @@ def _jeans_tables(profile, r_a, M, G, n_s: int):
     cum = cumulative_trapezoid(rho * s**2, dx=ds)
     M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
 
-    # Integrand g(s) = w(s) * rho(s) * G M(<s) / s^2 with OM weight
-    # w(s) = (s^2 + r_a^2) (isotropic: w == 1). Guard s^2 at the s=0 edge.
+    # Integrand g(s) = f(s) * rho(s) * G M(<s) / s^2; on the OM path the weight is
+    # the analytic w(s) = (s^2 + r_a^2) (isotropic: w == 1). Guard s^2 at s=0.
     s2 = s**2
-    if r_a is None:
-        weight = jnp.ones_like(s)
+    if beta_fn is not None:
+        F_shifted, _ = _log_factor(beta_fn, s)
+        f_weight = jnp.exp(F_shifted)
+    elif r_a is None:
+        f_weight = jnp.ones_like(s)
+        F_shifted = None
     else:
-        weight = s2 + jnp.asarray(r_a) ** 2
-    integrand = weight * rho * G * M_enc / jnp.maximum(s2, 1e-30)
+        f_weight = s2 + jnp.asarray(r_a) ** 2
+        F_shifted = None
+    integrand = f_weight * rho * G * M_enc / jnp.maximum(s2, 1e-30)
     # Reverse cumulative trapezoid -> I(s) = int_s^inf integrand ds.
     I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=ds))
-    return s, rho, I_outward
+    return s, rho, I_outward, F_shifted
 
 
-def _sigma_r2_from_tables(r, s, rho, I_outward, r_a):
+def _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=None):
     """Anisotropic-Jeans ``sigma_r^2(r)`` from the master tables (no master solve).
 
     Interpolates ``rho`` and ``I_outward`` (built by :func:`_jeans_tables`) onto
-    the query radii ``r`` and applies the OM prefactor
-    ``1/(r^2 + r_a^2)`` (isotropic: 1)::
+    the query radii ``r`` and applies the integrating-factor prefactor::
 
         sigma_r^2(r) = prefactor(r) * I_outward(r) / rho(r)
+
+    Two prefactors:
+
+    - **OM / isotropic (``F_shifted is None``):** ``1/(r^2 + r_a^2)`` (isotropic:
+      1) — the analytic Osipkov-Merritt prefactor. BIT-IDENTICAL to pre-D1.
+    - **General-beta (``F_shifted`` given):** ``exp(-(F(r) - Fmax))`` =
+      ``1/f(r)`` (the max-subtraction cancels with the same constant folded into
+      ``I_outward``'s integrand), interpolating ``F - Fmax`` onto ``r``.
 
     This is exactly the tail of the old :func:`jeans_sigma_r` (same operations),
     minus the (now R-independent) integrand/``I_outward`` build.
     """
     rho_r = jnp.interp(r, s, rho)
     I_r = jnp.interp(r, s, I_outward)
-    if r_a is None:
+    if F_shifted is not None:
+        prefactor = jnp.exp(-jnp.interp(r, s, F_shifted))
+    elif r_a is None:
         prefactor = jnp.ones_like(r)
     else:
         prefactor = 1.0 / jnp.maximum(r**2 + jnp.asarray(r_a) ** 2, 1e-30)
@@ -340,7 +419,7 @@ def ftable_sigma_r_isotropic(
 
 
 def jeans_dispersion(
-    profile, r_a, r, M, G, n_s: int = _JEANS_N_S_DEFAULT
+    profile, r_a, r, M, G, n_s: int = _JEANS_N_S_DEFAULT, beta_fn=None
 ) -> DispersionProfile:
     """3-D anisotropic Jeans dispersion of ``profile`` under OM ``r_a``.
 
@@ -371,10 +450,19 @@ def jeans_dispersion(
     profiles (Plummer/EFF) but not through the King/Michie equilibrium-solver
     profiles — see the module docstring.
 
-    See also: a general-``beta(r)`` generalisation (native Michie/King anisotropy
-    and arbitrary custom ``beta(r)`` via the integrating factor
-    ``f(r) = exp(2 int beta(s)/s ds)``) is on the versatility roadmap
-    (``docs/plans/2026-06-15-oed-dispersion-arc-design.md``).
+    General-``beta(r)`` anisotropy (Tier A, Phase 0.5 D1). Pass a callable
+    ``beta_fn(r) -> beta`` to use an ARBITRARY anisotropy profile (native
+    Michie/King anisotropy, custom ``beta(r)``) instead of the OM law, via the
+    general integrating factor ``f(r) = exp(2 int beta(s)/s ds)``::
+
+        rho sigma_r^2(r) = (1/f(r)) int_r^inf f(s) rho(s) G M(<s)/s^2 ds
+        sigma_t^2 = (1 - beta) sigma_r^2 ;  sigma_1d^2 = (sigma_r^2 + 2 sigma_t^2)/3
+
+    ``f`` is built numerically (max-subtracted log form for stability); the OM
+    special case ``f = r^2 + r_a^2`` (``beta = r^2/(r^2 + r_a^2)``) is the analytic
+    default and is BIT-PRESERVED when ``beta_fn is None``. When ``beta_fn`` is
+    given, ``r_a`` is unused and the Plummer-OM ``r_a >= 0.75 a`` validity guard
+    (an OM-only domain) is skipped.
 
     The enclosed mass ``M(<s)`` is a *quadrature of ``profile.density``*
     (builder-quality, no re-differentiated Psi): ``M_enc = M * cumtrap(rho s^2)
@@ -395,6 +483,9 @@ def jeans_dispersion(
         quadrature is O(h^2 = (r_max/n_s)^2); exposed so a convergence study can
         refine it. Backward-compatible (keyword, default unchanged) and traced-safe
         (a static Python int, not a JAX value).
+    beta_fn : optional callable ``beta_fn(r) -> beta`` for general anisotropy. When
+        given, the numerical integrating-factor path is used (``r_a`` ignored);
+        ``None`` (default) keeps the bit-preserved analytic OM/isotropic path.
 
     Returns
     -------
@@ -418,7 +509,8 @@ def jeans_dispersion(
     # tracer even when r_a is a plain float, so float(profile.a) would raise a
     # ConcretizationTypeError — skip the eager guard in that case too.
     if (
-        r_a is not None
+        beta_fn is None
+        and r_a is not None
         and not isinstance(r_a, jax.core.Tracer)
         and hasattr(profile, "a")
         and not isinstance(profile.a, jax.core.Tracer)
@@ -437,9 +529,12 @@ def jeans_dispersion(
     # sigma_r^2 at the query radii. Bit-identical to the old
     # jeans_sigma_r(rho, M_enc, s, ...) path — same grid, integrand, I_outward,
     # prefactor, and interpolation, just factored into reusable helpers.
-    s, rho, I_outward = _jeans_tables(profile, r_a, M, G, n_s)
-    sigma_r2 = jnp.maximum(_sigma_r2_from_tables(r, s, rho, I_outward, r_a), 0.0)
-    sr, st, s1d, beta = _sigma_components(sigma_r2, r, r_a)
+    s, rho, I_outward, F_shifted = _jeans_tables(profile, r_a, M, G, n_s, beta_fn=beta_fn)
+    sigma_r2 = jnp.maximum(
+        _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=F_shifted), 0.0
+    )
+    beta = beta_fn(r) if beta_fn is not None else None
+    sr, st, s1d, beta = _sigma_components(sigma_r2, r, r_a, beta=beta)
     return DispersionProfile(r=r, sigma_r=sr, sigma_t=st, sigma_1d=s1d, beta=beta)
 
 
@@ -548,7 +643,7 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     # to the old per-R jeans_dispersion(...).sigma_r**2 path. The master Jeans
     # grid uses jeans_dispersion's own default n_s (4000) — independent of the
     # u-quadrature resolution n_u, exactly as the old per-R call did.
-    s, rho_tab, I_outward = _jeans_tables(profile, r_a, M, G, _JEANS_N_S_DEFAULT)
+    s, rho_tab, I_outward, _F_shifted = _jeans_tables(profile, r_a, M, G, _JEANS_N_S_DEFAULT)
 
     if r_a is None:
         r_a2 = None

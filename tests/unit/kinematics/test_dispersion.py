@@ -284,6 +284,41 @@ def test_project_equivalence_after_tabulate():
     assert jnp.allclose(pj.sigma_pm_t, _BL_PMT, rtol=1e-9)
 
 
+# --- Phase 0.5 Task D1: general-beta jeans_dispersion (Tier A) ---
+#
+# A beta_fn callable lets jeans_dispersion use an ARBITRARY anisotropy beta(r)
+# via the general integrating factor f(r)=exp(2 int beta(s)/s ds). The OM/
+# isotropic default (beta_fn=None) is bit-preserved. The OM-reduction test below
+# is THE correctness proof: a beta_fn reproducing the OM law must reproduce the
+# analytic OM sigma_r (the numerical integrating factor reduces to f=r^2+r_a^2).
+
+
+def test_beta_fn_om_equals_default():
+    """beta_fn reproducing OM matches the analytic OM default (numerical f -> OM)."""
+    prof = PlummerProfile(r_h=1.0)
+    r = jnp.array([0.5, 1.0, 2.0])
+    r_a = 2.0
+    default = jeans_dispersion(prof, r_a, r, 400.0, G_STELLAR)
+    beta_om = lambda rr: rr**2 / (rr**2 + r_a**2)
+    general = jeans_dispersion(prof, None, r, 400.0, G_STELLAR, beta_fn=beta_om)
+    assert jnp.allclose(default.sigma_r, general.sigma_r, rtol=1e-4)
+    assert jnp.allclose(general.beta, beta_om(r), rtol=1e-6)
+
+
+def test_grad_jeans_beta_fn_wrt_M():
+    """AD-vs-FD clean for d(sum sigma_r)/d(M) on the beta_fn path (OM beta_fn)."""
+    beta_om = lambda rr: rr**2 / (rr**2 + 4.0)
+
+    def f(M):
+        return jnp.sum(
+            jeans_dispersion(
+                PlummerProfile(r_h=1.0), None, jnp.array([1.0]), M, G_STELLAR, beta_fn=beta_om
+            ).sigma_r
+        )
+
+    _assert_ad_fd(f, 400.0, name="general-beta jeans / M")
+
+
 def test_jit_both_forward_models():
     """jax.jit compiles both forward models and returns finite arrays (OED jits these)."""
     prof = PlummerProfile(r_h=1.0)
