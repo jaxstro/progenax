@@ -14,14 +14,23 @@ forward-mode also happens to work -- but reverse-mode is the canonical choice. S
 src/progenax/kinematics/dispersion.py module docstring for the per-profile forward-mode
 support matrix.
 """
+import os
+import sys
 from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
 import optax
 
-from progenax import PlummerProfile, project_dispersion
+from progenax import PlummerProfile, PlummerVelocityDF, project_dispersion
 from jaxstro.units import STELLAR  # noqa: F401  -- re-exported for the demo's callers
+
+# Scripts-local inference helpers (NOT a packaged API): the fixed-step Adam MLE and
+# the Gauss-Newton Fisher used by the calibration ensemble (Task 5). The sibling
+# _demo_inference lives next to this file; ensure scripts/ is importable regardless
+# of how _demo_oed is imported (the test inserts it too, this is belt-and-braces).
+sys.path.insert(0, os.path.dirname(__file__))
+import _demo_inference as inf  # noqa: E402
 
 # --- Unit conversions (STELLAR: M_sun, pc, Myr; project_dispersion returns pc/Myr) ---
 # 1 km/s = 1 / 0.977792 pc/Myr (1 pc/Myr = 0.977792 km/s).
@@ -285,3 +294,193 @@ def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500,
         if best is None or crit < best.criterion:
             best = DesignResult(z=z, trace=trace, criterion=crit)
     return best
+
+
+# ===========================================================================
+# Task 5: sky projection + calibration ensemble (the validation gate)
+# ===========================================================================
+#
+# This is the END-TO-END gate on the whole demo: it confirms the additive,
+# dimensionless DESIGN Fisher (Tasks 1-2.5) actually predicts the REALIZED
+# fractional scatter of r_a_hat across independent mock catalogs sampled and
+# fit forward. If the design Fisher were wrong (wrong Jacobian, wrong SE, wrong
+# metric), this number would not close.
+#
+# Pipeline per draw:
+#   sample OM-Plummer stars at the truth  ->  project to sky (z = LOS)  ->
+#   bin by projected R  ->  per (bin, channel) subsample the design count,
+#   broaden by the per-star measurement error, form sigma_hat + its SE  ->
+#   fit the MAP theta=(r_a, M, r_h) with the SAME fractional ln-theta prior the
+#   design Fisher uses  ->  collect r_a_hat.
+# Then Var(r_a_hat)/r_a_truth**2 (REALIZED FRACTIONAL variance, ADR 0011) is
+# compared to (inv F_design)_{r_a, r_a} (the design's FRACTIONAL variance).
+
+
+def project_to_sky(pos, vel):
+    """Project 3-D (pos, vel) onto the sky with the line of sight along +z.
+
+    Returns ``(R, v_los, v_pm_r, v_pm_t)`` (each (N,)):
+      * ``R   = hypot(x, y)``          -- projected (on-sky) radius,
+      * ``v_los = v_z``                -- line-of-sight (radial-velocity) channel,
+      * ``v_pm_r =  vx cos phi + vy sin phi`` -- in-plane RADIAL proper-motion channel,
+      * ``v_pm_t = -vx sin phi + vy cos phi`` -- in-plane TANGENTIAL proper-motion channel,
+    with the on-sky azimuth ``phi = arctan2(y, x)``. The (v_pm_r, v_pm_t) pair is
+    the planar velocity rotated into the (radial, tangential) on-sky frame; it is
+    an orthonormal rotation, so ``v_pm_r**2 + v_pm_t**2 == vx**2 + vy**2``.
+    """
+    x, y = pos[:, 0], pos[:, 1]
+    vx, vy, vz = vel[:, 0], vel[:, 1], vel[:, 2]
+    R = jnp.hypot(x, y)
+    phi = jnp.arctan2(y, x)
+    cphi, sphi = jnp.cos(phi), jnp.sin(phi)
+    v_los = vz
+    v_pm_r = vx * cphi + vy * sphi
+    v_pm_t = -vx * sphi + vy * cphi
+    return R, v_los, v_pm_r, v_pm_t
+
+
+class CalibResult(NamedTuple):
+    """Result of calibrate_fisher (both entries are FRACTIONAL variances, ADR 0011):
+      * realized_var_ra : Var(r_a_hat over draws) / r_a_truth**2,
+      * fisher_var_ra   : (inv F_design)_{r_a, r_a} at the same (z, N_total)."""
+    realized_var_ra: float
+    fisher_var_ra: float
+
+
+def _r_bin_edges():
+    """K+1 geometric-mean bin edges bracketing the K log-spaced R_BINS centres.
+
+    R_BINS is log-uniform with constant log step dlog, so the edges are the
+    centres shifted by +-dlog/2 in log space: edge_i sits at the geometric mean
+    of adjacent centres, and the outer two edges extend half a step past the end
+    centres. Used only to bin the parent mock catalog in calibrate_fisher.
+    """
+    lc = jnp.log(R_BINS)
+    dlog = lc[1] - lc[0]
+    return jnp.exp(jnp.concatenate([lc[:1] - dlog / 2.0, lc + dlog / 2.0]))
+
+
+def _draw_mock(key, n_stars):
+    """Sample n_stars OM-Plummer stars at the truth; return projected per-star
+    (R, v_los, v_pm_r, v_pm_t). Verified sampling pattern (scripts/demo_anisotropy.py)."""
+    kp, kv = jax.random.split(key)
+    prof = PlummerProfile(r_h=MOCK["r_h"])
+    df = PlummerVelocityDF(r_h=MOCK["r_h"], anisotropy_radius=MOCK["r_a"])
+    masses = jnp.ones(n_stars)
+    pos = prof.sample_positions(masses, kp)
+    vel = df.sample_velocities(pos, masses, kv, G=STELLAR.G)
+    return project_to_sky(pos, vel)
+
+
+# Floor on the per-cell sample size used to form a binned dispersion (the design
+# count is used when larger). Below ~10 the ddof=1 sample std is too noisy to be a
+# fair test of the Fisher SE; we size the parent catalog so no real cell is short.
+_MIN_CELL = 10
+
+
+def _binned_sigma_hat(key, channels, R, n_eff, edges):
+    """One mock's binned dispersions sigma_hat (3, K) + SEs se (3, K).
+
+    For each radial bin b and channel c: take that channel's velocities for the
+    parent stars falling in bin b, randomly subsample n_use = max(round(n_eff[c,b]),
+    _MIN_CELL) of them WITHOUT replacement (independent per channel), add per-star
+    Gaussian measurement error ~ Normal(0, EPS[c]) (so sigma_hat**2 ~ sigma_true**2
+    + EPS[c]**2, matching the design Fisher denom sigma**2 + eps**2), and take the
+    ddof=1 sample std. SE of a dispersion from n stars is sigma_hat / sqrt(2 n)
+    (Gaussian delta method on a single 1-D component), evaluated at n = n_eff[c,b]
+    so it matches the design Fisher's per-cell weight exactly.
+
+    Host-side control flow over (bin, channel) is fine here: this is the @slow
+    calibration path, not a jitted hot loop. All randomness stays in jax.random.
+    """
+    import numpy as np  # host-side bookkeeping only; never numpy.random
+
+    K = R_BINS.shape[0]
+    edges_np = np.asarray(edges)
+    bin_of = np.digitize(np.asarray(R), edges_np) - 1   # 0..K-1; -1/K out of range
+    sigma_hat = np.zeros((3, K))
+    se = np.zeros((3, K))
+    for b in range(K):
+        members = np.flatnonzero(bin_of == b)
+        n_member = members.shape[0]
+        for c in range(3):
+            n_need = int(round(float(n_eff[c, b])))
+            n_use = max(n_need, _MIN_CELL)
+            if n_use > n_member:
+                raise ValueError(
+                    f"calibration parent catalog too small: bin {b} channel {c} "
+                    f"needs {n_use} stars but only {n_member} fell in the bin; "
+                    f"increase N_parent."
+                )
+            key, ksub, knoise = jax.random.split(key, 3)
+            pick = jax.random.choice(
+                ksub, jnp.asarray(members), shape=(n_use,), replace=False
+            )
+            v = channels[c][pick]
+            v_obs = v + EPS[c] * jax.random.normal(knoise, (n_use,))
+            sig = float(jnp.std(v_obs, ddof=1))
+            sigma_hat[c, b] = sig
+            # SE evaluated at the DESIGN count n_eff (the Fisher weight), floored
+            # at _MIN_CELL so a guarded cell does not get an absurdly tight SE.
+            n_se = max(float(n_eff[c, b]), float(_MIN_CELL))
+            se[c, b] = sig / jnp.sqrt(2.0 * n_se)
+    return jnp.asarray(sigma_hat), jnp.asarray(se)
+
+
+def _fit_map_ra(sigma_hat, se, G):
+    """MAP fit of theta=(r_a, M, r_h) to one mock's (sigma_hat, se); return r_a_hat.
+
+    Negative log-posterior = 0.5 * sum((sigma_hat - predict_sigma(theta))/se)**2
+    + 0.5 * sum PRIOR_DIAG[i] * (ln theta_i - ln theta_fid_i)**2 -- the SAME
+    fractional ln-theta prior the design Fisher adds (Task 2.5). Started from the
+    truth and minimized with the fixed-step Adam (inf.mle_adam).
+    """
+    theta_fid = theta_truth()
+    ln_fid = jnp.log(theta_fid)
+    sig_flat = sigma_hat.flatten()
+    se_flat = se.flatten()
+
+    def negloglike(theta):
+        resid = (sig_flat - predict_sigma(theta, R_BINS, G).flatten()) / se_flat
+        chi2 = jnp.sum(resid * resid)
+        prior = jnp.sum(PRIOR_DIAG * (jnp.log(theta) - ln_fid) ** 2)
+        return 0.5 * (chi2 + prior)
+
+    theta_hat, _ = inf.mle_adam(negloglike, theta_fid, n_steps=600, lr=3e-2)
+    return theta_hat[_TARGET]
+
+
+def calibrate_fisher(z, N_total, n_draws, key):
+    """Calibrate the design Fisher against the realized scatter of r_a_hat.
+
+    Returns a CalibResult(realized_var_ra, fisher_var_ra), BOTH fractional
+    variances (ADR 0011). The Fisher prediction is (inv F_design)_{r_a, r_a} at
+    (z, N_total) with the per-star blocks at the truth; the realized quantity is
+    Var(r_a_hat over n_draws independent mocks) / r_a_truth**2. The gate
+    (test_fisher_calibration_matches_realized_scatter) asserts they agree to 35%
+    -- the MC error on a variance from n_draws draws (~sqrt(2/n_draws)).
+    """
+    G = STELLAR.G
+    theta = theta_truth()
+    Mb, _ = per_star_blocks(theta, R_BINS, EPS, G)
+    cb = completeness(R_BINS)
+    n_eff = design_counts(z, cb, N_total)                       # (3, K)
+    fisher_var_ra = float(jnp.linalg.inv(fisher(z, Mb, cb, N_total, PRIOR_DIAG))[_TARGET, _TARGET])
+
+    edges = _r_bin_edges()
+    # Parent catalog large enough that every R-bin holds >> the largest design
+    # cell count (the thin outer Plummer bins are the binding constraint).
+    n_parent = int(max(8000, 4 * N_total))
+
+    r_a_hats = []
+    for d in range(n_draws):
+        kdraw = jax.random.fold_in(key, d)
+        kcat, kbin = jax.random.split(kdraw)
+        R, v_los, v_pm_r, v_pm_t = _draw_mock(kcat, n_parent)
+        channels = (v_los, v_pm_r, v_pm_t)
+        sigma_hat, se = _binned_sigma_hat(kbin, channels, R, n_eff, edges)
+        r_a_hats.append(_fit_map_ra(sigma_hat, se, G))
+
+    r_a_hats = jnp.asarray(r_a_hats)
+    realized_var_ra = float(jnp.var(r_a_hats, ddof=1) / MOCK["r_a"] ** 2)
+    return CalibResult(realized_var_ra=realized_var_ra, fisher_var_ra=fisher_var_ra)

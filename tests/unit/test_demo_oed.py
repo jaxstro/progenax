@@ -4,6 +4,7 @@ import pathlib
 
 import jax
 import jax.numpy as jnp
+import pytest
 import progenax  # noqa: F401  -- enables float64
 from jaxstro.units import STELLAR
 
@@ -121,3 +122,25 @@ def test_optimizer_allocation_normalized():
                               key=jax.random.PRNGKey(2), n_starts=2, n_steps=100)
     n = 2000.0 * jax.nn.softmax(res.z)
     assert jnp.allclose(jnp.sum(n), 2000.0, rtol=1e-6)   # budget conserved (pre-completeness)
+
+
+# --- Task 5: sky projection + calibration ensemble (the gate) ---
+
+
+def test_project_to_sky_components():
+    pos = jnp.array([[3.0, 0.0, 1.0], [0.0, 2.0, -1.0]])
+    vel = jnp.array([[0.0, 5.0, 7.0], [3.0, 0.0, -2.0]])
+    R, v_los, v_pm_r, v_pm_t = oed.project_to_sky(pos, vel)
+    assert jnp.allclose(R, jnp.array([3.0, 2.0]))
+    assert jnp.allclose(v_los, jnp.array([7.0, -2.0]))      # = v_z
+    # star 1 at phi=0: pm_r = vx, pm_t = vy
+    assert jnp.allclose(v_pm_r[0], 0.0) and jnp.allclose(v_pm_t[0], 5.0)
+
+
+@pytest.mark.slow
+def test_fisher_calibration_matches_realized_scatter():
+    """Realized Var(r_a_hat) over mock draws ~ (F^-1)_{r_a,r_a} at the uniform design."""
+    cal = oed.calibrate_fisher(z=jnp.zeros(3 * oed.R_BINS.shape[0]),
+                               N_total=4000.0, n_draws=64, key=jax.random.PRNGKey(7))
+    # tolerance set by MC error on a variance from 64 draws (~sqrt(2/64)~18%): allow 35%
+    assert jnp.abs(cal.realized_var_ra - cal.fisher_var_ra) / cal.fisher_var_ra < 0.35
