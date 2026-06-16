@@ -334,3 +334,33 @@ def test_jit_both_forward_models():
     slos = proj_jit(2.0)
     assert jnp.isfinite(sr).all() and sr.shape == R_QUERY.shape
     assert jnp.isfinite(slos).all() and slos.shape == R_QUERY.shape
+
+
+# ---------------------------------------------------------------------------
+# Task D2 — df_moment_dispersion (Tier B exact Michie DF second moment)
+# ---------------------------------------------------------------------------
+
+
+def test_df_moment_export_and_shapes():
+    """df_moment_dispersion is exported; returns finite, positive, in-range fields."""
+    from progenax import df_moment_dispersion
+    from progenax.kinematics import MichieVelocityDF
+
+    assert "df_moment_dispersion" in set(progenax.__all__)
+    df = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)
+    dp = df_moment_dispersion(df, jnp.array([0.5, 1.0, 2.0]), 400.0, G_STELLAR)
+    assert dp.sigma_r.shape == (3,)
+    assert jnp.all(dp.sigma_r > 0)
+    assert jnp.all(dp.sigma_t > 0)
+    assert jnp.all(jnp.isfinite(dp.beta))
+    assert jnp.all(dp.beta >= -1.0) and jnp.all(dp.beta < 1.0)
+
+
+def test_df_moment_isotropic_limit_beta_near_zero():
+    """Large r_a -> isotropic Michie/King limit -> beta ~ 0 at interior radii."""
+    from progenax import df_moment_dispersion
+    from progenax.kinematics import MichieVelocityDF
+
+    df = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=1e4)
+    dp = df_moment_dispersion(df, jnp.array([0.5, 1.0, 2.0]), 400.0, G_STELLAR)
+    assert jnp.allclose(dp.beta, 0.0, atol=5e-2)

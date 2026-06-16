@@ -223,7 +223,9 @@ def _log_factor(beta_fn, s):
     proof). A variable-spacing trapezoid is used (the compactified ``ln(s)`` is
     non-uniform); fully reverse-mode differentiable.
 
-    Returns ``(F_shifted, Fmax)`` with ``F_shifted = F - Fmax``.
+    Returns ``(F_shifted, Fmax)`` with ``F_shifted = F - Fmax``. ``Fmax`` is the
+    subtracted constant; callers fold it away (``F_shifted, _ = _log_factor(...)``)
+    and it is returned only for testability (inspecting the absolute log factor).
     """
     beta_s = beta_fn(s)
     ln_s = jnp.log(jnp.maximum(s, 1e-30))
@@ -462,7 +464,9 @@ def jeans_dispersion(
     special case ``f = r^2 + r_a^2`` (``beta = r^2/(r^2 + r_a^2)``) is the analytic
     default and is BIT-PRESERVED when ``beta_fn is None``. When ``beta_fn`` is
     given, ``r_a`` is unused and the Plummer-OM ``r_a >= 0.75 a`` validity guard
-    (an OM-only domain) is skipped.
+    (an OM-only domain) is skipped. Note: the ``beta_fn`` path carries an O(h^2)
+    error from the numerically-built integrating factor (the trapezoid
+    ``F = 2 int beta/s ds``), whereas the analytic-OM default has none.
 
     The enclosed mass ``M(<s)`` is a *quadrature of ``profile.density``*
     (builder-quality, no re-differentiated Psi): ``M_enc = M * cumtrap(rho s^2)
@@ -536,6 +540,121 @@ def jeans_dispersion(
     beta = beta_fn(r) if beta_fn is not None else None
     sr, st, s1d, beta = _sigma_components(sigma_r2, r, r_a, beta=beta)
     return DispersionProfile(r=r, sigma_r=sr, sigma_t=st, sigma_1d=s1d, beta=beta)
+
+
+def df_moment_dispersion(
+    df, r, M, G, n_w: int = 256, n_alpha: int = 128
+) -> DispersionProfile:
+    """Exact second-moment dispersion of the anisotropic Michie-King DF (Tier B).
+
+    Computes ``(sigma_r, sigma_t, sigma_1d, beta)`` by directly integrating the
+    Michie (1963) velocity DF's second velocity moments at each radius — the
+    *native* Michie equilibrium, correct at ALL radii (unlike
+    :func:`jeans_dispersion` with an OM ``r_a``, which imposes the OM anisotropy
+    law and is valid only in the inner region where OM approximates the Michie
+    law). This is the DF-side truth that the Michie sampler draws from.
+
+    Physics (verified vs ``michie_df.py`` / ``_michie_beta_oracle``; Michie 1963,
+    King 1966). With dimensionless speed ``u = v/sigma``, at radius ``r``::
+
+        W(r)  = interp(r/r_c, xi_grid, psi_grid, left=W0, right=0), clamped >= 0
+        s     = r/r_a
+        sigma = sqrt(G M / (9 r_c mu))     (self-consistent Michie velocity scale)
+        f~(u_r, u_t) = exp(-s^2 u_t^2/2) [exp(W - (u_r^2+u_t^2)/2) - 1]
+                       on the bound region u_r^2 + u_t^2 <= 2W.
+
+    The bound region is integrated by a fixed-domain POLAR quadrature that needs
+    NO boundary mask (fully differentiable): ``u_r = w cos(alpha)``,
+    ``u_t = w sin(alpha)`` with ``w in [0, sqrt(2W)]`` and ``alpha in [0, pi]``
+    (the energy bound becomes exactly the ``w`` upper limit). The velocity-space
+    measure ``d^3u = 2 pi u_t du_r du_t = 2 pi w^2 sin(alpha) dw dalpha`` — the
+    ``2 pi`` (and any constant) cancels in the moment RATIOS, so the integration
+    weight is simply ``w^2 sin(alpha)``::
+
+        <u_r^2> = int f~ (w cos a)^2 w^2 sin a / int f~ w^2 sin a
+        <u_t^2> = int f~ (w sin a)^2 w^2 sin a / int f~ w^2 sin a
+
+    Then ``sigma_r = sigma sqrt(<u_r^2>)``, ``sigma_t = sigma sqrt(<u_t^2>/2)``
+    (since ``<v_t^2> = 2 sigma_t^2``), and::
+
+        beta     = 1 - sigma_t^2/sigma_r^2 = 1 - <u_t^2>/(2 <u_r^2>)
+        sigma_1d = sqrt((sigma_r^2 + 2 sigma_t^2)/3).
+
+    The ``beta`` here matches ``_michie_beta_oracle``'s ``1 - ut2/(2 ur2)`` exactly.
+    A fixed ``w_hat in [0,1]`` grid is scaled per-``r`` by ``sqrt(2W)`` (clamped
+    so ``W <= 0`` outside the system gives ``sigma_r = sigma_t -> 0`` naturally —
+    the integrand vanishes); the per-``r`` 2-D moment is ``jax.vmap``ed over ``r``.
+    Fully reverse-mode differentiable; ``jnp.trapezoid`` (integrate ``alpha`` then
+    ``w``). Zero new deps.
+
+    Parameters
+    ----------
+    df : :class:`~progenax.kinematics.MichieVelocityDF` exposing ``W0``, ``r_c``,
+        ``r_a``, ``xi_grid``, ``psi_grid``, ``mu``.
+    r : query radii (array-like; broadcast to at least 1-D).
+    M : total mass setting the self-consistent velocity scale ``sigma``.
+    G : gravitational constant (sets the velocity units).
+    n_w, n_alpha : quadrature resolutions in ``w`` (speed) and ``alpha`` (angle).
+
+    Returns
+    -------
+    DispersionProfile
+    """
+    r = jnp.atleast_1d(jnp.asarray(r))
+
+    sigma = jnp.sqrt(G * M / (9.0 * df.r_c * df.mu))
+
+    # Fixed reference grids (shared across radii). w_hat in [0,1] is scaled by
+    # sqrt(2W) per-r; alpha in [0, pi]. sin(alpha) supplies the polar measure.
+    w_hat = jnp.linspace(0.0, 1.0, n_w)
+    alpha = jnp.linspace(0.0, jnp.pi, n_alpha)
+    sin_a = jnp.sin(alpha)
+    cos_a = jnp.cos(alpha)
+
+    def _moments_at_r(r_i):
+        W = jnp.interp(r_i / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
+        W = jnp.maximum(W, 0.0)
+        s = r_i / df.r_a
+        # wmax = sqrt(2W); clamp W against 0 so wmax stays finite (the integrand
+        # below -> 0 as W -> 0, so the moments tend to 0 outside the system).
+        wmax = jnp.sqrt(2.0 * jnp.maximum(W, 1e-30))
+        w = w_hat * wmax  # (n_w,) speed grid for this radius
+
+        # 2-D grids: rows = w, cols = alpha. u_r = w cos a, u_t = w sin a.
+        WW = w[:, None]
+        SA = sin_a[None, :]
+        CA = cos_a[None, :]
+        u_r = WW * CA
+        u_t = WW * SA
+        u2 = u_r**2 + u_t**2  # = w^2 (<= 2W by construction)
+
+        # f~(u_r, u_t) on the bound region (the w upper-limit IS the energy bound,
+        # so no mask). exp(W - u2/2) - 1 >= 0 there; clamp tiny negatives from
+        # round-off at the w=wmax edge.
+        f_tilde = jnp.exp(-(s**2) * u_t**2 / 2.0) * jnp.maximum(
+            jnp.exp(W - u2 / 2.0) - 1.0, 0.0
+        )
+        weight = w[:, None] ** 2 * SA  # polar measure w^2 sin(alpha)
+        base = f_tilde * weight
+
+        # Integrate alpha (axis=1) then w (axis=0).
+        norm = jnp.trapezoid(jnp.trapezoid(base, alpha, axis=1), w)
+        num_r = jnp.trapezoid(jnp.trapezoid(base * u_r**2, alpha, axis=1), w)
+        num_t = jnp.trapezoid(jnp.trapezoid(base * u_t**2, alpha, axis=1), w)
+        norm_safe = jnp.maximum(norm, 1e-300)
+        return num_r / norm_safe, num_t / norm_safe
+
+    ur2_mean, ut2_mean = jax.vmap(_moments_at_r)(r)
+
+    sigma_r2 = sigma**2 * ur2_mean
+    sigma_t2 = 0.5 * sigma**2 * ut2_mean  # <v_t^2> = 2 sigma_t^2
+    sigma_r = jnp.sqrt(jnp.maximum(sigma_r2, 0.0))
+    sigma_t = jnp.sqrt(jnp.maximum(sigma_t2, 0.0))
+    sigma_1d = jnp.sqrt(jnp.maximum((sigma_r2 + 2.0 * sigma_t2) / 3.0, 0.0))
+    beta = 1.0 - ut2_mean / (2.0 * jnp.maximum(ur2_mean, 1e-300))
+    return DispersionProfile(
+        r=r, sigma_r=sigma_r, sigma_t=sigma_t, sigma_1d=sigma_1d, beta=beta
+    )
 
 
 def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispersion:
