@@ -75,9 +75,12 @@ F(design) = Σ_{bin b, channel c}  n_eff,{b,c} · M_{b,c}
 ```
 
 `M_{b,c}` is computed **once** (reverse-mode `jacrev` through `project_dispersion`, the only place
-the ODE forward model is differentiated). The design enters only as the linear weights `n_{b,c}`, so
-the entire optimization is `F = Σ n·(c·M)` → invert 3×3 → read an element: trivial gradients, and
-the diffrax forward-mode ban never bites.
+the forward model is differentiated). The design enters only as the linear weights `n_{b,c}`, so
+the entire optimization is `F = Σ n·(c·M)` → invert 3×3 → read an element: trivial gradients. We use
+`jacrev` because it is the supported/tested AD path for all profiles and stays correct under a
+King/Michie swap (those equilibrium-solver profiles hit a `custom_vjp` ODE with no forward-mode
+rule). On the Plummer path here there is no ODE, so forward-mode would also work — `jacrev` is the
+robust choice, not a forced one.
 
 ## Design space, criteria, optimizer
 

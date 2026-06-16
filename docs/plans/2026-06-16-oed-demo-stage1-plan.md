@@ -11,8 +11,11 @@ anisotropy radius `r_a`, and *discovers* that proper-motion stars belong in the 
 load-bearing idea (ADR 0004): the Fisher is **additive and linear in the design** —
 `F(design) = Σ_{bin b, channel c} n_eff,{b,c} · M_{b,c}`, where each per-star block `M_{b,c}` is
 **design-independent** and computed **once** via a single reverse-mode `jacrev` through
-`project_dispersion`. The optimization is then pure 3×3 linear algebra; the diffrax forward-mode ban
-never bites.
+`project_dispersion`. The optimization is then pure 3×3 linear algebra. We use `jacrev` (reverse
+mode) because it is the supported/tested AD path for *all* profiles and keeps the demo correct if a
+King/Michie mock is ever swapped in — for those equilibrium-solver profiles forward-mode genuinely
+fails (`custom_vjp` ODE with no `jvp` rule). On the **Plummer** path used here there is no ODE, so
+forward-mode would in fact work; `jacrev` is the robust, not the only, choice.
 
 **Tech Stack:** `jax` (jnp, `jacrev`, `grad`, `jit`), `optax` (Adam), `diffrax` (inside
 `project_dispersion`), `matplotlib`. Zero new dependencies. No packaged `src/` changes → **no
@@ -388,9 +391,13 @@ def _draw_mock(key, n_stars):
    the binned dispersion `sigma_hat` with measurement broadening `eps_c` added in quadrature, and SE
    `se = sqrt((sigma_hat^2)/(2 n_bin))`.
 3. Build `residual_fn(theta) = (sigma_hat - predict_sigma(theta,...).flatten()) / se` and use
-   `fisher_information_gn(residual_fn, theta_truth)` (jacrev — NOT `fisher_cov`/hessian: the latter's
-   forward-mode crashes through the diffrax custom_vjp). Fit the MLE with `mle_adam` from
-   `_demo_inference.py`; collect `r_a_hat`.
+   `fisher_information_gn(residual_fn, theta_truth)` (jacrev Gauss-Newton Fisher). Prefer this over
+   `fisher_cov`/hessian for two reasons: (a) the GN/expected Fisher equals our analytic *design*
+   Fisher by construction, so the calibration is a clean apples-to-apples comparison; (b) it stays
+   correct if a King/Michie mock is swapped in, where hessian's forward-mode genuinely crashes
+   through the `custom_vjp` ODE. (On the Plummer path here hessian would also work — but the GN
+   Fisher is the right quantity regardless.) Fit the MLE with `mle_adam` from `_demo_inference.py`;
+   collect `r_a_hat`.
 4. `realized_var_ra = Var(r_a_hat over draws)`; `fisher_var_ra = (inv(F_design))_{r_a,r_a}` at the
    same `z, N_total`. Return both.
 
