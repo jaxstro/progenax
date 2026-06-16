@@ -5,16 +5,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 95.86473074802426,
+    "line_cov_measured": 95.96396396396396,
     "registries_full": true
   },
-  "generated_utc": "2026-06-16T16:19:14.150188+00:00",
+  "generated_utc": "2026-06-16T17:20:03.937931+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "57860ae1a57ded7a4c68e3e93f11aa39b3df90cf",
-      "measured_utc": "2026-06-16T00:31:53.019744+00:00",
+      "git_sha": "f0dd6bce0a6464a4b0bf04207c3d3cf36581866c",
+      "measured_utc": "2026-06-16T17:20:03.888597+00:00",
       "selector": "full",
-      "total_percent": 95.86473074802426
+      "total_percent": 95.96396396396396
     },
     "per_file_lines": {
       "__init__": {
@@ -246,8 +246,8 @@
         "num_statements": 40
       },
       "kinematics/dispersion": {
-        "covered_lines": 97,
-        "num_statements": 97
+        "covered_lines": 190,
+        "num_statements": 190
       },
       "kinematics/eddington": {
         "covered_lines": 58,
@@ -396,7 +396,7 @@
       "kinematics/__init__": 100.0,
       "kinematics/_speed_kernels": 100.0,
       "kinematics/api": 100.0,
-      "kinematics/dispersion": 99.09909909909909,
+      "kinematics/dispersion": 100.0,
       "kinematics/eddington": 100.0,
       "kinematics/eff_df": 97.22222222222223,
       "kinematics/king_df": 97.43589743589743,
@@ -421,7 +421,7 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 95.86473074802426
+    "total_percent": 95.96396396396396
   },
   "modules": {
     "analytical": {
@@ -480,7 +480,7 @@
     },
     "kinematics": {
       "integration": 0,
-      "line_cov": 99.21996879875195,
+      "line_cov": 99.31880108991825,
       "unit": 125,
       "validation": 0
     },
@@ -566,7 +566,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 23
+      "validation": 24
     },
     "test_documented_api": {
       "integration": 0,
