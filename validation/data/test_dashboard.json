@@ -8,11 +8,11 @@
     "line_cov_measured": 95.86473074802426,
     "registries_full": true
   },
-  "generated_utc": "2026-06-15T23:00:30.488714+00:00",
+  "generated_utc": "2026-06-16T00:31:53.067939+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "796ff74fe630ed37f9b6d9e318fa2c866e8c291a",
-      "measured_utc": "2026-06-15T23:00:21.358423+00:00",
+      "git_sha": "57860ae1a57ded7a4c68e3e93f11aa39b3df90cf",
+      "measured_utc": "2026-06-16T00:31:53.019744+00:00",
       "selector": "full",
       "total_percent": 95.86473074802426
     },
