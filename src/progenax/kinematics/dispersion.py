@@ -58,6 +58,15 @@ from progenax.numerics import cumulative_trapezoid
 # (which solves the Jeans equation once at this resolution, independent of n_u).
 _JEANS_N_S_DEFAULT = 4000
 
+# Algebraic compactification of the semi-infinite Plummer outward Jeans integral
+# (Task C). The Plummer profile has no finite cutoff, so a uniform s-grid must be
+# truncated (was 30a), leaving an outward-growing tail bias (~8.6e-4 rel. at r=20a).
+# Map s in [s_min, inf) to t in [_T_MIN, _T_MAX] via s = a t/(1-t): t->1 captures
+# s->inf, so the full tail is integrated on a finite, uniform-t grid. _T_MAX is held
+# a hair below 1 (s stays finite, ~1e6 a) and _T_MIN a hair above 0 (s_min ~ 1e-4 a).
+_T_MIN = 1e-4
+_T_MAX = 1.0 - 1e-6
+
 
 class DispersionProfile(NamedTuple):
     """3-D anisotropic Jeans dispersion evaluated at radii ``r``.
@@ -195,16 +204,54 @@ def _jeans_tables(profile, r_a, M, G, n_s: int):
     master solve inside every vmapped ``_los_quantities``).
 
     The enclosed mass ``M(<s)`` is a quadrature of ``profile.density``:
-    ``M_enc = M * cumtrap(rho s^2) / cumtrap_total(rho s^2)``. The s-grid runs to
-    ``profile.r_t`` if present (King/EFF), else ``30 a`` (Plummer). Uniform ``s``
-    spacing; fully reverse-mode differentiable.
+    ``M_enc = M * cumtrap(rho s^2) / cumtrap_total(rho s^2)``.
+
+    Two grids, branched on ``profile.r_t``:
+
+    - **Finite ``r_t`` (King / EFF):** a uniform ``s`` grid on ``[1e-4 r_t, r_t]``
+      (the density has a finite cutoff, so no compactification is needed).
+    - **No ``r_t`` (Plummer; Task C):** the semi-infinite domain ``[s_min, inf)`` is
+      mapped to ``t in [_T_MIN, _T_MAX]`` by ``s = a t/(1-t)`` (Jacobian
+      ``ds/dt = a/(1-t)^2``). Both the ``M(<s)`` quadrature and the outward integral
+      ``I_outward`` are evaluated in UNIFORM ``t`` with the Jacobian folded into the
+      integrand — preserving ``cumulative_trapezoid``'s uniform-``dx`` contract — so
+      the full Plummer tail is captured (killing the old 30a truncation bias).
+
+    Both ``s`` grids are monotone increasing, so the downstream ``jnp.interp(r, s,
+    ...)`` works (the compactified ``s`` is non-uniform but still sorted). Fully
+    reverse-mode differentiable.
 
     Returns ``(s, rho, I_outward)`` — pass these straight to
     :func:`_sigma_r2_from_tables`.
     """
     r_max = getattr(profile, "r_t", None)
+
     if r_max is None:
-        r_max = 30.0 * profile.a
+        # Plummer (no finite cutoff): algebraic compactification s = a t/(1-t),
+        # integrate in uniform t with the Jacobian ds/dt = a/(1-t)^2 folded in so
+        # cumulative_trapezoid still sees a uniform dx grid (here dt).
+        a = profile.a
+        t = jnp.linspace(_T_MIN, _T_MAX, n_s)
+        s = a * t / (1.0 - t)
+        jac = a / (1.0 - t) ** 2  # ds/dt
+        rho = profile.density(s)
+        dt = t[1] - t[0]
+        s2 = s**2
+
+        # M(<s) = M * cumtrap(rho s^2 ds) / total, in t: integrand carries `jac`.
+        cum = cumulative_trapezoid(rho * s2 * jac, dx=dt)
+        M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
+
+        if r_a is None:
+            weight = jnp.ones_like(s)
+        else:
+            weight = s2 + jnp.asarray(r_a) ** 2
+        # I(s) = int_s^inf w rho G M(<s)/s^2 ds; in t the integrand carries `jac`.
+        integrand = weight * rho * G * M_enc / jnp.maximum(s2, 1e-30) * jac
+        I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=dt))
+        return s, rho, I_outward
+
+    # Finite r_t (King / EFF): uniform s grid, no compactification needed.
     s = jnp.linspace(1e-4 * r_max, r_max, n_s)
     rho = profile.density(s)
     ds = s[1] - s[0]
@@ -332,7 +379,9 @@ def jeans_dispersion(
     The enclosed mass ``M(<s)`` is a *quadrature of ``profile.density``*
     (builder-quality, no re-differentiated Psi): ``M_enc = M * cumtrap(rho s^2)
     / cumtrap_total(rho s^2)``. A fine radial s-grid runs to ``profile.r_t`` if
-    present (King/EFF), else ``30 a`` (Plummer).
+    present (King/EFF); for Plummer (no finite cutoff) the semi-infinite domain is
+    algebraically compactified via ``s = a t/(1-t)`` (:func:`_jeans_tables`), so the
+    full outward tail is integrated (no truncation bias).
 
     Parameters
     ----------
@@ -426,8 +475,10 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         int_R^inf g(r) r/sqrt(r^2-R^2) dr = int_0^sqrt(r_max^2-R^2) g(sqrt(R^2+u^2)) du
 
     so NO ``1/sqrt(r^2-R^2)`` is ever evaluated — only a smooth uniform-``u``
-    trapezoid quadrature. ``sigma_r^2(r)`` and ``beta(r)`` come straight from
-    :func:`jeans_dispersion` (not re-derived); ``rho`` from ``profile.density``.
+    trapezoid quadrature. ``sigma_r^2(r)`` is read from the ONE master Jeans solve —
+    :func:`_jeans_tables` is built once (hoisted out of the per-``R`` vmap) and
+    :func:`_sigma_r2_from_tables` interpolates it per integration radius — and
+    ``beta(r)`` is the closed-form OM law; ``rho`` from ``profile.density``.
 
     The outward extent ``r_max`` is ``profile.r_t`` if present (King/EFF), else
     ``30 * profile.a`` (Plummer; matches :func:`jeans_dispersion`). The per-``R``

@@ -161,22 +161,30 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
 
 # --- Phase 0.5 Task A: tabulate-once project_dispersion equivalence regression ---
 #
-# Baseline captured from the PRE-refactor project_dispersion (main@54f5437) for
-# PlummerProfile(r_h=1.0), r_a=2.0, R=[0.5,1.0,2.0,4.0], M=400.0, G=0.00449.
-# The Task-A refactor (one master Jeans solve, interpolated per-R, instead of a
-# per-R re-solve) is PURE code-motion: the math/operations are identical, so the
-# outputs must be bit-equivalent to rtol 1e-9. NEVER loosen this tolerance — a
-# mismatch means the refactor changed the physics.
+# Baseline pins the EXACT project_dispersion output for PlummerProfile(r_h=1.0),
+# r_a=2.0, R=[0.5,1.0,2.0,4.0], M=400.0, G=0.00449, to rtol 1e-9 — a mismatch means
+# a structural change silently altered the physics. NEVER loosen this tolerance.
+#
+# Task C compactification intentionally shifted Plummer values toward the analytic
+# oracle; baseline re-captured. The original Task-A baseline pinned the OLD 30a-
+# truncated Jeans tail; Task C replaced that truncation with an algebraic
+# compactification (s = a t/(1-t)), which moves the master-Jeans sigma_r — and hence
+# the projected sigma_los/sigma_pm_t — toward the exact tail. PROOF this is an
+# improvement (isotropic Dejonghe oracle (3pi/64) GM/sqrt(a^2+R^2), same R): the
+# isotropic sigma_los's max relative error to the oracle dropped from 8.58e-4 (OLD,
+# the n_s-independent truncation floor) to 1.63e-4 (NEW), i.e. ~5x closer at the
+# worst R and ~1000x closer at the inner R. So the re-captured baseline is MORE
+# accurate, not a regression.
 _BL_LOS = jnp.array(
-    [0.5530860064022423, 0.450633657883771, 0.301176907787219, 0.17198970776636632]
+    [0.5526182093971023, 0.45025621495272133, 0.30095652307703347, 0.17217034726494965]
 )
 _BL_PMT = jnp.array(
-    [0.5372960641506553, 0.4286141692075936, 0.267333398791882, 0.12558509737916926]
+    [0.5368411143951076, 0.42825318351354813, 0.2671228981094181, 0.1255732563602721]
 )
 
 
 def test_project_equivalence_after_tabulate():
-    """project_dispersion is numerically unchanged by the tabulate-once refactor."""
+    """project_dispersion output is pinned (re-captured after Task C compactification)."""
     prof = PlummerProfile(r_h=1.0)
     R = jnp.array([0.5, 1.0, 2.0, 4.0])
     pj = project_dispersion(prof, 2.0, R, 400.0, G_STELLAR)

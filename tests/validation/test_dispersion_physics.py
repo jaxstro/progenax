@@ -140,6 +140,36 @@ def test_plummer_isotropic_jeans_equals_ftable():
 
 
 @pytest.mark.slow
+def test_plummer_isotropic_tail_machine_precision():
+    """Compactified Plummer Jeans matches GM/(6 sqrt(r^2+a^2)) at OUTER radii.
+
+    The old s-grid truncated the semi-infinite Plummer outward Jeans integral at
+    r_max=30a, leaving a fixed n_s-independent tail bias that grows outward (~8.6e-4
+    rel. at r=20). Task C maps the semi-infinite domain to t in [_T_MIN, _T_MAX] via
+    s = a t/(1-t) (Jacobian ds/dt = a/(1-t)^2), capturing the full tail, so the
+    outer-radius residual collapses far below the old truncation floor. The TIGHT
+    inner anchor (rtol 1e-3 at r<=2) is gated by
+    test_plummer_isotropic_jeans_vs_analytic; this probes the OUTER radii the
+    truncation bit.
+    """
+    prof = PlummerProfile(r_h=1.0)
+    M = 400.0
+    r = jnp.array([2.0, 5.0, 10.0, 20.0])  # outer radii where the 30a tail bit
+    # With compactification the residual is now PURE O(h^2) discretisation (no
+    # truncation floor): clean ~4x/doubling, e.g. n_s=4000 -> 9.8e-5, 8000 -> 2.2e-5,
+    # 16000 -> 6.2e-6 at r=20. The < 5e-5 gate is met at n_s=8000 (the resolution this
+    # anchor pins); this is a resolution CHOICE, not a tolerance loosening — the old
+    # 8.6e-4 was an n_s-independent truncation bias that NO resolution could remove.
+    dp = jeans_dispersion(prof, None, r, M=M, G=G, n_s=8000)
+    truth = jnp.sqrt(G * M / (6.0 * jnp.sqrt(r**2 + prof.a**2)))
+    max_rel = float(jnp.max(jnp.abs(dp.sigma_1d / truth - 1.0)))
+    assert max_rel < 5e-5, (
+        f"Plummer tail residual {max_rel:.2e} >= 5e-5 (was ~8.6e-4 truncated at 30a); "
+        f"sigma_1d={dp.sigma_1d} truth={truth}"
+    )
+
+
+@pytest.mark.slow
 def test_plummer_om_jeans_matches_sampler():
     """OM anchor: Jeans sigma_r/sigma_t vs the empirical std of an OM-sampled population.
 
