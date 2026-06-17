@@ -27,8 +27,11 @@ ENDPOINTS move with ``m_lim`` -- no boolean-mask cuts), so the AD ``m_lim`` grad
 AD-vs-FD gate depends on flows cleanly. Reverse-mode only (``jacrev``/``grad``); forward-mode is
 banned through ``project_dispersion``'s ``custom_vjp`` (inherited from the Stage-1 core).
 """
+from typing import NamedTuple
+
 import jax
 import jax.numpy as jnp
+import optax
 
 from jaxstro.units import STELLAR
 from progenax import ChabrierIMF
@@ -101,13 +104,19 @@ def eps_eff(m_lim):
 
     Monotone: deeper m_lim -> smaller m_lo -> admits fainter (noisier) stars -> eps_eff RISES.
     """
-    m_lo = sel.m_min(m_lim, D_PC)                               # differentiable lower edge [M_sun]
+    # Belt-and-braces NaN guard (review item I1): m_min(m_lim) can exceed M_MAX at
+    # unphysically bright m_lim (~m_lim<4), which would INVERT the geometric grid and
+    # NaN-poison the gradient. Clip the lower edge below M_MAX and floor the normaliser.
+    # These guards activate ONLY in the unphysical m_lim<4 regime -- far outside the
+    # [M_LIM_LO, M_LIM_HI] operating range -- so they do NOT alter eps_eff or its
+    # gradient anywhere in range (verified byte-identical at m_lim=12; see Task 4 report).
+    m_lo = jnp.minimum(sel.m_min(m_lim, D_PC), M_MAX * (1.0 - 1e-3))   # differentiable, clipped edge
     frac = jnp.linspace(0.0, 1.0, _NGRID)
     m_grid = m_lo * (M_MAX / m_lo) ** frac                      # geometric grid, moving lower endpoint
     dP = _IMF.cdf(m_grid[1:]) - _IMF.cdf(m_grid[:-1])           # (_NGRID-1,) IMF probability mass/cell
     m_mid = jnp.sqrt(m_grid[1:] * m_grid[:-1])                  # geometric cell midpoints
     m_app = sel.apparent_mag(m_mid, D_PC)                       # (_NGRID-1,) apparent magnitudes
-    norm = jnp.sum(dP)
+    norm = jnp.maximum(jnp.sum(dP), 1e-30)                      # guard the normaliser (never 0)
 
     def rms(eps0_c):
         eps_c = sel.photon_noise_error(m_app, eps0_c, M_REF)    # per-star error in channel c
@@ -143,3 +152,129 @@ def depth_fisher(z, m_lim, N_total, prior_diag=oed.PRIOR_DIAG):
     avail = avail_bins(m_lim)[None, :]                                          # (1,K) per-channel pool
     n_eff = avail * jnp.tanh(n_design / avail)                                  # smooth availability cap
     return jnp.einsum("ck,ckpq->pq", n_eff, Mb) + jnp.diag(prior_diag)
+
+
+# ===========================================================================
+# Task 4: joint [z, m_lim] optimiser + bounded m_lim reparametrisation
+# ===========================================================================
+#
+# m_lim is a PHYSICALLY bounded knob: too bright and m_min(m_lim) exceeds the IMF
+# ceiling (the eps_eff geometric grid would invert -> NaN, review item I1); too
+# faint is unphysical for any survey. We optimise an UNCONSTRAINED scalar u and map
+# it through a sigmoid into [M_LIM_LO, M_LIM_HI], so every finite u is a valid,
+# differentiable design (the bounds keep the optimiser away from the NaN crossover,
+# and the I1 belt-and-braces guard in eps_eff covers any excursion). The joint design
+# vector is [z (3K logits), u (1 scalar)] and Adam runs over the whole thing.
+
+M_LIM_LO = 9.0    # expit lower bound. m_min(9, 4kpc) ~ 8.4 M_sun, FAR above the
+                  # m_min=M_MAX NaN crossover (~m_lim<4); confirmed m_min(M_LIM_LO) << M_MAX.
+M_LIM_HI = 18.0   # m_min(18, 4kpc) ~ 1.03 M_sun (deep into the IMF bulk).
+
+
+def u_to_mlim(u):
+    """Map the unconstrained design scalar u -> m_lim in [M_LIM_LO, M_LIM_HI] (smooth sigmoid)."""
+    return M_LIM_LO + (M_LIM_HI - M_LIM_LO) * jax.nn.sigmoid(u)
+
+
+def depth_fisher_u(z, u, N_total, prior_diag=oed.PRIOR_DIAG):
+    """depth_fisher in the bounded reparametrisation: m_lim = u_to_mlim(u). Differentiable in z, u."""
+    return depth_fisher(z, u_to_mlim(u), N_total, prior_diag)
+
+
+class DepthDesignResult(NamedTuple):
+    """Result of optimize_depth_design (best multi-start trajectory):
+      * criterion : best scalar criterion value (minimised),
+      * m_lim     : optimal limiting magnitude = u_to_mlim(best u),
+      * z         : best allocation logits (3*K,),
+      * u         : best unconstrained depth scalar,
+      * n_design  : realised per-cell counts N_total * softmax(z) (3, K), pre-cap,
+      * n_eff     : per-cell counts after the availability soft-cap (3, K)."""
+    criterion: float
+    m_lim: float
+    z: jnp.ndarray
+    u: jnp.ndarray
+    n_design: jnp.ndarray
+    n_eff: jnp.ndarray
+
+
+def _n_design_eff(z, m_lim, N_total):
+    """Realised (n_design, n_eff) (3, K) each: softmax budget and its availability soft-cap."""
+    K = oed.R_BINS.shape[0]
+    n_design = N_total * jax.nn.softmax(z).reshape(3, K)
+    avail = avail_bins(m_lim)[None, :]
+    n_eff = avail * jnp.tanh(n_design / avail)
+    return n_design, n_eff
+
+
+def _optimize_joint(loss, params0, n_steps, lr):
+    """One Adam trajectory over an arbitrary pytree of params; returns (params_final, trace).
+
+    Fixed-iteration jax.lax.scan (NOT while_loop) so the trajectory stays differentiable-safe
+    and JIT-compilable. ``loss`` is a scalar function of the params pytree."""
+    opt = optax.adam(lr)
+    state = opt.init(params0)
+
+    @jax.jit
+    def step(carry, _):
+        p, st = carry
+        l, g = jax.value_and_grad(loss)(p)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(p, upd), st), l
+
+    (params, _), trace = jax.lax.scan(step, (params0, state), None, length=n_steps)
+    return params, trace
+
+
+def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05,
+                          prior_diag=oed.PRIOR_DIAG):
+    """Multi-start Adam over the JOINT design [z (3K logits), u (1 scalar)]; keep the best.
+
+    Minimises ``c_criterion(depth_fisher_u(z, u, N_total), target)`` -- the marginal fractional
+    variance of theta[target] (Stage 2: target=1 = M_dyn). Reuses the Stage-1 optax + lax.scan
+    pattern (fixed-iteration scan, no while_loop); each start draws an independent z0 (and u0),
+    runs one Adam trajectory, and the lowest-criterion start wins. The sigmoid reparametrisation
+    keeps m_lim in [M_LIM_LO, M_LIM_HI] for every finite u (no constraints needed).
+
+    SPD invariant (as in oed.optimize_design): softmax(z) > 0 and PRIOR_DIAG adds positive
+    nuisance precision, so depth_fisher_u stays SPD throughout and c_criterion's inverse never
+    hits a singular F. Returns a DepthDesignResult for the best start.
+    """
+    K = oed.R_BINS.shape[0]
+    loss = lambda p: oed.c_criterion(
+        depth_fisher_u(p["z"], p["u"], N_total, prior_diag), target=target
+    )
+    best = None
+    for s in range(n_starts):
+        ks = jax.random.fold_in(key, s)
+        kz, ku = jax.random.split(ks)
+        p0 = {"z": jax.random.normal(kz, (3 * K,)) * 0.5,
+              "u": jax.random.normal(ku, ()) * 0.5}
+        p, _ = _optimize_joint(loss, p0, n_steps, lr)
+        crit = float(loss(p))
+        if best is None or crit < best.criterion:
+            m_lim = u_to_mlim(p["u"])
+            n_design, n_eff = _n_design_eff(p["z"], m_lim, N_total)
+            best = DepthDesignResult(criterion=crit, m_lim=float(m_lim),
+                                     z=p["z"], u=p["u"], n_design=n_design, n_eff=n_eff)
+    return best
+
+
+def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
+                        n_starts=6, n_steps=400, lr=0.05, prior_diag=oed.PRIOR_DIAG):
+    """Best criterion optimising the ALLOCATION z ONLY at a FROZEN m_lim (depth held fixed).
+
+    Multi-start Adam over z alone (same fixed-iteration scan pattern), m_lim a constant. Used by
+    Task 5's depth sweep and the beats-fixed-depth test: the joint optimum must beat the best
+    achievable allocation at any single fixed depth. Returns the best scalar criterion.
+    """
+    K = oed.R_BINS.shape[0]
+    loss = lambda z: oed.c_criterion(
+        depth_fisher(z, m_lim, N_total, prior_diag), target=target
+    )
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (3 * K,)) * 0.5
+        z, _ = _optimize_joint(loss, z0, n_steps, lr)
+        crit = float(loss(z))
+        best = crit if best is None else min(best, crit)
+    return best
