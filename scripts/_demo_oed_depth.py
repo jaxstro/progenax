@@ -354,6 +354,10 @@ def _truncated_imf_masses(key, n, m_lo):
     u' = cdf(m_lo) + u * (cdf(M_MAX) - cdf(m_lo)) = cdf(m_lo) + u * (1 - cdf(m_lo))
     (since M_MAX = _IMF.m_max so cdf(M_MAX) = 1), then mass = ppf(u'). This is the
     EXACT detection-conditional IMF that eps_eff() integrates over with weights dP.
+
+    Note: the float() cast makes this a non-differentiable SAMPLING path -- correct here (it draws
+    a mock), but do NOT reuse it on a gradient path. The m_lim differentiability lives in eps_eff /
+    depth_fisher (smooth geometric grid), not in this sampler.
     """
     m_lo = float(jnp.minimum(m_lo, M_MAX * (1.0 - 1e-3)))
     c_lo = _IMF.cdf(jnp.array(m_lo))

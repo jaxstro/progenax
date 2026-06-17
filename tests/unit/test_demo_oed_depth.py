@@ -88,16 +88,17 @@ def test_depth_fisher_is_conservative_and_bounded():
     is bright-star (inverse-variance) dominated, so the effective per-cell noise is BELOW the RMS and
     the Fisher over-predicts sigma(M). Compounded by the star-sparse outer cells (most cells sit below
     the n_eff floor, where the Gaussian-dispersion Fisher is least accurate), this leaves the Fisher
-    ~19% conservative in sigma(M) (variance ratio realized/predicted ~ 0.65) at the optimum design.
+    ~15-20% high in sigma(M) -- i.e. a VARIANCE ratio realized/predicted ~ 0.65-0.80 across seeds
+    (sigma ratio squared; ~20-35% low in variance) at the optimum design.
 
     A conservative Fisher is the SAFE direction for OED: it never over-promises precision. We therefore
     verify the real, robust property -- the Fisher is conservative and the gap is BOUNDED -- rather than
-    an exact match (which would be flaky against a ~35% systematic). The bias is documented as a physics
-    caveat on the Stage-2 page. Both the depth Fisher and the calibration MAP fit use the M-free Stage-2
-    prior (PRIOR_DIAG_M) and the ln-theta-metric fit (ADR 0011), so the two are consistent.
+    an exact match (which would be flaky against this characterized systematic). The bias is documented
+    as a physics caveat on the Stage-2 page. Both the depth Fisher and the calibration MAP fit use the
+    M-free Stage-2 prior (PRIOR_DIAG_M) and the ln-theta-metric fit (ADR 0011), so the two are consistent.
 
     Bounds: at n_draws=64 the variance estimate carries ~18% relative MC noise (sqrt(2/(n-1))), so the
-    ~0.65 ratio sits ~3 sigma inside [0.25, 1.15] -- robust, not flaky. The lower bound also guards
+    ~0.65-0.80 ratio sits ~3 sigma inside [0.25, 1.15] -- robust, not flaky. The lower bound also guards
     against a regression to the old physical-theta-fit bug (which pinned M_hat -> ratio ~ 0).
     """
     key = jax.random.PRNGKey(0)
