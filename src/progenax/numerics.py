@@ -1,37 +1,31 @@
-"""Shared numerical primitives (single source of truth).
+"""Shared numerical primitives.
 
-Consolidates two patterns the 2026-06-10 code review found duplicated:
-the cumulative-trapezoid pass and the trapezoid-CDF inverse-draw kernel.
-The op order (pairwise average -> cumsum -> leading zero, dx OUTSIDE the
-cumsum) is exactly the dx-outside majority pattern, so those migrated call
-sites are bit-identical: the 8 speed-CDF sites (``kinematics/king_df.py``,
-``kinematics/limepy_df.py`` x3, ``kinematics/michie_df.py`` x2,
-``kinematics/eddington.py``) plus ``cluster/multicomponent.py`` x2. The
-dx-INSIDE sites (``profiles/density_poisson.py``, ``profiles/api.py``,
-``kinematics/eff_df.py``) multiply dx inside the cumsum and agree only to
-~1 ulp (measured: 124/257 elements differ, max rel. diff 8.9e-16); they are
-gated by their own test budgets at migration time (Task 8), with the
-pre-multiplied-weights + ``dx=1.0`` escape hatch if a budget moves.
+The cumulative-trapezoid pass now lives in jaxstro
+(``jaxstro.numerics.integration.cumulative_trapz``) as the ecosystem's single
+source of truth, standardized on the dx-OUTSIDE ordering (pairwise average ->
+cumsum -> scale by scalar dx once -> leading zero). ``cumulative_trapezoid`` is
+re-exported here as a thin alias so the existing progenax call sites and the
+``inverse_cdf_draw`` kernel below keep importing it from ``progenax.numerics``
+unchanged. The jaxstro signature ``cumulative_trapz(y, x=None, *, dx, axis)`` is
+keyword-compatible with every progenax call site (all pass ``dx=``/``axis=``).
+
+The former dx-INSIDE sites (``profiles/density_poisson.py``, ``profiles/api.py``,
+``kinematics/eff_df.py``) multiplied dx inside the cumsum; against the dx-outside
+form they agree only to ~1 ulp (measured: 124/257 elements differ, max rel. diff
+8.9e-16), within their existing test budgets.
+
+The trapezoid-CDF inverse-draw kernel (``inverse_cdf_draw``) stays local here.
 Fully differentiable; no data-dependent shapes.
 """
 import jax.numpy as jnp
+from jaxstro.numerics.integration import cumulative_trapz
 from jaxtyping import Array, Float
 
-
-def cumulative_trapezoid(
-    y: Float[Array, "... n"],
-    dx: float | Float[Array, ""],
-    axis: int = -1,
-) -> Float[Array, "... n"]:
-    """Cumulative trapezoid integral with a leading zero, uniform spacing.
-
-    out[..., k] = sum_{i<k} 0.5 * (y[..., i] + y[..., i+1]) * dx, out[..., 0] = 0.
-    Same length as ``y`` along ``axis``.
-    """
-    y = jnp.moveaxis(y, axis, -1)
-    inner = jnp.cumsum(0.5 * (y[..., 1:] + y[..., :-1]), axis=-1) * dx
-    zero = jnp.zeros(y.shape[:-1] + (1,), dtype=inner.dtype)
-    return jnp.moveaxis(jnp.concatenate([zero, inner], axis=-1), -1, axis)
+# Thin alias: progenax call sites + inverse_cdf_draw import this name from
+# progenax.numerics; the implementation is jaxstro's single-source-of-truth
+# cumulative_trapz (dx-outside). Kept (rather than renaming 8 call sites) because
+# inverse_cdf_draw also depends on the name and lives in this module.
+cumulative_trapezoid = cumulative_trapz
 
 
 def inverse_cdf_draw(
