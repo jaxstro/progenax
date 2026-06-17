@@ -27,6 +27,7 @@ ENDPOINTS move with ``m_lim`` -- no boolean-mask cuts), so the AD ``m_lim`` grad
 AD-vs-FD gate depends on flows cleanly. Reverse-mode only (``jacrev``/``grad``); forward-mode is
 banned through ``project_dispersion``'s ``custom_vjp`` (inherited from the Stage-1 core).
 """
+import math
 from typing import NamedTuple
 
 import jax
@@ -99,7 +100,6 @@ N_FIELD_BINS = _n_field_bins()                                 # (K,) module con
 # custom_vjp ODE jacrev out of the Adam scan.) The design optimisation differentiates only wrt (z, m_lim),
 # never wrt theta, so caching J/SIG as constants leaves every design gradient bit-identical.
 _J, _SIG = oed.jacobian_and_sigma(oed.theta_truth(), oed.R_BINS, STELLAR.G)   # ODE jacrev, ONCE at import
-
 
 
 def eps_eff(m_lim):
@@ -262,7 +262,7 @@ def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05
               "u": jax.random.normal(ku, ()) * 0.5}
         p, _ = _optimize_joint(loss, p0, n_steps, lr)
         crit = float(loss(p))
-        if best is None or crit < best.criterion:
+        if math.isfinite(crit) and (best is None or crit < best.criterion):   # skip NaN/inf starts (M1)
             m_lim = u_to_mlim(p["u"])
             n_design, n_eff = _n_design_eff(p["z"], m_lim, N_total)
             best = DepthDesignResult(criterion=crit, m_lim=float(m_lim),
@@ -287,5 +287,6 @@ def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
         z0 = jax.random.normal(jax.random.fold_in(key, s), (3 * K,)) * 0.5
         z, _ = _optimize_joint(loss, z0, n_steps, lr)
         crit = float(loss(z))
-        best = crit if best is None else min(best, crit)
+        if math.isfinite(crit):                                               # skip NaN/inf starts (M1)
+            best = crit if best is None else min(best, crit)
     return best
