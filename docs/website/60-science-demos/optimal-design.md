@@ -29,8 +29,8 @@ The design optimises over a **fixed budget** of $N_{\rm total}$ stars allocated
 across $K=12$ projected-radius bins $\times$ 3 kinematic channels (36 cells).
 The science target is $r_a$; total mass $M$ and half-mass radius $r_h$ are
 nuisances carried with fractional priors. Everything is computed *pre-data* — no
-mock catalogue enters the optimisation loop (one calibration draw afterwards is a
-gate, not part of the design).
+mock catalogue enters the optimisation loop (a 64-draw calibration **ensemble**
+afterwards is a gate, not part of the design).
 
 ```{list-table} Model inputs
 :header-rows: 1
@@ -206,12 +206,16 @@ honest, real frontier rather than an idealised $c\propto1/N$ line.
 :width: 70%
 
 **A 64-draw mock ensemble confirms the design Fisher predicts the realized
-scatter.** The realized fractional precision $\sigma(r_a)/r_a$ (orange, with its
-Monte-Carlo error band from 64 draws) sits at $0.109$, just below the
-Fisher-predicted $0.121$ (blue): the pre-data Fisher is **mildly conservative**
-(the binned-dispersion estimator loses a little information relative to the
-idealised per-star Fisher), and the two agree within the MC error. This is the
-gate that makes the pre-data design trustworthy.
+scatter.** The calibration is run at the **uniform** design (so the Fisher value
+here, $0.121$, is the *uniform* precision — not the c-optimal $0.063$); this
+suffices because the per-star Fisher blocks $M_{b,c}$ are **design-independent**,
+so validating the Fisher machinery at one design transitively validates it at the
+c-optimal design built from the same blocks. The realized fractional precision
+$\sigma(r_a)/r_a$ (orange, with its Monte-Carlo error band from 64 draws) sits at
+$0.109$, just below the Fisher-predicted $0.121$ (blue): the pre-data Fisher is
+**mildly conservative** (the binned-dispersion estimator loses a little
+information relative to the idealised per-star Fisher), and the two agree within
+the MC error. This is the gate that makes the pre-data design trustworthy.
 :::
 
 ### Optimiser convergence
@@ -282,7 +286,7 @@ boundaries, stated honestly:
   anisotropy); no model misspecification, no real catalogue, no cross-channel
   systematics.
 - **The Fisher is a local, Gaussian (Cramér–Rao) approximation.** It is exact
-  only in the high-information / linearised limit. **The calibration draw is
+  only in the high-information / linearised limit. **The calibration ensemble is
   precisely the check** that it predicts the realized scatter — and it does, to
   within the Monte-Carlo error (mildly conservative, {numref}`fig-oed-calibration`).
 - **The $c\propto1/N$ star-count gloss is approximate.** With a fixed nuisance

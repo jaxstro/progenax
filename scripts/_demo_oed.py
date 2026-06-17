@@ -2,8 +2,11 @@
 optax optimizer, sky projection + calibration. Consumer of progenax.project_dispersion.
 See docs/plans/2026-06-16-oed-demo-stage1-design.md.
 
-Task 1 (this commit): the predicted observable g(theta) and the design-INDEPENDENT
-per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2), computed via ONE
+This module is the integrated Stage-1 core (the predicted observable g(theta); the
+design-INDEPENDENT per-star Fisher blocks; the additive Fisher F = Sum n*c*M in the
+dimensionless ln-theta metric, ADR 0011; the c/D/A criteria; the optax optimizer; and
+the sky-projection + mock-draw calibration). The predicted observable g(theta) and the
+per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2) are computed via ONE
 reverse-mode jacrev through project_dispersion (the only place the forward model is
 differentiated). We use jacrev (reverse-mode) by policy: it is the supported/tested
 gradient path for project_dispersion across ALL profiles, and it keeps the demo robust

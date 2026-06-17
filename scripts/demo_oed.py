@@ -264,11 +264,7 @@ def main(argv=None):
     if args.no_figures:
         print("  figures: SKIPPED (--no-figures)")
     else:
-        make_figures(
-            Mb, cb, n_total, designs, z_unif, pm_frac, cal,
-            factor=factor, frac_sig_unif=frac_sig_unif, frac_sig_c=frac_sig_c,
-            n_draws=n_draws,
-        )
+        make_figures(Mb, cb, n_total, designs, cal, n_draws=n_draws)
 
     print("=" * 78)
     print("  OED DEMO: ALL PASS" if all_ok else "  OED DEMO: FAILED")
@@ -478,8 +474,7 @@ def _fig_calibration(cal, n_draws, fig_dir):
     save_fig(fig, fig_dir, "demo_oed_calibration")
 
 
-def make_figures(Mb, cb, n_total, designs, z_unif, pm_frac, cal, *,
-                 factor, frac_sig_unif, frac_sig_c, n_draws):
+def make_figures(Mb, cb, n_total, designs, cal, *, n_draws):
     """Generate the five Stage-1 figures into FIGURE_DIR (PNG + PDF via save_fig).
 
       * fig 1 (optpath):     designs['c'/'d'/'a'].trace (per-step criterion).
