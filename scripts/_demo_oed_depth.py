@@ -46,10 +46,13 @@ _IMF = ChabrierIMF(m_min=0.08, m_max=M_MAX)
 EPS0 = oed.EPS                         # (3,) [pc/Myr]
 
 # Reference apparent magnitude: a BRIGHT reference star near the top of the present-day mass function
-# -- a 5 M_sun star at the cluster distance. Rationale: most detectable stars (the IMF is bottom-heavy,
-# so the bulk sits well below 5 M_sun) are FAINTER than this reference, hence noisier, so the
-# IMF-weighted eps_eff is >= EPS0 -- a physically sensible "anchor at a well-measured bright star,
-# everything else degrades" model. (Task 5 will tune the normalisations; this is a defensible start.)
+# -- a 5 M_sun star at the cluster distance. Rationale: anchor the per-star error at a well-measured
+# bright star; everything fainter degrades via photon noise. For DEEP limits the bottom-heavy IMF bulk
+# sits fainter than this reference, so the IMF-weighted eps_eff rises ABOVE EPS0; for SHALLOW limits
+# (m_lim below the EPS0 crossover, ~12.5 here) only the brightest stars are detected and eps_eff dips
+# BELOW EPS0 -- physically correct (a shallow survey sees only well-measured stars). The load-bearing
+# property is that eps_eff rises MONOTONICALLY with depth, which holds across the full range.
+# (Task 5 will tune the normalisations; this is a defensible start.)
 M_REF = sel.apparent_mag(jnp.array(5.0), D_PC)
 
 # Total intrinsic field population (the dominant Task-5 tunable): sets the per-bin star pool scale.
@@ -67,9 +70,11 @@ def _n_field_bins():
     (Plummer 1911 projection) evaluated at each R_BINS centre, times the bin's annular area
     (R_out^2 - R_in^2). Constant factors (M, a^2, pi) cancel in the per-bin FRACTIONS, so only the
     shape matters; the result is normalised to the total field population N_FIELD. The Plummer scale
-    radius a follows from the mock half-mass radius (a = r_h * sqrt(2^(2/3) - 1)). Core-concentrated:
-    N_FIELD_BINS[0] > N_FIELD_BINS[-1] (the outskirts are star-starved -- the physics that makes
-    depth a real trade for M_dyn's radial leverage).
+    radius a follows from the mock half-mass radius (a = r_h * sqrt(2^(2/3) - 1)). The surface density
+    Sigma(R) is strictly decreasing, but the per-bin POOL (Sigma * annular area) peaks at intermediate
+    radii because annular area ~ R^2 beats the central falloff: both the innermost AND the outermost
+    bins are relatively star-poor, with N_FIELD_BINS[0] > N_FIELD_BINS[-1] (outskirts starved -- the
+    physics that makes depth a real trade for M_dyn's radial leverage in the outer bins).
     """
     R = oed.R_BINS                                              # (K,) on-sky bin centres
     a = oed.MOCK["r_h"] * jnp.sqrt(2.0 ** (2.0 / 3.0) - 1.0)    # Plummer scale radius
