@@ -290,3 +290,19 @@ def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
         if math.isfinite(crit):                                               # skip NaN/inf starts (M1)
             best = crit if best is None else min(best, crit)
     return best
+
+
+# ===========================================================================
+# Task 5: the interior-optimum-in-depth result (the Stage-2 headline)
+# ===========================================================================
+
+def sigma_M_vs_depth(m_grid, target, N_total, key=jax.random.PRNGKey(0), n_starts=4, n_steps=300):
+    """sigma(theta[target])/theta[target] (fractional, ln-metric) vs limiting magnitude.
+
+    For each m_lim in m_grid, the best achievable fractional precision at that FROZEN depth
+    (optimal allocation z). The headline sweep: a too-shallow survey is supply-starved (few bright
+    stars, esp. in the outskirts), a too-deep one is photon-noise-limited, so sigma(M)/M has an
+    INTERIOR minimum -- the optimal depth to weigh the cluster. Returns an array shaped like m_grid.
+    """
+    return jnp.array([jnp.sqrt(crit_at_fixed_depth(float(m), target, N_total,
+                               key=key, n_starts=n_starts, n_steps=n_steps)) for m in m_grid])

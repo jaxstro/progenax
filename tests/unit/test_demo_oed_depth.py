@@ -64,3 +64,15 @@ def test_joint_optimizer_beats_fixed_depth():
     # the jointly-optimised design beats a shallow and a very-deep fixed depth
     assert res.criterion < oed_depth.crit_at_fixed_depth(m_lim=10.0, target=1, N_total=400.0)
     assert res.criterion < oed_depth.crit_at_fixed_depth(m_lim=16.0, target=1, N_total=400.0)
+
+
+def test_sigma_M_has_interior_optimum_in_depth():
+    # N_total=400 is in the SELECTIVELY-BINDING regime (Task-4 review I2); 4000 saturates
+    # the availability cap everywhere and the depth trade degenerates. sigma(M)/M vs m_lim
+    # has an INTERIOR minimum: too-shallow surveys are supply-starved (few bright stars,
+    # esp. in the outskirts), too-deep ones are photon-noise-limited.
+    m_grid = jnp.linspace(oed_depth.M_LIM_LO, oed_depth.M_LIM_HI, 13)
+    sigM = oed_depth.sigma_M_vs_depth(m_grid, target=1, N_total=400.0, n_starts=3, n_steps=250)
+    i = int(jnp.argmin(sigM))
+    assert 0 < i < len(m_grid) - 1                 # INTERIOR minimum, not an endpoint
+    assert sigM[i] < sigM[0] and sigM[i] < sigM[-1]
