@@ -26,7 +26,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from progenax.numerics import cumulative_trapezoid
+from progenax.numerics import cumulative_trapz
 from progenax.profiles.eff import EFFProfile
 from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.profiles.plummer import PlummerProfile
@@ -184,7 +184,7 @@ def _king_density_and_dW(profile, r: Float[Array, "n_r"]):
     # (dpsi/dxi)/r_c.
     dxi = xi[1] - xi[0]
     integ = rho * xi**2
-    cum = cumulative_trapezoid(integ, dx=dxi)
+    cum = cumulative_trapz(integ, dx=dxi)
     small = xi <= 1e-4
     xi_safe = jnp.where(small, 1.0, xi)
     dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
@@ -319,10 +319,10 @@ def shared_potential(
     rho_rows, M_rows, trunc_rows = [], [], []
     for j, p in enumerate(profiles):
         rho_hat, _ = _density_and_derivative(p, r)
-        m_hat = 4.0 * jnp.pi * cumulative_trapezoid(rho_hat * r**2, dx=dr)[-1]  # truncated mass of rho_hat
+        m_hat = 4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, dx=dr)[-1]  # truncated mass of rho_hat
         rho_j = mass_fractions[j] * rho_hat / m_hat
         rho_rows.append(rho_j)
-        M_rows.append(4.0 * jnp.pi * cumulative_trapezoid(rho_j * r**2, dx=dr))
+        M_rows.append(4.0 * jnp.pi * cumulative_trapz(rho_j * r**2, dx=dr))
         trunc_rows.append(m_hat / _untruncated_mass(p, m_hat))
 
     rho_j_grid = jnp.stack(rho_rows)
@@ -330,8 +330,8 @@ def shared_potential(
     trunc_frac_j = jnp.stack(trunc_rows)
     rho_tot = jnp.sum(rho_j_grid, axis=0)
 
-    inner = cumulative_trapezoid(rho_tot * r**2, dx=dr)  # int_0^r rho s^2 ds
-    tail = cumulative_trapezoid(rho_tot * r, dx=dr)      # int_0^r rho s ds
+    inner = cumulative_trapz(rho_tot * r**2, dx=dr)  # int_0^r rho s^2 ds
+    tail = cumulative_trapz(rho_tot * r, dx=dr)      # int_0^r rho s ds
     outer = tail[-1] - tail                  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
     Psi = Phi[-1] - Phi                      # Psi(r_t) = 0, increases inward

@@ -3,11 +3,11 @@
 The cumulative-trapezoid pass now lives in jaxstro
 (``jaxstro.numerics.integration.cumulative_trapz``) as the ecosystem's single
 source of truth, standardized on the dx-OUTSIDE ordering (pairwise average ->
-cumsum -> scale by scalar dx once -> leading zero). ``cumulative_trapezoid`` is
-re-exported here as a thin alias so the existing progenax call sites and the
-``inverse_cdf_draw`` kernel below keep importing it from ``progenax.numerics``
-unchanged. The jaxstro signature ``cumulative_trapz(y, x=None, *, dx, axis)`` is
-keyword-compatible with every progenax call site (all pass ``dx=``/``axis=``).
+cumsum -> scale by scalar dx once -> leading zero). ``cumulative_trapz`` is
+imported here so the progenax call sites and the ``inverse_cdf_draw`` kernel
+below import it from ``progenax.numerics``. The jaxstro signature
+``cumulative_trapz(y, x=None, *, dx, axis)`` is keyword-compatible with every
+progenax call site (all pass ``dx=``/``axis=``).
 
 The former dx-INSIDE sites (``profiles/density_poisson.py``, ``profiles/api.py``,
 ``kinematics/eff_df.py``) multiplied dx inside the cumsum; against the dx-outside
@@ -20,12 +20,6 @@ Fully differentiable; no data-dependent shapes.
 import jax.numpy as jnp
 from jaxstro.numerics.integration import cumulative_trapz
 from jaxtyping import Array, Float
-
-# Thin alias: progenax call sites + inverse_cdf_draw import this name from
-# progenax.numerics; the implementation is jaxstro's single-source-of-truth
-# cumulative_trapz (dx-outside). Kept (rather than renaming 8 call sites) because
-# inverse_cdf_draw also depends on the name and lives in this module.
-cumulative_trapezoid = cumulative_trapz
 
 
 def inverse_cdf_draw(
@@ -44,6 +38,6 @@ def inverse_cdf_draw(
     ``where(W > 1e-6, u, 0.0)``). Scalar draw; ``jax.vmap`` over stars.
     """
     dx = grid[1] - grid[0]
-    cdf = cumulative_trapezoid(weight, dx=dx)
+    cdf = cumulative_trapz(weight, dx=dx)
     cdf = cdf / (cdf[-1] + reg)
     return jnp.interp(unif, cdf, grid)

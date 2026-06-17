@@ -30,7 +30,7 @@ STELLAR: Msun, pc, Myr): the returned dispersions are in whatever velocity unit
 All public functions are differentiated with **reverse-mode** AD
 (``jax.grad`` / ``jax.jacrev``) — that is what the OED Fisher uses and what the
 grad-audit gate tests. For the *analytic-density* profiles (Plummer, EFF) the
-quadratures here are plain ``jnp`` (``cumulative_trapezoid`` is a ``jnp.cumsum``,
+quadratures here are plain ``jnp`` (``cumulative_trapz`` is a ``jnp.cumsum``,
 no custom rule), so forward-mode (``jax.jacfwd`` / ``jax.jvp``) also works. The
 forward-mode restriction is profile-specific: differentiating through the
 *equilibrium-solver* profiles (King / Michie) hits ``custom_vjp`` ODE solvers
@@ -51,7 +51,7 @@ from jaxtyping import Array, Float
 
 import jax.core
 
-from progenax.numerics import cumulative_trapezoid
+from progenax.numerics import cumulative_trapz
 
 # Default resolution of the master anisotropic-Jeans radial s-grid. Single source
 # of truth shared by jeans_dispersion (its n_s default) and project_dispersion
@@ -261,7 +261,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
       mapped to ``t in [_T_MIN, _T_MAX]`` by ``s = a t/(1-t)`` (Jacobian
       ``ds/dt = a/(1-t)^2``). Both the ``M(<s)`` quadrature and the outward integral
       ``I_outward`` are evaluated in UNIFORM ``t`` with the Jacobian folded into the
-      integrand — preserving ``cumulative_trapezoid``'s uniform-``dx`` contract — so
+      integrand — preserving ``cumulative_trapz``'s uniform-``dx`` contract — so
       the full Plummer tail is captured (killing the old 30a truncation bias). On the
       general-beta path the ``F = 2 int beta/s ds`` cumulative integral is done in
       ``ln(s)`` (the exact ``2 beta/s ds = 2 beta d(ln s)`` change of variable), which
@@ -281,7 +281,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
     if r_max is None:
         # Plummer (no finite cutoff): algebraic compactification s = a t/(1-t),
         # integrate in uniform t with the Jacobian ds/dt = a/(1-t)^2 folded in so
-        # cumulative_trapezoid still sees a uniform dx grid (here dt).
+        # cumulative_trapz still sees a uniform dx grid (here dt).
         a = profile.a
         t = jnp.linspace(_T_MIN, _T_MAX, n_s)
         s = a * t / (1.0 - t)
@@ -291,7 +291,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
         s2 = s**2
 
         # M(<s) = M * cumtrap(rho s^2 ds) / total, in t: integrand carries `jac`.
-        cum = cumulative_trapezoid(rho * s2 * jac, dx=dt)
+        cum = cumulative_trapz(rho * s2 * jac, dx=dt)
         M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
 
         if beta_fn is not None:
@@ -306,7 +306,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
             F_shifted = None
         # I(s) = int_s^inf f rho G M(<s)/s^2 ds; in t the integrand carries `jac`.
         integrand = f_weight * rho * G * M_enc / jnp.maximum(s2, 1e-30) * jac
-        I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=dt))
+        I_outward = jnp.flip(cumulative_trapz(jnp.flip(integrand), dx=dt))
         return s, rho, I_outward, F_shifted
 
     # Finite r_t (King / EFF): uniform s grid, no compactification needed.
@@ -315,7 +315,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
     ds = s[1] - s[0]
 
     # Enclosed mass by quadrature of profile.density (builder-quality).
-    cum = cumulative_trapezoid(rho * s**2, dx=ds)
+    cum = cumulative_trapz(rho * s**2, dx=ds)
     M_enc = M * cum / jnp.maximum(cum[-1], 1e-30)
 
     # Integrand g(s) = f(s) * rho(s) * G M(<s) / s^2; on the OM path the weight is
@@ -332,7 +332,7 @@ def _jeans_tables(profile, r_a, M, G, n_s: int, beta_fn=None):
         F_shifted = None
     integrand = f_weight * rho * G * M_enc / jnp.maximum(s2, 1e-30)
     # Reverse cumulative trapezoid -> I(s) = int_s^inf integrand ds.
-    I_outward = jnp.flip(cumulative_trapezoid(jnp.flip(integrand), dx=ds))
+    I_outward = jnp.flip(cumulative_trapz(jnp.flip(integrand), dx=ds))
     return s, rho, I_outward, F_shifted
 
 

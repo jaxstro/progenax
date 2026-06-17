@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from progenax.numerics import cumulative_trapezoid, inverse_cdf_draw
+from progenax.numerics import cumulative_trapz, inverse_cdf_draw
 
 
 class TestCumulativeTrapezoid:
@@ -19,13 +19,13 @@ class TestCumulativeTrapezoid:
         dr = 3.0 / 256
         inline = jnp.concatenate(
             [jnp.zeros(1), jnp.cumsum(0.5 * (y[1:] + y[:-1])) * dr])
-        ours = cumulative_trapezoid(y, dx=dr)
+        ours = cumulative_trapz(y, dx=dr)
         np.testing.assert_array_equal(np.asarray(ours), np.asarray(inline))
 
     def test_linear_function_exact(self):
         """Trapezoid is exact for linear integrands: int_0^x t dt = x^2/2."""
         x = jnp.linspace(0.0, 2.0, 101)
-        out = cumulative_trapezoid(x, dx=float(x[1] - x[0]))
+        out = cumulative_trapz(x, dx=float(x[1] - x[0]))
         np.testing.assert_allclose(np.asarray(out), np.asarray(x**2 / 2),
                                    rtol=0, atol=1e-14)
 
@@ -36,11 +36,11 @@ class TestCumulativeTrapezoid:
         inline = jnp.concatenate(
             [jnp.zeros((3, 1)),
              jnp.cumsum(0.5 * (y[:, 1:] + y[:, :-1]), axis=1) * dr], axis=1)
-        ours = cumulative_trapezoid(y, dx=dr, axis=-1)
+        ours = cumulative_trapz(y, dx=dr, axis=-1)
         np.testing.assert_array_equal(np.asarray(ours), np.asarray(inline))
 
     def test_differentiable(self):
-        g = jax.grad(lambda a: cumulative_trapezoid(a * jnp.ones(8), dx=0.1)[-1])(2.0)
+        g = jax.grad(lambda a: cumulative_trapz(a * jnp.ones(8), dx=0.1)[-1])(2.0)
         assert jnp.isfinite(g) and g > 0
 
 
