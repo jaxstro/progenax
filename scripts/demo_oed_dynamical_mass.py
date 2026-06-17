@@ -61,11 +61,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _demo_oed as oed  # noqa: E402
 import _demo_oed_depth as depth  # noqa: E402
 
-FIGURE_DIR = "docs/website/60-science-demos/figures"
-RUN_RECORD = os.path.join(FIGURE_DIR, "demo_oed_dynamical_mass_run_record.json")
-# Stage-2 figures live in the optimal-design SECTION dir (Task 9), separate from the
-# run-record FIGURE_DIR above.
+# Stage-2 figures AND the run-record both live in the optimal-design SECTION dir (Task 9), so a
+# plain re-run regenerates the committed record in place alongside the figures it describes.
 FIG2_DIR = "docs/website/60-science-demos/optimal-design/figures"
+RUN_RECORD = os.path.join(FIG2_DIR, "demo_oed_dynamical_mass_run_record.json")
 
 # theta = (r_a, M, r_h); Stage-2 target is M (dynamical mass), index 1.
 TARGET_M = 1

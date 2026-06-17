@@ -22,7 +22,7 @@ achieve is a *known function of the observing strategy*, computable **before you
 collect a single photon**, through the Fisher information. So you can treat the
 observing strategy as a free variable and maximise the information you expect to
 extract. The output is not just "a good plan"; it is a *quantified* plan: "this
-allocation reaches the same precision with $3.7\times$ fewer stars," or "this is the
+allocation reaches the same precision with several-fold fewer stars," or "this is the
 exact depth at which more telescope time stops helping."
 
 :::{note} **Start here**
