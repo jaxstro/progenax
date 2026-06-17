@@ -1,8 +1,10 @@
 # Design — W₀-differentiable dispersion for OED/Fisher (all truncated models)
 
-**Date:** 2026-06-17
-**Status:** ROOT CAUSE PINNED + FIX DIRECTION VALIDATED (prototype-confirmed). Ready for a
-TDD plan. Two earlier fix hypotheses were refuted by prototype (kept below for provenance).
+**Date:** 2026-06-17 (revised after the 2026-06-17 implementation-arc prototypes)
+**Status:** ROOT CAUSE RE-PINNED + REAL FIX VALIDATED. The earlier "normalized-coordinate"
+fix (and ADR-0016 as first written) was **falsified by prototype** — it is an exact no-op;
+the genuine fix is a **C¹ smooth back-interpolation**. Ready for a TDD plan. THREE earlier fix
+hypotheses were refuted by prototype (kept below for provenance).
 **Owner:** Anna (HITL).
 
 ## Goal (Anna, 2026-06-17)
@@ -13,39 +15,52 @@ model. Bar: FD-consistent `∂σ/∂(profile param)` < 1e-3 at the standard gate
 
 ## Validated root cause (discriminating experiments, 2026-06-17)
 
-The Michie-W₀ xfail is **not** a wrong gradient (AD matches FD to ~1e-8 at fine h) — it is
-forward micro-non-smoothness, now pinned through the dispersion forward model:
+The Michie-W₀ xfail is **not** a wrong gradient (AD matches FD to ~1e-8 at fine h). There are
+TWO distinct effects, only one of which is a code defect:
 
-| Hypothesis | Test | Verdict |
+| Finding | Test (this arc) | Verdict |
 |---|---|---|
-| Inner `michie_density` quadrature | `dρ̂/dW` AD-vs-FD vs `n_u` (256→16384) | **Refuted** — clean ~1e-8, `n_u`-independent |
-| Tidal-radius crossing `_find_tidal_radius` | `d(ξ_t)/dW₀` AD-vs-FD | **Refuted** — already clean ~2e-8 at h=6e-4; a custom_jvp prototype made it *worse* |
-| ODE-grid resolution | `n_ode` 3000→12000 | **Refuted** — flat ~5–6e-3 |
-| **Jeans-grid layer** | `n_s` 2000→16000 | **Confirmed contributor** — rel scales with `n_s` |
-| **Back-interp to a FIXED query r** | query fixed r=1 vs r=0.12·r_t (tracks grid) | **DOMINANT** — W₀=6 rel 5.1e-3 → **6.5e-5** when the query tracks r_t |
+| Literal normalized-coordinate swap `interp(r,s,T)` → `interp(r/r_t, s/r_t, T)` | `max\|·−·\|` over the master tables | **NO-OP — exactly 0.000e+00.** `jnp.interp` is scale-equivariant; relabeling the abscissa changes nothing for a fixed physical query radius. **This falsifies the ADR-0016 / prior-doc fix.** |
+| **C⁰ piecewise-linear back-interp bracket kink** | C¹ cubic-Hermite back-interp, fixed physical r | **DOMINANT, REAL DEFECT.** W₀=6 rel 5.1e-3 → **3.4e-4** (passes) with a C¹ interpolant. |
+| High-W₀ residual (W₀=7) | fixed-`u` query, `n_s` 4000→64000 | **Flat ~3.15e-3 — NOT resolution.** Survives removing the back-interp kink. |
+| Is the W₀=7 residual a real gradient defect? | FD-vs-AD at W₀=7, h-sweep 1e-3→1e-6 (fixed-`u`) | **No.** FD **converges monotonically to AD** (3.2e-3 → 2.1e-5); AD is correct. `r_t`/`ρ` gradients individually clean (~1e-4). |
+| Why is coarse-h FD unreliable at W₀=7? | `r_t(W₀)` sweep | **Near mass-divergence:** `r_t` = 28→58→133→**545** over W₀ 6.0→7.0; no finite truncation past W₀≈7.1 (r_a=5). The forward map is genuinely stiff; a fixed-step FD has large O(h²·f‴) truncation error there. |
 
-**Mechanism.** For finite-`r_t` profiles the master s-grid is `linspace(1e-4·r_t, r_t, n_s)` —
-its endpoint **moves with r_t(W₀)**. The final `jnp.interp(r, s_grid, σ_table)` maps that table
-back to a **fixed** query radius; as r_t(W₀) moves, the s-nodes bracketing a fixed r switch, so
-the piecewise-linear interp's slope w.r.t. W₀ **jumps** → a ~1e-4-scale kink a coarse FD straddles.
-A smaller second contributor remains at high W₀ (~3e-3 even when the query tracks r_t) — likely the
-`M_enc`/`I_outward` `cumulative_trapezoid` on the moving grid.
+**Mechanism (the real defect).** For finite-`r_t` profiles the master s-grid is
+`linspace(1e-4·r_t, r_t, n_s)`; its endpoint **moves with r_t(W₀)**. The final
+`jnp.interp(r, s_grid, σ_table)` is **piecewise-linear (C⁰)**. For a fixed physical query r,
+as r_t(W₀) moves the bracketing nodes switch and the interpolant's *slope* w.r.t. W₀ **jumps** →
+a ~1e-4-scale kink a coarse central FD straddles. The cure is **not** the abscissa coordinate
+(proven a no-op) but the **smoothness of the interpolant**: a C¹ scheme has no slope jump at a
+node crossing.
 
-## Validated fix direction
+**The high-W₀ effect is not a code bug.** Near the Michie mass-divergence the AD gradient is
+correct (FD→AD as h→0); the coarse-gate-h inconsistency is a finite-difference *truth-proxy*
+artifact in a high-curvature region. No code change can or should remove it.
 
-**Interpolate the master table back to query radii in a grid-invariant (normalized) coordinate**
-— e.g. `u = r / r_t` onto a fixed `u`-grid — so a query's position relative to the grid is
-W₀-invariant and no bracket-crossing occurs. The "query tracks r_t" experiment is the direct
-validation: at fixed `u` the gradient is already clean (6.5e-5). This is **model-general** (every
-truncated profile builds its grid to r_t), serving the goal directly. The second (high-W₀) cumtrap
-contributor is a follow-on once the dominant back-interp term is removed.
+## Validated fix
+
+1. **C¹ smooth back-interpolation** of the master tables onto the query radii in
+   `_sigma_r2_from_tables` (replace the three `jnp.interp` calls — `rho`, `I_outward`,
+   `F_shifted` — with a C¹ interpolant, e.g. monotone cubic Hermite / PCHIP on the monotone
+   `s`-grid). Model-general: King/Michie/EFF share this path; Plummer (compactified `s`) shares
+   it too, so `∂/∂r_h` is covered. **Validated:** W₀=6 5.1e-3 → 3.4e-4.
+   - *Caveat from prototype:* a naive central-difference-slope cubic adds edge noise (made
+     W₀=7 worse). Use a **monotone/limited-slope** C¹ scheme (PCHIP-style) and re-measure.
+2. **Gate methodology for the near-divergence regime** (replaces the speculative "fixed
+   integration grid" — unnecessary, since the high-W₀ effect is not a defect): keep the Michie
+   gate within the well-truncated regime (W₀=6) and, where a stiff forward map is tested,
+   assert AD against a **converged / Richardson-extrapolated** FD rather than a single coarse
+   step. Document that beyond W₀≈7 (r_a=5) the model approaches mass-divergence (r_t→∞) where
+   the gradient is still correct but a fixed-step FD is a poor check.
 
 ### Hard constraints (shared `kinematics/dispersion.py`)
-Shared by Plummer/King/EFF and `project_dispersion`. Changing the back-interpolation coordinate
-**alters forward values at the O(h²) interp level** → MUST re-validate the tight anchors:
-Plummer isotropic rtol 1e-3, the `project_dispersion` **rtol-1e-9 regression baseline**, King
-c(W₀) Table II. Plummer (no r_t) uses the compactified grid — apply the same normalized-coordinate
-principle (u from the `s = a t/(1−t)` map) so Plummer `∂/∂r_h` is covered too.
+Shared by Plummer/King/EFF and `project_dispersion`. A C¹ interpolant **changes forward values**
+relative to today's linear interp (different interpolation error) → MUST re-validate / re-pin the
+tight anchors: Plummer isotropic rtol 1e-3, King c(W₀) Table II (≤0.002), and the
+`project_dispersion` **rtol-1e-9 regression baseline** (a pin of the *current* linear-interp
+values — it WILL move and must be re-pinned, not weakened). The DF-side cross-check
+(`ftable_sigma_r_isotropic`) and `df_moment_dispersion` (separate quadrature path) are unaffected.
 
 ---
 
