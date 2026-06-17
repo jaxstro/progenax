@@ -65,6 +65,18 @@ class TestPchipInterp:
             return jnp.sum(_pchip_interp(jnp.array([1.3, 2.7]), x, scale * jnp.cos(x)))
         g = float(jax.grad(loss)(1.0)); assert abs(g) > 1e-9 and jnp.isfinite(g)
 
+    def test_nan_safe_grad_on_degenerate_data(self):
+        # Non-monotone data with a local max (sign-changing secants -> the
+        # Fritsch-Carlson `same` guard hits its False branch) AND a flat run
+        # (zero secants), exercising the double-`where` NaN guard. jax.grad must
+        # stay finite (a naive 1/0 in the harmonic-mean slope would NaN here).
+        from progenax.kinematics.dispersion import _pchip_interp
+        x = jnp.linspace(0.0, 6.0, 13)
+        base = jnp.array([0.,1.,2.,3.,2.,1.,1.,1.,1.,2.,3.,4.,5.])
+        def loss(c):
+            return jnp.sum(_pchip_interp(jnp.array([1.5, 3.0, 4.5]), x, c * base))
+        g = float(jax.grad(loss)(1.0)); assert jnp.isfinite(g)
+
 
 def test_exports_and_namedtuples():
     assert {"jeans_dispersion", "project_dispersion"} <= set(progenax.__all__)
@@ -197,10 +209,14 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
 # solve_*_profile + _find_tidal_radius) are measured honestly here:
 #   - King W0:  rel ~9e-5 at the helper's default FD step; AD->FD CONVERGES as
 #     h shrinks (1.4e-3 @ h=1e-2 -> 2e-5 @ h=1e-4) => genuinely CLEAN, gated.
-#   - Michie W0: rel ~5e-3 and does NOT converge as h shrinks (the upstream
-#     ODE-solver FD-inconsistency, deferred to the gradient-audit arc) => xfail.
-# Despite sharing solve_*/_find_tidal_radius, King is FD-consistent here while
-# Michie (with r_a anisotropy) is not.
+#   - Michie W0: rel ~3.5e-4, CLEAN gate. The former ~5e-3 inconsistency was NOT an
+#     ODE-solver defect (earlier mis-attribution) but the C⁰ jnp.interp back-interp
+#     in _sigma_r2_from_tables: as r_t(W0) moved the master s-grid nodes, the
+#     piecewise-linear bracket switched and kinked ∂σ/∂W0. The C¹ PCHIP back-interp
+#     (ADR-0016) removes the slope-jump => gate now clean. (Beyond W0≈7 at r_a=5 the
+#     Michie model nears its mass-divergence, r_t->∞; the gradient stays correct but
+#     a fixed-step FD is a poor truth-proxy there — see the high-W0 Richardson test.)
+# Both King and Michie share solve_*/_find_tidal_radius and are FD-consistent here.
 
 
 def test_grad_jeans_eff_wrt_r_t():
@@ -249,18 +265,13 @@ def test_grad_jeans_king_wrt_W0():
     _assert_ad_fd(f, 6.0, name="jeans King sigma_r / W0")  # measured rel ~9.1e-5
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="upstream Michie ODE-solver gradient (~5e-3 FD-inconsistent); deferred to "
-    "gradient-audit arc, see "
-    "docs/plans/2026-06-16-michie-king-equilibrium-gradient-redesign-deferred.md",
-)
-def test_grad_jeans_michie_wrt_W0_DEFERRED():
-    """Michie sigma_r gradient w.r.t. W0 (solved equilibrium; ~5e-3 FD-inconsistent).
+def test_grad_jeans_michie_wrt_W0():
+    """Michie sigma_r gradient w.r.t. W0 (solved equilibrium; clean gate).
 
-    Wraps a strict _assert_ad_fd so this xfails NOW (documenting the deferred
-    limitation) and auto-alerts via xpass if the gradient-audit arc later lands
-    the FD-consistent equilibrium-solve redesign.
+    The C¹ PCHIP back-interpolation in _sigma_r2_from_tables (ADR-0016) removes
+    the bracket-crossing slope-jump that the old C⁰ jnp.interp injected into
+    ∂σ/∂W0 as r_t(W0) moved the s-grid nodes, so this AD-vs-FD gate is now clean
+    (was a deferred xfail at ~5e-3).
     """
     from progenax.profiles import MichieProfile
 
@@ -275,7 +286,7 @@ def test_grad_jeans_michie_wrt_W0_DEFERRED():
             ).sigma_r
         )
 
-    _assert_ad_fd(f, 6.0, name="jeans Michie sigma_r / W0")  # measured rel ~5.1e-3 > 1e-3
+    _assert_ad_fd(f, 6.0, name="jeans Michie sigma_r / W0")  # measured rel ~3.5e-4 < 1e-3
 
 
 # --- Phase 0.5 Task A: tabulate-once project_dispersion equivalence regression ---
@@ -294,14 +305,22 @@ def test_grad_jeans_michie_wrt_W0_DEFERRED():
 # (3pi/64) GM/sqrt(a^2+R^2), same R): the isotropic sigma_los's max relative error
 # to the oracle fell 8.58e-4 (pre-Task-C, the master-Jeans truncation floor) ->
 # 1.634e-4 (after the master-Jeans compactification, now limited by the projection
-# u-truncation) -> 7.10e-6 (NEW, after compactifying the projection u-grid too),
+# u-truncation) -> 7.10e-6 (after compactifying the projection u-grid too),
 # i.e. ~23x closer at the worst R. So each re-captured baseline is MORE accurate,
 # not a regression.
+# (3) 2026-06-17: gradient-motivated re-capture. _sigma_r2_from_tables now uses a
+# C¹ PCHIP back-interp (ADR-0016) instead of C⁰ jnp.interp, to remove the
+# bracket-crossing slope-jump in ∂σ/∂W0 (see test_grad_jeans_michie_wrt_W0). Shared
+# by project_dispersion, this shifts the pinned values ~1.6e-6 (rel) — above the
+# 1e-9 pin, so re-captured here. It ALSO improves oracle accuracy: the isotropic
+# sigma_los max relative error to the Dejonghe oracle falls 7.10e-6 -> 5.16e-6
+# (uniformly closer at every R), so this re-capture is again an improvement, not a
+# regression. Tolerance UNCHANGED at rtol=1e-9.
 _BL_LOS = jnp.array(
-    [0.5526179625033003, 0.4502555137882001, 0.3009530000018737, 0.17215480378111833]
+    [0.5526179475472416, 0.45025550482131277, 0.3009530819950546, 0.17215507175857458]
 )
 _BL_PMT = jnp.array(
-    [0.5368408615363569, 0.42825246120297417, 0.26711912900399826, 0.12555000455977777]
+    [0.5368408461106755, 0.42825244807500384, 0.2671191845762194, 0.1255501505502787]
 )
 
 

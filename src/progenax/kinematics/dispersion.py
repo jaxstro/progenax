@@ -83,6 +83,11 @@ def _pchip_interp(xq, x, y):
     bracket-crossing kink into the parameter gradient. C¹ removes that jump. The abscissa
     coordinate is irrelevant (``jnp.interp`` is scale-equivariant); only smoothness matters.
     ``x`` must be monotone increasing (the master ``s``-grid is).
+
+    Note: the endpoint tangents are plain one-sided secants (``d[0]`` / ``d[-1]``), NOT
+    scipy's shape-preserving 3-point endpoint limiter — a deliberate, adequate choice
+    since the gradient kink being fixed lives at interior bracket crossings, not the
+    grid edges.
     """
     n = x.shape[0]
     h = jnp.diff(x)
@@ -350,11 +355,18 @@ def _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=None):
     This is exactly the tail of the anisotropic-Jeans ``sigma_r`` solve (same
     operations: interpolate + prefactor), minus the (now R-independent)
     integrand/``I_outward`` build done in :func:`_jeans_tables`.
+
+    The back-interpolation onto the query radii is the C¹ monotone PCHIP
+    (:func:`_pchip_interp`), replacing the C⁰ piecewise-linear ``jnp.interp``.
+    On a grid whose nodes move with a differentiated profile parameter (e.g.
+    ``r_t(W0)``), ``jnp.interp``'s slope-jump at each node injected a
+    bracket-crossing kink into ``∂σ/∂(param)``; the C¹ interpolant removes that
+    jump, making the parameter gradient FD-consistent (ADR-0016).
     """
-    rho_r = jnp.interp(r, s, rho)
-    I_r = jnp.interp(r, s, I_outward)
+    rho_r = _pchip_interp(r, s, rho)
+    I_r = _pchip_interp(r, s, I_outward)
     if F_shifted is not None:
-        prefactor = jnp.exp(-jnp.interp(r, s, F_shifted))
+        prefactor = jnp.exp(-_pchip_interp(r, s, F_shifted))
     elif r_a is None:
         prefactor = jnp.ones_like(r)
     else:
