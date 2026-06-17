@@ -90,25 +90,36 @@ def per_star_blocks(theta, R_bins, eps, G):
     M_{c,b} = 2 J_{c,b} J_{c,b}^T / (sigma_{c,b}^2 + eps_c^2), with
     J_{c,b} = d sigma_pred,{c,b} / d ln theta. The full design Fisher is then the linear
     sum F = sum_{c,b} n_eff,{c,b} M_{c,b} (Task 2), so this jacrev is computed ONCE
-    and the optimization is pure 3x3 linear algebra.
-
-    The raw-unit theta = (r_a, M, r_h) spans ~5 orders of magnitude, so the raw Fisher
-    is ill-conditioned (cond ~ 1.7e9). Differentiating wrt ln theta (J -> J * diag(theta))
-    makes F dimensionless (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance; the
-    c-headline is then the fractional precision sigma(r_a)/r_a.
-
-    Reverse-mode jacrev by policy (the supported/tested grad path for all profiles;
-    forward-mode also works for the analytic-density Plummer path but would crash through
-    the King/Michie equilibrium-solver custom_vjp ODEs -- see the module docstring).
-
+    and the optimization is pure 3x3 linear algebra. Thin wrapper over jacobian_and_sigma
+    (the single jacrev) + blocks_from_eps (the eps division).
     Returns (Mb (3, K, 3, 3): channel x bin x P x P, sigma (3, K)).
+    """
+    J, sig = jacobian_and_sigma(theta, R_bins, G)
+    return blocks_from_eps(J, sig, eps), sig
+
+
+def jacobian_and_sigma(theta, R_bins, G):
+    """Return (J, sigma): J = d sigma_pred / d ln theta (3, K, 3), sigma (3, K). ONE jacrev.
+
+    Exposed so the depth layer can rebuild M = 2 J J^T / (sigma^2 + eps_eff^2) at VARYING
+    eps_eff(m_lim) WITHOUT re-running jacrev.
+
+    theta = (r_a, M, r_h) spans ~5 orders of magnitude, so the raw Fisher is ill-conditioned
+    (cond ~ 1.7e9). Differentiating wrt ln theta (J -> J * diag(theta)) makes F dimensionless
+    (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance (ADR 0011). Reverse-mode jacrev
+    by policy (forward-mode would crash through the King/Michie custom_vjp ODEs).
     """
     sig = predict_sigma(theta, R_bins, G)                       # (3, K)
     J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)  # (3, K, 3) -- d sigma / d theta
-    J = J * theta[None, None, :]                                # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
-    denom = sig**2 + (eps[:, None])**2                          # (3, K)
-    Mb = 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
-    return Mb, sig
+    return J * theta[None, None, :], sig                        # -> d sigma / d ln theta (DIMENSIONLESS)
+
+
+def blocks_from_eps(J, sig, eps):
+    """M_{c,b} = 2 J J^T / (sigma^2 + eps^2). eps broadcasts: (3,) per-channel or (3, K) per-cell."""
+    eps = jnp.asarray(eps)
+    eps2 = (eps[:, None] if eps.ndim == 1 else eps) ** 2        # (3, K)
+    denom = sig**2 + eps2                                       # (3, K)
+    return 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
 
 
 # ===========================================================================
