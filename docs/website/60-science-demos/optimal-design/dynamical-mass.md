@@ -46,11 +46,15 @@ $L$–$M$ relation. **Deeper means a lower mass floor**: more of the steeply-ris
 becomes observable. For our fiducial cluster at $d=4$ kpc we sweep $m_{\rm lim}$ over
 $[9,18]$ mag, and the mass floor falls monotonically across that range.
 
-For the Sun at $10$ pc, $m_{\rm app}=M_{\rm bol,\odot}=4.74$; move it out to $4$ kpc and
-the distance modulus alone adds $5\log_{10}(400)\approx13.0$ mag, putting a solar-mass
-star at $m_{\rm app}\approx17.7$ — right at the faint edge of our deepest survey. That
-single number is why $d=4$ kpc is the interesting distance: the depth sweep brackets the
-turnoff from "only the bright giants" to "down to the solar-mass main sequence."
+For the **present-day** Sun at $10$ pc, $m_{\rm app}=M_{\rm bol,\odot}=4.74$ by definition;
+at $4$ kpc the distance modulus alone adds $5\log_{10}(400)\approx13.0$ mag. A $1\,M_\odot$
+**ZAMS** star is slightly *sub-luminous* — the zero-age Sun is $L\approx0.7\,\Lsun$, so
+$M_{\rm bol}\approx5.1$ — landing it at $m_{\rm app}\approx18$, right at the faint edge of
+our deepest survey. That single number is why $d=4$ kpc is the interesting distance: the
+depth sweep brackets the turnoff from "only the bright giants" to "down to the solar-mass
+main sequence." (Using the ZAMS $L$–$M$ relation, not the present-day Sun, keeps the supply
+model self-consistent — the same care the [ZAMS validation](../../50-validation/zams-relations.md)
+page documents.)
 
 ## The interior optimum — the headline
 
