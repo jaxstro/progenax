@@ -195,7 +195,12 @@ project:
         - file: 60-science-demos/anisotropy.md
         - file: 60-science-demos/tidal-radius.md
         - file: 60-science-demos/rotation.md
-        - file: 60-science-demos/optimal-design.md
+        - title: Optimal experimental design
+          children:
+            - file: 60-science-demos/optimal-design/index.md
+            - file: 60-science-demos/optimal-design/background.md
+            - file: 60-science-demos/optimal-design/anisotropy.md
+            - file: 60-science-demos/optimal-design/dynamical-mass.md
     - title: Development log
       children:
         - file: 90-development-log/index.md
