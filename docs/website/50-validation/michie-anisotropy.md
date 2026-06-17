@@ -161,6 +161,21 @@ max rel err $1\times10^{-7}$, $1\times10^{-8}$, $7\times10^{-7}$, so the anisotr
 model can be fit jointly with the structural parameters.
 :::
 
+:::{note} Equilibrium-dispersion $\partial\sigma/\partial W_0$ for OED/Fisher (2026-06-17)
+The OED/Fisher forward model differentiates the *equilibrium* dispersion
+`jeans_dispersion` / `project_dispersion`, which interpolate a master radial table back
+to the query radii. That back-interpolation was a piecewise-linear $C^0$ `jnp.interp`:
+as the truncation radius $r_t(W_0)$ moved the table's grid nodes, the interpolant's slope
+jumped at a fixed query radius and kinked $\partial\sigma/\partial W_0$, so a coarse
+finite difference reported a $\sim 5\times10^{-3}$ inconsistency. The fix (ADR-0016) is a
+monotone $C^1$ (PCHIP) back-interpolation, which removes the slope jump: the Michie-$W_0$
+dispersion gradient is now FD-consistent ($5.1\times10^{-3}\to3.5\times10^{-4}$ at the gate
+step), model-general across King/Michie/EFF/Plummer. **Caveat:** beyond $W_0\approx7$ (at
+$r_a=5\,r_c$) the Michie model nears its mass-divergence ($r_t\to\infty$); the gradient stays
+correct (a finite difference *converges* to autodiff as the step shrinks) but a fixed-step FD
+is a poor truth-proxy there, so the gradient gate runs in the well-truncated $W_0=6$ regime.
+:::
+
 ## How to run
 
 ```bash

@@ -84,7 +84,10 @@ is a separate, maintainer-approved step.
 (checklist-verified)=
 ## ✅ Verified green — no action needed
 
-- Full test gate: 1553 passed / 3 skipped / 1 xfailed, exit 0; coverage 95.96%.
+- Full test gate: 1561 passed / 2 skipped / **0 xfailed**, exit 0; coverage 95.98%.
+  (Audit-time was 1553 / 3 skip / 1 xfail / 95.96%; the OM-Plummer oracle closed the
+  skip and the follow-on #4 arc closed the Michie-$W_0$ xfail — C¹ PCHIP back-interp,
+  ADR 0016. The remaining skip is the env-gated strict-refs guard.)
 - Physics anchors reproduce (Plummer/King/EFF $Q$, King $c(W_0)$, Engine-B,
   Kepler).
 - Gradient integrity: 97 AD-vs-FD cases, 0 hazards; all 4 registries full.

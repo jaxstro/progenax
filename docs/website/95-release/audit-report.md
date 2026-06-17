@@ -66,15 +66,18 @@ with `-rsxX`:
 | `test_strict_refs.py` | SKIP | "strict reference mode not requested" — gated on `PROGENAX_STRICT_REFS`; unset locally, **set =1 in the release-tag CI lane**, where it asserts the LIMEPY reference cache is present (so parity can't silently no-op). | None — by design (R8/T4). |
 | `test_limepy_tables.py::test_table_solve_is_faster` | SKIP | Skips under xdist/coverage (`PYTEST_XDIST_WORKER` / `sys.gettrace()`); timing ratios are meaningless under instrumentation. **Runs + asserts ~5–10× serially.** | None — by design. |
 | `test_dispersion_physics.py::test_plummer_om_jeans_vs_analytic` | ~~SKIP~~ → **now passing** | Originally **deferred rather than fabricated**. **Closed during this audit (2026-06-17):** the closed form $\sigma_r^2 = GM(a^2+3r^2+2r_a^2)/[12(r^2+r_a^2)\sqrt{a^2+r^2}]$ was *derived* from the OM anisotropic Jeans equation (BT §4.8.3) — not transcribed (Plummer is not a Carollo+1995 γ-model) — and verified (isotropic limit → Dejonghe to 2e-16; numerical OM Jeans to ~1e-6). | Done. |
-| `test_dispersion.py::test_grad_jeans_michie_wrt_W0_DEFERRED` | XFAIL (strict) | The Michie ODE-solver gradient $\partial\sigma_r/\partial W_0$ is **genuinely $\sim 5\times10^{-3}$ FD-inconsistent** (upstream Michie-anisotropic equilibrium solve; King $W_0$ is clean). Deferred to the gradient-audit arc (ADR 0009) with a design doc; strict, so it auto-alerts via xpass when fixed. | Real known limitation; on a tracked deferral arc. |
+| `test_dispersion.py::test_grad_jeans_michie_wrt_W0` | ~~XFAIL (strict)~~ → **resolved 2026-06-17** | Flagged at audit as a $\sim 5\times10^{-3}$ FD-inconsistent Michie $\partial\sigma_r/\partial W_0$ and *attributed to the ODE solver* (ADR 0009). **The #4 arc overturned that:** the AD gradient was always **correct** (a central FD *converges* to it as the step shrinks); the $\sim 5\times10^{-3}$ was a coarse-FD artifact of a **C⁰ piecewise-linear back-interpolation** in `_sigma_r2_from_tables` — as $r_t(W_0)$ moved the master $s$-grid nodes, the interp's slope jumped for a fixed query radius, kinking $\partial\sigma_r/\partial W_0$. A **C¹ PCHIP back-interp** (ADR 0016, supersedes 0009) removes it: rel $5.07\times10^{-3}\to3.5\times10^{-4}$. | Done — gate flipped xfail→pass on merit; released-core now carries **0 xfail**. |
 
 The two design skips (env-gated guard, instrumentation-aware benchmark) are
 *correct* behaviour, not debt. The OM-Plummer skip was the no-guessed-formula rule
 in action — and was **closed during this audit** by deriving and verifying the
-oracle rather than asserting it, so the released-core skip count drops from 3 to 2
-(validation tier re-run: 434 passed, 1 skipped). The one xfail remains a genuinely
-incorrect gradient, correctly fenced — confined to Michie-$W_0$, which the
-Fisher/OED demos do not use.
+oracle rather than asserting it, so the released-core skip count drops from 3 to 2.
+The Michie-$W_0$ xfail was **closed by the follow-on #4 arc (2026-06-17, ADR 0016)**:
+it was never an incorrect gradient — the AD value is correct (a finite difference
+converges to it as the step shrinks) — but a C⁰ back-interpolation kink that a coarse
+fixed-step FD straddled; a C¹ PCHIP back-interp fixed it, so released-core now carries
+**0 xfail**. (The audit's original "genuinely incorrect / ODE-solver" reading of this
+row was a misdiagnosis, corrected by the arc's discriminating experiments.)
 
 The experimental `gravoturb_fdf` suite (repo-only) ran **343 passed, 8 deselected,
 exit 0** — green as documented.
