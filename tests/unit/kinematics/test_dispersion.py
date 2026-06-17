@@ -36,6 +36,36 @@ def _assert_ad_fd(f, theta0, *, h=None, name=""):
     return g_ad, g_fd, rel
 
 
+class TestPchipInterp:
+    def test_passes_through_nodes(self):
+        x = jnp.linspace(0.5, 4.0, 12); y = jnp.sin(x)
+        from progenax.kinematics.dispersion import _pchip_interp
+        assert jnp.allclose(_pchip_interp(x, x, y), y, atol=1e-12)
+
+    def test_exact_on_linear(self):
+        from progenax.kinematics.dispersion import _pchip_interp
+        x = jnp.linspace(0.0, 10.0, 9); y = 3.0 * x - 1.0
+        xq = jnp.linspace(0.3, 9.7, 50)
+        assert jnp.allclose(_pchip_interp(xq, x, y), 3.0 * xq - 1.0, atol=1e-10)
+
+    def test_c1_no_slope_jump_across_node(self):
+        # central FD of the interpolant straddling an interior node must agree
+        # left vs right (C1); linear interp would show a jump here.
+        from progenax.kinematics.dispersion import _pchip_interp
+        x = jnp.linspace(0.0, 6.0, 13); y = jnp.exp(-x)        # smooth, monotone
+        node = x[6]; e = 1e-3
+        d_left  = (_pchip_interp(jnp.array([node - e]), x, y) - _pchip_interp(jnp.array([node - 2*e]), x, y)) / e
+        d_right = (_pchip_interp(jnp.array([node + 2*e]), x, y) - _pchip_interp(jnp.array([node + e]), x, y)) / e
+        assert abs(float(d_left[0] - d_right[0])) < 1e-2 * abs(float(d_right[0]))
+
+    def test_differentiable_in_data(self):
+        from progenax.kinematics.dispersion import _pchip_interp
+        x = jnp.linspace(0.5, 4.0, 10)
+        def loss(scale):
+            return jnp.sum(_pchip_interp(jnp.array([1.3, 2.7]), x, scale * jnp.cos(x)))
+        g = float(jax.grad(loss)(1.0)); assert abs(g) > 1e-9 and jnp.isfinite(g)
+
+
 def test_exports_and_namedtuples():
     assert {"jeans_dispersion", "project_dispersion"} <= set(progenax.__all__)
     assert DispersionProfile._fields == ("r", "sigma_r", "sigma_t", "sigma_1d", "beta")

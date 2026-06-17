@@ -75,6 +75,39 @@ def _safe_sqrt(x):
     return jnp.where(pos, jnp.sqrt(jnp.where(pos, x, 1.0)), 0.0)
 
 
+def _pchip_interp(xq, x, y):
+    """Monotone C¹ (PCHIP / Fritsch-Carlson) interpolation; reverse-mode differentiable.
+
+    Replaces a piecewise-linear ``jnp.interp`` where a C⁰ slope-jump at a node would,
+    on a grid whose nodes move with a differentiated parameter (e.g. r_t(W₀)), inject a
+    bracket-crossing kink into the parameter gradient. C¹ removes that jump. The abscissa
+    coordinate is irrelevant (``jnp.interp`` is scale-equivariant); only smoothness matters.
+    ``x`` must be monotone increasing (the master ``s``-grid is).
+    """
+    n = x.shape[0]
+    h = jnp.diff(x)
+    d = jnp.diff(y) / h  # secant slopes
+    # interior Fritsch-Carlson weighted-harmonic-mean slopes (0 at a sign change / extremum)
+    w1 = 2.0 * h[1:] + h[:-1]
+    w2 = h[1:] + 2.0 * h[:-1]
+    dprev, dnext = d[:-1], d[1:]
+    same = dprev * dnext > 0.0
+    denom = w1 / jnp.where(dprev == 0.0, 1.0, dprev) + w2 / jnp.where(dnext == 0.0, 1.0, dnext)
+    m_int = jnp.where(same, (w1 + w2) / jnp.where(same, denom, 1.0), 0.0)
+    m = jnp.concatenate([d[:1], m_int, d[-1:]])  # one-sided endpoint slopes
+    # Hermite evaluation on the bracketing interval
+    idx = jnp.clip(jnp.searchsorted(x, xq, side="right") - 1, 0, n - 2)
+    x0 = x[idx]; x1 = x[idx + 1]; y0 = y[idx]; y1 = y[idx + 1]; m0 = m[idx]; m1 = m[idx + 1]
+    hh = x1 - x0
+    t = (xq - x0) / hh
+    t2 = t * t; t3 = t2 * t
+    h00 = 2.0 * t3 - 3.0 * t2 + 1.0
+    h10 = t3 - 2.0 * t2 + t
+    h01 = -2.0 * t3 + 3.0 * t2
+    h11 = t3 - t2
+    return h00 * y0 + h10 * hh * m0 + h01 * y1 + h11 * hh * m1
+
+
 class DispersionProfile(NamedTuple):
     """3-D anisotropic Jeans dispersion evaluated at radii ``r``.
 
