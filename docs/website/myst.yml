@@ -216,6 +216,12 @@ project:
         - file: 90-development-log/2025-12-07-progenax-review.md
         - file: 90-development-log/phase1-complete.md
         - file: 90-development-log/code-reviews.md
+    - title: Release readiness
+      children:
+        - file: 95-release/index.md
+        - file: 95-release/audit-report.md
+        - file: 95-release/checklist.md
+        - file: 95-release/release-strategy.md
     - title: Bibliography
       children:
         - file: 99-bibliography/bibliography.md
