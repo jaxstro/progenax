@@ -209,14 +209,14 @@ def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
 _TARGET = 0   # index of r_a in theta = (r_a, M, r_h)
 
 
-def c_criterion(F):
-    """c-optimality (MINIMIZE): marginal FRACTIONAL variance of the target r_a.
+def c_criterion(F, target=_TARGET):
+    """c-optimality (MINIMIZE): marginal FRACTIONAL variance of the target param.
 
-    The (r_a, r_a) entry of F^-1 in the dimensionless ln-theta metric (ADR
-    0011), i.e. [sigma(r_a)/r_a]^2 -- the squared fractional precision on the
-    anisotropy radius. This is the Stage-1 headline objective.
+    The (target, target) entry of F^-1 in the dimensionless ln-theta metric (ADR
+    0011), i.e. [sigma(theta_t)/theta_t]^2 -- the squared fractional precision.
+    Default target=0 (r_a) is Stage 1; Stage 2 passes target=1 (M = M_dyn).
     """
-    return jnp.linalg.inv(F)[_TARGET, _TARGET]
+    return jnp.linalg.inv(F)[target, target]
 
 
 def d_criterion(F):
