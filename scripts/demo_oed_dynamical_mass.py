@@ -63,6 +63,9 @@ import _demo_oed_depth as depth  # noqa: E402
 
 FIGURE_DIR = "docs/website/60-science-demos/figures"
 RUN_RECORD = os.path.join(FIGURE_DIR, "demo_oed_dynamical_mass_run_record.json")
+# Stage-2 figures live in the optimal-design SECTION dir (Task 9), separate from the
+# run-record FIGURE_DIR above.
+FIG2_DIR = "docs/website/60-science-demos/optimal-design/figures"
 
 # theta = (r_a, M, r_h); Stage-2 target is M (dynamical mass), index 1.
 TARGET_M = 1
@@ -121,6 +124,9 @@ def main(argv=None):
                         "binding regime where depth is a genuine trade (default 400).")
     p.add_argument("--out", type=str, default=RUN_RECORD,
                    help=f"Run-record JSON path (default {RUN_RECORD}).")
+    p.add_argument("--figures", action="store_true",
+                   help="Generate the five Stage-2 figures (Task 8) into "
+                        f"{FIG2_DIR}/ after computing + gating.")
     args = p.parse_args(argv)
 
     n_total = float(args.n_total)
@@ -293,12 +299,251 @@ def main(argv=None):
         json.dump(record, f, indent=2)
     print(f"  run-record -> {out_path}")
 
+    # --- figures (Task 8) -------------------------------------------------- #
+    if args.figures:
+        make_figures(res, m_grid, sigM_sweep, avail_total, eps_eff_rv,
+                     cal, n_total=n_total, n_draws=n_draws)
+
     print("=" * 78)
     print("  OED STAGE 2 DEMO: ALL PASS" if all_ok else "  OED STAGE 2 DEMO: FAILED")
     if not all_ok:
         failed = [name for name, ok, _ in rows if not ok]
         print(f"  FAILED gate(s): {', '.join(failed)}")
     return 0 if all_ok else 1
+
+
+# --------------------------------------------------------------------------- #
+# Task 8: the five Stage-2 figures, saved to FIG2_DIR. All use the shared
+# publication style (scripts/_plotstyle.py: Okabe-Ito palette, serif/CM math,
+# inward ticks, no in-figure titles -- the MyST caption carries the title).
+# These compose the PUBLIC outputs the CLI already computed (the joint optimum,
+# the depth sweep, the supply/noise trade arrays, and the calibration); the
+# frozen physics modules are not touched, only their public results are plotted.
+# matplotlib here is a CLI/plotting path (not the JAX core); force the headless Agg
+# backend BEFORE _plotstyle imports pyplot. numpy is host-side bookkeeping only.
+import matplotlib  # noqa: E402
+
+matplotlib.use("Agg")
+import numpy as np  # noqa: E402
+
+from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
+
+# Channel labels + colours shared across figures (RV, PM_R, PM_T), matching Stage 1.
+_CH_LABELS = (r"RV ($v_{\rm los}$)", r"PM$_R$", r"PM$_T$")
+_CH_COLORS = (OI["blue"], OI["orange"], OI["green"])
+
+
+def _fig_depth_optimum(m_grid, sigM_sweep, res, fig_dir):
+    """Fig 1 (HEADLINE): the fractional dynamical-mass precision sigma(M_dyn)/M_dyn
+    vs limiting magnitude m_lim, with the INTERIOR minimum marked.
+
+    Each point is the best achievable sigma(M)/M at that FROZEN depth (optimal
+    allocation z); the rising-supply-vs-rising-noise trade gives an interior argmin
+    -- a too-shallow survey is supply-starved, a too-deep one photon-noise-limited.
+    The star marks the depth-sweep argmin; the dotted line is the joint optimum's
+    m_lim (which jointly optimises z AND m_lim, so it can sit slightly off the
+    coarse-sweep argmin)."""
+    import matplotlib.pyplot as plt
+
+    mg = np.asarray(m_grid)
+    sw = np.asarray(sigM_sweep)
+    i_min = int(np.argmin(sw))
+
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    ax.plot(mg, sw, "o-", color=OI["vermilion"], ms=4.0,
+            label=r"$\sigma(M_{\rm dyn})/M_{\rm dyn}$ (optimal $z$ per depth)")
+    # Mark the interior sweep argmin.
+    ax.plot(mg[i_min], sw[i_min], "*", color=OI["black"], ms=14, zorder=5)
+    ax.annotate(fr"interior optimum$\;m_{{\rm lim}}={mg[i_min]:.2f}$"
+                + "\n" + fr"$\sigma(M)/M={sw[i_min]:.3f}$",
+                xy=(mg[i_min], sw[i_min]),
+                xytext=(0.5, 0.82), textcoords="axes fraction",
+                ha="center", fontsize=8.5,
+                arrowprops=dict(arrowstyle="->", color=OI["black"], lw=1.0))
+    # Joint [z, m_lim] optimum depth. Label along the line low-left of the star, in the
+    # clear mid-axis band (below the annotation, above the curve floor).
+    ax.axvline(res.m_lim, color="0.6", ls=":", lw=1.0)
+    y0, y1 = ax.get_ylim()
+    ax.text(res.m_lim - 0.18, y0 + 0.42 * (y1 - y0), r"joint $m_{\rm lim}^\star$",
+            color="0.4", fontsize=8, ha="right", va="center", rotation=90)
+    ax.set_xlabel(r"limiting magnitude  $m_{\rm lim}$  [mag]")
+    ax.set_ylabel(r"fractional precision  $\sigma(M_{\rm dyn})/M_{\rm dyn}$")
+    ax.legend(loc="upper right")
+    panel_label(ax, "the optimal survey depth", loc="upper left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed2_depth_optimum")
+
+
+def _fig_depth_trade(m_grid, sigM_sweep, avail_total, eps_eff_rv, fig_dir):
+    """Fig 2: the depth trade DECOMPOSED into its two competing terms vs m_lim.
+
+    Left panel: rising SUPPLY -- the total available star pool sum_b avail_bins(m_lim)
+    grows with depth (more detectable stars), AND rising NOISE -- a representative
+    per-star error eps_eff[RV](m_lim) grows (newly admitted stars are faint, photon-
+    noisier). Twin y-axes. Right panel: the NET effect, the information curve
+    sigma(M)/M, whose interior minimum is exactly where rising supply stops beating
+    rising noise. This is WHY there is an interior optimum."""
+    import matplotlib.pyplot as plt
+
+    mg = np.asarray(m_grid)
+    av = np.asarray(avail_total)
+    ep = np.asarray(eps_eff_rv) * oed.KMS_PER_PC_PER_MYR   # pc/Myr -> km/s for the reader
+    sw = np.asarray(sigM_sweep)
+    i_min = int(np.argmin(sw))
+
+    fig, (axL, axR) = plt.subplots(1, 2, figsize=(9.6, 3.8))
+
+    # --- left: supply (rising) vs noise (rising), twin axes ---
+    axL.plot(mg, av, "o-", color=OI["blue"], ms=3.5,
+             label=r"supply: $\sum_b\,$avail$_b(m_{\rm lim})$")
+    axL.set_xlabel(r"limiting magnitude  $m_{\rm lim}$  [mag]")
+    axL.set_ylabel(r"total available stars  $\sum_b\,$avail$_b$", color=OI["blue"])
+    axL.tick_params(axis="y", labelcolor=OI["blue"])
+    axLr = axL.twinx()
+    axLr.plot(mg, ep, "s--", color=OI["vermilion"], ms=3.5,
+              label=r"noise: $\epsilon_{\rm eff}^{\rm RV}(m_{\rm lim})$")
+    axLr.set_ylabel(r"effective per-star error  $\epsilon_{\rm eff}^{\rm RV}$  [km s$^{-1}$]",
+                    color=OI["vermilion"])
+    axLr.tick_params(axis="y", labelcolor=OI["vermilion"])
+    h1, l1 = axL.get_legend_handles_labels()
+    h2, l2 = axLr.get_legend_handles_labels()
+    axL.legend(h1 + h2, l1 + l2, loc="upper left", fontsize=7.5)
+    panel_label(axL, "(a) supply up, noise up", loc="lower right")
+
+    # --- right: the net information curve ---
+    axR.plot(mg, sw, "o-", color=OI["black"], ms=4.0)
+    axR.plot(mg[i_min], sw[i_min], "*", color=OI["vermilion"], ms=14, zorder=5)
+    axR.text(mg[i_min], sw[i_min], fr"  interior min $m_{{\rm lim}}={mg[i_min]:.2f}$",
+             fontsize=8, ha="left", va="bottom", color=OI["vermilion"])
+    axR.set_xlabel(r"limiting magnitude  $m_{\rm lim}$  [mag]")
+    axR.set_ylabel(r"net: fractional precision  $\sigma(M_{\rm dyn})/M_{\rm dyn}$")
+    panel_label(axR, "(b) the net trade", loc="upper left")
+
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed2_depth_trade")
+
+
+def _fig_allocation(res, fig_dir):
+    """Fig 3: the optimal radial x channel allocation AT the optimal depth.
+
+    Stacked bars over projected radius R of the availability-capped effective star
+    count n_eff per channel (RV, PM_R, PM_T), from the joint optimum design. As in
+    Stage 1, the PM channels concentrate in the OUTSKIRTS (where the OM anisotropy
+    is largest) -- the interpretable design result, here at the jointly-optimal
+    survey depth m_lim_star."""
+    import matplotlib.pyplot as plt
+
+    R = np.asarray(oed.R_BINS)
+    n_eff = np.asarray(res.n_eff)                          # (3, K), availability-capped
+    logR = np.log10(R)
+    bw = 0.9 * (logR[1] - logR[0])                        # equal-width bars on log R
+
+    fig, ax = plt.subplots(figsize=(6.0, 4.0))
+    bottom = np.zeros_like(R)
+    for c, (lbl, col) in enumerate(zip(_CH_LABELS, _CH_COLORS)):
+        ax.bar(logR, n_eff[c], width=bw, bottom=bottom, color=col,
+               edgecolor="white", linewidth=0.2, label=lbl)
+        bottom = bottom + n_eff[c]
+    ax.set_xlabel(r"$\log_{10}(R\,/\,{\rm pc})$")
+    ax.set_ylabel(r"effective star count  $n_{\rm eff}$")
+    ax.legend(loc="upper right", title=fr"channel  ($m_{{\rm lim}}^\star={res.m_lim:.2f}$)",
+              title_fontsize=8)
+    panel_label(ax, "PMs to the outskirts", loc="upper left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed2_allocation")
+
+
+def _fig_frontier(res, n_total, fig_dir):
+    """Fig 4: the dynamical-mass precision frontier -- sigma(M_dyn)/M_dyn vs star
+    budget N_total AT the optimal depth m_lim_star.
+
+    For each N_total, re-optimise the allocation at the FROZEN optimal depth and take
+    sqrt(crit_at_fixed_depth) = sigma(M)/M. Precision improves with budget (mildly
+    non-1/sqrt(N): the availability cap binds harder at large N and the fixed nuisance
+    prior dilutes). The demo's operating point N_total is annotated."""
+    import matplotlib.pyplot as plt
+
+    n_grid = np.geomspace(1e2, 10 ** 3.5, 12)
+    fs = np.array([
+        depth.crit_at_fixed_depth(res.m_lim, target=TARGET_M, N_total=float(N),
+                                  n_starts=SWEEP_STARTS, n_steps=SWEEP_STEPS) ** 0.5
+        for N in n_grid
+    ])
+
+    fig, ax = plt.subplots(figsize=(5.4, 4.0))
+    ax.loglog(n_grid, fs, "o-", color=OI["vermilion"], ms=4,
+              label=fr"optimal allocation at $m_{{\rm lim}}^\star={res.m_lim:.2f}$")
+    # Mark the demo's operating budget.
+    sig_at = float(np.interp(np.log(n_total), np.log(n_grid), np.log(fs)))
+    sig_at = float(np.exp(sig_at))
+    ax.axvline(n_total, color="0.6", ls=":", lw=1.0)
+    ax.plot([n_total], [sig_at], "s", color=OI["black"], ms=7, zorder=5)
+    ax.annotate(fr"demo: $N_{{\rm total}}={n_total:.0f}$" + "\n"
+                + fr"$\sigma(M)/M={sig_at:.3f}$",
+                xy=(n_total, sig_at), xytext=(0.06, 0.12),
+                textcoords="axes fraction", ha="left", fontsize=8.5,
+                arrowprops=dict(arrowstyle="->", color=OI["black"], lw=1.0))
+    ax.set_xlabel(r"star budget  $N_{\rm total}$")
+    ax.set_ylabel(r"fractional precision  $\sigma(M_{\rm dyn})/M_{\rm dyn}$")
+    ax.legend(loc="upper right")
+    panel_label(ax, "precision frontier", loc="lower left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed2_frontier")
+
+
+def _fig_calibration(cal, n_draws, fig_dir):
+    """Fig 5: realized vs Fisher-predicted fractional precision sigma(M_dyn)/M_dyn
+    on a magnitude-selected mock.
+
+    The realized point carries an MC error band (~sqrt(2/n_draws) on a sample
+    variance, propagated to the sqrt). The depth Fisher is CONSERVATIVE-AND-BOUNDED:
+    the realized scatter sits BELOW the Fisher prediction (variance ratio < 1) -- the
+    SAFE direction for OED (it never over-promises precision). The ratio is
+    annotated."""
+    import matplotlib.pyplot as plt
+
+    realized = float(cal.realized) ** 0.5
+    fisher_p = float(cal.predicted) ** 0.5
+    ratio = float(cal.realized / cal.predicted)
+    mc_rel = (2.0 / n_draws) ** 0.5
+    realized_err = realized * 0.5 * mc_rel               # SE on sigma = sqrt(var)
+
+    fig, ax = plt.subplots(figsize=(4.6, 3.8))
+    ax.errorbar([0], [realized], yerr=[realized_err], fmt="o", ms=7,
+                color=OI["vermilion"], capsize=4,
+                label=fr"realized ({n_draws} mag-selected mocks)")
+    ax.plot([1], [fisher_p], "s", ms=7, color=OI["blue"],
+            label=r"depth Fisher  $\sqrt{(F^{-1})_{MM}}$")
+    ax.axhline(fisher_p, color=OI["blue"], ls=":", lw=1.0, alpha=0.7)
+    ax.set_xlim(-0.6, 1.6)
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["realized", "Fisher"])
+    ax.set_ylabel(r"fractional precision  $\sigma(M_{\rm dyn})/M_{\rm dyn}$")
+    ax.legend(loc="upper right", fontsize=7.5)
+    panel_label(ax, fr"ratio$\,=\,${ratio:.2f} (conservative)", loc="lower left")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oed2_calibration")
+
+
+def make_figures(res, m_grid, sigM_sweep, avail_total, eps_eff_rv, cal, *,
+                 n_total, n_draws):
+    """Generate the five Stage-2 figures into FIG2_DIR (PNG + PDF via save_fig).
+
+      * fig 1 (depth_optimum): sigM_sweep vs m_grid; interior argmin + joint m_lim_star.
+      * fig 2 (depth_trade):   avail_total (supply) + eps_eff_rv (noise) + sigM_sweep (net).
+      * fig 3 (allocation):    res.n_eff (3, K) over oed.R_BINS at the optimal depth.
+      * fig 4 (frontier):      sweep N_total, depth.crit_at_fixed_depth at res.m_lim.
+      * fig 5 (calibration):   cal.realized vs cal.predicted (mag-selected mock).
+    """
+    apply_pub_style()
+    os.makedirs(FIG2_DIR, exist_ok=True)
+    print(f"\n  generating 5 Stage-2 figures -> {FIG2_DIR}/ ...")
+    _fig_depth_optimum(m_grid, sigM_sweep, res, FIG2_DIR)
+    _fig_depth_trade(m_grid, sigM_sweep, avail_total, eps_eff_rv, FIG2_DIR)
+    _fig_allocation(res, FIG2_DIR)
+    _fig_frontier(res, n_total, FIG2_DIR)
+    _fig_calibration(cal, n_draws, FIG2_DIR)
+    print(f"  figures: wrote 5 PNG+PDF to {FIG2_DIR}/demo_oed2_*.png")
 
 
 if __name__ == "__main__":
