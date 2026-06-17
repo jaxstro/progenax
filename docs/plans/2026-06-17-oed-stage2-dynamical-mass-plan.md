@@ -91,7 +91,8 @@ def test_detectable_fraction_in_unit_interval_and_monotonic():
 """Shared selection / photometry physics for the demos (magnitude limits, photon-noise errors,
 IMF-detectable counts). Reusable by the OED Stage-2 demo, B4 (binary mass function), B5 (IMF), and
 any future magnitude-limited demo. Bolometric magnitudes (documented simplification: no band/BC/
-extinction). All functions are jnp / differentiable."""
+extinction); band-specific photometry (BCs, extinction, crowding) is a planned follow-up via the
+`fluxax` package once it is finalised. All functions are jnp / differentiable."""
 import jax.numpy as jnp
 from progenax.stellar import zams_luminosity, inverse_zams_luminosity
 
@@ -370,6 +371,25 @@ Use `scripts/_plotstyle.py`. **Inspect each** before committing (`feat(oed): Sta
 - Create `optimal-design/dynamical-mass.md` — the Stage-2 page (depth knob, the 5 figures, M_dyn
   result, scope/caveats, how-to-run), `{ref}`-ing `background.md`. Match the docs voice (the
   `myst:docs-writing-voice` standard); cross-link the top-level `anisotropy.md` (B6 recovery demo).
+  - **Document every modelling choice with its assumption + rationale + supporting evidence**
+    (Anna-mandated). Each approximation gets a short "why this is OK here" paragraph, not just a
+    mention. Specifically, an explicit **Assumptions & approximations** subsection covering:
+    1. **Bolometric magnitudes** (no band / no bolometric correction / no extinction) — state it,
+       justify it for a *pedagogical depth knob* (the headline is the *shape* of the
+       information-vs-depth trade, which is set by the IMF×ZAMS supply and the photon-noise scaling,
+       both band-independent to first order), and **add a `:::{note}` follow-up callout that the
+       real, band-specific photometry (BCs, extinction, crowding) will come from the `fluxax`
+       package once it is hardened/finalised** (next arc). Frame current numbers as illustrative.
+    2. **Photon-noise error model** `ε ∝ 10^{0.2(m_app−m_ref)}` — illustrative flux⁻⁰·⁵ scaling, not a
+       real survey ETC; say so, show the scaling, anchor `ε₀`/`m_ref`.
+    3. **Availability soft-cap** `n_eff = avail·tanh(n_design/avail)` — why a differentiable supply
+       constraint, what it represents (finite bright-star pool), its `n≪avail`/`n≫avail` limits.
+    4. **`ε_eff` is per-channel global** (single cluster distance) vs **availability is radial** —
+       explain the geometry that makes this exact for one distance.
+    5. **Single-population, mass-follows-light** — why `σ_pred` is `m_lim`-independent (the additive
+       backbone survives; `J` computed once).
+    Include the supporting evidence already in hand (the interior-optimum result, the AD-vs-FD gate,
+    the calibration band) as the quantitative backing for these choices.
 - `docs/website/myst.yml` — nest the four pages under an "Optimal experimental design" parent.
 - `docs/website/60-science-demos/index.md` — update the Batch row(s) to point at the section.
 
