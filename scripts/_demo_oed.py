@@ -441,13 +441,22 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
     return jnp.asarray(sigma_hat), jnp.asarray(se)
 
 
-def _fit_map_ra(sigma_hat, se, G):
-    """MAP fit of theta=(r_a, M, r_h) to one mock's (sigma_hat, se); return r_a_hat.
+def fit_map_theta(sigma_hat, se, G):
+    """MAP fit of the full theta=(r_a, M, r_h) to one mock's (sigma_hat, se).
 
     Negative log-posterior = 0.5 * sum((sigma_hat - predict_sigma(theta))/se)**2
     + 0.5 * sum PRIOR_DIAG[i] * (ln theta_i - ln theta_fid_i)**2 -- the SAME
     fractional ln-theta prior the design Fisher adds (Task 2.5). Started from the
-    truth and minimized with the fixed-step Adam (inf.mle_adam).
+    truth and minimized with the fixed-step Adam (inf.mle_adam). Returns theta_hat
+    (3,) so callers can pick the target index.
+
+    Stage-1 fitter (target r_a, index 0). Adam over PHYSICAL theta: this holds the large-scale
+    nuisances (M~1e5, r_h~3) near the fiducial while it fits the weakly-constrained, well-scaled
+    r_a (~6), which recovers a realized r_a scatter that matches the Stage-1 Fisher. It is NOT a
+    general-purpose fitter: it cannot move a large-scale TARGET (e.g. Stage 2's M), and a
+    converged full-3-parameter fit destabilises the weakly-constrained r_a. Stage 2 therefore uses
+    its OWN Gauss-Newton ln-theta fitter (see _demo_oed_depth._fit_theta_gn); this one is left as
+    Stage 1's validated estimator.
     """
     theta_fid = theta_truth()
     ln_fid = jnp.log(theta_fid)
@@ -461,7 +470,12 @@ def _fit_map_ra(sigma_hat, se, G):
         return 0.5 * (chi2 + prior)
 
     theta_hat, _ = inf.mle_adam(negloglike, theta_fid, n_steps=600, lr=3e-2)
-    return theta_hat[_TARGET]
+    return theta_hat
+
+
+def _fit_map_ra(sigma_hat, se, G):
+    """Stage-1 convenience wrapper: MAP-fit theta and return r_a_hat (target index 0)."""
+    return fit_map_theta(sigma_hat, se, G)[_TARGET]
 
 
 def calibrate_fisher(z, N_total, n_draws, key):

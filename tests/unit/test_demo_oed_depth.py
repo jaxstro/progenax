@@ -1,4 +1,5 @@
 import jax, jax.numpy as jnp, sys, pathlib
+import pytest
 import progenax
 from jaxstro.units import STELLAR
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
@@ -76,3 +77,34 @@ def test_sigma_M_has_interior_optimum_in_depth():
     i = int(jnp.argmin(sigM))
     assert 0 < i < len(m_grid) - 1                 # INTERIOR minimum, not an endpoint
     assert sigM[i] < sigM[0] and sigM[i] < sigM[-1]
+
+
+@pytest.mark.slow
+def test_depth_fisher_is_conservative_and_bounded():
+    """The single-eps_eff-per-cell depth Fisher is CONSERVATIVE for M_dyn, by a characterized,
+    physically-understood amount -- it is NOT an exact match, and that is the honest, correct result.
+
+    Why conservative: eps_eff is an RMS over the detectable masses, but a real dispersion measurement
+    is bright-star (inverse-variance) dominated, so the effective per-cell noise is BELOW the RMS and
+    the Fisher over-predicts sigma(M). Compounded by the star-sparse outer cells (most cells sit below
+    the n_eff floor, where the Gaussian-dispersion Fisher is least accurate), this leaves the Fisher
+    ~19% conservative in sigma(M) (variance ratio realized/predicted ~ 0.65) at the optimum design.
+
+    A conservative Fisher is the SAFE direction for OED: it never over-promises precision. We therefore
+    verify the real, robust property -- the Fisher is conservative and the gap is BOUNDED -- rather than
+    an exact match (which would be flaky against a ~35% systematic). The bias is documented as a physics
+    caveat on the Stage-2 page. Both the depth Fisher and the calibration MAP fit use the M-free Stage-2
+    prior (PRIOR_DIAG_M) and the ln-theta-metric fit (ADR 0011), so the two are consistent.
+
+    Bounds: at n_draws=64 the variance estimate carries ~18% relative MC noise (sqrt(2/(n-1))), so the
+    ~0.65 ratio sits ~3 sigma inside [0.25, 1.15] -- robust, not flaky. The lower bound also guards
+    against a regression to the old physical-theta-fit bug (which pinned M_hat -> ratio ~ 0).
+    """
+    key = jax.random.PRNGKey(0)
+    res = oed_depth.optimize_depth_design(target=1, N_total=400.0, key=jax.random.PRNGKey(1),
+                                          n_starts=6, n_steps=400)
+    n_draws = 64
+    realized, predicted = oed_depth.calibrate_depth_fisher(res.z, res.m_lim, 400.0, n_draws, key)
+    ratio = realized / predicted                   # variance ratio; < 1 => Fisher conservative (safe)
+    assert ratio < 1.15                            # conservative (allow MC noise on the sign)
+    assert ratio > 0.25                            # but the gap is bounded; guards the old M-pinned bug

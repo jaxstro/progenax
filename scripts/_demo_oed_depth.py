@@ -66,6 +66,14 @@ N_FIELD = 2.0e4
 # moving endpoints keep eps_eff differentiable in m_lim; no boolean masking).
 _NGRID = 200
 
+# Stage-2 prior: theta = (r_a, M, r_h). The headline TARGET is M (dynamical mass), so M is left FREE
+# (no prior) -- you do not constrain the very quantity you are trying to measure. The NUISANCES r_a and
+# r_h carry the same fractional-0.3 ln-theta prior the nuisances had in Stage 1. (Stage 1's oed.PRIOR_DIAG
+# = [0, 1/0.3^2, 1/0.3^2] left r_a free because r_a was THAT stage's target; this is the M-target analogue,
+# obtained by swapping which entry is zero.) Used by depth_fisher AND the calibration MAP fit so the two
+# stay consistent.
+PRIOR_DIAG_M = jnp.array([1.0 / 0.3**2, 0.0, 1.0 / 0.3**2])
+
 
 def _n_field_bins():
     """Intrinsic per-bin star pool N_FIELD_BINS (K,), DECREASING with radius.
@@ -147,7 +155,7 @@ def avail_bins(m_lim):
     return N_FIELD_BINS * sel.detectable_fraction(m_lim, D_PC, _IMF)
 
 
-def depth_fisher(z, m_lim, N_total, prior_diag=oed.PRIOR_DIAG):
+def depth_fisher(z, m_lim, N_total, prior_diag=PRIOR_DIAG_M):
     """Additive design Fisher at limiting magnitude m_lim. Symmetric (3, 3), SPD (with prior_diag).
 
     The Stage-1 backbone: J computed ONCE (sigma_pred is m_lim-independent), the per-star blocks
@@ -187,7 +195,7 @@ def u_to_mlim(u):
     return M_LIM_LO + (M_LIM_HI - M_LIM_LO) * jax.nn.sigmoid(u)
 
 
-def depth_fisher_u(z, u, N_total, prior_diag=oed.PRIOR_DIAG):
+def depth_fisher_u(z, u, N_total, prior_diag=PRIOR_DIAG_M):
     """depth_fisher in the bounded reparametrisation: m_lim = u_to_mlim(u). Differentiable in z, u."""
     return depth_fisher(z, u_to_mlim(u), N_total, prior_diag)
 
@@ -237,7 +245,7 @@ def _optimize_joint(loss, params0, n_steps, lr):
 
 
 def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05,
-                          prior_diag=oed.PRIOR_DIAG):
+                          prior_diag=PRIOR_DIAG_M):
     """Multi-start Adam over the JOINT design [z (3K logits), u (1 scalar)]; keep the best.
 
     Minimises ``c_criterion(depth_fisher_u(z, u, N_total), target)`` -- the marginal fractional
@@ -271,7 +279,7 @@ def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05
 
 
 def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
-                        n_starts=6, n_steps=400, lr=0.05, prior_diag=oed.PRIOR_DIAG):
+                        n_starts=6, n_steps=400, lr=0.05, prior_diag=PRIOR_DIAG_M):
     """Best criterion optimising the ALLOCATION z ONLY at a FROZEN m_lim (depth held fixed).
 
     Multi-start Adam over z alone (same fixed-iteration scan pattern), m_lim a constant. Used by
@@ -306,3 +314,163 @@ def sigma_M_vs_depth(m_grid, target, N_total, key=jax.random.PRNGKey(0), n_start
     """
     return jnp.array([jnp.sqrt(crit_at_fixed_depth(float(m), target, N_total,
                                key=key, n_starts=n_starts, n_steps=n_steps)) for m in m_grid])
+
+
+# ===========================================================================
+# Task 6: magnitude-selected calibration of the depth Fisher (the Stage-2 gate)
+# ===========================================================================
+#
+# This is the Stage-2 analogue of Stage-1's oed.calibrate_fisher: it confirms that
+# the depth Fisher's predicted sigma(M_dyn) at a GIVEN design (z, m_lim, N_total)
+# matches the realised scatter of M_hat when the mock is drawn with the ACTUAL
+# magnitude selection + per-star photon-noise errors. The whole point of the
+# eps_eff approximation is that a heterogeneous, magnitude-limited sample carries
+# the same per-cell information as a homogeneous sample with one effective error
+# eps_eff -- this gate proves it forward.
+#
+# The consistency algebra (mock <-> Fisher), per (channel c, bin b) cell:
+#   * The Fisher's per-cell denominator is sigma_pred^2 + eps_eff_c^2, where
+#       eps_eff_c^2 = E_{m~IMF|detect}[ eps_c(m)^2 ]
+#     is the IMF-weighted MEAN squared per-star error over the DETECTABLE mass
+#     range [m_lo, M_MAX] with m_lo = sel.m_min(m_lim) (exactly the distribution
+#     eps_eff() integrates), and the per-cell weight is n_eff (the availability-
+#     capped observed count from _n_design_eff).
+#   * The mock draws n_eff masses from that SAME truncated-IMF detection
+#     distribution, gives each star a heterogeneous error
+#       eps_i = sel.photon_noise_error(sel.apparent_mag(mass_i), EPS0[c], M_REF),
+#     and a velocity v_i ~ Normal(0, sqrt(sigma_pred^2 + eps_i^2)). The sample
+#     variance of n_eff such draws has expectation
+#       mean_i(sigma_pred^2 + eps_i^2) = sigma_pred^2 + mean_i(eps_i^2)
+#     and mean_i(eps_i^2) -> E_{IMF|detect}[eps^2] = eps_eff_c^2 as n_eff grows.
+#   So E[sigma_hat^2] -> sigma_pred^2 + eps_eff_c^2 and its sampling SE matches the
+#   Fisher's (sigma^2 + eps_eff^2)/(2 n_eff) EXACTLY -- mock and Fisher consistent
+#   on the eps_eff definition. THAT consistency is what this gate verifies.
+
+
+def _truncated_imf_masses(key, n, m_lo):
+    """Sample n masses from _IMF conditioned on detection: mass in [m_lo, M_MAX].
+
+    Inverse-CDF on the truncated distribution: with u ~ U(0,1),
+    u' = cdf(m_lo) + u * (cdf(M_MAX) - cdf(m_lo)) = cdf(m_lo) + u * (1 - cdf(m_lo))
+    (since M_MAX = _IMF.m_max so cdf(M_MAX) = 1), then mass = ppf(u'). This is the
+    EXACT detection-conditional IMF that eps_eff() integrates over with weights dP.
+    """
+    m_lo = float(jnp.minimum(m_lo, M_MAX * (1.0 - 1e-3)))
+    c_lo = _IMF.cdf(jnp.array(m_lo))
+    u = jax.random.uniform(key, (n,))
+    return _IMF.ppf(c_lo + u * (1.0 - c_lo))
+
+
+def _binned_sigma_hat_selected(key, m_lim, n_eff):
+    """One magnitude-selected mock's binned dispersions sigma_hat (3, K) + SEs se (3, K).
+
+    Stage-2 analogue of oed._binned_sigma_hat: instead of subsampling a parent catalog
+    and adding a SINGLE per-channel error, it draws, per (channel c, bin b) cell,
+    n_use = max(round(n_eff[c,b]), _MIN_CELL) masses from the detection-conditional IMF
+    (_truncated_imf_masses), maps each to its HETEROGENEOUS per-star error
+    eps_i = sel.photon_noise_error(sel.apparent_mag(mass_i), EPS0[c], M_REF), draws each
+    star's velocity component v_i ~ Normal(0, sqrt(sigma_pred^2 + eps_i^2)) at the truth
+    sigma_pred (_SIG, the module-cached (3,K) truth dispersions), and takes the ddof=1 std. By the consistency
+    algebra above, E[sigma_hat^2] -> sigma_pred^2 + eps_eff_c^2, matching depth_fisher's
+    denominator. The SE is sigma_hat / sqrt(2 n_se) at n_se = max(n_eff, _MIN_CELL) -- the
+    same Gaussian-delta SE Stage-1 uses, so the fit weights match the Fisher's per-cell
+    weight exactly.
+
+    Host-side control flow over (bin, channel) is fine here: this is the @slow gate path,
+    not a jitted hot loop. All randomness stays in jax.random.
+    """
+    import numpy as np  # host-side bookkeeping only; never numpy.random
+
+    K = oed.R_BINS.shape[0]
+    m_lo = sel.m_min(jnp.array(float(m_lim)), D_PC)            # detection floor (differentiable; here scalar)
+    sigma_hat = np.zeros((3, K))
+    se = np.zeros((3, K))
+    for c in range(3):
+        for b in range(K):
+            n_need = int(round(float(n_eff[c, b])))
+            n_use = max(n_need, oed._MIN_CELL)
+            key, kmass, kvel = jax.random.split(key, 3)
+            masses = _truncated_imf_masses(kmass, n_use, m_lo)              # (n_use,) detected masses
+            m_app = sel.apparent_mag(masses, D_PC)                         # (n_use,) apparent mags
+            eps_i = sel.photon_noise_error(m_app, EPS0[c], M_REF)          # (n_use,) heterogeneous errors
+            sd = jnp.sqrt(_SIG[c, b] ** 2 + eps_i ** 2)                    # per-star total spread (truth sigma_pred)
+            v_obs = sd * jax.random.normal(kvel, (n_use,))                 # zero-mean velocity component
+            sig = float(jnp.std(v_obs, ddof=1))
+            sigma_hat[c, b] = sig
+            n_se = max(float(n_eff[c, b]), float(oed._MIN_CELL))           # Fisher per-cell weight, floored
+            se[c, b] = sig / jnp.sqrt(2.0 * n_se)
+    return jnp.asarray(sigma_hat), jnp.asarray(se)
+
+
+def _fit_theta_gn(sigma_hat, se, prior_diag, n_iter=8):
+    """Gauss-Newton MAP fit of theta=(r_a, M, r_h) in the DIMENSIONLESS ln-theta metric (ADR 0011),
+    for the Stage-2 (M-target) calibration.
+
+    Stage 2 targets the dynamical mass M~1e5, which a single-learning-rate optimiser over physical
+    theta cannot move (oed.fit_map_theta pins it); so we fit the dimensionless u = ln(theta) -
+    ln(theta_fid), theta = theta_fid * exp(u), where every direction is O(1). Gauss-Newton converges
+    in ~8 iterations for this mildly-nonlinear, WELL-CONSTRAINED-in-M problem (GM sets the dispersion
+    scale, so the M direction of Jr^T Jr is strong and the GN step is stable -- unlike Stage 1's
+    weakly-constrained r_a, which is why Stage 1 keeps its own physical-Adam fit). Each iteration
+    solves  (Jr^T Jr + diag(prior_diag)) du = Jr^T r + prior_diag * u  with r = (model - data)/se the
+    whitened residual and Jr = d r / d u (reverse-mode jacrev through the ODE; never forward-mode).
+    Returns theta_hat (3,).
+    """
+    theta_fid = oed.theta_truth()
+    sf = sigma_hat.flatten()
+    ef = se.flatten()
+
+    def resid(u):                                              # whitened residual (model - data)/se
+        theta = theta_fid * jnp.exp(u)
+        return (oed.predict_sigma(theta, oed.R_BINS, STELLAR.G).flatten() - sf) / ef
+
+    def gn_step(u, _):
+        r = resid(u)
+        Jr = jax.jacrev(resid)(u)                             # (n_obs, 3) = d r / d u
+        grad = Jr.T @ r + prior_diag * u
+        hess = Jr.T @ Jr + jnp.diag(prior_diag)               # Gauss-Newton Hessian (SPD)
+        return u - jnp.linalg.solve(hess, grad), None
+
+    u_hat, _ = jax.lax.scan(gn_step, jnp.zeros(3), None, length=n_iter)
+    return theta_fid * jnp.exp(u_hat)
+
+
+class DepthCalibResult(NamedTuple):
+    """Result of calibrate_depth_fisher (both FRACTIONAL variances of M, ADR 0011):
+      * realized : Var(M_hat over draws) / M_truth**2,
+      * predicted : (inv depth_fisher(z, m_lim, N_total))_{M, M}."""
+    realized: float
+    predicted: float
+
+
+def calibrate_depth_fisher(z, m_lim, N_total, n_draws, key):
+    """Calibrate the depth Fisher's sigma(M_dyn) against the realised M_hat scatter.
+
+    Stage-2 analogue of oed.calibrate_fisher, but each mock is drawn with the ACTUAL
+    magnitude selection + heterogeneous per-star photon-noise errors (see the module
+    block comment for the mock<->Fisher consistency algebra). At the GIVEN design
+    (z, m_lim, N_total):
+      predicted = (inv depth_fisher(z, m_lim, N_total))_{M, M}   [M = theta index 1],
+      realized  = Var(M_hat over n_draws independent magnitude-selected mocks) / M_truth**2.
+    Per draw: take the observed counts n_eff from _n_design_eff (availability-capped),
+    form the magnitude-selected binned dispersions (_binned_sigma_hat_selected), and
+    MAP-fit theta with the Gauss-Newton ln-theta fitter (_fit_theta_gn, ADR 0011), with the SAME
+    M-free Stage-2 prior PRIOR_DIAG_M the depth Fisher uses, picking M = index 1. (Stage 2 needs its
+    own GN fitter -- oed.fit_map_theta's physical-Adam pins the large-scale M target.)
+    Returns DepthCalibResult(realized, predicted) -- a tuple so callers can unpack.
+    """
+    _M = 1                                                     # M_dyn index in theta = (r_a, M, r_h)
+    F = depth_fisher(z, m_lim, N_total)                        # uses PRIOR_DIAG_M (M free) by default
+    predicted = float(jnp.linalg.inv(F)[_M, _M])
+
+    _, n_eff = _n_design_eff(z, m_lim, N_total)                # availability-capped observed counts (3, K)
+
+    M_hats = []
+    for d in range(n_draws):
+        kdraw = jax.random.fold_in(key, d)
+        sigma_hat, se = _binned_sigma_hat_selected(kdraw, m_lim, n_eff)
+        M_hats.append(_fit_theta_gn(sigma_hat, se, PRIOR_DIAG_M)[_M])
+
+    M_hats = jnp.asarray(M_hats)
+    realized = float(jnp.var(M_hats, ddof=1) / oed.MOCK["M"] ** 2)
+    return DepthCalibResult(realized=realized, predicted=predicted)
