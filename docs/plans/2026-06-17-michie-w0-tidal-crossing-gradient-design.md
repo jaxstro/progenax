@@ -63,10 +63,18 @@ isotropic 1.55e-6 → 1.52e-6; Dejonghe `project_dispersion` LOS oracle 2.6e-6 �
 re-pin — they're rtol oracles, not golden snapshots): Plummer isotropic rtol 1e-3, the derived
 OM-Plummer σ_r oracle rtol 1e-3, the Dejonghe LOS oracle, and King c(W₀) Table II (≤0.002).
 
-> **Correction (measured this session):** the earlier draft claimed a `project_dispersion`
-> "rtol-1e-9 regression baseline" that must be re-pinned. **No such pinned golden test exists** in
-> released-core (the only 1e-9 in the dispersion tests is the silent-zero *gradient* guard). The
-> regression surface is the rtol-1e-3 physics oracles above, which PCHIP passes unchanged.
+> **Correction² (measured during Task 2, supersedes the previous "no 1e-9 baseline" note).** A
+> `project_dispersion` rtol-1e-9 pin **does exist** —
+> `test_project_equivalence_after_tabulate` in `tests/unit/kinematics/test_dispersion.py` pins the
+> EXACT Plummer projected output (`_BL_LOS`, `_BL_PMT`, r_a=2, R=[0.5,1,2,4]). An earlier truncated
+> grep made me wrongly assert it didn't exist — corrected. Since `project_dispersion` shares
+> `_sigma_r2_from_tables`, PCHIP shifts those values ~1.6e-6 (rel) — above the 1e-9 pin, so the
+> baseline must be **re-captured** (the comment's documented protocol: keep rtol=1e-9 forever,
+> re-capture only on an intentional structural change *proven an improvement vs the Dejonghe
+> oracle*). PCHIP **meets that bar**: isotropic σ_los max rel-to-oracle **7.10e-6 → 5.16e-6**
+> (uniformly closer at every R; ~1.38× at the worst R=4a). Tolerance is NOT loosened. (The
+> conflicting "PCHIP is less accurate, 1.03e-5" figure from the Task-2 agent was a σ²-vs-σ mixup:
+> 1.03e-5 ≈ 2×5.16e-6.)
 
 The DF-side cross-check (`ftable_sigma_r_isotropic`) and `df_moment_dispersion` (separate
 quadrature path) do not use `_sigma_r2_from_tables` and are unaffected.
