@@ -55,12 +55,21 @@ artifact in a high-curvature region. No code change can or should remove it.
    the gradient is still correct but a fixed-step FD is a poor check.
 
 ### Hard constraints (shared `kinematics/dispersion.py`)
-Shared by Plummer/King/EFF and `project_dispersion`. A C¹ interpolant **changes forward values**
-relative to today's linear interp (different interpolation error) → MUST re-validate / re-pin the
-tight anchors: Plummer isotropic rtol 1e-3, King c(W₀) Table II (≤0.002), and the
-`project_dispersion` **rtol-1e-9 regression baseline** (a pin of the *current* linear-interp
-values — it WILL move and must be re-pinned, not weakened). The DF-side cross-check
-(`ftable_sigma_r_isotropic`) and `df_moment_dispersion` (separate quadrature path) are unaffected.
+Shared by Plummer/King/EFF and `project_dispersion`. A C¹ interpolant changes forward values vs
+today's linear interp only at the O(h³)-vs-O(h²) interpolation-error level; at the production
+n_s=4000 both sit far below the rtol-1e-3 physics oracles. **Prototype-measured (PCHIP):** Plummer
+isotropic 1.55e-6 → 1.52e-6; Dejonghe `project_dispersion` LOS oracle 2.6e-6 → 1.89e-6 (slightly
+*better*); Michie W₀=6 gradient 5.07e-3 → **3.48e-4** (passes). Anchors to re-validate (NOT
+re-pin — they're rtol oracles, not golden snapshots): Plummer isotropic rtol 1e-3, the derived
+OM-Plummer σ_r oracle rtol 1e-3, the Dejonghe LOS oracle, and King c(W₀) Table II (≤0.002).
+
+> **Correction (measured this session):** the earlier draft claimed a `project_dispersion`
+> "rtol-1e-9 regression baseline" that must be re-pinned. **No such pinned golden test exists** in
+> released-core (the only 1e-9 in the dispersion tests is the silent-zero *gradient* guard). The
+> regression surface is the rtol-1e-3 physics oracles above, which PCHIP passes unchanged.
+
+The DF-side cross-check (`ftable_sigma_r_isotropic`) and `df_moment_dispersion` (separate
+quadrature path) do not use `_sigma_r2_from_tables` and are unaffected.
 
 ---
 
