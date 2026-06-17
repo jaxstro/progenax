@@ -502,6 +502,17 @@ def jeans_dispersion(
     skipped under tracing so ``jax.grad``/``jax.jit`` over ``r_a`` still work,
     and gated on ``hasattr(profile, "a")`` so non-Plummer profiles (different
     validity domains) do not trip it.
+
+    Near a truncation-divergence the forward map is stiff. For a strongly
+    anisotropic Michie profile the tidal radius runs away as ``W0`` approaches the
+    no-finite-truncation edge (e.g. at ``r_a = 5 r_c`` the Michie ``r_t`` grows
+    ~28 -> 545 over ``W0`` 6 -> 7 and the model has no finite ``r_t`` past
+    ``W0 ~ 7.1``). The ``sigma(W0)`` gradient stays CORRECT there (reverse-mode AD
+    matches a converged finite difference), but a single fixed-step FD is an
+    unreliable truth-proxy because the map's curvature is near-singular — so the
+    Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``);
+    the high-``W0`` correctness is pinned by a Richardson-FD test
+    (``test_grad_jeans_michie_high_W0_ad_correct``). See ADR-0016.
     """
     # Eager r_a validity-domain guard (Plummer OM): mirror plummer_df.py:128.
     # Concrete = a Python scalar or a non-traced array; under tracing the value

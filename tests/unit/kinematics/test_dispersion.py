@@ -289,6 +289,48 @@ def test_grad_jeans_michie_wrt_W0():
     _assert_ad_fd(f, 6.0, name="jeans Michie sigma_r / W0")  # measured rel ~3.5e-4 < 1e-3
 
 
+def test_grad_jeans_michie_high_W0_ad_correct():
+    """High-W0 Michie gradient is AD-correct; the coarse-FD disagreement is an FD artifact.
+
+    At W0=7, r_a=5 the Michie model is near its mass-divergence (r_t ~ 545; no finite
+    truncation past W0~7.1), so sigma_r(W0) has near-singular curvature and a single
+    coarse central FD is an unreliable truth-proxy. This pins that the reverse-mode AD
+    gradient is nonetheless CORRECT: a central FD CONVERGES to AD as the step shrinks
+    (rel ~3e-3 @ h=1e-3 -> ~2e-5 @ h=1e-6), so the coarse-step inconsistency is the FD's
+    own O(h^2 f''') truncation error, not a gradient defect. The GATED Michie-W0 test
+    (test_grad_jeans_michie_wrt_W0) runs in the well-truncated W0=6 regime; see ADR-0016
+    and the jeans_dispersion docstring.
+    """
+    from progenax.profiles import MichieProfile
+
+    def f(W0):
+        return jnp.sum(
+            jeans_dispersion(
+                MichieProfile.from_W0_rc(W0=W0, r_c=1.0, r_a=5.0),
+                None,
+                jnp.array([1.0]),
+                400.0,
+                G_STELLAR,
+            ).sigma_r
+        )
+
+    W0 = 7.0
+    g_ad = float(jax.grad(f)(W0))
+
+    def rel(h):
+        g_fd = float((f(W0 + h) - f(W0 - h)) / (2.0 * h))
+        return abs(g_ad - g_fd) / (abs(g_fd) + 1e-12)
+
+    rel_coarse, rel_fine = rel(1e-3), rel(1e-6)
+    # AD matches a converged (fine-step) FD ...
+    assert rel_fine < 1e-3, f"AD vs fine-FD rel {rel_fine:.2e} not < 1e-3 at W0=7"
+    # ... and the FD CONVERGES toward AD as h shrinks (the coarse-h gap is the FD artifact).
+    assert rel_fine < rel_coarse, (
+        f"FD did not converge to AD as h shrank: coarse(1e-3)={rel_coarse:.2e}, "
+        f"fine(1e-6)={rel_fine:.2e} — would indicate a real gradient defect, not an FD artifact"
+    )
+
+
 # --- Phase 0.5 Task A: tabulate-once project_dispersion equivalence regression ---
 #
 # Baseline pins the EXACT project_dispersion output for PlummerProfile(r_h=1.0),
