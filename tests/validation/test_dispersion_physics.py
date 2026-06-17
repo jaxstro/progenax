@@ -590,32 +590,39 @@ def test_projection_plummer_los_oracle_converges():
     radius R=4a vs the exact Dejonghe (1987) isotropic oracle
     sigma_los^2(R) = (3 pi / 64) G M / sqrt(a^2 + R^2). Replacing the truncated
     u = linspace(0, u_max, n_u) with an algebraic compactification of the
-    semi-infinite u in [0, inf) (u = u_c t/(1-t)) integrates the full tail, so the
-    residual is now PURE O(h^2) trapezoid error: it DECREASES as n_u grows (the
-    old floor was n_u-independent — that is the proof the floor is gone).
+    semi-infinite u in [0, inf) (u = u_c t/(1-t)) integrates the full tail, so that
+    fixed floor is GONE.
+
+    The PROOF the floor is gone is the ABSOLUTE accuracy: the projected sigma_los
+    now matches the Dejonghe oracle to ~5e-6 (rel.) at the worst radius R=4a — 30x
+    below the old 1.634e-4 truncation floor a still-truncated u-grid would pin.
+
+    (Pre-2026-06-17 this test also asserted the error DECREASES as n_u grows, when
+    the residual was the projection-u O(h^2) trapezoid term. The C¹ PCHIP master
+    back-interp (ADR-0016) lowered the master-Jeans interpolation floor to ~5.2e-6
+    and that floor — controlled by the master n_s, NOT n_u — now dominates the
+    projection-u term for n_u >~ 1000. So refining n_u no longer reduces the total
+    (it approaches the master floor), and n_u-convergence can no longer discriminate
+    "truncated" from "well-resolved" — both are n_u-flat. The absolute-accuracy
+    assertion below IS the discriminating proof; the n_u-monotonicity sub-assertion
+    was dropped as no longer meaningful. project_dispersion does not expose the
+    master n_s, so the n_s-convergence of the new floor is not exercised here.)
     """
     prof = PlummerProfile(r_h=1.0)
     M = 400.0
     R = jnp.array([0.5, 1.0, 2.0, 4.0])
     oracle = jnp.sqrt((3.0 * jnp.pi / 64.0) * G * M / jnp.sqrt(prof.a**2 + R**2))
 
-    pj_2k = project_dispersion(prof, None, R, M, G, n_u=2000)
-    pj_8k = project_dispersion(prof, None, R, M, G, n_u=8000)
-    err_2k = float(jnp.max(jnp.abs(pj_8k.sigma_los / oracle - 1.0)))
-    err_8k_pointwise = jnp.abs(pj_8k.sigma_los / oracle - 1.0)
-    err_2k_pointwise = jnp.abs(pj_2k.sigma_los / oracle - 1.0)
+    pj = project_dispersion(prof, None, R, M, G, n_u=8000)
+    max_rel = float(jnp.max(jnp.abs(pj.sigma_los / oracle - 1.0)))
 
-    # 1. Floor is GONE: max rel err << the old 1.634e-4 truncation floor.
-    assert err_2k < 2e-5, (
-        f"projection LOS max rel err {err_2k:.3e} not < 2e-5 — truncation floor "
-        f"still present (was 1.634e-4 n_u-independent before compactification)"
-    )
-    # 2. Error DECREASES with n_u (n_u=2000 -> 8000), proving the residual is now
-    #    pure O(h^2) discretisation, not an n_u-independent truncation floor.
-    assert float(jnp.max(err_8k_pointwise)) < float(jnp.max(err_2k_pointwise)), (
-        f"projection LOS error did not decrease with n_u "
-        f"(2000: {float(jnp.max(err_2k_pointwise)):.3e}, "
-        f"8000: {float(jnp.max(err_8k_pointwise)):.3e}) — floor not removed"
+    # Floor is GONE: max rel err (~5.2e-6 at R=4a) is 30x below the old 1.634e-4
+    # n_u-independent truncation floor. The < 1e-5 bound (tightened from 2e-5 after
+    # the PCHIP back-interp improved oracle accuracy 7.10e-6 -> 5.16e-6) would be
+    # violated by a still-truncated u-grid pinning the 1.634e-4 floor.
+    assert max_rel < 1e-5, (
+        f"projection LOS max rel err {max_rel:.3e} not < 1e-5 — the old 1.634e-4 "
+        f"n_u-independent truncation floor would dominate if the u-grid were truncated"
     )
 
 
