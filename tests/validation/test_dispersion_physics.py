@@ -14,9 +14,10 @@ validation of ``jeans_dispersion``:
    ``s^2 f(Psi - s^2/2)`` speed-second-moment over the isotropic Plummer DF table.
 4. ``test_plummer_om_jeans_matches_sampler`` — the OM anchor: Jeans sigma_r/sigma_t
    vs the empirical std of a sampled OM Plummer population (5% MC tol).
-5. ``test_plummer_om_jeans_vs_analytic`` — DEFERRED/SKIPPED: no source-verified
-   closed-form OM-Plummer sigma_r oracle is encoded (honesty over coverage). OM is
-   validated by the sampler (4) + the convergence study (2).
+5. ``test_plummer_om_jeans_vs_analytic`` — the TIGHT OM oracle: OM Jeans sigma_r
+   vs the EXACT closed form ``_plummer_om_sigma_r2_analytic`` (derived from the OM
+   anisotropic Jeans equation; reduces to the isotropic form as r_a -> ∞ and matches
+   the numerical OM Jeans to ~1e-6), rtol 1e-3 at r_a ∈ {1, 2, 5}.
 
 Physics references
 ------------------
@@ -54,6 +55,36 @@ def _plummer_isotropic_sigma_r2_analytic(r, M, a):
     model sigma_r = sigma_t = sigma_1d, so this is also sigma_1d^2.
     """
     return G * M / (6.0 * jnp.sqrt(r**2 + a**2))
+
+
+def _plummer_om_sigma_r2_analytic(r, M, a, r_a):
+    """EXACT Osipkov-Merritt Plummer radial dispersion sigma_r^2(r).
+
+        sigma_r^2(r) = G M (a^2 + 3 r^2 + 2 r_a^2)
+                       / [ 12 (r^2 + r_a^2) sqrt(a^2 + r^2) ]
+
+    DERIVATION (not a literature transcription — Plummer is not an Osipkov-Merritt
+    gamma-model, so Carollo, de Zeeuw & van der Marel 1995, MNRAS 276, 1131 give the
+    OM *framework* and beta(r) = r^2/(r^2 + r_a^2) (their Eq. 5) but not this Plummer
+    closed form). Integrate the OM anisotropic Jeans equation (Binney & Tremaine 2008
+    sec. 4.8.3), d(rho sigma_r^2)/dr + (2 beta/r) rho sigma_r^2 = -rho dPhi/dr, with
+    integrating factor (r^2 + r_a^2):
+
+        (r^2 + r_a^2) rho sigma_r^2 = G M ∫_r^∞ (r'^2 + r_a^2) rho(r') r'/(a^2+r'^2)^{3/2} dr'.
+
+    For Plummer rho ∝ (a^2 + r'^2)^{-5/2}, Phi = -GM/sqrt(a^2+r'^2), the integral is
+    elementary (substitute u = r'^2) and yields the closed form above.
+
+    VERIFIED this session (2026-06-17): reduces to the isotropic Dejonghe-1987 form
+    GM/(6 sqrt(a^2+r^2)) as r_a -> ∞ (machine precision, 2e-16), and matches the
+    package's independent numerical OM Jeans integration to ~1e-6 across
+    r_a ∈ {1, 2, 5} pc and r ∈ [0.3, 10] pc. For the isotropic model sigma_r = sigma_t;
+    here sigma_t^2 = (1 - beta) sigma_r^2 with beta = r^2/(r^2 + r_a^2).
+    """
+    return (
+        G * M * (a**2 + 3.0 * r**2 + 2.0 * r_a**2)
+        / (12.0 * (r**2 + r_a**2) * jnp.sqrt(a**2 + r**2))
+    )
 
 
 def test_plummer_isotropic_jeans_vs_analytic():
@@ -209,17 +240,36 @@ def test_plummer_om_jeans_matches_sampler():
         )
 
 
-@pytest.mark.skip(
-    reason="OM-Plummer analytic oracle deferred: not source-verified. The closed-form "
-    "OM-Plummer sigma_r^2(r) (Carollo et al. 1995 / Merritt 1985-type reduction) was "
-    "not encoded because it could not be independently verified against a primary "
-    "source in-session; fabricating it would violate the no-guessed-formula rule. OM "
-    "is validated via the empirical sampler (test_plummer_om_jeans_matches_sampler) "
-    "and the O(h^2) convergence study (test_jeans_quadrature_convergence)."
-)
 def test_plummer_om_jeans_vs_analytic():
-    """DEFERRED — see skip reason. Placeholder for a future source-verified OM oracle."""
-    raise NotImplementedError
+    """TIGHT OM oracle: OM Jeans sigma_r vs the derived closed form, rtol 1e-3.
+
+    Completes the OM anchor begun by ``test_plummer_om_jeans_matches_sampler`` (which
+    checks against a sampled population at 5% MC tol). Here the OM Jeans sigma_r is
+    checked against the EXACT closed form ``_plummer_om_sigma_r2_analytic`` (derived
+    from the OM anisotropic Jeans equation; see that helper's docstring) at three
+    anisotropy radii. The measured agreement at the default s-grid is ~1e-6 across
+    these radii, so the 1e-3 gate (mirroring the isotropic anchor) is robust, not
+    tuned — the residual is pure O(h^2) quadrature, the formula is exact.
+
+    Also pins the by-construction OM tangential relation sigma_t^2 = (1 - beta)
+    sigma_r^2 with beta(r) = r^2/(r^2 + r_a^2).
+    """
+    prof = PlummerProfile(r_h=1.0)
+    M = 400.0
+    a = prof.a
+    r = jnp.array([0.3, 0.5, 1.0, 2.0])
+    for r_a in (1.0, 2.0, 5.0):
+        dp = jeans_dispersion(prof, r_a, r, M=M, G=G)
+        truth_r = jnp.sqrt(_plummer_om_sigma_r2_analytic(r, M, a, r_a))
+        assert jnp.allclose(dp.sigma_r, truth_r, rtol=1e-3), (
+            f"OM sigma_r r_a={r_a}: jeans={dp.sigma_r} analytic={truth_r}"
+        )
+        # sigma_t^2 = (1 - beta) sigma_r^2 by OM construction.
+        beta = r**2 / (r**2 + r_a**2)
+        truth_t = jnp.sqrt((1.0 - beta)) * truth_r
+        assert jnp.allclose(dp.sigma_t, truth_t, rtol=1e-3), (
+            f"OM sigma_t r_a={r_a}: jeans={dp.sigma_t} analytic={truth_t}"
+        )
 
 
 # =============================================================================

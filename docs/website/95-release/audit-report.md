@@ -58,17 +58,23 @@ a stated floor of 90%, and that number is *not* stale: `git diff` shows
 `src/progenax/` is unchanged since the commit the coverage was measured at, so the
 src-based staleness gate correctly treats it as fresh.
 
-Crucially, **no skip or xfail hides a failure** — each was read:
+Crucially, **no skip or xfail hides a failure** — each was read and reproduced
+with `-rsxX`:
 
-- **xfail (1):** the Michie-$W_0$ gradient is $\sim 5\times10^{-3}$
-  finite-difference inconsistent and deferred to the gradient-audit arc (ADR 0009);
-  marked strict, so it auto-alerts via xpass if ever fixed.
-- **skips (3):** a timing-ratio benchmark (meaningless under coverage/xdist), a
-  strict-reference guard that activates only under `PROGENAX_STRICT_REFS=1`, and —
-  notably — an OM-Plummer analytic oracle that was **deferred rather than
-  fabricated** because its closed form could not be verified against a primary
-  source in-session. That refusal-to-guess is the right call; OM remains validated
-  by the empirical sampler and an $\mathcal{O}(h^2)$ convergence study.
+| Test | Status | Reason | Action |
+|---|---|---|---|
+| `test_strict_refs.py` | SKIP | "strict reference mode not requested" — gated on `PROGENAX_STRICT_REFS`; unset locally, **set =1 in the release-tag CI lane**, where it asserts the LIMEPY reference cache is present (so parity can't silently no-op). | None — by design (R8/T4). |
+| `test_limepy_tables.py::test_table_solve_is_faster` | SKIP | Skips under xdist/coverage (`PYTEST_XDIST_WORKER` / `sys.gettrace()`); timing ratios are meaningless under instrumentation. **Runs + asserts ~5–10× serially.** | None — by design. |
+| `test_dispersion_physics.py::test_plummer_om_jeans_vs_analytic` | ~~SKIP~~ → **now passing** | Originally **deferred rather than fabricated**. **Closed during this audit (2026-06-17):** the closed form $\sigma_r^2 = GM(a^2+3r^2+2r_a^2)/[12(r^2+r_a^2)\sqrt{a^2+r^2}]$ was *derived* from the OM anisotropic Jeans equation (BT §4.8.3) — not transcribed (Plummer is not a Carollo+1995 γ-model) — and verified (isotropic limit → Dejonghe to 2e-16; numerical OM Jeans to ~1e-6). | Done. |
+| `test_dispersion.py::test_grad_jeans_michie_wrt_W0_DEFERRED` | XFAIL (strict) | The Michie ODE-solver gradient $\partial\sigma_r/\partial W_0$ is **genuinely $\sim 5\times10^{-3}$ FD-inconsistent** (upstream Michie-anisotropic equilibrium solve; King $W_0$ is clean). Deferred to the gradient-audit arc (ADR 0009) with a design doc; strict, so it auto-alerts via xpass when fixed. | Real known limitation; on a tracked deferral arc. |
+
+The two design skips (env-gated guard, instrumentation-aware benchmark) are
+*correct* behaviour, not debt. The OM-Plummer skip was the no-guessed-formula rule
+in action — and was **closed during this audit** by deriving and verifying the
+oracle rather than asserting it, so the released-core skip count drops from 3 to 2
+(validation tier re-run: 434 passed, 1 skipped). The one xfail remains a genuinely
+incorrect gradient, correctly fenced — confined to Michie-$W_0$, which the
+Fisher/OED demos do not use.
 
 The experimental `gravoturb_fdf` suite (repo-only) ran **343 passed, 8 deselected,
 exit 0** — green as documented.
