@@ -108,3 +108,39 @@ def test_depth_fisher_is_conservative_and_bounded():
     ratio = realized / predicted                   # variance ratio; < 1 => Fisher conservative (safe)
     assert ratio < 1.15                            # conservative (allow MC noise on the sign)
     assert ratio > 0.25                            # but the gap is bounded; guards the old M-pinned bug
+
+
+def test_cli_dynamical_mass_smoke(tmp_path):
+    """Smoke-test the Stage-2 gated CLI: run main() end to end with a SMALL config and assert it
+    exits 0 (all gates pass) and writes a run-record JSON with the expected schema.
+
+    The heavy knobs (joint-optimiser starts/steps, sweep density, calibration draws) are dialled
+    down via the CLI module's own constants so the test stays in the fast suite, but NOT so far that
+    the gates become meaningless: the interior-argmin and beats-fixed-depth gates still exercise the
+    real depth physics, and the calibration gate still runs a (small) magnitude-selected ensemble.
+    """
+    import importlib
+
+    cli = importlib.import_module("demo_oed_dynamical_mass")
+    # Dial down the cost; keep the gates real (interior sweep + small calibration ensemble).
+    cli.N_STARTS, cli.N_STEPS = 3, 200
+    cli.N_SWEEP_QUICK = 9
+    cli.SWEEP_STARTS, cli.SWEEP_STEPS = 2, 200
+    cli.N_DRAWS_QUICK = 8
+
+    out = tmp_path / "stage2_smoke_record.json"
+    rc = cli.main(["--seed", "0", "--out", str(out)])
+    assert rc == 0, "Stage-2 CLI gates failed in the smoke config"
+    assert out.exists()
+
+    import json
+    rec = json.loads(out.read_text())
+    assert rec["all_pass"] is True
+    for key in ("demo", "timestamp_utc", "params", "results", "gates", "design_z"):
+        assert key in rec
+    res = rec["results"]
+    for key in ("joint_optimum", "contrast", "depth_trade", "calibration"):
+        assert key in res
+    assert "m_lim" in res["joint_optimum"] and "frac_sigma_M" in res["joint_optimum"]
+    assert "variance_ratio" in res["calibration"]
+    assert 0 < res["contrast"]["sweep_argmin_index"] < cli.N_SWEEP_QUICK - 1
