@@ -90,6 +90,17 @@ def _n_field_bins():
 
 N_FIELD_BINS = _n_field_bins()                                 # (K,) module constant
 
+# The per-star Jacobian J = d sigma_pred / d ln theta (3,K,3) and sigma (3,K), evaluated at the FIXED
+# fiducial theta. These are the single expensive computation in the whole Stage-2 layer: jacrev through
+# project_dispersion's diffrax ODE. They are INDEPENDENT of the design variables (z, m_lim) -- sigma_pred
+# is m_lim-independent (single-population) and theta is the fixed fiducial -- so they are computed ONCE
+# here at import, NOT inside depth_fisher. (Computing them per depth_fisher call made the optimiser, which
+# evaluates depth_fisher thousands of times, ~32 min instead of seconds; XLA cannot hoist the opaque
+# custom_vjp ODE jacrev out of the Adam scan.) The design optimisation differentiates only wrt (z, m_lim),
+# never wrt theta, so caching J/SIG as constants leaves every design gradient bit-identical.
+_J, _SIG = oed.jacobian_and_sigma(oed.theta_truth(), oed.R_BINS, STELLAR.G)   # ODE jacrev, ONCE at import
+
+
 
 def eps_eff(m_lim):
     """IMF-weighted RMS per-star measurement error over the detectable masses, per channel (3,).
@@ -145,8 +156,8 @@ def depth_fisher(z, m_lim, N_total, prior_diag=oed.PRIOR_DIAG):
     n >> avail -- a differentiable finite-supply constraint). eps_eff (3,) broadcasts per channel;
     avail (K,) is shared across channels at a single distance. Differentiable in both z and m_lim.
     """
-    J, sig = oed.jacobian_and_sigma(oed.theta_truth(), oed.R_BINS, STELLAR.G)   # J ONCE
-    Mb = oed.blocks_from_eps(J, sig, eps_eff(m_lim))                            # (3,K,3,3), eps (3,)
+    Mb = oed.blocks_from_eps(_J, _SIG, eps_eff(m_lim))                          # (3,K,3,3), J/SIG cached once
+
     K = oed.R_BINS.shape[0]
     n_design = N_total * jax.nn.softmax(z).reshape(3, K)                        # (3,K) budget allocation
     avail = avail_bins(m_lim)[None, :]                                          # (1,K) per-channel pool
