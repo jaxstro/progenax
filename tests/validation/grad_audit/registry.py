@@ -2098,7 +2098,7 @@ REGISTRY: list[Case] = [
     # AD-correct in W0 (fixed-node interp => no kink; 2026-06-18 experiment, ADR-0017).
     Case(id="df_moment_dispersion[Michie].W0", direction="params->summary",
          fn=_df_moment_dispersion_W0, param="W0", theta0=6.0,
-         reduce=identity_sum, expect="consistent", tol=1e-3),       # measured |ratio-1|~1e-7
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # measured |ratio-1|~3e-6
     # Finite-r_t gradient over a grid SPANNING r_t (Phase 0.5 final-review fix):
     # EFF (fixed r_t=8.0, clean gamma/a gradients) exercises the safe-sqrt-at-0 path
     # that the jeans/project models previously NaN-poisoned beyond r_t.
