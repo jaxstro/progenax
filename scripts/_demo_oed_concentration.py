@@ -47,9 +47,26 @@ from progenax.kinematics.eddington import (
 )
 from jaxstro.units import STELLAR
 
-# Reuse the Stage-1 sky projection (line of sight = +z) + unit conversions.
+# Reuse the Stage-1 sky projection (line of sight = +z) + unit conversions, and the
+# MODEL-AGNOSTIC Fisher/criteria backbone (consume per-star blocks Mb + a design
+# vector; nothing below differentiates the forward model). Re-exported so callers use
+# ONE namespace (oedc.c_criterion, oedc.fisher, ...). The Stage-1 optimize_design /
+# _optimize_one are NOT reused: they hardcode Stage-1's PRIOR_DIAG (a module global),
+# so this module reimplements them threading OUR W0-OED PRIOR_DIAG (see below).
 sys.path.insert(0, os.path.dirname(__file__))
-from _demo_oed import kms_to_pcMyr, pm_masyr_to_kms, project_to_sky  # noqa: E402
+import optax  # noqa: E402
+from _demo_oed import (  # noqa: E402
+    DesignResult,
+    a_criterion,
+    blocks_from_eps,
+    c_criterion,
+    d_criterion,
+    design_counts,
+    fisher,
+    kms_to_pcMyr,
+    pm_masyr_to_kms,
+    project_to_sky,
+)
 
 # Resolution of the hand-rolled Michie Eddington table (mirrors eff_df defaults).
 _N_R = 6000      # radial grid for the potential / density tabulation
@@ -315,3 +332,129 @@ def jacobian_and_sigma(theta, R_bins, G, model):
     sig = predict_sigma(theta, R_bins, G, model)                          # (3, K)
     J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G, model)     # (3, K, 3) -- d sigma / d theta
     return J * theta[None, None, :], sig    # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
+
+
+# ===========================================================================
+# Task 4: per-star Fisher blocks, additive design Fisher prior, c/D/A optimizer.
+# ===========================================================================
+#
+# Almost everything here is REUSED from Stage-1 (imported above): the per-star
+# block builder blocks_from_eps (Mb = 2 J J^T / (sigma^2 + eps^2)), the additive
+# design Fisher fisher(z, Mb, cb, N_total, prior) = Sum n_eff*Mb (+ prior diag), the
+# design allocation design_counts (softmax budget x completeness), and the c/D/A
+# criteria -- all model-agnostic once (J, sigma) are built. This module adds only
+# what is SPECIFIC to the W0-OED arc: a prior tied to OUR theta=(W0, r_a, M) order, a
+# completeness curve tied to OUR length scale, the per_star_blocks wrapper, and a
+# faithful copy of the Stage-1 multi-start optimizer that threads OUR prior.
+
+
+# Prior precision on the NUISANCE M ONLY -- diag in ln theta = ln (W0, r_a, M).
+#
+# Rationale (W0-OED arc; index map W0=0, r_a=1, M=2):
+#   * W0 (index 0) is the TARGET concentration -> ZERO prior (the design must
+#     constrain it from the kinematics alone).
+#   * r_a (index 1) is the OM anisotropy radius -> ZERO prior: anisotropy is
+#     constrained by the kinematic dataset (the RV vs PM split) alone; there is no
+#     independent external r_a measurement, so it carries no prior.
+#   * M (index 2) is the total mass -> a 30% fractional prior (precision 1/0.3**2):
+#     M has an external observational constraint (integrated light x M/L) OUTSIDE
+#     the kinematic dataset, so we encode it as a weak Gaussian prior. In the
+#     dimensionless (d ln theta) metric (ADR 0011) this is a FRACTIONAL precision.
+#
+# SPD finding (measured, not assumed; test_blocks_shape_symmetry_and_fisher_spd +
+# test_fisher_spd_over_random_designs): with this M-only prior the additive design
+# Fisher F = Sum n_eff*Mb + diag(PRIOR_DIAG) is SPD for BOTH King and Michie at the
+# uniform design AND across random design vectors z -- i.e. the (W0, r_a) 2-block is
+# constrained by the DATA alone (the three velocity channels x 12 radial bins break
+# the W0<->r_a degeneracy). So the M-only prior is LOCKED (the most honest choice; no
+# conditioning regularizer on W0 or r_a is needed). The escalation path -- a WEAK r_a
+# conditioning regularizer PRIOR_DIAG[1] = 1/0.5**2 (NOT an external r_a constraint) --
+# is documented but UNUSED, since SPD holds without it.
+_FRAC_PRIOR_M = 0.3   # 30% fractional prior on M (the only externally-constrained param)
+PRIOR_DIAG = jnp.array([0.0, 0.0, 1.0 / _FRAC_PRIOR_M**2])   # [W0, r_a, M] fractional precision
+
+
+def completeness(R_bins, R_turn=6.0, width=1.5):
+    """Smooth faint-end roll-off (logistic in R): ~1 in the core -> <1 outskirts.
+
+    An ILLUSTRATIVE selection function, NOT a real survey curve: a logistic that is
+    ~1 where crowding/depth let nearly every star be measured and rolls smoothly
+    below 1 in the outskirts. Tied to OUR length scale (r_c == 1; R_BINS run to 12
+    r_c): the turnover R_turn = 6.0 r_c sits near the half-extent of R_BINS and the
+    scale width = 1.5 r_c rolls it off over the outer few bins. (This is the
+    concentration arc's OWN curve -- NOT Stage-1's completeness, whose defaults
+    R_turn = 2*r_h, width = 0.5*r_h reference Stage-1's r_h = 3, absent from our
+    r_c-scaled mock.)
+    """
+    return 1.0 / (1.0 + jnp.exp((R_bins - R_turn) / width))
+
+
+def per_star_blocks(theta, R_bins, eps, G, model):
+    """Design-INDEPENDENT per-star Fisher blocks Mb (3, K, 3, 3) + sigma (3, K).
+
+    Thin wrapper: ONE reverse-mode jacrev through the OM-King/Michie -> project_dispersion
+    forward model (jacobian_and_sigma) gives the dimensionless ln-theta Jacobian J and
+    the predicted dispersions sigma; the Stage-1 blocks_from_eps then forms the rank-1
+    3x3 blocks Mb_{c,b} = 2 J_{c,b} J_{c,b}^T / (sigma_{c,b}^2 + eps_c^2) (model-agnostic).
+    The full design Fisher is the linear sum F = Sum_{c,b} n_eff,{c,b} Mb_{c,b}, so this
+    jacrev is computed ONCE and the optimization is pure 3x3 linear algebra.
+    """
+    J, sig = jacobian_and_sigma(theta, R_bins, G, model)
+    return blocks_from_eps(J, sig, eps), sig
+
+
+# --- Multi-start optax optimizer (faithful copy of Stage-1, threading OUR prior) ---
+#
+# The Stage-1 _demo_oed.optimize_design / _optimize_one hardcode the Stage-1 module
+# global PRIOR_DIAG ([0, 1/0.3**2, 1/0.3**2] on r_a, M, r_h). This arc needs OUR
+# PRIOR_DIAG ([0, 0, 1/0.3**2] on W0, r_a, M), so we reimplement the optimizer with
+# the SAME structure (multi-start Adam over the softmax design vector z, jit+scan
+# step, keep the lowest-criterion start, return a DesignResult) and swap in our prior.
+
+
+def _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr):
+    """One Adam trajectory: returns (z_final, trace) where trace is the per-step
+    criterion value. The step is jit-compiled and unrolled via jax.lax.scan."""
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: criterion_fn(fisher(z, Mb, cb, N_total, PRIOR_DIAG))
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam over the design vector z; keep the lowest-criterion result.
+
+    Returns a DesignResult (z, trace, criterion) for the best start. Faithful copy of
+    the Stage-1 optimizer threading THIS arc's PRIOR_DIAG (M-only).
+
+    SPD invariant (load-bearing -- do NOT silently break it on a refactor): the
+    Fisher F = fisher(z, Mb, cb, N_total, PRIOR_DIAG) stays symmetric positive-definite
+    throughout the optimization, so c/D/A's inv/slogdet never hit a singular F. Here
+    that holds from TWO facts: (1) jax.nn.softmax(z) is strictly positive for every
+    finite z, so every n_eff,{c,b} > 0 and the additive F = Sum n_eff*Mb is at least
+    PSD (each Mb is rank-1 PSD); and (2) for the W0-OED arc the DATA alone makes the
+    (W0, r_a) 2-block PD (measured: test_fisher_spd_over_random_designs) and PRIOR_DIAG
+    adds strictly positive precision on M, so the full F is strictly PD without any
+    prior on W0 or r_a. A future change that allocates with a hard top-k
+    (softmax -> argmax, exact zeros), or a model/scale change that made the (W0, r_a)
+    data-block rank-deficient at some design, could reintroduce a singular F here -- in
+    which case escalate to the documented weak r_a conditioning regularizer.
+    """
+    K = cb.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (3 * K,)) * 0.5
+        z, trace = _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr)
+        crit = float(criterion_fn(fisher(z, Mb, cb, N_total, PRIOR_DIAG)))
+        if best is None or crit < best.criterion:
+            best = DesignResult(z=z, trace=trace, criterion=crit)
+    return best

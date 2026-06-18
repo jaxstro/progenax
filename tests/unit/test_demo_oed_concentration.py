@@ -260,3 +260,72 @@ def test_grad_sigma_W0_michie_outer_richardson():
         assert rels[-1] < rels[0], (
             channel, "FD did not converge to AD as h shrank -- a real gradient defect", rels
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 4: per-star Fisher blocks, additive design Fisher, c/D/A criteria, optimizer.
+#
+# The per-star blocks Mb (3, K, 3, 3) and the additive design Fisher F = Sum n*c*M
+# are reused from Stage-1 (model-agnostic once the (J, sigma) are built). The W0-OED
+# arc threads its OWN prior: PRIOR_DIAG = [0, 0, 1/0.3**2] -- a prior on M (index 2,
+# external integrated-light x M/L constraint) ONLY; W0 (target) and r_a (anisotropy,
+# constrained by kinematics alone) carry ZERO prior. The (W0, r_a) 2-block must then
+# be SPD from the DATA alone, which is the load-bearing SPD check below.
+# ---------------------------------------------------------------------------
+
+
+def test_blocks_shape_symmetry_and_fisher_spd():
+    """per_star_blocks returns symmetric (3, K, 3, 3) blocks, and the additive design
+    Fisher F (with the M-only PRIOR_DIAG) is SPD for BOTH models at a uniform design --
+    i.e. the data constrains (W0, r_a) on its own (no prior needed on those)."""
+    for model in ("king", "michie"):
+        th = oedc.theta_truth()
+        Mb, sig = oedc.per_star_blocks(th, oedc.R_BINS, oedc.EPS, STELLAR.G, model)
+        K = oedc.R_BINS.shape[0]
+        assert Mb.shape == (3, K, 3, 3)
+        assert jnp.allclose(Mb, jnp.swapaxes(Mb, -1, -2), atol=1e-12)
+        z = jnp.zeros(3 * K)
+        F = oedc.fisher(z, Mb, oedc.completeness(oedc.R_BINS), 1000.0, oedc.PRIOR_DIAG)
+        evals = jnp.linalg.eigvalsh(F)
+        assert jnp.all(evals > 0), (model, evals)        # SPD with M-only prior
+
+
+def test_fisher_spd_over_random_designs():
+    """SPD escalation guard (measure, don't assume): with the locked PRIOR_DIAG, F must
+    stay SPD across ~10 random design vectors z for BOTH models -- not just the uniform
+    design. A singular/indefinite F at some generic z would mean the (W0, r_a) data-block
+    is rank-deficient for that design and the prior must be escalated (recorded reason)."""
+    for model in ("king", "michie"):
+        th = oedc.theta_truth()
+        Mb, _ = oedc.per_star_blocks(th, oedc.R_BINS, oedc.EPS, STELLAR.G, model)
+        cb = oedc.completeness(oedc.R_BINS)
+        K = oedc.R_BINS.shape[0]
+        for s in range(10):
+            z = jax.random.normal(jax.random.PRNGKey(100 + s), (3 * K,)) * 1.0
+            F = oedc.fisher(z, Mb, cb, 1000.0, oedc.PRIOR_DIAG)
+            evals = jnp.linalg.eigvalsh(F)
+            assert jnp.all(evals > 0), (model, s, evals)
+
+
+def test_c_criterion_targets_W0_and_grad_AD_vs_FD():
+    """c_criterion with target=0 (W0) is finite and positive (a fractional variance),
+    and grad of the criterion w.r.t. the design vector z is AD-vs-FD consistent
+    (rtol 1e-4) -- pure 3x3 linalg, model-agnostic, so reverse-mode flows cleanly."""
+    for model in ("king", "michie"):
+        th = oedc.theta_truth()
+        Mb, _ = oedc.per_star_blocks(th, oedc.R_BINS, oedc.EPS, STELLAR.G, model)
+        cb = oedc.completeness(oedc.R_BINS)
+        K = oedc.R_BINS.shape[0]
+        loss = lambda z: oedc.c_criterion(
+            oedc.fisher(z, Mb, cb, 1000.0, oedc.PRIOR_DIAG), target=0
+        )
+        z = jax.random.normal(jax.random.PRNGKey(1), (3 * K,)) * 0.5
+        c0 = loss(z)
+        assert jnp.isfinite(c0) and c0 > 0, (model, float(c0))
+        g_ad = jax.grad(loss)(z)
+        i = 5
+        eps = 1e-4
+        g_fd = (loss(z.at[i].add(eps)) - loss(z.at[i].add(-eps))) / (2 * eps)
+        assert jnp.allclose(g_ad[i], g_fd, rtol=1e-4, atol=1e-8), (
+            model, float(g_ad[i]), float(g_fd)
+        )
