@@ -30,7 +30,6 @@ import jax.numpy as jnp
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
-from progenax.numerics import cumulative_trapz
 from progenax.profiles.plummer import PlummerProfile
 from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.profiles.eff import EFFProfile
