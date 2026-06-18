@@ -34,35 +34,33 @@ is a separate, maintainer-approved step.
 (checklist-important)=
 ## ⚠️ Should fix before a polished public launch
 
-- [ ] **Fix the stale `validate_king.py` (D2/T11).** It calls
-  `KingVelocityDF(..., r_t=...)`; the `r_t` field was removed. Drop the kwarg at
-  the two call sites (lines ~248, ~451). Consider wiring the `validate_*.py`
-  scripts into a smoke job so script-rot is caught.
-- [ ] **Document `MichieProfile` (D4).** Add full docstrings (args/units/returns/
-  differentiability) to `from_W0_rc`, `__init__`, `.sample_positions`, `.density`.
-- [ ] **Fill `TruncatedIMF.ppf` and the IMF mass-ratio `pdf`/`cdf`/`ppf` Returns
-  docstrings (D4).**
-- [ ] **Decide the units-policy split (D4/A2).** Either tighten the five
-  `sample_velocities` methods and `MultiComponentCluster.sample_cluster` to require
-  explicit $G$, or add a one-line "intentional convenience-default (policy
-  exception)" note to each class docstring — applied uniformly. (Deferred as a
-  breaking sweep in the CHANGELOG; resolve before 1.0.)
-- [ ] **Resolve the `40-howto/` stubs (D6).** Six pages are empty `TBD.`
-  placeholders in the published TOC — author them or remove them from `myst.yml`.
-- [ ] **Fix the internal-doc links (D6).** Ten-plus links target
-  `../../plans/` and `../../notes/` outside the site root; they will deploy broken
-  and expose internal filenames. Rewrite or remove before public hosting.
-- [ ] **Fetch or downgrade two cited-but-not-held references (D6).** Binney &
-  Mamon (1982) in `kinematics/dispersion.py` (load-bearing for `project_dispersion`)
-  and Baumgardt & Makino (2003) in `tidal.py` — fetch the PDFs or cite a held /
-  textbook source.
-- [ ] **Reconcile the repository URL (D7).** `myst.yml` declares
-  `github.com/drannarosen/progenax`, while `pyproject.toml` and the git remote use
-  `github.com/jaxstro/progenax`. Pick one and make them agree.
-- [ ] **Hold the OED demos out of v0.1.0 (D10).** Remove
-  `60-science-demos/optimal-design/` from the release TOC and exclude
-  `scripts/_demo_oed*.py` / `scripts/demo_oed*.py` from the release scope; they
-  migrate to the planned **informax** package.
+- [x] **Fix the stale `validate_king.py` (D2/T11).** *(done 2026-06-18)* Dropped the
+  removed `r_t=` kwarg at both call sites; script exits 0 and writes all 5 figures.
+- [x] **Document `MichieProfile` (D4).** *(done 2026-06-18)* Full docstrings added to
+  `from_W0_rc`, `__init__`, `.sample_positions`, `.density`.
+- [x] **Fill `TruncatedIMF.ppf` and the IMF mass-ratio `pdf`/`cdf`/`ppf` Returns
+  docstrings (D4).** *(done 2026-06-18)*
+- [x] **Decide the units-policy split (D4/A2).** *(done 2026-06-18 — breaking sweep)*
+  Chose the explicit-$G$ sweep: the five `*VelocityDF.sample_velocities`,
+  `MultiComponentCluster.sample_cluster`, and `sample_velocities_pipeline` now
+  **require** explicit $G$ (no `G=None` default); `VelocityDF` protocol contract
+  aligned; CHANGELOG breaking entry added.
+- [x] **Resolve the `40-howto/` stubs (D6).** *(done 2026-06-18)* Authored the 4
+  progenax-only how-tos (each code block run-verified); `interface-with-gravax`
+  backlogged out of the TOC until gravax matures.
+- [x] **Fix the internal-doc links (D6).** *(done 2026-06-18)* Rewrote/removed the
+  `../../plans/` and `../../notes/` links in the real-source pages; `myst build`
+  reports 0 broken xrefs.
+- [x] **Fetch or downgrade two cited-but-not-held references (D6).** *(done
+  2026-06-18 — held + verified)* B&M82, Baumgardt&Makino 2003, **and** Strigari+2007
+  PDFs ingested; per-paper notes written; `project_dispersion`/`tidal.py` citations
+  corrected to the verified primaries (σ_los→B&M82 Eq.7; σ_pmR/σ_pmT→Strigari+2007
+  Eqs.2/3; `jacobi_radius_isothermal`→BM03 Eq.1; fill-factor BM03 mis-attribution
+  removed). All formulas verified correct against the PDFs.
+- [x] **Reconcile the repository URL (D7).** *(done 2026-06-18)* `myst.yml` +
+  generated API pages now use `github.com/jaxstro/progenax`.
+- [ ] **Hold the OED demos out of v0.1.0 (D10).** *(deferred — Anna 2026-06-18)*
+  Held until the **informax** package is stood up; no TOC/scope change yet.
 
 (checklist-minor)=
 ## ℹ️ Minor / polish (non-blocking)
