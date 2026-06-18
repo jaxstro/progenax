@@ -159,6 +159,20 @@ def _michie_dimensionless_table(prof, r_a, n_r=_N_R, n_e=_N_E):
     drho_dr = jnp.where(inside, drho_dr, 0.0)
 
     # Shared self-consistent potential from the SAME density (Poisson integral).
+    #
+    # NORMALIZATION NOTE (load-bearing -- do NOT "harmonize" dW_dr and dPsi_dr).
+    # This Poisson Psi and the dimensionless `psi` above are NOT the same object:
+    # `psi`/`dW_dr` carry the profile's central normalization rho_hat(W0,0), while
+    # this Psi/`dPsi_dr` are the Poisson integral of `rho = density/rho_0` (centre
+    # value 1). They differ by the CONSTANT C = michie_density(W0, 0) (~1.4):
+    #   Psi_poisson(r) = C * psi_dimless(r).
+    # Correctness survives this mismatch ONLY because eddington_invert +
+    # sample_speed_from_f_table are exactly equivariant under Psi -> lambda*Psi
+    # (eddington.py:118-120) and kappa is tied to the SAME Poisson `mu`, so C cancels
+    # in the physical dispersion (verified: sampled sigma_r vs jeans_dispersion 1-2%).
+    # A future cleanup that forces dW_dr and dPsi_dr to be numerically equal would
+    # silently reintroduce a real bias (the 5% gate could still pass). Keep them
+    # built from their own normalizations.
     inner = cumulative_trapz(rho * r**2, dx=dr)   # int_0^r rho s^2 ds
     tail = cumulative_trapz(rho * r, dx=dr)       # int_0^r rho s ds
     outer = tail[-1] - tail                        # int_r^{r_t} rho s ds
