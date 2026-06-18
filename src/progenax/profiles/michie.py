@@ -171,6 +171,27 @@ class MichieProfile(eqx.Module):
     _cdf_grid: Float[Array, "n_grid"]
 
     def __init__(self, W0, r_c, r_a, r_t, xi_grid, psi_grid, n_grid: int = 1000):
+        """Build the profile from a solved Michie-King ODE and precompute the mass CDF.
+
+        Prefer the :meth:`from_W0_rc` constructor, which solves the ODE and derives r_t;
+        this initializer takes the already-solved (xi_grid, psi_grid) plus the derived
+        r_t and builds the inverse-transform position-sampling CDF on a sqrt-stretched
+        radial grid (r = r_t u^2), which concentrates points in the core that a linear
+        grid under-resolves at high W0 (audit R4, same fix as KingProfile).
+
+        Args:
+            W0: Central concentration psi(0) = W0 (dimensionless).
+            r_c: Core radius [length].
+            r_a: Anisotropy radius [length].
+            r_t: Tidal radius [length] (derived by :meth:`from_W0_rc`).
+            xi_grid: Dimensionless-radius grid xi = r/r_c from the Poisson solve.
+            psi_grid: Clamped (psi >= 0) dimensionless potential on ``xi_grid``.
+            n_grid: Number of points on the precomputed mass-CDF grid (default 1000).
+
+        Differentiability:
+            The sqrt-stretched CDF grid is smooth in r_t, so the constructor is
+            reverse-mode differentiable wrt the inputs.
+        """
         W0_a = jnp.asarray(W0, dtype=jnp.float64)
         r_c_a = jnp.asarray(r_c, dtype=jnp.float64)
         r_a_a = jnp.asarray(r_a, dtype=jnp.float64)
@@ -213,10 +234,39 @@ class MichieProfile(eqx.Module):
         cls, W0: float, r_c: float, r_a: float,
         xi_max: float = 800.0, n_ode_points: int = 3000, n_grid: int = 1000,
     ) -> "MichieProfile":
-        """Self-consistent Michie-King profile; r_t derived from where psi -> 0.
+        """Construct a self-consistent Michie-King profile from (W0, r_c, r_a).
 
-        Raises ValueError (via solve_michie_profile) if r_a is too small for a finite
-        tidal radius (the radial-orbit pathology).
+        Solves the anisotropic Michie-King Poisson equation outward from the centre
+        (:func:`solve_michie_profile`) and derives the tidal radius r_t from where the
+        dimensionless potential psi crosses 0. The UNCLAMPED psi_raw is fed to
+        ``_find_tidal_radius`` so d(r_t)/dW0 flows through the crossing interpolation
+        (audit Task 1.2b); the forward value of r_t is identical either way.
+
+        Args:
+            W0: Central concentration psi(0) = W0 (dimensionless).
+            r_c: Core radius [length].
+            r_a: Anisotropy radius [length]; r_a -> infinity recovers the isotropic
+                King model. Below a W0-dependent threshold the radial orbits build a
+                1/r^2 density tail with no finite tidal radius (see Raises).
+            xi_max: Maximum dimensionless radius xi = r/r_c for the ODE solve
+                (default 800.0; larger than King's because anisotropic models are far
+                more extended).
+            n_ode_points: Number of output points on the Poisson ODE grid (default 3000).
+            n_grid: Number of points on the precomputed mass-CDF position-sampling grid
+                (default 1000).
+
+        Returns:
+            MichieProfile with W0, r_c, r_a, derived r_t, the ODE solution
+            (xi_grid, psi_grid), and the precomputed inverse-transform CDF.
+
+        Raises:
+            ValueError: (via :func:`solve_michie_profile`, concrete inputs only) if r_a
+                is too small for a finite tidal radius -- the radial-orbit 1/r^2 tail
+                pathology (infinite mass).
+
+        Differentiability:
+            Reverse-mode differentiable wrt W0/r_c/r_a (the r_t crossing uses the
+            UNCLAMPED psi_raw so the gradient flows; ADR-0016 / audit Task 1.2b).
         """
         # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
         # through the crossing interpolation (audit Task 1.2b).
@@ -229,8 +279,25 @@ class MichieProfile(eqx.Module):
     def sample_positions(
         self, masses: Float[Array, "N"], key: PRNGKeyArray
     ) -> Float[Array, "N 3"]:
-        """Inverse-transform sample positions from the Michie-King density (isotropic
-        angular distribution; mass values set only N)."""
+        """Inverse-transform sample 3-D positions from the Michie-King density.
+
+        Draws radii by inverting the precomputed mass CDF and assigns isotropic angular
+        directions (uniform on the sphere). The Michie-King density is spatially
+        isotropic; the model's radial anisotropy lives in velocity space (the DF), not
+        in the positions.
+
+        Args:
+            masses: Particle masses (N,) [M_sun]. Only the length N is used -- the mass
+                values do not affect the spatial sampling.
+            key: JAX random key.
+
+        Returns:
+            Cartesian positions (N, 3) [length units].
+
+        Differentiability:
+            Reverse-mode differentiable wrt the profile parameters through the CDF
+            interpolation; the random draw itself is reparameterized (uniform u).
+        """
         N = len(masses)
         key_r, key_theta, key_phi = jax.random.split(key, 3)
         u = jax.random.uniform(key_r, shape=(N,))
@@ -245,7 +312,25 @@ class MichieProfile(eqx.Module):
         return jnp.stack([x, y, z], axis=1)
 
     def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized volume density rho(r)/rho_0 (0 outside r_t)."""
+        """Normalized Michie-King volume density rho(r)/rho_0.
+
+        Interpolates the dimensionless potential psi(r/r_c) from the ODE solution, then
+        evaluates the anisotropic dimensionless density (:func:`michie_density`) at
+        (psi, r/r_a) and normalizes by the central value rho_0 = michie_density(W0, 0).
+        Returns 0 outside the tidal radius r_t.
+
+        Args:
+            r: Radii [length units] (any broadcastable shape).
+
+        Returns:
+            Normalized density rho(r)/rho_0 (dimensionless), same shape as ``r``; 0 for
+            r > r_t.
+
+        Differentiability:
+            Reverse-mode differentiable wrt r and the profile parameters (the where-mask
+            at r_t is a smooth-elsewhere step; cf. the gradient notes on the King/Michie
+            equilibrium-solver profiles in ``kinematics/dispersion.py``).
+        """
         psi = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
         rho0 = michie_density(self.W0, 0.0)
         rho = _michie_density_vec(jnp.atleast_1d(psi), jnp.atleast_1d(r / self.r_a)) / rho0

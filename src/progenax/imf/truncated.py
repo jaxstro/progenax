@@ -87,7 +87,21 @@ class TruncatedIMF(eqx.Module):
         )
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF over truncated domain."""
+        """Inverse CDF (percent point function) over the truncated domain.
+
+        Rescales u in [0, 1] to the inner IMF's CDF interval [F(m_min), F(m_max)] and
+        defers to the inner IMF's ``ppf``, so the result lies in [m_min, m_max].
+
+        Args:
+            u: Quantiles in [0, 1] (any broadcastable shape).
+
+        Returns:
+            Masses [M_sun] in [m_min, m_max], same shape as ``u``.
+
+        Differentiability:
+            Reverse-mode differentiable on (0, 1) (the affine rescale plus the inner
+            IMF's differentiable ``ppf``).
+        """
         u_scaled = self._cdf_min + u * (self._cdf_max - self._cdf_min)
         return self.inner.ppf(u_scaled)
 

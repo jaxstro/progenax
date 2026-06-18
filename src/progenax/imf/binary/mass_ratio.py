@@ -72,18 +72,40 @@ class FlatMassRatio(eqx.Module):
     q_min: float = 0.1
 
     def pdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Uniform PDF: p(q) = 1/(1 - q_min) for q ∈ [q_min, 1]."""
+        """Uniform PDF: p(q) = 1/(1 - q_min) for q ∈ [q_min, 1], else 0.
+
+        Args:
+            q: Mass ratio q = M_secondary / M_primary (any broadcastable shape).
+
+        Returns:
+            Probability density at q (dimensionless), same shape as ``q``; 0 outside
+            [q_min, 1].
+        """
         norm = 1.0 / (1.0 - self.q_min)
         in_range = (q >= self.q_min) & (q <= 1.0)
         return jnp.where(in_range, norm, 0.0)
 
     def cdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Uniform CDF: F(q) = (q - q_min) / (1 - q_min)."""
+        """Uniform CDF: F(q) = (q - q_min) / (1 - q_min), clipped to [0, 1].
+
+        Args:
+            q: Mass ratio (any broadcastable shape).
+
+        Returns:
+            Cumulative probability in [0, 1], same shape as ``q``.
+        """
         cdf_val = (q - self.q_min) / (1.0 - self.q_min)
         return jnp.clip(cdf_val, 0.0, 1.0)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF: q = q_min + u × (1 - q_min)."""
+        """Inverse CDF (percent point function): q = q_min + u × (1 - q_min).
+
+        Args:
+            u: Quantiles in [0, 1] (any broadcastable shape).
+
+        Returns:
+            Mass ratios q in [q_min, 1], same shape as ``u``.
+        """
         return self.q_min + u * (1.0 - self.q_min)
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
@@ -140,14 +162,34 @@ class PowerLawMassRatio(eqx.Module):
         )
 
     def pdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Power-law PDF: p(q) = q^γ / Z."""
+        """Power-law PDF: p(q) = q^γ / Z for q ∈ [q_min, 1], else 0.
+
+        Z is the normalization over [q_min, 1] (:meth:`_norm`).
+
+        Args:
+            q: Mass ratio q = M_secondary / M_primary (any broadcastable shape).
+
+        Returns:
+            Probability density at q (dimensionless), same shape as ``q``; 0 outside
+            [q_min, 1].
+        """
         norm = self._norm()
         pdf_unnorm = q**self.gamma
         in_range = (q >= self.q_min) & (q <= 1.0)
         return jnp.where(in_range, pdf_unnorm / norm, 0.0)
 
     def cdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Power-law CDF."""
+        """Power-law CDF F(q) = ∫_{q_min}^q t^γ dt / Z, clipped to [0, 1].
+
+        The γ = -1 (logarithmic) case is handled with a divide-safe branch
+        (:func:`jax.lax.cond`).
+
+        Args:
+            q: Mass ratio (scalar or array).
+
+        Returns:
+            Cumulative probability in [0, 1], same shape as ``q``.
+        """
         g = self.gamma
         q0 = self.q_min
         norm = self._norm()
@@ -181,7 +223,17 @@ class PowerLawMassRatio(eqx.Module):
         return jax.vmap(cdf_scalar)(q.ravel()).reshape(q.shape)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF for power-law."""
+        """Inverse CDF (percent point function) for the power-law q^γ.
+
+        Analytically inverts :meth:`cdf`; the γ = -1 (logarithmic) case uses a
+        divide-safe branch (:func:`jax.lax.cond`).
+
+        Args:
+            u: Quantiles in [0, 1] (scalar or array).
+
+        Returns:
+            Mass ratios q in [q_min, 1], same shape as ``u``.
+        """
         g = self.gamma
         q0 = self.q_min
         norm = self._norm()
@@ -281,7 +333,17 @@ class TwinPeakedMassRatio(eqx.Module):
         return 0.5 - cdf_min  # Probability mass in [q_min, 1]
 
     def pdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Twin-peaked PDF."""
+        """Twin-peaked PDF: (1 - f_twin) power-law q^γ + f_twin truncated Gaussian at q=1.
+
+        Both components are normalized over [q_min, 1] before mixing.
+
+        Args:
+            q: Mass ratio q = M_secondary / M_primary (any broadcastable shape).
+
+        Returns:
+            Probability density at q (dimensionless), same shape as ``q``; 0 outside
+            [q_min, 1].
+        """
         # Power-law component
         pl_norm = self._powerlaw_norm()
         pl_pdf = q**self.gamma / pl_norm
@@ -300,7 +362,15 @@ class TwinPeakedMassRatio(eqx.Module):
         return jnp.where(in_range, combined, 0.0)
 
     def cdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Twin-peaked CDF."""
+        """Twin-peaked CDF: the f_twin mixture of the power-law and truncated-Gaussian
+        CDFs, clipped to [0, 1].
+
+        Args:
+            q: Mass ratio (scalar or array).
+
+        Returns:
+            Cumulative probability in [0, 1], same shape as ``q``.
+        """
         g = self.gamma
         q0 = self.q_min
         pl_norm = self._powerlaw_norm()
@@ -330,7 +400,18 @@ class TwinPeakedMassRatio(eqx.Module):
         return jax.vmap(cdf_scalar)(q.ravel()).reshape(q.shape)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF via Newton iteration."""
+        """Inverse CDF (percent point function) via fixed-count Newton iteration.
+
+        The twin-peaked CDF has no closed-form inverse, so :meth:`cdf` is inverted by a
+        fixed 20-step Newton iteration (:func:`jax.lax.fori_loop`, clamped to
+        [q_min, 1]), keeping the map differentiable.
+
+        Args:
+            u: Quantiles in [0, 1] (scalar or array).
+
+        Returns:
+            Mass ratios q in [q_min, 1], same shape as ``u``.
+        """
 
         def ppf_scalar(u_val):
             # Initial guess: linear interpolation
