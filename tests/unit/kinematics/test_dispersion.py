@@ -365,7 +365,7 @@ def test_grad_df_moment_michie_high_W0_ad_correct():
 
     def f(W0):
         df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
-        # interior radius 0.3*r_t(W0=7) ~ 163; use a fixed interior radius well inside
+        # r=20 is deep interior at W0=7 (r_t ~ 545, so ~0.037 r_t); well inside r_t
         return jnp.sum(df_moment_dispersion(df, jnp.array([20.0]), 400.0, G_STELLAR).sigma_r)
 
     W0 = 7.0
