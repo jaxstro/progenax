@@ -74,7 +74,7 @@ Protocol for all IMF implementations.
 Any class with these attributes and methods can be used as an IMF,
 enabling TruncatedIMF to wrap any compatible IMF.
 
-*Source: [`progenax/imf/base.py#L25`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L25)*
+*Source: [`progenax/imf/base.py#L26`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L26)*
 
 (api-imf-baseimf)=
 ## `imf.BaseIMF`
@@ -100,7 +100,7 @@ Attributes:
     m_min: Minimum mass [M_sun] (default: 0.0)
     m_max: Maximum mass [M_sun] (default: inf)
 
-*Source: [`progenax/imf/base.py#L86`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L86)*
+*Source: [`progenax/imf/base.py#L92`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L92)*
 
 (api-imf-_ppf_newton)=
 ## `imf._ppf_newton`
@@ -113,8 +113,11 @@ _ppf_newton(imf: 'BaseIMF', u: jaxtyping.Float[Array, '...']) -> jaxtyping.Float
 
 Inverse CDF via fixed Newton iteration.
 
-Uses Newton's method with fixed iterations (JIT-safe, no convergence loops).
-Initial guess uses linear interpolation in log-mass space.
+Thin wrapper over jaxstro's generic ``newton_ppf`` solver: supplies the
+IMF's CDF, a log-space initial guess, and the [m_min, m_max] bounds.
+The Newton loop (fixed iterations, safe division, clip-to-bounds) lives
+in jaxstro.numerics.rootfinding.newton_ppf — JIT-safe, no convergence
+loops. Initial guess uses linear interpolation in log-mass space.
 
 Gradients flow through all iterations via automatic differentiation,
 enabling differentiation w.r.t. both u and IMF parameters.
@@ -126,7 +129,7 @@ Args:
 Returns:
     Mass values m such that CDF(m) ≈ u
 
-*Source: [`progenax/imf/base.py#L47`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L47)*
+*Source: [`progenax/imf/base.py#L48`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L48)*
 
 (api-imf-truncatedimf)=
 ## `imf.TruncatedIMF`
@@ -205,7 +208,7 @@ Args:
 Returns:
     Uniform samples in [0, 1]
 
-*Source: [`progenax/imf/power_law.py#L292`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L292)*
+*Source: [`progenax/imf/power_law.py#L306`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L306)*
 
 (api-imf-estimate_n_max_for_m_total)=
 ## `imf.estimate_N_max_for_M_total`
@@ -218,7 +221,7 @@ estimate_N_max_for_M_total(m_total: 'float', imf: 'PowerLawIMF', safety_factor: 
 
 Estimate N_max for M_total mode sampling.
 
-*Source: [`progenax/imf/power_law.py#L307`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L307)*
+*Source: [`progenax/imf/power_law.py#L321`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L321)*
 
 (api-imf-estimate_pool_size)=
 ## `imf.estimate_pool_size`
@@ -231,7 +234,7 @@ estimate_pool_size(m_total: 'float', imf: 'PowerLawIMF') -> 'int'
 
 Alias for estimate_N_max_for_M_total.
 
-*Source: [`progenax/imf/power_law.py#L317`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L317)*
+*Source: [`progenax/imf/power_law.py#L331`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L331)*
 
 (api-imf-maschberger)=
 ## `imf.Maschberger`
@@ -373,7 +376,7 @@ References:
     Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
     Chabrier (2005), ASSL, 327, 41 - Review of IMF determinations
 
-*Source: [`progenax/imf/chabrier.py#L28`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/chabrier.py#L28)*
+*Source: [`progenax/imf/chabrier.py#L29`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/chabrier.py#L29)*
 
 (api-imf-massratioprotocol)=
 ## `imf.MassRatioProtocol`
@@ -429,7 +432,7 @@ PowerLawMassRatio(gamma: 'float' = 0.0, q_min: 'float' = 0.1) -> None
 Power-law mass-ratio distribution p(q) ∝ q^γ.
 
 Reference:
-    Sana et al. (2012) Science 337, 444 - Eq. 3
+    Sana et al. (2012) Science 337, 444 - main text & Fig. 1 (κ ≈ -0.1; Science Report, no numbered eqs)
     O-star binaries: γ ≈ -0.1 (nearly flat, slight preference for unequal)
 
     Moe & Di Stefano (2017) ApJS 230, 15 - Section 9.1
@@ -446,7 +449,7 @@ Note:
     For γ = -1, the distribution is singular at q = 0.
     Use q_min > 0 to avoid singularity.
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L95`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L95)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L117`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L117)*
 
 (api-imf-twinpeakedmassratio)=
 ## `imf.TwinPeakedMassRatio`
@@ -465,7 +468,8 @@ Reference:
     we measure an excess fraction of twins F_twin ≈ 0.1 above the
     baseline power-law distribution."
 
-    Lucy (2006) A&A 457, 629 - First systematic study of twin excess
+    Lucy (2006) A&A 457, 629 - systematic statistical study of the twin
+    excess at q≈1 (the strong twin hypothesis itself traces to Lucy & Ricco 1979)
 
 Model:
     p(q) = (1 - f_twin) × q^γ / Z_pl + f_twin × N(q | μ=1, σ_twin)
@@ -479,7 +483,7 @@ Parameters:
                Moe+17 suggest σ ≈ 0.02-0.05
     q_min: Minimum mass ratio (default: 0.1)
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L224`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L224)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L276`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L276)*
 
 (api-imf-moedistefano2017)=
 ## `imf.MoeDiStefano2017`
@@ -530,14 +534,20 @@ MoeDiStefano2017Full(q_min: 'float' = 0.1, q_break: 'float' = 0.3, n_grid: 'int'
 
 Faithful two-slope, period-dependent Moe & Di Stefano (2017) mass-ratio model.
 
-The mass-ratio pdf is (their §9.1, Eq. 2 + the worked twin example, p.5):
+The mass-ratio pdf is a two-slope power law plus a twin excess block,
+jointly normalized over [q_min, 1.0]:
 
-    p_q(q | M1, P) = (1 - F_twin) * p_2slope(q) + F_twin * Uniform[0.95, 1.0]
+    p_q(q | M1, P) ∝ p_2slope(q) + [twin block on [0.95, 1.0]]
 
 where p_2slope ∝ q^γsmallq on [q_min, 0.3] then q^γlargeq on [0.3, 1.0]
-(continuous at q=0.3), normalized over [q_min, 1.0]; F_twin is the EXCESS twin
-weight (the fraction of systems that are pure twins, not the total q>0.95
-fraction). γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
+(continuous at q=0.3). F_twin is the EXCESS-twin fraction of the q > 0.3
+population (MD17 p.5, Fig. 2 — NOT the fraction of all q > q_min companions,
+and NOT the total q > 0.95 fraction). To realize that convention the twin
+block carries unnormalized mass ft/(1-ft)·I_B (I_B = power-law mass on
+[0.3, 1]), so twin/(twin + I_B) = ft exactly (see `_components`). The pre-fix
+code mixed ft against the whole [q_min, 1] population, over-weighting twins
+by ~22% at solar logP=1 (realized 0.367 vs Table-13 0.300) — audit R3.
+γsmallq, γlargeq, F_twin are bilinearly interpolated (clamped) over
 Table 13 (verified against the PDF p.52). η(P,M1) for eccentricity is handled by
 `progenax.binaries.MoeEccentricity` (which reproduces Table 13's η).
 
@@ -574,7 +584,7 @@ flatter and weighted to shorter periods — reproducing Moe's period trend.
 
 Reference: Moe & Di Stefano (2017) ApJS 230, 15, Table 13, Figure 37.
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L323`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L323)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L350`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L350)*
 
 (api-imf-moejointorbit)=
 ## `imf.MoeJointOrbit`
@@ -598,7 +608,7 @@ so `imf` need not hard-import `binaries`.
 
 Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L363`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L363)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L390`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L390)*
 
 (api-imf-constantbinaryfraction)=
 ## `imf.ConstantBinaryFraction`
@@ -676,7 +686,7 @@ Moe & Di Stefano (2017) ApJS 230, 15, which represents the most complete
 characterization of binary statistics to date.
 
 Reference:
-    Kroupa (1995) MNRAS 277, 1507 - IMF-consistent binary populations
+    Kroupa (1995) MNRAS 277, 1491 - IMF-consistent binary populations
     Moe & Di Stefano (2017) ApJS 230, 15 - Modern comprehensive model
     Raghavan et al. (2010) ApJS 190, 1 - Solar-type binary statistics
     Sana et al. (2012) Science 337, 444 - O-star binary statistics

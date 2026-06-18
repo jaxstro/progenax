@@ -41,7 +41,7 @@ Rosen, *Confidently Wrong* (``N`` = observed systems; primaries from the IMF,
 companions attached on top, so total stars = ``n + n_binary``). The only
 **fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
 
-*Source: [`progenax/builders.py#L37`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L37)*
+*Source: [`progenax/builders.py#L41`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L41)*
 
 (api-builders-stars)=
 ## `builders.Stars`
@@ -60,7 +60,7 @@ in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 
 — a binary is never split, so the result is ``n`` or ``n+1`` stars). The
 data-dependent system count makes this **eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L49`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L49)*
+*Source: [`progenax/builders.py#L53`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L53)*
 
 (api-builders-totalmass)=
 ## `builders.TotalMass`
@@ -76,7 +76,7 @@ Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
 Whole-system, McLuster-style mass filling: draw until the cumulative system
 mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L62`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L62)*
+*Source: [`progenax/builders.py#L66`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L66)*
 
 (api-builders-icresult)=
 ## `builders.ICResult`
@@ -116,7 +116,7 @@ Attributes:
         **PROVENANCE at t=0** — a label of the generating component, not a
         dynamical invariant.
 
-*Source: [`progenax/builders.py#L113`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L113)*
+*Source: [`progenax/builders.py#L117`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L117)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -127,14 +127,35 @@ Attributes:
 compute_stellar_radii(masses: jaxtyping.Float[Array, 'N']) -> jaxtyping.Float[Array, 'N']
 ```
 
-Estimate stellar radii from mass (main-sequence + brown dwarfs).
+Main-sequence stellar radii from mass, in SOLAR RADII.
 
-Returns radii in SOLAR RADII (R☉).
+Demircan & Kahraman (1991), Ap&SS 181, 313, Table II — the EMPIRICAL fits to
+MS binary data (log R = a + b log M, so R = 10^a M^b), NOT their ZAMS fit:
+    R/Rsun = 1.06 (M/Msun)^0.945   for 0.08 <= M < 1.66 Msun  (a=0.026, b=0.945)
+    R/Rsun = 1.33 (M/Msun)^0.555   for M >= 1.66 Msun         (a=0.124, b=0.555)
+The 1.66 Msun break is D&K91's measured knee (1.66 +/- 0.08, their Section 4).
+(D&K91's ZAMS fit is different: R ~ 0.89 M^0.89 / 1.01 M^0.57 — not used here.)
+Brown dwarfs (M < 0.08): R ~ 0.1 Rsun plateau (electron degeneracy),
+R = 0.1 (M/0.08)^0.08. The D&K branches meet at 1.66 Msun with their
+own ~3.5% fit discontinuity; the low-mass branch meets the BD plateau
+nearly continuously (1.06 * 0.08^0.945 = 0.0975).
 
-R/R☉ relations (3 regimes):
-- M > 1 M☉: R ∝ M^0.8 (massive stars)
-- 0.08 ≤ M ≤ 1 M☉: R ∝ M^0.57 (low-mass main sequence)
-- M < 0.08 M☉: R ∝ M^0.08 (brown dwarfs, ~0.1 R☉)
+Audit R6: the previous exponents were INVERTED vs MS homology (M^0.8
+above 1 Msun instead of below), giving 10 Msun -> 6.3 Rsun (ZAMS ~4.8)
+and 0.2 Msun -> 0.40 Rsun (observed ~0.23), with a factor-2.4 jump at
+the hydrogen-burning limit.
+
+Used for collision radii in downstream N-body; empirical MS radii, no evolution.
+See :func:`progenax.zams_radius` for the Tout+1996 *photometric* ZAMS radii (this
+function is the D&K91 *collision* radius — a different relation for a different use).
+
+.. note::
+   TEMPORARY single-relation stand-in. This will be REPLACED by the
+   ``startrax`` package once it lands: first Tout et al. (1996) ZAMS radii
+   (metallicity-dependent rational-polynomial fits), then MIST and the
+   Hurley+2000 SSE tracks (mass- AND age-dependent radii with real stellar
+   evolution). The D&K91 fit here is a static empirical main-sequence
+   approximation chosen only to be cited and correct until then.
 
 Args:
     masses: Particle masses (N,) [M☉]
@@ -142,7 +163,7 @@ Args:
 Returns:
     Radii in R☉
 
-*Source: [`progenax/builders.py#L155`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L155)*
+*Source: [`progenax/builders.py#L159`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L159)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -163,21 +184,28 @@ Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 *function*
 
 ```python
-compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0) -> jaxtyping.Float[Array, '']
+compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> jaxtyping.Float[Array, '']
 ```
 
-Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
+Total potential energy V = -G * sum_{i<j} m_i m_j / r_ij (Plummer-softened).
 
-Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2). Returns a negative
-value (bound systems have V < 0).
+Blocked row-scan (``lax.scan`` over row blocks of ``block_size`` stars vs ALL
+columns): peak transient memory is O(block_size * N), not O(N^2), for the
+forward AND backward pass — the dense kernel measured 32.8 GB at N = 2e4
+(2026-06-10); blocked at the default 256 it is ~0.12 GB. The backward pass
+stays O(block_size * N) via ``jax.checkpoint`` rematerialization: each
+block's forward is recomputed during the vjp instead of stored, so no
+O(N^2) stacked residuals accumulate across scan iterations. Identical pair
+set and per-pair arithmetic; only float64 summation ORDER changes across
+blocks (re-association at the 1e-15 relative level). ``block_size`` is a
+Python int and must be static under jax.jit.
 
-Differentiable at ``softening=0``: a double-``where`` feeds the diagonal a
-safe positive value *before* ``sqrt`` (otherwise the diagonal ``sqrt(0)``
-derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
-sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
-canonical energy implementation; ``progenax.builders`` re-exports it.
+Differentiable at ``softening=0``: the i<j mask feeds excluded entries
+(diagonal, lower triangle, padded rows) a safe value *before* ``sqrt`` so no
+masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
+single canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L24`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L24)*
+*Source: [`progenax/dynamics/virial.py#L33`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L33)*
 
 (api-builders-to_com_frame)=
 ## `builders.to_com_frame`
@@ -198,7 +226,7 @@ Args:
 Returns:
     (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`progenax/builders.py#L196`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L196)*
+*Source: [`progenax/builders.py#L219`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L219)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -227,11 +255,14 @@ Args:
 Returns:
     Scaled velocities
 
+Cold input (T=0) raises for concrete inputs / yields NaN under tracing —
+see the delegate's docstring.
+
 References:
     Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
     Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`progenax/builders.py#L221`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L221)*
+*Source: [`progenax/builders.py#L244`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L244)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -262,7 +293,7 @@ Args:
 Returns:
     ICResult (pure physical state — no softening field)
 
-*Source: [`progenax/builders.py#L262`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L262)*
+*Source: [`progenax/builders.py#L285`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L285)*
 
 (api-builders-build_binary_cluster)=
 ## `builders.build_binary_cluster`
@@ -315,5 +346,5 @@ Args:
 Returns:
     `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
 
-*Source: [`progenax/builders.py#L380`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L380)*
+*Source: [`progenax/builders.py#L403`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L403)*
 

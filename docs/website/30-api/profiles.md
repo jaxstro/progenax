@@ -89,14 +89,14 @@ Examples:
     >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
 
     # Or manually with pre-computed ODE solution
-    >>> xi_grid, psi_grid = solve_king_profile(W0=7.0)
+    >>> xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
     >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0,
     ...                       xi_grid=xi_grid, psi_grid=psi_grid)
     >>> masses = jnp.ones(100)
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/king.py#L291`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L291)*
+*Source: [`progenax/profiles/king.py#L317`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L317)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -104,7 +104,7 @@ Examples:
 *function*
 
 ```python
-solve_king_profile(W0: float, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+solve_king_profile(W0: float, xi_max: float = 300.0, n_points: int = 2000)
 ```
 
 Solve King's Poisson equation numerically using diffrax.
@@ -121,8 +121,18 @@ Args:
     n_points: Number of points in output grid
 
 Returns:
-    xi_grid: Dimensionless radii xi = r/r_c
-    psi_grid: Dimensionless potential psi(xi)
+    3-tuple ``(xi_grid, psi_clamped, psi_raw)``:
+
+    - ``xi_grid``: dimensionless radii (``solution.ts``).
+    - ``psi_clamped``: ``max(psi, 0)``, truncated at the tidal radius. This
+      is the physical potential used for density / CDF / mu / virial.
+    - ``psi_raw``: the UNCLAMPED ODE solution ``solution.ys[:, 0]`` (goes
+      negative beyond the zero-crossing). Feed ``psi_raw`` to
+      ``_find_tidal_radius`` so the zero-crossing linear interpolation
+      carries d(xi_t)/dW0 from the diffrax solve -- the clamp would
+      otherwise set psi=0 at the crossing node, killing the gradient (audit
+      Task 1.2b, RESOLVED). The forward value of xi_t is identical either
+      way; only the gradient differs.
 
 References:
     King (1966), AJ, 71, 64
@@ -134,7 +144,7 @@ Note:
     traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
     diffrax for robustness.
 
-*Source: [`progenax/profiles/king.py#L169`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L169)*
+*Source: [`progenax/profiles/king.py#L180`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L180)*
 
 (api-profiles-michieprofile)=
 ## `profiles.MichieProfile`
@@ -159,7 +169,7 @@ Attributes:
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L144`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L144)*
+*Source: [`progenax/profiles/michie.py#L148`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L148)*
 
 (api-profiles-solve_michie_profile)=
 ## `profiles.solve_michie_profile`
@@ -167,7 +177,7 @@ References:
 *function*
 
 ```python
-solve_michie_profile(W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+solve_michie_profile(W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000)
 ```
 
 Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
@@ -183,12 +193,17 @@ Args:
     n_points: output grid size.
 
 Returns:
-    xi_grid (= r/r_c), psi_grid (psi >= 0, truncated at the tidal radius).
+    3-tuple ``(xi_grid, psi_clamped, psi_raw)``. ``psi_clamped`` is psi >= 0,
+    truncated at the tidal radius (the physical potential used for density /
+    CDF / mu). ``psi_raw`` is the UNCLAMPED ODE solution (negative past the
+    crossing) -- feed it to ``_find_tidal_radius`` so d(xi_t)/dW0 flows (audit
+    Task 1.2b; see ``solve_king_profile``). The forward value of xi_t is the
+    same either way; only the gradient differs.
 
 References:
     Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L83`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L83)*
+*Source: [`progenax/profiles/michie.py#L81`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L81)*
 
 (api-profiles-limepyprofile)=
 ## `profiles.LIMEPYProfile`
@@ -218,7 +233,7 @@ Attributes:
     is_aniso: static flag selecting the anisotropic density path.
     _r_grid, _cdf_grid: precomputed mass CDF for sampling.
 
-*Source: [`progenax/profiles/limepy.py#L288`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L288)*
+*Source: [`progenax/profiles/limepy.py#L301`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L301)*
 
 (api-profiles-solve_limepy_profile)=
 ## `profiles.solve_limepy_profile`
@@ -226,7 +241,7 @@ Attributes:
 *function*
 
 ```python
-solve_limepy_profile(W0: float, g: float, ra_hat: float | None = None, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+solve_limepy_profile(W0: float, g: float, ra_hat: float | None = None, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
 ```
 
 Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
@@ -251,9 +266,18 @@ Args:
     n_points: Output grid size.
 
 Returns:
-    (xi_grid, psi_grid): dimensionless radius and potential W(xi) (>= 0).
+    3-tuple ``(xi_grid, psi_clamped, psi_raw)`` (mirrors ``solve_king_profile``):
 
-*Source: [`progenax/profiles/limepy.py#L209`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L209)*
+    - ``xi_grid``: dimensionless radii.
+    - ``psi_clamped``: ``max(psi, 0)`` -- the physical potential W(xi) >= 0
+      used for density / CDF / mu / virial.
+    - ``psi_raw``: the UNCLAMPED ODE solution (negative past the zero-crossing).
+      Feed ``psi_raw`` to ``_find_tidal_radius`` so the crossing interpolation
+      carries d(xi_t)/dW0 -- the clamp would zero psi at the crossing node and
+      kill that gradient (audit Task 1.2b pattern). The forward xi_t value is
+      identical either way; only the gradient differs.
+
+*Source: [`progenax/profiles/limepy.py#L212`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L212)*
 
 (api-profiles-solve_multimass_limepy)=
 ## `profiles.solve_multimass_limepy`
@@ -261,7 +285,7 @@ Returns:
 *function*
 
 ```python
-solve_multimass_limepy(alpha_j: jaxtyping.Float[Array, 'n_comp'], m_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, xi_max: float = 300.0, n_points: int = 2000, ra_hat: float | None = None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_comp n_points']]
+solve_multimass_limepy(alpha_j: jaxtyping.Float[Array, 'n_comp'], m_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, xi_max: float = 300.0, n_points: int = 2000, ra_hat: float | None = None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_comp n_points']]
 ```
 
 Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
@@ -277,9 +301,9 @@ through to solve_multicomponent_limepy; ignored when ra_hat is None.
 JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max,
 aniso_method static.
 
-Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
+Returns (xi_grid, psi_grid, psi_raw, rho_j_grid) as solve_multicomponent_limepy.
 
-*Source: [`progenax/profiles/limepy_multimass.py#L303`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L303)*
+*Source: [`progenax/profiles/limepy_multimass.py#L313`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L313)*
 
 (api-profiles-find_alpha_for_masses)=
 ## `profiles.find_alpha_for_masses`
@@ -287,7 +311,7 @@ Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
 *function*
 
 ```python
-find_alpha_for_masses(m_j: jaxtyping.Float[Array, 'n_comp'], M_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, n_iter: int = 30, xi_max: float = 300.0, n_points: int = 2000, ra_hat=None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_comp'], jaxtyping.Float[Array, '']]
+find_alpha_for_masses(m_j: jaxtyping.Float[Array, 'n_comp'], M_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, n_iter: int = 30, xi_max: float = 300.0, n_points: int = 2000, ra_hat=None, eta: float = 0.0, aniso_method: str = 'table', tol: float = 1e-06) -> Tuple[jaxtyping.Float[Array, 'n_comp'], jaxtyping.Float[Array, '']]
 ```
 
 Find the central density fractions alpha_j that reproduce target masses M_j (Layer B).
@@ -298,26 +322,37 @@ diverges for wide mass functions):
 
     alpha_j <- alpha_j sqrt(f_j / f_j'),   renormalize sum_j alpha_j = 1,
 
-f_j = M_j / sum M (target), f_j' = realized fraction. Run as a FIXED-length
-jax.lax.scan (never while_loop) so the whole solve is differentiable in (M_j, delta,
-g, W0). Starts from alpha_j = f_j.
+f_j = M_j / sum M (target), f_j' = realized fraction. Starts from alpha_j = f_j.
 
-The eigenvalue iteration deliberately uses the SAME aniso_method as the final
-solve (default "table") so the converged alpha_j are self-consistent with the
-model actually built; the residual remains a reported diagnostic. Pass
+Solved by a hand-rolled jax.custom_vjp: the forward is an adaptive
+jax.lax.while_loop that iterates the sqrt-update until the residual
+max_j |f_j' - f_j| < tol (or the n_iter safety cap), and the backward is the
+EXACT fixed-point gradient via a reverse-mode implicit VJP of the sqrt-map
+residual R(alpha, theta) = alpha - sqrt-map(alpha) (n x n Jacobian by vmapped
+vjp, lstsq solve, -vjp_theta). This is flat-in-n_iter and ~3x faster per
+value_and_grad than the old unrolled lax.scan, with gradients matching central
+finite differences to <1e-5. Two solvers are dispatched on `ra_hat is None`:
+the isotropic solver keeps (ra_hat, eta) out of the differentiated set so it can
+take the fast isotropic density path; the anisotropic solver also
+differentiates (ra_hat, eta).
+
+The iteration deliberately uses the SAME aniso_method as the final solve
+(default "table") so the converged alpha_j are self-consistent with the model
+actually built; the residual remains a reported diagnostic. Pass
 aniso_method="quadrature" for the exact oracle path.
 
 Args:
     m_j: component representative masses. M_j: target mass per component.
-    W0, g, delta: model parameters. n_iter: fixed iteration count.
+    W0, g, delta: model parameters. n_iter: forward iteration safety cap.
     xi_max, n_points: ODE grid (static). aniso_method: density-source path
     ("table" default, "quadrature" oracle; static, ignored when ra_hat is None).
+    tol: forward residual tolerance for the adaptive while_loop.
 
 Returns:
     (alpha_j, residual): converged central density fractions (sum to 1, positive)
     and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
 
-*Source: [`progenax/profiles/limepy_multimass.py#L364`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L364)*
+*Source: [`progenax/profiles/limepy_multimass.py#L508`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L508)*
 
 (api-profiles-effprofile)=
 ## `profiles.EFFProfile`

@@ -33,7 +33,7 @@ Public symbols: **13**
 *function*
 
 ```python
-compute_lambda_msr(positions: numpy.ndarray, masses: numpy.ndarray, N_massive: int = 10, N_random_samples: int = 50, seed: int = 42) -> Tuple[float, float]
+compute_lambda_msr(positions: 'np.ndarray', masses: 'np.ndarray', N_massive: 'int' = 10, N_random_samples: 'int' = 50, seed: 'int' = 42) -> 'Tuple[float, float]'
 ```
 
 Compute Λ_MSR mass segregation ratio (Allison et al. 2009).
@@ -86,7 +86,7 @@ References:
     Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
         Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
 
-*Source: [`progenax/diagnostics/mass_segregation.py#L23`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L23)*
+*Source: [`progenax/diagnostics/mass_segregation.py#L40`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L40)*
 
 (api-diagnostics-compute_q_parameter)=
 ## `diagnostics.compute_q_parameter`
@@ -94,7 +94,7 @@ References:
 *function*
 
 ```python
-compute_q_parameter(positions: numpy.ndarray) -> float
+compute_q_parameter(positions: 'np.ndarray') -> 'float'
 ```
 
 Compute Cartwright & Whitworth Q parameter for spatial substructure.
@@ -117,11 +117,18 @@ Args:
 Returns:
     Q: Cartwright-Whitworth Q parameter
 
-CW04 Table 1 (3D projected to 2D, N≈100-300); reproduced to <0.01 with A=πR²:
-    - Uniform sphere (3D0): s̄ ≈ 0.80, m̄ ≈ 0.63, Q ≈ 0.79 ± 0.02
-    - r^-1 profile (3D1): Q ≈ 0.84 ± 0.03
-    - r^-2 profile (3D2): Q ≈ 0.93 ± 0.03
-    - Fractal D=1.5: Q ≈ 0.47;  D=2.0: Q ≈ 0.58;  D=2.5: Q ≈ 0.70
+CW04 Table 1 — published Q = m̄/s̄ (artificial clusters, N≈100-300, 3D→2D projected):
+    - Uniform sphere (3D0): s̄=0.80, m̄=0.63, Q=0.79 ± 0.02
+    - r^-1 radial (3D1):    Q = 0.84 ± 0.02
+    - r^-2 radial (3D2):    Q = 0.93 ± 0.03
+    - Fractal D=2.5 (F2.5): Q = 0.73 ± 0.06
+    - Fractal D=2.0 (F2.0): Q = 0.61 ± 0.08
+    - Fractal D=1.5 (F1.5): Q = 0.45 ± 0.09
+This estimator (area A=πR²) reproduces the RADIAL Q to <0.01. For the FRACTAL
+clusters it returns Q ≈ 0.47/0.58/0.70 at D=1.5/2.0/2.5 — consistent within CW04's
+±0.06-0.09 but offset ~0.02-0.03 from the published values, most likely because
+CW04 normalize by a different cluster-footprint area (a clumpy fractal deviates
+most from πR²). Only the radial anchors trace verbatim to CW04 Table 1.
 
 Interpretation:
     - Q < 0.80: Substructured (fractal, clumpy)
@@ -153,7 +160,7 @@ Notes:
 References:
     Cartwright & Whitworth (2004), MNRAS 348, 589
 
-*Source: [`progenax/diagnostics/substructure.py#L25`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L25)*
+*Source: [`progenax/diagnostics/substructure.py#L43`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L43)*
 
 (api-diagnostics-compute_azimuthal_variation)=
 ## `diagnostics.compute_azimuthal_variation`
@@ -161,7 +168,7 @@ References:
 *function*
 
 ```python
-compute_azimuthal_variation(positions: numpy.ndarray, n_bins: int = 12) -> float
+compute_azimuthal_variation(positions: 'np.ndarray', n_bins: 'int' = 12) -> 'float'
 ```
 
 Compute azimuthal density variation σ_Σ / <Σ>.
@@ -196,7 +203,7 @@ Notes:
 References:
     Küpper et al. (2011), MNRAS 417, 2300
 
-*Source: [`progenax/diagnostics/substructure.py#L135`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L135)*
+*Source: [`progenax/diagnostics/substructure.py#L162`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L162)*
 
 (api-diagnostics-q_approx)=
 ## `diagnostics.q_approx`
@@ -219,7 +226,7 @@ Args:
 Returns:
     Q_approx: Approximate Q parameter (scalar)
 
-*Source: [`progenax/diagnostics/q_approx.py#L242`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L242)*
+*Source: [`progenax/diagnostics/q_approx.py#L247`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L247)*
 
 (api-diagnostics-q_approx_naive)=
 ## `diagnostics.q_approx_naive`
@@ -288,7 +295,7 @@ Args:
 Returns:
     Dictionary with calibration factors and statistics
 
-*Source: [`progenax/diagnostics/q_approx.py#L280`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L280)*
+*Source: [`progenax/diagnostics/q_approx.py#L284`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L284)*
 
 (api-diagnostics-default_calibration)=
 ## `diagnostics.DEFAULT_CALIBRATION`
@@ -406,7 +413,7 @@ Args:
 Returns:
     Scalar ``Lambda_soft``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L150`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L150)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L154`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L154)*
 
 (api-diagnostics-sigma_m_approx)=
 ## `diagnostics.sigma_m_approx`
@@ -424,8 +431,10 @@ between the soft mass-cut weight and the local surface density::
 
     S = corr_i( w_i , log Sigma_i ),   Sigma_i = (k - 1) / (pi r_ik^2)
 
-where ``r_ik`` is the distance to the ``k``-th nearest neighbour (Maschberger &
-Clarke 2011, Eq. 4; ``k = 6`` standard). The k-NN radius is computed with
+where ``r_ik`` is the distance to the ``k``-th nearest neighbour. The local
+surface-density estimator ``Sigma = (k-1)/(pi r_k^2)`` and the ``k = 6`` choice
+follow von Hoerner (1963) / Casertano & Hut (1985), as adopted by Maschberger &
+Clarke (2011, Eq. 4). The k-NN radius is computed with
 ``jnp.sort`` -- the **exact** k-th order statistic, which (unlike ``argsort``) has a
 well-defined JVP, so the observable is differentiable in positions without any
 softening of the radius.
@@ -440,8 +449,8 @@ Args:
     masses: Stellar masses ``(N,)``.
     m_cut: Mass cut for the massive population.
     tau: Soft mass-cut softness (> 0).
-    k: Nearest-neighbour rank for the local-density estimator (Maschberger-Clarke
-        ``k = 6``). Must satisfy ``2 <= k < N``.
+    k: Nearest-neighbour rank for the local-density estimator (``k = 6``;
+        Casertano & Hut 1985, via Maschberger & Clarke 2011). Must satisfy ``2 <= k < N``.
     project_to_2d: Use projected (x, y) positions if True (observer-faithful;
         surface density is intrinsically a projected quantity).
     calibration: Multiplicative calibration vs the exact Sigma--m oracle.
@@ -449,7 +458,7 @@ Args:
 Returns:
     Scalar correlation ``S``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L216`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L216)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L220`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L220)*
 
 (api-diagnostics-calibrate_segregation_approx)=
 ## `diagnostics.calibrate_segregation_approx`
@@ -480,5 +489,5 @@ Args:
 Returns:
     Dict of calibration factors, correlations, and ``n_samples``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L299`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L299)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L305`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L305)*
 

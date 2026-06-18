@@ -446,10 +446,10 @@ slope η a function of orbital period AND primary mass:
     Eq. 18 (early-type, M1 > 7 Msun):       η = 0.9 - 0.2 / (logP - 0.5)
 
 with a linear interpolation in M1 for 3 <= M1 <= 7 Msun. η = 0 is uniform
-(<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Sana et al. (2012)
-measure η ≈ -0.4 for short-period (P < 10 d) O-stars; solar-type binaries
-asymptote to η ≈ 0.5 at long P; intermediate-period massive binaries reach
-η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
+(<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Eqs. 17-18 themselves
+drive short-period (logP ≲ 1) massive binaries to η < 0 (tidal
+circularization); solar-type binaries asymptote to η ≈ 0.5 at long P;
+intermediate-period massive binaries reach η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
 the orbit is tidally circularized and this returns e ≈ 0 (Moe notes η is "not
 well defined" for logP ≲ 1).
 
@@ -467,7 +467,9 @@ singularity), reached only where the Roche relation itself approaches 1.
 
 Reference:
     Moe & Di Stefano (2017) ApJS 230, 15, §9.2 Eqs. 17-18, Eq. 3, Fig. 36.
-    Sana et al. (2012) Science 337, 444 - η = -0.4 ± 0.2 short-period O-stars.
+    Sana et al. (2012) Science 337, 444 - short-period O-star binaries are
+        eccentricity-poor; the precise slope is in their supplementary Table S3
+        (not reproduced in the held main report).
 
 Parameters:
     e_max: Numerical eccentricity ceiling at long P (default: 0.99); the
@@ -879,13 +881,17 @@ Two-scale energy budget of a primordial-binary cluster.
 Attributes:
     E_internal: total internal orbital energy of the primordial binaries
         (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the
-        global virial scaling (``Q``) does NOT touch.
+        global virial scaling (``Q``) does NOT touch. NB the ``softening`` passed
+        to the bound-pair finders does NOT soften this internal binding energy —
+        it only regularizes the inter-system potential (audit S18).
     T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the
         scale the cluster is virialized on.
     Q_com: ``T_com / |W_com|`` — the virial ratio the cluster was scaled to
         (≈ the ``Q`` passed to ``build_binary_cluster``).
     Q_resolved: ``T / |W|`` on the *resolved* stars — the naive ratio that mixes
-        the cluster and internal-binary scales (inflated by internal binary KE).
+        the cluster and internal-binary scales. The deep internal binary binding
+        dominates |W|, so Q_resolved is DEFLATED below the cluster Q (measured
+        ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10).
     n_binaries: number of primordial binaries (two positive-mass members).
 
 *Source: [`progenax/binaries/diagnostics.py#L203`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L203)*
@@ -924,5 +930,5 @@ Args:
 Returns:
     :class:`BinaryEnergyBudget`.
 
-*Source: [`progenax/binaries/diagnostics.py#L246`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L246)*
+*Source: [`progenax/binaries/diagnostics.py#L250`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L250)*
 

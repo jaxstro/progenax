@@ -9,7 +9,7 @@ description: Auto-generated API reference for `progenax.kinematics` — signatur
 
 Module path: `progenax/kinematics/`
 
-Public symbols: **11**
+Public symbols: **14**
 
 ## Contents
 
@@ -20,6 +20,9 @@ Public symbols: **11**
 - [`EFFVelocityDF`](#api-kinematics-effvelocitydf)
 - [`apply_solid_body_rotation`](#api-kinematics-apply_solid_body_rotation)
 - [`apply_differential_rotation`](#api-kinematics-apply_differential_rotation)
+- [`jeans_dispersion`](#api-kinematics-jeans_dispersion)
+- [`project_dispersion`](#api-kinematics-project_dispersion)
+- [`df_moment_dispersion`](#api-kinematics-df_moment_dispersion)
 - [`VelocityDF`](#api-kinematics-velocitydf)
 - [`RotationParams`](#api-kinematics-rotationparams)
 - [`VelocityModel`](#api-kinematics-velocitymodel)
@@ -89,7 +92,7 @@ Examples:
     >>> from jaxstro.units import STELLAR
     >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
-*Source: [`progenax/kinematics/plummer_df.py#L37`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/plummer_df.py#L37)*
+*Source: [`progenax/kinematics/plummer_df.py#L36`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/plummer_df.py#L36)*
 
 (api-kinematics-kingvelocitydf)=
 ## `kinematics.KingVelocityDF`
@@ -97,7 +100,7 @@ Examples:
 *class*
 
 ```python
-KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, r_t: float = 10.0, xi_max: float | None = None, n_ode_points: int | None = None)
+KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
 ```
 
 King (1966) lowered-Maxwellian velocity distribution function.
@@ -108,17 +111,30 @@ scale sigma fixed self-consistently from (G, M_total, r_c, W0). The resulting IC
 in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
 bound (v < v_esc(r)).
 
+Speed draws are TABLE-BACKED by default (speed_method="table"): the
+inverse-CDF table is CACHED at construction (SpeedCDFTable.build(W0, g=1))
+and the draw runs through a jitted core — at g=1 the LIMEPY lowered
+exponential reduces EXACTLY to the King lowering, E_gamma(1, x) = e^x - 1
+(identity guarded to rtol 1e-12 in
+tests/unit/kinematics/test_king_df.py::TestKingTableRouting), so the
+table weight x^2 E_gamma(1, W(1-x^2)) IS the King speed weight
+u^2 (exp(W - u^2/2) - 1). speed_method="quadrature" retains the exact
+per-star 256-point quadrature as the oracle (statistical agreement
+asserted in TestKingTableRouting). Reuse one DF instance for repeated
+draws: construction (ODE solve + table) dominates; per-draw cost is then
+milliseconds at any N.
+
 Attributes:
     W0: King concentration parameter (dimensionless central potential)
     r_c: Core radius [length units] (the King core radius)
-    r_t: Tidal radius [length units]
     xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
+    speed_method: static, "table" (default) or "quadrature" (exact oracle)
 
 References:
     King (1966), AJ, 71, 64
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-*Source: [`progenax/kinematics/king_df.py#L64`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/king_df.py#L64)*
+*Source: [`progenax/kinematics/king_df.py#L63`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/king_df.py#L63)*
 
 (api-kinematics-michievelocitydf)=
 ## `kinematics.MichieVelocityDF`
@@ -126,7 +142,7 @@ References:
 *class*
 
 ```python
-MichieVelocityDF(W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000)
+MichieVelocityDF(W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
 ```
 
 Michie-King anisotropic velocity DF (radially anisotropic, lowered-Maxwellian).
@@ -135,14 +151,31 @@ beta(r) ~ 0 at the centre, increasing outward; r_a -> infinity is the isotropic 
 DF. The velocity scale sigma is self-consistent (sigma^2 = G M / (9 r_c mu), mu the
 anisotropic dimensionless mass integral), so ICs are virial without external rescale.
 
+Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
+marginal comes from the inverse-CDF table CACHED at construction
+(AnisoSpeedCDFTable.build(W0, p_box, g=1)) via a jitted core — Michie IS
+the g=1 anisotropic LIMEPY model (E_gamma(1, x) = e^x - 1 exactly; the
+standing distributional proof is
+test_g1_aniso_matches_michie_velocity_df). The angular conditional
+cos(theta)|u stays EXACT (_sample_costheta_given_u, weight
+exp(-(s^2 u^2/2)(1 - cos^2 theta)) = exp(-s^2 u_t^2/2) under
+u_t = u sin(theta)) — only the speed marginal is tabulated.
+speed_method="quadrature" retains the exact per-star 2-D
+(u_t-marginal-then-u_r) inverse-CDF as the oracle (statistical agreement
+asserted in tests/unit/kinematics/test_michie_df.py::
+TestMichieTableRouting). Reuse one DF instance for repeated draws:
+construction (ODE solve + mu integral + table) dominates; per-draw cost
+is then milliseconds at any N.
+
 Attributes:
     W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.
     mu: int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma).
+    speed_method: static, "table" (default) or "quadrature" (exact oracle).
 
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/kinematics/michie_df.py#L64`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/michie_df.py#L64)*
+*Source: [`progenax/kinematics/michie_df.py#L72`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/michie_df.py#L72)*
 
 (api-kinematics-limepyvelocitydf)=
 ## `kinematics.LIMEPYVelocityDF`
@@ -150,7 +183,7 @@ References:
 *class*
 
 ```python
-LIMEPYVelocityDF(W0: float = 5.0, g: float = 1.0, r_c: float = 1.0, r_a: float | None = None, xi_max: float = 300.0, n_ode_points: int = 2000)
+LIMEPYVelocityDF(W0: float = 5.0, g: float = 1.0, r_c: float = 1.0, r_a: float | None = None, xi_max: float = 300.0, n_ode_points: int = 2000, speed_method: str = 'table')
 ```
 
 General-g LIMEPY lowered-isothermal velocity DF (isotropic or Michie/OM).
@@ -161,13 +194,31 @@ all stars are bound. r_a=None is isotropic (generalizes KingVelocityDF); a finit
 r_a adds radial anisotropy (generalizes MichieVelocityDF). At g=1 it reduces to
 King (isotropic) / Michie-King (anisotropic).
 
+Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
+marginal comes from the inverse-CDF table CACHED at construction
+(SpeedCDFTable / AnisoSpeedCDFTable, the same machinery
+MultiComponentCluster uses), and the whole draw runs through a jitted
+core, so live memory is O(N) instead of the eager per-star quadrature's
+O(N * 256 * 91) Poisson-sum buffers (measured at N=2e4 anisotropic:
+10.87 GB pre-tables; draw-chain peak +0.20 GB cached+jitted; warm draw
+0.015 s after the one-time ~0.5 s compile). The anisotropic angular
+conditional cos(theta)|u stays EXACT (_sample_costheta_given_u) -- only
+the speed marginal is tabulated. speed_method="quadrature" retains the
+exact per-star quadrature as the oracle (statistical agreement asserted
+in tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
+Cost structure: CONSTRUCTION dominates (~2.6 s / ~1.8 GB peak for an
+anisotropic model: two ODE solves + the mu integral + the cached table
+build) -- reuse one DF instance for repeated draws; per-draw cost is
+then milliseconds at any N.
+
 Attributes:
     W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).
     r_t: truncation radius. xi_grid, psi_grid: ODE solution W(xi).
     mu: dimensionless mass integral int rho_tilde xi^2 dxi (sets s).
     is_aniso: static flag selecting the anisotropic sampler.
+    speed_method: static, "table" (default) or "quadrature" (exact oracle).
 
-*Source: [`progenax/kinematics/limepy_df.py#L112`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/limepy_df.py#L112)*
+*Source: [`progenax/kinematics/limepy_df.py#L96`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/limepy_df.py#L96)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`
@@ -183,6 +234,16 @@ EFF (Elson-Fall-Freeman 1987) velocity DF via Eddington inversion.
 Samples the exact ergodic DF f(E) of the (truncated) EFF density. The central
 velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t), so no
 external virial rescale is needed.
+
+.. warning::
+   The DEFAULT (gamma=3, sharp truncation) is KNOWN ~8% sub-virial by
+   construction: a truncated rho with rho(r_t)>0 cannot be represented by an
+   f(E), so the sampled cluster is only approximately stationary (measured
+   Q = T/|V| ~ 0.458, not 0.5; pinned by test_eff_physics
+   test_gamma3_default_subvirial_offset_is_pinned). This is a documented
+   limitation, NOT an inversion error. For mild truncation (gamma>=5) the
+   offset shrinks to ~1% (Q ~ 0.495); for a strict lowered-DF equilibrium
+   use the King/Michie models instead.
 
 With ``anisotropy_radius`` (r_a) set, the DF is the Osipkov-Merritt radially
 anisotropic model for the same EFF density: f = f(Q), Q = E + J^2/2r_a^2, built by
@@ -203,7 +264,7 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
     Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
-*Source: [`progenax/kinematics/eff_df.py#L72`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/eff_df.py#L72)*
+*Source: [`progenax/kinematics/eff_df.py#L69`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/eff_df.py#L69)*
 
 (api-kinematics-apply_solid_body_rotation)=
 ## `kinematics.apply_solid_body_rotation`
@@ -220,6 +281,11 @@ Adds streaming velocity v_rot = omega x r to existing velocities.
 
 For solid body rotation, all particles rotate with the same
 angular velocity omega, giving v_phi = omega * R (cylindrical R).
+
+.. warning::
+   Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
+   stationary equilibrium (Q = T/|V| rises above 0.5); see the module
+   caveat (audit S3).
 
 Args:
     velocities: Input velocities (N, 3)
@@ -241,7 +307,7 @@ Example:
 Reference:
     Binney & Tremaine (2008) Section 4.8
 
-*Source: [`progenax/kinematics/rotation.py#L14`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L14)*
+*Source: [`progenax/kinematics/rotation.py#L41`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L41)*
 
 (api-kinematics-apply_differential_rotation)=
 ## `kinematics.apply_differential_rotation`
@@ -261,6 +327,10 @@ This gives:
     - v_phi(R_peak) = v_peak (maximum rotation)
     - v_phi -> 0 as R -> infinity (decreasing at large R)
 
+.. warning::
+   Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
+   stationary equilibrium (Q rises above 0.5); see the module caveat (S3).
+
 Args:
     velocities: Input velocities (N, 3)
     positions: Particle positions (N, 3)
@@ -278,7 +348,260 @@ Note:
     Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
     stellar systems in general, not for this functional form.
 
-*Source: [`progenax/kinematics/rotation.py#L61`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L61)*
+*Source: [`progenax/kinematics/rotation.py#L90`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L90)*
+
+(api-kinematics-jeans_dispersion)=
+## `kinematics.jeans_dispersion`
+
+*function*
+
+```python
+jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000, beta_fn=None) -> progenax.kinematics.dispersion.DispersionProfile
+```
+
+3-D anisotropic Jeans dispersion of ``profile`` under OM ``r_a``.
+
+Returns the equilibrium ``(sigma_r, sigma_t, sigma_1d, beta)`` of the
+spatial ``profile`` (which owns rho, M, Phi) for an Osipkov-Merritt (1985)
+anisotropy radius ``r_a`` (``None`` -> isotropic). The radial dispersion is
+the anisotropic Jeans solution (master tables from :func:`_jeans_tables`,
+evaluated by :func:`_sigma_r2_from_tables`); the tangential / 1-D components
+and ``beta`` follow from OM (:func:`_sigma_components`).
+
+Anisotropy model (IMPORTANT — read before using on a Michie/King profile).
+This function **imposes the Osipkov-Merritt anisotropy law**
+``beta(r) = r^2 / (r^2 + r_a^2)`` on the *density* of ``profile``, regardless
+of the profile's own intrinsic anisotropy. Consequences:
+
+- **Plummer / EFF** are intrinsically isotropic, so layering OM on their
+  density is the EXACT Osipkov-Merritt model — correct at all radii.
+- **Michie** is intrinsically anisotropic with its OWN (Michie-King)
+  anisotropy law, which agrees with OM in the core but DIVERGES outward.
+  ``jeans_dispersion(MichieProfile, r_a)`` is therefore "the Michie *density*
+  under OM anisotropy", NOT the native Michie equilibrium — validated only in
+  the inner region (r << r_t) where OM is a good model of the Michie law.
+
+Units follow the caller-supplied ``G`` and ``M``; the returned velocities are
+in whatever ``sqrt(G M / length)`` implies. Differentiated with **reverse-mode**
+AD (the supported/tested path); forward-mode also works for analytic-density
+profiles (Plummer/EFF) but not through the King/Michie equilibrium-solver
+profiles — see the module docstring.
+
+General-``beta(r)`` anisotropy (Tier A, Phase 0.5 D1). Pass a callable
+``beta_fn(r) -> beta`` to use an ARBITRARY anisotropy profile (native
+Michie/King anisotropy, custom ``beta(r)``) instead of the OM law, via the
+general integrating factor ``f(r) = exp(2 int beta(s)/s ds)``::
+
+    rho sigma_r^2(r) = (1/f(r)) int_r^inf f(s) rho(s) G M(<s)/s^2 ds
+    sigma_t^2 = (1 - beta) sigma_r^2 ;  sigma_1d^2 = (sigma_r^2 + 2 sigma_t^2)/3
+
+``f`` is built numerically (max-subtracted log form for stability); the OM
+special case ``f = r^2 + r_a^2`` (``beta = r^2/(r^2 + r_a^2)``) is the analytic
+default and is BIT-PRESERVED when ``beta_fn is None``. When ``beta_fn`` is
+given, ``r_a`` is unused and the Plummer-OM ``r_a >= 0.75 a`` validity guard
+(an OM-only domain) is skipped. Note: the ``beta_fn`` path carries an O(h^2)
+error from the numerically-built integrating factor (the trapezoid
+``F = 2 int beta/s ds``), whereas the analytic-OM default has none.
+
+The enclosed mass ``M(<s)`` is a *quadrature of ``profile.density``*
+(builder-quality, no re-differentiated Psi): ``M_enc = M * cumtrap(rho s^2)
+/ cumtrap_total(rho s^2)``. A fine radial s-grid runs to ``profile.r_t`` if
+present (King/EFF); for Plummer (no finite cutoff) the semi-infinite domain is
+algebraically compactified via ``s = a t/(1-t)`` (:func:`_jeans_tables`), so the
+full outward tail is integrated (no truncation bias).
+
+Parameters
+----------
+profile : spatial profile exposing ``density(r)`` (and optionally ``r_t``,
+    ``a``).
+r_a : Osipkov-Merritt anisotropy radius, or ``None`` for isotropic.
+r : query radii (array-like; broadcast to at least 1-D).
+M : total mass normalising the enclosed-mass quadrature.
+G : gravitational constant (sets the velocity units).
+n_s : number of points on the fine radial s-grid (default 4000). The trapezoid
+    quadrature is O(h^2 = (r_max/n_s)^2); exposed so a convergence study can
+    refine it. Backward-compatible (keyword, default unchanged) and traced-safe
+    (a static Python int, not a JAX value).
+beta_fn : optional callable ``beta_fn(r) -> beta`` for general anisotropy. When
+    given, the numerical integrating-factor path is used (``r_a`` ignored);
+    ``None`` (default) keeps the bit-preserved analytic OM/isotropic path.
+
+Returns
+-------
+DispersionProfile
+
+Notes
+-----
+For a *concrete* (non-traced) ``r_a`` the Plummer OM DF requires
+``r_a >= 0.75 a`` (Merritt 1985, Eq. 46); a smaller value is unphysical
+(negative phase-space DF) and raises ``ValueError``. The check is eager,
+skipped under tracing so ``jax.grad``/``jax.jit`` over ``r_a`` still work,
+and gated on ``hasattr(profile, "a")`` so non-Plummer profiles (different
+validity domains) do not trip it.
+
+Near a truncation-divergence the forward map is stiff. For a strongly
+anisotropic Michie profile the tidal radius runs away as ``W0`` approaches the
+no-finite-truncation edge (e.g. at ``r_a = 5 r_c`` the Michie ``r_t`` grows
+~28 -> 545 over ``W0`` 6 -> 7 and the model has no finite ``r_t`` past
+``W0 ~ 7.1``). The ``sigma(W0)`` gradient stays CORRECT there (reverse-mode AD
+matches a converged finite difference), but a single fixed-step FD is an
+unreliable truth-proxy because the map's curvature is near-singular — so the
+Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``);
+the high-``W0`` correctness is pinned by a Richardson-FD test
+(``test_grad_jeans_michie_high_W0_ad_correct``). See ADR-0016.
+
+*Source: [`progenax/kinematics/dispersion.py#L429`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L429)*
+
+(api-kinematics-project_dispersion)=
+## `kinematics.project_dispersion`
+
+*function*
+
+```python
+project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> progenax.kinematics.dispersion.ProjectedDispersion
+```
+
+Observed projected dispersions of ``profile`` (Binney & Mamon 1982 LOS +
+Strigari+2007 proper motions).
+
+Projects the 3-D anisotropic Jeans model (:func:`jeans_dispersion`) onto the
+sky along the line of sight, returning the OBSERVED dispersions at on-sky
+radii ``R``. The line-of-sight kernel ``(1 - beta R^2/r^2)`` is Binney &
+Mamon (1982), MNRAS 200, 361, Eq. 7 (the only projection formula in that
+paper); the two proper-motion kernels ``(1 - beta + beta R^2/r^2)`` (on-sky
+radial) and ``(1 - beta)`` (on-sky tangential) are Strigari, Bullock &
+Kaplinghat (2007), ApJ 657, L1, Eqs. 2-3 (earliest first-principles
+derivation: Leonard & Merritt 1989, ApJ 339, 195). All three share the same
+projection measure ``r/sqrt(r^2-R^2)`` and the weight ``rho sr^2``. With
+Osipkov-Merritt anisotropy ``beta(r) = r^2 / (r^2 + r_a^2)``::
+
+    Sigma(R)            = 2 int_R^inf rho                       r/sqrt(r^2-R^2) dr
+    Sigma sigma_los^2   = 2 int_R^inf (1 - beta R^2/r^2)  rho sr^2 r/sqrt(r^2-R^2) dr  # B&M82 Eq. 7
+    Sigma sigma_pmR^2   = 2 int_R^inf (1 - beta + beta R^2/r^2) rho sr^2 r/sqrt(...) dr  # Strigari+2007 Eq. 2
+    Sigma sigma_pmT^2   = 2 int_R^inf (1 - beta)         rho sr^2 r/sqrt(r^2-R^2) dr  # Strigari+2007 Eq. 3
+
+where ``sr^2 = sigma_r^2(r)`` (radial), ``sigma_los`` is the line-of-sight
+(the RV channel), and ``sigma_pmR`` / ``sigma_pmT`` are the on-sky radial /
+tangential proper-motion (PM) channels. ``rho`` cancels in the sigma ratios; in
+``Sigma`` it is the projected surface density in ``profile.density`` units.
+The isotropic limit (``r_a=None`` -> ``beta=0``) collapses all three kernels to
+1, so ``sigma_los = sigma_pm_r = sigma_pm_t``; anisotropy lives in the ratios.
+
+Isotropic-Plummer ``sigma_los`` oracle: for the isotropic Plummer member this
+projection has the closed form ``sigma_los^2(R) = (3 pi / 64) G M /
+sqrt(a^2 + R^2)`` (Dejonghe 1987, MNRAS 224, 13), used as the tight absolute
+validation anchor in ``test_dispersion_physics.py``.
+
+Singularity removal (load-bearing, keeps it differentiable): the
+``1/sqrt(r^2-R^2)`` pole at ``r=R`` is removed ANALYTICALLY by the
+substitution ``r^2 = R^2 + u^2`` (so ``r dr / sqrt(r^2-R^2) = du``)::
+
+    int_R^inf g(r) r/sqrt(r^2-R^2) dr = int_0^Umax g(sqrt(R^2+u^2)) du
+
+so NO ``1/sqrt(r^2-R^2)`` is ever evaluated — only a smooth trapezoid quadrature
+in ``u`` (``Umax = sqrt(r_t^2 - R^2)`` for finite ``r_t``; ``Umax = inf`` for
+Plummer, see below). ``sigma_r^2(r)`` is read from the ONE master Jeans solve —
+:func:`_jeans_tables` is built once (hoisted out of the per-``R`` vmap) and
+:func:`_sigma_r2_from_tables` interpolates it per integration radius — and
+``beta(r)`` is the closed-form OM law; ``rho`` from ``profile.density``.
+
+The outward ``u``-grid is branched on ``profile.r_t``:
+
+- **Finite ``r_t`` (King / EFF):** a uniform ``u`` grid on
+  ``[0, sqrt(r_t^2 - R^2)]`` (the density has a hard cutoff, so the integral is
+  naturally finite). UNCHANGED.
+- **No ``r_t`` (Plummer):** the ``u``-integral is SEMI-INFINITE. The grid is
+  algebraically compactified, ``u = u_c tau/(1-tau)`` with ``u_c = profile.a`` and
+  ``tau in [0, _T_MAX]`` (Jacobian ``du/dtau = u_c/(1-tau)^2`` folded into every
+  trapezoid), so the full Plummer tail is integrated. This removes the former
+  ``30a`` ``u``-truncation, which left an ``n_u``-independent tail floor of
+  ~1.6e-4 (rel.) in ``sigma_los`` at outer ``R``; the residual is now pure
+  O(h^2). (Mirrors the :func:`_jeans_tables` Task-C master-grid compactification.)
+
+The per-``R`` ``u``-integral is vmapped over the ``R`` array. Fully reverse-mode
+differentiable; ``jax.jit``-able.
+
+Parameters
+----------
+profile : spatial profile exposing ``density(r)`` (and optionally ``r_t``, ``a``).
+r_a : Osipkov-Merritt anisotropy radius, or ``None`` for isotropic (beta=0).
+R : projected (on-sky) radii (array-like; broadcast to at least 1-D).
+M : total mass normalising the enclosed-mass quadrature (passed through to
+    :func:`jeans_dispersion`).
+G : gravitational constant (sets the velocity units).
+n_u : number of points on the uniform ``u``-quadrature grid (default 4000).
+
+Returns
+-------
+ProjectedDispersion
+
+*Source: [`progenax/kinematics/dispersion.py#L683`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L683)*
+
+(api-kinematics-df_moment_dispersion)=
+## `kinematics.df_moment_dispersion`
+
+*function*
+
+```python
+df_moment_dispersion(df, r, M, G, n_w: int = 256, n_alpha: int = 128) -> progenax.kinematics.dispersion.DispersionProfile
+```
+
+Exact second-moment dispersion of the anisotropic Michie-King DF (Tier B).
+
+Computes ``(sigma_r, sigma_t, sigma_1d, beta)`` by directly integrating the
+Michie (1963) velocity DF's second velocity moments at each radius — the
+*native* Michie equilibrium, correct at ALL radii (unlike
+:func:`jeans_dispersion` with an OM ``r_a``, which imposes the OM anisotropy
+law and is valid only in the inner region where OM approximates the Michie
+law). This is the DF-side truth that the Michie sampler draws from.
+
+Physics (verified vs ``michie_df.py`` / ``_michie_beta_oracle``; Michie 1963,
+King 1966). With dimensionless speed ``u = v/sigma``, at radius ``r``::
+
+    W(r)  = interp(r/r_c, xi_grid, psi_grid, left=W0, right=0), clamped >= 0
+    s     = r/r_a
+    sigma = sqrt(G M / (9 r_c mu))     (self-consistent Michie velocity scale)
+    f~(u_r, u_t) = exp(-s^2 u_t^2/2) [exp(W - (u_r^2+u_t^2)/2) - 1]
+                   on the bound region u_r^2 + u_t^2 <= 2W.
+
+The bound region is integrated by a fixed-domain POLAR quadrature that needs
+NO boundary mask (fully differentiable): ``u_r = w cos(alpha)``,
+``u_t = w sin(alpha)`` with ``w in [0, sqrt(2W)]`` and ``alpha in [0, pi]``
+(the energy bound becomes exactly the ``w`` upper limit). The velocity-space
+measure ``d^3u = 2 pi u_t du_r du_t = 2 pi w^2 sin(alpha) dw dalpha`` — the
+``2 pi`` (and any constant) cancels in the moment RATIOS, so the integration
+weight is simply ``w^2 sin(alpha)``::
+
+    <u_r^2> = int f~ (w cos a)^2 w^2 sin a / int f~ w^2 sin a
+    <u_t^2> = int f~ (w sin a)^2 w^2 sin a / int f~ w^2 sin a
+
+Then ``sigma_r = sigma sqrt(<u_r^2>)``, ``sigma_t = sigma sqrt(<u_t^2>/2)``
+(since ``<v_t^2> = 2 sigma_t^2``), and::
+
+    beta     = 1 - sigma_t^2/sigma_r^2 = 1 - <u_t^2>/(2 <u_r^2>)
+    sigma_1d = sqrt((sigma_r^2 + 2 sigma_t^2)/3).
+
+The ``beta`` here matches ``_michie_beta_oracle``'s ``1 - ut2/(2 ur2)`` exactly.
+A fixed ``w_hat in [0,1]`` grid is scaled per-``r`` by ``sqrt(2W)`` (clamped
+so ``W <= 0`` outside the system gives ``sigma_r = sigma_t -> 0`` naturally —
+the integrand vanishes); the per-``r`` 2-D moment is ``jax.vmap``ed over ``r``.
+Fully reverse-mode differentiable; ``jnp.trapezoid`` (integrate ``alpha`` then
+``w``). Zero new deps.
+
+Parameters
+----------
+df : :class:`~progenax.kinematics.MichieVelocityDF` exposing ``W0``, ``r_c``,
+    ``r_a``, ``xi_grid``, ``psi_grid``, ``mu``.
+r : query radii (array-like; broadcast to at least 1-D).
+M : total mass setting the self-consistent velocity scale ``sigma``.
+G : gravitational constant (sets the velocity units).
+n_w, n_alpha : quadrature resolutions in ``w`` (speed) and ``alpha`` (angle).
+
+Returns
+-------
+DispersionProfile
+
+*Source: [`progenax/kinematics/dispersion.py#L561`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L561)*
 
 (api-kinematics-velocitydf)=
 ## `kinematics.VelocityDF`
@@ -291,10 +614,10 @@ VelocityDF(*args, **kwargs)
 
 Protocol for velocity distribution functions.
 
-All velocity DFs must implement this interface for use with the
-kinematics API pipeline.
+Implementations must sample velocities given positions and masses.
+Enables composability: mix Plummer positions + King velocities.
 
-*Source: [`progenax/kinematics/api.py#L53`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L53)*
+*Source: [`progenax/protocols.py#L54`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L54)*
 
 (api-kinematics-rotationparams)=
 ## `kinematics.RotationParams`
@@ -328,7 +651,7 @@ References:
     Lynden-Bell (1960) MNRAS 120, 204
     Binney & Tremaine (2008) Section 4.8
 
-*Source: [`progenax/kinematics/api.py#L82`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L82)*
+*Source: [`progenax/kinematics/api.py#L57`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L57)*
 
 (api-kinematics-velocitymodel)=
 ## `kinematics.VelocityModel`
@@ -336,7 +659,7 @@ References:
 *class*
 
 ```python
-VelocityModel(df: progenax.kinematics.api.VelocityDF, rotation: Optional[progenax.kinematics.api.RotationParams] = None, target_Q: Optional[float] = None) -> None
+VelocityModel(df: progenax.protocols.VelocityDF, rotation: Optional[progenax.kinematics.api.RotationParams] = None, target_Q: Optional[float] = None) -> None
 ```
 
 Complete velocity model specification.
@@ -363,7 +686,7 @@ Example:
     ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
     ... )
 
-*Source: [`progenax/kinematics/api.py#L116`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L116)*
+*Source: [`progenax/kinematics/api.py#L91`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L91)*
 
 (api-kinematics-sample_velocities_pipeline)=
 ## `kinematics.sample_velocities_pipeline`
@@ -371,7 +694,7 @@ Example:
 *function*
 
 ```python
-sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float | None = None) -> jaxtyping.Float[Array, 'N 3']
+sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float) -> jaxtyping.Float[Array, 'N 3']
 ```
 
 Velocity pipeline: DF sampling -> rotation -> optional virial rescale.
@@ -392,7 +715,7 @@ Args:
     positions: Particle positions (N, 3) [length units].
     masses: Particle masses (N,) [mass units].
     model: VelocityModel specifying DF + rotation + target Q.
-    G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
+    G: Gravitational constant (REQUIRED, explicit-units policy; e.g. ``STELLAR.G``).
 
 Returns:
     velocities: Particle velocities (N, 3) [velocity units].
@@ -403,14 +726,17 @@ Example:
     ... )
     >>> import jax
     >>>
+    >>> from jaxstro.units import STELLAR
     >>> model = VelocityModel(df=PlummerVelocityDF(r_h=1.0), target_Q=0.5)
     >>> key = jax.random.PRNGKey(42)
-    >>> velocities = sample_velocities_pipeline(key, positions, masses, model)
+    >>> velocities = sample_velocities_pipeline(
+    ...     key, positions, masses, model, G=STELLAR.G
+    ... )
 
 Notes:
     - All stages are JAX-compatible and differentiable
     - Virial rescaling uses O(N^2) pairwise potential energy calculation
     - COM motion is removed after rescaling
 
-*Source: [`progenax/kinematics/api.py#L147`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L147)*
+*Source: [`progenax/kinematics/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L122)*
 

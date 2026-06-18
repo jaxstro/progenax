@@ -35,7 +35,7 @@ Public symbols: **15**
 *class*
 
 ```python
-MultiComponentCluster(alpha_j=None, w_j=None, m_j=None, W0=None, g=None, r_c=None, xi_grid=None, psi_grid=None, ra_hat_j=None, residual=0.0, n_grid: int = 1000, rho_on_xi=None, dens_fn=None, *, _fields=None)
+MultiComponentCluster(alpha_j=None, w_j=None, m_j=None, W0=None, g=None, r_c=None, xi_grid=None, psi_grid=None, ra_hat_j=None, residual=0.0, n_grid: int = 1000, rho_on_xi=None, dens_fn=None, psi_raw=None, *, _fields=None)
 ```
 
 Multi-component cluster in shared-potential equilibrium (two engines).
@@ -60,17 +60,27 @@ ra_hat_j, W0, g; Engine B: profile scales, mass fractions, r_a_j)
 through construction AND sampling.
 
 Attributes:
-    W0, g, r_c, r_t: structural parameters / scales.
+    r_t: tidal/truncation radius (shared by both engines).
     m_j: representative stellar mass per component [M_sun] (labels only).
+    N_frac_j: number fraction of stars per component.
+    engine: "A" or "B" (static; resolves dispatch at trace time).
+    engine_a: grouped Engine A state (`_EngineAState`; None on B models).
+    engine_b: grouped Engine B state (`_EngineBState`; None on A models).
+
+Engine-A-only quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j,
+xi_grid, psi_grid, residual) are exposed as delegating properties reading
+through `engine_a`:
+    W0, g, r_c: structural parameters / scales.
     alpha_j: central density fractions (sum to 1).
     w_j: per-component velocity-scale ratios s_j/s (rescale_j = w_j^-2).
     ra_hat_j: per-component anisotropy radii r_{a,j}/r_c (inf = isotropic).
-    N_frac_j: number fraction of stars per component.
     mu_tot: total dimensionless mass integral (sets the velocity scale).
     residual: eigenvalue-solve residual (0 for direct constructors).
     xi_grid, psi_grid: shared coupled-Poisson solution W(xi).
+On an Engine B model each raises an informative AttributeError naming the
+engine (this replaced the NaN-sentinel tripwires).
 
-*Source: [`progenax/cluster/multicomponent.py#L87`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/multicomponent.py#L87)*
+*Source: [`progenax/cluster/multicomponent.py#L135`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/multicomponent.py#L135)*
 
 (api-cluster-energy_sorted_segregation)=
 ## `cluster.energy_sorted_segregation`
@@ -87,6 +97,13 @@ This implements full energy-ordered segregation (S=1 at the bin level) —
 a PRIMORDIAL generator. For partial/continuous segregation use the
 equilibrium family (MultiComponentCluster.from_mass_segregation), not a
 blend of this function's output.
+
+.. warning::
+   Reassigning masses by energy rank changes the mass-weighted density, so it
+   no longer matches the parent profile the orbit pool was drawn from — the
+   self-consistent potential of the segregated system DIFFERS, and the output is
+   not exactly in equilibrium (audit S6). Callers should finalize with a global
+   virial rescale (``virial_scale``), as the validation suite does.
 
 Algorithm (Baumgardt+2008 Appendix, McLuster implementation):
     1. Sort masses descending → m_sorted[i] for mass rank i

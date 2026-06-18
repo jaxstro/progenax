@@ -52,7 +52,7 @@ Reference:
     King (1962) AJ 67, 471
     Binney & Tremaine (2008) Eq. 8.91
 
-*Source: [`progenax/tidal.py#L18`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L18)*
+*Source: [`progenax/tidal.py#L20`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L20)*
 
 (api-tidal-jacobi_radius_isothermal)=
 ## `tidal.jacobi_radius_isothermal`
@@ -69,7 +69,12 @@ For a singular isothermal sphere with circular velocity V_circ:
 
     r_J = (G * M_cluster / (2 * Omega^2))^(1/3)
 
-where Omega = V_circ / R is the angular velocity.
+where Omega = V_circ / R is the angular velocity. Substituting Omega =
+V_circ / R_galactic, this is algebraically identical to the
+flat-rotation-curve form r_J = (G m_c / 2 V_G^2)^(1/3) R_G^(2/3) of
+Baumgardt & Makino (2003), MNRAS 340, 227, Eq. 1 (the N-body-calibrated
+primary; the factor of 2 rather than 3 is the signature of the logarithmic
+/ flat-rotation-curve potential).
 
 Units (IMPORTANT): V_circ must be in the SAME length/time units as G, i.e.
 consistent with the rest of the unit system — pc/Myr for STELLAR, NOT km/s.
@@ -88,8 +93,10 @@ Returns:
 
 Reference:
     Binney & Tremaine (2008) Section 8.3.1
+    Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - the same relation,
+        N-body-calibrated for clusters in a logarithmic Galactic potential.
 
-*Source: [`progenax/tidal.py#L52`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L52)*
+*Source: [`progenax/tidal.py#L54`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L54)*
 
 (api-tidal-apply_tidal_truncation)=
 ## `tidal.apply_tidal_truncation`
@@ -109,6 +116,14 @@ straight-through surrogate (width ``grad_width * r_t``) so that ``r_t`` — and
 any upstream parameter feeding it (e.g. via :func:`jacobi_radius`) — remains
 differentiable. Unlike boolean-mask indexing, the output keeps a static
 shape ``N``, so the function is ``jit`` / ``vmap`` / ``grad`` safe.
+
+.. warning::
+   The survivors keep the velocities they were drawn with for the UNtruncated
+   potential, so the truncated set is SUPER-VIRIAL w.r.t. its own (now shallower)
+   potential — some stars near ``r_t`` are formally unbound and the set is not a
+   stationary equilibrium (audit S4). Re-virialize the survivors
+   (``virial_scale`` / ``rescale_velocities_to_virial``) or use an r_t-consistent
+   equilibrium model (King / LIMEPY) if you need a stationary IC.
 
 Args:
     positions: Particle positions (N, 3)
@@ -134,7 +149,7 @@ Note:
     Sharp cutoff. For a physically smooth truncation consistent with King
     models, use the King profile directly.
 
-*Source: [`progenax/tidal.py#L119`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L119)*
+*Source: [`progenax/tidal.py#L128`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L128)*
 
 (api-tidal-fill_factor_to_r_h)=
 ## `tidal.fill_factor_to_r_h`
@@ -147,7 +162,11 @@ fill_factor_to_r_h(fill_factor: float, r_J: float) -> float
 
 Convert fill factor to half-mass radius.
 
-Fill factor = r_h / r_J is the ratio of half-mass radius to Jacobi radius.
+The fill (Roche-filling) factor is *defined* as the ratio of the half-mass
+radius to the Jacobi radius, ``fill_factor = r_h / r_J``; this function
+simply inverts that definition, ``r_h = fill_factor * r_J``. This is a
+definitional ratio (the "fill factor" / "tidally filling" terminology is
+later community usage), NOT a relation derived from any single source.
 
 Typical values:
     - fill_factor ~ 0.05-0.15: Compact, tidally underfilling
@@ -161,8 +180,5 @@ Args:
 Returns:
     Half-mass radius r_h [length units]
 
-Reference:
-    Baumgardt & Makino (2003) MNRAS 340, 227
-
-*Source: [`progenax/tidal.py#L168`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L168)*
+*Source: [`progenax/tidal.py#L185`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L185)*
 

@@ -39,21 +39,28 @@ Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 *function*
 
 ```python
-compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0) -> jaxtyping.Float[Array, '']
+compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> jaxtyping.Float[Array, '']
 ```
 
-Compute total potential energy: V = -G * sum_{i<j}(m_i * m_j / r_ij).
+Total potential energy V = -G * sum_{i<j} m_i m_j / r_ij (Plummer-softened).
 
-Uses Plummer softening: r_ij -> sqrt(r_ij^2 + eps^2). Returns a negative
-value (bound systems have V < 0).
+Blocked row-scan (``lax.scan`` over row blocks of ``block_size`` stars vs ALL
+columns): peak transient memory is O(block_size * N), not O(N^2), for the
+forward AND backward pass — the dense kernel measured 32.8 GB at N = 2e4
+(2026-06-10); blocked at the default 256 it is ~0.12 GB. The backward pass
+stays O(block_size * N) via ``jax.checkpoint`` rematerialization: each
+block's forward is recomputed during the vjp instead of stored, so no
+O(N^2) stacked residuals accumulate across scan iterations. Identical pair
+set and per-pair arithmetic; only float64 summation ORDER changes across
+blocks (re-association at the 1e-15 relative level). ``block_size`` is a
+Python int and must be static under jax.jit.
 
-Differentiable at ``softening=0``: a double-``where`` feeds the diagonal a
-safe positive value *before* ``sqrt`` (otherwise the diagonal ``sqrt(0)``
-derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
-sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
-canonical energy implementation; ``progenax.builders`` re-exports it.
+Differentiable at ``softening=0``: the i<j mask feeds excluded entries
+(diagonal, lower triangle, padded rows) a safe value *before* ``sqrt`` so no
+masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
+single canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L24`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L24)*
+*Source: [`progenax/dynamics/virial.py#L33`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L33)*
 
 (api-dynamics-compute_virial_ratio)=
 ## `dynamics.compute_virial_ratio`
@@ -81,7 +88,7 @@ Args:
 Returns:
     Virial ratio Q = T / |V|
 
-*Source: [`progenax/dynamics/virial.py#L52`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L52)*
+*Source: [`progenax/dynamics/virial.py#L85`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L85)*
 
 (api-dynamics-mass_group_masks)=
 ## `dynamics.mass_group_masks`
@@ -102,7 +109,7 @@ Used to ask whether each mass sub-population is individually in virial equilibri
 (:func:`per_group_virial_ratio`) — the diagnostic that distinguishes a true
 multi-mass equilibrium from a globally-rescaled blend.
 
-*Source: [`progenax/dynamics/virial.py#L81`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L81)*
+*Source: [`progenax/dynamics/virial.py#L114`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L114)*
 
 (api-dynamics-per_group_virial_ratio)=
 ## `dynamics.per_group_virial_ratio`
@@ -125,9 +132,16 @@ so ``Q_j = T_j / |W_j| = 0.5`` for a group in equilibrium — the same conventio
 for ``1/r`` gravity, a single all-ones group reproduces the global virial ratio
 exactly (``W = V``), and the per-group ``W_j`` partition the global virial.
 
-Positions enter only through differences (origin-independent); velocities are
-measured relative to the mass-weighted mean (bulk motion removed) so a moving COM
-does not inflate ``T_j``.
+Velocities are measured relative to the mass-weighted mean (bulk motion removed)
+so a moving COM does not inflate ``T_j``.
+
+.. warning::
+   Per-group ``W_j = sum_{i in j} m_i r_i . a_i`` is ORIGIN-DEPENDENT for a
+   proper subgroup: under r -> r + d it shifts by ``d . sum_{i in j} m_i a_i``,
+   which is nonzero because a subgroup feels a net force from the rest of the
+   cluster (only the GLOBAL sum is origin-independent, ``sum_all m_i a_i = 0``).
+   Callers must therefore pass positions PRE-CENTERED on the cluster COM (all
+   in-tree callers do); an off-center origin biases the per-group Q_j (audit S16).
 
 Args:
     positions: Particle positions, shape (N, 3).
@@ -141,7 +155,7 @@ Args:
 Returns:
     Q_j for each group, shape (n_groups,).
 
-*Source: [`progenax/dynamics/virial.py#L123`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L123)*
+*Source: [`progenax/dynamics/virial.py#L179`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L179)*
 
 (api-dynamics-rescale_velocities_to_virial)=
 ## `dynamics.rescale_velocities_to_virial`
@@ -154,6 +168,14 @@ rescale_velocities_to_virial(positions: jaxtyping.Float[Array, 'N 3'], velocitie
 
 Rescale velocities to achieve target virial ratio Q = T/|V|.
 
+This is the single implementation of virial velocity rescaling;
+``builders.virial_scale`` delegates here (audit J5 dedupe).
+
+Cold input (T=0 -> Q_current=0) makes the rescale undefined (0/0). A
+CONCRETE T=0 refuses loudly (ValueError); a TRACED T=0 yields NaN — the
+honest sentinel, since a traced scalar cannot gate a Python raise (audit J5;
+the previous +1e-10 hack silently mapped cold input to ~0 velocities).
+
 Args:
     positions: Particle positions, shape (N, 3)
     velocities: Particle velocities, shape (N, 3)
@@ -165,5 +187,5 @@ Args:
 Returns:
     Rescaled velocities with Q = target_Q
 
-*Source: [`progenax/dynamics/virial.py#L173`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L173)*
+*Source: [`progenax/dynamics/virial.py#L246`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L246)*
 

@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **175** across all submodules.
+Total public symbols: **178** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -67,6 +67,7 @@ Total public symbols: **175** across all submodules.
 | [`ConstantBinaryFraction`](imf.md#api-imf-constantbinaryfraction) | class | `progenax.imf` |
 | [`DEFAULT_CALIBRATION`](diagnostics.md#api-diagnostics-default_calibration) | value | `progenax.diagnostics` |
 | [`DEFAULT_SFE`](imf.md#api-imf-default_sfe) | value | `progenax.imf` |
+| [`df_moment_dispersion`](kinematics.md#api-kinematics-df_moment_dispersion) | function | `progenax.kinematics` |
 | [`earth_sun_2body`](analytical.md#api-analytical-earth_sun_2body) | function | `progenax.analytical` |
 | [`earth_sun_eccentric`](analytical.md#api-analytical-earth_sun_eccentric) | function | `progenax.analytical` |
 | [`EccentricityDistribution`](protocols.md#api-protocols-eccentricitydistribution) | protocol | `progenax.protocols` |
@@ -94,6 +95,7 @@ Total public symbols: **175** across all submodules.
 | [`individual_mass_nll`](imf.md#api-imf-individual_mass_nll) | function | `progenax.imf` |
 | [`jacobi_radius`](tidal.md#api-tidal-jacobi_radius) | function | `progenax.tidal` |
 | [`jacobi_radius_isothermal`](tidal.md#api-tidal-jacobi_radius_isothermal) | function | `progenax.tidal` |
+| [`jeans_dispersion`](kinematics.md#api-kinematics-jeans_dispersion) | function | `progenax.kinematics` |
 | [`JERABKOVA_COEFFICIENTS`](imf.md#api-imf-jerabkova_coefficients) | value | `progenax.imf` |
 | [`KeplerElements`](binaries.md#api-binaries-keplerelements) | class | `progenax.binaries` |
 | [`KingProfile`](profiles.md#api-profiles-kingprofile) | class | `progenax.profiles` |
@@ -135,6 +137,7 @@ Total public symbols: **175** across all submodules.
 | [`prepare_imf_samples`](imf.md#api-imf-prepare_imf_samples) | function | `progenax.imf` |
 | [`primordial_survival`](binaries.md#api-binaries-primordial_survival) | function | `progenax.binaries` |
 | [`ProfileName`](profiles.md#api-profiles-profilename) | function | `progenax.profiles` |
+| [`project_dispersion`](kinematics.md#api-kinematics-project_dispersion) | function | `progenax.kinematics` |
 | [`q_approx`](diagnostics.md#api-diagnostics-q_approx) | function | `progenax.diagnostics` |
 | [`q_approx_fast`](diagnostics.md#api-diagnostics-q_approx_fast) | function | `progenax.diagnostics` |
 | [`q_approx_naive`](diagnostics.md#api-diagnostics-q_approx_naive) | function | `progenax.diagnostics` |

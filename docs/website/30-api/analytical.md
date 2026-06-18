@@ -94,7 +94,7 @@ Example:
     >>> print(f"Mass: {jupiter['M']:.4e} Msun, a: {jupiter['a']:.2f} AU")
     Mass: 9.5479e-04 Msun, a: 5.20 AU
 
-*Source: [`progenax/analytical/base.py#L130`](https://github.com/jaxstro/progenax/blob/main/progenax/analytical/base.py#L130)*
+*Source: [`progenax/analytical/base.py#L132`](https://github.com/jaxstro/progenax/blob/main/progenax/analytical/base.py#L132)*
 
 (api-analytical-two_body_kepler)=
 ## `analytical.two_body_kepler`
@@ -469,7 +469,7 @@ Physical parameters:
     - M_earth = 3.0035e-6 Msun
     - M_jupiter = 9.548e-4 Msun (1 Jupiter mass)
     - a_earth = 1.0 AU, e_earth = 0.0167
-    - a_jupiter = 5.2044 AU, e_jupiter = 0.0489
+    - a_jupiter = 5.2044 AU, e_jupiter = 0.04839
 
 Args:
     G: Gravitational constant [appropriate units]
