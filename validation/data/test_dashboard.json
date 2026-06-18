@@ -5,16 +5,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 95.96614442643616,
+    "line_cov_measured": 96.12178325480247,
     "registries_full": true
   },
-  "generated_utc": "2026-06-18T15:39:17.215816+00:00",
+  "generated_utc": "2026-06-18T18:12:01.452679+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "66099014fbf8ddd7b7657b1c20be81bbc184f173",
-      "measured_utc": "2026-06-18T07:36:34.799200+00:00",
+      "git_sha": "65b40900be2b3e88f2dcc7f0c872cc2480b9059a",
+      "measured_utc": "2026-06-18T18:12:01.443978+00:00",
       "selector": "full",
-      "total_percent": 95.96614442643616
+      "total_percent": 96.12178325480247
     },
     "per_file_lines": {
       "__init__": {
@@ -114,8 +114,8 @@
         "num_statements": 37
       },
       "cluster/multicomponent": {
-        "covered_lines": 185,
-        "num_statements": 188
+        "covered_lines": 183,
+        "num_statements": 185
       },
       "cluster/sampling": {
         "covered_lines": 48,
@@ -242,8 +242,8 @@
         "num_statements": 12
       },
       "kinematics/api": {
-        "covered_lines": 40,
-        "num_statements": 40
+        "covered_lines": 37,
+        "num_statements": 37
       },
       "kinematics/dispersion": {
         "covered_lines": 211,
@@ -254,24 +254,24 @@
         "num_statements": 58
       },
       "kinematics/eff_df": {
-        "covered_lines": 65,
-        "num_statements": 66
+        "covered_lines": 63,
+        "num_statements": 63
       },
       "kinematics/king_df": {
-        "covered_lines": 67,
-        "num_statements": 68
-      },
-      "kinematics/limepy_df": {
-        "covered_lines": 109,
-        "num_statements": 110
-      },
-      "kinematics/michie_df": {
-        "covered_lines": 86,
-        "num_statements": 87
-      },
-      "kinematics/plummer_df": {
         "covered_lines": 65,
         "num_statements": 65
+      },
+      "kinematics/limepy_df": {
+        "covered_lines": 107,
+        "num_statements": 107
+      },
+      "kinematics/michie_df": {
+        "covered_lines": 84,
+        "num_statements": 84
+      },
+      "kinematics/plummer_df": {
+        "covered_lines": 62,
+        "num_statements": 62
       },
       "kinematics/rotation": {
         "covered_lines": 28,
@@ -363,7 +363,7 @@
       "cluster/constants": 100.0,
       "cluster/eddington_engine": 98.57142857142857,
       "cluster/mass_segregation": 100.0,
-      "cluster/multicomponent": 97.24770642201835,
+      "cluster/multicomponent": 98.12206572769954,
       "cluster/sampling": 100.0,
       "cluster/turbulence": 92.0,
       "defaults": 100.0,
@@ -398,10 +398,10 @@
       "kinematics/api": 100.0,
       "kinematics/dispersion": 100.0,
       "kinematics/eddington": 100.0,
-      "kinematics/eff_df": 97.22222222222223,
-      "kinematics/king_df": 97.43589743589743,
-      "kinematics/limepy_df": 98.41269841269842,
-      "kinematics/michie_df": 97.89473684210526,
+      "kinematics/eff_df": 100.0,
+      "kinematics/king_df": 100.0,
+      "kinematics/limepy_df": 100.0,
+      "kinematics/michie_df": 100.0,
       "kinematics/plummer_df": 100.0,
       "kinematics/rotation": 96.7741935483871,
       "numerics": 100.0,
@@ -421,7 +421,7 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 95.96614442643616
+    "total_percent": 96.12178325480247
   },
   "modules": {
     "analytical": {
@@ -450,7 +450,7 @@
     },
     "cluster": {
       "integration": 0,
-      "line_cov": 98.59813084112149,
+      "line_cov": 98.82352941176471,
       "unit": 63,
       "validation": 0
     },
@@ -480,8 +480,8 @@
     },
     "kinematics": {
       "integration": 0,
-      "line_cov": 99.33774834437087,
-      "unit": 136,
+      "line_cov": 99.86431478968792,
+      "unit": 138,
       "validation": 0
     },
     "physics_registry": {
