@@ -24,6 +24,7 @@ The pages are organised alphabetically by first-author surname.
 
 - [](merritt-1985.md)
 - [](michie-1963.md)
+- [](binney-mamon-1982.md)
 
 ## Initial mass functions
 
@@ -48,13 +49,14 @@ The pages are organised alphabetically by first-author surname.
 - [](raghavan-2010.md)
 - [](heggie-1975.md)
 
-## Substructure & mass segregation
+## Tidal fields & substructure & mass segregation
 
 - [](cartwright-2004.md)
 - [](goodwin-2004.md)
 - [](lomax-2018.md)
 - [](allison-2009.md)
 - [](baumgardt-2008.md)
+- [](baumgardt-makino-2003.md)
 
 ## Gravoturbulence
 
