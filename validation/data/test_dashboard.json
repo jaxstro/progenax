@@ -5,16 +5,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 95.97917788547836,
+    "line_cov_measured": 95.96614442643616,
     "registries_full": true
   },
-  "generated_utc": "2026-06-17T20:35:55.688140+00:00",
+  "generated_utc": "2026-06-18T07:36:34.848342+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "c55517f095b77c5e04729b68ae878a193cf41da9",
-      "measured_utc": "2026-06-17T20:35:55.679439+00:00",
+      "git_sha": "66099014fbf8ddd7b7657b1c20be81bbc184f173",
+      "measured_utc": "2026-06-18T07:36:34.799200+00:00",
       "selector": "full",
-      "total_percent": 95.97917788547836
+      "total_percent": 95.96614442643616
     },
     "per_file_lines": {
       "__init__": {
@@ -162,8 +162,8 @@
         "num_statements": 10
       },
       "imf/base": {
-        "covered_lines": 107,
-        "num_statements": 111
+        "covered_lines": 103,
+        "num_statements": 107
       },
       "imf/binary/__init__": {
         "covered_lines": 5,
@@ -186,8 +186,8 @@
         "num_statements": 155
       },
       "imf/chabrier": {
-        "covered_lines": 124,
-        "num_statements": 128
+        "covered_lines": 120,
+        "num_statements": 124
       },
       "imf/differentiable": {
         "covered_lines": 100,
@@ -278,16 +278,16 @@
         "num_statements": 29
       },
       "numerics": {
-        "covered_lines": 12,
-        "num_statements": 12
+        "covered_lines": 3,
+        "num_statements": 3
       },
       "profiles/__init__": {
         "covered_lines": 9,
         "num_statements": 9
       },
       "profiles/api": {
-        "covered_lines": 58,
-        "num_statements": 58
+        "covered_lines": 57,
+        "num_statements": 57
       },
       "profiles/density_poisson": {
         "covered_lines": 131,
@@ -375,13 +375,13 @@
       "dynamics/__init__": 100.0,
       "dynamics/virial": 95.78947368421052,
       "imf/__init__": 100.0,
-      "imf/base": 92.8,
+      "imf/base": 92.56198347107438,
       "imf/binary/__init__": 100.0,
       "imf/binary/binary_fraction": 100.0,
       "imf/binary/imf": 93.0,
       "imf/binary/mass_ratio": 93.54838709677419,
       "imf/binary/moe_di_stefano": 100.0,
-      "imf/chabrier": 94.20289855072464,
+      "imf/chabrier": 94.02985074626865,
       "imf/differentiable": 100.0,
       "imf/differentiable_binary": 97.05882352941177,
       "imf/environment/__init__": 100.0,
@@ -421,7 +421,7 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 95.97917788547836
+    "total_percent": 95.96614442643616
   },
   "modules": {
     "analytical": {
@@ -474,7 +474,7 @@
     },
     "imf": {
       "integration": 0,
-      "line_cov": 97.08973322554567,
+      "line_cov": 97.07078925956061,
       "unit": 269,
       "validation": 0
     },
@@ -492,7 +492,7 @@
     },
     "profiles": {
       "integration": 0,
-      "line_cov": 98.9310009718173,
+      "line_cov": 98.92996108949416,
       "unit": 201,
       "validation": 0
     },
