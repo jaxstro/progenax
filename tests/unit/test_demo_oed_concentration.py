@@ -62,3 +62,34 @@ def test_michie_om_df_is_positive():
     Mirrors the EFF DF realizability guard (eff_df.py:135)."""
     f_min, f_max = oedc.michie_om_table_diagnostics(W0=6.0, r_a=6.0)
     assert f_min > -1e-3 * f_max, (f_min, f_max)
+
+
+# ---------------------------------------------------------------------------
+# Task 2: forward observable predict_sigma + ln-theta Jacobian jacobian_and_sigma.
+# theta = (W0, r_a, M); index map W0=0 (TARGET), r_a=1, M=2.
+# ---------------------------------------------------------------------------
+
+
+def test_predict_sigma_shape_and_bins_bound():
+    """predict_sigma returns finite, positive (3, K) channel dispersions and every
+    R_BINS bin is dynamically BOUND (r_t > R_BINS[-1]) for BOTH models -- otherwise
+    the outer bins probe unbound radii where project_dispersion is undefined."""
+    for model in ("king", "michie"):
+        th = oedc.theta_truth()                       # (3,) = (W0, r_a, M)
+        sig = oedc.predict_sigma(th, oedc.R_BINS, STELLAR.G, model)
+        assert sig.shape == (3, oedc.R_BINS.shape[0])
+        assert jnp.all(jnp.isfinite(sig)) and jnp.all(sig > 0)
+        prof = oedc.build_profile(th[0], th[1], model)
+        assert float(prof.r_t) > float(oedc.R_BINS[-1]), (model, float(prof.r_t))
+
+
+def test_jacobian_lntheta_shape_and_W0_column_nonzero():
+    """jacobian_and_sigma returns the dimensionless ln-theta Jacobian (3, K, 3) and
+    the W0 column (index 0) carries nonzero signal -- the design's target gradient."""
+    for model in ("king", "michie"):
+        th = oedc.theta_truth()
+        J, sig = oedc.jacobian_and_sigma(th, oedc.R_BINS, STELLAR.G, model)
+        K = oedc.R_BINS.shape[0]
+        assert J.shape == (3, K, 3)                    # channel, bin, param
+        assert jnp.all(jnp.isfinite(J))
+        assert jnp.any(jnp.abs(J[:, :, 0]) > 0)        # W0 column carries signal

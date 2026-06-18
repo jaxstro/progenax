@@ -37,7 +37,7 @@ import jax
 import jax.numpy as jnp
 
 import progenax  # noqa: F401  enables float64 at import
-from progenax import KingProfile, MichieProfile, MultiComponentCluster
+from progenax import KingProfile, MichieProfile, MultiComponentCluster, project_dispersion
 from progenax.profiles.michie import michie_density
 from progenax.numerics import cumulative_trapz
 from progenax.kinematics.eddington import (
@@ -47,14 +47,41 @@ from progenax.kinematics.eddington import (
 )
 from jaxstro.units import STELLAR
 
-# Reuse the Stage-1 sky projection (line of sight = +z).
+# Reuse the Stage-1 sky projection (line of sight = +z) + unit conversions.
 sys.path.insert(0, os.path.dirname(__file__))
-from _demo_oed import project_to_sky  # noqa: E402
+from _demo_oed import kms_to_pcMyr, pm_masyr_to_kms, project_to_sky  # noqa: E402
 
 # Resolution of the hand-rolled Michie Eddington table (mirrors eff_df defaults).
 _N_R = 6000      # radial grid for the potential / density tabulation
 _N_E = 1000      # energy grid for f(E)
 _N_SPEED = 256   # per-particle speed inverse-CDF resolution
+
+
+# ---------------------------------------------------------------------------
+# Mock truth + observing setup (analog of Stage-1's MOCK). theta = (W0, r_a, M);
+# index map W0=0 (TARGET concentration), r_a=1, M=2. r_c == 1 is the length unit.
+# ---------------------------------------------------------------------------
+MOCK = dict(
+    W0=6.0, r_a=6.0, M=1e5, r_c=1.0, d_kpc=4.0,
+    eps_RV_kms=1.0, eps_PM_masyr=0.05,
+)
+
+# K=12 log-spaced on-sky bin-centre radii in r_c units. At (W0=6, r_a=6) King r_t
+# ~ 18 and Michie r_t ~ 24 (Task 1), both > 12, so every bin is dynamically bound
+# (asserted by test_predict_sigma_shape_and_bins_bound).
+R_BINS = jnp.logspace(jnp.log10(0.3), jnp.log10(12.0), 12)
+
+# Per-channel per-star measurement error eps_c = (eps_RV, eps_PM, eps_PM) [pc/Myr],
+# via the Stage-1 unit conversions. Both PM axes (pm_r, pm_t) share the single
+# astrometric error.
+_eps_RV = kms_to_pcMyr(MOCK["eps_RV_kms"])
+_eps_PM = kms_to_pcMyr(pm_masyr_to_kms(MOCK["eps_PM_masyr"], MOCK["d_kpc"]))
+EPS = jnp.array([_eps_RV, _eps_PM, _eps_PM])      # (3,) [pc/Myr]
+
+
+def theta_truth():
+    """Truth parameter vector theta = (W0, r_a, M) -- index 0 = W0 (TARGET)."""
+    return jnp.array([MOCK["W0"], MOCK["r_a"], MOCK["M"]])
 
 
 def build_profile(W0, r_a, model):
@@ -243,3 +270,48 @@ def sample_om_cluster(model, W0, r_a, M, n_stars, key):
     else:
         raise ValueError(f"model must be 'king' or 'michie', got {model!r}")
     return project_to_sky(pos, vel)
+
+
+# ===========================================================================
+# Task 2: forward observable g(theta) + dimensionless ln-theta Jacobian.
+# ===========================================================================
+#
+# Mirrors the Stage-1 _demo_oed.{predict_sigma, jacobian_and_sigma}, but the
+# parameter vector is theta = (W0, r_a, M) with index map W0=0 (TARGET), r_a=1,
+# M=2 -- a DIFFERENT order from Stage-1 (r_a, M, r_h). The forward model is the
+# Osipkov-Merritt Jeans + Binney&Mamon82 projection of the King / Michie profile
+# built from (W0, r_a), so r_a is BOTH theta[1] AND the OM anisotropy argument of
+# project_dispersion (the same value, by design decision 2 -- one source of truth).
+
+
+def predict_sigma(theta, R_bins, G, model):
+    """Predicted observable g(theta): (3, K) dispersions, rows = (los, pm_r, pm_t).
+
+    Channels in pc/Myr at the K on-sky bin-centre radii R_bins, via the
+    Osipkov-Merritt Jeans + Binney & Mamon (1982) projection of the King
+    (model="king") or Michie (model="michie") profile built from (W0, r_a).
+    theta = (W0, r_a, M); r_a (theta[1]) is both a theta-component and the OM
+    anisotropy radius passed to project_dispersion (same value, by design).
+    """
+    prof = build_profile(theta[0], theta[1], model)
+    pd = project_dispersion(prof, theta[1], R_bins, theta[2], G)
+    return jnp.stack([pd.sigma_los, pd.sigma_pm_r, pd.sigma_pm_t])   # (3, K)
+
+
+def jacobian_and_sigma(theta, R_bins, G, model):
+    """Return (J, sigma): J = d sigma_pred / d ln theta (3, K, 3), sigma (3, K). ONE jacrev.
+
+    theta = (W0, r_a, M) spans ~5 orders of magnitude (W0~6, r_a~6, M~1e5), so the
+    raw Fisher is ill-conditioned. Differentiating wrt ln theta (J -> J * diag(theta))
+    makes the Fisher dimensionless and every (F^-1) entry a FRACTIONAL variance
+    (ADR 0011) -- the natural metric for "fractional precision on the concentration
+    W0". The ln-theta scaling is the single multiply J * theta[None, None, :], by the
+    chain rule d sigma / d ln theta_i = (d sigma / d theta_i) * theta_i.
+
+    Reverse-mode jacrev BY POLICY: project_dispersion's King/Michie equilibrium
+    solvers hit custom_vjp ODEs with no jvp rule, so forward-mode (jacfwd/hessian)
+    would crash. jacrev is the supported/tested gradient path for both profiles.
+    """
+    sig = predict_sigma(theta, R_bins, G, model)                          # (3, K)
+    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G, model)     # (3, K, 3) -- d sigma / d theta
+    return J * theta[None, None, :], sig    # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
