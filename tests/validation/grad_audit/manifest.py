@@ -118,6 +118,8 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
     ("project_dispersion[Plummer+OM]", "r_a"): "B&M82 sigma_los in anisotropy radius",
     ("project_dispersion[Plummer+OM].pm_t", "r_a"): "B&M82 sigma_pm_t (beta-carrying) in r_a",
     ("df_moment_dispersion[Michie]", "M"): "Michie DF-moment sigma_r in total mass",
+    ("df_moment_dispersion[Michie].W0", "W0"): "Michie DF-moment sigma_r in W0 "
+        "(fixed-node interp => AD-correct, no kink; closes the deferred W0 axis, ADR-0017)",
     ("jeans_dispersion[EFF spans r_t]", "gamma"): "EFF Jeans sigma_r over a grid spanning r_t (safe-sqrt-at-0)",
     ("project_dispersion[EFF spans r_t]", "a"): "EFF B&M82 sigma_los over a grid spanning r_t (safe-sqrt-at-0)",
 }
@@ -172,7 +174,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     # --- Dispersion forward models (Phase 0 Task 8) ---
     "jeans_dispersion": AUDITED,             # OM Jeans sigma_r in r_a + M (interior radii; FD-consistent)
     "project_dispersion": AUDITED,           # B&M82 sigma_los + sigma_pm_t (beta-carrying) in r_a
-    "df_moment_dispersion": AUDITED,         # Michie DF-moment sigma_r in M (interior radii; FD-consistent; W0 deferred)
+    "df_moment_dispersion": AUDITED,         # Michie DF-moment sigma_r in M + W0 (interior radii; FD-consistent; W0 now audited, ADR-0017)
     # --- EXEMPT_PROTOCOL (runtime-checkable typing Protocols) ---
     "SpatialProfile": EXEMPT_PROTOCOL,
     "VelocityDF": EXEMPT_PROTOCOL,

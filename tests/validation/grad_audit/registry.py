@@ -1528,8 +1528,11 @@ def _project_dispersion_om_r_a_pmt(r_a):
 # Michie-King DF (built ONCE; W0=6.0, r_c=1.0, r_a=5.0 — mild anisotropy, interior radii
 # well inside the bound region). df_moment_dispersion integrates the DF's 2nd velocity
 # moments by polar quadrature (smooth, no boundary mask), so sigma_r is a clean trapezoid
-# function of M (sigma^2 ∝ G M). M-gradient ONLY — the W0 path is the deferred Michie-W0
-# limitation (docs/plans/2026-06-16-michie-king-equilibrium-gradient-redesign-deferred.md).
+# function of M (sigma^2 ∝ G M). Both the M-gradient AND the W0-gradient are now audited:
+# the W0 path was previously deferred (docs/plans/2026-06-16-michie-king-equilibrium-gradient-
+# redesign-deferred.md) but is confirmed AD-correct by the 2026-06-18 discriminating experiment
+# (ADR-0017) — the DF-moment path interpolates W on a FIXED xi_grid (static linspace), so there
+# is NO moving-node kink, unlike the jeans path's r_t(W0)-endpoint s-grid (ADR-0016).
 # MEASURED (theta0=400.0, identity_sum over sigma_r at the three interior radii), STELLAR.G:
 # AD/FD |ratio-1| ~ 4.2e-4 -- consistent (tol=1e-3).
 _DISP_MICHIE_DF = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)
@@ -1538,6 +1541,15 @@ _DISP_MICHIE_DF = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)
 def _df_moment_dispersion_M(M):
     # Michie DF-moment radial dispersion sigma_r in total mass M (sigma_r^2 ∝ G M).
     return df_moment_dispersion(_DISP_MICHIE_DF, _DISP_R_INTERIOR, M, STELLAR.G).sigma_r
+
+
+# W0 gradient (NOT deferred — confirmed AD-correct by the 2026-06-18 discriminating
+# experiment, ADR-0017; fixed xi_grid nodes => no moving-node kink, unlike the jeans path).
+# Build the DF inside so W0 flows through solve_michie_profile; fixed xi_max=800 keeps
+# the ODE domain W0-consistent. radii [2,13,25] span interior->near-r_t (r_t~27.9 @ W0=6).
+def _df_moment_dispersion_W0(W0):
+    df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
+    return df_moment_dispersion(df, jnp.array([2.0, 13.0, 25.0]), 400.0, STELLAR.G).sigma_r
 
 
 # Finite-r_t dispersion gradient over a radial grid that SPANS r_t (Phase 0.5
@@ -2077,11 +2089,16 @@ REGISTRY: list[Case] = [
     Case(id="project_dispersion[Plummer+OM].pm_t", direction="params->summary",
          fn=_project_dispersion_om_r_a_pmt, param="r_a", theta0=_DISP_R_A,
          reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|=1e-8
-    # df_moment_dispersion (exact Michie DF 2nd-moment quadrature); M-gradient only (W0
-    # deferred). FD-consistent at interior radii r in [0.5,2.0]. tol=1e-3 (smooth quadrature).
+    # df_moment_dispersion (exact Michie DF 2nd-moment quadrature); M-gradient (W0 now
+    # audited below, ADR-0017). FD-consistent at interior radii r in [0.5,2.0]. tol=1e-3 (smooth quadrature).
     Case(id="df_moment_dispersion[Michie]", direction="params->summary",
          fn=_df_moment_dispersion_M, param="M", theta0=400.0,
          reduce=identity_sum, expect="consistent", tol=1e-3),       # |ratio-1|~4.2e-4
+    # W0-gradient (the deferred axis, NOW audited): exact Michie DF-moment sigma_r is
+    # AD-correct in W0 (fixed-node interp => no kink; 2026-06-18 experiment, ADR-0017).
+    Case(id="df_moment_dispersion[Michie].W0", direction="params->summary",
+         fn=_df_moment_dispersion_W0, param="W0", theta0=6.0,
+         reduce=identity_sum, expect="consistent", tol=1e-3),       # measured |ratio-1|~1e-7
     # Finite-r_t gradient over a grid SPANNING r_t (Phase 0.5 final-review fix):
     # EFF (fixed r_t=8.0, clean gamma/a gradients) exercises the safe-sqrt-at-0 path
     # that the jeans/project models previously NaN-poisoned beyond r_t.
