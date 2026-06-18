@@ -149,7 +149,6 @@ project:
         - file: 40-howto/gradient-based-r_h-fit.md
         - file: 40-howto/mix-plummer-positions-king-velocities.md
         - file: 40-howto/add-binary-population.md
-        - file: 40-howto/interface-with-gravax.md
     - title: Validation
       children:
         - file: 50-validation/index.md
