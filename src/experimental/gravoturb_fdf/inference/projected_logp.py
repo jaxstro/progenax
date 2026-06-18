@@ -28,11 +28,11 @@ from jax.scipy.special import gammaln
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
+from jaxstro.numerics.quadrature import gauss_hermite_nodes, hermite_coefficients
+
 from gravoturb_fdf.theory.gaussianization import (
-    _gauss_hermite,
     bm19_hermite_coefficients,
     gaussianized_xi,
-    hermite_coefficients,
 )
 from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
 
@@ -233,7 +233,7 @@ def logp_shot_components(
     _kc, P_clust, _nm = _angular_bandpowers_from_xi_rho_2d(xi_clust, k_edges)
 
     # white shot floor: <Var(log+ N | Sigma)>_Sigma via the same Gauss-Hermite rule
-    g_nodes, weights = _gauss_hermite(n_quad)
+    g_nodes, weights = gauss_hermite_nodes(n_quad)
     _m, v = _poisson_logp_moments(g_nodes, n_bar_sky, s_sigma, n_count_max)
     W_shot = jnp.sum(weights * v)
     return P_clust, W_shot

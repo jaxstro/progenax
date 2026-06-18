@@ -20,8 +20,8 @@ JAX-native; differentiable in (mach, b, alpha). The Gaussian field ``g`` is held
 """
 
 import jax.numpy as jnp
-import numpy as np  # constants only: Gauss-Hermite nodes/weights at import time
 from jax.scipy.special import erf, gammaln
+from jaxstro.numerics.quadrature import hermite_coefficients
 from jaxtyping import Array, Float
 
 from gravoturb_fdf.theory.pdf import bm19_icdf_analytic, bm19_mean_density
@@ -60,44 +60,10 @@ def s_of_g(
     return s_raw - shift
 
 
-def _gauss_hermite(n_quad: int):
-    r"""Probabilists' Gauss-Hermite rule for <f>_phi = int f(g) phi(g) dg.
-
-    Returns ``(g_nodes, weights)`` as jnp constants so that
-    ``<f>_phi ~ sum_i weights_i f(g_nodes_i)`` via the substitution ``g = sqrt(2) x``
-    on the physicists' rule (weight ``e^{-x^2}``): ``weights_i = w_i / sqrt(pi)``.
-
-    Nodes/weights are CONSTANTS (numpy at import time, frozen to jnp); the quadrature
-    sum itself is pure JAX, so coefficients stay differentiable in the map's params.
-    """
-    x, w = np.polynomial.hermite.hermgauss(n_quad)
-    return jnp.asarray(np.sqrt(2.0) * x), jnp.asarray(w / np.sqrt(np.pi))
-
-
-def _hermite_e_basis(g: Float[Array, " q"], n_max: int) -> Float[Array, " n q"]:
-    r"""Probabilists' Hermite He_0..He_{n_max} at points ``g``; shape ``(n_max+1, q)``.
-
-    Stable recurrence ``He_{n+1} = g He_n - n He_{n-1}``, ``He_0 = 1``, ``He_1 = g``.
-    """
-    rows = [jnp.ones_like(g)]
-    if n_max >= 1:
-        rows.append(g)
-    for n in range(1, n_max):
-        rows.append(g * rows[n] - n * rows[n - 1])
-    return jnp.stack(rows, axis=0)
-
-
-def hermite_coefficients(map_fn, n_max: int, n_quad: int = 256) -> Float[Array, " n"]:
-    r"""Hermite coefficients ``c_n = <map_fn(g) He_n(g)>`` for n=0..n_max (probabilists').
-
-    Computed by Gauss-Hermite quadrature; ``c_n`` is differentiable in any parameters
-    that ``map_fn`` closes over. Returns shape ``(n_max+1,)``; the 2-point series
-    ``xi_s`` uses n >= 1 (n=0 is the mean ``<map_fn>``).
-    """
-    g_nodes, weights = _gauss_hermite(n_quad)
-    values = map_fn(g_nodes)
-    he = _hermite_e_basis(g_nodes, n_max)
-    return (he * (values * weights)[None, :]).sum(axis=1)
+# The probabilists' Gauss-Hermite rule, Hermite-e basis, and the generic
+# ``hermite_coefficients`` quadrature now live in jaxstro.numerics.quadrature
+# (imported above); they are byte-identical to the former local definitions.
+# Only the BM19-specific wrappers below remain local (domain-specific maps).
 
 
 def bm19_hermite_coefficients(
