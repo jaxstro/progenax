@@ -51,7 +51,7 @@ is fully differentiable through `jax.grad`, JIT-compilable through
 that make HMC inference of cluster parameters tractable.
 
 The package is part of the [jaxstro
-ecosystem](https://github.com/jaxstro/jaxstro-dev): progenax for
+ecosystem](https://github.com/jaxstro): progenax for
 ICs, gravax for N-body integration, fluxax for photometry, with
 stellax (stellar evolution) and startrax (binary population synthesis)
 planned.

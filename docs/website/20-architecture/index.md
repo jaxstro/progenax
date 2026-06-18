@@ -91,4 +91,4 @@ or NumPy?" If yes → theory. If no → architecture.
 The JAX programming model is documented at [the JAX
 docs](https://jax.readthedocs.io). Equinox is {cite:t}`Equinox`. The
 broader JAX ecosystem progenax sits in (jaxstro, gravax, stellax) is
-described in the [jaxstro README](https://github.com/jaxstro/jaxstro-dev).
+described in the [jaxstro README](https://github.com/jaxstro).

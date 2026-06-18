@@ -9,7 +9,7 @@ description: Differentiable initial conditions for N-body simulations
 > stellar populations, and binary systems — JAX-native, gradient-friendly,
 > physically rigorous.
 
-`progenax` is part of the [jaxstro](https://github.com/jaxstro/jaxstro-dev)
+`progenax` is part of the [jaxstro](https://github.com/jaxstro)
 ecosystem. Every initial condition you generate — Plummer or King spatial
 profiles, isotropic or anisotropic velocity distributions, IMF samples, and
 binary orbits — is differentiable through `jax.grad`, vectorisable through
@@ -73,8 +73,8 @@ the [full symbol index](30-api/full-symbol-index.md) or browse by module.
 
 `progenax` generates initial conditions. It does **not** integrate them
 forward in time — for that you want
-[gravax](https://github.com/jaxstro/jaxstro-dev) (N-body integrators)
-or [stellax](https://github.com/jaxstro/jaxstro-dev) (stellar evolution,
+[gravax](https://github.com/jaxstro) (N-body integrators)
+or [stellax](https://github.com/jaxstro) (stellar evolution,
 planned). The "Interface with gravax" recipe in
 [How-to](40-howto/interface-with-gravax.md) shows the handoff.
 
