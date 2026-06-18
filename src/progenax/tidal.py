@@ -3,9 +3,11 @@
 Computes tidal/Jacobi radii and applies tidal truncation.
 
 References:
-    King (1962) AJ 67, 471 - Tidal radius definition
+    King (1962) AJ 67, 471 - Point-mass tidal radius definition
     Binney & Tremaine (2008) "Galactic Dynamics" Section 8.3.1
-    Baumgardt & Makino (2003) MNRAS 340, 227 - Tidal stripping
+    Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - logarithmic-potential
+        (flat-rotation-curve) Jacobi radius implemented in
+        jacobi_radius_isothermal
 """
 
 from typing import Tuple
@@ -61,7 +63,12 @@ def jacobi_radius_isothermal(
 
         r_J = (G * M_cluster / (2 * Omega^2))^(1/3)
 
-    where Omega = V_circ / R is the angular velocity.
+    where Omega = V_circ / R is the angular velocity. Substituting Omega =
+    V_circ / R_galactic, this is algebraically identical to the
+    flat-rotation-curve form r_J = (G m_c / 2 V_G^2)^(1/3) R_G^(2/3) of
+    Baumgardt & Makino (2003), MNRAS 340, 227, Eq. 1 (the N-body-calibrated
+    primary; the factor of 2 rather than 3 is the signature of the logarithmic
+    / flat-rotation-curve potential).
 
     Units (IMPORTANT): V_circ must be in the SAME length/time units as G, i.e.
     consistent with the rest of the unit system — pc/Myr for STELLAR, NOT km/s.
@@ -80,6 +87,8 @@ def jacobi_radius_isothermal(
 
     Reference:
         Binney & Tremaine (2008) Section 8.3.1
+        Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - the same relation,
+            N-body-calibrated for clusters in a logarithmic Galactic potential.
     """
     Omega = V_circ / R_galactic
     r_J = (G * M_cluster / (2.0 * Omega**2)) ** (1.0/3.0)
@@ -179,7 +188,11 @@ def fill_factor_to_r_h(
 ) -> float:
     """Convert fill factor to half-mass radius.
 
-    Fill factor = r_h / r_J is the ratio of half-mass radius to Jacobi radius.
+    The fill (Roche-filling) factor is *defined* as the ratio of the half-mass
+    radius to the Jacobi radius, ``fill_factor = r_h / r_J``; this function
+    simply inverts that definition, ``r_h = fill_factor * r_J``. This is a
+    definitional ratio (the "fill factor" / "tidally filling" terminology is
+    later community usage), NOT a relation derived from any single source.
 
     Typical values:
         - fill_factor ~ 0.05-0.15: Compact, tidally underfilling
@@ -192,9 +205,6 @@ def fill_factor_to_r_h(
 
     Returns:
         Half-mass radius r_h [length units]
-
-    Reference:
-        Baumgardt & Makino (2003) MNRAS 340, 227
     """
     return fill_factor * r_J
 

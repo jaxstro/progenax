@@ -10,7 +10,8 @@ stochastic velocity-DF sampler:
   anisotropy radius ``r_a``.
 - :func:`project_dispersion` — the OBSERVED line-of-sight and proper-motion
   dispersions (sigma_los / sigma_pm,R / sigma_pm,T / Sigma) via the
-  Binney & Mamon (1982) projection integrals.
+  anisotropic projection integrals (line-of-sight: Binney & Mamon 1982;
+  the two proper-motion channels: Strigari, Bullock & Kaplinghat 2007).
 
 Physics references
 ------------------
@@ -18,8 +19,13 @@ Physics references
   anisotropic Jeans equation.
 - Merritt, D. (1985), AJ 90, 1027 — Osipkov-Merritt anisotropy,
   beta(r) = r^2 / (r^2 + r_a^2); closed-form OM-Plummer dispersion oracle.
-- Binney, J. & Mamon, G. A. (1982), MNRAS 200, 361 — line-of-sight
-  projection of an anisotropic spherical model.
+- Binney, J. & Mamon, G. A. (1982), MNRAS 200, 361, Eq. 7 — line-of-sight
+  projection of an anisotropic spherical model (sigma_los kernel only; the
+  ONLY projection formula in this paper).
+- Strigari, L. E., Bullock, J. S. & Kaplinghat, M. (2007), ApJ 657, L1,
+  Eqs. 2-3 — the two proper-motion (on-sky radial / tangential) projection
+  kernels (1 - beta + beta R^2/r^2) and (1 - beta); earliest first-principles
+  derivation: Leonard & Merritt (1989), ApJ 339, 195.
 - Dejonghe, H. (1987), MNRAS 224, 13 — Plummer-family projected dispersion;
   the isotropic ``sigma_los^2(R) = (3 pi / 64) G M / sqrt(a^2 + R^2)`` oracle.
 
@@ -675,17 +681,24 @@ def df_moment_dispersion(
 
 
 def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispersion:
-    """Observed projected dispersions of ``profile`` via Binney & Mamon (1982).
+    """Observed projected dispersions of ``profile`` (Binney & Mamon 1982 LOS +
+    Strigari+2007 proper motions).
 
     Projects the 3-D anisotropic Jeans model (:func:`jeans_dispersion`) onto the
     sky along the line of sight, returning the OBSERVED dispersions at on-sky
-    radii ``R`` (Binney & Mamon 1982, MNRAS 200, 361). With Osipkov-Merritt
-    anisotropy ``beta(r) = r^2 / (r^2 + r_a^2)``::
+    radii ``R``. The line-of-sight kernel ``(1 - beta R^2/r^2)`` is Binney &
+    Mamon (1982), MNRAS 200, 361, Eq. 7 (the only projection formula in that
+    paper); the two proper-motion kernels ``(1 - beta + beta R^2/r^2)`` (on-sky
+    radial) and ``(1 - beta)`` (on-sky tangential) are Strigari, Bullock &
+    Kaplinghat (2007), ApJ 657, L1, Eqs. 2-3 (earliest first-principles
+    derivation: Leonard & Merritt 1989, ApJ 339, 195). All three share the same
+    projection measure ``r/sqrt(r^2-R^2)`` and the weight ``rho sr^2``. With
+    Osipkov-Merritt anisotropy ``beta(r) = r^2 / (r^2 + r_a^2)``::
 
         Sigma(R)            = 2 int_R^inf rho                       r/sqrt(r^2-R^2) dr
-        Sigma sigma_los^2   = 2 int_R^inf (1 - beta R^2/r^2)  rho sr^2 r/sqrt(r^2-R^2) dr
-        Sigma sigma_pmR^2   = 2 int_R^inf (1 - beta + beta R^2/r^2) rho sr^2 r/sqrt(...) dr
-        Sigma sigma_pmT^2   = 2 int_R^inf (1 - beta)         rho sr^2 r/sqrt(r^2-R^2) dr
+        Sigma sigma_los^2   = 2 int_R^inf (1 - beta R^2/r^2)  rho sr^2 r/sqrt(r^2-R^2) dr  # B&M82 Eq. 7
+        Sigma sigma_pmR^2   = 2 int_R^inf (1 - beta + beta R^2/r^2) rho sr^2 r/sqrt(...) dr  # Strigari+2007 Eq. 2
+        Sigma sigma_pmT^2   = 2 int_R^inf (1 - beta)         rho sr^2 r/sqrt(r^2-R^2) dr  # Strigari+2007 Eq. 3
 
     where ``sr^2 = sigma_r^2(r)`` (radial), ``sigma_los`` is the line-of-sight
     (the RV channel), and ``sigma_pmR`` / ``sigma_pmT`` are the on-sky radial /
@@ -822,14 +835,16 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         ratio = R_i**2 / jnp.maximum(r**2, 1e-30)  # R^2 / r^2
         w = rho * sigma_r2  # common rho*sigma_r^2 weight
 
-        # B&M82 kernels (integrands in u; the 2x and 1/sqrt cancellation are folded
-        # into the substitution -> trapezoid over the integration variable `grid`,
-        # times 2). For the Plummer (tau) grid `jac` carries du/dtau; for finite
-        # r_t (u grid) jac == 1, so this reduces to the unchanged uniform-u quadrature.
+        # Projection kernels (integrands in u; the 2x and 1/sqrt cancellation are
+        # folded into the substitution -> trapezoid over the integration variable
+        # `grid`, times 2). LOS kernel is B&M82 Eq. 7; the two PM kernels are
+        # Strigari+2007 Eqs. 2-3. For the Plummer (tau) grid `jac` carries du/dtau;
+        # for finite r_t (u grid) jac == 1, so this reduces to the unchanged
+        # uniform-u quadrature.
         Sigma = 2.0 * jnp.trapezoid(rho * jac, grid)
-        S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w * jac, grid)
-        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w * jac, grid)
-        S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w * jac, grid)
+        S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w * jac, grid)  # B&M82 Eq. 7
+        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w * jac, grid)  # Strigari+2007 Eq. 2
+        S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w * jac, grid)  # Strigari+2007 Eq. 3
         return Sigma, S_los, S_pmr, S_pmt
 
     Sigma, S_los, S_pmr, S_pmt = jax.vmap(_los_quantities)(R)
