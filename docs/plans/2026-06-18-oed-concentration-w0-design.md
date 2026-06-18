@@ -58,13 +58,22 @@ a cluster's concentration W₀**.
 
   | Model | ∂σ_los/∂W₀ AD-vs-FD rel-err (R = 0.5, 2, 8 r_c) at W₀=6 | Verdict |
   |---|---|---|
-  | OM-King | 1.5e-6, 3.2e-4, 1.7e-4 | clean everywhere, < 1e-3 |
-  | OM-Michie | 3.3e-5, 1.1e-5, **8.0e-3** | inner/mid clean; **outer R=8 breaks 1e-3** |
+  | OM-King | 1.5e-6, 3.2e-4, 1.7e-4 | clean at these 3 radii, < 1e-3 |
+  | OM-Michie | 3.3e-5, 1.1e-5, **8.0e-3** | clean inner; ~8e-3 at R=8 |
 
-  The Michie outer-radius 8e-3 is the ADR-0016 signature: AD is finite and correct, but a
-  *fixed-step* FD is a poor truth-proxy near Michie's r_t(W₀) near-divergence. **Consequence
-  for the gate:** the Michie AD-vs-FD check uses **Richardson-FD** at outer radii (assert
-  AD→FD convergence as h↓), or restricts the fixed-step check to R ≲ r_a. Not a code defect.
+  **CORRECTION (Task 3 full 12-bin sweep — this 3-radius probe was under-sampled).** The probe
+  above used only R=0.5, 2, 8 r_c and so MISSED the **mid-radius high-curvature bins**. A full
+  sweep over all 12 `R_BINS` shows a *fixed-step* h=1e-4 central FD breaks 1e-3 at **R≈2.2–4.4
+  r_c for BOTH King (bins 6,7) and Michie-inner (bins 7,8)** — and, after the C¹ PCHIP fix, the
+  Michie **outermost** bin (R=12) is itself FD-clean (~5e-5), i.e. the FD-unreliable region is
+  the mid-radius bend, not the outskirts. An h-sweep to 1e-6 confirms **FD→AD (rel ~1e-6–1e-8)
+  at every bin**, so the AD gradient is correct everywhere; the mid-radius >1e-3 values are pure
+  O(h²σ‴) FD truncation — the ADR-0016 signature, not a code defect. **Consequence for the
+  gate:** every bin is gated by the repo's ratified Richardson idiom (AD finite + AD==converged
+  fine-step FD + fixed-step FD converges toward AD as h↓), with the strict `rel<1e-3` fixed-step
+  floor applied only to the FD-reliable bins (≥ K−2 of them). This is *stronger* than a single
+  fixed-h floor and weakens no verified claim (the 3-radius "clean King" was just narrowly
+  scoped). Independently re-derived and confirmed in the Task-3 code review.
 
 ## Architecture
 

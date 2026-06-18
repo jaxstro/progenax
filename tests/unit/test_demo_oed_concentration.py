@@ -213,6 +213,12 @@ def test_grad_sigma_W0_michie_inner_AD_vs_FD():
     for channel in range(3):
         rel_h4 = _assert_ad_is_hto0_limit("michie", channel, R_inner)
         reliable = rel_h4 < _FD_FLOOR
+        # The K-2 allowance is EXACTLY saturated here: the worst Michie-inner channel
+        # has 2 high-curvature bins (R~3.1, 4.4 r_c) over the fixed-step floor, so the
+        # margin is fully consumed. A FUTURE 3rd break (e.g. a profile-solver resolution
+        # change) should be read as "investigate the AD gradient", NOT "bump K-2" -- the
+        # Richardson trend above already proves AD is correct, so a new fixed-step break
+        # means the curvature/FD characterization moved and must be re-measured.
         assert reliable.sum() >= R_inner.shape[0] - 2, (channel, rel_h4)
         assert jnp.all(rel_h4[reliable] < _FD_FLOOR), (channel, rel_h4)
 
