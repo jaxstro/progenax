@@ -70,7 +70,7 @@ Attributes:
     residual: eigenvalue-solve residual (0 for direct constructors).
     xi_grid, psi_grid: shared coupled-Poisson solution W(xi).
 
-*Source: [`progenax/cluster/multicomponent.py#L87`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/multicomponent.py#L87)*
+*Source: [`progenax/cluster/multicomponent.py#L87`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/multicomponent.py#L87)*
 
 (api-cluster-energy_sorted_segregation)=
 ## `cluster.energy_sorted_segregation`
@@ -163,7 +163,7 @@ Segregation Strength:
     stars occupy the most bound orbits. The assignment is deterministic given
     the pool; realisation variety comes from re-drawing the random orbit pool.
 
-*Source: [`progenax/cluster/mass_segregation.py#L45`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/mass_segregation.py#L45)*
+*Source: [`progenax/cluster/mass_segregation.py#L45`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/mass_segregation.py#L45)*
 
 (api-cluster-g_kms)=
 ## `cluster.G_KMS`
@@ -259,7 +259,7 @@ References
 ----------
 .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 19
 
-*Source: [`progenax/cluster/turbulence.py#L44`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L44)*
+*Source: [`progenax/cluster/turbulence.py#L44`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L44)*
 
 (api-cluster-spectral_slope_from_mach)=
 ## `cluster.spectral_slope_from_mach`
@@ -307,7 +307,7 @@ References
 .. [1] Kim & Ryu (2005) ApJ 630, L45 - density power spectrum vs Mach
 .. [2] Kolmogorov (1941) - transonic ceiling (E_ρ slope ≈ -5/3)
 
-*Source: [`progenax/cluster/turbulence.py#L87`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L87)*
+*Source: [`progenax/cluster/turbulence.py#L87`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L87)*
 
 (api-cluster-cloud_radius_from_density)=
 ## `cluster.cloud_radius_from_density`
@@ -347,7 +347,7 @@ References
 ----------
 .. [1] Larson (1981) MNRAS 194, 809
 
-*Source: [`progenax/cluster/turbulence.py#L134`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L134)*
+*Source: [`progenax/cluster/turbulence.py#L134`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L134)*
 
 (api-cluster-larson_sigma_v)=
 ## `cluster.larson_sigma_v`
@@ -387,7 +387,7 @@ References
 .. [1] Larson (1981) MNRAS 194, 809
 .. [2] Solomon et al. (1987) ApJ 319, 730
 
-*Source: [`progenax/cluster/turbulence.py#L173`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L173)*
+*Source: [`progenax/cluster/turbulence.py#L173`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L173)*
 
 (api-cluster-turbulent_mach_from_cloud)=
 ## `cluster.turbulent_mach_from_cloud`
@@ -435,7 +435,7 @@ References
 .. [1] Larson (1981) MNRAS 194, 809
 .. [2] Federrath et al. (2010) A&A 512, A81
 
-*Source: [`progenax/cluster/turbulence.py#L210`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L210)*
+*Source: [`progenax/cluster/turbulence.py#L210`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L210)*
 
 (api-cluster-b_from_environment)=
 ## `cluster.b_from_environment`
@@ -480,5 +480,5 @@ References
 .. [1] Federrath et al. (2010) A&A 512, A81
 .. [2] Federrath (2013) MNRAS 436, 1245
 
-*Source: [`progenax/cluster/turbulence.py#L291`](https://github.com/drannarosen/progenax/blob/main/progenax/cluster/turbulence.py#L291)*
+*Source: [`progenax/cluster/turbulence.py#L291`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L291)*
 

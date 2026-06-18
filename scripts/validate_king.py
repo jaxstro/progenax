@@ -245,7 +245,7 @@ def fig_velocity_equilibrium(output_dir):
     W0, r_c = 7.0, 1.0
     G = STELLAR.G
     prof = KingProfile.from_W0_rc(W0, r_c)
-    df = KingVelocityDF(W0=W0, r_c=r_c, r_t=float(prof.r_t))
+    df = KingVelocityDF(W0=W0, r_c=r_c)
 
     # --- dispersion profile (large N) ---
     m_d = jnp.ones(N_DISPERSION)
@@ -448,7 +448,7 @@ def fig_gradient_validation(output_dir):
 
     def sigma_scale(M_total, W0=7.0, r_c=1.0):
         p = KingProfile.from_W0_rc(W0, r_c)
-        df = KingVelocityDF(W0=W0, r_c=r_c, r_t=p.r_t)
+        df = KingVelocityDF(W0=W0, r_c=r_c)
         return df._sigma(M_total, G)
 
     # one differentiable structural parameter per panel

@@ -46,7 +46,7 @@ PUBLIC_MODULES: list[str] = [
 API_DIR = Path("30-api")
 
 # GitHub blob URL prefix for source-link generation
-GITHUB_BLOB = "https://github.com/drannarosen/progenax/blob/main"
+GITHUB_BLOB = "https://github.com/jaxstro/progenax/blob/main"
 
 
 def _is_public(name: str) -> bool:

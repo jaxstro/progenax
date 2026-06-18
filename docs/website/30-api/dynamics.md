@@ -31,7 +31,7 @@ compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyp
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-*Source: [`progenax/dynamics/virial.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L15)*
+*Source: [`progenax/dynamics/virial.py#L15`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L15)*
 
 (api-dynamics-compute_potential_energy)=
 ## `dynamics.compute_potential_energy`
@@ -53,7 +53,7 @@ derivative is ``inf`` and ``0 * inf = nan`` survives a later ``where``), then
 sets the diagonal to ``inf`` so the ``i < j`` sum drops it. This is the single
 canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L24`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L24)*
+*Source: [`progenax/dynamics/virial.py#L24`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L24)*
 
 (api-dynamics-compute_virial_ratio)=
 ## `dynamics.compute_virial_ratio`
@@ -81,7 +81,7 @@ Args:
 Returns:
     Virial ratio Q = T / |V|
 
-*Source: [`progenax/dynamics/virial.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L52)*
+*Source: [`progenax/dynamics/virial.py#L52`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L52)*
 
 (api-dynamics-mass_group_masks)=
 ## `dynamics.mass_group_masks`
@@ -102,7 +102,7 @@ Used to ask whether each mass sub-population is individually in virial equilibri
 (:func:`per_group_virial_ratio`) — the diagnostic that distinguishes a true
 multi-mass equilibrium from a globally-rescaled blend.
 
-*Source: [`progenax/dynamics/virial.py#L81`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L81)*
+*Source: [`progenax/dynamics/virial.py#L81`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L81)*
 
 (api-dynamics-per_group_virial_ratio)=
 ## `dynamics.per_group_virial_ratio`
@@ -141,7 +141,7 @@ Args:
 Returns:
     Q_j for each group, shape (n_groups,).
 
-*Source: [`progenax/dynamics/virial.py#L123`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L123)*
+*Source: [`progenax/dynamics/virial.py#L123`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L123)*
 
 (api-dynamics-rescale_velocities_to_virial)=
 ## `dynamics.rescale_velocities_to_virial`
@@ -165,5 +165,5 @@ Args:
 Returns:
     Rescaled velocities with Q = target_Q
 
-*Source: [`progenax/dynamics/virial.py#L173`](https://github.com/drannarosen/progenax/blob/main/progenax/dynamics/virial.py#L173)*
+*Source: [`progenax/dynamics/virial.py#L173`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L173)*
 

@@ -52,7 +52,7 @@ Reference:
     King (1962) AJ 67, 471
     Binney & Tremaine (2008) Eq. 8.91
 
-*Source: [`progenax/tidal.py#L18`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L18)*
+*Source: [`progenax/tidal.py#L18`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L18)*
 
 (api-tidal-jacobi_radius_isothermal)=
 ## `tidal.jacobi_radius_isothermal`
@@ -89,7 +89,7 @@ Returns:
 Reference:
     Binney & Tremaine (2008) Section 8.3.1
 
-*Source: [`progenax/tidal.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L52)*
+*Source: [`progenax/tidal.py#L52`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L52)*
 
 (api-tidal-apply_tidal_truncation)=
 ## `tidal.apply_tidal_truncation`
@@ -134,7 +134,7 @@ Note:
     Sharp cutoff. For a physically smooth truncation consistent with King
     models, use the King profile directly.
 
-*Source: [`progenax/tidal.py#L119`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L119)*
+*Source: [`progenax/tidal.py#L119`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L119)*
 
 (api-tidal-fill_factor_to_r_h)=
 ## `tidal.fill_factor_to_r_h`
@@ -164,5 +164,5 @@ Returns:
 Reference:
     Baumgardt & Makino (2003) MNRAS 340, 227
 
-*Source: [`progenax/tidal.py#L168`](https://github.com/drannarosen/progenax/blob/main/progenax/tidal.py#L168)*
+*Source: [`progenax/tidal.py#L168`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L168)*
 

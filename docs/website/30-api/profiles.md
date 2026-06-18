@@ -55,7 +55,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/plummer.py#L14`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/plummer.py#L14)*
+*Source: [`progenax/profiles/plummer.py#L14`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/plummer.py#L14)*
 
 (api-profiles-kingprofile)=
 ## `profiles.KingProfile`
@@ -96,7 +96,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/king.py#L291`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L291)*
+*Source: [`progenax/profiles/king.py#L291`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L291)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -134,7 +134,7 @@ Note:
     traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
     diffrax for robustness.
 
-*Source: [`progenax/profiles/king.py#L169`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/king.py#L169)*
+*Source: [`progenax/profiles/king.py#L169`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L169)*
 
 (api-profiles-michieprofile)=
 ## `profiles.MichieProfile`
@@ -159,7 +159,7 @@ Attributes:
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L144`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/michie.py#L144)*
+*Source: [`progenax/profiles/michie.py#L144`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L144)*
 
 (api-profiles-solve_michie_profile)=
 ## `profiles.solve_michie_profile`
@@ -188,7 +188,7 @@ Returns:
 References:
     Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L83`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/michie.py#L83)*
+*Source: [`progenax/profiles/michie.py#L83`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L83)*
 
 (api-profiles-limepyprofile)=
 ## `profiles.LIMEPYProfile`
@@ -218,7 +218,7 @@ Attributes:
     is_aniso: static flag selecting the anisotropic density path.
     _r_grid, _cdf_grid: precomputed mass CDF for sampling.
 
-*Source: [`progenax/profiles/limepy.py#L288`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy.py#L288)*
+*Source: [`progenax/profiles/limepy.py#L288`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L288)*
 
 (api-profiles-solve_limepy_profile)=
 ## `profiles.solve_limepy_profile`
@@ -253,7 +253,7 @@ Args:
 Returns:
     (xi_grid, psi_grid): dimensionless radius and potential W(xi) (>= 0).
 
-*Source: [`progenax/profiles/limepy.py#L209`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy.py#L209)*
+*Source: [`progenax/profiles/limepy.py#L209`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L209)*
 
 (api-profiles-solve_multimass_limepy)=
 ## `profiles.solve_multimass_limepy`
@@ -279,7 +279,7 @@ aniso_method static.
 
 Returns (xi_grid, psi_grid, rho_j_grid) as solve_multicomponent_limepy.
 
-*Source: [`progenax/profiles/limepy_multimass.py#L303`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy_multimass.py#L303)*
+*Source: [`progenax/profiles/limepy_multimass.py#L303`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L303)*
 
 (api-profiles-find_alpha_for_masses)=
 ## `profiles.find_alpha_for_masses`
@@ -317,7 +317,7 @@ Returns:
     (alpha_j, residual): converged central density fractions (sum to 1, positive)
     and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
 
-*Source: [`progenax/profiles/limepy_multimass.py#L364`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/limepy_multimass.py#L364)*
+*Source: [`progenax/profiles/limepy_multimass.py#L364`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L364)*
 
 (api-profiles-effprofile)=
 ## `profiles.EFFProfile`
@@ -358,7 +358,7 @@ References:
     Elson, Fall & Freeman (1987), ApJ, 323, 54 (Eq. 1 = surface brightness,
     used here as the 3-D volume density; see docs bibliography note).
 
-*Source: [`progenax/profiles/eff.py#L20`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/eff.py#L20)*
+*Source: [`progenax/profiles/eff.py#L20`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/eff.py#L20)*
 
 (api-profiles-uniformsphereprofile)=
 ## `profiles.UniformSphereProfile`
@@ -387,7 +387,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/uniform.py#L15`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/uniform.py#L15)*
+*Source: [`progenax/profiles/uniform.py#L15`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/uniform.py#L15)*
 
 (api-profiles-profilename)=
 ## `profiles.ProfileName`
@@ -457,7 +457,7 @@ Notes:
     precise half-mass radius control, the user should compute the appropriate
     r_c or a value externally.
 
-*Source: [`progenax/profiles/api.py#L42`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/api.py#L42)*
+*Source: [`progenax/profiles/api.py#L42`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L42)*
 
 (api-profiles-sample_density_profile)=
 ## `profiles.sample_density_profile`
@@ -504,7 +504,7 @@ Notes:
     - The masses argument required by profile.sample_positions() is
       filled with ones internally (mass values don't affect spatial sampling)
 
-*Source: [`progenax/profiles/api.py#L123`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/api.py#L123)*
+*Source: [`progenax/profiles/api.py#L123`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L123)*
 
 (api-profiles-compute_profile_potential)=
 ## `profiles.compute_profile_potential`
@@ -563,5 +563,5 @@ Notes:
 
     The potential is computed per-particle and vectorized for efficiency.
 
-*Source: [`progenax/profiles/api.py#L177`](https://github.com/drannarosen/progenax/blob/main/progenax/profiles/api.py#L177)*
+*Source: [`progenax/profiles/api.py#L177`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L177)*
 

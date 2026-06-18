@@ -136,8 +136,7 @@ jaxlib/abseil narrow-scope class) can no longer red a build whose tests pass —
 `kinematics/api` 72→**100**). Package coverage **86 % → 91 %**; full suite passing, no
 existing test weakened. The 500-LOC file limit was relaxed to a guideline (cohesive files
 ≤~600 accepted). A deliberate **SoTA-design + per-module validation pass** — including the
-`fdf.py` split and a cumulative-shared-grid CDF for `smooth.py` — is queued for release; see
-[`2026-06-03-pre-release-sota-agenda.md`](../../notes/2026-06-03-pre-release-sota-agenda.md).
+`fdf.py` split and a cumulative-shared-grid CDF for `smooth.py` — is queued for release.
 
 ## 2026-06-03 — Follow-up audit: two launch-blockers closed
 

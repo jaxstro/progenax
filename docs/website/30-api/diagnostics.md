@@ -86,7 +86,7 @@ References:
     Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
         Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
 
-*Source: [`progenax/diagnostics/mass_segregation.py#L23`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L23)*
+*Source: [`progenax/diagnostics/mass_segregation.py#L23`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L23)*
 
 (api-diagnostics-compute_q_parameter)=
 ## `diagnostics.compute_q_parameter`
@@ -153,7 +153,7 @@ Notes:
 References:
     Cartwright & Whitworth (2004), MNRAS 348, 589
 
-*Source: [`progenax/diagnostics/substructure.py#L25`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/substructure.py#L25)*
+*Source: [`progenax/diagnostics/substructure.py#L25`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L25)*
 
 (api-diagnostics-compute_azimuthal_variation)=
 ## `diagnostics.compute_azimuthal_variation`
@@ -196,7 +196,7 @@ Notes:
 References:
     Küpper et al. (2011), MNRAS 417, 2300
 
-*Source: [`progenax/diagnostics/substructure.py#L135`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/substructure.py#L135)*
+*Source: [`progenax/diagnostics/substructure.py#L135`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L135)*
 
 (api-diagnostics-q_approx)=
 ## `diagnostics.q_approx`
@@ -219,7 +219,7 @@ Args:
 Returns:
     Q_approx: Approximate Q parameter (scalar)
 
-*Source: [`progenax/diagnostics/q_approx.py#L242`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/q_approx.py#L242)*
+*Source: [`progenax/diagnostics/q_approx.py#L242`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L242)*
 
 (api-diagnostics-q_approx_naive)=
 ## `diagnostics.q_approx_naive`
@@ -242,7 +242,7 @@ Args:
 Returns:
     Q_approx: Approximate Q parameter (scalar)
 
-*Source: [`progenax/diagnostics/q_approx.py#L42`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/q_approx.py#L42)*
+*Source: [`progenax/diagnostics/q_approx.py#L42`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L42)*
 
 (api-diagnostics-q_approx_fast)=
 ## `diagnostics.q_approx_fast`
@@ -267,7 +267,7 @@ Args:
 Returns:
     Q_approx: Approximate Q parameter (scalar)
 
-*Source: [`progenax/diagnostics/q_approx.py#L110`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/q_approx.py#L110)*
+*Source: [`progenax/diagnostics/q_approx.py#L110`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L110)*
 
 (api-diagnostics-calibrate_q_approx)=
 ## `diagnostics.calibrate_q_approx`
@@ -288,7 +288,7 @@ Args:
 Returns:
     Dictionary with calibration factors and statistics
 
-*Source: [`progenax/diagnostics/q_approx.py#L280`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/q_approx.py#L280)*
+*Source: [`progenax/diagnostics/q_approx.py#L280`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L280)*
 
 (api-diagnostics-default_calibration)=
 ## `diagnostics.DEFAULT_CALIBRATION`
@@ -319,7 +319,7 @@ Args:
 Returns:
     Weights ``(N,)`` in the open interval ``(0, 1)``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L52`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L52)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L52`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L52)*
 
 (api-diagnostics-radial_concentration_approx)=
 ## `diagnostics.radial_concentration_approx`
@@ -359,7 +359,7 @@ Args:
 Returns:
     Scalar concentration ``C``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L73`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L73)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L73`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L73)*
 
 (api-diagnostics-lambda_msr_approx)=
 ## `diagnostics.lambda_msr_approx`
@@ -406,7 +406,7 @@ Args:
 Returns:
     Scalar ``Lambda_soft``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L150`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L150)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L150`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L150)*
 
 (api-diagnostics-sigma_m_approx)=
 ## `diagnostics.sigma_m_approx`
@@ -449,7 +449,7 @@ Args:
 Returns:
     Scalar correlation ``S``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L216`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L216)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L216`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L216)*
 
 (api-diagnostics-calibrate_segregation_approx)=
 ## `diagnostics.calibrate_segregation_approx`
@@ -480,5 +480,5 @@ Args:
 Returns:
     Dict of calibration factors, correlations, and ``n_samples``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L299`](https://github.com/drannarosen/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L299)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L299`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L299)*
 
