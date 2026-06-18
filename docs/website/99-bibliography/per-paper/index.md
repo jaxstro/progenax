@@ -25,6 +25,7 @@ The pages are organised alphabetically by first-author surname.
 - [](merritt-1985.md)
 - [](michie-1963.md)
 - [](binney-mamon-1982.md)
+- [](strigari-bullock-kaplinghat-2007.md)
 
 ## Initial mass functions
 
