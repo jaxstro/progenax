@@ -53,6 +53,12 @@ from jaxstro.units import STELLAR
 # ONE namespace (oedc.c_criterion, oedc.fisher, ...). The Stage-1 optimize_design /
 # _optimize_one are NOT reused: they hardcode Stage-1's PRIOR_DIAG (a module global),
 # so this module reimplements them threading OUR W0-OED PRIOR_DIAG (see below).
+#
+# NOTE on the imported c/D/A docstrings: they were written for Stage-1's parameter
+# vector theta=(r_a, M, r_h) and so name `r_h`. The functions are pure 3x3 linear
+# algebra on the Fisher F and are parameter-agnostic; here they map index-for-index
+# onto THIS arc's theta=(W0, r_a, M) (so `help(oedc.c_criterion)`'s `r_h` reads as our
+# index-2 nuisance M). The arc's own index map is fixed by theta_truth()/MOCK below.
 sys.path.insert(0, os.path.dirname(__file__))
 import optax  # noqa: E402
 from _demo_oed import (  # noqa: E402
