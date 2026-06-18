@@ -22,6 +22,7 @@ from typing import Tuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics import newton_ppf
 from jaxtyping import Array, Float, PRNGKeyArray
 
 
@@ -363,17 +364,21 @@ class ChabrierIMF(eqx.Module):
         is_lognormal = u < p_ln
         m0 = jnp.where(is_lognormal, m0_ln, m0_pl)
 
-        def newton_step(_, m):
-            """Single Newton iteration."""
-            residual = self.cdf(m) - u
-            pdf = jnp.exp(self.logpdf(m))
-            m_new = m - residual / (pdf + 1e-30)
-            return jnp.clip(m_new, self.m_min, self.m_max)
-
         # 30 fixed iterations (vs 20 in BaseIMF): the two-component lognormal+power-law
         # CDF has a sharp slope change at m_trans, so the worst-case starting guess needs
-        # a few extra Newton steps to converge across the join. JIT-safe (no while_loop).
-        return jax.lax.fori_loop(0, 30, newton_step, m0)
+        # a few extra Newton steps to converge across the join. The Newton loop itself is
+        # jaxstro's generic newton_ppf (JIT-safe, no while_loop); only the two-component
+        # initial guess above is Chabrier-specific and stays local.
+        return newton_ppf(
+            u,
+            self.cdf,
+            x0=m0,
+            lo=self.m_min,
+            hi=self.m_max,
+            pdf=lambda m: jnp.exp(self.logpdf(m)),
+            n_iter=30,
+            pdf_floor=1e-30,
+        )
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n masses via reparameterization trick.

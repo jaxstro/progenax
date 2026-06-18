@@ -14,6 +14,7 @@ from typing import Protocol, runtime_checkable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics import newton_ppf
 from jaxtyping import Array, Float, PRNGKeyArray
 
 
@@ -48,8 +49,11 @@ def _ppf_newton(imf: "BaseIMF", u: Float[Array, "..."]) -> Float[Array, "..."]:
     """
     Inverse CDF via fixed Newton iteration.
 
-    Uses Newton's method with fixed iterations (JIT-safe, no convergence loops).
-    Initial guess uses linear interpolation in log-mass space.
+    Thin wrapper over jaxstro's generic ``newton_ppf`` solver: supplies the
+    IMF's CDF, a log-space initial guess, and the [m_min, m_max] bounds.
+    The Newton loop (fixed iterations, safe division, clip-to-bounds) lives
+    in jaxstro.numerics.rootfinding.newton_ppf — JIT-safe, no convergence
+    loops. Initial guess uses linear interpolation in log-mass space.
 
     Gradients flow through all iterations via automatic differentiation,
     enabling differentiation w.r.t. both u and IMF parameters.
@@ -67,15 +71,17 @@ def _ppf_newton(imf: "BaseIMF", u: Float[Array, "..."]) -> Float[Array, "..."]:
     log_m0 = log_m_min + u * (log_m_max - log_m_min)
     m0 = jnp.exp(log_m0)
 
-    def newton_step(_, m):
-        """Single Newton iteration: m_new = m - f(m)/f'(m)."""
-        residual = imf.cdf(m) - u
-        pdf = jnp.exp(imf.logpdf(m))
-        m_new = m - residual / (pdf + 1e-30)
-        return jnp.clip(m_new, imf.m_min, imf.m_max)
-
-    # Fixed 20 iterations (JIT-safe, no while_loop)
-    return jax.lax.fori_loop(0, 20, newton_step, m0)
+    # pdf = exp(logpdf); explicit form matches the original (avoids AD of cdf).
+    return newton_ppf(
+        u,
+        imf.cdf,
+        x0=m0,
+        lo=imf.m_min,
+        hi=imf.m_max,
+        pdf=lambda m: jnp.exp(imf.logpdf(m)),
+        n_iter=20,
+        pdf_floor=1e-30,
+    )
 
 
 # ============================================================================
