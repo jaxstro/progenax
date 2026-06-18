@@ -42,26 +42,55 @@ def plummer_setup():
     return positions, masses, r_h
 
 
-class TestPipelineGDefault:
-    """Cover the G=None default branch (line ~218)."""
+class TestExplicitGRequired:
+    """Explicit-units policy (audit A2): G is REQUIRED on every velocity-sampling
+    surface. Omitting G must raise (no silent DEFAULT_UNITS.G fallback).
 
-    def test_g_none_uses_default_units(self, plummer_setup):
-        """G=None resolves to DEFAULT_UNITS.G and matches an explicit pass."""
+    Covers all 5 DF ``.sample_velocities`` surfaces, the ``sample_velocities_pipeline``
+    entry point, and ``MultiComponentCluster.sample_cluster``.
+    """
+
+    def test_pipeline_requires_explicit_G(self, plummer_setup):
+        """sample_velocities_pipeline raises when G is omitted (required arg)."""
         positions, masses, r_h = plummer_setup
         model = VelocityModel(df=PlummerVelocityDF(r_h=r_h), target_Q=0.5)
-
         key = jax.random.PRNGKey(7)
-        v_default = sample_velocities_pipeline(key, positions, masses, model, G=None)
-        v_explicit = sample_velocities_pipeline(
-            key, positions, masses, model, G=defaults.DEFAULT_UNITS.G
-        )
+        with pytest.raises(TypeError):
+            sample_velocities_pipeline(key, positions, masses, model)
 
-        # Same key + same resolved G -> identical result
-        assert jnp.allclose(v_default, v_explicit, atol=1e-12), (
-            "G=None must resolve to DEFAULT_UNITS.G exactly"
+    def test_all_dfs_require_explicit_G(self):
+        """Every DF.sample_velocities raises when G is omitted (required arg)."""
+        from progenax.kinematics import (
+            EFFVelocityDF,
+            KingVelocityDF,
+            MichieVelocityDF,
         )
-        assert v_default.shape == positions.shape
-        assert jnp.all(jnp.isfinite(v_default))
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        N = 8
+        positions = jnp.ones((N, 3)) * 0.1
+        masses = jnp.ones(N)
+        key = jax.random.PRNGKey(0)
+        dfs = [
+            PlummerVelocityDF(r_h=1.0),
+            KingVelocityDF(W0=5.0, r_c=1.0),
+            EFFVelocityDF(gamma=5.0, a=1.0, r_t=10.0),
+            MichieVelocityDF(W0=5.0, r_c=1.0, r_a=2.0),
+            LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0),
+        ]
+        for df in dfs:
+            with pytest.raises(TypeError):
+                df.sample_velocities(positions, masses, key)
+
+    def test_cluster_requires_explicit_G(self):
+        """MultiComponentCluster.sample_cluster raises when G is omitted."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.8]),
+            m_j=jnp.array([0.4, 1.0]), W0=6.0, g=1.0, r_c=1.0)
+        with pytest.raises(TypeError):
+            model.sample_cluster(jax.random.PRNGKey(0), n_stars=100)
 
 
 class TestPipelineAnisotropicDF:

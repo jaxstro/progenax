@@ -29,8 +29,9 @@ Example:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = jnp.zeros((100, 3))  # from spatial sampling
     >>> masses = jnp.ones(100)
+    >>> from jaxstro.units import STELLAR
     >>> velocities = sample_velocities_pipeline(
-    ...     key, positions, masses, model=model
+    ...     key, positions, masses, model=model, G=STELLAR.G
     ... )
 """
 
@@ -42,7 +43,6 @@ import jax.numpy as jnp
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.kinematics.rotation import (
     apply_solid_body_rotation,
     apply_differential_rotation,
@@ -124,7 +124,7 @@ def sample_velocities_pipeline(
     positions: Float[Array, "N 3"],
     masses: Float[Array, "N"],
     model: VelocityModel,
-    G: float | None = None,
+    G: float,
 ) -> Float[Array, "N 3"]:
     """Velocity pipeline: DF sampling -> rotation -> optional virial rescale.
 
@@ -144,7 +144,7 @@ def sample_velocities_pipeline(
         positions: Particle positions (N, 3) [length units].
         masses: Particle masses (N,) [mass units].
         model: VelocityModel specifying DF + rotation + target Q.
-        G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
+        G: Gravitational constant (REQUIRED, explicit-units policy; e.g. ``STELLAR.G``).
 
     Returns:
         velocities: Particle velocities (N, 3) [velocity units].
@@ -155,18 +155,18 @@ def sample_velocities_pipeline(
         ... )
         >>> import jax
         >>>
+        >>> from jaxstro.units import STELLAR
         >>> model = VelocityModel(df=PlummerVelocityDF(r_h=1.0), target_Q=0.5)
         >>> key = jax.random.PRNGKey(42)
-        >>> velocities = sample_velocities_pipeline(key, positions, masses, model)
+        >>> velocities = sample_velocities_pipeline(
+        ...     key, positions, masses, model, G=STELLAR.G
+        ... )
 
     Notes:
         - All stages are JAX-compatible and differentiable
         - Virial rescaling uses O(N^2) pairwise potential energy calculation
         - COM motion is removed after rescaling
     """
-    if G is None:
-        G = defaults.DEFAULT_UNITS.G
-
     # Stage 1: DF sampling (the DF is the only source of randomness in the pipeline).
     v = model.df.sample_velocities(positions, masses, key, G=G)
 

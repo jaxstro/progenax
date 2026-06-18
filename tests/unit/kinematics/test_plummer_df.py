@@ -61,22 +61,16 @@ class TestPlummerVelocityDFPhysics:
         assert relative_error < 0.15
 
 
-class TestPlummerVelocityDFDefaults:
-    """Tests for default-unit behavior."""
+class TestPlummerVelocityDFExplicitG:
+    """Explicit-units policy (audit A2): G is REQUIRED, no DEFAULT_UNITS fallback."""
 
-    def test_default_units_used_when_g_none(self, monkeypatch):
-        """G=None should use progenax.defaults.DEFAULT_UNITS.G."""
-        from jaxstro.units import CGS
-        from progenax import defaults
-
+    def test_g_is_required(self):
+        """Omitting G must raise (required arg, no silent default-unit resolution)."""
         df = PlummerVelocityDF(r_h=1.0)
         N = 16
         positions = jnp.zeros((N, 3))
         masses = jnp.ones(N)
         key = jax.random.PRNGKey(123)
 
-        monkeypatch.setattr(defaults, "DEFAULT_UNITS", CGS)
-        velocities_default = df.sample_velocities(positions, masses, key, G=None)
-        velocities_explicit = df.sample_velocities(positions, masses, key, G=CGS.G)
-
-        assert jnp.allclose(velocities_default, velocities_explicit)
+        with pytest.raises(TypeError):
+            df.sample_velocities(positions, masses, key)

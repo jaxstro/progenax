@@ -10,6 +10,17 @@ the 2026-06-11 pre-release adversarial audit
 (`docs/reviews/2026-06-11-prerelease-adversarial-audit.md`), moving progenax from Beta
 toward Release Candidate. Finding IDs (R*, J*, S*, A*, T*, D*, M*) refer to that report.
 
+### Breaking changes
+
+- **Explicit `G` now required on every velocity-sampling surface** (A2): the
+  `G=None → DEFAULT_UNITS.G` convenience default was removed, per the MANDATORY
+  explicit-units policy. Affected surfaces: `PlummerVelocityDF`, `KingVelocityDF`,
+  `EFFVelocityDF`, `MichieVelocityDF`, and `LIMEPYVelocityDF` `.sample_velocities`;
+  `MultiComponentCluster.sample_cluster`; and `sample_velocities_pipeline`. Callers
+  must now pass an explicit `G` (e.g. `STELLAR.G`) — omitting it raises `TypeError`.
+  Forward values are bit-identical to the previous explicit-`G` behavior; only the
+  silent fallback is gone.
+
 ### Science fixes
 
 - **Moe & Di Stefano F_twin normalization** (R3): the twin excess was mixed against the
@@ -72,5 +83,7 @@ toward Release Candidate. Finding IDs (R*, J*, S*, A*, T*, D*, M*) refer to that
 - **Not yet pip-installable for outsiders** (R2): the runtime depends on the unpublished
   sibling `jaxstro`. Resolution (publish `jaxstro` to PyPI, vendor its `units`+`jaxconfig`,
   or a git-URL dependency) is a strategy decision tracked separately.
-- Units-policy A2 (DF `G=None` defaults vs protocol-wide explicit G) — a breaking sweep,
-  deferred. A two-sided quantile stretch for `sample_fixed_n` (R5 follow-up) is deferred.
+- A two-sided quantile stretch for `sample_fixed_n` (R5 follow-up) is deferred.
+
+  (Units-policy A2 — DF `G=None` defaults vs protocol-wide explicit G — is now resolved;
+  see "Breaking changes" above.)

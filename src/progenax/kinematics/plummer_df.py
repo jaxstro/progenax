@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.kinematics.eddington import (
     assign_om_directions,
     sample_speed_from_f_table,
@@ -143,7 +142,7 @@ class PlummerVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float | None = None,
+        G: float,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from Plummer distribution function.
@@ -155,8 +154,8 @@ class PlummerVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M☉]
             key: JAX random key
-            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G
-               (~0.00450 for stellar dynamics in pc³ Msun⁻¹ Myr⁻²)
+            G: Gravitational constant (REQUIRED, explicit-units policy). E.g.
+               ``STELLAR.G`` ~0.00450 in pc³ Msun⁻¹ Myr⁻².
 
         Returns:
             Cartesian velocities (N, 3) [velocity units]
@@ -166,9 +165,6 @@ class PlummerVelocityDF(eqx.Module):
             - All velocities satisfy v < v_esc (bound particles)
             - Statistical properties match Plummer (1911) exactly
         """
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
-
         N = positions.shape[0]
         radii = jnp.linalg.norm(positions, axis=1)
 

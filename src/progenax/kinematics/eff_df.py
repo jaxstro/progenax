@@ -25,7 +25,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.numerics import cumulative_trapz
 from progenax.kinematics.eddington import (
     assign_om_directions,
@@ -154,7 +153,7 @@ class EFFVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float | None = None,
+        G: float,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from the EFF Eddington DF.
@@ -163,10 +162,9 @@ class EFFVelocityDF(eqx.Module):
         differentiable tabulated inverse-CDF; the physical velocity scale is sqrt(kappa),
         kappa = G rho_0 = G M_total / (4 pi mu). Directions are isotropic when
         anisotropy_radius is None, else the Osipkov-Merritt stretched split (Merritt 1985).
-        """
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
 
+        G is REQUIRED (explicit-units policy; e.g. ``STELLAR.G``).
+        """
         N = positions.shape[0]
         M_total = jnp.sum(masses)
         radii = jnp.linalg.norm(positions, axis=1)

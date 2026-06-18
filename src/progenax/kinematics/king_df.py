@@ -29,7 +29,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.kinematics._speed_kernels import _ORACLE_BATCH
 from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import (
@@ -155,7 +154,7 @@ class KingVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float | None = None,
+        G: float,
     ) -> Float[Array, "N 3"]:
         """
         Sample velocities from the King lowered-Maxwellian DF.
@@ -167,13 +166,11 @@ class KingVelocityDF(eqx.Module):
             positions: Particle positions (N, 3) [length units]
             masses: Particle masses (N,) [M_sun]
             key: JAX random key
-            G: Gravitational constant. If None, uses progenax.DEFAULT_UNITS.G.
+            G: Gravitational constant (REQUIRED, explicit-units policy; e.g. ``STELLAR.G``).
 
         Returns:
             Cartesian velocities (N, 3) [velocity units]
         """
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
         return _sample_velocities_core(
             self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
         )

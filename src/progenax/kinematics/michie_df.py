@@ -18,7 +18,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.kinematics._speed_kernels import (
     _N_C,
     _ORACLE_BATCH,
@@ -150,11 +149,12 @@ class MichieVelocityDF(eqx.Module):
 
     def sample_velocities(
         self, positions: Float[Array, "N 3"], masses: Float[Array, "N"],
-        key: PRNGKeyArray, G: float | None = None,
+        key: PRNGKeyArray, G: float,
     ) -> Float[Array, "N 3"]:
-        """Sample velocities from the Michie-King DF via the 2-D (u_r, u_t) sampler."""
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
+        """Sample velocities from the Michie-King DF via the 2-D (u_r, u_t) sampler.
+
+        G is REQUIRED (explicit-units policy; e.g. ``STELLAR.G``).
+        """
         return _sample_velocities_core(
             self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
         )

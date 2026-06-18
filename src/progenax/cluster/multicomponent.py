@@ -35,7 +35,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, Int, PRNGKeyArray
 
-from progenax import defaults
 from progenax.builders import ICResult
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import lowered_exponential
@@ -522,7 +521,7 @@ class MultiComponentCluster(eqx.Module):
         tot = jnp.sum(self.alpha_j[:, None] * rho_j, axis=0).reshape(jnp.shape(r))
         return jnp.where(r <= self.r_t, tot, 0.0)
 
-    def sample_cluster(self, key: PRNGKeyArray, n_stars: int, G=None) -> ICResult:
+    def sample_cluster(self, key: PRNGKeyArray, n_stars: int, G: float) -> ICResult:
         """Sample an equilibrium multi-component IC -> ICResult (with component_id).
 
         Each star is assigned a component by a categorical draw (probabilities
@@ -552,9 +551,9 @@ class MultiComponentCluster(eqx.Module):
         The numerical core is JIT-compiled (compiled once per (n_stars, model
         structure); repeated draws -- seed averaging, MC studies -- reuse the
         compiled kernel). ICResult is assembled outside the JIT boundary.
+
+        G is REQUIRED (explicit-units policy; e.g. ``STELLAR.G``).
         """
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
         pos, vel, m_i, radii_stellar, c = _sample_cluster_arrays(self, key, n_stars, G)
         return ICResult(positions=pos, velocities=vel, masses=m_i,
                         stellar_radii=radii_stellar, component_id=c)

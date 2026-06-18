@@ -31,7 +31,6 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax import defaults
 from progenax.kinematics._speed_kernels import (
     _N_C,
     _ORACLE_BATCH,
@@ -204,7 +203,7 @@ class LIMEPYVelocityDF(eqx.Module):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
-        G: float | None = None,
+        G: float,
     ) -> Float[Array, "N 3"]:
         """Sample velocities from the general-g lowered DF (iso or Michie/OM aniso).
 
@@ -213,9 +212,9 @@ class LIMEPYVelocityDF(eqx.Module):
         pattern): the draw chain fuses under XLA instead of materializing
         every eager intermediate (measured at N=2e4 aniso: draw-chain peak
         +0.63 GB eager -> +0.13 GB jitted; warm call 0.35 -> 0.17 s).
+
+        G is REQUIRED (explicit-units policy; e.g. ``STELLAR.G``).
         """
-        if G is None:
-            G = defaults.DEFAULT_UNITS.G
         return _sample_velocities_core(
             self, positions, masses, key, jnp.asarray(G, dtype=jnp.float64)
         )
