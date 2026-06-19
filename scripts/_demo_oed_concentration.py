@@ -30,8 +30,10 @@ Fisher model:
 
 Velocity units: pc/Myr (STELLAR), matching project_dispersion's sqrt(G M / length).
 """
+import functools
 import os
 import sys
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -62,6 +64,7 @@ from jaxstro.units import STELLAR
 sys.path.insert(0, os.path.dirname(__file__))
 import optax  # noqa: E402
 from _demo_oed import (  # noqa: E402
+    _MIN_CELL,
     DesignResult,
     a_criterion,
     blocks_from_eps,
@@ -78,6 +81,10 @@ from _demo_oed import (  # noqa: E402
 _N_R = 6000      # radial grid for the potential / density tabulation
 _N_E = 1000      # energy grid for f(E)
 _N_SPEED = 256   # per-particle speed inverse-CDF resolution
+
+# Per-iteration ln-theta step cap for the calibration's Gauss-Newton fit (keeps the
+# Michie Poisson ODE in its well-posed basin around the truth; see _fit_theta_W0_gn).
+_GN_STEP_CAP = 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -127,8 +134,8 @@ def build_profile(W0, r_a, model):
 # ---------------------------------------------------------------------------
 
 
-def _sample_king_om(W0, r_a, M, n_stars, key):
-    """King density under OM via Engine B (from_density_profiles), total mass M.
+def _build_king_om_sampler(W0, r_a, M, n_stars):
+    """Build the EXPENSIVE King Engine B model ONCE (the per-draw-invariant structure).
 
     A SINGLE King component (mass_fraction 1) builds its own shared-Psi potential
     and an OM Eddington DF with anisotropy radius r_a. Per-star stellar mass label
@@ -136,12 +143,20 @@ def _sample_king_om(W0, r_a, M, n_stars, key):
     Engine B speed scale sqrt(G M_sampled / (4 pi mu)) is then at total mass M,
     matching project_dispersion's M). Engine B's realizability gate raises if the
     OM DF is genuinely negative.
+
+    The returned MultiComponentCluster depends only on (W0, r_a, M, n_stars) -- the
+    truth the calibration holds fixed -- so it is built ONCE per calibration and
+    reused across all draws (the cheap per-draw work is just model.sample_cluster).
     """
     king = build_profile(W0, r_a, "king")
-    model = MultiComponentCluster.from_density_profiles(
+    return MultiComponentCluster.from_density_profiles(
         [king], jnp.array([1.0]), m_j=jnp.array([M / n_stars]),
         r_a_j=jnp.array([r_a]),
     )
+
+
+def _draw_king_om(model, n_stars, key):
+    """Cheap per-key draw from a pre-built King Engine B model -> (positions, velocities)."""
     ic = model.sample_cluster(key, n_stars=n_stars, G=STELLAR.G)
     return ic.positions, ic.velocities
 
@@ -247,8 +262,36 @@ def michie_om_table_diagnostics(W0, r_a):
     return float(jnp.min(f_grid)), float(jnp.max(jnp.abs(f_grid)))
 
 
-def _sample_michie_om(W0, r_a, M, n_stars, key):
-    """Michie density under OM via the hand-rolled Eddington table, total mass M.
+class _MichieOMSampler(NamedTuple):
+    """Pre-built per-draw-invariant Michie OM sampler structure (the EXPENSIVE part).
+
+    Holds the profile + the hand-rolled OM Eddington table (r_grid, Psi_grid, E_grid,
+    f_grid, mu) + the velocity scale kappa = G M / (4 pi mu). All depend only on the
+    fixed truth (W0, r_a, M), so the table is built ONCE and reused across draws.
+    """
+    prof: object
+    r_grid: object
+    Psi_grid: object
+    E_grid: object
+    f_grid: object
+    r_a: object
+    kappa: object
+
+
+def _build_michie_om_sampler(W0, r_a, M):
+    """Build the EXPENSIVE Michie OM Eddington table ONCE -> a reusable _MichieOMSampler.
+
+    The table (_michie_dimensionless_table) and the velocity scale kappa depend only on
+    the fixed truth (W0, r_a, M), so this is hoisted out of the per-draw loop.
+    """
+    prof = build_profile(W0, r_a, "michie")
+    r_grid, Psi_grid, E_grid, f_grid, mu = _michie_dimensionless_table(prof, r_a)
+    kappa = STELLAR.G * M / (4.0 * jnp.pi * mu)
+    return _MichieOMSampler(prof, r_grid, Psi_grid, E_grid, f_grid, r_a, kappa)
+
+
+def _draw_michie_om(sampler, n_stars, key):
+    """Cheap per-key draw from a pre-built _MichieOMSampler -> (positions, velocities).
 
     Positions from MichieProfile.sample_positions (the Michie density CDF), speeds
     from the OM Eddington table at each star's binding potential, OM stretched
@@ -256,23 +299,22 @@ def _sample_michie_om(W0, r_a, M, n_stars, key):
     sqrt(kappa), kappa = G M / (4 pi mu) (the EFF convention; M is the total mass
     project_dispersion uses), so the sampled dispersion is in pc/Myr (STELLAR).
     """
-    prof = build_profile(W0, r_a, "michie")
-    r_grid, Psi_grid, E_grid, f_grid, mu = _michie_dimensionless_table(prof, r_a)
-
     k_pos, k_speed, k_dir = jax.random.split(key, 3)
     masses = jnp.ones(n_stars)
-    pos = prof.sample_positions(masses, k_pos)
+    pos = sampler.prof.sample_positions(masses, k_pos)
     radii = jnp.linalg.norm(pos, axis=1)
 
-    Psi_r = jnp.interp(radii, r_grid, Psi_grid, left=Psi_grid[0], right=0.0)
-    kappa = STELLAR.G * M / (4.0 * jnp.pi * mu)
+    Psi_r = jnp.interp(radii, sampler.r_grid, sampler.Psi_grid,
+                       left=sampler.Psi_grid[0], right=0.0)
 
     speed_keys = jax.random.split(k_speed, n_stars)
     s = jax.vmap(
-        lambda kk, pp: sample_speed_from_f_table(kk, pp, E_grid, f_grid, _N_SPEED)
+        lambda kk, pp: sample_speed_from_f_table(
+            kk, pp, sampler.E_grid, sampler.f_grid, _N_SPEED
+        )
     )(speed_keys, Psi_r)
-    speeds = jnp.sqrt(kappa) * s
-    vel = assign_om_directions(k_dir, pos, speeds, r_a)
+    speeds = jnp.sqrt(sampler.kappa) * s
+    vel = assign_om_directions(k_dir, pos, speeds, sampler.r_a)
     return pos, vel
 
 
@@ -285,14 +327,39 @@ def sample_om_cluster(model, W0, r_a, M, n_stars, key):
 
     model: "king" (Engine B from_density_profiles) or "michie" (hand-rolled OM
     Eddington on the Michie density; Engine B does not ingest MichieProfile).
+
+    This convenience wrapper is build+draw in ONE call (used by Task-1's
+    test_om_sampler_matches_project_dispersion). The calibration (calibrate_fisher_W0)
+    instead builds the per-draw-invariant sampler ONCE and calls the cheap _draw_*_om
+    per key -- see _build_om_sampler / _draw_om below.
+    """
+    sampler = _build_om_sampler(model, W0, r_a, M, n_stars)
+    pos, vel = _draw_om(model, sampler, n_stars, key)
+    return project_to_sky(pos, vel)
+
+
+def _build_om_sampler(model, W0, r_a, M, n_stars):
+    """Build the EXPENSIVE per-draw-invariant OM sampler structure ONCE (King or Michie).
+
+    King: the Engine B MultiComponentCluster (its shared-Psi potential + OM Eddington DF
+    build is the cost). Michie: the hand-rolled OM Eddington table (_MichieOMSampler).
+    Both depend only on the fixed truth (W0, r_a, M, n_stars), so calibrate_fisher_W0
+    builds this once and reuses it across every draw.
     """
     if model == "king":
-        pos, vel = _sample_king_om(W0, r_a, M, n_stars, key)
-    elif model == "michie":
-        pos, vel = _sample_michie_om(W0, r_a, M, n_stars, key)
-    else:
-        raise ValueError(f"model must be 'king' or 'michie', got {model!r}")
-    return project_to_sky(pos, vel)
+        return _build_king_om_sampler(W0, r_a, M, n_stars)
+    if model == "michie":
+        return _build_michie_om_sampler(W0, r_a, M)
+    raise ValueError(f"model must be 'king' or 'michie', got {model!r}")
+
+
+def _draw_om(model, sampler, n_stars, key):
+    """Cheap per-key draw from a pre-built OM sampler -> (positions, velocities)."""
+    if model == "king":
+        return _draw_king_om(sampler, n_stars, key)
+    if model == "michie":
+        return _draw_michie_om(sampler, n_stars, key)
+    raise ValueError(f"model must be 'king' or 'michie', got {model!r}")
 
 
 # ===========================================================================
@@ -464,3 +531,208 @@ def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500,
         if best is None or crit < best.criterion:
             best = DesignResult(z=z, trace=trace, criterion=crit)
     return best
+
+
+# ===========================================================================
+# Task 5: real-star @slow calibration gate (the headline validation).
+# ===========================================================================
+#
+# The END-TO-END gate on the whole W0-OED demo: it confirms that the additive,
+# dimensionless DESIGN Fisher (Tasks 1-4) actually predicts the REALIZED fractional
+# scatter of W0_hat across independent mock catalogs sampled and fit forward. If the
+# design Fisher were wrong (wrong Jacobian, wrong SE, wrong ln-theta metric, or a
+# sampler that did not equal the Fisher forward model), this number would not close.
+#
+# Mirrors _demo_oed.calibrate_fisher with THREE arc-specific changes:
+#   (a) mocks drawn with sample_om_cluster(model, ...) -- the Task-1 OM-King /
+#       OM-on-Michie-density sampler that IS project_dispersion's forward model
+#       (NOT Stage-1's _draw_mock, which is OM-Plummer);
+#   (b) theta = (W0, r_a, M) fit in the ln-theta GAUSS-NEWTON metric started at the
+#       truth (a faithful local reimplementation of _demo_oed_depth._fit_theta_gn,
+#       wired to OUR predict_sigma(., model) / theta_truth / R_BINS / PRIOR_DIAG --
+#       Stage-2's fitter is hardwired to Stage-1's theta=(r_a, M, r_h) forward model
+#       and takes no model arg, so it cannot be reused directly). Physical-Adam is
+#       NOT used: it pins the large-scale M~1e5 (Stage-2 lesson);
+#   (c) collect ln(W0_hat) and compare Var(ln W0_hat) to (inv F_design)_{W0, W0}
+#       (already a fractional/ln variance in the ln-theta metric, ADR 0011).
+#
+# Binning-helper COUPLING TRAP (handled): _demo_oed._r_bin_edges / _binned_sigma_hat
+# read Stage-1's MODULE-GLOBAL R_BINS / EPS (different VALUES from ours -- Stage-1 is
+# logspace(0.9, 9, 12) about r_h=3, ours is logspace(0.3, 12, 12) in r_c). Importing
+# them would silently bin against the WRONG radii. So both are reimplemented LOCALLY
+# here against OUR R_BINS / EPS (faithful copies, globals swapped). Only the design-
+# and-radius-AGNOSTIC scalar _MIN_CELL is reused by import.
+
+
+def _r_bin_edges():
+    """K+1 geometric-mean bin edges bracketing the K log-spaced R_BINS centres.
+
+    Local reimplementation of _demo_oed._r_bin_edges against THIS arc's R_BINS (the
+    coupling trap: Stage-1's helper reads Stage-1's R_BINS, whose values differ).
+    R_BINS is log-uniform with constant log step dlog, so the edges are the centres
+    shifted by +-dlog/2 in log space. Used only to bin the parent mock catalog.
+    """
+    lc = jnp.log(R_BINS)
+    dlog = lc[1] - lc[0]
+    return jnp.exp(jnp.concatenate([lc[:1] - dlog / 2.0, lc + dlog / 2.0]))
+
+
+def _binned_sigma_hat(key, channels, R, n_eff, edges):
+    """One mock's binned dispersions sigma_hat (3, K) + SEs se (3, K).
+
+    Local reimplementation of _demo_oed._binned_sigma_hat against THIS arc's R_BINS /
+    EPS (the coupling trap). For each radial bin b and channel c: take that channel's
+    parent-star velocities in bin b, subsample n_use = max(round(n_eff[c,b]), _MIN_CELL)
+    WITHOUT replacement, add per-star Gaussian measurement error ~ Normal(0, EPS[c]) (so
+    sigma_hat^2 ~ sigma_true^2 + EPS[c]^2, matching the design Fisher denom), and take the
+    ddof=1 sample std. The SE is sigma_hat / sqrt(2 n_eff) -- the Gaussian delta-method SE
+    of a 1-D dispersion -- evaluated at the DESIGN count so it matches the Fisher weight.
+
+    Host-side control flow over (bin, channel) is fine here: this is the @slow path, not a
+    jitted hot loop. All randomness stays in jax.random (never numpy.random).
+    """
+    import numpy as np  # host-side bookkeeping only; never numpy.random
+
+    K = R_BINS.shape[0]
+    edges_np = np.asarray(edges)
+    bin_of = np.digitize(np.asarray(R), edges_np) - 1   # 0..K-1; -1/K out of range
+    sigma_hat = np.zeros((3, K))
+    se = np.zeros((3, K))
+    for b in range(K):
+        members = np.flatnonzero(bin_of == b)
+        n_member = members.shape[0]
+        for c in range(3):
+            n_need = int(round(float(n_eff[c, b])))
+            n_use = max(n_need, _MIN_CELL)
+            if n_use > n_member:
+                raise ValueError(
+                    f"calibration parent catalog too small: bin {b} channel {c} "
+                    f"needs {n_use} stars but only {n_member} fell in the bin; "
+                    f"increase n_parent."
+                )
+            key, ksub, knoise = jax.random.split(key, 3)
+            pick = jax.random.choice(
+                ksub, jnp.asarray(members), shape=(n_use,), replace=False
+            )
+            v = channels[c][pick]
+            v_obs = v + EPS[c] * jax.random.normal(knoise, (n_use,))
+            sig = float(jnp.std(v_obs, ddof=1))
+            sigma_hat[c, b] = sig
+            # SE at the TRUE design count n_eff (NOT floored at _MIN_CELL): the fit's
+            # per-cell weight 1/se^2 must equal the design Fisher's per-cell weight
+            # 2 n_eff / (sigma^2 + eps^2) for the calibration to be self-consistent.
+            # _MIN_CELL floors only n_use (how many stars we DRAW for a numerically
+            # stable ddof=1 sigma_hat), NOT the information weight. (Stage-1 floored
+            # n_se too, but at its N_total few cells were sub-floor; here 15/36 cells
+            # fall below _MIN_CELL=10, and flooring n_se gave those cells a too-tight
+            # SE -> the realized fit over-weighted them vs the Fisher -> realized
+            # variance ~0.4x too small. Using the true n_eff closes the gate at ~1.0x.)
+            n_se = max(float(n_eff[c, b]), 1e-6)   # true design count; guard div-by-0 only
+            se[c, b] = sig / jnp.sqrt(2.0 * n_se)
+    return jnp.asarray(sigma_hat), jnp.asarray(se)
+
+
+@functools.partial(jax.jit, static_argnames=("model", "n_iter"))
+def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=12):
+    """Gauss-Newton MAP fit of theta=(W0, r_a, M) in the DIMENSIONLESS ln-theta metric.
+
+    A faithful reimplementation of _demo_oed_depth._fit_theta_gn wired to OUR forward
+    model: predict_sigma(., R_BINS, G, model) (a model arg Stage-2's fitter lacks),
+    theta_truth() = (W0, r_a, M), and PRIOR_DIAG (M-only). We fit u = ln(theta) -
+    ln(theta_fid), theta = theta_fid * exp(u), so every direction is O(1) (W0~6, r_a~6,
+    M~1e5 span ~5 orders of magnitude; a single-LR physical optimiser cannot move the
+    large-scale M -- the Stage-2 lesson). Started at the truth (u=0). Each Gauss-Newton
+    iteration solves  (Jr^T Jr + diag(PRIOR_DIAG)) du = Jr^T r + PRIOR_DIAG * u  with
+    r = (model - data)/se the whitened residual and Jr = d r / d u (reverse-mode jacrev
+    through the King/Michie custom_vjp ODE; never forward-mode), then takes a STEP-CAPPED
+    update.
+
+    Step cap (_GN_STEP_CAP on ||du||_inf per iteration): the Michie Poisson ODE
+    (solve_michie_profile) hits its diffrax max_steps and raises an _EquinoxRuntimeError
+    if an UNDAMPED GN step pushes (W0, r_a) into the over-anisotropic / near-non-truncating
+    region. Capping each ln-theta step to <= _GN_STEP_CAP keeps the iterate in the basin
+    around the truth (where it starts and where the minimum sits), so the Michie ODE stays
+    well-posed at every evaluation while GN still converges. King has no ODE-step pathology
+    but shares the same capped path (one code path; the cap is inactive for King's small,
+    well-behaved steps). Returns theta_hat (3,).
+
+    JIT (static_argnames model/n_iter): sigma_hat, se, G are TRACED args, so XLA compiles
+    the King/Michie ODE-jacrev scan ONCE and reuses it across every calibration draw (the
+    un-jitted function recompiled the whole ODE-jacrev scan each draw because it closed over
+    each draw's sigma_hat/se). The per-iteration ODE re-solve at RUNTIME is unavoidable and
+    stays; only the COMPILATION is hoisted. jit is value-preserving -- theta_hat is unchanged.
+    """
+    theta_fid = theta_truth()
+    sf = sigma_hat.flatten()
+    ef = se.flatten()
+
+    def resid(u):                                              # whitened residual (model - data)/se
+        theta = theta_fid * jnp.exp(u)
+        return (predict_sigma(theta, R_BINS, G, model).flatten() - sf) / ef
+
+    def gn_step(u, _):
+        r = resid(u)
+        Jr = jax.jacrev(resid)(u)                             # (n_obs, 3) = d r / d u
+        grad = Jr.T @ r + PRIOR_DIAG * u
+        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG)               # Gauss-Newton Hessian (SPD)
+        du = -jnp.linalg.solve(hess, grad)
+        # Trust-region cap: scale the whole step so ||du||_inf <= _GN_STEP_CAP, keeping
+        # the Michie ODE in its well-posed basin around the truth.
+        scale = jnp.minimum(1.0, _GN_STEP_CAP / (jnp.max(jnp.abs(du)) + 1e-30))
+        return u + scale * du, None
+
+    u_hat, _ = jax.lax.scan(gn_step, jnp.zeros(3), None, length=n_iter)
+    return theta_fid * jnp.exp(u_hat)
+
+
+class CalibResultW0(NamedTuple):
+    """Result of calibrate_fisher_W0 (both entries are FRACTIONAL/ln variances, ADR 0011):
+      * realized_var_W0 : Var(ln W0_hat over draws, ddof=1),
+      * fisher_var_W0   : (inv F_design)_{W0, W0} at the same (z, N_total)."""
+    realized_var_W0: float
+    fisher_var_W0: float
+
+
+def calibrate_fisher_W0(z, N_total, n_draws, key, model):
+    """Calibrate the design Fisher against the realized scatter of ln(W0_hat).
+
+    Returns a CalibResultW0(realized_var_W0, fisher_var_W0), BOTH fractional/ln variances
+    (ADR 0011). The Fisher prediction is (inv F_design)_{W0, W0} at (z, N_total) with the
+    per-star blocks at the truth; the realized quantity is Var(ln W0_hat over n_draws
+    independent OM mocks, ddof=1). The gate
+    (test_W0_fisher_calibration_matches_realized_scatter) asserts they agree to
+    2 sqrt(2/n_draws) -- the MC error on a variance from n_draws draws.
+    """
+    G = STELLAR.G
+    theta = theta_truth()
+    Mb, _ = per_star_blocks(theta, R_BINS, EPS, G, model)
+    cb = completeness(R_BINS)
+    n_eff = design_counts(z, cb, N_total)                       # (3, K)
+    fisher_var_W0 = float(jnp.linalg.inv(fisher(z, Mb, cb, N_total, PRIOR_DIAG))[0, 0])
+
+    edges = _r_bin_edges()
+    # Parent catalog large enough that every R-bin holds >> the largest design cell
+    # count (the thin outer King/Michie bins are the binding constraint; _binned_sigma_hat
+    # raises a clear error if any cell underflows). Mirror Stage-1's sizing.
+    n_parent = int(max(8000, 4 * N_total))
+
+    # Build the per-draw-invariant OM sampler structure ONCE: all n_draws mocks are
+    # sampled at the SAME truth (W0, r_a, M, n_parent), so the expensive build (King
+    # Engine B model / Michie Eddington table) is identical every draw. Only the cheap
+    # per-key _draw_om happens inside the loop (was rebuilt every draw -- the ~90 min cost).
+    sampler = _build_om_sampler(model, MOCK["W0"], MOCK["r_a"], MOCK["M"], n_parent)
+
+    ln_W0_hats = []
+    for d in range(n_draws):
+        kdraw = jax.random.fold_in(key, d)
+        kcat, kbin = jax.random.split(kdraw)
+        pos, vel = _draw_om(model, sampler, n_parent, kcat)
+        R, v_los, v_pm_r, v_pm_t = project_to_sky(pos, vel)
+        channels = (v_los, v_pm_r, v_pm_t)
+        sigma_hat, se = _binned_sigma_hat(kbin, channels, R, n_eff, edges)
+        theta_hat = _fit_theta_W0_gn(sigma_hat, se, G, model)
+        ln_W0_hats.append(jnp.log(theta_hat[0]))
+
+    ln_W0_hats = jnp.asarray(ln_W0_hats)
+    realized_var_W0 = float(jnp.var(ln_W0_hats, ddof=1))
+    return CalibResultW0(realized_var_W0=realized_var_W0, fisher_var_W0=fisher_var_W0)

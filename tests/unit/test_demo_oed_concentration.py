@@ -9,6 +9,7 @@ draw the SAME model it projects: "that profile's density under OM", for BOTH Kin
 the Michie density -- Engine B does not ingest MichieProfile, and we must NOT use
 `MichieVelocityDF`'s NATIVE anisotropy, which would mismatch the OM projection).
 """
+import os
 import pathlib
 import sys
 
@@ -329,3 +330,47 @@ def test_c_criterion_targets_W0_and_grad_AD_vs_FD():
         assert jnp.allclose(g_ad[i], g_fd, rtol=1e-4, atol=1e-8), (
             model, float(g_ad[i]), float(g_fd)
         )
+
+
+# ===========================================================================
+# Task 5: real-star calibration gate (KING ONLY, opt-in; kept OUT of CI)
+# ===========================================================================
+
+
+# Why BOTH @slow AND the env-skip (do not drop either): the FULL CI gate runs
+# `pytest tests/unit tests/integration tests/validation -q -n auto` with NO
+# `-m "not slow"` filter (see progenax/CLAUDE.md "FULL GATE"), so `@slow` ALONE would
+# NOT keep this expensive (~minutes) MLE-calibration MC out of CI. The env-skip does:
+# it runs only when explicitly opted in via PROGENAX_RUN_OED_CALIB=1 (figures / the
+# eventual informax port). This matches Anna's "no expensive demos in CI" decision.
+@pytest.mark.slow
+@pytest.mark.skipif(
+    os.environ.get("PROGENAX_RUN_OED_CALIB") != "1",
+    reason="expensive OED calibration; opt-in via PROGENAX_RUN_OED_CALIB=1 "
+    "(figures/informax), kept out of CI",
+)
+def test_W0_fisher_calibration_matches_realized_scatter():
+    """The HEADLINE gate: the design Fisher's predicted fractional variance of W0 must
+    match the REALIZED fractional scatter of ln(W0_hat) over independent mock catalogs,
+    each sampled from the OM model (sampler == Fisher forward model) and MAP-fit in the
+    ln-theta Gauss-Newton metric started at the truth.
+
+    KING ONLY (Option A): Michie's machinery is validated by the (cheap) forward
+    (test_predict_sigma_*, test_jacobian_*), W0-gradient (test_grad_sigma_W0_michie_*),
+    and Task-1 sampler-match (test_om_sampler_matches_project_dispersion) tests -- all
+    still parametrized king/michie. Michie's expensive MLE-calibration MC is intentionally
+    NOT run: it adds no new anisotropy physics over King, only ~2x cost (the Michie
+    sampler/fitter code remains, exercised by those cheaper tests).
+
+    Both quantities are fractional/ln variances (ADR-0011). The tolerance band is the
+    Monte-Carlo error on a variance estimated from n_draws draws (~2 sqrt(2/n_draws));
+    if the ratio is outside the band the design Fisher is wrong -- root-cause it, do NOT
+    widen the band."""
+    key = jax.random.PRNGKey(7)
+    K = oedc.R_BINS.shape[0]
+    cal = oedc.calibrate_fisher_W0(
+        z=jnp.zeros(3 * K), N_total=400.0, n_draws=48, key=key, model="king"
+    )
+    band = 2.0 * (2.0 / 48) ** 0.5
+    ratio = cal.realized_var_W0 / cal.fisher_var_W0
+    assert jnp.abs(ratio - 1.0) < band, ("king", ratio)
