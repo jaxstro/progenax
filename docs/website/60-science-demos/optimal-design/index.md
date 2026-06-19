@@ -57,7 +57,7 @@ worked example `{ref}`s it rather than re-deriving it.
 * - [Robustness — when binaries lie to your mass](binary-robustness.md)
   - binary-aware vs binary-**blind** model (radial RV allocation)
   - dynamical mass $M$ under misspecification
-  - a binary-blind design biases $M$ by **$+185\%$** with **$41\times$** false confidence; the binary-aware design removes it
+  - a binary-blind design biases $M$ by **$+184\%$** with **$41\times$** false confidence; the binary-aware design removes it
 ```
 
 ## What OED can do with progenax

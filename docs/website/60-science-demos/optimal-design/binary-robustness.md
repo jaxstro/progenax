@@ -309,8 +309,8 @@ fiducial ratio* $\sigma_{\rm bin}/\sigma_{\rm cluster}=1.08$ on purpose — and 
 [sweep](#sec-bin-sweep) shows it grows to $\sim6\times$ as binaries come to dominate. **H3** is
 confirmed too: the binary-aware allocation is *not* a monotone rescaling of the blind one — it
 reshuffles, pulling budget toward the radii that constrain $f_{\rm bin}$ to break the
-$M\leftrightarrow f_{\rm bin}$ degeneracy (the blind design kept $\{7.6, 17\}$ pc; the aware
-design drops $7.6$ pc and concentrates $2.26$ pc while keeping $17$ pc).
+$M\leftrightarrow f_{\rm bin}$ degeneracy (the blind design spread over $\{1.5, 7.6, 17\}$ pc;
+the aware design drops $7.6$ pc and concentrates $2.26$ pc while keeping $17$ pc).
 
 (sec-bin-identifiability)=
 ## The honest test of identifiability: prior-insensitivity, not truth-centred recovery
@@ -402,11 +402,15 @@ $\sim10^{-16}$.
 ### Gate 2 — the bias is real (cross-model Monte Carlo)
 
 The bias claim is gated by a **cross-model** Monte Carlo: *generate WITH Moe binaries, fit
-WITHOUT*. Each draw samples EFF particles from the OM Eddington DF (build-once table), injects
-Moe binary velocities for the $f_{\rm bin}$ fraction (flux-weighted blend from a build-once
-$K_{\rm orb}$ pool), projects to $\sigma_{\rm los}$, bins by projected radius, subsamples the
-design counts, adds per-star error, and fits $\hat M$ by MAP in the $\ln\theta$ Gauss–Newton
-metric. The H1 accept rule was fixed in advance: accept iff the mean
+WITHOUT*. The mock is **forward-model-consistent** — the cluster mock *is* the fit model, so the
+$f_{\rm bin}=0$ baseline is unbiased by construction and any bias is attributable to binaries
+alone. Each draw places the design's per-bin star counts directly, draws each star's cluster
+velocity from $\mathcal{N}\!\left(0,\sigma_{\rm los}^2(R)\right)$ with $\sigma_{\rm los}$ from
+`project_dispersion` at the truth, adds a flux-weighted Moe blend $\Delta$ (from a build-once
+$K_{\rm orb}$ pool rescaled to $\mathrm{Var}=V_{\rm bin}$) to the per-star
+$\mathrm{Bernoulli}(f_{\rm bin})$ fraction, adds per-star $\varepsilon_{\rm RV}$, forms the
+per-bin $\hat\sigma$, and fits $\hat M$ by MAP in the $\ln\theta$ Gauss–Newton metric (honest
+realized-$\hat\sigma$ weighting; unpopulated bins dropped, not floored). The H1 accept rule was fixed in advance: accept iff the mean
 $\mathrm{bias}(\hat M)/M > 2\,\sigma_{\rm forecast}/M$ and the $2\,\text{SEM}$ band does not
 straddle that threshold. It is met by a wide margin (bias/forecast $=41\times$; SEM $0.06$). The
 binary-aware fit's accept rule — $|\mathrm{bias}| < 2\,\sigma_{M,\rm marg}$ — is met by the
