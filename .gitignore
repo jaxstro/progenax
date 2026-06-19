@@ -239,3 +239,6 @@ docs/core-papers/
 !docs/website/60-science-demos/optimal-design/figures/*.png
 
 .adr/
+
+# JAX persistent compilation cache (scripts-only demo cache; opt#3 in _demo_oed_concentration.py)
+.jax_cache/

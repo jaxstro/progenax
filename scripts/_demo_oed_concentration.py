@@ -32,11 +32,27 @@ Velocity units: pc/Myr (STELLAR), matching project_dispersion's sqrt(G M / lengt
 """
 import functools
 import os
+import pathlib
 import sys
 from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
+
+# opt#3 -- persistent XLA compilation cache. The expensive thing the W0-OED demo
+# compiles is the King/Michie ODE-jacrev GN-fit scan (and the batched calibration
+# pipeline); these are stable across runs (figure regen, the informax port, repeat
+# opt-in calibration), so caching the compiled executables to disk lets a SECOND run
+# skip the multi-second XLA compile entirely. Repo-local + gitignored (.jax_cache/),
+# set BEFORE any JAX array is created (the env may override via JAX_COMPILATION_CACHE_DIR).
+_CACHE_DIR = os.environ.get(
+    "JAX_COMPILATION_CACHE_DIR",
+    str(pathlib.Path(__file__).resolve().parents[1] / ".jax_cache"),
+)
+jax.config.update("jax_compilation_cache_dir", _CACHE_DIR)
+# Cache even fast-to-compile executables (default min is high) so the demo's modest
+# kernels are persisted; this is a scripts-only demo cache, not a CI hot path.
+jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.5)
 
 import progenax  # noqa: F401  enables float64 at import
 from progenax import KingProfile, MichieProfile, MultiComponentCluster, project_dispersion
@@ -82,9 +98,16 @@ _N_R = 6000      # radial grid for the potential / density tabulation
 _N_E = 1000      # energy grid for f(E)
 _N_SPEED = 256   # per-particle speed inverse-CDF resolution
 
-# Per-iteration ln-theta step cap for the calibration's Gauss-Newton fit (keeps the
-# Michie Poisson ODE in its well-posed basin around the truth; see _fit_theta_W0_gn).
-_GN_STEP_CAP = 0.3
+# Levenberg-Marquardt damping for the calibration's MAP fit (see _fit_theta_W0_gn). LAM0
+# is the initial damping; the per-draw fit adapts it (down on a cost decrease, up on an
+# increase). The lam*I floor bounds the curvature of weakly-constrained directions -- here
+# the M-only-prior r_a anisotropy nuisance -- so the step stays bounded instead of
+# overshooting/oscillating; well-constrained directions (W0, M) recover near-Newton steps.
+_GN_LM_LAM0 = 1e-2
+# Fixed LM iterations (jax.lax.scan length). LM settles the weakly-constrained r_a that the
+# old fixed step-cap left oscillating (28/48 King draws), so a few more iters than the old
+# GN=12 converge all three params; the per-draw fit is cheap (King calibration ~minutes).
+_GN_N_ITER = 25
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +601,7 @@ def _r_bin_edges():
 
 
 def _binned_sigma_hat(key, channels, R, n_eff, edges):
-    """One mock's binned dispersions sigma_hat (3, K) + SEs se (3, K).
+    """One mock's binned dispersions sigma_hat (3, K) + SEs se (3, K) -- HOST reference.
 
     Local reimplementation of _demo_oed._binned_sigma_hat against THIS arc's R_BINS /
     EPS (the coupling trap). For each radial bin b and channel c: take that channel's
@@ -588,8 +611,10 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
     ddof=1 sample std. The SE is sigma_hat / sqrt(2 n_eff) -- the Gaussian delta-method SE
     of a 1-D dispersion -- evaluated at the DESIGN count so it matches the Fisher weight.
 
-    Host-side control flow over (bin, channel) is fine here: this is the @slow path, not a
-    jitted hot loop. All randomness stays in jax.random (never numpy.random).
+    This host-side reference is KEPT (still used by sample_om_cluster's lone-draw callers
+    and as the correctness oracle for the vectorised _binned_sigma_hat_jax below); the
+    calibration loop (calibrate_fisher_W0) uses the vmapped JAX path so the whole
+    draw->bin->fit pipeline batches across draws (opt#4). All randomness stays in jax.random.
     """
     import numpy as np  # host-side bookkeeping only; never numpy.random
 
@@ -632,8 +657,118 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
     return jnp.asarray(sigma_hat), jnp.asarray(se)
 
 
+# ---------------------------------------------------------------------------
+# Vectorised (vmappable) binning -- opt#4. The host-side _binned_sigma_hat above
+# dominated the calibration wall-clock (~3.3 s/draw of host-side jax.random.choice +
+# jnp.std dispatch over 36 cells; STEP-0 profile). This JAX-native version is a pure
+# array function of (R, channels, per-star noise) with a STATIC n_use (3, K), so the
+# whole draw->bin->fit pipeline can be jax.vmapped over draws (ONE compiled batched
+# pass instead of n_draws sequential host loops).
+# ---------------------------------------------------------------------------
+
+
+def _bin_of(R, edges):
+    """Per-star bin index (n,) in 0..K-1; out-of-range stars get K (a never-selected
+    sentinel bin). searchsorted on the K+1 edges == np.digitize(R, edges) - 1."""
+    K = R_BINS.shape[0]
+    b = jnp.searchsorted(edges, R, side="right") - 1     # -1 (below) .. K (above)
+    return jnp.where((b < 0) | (b >= K), K, b)           # sentinel K for out-of-range
+
+
+def _within_bin_rank(bin_of, priority, n, K):
+    """Rank of each star WITHIN its bin under `priority` (0 = lowest priority in bin).
+
+    Vectorised without-replacement selection key: sorting stars by the composite key
+    (bin_of, priority) puts each bin's members in a contiguous, priority-sorted run, so
+    a star's within-bin rank is its global sorted position minus the count of stars in
+    strictly-earlier bins. Selecting the n_use lowest-priority members of a bin <=>
+    keeping stars with within-bin rank < n_use (a uniform-priority draw == uniform
+    without-replacement subsample). bin sentinel K sorts last and is never selected.
+    """
+    composite = bin_of.astype(jnp.float64) + priority    # priority in [0,1) keeps bins separate
+    order = jnp.argsort(composite)                       # (n,) ascending
+    sorted_bin = bin_of[order]
+    # bin_start[k] = number of stars in bins < k = first global sorted index of bin k.
+    counts = jnp.bincount(bin_of, length=K + 1)          # (K+1,) incl sentinel
+    bin_start = jnp.concatenate([jnp.zeros(1, counts.dtype), jnp.cumsum(counts)[:-1]])
+    rank_sorted = jnp.arange(n) - bin_start[sorted_bin]  # within-bin rank in sorted order
+    rank = jnp.zeros(n, dtype=rank_sorted.dtype).at[order].set(rank_sorted)
+    return rank                                          # (n,) within-bin rank, original order
+
+
+def _binned_sigma_hat_jax(key, channels, R, n_use, n_se, edges):
+    """vmappable JAX twin of _binned_sigma_hat: binned sigma_hat (3, K) + se (3, K).
+
+    PURE array function (no host control flow), so jax.vmap batches it across draws.
+    n_use (3, K) int and n_se (3, K) float are STATIC across draws (functions of the
+    design count n_eff and _MIN_CELL), so they are precomputed ONCE on the host (where
+    the parent-catalog-too-small guard also lives) and threaded in as constants.
+
+    Per channel c: draw a uniform priority per parent star, rank stars WITHIN their bin
+    (a uniform-priority rank == a uniform without-replacement subsample, matching the
+    host reference's jax.random.choice(replace=False)), select the n_use[c,b] lowest-rank
+    members of each bin, add per-star Gaussian error ~Normal(0, EPS[c]), and take the
+    masked ddof=1 sample std. The SE is sigma_hat / sqrt(2 n_se) at the TRUE design count
+    (n_se, NOT floored at _MIN_CELL) -- identical contract to the host reference.
+    """
+    K = R_BINS.shape[0]
+    n = R.shape[0]
+    bin_of = _bin_of(R, edges)                           # (n,) 0..K-1, K = sentinel
+    cell = jnp.arange(K)                                  # (K,)
+
+    def per_channel(c, kc):
+        kp, kn = jax.random.split(kc)
+        priority = jax.random.uniform(kp, (n,))          # (n,) in [0,1)
+        rank = _within_bin_rank(bin_of, priority, n, K)  # (n,) within-bin rank
+        # star i selected for its cell c iff rank < n_use[c, bin_of[i]] (sentinel bin
+        # K has n_use 0 by construction -> never selected).
+        nuse_star = jnp.where(bin_of < K, n_use[c][jnp.minimum(bin_of, K - 1)], 0)
+        selected = rank < nuse_star                      # (n,) bool
+        v_obs = channels[c] + EPS[c] * jax.random.normal(kn, (n,))   # (n,)
+        # Masked per-cell ddof=1 std via grouped moments. sel_cb[b, i] = star i in cell (c,b).
+        in_bin = bin_of[None, :] == cell[:, None]        # (K, n)
+        sel_cb = in_bin & selected[None, :]              # (K, n)
+        w = sel_cb.astype(jnp.float64)                   # (K, n) 0/1 weights
+        cnt = jnp.sum(w, axis=1)                         # (K,) selected count == n_use[c]
+        mean = jnp.sum(w * v_obs[None, :], axis=1) / jnp.maximum(cnt, 1.0)
+        var = jnp.sum(w * (v_obs[None, :] - mean[:, None]) ** 2, axis=1) / jnp.maximum(cnt - 1.0, 1.0)
+        return jnp.sqrt(var)                             # (K,) ddof=1 sigma_hat for channel c
+
+    kc0, kc1, kc2 = jax.random.split(key, 3)
+    sigma_hat = jnp.stack([per_channel(0, kc0), per_channel(1, kc1), per_channel(2, kc2)])
+    se = sigma_hat / jnp.sqrt(2.0 * n_se)                # (3, K); n_se = true design count
+    return sigma_hat, se
+
+
+def _static_cell_sizes(n_eff, R, edges):
+    """Host-side STATIC per-cell sizes for the JAX binning: (n_use (3,K) int, n_se (3,K)).
+
+    n_use = max(round(n_eff), _MIN_CELL) (how many stars to DRAW); n_se = max(n_eff, 1e-6)
+    (the TRUE design count for the SE weight). Also runs the parent-catalog-too-small guard
+    ON THE HOST (the JAX binning cannot raise): if any cell needs more stars than fell in
+    its bin, raise the SAME clear error as the host reference _binned_sigma_hat.
+    """
+    import numpy as np  # host-side bookkeeping only
+
+    K = R_BINS.shape[0]
+    bin_of = np.digitize(np.asarray(R), np.asarray(edges)) - 1
+    members_per_bin = np.array([int(np.sum(bin_of == b)) for b in range(K)])
+    n_eff_np = np.asarray(n_eff)
+    n_use = np.maximum(np.round(n_eff_np).astype(int), _MIN_CELL)   # (3, K)
+    for b in range(K):
+        for c in range(3):
+            if n_use[c, b] > members_per_bin[b]:
+                raise ValueError(
+                    f"calibration parent catalog too small: bin {b} channel {c} "
+                    f"needs {n_use[c, b]} stars but only {members_per_bin[b]} fell in "
+                    f"the bin; increase n_parent."
+                )
+    n_se = np.maximum(n_eff_np, 1e-6)
+    return jnp.asarray(n_use), jnp.asarray(n_se)
+
+
 @functools.partial(jax.jit, static_argnames=("model", "n_iter"))
-def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=12):
+def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
     """Gauss-Newton MAP fit of theta=(W0, r_a, M) in the DIMENSIONLESS ln-theta metric.
 
     A faithful reimplementation of _demo_oed_depth._fit_theta_gn wired to OUR forward
@@ -647,14 +782,18 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=12):
     through the King/Michie custom_vjp ODE; never forward-mode), then takes a STEP-CAPPED
     update.
 
-    Step cap (_GN_STEP_CAP on ||du||_inf per iteration): the Michie Poisson ODE
-    (solve_michie_profile) hits its diffrax max_steps and raises an _EquinoxRuntimeError
-    if an UNDAMPED GN step pushes (W0, r_a) into the over-anisotropic / near-non-truncating
-    region. Capping each ln-theta step to <= _GN_STEP_CAP keeps the iterate in the basin
-    around the truth (where it starts and where the minimum sits), so the Michie ODE stays
-    well-posed at every evaluation while GN still converges. King has no ODE-step pathology
-    but shares the same capped path (one code path; the cap is inactive for King's small,
-    well-behaved steps). Returns theta_hat (3,).
+    Levenberg-Marquardt damping (replaces the old fixed step-cap). Each iteration solves the
+    DAMPED system  (Jr^T Jr + diag(PRIOR_DIAG) + lam I) du = -(Jr^T r + PRIOR_DIAG u), ACCEPTS
+    the step only if it lowers the MAP cost 0.5(||r||^2 + sum PRIOR_DIAG u^2), and adapts lam
+    (x0.3 on accept, x3 on reject). The lam I floor bounds the step in weakly-constrained
+    directions -- the M-only-prior r_a anisotropy nuisance, whose tiny curvature made the
+    plain GN step overshoot and OSCILLATE at the old fixed step-cap (28/48 King draws never
+    settled) -- while well-constrained directions (W0, M) keep near-Newton steps. The
+    accept/reject ALSO subsumes the step-cap's Michie-ODE-basin guard: a step that pushes
+    (W0, r_a) past the Michie truncation makes the ODE return NaN -> cost NaN -> rejected ->
+    lam up -> smaller step, so the over-anisotropic region is auto-avoided. Returns
+    (theta_hat (3,), final_step_norm) -- the LAST iteration's accepted ||du||_inf in ln-theta,
+    a B2 convergence witness that -> ~0 across ALL params when the fit has settled.
 
     JIT (static_argnames model/n_iter): sigma_hat, se, G are TRACED args, so XLA compiles
     the King/Michie ODE-jacrev scan ONCE and reuses it across every calibration draw (the
@@ -670,38 +809,77 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=12):
         theta = theta_fid * jnp.exp(u)
         return (predict_sigma(theta, R_BINS, G, model).flatten() - sf) / ef
 
-    def gn_step(u, _):
+    def cost_of(u, r):                                        # MAP negative-log-posterior (whitened)
+        return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG * u**2))
+
+    def lm_step(carry, _):
+        u, lam = carry
         r = resid(u)
+        c = cost_of(u, r)
         Jr = jax.jacrev(resid)(u)                             # (n_obs, 3) = d r / d u
         grad = Jr.T @ r + PRIOR_DIAG * u
-        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG)               # Gauss-Newton Hessian (SPD)
-        du = -jnp.linalg.solve(hess, grad)
-        # Trust-region cap: scale the whole step so ||du||_inf <= _GN_STEP_CAP, keeping
-        # the Michie ODE in its well-posed basin around the truth.
-        scale = jnp.minimum(1.0, _GN_STEP_CAP / (jnp.max(jnp.abs(du)) + 1e-30))
-        return u + scale * du, None
+        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG)               # Gauss-Newton Hessian (PSD)
+        du = -jnp.linalg.solve(hess + lam * jnp.eye(3), grad) # Levenberg-damped step
+        u_try = u + du
+        c_try = cost_of(u_try, resid(u_try))
+        improved = c_try < c                                  # NaN (Michie ODE blow-up) -> False -> reject
+        u_next = jnp.where(improved, u_try, u)
+        lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
+        moved = jnp.max(jnp.abs(u_next - u))                  # accepted ||du||_inf (0 on reject)
+        return (u_next, lam_next), moved
 
-    u_hat, _ = jax.lax.scan(gn_step, jnp.zeros(3), None, length=n_iter)
-    return theta_fid * jnp.exp(u_hat)
+    (u_hat, _), step_norms = jax.lax.scan(lm_step, (jnp.zeros(3), _GN_LM_LAM0), None, length=n_iter)
+    # B2 convergence witness: the LAST iteration's accepted ||du||_inf in ln-theta. With LM
+    # this -> ~0 across ALL params at convergence (the weakly-constrained r_a now settles
+    # under the lam floor instead of oscillating at the old step-cap).
+    return theta_fid * jnp.exp(u_hat), step_norms[-1]
 
 
 class CalibResultW0(NamedTuple):
-    """Result of calibrate_fisher_W0 (both entries are FRACTIONAL/ln variances, ADR 0011):
-      * realized_var_W0 : Var(ln W0_hat over draws, ddof=1),
-      * fisher_var_W0   : (inv F_design)_{W0, W0} at the same (z, N_total)."""
+    """Result of calibrate_fisher_W0 (variances are FRACTIONAL/ln variances, ADR 0011):
+      * realized_var_W0  : Var(ln W0_hat over draws, ddof=1),
+      * fisher_var_W0    : (inv F_design)_{W0, W0} at the same (z, N_total),
+      * max_step_norm    : max over draws of the LM fit's final-iter accepted ||du||_inf,
+      * n_unconverged    : # draws whose final-iter step exceeds _GN_CONVERGED_STEP (the B2
+                           witness gated on; LM settles all but the occasional hard draw)."""
     realized_var_W0: float
     fisher_var_W0: float
+    max_step_norm: float
+    n_unconverged: int
 
 
-def calibrate_fisher_W0(z, N_total, n_draws, key, model):
+# B2 convergence threshold on the LM fit's final-iter accepted ||du||_inf (ln-theta).
+# After _GN_N_ITER LM iterations a settled fit moves < this at the last step across ALL
+# params (incl. the weakly-constrained r_a); a draw above it is still moving (an
+# underdispersed / non-converged W0_hat) and is SURFACED, not swallowed.
+_GN_CONVERGED_STEP = 1e-3
+
+
+def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     """Calibrate the design Fisher against the realized scatter of ln(W0_hat).
 
-    Returns a CalibResultW0(realized_var_W0, fisher_var_W0), BOTH fractional/ln variances
-    (ADR 0011). The Fisher prediction is (inv F_design)_{W0, W0} at (z, N_total) with the
-    per-star blocks at the truth; the realized quantity is Var(ln W0_hat over n_draws
-    independent OM mocks, ddof=1). The gate
+    Returns a CalibResultW0(realized_var_W0, fisher_var_W0, max_step_norm). The Fisher
+    prediction is (inv F_design)_{W0, W0} at (z, N_total) with the per-star blocks at the
+    truth; the realized quantity is Var(ln W0_hat over n_draws independent OM mocks, ddof=1)
+    (both fractional/ln variances, ADR 0011). The gate
     (test_W0_fisher_calibration_matches_realized_scatter) asserts they agree to
     2 sqrt(2/n_draws) -- the MC error on a variance from n_draws draws.
+
+    PERFORMANCE (opt#4, MEMORY-BOUNDED): the whole draw->bin->fit pipeline runs over the
+    n_draws independent draw keys via jax.lax.map (a SEQUENTIAL scan), so `one_draw`
+    compiles ONCE (compile-once win) yet executes draw-by-draw -- peak memory is a SINGLE
+    draw's reverse-mode-through-ODE backward tape, not n_draws of them. (A full jax.vmap
+    here batched all n_draws Michie ODE-jacrev solves into one fused computation, ~48x the
+    live tape memory, and OOM-killed the host; reverse-mode through an equilibrium ODE is
+    exactly where batching the memory is the wrong trade.) The binning runs JAX-native
+    (_binned_sigma_hat_jax) so the pipeline is a pure traceable body (no host control flow),
+    which is what lets lax.map compile it once. The per-draw-invariant OM sampler structure
+    is still built ONCE (identical every draw -- same truth). n_use/n_se (static per-cell
+    sizes + the parent-catalog-too-small guard) are computed ONCE on the host from the
+    draw-independent design count n_eff (n_use does not depend on the draw's R; the guard is
+    validated on a representative draw). Value-preserving in the statistical sense (a
+    different but equivalent RNG stream): the realized variance agrees within the
+    calibration band; the King ratio stays ~0.758.
     """
     G = STELLAR.G
     theta = theta_truth()
@@ -712,27 +890,56 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model):
 
     edges = _r_bin_edges()
     # Parent catalog large enough that every R-bin holds >> the largest design cell
-    # count (the thin outer King/Michie bins are the binding constraint; _binned_sigma_hat
+    # count (the thin outer King/Michie bins are the binding constraint; _static_cell_sizes
     # raises a clear error if any cell underflows). Mirror Stage-1's sizing.
     n_parent = int(max(8000, 4 * N_total))
 
     # Build the per-draw-invariant OM sampler structure ONCE: all n_draws mocks are
     # sampled at the SAME truth (W0, r_a, M, n_parent), so the expensive build (King
     # Engine B model / Michie Eddington table) is identical every draw. Only the cheap
-    # per-key _draw_om happens inside the loop (was rebuilt every draw -- the ~90 min cost).
+    # per-key _draw_om is batched across draws below.
     sampler = _build_om_sampler(model, MOCK["W0"], MOCK["r_a"], MOCK["M"], n_parent)
 
-    ln_W0_hats = []
-    for d in range(n_draws):
-        kdraw = jax.random.fold_in(key, d)
+    # Static per-cell sizes (draw-independent) + the host-side parent-catalog guard,
+    # validated on a representative draw (draw 0). n_use does NOT depend on the draw's R.
+    k0cat = jax.random.split(jax.random.fold_in(key, 0))[0]
+    R0, *_ = project_to_sky(*_draw_om(model, sampler, n_parent, k0cat))
+    n_use, n_se = _static_cell_sizes(n_eff, R0, edges)
+
+    def one_draw(kdraw):
+        """One mock draw -> ln(W0_hat) + the GN fit's final-iter step norm (B2 witness)."""
         kcat, kbin = jax.random.split(kdraw)
         pos, vel = _draw_om(model, sampler, n_parent, kcat)
         R, v_los, v_pm_r, v_pm_t = project_to_sky(pos, vel)
-        channels = (v_los, v_pm_r, v_pm_t)
-        sigma_hat, se = _binned_sigma_hat(kbin, channels, R, n_eff, edges)
-        theta_hat = _fit_theta_W0_gn(sigma_hat, se, G, model)
-        ln_W0_hats.append(jnp.log(theta_hat[0]))
+        channels = jnp.stack([v_los, v_pm_r, v_pm_t])
+        sigma_hat, se = _binned_sigma_hat_jax(kbin, channels, R, n_use, n_se, edges)
+        theta_hat, step_norm = _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=n_iter)
+        return jnp.log(theta_hat[0]), step_norm
 
-    ln_W0_hats = jnp.asarray(ln_W0_hats)
+    # Run the pipeline over the n_draws draw keys with jax.lax.map (SEQUENTIAL scan),
+    # NOT jax.vmap. lax.map compiles `one_draw` ONCE (same compile-once win) but executes
+    # it draw-by-draw, so peak memory is ONE draw's ODE-jacrev backward tape, not n_draws
+    # of them. A full jax.vmap here batches all n_draws Michie reverse-mode solves into one
+    # fused computation (~48x the live tape memory) and OOM-killed the host -- the memory/
+    # speed trade is wrong for a reverse-mode-through-ODE inner loop, so we keep it serial.
+    draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d))(jnp.arange(n_draws))  # cheap (no ODE)
+    ln_W0_hats, step_norms = jax.lax.map(one_draw, draw_keys)
+
+    # B2: surface (do NOT swallow) any draw whose GN fit had not settled at the final iter.
+    max_step_norm = float(jnp.max(step_norms))
+    n_unconverged = int(jnp.sum(step_norms > _GN_CONVERGED_STEP))
+    if n_unconverged > 0:
+        print(
+            f"[calibrate_fisher_W0/{model}] WARNING: {n_unconverged}/{n_draws} draws had "
+            f"GN final-iter ||du||_inf > {_GN_CONVERGED_STEP:g} (max {max_step_norm:.2e}); "
+            f"the W0_hat for those draws may be underdispersed -- investigate before trusting "
+            f"the realized variance."
+        )
+
     realized_var_W0 = float(jnp.var(ln_W0_hats, ddof=1))
-    return CalibResultW0(realized_var_W0=realized_var_W0, fisher_var_W0=fisher_var_W0)
+    return CalibResultW0(
+        realized_var_W0=realized_var_W0,
+        fisher_var_W0=fisher_var_W0,
+        max_step_norm=max_step_norm,
+        n_unconverged=n_unconverged,
+    )
