@@ -287,3 +287,44 @@ def _kernel_std(v_grid, k):
     mean = np.sum(k * v_grid) * dv
     var = np.sum(k * (v_grid - mean) ** 2) * dv
     return np.sqrt(max(var, 0.0))
+
+
+def population_blend_variance(key, n_pool, imf=None, Z=1e-3, joint=None):
+    r"""Population variance ``V_bin = Var(K_orb)`` of the flux-weighted blend velocity [(km/s)^2].
+
+    The scalar the binary-inflation OED forward model needs: the second moment of
+    the flux-weighted unresolved blend velocity ``Delta`` over a whole Moe & Di
+    Stefano (2017) binary population. The observed RV second moment of a cluster
+    with a binary fraction ``f_bin`` inflates as ``sigma_obs^2 = sigma_cluster^2 +
+    f_bin * V_bin + eps^2``; this returns that ``V_bin``.
+
+    Computed directly from the raw per-system blend velocities (``sample_blend_velocities``),
+    NOT from the histogrammed kernel, so there is no grid-resolution bias. ``Delta`` is
+    ~zero-mean (random phase + isotropic LOS give a symmetric distribution), so
+    ``Var(Delta) ~ <Delta^2>``; we use the proper ``ddof=1`` sample variance about the
+    realized mean. Independent of the cluster dispersion ``sigma_true`` (it is an
+    *internal* orbital velocity), so it is a build-once population constant.
+
+    For the OBSERVED RV tracers of a young massive cluster the bright B/O stars
+    (M1 >~ 2 Msun) dominate the spectroscopy; pass the massive-primary ``imf=`` to
+    get the faithful Moe massive-primary regime (high companion frequency, short
+    periods -> large ``V_bin``).
+
+    Parameters
+    ----------
+    key : PRNGKey
+        Single fixed key for the build-once pool draw.
+    n_pool : int
+        Number of binaries in the population pool (variance estimator sample size).
+    imf, joint : optional
+        Override the default ``Maschberger`` IMF / ``MoeJointOrbit`` sampler (pass the
+        massive-primary IMF here for the observable-tracer regime).
+    Z : float
+        Metallicity for the ZAMS luminosity weighting.
+
+    Returns
+    -------
+    V_bin : float, the population variance of the blend velocity [(km/s)^2].
+    """
+    delta = sample_blend_velocities(key, n_pool, Z=Z, imf=imf, joint=joint)
+    return float(np.var(np.asarray(delta), ddof=1))
