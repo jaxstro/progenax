@@ -1109,7 +1109,7 @@ def _draw_binned_sigma_hat(key, sig_model, counts, n_max, keep, korb_pool, f_bin
 
 
 @functools.partial(jax.jit, static_argnames=("n_iter",))
-def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER):
+def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER, theta_fid=None):
     r"""Levenberg-Marquardt MAP fit of the BINARY-FREE theta = (M, r_a, gamma, a) in the
     dimensionless ln-theta metric, started at the cluster-only truth.
 
@@ -1142,12 +1142,18 @@ def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER):
     eps would inflate M to soak up the missing eps^2). With eps consistent and f_bin = 0 the
     fit's predicted observable equals the mock's expectation exactly -> M_hat unbiased.
 
+    ``theta_fid`` (optional, (4,)) sets BOTH the LM start (u0 = 0 -> theta_fid) and the
+    fractional reference (theta = theta_fid * exp(u)); default None -> theta_truth_clusteronly()
+    (byte-identical to the original behavior, the production single-point path). The Phase-4
+    sweep passes a per-mass cluster-only truth so the fit centres on, and reports M_hat
+    relative to, that mass -- ADDITIVE, the default path is unchanged.
+
     Returns (theta_hat (4,), m_witness) where m_witness = max |M-component step| over the
     LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
     jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
     scan compiles ONCE and is reused across every draw. Value-preserving.
     """
-    theta_fid = theta_truth_clusteronly()                   # (M, r_a, gamma, a)
+    theta_fid = theta_truth_clusteronly() if theta_fid is None else theta_fid  # (M, r_a, gamma, a)
     keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
 
     def predict(theta):                                    # eps-consistent observable [km/s]
@@ -1212,7 +1218,8 @@ class CrossModelResult(NamedTuple):
     max_M_step: float
 
 
-def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
+def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER,
+                     truth_theta=None):
     r"""Cross-model MC: generate UNDER the binary model, fit the BINARY-FREE model.
 
     The headline H1 machinery, with a forward-model-consistent mock. For each of n_draws
@@ -1264,15 +1271,23 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
         no-binary baseline that proves Route 1 isolates binaries).
     n_iter : int
         LM iterations of the binary-free MAP fit (static; default _BF_N_ITER).
+    truth_theta : optional (5,) array
+        The full truth theta = (M, r_a, gamma, a, f_bin) the mock is generated at and the
+        binary-free fit centres on. Default None -> theta_truth() (byte-identical to the
+        original single-point behavior). The Phase-4 sweep passes a per-mass truth (only M
+        differs) so the mock's cluster Normal(0, cluster_sigma_los(truth[:4])^2) and the
+        fit's reference both track the system mass -- ADDITIVE, the default path is unchanged.
     """
     G = STELLAR.G
+    truth_theta = theta_truth() if truth_theta is None else truth_theta
+    theta_co_truth = truth_theta[:4]                                      # (M, r_a, gamma, a)
 
     # --- BUILD-ONCE (per truth, before the draw loop) ---------------------------------
     # sig_model = the per-bin TRUTH cluster sigma_los (km/s) from cluster_sigma_los
     # (project_dispersion / Jeans -- the SAME model the fit uses). The single quadrature;
     # never repeated per draw. The Route-1 mock draws Normal(0, sig_model^2) per bin, so
     # the cluster mock is consistent with the fit by construction (review issue I1).
-    sig_model = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, G)   # (K,) km/s
+    sig_model = cluster_sigma_los(theta_co_truth, R_BINS, G)              # (K,) km/s
 
     # Static per-bin SAMPLING counts (= round(design_n_eff), NO floor) + array width n_max
     # + the KEEP mask (bins with >= N_MIN_FIT stars, the ones a real analyst fits). Host-side
@@ -1310,9 +1325,11 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
             k_mock, sig_model, counts, n_max, keep, korb_pool, f_bin_truth
         )
         # 5. Misspecified binary-free MAP fit (eps-consistent prediction; dropped bins masked).
-        theta_hat, m_witness = _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=n_iter)
-        theta_true = theta_truth_clusteronly()
-        frac = (theta_hat - theta_true) / theta_true       # (4,) fractional bias per param
+        #    Centred on the per-mass cluster-only truth (default -> theta_truth_clusteronly()).
+        theta_hat, m_witness = _fit_theta_bf_gn(
+            sigma_hat, se, keep, G, n_iter=n_iter, theta_fid=theta_co_truth
+        )
+        frac = (theta_hat - theta_co_truth) / theta_co_truth  # (4,) fractional bias per param
         return frac, m_witness
 
     # SEQUENTIAL lax.map (memory-bounded): one_draw compiles ONCE, runs draw-by-draw.
@@ -1464,7 +1481,8 @@ _MARG_N_ITER = 200
 
 
 @functools.partial(jax.jit, static_argnames=("n_iter",))
-def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=None):
+def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=None,
+                       theta_fid=None):
     r"""Levenberg-Marquardt MAP fit of the BINARY-AWARE theta = (M, r_a, gamma, a, f_bin)
     in the dimensionless ln-theta metric, started at the full truth (f_bin FREE).
 
@@ -1500,12 +1518,17 @@ def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=N
     the truth (u0 = 0), the production path. A perturbed theta_init lets a pin-test prove the
     fit converges to the SAME data minimum from different starts (data-driven, not pinned).
 
+    ``theta_fid`` (optional, (5,)) overrides the full truth / prior centre (default None ->
+    theta_truth(), byte-identical to the original behavior). The Phase-4 sweep passes a
+    per-mass full truth so the fit centres on, and reports M_hat relative to, that mass --
+    ADDITIVE, the default single-point path is unchanged.
+
     Returns (theta_hat (5,), m_witness) where m_witness = max |M-component step| over the
     LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
     jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
     scan compiles ONCE and is reused across every draw. Value-preserving.
     """
-    theta_fid = theta_truth()                               # (M, r_a, gamma, a, f_bin); prior centre
+    theta_fid = theta_truth() if theta_fid is None else theta_fid  # (M, r_a, gamma, a, f_bin); prior centre
     # The LM start u0: at the truth (u0=0) by default, or at a perturbed theta_init. The prior
     # penalty stays PRIOR_DIAG_MARG * u^2 (u measured from theta_fid), so theta_init moves ONLY
     # the starting point, never the MAP minimum -- the pin-test's whole point.
@@ -1893,4 +1916,176 @@ def deterministic_sweep(n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL,
         sigmaM_bf=jnp.asarray(sigmaM_bf),
         sigmaM_marg=jnp.asarray(sigmaM_marg),
         h2_gain=jnp.asarray(h2_gain),
+    )
+
+
+# ===========================================================================
+# T4.1b: the MC bias sweep (@slow, env-gated) -- the realized biases across the sweep
+# ===========================================================================
+#
+# At a few ANCHOR masses spanning the same sigma_bin/sigma_cluster band, run the
+# cross-model MC twice: (1) the binary-FREE design + binary-FREE fit -> the realized
+# M-bias (the H1 disaster, expected to GROW with sigma_bin/sigma_cluster), and (2) the
+# binary-AWARE design + binary-AWARE fit -> the residual M-bias (the FIX, expected ~0
+# across the sweep). Both via the EXISTING build-once cross-model machinery, fed a
+# per-mass truth_theta / theta_fid (ADDITIVE; the single-point H0/H1/fix gates that use
+# the default truth are byte-unaffected).
+#
+# PERFORMANCE (enforce-jax-performance): build-once per anchor (the K_orb pool + the
+# per-mass sig_model quadrature + the per-mass designs), jax.lax.map over the draws (the
+# per-draw GN-fit tape is the cost, kept memory-bounded), jit per-draw. SMOKE the peak RSS
+# (n_draws=4 at one point) + estimate total cost BEFORE the full sweep.
+
+N_DRAWS_SWEEP = 24       # modest MC at each anchor (the sweep is a CONTEXT plot, not a gate)
+N_MASS_SWEEP = 5         # anchor masses spanning the sigma_bin/sigma_cluster band
+
+
+def _shared_korb_pool():
+    """The build-once K_orb blend-velocity pool (Var == V_BIN), identical to cross_model_bias
+    / run_fix. Centred + rescaled so the injected pedestal variance is EXACTLY V_BIN. Shared
+    across the MC-sweep anchors (the Moe massive-primary population is mass-INDEPENDENT)."""
+    korb_raw = jnp.asarray(binaries.sample_blend_velocities(
+        jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
+        imf=massive_primary_imf(), Z=V_BIN_Z,
+    ))
+    korb_centered = korb_raw - jnp.mean(korb_raw)
+    return korb_centered * jnp.sqrt(V_BIN / jnp.var(korb_centered, ddof=1))
+
+
+def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
+                     f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
+    r"""The two realized cross-model M-biases at one anchor mass M (build-once per anchor).
+
+    Returns (bias_bf, bias_marg, fbin_hat_marg): the binary-FREE-design + binary-FREE-fit
+    fractional M-bias (the H1 disaster) and the binary-AWARE-design + binary-AWARE-fit
+    fractional M-bias (the fix's residual), plus the recovered f_bin_hat of the binary-aware
+    fit. Both reuse the EXISTING Route-1 mock (_draw_binned_sigma_hat) + the per-mass-truth
+    fits (_fit_theta_bf_gn / _fit_theta_marg_gn with theta_fid set to the per-mass truth) via
+    jax.lax.map (memory-bounded); the per-mass designs come from the override-capable
+    optimizer over per-mass Fisher blocks. Build-once per anchor: the per-mass sig_model
+    quadrature, the two per-mass designs, and the static per-bin counts; the K_orb pool is
+    passed in (mass-independent). ADDITIVE -- the single-point gates are byte-unaffected.
+    """
+    G = STELLAR.G
+    theta_full, theta_co = _theta_at_mass(M)
+    k_des_bf, k_des_ba, k_mc_bf, k_mc_ba = jax.random.split(key, 4)
+
+    # per-mass Fisher blocks + the two c-optimal-for-M designs (binary-free, binary-aware).
+    J_bf, sig_bf, J_marg, sig_marg = _per_mass_blocks(M, G)
+    n_eff_bf, _, _ = _optimize_design_M_override(
+        lambda z: fisher_binary_free(z, N_total, J=J_bf, sig=sig_bf),
+        N_total, k_des_bf, n_starts=n_starts, n_steps=n_steps,
+    )
+    n_eff_ba, _, _ = _optimize_design_M_override(
+        lambda z: fisher_marginalized(z, N_total, J=J_marg, sig=sig_marg),
+        N_total, k_des_ba, n_starts=n_starts, n_steps=n_steps,
+    )
+
+    # per-mass build-once mock inputs: the cluster sig_model quadrature (ONE per design).
+    sig_model = cluster_sigma_los(theta_co, R_BINS, G)        # (K,) km/s (the only quadrature)
+
+    # --- binary-FREE design + binary-FREE fit (the H1 disaster) ---
+    counts_bf, n_max_bf, keep_bf = _per_bin_star_counts(n_eff_bf)
+
+    def draw_bf(kdraw):
+        k_mock, _ = jax.random.split(kdraw)
+        sigma_hat, se = _draw_binned_sigma_hat(
+            k_mock, sig_model, counts_bf, n_max_bf, keep_bf, korb_pool, f_bin_truth
+        )
+        theta_hat, _ = _fit_theta_bf_gn(
+            sigma_hat, se, keep_bf, G, n_iter=n_iter, theta_fid=theta_co
+        )
+        return (th_M(theta_hat) - th_M(theta_co)) / th_M(theta_co)
+
+    keys_bf = jax.vmap(lambda d: jax.random.fold_in(k_mc_bf, d + 1))(jnp.arange(n_draws))
+    bias_bf = float(jnp.mean(jax.lax.map(draw_bf, keys_bf)))
+
+    # --- binary-AWARE design + binary-AWARE fit (the fix; residual bias) ---
+    counts_ba, n_max_ba, keep_ba = _per_bin_star_counts(n_eff_ba)
+
+    def draw_ba(kdraw):
+        k_mock, _ = jax.random.split(kdraw)
+        sigma_hat, se = _draw_binned_sigma_hat(
+            k_mock, sig_model, counts_ba, n_max_ba, keep_ba, korb_pool, f_bin_truth
+        )
+        theta_hat, _ = _fit_theta_marg_gn(
+            sigma_hat, se, keep_ba, G, n_iter=n_iter, theta_fid=theta_full
+        )
+        m_frac = (th_M(theta_hat) - th_M(theta_full)) / th_M(theta_full)
+        return m_frac, th_fbin(theta_hat)
+
+    keys_ba = jax.vmap(lambda d: jax.random.fold_in(k_mc_ba, d + 1))(jnp.arange(n_draws))
+    m_frac_ba, fbin_ba = jax.lax.map(draw_ba, keys_ba)
+    return bias_bf, float(jnp.mean(m_frac_ba)), float(jnp.mean(fbin_ba))
+
+
+class MCBiasSweep(NamedTuple):
+    """Result of mc_bias_sweep (T4.1b; all arrays length n_mass, increasing in M):
+
+      * M_grid     : the anchor cluster-mass grid [Msun],
+      * ratio      : sigma_bin / sigma_cluster per anchor (DECREASING in M),
+      * bias_bf    : binary-FREE-design + binary-FREE-fit realized M-bias (M_hat-M)/M (the
+                     H1 disaster -- expected to GROW as sigma_bin/sigma_cluster rises),
+      * bias_marg  : binary-AWARE-design + binary-AWARE-fit residual M-bias (the FIX --
+                     expected ~0 across the sweep),
+      * fbin_marg  : the binary-aware fit's mean recovered f_bin_hat per anchor (the
+                     mechanism check: ~F_BIN_TRUTH where there is radial leverage)."""
+    M_grid: jnp.ndarray
+    ratio: jnp.ndarray
+    bias_bf: jnp.ndarray
+    bias_marg: jnp.ndarray
+    fbin_marg: jnp.ndarray
+
+
+def mc_bias_sweep(n_mass=N_MASS_SWEEP, n_draws=N_DRAWS_SWEEP, key=None, N_total=N_TOTAL,
+                  n_starts=8, n_steps=500, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
+    r"""The MC bias sweep across system mass (T4.1b; @slow, env-gated -- the realized result).
+
+    At n_mass anchor masses spanning the same central sigma_cluster ~ 3 -> 15 km/s band (the
+    sweep_mass_grid endpoints, log-spaced), run the cross-model MC twice per anchor: the
+    binary-FREE design + binary-FREE fit (the H1 M-bias, expected to GROW with
+    sigma_bin/sigma_cluster) and the binary-AWARE design + binary-AWARE fit (the FIX's
+    residual M-bias, expected ~0). ADDITIVE: every quantity is computed at a per-mass truth
+    threaded into the EXISTING build-once cross-model machinery; the single-point H0/H1/fix
+    gates (default truth) are byte-unaffected.
+
+    Build-once (enforce-jax-performance): the K_orb pool is built ONCE (mass-independent) and
+    shared across anchors; per anchor the per-mass sig_model quadrature + the two designs are
+    built once and reused across the draws via jax.lax.map (the per-draw GN-fit tape is the
+    cost, kept memory-bounded). Returns an MCBiasSweep.
+
+    Parameters
+    ----------
+    n_mass : int    -- number of anchor masses (default N_MASS_SWEEP = 5).
+    n_draws : int   -- cross-model MC draws per anchor (default N_DRAWS_SWEEP = 24).
+    key : PRNGKey
+    N_total : float -- RV budget (reporting anchor; Fisher linear in it).
+    n_starts, n_steps : multi-start Adam settings for the per-mass designs.
+    f_bin_truth : float -- the TRUE binary fraction of the mocks (default F_BIN_TRUTH).
+    n_iter : int    -- LM iterations of the per-draw MAP fits (static).
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    M_grid = sweep_mass_grid(n_mass)
+    sigma_bin = float(jnp.sqrt(V_BIN))
+    korb_pool = _shared_korb_pool()                          # build-once, mass-independent
+
+    ratio, bias_bf, bias_marg, fbin_marg = [], [], [], []
+    for i, M in enumerate(M_grid):
+        _, theta_co = _theta_at_mass(M)
+        sc = float(jnp.max(cluster_sigma_los(theta_co, R_BINS, STELLAR.G)))
+        ratio.append(sigma_bin / sc)
+        b_bf, b_ma, f_ma = _mc_bias_at_mass(
+            M, n_draws, jax.random.fold_in(key, i), N_total, korb_pool,
+            n_starts, n_steps, f_bin_truth=f_bin_truth, n_iter=n_iter,
+        )
+        bias_bf.append(b_bf)
+        bias_marg.append(b_ma)
+        fbin_marg.append(f_ma)
+
+    return MCBiasSweep(
+        M_grid=M_grid,
+        ratio=jnp.asarray(ratio),
+        bias_bf=jnp.asarray(bias_bf),
+        bias_marg=jnp.asarray(bias_marg),
+        fbin_marg=jnp.asarray(fbin_marg),
     )
