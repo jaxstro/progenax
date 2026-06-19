@@ -200,6 +200,7 @@ project:
             - file: 60-science-demos/optimal-design/background.md
             - file: 60-science-demos/optimal-design/anisotropy.md
             - file: 60-science-demos/optimal-design/dynamical-mass.md
+            - file: 60-science-demos/optimal-design/concentration.md
     - title: Development log
       children:
         - file: 90-development-log/index.md

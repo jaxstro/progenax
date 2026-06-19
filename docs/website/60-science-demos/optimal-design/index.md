@@ -50,6 +50,10 @@ worked example `{ref}`s it rather than re-deriving it.
   - survey **depth** (limiting magnitude $m_{\rm lim}$)
   - dynamical mass $M$
   - an **interior** optimal depth ($m_{\rm lim}\approx13.3$); deeper *or* shallower is worse
+* - [Concentration — where the proper motions belong, redux](concentration.md)
+  - radial × channel (RV ↔ PM) allocation
+  - concentration $W_0$
+  - PMs to the **core** (the mirror image of anisotropy); $\approx3.4\times$ fewer stars at equal precision on $W_0$
 ```
 
 ## What OED can do with progenax
@@ -99,18 +103,18 @@ and *possible*.
 * - Target
   - Forward model
   - Status
-* - Anisotropy $r_a$ / mass $M$ / $r_h$ (kinematics)
+* - Anisotropy $r_a$ / mass $M$ / concentration $W_0$ (kinematics)
   - `project_dispersion` (B&M82)
-  - **[done]** — $r_a$ and $M$ are the two examples here
+  - **[done]** — $r_a$, $M$, and $W_0$ are the three worked examples here
 * - IMF slope $\alpha$ / environment $\alpha_3$
   - IMF likelihood + mass function
   - **[B5]** — design which mass range / how many stars pin the high-mass slope
 * - Binary fraction $f_b$ + Moe $P$–$q$–$e$
   - binary-inflated dispersion / mass function
   - **[B12, B4]** — allocate RV epochs + photometry to constrain binarity
-* - Concentration, tidal radius $r_t$ $\to$ Jacobi $R_{\rm gal}$
-  - count profile + tidal truncation
-  - **[B7]** — outer-bin allocation; 93% of $r_t$ info is in the outskirts
+* - Concentration $W_0$ (kinematics) / tidal radius $r_t$ $\to$ Jacobi $R_{\rm gal}$
+  - `project_dispersion` (B&M82) for $W_0$; count profile + tidal truncation for $r_t$
+  - **[done — the concentration example]** ($W_0$ wants the core); $r_t$ from counts is **[B7]** (93% of $r_t$ info in the outskirts)
 * - Rotation $\omega\sin i$
   - rotating projected-kinematics model
   - **[B8]** — break the rank-1 $(\omega,i)$ degeneracy with multiple channels
