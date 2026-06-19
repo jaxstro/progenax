@@ -698,6 +698,176 @@ def h3_allocation_comparison(N_total=N_TOTAL, key=None, **opt_kwargs):
 
 
 # ===========================================================================
+# Task 3.1: the min-max / maximin design (Stage-B robust OED)
+# ===========================================================================
+#
+# The marginalize design (optimize_design_M_marg) optimizes sigma(M) at the ASSUMED truth
+# f_bin = F_BIN_TRUTH. The MAXIMIN design instead minimizes the WORST-CASE marginalized
+# sigma(M) over a range of binary fractions f_bin in [0, F_MAX] -- "robust to an UNMODELED
+# binary fraction / I do not trust Moe's value". It hedges: it sacrifices a little precision
+# at f_bin = 0.5 to LOWER the precision you would get at the worst f_bin in the range.
+#
+# BUILD-ONCE f_bin GRID (enforce-jax-performance). Both the binary-INFLATED observed
+# dispersion sigma_obs (the Fisher denominator) AND the f_bin column of the jacrev
+# (d sigma_obs / d ln f_bin = f_bin*V_bin/(2 sigma_obs)) depend on f_bin, so a single
+# cached jacrev (as in the marginalize design) is NOT enough -- we cache a GRID, one
+# (jacrev, sigma_obs) pair per grid f_bin. EFF is analytic (ODE-free), so the
+# N_FBIN_GRID project_dispersion jacrevs are cheap and are done ONCE here at import, NEVER
+# inside the optimizer loop (the loop is pure linear algebra over the cached grid).
+#
+# At f_bin = 0 the pedestal f_bin*V_bin vanishes, so the f_bin jacrev column is ~0 and the
+# f_bin parameter is then PRIOR-ONLY (constrained only by PRIOR_DIAG_MARG[IDX_FBIN]); that
+# is the correct degenerate limit, and the prior keeps that grid-point Fisher SPD.
+
+# F_MAX = 0.7: the upper end of the plausible massive-primary binary-fraction range. Moe &
+# Di Stefano (2017) report companion frequencies for O/B primaries that, expressed as a
+# binary FRACTION (>= one companion), reach ~0.7 at the top of the massive range -- so the
+# maximin set [0, 0.7] brackets "no binaries at all" through "as binary-rich as massive
+# stars plausibly get", the honest robustness range for an analyst who refuses to trust a
+# single assumed f_bin. N_FBIN_GRID = 13 linearly spaced points resolve the worst-case
+# sigma(M)(f_bin) curve (it is smooth and monotone-ish in f_bin) without over-paying.
+F_MAX = 0.7
+N_FBIN_GRID = 13
+F_BIN_GRID = jnp.linspace(0.0, F_MAX, N_FBIN_GRID)   # (G,) the maximin f_bin set
+
+# Smooth-max temperature for the maximin OBJECTIVE only. The true worst-case is jnp.max over
+# the grid sigma(M), but jnp.max has a subgradient (only the argmax bin gets gradient), which
+# stalls multi-start Adam. The optimizer instead minimizes logsumexp_i(beta*sigma_i)/beta -- a
+# smooth upper envelope of the grid sigma(M) that -> the true max as beta -> inf. beta = 500
+# (units 1/sigma(M)): at the YMC operating point sigma(M)(f_bin) rises MONOTONICALLY in f_bin
+# (the binary pedestal grows -> less M info), so the worst case sits at f_bin = F_MAX and the
+# top two grid points differ by only ~0.0026; beta*0.0026 ~ 1.3 concentrates the softmax on
+# that argmax, so the smooth objective tracks the true endpoint optimum (verified: beta >= 500
+# reaches sigma(M) ~ 0.07756, the directly-endpoint-optimal value, and beats the marginalize
+# design's worst-case 0.07776 -- whereas a soft beta ~ 50 under-weights the argmax and misses
+# it). The REPORTED worst-case (DesignResultMaximin.worstcase_sigma_M) is ALWAYS the true
+# jnp.max on the final design -- the smoothing affects only the search, never the verdict.
+_MAXIMIN_BETA = 500.0
+
+# Build-once GRID of (jacrev, sigma_obs) at each grid f_bin (design-INDEPENDENT). For grid
+# point i: theta_g = theta_truth() with f_bin set to F_BIN_GRID[i]; _J_MARG_GRID[i] is the
+# full 5-column jacrev there (K, 5) and _SIG_MARG_GRID[i] the binary-inflated sigma_obs (K,).
+# This is the single expensive step (N_FBIN_GRID jacrevs through project_dispersion's
+# quadrature), done ONCE at import; the optimizer re-uses the cache with no re-jacrev.
+def _build_fbin_grid():
+    """Build the (jacrev, sigma_obs) caches over the f_bin grid -- ONCE, at import.
+
+    Returns (J_grid (G, K, 5), sig_grid (G, K)): for each grid f_bin, the full ln-theta
+    jacrev of sigma_obs (includes the f_bin column) and the binary-inflated observed
+    dispersion. Both are constant wrt the design weights, so caching them lets
+    ``worstcase_sigmaM`` evaluate the per-grid-point Fisher as pure linear algebra.
+    """
+    Js, sigs = [], []
+    for fg in F_BIN_GRID:
+        theta_g = theta_truth().at[IDX_FBIN].set(fg)
+        Js.append(jacobian_lntheta(theta_g, R_BINS, STELLAR.G))     # (K, 5)
+        sigs.append(predict_sigma_obs(theta_g, R_BINS, STELLAR.G))  # (K,)
+    return jnp.stack(Js), jnp.stack(sigs)
+
+
+_J_MARG_GRID, _SIG_MARG_GRID = _build_fbin_grid()                   # (G, K, 5), (G, K)
+
+
+def _grid_sigmaM(design_weights, N_total):
+    r"""Per-grid-point marginalized sigma(M) (G,) of a design over the f_bin grid.
+
+    For each grid f_bin i, builds the 5-param marginalized Fisher at that f_bin's cached
+    (jacrev, sigma_obs) -- ``fisher_marginalized(z, N, J=_J_MARG_GRID[i], sig=_SIG_MARG_GRID[i])``
+    -- and returns sigma(M)_i = sqrt((F^-1)[M, M]) (ln-theta fractional precision). vmapped
+    over the grid; pure linear algebra over the cached grid (NO re-jacrev). Differentiable
+    in ``design_weights`` (the building block of both the smooth objective and the true max).
+    """
+    def one(J, sig):
+        F = fisher_marginalized(design_weights, N_total, J=J, sig=sig)
+        return jnp.sqrt(oed.c_criterion(F, target=IDX_M))
+    return jax.vmap(one)(_J_MARG_GRID, _SIG_MARG_GRID)             # (G,)
+
+
+def worstcase_sigmaM(design_weights, N_total=N_TOTAL):
+    """The TRUE worst-case marginalized sigma(M)/M of a design over the f_bin grid:
+    ``max_i sqrt((F_i^-1)[M, M])`` (the maximin objective's reported value). Finite and
+    >= the single-point marginalized sigma(M) at any interior grid f_bin (the max bounds
+    every point). This is the honest verdict scalar -- NOT the smoothed search objective."""
+    return jnp.max(_grid_sigmaM(design_weights, N_total))
+
+
+def _smooth_worstcase_sigmaM(design_weights, N_total):
+    r"""SMOOTH (differentiable) surrogate of ``worstcase_sigmaM`` for the optimizer.
+
+    logsumexp_i(beta * sigma(M)_i) / beta -- a soft maximum of the per-grid-point sigma(M),
+    -> the true jnp.max as beta -> inf. Used ONLY as the Adam loss; the true ``jnp.max`` is
+    what gets reported. The softness gives every grid point (not just the argmax) a gradient,
+    so multi-start Adam descends the worst-case cleanly."""
+    s = _grid_sigmaM(design_weights, N_total)                     # (G,)
+    return jax.nn.logsumexp(_MAXIMIN_BETA * s) / _MAXIMIN_BETA
+
+
+class DesignResultMaximin(NamedTuple):
+    """Result of optimize_design_maximin (the worst-case-over-f_bin robust design):
+      * n_eff             : optimal per-bin RV counts (K,), summing to N_total,
+      * worstcase_sigma_M : the TRUE worst-case sigma(M)/M over the f_bin grid (jnp.max,
+                            NOT the smoothed search objective) at the optimal design,
+      * z                 : the optimal design logits (K,),
+      * trace             : the per-step SMOOTH-objective trace of the winning Adam start."""
+    n_eff: jnp.ndarray
+    worstcase_sigma_M: float
+    z: jnp.ndarray
+    trace: jnp.ndarray
+
+
+def _optimize_one_maximin(z0, N_total, n_steps, lr):
+    """One Adam trajectory minimizing the SMOOTH worst-case sigma(M) over the f_bin grid.
+
+    Fixed-iteration jax.lax.scan over the length-K design logits z, jit step. The loss is
+    the logsumexp smooth-max of the cached-grid per-point sigma(M) (pure linear algebra over
+    _J_MARG_GRID/_SIG_MARG_GRID -- NO re-jacrev), so each step is cheap. Returns (z, trace)."""
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: _smooth_worstcase_sigmaM(z, N_total)
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def optimize_design_maximin(N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam for the MAXIMIN (worst-case-over-f_bin) c-optimal-for-M design.
+
+    Minimizes the worst-case marginalized sigma(M)/M over f_bin in [0, F_MAX] -- the robust
+    design for an analyst who refuses to trust a single assumed binary fraction. The Adam
+    SEARCH minimizes the SMOOTH logsumexp surrogate (``_smooth_worstcase_sigmaM``, stable
+    gradients), running ``n_starts`` trajectories and keeping the lowest-TRUE-worst-case
+    result; the reported ``worstcase_sigma_M`` is the true ``jnp.max`` (``worstcase_sigmaM``)
+    on the winner. Mirrors ``optimize_design_M_marg`` (same multi-start Adam, same cached-grid
+    no-re-jacrev discipline), swapping the at-truth marginalized criterion for the worst-case.
+
+    SPD invariant: each grid-point Fisher is SPD for the same reason as the single-point
+    marginalized Fisher (softmax(z) > 0 every bin + PRIOR_DIAG_MARG strictly positive on the
+    nuisance subspace, including the f_bin prior which keeps the f_bin = 0 grid point -- where
+    the f_bin jacrev column vanishes -- non-singular). Returns a DesignResultMaximin.
+    """
+    K = R_BINS.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (K,)) * 0.5
+        z, trace = _optimize_one_maximin(z0, N_total, n_steps, lr)
+        wc = float(worstcase_sigmaM(z, N_total))   # rank starts by the TRUE worst-case
+        if math.isfinite(wc) and (best is None or wc < best[0]):
+            best = (wc, z, trace)
+    wc, z, trace = best
+    n_eff = N_total * jax.nn.softmax(z)
+    return DesignResultMaximin(
+        n_eff=n_eff, worstcase_sigma_M=wc, z=z, trace=trace
+    )
+
+
+# ===========================================================================
 # Task 1.4: cross-model bias harness (the H1 headline machinery)
 # ===========================================================================
 #

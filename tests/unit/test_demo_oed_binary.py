@@ -520,3 +520,78 @@ def test_fix_binary_aware_fit_is_unbiased():
     weaken; if it cannot be made unbiased, fix the harness (or report as a finding)."""
     res = oedb.run_fix(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
     assert abs(res.bias_M_frac) < 2.0 * res.sigma_M_marg   # the binary-aware fit removes the bias
+    # Regression guard #2 (review): the binary-aware fit RECOVERS the binary fraction (guards
+    # the MECHANISM, not just the M symptom). f_bin_hat must agree with the truth within 3 sigma
+    # of its own draw-to-draw scatter -- the radial leverage identifies f_bin, not just the prior.
+    assert abs(res.fbin_hat_mean - oedb.F_BIN_TRUTH) < 3.0 * res.fbin_hat_std
+
+
+# ===========================================================================
+# Phase 3 -- min-max / maximin design (deterministic; T3.1 + T3.2).
+#
+# The marginalize design optimizes at the ASSUMED truth f_bin = 0.5. The MAXIMIN
+# design instead minimizes the WORST-CASE marginalized sigma(M) over f_bin in
+# [0, F_MAX] -- robust to an UNMODELED / untrusted binary fraction ("don't trust
+# Moe's f_bin"). Cheap: a build-once f_bin GRID of jacrevs (the f_bin column AND the
+# sigma_obs denominator both depend on f_bin; EFF is ODE-free so the grid is cheap),
+# re-used in the optimizer loop with NO re-jacrev. The optimizer uses a SMOOTH max
+# (logsumexp) for stable gradients; the REPORTED worst-case is the true jnp.max.
+# ===========================================================================
+def test_fbin_grid_caches_shapes_and_endpoints():
+    """The build-once f_bin grid of jacrevs / sigma_obs has the documented shape and
+    spans [0, F_MAX]. At f_bin = 0 the f_bin column of the jacrev vanishes (the pedestal
+    f_bin*V_bin = 0, so d sigma_obs / d ln f_bin = f_bin*V_bin/(2 sigma_obs) = 0) -- the
+    f_bin parameter is then prior-only (correct)."""
+    assert oedb.N_FBIN_GRID >= 3
+    assert float(oedb.F_BIN_GRID[0]) == 0.0
+    assert jnp.isclose(oedb.F_BIN_GRID[-1], oedb.F_MAX)
+    assert oedb.F_BIN_GRID.shape == (oedb.N_FBIN_GRID,)
+    K = oedb.R_BINS.shape[0]
+    assert oedb._J_MARG_GRID.shape == (oedb.N_FBIN_GRID, K, 5)
+    assert oedb._SIG_MARG_GRID.shape == (oedb.N_FBIN_GRID, K)
+    # f_bin = 0 endpoint: the f_bin sensitivity column is ~0 (pedestal vanishes).
+    assert jnp.allclose(oedb._J_MARG_GRID[0, :, oedb.IDX_FBIN], 0.0, atol=1e-12)
+
+
+def test_worstcase_sigmaM_spd_at_each_grid_point():
+    """Every grid-point Fisher (5-param marginalized, at that f_bin's cached jacrev +
+    sigma_obs) is symmetric and SPD for a uniform design -- so each inverse (F^-1)[M, M]
+    is well-defined and the worst-case max is over finite, positive sigma(M)."""
+    z = oedb.uniform_design()
+    for i in range(oedb.N_FBIN_GRID):
+        F = oedb.fisher_marginalized(
+            z, oedb.N_TOTAL, J=oedb._J_MARG_GRID[i], sig=oedb._SIG_MARG_GRID[i]
+        )
+        assert jnp.allclose(F, F.T)
+        assert bool(jnp.all(jnp.linalg.eigvalsh(F) > 0.0))
+
+
+def test_worstcase_sigmaM_bounds_each_grid_point():
+    """worstcase_sigmaM(z) is finite and >= the single-point marginalized sigma(M) at
+    ANY interior grid f_bin (the max bounds every point it maximizes over)."""
+    z = oedb.uniform_design()
+    wc = oedb.worstcase_sigmaM(z, oedb.N_TOTAL)
+    assert jnp.isfinite(wc) and wc > 0.0
+    for i in range(oedb.N_FBIN_GRID):
+        sigmaM_i = float(jnp.sqrt(oed.c_criterion(
+            oedb.fisher_marginalized(
+                z, oedb.N_TOTAL, J=oedb._J_MARG_GRID[i], sig=oedb._SIG_MARG_GRID[i]
+            ),
+            target=oedb.IDX_M,
+        )))
+        assert wc >= sigmaM_i - 1e-9
+
+
+def test_maximin_design_wins_at_worstcase():
+    """The DEFINING property of the maximin design: its worst-case sigma(M) over the
+    f_bin grid is <= the marginalize design's worst-case (the maximin design hedges to
+    lower the worst case). LOCKED -- a violation means the optimizer failed to find the
+    maximin optimum (investigate), do NOT weaken."""
+    mm = oedb.optimize_design_maximin(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    assert jnp.isclose(jnp.sum(mm.n_eff), oedb.N_TOTAL, rtol=1e-4)
+    assert mm.worstcase_sigma_M > 0.0
+    marg = oedb.optimize_design_M_marg(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    wc_marg = float(oedb.worstcase_sigmaM(marg.z, oedb.N_TOTAL))
+    # maximin's worst-case must not exceed the marginalize design's worst-case (small
+    # numerical slack for the two independent Adam optima).
+    assert mm.worstcase_sigma_M <= wc_marg + 1e-6
