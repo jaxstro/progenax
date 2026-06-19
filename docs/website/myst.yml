@@ -201,6 +201,7 @@ project:
             - file: 60-science-demos/optimal-design/anisotropy.md
             - file: 60-science-demos/optimal-design/dynamical-mass.md
             - file: 60-science-demos/optimal-design/concentration.md
+            - file: 60-science-demos/optimal-design/binary-robustness.md
     - title: Development log
       children:
         - file: 90-development-log/index.md

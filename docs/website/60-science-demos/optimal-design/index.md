@@ -54,6 +54,10 @@ worked example `{ref}`s it rather than re-deriving it.
   - radial × channel (RV ↔ PM) allocation
   - concentration $W_0$
   - PMs to the **core** (the mirror image of anisotropy); $\approx3.4\times$ fewer stars at equal precision on $W_0$
+* - [Robustness — when binaries lie to your mass](binary-robustness.md)
+  - binary-aware vs binary-**blind** model (radial RV allocation)
+  - dynamical mass $M$ under misspecification
+  - a binary-blind design biases $M$ by **$+185\%$** with **$41\times$** false confidence; the binary-aware design removes it
 ```
 
 ## What OED can do with progenax
