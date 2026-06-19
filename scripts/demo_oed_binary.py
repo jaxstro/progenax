@@ -120,6 +120,22 @@ def main(argv=None):
                         "(deterministic, NO MC): tabulate sigma(M) at the truth f_bin and the "
                         "worst-case sigma(M) over f_bin in [0, F_MAX] for both designs, and "
                         "write the demo_oedb_maximin figure (the hedge).")
+    p.add_argument("--sweep", action="store_true",
+                   help="Run the Task-4.1 sigma_bin/sigma_cluster sweep across system mass: "
+                        "the deterministic forecast sweep (binary-free + marginalized "
+                        "sigma(M)/M + H2 gain, no MC) ALWAYS, and -- when the MC is enabled "
+                        "(--run-mc / PROGENAX_RUN_OED_BINARY, @slow) -- the realized "
+                        "cross-model M-bias sweep (binary-free-fit bias rising; binary-aware "
+                        "residual bias ~0). Writes the demo_oedb_sweep figure.")
+    p.add_argument("--sweep-n-mass-det", type=int, default=oedb.SWEEP_N_MASS,
+                   help=f"Mass-grid points for the DETERMINISTIC sweep (default "
+                        f"{oedb.SWEEP_N_MASS}; fine, cheap).")
+    p.add_argument("--sweep-n-mass-mc", type=int, default=oedb.N_MASS_SWEEP,
+                   help=f"Anchor masses for the @slow MC bias sweep (default "
+                        f"{oedb.N_MASS_SWEEP}).")
+    p.add_argument("--sweep-n-draws", type=int, default=oedb.N_DRAWS_SWEEP,
+                   help=f"Cross-model MC draws per MC-sweep anchor (default "
+                        f"{oedb.N_DRAWS_SWEEP}).")
     p.add_argument("--quick", action="store_true",
                    help="Smoke/CI fast path: dial the optimizer down, NO MC, mechanism "
                         "figure only. Exits 0 quickly without the MC env var.")
@@ -230,6 +246,57 @@ def main(argv=None):
               f"maximin-optimal -- reported faithfully.)")
         print("-" * 80)
 
+    # --- the sigma_bin/sigma_cluster sweep across system mass (Task 4.1) ---------------- #
+    det = None
+    mc = None
+    if args.sweep:
+        print("\n  computing the DETERMINISTIC sigma_bin/sigma_cluster sweep across system "
+              "mass\n  (binary-free + marginalized sigma(M)/M + H2 gain; per-mass jacrevs, "
+              "no MC) ...")
+        det = oedb.deterministic_sweep(
+            n_mass=args.sweep_n_mass_det, key=k_design, N_total=n_total,
+            n_starts=n_starts, n_steps=n_steps,
+        )
+        print("-" * 80)
+        print("  DETERMINISTIC SWEEP  (sigma_bin = "
+              f"{det.sigma_bin_kms:.2f} km/s, FIXED)")
+        print(f"  {'M [Msun]':>11s}{'sig_clu':>9s}{'ratio':>8s}{'sM_bf':>9s}"
+              f"{'sM_marg':>9s}{'H2 gain':>9s}")
+        print("-" * 80)
+        for i in range(det.M_grid.shape[0]):
+            print(f"  {float(det.M_grid[i]):>11.3e}{float(det.sigma_cluster_kms[i]):>9.2f}"
+                  f"{float(det.ratio[i]):>8.2f}{float(det.sigmaM_bf[i]):>9.4f}"
+                  f"{float(det.sigmaM_marg[i]):>9.4f}{float(det.h2_gain[i]):>9.2f}")
+        print("-" * 80)
+        print("  the binary-AWARE (marginalized) sigma(M)/M GROWS as sigma_bin/sigma_cluster "
+              "rises\n  (binaries matter more); the H2 gain is LARGEST where binaries "
+              "dominate -- contextualizing\n  the thin gain at the fiducial ratio ~ 1.08.")
+        print("-" * 80)
+
+        if run_mc:
+            print(f"\n  running the @slow MC bias sweep (n_mass={args.sweep_n_mass_mc}, "
+                  f"n_draws={args.sweep_n_draws}) ... [slow; ~5-8 min, ~2.9 GB peak]")
+            mc = oedb.mc_bias_sweep(
+                n_mass=args.sweep_n_mass_mc, n_draws=args.sweep_n_draws, key=k_mc,
+                N_total=n_total, n_starts=n_starts, n_steps=n_steps,
+            )
+            print("-" * 80)
+            print("  MC BIAS SWEEP  (realized cross-model M-bias across system mass)")
+            print(f"  {'ratio':>8s}{'bias_bf':>11s}{'bias_marg':>12s}{'fbin_hat':>11s}")
+            print("-" * 80)
+            for i in range(mc.M_grid.shape[0]):
+                print(f"  {float(mc.ratio[i]):>8.2f}{float(mc.bias_bf[i]):>11.3f}"
+                      f"{float(mc.bias_marg[i]):>12.3f}{float(mc.fbin_marg[i]):>11.3f}")
+            print("-" * 80)
+            print("  the binary-FREE-fit M-bias (bias_bf) GROWS with sigma_bin/sigma_cluster "
+                  "(the H1\n  disaster gets worse for colder clusters); the binary-AWARE-fit "
+                  "residual (bias_marg)\n  stays ~0 across the sweep (the fix holds).")
+            print("-" * 80)
+        else:
+            print("\n  [MC bias sweep NOT run: pass --run-mc or set PROGENAX_RUN_OED_BINARY "
+                  "for the\n   realized cross-model bias curves. The deterministic forecast "
+                  "sweep above is always produced.]")
+
     # --- run-record JSON (into --outdir, NOT the fixed FIGURE_DIR; Stage-3 CLI lesson) -- #
     # The smoke test passes --outdir=tmp_path; a FIXED path would clobber the committed
     # full-quality record with low-res smoke numbers. The default --outdir IS FIGURE_DIR, so
@@ -283,6 +350,25 @@ def main(argv=None):
             "sacrifice_at_truth_frac": cmp.sacrifice_at_truth_frac,
             "gain_at_worst_frac": cmp.gain_at_worst_frac,
         }
+    if det is not None:
+        record["sweep_deterministic"] = {
+            "sigma_bin_kms": det.sigma_bin_kms,
+            "M_grid": [float(x) for x in det.M_grid],
+            "sigma_cluster_kms": [float(x) for x in det.sigma_cluster_kms],
+            "ratio": [float(x) for x in det.ratio],
+            "sigmaM_bf": [float(x) for x in det.sigmaM_bf],
+            "sigmaM_marg": [float(x) for x in det.sigmaM_marg],
+            "h2_gain": [float(x) for x in det.h2_gain],
+        }
+    if mc is not None:
+        record["sweep_mc"] = {
+            "n_draws": int(args.sweep_n_draws),
+            "M_grid": [float(x) for x in mc.M_grid],
+            "ratio": [float(x) for x in mc.ratio],
+            "bias_bf": [float(x) for x in mc.bias_bf],
+            "bias_marg": [float(x) for x in mc.bias_marg],
+            "fbin_marg": [float(x) for x in mc.fbin_marg],
+        }
     run_record_path = os.path.join(args.outdir, os.path.basename(RUN_RECORD))
     with open(run_record_path, "w") as f:
         json.dump(record, f, indent=2)
@@ -292,7 +378,7 @@ def main(argv=None):
     if args.no_figures:
         print("  figures: SKIPPED (--no-figures)")
     else:
-        make_figures(record, h1, args.outdir, cmp=cmp)
+        make_figures(record, h1, args.outdir, cmp=cmp, det=det)
 
     print("=" * 80)
     print("  BINARY-MISSPECIFICATION OED DEMO: DONE")
@@ -514,7 +600,102 @@ def _fig_maximin(record, fig_dir):
     save_fig(fig, fig_dir, "demo_oedb_maximin")
 
 
-def make_figures(record, h1, fig_dir, cmp=None):
+def _fig_sweep(record, fig_dir):
+    """Fig 4 (SWEEP): the sigma_bin/sigma_cluster sweep across system mass -- the T4.1 headline
+    in CONTEXT.
+
+    Main (left) axis vs sigma_bin/sigma_cluster: the binary-FREE-fit realized M-bias (%) --
+    RISING steeply as binaries dominate (the H1 disaster grows for colder/lower-mass clusters)
+    -- and the binary-AWARE-fit residual bias (%) -- FLAT ~0 across the sweep (the fix holds).
+    The fiducial operating point (sigma_bin/sigma_cluster = 1.08, the +185% single-point
+    headline) is marked. Twin (right) axis: the H2 precision-gain across the sweep (the
+    deterministic forecast, fine grid) -- LARGEST where binaries dominate, contextualizing the
+    thin 1.33x at the fiducial. A top axis maps sigma_bin/sigma_cluster -> system mass.
+
+    The deterministic forecast curves (fine grid) are always present; the MC bias anchors
+    (markers + connecting line) appear only when the @slow MC sweep ran (record['sweep_mc']).
+    """
+    import matplotlib.pyplot as plt
+
+    det = record["sweep_deterministic"]
+    ratio_det = np.asarray(det["ratio"])
+    M_det = np.asarray(det["M_grid"])
+    h2_gain = np.asarray(det["h2_gain"])
+    f_truth = record["params"]["f_bin_truth"]
+    fiducial_ratio = record["params"]["sigma_bin_kms"] / record["params"][
+        "sigma_cluster_central_kms"]
+
+    fig, axL = plt.subplots(figsize=(7.4, 5.0))
+
+    # --- twin (right) axis FIRST: the H2 precision-gain (deterministic, fine grid) --- #
+    axR = axL.twinx()
+    axR.plot(ratio_det, h2_gain, "-", lw=1.6, color=OI["sky"], alpha=0.9, zorder=2,
+             label="H2 precision-gain (forecast)")
+    axR.axhline(1.0, color=OI["sky"], ls=":", lw=0.9, alpha=0.7, zorder=1)
+    axR.set_ylabel(r"H2 precision-gain  $\sigma(M)_{\rm free\,design}/\sigma(M)_{\rm aware}$",
+                   color=OI["blue"])
+    axR.tick_params(axis="y", labelcolor=OI["blue"])
+    axR.set_ylim(0.9, max(1.6, float(h2_gain.max()) * 1.08))
+
+    # --- left axis: the realized M-bias (%) vs sigma_bin/sigma_cluster --- #
+    axL.set_zorder(axR.get_zorder() + 1)
+    axL.patch.set_visible(False)
+    axL.axhline(0.0, color="0.4", ls="--", lw=1.0, zorder=2)
+
+    have_mc = "sweep_mc" in record
+    if have_mc:
+        mc = record["sweep_mc"]
+        ratio_mc = np.asarray(mc["ratio"])
+        bias_bf = 100.0 * np.asarray(mc["bias_bf"])      # -> percent
+        bias_marg = 100.0 * np.asarray(mc["bias_marg"])
+        axL.plot(ratio_mc, bias_bf, "-o", ms=6.5, color=OI["vermilion"], zorder=5,
+                 label="binary-free fit (the H1 disaster)")
+        axL.plot(ratio_mc, bias_marg, "-s", ms=6, color=OI["green"], zorder=5,
+                 label="binary-aware fit (the fix)")
+        ymax = max(220.0, float(bias_bf.max()) * 1.15)
+    else:
+        ymax = 220.0
+        axL.text(0.5, 0.5, "MC bias sweep not run\n(pass --run-mc for the realized curves)",
+                 transform=axL.transAxes, fontsize=10, ha="center", va="center", color="0.4")
+
+    # mark the fiducial operating point (the single-point +185% headline).
+    axL.axvline(fiducial_ratio, color="0.35", ls="-.", lw=1.1, zorder=2)
+    axL.text(fiducial_ratio, ymax * 0.62,
+             f"  fiducial $\\sigma_{{\\rm bin}}/\\sigma_{{\\rm clu}}={fiducial_ratio:.2f}$\n"
+             f"  (single-point $+185\\%$)", color="0.2", fontsize=8.5, va="top", ha="left")
+
+    axL.set_xlabel(r"binary contamination  $\sigma_{\rm bin}/\sigma_{\rm cluster}$"
+                   r"  (central; $\sigma_{\rm bin}=9.73$ km/s fixed)")
+    axL.set_ylabel(r"realized dynamical-mass bias  $(\hat M-M)/M$  [\%]",
+                   color=OI["vermilion"])
+    axL.tick_params(axis="y", labelcolor=OI["vermilion"])
+    axL.set_ylim(-12.0, ymax)
+    # x grows to the RIGHT toward MORE contamination (colder, lower-mass clusters).
+    axL.set_xlim(float(ratio_det.min()) * 0.95, float(ratio_det.max()) * 1.03)
+
+    # --- top axis: system mass (mapped from the deterministic ratio<->M relation) --- #
+    axT = axL.twiny()
+    axT.set_xlim(axL.get_xlim())
+    # pick a few ratio ticks and label them with the corresponding system mass.
+    tick_ratios = np.array([0.7, 1.0, 1.5, 2.0, 3.0])
+    tick_ratios = tick_ratios[(tick_ratios >= ratio_det.min()) & (tick_ratios <= ratio_det.max())]
+    # interpolate M(ratio): ratio decreases with M, so sort by ratio ascending for np.interp.
+    order = np.argsort(ratio_det)
+    tick_M = np.interp(tick_ratios, ratio_det[order], M_det[order])
+    axT.set_xticks(tick_ratios)
+    axT.set_xticklabels([f"{m/1e5:.1f}" for m in tick_M])
+    axT.set_xlabel(r"system mass  $M\,/\,10^5\,M_\odot$")
+
+    # merged legend.
+    hL, lL = axL.get_legend_handles_labels()
+    hR, lR = axR.get_legend_handles_labels()
+    axL.legend(hL + hR, lL + lR, loc="upper left", fontsize=8.5)
+    panel_label(axL, "the sweep: bias + fix + H2 gain vs contamination", loc="lower right")
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oedb_sweep")
+
+
+def make_figures(record, h1, fig_dir, cmp=None, det=None):
     """Generate the binary-misspecification figures into fig_dir (PNG + PDF via save_fig).
 
       * fig 1 (false_confidence): M_hat/M for the naive design + binaries (~2.85, tiny
@@ -523,6 +704,9 @@ def make_figures(record, h1, fig_dir, cmp=None):
         WHY the bias happens. Always produced (no MC).
       * fig 3 (maximin): sigma(M)/M(f_bin) for the marginalize vs maximin design + the two
         allocations -- the robust-design hedge. ONLY when --maximin (cmp set).
+      * fig 4 (sweep): the realized M-bias (binary-free-fit rising, binary-aware-fit ~0) +
+        the H2 gain vs sigma_bin/sigma_cluster across system mass. ONLY when --sweep (det
+        set); the MC bias curves appear only if the @slow MC sweep ran (record['sweep_mc']).
     """
     apply_pub_style()
     os.makedirs(fig_dir, exist_ok=True)
@@ -535,9 +719,13 @@ def make_figures(record, h1, fig_dir, cmp=None):
     if cmp is not None:
         _fig_maximin(record, fig_dir)
         n_figs += 1
+    if det is not None:
+        _fig_sweep(record, fig_dir)
+        n_figs += 1
     print(f"  figures: wrote {n_figs} PNG+PDF (mechanism"
           f"{' + false_confidence' if h1 is not None else ''}"
-          f"{' + maximin' if cmp is not None else ''}) to {fig_dir}/demo_oedb_*.png")
+          f"{' + maximin' if cmp is not None else ''}"
+          f"{' + sweep' if det is not None else ''}) to {fig_dir}/demo_oedb_*.png")
 
 
 if __name__ == "__main__":
