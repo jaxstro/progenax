@@ -492,3 +492,31 @@ def test_H3_allocation_non_monotone():
         f"weight-vector cosine {h3.cosine_similarity:.3f} >= 0.9 -- too close to a "
         "monotone rescaling"
     )
+
+
+# ===========================================================================
+# Phase 2 -- Marginalize fix (MC group: Task 2.5 -- the fix REMOVES the bias).
+#
+# The @slow, env-gated counterpart to the H1 gate: the binary-AWARE FIT (5-param,
+# f_bin FREE) on the SAME binary-contaminated mocks recovers M_hat UNBIASED -- the
+# "fix works" headline. Phase 1 showed the binary-FREE fit gives M_hat ~ 2.85x truth
+# (bias +185%); here the binary-aware fit on the binary-aware design removes it.
+#
+# Pre-registration (design doc Phase 2): ACCEPT iff |bias_M_frac| < 2 * sigma_M_marg
+# (the binary-aware forecast). The threshold is NOT to be weakened: if M_hat is NOT
+# recovered unbiased, INVESTIGATE the harness (f_bin identifiability on the few
+# populated bins, or an eps/sigma-vs-sigma^2 inconsistency); a genuine inability to
+# debias would be a reportable finding.
+# ===========================================================================
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not os.environ.get("PROGENAX_RUN_OED_BINARY"),
+    reason="env-gated cross-model MC (set PROGENAX_RUN_OED_BINARY=1)",
+)
+def test_fix_binary_aware_fit_is_unbiased():
+    """The fix: the binary-AWARE fit (5-param, f_bin free) on the binary-aware design
+    removes the +185% M bias of the binary-FREE fit. Pre-registered ACCEPT iff
+    |bias_M_frac| < 2 * sigma_M_marg (the binary-aware forecast). LOCKED -- do NOT
+    weaken; if it cannot be made unbiased, fix the harness (or report as a finding)."""
+    res = oedb.run_fix(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
+    assert abs(res.bias_M_frac) < 2.0 * res.sigma_M_marg   # the binary-aware fit removes the bias

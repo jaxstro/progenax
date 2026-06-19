@@ -1184,3 +1184,238 @@ def run_H1(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRUT
         bias_other=cm.bias_other,
         n_unconverged=cm.n_unconverged,
     )
+
+
+# ===========================================================================
+# Task 2.5: the FIX -- the binary-AWARE fit removes the M bias (@slow calibration)
+# ===========================================================================
+#
+# The H1 gate showed the binary-FREE fit (f_bin == 0) on binary-contaminated mocks
+# biases M_hat ~ 2.85x truth (+185%). The FIX: fit the BINARY-AWARE model -- the SAME
+# 5-param theta = (M, r_a, gamma, a, f_bin) with f_bin FREE -- so the analyst no longer
+# misattributes the f_bin*V_bin pedestal to the cluster mass. The fit's prediction now
+# carries the binary pedestal AND eps in quadrature:
+#   sigma_obs(theta) = sqrt(cluster_sigma_los(M, r_a, gamma, a)^2 + f_bin*V_bin + eps^2),
+# which equals the mock's per-bin EXPECTATION exactly, so M_hat is recovered unbiased and
+# f_bin_hat is pulled to the truth by the radial leverage (the f_bin column of J grows
+# toward the cold outskirts; the core<->outskirts contrast breaks the M<->f_bin degeneracy).
+#
+# This is the same honest-analyst machinery as the binary-free fit (_fit_theta_bf_gn):
+# realized-scatter SE (se[b] = sigma_hat[b]/sqrt(2 n_b), NOT the truth), DROP-EMPTY-BINS
+# (fit only the bins the c-optimal design populates), LM-damped Gauss-Newton MAP in ln-theta
+# with PRIOR_DIAG_MARG -- just +f_bin (5 params instead of 4).
+
+# LM-MAP settings for the 5-param binary-AWARE GN fit. Same lambda schedule as the
+# binary-free fit; the f_bin free parameter is started AT the truth (theta_fid carries
+# f_bin = F_BIN_TRUTH) and the well-specified model means M_hat settles fast -- but the
+# 5-param fit on only ~3 populated bins needs enough iters for the M<->f_bin direction to
+# converge through the radial leverage, so we keep the same generous 200-iter budget as the
+# binary-free fit (the M-step witness certifies convergence; the fit is cheap).
+_MARG_LM_LAM0 = 1e-2
+_MARG_N_ITER = 200
+
+
+@functools.partial(jax.jit, static_argnames=("n_iter",))
+def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER):
+    r"""Levenberg-Marquardt MAP fit of the BINARY-AWARE theta = (M, r_a, gamma, a, f_bin)
+    in the dimensionless ln-theta metric, started at the full truth (f_bin FREE).
+
+    The CORRECTLY-SPECIFIED fit (the FIX): the model is the binary-inflated, eps-consistent
+    observable sqrt(cluster_sigma_los^2 + f_bin*V_bin + eps^2) with f_bin a FREE parameter,
+    fit to the binary-contaminated binned dispersions. We fit u = ln(theta) - ln(theta_fid),
+    theta = theta_fid * exp(u) (every direction O(1)), theta_fid = theta_truth() (the full
+    5-vector, so f_bin starts at F_BIN_TRUTH). Each iteration solves the damped Gauss-Newton
+    system
+      (Jr^T Jr + diag(PRIOR_DIAG_MARG) + lam I) du = -(Jr^T r + PRIOR_DIAG_MARG u)
+    with r = (model - data)/se the whitened residual and Jr = d r / d u (REVERSE-mode jacrev
+    through project_dispersion's quadrature; by policy), ACCEPTS the step only if it lowers
+    the MAP cost 0.5(||r||^2 + sum PRIOR_DIAG_MARG u^2), and adapts lam (x0.3 accept,
+    x3 reject). The prior is PRIOR_DIAG_MARG (M free; r_a, f_bin weak; gamma/a tight -- the
+    SAME prior the marginalized forecast Fisher uses, so the recovered bias is
+    apples-to-apples with sigma_M_marg).
+
+    DROP-EMPTY-BINS + realized-scatter SE: identical honest-analyst machinery to
+    ``_fit_theta_bf_gn`` -- ``keep`` (K,) bool masks the GN residual to the design-populated
+    bins (n_b >= N_MIN_FIT), and se[b] = sigma_hat[b]/sqrt(2 n_b) is the analyst's OWN
+    realized scatter (NOT the truth sig_model). The only difference from the binary-free fit
+    is the +f_bin free parameter and the binary-aware (f_bin*V_bin) prediction term.
+
+    eps-CONSISTENCY: the mock adds Normal(0, eps^2) to EVERY star, so sigma_hat[b]^2 estimates
+    sigma_cluster[b]^2 + f_bin*V_bin + eps^2. The prediction carries eps in quadrature
+    (predict_sigma_obs is the f_bin pedestal ONLY; this fit adds eps^2 on top). With the
+    binary pedestal modeled AND eps consistent, the fit's predicted observable equals the
+    mock's expectation exactly -> M_hat unbiased and f_bin_hat -> truth.
+
+    Returns (theta_hat (5,), m_witness) where m_witness = max |M-component step| over the
+    LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
+    jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
+    scan compiles ONCE and is reused across every draw. Value-preserving.
+    """
+    theta_fid = theta_truth()                               # (M, r_a, gamma, a, f_bin)
+    keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
+
+    def predict(theta):                                    # binary-aware eps-consistent [km/s]
+        # sqrt(cluster^2 + f_bin*V_bin + eps^2): the binary pedestal (predict_sigma_obs is
+        # cluster^2 + f_bin*V_bin) PLUS eps in quadrature (the mock noises every star). This
+        # is the CORRECTLY-specified observable -- f_bin is fit, not assumed zero.
+        return jnp.sqrt(predict_sigma_obs(theta, R_BINS, G) ** 2 + EPS_RV_KMS**2)
+
+    def resid(u):                                           # whitened residual (model - data)/se
+        theta = theta_fid * jnp.exp(u)
+        r = (predict(theta) - sigma_hat) / se
+        return r * keep_w                                  # dropped bins contribute nothing
+
+    def cost_of(u, r):
+        return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG_MARG * u**2))
+
+    def lm_step(carry, _):
+        u, lam = carry
+        r = resid(u)
+        c = cost_of(u, r)
+        Jr = jax.jacrev(resid)(u)                           # (K, 5) = d r / d u (reverse-mode)
+        grad = Jr.T @ r + PRIOR_DIAG_MARG * u
+        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG_MARG)
+        du = -jnp.linalg.solve(hess + lam * jnp.eye(5), grad)
+        u_try = u + du
+        c_try = cost_of(u_try, resid(u_try))
+        improved = c_try < c                               # NaN -> False -> reject
+        u_next = jnp.where(improved, u_try, u)
+        lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
+        m_moved = jnp.abs((u_next - u)[IDX_M])             # TARGET-M step witness
+        return (u_next, lam_next), m_moved
+
+    (u_hat, _), m_steps = jax.lax.scan(lm_step, (jnp.zeros(5), _MARG_LM_LAM0), None, length=n_iter)
+    return theta_fid * jnp.exp(u_hat), jnp.max(m_steps[-5:])
+
+
+# Convergence threshold on the binary-aware fit's M-target witness (max |M-step| over the
+# last 5 LM iters, ln-theta), reusing the binary-free _BF_CONVERGED_STEP scale -- a settled
+# fit moves M below this; a draw above it has a still-moving M_hat and is SURFACED.
+_MARG_CONVERGED_STEP = _BF_CONVERGED_STEP
+
+
+class FixResult(NamedTuple):
+    """Result of run_fix (the Task 2.5 headline: the binary-AWARE fit removes the M bias):
+
+      * bias_M_frac   : mean over draws of (M_hat - M_true)/M_true -- should be ~0 (vs the
+                        binary-FREE fit's +1.84 at the same operating point),
+      * sem           : standard error of the mean bias over the draws,
+      * std_M_frac    : draw-to-draw std of (M_hat - M_true)/M_true,
+      * sigma_M_marg  : the binary-AWARE forecast sigma(M)/M (optimize_design_M_marg's
+                        c-optimal precision under the 5-param marginalized Fisher; ~0.069),
+      * fbin_hat_mean : mean recovered f_bin_hat over draws -- does the radial leverage
+                        RECOVER the binary fraction (~F_BIN_TRUTH = 0.5)?  (the Item-3b bonus),
+      * fbin_hat_std  : draw-to-draw std of f_bin_hat,
+      * n_unconverged : # draws whose M-target witness exceeded _MARG_CONVERGED_STEP,
+      * max_M_step    : max over draws of the M-target witness,
+      * design_n_eff  : the binary-aware c-optimal-for-M per-bin counts evaluated."""
+    bias_M_frac: float
+    sem: float
+    std_M_frac: float
+    sigma_M_marg: float
+    fbin_hat_mean: float
+    fbin_hat_std: float
+    n_unconverged: int
+    max_M_step: float
+    design_n_eff: jnp.ndarray
+
+
+def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRUTH,
+            n_iter=_MARG_N_ITER):
+    r"""Run the Task 2.5 FIX MC: the binary-AWARE fit removes the M bias.
+
+    Cross-model MC on the BINARY-AWARE design: generate mocks WITH Moe binaries (the SAME
+    Route-1 forward-model-consistent mock as H1, at f_bin = f_bin_truth) and fit the
+    BINARY-AWARE model (5-param, f_bin FREE) -- so the analyst MODELS the binary pedestal
+    instead of misattributing it to M. For each of n_draws independent mocks (SEQUENTIAL
+    jax.lax.map):
+
+      1. binary-AWARE design (optimize_design_M_marg) sets the per-bin counts; DROP-EMPTY-BINS
+         keeps only the bins it populates (n_b = round(design_n_eff[b]) >= N_MIN_FIT);
+      2. draw cluster velocities Normal(0, sig_model^2) (sig_model = truth cluster_sigma_los),
+         per-star Bernoulli(f_bin) blend Delta from the build-once K_orb pool, per-star eps;
+      3. sigma_hat[b] = std(v_b, ddof=1), se[b] = sigma_hat[b]/sqrt(2 n_b) (honest-analyst);
+      4. FIT the BINARY-AWARE theta = (M, r_a, gamma, a, f_bin) by LM-damped GN MAP in
+         ln-theta with PRIOR_DIAG_MARG (the prediction carries f_bin*V_bin AND eps in
+         quadrature -- the CORRECTLY-specified model);
+      5. collect M_hat and f_bin_hat.
+
+    The reported ``sigma_M_marg`` is the binary-aware FORECAST (optimize_design_M_marg's
+    c-optimal sigma(M)/M under the 5-param marginalized Fisher, ~0.069) -- the honest
+    precision the design promises. The pre-registered ACCEPT (Phase 2) is
+    |bias_M_frac| < 2 * sigma_M_marg: the binary-aware fit recovers M unbiased within its
+    own (honest, marginalized) forecast.
+
+    Build-once (enforce-jax-performance): the per-bin truth sigma_los (the ONLY
+    project_dispersion quadrature) and the K_orb blend-velocity pool are built ONCE, exactly
+    as in cross_model_bias; the per-draw body is jit'd and run draw-by-draw via lax.map (peak
+    memory = a SINGLE draw's GN reverse-mode tape). Returns a FixResult.
+
+    Parameters
+    ----------
+    n_draws : int       -- number of independent cross-model mock draws (the MC sample size).
+    key : PRNGKey
+    N_total : float     -- RV budget (reporting anchor; Fisher linear in it).
+    f_bin_truth : float -- the TRUE binary fraction of the mock (default F_BIN_TRUTH).
+    n_iter : int        -- LM iterations of the binary-aware MAP fit (static).
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    k_design, k_mc = jax.random.split(key)
+    G = STELLAR.G
+
+    # 1. binary-AWARE c-optimal-for-M design + its honest marginalized forecast sigma(M)/M.
+    design = optimize_design_M_marg(N_total, key=k_design)
+    sigma_M_marg = float(design.sigma_M_over_M)
+
+    # --- BUILD-ONCE (per truth, before the draw loop) -- mirrors cross_model_bias exactly.
+    sig_model = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, G)   # (K,) km/s (the quadrature)
+    counts, n_max, keep = _per_bin_star_counts(design.n_eff)              # static shapes + keep mask
+    korb_raw = jnp.asarray(
+        binaries.sample_blend_velocities(
+            jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
+            imf=massive_primary_imf(), Z=V_BIN_Z,
+        )
+    )
+    korb_centered = korb_raw - jnp.mean(korb_raw)
+    korb_pool = korb_centered * jnp.sqrt(V_BIN / jnp.var(korb_centered, ddof=1))  # Var == V_BIN
+
+    theta_true = theta_truth()                                            # (5,) full truth
+
+    def one_draw(kdraw):
+        """One cross-model mock -> ((M_hat - M)/M, f_bin_hat, M-witness) for the binary-aware fit."""
+        k_mock, _ = jax.random.split(kdraw)
+        sigma_hat, se = _draw_binned_sigma_hat(
+            k_mock, sig_model, counts, n_max, keep, korb_pool, f_bin_truth
+        )
+        theta_hat, m_witness = _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=n_iter)
+        m_frac = (th_M(theta_hat) - th_M(theta_true)) / th_M(theta_true)
+        return m_frac, th_fbin(theta_hat), m_witness
+
+    # SEQUENTIAL lax.map (memory-bounded): one_draw compiles ONCE, runs draw-by-draw.
+    draw_keys = jax.vmap(lambda d: jax.random.fold_in(k_mc, d + 1))(jnp.arange(n_draws))
+    m_frac, fbin_hat, witnesses = jax.lax.map(one_draw, draw_keys)        # (n_draws,) x3
+
+    bias_M_frac = float(jnp.mean(m_frac))
+    std_M_frac = float(jnp.std(m_frac, ddof=1)) if n_draws > 1 else 0.0
+    sem = std_M_frac / math.sqrt(n_draws) if n_draws > 1 else 0.0
+    fbin_hat_mean = float(jnp.mean(fbin_hat))
+    fbin_hat_std = float(jnp.std(fbin_hat, ddof=1)) if n_draws > 1 else 0.0
+    max_M_step = float(jnp.max(witnesses))
+    n_unconverged = int(jnp.sum(witnesses > _MARG_CONVERGED_STEP))
+    if n_unconverged > 0:
+        print(
+            f"[run_fix] WARNING: {n_unconverged}/{n_draws} draws had an M-target witness "
+            f"> {_MARG_CONVERGED_STEP:g} (max {max_M_step:.2e}); M_hat for those draws may "
+            f"not have settled -- investigate before trusting the bias."
+        )
+    return FixResult(
+        bias_M_frac=bias_M_frac,
+        sem=sem,
+        std_M_frac=std_M_frac,
+        sigma_M_marg=sigma_M_marg,
+        fbin_hat_mean=fbin_hat_mean,
+        fbin_hat_std=fbin_hat_std,
+        n_unconverged=n_unconverged,
+        max_M_step=max_M_step,
+        design_n_eff=design.n_eff,
+    )
