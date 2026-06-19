@@ -12,7 +12,7 @@ forward model and the Moe & Di Stefano σ_los-inflation kernel.
 backbone (`scripts/_demo_oed.py`): `F = Σ_b n_eff,b · M_b`, ONE reverse-mode jacrev, ln-θ metric
 (ADR-0011), c/D/A criteria, multi-start Adam, `jax.lax.map` calibration. The new forward model is
 EFF-OM `project_dispersion` (σ_los channel only) plus an additive binary term
-σ²_obs = σ²_cluster(M, r_a, γ, r_h) + f_bin·V_bin + ε², with V_bin = Var(K_orb) a build-once
+σ²_obs = σ²_cluster(M, r_a, γ, a) + f_bin·V_bin + ε², with V_bin = Var(K_orb) a build-once
 population scalar from `scripts/_demo_binaries.py`.
 
 **Tech Stack:** JAX (jax.numpy, jacrev, jit, lax.map), Equinox profiles/DFs, optax (Adam),
@@ -47,7 +47,7 @@ pytest. Reuse: `progenax.project_dispersion`, `progenax.EFFProfile`, `progenax.E
   MC via `jax.lax.map` (never vmap over the fit tape); smoke-test peak RSS before any long run.
 
 **Fiducial constants** live in `_demo_oed_binary.py` module scope and are **PINNED in Phase 0**
-(Task 0.2). Until pinned, treat them as `TODO(phase0)`: EFF (γ_fid, a_fid/r_h_fid, r_t_fid),
+(Task 0.2). Until pinned, treat them as `TODO(phase0)`: EFF (γ_fid, a_fid, r_t_fid),
 M_fid (→ σ_cluster ≈ 8–12 km/s YMC), distance d, RV error ε_RV, primary-mass scale for Moe,
 f_bin_truth, the radial bins `R_BINS`.
 
@@ -128,7 +128,7 @@ If H1 cannot bite at any plausible YMC point → re-scope before Phase 1.
 **Step 1 — failing test:**
 ```python
 def test_cluster_sigma_los_matches_project_dispersion():
-    th = oedb.theta_truth_clusteronly()        # (M, r_a, gamma, r_h)
+    th = oedb.theta_truth_clusteronly()        # (M, r_a, gamma, a)
     R = oedb.R_BINS
     sig = oedb.cluster_sigma_los(th, R, STELLAR.G)   # (K,) km/s, RV channel only
     # oracle: project_dispersion on the same EFF-OM model
@@ -139,7 +139,7 @@ def test_cluster_sigma_los_matches_project_dispersion():
 ```
 **Step 2:** Run → FAIL.
 **Step 3 — implement** `eff_profile(theta)` (build `EFFProfile(a=..., gamma=..., r_t=...)` from
-(r_h, γ)), `cluster_sigma_los(theta, R, G)` = `kms(project_dispersion(...).sigma_los)`, and the
+(a, γ)), `cluster_sigma_los(theta, R, G)` = `kms(project_dispersion(...).sigma_los)`, and the
 θ accessors. Reuse `_demo_oed`'s unit converters.
 **Step 4:** Run → PASS. **Step 5:** Commit `feat(oed-binary): EFF-OM RV-only cluster sigma_los`.
 
@@ -148,7 +148,7 @@ def test_cluster_sigma_los_matches_project_dispersion():
 **Step 1 — failing test:**
 ```python
 def test_obs_variance_adds_binary_pedestal_and_jacrev_lntheta():
-    th = oedb.theta_truth()                     # (M, r_a, gamma, r_h, f_bin)
+    th = oedb.theta_truth()                     # (M, r_a, gamma, a, f_bin)
     R = oedb.R_BINS
     s2 = oedb.predict_sigma_obs2(th, R, STELLAR.G)         # (K,) (km/s)^2
     s2_cluster = oedb.cluster_sigma_los(th[:-1], R, STELLAR.G)**2
@@ -171,7 +171,7 @@ scaled to ln-θ (`J*theta` idiom). Reverse-mode by policy.
 **Step 1 — failing test:**
 ```python
 def test_binary_free_fisher_spd_and_design_normalized():
-    # binary-free theta = (M, r_a, gamma, r_h); priors: gamma,r_h tight (photometric); r_a weak; M free
+    # binary-free theta = (M, r_a, gamma, a); priors: gamma,a tight (photometric); r_a weak; M free
     F = oedb.fisher_binary_free(oedb.uniform_design(), oedb.N_TOTAL)
     assert jnp.allclose(F, F.T) and jnp.all(jnp.linalg.eigvalsh(F) > 0)
     res = oedb.optimize_design_M(oedb.fisher_binary_free, oedb.N_TOTAL, key=jax.random.PRNGKey(0))
@@ -180,7 +180,7 @@ def test_binary_free_fisher_spd_and_design_normalized():
 ```
 **Step 2:** Run → FAIL.
 **Step 3 — implement** `blocks_from_eps`/`fisher`-style assembly reusing `_demo_oed` helpers,
-with `PRIOR_DIAG` = tight on (γ, r_h), weak on r_a, zero on M; `optimize_design_M` =
+with `PRIOR_DIAG` = tight on (γ, a), weak on r_a, zero on M; `optimize_design_M` =
 c-optimal on the M index via the imported multi-start Adam. **Cache the cluster jacrev once.**
 **Step 4:** Run → PASS. **Step 5:** Commit `feat(oed-binary): additive Fisher + binary-free c-optimal-for-M design`.
 

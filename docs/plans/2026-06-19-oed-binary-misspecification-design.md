@@ -31,7 +31,7 @@ This monetizes machinery nobody else has wired to OED.
    (using the full velocity histogram via `predict_vlos_counts` is a stronger-identification
    extension, deliberately deferred).
 3. **Mass-follows-light, RV-only.** No DM halo (tracer≠mass deferred); the RV-only
-   mass-anisotropy degeneracy (M↔r_a) is handled by photometric tight priors on (γ, r_h).
+   mass-anisotropy degeneracy (M↔r_a) is handled by photometric tight priors on (γ, a).
 4. **Informax-bound, OUT of v0.1.0.** Ships as scripts + a `60-science-demos` page; **no
    `src/progenax/` change** → released-core coverage/staleness gate untouched.
 
@@ -61,7 +61,7 @@ native-Michie (cheaper; bias headline; native-Michie sky projection doesn't exis
   does quadrature of `profile.density` on a uniform `r_t` grid (`dispersion.py:318`). → the
   cross-model MC has **no diffrax tape to batch** (sidesteps the Stage-3 28 GB OOM).
 - **EFF concentration parameter.** `EFFProfile.gamma` (`eff.py:54`) is a shape/concentration
-  knob (γ=3 young clusters, γ=5→Plummer) → the bias vector spans (M, γ, r_h, r_a) with no King ODE.
+  knob (γ=3 young clusters, γ=5→Plummer) → the bias vector spans (M, γ, a, r_a) with no King ODE.
 - **OM-on-EFF is exact** (`dispersion.py:446`: EFF intrinsically isotropic); the mock sampler is
   `EFFVelocityDF` (Eddington + OM, build-once table, validated Q≈0.50, `eff_df.py:69`).
 - **The B12 σ_los kernel exists only in scripts**, not `src/`: `scripts/_demo_binaries.py`
@@ -94,18 +94,22 @@ Scripts-only, mirroring Stage-1/2/3. **No `src/progenax/` change.**
 ### Forward / Fisher backbone (reused from Stage-1, RV-only)
 
 ```text
-theta = (M, r_a, gamma, r_h, f_bin)     # ln-theta metric (ADR-0011)
+theta = (M, r_a, gamma, a, f_bin)       # ln-theta metric (ADR-0011)
 predict_sigma_obs2(theta, R, G):
-    prof = EFFProfile(a=a(r_h,gamma), gamma=gamma, r_t=...)
+    prof = EFFProfile(a=a, gamma=gamma, r_t=R_T)   # native EFF params; no r_h inversion
     sig_cluster = project_dispersion(prof, r_a, R, M, G).sigma_los   # RV channel only
     return sig_cluster**2 + f_bin * V_bin                            # + eps**2 at the gate
 ```
 
-- **Observable model:** σ²_obs(R) = M·h(R; r_a, γ, r_h) + f_bin·V_bin + ε². `M` scales the
-  cluster term (amplitude), (r_a, γ, r_h) set the radial **shape** `h(R)`, and binaries add a
+- **θ uses the EFF *scale radius* `a`, not a derived `r_h`.** `EFFProfile` is natively
+  `(a, gamma, r_t)` with no closed-form `r_h(a, γ, r_t)`, so parameterizing by `a` directly
+  avoids a spurious unpinned inversion. `a` *is* the concentration scale; the half-mass radius
+  is recoverable post-hoc. (Pinned in Phase 0 Task 0.2; the MyST page (T4.2) states this.)
+- **Observable model:** σ²_obs(R) = M·h(R; r_a, γ, a) + f_bin·V_bin + ε². `M` scales the
+  cluster term (amplitude), (r_a, γ, a) set the radial **shape** `h(R)`, and binaries add a
   ~flat **pedestal** `f_bin·V_bin` (V_bin a population scalar; per-bin V_bin(R) is the
   mass-segregation extension). Radial leverage separates amplitude vs shape vs offset.
-- **Priors / degeneracy structure:** M = **target** (no prior); **γ, r_h photometrically
+- **Priors / degeneracy structure:** M = **target** (no prior); **γ, a photometrically
   pinned** (tight priors — measured from the surface-brightness profile); **r_a, f_bin =
   kinematic nuisances** the radial RV allocation must disentangle. The f_bin column of J
   (∂σ_los/∂ln f_bin = f_bin·V_bin/(2σ_los)) concentrates info in the **outskirts** (low σ_los);
