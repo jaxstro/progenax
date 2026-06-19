@@ -597,6 +597,56 @@ def test_maximin_design_wins_at_worstcase():
     assert mm.worstcase_sigma_M <= wc_marg + 1e-6
 
 
+def test_marg_fit_is_data_driven_not_pinned_at_truth():
+    """Regression guard #1 (review): the binary-AWARE fit is DATA-DRIVEN, not pinned at the
+    truth init. Build ONE fixed binary-contaminated mock (deterministic) and fit the 5-param
+    _fit_theta_marg_gn from several PERTURBED starts (M x2, M x0.4; f_bin 0.2, 0.9). All
+    starts must converge to the SAME data minimum -- recovered M_hat and f_bin_hat AGREE
+    across inits to a tolerance -- proving the fit chases the data, not the starting value.
+    Cheap: one mock, two kept bins, a modest iteration budget.
+    """
+    G = STELLAR.G
+    # A tiny TWO-bin design (a core bin + a cold outskirts bin) so f_bin has radial leverage
+    # (the core<->outskirts contrast breaks M<->f_bin) while staying cheap. Counts well above
+    # N_MIN_FIT so both bins are kept.
+    K = oedb.R_BINS.shape[0]
+    design = jnp.zeros(K).at[2].set(2000.0).at[K - 1].set(1500.0)   # core-ish + outermost bin
+    counts, n_max, keep = oedb._per_bin_star_counts(design)
+    assert int(jnp.sum(keep)) == 2                                   # exactly the two populated bins
+
+    sig_model = oedb.cluster_sigma_los(oedb.theta_truth_clusteronly(), oedb.R_BINS, G)
+    # Build-once K_orb pool exactly as the MC does (Var == V_BIN), so the mock is a faithful
+    # binary-contaminated draw at the truth f_bin.
+    korb_raw = jnp.asarray(oedb.binaries.sample_blend_velocities(
+        jax.random.PRNGKey(oedb.V_BIN_SEED + 1), oedb._KORB_POOL_N,
+        imf=oedb.massive_primary_imf(), Z=oedb.V_BIN_Z,
+    ))
+    korb_centered = korb_raw - jnp.mean(korb_raw)
+    korb_pool = korb_centered * jnp.sqrt(oedb.V_BIN / jnp.var(korb_centered, ddof=1))
+
+    sigma_hat, se = oedb._draw_binned_sigma_hat(
+        jax.random.PRNGKey(123), sig_model, counts, n_max, keep, korb_pool, oedb.F_BIN_TRUTH
+    )
+
+    th = oedb.theta_truth()
+    # Perturbed starts: move M far (x2, x0.4) and f_bin far (0.2, 0.9) from the truth. The
+    # nuisance (r_a, gamma, a) starts are kept at truth (they are well-pinned photometrically).
+    inits = [
+        th.at[oedb.IDX_M].mul(2.0).at[oedb.IDX_FBIN].set(0.2),
+        th.at[oedb.IDX_M].mul(0.4).at[oedb.IDX_FBIN].set(0.9),
+        th.at[oedb.IDX_M].mul(2.0).at[oedb.IDX_FBIN].set(0.9),
+    ]
+    fits = [
+        oedb._fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=120, theta_init=ti)[0]
+        for ti in inits
+    ]
+    m_hats = jnp.array([oedb.th_M(f) for f in fits])
+    f_hats = jnp.array([oedb.th_fbin(f) for f in fits])
+    # Agreement across inits -> the fit converged to the SAME data minimum (data-driven).
+    assert float(jnp.max(m_hats) / jnp.min(m_hats) - 1.0) < 0.02, f"M_hat spread {m_hats}"
+    assert float(jnp.max(f_hats) - jnp.min(f_hats)) < 0.02, f"f_bin_hat spread {f_hats}"
+
+
 def test_compare_maximin_vs_marginalize_is_a_hedge():
     """Task 3.2 comparison: the maximin design HEDGES -- it sacrifices a little sigma(M) at
     the truth f_bin = 0.5 to lower the worst-case sigma(M) over the grid. The marginalize

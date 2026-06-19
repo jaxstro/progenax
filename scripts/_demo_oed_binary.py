@@ -1464,7 +1464,7 @@ _MARG_N_ITER = 200
 
 
 @functools.partial(jax.jit, static_argnames=("n_iter",))
-def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER):
+def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=None):
     r"""Levenberg-Marquardt MAP fit of the BINARY-AWARE theta = (M, r_a, gamma, a, f_bin)
     in the dimensionless ln-theta metric, started at the full truth (f_bin FREE).
 
@@ -1494,12 +1494,22 @@ def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER):
     binary pedestal modeled AND eps consistent, the fit's predicted observable equals the
     mock's expectation exactly -> M_hat unbiased and f_bin_hat -> truth.
 
+    ``theta_init`` (optional, (5,)) sets only the LM STARTING point (the initial u0 =
+    ln(theta_init) - ln(theta_fid)); it does NOT move the MAP prior centre, which stays on the
+    truth theta_fid = theta_truth() so the cost function is unchanged. Default None -> start AT
+    the truth (u0 = 0), the production path. A perturbed theta_init lets a pin-test prove the
+    fit converges to the SAME data minimum from different starts (data-driven, not pinned).
+
     Returns (theta_hat (5,), m_witness) where m_witness = max |M-component step| over the
     LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
     jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
     scan compiles ONCE and is reused across every draw. Value-preserving.
     """
-    theta_fid = theta_truth()                               # (M, r_a, gamma, a, f_bin)
+    theta_fid = theta_truth()                               # (M, r_a, gamma, a, f_bin); prior centre
+    # The LM start u0: at the truth (u0=0) by default, or at a perturbed theta_init. The prior
+    # penalty stays PRIOR_DIAG_MARG * u^2 (u measured from theta_fid), so theta_init moves ONLY
+    # the starting point, never the MAP minimum -- the pin-test's whole point.
+    u0 = jnp.zeros(5) if theta_init is None else jnp.log(theta_init) - jnp.log(theta_fid)
     keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
 
     def predict(theta):                                    # binary-aware eps-consistent [km/s]
@@ -1532,7 +1542,7 @@ def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER):
         m_moved = jnp.abs((u_next - u)[IDX_M])             # TARGET-M step witness
         return (u_next, lam_next), m_moved
 
-    (u_hat, _), m_steps = jax.lax.scan(lm_step, (jnp.zeros(5), _MARG_LM_LAM0), None, length=n_iter)
+    (u_hat, _), m_steps = jax.lax.scan(lm_step, (u0, _MARG_LM_LAM0), None, length=n_iter)
     return theta_fid * jnp.exp(u_hat), jnp.max(m_steps[-5:])
 
 
