@@ -115,6 +115,11 @@ def main(argv=None):
                    help="Run the env-gated cross-model calibration MC (the H1 bias + the "
                         "headline figure). Equivalent to setting PROGENAX_RUN_OED_BINARY. "
                         "Slow (~80 s, ~2.3 GB peak); OUT of CI.")
+    p.add_argument("--maximin", action="store_true",
+                   help="Run the Task-3.2 maximin-vs-marginalize robust-design comparison "
+                        "(deterministic, NO MC): tabulate sigma(M) at the truth f_bin and the "
+                        "worst-case sigma(M) over f_bin in [0, F_MAX] for both designs, and "
+                        "write the demo_oedb_maximin figure (the hedge).")
     p.add_argument("--quick", action="store_true",
                    help="Smoke/CI fast path: dial the optimizer down, NO MC, mechanism "
                         "figure only. Exits 0 quickly without the MC env var.")
@@ -200,6 +205,31 @@ def main(argv=None):
               "the\n   H1 bias + the headline false-confidence figure. The mechanism figure "
               "(no MC)\n   and the design/forecast above are always produced.]")
 
+    # --- the maximin-vs-marginalize robust-design comparison (Task 3.2; no MC) ---------- #
+    cmp = None
+    if args.maximin:
+        print("\n  computing the maximin-vs-marginalize robust-design comparison "
+              "(deterministic; f_bin grid, cached jacrevs) ...")
+        cmp = oedb.compare_maximin_vs_marginalize(
+            n_total, key=k_design, n_starts=n_starts, n_steps=n_steps
+        )
+        print("\n" + "-" * 80)
+        print("  MAXIMIN vs MARGINALIZE  (sigma(M)/M, c-optimal-for-M)")
+        print(f"  f_bin grid: [0, {oedb.F_MAX}] x {oedb.N_FBIN_GRID} pts  |  "
+              f"smooth-max beta = {oedb._MAXIMIN_BETA:.0f}")
+        print("-" * 80)
+        print(f"  {'design':>14s}{'sigma(M) @ f=0.5':>20s}{'worst-case sigma(M)':>22s}")
+        print(f"  {'marginalize':>14s}{cmp.sigmaM_truth_marg:>20.5f}{cmp.sigmaM_worst_marg:>22.5f}")
+        print(f"  {'maximin':>14s}{cmp.sigmaM_truth_mm:>20.5f}{cmp.sigmaM_worst_mm:>22.5f}")
+        print("-" * 80)
+        print(f"  the HEDGE: maximin SACRIFICES {100 * cmp.sacrifice_at_truth_frac:+.2f}% at "
+              f"the truth f_bin=0.5 to GAIN {100 * cmp.gain_at_worst_frac:+.2f}% at the "
+              f"worst-case f_bin={oedb.F_MAX}.")
+        print(f"  (sigma(M)(f_bin) is monotone in f_bin -> worst case at f_bin=F_MAX; the "
+              f"trade is small\n   because the marginalize design at 0.5 is already near "
+              f"maximin-optimal -- reported faithfully.)")
+        print("-" * 80)
+
     # --- run-record JSON (into --outdir, NOT the fixed FIGURE_DIR; Stage-3 CLI lesson) -- #
     # The smoke test passes --outdir=tmp_path; a FIXED path would clobber the committed
     # full-quality record with low-res smoke numbers. The default --outdir IS FIGURE_DIR, so
@@ -237,6 +267,22 @@ def main(argv=None):
             "bias_other_ra_gamma_a": [float(x) for x in h1.bias_other],
             "baseline_fbin0_bias_M_frac": base.bias_M_frac,
         }
+    if cmp is not None:
+        record["maximin"] = {
+            "F_max": oedb.F_MAX, "n_fbin_grid": int(oedb.N_FBIN_GRID),
+            "beta": float(oedb._MAXIMIN_BETA),
+            "f_bin_grid": [float(x) for x in cmp.f_bin_grid],
+            "sigmaM_truth_marg": cmp.sigmaM_truth_marg,
+            "sigmaM_truth_mm": cmp.sigmaM_truth_mm,
+            "sigmaM_worst_marg": cmp.sigmaM_worst_marg,
+            "sigmaM_worst_mm": cmp.sigmaM_worst_mm,
+            "grid_sigmaM_marg": [float(x) for x in cmp.grid_sigmaM_marg],
+            "grid_sigmaM_mm": [float(x) for x in cmp.grid_sigmaM_mm],
+            "n_eff_marg": [float(x) for x in cmp.n_eff_marg],
+            "n_eff_mm": [float(x) for x in cmp.n_eff_mm],
+            "sacrifice_at_truth_frac": cmp.sacrifice_at_truth_frac,
+            "gain_at_worst_frac": cmp.gain_at_worst_frac,
+        }
     run_record_path = os.path.join(args.outdir, os.path.basename(RUN_RECORD))
     with open(run_record_path, "w") as f:
         json.dump(record, f, indent=2)
@@ -246,7 +292,7 @@ def main(argv=None):
     if args.no_figures:
         print("  figures: SKIPPED (--no-figures)")
     else:
-        make_figures(record, h1, args.outdir)
+        make_figures(record, h1, args.outdir, cmp=cmp)
 
     print("=" * 80)
     print("  BINARY-MISSPECIFICATION OED DEMO: DONE")
@@ -395,25 +441,103 @@ def _fig_mechanism(record, fig_dir):
     save_fig(fig, fig_dir, "demo_oedb_mechanism")
 
 
-def make_figures(record, h1, fig_dir):
+def _fig_maximin(record, fig_dir):
+    """Fig 3 (MAXIMIN): the hedge -- sigma(M)/M(f_bin) for the marginalize vs maximin design
+    over the f_bin grid, + an inset of the two per-bin allocations.
+
+    Main panel: sigma(M)/M vs f_bin (two curves -- marginalize, maximin). The marginalize
+    design (optimized AT the truth f_bin = 0.5, marked with a vertical line) is LOWEST there;
+    the maximin design is LOWEST at the WORST case (the f_bin = F_MAX endpoint, marked) --
+    that crossing IS the hedge. Both worst cases are marked with points. An inset shows the
+    two allocations (n_eff per bin vs R): the maximin design pulls budget toward the outer
+    radii where the binary pedestal has more leverage at high f_bin (the conservative hedge).
+    """
+    import matplotlib.pyplot as plt
+
+    M = record["maximin"]
+    fg = np.asarray(M["f_bin_grid"])
+    s_marg = np.asarray(M["grid_sigmaM_marg"])
+    s_mm = np.asarray(M["grid_sigmaM_mm"])
+    R = np.asarray(record["design"]["R_bins_pc"])
+    n_marg = np.asarray(M["n_eff_marg"])
+    n_mm = np.asarray(M["n_eff_mm"])
+    f_truth = record["params"]["f_bin_truth"]
+    f_max = M["F_max"]
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.8))
+
+    # main: sigma(M)/M(f_bin) for both designs (as a percentage for readability).
+    ax.plot(fg, 100 * s_marg, "-o", ms=4.5, color=OI["blue"], zorder=3,
+            label="marginalize design (optimal @ $f_{\\rm bin}=0.5$)")
+    ax.plot(fg, 100 * s_mm, "-s", ms=4.5, color=OI["vermilion"], zorder=3,
+            label="maximin design (optimal @ worst case)")
+
+    # mark the truth f_bin (where marginalize wins) and the worst-case f_bin (where maximin wins).
+    ax.axvline(f_truth, color="0.45", ls="--", lw=1.1, zorder=1)
+    ax.text(f_truth, ax.get_ylim()[0], "  truth $f_{\\rm bin}=0.5$", color="0.35",
+            fontsize=8.5, va="bottom", ha="left", rotation=90)
+    ax.axvline(f_max, color="0.45", ls=":", lw=1.1, zorder=1)
+    # worst-case points (the design-defining values).
+    ax.plot([f_max], [100 * M["sigmaM_worst_marg"]], "o", ms=9, mfc="none",
+            mec=OI["blue"], mew=1.8, zorder=4)
+    ax.plot([f_max], [100 * M["sigmaM_worst_mm"]], "s", ms=9, mfc="none",
+            mec=OI["vermilion"], mew=1.8, zorder=4)
+
+    # the hedge callout: sacrifice at truth, gain at worst.
+    ax.text(0.03, 0.97,
+            f"the hedge:\nmaximin gives up ${100 * M['sacrifice_at_truth_frac']:+.2f}\\%$ "
+            f"at $f_{{\\rm bin}}=0.5$\nto gain ${100 * M['gain_at_worst_frac']:+.2f}\\%$ "
+            f"at the worst case ($f_{{\\rm bin}}={f_max}$)",
+            transform=ax.transAxes, fontsize=9.5, va="top", ha="left",
+            bbox=dict(boxstyle="round,pad=0.4", fc=OI["yellow"], ec="0.4", alpha=0.85))
+
+    ax.set_xlabel(r"assumed binary fraction  $f_{\rm bin}$")
+    ax.set_ylabel(r"forecast precision  $\sigma(M)/M$  [\%]")
+    ax.legend(loc="lower right", fontsize=8.5)
+    panel_label(ax, "robust design: the hedge", loc="lower left")
+
+    # inset: the two per-bin allocations (where the hedge SPENDS its stars).
+    axin = ax.inset_axes([0.11, 0.40, 0.42, 0.34])
+    logR = np.log10(R)
+    bw = 0.38 * (logR[1] - logR[0])
+    axin.bar(logR - bw / 2, n_marg, width=bw, color=OI["blue"], alpha=0.7,
+             label="marg.", edgecolor="white", linewidth=0.2)
+    axin.bar(logR + bw / 2, n_mm, width=bw, color=OI["vermilion"], alpha=0.7,
+             label="maximin", edgecolor="white", linewidth=0.2)
+    axin.set_xlabel(r"$\log_{10}(R/{\rm pc})$", fontsize=7.5, labelpad=1)
+    axin.set_ylabel(r"$n_{\rm eff}$", fontsize=7.5, labelpad=1)
+    axin.tick_params(labelsize=6.5)
+    axin.legend(fontsize=6.5, loc="upper left")
+    axin.set_title("allocation", fontsize=7.5, pad=2)
+
+    fig.tight_layout()
+    save_fig(fig, fig_dir, "demo_oedb_maximin")
+
+
+def make_figures(record, h1, fig_dir, cmp=None):
     """Generate the binary-misspecification figures into fig_dir (PNG + PDF via save_fig).
 
       * fig 1 (false_confidence): M_hat/M for the naive design + binaries (~2.85, tiny
         forecast error bar) vs truth vs the f_bin=0 baseline. ONLY in full MC mode (h1 set).
       * fig 2 (mechanism): sigma_los(R) + the binary pedestal + the design's allocation --
         WHY the bias happens. Always produced (no MC).
+      * fig 3 (maximin): sigma(M)/M(f_bin) for the marginalize vs maximin design + the two
+        allocations -- the robust-design hedge. ONLY when --maximin (cmp set).
     """
     apply_pub_style()
     os.makedirs(fig_dir, exist_ok=True)
     print(f"\n  generating figures -> {fig_dir}/ ...")
     _fig_mechanism(record, fig_dir)
+    n_figs = 1
     if h1 is not None:
         _fig_false_confidence(record, h1, fig_dir)
-        print(f"  figures: wrote 2 PNG+PDF (mechanism + false_confidence) to "
-              f"{fig_dir}/demo_oedb_*.png")
-    else:
-        print(f"  figures: wrote 1 PNG+PDF (mechanism; no MC -> no false-confidence figure) "
-              f"to {fig_dir}/demo_oedb_mechanism.png")
+        n_figs += 1
+    if cmp is not None:
+        _fig_maximin(record, fig_dir)
+        n_figs += 1
+    print(f"  figures: wrote {n_figs} PNG+PDF (mechanism"
+          f"{' + false_confidence' if h1 is not None else ''}"
+          f"{' + maximin' if cmp is not None else ''}) to {fig_dir}/demo_oedb_*.png")
 
 
 if __name__ == "__main__":

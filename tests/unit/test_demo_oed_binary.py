@@ -595,3 +595,23 @@ def test_maximin_design_wins_at_worstcase():
     # maximin's worst-case must not exceed the marginalize design's worst-case (small
     # numerical slack for the two independent Adam optima).
     assert mm.worstcase_sigma_M <= wc_marg + 1e-6
+
+
+def test_compare_maximin_vs_marginalize_is_a_hedge():
+    """Task 3.2 comparison: the maximin design HEDGES -- it sacrifices a little sigma(M) at
+    the truth f_bin = 0.5 to lower the worst-case sigma(M) over the grid. The marginalize
+    design (optimized at the truth) is best AT f_bin = 0.5; the maximin design is best at
+    the worst case. Both summary fractions are non-negative (sacrifice at truth >= 0, gain
+    at worst >= 0) -- the textbook robust-design trade. Shapes/finiteness sanity too."""
+    cmp = oedb.compare_maximin_vs_marginalize(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    G = oedb.N_FBIN_GRID
+    K = oedb.R_BINS.shape[0]
+    assert cmp.grid_sigmaM_marg.shape == (G,) and cmp.grid_sigmaM_mm.shape == (G,)
+    assert cmp.n_eff_marg.shape == (K,) and cmp.n_eff_mm.shape == (K,)
+    # marginalize wins AT the truth f_bin: its sigma(M) there is <= maximin's.
+    assert cmp.sigmaM_truth_marg <= cmp.sigmaM_truth_mm + 1e-9
+    # maximin wins at the WORST case: its worst-case sigma(M) is <= marginalize's.
+    assert cmp.sigmaM_worst_mm <= cmp.sigmaM_worst_marg + 1e-9
+    # the hedge: a (non-negative) sacrifice at truth buys a (non-negative) worst-case gain.
+    assert cmp.sacrifice_at_truth_frac >= -1e-9
+    assert cmp.gain_at_worst_frac >= -1e-9

@@ -868,6 +868,84 @@ def optimize_design_maximin(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 
 
 # ===========================================================================
+# Task 3.2: maximin vs marginalize comparison (the hedge, quantified)
+# ===========================================================================
+#
+# The two robust designs answer different questions:
+#  * the MARGINALIZE design (optimize_design_M_marg) is c-optimal-for-M at the ASSUMED truth
+#    f_bin = F_BIN_TRUTH -- best IF you trust Moe's binary fraction;
+#  * the MAXIMIN design (optimize_design_maximin) is c-optimal for the WORST f_bin in
+#    [0, F_MAX] -- it HEDGES, sacrificing a little precision at f_bin = 0.5 to LOWER the
+#    precision you would suffer at the worst-case f_bin if Moe's value is wrong.
+# The comparison tabulates, for BOTH designs: (i) sigma(M) at the truth f_bin = 0.5, (ii) the
+# worst-case sigma(M) over the grid, and (iii) the per-bin allocation. The expected story is
+# the textbook hedge: maximin is marginally worse at f_bin = 0.5 but better at the worst case,
+# with a more conservative (outskirts-weighted) allocation. The actual trade is small here
+# (sigma(M)(f_bin) is monotone in f_bin, so the marginalize design at 0.5 is already close to
+# maximin-optimal) and is reported faithfully, not inflated.
+
+
+class MaximinComparison(NamedTuple):
+    """Maximin-vs-marginalize comparison (Task 3.2), for both robust designs:
+      * sigmaM_truth_marg / sigmaM_truth_mm   : sigma(M)/M AT the truth f_bin = F_BIN_TRUTH,
+      * sigmaM_worst_marg / sigmaM_worst_mm   : the WORST-CASE sigma(M)/M over the f_bin grid,
+      * grid_sigmaM_marg / grid_sigmaM_mm     : the full sigma(M)/M(f_bin) curves (G,),
+      * n_eff_marg / n_eff_mm                 : the two per-bin allocations (K,),
+      * f_bin_grid                            : the f_bin grid the curves are over (G,),
+      * sacrifice_at_truth_frac               : (sigmaM_truth_mm/sigmaM_truth_marg - 1), the
+                                                fractional precision the maximin design GIVES UP
+                                                at f_bin = 0.5 (positive = a sacrifice),
+      * gain_at_worst_frac                    : (1 - sigmaM_worst_mm/sigmaM_worst_marg), the
+                                                fractional worst-case precision the maximin
+                                                design BUYS (positive = an improvement)."""
+    sigmaM_truth_marg: float
+    sigmaM_truth_mm: float
+    sigmaM_worst_marg: float
+    sigmaM_worst_mm: float
+    grid_sigmaM_marg: jnp.ndarray
+    grid_sigmaM_mm: jnp.ndarray
+    n_eff_marg: jnp.ndarray
+    n_eff_mm: jnp.ndarray
+    f_bin_grid: jnp.ndarray
+    sacrifice_at_truth_frac: float
+    gain_at_worst_frac: float
+
+
+def compare_maximin_vs_marginalize(N_total=N_TOTAL, key=None, **opt_kwargs):
+    r"""Compute the maximin-vs-marginalize comparison (Task 3.2).
+
+    Optimizes BOTH robust designs (marginalize at the truth f_bin; maximin over the f_bin
+    grid) and tabulates, for each: sigma(M)/M at the truth f_bin = F_BIN_TRUTH, the worst-case
+    sigma(M)/M over the grid, the full sigma(M)/M(f_bin) curve, and the per-bin allocation.
+    The ``sacrifice_at_truth_frac`` / ``gain_at_worst_frac`` summarize the hedge: maximin pays
+    a little at f_bin = 0.5 to gain at the worst case. Returns a MaximinComparison.
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    marg = optimize_design_M_marg(N_total, key=key, **opt_kwargs)
+    mm = optimize_design_maximin(N_total, key=key, **opt_kwargs)
+
+    sigmaM_truth_marg = sigmaM_under_marg(marg.z, N_total)   # f_bin = F_BIN_TRUTH (the cached _SIG_MARG)
+    sigmaM_truth_mm = sigmaM_under_marg(mm.z, N_total)
+    grid_marg = _grid_sigmaM(marg.z, N_total)
+    grid_mm = _grid_sigmaM(mm.z, N_total)
+    sigmaM_worst_marg = float(jnp.max(grid_marg))
+    sigmaM_worst_mm = float(jnp.max(grid_mm))
+    return MaximinComparison(
+        sigmaM_truth_marg=sigmaM_truth_marg,
+        sigmaM_truth_mm=sigmaM_truth_mm,
+        sigmaM_worst_marg=sigmaM_worst_marg,
+        sigmaM_worst_mm=sigmaM_worst_mm,
+        grid_sigmaM_marg=grid_marg,
+        grid_sigmaM_mm=grid_mm,
+        n_eff_marg=marg.n_eff,
+        n_eff_mm=mm.n_eff,
+        f_bin_grid=F_BIN_GRID,
+        sacrifice_at_truth_frac=sigmaM_truth_mm / sigmaM_truth_marg - 1.0,
+        gain_at_worst_frac=1.0 - sigmaM_worst_mm / sigmaM_worst_marg,
+    )
+
+
+# ===========================================================================
 # Task 1.4: cross-model bias harness (the H1 headline machinery)
 # ===========================================================================
 #
