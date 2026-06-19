@@ -366,9 +366,14 @@ def main(argv=None):
             "stage1_ra_outer_fraction": (ra["outer"] if ra is not None else None),
         },
     }
-    with open(RUN_RECORD, "w") as f:
+    # Write the run-record into --outdir (NOT the fixed FIGURE_DIR): the @quick smoke test
+    # passes --outdir=tmp_path, so a fixed path would clobber the committed full-quality
+    # record with low-resolution smoke numbers. The default --outdir IS FIGURE_DIR, so a real
+    # figure-generation run still lands the record next to the committed figures.
+    run_record_path = os.path.join(args.outdir, os.path.basename(RUN_RECORD))
+    with open(run_record_path, "w") as f:
         json.dump(record, f, indent=2)
-    print(f"  run-record -> {RUN_RECORD}")
+    print(f"  run-record -> {run_record_path}")
 
     # --- figures ----------------------------------------------------------- #
     if args.no_figures:
