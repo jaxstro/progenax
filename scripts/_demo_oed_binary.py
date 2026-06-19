@@ -467,6 +467,87 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 
 
 # ===========================================================================
+# Task 2.1: marginalized (5-param) Fisher + f_bin prior (the binary-AWARE model)
+# ===========================================================================
+#
+# The binary-AWARE model carries f_bin as a FREE nuisance: theta = (M, r_a, gamma, a,
+# f_bin). The marginalized c-optimal-for-M design (Task 2.2) tightens M while
+# marginalizing over the unknown binary fraction, so the reported sigma(M) reflects
+# HONEST binary-fraction uncertainty (it is LARGER than the binary-free 4.5% -- you pay
+# for not knowing f_bin). The mechanism that makes M recoverable at all is the radial
+# leverage: the f_bin column of J (= f_bin*V_bin/(2 sigma_obs)) grows toward the cold
+# outskirts, while M information is everywhere, so the core<->outskirts contrast breaks
+# the M<->f_bin degeneracy without any external f_bin prior.
+#
+# The Fisher is the SAME additive single-RV-channel form as fisher_binary_free, lifted
+# to 5 params:
+#
+#   F = Sum_b n_b * M_b + diag(PRIOR_DIAG_MARG),  M_b = 2 * outer(J_b, J_b) / (sigma_b^2 + eps_RV^2)
+#
+# with n_b = N_total * softmax(z), J_b the 5-vector row of the full jacrev _J_MARG, and
+# CRUCIALLY sigma_b = the binary-INFLATED observed dispersion _SIG_MARG (= predict_sigma_obs
+# at the full truth). The Fisher denominator (sigma^2 + eps^2) is the variance of the
+# OBSERVED dispersion estimator, so it must use the observed (binary-inflated) sigma_obs,
+# NOT the bare cluster sigma -- the binaries inflate the per-bin scatter the analyst sees.
+
+# Priors on the marginalized theta = (M, r_a, gamma, a, f_bin), as ln-theta FRACTIONAL
+# precisions 1/sigma_frac^2 (ADR 0011). The first four match PRIOR_DIAG_BF exactly (so
+# the binary-aware vs binary-free comparison is apples-to-apples on the cluster subspace);
+# the new f_bin entry is the modeling choice this task documents:
+#  * f_bin (idx 4) = 1/0.5^2 -- a WEAK prior (50% fractional), the SAME weak structure as
+#    the r_a kinematic nuisance. f_bin is a DATA-DRIVEN nuisance: it is constrained by the
+#    radial RV leverage (the flat f_bin*V_bin pedestal vs the cluster's sigma(R) profile),
+#    NOT by an external measurement. A weak (not tight, not zero) prior is the honest
+#    choice: it (i) keeps the marginalized sigma(M) reflecting genuine binary-fraction
+#    uncertainty (a tight f_bin prior would fake away the cost of not knowing f_bin, and a
+#    zero/no prior would leave f_bin under-conditioned in bins with little leverage), while
+#    (ii) deferring identification to the design -- the whole point of H2/H3 is that the
+#    binary-AWARE design earns the f_bin constraint from radial leverage, not from a prior.
+_FRAC_FBIN = 0.5  # weak prior on the binary-fraction nuisance (data-driven via radial leverage)
+PRIOR_DIAG_MARG = jnp.array(
+    [0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_FBIN**2]
+)
+
+# ---------------------------------------------------------------------------
+# Build-once caches at the FULL truth (design-INDEPENDENT -- enforce-jax-performance),
+# mirroring the binary-free _J_BF/_SIG_BF. The full 5-column jacrev (the single expensive
+# jacrev through project_dispersion) and the binary-INFLATED observed dispersion are
+# computed ONCE here at import, NEVER re-jacrev'd inside the optimizer loop. Both constant
+# wrt the design weights z (theta is the fixed truth).
+#  * _J_MARG = d sigma_obs / d ln theta at the full truth, (K, 5) -- includes the f_bin
+#    column (verified AD-vs-FD in Task 2.1's gate).
+#  * _SIG_MARG = predict_sigma_obs(full truth) -- the binary-inflated observed sigma_los
+#    (km/s); the Fisher denominator (sigma^2 + eps^2) is the OBSERVED-dispersion variance.
+_J_MARG = jacobian_lntheta(theta_truth(), R_BINS, STELLAR.G)    # (K, 5)
+_SIG_MARG = predict_sigma_obs(theta_truth(), R_BINS, STELLAR.G)  # (K,) km/s (binary-inflated)
+
+
+def fisher_marginalized(design_weights, N_total, J=None, sig=None, prior_diag=None):
+    r"""Additive single-channel RV Fisher for the marginalized theta = (M, r_a, gamma, a, f_bin).
+
+    The binary-AWARE analogue of ``fisher_binary_free``, 5-param:
+    ``F = Sum_b n_b * M_b + diag(prior_diag)`` with per-bin counts
+    ``n_b = N_total * softmax(design_weights)`` and the rank-1 per-bin block
+    ``M_b = 2 * outer(J_b, J_b) / (sigma_b^2 + eps_RV^2)``. ``J`` defaults to the
+    build-once 5-column truth jacrev ``_J_MARG`` (includes the f_bin column) and ``sig`` to
+    the build-once binary-INFLATED observed dispersion ``_SIG_MARG`` (km/s) -- the Fisher
+    denominator is the OBSERVED-dispersion variance, so it uses the binary-inflated sigma,
+    not the bare cluster sigma. ``prior_diag`` defaults to ``PRIOR_DIAG_MARG``. Symmetric
+    (5, 5); SPD with the prior (the weak f_bin + r_a priors regularize the nuisance
+    subspace). Differentiable in ``design_weights`` (pure softmax + linear algebra -- no
+    re-jacrev: ``_J_MARG`` / ``_SIG_MARG`` are constants).
+    """
+    J = _J_MARG if J is None else J
+    sig = _SIG_MARG if sig is None else sig
+    prior_diag = PRIOR_DIAG_MARG if prior_diag is None else prior_diag
+    n_b = N_total * jax.nn.softmax(design_weights)                  # (K,) per-bin counts
+    denom = sig**2 + EPS_RV_KMS**2                                  # (K,) observed-dispersion denom
+    M_b = 2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]  # (K, 5, 5) per-bin blocks
+    F = jnp.einsum("k,kpq->pq", n_b, M_b)                           # additive design Fisher
+    return F + jnp.diag(prior_diag)
+
+
+# ===========================================================================
 # Task 1.4: cross-model bias harness (the H1 headline machinery)
 # ===========================================================================
 #

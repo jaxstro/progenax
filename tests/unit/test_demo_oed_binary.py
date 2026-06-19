@@ -348,3 +348,80 @@ def test_cli_binary_quick_smoke(tmp_path):
     # The run-record path derives from --outdir (Stage-3 lesson): it lands in tmp_path,
     # never the committed FIGURE_DIR.
     assert (tmp_path / "demo_oed_binary_run_record.json").exists()
+
+
+# ===========================================================================
+# Phase 2 -- Marginalize fix (deterministic group: T2.1 + T2.2 + H2 + H3)
+# ===========================================================================
+#
+# Task 2.1: marginalized (5-param) Fisher + f_bin prior + AD-vs-FD f_bin gate.
+# The marginalized model carries f_bin as a FREE nuisance: theta = (M, r_a, gamma,
+# a, f_bin). The Fisher denominator uses the binary-INFLATED observed dispersion
+# (sigma_obs^2 + eps^2), and the f_bin column of J carries the radial leverage that
+# breaks M<->f_bin. Build-once at the full truth (no re-jacrev in the optimizer loop).
+# ---------------------------------------------------------------------------
+def test_marginalized_fisher_symmetric_and_spd():
+    """The marginalized 5-param additive Fisher (single RV channel, ln-theta, +prior)
+    is symmetric and strictly positive-definite for a uniform design."""
+    F = oedb.fisher_marginalized(oedb.uniform_design(), oedb.N_TOTAL)
+    assert F.shape == (5, 5)
+    assert jnp.allclose(F, F.T)
+    assert bool(jnp.all(jnp.linalg.eigvalsh(F) > 0.0))
+
+
+def test_prior_diag_marg_shape_and_fbin_weak():
+    """PRIOR_DIAG_MARG is len-5 ln-theta fractional precisions: M=0 (target, no prior),
+    r_a weak, (gamma, a) tight photometric, f_bin WEAK (a data-driven nuisance
+    constrained by radial leverage, not by a prior). The f_bin precision must be SMALL
+    relative to the photometric (gamma, a) precision -- f_bin is NOT photometrically
+    pinned; the design's core<->outskirts contrast is what constrains it."""
+    pd = oedb.PRIOR_DIAG_MARG
+    assert pd.shape == (5,)
+    assert float(pd[oedb.IDX_M]) == 0.0                       # target: no prior
+    # f_bin is a weak (data-driven) nuisance: its prior precision is far below the tight
+    # photometric (gamma, a) precision (1/0.1^2 = 100) -- the radial leverage constrains it.
+    assert float(pd[oedb.IDX_FBIN]) < float(pd[oedb.IDX_GAMMA])
+    assert float(pd[oedb.IDX_FBIN]) < float(pd[oedb.IDX_A])
+    # ... and it matches the binary-free r_a weak prior structure (a kinematic nuisance).
+    assert float(pd[oedb.IDX_RA]) > 0.0 and float(pd[oedb.IDX_FBIN]) > 0.0
+
+
+def test_jacobian_lntheta_fbin_column_ad_vs_fd():
+    """AD-vs-FD gate on the f_bin column of jacobian_lntheta (gradient-validation).
+
+    The analytic ln-theta sensitivity d sigma_obs / d ln f_bin = f_bin * V_BIN /
+    (2 sigma_obs) (verified 4e-16 against its closed form in Task 1.2) is here
+    cross-checked by an EXPLICIT central finite difference of the FULL observable
+    predict_sigma_obs wrt ln f_bin at the truth. Reverse-mode AD vs central FD must
+    agree to rel < 1e-3 (the design-doc validation-gate threshold; central FD is
+    O(h^2)-truncation-limited, so 1e-3 is the achievable accuracy at a sane step)."""
+    th = oedb.theta_truth()
+    R = oedb.R_BINS
+    J = oedb.jacobian_lntheta(th, R, STELLAR.G)               # (K, 5)
+    ad_fcol = J[:, oedb.IDX_FBIN]                             # d sigma_obs / d ln f_bin (AD)
+
+    # Central FD of sigma_obs(exp(lnth)) wrt the f_bin log-coordinate, at ln(truth).
+    lnth = jnp.log(th)
+    h = 1e-4                                                  # log-step
+    e_fbin = jnp.zeros(5).at[oedb.IDX_FBIN].set(1.0)
+    sig_plus = oedb.predict_sigma_obs(jnp.exp(lnth + h * e_fbin), R, STELLAR.G)
+    sig_minus = oedb.predict_sigma_obs(jnp.exp(lnth - h * e_fbin), R, STELLAR.G)
+    fd_fcol = (sig_plus - sig_minus) / (2.0 * h)             # d sigma_obs / d ln f_bin (FD)
+
+    rel = jnp.max(jnp.abs(ad_fcol - fd_fcol) / jnp.abs(fd_fcol))
+    assert float(rel) < 1e-3, f"AD-vs-FD f_bin column rel-err {float(rel):.2e} >= 1e-3"
+
+
+def test_marginalized_fisher_uses_inflated_denominator():
+    """The marginalized Fisher denominator uses the binary-INFLATED observed dispersion
+    (_SIG_MARG = predict_sigma_obs at the full truth), NOT the bare cluster sigma. The
+    cached _SIG_MARG must equal the binary-inflated observable and strictly exceed the
+    binary-free _SIG_BF (the f_bin pedestal inflates the observed second moment)."""
+    sig_obs = oedb.predict_sigma_obs(oedb.theta_truth(), oedb.R_BINS, STELLAR.G)
+    assert jnp.allclose(oedb._SIG_MARG, sig_obs, rtol=1e-12)
+    assert bool(jnp.all(oedb._SIG_MARG >= oedb._SIG_BF))      # inflated >= bare cluster
+    # _J_MARG is the full 5-column jacrev at the truth (build-once, no re-jacrev in loop).
+    assert oedb._J_MARG.shape == (oedb.R_BINS.shape[0], 5)
+    assert jnp.allclose(
+        oedb._J_MARG, oedb.jacobian_lntheta(oedb.theta_truth(), oedb.R_BINS, STELLAR.G)
+    )
