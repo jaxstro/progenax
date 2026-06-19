@@ -548,6 +548,156 @@ def fisher_marginalized(design_weights, N_total, J=None, sig=None, prior_diag=No
 
 
 # ===========================================================================
+# Task 2.2: binary-aware c-optimal-for-M design + H2 (OED payoff) + H3 (allocation)
+# ===========================================================================
+#
+# The binary-AWARE design is c-optimal-for-M over the 5-param marginalized Fisher (M is
+# index IDX_M = 0; f_bin is marginalized as a free nuisance). It tightens M while paying
+# the honest cost of not knowing f_bin -- so its sigma(M)/M is LARGER than the binary-free
+# 4.5% (which is over-confident: the binary-free Fisher pretends f_bin is known exactly).
+#
+# H2 (OED payoff, pre-registered ACCEPT iff >= 1.3x): scored under the SAME binary-aware
+# (marginalized) Fisher, how much does the binary-aware design tighten M vs the binary-free
+# design? precision_gain = sigmaM_under_marg(binary_free_z) / sigmaM_under_marg(binary_aware_z).
+# The binary-free design did not optimize for the marginalized problem, so its marginalized
+# sigma(M) is inflated -- the binary-aware design recovers the gain.
+#
+# H3 (non-obvious allocation, pre-registered): the binary-aware allocation is NOT a monotone
+# rescaling of the binary-free one. A monotone rescaling preserves the per-bin weight RANK
+# order and gives a near-1 cosine similarity; the binary-aware design REORDERS the bins
+# (it pulls budget toward the f_bin-constraining radii), so the ranks differ and the cosine
+# similarity is far below 1.
+
+
+def _optimize_one_M_marg(z0, N_total, n_steps, lr):
+    """One Adam trajectory minimizing c-optimality for M over the marginalized Fisher.
+
+    The binary-aware analogue of ``_optimize_one_M``: fixed-iteration ``jax.lax.scan``
+    over the length-K design logits z, jit step. The marginalized Fisher is pure linear
+    algebra over the cached _J_MARG/_SIG_MARG (no re-jacrev), so each step is cheap.
+    Returns (z_final, trace).
+    """
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: oed.c_criterion(fisher_marginalized(z, N_total), target=IDX_M)
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def optimize_design_M_marg(N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam for the binary-AWARE c-optimal-for-M radial RV design.
+
+    Minimizes ``c_criterion(fisher_marginalized(z, N_total), target=IDX_M)`` -- the
+    MARGINALIZED fractional variance [sigma(M)/M]^2 with f_bin a free nuisance -- over the
+    length-K design logits z, running ``n_starts`` independent Adam trajectories and keeping
+    the lowest-criterion result. Mirrors ``optimize_design_M`` exactly, swapping the
+    binary-free 4-param Fisher for the 5-param marginalized one.
+
+    The reported sigma(M)/M is LARGER than the binary-free design's (you pay for
+    marginalizing the unknown f_bin) -- the HONEST binary-aware precision. The SPD invariant
+    holds for the same reason as the binary-free case: softmax(z) > 0 for every finite z and
+    PRIOR_DIAG_MARG adds strictly positive precision on the (r_a, gamma, a, f_bin) nuisance
+    subspace, so the regularized F stays SPD throughout. Returns a DesignResultM.
+    """
+    K = R_BINS.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (K,)) * 0.5
+        z, trace = _optimize_one_M_marg(z0, N_total, n_steps, lr)
+        crit = float(oed.c_criterion(fisher_marginalized(z, N_total), target=IDX_M))
+        if math.isfinite(crit) and (best is None or crit < best[0]):
+            best = (crit, z, trace)
+    crit, z, trace = best
+    n_eff = N_total * jax.nn.softmax(z)
+    return DesignResultM(n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace)
+
+
+def sigmaM_under_marg(z, N_total=N_TOTAL):
+    """Marginalized fractional precision sigma(M)/M of a design z under the binary-AWARE
+    (5-param marginalized) Fisher: sqrt((F^-1)[M, M]) in the ln-theta metric. The common
+    yard-stick for H2: both the binary-free and the binary-aware design are SCORED here,
+    on the same marginalized Fisher, so the comparison is apples-to-apples."""
+    return float(jnp.sqrt(oed.c_criterion(fisher_marginalized(z, N_total), target=IDX_M)))
+
+
+def h2_precision_gain(N_total=N_TOTAL, key=None, **opt_kwargs):
+    r"""H2 OED payoff: precision_gain = sigmaM_under_marg(binary_free_z) /
+    sigmaM_under_marg(binary_aware_z) (pre-registered ACCEPT iff >= 1.3x).
+
+    Both designs are evaluated under the SAME binary-aware marginalized Fisher (the honest
+    inference model). ``binary_free_z`` = the Phase-1 c-optimal-for-M design under the
+    binary-free Fisher (the design a binary-UNAWARE analyst adopts); ``binary_aware_z`` =
+    optimize_design_M_marg (c-optimal-for-M under the marginalized Fisher). The binary-free
+    design is over-confident -- it tightened M under a Fisher that pretends f_bin is known,
+    so under the marginalized Fisher its sigma(M) is inflated; the binary-aware design
+    recovers the precision_gain. A gain < 1.3 is a reportable NULL finding (the binary-free
+    design was accidentally near-optimal for the marginalized problem) -- do NOT weaken.
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    binary_free_z = optimize_design_M(N_total, key=key, **opt_kwargs).z
+    binary_aware_z = optimize_design_M_marg(N_total, key=key, **opt_kwargs).z
+    return sigmaM_under_marg(binary_free_z, N_total) / sigmaM_under_marg(binary_aware_z, N_total)
+
+
+class AllocationComparison(NamedTuple):
+    """H3 allocation comparison (binary-aware vs binary-free per-bin design weights):
+
+      * ranks_differ      : True iff the per-bin weight RANK ORDER differs (a monotone
+                            rescaling would preserve it),
+      * cosine_similarity : cosine similarity of the two normalized weight vectors (a
+                            monotone rescaling -> ~1; reordering -> far below 1),
+      * w_binary_free     : binary-free per-bin weights (softmax, sums to 1) (K,),
+      * w_binary_aware    : binary-aware per-bin weights (softmax, sums to 1) (K,),
+      * rank_binary_free  : per-bin ascending rank of w_binary_free (K,) ints,
+      * rank_binary_aware : per-bin ascending rank of w_binary_aware (K,) ints."""
+    ranks_differ: bool
+    cosine_similarity: float
+    w_binary_free: jnp.ndarray
+    w_binary_aware: jnp.ndarray
+    rank_binary_free: jnp.ndarray
+    rank_binary_aware: jnp.ndarray
+
+
+def h3_allocation_comparison(N_total=N_TOTAL, key=None, **opt_kwargs):
+    r"""H3 non-obvious allocation: compare the binary-aware vs binary-free per-bin
+    allocations and test whether the binary-aware one is a MONOTONE RESCALING of the
+    binary-free one (pre-registered: ACCEPT non-monotone).
+
+    A monotone rescaling w_aware[b] = c * w_free[b] preserves the per-bin weight RANK
+    ORDER and gives cosine_similarity ~ 1. The binary-aware design instead REORDERS the
+    bins -- it pulls budget toward the f_bin-constraining radii (the cold outskirts where
+    the binary pedestal has leverage) and away from the bins the binary-free design favored
+    -- so ``ranks_differ`` is True and ``cosine_similarity`` is far below 1. Both quantified
+    metrics are reported (per the design doc "per-bin weight rank change / KL / cosine").
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    z_bf = optimize_design_M(N_total, key=key, **opt_kwargs).z
+    z_ba = optimize_design_M_marg(N_total, key=key, **opt_kwargs).z
+    w_bf = jax.nn.softmax(z_bf)                       # (K,) sums to 1
+    w_ba = jax.nn.softmax(z_ba)                       # (K,)
+    rank_bf = jnp.argsort(jnp.argsort(w_bf))          # ascending rank per bin
+    rank_ba = jnp.argsort(jnp.argsort(w_ba))
+    ranks_differ = bool(jnp.any(rank_bf != rank_ba))
+    cos = float(jnp.dot(w_bf, w_ba) / (jnp.linalg.norm(w_bf) * jnp.linalg.norm(w_ba)))
+    return AllocationComparison(
+        ranks_differ=ranks_differ,
+        cosine_similarity=cos,
+        w_binary_free=w_bf,
+        w_binary_aware=w_ba,
+        rank_binary_free=rank_bf,
+        rank_binary_aware=rank_ba,
+    )
+
+
+# ===========================================================================
 # Task 1.4: cross-model bias harness (the H1 headline machinery)
 # ===========================================================================
 #

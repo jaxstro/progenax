@@ -26,6 +26,7 @@ import progenax  # noqa: F401  -- enables float64 at import
 from jaxstro.units import STELLAR
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+import _demo_oed as oed  # noqa: E402  -- the Stage-1 c-criterion (reused by the marg gates)
 import _demo_oed_binary as oedb  # noqa: E402
 
 
@@ -424,4 +425,70 @@ def test_marginalized_fisher_uses_inflated_denominator():
     assert oedb._J_MARG.shape == (oedb.R_BINS.shape[0], 5)
     assert jnp.allclose(
         oedb._J_MARG, oedb.jacobian_lntheta(oedb.theta_truth(), oedb.R_BINS, STELLAR.G)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Task 2.2: binary-aware c-optimal-for-M design + H2 (OED payoff) + H3 (allocation).
+# H2/H3 are DETERMINISTIC pre-registered gates (Fisher/design only, no MC). Thresholds
+# LOCKED 2026-06-19 (design doc): H2 precision_gain >= 1.3x; H3 non-monotone allocation.
+# A reject is a reportable finding -- do NOT weaken (null-result integrity).
+# ---------------------------------------------------------------------------
+def test_optimize_design_M_marg_normalized_and_positive_sigma():
+    """optimize_design_M_marg returns per-bin counts summing to N_total (rtol 1e-4) and a
+    positive marginalized c-optimal fractional precision sigma(M)/M over the 5-param
+    fisher_marginalized."""
+    res = oedb.optimize_design_M_marg(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    assert jnp.isclose(jnp.sum(res.n_eff), oedb.N_TOTAL, rtol=1e-4)
+    assert res.sigma_M_over_M > 0.0
+    assert res.n_eff.shape == (oedb.R_BINS.shape[0],)
+    assert bool(jnp.all(res.n_eff > 0.0))     # softmax keeps every bin populated
+
+
+def test_marg_design_costs_info_vs_binary_free():
+    """Physical sanity: marginalizing over the unknown f_bin COSTS information, so the
+    binary-aware design's marginalized sigma(M)/M is LARGER than the binary-free design's
+    (over-confident) binary-free sigma(M)/M = 0.0447. You pay for not knowing f_bin."""
+    res_marg = oedb.optimize_design_M_marg(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    res_bf = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    assert res_marg.sigma_M_over_M > res_bf.sigma_M_over_M
+
+
+def test_marg_c_optimal_beats_uniform():
+    """The marginalized c-optimal-for-M design achieves sigma(M)/M no worse than the
+    uniform design under the SAME marginalized Fisher (optimization helps)."""
+    res = oedb.optimize_design_M_marg(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    F_unif = oedb.fisher_marginalized(oedb.uniform_design(), oedb.N_TOTAL)
+    sigma_M_unif = float(jnp.sqrt(oed.c_criterion(F_unif, target=oedb.IDX_M)))
+    assert res.sigma_M_over_M <= sigma_M_unif
+
+
+def test_H2_precision_gain_meets_threshold():
+    """H2 (OED payoff, pre-registered >= 1.3x): under the binary-AWARE (marginalized)
+    Fisher, the binary-aware design tightens sigma(M) by precision_gain =
+    sigmaM_under_marg(binary_free_z) / sigmaM_under_marg(binary_aware_z) >= 1.3. The
+    binary-free design is over-confident: scored under the marginalized Fisher (which it
+    did not optimize for) its sigma(M) is ~2x its own naive forecast, and the
+    binary-aware design recovers a 1.3x precision gain. LOCKED -- do NOT weaken; a
+    reject is a reportable null finding (binary-free was accidentally near-optimal)."""
+    gain = oedb.h2_precision_gain(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    assert gain >= 1.3, f"H2 precision_gain {gain:.3f} < 1.3 (pre-registered) -- report as null"
+
+
+def test_H3_allocation_non_monotone():
+    """H3 (non-obvious allocation, pre-registered): the binary-aware per-bin allocation is
+    NOT a monotone rescaling of the binary-free one. A monotone rescaling preserves the
+    per-bin weight RANK ORDER and gives a near-1 cosine similarity of the (normalized)
+    weight vectors; the binary-aware design instead REORDERS the bins (it pulls budget
+    toward the f_bin-constraining radii) -- so the ranks differ AND the cosine similarity
+    is far below 1. LOCKED -- a monotone result would be the null finding, reported not
+    weakened."""
+    h3 = oedb.h3_allocation_comparison(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    # Non-monotone signature 1: the per-bin weight rank order changes.
+    assert h3.ranks_differ, "binary-aware allocation preserved the binary-free rank order"
+    # Non-monotone signature 2: the weight-vector cosine similarity is far below 1 (a
+    # monotone rescaling would give cosine ~ 1). Documented threshold: < 0.9.
+    assert h3.cosine_similarity < 0.9, (
+        f"weight-vector cosine {h3.cosine_similarity:.3f} >= 0.9 -- too close to a "
+        "monotone rescaling"
     )
