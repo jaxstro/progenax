@@ -185,3 +185,24 @@ def test_c_optimal_beats_uniform_for_M():
     F_unif = oedb.fisher_binary_free(oedb.uniform_design(), oedb.N_TOTAL)
     sigma_M_unif = float(jnp.sqrt(oedb.c_criterion_M(F_unif)))
     assert res.sigma_M_over_M <= sigma_M_unif
+
+
+# ---------------------------------------------------------------------------
+# Task 1.4: cross-model bias harness (build-once EFF sampler + K_orb pool,
+# lax.map over draws, jit per-draw, LM GN MAP binary-free fit). FAST smoke
+# (n_draws=4): the headline H1 statistic must be finite. NOT @slow.
+# ---------------------------------------------------------------------------
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("n_draws", [4])
+def test_cross_model_bias_runs_and_is_finite(n_draws):
+    """The cross-model bias harness runs end-to-end (generate WITH Moe binaries on a
+    design, fit the binary-free model WITHOUT binaries) and returns a finite fractional
+    bias + std at a small n_draws (smoke; the @slow gate in Task 1.5 runs the full MC)."""
+    design = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0)).n_eff
+    out = oedb.cross_model_bias(design, n_draws=n_draws, key=jax.random.PRNGKey(1))
+    assert jnp.isfinite(out.bias_M_frac)
+    assert jnp.isfinite(out.std_M_frac)
+    assert out.std_M_frac >= 0.0
+    assert jnp.isfinite(out.mhat_mean) and out.mhat_mean > 0.0

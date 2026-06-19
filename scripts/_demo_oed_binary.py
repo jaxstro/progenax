@@ -31,6 +31,7 @@ JAX-native (``jax.numpy``); ``import progenax`` enables float64 before this modu
 
 See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
 """
+import functools
 import math
 import os
 import sys
@@ -41,7 +42,7 @@ import jax.numpy as jnp
 import optax
 
 from jaxstro.units import STELLAR
-from progenax import EFFProfile, project_dispersion
+from progenax import EFFProfile, EFFVelocityDF, project_dispersion
 from progenax.imf import Maschberger
 
 # Scripts-local siblings (NOT a packaged API): the Stage-1 OED backbone (reused for the
@@ -463,3 +464,413 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
     crit, z, trace = best
     n_eff = N_total * jax.nn.softmax(z)
     return DesignResultM(n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace)
+
+
+# ===========================================================================
+# Task 1.4: cross-model bias harness (the H1 headline machinery)
+# ===========================================================================
+#
+# The discriminating MC (pre-registration LOCKED 2026-06-19): GENERATE mocks UNDER
+# the binary model (EFF-OM cluster + a Moe-binary RV pedestal), then FIT the
+# BINARY-FREE model (f_bin == 0 -- the misspecification) and collect M_hat. If the
+# binary-free design walks into a biased M_hat -- larger than its own forecast sigma --
+# H1 bites.
+#
+# PERFORMANCE (enforce-jax-performance), mirroring _demo_oed_concentration:
+#  * BUILD-ONCE (per truth, before the draw loop): the EFF profile + EFFVelocityDF
+#    Eddington table (the expensive sampler structure -- identical every draw, same
+#    truth), and a large K_orb blend-velocity POOL (Moe massive-primary Delta samples
+#    drawn ONCE; per-draw injections are a cheap uniform resample of this pool). Neither
+#    is rebuilt inside the loop.
+#  * MC via jax.lax.map (SEQUENTIAL scan) over the draw keys -- one_draw compiles ONCE
+#    yet runs draw-by-draw, so peak memory is a SINGLE draw's GN-fit reverse-mode tape,
+#    NOT n_draws of them. (EFF density is analytic -> no ODE tape, but the binary-free
+#    GN fit's per-iter jacrev through project_dispersion's quadrature is the heavy part;
+#    lax.map keeps it memory-bounded.)
+#  * the per-draw fn is jit (static n_iter); the GN fit's jacrev is reverse-mode.
+
+# Parent-catalog size for the cross-model MC. The c-optimal-for-M design concentrates
+# counts into a FEW radial bins -- including the sparsely-populated outer EFF tail (R near
+# 0.95 r_t), where the steeply-declining EFF density puts only ~6% of the catalog. The
+# parent catalog must hold MORE stars in every bin than that bin's design cell needs (a
+# real survey cannot observe more stars than exist), so n_parent is sized from BOTH the
+# design (its largest per-bin count) and the EFF bin-occupancy profile (the sparsest bin
+# that carries a non-trivial cell), with a safety factor. _static_cell_sizes_1d still runs
+# the hard parent-too-small guard as a backstop. Mirrors the concentration demo's "size the
+# parent so no real cell underflows" sizing, made design-adaptive because our outer bins
+# are deep in the EFF tail.
+_N_PARENT_FLOOR = 8000      # floor: enough for a stable ddof=1 sigma_hat in every bin
+_N_PARENT_SAFETY = 1.6      # >1: hold comfortably more parent stars than any design cell needs
+
+
+def _bin_fractions(prof, edges, n_probe=80_000, seed=7):
+    """Empirical per-bin occupancy FRACTIONS of the EFF parent density (build-time probe).
+
+    Samples a large probe catalog ONCE to estimate what fraction of stars fall in each
+    R bin (the EFF tail bins are sparse: ~6% in the outermost). Used to size n_parent so
+    the design's per-bin counts fit the (sparsely-populated) outer bins. Host-side
+    bookkeeping (numpy digitize over a JAX-sampled catalog).
+    """
+    import numpy as np
+
+    masses = jnp.full((n_probe,), M_FID / n_probe)
+    pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
+    R = jnp.hypot(pos[:, 0], pos[:, 1])
+    K = R_BINS.shape[0]
+    binidx = np.digitize(np.asarray(R), np.asarray(edges)) - 1
+    frac = np.array([np.mean(binidx == b) for b in range(K)])
+    return frac
+
+
+def _n_parent_for_design(design_n_eff, prof, edges):
+    """Parent-catalog size so every bin holds >= its design cell (+safety), given the EFF
+    occupancy profile. n_parent = max(floor, safety * max_b n_eff[b] / frac[b]); the worst
+    case is the sparse-but-heavily-allocated outer tail bin. Guards frac>0."""
+    import numpy as np
+
+    frac = _bin_fractions(prof, edges)
+    n_eff = np.asarray(design_n_eff)
+    frac_safe = np.maximum(frac, 1e-3)               # never divide by an empty bin estimate
+    need = _N_PARENT_SAFETY * np.max(n_eff / frac_safe)
+    return int(max(_N_PARENT_FLOOR, math.ceil(need)))
+
+# K_orb injection pool size: a fixed pool of Moe massive-primary blend velocities Delta
+# [km/s]. Per draw, each binary-contaminated star draws one Delta uniformly (with
+# replacement) from this pool, so the realized injection variance -> Var(pool) -> V_BIN
+# as the pool grows (the same Moe massive-primary population that defines V_BIN).
+#
+# SIZE TRADE (perf, measured): the per-star gather korb_pool[idx] of n_parent indices,
+# fused in the lax.map body, has an XLA-CPU compile workspace that scales with the POOL
+# size: pool 2e5 -> 9 GB peak RSS, 6.5e4 -> 4.6 GB, 1.6e4 -> 2.9 GB. 16384 keeps the @slow
+# MC comfortably under the 4 GB OOM gate while still sampling Var(K_orb) to <~1% (16k
+# Moe draws; verified Var(pool) vs V_BIN). The bias is statistically unchanged from the
+# 2e5-pool value (the injected pedestal variance is set by the pool VARIANCE, not its size).
+_KORB_POOL_N = 16384
+
+# Levenberg-Marquardt MAP-fit settings for the binary-free GN fit (mirrors the
+# concentration demo's _GN_LM_LAM0 / _GN_N_ITER). The fit has P=4 params (M, r_a, gamma,
+# a); M and the photometrically-pinned (gamma, a) are well-constrained, r_a is the weak
+# nuisance the lam*I floor keeps bounded. 40 iters settles the TARGET M (the M-witness)
+# for all draws; the fit is cheap (it does NOT drive the peak RSS -- the EFF sampler +
+# K_orb gather do) so a generous iteration count is free.
+_BF_LM_LAM0 = 1e-2
+_BF_N_ITER = 40
+
+
+def _r_bin_edges_1d():
+    """K+1 geometric-mean bin edges bracketing the K log-spaced R_BINS centres.
+
+    Local reimplementation against THIS module's R_BINS (the coupling trap documented in
+    _demo_oed_concentration: the Stage-1 / concentration helpers read their OWN module-global
+    R_BINS, whose VALUES differ from ours -- importing them would bin against the wrong radii).
+    R_BINS is log-uniform, so the edges are the centres shifted by +-dlog/2 in log space.
+    """
+    lc = jnp.log(R_BINS)
+    dlog = lc[1] - lc[0]
+    return jnp.exp(jnp.concatenate([lc[:1] - dlog / 2.0, lc + dlog / 2.0]))
+
+
+def _bin_of_1d(R, edges):
+    """Per-star bin index (n,) in 0..K-1; out-of-range stars get the sentinel bin K."""
+    K = R_BINS.shape[0]
+    b = jnp.searchsorted(edges, R, side="right") - 1
+    return jnp.where((b < 0) | (b >= K), K, b)
+
+
+def _static_cell_sizes_1d(n_eff, R, edges):
+    """Host-side STATIC per-cell sizes for the single-channel JAX binning.
+
+    Returns (p_keep (K,), n_se (K,), members (K,)):
+
+      * ``p_keep[b] = min(1, n_use[b] / members[b])`` -- the per-bin Bernoulli inclusion
+        probability that thins the parent catalog to ~n_use[b] = max(round(n_eff[b]),
+        _MIN_CELL) selected stars in bin b (the survey selection function; see
+        _binned_sigma_hat_1d for why Bernoulli, not an exact-count sort);
+      * ``n_se[b] = max(n_eff[b], 1e-6)`` -- the TRUE design count for the SE weight, NOT
+        floored (the fit's per-cell weight 1/se^2 must equal the design Fisher's
+        2 n_eff/(sigma^2+eps^2), the concentration-demo lesson);
+      * ``members[b]`` -- the parent-catalog occupancy of bin b (reported for the guard).
+
+    Runs the parent-catalog-too-small guard on the host (the JAX binning cannot raise):
+    if any bin needs more selected stars than fell in it, raise a clear error. n_eff is
+    (K,) for the single RV channel.
+    """
+    import numpy as np  # host-side bookkeeping only; never numpy.random
+
+    K = R_BINS.shape[0]
+    bin_of = np.digitize(np.asarray(R), np.asarray(edges)) - 1
+    members = np.array([int(np.sum(bin_of == b)) for b in range(K)])
+    n_eff_np = np.asarray(n_eff)
+    n_use = np.maximum(np.round(n_eff_np).astype(int), oed._MIN_CELL)   # (K,)
+    for b in range(K):
+        if n_use[b] > members[b]:
+            raise ValueError(
+                f"cross-model parent catalog too small: bin {b} needs {n_use[b]} stars "
+                f"but only {members[b]} fell in the bin; increase n_parent."
+            )
+    members_safe = np.maximum(members, 1)
+    p_keep = np.minimum(n_use / members_safe, 1.0)
+    n_se = np.maximum(n_eff_np, 1e-6)
+    return jnp.asarray(p_keep), jnp.asarray(n_se), jnp.asarray(members)
+
+
+def _binned_sigma_hat_1d(key, v_los, R, p_keep, n_se, edges):
+    """vmappable single-channel binned sigma_hat (K,) + se (K,) from the LOS velocities.
+
+    PURE array function (no host control flow), so lax.map batches it across draws.
+
+    Subsampling = per-bin BERNOULLI THINNING (NOT an exact-count without-replacement
+    sort). Each parent star in bin b is independently kept with probability ``p_keep[b]``
+    (precomputed on the host so E[selected] = n_use[b]), then we add per-star Gaussian RV
+    error ~Normal(0, EPS_RV_KMS) and take the masked ddof=1 sample std of the kept stars.
+    The SE is sigma_hat / sqrt(2 n_se) at the TRUE design count (matches the Fisher weight).
+
+    WHY BERNOULLI, NOT THE EXACT-COUNT SORT (a deliberate perf+honesty choice): the
+    concentration demo's _within_bin_rank does a GLOBAL jnp.argsort over the parent
+    catalog to take exactly n_use lowest-priority members per bin. Fused into the lax.map
+    body alongside the EFF sampler + the GN-fit jacrev, that sort balloons the XLA-CPU
+    workspace to ~8 GB (measured: argsort fused = 7.8 GB; Bernoulli = 2.4 GB -- a >3x cut
+    that brings the @slow MC under the OOM gate). Bernoulli thinning is sort-free and is
+    ALSO the more faithful survey-selection model (a real RV survey draws each tracer
+    independently, not an exact quota). It preserves the science exactly for the bias: the
+    ddof=1 sample std is an UNBIASED dispersion estimate on whatever subset is kept (the
+    central sigma_hat does not depend on the exact count), and the SE weight uses the
+    design count n_se regardless -- so the realized bias and its forecast stay
+    apples-to-apples. The only difference is the per-bin count is ~Binomial(members,
+    p_keep) rather than fixed; with hundreds-to-thousands of stars per heavy bin the
+    +-sqrt(n_use) jitter is negligible.
+
+    NOTE: v_los is the ALREADY-binary-CONTAMINATED LOS velocity (the cluster COM velocity
+    plus, for the binary subset, the injected K_orb blend Delta); eps is the measurement
+    noise added on top here.
+    """
+    K = R_BINS.shape[0]
+    n = R.shape[0]
+    bin_of = _bin_of_1d(R, edges)                            # (n,) 0..K-1, K = sentinel
+    cell = jnp.arange(K)
+
+    kp, kn = jax.random.split(key)
+    # Per-star keep probability = its bin's p_keep (sentinel bin K -> 0 -> never kept).
+    p_star = jnp.where(bin_of < K, p_keep[jnp.minimum(bin_of, K - 1)], 0.0)
+    selected = jax.random.uniform(kp, (n,)) < p_star        # (n,) Bernoulli mask
+    v_obs = v_los + EPS_RV_KMS * jax.random.normal(kn, (n,))  # (n,) + measurement noise
+
+    in_bin = bin_of[None, :] == cell[:, None]               # (K, n)
+    w = (in_bin & selected[None, :]).astype(jnp.float64)    # (K, n) 0/1 weights
+    cnt = jnp.sum(w, axis=1)                                 # (K,) ~ Binomial(members, p_keep)
+    mean = jnp.sum(w * v_obs[None, :], axis=1) / jnp.maximum(cnt, 1.0)
+    var = jnp.sum(w * (v_obs[None, :] - mean[:, None]) ** 2, axis=1) / jnp.maximum(cnt - 1.0, 1.0)
+    sigma_hat = jnp.sqrt(var)                                # (K,) ddof=1
+    se = sigma_hat / jnp.sqrt(2.0 * n_se)                    # (K,) at the true design count
+    return sigma_hat, se
+
+
+@functools.partial(jax.jit, static_argnames=("n_iter",))
+def _fit_theta_bf_gn(sigma_hat, se, G, n_iter=_BF_N_ITER):
+    r"""Levenberg-Marquardt MAP fit of the BINARY-FREE theta = (M, r_a, gamma, a) in the
+    dimensionless ln-theta metric, started at the cluster-only truth.
+
+    The misspecified fit: the model is cluster_sigma_los (f_bin == 0, NO binary pedestal),
+    fit to the binary-CONTAMINATED binned dispersions. We fit u = ln(theta) - ln(theta_fid),
+    theta = theta_fid * exp(u) (every direction O(1); M~4e5, r_a/gamma/a are O(1), so a
+    single-LR physical step cannot move M -- the Stage-2 lesson). Each iteration solves the
+    DAMPED Gauss-Newton system
+      (Jr^T Jr + diag(PRIOR_DIAG_BF) + lam I) du = -(Jr^T r + PRIOR_DIAG_BF u)
+    with r = (model - data)/se the whitened residual and Jr = d r / d u (REVERSE-mode jacrev
+    through project_dispersion's quadrature; by policy), ACCEPTS the step only if it lowers
+    the MAP cost 0.5(||r||^2 + sum PRIOR_DIAG_BF u^2), and adapts lam (x0.3 accept, x3 reject).
+    The prior is PRIOR_DIAG_BF (M free, r_a weak, gamma/a tight -- the SAME prior the
+    forecast Fisher uses, so the cross-model bias is apples-to-apples with sigma_forecast).
+
+    Returns (theta_hat (4,), m_witness) where m_witness = max |M-component step| over the
+    LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
+    jit (static n_iter): sigma_hat/se/G are traced, so the project_dispersion-jacrev scan
+    compiles ONCE and is reused across every draw. Value-preserving.
+    """
+    theta_fid = theta_truth_clusteronly()                   # (M, r_a, gamma, a)
+
+    def resid(u):                                           # whitened residual (model - data)/se
+        theta = theta_fid * jnp.exp(u)
+        return (cluster_sigma_los(theta, R_BINS, G) - sigma_hat) / se
+
+    def cost_of(u, r):
+        return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG_BF * u**2))
+
+    def lm_step(carry, _):
+        u, lam = carry
+        r = resid(u)
+        c = cost_of(u, r)
+        Jr = jax.jacrev(resid)(u)                           # (K, 4) = d r / d u (reverse-mode)
+        grad = Jr.T @ r + PRIOR_DIAG_BF * u
+        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG_BF)
+        du = -jnp.linalg.solve(hess + lam * jnp.eye(4), grad)
+        u_try = u + du
+        c_try = cost_of(u_try, resid(u_try))
+        improved = c_try < c                               # NaN -> False -> reject
+        u_next = jnp.where(improved, u_try, u)
+        lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
+        m_moved = jnp.abs((u_next - u)[IDX_M])             # TARGET-M step witness
+        return (u_next, lam_next), m_moved
+
+    (u_hat, _), m_steps = jax.lax.scan(lm_step, (jnp.zeros(4), _BF_LM_LAM0), None, length=n_iter)
+    return theta_fid * jnp.exp(u_hat), jnp.max(m_steps[-5:])
+
+
+# B2-style convergence threshold on each fit's M-target witness (max |M-step| over the
+# last 5 LM iters, ln-theta). A settled fit moves M below this; a draw above it has a
+# still-moving M_hat and is SURFACED (not swallowed).
+_BF_CONVERGED_STEP = 1e-3
+
+
+class CrossModelResult(NamedTuple):
+    """Result of cross_model_bias (the H1 headline statistic; bias/std are FRACTIONAL,
+    i.e. relative to the truth M, in the ln-theta spirit of ADR 0011):
+
+      * bias_M_frac   : mean over draws of (M_hat - M_true) / M_true,
+      * std_M_frac    : std (ddof=1) over draws of (M_hat - M_true) / M_true,
+      * sem_M_frac    : standard error of the mean bias = std_M_frac / sqrt(n_draws),
+      * mhat_mean     : mean M_hat [Msun] (so M_FID*(1+bias_M_frac)),
+      * bias_other    : mean fractional bias of (r_a, gamma, a) -- is the pedestal absorbed
+                        into M, or partly into the nuisances?  (3,) array in theta order
+                        (r_a, gamma, a),
+      * n_unconverged : # draws whose M-target witness exceeded _BF_CONVERGED_STEP,
+      * max_M_step    : max over draws of the M-target witness."""
+    bias_M_frac: float
+    std_M_frac: float
+    sem_M_frac: float
+    mhat_mean: float
+    bias_other: jnp.ndarray
+    n_unconverged: int
+    max_M_step: float
+
+
+def cross_model_bias(design_n_eff, n_draws, key, n_iter=_BF_N_ITER):
+    r"""Cross-model MC: generate UNDER the binary model, fit the BINARY-FREE model.
+
+    The headline H1 machinery. For each of n_draws independent mocks (via SEQUENTIAL
+    jax.lax.map):
+
+      1. sample n_parent EFF particles at the fiducial cluster truth (positions +
+         OM velocities; total mass M_FID so the speed scale matches project_dispersion);
+      2. project to the sky (LOS = +z): R = hypot(x, y), v_los = v_z [km/s];
+      3. BINARY CONTAMINATION: each star is a binary-contaminated tracer with probability
+         f_bin = F_BIN_TRUTH (per-star Bernoulli); each contaminated star has one blend
+         velocity Delta (drawn uniformly with replacement from the build-once K_orb pool)
+         ADDED to its v_los. So E[Var added] = f_bin * V_BIN -- the SAME flat pedestal the
+         predict_sigma_obs model encodes;
+      4. bin into R_BINS, subsample the design counts `design_n_eff` per bin (without
+         replacement), add per-star eps_RV measurement noise -> per-bin sigma_hat + SE;
+      5. FIT the BINARY-FREE theta = (M, r_a, gamma, a) (NO binary pedestal -- the
+         misspecification) by LM-damped GN MAP in ln-theta with PRIOR_DIAG_BF;
+      6. collect M_hat (and the nuisance estimates).
+
+    Returns a CrossModelResult: mean fractional bias (M_hat - M)/M, its std + SEM, the
+    nuisance biases, and the M-target convergence diagnostics.
+
+    Build-once (enforce-jax-performance): the EFF profile + EFFVelocityDF Eddington table
+    (sampler, identical every draw -- same truth) and the K_orb blend-velocity pool are
+    built ONCE here, before the draw loop, and threaded into the jit'd per-draw body. The
+    velocities of stars (sampler) and the binary Delta pool are NEVER recomputed per draw.
+
+    Parameters
+    ----------
+    design_n_eff : (K,) array
+        Per-bin RV counts (the design under test; from optimize_design_M(...).n_eff).
+    n_draws : int
+        Number of independent cross-model mock draws (the MC sample size).
+    key : PRNGKey
+    n_iter : int
+        LM iterations of the binary-free MAP fit (static; default _BF_N_ITER).
+    """
+    G = STELLAR.G
+    K = R_BINS.shape[0]
+    edges = _r_bin_edges_1d()
+
+    # --- BUILD-ONCE (per truth, before the draw loop) ---------------------------------
+    # EFF profile + OM Eddington-table sampler at the fiducial truth (the expensive,
+    # draw-invariant sampler structure). n_parent is sized from the design + the EFF
+    # bin-occupancy profile so the sparse outer tail bins still hold their design cells.
+    # Per-star mass label M_FID/n_parent so the sampled total mass == M_FID (the EFF speed
+    # scale sqrt(G M / (4 pi mu)) is then at total mass M_FID, matching project_dispersion's
+    # M in cluster_sigma_los).
+    prof = eff_profile(gamma=GAMMA_FID, a=A_FID, r_t=R_T_FID)
+    df = EFFVelocityDF(a=A_FID, gamma=GAMMA_FID, r_t=R_T_FID, anisotropy_radius=R_A_FID)
+    n_parent = _n_parent_for_design(design_n_eff, prof, edges)
+    masses = jnp.full((n_parent,), M_FID / n_parent)
+
+    # K_orb blend-velocity POOL (Moe massive-primary Delta [km/s]) -- the SAME population
+    # that defines V_BIN (massive_primary_imf, V_BIN_Z), drawn ONCE. Per-draw injections
+    # resample this pool, so the injected pedestal variance -> Var(pool) (no per-draw Moe
+    # orbit integration -- enforce-jax-performance). Delta is ~zero-mean (random phase +
+    # isotropic LOS), so we recentre then RESCALE the pool to EXACTLY Var = V_BIN: the
+    # K_orb distribution is heavy-tailed (short-period binaries -> large Delta), so a
+    # finite pool's sample variance scatters ~10% from V_BIN; matching the second moment
+    # makes the INJECTED pedestal exactly the V_BIN the forecast Fisher uses (apples-to-
+    # apples for the H1 bias-vs-forecast test). This is principled: the forward model is a
+    # SECOND-MOMENT model (design caveat 2), so fixing Var(injection) = V_BIN is the
+    # faithful injection, not a fudge.
+    korb_raw = jnp.asarray(
+        binaries.sample_blend_velocities(
+            jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
+            imf=massive_primary_imf(), Z=V_BIN_Z,
+        )
+    )
+    korb_centered = korb_raw - jnp.mean(korb_raw)
+    korb_pool = korb_centered * jnp.sqrt(V_BIN / jnp.var(korb_centered, ddof=1))
+
+    # Static per-cell sizes (Bernoulli keep-probabilities + SE weights) + the host-side
+    # parent-catalog-too-small guard, computed ONCE from the draw-independent design count
+    # on a representative draw's R (p_keep/n_se do not depend on the draw's specific R).
+    k0 = jax.random.fold_in(key, 0)
+    pos0 = prof.sample_positions(masses, jax.random.fold_in(k0, 7))
+    R0 = jnp.hypot(pos0[:, 0], pos0[:, 1])
+    p_keep, n_se, _members = _static_cell_sizes_1d(design_n_eff, R0, edges)
+
+    def one_draw(kdraw):
+        """One cross-model mock -> ((M_hat - M)/M, nuisance fractional biases, M-witness)."""
+        k_pos, k_vel, k_inj, k_bin = jax.random.split(kdraw, 4)
+        # 1-2. EFF particles + sky projection (LOS = +z).
+        pos = prof.sample_positions(masses, k_pos)
+        vel = df.sample_velocities(pos, masses, k_vel, G=G)
+        R = jnp.hypot(pos[:, 0], pos[:, 1])
+        v_los = kms(vel[:, 2])                              # pc/Myr -> km/s
+        # 3. Binary contamination: per-star Bernoulli(f_bin), add a pooled Delta to the hits.
+        k_mask, k_pick = jax.random.split(k_inj)
+        is_binary = jax.random.uniform(k_mask, (n_parent,)) < F_BIN_TRUTH
+        idx = jax.random.randint(k_pick, (n_parent,), 0, korb_pool.shape[0])
+        delta = jnp.where(is_binary, korb_pool[idx], 0.0)
+        v_los = v_los + delta
+        # 4. Bin + Bernoulli-thin to design counts + measurement noise -> sigma_hat, se.
+        sigma_hat, se = _binned_sigma_hat_1d(k_bin, v_los, R, p_keep, n_se, edges)
+        # 5. Misspecified binary-free MAP fit.
+        theta_hat, m_witness = _fit_theta_bf_gn(sigma_hat, se, G, n_iter=n_iter)
+        theta_true = theta_truth_clusteronly()
+        frac = (theta_hat - theta_true) / theta_true       # (4,) fractional bias per param
+        return frac, m_witness
+
+    # SEQUENTIAL lax.map (memory-bounded): one_draw compiles ONCE, runs draw-by-draw.
+    draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d + 1))(jnp.arange(n_draws))
+    fracs, witnesses = jax.lax.map(one_draw, draw_keys)     # (n_draws, 4), (n_draws,)
+
+    m_frac = fracs[:, IDX_M]
+    bias_M_frac = float(jnp.mean(m_frac))
+    std_M_frac = float(jnp.std(m_frac, ddof=1)) if n_draws > 1 else 0.0
+    sem_M_frac = std_M_frac / math.sqrt(n_draws) if n_draws > 1 else 0.0
+    bias_other = jnp.mean(fracs[:, 1:], axis=0)            # (3,) r_a, gamma, a
+    max_M_step = float(jnp.max(witnesses))
+    n_unconverged = int(jnp.sum(witnesses > _BF_CONVERGED_STEP))
+    if n_unconverged > 0:
+        print(
+            f"[cross_model_bias] WARNING: {n_unconverged}/{n_draws} draws had an "
+            f"M-target witness > {_BF_CONVERGED_STEP:g} (max {max_M_step:.2e}); M_hat for "
+            f"those draws may not have settled -- investigate before trusting the bias."
+        )
+    return CrossModelResult(
+        bias_M_frac=bias_M_frac,
+        std_M_frac=std_M_frac,
+        sem_M_frac=sem_M_frac,
+        mhat_mean=float(M_FID * (1.0 + bias_M_frac)),
+        bias_other=bias_other,
+        n_unconverged=n_unconverged,
+        max_M_step=max_M_step,
+    )
