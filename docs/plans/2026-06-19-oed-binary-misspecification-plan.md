@@ -238,15 +238,56 @@ bite-sized steps here, informed by the Phase-1 numbers.
 
 ---
 
-## Phase 2 — Marginalize fix (H2/H3)  *(expand to bite-sized at the Phase-1 checkpoint)*
+## Phase 2 — Marginalize fix (H2/H3)  *(bite-sized; expanded 2026-06-19 at the Phase-1 checkpoint)*
 
-- **T2.1** f_bin Fisher block: extend θ to include f_bin in the Fisher (∂σ²/∂f_bin = V_bin);
-  AD-vs-FD gate on the f_bin column (`rel < 1e-3`, Richardson where truncation-limited).
-- **T2.2** binary-aware c-optimal-for-M design over the **marginalized** Fisher; cache reuse.
-- **T2.3** H2 gate: precision-gain ≥ 1.3× (binary-aware design vs binary-free design, both under
-  the binary-aware fit), @slow calibration confirms the binary-aware fit is **unbiased**.
-- **T2.4** H3 gate: binary-aware allocation is not a monotone rescaling of the binary-free one
-  (per-bin weight rank change / KL); allocation-map figure (binary-aware vs binary-free).
+Splits into a **deterministic** group (T2.1+T2.2+H2+H3 — Fisher/design only, fast tests) and an
+**MC** group (T2.5 — the @slow calibration that the binary-aware *fit* removes the bias). Reuses
+the existing `jacobian_lntheta` (K×5, already includes the ∂σ/∂ln f_bin column, verified Task 1.2).
+
+### Task 2.1: Marginalized (5-param) Fisher + f_bin prior + AD-vs-FD f_bin gate
+**Files:** `scripts/_demo_oed_binary.py`; Test: `tests/unit/test_demo_oed_binary.py`.
+- Build-once at the FULL truth `theta_truth()` (5-param): `_J_MARG = jacobian_lntheta(...)` (K×5),
+  `_SIG_MARG = predict_sigma_obs(theta_truth(), R_BINS, G)` (the **binary-inflated** σ_obs — the
+  Fisher denominator `(σ²+ε²)` uses the observed dispersion). Never re-jacrev in the loop.
+- `PRIOR_DIAG_MARG` (len 5): M=0 (target); r_a=1/0.5² (weak); γ,a=1/0.1² (tight photometric);
+  **f_bin = weak** (e.g. 1/0.5² — a measured nuisance, data-driven via radial leverage; document).
+- `fisher_marginalized(z, N_total)` → (5,5): same additive single-RV-channel form with the 5-param
+  blocks + diag(PRIOR_DIAG_MARG).
+- **Step 1 (failing test):** `fisher_marginalized(uniform, N)` symmetric + SPD; **AD-vs-FD on the
+  f_bin column** of `jacobian_lntheta` (`rel < 1e-3`; analytic `f_bin·V_bin/(2σ_obs)` already
+  verified 4e-16 in Task 1.2 — formalize as an explicit FD grad-check, `gradient-validation`).
+- **Step 2–5:** implement → pass → commit `feat(oed-binary): marginalized 5-param Fisher + f_bin block`.
+
+### Task 2.2: Binary-aware c-optimal-for-M design + H2 (OED payoff) + H3 (allocation)
+- `optimize_design_M_marg(N_total, key)` → c-optimal on M (index 0) over `fisher_marginalized`.
+  Report σ(M)/M **marginalized** (expected LARGER than the binary-free 4.5% — honest binary-aware
+  precision) + the allocation.
+- **H2 (deterministic gate):** `precision_gain = sigmaM(binary_free_design under fisher_marginalized)
+  / sigmaM(binary_aware_design under fisher_marginalized)`. **Test asserts ≥ 1.3×** (pre-registered;
+  if < 1.3× do NOT weaken — report as a null finding, the binary-free design was accidentally near-
+  optimal for the marginalized problem).
+- **H3 (deterministic gate):** the binary-aware allocation is NOT a monotone rescaling of the
+  binary-free one (per-bin weight rank-order change, or KL above a documented threshold).
+- **Tests:** marginalized σ(M) > binary-free σ(M) (marginalizing costs info — sanity); H2 gain;
+  H3 non-monotone. Commit `feat(oed-binary): binary-aware design + H2 precision-gain + H3 allocation`.
+
+### Task 2.5: The fix removes the bias — @slow binary-aware calibration
+- `_fit_theta_marg_gn` (5-param LM-GN MAP in ln-θ; predicts `sqrt(predict_sigma_obs(θ)²)` i.e.
+  `sqrt(cluster² + f_bin·V_bin + ε²)` with **f_bin free**; PRIOR_DIAG_MARG; honest realized-σ̂ SE;
+  drop empty bins — same machinery as the binary-free fit, +f_bin).
+- `run_fix(n_draws, key)`: cross-model MC on the **binary-aware design**, generate-with-binaries,
+  **fit-with-binary-aware** → M̂. Reuse the Route-1 mock + `jax.lax.map` + build-once.
+- **Step 1 (failing test, @slow + env-gated):**
+```python
+@pytest.mark.slow
+@pytest.mark.skipif(not os.environ.get("PROGENAX_RUN_OED_BINARY"), reason="env-gated MC")
+def test_fix_binary_aware_fit_is_unbiased():
+    res = oedb.run_fix(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
+    assert abs(res.bias_M_frac) < 2.0 * res.sigma_M_marg   # the fix removes the +185% bias
+```
+- Report: M̂ bias (should be ≈0, vs Phase-1 +185%), f_bin_hat (≈truth 0.5?), σ(M)_marg, convergence.
+  Commit `test(oed-binary): binary-aware fit removes the M bias (@slow)`.
+- **Step (perf):** build-once + lax.map; smoke RSS before the full run (EFF-free, should be ~2 GB).
 
 ## Phase 3 — Min-max / maximin comparison  *(expand at checkpoint)*
 
