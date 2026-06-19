@@ -249,6 +249,12 @@ symbols. Step 4 — PASS. Step 5 — Commit.**
 
 ## Task 5: real-star @slow calibration gate (both models)
 
+> **SUPERSEDED by ADR-0018 → KING-ONLY.** After two host OOM crashes (the Michie MLE-MC
+> reverse-mode-through-ODE fit is ~28 GB even under sequential `jax.lax.map`, and adds no new
+> anisotropy physics over King), the calibration was scoped to King only; Michie's model is
+> validated by the cheaper sampler-match/forward/W₀-gradient tests. The fit also became
+> Levenberg–Marquardt-damped with a W₀-target convergence witness (review I1). See ADR-0018.
+
 **Files:** Modify `scripts/_demo_oed_concentration.py` (add `calibrate_fisher_W0`); Test same.
 
 Mirror `_demo_oed.calibrate_fisher` but: (a) draw mocks with `sample_om_cluster(model, ...)`
