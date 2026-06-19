@@ -394,3 +394,30 @@ def test_W0_fisher_calibration_matches_realized_scatter():
     # with them included). Tolerance 3 gives margin against seed variation.
     assert cal.n_unconverged <= 3, ("king", cal.n_unconverged, cal.max_W0_step)
     assert jnp.abs(ratio - 1.0) < band, ("king", ratio)
+
+
+# ===========================================================================
+# Task 6: gated CLI smoke test (scripts/demo_oed_concentration.py).
+#
+# The CLI computes ONLY the cheap parts -- ONE jacrev per model at the truth + the
+# c/D/A 3x3-linear-algebra design optimization + the figures. It does NOT run the
+# @slow calibration MC (memory-trivial: the King calibration ratio is CITED as a
+# constant; the Michie MLE-MC -- ~28 GB -- is never invoked). So this smoke test is
+# fast and memory-trivial: --quick dials the optimizer to a couple of starts/steps.
+# ===========================================================================
+
+
+def test_cli_concentration_smoke(tmp_path):
+    """The CLI runs end-to-end (both models, c/D/A optimize, 5 figures) and exits 0.
+
+    Dialed down via --quick + tiny --n-starts/--n-steps so it stays a FAST, memory-trivial
+    smoke check (no calibration MC). Asserts rc == 0 and >= 4 PNG figures land in --outdir.
+    """
+    import importlib
+
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+    cli = importlib.import_module("demo_oed_concentration")
+    rc = cli.main(["--outdir", str(tmp_path), "--n-starts", "2", "--n-steps", "60", "--quick"])
+    assert rc == 0
+    figs = list(tmp_path.glob("*.png"))
+    assert len(figs) >= 4, figs
