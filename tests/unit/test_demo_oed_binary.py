@@ -223,6 +223,25 @@ def test_cross_model_bias_runs_and_is_finite(n_draws):
     not os.environ.get("PROGENAX_RUN_OED_BINARY"),
     reason="env-gated cross-model MC (set PROGENAX_RUN_OED_BINARY=1)",
 )
+def test_H0_no_binary_baseline_is_unbiased():
+    """Route-1 PROOF: with f_bin_truth = 0 the cross-model mock is generated from the
+    SAME forward model the fit uses (cluster_sigma_los + eps in quadrature), so there
+    is NO sampler<->fit misspecification (review issue I1). M must then be recovered
+    UNBIASED within the design's own forecast sigma -- the no-binary baseline that
+    isolates the pure binary effect in H1.
+
+    If this FAILS the mock and the fit are still inconsistent (likely the eps term or
+    a sigma-vs-sigma^2 mismatch) -- FIX the harness, do NOT weaken the test."""
+    res = oedb.run_H1(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0), f_bin_truth=0.0)
+    # sampler == fit-model: with zero binaries, M is recovered unbiased within forecast.
+    assert abs(res.bias_M_frac) < 2.0 * res.forecast_sigma_M_frac
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not os.environ.get("PROGENAX_RUN_OED_BINARY"),
+    reason="env-gated cross-model MC (set PROGENAX_RUN_OED_BINARY=1)",
+)
 def test_H1_naive_design_biased_beyond_forecast():
     """The naive (binary-free) c-optimal-for-M design + binary-free fit on
     binary-contaminated RV data biases M_hat beyond its OWN forecast sigma(M):
