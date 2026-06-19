@@ -151,6 +151,38 @@ Run `research-workflow:discriminating-experiment-design` FIRST (Phase 0).
 - **Sweep (reported, not gated).** bias(M̂) and remedy effectiveness vs σ_bin/σ_cluster across
   system mass → the regime of validity.
 
+### Pre-registration — LOCKED 2026-06-19 (Phase 0 Task 0.3)
+
+Locked **before** Phase 1 runs the MC (this commit is the lock). Operating point (pinned in
+Task 0.2): EFF-OM YMC γ=2.7, a=1 pc, r_t=18 pc, r_a=3 pc, **M=4×10⁵ M☉**, f_bin=0.5,
+ε_RV=1 km/s, RV-only, 12 log-spaced radial bins 0.2a→0.95 r_t, N_total stars (set in Phase 1).
+Pinned scales: σ_cluster,central=8.98 km/s, σ_bin=9.73 km/s (σ_bin/σ_cluster=1.08 at center,
+rising to ~24 in the outskirts).
+
+**H1 — the bias (six-slot):**
+
+| Slot | Filled in |
+|------|-----------|
+| **H1** | Fitting the binary-free model to binary-contaminated RV data biases M̂ **high**, by **more than the design's own forecast σ(M)** (false confidence). |
+| **H0 (rival)** | The binary-free fit absorbs the flat f_bin·V_bin pedestal into the nuisances (γ, a, r_a) / the radial profile, so M̂ stays unbiased within its forecast σ — i.e. binaries at f_bin=0.5 don't materially bias M at this operating point. |
+| **Observable** | fractional bias `bias(M̂)/M = (⟨M̂⟩ − M)/M` from the cross-model MC (generate WITH Moe binaries, fit WITHOUT), vs the binary-free Fisher `σ_forecast(M)/M`. |
+| **Signature** | **H1:** `bias(M̂)/M > 0` and `> 2·σ_forecast/M`. **H0:** `abs(bias(M̂)/M) ≤ σ_forecast/M`. |
+| **Smallest run** | the pinned operating point; the naive design = c-optimal-for-M radial allocation under the binary-free Fisher; n_draws cross-model MC chosen so 2·SEM of the bias ≪ the bias (start 48–64 draws, the prior-calibration scale; increase only if SEM straddles the threshold). |
+| **Decision rule (fixed now)** | **ACCEPT H1** if mean `bias(M̂)/M > 2·σ_forecast/M` AND positive AND the 2·SEM band does not straddle that threshold. **REJECT H1 → H0 → DESCOPE the arc** if `abs(bias(M̂)/M) ≤ σ_forecast/M`. Between → inconclusive: raise n_draws or redesign (do **not** move the threshold). |
+
+**H2 — OED payoff (conditional on H1 accept).** Observable: `N_binary-free / N_binary-aware` at
+fixed σ(M) (equivalently the σ(M) ratio at fixed N), both under the binary-aware marginalized
+fit. **ACCEPT** if precision-gain **≥ 1.3×**; reject if < 1.3×. Reported regardless.
+
+**H3 — non-obvious allocation (conditional on H1 accept).** Observable: per-bin design-weight
+comparison (binary-aware vs binary-free). **ACCEPT** if the binary-aware allocation is **not** a
+monotone rescaling of the binary-free one (per-bin weight rank order changes, i.e. it pulls
+budget toward the f_bin-constraining radii); else report as a null finding.
+
+**Honesty note:** a REJECT/null on any of H1/H2/H3 is a reportable finding, not a failure
+(null-result integrity). H1 reject descopes the arc — that is an acceptable outcome of a
+de-risk gate.
+
 ## Validation gate (thresholds locked; never weakened — fix the root cause)
 
 1. **AD-vs-FD** on the f_bin Fisher block and the binary σ²-inflation term: `rel < 1e-3`
