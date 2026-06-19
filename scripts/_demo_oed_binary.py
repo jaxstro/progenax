@@ -874,3 +874,89 @@ def cross_model_bias(design_n_eff, n_draws, key, n_iter=_BF_N_ITER):
         n_unconverged=n_unconverged,
         max_M_step=max_M_step,
     )
+
+
+# ===========================================================================
+# Task 1.5: the H1 gate -- @slow calibration MC at the YMC operating point
+# ===========================================================================
+#
+# H1 (pre-registration LOCKED 2026-06-19): the NAIVE binary-free c-optimal-for-M design,
+# fit with the BINARY-FREE model on binary-contaminated mocks, biases M_hat HIGH by more
+# than its OWN forecast sigma(M) -- false confidence. ACCEPT iff
+#   bias_M_frac > 2 * forecast_sigma_M_frac  AND  bias_M_frac > 0.
+# The forecast sigma(M)/M is the binary-free Fisher's c-optimal precision at that SAME
+# design and SAME prior (PRIOR_DIAG_BF) -- apples-to-apples with the cross-model fit.
+
+# n_draws for the H1 gate. Pre-registration: "start 48-64; raise only if 2*SEM straddles
+# the threshold." At the YMC operating point the bias (~1.5) dwarfs both the forecast
+# (~0.01) and 2*SEM (~0.1 at n=48), so 48 leaves the accept margin un-straddled. The
+# whole @slow MC is ~1 min and ~2.3 GB peak (smoke-gated in Task 1.4), so 48 is cheap.
+N_DRAWS_H1 = 48
+
+
+class H1Result(NamedTuple):
+    """Result of run_H1 (the pre-registered H1 bias-beyond-forecast gate):
+
+      * bias_M_frac           : realized mean fractional bias (M_hat - M)/M (cross-model MC),
+      * sem                   : standard error of that mean bias over the draws,
+      * std_M_frac            : draw-to-draw std of (M_hat - M)/M,
+      * forecast_sigma_M_frac : the naive design's OWN binary-free Fisher forecast
+                                sigma(M)/M (c-optimal, same PRIOR_DIAG_BF -- apples-to-apples),
+      * ratio                 : bias_M_frac / forecast_sigma_M_frac (the headline number),
+      * accept                : True iff bias_M_frac > 2*forecast_sigma_M_frac AND > 0
+                                (the LOCKED pre-registration rule),
+      * design_n_eff          : the naive c-optimal-for-M per-bin counts evaluated,
+      * bias_other            : mean fractional bias of (r_a, gamma, a) (the absorption map),
+      * n_unconverged         : # MC draws whose M_hat did not settle (surfaced, not swallowed)."""
+    bias_M_frac: float
+    sem: float
+    std_M_frac: float
+    forecast_sigma_M_frac: float
+    ratio: float
+    accept: bool
+    design_n_eff: jnp.ndarray
+    bias_other: jnp.ndarray
+    n_unconverged: int
+
+
+def run_H1(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL):
+    r"""Run the H1 bias-beyond-forecast gate at the YMC operating point.
+
+    1. compute the NAIVE binary-free c-optimal-for-M design (optimize_design_M) -- the
+       design a binary-UNAWARE analyst would adopt, and read its OWN forecast sigma(M)/M
+       (the binary-free Fisher's c-optimal precision, same PRIOR_DIAG_BF);
+    2. run the cross-model MC (cross_model_bias) at that design: generate mocks WITH Moe
+       binaries, fit the binary-free model WITHOUT them, measure the realized bias(M_hat)/M;
+    3. ACCEPT H1 iff bias_M_frac > 2 * forecast_sigma_M_frac AND bias_M_frac > 0 (the
+       LOCKED pre-registration rule). A reject is a reportable finding (do NOT weaken).
+
+    N_total is a reporting anchor: the Fisher is linear in N_total, so the forecast
+    sigma(M)/M scales as 1/sqrt(N_total) but the design SHAPE (and hence the realized
+    bias, which is N_total-independent at fixed per-bin shape) does not. Default 5000
+    (N_TOTAL) -- the scale of a deep YMC RV survey of bright members.
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    k_design, k_mc = jax.random.split(key)
+
+    # 1. naive binary-free c-optimal-for-M design + its own forecast sigma(M)/M.
+    design = optimize_design_M(N_total, key=k_design)
+    forecast_sigma_M_frac = float(design.sigma_M_over_M)
+
+    # 2. cross-model MC at that design (generate WITH binaries, fit WITHOUT).
+    cm = cross_model_bias(design.n_eff, n_draws=n_draws, key=k_mc)
+
+    # 3. LOCKED pre-registration accept rule.
+    ratio = cm.bias_M_frac / forecast_sigma_M_frac if forecast_sigma_M_frac > 0 else float("inf")
+    accept = bool(cm.bias_M_frac > 2.0 * forecast_sigma_M_frac and cm.bias_M_frac > 0.0)
+
+    return H1Result(
+        bias_M_frac=cm.bias_M_frac,
+        sem=cm.sem_M_frac,
+        std_M_frac=cm.std_M_frac,
+        forecast_sigma_M_frac=forecast_sigma_M_frac,
+        ratio=ratio,
+        accept=accept,
+        design_n_eff=design.n_eff,
+        bias_other=cm.bias_other,
+        n_unconverged=cm.n_unconverged,
+    )

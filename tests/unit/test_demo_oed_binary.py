@@ -17,6 +17,7 @@ a finding (the Phase-4 sweep spans the ratio).
 
 See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
 """
+import os
 import sys
 import pathlib
 
@@ -206,3 +207,29 @@ def test_cross_model_bias_runs_and_is_finite(n_draws):
     assert jnp.isfinite(out.std_M_frac)
     assert out.std_M_frac >= 0.0
     assert jnp.isfinite(out.mhat_mean) and out.mhat_mean > 0.0
+
+
+# ---------------------------------------------------------------------------
+# Task 1.5: H1 gate -- the @slow, env-gated calibration MC (OUT of CI).
+#
+# Pre-registration LOCKED 2026-06-19 (design doc): ACCEPT H1 iff the naive
+# (binary-free) c-optimal-for-M design, fit with the binary-free model on
+# binary-contaminated mocks, biases M_hat HIGH by MORE than 2x its own forecast
+# sigma(M)/M (false confidence). The threshold is NOT to be weakened: a reject ->
+# H0 -> DESCOPE is a valid finding (null-result integrity).
+# ---------------------------------------------------------------------------
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not os.environ.get("PROGENAX_RUN_OED_BINARY"),
+    reason="env-gated cross-model MC (set PROGENAX_RUN_OED_BINARY=1)",
+)
+def test_H1_naive_design_biased_beyond_forecast():
+    """The naive (binary-free) c-optimal-for-M design + binary-free fit on
+    binary-contaminated RV data biases M_hat beyond its OWN forecast sigma(M):
+    pre-registered ACCEPT H1 iff bias_M_frac > 2 * forecast_sigma_M_frac.
+
+    Pre-registered (LOCKED 2026-06-19); do NOT weaken. A reject is a reportable
+    finding, not a test to relax."""
+    res = oedb.run_H1(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
+    assert res.bias_M_frac > 2.0 * res.forecast_sigma_M_frac   # pre-registered; do NOT weaken
+    assert res.accept
