@@ -665,3 +665,86 @@ def test_compare_maximin_vs_marginalize_is_a_hedge():
     # the hedge: a (non-negative) sacrifice at truth buys a (non-negative) worst-case gain.
     assert cmp.sacrifice_at_truth_frac >= -1e-9
     assert cmp.gain_at_worst_frac >= -1e-9
+
+
+# ===========================================================================
+# Phase 4 -- Task T4.1: the sigma_bin/sigma_cluster sweep across system mass.
+#
+# The single-point H1 headline (M_hat = 2.85x at sigma_bin/sigma_cluster = 1.08) and
+# H2's thin 1.33x margin are CONTEXTUALIZED as CURVES across system mass. The Moe
+# massive-primary population (V_BIN, sigma_bin = 9.73 km/s) is FIXED; the cluster mass M
+# varies -> sigma_cluster varies -> sigma_bin/sigma_cluster sweeps (smaller M = colder
+# cluster = worse contamination). ADDITIVE-ONLY: per-mass J/sig are computed and PASSED
+# to the existing override-capable Fisher/optimizer; the module-level M_FID caches and
+# every default are byte-unaffected.
+#
+# T4.1a (deterministic sweep -- fast): no MC.
+# ---------------------------------------------------------------------------
+def test_deterministic_sweep_runs_monotone_finite():
+    """The deterministic sweep (T4.1a) runs over a fine mass grid and returns, per mass:
+    sigma_bin/sigma_cluster, the binary-FREE forecast sigma(M)/M, the marginalized
+    (binary-AWARE) forecast sigma(M)/M, and the H2 precision-gain. All finite and positive;
+    sigma_bin/sigma_cluster is MONOTONE DECREASING in M (colder low-mass clusters are worse
+    contaminated). Cheap (no MC); a dialed-down optimizer keeps it fast."""
+    sw = oedb.deterministic_sweep(
+        n_mass=6, key=jax.random.PRNGKey(0), n_starts=2, n_steps=120
+    )
+    n = sw.M_grid.shape[0]
+    assert n == 6
+    # sigma_bin is the FIXED massive-primary scale (mass-independent).
+    assert jnp.isclose(sw.sigma_bin_kms, jnp.sqrt(oedb.V_BIN))
+    # all arrays finite + positive.
+    for arr in (sw.M_grid, sw.sigma_cluster_kms, sw.ratio, sw.sigmaM_bf,
+                sw.sigmaM_marg, sw.h2_gain):
+        assert arr.shape == (n,)
+        assert bool(jnp.all(jnp.isfinite(arr)))
+        assert bool(jnp.all(arr > 0.0))
+    # M increasing -> sigma_cluster increasing -> ratio strictly DECREASING.
+    assert bool(jnp.all(jnp.diff(sw.M_grid) > 0.0))
+    assert bool(jnp.all(jnp.diff(sw.ratio) < 0.0))
+    # the ratio range brackets the fiducial 1.08 operating point.
+    assert float(sw.ratio[0]) > 1.08 > float(sw.ratio[-1])
+
+
+def test_deterministic_sweep_span_and_marg_costs_info():
+    """The mass grid spans sigma_cluster ~3 -> ~15 km/s (sigma_bin/sigma_cluster ~3 ->
+    ~0.6, bracketing the fiducial 1.08), and AT EVERY mass the marginalized (binary-aware)
+    forecast sigma(M)/M is LARGER than the binary-free one -- marginalizing the unknown
+    f_bin always costs information (the honest binary-aware precision)."""
+    sw = oedb.deterministic_sweep(
+        n_mass=8, key=jax.random.PRNGKey(0), n_starts=2, n_steps=120
+    )
+    # sigma_cluster span: ~3 km/s (coldest) -> ~15 km/s (hottest).
+    assert float(sw.sigma_cluster_kms[0]) < 4.0
+    assert float(sw.sigma_cluster_kms[-1]) > 13.0
+    # marginalizing f_bin costs info at every mass (binary-aware sigma(M) > binary-free).
+    assert bool(jnp.all(sw.sigmaM_marg > sw.sigmaM_bf))
+    # H2 gain is the binary-free design's marginalized sigma(M) over the binary-aware
+    # design's: >= 1 (the binary-aware design is at least as good under its own Fisher).
+    assert bool(jnp.all(sw.h2_gain >= 1.0 - 1e-6))
+
+
+# ---------------------------------------------------------------------------
+# T4.1b (MC bias sweep -- @slow, env-gated). A tiny smoke (n_draws=4, 2 anchor
+# masses) confirms the sweep returns finite bias arrays for BOTH the binary-free
+# design+fit and the binary-aware design+fit. Marked @slow + env-gated because it
+# runs the cross-model MC (the project_dispersion GN-fit tape per draw).
+# ---------------------------------------------------------------------------
+@pytest.mark.slow
+@pytest.mark.skipif(
+    not os.environ.get("PROGENAX_RUN_OED_BINARY"),
+    reason="env-gated cross-model MC (set PROGENAX_RUN_OED_BINARY=1)",
+)
+def test_mc_bias_sweep_runs_and_is_finite():
+    """The MC bias sweep (T4.1b) runs the cross-model MC at a few anchor masses and
+    returns finite binary-FREE-fit bias and binary-AWARE-fit residual-bias arrays. Tiny
+    (n_draws=4, 2 masses) smoke -- the full sweep is the reported result, not gated."""
+    sw = oedb.mc_bias_sweep(
+        n_mass=2, n_draws=4, key=jax.random.PRNGKey(0), n_starts=2, n_steps=120
+    )
+    n = sw.M_grid.shape[0]
+    assert n == 2
+    for arr in (sw.M_grid, sw.ratio, sw.bias_bf, sw.bias_marg):
+        assert arr.shape == (n,)
+        assert bool(jnp.all(jnp.isfinite(arr)))
+    assert bool(jnp.all(jnp.diff(sw.ratio) < 0.0))

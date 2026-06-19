@@ -1677,3 +1677,220 @@ def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRU
         max_M_step=max_M_step,
         design_n_eff=design.n_eff,
     )
+
+
+# ===========================================================================
+# Phase 4 -- Task T4.1: the sigma_bin/sigma_cluster sweep across system mass
+# ===========================================================================
+#
+# The single-point H1 headline (M_hat = 2.85x at sigma_bin/sigma_cluster = 1.08) and H2's
+# thin 1.33x margin are CONTEXTUALIZED as CURVES across system mass. The Moe massive-
+# primary population is FIXED (V_BIN -> sigma_bin = 9.73 km/s, mass-independent); the
+# cluster mass M varies, so sigma_cluster = central cluster_sigma_los ~ sqrt(M) varies and
+# sigma_bin/sigma_cluster SWEEPS (smaller M = colder cluster = worse contamination). The
+# story: (1) the binary-free-fit M-bias (the H1 disaster) GROWS with sigma_bin/sigma_cluster;
+# (2) the binary-aware-fit residual bias (the fix) stays ~0 across the sweep; (3) the H2
+# precision-gain across the sweep contextualizes the thin 1.33x at the fiducial.
+#
+# ADDITIVE-ONLY (does NOT disturb the vetted Phases 0-3): every sweep quantity is computed
+# at a PER-MASS theta = theta_truth().at[IDX_M].set(M) and threaded through the EXISTING
+# override-capable fisher_binary_free(J=, sig=) / fisher_marginalized(J=, sig=) and the
+# cross_model_bias(truth_theta=) parameter. The module-level M_FID caches (_J_BF, _SIG_BF,
+# _J_MARG, _SIG_MARG, the grid) and every default are byte-unaffected.
+#
+# MASS GRID: M chosen so the CENTRAL sigma_cluster spans ~3 -> ~15 km/s, i.e.
+# sigma_bin/sigma_cluster ~3.2 -> ~0.65, bracketing the fiducial 1.08. sigma ~ sqrt(M)
+# and sigma_cluster(M_FID) = 8.98 km/s, so M = M_FID*(sigma_target/8.98)^2 covers the band.
+
+# Target central sigma_cluster endpoints [km/s] for the sweep mass grid (the physical YMC
+# band: 3 km/s for a cold low-mass cluster -> 15 km/s for a hot super-star-cluster). The
+# mass grid is log-spaced BETWEEN the masses that realize these dispersions (sigma ~ sqrt(M)).
+SWEEP_SIGMA_CLUSTER_LO = 3.0
+SWEEP_SIGMA_CLUSTER_HI = 15.0
+SWEEP_N_MASS = 12        # fine grid for the deterministic sweep (cheap, no MC)
+
+
+def sweep_mass_grid(n_mass=SWEEP_N_MASS):
+    r"""Log-spaced cluster-mass grid spanning central sigma_cluster ~ [LO, HI] km/s.
+
+    sigma_cluster(M) ~ sqrt(M) (the dispersion amplitude scales as sqrt(G M / length)), and
+    the fiducial sigma_cluster(M_FID) = sigma_cluster_ref() at M_FID, so a target central
+    dispersion sigma_t maps to M = M_FID * (sigma_t / sigma_cluster_ref(M_FID))^2. We
+    log-space the mass between the LO and HI targets so sigma_bin/sigma_cluster (which falls
+    monotonically with M) sweeps the physical band. Returns an (n_mass,) array of masses
+    [Msun], increasing.
+    """
+    sc_fid = float(sigma_cluster_ref())                       # sigma_cluster at M_FID [km/s]
+    m_lo = M_FID * (SWEEP_SIGMA_CLUSTER_LO / sc_fid) ** 2
+    m_hi = M_FID * (SWEEP_SIGMA_CLUSTER_HI / sc_fid) ** 2
+    return jnp.logspace(jnp.log10(m_lo), jnp.log10(m_hi), n_mass)
+
+
+def _theta_at_mass(M):
+    """The full and cluster-only truth theta vectors with the cluster mass set to M.
+
+    Returns (theta_full (5,), theta_clusteronly (4,)): theta_truth()/theta_truth_clusteronly()
+    with index IDX_M replaced by M. Everything else (r_a, gamma, a, f_bin) stays at the
+    pinned fiducials -- only the system mass varies along the sweep."""
+    theta_full = theta_truth().at[IDX_M].set(M)
+    theta_co = theta_truth_clusteronly().at[IDX_M].set(M)
+    return theta_full, theta_co
+
+
+def _per_mass_blocks(M, G):
+    r"""Per-mass build-once Fisher inputs at a sweep mass M (ADDITIVE; never mutates caches).
+
+    Returns (J_bf (K, 4), sig_bf (K,), J_marg (K, 5), sig_marg (K,)):
+
+      * J_bf / sig_bf  -- the BINARY-FREE jacrev d sigma_los / d ln theta and the cluster
+        sigma_los (km/s) at the cluster-only theta (M, r_a, gamma, a) -- the override for
+        fisher_binary_free(J=, sig=);
+      * J_marg / sig_marg -- the MARGINALIZED 5-column jacrev d sigma_obs / d ln theta and
+        the binary-INFLATED observed sigma_obs (km/s) at the full theta (M, r_a, gamma, a,
+        f_bin) -- the override for fisher_marginalized(J=, sig=).
+
+    These are the EXACT analogues of the module-level _J_BF/_SIG_BF/_J_MARG/_SIG_MARG caches,
+    re-evaluated at the per-mass theta. EFF is analytic (ODE-free), so the two jacrevs through
+    project_dispersion's quadrature are cheap; computed once per sweep mass, never per draw.
+    """
+    theta_full, theta_co = _theta_at_mass(M)
+    J_bf = jacobian_lntheta_clusteronly(theta_co, R_BINS, G)  # (K, 4)
+    sig_bf = cluster_sigma_los(theta_co, R_BINS, G)           # (K,) km/s
+    J_marg = jacobian_lntheta(theta_full, R_BINS, G)          # (K, 5)
+    sig_marg = predict_sigma_obs(theta_full, R_BINS, G)       # (K,) km/s (binary-inflated)
+    return J_bf, sig_bf, J_marg, sig_marg
+
+
+def _optimize_one_M_override(z0, N_total, n_steps, lr, fisher_fn, target):
+    """One Adam trajectory minimizing a c-for-M criterion over an ARBITRARY Fisher closure.
+
+    The override-capable analogue of _optimize_one_M / _optimize_one_M_marg: ``fisher_fn(z)``
+    builds the (per-mass) Fisher from the design logits z (closing over the per-mass J/sig),
+    and the loss is oed.c_criterion(fisher_fn(z), target). Fixed-iteration jax.lax.scan, jit
+    step, pure linear algebra over the (cached, per-mass) J/sig -- NO re-jacrev in the loop.
+    Returns (z_final, trace). The default-cache optimizers above are untouched."""
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: oed.c_criterion(fisher_fn(z), target=target)
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def _optimize_design_M_override(fisher_fn, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam for a c-optimal-for-M design over an ARBITRARY per-mass Fisher closure.
+
+    The override-capable analogue of optimize_design_M / optimize_design_M_marg: minimizes
+    oed.c_criterion(fisher_fn(z), target=IDX_M) over the length-K design logits z, running
+    n_starts independent Adam trajectories and keeping the lowest-criterion result. Returns
+    (n_eff (K,), sigma_M_over_M float, z (K,)). Used ONLY by the per-mass sweep; the
+    default-cache optimizers (and their results) are byte-unaffected."""
+    K = R_BINS.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (K,)) * 0.5
+        z, _ = _optimize_one_M_override(z0, N_total, n_steps, lr, fisher_fn, IDX_M)
+        crit = float(oed.c_criterion(fisher_fn(z), target=IDX_M))
+        if math.isfinite(crit) and (best is None or crit < best[0]):
+            best = (crit, z)
+    crit, z = best
+    n_eff = N_total * jax.nn.softmax(z)
+    return n_eff, float(jnp.sqrt(crit)), z
+
+
+class DeterministicSweep(NamedTuple):
+    """Result of deterministic_sweep (T4.1a; all arrays length n_mass, increasing in M):
+
+      * M_grid             : cluster-mass grid [Msun],
+      * sigma_cluster_kms  : central (peak) EFF-OM sigma_los per mass [km/s] (~sqrt(M)),
+      * sigma_bin_kms      : the FIXED massive-primary blend scale sqrt(V_BIN) [km/s] (scalar),
+      * ratio              : sigma_bin / sigma_cluster per mass (DECREASING in M),
+      * sigmaM_bf          : binary-FREE forecast sigma(M)/M (c-optimal under the binary-free
+                             Fisher at that mass) -- the over-confident precision,
+      * sigmaM_marg        : MARGINALIZED (binary-AWARE) forecast sigma(M)/M (c-optimal under
+                             the 5-param marginalized Fisher) -- the honest precision,
+      * h2_gain            : the H2 precision-gain (binary-free design's marginalized sigma(M)
+                             over the binary-aware design's, both under the marginalized
+                             Fisher) per mass."""
+    M_grid: jnp.ndarray
+    sigma_cluster_kms: jnp.ndarray
+    sigma_bin_kms: float
+    ratio: jnp.ndarray
+    sigmaM_bf: jnp.ndarray
+    sigmaM_marg: jnp.ndarray
+    h2_gain: jnp.ndarray
+
+
+def deterministic_sweep(n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL,
+                        n_starts=8, n_steps=500, lr=0.05):
+    r"""The deterministic sigma_bin/sigma_cluster sweep across system mass (T4.1a; no MC).
+
+    Over the log-spaced sweep_mass_grid(n_mass) (central sigma_cluster ~ 3 -> 15 km/s), at
+    EACH mass M compute -- using ADDITIVE per-mass blocks fed to the EXISTING override-capable
+    Fishers/optimizers, never the M_FID caches:
+
+      1. sigma_cluster (central peak) and sigma_bin/sigma_cluster (the sweep abscissa);
+      2. the BINARY-FREE c-optimal-for-M design's forecast sigma(M)/M (the over-confident
+         binary-unaware precision) -- _optimize_design_M_override over
+         fisher_binary_free(z, N, J=J_bf, sig=sig_bf);
+      3. the MARGINALIZED (binary-AWARE) c-optimal-for-M design's forecast sigma(M)/M (the
+         honest, f_bin-marginalized precision) -- over fisher_marginalized(z, N, J=J_marg,
+         sig=sig_marg);
+      4. the H2 precision-gain = sigma(M)_marg of the binary-FREE design / sigma(M)_marg of
+         the binary-AWARE design, BOTH scored under the marginalized Fisher (the apples-to-
+         apples H2 yard-stick) -- contextualizing the thin 1.33x at the fiducial.
+
+    Cheap: 2 jacrevs + 2 multi-start Adam optimizations per mass, all pure linear algebra
+    over the per-mass cached blocks (no MC, no re-jacrev in the loops). Returns a
+    DeterministicSweep. The vetted single-point Phase-0..3 results are byte-unaffected.
+    """
+    key = jax.random.PRNGKey(0) if key is None else key
+    G = STELLAR.G
+    M_grid = sweep_mass_grid(n_mass)
+    sigma_bin = float(jnp.sqrt(V_BIN))
+
+    sig_cluster, ratio, sigmaM_bf, sigmaM_marg, h2_gain = [], [], [], [], []
+    for i, M in enumerate(M_grid):
+        k_bf, k_ba = jax.random.split(jax.random.fold_in(key, i))
+        J_bf, sig_bf, J_marg, sig_marg = _per_mass_blocks(M, G)
+
+        sc = float(jnp.max(sig_bf))                           # central (peak) sigma_cluster
+        sig_cluster.append(sc)
+        ratio.append(sigma_bin / sc)
+
+        # binary-FREE c-optimal-for-M design + its OWN (over-confident) forecast.
+        fisher_bf = lambda z: fisher_binary_free(z, N_total, J=J_bf, sig=sig_bf)
+        _, sM_bf, z_bf = _optimize_design_M_override(
+            fisher_bf, N_total, k_bf, n_starts=n_starts, n_steps=n_steps, lr=lr
+        )
+        sigmaM_bf.append(sM_bf)
+
+        # binary-AWARE (marginalized) c-optimal-for-M design + its honest forecast.
+        fisher_marg = lambda z: fisher_marginalized(z, N_total, J=J_marg, sig=sig_marg)
+        _, sM_marg, z_ba = _optimize_design_M_override(
+            fisher_marg, N_total, k_ba, n_starts=n_starts, n_steps=n_steps, lr=lr
+        )
+        sigmaM_marg.append(sM_marg)
+
+        # H2 gain: both designs scored under the SAME (per-mass) marginalized Fisher.
+        sigmaM_bfdesign_under_marg = float(
+            jnp.sqrt(oed.c_criterion(fisher_marg(z_bf), target=IDX_M))
+        )
+        h2_gain.append(sigmaM_bfdesign_under_marg / sM_marg)
+
+    return DeterministicSweep(
+        M_grid=M_grid,
+        sigma_cluster_kms=jnp.asarray(sig_cluster),
+        sigma_bin_kms=sigma_bin,
+        ratio=jnp.asarray(ratio),
+        sigmaM_bf=jnp.asarray(sigmaM_bf),
+        sigmaM_marg=jnp.asarray(sigmaM_marg),
+        h2_gain=jnp.asarray(h2_gain),
+    )
