@@ -475,27 +475,27 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 # model (f_bin == 0 -- the misspecification) and collect M_hat. If the binary-free
 # design walks into a biased M_hat -- larger than its own forecast sigma -- H1 bites.
 #
-# ROUTE 1 -- FORWARD-MODEL-CONSISTENT MOCK (fixes review issue I1):
+# FORWARD-MODEL-CONSISTENT MOCK:
 # The cluster line-of-sight velocities are drawn from the SAME model the fit uses --
-# the per-bin truth sigma_los of cluster_sigma_los (project_dispersion / Jeans), NOT
-# the EFFVelocityDF Eddington/OM PARTICLE sampler. The two disagree (Jeans-projected
-# vs Eddington-sampled sigma_los differ ~6% core -> ~25% outskirts), so the OLD
-# particle-sampler mock made the binary-free fit recover M_hat/M ~ 0.43 (a -57% bias)
-# even at ZERO binaries -- confounding the binary attribution. Drawing the cluster mock
-# from cluster_sigma_los makes the f_bin=0 baseline UNBIASED, so H1's bias is purely the
-# binary effect (test_H0_no_binary_baseline_is_unbiased is the proof).
+# per bin b, n_b = round(design_n_eff[b]) velocities from Normal(0, sig_model[b]^2),
+# where sig_model = the per-bin truth sigma_los of cluster_sigma_los (project_dispersion
+# / Jeans). Drawing the cluster mock straight from this Gaussian (no spatial particle
+# sampling, no R-binning) makes the f_bin=0 baseline UNBIASED, so H1's bias is purely the
+# binary effect (test_H0_no_binary_baseline_is_unbiased is the proof). [History: an
+# earlier mock sampled EFF particles whose Eddington-sampled sigma_los disagrees with the
+# Jeans projection ~6% core -> ~25% outskirts, biasing M_hat even at ZERO binaries; that
+# confound is removed by drawing directly from sig_model.]
 #
-# Because the design per-bin counts n_b DIRECTLY set how many cluster stars enter each
-# bin, there is no spatial particle sampling, no R-binning, and no Bernoulli thinning:
-# per bin b we draw n_b = round(design_n_eff[b]) cluster velocities from Normal(0,
-# sig_model[b]^2), add the per-star binary blend Delta (Bernoulli(f_bin_truth)) and the
-# per-star eps_RV measurement noise, then sigma_hat[b] = std(v, ddof=1).
+# Binary contamination is PER-STAR Bernoulli(f_bin_truth): each of the n_b velocities, with
+# probability f_bin_truth, gets a blend Delta added (NOT a Bernoulli down-sampling/thinning
+# of the population -- every drawn star is kept; some are contaminated). The per-star eps_RV
+# measurement noise is added to every star, then sigma_hat[b] = std(v, ddof=1).
 #
 # PERFORMANCE (enforce-jax-performance):
 #  * BUILD-ONCE (per truth, before the draw loop): sig_model = cluster_sigma_los(truth)
 #    (the single project_dispersion call -- the only quadrature, never repeated per draw)
 #    and the K_orb blend-velocity POOL (Moe massive-primary Delta, drawn once; per-draw
-#    injections are a cheap uniform resample). No EFF Eddington table, no particle sampler.
+#    injections are a cheap uniform resample). Only these two scalars/arrays are precomputed.
 #  * MC via jax.lax.map (SEQUENTIAL) over the draw keys -- one_draw compiles ONCE yet runs
 #    draw-by-draw, so peak memory is a SINGLE draw's GN-fit reverse-mode tape, NOT n_draws
 #    of them. The heavy part is the binary-free GN fit's per-iter jacrev through
@@ -590,9 +590,11 @@ def _draw_binned_sigma_hat(key, sig_model, counts, n_max, keep, korb_pool, f_bin
     DOWN-weighted (instead of being up-weighted by a truth-based se, which drove M_hat ~9x
     truth and r_a unphysical). This is the bias a real analyst (without truth) would incur.
 
-    No spatial particle sampling, no R-binning, no Bernoulli thinning: the design counts
-    DIRECTLY set the per-bin sample size, so the cluster mock is consistent with the fit by
-    construction. ``keep`` flags the design-populated bins; the dropped bins' sigma_hat/se
+    No spatial particle sampling and no R-binning: the design counts DIRECTLY set the
+    per-bin sample size, so the cluster mock is consistent with the fit by construction.
+    The binary effect is per-star Bernoulli CONTAMINATION (a Delta added to the hits), not a
+    down-sampling of the population. ``keep`` flags the design-populated bins; the dropped
+    bins' sigma_hat/se
     are never read (the GN residual masks them), but se is finite-floored here anyway so the
     masked GN linear algebra stays NaN-free.
 
@@ -734,16 +736,16 @@ class CrossModelResult(NamedTuple):
 def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
     r"""Cross-model MC: generate UNDER the binary model, fit the BINARY-FREE model.
 
-    The headline H1 machinery, with a ROUTE-1 forward-model-consistent mock (review
-    issue I1). For each of n_draws independent mocks (via SEQUENTIAL jax.lax.map):
+    The headline H1 machinery, with a forward-model-consistent mock. For each of n_draws
+    independent mocks (via SEQUENTIAL jax.lax.map):
 
       1. DROP-EMPTY-BINS: fit only the bins the c-optimal design populates, n_b =
          round(design_n_eff[b]) >= N_MIN_FIT (the rest round to ~0 and are masked out of the
          fit entirely -- no 2-star filler). For each KEPT bin b, draw n_b cluster
          line-of-sight velocities from the SAME model the fit uses: Normal(0,
          sig_model[b]^2), sig_model = the truth cluster_sigma_los (project_dispersion /
-         Jeans) -- NOT the EFFVelocityDF particle sampler (which disagrees with the Jeans
-         projection and made M_hat/M ~ 0.43 even at f_bin = 0);
+         Jeans). The mock is the Gaussian whose variance the fit predicts, so the cluster
+         term is consistent with the fit by construction;
       2. BINARY CONTAMINATION: each star is a binary-contaminated tracer with probability
          f_bin = f_bin_truth (per-star Bernoulli); each contaminated star has one blend
          velocity Delta (drawn uniformly with replacement from the build-once K_orb pool,
@@ -751,14 +753,17 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
       3. add per-star Normal(0, eps_RV^2) measurement noise to EVERY star;
       4. sigma_hat[b] = std(v_b, ddof=1), SE[b] = sigma_hat[b] / sqrt(2 n_b);
       5. FIT the BINARY-FREE theta = (M, r_a, gamma, a) (NO binary pedestal -- the
-         misspecification; the prediction DOES carry eps_RV in quadrature, I1 fix) by
+         misspecification; the prediction DOES carry eps_RV in quadrature) by
          LM-damped GN MAP in ln-theta with PRIOR_DIAG_BF;
       6. collect M_hat (and the nuisance estimates).
 
-    With f_bin_truth = 0 the mock's per-bin expectation is exactly the fit's predicted
-    observable sqrt(sigma_cluster^2 + eps^2), so M_hat is UNBIASED -- the proof Route 1
-    isolates the binary effect (test_H0_no_binary_baseline_is_unbiased). At f_bin_truth =
-    0.5 the binary pedestal the fit cannot model biases M_hat (H1).
+    With f_bin_truth = 0 the mock's per-bin EXPECTATION is exactly the fit's predicted
+    observable sqrt(sigma_cluster^2 + eps^2), so M_hat is unbiased to ~0.5% -- a small
+    residual from the small-sample realized-sigma_hat-weighted fit (the SE uses each bin's
+    OWN measured scatter, not the truth), far below the forecast sigma(M)/M. This is the
+    no-binary baseline that isolates the pure binary effect
+    (test_H0_no_binary_baseline_is_unbiased). At f_bin_truth = 0.5 the binary pedestal the
+    fit cannot model biases M_hat HIGH (H1).
 
     Returns a CrossModelResult: mean fractional bias (M_hat - M)/M, its std + SEM, the
     nuisance biases, and the M-target convergence diagnostics.
@@ -766,7 +771,7 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     Build-once (enforce-jax-performance): the per-bin truth sigma_los sig_model (the ONLY
     project_dispersion call -- the single quadrature, never repeated per draw) and the
     K_orb blend-velocity pool are built ONCE here, before the draw loop, and threaded into
-    the jit'd per-draw body. No EFF Eddington table / particle sampler is built at all.
+    the jit'd per-draw body. These two are the only precomputed quantities.
 
     Parameters
     ----------
@@ -871,10 +876,9 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
 # design and SAME prior (PRIOR_DIAG_BF) -- apples-to-apples with the cross-model fit.
 
 # n_draws for the H1 gate. Pre-registration: "start 48-64; raise only if 2*SEM straddles
-# the threshold." At the YMC operating point the bias (~8.5, after the Route-1 mock fixed
-# review issue I1 -- the old EFF-sampler/Jeans-fit confound has been removed) DWARFS both
-# the forecast (~0.045) and 2*SEM (~0.5 at n=48), so 48 leaves the accept margin
-# un-straddled. The whole @slow MC is ~80 s and ~2.3 GB peak, so 48 is cheap.
+# the threshold." At the YMC operating point the realized bias (~1.84 fractional, M_hat/M
+# ~ 2.84) DWARFS both the forecast (~0.045) and 2*SEM (~0.12 at n=48), so 48 leaves the
+# accept margin un-straddled. The whole @slow MC is ~80 s and ~2.3 GB peak, so 48 is cheap.
 N_DRAWS_H1 = 48
 
 

@@ -189,8 +189,11 @@ def test_c_optimal_beats_uniform_for_M():
 
 
 # ---------------------------------------------------------------------------
-# Task 1.4: cross-model bias harness (build-once EFF sampler + K_orb pool,
-# lax.map over draws, jit per-draw, LM GN MAP binary-free fit). FAST smoke
+# Task 1.4: cross-model bias harness (Route-1 forward-model-consistent mock).
+# Build-once: the per-bin truth sigma_los (one project_dispersion call) + the K_orb
+# blend-velocity pool; the per-bin cluster velocities are drawn directly from
+# Normal(0, sig_model^2) (NOT an EFF particle sampler), with per-star Bernoulli binary
+# contamination. lax.map over draws, jit per-draw, LM GN MAP binary-free fit. FAST smoke
 # (n_draws=4): the headline H1 statistic must be finite. NOT @slow.
 # ---------------------------------------------------------------------------
 import pytest  # noqa: E402
@@ -310,3 +313,38 @@ def test_H1_naive_design_biased_beyond_forecast():
     res = oedb.run_H1(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
     assert res.bias_M_frac > 2.0 * res.forecast_sigma_M_frac   # pre-registered; do NOT weaken
     assert res.accept
+
+
+# ---------------------------------------------------------------------------
+# Task 1.6: gated CLI smoke test (scripts/demo_oed_binary.py).
+#
+# The CLI's --quick path computes ONLY the cheap parts -- the binary-free
+# c-optimal-for-M design (dialed-down multi-start Adam) + the forecast + the no-MC
+# mechanism figure. It does NOT run the env-gated cross-model calibration MC (that is
+# the @slow gate above). So this smoke test is FAST and needs no env var: it asserts
+# rc == 0 and that the mechanism PNG (the figure that needs no MC) lands in --outdir.
+# It also guards the Stage-3 CLI lesson: the run-record path derives from --outdir, so a
+# smoke run into tmp_path NEVER clobbers the committed full-quality run-record/figures.
+# ---------------------------------------------------------------------------
+def test_cli_binary_quick_smoke(tmp_path):
+    """The CLI --quick path runs end-to-end (design + forecast + the no-MC mechanism
+    figure) and exits 0 WITHOUT the cross-model MC or its env var.
+
+    Dialed down via --quick (few Adam starts/steps). Asserts rc == 0, that the mechanism
+    PNG lands in --outdir, that the false-confidence (MC-only) figure is NOT produced in
+    --quick mode, and that the run-record was written under --outdir (NOT the committed
+    FIGURE_DIR) -- the Stage-3 fixed-path guard.
+    """
+    import importlib
+
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+    cli = importlib.import_module("demo_oed_binary")
+    rc = cli.main(["--quick", "--outdir", str(tmp_path)])
+    assert rc == 0
+    # The mechanism figure (no MC) MUST be produced; the false-confidence figure needs the
+    # MC and so is absent in --quick mode.
+    assert (tmp_path / "demo_oedb_mechanism.png").exists()
+    assert not (tmp_path / "demo_oedb_false_confidence.png").exists()
+    # The run-record path derives from --outdir (Stage-3 lesson): it lands in tmp_path,
+    # never the committed FIGURE_DIR.
+    assert (tmp_path / "demo_oed_binary_run_record.json").exists()
