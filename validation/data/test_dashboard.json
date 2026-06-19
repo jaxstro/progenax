@@ -8,7 +8,7 @@
     "line_cov_measured": 96.12178325480247,
     "registries_full": true
   },
-  "generated_utc": "2026-06-19T04:39:28.780472+00:00",
+  "generated_utc": "2026-06-19T20:20:48.655271+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "65b40900be2b3e88f2dcc7f0c872cc2480b9059a",
@@ -566,6 +566,12 @@
       "integration": 0,
       "line_cov": null,
       "unit": 13,
+      "validation": 0
+    },
+    "test_demo_oed_binary": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 36,
       "validation": 0
     },
     "test_demo_oed_concentration": {

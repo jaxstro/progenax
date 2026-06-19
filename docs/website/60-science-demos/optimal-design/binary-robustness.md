@@ -1,7 +1,7 @@
 ---
 title: OED for robustness — when binaries lie to your mass estimate (Stage 4)
-subtitle: The first OED demo whose headline is a BIAS, not a recovery — a binary-blind survey design over-weighs a cluster by 185% with 41× false confidence, and a binary-aware design removes it
-description: "A pre-data optimal-experimental-design demo that turns the OED machinery from 'recovers the obvious' into a referee-proof BIAS result. Unresolved binaries (Moe & Di Stefano massive-primary P-q-e blend) inflate the line-of-sight velocity dispersion by a flat pedestal sigma_bin=9.73 km/s (sigma_bin/sigma_cluster=1.08 at the center of an EFF-OM young-massive cluster, M=4e5 Msun). H1 (the headline): a naive binary-blind c-optimal-for-M RV design, fit with a binary-free model, recovers M_hat/M=2.85 (+185% bias) while CLAIMING sigma(M)/M=4.5% -- a 41x false-confidence disaster, gated by a cross-model Monte Carlo. The fix (measure-and-marginalize): a binary-aware fit drops the bias from +185% to +5%, recovers f_bin=0.50+/-0.08 from radial leverage alone, and reports an honest sigma(M)/M=6.9%. H2: the binary-aware DESIGN is 1.33x tighter than the binary-blind one at the operating point (growing to ~6x as binaries dominate). H3: the binary-aware allocation reshuffles to break the M<->f_bin degeneracy. Maximin robustness is an honest near-null (~0.2% hedge -- sigma(M) is monotone in f_bin). A sigma_bin/sigma_cluster sweep shows bias +26%->+850% across system mass while the fix stays ~0. Informax-bound: scripts + this page, held out of v0.1.0."
+subtitle: The first OED demo whose headline is a BIAS, not a recovery — a binary-blind survey design over-weighs a cluster by 184% with 41× false confidence, and a binary-aware design removes it
+description: "A pre-data optimal-experimental-design demo that turns the OED machinery from 'recovers the obvious' into a referee-proof BIAS result. Unresolved binaries (Moe & Di Stefano massive-primary P-q-e blend) inflate the line-of-sight velocity dispersion by a flat pedestal sigma_bin=9.73 km/s (sigma_bin/sigma_cluster=1.08 at the center of an EFF-OM young-massive cluster, M=4e5 Msun). H1 (the headline): a naive binary-blind c-optimal-for-M RV design, fit with a binary-free model, recovers M_hat/M=2.84 (+184% bias) while CLAIMING sigma(M)/M=4.5% -- a 41x false-confidence disaster, gated by a cross-model Monte Carlo. The fix (measure-and-marginalize): a binary-aware fit drops the bias from +184% to +5%, recovers f_bin=0.50+/-0.08 from radial leverage alone, and reports an honest sigma(M)/M=6.9%. H2: the binary-aware DESIGN is 1.33x tighter than the binary-blind one at the operating point (growing to ~6x as binaries dominate). H3: the binary-aware allocation reshuffles to break the M<->f_bin degeneracy. Maximin robustness is an honest near-null (~0.2% hedge -- sigma(M) is monotone in f_bin). A sigma_bin/sigma_cluster sweep shows bias +26%->+850% across system mass while the fix stays ~0. Informax-bound: scripts + this page, held out of v0.1.0."
 ---
 
 # OED for robustness — when binaries lie to your mass estimate (Stage 4)
@@ -13,7 +13,7 @@ wants an **interior depth**. Each is a clean result — and each is one a refere
 away as "Fisher-OED recovers the obvious." This page is different. Its headline is not a
 recovery; it is a **bias**. We hand a careful, binary-*blind* observer the optimal survey
 design for weighing a cluster, let the real cluster harbour the binaries that every real
-cluster has, and watch the analysis over-estimate the mass by **185% while reporting a 4.5%
+cluster has, and watch the analysis over-estimate the mass by **184% while reporting a 4.5%
 error bar** — a measurement that is *confidently, expensively wrong*. Then we show the
 design that protects against it.
 
@@ -227,7 +227,7 @@ that *do* contain Moe binaries, recovers
 
 ```{math}
 :label: bin-h1
-\frac{\hat M}{M} = 2.85 \quad(\text{bias } +185\%), \qquad
+\frac{\hat M}{M} = 2.84 \quad(\text{bias } +184\%), \qquad
 \text{forecast } \frac{\sigma(M)}{M}=4.5\%,
 \qquad \frac{\text{bias}}{\text{forecast}} = 41\times.
 ```
@@ -239,18 +239,18 @@ failure mode in inference: not a wide error bar (which warns you), but a *tight*
 
 The control is what makes it airtight. Run the *same* design and fit on mocks with
 $f_{\rm bin}=0$ — where the fit model exactly matches the generative model — and the bias is
-$-0.3\%$, well inside the forecast. The entire $+185\%$ is the binaries; nothing else moved.
+$-0.3\%$, well inside the forecast. The entire $+184\%$ is the binaries; nothing else moved.
 
 :::{figure} figures/demo_oedb_false_confidence.png
 :label: fig-oedb-false-confidence
 :width: 80%
 
-**False confidence: a binary-blind design weighs the cluster at $2.85\times$ its true mass
+**False confidence: a binary-blind design weighs the cluster at $2.84\times$ its true mass
 with a $4.5\%$ error bar.** The recovered $\hat M/M_{\rm true}$ for the binary-blind
-c-optimal-for-$M$ design fit on binary-contaminated mocks (vermilion, $\approx2.85$), drawn
+c-optimal-for-$M$ design fit on binary-contaminated mocks (vermilion, $\approx2.84$), drawn
 *with its own $\pm$forecast-$\sigma$ error bar* — visually a speck. The unbiased truth is the
 dashed line at $1$; the $f_{\rm bin}=0$ baseline (blue square, mock $\equiv$ fit model)
-recovers $\hat M/M\approx1$. The bias ($+185\%$) is annotated against the truth; the callout
+recovers $\hat M/M\approx1$. The bias ($+184\%$) is annotated against the truth; the callout
 states the headline — the claimed error bar is $41\times$ smaller than the bias. From the
 env-gated cross-model Monte Carlo (48 draws).
 :::
@@ -275,7 +275,7 @@ The remedy is not to throw away the outskirts; it is to **model the pedestal**. 
 $f_{\rm bin}$ parameter to the fit (and to the design Fisher), let the data determine it, and
 the bias collapses:
 
-- **Bias: $+185\% \to +5\%$.** The binary-aware fit on the *same* contaminated mocks recovers
+- **Bias: $+184\% \to +5\%$.** The binary-aware fit on the *same* contaminated mocks recovers
   $\hat M$ within its honest forecast — the cross-model residual bias is consistent with zero
   ($+5\%$, inside $2\sigma$ of the marginalized forecast).
 - **It recovers the binary fraction: $\hat f_{\rm bin}=0.50\pm0.08$.** Not from a prior — from
@@ -383,7 +383,7 @@ $\sigma_{\rm bin}/\sigma_{\rm cluster}$ (top axis: system mass): the binary-blin
 $M$-bias (vermilion) rises from $+26\%$ to $+850\%$ as binaries come to dominate the cold
 outskirts of lower-mass clusters; the binary-aware-fit residual (green) stays flat at $\approx0$
 — the fix holds everywhere. Right axis: the H2 precision-gain (sky) grows from $\sim1.3\times$
-to $\sim6\times$. The fiducial operating point (the single-point $+185\%$ headline) is marked.
+to $\sim6\times$. The fiducial operating point (the single-point $+184\%$ headline) is marked.
 :::
 
 ## Validating a pre-data calculation: two gates
@@ -429,7 +429,7 @@ have *descoped the whole arc*.
   - Outcome
 * - **H1 — the bias.** Binary-blind design + binary-blind fit on contaminated data biases $\hat M$ high beyond its own forecast.
   - $\mathrm{bias}(\hat M)/M > 2\,\sigma_{\rm forecast}/M$, positive, $2\,$SEM not straddling.
-  - **ACCEPT** ($+185\%$ vs $4.5\%$; $41\times$)
+  - **ACCEPT** ($+184\%$ vs $4.5\%$; $41\times$)
 * - **H0 — the rival.** The binary-blind fit absorbs the pedestal into nuisances; $\hat M$ stays unbiased.
   - $|\mathrm{bias}|\le\sigma_{\rm forecast}/M$.
   - rejected (the $f_{\rm bin}=0$ control is the unbiased case; $f_{\rm bin}=0.5$ is not)
@@ -455,7 +455,7 @@ $N_{\rm total}=5000$, $K=12$ bins, cross-model MC $48$ draws):
   - Binary-blind (naive)
   - Binary-aware (fix)
 * - $\hat M/M$ (cross-model MC, $f_{\rm bin}=0.5$)
-  - $\mathbf{2.85}$ (**$+185\%$ bias**)
+  - $\mathbf{2.84}$ (**$+184\%$ bias**)
   - $\approx1.05$ ($+5\%$, within forecast)
 * - Claimed / honest $\sigma(M)/M$
   - $\mathbf{4.5\%}$ (claimed)
@@ -537,7 +537,7 @@ binary-misspecification *bias*. Its boundaries, stated honestly:
 
 :::{note} What we just learned
 A binary-*blind* survey design, optimised to weigh a young-massive cluster and fit with a
-binary-blind model, recovers $\hat M/M=2.85$ — a **$+185\%$ bias** — while reporting a $4.5\%$
+binary-blind model, recovers $\hat M/M=2.84$ — a **$+184\%$ bias** — while reporting a $4.5\%$
 error bar: a **$41\times$ false-confidence** disaster, because it parks its budget in the cold
 outskirts where the flat binary pedestal dominates the falling cluster signal. The
 **measure-and-marginalize** fix — modelling $f_{\rm bin}$ in both the design and the fit — drops
