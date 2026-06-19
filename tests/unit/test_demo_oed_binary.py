@@ -210,6 +210,64 @@ def test_cross_model_bias_runs_and_is_finite(n_draws):
 
 
 # ---------------------------------------------------------------------------
+# Refinement (2026-06-19): honest-analyst weighting + drop-empty-bins.
+# The fit weight is the analyst's OWN realized scatter se[b] = sigma_hat[b]/sqrt(2 n_b)
+# (NOT the truth sig_model), and only the bins the c-optimal design actually populates
+# (n_b = round(design_n_eff[b]) >= N_MIN_FIT) enter the mock+fit; the rest are MASKED OUT
+# of the GN residual entirely (no 2-star filler). This is the bias a real analyst incurs.
+# ---------------------------------------------------------------------------
+def test_per_bin_counts_drops_empty_bins_no_floor():
+    """_per_bin_star_counts returns counts = round(design_n_eff) (NO 2-star floor) and a
+    keep mask = counts >= N_MIN_FIT. For the c-optimal-for-M design only the few bins the
+    design populates survive (the cold near-empty bins are DROPPED, not floored to 2)."""
+    design = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0)).n_eff
+    counts, n_max, keep = oedb._per_bin_star_counts(design)
+    counts = jnp.asarray(counts)
+    keep = jnp.asarray(keep)
+    K = oedb.R_BINS.shape[0]
+    assert counts.shape == (K,) and keep.shape == (K,)
+    # counts are the rounded design counts, NOT floored to 2.
+    assert jnp.allclose(counts.astype(float), jnp.round(jnp.asarray(design)))
+    # keep == (counts >= N_MIN_FIT); every kept bin has at least N_MIN_FIT stars.
+    assert bool(jnp.all(keep == (counts >= oedb.N_MIN_FIT)))
+    assert bool(jnp.all(counts[keep] >= oedb.N_MIN_FIT))
+    # The c-optimal design populates only a few bins -> most are dropped.
+    assert int(jnp.sum(keep)) < K
+    assert int(jnp.sum(keep)) >= 1            # at least one bin survives
+    # n_max is the width over KEPT bins (the array the masked sigma_hat reduction uses).
+    assert n_max == int(jnp.max(counts[keep]))
+
+
+def test_draw_binned_sigma_hat_uses_realized_scatter_se():
+    """The Route-1 mock's per-bin SE is the HONEST-ANALYST realized scatter
+    se[b] = sigma_hat[b] / sqrt(2 n_b) (n_b the actual kept count), NOT the truth
+    sig_model. An analyst weights by what they OBSERVE; the contaminated cold outskirts
+    then have large sigma_hat -> large se -> appropriately DOWN-weighted."""
+    design = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0)).n_eff
+    counts, n_max, keep = oedb._per_bin_star_counts(design)
+    sig_model = oedb.cluster_sigma_los(oedb.theta_truth_clusteronly(), oedb.R_BINS, STELLAR.G)
+    korb = jnp.zeros(8)  # zero-Delta pool: with f_bin contamination off, isolate the SE form
+    sigma_hat, se = oedb._draw_binned_sigma_hat(
+        jax.random.PRNGKey(7), sig_model, counts, n_max, keep, korb, 0.0
+    )
+    keepb = jnp.asarray(keep)
+    n_b = jnp.asarray(counts).astype(jnp.float64)
+    # Realized SE == sigma_hat / sqrt(2 n_b) on the KEPT bins (the honest-analyst weight).
+    expected_se = sigma_hat / jnp.sqrt(2.0 * jnp.maximum(n_b, 1.0))
+    assert jnp.allclose(se[keepb], expected_se[keepb], rtol=1e-10)
+
+
+def test_cross_model_bias_only_fits_kept_bins():
+    """The harness fits ONLY the bins the design populates: the nuisance/M bias must be
+    independent of how many EMPTY trailing bins the (masked) machinery carries. Smoke that
+    the masked GN fit converges (dropped bins contribute nothing) at the c-optimal design."""
+    design = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0)).n_eff
+    out = oedb.cross_model_bias(design, n_draws=4, key=jax.random.PRNGKey(2))
+    assert jnp.isfinite(out.bias_M_frac)
+    assert jnp.isfinite(jnp.asarray(out.bias_other)).all()
+
+
+# ---------------------------------------------------------------------------
 # Task 1.5: H1 gate -- the @slow, env-gated calibration MC (OUT of CI).
 #
 # Pre-registration LOCKED 2026-06-19 (design doc): ACCEPT H1 iff the naive

@@ -509,9 +509,17 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 # heavy-tailed K_orb distribution to <~1% and keep the @slow MC's gather workspace small.
 _KORB_POOL_N = 16384
 
-# Floor on the per-bin star count so the ddof=1 sample std is defined (>=2 stars). The
-# design's softmax keeps every bin's n_eff > 0, but the cold outer bins can round to <2.
-_MIN_BIN_STARS = 2
+# HONEST-ANALYST empty-bin threshold (refinement 2026-06-19). The c-optimal-for-M design
+# concentrates N_total on a FEW radial bins (at the YMC operating point: ~44% @ 7.6 pc,
+# ~31% @ 17 pc, ~24% @ 1.5 pc; the rest round to ~0). A real analyst FITS ONLY the bins
+# the design actually populates -- they do not insert 2-star filler bins. A bin enters the
+# mock + fit iff n_b = round(design_n_eff[b]) >= N_MIN_FIT; the rest are MASKED OUT of the
+# GN residual entirely (not down-weighted, not floored). 10 stars makes the per-bin ddof=1
+# sample std a meaningful scatter estimate (the realized-SE weight below divides by it) and
+# is below the ~26-star count of the smallest design-populated bin, so every genuinely-used
+# bin survives. (10 stars > 0.5% of N_total=5000 would be 25 stars; 10 is the looser,
+# more-inclusive choice -- it keeps the marginal ~0.5% bin a fit would still informatively use.)
+N_MIN_FIT = 10
 
 # Levenberg-Marquardt MAP-fit settings for the binary-free GN fit (mirrors the
 # concentration demo's _GN_LM_LAM0 / _GN_N_ITER). The fit has P=4 params (M, r_a, gamma,
@@ -530,25 +538,24 @@ _BF_N_ITER = 200
 
 
 def _per_bin_star_counts(design_n_eff):
-    """Host-side STATIC per-bin sampling counts + the array width + the SE design counts.
+    """Host-side STATIC per-bin sampling counts + array width + the KEEP mask (drop-empty).
 
-    Returns (counts (K,) ints, n_max int, n_se (K,) floats):
+    Returns (counts (K,) ints, n_max int, keep (K,) bool):
 
-      * ``counts[b] = max(round(design_n_eff[b]), _MIN_BIN_STARS)`` -- the number of
-        cluster stars Route-1 SAMPLES in bin b (the mock's draw size). The design's softmax
-        keeps every n_eff[b] positive; the cold filler bins can round to <2, so we floor at
-        _MIN_BIN_STARS so the ddof=1 sample std is DEFINED. This floor is a SAMPLING detail
-        only -- it does NOT set the fit weight (see n_se).
-      * ``n_max = max_b counts[b]`` -- the per-bin array width. The mock draws an (K, n_max)
-        velocity block and masks the first counts[b] entries per bin, so the sigma_hat
-        reduction is a fixed-shape masked ddof=1 std (lax.map-friendly).
-      * ``n_se[b] = max(design_n_eff[b], 1e-6)`` -- the TRUE design count for the SE WEIGHT,
-        NOT floored. The fit's per-cell whitening weight 1/se^2 = 2 n_se / (sigma_pred^2 +
-        eps^2) must EQUAL the design Fisher's 2 n_eff / (sigma^2 + eps^2) -- the
-        concentration-demo lesson. Decoupling the weight from the floored SAMPLING count is
-        what keeps a 2-star filler bin (n_eff < 2, which the design barely uses) from
-        dominating the GN fit via a fluke-low realized sigma_hat: with n_se = n_eff << 1 the
-        filler bin's se is LARGE (low weight), exactly as the design intends.
+      * ``counts[b] = round(design_n_eff[b])`` -- the number of cluster stars Route-1
+        SAMPLES in bin b (the mock's draw size). NO floor: the cold near-empty bins the
+        c-optimal design barely uses round to ~0 and are DROPPED (see keep), not floored to
+        2-star filler. counts[b] is forced to >= 1 for the DROPPED bins only so the (K,
+        n_max) sampling block has a valid (masked-out, never-read) width -- the keep mask is
+        what removes them from the fit.
+      * ``n_max = max_b counts[b] over the KEPT bins`` -- the per-bin array width. The mock
+        draws an (K, n_max) velocity block and masks the first counts[b] entries per bin, so
+        sigma_hat is a fixed-shape masked ddof=1 std (lax.map-friendly).
+      * ``keep[b] = round(design_n_eff[b]) >= N_MIN_FIT`` -- the bins a real analyst FITS.
+        The c-optimal design populates only a few bins; ``keep`` selects exactly those, and
+        the GN residual is MASKED to zero on the dropped bins (they contribute nothing to
+        the fit -- not down-weighted, removed). This is the honest-analyst choice: no
+        truth-based weighting, no 2-star filler bins.
 
     Host-side (the design is fixed across draws), so they fix the jit shapes ONCE; never
     recomputed per draw.
@@ -556,12 +563,16 @@ def _per_bin_star_counts(design_n_eff):
     import numpy as np  # host-side bookkeeping only; never numpy.random
 
     n_eff_np = np.asarray(design_n_eff)
-    counts = np.maximum(np.round(n_eff_np).astype(int), _MIN_BIN_STARS)
-    n_se = np.maximum(n_eff_np, 1e-6)
-    return jnp.asarray(counts), int(counts.max()), jnp.asarray(n_se)
+    counts_raw = np.round(n_eff_np).astype(int)
+    keep = counts_raw >= N_MIN_FIT
+    # Dropped bins are masked out of the fit; give them a valid (>=1) sampling width so the
+    # (K, n_max) block + ddof=1 reduction never divide by zero (their sigma_hat is unused).
+    counts = np.maximum(counts_raw, 1)
+    n_max = int(counts[keep].max()) if keep.any() else int(counts.max())
+    return jnp.asarray(counts), n_max, jnp.asarray(keep)
 
 
-def _draw_binned_sigma_hat(key, sig_model, counts, n_max, n_se, korb_pool, f_bin_truth):
+def _draw_binned_sigma_hat(key, sig_model, counts, n_max, keep, korb_pool, f_bin_truth):
     r"""PURE forward-model-consistent per-bin sigma_hat (K,) + se (K,) -- the Route-1 mock.
 
     For each radial bin b, draw an (K, n_max) cluster-velocity block from the SAME model
@@ -571,18 +582,19 @@ def _draw_binned_sigma_hat(key, sig_model, counts, n_max, n_se, korb_pool, f_bin
     Normal(0, EPS_RV_KMS^2) measurement noise to EVERY star. Mask the first counts[b]
     entries per bin and take the masked ddof=1 sample std: sigma_hat[b] (the DATA).
 
-    The SE is the design Fisher's EXPECTED Gaussian-dispersion standard error,
-    ``se[b] = sqrt(sigma_pred[b]^2 + eps^2) / sqrt(2 n_se[b])`` with sigma_pred = sig_model
-    (the truth cluster dispersion) and n_se = the TRUE design count -- NOT the realized
-    sigma_hat and NOT the floored sampling count. This is the whitening choice that makes
-    the fit's per-cell weight 1/se^2 = 2 n_eff/(sigma^2+eps^2) EXACTLY the design Fisher
-    weight (so the realized covariance matches the forecast), and it stops a 2-star filler
-    bin's noisy sigma_hat from getting a fluke-tiny se and hijacking the GN fit (review
-    issue I1: with this weight + f_bin_truth=0 the fit is UNBIASED within the forecast).
+    The SE is the HONEST-ANALYST realized scatter (refinement 2026-06-19):
+    ``se[b] = sigma_hat[b] / sqrt(2 n_b)``, n_b = counts[b] the ACTUAL kept star count. An
+    analyst does NOT know the truth sig_model; they weight each fitted bin by its OWN
+    measured per-bin std -- the Gaussian-dispersion SE of a realized scatter. The
+    contaminated cold outskirts then have a LARGE sigma_hat -> large se -> are appropriately
+    DOWN-weighted (instead of being up-weighted by a truth-based se, which drove M_hat ~9x
+    truth and r_a unphysical). This is the bias a real analyst (without truth) would incur.
 
     No spatial particle sampling, no R-binning, no Bernoulli thinning: the design counts
     DIRECTLY set the per-bin sample size, so the cluster mock is consistent with the fit by
-    construction.
+    construction. ``keep`` flags the design-populated bins; the dropped bins' sigma_hat/se
+    are never read (the GN residual masks them), but se is finite-floored here anyway so the
+    masked GN linear algebra stays NaN-free.
 
     PURE array function (no host control flow), so lax.map batches it across draws.
     """
@@ -605,15 +617,18 @@ def _draw_binned_sigma_hat(key, sig_model, counts, n_max, n_se, korb_pool, f_bin
     mean = jnp.sum(w * v, axis=1) / jnp.maximum(cnt, 1.0)
     var = jnp.sum(w * (v - mean[:, None]) ** 2, axis=1) / jnp.maximum(cnt - 1.0, 1.0)
     sigma_hat = jnp.sqrt(var)                                # (K,) ddof=1 (the data)
-    # SE = the design Fisher's EXPECTED dispersion SE at the TRUE design count (NOT the
-    # realized sigma_hat, NOT the floored sampling count) -- the apples-to-apples whitening.
-    sigma_pred = jnp.sqrt(sig_model**2 + EPS_RV_KMS**2)      # (K,) expected observable
-    se = sigma_pred / jnp.sqrt(2.0 * n_se)                   # (K,) design Fisher weight
+    # SE = the HONEST-ANALYST realized scatter: each fitted bin weighted by its OWN measured
+    # std / sqrt(2 n_b) (n_b the actual count) -- NOT the truth sig_model. Floor the
+    # denominator so the masked-out (dropped) bins' se stays finite (they never enter the
+    # residual; keep just guards the linear algebra).
+    n_b = jnp.maximum(cnt, 1.0)                              # (K,) actual kept star count
+    se = sigma_hat / jnp.sqrt(2.0 * n_b)                     # (K,) realized-scatter SE
+    se = jnp.where(keep, se, 1.0)                            # dropped bins: finite placeholder
     return sigma_hat, se
 
 
 @functools.partial(jax.jit, static_argnames=("n_iter",))
-def _fit_theta_bf_gn(sigma_hat, se, G, n_iter=_BF_N_ITER):
+def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER):
     r"""Levenberg-Marquardt MAP fit of the BINARY-FREE theta = (M, r_a, gamma, a) in the
     dimensionless ln-theta metric, started at the cluster-only truth.
 
@@ -629,6 +644,14 @@ def _fit_theta_bf_gn(sigma_hat, se, G, n_iter=_BF_N_ITER):
     The prior is PRIOR_DIAG_BF (M free, r_a weak, gamma/a tight -- the SAME prior the
     forecast Fisher uses, so the cross-model bias is apples-to-apples with sigma_forecast).
 
+    DROP-EMPTY-BINS (refinement 2026-06-19): ``keep`` (K,) bool flags the bins the c-optimal
+    design actually populates (n_b >= N_MIN_FIT). The residual is MASKED to zero on the
+    dropped bins -- they contribute NOTHING to ||r||^2, Jr^T r, or Jr^T Jr (the masked
+    residual is independent of u, so its jacrev row is zero). A real analyst fits only the
+    bins they populate; no 2-star filler bins. Combined with the realized-scatter se
+    (se[b] = sigma_hat[b]/sqrt(2 n_b)) this is HONEST-ANALYST weighting -- no truth-based
+    up-weighting of the cold contaminated outskirts.
+
     eps-CONSISTENCY (review issue I1, CRITICAL): the mock adds Normal(0, EPS_RV_KMS^2) to
     EVERY star, so sigma_hat[b]^2 estimates sigma_cluster[b]^2 + f_bin*V_bin + EPS_RV^2. The
     binary-free PREDICTION must therefore include EPS_RV in quadrature too -- it compares
@@ -640,10 +663,11 @@ def _fit_theta_bf_gn(sigma_hat, se, G, n_iter=_BF_N_ITER):
 
     Returns (theta_hat (4,), m_witness) where m_witness = max |M-component step| over the
     LAST 5 iterations (the TARGET-M convergence witness; ~0 means M_hat has settled).
-    jit (static n_iter): sigma_hat/se/G are traced, so the project_dispersion-jacrev scan
-    compiles ONCE and is reused across every draw. Value-preserving.
+    jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
+    scan compiles ONCE and is reused across every draw. Value-preserving.
     """
     theta_fid = theta_truth_clusteronly()                   # (M, r_a, gamma, a)
+    keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
 
     def predict(theta):                                    # eps-consistent observable [km/s]
         # sqrt(sigma_cluster^2 + eps^2): the mock noises every star by eps, so the
@@ -653,7 +677,8 @@ def _fit_theta_bf_gn(sigma_hat, se, G, n_iter=_BF_N_ITER):
 
     def resid(u):                                           # whitened residual (model - data)/se
         theta = theta_fid * jnp.exp(u)
-        return (predict(theta) - sigma_hat) / se
+        r = (predict(theta) - sigma_hat) / se
+        return r * keep_w                                  # dropped bins contribute nothing
 
     def cost_of(u, r):
         return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG_BF * u**2))
@@ -712,7 +737,9 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     The headline H1 machinery, with a ROUTE-1 forward-model-consistent mock (review
     issue I1). For each of n_draws independent mocks (via SEQUENTIAL jax.lax.map):
 
-      1. for each radial bin b, draw n_b = round(design_n_eff[b]) (floor 2) cluster
+      1. DROP-EMPTY-BINS: fit only the bins the c-optimal design populates, n_b =
+         round(design_n_eff[b]) >= N_MIN_FIT (the rest round to ~0 and are masked out of the
+         fit entirely -- no 2-star filler). For each KEPT bin b, draw n_b cluster
          line-of-sight velocities from the SAME model the fit uses: Normal(0,
          sig_model[b]^2), sig_model = the truth cluster_sigma_los (project_dispersion /
          Jeans) -- NOT the EFFVelocityDF particle sampler (which disagrees with the Jeans
@@ -763,11 +790,11 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     # the cluster mock is consistent with the fit by construction (review issue I1).
     sig_model = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, G)   # (K,) km/s
 
-    # Static per-bin SAMPLING counts (floor 2 so ddof=1 std is defined) + array width n_max
-    # + the TRUE design counts n_se for the SE WEIGHT. Host-side (the design is fixed across
-    # draws), so they fix the jit shapes ONCE. The SE weight uses n_se (NOT the floored
-    # sampling count) so the fit whitening matches the design Fisher (apples-to-apples).
-    counts, n_max, n_se = _per_bin_star_counts(design_n_eff)
+    # Static per-bin SAMPLING counts (= round(design_n_eff), NO floor) + array width n_max
+    # + the KEEP mask (bins with >= N_MIN_FIT stars, the ones a real analyst fits). Host-side
+    # (the design is fixed across draws), so they fix the jit shapes ONCE. The cold near-empty
+    # bins are DROPPED (masked out of the GN residual), not floored to 2-star filler.
+    counts, n_max, keep = _per_bin_star_counts(design_n_eff)
 
     # K_orb blend-velocity POOL (Moe massive-primary Delta [km/s]) -- the SAME population
     # that defines V_BIN (massive_primary_imf, V_BIN_Z), drawn ONCE. Per-draw injections
@@ -792,13 +819,14 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     def one_draw(kdraw):
         """One cross-model mock -> ((M_hat - M)/M, nuisance fractional biases, M-witness)."""
         k_mock, _ = jax.random.split(kdraw)
-        # 1-4. Route-1 forward-model-consistent per-bin sigma_hat + SE (cluster from the
-        #      fit model + binary pedestal + eps noise; design counts set n_b directly).
+        # 1-4. Route-1 forward-model-consistent per-bin sigma_hat + realized-scatter SE
+        #      (cluster from the fit model + binary pedestal + eps noise; design counts set
+        #      n_b directly; se[b] = sigma_hat[b]/sqrt(2 n_b) -- honest-analyst weighting).
         sigma_hat, se = _draw_binned_sigma_hat(
-            k_mock, sig_model, counts, n_max, n_se, korb_pool, f_bin_truth
+            k_mock, sig_model, counts, n_max, keep, korb_pool, f_bin_truth
         )
-        # 5. Misspecified binary-free MAP fit (eps-consistent prediction).
-        theta_hat, m_witness = _fit_theta_bf_gn(sigma_hat, se, G, n_iter=n_iter)
+        # 5. Misspecified binary-free MAP fit (eps-consistent prediction; dropped bins masked).
+        theta_hat, m_witness = _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=n_iter)
         theta_true = theta_truth_clusteronly()
         frac = (theta_hat - theta_true) / theta_true       # (4,) fractional bias per param
         return frac, m_witness
