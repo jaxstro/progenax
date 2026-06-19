@@ -31,11 +31,14 @@ JAX-native (``jax.numpy``); ``import progenax`` enables float64 before this modu
 
 See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
 """
+import math
 import os
 import sys
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
+import optax
 
 from jaxstro.units import STELLAR
 from progenax import EFFProfile, project_dispersion
@@ -47,6 +50,7 @@ from progenax.imf import Maschberger
 # module is imported (the test inserts it too; this is belt-and-braces).
 sys.path.insert(0, os.path.dirname(__file__))
 import _demo_binaries as binaries  # noqa: E402
+import _demo_oed as oed  # noqa: E402  -- the Stage-1 c-criterion (matrix-generic) is reused
 
 # pc/Myr -> km/s. project_dispersion returns velocities in sqrt(G M / length) units,
 # which under STELLAR (Msun, pc, Myr) is pc/Myr. STELLAR.velocity_scale_km_s == 0.977792
@@ -308,3 +312,154 @@ def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
     def g(lnth):
         return cluster_sigma_los(jnp.exp(lnth), R, G)         # (K,)
     return jax.jacrev(g)(jnp.log(theta_clusteronly))          # (K, 4)
+
+
+# ===========================================================================
+# Task 1.3: additive Fisher (RV-only, single channel) + binary-free
+#           c-optimal-for-M design
+# ===========================================================================
+#
+# The binary-free model drops f_bin: theta = (M, r_a, gamma, a). The design is a
+# per-radial-bin allocation of N_total RV measurements over the K=12 bins (a single
+# RV channel -- no PM channel in this RV-only arc). The Fisher is the Stage-1
+# additive form, restricted to one channel:
+#
+#   F = Sum_b n_b * M_b + diag(PRIOR_DIAG_BF),   M_b = 2 * outer(J_b, J_b) / (sigma_b^2 + eps_RV^2)
+#
+# with n_b = N_total * softmax(z) the per-bin counts, J_b = d sigma_cluster / d ln theta
+# (row b of the cached binary-free jacrev), sigma_b the cached truth sigma_los. In the
+# dimensionless ln-theta metric (ADR 0011) every (F^-1) entry is a FRACTIONAL variance,
+# so c_criterion(F)[M, M] = [sigma(M)/M]^2 directly.
+
+# Total RV-measurement budget allocated across the K bins. A round number on the scale
+# of a deep YMC RV survey (thousands of resolved bright members); the OED conclusions
+# are scale-free in N_total (F is linear in it), so this is just a reporting anchor.
+N_TOTAL = 5000.0
+
+# Priors on the binary-free theta = (M, r_a, gamma, a), as ln-theta FRACTIONAL
+# precisions 1/sigma_frac^2 on the diagonal (ADR 0011). Choices (design doc
+# "Priors / degeneracy structure"):
+#  * M (idx 0)  = 0      -- the TARGET dynamical mass: NO prior. You do not constrain
+#                           the very quantity you are designing to measure; M must be
+#                           pinned by the kinematic RV design alone.
+#  * r_a (idx 1) = 1/0.5^2 -- a WEAK prior (50% fractional). The OM anisotropy radius is
+#                           a kinematic nuisance with only loose external constraints;
+#                           weak regularization keeps F conditioned without dictating r_a.
+#  * gamma (idx 2) = 1/0.1^2, a (idx 3) = 1/0.1^2 -- TIGHT photometric priors (10%
+#                           fractional). The EFF density slope and scale radius are
+#                           measured precisely from the surface-brightness profile, so
+#                           they enter the kinematic fit as well-pinned shape parameters.
+_FRAC_RA = 0.5    # weak prior on the anisotropy nuisance
+_FRAC_PHOT = 0.1  # tight photometric prior on the shape params (gamma, a)
+PRIOR_DIAG_BF = jnp.array([0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_PHOT**2])
+
+# eps_RV in the native pc/Myr unit of the cached sigma (so the Fisher denominator
+# sigma^2 + eps^2 is dimensionally consistent before the km/s conversion). Equivalently
+# EPS_RV_KMS / VEL_KMS_PER_PC_MYR; we keep everything in km/s instead (sigma cached in
+# km/s), so eps enters as EPS_RV_KMS directly. See _SIG_BF below.
+
+# ---------------------------------------------------------------------------
+# Build-once caches at the TRUTH (design-INDEPENDENT -- enforce-jax-performance).
+# The binary-free jacrev (the single expensive jacrev through project_dispersion) and
+# the truth sigma_los are computed ONCE here at import, NOT inside the optimizer loop.
+# The optimizer evaluates the Fisher thousands of times over the design weights z; both
+# _J_BF and _SIG_BF are constant wrt z (theta is the fixed truth), so caching them as
+# module constants leaves every design gradient bit-identical while avoiding a re-jacrev
+# per step (mirrors _demo_oed_depth._J/_SIG). Both in km/s (sigma) and dimensionless
+# (J = d sigma / d ln theta) -- consistent with EPS_RV_KMS.
+_J_BF = jacobian_lntheta_clusteronly(theta_truth_clusteronly(), R_BINS, STELLAR.G)  # (K, 4)
+_SIG_BF = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, STELLAR.G)           # (K,) km/s
+
+
+def uniform_design():
+    """The uniform (equal-weight) design logits: a length-K zero vector, so
+    softmax gives an equal 1/K allocation to every radial bin (the no-OED baseline)."""
+    return jnp.zeros(R_BINS.shape[0])
+
+
+def c_criterion_M(F):
+    """c-optimality for the dynamical mass M (binary-free theta index IDX_M = 0):
+    the (M, M) entry of F^-1 in the ln-theta metric = [sigma(M)/M]^2. Thin wrapper
+    over the Stage-1 matrix-generic oed.c_criterion(F, target=IDX_M)."""
+    return oed.c_criterion(F, target=IDX_M)
+
+
+def fisher_binary_free(design_weights, N_total, J=None, sig=None, prior_diag=None):
+    r"""Additive single-channel RV Fisher for the binary-free theta = (M, r_a, gamma, a).
+
+    ``F = Sum_b n_b * M_b + diag(prior_diag)`` with per-bin counts
+    ``n_b = N_total * softmax(design_weights)`` and the rank-1 per-bin block
+    ``M_b = 2 * outer(J_b, J_b) / (sigma_b^2 + eps_RV^2)`` (the Gaussian-dispersion
+    Fisher: a dispersion from n stars has variance (sigma^2+eps^2)/(2n)). ``J`` and
+    ``sig`` default to the build-once truth caches ``_J_BF`` / ``_SIG_BF`` (km/s);
+    ``prior_diag`` defaults to ``PRIOR_DIAG_BF``. Symmetric (4, 4); SPD with the prior.
+    Differentiable in ``design_weights`` (pure softmax + linear algebra -- no re-jacrev).
+    """
+    J = _J_BF if J is None else J
+    sig = _SIG_BF if sig is None else sig
+    prior_diag = PRIOR_DIAG_BF if prior_diag is None else prior_diag
+    n_b = N_total * jax.nn.softmax(design_weights)                  # (K,) per-bin counts
+    denom = sig**2 + EPS_RV_KMS**2                                  # (K,) Gaussian-dispersion denom
+    M_b = 2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]  # (K, 4, 4) per-bin blocks
+    F = jnp.einsum("k,kpq->pq", n_b, M_b)                           # additive design Fisher
+    return F + jnp.diag(prior_diag)
+
+
+class DesignResultM(NamedTuple):
+    """Result of optimize_design_M (the binary-free c-optimal-for-M design):
+      * n_eff           : optimal per-bin RV counts (K,), summing to N_total,
+      * sigma_M_over_M  : the c-optimal fractional precision sqrt((F^-1)[M, M]) (ln metric),
+      * z               : the optimal design logits (K,),
+      * trace           : the per-step criterion trace of the winning Adam start."""
+    n_eff: jnp.ndarray
+    sigma_M_over_M: float
+    z: jnp.ndarray
+    trace: jnp.ndarray
+
+
+def _optimize_one_M(z0, N_total, n_steps, lr):
+    """One Adam trajectory minimizing c_criterion_M(fisher_binary_free(z, N_total)).
+
+    Fixed-iteration jax.lax.scan (NOT while_loop) over the length-K design logits z;
+    the step is jit-compiled. The Fisher is pure linear algebra over the cached
+    _J_BF/_SIG_BF (no re-jacrev), so each step is cheap. Returns (z_final, trace)."""
+    opt = optax.adam(lr)
+    state = opt.init(z0)
+    loss = lambda z: c_criterion_M(fisher_binary_free(z, N_total))
+
+    @jax.jit
+    def step(carry, _):
+        z, st = carry
+        l, g = jax.value_and_grad(loss)(z)
+        upd, st = opt.update(g, st)
+        return (optax.apply_updates(z, upd), st), l
+
+    (z, _), trace = jax.lax.scan(step, (z0, state), None, length=n_steps)
+    return z, trace
+
+
+def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
+    """Multi-start Adam for the binary-free c-optimal-for-M radial RV design.
+
+    Minimizes ``c_criterion_M(fisher_binary_free(z, N_total))`` -- the marginal
+    fractional variance [sigma(M)/M]^2 -- over the length-K design logits z, running
+    ``n_starts`` independent Adam trajectories (the simplex landscape can be multimodal)
+    and keeping the lowest-criterion result. Mirrors the Stage-1 multi-start pattern
+    (oed.optimize_design) for the single-channel 4-parameter case.
+
+    SPD invariant: softmax(z) > 0 for every finite z (every bin populated) and
+    PRIOR_DIAG_BF adds strictly positive precision on the (r_a, gamma, a) nuisance
+    subspace, so the regularized F stays SPD throughout and c_criterion_M's inverse
+    never hits a singular F. Returns a DesignResultM.
+    """
+    K = R_BINS.shape[0]
+    best = None
+    for s in range(n_starts):
+        z0 = jax.random.normal(jax.random.fold_in(key, s), (K,)) * 0.5
+        z, trace = _optimize_one_M(z0, N_total, n_steps, lr)
+        crit = float(c_criterion_M(fisher_binary_free(z, N_total)))
+        if math.isfinite(crit) and (best is None or crit < best[0]):
+            best = (crit, z, trace)
+    crit, z, trace = best
+    n_eff = N_total * jax.nn.softmax(z)
+    return DesignResultM(n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace)

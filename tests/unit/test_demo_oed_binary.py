@@ -151,3 +151,37 @@ def test_jacobian_lntheta_clusteronly_chain_rule_to_full():
     sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)
     factor = (sig_cluster / sig_obs)[:, None]                        # (K, 1)
     assert jnp.allclose(J_full[:, :4], J_bf * factor, rtol=1e-8, atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Task 1.3: additive Fisher (RV-only) + binary-free c-optimal-for-M design
+# ---------------------------------------------------------------------------
+import jax  # noqa: E402  -- needed for PRNGKey in the optimizer tests
+
+
+def test_binary_free_fisher_symmetric_and_spd():
+    """The binary-free additive Fisher (single RV channel, ln-theta, +prior) is
+    symmetric and strictly positive-definite for a uniform design."""
+    F = oedb.fisher_binary_free(oedb.uniform_design(), oedb.N_TOTAL)
+    assert F.shape == (4, 4)
+    assert jnp.allclose(F, F.T)
+    assert bool(jnp.all(jnp.linalg.eigvalsh(F) > 0.0))
+
+
+def test_optimize_design_M_normalized_and_positive_sigma():
+    """optimize_design_M returns per-bin counts summing to N_total (rtol 1e-4) and a
+    positive c-optimal fractional precision sigma(M)/M."""
+    res = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    assert jnp.isclose(jnp.sum(res.n_eff), oedb.N_TOTAL, rtol=1e-4)
+    assert res.sigma_M_over_M > 0.0
+    assert res.n_eff.shape == (oedb.R_BINS.shape[0],)
+    assert bool(jnp.all(res.n_eff > 0.0))     # softmax keeps every bin populated
+
+
+def test_c_optimal_beats_uniform_for_M():
+    """The c-optimal-for-M design achieves sigma(M)/M no worse than the uniform
+    design (optimization helps): optimizing the radial allocation tightens M."""
+    res = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
+    F_unif = oedb.fisher_binary_free(oedb.uniform_design(), oedb.N_TOTAL)
+    sigma_M_unif = float(jnp.sqrt(oedb.c_criterion_M(F_unif)))
+    assert res.sigma_M_over_M <= sigma_M_unif
