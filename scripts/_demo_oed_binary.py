@@ -244,3 +244,67 @@ def th_a(theta):
 def th_fbin(theta):
     """Binary fraction f_bin from a full theta vector (index 4)."""
     return theta[IDX_FBIN]
+
+
+# ===========================================================================
+# Binary-inflated observable + the ONE reverse-mode jacrev (ln-theta metric)
+# ===========================================================================
+#
+# The single-epoch RV observable is the binary-INFLATED line-of-sight dispersion:
+# sigma_obs^2(R) = sigma_cluster^2(R; M, r_a, gamma, a) + f_bin * V_bin, where the
+# cluster term carries the radial SHAPE and the binaries add a flat PEDESTAL. The
+# eps_RV^2 measurement term is added at the Fisher denominator (Task 1.3), NOT here
+# (this is the model prediction, not the noise model).
+#
+# The Fisher backbone (Stage-1, _demo_oed) needs J = d sigma_obs / d ln theta, ONE
+# reverse-mode jacrev (ADR 0011: differentiating wrt ln theta makes F dimensionless
+# and every F^-1 entry a FRACTIONAL variance; reverse-mode by policy -- King/Michie
+# use custom_vjp ODEs with no jvp rule, so forward-mode would crash, and EFF is kept
+# reverse-mode for consistency). jacrev of g(ln theta) = sigma_obs(exp(ln theta))
+# returns d sigma_obs / d ln theta directly (the chain rule's exp(ln theta) = theta
+# factor IS the ln-theta scaling), so no separate "* theta" step is needed.
+
+
+def predict_sigma_obs(theta_full, R, G):
+    r"""Binary-inflated observable sigma_obs(R) [km/s], the single-epoch RV model.
+
+    ``sigma_obs^2(R) = cluster_sigma_los(M, r_a, gamma, a)^2 + f_bin * V_bin``. The
+    cluster term sets the radial shape and amplitude; ``f_bin * V_bin`` is the flat
+    binary-blend pedestal (``V_bin`` a build-once population variance, (km/s)^2). The
+    measurement error ``eps_RV`` is added at the Fisher denominator (Task 1.3), not
+    in the model prediction. Returns sigma_obs (sqrt of the variance), (K,) km/s.
+    """
+    sig2_cluster = cluster_sigma_los(theta_full[:4], R, G) ** 2
+    return jnp.sqrt(sig2_cluster + th_fbin(theta_full) * V_BIN)
+
+
+def jacobian_lntheta(theta_full, R, G):
+    r"""ONE reverse-mode jacrev: J = d sigma_obs / d ln theta, shape (K, 5).
+
+    The full (5-parameter, theta = (M, r_a, gamma, a, f_bin)) sensitivity matrix in
+    the dimensionless ln-theta metric (ADR 0011). Implemented as
+    ``jax.jacrev`` of ``lambda lnth: predict_sigma_obs(exp(lnth), R, G)`` evaluated at
+    ``log(theta_full)`` -- the ``d/d ln theta = theta * d/d theta`` scaling is built in
+    by the ``exp`` reparametrisation, so no separate ``* theta`` step. Reverse-mode by
+    policy. The ``f_bin`` column is ``f_bin * V_bin / (2 sigma_obs)``: it GROWS toward
+    the outskirts (where ``sigma_obs`` falls), concentrating binary-fraction
+    information in the cold outer bins.
+    """
+    def g(lnth):
+        return predict_sigma_obs(jnp.exp(lnth), R, G)         # (K,)
+    return jax.jacrev(g)(jnp.log(theta_full))                 # (K, 5)
+
+
+def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
+    r"""ONE reverse-mode jacrev for the BINARY-FREE model: J = d sigma_los / d ln theta,
+    shape (K, 4), theta = (M, r_a, gamma, a).
+
+    The binary-free analogue of ``jacobian_lntheta`` (no f_bin column): jacrev of
+    ``lambda lnth: cluster_sigma_los(exp(lnth), R, G)`` at ``log(theta_clusteronly)``.
+    Equals the first four columns of the full jacrev at the truth (the f_bin pedestal
+    is a pure additive offset that does not couple into the cluster sensitivities).
+    This is the matrix Task 1.3 caches ONCE at the truth for the binary-free Fisher.
+    """
+    def g(lnth):
+        return cluster_sigma_los(jnp.exp(lnth), R, G)         # (K,)
+    return jax.jacrev(g)(jnp.log(theta_clusteronly))          # (K, 4)

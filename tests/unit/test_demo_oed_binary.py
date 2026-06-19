@@ -100,3 +100,54 @@ def test_sigma_cluster_ref_is_max_of_cluster_sigma_los():
     th = oedb.theta_truth_clusteronly()
     sig = oedb.cluster_sigma_los(th, oedb.R_BINS, STELLAR.G)
     assert jnp.isclose(oedb.sigma_cluster_ref(), jnp.max(sig), rtol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Task 1.2: binary-inflated observable + ONE jacrev (ln-theta, ADR 0011)
+# ---------------------------------------------------------------------------
+def test_predict_sigma_obs_adds_binary_pedestal():
+    """sigma_obs^2 = sigma_cluster^2 + f_bin * V_BIN (the flat binary pedestal),
+    exactly (rtol 1e-10), and the observable is everywhere larger than the bare
+    cluster dispersion (binaries inflate the second moment)."""
+    th = oedb.theta_truth()                       # (M, r_a, gamma, a, f_bin)
+    R = oedb.R_BINS
+    sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)        # (K,) km/s
+    sig_cluster = oedb.cluster_sigma_los(th[:4], R, STELLAR.G)
+    expected2 = sig_cluster ** 2 + oedb.th_fbin(th) * oedb.V_BIN
+    assert sig_obs.shape == (R.shape[0],)
+    assert jnp.allclose(sig_obs ** 2, expected2, rtol=1e-10)
+    assert bool(jnp.all(sig_obs > sig_cluster))   # pedestal strictly inflates
+
+
+def test_jacobian_lntheta_shape_and_fbin_concentrates_in_outskirts():
+    """The ONE reverse-mode jacrev J = d sigma_obs / d ln theta is (K, 5), finite,
+    and the f_bin column concentrates info in the OUTSKIRTS: |J[:, IDX_FBIN]| is
+    larger at the outermost (cold) bin than the innermost (hot) bin, because
+    d sigma_obs / d ln f_bin = f_bin * V_BIN / (2 sigma_obs) grows as sigma_obs
+    falls toward the outskirts -- the leverage that breaks M<->f_bin."""
+    th = oedb.theta_truth()
+    R = oedb.R_BINS
+    J = oedb.jacobian_lntheta(th, R, STELLAR.G)   # (K, 5)
+    assert J.shape == (R.shape[0], 5)
+    assert bool(jnp.all(jnp.isfinite(J)))
+    fcol = J[:, oedb.IDX_FBIN]
+    assert float(jnp.abs(fcol[-1])) > float(jnp.abs(fcol[0]))
+
+
+def test_jacobian_lntheta_clusteronly_chain_rule_to_full():
+    """The cluster-only jacrev (d sigma_CLUSTER / d ln theta, the binary-free model)
+    relates to the first four columns of the full jacrev (d sigma_OBS / d ln theta) by
+    the exact chain-rule factor sigma_cluster / sigma_obs, since
+    sigma_obs^2 = sigma_cluster^2 + f_bin*V_bin =>
+    d sigma_obs / d ln theta_i = (sigma_cluster / sigma_obs) * d sigma_cluster / d ln theta_i.
+    They are deliberately NOT equal when f_bin > 0; the binary-free Fisher (Task 1.3)
+    caches the cluster-only jacrev (the binary-free model's sensitivity)."""
+    th = oedb.theta_truth()
+    R = oedb.R_BINS
+    J_full = oedb.jacobian_lntheta(th, R, STELLAR.G)                 # (K, 5)
+    J_bf = oedb.jacobian_lntheta_clusteronly(th[:4], R, STELLAR.G)   # (K, 4)
+    assert J_bf.shape == (R.shape[0], 4)
+    sig_cluster = oedb.cluster_sigma_los(th[:4], R, STELLAR.G)
+    sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)
+    factor = (sig_cluster / sig_obs)[:, None]                        # (K, 1)
+    assert jnp.allclose(J_full[:, :4], J_bf * factor, rtol=1e-8, atol=1e-12)
