@@ -54,3 +54,49 @@ def test_eff_profile_feeds_project_dispersion_positive_finite():
     assert sig_los.shape == (oedb.R_BINS.shape[0],)
     assert bool(jnp.all(jnp.isfinite(sig_los)))
     assert bool(jnp.all(sig_los > 0.0))
+
+
+# ---------------------------------------------------------------------------
+# Task 1.1: EFF-OM RV-only cluster forward model (cluster_sigma_los)
+# ---------------------------------------------------------------------------
+def test_cluster_sigma_los_matches_project_dispersion():
+    """Per-bin cluster_sigma_los(theta_clusteronly, R, G) equals the direct
+    project_dispersion(...).sigma_los oracle (km/s), is everywhere positive, and the
+    sigma_los profile DECLINES from the dense core to the outskirts (radial leverage:
+    M info lives in the high-sigma core, the flat binary pedestal dominates in the
+    low-sigma outskirts)."""
+    from progenax import project_dispersion
+
+    th = oedb.theta_truth_clusteronly()           # (M, r_a, gamma, a)
+    R = oedb.R_BINS
+    sig = oedb.cluster_sigma_los(th, R, STELLAR.G)  # (K,) km/s, RV channel only
+
+    # Oracle: project_dispersion on the SAME EFF-OM model, converted pc/Myr -> km/s.
+    prof = oedb.eff_profile(gamma=oedb.th_gamma(th), a=oedb.th_a(th), r_t=oedb.R_T_FID)
+    sig_ref = oedb.kms(
+        project_dispersion(prof, oedb.th_ra(th), R, oedb.th_M(th), STELLAR.G).sigma_los
+    )
+
+    assert sig.shape == (R.shape[0],)
+    assert jnp.allclose(sig, sig_ref, rtol=1e-10)
+    assert bool(jnp.all(sig > 0.0))
+    # Radial leverage: the PROJECTED sigma_los of an EFF-OM model has a mild interior
+    # peak (the deep-core LOS integral samples the full radial column, so the central
+    # projected dispersion is slightly BELOW the peak at R ~ a), then DECLINES steeply
+    # to the outskirts. The leverage that breaks M<->f_bin is this large core->outskirt
+    # contrast: the inner bins are hot (M-dominated), the outer bins are cold (where the
+    # flat binary pedestal dominates). Assert (i) a big drop core->outskirts and
+    # (ii) strict decline past the interior peak (NOT strict monotonicity from bin 0,
+    # which would encode the wrong physics).
+    assert float(sig[0]) > 5.0 * float(sig[-1])         # >5x core->outskirt contrast
+    peak = int(jnp.argmax(sig))
+    assert peak < sig.shape[0] - 1                       # the peak is interior, not the last bin
+    assert bool(jnp.all(jnp.diff(sig[peak:]) < 0.0))     # strictly declining past the peak
+
+
+def test_sigma_cluster_ref_is_max_of_cluster_sigma_los():
+    """sigma_cluster_ref() is the single source of truth = max over bins of
+    cluster_sigma_los at the fiducial theta (the central / peak dispersion)."""
+    th = oedb.theta_truth_clusteronly()
+    sig = oedb.cluster_sigma_los(th, oedb.R_BINS, STELLAR.G)
+    assert jnp.isclose(oedb.sigma_cluster_ref(), jnp.max(sig), rtol=1e-12)

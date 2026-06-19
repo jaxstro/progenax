@@ -145,14 +145,46 @@ def eff_profile(gamma=GAMMA_FID, a=A_FID, r_t=R_T_FID):
     return EFFProfile(a=a, gamma=gamma, r_t=r_t)
 
 
+def cluster_sigma_los(theta_clusteronly, R, G):
+    r"""EFF-OM RV-only projected line-of-sight dispersion per on-sky radial bin [km/s].
+
+    The cluster forward model's RV channel: ``sigma_los(R)`` of the EFF density +
+    Osipkov-Merritt anisotropy model at the cluster-only parameter vector
+    ``theta = (M, r_a, gamma, a)``, via the Binney & Mamon (1982) projection of the
+    Jeans model (``progenax.project_dispersion``), converted pc/Myr -> km/s.
+
+    ``M`` scales the dispersion amplitude (``sigma ~ sqrt(G M / length)``), while
+    ``(r_a, gamma, a)`` set the radial SHAPE. This is the single source of truth for
+    the cluster term; the binary-inflated observable (Task 1.2) adds the flat
+    ``f_bin * V_bin`` pedestal on top of ``cluster_sigma_los**2``.
+
+    Parameters
+    ----------
+    theta_clusteronly : (4,) array  (M, r_a, gamma, a)
+        The binary-free cluster parameter vector. The EFF truncation radius ``r_t``
+        is held at the pinned fiducial ``R_T_FID`` (an outer quadrature limit, not a
+        free design/inference parameter).
+    R : (K,) array of on-sky bin-centre radii [pc].
+    G : gravitational constant in the caller's unit system (use ``STELLAR.G``).
+
+    Returns
+    -------
+    (K,) array of sigma_los [km/s].
+    """
+    prof = eff_profile(gamma=th_gamma(theta_clusteronly),
+                       a=th_a(theta_clusteronly), r_t=R_T_FID)
+    return kms(project_dispersion(prof, th_ra(theta_clusteronly), R,
+                                  th_M(theta_clusteronly), G).sigma_los)
+
+
 def sigma_cluster_ref(theta=None, R=None):
     r"""Central (peak) EFF-OM line-of-sight dispersion of the fiducial YMC [km/s].
 
     The CONSERVATIVE reference scale for the H1 sigma_bin/sigma_cluster ratio: the
     LARGEST sigma_los over the radial bins (the core). Binaries hurt fractionally MORE
     in the low-sigma outskirts, so if binaries rival the cluster at the central peak
-    they rival it everywhere. Reads the RV channel of project_dispersion (the EFF-OM
-    Jeans + Binney & Mamon 1982 projection) and converts pc/Myr -> km/s.
+    they rival it everywhere. A thin wrapper over ``cluster_sigma_los`` (the single
+    source of truth for the cluster term) taking the per-bin maximum.
 
     Parameters
     ----------
@@ -160,11 +192,9 @@ def sigma_cluster_ref(theta=None, R=None):
         Override the fiducial theta (used in later-phase sweeps). Default -> fiducials.
     R : optional array of on-sky radii. Default -> R_BINS.
     """
-    M, r_a, gamma, a = theta_truth_clusteronly() if theta is None else theta
+    theta = theta_truth_clusteronly() if theta is None else theta
     R = R_BINS if R is None else R
-    prof = eff_profile(gamma=gamma, a=a, r_t=R_T_FID)
-    sig_los_kms = kms(project_dispersion(prof, r_a, R, M, STELLAR.G).sigma_los)
-    return jnp.max(sig_los_kms)
+    return jnp.max(cluster_sigma_los(theta, R, STELLAR.G))
 
 
 # ===========================================================================
