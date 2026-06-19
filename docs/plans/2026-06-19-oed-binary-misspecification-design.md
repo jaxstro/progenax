@@ -176,6 +176,20 @@ against the held PDF / per-paper note (`no-assumptions-verify-against-pdfs`,
 `paper-grounding-workflow`); ZAMS = Tout+1996 (already internalized in `progenax.stellar`);
 Kepler `to_binary_state` reused as-is.
 
+### Phase 0 Task 0.1 verdict (2026-06-19): PASS
+
+`scripts/_demo_binaries.py` hardcodes **no** Moe constants — it rides `MoeJointOrbit.default()`
+(packaged) + `Maschberger(α=2.3, 0.08–100 M☉)` + Tout+1996 `zams_luminosity` + Kepler
+`period_to_semimajor_axis`/`to_binary_state`. The Moe Table-13 grids in
+`src/progenax/imf/binary/moe_di_stefano.py` were **re-verified cell-by-cell against the actual
+PDF** (`docs/core-papers/Moe_2017_ApJS_230_15.pdf`, p.52, Table 13) this session — every value of
+`_GAMMA_LARGEQ`, `_GAMMA_SMALLQ`, `_F_TWIN`, `_COMPANION_FREQ` matches exactly (the `<0.03` twin
+cells correctly → 0; representative mass nodes 1.0/3.2/6.7/12/20 M☉ for the five Table-13 bins).
+The kernel uses the **faithful** `MoeJointOrbit`, so the documented R3 twin-over-weight of the
+period-averaged `MoeDiStefano2017` reduction does **not** apply. Eccentricity η(P,M₁) (Eqs. 17–18)
++ Roche ceiling (Eq. 3) live in `MoeEccentricity` per the PDF-verified per-paper note (§9.2). No
+unsourced/fabricated constant on the binary grad path.
+
 ## Science deliverable
 
 The binary-aware vs binary-free optimal allocation maps (radius), the M-bias bar (naive vs
