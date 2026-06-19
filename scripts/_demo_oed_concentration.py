@@ -792,8 +792,11 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
     accept/reject ALSO subsumes the step-cap's Michie-ODE-basin guard: a step that pushes
     (W0, r_a) past the Michie truncation makes the ODE return NaN -> cost NaN -> rejected ->
     lam up -> smaller step, so the over-anisotropic region is auto-avoided. Returns
-    (theta_hat (3,), final_step_norm) -- the LAST iteration's accepted ||du||_inf in ln-theta,
-    a B2 convergence witness that -> ~0 across ALL params when the fit has settled.
+    (theta_hat (3,), w0_witness) -- w0_witness is the MAX |W0-component step| over the LAST 5
+    iterations (review I1): it witnesses convergence of the TARGET W0 (the only param that
+    enters the realized variance), NOT the weakly-constrained r_a nuisance (which is EXPECTED
+    not to settle and would dominate an all-param witness), and the last-5 WINDOW avoids the
+    false-zero a single rejected final step would report. ~0 means W0_hat has settled.
 
     JIT (static_argnames model/n_iter): sigma_hat, se, G are TRACED args, so XLA compiles
     the King/Michie ODE-jacrev scan ONCE and reuses it across every calibration draw (the
@@ -825,41 +828,50 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
         improved = c_try < c                                  # NaN (Michie ODE blow-up) -> False -> reject
         u_next = jnp.where(improved, u_try, u)
         lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
-        moved = jnp.max(jnp.abs(u_next - u))                  # accepted ||du||_inf (0 on reject)
-        return (u_next, lam_next), moved
+        # Emit the W0-COMPONENT (index 0) of the accepted step, not the all-param ||du||_inf.
+        # B2 must witness the TARGET we extract (W0); the weakly-constrained r_a nuisance
+        # (M-only prior) is EXPECTED not to reach a tight optimum and would dominate an
+        # all-param witness without affecting W0_hat (verified: stuck draws are r_a-stuck,
+        # W0_hat well-behaved). (un - u)[0] is 0 on a reject.
+        w0_moved = jnp.abs((u_next - u)[0])
+        return (u_next, lam_next), w0_moved
 
-    (u_hat, _), step_norms = jax.lax.scan(lm_step, (jnp.zeros(3), _GN_LM_LAM0), None, length=n_iter)
-    # B2 convergence witness: the LAST iteration's accepted ||du||_inf in ln-theta. With LM
-    # this -> ~0 across ALL params at convergence (the weakly-constrained r_a now settles
-    # under the lam floor instead of oscillating at the old step-cap).
-    return theta_fid * jnp.exp(u_hat), step_norms[-1]
+    (u_hat, _), w0_steps = jax.lax.scan(lm_step, (jnp.zeros(3), _GN_LM_LAM0), None, length=n_iter)
+    # B2 convergence witness: the MAX |W0-step| over the LAST 5 iterations (not just the final
+    # iter). Taking the last-5 max -- not step_norms[-1] -- is load-bearing: a single rejected
+    # final step reports 0 and would FALSELY read as converged (review I1); the window catches
+    # a draw still moving or oscillating W0 in its endgame. ~0 means the EXTRACTED W0_hat has
+    # settled (the only thing that enters the realized variance).
+    return theta_fid * jnp.exp(u_hat), jnp.max(w0_steps[-5:])
 
 
 class CalibResultW0(NamedTuple):
     """Result of calibrate_fisher_W0 (variances are FRACTIONAL/ln variances, ADR 0011):
       * realized_var_W0  : Var(ln W0_hat over draws, ddof=1),
       * fisher_var_W0    : (inv F_design)_{W0, W0} at the same (z, N_total),
-      * max_step_norm    : max over draws of the LM fit's final-iter accepted ||du||_inf,
-      * n_unconverged    : # draws whose final-iter step exceeds _GN_CONVERGED_STEP (the B2
-                           witness gated on; LM settles all but the occasional hard draw)."""
+      * max_W0_step      : max over draws of each LM fit's W0-target witness (the max
+                           |W0-step| over its last 5 iterations; ~0 means W0_hat settled),
+      * n_unconverged    : # draws whose W0 witness exceeds _GN_CONVERGED_STEP (the B2 count
+                           gated on; LM settles W0 for all but the occasional hard draw)."""
     realized_var_W0: float
     fisher_var_W0: float
-    max_step_norm: float
+    max_W0_step: float
     n_unconverged: int
 
 
-# B2 convergence threshold on the LM fit's final-iter accepted ||du||_inf (ln-theta).
-# After _GN_N_ITER LM iterations a settled fit moves < this at the last step across ALL
-# params (incl. the weakly-constrained r_a); a draw above it is still moving (an
-# underdispersed / non-converged W0_hat) and is SURFACED, not swallowed.
+# B2 convergence threshold on each LM fit's W0-target witness (max |W0-step| over the last 5
+# iterations, ln-theta). After _GN_N_ITER LM iterations a settled fit moves W0 < this; a draw
+# above it has a still-moving (underdispersed / non-converged) W0_hat and is SURFACED, not
+# swallowed. Measured: King 48 draws -> 46/48 below this, median ~6e-5 (the r_a NUISANCE does
+# NOT converge -- expected, M-only prior -- but it does not enter the W0 witness).
 _GN_CONVERGED_STEP = 1e-3
 
 
 def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     """Calibrate the design Fisher against the realized scatter of ln(W0_hat).
 
-    Returns a CalibResultW0(realized_var_W0, fisher_var_W0, max_step_norm). The Fisher
-    prediction is (inv F_design)_{W0, W0} at (z, N_total) with the per-star blocks at the
+    Returns a CalibResultW0(realized_var_W0, fisher_var_W0, max_W0_step, n_unconverged). The
+    Fisher prediction is (inv F_design)_{W0, W0} at (z, N_total) with the per-star blocks at the
     truth; the realized quantity is Var(ln W0_hat over n_draws independent OM mocks, ddof=1)
     (both fractional/ln variances, ADR 0011). The gate
     (test_W0_fisher_calibration_matches_realized_scatter) asserts they agree to
@@ -879,7 +891,7 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     draw-independent design count n_eff (n_use does not depend on the draw's R; the guard is
     validated on a representative draw). Value-preserving in the statistical sense (a
     different but equivalent RNG stream): the realized variance agrees within the
-    calibration band; the King ratio stays ~0.758.
+    calibration band (King ratio ~0.976 with the Levenberg-Marquardt fit).
     """
     G = STELLAR.G
     theta = theta_truth()
@@ -923,23 +935,25 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     # fused computation (~48x the live tape memory) and OOM-killed the host -- the memory/
     # speed trade is wrong for a reverse-mode-through-ODE inner loop, so we keep it serial.
     draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d))(jnp.arange(n_draws))  # cheap (no ODE)
-    ln_W0_hats, step_norms = jax.lax.map(one_draw, draw_keys)
+    ln_W0_hats, w0_witnesses = jax.lax.map(one_draw, draw_keys)
 
-    # B2: surface (do NOT swallow) any draw whose GN fit had not settled at the final iter.
-    max_step_norm = float(jnp.max(step_norms))
-    n_unconverged = int(jnp.sum(step_norms > _GN_CONVERGED_STEP))
+    # B2: surface (do NOT swallow) any draw whose W0_hat had not settled (W0-target witness:
+    # max |W0-step| over the fit's last 5 iters; the r_a nuisance is expected not to converge
+    # and is deliberately NOT in this witness).
+    max_W0_step = float(jnp.max(w0_witnesses))
+    n_unconverged = int(jnp.sum(w0_witnesses > _GN_CONVERGED_STEP))
     if n_unconverged > 0:
         print(
-            f"[calibrate_fisher_W0/{model}] WARNING: {n_unconverged}/{n_draws} draws had "
-            f"GN final-iter ||du||_inf > {_GN_CONVERGED_STEP:g} (max {max_step_norm:.2e}); "
-            f"the W0_hat for those draws may be underdispersed -- investigate before trusting "
-            f"the realized variance."
+            f"[calibrate_fisher_W0/{model}] WARNING: {n_unconverged}/{n_draws} draws had a "
+            f"W0-target witness > {_GN_CONVERGED_STEP:g} (max {max_W0_step:.2e}); the W0_hat for "
+            f"those draws may be underdispersed -- investigate before trusting the realized "
+            f"variance. (The r_a nuisance not settling is expected and excluded from this witness.)"
         )
 
     realized_var_W0 = float(jnp.var(ln_W0_hats, ddof=1))
     return CalibResultW0(
         realized_var_W0=realized_var_W0,
         fisher_var_W0=fisher_var_W0,
-        max_step_norm=max_step_norm,
+        max_W0_step=max_W0_step,
         n_unconverged=n_unconverged,
     )

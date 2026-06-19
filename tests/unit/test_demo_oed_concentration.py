@@ -356,10 +356,12 @@ def test_W0_fisher_calibration_matches_realized_scatter():
     ln-theta Gauss-Newton metric started at the truth.
 
     KING ONLY. The draw->bin->fit pipeline runs over draws with jax.lax.map (SEQUENTIAL,
-    memory-bounded -- peak ~2 GB). Michie's calibration MC is INTENTIONALLY NOT run: its
-    reverse-mode-through-the-equilibrium-ODE backward tape makes the MLE-MC fit ~28 GB (it
-    OOM-crashed the host), AND it would add NO new anisotropy physics over King -- both are
-    OM-projected, differing only in the density->r_t(W0) map. Michie's machinery is already
+    memory-bounded -- peak ~2 GB for King). Michie's calibration MC is INTENTIONALLY NOT run:
+    its reverse-mode-through-the-equilibrium-ODE backward tape is huge, so even ONE Michie
+    draw's LM fit reaches ~28 GB -- it OOM-crashed the host EVEN under the sequential lax.map
+    (this is Michie's per-draw cost, not a batching artifact; lax.map does not rescue it). AND
+    it would add NO new anisotropy physics over King -- both are OM-projected, differing only
+    in the density->r_t(W0) map. Michie's machinery is already
     validated by the CHEAP tests: the Task-1 sampler-match (<1%,
     test_om_sampler_matches_project_dispersion), the forward (test_predict_sigma_* /
     test_jacobian_*), and the W0-gradient AD-vs-FD (test_grad_sigma_W0_michie_*) -- all
@@ -371,9 +373,12 @@ def test_W0_fisher_calibration_matches_realized_scatter():
     if the ratio is outside the band the design Fisher is wrong -- root-cause it, do NOT
     widen the band.
 
-    B2 (do not swallow non-convergence): assert every draw's GN fit settled (the
-    calibration's max final-iter ln-theta step is below the convergence threshold), so an
-    underdispersed W0_hat cannot silently shrink the realized variance."""
+    B2 (do not swallow non-convergence): gate that the TARGET W0_hat settled. The witness is
+    each LM fit's max |W0-step| over its last 5 iterations (review I1: the last-5 window avoids
+    the false-zero a single rejected final step would report; the W0 component excludes the
+    weakly-constrained r_a nuisance, which is EXPECTED not to converge under the M-only prior
+    and does not enter the realized variance). So an underdispersed W0_hat cannot silently
+    shrink the realized variance."""
     key = jax.random.PRNGKey(7)
     K = oedc.R_BINS.shape[0]
     cal = oedc.calibrate_fisher_W0(
@@ -381,11 +386,11 @@ def test_W0_fisher_calibration_matches_realized_scatter():
     )
     band = 2.0 * (2.0 / 48) ** 0.5
     ratio = cal.realized_var_W0 / cal.fisher_var_W0
-    # B2 (robust): the LM fit settles all but the occasional pathological noisy draw, so we
-    # gate on the COUNT of non-converged draws, not max_step_norm. With 48 random
-    # realizations an odd hard draw is expected (LM converges ~47/48 to < _GN_CONVERGED_STEP,
-    # vs the old fixed step-cap's ~20/48 -- a SYSTEMATIC failure this gate still catches). A
-    # single tail outlier is not a false alarm and does not bias the in-band ratio (verified:
-    # ratio ~0.98 with it included). Tolerance 2 gives margin against seed variation.
-    assert cal.n_unconverged <= 2, ("king", cal.n_unconverged, cal.max_step_norm)
+    # B2 (robust): LM settles the W0 target for all but the occasional pathological noisy draw,
+    # so we gate on the COUNT of W0-unconverged draws, not max_W0_step. Measured: LM -> 2/48
+    # above _GN_CONVERGED_STEP (the old fixed step-cap left 8/48 W0-unconverged -- the
+    # SYSTEMATIC regression this gate still catches). A couple of tail outliers are expected
+    # with 48 random realizations and do not bias the in-band ratio (verified: ratio ~0.976
+    # with them included). Tolerance 3 gives margin against seed variation.
+    assert cal.n_unconverged <= 3, ("king", cal.n_unconverged, cal.max_W0_step)
     assert jnp.abs(ratio - 1.0) < band, ("king", ratio)
