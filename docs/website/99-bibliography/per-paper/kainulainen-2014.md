@@ -14,9 +14,9 @@ description: "Annotated reference for J. Kainulainen et al. — Unfolding the la
 
 **DOI.** [10.1126/science.1248724](https://doi.org/10.1126/science.1248724)
 
-**Source note.** The Kainulainen+2014 PDF is **not held locally** (`docs/core-papers/`),
-so the values below are **cross-referenced from the PP20 and BM19 PDFs** (which were
-verified against their held PDFs), **not** read from the Kainulainen primary source.
+**Source note.** The Kainulainen+2014 primary source has **not** been verified directly,
+so the values below are **cross-referenced from the PP20 and BM19 papers** (which were
+verified against their published PDFs), **not** read from the Kainulainen primary source.
 ```
 
 ## What we use it for (cross-referenced via PP20 / BM19)
@@ -43,6 +43,6 @@ hierarchical prolate spheroids. Two numbers flow into the gravoturbulence chain:
 
 ## Notes
 
-- **Unverified primary source.** To fully verify, add `Kainulainen_2014_Science_344_183.pdf`
-  to `docs/core-papers/` and confirm $p\approx1.67$ and $s_\mathrm{th}\approx4.2$ directly.
-  Until then these are second-hand (PP20/BM19) values.
+- **Unverified primary source.** To fully verify, read the published Kainulainen+2014 (Science
+  **344**, 183) directly and confirm $p\approx1.67$ and $s_\mathrm{th}\approx4.2$. Until then
+  these are second-hand (PP20/BM19) values.

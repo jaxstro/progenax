@@ -14,9 +14,8 @@ description: Annotated reference for Th. Maschberger & C. J. Clarke — substruc
 
 **DOI.** [10.1111/j.1365-2966.2011.19067.x](https://doi.org/10.1111/j.1365-2966.2011.19067.x)
 
-**Verified.** Checked against the held PDF (`docs/core-papers/maschberger-2011-mnras0416-0541.pdf`,
-pp. 541–546, 2026-06-08): the median-MST Λ̃ (Eqs. 1–3) and the local-surface-density Σ estimator
-(Eq. 4) + the m–Σ KS test (§4).
+**Verified.** Checked against the published PDF (pp. 541–546, 2026-06-08): the median-MST Λ̃
+(Eqs. 1–3) and the local-surface-density Σ estimator (Eq. 4) + the m–Σ KS test (§4).
 ```
 
 ## The problem

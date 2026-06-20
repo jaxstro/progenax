@@ -52,6 +52,8 @@ The pages are organised alphabetically by first-author surname.
 
 ## Tidal fields & substructure & mass segregation
 
+- [](king-1962.md)
+- [](kuepper-2011-mcluster.md)
 - [](cartwright-2004.md)
 - [](goodwin-2004.md)
 - [](lomax-2018.md)
@@ -63,6 +65,8 @@ The pages are organised alphabetically by first-author surname.
 
 - [](federrath-2010.md)
 - [](federrath-klessen-2012.md)
+- [](kritsuk-2011.md)
+- [](tan-krumholz-mckee-2006.md)
 - [](kim-ryu-2005.md)
 - [](heyer-2009.md)
 - [](burkhart-2018.md)
@@ -91,7 +95,9 @@ simulation-based-inference alternative.
 
 ## Stellar evolution
 
+- [](tout-1996.md)
 - [](hurley-2000.md)
+- [](hurley-2002.md)
 
 ## Calibration & convergence diagnostics
 

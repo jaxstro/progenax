@@ -1,13 +1,13 @@
 ---
 title: Ecosystem papers
-description: Reference papers stored locally in `docs/core-papers/` — code methodology PDFs, McLuster, COMPAS, BoOST, and other resources informing progenax's design but not directly cited.
+description: Ecosystem reference papers — code methodology references, McLuster, COMPAS, BoOST, and other resources informing progenax's design but not directly cited in a single chapter.
 ---
 # Ecosystem papers
 
-This page indexes the **PDF** reference material under
-`docs/core-papers/`. These are papers that informed progenax's
-design choices but that may not be directly cited in any single
-chapter — comparison codes, methodology references, surveys.
+This page indexes the **reference material** behind progenax's
+design choices — papers that informed the implementation but may not
+be directly cited in any single chapter: comparison codes,
+methodology references, and surveys.
 
 For the formally-cited papers (with their per-paper detail pages),
 see [](per-paper/index.md). For the full bibliography, see

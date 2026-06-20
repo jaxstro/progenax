@@ -139,7 +139,6 @@ text-based, not a scanned image), so no values are flagged UNVERIFIED-by-text-ex
 
 ## Notes
 
-The PDF is held locally at `docs/core-papers/BaumgardtMakino03.pdf` (**gitignored** — never
-committed). Eq. 1's factor of 2 (vs. 3 for a Keplerian point mass) is specific to the
+Eq. 1's factor of 2 (vs. 3 for a Keplerian point mass) is specific to the
 logarithmic / flat-rotation-curve potential; do not confuse it with the point-mass Jacobi
 radius in `jacobi_radius`.

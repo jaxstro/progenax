@@ -94,7 +94,7 @@ eccentricity distribution is a **power law** $p(e) \propto e^{\eta}$ on
 $0 \le e \le e_{\max}(P)$, with the slope $\eta$ depending on *both*
 orbital period and primary mass — not the $\delta$-plus-thermal blend
 that older qualitative pictures suggest. The qualitative
-Duquennoy & Mayor (1991)-style picture (short-period orbits tidally
+{cite:t}`DuquennoyMayor1991`-style picture (short-period orbits tidally
 circularised, long-period orbits thermal) is a useful intuition for the
 *trend*, but progenax implements Moe's quantitative law:
 

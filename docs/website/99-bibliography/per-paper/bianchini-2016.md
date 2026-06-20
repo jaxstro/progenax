@@ -15,8 +15,7 @@ description: Annotated reference for Bianchini, van de Ven, Norris, Schinnerer &
 **arXiv.** [1603.00878](https://arxiv.org/abs/1603.00878) ·
 **ADS.** [2016MNRAS.458.3644B](https://ui.adsabs.harvard.edu/abs/2016MNRAS.458.3644B).
 
-**Held PDF.** `docs/core-papers/Bianchini2016.pdf`. Equations below verified
-page-by-page (2026-06-11).
+**Verified.** Equations below verified page-by-page against the published PDF (2026-06-11).
 ```
 
 Why progenax holds this: it supplies the **physical interpretation** of the

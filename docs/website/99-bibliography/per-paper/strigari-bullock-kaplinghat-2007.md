@@ -165,5 +165,4 @@ text-based PDF, not a scanned image), so no values are flagged UNVERIFIED-by-tex
   dispersion arc — the same "add proper motions to break the anisotropy degeneracy" argument — but
   progenax implements only the **forward** projection (Eqs. 1–3), not the paper's specific
   six-parameter dark-halo parameterisation (their Eq. 4).
-- The PDF is held locally at `docs/core-papers/Strigari_2007_ApJ_657_L1.pdf` (**gitignored** —
-  never committed).
+- Equations above verified against the published PDF.

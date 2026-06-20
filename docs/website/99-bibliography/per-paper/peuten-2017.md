@@ -15,8 +15,8 @@ description: 'Annotated reference for Peuten, Zocchi, Gieles, Gualandris & Héna
 **arXiv.** [1609.01720](https://arxiv.org/abs/1609.01720) ·
 **ADS.** [2017MNRAS.470.2736P](https://ui.adsabs.harvard.edu/abs/2017MNRAS.470.2736P).
 
-**Held PDF.** `docs/core-papers/Peuten2017.pdf`. Equations below verified
-page-by-page (2026-06-11, §2, pp 2737–2739).
+**Verified.** Equations below verified page-by-page against the published PDF
+(2026-06-11, §2, pp 2737–2739).
 ```
 
 This is the **definitive LIMEPY *multimass* methods paper** — the "follow-up

@@ -136,9 +136,9 @@ reproducing the Table 4 grid (e.g. ${\rm [Fe/H]}=-2 \Rightarrow \alpha_1=0.30,\ 
 
 ## Notes
 
-**The 2014 erratum.** {cite:t}`Marks2014` (MNRAS **442**, 3315; PDF held at
-`docs/core-papers/marks-2014-erratum.pdf`) reports a **missing minus sign in the *range of
-validity* of Eq. 14**: the printed "$x' \ge 0.87$" should read "$x' \ge -0.87$" (the same
+**The 2014 erratum.** {cite:t}`Marks2014` (MNRAS **442**, 3315; verified against the published
+PDF) reports a **missing minus sign in the *range of validity* of Eq. 14**: the printed
+"$x' \ge 0.87$" should read "$x' \ge -0.87$" (the same
 typo also appears just before Eq. 15). The slope and intercept are unchanged; the erratum
 quotes the rounded form $\alpha_3 = -0.41\,x' + 1.94$. The authors state the correct
 ($-0.87$) range was used in their own analysis and codes, so the paper's results and Table 1

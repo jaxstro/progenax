@@ -14,7 +14,7 @@ description: Annotated reference for the two companion Allison et al. (2009) mas
 
 **Application paper.** "Dynamical Mass Segregation on a Very Short Timescale," *ApJ* **700, L99–L103** (2009) — the cool-fractal N-body demonstration. **DOI** [10.1088/0004-637X/700/2/L99](https://doi.org/10.1088/0004-637X/700/2/L99).
 
-**Verified.** **ApJ 700 L99 checked against the held PDF** (`docs/core-papers/Allison_MassSegregation_2009.pdf`, pp. L99–L103, 2026-06-08): IC setup §3.1, the Λ method *as described in prose* §3.2, the Fig. 2 result, the §3.3 mechanism + Eqs. 1–3. ⚠️ **The MNRAS 395,1449 method paper is NOT held** — its formal $\Lambda_{\mathrm{MSR}}$ equation numbering and the exact ONC $\Lambda$ value are *not* verified here.
+**Verified.** **ApJ 700 L99 checked against the published PDF** (pp. L99–L103, 2026-06-08): IC setup §3.1, the Λ method *as described in prose* §3.2, the Fig. 2 result, the §3.3 mechanism + Eqs. 1–3. ⚠️ **The MNRAS 395,1449 method paper has NOT been verified** — its formal $\Lambda_{\mathrm{MSR}}$ equation numbering and the exact ONC $\Lambda$ value are *not* verified here.
 ```
 
 ## The big idea

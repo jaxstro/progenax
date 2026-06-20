@@ -242,6 +242,7 @@ project:
         - file: 95-release/release-strategy.md
     - title: Bibliography
       children:
+        - file: 99-bibliography/index.md
         - file: 99-bibliography/bibliography.md
         - file: 99-bibliography/ecosystem-papers.md
         - title: Per-paper detail
@@ -267,16 +268,22 @@ project:
             - file: 99-bibliography/per-paper/moe-2019.md
             - file: 99-bibliography/per-paper/raghavan-2010.md
             - file: 99-bibliography/per-paper/heggie-1975.md
+            - file: 99-bibliography/per-paper/king-1962.md
+            - file: 99-bibliography/per-paper/kuepper-2011-mcluster.md
             - file: 99-bibliography/per-paper/cartwright-2004.md
             - file: 99-bibliography/per-paper/goodwin-2004.md
             - file: 99-bibliography/per-paper/allison-2009.md
             - file: 99-bibliography/per-paper/baumgardt-2008.md
             - file: 99-bibliography/per-paper/federrath-klessen-2012.md
+            - file: 99-bibliography/per-paper/kritsuk-2011.md
+            - file: 99-bibliography/per-paper/tan-krumholz-mckee-2006.md
             - file: 99-bibliography/per-paper/burkhart-2018.md
             - file: 99-bibliography/per-paper/burkhart-mocz-2019.md
             - file: 99-bibliography/per-paper/parmentier-pasquali-2020.md
             - file: 99-bibliography/per-paper/kainulainen-2014.md
+            - file: 99-bibliography/per-paper/tout-1996.md
             - file: 99-bibliography/per-paper/hurley-2000.md
+            - file: 99-bibliography/per-paper/hurley-2002.md
             - file: 99-bibliography/per-paper/prsa-2016.md
     # Unlisted / not-in-public-nav pages. `hidden: true` builds the page and
     # makes it URL-reachable + linkable, but keeps it out of the navigation

@@ -129,6 +129,21 @@ the mass spectrum is the leading-order reason that single-IMF
 inferences from binary-rich populations are biased — see
 [](binary.md) for the inference-side consequences.
 
+```{note}
+**These bins are not identical to Moe & Di Stefano's Table 13 bins.**
+Table 13 quotes $f_b = 1 - \mathcal{F}_{n=0} = 0.40$ for solar-type
+primaries ($0.8$–$1.2\,\Msun$) and $0.94$ for O-stars ($9$–$16\,\Msun$);
+the table above lists $0.44$ at $0.5$–$1.0\,\Msun$ and $0.90$ at
+$M_1 > 10\,\Msun$. The differences are a **binning** artefact, not a
+disagreement: the $0.5$–$1.0\,\Msun$ bin extends *below* Table 13's
+$0.8\,\Msun$ floor, where lower-fraction M-dwarf surveys fill in, and
+the open-ended $M_1 > 10\,\Msun$ bin averages across O and early-B
+rather than picking out Table 13's $9$–$16\,\Msun$ O-star value.
+progenax samples the **Table 13 grid itself** (see
+[](../../99-bibliography/per-paper/moe-distefano-2017.md)); the rows
+here are a coarser pedagogical summary.
+```
+
 ## Three orbital-period regimes
 
 {cite:t}`MoeDiStefano2017` identify three qualitatively distinct period regimes:

@@ -28,7 +28,7 @@ single** — in contrast to earlier estimates. The orbital-period distribution i
 roughly log-normal with a **median of about 300 years**; the period–eccentricity relation shows
 the expected circularization for $P < 12$ d followed by a **roughly flat** eccentricity
 distribution; the mass-ratio distribution favours near-equal pairs. This is the modern update to
-Duquennoy & Mayor (1991).
+{cite:t}`DuquennoyMayor1991`.
 
 ## Verified facts (abstract, Table 1, §2)
 

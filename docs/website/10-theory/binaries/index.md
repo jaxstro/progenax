@@ -24,7 +24,7 @@ positions and velocities that an N-body integrator consumes.
 * - [](kepler-elements.md)
   - The seven orbital elements $(a, e, i, \Omega, \omega, M, t_p)$, their physical meaning, and the conversion from elements to phase-space coordinates.
 * - [](period-distributions.md)
-  - Four period-distribution families: log-uniform (Öpik), log-normal ({cite:t}`Sana2012` for OB-type, Duquennoy-Mayor for solar), {cite:t}`Sana2012` and {cite:t}`MoeDiStefano2017` empirical fits.
+  - Four period-distribution families: log-uniform (Öpik), log-normal ({cite:t}`Sana2012` for OB-type, {cite:t}`DuquennoyMayor1991` for solar), {cite:t}`Sana2012` and {cite:t}`MoeDiStefano2017` empirical fits.
 * - [](eccentricity.md)
   - Three eccentricity-distribution families: thermal ($f(e) = 2e$), uniform, period-dependent {cite:t}`MoeDiStefano2017`. Tidal-circularisation effects at short period.
 ```
@@ -126,6 +126,7 @@ non-separability noted at [](../imfs/multiplicity-statistics.md).
 ## References
 
 Kepler-element machinery is standard textbook material. The period
-distributions follow {cite:t}`Sana2012` (OB-type), Duquennoy-Mayor
-(solar), and {cite:t}`MoeDiStefano2017` (joint $f(P)$). The eccentricity
+distributions follow {cite:t}`Sana2012` (OB-type),
+{cite:t}`DuquennoyMayor1991` (solar), and {cite:t}`MoeDiStefano2017`
+(joint $f(P)$). The eccentricity
 distributions follow {cite:t}`MoeDiStefano2017` and earlier compilations.
