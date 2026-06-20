@@ -182,8 +182,8 @@ when a scalar-$r_t$ use case becomes concrete, the headline driver being
 **tidal-field coupling** $r_t \approx r_J$ (inferring the Galactic potential /
 orbits from cluster limiting radii, wiring in `progenax.tidal.jacobi_radius`).
 The mechanism, the IFT design, and ranked science cases are browsable at
-[](../20-architecture/differentiability.md#roadmap-differentiable-rt); the full
-design record is `docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
+[](../20-architecture/differentiability.md#roadmap-differentiable-rt), which carries
+the full design record.
 :::
 
 ## How to run

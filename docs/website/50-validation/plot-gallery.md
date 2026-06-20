@@ -70,8 +70,7 @@ $Q(f_{\mathrm{sub}})$ calibration (below).
 
 These are the curated set committed for the docs (a deliberate exception to the
 otherwise-gitignored `validation/plots/`). The *dynamical* mass-segregation figures
-(Λ_MSR(t) evolution) await the deferred gravax N-body experiment —
-`docs/notes/2026-06-08-gravax-segregation-validation-followup.md`.
+(Λ_MSR(t) evolution) await the deferred gravax N-body experiment.
 
 ## Gravoturbulence (BM19 / PN11 / PP20)
 

@@ -518,8 +518,7 @@ not just qualitatively. The natural follow-up: can a small **learned/fit deproje
 correction** $\Lambda_{\mathrm{3D}}\approx g(\Lambda_{\mathrm{2D}},\,\text{cluster shape})$
 recover the 3D value, giving a *better substructure mapping* between 2D and 3D methods?
 This — together with **data-space inference** (per-star position likelihoods) and a
-**noisy mass proxy** (luminosity scatter / completeness) — is the milestone (B) follow-up
-(design: `docs/plans/2026-06-09-differentiable-segregation-observable-design.md`).
+**noisy mass proxy** (luminosity scatter / completeness) — is the milestone (B) follow-up.
 ```
 
 (run-it-yourself)=
@@ -552,5 +551,5 @@ PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_mass_density
 
 Theory at [](../10-theory/tidal-and-substructure/mass-segregation.md). Diagnostic
 {cite:t}`Allison2009`; energy-ordered generator {cite:t}`Baumgardt2008`; mass-weighted local-$\Sigma$
-{cite:t}`MaschbergerClarke2011`. Differentiable observables design:
-`docs/plans/2026-06-09-differentiable-segregation-observable-design.md`.
+{cite:t}`MaschbergerClarke2011`. The differentiable-observables design is recorded
+in the repository's planning notes.

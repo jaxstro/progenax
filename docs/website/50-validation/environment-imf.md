@@ -76,10 +76,10 @@ Rows map to `test_environment_physics.py`; **Measured** values are regenerated b
 ```
 
 :::{note} Provenance
-The {cite:t}`Marks2012` (`Marks-IMF-mnras-2012.pdf`) and {cite:t}`Jerabkova2018`
-(`Jerabkova-IMF-aa-2018.pdf`) paper PDFs are held in `docs/core-papers/`; the
-Fundamental-Plane and IGIMF coefficients are grounded in their equations and tables
-(see the [per-paper notes](../99-bibliography/index.md)). The GC $\alpha_3$ and
+The Fundamental-Plane and IGIMF coefficients are grounded in the equations and tables
+of {cite:t}`Marks2012` and {cite:t}`Jerabkova2018` (per-paper notes:
+[Marks et al. (2012)](../99-bibliography/per-paper/marks-2012.md),
+[Jeřábková et al. (2018)](../99-bibliography/per-paper/jerabkova-2018.md)). The GC $\alpha_3$ and
 low-mass-slope anchor values above are read directly from Marks+2012 Tables 1 and 4.
 :::
 

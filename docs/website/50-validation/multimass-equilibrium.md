@@ -300,7 +300,5 @@ env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_df_tables.py
 in [the bibliography](../99-bibliography/index.md), including the App. B
 density index and the 2018 erratum). The density-defined companion engine is
 validated at [](engine-b-eddington.md); the primordial (non-equilibrium)
-segregation generator at [](mass-segregation.md). Design + close-out records:
-`docs/plans/2026-06-09-multimass-limepy-equilibrium-design.md`,
-`docs/plans/2026-06-09-limepy-df-tables-phase15.md`,
-`.claude-work/TASK_1.5_DF_TABLES_COMPLETE.md`.
+segregation generator at [](mass-segregation.md). This validation backs the
+multimass LIMEPY-equilibrium and DF-tables close-out.

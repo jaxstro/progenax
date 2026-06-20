@@ -81,8 +81,8 @@ $f_{\rm bin}\simeq0.27$; binary-aware MLE + observed-Fisher $1\sigma$).
 ```
 
 :::{note} Provenance
-The Moe & Di Stefano (2017) PDF is held in `docs/core-papers/`; the implemented
-mass-ratio distribution (slopes, twin excess) is grounded in its Table 13. The KS
+The implemented mass-ratio distribution (slopes, twin excess) is grounded in
+[Moe & Di Stefano (2017)](../99-bibliography/per-paper/moe-distefano-2017.md) Table 13. The KS
 rows above compare the **sampler** to that **implemented PDF** (a coverage check),
 not to raw published histograms.
 :::

@@ -18,8 +18,7 @@ diagram or a mass–luminosity inference. Test files:
 Every {cite:t}`Tout1996` Table 1 (luminosity) and Table 2 (radius) coefficient — all
 75 cells — was checked **cell-by-cell against the held PDF** (the transcription carried
 in the sibling `fluxax` package was the candidate; the PDF is ground truth) and **matches
-exactly: zero corrections**. The verified ledger lives in
-`docs/core-papers/tout1996_zams_coefficients_verified.md` and is cited by the provenance
+exactly: zero corrections**. The verified coefficient ledger is cited by the provenance
 registry as `stellar.py::_TOUT_L_COEFFS` (Table 1) and
 `stellar.py::_TOUT_R_COEFFS + _TOUT_R_NU` (Table 2). The solar anchors below are the exact
 algebra of those verified coefficients at $M=1\,M_\odot$, $Z=0.02$.

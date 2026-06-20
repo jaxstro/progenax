@@ -223,8 +223,9 @@ with a weak negative metallicity contribution. The fit reads
 ```{warning}
 **The threshold is $\hat x \ge -0.87$ (negative).** The *printed* {cite:t}`Marks2012`
 Eq. 14/15 (p. 2252) give "$\hat x \ge +0.87$", but this is a missing-minus-sign typo
-corrected by the {cite:t}`Marks2014` erratum (MNRAS **442**, 3315; held at
-`docs/core-papers/marks-2014-erratum.pdf`). With the corrected $-0.87$, the fitted line
+corrected by the {cite:t}`Marks2014` erratum (MNRAS **442**, 3315; see the
+[Marks et al. (2012) per-paper note](../../99-bibliography/per-paper/marks-2012.md)).
+With the corrected $-0.87$, the fitted line
 meets the canonical $\alpha_3 = 2.3$ *continuously* at the knee ($\hat x \approx -0.888$).
 The uncorrected $+0.87$ is not merely shifted — it is **discontinuous**, spuriously pinning
 $\alpha_3 = 2.3$ out to $\hat x = +0.87$ and then dropping to $\alpha_3 \approx 1.58$.

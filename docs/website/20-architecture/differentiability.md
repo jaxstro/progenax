@@ -330,8 +330,8 @@ correct almost everywhere; most JAX-native: a `diffrax.Event` at $\psi=0$.)
 **Trigger:** implement Approach B when any planned analysis puts $r_t$ (or $c$) on
 the *left* of a likelihood/prior — priority: tidal-field coupling first. When
 built, add the finite-difference grad-check and a sixth panel to the
-[gradient-validation figure](../50-validation/king-profile.md). Full design record:
-`docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md`.
+[gradient-validation figure](../50-validation/king-profile.md). The deferred
+differentiable-$r_t$ design is recorded in the repository's planning notes.
 
 ## References
 

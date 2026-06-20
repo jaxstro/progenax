@@ -182,4 +182,4 @@ Eddington inversion and the $f \propto E^{7/2}$ Plummer DF: Binney & Tremaine
 {cite:t}`ElsonFallFreeman1987`. Engine A (the DF-defined family it cross-validates against)
 is documented at [](multimass-equilibrium.md); the lowered-model-family
 roadmap at [](../10-theory/spatial-profiles/lowered-model-family.md).
-Close-out record: `.claude-work/PHASE_2_ENGINE_B_COMPLETE.md`.
+This validation backs the Phase-2 Engine-B close-out.

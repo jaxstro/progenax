@@ -84,10 +84,12 @@ $N=2\times10^4$).
 ```
 
 :::{note} Provenance
-All four primary PDFs are held in `docs/core-papers/`
-(`salpeter-1955.pdf`, `kroupa-2001.pdf`, `Chabrier_2003_PASP_115_763.pdf`,
-`maschberger-2013.pdf`) and the implemented constants were checked against them
-directly: Salpeter $\alpha=2.35$ (Eq. 5, the logarithmic MF $\Rightarrow$ $dN/dm$
+The implemented constants were checked against the four primary papers directly
+(per-paper notes: [Salpeter (1955)](../99-bibliography/per-paper/salpeter-1955.md),
+[Kroupa (2001)](../99-bibliography/per-paper/kroupa-2001.md),
+[Chabrier (2003)](../99-bibliography/per-paper/chabrier-2003.md),
+[Maschberger (2013)](../99-bibliography/per-paper/maschberger-2013.md)):
+Salpeter $\alpha=2.35$ (Eq. 5, the logarithmic MF $\Rightarrow$ $dN/dm$
 slope $2.35$); Kroupa breaks $0.08/0.5$ and slopes $0.3/1.3/2.3$ (Eq. 2); Chabrier
 single-star disk $m_c=0.079$, $\sigma=0.69$, high-mass $x=1.3 \Rightarrow \alpha=2.3$
 (Table 2, with the $1/(m\ln 10)$ Jacobian to $dN/dm$); Maschberger $\mu=0.2$,

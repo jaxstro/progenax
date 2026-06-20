@@ -200,11 +200,9 @@ chapter at [](../10-theory/gravoturbulence/pp20.md).
 ## 2026-04-28 — progenax docs website launched
 
 The single-source-of-truth documentation site you are reading now
-went live. Migrated and rewrote ~12K lines of source material from
-`docs/methods/`, `docs/dev-methods-guides/`, and `docs/core-papers/`
-into ~120 chapters of structured MyST-MD content. The legacy raw
-docs are preserved under `docs/{plans,notes,specs,code-reviews}/`
-for archaeological purposes.
+went live. Migrated and rewrote ~12K lines of source material into ~120
+chapters of structured MyST-MD content. The legacy raw source docs are
+preserved in the repository for provenance.
 
 ## 2026-02-13 — Binary-aware IMF recovery v1
 
