@@ -16,6 +16,13 @@ This chapter documents the parametric form, the per-mass and
 per-period values, and the period-averaged-vs-period-conditional
 trade-off that progenax exposes through `BinaryIMF`.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the conditional mass-ratio distribution $g(q \mid M_1)$ that the binary-aware likelihood integrates over; no prior binary-statistics literature assumed.
+**Prerequisites:** the [classical IMFs](classic.md) (the single-star backbone); the broader [multiplicity statistics](multiplicity-statistics.md) for context.
+**You'll get:** the power-law-plus-twin-excess form of $g(q)$, the per-mass $\gamma(M_1)$ and $f_{\mathrm{twin}}(M_1)$ values, the period-averaged-vs-period-conditional trade-off, and how progenax samples $q$.
+:::
+
 ## The parametric form
 
 For a primary of mass $M_1$, the {cite:t}`MoeDiStefano2017` mass-ratio
@@ -231,10 +238,20 @@ a mass array with `jax.vmap`, as above.
    metallicity-dependent close-binary fractions, which progenax does
    not currently incorporate into $g(q)$.
 
-## References
+## Implementation, validation & references
 
-The functional form is {cite:t}`MoeDiStefano2017` Table 1 / Eq. 2; the
-per-mass $\gamma$ and $f_{\mathrm{twin}}$ values are reduced from their
-Table 13, and the period-conditional split is their Table 11. The
-metallicity dependence is {cite:t}`Moe2019`. For the broader
-multiplicity context see [](multiplicity-statistics.md).
+- **In code:** `src/progenax/imf/binary/mass_ratio.py` (the $g(q)$
+  models — `MoeDiStefano2017`, `PowerLawMassRatio`,
+  `TwinPeakedMassRatio` — and the `sample_given_primary` /
+  `pdf_given_primary` methods) used by `BinaryIMF` in
+  `src/progenax/imf/binary/imf.py` — see the [IMF API](../../30-api/imf.md).
+- **Validated in:** [IMF statistics](../../50-validation/imf-statistics.md)
+  and [binary-aware recovery](../../50-validation/binary-imf.md), which
+  check the sampled $q$ distribution against $g(q \mid M_1)$.
+- **Primary sources:** the functional form is {cite:t}`MoeDiStefano2017`
+  Table 1 / Eq. 2 (per-mass $\gamma$ and $f_{\mathrm{twin}}$ from Table 13,
+  the period-conditional split from Table 11); the metallicity dependence
+  is {cite:t}`Moe2019` — full notes in the
+  [bibliography](../../99-bibliography/per-paper/moe-distefano-2017.md).
+  For the broader multiplicity context see
+  [](multiplicity-statistics.md).

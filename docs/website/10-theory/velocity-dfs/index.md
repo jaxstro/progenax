@@ -13,6 +13,13 @@ spatial profiles (Plummer, King, EFF), the self-consistent radially
 anisotropic **Michie–King** DF, plus extensions for Osipkov–Merritt
 radial anisotropy ({cite:t}`Merritt1985`) and rigid/differential rotation.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers choosing a velocity distribution function and learning how progenax turns positions into equilibrium velocities; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [spatial profiles](../spatial-profiles/index.md) (a DF samples velocities *given* sampled positions) and the [IC philosophy](../ic-philosophy.md) (virial $Q$, units). The per-DF pages ([Plummer](plummer-dfs.md), [King](king-dfs.md), [Michie–King](michie-king.md)) go deeper.
+**You'll get:** what a velocity DF is, what "equilibrium" means (and when you want a non-equilibrium IC), the shared `sample_velocities` contract, and how DFs extend to anisotropy, rotation, and multi-component potentials.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -135,10 +142,23 @@ $3\times 10^{-4}$: the cross-engine trust anchor for the
 multi-component machinery.
 ```
 
-## References
+## Implementation, validation & references
 
-The Eddington-inversion machinery ({cite:t}`Plummer1911`,
-{cite:t}`King1966`) is standard textbook material; for a clean
-review see {cite:t}`Aarseth1974` Section 3 and
-{cite:t}`Gieles2015` Section 2 (covering the multi-mass extension
-of the lowered-model family).
+- **In code:** the velocity DFs live under `src/progenax/kinematics/`
+  (`plummer_df.py`, `king_df.py`, `eff_df.py`, `michie_df.py`, plus
+  `rotation.py` and the Osipkov–Merritt anisotropy options). See the
+  [kinematics API](../../30-api/kinematics.md); the per-DF chapters
+  ([Plummer](plummer-dfs.md), [King](king-dfs.md),
+  [Michie–King](michie-king.md), [anisotropy & rotation](rotation-anisotropy.md))
+  carry the exact module paths.
+- **Validated in:** [Plummer equilibrium](../../50-validation/plummer-equilibrium.md),
+  [King profile](../../50-validation/king-profile.md),
+  [EFF profile](../../50-validation/eff-profile.md),
+  [Michie anisotropy](../../50-validation/michie-anisotropy.md), and
+  [OM / rotation anisotropy](../../50-validation/rotation-om-anisotropy.md).
+- **Primary sources:** the Eddington-inversion machinery
+  ({cite:t}`Plummer1911`, {cite:t}`King1966`) is standard textbook
+  material; the anisotropy extensions are {cite:t}`Merritt1985`
+  (Osipkov–Merritt) and {cite:t}`Michie1963` (self-consistent King),
+  and {cite:t}`Gieles2015` covers the multi-mass lowered-model family.
+  Full notes in the [bibliography](../../99-bibliography/index.md).

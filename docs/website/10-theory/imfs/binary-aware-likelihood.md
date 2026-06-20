@@ -49,6 +49,13 @@ $1/(1+q)$ comes from the change of variables $m_{\mathrm{sys}} = m_1
 This page derives the integrand, walks through the 128-point
 Gauss-Legendre quadrature progenax uses, and quantifies the cost.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers wanting the inference-time mechanics of the binary-aware likelihood — the quadrature, vectorisation, and gradients; no prior Bayesian-inference literature assumed.
+**Prerequisites:** the [binary-aware IMF chapter](binary.md) (the scientific motivation and the system mass function this likelihood inverts).
+**You'll get:** why the integral has no closed form, the 128-point Gauss-Legendre quadrature, the $N \times K$ vectorised tile, numerical-stability notes, and how it plugs into NUTS / NumPyro.
+:::
+
 ## Why no closed form
 
 The integrand of {eq}`ba-likelihood` involves three pieces that all
@@ -251,11 +258,18 @@ posteriors that account for the calibration uncertainty. progenax does
 not currently export a `BinaryIMF.with_inferred_binary_stats()` helper;
 this is a planned likelihood-layer extension rather than a live API.
 
-## References
+## Implementation, validation & references
 
-The binary-aware-likelihood structure is original to progenax. The
-binary-statistics calibration is {cite:t}`MoeDiStefano2017`. The
-"confidently wrong" framing is documented at [](binary.md). The NUTS
-sampler is {cite:t}`JAX`-backed via NumPyro. The validation suite that
-demonstrates unbiased recovery at $N = 30{,}000$ is at
-[](../../50-validation/binary-imf.md).
+- **In code:** the binary-aware forward model lives in
+  `src/progenax/imf/binary/imf.py` (`BinaryIMF`); the `log_likelihood`
+  block on this page is schematic pseudocode (the public `BinaryIMF`
+  exposes sampling helpers, not this exact `log_prob`). See the
+  [IMF API](../../30-api/imf.md).
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
+  — 4 chains × 1500 post-warmup samples demonstrate unbiased $\alpha$
+  recovery ($\hat R < 1.01$) at $N = 30{,}000$.
+- **Primary sources:** the likelihood structure and "confidently wrong"
+  framing are original to progenax; the binary-statistics calibration is
+  {cite:t}`MoeDiStefano2017`, sampled with NUTS via NumPyro. Full notes
+  in the [bibliography](../../99-bibliography/per-paper/moe-distefano-2017.md);
+  the scientific context is at [](binary.md).

@@ -18,6 +18,13 @@ analytically-invertible (Maschberger) to physically-detailed
 maps cluster birth conditions to the high-mass slope $\alpha_3$ via the
 Marks+2012 / Jeřábková+2018 relations).
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers entering the IMF track — choosing a parameterisation and learning how progenax layers binaries and environment on top; no prior IMF literature assumed.
+**Prerequisites:** the [IC philosophy](../ic-philosophy.md) (the IMF is one of the three orthogonal IC ingredients) — otherwise a good entry point for the IMF track.
+**You'll get:** a map of the IMF chapters, the shared `IMFProtocol` contract, the notation conventions ($\xi(m)$, $\alpha$, $q$, $f_b$), and where to start (classic → binary → sub-chapters).
+:::
+
 ## Map of the IMF chapters
 
 ```{list-table}
@@ -137,11 +144,21 @@ determines the *velocities*. The mass-segregation modifier
 profile by re-pairing high-mass particles to low-energy orbits, but
 the underlying $\xi(m)$ is preserved.
 
-## References
+## Implementation, validation & references
 
-The canonical IMF references are {cite:t}`Salpeter1955`,
-{cite:t}`Kroupa2001`, {cite:t}`Chabrier2003`, {cite:t}`Maschberger2013`.
-For binary statistics: {cite:t}`Sana2012`, {cite:t}`MoeDiStefano2017`,
-{cite:t}`Moe2019`. For environment dependence: {cite:t}`Marks2012`,
-{cite:t}`Jerabkova2018`. Each per-chapter `References` block points at
-the specific result(s) used.
+- **In code:** the IMF family lives under `src/progenax/imf/`
+  (`power_law.py`, `chabrier.py`, `smooth.py`, `truncated.py`, the
+  `binary/` package, and the `environment/` package). See the
+  [IMF API](../../30-api/imf.md); each chapter below carries its exact
+  module path.
+- **Validated in:** [IMF statistics](../../50-validation/imf-statistics.md)
+  (distributions + Marks+12 numerical anchors),
+  [binary-aware recovery](../../50-validation/binary-imf.md), and
+  [environment IMF](../../50-validation/environment-imf.md).
+- **Primary sources:** canonical IMFs {cite:t}`Salpeter1955`,
+  {cite:t}`Kroupa2001`, {cite:t}`Chabrier2003`, {cite:t}`Maschberger2013`;
+  binary statistics {cite:t}`Sana2012`, {cite:t}`MoeDiStefano2017`,
+  {cite:t}`Moe2019`; environment dependence {cite:t}`Marks2012`,
+  {cite:t}`Jerabkova2018`. Full notes in the
+  [bibliography](../../99-bibliography/index.md); each chapter below
+  points at the specific result(s) used.

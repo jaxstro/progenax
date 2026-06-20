@@ -18,6 +18,13 @@ This chapter establishes the conventions and core concepts that every
 subsequent theory chapter assumes. Read it first if you are new to the
 package.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers starting with progenax; this is the conventions page every other theory chapter builds on, so no prior stellar-dynamics literature is assumed.
+**Prerequisites:** none — a good entry point.
+**You'll get:** the three orthogonal IC ingredients (IMF, spatial profile, velocity DF), the $Q_{\mathrm{vir}} = T/|V|$ virial convention, the half-mass radius $r_h$, the COM-frame and explicit-units policies, and what "differentiable IC" means in practice.
+:::
+
 ## Three things every progenax IC fixes
 
 A progenax IC is built up from three orthogonal ingredients:
@@ -281,3 +288,22 @@ ordering for a student-style first pass:
 
 Each later chapter assumes only the conventions from this page plus
 the chapter immediately before it.
+
+## Implementation, validation & references
+
+- **In code:** the conventions on this page are enforced in
+  `src/progenax/builders.py` (`build_spatial_ic`, `to_com_frame`,
+  `virial_scale`) and `src/progenax/dynamics/virial.py` (the
+  $Q_{\mathrm{vir}} = T/|V|$ energy utilities); units come from
+  `jaxstro.units`. See the [builders API](../30-api/builders.md) and the
+  [dynamics API](../30-api/dynamics.md).
+- **Validated in:** [end-to-end equilibrium & energy checks](../50-validation/physics-tests.md)
+  exercise the COM-frame, virial, and units conventions through the full
+  IC pipeline; each ingredient's own validation page (Plummer, King, EFF,
+  IMF) is linked from the chapters below.
+- **Primary sources:** the virial theorem and Eddington/lowered-model
+  machinery are standard textbook material; the non-equilibrium states
+  cited here are {cite:t}`Allison2009` (subvirial cool-fractal) and
+  {cite:t}`Goodwin2004` (supervirial post-gas-expulsion), and the
+  substructure-$Q$ caution is {cite:t}`Cartwright2004` — full notes in the
+  [bibliography](../99-bibliography/index.md).

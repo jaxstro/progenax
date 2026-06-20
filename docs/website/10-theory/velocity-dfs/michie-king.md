@@ -11,6 +11,13 @@ outskirts. The **Michie-King** model adds Michie's (1963) angular-momentum term 
 (1966) lowered-Maxwellian cutoff, giving a one-parameter family (the anisotropy radius
 $r_a$) of self-consistent, tidally truncated, radially anisotropic models.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the self-consistent radially anisotropic King model and how progenax samples it; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [King DF](king-dfs.md) (the lowered-Maxwellian cutoff this extends) and the [anisotropy idea](rotation-anisotropy.md) (what $\beta(r)$ and the anisotropy radius $r_a$ mean).
+**You'll get:** the Michie–King DF $f(E, J)$, why it differs from the Osipkov–Merritt construction (it re-solves Poisson, changing the density), the radial-orbit pathology that bounds $r_a$, and how to pair `MichieProfile` + `MichieVelocityDF`.
+:::
+
 ## The distribution function
 
 ```{math}
@@ -91,7 +98,19 @@ $r_a$ (FD-verified).
 - **Virial** — $Q=T/|V|\approx0.5$ unscaled.
 - **Differentiability** — finite, FD-matching gradients w.r.t. the model parameters.
 
-## References
+## Implementation, validation & references
 
-- [](../../99-bibliography/per-paper/michie-1963.md) — Michie (1963), MNRAS 125, 127.
-- [](../../99-bibliography/per-paper/king-1966.md) — King (1966), AJ 71, 64.
+- **In code:** `src/progenax/kinematics/michie_df.py` (the 2-D
+  marginal-then-conditional sampler) paired with
+  `src/progenax/profiles/michie.py` (`solve_michie_profile`,
+  `MichieProfile`) — see the [kinematics API](../../30-api/kinematics.md)
+  and the [profiles API](../../30-api/profiles.md).
+- **Validated in:** [Michie anisotropy](../../50-validation/michie-anisotropy.md)
+  — the isotropic-limit (→ King), the realised $\beta(r)$ profile, the
+  unscaled virial $Q \approx 0.5$, and FD-matching gradients.
+- **Primary sources:** {cite:t}`Michie1963` (the angular-momentum
+  anisotropy term) and {cite:t}`King1966` (the lowered-Maxwellian
+  cutoff) — full notes in the
+  [Michie (1963)](../../99-bibliography/per-paper/michie-1963.md) and
+  [King (1966)](../../99-bibliography/per-paper/king-1966.md) per-paper
+  bibliography pages.

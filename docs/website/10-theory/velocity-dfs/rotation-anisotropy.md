@@ -28,6 +28,13 @@ modifies the velocity ellipsoid; rotation adds a bulk flow), so the
 final IC has the right $\beta(r)$ profile *and* the right rotation
 curve.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers adding radial anisotropy or rotation to an isotropic equilibrium DF; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [Plummer DF](plummer-dfs.md) (the isotropic base these layers modify). For the *self-consistent* anisotropic King model see [Michie–King](michie-king.md).
+**You'll get:** the Osipkov–Merritt construction ($\beta(r) = r^2/(r^2+r_a^2)$) and its non-negativity bound, solid-body and differential rotation as additive tangential flows, and how the two layers compose.
+:::
+
 ## Osipkov-Merritt anisotropy
 
 The Osipkov-Merritt construction replaces the energy-only DF
@@ -260,15 +267,24 @@ dispersions.
    non-rotating envelope), use a smooth-blend $\Omega(R)$ rather
    than a step function.
 
-## References
+## Implementation, validation & references
 
-The Osipkov-Merritt construction is standard textbook material;
-Binney & Tremaine *Galactic Dynamics* §4 gives a clean derivation.
-The solid-body and differential-rotation prescriptions follow the
-N-body initialisation literature {cite:p}`Aarseth1974,Kuepper2011`. For
-King-cluster rotation specifically, the lowered-model family formalized
-by {cite:t}`Gieles2015` includes a self-consistent rotating extension;
-progenax plans to implement this family natively as its own
-differentiable generalization (see
-[](../spatial-profiles/lowered-model-family.md)), but it is not yet
-available.
+- **In code:** the rotation decorators live in
+  `src/progenax/kinematics/rotation.py`
+  (`apply_solid_body_rotation`, `apply_differential_rotation`); the
+  Osipkov–Merritt anisotropy is an intrinsic option on the DFs in
+  `src/progenax/kinematics/` (`plummer_df.py`, `eff_df.py`). See the
+  [kinematics API](../../30-api/kinematics.md).
+- **Validated in:** [OM / rotation anisotropy](../../50-validation/rotation-om-anisotropy.md)
+  — the realised $\beta(r) = r^2/(r^2+r_a^2)$, the non-negativity bound,
+  and the rotation-curve recovery.
+- **Primary sources:** the Osipkov–Merritt construction is
+  {cite:t}`Merritt1985` (the closed-form Plummer bound is Eq. 46);
+  textbook context is Binney & Tremaine *Galactic Dynamics* §4, and the
+  rotation prescriptions follow the N-body initialisation literature
+  {cite:p}`Aarseth1974,Kuepper2011`. For a self-consistent rotating
+  King extension, the lowered-model family {cite:t}`Gieles2015` is the
+  natural route (see the
+  [lowered-model family](../spatial-profiles/lowered-model-family.md)),
+  not yet implemented. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/merritt-1985.md).

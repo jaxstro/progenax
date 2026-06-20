@@ -14,6 +14,13 @@ King velocities is therefore conceptually simpler than sampling
 Plummer velocities: at each particle's position, draw from the
 truncated Maxwellian directly.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the King lowered-Maxwellian DF and how a tidally truncated cluster gets its velocities; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [King profile](../spatial-profiles/king.md) (the $W_0$, $r_c$, $r_t$ parameters and the King ODE) and the [Plummer DF](plummer-dfs.md) for the contrast (DF-from-density vs density-from-DF).
+**You'll get:** the lowered-Maxwellian $f(E)$ and its dimensionless $W$ form, the marginal speed distribution, how progenax samples it per-particle by inverse-CDF, the radius-dependent dispersion, and what is (and isn't) differentiable.
+:::
+
 ## The lowered-Maxwellian DF
 
 For a particle of specific energy $E$ at position $\mathbf{r}$, the
@@ -172,10 +179,17 @@ as its own differentiable generalization (see
    tidal-tail kinematics matter, post-evolution analysis is the
    right approach.
 
-## References
+## Implementation, validation & references
 
-The original lowered-isothermal model is {cite:t}`King1966`. The
-LIMEPY generalisation is {cite:t}`Gieles2015`. progenax's `diffrax`
-integration follows the standard {cite:t}`Aarseth1974` numerical
-prescription. The validation suite is at
-[](../../50-validation/king-profile.md).
+- **In code:** `src/progenax/kinematics/king_df.py` (the per-particle
+  lowered-Maxwellian speed sampler; the King ODE solve it shares with
+  the profile is in `src/progenax/profiles/king.py`) — see the
+  [`KingVelocityDF` API](../../30-api/kinematics.md).
+- **Validated in:** [King profile](../../50-validation/king-profile.md)
+  — the regression suite that locks the true-DF equilibrium
+  ($Q_{\mathrm{vir}} \approx 0.5$ unscaled) and the $W_0$ gradients.
+- **Primary sources:** the lowered-isothermal model is {cite:t}`King1966`;
+  the multi-mass LIMEPY generalisation is {cite:t}`Gieles2015`, and the
+  `diffrax` integration follows the standard {cite:t}`Aarseth1974`
+  numerical prescription — full notes in the
+  [bibliography](../../99-bibliography/per-paper/king-1966.md).

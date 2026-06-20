@@ -30,6 +30,13 @@ cluster-IMF input to the IGIMF framework) as fully differentiable models.
 The galaxy-wide IGIMF *integral* itself is background theory here, not an
 implemented sampler — see the scope note below.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning how the IMF varies with cloud-core density and metallicity, and what progenax actually implements (the cluster-scale mapping, not the galaxy-wide integral); no prior IGIMF literature assumed.
+**Prerequisites:** the [classical IMFs](classic.md) (the universal $(\alpha_1, \alpha_2, \alpha_3)$ baseline this varies).
+**You'll get:** the Marks+2012 high-mass-slope relations, the Fundamental-Plane $\alpha_3(\rho_{\mathrm{cl}}, [\mathrm{Fe/H}])$ fit (with the corrected $-0.87$ threshold), where the IGIMF framework fits as background theory, and the differentiable `env_to_imf_params` API.
+:::
+
 ## Two physical drivers of IMF variation
 
 Both papers attribute IMF variation to two environmental parameters:
@@ -387,9 +394,20 @@ The environment IMF feeds into:
   properties $\to \alpha_3$); the galaxy-wide ECMF integration is
   background theory, not an implemented end-to-end chain.
 
-## References
+## Implementation, validation & references
 
-The cluster-scale variation follows {cite:t}`Marks2012`; the IGIMF
-aggregation follows {cite:t}`Jerabkova2018`; the {cite:t}`Kroupa2001`
-broken-power-law baseline anchors the canonical $(\alpha_1, \alpha_2,
-\alpha_3) = (1.3, 2.3, 2.3)$ used as the no-environment reference.
+- **In code:** the environment package is `src/progenax/imf/environment/`
+  — `birth_environment.py` (`BirthEnvironment`), `mapping.py`
+  (`env_to_imf_params`, the `alpha3_*` / `x_*` helpers), `coefficients.py`,
+  and `density.py`. There is **no** `EnvironmentIMF` class; the public API
+  is functional. See the [IMF API](../../30-api/imf.md).
+- **Validated in:** [environment IMF](../../50-validation/environment-imf.md)
+  — the regression suite that locks Marks+12 Table 4 + Eq. 15 to within
+  $10^{-3}$ and pins the corrected $-0.87$ Fundamental-Plane threshold.
+- **Primary sources:** the cluster-scale variation follows
+  {cite:t}`Marks2012` (with the {cite:t}`Marks2014` erratum); the IGIMF
+  aggregation follows {cite:t}`Jerabkova2018`; the {cite:t}`Kroupa2001`
+  broken-power-law baseline anchors the canonical $(\alpha_1, \alpha_2,
+  \alpha_3) = (1.3, 2.3, 2.3)$ reference. Full notes in the
+  [Marks et al. (2012)](../../99-bibliography/per-paper/marks-2012.md)
+  per-paper page.

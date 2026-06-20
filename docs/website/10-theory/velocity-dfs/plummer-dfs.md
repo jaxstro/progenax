@@ -18,6 +18,13 @@ profile, lists the closed-form moments, walks through progenax's
 sampling implementation, and connects to the anisotropy and rotation
 extensions in [](rotation-anisotropy.md).
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the Plummer equilibrium DF and, through it, how Eddington inversion turns a density into velocities; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [Plummer profile](../spatial-profiles/plummer.md) (the density this DF inverts); the [velocity-DF overview](index.md) for the shared contract.
+**You'll get:** the derivation of $f(\mathcal{E}) \propto \mathcal{E}^{7/2}$, the closed-form velocity moments, why progenax samples by inverse-CDF rather than rejection, and how the isotropic DF extends to anisotropy and rotation.
+:::
+
 ## Eddington inversion in one paragraph
 
 For a spherical, isotropic system, the DF depends only on the binding
@@ -234,10 +241,19 @@ combination for old globular clusters with observed radial anisotropy).
    instead, or apply post-sampling truncation via
    `apply_tidal_truncation` ([](../tidal-and-substructure/tidal.md)).
 
-## References
+## Implementation, validation & references
 
-The Plummer DF derivation is {cite:t}`Plummer1911`; modern textbook
-treatments follow Binney & Tremaine *Galactic Dynamics* §4. The
-Eddington inversion machinery is standard. progenax's
-mass-first sampling contract follows the broader IC redesign described
-at [](../../90-development-log/2026-02-12-ic-redesign.md).
+- **In code:** `src/progenax/kinematics/plummer_df.py` (the isotropic
+  $f(\mathcal{E})$, the inverse-CDF speed sampler, and the optional
+  Osipkov–Merritt anisotropy) — see the
+  [`PlummerVelocityDF` API](../../30-api/kinematics.md).
+- **Validated in:** [Plummer equilibrium](../../50-validation/plummer-equilibrium.md)
+  — the regression suite that locks the velocity moments, isotropy
+  $|\beta| < 0.02$, and the unscaled $Q_{\mathrm{vir}} = 0.5$.
+- **Primary sources:** {cite:t}`Plummer1911` (the model and its DF);
+  modern textbook treatments follow Binney & Tremaine *Galactic
+  Dynamics* §4, and {cite:t}`Aarseth1974` is a clean N-body
+  initialisation reference — full notes in the
+  [bibliography](../../99-bibliography/per-paper/plummer-1911.md). The
+  mass-first sampling contract follows the IC redesign at
+  [](../../90-development-log/2026-02-12-ic-redesign.md).

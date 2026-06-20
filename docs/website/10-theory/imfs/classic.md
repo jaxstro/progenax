@@ -12,6 +12,13 @@ synthesis, chemical evolution, and the IMF-inference problems progenax
 is built to solve. Four functional forms dominate the literature, each
 with a regime where it is the natural choice:
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers choosing a single-star IMF; no prior IMF literature assumed.
+**Prerequisites:** the [IMF overview](index.md) (the `IMFProtocol` contract and notation) — the entry point for this track.
+**You'll get:** the four canonical IMFs (Salpeter, Kroupa, Chabrier, Maschberger) plus truncation, their parameter conventions and sampling costs, and why progenax defaults to the analytically-invertible Maschberger form.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -257,8 +264,15 @@ Both extensions wrap the classical IMF rather than replacing it: the
 single-star $\xi$ remains the underlying object, with binary
 multiplicity and environment dependence layered on top.
 
-## References
+## Implementation, validation & references
 
-The original parameterisations are {cite:t}`Salpeter1955`,
-{cite:t}`Kroupa2001`, {cite:t}`Chabrier2003`, and {cite:t}`Maschberger2013`.
-The validation suite is at [](../../50-validation/imf-statistics.md).
+- **In code:** `src/progenax/imf/power_law.py` (`PowerLawIMF`, the
+  Salpeter/Kroupa classmethods), `chabrier.py` (`ChabrierIMF`),
+  `smooth.py` (`Maschberger`), and `truncated.py` (`TruncatedIMF`) — see
+  the [IMF API](../../30-api/imf.md).
+- **Validated in:** [IMF statistics](../../50-validation/imf-statistics.md)
+  — the regression suite that checks each sampled distribution against
+  its analytic form.
+- **Primary sources:** {cite:t}`Salpeter1955`, {cite:t}`Kroupa2001`,
+  {cite:t}`Chabrier2003`, and {cite:t}`Maschberger2013` — full notes in
+  the [bibliography](../../99-bibliography/index.md).

@@ -28,6 +28,13 @@ work — that binary properties are not universal, and that the joint
 distribution is not separable — then catalogues the per-mass and
 per-period numbers progenax stores as backing data.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the empirical binary-population statistics that progenax's binary-aware IMF consumes; no prior multiplicity-survey literature assumed.
+**Prerequisites:** the [classical IMFs](classic.md) (the single-star $\xi(m)$ these statistics modify).
+**You'll get:** why binary properties vary with primary mass and why the joint $f(M_1, q, P, e)$ is non-separable, the companion-frequency / multiplicity-fraction / binary-fraction vocabulary, the per-mass $f_b$ and twin-fraction grids, and how the calibration was selection-corrected.
+:::
+
 ## Two properties that complicate the naive picture
 
 **Property 1: binary properties vary systematically with primary mass.**
@@ -248,11 +255,21 @@ The architectural extension to triples is straightforward — replace
 the single $f_b(m_1)$ with a Poisson-companion model — but is
 deferred to a future progenax version.
 
-## References
+## Implementation, validation & references
 
-{cite:t}`MoeDiStefano2017` is the comprehensive joint-distribution paper.
-{cite:t}`Sana2012` is the foundational massive-star multiplicity
-work. {cite:t}`Moe2019` extends to metallicity dependence. The
-period-distribution side of the calibration is documented at
-[](../binaries/period-distributions.md); the mass-ratio side at
-[](mass-ratio-distributions.md).
+- **In code:** the joint statistics live in
+  `src/progenax/imf/binary/moe_di_stefano.py` (`MoeDiStefano2017`,
+  `MoeDiStefano2017Full`) and the mass-dependent multiplicity in
+  `src/progenax/imf/binary/binary_fraction.py`
+  (`MassDependentBinaryFraction`) — see the [IMF API](../../30-api/imf.md).
+- **Validated in:** [IMF statistics](../../50-validation/imf-statistics.md)
+  and [binary-aware recovery](../../50-validation/binary-imf.md), which
+  exercise the Table 13 grids and the binary-fraction trend.
+- **Primary sources:** {cite:t}`MoeDiStefano2017` (the comprehensive
+  joint-distribution census), {cite:t}`Sana2012` (foundational
+  massive-star multiplicity), and {cite:t}`Moe2019` (metallicity
+  dependence) — full notes in the
+  [bibliography](../../99-bibliography/per-paper/moe-distefano-2017.md).
+  The period-distribution side is documented at
+  [](../binaries/period-distributions.md); the mass-ratio side at
+  [](mass-ratio-distributions.md).

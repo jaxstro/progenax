@@ -28,6 +28,13 @@ supports, derives the photometric-mass formula that approximates
 flux-addition, and quantifies the bias at each level for the same
 underlying $\alpha = 2.35$ population.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning how the *measurement* (dynamical mass vs flux vs CMD) sets the size of binary contamination bias; no prior survey-forward-model literature assumed.
+**Prerequisites:** the [binary-aware IMF chapter](binary.md) (the bias and likelihood these operators feed).
+**You'll get:** the three observation operators (mass-addition, photometric flux-addition, multi-band CMD), the $m_{\mathrm{phot}} \approx m_1(1+q^s)^{1/s}$ formula, the resulting bias hierarchy, and which operators are live vs planned.
+:::
+
 ## Three operators
 
 ```{list-table}
@@ -286,11 +293,21 @@ are routinely resolved) and for adaptive-optics or space-based surveys
    known limitation; full treatment requires coupling to a
    stellar-evolution code (gravax, startrax in the future).
 
-## References
+## Implementation, validation & references
 
-The mass-addition operator follows from elementary dynamical
-considerations. The flux-addition formula is standard; see
-{cite:t}`Maschberger2013` Section 5 for IMF-relevant context. The
-multi-band CMD analysis builds on standard isochrone-fitting techniques
-(PARSEC, MIST). The resolution cutoff follows the LSST cadence
-specification.
+- **In code:** the live **mass-addition** operator is built into
+  `src/progenax/imf/binary/imf.py` (`BinaryIMF`, $m_{\mathrm{sys}} =
+  m_1 + m_2$); the photometric and multi-band CMD operators on this page
+  are **planned** survey-forward-model layers (no `CMDOperator` /
+  `with_photometric_operator()` is exported yet). See the
+  [IMF API](../../30-api/imf.md) and the
+  [add-binary-population recipe](../../40-howto/add-binary-population.md).
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
+  exercises the mass-addition operator (the worst-case upper bound on
+  the bias); the reduced-bias photometric / CMD operators have no
+  dedicated validation page yet, since they are not implemented.
+- **Primary sources:** the mass-addition operator follows from
+  elementary dynamics; the flux-addition context is {cite:t}`Maschberger2013`
+  §5, and the multi-band CMD analysis builds on standard isochrone
+  fitting (PARSEC, MIST). Full notes in the
+  [bibliography](../../99-bibliography/index.md).
