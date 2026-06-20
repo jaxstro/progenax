@@ -87,40 +87,63 @@ $0.5$.
 short-period binaries that have not yet been processed by tidal
 evolution.
 
-## Moe & Di Stefano (2017): period-dependent transition
+## Moe & Di Stefano (2017): the period- and mass-dependent power law
 
-{cite:t}`MoeDiStefano2017` find that the eccentricity distribution depends
-strongly on orbital period:
+{cite:t}`MoeDiStefano2017` find (their §9.2, Fig. 36) that the
+eccentricity distribution is a **power law** $p(e) \propto e^{\eta}$ on
+$0 \le e \le e_{\max}(P)$, with the slope $\eta$ depending on *both*
+orbital period and primary mass — not the $\delta$-plus-thermal blend
+that older qualitative pictures suggest. The qualitative
+Duquennoy & Mayor (1991)-style picture (short-period orbits tidally
+circularised, long-period orbits thermal) is a useful intuition for the
+*trend*, but progenax implements Moe's quantitative law:
 
-```{list-table} {cite:t}`MoeDiStefano2017` eccentricity-period regimes.
+```{list-table} Qualitative period picture (Duquennoy & Mayor 1991), for intuition only — progenax samples the quantitative Moe & Di Stefano $e^{\eta}$ law below.
 :header-rows: 1
 
 * - Period range
-  - Eccentricity distribution
+  - Eccentricity behaviour
   - Physical mechanism
-* - $P \le 4$ d
-  - $f(e) = \delta(e)$
+* - Short ($P \lesssim$ few d)
+  - Near-circular ($e \approx 0$)
   - Tidal circularisation; $e$ rapidly damped by stellar tides
-* - $4$ d $< P \le 100$ d
-  - Smoothly interpolating
-  - Partial circularisation; transition from thermal to circular
-* - $P > 100$ d
-  - Thermal $f(e) = 2e$
-  - Far enough that tides do not act on Hubble timescales
+* - Intermediate
+  - Smoothly rising $\langle e\rangle$
+  - Partial circularisation
+* - Long ($P$ large)
+  - Approaching thermal $f(e) = 2e$
+  - Tides do not act on Hubble timescales
 ```
 
-progenax's `MoeEccentricity()` parameterises the period dependence as
+The slope follows {cite:t}`MoeDiStefano2017` Eqs. 17–18 (verified
+against their Fig. 36):
 
 ```{math}
-:label: moe-ecc
-f(e \mid P) \;=\; (1 - w(P))\,\delta(e) \;+\; w(P)\,2e
+:label: moe-eta-ecc
+\eta(M_1, P) =
+\begin{cases}
+0.6 - \dfrac{0.7}{\log_{10} P - 0.5}, & 0.8 < M_1 < 3\,\Msun\ \text{(Eq. 17, late-type)} \\[1ex]
+0.9 - \dfrac{0.2}{\log_{10} P - 0.5}, & M_1 > 7\,\Msun\ \text{(Eq. 18, early-type)}
+\end{cases}
 ```
 
-where $w(P)$ is a smooth blending function $w(P \le 4\,\mathrm{d}) = 0$,
-$w(P \ge 100\,\mathrm{d}) = 1$, with a smooth cubic-spline transition
-in between. The parameterisation is chosen so $f(e \mid P)$ is
-continuous in $P$ — important for HMC inference where $P$ might
-itself be a free parameter.
+with linear interpolation in $M_1$ across $3$–$7\,\Msun$. Here $\eta = 0$
+is uniform ($\langle e\rangle = 0.5$) and $\eta = 1$ is thermal
+($\langle e\rangle = 2/3$); short-period massive binaries are driven to
+$\eta < 0$ (circularising), and $\eta \le -1$ (very short $P$,
+$e^{\eta}$ non-normalisable) returns $e \approx 0$ by construction. The
+upper limit is the period-dependent Roche-lobe ceiling (their Eq. 3),
+
+```{math}
+:label: moe-emax-ecc
+e_{\max}(P) \;=\; 1 - \Bigl(\frac{P}{2\,\mathrm{d}}\Bigr)^{-2/3} \quad (P > 2\ \mathrm{d}),
+```
+
+so the components do not overflow their Roche lobes at periapsis (e.g.
+$e_{\max}(10\,\mathrm{d}) \approx 0.66$, $e_{\max}(100\,\mathrm{d})
+\approx 0.93$); $P \le 2$ d circularises. Sampling uses the inverse CDF
+$e = e_{\max}(P)\,u^{1/(\eta+1)}$, which is continuous in $P$ and $M_1$ —
+important for HMC inference where they may be free parameters.
 
 ## Sampling implementation
 
@@ -139,15 +162,17 @@ e_thermal = thermal.sample(key, 10000)
 uniform = UniformEccentricity()
 e_uniform = uniform.sample(key, 10000)
 
-# Moe17 period-dependent
+# Moe17 period- and mass-dependent
 moe = MoeEccentricity()
-e_moe = moe.sample(periods_days, key)   # Uses the per-binary periods
+e_moe = moe.sample(key, periods_days, primary_masses)  # masses REQUIRED
 ```
 
-The `MoeEccentricity` sampler accepts a `log_P` array because the
-distribution is period-conditional. The implemented sampler accepts
-periods in days, with `P_circ` and `P_thermal` controlling the smooth
-transition from near-circular to thermal.
+The `MoeEccentricity` sampler signature is `sample(key, periods,
+masses)` — **both** the per-binary periods (in days) and the primary
+masses are required, because the slope $\eta(\log P, M_1)$
+({eq}`moe-eta-ecc`) depends on both. The module's only field is `e_max`
+(the long-$P$ numerical ceiling, default 0.99); the physical cap is the
+period-dependent Roche relation {eq}`moe-emax-ecc`.
 
 ## Tidal circularisation in detail
 
@@ -164,11 +189,15 @@ $P \le 4$ d for solar-type primaries on the main sequence. For
 massive stars (larger radii) the circularisation cutoff extends to
 slightly longer periods.
 
-progenax's default `MoeEccentricity()` uses a $P \le 4$ d circular
-cutoff matching {cite:t}`MoeDiStefano2017`. Surveys targeting evolved stars
-(red giants with $R_\star \gg R_\odot$) should use the longer cutoff
-appropriate to the evolutionary phase — `MoeEccentricity(p_circ_d=12.0)`
-overrides the default.
+progenax's `MoeEccentricity` handles short-period circularisation
+*intrinsically*: where the Roche ceiling {eq}`moe-emax-ecc` and the
+$\eta \le -1$ branch drive $e \to 0$ (at $P \le 2$ d the ceiling is
+exactly 0). There is **no** separate circular-cutoff knob — the module's
+only field is `e_max`, the long-$P$ numerical ceiling. Surveys
+targeting evolved stars (red giants with $R_\star \gg R_\odot$) need a
+longer effective cutoff than the main-sequence relation provides; that
+would require a stellar-evolution-aware Roche radius (a future
+`startrax` coupling), not a constructor argument here.
 
 ## Joint $f(P, e, q, M_1)$ when consistency matters
 

@@ -79,9 +79,11 @@ no — see the
 
 The two engines overlap at exactly one configuration — a single King
 component ($g = 1$ in Engine A; King *density* in Engine B) — and that
-overlap is the cross-engine trust anchor: two independent codepaths
-agree to a radial KS distance of $2\times 10^{-4}$ and a velocity
-dispersion profile deviation of $3\times 10^{-4}$.
+overlap is the cross-engine trust anchor: two independent codepaths,
+sampled with the **same seed** (a paired comparison, so any difference
+is engine machinery rather than Monte-Carlo scatter), agree to a radial
+KS distance of $2\times 10^{-4}$ and a velocity-dispersion-profile
+deviation of $3\times 10^{-4}$.
 
 ## The core principle: per-component equilibrium, no rescale
 

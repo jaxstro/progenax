@@ -335,8 +335,10 @@ of unknown reliability:
 ```
 
 The current implementation exposes differentiable helper functions for
-these relations. It does not expose an `EnvironmentIMF.validate_and_clamp`
-method.
+these relations. There is **no** `EnvironmentIMF` class; the public API
+is the functional `env_to_imf_params()` (which takes a `clamp_domain`
+flag, default `True`, to clip inputs to the calibrated ranges above)
+plus the `alpha3_*` / `x_*` helpers.
 
 ## Implementation in progenax
 

@@ -90,21 +90,35 @@ E - e\,\sin E \;=\; M(t),
 ```
 
 This is a transcendental equation in $E$. progenax uses a
-fixed-iteration Newton solver:
+fixed-iteration Newton solver built on `jax.lax.scan` (not a Python
+loop), so the iteration count is static and the whole solve is one
+JIT-/grad-compatible trace:
 
 ```python
-@jax.jit
-def solve_kepler(M, e, n_iter=10):
-    E = M  # Initial guess (good for small e)
-    for _ in range(n_iter):
-        E = E - (E - e * jnp.sin(E) - M) / (1.0 - e * jnp.cos(E))
+import jax
+import jax.numpy as jnp
+
+def solve_kepler(M, e, max_iter=50):
+    M_wrapped = jnp.mod(M, 2.0 * jnp.pi)
+    # Initial guess E0 = M + 0.85 sign(sin M) e (good for moderate e)
+    E0 = M_wrapped + 0.85 * jnp.sign(jnp.sin(M_wrapped)) * e
+
+    def newton_step(E, _):
+        f = E - e * jnp.sin(E) - M_wrapped
+        f_prime = 1.0 - e * jnp.cos(E)
+        E_new = E - f / jnp.maximum(jnp.abs(f_prime), 1e-12)
+        return E_new, None
+
+    E, _ = jax.lax.scan(newton_step, E0, None, length=max_iter)
     return E
 ```
 
-10 iterations gives double-precision convergence for $e \le 0.9$;
-20 iterations covers $e \le 0.99$. The fixed iteration count is JIT-
-and grad-compatible; the convergence rate is quadratic so the cost
-is bounded.
+The Newton iteration converges quadratically — typically 3–4 steps for
+$e \lesssim 0.8$. progenax's default `max_iter=50`
+(`KeplerElements._solve_kepler_equation`) is deliberately conservative
+so the fixed-iteration scheme still reaches machine precision in the
+slow-converging $e \to 1$ regime; the extra cheap iterations guarantee
+accuracy across all $e < 1$.
 
 **Step 2 — eccentric anomaly to true anomaly** $\nu$:
 
@@ -187,8 +201,8 @@ seven orbital elements plus $q$ specify the orbit completely.
   $\partial\mathbf{r}/\partial(i, \Omega, \omega, M_0)$, and
   $\partial\mathbf{r}/\partial P$ all flow analytically through
   {eq}`orbit-plane`–{eq}`rotation`.
-- The Newton iterations on Kepler's equation {eq}`kepler-eq` are
-  fixed-count `lax.fori_loop` calls, gradient-compatible.
+- The Newton iterations on Kepler's equation {eq}`kepler-eq` are a
+  fixed-count `jax.lax.scan`, gradient-compatible.
 
 This matters when *fitting* binary orbits — e.g. inferring $(a, e,
 i, \Omega, \omega, M_0)$ from radial-velocity or astrometric

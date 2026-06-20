@@ -119,8 +119,10 @@ For surveys that *are* period-selective — spectroscopic surveys
 the period-averaged $\gamma$ is wrong. A future
 period-conditional likelihood layer should accept a period-selectivity
 function $w(P)$ and replace the integrated $g(q \mid M_1)$ with the
-*conditional* $g(q \mid M_1, P)$ from {cite:t}`MoeDiStefano2017` Tables 11 and
-12. The current `BinaryIMF` does not export a
+*conditional* $g(q \mid M_1, P)$ from {cite:t}`MoeDiStefano2017` Table 11
+(the per-$\log P$ $\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$
+breakdown for solar-type primaries, with the analogous early-type
+tables). The current `BinaryIMF` does not export a
 `with_period_conditional()` constructor. The conditional treatment
 splits $\gamma$ further:
 
@@ -190,22 +192,27 @@ covers the $g(q)$ ingredient.
 ## Implementation in progenax
 
 ```python
+import jax
+import jax.numpy as jnp
 from progenax.imf import BinaryIMF, MoeDiStefano2017, PowerLawIMF
 
+key = jax.random.PRNGKey(0)
 m1 = jnp.array([0.5, 1.0, 2.0, 5.0, 20.0])
 q = jnp.linspace(0.1, 1.0, 128)
 
 q_dist = MoeDiStefano2017()
-pdf = q_dist.pdf_given_primary(q[None, :], m1[:, None])
+# pdf_given_primary takes a SCALAR primary mass (the power-law branch uses
+# lax.cond, whose predicate must be scalar) — vmap over m1 for a grid:
+pdf = jax.vmap(lambda m: q_dist.pdf_given_primary(q, m))(m1)  # shape (5, 128)
 
 binary_imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa())
 m1_sample, m2_sample, is_binary = binary_imf.sample_systems(key, 1000)
 ```
 
 The `MoeDiStefano2017` methods implement the mass-binning above; they
-are JIT-safe (`jnp.where`
-piecewise) and differentiable in $m_1$ if the user wants to fit
-mass-bin boundaries (rare but supported).
+are JIT-safe (`jnp.where` piecewise) and differentiable in $m_1$, but
+`pdf_given_primary` expects a *scalar* $m_1$ per call — broadcast across
+a mass array with `jax.vmap`, as above.
 
 ## Domain of validity
 
@@ -226,7 +233,8 @@ mass-bin boundaries (rare but supported).
 
 ## References
 
-The functional form and per-mass values are {cite:t}`MoeDiStefano2017` Tables
-10–12. The period-conditional split is from the same source. The
+The functional form is {cite:t}`MoeDiStefano2017` Table 1 / Eq. 2; the
+per-mass $\gamma$ and $f_{\mathrm{twin}}$ values are reduced from their
+Table 13, and the period-conditional split is their Table 11. The
 metallicity dependence is {cite:t}`Moe2019`. For the broader
 multiplicity context see [](multiplicity-statistics.md).

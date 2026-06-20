@@ -50,9 +50,11 @@ $M_1$ and $P$. Treating these as independent factors introduces
 correlated errors that are subtle but systematic — a common pitfall
 in older population-synthesis work.
 
-progenax respects this non-separability by storing the joint
-$f(M_1, q, P, e)$ as a 4D table sampled per the
-{cite:t}`MoeDiStefano2017` Tables 10–13 piecewise fits.
+progenax respects this non-separability by sampling the joint
+$f(M_1, q, P, e)$ from the {cite:t}`MoeDiStefano2017` piecewise fits:
+the master parameter set (their Table 1, Eq. 2) plus the per-mass
+multiplicity statistics (Table 13), the period-conditional mass-ratio
+slopes (Table 11), and the eccentricity slopes (Tables 10 and 12).
 
 ## Terminology: companion frequency vs binary fraction
 
@@ -175,9 +177,12 @@ narrow interval of $M_1$ and $P$. For each sample they:
    samples, and corrected for it.
 
 The resulting joint $f(M_1, q, P, e)$ is the closest thing the field
-has to a "ground truth" binary-population calibration. progenax
-stores it as backing data in `progenax.imf._moe17_tables` and exposes
-the high-level statistics through `BinaryIMF`'s API.
+has to a "ground truth" binary-population calibration. progenax encodes
+the Table 13 grids in `progenax.imf.MoeDiStefano2017` (and the faithful
+period-dependent `MoeDiStefano2017Full` / `MoeJointOrbit` in
+`progenax.imf.binary`), and exposes the mass-dependent multiplicity
+fraction through `MassDependentBinaryFraction` and the higher-level
+`BinaryIMF` API.
 
 ## Solar-mass calibration and the twin excess
 

@@ -1,6 +1,6 @@
 ---
 title: Initial mass functions
-description: progenax's IMF section — from canonical Salpeter / Kroupa / Chabrier / Maschberger through binary-aware Moe & Di Stefano and environment-dependent IGIMF.
+description: progenax's IMF section — from canonical Salpeter / Kroupa / Chabrier / Maschberger through binary-aware Moe & Di Stefano and the environment-dependent (Marks+2012 / Jeřábková+2018 α₃) IMF mapping.
 ---
 
 # Initial mass functions
@@ -14,7 +14,9 @@ IMF as one of its three orthogonal IC ingredients
 ([](../ic-philosophy.md)) and provides multiple parameterisations
 ranging from textbook (Salpeter, Kroupa, Chabrier) through smooth
 analytically-invertible (Maschberger) to physically-detailed
-(binary-aware Moe & Di Stefano, environment-dependent IGIMF).
+(binary-aware Moe & Di Stefano, and an environment-dependent IMF that
+maps cluster birth conditions to the high-mass slope $\alpha_3$ via the
+Marks+2012 / Jeřábková+2018 relations).
 
 ## Map of the IMF chapters
 
@@ -43,7 +45,7 @@ analytically-invertible (Maschberger) to physically-detailed
   - Mass addition vs. flux addition vs. multi-band CMD; how the choice scales the bias
   - Coordinates with the survey forward-model layer
 * - [](environment.md)
-  - Marks+12 cluster-scale variation + Jeřábková+18 IGIMF
+  - Environment-dependent IMF: cluster-scale Marks+12 / Jeřábková+18 α₃ mapping (the galaxy-wide IGIMF integral is background theory only, not an implemented sampler)
   - `BirthEnvironment`, `env_to_imf_params`, `alpha3_*`
 ```
 

@@ -25,6 +25,7 @@ here is an *equilibrium outcome*, not a sampling choice:
 ```python
 import jax
 import jax.numpy as jnp
+from jaxstro.units import STELLAR
 from progenax import MultiComponentCluster
 
 model = MultiComponentCluster.from_components(
@@ -33,7 +34,7 @@ model = MultiComponentCluster.from_components(
     m_j=jnp.array([1.0, 1.0]),       # equal stellar masses: pure w_j physics
     W0=7.0, g=1.0, r_c=1.0,          # King-like (g = 1) truncation
 )
-ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=20_000)
+ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=20_000, G=STELLAR.G)
 # ic.component_id: 0 = cold, 1 = hot
 ```
 
@@ -55,6 +56,9 @@ extended Plummer halo carrying 60% of the mass plus a compact
 truncated EFF core ({cite:t}`ElsonFallFreeman1987`) carrying 40%:
 
 ```python
+import jax
+import jax.numpy as jnp
+from jaxstro.units import STELLAR
 from progenax import MultiComponentCluster, PlummerProfile, EFFProfile
 
 model = MultiComponentCluster.from_density_profiles(
@@ -63,7 +67,7 @@ model = MultiComponentCluster.from_density_profiles(
     mass_fractions=jnp.array([0.6, 0.4]),               # M_j / M_total
     m_j=jnp.array([0.5, 1.0]),                          # stellar-mass labels
 )
-ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=30_000)
+ic = model.sample_cluster(jax.random.PRNGKey(0), n_stars=30_000, G=STELLAR.G)
 ```
 
 The shared potential is one direct quadrature pass over the summed

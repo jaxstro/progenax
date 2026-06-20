@@ -115,11 +115,11 @@ between the {cite:t}`Goodwin2004` fractal dimension $D$ and the
 clumping) gives lower $Q$; a uniform sphere sits at $Q \approx 0.79$.
 Representative anchors (Plummer base, $N_\star \sim 1000$):
 
-```{list-table} GW04 fractal-dimension ladder and its CW04 signature.
+```{list-table} Illustrative fractal-dimension ladder (schematic anchors, not Cartwright 2004 Table 1 rows).
 :header-rows: 1
 
-* - GW04 $D$
-  - $Q_{\mathrm{CW}}$
+* - $D$
+  - $Q_{\mathrm{CW}}$ (illustrative)
   - $\sigma_\Sigma/\langle\Sigma\rangle$
 * - 1.6
   - 0.45
@@ -135,10 +135,15 @@ Representative anchors (Plummer base, $N_\star \sim 1000$):
   - 0.07
 ```
 
-These are theory/reference anchors, not fresh output from a committed
-script. The CW04 $Q$ estimator that produces them is validated against
-{cite:t}`Cartwright2004` Table 1 (uniform sphere $Q = 0.79 \pm 0.02$;
-see [](../../20-architecture/jax-native-substructure-q.md)). The
+These are *schematic* reference anchors illustrating the monotonic
+$Q$-vs-$D$ trend, not fresh output and **not** verbatim
+{cite:t}`Cartwright2004` Table 1 values — that table tabulates
+$Q = 0.45\pm0.09,\,0.61\pm0.08,\,0.73\pm0.06,\,0.80\pm0.02$ at
+$D = 1.5,\,2.0,\,2.5,\,3.0$ (3-D box-fractal models projected to 2-D,
+$100 \le N \le 300$). What progenax's CW04 $Q$ estimator *is*
+quantitatively validated against is the {cite:t}`Cartwright2004`
+uniform-sphere anchor $Q = 0.79 \pm 0.02$ (reproduced to $<0.01$; see
+[](../../20-architecture/jax-native-substructure-q.md)). The
 experimental `gravoturb_fdf` package's headline calibration reproduces
 the *direction* of this ladder — $Q$ decreasing as more stars are drawn
 from the dense turbulent tail — measured with realization bands (its

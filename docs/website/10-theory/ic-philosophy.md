@@ -208,8 +208,10 @@ context-manager idiom are documented in [](../20-architecture/units-policy.md).
 **Mixing unit systems silently breaks energy conservation.** If you
 sample positions/velocities under STELLAR but compute energies under
 PLANETARY, the recovered $Q_{\mathrm{vir}}$ will be off by a factor
-$G_{\mathrm{stellar}} / G_{\mathrm{planetary}} \approx 8800$. Always
-pass the same `units` (or `G`) through the entire pipeline.
+$G_{\mathrm{planetary}} / G_{\mathrm{stellar}} \approx 8800$
+(equivalently $G_{\mathrm{stellar}}/G_{\mathrm{planetary}} \approx
+1.1\times10^{-4}$). Always pass the same `units` (or `G`) through the
+entire pipeline.
 ```
 
 ## What "differentiable IC" actually means

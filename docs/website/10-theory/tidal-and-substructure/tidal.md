@@ -1,6 +1,6 @@
 ---
 title: Tidal physics
-description: The Jacobi (tidal) radius — its derivation from the restricted three-body problem, the corrections for non-circular orbits and extended halos, and progenax's `apply_tidal_truncation` utility.
+description: The Jacobi (tidal) radius — its derivation from the restricted three-body problem, the point-mass and isothermal-halo forms, and progenax's differentiable `apply_tidal_truncation` utility.
 ---
 
 # Tidal physics
@@ -8,15 +8,15 @@ description: The Jacobi (tidal) radius — its derivation from the restricted th
 A star cluster orbiting in a host galaxy's potential is *tidally
 limited*: stars beyond a critical radius — the **Jacobi radius**
 $r_J$, also called the tidal radius — are stripped by the differential
-pull between the cluster's gravity and the galaxy's. progenax models
-this with a single utility, `apply_tidal_truncation`, that removes
-all stars with $|\mathbf{r}| > r_J$ from the IC. The Jacobi radius
-itself is computed from the cluster mass and the host galaxy's
-enclosed mass profile via `jacobi_radius`.
+pull between the cluster's gravity and the galaxy's. progenax provides
+two closed-form estimators of $r_J$ — `jacobi_radius` (point-mass
+host) and `jacobi_radius_isothermal` (flat-rotation-curve host) — and
+a differentiable utility, `apply_tidal_truncation`, that "removes"
+stars with $|\mathbf{r}| > r_t$ from the IC by zeroing their mass.
 
 This chapter derives the Jacobi-radius formula from the restricted
-three-body problem, lists the corrections for eccentric orbits and
-extended halos, and documents the truncation utility.
+three-body problem, gives the two host-potential forms progenax
+implements, and documents the truncation utility.
 
 ## The Jacobi radius
 
@@ -26,31 +26,43 @@ $M_{\mathrm{gal}}(<R)$, the Jacobi radius is
 
 ```{math}
 :label: jacobi-circular
-r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(2 + \mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R)\,M_{\mathrm{gal}}(<R)}\biggr]^{1/3}.
+r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(3 - \mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R)\,M_{\mathrm{gal}}(<R)}\biggr]^{1/3}.
 ```
 
-The bracketed denominator carries the host's mass-profile dependence
-through $\mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R$:
+The numerical factor in the denominator carries the host's mass-profile
+dependence through $\mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R$:
 
 - **Point-mass host** ($M_{\mathrm{gal}}(<R) = $ const): the
-  derivative is 0, recovering $r_J = R\,(M_{\mathrm{cl}}/2 M_{\mathrm{gal}})^{1/3}$
-  — the classical Roche lobe.
-- **Singular isothermal halo** ($M_{\mathrm{gal}}(<R) \propto R$): the
-  derivative is 1, giving $r_J = R\,(M_{\mathrm{cl}}/3 M_{\mathrm{gal}})^{1/3}$.
-- **Flat rotation curve**: same as singular isothermal (since
-  $v_c^2 = G M / R$ const requires $M \propto R$).
+  derivative is 0, giving the factor **3**,
+  $r_J = R\,(M_{\mathrm{cl}}/3 M_{\mathrm{gal}})^{1/3}$ — the classical
+  Hill/Roche radius {cite:p}`King1962`.
+- **Singular isothermal halo / flat rotation curve**
+  ($M_{\mathrm{gal}}(<R) \propto R$, so $v_c^2 = G M_{\mathrm{gal}}/R$
+  is constant): the derivative is 1, giving the factor **2**,
+  $r_J = R\,(M_{\mathrm{cl}}/2 M_{\mathrm{gal}})^{1/3}$. The factor
+  of 2 (rather than 3) is the signature of the logarithmic potential.
 
-The standard "Galactic-cluster" approximation uses the singular
-isothermal halo form:
+progenax implements these as two separate functions, each with a fixed
+factor — there is no callable-host-profile API:
 
-```{math}
-:label: jacobi-iso
-r_J \;\approx\; \biggl(\frac{M_{\mathrm{cl}}}{3 M_{\mathrm{gal}}(<R)}\biggr)^{\!1/3}\,R
+- `jacobi_radius(M_cluster, M_galaxy, R_galactic)` — the **point-mass**
+  factor-3 form $r_J = R\,(M_{\mathrm{cl}}/3 M_{\mathrm{gal}})^{1/3}$
+  ({cite:t}`King1962`; Binney & Tremaine 2008 §8.3).
+- `jacobi_radius_isothermal(M_cluster, V_circ, R_galactic, G)` — the
+  **flat-rotation-curve** factor-2 form, parameterised by the host's
+  circular velocity $V_{\mathrm{circ}}$ rather than its enclosed mass.
+  Algebraically $r_J = (G\,M_{\mathrm{cl}}/2\Omega^2)^{1/3}$ with
+  $\Omega = V_{\mathrm{circ}}/R$, equivalent to the N-body-calibrated
+  relation of {cite:t}`Baumgardt2003` Eq. 1.
+
+```{warning}
+**Unit trap in `jacobi_radius_isothermal`.** `V_circ` must be in the
+*same* length/time units as `G` — pc/Myr for `STELLAR`, **not** km/s.
+The ecosystem's display convention quotes velocities in km/s, but
+`STELLAR.G` is in $\mathrm{pc}^3\,\Msun^{-1}\,\mathrm{Myr}^{-2}$, so
+pass `V_circ` in pc/Myr ($1\,\mathrm{km\,s^{-1}} = 1.0227\,\mathrm{pc\,Myr^{-1}}$).
+Mixing the two biases $r_J$ by $\sim 1.5\%$ per the conversion factor.
 ```
-
-This is the formula `progenax.tidal.jacobi_radius_isothermal` returns
-by default; the more general {eq}`jacobi-circular` is available via
-`jacobi_radius` with an explicit `M_gal_enclosed_func` callable.
 
 ## Derivation sketch
 
@@ -89,13 +101,16 @@ restrictive — to set the IC truncation. This is conservative: the
 cluster will not lose any additional mass during evolution from the
 initial condition.
 
-For a more sophisticated treatment, `jacobi_radius` accepts a
-phase-averaged $\langle r_J \rangle$ via:
+For a more sophisticated treatment, evaluate `jacobi_radius` at the two
+orbital extremes (passing the enclosed galaxy mass at each radius) and
+phase-average:
 
 ```python
-r_peri = jacobi_radius(M_cl, M_gal_at(R_peri), R_peri)
-r_apo  = jacobi_radius(M_cl, M_gal_at(R_apo),  R_apo)
-r_J_avg = 0.5 * (r_peri + r_apo)   # Phase-averaged
+from progenax.tidal import jacobi_radius
+
+r_peri = jacobi_radius(M_cl, M_gal_peri, R_peri)  # M_gal_peri = M_gal(<R_peri)
+r_apo  = jacobi_radius(M_cl, M_gal_apo,  R_apo)   # M_gal_apo  = M_gal(<R_apo)
+r_J_avg = 0.5 * (r_peri + r_apo)                  # Phase-averaged
 ```
 
 Whether to use peri, apo, or a phase average depends on the science
@@ -106,36 +121,46 @@ of the cluster's instantaneous extent.
 
 ## Tidal truncation
 
-`apply_tidal_truncation(positions, velocities, masses, r_t)` is the
-utility that filters out stars beyond a specified truncation radius:
+`apply_tidal_truncation(positions, velocities, masses, r_t)`
+"removes" stars beyond a truncation radius $r_t$ — but rather than
+boolean-indexing them out (which would collapse the array shape), it
+sets the mass of every star with $r > r_t$ to **zero**. Those zero-mass
+"ghost" particles then contribute nothing to any mass-weighted quantity
+(energy, virial ratio, centre of mass) while keeping the array length
+fixed at $N$:
 
 ```python
 from progenax.tidal import apply_tidal_truncation
 
-positions, velocities, masses, keep_mask = apply_tidal_truncation(
+positions, velocities, masses_trunc, keep_mask = apply_tidal_truncation(
     positions, velocities, masses, r_t=r_J,
 )
-# Returns kept arrays plus an original-length mask
+# All four outputs have length N (shape-preserving):
+#   positions, velocities : unchanged (truncated stars left in place)
+#   masses_trunc          : masses with r > r_t entries set to 0
+#   keep_mask             : bool (N,), True where r <= r_t
 ```
 
-Implementation detail: the function computes an original-length boolean
-mask and uses it to return the kept rows. The returned particle arrays
-therefore have length `M <= N`.
+**Implementation detail.** The forward pass is an *exact* hard
+Heaviside cut. The mass-zeroing is wrapped in a `@jax.custom_jvp`
+straight-through surrogate: the backward pass replaces the
+delta-function derivative of the step with a logistic bump (width
+`grad_width * r_t`, default 5%), so $r_t$ — and any upstream parameter
+feeding it (e.g. via `jacobi_radius`) — stays differentiable. Because
+the output shape is static, the function is fully `jit` / `vmap` /
+`grad` safe; use `keep_mask` to filter *number*-based downstream
+quantities that would otherwise still see the zero-mass ghosts.
 
 ```{warning}
-**Shape-collapsed output.** `apply_tidal_truncation` uses boolean
-indexing, so it is convenient for preparing IC catalogs but not a
-fixed-shape operation for code that must stay inside a single JIT trace.
-Keep `keep_mask` if you need to map the retained particles back to the
-original catalog.
+**The truncated set is super-virial, not stationary.** The survivors
+keep the velocities they were drawn with for the *untruncated*
+potential, but they now sit in the shallower potential of the
+mass-reduced system. The truncated set is therefore super-virial —
+some stars near $r_t$ are formally unbound, and the configuration is
+not a stationary equilibrium. If you need a stationary IC, re-virialise
+the survivors (`virial_scale`) or use an $r_t$-consistent equilibrium
+model (King / LIMEPY) directly.
 ```
-
-In the current implementation, `apply_tidal_truncation` returns
-shape-collapsed kept arrays plus the original-length boolean mask:
-`(positions_kept, velocities_kept, masses_kept, keep_mask)`. That
-boolean indexing is useful for ordinary IC preparation but is not the
-fixed-shape truncation style required inside a fully JIT-compiled
-pipeline.
 
 ## Fill-factor: $r_h / r_J$
 
@@ -148,11 +173,14 @@ A useful dimensionless quantity is the **fill-factor**
 
 which measures how "full" the cluster is relative to its tidal limit.
 Galactic globular clusters have observed $\mathcal{F}$ in the range
-0.05–0.3 {cite:p}`King1966,Kuepper2011`. progenax's
-`fill_factor_to_r_h(fill_factor, r_J)` utility computes the
-half-mass radius corresponding to a target fill factor — useful when
-the science specifies the tidal-truncation regime rather than the
-absolute size.
+0.05–0.3 {cite:p}`Kuepper2011`. (The fill-factor / "tidally filling"
+terminology is later community usage — it is a *definitional* ratio,
+not a result tabulated by any single source; {cite:t}`King1966`'s
+single-mass models supply the tidal radius $r_t$ but no fill-factor
+data.) progenax's `fill_factor_to_r_h(fill_factor, r_J)` utility
+computes the half-mass radius corresponding to a target fill factor —
+useful when the science specifies the tidal-truncation regime rather
+than the absolute size.
 
 ```{list-table} Typical fill factors for Galactic clusters.
 :header-rows: 1
@@ -197,8 +225,8 @@ must be applied externally; it is not built in.
    assumption breaks down.
 3. **Single component.** {eq}`jacobi-circular` uses a single $M_{\mathrm{gal}}(<R)$.
    For galaxies with multi-component potentials (disc + halo + bulge),
-   compute the *total* enclosed mass; progenax accepts a callable
-   `M_gal_enclosed_func` for this.
+   compute the *total* enclosed mass yourself and pass it to
+   `jacobi_radius` (which takes a scalar `M_galaxy`, not a callable).
 4. **No cluster-cluster interactions.** Two clusters in orbit around
    each other (e.g. mutually-bound binary clusters) require a
    different treatment beyond the scope of this utility.

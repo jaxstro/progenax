@@ -105,42 +105,22 @@ implementation:
 
 ### Binary fraction $f_b(M_1)$
 
-```{list-table} Multiplicity fraction $f_b = 1 - \mathcal{F}_{n=0}$ ($\le 1$; **not** the companion *frequency* $f_{\mathrm{mult}}$): {cite:t}`MoeDiStefano2017` Table 13 single-star row for $M_1 \ge 0.8\,\Msun$, M-dwarf surveys below.
-:header-rows: 1
+The mass-dependent binary fraction $f_b(M_1) = 1 - \mathcal{F}_{n=0}$ —
+the multiplicity *fraction* ($\le 1$, the probability of $\ge 1$
+companion) — is tabulated, with its full per-mass values and provenance
+({cite:t}`MoeDiStefano2017` Table 13 single-star row for
+$M_1 \ge 0.8\,\Msun$, M-dwarf surveys below), in the canonical
+[multiplicity-statistics chapter](multiplicity-statistics.md#mass-dependent-binary-fraction).
+The trend is steep: O-type stars are almost always in multiples ($f_b
+\approx 0.9$), while M-dwarfs are mostly single ($f_b \approx 0.2$–0.3) —
+a factor-of-4 dynamic range that is the leading-order driver of the
+binary-IMF bias.
 
-* - Primary mass
-  - $f_b$
-  - Type
-* - $M_1 < 0.1\,\Msun$
-  - 0.22
-  - Very low mass / brown dwarfs
-* - $0.1$–$0.5\,\Msun$
-  - 0.26
-  - M-dwarfs
-* - $0.5$–$1.0\,\Msun$
-  - 0.44
-  - K/G-dwarfs
-* - $1.0$–$2.0\,\Msun$
-  - 0.50
-  - F/A-stars
-* - $2.0$–$5.0\,\Msun$
-  - 0.60
-  - B-stars
-* - $5$–$10\,\Msun$
-  - 0.80
-  - early B
-* - $M_1 > 10\,\Msun$
-  - 0.90
-  - O-stars
-```
-
-The trend is steep: O-type stars are almost always in multiples, while
-M-dwarfs are mostly single. The table is the multiplicity *fraction* ($\le 1$, the
-probability of $\ge 1$ companion); the companion *frequency* $f_{\mathrm{mult}}$ is a
-distinct quantity that exceeds 1.0 ($\sim 2.1$ per O-type primary, {cite:t}`MoeDiStefano2017`
-Table 13) once hierarchical triples and higher-order systems are counted — see
-[Limitations](#binary-imf-limitations) below for the single-companion approximation
-progenax adopts.
+This $f_b$ is the multiplicity *fraction*, **not** the companion
+*frequency* $f_{\mathrm{mult}}$, which exceeds 1.0 ($\sim 2.1$ per
+O-type primary, {cite:t}`MoeDiStefano2017` Table 13) once hierarchical
+triples are counted — see [Limitations](#binary-imf-limitations) below
+for the single-companion approximation progenax adopts.
 
 ### Mass-ratio distribution $g(q \mid M_1)$
 
@@ -157,35 +137,18 @@ where $Z_{\mathrm{pl}} = \int_{q_{\min}}^{1} q^\gamma\,\mathrm{d}q$ and
 $\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses a period-averaged single-slope
 $\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13's period-dependent
 $\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ (averaged over $\log P$) — appropriate
-for total mass-function analyses, but loses the small-$q$ structure that matters
+for total mass-function analyses, but losing the small-$q$ structure that matters
 for surveys sensitive to specific period ranges (see
-[Limitations](#binary-imf-limitations)):
+[Limitations](#binary-imf-limitations)). The per-mass $\gamma(M_1)$ and
+$f_{\mathrm{twin}}(M_1)$ tables live in the canonical
+[](mass-ratio-distributions.md).
 
-```{list-table} Period-averaged single-slope $\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13 ($\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ averaged over $\log P$); a progenax approximation, not a verbatim Moe row.
-:header-rows: 1
-
-* - Primary mass
-  - $\gamma$
-  - Behaviour
-* - $M_1 < 0.8\,\Msun$
-  - 0.4
-  - Preference for near-equal masses
-* - $0.8$–$1.2\,\Msun$
-  - 0.3
-  - Mild preference for equal masses
-* - $1.2$–$3.5\,\Msun$
-  - 0.0
-  - Flat (uniform in $q$)
-* - $M_1 > 3.5\,\Msun$
-  - $-0.5$
-  - Preference for unequal masses
-```
-
-The trend reverses at high masses: massive stars preferentially have
-*low-q* companions, while low-mass stars prefer near-equal-mass
-companions. The twin fraction $f_{\mathrm{twin}}$ peaks at solar-type
-primaries ($f_{\mathrm{twin}} = 0.10$ for $0.8$–$1.2\,\Msun$) and falls
-to 0.03 for $M_1 > 3.5\,\Msun$.
+Qualitatively, the slope trend reverses at high masses: massive stars
+preferentially have *low-q* companions ($\gamma < 0$), while low-mass
+stars prefer near-equal-mass companions ($\gamma > 0$). The twin
+fraction $f_{\mathrm{twin}}$ peaks at solar-type primaries
+($f_{\mathrm{twin}} = 0.10$ for $0.8$–$1.2\,\Msun$) and falls to 0.03
+for $M_1 > 3.5\,\Msun$.
 
 ## The system mass function
 
@@ -237,8 +200,9 @@ each likelihood evaluation requires $N \times 128$ IMF + mass-ratio
 evaluations. At $N = 30{,}000$ (LSST-scale) this is $\sim 3.8 \times 10^6$
 evaluations per NUTS step, $\sim 6 \times 10^9$ flops per chain. On a
 MacBook Pro CPU one chain takes $\sim 35$ minutes; on an A100 the same
-$N \times 128$ tile is embarrassingly parallel via `jax.vmap`, with an
-estimated $100$–$1000\times$ speedup.
+$N \times 128$ tile is embarrassingly parallel via `jax.vmap`, bringing
+the per-chain time down to $\sim 30$ s — an estimated $\sim 70\times$
+speedup (see [](binary-aware-likelihood.md) for the per-step breakdown).
 
 ## Confidently wrong: the naive likelihood at large N
 
