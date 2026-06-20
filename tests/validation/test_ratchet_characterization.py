@@ -102,31 +102,31 @@ def _fingerprint(rel: str) -> tuple[int, str]:
 _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
     "src/progenax/imf/power_law.py": (
         14,
-        "ff38228a8f550095c9bdfb0bbfea09ea0d5bb8fd0588192cdc1ba9ded7cad815",
+        "737ae43b8d71e8c5d401c2218ddec40f75845afd94243710f3d86ba356348ac8",
     ),
     "src/progenax/imf/chabrier.py": (
         10,
-        "6dc46f2a95a58c57063b76bfebbad80b0564e79a922524828eb6b0236e928d8b",
+        "82667f363d35919be0608cdf927d51ee96438b08e950e6f82bfc1274c8681e3f",
     ),
     "src/progenax/imf/smooth.py": (
         15,
-        "00d11d4fd51f0fa15132fe8d6712b22870f6115cb7212799823c8df43041b4c8",
+        "d2bafef4ddf37f4d64a4bebf07db0314260097f3e5fcb519130e8b2546912241",
     ),
     "src/progenax/imf/environment/coefficients.py": (
         26,
-        "6158cad4187f4ebfd4b82840a55899fe69fdba915a49feef4aae40b7bae64d21",
+        "d8fb101d4820303c3e31e08d9ed9db1bac52d99074380eba43b54d6115f6cd05",
     ),
     "src/progenax/imf/environment/mapping.py": (
         27,
-        "35b9f86d0f49a58948819ed023efa94536872469b9f0f6d1ab5acb8604dd2566",
+        "5e51ef89fdf8d7ddceb42935560ff9a31ba0a9dec23a86ba2b15954d0551bb7e",
     ),
     "src/progenax/imf/binary/moe_di_stefano.py": (
         74,
-        "952cd80104797582b24b56c2806428d809e7716f9e9070078ab6b74d6d7dbe45",
+        "2b4b1014ebdd021d81ea5c0c7651f6f8e36fb4239cfadf9a152039eb765e84f3",
     ),
     "src/progenax/imf/binary/mass_ratio.py": (
         6,
-        "bacc5d0fb3c714721d548cad1623c9b6832360917105b90ed3814f68fa3abb44",
+        "cc5ed6a71979e02757ee2a4710cf70bfc66e54f675997d391c63bd649b30d58c",
     ),
     "src/progenax/binaries/period.py": (
         15,
@@ -134,7 +134,7 @@ _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
     ),
     "src/progenax/stellar.py": (
         103,
-        "2d5984c84a11a94b29ab8b4125c4bf6a9a243285fdc2ed8d8168a3f5ae1fc60c",
+        "8d1cd52ac8b3501fbbe2b6023766bc318bceab3b4ecbe5df8fe58b45366d9a54",
     ),
 }
 
@@ -175,15 +175,15 @@ def test_harness_literal_scan_matches_frozen_golden():
 _GOLDEN_REPRESENTATIVE_LITERALS: dict[str, list[tuple[float, int]]] = {
     # Salpeter alpha, signed Marks/Jerabkova FP coefficients, the Moe Table-13 -2.0 tail,
     # the Sana OB period index, and a Tout ZAMS coefficient row.
-    "src/progenax/imf/power_law.py": [(2.35, 147)],
-    "src/progenax/imf/environment/coefficients.py": [(-0.4072, 54), (-0.87, 32)],
+    "src/progenax/imf/power_law.py": [(2.35, 148)],
+    "src/progenax/imf/environment/coefficients.py": [(-0.4072, 50), (-0.87, 28)],
     "src/progenax/imf/binary/moe_di_stefano.py": [
-        (-2.0, 191),
-        (-2.0, 192),
-        (-1.1, 192),
+        (-2.0, 195),
+        (-2.0, 196),
+        (-1.1, 196),
     ],
     "src/progenax/binaries/period.py": [(-0.55, 138)],
-    "src/progenax/stellar.py": [(-48.96066856, 57)],
+    "src/progenax/stellar.py": [(-48.96066856, 70)],
 }
 
 
@@ -215,14 +215,14 @@ _GOLDEN_CITATION_VERDICTS: list[tuple[str, int, bool]] = [
     # True via the scoped CLASS docstring (SanaOBPeriod cites Sana et al. (2012)).
     ("src/progenax/binaries/period.py", 138, True),
     # True via the per-array in-window citation comment added at strict-mode adoption: the
-    # Moe Table-13 gamma_largeq rows (lines 191-192) carry "Moe & Di Stefano (2017) ... Table
+    # Moe Table-13 gamma_largeq rows (lines 195-196) carry "Moe & Di Stefano (2017) ... Table
     # 13" on the array-opening line within window=4.
-    ("src/progenax/imf/binary/moe_di_stefano.py", 191, True),
-    ("src/progenax/imf/binary/moe_di_stefano.py", 192, True),
-    # True via the per-row in-window citation comment: each Tout L/R coefficient row now
-    # carries "Tout+1996 Table 1/2" inline.
-    ("src/progenax/stellar.py", 40, True),
-    ("src/progenax/stellar.py", 57, True),
+    ("src/progenax/imf/binary/moe_di_stefano.py", 195, True),
+    ("src/progenax/imf/binary/moe_di_stefano.py", 196, True),
+    # True via the per-row in-window citation comment: each Tout L/R coefficient row (kept on
+    # one line under fmt:off) now carries "Tout+1996 Table 1/2" inline on the row's own line.
+    ("src/progenax/stellar.py", 43, True),
+    ("src/progenax/stellar.py", 70, True),
 ]
 
 
@@ -385,7 +385,7 @@ def test_harness_orchestration_reproduces_zero_holes():
 
 def test_documented_harness_signed_literal_folding():
     """Pin the harness's DELIBERATE signed-literal folding so it cannot silently change:
-    the harness yields the Moe Table-13 ``-2.0`` tail (lines 191-192) as a SIGNED citable
+    the harness yields the Moe Table-13 ``-2.0`` tail (lines 195-196) as a SIGNED citable
     literal, whereas a raw-``Constant`` walk sees only a trivial ``+2.0`` (the ``-`` lives in
     a ``UnaryOp(USub)``). The harness is stricter (closes a sign blind spot); the value is
     provenanced, so the registry verdict is unchanged."""
@@ -393,21 +393,21 @@ def test_documented_harness_signed_literal_folding():
 
     # signed -2.0 IS in the harness scan ...
     harness_lits = set(_scan(rel))
-    assert (-2.0, 191) in harness_lits and (-2.0, 192) in harness_lits
+    assert (-2.0, 195) in harness_lits and (-2.0, 196) in harness_lits
 
     # ... and a raw-Constant walk would NOT see it (it sees a trivial +2.0).
     tree = ast.parse((_REPO_ROOT / rel).read_text())
-    raw_constants_at_191_192 = {
+    raw_constants_at_195_196 = {
         (float(n.value), n.lineno)
         for n in ast.walk(tree)
         if isinstance(n, ast.Constant)
         and isinstance(n.value, (int, float))
         and not isinstance(n.value, bool)
-        and n.lineno in (191, 192)
+        and n.lineno in (195, 196)
     }
     # The raw constants are +2.0 (trivial); the SIGNED -2.0 only appears via UnaryOp folding.
-    assert (2.0, 191) in raw_constants_at_191_192
-    assert (-2.0, 191) not in raw_constants_at_191_192
+    assert (2.0, 195) in raw_constants_at_195_196
+    assert (-2.0, 195) not in raw_constants_at_195_196
 
 
 def test_harness_excludes_module_docstring_span():
