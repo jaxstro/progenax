@@ -74,7 +74,7 @@ Protocol for all IMF implementations.
 Any class with these attributes and methods can be used as an IMF,
 enabling TruncatedIMF to wrap any compatible IMF.
 
-*Source: [`progenax/imf/base.py#L26`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L26)*
+*Source: [`progenax/imf/base.py#L25`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/base.py#L25)*
 
 (api-imf-baseimf)=
 ## `imf.BaseIMF`
@@ -188,7 +188,7 @@ Example:
     >>> imf = PowerLawIMF.kroupa()  # Kroupa (2001)
     >>> masses = imf.sample(key, 1000)
 
-*Source: [`progenax/imf/power_law.py#L17`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L17)*
+*Source: [`progenax/imf/power_law.py#L18`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L18)*
 
 (api-imf-prepare_imf_samples)=
 ## `imf.prepare_imf_samples`
@@ -208,7 +208,7 @@ Args:
 Returns:
     Uniform samples in [0, 1]
 
-*Source: [`progenax/imf/power_law.py#L306`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L306)*
+*Source: [`progenax/imf/power_law.py#L307`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L307)*
 
 (api-imf-estimate_n_max_for_m_total)=
 ## `imf.estimate_N_max_for_M_total`
@@ -221,7 +221,7 @@ estimate_N_max_for_M_total(m_total: 'float', imf: 'PowerLawIMF', safety_factor: 
 
 Estimate N_max for M_total mode sampling.
 
-*Source: [`progenax/imf/power_law.py#L321`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L321)*
+*Source: [`progenax/imf/power_law.py#L322`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L322)*
 
 (api-imf-estimate_pool_size)=
 ## `imf.estimate_pool_size`
@@ -234,7 +234,7 @@ estimate_pool_size(m_total: 'float', imf: 'PowerLawIMF') -> 'int'
 
 Alias for estimate_N_max_for_M_total.
 
-*Source: [`progenax/imf/power_law.py#L331`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L331)*
+*Source: [`progenax/imf/power_law.py#L332`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/power_law.py#L332)*
 
 (api-imf-maschberger)=
 ## `imf.Maschberger`
@@ -267,7 +267,7 @@ Reference:
     Maschberger, T. (2013), MNRAS, 429, 1725
     "On the function describing the stellar initial mass function"
 
-*Source: [`progenax/imf/smooth.py#L50`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L50)*
+*Source: [`progenax/imf/smooth.py#L51`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L51)*
 
 (api-imf-taperedpowerlaw)=
 ## `imf.TaperedPowerLaw`
@@ -295,7 +295,7 @@ Attributes:
     m_peak: Turnover/peak mass [M_sun]
     beta: Taper sharpness (higher = sharper cutoff)
 
-*Source: [`progenax/imf/smooth.py#L177`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L177)*
+*Source: [`progenax/imf/smooth.py#L180`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L180)*
 
 (api-imf-schechter)=
 ## `imf.Schechter`
@@ -332,7 +332,7 @@ Attributes:
     alpha: Power-law slope (default: 2.3, Salpeter-like)
     m_star: Exponential cutoff mass [M_sun] (default: 100)
 
-*Source: [`progenax/imf/smooth.py#L225`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L225)*
+*Source: [`progenax/imf/smooth.py#L228`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/smooth.py#L228)*
 
 (api-imf-chabrierimf)=
 ## `imf.ChabrierIMF`
@@ -397,7 +397,7 @@ All mass-ratio distributions must implement:
 
 Note: q = M_secondary / M_primary ∈ [q_min, 1] by convention.
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L23`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L23)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L22`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L22)*
 
 (api-imf-flatmassratio)=
 ## `imf.FlatMassRatio`
@@ -418,7 +418,7 @@ Parameters:
     q_min: Minimum mass ratio (default: 0.1)
            Below ~0.1, companions become brown dwarfs.
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L60`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L60)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L59`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L59)*
 
 (api-imf-powerlawmassratio)=
 ## `imf.PowerLawMassRatio`
@@ -449,7 +449,7 @@ Note:
     For γ = -1, the distribution is singular at q = 0.
     Use q_min > 0 to avoid singularity.
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L117`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L117)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L116`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L116)*
 
 (api-imf-twinpeakedmassratio)=
 ## `imf.TwinPeakedMassRatio`
@@ -483,7 +483,7 @@ Parameters:
                Moe+17 suggest σ ≈ 0.02-0.05
     q_min: Minimum mass ratio (default: 0.1)
 
-*Source: [`progenax/imf/binary/mass_ratio.py#L276`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L276)*
+*Source: [`progenax/imf/binary/mass_ratio.py#L275`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/mass_ratio.py#L275)*
 
 (api-imf-moedistefano2017)=
 ## `imf.MoeDiStefano2017`
@@ -506,8 +506,7 @@ all three tabulated as functions of BOTH primary mass AND orbital period (at log
 This class collapses that to a SINGLE period-averaged slope γ(M1) and a period-averaged
 F_twin(M1) — it captures the qualitative trend (low-mass companions favour equal q, OB
 companions favour small q) but is not a verbatim Table row. A faithful two-slope,
-period-dependent implementation is tracked in
-docs/notes/2026-06-04-moe-twoslope-q-distribution-ticket.md.
+period-dependent implementation is tracked for a future release.
 
 Period-averaged single-slope reduction (γ from the qualitative γ_smallq/γ_largeq trend;
 f_twin period-averaged from Table 13's F_twin, which falls from ~0.1–0.3 at logP=1 to
@@ -521,7 +520,7 @@ Parameters:
     q_min: Minimum mass ratio (default: 0.1)
     sigma_twin: Width of twin peak (default: 0.03)
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L17`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L17)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L20`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L20)*
 
 (api-imf-moedistefano2017full)=
 ## `imf.MoeDiStefano2017Full`
@@ -561,7 +560,7 @@ Reference:
 Parameters:
     q_min: Minimum mass ratio for the normalized range (default: 0.1).
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L230`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L230)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L240`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L240)*
 
 (api-imf-moeperiod)=
 ## `imf.MoePeriod`
@@ -584,7 +583,7 @@ flatter and weighted to shorter periods — reproducing Moe's period trend.
 
 Reference: Moe & Di Stefano (2017) ApJS 230, 15, Table 13, Figure 37.
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L350`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L350)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L360`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L360)*
 
 (api-imf-moejointorbit)=
 ## `imf.MoeJointOrbit`
@@ -608,7 +607,7 @@ so `imf` need not hard-import `binaries`.
 
 Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
 
-*Source: [`progenax/imf/binary/moe_di_stefano.py#L390`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L390)*
+*Source: [`progenax/imf/binary/moe_di_stefano.py#L400`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/moe_di_stefano.py#L400)*
 
 (api-imf-constantbinaryfraction)=
 ## `imf.ConstantBinaryFraction`
@@ -628,7 +627,7 @@ Reference:
 Parameters:
     f_bin: Binary fraction (default: 0.5)
 
-*Source: [`progenax/imf/binary/binary_fraction.py#L18`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L18)*
+*Source: [`progenax/imf/binary/binary_fraction.py#L14`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L14)*
 
 (api-imf-massdependentbinaryfraction)=
 ## `imf.MassDependentBinaryFraction`
@@ -661,7 +660,7 @@ Model (multiplicity fraction vs primary mass):
 Note: pairing one companion per "binary" system; higher-order multiples (triples, etc.)
 are common at high masses but are not modelled here (use the full Moe model for that).
 
-*Source: [`progenax/imf/binary/binary_fraction.py#L40`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L40)*
+*Source: [`progenax/imf/binary/binary_fraction.py#L36`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/binary/binary_fraction.py#L36)*
 
 (api-imf-binaryimf)=
 ## `imf.BinaryIMF`
@@ -820,7 +819,7 @@ Example:
     >>> masses = jnp.array([0.5, 1.0, 10.0])
     >>> log_probs = log_prob_masses(masses, params)
 
-*Source: [`progenax/imf/differentiable.py#L80`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L80)*
+*Source: [`progenax/imf/differentiable.py#L79`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L79)*
 
 (api-imf-sample_masses_from_params)=
 ## `imf.sample_masses_from_params`
@@ -851,7 +850,7 @@ Example:
     >>> u = jax.random.uniform(key, (1000,))
     >>> masses = sample_masses_from_params(params, u)
 
-*Source: [`progenax/imf/differentiable.py#L187`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L187)*
+*Source: [`progenax/imf/differentiable.py#L186`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L186)*
 
 (api-imf-individual_mass_nll)=
 ## `imf.individual_mass_nll`
@@ -881,7 +880,7 @@ Example:
     >>> nll = individual_mass_nll(masses, params)
     >>> # Minimize NLL to fit params to data
 
-*Source: [`progenax/imf/differentiable.py#L281`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L281)*
+*Source: [`progenax/imf/differentiable.py#L280`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/differentiable.py#L280)*
 
 (api-imf-birthenvironment)=
 ## `imf.BirthEnvironment`
@@ -916,7 +915,7 @@ Example:
     >>> params = env_to_imf_params(env)
     >>> print(f"α₃ = {float(params.alpha3):.2f}")  # Top-heavy!
 
-*Source: [`progenax/imf/environment/birth_environment.py#L27`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/birth_environment.py#L27)*
+*Source: [`progenax/imf/environment/birth_environment.py#L21`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/birth_environment.py#L21)*
 
 (api-imf-env_to_imf_params)=
 ## `imf.env_to_imf_params`
@@ -963,7 +962,7 @@ Example:
     >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, sfe=0.1)
     >>> params = env_to_imf_params(env, model="jerabkova_generalized")
 
-*Source: [`progenax/imf/environment/mapping.py#L345`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L345)*
+*Source: [`progenax/imf/environment/mapping.py#L382`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L382)*
 
 (api-imf-compute_r_half)=
 ## `imf.compute_r_half`
@@ -1083,7 +1082,7 @@ Args:
 Returns:
     x parameter for α₃ calculation
 
-*Source: [`progenax/imf/environment/mapping.py#L27`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L27)*
+*Source: [`progenax/imf/environment/mapping.py#L29`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L29)*
 
 (api-imf-x_jerabkova_rho)=
 ## `imf.x_jerabkova_rho`
@@ -1107,7 +1106,7 @@ Args:
 Returns:
     x parameter for α₃ calculation
 
-*Source: [`progenax/imf/environment/mapping.py#L53`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L53)*
+*Source: [`progenax/imf/environment/mapping.py#L60`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L60)*
 
 (api-imf-x_hat_marks_plane)=
 ## `imf.x_hat_marks_plane`
@@ -1130,7 +1129,7 @@ Args:
 Returns:
     x̂ coordinate on Fundamental Plane
 
-*Source: [`progenax/imf/environment/mapping.py#L75`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L75)*
+*Source: [`progenax/imf/environment/mapping.py#L82`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L82)*
 
 (api-imf-alpha3_jerabkova_generalized)=
 ## `imf.alpha3_jerabkova_generalized`
@@ -1161,7 +1160,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L140`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L140)*
+*Source: [`progenax/imf/environment/mapping.py#L148`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L148)*
 
 (api-imf-alpha3_jerabkova_mecl)=
 ## `imf.alpha3_jerabkova_mecl`
@@ -1185,7 +1184,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L175`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L175)*
+*Source: [`progenax/imf/environment/mapping.py#L188`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L188)*
 
 (api-imf-alpha3_jerabkova_rho)=
 ## `imf.alpha3_jerabkova_rho`
@@ -1207,7 +1206,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L202`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L202)*
+*Source: [`progenax/imf/environment/mapping.py#L220`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L220)*
 
 (api-imf-alpha3_marks_plane)=
 ## `imf.alpha3_marks_plane`
@@ -1240,7 +1239,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L227`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L227)*
+*Source: [`progenax/imf/environment/mapping.py#L250`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L250)*
 
 (api-imf-alpha3_marks_table3)=
 ## `imf.alpha3_marks_table3`
@@ -1264,7 +1263,7 @@ Args:
 Returns:
     α₃, clipped to [0.5, 2.3]
 
-*Source: [`progenax/imf/environment/mapping.py#L263`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L263)*
+*Source: [`progenax/imf/environment/mapping.py#L291`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L291)*
 
 (api-imf-lowmass_slopes_metallicity)=
 ## `imf.lowmass_slopes_metallicity`
@@ -1290,7 +1289,7 @@ Args:
 Returns:
     (α₁, α₂) - slopes for segments 1 and 2
 
-*Source: [`progenax/imf/environment/mapping.py#L309`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L309)*
+*Source: [`progenax/imf/environment/mapping.py#L345`](https://github.com/jaxstro/progenax/blob/main/progenax/imf/environment/mapping.py#L345)*
 
 (api-imf-jerabkova_coefficients)=
 ## `imf.JERABKOVA_COEFFICIENTS`

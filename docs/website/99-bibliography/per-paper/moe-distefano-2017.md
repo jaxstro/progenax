@@ -109,6 +109,5 @@ tabulated in the supplementary Table S3 (paywalled, not in the held main report)
 $q$, and $e$ are interrelated — is captured at two fidelities: the **period-averaged**
 `MoeDiStefano2017` (for mass-function analyses that marginalize over period) and the
 **faithful joint** `MoeJointOrbit` / `MoeCompanions` (for dynamical ICs with realistic
-orbits; Batches 4i–4k). The composition into `build_binary_cluster` is documented in
-`docs/notes/2026-06-04-binary-cluster-sota-composition.md`; the q-axis ticket
-(`2026-06-04-moe-twoslope-q-distribution-ticket.md`) is **CLOSED**.
+orbits; Batches 4i–4k). The composition into `build_binary_cluster` is documented in the
+API reference; the faithful two-slope q-axis follow-up is **CLOSED**.

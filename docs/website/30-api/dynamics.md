@@ -31,7 +31,7 @@ compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyp
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-*Source: [`progenax/dynamics/virial.py#L15`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L15)*
+*Source: [`progenax/dynamics/virial.py#L16`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L16)*
 
 (api-dynamics-compute_potential_energy)=
 ## `dynamics.compute_potential_energy`
@@ -60,7 +60,7 @@ Differentiable at ``softening=0``: the i<j mask feeds excluded entries
 masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
 single canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L33`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L33)*
+*Source: [`progenax/dynamics/virial.py#L34`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L34)*
 
 (api-dynamics-compute_virial_ratio)=
 ## `dynamics.compute_virial_ratio`
@@ -187,5 +187,5 @@ Args:
 Returns:
     Rescaled velocities with Q = target_Q
 
-*Source: [`progenax/dynamics/virial.py#L246`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L246)*
+*Source: [`progenax/dynamics/virial.py#L249`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L249)*
 

@@ -34,7 +34,7 @@ Public symbols: **14**
 *class*
 
 ```python
-PlummerVelocityDF(r_h: float = 1.0, anisotropy_radius: float | None = None)
+PlummerVelocityDF(r_h: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, anisotropy_radius: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None)
 ```
 
 Plummer (1911) velocity distribution function.
@@ -100,7 +100,7 @@ Examples:
 *class*
 
 ```python
-KingVelocityDF(W0: float = 5.0, r_c: float = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
+KingVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 5.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
 ```
 
 King (1966) lowered-Maxwellian velocity distribution function.
@@ -134,7 +134,7 @@ References:
     King (1966), AJ, 71, 64
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-*Source: [`progenax/kinematics/king_df.py#L63`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/king_df.py#L63)*
+*Source: [`progenax/kinematics/king_df.py#L65`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/king_df.py#L65)*
 
 (api-kinematics-michievelocitydf)=
 ## `kinematics.MichieVelocityDF`
@@ -142,7 +142,7 @@ References:
 *class*
 
 ```python
-MichieVelocityDF(W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
+MichieVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 7.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
 ```
 
 Michie-King anisotropic velocity DF (radially anisotropic, lowered-Maxwellian).
@@ -175,7 +175,7 @@ Attributes:
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/kinematics/michie_df.py#L72`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/michie_df.py#L72)*
+*Source: [`progenax/kinematics/michie_df.py#L74`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/michie_df.py#L74)*
 
 (api-kinematics-limepyvelocitydf)=
 ## `kinematics.LIMEPYVelocityDF`
@@ -183,7 +183,7 @@ References:
 *class*
 
 ```python
-LIMEPYVelocityDF(W0: float = 5.0, g: float = 1.0, r_c: float = 1.0, r_a: float | None = None, xi_max: float = 300.0, n_ode_points: int = 2000, speed_method: str = 'table')
+LIMEPYVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 5.0, g: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None, xi_max: float = 300.0, n_ode_points: int = 2000, speed_method: str = 'table')
 ```
 
 General-g LIMEPY lowered-isothermal velocity DF (isotropic or Michie/OM).
@@ -218,7 +218,7 @@ Attributes:
     is_aniso: static flag selecting the anisotropic sampler.
     speed_method: static, "table" (default) or "quadrature" (exact oracle).
 
-*Source: [`progenax/kinematics/limepy_df.py#L96`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/limepy_df.py#L96)*
+*Source: [`progenax/kinematics/limepy_df.py#L102`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/limepy_df.py#L102)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`
@@ -226,7 +226,7 @@ Attributes:
 *class*
 
 ```python
-EFFVelocityDF(a: float = 1.0, gamma: float = 3.0, r_t: float = 10.0, anisotropy_radius: float | None = None)
+EFFVelocityDF(a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, gamma: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 3.0, r_t: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 10.0, anisotropy_radius: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None)
 ```
 
 EFF (Elson-Fall-Freeman 1987) velocity DF via Eddington inversion.
@@ -264,7 +264,7 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
     Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
-*Source: [`progenax/kinematics/eff_df.py#L69`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/eff_df.py#L69)*
+*Source: [`progenax/kinematics/eff_df.py#L71`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/eff_df.py#L71)*
 
 (api-kinematics-apply_solid_body_rotation)=
 ## `kinematics.apply_solid_body_rotation`
@@ -450,7 +450,7 @@ Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``)
 the high-``W0`` correctness is pinned by a Richardson-FD test
 (``test_grad_jeans_michie_high_W0_ad_correct``). See ADR-0016.
 
-*Source: [`progenax/kinematics/dispersion.py#L429`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L429)*
+*Source: [`progenax/kinematics/dispersion.py#L436`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L436)*
 
 (api-kinematics-project_dispersion)=
 ## `kinematics.project_dispersion`
@@ -535,7 +535,7 @@ Returns
 -------
 ProjectedDispersion
 
-*Source: [`progenax/kinematics/dispersion.py#L683`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L683)*
+*Source: [`progenax/kinematics/dispersion.py#L692`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L692)*
 
 (api-kinematics-df_moment_dispersion)=
 ## `kinematics.df_moment_dispersion`
@@ -601,7 +601,7 @@ Returns
 -------
 DispersionProfile
 
-*Source: [`progenax/kinematics/dispersion.py#L561`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L561)*
+*Source: [`progenax/kinematics/dispersion.py#L570`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L570)*
 
 (api-kinematics-velocitydf)=
 ## `kinematics.VelocityDF`
@@ -617,7 +617,7 @@ Protocol for velocity distribution functions.
 Implementations must sample velocities given positions and masses.
 Enables composability: mix Plummer positions + King velocities.
 
-*Source: [`progenax/protocols.py#L54`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L54)*
+*Source: [`progenax/protocols.py#L55`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L55)*
 
 (api-kinematics-rotationparams)=
 ## `kinematics.RotationParams`

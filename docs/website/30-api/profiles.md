@@ -63,7 +63,7 @@ Examples:
 *class*
 
 ```python
-KingProfile(W0: float, r_c: float, r_t: float, xi_grid: jaxtyping.Float[Array, 'n_points'], psi_grid: jaxtyping.Float[Array, 'n_points'], n_grid: int = 1000)
+KingProfile(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], r_t: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], xi_grid: jaxtyping.Float[Array, 'n_points'], psi_grid: jaxtyping.Float[Array, 'n_points'], n_grid: int = 1000)
 ```
 
 King (1966) spherical density profile.
@@ -96,7 +96,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> positions = profile.sample_positions(masses, key)
 
-*Source: [`progenax/profiles/king.py#L317`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L317)*
+*Source: [`progenax/profiles/king.py#L330`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L330)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -104,7 +104,7 @@ Examples:
 *function*
 
 ```python
-solve_king_profile(W0: float, xi_max: float = 300.0, n_points: int = 2000)
+solve_king_profile(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], xi_max: float = 300.0, n_points: int = 2000)
 ```
 
 Solve King's Poisson equation numerically using diffrax.
@@ -144,7 +144,7 @@ Note:
     traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
     diffrax for robustness.
 
-*Source: [`progenax/profiles/king.py#L180`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L180)*
+*Source: [`progenax/profiles/king.py#L191`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/king.py#L191)*
 
 (api-profiles-michieprofile)=
 ## `profiles.MichieProfile`
@@ -169,7 +169,7 @@ Attributes:
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L148`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L148)*
+*Source: [`progenax/profiles/michie.py#L152`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L152)*
 
 (api-profiles-solve_michie_profile)=
 ## `profiles.solve_michie_profile`
@@ -177,7 +177,7 @@ References:
 *function*
 
 ```python
-solve_michie_profile(W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000)
+solve_michie_profile(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], ra_hat: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], xi_max: float = 800.0, n_points: int = 3000)
 ```
 
 Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
@@ -203,7 +203,7 @@ Returns:
 References:
     Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
 
-*Source: [`progenax/profiles/michie.py#L81`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L81)*
+*Source: [`progenax/profiles/michie.py#L82`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/michie.py#L82)*
 
 (api-profiles-limepyprofile)=
 ## `profiles.LIMEPYProfile`
@@ -233,7 +233,7 @@ Attributes:
     is_aniso: static flag selecting the anisotropic density path.
     _r_grid, _cdf_grid: precomputed mass CDF for sampling.
 
-*Source: [`progenax/profiles/limepy.py#L301`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L301)*
+*Source: [`progenax/profiles/limepy.py#L307`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy.py#L307)*
 
 (api-profiles-solve_limepy_profile)=
 ## `profiles.solve_limepy_profile`
@@ -241,7 +241,7 @@ Attributes:
 *function*
 
 ```python
-solve_limepy_profile(W0: float, g: float, ra_hat: float | None = None, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
+solve_limepy_profile(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], g: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], ra_hat: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None, xi_max: float = 300.0, n_points: int = 2000) -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points']]
 ```
 
 Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
@@ -285,7 +285,7 @@ Returns:
 *function*
 
 ```python
-solve_multimass_limepy(alpha_j: jaxtyping.Float[Array, 'n_comp'], m_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, xi_max: float = 300.0, n_points: int = 2000, ra_hat: float | None = None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_comp n_points']]
+solve_multimass_limepy(alpha_j: jaxtyping.Float[Array, 'n_comp'], m_j: jaxtyping.Float[Array, 'n_comp'], W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], g: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], delta: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], xi_max: float = 300.0, n_points: int = 2000, ra_hat: float | None = None, eta: float = 0.0, aniso_method: str = 'table') -> Tuple[jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_points'], jaxtyping.Float[Array, 'n_comp n_points']]
 ```
 
 Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
@@ -303,7 +303,7 @@ aniso_method static.
 
 Returns (xi_grid, psi_grid, psi_raw, rho_j_grid) as solve_multicomponent_limepy.
 
-*Source: [`progenax/profiles/limepy_multimass.py#L313`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L313)*
+*Source: [`progenax/profiles/limepy_multimass.py#L349`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L349)*
 
 (api-profiles-find_alpha_for_masses)=
 ## `profiles.find_alpha_for_masses`
@@ -311,7 +311,7 @@ Returns (xi_grid, psi_grid, psi_raw, rho_j_grid) as solve_multicomponent_limepy.
 *function*
 
 ```python
-find_alpha_for_masses(m_j: jaxtyping.Float[Array, 'n_comp'], M_j: jaxtyping.Float[Array, 'n_comp'], W0: float, g: float, delta: float, n_iter: int = 30, xi_max: float = 300.0, n_points: int = 2000, ra_hat=None, eta: float = 0.0, aniso_method: str = 'table', tol: float = 1e-06) -> Tuple[jaxtyping.Float[Array, 'n_comp'], jaxtyping.Float[Array, '']]
+find_alpha_for_masses(m_j: jaxtyping.Float[Array, 'n_comp'], M_j: jaxtyping.Float[Array, 'n_comp'], W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], g: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], delta: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], n_iter: int = 30, xi_max: float = 300.0, n_points: int = 2000, ra_hat=None, eta: float = 0.0, aniso_method: str = 'table', tol: float = 1e-06) -> Tuple[jaxtyping.Float[Array, 'n_comp'], jaxtyping.Float[Array, '']]
 ```
 
 Find the central density fractions alpha_j that reproduce target masses M_j (Layer B).
@@ -352,7 +352,7 @@ Returns:
     (alpha_j, residual): converged central density fractions (sum to 1, positive)
     and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
 
-*Source: [`progenax/profiles/limepy_multimass.py#L508`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L508)*
+*Source: [`progenax/profiles/limepy_multimass.py#L638`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/limepy_multimass.py#L638)*
 
 (api-profiles-effprofile)=
 ## `profiles.EFFProfile`
@@ -492,7 +492,7 @@ Notes:
     precise half-mass radius control, the user should compute the appropriate
     r_c or a value externally.
 
-*Source: [`progenax/profiles/api.py#L42`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L42)*
+*Source: [`progenax/profiles/api.py#L41`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L41)*
 
 (api-profiles-sample_density_profile)=
 ## `profiles.sample_density_profile`
@@ -539,7 +539,7 @@ Notes:
     - The masses argument required by profile.sample_positions() is
       filled with ones internally (mass values don't affect spatial sampling)
 
-*Source: [`progenax/profiles/api.py#L123`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L123)*
+*Source: [`progenax/profiles/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L122)*
 
 (api-profiles-compute_profile_potential)=
 ## `profiles.compute_profile_potential`
@@ -598,5 +598,5 @@ Notes:
 
     The potential is computed per-particle and vectorized for efficiency.
 
-*Source: [`progenax/profiles/api.py#L177`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L177)*
+*Source: [`progenax/profiles/api.py#L176`](https://github.com/jaxstro/progenax/blob/main/progenax/profiles/api.py#L176)*
 

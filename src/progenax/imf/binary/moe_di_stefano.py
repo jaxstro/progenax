@@ -30,8 +30,7 @@ class MoeDiStefano2017(eqx.Module):
     This class collapses that to a SINGLE period-averaged slope γ(M1) and a period-averaged
     F_twin(M1) — it captures the qualitative trend (low-mass companions favour equal q, OB
     companions favour small q) but is not a verbatim Table row. A faithful two-slope,
-    period-dependent implementation is tracked in
-    docs/notes/2026-06-04-moe-twoslope-q-distribution-ticket.md.
+    period-dependent implementation is tracked for a future release.
 
     Period-averaged single-slope reduction (γ from the qualitative γ_smallq/γ_largeq trend;
     f_twin period-averaged from Table 13's F_twin, which falls from ~0.1–0.3 at logP=1 to

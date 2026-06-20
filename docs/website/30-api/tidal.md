@@ -180,5 +180,5 @@ Args:
 Returns:
     Half-mass radius r_h [length units]
 
-*Source: [`progenax/tidal.py#L185`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L185)*
+*Source: [`progenax/tidal.py#L187`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L187)*
 

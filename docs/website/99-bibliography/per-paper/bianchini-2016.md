@@ -166,5 +166,4 @@ progenax).
   check that our Engine A σ(m) matches Bianchini eq 3 with the derived `m_eq`.
 - **Honest provenance for the deferred `meq`/`zeta` knobs:** Bianchini motivates
   them physically but does *not* define the code's `(m_j+meq)` form — that is a
-  code heuristic, documented as such (see [Peuten et al. 2017](peuten-2017.md)
-  and the design note `docs/plans/2026-06-11-multimass-limepy-hardening-design.md`).
+  code heuristic, documented as such (see [Peuten et al. 2017](peuten-2017.md)).

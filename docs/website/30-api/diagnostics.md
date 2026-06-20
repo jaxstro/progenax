@@ -86,7 +86,7 @@ References:
     Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
         Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
 
-*Source: [`progenax/diagnostics/mass_segregation.py#L40`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L40)*
+*Source: [`progenax/diagnostics/mass_segregation.py#L43`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/mass_segregation.py#L43)*
 
 (api-diagnostics-compute_q_parameter)=
 ## `diagnostics.compute_q_parameter`
@@ -160,7 +160,7 @@ Notes:
 References:
     Cartwright & Whitworth (2004), MNRAS 348, 589
 
-*Source: [`progenax/diagnostics/substructure.py#L43`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L43)*
+*Source: [`progenax/diagnostics/substructure.py#L48`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L48)*
 
 (api-diagnostics-compute_azimuthal_variation)=
 ## `diagnostics.compute_azimuthal_variation`
@@ -203,7 +203,7 @@ Notes:
 References:
     Küpper et al. (2011), MNRAS 417, 2300
 
-*Source: [`progenax/diagnostics/substructure.py#L162`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L162)*
+*Source: [`progenax/diagnostics/substructure.py#L167`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/substructure.py#L167)*
 
 (api-diagnostics-q_approx)=
 ## `diagnostics.q_approx`
@@ -226,7 +226,7 @@ Args:
 Returns:
     Q_approx: Approximate Q parameter (scalar)
 
-*Source: [`progenax/diagnostics/q_approx.py#L247`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L247)*
+*Source: [`progenax/diagnostics/q_approx.py#L252`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L252)*
 
 (api-diagnostics-q_approx_naive)=
 ## `diagnostics.q_approx_naive`
@@ -295,7 +295,7 @@ Args:
 Returns:
     Dictionary with calibration factors and statistics
 
-*Source: [`progenax/diagnostics/q_approx.py#L284`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L284)*
+*Source: [`progenax/diagnostics/q_approx.py#L293`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/q_approx.py#L293)*
 
 (api-diagnostics-default_calibration)=
 ## `diagnostics.DEFAULT_CALIBRATION`
@@ -310,7 +310,7 @@ Convert a string or number to a floating-point number, if possible.
 *function*
 
 ```python
-soft_mass_weights(masses: jaxtyping.Float[Array, 'N'], m_cut: jaxtyping.Float[Array, ''], tau: jaxtyping.Float[Array, '']) -> jaxtyping.Float[Array, 'N']
+soft_mass_weights(masses: jaxtyping.Float[Array, 'N'], m_cut: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], tau: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex]) -> jaxtyping.Float[Array, 'N']
 ```
 
 Smooth soft mass-cut weights ``w_i = sigmoid((m_i - m_cut) / tau)``.
@@ -334,7 +334,7 @@ Returns:
 *function*
 
 ```python
-radial_concentration_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: jaxtyping.Float[Array, ''], tau: jaxtyping.Float[Array, ''], project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
+radial_concentration_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], tau: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
 ```
 
 Mass-weighted radial-concentration segregation observable.
@@ -374,7 +374,7 @@ Returns:
 *function*
 
 ```python
-lambda_msr_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: jaxtyping.Float[Array, ''], tau: jaxtyping.Float[Array, ''], beta: jaxtyping.Float[Array, ''] = 0.1, project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
+lambda_msr_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], tau: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], beta: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.1, project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
 ```
 
 Soft Lambda_MSR segregation observable (MST-ratio surrogate).
@@ -413,7 +413,7 @@ Args:
 Returns:
     Scalar ``Lambda_soft``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L154`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L154)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L152`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L152)*
 
 (api-diagnostics-sigma_m_approx)=
 ## `diagnostics.sigma_m_approx`
@@ -421,7 +421,7 @@ Returns:
 *function*
 
 ```python
-sigma_m_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: jaxtyping.Float[Array, ''], tau: jaxtyping.Float[Array, ''], k: int = 6, project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
+sigma_m_approx(positions: jaxtyping.Float[Array, 'N D'], masses: jaxtyping.Float[Array, 'N'], *, m_cut: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], tau: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], k: int = 6, project_to_2d: bool = True, calibration: float = 1.0) -> jaxtyping.Float[Array, '']
 ```
 
 Soft Sigma--m segregation observable (Maschberger & Clarke 2011).
@@ -458,7 +458,7 @@ Args:
 Returns:
     Scalar correlation ``S``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L220`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L220)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L216`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L216)*
 
 (api-diagnostics-calibrate_segregation_approx)=
 ## `diagnostics.calibrate_segregation_approx`
@@ -489,5 +489,5 @@ Args:
 Returns:
     Dict of calibration factors, correlations, and ``n_samples``.
 
-*Source: [`progenax/diagnostics/segregation_approx.py#L305`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L305)*
+*Source: [`progenax/diagnostics/segregation_approx.py#L301`](https://github.com/jaxstro/progenax/blob/main/progenax/diagnostics/segregation_approx.py#L301)*
 

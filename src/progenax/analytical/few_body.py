@@ -183,9 +183,10 @@ def harmonic_oscillator(
         - Use for sanity checks before testing gravity
 
     Warning:
-        Most N-body codes don't support external harmonic forces.
-        This is a placeholder for future external potential support.
-        For now, use two_body_kepler() for gravity tests.
+        This returns initial conditions for an external harmonic potential
+        (F_ext = -k·x), not a self-gravitating system. Most N-body integrators
+        provide only pairwise gravity, so they cannot evolve this case without an
+        external-force hook. Use ``two_body_kepler()`` for gravity-only tests.
     """
     # Initial position and velocity
     x0 = amplitude * jnp.cos(phase)

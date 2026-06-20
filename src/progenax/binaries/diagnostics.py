@@ -71,8 +71,8 @@ def find_bound_pairs(
 
     **Scaling.** The full N×N separation matrix is materialized, so this is intended for
     N ≲ a few×10^3 (memory ~ N^2). For larger snapshots use an accelerated neighbour-list
-    finder (cell list / kd-tree) — ticketed for gravax, which already has the Hermite-AC
-    neighbour machinery (docs/notes/2026-06-04-accelerated-bound-finder-gravax-ticket.md).
+    finder (cell list / kd-tree) — tracked for a future gravax acceleration, which already
+    has the Hermite-AC neighbour machinery.
     """
     N = positions.shape[0]
     idx = jnp.arange(N)
@@ -120,7 +120,7 @@ def find_bound_multiples(
     Fixed-shape (N body slots, bounded `lax.scan`) ⇒ jit-safe; uses `argmin`, so
     not differentiable (a diagnostic). O(N^2) per level (materializes the N×N separation
     matrix) — intended for N ≲ a few×10^3; an accelerated neighbour-list version is
-    ticketed for gravax (docs/notes/2026-06-04-accelerated-bound-finder-gravax-ticket.md).
+    tracked for a future gravax acceleration.
 
     Args:
         max_levels: hierarchy depth to resolve (default 3 ⇒ up to ~octuples).
