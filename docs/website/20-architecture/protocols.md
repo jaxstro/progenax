@@ -51,8 +51,6 @@ class SpatialProfile(Protocol):
         self,
         masses: Float[Array, "N"],
         key: PRNGKey,
-        *,
-        truncate: float | None = None,
     ) -> Float[Array, "N 3"]:
         """Draw N positions from ρ(r). Returns (N, 3) Cartesian."""
         ...
@@ -77,7 +75,6 @@ class VelocityDF(Protocol):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKey,
-        *,
         G: float,
     ) -> Float[Array, "N 3"]:
         """Draw N velocities consistent with the DF given positions+masses."""
@@ -220,9 +217,12 @@ class SersicProfile(eqx.Module):
         # Numerical integration via lax.scan or analytic
         return ...   # Implementation here
 
-    def sample_positions(self, masses, key, *, truncate=None):
+    def sample_positions(self, masses, key):
         # Inverse-CDF on cumulative_mass
         return ...
+
+    def characteristic_radius(self):
+        return self.r_h   # the radius generic builders consume
 ```
 
 Once the class is written, `isinstance(SersicProfile(...), SpatialProfile)`

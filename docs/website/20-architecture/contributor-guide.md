@@ -25,7 +25,7 @@ progenax's structure. This chapter is the *how*.
   - [Adding a Sérsic profile](#sersic-walkthrough)
 * - **Velocity DF**
   - `VelocityDF`, `progenax/kinematics/`
-  - [Adding an Osipkov-Merritt extension](rotation-anisotropy.md)
+  - [Adding an Osipkov-Merritt extension](../10-theory/velocity-dfs/rotation-anisotropy.md)
 * - **IMF**
   - `IMFProtocol`, `progenax/imf/`
   - [Adding a custom IMF](#imf-walkthrough)
@@ -80,19 +80,25 @@ class SersicProfile(eqx.Module):
         # ... (full implementation needs Newton solver for r_h consistency)
         return ...
 
-    def sample_positions(self, masses, key, *, truncate=None):
+    def sample_positions(self, masses, key):
         # Inverse-CDF on cumulative_mass
         N = masses.shape[0]
         u = jax.random.uniform(key, (N,))
         # Look up r corresponding to each u via interp on cumulative_mass grid
         return ...
+
+    def characteristic_radius(self):
+        # Radius generic builders use (e.g. for softening); r_h here
+        return self.r_h
 ```
 
 The class:
 - Inherits from `eqx.Module` for PyTree compatibility.
 - Has `r_h` as a required typed field.
 - Adds custom fields (`n` for Sérsic).
-- Implements the three required methods.
+- Implements the two `SpatialProfile` methods (`sample_positions`,
+  `characteristic_radius`), plus the profile-specific helpers
+  (`density`, `cumulative_mass`) that builders and validation use.
 
 ### Step 2: write conformance tests
 
@@ -180,7 +186,7 @@ The class is now part of progenax. Any builder that accepts a
 (imf-walkthrough)=
 
 The pattern is the same. The protocol is `IMFProtocol`. The required
-methods are `sample`, `log_prob`, `cumulative`. See
+methods are `logpdf`, `cdf`, `ppf`, `sample`, and `mean_mass`. See
 [](../10-theory/imfs/classic.md) for examples in `progenax/imf/`.
 
 A worked example: a "burst-mode" IMF that follows Salpeter at high
@@ -207,7 +213,15 @@ class BurstIMF(eqx.Module):
         ...
 
     def cdf(self, m):
-        # Cumulative mass below m
+        # Cumulative number fraction below m
+        ...
+
+    def ppf(self, u):
+        # Inverse CDF (for inverse-CDF sampling)
+        ...
+
+    def mean_mass(self):
+        # Expected stellar mass
         ...
 ```
 

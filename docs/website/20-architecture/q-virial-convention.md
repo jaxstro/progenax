@@ -119,12 +119,12 @@ rescaling is implemented in `progenax.builders.virial_scale`:
 
 ```python
 @jax.jit
-def virial_scale(positions, velocities, masses, Q_target=0.5, *, G):
+def virial_scale(positions, velocities, masses, Q_target, G, softening=0.0):
     T = compute_kinetic_energy(velocities, masses)
-    V = compute_potential_energy(positions, masses, G=G)
+    V = compute_potential_energy(positions, masses, G=G, softening=softening)
     Q_current = T / jnp.abs(V)
     scale = jnp.sqrt(Q_target / Q_current)
-    return positions, velocities * scale, masses
+    return velocities * scale   # only velocities are rescaled
 ```
 
 Three properties hold by construction:
