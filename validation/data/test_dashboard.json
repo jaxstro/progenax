@@ -212,16 +212,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 96.12178325480247,
+    "line_cov_measured": 96.12333213126578,
     "registries_full": true
   },
-  "generated_utc": "2026-06-20T04:20:04.023468+00:00",
+  "generated_utc": "2026-06-20T14:28:55.812332+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "027ada92e20f6949ef735d80dc3965fe8aacd0af",
-      "measured_utc": "2026-06-20T01:54:40.493953+00:00",
+      "git_sha": "4933c266e83ea75bf9b57c0574f127514d334988",
+      "measured_utc": "2026-06-20T14:28:55.764262+00:00",
       "selector": "full",
-      "total_percent": 96.12178325480247
+      "total_percent": 96.12333213126578
     },
     "per_file_lines": {
       "__init__": {
@@ -233,20 +233,20 @@
         "num_statements": 5
       },
       "analytical/base": {
-        "covered_lines": 17,
-        "num_statements": 19
+        "covered_lines": 16,
+        "num_statements": 18
       },
       "analytical/few_body": {
-        "covered_lines": 37,
-        "num_statements": 47
+        "covered_lines": 36,
+        "num_statements": 46
       },
       "analytical/solar_system": {
-        "covered_lines": 55,
-        "num_statements": 55
+        "covered_lines": 54,
+        "num_statements": 54
       },
       "analytical/two_body": {
-        "covered_lines": 55,
-        "num_statements": 55
+        "covered_lines": 54,
+        "num_statements": 54
       },
       "binaries/__init__": {
         "covered_lines": 11,
@@ -269,16 +269,16 @@
         "num_statements": 83
       },
       "binaries/kepler": {
-        "covered_lines": 91,
-        "num_statements": 91
+        "covered_lines": 93,
+        "num_statements": 93
       },
       "binaries/kepler_inverse": {
         "covered_lines": 40,
         "num_statements": 40
       },
       "binaries/kepler_period": {
-        "covered_lines": 14,
-        "num_statements": 14
+        "covered_lines": 16,
+        "num_statements": 16
       },
       "binaries/mass_dependent": {
         "covered_lines": 50,
@@ -313,16 +313,16 @@
         "num_statements": 11
       },
       "cluster/eddington_engine": {
-        "covered_lines": 113,
-        "num_statements": 114
+        "covered_lines": 114,
+        "num_statements": 115
       },
       "cluster/mass_segregation": {
         "covered_lines": 37,
         "num_statements": 37
       },
       "cluster/multicomponent": {
-        "covered_lines": 183,
-        "num_statements": 185
+        "covered_lines": 185,
+        "num_statements": 187
       },
       "cluster/sampling": {
         "covered_lines": 48,
@@ -349,12 +349,12 @@
         "num_statements": 125
       },
       "diagnostics/segregation_approx": {
-        "covered_lines": 94,
-        "num_statements": 96
+        "covered_lines": 93,
+        "num_statements": 95
       },
       "diagnostics/substructure": {
-        "covered_lines": 44,
-        "num_statements": 49
+        "covered_lines": 45,
+        "num_statements": 50
       },
       "dynamics/__init__": {
         "covered_lines": 2,
@@ -377,8 +377,8 @@
         "num_statements": 5
       },
       "imf/binary/binary_fraction": {
-        "covered_lines": 17,
-        "num_statements": 17
+        "covered_lines": 15,
+        "num_statements": 15
       },
       "imf/binary/imf": {
         "covered_lines": 78,
@@ -397,8 +397,8 @@
         "num_statements": 124
       },
       "imf/differentiable": {
-        "covered_lines": 100,
-        "num_statements": 100
+        "covered_lines": 99,
+        "num_statements": 99
       },
       "imf/differentiable_binary": {
         "covered_lines": 33,
@@ -413,16 +413,16 @@
         "num_statements": 62
       },
       "imf/environment/coefficients": {
-        "covered_lines": 7,
-        "num_statements": 7
+        "covered_lines": 5,
+        "num_statements": 5
       },
       "imf/environment/density": {
         "covered_lines": 13,
         "num_statements": 13
       },
       "imf/environment/mapping": {
-        "covered_lines": 104,
-        "num_statements": 107
+        "covered_lines": 108,
+        "num_statements": 111
       },
       "imf/params": {
         "covered_lines": 17,
@@ -433,8 +433,8 @@
         "num_statements": 126
       },
       "imf/smooth": {
-        "covered_lines": 68,
-        "num_statements": 68
+        "covered_lines": 67,
+        "num_statements": 67
       },
       "imf/truncated": {
         "covered_lines": 42,
@@ -449,12 +449,12 @@
         "num_statements": 12
       },
       "kinematics/api": {
-        "covered_lines": 37,
-        "num_statements": 37
+        "covered_lines": 36,
+        "num_statements": 36
       },
       "kinematics/dispersion": {
-        "covered_lines": 211,
-        "num_statements": 211
+        "covered_lines": 217,
+        "num_statements": 217
       },
       "kinematics/eddington": {
         "covered_lines": 58,
@@ -465,20 +465,20 @@
         "num_statements": 63
       },
       "kinematics/king_df": {
-        "covered_lines": 65,
-        "num_statements": 65
+        "covered_lines": 66,
+        "num_statements": 66
       },
       "kinematics/limepy_df": {
-        "covered_lines": 107,
-        "num_statements": 107
+        "covered_lines": 110,
+        "num_statements": 110
       },
       "kinematics/michie_df": {
-        "covered_lines": 84,
-        "num_statements": 84
+        "covered_lines": 85,
+        "num_statements": 85
       },
       "kinematics/plummer_df": {
-        "covered_lines": 62,
-        "num_statements": 62
+        "covered_lines": 66,
+        "num_statements": 66
       },
       "kinematics/rotation": {
         "covered_lines": 28,
@@ -493,32 +493,32 @@
         "num_statements": 9
       },
       "profiles/api": {
-        "covered_lines": 57,
-        "num_statements": 57
+        "covered_lines": 59,
+        "num_statements": 59
       },
       "profiles/density_poisson": {
-        "covered_lines": 131,
-        "num_statements": 133
+        "covered_lines": 134,
+        "num_statements": 136
       },
       "profiles/eff": {
         "covered_lines": 49,
         "num_statements": 49
       },
       "profiles/king": {
-        "covered_lines": 135,
-        "num_statements": 136
+        "covered_lines": 136,
+        "num_statements": 137
       },
       "profiles/limepy": {
         "covered_lines": 153,
         "num_statements": 155
       },
       "profiles/limepy_multimass": {
-        "covered_lines": 206,
-        "num_statements": 207
+        "covered_lines": 210,
+        "num_statements": 211
       },
       "profiles/limepy_tables": {
-        "covered_lines": 104,
-        "num_statements": 104
+        "covered_lines": 105,
+        "num_statements": 105
       },
       "profiles/michie": {
         "covered_lines": 101,
@@ -548,8 +548,8 @@
     "per_module": {
       "__init__": 100.0,
       "analytical/__init__": 100.0,
-      "analytical/base": 86.95652173913044,
-      "analytical/few_body": 73.58490566037736,
+      "analytical/base": 86.36363636363636,
+      "analytical/few_body": 73.07692307692308,
       "analytical/solar_system": 100.0,
       "analytical/two_body": 100.0,
       "binaries/__init__": 100.0,
@@ -568,17 +568,17 @@
       "builders_cluster": 95.68345323741008,
       "cluster/__init__": 100.0,
       "cluster/constants": 100.0,
-      "cluster/eddington_engine": 98.57142857142857,
+      "cluster/eddington_engine": 98.58156028368795,
       "cluster/mass_segregation": 100.0,
-      "cluster/multicomponent": 98.12206572769954,
+      "cluster/multicomponent": 98.13953488372093,
       "cluster/sampling": 100.0,
       "cluster/turbulence": 92.0,
       "defaults": 100.0,
       "diagnostics/__init__": 100.0,
       "diagnostics/mass_segregation": 88.0,
       "diagnostics/q_approx": 86.39455782312925,
-      "diagnostics/segregation_approx": 96.07843137254902,
-      "diagnostics/substructure": 86.88524590163935,
+      "diagnostics/segregation_approx": 96.03960396039604,
+      "diagnostics/substructure": 87.09677419354838,
       "dynamics/__init__": 100.0,
       "dynamics/virial": 95.78947368421052,
       "imf/__init__": 100.0,
@@ -595,7 +595,7 @@
       "imf/environment/birth_environment": 90.0,
       "imf/environment/coefficients": 100.0,
       "imf/environment/density": 100.0,
-      "imf/environment/mapping": 95.86206896551724,
+      "imf/environment/mapping": 95.97315436241611,
       "imf/params": 100.0,
       "imf/power_law": 93.18181818181819,
       "imf/smooth": 100.0,
@@ -614,11 +614,11 @@
       "numerics": 100.0,
       "profiles/__init__": 100.0,
       "profiles/api": 100.0,
-      "profiles/density_poisson": 97.48427672955975,
+      "profiles/density_poisson": 96.95121951219512,
       "profiles/eff": 100.0,
-      "profiles/king": 99.31506849315069,
+      "profiles/king": 99.31972789115646,
       "profiles/limepy": 98.15950920245399,
-      "profiles/limepy_multimass": 99.11111111111111,
+      "profiles/limepy_multimass": 99.12663755458516,
       "profiles/limepy_tables": 100.0,
       "profiles/michie": 99.05660377358491,
       "profiles/plummer": 100.0,
@@ -628,12 +628,12 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 96.12178325480247
+    "total_percent": 96.12333213126578
   },
   "modules": {
     "analytical": {
       "integration": 0,
-      "line_cov": 93.37016574585635,
+      "line_cov": 93.22033898305085,
       "unit": 7,
       "validation": 0
     },
@@ -645,7 +645,7 @@
     },
     "binaries": {
       "integration": 0,
-      "line_cov": 95.76138147566719,
+      "line_cov": 95.78783151326053,
       "unit": 128,
       "validation": 0
     },
@@ -657,7 +657,7 @@
     },
     "cluster": {
       "integration": 0,
-      "line_cov": 98.82352941176471,
+      "line_cov": 98.83177570093459,
       "unit": 63,
       "validation": 0
     },
@@ -681,13 +681,13 @@
     },
     "imf": {
       "integration": 0,
-      "line_cov": 97.07078925956061,
+      "line_cov": 97.06601466992664,
       "unit": 269,
       "validation": 0
     },
     "kinematics": {
       "integration": 0,
-      "line_cov": 99.86431478968792,
+      "line_cov": 99.86684420772303,
       "unit": 138,
       "validation": 0
     },
@@ -699,7 +699,7 @@
     },
     "profiles": {
       "integration": 0,
-      "line_cov": 98.92996108949416,
+      "line_cov": 98.9412897016362,
       "unit": 201,
       "validation": 0
     },
