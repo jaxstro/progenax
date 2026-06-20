@@ -126,7 +126,9 @@ Commit: `chore(docs): add link/count gate + hidden-index scaffold`.
 - G4: keep `bm19.md` (trim α↔p re-derivation) + `index.md` (one canonical "experimental, repo-only, NOT in released wheel" banner; fix `pp20` "implemented in progenax.magnification_factor" → `gravoturb_fdf.theory.pp20`).
 - Replace private validation-script names (`projected-beta-inference.md:23-24`) with a validation-page reference.
 
-**Then:** remove the gravoturb children from `myst.yml` toc; link the 5 from `_unlisted/index.md`. Fix inbound refs from other theory pages / `index.md:48` (drop "FDF method" billing, **T2**).
+**Then:** set the gravoturb children to `hidden: true` in `myst.yml` toc (do NOT delete them — this site builds ONLY toc-listed pages, so removal = unbuilt/unreachable; confirmed Task 0). Link the 5 from `_unlisted/index.md`. Fix inbound refs from other theory pages / `index.md:48` (drop "FDF method" billing, **T2**).
+
+**This task also OWNS `10-theory/index.md`** (the shared theory landing, deferred by Task 3): **T1** move the `velocity-dfs/michie-king.md` link from the spatial-profiles row to the velocity-DFs row; drop unearned "production-grade" at `index.md:40`; reframe the `:48` tidal/substructure row as theory-only and drop the removed-"FDF method" capability billing.
 
 **Gate:** all merged-page code blocks RUN against `gravoturb_fdf` (PYTHONPATH=src:src/experimental); build 0 warnings; link script clean. **Commit:** `refactor(docs/gravoturb): consolidate 10→5, fix stale code, move to unlisted`.
 
