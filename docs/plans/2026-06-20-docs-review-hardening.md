@@ -198,6 +198,8 @@ Commit: `chore(docs): add link/count gate + hidden-index scaffold`.
 
 **Broken-link fix:** the 6 `[](../99-bibliography/index.md)` links (Task 1/7 pages) — decide target: create `99-bibliography/index.md` OR repoint all to `bibliography.md`/`per-paper/index.md`. (Recommend: create a real `99-bibliography/index.md` landing, add to toc, since multiple pages expect it.)
 
+**f_b table reconciliation (Task 4 review):** on the now-canonical `multiplicity-statistics.md`, the f_b table bins (solar 0.44/0.50, O 0.90) differ slightly from the page's own Moe Table 13 prose (solar 0.40, O 0.94) due to different mass binning. Not fabricated, but add a one-line note reconciling the table vs the Table-13 derivation.
+
 **Missing per-paper notes (create + PDF-verify):** `tout-1996.md` (ZAMS; cited by B4/B12/dyn-mass/bin-robust), `kuepper-2011-mcluster.md` (B9 scale-separation), `king-1962.md` (Jacobi r_t), and notes for `Kritsuk2011` + `TanKrumholzMcKee2006` + `Hurley2002` (gravoturb/binaries). **Add bib entry for `DuquennoyMayor1991`** (LogNormalPeriod μ=4.8,σ=2.3 traces to it; currently no entry).
 
 **PDF-verify the flagged claims** (read `~/brain/knowledge/library/<bibkey>.pdf` or `docs/core-papers/`): EFF87 "Eq.7" (likely none), Plummer1911 DF attribution, Jerabkova "Eq.9/2.83/0.2161", Moe "Tables 10-13"+f_b rows, Gieles2015 §, King1966 fill-factor, Cartwright2004 Table1 (D,Q), Aarseth1974 (note missing but resolves). Fix or correct each citing page.
