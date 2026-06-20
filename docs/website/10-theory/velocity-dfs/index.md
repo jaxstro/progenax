@@ -87,7 +87,8 @@ explicit at IC construction time.
 
 ## Common API contract
 
-Every velocity DF satisfies the `VelocityDF` protocol:
+Every velocity DF satisfies the `VelocityDF` protocol, whose **single
+required method** is `sample_velocities`:
 
 ```python
 class VelocityDF(Protocol):
@@ -96,24 +97,19 @@ class VelocityDF(Protocol):
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
         key: PRNGKey,
-        *,
         G: float,
     ) -> Float[Array, "N 3"]:
         """Draw N velocities consistent with the DF given positions+masses."""
         ...
-
-    def velocity_dispersion(
-        self, r: Float[Array, "..."], *, G: float
-    ) -> Float[Array, "..."]:
-        """Closed-form or numerically-evaluated σ_r(r)."""
-        ...
 ```
 
-`sample_velocities` is differentiable in the model parameters via the
-chain (e.g. $r_h \to \sigma_r(r) \to \mathbf{v}$). Dispersions are
-differentiable analytically (Plummer) or via tabulated-quadrature /
-ODE machinery (King, EFF, Michie). All four DFs are JIT-compatible and
-vectorisable via `jax.vmap`.
+That is the whole contract — there is **no** `velocity_dispersion` method
+on the protocol or on the concrete DF classes; the dispersion profiles
+shown in the per-DF chapters are derived analytically (Plummer) or built
+internally by the sampler (King, EFF, Michie) and are not part of the
+public surface. `sample_velocities` is differentiable in the model
+parameters via the chain (e.g. $r_h \to \sigma_r(r) \to \mathbf{v}$), and
+every DF is JIT-compatible and vectorisable via `jax.vmap`.
 
 ## Multiple components in one potential
 

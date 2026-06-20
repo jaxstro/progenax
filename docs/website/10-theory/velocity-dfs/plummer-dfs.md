@@ -74,8 +74,10 @@ The first three velocity moments of the Plummer DF are
 with $\langle v^2 \rangle = \sigma_r^2 + 2\sigma_t^2 = 3\sigma_r^2$. The
 ratio $\langle v^2 \rangle / |\Phi(r)| = \tfrac{1}{2}$ at all radii —
 this is the *local* statement of the virial theorem and the proximate
-reason a Plummer cluster sampled from {eq}`plummer-df-final` lands
-exactly at $Q_{\mathrm{vir}} = 0.5$ ([](../ic-philosophy.md)).
+reason a Plummer cluster sampled from {eq}`plummer-df-final` lands at
+$Q_{\mathrm{vir}} = 0.5$ at the DF level — realised as $0.5$ up to the
+finite-$N$ Monte-Carlo fluctuation, with no rescale
+([](../ic-philosophy.md)).
 
 The central velocity dispersion is
 
@@ -137,7 +139,8 @@ positions = PlummerProfile(r_h=1.0).sample_positions(masses, key)
 # Sample velocities consistent with f(E) ∝ E^(7/2)
 velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 
-# The result satisfies Q_vir = 0.5 exactly (to floating-point precision)
+# The DF is an exact equilibrium, so Q_vir -> 0.5 with no rescale
+# (finite-N: 0.5 +/- ~5e-3 at N=1e4, the Monte-Carlo fluctuation)
 ```
 
 `PlummerVelocityDF` is an Equinox module. Its single Python parameter
@@ -199,8 +202,9 @@ progenax extends it with two compositions:
   a function of $\mathcal{E}$ alone but of $Q = \mathcal{E} - L^2/(2 r_a^2)$,
   the augmented integral of motion. progenax implements this as an
   intrinsic DF option, `PlummerVelocityDF(r_h=..., anisotropy_radius=r_a)`,
-  using the analytic OM Plummer DF (Merritt 1985, Eq. 45; requires
-  $r_a \ge 0.75\,a$). See [](rotation-anisotropy.md).
+  using the analytic OM Plummer DF (Merritt 1985, Eq. 45), which is
+  non-negative only for $r_a \ge 0.75\,a$ (Merritt 1985, Eq. 46). See
+  [](rotation-anisotropy.md).
 - **Solid-body / differential rotation**: adds a tangential velocity
   component $\mathbf{v}_\phi(\mathbf{r}) = \mathbf{\Omega}(r) \times \mathbf{r}$
   to the isotropic Plummer velocities. Implemented via

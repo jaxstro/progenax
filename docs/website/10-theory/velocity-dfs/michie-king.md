@@ -25,9 +25,15 @@ depopulates high-angular-momentum (tangential) orbits — increasingly so at lar
 becomes radial outward:
 
 ```{math}
-\beta(r) \equiv 1 - \frac{\sigma_t^2}{2\sigma_r^2}:\quad \beta(0)\approx 0,\quad
+\beta(r) \equiv 1 - \frac{\sigma_t^2}{\sigma_r^2}:\quad \beta(0)\approx 0,\quad
 \beta \nearrow \text{ outward},\qquad r_a\to\infty \Rightarrow \beta\equiv 0 \text{ (King)}.
 ```
+
+Here $\sigma_t^2$ is a **single** tangential component (the convention used
+throughout progenax). Binney & Tremaine write $\beta = 1 - \sigma_t^2/(2\sigma_r^2)$
+with $\sigma_t^2 \equiv \sigma_\theta^2 + \sigma_\phi^2$ the **two-component**
+tangential dispersion; the factor of 2 cancels, so both give the *same* $\beta(r)$
+(see [the Merritt 1985 note](../../99-bibliography/per-paper/merritt-1985.md)).
 
 Unlike the [Osipkov-Merritt](../../99-bibliography/per-paper/merritt-1985.md)
 construction (which holds a *given* density fixed and inverts for $f$), Michie **specifies**

@@ -67,10 +67,13 @@ the radius enclosing half the cluster mass, regardless of the internal
 scale-radius convention.
 
 ```{warning}
-**Misinverting the relation produces a 1.7× error.** A previous version
-of progenax stored $a = r_h / \sqrt{2^{2/3} - 1}$ instead of $a = r_h
-\sqrt{2^{2/3} - 1}$ — the inverse — which generates Plummer clusters
-1.7× too large. The bug propagated into the validation suite (where
+**Misinverting the relation inflates the scale radius by 1.7×.** A previous
+version of progenax stored $a = r_h / \sqrt{2^{2/3} - 1}$ instead of $a = r_h
+\sqrt{2^{2/3} - 1}$ — the inverse. Since $\sqrt{2^{2/3}-1}\approx 0.766$, the
+*scale radius* $a$ comes out $1/0.766^2 \approx 1.70\times$ too large
+(equivalently, the cluster's effective $r_h$ is then $1/0.766 \approx 1.305\times$
+too large). Because every Plummer length scales with $a$, the realised cluster
+is $\sim1.7\times$ over-sized. The bug propagated into the validation suite (where
 "50% within $r_h$" failed by ~25%) and was caught only when
 `tests/validation/test_plummer_physics.py::test_half_mass_radius`
 was added in 2025-12. The lesson: anchor every closed-form constant
@@ -140,7 +143,11 @@ $Q_{\mathrm{vir}} = T/|V| = 1/2$ — the equilibrium value
 
 ## The Plummer distribution function
 
-The isotropic Plummer DF in energy space is {cite:p}`Plummer1911`:
+The isotropic distribution function for the Plummer *density* (the 1911
+space-density law, {eq}`plummer-rh-a` context) in energy space is the
+Eddington-inversion result {cite:p}`Merritt1985` (his Eq. 42; equivalently
+Eddington 1916 / Binney & Tremaine §4) — **not** derived in
+{cite:t}`Plummer1911`, which predates the inversion method:
 
 ```{math}
 :label: plummer-df
@@ -242,9 +249,9 @@ Two consequences for production use:
 
 For most production star-cluster work — Galactic globular clusters,
 Milky Way analogues, dynamical-evolution studies — Plummer is the right
-default. It is also the most-tested profile in progenax (10 unit tests,
-6 integration tests, 12 validation tests) and the one against which the
-two alternatives are calibrated.
+default. It is also the most-tested profile in progenax (see the
+[test dashboard](../../50-validation/test-dashboard.md) for the live
+counts) and the one against which the two alternatives are calibrated.
 
 ## References
 

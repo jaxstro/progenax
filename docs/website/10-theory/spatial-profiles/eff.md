@@ -65,15 +65,18 @@ See [](../../99-bibliography/per-paper/elson-fall-freeman-1987.md).
   - Rare; very compact clusters
 ```
 
-```{warning}
-**EFF requires $\gamma > 3$ for finite total mass.** At $\gamma = 3$
-the cumulative-mass integral diverges logarithmically; at $\gamma < 3$
-it diverges polynomially. progenax's `EFFProfile` enforces $\gamma >
-3$ at construction time, raising `ValueError` for unphysical inputs.
-For $\gamma \in (2, 3]$ — useful for fitting *projected*
-surface-brightness profiles which can have shallower slopes than the
-3D density — the cluster must be truncated explicitly via
-`apply_tidal_truncation` ([](../tidal-and-substructure/tidal.md)).
+```{admonition} The *untruncated* EFF needs $\gamma > 3$ — but progenax's EFF is always truncated
+:class: important
+For the **untruncated** profile ($r_t \to \infty$) the total-mass integral
+converges only for $\gamma > 3$: at $\gamma = 3$ it diverges logarithmically and at
+$\gamma < 3$ polynomially. progenax's `EFFProfile`, however, **always carries a
+finite truncation radius $r_t$** (constructor argument, default $r_t = 10$), so the
+sampled mass $M(<r_t)$ is finite for *any* $\gamma$ — including the **default
+$\gamma = 3$** and shallower slopes. There is therefore **no $\gamma > 3$ validation
+and no `ValueError`** in `EFFProfile`; the truncation does the work that finite mass
+would otherwise require. The closed-form $M_{\rm total}$ below ({eq}`eff-mtotal`) is the
+$r_t \to \infty$ limit and applies only when $\gamma > 3$; the actual sampled mass is the
+truncated $M(<r_t)$.
 ```
 
 ## Closed-form mass
@@ -99,12 +102,19 @@ The half-mass-radius condition $M(<r_h) = M/2$ gives
 r_h \;=\; a\,\sqrt{\,2^{2/(\gamma - 3)} - 1\,}.
 ```
 
-At $\gamma = 5$, the EFF half-mass relation gives $r_h = a$. This does
-not reproduce the Plummer scale-radius convention even though both
+At $\gamma = 5$, this *untruncated* EFF half-mass relation gives $r_h = a$.
+This does not reproduce the Plummer scale-radius convention even though both
 profiles have an outer $r^{-5}$ density falloff; the profiles share an
 asymptotic slope but use different normalisations and mass profiles.
-progenax uses the EFF mapping directly when constructing the profile
-scale radius from the half-mass radius.
+
+```{important}
+{eq}`eff-rh-a` is the **untruncated, analytic** $r_h \leftrightarrow a$
+relation. progenax's `EFFProfile` is constructed from the **scale radius $a$
+directly** (`EFFProfile(a, gamma, r_t)`) — it does *not* take $r_h$ and does
+not apply this mapping internally. The relation is provided for context (e.g.
+converting a literature $r_h$ to an $a$ by hand); with a finite $r_t$ the true
+half-mass radius is the truncated one, which differs from {eq}`eff-rh-a`.
+```
 
 ```{admonition} Why EFF and Plummer don't match at $\gamma = 5$
 :class: note
@@ -114,8 +124,11 @@ the same functional form *with the same scale radius $a$* only when
 $\gamma = 5$. The half-mass radii therefore differ by a constant — at
 $\gamma = 5$, EFF gives $r_h = a$, Plummer gives $r_h \approx 1.31\,a$
 ({eq}`plummer-rh-a` inverted). This is not a bug; it is a difference
-of convention between the two papers. progenax uses each profile's
-native convention internally and converts user-facing `r_h` consistently.
+of convention between the two papers. progenax keeps each profile's
+native parameterisation — `PlummerProfile(r_h=...)` is built from the
+half-mass radius, while `EFFProfile(a=..., gamma=..., r_t=...)` is built
+from the scale radius $a$ — so the two are not interchangeable as a single
+`r_h`.
 ```
 
 ## Inverse-CDF sampling
@@ -137,25 +150,33 @@ data, $\gamma$ can be inferred via HMC alongside $r_h$ and the IMF
 parameters. The King concentration $W_0$ requires re-solving the ODE
 for each gradient evaluation, whereas $\gamma$ enters EFF analytically.
 
-## Velocity dispersion
+## Velocities: Eddington inversion (no closed form)
 
-EFF, unlike Plummer and King, does not admit a closed-form isotropic
-distribution function for arbitrary $\gamma$. The Eddington inversion
-of {eq}`eff-rho` against its self-consistent gravitational potential
-yields a special-function expression that progenax evaluates
-numerically. The radial velocity dispersion at radius $r$ is
+{cite:t}`ElsonFallFreeman1987` is a **surface-brightness** model only — the
+paper fits the *projected* light profile $\mu(r)$ (Eq. 1) and its enclosed
+projected luminosity (Eq. 2). It gives **no distribution function and no
+velocity-dispersion formula**: there is no "EFF Eq. 7" for $\sigma_r^2(r)$.
+Velocities in progenax are therefore *not* read from a closed form. Instead,
+treating {eq}`eff-rho` as the 3-D volume density, `EFFVelocityDF` builds the
+exact isotropic ergodic DF $f(E)$ by **Eddington inversion** of the (truncated)
+EFF density against its self-consistent potential $\Psi(r)$,
 
 ```{math}
-:label: eff-sigma
-\sigma_r^2(r) \;=\; \frac{G\,\rho_0\,a^2}{2\,(1 + r^2/a^2)^{\gamma/2}}\,
-\int_r^{\infty} \frac{(\gamma + 2)\,r'^2/a^2}{(1 + r'^2/a^2)^{(\gamma+4)/2}}\,\mathrm{d}r' \,+\, \cdots
+:label: eff-eddington
+f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2}
+\left[\int_0^{\mathcal{E}} \frac{\mathrm{d}^2\rho}{\mathrm{d}\Psi^2}\frac{\mathrm{d}\Psi}{\sqrt{\mathcal{E}-\Psi}}
++ \frac{1}{\sqrt{\mathcal{E}}}\left(\frac{\mathrm{d}\rho}{\mathrm{d}\Psi}\right)_{\!\Psi=0}\right],
 ```
 
-(full expression in {cite:t}`ElsonFallFreeman1987` Eq. 7); progenax
-evaluates the integral via fixed-step Gauss-Legendre quadrature inside
-`EFFVelocityDF`. The implementation is differentiable in $\gamma$ and
-$r_h$ via the standard JAX trick of differentiating *under* the
-quadrature.
+evaluated numerically on a tabulated grid at initialisation; speeds are then
+drawn per particle from $g(v)\propto v^2 f(\Psi(r) - v^2/2)$ by inverse-CDF.
+The construction is differentiable in $\gamma$, $a$, and $r_t$ through the
+tabulated inversion. Because the EFF density is *empirical* (not derived from a
+DF), a sharply truncated EFF is only **approximately** stationary: mild
+truncation (e.g. $\gamma = 5$, which is exactly Plummer) is virial to $\sim1\%$,
+whereas the steep $\gamma = 3$ default left strongly truncated is a few percent
+sub-virial — intrinsic to truncating an empirical profile, not a DF error.
+For a strict lowered-DF equilibrium use the King model.
 
 ## Implementation in progenax
 
@@ -225,19 +246,21 @@ See [](../../30-api/profiles.md) for the signature and
   - …because
 * - Modelling old globular clusters
   - Tidal truncation is well-defined and observationally constrained
-* - You need a finite outer radius
-  - King has $r_t$ built in; EFF extends to infinity
+* - The truncation radius is physically meaningful
+  - King's $r_t$ is the self-consistent tidal boundary where the DF vanishes; EFF's $r_t$ is an imposed cutoff on an otherwise power-law (formally infinite) density
 * - The host-galaxy tidal field is the dominant boundary
   - King's lowered-isothermal DF assumes tidal-field equilibrium
 ```
 
 ## Domain of validity and limitations
 
-1. **$\gamma > 3$ required** for finite total mass without explicit
-   truncation. progenax raises at construction if violated.
-2. **No tidal radius built in.** EFF extends to infinity; tidal
-   truncation must be applied as a post-processing step via
-   `apply_tidal_truncation`.
+1. **$\gamma > 3$ is required only for the *untruncated* profile** to have
+   finite total mass. progenax's `EFFProfile` always truncates at a finite
+   $r_t$, so the sampled mass is finite for any $\gamma$ (the default is
+   $\gamma = 3$); the constructor performs no $\gamma$ validation.
+2. **Truncation is intrinsic, not optional.** The profile is sampled on
+   $r \in [0, r_t]$ by construction; choose $r_t$ to match the cluster.
+   Further tidal trimming can be layered via `apply_tidal_truncation`.
 3. **Only isotropic equilibrium DF.** Anisotropic versions of EFF
    exist in the literature {cite:p}`ElsonFallFreeman1987` but are not
    currently in progenax. For anisotropy, use the King DF with the

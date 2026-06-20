@@ -121,7 +121,8 @@ c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t).
 ```
 
 For Galactic globular clusters, observational fits give $c$ in the
-range $\sim 0.7$–$2.5$, corresponding to $W_0 \sim 5$–$10$:
+range $\sim 0.7$–$2.5$, with $W_0 \sim 5$–$9$ for most clusters (the
+high-concentration / near-core-collapse tail reaching higher):
 
 ```{list-table} $W_0 \to (\xi_t, c, r_h/r_c)$ mapping for the King profile. The $\xi_t$ and $c$ columns reproduce King (1966) Table II; $r_h/r_c$ is computed from the integrated mass profile.
 :header-rows: 1
@@ -156,9 +157,12 @@ range $\sim 0.7$–$2.5$, corresponding to $W_0 \sim 5$–$10$:
 The $r_h$ column shows that — unlike Plummer's $a/r_h \approx 0.766$
 constant — the King profile's scale-to-half-mass mapping depends on
 $W_0$. progenax stores this mapping as a precomputed lookup table and
-exposes it through `progenax.profiles.solve_king_profile(W_0)` which
-returns `(xi_grid, psi_grid)`, the dimensionless radius grid and
-dimensionless potential trajectory used by the profile implementation.
+exposes it through `progenax.profiles.solve_king_profile(W0)`, which
+returns the **3-tuple** `(xi_grid, psi_clamped, psi_raw)`: the
+dimensionless radius grid, the potential clamped to $\psi \ge 0$ (used for
+the density and CDF), and the *unclamped* potential (negative just past
+$r_t$; used only for the differentiable tidal-radius crossing). The
+profile implementation consumes the first two.
 
 ## Inverse-CDF sampling
 
@@ -230,10 +234,10 @@ from progenax.profiles import KingProfile, solve_king_profile
 from progenax.kinematics import KingVelocityDF
 from jaxstro.units import STELLAR
 
-# Solve the King ODE once for W_0 = 7
-xi_grid, psi_grid = solve_king_profile(W0=7.0)      # diffrax Tsit5
+# Solve the King ODE once for W_0 = 7 (returns a 3-tuple; psi_raw unused here)
+xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)   # diffrax Tsit5
 profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=profile.r_t)
+df = KingVelocityDF(W0=7.0, r_c=1.0)                 # r_t derived from W0
 
 masses = jnp.ones(1000)
 positions = profile.sample_positions(masses, key)
@@ -241,7 +245,10 @@ velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```
 
 The `solve_king_profile` call is the ODE helper for the King profile; it
-returns the `(xi_grid, psi_grid)` arrays used by `KingProfile`.
+returns the 3-tuple `(xi_grid, psi_clamped, psi_raw)` — here we keep the
+clamped potential and discard `psi_raw`. `KingVelocityDF` takes only
+`(W0, r_c)` and re-solves the ODE internally (deriving $r_t$ from $W_0$), so
+no `r_t` argument is passed.
 
 See [](../../30-api/profiles.md) for the full signature and
 [](../../50-validation/king-profile.md) for the regression suite, which

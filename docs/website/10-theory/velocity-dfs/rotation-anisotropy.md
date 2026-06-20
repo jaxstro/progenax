@@ -87,7 +87,10 @@ from progenax.kinematics import PlummerVelocityDF, EFFVelocityDF
 
 # r_a in the same length units as r_h / a
 om_plummer = PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0)
-om_eff = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0, anisotropy_radius=2.0)
+# gamma=5 reduces EFF to Plummer, so this OM-EFF starts in clean equilibrium
+# (Q ~ 0.5). A steep gamma=3 EFF, strongly truncated, is a few percent
+# sub-virial even before anisotropy — see the EFF chapter.
+om_eff = EFFVelocityDF(a=1.0, gamma=5.0, r_t=10.0, anisotropy_radius=2.0)
 
 velocities = om_plummer.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```

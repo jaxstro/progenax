@@ -125,16 +125,18 @@ from progenax.kinematics import KingVelocityDF
 from jaxstro.units import STELLAR
 
 profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
-df = KingVelocityDF(W0=7.0, r_c=1.0, r_t=profile.r_t)
+df = KingVelocityDF(W0=7.0, r_c=1.0)   # r_t is derived from W0 internally
 
 masses = jnp.ones(1000)
 positions = profile.sample_positions(masses, key)
 velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
 ```
 
-Using the same `W0`, `r_c`, and `r_t` keeps the profile and DF
-consistent. Pairing a King profile at $W_0 = 7$ with a King DF at
-$W_0 = 5$ would produce a mismatched non-equilibrium IC.
+`KingVelocityDF` takes only `(W0, r_c)` — it re-solves the King ODE
+internally and derives the tidal radius from $W_0$, so there is **no
+`r_t` argument**. Using the same `W0` and `r_c` in the profile and DF
+keeps them consistent. Pairing a King profile at $W_0 = 7$ with a King DF
+at $W_0 = 5$ would produce a mismatched non-equilibrium IC.
 
 ## Differentiability
 
