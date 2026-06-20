@@ -2,7 +2,7 @@
 and the manifest must categorize every public symbol. A deleted case or a new ungated public
 entry point -> RED."""
 import progenax  # noqa: F401
-import pytest
+from jaxstro.testing.ratchet import assert_partition
 from tests.validation.grad_audit.manifest import (
     AUDITED, MUST_AUDIT, PARAM_ALLOWLIST, SYMBOL_CATEGORY,
 )
@@ -21,14 +21,11 @@ def test_every_must_audit_entry_is_covered():
 
 
 def test_symbol_category_covers_all_public_symbols_exactly():
-    public = set(progenax.__all__)
-    mapped = set(SYMBOL_CATEGORY)
-    unmapped = sorted(public - mapped)   # NEW public symbol not categorized -> RED
-    stale = sorted(mapped - public)      # category for a removed/renamed symbol -> RED
-    assert not unmapped, (
-        f"public symbols missing from SYMBOL_CATEGORY (categorize each as AUDITED or EXEMPT_*): "
-        f"{unmapped}")
-    assert not stale, f"SYMBOL_CATEGORY entries no longer in __all__: {stale}"
+    # SYMBOL_CATEGORY is a SINGLE bucket mapping every public symbol -> category, so the
+    # partition is "every public symbol is categorized, and no stale categories remain"
+    # (one bucket => disjointness is trivially satisfied). NEW public symbol not categorized
+    # -> RED; category for a removed/renamed symbol -> RED.
+    assert_partition(set(progenax.__all__), SYMBOL_CATEGORY, label="grad_audit.partition")
 
 
 def test_every_audited_symbol_has_a_registry_case():
