@@ -1,0 +1,213 @@
+{
+  "_note": "Fast-tier snapshot: per-module slowest test from `pytest tests/unit tests/integration tests/validation -m 'not slow' -n auto --durations=0` (seconds = call+setup+teardown). Refreshed over the FULL suite by scripts/release_gate.sh. Read by scripts/build_test_dashboard.py::read_durations.",
+  "modules": {
+    "analytical": {
+      "slowest_test": "tests/unit/analytical/test_analytical.py::TestTwoBodyKepler::test_circular_orbit_com_at_origin",
+      "seconds": 0.38
+    },
+    "api_coverage": {
+      "slowest_test": "tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor",
+      "seconds": 0.01
+    },
+    "binaries": {
+      "slowest_test": "tests/unit/binaries/test_companions.py::TestMoeCompanions::test_p_q_interrelation_in_secondary_masses",
+      "seconds": 16.58
+    },
+    "builders": {
+      "slowest_test": "tests/unit/builders/test_cluster_builders.py::test_matched_limepy_anisotropic_threads_r_a",
+      "seconds": 15.0
+    },
+    "cluster": {
+      "slowest_test": "tests/unit/cluster/test_multicomponent.py::TestEngineB::test_engine_b_global_virial_is_half_unscaled",
+      "seconds": 70.48
+    },
+    "diagnostics": {
+      "slowest_test": "tests/unit/diagnostics/test_segregation_approx.py::TestCalibration::test_returns_expected_keys",
+      "seconds": 5.76
+    },
+    "dynamics": {
+      "slowest_test": "tests/unit/dynamics/test_group_virial.py::TestPerGroupVirialRatio::test_single_group_reproduces_global_virial",
+      "seconds": 3.88
+    },
+    "grad_audit": {
+      "slowest_test": "tests/validation/grad_audit/test_reductions.py::test_mean_radius_gradient_finite_on_zeros",
+      "seconds": 0.7
+    },
+    "imf": {
+      "slowest_test": "tests/unit/imf/test_moe_full.py::TestMoeJointOrbit::test_p_q_interrelation",
+      "seconds": 16.37
+    },
+    "kinematics": {
+      "slowest_test": "tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting::test_differentiable_in_g_through_table",
+      "seconds": 23.25
+    },
+    "physics_registry": {
+      "slowest_test": "tests/validation/physics_registry/test_physics_coverage.py::test_every_cited_test_node_id_resolves",
+      "seconds": 20.16
+    },
+    "profiles": {
+      "slowest_test": "tests/unit/profiles/test_find_alpha_ift.py::TestJitGradient::test_jit_grad_matches_eager_alpha_imf",
+      "seconds": 63.67
+    },
+    "provenance_registry": {
+      "slowest_test": "tests/validation/provenance_registry/test_provenance_coverage.py::test_no_new_unprovenanced_literal_in_allowlist_modules",
+      "seconds": 1.17
+    },
+    "stellar": {
+      "slowest_test": "tests/unit/stellar/test_zams.py::TestInverseZAMSLuminosity::test_differentiable",
+      "seconds": 2.74
+    },
+    "substructure": {
+      "slowest_test": "tests/unit/substructure/test_q_approx.py::TestQApproxFast::test_scales_to_large_n",
+      "seconds": 2.4
+    },
+    "test_analytical_physics": {
+      "slowest_test": "tests/validation/test_analytical_physics.py::TestTwoBodyConservation::test_eccentric_orbit_closes_and_conserves",
+      "seconds": 1.76
+    },
+    "test_azimuthal_variation_physics": {
+      "slowest_test": "tests/validation/test_azimuthal_variation_physics.py::TestAzimuthalVariation::test_anticorrelates_with_cw04_Q",
+      "seconds": 0.78
+    },
+    "test_binary_cluster": {
+      "slowest_test": "tests/integration/test_binary_cluster.py::TestBudgetTargets::test_totalmass_reaches_budget",
+      "seconds": 11.57
+    },
+    "test_binary_physics": {
+      "slowest_test": "tests/validation/test_binary_physics.py::TestKeplerEccentricityGradientBoundary::test_grad_finite_through_e_to_one",
+      "seconds": 1.24
+    },
+    "test_builders": {
+      "slowest_test": "tests/unit/test_builders.py::TestBuildSpatialIC::test_build_with_plummer",
+      "seconds": 1.96
+    },
+    "test_cluster_builders_integration": {
+      "slowest_test": "tests/integration/test_cluster_builders_integration.py::test_grad_through_build_cluster_from_params_bites_each_channel",
+      "seconds": 6.63
+    },
+    "test_dashboard_fresh": {
+      "slowest_test": "tests/validation/test_dashboard_fresh.py::test_coverage_provenance_teeth_fire_on_stale_src",
+      "seconds": 1.33
+    },
+    "test_dashboard_gen": {
+      "slowest_test": "tests/validation/test_dashboard_gen.py::test_build_dashboard_has_all_blocks",
+      "seconds": 94.96
+    },
+    "test_demo_oed": {
+      "slowest_test": "tests/unit/test_demo_oed.py::test_criteria_grads_AD_vs_FD",
+      "seconds": 3.02
+    },
+    "test_demo_oed_binary": {
+      "slowest_test": "tests/unit/test_demo_oed_binary.py::test_cross_model_bias_only_fits_kept_bins",
+      "seconds": 25.06
+    },
+    "test_demo_oed_concentration": {
+      "slowest_test": "tests/unit/test_demo_oed_concentration.py::test_jacobian_lntheta_shape_and_W0_column_nonzero",
+      "seconds": 95.74
+    },
+    "test_demo_oed_depth": {
+      "slowest_test": "tests/unit/test_demo_oed_depth.py::test_cli_dynamical_mass_smoke",
+      "seconds": 240.35
+    },
+    "test_demo_selection": {
+      "slowest_test": "tests/unit/test_demo_selection.py::test_apparent_mag_and_distance_modulus",
+      "seconds": 0.34
+    },
+    "test_dispersion_physics": {
+      "slowest_test": "tests/validation/test_dispersion_physics.py::test_eff_isotropic_jeans_equals_ftable",
+      "seconds": 11.22
+    },
+    "test_documented_api": {
+      "slowest_test": "tests/unit/test_documented_api.py::test_symbol_importable_from_root[ConstantBinaryFraction]",
+      "seconds": 0.01
+    },
+    "test_eff_physics": {
+      "slowest_test": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_gamma3_default_subvirial_offset_is_pinned",
+      "seconds": 4.67
+    },
+    "test_end_to_end": {
+      "slowest_test": "tests/integration/test_end_to_end.py::TestIMFToICPipeline::test_chabrier_to_king_ic",
+      "seconds": 4.9
+    },
+    "test_engine_b_physics": {
+      "slowest_test": "tests/validation/test_engine_b_physics.py::test_gradients_ad_vs_fd",
+      "seconds": 13.12
+    },
+    "test_environment_physics": {
+      "slowest_test": "tests/validation/test_environment_physics.py::TestErratumCorrectedPlane::test_corrected_marks_equals_jerabkova",
+      "seconds": 0.43
+    },
+    "test_grad_audit": {
+      "slowest_test": "tests/validation/test_grad_audit.py::test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]1]",
+      "seconds": 100.53
+    },
+    "test_imf_physics": {
+      "slowest_test": "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_mean_mass_reasonable",
+      "seconds": 4.55
+    },
+    "test_jax_compatibility": {
+      "slowest_test": "tests/integration/test_jax_compatibility.py::TestIMFJAXCompatibility::test_powerlaw_grad",
+      "seconds": 1.77
+    },
+    "test_king_physics": {
+      "slowest_test": "tests/validation/test_king_physics.py::TestKingAutoDomain::test_auto_domain_preserves_differentiability_high_W0",
+      "seconds": 6.83
+    },
+    "test_mass_segregation_physics": {
+      "slowest_test": "tests/validation/test_mass_segregation_physics.py::test_estimator_converges_with_random_samples",
+      "seconds": 49.15
+    },
+    "test_michie_physics": {
+      "slowest_test": "tests/validation/test_michie_physics.py::TestMichieDifferentiability::test_grad_wrt_mass_velocity_scale",
+      "seconds": 6.14
+    },
+    "test_numerics": {
+      "slowest_test": "tests/unit/test_numerics.py::TestInverseCdfDraw::test_differentiable_in_weight_parameter",
+      "seconds": 1.07
+    },
+    "test_plummer_physics": {
+      "slowest_test": "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile",
+      "seconds": 1.08
+    },
+    "test_ratchet_characterization": {
+      "slowest_test": "tests/validation/test_ratchet_characterization.py::test_representative_node_id_resolves_and_asserts",
+      "seconds": 5.35
+    },
+    "test_readme_examples": {
+      "slowest_test": "tests/integration/test_readme_examples.py::test_readme_block_executes[2]",
+      "seconds": 9.23
+    },
+    "test_rotation_anisotropy_physics": {
+      "slowest_test": "tests/validation/test_rotation_anisotropy_physics.py::TestOsipkovMerrittAnisotropy::test_plummer_beta_matches_exact_om",
+      "seconds": 6.2
+    },
+    "test_segregation_approx_physics": {
+      "slowest_test": "tests/validation/test_segregation_approx_physics.py::TestDifferentiability::test_grad_positions_finite",
+      "seconds": 7.47
+    },
+    "test_segregation_equilibrium_physics": {
+      "slowest_test": "tests/validation/test_segregation_equilibrium_physics.py::test_energy_finite_and_no_coincident_stars",
+      "seconds": 9.8
+    },
+    "test_substructure_q_physics": {
+      "slowest_test": "tests/validation/test_substructure_q_physics.py::TestQNIndependence::test_q_roughly_n_independent",
+      "seconds": 5.59
+    },
+    "test_tidal": {
+      "slowest_test": "tests/unit/test_tidal.py::TestTidalTruncation::test_forward_is_exact_hard_cut",
+      "seconds": 0.78
+    },
+    "test_tidal_physics": {
+      "slowest_test": "tests/validation/test_tidal_physics.py::TestTruncationBoundMass::test_bound_mass_equals_mass_within_rt",
+      "seconds": 1.48
+    },
+    "test_units_through_pipeline": {
+      "slowest_test": "tests/integration/test_units_through_pipeline.py::test_build_spatial_ic_respects_G_without_virial_rescale",
+      "seconds": 4.47
+    },
+    "test_zams_physics": {
+      "slowest_test": "tests/validation/test_zams_physics.py::TestMetallicityDependence::test_finite_across_Z_box",
+      "seconds": 1.22
+    }
+  }
+}
