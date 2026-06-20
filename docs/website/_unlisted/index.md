@@ -41,11 +41,29 @@ later tasks' work.
 
 ## Optimal experimental design (detail pages)
 
-The science-demos section keeps a single public overview of optimal experimental
-design (OED). The longer worked-example detail pages (background, anisotropy,
-concentration, dynamical-mass, binary-robustness) will be relocated here.
+The science-demos section keeps a single
+[public OED overview](../60-science-demos/optimal-design/index.md). The longer
+worked-example detail pages are `hidden: true` in the toc (built and
+URL-reachable, kept out of the public navigation). The OED tooling itself is
+planned for a separate package and is not part of v0.1.0; these pages document
+the prototyped worked designs:
 
-*Links will be wired in by a later task.*
+- [](../60-science-demos/optimal-design/background.md) — the shared OED formalism:
+  Fisher information, the additive design-linear backbone, the c/D/A optimality
+  criteria, and the sky-projection geometry, built once for the worked examples.
+- [](../60-science-demos/optimal-design/anisotropy.md) — Stage 1: allocating a star
+  budget across (radius × {RV, PM}) to pin the Osipkov–Merritt anisotropy radius
+  $r_a$; proper motions go to the outskirts ($3.66\times$ fewer stars at equal
+  precision).
+- [](../60-science-demos/optimal-design/dynamical-mass.md) — Stage 2: promoting survey
+  depth (limiting magnitude) to a design variable for the dynamical mass $M$; the
+  Fisher peaks at an interior optimal depth.
+- [](../60-science-demos/optimal-design/concentration.md) — Stage 1 redux: the same
+  channel-allocation machinery targeting the concentration $W_0$; proper motions go
+  to the core (the mirror image of anisotropy).
+- [](../60-science-demos/optimal-design/binary-robustness.md) — Stage 4: a
+  robustness design where a binary-blind survey biases the mass by $+184\%$ with
+  $41\times$ false confidence, and a binary-aware design removes it.
 
 ## Gravoturbulence (experimental, repo-only)
 

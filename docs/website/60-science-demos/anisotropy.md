@@ -164,5 +164,5 @@ env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_anisotropy.py
 
 Osipkov–Merritt anisotropy is {cite:t}`Merritt1985`; the Michie anisotropic-King
 DF is {cite:t}`Michie1963`. The OM and Michie velocity DFs are documented on the
-[kinematics](../10-theory/populations/index.md) pages; B3's two-component OM
-recovery is at [halo + core](halo-core.md).
+[anisotropy and rotation](../10-theory/velocity-dfs/rotation-anisotropy.md) page;
+B3's two-component OM recovery is at [halo + core](halo-core.md).

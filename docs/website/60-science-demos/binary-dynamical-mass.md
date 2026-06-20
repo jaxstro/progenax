@@ -1,6 +1,6 @@
 ---
 title: Binary-inflated dynamical mass (B12)
-description: "Unresolved binaries inflate a cluster's line-of-sight velocity dispersion, biasing the virial/dynamical mass high (~24% at f_b=0.5 in a UFD-like system). A dispersion-only analysis cannot remove the bias — the (sigma_true, f_b) problem is rank-1 degenerate. A differentiable joint fit to the non-Gaussian wings of the velocity distribution returns an unbiased mass, with a Fisher forecast vs sample size N and RV precision eps. The kinematic companion to B4."
+description: "Unresolved binaries inflate a cluster's line-of-sight velocity dispersion, biasing the virial/dynamical mass high (~28% at f_b=0.5 in a UFD-like system). A dispersion-only analysis cannot remove the bias — the (sigma_true, f_b) problem is rank-1 degenerate. A differentiable joint fit to the non-Gaussian wings of the velocity distribution returns an unbiased mass, with a Fisher forecast vs sample size N and RV precision eps. The kinematic companion to B4."
 ---
 
 # Binary-inflated dynamical mass (B12)

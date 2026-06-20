@@ -46,7 +46,7 @@ observing strategy* — known **before you collect a single photon** — through
 Fisher information. So you can treat the observing strategy as a free variable and
 maximise the information you expect to extract. The output is not just "a good plan";
 it is a *quantified* plan: "this allocation reaches the same precision with
-$3.7\times$ fewer stars," or "going one magnitude deeper buys you nothing." OED is
+$3.66\times$ fewer stars," or "going one magnitude deeper buys you nothing." OED is
 rare in astronomy because almost no simulator can compute
 $\partial(\text{information})/\partial(\text{observing strategy})$ — and that is
 exactly what a *differentiable* forward model makes possible.

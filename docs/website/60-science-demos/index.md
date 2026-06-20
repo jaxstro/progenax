@@ -84,65 +84,15 @@ seeds + methods showcases):
 
 ## The shared method: physics-direct differentiable inference
 
-All three demos share one inference layer (`scripts/_demo_inference.py`). The
-design avoids both expensive likelihood-free / simulation-based inference and
-any non-differentiable resampling inside the loss. The recipe:
-
-1. **Forward-sample mock stars at truth.** Draw $N$ positions+velocities from a
-   progenax model (here $N = 3\times10^4$ to $10^5$). This is done *once*, to
-   make the data; it is **not** repeated inside the optimizer.
-
-2. **Compress to binned kinematic summaries.** Reduce the stars to per-group (or
-   per-component) binned 1-D velocity dispersions $\hat\sigma_{1\mathrm D,j}(r)$
-   on a frozen set of radial bins, each carrying a finite-$N$ standard error.
-   For an isotropic pooled estimator over the three velocity components,
-
-   ```{math}
-   :label: sci-sigma-estimator
-   \hat\sigma_{1\mathrm D}^2 = \frac{1}{3}\,\overline{|\mathbf v|^2}
-   = \frac{\sigma_r^2 + \sigma_t^2}{3},
-   \qquad
-   \mathrm{SE}(\hat\sigma) = \frac{\hat\sigma}{\sqrt{6 n}},
-   ```
-
-   where the $\sqrt{6n}$ (not $\sqrt{2n}$) comes from pooling all *three*
-   one-D components into a $\chi^2_{3n}$ inner sum. **This compression is what
-   makes the cost $N$-independent:** the likelihood sees a few hundred binned
-   numbers, never the $10^5$ stars.
-
-3. **Likelihood against analytic predictions.** Compare the binned data to the
-   model's *analytic* expectation with a Gaussian (χ²) likelihood,
-
-   ```{math}
-   :label: sci-loglike
-   \ln \mathcal L(\theta) = -\tfrac12 \sum_{j,k} w_{jk}
-   \left(\frac{\hat\sigma_{jk} - \sigma_{jk}^{\rm pred}(\theta)}{\mathrm{SE}_{jk}}\right)^2 ,
-   ```
-
-   with $w_{jk}\in\{0,1\}$ masking under-occupied bins. **Gradients flow only
-   through the analytic prediction** $\sigma^{\rm pred}(\theta)$ — the data side
-   is a fixed constant — so $\nabla_\theta \ln\mathcal L$ is exact and cheap, and
-   there is no reparametrization-gradient noise from resampling.
-
-4. **Optimize and quantify.** Adam (`mle_adam`, a fixed-step `lax.scan` —
-   deterministic and differentiable-friendly) from several dispersed starts;
-   the Fisher information from the Gauss-Newton $J^{\mathsf T}J$ of the residual
-   vector (`fisher_information_gn` via `jax.jacrev`, which is robust through the
-   ODE/quadrature `custom_vjp`s, unlike a full Hessian); and, where affordable,
-   full posterior sampling with a vendored blackjax NUTS.
-
-```{important}
-**The predictor is the unbiased *binned expectation*, not a bin-centre
-evaluation.** Where the dispersion and number density vary steeply across a wide
-outer bin, evaluating $\sigma(\theta)$ at the bin centre is biased. Instead each
-demo predicts the number-weighted bin average
-
-​   $$\mathbb E[\hat\sigma_{jk}^2] = \frac{\int_{\rm bin} n_j(r)\,\sigma_j^2(r)\,dr}{\int_{\rm bin} n_j(r)\,dr},$$
-
-with $n_j(r)$ the model's own number density — a like-with-like comparison to
-the binned data, computed by a cumulative-trapezoid-at-edges trick that stays
-differentiable.
-```
+The demos share one inference layer (`scripts/_demo_inference.py`): forward-sample
+mock stars at truth *once*, compress them to binned kinematic summaries with honest
+finite-$N$ standard errors, evaluate a Gaussian/Poisson likelihood against the
+model's *analytic* prediction (so gradients flow only through the prediction, not a
+resampled data side), then optimize with Adam and quantify with the Gauss-Newton
+Fisher (and, where affordable, blackjax NUTS). The full four-step recipe — with the
+$\sqrt{6n}$ pooled-dispersion estimator, the likelihood, and the binned-expectation
+predictor — is derived once in
+[**The scientific throughline → the shared method**](throughline.md#sec-shared-method).
 
 ## Honest scope — these are clean-mock methods showcases
 

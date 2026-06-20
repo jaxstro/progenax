@@ -1,7 +1,7 @@
 ---
 title: OED for robustness — when binaries lie to your mass estimate (Stage 4)
 subtitle: The first OED demo whose headline is a BIAS, not a recovery — a binary-blind survey design over-weighs a cluster by 184% with 41× false confidence, and a binary-aware design removes it
-description: "A pre-data optimal-experimental-design demo that turns the OED machinery from 'recovers the obvious' into a referee-proof BIAS result. Unresolved binaries (Moe & Di Stefano massive-primary P-q-e blend) inflate the line-of-sight velocity dispersion by a flat pedestal sigma_bin=9.73 km/s (sigma_bin/sigma_cluster=1.08 at the center of an EFF-OM young-massive cluster, M=4e5 Msun). H1 (the headline): a naive binary-blind c-optimal-for-M RV design, fit with a binary-free model, recovers M_hat/M=2.84 (+184% bias) while CLAIMING sigma(M)/M=4.5% -- a 41x false-confidence disaster, gated by a cross-model Monte Carlo. The fix (measure-and-marginalize): a binary-aware fit drops the bias from +184% to +5%, recovers f_bin=0.50+/-0.08 from radial leverage alone, and reports an honest sigma(M)/M=6.9%. H2: the binary-aware DESIGN is 1.33x tighter than the binary-blind one at the operating point (growing to ~6x as binaries dominate). H3: the binary-aware allocation reshuffles to break the M<->f_bin degeneracy. Maximin robustness is an honest near-null (~0.2% hedge -- sigma(M) is monotone in f_bin). A sigma_bin/sigma_cluster sweep shows bias +26%->+850% across system mass while the fix stays ~0. Informax-bound: scripts + this page, held out of v0.1.0."
+description: "A pre-data optimal-experimental-design demo that turns the OED machinery from 'recovers the obvious' into a referee-resistant BIAS result. Unresolved binaries (Moe & Di Stefano massive-primary P-q-e blend) inflate the line-of-sight velocity dispersion by a flat pedestal sigma_bin=9.73 km/s (sigma_bin/sigma_cluster=1.08 at the center of an EFF-OM young-massive cluster, M=4e5 Msun). H1 (the headline): a naive binary-blind c-optimal-for-M RV design, fit with a binary-free model, recovers M_hat/M=2.84 (+184% bias) while CLAIMING sigma(M)/M=4.5% -- a 41x false-confidence disaster, gated by a cross-model Monte Carlo. The fix (measure-and-marginalize): a binary-aware fit drops the bias from +184% to +5%, recovers f_bin=0.50+/-0.08 from radial leverage alone, and reports an honest sigma(M)/M=6.9%. H2: the binary-aware DESIGN is 1.33x tighter than the binary-blind one at the operating point (growing to ~6x as binaries dominate). H3: the binary-aware allocation reshuffles to break the M<->f_bin degeneracy. Maximin robustness is an honest near-null (~0.2% hedge -- sigma(M) is monotone in f_bin). A sigma_bin/sigma_cluster sweep shows bias +26%->+850% across system mass while the fix stays ~0. The OED tooling is planned for a separate package and is not part of v0.1.0: scripts plus this page."
 ---
 
 # OED for robustness — when binaries lie to your mass estimate (Stage 4)
@@ -35,7 +35,7 @@ formalism first if any of those terms are unfamiliar.
   and [Quantitative results](#sec-bin-results).
 - **Want the machinery first?** Read [the OED formalism page](background.md), then come back here.
 - **Why does this demo exist at all?** It converts OED from "recovers the obvious" into a
-  referee-proof bias — see [why this arc exists](#sec-bin-why).
+  referee-resistant bias result — see [why this arc exists](#sec-bin-why).
 :::
 
 (sec-bin-why)=
@@ -535,8 +535,8 @@ binary-misspecification *bias*. Its boundaries, stated honestly:
   velocity tails (the full-histogram identification is a stronger, deferred extension).
 - **The Fisher is a local, Gaussian (Cramér–Rao) approximation.** The cross-model Monte Carlo is
   precisely the check that it predicts the realized bias and scatter — and it does.
-- **Informax-bound, held *out* of v0.1.0.** Scripts + this page, **no** `src/progenax/` API
-  surface and **no** released-core registry burden — by the OED hold-out decision.
+- **Not part of v0.1.0.** Scripts + this page, **no** `src/progenax/` API
+  surface; the OED tooling is planned for a separate package.
 ```
 
 :::{note} What we just learned
@@ -553,7 +553,8 @@ $\sim6\times$ tighter where binaries dominate; **maximin** robustness is an hone
 blind bias runs $+26\%\to+850\%$ while the fix stays $\approx0$. This is the first OED demo whose
 headline is a **bias**, not a recovery — it extends [anisotropy](anisotropy.md),
 [dynamical mass](dynamical-mass.md), and [concentration](concentration.md) from *what to
-measure* to *how to measure it robustly*. Informax-bound, single-epoch.
+measure* to *how to measure it robustly*. Single-epoch; the OED tooling is planned for a
+separate package and is not part of v0.1.0.
 :::
 
 ## How to run

@@ -236,7 +236,7 @@ choice keeps the demo's physics legible without a colour model getting in the wa
 :::{note}
 **Band-specific photometry is a planned follow-up.** Real bolometric corrections,
 wavelength-dependent extinction, and crowding-limited detection will come from the
-[`fluxax`](https://github.com/jaxstro/progenax) package once it is hardened and
+[`fluxax`](https://github.com/jaxstro/fluxax) package once it is hardened and
 finalised — the next arc on this thread. **The numbers on this page are illustrative:**
 the optimal $m_{\rm lim}\approx13.3$ and $\sigma(M)/M\approx0.10$ are correct *for the
 bolometric model*, and should be read as demonstrating the method and the qualitative
@@ -347,7 +347,7 @@ This is a **pre-data, single-shot OED on a clean self-consistent mock**, headlin
 depth. Its boundaries, stated honestly:
 
 - **Bolometric magnitudes only** — no band, no bolometric correction, no extinction, no
-  crowding. Real band-specific photometry is the planned [`fluxax`](https://github.com/jaxstro/progenax)
+  crowding. Real band-specific photometry is the planned [`fluxax`](https://github.com/jaxstro/fluxax)
   follow-up; current numbers are illustrative ({ref}`sec-dm-assumptions`, item 1).
 - **Illustrative photon-noise error model** — $\epsilon\propto10^{0.2(m_{\rm app}-m_{\rm ref})}$
   captures the faint-end trend, **not** a real survey exposure-time calculator (item 2).

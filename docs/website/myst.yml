@@ -200,14 +200,25 @@ project:
         - file: 60-science-demos/anisotropy.md
         - file: 60-science-demos/tidal-radius.md
         - file: 60-science-demos/rotation.md
+        # Optimal experimental design: 1 public overview (index.md) + 5 detail
+        # pages kept out of the public nav via `hidden: true` (built +
+        # URL-reachable + linkable, but not in navigation). Linked from the
+        # public overview and from _unlisted/index.md. Do NOT delete from the
+        # toc — this site builds only toc-listed pages, so removal =
+        # unbuilt/unreachable.
         - title: Optimal experimental design
           children:
             - file: 60-science-demos/optimal-design/index.md
             - file: 60-science-demos/optimal-design/background.md
+              hidden: true
             - file: 60-science-demos/optimal-design/anisotropy.md
+              hidden: true
             - file: 60-science-demos/optimal-design/dynamical-mass.md
+              hidden: true
             - file: 60-science-demos/optimal-design/concentration.md
+              hidden: true
             - file: 60-science-demos/optimal-design/binary-robustness.md
+              hidden: true
     - title: Development log
       children:
         - file: 90-development-log/index.md

@@ -1,7 +1,7 @@
 ---
 title: OED for concentration — where to spend telescope time on W₀ (Stage 3)
 subtitle: The optimiser sends the proper motions to the CORE to measure concentration — the mirror image of the anisotropy design
-description: "A pre-data Bayesian optimal-experimental-design demo that targets a cluster's CONCENTRATION W0 with the same additive-Fisher machinery as the anisotropy (Stage 1) and dynamical-mass (Stage 2) designs. Given a fixed star budget allocated across (projected radius x {RV, PM_R, PM_T}), the c-optimal design that minimises the marginal variance of W0 puts ~71% of its stars in the CORE -- the mirror image of the anisotropy design, which wanted ~99% in the outskirts. Pre-registered hypothesis H1 (W0 differs from r_a) is CONFIRMED on the radial axis and REFUTED on the channel axis (W0 is strongly PM-dominated, a 2-for-1 PM efficiency at the assumed RV/PM error parity -- a wrong sub-prediction reported as a finding). The King c-optimal design reaches equal precision on W0 with ~3.4x fewer stars (sigma(lnW0) 0.104 -> 0.056, a 1.85x gain); Michie 0.095 -> 0.057 (1.67x). The W0<->r_a Fisher correlation is ~-0.02 (King) / -0.12 (Michie), so concentration is cleanly separable from anisotropy. Closes the open loop on the W0-differentiability work (ADR-0016 C1 PCHIP, ADR-0017 df_moment W0 lock) by exercising it through an actual Fisher/OED inference. Validated by AD-vs-FD on the W0 Jacobian and a real-star King calibration (realized/Fisher ratio 0.976). Informax-bound: scripts + this page, held out of v0.1.0."
+description: "A pre-data Bayesian optimal-experimental-design demo that targets a cluster's CONCENTRATION W0 with the same additive-Fisher machinery as the anisotropy (Stage 1) and dynamical-mass (Stage 2) designs. Given a fixed star budget allocated across (projected radius x {RV, PM_R, PM_T}), the c-optimal design that minimises the marginal variance of W0 puts ~71% of its stars in the CORE -- the mirror image of the anisotropy design, which wanted ~99% in the outskirts. Pre-registered hypothesis H1 (W0 differs from r_a) is CONFIRMED on the radial axis and REFUTED on the channel axis (W0 is strongly PM-dominated, a 2-for-1 PM efficiency at the assumed RV/PM error parity -- a wrong sub-prediction reported as a finding). The King c-optimal design reaches equal precision on W0 with ~3.4x fewer stars (sigma(lnW0) 0.104 -> 0.056, a 1.85x gain); Michie 0.095 -> 0.057 (1.67x). The W0<->r_a Fisher correlation is ~-0.02 (King) / -0.12 (Michie), so concentration is cleanly separable from anisotropy. Closes the open loop on the W0-differentiability work (PCHIP interpolation of the equilibrium-solver tables and a df_moment W0 lock) by exercising it through an actual Fisher/OED inference. Validated by AD-vs-FD on the W0 Jacobian and a real-star King calibration (realized/Fisher ratio 0.976). This is the OED tooling, which is planned for a separate package and is not part of v0.1.0: it ships as scripts plus this page."
 ---
 
 # OED for concentration — where to spend telescope time on $W_0$ (Stage 3)
@@ -44,8 +44,8 @@ A short piece of history makes the rest of the page land. The forward models tha
 cluster's structure into observable dispersions — the Osipkov–Merritt Jeans projection
 `project_dispersion` and the exact Michie second moment `df_moment_dispersion` — were made
 **differentiable in the concentration $W_0$** by two pieces of internal work: a $C^1$
-PCHIP interpolation of the King/Michie equilibrium-solver tables (ADR-0016) and a $W_0$
-lock on the `df_moment` path (ADR-0017). Those changes made $\partial\sigma/\partial W_0$
+PCHIP interpolation of the King/Michie equilibrium-solver tables and a $W_0$
+lock on the `df_moment` path. Those changes made $\partial\sigma/\partial W_0$
 *exist and be smooth*.
 
 But they were validated **only at the gradient-audit level** — an automatic-versus-finite-difference
@@ -157,7 +157,7 @@ honest way to read the result:
    hence in the concentration-dependent map $r_t(W_0)$. King is isotropic in density (OM is
    layered on top); Michie carries its own native anisotropy in its *density shape*, but it
    is still projected under OM. The headline is **OM-King**; **Michie** is added to exercise
-   the ADR-0016 native $r_t(W_0)$ path explicitly and to test that the qualitative answer is
+   the native $r_t(W_0)$ path explicitly and to test that the qualitative answer is
    robust to the density model.
 
 2. **The calibration's sampler equals the Fisher model.** The real-star gate (below) must
@@ -211,8 +211,8 @@ it against finite differences at every radial bin. For **OM-King** the automatic
 finite-difference gradients agree to better than $10^{-3}$ across all bins. For **OM-Michie**
 the inner bins ($R\lesssim r_a$) agree to the same $10^{-3}$ with a fixed step, but at
 mid-to-outer radii the proximity of Michie's $r_t(W_0)$ truncation makes a *fixed-step*
-finite difference an unreliable proxy — the function has high curvature there (the ADR-0016
-signature). So those bins are gated by **Richardson** finite differences instead: we confirm
+finite difference an unreliable proxy — the function has high curvature there (the
+truncation-curvature signature). So those bins are gated by **Richardson** finite differences instead: we confirm
 that as the step $h\downarrow$, the finite difference **converges toward** the automatic
 gradient. It does, to $\sim10^{-6}$, at every bin — the automatic gradient is correct
 everywhere; the mid-radius $>10^{-3}$ values are pure $O(h^2\sigma''')$ truncation, not a
@@ -244,12 +244,12 @@ This demo is deliberately scoped, and two boundaries are load-bearing:
 
 1. **It validates the Jeans (`project_dispersion`) $W_0$ path, *not* `df_moment_dispersion`.**
    The OED Fisher rides the Osipkov–Merritt Jeans projection; the *separate* exact-second-moment
-   path `df_moment_dispersion` (also $W_0$-grad-audited under ADR-0017) is **not** exercised
+   path `df_moment_dispersion` (also $W_0$-gradient-audited) is **not** exercised
    here. The closed loop is the Jeans path.
-2. **It is informax-bound and held *out* of v0.1.0.** This is a scripts + demo-page
-   validation — there is **no** `src/progenax/` API surface and **no** released-core registry
-   burden. The whole arc ships as the optimal-design demo you are reading, by the OED
-   hold-out decision, not as released core.
+2. **It is not part of v0.1.0.** This is a scripts + demo-page
+   validation — there is **no** `src/progenax/` API surface. The OED tooling is planned
+   for a separate package; the whole arc ships as the optimal-design demo you are reading,
+   not as released core.
 
 The **Michie** calibration Monte-Carlo is also *not* run, and that is honest scope rather
 than an omission: its reverse-mode-through-ODE MAP fit batches to $\sim$28 GB and OOM-crashes
@@ -473,8 +473,8 @@ concentration. Its boundaries, stated honestly:
 - **Jeans path only — not `df_moment_dispersion`.** The closed loop validates the
   Osipkov–Merritt `project_dispersion` $W_0$ path; the exact-second-moment path is
   grad-audited but **not** exercised here ([caveat 1](#sec-oedc-headline)).
-- **Informax-bound, held out of v0.1.0.** Scripts + this page, **no** released-core API
-  surface (caveat 2).
+- **Not part of v0.1.0.** Scripts + this page, **no** released-core API
+  surface; the OED tooling is planned for a separate package (caveat 2).
 - **The RV channel is under-utilised *at the chosen error parity*.** PM delivers two
   components per star at the matched per-component error, so the optimiser prefers it; the
   channel-balance sub-prediction was refuted on exactly this point. The **core** result (the
@@ -507,8 +507,9 @@ The pre-registered hypothesis was **confirmed on the radial axis** (core, not ou
 efficiency, reported as a finding). Concentration is **cleanly separable** from anisotropy
 ($\rho(W_0,r_a)\approx-0.02$). The forecast is trustworthy — a real-star King calibration
 gives a realized/Fisher variance ratio of $0.976$, and the $W_0$ gradient passes AD-vs-FD at
-every bin. This closes the open loop on the $W_0$-differentiability work (ADR-0016, ADR-0017)
-by exercising it through a real Fisher/OED inference — the **Jeans path**, informax-bound.
+every bin. This closes the open loop on the $W_0$-differentiability work (the $C^1$ PCHIP
+interpolation and the df_moment $W_0$ lock) by exercising it through a real Fisher/OED
+inference — the **Jeans path**.
 The same machinery with a *channel* knob targets [anisotropy](anisotropy.md) and with a
 *depth* knob targets [dynamical mass](dynamical-mass.md).
 :::
