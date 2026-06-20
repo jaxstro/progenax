@@ -200,6 +200,8 @@ Commit: `chore(docs): add link/count gate + hidden-index scaffold`.
 
 **PDF-verify the flagged claims** (read `~/brain/knowledge/library/<bibkey>.pdf` or `docs/core-papers/`): EFF87 "Eq.7" (likely none), Plummer1911 DF attribution, Jerabkova "Eq.9/2.83/0.2161", Moe "Tables 10-13"+f_b rows, Gieles2015 §, King1966 fill-factor, Cartwright2004 Table1 (D,Q), Aarseth1974 (note missing but resolves). Fix or correct each citing page.
 
+**Reword residual `docs/core-papers/` provenance strings** (flagged in Task 1 review — these are dead internal paths to a public reader). In `99-bibliography/per-paper/*.md` (strigari, kainulainen, marks-2012, bianchini, baumgardt-makino, peuten, maschberger-clarke, allison) the "Held PDF: `docs/core-papers/X.pdf`" lines and `ecosystem-papers.md:3,8` "stored locally in `docs/core-papers/`" → reword to "verified against the published PDF" (drop the gitignored internal path; do NOT point at `~/brain`, which isn't public). Goal: after Task 9, the only remaining `docs/core-papers/` string anywhere is `audit-report.md:23` (Task 11's file).
+
 **Gate + commit:** `fix(docs/bib): add missing notes + bib entry, repair bib index link, PDF-verify claims`.
 
 ---
