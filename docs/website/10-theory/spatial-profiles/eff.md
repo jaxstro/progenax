@@ -15,6 +15,13 @@ clusters of ages $10^7$–$10^9$ yr {cite:p}`ElsonFallFreeman1987`; it
 is now used routinely for young Galactic and LMC/SMC clusters
 where ages and dynamical states preclude King-like tidal truncation.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the EFF power-law profile for young massive clusters; no prior literature on cluster surface-brightness fitting assumed.
+**Prerequisites:** the [Plummer profile](plummer.md) (EFF is its free-outer-slope generalization, exact at $\gamma = 5$); the [King profile](king.md) is useful for the truncation contrast but optional.
+**You'll get:** the EFF density and its free slope $\gamma$, why progenax's $\gamma$ is a 3-D (not surface) slope, the truncation and mass behavior, and how velocities come from Eddington inversion rather than a closed form.
+:::
+
 ## The density profile
 
 The EFF profile is
@@ -206,9 +213,6 @@ $\gamma$ and the velocity DF's $\gamma$ to agree. Mismatched values
 produce non-equilibrium starting states.
 ```
 
-See [](../../30-api/profiles.md) for the signature and
-[](../../50-validation/eff-profile.md) for the regression suite.
-
 ## When to use EFF over Plummer or King
 
 ```{list-table}
@@ -268,12 +272,20 @@ See [](../../30-api/profiles.md) for the signature and
 4. **Single-mass only.** Multi-mass populations need post-segregation
    via [](../tidal-and-substructure/mass-segregation.md).
 
-## References
+## Implementation, validation & references
 
-The original derivation is {cite:t}`ElsonFallFreeman1987`. The
-power-law outer slope motivates several other young-cluster profile
-families (Wilson, Woolley) that the lowered-model family of
-{cite:t}`Gieles2015` generalises uniformly (see
-[](lowered-model-family.md)). EFF remains the simplest of the family
-that captures the key observation — power-law outer fall-off with a
-free slope.
+- **In code:** `src/progenax/profiles/eff.py` (density, truncated mass,
+  analytic inverse-CDF sampling); velocities come from the Eddington
+  inversion in `src/progenax/kinematics/eddington.py` via
+  `src/progenax/kinematics/eff_df.py`. See the
+  [`EFFProfile` API](../../30-api/profiles.md).
+- **Validated in:** [EFF profile](../../50-validation/eff-profile.md) —
+  the regression suite, including the $\gamma = 5$ reduction to Plummer
+  and the Eddington-DF virial check.
+- **Primary sources:** {cite:t}`ElsonFallFreeman1987` (the model). The
+  power-law outer slope motivates other young-cluster families (Wilson,
+  Woolley) that {cite:t}`Gieles2015` generalises uniformly (see the
+  [lowered-model family](lowered-model-family.md)); EFF remains the
+  simplest member capturing the key observation — a power-law outer
+  fall-off with a free slope. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/elson-fall-freeman-1987.md).

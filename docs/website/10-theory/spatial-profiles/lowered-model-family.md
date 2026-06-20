@@ -15,6 +15,13 @@ g, ra_hat_j)`. The complementary density-defined route ("Engine B",
 covers the case where the *densities* are prescribed instead of the DF.
 :::
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** students & researchers who already know the single-mass King model and want the unified, differentiable lowered-isothermal family (Woolley/King/Wilson + multi-mass + anisotropy).
+**Prerequisites:** the [King profile](king.md) (the $g = 1$ member this generalizes) and the [virial-$Q$ convention](../../20-architecture/q-virial-convention.md); the [multi-component populations](../populations/index.md) overview gives the Engine A/B framing.
+**You'll get:** the continuous truncation parameter $g$, how $n$ mass components share one self-consistent potential via velocity-scale ratios $w_j$, and why progenax reimplemented LIMEPY natively to make $g$ and the segregation parameters *differentiable*.
+:::
+
 ## The idea
 
 The classical truncated-isothermal models — Woolley (no energy truncation),
@@ -231,11 +238,21 @@ $\psi=0$ crossing. In the unified family $r_t$ is a function of $(g, W_0)$; the
 same implicit-function-theorem treatment of the $\psi=0$ crossing carries over
 to the $g$ generalization unchanged.
 
-## References
+## Implementation, validation & references
 
-{cite:t}`Gieles2015` (LIMEPY) is the lowered-model-family formalism; the
-single-model members are {cite:t}`King1966` (and Woolley 1954 / Wilson 1975
-for the $g=0,2$ endpoints), with anisotropy following {cite:t}`Michie1963`
-and {cite:t}`Merritt1985`. The per-paper notes are at
-[](../../99-bibliography/per-paper/gieles-zocchi-2015.md) and
-[](../../99-bibliography/per-paper/king-1966.md).
+- **In code:** `src/progenax/cluster/multicomponent.py`
+  (`MultiComponentCluster` and the coupled-Poisson core
+  `solve_multicomponent_limepy`), with the lowered-density kernel in
+  `src/progenax/profiles/limepy_multimass.py` and the DF-table layer in
+  `src/progenax/profiles/limepy_tables.py`. See the
+  [`MultiComponentCluster` API](../../30-api/cluster.md).
+- **Validated in:** [multimass equilibrium](../../50-validation/multimass-equilibrium.md)
+  — per-component $Q_j$, the single-mass King/Michie corners, and the
+  AD-vs-FD gradient checks for $(W_0, g, w_j, \delta, r_a)$.
+- **Primary sources:** {cite:t}`Gieles2015` (the LIMEPY lowered-model
+  formalism); single-model members are {cite:t}`King1966` (with Woolley
+  1954 / Wilson 1975 for the $g = 0, 2$ endpoints), and anisotropy
+  follows {cite:t}`Michie1963` and {cite:t}`Merritt1985`. Full notes in
+  the bibliography:
+  [Gieles & Zocchi 2015](../../99-bibliography/per-paper/gieles-zocchi-2015.md)
+  and [King 1966](../../99-bibliography/per-paper/king-1966.md).

@@ -17,6 +17,13 @@ configs, ALL PASS) and `scripts/validate_equipartition_saturation.py`
 [Bianchini et al. 2016](../../99-bibliography/per-paper/bianchini-2016.md).
 :::
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** researchers studying mass segregation and energy equipartition in multimass clusters who want the *derived* (not fitted) saturation physics of the GZ15 model.
+**Prerequisites:** the [lowered-model family](lowered-model-family.md) (the multimass Engine A model and the $w_j$ / $\delta$ machinery) and the [King profile](king.md) for the single-mass baseline.
+**You'll get:** why $\sigma(m)$ saturates (an escape-speed ceiling at low mass, a deep-well $m^{-1/2}$ branch at high mass), the derived equipartition mass $m_{\rm eq}$, and why fitted literature $m_{\rm eq}$ values are window-dependent.
+:::
+
 ## The model and the $\delta$ ansatz
 
 In the {cite:t}`Gieles2015` (GZ15) multimass lowered-isothermal model, every
@@ -262,6 +269,8 @@ If a future fit needs to decouple the equipartition degree from $g/W_0$
 default-off kwargs and documented honestly as **code heuristics, not
 published equations**.
 
+(reproduce)=
+
 ## Reproduce
 
 ```bash
@@ -269,13 +278,23 @@ env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_limepy_reference.py
 env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_equipartition_saturation.py
 ```
 
-## References
+## Implementation, validation & references
 
-{cite:t}`Gieles2015` (the multimass DF and $\delta$ ansatz, eqs 24–29);
-{cite:t}`Peuten2017` (the multimass methods + $\bar m$-convention
-translation, eqs 3–5, 8–9); {cite:t}`Bianchini2016` (the $\sigma(m)$
-relation, its Appendix-A derivation from the DF, and the
-$m_{\rm eq}$–dynamical-age relation). Per-paper notes:
-[gieles-zocchi-2015](../../99-bibliography/per-paper/gieles-zocchi-2015.md) ·
-[peuten-2017](../../99-bibliography/per-paper/peuten-2017.md) ·
-[bianchini-2016](../../99-bibliography/per-paper/bianchini-2016.md).
+- **In code:** `src/progenax/cluster/multicomponent.py` — the standard
+  Engine A multimass model (`bar_m`, the closed-form
+  $\hat\sigma_{1d,j0}$, and `component_virial_ratios`); no new code or
+  parameter is introduced for this page. See the
+  [`MultiComponentCluster` API](../../30-api/cluster.md).
+- **Validated in:** [multimass equilibrium](../../50-validation/multimass-equilibrium.md);
+  the fit-free saturation and reference-LIMEPY parity gates are reproduced
+  by the scripts in the [Reproduce](#reproduce) block above
+  (`scripts/validate_equipartition_saturation.py`,
+  `scripts/validate_limepy_reference.py`).
+- **Primary sources:** {cite:t}`Gieles2015` (the multimass DF and
+  $\delta$ ansatz, eqs 24–29); {cite:t}`Peuten2017` (multimass methods +
+  $\bar m$-convention translation, eqs 3–5, 8–9); {cite:t}`Bianchini2016`
+  (the $\sigma(m)$ relation, its Appendix-A derivation, and the
+  $m_{\rm eq}$–dynamical-age relation). Full notes in the bibliography:
+  [Gieles & Zocchi 2015](../../99-bibliography/per-paper/gieles-zocchi-2015.md) ·
+  [Peuten et al. 2017](../../99-bibliography/per-paper/peuten-2017.md) ·
+  [Bianchini et al. 2016](../../99-bibliography/per-paper/bianchini-2016.md).

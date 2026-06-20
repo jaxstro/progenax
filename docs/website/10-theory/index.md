@@ -27,6 +27,50 @@ Every chapter follows the same template:
    at least one pedagogical review, and any progenax-internal note
    the chapter draws on.
 
+## Suggested reading order
+
+The [map below](#map-of-the-section) is the *index*; this is the *path*.
+If you are learning the science from scratch, read the chapters in this
+order — each step builds on the conventions and models of the ones
+before it:
+
+1. [](ic-philosophy.md) — **start here.** Defines what an "initial
+   condition" *is* in progenax (the three orthogonal ingredients —
+   density, velocity DF, masses), the virial-$Q$ convention, units, and
+   the COM frame. Everything downstream assumes these conventions.
+2. **Spatial profiles**, in increasing generality:
+   [](spatial-profiles/plummer.md) (the closed-form baseline) →
+   [](spatial-profiles/king.md) (tidal truncation via an ODE) →
+   [](spatial-profiles/eff.md) (a free outer slope) →
+   [](spatial-profiles/lowered-model-family.md) (the unified
+   Woolley/King/Wilson family) →
+   [](spatial-profiles/multimass-equipartition.md) (multi-mass
+   equilibrium). Plummer first because it is the analytic anchor the
+   others are calibrated against; the family and multimass pages last
+   because they generalize King.
+3. [](velocity-dfs/index.md) — **how each density is given velocities.**
+   A profile only becomes an equilibrium IC once paired with a matching
+   velocity DF, so read this directly after the profiles it completes.
+4. [](imfs/index.md) — **how stars get masses.** The third IC ingredient,
+   independent of the spatial/velocity structure; from canonical IMFs to
+   binary-aware and environment-dependent variants.
+5. [](binaries/index.md) — **multiplicity.** Builds on the IMF: orbital
+   elements, period/eccentricity distributions, and resolving binaries
+   into component kinematics.
+6. [](tidal-and-substructure/index.md) — **modifiers and diagnostics.**
+   Tidal truncation, fractal/substructured ICs, and mass-segregation
+   layers that act *on top of* a base profile, plus the diagnostics that
+   measure them.
+7. [](populations/index.md) — **composite clusters.** The capstone:
+   multi-component populations sharing one self-consistent potential,
+   which assembles everything above into a single equilibrium model.
+
+For developers extending the package, pair each theory chapter with the
+[architecture section](../20-architecture/index.md) — see [Reading
+paths](#reading-paths) below.
+
+(map-of-the-section)=
+
 ## Map of the section
 
 ```{list-table}
@@ -67,6 +111,8 @@ working rule: if the chapter content is invariant under a JAX-to-
 PyTorch port, it belongs in theory. If it depends on JAX-specific
 patterns (`lax.scan`, `stop_gradient`, smart dispatch), it belongs in
 architecture.
+
+(reading-paths)=
 
 ## Reading paths
 

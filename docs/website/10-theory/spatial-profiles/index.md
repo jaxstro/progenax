@@ -16,6 +16,13 @@ radius $a$, outer slope $\gamma$, and truncation radius $r_t$. Convert
 between the conventions using each profile's own $r_h$ relation (e.g.
 {eq}`plummer-rh-a`) when you need cross-profile comparability.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers choosing a spatial density profile and learning how progenax's profiles compose with velocity DFs and modifiers; no prior stellar-dynamics literature assumed.
+**Prerequisites:** the [IC philosophy](../ic-philosophy.md) (the three orthogonal IC ingredients) — a good entry point; the individual profile pages ([Plummer](plummer.md), [King](king.md), [EFF](eff.md)) go deeper on each.
+**You'll get:** what a spatial density profile is, which of the four progenax profiles to use when, the shared `SpatialProfile` API contract, and how profiles pair with equilibrium velocity DFs.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -104,12 +111,23 @@ substructure ([](../tidal-and-substructure/fractal.md)), and tidal
 truncation ([](../tidal-and-substructure/tidal.md)) — without changing
 the underlying $\rho(r)$.
 
-## References
+## Implementation, validation & references
 
-The isotropic profiles are due to {cite:t}`Plummer1911`, {cite:t}`King1966`,
-and {cite:t}`ElsonFallFreeman1987`; the anisotropic Michie–King model is
-{cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff). The lowered-model
-family formalized by {cite:t}`Gieles2015` unifies these lowered models under
-a single multi-mass family, which progenax plans to implement natively as its
-own differentiable generalization; see
-[](lowered-model-family.md) for the roadmap.
+- **In code:** the profiles live under `src/progenax/profiles/`
+  (`plummer.py`, `king.py`, `eff.py`, `michie.py`) with their paired DFs
+  under `src/progenax/kinematics/`. See the
+  [profiles API](../../30-api/profiles.md) and the
+  [kinematics API](../../30-api/kinematics.md); the per-profile theory
+  pages ([Plummer](plummer.md), [King](king.md), [EFF](eff.md)) carry the
+  exact module paths.
+- **Validated in:** [Plummer](../../50-validation/plummer-equilibrium.md),
+  [King](../../50-validation/king-profile.md),
+  [EFF](../../50-validation/eff-profile.md), and
+  [Michie anisotropy](../../50-validation/michie-anisotropy.md).
+- **Primary sources:** the isotropic profiles are {cite:t}`Plummer1911`,
+  {cite:t}`King1966`, and {cite:t}`ElsonFallFreeman1987`; the anisotropic
+  Michie–King model is {cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff).
+  The lowered-model family {cite:t}`Gieles2015` unifies these under a
+  single multi-mass family that progenax implements natively (see the
+  [lowered-model family](lowered-model-family.md)). Full notes in the
+  [bibliography](../../99-bibliography/index.md).

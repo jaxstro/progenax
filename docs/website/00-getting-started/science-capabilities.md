@@ -12,6 +12,13 @@ is valid, and what the package deliberately does *not* do. Every claim
 on this page traces to a named validation test with a measured number;
 the [validation dashboard](../50-validation/index.md) is the ledger.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** researchers evaluating whether/how to use progenax — **skim, don't read linearly.** This is a dense capability inventory, not a tutorial; jump to the model table or the twelve science questions for your use case.
+**Prerequisites:** the getting-started basics ([what progenax is](index.md), [installation](installation.md)); the linked [theory](../10-theory/index.md) and [validation](../50-validation/index.md) pages carry the derivations and evidence behind each claim.
+**You'll get:** the full model inventory with validity regimes and measured validation numbers, twelve concrete research questions progenax can address today, and an honest statement of what it does *not* do.
+:::
+
 ## What progenax is for
 
 progenax generates initial conditions for N-body simulations — but the

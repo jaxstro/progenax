@@ -21,6 +21,13 @@ recurs in every progenax test, and documents the
 2025-12 transcription bug whose fix is now anchored by 14 regression
 tests.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the Plummer model and, through it, how progenax builds a spatial density profile; no prior stellar-dynamics literature assumed.
+**Prerequisites:** none — the right starting point. The [IC philosophy](../ic-philosophy.md) page (conventions, virial $Q$, units) is helpful context but not required.
+**You'll get:** the closed-form Plummer density, mass, potential, velocity dispersion, and distribution function, the $r_h \leftrightarrow a$ mapping, and how progenax samples and differentiates through them.
+:::
+
 ## The density profile
 
 The Plummer profile is
@@ -225,11 +232,6 @@ sense. The progenax convenience builders enforce this by accepting one
 `r_h` and instantiating both classes from it.
 ```
 
-See [](../../30-api/profiles.md) for the full `PlummerProfile`
-signature, [](../../30-api/kinematics.md) for `PlummerVelocityDF`, and
-[](../../50-validation/plummer-equilibrium.md) for the regression
-suite that locks every closed-form expression above.
-
 ## Domain of validity and limitations
 
 The Plummer profile is mathematically smooth and infinitely extended.
@@ -253,10 +255,18 @@ default. It is also the most-tested profile in progenax (see the
 [test dashboard](../../50-validation/test-dashboard.md) for the live
 counts) and the one against which the two alternatives are calibrated.
 
-## References
+## Implementation, validation & references
 
-The Plummer model is {cite:t}`Plummer1911`. The closed-form derivations
-are standard textbook material; {cite:t}`Aarseth1974` is a clean
-reference for N-body initialisation specifically. The 2025-12
-half-mass-radius bug fix is recorded in
-[](../../90-development-log/2025-12-07-imf-stack-fix.md).
+- **In code:** `src/progenax/profiles/plummer.py` (density, mass,
+  inverse-CDF sampling) and `src/progenax/kinematics/plummer_df.py`
+  (the isotropic DF) — see the [`PlummerProfile` API](../../30-api/profiles.md)
+  and the [`PlummerVelocityDF` API](../../30-api/kinematics.md).
+- **Validated in:** [Plummer equilibrium](../../50-validation/plummer-equilibrium.md)
+  — the regression suite that locks every closed-form expression above,
+  including the defining condition $M(<r_h) = M/2$.
+- **Primary sources:** {cite:t}`Plummer1911` (the model); the closed-form
+  derivations are standard textbook material and {cite:t}`Aarseth1974` is
+  a clean reference for N-body initialisation specifically — full notes in
+  the [bibliography](../../99-bibliography/per-paper/plummer-1911.md). The
+  2025-12 half-mass-radius bug fix is recorded in
+  [](../../90-development-log/2025-12-07-imf-stack-fix.md).

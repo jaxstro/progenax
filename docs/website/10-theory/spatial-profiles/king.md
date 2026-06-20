@@ -22,6 +22,13 @@ $W_0 \to (r_c, r_t, c, r_h)$ mapping, and notes the
 own differentiable extension when multi-mass anisotropy matters (not currently
 implemented).
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the King lowered-isothermal model and tidal truncation; no prior globular-cluster-dynamics literature assumed.
+**Prerequisites:** the [Plummer profile](plummer.md) (the closed-form baseline this generalizes) and the [virial-$Q$ convention](../../20-architecture/q-virial-convention.md).
+**You'll get:** why the King profile starts from a *distribution function*, the ODE progenax integrates to get $\rho(r)$, the $W_0 \to (r_c, r_t, c, r_h)$ mapping, and how the tidal radius and concentration are defined.
+:::
+
 ## The lowered-isothermal distribution function
 
 The King profile starts from a *distribution function*, not a density
@@ -250,11 +257,6 @@ clamped potential and discard `psi_raw`. `KingVelocityDF` takes only
 `(W0, r_c)` and re-solves the ODE internally (deriving $r_t$ from $W_0$), so
 no `r_t` argument is passed.
 
-See [](../../30-api/profiles.md) for the full signature and
-[](../../50-validation/king-profile.md) for the regression suite, which
-validates $c(W_0)$ against {cite:t}`King1966` Table II and the volume
-density against an independent direct-velocity-integral oracle.
-
 ## Domain of validity and limitations
 
 1. **Single-mass only.** The lowered-isothermal DF assumes one mass
@@ -281,9 +283,18 @@ density against an independent direct-velocity-integral oracle.
    manually if the orbit drives the cluster across a tidal-radius
    threshold.
 
-## References
+## Implementation, validation & references
 
-The original lowered-isothermal model is {cite:t}`King1966`; the LIMEPY
-generalisation is {cite:t}`Gieles2015`. The numerical-integration
-scheme follows the standard {cite:t}`Aarseth1974` approach; progenax
-uses `diffrax` as the JAX-native ODE backend.
+- **In code:** `src/progenax/profiles/king.py` — the King ODE solve
+  (`solve_king_profile`), $W_0 \to (r_c, r_t, c)$ mapping, and inverse-CDF
+  sampling; the paired DF is in `src/progenax/kinematics/king_df.py`. See
+  the [`KingProfile` API](../../30-api/profiles.md).
+- **Validated in:** [King profile](../../50-validation/king-profile.md) —
+  validates $c(W_0)$ against {cite:t}`King1966` Table II and the volume
+  density against an independent direct-velocity-integral oracle.
+- **Primary sources:** {cite:t}`King1966` (the lowered-isothermal model),
+  with the {cite:t}`Gieles2015` LIMEPY generalisation (see the
+  [lowered-model family](lowered-model-family.md)); the integration scheme
+  follows the standard {cite:t}`Aarseth1974` approach (progenax uses
+  `diffrax` as the JAX-native ODE backend). Full notes in the
+  [bibliography](../../99-bibliography/per-paper/king-1966.md).
