@@ -417,7 +417,7 @@ def test_harness_excludes_module_docstring_span():
     (2017), yet no scoped-docstring span starts at line 1."""
     rel = "src/progenax/imf/binary/moe_di_stefano.py"
     tree = ast.parse((_REPO_ROOT / rel).read_text())
-    harness_spans = ratchet._cited_docstring_spans(tree)
+    harness_spans = ratchet._cited_docstring_spans(tree, ratchet.DEFAULT_CITE_RE)
     assert not any(s == 1 for s, _ in harness_spans), (
         "harness unexpectedly included the module-level docstring span (tripwire-defeat "
         "regression — a module docstring would whitelist the whole file)"
