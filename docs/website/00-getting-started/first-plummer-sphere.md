@@ -48,7 +48,7 @@ masses = imf.sample(key_mass, N)
 print(f"Mean mass: {masses.mean():.2f} M☉, total: {masses.sum():.0f} M☉")
 ```
 
-Expected: `Mean mass: 0.55 M☉, total: ~550 M☉` (Maschberger biases
+Expected: `Mean mass: 0.33 M☉, total: ~330 M☉` (Maschberger biases
 toward low-mass stars).
 
 ## Step 2: sample positions from the spatial profile
@@ -71,7 +71,7 @@ velocities = df.sample_velocities(positions, masses, key2, G=G)
 print(f"Velocity shape: {velocities.shape}, mean speed: {jnp.linalg.norm(velocities, axis=1).mean():.3f} pc/Myr")
 ```
 
-Expected: `(1000, 3)`, mean speed ~1.5 pc/Myr.
+Expected: `(1000, 3)`, mean speed ~0.7 pc/Myr.
 
 ## Step 4: virial scale + COM frame
 

@@ -88,9 +88,12 @@ fractal dimension
     $D \in [1.6, 3.0]$. Parameter of the {cite:t}`Goodwin2004`
     fractal IC. $D = 3$ uniform; $D = 1.6$ highly clumpy.
 
-FDF method
-    progenax's **Fractal Displacement Field** — differentiable
-    replacement for the GW04 recursive tree. See
+Fractal Displacement Field
+    A differentiable fractal-IC generator that once lived in progenax,
+    **removed in the 2026-06 clean-room rewrite with no released
+    successor**. (Not to be confused with the freefall-density factor
+    below, also abbreviated FDF.) Turbulent-density ICs are now the
+    experimental `gravoturb_fdf` package. See
     [](../10-theory/tidal-and-substructure/fractal.md).
 
 mass segregation

@@ -21,8 +21,8 @@ cd progenax
 uv pip install -e ".[dev]"
 ```
 
-The `[dev]` extra adds the test/lint tooling (pytest, black, isort,
-flake8, mypy). For a minimal runtime-only install:
+The `[dev]` extra adds the test/lint tooling (pytest, pytest-cov,
+pytest-xdist, ruff, mypy). For a minimal runtime-only install:
 
 ```bash
 uv pip install -e .
@@ -60,7 +60,7 @@ print(f"Generated {positions.shape[0]} particles, mean radius {jnp.linalg.norm(p
 Expected output:
 
 ```
-Generated 100 particles, mean radius ~0.95 pc
+Generated 100 particles, mean radius ~1.35 pc
 ```
 
 If you see a `jaxstro` import error, the ecosystem isn't installed.
@@ -82,9 +82,10 @@ uv pip install -U "jax[cuda12]"
 uv pip install jax-metal
 ```
 
-GPU acceleration gives roughly $100\times$ speedup at $N \sim 10^4$
-relative to CPU. See [](differentiable-ic.md) for an example HMC
-chain that benefits from GPU.
+GPU/TPU acceleration can give substantial speedups for large $N$
+relative to CPU (the exact factor depends on $N$, hardware, and the
+operation). See [](differentiable-ic.md) for an example HMC chain
+that benefits from GPU.
 
 ## Optional dependencies
 
@@ -94,7 +95,7 @@ chain that benefits from GPU.
 * - Extra
   - Provides
 * - `[dev]`
-  - pytest, pytest-cov, pytest-xdist
+  - pytest, pytest-cov, pytest-xdist, ruff, mypy
 * - `[experimental]`
   - the repo-only `gravoturb_fdf` inference layer (blackjax, optax, arviz, scipy, flowjax)
 * - `[diagnostics]`

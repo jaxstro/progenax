@@ -380,11 +380,12 @@ here outruns the test suite.
 
 ## Why you can trust the numbers
 
-progenax's persuasion strategy is measured numbers, not adjectives. At
-the current close-out the released core carries **1163 tests** (895
-unit / 34 integration / 234 physics-validation), and the validation
-tier is built on three habits worth knowing before you rely on the
-package:
+progenax's persuasion strategy is measured numbers, not adjectives. The
+released core carries a four-figure test suite spanning unit,
+integration, and physics-validation tiers (see the
+[test dashboard](../50-validation/test-dashboard.md) for the live
+count), and the validation tier is built on three habits worth knowing
+before you rely on the package:
 
 1. **Independent oracles.** Equilibrium claims are proven by
    exact-quadrature oracles deliberately independent of the sampled

@@ -87,14 +87,27 @@ grad_loss = jax.grad(loss)
 r_h = jnp.float64(2.0)   # Start at 2 pc
 for step in range(50):
     grad = grad_loss(r_h, target_KE)
-    r_h = r_h - 0.01 * grad
+    r_h = r_h - 5e-4 * grad
     if step % 10 == 0:
         print(f"Step {step}: r_h = {r_h:.4f}, loss = {loss(r_h, target_KE):.4e}")
 ```
 
 The cluster's KE depends on $r_h$ via the Plummer DF: $\sigma^2 \propto
-1/r_h$, $T \propto N\,\sigma^2 / 2$. Gradient descent will find the
-$r_h$ that produces the target KE.
+1/r_h$, so $T \propto N\,\sigma^2 / 2 \propto 1/r_h$. Gradient descent
+converges on the $r_h$ that produces the target KE — here $r_h \approx
+2.16$ pc, with the loss driven to $\sim 10^{-27}$ within ~20 steps:
+
+```
+Step 0: r_h = 2.1091, loss = 1.5433e+00
+Step 10: r_h = 2.1614, loss = 2.3783e-07
+Step 20: r_h = 2.1615, loss = 5.2865e-14
+Step 30: r_h = 2.1615, loss = 1.1754e-20
+Step 40: r_h = 2.1615, loss = 3.2312e-27
+```
+
+(The step size matters: because $\partial\mathrm{KE}/\partial r_h$ is
+large here, a learning rate of $0.01$ overshoots and diverges — $5\times
+10^{-4}$ converges cleanly.)
 
 ## Why this is hard without progenax
 
