@@ -13,6 +13,7 @@ from pathlib import Path
 
 import progenax
 
+from jaxstro.testing.ratchet import assert_no_stale, assert_partition
 from tests.validation.api_coverage.manifest import (
     EXEMPT,
     FULL_SELECTOR,
@@ -26,28 +27,30 @@ _COVERAGE_JSON = Path(__file__).resolve().parents[3] / "validation" / "data" / "
 
 
 def test_every_public_symbol_is_categorized():
-    """Every __all__ symbol lands in EXACTLY ONE of the three dicts (no gaps, no overlaps)."""
-    public = set(progenax.__all__)
-    st, ex, un = set(SYMBOL_TESTS), set(EXEMPT), set(UNTESTED)
-    union = st | ex | un
+    """Every __all__ symbol lands in EXACTLY ONE of the three dicts (no gaps, no overlaps).
 
-    missing = sorted(public - union)
-    assert not missing, (
-        f"public symbols not categorized in any of SYMBOL_TESTS/EXEMPT/UNTESTED: {missing}")
-
-    # Disjointness: a symbol must not appear in two dicts (else its status is ambiguous).
-    assert not (st & ex), f"symbols in BOTH SYMBOL_TESTS and EXEMPT: {sorted(st & ex)}"
-    assert not (st & un), f"symbols in BOTH SYMBOL_TESTS and UNTESTED: {sorted(st & un)}"
-    assert not (ex & un), f"symbols in BOTH EXEMPT and UNTESTED: {sorted(ex & un)}"
+    Delegated to the canonical ``jaxstro.testing.ratchet.assert_partition`` primitive
+    (Task 2.2): coverage (no uncategorized symbol), disjointness (no symbol in two buckets),
+    and no-stale (no bucket key absent from ``__all__``) in one self-tested mechanism.
+    """
+    assert_partition(
+        set(progenax.__all__),
+        SYMBOL_TESTS,
+        EXEMPT,
+        UNTESTED,
+        label="api_coverage.partition",
+    )
 
 
 def test_no_stale_mappings():
-    """No dict references a symbol that is no longer in __all__ (catches deletions/renames)."""
-    public = set(progenax.__all__)
-    union = set(SYMBOL_TESTS) | set(EXEMPT) | set(UNTESTED)
-    stale = sorted(union - public)
-    assert not stale, (
-        f"manifest entries for symbols no longer in progenax.__all__ (remove them): {stale}")
+    """No dict references a symbol that is no longer in __all__ (catches deletions/renames).
+
+    Delegated to ``assert_no_stale`` over the merged manifest mapping; redundant with the
+    no-stale leg of ``assert_partition`` above, kept as a distinct, narrowly-scoped failure
+    signal for a deleted/renamed symbol still referenced by the manifest.
+    """
+    merged = {**SYMBOL_TESTS, **EXEMPT, **UNTESTED}
+    assert_no_stale(merged, set(progenax.__all__), label="api_coverage.no_stale")
 
 
 def test_no_untested_holes():
@@ -132,5 +135,5 @@ def test_exempt_crosscheck_grad_audit():
     if divergences:
         print(
             "\n[api-coverage vs grad-audit divergences — EXPECTED (different lenses), "
-            f"documented for C4 anti-drift review]:\n  " + "\n  ".join(divergences)
+            "documented for C4 anti-drift review]:\n  " + "\n  ".join(divergences)
         )
