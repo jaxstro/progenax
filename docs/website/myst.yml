@@ -261,6 +261,11 @@ project:
             - file: 99-bibliography/per-paper/kainulainen-2014.md
             - file: 99-bibliography/per-paper/hurley-2000.md
             - file: 99-bibliography/per-paper/prsa-2016.md
+    # Unlisted / not-in-public-nav pages. `hidden: true` builds the page and
+    # makes it URL-reachable + linkable, but keeps it out of the navigation
+    # (mystmd table-of-contents.md). See _unlisted/index.md for the mechanism.
+    - file: _unlisted/index.md
+      hidden: true
 
 site:
   template: book-theme
