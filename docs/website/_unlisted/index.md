@@ -33,10 +33,9 @@ does **not** appear in the site navigation — the official
   hidden: true
 ```
 
-Later tasks add the OED detail pages, the consolidated gravoturbulence pages,
-and (pending Anna's decision) the development log as further `hidden: true`
-entries and wire the links below. No existing page is moved here yet — that is
-later tasks' work.
+The OED detail pages, the consolidated gravoturbulence theory pages, and the
+development log are all `hidden: true` (built and reachable, but out of the
+public navigation) and are linked below.
 :::
 
 ## Optimal experimental design (detail pages)

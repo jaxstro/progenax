@@ -104,6 +104,7 @@ project:
         # _unlisted/index.md. Do NOT delete from the toc — this site builds only
         # toc-listed pages, so removal = unbuilt/unreachable.
         - title: Gravoturbulence
+          hidden: true
           children:
             - file: 10-theory/gravoturbulence/index.md
               hidden: true
@@ -220,6 +221,7 @@ project:
             - file: 60-science-demos/optimal-design/binary-robustness.md
               hidden: true
     - title: Development log
+      hidden: true
       children:
         - file: 90-development-log/index.md
           hidden: true
