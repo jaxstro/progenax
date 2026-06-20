@@ -22,10 +22,14 @@ import sys
 import pathlib
 
 import jax.numpy as jnp
+import pytest
 import progenax  # noqa: F401  -- enables float64 at import
 from jaxstro.units import STELLAR
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+# OED demos are informax-bound (out of v0.1.0); their helper imports optax (experimental
+# extra). Skip the whole module when optax is absent so released-core runs on --extra dev.
+pytest.importorskip("optax")
 import _demo_oed as oed  # noqa: E402  -- the Stage-1 c-criterion (reused by the marg gates)
 import _demo_oed_binary as oedb  # noqa: E402
 
@@ -197,7 +201,6 @@ def test_c_optimal_beats_uniform_for_M():
 # contamination. lax.map over draws, jit per-draw, LM GN MAP binary-free fit. FAST smoke
 # (n_draws=4): the headline H1 statistic must be finite. NOT @slow.
 # ---------------------------------------------------------------------------
-import pytest  # noqa: E402
 
 
 @pytest.mark.parametrize("n_draws", [4])
@@ -336,6 +339,9 @@ def test_cli_binary_quick_smoke(tmp_path):
     --quick mode, and that the run-record was written under --outdir (NOT the committed
     FIGURE_DIR) -- the Stage-3 fixed-path guard.
     """
+    # The CLI plots via matplotlib (pulled in through jaxstroviz, not a progenax dep).
+    # Skip this smoke when matplotlib is absent (e.g. released-core --extra dev env).
+    pytest.importorskip("matplotlib")
     import importlib
 
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))

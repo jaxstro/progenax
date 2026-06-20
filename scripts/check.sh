@@ -26,27 +26,23 @@ cd "$(dirname "$0")/.."   # repo root
 RUN="env -u VIRTUAL_ENV uv run --no-sync"
 XLA="XLA_FLAGS=--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 
-echo "== lock-check (non-fatal: pre-existing requires-python mismatch) =="
-# NOTE (pre-existing repo debt, NOT introduced by this gate): `uv lock --check` currently
-# fails because pyproject's `requires-python = ">=3.10"` admits Python 3.10, but the jaxstro
-# path-dependency requires `>=3.11`, so uv cannot resolve a lock across the full declared
-# range. This is a one-line pyproject fix (tighten requires-python to ">=3.11") that is OUT
-# OF SCOPE for this gate change and would also red CI's `uv sync --locked`. We surface it as
-# a WARNING rather than aborting the whole local gate on unrelated debt; the env below is
-# provisioned by a fresh `uv sync` (re-resolve at the active interpreter), which succeeds.
-env -u VIRTUAL_ENV uv lock --check || \
-    echo "WARNING: uv lock --check failed (pre-existing requires-python>=3.10 vs jaxstro>=3.11); continuing."
+echo "== lock-check =="
+# `uv lock --check` asserts uv.lock is in sync with pyproject.toml. This is a HARD step
+# (set -e aborts on failure), mirroring CI's `uv sync --locked`. pyproject's
+# `requires-python = ">=3.11"` matches the jaxstro path-dependency's `>=3.11` floor, so the
+# lock resolves cleanly across the whole declared range. (Earlier this was best-effort WARN
+# because pyproject declared ">=3.10", which jaxstro could not satisfy; that floor is fixed.)
+env -u VIRTUAL_ENV uv lock --check
 
-echo "== sync (extra dev; best-effort, see lock note) =="
-# `--extra dev` is what CI syncs for the main suite and what the whole non-experimental
-# tree collects + runs against (verified: 1555 tests collect with no import errors).
-# Best-effort for the SAME pre-existing reason as the lock-check above: a fresh `uv sync`
-# re-resolves the lock and hits the requires-python>=3.10-vs-jaxstro>=3.11 wall. The already-
-# provisioned .venv satisfies the suite; the steps below all use `--no-sync` against it. If
-# sync fails we WARN and proceed (the env is intact); once requires-python is tightened to
-# >=3.11 this resolves cleanly and the WARN disappears.
-env -u VIRTUAL_ENV uv sync --extra dev || \
-    echo "WARNING: uv sync --extra dev failed (pre-existing requires-python mismatch); using the existing .venv via --no-sync."
+echo "== sync (extra dev) =="
+# HARD step (set -e aborts on failure): with requires-python tightened to ">=3.11" the lock
+# re-resolves cleanly at the active interpreter. Released-core syncs ONLY `--extra dev`:
+# the OED-demo unit tests (tests/unit/test_demo_oed*.py) are informax-bound and import optax
+# (experimental) / matplotlib (via jaxstroviz, undeclared) — they `pytest.importorskip(...)`
+# those deps, so they SKIP cleanly on a dev-only env rather than coupling released-core to
+# the experimental/viz extras. Run them under `--extra experimental` (+ a jaxstroviz checkout
+# for the CLI smokes) when you want the OED demos exercised.
+env -u VIRTUAL_ENV uv sync --extra dev
 
 echo "== fast test tier (-m 'not slow', xdist, XLA-capped) =="
 # This is the FAST tier of the two-tier gate. It runs:

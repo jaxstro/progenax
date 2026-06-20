@@ -29,15 +29,14 @@ RUN="env -u VIRTUAL_ENV uv run --no-sync"
 XLA_CAPS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 RAW_COV="/tmp/progenax_release_cov.json"
 
-echo "== release-gate: sync (--all-extras; best-effort, see note) =="
+echo "== release-gate: sync (--all-extras) =="
 # Full provisioning so the WHOLE suite collects + runs (some validation tests need the
-# diagnostics/experimental deps). Best-effort: a fresh `uv sync` re-resolves the lock and
-# currently hits a PRE-EXISTING requires-python wall (pyproject ">=3.10" vs jaxstro ">=3.11";
-# a one-line pyproject fix, OUT OF SCOPE here, that also reds CI's `uv sync --locked`). The
-# already-provisioned .venv satisfies the suite; every step below uses `--no-sync`. WARN and
-# proceed if sync fails; once requires-python is tightened the WARN disappears.
-env -u VIRTUAL_ENV uv sync --all-extras || \
-    echo "WARNING: uv sync --all-extras failed (pre-existing requires-python mismatch); using the existing .venv via --no-sync."
+# diagnostics/experimental deps). HARD step (set -e aborts on failure): with requires-python
+# tightened to ">=3.11" (matching the jaxstro path-dependency's floor) a fresh `uv sync`
+# re-resolves the lock cleanly at the active interpreter. (Earlier this was best-effort WARN
+# because pyproject declared ">=3.10", which jaxstro could not satisfy and which also redded
+# CI's `uv sync --locked`; that floor is fixed.) Every step below uses `--no-sync`.
+env -u VIRTUAL_ENV uv sync --all-extras
 
 echo "== release-gate: FULL-suite coverage (heavy step, ~14-36 min) =="
 # The FULL suite (NOT -m "not slow"): a partial run understates coverage and would game the

@@ -9,6 +9,9 @@ import progenax  # noqa: F401  -- enables float64
 from jaxstro.units import STELLAR
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+# OED demos are informax-bound (out of v0.1.0); their helper imports optax (experimental
+# extra). Skip the whole module when optax is absent so released-core runs on --extra dev.
+pytest.importorskip("optax")
 import _demo_oed as oed  # noqa: E402
 
 

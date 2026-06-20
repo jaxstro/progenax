@@ -3,6 +3,9 @@ import pytest
 import progenax
 from jaxstro.units import STELLAR
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
+# OED demos are informax-bound (out of v0.1.0); their helper imports optax (experimental
+# extra). Skip the whole module when optax is absent so released-core runs on --extra dev.
+pytest.importorskip("optax")
 import _demo_oed as oed
 import _demo_oed_depth as oed_depth
 
@@ -118,6 +121,9 @@ def test_cli_dynamical_mass_smoke(tmp_path):
     the gates become meaningless: the interior-argmin and beats-fixed-depth gates still exercise the
     real depth physics, and the calibration gate still runs a (small) magnitude-selected ensemble.
     """
+    # The CLI plots via matplotlib (pulled in through jaxstroviz, not a progenax dep).
+    # Skip this smoke when matplotlib is absent (e.g. released-core --extra dev env).
+    pytest.importorskip("matplotlib")
     import importlib
 
     cli = importlib.import_module("demo_oed_dynamical_mass")
