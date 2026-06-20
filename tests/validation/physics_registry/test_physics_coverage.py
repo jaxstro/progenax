@@ -30,11 +30,16 @@ asymmetry): a symbol is a model iff
 The protocol classes themselves (SpatialProfile/VelocityDF/IMFProtocol/...) are NOT models.
 """
 import re
+from pathlib import Path
 
 import progenax
-import pytest
 
-from progenax.protocols import IMFProtocol, SpatialProfile, VelocityDF
+from jaxstro.testing.ratchet import (
+    assert_no_stale,
+    assert_partition,
+    resolve_node_ids,
+)
+from progenax.protocols import SpatialProfile, VelocityDF
 from tests.validation.physics_registry.manifest import (
     EXEMPT_NON_EQUILIBRIUM_MODEL,
     EXEMPT_NON_MODEL,
@@ -107,30 +112,17 @@ def _operational_models():
 
 def test_every_public_symbol_is_categorized():
     """Each __all__ symbol is in EXACTLY ONE of the four manifest dicts (no gaps, no
-    overlaps). A new public symbol with no home -> RED (catches additions)."""
-    public = set(progenax.__all__)
-    mi, en, ene, un = (
-        set(MODEL_INVARIANTS), set(EXEMPT_NON_MODEL),
-        set(EXEMPT_NON_EQUILIBRIUM_MODEL), set(UNTESTED_MODELS),
+    overlaps, no stale entries). A new public symbol with no home -> RED (catches
+    additions). Delegated to the canonical ``jaxstro.testing.ratchet`` partition
+    primitive (coverage + pairwise disjointness + stale-entry check)."""
+    assert_partition(
+        set(progenax.__all__),
+        MODEL_INVARIANTS,
+        EXEMPT_NON_MODEL,
+        EXEMPT_NON_EQUILIBRIUM_MODEL,
+        UNTESTED_MODELS,
+        label="physics.partition",
     )
-    union = mi | en | ene | un
-
-    missing = sorted(public - union)
-    assert not missing, (
-        "public symbols not categorized in MODEL_INVARIANTS / EXEMPT_NON_MODEL / "
-        f"EXEMPT_NON_EQUILIBRIUM_MODEL / UNTESTED_MODELS: {missing}")
-
-    # Pairwise disjointness (a symbol's status must be unambiguous).
-    for a_name, a, b_name, b in [
-        ("MODEL_INVARIANTS", mi, "EXEMPT_NON_MODEL", en),
-        ("MODEL_INVARIANTS", mi, "EXEMPT_NON_EQUILIBRIUM_MODEL", ene),
-        ("MODEL_INVARIANTS", mi, "UNTESTED_MODELS", un),
-        ("EXEMPT_NON_MODEL", en, "EXEMPT_NON_EQUILIBRIUM_MODEL", ene),
-        ("EXEMPT_NON_MODEL", en, "UNTESTED_MODELS", un),
-        ("EXEMPT_NON_EQUILIBRIUM_MODEL", ene, "UNTESTED_MODELS", un),
-    ]:
-        overlap = sorted(a & b)
-        assert not overlap, f"symbols in BOTH {a_name} and {b_name}: {overlap}"
 
 
 # --------------------------------------------------------------------------------------
@@ -167,15 +159,15 @@ def test_operational_models_are_not_mis_filed_as_non_model():
 
 
 def test_no_stale_mappings():
-    """No manifest dict references a symbol no longer in __all__ (catches deletions)."""
+    """No manifest dict references a symbol no longer in __all__ (catches deletions).
+    Delegated to the canonical ``jaxstro.testing.ratchet`` staleness primitive, applied
+    to each of the four manifest dicts."""
     public = set(progenax.__all__)
-    union = (
-        set(MODEL_INVARIANTS) | set(EXEMPT_NON_MODEL)
-        | set(EXEMPT_NON_EQUILIBRIUM_MODEL) | set(UNTESTED_MODELS)
-    )
-    stale = sorted(union - public)
-    assert not stale, (
-        f"manifest entries for symbols no longer in progenax.__all__ (remove them): {stale}")
+    assert_no_stale(MODEL_INVARIANTS, public, label="physics.MODEL_INVARIANTS")
+    assert_no_stale(EXEMPT_NON_MODEL, public, label="physics.EXEMPT_NON_MODEL")
+    assert_no_stale(
+        EXEMPT_NON_EQUILIBRIUM_MODEL, public, label="physics.EXEMPT_NON_EQUILIBRIUM_MODEL")
+    assert_no_stale(UNTESTED_MODELS, public, label="physics.UNTESTED_MODELS")
 
 
 # --------------------------------------------------------------------------------------
@@ -254,28 +246,19 @@ def test_every_cited_test_node_id_resolves():
     test -> RED. This enforces the C2 discipline (cite a test that actually runs and
     asserts the invariant) at the registry level, not just by convention.
 
-    Runs ``pytest --collect-only`` over the unique cited node ids in a subprocess (the
-    parsing/subprocess pattern mirrors the dashboard generator; this is a script-style
-    check, not core JAX code). On any collection error the offending ids are surfaced.
+    Delegated to the canonical ``jaxstro.testing.ratchet.resolve_node_ids`` primitive,
+    which runs ``pytest --collect-only`` once in a subprocess and returns the resolvable
+    subset (treating both ``not found`` and import-broken ``found no collectors`` ids as
+    unresolved, with a fail-loud safety net on unexpected collection errors). The current
+    guarantee — every cited id collects — is preserved by asserting the resolved set
+    equals the full requested set.
     """
-    import subprocess
-    import sys
-    from pathlib import Path
-
     node_ids = sorted({nid for inv in MODEL_INVARIANTS.values() for nid in inv.values()})
     assert node_ids, "MODEL_INVARIANTS cites no tests — the registry is empty."
 
     repo_root = Path(__file__).resolve().parents[3]
-    proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q",
-         "--no-header", "-p", "no:cacheprovider", *node_ids],
-        cwd=str(repo_root),
-        capture_output=True,
-        text=True,
-    )
-    # pytest exits 0 when all cited node ids collect. A non-zero exit means at least one
-    # id did not resolve (typo / renamed / deleted test).
-    assert proc.returncode == 0, (
+    resolved = resolve_node_ids(node_ids, rootdir=str(repo_root))
+    unresolved = sorted(set(node_ids) - resolved)
+    assert not unresolved, (
         "at least one MODEL_INVARIANTS node id did not collect (a mapping to a "
-        "non-existent test — fix the citation):\n"
-        f"--- stdout ---\n{proc.stdout[-4000:]}\n--- stderr ---\n{proc.stderr[-2000:]}")
+        f"non-existent or import-broken test — fix the citation): {unresolved}")
