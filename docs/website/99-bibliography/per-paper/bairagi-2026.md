@@ -36,7 +36,7 @@ $\sim 7.8\,\mathrm{Mpc}/h$."
 ## Why it is the contrast for progenax
 
 SBI is the *default* modern answer to a non-differentiable stochastic simulator — train a network on
-many runs. The [](../../10-theory/gravoturbulence/differentiable-inference.md) layer makes the opposite bet: keep the physics
+many runs. The [](../../10-theory/gravoturbulence/inference.md) layer makes the opposite bet: keep the physics
 **direct** and **differentiable** by predicting the summary statistic analytically (Gaussianization
 two-point + counts-in-cells + the peaks-over-threshold tail) and differentiating *that*, rather than
 learning a black-box mapping. The two approaches are complementary:
@@ -52,7 +52,7 @@ resolution elements a gas map needs to measure the density-PDF slope $\alpha$.
 
 ## Use in progenax
 
-- Cited in [](../../10-theory/gravoturbulence/differentiable-inference.md) as the SBI alternative the physics-direct layer
+- Cited in [](../../10-theory/gravoturbulence/inference.md) as the SBI alternative the physics-direct layer
   deliberately avoids, and as a pointer for where a neural cross-check (or a future hybrid) would
   add the genuinely phase-coherent, higher-order information the 1pt+2pt model omits.
 

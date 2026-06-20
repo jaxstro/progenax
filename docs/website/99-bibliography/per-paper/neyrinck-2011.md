@@ -35,14 +35,14 @@ will produce a Gaussian field, vanishing all higher-order correlations."* That i
 `gravoturb_fdf` generative model** — a Gaussian random field passed through a monotone marginal map
 (the copula). For such a field the one-point PDF plus the two-point function are *sufficient
 statistics*; the higher-order correlations carry no independent information. This is the formal
-licence for restricting the [](../../10-theory/gravoturbulence/differentiable-inference.md) likelihood to 1pt + 2pt: it is not a
+licence for restricting the [](../../10-theory/gravoturbulence/inference.md) likelihood to 1pt + 2pt: it is not a
 lossy shortcut but the complete description of the model, and therefore the most honest use of it.
 
 **The Fisher gain peaks at a finite resolution.** The cumulative Fisher information recovered by
 Gaussianizing "peaks at a particular grid resolution [that] depends on the sampling level." Finer
 than that, shot noise dominates and adds nothing; coarser, the small-scale information is averaged
 away. This is the cosmology precedent for the **resolution / $N_{\rm eff}$ forecast** in
-[](../../10-theory/gravoturbulence/differentiable-inference.md): there is an optimal map resolution for a given tracer density, and
+[](../../10-theory/gravoturbulence/inference.md): there is an optimal map resolution for a given tracer density, and
 pushing past it does not help.
 
 ## Use in progenax

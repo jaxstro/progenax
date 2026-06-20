@@ -92,9 +92,9 @@ analyses ([](neyrinck-2009.md), [](carron-szapudi-2013.md)).
   marginal via the rank copula
   ([field.py](../../../../src/experimental/gravoturb_fdf/field/field.py)).
 - **The lognormal body.** {eq}`cj-mclt` is the physical justification for the lognormal core of the
-  [](../../10-theory/gravoturbulence/density-pdf-fundamentals.md) / [](burkhart-mocz-2019.md) PDF.
+  [](../../10-theory/gravoturbulence/density-pdf-and-fdf.md) / [](burkhart-mocz-2019.md) PDF.
 - **The Gaussianization series.** {eq}`cj-lognormal-xi` is the $n=1$, pure-exp special case of the
-  general Hermite series in [](../../10-theory/gravoturbulence/differentiable-inference.md); the log-density two-point $\xi_s$ is
+  general Hermite series in [](../../10-theory/gravoturbulence/inference.md); the log-density two-point $\xi_s$ is
   computed this way, with $\beta$ entering through the Gaussian correlation $\rho_g(r)$.
 
 ## Notes

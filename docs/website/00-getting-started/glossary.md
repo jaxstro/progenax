@@ -124,13 +124,13 @@ forcing parameter
 freefall-density factor (FDF)
     The kernel $\rho/t_{\mathrm{ff}}(\rho) \propto \rho^{3/2}$
     that weights local density by its star-forming efficiency. See
-    [](../10-theory/gravoturbulence/freefall-density-factor.md).
+    [](../10-theory/gravoturbulence/density-pdf-and-fdf.md).
 
 magnification factor
     $\zeta$ = SFR boost a centrally-concentrated cloud gets over a
     uniform top-hat. {cite:t}`ParmentierPasquali2020` Eq. 6 gives
     the closed form for power-law profiles. See
-    [](../10-theory/gravoturbulence/pp20.md).
+    [](../10-theory/gravoturbulence/magnification-factor.md).
 
 BM19 framework
     {cite:t}`Burkhart2018,BurkhartMocz2019` forward model: turbulence

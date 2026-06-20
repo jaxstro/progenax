@@ -16,7 +16,7 @@ backed by the committed **AC suite** (AC1–AC4) and `tests/experimental/`, not 
 ```{seealso}
 The 2026-04-28 PP20 transcription bug history is at
 [](../90-development-log/2026-04-28-pp20-fix.md). The full theory is
-at [](../10-theory/gravoturbulence/pp20.md).
+at [](../10-theory/gravoturbulence/magnification-factor.md).
 ```
 
 Current test + acceptance files:
@@ -160,5 +160,5 @@ analytic form, or the Kainulainen+14 observation. Full history at
 {cite:t}`ParmentierPasquali2020` for ζ(p); {cite:t}`Kainulainen2014`
 for the observational anchor; {cite:t}`Burkhart2018,BurkhartMocz2019` for
 the BM19 framework. Theory at
-[](../10-theory/gravoturbulence/pp20.md) and
+[](../10-theory/gravoturbulence/magnification-factor.md) and
 [](../10-theory/gravoturbulence/bm19.md).

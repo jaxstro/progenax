@@ -40,7 +40,7 @@ information plateau seen in SDSS and $N$-body simulations.
 - **Mock covariances.** The realization simulator supplies the mock covariance used (Hartlap-corrected)
   in the Fisher forecast and the Gaussian-likelihood block; the supersurvey/beat-coupling caveat is
   the reason the analytic Gaussian band-power covariance *underestimates* the true mock covariance for
-  the non-Gaussian log-density field — a finding the [](../../10-theory/gravoturbulence/differentiable-inference.md) layer guards
+  the non-Gaussian log-density field — a finding the [](../../10-theory/gravoturbulence/inference.md) layer guards
   against by using the mock covariance.
 
 ## Notes

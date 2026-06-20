@@ -73,7 +73,7 @@ $\xi_s$, not the tail-divergent linear $\langle\rho\rho\rangle$.
 - **The CIC count model.** {eq}`sp-cic` is the compound-Poisson
   [`count_distribution`](../../../../src/experimental/gravoturb_fdf/theory/cic.py); {eq}`sp-like` is
   [`count_loglike`](../../../../src/experimental/gravoturb_fdf/inference/likelihood.py). These give
-  the stellar counts-in-cells block of the [](../../10-theory/gravoturbulence/differentiable-inference.md) likelihood.
+  the stellar counts-in-cells block of the [](../../10-theory/gravoturbulence/inference.md) likelihood.
 - **The Hermite Gaussianization.** {eq}`sp-sln3` is the parametric ancestor of the
   [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) series:
   both expand the log-density transform in Hermite polynomials. progenax differs in two ways — it
@@ -91,4 +91,4 @@ $\xi_s$, not the tail-divergent linear $\langle\rho\rho\rangle$.
   assumption behind the clean inhomogeneous-Poisson star sampler
   ([sampling.py](../../../../src/experimental/gravoturb_fdf/field/sampling.py)); an *incorrect*
   with-replacement multinomial sampler is what produced the spurious $\alpha$-signal diagnosed in
-  the [](../../10-theory/gravoturbulence/differentiable-inference.md) work.
+  the [](../../10-theory/gravoturbulence/inference.md) work.

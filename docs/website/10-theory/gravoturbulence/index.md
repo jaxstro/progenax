@@ -23,12 +23,15 @@ structure** to the **integrated star formation rate**. The chain is:
 2. **Freefall-density factor (FDF)** — the kernel $\rho/t_{\mathrm{ff}}(\rho)
    \propto \rho^{3/2}$ that weights local density by its star-forming
    efficiency.
-3. **PP20 ζ(p) magnification factor** — the geometric SFR boost over
-   a uniform-density "top-hat" cloud, parameterised by the radial
-   density-profile slope $p$ {cite:p}`ParmentierPasquali2020`.
+3. **ζ magnification factor** — the geometric SFR boost over a
+   uniform-density "top-hat" cloud, parameterised by the radial
+   density-profile slope $p$ {cite:p}`ParmentierPasquali2020`, computed
+   three ways (analytic / cored / direct-3D).
 4. **BM19 framework** — the dense-gas SFR formalism that combines all
    the above into a predictive forward model for cloud-integrated SFR
    {cite:p}`Burkhart2018,BurkhartMocz2019`.
+5. **Inference** — running the chain *backwards* to recover natal cloud
+   parameters from observed substructure.
 
 ## Map of the section
 
@@ -37,36 +40,28 @@ structure** to the **integrated star formation rate**. The chain is:
 
 * - Chapter
   - Scope
-* - [](density-pdf-fundamentals.md)
-  - The {cite:t}`FederrathKlessen2012` lognormal + power-law density PDF; Mach-number scaling; turbulence-driving forcing parameter $b$.
-* - [](freefall-density-factor.md)
-  - The functional $\rho/t_{\mathrm{ff}}(\rho) \propto \rho^{3/2}$ and why it is the right SFR kernel.
-* - [](pdf-and-fdf.md)
-  - Combining the density PDF with the FDF to give the cloud-integrated SFR.
-* - [](pp20.md)
-  - {cite:t}`ParmentierPasquali2020` ζ(p) — the magnification factor for power-law profiles, with the canonical analytic form.
-* - [](cored-profiles.md)
-  - `magnification_factor_with_core` — numerical-integration ζ for cored profiles $\rho \propto [1+(r/r_c)^2]^{-p/2}$.
-* - [](direct-3d-zeta.md)
-  - `zeta_fdf_direct` — measure ζ directly from a 3D density field with no power-law assumption.
+* - [](density-pdf-and-fdf.md)
+  - The {cite:t}`FederrathKlessen2012` lognormal + power-law density PDF (Mach scaling, forcing $b$), the $\rho^{3/2}$ freefall-density kernel, the cloud-integrated SFR they combine to give, and the single canonical α↔p mapping.
+* - [](magnification-factor.md)
+  - The magnification factor ζ three ways: {cite:t}`ParmentierPasquali2020` analytic ζ(p) for power-law profiles, `magnification_factor_with_core` for cored profiles, and `zeta_fdf_direct` for an arbitrary 3D field — with the "which ζ-mode when" table.
 * - [](bm19.md)
   - The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ in a forward model for dense-gas SFR.
-* - [](differentiable-inference.md)
-  - **The inference capstone** — running the chain *backwards*: natal cloud parameters $(\mathcal{M}, b, \alpha, \beta)$ from observed cluster substructure, via differentiable predicted statistics (Gaussianization 2-point + counts-in-cells + a peaks-over-threshold tail block) and HMC. Makes the BM19 tail slope $\alpha$ inferable.
+* - [](inference.md)
+  - **The inference capstone** — running the chain *backwards*: natal cloud parameters $(\mathcal{M}, b, \alpha, \beta)$ from observed cluster substructure, via differentiable predicted statistics (Gaussianization/Mehler 2-point + counts-in-cells + a peaks-over-threshold tail block) and HMC, in 3-D and in projection. Makes the BM19 tail slope $\alpha$ inferable and gives the differentiable $\beta$ successor to $Q$/MST.
 ```
 
 ## Reading order
 
 For a student first encountering the framework: read in TOC order
-(density PDF → FDF → PDF+FDF → PP20 → BM19), then
-[](differentiable-inference.md) as the capstone that inverts the
+([](density-pdf-and-fdf.md) → [](magnification-factor.md) →
+[](bm19.md)), then [](inference.md) as the capstone that inverts the
 forward chain. Each chapter assumes only the conventions established
 in the previous one.
 
-For a researcher already familiar with the literature: jump
-directly to [](pp20.md) for the PP20 derivation and the Historical
-Note on the 2026-04-28 transcription bug fix, or to [](bm19.md) for
-the full forward chain that consumes ζ.
+For a researcher already familiar with the literature: jump directly to
+[](magnification-factor.md) for the ζ derivation, the three computation
+modes, and the Historical Note on the 2026-04-28 transcription bug fix,
+or to [](bm19.md) for the full forward chain that consumes ζ.
 
 For implementation work: each chapter ends with a code snippet showing
 the corresponding `gravoturb_fdf` API. The module reference is the package
@@ -74,11 +69,10 @@ source under `src/experimental/gravoturb_fdf/` (see its `README.md` and
 `VALIDATION_SUMMARY.md`); this experimental subsystem has no generated
 website API page.
 
-## Why progenax computes ζ multiple ways
+## Why ζ is computed three ways
 
-The three ζ-computation modes ([](pp20.md), [](cored-profiles.md),
-[](direct-3d-zeta.md)) are not redundant — each captures a different
-physical situation:
+The three ζ-computation modes (all in [](magnification-factor.md)) are
+not redundant — each captures a different physical situation:
 
 - **PP20 analytic ζ(p)** is exact for *pure power-law* profiles,
   which is a useful idealisation but rarely realistic for individual
@@ -92,8 +86,8 @@ physical situation:
   simulation snapshot or detailed observation.
 
 For HMC-based inference of cloud parameters from observed SFR, all
-three are differentiable and progenax exposes them through a unified
-API. The choice of which to use depends on the level of cloud
+three are differentiable and `gravoturb_fdf` exposes them through a
+unified API. The choice of which to use depends on the level of cloud
 parameterisation in the inference target.
 
 ## References

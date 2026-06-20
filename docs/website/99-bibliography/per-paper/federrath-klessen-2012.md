@@ -96,8 +96,7 @@ Two facts that matter downstream:
 
 ## Use in progenax
 
-- [](../../10-theory/gravoturbulence/density-pdf-fundamentals.md) — the lognormal+power-law PDF (FK12 §2.1).
-- [](../../10-theory/gravoturbulence/freefall-density-factor.md) — the $\rho^{3/2}$ free-fall kernel (the $t_\mathrm{ff}(\rho)^{-1}\propto\rho^{1/2}$ weight in Eq. 7).
+- [](../../10-theory/gravoturbulence/density-pdf-and-fdf.md) — the lognormal+power-law PDF (FK12 §2.1) and the $\rho^{3/2}$ free-fall kernel (the $t_\mathrm{ff}(\rho)^{-1}\propto\rho^{1/2}$ weight in Eq. 7).
 - [](burkhart-mocz-2019.md) — BM19 *simplifies* this framework by tying $s_\mathrm{crit}$ to the PDF transition density $s_t$, removing a free critical density.
 - $b\in[1/3,1]$ grounds `cluster.turbulence.b_from_environment` and the FK10 forcing parameter.
 

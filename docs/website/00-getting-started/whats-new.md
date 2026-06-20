@@ -195,7 +195,7 @@ fix are systematically wrong. The validation plots
 `e5_pp20_diagram.png` need regeneration.
 
 **Reference.** [](../90-development-log/2026-04-28-pp20-fix.md);
-chapter at [](../10-theory/gravoturbulence/pp20.md).
+chapter at [](../10-theory/gravoturbulence/magnification-factor.md).
 
 ## 2026-04-28 — progenax docs website launched
 

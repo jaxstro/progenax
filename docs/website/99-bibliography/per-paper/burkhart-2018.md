@@ -95,10 +95,10 @@ KM05, PN11, and Hennebelle–Chabrier models (Eqs. 9–17).
 - The piecewise PDF {eq}`bk18-pdf` is [`bm19_volume_pdf`](../../../../src/experimental/gravoturb_fdf/theory/pdf.py);
   {eq}`bk18-sigma` is [`sigma_s_squared`](../../../../src/experimental/gravoturb_fdf/theory/bm19.py).
   These 1-point scalars are the inputs the differentiable-inference layer
-  ([](../../10-theory/gravoturbulence/differentiable-inference.md)) recovers from observed
+  ([](../../10-theory/gravoturbulence/inference.md)) recovers from observed
   substructure.
 - The SFR integral {eq}`bk18-sfr` is the forward chain of
-  [](../../10-theory/gravoturbulence/pdf-and-fdf.md) and [](../../10-theory/gravoturbulence/bm19.md);
+  [](../../10-theory/gravoturbulence/density-pdf-and-fdf.md) and [](../../10-theory/gravoturbulence/bm19.md);
   the geometric, radial-profile dual is the Parmentier & Pasquali ζ ([](parmentier-pasquali-2020.md)).
 - The positive-α convention (Eq. 6) is the one used by the BM19 tail and the peaks-over-threshold
   estimator.

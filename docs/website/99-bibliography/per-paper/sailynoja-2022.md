@@ -113,7 +113,7 @@ needed here.
 ## Use in progenax
 
 The experimental `gravoturb_fdf` trustworthiness arc (workstream ①; see
-[](../../10-theory/gravoturbulence/differentiable-inference.md)) visualizes SBC calibration two
+[](../../10-theory/gravoturbulence/inference.md)) visualizes SBC calibration two
 complementary ways. The {cite:t}`Talts2018` **rank histogram** + binomial band is one; this
 paper's **ECDF-difference plot with simultaneous bands** is the second, sharper view:
 

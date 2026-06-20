@@ -39,7 +39,7 @@ whichever is convenient and convert between them robustly.
   same field. These are the ground-truth measurements against which the analytic
   [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) prediction
   and the Limber-projected two-point are validated.
-- **The $\xi \leftrightarrow P$ duality** is what lets the [](../../10-theory/gravoturbulence/differentiable-inference.md) 2-point
+- **The $\xi \leftrightarrow P$ duality** is what lets the [](../../10-theory/gravoturbulence/inference.md) 2-point
   block be expressed either as the configuration-space $\xi_s(r)$ (Gaussianization series) or as
   Fourier band-powers (the likelihood data vector), interchangeably.
 

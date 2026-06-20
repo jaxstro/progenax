@@ -80,7 +80,7 @@ physics. The convention is:
   density: it is a physics choice (using a soft threshold instead of
   hard) but motivated by a JAX constraint (autodiff needs smooth
   thresholds). Lives in [](differentiability.md) here, with the
-  scientific consequences in [](../10-theory/gravoturbulence/direct-3d-zeta.md).
+  scientific consequences in [](../10-theory/gravoturbulence/magnification-factor.md).
 
 When in doubt about which section a topic belongs in, the test is:
 "would this discussion still be true if we ported progenax to PyTorch

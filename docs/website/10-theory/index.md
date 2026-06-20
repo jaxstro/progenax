@@ -37,15 +37,15 @@ Every chapter follows the same template:
 * - [](ic-philosophy.md)
   - What an "initial condition" *is* in progenax. Conventions, virial theorem, units, COM frame, half-mass radius. Read first if you are new.
 * - [](spatial-profiles/index.md)
-  - The production-grade spatial density profiles: [](spatial-profiles/plummer.md), [](spatial-profiles/king.md), [](spatial-profiles/eff.md), and the anisotropic [](velocity-dfs/michie-king.md).
+  - The spatial density profiles: [](spatial-profiles/plummer.md), [](spatial-profiles/king.md), and [](spatial-profiles/eff.md).
 * - [](velocity-dfs/index.md)
-  - Velocity distribution functions paired with each spatial profile to produce dynamical equilibrium ICs. Includes anisotropy and rotation extensions.
+  - Velocity distribution functions paired with each spatial profile to produce dynamical equilibrium ICs, including the anisotropic [](velocity-dfs/michie-king.md), and anisotropy and rotation extensions.
 * - [](imfs/index.md)
   - The initial mass function — from canonical Salpeter / Kroupa / Chabrier / Maschberger through binary-aware {cite:t}`MoeDiStefano2017` and environment-dependent {cite:t}`Marks2012,Jerabkova2018` variants.
 * - [](binaries/index.md)
   - Kepler orbital elements, period and eccentricity distributions ({cite:t}`Sana2012,MoeDiStefano2017`), resolved binary kinematics.
 * - [](tidal-and-substructure/index.md)
-  - Tidal physics, the {cite:t}`Goodwin2004`-equivalent FDF method for differentiable substructure, and {cite:t}`Baumgardt2008` energy-ranked mass segregation.
+  - Tidal physics (Jacobi radius, differentiable truncation), the theory of fractal / substructured initial conditions, and {cite:t}`Baumgardt2008` energy-ranked mass segregation.
 * - [](gravoturbulence/index.md)
   - From the {cite:t}`FederrathKlessen2012` density PDF through the {cite:t}`ParmentierPasquali2020` magnification factor and the {cite:t}`Burkhart2018,BurkhartMocz2019` dense-gas SFR framework.
 * - [](populations/index.md)

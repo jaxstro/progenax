@@ -36,7 +36,7 @@ tested in simulations.
 - **Counts-in-cells sufficiency.** This is the discrete analogue that licenses progenax's CIC block:
   the stellar counts are a local-Poisson sampling of a lognormal-type field (the
   [](szapudi-pan-2004.md) CIC relation), and for such a field the sufficient observables are the
-  ones the [](../../10-theory/gravoturbulence/differentiable-inference.md) likelihood already uses (the count distribution and its
+  ones the [](../../10-theory/gravoturbulence/inference.md) likelihood already uses (the count distribution and its
   two-point clustering), not high-order count moments.
 - **Connects the count likelihood to a principled estimator** rather than an ad hoc summary — the
   [`count_loglike`](../../../../src/experimental/gravoturb_fdf/inference/likelihood.py) block sits in

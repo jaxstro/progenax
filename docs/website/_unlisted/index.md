@@ -51,9 +51,21 @@ concentration, dynamical-mass, binary-robustness) will be relocated here.
 
 The gravoturbulent / fractal-density-field theory documents the experimental
 `gravoturb_fdf` subsystem, which is **repo-only and not part of the released
-wheel**. The consolidated gravoturbulence theory pages will be linked here.
+wheel** (`src/experimental/`). The section was consolidated 10 → 5 pages; all
+five are `hidden: true` in the toc (built and URL-reachable, kept out of the
+public navigation):
 
-*Links will be wired in by a later task.*
+- [](../10-theory/gravoturbulence/index.md) — section landing: the
+  PDF → FDF → ζ → BM19 → inference chain, reading order, and the experimental banner.
+- [](../10-theory/gravoturbulence/density-pdf-and-fdf.md) — the
+  {cite:t}`FederrathKlessen2012` lognormal+power-law density PDF, the $\rho^{3/2}$
+  freefall-density kernel, the cloud-integrated SFR, and the canonical α↔p mapping.
+- [](../10-theory/gravoturbulence/magnification-factor.md) — the magnification
+  factor ζ three ways (analytic {cite:t}`ParmentierPasquali2020` ζ(p), cored, direct-3D).
+- [](../10-theory/gravoturbulence/bm19.md) — the
+  {cite:t}`Burkhart2018,BurkhartMocz2019` dense-gas SFR forward model.
+- [](../10-theory/gravoturbulence/inference.md) — the differentiable
+  physics-direct inference layer (3-D α recovery + projected β estimator).
 
 ## Development log
 

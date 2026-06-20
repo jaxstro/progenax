@@ -98,18 +98,23 @@ project:
             - file: 10-theory/tidal-and-substructure/tidal.md
             - file: 10-theory/tidal-and-substructure/fractal.md
             - file: 10-theory/tidal-and-substructure/mass-segregation.md
+        # Gravoturbulence (experimental, repo-only gravoturb_fdf): consolidated
+        # 10 -> 5 pages, all kept out of the public nav via `hidden: true`
+        # (built + URL-reachable + linkable, but not in navigation). Linked from
+        # _unlisted/index.md. Do NOT delete from the toc — this site builds only
+        # toc-listed pages, so removal = unbuilt/unreachable.
         - title: Gravoturbulence
           children:
             - file: 10-theory/gravoturbulence/index.md
-            - file: 10-theory/gravoturbulence/density-pdf-fundamentals.md
-            - file: 10-theory/gravoturbulence/freefall-density-factor.md
-            - file: 10-theory/gravoturbulence/pdf-and-fdf.md
-            - file: 10-theory/gravoturbulence/pp20.md
-            - file: 10-theory/gravoturbulence/cored-profiles.md
-            - file: 10-theory/gravoturbulence/direct-3d-zeta.md
+              hidden: true
+            - file: 10-theory/gravoturbulence/density-pdf-and-fdf.md
+              hidden: true
+            - file: 10-theory/gravoturbulence/magnification-factor.md
+              hidden: true
             - file: 10-theory/gravoturbulence/bm19.md
-            - file: 10-theory/gravoturbulence/differentiable-inference.md
-            - file: 10-theory/gravoturbulence/projected-beta-inference.md
+              hidden: true
+            - file: 10-theory/gravoturbulence/inference.md
+              hidden: true
         - title: Multi-component populations
           children:
             - file: 10-theory/populations/index.md

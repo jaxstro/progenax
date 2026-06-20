@@ -112,7 +112,7 @@ finding the dense fraction (and hence SFE) is **weakly anti-correlated with Mach
 ## Use in progenax
 
 - [](../../10-theory/gravoturbulence/bm19.md) — BM19 1-D PDF theory and the $\alpha$ window.
-- [](../../10-theory/gravoturbulence/pp20.md) — the $\alpha\leftrightarrow p$ ($\kappa=3/\alpha$) mapping.
+- [](../../10-theory/gravoturbulence/magnification-factor.md) — the $\alpha\leftrightarrow p$ ($\kappa=3/\alpha$) mapping.
 - `experimental/gravoturb_fdf/theory/bm19.py` — `sigma_s_squared`, `transition_density`,
   `f_dense_bm19_full`, `f_dense_lognormal_limit`, `pdf_slope_to_radial`.
 - `experimental/gravoturb_fdf/theory/pdf.py` — the BM19 volume PDF + inverse-CDF that

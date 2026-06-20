@@ -37,7 +37,7 @@ hierarchical prolate spheroids. Two numbers flow into the gravoturbulence chain:
 
 ## Use in progenax
 
-- [](../../10-theory/gravoturbulence/pp20.md) — anchors $\zeta(p = 1.67) \approx 1.79$ (AC3 spot value).
+- [](../../10-theory/gravoturbulence/magnification-factor.md) — anchors $\zeta(p = 1.67) \approx 1.79$ (AC3 spot value).
 - [](../../50-validation/gravoturbulent-pp20.md) — the $\zeta(1.67)$ regression anchor.
 - [](burkhart-mocz-2019.md) — Kainulainen $s_\mathrm{crit}\approx4$ as the observational check on $s_t$.
 

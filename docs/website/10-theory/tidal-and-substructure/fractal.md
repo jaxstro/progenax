@@ -100,7 +100,7 @@ for highly compressible Burgers turbulence, and $\beta \approx 3.8$–$4.0$
 for the observed ISM {cite:p}`Kritsuk2011,FederrathKlessen2012`. (Note
 this is the *velocity*-field spectrum; the gravoturbulent *density*
 spectrum behaves differently — it flattens with Mach, see
-[](../gravoturbulence/pdf-and-fdf.md).) Stars inherit the spatial
+[](../gravoturbulence/density-pdf-and-fdf.md).) Stars inherit the spatial
 structure of the dense cores carved out of these turbulent flows: a
 smooth equilibrium profile perturbed by a power-law-spectrum field
 directly represents this picture, with steeper spectra producing

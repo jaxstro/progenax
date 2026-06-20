@@ -101,7 +101,7 @@ a credible interval under the assumed model."
 ## Use in progenax
 
 The experimental `gravoturb_fdf` differentiable-inference layer uses SBC as **workstream ①**
-of its trustworthiness arc (see [](../../10-theory/gravoturbulence/differentiable-inference.md)),
+of its trustworthiness arc (see [](../../10-theory/gravoturbulence/inference.md)),
 upgrading the α-recovery result from single-θ injection–recovery (AC16) to calibration across
 the whole prior:
 

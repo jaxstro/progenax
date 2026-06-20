@@ -46,7 +46,7 @@ the power spectrum, so a monotone one-point remap recovers what it can without n
 ## Use in progenax
 
 - **Why the 2-point carrier is the log-density $\xi_s$, not the linear $\langle\rho\rho\rangle$.**
-  This is the cosmology precedent for the choice made throughout [](../../10-theory/gravoturbulence/differentiable-inference.md): the
+  This is the cosmology precedent for the choice made throughout [](../../10-theory/gravoturbulence/inference.md): the
   fat power-law tail makes linear-density 2-point statistics divergent / information-poor, while the
   log-density two-point is well-behaved and information-rich. The
   [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) series

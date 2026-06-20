@@ -48,7 +48,7 @@ $\xi_s$ and the peaks-over-threshold tail estimator rather than linear-density m
 ## Use in progenax
 
 - **Formal justification for the log-density variable** $s = \ln(\rho/\rho_0)$ used throughout
-  [](../../10-theory/gravoturbulence/differentiable-inference.md): the log transform is (near-)optimal for a $k^{-\beta}$ spectrum,
+  [](../../10-theory/gravoturbulence/inference.md): the log transform is (near-)optimal for a $k^{-\beta}$ spectrum,
   Gaussianizing the field and concentrating the information in $\xi_s$.
 - **Explains why the linear-density 2-point is avoided** — its moments are information-poor and
   divergent for the collapsing slopes $\alpha \le 2$.
