@@ -4,7 +4,7 @@
   "validate_binaries.py": 0,
   "validate_cluster_builders.py": 0,
   "validate_cluster_ic.py": 0,
-  "validate_df_tables.py": 1,
+  "validate_df_tables.py": 0,
   "validate_eff.py": 0,
   "validate_environment.py": 0,
   "validate_equipartition_saturation.py": 0,
@@ -19,7 +19,7 @@
   "validate_plummer.py": 0,
   "validate_rotation_anisotropy.py": 0,
   "validate_segregation_approx.py": 0,
-  "validate_speed_routing.py": 1,
+  "validate_speed_routing.py": 0,
   "validate_substructure_q.py": 0,
   "validate_tidal.py": 0,
   "validate_zams.py": 0

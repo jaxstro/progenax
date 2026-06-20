@@ -119,7 +119,7 @@ def run_king(rows):
     from progenax import KingVelocityDF
     from progenax.profiles.king import KingProfile
 
-    kw = dict(W0=5.0, r_c=1.0, r_t=10.0)
+    kw = dict(W0=5.0, r_c=1.0)
     prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
     _, v_t, v_q = _draw(prof, KingVelocityDF(**kw),
                         KingVelocityDF(**kw, speed_method="quadrature"), G=1.0)

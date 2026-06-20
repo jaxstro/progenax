@@ -103,8 +103,8 @@ def check_solve_accuracy():
     """(b) |psi_table - psi_quad| profiles for the three Task-2 configs."""
     results = []
     for cfg in SOLVE_CONFIGS:
-        xi_q, psi_q, _ = _solve("quadrature", *cfg)
-        xi_t, psi_t, _ = _solve("table", *cfg)
+        xi_q, psi_q, *_ = _solve("quadrature", *cfg)
+        xi_t, psi_t, *_ = _solve("table", *cfg)
         dpsi = np.asarray(jnp.abs(psi_t - psi_q))
         results.append((cfg, np.asarray(xi_t), dpsi))
     return results
@@ -143,7 +143,7 @@ def check_gradients():
     """
     def metric_with(method):
         def metric(w, ra):
-            _, psi, _ = solve_multicomponent_limepy(
+            _, psi, *_ = solve_multicomponent_limepy(
                 jnp.array([0.5, 0.5]), w ** -2.0, 5.0, G_PAR, xi_max=800.0,
                 n_points=1500, ra_hat_j=ra, aniso_method=method)
             return jnp.mean(psi[:300])
