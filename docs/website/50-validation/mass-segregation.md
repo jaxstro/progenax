@@ -7,10 +7,11 @@ description: Validation of the Λ_MSR diagnostic (analytic ground truth), the en
 
 ```{important}
 Status (2026-06-10): the **$\Lambda_{\mathrm{MSR}}$ diagnostic is validated against
-analytic ground truth** (`tests/validation/test_mass_segregation_physics.py`, 8 tests).
+analytic ground truth** (`tests/validation/test_mass_segregation_physics.py`).
 The energy-ordered generator is now explicitly labeled the **PRIMORDIAL**
 (non-equilibrium) route and carries its own physics suite
-(`tests/validation/test_segregation_equilibrium_physics.py`, 4 tests, §2); the
+(`tests/validation/test_segregation_equilibrium_physics.py`, §2; see the
+[test dashboard](test-dashboard.md) for live per-suite counts); the
 **`lambda_seg` blend was retired** in the 2026-06 unified redesign — the
 differentiable, *equilibrium* segregation knob is now
 `MultiComponentCluster.from_mass_segregation(delta)` (Engine A, validated at
@@ -130,8 +131,9 @@ orbit-reuse bug, fixed in this arc and regression-locked below). Realisation
 variety comes from re-drawing the random pool.
 
 Physics suite `tests/validation/test_segregation_equilibrium_physics.py`
-(**4 tests**, ported in the 2026-06 redesign from the retired blend's suite
-onto the protocol-API composition):
+(ported in the 2026-06 redesign from the retired blend's suite
+onto the protocol-API composition; see the [test dashboard](test-dashboard.md)
+for the live count):
 
 ```{list-table}
 :header-rows: 1
@@ -263,8 +265,8 @@ mass-cut kernel** $w_i=\sigma\!\big((m_i-m_{\mathrm{cut}})/\tau\big)$ (the obser
   radius softening.
 
 All default to **2D-projected** positions (observer-faithful), with a 3D flag. Validated in
-`tests/validation/test_segregation_approx_physics.py` (13 tests) + `tests/unit/diagnostics/`
-(27 tests).
+`tests/validation/test_segregation_approx_physics.py` + `tests/unit/diagnostics/`
+(see the [test dashboard](test-dashboard.md) for live per-suite counts).
 
 ```{list-table}
 :header-rows: 1

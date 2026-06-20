@@ -7,7 +7,8 @@ description: "Validation suite for the King (1966) profile + matched lowered-Max
 The King suite verifies the lowered-isothermal Poisson ODE integration, the
 **lowered-Maxwellian volume density** (the 3-D density entering the Poisson
 source, distinct from the projected King K-function), and the matched velocity
-DF. Test file: `tests/validation/test_king_physics.py` (**32 tests**); figures:
+DF. Test file: `tests/validation/test_king_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_king.py`.
 
 ## What is verified
@@ -168,20 +169,22 @@ $(r_c, W_0, M_{\rm tot})$ can be inferred jointly by gradient descent or HMC.
   - ✅ (profile observables)
   - Flows through the `diffrax` ODE → $\psi$ → density → CDF → sampling.
 * - $r_t$ (scalar tidal radius)
-  - ⚠️ blocked
-  - $\partial r_t/\partial W_0$ is zeroed by the `argmax` zero-crossing in
-    `_find_tidal_radius`. Fit the profile *shape* (which is differentiable in
-    $W_0$), not the scalar $r_t$, when inferring $W_0$.
+  - ✅ (zero-crossing slope)
+  - $\partial r_t/\partial W_0$ is finite and exact — the unclamped $\psi=0$
+    crossing carries the implicit-function-theorem slope (the original silent-zero
+    hazard was found and fixed by the gradient audit). Verified AD-vs-FD to
+    $\sim 10^{-8}$ ($\partial r_t/\partial W_0 \approx 22.9$ at $W_0=7$, $r_c=1$).
 ```
 
-:::{seealso} Making $r_t$ differentiable is deferred (not abandoned)
-A differentiable scalar $r_t$ (via the implicit function theorem,
-$\partial\xi_t/\partial W_0 = -\psi_{W_0}/\psi_{\xi}\big|_{\xi_t}$) is a
-non-breaking add-later — the forward value is unchanged. It will be implemented
-when a scalar-$r_t$ use case becomes concrete, the headline driver being
+:::{seealso} The scalar $r_t$ gradient is RESOLVED (differentiable)
+`KingProfile.from_W0_rc(W0, r_c).r_t` now carries a finite, exact
+$\partial r_t/\partial W_0$ via the implicit function theorem,
+$\partial\xi_t/\partial W_0 = -\psi_{W_0}/\psi_{\xi}\big|_{\xi_t}$ (the source
+returns the *unclamped* $\psi_{\rm raw}$, so the zero-crossing carries the slope).
+The forward value of $r_t$ is unchanged; only the gradient differs. This unlocks
 **tidal-field coupling** $r_t \approx r_J$ (inferring the Galactic potential /
 orbits from cluster limiting radii, wiring in `progenax.tidal.jacobi_radius`).
-The mechanism, the IFT design, and ranked science cases are browsable at
+The mechanism, the IFT design, and ranked science cases are at
 [](../20-architecture/differentiability.md#roadmap-differentiable-rt), which carries
 the full design record.
 :::
@@ -189,7 +192,7 @@ the full design record.
 ## How to run
 
 ```bash
-# physics tests (32 tests, ~30 s on CPU; ODE integration dominates)
+# physics tests (~30 s on CPU; ODE integration dominates)
 pytest tests/validation/test_king_physics.py -v
 
 # regenerate the five figures with PASS/FAIL tables

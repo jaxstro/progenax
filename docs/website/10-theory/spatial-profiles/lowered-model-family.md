@@ -223,12 +223,13 @@ differentiable through construction and sampling.
 
 ## Relationship to the other roadmap item
 
-This is independent of, but complementary to, the deferred **differentiable
+This is independent of, but complementary to, the now-**resolved differentiable
 tidal radius** $\partial r_t/\partial W_0$
-([](../../20-architecture/differentiability.md#roadmap-differentiable-rt)).
-In the unified family $r_t$ is a function of $(g, W_0)$; the
-implicit-function-theorem treatment of the $\psi=0$ crossing carries over
-unchanged.
+([](../../20-architecture/differentiability.md#roadmap-differentiable-rt)): the
+scalar $r_t$ already carries a finite, exact gradient through the unclamped
+$\psi=0$ crossing. In the unified family $r_t$ is a function of $(g, W_0)$; the
+same implicit-function-theorem treatment of the $\psi=0$ crossing carries over
+to the $g$ generalization unchanged.
 
 ## References
 

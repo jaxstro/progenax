@@ -6,7 +6,8 @@ description: "Validation suite for the Elson-Fall-Freeman (1987) profile + Eddin
 
 The EFF suite verifies the closed-form density, the inverse-CDF sampling, and the
 ergodic (Eddington) velocity DF. Test file: `tests/validation/test_eff_physics.py`
-(**23 tests**); figures: `scripts/validate_eff.py`.
+(see the [test dashboard](test-dashboard.md) for the live per-suite count);
+figures: `scripts/validate_eff.py`.
 
 :::{admonition} Convention: γ is the 3-D density slope
 :class: note
@@ -158,7 +159,7 @@ jointly.
 ## How to run
 
 ```bash
-# physics tests (23 tests, ~9 s on CPU)
+# physics tests (~9 s on CPU)
 pytest tests/validation/test_eff_physics.py -q
 
 # regenerate the five figures with PASS/FAIL tables

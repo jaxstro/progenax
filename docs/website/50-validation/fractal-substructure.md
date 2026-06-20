@@ -6,7 +6,8 @@ description: "Validation of the Cartwright & Whitworth (2004) Q substructure dia
 
 The Cartwright & Whitworth (2004) **Q = m̄/s̄** parameter separates centrally
 concentrated clusters ($Q>0.8$) from fractal/substructured ones ($Q<0.8$). Test
-file: `tests/validation/test_substructure_q_physics.py` (**9 tests**); figures:
+file: `tests/validation/test_substructure_q_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_substructure_q.py`.
 
 ```{admonition} Generator removed — diagnostic validated
@@ -141,8 +142,9 @@ everywhere — usable for gradient-based substructure inference (the reason
 
 `compute_azimuthal_variation` returns $\sigma_\Sigma/\langle\Sigma\rangle$, the
 relative scatter of star counts in azimuthal sectors — a cheap $O(N)$ substructure
-proxy. Test file: `tests/validation/test_azimuthal_variation_physics.py` (**5
-tests**); figures: `scripts/validate_azimuthal_variation.py`.
+proxy. Test file: `tests/validation/test_azimuthal_variation_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
+`scripts/validate_azimuthal_variation.py`.
 
 ```{list-table}
 :header-rows: 1
@@ -204,8 +206,8 @@ $\sigma_\Sigma/\langle\Sigma\rangle$ tracks lower $Q$.
 ## How to run
 
 ```bash
-pytest tests/validation/test_substructure_q_physics.py -q          # 9 tests, ~5 s
-pytest tests/validation/test_azimuthal_variation_physics.py -q     # 5 tests, ~1 s
+pytest tests/validation/test_substructure_q_physics.py -q          # ~5 s
+pytest tests/validation/test_azimuthal_variation_physics.py -q     # ~1 s
 python scripts/validate_substructure_q.py                          # 5 Q figures
 python scripts/validate_azimuthal_variation.py                     # 3 azimuthal figures
 ```

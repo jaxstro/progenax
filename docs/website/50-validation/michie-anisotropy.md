@@ -6,7 +6,8 @@ description: "Validation suite for the self-consistent Michie-King anisotropic m
 
 The Michie (1963) radial-anisotropy term on King's (1966) lowered cutoff: a
 self-consistent, radially anisotropic cluster model. Test file:
-`tests/validation/test_michie_physics.py` (**12 tests**); figures:
+`tests/validation/test_michie_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_michie.py`. Theory at
 [](../10-theory/velocity-dfs/michie-king.md).
 
@@ -179,7 +180,7 @@ is a poor truth-proxy there, so the gradient gate runs in the well-truncated $W_
 ## How to run
 
 ```bash
-# physics tests (12 tests, ~22 s on CPU)
+# physics tests (~22 s on CPU)
 pytest tests/validation/test_michie_physics.py -q
 
 # regenerate the five figures with PASS/FAIL tables

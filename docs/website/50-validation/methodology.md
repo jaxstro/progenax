@@ -39,6 +39,33 @@ Integration tests run on PR merge and must complete in $< 30$ minutes.
 Validation tests run nightly (or on PR merge to `main`) and may run
 $\sim 4$ hours.
 
+```{list-table} When each tier runs.
+:header-rows: 1
+
+* - Frequency
+  - What runs
+  - Time budget
+* - Per-push (CI)
+  - Unit tests + fast integration
+  - $< 5$ minutes
+* - Pre-merge (CI)
+  - + Slow integration + validation
+  - $< 30$ minutes
+* - Nightly
+  - + Stress tests, large-$N$, long chains
+  - $< 4$ hours
+* - Pre-release
+  - + Full reproducibility check on prior validation outputs
+  - Manual
+```
+
+The validation tier runs only on pre-merge to `main` — running it on
+every push would slow developer iteration. The trade-off: a developer
+pushing to a feature branch sees only unit + fast-integration results,
+so a validation-tier regression surfaces at the merge step. The
+mechanics of the gate that enforces this — the FAST/FULL split and the
+four-part release gate — are at [](testing-architecture.md).
+
 ## Tolerance conventions
 
 ```{list-table}
@@ -89,6 +116,31 @@ good anchors test the *physical condition* the constant should
 satisfy. The PP20 ζ(p) transcription bug shipped past *internal* tests
 because those tests asserted the buggy values; it would have been
 caught immediately by anchoring on $\zeta(1.5) = \sqrt{2}$.
+
+### Three failure modes the anchor pattern has caught
+
+The defining-condition anchor is not abstract — it has empirically
+caught three distinct classes of regression in progenax's history:
+
+1. **Closed-form transcription bugs** — the 2026-04-28 PP20 ζ(p) bug
+   ([](../90-development-log/2026-04-28-pp20-fix.md)) was caught by
+   anchoring on the analytic value $\zeta(1.5) = \sqrt{2}$; the buggy
+   formula gave $\infty$. Without the anchor the bug would have shipped
+   unnoticed, because every other test was self-consistent with the
+   buggy formula.
+2. **Inversion bugs** — the Plummer half-mass-radius bug (see the
+   historical note in [](../10-theory/spatial-profiles/plummer.md)),
+   where $a = r_h/\sqrt{2^{2/3}-1}$ was used instead of
+   $a = r_h\sqrt{2^{2/3}-1}$, was caught by `test_half_mass_radius`
+   checking $M(<r_h) = M/2$ *directly* rather than asserting
+   $a = $ some constant.
+3. **Differentiability regressions** — accidentally introducing
+   `jnp.where` (instead of a sigmoid) in a critical path is caught by
+   the per-builder gradient-finiteness tests
+   ([](../20-architecture/differentiability.md)).
+
+Each is now anchored by a regression test on the defining condition,
+not the derived constant.
 
 ## Adding a new validation test
 

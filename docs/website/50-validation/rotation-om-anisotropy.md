@@ -7,7 +7,8 @@ description: "Validation suite for the rotation transforms (solid-body, differen
 Two kinematic structures layered on the isotropic ICs: **streaming rotation**
 (an additive velocity transform) and **Osipkov-Merritt radial anisotropy** (a
 velocity-DF shape). Test file:
-`tests/validation/test_rotation_anisotropy_physics.py` (**10 tests**); figures:
+`tests/validation/test_rotation_anisotropy_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_rotation_anisotropy.py`. Theory at
 [](../10-theory/velocity-dfs/rotation-anisotropy.md).
 
@@ -133,7 +134,7 @@ amplitudes and the anisotropy radius are all differentiable for inference.
 ## How to run
 
 ```bash
-pytest tests/validation/test_rotation_anisotropy_physics.py -q   # 10 tests, ~7 s
+pytest tests/validation/test_rotation_anisotropy_physics.py -q   # ~7 s
 python scripts/validate_rotation_anisotropy.py                   # 5 figures + PASS/FAIL
 ```
 

@@ -363,10 +363,6 @@ here outruns the test suite.
   binary-aware recovery result uses the marginalised-likelihood
   validation script; the released `BinaryIMF` exposes sampling helpers
   (see [](../10-theory/imfs/index.md)).
-- **The scalar King tidal radius is not yet differentiable**
-  ($\partial r_t/\partial W_0 = 0$); profile-shape observables in $W_0$
-  *are*. The implicit-function-theorem fix is designed and deferred
-  ([roadmap](../20-architecture/differentiability.md#roadmap-differentiable-rt)).
 - **Turbulent/fractal IC generation is experimental and repo-only**
   (the `gravoturb_fdf` package, not in the released wheel). The
   released core retains only the substructure *diagnostics*

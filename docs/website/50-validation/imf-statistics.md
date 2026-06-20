@@ -6,9 +6,11 @@ description: "Validation suite for canonical IMFs (Salpeter, Kroupa, Chabrier, M
 
 The released IMF samplers — piecewise power-law ({cite:t}`Salpeter1955`,
 {cite:t}`Kroupa2001`), the {cite:t}`Chabrier2003` lognormal+power-law, and the
-{cite:t}`Maschberger2013` smooth bridging form, plus the `TaperedPowerLaw` and
-`Schechter` variants — sampled by exact inverse-CDF (no rejection). Test file:
-`tests/validation/test_imf_physics.py` (**25 tests**); figures:
+{cite:t}`Maschberger2013` smooth bridging form — plus the **internal**
+`TaperedPowerLaw` and `Schechter` variants (used inside the package; not in the
+public `progenax.__all__`) — sampled by exact inverse-CDF (no rejection). Test file:
+`tests/validation/test_imf_physics.py` (see the [test dashboard](test-dashboard.md)
+for the live per-suite count); figures:
 `scripts/validate_imfs.py` (5 figures, PASS/FAIL per panel, PNG + PDF). Theory at
 [](../10-theory/imfs/classic.md).
 
@@ -182,7 +184,7 @@ gradient-based inference target validated in @val-imf-gradient.
 ## How to run
 
 ```bash
-# physics tests (25 tests, ~8 s on CPU)
+# physics tests (~8 s on CPU)
 pytest tests/validation/test_imf_physics.py -q
 
 # regenerate the five figures with PASS/FAIL tables

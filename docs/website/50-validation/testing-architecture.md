@@ -23,35 +23,17 @@ new model or public symbol.
 
 ## The three-tier architecture
 
-The suite separates *mechanical* correctness, *end-to-end* behaviour,
-and *physical* correctness. Each tier has a distinct purpose and runs at
-a distinct frequency.
-
-```{list-table}
-:header-rows: 1
-
-* - Tier
-  - Directory
-  - Verifies
-  - Count
-* - **Unit**
-  - `tests/unit/`
-  - Per-function mechanical correctness (signatures, shapes, JIT-compatibility, gradient finiteness)
-  - ~956
-* - **Integration**
-  - `tests/integration/`
-  - End-to-end builder/pipeline behaviour through the user-facing entry points
-  - ~43
-* - **Validation**
-  - `tests/validation/`
-  - Quantitative match to analytic or published physics, with explicit pass/fail tolerances
-  - ~244
-```
+The suite separates *mechanical* correctness (`tests/unit/`),
+*end-to-end* behaviour (`tests/integration/`), and *physical*
+correctness (`tests/validation/`). The full tier definitions, run
+frequencies, and tolerance conventions — and the rule never to weaken a
+tolerance to make a test pass — live in [](methodology.md); the live
+per-tier counts are on the generated [](test-dashboard.md). This page
+focuses on the layer methodology does *not* cover: the registries and
+gate that enforce coverage of those tiers against the public API.
 
 The **FAST gate** (the inner loop) excludes `@pytest.mark.slow` tests;
-the **FULL gate** (the phase/commit gate) runs everything. The
-tolerance conventions for the validation tier — and the rule never to
-weaken a tolerance to make a test pass — live in [](methodology.md).
+the **FULL gate** (the phase/commit gate) runs everything.
 
 ## Tests versus registries
 
@@ -63,9 +45,10 @@ The backbone's central idea is the distinction between a **test** and a
   shape, a gradient that matches finite differences).
 - A **registry** is a hand-curated **frozen-literal manifest** plus a
   **ratchet test**. The ratchet cross-checks the manifest against
-  `progenax.__all__` (114 public symbols) and the runtime-checkable
-  protocols, so a *new* untested symbol, an *unregistered* model, or an
-  *unprovenanced* constant turns CI **red** the moment it lands.
+  `progenax.__all__` (the public-symbol count, reported live on the
+  [](test-dashboard.md)) and the runtime-checkable protocols, so a *new*
+  untested symbol, an *unregistered* model, or an *unprovenanced* constant
+  turns CI **red** the moment it lands.
 
 A registry is therefore a **meta-test**: it asserts that a test (or a
 citation) *exists*, not that the test is good.
@@ -107,9 +90,11 @@ The dashboard's registry block is generated from these manifests.
 * - Lives in
   - `tests/validation/api_coverage/manifest.py`
 * - Current state
-  - **112** symbols → an asserting test, **2** EXEMPT (pure PyTree
-    container / unit-system constant), **0** untested. Line-coverage
-    floor **90.0%**, currently measured **94.77%**.
+  - Every `progenax.__all__` symbol → an asserting test, except a small
+    EXEMPT set (pure PyTree container / unit-system constant), **0**
+    untested. Line-coverage floor **90.0%**; see the
+    [](test-dashboard.md) for the live audited/exempt split and the
+    currently-measured coverage.
 ```
 
 Each symbol lands in exactly one of `SYMBOL_TESTS` (→ a verified node

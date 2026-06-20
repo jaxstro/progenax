@@ -147,7 +147,9 @@ cornerstone) takes a couple of minutes.
 
 ## The 2026-04-28 fix
 
-The 35 tests were added simultaneously with the bug fix on 2026-04-28.
+The ζ(p) regression suite was added simultaneously with the bug fix on
+2026-04-28 (those tests now live in the experimental `gravoturb_fdf`
+package; see the [test dashboard](test-dashboard.md) for current counts).
 Pre-fix, the buggy `magnification_factor` returned values like
 $\zeta(0.5) = 1.235$ that all *prior* tests accepted (because the
 prior tests anchored on the buggy formula's output). The fix

@@ -8,8 +8,9 @@ The cluster birth environment ($\rho_{\rm cl}$, $[\mathrm{Fe/H}]$, $M_{\rm ecl}$
 sets the IMF slopes via the {cite:t}`Marks2012` Fundamental Plane and the
 {cite:t}`Jerabkova2018` IGIMF, exposed through `BirthEnvironment`,
 `env_to_imf_params`, `alpha3_marks_plane`, and `lowmass_slopes_metallicity`. Test
-files: `tests/validation/test_environment_physics.py` (**12 tests** vs published
-tables) and `tests/unit/imf/test_environment.py` (77 tests); figures:
+files: `tests/validation/test_environment_physics.py` (vs published tables) and
+`tests/unit/imf/test_environment.py` (see the [test dashboard](test-dashboard.md)
+for the live per-suite counts); figures:
 `scripts/validate_environment.py`. Theory at [](../10-theory/imfs/environment.md).
 
 :::{admonition} Key result: the predicted top-heaviness matches named globular clusters
@@ -158,7 +159,7 @@ gradient descent / HMC through the IMF.
 ## How to run
 
 ```bash
-# published-table physics tests (12 tests, < 1 s)
+# published-table physics tests (< 1 s)
 pytest tests/validation/test_environment_physics.py -q
 
 # regenerate the five figures with PASS/FAIL tables

@@ -59,7 +59,8 @@ $Q(f_{\mathrm{sub}})$ calibration (below).
 ## Mass segregation
 
 **Committed, embedded figures** (under `docs/website/50-validation/figures/`, shown on
-[](../10-theory/tidal-and-substructure/mass-segregation.md)):
+the [mass-segregation validation page](mass-segregation.md) — and, for the diagnostic
+theory, on [](../10-theory/tidal-and-substructure/mass-segregation.md)):
 
 - `lambda_msr_regimes.png`, `lambda_msr_monotonic_convergence.png`,
   `lambda_msr_binary_caveat.png` — the $\Lambda_{\mathrm{MSR}}$ *diagnostic* validated against

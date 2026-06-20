@@ -550,11 +550,14 @@ manifest could not catch a *deleted* case or a *new* symbol):
   legitimately absent from `progenax.__all__` — the frozen-edge binners, `q_approx`,
   `lambda_msr_approx`, `Schechter`, `IMFParams`, the Plummer+OM velocity DF — and are ratcheted
   by a direct `(id, param)` set check.)
-- **`SYMBOL_CATEGORY`** — a complete map from **every one of the 104** `progenax.__all__` symbols
+- **`SYMBOL_CATEGORY`** — a complete map from **every** `progenax.__all__` symbol
   to either `AUDITED` (must resolve to ≥1 registry case) or a typed `EXEMPT_*` reason
   (`PROTOCOL`, `CONTAINER`, `ANALYTICAL_IC`, `NON_FISHER_DIAGNOSTIC`, `HELPER`,
-  `COVERED_ELSEWHERE`). A newly-added public sampler is **absent from the map**, so the
-  keys-equality check fails and the symbol cannot ship ungated.
+  `COVERED_ELSEWHERE`). The Layer-3 invariant is a **keys-equality**
+  (`set(SYMBOL_CATEGORY) == set(progenax.__all__)`), not a frozen count, so it
+  tracks the live public-API size (reported on the [](test-dashboard.md)); a
+  newly-added public sampler is **absent from the map**, so the keys-equality
+  check fails and the symbol cannot ship ungated.
 - **`PARAM_ALLOWLIST`** — the carry-forward known-limitations, each tied to a registry
   `known_blocked`/expect and a reason: the $\alpha=1$ IMF branch points
   (`PowerLawIMF.ppf`/`mean_mass`, `IMFParams.log_prob_nll`), the binned-count data side
@@ -707,7 +710,7 @@ correct."
   - `288fce7`
 * - Tier 5 — self-policing release gate + D4 completion (**no new hazards**)
   - the measured gate had no enforcement (a future commit could silently reintroduce a zero, drift the JSON, or ship an ungated public sampler); three Fisher-coverage holes remained deferred (Engine-A `w_j`/`r_a`, `build_binary_cluster` end-to-end, the binary period/eccentricity distributions)
-  - added the `manifest.py` gradient-coverage source of truth (`MUST_AUDIT` + complete 104-symbol `SYMBOL_CATEGORY` + `PARAM_ALLOWLIST`) and a dedicated `gradient-gate` CI job with three pytest layers (run-gate, JSON staleness comparator, coverage ratchet + `__all__` cross-check); **added 11 new D4 Cases** growing the gate $66 \to 77$ (all FD-consistent; the closed-form anchors land exactly; `build_binary_cluster` machine-exact)
+  - added the `manifest.py` gradient-coverage source of truth (`MUST_AUDIT` + a complete `SYMBOL_CATEGORY` keyed to all of `progenax.__all__` + `PARAM_ALLOWLIST`) and a dedicated `gradient-gate` CI job with three pytest layers (run-gate, JSON staleness comparator, coverage ratchet + `__all__` cross-check); **added 11 new D4 Cases** growing the gate $66 \to 77$ (all FD-consistent; the closed-form anchors land exactly; `build_binary_cluster` machine-exact)
   - (this arc)
 ```
 

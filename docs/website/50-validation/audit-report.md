@@ -8,9 +8,11 @@ description: "Point-in-time validation-audit report for progenax: what is verifi
 :class: note
 **Completed: 2026-06-08.** This report covers the validation-audit campaign for the
 released-core **spatial profiles, velocity DFs / kinematics, substructure, and
-diagnostics**. It is a point-in-time companion to the live [status dashboard](index.md):
-the dashboard is the current state; this page records *how* trustworthy that state is,
-what is still missing, and what must be hardened first. Released-core: **866 tests**
+diagnostics**. It is a point-in-time companion to the live
+[test dashboard](test-dashboard.md): the dashboard is the current state; this page
+records *how* trustworthy that state is, what is still missing, and what must be
+hardened first. The released-core test count quoted in this report is a point-in-time
+snapshot — superseded; see the [test dashboard](test-dashboard.md) for the live count
 (all differentiable, all collect clean, every figure build-verified).
 :::
 

@@ -6,7 +6,8 @@ description: "Exact-solution sanity checks for progenax's analytical IC builders
 
 progenax's analytical IC builders (`progenax.analytical`) emit exact-solution initial
 conditions whose defining invariants can be checked directly. Test file:
-`tests/validation/test_analytical_physics.py` (**12 tests**); figures:
+`tests/validation/test_analytical_physics.py` (see the
+[test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_analytical.py`. The orbits are integrated in-script with symplectic
 velocity-Verlet (the scheme the tests use); the **oracle is always the analytic
 invariant** — the energy formula, the figure-eight's $L=0$ and closure, Kepler's third
@@ -152,7 +153,7 @@ are designed to catch.
 ## How to run
 
 ```bash
-# exact-solution physics tests (12 tests, ~2 s on CPU)
+# exact-solution physics tests (~2 s on CPU)
 pytest tests/validation/test_analytical_physics.py -q
 
 # regenerate the five figures with PASS/FAIL tables

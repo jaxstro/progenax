@@ -176,6 +176,7 @@ project:
         - file: 50-validation/multimass-equilibrium.md
         - file: 50-validation/engine-b-eddington.md
         - file: 50-validation/gravoturbulent-pp20.md
+          hidden: true
         - file: 50-validation/two-component.md
         - file: 50-validation/cluster-builders.md
         - file: 50-validation/tidal-truncation.md

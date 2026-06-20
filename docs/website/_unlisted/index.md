@@ -66,6 +66,10 @@ public navigation):
   {cite:t}`Burkhart2018,BurkhartMocz2019` dense-gas SFR forward model.
 - [](../10-theory/gravoturbulence/inference.md) — the differentiable
   physics-direct inference layer (3-D α recovery + projected β estimator).
+- [](../50-validation/gravoturbulent-pp20.md) — the validation-side companion:
+  the PP20 ζ(p) regression suite + BM19 unit coverage (now backed by the
+  experimental `gravoturb_fdf` AC suite), and the historical record of the
+  2026-04-28 transcription-bug fix. Hidden to match the gravoturb theory subsection.
 
 ## Development log
 

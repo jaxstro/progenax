@@ -162,6 +162,6 @@ python scripts/validate_tidal.py
 
 ## References
 
-King (1962), *AJ* **67**, 471 (tidal radius); Binney & Tremaine (2008), §8.3.1;
-Spitzer (1987), *Dynamical Evolution of Globular Clusters*; Baumgardt & Makino (2003),
-*MNRAS* **340**, 227 (fill factor). The utilities are in `progenax/tidal.py`.
+{cite:t}`King1962` (tidal radius); Binney & Tremaine (2008), §8.3.1;
+Spitzer (1987), *Dynamical Evolution of Globular Clusters*; {cite:t}`Baumgardt2003`
+(fill factor). The utilities are in `progenax/tidal.py`.

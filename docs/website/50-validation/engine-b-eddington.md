@@ -123,7 +123,11 @@ sit on the *prediction*, not on idealized 0.5 (see below).
    no ergodic $f(E)$ can carry (the Eddington pair represents
    $\rho(\Psi) - \rho(0)$) — so the truncated halo's sampled $Q_j$ plateaus
    *below* 0.5. The exact-quadrature hybrid expectation predicts $0.4953$; an
-   18-seed $\times$ 16k campaign measured $0.4947 \pm 0.0014$ ($0.4\sigma$).
+   18-seed $\times$ 16k campaign measured $0.4947 \pm 0.0014$ ($0.4\sigma$ from
+   the prediction — this is the headline figure the theory pages cite). The
+   in-script PASS/FAIL table above runs a faster 3-seed $\times$ 16k check
+   ($0.4917 \pm 0.0062$ for the halo, consistent with the 18-seed campaign
+   within its larger SEM); both sit on the prediction, not on idealized $0.5$.
    The gate is against the **prediction**, never a tuned offset.
 
 ### Numerics bug found and fixed: the King $dW/dr$ staircase
