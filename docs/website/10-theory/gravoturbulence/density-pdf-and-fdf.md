@@ -325,7 +325,7 @@ The two formulations apply to different observational situations:
 * - **PDF-based** (this chapter)
   - …a density-PDF observation (e.g. column-density PDF)
   - Numerical integral; consumes lognormal+power-law parameters
-* - **Direct 3D** ([](magnification-factor.md#direct-3d))
+* - **Direct 3D** ([direct 3D ζ](#direct-3d))
   - …a simulation snapshot or detailed observation
   - Direct sum over voxels; no parametric assumption
 ```

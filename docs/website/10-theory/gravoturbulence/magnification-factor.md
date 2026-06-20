@@ -254,7 +254,7 @@ the core, the omitted region contributes $\mathcal{O}((1/n_{\mathrm{nodes}})^3) 
 
 ### Limiting behaviours
 
-```{list-table} Limits of `magnification_factor_with_core(p, r_c/R)`.
+:::{list-table} Limits of `magnification_factor_with_core(p, r_c/R)`.
 :header-rows: 1
 
 * - Limit
@@ -272,7 +272,7 @@ the core, the omitted region contributes $\mathcal{O}((1/n_{\mathrm{nodes}})^3) 
 * - $p \to 2$
   - Singular isothermal at large $r$
   - Large but finite ζ (core regularises)
-```
+:::
 
 `tests/experimental/unit/test_pp20.py` and the AC4 direct-field check verify ζ convergence to the
 analytic value at $p \in \{0.5, 1.0, 1.5\}$ as $r_c/R \to 0$.
@@ -288,7 +288,7 @@ density field and its volume weights:
 ```{math}
 :label: zeta-fdf-direct
 \zeta_{\mathrm{FDF}} \;=\; \frac{\sum_{i} \rho_i^{3/2}\,w_i \,\bigl(\sum_i w_i\bigr)^{1/2}}
-                                 {\bigl(\sum_i \rho_i\,w_i\bigr)^{3/2}}
+     {\bigl(\sum_i \rho_i\,w_i\bigr)^{3/2}}
 ```
 
 This is exactly $\langle\rho^{1/2}\rangle_{\mathrm{mass}}/\langle\rho\rangle^{1/2}$ for cells of
@@ -391,6 +391,7 @@ For HMC-based inference of cloud parameters, all three are differentiable. The c
 level of cloud parameterisation in the inference target: power-law fit → PP20; cored fit → cored;
 gridded field → direct 3D.
 
+(pp20-historical-fix)=
 ## Historical note — the 2026-04-28 transcription fix
 
 ```{admonition} Historical
