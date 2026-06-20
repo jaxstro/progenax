@@ -47,17 +47,23 @@ than assumed.
 
 The defining cross-cutting check is that **any** spatial profile pairs
 with **any** velocity DF (protocol-based composition), and a *matched*
-pair sits at virial equilibrium with no external rescale. The expected
-behaviour the builder/cluster suites assert:
+pair sits at virial equilibrium with no external rescale. How the suite
+covers this:
 
 - **Matched pairs** (Plummer⊗Plummer at the same $r_h$, King⊗King at
   the same $W_0$, EFF⊗EFF) recover $Q = T/|V| \approx 0.5$ to within
   finite-$N$ Poisson noise ($\sim 5\times10^{-3}$ at $N = 10^4$) — the
-  unscaled DF is a true equilibrium.
+  unscaled DF is a true equilibrium. The matched-pair $Q$ is asserted in
+  the **validation-tier physics suites** (`test_plummer_physics.py`,
+  `test_king_physics.py`, `test_eff_physics.py`); the builder/cluster
+  suites assert the *composition* (that any profile pairs with any DF and
+  the matched DF is constructed).
 - **Mismatched pairs** (e.g. Plummer positions at $r_h=1$ with Plummer
-  velocities scaled to $r_h=2$) land *predictably away* from $0.5$ —
-  the suite checks the departure is in the expected direction, which is
-  what makes the matched-pair result meaningful rather than imposed.
+  velocities built for $r_h=2$) are *expected* to depart from $0.5$,
+  because the velocities no longer balance the potential they sit in.
+  This physical asymmetry is what makes the matched-pair equilibrium a
+  real result rather than an imposed one. (This is the rationale for the
+  matched-pair checks, not a separately-asserted directional test.)
 
 The per-model virial rows on the module validation pages
 ([](plummer-equilibrium.md), [](king-profile.md), [](eff-profile.md))

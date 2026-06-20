@@ -14,10 +14,10 @@ $w_j = \mu_j^{-\delta}$). Heavier components are more centrally concentrated
 **as an equilibrium property, not an imposed reshuffle** — the contrast with
 the primordial generator on the
 [mass-segregation page](mass-segregation.md). Test files:
-`tests/validation/test_multimass_equilibrium_physics.py` (**6 tests**) plus
-the DF-table unit suites (`tests/unit/profiles/test_limepy_tables.py`,
-**23 tests**; table threading in `tests/unit/profiles/test_limepy_multimass.py`,
-**19 tests**). Figures + PASS/FAIL:
+`tests/validation/test_multimass_equilibrium_physics.py` plus the DF-table
+unit suites (`tests/unit/profiles/test_limepy_tables.py`; table threading in
+`tests/unit/profiles/test_limepy_multimass.py`) — see the
+[test dashboard](test-dashboard.md) for the live per-suite counts. Figures + PASS/FAIL:
 `scripts/validate_multimass_equilibrium.py`,
 `scripts/validate_multimass_anisotropy.py`, `scripts/validate_df_tables.py`.
 
