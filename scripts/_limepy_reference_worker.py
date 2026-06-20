@@ -20,6 +20,7 @@ reference's mean mass is the GZ15 eq-26 central-density-weighted
 m-bar = sum_j m_j alpha_j -- identical to progenax's ``bar_m`` (no Peuten
 eq 8-9 W0 translation needed).
 """
+
 import json
 import os
 import subprocess
@@ -29,8 +30,8 @@ import sys
 # repo root); override with the LIMEPY_REF_REPO environment variable if set.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REF_REPO = os.environ.get(
-    "LIMEPY_REF_REPO",
-    os.path.join(os.path.dirname(_REPO_ROOT), "ref-repos", "limepy"))
+    "LIMEPY_REF_REPO", os.path.join(os.path.dirname(_REPO_ROOT), "ref-repos", "limepy")
+)
 
 
 def main():
@@ -45,8 +46,13 @@ def main():
     kwargs = {}
     multi = "mj" in cfg
     if multi:
-        kwargs.update(mj=cfg["mj"], Mj=cfg["Mj"], delta=cfg["delta"],
-                      eta=cfg.get("eta", 0.0), meanmassdef="central")
+        kwargs.update(
+            mj=cfg["mj"],
+            Mj=cfg["Mj"],
+            delta=cfg["delta"],
+            eta=cfg.get("eta", 0.0),
+            meanmassdef="central",
+        )
     if cfg.get("ra") is not None:
         kwargs["ra"] = cfg["ra"]
 
@@ -63,32 +69,48 @@ def main():
     raj = np.atleast_1d(getattr(m, "raj", np.array([m.ra])))
 
     try:
-        sha = subprocess.run(["git", "-C", REF_REPO, "rev-parse", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
+        sha = subprocess.run(
+            ["git", "-C", REF_REPO, "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
     except Exception:
         sha = "unknown"
 
-    provenance = json.dumps({
-        "ref_repo": REF_REPO,
-        "ref_git_sha": sha,
-        "numpy": np.__version__,
-        "scipy": scipy.__version__,
-        "python": sys.version.split()[0],
-        "config": cfg,
-        "meanmassdef": "central" if multi else "n/a (single-mass)",
-    })
+    provenance = json.dumps(
+        {
+            "ref_repo": REF_REPO,
+            "ref_git_sha": sha,
+            "numpy": np.__version__,
+            "scipy": scipy.__version__,
+            "python": sys.version.split()[0],
+            "config": cfg,
+            "meanmassdef": "central" if multi else "n/a (single-mass)",
+        }
+    )
 
     np.savez(
         out_path,
-        r=m.r, rhoj=rhoj, v2j=v2j, v2rj=v2rj, v2tj=v2tj,
-        alpha=alpha, mj=mj, Mj=Mj, raj=raj, mc=m.mc,
-        rt=np.float64(m.rt), rh=np.float64(m.rh), rv=np.float64(m.rv),
-        r0=np.float64(m.r0), mmean=np.float64(getattr(m, "mmean", 1.0)),
+        r=m.r,
+        rhoj=rhoj,
+        v2j=v2j,
+        v2rj=v2rj,
+        v2tj=v2tj,
+        alpha=alpha,
+        mj=mj,
+        Mj=Mj,
+        raj=raj,
+        mc=m.mc,
+        rt=np.float64(m.rt),
+        rh=np.float64(m.rh),
+        rv=np.float64(m.rv),
+        r0=np.float64(m.r0),
+        mmean=np.float64(getattr(m, "mmean", 1.0)),
         converged=np.bool_(m.converged),
         provenance=np.str_(provenance),
     )
-    print(f"wrote {out_path}: converged={m.converged}, rt/r0={m.rt / m.r0:.4f}, "
-          f"rh/r0={m.rh / m.r0:.4f}, alpha={np.round(alpha, 4)}")
+    print(
+        f"wrote {out_path}: converged={m.converged}, rt/r0={m.rt / m.r0:.4f}, "
+        f"rh/r0={m.rh / m.r0:.4f}, alpha={np.round(alpha, 4)}"
+    )
 
 
 if __name__ == "__main__":

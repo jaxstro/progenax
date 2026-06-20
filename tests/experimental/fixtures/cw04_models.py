@@ -28,15 +28,17 @@ def radial_profile_positions(alpha, n_points, seed):
         raise ValueError("alpha must be < 3 for a normalizable n ~ r^-alpha sphere")
     rng = np.random.default_rng(seed)
     u = rng.uniform(0.0, 1.0, size=n_points)
-    r = u ** (1.0 / (3.0 - alpha))           # inverse CDF of M(r) ~ r^{3-alpha}
+    r = u ** (1.0 / (3.0 - alpha))  # inverse CDF of M(r) ~ r^{3-alpha}
     cos_theta = 2.0 * rng.uniform(0.0, 1.0, size=n_points) - 1.0
     sin_theta = np.sqrt(np.clip(1.0 - cos_theta**2, 0.0, 1.0))
     phi = 2.0 * np.pi * rng.uniform(0.0, 1.0, size=n_points)
-    return np.column_stack([
-        r * sin_theta * np.cos(phi),
-        r * sin_theta * np.sin(phi),
-        r * cos_theta,
-    ])
+    return np.column_stack(
+        [
+            r * sin_theta * np.cos(phi),
+            r * sin_theta * np.sin(phi),
+            r * cos_theta,
+        ]
+    )
 
 
 def uniform_sphere_positions(n_points, seed):

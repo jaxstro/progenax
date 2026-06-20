@@ -17,7 +17,6 @@ import jax.numpy as jnp
 from jaxstro.numerics import newton_ppf
 from jaxtyping import Array, Float, PRNGKeyArray
 
-
 # ============================================================================
 # IMFProtocol - Runtime-checkable Protocol for Type-Safe Composition
 # ============================================================================
@@ -30,6 +29,7 @@ class IMFProtocol(Protocol):
     Any class with these attributes and methods can be used as an IMF,
     enabling TruncatedIMF to wrap any compatible IMF.
     """
+
     m_min: float
     m_max: float
 
@@ -267,8 +267,10 @@ class BaseIMF(eqx.Module):
                     f"the stratified-quantile ceiling is {m_ceiling:.6g} Msun. "
                     f"Increase n, lower m_total, or use sample_m_total()."
                 )
-        except (jax.errors.ConcretizationTypeError,
-                jax.errors.TracerArrayConversionError):
+        except (
+            jax.errors.ConcretizationTypeError,
+            jax.errors.TracerArrayConversionError,
+        ):
             pass  # traced m_total / params: caller owns reachability
 
         q_star = self._solve_q_for_m_total(u_base, m_total, max_steps)

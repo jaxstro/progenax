@@ -5,10 +5,10 @@ from __future__ import annotations
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-
 # =============================================================================
 # Density Computation Functions
 # =============================================================================
+
 
 def compute_r_half(M_ecl: Float[Array, "..."]) -> Float[Array, "..."]:
     """Radius-mass relation from Marks & Kroupa (2012).
@@ -82,5 +82,3 @@ def compute_log_rho_cl_6(
     """
     rho_cl = compute_rho_cl(M_ecl, sfe)
     return jnp.log10(rho_cl) - 6.0
-
-

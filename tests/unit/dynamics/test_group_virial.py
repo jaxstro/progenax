@@ -12,8 +12,6 @@ so n_groups=1 must reproduce the existing compute_virial_ratio.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
-
 from jaxstro.units import STELLAR
 
 G = STELLAR.G
@@ -23,6 +21,7 @@ def _equal_mass_plummer(key, N=300, Q=0.5):
     """An equal-mass Plummer cluster rescaled to global virial ratio Q (COM frame)."""
     from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
     from progenax.dynamics.virial import rescale_velocities_to_virial
+
     masses = jnp.ones(N)
     kpos, kvel = jax.random.split(key)
     profile = PlummerProfile(r_h=1.0)
@@ -55,8 +54,10 @@ class TestMassGroupMasks:
 
         masses = jnp.linspace(0.1, 10.0, 60)
         masks = mass_group_masks(masses, n_groups=3)
-        means = [float(jnp.sum(jnp.where(masks[g], masses, 0.0)) / jnp.sum(masks[g]))
-                 for g in range(3)]
+        means = [
+            float(jnp.sum(jnp.where(masks[g], masses, 0.0)) / jnp.sum(masks[g]))
+            for g in range(3)
+        ]
         assert means[0] < means[1] < means[2]
 
 
@@ -66,7 +67,10 @@ class TestMassGroupMasks:
 class TestPerGroupVirialRatio:
     def test_single_group_reproduces_global_virial(self):
         """n_groups=1: Clausius W = V, so Q == compute_virial_ratio (exact anchor)."""
-        from progenax.dynamics.virial import per_group_virial_ratio, compute_virial_ratio
+        from progenax.dynamics.virial import (
+            compute_virial_ratio,
+            per_group_virial_ratio,
+        )
 
         pos, vel, m = _equal_mass_plummer(jax.random.PRNGKey(1), Q=0.37)
         mask = jnp.ones((1, m.shape[0]), dtype=bool)
@@ -77,34 +81,40 @@ class TestPerGroupVirialRatio:
     def test_equal_mass_equilibrium_all_groups_near_half(self):
         """Equal-mass virial cluster: random mass-rank groups are statistically
         identical sub-samples, so each Q_j ~ 0.5."""
-        from progenax.dynamics.virial import per_group_virial_ratio, mass_group_masks
+        from progenax.dynamics.virial import mass_group_masks, per_group_virial_ratio
 
         Qs = []
         for s in range(6):
             pos, vel, m = _equal_mass_plummer(jax.random.PRNGKey(s), Q=0.5)
             masks = mass_group_masks(m, n_groups=3)
-            Qs.append(np.asarray(per_group_virial_ratio(pos, vel, m, G=G, group_masks=masks)))
+            Qs.append(
+                np.asarray(per_group_virial_ratio(pos, vel, m, G=G, group_masks=masks))
+            )
         Qmean = np.mean(Qs, axis=0)
         np.testing.assert_allclose(Qmean, 0.5, atol=0.12)
 
     def test_differentiable(self):
-        from progenax.dynamics.virial import per_group_virial_ratio, mass_group_masks
+        from progenax.dynamics.virial import mass_group_masks, per_group_virial_ratio
 
         pos, vel, m = _equal_mass_plummer(jax.random.PRNGKey(2))
         masks = mass_group_masks(m, n_groups=2)
 
         def loss(scale):
-            return jnp.sum(per_group_virial_ratio(pos, vel * scale, m, G=G, group_masks=masks))
+            return jnp.sum(
+                per_group_virial_ratio(pos, vel * scale, m, G=G, group_masks=masks)
+            )
 
         g = jax.grad(loss)(1.0)
         assert jnp.isfinite(g)
 
     def test_jit(self):
-        from progenax.dynamics.virial import per_group_virial_ratio, mass_group_masks
+        from progenax.dynamics.virial import mass_group_masks, per_group_virial_ratio
 
         pos, vel, m = _equal_mass_plummer(jax.random.PRNGKey(3))
         masks = mass_group_masks(m, n_groups=3)
-        f = jax.jit(lambda p, v: per_group_virial_ratio(p, v, m, G=G, group_masks=masks))
+        f = jax.jit(
+            lambda p, v: per_group_virial_ratio(p, v, m, G=G, group_masks=masks)
+        )
         assert jnp.all(jnp.isfinite(f(pos, vel)))
 
 
@@ -150,6 +160,7 @@ class TestBlockedAccelerations:
 
         pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.5, 0.0]])
         m = jnp.ones(3)
-        g = jax.grad(lambda p: jnp.sum(_accelerations(p, m, G=1.0,
-                                                      block_size=2) ** 2))(pos)
+        g = jax.grad(lambda p: jnp.sum(_accelerations(p, m, G=1.0, block_size=2) ** 2))(
+            pos
+        )
         assert bool(jnp.all(jnp.isfinite(g)))

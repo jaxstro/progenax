@@ -30,7 +30,9 @@ def test_ac6_cornerstone():
 
 def test_ac7_q_calibration():
     # 48³×4 smoke for test speed; the script main() runs the 64³ smoke.
-    assert acceptance.ac7_q_calibration(shape=(48, 48, 48), n_real=4, n_stars=400)["passed"]
+    assert acceptance.ac7_q_calibration(shape=(48, 48, 48), n_real=4, n_stars=400)[
+        "passed"
+    ]
 
 
 def test_ac8_ac9_grads():
@@ -46,7 +48,9 @@ def test_ac11_xi_s_vs_oracle():
 
 def test_ac11b_rank_copula_equivalence():
     # 48³×4 for test speed; physical rank/mass-conserving copula xi_s vs prediction.
-    res = acceptance.ac11b_rank_copula_equivalence(shape=(48, 48, 48), n_real=4, rel_tol=0.03)
+    res = acceptance.ac11b_rank_copula_equivalence(
+        shape=(48, 48, 48), n_real=4, rel_tol=0.03
+    )
     assert res["passed"]
 
 
@@ -77,8 +81,9 @@ def test_ac13_cic_vs_oracle():
     # 48³×10 smoke for test speed; the Cox relation + P(N) are tight at any n_real, the
     # Route-A linear moment is cosmic-variance-limited at small n_real -> theory_tol loosened
     # (the script main() runs the full 48³×24 ensemble where Route A reaches ~2.5%).
-    res = acceptance.ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=10, c=4,
-                                        cox_tol=0.06, theory_tol=0.18, l1_tol=0.12)
+    res = acceptance.ac13_cic_vs_oracle(
+        shape=(48, 48, 48), n_real=10, c=4, cox_tol=0.06, theory_tol=0.18, l1_tol=0.12
+    )
     assert res["passed"]
 
 
@@ -90,12 +95,18 @@ def test_ac16_hmc_recovery():
     # alpha posterior width within [0.5,2]x the truncation-corrected Fisher, and small
     # mach-alpha correlation (the POT block breaks the old mach-alpha degeneracy).
     res = acceptance.ac16_hmc_recovery(
-        shape=(24, 24, 24), density_shape=(112, 112, 112), s_thr_margin=0.75, n_exc_bins=12,
-        n_warmup=150, n_samples=250, seed=0)
+        shape=(24, 24, 24),
+        density_shape=(112, 112, 112),
+        s_thr_margin=0.75,
+        n_exc_bins=12,
+        n_warmup=150,
+        n_samples=250,
+        seed=0,
+    )
     assert res["passed"]
-    assert res["n_tail"] > 50                       # tail resolved
+    assert res["n_tail"] > 50  # tail resolved
     assert 0.5 <= res["stds"][1] / res["sigma_alpha_fisher"] <= 2.0  # alpha width sane
-    assert abs(res["corr_mach_alpha"]) < 0.6        # mach-alpha decoupled by POT
+    assert abs(res["corr_mach_alpha"]) < 0.6  # mach-alpha decoupled by POT
 
 
 @pytest.mark.slow
@@ -111,7 +122,8 @@ def test_ac20_log_count_variance_tail_robust_across_mach():
     res = acceptance.ac20_log_count_variance_oracle()
     assert res["passed"], (
         f"AC20 count-model gate: max|rel|={res['max_abs_rel']:.2%} "
-        f"slope={res['slope']:+.2e} rels={['%+.2f%%' % (100 * r) for r in res['rel']]}")
+        f"slope={res['slope']:+.2e} rels={['%+.2f%%' % (100 * r) for r in res['rel']]}"
+    )
     # explicit per-mach <6% (mirrors the plan's assertion; helper already enforces this)
     for mach, rel in zip(res["machs"], res["rel"]):
         assert abs(rel) < 0.06, f"mach={mach}: rel={rel:+.2%} exceeds 6%"
@@ -121,11 +133,16 @@ def test_ac17_alpha_forecast():
     # sigma(alpha) vs N_tail: iid draws validate the truncation-corrected Fisher (sigma_emp/sigma_fish
     # ~1) + sqrt(N) law; the smooth-copula correlation caveat is reported; f_dense is robust. Small
     # grids/n_field for test speed; main() runs the bigger ladder.
-    res = acceptance.ac17_alpha_forecast(grids=((64,)*3, (88,)*3, (112,)*3), n_iid=300, n_field=30,
-                                         caveat_grid=(96, 96, 96), seed=0)
+    res = acceptance.ac17_alpha_forecast(
+        grids=((64,) * 3, (88,) * 3, (112,) * 3),
+        n_iid=300,
+        n_field=30,
+        caveat_grid=(96, 96, 96),
+        seed=0,
+    )
     assert res["passed"]
-    assert res["corr_factor"] > 1.0                 # correlation inflates scatter over the iid bound
-    assert abs(res["slope_emp"] + 0.5) < 0.15       # sqrt(N) scaling
+    assert res["corr_factor"] > 1.0  # correlation inflates scatter over the iid bound
+    assert abs(res["slope_emp"] + 0.5) < 0.15  # sqrt(N) scaling
 
 
 @pytest.mark.slow
@@ -149,8 +166,13 @@ def test_ac18_sbc_rank_uniformity():
     # CURRENTLY XFAIL: the count model biases M at high sigma_s^2 (see the xfail reason above).
     pytest.importorskip("jaxstroviz")
     res = acceptance.ac18_sbc_rank_uniformity(
-        n_trials=30, shape=(24,)*3, density_shape=(64,)*3,
-        n_warmup=120, n_samples=200, n_thin=4)
+        n_trials=30,
+        shape=(24,) * 3,
+        density_shape=(64,) * 3,
+        n_warmup=120,
+        n_samples=200,
+        n_thin=4,
+    )
     assert res["passed"]
     assert all(p > 0.05 for p in res["p_value"])
     assert len(res["p_value"]) == 3

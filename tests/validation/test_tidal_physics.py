@@ -20,8 +20,8 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 import scipy.optimize
-
 from jaxstro.units import STELLAR
+
 from progenax.tidal import (
     apply_tidal_truncation,
     jacobi_radius,
@@ -52,11 +52,12 @@ def _l1_distance_from_cluster(m, M_g, R, G):
 class TestJacobiTidalBalance:
     """r_J satisfies the defining tidal force balance G m / r_J^2 = 3 Omega^2 r_J."""
 
-    @pytest.mark.parametrize("m,M_g,R", [(1e4, 1e11, 8000.0), (1e6, 5e10, 4000.0),
-                                         (1e3, 1e12, 15000.0)])
+    @pytest.mark.parametrize(
+        "m,M_g,R", [(1e4, 1e11, 8000.0), (1e6, 5e10, 4000.0), (1e3, 1e12, 15000.0)]
+    )
     def test_self_gravity_equals_tidal_plus_centrifugal(self, m, M_g, R):
         r_J = float(jacobi_radius(m, M_g, R))
-        Omega2 = G * M_g / R**3            # point-mass host: Omega^2 = G M_g / R^3
+        Omega2 = G * M_g / R**3  # point-mass host: Omega^2 = G M_g / R^3
         self_grav = G * m / r_J**2
         tidal_centrifugal = 3.0 * Omega2 * r_J
         rel = abs(self_grav - tidal_centrifugal) / self_grav
@@ -68,7 +69,7 @@ class TestJacobiL1Lagrange:
     m/M_g -> 0 limit (the independent physics oracle)."""
 
     def test_matches_l1_for_realistic_cluster(self):
-        m, M_g, R = 1e4, 1e11, 8000.0           # m/M_g = 1e-7 (Galactic GC)
+        m, M_g, R = 1e4, 1e11, 8000.0  # m/M_g = 1e-7 (Galactic GC)
         r_J = float(jacobi_radius(m, M_g, R))
         l1 = _l1_distance_from_cluster(m, M_g, R, G)
         rel = abs(r_J - l1) / l1
@@ -78,7 +79,7 @@ class TestJacobiL1Lagrange:
         """As m/M_g -> 0 the Hill formula approaches the exact L1 point."""
         M_g, R = 1e11, 8000.0
         rels = []
-        for m in (1e8, 1e6, 1e4, 1e2):          # decreasing m/M_g
+        for m in (1e8, 1e6, 1e4, 1e2):  # decreasing m/M_g
             r_J = float(jacobi_radius(m, M_g, R))
             l1 = _l1_distance_from_cluster(m, M_g, R, G)
             rels.append(abs(r_J - l1) / l1)
@@ -94,9 +95,9 @@ class TestKeplerianVsIsothermal:
 
     def test_isothermal_keplerian_ratio(self):
         m, R = 1e4, 8000.0
-        V = 220.0 * 1.0227121651            # km/s -> pc/Myr (units consistent with G)
+        V = 220.0 * 1.0227121651  # km/s -> pc/Myr (units consistent with G)
         Omega = V / R
-        M_g_equiv = Omega**2 * R**3 / G     # point-mass host with the same Omega
+        M_g_equiv = Omega**2 * R**3 / G  # point-mass host with the same Omega
         r_point = float(jacobi_radius(m, M_g_equiv, R))
         r_iso = float(jacobi_radius_isothermal(m, V, R, G))
         ratio = r_iso / r_point
@@ -108,6 +109,7 @@ class TestTruncationBoundMass:
 
     def _plummer(self, n=4000, r_h=5.0, seed=0):
         from progenax.profiles import PlummerProfile
+
         prof = PlummerProfile(r_h=r_h)
         masses = jnp.ones(n)
         pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
@@ -130,8 +132,9 @@ class TestTruncationBoundMass:
         pos, vel, m = self._plummer(n=n, r_h=r_h)
         a = r_h * np.sqrt(2.0 ** (2.0 / 3.0) - 1.0)
         rts = np.array([5.0, 10.0, 20.0, 40.0])
-        bound = np.array([float(jnp.sum(apply_tidal_truncation(pos, vel, m, rt)[2]))
-                          for rt in rts])
+        bound = np.array(
+            [float(jnp.sum(apply_tidal_truncation(pos, vel, m, rt)[2])) for rt in rts]
+        )
         frac_analytic = rts**3 / (rts**2 + a**2) ** 1.5
         assert all(bound[i + 1] >= bound[i] for i in range(len(bound) - 1))  # monotone
         # finite-N: binomial std ~ sqrt(f(1-f)/n) <~ 0.006; allow 0.02

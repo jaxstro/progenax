@@ -48,6 +48,7 @@ Run record (2026-06-12, CPU/float64, N=400, 6 seeds, wall ~6 s, exit 0 / ALL PAS
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_diff_diagnostics.py
 """
+
 import os
 import sys
 
@@ -71,9 +72,9 @@ OUTPUT_DIR = "validation/plots"
 
 N_POINTS = 400
 N_SEEDS = 6
-Q_TOL = 0.10            # |q_approx - Q_exact| over the sequence (tightest <0.06 for Q<0.8)
+Q_TOL = 0.10  # |q_approx - Q_exact| over the sequence (tightest <0.06 for Q<0.8)
 Q_SUBSTRUCT_TOL = 0.06  # the regime q_approx is calibrated for (CW04 substructure)
-AD_FD_TOL = 0.12        # AD-vs-FD relative gap gate (test measured ~2.4-7% at h=1e-3)
+AD_FD_TOL = 0.12  # AD-vs-FD relative gap gate (test measured ~2.4-7% at h=1e-3)
 
 
 # --------------------------------------------------------------------------- #
@@ -85,7 +86,9 @@ def _uniform_sphere(n, seed):
     cos_t = rng.uniform(-1, 1, n)
     sin_t = np.sqrt(1 - cos_t**2)
     phi = rng.uniform(0, 2 * np.pi, n)
-    return np.column_stack([r * sin_t * np.cos(phi), r * sin_t * np.sin(phi), r * cos_t])
+    return np.column_stack(
+        [r * sin_t * np.cos(phi), r * sin_t * np.sin(phi), r * cos_t]
+    )
 
 
 def _concentrated(n, seed):
@@ -95,7 +98,9 @@ def _concentrated(n, seed):
     cos_t = rng.uniform(-1, 1, n)
     sin_t = np.sqrt(1 - cos_t**2)
     phi = rng.uniform(0, 2 * np.pi, n)
-    return np.column_stack([r * sin_t * np.cos(phi), r * sin_t * np.sin(phi), r * cos_t])
+    return np.column_stack(
+        [r * sin_t * np.cos(phi), r * sin_t * np.sin(phi), r * cos_t]
+    )
 
 
 def _clumpy(n, seed, k=8, spread=0.06):
@@ -139,8 +144,9 @@ def q_calibration():
             pos = gen(N_POINTS, s)
             q_ex.append(compute_q_parameter(pos))
             q_ap.append(float(q_approx(jnp.asarray(pos))))
-        rows.append((name, color, np.mean(q_ex), np.std(q_ex),
-                     np.mean(q_ap), np.std(q_ap)))
+        rows.append(
+            (name, color, np.mean(q_ex), np.std(q_ex), np.mean(q_ap), np.std(q_ap))
+        )
     return rows
 
 
@@ -153,10 +159,16 @@ def lambda_calibration():
         for s in range(N_SEEDS):
             pos, m = _seg_cluster(s, core_scale=cs)
             lam_ex.append(compute_lambda_msr(pos, m, N_massive=20)[0])
-            lam_ap.append(float(lambda_msr_approx(
-                jnp.asarray(pos), jnp.asarray(m), m_cut=2.0, tau=0.3, beta=0.1)))
-        rows.append((cs, np.mean(lam_ex), np.std(lam_ex),
-                     np.mean(lam_ap), np.std(lam_ap)))
+            lam_ap.append(
+                float(
+                    lambda_msr_approx(
+                        jnp.asarray(pos), jnp.asarray(m), m_cut=2.0, tau=0.3, beta=0.1
+                    )
+                )
+            )
+        rows.append(
+            (cs, np.mean(lam_ex), np.std(lam_ex), np.mean(lam_ap), np.std(lam_ap))
+        )
     return rows
 
 
@@ -190,13 +202,28 @@ def make_figure(q_rows, lam_rows, diff):
     # (a) Q calibration: q_approx vs exact Q, y=x with +/-0.06 band.
     ax = axes[0]
     lo, hi = 0.55, 1.0
-    ax.fill_between([lo, hi], [lo - 0.06, hi - 0.06], [lo + 0.06, hi + 0.06],
-                    color="0.85", zorder=0, label=r"$\pm0.06$")
+    ax.fill_between(
+        [lo, hi],
+        [lo - 0.06, hi - 0.06],
+        [lo + 0.06, hi + 0.06],
+        color="0.85",
+        zorder=0,
+        label=r"$\pm0.06$",
+    )
     ax.plot([lo, hi], [lo, hi], "k:", lw=0.8, zorder=1)
     ax.axvline(0.79, color="0.6", lw=0.8, ls="--")
     for name, color, qex, qex_s, qap, qap_s in q_rows:
-        ax.errorbar(qex, qap, xerr=qex_s, yerr=qap_s, fmt="o", ms=4,
-                    color=color, label=name, zorder=3)
+        ax.errorbar(
+            qex,
+            qap,
+            xerr=qex_s,
+            yerr=qap_s,
+            fmt="o",
+            ms=4,
+            color=color,
+            label=name,
+            zorder=3,
+        )
     ax.set_xlim(lo, hi)
     ax.set_ylim(lo, hi)
     ax.set_xlabel(r"exact $Q$  (Cartwright \& Whitworth 2004)")
@@ -213,8 +240,14 @@ def make_figure(q_rows, lam_rows, diff):
     lap_s = np.array([r[4] for r in lam_rows])
     ax.axhline(1.0, color="0.7", lw=0.8, ls=":")
     ax.errorbar(cs, lex, yerr=lex_s, fmt="s-", color=OI["blue"], label="exact")
-    ax.errorbar(cs, lap, yerr=lap_s, fmt="o--", color=OI["vermilion"],
-                label=r"$\Lambda_{\rm approx}$ (soft)")
+    ax.errorbar(
+        cs,
+        lap,
+        yerr=lap_s,
+        fmt="o--",
+        color=OI["vermilion"],
+        label=r"$\Lambda_{\rm approx}$ (soft)",
+    )
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.invert_xaxis()  # left = unsegregated, right = strongly segregated
@@ -230,10 +263,16 @@ def make_figure(q_rows, lam_rows, diff):
     ax.axvline(0.5, color="0.7", lw=0.8, ls=":")
     ax.set_xlabel(r"concentration exponent $p$")
     ax.set_ylabel(r"$q_{\rm approx}(u^p D)$")
-    ax.text(0.04, 0.96,
-            f"AD={ad:.2f}\nFD={fd:.2f}\nrel={rel*100:.1f}\\%",
-            transform=ax.transAxes, va="top", ha="left", fontsize=7.5,
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7"))
+    ax.text(
+        0.04,
+        0.96,
+        f"AD={ad:.2f}\nFD={fd:.2f}\nrel={rel * 100:.1f}\\%",
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=7.5,
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7"),
+    )
     panel_label(ax, "(c)")
 
     fig.tight_layout()
@@ -260,10 +299,12 @@ def main():
     sub_diffs = [d for d, qe in zip(q_diffs, q_ex_seq) if qe < 0.85]
     q_sub_max = max(sub_diffs) if sub_diffs else 0.0
     q_sub_ok = q_sub_max < Q_SUBSTRUCT_TOL
-    print(f"  (substructure regime Q<0.8: max|diff| = {q_sub_max:.3f}, "
-          f"gate < {Q_SUBSTRUCT_TOL}; degrades mildly toward high concentration)")
+    print(
+        f"  (substructure regime Q<0.8: max|diff| = {q_sub_max:.3f}, "
+        f"gate < {Q_SUBSTRUCT_TOL}; degrades mildly toward high concentration)"
+    )
     # ordering preserved (both monotone across the sequence)?
-    q_order_ok = (np.all(np.diff(q_ex_seq) > 0) and np.all(np.diff(q_ap_seq) > 0))
+    q_order_ok = np.all(np.diff(q_ex_seq) > 0) and np.all(np.diff(q_ap_seq) > 0)
 
     lam_rows = lambda_calibration()
     print("\n  Lambda_MSR calibration (sweep core scale):")
@@ -275,30 +316,58 @@ def main():
         print(f"  {cs:>6.2f} {lex:>11.3f} {lap:>11.3f}")
     # rank correlation (Spearman) between the two sweeps.
     from scipy.stats import spearmanr
+
     lam_rank = spearmanr(lex_seq, lap_seq).correlation
     lam_ok = lam_rank > 0.8
     # both monotone as core_scale decreases (segregation rises): unsegregated ~1.
     lam_null_ok = abs(lap_seq[0] - 1.0) < 0.25 and abs(lex_seq[0] - 1.0) < 0.25
 
     ps, q_curve, ad, fd, rel = differentiability()
-    print(f"\n  differentiability: q_approx dq/dp  AD={ad:.3f}  FD={fd:.3f}  "
-          f"rel={rel*100:.1f}% (gate < {AD_FD_TOL*100:.0f}%)")
+    print(
+        f"\n  differentiability: q_approx dq/dp  AD={ad:.3f}  FD={fd:.3f}  "
+        f"rel={rel * 100:.1f}% (gate < {AD_FD_TOL * 100:.0f}%)"
+    )
     diff_ok = np.isfinite(ad) and rel < AD_FD_TOL
 
     make_figure(q_rows, lam_rows, (ps, q_curve, ad, fd, rel))
 
     rows = [
-        ("Q calib |diff| (full seq)", "PASS" if q_cal_ok else "FAIL",
-         f"< {Q_TOL}", q_cal_ok),
-        ("Q calib (substructure Q<0.8)", "PASS" if q_sub_ok else "FAIL",
-         f"< {Q_SUBSTRUCT_TOL}", q_sub_ok),
-        ("Q ordering preserved", "PASS" if q_order_ok else "FAIL", "monotone", q_order_ok),
-        (f"Lambda rank corr = {lam_rank:.2f}", "PASS" if lam_ok else "FAIL",
-         "Spearman>0.8", lam_ok),
-        ("Lambda unsegregated ~ 1", "PASS" if lam_null_ok else "FAIL", "|L-1|<0.25",
-         lam_null_ok),
-        ("q_approx AD vs FD", "PASS" if diff_ok else "FAIL",
-         f"rel<{AD_FD_TOL*100:.0f}%", diff_ok),
+        (
+            "Q calib |diff| (full seq)",
+            "PASS" if q_cal_ok else "FAIL",
+            f"< {Q_TOL}",
+            q_cal_ok,
+        ),
+        (
+            "Q calib (substructure Q<0.8)",
+            "PASS" if q_sub_ok else "FAIL",
+            f"< {Q_SUBSTRUCT_TOL}",
+            q_sub_ok,
+        ),
+        (
+            "Q ordering preserved",
+            "PASS" if q_order_ok else "FAIL",
+            "monotone",
+            q_order_ok,
+        ),
+        (
+            f"Lambda rank corr = {lam_rank:.2f}",
+            "PASS" if lam_ok else "FAIL",
+            "Spearman>0.8",
+            lam_ok,
+        ),
+        (
+            "Lambda unsegregated ~ 1",
+            "PASS" if lam_null_ok else "FAIL",
+            "|L-1|<0.25",
+            lam_null_ok,
+        ),
+        (
+            "q_approx AD vs FD",
+            "PASS" if diff_ok else "FAIL",
+            f"rel<{AD_FD_TOL * 100:.0f}%",
+            diff_ok,
+        ),
     ]
 
     print("\n" + "-" * 78)
@@ -311,8 +380,11 @@ def main():
     print("-" * 78)
     print(f"  saved {OUTPUT_DIR}/demo_diff_diagnostics.{{png,pdf}}")
     print("=" * 78)
-    print("  DIFF DIAGNOSTICS DEMO: ALL PASS" if all_ok
-          else "  DIFF DIAGNOSTICS DEMO: FAILED")
+    print(
+        "  DIFF DIAGNOSTICS DEMO: ALL PASS"
+        if all_ok
+        else "  DIFF DIAGNOSTICS DEMO: FAILED"
+    )
     return 0 if all_ok else 1
 
 

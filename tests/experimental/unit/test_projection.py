@@ -24,10 +24,12 @@ def test_rho_g_grid_normalized_at_zero_lag():
 
 def test_rho_g_grid_matches_measured_oracle():
     """Analytic rho_g(r;beta) == ensemble-mean measured rho_g from gaussian_random_field."""
-    from gravoturb_fdf.theory.projection import gaussian_correlation_grid
     from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.theory.projection import gaussian_correlation_grid
     from gravoturb_fdf.validation.measure import (
-        gaussian_correlation_measured, radial_average)
+        gaussian_correlation_measured,
+        radial_average,
+    )
 
     # The .real full-grid construction matches the analytic rho_g = IFFT[k^-beta]/(.)[0]
     # in expectation (proof: <autocov(Re h)> = (1/2) IFFT(|amp|^2)), so the residual is
@@ -44,7 +46,9 @@ def test_rho_g_grid_matches_measured_oracle():
         accs.append(rho_m)
     rho_m = np.mean(accs, axis=0)
 
-    mask = rho_a > 0.1  # signal-dominated bins (small-rho bins are noise/signal-limited)
+    mask = (
+        rho_a > 0.1
+    )  # signal-dominated bins (small-rho bins are noise/signal-limited)
     rel = np.abs(rho_a[mask] - rho_m[mask]) / np.abs(rho_a[mask])
     assert np.median(rel) < 0.05
     assert rel.max() < 0.10
@@ -106,9 +110,15 @@ def test_smoothed_variance_fraction_limits_and_monotone():
     from gravoturb_fdf.theory.projection import smoothed_variance_fraction
 
     shape, beta = (32, 32, 32), 3.0
-    assert float(smoothed_variance_fraction(shape, beta, 1e-3)) == pytest.approx(1.0, abs=0.02)
-    fs = np.array([float(smoothed_variance_fraction(shape, beta, R))
-                   for R in (0.5, 1.0, 2.0, 4.0, 8.0)])
+    assert float(smoothed_variance_fraction(shape, beta, 1e-3)) == pytest.approx(
+        1.0, abs=0.02
+    )
+    fs = np.array(
+        [
+            float(smoothed_variance_fraction(shape, beta, R))
+            for R in (0.5, 1.0, 2.0, 4.0, 8.0)
+        ]
+    )
     assert np.all(np.diff(fs) < 0.0)
 
 
@@ -117,9 +127,12 @@ def test_smoothed_variance_matches_oracle():
     sum_real sum_k |g_k|^2 W^2 / sum_real sum_k |g_k|^2 (an unbiased estimator of
     sum P W^2 / sum P; avoids the ratio-of-sums bias from few low-k modes that a
     per-realization var(g_R)/var(g) average suffers)."""
-    from gravoturb_fdf.theory.projection import (
-        _kmag_grid, smoothed_variance_fraction, top_hat_window)
     from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.theory.projection import (
+        _kmag_grid,
+        smoothed_variance_fraction,
+        top_hat_window,
+    )
 
     shape, beta, R = (40, 40, 40), 3.0, 2.0
     pred = float(smoothed_variance_fraction(shape, beta, R))
@@ -138,8 +151,12 @@ def test_smoothed_variance_differentiable():
     """sigma_g^2(R) differentiable in beta and R (d/dR < 0)."""
     from gravoturb_fdf.theory.projection import smoothed_variance_fraction
 
-    gb = float(jax.grad(lambda beta: smoothed_variance_fraction((24, 24, 24), beta, 2.0))(3.0))
-    gR = float(jax.grad(lambda R: smoothed_variance_fraction((24, 24, 24), 3.0, R))(2.0))
+    gb = float(
+        jax.grad(lambda beta: smoothed_variance_fraction((24, 24, 24), beta, 2.0))(3.0)
+    )
+    gR = float(
+        jax.grad(lambda R: smoothed_variance_fraction((24, 24, 24), 3.0, R))(2.0)
+    )
     assert np.isfinite(gb) and np.isfinite(gR) and gR < 0.0
 
 
@@ -156,7 +173,9 @@ def test_limber_project_grid_exact_identity():
     f = rng.normal(size=(20, 20, 16))
     sigma_col = f.sum(axis=2)  # project along LOS (z)
     xi_col = autocovariance_3d(sigma_col)
-    proj = np.asarray(limber_project_grid(jnp.asarray(autocovariance_3d(f)), los_axis=2))
+    proj = np.asarray(
+        limber_project_grid(jnp.asarray(autocovariance_3d(f)), los_axis=2)
+    )
     assert np.allclose(proj, xi_col, rtol=1e-9, atol=1e-12)
 
 
@@ -169,7 +188,9 @@ def test_limber_project_radial_matches_gaussian_closed_form():
     xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
     r_perp = jnp.array([0.0, 1.0, 2.0, 3.0])
     w = limber_project_radial(xi, r_perp, half_depth=8.0 * sigma, n_nodes=2001)
-    expected = sigma * np.sqrt(2 * np.pi) * np.exp(-0.5 * (np.asarray(r_perp) / sigma) ** 2)
+    expected = (
+        sigma * np.sqrt(2 * np.pi) * np.exp(-0.5 * (np.asarray(r_perp) / sigma) ** 2)
+    )
     assert np.allclose(np.asarray(w), expected, rtol=1e-4)
 
 
@@ -183,7 +204,7 @@ def test_box_window_sq_matches_kernel_fft():
     h = np.zeros(n)
     h[:c] = 1.0 / c  # normalized moving-average kernel of width c
     w1_sq = np.abs(np.fft.fft(h)) ** 2  # 1D |H(k)|^2, (n,)
-    expected = (w1_sq[:, None, None] * w1_sq[None, :, None] * w1_sq[None, None, :])
+    expected = w1_sq[:, None, None] * w1_sq[None, :, None] * w1_sq[None, None, :]
     got = np.asarray(box_window_sq_grid((n, n, n), c))
     assert float(got[0, 0, 0]) == pytest.approx(1.0, abs=1e-12)  # W^2(0)=1
     assert np.allclose(got, expected, atol=1e-10)
@@ -195,7 +216,9 @@ def test_limber_project_radial_differentiable():
 
     def w0(sigma):
         xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
-        return limber_project_radial(xi, jnp.array([1.0]), half_depth=20.0, n_nodes=1001)[0]
+        return limber_project_radial(
+            xi, jnp.array([1.0]), half_depth=20.0, n_nodes=1001
+        )[0]
 
     grad = float(jax.grad(w0)(2.0))
     assert np.isfinite(grad) and abs(grad) > 0.0
@@ -203,21 +226,29 @@ def test_limber_project_radial_differentiable():
 
 def test_limber_slab_matches_periodic_at_full_depth():
     from gravoturb_fdf.theory.projection import (
-        gaussian_correlation_grid, limber_project_grid, limber_project_slab)
+        gaussian_correlation_grid,
+        limber_project_grid,
+        limber_project_slab,
+    )
+
     xi = gaussian_correlation_grid((16, 16, 16), 3.0)
-    full = limber_project_slab(xi, depth=16, los_axis=2)   # full periodic depth
+    full = limber_project_slab(xi, depth=16, los_axis=2)  # full periodic depth
     ref = limber_project_grid(xi, los_axis=2)
     assert jnp.allclose(full, ref, rtol=1e-10)
 
 
 def test_limber_slab_shallower_depth_lowers_amplitude_and_is_differentiable():
-    from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
+    from gravoturb_fdf.theory.projection import (
+        gaussian_correlation_grid,
+        limber_project_slab,
+    )
+
     xi = gaussian_correlation_grid((16, 16, 16), 3.0)
     shallow = float(limber_project_slab(xi, depth=4.0, los_axis=2)[0, 0])
     deep = float(limber_project_slab(xi, depth=12.0, los_axis=2)[0, 0])
-    assert 0.0 < shallow < deep                              # variance grows with depth
+    assert 0.0 < shallow < deep  # variance grows with depth
     g = jax.grad(lambda L: limber_project_slab(xi, depth=L, los_axis=2)[0, 0])(6.0)
-    assert g == g and abs(g) > 0.0                           # finite, nonzero d/dL
+    assert g == g and abs(g) > 0.0  # finite, nonzero d/dL
 
 
 def test_limber_slab_periodization_pins_actual_lag_slab_sum_incl_L_gt_half_n():

@@ -28,6 +28,7 @@ References:
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_rotation_anisotropy.py
 """
+
 import os
 import sys
 
@@ -38,12 +39,12 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 
-from progenax.profiles import PlummerProfile, EFFProfile
-from progenax.kinematics import PlummerVelocityDF, EFFVelocityDF
+from progenax.kinematics import EFFVelocityDF, PlummerVelocityDF
 from progenax.kinematics.rotation import (
-    apply_solid_body_rotation,
     apply_differential_rotation,
+    apply_solid_body_rotation,
 )
+from progenax.profiles import EFFProfile, PlummerProfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig
@@ -59,7 +60,7 @@ SEED = 42
 
 def _cyl(pos, vel):
     x, y = np.asarray(pos[:, 0]), np.asarray(pos[:, 1])
-    R = np.sqrt(x ** 2 + y ** 2)
+    R = np.sqrt(x**2 + y**2)
     v_phi = (x * np.asarray(vel[:, 1]) - y * np.asarray(vel[:, 0])) / (R + 1e-30)
     return R, v_phi
 
@@ -106,29 +107,54 @@ def fig_solid_body(output_dir):
     resid = float(np.max(np.abs(dphi[sel] - omega * R[sel])))
     Rcyl = np.sqrt(np.asarray(pos[:, 0]) ** 2 + np.asarray(pos[:, 1]) ** 2)
     dLz = float(jnp.sum(m * (pos[:, 0] * dvel[:, 1] - pos[:, 1] * dvel[:, 0])))
-    Lz_exp = omega * float(np.sum(np.asarray(m) * Rcyl ** 2))
+    Lz_exp = omega * float(np.sum(np.asarray(m) * Rcyl**2))
     slope_pass = abs(slope - omega) < 1e-6
     lz_pass = abs(dLz - Lz_exp) / Lz_exp < 1e-6
     passed = slope_pass and lz_pass
-    print(f"  fitted slope = {slope:.6f} (Omega={omega})  max resid={resid:.1e}  "
-          f"-> {'PASS' if slope_pass else 'FAIL'}")
-    print(f"  added L_z = {dLz:.1f} vs Omega*sum(m R^2) = {Lz_exp:.1f}  "
-          f"-> {'PASS' if lz_pass else 'FAIL'}")
+    print(
+        f"  fitted slope = {slope:.6f} (Omega={omega})  max resid={resid:.1e}  "
+        f"-> {'PASS' if slope_pass else 'FAIL'}"
+    )
+    print(
+        f"  added L_z = {dLz:.1f} vs Omega*sum(m R^2) = {Lz_exp:.1f}  "
+        f"-> {'PASS' if lz_pass else 'FAIL'}"
+    )
 
     fig, ax = plt.subplots(figsize=(3.9, 3.4))
     idx = np.argsort(R[sel])[::200]
-    ax.plot(R[sel][idx], dphi[sel][idx], "o", color=OI["sky"], ms=3, mec="none",
-            alpha=0.5, label="per particle")
+    ax.plot(
+        R[sel][idx],
+        dphi[sel][idx],
+        "o",
+        color=OI["sky"],
+        ms=3,
+        mec="none",
+        alpha=0.5,
+        label="per particle",
+    )
     rr = np.linspace(0, 3, 50)
-    ax.plot(rr, omega * rr, "-", color=OI["vermilion"], lw=2.0,
-            label=rf"$\Omega R$ ($\Omega={omega}$)")
+    ax.plot(
+        rr,
+        omega * rr,
+        "-",
+        color=OI["vermilion"],
+        lw=2.0,
+        label=rf"$\Omega R$ ($\Omega={omega}$)",
+    )
     ax.set_xlabel(r"cylindrical $R$ [pc]")
     ax.set_ylabel(r"added $v_\phi$ [code units]")
     ax.set_xlim(0, 3)
     ax.legend(loc="upper left")
-    ax.text(0.96, 0.06, rf"slope $={slope:.4f}$" + "\n" + rf"$L_z$ err $<10^{{-6}}$",
-            transform=ax.transAxes, ha="right", va="bottom", fontsize=8,
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5))
+    ax.text(
+        0.96,
+        0.06,
+        rf"slope $={slope:.4f}$" + "\n" + r"$L_z$ err $<10^{-6}$",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=8,
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5),
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "rotation_solid_body")
     print("  saved rotation_solid_body.{png,pdf}")
@@ -155,12 +181,25 @@ def fig_differential(output_dir):
     fig, ax = plt.subplots(figsize=(3.9, 3.4))
     sel = R < 5.0
     idx = np.argsort(R[sel])[::200]
-    ax.plot(R[sel][idx], dphi[sel][idx], "o", color=OI["sky"], ms=3, mec="none",
-            alpha=0.5, label="per particle")
+    ax.plot(
+        R[sel][idx],
+        dphi[sel][idx],
+        "o",
+        color=OI["sky"],
+        ms=3,
+        mec="none",
+        alpha=0.5,
+        label="per particle",
+    )
     rr = np.linspace(0, 5, 200)
-    ax.plot(rr, v_peak * (rr / R_peak) * np.exp(1 - rr / R_peak), "-",
-            color=OI["vermilion"], lw=2.0,
-            label=r"$v_{\rm peak}\frac{R}{R_p}e^{1-R/R_p}$")
+    ax.plot(
+        rr,
+        v_peak * (rr / R_peak) * np.exp(1 - rr / R_peak),
+        "-",
+        color=OI["vermilion"],
+        lw=2.0,
+        label=r"$v_{\rm peak}\frac{R}{R_p}e^{1-R/R_p}$",
+    )
     ax.axvline(R_peak, color="0.5", ls=":", lw=1.0)
     ax.axhline(v_peak, color="0.5", ls=":", lw=1.0)
     ax.text(R_peak + 0.1, 0.3, r"$R_{\rm peak}$", color="0.4", fontsize=8.5)
@@ -201,22 +240,50 @@ def fig_om_anisotropy(output_dir):
     vel_e = df_e.sample_velocities(pos_e, m, kv2, G=G)
     me, be = _beta_binned(pos_e, vel_e, edges)
 
-    tp = mp ** 2 / (mp ** 2 + r_a ** 2)
-    te = me ** 2 / (me ** 2 + r_a ** 2)
+    tp = mp**2 / (mp**2 + r_a**2)
+    te = me**2 / (me**2 + r_a**2)
     dev_p = float(np.max(np.abs(bp - tp)))
     dev_e = float(np.max(np.abs(be - te)))
     passed = dev_p < 0.04 and dev_e < 0.05
-    print(f"  Plummer OM beta vs target: max dev = {dev_p:.3f} (tol 0.04)  "
-          f"-> {'PASS' if dev_p < 0.04 else 'FAIL'}")
-    print(f"  EFF OM beta vs target:     max dev = {dev_e:.3f} (tol 0.05)  "
-          f"-> {'PASS' if dev_e < 0.05 else 'FAIL'}")
+    print(
+        f"  Plummer OM beta vs target: max dev = {dev_p:.3f} (tol 0.04)  "
+        f"-> {'PASS' if dev_p < 0.04 else 'FAIL'}"
+    )
+    print(
+        f"  EFF OM beta vs target:     max dev = {dev_e:.3f} (tol 0.05)  "
+        f"-> {'PASS' if dev_e < 0.05 else 'FAIL'}"
+    )
 
     fig, ax = plt.subplots(figsize=(4.2, 3.5))
     rr = np.linspace(0.1, 3.5, 200)
-    ax.plot(rr, rr ** 2 / (rr ** 2 + r_a ** 2), "-", color=OI["black"], lw=2.0,
-            label=r"exact OM $\frac{r^2}{r^2+r_a^2}$")
-    ax.plot(mp, bp, "o", color=OI["blue"], ms=5, mec="white", mew=0.5, label="Plummer (sampled)")
-    ax.plot(me, be, "s", color=OI["vermilion"], ms=5, mec="white", mew=0.5, label="EFF (sampled)")
+    ax.plot(
+        rr,
+        rr**2 / (rr**2 + r_a**2),
+        "-",
+        color=OI["black"],
+        lw=2.0,
+        label=r"exact OM $\frac{r^2}{r^2+r_a^2}$",
+    )
+    ax.plot(
+        mp,
+        bp,
+        "o",
+        color=OI["blue"],
+        ms=5,
+        mec="white",
+        mew=0.5,
+        label="Plummer (sampled)",
+    )
+    ax.plot(
+        me,
+        be,
+        "s",
+        color=OI["vermilion"],
+        ms=5,
+        mec="white",
+        mew=0.5,
+        label="EFF (sampled)",
+    )
     ax.axvline(r_a, color="0.5", ls=":", lw=1.0)
     ax.text(r_a + 0.05, 0.05, r"$r_a$", color="0.4", fontsize=8.5)
     ax.set_xlabel(r"$r$ [pc]")
@@ -224,8 +291,14 @@ def fig_om_anisotropy(output_dir):
     ax.set_xlim(0, 3.5)
     ax.set_ylim(0, 1.0)
     ax.legend(loc="lower right")
-    ax.text(0.04, 0.96, "direction-stretch\n→ exact OM\n(cf. Michie: suppressed)",
-            transform=ax.transAxes, fontsize=7.5, va="top")
+    ax.text(
+        0.04,
+        0.96,
+        "direction-stretch\n→ exact OM\n(cf. Michie: suppressed)",
+        transform=ax.transAxes,
+        fontsize=7.5,
+        va="top",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "om_anisotropy_beta")
     print("  saved om_anisotropy_beta.{png,pdf}")
@@ -237,7 +310,9 @@ def fig_om_anisotropy(output_dir):
 # ============================================================================
 def _grad_sweep(loss, xs, h):
     ad = np.array([float(jax.grad(loss)(float(x))) for x in xs])
-    fd = np.array([float((loss(float(x) + h) - loss(float(x) - h)) / (2 * h)) for x in xs])
+    fd = np.array(
+        [float((loss(float(x) + h) - loss(float(x) - h)) / (2 * h)) for x in xs]
+    )
     rel = np.abs(ad - fd) / (np.abs(ad) + np.abs(fd) + 1e-30)
     return ad, fd, rel
 
@@ -250,11 +325,11 @@ def fig_gradient(output_dir):
 
     def rot_ke_omega(omega):
         v = apply_solid_body_rotation(vel, pos, omega, ZAXIS)
-        return jnp.sum(m * jnp.sum(v ** 2, axis=1))
+        return jnp.sum(m * jnp.sum(v**2, axis=1))
 
     def rot_ke_vpeak(v_peak):
         v = apply_differential_rotation(vel, pos, v_peak, 1.0, ZAXIS)
-        return jnp.sum(m * jnp.sum(v ** 2, axis=1))
+        return jnp.sum(m * jnp.sum(v**2, axis=1))
 
     # r_a anisotropy: with a fixed PRNG key the OM stretch makes <v_r^2> a smooth,
     # deterministic function of r_a (the random draws are fixed, then r_a-scaled).
@@ -268,15 +343,33 @@ def fig_gradient(output_dir):
         radii = jnp.linalg.norm(pos_fix, axis=1)
         r_hat = pos_fix / (radii[:, None] + 1e-30)
         v_r = jnp.sum(v * r_hat, axis=1)
-        return jnp.mean(v_r ** 2)
+        return jnp.mean(v_r**2)
 
     specs = [
-        ("Omega", r"$\Omega$ [rad/Myr]", r"$\partial\,T_{\rm rot} / \partial \Omega$",
-         rot_ke_omega, np.linspace(0.1, 0.6, 9), 1e-5),
-        ("v_peak", r"$v_{\rm peak}$", r"$\partial\,T_{\rm rot} / \partial v_{\rm peak}$",
-         rot_ke_vpeak, np.linspace(1.0, 3.0, 9), 1e-5),
-        ("r_a", r"$r_a$ [pc]", r"$\partial\,\langle v_r^2\rangle / \partial r_a$",
-         mean_vr2, np.linspace(1.0, 3.0, 9), 1e-4),
+        (
+            "Omega",
+            r"$\Omega$ [rad/Myr]",
+            r"$\partial\,T_{\rm rot} / \partial \Omega$",
+            rot_ke_omega,
+            np.linspace(0.1, 0.6, 9),
+            1e-5,
+        ),
+        (
+            "v_peak",
+            r"$v_{\rm peak}$",
+            r"$\partial\,T_{\rm rot} / \partial v_{\rm peak}$",
+            rot_ke_vpeak,
+            np.linspace(1.0, 3.0, 9),
+            1e-5,
+        ),
+        (
+            "r_a",
+            r"$r_a$ [pc]",
+            r"$\partial\,\langle v_r^2\rangle / \partial r_a$",
+            mean_vr2,
+            np.linspace(1.0, 3.0, 9),
+            1e-4,
+        ),
     ]
 
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.7))
@@ -285,17 +378,35 @@ def fig_gradient(output_dir):
         ad, fd, rel = _grad_sweep(loss, xs, h)
         worst = max(worst, float(np.max(rel)))
         ax.plot(xs, ad, "-", color=OI["blue"], lw=1.8, label="autodiff", zorder=2)
-        ax.plot(xs, fd, "o", color=OI["vermilion"], ms=4.5, mfc="none", mew=1.2,
-                label="finite diff", zorder=3)
+        ax.plot(
+            xs,
+            fd,
+            "o",
+            color=OI["vermilion"],
+            ms=4.5,
+            mfc="none",
+            mew=1.2,
+            label="finite diff",
+            zorder=3,
+        )
         ax.set_xlabel(xlab)
         ax.set_ylabel(ylab)
         ax.legend(loc="best")
-        ax.text(0.5, 0.05, rf"max rel err $={np.max(rel):.0e}$", transform=ax.transAxes,
-                ha="center", va="bottom", fontsize=8,
-                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5))
+        ax.text(
+            0.5,
+            0.05,
+            rf"max rel err $={np.max(rel):.0e}$",
+            transform=ax.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5),
+        )
         panel_label(ax, f"({tag})", loc="upper left")
-        print(f"  d(loss)/d{key:6}: max rel err {np.max(rel):.2e}  "
-              f"-> {'DIFFERENTIABLE' if np.max(rel) < 1e-3 else 'CHECK'}")
+        print(
+            f"  d(loss)/d{key:6}: max rel err {np.max(rel):.2e}  "
+            f"-> {'DIFFERENTIABLE' if np.max(rel) < 1e-3 else 'CHECK'}"
+        )
 
     passed = worst < 1e-3
     print(f"  overall worst rel err {worst:.2e}  -> {'PASS' if passed else 'FAIL'}")
@@ -316,7 +427,7 @@ def fig_velocity_field(output_dir):
     omega = 0.3
     m, pos, vel = _isotropic_ic(n=20_000, seed=3)
     x, y, z = np.asarray(pos[:, 0]), np.asarray(pos[:, 1]), np.asarray(pos[:, 2])
-    R = np.sqrt(x ** 2 + y ** 2)
+    R = np.sqrt(x**2 + y**2)
     slab = (np.abs(z) < 0.4) & (R < 2.5) & (R > 0.15)
     idx = np.where(slab)[0]
     rng = np.random.default_rng(0)
@@ -332,23 +443,44 @@ def fig_velocity_field(output_dir):
     vphi = (x[idx] * sy[idx] - y[idx] * sx[idx]) / (R[idx] + 1e-30)
     mean_vphi = float(np.mean(vphi))
     coherent = bool(np.all(vphi > 0))  # solid-body: all co-rotating
-    print(f"  solid-body streaming: all co-rotating (v_phi>0): {coherent}; "
-          f"<v_phi>={mean_vphi:.3f}  -> {'PASS' if coherent else 'FAIL'}")
+    print(
+        f"  solid-body streaming: all co-rotating (v_phi>0): {coherent}; "
+        f"<v_phi>={mean_vphi:.3f}  -> {'PASS' if coherent else 'FAIL'}"
+    )
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(6.8, 3.4), sharex=True, sharey=True)
-    axA.quiver(x[idx], y[idx], vx[idx] / norm_i, vy[idx] / norm_i, color=OI["sky"],
-               scale=22, width=0.005, alpha=0.85)
+    axA.quiver(
+        x[idx],
+        y[idx],
+        vx[idx] / norm_i,
+        vy[idx] / norm_i,
+        color=OI["sky"],
+        scale=22,
+        width=0.005,
+        alpha=0.85,
+    )
     axA.set_title("isotropic IC", fontsize=9)
-    axA.set_xlabel(r"$x$ [pc]"); axA.set_ylabel(r"$y$ [pc]")
+    axA.set_xlabel(r"$x$ [pc]")
+    axA.set_ylabel(r"$y$ [pc]")
     panel_label(axA, "(a)", loc="upper left")
 
-    axB.quiver(x[idx], y[idx], sx[idx] / norm_s, sy[idx] / norm_s, vphi,
-               cmap="viridis", scale=22, width=0.005)
+    axB.quiver(
+        x[idx],
+        y[idx],
+        sx[idx] / norm_s,
+        sy[idx] / norm_s,
+        vphi,
+        cmap="viridis",
+        scale=22,
+        width=0.005,
+    )
     axB.set_title(rf"$+$ solid body ($\Omega={omega}$)", fontsize=9)
     axB.set_xlabel(r"$x$ [pc]")
     panel_label(axB, "(b)", loc="upper left")
     for ax in (axA, axB):
-        ax.set_aspect("equal"); ax.set_xlim(-2.6, 2.6); ax.set_ylim(-2.6, 2.6)
+        ax.set_aspect("equal")
+        ax.set_xlim(-2.6, 2.6)
+        ax.set_ylim(-2.6, 2.6)
 
     fig.tight_layout(pad=0.4, w_pad=0.6)
     save_fig(fig, output_dir, "rotation_velocity_field")
@@ -377,8 +509,9 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
     all_ok = all(results.values())
     print("=" * 70)
-    print("  ALL ROTATION/ANISOTROPY FIGURES PASS" if all_ok
-          else "  SOME FIGURES FAILED")
+    print(
+        "  ALL ROTATION/ANISOTROPY FIGURES PASS" if all_ok else "  SOME FIGURES FAILED"
+    )
     print("=" * 70)
     print(f"\nFigures written to {OUTPUT_DIR}/")
     return 0 if all_ok else 1

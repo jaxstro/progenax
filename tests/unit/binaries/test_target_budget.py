@@ -11,12 +11,17 @@ filling), not an exact-N truncation that would mutilate the boundary binary.
 """
 
 import jax.numpy as jnp
-import pytest
 
 
 def _imports():
-    from progenax.builders import Systems, Stars, TotalMass
-    from progenax.builders import _target_system_mask, _target_satisfied
+    from progenax.builders import (
+        Stars,
+        Systems,
+        TotalMass,
+        _target_satisfied,
+        _target_system_mask,
+    )
+
     return Systems, Stars, TotalMass, _target_system_mask, _target_satisfied
 
 

@@ -24,7 +24,7 @@ def generate_uniform_sphere(N: int, seed: int = 42) -> np.ndarray:
 
     # Radial: r ~ u^(1/3) for uniform density in sphere
     u = rng.uniform(0, 1, N)
-    r = u**(1/3)
+    r = u ** (1 / 3)
 
     # Angular: uniform on sphere
     theta = np.arccos(2 * rng.uniform(0, 1, N) - 1)  # cos(theta) uniform
@@ -38,7 +38,9 @@ def generate_uniform_sphere(N: int, seed: int = 42) -> np.ndarray:
     return np.column_stack([x, y, z])
 
 
-def generate_concentrated_sphere(N: int, alpha: float = 2.0, seed: int = 42) -> np.ndarray:
+def generate_concentrated_sphere(
+    N: int, alpha: float = 2.0, seed: int = 42
+) -> np.ndarray:
     """Generate radially concentrated sphere (CW04 '3Dα' distribution).
 
     Density profile: ρ(r) ~ r^(-α) for α > 0
@@ -49,7 +51,7 @@ def generate_concentrated_sphere(N: int, alpha: float = 2.0, seed: int = 42) -> 
     # For ρ ~ r^(-α), CDF gives r ~ u^(1/(3-α)) for α < 3
     # With inner cutoff to avoid singularity
     u = rng.uniform(0.01, 1, N)  # Inner cutoff at r_min = 0.01^(1/(3-α))
-    r = u**(1 / (3 - alpha))
+    r = u ** (1 / (3 - alpha))
 
     # Clip to unit sphere
     r = np.clip(r, 0, 1)
@@ -120,8 +122,10 @@ class TestQParameterCW04:
         """Q should be approximately N-independent (CW04 claim for N > 100)."""
         Q_by_N = {}
         for N in [100, 300, 500, 1000]:
-            Q_values = [compute_q_parameter(generate_uniform_sphere(N, seed))
-                        for seed in range(5)]
+            Q_values = [
+                compute_q_parameter(generate_uniform_sphere(N, seed))
+                for seed in range(5)
+            ]
             Q_by_N[N] = np.mean(Q_values)
 
         # Q should be within ~20% across different N values
@@ -130,7 +134,7 @@ class TestQParameterCW04:
         Q_mean = np.mean(Q_values)
 
         assert Q_range / Q_mean < 0.25, (
-            f"Q should be N-independent, but varies by {Q_range/Q_mean*100:.1f}%: "
+            f"Q should be N-independent, but varies by {Q_range / Q_mean * 100:.1f}%: "
             f"{Q_by_N}"
         )
 

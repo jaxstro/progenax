@@ -6,11 +6,12 @@ tests pin that the autodiff gradient matches a central finite difference (so a
 silently-zero or wrong gradient is caught) and that no NaN/Inf appears at the
 u -> 0 / u -> 1 boundaries (the sqrt(0) / 1-over-r NaN-grad trap).
 """
+
 import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.imf import ChabrierIMF, Maschberger, Schechter, PowerLawIMF
+from progenax.imf import ChabrierIMF, Maschberger, PowerLawIMF, Schechter
 
 # The AD-vs-FD ppf-parameter gradient checks (ChabrierIMF.ppf m_c/sigma/alpha,
 # Maschberger.ppf mu/alpha/beta, Schechter.ppf alpha, PowerLawIMF.ppf[Salpeter]
@@ -74,6 +75,7 @@ class TestAlphaOneGradients:
     @staticmethod
     def _imf(alpha):
         from progenax.imf import PowerLawIMF
+
         return PowerLawIMF(exponents=[alpha], breakpoints=[], m_min=0.1, m_max=100.0)
 
     @staticmethod
@@ -114,4 +116,5 @@ class TestAlphaOneGradients:
         def loss(a):
             m = self._imf(a).sample(jax.random.PRNGKey(0), 500)
             return jnp.mean(jnp.log(m))
+
         assert jnp.isfinite(jax.grad(loss)(1.0))

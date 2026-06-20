@@ -26,13 +26,13 @@ so the deltas are exactly zero; 1e-6 is an ample float64 round-trip margin. If C
 ever regenerates coverage on a different arch, widen to the measured max (do NOT
 loosen blindly — a large reldiff on a same-suite parse is a real drift, not noise).
 """
+
 import json
 import math
 import subprocess
 import time
 
 import pytest
-
 from scripts._dashboard_render import render_dashboard_page
 from scripts.build_test_dashboard import (
     _DASHBOARD_JSON,
@@ -60,9 +60,7 @@ _TIER_KEYS = ("unit", "integration", "validation")
 
 
 def _total_tests(dashboard: dict) -> int:
-    return sum(
-        m[tier] for m in dashboard["modules"].values() for tier in _TIER_KEYS
-    )
+    return sum(m[tier] for m in dashboard["modules"].values() for tier in _TIER_KEYS)
 
 
 def _diff_floats(label: str, cv, fv, drift: list) -> None:
@@ -77,7 +75,9 @@ def _diff_floats(label: str, cv, fv, drift: list) -> None:
         drift.append(f"{label}: finiteness changed committed={cv!r} fresh={fv!r}")
     elif not c_fin:
         if repr(cv) != repr(fv):
-            drift.append(f"{label}: non-finite kind changed committed={cv!r} fresh={fv!r}")
+            drift.append(
+                f"{label}: non-finite kind changed committed={cv!r} fresh={fv!r}"
+            )
     else:
         denom = max(abs(cv), abs(fv), 1e-30)
         if abs(cv - fv) / denom > _RTOL:
@@ -103,7 +103,9 @@ def _diff_modules(committed: dict, fresh: dict, drift: list) -> None:
                 drift.append(
                     f"modules[{module!r}][{tier!r}]: committed={c[tier]!r} fresh={f[tier]!r}"
                 )
-        _diff_floats(f"modules[{module!r}]['line_cov']", c["line_cov"], f["line_cov"], drift)
+        _diff_floats(
+            f"modules[{module!r}]['line_cov']", c["line_cov"], f["line_cov"], drift
+        )
 
 
 def _head_sha() -> str:
@@ -202,8 +204,7 @@ def _page_minus_timestamp(page_text: str) -> list[str]:
     line so it compares structural content, not the timestamp.
     """
     return [
-        line for line in page_text.splitlines()
-        if not line.startswith("Generated at `")
+        line for line in page_text.splitlines() if not line.startswith("Generated at `")
     ]
 
 
@@ -264,13 +265,13 @@ def test_coverage_provenance_teeth_fire_on_stale_src():
     stale_src_sha = _last_src_changing_parent()
     if stale_src_sha is not None:
         with pytest.raises(AssertionError, match=r"file\(s\) changed since"):
-            assert_coverage_provenance_fresh(_measured_block(stale_src_sha), head_sha=head)
+            assert_coverage_provenance_fresh(
+                _measured_block(stale_src_sha), head_sha=head
+            )
 
     # STALE on a non-ancestor (orphaned/unknown) sha -> the merge-base leg raises.
     with pytest.raises(AssertionError, match="not an ancestor"):
-        assert_coverage_provenance_fresh(
-            _measured_block("0" * 40), head_sha=head
-        )
+        assert_coverage_provenance_fresh(_measured_block("0" * 40), head_sha=head)
 
     # STALE on a partial selector -> the selector leg raises (even at a fresh sha).
     with pytest.raises(AssertionError, match="not 'full'"):
@@ -321,7 +322,13 @@ def test_committed_dashboard_matches_fresh_regeneration():
     # gate, line_coverage, durations, validation_scripts are all discrete/structural
     # JSON (status strings, ints, bools, exit codes) -> a plain == is the gate.
     _diff_modules(committed, fresh, drift)
-    for block in ("registries", "gate", "line_coverage", "durations", "validation_scripts"):
+    for block in (
+        "registries",
+        "gate",
+        "line_coverage",
+        "durations",
+        "validation_scripts",
+    ):
         if committed.get(block) != fresh.get(block):
             drift.append(
                 f"{block} drift:\n    committed={committed.get(block)!r}"

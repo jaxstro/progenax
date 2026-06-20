@@ -150,7 +150,9 @@ class TestTwinPeakedMassRatioArrayBranches:
     def test_cdf_array_monotonic_and_boundaries(self):
         """cdf(array): monotonic, cdf(q_min)~=0, cdf(1)~=1."""
         q_min = 0.1
-        q_dist = TwinPeakedMassRatio(gamma=0.0, f_twin=0.2, sigma_twin=0.03, q_min=q_min)
+        q_dist = TwinPeakedMassRatio(
+            gamma=0.0, f_twin=0.2, sigma_twin=0.03, q_min=q_min
+        )
         q = jnp.linspace(q_min, 1.0, 80)
         F = q_dist.cdf(q)
 
@@ -229,9 +231,9 @@ class TestBinaryFractionModels:
         """Values match Moe+17 Table 13."""
         model = MassDependentBinaryFraction()
         # Key mass bins from literature
-        assert jnp.abs(model(jnp.array(0.3)) - 0.26) < 1e-6   # M-dwarf
-        assert jnp.abs(model(jnp.array(0.8)) - 0.44) < 1e-6   # K-dwarf
-        assert jnp.abs(model(jnp.array(1.5)) - 0.50) < 1e-6   # A-star
+        assert jnp.abs(model(jnp.array(0.3)) - 0.26) < 1e-6  # M-dwarf
+        assert jnp.abs(model(jnp.array(0.8)) - 0.44) < 1e-6  # K-dwarf
+        assert jnp.abs(model(jnp.array(1.5)) - 0.50) < 1e-6  # A-star
         assert jnp.abs(model(jnp.array(15.0)) - 0.90) < 1e-6  # O-star
 
 
@@ -297,6 +299,7 @@ class TestBinaryIMFHelpers:
 
     def test_get_binary_fraction_callable_branch(self):
         """A custom callable f_bin(m) is invoked element-wise."""
+
         def my_f_bin(m):
             return jnp.where(m < 1.0, 0.4, 0.8)
 
@@ -316,6 +319,7 @@ class TestBinaryIMFHelpers:
 
     def test_sample_mass_ratios_custom_callable(self):
         """A custom q_sampler(key, m1) is called directly (callable branch)."""
+
         def my_q_sampler(key, m1):
             # Deterministic-ish: q depends on m1 only, in (0.3, 1.0)
             return jnp.full_like(m1, 0.42)
@@ -398,7 +402,9 @@ class TestBinaryIMFHelpers:
 
     def test_factory_massive_stars_component_types(self):
         """massive_stars() factory wires PowerLawMassRatio(gamma<0) + float f_bin."""
-        imf = BinaryIMF.massive_stars(PowerLawIMF.kroupa(), gamma=-0.1, binary_fraction=0.7)
+        imf = BinaryIMF.massive_stars(
+            PowerLawIMF.kroupa(), gamma=-0.1, binary_fraction=0.7
+        )
         assert isinstance(imf.q_distribution, PowerLawMassRatio)
         assert jnp.isclose(imf.q_distribution.gamma, -0.1)
         assert float(imf.binary_fraction) == 0.7
@@ -409,7 +415,9 @@ class TestBinaryIMFHelpers:
         """massive_stars() DEFAULT f_bin = 0.69 (Sana et al. 2012, intrinsic f_bin=0.69±0.09)."""
         imf = BinaryIMF.massive_stars(PowerLawIMF.kroupa())
         assert float(imf.binary_fraction) == 0.69
-        assert jnp.isclose(imf.q_distribution.gamma, -0.1)  # Sana kappa = -0.1 (uniform q)
+        assert jnp.isclose(
+            imf.q_distribution.gamma, -0.1
+        )  # Sana kappa = -0.1 (uniform q)
 
 
 # =============================================================================
@@ -449,13 +457,17 @@ class TestBinaryGradients:
 
     def test_twinpeaked_ppf_grad_ftwin(self):
         _assert_grad_matches_fd(
-            lambda ft: jnp.sum(TwinPeakedMassRatio(f_twin=ft, sigma_twin=0.05, q_min=0.1).ppf(_U)),
+            lambda ft: jnp.sum(
+                TwinPeakedMassRatio(f_twin=ft, sigma_twin=0.05, q_min=0.1).ppf(_U)
+            ),
             0.1,
         )
 
     def test_twinpeaked_ppf_grad_sigma(self):
         _assert_grad_matches_fd(
-            lambda s: jnp.sum(TwinPeakedMassRatio(f_twin=0.1, sigma_twin=s, q_min=0.1).ppf(_U)),
+            lambda s: jnp.sum(
+                TwinPeakedMassRatio(f_twin=0.1, sigma_twin=s, q_min=0.1).ppf(_U)
+            ),
             0.05,
         )
 
@@ -467,7 +479,9 @@ class TestBinaryGradients:
         def loss(gi):
             mdl = DifferentiableBinaryModel(
                 binary_fraction=DifferentiableBinaryFraction.from_moe2017(),
-                gamma_intercept=gi, gamma_slope=-0.7521, temperature=0.01,
+                gamma_intercept=gi,
+                gamma_slope=-0.7521,
+                temperature=0.01,
             )
             m2, _ = mdl.sample_systems(m1, ub, uq)
             return jnp.sum(m2)
@@ -485,10 +499,14 @@ class TestPowerLawGammaMinusOne:
     def test_ppf_gamma_minus_one_no_crash(self):
         q = PowerLawMassRatio(gamma=-1.0, q_min=0.1).ppf(_U)
         assert jnp.all(jnp.isfinite(q)), f"non-finite ppf at gamma=-1: {q}"
-        assert jnp.all((q >= 0.1 - 1e-6) & (q <= 1.0 + 1e-6)), f"q out of [q_min,1]: {q}"
+        assert jnp.all((q >= 0.1 - 1e-6) & (q <= 1.0 + 1e-6)), (
+            f"q out of [q_min,1]: {q}"
+        )
 
     def test_cdf_gamma_minus_one_no_crash(self):
-        c = PowerLawMassRatio(gamma=-1.0, q_min=0.1).cdf(jnp.array([0.1, 0.3, 0.6, 1.0]))
+        c = PowerLawMassRatio(gamma=-1.0, q_min=0.1).cdf(
+            jnp.array([0.1, 0.3, 0.6, 1.0])
+        )
         assert jnp.all(jnp.isfinite(c)), f"non-finite cdf at gamma=-1: {c}"
         assert float(c[0]) == pytest.approx(0.0, abs=1e-6)
         assert float(c[-1]) == pytest.approx(1.0, abs=1e-6)
@@ -509,4 +527,6 @@ class TestMoeDiStefanoPDF:
         moe = MoeDiStefano2017(q_min=0.1, sigma_twin=0.05)
         qg = jnp.linspace(0.1, 1.0, 5000)
         integral = float(jnp.trapezoid(moe.pdf_given_primary(qg, m1), qg))
-        assert integral == pytest.approx(1.0, abs=0.02), f"integral={integral} at m1={m1}"
+        assert integral == pytest.approx(1.0, abs=0.02), (
+            f"integral={integral} at m1={m1}"
+        )

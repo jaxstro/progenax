@@ -70,8 +70,15 @@ def _measured_minus_predicted_slope(beta):
     meas = np.mean(rows, axis=0)
 
     kc, bp, _ = angular_bandpowers_2d_limber(
-        _SHAPE, jnp.asarray(beta), jnp.asarray(_MACH), jnp.asarray(_B),
-        jnp.asarray(_ALPHA), jnp.asarray(float(_DEPTH)), jnp.asarray(_K_EDGES), 14, 256,
+        _SHAPE,
+        jnp.asarray(beta),
+        jnp.asarray(_MACH),
+        jnp.asarray(_B),
+        jnp.asarray(_ALPHA),
+        jnp.asarray(float(_DEPTH)),
+        jnp.asarray(_K_EDGES),
+        14,
+        256,
     )
     kc, bp = np.asarray(kc), np.asarray(bp)
     return _slope_in_band(kc, meas), _slope_in_band(kc, bp)

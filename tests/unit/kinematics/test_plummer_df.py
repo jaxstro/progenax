@@ -15,8 +15,8 @@ pre-release cross-tier test consolidation.
 import jax
 import jax.numpy as jnp
 import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax.kinematics.plummer_df import PlummerVelocityDF
 
 G = STELLAR.G
@@ -35,9 +35,9 @@ class TestPlummerVelocityDFPhysics:
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
 
-        vx2_mean = jnp.mean(velocities[:, 0]**2)
-        vy2_mean = jnp.mean(velocities[:, 1]**2)
-        vz2_mean = jnp.mean(velocities[:, 2]**2)
+        vx2_mean = jnp.mean(velocities[:, 0] ** 2)
+        vy2_mean = jnp.mean(velocities[:, 1] ** 2)
+        vz2_mean = jnp.mean(velocities[:, 2] ** 2)
 
         assert jnp.abs(vx2_mean - vy2_mean) / vx2_mean < 0.15
         assert jnp.abs(vy2_mean - vz2_mean) / vy2_mean < 0.15

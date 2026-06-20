@@ -47,7 +47,7 @@ def jacobi_radius(
         King (1962) AJ 67, 471
         Binney & Tremaine (2008) Eq. 8.91
     """
-    r_J = R_galactic * (M_cluster / (3.0 * M_galaxy)) ** (1.0/3.0)
+    r_J = R_galactic * (M_cluster / (3.0 * M_galaxy)) ** (1.0 / 3.0)
     return r_J
 
 
@@ -91,7 +91,7 @@ def jacobi_radius_isothermal(
             N-body-calibrated for clusters in a logarithmic Galactic potential.
     """
     Omega = V_circ / R_galactic
-    r_J = (G * M_cluster / (2.0 * Omega**2)) ** (1.0/3.0)
+    r_J = (G * M_cluster / (2.0 * Omega**2)) ** (1.0 / 3.0)
     return r_J
 
 
@@ -131,7 +131,9 @@ def apply_tidal_truncation(
     masses: Float[Array, "N"],
     r_t: float,
     grad_width: float = 0.05,
-) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N"], Float[Array, "N"]]:
+) -> Tuple[
+    Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N"], Float[Array, "N"]
+]:
     """Sharp tidal truncation — shape-preserving and differentiable in ``r_t``.
 
     Particles with ``r > r_t`` are "removed" by setting their mass to zero, so

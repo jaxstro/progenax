@@ -33,9 +33,16 @@ from typing import Optional
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, Int, PRNGKeyArray
+from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax.builders import ICResult
+from progenax.cluster.eddington_engine import (
+    _EngineBState,
+    assemble_engine_b_fields,
+    engine_b_component_virials,
+)
+from progenax.cluster.sampling import _sample_cluster_arrays
+from progenax.numerics import cumulative_trapz
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import lowered_exponential
 from progenax.profiles.limepy_multimass import (
@@ -47,17 +54,9 @@ from progenax.profiles.limepy_multimass import (
     find_alpha_for_masses,
     solve_multicomponent_limepy,
 )
-from progenax.numerics import cumulative_trapz
-from progenax.cluster.eddington_engine import (
-    _EngineBState,
-    assemble_engine_b_fields,
-    engine_b_component_virials,
-)
-from progenax.cluster.sampling import _sample_cluster_arrays
 
 
-def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
-                              aniso_method):
+def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max, aniso_method):
     """Build the solve-box AnisoDensityTable ONCE per construction.
 
     Returns (table, dens_fn): the constructors pass `table` to the coupled
@@ -75,12 +74,20 @@ def _shared_table_and_dens_fn(alpha_j, rescale, ra_hat_j, W0, g, xi_max,
         return None, None
     if aniso_method != "table":
         raise ValueError(
-            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}")
+            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}"
+        )
     ra_arr = jnp.asarray(ra_hat_j, dtype=jnp.float64)
     table = _solver_table(rescale, ra_arr, W0, g, xi_max)
     dens_fn, _ = _aniso_density_fn(
-        jnp.asarray(alpha_j, dtype=jnp.float64), rescale, ra_arr, W0, g,
-        xi_max, "table", table=table)
+        jnp.asarray(alpha_j, dtype=jnp.float64),
+        rescale,
+        ra_arr,
+        W0,
+        g,
+        xi_max,
+        "table",
+        table=table,
+    )
     return table, dens_fn
 
 
@@ -124,7 +131,8 @@ def _engine_a_property(name: str, doc: str) -> property:
                 f"{name} is an Engine A (lowered-isothermal) quantity; this "
                 f"model was built by from_density_profiles (Engine B), which "
                 f"has no {name}. Use the profile parameters / the Engine B "
-                f"state on self.engine_b instead.")
+                f"state on self.engine_b instead."
+            )
         return getattr(self.engine_a, name)
 
     getter.__name__ = name
@@ -187,27 +195,53 @@ class MultiComponentCluster(eqx.Module):
     engine_b: Optional[_EngineBState] = None
 
     W0 = _engine_a_property("W0", "Central dimensionless potential depth (Engine A).")
-    g = _engine_a_property("g", "Truncation parameter of the lowered isothermal (Engine A).")
+    g = _engine_a_property(
+        "g", "Truncation parameter of the lowered isothermal (Engine A)."
+    )
     r_c = _engine_a_property("r_c", "King core radius scale (Engine A).")
     mu_tot = _engine_a_property(
-        "mu_tot", "Total dimensionless mass integral; sets the velocity scale (Engine A).")
+        "mu_tot",
+        "Total dimensionless mass integral; sets the velocity scale (Engine A).",
+    )
     alpha_j = _engine_a_property(
-        "alpha_j", "Per-component central density fractions, sum to 1 (Engine A).")
+        "alpha_j", "Per-component central density fractions, sum to 1 (Engine A)."
+    )
     w_j = _engine_a_property(
-        "w_j", "Per-component velocity-scale ratios s_j/s (Engine A).")
+        "w_j", "Per-component velocity-scale ratios s_j/s (Engine A)."
+    )
     ra_hat_j = _engine_a_property(
-        "ra_hat_j", "Per-component anisotropy radii r_{a,j}/r_c, inf = isotropic (Engine A).")
+        "ra_hat_j",
+        "Per-component anisotropy radii r_{a,j}/r_c, inf = isotropic (Engine A).",
+    )
     xi_grid = _engine_a_property(
-        "xi_grid", "Coupled-Poisson radial grid xi = r/r_c (Engine A).")
+        "xi_grid", "Coupled-Poisson radial grid xi = r/r_c (Engine A)."
+    )
     psi_grid = _engine_a_property(
-        "psi_grid", "Coupled-Poisson solution W(xi) on xi_grid (Engine A).")
+        "psi_grid", "Coupled-Poisson solution W(xi) on xi_grid (Engine A)."
+    )
     residual = _engine_a_property(
-        "residual", "Eigenvalue-solve residual; 0 for direct constructors (Engine A).")
+        "residual", "Eigenvalue-solve residual; 0 for direct constructors (Engine A)."
+    )
 
-    def __init__(self, alpha_j=None, w_j=None, m_j=None, W0=None, g=None,
-                 r_c=None, xi_grid=None, psi_grid=None,
-                 ra_hat_j=None, residual=0.0, n_grid: int = 1000,
-                 rho_on_xi=None, dens_fn=None, psi_raw=None, *, _fields=None):
+    def __init__(
+        self,
+        alpha_j=None,
+        w_j=None,
+        m_j=None,
+        W0=None,
+        g=None,
+        r_c=None,
+        xi_grid=None,
+        psi_grid=None,
+        ra_hat_j=None,
+        residual=0.0,
+        n_grid: int = 1000,
+        rho_on_xi=None,
+        dens_fn=None,
+        psi_raw=None,
+        *,
+        _fields=None,
+    ):
         """Assemble model state from a finished coupled solve; constructors
         forward `rho_on_xi` (the solver's (n_comp, n_ode) density grid, reused
         verbatim for nu_j/mu_tot) and `dens_fn` (the solve's pointwise
@@ -231,7 +265,8 @@ class MultiComponentCluster(eqx.Module):
                 raise ValueError(
                     f"_fields contains unknown field name(s) {unknown}; "
                     f"declared fields are "
-                    f"{sorted(type(self).__dataclass_fields__)}.")
+                    f"{sorted(type(self).__dataclass_fields__)}."
+                )
             for name, val in _fields.items():
                 object.__setattr__(self, name, val)
             return
@@ -242,11 +277,14 @@ class MultiComponentCluster(eqx.Module):
         W0 = jnp.asarray(W0, dtype=jnp.float64)
         g = jnp.asarray(g, dtype=jnp.float64)
         r_c = jnp.asarray(r_c, dtype=jnp.float64)
-        ra_arr = (jnp.full(w_j.shape, jnp.inf, dtype=jnp.float64) if ra_hat_j is None
-                  else jnp.asarray(ra_hat_j, dtype=jnp.float64))
+        ra_arr = (
+            jnp.full(w_j.shape, jnp.inf, dtype=jnp.float64)
+            if ra_hat_j is None
+            else jnp.asarray(ra_hat_j, dtype=jnp.float64)
+        )
         xi_grid = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_grid = jnp.asarray(psi_grid, dtype=jnp.float64)
-        rescale = w_j ** -2.0
+        rescale = w_j**-2.0
 
         # Density evaluator for the r-grid mass CDF. Constructors forward the
         # solve's density source (`dens_fn`, pointwise (xi, psi) -> (n_comp,);
@@ -256,10 +294,13 @@ class MultiComponentCluster(eqx.Module):
         # back to the exact quadrature. `component_virial_ratios` stays on the
         # quadrature path unconditionally -- it is the equilibrium oracle.
         if dens_fn is None:
+
             def dens(psi_arr, xi_arr):
-                return _grid_density_components(psi_arr, xi_arr, rescale, W0, g,
-                                                ra_arr, is_aniso)
+                return _grid_density_components(
+                    psi_arr, xi_arr, rescale, W0, g, ra_arr, is_aniso
+                )
         else:
+
             def dens(psi_arr, xi_arr):
                 return jax.vmap(dens_fn, out_axes=1)(xi_arr, psi_arr)
 
@@ -290,11 +331,23 @@ class MultiComponentCluster(eqx.Module):
         cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
 
         state_a = _EngineAState(
-            W0=W0, g=g, r_c=r_c, mu_tot=mu_tot, alpha_j=alpha_j, w_j=w_j,
-            ra_hat_j=ra_arr, xi_grid=xi_grid, psi_grid=psi_grid,
-            residual=jnp.asarray(residual, dtype=jnp.float64))
+            W0=W0,
+            g=g,
+            r_c=r_c,
+            mu_tot=mu_tot,
+            alpha_j=alpha_j,
+            w_j=w_j,
+            ra_hat_j=ra_arr,
+            xi_grid=xi_grid,
+            psi_grid=psi_grid,
+            residual=jnp.asarray(residual, dtype=jnp.float64),
+        )
         for name, val in dict(
-            r_t=r_t, m_j=m_j, N_frac_j=N_frac, _r_grid=r_grid, _cdf_j=cdf_j,
+            r_t=r_t,
+            m_j=m_j,
+            N_frac_j=N_frac,
+            _r_grid=r_grid,
+            _cdf_j=cdf_j,
         ).items():
             object.__setattr__(self, name, val)
         object.__setattr__(self, "is_aniso", is_aniso)
@@ -318,13 +371,25 @@ class MultiComponentCluster(eqx.Module):
                 "quantity; this model is Engine B (from_density_profiles), "
                 "which has no per-component velocity-scale ratio w_j. The "
                 "Engine B per-component state lives on self.engine_b "
-                "(f_j_grid, mass_fractions, r_a_j, ...).")
-        return self.w_j ** -2.0
+                "(f_j_grid, mass_fractions, r_a_j, ...)."
+            )
+        return self.w_j**-2.0
 
     @classmethod
-    def from_components(cls, alpha_j, w_j, m_j, W0, g, r_c=1.0, ra_hat_j=None,
-                        xi_max: float = 300.0, n_ode_points: int = 2000,
-                        n_grid: int = 1000, aniso_method: str = "table"):
+    def from_components(
+        cls,
+        alpha_j,
+        w_j,
+        m_j,
+        W0,
+        g,
+        r_c=1.0,
+        ra_hat_j=None,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
+        n_grid: int = 1000,
+        aniso_method: str = "table",
+    ):
         """Direct constructor: components defined by their velocity-scale ratios w_j.
 
         The general Engine-A case -- GC 1G/2G, halo+core, binaries-vs-singles: any
@@ -337,20 +402,53 @@ class MultiComponentCluster(eqx.Module):
         when ra_hat_j is None. `component_virial_ratios` always uses quadrature.
         """
         w_arr = jnp.asarray(w_j, dtype=jnp.float64)
-        tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_arr ** -2.0, ra_hat_j,
-                                                 W0, g, xi_max, aniso_method)
+        tab, dens_fn = _shared_table_and_dens_fn(
+            alpha_j, w_arr**-2.0, ra_hat_j, W0, g, xi_max, aniso_method
+        )
         xi, psi, psi_raw, rho_j = solve_multicomponent_limepy(
-            alpha_j, w_arr ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
-        return cls(alpha_j, w_arr, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=0.0, n_grid=n_grid, rho_on_xi=rho_j, dens_fn=dens_fn,
-                   psi_raw=psi_raw)
+            alpha_j,
+            w_arr**-2.0,
+            W0,
+            g,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            ra_hat_j=ra_hat_j,
+            aniso_method=aniso_method,
+            aniso_table=tab,
+        )
+        return cls(
+            alpha_j,
+            w_arr,
+            m_j,
+            W0,
+            g,
+            r_c,
+            xi,
+            psi,
+            ra_hat_j=ra_hat_j,
+            residual=0.0,
+            n_grid=n_grid,
+            rho_on_xi=rho_j,
+            dens_fn=dens_fn,
+            psi_raw=psi_raw,
+        )
 
     @classmethod
-    def from_mass_segregation(cls, alpha_j, m_j, W0, g, delta, r_a=None, eta=0.0,
-                              r_c=1.0, xi_max: float = 300.0,
-                              n_ode_points: int = 2000, n_grid: int = 1000,
-                              aniso_method: str = "table"):
+    def from_mass_segregation(
+        cls,
+        alpha_j,
+        m_j,
+        W0,
+        g,
+        delta,
+        r_a=None,
+        eta=0.0,
+        r_c=1.0,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
+        n_grid: int = 1000,
+        aniso_method: str = "table",
+    ):
         """Equipartition constructor: w_j = mu_j^(-delta) (Gieles & Zocchi 2015).
 
         mu_j = m_j / bar_m with bar_m = sum_j m_j alpha_j (central density-weighted
@@ -362,17 +460,39 @@ class MultiComponentCluster(eqx.Module):
         m_arr = jnp.asarray(m_j, dtype=jnp.float64)
         mu_j = m_arr / jnp.sum(m_arr * alpha_arr)
         w_j = mu_j ** (-delta)
-        ra_hat_j = None if r_a is None else (r_a / r_c) * mu_j ** eta
-        return cls.from_components(alpha_arr, w_j, m_arr, W0, g, r_c=r_c,
-                                   ra_hat_j=ra_hat_j, xi_max=xi_max,
-                                   n_ode_points=n_ode_points, n_grid=n_grid,
-                                   aniso_method=aniso_method)
+        ra_hat_j = None if r_a is None else (r_a / r_c) * mu_j**eta
+        return cls.from_components(
+            alpha_arr,
+            w_j,
+            m_arr,
+            W0,
+            g,
+            r_c=r_c,
+            ra_hat_j=ra_hat_j,
+            xi_max=xi_max,
+            n_ode_points=n_ode_points,
+            n_grid=n_grid,
+            aniso_method=aniso_method,
+        )
 
     @classmethod
-    def from_imf(cls, imf, n_comp, W0, g, delta, m_range=(0.1, 100.0), r_c=1.0,
-                 r_a=None, eta=0.0, n_iter: int = 30, xi_max: float = 300.0,
-                 n_ode_points: int = 2000, n_grid: int = 1000,
-                 aniso_method: str = "table"):
+    def from_imf(
+        cls,
+        imf,
+        n_comp,
+        W0,
+        g,
+        delta,
+        m_range=(0.1, 100.0),
+        r_c=1.0,
+        r_a=None,
+        eta=0.0,
+        n_iter: int = 30,
+        xi_max: float = 300.0,
+        n_ode_points: int = 2000,
+        n_grid: int = 1000,
+        aniso_method: str = "table",
+    ):
         """IMF constructor: bin into n_comp log-spaced components, solve for alpha_j.
 
         The eigenvalue solve (`find_alpha_for_masses`) finds the central density
@@ -387,25 +507,65 @@ class MultiComponentCluster(eqx.Module):
         m_j, M_j = _bin_imf(imf, n_comp, m_range)
         ra_hat = None if r_a is None else r_a / r_c
         alpha_j, residual = find_alpha_for_masses(
-            m_j, M_j, W0, g, delta, n_iter=n_iter, xi_max=xi_max,
-            n_points=n_ode_points, ra_hat=ra_hat, eta=eta,
-            aniso_method=aniso_method)
+            m_j,
+            M_j,
+            W0,
+            g,
+            delta,
+            n_iter=n_iter,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            ra_hat=ra_hat,
+            eta=eta,
+            aniso_method=aniso_method,
+        )
         mu_j = m_j / jnp.sum(m_j * alpha_j)
         w_j = mu_j ** (-delta)
-        ra_hat_j = None if r_a is None else ra_hat * mu_j ** eta
-        tab, dens_fn = _shared_table_and_dens_fn(alpha_j, w_j ** -2.0, ra_hat_j,
-                                                 W0, g, xi_max, aniso_method)
+        ra_hat_j = None if r_a is None else ra_hat * mu_j**eta
+        tab, dens_fn = _shared_table_and_dens_fn(
+            alpha_j, w_j**-2.0, ra_hat_j, W0, g, xi_max, aniso_method
+        )
         xi, psi, psi_raw, rho_j = solve_multicomponent_limepy(
-            alpha_j, w_j ** -2.0, W0, g, xi_max=xi_max, n_points=n_ode_points,
-            ra_hat_j=ra_hat_j, aniso_method=aniso_method, aniso_table=tab)
-        return cls(alpha_j, w_j, m_j, W0, g, r_c, xi, psi, ra_hat_j=ra_hat_j,
-                   residual=residual, n_grid=n_grid, rho_on_xi=rho_j,
-                   dens_fn=dens_fn, psi_raw=psi_raw)
+            alpha_j,
+            w_j**-2.0,
+            W0,
+            g,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            ra_hat_j=ra_hat_j,
+            aniso_method=aniso_method,
+            aniso_table=tab,
+        )
+        return cls(
+            alpha_j,
+            w_j,
+            m_j,
+            W0,
+            g,
+            r_c,
+            xi,
+            psi,
+            ra_hat_j=ra_hat_j,
+            residual=residual,
+            n_grid=n_grid,
+            rho_on_xi=rho_j,
+            dens_fn=dens_fn,
+            psi_raw=psi_raw,
+        )
 
     @classmethod
-    def from_density_profiles(cls, profiles, mass_fractions, m_j, r_a_j=None,
-                              r_t=None, f_enc: float = 0.995, n_r: int = 6000,
-                              n_e: int = 1000, n_grid: int = 1000):
+    def from_density_profiles(
+        cls,
+        profiles,
+        mass_fractions,
+        m_j,
+        r_a_j=None,
+        r_t=None,
+        f_enc: float = 0.995,
+        n_r: int = 6000,
+        n_e: int = 1000,
+        n_grid: int = 1000,
+    ):
         """Engine B constructor: prescribed-density components in ONE shared Psi.
 
         Each component j is a prescribed density shape (PlummerProfile,
@@ -426,9 +586,19 @@ class MultiComponentCluster(eqx.Module):
         psi_grid, residual) do not exist here (`engine_a` is None) -- accessing
         them raises an informative AttributeError naming the engine.
         """
-        return cls(_fields=assemble_engine_b_fields(
-            profiles, mass_fractions, m_j, r_a_j=r_a_j, r_t=r_t, f_enc=f_enc,
-            n_r=n_r, n_e=n_e, n_grid=n_grid))
+        return cls(
+            _fields=assemble_engine_b_fields(
+                profiles,
+                mass_fractions,
+                m_j,
+                r_a_j=r_a_j,
+                r_t=r_t,
+                f_enc=f_enc,
+                n_r=n_r,
+                n_e=n_e,
+                n_grid=n_grid,
+            )
+        )
 
     def component_virial_ratios(self, n: int = 4000) -> Float[Array, "n_comp"]:
         """Theoretical per-component virial ratio Q_j = T_j/|W_j| from the model.
@@ -455,12 +625,14 @@ class MultiComponentCluster(eqx.Module):
         if self.engine == "B":
             return engine_b_component_virials(self.engine_b)
         r = jnp.linspace(1e-3, self.r_t, n)
-        psi = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid,
-                         left=self.W0, right=0.0)
+        psi = jnp.interp(
+            r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0
+        )
         rescale = self.rescale_j
         # per-component mass density rho_j = alpha_j rho_hat_j (norm cancels in Q_j)
-        rho_j = _grid_density_components(psi, r / self.r_c, rescale, self.W0,
-                                         self.g, self.ra_hat_j, self.is_aniso)
+        rho_j = _grid_density_components(
+            psi, r / self.r_c, rescale, self.W0, self.g, self.ra_hat_j, self.is_aniso
+        )
         rho_j = jnp.where(r[None, :] <= self.r_t, rho_j, 0.0) * self.alpha_j[:, None]
         rho_tot = jnp.sum(rho_j, axis=0)
 
@@ -481,10 +653,15 @@ class MultiComponentCluster(eqx.Module):
             s_j2 = s2 * self.w_j[j] ** 2
             if self.is_aniso:
                 p_j = (r / self.r_c) / self.ra_hat_j[j]
-                v2hat = jax.vmap(lambda w, pp: _aniso_v2hat_scalar(w, pp, self.g))(W_j, p_j)
+                v2hat = jax.vmap(lambda w, pp: _aniso_v2hat_scalar(w, pp, self.g))(
+                    W_j, p_j
+                )
             else:
-                v2hat = 3.0 * lowered_exponential(self.g + 2.5, W_j) / \
-                    jnp.maximum(lowered_exponential(self.g + 1.5, W_j), 1e-300)
+                v2hat = (
+                    3.0
+                    * lowered_exponential(self.g + 2.5, W_j)
+                    / jnp.maximum(lowered_exponential(self.g + 1.5, W_j), 1e-300)
+                )
             v2 = s_j2 * jnp.where(W_j > 0.0, v2hat, 0.0)
             T = jnp.trapezoid(0.5 * rho_j[j] * v2 * 4.0 * jnp.pi * r**2, r)
             W = jnp.trapezoid(-rho_j[j] * r * dphi_dr * 4.0 * jnp.pi * r**2, r)
@@ -509,15 +686,23 @@ class MultiComponentCluster(eqx.Module):
         if self.engine == "B":
             rho_tot = jnp.sum(self.engine_b.rho_j_poisson, axis=0)
             r1 = jnp.atleast_1d(jnp.asarray(r))
-            tot = jnp.interp(r1, self.engine_b.r_poisson, rho_tot,
-                             left=rho_tot[0], right=0.0).reshape(jnp.shape(r))
+            tot = jnp.interp(
+                r1, self.engine_b.r_poisson, rho_tot, left=rho_tot[0], right=0.0
+            ).reshape(jnp.shape(r))
             return jnp.where(r <= self.r_t, tot, 0.0)
         r1 = jnp.atleast_1d(jnp.asarray(r))
-        psi_r = jnp.interp(r1 / self.r_c, self.xi_grid, self.psi_grid,
-                           left=self.W0, right=0.0)
-        rho_j = _grid_density_components(psi_r, r1 / self.r_c, self.rescale_j,
-                                         self.W0, self.g, self.ra_hat_j,
-                                         self.is_aniso)
+        psi_r = jnp.interp(
+            r1 / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0
+        )
+        rho_j = _grid_density_components(
+            psi_r,
+            r1 / self.r_c,
+            self.rescale_j,
+            self.W0,
+            self.g,
+            self.ra_hat_j,
+            self.is_aniso,
+        )
         tot = jnp.sum(self.alpha_j[:, None] * rho_j, axis=0).reshape(jnp.shape(r))
         return jnp.where(r <= self.r_t, tot, 0.0)
 
@@ -555,8 +740,13 @@ class MultiComponentCluster(eqx.Module):
         G is REQUIRED (explicit-units policy; e.g. ``STELLAR.G``).
         """
         pos, vel, m_i, radii_stellar, c = _sample_cluster_arrays(self, key, n_stars, G)
-        return ICResult(positions=pos, velocities=vel, masses=m_i,
-                        stellar_radii=radii_stellar, component_id=c)
+        return ICResult(
+            positions=pos,
+            velocities=vel,
+            masses=m_i,
+            stellar_radii=radii_stellar,
+            component_id=c,
+        )
 
 
 __all__ = ["MultiComponentCluster"]

@@ -110,12 +110,12 @@ import demo_delta_recovery as b2  # noqa: E402  (Tasks 3-5 machinery, reused)
 # --------------------------------------------------------------------------- #
 # Task 6 configuration
 # --------------------------------------------------------------------------- #
-ALPHAS_ASSUMED = (1.9, 2.1, 2.3, 2.5, 2.7)   # bias curve (truth alpha = 2.3)
-ALPHAS_TRUE_GRID = (1.9, 2.3, 2.7)           # robustness grid truths
-SEED_BASE_BIAS = 100                          # PRNGKey(100 + s), s = 0..N_SEEDS-1
-SEED_BASE_GRID = 200                          # PRNGKey(200 + i) per alpha_true
+ALPHAS_ASSUMED = (1.9, 2.1, 2.3, 2.5, 2.7)  # bias curve (truth alpha = 2.3)
+ALPHAS_TRUE_GRID = (1.9, 2.3, 2.7)  # robustness grid truths
+SEED_BASE_BIAS = 100  # PRNGKey(100 + s), s = 0..N_SEEDS-1
+SEED_BASE_GRID = 200  # PRNGKey(200 + i) per alpha_true
 N_SEEDS_MIN, N_SEEDS_MAX = 3, 5
-BIAS_BUDGET_MIN = 30.0                        # whole-bias-panel budget (STOP gate)
+BIAS_BUDGET_MIN = 30.0  # whole-bias-panel budget (STOP gate)
 
 
 # --------------------------------------------------------------------------- #
@@ -124,9 +124,7 @@ BIAS_BUDGET_MIN = 30.0                        # whole-bias-panel budget (STOP ga
 def _kin_negloglike_2p(z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
     """Kinematics-only negloglike in z2 = (z_delta, z_W0); alpha frozen, mass
     term DROPPED. Same standardized chi^2 as the joint loss's kinematic part."""
-    theta = (alpha_assumed,
-             di.expit(z2[0], *b2.DELTA_BOX),
-             di.expit(z2[1], *b2.W0_BOX))
+    theta = (alpha_assumed, di.expit(z2[0], *b2.DELTA_BOX), di.expit(z2[1], *b2.W0_BOX))
     sig_model = b2.predict_binned(theta, r_edges, m_fixed)
     safe_se = jnp.where(se > 0, se, 1.0)
     resid = jnp.sqrt(weight) * (sig_hat - sig_model) / safe_se
@@ -136,12 +134,13 @@ def _kin_negloglike_2p(z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed)
 def _fit_kin_only(alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
     """One kinematics-only (delta, W0) Adam fit (Task 4 step count / lr).
     Jitted ONCE at module scope (below); all 5 x N_SEEDS fits reuse it."""
-    def negll(z2):
-        return _kin_negloglike_2p(z2, alpha_assumed, sig_hat, se, weight,
-                                  r_edges, m_fixed)
 
-    return di.mle_adam(negll, jnp.zeros(2),
-                       n_steps=b2.N_ADAM_STEPS, lr=b2.ADAM_LR)
+    def negll(z2):
+        return _kin_negloglike_2p(
+            z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+        )
+
+    return di.mle_adam(negll, jnp.zeros(2), n_steps=b2.N_ADAM_STEPS, lr=b2.ADAM_LR)
 
 
 fit_kin_only = jax.jit(_fit_kin_only)
@@ -153,9 +152,9 @@ kin_negll_2p = jax.jit(_kin_negloglike_2p)
 # --------------------------------------------------------------------------- #
 DIAG_ALPHA = 2.1
 DIAG_N_DELTA = 25
-DIAG_PROFILE_SEEDS = (0, 1)   # the seeds that split: delta_hat ~0.47 vs ~0.27
-DIAG_N_SEEDS = 5              # the captured headline run's seeds (keys 100-104)
-DIAG_N_STEPS = 600            # 2x the ensemble's 300 (rules out slow convergence)
+DIAG_PROFILE_SEEDS = (0, 1)  # the seeds that split: delta_hat ~0.47 vs ~0.27
+DIAG_N_SEEDS = 5  # the captured headline run's seeds (keys 100-104)
+DIAG_N_STEPS = 600  # 2x the ensemble's 300 (rules out slow convergence)
 
 
 def dispersed_inits_2p():
@@ -167,8 +166,9 @@ def dispersed_inits_2p():
     return jnp.concatenate([jnp.zeros((1, 2)), draws], axis=0)
 
 
-def _kin_negloglike_theta(delta, w0, alpha_assumed, sig_hat, se, weight,
-                          r_edges, m_fixed):
+def _kin_negloglike_theta(
+    delta, w0, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+):
     """The SAME kinematics-only negloglike as ``_kin_negloglike_2p`` but in
     PHYSICAL (delta, W0) -- used to profile the likelihood on a delta grid."""
     sig_model = b2.predict_binned((alpha_assumed, delta, w0), r_edges, m_fixed)
@@ -177,18 +177,21 @@ def _kin_negloglike_theta(delta, w0, alpha_assumed, sig_hat, se, weight,
     return 0.5 * jnp.sum(resid * resid)
 
 
-profile_negll = jax.jit(jax.vmap(
-    _kin_negloglike_theta,
-    in_axes=(0, None, None, None, None, None, None, None)))
+profile_negll = jax.jit(
+    jax.vmap(
+        _kin_negloglike_theta, in_axes=(0, None, None, None, None, None, None, None)
+    )
+)
 
 
-def _fit_kin_only_diag(z0, alpha_assumed, sig_hat, se, weight, r_edges,
-                       m_fixed):
+def _fit_kin_only_diag(z0, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
     """Kinematics-only fit from an EXPLICIT init with DIAG_N_STEPS Adam steps
     (the ensemble fit is z0=0 with N_ADAM_STEPS)."""
+
     def negll(z2):
-        return _kin_negloglike_2p(z2, alpha_assumed, sig_hat, se, weight,
-                                  r_edges, m_fixed)
+        return _kin_negloglike_2p(
+            z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+        )
 
     return di.mle_adam(negll, z0, n_steps=DIAG_N_STEPS, lr=b2.ADAM_LR)
 
@@ -202,12 +205,16 @@ def diag_alpha21():
     Runs NO ensemble and NO gate; headline numbers untouched."""
     t_all0 = time.perf_counter()
     print("=" * 72)
-    print(f"DIAG-21: alpha_assumed = {DIAG_ALPHA} valley diagnostic "
-          "(kinematics-only refit)")
+    print(
+        f"DIAG-21: alpha_assumed = {DIAG_ALPHA} valley diagnostic "
+        "(kinematics-only refit)"
+    )
     print("=" * 72)
-    print(f"context: the captured bias curve has its largest seed scatter at "
-          f"alpha_assumed={DIAG_ALPHA} (seed std 0.084 vs <=0.016 elsewhere; "
-          f"seeds 0/3 delta_hat~0.47 vs seeds 1/2/4 ~0.27-0.37).")
+    print(
+        f"context: the captured bias curve has its largest seed scatter at "
+        f"alpha_assumed={DIAG_ALPHA} (seed std 0.084 vs <=0.016 elsewhere; "
+        f"seeds 0/3 delta_hat~0.47 vs seeds 1/2/4 ~0.27-0.37)."
+    )
     print("question: optimizer artifact or genuine likelihood feature?")
 
     datasets = {}
@@ -215,19 +222,27 @@ def diag_alpha21():
     def get_data(s):
         if s not in datasets:
             datasets[s] = b2.build_truth_data(
-                key=jax.random.PRNGKey(SEED_BASE_BIAS + s))
+                key=jax.random.PRNGKey(SEED_BASE_BIAS + s)
+            )
         return datasets[s]
 
     def args_of(data):
-        return (data["sig_hat"], data["se"], data["weight"],
-                data["r_edges"], data["M_fixed"])
+        return (
+            data["sig_hat"],
+            data["se"],
+            data["weight"],
+            data["r_edges"],
+            data["M_fixed"],
+        )
 
     # ------------------------------------------------------------------ #
     # (i) negloglike profile along delta, W0 FIXED at each seed's fit
     # ------------------------------------------------------------------ #
     print("\n" + "-" * 72)
-    print(f"(i) negloglike profile along delta ({DIAG_N_DELTA} points over "
-          f"DELTA_BOX={b2.DELTA_BOX}), W0 FIXED at each seed's fitted value")
+    print(
+        f"(i) negloglike profile along delta ({DIAG_N_DELTA} points over "
+        f"DELTA_BOX={b2.DELTA_BOX}), W0 FIXED at each seed's fitted value"
+    )
     print("-" * 72)
     deltas = jnp.linspace(b2.DELTA_BOX[0], b2.DELTA_BOX[1], DIAG_N_DELTA)
     for s in DIAG_PROFILE_SEEDS:
@@ -237,11 +252,12 @@ def diag_alpha21():
         z2_hat, _ = fit_kin_only(jnp.asarray(DIAG_ALPHA), *args)
         d_hat = float(di.expit(z2_hat[0], *b2.DELTA_BOX))
         w_hat = float(di.expit(z2_hat[1], *b2.W0_BOX))
-        vals = profile_negll(deltas, jnp.asarray(w_hat),
-                             jnp.asarray(DIAG_ALPHA), *args)
+        vals = profile_negll(deltas, jnp.asarray(w_hat), jnp.asarray(DIAG_ALPHA), *args)
         v = [float(x) for x in vals]
-        print(f"\n  seed {s} (key {SEED_BASE_BIAS + s}): ensemble fit "
-              f"delta_hat={d_hat:.4f}, W0_hat={w_hat:.4f} (W0 frozen below)")
+        print(
+            f"\n  seed {s} (key {SEED_BASE_BIAS + s}): ensemble fit "
+            f"delta_hat={d_hat:.4f}, W0_hat={w_hat:.4f} (W0 frozen below)"
+        )
         print(f"  {'delta':>8} {'negloglike':>14}")
         for k in range(DIAG_N_DELTA):
             mark = ""
@@ -249,20 +265,26 @@ def diag_alpha21():
                 mark = "  <- local min"
             print(f"  {float(deltas[k]):>8.4f} {v[k]:>14.4f}{mark}")
         i_min = int(jnp.argmin(vals))
-        print(f"  grid minimum at delta = {float(deltas[i_min]):.4f} "
-              f"(negloglike {v[i_min]:.4f}); profile span max-min = "
-              f"{max(v) - min(v):.4f}")
+        print(
+            f"  grid minimum at delta = {float(deltas[i_min]):.4f} "
+            f"(negloglike {v[i_min]:.4f}); profile span max-min = "
+            f"{max(v) - min(v):.4f}"
+        )
 
     # ------------------------------------------------------------------ #
     # (ii) dispersed-init refits, all headline seeds
     # ------------------------------------------------------------------ #
     print("\n" + "-" * 72)
-    print(f"(ii) refit alpha_assumed={DIAG_ALPHA} for all {DIAG_N_SEEDS} seed "
-          f"datasets: {b2.N_INITS} dispersed inits x {DIAG_N_STEPS} Adam steps")
+    print(
+        f"(ii) refit alpha_assumed={DIAG_ALPHA} for all {DIAG_N_SEEDS} seed "
+        f"datasets: {b2.N_INITS} dispersed inits x {DIAG_N_STEPS} Adam steps"
+    )
     print("-" * 72)
     z0s = dispersed_inits_2p()
-    print(f"  inits (unconstrained z = (z_delta, z_W0)): "
-          f"{[[round(float(x), 3) for x in z0] for z0 in z0s]}")
+    print(
+        f"  inits (unconstrained z = (z_delta, z_W0)): "
+        f"{[[round(float(x), 3) for x in z0] for z0 in z0s]}"
+    )
     spreads = []
     best_d = []
     for s in range(DIAG_N_SEEDS):
@@ -271,37 +293,44 @@ def diag_alpha21():
         d_hats, finals = [], []
         print(f"\n  seed {s} (key {SEED_BASE_BIAS + s}):")
         for i in range(b2.N_INITS):
-            z2_hat, trace = fit_kin_only_diag(z0s[i], jnp.asarray(DIAG_ALPHA),
-                                              *args)
+            z2_hat, trace = fit_kin_only_diag(z0s[i], jnp.asarray(DIAG_ALPHA), *args)
             d = float(di.expit(z2_hat[0], *b2.DELTA_BOX))
             w = float(di.expit(z2_hat[1], *b2.W0_BOX))
             final = float(kin_negll_2p(z2_hat, jnp.asarray(DIAG_ALPHA), *args))
             plat, _, _ = b2.plateau_ok(trace)
             d_hats.append(d)
             finals.append(final)
-            print(f"    init {i}: delta_hat={d:.4f}, W0_hat={w:.4f}, "
-                  f"final loss={final:.4f}, plateau "
-                  f"{'PASS' if plat else 'FAIL'}")
+            print(
+                f"    init {i}: delta_hat={d:.4f}, W0_hat={w:.4f}, "
+                f"final loss={final:.4f}, plateau "
+                f"{'PASS' if plat else 'FAIL'}"
+            )
         spread = max(d_hats) - min(d_hats)
         spreads.append(spread)
         best_d.append(d_hats[int(jnp.argmin(jnp.array(finals)))])
-        print(f"    across-init delta_hat spread = {spread:.4f} "
-              f"(best-loss init's delta_hat = {best_d[-1]:.4f})")
+        print(
+            f"    across-init delta_hat spread = {spread:.4f} "
+            f"(best-loss init's delta_hat = {best_d[-1]:.4f})"
+        )
 
     print(f"\n  across-INIT spread per seed (max) = {max(spreads):.4f}")
-    print(f"  across-SEED spread of best-loss delta_hat = "
-          f"{max(best_d) - min(best_d):.4f}")
+    print(
+        f"  across-SEED spread of best-loss delta_hat = {max(best_d) - min(best_d):.4f}"
+    )
     print("\n" + "=" * 72)
     print("INTERPRETATION RULE")
     print("=" * 72)
     print("  same-dataset INIT-dependence of delta_hat => optimizer artifact")
-    print("  init-INDEPENDENCE with seed-dependence    => genuinely flat / "
-          "bistable likelihood direction at alpha_assumed=2.1 "
-          "(a reportable finding, not an optimizer bug)")
-    print(f"\n  diag wall-time = {(time.perf_counter() - t_all0) / 60.0:.1f} "
-          "min")
-    print("  (headline ensemble numbers and gates untouched -- this mode runs "
-          "NO ensemble and NO gate)")
+    print(
+        "  init-INDEPENDENCE with seed-dependence    => genuinely flat / "
+        "bistable likelihood direction at alpha_assumed=2.1 "
+        "(a reportable finding, not an optimizer bug)"
+    )
+    print(f"\n  diag wall-time = {(time.perf_counter() - t_all0) / 60.0:.1f} min")
+    print(
+        "  (headline ensemble numbers and gates untouched -- this mode runs "
+        "NO ensemble and NO gate)"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -316,8 +345,8 @@ def _joint_negloglike(z, sig_hat, se, weight, r_edges, m_fixed, m_obs):
     resid = jnp.sqrt(weight) * (sig_hat - sig_model) / safe_se
     alpha = theta[0]
     mass_nll = -jnp.sum(
-        Maschberger(alpha=alpha, m_min=b2.M_RANGE[0],
-                    m_max=b2.M_RANGE[1]).logpdf(m_obs))
+        Maschberger(alpha=alpha, m_min=b2.M_RANGE[0], m_max=b2.M_RANGE[1]).logpdf(m_obs)
+    )
     return 0.5 * jnp.sum(resid * resid) + mass_nll
 
 
@@ -335,8 +364,14 @@ def joint_refit(data):
     """Full joint refit on one dataset: 3 dispersed inits -> best z_hat,
     theta_hat, Gauss-Newton Fisher sigma_theta, plateau flag. Task 4 recipe via
     the b2 builders (make_residual_fn / make_mass_negloglike / fisher_*)."""
-    args = (data["sig_hat"], data["se"], data["weight"],
-            data["r_edges"], data["M_fixed"], data["m_obs"])
+    args = (
+        data["sig_hat"],
+        data["se"],
+        data["weight"],
+        data["r_edges"],
+        data["M_fixed"],
+        data["m_obs"],
+    )
     z0s = b2.dispersed_inits()
     z_hats, traces, finals = [], [], []
     for i in range(b2.N_INITS):
@@ -350,8 +385,7 @@ def joint_refit(data):
 
     residual_fn = b2.make_residual_fn(data)
     mass_negloglike = b2.make_mass_negloglike(data)
-    F_z = di.fisher_information_gn(residual_fn, z_hat,
-                                   extra_negloglike=mass_negloglike)
+    F_z = di.fisher_information_gn(residual_fn, z_hat, extra_negloglike=mass_negloglike)
     cov_theta = di.constrained_cov(F_z, b2._dtheta_dz(z_hat))  # raises if not PD
     sigma_theta = jnp.sqrt(jnp.diag(cov_theta))
     theta_hat = b2._theta_of_z(z_hat)
@@ -369,47 +403,82 @@ def make_bias_figure(bias, grid, out_dir):
     pulls (theta_hat - truth)/sigma_hat per parameter vs alpha_true, with the
     +/- 3 sigma gate band.
     """
+    import _plotstyle as ps  # noqa: E402  (path already inserted)
     import matplotlib.pyplot as plt
     import numpy as np
-
-    import _plotstyle as ps  # noqa: E402  (path already inserted)
 
     ps.apply_pub_style()
     fig, (axa, axb) = plt.subplots(1, 2, figsize=(8.5, 3.6))
 
     # ---- panel (a): bias curve --------------------------------------------- #
-    alphas = np.asarray(bias["alphas"])                   # (A,)
-    d_hat = np.asarray(bias["delta_hat"])                 # (S, A)
+    alphas = np.asarray(bias["alphas"])  # (A,)
+    d_hat = np.asarray(bias["delta_hat"])  # (S, A)
     d_mean = d_hat.mean(axis=0)
     d_std = d_hat.std(axis=0, ddof=1)
     for s in range(d_hat.shape[0]):
-        axa.plot(alphas, d_hat[s], "o", ms=3, color=ps.OI["sky"], alpha=0.6,
-                 mec="none", zorder=2,
-                 label="per-seed fits" if s == 0 else None)
-    axa.errorbar(alphas, d_mean, yerr=d_std, fmt="s-", ms=4.5,
-                 color=ps.OI["blue"], capsize=2.0, elinewidth=1.0, lw=1.4,
-                 zorder=3, label=r"seed mean $\pm$ std")
-    axa.axhline(b2.DELTA_TRUE, color=ps.OI["orange"], lw=1.0, ls=":",
-                label=rf"truth $\delta={b2.DELTA_TRUE}$")
+        axa.plot(
+            alphas,
+            d_hat[s],
+            "o",
+            ms=3,
+            color=ps.OI["sky"],
+            alpha=0.6,
+            mec="none",
+            zorder=2,
+            label="per-seed fits" if s == 0 else None,
+        )
+    axa.errorbar(
+        alphas,
+        d_mean,
+        yerr=d_std,
+        fmt="s-",
+        ms=4.5,
+        color=ps.OI["blue"],
+        capsize=2.0,
+        elinewidth=1.0,
+        lw=1.4,
+        zorder=3,
+        label=r"seed mean $\pm$ std",
+    )
+    axa.axhline(
+        b2.DELTA_TRUE,
+        color=ps.OI["orange"],
+        lw=1.0,
+        ls=":",
+        label=rf"truth $\delta={b2.DELTA_TRUE}$",
+    )
     axa.axvline(b2.ALPHA_TRUE, color=ps.OI["orange"], lw=1.0, ls=":")
     axa.set_xlabel(r"$\alpha_{\rm assumed}$ (frozen IMF slope)")
     axa.set_ylabel(r"$\hat\delta$ (kinematics-only refit)")
     axa.legend(loc="best")
-    axa.text(0.97, 0.05,
-             rf"$\mathrm{{d}}\hat\delta/\mathrm{{d}}\alpha = "
-             rf"{bias['slope_mean']:+.4f} \pm {bias['slope_se']:.4f}$",
-             transform=axa.transAxes, ha="right", va="bottom", fontsize=9)
-    axa.text(0.97, 0.13,
-             rf"peaked at truth: wrong $\alpha$ either way biases "
-             rf"$\hat\delta$ low" "\n"
-             rf"($-{bias['drop_lo']:.2f}$ at $\alpha={alphas[0]:.1f}$, "
-             rf"$-{bias['drop_hi']:.2f}$ at $\alpha={alphas[-1]:.1f}$)",
-             transform=axa.transAxes, ha="right", va="bottom", fontsize=7.5)
+    axa.text(
+        0.97,
+        0.05,
+        rf"$\mathrm{{d}}\hat\delta/\mathrm{{d}}\alpha = "
+        rf"{bias['slope_mean']:+.4f} \pm {bias['slope_se']:.4f}$",
+        transform=axa.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=9,
+    )
+    axa.text(
+        0.97,
+        0.13,
+        rf"peaked at truth: wrong $\alpha$ either way biases "
+        rf"$\hat\delta$ low"
+        "\n"
+        rf"($-{bias['drop_lo']:.2f}$ at $\alpha={alphas[0]:.1f}$, "
+        rf"$-{bias['drop_hi']:.2f}$ at $\alpha={alphas[-1]:.1f}$)",
+        transform=axa.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=7.5,
+    )
     ps.panel_label(axa, "(a)")
 
     # ---- panel (b): robustness-grid pulls ---------------------------------- #
-    a_true = np.asarray(grid["alphas_true"])              # (G,)
-    pulls = np.asarray(grid["pulls"])                     # (G, 3)
+    a_true = np.asarray(grid["alphas_true"])  # (G,)
+    pulls = np.asarray(grid["pulls"])  # (G, 3)
     names = (r"$\alpha$", r"$\delta$", r"$W_0$")
     colors = (ps.OI["blue"], ps.OI["green"], ps.OI["vermilion"])
     markers = ("o", "s", "^")
@@ -417,9 +486,17 @@ def make_bias_figure(bias, grid, out_dir):
     axb.axhspan(-3.0, 3.0, color=ps.OI["sky"], alpha=0.15, zorder=0)
     axb.axhline(0.0, color=ps.OI["black"], lw=0.7, ls="-", zorder=1)
     for p in range(3):
-        axb.plot(a_true + off[p], pulls[:, p], markers[p], ms=5,
-                 color=colors[p], mec=ps.OI["black"], mew=0.4, zorder=3,
-                 label=names[p])
+        axb.plot(
+            a_true + off[p],
+            pulls[:, p],
+            markers[p],
+            ms=5,
+            color=colors[p],
+            mec=ps.OI["black"],
+            mew=0.4,
+            zorder=3,
+            label=names[p],
+        )
     for y in (-3.0, 3.0):
         axb.axhline(y, color=ps.OI["vermilion"], lw=0.8, ls="--", zorder=1)
     axb.set_xlabel(r"$\alpha_{\rm true}$ (fresh truth dataset)")
@@ -429,9 +506,11 @@ def make_bias_figure(bias, grid, out_dir):
     axb.legend(loc="best", ncol=3)
     ps.panel_label(axb, "(b)")
 
-    cap = (rf"(a) wrong-IMF bias of the kinematics-only $(\delta, W_0)$ refit, "
-           rf"{d_hat.shape[0]} seeds; (b) joint refit pulls vs $\alpha_{{\rm true}}$ "
-           rf"($\pm3\hat\sigma$ gate band)")
+    cap = (
+        rf"(a) wrong-IMF bias of the kinematics-only $(\delta, W_0)$ refit, "
+        rf"{d_hat.shape[0]} seeds; (b) joint refit pulls vs $\alpha_{{\rm true}}$ "
+        rf"($\pm3\hat\sigma$ gate band)"
+    )
     fig.text(0.5, -0.02, cap, ha="center", va="top", fontsize=8.5)
     fig.tight_layout()
     ps.save_fig(fig, out_dir, "demo_delta_recovery_bias")
@@ -445,12 +524,18 @@ def main():
     print("=" * 72)
     print("B2d demo (Task 6): wrong-IMF bias curve + alpha_true robustness grid")
     print("=" * 72)
-    print(f"truth: alpha={b2.ALPHA_TRUE}, delta={b2.DELTA_TRUE}, W0={b2.W0_TRUE}; "
-          f"N_COMP={b2.N_COMP}, N_STARS={b2.N_STARS}, M_RANGE={b2.M_RANGE}")
-    print(f"bias curve: alpha_assumed in {ALPHAS_ASSUMED} (kinematics-only, "
-          f"alpha frozen, mass term dropped)")
-    print(f"robustness grid: alpha_true in {ALPHAS_TRUE_GRID} (fresh datasets, "
-          f"full joint refit; GATED at 3 sigma)")
+    print(
+        f"truth: alpha={b2.ALPHA_TRUE}, delta={b2.DELTA_TRUE}, W0={b2.W0_TRUE}; "
+        f"N_COMP={b2.N_COMP}, N_STARS={b2.N_STARS}, M_RANGE={b2.M_RANGE}"
+    )
+    print(
+        f"bias curve: alpha_assumed in {ALPHAS_ASSUMED} (kinematics-only, "
+        f"alpha frozen, mass term dropped)"
+    )
+    print(
+        f"robustness grid: alpha_true in {ALPHAS_TRUE_GRID} (fresh datasets, "
+        f"full joint refit; GATED at 3 sigma)"
+    )
 
     # ------------------------------------------------------------------ #
     # RUNTIME BUDGET CHECKPOINT (before any ensemble fit runs)
@@ -463,8 +548,13 @@ def main():
     t_data = time.perf_counter() - t0
     print(f"  one truth-dataset build (sample + bin)  t_data = {t_data:.1f} s")
 
-    args0 = (data0["sig_hat"], data0["se"], data0["weight"],
-             data0["r_edges"], data0["M_fixed"])
+    args0 = (
+        data0["sig_hat"],
+        data0["se"],
+        data0["weight"],
+        data0["r_edges"],
+        data0["M_fixed"],
+    )
     # Probe with TWO REAL fits (reused below as the first two seed-0 ensemble
     # members, so no probe time is wasted). The projection uses the measured
     # warm FIT cost rather than N_ADAM_STEPS x (one warm eval): measured here,
@@ -480,39 +570,52 @@ def main():
     z2_p1.block_until_ready()
     t_fit_warm = time.perf_counter() - t0
     probe_fits = {(0, 0): (z2_p0, trace_p0), (0, 1): (z2_p1, trace_p1)}
-    print(f"  2-param kin-only fit ({b2.N_ADAM_STEPS} Adam steps): "
-          f"cold (incl. compile) {t_fit_cold:.1f} s, warm {t_fit_warm:.1f} s")
+    print(
+        f"  2-param kin-only fit ({b2.N_ADAM_STEPS} Adam steps): "
+        f"cold (incl. compile) {t_fit_cold:.1f} s, warm {t_fit_warm:.1f} s"
+    )
 
     n_alpha = len(ALPHAS_ASSUMED)
     per_seed = t_data + n_alpha * t_fit_warm
-    print(f"  per-seed ~ t_data + {n_alpha} x warm-fit = {t_data:.1f} + "
-          f"{n_alpha} x {t_fit_warm:.1f} = {per_seed:.1f} s "
-          f"= {per_seed / 60.0:.2f} min")
+    print(
+        f"  per-seed ~ t_data + {n_alpha} x warm-fit = {t_data:.1f} + "
+        f"{n_alpha} x {t_fit_warm:.1f} = {per_seed:.1f} s "
+        f"= {per_seed / 60.0:.2f} min"
+    )
     n_seeds_fit = int((BIAS_BUDGET_MIN * 60.0) // per_seed)
     n_seeds = max(N_SEEDS_MIN, min(N_SEEDS_MAX, n_seeds_fit))
     proj_min = n_seeds * per_seed / 60.0
-    print(f"  budget arithmetic: floor({BIAS_BUDGET_MIN:.0f} min / "
-          f"{per_seed / 60.0:.2f} min) = {n_seeds_fit} seeds -> "
-          f"N_SEEDS = clamp(.., {N_SEEDS_MIN}, {N_SEEDS_MAX}) = {n_seeds}")
-    print(f"  PROJECTED bias-panel wall-time = {n_seeds} x {per_seed / 60.0:.2f} "
-          f"= {proj_min:.1f} min (budget {BIAS_BUDGET_MIN:.0f} min; "
-          f"data build + 2 probe fits already banked)")
+    print(
+        f"  budget arithmetic: floor({BIAS_BUDGET_MIN:.0f} min / "
+        f"{per_seed / 60.0:.2f} min) = {n_seeds_fit} seeds -> "
+        f"N_SEEDS = clamp(.., {N_SEEDS_MIN}, {N_SEEDS_MAX}) = {n_seeds}"
+    )
+    print(
+        f"  PROJECTED bias-panel wall-time = {n_seeds} x {per_seed / 60.0:.2f} "
+        f"= {proj_min:.1f} min (budget {BIAS_BUDGET_MIN:.0f} min; "
+        f"data build + 2 probe fits already banked)"
+    )
     if n_seeds_fit < N_SEEDS_MIN:
-        print(f"\n  STOP: even {N_SEEDS_MIN} seeds project to "
-              f"{N_SEEDS_MIN * per_seed / 60.0:.1f} min > "
-              f"{BIAS_BUDGET_MIN:.0f} min. NOT degrading the solve. Options: "
-              "reduce N_ADAM_STEPS for the 2-param refit (with a plateau "
-              "re-check), reduce the alpha_assumed grid to 3 points, or raise "
-              "the budget with Anna's ok.")
+        print(
+            f"\n  STOP: even {N_SEEDS_MIN} seeds project to "
+            f"{N_SEEDS_MIN * per_seed / 60.0:.1f} min > "
+            f"{BIAS_BUDGET_MIN:.0f} min. NOT degrading the solve. Options: "
+            "reduce N_ADAM_STEPS for the 2-param refit (with a plateau "
+            "re-check), reduce the alpha_assumed grid to 3 points, or raise "
+            "the budget with Anna's ok."
+        )
         sys.exit(2)
     # Informational projection for the (un-budgeted) robustness grid: the
     # joint loss adds the (cheap) mass channel + a 3rd parameter; ~1.3x the
     # kin-only fit cost is a generous per-fit allowance.
-    grid_proj = (len(ALPHAS_TRUE_GRID)
-                 * (t_data + b2.N_INITS * 1.3 * t_fit_warm)) / 60.0
-    print(f"  robustness-grid projection (informational, ~1.3x kin fit cost "
-          f"x {b2.N_INITS} inits x {len(ALPHAS_TRUE_GRID)} datasets): "
-          f"~{grid_proj:.0f} min + one compile + 3 Fisher evals")
+    grid_proj = (
+        len(ALPHAS_TRUE_GRID) * (t_data + b2.N_INITS * 1.3 * t_fit_warm)
+    ) / 60.0
+    print(
+        f"  robustness-grid projection (informational, ~1.3x kin fit cost "
+        f"x {b2.N_INITS} inits x {len(ALPHAS_TRUE_GRID)} datasets): "
+        f"~{grid_proj:.0f} min + one compile + 3 Fisher evals"
+    )
 
     # ------------------------------------------------------------------ #
     # Ensemble 1: wrong-IMF bias curve (REPORTED, not gated)
@@ -521,17 +624,25 @@ def main():
     print(f"BIAS CURVE: kinematics-only (delta, W0) refit, {n_seeds} seeds")
     print("=" * 72)
     t_bias0 = time.perf_counter()
-    delta_hat = []   # (S, A)
-    w0_hat = []      # (S, A)
+    delta_hat = []  # (S, A)
+    w0_hat = []  # (S, A)
     n_no_plateau = 0
     for s in range(n_seeds):
-        data = data0 if s == 0 else b2.build_truth_data(
-            key=jax.random.PRNGKey(SEED_BASE_BIAS + s))
-        args = (data["sig_hat"], data["se"], data["weight"],
-                data["r_edges"], data["M_fixed"])
+        data = (
+            data0
+            if s == 0
+            else b2.build_truth_data(key=jax.random.PRNGKey(SEED_BASE_BIAS + s))
+        )
+        args = (
+            data["sig_hat"],
+            data["se"],
+            data["weight"],
+            data["r_edges"],
+            data["M_fixed"],
+        )
         d_row, w_row = [], []
         for ia, a in enumerate(ALPHAS_ASSUMED):
-            if (s, ia) in probe_fits:           # banked during the budget probe
+            if (s, ia) in probe_fits:  # banked during the budget probe
                 z2_hat, trace = probe_fits[(s, ia)]
             else:
                 z2_hat, trace = fit_kin_only(jnp.asarray(a), *args)
@@ -540,10 +651,11 @@ def main():
                 n_no_plateau += 1
             d_row.append(float(di.expit(z2_hat[0], *b2.DELTA_BOX)))
             w_row.append(float(di.expit(z2_hat[1], *b2.W0_BOX)))
-            print(f"  seed {s} (key {SEED_BASE_BIAS + s})  "
-                  f"alpha_assumed={a:.1f}: delta_hat={d_row[-1]:.4f}, "
-                  f"W0_hat={w_row[-1]:.4f}"
-                  + ("" if plat else "  [NO PLATEAU]"))
+            print(
+                f"  seed {s} (key {SEED_BASE_BIAS + s})  "
+                f"alpha_assumed={a:.1f}: delta_hat={d_row[-1]:.4f}, "
+                f"W0_hat={w_row[-1]:.4f}" + ("" if plat else "  [NO PLATEAU]")
+            )
         delta_hat.append(d_row)
         w0_hat.append(w_row)
     t_bias = time.perf_counter() - t_bias0
@@ -551,49 +663,69 @@ def main():
     w0_hat = jnp.array(w0_hat)
 
     alphas = jnp.asarray(ALPHAS_ASSUMED)
-    print(f"\n{'alpha_assumed':>13} {'delta_hat mean':>14} {'seed std':>9} "
-          f"{'W0_hat mean':>11} {'seed std':>9}")
+    print(
+        f"\n{'alpha_assumed':>13} {'delta_hat mean':>14} {'seed std':>9} "
+        f"{'W0_hat mean':>11} {'seed std':>9}"
+    )
     for i, a in enumerate(ALPHAS_ASSUMED):
-        print(f"{a:>13.1f} {float(delta_hat[:, i].mean()):>14.4f} "
-              f"{float(delta_hat[:, i].std(ddof=1)):>9.4f} "
-              f"{float(w0_hat[:, i].mean()):>11.4f} "
-              f"{float(w0_hat[:, i].std(ddof=1)):>9.4f}")
+        print(
+            f"{a:>13.1f} {float(delta_hat[:, i].mean()):>14.4f} "
+            f"{float(delta_hat[:, i].std(ddof=1)):>9.4f} "
+            f"{float(w0_hat[:, i].mean()):>11.4f} "
+            f"{float(w0_hat[:, i].std(ddof=1)):>9.4f}"
+        )
 
     # Per-seed linear slope d delta_hat / d alpha (paired across alpha_assumed).
     a_c = alphas - alphas.mean()
-    slopes = (delta_hat @ a_c) / jnp.sum(a_c * a_c)       # (S,) LSQ slopes
+    slopes = (delta_hat @ a_c) / jnp.sum(a_c * a_c)  # (S,) LSQ slopes
     slope_mean = float(slopes.mean())
     slope_std = float(slopes.std(ddof=1))
     slope_se = slope_std / float(jnp.sqrt(n_seeds))
-    print(f"\n  per-seed slopes d delta_hat/d alpha = "
-          f"{[round(float(x), 4) for x in slopes]}")
-    print(f"  SLOPE d delta_hat/d alpha = {slope_mean:+.4f} +/- {slope_se:.4f} "
-          f"(SE of mean over {n_seeds} seeds; seed scatter {slope_std:.4f})")
-    print("  [REPORTED, not gated: a sensitivity measurement of this mock "
-          "configuration -- no published reference value to assert against.]")
+    print(
+        f"\n  per-seed slopes d delta_hat/d alpha = "
+        f"{[round(float(x), 4) for x in slopes]}"
+    )
+    print(
+        f"  SLOPE d delta_hat/d alpha = {slope_mean:+.4f} +/- {slope_se:.4f} "
+        f"(SE of mean over {n_seeds} seeds; seed scatter {slope_std:.4f})"
+    )
+    print(
+        "  [REPORTED, not gated: a sensitivity measurement of this mock "
+        "configuration -- no published reference value to assert against.]"
+    )
     # Peaked-shape summary: the response delta_hat(alpha_assumed) peaks AT the
     # truth, so a linear slope alone is not an adequate summary.
     i_truth = ALPHAS_ASSUMED.index(b2.ALPHA_TRUE)
     d_mean_a = jnp.mean(delta_hat, axis=0)
-    drop_lo = float(d_mean_a[i_truth] - d_mean_a[0])    # vs alpha_assumed = 1.9
-    drop_hi = float(d_mean_a[i_truth] - d_mean_a[-1])   # vs alpha_assumed = 2.7
-    print(f"  peak-to-end drops (ensemble mean): "
-          f"delta_hat({b2.ALPHA_TRUE}) - delta_hat({ALPHAS_ASSUMED[0]}) = "
-          f"{drop_lo:+.4f}; delta_hat({b2.ALPHA_TRUE}) - "
-          f"delta_hat({ALPHAS_ASSUMED[-1]}) = {drop_hi:+.4f} "
-          f"(max |Delta delta_hat| = {max(abs(drop_lo), abs(drop_hi)):.4f})")
-    print("  the measured response is PEAKED at the truth alpha, so a linear "
-          "slope is NOT an adequate summary -- wrong alpha in EITHER "
-          "direction biases delta_hat LOW (by ~0.2-0.3 at |Delta alpha| = 0.4).")
-    print(f"  plateau: {n_seeds * n_alpha - n_no_plateau}/{n_seeds * n_alpha} "
-          f"fits plateaued")
-    print(f"  bias-ensemble wall-time = {t_bias / 60.0:.1f} min "
-          f"(projected {proj_min:.1f} min)")
+    drop_lo = float(d_mean_a[i_truth] - d_mean_a[0])  # vs alpha_assumed = 1.9
+    drop_hi = float(d_mean_a[i_truth] - d_mean_a[-1])  # vs alpha_assumed = 2.7
+    print(
+        f"  peak-to-end drops (ensemble mean): "
+        f"delta_hat({b2.ALPHA_TRUE}) - delta_hat({ALPHAS_ASSUMED[0]}) = "
+        f"{drop_lo:+.4f}; delta_hat({b2.ALPHA_TRUE}) - "
+        f"delta_hat({ALPHAS_ASSUMED[-1]}) = {drop_hi:+.4f} "
+        f"(max |Delta delta_hat| = {max(abs(drop_lo), abs(drop_hi)):.4f})"
+    )
+    print(
+        "  the measured response is PEAKED at the truth alpha, so a linear "
+        "slope is NOT an adequate summary -- wrong alpha in EITHER "
+        "direction biases delta_hat LOW (by ~0.2-0.3 at |Delta alpha| = 0.4)."
+    )
+    print(
+        f"  plateau: {n_seeds * n_alpha - n_no_plateau}/{n_seeds * n_alpha} "
+        f"fits plateaued"
+    )
+    print(
+        f"  bias-ensemble wall-time = {t_bias / 60.0:.1f} min "
+        f"(projected {proj_min:.1f} min)"
+    )
     if t_bias / 60.0 > BIAS_BUDGET_MIN:
-        print(f"  NOTE: actual wall-time exceeded the {BIAS_BUDGET_MIN:.0f}-min "
-              f"target by {t_bias / 60.0 - BIAS_BUDGET_MIN:.1f} min -- "
-              "post-hoc machine-load variance; the PROJECTION before the run "
-              "is the budget gate (and it passed).")
+        print(
+            f"  NOTE: actual wall-time exceeded the {BIAS_BUDGET_MIN:.0f}-min "
+            f"target by {t_bias / 60.0 - BIAS_BUDGET_MIN:.1f} min -- "
+            "post-hoc machine-load variance; the PROJECTION before the run "
+            "is the budget gate (and it passed)."
+        )
 
     # ------------------------------------------------------------------ #
     # Ensemble 2: robustness grid (GATED at 3 sigma componentwise)
@@ -605,63 +737,88 @@ def main():
     grid_pulls, grid_rows = [], []
     grid_ok = True
     for i, a_true in enumerate(ALPHAS_TRUE_GRID):
-        print(f"\nalpha_true = {a_true} (key {SEED_BASE_GRID + i}; "
-              f"delta={b2.DELTA_TRUE}, W0={b2.W0_TRUE})")
-        data = b2.build_truth_data(key=jax.random.PRNGKey(SEED_BASE_GRID + i),
-                                   alpha_true=a_true)
+        print(
+            f"\nalpha_true = {a_true} (key {SEED_BASE_GRID + i}; "
+            f"delta={b2.DELTA_TRUE}, W0={b2.W0_TRUE})"
+        )
+        data = b2.build_truth_data(
+            key=jax.random.PRNGKey(SEED_BASE_GRID + i), alpha_true=a_true
+        )
         n = data["n"]
-        print(f"  top-group occupancy = {int(n[-1].sum())}; "
-              f"M_FIXED = {data['M_fixed']:.1f}; R_CUT = {data['r_cut']:.3f}")
+        print(
+            f"  top-group occupancy = {int(n[-1].sum())}; "
+            f"M_FIXED = {data['M_fixed']:.1f}; R_CUT = {data['r_cut']:.3f}"
+        )
         theta_hat, sigma_theta, plat, finals, i_best = joint_refit(data)
-        print(f"  init finals = {[round(f, 4) for f in finals]} "
-              f"(best: init {i_best}); plateau {'PASS' if plat else 'FAIL'}")
+        print(
+            f"  init finals = {[round(f, 4) for f in finals]} "
+            f"(best: init {i_best}); plateau {'PASS' if plat else 'FAIL'}"
+        )
         truths = (a_true, b2.DELTA_TRUE, b2.W0_TRUE)
         pulls = b2.recovery_table(theta_hat, sigma_theta, truths=truths)
         ok = all(abs(p) < 3.0 for p in pulls)
         grid_ok = grid_ok and ok
-        print(f"  3-sigma componentwise: {'PASS' if ok else 'FAIL'} "
-              f"(max |pull| = {max(abs(p) for p in pulls):.3f})")
+        print(
+            f"  3-sigma componentwise: {'PASS' if ok else 'FAIL'} "
+            f"(max |pull| = {max(abs(p) for p in pulls):.3f})"
+        )
         grid_pulls.append(pulls)
         grid_rows.append((a_true, theta_hat, sigma_theta, pulls, ok))
     t_grid = time.perf_counter() - t_grid0
     print(f"\n  robustness-grid wall-time = {t_grid / 60.0:.1f} min")
 
-    print(f"\n{'alpha_true':>10} {'alpha_hat':>16} {'delta_hat':>16} "
-          f"{'W0_hat':>16} {'max|pull|':>9} {'gate':>5}")
+    print(
+        f"\n{'alpha_true':>10} {'alpha_hat':>16} {'delta_hat':>16} "
+        f"{'W0_hat':>16} {'max|pull|':>9} {'gate':>5}"
+    )
     for a_true, th, sg, pulls, ok in grid_rows:
-        print(f"{a_true:>10.1f} "
-              f"{float(th[0]):>9.4f}+/-{float(sg[0]):.4f} "
-              f"{float(th[1]):>9.4f}+/-{float(sg[1]):.4f} "
-              f"{float(th[2]):>9.4f}+/-{float(sg[2]):.4f} "
-              f"{max(abs(p) for p in pulls):>9.3f} "
-              f"{'PASS' if ok else 'FAIL':>5}")
+        print(
+            f"{a_true:>10.1f} "
+            f"{float(th[0]):>9.4f}+/-{float(sg[0]):.4f} "
+            f"{float(th[1]):>9.4f}+/-{float(sg[1]):.4f} "
+            f"{float(th[2]):>9.4f}+/-{float(sg[2]):.4f} "
+            f"{max(abs(p) for p in pulls):>9.3f} "
+            f"{'PASS' if ok else 'FAIL':>5}"
+        )
 
     # ------------------------------------------------------------------ #
     # Figure + verdict
     # ------------------------------------------------------------------ #
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                           "validation", "plots")
+    out_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "validation", "plots"
+    )
     os.makedirs(out_dir, exist_ok=True)
-    bias = dict(alphas=alphas, delta_hat=delta_hat, slope_mean=slope_mean,
-                slope_se=slope_se, drop_lo=drop_lo, drop_hi=drop_hi)
-    grid = dict(alphas_true=jnp.asarray(ALPHAS_TRUE_GRID),
-                pulls=jnp.array(grid_pulls))
+    bias = dict(
+        alphas=alphas,
+        delta_hat=delta_hat,
+        slope_mean=slope_mean,
+        slope_se=slope_se,
+        drop_lo=drop_lo,
+        drop_hi=drop_hi,
+    )
+    grid = dict(alphas_true=jnp.asarray(ALPHAS_TRUE_GRID), pulls=jnp.array(grid_pulls))
     make_bias_figure(bias, grid, out_dir)
 
     print("\n" + "=" * 72)
     print("GATES")
     print("=" * 72)
-    print(f"  robustness grid 3-sigma (all alpha_true, componentwise): "
-          f"{'PASS' if grid_ok else 'FAIL'}")
-    print("  bias curve: REPORTED (slope quoted with seed-ensemble "
-          "uncertainty; not gated by design)")
+    print(
+        f"  robustness grid 3-sigma (all alpha_true, componentwise): "
+        f"{'PASS' if grid_ok else 'FAIL'}"
+    )
+    print(
+        "  bias curve: REPORTED (slope quoted with seed-ensemble "
+        "uncertainty; not gated by design)"
+    )
     print("\n" + "=" * 72)
     print(f"OVERALL {'ALL PASS' if grid_ok else 'FAIL'}")
     print("=" * 72)
     if not grid_ok:
-        print("\nNOTE: the 3-sigma robustness gate is REAL. A >3-sigma miss at "
-              "some alpha_true is a PHYSICS finding -- do NOT widen the gate; "
-              "report the table above.")
+        print(
+            "\nNOTE: the 3-sigma robustness gate is REAL. A >3-sigma miss at "
+            "some alpha_true is a PHYSICS finding -- do NOT widen the gate; "
+            "report the table above."
+        )
     sys.exit(0 if grid_ok else 1)
 
 

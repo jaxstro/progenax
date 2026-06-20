@@ -100,10 +100,12 @@ class EFFProfile(eqx.Module):
         # sqrt-stretched grid has variable spacing, so each trapezoid is weighted
         # by its own width diff(r_grid). (The old cumsum(integrand)*dr was a
         # 1st-order Riemann sum mislabeled "trapezoid" — audit M5.)
-        M_cum = jnp.concatenate([
-            jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
-        ])
+        M_cum = jnp.concatenate(
+            [
+                jnp.zeros(1, dtype=integrand.dtype),
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
+            ]
+        )
 
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)

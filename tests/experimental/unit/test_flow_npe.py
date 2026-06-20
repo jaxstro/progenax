@@ -22,7 +22,9 @@ def test_beta_z_transform_roundtrip():
 
     beta = jnp.array([2.0, 2.5, 3.0, 3.4, 11.0 / 3.0])
     z = beta_to_z(beta, BETA_LO, BETA_HI)
-    np.testing.assert_allclose(np.asarray(z_to_beta(z, BETA_LO, BETA_HI)), np.asarray(beta), rtol=1e-8)
+    np.testing.assert_allclose(
+        np.asarray(z_to_beta(z, BETA_LO, BETA_HI)), np.asarray(beta), rtol=1e-8
+    )
 
 
 def test_whiten_zero_mean_unit_std():
@@ -43,7 +45,11 @@ def test_npe_recovers_synthetic_conditional():
     End-to-end test of build + train + sample on a cheap synthetic problem (no simulator), proving the
     NPE machinery learns a conditional density correctly.
     """
-    from gravoturb_fdf.inference.flow_npe import build_npe_flow, npe_posterior_z, train_npe
+    from gravoturb_fdf.inference.flow_npe import (
+        build_npe_flow,
+        npe_posterior_z,
+        train_npe,
+    )
 
     key = jax.random.key(0)
     ks, kz, kf, kt, ksamp = jax.random.split(key, 5)

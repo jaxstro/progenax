@@ -39,23 +39,23 @@ References:
 """
 
 from progenax.diagnostics.mass_segregation import compute_lambda_msr
-from progenax.diagnostics.substructure import (
-    compute_q_parameter,
-    compute_azimuthal_variation,
-)
 from progenax.diagnostics.q_approx import (
-    q_approx,
-    q_approx_naive,
-    q_approx_fast,
-    calibrate_q_approx,
     DEFAULT_CALIBRATION,
+    calibrate_q_approx,
+    q_approx,
+    q_approx_fast,
+    q_approx_naive,
 )
 from progenax.diagnostics.segregation_approx import (
-    soft_mass_weights,
-    radial_concentration_approx,
-    lambda_msr_approx,
-    sigma_m_approx,
     calibrate_segregation_approx,
+    lambda_msr_approx,
+    radial_concentration_approx,
+    sigma_m_approx,
+    soft_mass_weights,
+)
+from progenax.diagnostics.substructure import (
+    compute_azimuthal_variation,
+    compute_q_parameter,
 )
 
 __all__ = [

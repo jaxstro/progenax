@@ -8,8 +8,8 @@ import jax.numpy as jnp
 import pytest
 
 from progenax.binaries import (
-    LogUniformPeriod,
     LogNormalPeriod,
+    LogUniformPeriod,
     ThermalEccentricity,
     UniformEccentricity,
     sample_isotropic_orientations,
@@ -101,9 +101,13 @@ class TestThermalEccentricity:
         dist = ThermalEccentricity(e_max=1.0)
         samples = dist.sample(jax.random.PRNGKey(0), 50000)
         mean_e = jnp.mean(samples)
-        mean_e2 = jnp.mean(samples ** 2)
-        assert jnp.abs(mean_e - 2.0 / 3.0) < 0.01, f"<e>={float(mean_e):.4f}, expected 2/3"
-        assert jnp.abs(mean_e2 - 0.5) < 0.01, f"<e^2>={float(mean_e2):.4f}, expected 1/2"
+        mean_e2 = jnp.mean(samples**2)
+        assert jnp.abs(mean_e - 2.0 / 3.0) < 0.01, (
+            f"<e>={float(mean_e):.4f}, expected 2/3"
+        )
+        assert jnp.abs(mean_e2 - 0.5) < 0.01, (
+            f"<e^2>={float(mean_e2):.4f}, expected 1/2"
+        )
 
 
 class TestUniformEccentricity:
@@ -237,7 +241,9 @@ class TestSanaOBPeriod:
         key = jax.random.PRNGKey(0)
         x = jnp.log10(dist.sample(key, 50000))
 
-        counts, edges = jnp.histogram(x, bins=24, range=(dist.log_P_min, dist.log_P_max))
+        counts, edges = jnp.histogram(
+            x, bins=24, range=(dist.log_P_min, dist.log_P_max)
+        )
         centers = 0.5 * (edges[1:] + edges[:-1])
         mask = counts > 0
         slope = jnp.polyfit(jnp.log(centers[mask]), jnp.log(counts[mask]), 1)[0]
@@ -252,18 +258,21 @@ class TestSanaOBPeriodDistribution:
 
     def test_ppf_inverts_cdf(self):
         from progenax.binaries import SanaOBPeriod
+
         d = SanaOBPeriod()
         u = jnp.array([0.05, 0.25, 0.5, 0.75, 0.95])
         assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
 
     def test_cdf_endpoints(self):
         from progenax.binaries import SanaOBPeriod
+
         d = SanaOBPeriod()
-        assert jnp.abs(d.cdf(10.0 ** d.log_P_min)) < 1e-12
-        assert jnp.abs(d.cdf(10.0 ** d.log_P_max) - 1.0) < 1e-12
+        assert jnp.abs(d.cdf(10.0**d.log_P_min)) < 1e-12
+        assert jnp.abs(d.cdf(10.0**d.log_P_max) - 1.0) < 1e-12
 
     def test_pdf_normalized(self):
         from progenax.binaries import SanaOBPeriod
+
         d = SanaOBPeriod()
         P = jnp.logspace(d.log_P_min, d.log_P_max, 20000)
         integral = jnp.trapezoid(d.pdf(P), P)
@@ -272,6 +281,7 @@ class TestSanaOBPeriodDistribution:
     def test_ppf_inverts_cdf_log_uniform_branch(self):
         """alpha=-1 (Öpik) branch also satisfies cdf(ppf(u))=u."""
         from progenax.binaries import SanaOBPeriod
+
         d = SanaOBPeriod(power=-1.0)
         u = jnp.array([0.1, 0.5, 0.9])
         assert jnp.allclose(d.cdf(d.ppf(u)), u, atol=1e-10)
@@ -279,8 +289,11 @@ class TestSanaOBPeriodDistribution:
     def test_default_range_is_sana_2012(self):
         """Default log_P range matches Sana 2012 Fig.2: P ~ 1.4 d (logP=0.15) to ~9 yr (3.5)."""
         from progenax.binaries import SanaOBPeriod
+
         d = SanaOBPeriod()
-        assert d.log_P_min == 0.15, "Sana 2012 Fig.2 fits down to P~1.4d (logP~0.15), not 0.3"
+        assert d.log_P_min == 0.15, (
+            "Sana 2012 Fig.2 fits down to P~1.4d (logP~0.15), not 0.3"
+        )
         assert d.log_P_max == 3.5
 
     def test_nonpositive_log_p_min_raises(self):
@@ -290,6 +303,7 @@ class TestSanaOBPeriodDistribution:
         ZeroDivisionError deep inside sample/ppf.
         """
         from progenax.binaries import SanaOBPeriod
+
         with pytest.raises(ValueError, match="log_P_min"):
             SanaOBPeriod(log_P_min=0.0)
         with pytest.raises(ValueError, match="log_P_min"):
@@ -334,6 +348,7 @@ class TestFaithfulMoeEccentricity:
 
     def test_eta_eq17_late_type(self):
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity()
         # logP=3, M1=1: 0.6 - 0.7/2.5 = 0.32 ; logP=6: 0.6 - 0.7/5.5 ~ 0.473
         eta3 = moe.eta(jnp.array([1e3]), jnp.array([1.0]))
@@ -343,23 +358,32 @@ class TestFaithfulMoeEccentricity:
 
     def test_eta_eq18_early_type(self):
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity()
         # logP=3, M1=20: 0.9 - 0.2/2.5 = 0.82 ; logP=1: 0.9 - 0.2/0.5 = 0.5
-        assert jnp.allclose(moe.eta(jnp.array([1e3]), jnp.array([20.0])), 0.9 - 0.2 / 2.5, atol=1e-6)
-        assert jnp.allclose(moe.eta(jnp.array([1e1]), jnp.array([20.0])), 0.9 - 0.2 / 0.5, atol=1e-6)
+        assert jnp.allclose(
+            moe.eta(jnp.array([1e3]), jnp.array([20.0])), 0.9 - 0.2 / 2.5, atol=1e-6
+        )
+        assert jnp.allclose(
+            moe.eta(jnp.array([1e1]), jnp.array([20.0])), 0.9 - 0.2 / 0.5, atol=1e-6
+        )
 
     def test_eta_interpolates_intermediate_mass(self):
         """M1=5 (midpoint of 3-7) is halfway between Eq.17 and Eq.18."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity()
         P = jnp.array([1e3])
         late = 0.6 - 0.7 / 2.5
         early = 0.9 - 0.2 / 2.5
-        assert jnp.allclose(moe.eta(P, jnp.array([5.0])), 0.5 * (late + early), atol=1e-6)
+        assert jnp.allclose(
+            moe.eta(P, jnp.array([5.0])), 0.5 * (late + early), atol=1e-6
+        )
 
     def test_sampled_mean_matches_eta(self):
         """<e> of e^η on [0, e_max_eff(P)] is e_max_eff (η+1)/(η+2)."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity(e_max=0.99)
         key = jax.random.PRNGKey(0)
         P = jnp.full(200000, 1e3)
@@ -370,11 +394,14 @@ class TestFaithfulMoeEccentricity:
         # below the 0.99 numerical ceiling, so the mean uses e_max_eff, not 0.99.
         emax_eff = 1.0 - (1e3 / 2.0) ** (-2.0 / 3.0)
         expected = emax_eff * (eta + 1.0) / (eta + 2.0)
-        assert jnp.abs(jnp.mean(e) - expected) < 0.01, f"<e>={float(jnp.mean(e)):.3f} vs {expected:.3f}"
+        assert jnp.abs(jnp.mean(e) - expected) < 0.01, (
+            f"<e>={float(jnp.mean(e)):.3f} vs {expected:.3f}"
+        )
 
     def test_emax_follows_roche_eq3(self):
         """e_max(P) = 1 - (P/2 days)^(-2/3) for P>2 d (Moe & Di Stefano 2017 Eq. 3)."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity(e_max=0.99)
         P = jnp.array([10.0, 100.0, 1000.0])
         expected = 1.0 - (P / 2.0) ** (-2.0 / 3.0)
@@ -386,6 +413,7 @@ class TestFaithfulMoeEccentricity:
     def test_emax_circular_at_and_below_2_days(self):
         """P <= 2 d (Roche/contact limit) -> e_max = 0 (forced circular)."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity()
         got = moe.e_max_of_period(jnp.array([2.0, 1.0, 0.5]))
         assert jnp.all(got == 0.0), f"{got}"
@@ -393,12 +421,14 @@ class TestFaithfulMoeEccentricity:
     def test_emax_ceiling_caps_long_period(self):
         """At very long P the Roche relation -> 1; the e_max field is the ceiling."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity(e_max=0.99)
         assert jnp.abs(float(moe.e_max_of_period(jnp.array([1e8]))[0]) - 0.99) < 1e-6
 
     def test_no_roche_overflow_short_period(self):
         """No sampled e exceeds e_max(P) at short period (Roche-lobe physical)."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity(e_max=0.99)
         key = jax.random.PRNGKey(7)
         P = jnp.full(20000, 10.0)
@@ -412,6 +442,7 @@ class TestFaithfulMoeEccentricity:
     def test_sample_grad_finite_wrt_period(self):
         """d<e>/d(period scale) is finite (new P-dependence via e_max(P))."""
         from progenax.binaries import MoeEccentricity
+
         key = jax.random.PRNGKey(8)
         M = jnp.full(4000, 20.0)
 
@@ -425,14 +456,16 @@ class TestFaithfulMoeEccentricity:
     def test_short_period_circularizes(self):
         """Very short P (eta <= -1) returns near-circular e ~ 0."""
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity()
         key = jax.random.PRNGKey(1)
-        P = jnp.full(20000, 10.0 ** 0.6)  # late eta=-6.4, early eta=-1.1 -> circular
+        P = jnp.full(20000, 10.0**0.6)  # late eta=-6.4, early eta=-1.1 -> circular
         e = moe.sample(key, P, jnp.full(20000, 1.0))
         assert jnp.mean(e) < 0.05, f"<e>={float(jnp.mean(e)):.3f} should be ~circular"
 
     def test_pdf_normalized(self):
         from progenax.binaries import MoeEccentricity
+
         moe = MoeEccentricity(e_max=0.99)
         P = jnp.array([1e3])
         M = jnp.array([20.0])
@@ -445,6 +478,7 @@ class TestFaithfulMoeEccentricity:
     def test_emax_gradient_matches_fd(self):
         """d<e>/d(e_max) (FD vs autodiff): e = e_max u^(1/(η+1))."""
         from progenax.binaries import MoeEccentricity
+
         key = jax.random.PRNGKey(3)
         # P=1e8 d: the Roche relation e_max(P)->1, so the e_max FIELD is the binding
         # ceiling and d<e>/d(e_max) is non-degenerate (at shorter P the period cap
@@ -458,7 +492,10 @@ class TestFaithfulMoeEccentricity:
         em0 = 0.99
         g_ad = jax.grad(loss)(em0)
         rel = min(
-            float(jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
+            float(
+                jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h))
+                / (jnp.abs(g_ad) + 1e-12)
+            )
             for h in (1e-3, 1e-4, 1e-5)
         )
         assert jnp.isfinite(g_ad) and rel < 1e-5, f"Moe e_max grad FD rel-err {rel:.2e}"
@@ -470,12 +507,12 @@ class TestMassDependentOrbits:
     def test_routes_by_mass(self):
         """Low-mass and high-mass stars get different distributions."""
         from progenax.binaries import (
-            sample_mass_dependent_orbits,
-            MassDependentBinaryConfig,
             LogNormalPeriod,
+            MassDependentBinaryConfig,
+            MoeEccentricity,
             SanaOBPeriod,
             ThermalEccentricity,
-            MoeEccentricity,
+            sample_mass_dependent_orbits,
         )
 
         config = MassDependentBinaryConfig(
@@ -546,7 +583,9 @@ class TestBinarySamplingDifferentiability:
 
         key = jax.random.PRNGKey(1)
         g = jax.grad(
-            lambda mu: jnp.mean(jnp.log10(LogNormalPeriod(mu_log_P=mu).sample(key, 20000)))
+            lambda mu: jnp.mean(
+                jnp.log10(LogNormalPeriod(mu_log_P=mu).sample(key, 20000))
+            )
         )(4.8)
         assert jnp.isfinite(g)
         assert jnp.abs(g - 1.0) < 1e-6, f"d<log10P>/dmu={float(g):.6f}, expected 1"
@@ -568,6 +607,7 @@ class TestBinarySamplingDifferentiability:
     def test_lognormal_ppf_grad_finite_at_boundary(self):
         """LogNormalPeriod.ppf has finite grad at u=0,1 (protocol: ppf differentiable)."""
         from progenax.binaries import LogNormalPeriod
+
         ppf = LogNormalPeriod().ppf
         for u in (0.0, 1.0, 0.5):
             g = jax.grad(ppf)(u)
@@ -576,6 +616,7 @@ class TestBinarySamplingDifferentiability:
     def test_thermal_ppf_grad_finite_at_boundary(self):
         """ThermalEccentricity.ppf has finite grad at u=0 (sqrt singularity guarded)."""
         from progenax.binaries import ThermalEccentricity
+
         ppf = ThermalEccentricity().ppf
         for u in (0.0, 1.0, 0.5):
             g = jax.grad(ppf)(u)
@@ -595,6 +636,7 @@ class TestSanaOBPeriodAlphaMinusOne:
 
     def test_sample_finite_at_power_minus_one(self):
         from progenax.binaries import SanaOBPeriod
+
         key = jax.random.PRNGKey(0)
         s = SanaOBPeriod(power=-1.0).sample(key, 200)
         assert jnp.all(jnp.isfinite(s)) and jnp.all(s > 0)
@@ -603,17 +645,23 @@ class TestSanaOBPeriodAlphaMinusOne:
         """B4-2b: the alpha=-1 special case must equal the alpha->-1 limit of the
         general inverse-CDF (same key => same u draws => same per-sample log P)."""
         from progenax.binaries import SanaOBPeriod
+
         key = jax.random.PRNGKey(1)
         x_exact = jnp.log10(SanaOBPeriod(power=-1.0).sample(key, 5000))
         x_near = jnp.log10(SanaOBPeriod(power=-1.0 + 1e-6).sample(key, 5000))
         dev = float(jnp.max(jnp.abs(x_exact - x_near)))
-        assert dev < 1e-3, f"alpha=-1 branch deviates from the alpha->-1 limit by {dev:.2e}"
+        assert dev < 1e-3, (
+            f"alpha=-1 branch deviates from the alpha->-1 limit by {dev:.2e}"
+        )
 
     def test_grad_finite_at_power_minus_one(self):
         from progenax.binaries import SanaOBPeriod
+
         key = jax.random.PRNGKey(2)
+
         def loss(p):
             return jnp.mean(jnp.log10(SanaOBPeriod(power=p).sample(key, 2000)))
+
         assert jnp.isfinite(jax.grad(loss)(-1.0))
 
 
@@ -627,10 +675,15 @@ class TestMassDependentBinaryConfigPyTree:
 
     def test_config_is_pytree(self):
         import jax.tree_util as jtu
+
         from progenax.binaries import (
-            MassDependentBinaryConfig, LogNormalPeriod, SanaOBPeriod,
-            ThermalEccentricity, MoeEccentricity,
+            LogNormalPeriod,
+            MassDependentBinaryConfig,
+            MoeEccentricity,
+            SanaOBPeriod,
+            ThermalEccentricity,
         )
+
         cfg = MassDependentBinaryConfig(
             m_break=8.0,
             low_mass_period=LogNormalPeriod(),
@@ -650,6 +703,7 @@ class TestMoreSamplerGradients:
 
     def test_logistic_thermal_emax_gradient_matches_fd(self):
         from progenax.binaries import LogisticThermalEccentricity
+
         key = jax.random.PRNGKey(0)
         periods = jnp.logspace(0.5, 3.5, 4000)  # fixed period grid
 
@@ -660,29 +714,40 @@ class TestMoreSamplerGradients:
         g_ad = jax.grad(loss)(em0)
         assert jnp.isfinite(g_ad)
         rel = min(
-            float(jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h)) / (jnp.abs(g_ad) + 1e-12))
+            float(
+                jnp.abs(g_ad - (loss(em0 + h) - loss(em0 - h)) / (2.0 * h))
+                / (jnp.abs(g_ad) + 1e-12)
+            )
             for h in (1e-3, 1e-4, 1e-5)
         )
         assert rel < 1e-5, f"Moe e_max grad FD rel-err {rel:.2e}"
 
     def test_uniform_eccentricity_emax_gradient(self):
         from progenax.binaries import UniformEccentricity
+
         key = jax.random.PRNGKey(1)
         # e = e_min + u(e_max - e_min)  =>  d<e>/d(e_max) = <u>
         expected = jnp.mean(jax.random.uniform(key, (20000,)))
         g = jax.grad(
-            lambda em: jnp.mean(UniformEccentricity(e_min=0.0, e_max=em).sample(key, 20000))
+            lambda em: jnp.mean(
+                UniformEccentricity(e_min=0.0, e_max=em).sample(key, 20000)
+            )
         )(0.9)
         assert jnp.isfinite(g) and jnp.abs(g - expected) < 1e-6
         assert jnp.abs(g - 0.5) < 0.02
 
     def test_loguniform_period_logpmax_gradient(self):
         from progenax.binaries import LogUniformPeriod
+
         key = jax.random.PRNGKey(2)
         # log10 P = lo + u (hi - lo)  =>  d<log10 P>/d(hi) = <u>
         expected = jnp.mean(jax.random.uniform(key, (20000,)))
         g = jax.grad(
-            lambda hi: jnp.mean(jnp.log10(LogUniformPeriod(log_P_min=0.0, log_P_max=hi).sample(key, 20000)))
+            lambda hi: jnp.mean(
+                jnp.log10(
+                    LogUniformPeriod(log_P_min=0.0, log_P_max=hi).sample(key, 20000)
+                )
+            )
         )(8.0)
         assert jnp.isfinite(g) and jnp.abs(g - expected) < 1e-6
         assert jnp.abs(g - 0.5) < 0.02
@@ -692,27 +757,32 @@ class TestDistributionProtocols:
     """B4-9: samplers satisfy the runtime_checkable Period/Eccentricity protocols."""
 
     def test_period_distributions_conform(self):
+        from progenax.binaries import LogNormalPeriod, LogUniformPeriod, SanaOBPeriod
         from progenax.protocols import PeriodDistribution
-        from progenax.binaries import LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
+
         for d in (LogUniformPeriod(), LogNormalPeriod(), SanaOBPeriod()):
             assert isinstance(d, PeriodDistribution), type(d).__name__
 
     def test_unconditional_eccentricity_conform(self):
-        from progenax.protocols import EccentricityDistribution
         from progenax.binaries import ThermalEccentricity, UniformEccentricity
+        from progenax.protocols import EccentricityDistribution
+
         for d in (ThermalEccentricity(), UniformEccentricity()):
             assert isinstance(d, EccentricityDistribution), type(d).__name__
 
     def test_conditional_eccentricity_protocols(self):
+        from progenax.binaries import LogisticThermalEccentricity, MoeEccentricity
         from progenax.protocols import (
-            EccentricityDistribution,
             ConditionalEccentricityDistribution,
+            EccentricityDistribution,
             MassPeriodEccentricityDistribution,
         )
-        from progenax.binaries import LogisticThermalEccentricity, MoeEccentricity
+
         # Faithful Moe is period+mass conditional; the heuristic is period-conditional.
         assert isinstance(MoeEccentricity(), MassPeriodEccentricityDistribution)
-        assert isinstance(LogisticThermalEccentricity(), ConditionalEccentricityDistribution)
+        assert isinstance(
+            LogisticThermalEccentricity(), ConditionalEccentricityDistribution
+        )
         # Neither exposes the full unconditional sample/pdf/cdf/ppf quartet.
         assert not isinstance(MoeEccentricity(), EccentricityDistribution)
         assert not isinstance(LogisticThermalEccentricity(), EccentricityDistribution)

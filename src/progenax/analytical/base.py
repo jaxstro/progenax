@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 import equinox as eqx
-import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 
@@ -161,6 +160,6 @@ def get_planet(name: str) -> dict:
             return planet.copy()  # Return copy to prevent accidental mutation
 
     available = [p["name"] for p in SOLAR_SYSTEM_PLANETS]
-    raise ValueError(f"Unknown planet: '{name}'. Available planets: {', '.join(available)}")
-
-
+    raise ValueError(
+        f"Unknown planet: '{name}'. Available planets: {', '.join(available)}"
+    )

@@ -7,22 +7,19 @@ from jaxtyping import Array, Float
 
 from ..params import IMFParams
 from .coefficients import (
+    DEFAULT_SFE,
     JERABKOVA_COEFFICIENTS,
     MARKS_COEFFICIENTS,
     MARKS_TABLE3_COEFFICIENTS,
-    DEFAULT_SFE,
 )
 from .density import (
-    compute_r_half,
-    compute_rho_ecl,
-    compute_rho_cl,
     compute_log_rho_cl_6,
 )
-
 
 # =============================================================================
 # Generalized x Functions
 # =============================================================================
+
 
 def x_jerabkova_generalized(
     FeH: Float[Array, "..."],
@@ -47,7 +44,12 @@ def x_jerabkova_generalized(
     c = JERABKOVA_COEFFICIENTS
     log_mecl_6 = jnp.log10(M_ecl) - 6.0
     epsilon_correction = -0.99 * jnp.log10(sfe / DEFAULT_SFE)
-    return c["FeH_coeff"] * FeH + c["logMecl_coeff"] * log_mecl_6 + c["constant"] + epsilon_correction
+    return (
+        c["FeH_coeff"] * FeH
+        + c["logMecl_coeff"] * log_mecl_6
+        + c["constant"]
+        + epsilon_correction
+    )
 
 
 def x_jerabkova_rho(
@@ -95,6 +97,7 @@ def x_hat_marks_plane(
 # =============================================================================
 # α₃ Functions (High-Mass Slope)
 # =============================================================================
+
 
 def _alpha3_from_x(
     x: Float[Array, "..."],
@@ -167,8 +170,13 @@ def alpha3_jerabkova_generalized(
     c = JERABKOVA_COEFFICIENTS
     x = x_jerabkova_generalized(FeH, M_ecl, sfe)
     return _alpha3_from_x(
-        x, c["x_threshold"], c["alpha3_slope"], c["alpha3_intercept"],
-        c["alpha3_canonical"], smooth, smooth_width
+        x,
+        c["x_threshold"],
+        c["alpha3_slope"],
+        c["alpha3_intercept"],
+        c["alpha3_canonical"],
+        smooth,
+        smooth_width,
     )
 
 
@@ -194,8 +202,13 @@ def alpha3_jerabkova_mecl(
     c = JERABKOVA_COEFFICIENTS
     x = c["FeH_coeff"] * FeH + c["logMecl_coeff"] * log_mecl_6 + c["constant"]
     return _alpha3_from_x(
-        x, c["x_threshold"], c["alpha3_slope"], c["alpha3_intercept"],
-        c["alpha3_canonical"], smooth, smooth_width
+        x,
+        c["x_threshold"],
+        c["alpha3_slope"],
+        c["alpha3_intercept"],
+        c["alpha3_canonical"],
+        smooth,
+        smooth_width,
     )
 
 
@@ -219,8 +232,13 @@ def alpha3_jerabkova_rho(
     c = JERABKOVA_COEFFICIENTS
     x = x_jerabkova_rho(FeH, log_rho_6)
     return _alpha3_from_x(
-        x, c["x_threshold"], c["alpha3_slope"], c["alpha3_intercept"],
-        c["alpha3_canonical"], smooth, smooth_width
+        x,
+        c["x_threshold"],
+        c["alpha3_slope"],
+        c["alpha3_intercept"],
+        c["alpha3_canonical"],
+        smooth,
+        smooth_width,
     )
 
 
@@ -255,8 +273,13 @@ def alpha3_marks_plane(
     c = MARKS_COEFFICIENTS
     x_hat = x_hat_marks_plane(FeH, log_rho_6)
     return _alpha3_from_x(
-        x_hat, c["x_hat_threshold"], c["alpha3_slope"], c["alpha3_intercept"],
-        c["alpha3_canonical"], smooth, smooth_width
+        x_hat,
+        c["x_hat_threshold"],
+        c["alpha3_slope"],
+        c["alpha3_intercept"],
+        c["alpha3_canonical"],
+        smooth,
+        smooth_width,
     )
 
 
@@ -280,7 +303,9 @@ def alpha3_marks_table3(
         α₃, clipped to [0.5, 2.3]
     """
     if relation not in MARKS_TABLE3_COEFFICIENTS:
-        raise ValueError(f"Unknown relation: {relation}. Use 'mcl', 'mecl', 'rho', or 'feh'")
+        raise ValueError(
+            f"Unknown relation: {relation}. Use 'mcl', 'mecl', 'rho', or 'feh'"
+        )
 
     coef = MARKS_TABLE3_COEFFICIENTS[relation]
     p, q, lim, branch = coef["p"], coef["q"], coef["lim"], coef["branch"]
@@ -305,6 +330,7 @@ def alpha3_marks_table3(
 # =============================================================================
 # Low-Mass Slope Metallicity Dependence
 # =============================================================================
+
 
 def lowmass_slopes_metallicity(
     FeH: Float[Array, "..."],
@@ -341,6 +367,7 @@ def lowmass_slopes_metallicity(
 # =============================================================================
 # Unified API: env_to_imf_params()
 # =============================================================================
+
 
 def env_to_imf_params(
     env: BirthEnvironment,
@@ -396,7 +423,7 @@ def env_to_imf_params(
 
     # Convert to paper units
     log_mecl_6 = log_mecl - 6.0
-    M_ecl = 10.0 ** log_mecl
+    M_ecl = 10.0**log_mecl
 
     # Compute α₃ based on model
     if model == "kroupa":
@@ -458,8 +485,15 @@ def env_to_imf_params(
 
     else:
         valid_models = [
-            "kroupa", "jerabkova_generalized", "jerabkova_mecl", "jerabkova_rho",
-            "marks_plane", "marks_mcl", "marks_mecl", "marks_rho", "marks_feh"
+            "kroupa",
+            "jerabkova_generalized",
+            "jerabkova_mecl",
+            "jerabkova_rho",
+            "marks_plane",
+            "marks_mcl",
+            "marks_mecl",
+            "marks_rho",
+            "marks_feh",
         ]
         raise ValueError(f"Unknown model: '{model}'. Valid: {valid_models}")
 
@@ -479,5 +513,3 @@ def env_to_imf_params(
         alpha2=alpha2,
         alpha3=alpha3,
     )
-
-

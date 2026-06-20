@@ -22,7 +22,9 @@ def test_pn11_prefactor_is_0p547():
     """0.067 * theta^{-2} with theta=0.35 = 0.547 (PN11 Eq. 11), not 0.242."""
     from gravoturb_fdf.theory.pn11 import critical_overdensity_pn11
 
-    val = float(critical_overdensity_pn11(mach=1.0, alpha_vir=1.0))  # theta=0.35 default
+    val = float(
+        critical_overdensity_pn11(mach=1.0, alpha_vir=1.0)
+    )  # theta=0.35 default
     assert val == pytest.approx(0.067 * 0.35**-2, rel=1e-6)
     assert val == pytest.approx(0.547, abs=1e-3)
 
@@ -66,6 +68,7 @@ def test_virial_parameter_unity_when_virialised():
 
     G, M, R = 4.3009e-3, 1.0e4, 2.0
     import math
+
     sigma_v = math.sqrt(G * M / (5.0 * R))
     assert float(virial_parameter(M, R, sigma_v, G)) == pytest.approx(1.0, rel=1e-9)
 
@@ -80,8 +83,8 @@ def test_virial_parameter_feeds_pn11():
 
 
 def test_virial_parameter_differentiable():
-    from gravoturb_fdf.theory.pn11 import virial_parameter
     import jax.numpy as jnp
+    from gravoturb_fdf.theory.pn11 import virial_parameter
 
     g = float(jax.grad(lambda s: virial_parameter(1.0e4, 2.0, s, 4.3009e-3))(3.0))
     assert jnp.isfinite(g) and g > 0.0  # rises with velocity dispersion

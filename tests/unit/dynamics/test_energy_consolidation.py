@@ -4,6 +4,7 @@ Guards against the duplicated-physics regression where the softening=0 gradient
 fix lived in builders.py but not in the dynamics/virial.py copy used by
 cluster/ and kinematics/api.py.
 """
+
 import jax
 import jax.numpy as jnp
 
@@ -41,12 +42,19 @@ class TestSingleSourceOfTruth:
 
     def test_builders_energy_is_dynamics_energy(self):
         from progenax.builders import (
-            compute_potential_energy as pe_b,
             compute_kinetic_energy as ke_b,
+        )
+        from progenax.builders import (
+            compute_potential_energy as pe_b,
+        )
+        from progenax.dynamics.virial import (
+            compute_kinetic_energy as ke_d,
         )
         from progenax.dynamics.virial import (
             compute_potential_energy as pe_d,
-            compute_kinetic_energy as ke_d,
         )
-        assert pe_b is pe_d, "builders.compute_potential_energy must be the dynamics one"
+
+        assert pe_b is pe_d, (
+            "builders.compute_potential_energy must be the dynamics one"
+        )
         assert ke_b is ke_d, "builders.compute_kinetic_energy must be the dynamics one"

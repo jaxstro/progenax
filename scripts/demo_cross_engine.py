@@ -35,6 +35,7 @@ anchors are ~2e-4 (radial KS) / ~3e-4 (sigma-dev); the gates sit at 0.02.
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_cross_engine.py
 """
+
 import os
 import sys
 
@@ -45,6 +46,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import KingProfile
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.profiles.limepy import lowered_exponential
@@ -73,17 +75,25 @@ def build_models():
     """
     king = KingProfile.from_W0_rc(W0=W0, r_c=R_C)
     mB = MultiComponentCluster.from_density_profiles(
-        [king], jnp.array([1.0]), m_j=jnp.array([1.0]))
+        [king], jnp.array([1.0]), m_j=jnp.array([1.0])
+    )
     mA = MultiComponentCluster.from_components(
-        alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]), m_j=jnp.array([1.0]),
-        W0=W0, g=GG, r_c=R_C)
+        alpha_j=jnp.array([1.0]),
+        w_j=jnp.array([1.0]),
+        m_j=jnp.array([1.0]),
+        W0=W0,
+        g=GG,
+        r_c=R_C,
+    )
     return king, mA, mB
 
 
 def _com_arrays(ic):
     """COM-frame numpy (positions, velocities, masses) from an ICResult."""
     p = np.asarray(ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses))
-    v = np.asarray(ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses))
+    v = np.asarray(
+        ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+    )
     return p, v, np.asarray(ic.masses)
 
 
@@ -109,14 +119,16 @@ def sigma_engine_a(mA, r, m_total):
     rescale0 = float(mA.rescale_j[0])
 
     def sigma_at(rr):
-        W_j = rescale0 * float(jnp.interp(rr, mA.xi_grid * mA.r_c,
-                                          mA.psi_grid, left=W0, right=0.0))
+        W_j = rescale0 * float(
+            jnp.interp(rr, mA.xi_grid * mA.r_c, mA.psi_grid, left=W0, right=0.0)
+        )
         if W_j <= 0.0:
             return np.nan
         u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_j), 400)
         E = lowered_exponential(mA.g, W_j - u**2 / 2.0)
-        return s_j * float(jnp.sqrt(jnp.trapezoid(u**4 * E, u)
-                                    / jnp.trapezoid(u**2 * E, u) / 3.0))
+        return s_j * float(
+            jnp.sqrt(jnp.trapezoid(u**4 * E, u) / jnp.trapezoid(u**2 * E, u) / 3.0)
+        )
 
     return np.array([sigma_at(float(rr)) for rr in np.asarray(r)])
 
@@ -136,8 +148,15 @@ def sigma_engine_b(mB, r, m_total, n_w=400):
     st = mB.engine_b
     f_row = st.f_j_grid[0]
     v_scale = float(jnp.sqrt(G * m_total / (4.0 * jnp.pi * st.mu)))
-    Psi_at = np.asarray(jnp.interp(jnp.asarray(r), st.r_poisson, st.Psi_poisson,
-                                   left=st.Psi_poisson[0], right=0.0))
+    Psi_at = np.asarray(
+        jnp.interp(
+            jnp.asarray(r),
+            st.r_poisson,
+            st.Psi_poisson,
+            left=st.Psi_poisson[0],
+            right=0.0,
+        )
+    )
 
     def sigma_at(Psi_r):
         if Psi_r <= 0.0:
@@ -172,9 +191,14 @@ def sample_both(mA, mB):
 def radial_ks(rA, rB):
     """Two-sample KS distance between the two radial samples (gate < 0.02)."""
     grid = np.sort(np.concatenate([rA, rB]))
-    return float(np.max(np.abs(
-        np.searchsorted(np.sort(rA), grid, side="right") / len(rA)
-        - np.searchsorted(np.sort(rB), grid, side="right") / len(rB))))
+    return float(
+        np.max(
+            np.abs(
+                np.searchsorted(np.sort(rA), grid, side="right") / len(rA)
+                - np.searchsorted(np.sort(rB), grid, side="right") / len(rB)
+            )
+        )
+    )
 
 
 def binned_sigma_dev(rA, vsqA, rB, vsqB):
@@ -216,10 +240,21 @@ def panel_rho(ax, res, king, mA):
     frac = nB / np.where(nA > 0, nA, np.nan) - 1.0
     max_frac = float(np.nanmax(np.abs(frac[nA > 1e-6])))
 
-    ax.semilogy(r, rho_A, color=OI["blue"], lw=1.7,
-                label=r"Engine A: $\rho_{\rm tot}(r)$ (ODE + lowered DF)")
-    ax.semilogy(r, rho_B, color=OI["vermilion"], lw=1.5, ls="--",
-                label=r"Engine B: prescribed King $\rho(r)$")
+    ax.semilogy(
+        r,
+        rho_A,
+        color=OI["blue"],
+        lw=1.7,
+        label=r"Engine A: $\rho_{\rm tot}(r)$ (ODE + lowered DF)",
+    )
+    ax.semilogy(
+        r,
+        rho_B,
+        color=OI["vermilion"],
+        lw=1.5,
+        ls="--",
+        label=r"Engine B: prescribed King $\rho(r)$",
+    )
     ax.set_ylabel(r"$\rho(r)/\rho_0$")
     ax.legend(frameon=False, fontsize=7, loc="lower left")
     res.plot(r, 100.0 * frac, color=OI["green"], lw=1.2)
@@ -236,14 +271,41 @@ def panel_sigma(ax, res, mA, mB, r_grid, samp, m_total):
     sigB = sigma_engine_b(mB, r_grid, m_total)
     good = np.isfinite(sigA) & np.isfinite(sigB)
 
-    ax.plot(r_grid[good], sigA[good], color=OI["blue"], lw=1.7,
-            label=r"Engine A oracle $s_j\sqrt{I_4/I_2/3}$")
-    ax.plot(r_grid[good], sigB[good], color=OI["vermilion"], lw=1.5, ls="--",
-            label=r"Engine B oracle $\sqrt{(m_2/m_0)/3}$")
-    ax.plot(centers, sigA_s, ls="none", marker="o", ms=4, color=OI["blue"],
-            mfc="white", label=r"sampled A ($N=2\times10^4$)")
-    ax.plot(centers, sigB_s, ls="none", marker="s", ms=4, color=OI["vermilion"],
-            mfc="white", label=r"sampled B")
+    ax.plot(
+        r_grid[good],
+        sigA[good],
+        color=OI["blue"],
+        lw=1.7,
+        label=r"Engine A oracle $s_j\sqrt{I_4/I_2/3}$",
+    )
+    ax.plot(
+        r_grid[good],
+        sigB[good],
+        color=OI["vermilion"],
+        lw=1.5,
+        ls="--",
+        label=r"Engine B oracle $\sqrt{(m_2/m_0)/3}$",
+    )
+    ax.plot(
+        centers,
+        sigA_s,
+        ls="none",
+        marker="o",
+        ms=4,
+        color=OI["blue"],
+        mfc="white",
+        label=r"sampled A ($N=2\times10^4$)",
+    )
+    ax.plot(
+        centers,
+        sigB_s,
+        ls="none",
+        marker="s",
+        ms=4,
+        color=OI["vermilion"],
+        mfc="white",
+        label=r"sampled B",
+    )
     ax.set_ylabel(r"$\sigma_{1d}$ [pc Myr$^{-1}$]")
     ax.legend(frameon=False, fontsize=6.5, loc="upper right")
 
@@ -279,10 +341,21 @@ def panel_fe(ax, res, mA, mB):
     nA = f_A / f_A[sel].max()
     nB = f_B / f_B[sel].max()
 
-    ax.plot(E_hat[sel], nA[sel], color=OI["blue"], lw=1.7,
-            label=r"Engine A: lowered exp. $E_\gamma(g, \hat E)$")
-    ax.plot(E_hat[sel], nB[sel], color=OI["vermilion"], lw=1.5, ls="--",
-            label=r"Engine B: Eddington $f_0(\hat E)$")
+    ax.plot(
+        E_hat[sel],
+        nA[sel],
+        color=OI["blue"],
+        lw=1.7,
+        label=r"Engine A: lowered exp. $E_\gamma(g, \hat E)$",
+    )
+    ax.plot(
+        E_hat[sel],
+        nB[sel],
+        color=OI["vermilion"],
+        lw=1.5,
+        ls="--",
+        label=r"Engine B: Eddington $f_0(\hat E)$",
+    )
     ax.set_ylabel(r"$f/f_{\rm max}$ (peak-matched)")
     ax.legend(frameon=False, fontsize=7, loc="upper left")
 
@@ -331,14 +404,17 @@ def main():
     print("=" * 78)
 
     king, mA, mB = build_models()
-    print(f"\n  r_t:  Engine A = {float(mA.r_t):.4f} pc   "
-          f"Engine B = {float(mB.r_t):.4f} pc")
+    print(
+        f"\n  r_t:  Engine A = {float(mA.r_t):.4f} pc   "
+        f"Engine B = {float(mB.r_t):.4f} pc"
+    )
 
     # theory virial sanity gate (both engines).
     QA = float(np.asarray(mA.component_virial_ratios())[0])
     QB = float(np.asarray(mB.component_virial_ratios())[0])
-    print(f"  theory Q_j:  Engine A = {QA:.5f}   Engine B = {QB:.5f}"
-          f"  (gate 0.5 +- 3e-3)")
+    print(
+        f"  theory Q_j:  Engine A = {QA:.5f}   Engine B = {QB:.5f}  (gate 0.5 +- 3e-3)"
+    )
 
     rA, vsqA, rB, vsqB, m_total = sample_both(mA, mB)
     ks = radial_ks(rA, rB)
@@ -353,8 +429,12 @@ def main():
 
     rows = [
         ("radial KS distance", f"{ks:.5f}", "< 0.02", ks < 0.02),
-        ("max |sigma_B/sigma_A - 1|", f"{max_sig_dev:.5f}", "< 0.02",
-         max_sig_dev < 0.02),
+        (
+            "max |sigma_B/sigma_A - 1|",
+            f"{max_sig_dev:.5f}",
+            "< 0.02",
+            max_sig_dev < 0.02,
+        ),
         ("Engine A theory Q_j", f"{QA:.5f}", "0.5 +- 3e-3", abs(QA - 0.5) < 3e-3),
         ("Engine B theory Q_j", f"{QB:.5f}", "0.5 +- 3e-3", abs(QB - 0.5) < 3e-3),
     ]
@@ -369,8 +449,7 @@ def main():
     print("-" * 78)
     print(f"  saved {OUTPUT_DIR}/demo_cross_engine.{{png,pdf}}")
     print("=" * 78)
-    print("  CROSS-ENGINE DEMO: ALL PASS" if all_ok
-          else "  CROSS-ENGINE DEMO: FAILED")
+    print("  CROSS-ENGINE DEMO: ALL PASS" if all_ok else "  CROSS-ENGINE DEMO: FAILED")
     return 0 if all_ok else 1
 
 

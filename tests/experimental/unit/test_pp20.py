@@ -23,10 +23,10 @@ pytestmark = pytest.mark.experimental
 @pytest.mark.parametrize(
     "p,expected",
     [
-        (0.0, 1.0),                 # top-hat lower limit (exact)
-        (1.0, 1.0887),              # 2^{2.5}/3^{1.5}
-        (1.5, math.sqrt(2.0)),      # exact sqrt(2)
-        (1.67, 1.79),               # PP20 anchor
+        (0.0, 1.0),  # top-hat lower limit (exact)
+        (1.0, 1.0887),  # 2^{2.5}/3^{1.5}
+        (1.5, math.sqrt(2.0)),  # exact sqrt(2)
+        (1.67, 1.79),  # PP20 anchor
     ],
 )
 def test_zeta_analytic_anchors(p, expected):  # AC3
@@ -49,7 +49,7 @@ def test_zeta_no_spurious_pole_at_1p3():
 def test_zeta_diverges_only_at_2():
     from gravoturb_fdf.theory.pp20 import magnification_factor
 
-    assert float(magnification_factor(1.99)) > 5.0          # large near p=2
+    assert float(magnification_factor(1.99)) > 5.0  # large near p=2
     assert math.isfinite(float(magnification_factor(1.9)))
 
 
@@ -64,7 +64,10 @@ def test_zeta_increases_with_p_and_grad_positive():  # AC8 (partial)
 def test_zeta_with_core_approaches_powerlaw_as_core_shrinks():
     """Cored profile rho ~ [1+(r/r_c)^2]^{-p/2}: as r_c/R -> 0 it approaches a
     pure power law, so numerical zeta -> analytic zeta(p)."""
-    from gravoturb_fdf.theory.pp20 import magnification_factor, magnification_factor_with_core
+    from gravoturb_fdf.theory.pp20 import (
+        magnification_factor,
+        magnification_factor_with_core,
+    )
 
     p = 1.5
     analytic = float(magnification_factor(p))
@@ -76,9 +79,9 @@ def test_zeta_with_core_top_hat_limit():
     """Large core (r_c >> R) -> nearly uniform -> zeta -> 1."""
     from gravoturb_fdf.theory.pp20 import magnification_factor_with_core
 
-    assert float(magnification_factor_with_core(1.5, r_c_over_R=100.0)) == pytest.approx(
-        1.0, abs=0.02
-    )
+    assert float(
+        magnification_factor_with_core(1.5, r_c_over_R=100.0)
+    ) == pytest.approx(1.0, abs=0.02)
 
 
 @pytest.mark.parametrize("p", [0.5, 1.0, 1.5])
@@ -86,7 +89,6 @@ def test_zeta_fdf_direct_matches_analytic_powerlaw(p):  # AC4
     """Direct-field estimator on a sampled pure power-law sphere matches
     analytic zeta(p) within a few percent for p < 1.7."""
     import numpy as np
-
     from gravoturb_fdf.theory.pp20 import magnification_factor, zeta_fdf_direct
 
     # Radial power-law rho ~ (r/R)^{-p} on shells; weights = shell volumes.

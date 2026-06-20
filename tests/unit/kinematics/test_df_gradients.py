@@ -14,11 +14,11 @@ central finite difference a faithful reference.
 
 import jax
 import jax.numpy as jnp
-
 from jaxstro.units import STELLAR
-from progenax.kinematics.plummer_df import PlummerVelocityDF
-from progenax.kinematics.king_df import KingVelocityDF
+
 from progenax.kinematics.eff_df import EFFVelocityDF
+from progenax.kinematics.king_df import KingVelocityDF
+from progenax.kinematics.plummer_df import PlummerVelocityDF
 
 G = STELLAR.G
 

@@ -5,11 +5,11 @@ behind a non-jittable `if gamma == 3.0`, and a (r/r_t)^3 form for King). These
 tests pin the *true* potentials: King uses the ODE relative potential psi
 (V(r_t)=0), EFF uses the exact enclosed mass + outer shell, Plummer is analytic.
 """
+
 import jax
 import jax.numpy as jnp
-import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax.profiles import compute_profile_potential, sample_density_profile
 
 G = STELLAR.G
@@ -28,7 +28,9 @@ class TestKingTruePotential:
         r_t = float(prof.r_t)
         pos = jnp.array([[r_t, 0.0, 0.0]])
         phi = compute_profile_potential(pos, "king", 1000.0, 1.0, G, W0=7.0)
-        assert jnp.abs(phi[0]) < 1e-2 * G * 1000.0 / r_t, f"King Phi(r_t)={float(phi[0])} not ~0"
+        assert jnp.abs(phi[0]) < 1e-2 * G * 1000.0 / r_t, (
+            f"King Phi(r_t)={float(phi[0])} not ~0"
+        )
 
     def test_monotonic_increasing_with_radius(self):
         pos = jnp.array([[0.1, 0, 0], [1.0, 0, 0], [5.0, 0, 0]])
@@ -47,12 +49,16 @@ class TestEFFTruePotential:
         pos = _positions("eff", R_half=1.0, gamma=3.0, r_t=10.0)
 
         def loss(gamma):
-            return compute_profile_potential(pos, "eff", 1000.0, 1.0, G, gamma=gamma, r_t=10.0).sum()
+            return compute_profile_potential(
+                pos, "eff", 1000.0, 1.0, G, gamma=gamma, r_t=10.0
+            ).sum()
 
         val = jax.jit(loss)(3.0)
         assert jnp.isfinite(val)
         g = jax.grad(loss)(3.5)
-        assert jnp.isfinite(g) and jnp.abs(g) > 0.0, "grad wrt gamma must be finite & nonzero"
+        assert jnp.isfinite(g) and jnp.abs(g) > 0.0, (
+            "grad wrt gamma must be finite & nonzero"
+        )
 
     def test_enclosed_mass_matches_profile_cdf(self):
         """The potential must use the profile's exact enclosed mass, not an arctan form."""
@@ -67,7 +73,16 @@ class TestEFFTruePotential:
         # each trapezoid by its own width diff(rgrid). The invariant is unchanged
         # (potential's enclosed mass == profile CDF, both = cumtrap of rho*r^2).
         dr = jnp.diff(rgrid)
-        I2 = jnp.concatenate([jnp.zeros(1), jnp.cumsum(0.5 * (rho_t[1:] * rgrid[1:] ** 2 + rho_t[:-1] * rgrid[:-1] ** 2) * dr)])
+        I2 = jnp.concatenate(
+            [
+                jnp.zeros(1),
+                jnp.cumsum(
+                    0.5
+                    * (rho_t[1:] * rgrid[1:] ** 2 + rho_t[:-1] * rgrid[:-1] ** 2)
+                    * dr
+                ),
+            ]
+        )
         cdf_from_pot = I2 / I2[-1]
         assert jnp.max(jnp.abs(cdf_from_pot - prof._cdf_grid)) < 1e-9
 
@@ -82,5 +97,5 @@ class TestPlummerPotential:
         a = 1.0 * jnp.sqrt((1.0 - 0.5 ** (2 / 3)) / 0.5 ** (2 / 3))
         pos = jnp.array([[0.0, 0, 0], [2.0, 0, 0]])
         phi = compute_profile_potential(pos, "plummer", 1000.0, 1.0, G)
-        expected = -G * 1000.0 / jnp.sqrt(jnp.sum(pos ** 2, axis=1) + a ** 2)
+        expected = -G * 1000.0 / jnp.sqrt(jnp.sum(pos**2, axis=1) + a**2)
         assert jnp.allclose(phi, expected, rtol=1e-12)

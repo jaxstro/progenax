@@ -11,18 +11,17 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 import pytest
+from jaxstro.units import STELLAR
 from jaxtyping import Array, Float
 
-from jaxstro.units import STELLAR
-
 from progenax import (
+    LogUniformPeriod,
     PlummerProfile,
     PlummerVelocityDF,
     ThermalEccentricity,
-    LogUniformPeriod,
 )
-from progenax.builders import build_binary_cluster, Systems, Stars, TotalMass
 from progenax.binaries import IndependentCompanions, MoeCompanions
+from progenax.builders import Stars, Systems, TotalMass, build_binary_cluster
 from progenax.imf import PowerLawIMF
 from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 
@@ -42,7 +41,9 @@ def _independent(fbin=0.5, period=None, qmin=0.2):
     return IndependentCompanions(
         binary_fraction=ConstantBinaryFraction(fbin),
         q_distribution=FlatMassRatio(q_min=qmin),
-        period_distribution=period if period is not None else LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
+        period_distribution=period
+        if period is not None
+        else LogUniformPeriod(log_P_min=2.0, log_P_max=4.0),
         eccentricity_distribution=ThermalEccentricity(),
     )
 
@@ -74,7 +75,9 @@ class TestBuildBinaryCluster:
 
     def test_no_softening_field(self):
         ic = _cluster()
-        assert not hasattr(ic, "softening")  # softening is integration-time, not IC state
+        assert not hasattr(
+            ic, "softening"
+        )  # softening is integration-time, not IC state
 
     def test_com_preserved(self):
         """Resolving binaries preserves COMs, so the mass-weighted cluster COM stays ~0."""
@@ -89,6 +92,7 @@ class TestBuildBinaryCluster:
         compute_period(a) must return the input period — verifies the day->time-unit
         conversion is correct (the Batch-4f units gotcha)."""
         from progenax.binaries import KeplerElements, compute_period
+
         ic = _cluster(fbin=1.0, period=FixedPeriod(P_days=100.0), n_systems=60, seed=3)
         # system 0 is a binary -> its two real particles are the first two rows
         i0 = jnp.where(ic.primordial_system_id == 0)[0]
@@ -104,6 +108,7 @@ class TestBuildBinaryCluster:
 
     def test_compact_false_returns_masked(self):
         from progenax.binaries import ResolvedBinaries
+
         rb = _cluster(n_systems=120, compact=False)
         assert isinstance(rb, ResolvedBinaries)
         assert rb.positions.shape == (240, 3)  # 2N masked slots

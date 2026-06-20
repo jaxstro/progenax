@@ -28,8 +28,9 @@ class TestBinaryTypeHints:
         key = jax.random.PRNGKey(42)
         m1, m2, is_binary = imf.sample_systems(key, 100)
 
-        assert is_binary.dtype == jnp.bool_, \
+        assert is_binary.dtype == jnp.bool_, (
             f"is_binary should be bool, got {is_binary.dtype}"
+        )
 
 
 class TestMoeDiStefano2017Sampling:

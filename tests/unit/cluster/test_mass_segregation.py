@@ -51,8 +51,9 @@ def _mass_spectrum(kind, key, N):
 class TestEnergySortedSegregation:
     """Contract + physics for the S=1 energy-ordered orbit assignment."""
 
-    @pytest.mark.parametrize("spectrum",
-                             ["uniform", "bimodal", "kroupa-like", "extreme-steep"])
+    @pytest.mark.parametrize(
+        "spectrum", ["uniform", "bimodal", "kroupa-like", "extreme-steep"]
+    )
     def test_no_orbit_reuse_for_any_mass_spectrum(self, key, spectrum):
         """The core contract, at the scale and IMF steepness that broke the old code:
         every star lands on a DISTINCT orbit, so no two stars are coincident.
@@ -71,7 +72,9 @@ class TestEnergySortedSegregation:
             k4, masses, pos_pool, vel_pool, harmonic_potential
         )
         n_unique = len(jnp.unique(jnp.round(pos_out, 8), axis=0))
-        assert n_unique == N, f"{spectrum}: {N - n_unique} of {N} stars coincide (orbit reuse)"
+        assert n_unique == N, (
+            f"{spectrum}: {N - n_unique} of {N} stars coincide (orbit reuse)"
+        )
 
     def test_assigned_energy_is_monotonic_in_mass(self, key):
         """S=1 physics, as one discriminating number: the assigned specific energy is a
@@ -106,7 +109,9 @@ class TestEnergySortedSegregation:
         E = 0.5 * jnp.sum(vel_out**2, axis=1) + negative_harmonic_potential(pos_out)
         most_massive = int(jnp.argmax(masses))
         n_more_bound = int(jnp.sum(E < E[most_massive]))
-        assert n_more_bound == 0, f"{n_more_bound} stars more bound than the most massive"
+        assert n_more_bound == 0, (
+            f"{n_more_bound} stars more bound than the most massive"
+        )
 
     def test_assignment_selects_pool_orbits_and_preserves_masses(self, key):
         """The function SELECTS orbits from the pool (never interpolates): every output
@@ -122,9 +127,16 @@ class TestEnergySortedSegregation:
             k4, masses, pos_pool, vel_pool, harmonic_potential
         )
         assert jnp.array_equal(m_out, masses)
-        pool = set(map(tuple, np.asarray(jnp.concatenate([pos_pool, vel_pool], axis=1)).round(8)))
+        pool = set(
+            map(
+                tuple,
+                np.asarray(jnp.concatenate([pos_pool, vel_pool], axis=1)).round(8),
+            )
+        )
         out = np.asarray(jnp.concatenate([pos_out, vel_out], axis=1)).round(8)
-        assert all(tuple(row) in pool for row in out), "an output orbit is not a pool member"
+        assert all(tuple(row) in pool for row in out), (
+            "an output orbit is not a pool member"
+        )
 
     def test_deterministic_given_the_pool(self, key):
         """The assignment is deterministic given (masses, pool): repeated calls with
@@ -137,9 +149,11 @@ class TestEnergySortedSegregation:
         vel_pool = jax.random.normal(k3, (N_pool, 3))
 
         _, p1, v1 = energy_sorted_segregation(
-            jax.random.PRNGKey(1), masses, pos_pool, vel_pool, harmonic_potential)
+            jax.random.PRNGKey(1), masses, pos_pool, vel_pool, harmonic_potential
+        )
         _, p2, v2 = energy_sorted_segregation(
-            jax.random.PRNGKey(2), masses, pos_pool, vel_pool, harmonic_potential)
+            jax.random.PRNGKey(2), masses, pos_pool, vel_pool, harmonic_potential
+        )
         assert jnp.array_equal(p1, p2) and jnp.array_equal(v1, v2)
 
     def test_different_pools_give_different_assignments(self, key):
@@ -151,7 +165,9 @@ class TestEnergySortedSegregation:
 
         def draw(kp):
             kk1, kk2 = jax.random.split(kp)
-            return jax.random.normal(kk1, (N_pool, 3)), jax.random.normal(kk2, (N_pool, 3))
+            return jax.random.normal(kk1, (N_pool, 3)), jax.random.normal(
+                kk2, (N_pool, 3)
+            )
 
         pa, va = draw(ka)
         pb, vb = draw(kb)
@@ -168,6 +184,12 @@ class TestEnergySortedSegregation:
         pos_pool = jax.random.normal(k2, (N_pool, 3))
         vel_pool = jax.random.normal(k3, (N_pool, 3))
 
-        eager = energy_sorted_segregation(k4, masses, pos_pool, vel_pool, harmonic_potential)[1]
-        jit_fn = jax.jit(lambda k, m, p, v: energy_sorted_segregation(k, m, p, v, harmonic_potential)[1])
+        eager = energy_sorted_segregation(
+            k4, masses, pos_pool, vel_pool, harmonic_potential
+        )[1]
+        jit_fn = jax.jit(
+            lambda k, m, p, v: energy_sorted_segregation(
+                k, m, p, v, harmonic_potential
+            )[1]
+        )
         assert jnp.allclose(eager, jit_fn(k4, masses, pos_pool, vel_pool))

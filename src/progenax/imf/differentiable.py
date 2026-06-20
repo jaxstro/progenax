@@ -9,7 +9,6 @@ All functions are fully differentiable and JIT-compatible.
 Uses 4-segment IMF matching Marks+2012 convention.
 """
 
-import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 

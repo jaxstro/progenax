@@ -10,8 +10,8 @@ Semantics (from progenax/imf/base.py):
         stratified quantile stretch (q <= 1). The achievable total is capped at
         sum(ppf(u_base)); a target above that ceiling used to undershoot SILENTLY.
 """
+
 import jax
-import jax.numpy as jnp
 import pytest
 
 from progenax.imf import Maschberger

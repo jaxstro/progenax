@@ -90,7 +90,9 @@ class TestFigureEightSelfValidating:
         ic = three_body_figure_eight(mass=1.0, scale=1.5, G=2.0)
         p, _ = _verlet(ic.positions, ic.velocities, ic.masses, 2.0, ic.period, 400000)
         closure = jnp.max(jnp.linalg.norm(p - ic.positions, axis=1))
-        assert closure < 1e-5, f"rescaled figure-eight did not close: residual {closure:.3e}"
+        assert closure < 1e-5, (
+            f"rescaled figure-eight did not close: residual {closure:.3e}"
+        )
 
 
 class TestTwoBodyConservation:
@@ -126,7 +128,9 @@ class TestTwoBodyConservation:
 
 
 class TestSolarSystemPhysics:
-    @pytest.mark.parametrize("builder,n", [("solar_system_inner_4", 5), ("solar_system_full", 9)])
+    @pytest.mark.parametrize(
+        "builder,n", [("solar_system_inner_4", 5), ("solar_system_full", 9)]
+    )
     def test_barycentric_and_finite(self, builder, n):
         import progenax.analytical as A
 
@@ -135,7 +139,9 @@ class TestSolarSystemPhysics:
         com = jnp.sum(ic.positions * ic.masses[:, None], axis=0) / jnp.sum(ic.masses)
         pcom = jnp.sum(ic.masses[:, None] * ic.velocities, axis=0)
         assert jnp.linalg.norm(com) < 1e-12 and jnp.linalg.norm(pcom) < 1e-12
-        assert jnp.all(jnp.isfinite(ic.positions)) and jnp.all(jnp.isfinite(ic.velocities))
+        assert jnp.all(jnp.isfinite(ic.positions)) and jnp.all(
+            jnp.isfinite(ic.velocities)
+        )
 
     def test_planet_mass_ratios_match_iau(self):
         """Planet/Sun mass ratios match the IAU 2009 / JPL best estimates."""
@@ -152,7 +158,9 @@ class TestSolarSystemPhysics:
 
         ic = solar_system_inner_4(G=39.478)
         # planet masses (rows 1..4) equal the table's first four, in order
-        assert jnp.allclose(ic.masses[1:], jnp.array([p["M"] for p in SOLAR_SYSTEM_PLANETS[:4]]))
+        assert jnp.allclose(
+            ic.masses[1:], jnp.array([p["M"] for p in SOLAR_SYSTEM_PLANETS[:4]])
+        )
 
 
 # PLANETARY units (AU^3 / Msun / yr^2): G = 4 pi^2 so a 1-AU orbit about 1 Msun has T = 1 yr.
@@ -235,7 +243,9 @@ class TestEarthSunEccentric:
         r_rel = ic.positions[1] - ic.positions[0]
         v_rel = ic.velocities[1] - ic.velocities[0]
         e = jnp.linalg.norm(_eccentricity_vector(r_rel, v_rel, mu))
-        assert jnp.isclose(e, 0.0167, atol=1e-6), f"recovered e = {e:.6f}, expected 0.0167"
+        assert jnp.isclose(e, 0.0167, atol=1e-6), (
+            f"recovered e = {e:.6f}, expected 0.0167"
+        )
         # Vis-viva semi-major axis 1/a = 2/r - v^2/mu must recover a = 1 AU.
         a = 1.0 / (2.0 / jnp.linalg.norm(r_rel) - jnp.sum(v_rel**2) / mu)
         assert jnp.isclose(a, 1.0, rtol=1e-10)
@@ -281,7 +291,9 @@ class TestSunEarthJupiterThreeBody:
         ic = sun_earth_jupiter_3body(G=_G_PLANETARY)
         E = _energy(ic.positions, ic.velocities, ic.masses, _G_PLANETARY)
         assert E < 0.0, f"Sun-Earth-Jupiter must be bound (E < 0), got {E:.3e}"
-        assert jnp.all(jnp.isfinite(ic.positions)) and jnp.all(jnp.isfinite(ic.velocities))
+        assert jnp.all(jnp.isfinite(ic.positions)) and jnp.all(
+            jnp.isfinite(ic.velocities)
+        )
 
 
 class TestHarmonicOscillator:
@@ -335,7 +347,8 @@ class TestHarmonicSolution:
             xddot = (pos_p[0, 0] - 2.0 * pos_0[0, 0] + pos_m[0, 0]) / h**2
             rhs = -(omega**2) * pos_0[0, 0]
             assert jnp.isclose(xddot, rhs, rtol=1e-5, atol=1e-6), (
-                f"ODE residual at t={t}: xddot={xddot:.6f} vs -w^2 x={rhs:.6f}")
+                f"ODE residual at t={t}: xddot={xddot:.6f} vs -w^2 x={rhs:.6f}"
+            )
 
     def test_matches_oscillator_ic_at_t0(self):
         from progenax.analytical import harmonic_oscillator, harmonic_solution
@@ -368,7 +381,9 @@ class TestFigureEightPeriod:
         # Same helper drives the factory's `.period`; they must agree at matched params.
         for scale, G, mass in ((1.0, 1.0, 1.0), (1.5, 2.0, 1.0), (2.0, 1.0, 3.0)):
             ic = three_body_figure_eight(mass=mass, scale=scale, G=G)
-            assert jnp.isclose(ic.period, figure_eight_period(scale, G, mass), rtol=1e-12)
+            assert jnp.isclose(
+                ic.period, figure_eight_period(scale, G, mass), rtol=1e-12
+            )
 
     def test_scaling_law(self):
         from progenax.analytical import figure_eight_period
@@ -377,4 +392,6 @@ class TestFigureEightPeriod:
         # the dynamical time sqrt(L^3/GM) of the rescaled orbit).
         for scale, G, mass in ((1.5, 2.0, 1.0), (0.5, 0.5, 2.0)):
             expected = 6.32591398 * jnp.sqrt(scale**3 / (G * mass))
-            assert jnp.isclose(figure_eight_period(scale, G, mass), expected, rtol=1e-10)
+            assert jnp.isclose(
+                figure_eight_period(scale, G, mass), expected, rtol=1e-10
+            )

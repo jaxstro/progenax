@@ -40,203 +40,133 @@ entry reds CI (the ratchet). The website physics section is generated from here 
 MODEL_INVARIANTS: dict[str, dict[str, str]] = {
     # =========================== Spatial profiles ====================================
     "PlummerProfile": {
-        "scale-radius formula a = r_h*sqrt(2^(2/3)-1)":
-            "tests/validation/test_plummer_physics.py::TestPlummerScaleRadius::test_scale_radius_formula_exact",
+        "scale-radius formula a = r_h*sqrt(2^(2/3)-1)": "tests/validation/test_plummer_physics.py::TestPlummerScaleRadius::test_scale_radius_formula_exact",
         # QUOTED WITNESS: assert jnp.allclose(profile.a, r_h * SCALE_RADIUS_FACTOR, rtol=1e-6)
-        "density closed-form / inverse-CDF M(<r)/M = r^3/(r^2+a^2)^{3/2}":
-            "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_cdf_formula_accuracy",
+        "density closed-form / inverse-CDF M(<r)/M = r^3/(r^2+a^2)^{3/2}": "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_cdf_formula_accuracy",
         # QUOTED WITNESS: for each r_test, assert |measured frac(r<r_test) - r^3/(r^2+a^2)^1.5| < 0.03
-        "half-mass radius (50% of sampled mass within r_h)":
-            "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_half_mass_radius_statistical",
-        "spatial isotropy (component means ~ 0)":
-            "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_positions_isotropic",
+        "half-mass radius (50% of sampled mass within r_h)": "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_half_mass_radius_statistical",
+        "spatial isotropy (component means ~ 0)": "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_positions_isotropic",
     },
     "KingProfile": {
-        "ODE solution / boundary conditions psi(0)=W0, psi->0 at r_t":
-            "tests/validation/test_king_physics.py::TestKingODESolution::test_boundary_conditions",
-        "tidal truncation (100% of mass within r_t)":
-            "tests/validation/test_king_physics.py::TestKingTidalTruncation::test_all_particles_within_tidal_radius",
-        "density monotone-decreasing (lowered-Maxwellian shape)":
-            "tests/validation/test_king_physics.py::TestKingDensityProfile::test_density_decreases_with_radius",
-        "concentration c(W0)=log10(r_t/r_c) vs King (1966) Table II":
-            "tests/validation/test_king_physics.py::test_concentration_matches_king1966_table_ii",
+        "ODE solution / boundary conditions psi(0)=W0, psi->0 at r_t": "tests/validation/test_king_physics.py::TestKingODESolution::test_boundary_conditions",
+        "tidal truncation (100% of mass within r_t)": "tests/validation/test_king_physics.py::TestKingTidalTruncation::test_all_particles_within_tidal_radius",
+        "density monotone-decreasing (lowered-Maxwellian shape)": "tests/validation/test_king_physics.py::TestKingDensityProfile::test_density_decreases_with_radius",
+        "concentration c(W0)=log10(r_t/r_c) vs King (1966) Table II": "tests/validation/test_king_physics.py::test_concentration_matches_king1966_table_ii",
         # QUOTED WITNESS: assert |c - c_ref| <= 0.02 for W0 in {3,7,9} vs King Table II {0.67,1.53,2.12}
-        "lowered-Maxwellian volume-density shape vs direct velocity integral":
-            "tests/validation/test_king_physics.py::TestKingLoweredMaxwellianDensity::test_density_shape_matches_direct_velocity_integral",
+        "lowered-Maxwellian volume-density shape vs direct velocity integral": "tests/validation/test_king_physics.py::TestKingLoweredMaxwellianDensity::test_density_shape_matches_direct_velocity_integral",
     },
     "MichieProfile": {
-        "isotropic limit (r_a -> inf) recovers King density":
-            "tests/validation/test_michie_physics.py::TestMichieIsotropicLimit::test_density_matches_king_at_large_ra",
-        "anisotropy beta(r) tracks the DF's own analytic 2nd-moment oracle":
-            "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_matches_df_oracle",
-        "lowered model: beta(r) below the pure Osipkov-Merritt ceiling r^2/(r^2+r_a^2)":
-            "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_below_osipkov_merritt_ceiling",
-        "stronger anisotropy => more extended (larger r_t at fixed W0,r_c)":
-            "tests/validation/test_michie_physics.py::TestMichieAnisotropyStructure::test_more_anisotropic_more_extended",
+        "isotropic limit (r_a -> inf) recovers King density": "tests/validation/test_michie_physics.py::TestMichieIsotropicLimit::test_density_matches_king_at_large_ra",
+        "anisotropy beta(r) tracks the DF's own analytic 2nd-moment oracle": "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_matches_df_oracle",
+        "lowered model: beta(r) below the pure Osipkov-Merritt ceiling r^2/(r^2+r_a^2)": "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_below_osipkov_merritt_ceiling",
+        "stronger anisotropy => more extended (larger r_t at fixed W0,r_c)": "tests/validation/test_michie_physics.py::TestMichieAnisotropyStructure::test_more_anisotropic_more_extended",
     },
     "EFFProfile": {
-        "density closed-form rho(0)=1, rho(a)=2^{-gamma/2}, rho~r^{-gamma} asymptote":
-            "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_central_density_unity",
-        "power-law asymptotic slope rho ~ r^{-gamma}":
-            "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_power_law_slope_asymptotic",
-        "tidal truncation (density = 0 and 100% of mass within r_t)":
-            "tests/validation/test_eff_physics.py::TestEFFTidalTruncation::test_all_particles_within_tidal_radius",
-        "gamma concentration (higher gamma => smaller median radius)":
-            "tests/validation/test_eff_physics.py::TestEFFGammaConcentration::test_higher_gamma_more_concentrated",
+        "density closed-form rho(0)=1, rho(a)=2^{-gamma/2}, rho~r^{-gamma} asymptote": "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_central_density_unity",
+        "power-law asymptotic slope rho ~ r^{-gamma}": "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_power_law_slope_asymptotic",
+        "tidal truncation (density = 0 and 100% of mass within r_t)": "tests/validation/test_eff_physics.py::TestEFFTidalTruncation::test_all_particles_within_tidal_radius",
+        "gamma concentration (higher gamma => smaller median radius)": "tests/validation/test_eff_physics.py::TestEFFGammaConcentration::test_higher_gamma_more_concentrated",
     },
-
     # =========================== Velocity DFs ========================================
     "PlummerVelocityDF": {
-        "virial Q = T/|V| ~ 0.5 (unscaled equilibrium)":
-            "tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio",
+        "virial Q = T/|V| ~ 0.5 (unscaled equilibrium)": "tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio",
         # QUOTED WITNESS: Q = T/|V| with V = -3*pi*G*M^2/(32a); assert |Q - 0.5| < VIRIAL_RATIO
-        "velocity dispersion profile sigma^2(r) = GM/(6 sqrt(r^2+a^2))":
-            "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile",
-        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)":
-            "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_velocity_isotropy",
-        "Beta(3/2,9/2) speed distribution: <q^2> = 0.25":
-            "tests/validation/test_plummer_physics.py::TestPlummerBetaDistribution::test_q_squared_mean",
-        "all particles bound (v < v_esc)":
-            "tests/validation/test_plummer_physics.py::TestPlummerBoundParticles::test_all_particles_bound",
+        "velocity dispersion profile sigma^2(r) = GM/(6 sqrt(r^2+a^2))": "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile",
+        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)": "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_velocity_isotropy",
+        "Beta(3/2,9/2) speed distribution: <q^2> = 0.25": "tests/validation/test_plummer_physics.py::TestPlummerBetaDistribution::test_q_squared_mean",
+        "all particles bound (v < v_esc)": "tests/validation/test_plummer_physics.py::TestPlummerBoundParticles::test_all_particles_bound",
     },
     "KingVelocityDF": {
-        "virial Q = T/|V| ~ 0.5 unscaled (true lowered-Maxwellian equilibrium)":
-            "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_virial_ratio_is_half_unscaled",
+        "virial Q = T/|V| ~ 0.5 unscaled (true lowered-Maxwellian equilibrium)": "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_virial_ratio_is_half_unscaled",
         # QUOTED WITNESS: Q = T / |V| from the sampled IC; assert |Q - 0.5| < 0.05 (no external rescale)
-        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)":
-            "tests/validation/test_king_physics.py::TestKingVelocityDF::test_velocity_isotropy",
-        "all velocities bound against the King escape speed v_esc(r) = sigma sqrt(2 psi(r))":
-            "tests/validation/test_king_physics.py::TestKingVelocityDF::test_velocities_bound_against_king_escape_speed",
-        "sampled sigma_1d(r) matches the analytic lowered-Maxwellian 2nd moment":
-            "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_dispersion_profile_matches_king_moment",
+        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)": "tests/validation/test_king_physics.py::TestKingVelocityDF::test_velocity_isotropy",
+        "all velocities bound against the King escape speed v_esc(r) = sigma sqrt(2 psi(r))": "tests/validation/test_king_physics.py::TestKingVelocityDF::test_velocities_bound_against_king_escape_speed",
+        "sampled sigma_1d(r) matches the analytic lowered-Maxwellian 2nd moment": "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_dispersion_profile_matches_king_moment",
     },
     "MichieVelocityDF": {
-        "virial Q = T/|V| ~ 0.5 unscaled (anisotropic equilibrium)":
-            "tests/validation/test_michie_physics.py::TestMichieEquilibrium::test_virial_ratio_half_unscaled",
-        "all velocities bound against v_esc(r) = sigma sqrt(2 W(r))":
-            "tests/validation/test_michie_physics.py::TestMichieEquilibrium::test_all_particles_bound",
-        "radial anisotropy grows outward (beta_inner < beta_outer)":
-            "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_increases_outward",
+        "virial Q = T/|V| ~ 0.5 unscaled (anisotropic equilibrium)": "tests/validation/test_michie_physics.py::TestMichieEquilibrium::test_virial_ratio_half_unscaled",
+        "all velocities bound against v_esc(r) = sigma sqrt(2 W(r))": "tests/validation/test_michie_physics.py::TestMichieEquilibrium::test_all_particles_bound",
+        "radial anisotropy grows outward (beta_inner < beta_outer)": "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_increases_outward",
     },
     "EFFVelocityDF": {
-        "Eddington-DF virial Q ~ 0.5 for mild truncation (gamma=5)":
-            "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_virial_ratio_mild_truncation",
+        "Eddington-DF virial Q ~ 0.5 for mild truncation (gamma=5)": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_virial_ratio_mild_truncation",
         # QUOTED WITNESS: gamma=5,r_t=15 build; assert |Q - 0.5| < 0.05 (unscaled, mild truncation)
-        "tabulated Eddington f(E) physical: non-negative and increasing in E":
-            "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_f_is_physical",
-        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)":
-            "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_velocity_isotropy",
-        "all velocities bound (v <= v_esc from the shared potential)":
-            "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound",
+        "tabulated Eddington f(E) physical: non-negative and increasing in E": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_f_is_physical",
+        "velocity isotropy (<vx^2> ~ <vy^2> ~ <vz^2>)": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_velocity_isotropy",
+        "all velocities bound (v <= v_esc from the shared potential)": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound",
     },
-
     # =========================== IMFs ================================================
     "PowerLawIMF": {
-        "Salpeter (1955) high-mass slope alpha = 2.35":
-            "tests/validation/test_imf_physics.py::TestSalpeterSlope::test_salpeter_high_mass_slope",
-        "exact analytic mean mass (vs fine log-grid reference)":
-            "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
-        "Kroupa (2001) breakpoint masses + segment slopes + PDF continuity":
-            "tests/validation/test_imf_physics.py::TestKroupaBreakpoints::test_kroupa_segment_slopes",
-        "massive-star rarity scales correctly with slope":
-            "tests/validation/test_imf_physics.py::TestIMFMassiveStars::test_massive_more_common_with_lower_alpha",
+        "Salpeter (1955) high-mass slope alpha = 2.35": "tests/validation/test_imf_physics.py::TestSalpeterSlope::test_salpeter_high_mass_slope",
+        "exact analytic mean mass (vs fine log-grid reference)": "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
+        "Kroupa (2001) breakpoint masses + segment slopes + PDF continuity": "tests/validation/test_imf_physics.py::TestKroupaBreakpoints::test_kroupa_segment_slopes",
+        "massive-star rarity scales correctly with slope": "tests/validation/test_imf_physics.py::TestIMFMassiveStars::test_massive_more_common_with_lower_alpha",
     },
     "ChabrierIMF": {
-        "Chabrier (2003) characteristic mass m_c = 0.08 + lognormal width sigma = 0.69":
-            "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_characteristic_mass",
-        "high-mass slope = Chabrier (2003) Table 1 (x=1.3 => alpha=2.3)":
-            "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_high_mass_slope",
-        "lognormal<->power-law value-continuous at m_trans=1 Msun (A_pl)":
-            "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_pdf_continuous_at_mtrans",
-        "resolution-converged mean mass (vs fine log-grid reference)":
-            "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
+        "Chabrier (2003) characteristic mass m_c = 0.08 + lognormal width sigma = 0.69": "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_characteristic_mass",
+        "high-mass slope = Chabrier (2003) Table 1 (x=1.3 => alpha=2.3)": "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_high_mass_slope",
+        "lognormal<->power-law value-continuous at m_trans=1 Msun (A_pl)": "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_pdf_continuous_at_mtrans",
+        "resolution-converged mean mass (vs fine log-grid reference)": "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
     },
     "Maschberger": {
-        "Maschberger (2013) peak mass mu = 0.2 Msun":
-            "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_peak_mass",
-        "high-mass slope ~ 2.3 (near Salpeter)":
-            "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_high_mass_salpeter",
-        "resolution-converged mean mass (vs fine log-grid reference)":
-            "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
+        "Maschberger (2013) peak mass mu = 0.2 Msun": "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_peak_mass",
+        "high-mass slope ~ 2.3 (near Salpeter)": "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_high_mass_salpeter",
+        "resolution-converged mean mass (vs fine log-grid reference)": "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged",
     },
     "TruncatedIMF": {
         # TruncatedIMF re-normalizes a base IMF over a narrower [m_min, m_max]. The
         # normalization invariant CDF(m_min)=0 / CDF(m_max)=1 IS its physics: the
         # parametrized fixture includes the TruncatedChabrier case, so these node ids
         # assert ON a TruncatedIMF instance specifically.
-        "renormalized CDF(m_max) = 1 after truncation":
-            "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_max[TruncatedChabrier]",
+        "renormalized CDF(m_max) = 1 after truncation": "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_max[TruncatedChabrier]",
         # QUOTED WITNESS: cdf_max = imf.cdf(m_max); assert |cdf_max - 1.0| < 1e-6 (imf = TruncatedChabrier)
-        "renormalized CDF(m_min) = 0 after truncation":
-            "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_min[TruncatedChabrier]",
+        "renormalized CDF(m_min) = 0 after truncation": "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_min[TruncatedChabrier]",
     },
-
     # =========================== Multi-component equilibrium engine ===================
     "MultiComponentCluster": {
         # An equilibrium model (not a protocol-conformer / not build_*_cluster), so it is
         # hand-listed here; the operational ratchet does not flag it, but a missing entry
         # would still leave its physics unguarded — enumerated explicitly.
-        "Engine-A: global virial Q = T/|V| ~ 0.5 unscaled across segregation delta":
-            "tests/validation/test_multimass_equilibrium_physics.py::test_global_virial_is_half_across_delta",
-        "Engine-A: theoretical per-component Q_j exactly 0.5 (each mass group in equilibrium)":
-            "tests/validation/test_multimass_equilibrium_physics.py::test_theoretical_component_virial_is_exactly_half",
-        "Engine-A: delta=0 is single-mass; segregation grows monotonically with delta":
-            "tests/validation/test_multimass_equilibrium_physics.py::test_delta0_is_single_mass_and_segregation_grows",
-        "Engine-A: anisotropic sampler is equilibrium AND carries the right beta_j(r)":
-            "tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic",
-        "Engine-B: King A-vs-B cross-engine agreement (r_t / theory Q_j / sigma_1d(r) / radial KS)":
-            "tests/validation/test_engine_b_physics.py::test_king_density_engine_b_matches_engine_a",
-        "Engine-B: Plummer halo + EFF core is a true shared-potential equilibrium (headline Q)":
-            "tests/validation/test_engine_b_physics.py::test_plummer_halo_eff_core_equilibrium",
-        "Engine-B: OM anisotropy realized in sampled velocities beta_halo(r)=r^2/(r^2+r_a^2)":
-            "tests/validation/test_engine_b_physics.py::test_om_beta_profile_realized",
-        "Engine-B: DF-density inversion fidelity (rho_DF,j == augmented rho_presc,j interior)":
-            "tests/validation/test_engine_b_physics.py::test_df_density_fidelity_interior",
+        "Engine-A: global virial Q = T/|V| ~ 0.5 unscaled across segregation delta": "tests/validation/test_multimass_equilibrium_physics.py::test_global_virial_is_half_across_delta",
+        "Engine-A: theoretical per-component Q_j exactly 0.5 (each mass group in equilibrium)": "tests/validation/test_multimass_equilibrium_physics.py::test_theoretical_component_virial_is_exactly_half",
+        "Engine-A: delta=0 is single-mass; segregation grows monotonically with delta": "tests/validation/test_multimass_equilibrium_physics.py::test_delta0_is_single_mass_and_segregation_grows",
+        "Engine-A: anisotropic sampler is equilibrium AND carries the right beta_j(r)": "tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic",
+        "Engine-B: King A-vs-B cross-engine agreement (r_t / theory Q_j / sigma_1d(r) / radial KS)": "tests/validation/test_engine_b_physics.py::test_king_density_engine_b_matches_engine_a",
+        "Engine-B: Plummer halo + EFF core is a true shared-potential equilibrium (headline Q)": "tests/validation/test_engine_b_physics.py::test_plummer_halo_eff_core_equilibrium",
+        "Engine-B: OM anisotropy realized in sampled velocities beta_halo(r)=r^2/(r^2+r_a^2)": "tests/validation/test_engine_b_physics.py::test_om_beta_profile_realized",
+        "Engine-B: DF-density inversion fidelity (rho_DF,j == augmented rho_presc,j interior)": "tests/validation/test_engine_b_physics.py::test_df_density_fidelity_interior",
     },
-
     # =========================== Cluster builders (build_*_cluster) ===================
     "build_cluster": {
-        "bit-identical to the manual build_spatial_ic composition (pure sugar, no drift)":
-            "tests/unit/builders/test_cluster_builders.py::test_build_cluster_is_bit_identical_to_manual_base_case",
+        "bit-identical to the manual build_spatial_ic composition (pure sugar, no drift)": "tests/unit/builders/test_cluster_builders.py::test_build_cluster_is_bit_identical_to_manual_base_case",
         # QUOTED WITNESS: build_cluster(p, masses, key) compared field-by-field (== on
         # positions/velocities/masses/stellar_radii) to build_spatial_ic(p, M, df, K, Q=0.5)
-        "tidal modifier zeroes outer masses beyond r_t":
-            "tests/unit/builders/test_cluster_builders.py::test_tidal_zeroes_outer_masses",
-        "OM anisotropy modifier threads into the DF (radial velocity bias)":
-            "tests/unit/builders/test_cluster_builders.py::test_anisotropy_threads_into_df_radial_bias",
+        "tidal modifier zeroes outer masses beyond r_t": "tests/unit/builders/test_cluster_builders.py::test_tidal_zeroes_outer_masses",
+        "OM anisotropy modifier threads into the DF (radial velocity bias)": "tests/unit/builders/test_cluster_builders.py::test_anisotropy_threads_into_df_radial_bias",
     },
     "build_plummer_cluster": {
-        "Plummer-family alias IC bit-identical to build_cluster(Plummer)":
-            "tests/unit/builders/test_cluster_builders.py::test_plummer_alias_identical",
+        "Plummer-family alias IC bit-identical to build_cluster(Plummer)": "tests/unit/builders/test_cluster_builders.py::test_plummer_alias_identical",
     },
     "build_king_cluster": {
-        "King-family alias IC bit-identical to build_cluster(King)":
-            "tests/unit/builders/test_cluster_builders.py::test_king_alias_identical",
+        "King-family alias IC bit-identical to build_cluster(King)": "tests/unit/builders/test_cluster_builders.py::test_king_alias_identical",
     },
     "build_eff_cluster": {
-        "EFF-family alias IC bit-identical to build_cluster(EFF)":
-            "tests/unit/builders/test_cluster_builders.py::test_eff_alias_identical",
+        "EFF-family alias IC bit-identical to build_cluster(EFF)": "tests/unit/builders/test_cluster_builders.py::test_eff_alias_identical",
     },
     "build_michie_cluster": {
-        "Michie-family alias IC bit-identical to build_cluster(Michie)":
-            "tests/unit/builders/test_cluster_builders.py::test_michie_alias_identical",
+        "Michie-family alias IC bit-identical to build_cluster(Michie)": "tests/unit/builders/test_cluster_builders.py::test_michie_alias_identical",
     },
     "build_limepy_cluster": {
-        "LIMEPY-family alias IC bit-identical to build_cluster(LIMEPY)":
-            "tests/unit/builders/test_cluster_builders.py::test_limepy_alias_identical",
+        "LIMEPY-family alias IC bit-identical to build_cluster(LIMEPY)": "tests/unit/builders/test_cluster_builders.py::test_limepy_alias_identical",
     },
     "build_cluster_from_params": {
-        "ClusterParams theta-PyTree wrapper IC identical to build_cluster":
-            "tests/unit/builders/test_cluster_builders.py::test_cluster_params_wrapper_identical_to_build_cluster",
+        "ClusterParams theta-PyTree wrapper IC identical to build_cluster": "tests/unit/builders/test_cluster_builders.py::test_cluster_params_wrapper_identical_to_build_cluster",
     },
     "build_binary_cluster": {
-        "Kepler's third law survives the binary->spatial assembly (P round-trip)":
-            "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_units_kepler_third_law_roundtrip",
+        "Kepler's third law survives the binary->spatial assembly (P round-trip)": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_units_kepler_third_law_roundtrip",
         # QUOTED WITNESS: recover P from the resolved primary/companion separation; assert |P - 100 d| < 1e-3
-        "cluster COM and Vcom conserved to 1e-10 after assembly":
-            "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved",
-        "particle count = primaries + secondaries; no ghost masses":
-            "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance",
+        "cluster COM and Vcom conserved to 1e-10 after assembly": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved",
+        "particle count = primaries + secondaries; no ghost masses": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance",
     },
 }
 
@@ -297,8 +227,8 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "CombinedBinaryFraction": "f_bin(m)xf_bin(r) model, not a stellar-structure model",
     # --- Binary IMF + companion samplers (composition layers, not protocol IMFs) ---
     "BinaryIMF": "primary-IMF + binary-statistics composition; not an IMFProtocol conformer "
-                 "(lacks mean_mass at class level) and not a spatial/velocity model. Its "
-                 "binary-fraction behavior is asserted in tests/unit/imf/test_binary.py.",
+    "(lacks mean_mass at class level) and not a spatial/velocity model. Its "
+    "binary-fraction behavior is asserted in tests/unit/imf/test_binary.py.",
     "IndependentCompanions": "companion sampler (CompanionModel), not a stellar-structure model",
     "MoeCompanions": "Moe+2017 companion sampler (CompanionModel), not a stellar-structure model",
     # --- Kepler / orbital mechanics ---
@@ -316,20 +246,20 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "sample_isotropic_orientations": "isotropic orientation sampler, not a model",
     # --- Dispersion forward models (free functions over a profile, not equilibrium models) ---
     "jeans_dispersion": "anisotropic-Jeans (Osipkov-Merritt) dispersion forward model "
-                        "(sigma_r/sigma_t/sigma_1d/beta for a profile under OM r_a); a "
-                        "forward-model helper, not an equilibrium model. Physics anchored in "
-                        "tests/validation/test_dispersion_physics.py.",
+    "(sigma_r/sigma_t/sigma_1d/beta for a profile under OM r_a); a "
+    "forward-model helper, not an equilibrium model. Physics anchored in "
+    "tests/validation/test_dispersion_physics.py.",
     "project_dispersion": "Binney & Mamon (1982) line-of-sight projection forward model "
-                          "(sigma_los/sigma_pm_r/sigma_pm_t); a forward-model helper, not an "
-                          "equilibrium model. Anchored in test_dispersion_physics.py.",
+    "(sigma_los/sigma_pm_r/sigma_pm_t); a forward-model helper, not an "
+    "equilibrium model. Anchored in test_dispersion_physics.py.",
     "df_moment_dispersion": "exact Michie-King DF second-moment dispersion "
-                            "(sigma_r/sigma_t/sigma_1d/beta); a forward-model helper, not an "
-                            "equilibrium model. Physics anchored in "
-                            "tests/validation/test_dispersion_physics.py (sampler all-radii + "
-                            "Tier-A Jeans consistency + beta-vs-_michie_beta_oracle).",
+    "(sigma_r/sigma_t/sigma_1d/beta); a forward-model helper, not an "
+    "equilibrium model. Physics anchored in "
+    "tests/validation/test_dispersion_physics.py (sampler all-radii + "
+    "Tier-A Jeans consistency + beta-vs-_michie_beta_oracle).",
     # --- Binary connector + diagnostics + energy/kinematic kernels ---
     "resolve_binary_components": "binary->spatial connector, not a model (grad-audit AUDITED "
-                                 "as a Fisher path, but it is a transform, not a model object)",
+    "as a Fisher path, but it is a transform, not a model object)",
     "batch_elements_to_resolved": "Kepler-elements->resolved batch transform, not a model",
     "sample_mass_dependent_orbits": "mass-routed orbit sampler helper, not a model",
     "relative_energy": "binary relative-energy diagnostic, not a model",
@@ -345,15 +275,15 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "compute_stellar_radii": "mass->radius ZAMS helper, not a model",
     # --- ZAMS stellar relations (Tout+1996 mass-relations, not equilibrium models) ---
     "zams_luminosity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
-                       "validated vs published anchors in test_zams_physics.py.",
+    "validated vs published anchors in test_zams_physics.py.",
     "zams_radius": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
-                   "validated vs published anchors in test_zams_physics.py.",
+    "validated vs published anchors in test_zams_physics.py.",
     "zams_effective_temperature": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium "
-                                  "model; validated vs published anchors in test_zams_physics.py.",
+    "model; validated vs published anchors in test_zams_physics.py.",
     "zams_surface_gravity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium model; "
-                            "validated vs published anchors in test_zams_physics.py.",
+    "validated vs published anchors in test_zams_physics.py.",
     "inverse_zams_luminosity": "Stellar mass-relation (Tout+1996 ZAMS), not an equilibrium "
-                               "model; validated vs published anchors in test_zams_physics.py.",
+    "model; validated vs published anchors in test_zams_physics.py.",
     "compute_period": "Kepler-III period helper, not a model",
     "period_to_semimajor_axis": "Kepler-III inverse helper, not a model",
     # --- Tidal physics helpers ---
@@ -377,7 +307,7 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "solar_system_full": "fixed-config full solar system IC, not a model",
     # --- Top-level IC assembly (composition entry point, not a model) ---
     "build_spatial_ic": "generic profile+DF IC-assembly entry point; the models it composes "
-                        "(profiles/DFs) carry the equilibrium invariants, not the assembler.",
+    "(profiles/DFs) carry the equilibrium invariants, not the assembler.",
 }
 
 # --- EXEMPT_NON_EQUILIBRIUM_MODEL: model -> documented non-equilibrium-physics reason ----

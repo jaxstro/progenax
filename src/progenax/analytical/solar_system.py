@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from jaxtyping import Array, Float
 
-from .base import AnalyticalIC, SOLAR_SYSTEM_PLANETS
+from .base import SOLAR_SYSTEM_PLANETS, AnalyticalIC
 from .two_body import two_body_kepler
-
 
 # ============================================================================
 # Solar System Test Cases
@@ -25,9 +23,15 @@ def _assemble_planetary_system(planet_dicts: list, G: float, name: str) -> Analy
     deg = jnp.pi / 180.0
     planet_systems = [
         two_body_kepler(
-            M1=M_sun, M2=p["M"], a=p["a"], e=p["e"],
-            inclination=p["inc"] * deg, Omega=p["Omega"] * deg,
-            omega=p["omega"] * deg, true_anomaly=p["nu"] * deg, G=G,
+            M1=M_sun,
+            M2=p["M"],
+            a=p["a"],
+            e=p["e"],
+            inclination=p["inc"] * deg,
+            Omega=p["Omega"] * deg,
+            omega=p["omega"] * deg,
+            true_anomaly=p["nu"] * deg,
+            G=G,
         )
         for p in planet_dicts
     ]
@@ -261,7 +265,9 @@ def solar_system_inner_4(G: float) -> AnalyticalIC:
         - https://ssd.jpl.nasa.gov/planets/phys_par.html
     """
     # Single source of truth: the first four entries of SOLAR_SYSTEM_PLANETS.
-    return _assemble_planetary_system(SOLAR_SYSTEM_PLANETS[:4], G, "solar_system_inner_4")
+    return _assemble_planetary_system(
+        SOLAR_SYSTEM_PLANETS[:4], G, "solar_system_inner_4"
+    )
 
 
 def solar_system_full(G: float) -> AnalyticalIC:

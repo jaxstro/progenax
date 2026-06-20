@@ -2,7 +2,6 @@
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 jax.config.update("jax_enable_x64", True)
 
@@ -12,8 +11,8 @@ class TestLogProbMasses:
 
     def test_returns_finite_values(self):
         """log_prob returns finite values for valid masses."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         masses = jnp.array([0.1, 0.5, 1.0, 10.0, 50.0])
@@ -25,8 +24,8 @@ class TestLogProbMasses:
 
     def test_power_law_slope_high_mass(self):
         """PDF follows power law with slope alpha_high above m_break2."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()  # alpha_high = 2.3
 
@@ -42,8 +41,8 @@ class TestLogProbMasses:
 
     def test_power_law_slope_mid_mass(self):
         """PDF follows power law with slope alpha_mid in middle range."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()  # alpha_mid = 1.3
 
@@ -58,8 +57,8 @@ class TestLogProbMasses:
 
     def test_normalization_integrates_to_one(self):
         """PDF integrates to ~1 over mass range (numerical check)."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
 
@@ -76,8 +75,8 @@ class TestLogProbMasses:
 
     def test_gradient_through_alpha3(self):
         """Can compute gradient of log_prob wrt alpha3."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         def loss(alpha3):
             params = IMFParams(
@@ -97,8 +96,8 @@ class TestLogProbMasses:
 
     def test_jit_compatible(self):
         """log_prob_masses works with JIT compilation."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import log_prob_masses
+        from progenax.imf.params import IMFParams
 
         @jax.jit
         def compute_log_prob(masses, params):
@@ -117,8 +116,8 @@ class TestSampleMassesFromParams:
 
     def test_returns_correct_shape(self):
         """Output shape matches input uniform samples."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         u = jnp.array([0.1, 0.5, 0.9])
@@ -129,8 +128,8 @@ class TestSampleMassesFromParams:
 
     def test_masses_in_valid_range(self):
         """All masses are within [m_min, m_max]."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         key = jax.random.PRNGKey(42)
@@ -143,8 +142,8 @@ class TestSampleMassesFromParams:
 
     def test_monotonic_in_u(self):
         """Masses increase monotonically with u (inverse CDF property)."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         u = jnp.linspace(0.01, 0.99, 100)
@@ -155,8 +154,10 @@ class TestSampleMassesFromParams:
 
     def test_distribution_matches_pdf(self):
         """Sampled masses follow the IMF PDF (KS-style test)."""
+        from progenax.imf.differentiable import (
+            sample_masses_from_params,
+        )
         from progenax.imf.params import IMFParams
-        from progenax.imf.differentiable import sample_masses_from_params, log_prob_masses
 
         params = IMFParams.kroupa()
         key = jax.random.PRNGKey(42)
@@ -174,15 +175,17 @@ class TestSampleMassesFromParams:
         valid = hist > 10
         x = centers[valid]
         y = jnp.log10(hist[valid].astype(float))
-        slope = jnp.sum((x - jnp.mean(x)) * (y - jnp.mean(y))) / jnp.sum((x - jnp.mean(x))**2)
+        slope = jnp.sum((x - jnp.mean(x)) * (y - jnp.mean(y))) / jnp.sum(
+            (x - jnp.mean(x)) ** 2
+        )
 
         # For dn/d(log m) ∝ m^(1-α), histogram slope should be ~(1-α) = 1-2.3 = -1.3
         assert jnp.isclose(slope, -1.3, atol=0.2)
 
     def test_gradient_through_params(self):
         """Can compute gradient through sampled masses."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
+        from progenax.imf.params import IMFParams
 
         def loss(alpha3):
             params = IMFParams(
@@ -205,8 +208,8 @@ class TestSampleMassesFromParams:
 
     def test_jit_compatible(self):
         """sample_masses_from_params works with JIT."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import sample_masses_from_params
+        from progenax.imf.params import IMFParams
 
         @jax.jit
         def sample(params, u):
@@ -225,8 +228,8 @@ class TestIndividualMassNLL:
 
     def test_returns_scalar(self):
         """NLL returns a scalar."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         masses = jnp.array([0.5, 1.0, 10.0])
@@ -238,8 +241,8 @@ class TestIndividualMassNLL:
 
     def test_nll_positive(self):
         """NLL is positive (log probs are negative for normalized PDF)."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         masses = jnp.array([0.5, 1.0, 10.0])
@@ -250,8 +253,8 @@ class TestIndividualMassNLL:
 
     def test_more_data_higher_nll(self):
         """More observations → higher NLL (more terms in sum)."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
 
         params = IMFParams.kroupa()
         masses_small = jnp.array([1.0, 10.0])
@@ -264,11 +267,10 @@ class TestIndividualMassNLL:
 
     def test_gradient_wrt_alpha3(self):
         """Gradient of NLL wrt alpha3 is computable and sensible."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
 
         # Generate "observed" masses from a top-heavy IMF
-        true_alpha = 2.0  # Top-heavy
         masses = jnp.array([5.0, 10.0, 20.0, 50.0])  # Heavy masses
 
         def loss(alpha3):
@@ -290,8 +292,8 @@ class TestIndividualMassNLL:
 
     def test_jit_compatible(self):
         """individual_mass_nll works with JIT."""
-        from progenax.imf.params import IMFParams
         from progenax.imf.differentiable import individual_mass_nll
+        from progenax.imf.params import IMFParams
 
         @jax.jit
         def compute_nll(masses, params):
@@ -317,6 +319,7 @@ class TestAlphaEqualsOneSingularity:
 
     def _params_with(self, **overrides):
         from progenax.imf.params import IMFParams
+
         p = IMFParams.kroupa()
         kw = dict(alpha0=p.alpha0, alpha1=p.alpha1, alpha2=p.alpha2, alpha3=p.alpha3)
         kw.update(overrides)
@@ -324,6 +327,7 @@ class TestAlphaEqualsOneSingularity:
 
     def test_nll_finite_at_alpha1_equals_one(self):
         from progenax.imf.differentiable import individual_mass_nll
+
         masses = jnp.array([0.2, 0.5, 1.0, 5.0, 20.0])
         nll = individual_mass_nll(masses, self._params_with(alpha1=jnp.array(1.0)))
         assert jnp.isfinite(nll), f"NLL is {nll} at alpha1=1.0 (segment singularity)"
@@ -331,12 +335,15 @@ class TestAlphaEqualsOneSingularity:
     def test_grad_finite_sweeping_alpha1_through_one(self):
         from progenax.imf.differentiable import individual_mass_nll
         from progenax.imf.params import IMFParams
+
         p = IMFParams.kroupa()
         masses = jnp.array([0.2, 0.5, 1.0, 5.0, 20.0])
 
         def nll(a1):
-            return individual_mass_nll(masses, IMFParams(
-                alpha0=p.alpha0, alpha1=a1, alpha2=p.alpha2, alpha3=p.alpha3))
+            return individual_mass_nll(
+                masses,
+                IMFParams(alpha0=p.alpha0, alpha1=a1, alpha2=p.alpha2, alpha3=p.alpha3),
+            )
 
         for a1 in [0.98, 1.0, 1.02]:
             g = jax.grad(nll)(a1)
@@ -344,6 +351,7 @@ class TestAlphaEqualsOneSingularity:
 
     def test_sampling_finite_at_alpha_one(self):
         from progenax.imf.differentiable import sample_masses_from_params
+
         u = jnp.linspace(0.01, 0.99, 50)
         masses = sample_masses_from_params(self._params_with(alpha3=jnp.array(1.0)), u)
         assert bool(jnp.all(jnp.isfinite(masses))), "samples non-finite at alpha3=1.0"
@@ -353,9 +361,9 @@ def test_public_api_exports():
     """All new symbols are exported from progenax.imf."""
     from progenax.imf import (
         IMFParams,
+        individual_mass_nll,
         log_prob_masses,
         sample_masses_from_params,
-        individual_mass_nll,
     )
 
     assert IMFParams is not None

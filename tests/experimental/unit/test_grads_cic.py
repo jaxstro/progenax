@@ -34,6 +34,7 @@ def _grad_check(f, x, ad, hs=(1e-3, 3e-4, 1e-4, 3e-5, 1e-5, 1e-6)):
 
 def _scalar_and_grad(which, stat_fn):
     """Return (f_float, ad) for varying parameter ``which`` through ``stat_fn(**params)``."""
+
     def f(val):
         p = {**_BASE, which: val}
         return float(stat_fn(p))
@@ -48,8 +49,9 @@ def test_gradcheck_cell_averaged_xi_rho(which):
     from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
 
     shape, R = (24, 24, 24), 2.0
-    stat = lambda p: cell_averaged_xi_rho(shape, p["beta"], R, p["mach"], p["b"],
-                                          p["alpha"], n_max=14)
+    stat = lambda p: cell_averaged_xi_rho(
+        shape, p["beta"], R, p["mach"], p["b"], p["alpha"], n_max=14
+    )
     f, ad = _scalar_and_grad(which, stat)
     assert _grad_check(f, _INIT[which], ad) < 1e-5
 
@@ -60,8 +62,12 @@ def test_gradcheck_cic_variance(which):
     from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance
 
     shape, R, n_bar = (24, 24, 24), 2.0, 20.0
-    stat = lambda p: cic_variance(n_bar, cell_averaged_xi_rho(
-        shape, p["beta"], R, p["mach"], p["b"], p["alpha"], n_max=14))
+    stat = lambda p: cic_variance(
+        n_bar,
+        cell_averaged_xi_rho(
+            shape, p["beta"], R, p["mach"], p["b"], p["alpha"], n_max=14
+        ),
+    )
     f, ad = _scalar_and_grad(which, stat)
     assert _grad_check(f, _INIT[which], ad) < 1e-5
 
@@ -72,8 +78,9 @@ def test_gradcheck_smoothed_log_variance(which):
     from gravoturb_fdf.theory.cic import smoothed_log_variance
 
     shape, R = (24, 24, 24), 2.0
-    stat = lambda p: smoothed_log_variance(shape, p["beta"], R, p["mach"], p["b"],
-                                           p["alpha"], n_max=14)
+    stat = lambda p: smoothed_log_variance(
+        shape, p["beta"], R, p["mach"], p["b"], p["alpha"], n_max=14
+    )
     f, ad = _scalar_and_grad(which, stat)
     assert _grad_check(f, _INIT[which], ad) < 1e-5
 
@@ -88,8 +95,18 @@ def test_gradcheck_count_distribution_tail(which):
     mask = (N > 25).astype(float)
 
     def stat(p):
-        pN = count_distribution(N, n_bar, shape, p["beta"], R, p["mach"], p["b"],
-                                p["alpha"], n_max=10, n_s=1024)
+        pN = count_distribution(
+            N,
+            n_bar,
+            shape,
+            p["beta"],
+            R,
+            p["mach"],
+            p["b"],
+            p["alpha"],
+            n_max=10,
+            n_s=1024,
+        )
         return jnp.sum(mask * pN)
 
     f, ad = _scalar_and_grad(which, stat)
@@ -103,7 +120,9 @@ def test_grad_finite_at_fat_tail_boundary(alpha):
     from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
 
     shape, R = (24, 24, 24), 2.0
-    g = jax.grad(lambda a: cell_averaged_xi_rho(shape, 3.0, R, 5.0, 0.4, a, n_max=14))(alpha)
+    g = jax.grad(lambda a: cell_averaged_xi_rho(shape, 3.0, R, 5.0, 0.4, a, n_max=14))(
+        alpha
+    )
     assert np.isfinite(float(g))
 
 
@@ -115,5 +134,7 @@ def test_grad_finite_small_R_and_beta_extremes(R, beta):
     from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
 
     shape = (24, 24, 24)
-    g = jax.grad(lambda be: cell_averaged_xi_rho(shape, be, R, 5.0, 0.4, 2.5, n_max=14))(beta)
+    g = jax.grad(
+        lambda be: cell_averaged_xi_rho(shape, be, R, 5.0, 0.4, 2.5, n_max=14)
+    )(beta)
     assert np.isfinite(float(g))

@@ -67,8 +67,8 @@ def test_density_hermite_differentiable_in_mach():
     """jax.grad of sum(d_n) wrt mach is finite and nonzero."""
     from gravoturb_fdf.theory.gaussianization import bm19_density_hermite_coefficients
 
-    g = jax.grad(
-        lambda m: jnp.sum(bm19_density_hermite_coefficients(m, 0.4, 2.5, 8))
-    )(8.0)
+    g = jax.grad(lambda m: jnp.sum(bm19_density_hermite_coefficients(m, 0.4, 2.5, 8)))(
+        8.0
+    )
     assert np.isfinite(float(g))
     assert float(g) != 0.0

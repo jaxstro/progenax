@@ -10,11 +10,13 @@ Neither test's assertions change; only the duplicate ``run_audit()`` call is rem
 Both consumers remain ``@pytest.mark.slow`` (this single regeneration is itself heavy and
 FULL-gate-only).
 """
+
 from pathlib import Path
 
 import pytest
-
-from scripts.audit_gradients import run_audit  # run_audit(out_json) -> rows; also writes out_json
+from scripts.audit_gradients import (
+    run_audit,  # run_audit(out_json) -> rows; also writes out_json
+)
 
 
 @pytest.fixture(scope="session")

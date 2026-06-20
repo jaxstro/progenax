@@ -104,7 +104,9 @@ def test_mass_conservation_lognormal():  # AC2
     assert np.trapezoid(np.exp(s) * p, s) == pytest.approx(1.0, abs=1e-3)
 
 
-@pytest.mark.parametrize("mach,b,alpha", [(5.0, 0.4, 2.0), (10.0, 1.0 / 3, 1.6), (8.0, 0.5, 1.8)])
+@pytest.mark.parametrize(
+    "mach,b,alpha", [(5.0, 0.4, 2.0), (10.0, 1.0 / 3, 1.6), (8.0, 0.5, 1.8)]
+)
 def test_f_dense_matches_eq18_quadrature(mach, b, alpha):  # AC1
     """Closed-form f_dense (Eq. 19/20) matches direct quadrature of Eq. 18."""
     from gravoturb_fdf.theory.bm19 import f_dense_bm19_full
@@ -117,9 +119,8 @@ def test_f_dense_matches_eq18_quadrature(mach, b, alpha):  # AC1
 def test_f_dense_lognormal_limit_formula():  # AC1
     """f_dense_lognormal_limit == 1/2 erfc((s_t - sigma_s^2/2)/(sqrt2 sigma_s)),
     the dense-mass fraction of a *pure* lognormal above s_t (BM19 comparison form)."""
-    from scipy.special import erfc
-
     from gravoturb_fdf.theory.bm19 import f_dense_lognormal_limit
+    from scipy.special import erfc
 
     mach, b, alpha = 5.0, 0.4, 1.8
     s2 = math.log(1.0 + (b * mach) ** 2)
@@ -147,5 +148,5 @@ def test_f_dense_bounds_and_monotonic():
 
     f = lambda M, a: float(f_dense_bm19_full(mach=M, b=1.0 / 3, alpha=a))
     assert 0.0 < f(5.0, 2.0) < 1.0
-    assert f(5.0, 2.0) < f(5.0, 1.5)      # shallower tail -> more dense gas
-    assert f(20.0, 1.8) < f(5.0, 1.8)     # higher Mach -> less dense gas
+    assert f(5.0, 2.0) < f(5.0, 1.5)  # shallower tail -> more dense gas
+    assert f(20.0, 1.8) < f(5.0, 1.8)  # higher Mach -> less dense gas

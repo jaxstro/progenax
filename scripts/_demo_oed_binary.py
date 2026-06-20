@@ -31,6 +31,7 @@ JAX-native (``jax.numpy``); ``import progenax`` enables float64 before this modu
 
 See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
 """
+
 import functools
 import math
 import os
@@ -40,8 +41,8 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 import optax
-
 from jaxstro.units import STELLAR
+
 from progenax import EFFProfile, project_dispersion
 from progenax.imf import Maschberger
 
@@ -94,15 +95,15 @@ def kms(v_pcMyr):
 #  * MASSIVE_M_MIN = 2.0 Msun: the observable RV-tracer floor -- bright B/O stars are
 #    the spectroscopic tracers in an RV survey of a YMC. They follow Moe's
 #    massive-primary statistics (high companion frequency, short periods -> large sigma_bin).
-GAMMA_FID = 2.7        # EFF 3-D density slope (concentration knob)
-A_FID = 1.0            # EFF scale radius [pc]
-R_T_FID = 18.0         # EFF truncation radius [pc]
-R_A_FID = 3.0          # Osipkov-Merritt anisotropy radius [pc]
-M_FID = 4.0e5          # cluster mass [Msun] -> central sigma_los ~ 9 km/s
-EPS_RV_KMS = 1.0       # single-epoch RV precision [km/s]
-F_BIN_TRUTH = 0.5      # observed massive-primary binary fraction
+GAMMA_FID = 2.7  # EFF 3-D density slope (concentration knob)
+A_FID = 1.0  # EFF scale radius [pc]
+R_T_FID = 18.0  # EFF truncation radius [pc]
+R_A_FID = 3.0  # Osipkov-Merritt anisotropy radius [pc]
+M_FID = 4.0e5  # cluster mass [Msun] -> central sigma_los ~ 9 km/s
+EPS_RV_KMS = 1.0  # single-epoch RV precision [km/s]
+F_BIN_TRUTH = 0.5  # observed massive-primary binary fraction
 
-MASSIVE_M_MIN = 2.0    # observable RV-tracer primary-mass floor [Msun]
+MASSIVE_M_MIN = 2.0  # observable RV-tracer primary-mass floor [Msun]
 MASSIVE_M_MAX = 100.0  # massive-primary upper mass [Msun]
 MASSIVE_IMF_ALPHA = 2.3  # Maschberger high-mass slope (Salpeter-like)
 
@@ -114,8 +115,8 @@ R_BINS = jnp.logspace(jnp.log10(0.2 * A_FID), jnp.log10(0.95 * R_T_FID), 12)
 # Build-once V_bin pool: the variance estimator's sample size. 40000 massive-primary Moe
 # binaries give a kernel std stable to ~2% across seeds (seed sweep verified in Task 0.2).
 V_BIN_N_POOL = 40000
-V_BIN_SEED = 0         # fixed PRNG seed -> V_BIN is a deterministic build-once constant
-V_BIN_Z = 1e-3         # metallicity for the ZAMS flux weighting
+V_BIN_SEED = 0  # fixed PRNG seed -> V_BIN is a deterministic build-once constant
+V_BIN_Z = 1e-3  # metallicity for the ZAMS flux weighting
 
 
 def massive_primary_imf():
@@ -176,10 +177,14 @@ def cluster_sigma_los(theta_clusteronly, R, G):
     -------
     (K,) array of sigma_los [km/s].
     """
-    prof = eff_profile(gamma=th_gamma(theta_clusteronly),
-                       a=th_a(theta_clusteronly), r_t=R_T_FID)
-    return kms(project_dispersion(prof, th_ra(theta_clusteronly), R,
-                                  th_M(theta_clusteronly), G).sigma_los)
+    prof = eff_profile(
+        gamma=th_gamma(theta_clusteronly), a=th_a(theta_clusteronly), r_t=R_T_FID
+    )
+    return kms(
+        project_dispersion(
+            prof, th_ra(theta_clusteronly), R, th_M(theta_clusteronly), G
+        ).sigma_los
+    )
 
 
 def sigma_cluster_ref(theta=None, R=None):
@@ -295,9 +300,11 @@ def jacobian_lntheta(theta_full, R, G):
     the outskirts (where ``sigma_obs`` falls), concentrating binary-fraction
     information in the cold outer bins.
     """
+
     def g(lnth):
-        return predict_sigma_obs(jnp.exp(lnth), R, G)         # (K,)
-    return jax.jacrev(g)(jnp.log(theta_full))                 # (K, 5)
+        return predict_sigma_obs(jnp.exp(lnth), R, G)  # (K,)
+
+    return jax.jacrev(g)(jnp.log(theta_full))  # (K, 5)
 
 
 def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
@@ -310,9 +317,11 @@ def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
     is a pure additive offset that does not couple into the cluster sensitivities).
     This is the matrix Task 1.3 caches ONCE at the truth for the binary-free Fisher.
     """
+
     def g(lnth):
-        return cluster_sigma_los(jnp.exp(lnth), R, G)         # (K,)
-    return jax.jacrev(g)(jnp.log(theta_clusteronly))          # (K, 4)
+        return cluster_sigma_los(jnp.exp(lnth), R, G)  # (K,)
+
+    return jax.jacrev(g)(jnp.log(theta_clusteronly))  # (K, 4)
 
 
 # ===========================================================================
@@ -350,9 +359,11 @@ N_TOTAL = 5000.0
 #                           fractional). The EFF density slope and scale radius are
 #                           measured precisely from the surface-brightness profile, so
 #                           they enter the kinematic fit as well-pinned shape parameters.
-_FRAC_RA = 0.5    # weak prior on the anisotropy nuisance
+_FRAC_RA = 0.5  # weak prior on the anisotropy nuisance
 _FRAC_PHOT = 0.1  # tight photometric prior on the shape params (gamma, a)
-PRIOR_DIAG_BF = jnp.array([0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_PHOT**2])
+PRIOR_DIAG_BF = jnp.array(
+    [0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_PHOT**2]
+)
 
 # eps_RV in the native pc/Myr unit of the cached sigma (so the Fisher denominator
 # sigma^2 + eps^2 is dimensionally consistent before the km/s conversion). Equivalently
@@ -368,8 +379,10 @@ PRIOR_DIAG_BF = jnp.array([0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _F
 # module constants leaves every design gradient bit-identical while avoiding a re-jacrev
 # per step (mirrors _demo_oed_depth._J/_SIG). Both in km/s (sigma) and dimensionless
 # (J = d sigma / d ln theta) -- consistent with EPS_RV_KMS.
-_J_BF = jacobian_lntheta_clusteronly(theta_truth_clusteronly(), R_BINS, STELLAR.G)  # (K, 4)
-_SIG_BF = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, STELLAR.G)           # (K,) km/s
+_J_BF = jacobian_lntheta_clusteronly(
+    theta_truth_clusteronly(), R_BINS, STELLAR.G
+)  # (K, 4)
+_SIG_BF = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, STELLAR.G)  # (K,) km/s
 
 
 def uniform_design():
@@ -399,19 +412,22 @@ def fisher_binary_free(design_weights, N_total, J=None, sig=None, prior_diag=Non
     J = _J_BF if J is None else J
     sig = _SIG_BF if sig is None else sig
     prior_diag = PRIOR_DIAG_BF if prior_diag is None else prior_diag
-    n_b = N_total * jax.nn.softmax(design_weights)                  # (K,) per-bin counts
-    denom = sig**2 + EPS_RV_KMS**2                                  # (K,) Gaussian-dispersion denom
-    M_b = 2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]  # (K, 4, 4) per-bin blocks
-    F = jnp.einsum("k,kpq->pq", n_b, M_b)                           # additive design Fisher
+    n_b = N_total * jax.nn.softmax(design_weights)  # (K,) per-bin counts
+    denom = sig**2 + EPS_RV_KMS**2  # (K,) Gaussian-dispersion denom
+    M_b = (
+        2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]
+    )  # (K, 4, 4) per-bin blocks
+    F = jnp.einsum("k,kpq->pq", n_b, M_b)  # additive design Fisher
     return F + jnp.diag(prior_diag)
 
 
 class DesignResultM(NamedTuple):
     """Result of optimize_design_M (the binary-free c-optimal-for-M design):
-      * n_eff           : optimal per-bin RV counts (K,), summing to N_total,
-      * sigma_M_over_M  : the c-optimal fractional precision sqrt((F^-1)[M, M]) (ln metric),
-      * z               : the optimal design logits (K,),
-      * trace           : the per-step criterion trace of the winning Adam start."""
+    * n_eff           : optimal per-bin RV counts (K,), summing to N_total,
+    * sigma_M_over_M  : the c-optimal fractional precision sqrt((F^-1)[M, M]) (ln metric),
+    * z               : the optimal design logits (K,),
+    * trace           : the per-step criterion trace of the winning Adam start."""
+
     n_eff: jnp.ndarray
     sigma_M_over_M: float
     z: jnp.ndarray
@@ -463,7 +479,9 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
             best = (crit, z, trace)
     crit, z, trace = best
     n_eff = N_total * jax.nn.softmax(z)
-    return DesignResultM(n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace)
+    return DesignResultM(
+        n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace
+    )
 
 
 # ===========================================================================
@@ -503,9 +521,17 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 #    zero/no prior would leave f_bin under-conditioned in bins with little leverage), while
 #    (ii) deferring identification to the design -- the whole point of H2/H3 is that the
 #    binary-AWARE design earns the f_bin constraint from radial leverage, not from a prior.
-_FRAC_FBIN = 0.5  # weak prior on the binary-fraction nuisance (data-driven via radial leverage)
+_FRAC_FBIN = (
+    0.5  # weak prior on the binary-fraction nuisance (data-driven via radial leverage)
+)
 PRIOR_DIAG_MARG = jnp.array(
-    [0.0, 1.0 / _FRAC_RA**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_PHOT**2, 1.0 / _FRAC_FBIN**2]
+    [
+        0.0,
+        1.0 / _FRAC_RA**2,
+        1.0 / _FRAC_PHOT**2,
+        1.0 / _FRAC_PHOT**2,
+        1.0 / _FRAC_FBIN**2,
+    ]
 )
 
 # ---------------------------------------------------------------------------
@@ -518,8 +544,10 @@ PRIOR_DIAG_MARG = jnp.array(
 #    column (verified AD-vs-FD in Task 2.1's gate).
 #  * _SIG_MARG = predict_sigma_obs(full truth) -- the binary-inflated observed sigma_los
 #    (km/s); the Fisher denominator (sigma^2 + eps^2) is the OBSERVED-dispersion variance.
-_J_MARG = jacobian_lntheta(theta_truth(), R_BINS, STELLAR.G)    # (K, 5)
-_SIG_MARG = predict_sigma_obs(theta_truth(), R_BINS, STELLAR.G)  # (K,) km/s (binary-inflated)
+_J_MARG = jacobian_lntheta(theta_truth(), R_BINS, STELLAR.G)  # (K, 5)
+_SIG_MARG = predict_sigma_obs(
+    theta_truth(), R_BINS, STELLAR.G
+)  # (K,) km/s (binary-inflated)
 
 
 def fisher_marginalized(design_weights, N_total, J=None, sig=None, prior_diag=None):
@@ -540,10 +568,12 @@ def fisher_marginalized(design_weights, N_total, J=None, sig=None, prior_diag=No
     J = _J_MARG if J is None else J
     sig = _SIG_MARG if sig is None else sig
     prior_diag = PRIOR_DIAG_MARG if prior_diag is None else prior_diag
-    n_b = N_total * jax.nn.softmax(design_weights)                  # (K,) per-bin counts
-    denom = sig**2 + EPS_RV_KMS**2                                  # (K,) observed-dispersion denom
-    M_b = 2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]  # (K, 5, 5) per-bin blocks
-    F = jnp.einsum("k,kpq->pq", n_b, M_b)                           # additive design Fisher
+    n_b = N_total * jax.nn.softmax(design_weights)  # (K,) per-bin counts
+    denom = sig**2 + EPS_RV_KMS**2  # (K,) observed-dispersion denom
+    M_b = (
+        2.0 * jnp.einsum("kp,kq->kpq", J, J) / denom[:, None, None]
+    )  # (K, 5, 5) per-bin blocks
+    F = jnp.einsum("k,kpq->pq", n_b, M_b)  # additive design Fisher
     return F + jnp.diag(prior_diag)
 
 
@@ -617,7 +647,9 @@ def optimize_design_M_marg(N_total, key, n_starts=8, n_steps=500, lr=0.05):
             best = (crit, z, trace)
     crit, z, trace = best
     n_eff = N_total * jax.nn.softmax(z)
-    return DesignResultM(n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace)
+    return DesignResultM(
+        n_eff=n_eff, sigma_M_over_M=float(jnp.sqrt(crit)), z=z, trace=trace
+    )
 
 
 def sigmaM_under_marg(z, N_total=N_TOTAL):
@@ -625,7 +657,9 @@ def sigmaM_under_marg(z, N_total=N_TOTAL):
     (5-param marginalized) Fisher: sqrt((F^-1)[M, M]) in the ln-theta metric. The common
     yard-stick for H2: both the binary-free and the binary-aware design are SCORED here,
     on the same marginalized Fisher, so the comparison is apples-to-apples."""
-    return float(jnp.sqrt(oed.c_criterion(fisher_marginalized(z, N_total), target=IDX_M)))
+    return float(
+        jnp.sqrt(oed.c_criterion(fisher_marginalized(z, N_total), target=IDX_M))
+    )
 
 
 def h2_precision_gain(N_total=N_TOTAL, key=None, **opt_kwargs):
@@ -644,20 +678,23 @@ def h2_precision_gain(N_total=N_TOTAL, key=None, **opt_kwargs):
     key = jax.random.PRNGKey(0) if key is None else key
     binary_free_z = optimize_design_M(N_total, key=key, **opt_kwargs).z
     binary_aware_z = optimize_design_M_marg(N_total, key=key, **opt_kwargs).z
-    return sigmaM_under_marg(binary_free_z, N_total) / sigmaM_under_marg(binary_aware_z, N_total)
+    return sigmaM_under_marg(binary_free_z, N_total) / sigmaM_under_marg(
+        binary_aware_z, N_total
+    )
 
 
 class AllocationComparison(NamedTuple):
     """H3 allocation comparison (binary-aware vs binary-free per-bin design weights):
 
-      * ranks_differ      : True iff the per-bin weight RANK ORDER differs (a monotone
-                            rescaling would preserve it),
-      * cosine_similarity : cosine similarity of the two normalized weight vectors (a
-                            monotone rescaling -> ~1; reordering -> far below 1),
-      * w_binary_free     : binary-free per-bin weights (softmax, sums to 1) (K,),
-      * w_binary_aware    : binary-aware per-bin weights (softmax, sums to 1) (K,),
-      * rank_binary_free  : per-bin ascending rank of w_binary_free (K,) ints,
-      * rank_binary_aware : per-bin ascending rank of w_binary_aware (K,) ints."""
+    * ranks_differ      : True iff the per-bin weight RANK ORDER differs (a monotone
+                          rescaling would preserve it),
+    * cosine_similarity : cosine similarity of the two normalized weight vectors (a
+                          monotone rescaling -> ~1; reordering -> far below 1),
+    * w_binary_free     : binary-free per-bin weights (softmax, sums to 1) (K,),
+    * w_binary_aware    : binary-aware per-bin weights (softmax, sums to 1) (K,),
+    * rank_binary_free  : per-bin ascending rank of w_binary_free (K,) ints,
+    * rank_binary_aware : per-bin ascending rank of w_binary_aware (K,) ints."""
+
     ranks_differ: bool
     cosine_similarity: float
     w_binary_free: jnp.ndarray
@@ -681,9 +718,9 @@ def h3_allocation_comparison(N_total=N_TOTAL, key=None, **opt_kwargs):
     key = jax.random.PRNGKey(0) if key is None else key
     z_bf = optimize_design_M(N_total, key=key, **opt_kwargs).z
     z_ba = optimize_design_M_marg(N_total, key=key, **opt_kwargs).z
-    w_bf = jax.nn.softmax(z_bf)                       # (K,) sums to 1
-    w_ba = jax.nn.softmax(z_ba)                       # (K,)
-    rank_bf = jnp.argsort(jnp.argsort(w_bf))          # ascending rank per bin
+    w_bf = jax.nn.softmax(z_bf)  # (K,) sums to 1
+    w_ba = jax.nn.softmax(z_ba)  # (K,)
+    rank_bf = jnp.argsort(jnp.argsort(w_bf))  # ascending rank per bin
     rank_ba = jnp.argsort(jnp.argsort(w_ba))
     ranks_differ = bool(jnp.any(rank_bf != rank_ba))
     cos = float(jnp.dot(w_bf, w_ba) / (jnp.linalg.norm(w_bf) * jnp.linalg.norm(w_ba)))
@@ -728,7 +765,7 @@ def h3_allocation_comparison(N_total=N_TOTAL, key=None, **opt_kwargs):
 # sigma(M)(f_bin) curve (it is smooth and monotone-ish in f_bin) without over-paying.
 F_MAX = 0.7
 N_FBIN_GRID = 13
-F_BIN_GRID = jnp.linspace(0.0, F_MAX, N_FBIN_GRID)   # (G,) the maximin f_bin set
+F_BIN_GRID = jnp.linspace(0.0, F_MAX, N_FBIN_GRID)  # (G,) the maximin f_bin set
 
 # Smooth-max temperature for the maximin OBJECTIVE only. The true worst-case is jnp.max over
 # the grid sigma(M), but jnp.max has a subgradient (only the argmax bin gets gradient), which
@@ -743,6 +780,7 @@ F_BIN_GRID = jnp.linspace(0.0, F_MAX, N_FBIN_GRID)   # (G,) the maximin f_bin se
 # it). The REPORTED worst-case (DesignResultMaximin.worstcase_sigma_M) is ALWAYS the true
 # jnp.max on the final design -- the smoothing affects only the search, never the verdict.
 _MAXIMIN_BETA = 500.0
+
 
 # Build-once GRID of (jacrev, sigma_obs) at each grid f_bin (design-INDEPENDENT). For grid
 # point i: theta_g = theta_truth() with f_bin set to F_BIN_GRID[i]; _J_MARG_GRID[i] is the
@@ -760,12 +798,12 @@ def _build_fbin_grid():
     Js, sigs = [], []
     for fg in F_BIN_GRID:
         theta_g = theta_truth().at[IDX_FBIN].set(fg)
-        Js.append(jacobian_lntheta(theta_g, R_BINS, STELLAR.G))     # (K, 5)
+        Js.append(jacobian_lntheta(theta_g, R_BINS, STELLAR.G))  # (K, 5)
         sigs.append(predict_sigma_obs(theta_g, R_BINS, STELLAR.G))  # (K,)
     return jnp.stack(Js), jnp.stack(sigs)
 
 
-_J_MARG_GRID, _SIG_MARG_GRID = _build_fbin_grid()                   # (G, K, 5), (G, K)
+_J_MARG_GRID, _SIG_MARG_GRID = _build_fbin_grid()  # (G, K, 5), (G, K)
 
 
 def _grid_sigmaM(design_weights, N_total):
@@ -777,10 +815,12 @@ def _grid_sigmaM(design_weights, N_total):
     over the grid; pure linear algebra over the cached grid (NO re-jacrev). Differentiable
     in ``design_weights`` (the building block of both the smooth objective and the true max).
     """
+
     def one(J, sig):
         F = fisher_marginalized(design_weights, N_total, J=J, sig=sig)
         return jnp.sqrt(oed.c_criterion(F, target=IDX_M))
-    return jax.vmap(one)(_J_MARG_GRID, _SIG_MARG_GRID)             # (G,)
+
+    return jax.vmap(one)(_J_MARG_GRID, _SIG_MARG_GRID)  # (G,)
 
 
 def worstcase_sigmaM(design_weights, N_total=N_TOTAL):
@@ -798,17 +838,18 @@ def _smooth_worstcase_sigmaM(design_weights, N_total):
     -> the true jnp.max as beta -> inf. Used ONLY as the Adam loss; the true ``jnp.max`` is
     what gets reported. The softness gives every grid point (not just the argmax) a gradient,
     so multi-start Adam descends the worst-case cleanly."""
-    s = _grid_sigmaM(design_weights, N_total)                     # (G,)
+    s = _grid_sigmaM(design_weights, N_total)  # (G,)
     return jax.nn.logsumexp(_MAXIMIN_BETA * s) / _MAXIMIN_BETA
 
 
 class DesignResultMaximin(NamedTuple):
     """Result of optimize_design_maximin (the worst-case-over-f_bin robust design):
-      * n_eff             : optimal per-bin RV counts (K,), summing to N_total,
-      * worstcase_sigma_M : the TRUE worst-case sigma(M)/M over the f_bin grid (jnp.max,
-                            NOT the smoothed search objective) at the optimal design,
-      * z                 : the optimal design logits (K,),
-      * trace             : the per-step SMOOTH-objective trace of the winning Adam start."""
+    * n_eff             : optimal per-bin RV counts (K,), summing to N_total,
+    * worstcase_sigma_M : the TRUE worst-case sigma(M)/M over the f_bin grid (jnp.max,
+                          NOT the smoothed search objective) at the optimal design,
+    * z                 : the optimal design logits (K,),
+    * trace             : the per-step SMOOTH-objective trace of the winning Adam start."""
+
     n_eff: jnp.ndarray
     worstcase_sigma_M: float
     z: jnp.ndarray
@@ -857,14 +898,12 @@ def optimize_design_maximin(N_total, key, n_starts=8, n_steps=500, lr=0.05):
     for s in range(n_starts):
         z0 = jax.random.normal(jax.random.fold_in(key, s), (K,)) * 0.5
         z, trace = _optimize_one_maximin(z0, N_total, n_steps, lr)
-        wc = float(worstcase_sigmaM(z, N_total))   # rank starts by the TRUE worst-case
+        wc = float(worstcase_sigmaM(z, N_total))  # rank starts by the TRUE worst-case
         if math.isfinite(wc) and (best is None or wc < best[0]):
             best = (wc, z, trace)
     wc, z, trace = best
     n_eff = N_total * jax.nn.softmax(z)
-    return DesignResultMaximin(
-        n_eff=n_eff, worstcase_sigma_M=wc, z=z, trace=trace
-    )
+    return DesignResultMaximin(n_eff=n_eff, worstcase_sigma_M=wc, z=z, trace=trace)
 
 
 # ===========================================================================
@@ -887,17 +926,18 @@ def optimize_design_maximin(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 
 class MaximinComparison(NamedTuple):
     """Maximin-vs-marginalize comparison (Task 3.2), for both robust designs:
-      * sigmaM_truth_marg / sigmaM_truth_mm   : sigma(M)/M AT the truth f_bin = F_BIN_TRUTH,
-      * sigmaM_worst_marg / sigmaM_worst_mm   : the WORST-CASE sigma(M)/M over the f_bin grid,
-      * grid_sigmaM_marg / grid_sigmaM_mm     : the full sigma(M)/M(f_bin) curves (G,),
-      * n_eff_marg / n_eff_mm                 : the two per-bin allocations (K,),
-      * f_bin_grid                            : the f_bin grid the curves are over (G,),
-      * sacrifice_at_truth_frac               : (sigmaM_truth_mm/sigmaM_truth_marg - 1), the
-                                                fractional precision the maximin design GIVES UP
-                                                at f_bin = 0.5 (positive = a sacrifice),
-      * gain_at_worst_frac                    : (1 - sigmaM_worst_mm/sigmaM_worst_marg), the
-                                                fractional worst-case precision the maximin
-                                                design BUYS (positive = an improvement)."""
+    * sigmaM_truth_marg / sigmaM_truth_mm   : sigma(M)/M AT the truth f_bin = F_BIN_TRUTH,
+    * sigmaM_worst_marg / sigmaM_worst_mm   : the WORST-CASE sigma(M)/M over the f_bin grid,
+    * grid_sigmaM_marg / grid_sigmaM_mm     : the full sigma(M)/M(f_bin) curves (G,),
+    * n_eff_marg / n_eff_mm                 : the two per-bin allocations (K,),
+    * f_bin_grid                            : the f_bin grid the curves are over (G,),
+    * sacrifice_at_truth_frac               : (sigmaM_truth_mm/sigmaM_truth_marg - 1), the
+                                              fractional precision the maximin design GIVES UP
+                                              at f_bin = 0.5 (positive = a sacrifice),
+    * gain_at_worst_frac                    : (1 - sigmaM_worst_mm/sigmaM_worst_marg), the
+                                              fractional worst-case precision the maximin
+                                              design BUYS (positive = an improvement)."""
+
     sigmaM_truth_marg: float
     sigmaM_truth_mm: float
     sigmaM_worst_marg: float
@@ -924,7 +964,9 @@ def compare_maximin_vs_marginalize(N_total=N_TOTAL, key=None, **opt_kwargs):
     marg = optimize_design_M_marg(N_total, key=key, **opt_kwargs)
     mm = optimize_design_maximin(N_total, key=key, **opt_kwargs)
 
-    sigmaM_truth_marg = sigmaM_under_marg(marg.z, N_total)   # f_bin = F_BIN_TRUTH (the cached _SIG_MARG)
+    sigmaM_truth_marg = sigmaM_under_marg(
+        marg.z, N_total
+    )  # f_bin = F_BIN_TRUTH (the cached _SIG_MARG)
     sigmaM_truth_mm = sigmaM_under_marg(mm.z, N_total)
     grid_marg = _grid_sigmaM(marg.z, N_total)
     grid_mm = _grid_sigmaM(mm.z, N_total)
@@ -1081,30 +1123,30 @@ def _draw_binned_sigma_hat(key, sig_model, counts, n_max, keep, korb_pool, f_bin
     """
     K = sig_model.shape[0]
     idx_in_bin = jnp.arange(n_max)
-    valid = idx_in_bin[None, :] < counts[:, None]            # (K, n_max) per-bin mask
+    valid = idx_in_bin[None, :] < counts[:, None]  # (K, n_max) per-bin mask
 
     k_clu, k_mask, k_pick, k_eps = jax.random.split(key, 4)
     # 1. cluster velocities from the FIT model (Normal(0, sig_model^2)) per bin.
-    v = sig_model[:, None] * jax.random.normal(k_clu, (K, n_max))      # (K, n_max)
+    v = sig_model[:, None] * jax.random.normal(k_clu, (K, n_max))  # (K, n_max)
     # 2. binary contamination: per-star Bernoulli(f_bin), add a pooled Delta to the hits.
-    is_binary = jax.random.uniform(k_mask, (K, n_max)) < f_bin_truth   # (K, n_max)
+    is_binary = jax.random.uniform(k_mask, (K, n_max)) < f_bin_truth  # (K, n_max)
     pick = jax.random.randint(k_pick, (K, n_max), 0, korb_pool.shape[0])
-    delta = jnp.where(is_binary, korb_pool[pick], 0.0)                 # (K, n_max)
+    delta = jnp.where(is_binary, korb_pool[pick], 0.0)  # (K, n_max)
     # 3. per-star measurement noise on EVERY star.
     v = v + delta + EPS_RV_KMS * jax.random.normal(k_eps, (K, n_max))  # (K, n_max)
 
-    w = valid.astype(jnp.float64)                            # (K, n_max) 0/1 weights
-    cnt = jnp.sum(w, axis=1)                                 # (K,) == counts (float)
+    w = valid.astype(jnp.float64)  # (K, n_max) 0/1 weights
+    cnt = jnp.sum(w, axis=1)  # (K,) == counts (float)
     mean = jnp.sum(w * v, axis=1) / jnp.maximum(cnt, 1.0)
     var = jnp.sum(w * (v - mean[:, None]) ** 2, axis=1) / jnp.maximum(cnt - 1.0, 1.0)
-    sigma_hat = jnp.sqrt(var)                                # (K,) ddof=1 (the data)
+    sigma_hat = jnp.sqrt(var)  # (K,) ddof=1 (the data)
     # SE = the HONEST-ANALYST realized scatter: each fitted bin weighted by its OWN measured
     # std / sqrt(2 n_b) (n_b the actual count) -- NOT the truth sig_model. Floor the
     # denominator so the masked-out (dropped) bins' se stays finite (they never enter the
     # residual; keep just guards the linear algebra).
-    n_b = jnp.maximum(cnt, 1.0)                              # (K,) actual kept star count
-    se = sigma_hat / jnp.sqrt(2.0 * n_b)                     # (K,) realized-scatter SE
-    se = jnp.where(keep, se, 1.0)                            # dropped bins: finite placeholder
+    n_b = jnp.maximum(cnt, 1.0)  # (K,) actual kept star count
+    se = sigma_hat / jnp.sqrt(2.0 * n_b)  # (K,) realized-scatter SE
+    se = jnp.where(keep, se, 1.0)  # dropped bins: finite placeholder
     return sigma_hat, se
 
 
@@ -1153,19 +1195,21 @@ def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER, theta_fid=None):
     jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
     scan compiles ONCE and is reused across every draw. Value-preserving.
     """
-    theta_fid = theta_truth_clusteronly() if theta_fid is None else theta_fid  # (M, r_a, gamma, a)
-    keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
+    theta_fid = (
+        theta_truth_clusteronly() if theta_fid is None else theta_fid
+    )  # (M, r_a, gamma, a)
+    keep_w = keep.astype(jnp.float64)  # (K,) 0/1 residual mask
 
-    def predict(theta):                                    # eps-consistent observable [km/s]
+    def predict(theta):  # eps-consistent observable [km/s]
         # sqrt(sigma_cluster^2 + eps^2): the mock noises every star by eps, so the
         # binary-free model's expected sigma_hat carries eps in quadrature (NOT the bare
         # cluster sigma). This is the misspecified prediction (no f_bin*V_bin pedestal).
         return jnp.sqrt(cluster_sigma_los(theta, R_BINS, G) ** 2 + EPS_RV_KMS**2)
 
-    def resid(u):                                           # whitened residual (model - data)/se
+    def resid(u):  # whitened residual (model - data)/se
         theta = theta_fid * jnp.exp(u)
         r = (predict(theta) - sigma_hat) / se
-        return r * keep_w                                  # dropped bins contribute nothing
+        return r * keep_w  # dropped bins contribute nothing
 
     def cost_of(u, r):
         return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG_BF * u**2))
@@ -1174,19 +1218,21 @@ def _fit_theta_bf_gn(sigma_hat, se, keep, G, n_iter=_BF_N_ITER, theta_fid=None):
         u, lam = carry
         r = resid(u)
         c = cost_of(u, r)
-        Jr = jax.jacrev(resid)(u)                           # (K, 4) = d r / d u (reverse-mode)
+        Jr = jax.jacrev(resid)(u)  # (K, 4) = d r / d u (reverse-mode)
         grad = Jr.T @ r + PRIOR_DIAG_BF * u
         hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG_BF)
         du = -jnp.linalg.solve(hess + lam * jnp.eye(4), grad)
         u_try = u + du
         c_try = cost_of(u_try, resid(u_try))
-        improved = c_try < c                               # NaN -> False -> reject
+        improved = c_try < c  # NaN -> False -> reject
         u_next = jnp.where(improved, u_try, u)
         lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
-        m_moved = jnp.abs((u_next - u)[IDX_M])             # TARGET-M step witness
+        m_moved = jnp.abs((u_next - u)[IDX_M])  # TARGET-M step witness
         return (u_next, lam_next), m_moved
 
-    (u_hat, _), m_steps = jax.lax.scan(lm_step, (jnp.zeros(4), _BF_LM_LAM0), None, length=n_iter)
+    (u_hat, _), m_steps = jax.lax.scan(
+        lm_step, (jnp.zeros(4), _BF_LM_LAM0), None, length=n_iter
+    )
     return theta_fid * jnp.exp(u_hat), jnp.max(m_steps[-5:])
 
 
@@ -1209,6 +1255,7 @@ class CrossModelResult(NamedTuple):
                         (r_a, gamma, a),
       * n_unconverged : # draws whose M-target witness exceeded _BF_CONVERGED_STEP,
       * max_M_step    : max over draws of the M-target witness."""
+
     bias_M_frac: float
     std_M_frac: float
     sem_M_frac: float
@@ -1218,8 +1265,14 @@ class CrossModelResult(NamedTuple):
     max_M_step: float
 
 
-def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER,
-                     truth_theta=None):
+def cross_model_bias(
+    design_n_eff,
+    n_draws,
+    key,
+    f_bin_truth=F_BIN_TRUTH,
+    n_iter=_BF_N_ITER,
+    truth_theta=None,
+):
     r"""Cross-model MC: generate UNDER the binary model, fit the BINARY-FREE model.
 
     The headline H1 machinery, with a forward-model-consistent mock. For each of n_draws
@@ -1280,14 +1333,14 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     """
     G = STELLAR.G
     truth_theta = theta_truth() if truth_theta is None else truth_theta
-    theta_co_truth = truth_theta[:4]                                      # (M, r_a, gamma, a)
+    theta_co_truth = truth_theta[:4]  # (M, r_a, gamma, a)
 
     # --- BUILD-ONCE (per truth, before the draw loop) ---------------------------------
     # sig_model = the per-bin TRUTH cluster sigma_los (km/s) from cluster_sigma_los
     # (project_dispersion / Jeans -- the SAME model the fit uses). The single quadrature;
     # never repeated per draw. The Route-1 mock draws Normal(0, sig_model^2) per bin, so
     # the cluster mock is consistent with the fit by construction (review issue I1).
-    sig_model = cluster_sigma_los(theta_co_truth, R_BINS, G)              # (K,) km/s
+    sig_model = cluster_sigma_los(theta_co_truth, R_BINS, G)  # (K,) km/s
 
     # Static per-bin SAMPLING counts (= round(design_n_eff), NO floor) + array width n_max
     # + the KEEP mask (bins with >= N_MIN_FIT stars, the ones a real analyst fits). Host-side
@@ -1308,8 +1361,10 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
     # faithful injection, not a fudge.
     korb_raw = jnp.asarray(
         binaries.sample_blend_velocities(
-            jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
-            imf=massive_primary_imf(), Z=V_BIN_Z,
+            jax.random.PRNGKey(V_BIN_SEED + 1),
+            _KORB_POOL_N,
+            imf=massive_primary_imf(),
+            Z=V_BIN_Z,
         )
     )
     korb_centered = korb_raw - jnp.mean(korb_raw)
@@ -1329,18 +1384,20 @@ def cross_model_bias(design_n_eff, n_draws, key, f_bin_truth=F_BIN_TRUTH, n_iter
         theta_hat, m_witness = _fit_theta_bf_gn(
             sigma_hat, se, keep, G, n_iter=n_iter, theta_fid=theta_co_truth
         )
-        frac = (theta_hat - theta_co_truth) / theta_co_truth  # (4,) fractional bias per param
+        frac = (
+            theta_hat - theta_co_truth
+        ) / theta_co_truth  # (4,) fractional bias per param
         return frac, m_witness
 
     # SEQUENTIAL lax.map (memory-bounded): one_draw compiles ONCE, runs draw-by-draw.
     draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d + 1))(jnp.arange(n_draws))
-    fracs, witnesses = jax.lax.map(one_draw, draw_keys)     # (n_draws, 4), (n_draws,)
+    fracs, witnesses = jax.lax.map(one_draw, draw_keys)  # (n_draws, 4), (n_draws,)
 
     m_frac = fracs[:, IDX_M]
     bias_M_frac = float(jnp.mean(m_frac))
     std_M_frac = float(jnp.std(m_frac, ddof=1)) if n_draws > 1 else 0.0
     sem_M_frac = std_M_frac / math.sqrt(n_draws) if n_draws > 1 else 0.0
-    bias_other = jnp.mean(fracs[:, 1:], axis=0)            # (3,) r_a, gamma, a
+    bias_other = jnp.mean(fracs[:, 1:], axis=0)  # (3,) r_a, gamma, a
     max_M_step = float(jnp.max(witnesses))
     n_unconverged = int(jnp.sum(witnesses > _BF_CONVERGED_STEP))
     if n_unconverged > 0:
@@ -1381,17 +1438,18 @@ N_DRAWS_H1 = 48
 class H1Result(NamedTuple):
     """Result of run_H1 (the pre-registered H1 bias-beyond-forecast gate):
 
-      * bias_M_frac           : realized mean fractional bias (M_hat - M)/M (cross-model MC),
-      * sem                   : standard error of that mean bias over the draws,
-      * std_M_frac            : draw-to-draw std of (M_hat - M)/M,
-      * forecast_sigma_M_frac : the naive design's OWN binary-free Fisher forecast
-                                sigma(M)/M (c-optimal, same PRIOR_DIAG_BF -- apples-to-apples),
-      * ratio                 : bias_M_frac / forecast_sigma_M_frac (the headline number),
-      * accept                : True iff bias_M_frac > 2*forecast_sigma_M_frac AND > 0
-                                (the LOCKED pre-registration rule),
-      * design_n_eff          : the naive c-optimal-for-M per-bin counts evaluated,
-      * bias_other            : mean fractional bias of (r_a, gamma, a) (the absorption map),
-      * n_unconverged         : # MC draws whose M_hat did not settle (surfaced, not swallowed)."""
+    * bias_M_frac           : realized mean fractional bias (M_hat - M)/M (cross-model MC),
+    * sem                   : standard error of that mean bias over the draws,
+    * std_M_frac            : draw-to-draw std of (M_hat - M)/M,
+    * forecast_sigma_M_frac : the naive design's OWN binary-free Fisher forecast
+                              sigma(M)/M (c-optimal, same PRIOR_DIAG_BF -- apples-to-apples),
+    * ratio                 : bias_M_frac / forecast_sigma_M_frac (the headline number),
+    * accept                : True iff bias_M_frac > 2*forecast_sigma_M_frac AND > 0
+                              (the LOCKED pre-registration rule),
+    * design_n_eff          : the naive c-optimal-for-M per-bin counts evaluated,
+    * bias_other            : mean fractional bias of (r_a, gamma, a) (the absorption map),
+    * n_unconverged         : # MC draws whose M_hat did not settle (surfaced, not swallowed)."""
+
     bias_M_frac: float
     sem: float
     std_M_frac: float
@@ -1432,10 +1490,16 @@ def run_H1(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRUT
     forecast_sigma_M_frac = float(design.sigma_M_over_M)
 
     # 2. cross-model MC at that design (generate WITH binaries, fit WITHOUT).
-    cm = cross_model_bias(design.n_eff, n_draws=n_draws, key=k_mc, f_bin_truth=f_bin_truth)
+    cm = cross_model_bias(
+        design.n_eff, n_draws=n_draws, key=k_mc, f_bin_truth=f_bin_truth
+    )
 
     # 3. LOCKED pre-registration accept rule.
-    ratio = cm.bias_M_frac / forecast_sigma_M_frac if forecast_sigma_M_frac > 0 else float("inf")
+    ratio = (
+        cm.bias_M_frac / forecast_sigma_M_frac
+        if forecast_sigma_M_frac > 0
+        else float("inf")
+    )
     accept = bool(cm.bias_M_frac > 2.0 * forecast_sigma_M_frac and cm.bias_M_frac > 0.0)
 
     return H1Result(
@@ -1481,8 +1545,9 @@ _MARG_N_ITER = 200
 
 
 @functools.partial(jax.jit, static_argnames=("n_iter",))
-def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=None,
-                       theta_fid=None):
+def _fit_theta_marg_gn(
+    sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=None, theta_fid=None
+):
     r"""Levenberg-Marquardt MAP fit of the BINARY-AWARE theta = (M, r_a, gamma, a, f_bin)
     in the dimensionless ln-theta metric, started at the full truth (f_bin FREE).
 
@@ -1528,23 +1593,27 @@ def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=N
     jit (static n_iter): sigma_hat/se/keep/G are traced, so the project_dispersion-jacrev
     scan compiles ONCE and is reused across every draw. Value-preserving.
     """
-    theta_fid = theta_truth() if theta_fid is None else theta_fid  # (M, r_a, gamma, a, f_bin); prior centre
+    theta_fid = (
+        theta_truth() if theta_fid is None else theta_fid
+    )  # (M, r_a, gamma, a, f_bin); prior centre
     # The LM start u0: at the truth (u0=0) by default, or at a perturbed theta_init. The prior
     # penalty stays PRIOR_DIAG_MARG * u^2 (u measured from theta_fid), so theta_init moves ONLY
     # the starting point, never the MAP minimum -- the pin-test's whole point.
-    u0 = jnp.zeros(5) if theta_init is None else jnp.log(theta_init) - jnp.log(theta_fid)
-    keep_w = keep.astype(jnp.float64)                       # (K,) 0/1 residual mask
+    u0 = (
+        jnp.zeros(5) if theta_init is None else jnp.log(theta_init) - jnp.log(theta_fid)
+    )
+    keep_w = keep.astype(jnp.float64)  # (K,) 0/1 residual mask
 
-    def predict(theta):                                    # binary-aware eps-consistent [km/s]
+    def predict(theta):  # binary-aware eps-consistent [km/s]
         # sqrt(cluster^2 + f_bin*V_bin + eps^2): the binary pedestal (predict_sigma_obs is
         # cluster^2 + f_bin*V_bin) PLUS eps in quadrature (the mock noises every star). This
         # is the CORRECTLY-specified observable -- f_bin is fit, not assumed zero.
         return jnp.sqrt(predict_sigma_obs(theta, R_BINS, G) ** 2 + EPS_RV_KMS**2)
 
-    def resid(u):                                           # whitened residual (model - data)/se
+    def resid(u):  # whitened residual (model - data)/se
         theta = theta_fid * jnp.exp(u)
         r = (predict(theta) - sigma_hat) / se
-        return r * keep_w                                  # dropped bins contribute nothing
+        return r * keep_w  # dropped bins contribute nothing
 
     def cost_of(u, r):
         return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG_MARG * u**2))
@@ -1553,19 +1622,21 @@ def _fit_theta_marg_gn(sigma_hat, se, keep, G, n_iter=_MARG_N_ITER, theta_init=N
         u, lam = carry
         r = resid(u)
         c = cost_of(u, r)
-        Jr = jax.jacrev(resid)(u)                           # (K, 5) = d r / d u (reverse-mode)
+        Jr = jax.jacrev(resid)(u)  # (K, 5) = d r / d u (reverse-mode)
         grad = Jr.T @ r + PRIOR_DIAG_MARG * u
         hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG_MARG)
         du = -jnp.linalg.solve(hess + lam * jnp.eye(5), grad)
         u_try = u + du
         c_try = cost_of(u_try, resid(u_try))
-        improved = c_try < c                               # NaN -> False -> reject
+        improved = c_try < c  # NaN -> False -> reject
         u_next = jnp.where(improved, u_try, u)
         lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
-        m_moved = jnp.abs((u_next - u)[IDX_M])             # TARGET-M step witness
+        m_moved = jnp.abs((u_next - u)[IDX_M])  # TARGET-M step witness
         return (u_next, lam_next), m_moved
 
-    (u_hat, _), m_steps = jax.lax.scan(lm_step, (u0, _MARG_LM_LAM0), None, length=n_iter)
+    (u_hat, _), m_steps = jax.lax.scan(
+        lm_step, (u0, _MARG_LM_LAM0), None, length=n_iter
+    )
     return theta_fid * jnp.exp(u_hat), jnp.max(m_steps[-5:])
 
 
@@ -1578,18 +1649,19 @@ _MARG_CONVERGED_STEP = _BF_CONVERGED_STEP
 class FixResult(NamedTuple):
     """Result of run_fix (the Task 2.5 headline: the binary-AWARE fit removes the M bias):
 
-      * bias_M_frac   : mean over draws of (M_hat - M_true)/M_true -- should be ~0 (vs the
-                        binary-FREE fit's +1.84 at the same operating point),
-      * sem           : standard error of the mean bias over the draws,
-      * std_M_frac    : draw-to-draw std of (M_hat - M_true)/M_true,
-      * sigma_M_marg  : the binary-AWARE forecast sigma(M)/M (optimize_design_M_marg's
-                        c-optimal precision under the 5-param marginalized Fisher; ~0.069),
-      * fbin_hat_mean : mean recovered f_bin_hat over draws -- does the radial leverage
-                        RECOVER the binary fraction (~F_BIN_TRUTH = 0.5)?  (the Item-3b bonus),
-      * fbin_hat_std  : draw-to-draw std of f_bin_hat,
-      * n_unconverged : # draws whose M-target witness exceeded _MARG_CONVERGED_STEP,
-      * max_M_step    : max over draws of the M-target witness,
-      * design_n_eff  : the binary-aware c-optimal-for-M per-bin counts evaluated."""
+    * bias_M_frac   : mean over draws of (M_hat - M_true)/M_true -- should be ~0 (vs the
+                      binary-FREE fit's +1.84 at the same operating point),
+    * sem           : standard error of the mean bias over the draws,
+    * std_M_frac    : draw-to-draw std of (M_hat - M_true)/M_true,
+    * sigma_M_marg  : the binary-AWARE forecast sigma(M)/M (optimize_design_M_marg's
+                      c-optimal precision under the 5-param marginalized Fisher; ~0.069),
+    * fbin_hat_mean : mean recovered f_bin_hat over draws -- does the radial leverage
+                      RECOVER the binary fraction (~F_BIN_TRUTH = 0.5)?  (the Item-3b bonus),
+    * fbin_hat_std  : draw-to-draw std of f_bin_hat,
+    * n_unconverged : # draws whose M-target witness exceeded _MARG_CONVERGED_STEP,
+    * max_M_step    : max over draws of the M-target witness,
+    * design_n_eff  : the binary-aware c-optimal-for-M per-bin counts evaluated."""
+
     bias_M_frac: float
     sem: float
     std_M_frac: float
@@ -1601,8 +1673,13 @@ class FixResult(NamedTuple):
     design_n_eff: jnp.ndarray
 
 
-def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRUTH,
-            n_iter=_MARG_N_ITER):
+def run_fix(
+    n_draws=N_DRAWS_H1,
+    key=None,
+    N_total=N_TOTAL,
+    f_bin_truth=F_BIN_TRUTH,
+    n_iter=_MARG_N_ITER,
+):
     r"""Run the Task 2.5 FIX MC: the binary-AWARE fit removes the M bias.
 
     Cross-model MC on the BINARY-AWARE design: generate mocks WITH Moe binaries (the SAME
@@ -1649,18 +1726,26 @@ def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRU
     sigma_M_marg = float(design.sigma_M_over_M)
 
     # --- BUILD-ONCE (per truth, before the draw loop) -- mirrors cross_model_bias exactly.
-    sig_model = cluster_sigma_los(theta_truth_clusteronly(), R_BINS, G)   # (K,) km/s (the quadrature)
-    counts, n_max, keep = _per_bin_star_counts(design.n_eff)              # static shapes + keep mask
+    sig_model = cluster_sigma_los(
+        theta_truth_clusteronly(), R_BINS, G
+    )  # (K,) km/s (the quadrature)
+    counts, n_max, keep = _per_bin_star_counts(
+        design.n_eff
+    )  # static shapes + keep mask
     korb_raw = jnp.asarray(
         binaries.sample_blend_velocities(
-            jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
-            imf=massive_primary_imf(), Z=V_BIN_Z,
+            jax.random.PRNGKey(V_BIN_SEED + 1),
+            _KORB_POOL_N,
+            imf=massive_primary_imf(),
+            Z=V_BIN_Z,
         )
     )
     korb_centered = korb_raw - jnp.mean(korb_raw)
-    korb_pool = korb_centered * jnp.sqrt(V_BIN / jnp.var(korb_centered, ddof=1))  # Var == V_BIN
+    korb_pool = korb_centered * jnp.sqrt(
+        V_BIN / jnp.var(korb_centered, ddof=1)
+    )  # Var == V_BIN
 
-    theta_true = theta_truth()                                            # (5,) full truth
+    theta_true = theta_truth()  # (5,) full truth
 
     def one_draw(kdraw):
         """One cross-model mock -> ((M_hat - M)/M, f_bin_hat, M-witness) for the binary-aware fit."""
@@ -1674,7 +1759,7 @@ def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRU
 
     # SEQUENTIAL lax.map (memory-bounded): one_draw compiles ONCE, runs draw-by-draw.
     draw_keys = jax.vmap(lambda d: jax.random.fold_in(k_mc, d + 1))(jnp.arange(n_draws))
-    m_frac, fbin_hat, witnesses = jax.lax.map(one_draw, draw_keys)        # (n_draws,) x3
+    m_frac, fbin_hat, witnesses = jax.lax.map(one_draw, draw_keys)  # (n_draws,) x3
 
     bias_M_frac = float(jnp.mean(m_frac))
     std_M_frac = float(jnp.std(m_frac, ddof=1)) if n_draws > 1 else 0.0
@@ -1730,7 +1815,7 @@ def run_fix(n_draws=N_DRAWS_H1, key=None, N_total=N_TOTAL, f_bin_truth=F_BIN_TRU
 # mass grid is log-spaced BETWEEN the masses that realize these dispersions (sigma ~ sqrt(M)).
 SWEEP_SIGMA_CLUSTER_LO = 3.0
 SWEEP_SIGMA_CLUSTER_HI = 15.0
-SWEEP_N_MASS = 12        # fine grid for the deterministic sweep (cheap, no MC)
+SWEEP_N_MASS = 12  # fine grid for the deterministic sweep (cheap, no MC)
 
 
 def sweep_mass_grid(n_mass=SWEEP_N_MASS):
@@ -1743,7 +1828,7 @@ def sweep_mass_grid(n_mass=SWEEP_N_MASS):
     monotonically with M) sweeps the physical band. Returns an (n_mass,) array of masses
     [Msun], increasing.
     """
-    sc_fid = float(sigma_cluster_ref())                       # sigma_cluster at M_FID [km/s]
+    sc_fid = float(sigma_cluster_ref())  # sigma_cluster at M_FID [km/s]
     m_lo = M_FID * (SWEEP_SIGMA_CLUSTER_LO / sc_fid) ** 2
     m_hi = M_FID * (SWEEP_SIGMA_CLUSTER_HI / sc_fid) ** 2
     return jnp.logspace(jnp.log10(m_lo), jnp.log10(m_hi), n_mass)
@@ -1778,9 +1863,9 @@ def _per_mass_blocks(M, G):
     """
     theta_full, theta_co = _theta_at_mass(M)
     J_bf = jacobian_lntheta_clusteronly(theta_co, R_BINS, G)  # (K, 4)
-    sig_bf = cluster_sigma_los(theta_co, R_BINS, G)           # (K,) km/s
-    J_marg = jacobian_lntheta(theta_full, R_BINS, G)          # (K, 5)
-    sig_marg = predict_sigma_obs(theta_full, R_BINS, G)       # (K,) km/s (binary-inflated)
+    sig_bf = cluster_sigma_los(theta_co, R_BINS, G)  # (K,) km/s
+    J_marg = jacobian_lntheta(theta_full, R_BINS, G)  # (K, 5)
+    sig_marg = predict_sigma_obs(theta_full, R_BINS, G)  # (K,) km/s (binary-inflated)
     return J_bf, sig_bf, J_marg, sig_marg
 
 
@@ -1807,7 +1892,9 @@ def _optimize_one_M_override(z0, N_total, n_steps, lr, fisher_fn, target):
     return z, trace
 
 
-def _optimize_design_M_override(fisher_fn, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+def _optimize_design_M_override(
+    fisher_fn, N_total, key, n_starts=8, n_steps=500, lr=0.05
+):
     """Multi-start Adam for a c-optimal-for-M design over an ARBITRARY per-mass Fisher closure.
 
     The override-capable analogue of optimize_design_M / optimize_design_M_marg: minimizes
@@ -1831,17 +1918,18 @@ def _optimize_design_M_override(fisher_fn, N_total, key, n_starts=8, n_steps=500
 class DeterministicSweep(NamedTuple):
     """Result of deterministic_sweep (T4.1a; all arrays length n_mass, increasing in M):
 
-      * M_grid             : cluster-mass grid [Msun],
-      * sigma_cluster_kms  : central (peak) EFF-OM sigma_los per mass [km/s] (~sqrt(M)),
-      * sigma_bin_kms      : the FIXED massive-primary blend scale sqrt(V_BIN) [km/s] (scalar),
-      * ratio              : sigma_bin / sigma_cluster per mass (DECREASING in M),
-      * sigmaM_bf          : binary-FREE forecast sigma(M)/M (c-optimal under the binary-free
-                             Fisher at that mass) -- the over-confident precision,
-      * sigmaM_marg        : MARGINALIZED (binary-AWARE) forecast sigma(M)/M (c-optimal under
-                             the 5-param marginalized Fisher) -- the honest precision,
-      * h2_gain            : the H2 precision-gain (binary-free design's marginalized sigma(M)
-                             over the binary-aware design's, both under the marginalized
-                             Fisher) per mass."""
+    * M_grid             : cluster-mass grid [Msun],
+    * sigma_cluster_kms  : central (peak) EFF-OM sigma_los per mass [km/s] (~sqrt(M)),
+    * sigma_bin_kms      : the FIXED massive-primary blend scale sqrt(V_BIN) [km/s] (scalar),
+    * ratio              : sigma_bin / sigma_cluster per mass (DECREASING in M),
+    * sigmaM_bf          : binary-FREE forecast sigma(M)/M (c-optimal under the binary-free
+                           Fisher at that mass) -- the over-confident precision,
+    * sigmaM_marg        : MARGINALIZED (binary-AWARE) forecast sigma(M)/M (c-optimal under
+                           the 5-param marginalized Fisher) -- the honest precision,
+    * h2_gain            : the H2 precision-gain (binary-free design's marginalized sigma(M)
+                           over the binary-aware design's, both under the marginalized
+                           Fisher) per mass."""
+
     M_grid: jnp.ndarray
     sigma_cluster_kms: jnp.ndarray
     sigma_bin_kms: float
@@ -1851,8 +1939,9 @@ class DeterministicSweep(NamedTuple):
     h2_gain: jnp.ndarray
 
 
-def deterministic_sweep(n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL,
-                        n_starts=8, n_steps=500, lr=0.05):
+def deterministic_sweep(
+    n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL, n_starts=8, n_steps=500, lr=0.05
+):
     r"""The deterministic sigma_bin/sigma_cluster sweep across system mass (T4.1a; no MC).
 
     Over the log-spaced sweep_mass_grid(n_mass) (central sigma_cluster ~ 3 -> 15 km/s), at
@@ -1884,7 +1973,7 @@ def deterministic_sweep(n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL,
         k_bf, k_ba = jax.random.split(jax.random.fold_in(key, i))
         J_bf, sig_bf, J_marg, sig_marg = _per_mass_blocks(M, G)
 
-        sc = float(jnp.max(sig_bf))                           # central (peak) sigma_cluster
+        sc = float(jnp.max(sig_bf))  # central (peak) sigma_cluster
         sig_cluster.append(sc)
         ratio.append(sigma_bin / sc)
 
@@ -1936,24 +2025,37 @@ def deterministic_sweep(n_mass=SWEEP_N_MASS, key=None, N_total=N_TOTAL,
 # per-draw GN-fit tape is the cost, kept memory-bounded), jit per-draw. SMOKE the peak RSS
 # (n_draws=4 at one point) + estimate total cost BEFORE the full sweep.
 
-N_DRAWS_SWEEP = 24       # modest MC at each anchor (the sweep is a CONTEXT plot, not a gate)
-N_MASS_SWEEP = 5         # anchor masses spanning the sigma_bin/sigma_cluster band
+N_DRAWS_SWEEP = 24  # modest MC at each anchor (the sweep is a CONTEXT plot, not a gate)
+N_MASS_SWEEP = 5  # anchor masses spanning the sigma_bin/sigma_cluster band
 
 
 def _shared_korb_pool():
     """The build-once K_orb blend-velocity pool (Var == V_BIN), identical to cross_model_bias
     / run_fix. Centred + rescaled so the injected pedestal variance is EXACTLY V_BIN. Shared
     across the MC-sweep anchors (the Moe massive-primary population is mass-INDEPENDENT)."""
-    korb_raw = jnp.asarray(binaries.sample_blend_velocities(
-        jax.random.PRNGKey(V_BIN_SEED + 1), _KORB_POOL_N,
-        imf=massive_primary_imf(), Z=V_BIN_Z,
-    ))
+    korb_raw = jnp.asarray(
+        binaries.sample_blend_velocities(
+            jax.random.PRNGKey(V_BIN_SEED + 1),
+            _KORB_POOL_N,
+            imf=massive_primary_imf(),
+            Z=V_BIN_Z,
+        )
+    )
     korb_centered = korb_raw - jnp.mean(korb_raw)
     return korb_centered * jnp.sqrt(V_BIN / jnp.var(korb_centered, ddof=1))
 
 
-def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
-                     f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
+def _mc_bias_at_mass(
+    M,
+    n_draws,
+    key,
+    N_total,
+    korb_pool,
+    n_starts,
+    n_steps,
+    f_bin_truth=F_BIN_TRUTH,
+    n_iter=_BF_N_ITER,
+):
     r"""The two realized cross-model M-biases at one anchor mass M (build-once per anchor).
 
     Returns (bias_bf, bias_marg, fbin_hat_marg): the binary-FREE-design + binary-FREE-fit
@@ -1974,15 +2076,23 @@ def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
     J_bf, sig_bf, J_marg, sig_marg = _per_mass_blocks(M, G)
     n_eff_bf, _, _ = _optimize_design_M_override(
         lambda z: fisher_binary_free(z, N_total, J=J_bf, sig=sig_bf),
-        N_total, k_des_bf, n_starts=n_starts, n_steps=n_steps,
+        N_total,
+        k_des_bf,
+        n_starts=n_starts,
+        n_steps=n_steps,
     )
     n_eff_ba, _, _ = _optimize_design_M_override(
         lambda z: fisher_marginalized(z, N_total, J=J_marg, sig=sig_marg),
-        N_total, k_des_ba, n_starts=n_starts, n_steps=n_steps,
+        N_total,
+        k_des_ba,
+        n_starts=n_starts,
+        n_steps=n_steps,
     )
 
     # per-mass build-once mock inputs: the cluster sig_model quadrature (ONE per design).
-    sig_model = cluster_sigma_los(theta_co, R_BINS, G)        # (K,) km/s (the only quadrature)
+    sig_model = cluster_sigma_los(
+        theta_co, R_BINS, G
+    )  # (K,) km/s (the only quadrature)
 
     # --- binary-FREE design + binary-FREE fit (the H1 disaster) ---
     counts_bf, n_max_bf, keep_bf = _per_bin_star_counts(n_eff_bf)
@@ -1997,7 +2107,9 @@ def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
         )
         return (th_M(theta_hat) - th_M(theta_co)) / th_M(theta_co)
 
-    keys_bf = jax.vmap(lambda d: jax.random.fold_in(k_mc_bf, d + 1))(jnp.arange(n_draws))
+    keys_bf = jax.vmap(lambda d: jax.random.fold_in(k_mc_bf, d + 1))(
+        jnp.arange(n_draws)
+    )
     bias_bf = float(jnp.mean(jax.lax.map(draw_bf, keys_bf)))
 
     # --- binary-AWARE design + binary-AWARE fit (the fix; residual bias) ---
@@ -2014,7 +2126,9 @@ def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
         m_frac = (th_M(theta_hat) - th_M(theta_full)) / th_M(theta_full)
         return m_frac, th_fbin(theta_hat)
 
-    keys_ba = jax.vmap(lambda d: jax.random.fold_in(k_mc_ba, d + 1))(jnp.arange(n_draws))
+    keys_ba = jax.vmap(lambda d: jax.random.fold_in(k_mc_ba, d + 1))(
+        jnp.arange(n_draws)
+    )
     m_frac_ba, fbin_ba = jax.lax.map(draw_ba, keys_ba)
     return bias_bf, float(jnp.mean(m_frac_ba)), float(jnp.mean(fbin_ba))
 
@@ -2022,14 +2136,15 @@ def _mc_bias_at_mass(M, n_draws, key, N_total, korb_pool, n_starts, n_steps,
 class MCBiasSweep(NamedTuple):
     """Result of mc_bias_sweep (T4.1b; all arrays length n_mass, increasing in M):
 
-      * M_grid     : the anchor cluster-mass grid [Msun],
-      * ratio      : sigma_bin / sigma_cluster per anchor (DECREASING in M),
-      * bias_bf    : binary-FREE-design + binary-FREE-fit realized M-bias (M_hat-M)/M (the
-                     H1 disaster -- expected to GROW as sigma_bin/sigma_cluster rises),
-      * bias_marg  : binary-AWARE-design + binary-AWARE-fit residual M-bias (the FIX --
-                     expected ~0 across the sweep),
-      * fbin_marg  : the binary-aware fit's mean recovered f_bin_hat per anchor (the
-                     mechanism check: ~F_BIN_TRUTH where there is radial leverage)."""
+    * M_grid     : the anchor cluster-mass grid [Msun],
+    * ratio      : sigma_bin / sigma_cluster per anchor (DECREASING in M),
+    * bias_bf    : binary-FREE-design + binary-FREE-fit realized M-bias (M_hat-M)/M (the
+                   H1 disaster -- expected to GROW as sigma_bin/sigma_cluster rises),
+    * bias_marg  : binary-AWARE-design + binary-AWARE-fit residual M-bias (the FIX --
+                   expected ~0 across the sweep),
+    * fbin_marg  : the binary-aware fit's mean recovered f_bin_hat per anchor (the
+                   mechanism check: ~F_BIN_TRUTH where there is radial leverage)."""
+
     M_grid: jnp.ndarray
     ratio: jnp.ndarray
     bias_bf: jnp.ndarray
@@ -2037,8 +2152,16 @@ class MCBiasSweep(NamedTuple):
     fbin_marg: jnp.ndarray
 
 
-def mc_bias_sweep(n_mass=N_MASS_SWEEP, n_draws=N_DRAWS_SWEEP, key=None, N_total=N_TOTAL,
-                  n_starts=8, n_steps=500, f_bin_truth=F_BIN_TRUTH, n_iter=_BF_N_ITER):
+def mc_bias_sweep(
+    n_mass=N_MASS_SWEEP,
+    n_draws=N_DRAWS_SWEEP,
+    key=None,
+    N_total=N_TOTAL,
+    n_starts=8,
+    n_steps=500,
+    f_bin_truth=F_BIN_TRUTH,
+    n_iter=_BF_N_ITER,
+):
     r"""The MC bias sweep across system mass (T4.1b; @slow, env-gated -- the realized result).
 
     At n_mass anchor masses spanning the same central sigma_cluster ~ 3 -> 15 km/s band (the
@@ -2067,7 +2190,7 @@ def mc_bias_sweep(n_mass=N_MASS_SWEEP, n_draws=N_DRAWS_SWEEP, key=None, N_total=
     key = jax.random.PRNGKey(0) if key is None else key
     M_grid = sweep_mass_grid(n_mass)
     sigma_bin = float(jnp.sqrt(V_BIN))
-    korb_pool = _shared_korb_pool()                          # build-once, mass-independent
+    korb_pool = _shared_korb_pool()  # build-once, mass-independent
 
     ratio, bias_bf, bias_marg, fbin_marg = [], [], [], []
     for i, M in enumerate(M_grid):
@@ -2075,8 +2198,15 @@ def mc_bias_sweep(n_mass=N_MASS_SWEEP, n_draws=N_DRAWS_SWEEP, key=None, N_total=
         sc = float(jnp.max(cluster_sigma_los(theta_co, R_BINS, STELLAR.G)))
         ratio.append(sigma_bin / sc)
         b_bf, b_ma, f_ma = _mc_bias_at_mass(
-            M, n_draws, jax.random.fold_in(key, i), N_total, korb_pool,
-            n_starts, n_steps, f_bin_truth=f_bin_truth, n_iter=n_iter,
+            M,
+            n_draws,
+            jax.random.fold_in(key, i),
+            N_total,
+            korb_pool,
+            n_starts,
+            n_steps,
+            f_bin_truth=f_bin_truth,
+            n_iter=n_iter,
         )
         bias_bf.append(b_bf)
         bias_marg.append(b_ma)

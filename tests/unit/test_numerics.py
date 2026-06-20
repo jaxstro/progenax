@@ -4,6 +4,7 @@ These helpers must be BIT-IDENTICAL to the inline patterns they replace
 (same op order: pairwise average -> cumsum -> concat zero), because five
 Poisson passes and eight speed-CDF kernels migrate onto them.
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -18,7 +19,8 @@ class TestCumulativeTrapezoid:
         y = jnp.sin(jnp.linspace(0.0, 3.0, 257)) + 1.1
         dr = 3.0 / 256
         inline = jnp.concatenate(
-            [jnp.zeros(1), jnp.cumsum(0.5 * (y[1:] + y[:-1])) * dr])
+            [jnp.zeros(1), jnp.cumsum(0.5 * (y[1:] + y[:-1])) * dr]
+        )
         ours = cumulative_trapz(y, dx=dr)
         np.testing.assert_array_equal(np.asarray(ours), np.asarray(inline))
 
@@ -26,16 +28,18 @@ class TestCumulativeTrapezoid:
         """Trapezoid is exact for linear integrands: int_0^x t dt = x^2/2."""
         x = jnp.linspace(0.0, 2.0, 101)
         out = cumulative_trapz(x, dx=float(x[1] - x[0]))
-        np.testing.assert_allclose(np.asarray(out), np.asarray(x**2 / 2),
-                                   rtol=0, atol=1e-14)
+        np.testing.assert_allclose(
+            np.asarray(out), np.asarray(x**2 / 2), rtol=0, atol=1e-14
+        )
 
     def test_axis_minus_one_on_2d_rows(self):
         """Row-wise (the SpeedCDFTable / multicomponent axis=1 pattern)."""
         y = jnp.arange(12.0).reshape(3, 4) + 1.0
         dr = 0.5
         inline = jnp.concatenate(
-            [jnp.zeros((3, 1)),
-             jnp.cumsum(0.5 * (y[:, 1:] + y[:, :-1]), axis=1) * dr], axis=1)
+            [jnp.zeros((3, 1)), jnp.cumsum(0.5 * (y[:, 1:] + y[:, :-1]), axis=1) * dr],
+            axis=1,
+        )
         ours = cumulative_trapz(y, dx=dr, axis=-1)
         np.testing.assert_array_equal(np.asarray(ours), np.asarray(inline))
 
@@ -53,7 +57,8 @@ class TestInverseCdfDraw:
         wgt = jnp.maximum(u_grid**2 * (jnp.exp(W - u_grid**2 / 2.0) - 1.0), 0.0)
         du = u_grid[1] - u_grid[0]
         cdf = jnp.concatenate(
-            [jnp.zeros(1), jnp.cumsum(0.5 * (wgt[1:] + wgt[:-1])) * du])
+            [jnp.zeros(1), jnp.cumsum(0.5 * (wgt[1:] + wgt[:-1])) * du]
+        )
         cdf = cdf / (cdf[-1] + 1e-30)
         unif = jnp.asarray(0.37)
         expected = jnp.interp(unif, cdf, u_grid)
@@ -78,5 +83,6 @@ class TestInverseCdfDraw:
         def f(scale):
             grid = jnp.linspace(0.0, 1.0, 64)
             return inverse_cdf_draw(jnp.exp(-scale * grid), grid, jnp.asarray(0.5))
+
         g = jax.grad(f)(1.0)
         assert jnp.isfinite(g)

@@ -12,13 +12,19 @@ Usage::
     ...
     save_fig(fig, output_dir, "king_concentration")
 """
+
 import matplotlib.pyplot as plt
 
 # Okabe-Ito colourblind-safe qualitative palette.
 OI = {
-    "blue": "#0072B2", "orange": "#E69F00", "green": "#009E73",
-    "vermilion": "#D55E00", "purple": "#CC79A7", "sky": "#56B4E9",
-    "yellow": "#F0E442", "black": "#000000",
+    "blue": "#0072B2",
+    "orange": "#E69F00",
+    "green": "#009E73",
+    "vermilion": "#D55E00",
+    "purple": "#CC79A7",
+    "sky": "#56B4E9",
+    "yellow": "#F0E442",
+    "black": "#000000",
 }
 
 # Publication rcParams (ApJ/AAS): serif text + CM math, clean inward ticks,
@@ -58,9 +64,17 @@ def panel_label(ax, text, loc="upper left"):
     never collides with data or the legend."""
     x, ha = (0.035, "left") if "left" in loc else (0.965, "right")
     y, va = (0.96, "top") if "upper" in loc else (0.06, "bottom")
-    ax.text(x, y, text, transform=ax.transAxes, fontsize=11, fontweight="bold",
-            va=va, ha=ha,
-            bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
+    ax.text(
+        x,
+        y,
+        text,
+        transform=ax.transAxes,
+        fontsize=11,
+        fontweight="bold",
+        va=va,
+        ha=ha,
+        bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85),
+    )
 
 
 def save_fig(fig, output_dir, stem):

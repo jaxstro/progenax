@@ -22,6 +22,7 @@ Exits nonzero iff any stage whose gate is not marked --allow-fail exceeds it.
 --allow-fail covers GATE EXCESS only (a real measurement over its gate); a
 stage that crashes (nonzero subprocess exit or no result line) always FAILs.
 """
+
 import argparse
 import datetime
 import json
@@ -58,12 +59,17 @@ def _plummer_ic(n: int):
     import jax
     import jax.numpy as jnp
     from jaxstro.units import STELLAR
+
     from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
 
     masses = jnp.ones(n)
-    ic = build_spatial_ic(PlummerProfile(r_h=1.0), masses,
-                          PlummerVelocityDF(r_h=1.0),
-                          key=jax.random.PRNGKey(0), G=STELLAR.G)
+    ic = build_spatial_ic(
+        PlummerProfile(r_h=1.0),
+        masses,
+        PlummerVelocityDF(r_h=1.0),
+        key=jax.random.PRNGKey(0),
+        G=STELLAR.G,
+    )
     return ic, masses, STELLAR.G
 
 
@@ -77,48 +83,64 @@ def run_stage(stage: str) -> None:
         import jax
         import jax.numpy as jnp
         from jaxstro.units import STELLAR
+
         key = jax.random.PRNGKey(0)
 
         if stage in ("engineA_iso", "engineA_aniso"):
             from progenax import MultiComponentCluster
-            ra = {"ra_hat_j": jnp.array([10.0, 10.0])} if stage == "engineA_aniso" else {}
+
+            ra = (
+                {"ra_hat_j": jnp.array([10.0, 10.0])}
+                if stage == "engineA_aniso"
+                else {}
+            )
             model = MultiComponentCluster.from_components(
-                alpha_j=jnp.array([0.5, 0.5]), w_j=jnp.array([1.0, 0.6]),
-                m_j=jnp.array([0.8, 0.8]), W0=7.0, g=1.0, r_c=1.0, **ra)
+                alpha_j=jnp.array([0.5, 0.5]),
+                w_j=jnp.array([1.0, 0.6]),
+                m_j=jnp.array([0.8, 0.8]),
+                W0=7.0,
+                g=1.0,
+                r_c=1.0,
+                **ra,
+            )
             ic = model.sample_cluster(key, n, G=STELLAR.G)
             jax.block_until_ready(ic.velocities)
 
         elif stage == "engineB_halo_core":
             from progenax import EFFProfile, MultiComponentCluster, PlummerProfile
+
             model = MultiComponentCluster.from_density_profiles(
                 [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
-                mass_fractions=jnp.array([0.6, 0.4]), m_j=jnp.array([0.5, 1.0]))
+                mass_fractions=jnp.array([0.6, 0.4]),
+                m_j=jnp.array([0.5, 1.0]),
+            )
             ic = model.sample_cluster(key, n, G=STELLAR.G)
             jax.block_until_ready(ic.velocities)
 
         elif stage == "virial_pe":
             from progenax import compute_potential_energy
+
             ic, masses, G = _plummer_ic(n)
             pe = compute_potential_energy(ic.positions, masses, G=G)
             pe.block_until_ready()
 
         elif stage == "group_virial":
             from progenax.dynamics import mass_group_masks, per_group_virial_ratio
+
             ic, masses, G = _plummer_ic(n)
             masks = mass_group_masks(masses, 4)
-            q_j = per_group_virial_ratio(ic.positions, ic.velocities, masses, G,
-                                         masks)
+            q_j = per_group_virial_ratio(ic.positions, ic.velocities, masses, G, masks)
             q_j.block_until_ready()
 
         elif stage == "limepy_df_aniso":
             from progenax.kinematics.limepy_df import LIMEPYVelocityDF
             from progenax.profiles.limepy import LIMEPYProfile
+
             prof = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0)
             df = LIMEPYVelocityDF(W0=7.0, g=1.0, r_c=1.0, r_a=10.0)
             masses = jnp.ones(n)
             pos = prof.sample_positions(masses, key)
-            vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(1),
-                                       G=STELLAR.G)
+            vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(1), G=STELLAR.G)
             vel.block_until_ready()
 
     print(f"{_RESULT_PREFIX} {_peak_rss_gb():.3f}", flush=True)
@@ -142,18 +164,30 @@ def _run_subprocess(stage: str):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Staged peak-RSS memory profile with PASS gates.")
-    parser.add_argument("--stage", choices=sorted(STAGES),
-                        help="run a single stage in-process (subprocess re-entry)")
-    parser.add_argument("--allow-fail", action="append", default=[],
-                        metavar="STAGE", choices=sorted(STAGES),
-                        help="mark this stage's gate ALLOWED-FAIL on gate "
-                             "excess only; stage crashes always FAIL "
-                             "(repeatable)")
-    parser.add_argument("--json", metavar="PATH",
-                        help="also write the stage results as JSON "
-                             "(machine-readable; consumed by "
-                             "scripts/benchmark_batch_a.py)")
+        description="Staged peak-RSS memory profile with PASS gates."
+    )
+    parser.add_argument(
+        "--stage",
+        choices=sorted(STAGES),
+        help="run a single stage in-process (subprocess re-entry)",
+    )
+    parser.add_argument(
+        "--allow-fail",
+        action="append",
+        default=[],
+        metavar="STAGE",
+        choices=sorted(STAGES),
+        help="mark this stage's gate ALLOWED-FAIL on gate "
+        "excess only; stage crashes always FAIL "
+        "(repeatable)",
+    )
+    parser.add_argument(
+        "--json",
+        metavar="PATH",
+        help="also write the stage results as JSON "
+        "(machine-readable; consumed by "
+        "scripts/benchmark_batch_a.py)",
+    )
     args = parser.parse_args()
 
     if args.stage:
@@ -162,8 +196,10 @@ def main() -> int:
 
     print("=" * 72)
     print("CLUSTER MEMORY PROFILE (peak RSS per stage, subprocess-isolated)")
-    print(f"platform: {sys.platform} (ru_maxrss in "
-          f"{'bytes' if sys.platform == 'darwin' else 'kilobytes'})")
+    print(
+        f"platform: {sys.platform} (ru_maxrss in "
+        f"{'bytes' if sys.platform == 'darwin' else 'kilobytes'})"
+    )
     print("=" * 72)
 
     rows = []
@@ -176,25 +212,33 @@ def main() -> int:
             print(f"  {stage}: stage ERROR\n{err}", flush=True)
         else:
             ok = measured < gate_gb
-            status = ("PASS" if ok
-                      else "ALLOWED-FAIL" if stage in args.allow_fail else "FAIL")
+            status = (
+                "PASS" if ok else "ALLOWED-FAIL" if stage in args.allow_fail else "FAIL"
+            )
         any_fatal |= status == "FAIL"
         rows.append((stage, n, gate_gb, measured, status))
         m_str = f"{measured:.2f}" if measured is not None else "ERROR"
-        print(f"  {stage:<20} measured {m_str:>6} GB  (gate < {gate_gb:.1f} GB)"
-              f"  {status}", flush=True)
+        print(
+            f"  {stage:<20} measured {m_str:>6} GB  (gate < {gate_gb:.1f} GB)"
+            f"  {status}",
+            flush=True,
+        )
 
     print("-" * 72)
-    print(f"  {'stage':<20} {'N':>8} {'gate [GB]':>10} {'measured [GB]':>14} "
-          f"{'status':>13}")
+    print(
+        f"  {'stage':<20} {'N':>8} {'gate [GB]':>10} {'measured [GB]':>14} "
+        f"{'status':>13}"
+    )
     for stage, n, gate_gb, measured, status in rows:
         n_str = f"{n:,}" if n else "-"
         m_str = f"{measured:.2f}" if measured is not None else "ERROR"
-        print(f"  {stage:<20} {n_str:>8} {gate_gb:>10.1f} {m_str:>14} "
-              f"{status:>13}")
+        print(f"  {stage:<20} {n_str:>8} {gate_gb:>10.1f} {m_str:>14} {status:>13}")
     print("=" * 72)
-    print("  MEMORY GATES PASS" if not any_fatal
-          else "  MEMORY GATES FAILED (non-allowed gate excess or stage crash)")
+    print(
+        "  MEMORY GATES PASS"
+        if not any_fatal
+        else "  MEMORY GATES FAILED (non-allowed gate excess or stage crash)"
+    )
 
     if args.json:
         payload = {
@@ -205,8 +249,13 @@ def main() -> int:
                 "ru_maxrss_unit": "bytes" if sys.platform == "darwin" else "KB",
             },
             "stages": [
-                {"stage": stage, "N": n, "gate_gb": gate_gb,
-                 "measured_gb": measured, "status": status}
+                {
+                    "stage": stage,
+                    "N": n,
+                    "gate_gb": gate_gb,
+                    "measured_gb": measured,
+                    "status": status,
+                }
                 for stage, n, gate_gb, measured, status in rows
             ],
             "all_pass": not any_fatal,

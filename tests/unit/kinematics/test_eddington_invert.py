@@ -182,17 +182,19 @@ class TestSpeedSamplerScaleRelativeThresholds:
     @pytest.mark.parametrize("lam", [1e-8, 1e-4, 1e8])
     def test_speeds_scale_exactly_with_sqrt_energy(self, lam):
         import jax
+
         from progenax.kinematics.eddington import sample_speed_from_f_table
 
         keys = jax.random.split(jax.random.PRNGKey(0), 64)
         E1, f1 = self._table(1.0)
         El, fl = self._table(lam)
         Psi1 = jnp.linspace(0.05, 0.95, 64)  # interior binding potentials
-        s1 = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(k, p, E1, f1))(keys, Psi1)
-        sl = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(k, p, El, fl))(keys, lam * Psi1)
+        s1 = jax.vmap(lambda k, p: sample_speed_from_f_table(k, p, E1, f1))(keys, Psi1)
+        sl = jax.vmap(lambda k, p: sample_speed_from_f_table(k, p, El, fl))(
+            keys, lam * Psi1
+        )
         assert bool(jnp.all(s1 > 0.0))
         assert bool(jnp.all(sl > 0.0)), "rescaled table produced spurious zero speeds"
-        np.testing.assert_allclose(np.asarray(sl),
-                                   np.asarray(jnp.sqrt(lam) * s1), rtol=1e-10)
+        np.testing.assert_allclose(
+            np.asarray(sl), np.asarray(jnp.sqrt(lam) * s1), rtol=1e-10
+        )

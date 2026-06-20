@@ -7,6 +7,7 @@ sibling of ``scripts/_plotstyle.py``, not a packaged API).
 float64 is enabled explicitly (the helper deliberately does not depend on
 progenax, which would auto-enable it).
 """
+
 import jax
 
 jax.config.update("jax_enable_x64", True)
@@ -77,7 +78,9 @@ class TestBinnedSigma1d:
         gid = jnp.zeros((n,), dtype=jnp.int32)
         r_edges = jnp.linspace(0.0, 5.0, 4)
 
-        sig_hat, se, weight, n_bin = di.binned_sigma1d(pos, vel, gid, 1, r_edges, n_min=30)
+        sig_hat, se, weight, n_bin = di.binned_sigma1d(
+            pos, vel, gid, 1, r_edges, n_min=30
+        )
         # SE of the 3-component pooled dispersion = sig_hat / sqrt(6 n) exactly
         # (|v|^2/sigma^2 ~ chi^2(3n) -> Var(sig_hat) ~ sigma^2/(6n)), on populated bins.
         mask = weight > 0
@@ -99,7 +102,12 @@ class TestBinnedSigma1d:
         r_edges = jnp.array([0.0, 1.0, 2.0, 3.0, 10.0])  # outer bins empty
 
         sig_hat, se, weight, n_bin = di.binned_sigma1d(
-            pos, vel, gid, 1, r_edges, n_min=10_000  # force everything under-populated
+            pos,
+            vel,
+            gid,
+            1,
+            r_edges,
+            n_min=10_000,  # force everything under-populated
         )
         # No NaNs anywhere.
         for arr in (sig_hat, se, weight, n_bin):
@@ -119,7 +127,7 @@ class TestBinnedSigmaBeta:
         r_edges = jnp.linspace(0.0, 5.0, 6)
 
         out = di.binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50)
-        beta_hat, weight, n_bin = out.beta_hat, out.weight, out.n
+        beta_hat, weight, _ = out.beta_hat, out.weight, out.n
         assert beta_hat.shape == (1, 5)
         # SE of beta ~ a few / sqrt(n); for isotropic, |beta| should be tiny.
         for k in range(5):
@@ -259,10 +267,17 @@ class TestPoissonLoglike:
         # A zero-weight bin must not influence the loglike at all.
         counts = jnp.array([10.0, 1000.0])
         base = jnp.array([5.0, 5.0])
-        ll_masked = di.poisson_loglike((counts, jnp.array([1.0, 0.0])), lambda th: th * base)
-        ll_only0 = di.poisson_loglike((counts[:1], jnp.array([1.0])), lambda th: th * base[:1])
-        np.testing.assert_allclose(float(ll_masked(jnp.array(1.3))),
-                                   float(ll_only0(jnp.array(1.3))), rtol=1e-12)
+        ll_masked = di.poisson_loglike(
+            (counts, jnp.array([1.0, 0.0])), lambda th: th * base
+        )
+        ll_only0 = di.poisson_loglike(
+            (counts[:1], jnp.array([1.0])), lambda th: th * base[:1]
+        )
+        np.testing.assert_allclose(
+            float(ll_masked(jnp.array(1.3))),
+            float(ll_only0(jnp.array(1.3))),
+            rtol=1e-12,
+        )
 
     def test_fisher_cov_runs_on_poisson(self):
         # Observed-Hessian Fisher is PD for a well-identified 1-param Poisson fit.
@@ -313,6 +328,7 @@ class TestPoissonFisherInformation:
             full = z[0] * jnp.array([4.0, 3.0, 2.0, 1.0])
             mask = jnp.array([1.0, 1.0, 0.0, 0.0])  # last two bins truncated to 0
             return full * mask
+
         z_hat = jnp.array([1.5])
         F = di.poisson_fisher_information(predict_mu, z_hat)
         assert jnp.isfinite(F).all()
@@ -362,10 +378,9 @@ class TestFisherInformationGN:
 
     def test_linear_model_returns_AtA(self):
         # r(z) = A z - b  =>  J = A  =>  F = J^T J = A^T A exactly.
-        A = jnp.array([[1.0, 2.0, 0.0],
-                       [0.0, 1.0, -1.0],
-                       [3.0, 0.0, 1.0],
-                       [1.0, 1.0, 1.0]])
+        A = jnp.array(
+            [[1.0, 2.0, 0.0], [0.0, 1.0, -1.0], [3.0, 0.0, 1.0], [1.0, 1.0, 1.0]]
+        )
         b = jnp.array([0.5, -1.0, 2.0, 0.3])
         residual_fn = lambda z: A @ z - b
         z_hat = jnp.array([0.1, -0.2, 0.3])
@@ -378,25 +393,20 @@ class TestFisherInformationGN:
     def test_extra_negloglike_adds_its_hessian(self):
         # Linear residual contributes A^T A; a quadratic extra term contributes
         # its (constant) Hessian H. Total must be A^T A + H.
-        A = jnp.array([[1.0, 0.0, 0.0],
-                       [0.0, 2.0, 0.0],
-                       [0.0, 0.0, 1.0]])
+        A = jnp.array([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 1.0]])
         residual_fn = lambda z: A @ z
         # extra = 0.5 z^T H z  (H spd, diagonal) -> Hessian = H.
         H = jnp.diag(jnp.array([4.0, 9.0, 16.0]))
         extra = lambda z: 0.5 * z @ (H @ z)
         z_hat = jnp.array([0.3, -0.1, 0.7])
         F = di.fisher_information_gn(residual_fn, z_hat, extra_negloglike=extra)
-        np.testing.assert_allclose(
-            np.asarray(F), np.asarray(A.T @ A + H), atol=1e-10
-        )
+        np.testing.assert_allclose(np.asarray(F), np.asarray(A.T @ A + H), atol=1e-10)
 
     def test_returns_symmetric_pd_for_well_posed(self):
         # Full-rank residual Jacobian -> J^T J is symmetric PD.
-        A = jnp.array([[2.0, 1.0, 0.0],
-                       [1.0, 3.0, 1.0],
-                       [0.0, 1.0, 2.0],
-                       [1.0, 0.0, 1.0]])
+        A = jnp.array(
+            [[2.0, 1.0, 0.0], [1.0, 3.0, 1.0], [0.0, 1.0, 2.0], [1.0, 0.0, 1.0]]
+        )
         residual_fn = lambda z: A @ z - jnp.ones(4)
         F = di.fisher_information_gn(residual_fn, jnp.zeros(3))
         np.testing.assert_allclose(np.asarray(F), np.asarray(F.T), atol=1e-12)
@@ -423,8 +433,7 @@ class TestRunNuts:
     def test_recovers_correlated_gaussian(self):
         mu = jnp.array([1.5, -0.7])
         # Correlated 2-D covariance (rho = 0.6), well-conditioned.
-        cov = jnp.array([[1.0, 0.6 * 1.0 * 2.0],
-                         [0.6 * 1.0 * 2.0, 4.0]])
+        cov = jnp.array([[1.0, 0.6 * 1.0 * 2.0], [0.6 * 1.0 * 2.0, 4.0]])
         prec = jnp.linalg.inv(cov)
 
         def logdensity_fn(z):
@@ -462,7 +471,9 @@ class TestReparam:
         xs = jnp.array([-1.999, -1.0, 0.0, 2.3, 4.999])
         z = di.logit(xs, lo, hi)
         back = di.expit(z, lo, hi)
-        np.testing.assert_allclose(np.asarray(back), np.asarray(xs), rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(
+            np.asarray(back), np.asarray(xs), rtol=1e-10, atol=1e-10
+        )
 
     def test_expit_in_bounds(self):
         lo, hi = 0.5, 3.5

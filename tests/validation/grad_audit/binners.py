@@ -22,6 +22,7 @@ scale the velocity magnitudes, so d(σ_k)/dθ and d(β_k)/dθ are genuinely live
 
 JAX-native throughout (``jax.numpy``, ``jax.lax``); every function is jit/grad-safe.
 """
+
 from typing import NamedTuple
 
 import jax
@@ -103,11 +104,11 @@ def binned_sigma1d(pos, vel, group_ids, n_groups, r_edges, n_min=30):
 class SigmaBetaResult(NamedTuple):
     """Return of :func:`binned_sigma_beta`; all arrays shaped (C, K)."""
 
-    sig_hat: jax.Array   # 1-D dispersion sqrt((sigma_r^2 + sigma_t^2)/3)
-    se: jax.Array        # SE of sig_hat = sig_hat / sqrt(6 n) (3 pooled components)
+    sig_hat: jax.Array  # 1-D dispersion sqrt((sigma_r^2 + sigma_t^2)/3)
+    se: jax.Array  # SE of sig_hat = sig_hat / sqrt(6 n) (3 pooled components)
     beta_hat: jax.Array  # Binney anisotropy 1 - sigma_t^2 / (2 sigma_r^2)
-    weight: jax.Array    # 1.0 if populated (n >= n_min) else 0.0
-    n: jax.Array         # member counts
+    weight: jax.Array  # 1.0 if populated (n >= n_min) else 0.0
+    n: jax.Array  # member counts
 
 
 def binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50):

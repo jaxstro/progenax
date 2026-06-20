@@ -29,11 +29,14 @@ def test_unsegregated_lambda_is_unity():
     lambdas = []
     for s in range(60):
         masses = rng.random(N)  # random, position-independent
-        lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive,
-                                    N_random_samples=80, seed=s)
+        lam, _ = compute_lambda_msr(
+            positions, masses, N_massive=N_massive, N_random_samples=80, seed=s
+        )
         lambdas.append(lam)
     mean_lambda = float(np.mean(lambdas))
-    assert 0.9 < mean_lambda < 1.1, f"unsegregated mean Λ={mean_lambda:.3f}, expected ≈1"
+    assert 0.9 < mean_lambda < 1.1, (
+        f"unsegregated mean Λ={mean_lambda:.3f}, expected ≈1"
+    )
 
 
 def _plummer_clip(n, rng, a=0.4, rmax=1.2):
@@ -48,7 +51,7 @@ def _plummer_clip(n, rng, a=0.4, rmax=1.2):
         u = rng.uniform(0, 1, n)
         r = a / np.sqrt(u ** (-2 / 3) - 1)
         cth = rng.uniform(-1, 1, n)
-        sth = np.sqrt(1 - cth ** 2)
+        sth = np.sqrt(1 - cth**2)
         ph = rng.uniform(0, 2 * np.pi, n)
         p = np.stack([r * sth * np.cos(ph), r * sth * np.sin(ph), r * cth], axis=1)
         out = np.vstack([out, p[np.linalg.norm(p, axis=1) < rmax]])
@@ -65,9 +68,12 @@ def test_segregation_lambda_in_observed_range():
     positions = _plummer_clip(N, rng)
     masses = rng.random(N)
     top = np.argsort(-masses)[:N_massive]
-    positions[top] = rng.normal(scale=0.07, size=(N_massive, 3))  # resolved (~0.2 pc) core
-    lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive,
-                                N_random_samples=400, seed=1)
+    positions[top] = rng.normal(
+        scale=0.07, size=(N_massive, 3)
+    )  # resolved (~0.2 pc) core
+    lam, _ = compute_lambda_msr(
+        positions, masses, N_massive=N_massive, N_random_samples=400, seed=1
+    )
     assert 2.0 < lam < 12.0, f"segregated Λ={lam:.2f}, expected ~a few (observed range)"
 
 
@@ -85,7 +91,9 @@ def test_delta_core_lambda_unbounded():
     masses = rng.random(N)
     top = np.argsort(-masses)[:N_massive]
     field[top] = rng.normal(scale=1e-3, size=(N_massive, 3))  # near-delta core
-    lam, _ = compute_lambda_msr(field, masses, N_massive=N_massive, N_random_samples=200, seed=2)
+    lam, _ = compute_lambda_msr(
+        field, masses, N_massive=N_massive, N_random_samples=200, seed=2
+    )
     assert lam > 20.0, f"delta-core Λ={lam:.2f}, expected ≫1 (unbounded limit)"
 
 
@@ -100,9 +108,12 @@ def test_inverse_segregation_lambda_below_unity():
     top = np.argsort(-masses)[:N_massive]
     dirs = rng.normal(size=(N_massive, 3))
     dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
-    positions[top] = dirs * rng.uniform(0.6, 1.0, (N_massive, 1))  # massive on the outskirts
-    lam, _ = compute_lambda_msr(positions, masses, N_massive=N_massive,
-                                N_random_samples=400, seed=1)
+    positions[top] = dirs * rng.uniform(
+        0.6, 1.0, (N_massive, 1)
+    )  # massive on the outskirts
+    lam, _ = compute_lambda_msr(
+        positions, masses, N_massive=N_massive, N_random_samples=400, seed=1
+    )
     assert lam < 0.85, f"inverse-segregation Λ={lam:.3f}, expected <1"
 
 
@@ -111,31 +122,51 @@ def test_exact_value_two_massive():
     """For N_massive=2, L_massive = the massive pair distance and ⟨L_random⟩ → the mean of ALL
     pairwise distances (uniform 2-subsets). So Λ_true = mean(all pair dists)/d(massive pair),
     computed independently via scipy.pdist — an exact analytic check of the estimator."""
-    positions = np.array([
-        [0.0, 0.0, 0.0], [1.0, 0.0, 0.0],   # the two most massive (d = 1.0)
-        [0.0, 2.0, 0.0], [3.0, 0.0, 0.0], [0.0, 0.0, 4.0], [2.0, 2.0, 1.0],
-    ])
+    positions = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],  # the two most massive (d = 1.0)
+            [0.0, 2.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [0.0, 0.0, 4.0],
+            [2.0, 2.0, 1.0],
+        ]
+    )
     masses = np.array([10.0, 9.0, 1.0, 1.0, 1.0, 1.0])  # first two are most massive
-    d_massive = float(np.linalg.norm(positions[0] - positions[1]))   # = 1.0
-    lambda_true = float(np.mean(pdist(positions))) / d_massive        # independent reference
-    lam, _ = compute_lambda_msr(positions, masses, N_massive=2, N_random_samples=20000, seed=5)
-    assert lam == pytest.approx(lambda_true, rel=0.03), f"Λ={lam:.4f} vs exact {lambda_true:.4f}"
+    d_massive = float(np.linalg.norm(positions[0] - positions[1]))  # = 1.0
+    lambda_true = float(np.mean(pdist(positions))) / d_massive  # independent reference
+    lam, _ = compute_lambda_msr(
+        positions, masses, N_massive=2, N_random_samples=20000, seed=5
+    )
+    assert lam == pytest.approx(lambda_true, rel=0.03), (
+        f"Λ={lam:.4f} vs exact {lambda_true:.4f}"
+    )
 
 
 # ── Tier A5: estimator convergence (more random samples → tighter, → exact) ──
 def test_estimator_converges_with_random_samples():
     """The Λ estimate's seed-to-seed scatter shrinks as N_random_samples grows, and converges
     to the exact value (Tier A4 config)."""
-    positions = np.array([
-        [0.0, 0.0, 0.0], [1.0, 0.0, 0.0],
-        [0.0, 2.0, 0.0], [3.0, 0.0, 0.0], [0.0, 0.0, 4.0], [2.0, 2.0, 1.0],
-    ])
+    positions = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [0.0, 0.0, 4.0],
+            [2.0, 2.0, 1.0],
+        ]
+    )
     masses = np.array([10.0, 9.0, 1.0, 1.0, 1.0, 1.0])
     lambda_true = float(np.mean(pdist(positions))) / 1.0
 
     def scatter(n_samples):
-        vals = [compute_lambda_msr(positions, masses, N_massive=2,
-                                   N_random_samples=n_samples, seed=s)[0] for s in range(40)]
+        vals = [
+            compute_lambda_msr(
+                positions, masses, N_massive=2, N_random_samples=n_samples, seed=s
+            )[0]
+            for s in range(40)
+        ]
         return float(np.std(vals)), float(np.mean(vals))
 
     std_lo, _ = scatter(20)
@@ -160,15 +191,20 @@ def test_tight_massive_binary_inflates_lambda():
     positions /= np.linalg.norm(positions, axis=1, keepdims=True)
     positions *= rng.uniform(0, 1, (N, 1)) ** (1 / 3)
     masses = rng.random(N)
-    lam_clean, _ = compute_lambda_msr(positions, masses, N_massive=2,
-                                      N_random_samples=400, seed=7)
+    lam_clean, _ = compute_lambda_msr(
+        positions, masses, N_massive=2, N_random_samples=400, seed=7
+    )
     top2 = np.argsort(-masses)[:2]
-    positions[top2[1]] = positions[top2[0]] + np.array([1e-4, 0.0, 0.0])  # tight massive binary
-    lam_binary, _ = compute_lambda_msr(positions, masses, N_massive=2,
-                                       N_random_samples=400, seed=7)
+    positions[top2[1]] = positions[top2[0]] + np.array(
+        [1e-4, 0.0, 0.0]
+    )  # tight massive binary
+    lam_binary, _ = compute_lambda_msr(
+        positions, masses, N_massive=2, N_random_samples=400, seed=7
+    )
     assert lam_binary > 50.0 * lam_clean, (
         f"tight massive binary should strongly inflate Λ: clean={lam_clean:.2f} "
-        f"binary={lam_binary:.1f}")
+        f"binary={lam_binary:.1f}"
+    )
 
 
 # ── Tier A7: input validation ──
@@ -176,9 +212,9 @@ def test_input_validation():
     pos = np.random.default_rng(8).normal(size=(20, 3))
     m = np.random.default_rng(9).random(20)
     with pytest.raises(ValueError):
-        compute_lambda_msr(pos, m, N_massive=1)        # < 2
+        compute_lambda_msr(pos, m, N_massive=1)  # < 2
     with pytest.raises(ValueError):
-        compute_lambda_msr(pos, m, N_massive=20)       # >= N
+        compute_lambda_msr(pos, m, N_massive=20)  # >= N
 
 
 # ── Tier A8: reproducibility ──

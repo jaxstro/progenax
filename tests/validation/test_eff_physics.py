@@ -12,8 +12,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.profiles.eff import EFFProfile
 from progenax.kinematics.eff_df import EFFVelocityDF
+from progenax.profiles.eff import EFFProfile
 
 
 class TestEFFDensityFormula:
@@ -36,8 +36,9 @@ class TestEFFDensityFormula:
             rho_a = profile.density(jnp.array([a]))
             expected = 1.0 / (2.0 ** (gamma / 2.0))
 
-            assert abs(float(rho_a[0]) - expected) < 1e-10, \
+            assert abs(float(rho_a[0]) - expected) < 1e-10, (
                 f"gamma={gamma}: rho(a)={float(rho_a[0]):.6f}, expected={expected:.6f}"
+            )
 
     def test_power_law_slope_asymptotic(self):
         """For r >> a: rho(r) proportional to r^(-gamma)."""
@@ -53,8 +54,9 @@ class TestEFFDensityFormula:
         expected_ratio = (r1 / r2) ** gamma
         actual_ratio = rho_2 / rho_1
 
-        assert abs(actual_ratio - expected_ratio) / expected_ratio < 0.01, \
+        assert abs(actual_ratio - expected_ratio) / expected_ratio < 0.01, (
             f"Power-law ratio: actual={actual_ratio:.6f}, expected={expected_ratio:.6f}"
+        )
 
     def test_density_monotonic_decrease(self):
         """Density decreases monotonically with radius."""
@@ -75,8 +77,9 @@ class TestEFFDensityFormula:
         r_beyond = jnp.array([r_t + 0.01, r_t + 1.0, r_t + 10.0])
         rho_beyond = profile.density(r_beyond)
 
-        assert jnp.all(rho_beyond == 0.0), \
+        assert jnp.all(rho_beyond == 0.0), (
             f"Density should be 0 beyond r_t, got {rho_beyond}"
+        )
 
 
 class TestEFFTidalTruncation:
@@ -95,8 +98,9 @@ class TestEFFTidalTruncation:
         assert max_r <= r_t + 0.01, f"Max radius {max_r:.4f} exceeds r_t={r_t}"
 
         fraction_within = float(jnp.mean(radii <= r_t))
-        assert fraction_within == 1.0, \
-            f"Only {fraction_within*100:.2f}% within r_t (expected 100%)"
+        assert fraction_within == 1.0, (
+            f"Only {fraction_within * 100:.2f}% within r_t (expected 100%)"
+        )
 
     @pytest.mark.parametrize("r_t", [5.0, 10.0, 20.0])
     def test_truncation_radius_respected(self, r_t, N_validation, key):
@@ -131,8 +135,9 @@ class TestEFFGammaConcentration:
             median_radii.append(float(jnp.median(radii)))
 
         # Higher gamma should have smaller median radius (more concentrated)
-        assert median_radii[0] > median_radii[1] > median_radii[2], \
+        assert median_radii[0] > median_radii[1] > median_radii[2], (
             f"Median radii should decrease with gamma: gamma=[2,3,4] -> r_median={median_radii}"
+        )
 
     def test_gamma_affects_central_fraction(self, N_validation, key):
         """Higher gamma produces more particles near center."""
@@ -151,8 +156,9 @@ class TestEFFGammaConcentration:
             central_fractions.append(float(jnp.mean(radii < 2.0 * a)))
 
         # Higher gamma should have more particles centrally
-        assert central_fractions[0] < central_fractions[1] < central_fractions[2], \
+        assert central_fractions[0] < central_fractions[1] < central_fractions[2], (
             f"Central fraction should increase with gamma: gamma=[2,3,4] -> f={central_fractions}"
+        )
 
 
 class TestEFFDensityProfile:
@@ -172,15 +178,16 @@ class TestEFFDensityProfile:
         hist, _ = jnp.histogram(radii, bins=bins)
 
         # Normalize by shell volume: V = (4/3)pi(r_out^3 - r_in^3)
-        volumes = (4.0/3.0) * jnp.pi * (bins[1:]**3 - bins[:-1]**3)
+        volumes = (4.0 / 3.0) * jnp.pi * (bins[1:] ** 3 - bins[:-1] ** 3)
         densities = hist / (volumes + 1e-10)
 
         # Check that density at r < a is higher than at r > 2*a
         inner_density = float(jnp.mean(densities[:5]))
         outer_density = float(jnp.mean(densities[10:]))
 
-        assert inner_density > outer_density, \
+        assert inner_density > outer_density, (
             f"Inner density {inner_density:.2f} should exceed outer {outer_density:.2f}"
+        )
 
     def test_half_mass_radius_reasonable(self, N_validation, key):
         """Half-mass radius is between a and r_t."""
@@ -221,8 +228,9 @@ class TestEFFVelocityDF:
 
         for i, v2i in enumerate(v2_mean):
             rel_diff = abs(float(v2i) - mean_v2) / mean_v2
-            assert rel_diff < 0.10, \
-                f"Anisotropy detected: <v{['x','y','z'][i]}^2>={float(v2i):.4f}, mean={mean_v2:.4f}"
+            assert rel_diff < 0.10, (
+                f"Anisotropy detected: <v{['x', 'y', 'z'][i]}^2>={float(v2i):.4f}, mean={mean_v2:.4f}"
+            )
 
     def test_eff_eddington_virial_ratio_mild_truncation(self):
         """For mild truncation (gamma=5) the Eddington DF yields virial equilibrium
@@ -246,7 +254,9 @@ class TestEFFVelocityDF:
             compute_kinetic_energy(vel, masses)
             / jnp.abs(compute_potential_energy(pos, masses, G=G))
         )
-        assert abs(Q - 0.5) < 0.05, f"unscaled Q={Q:.3f} (expected ~0.5 for mild truncation)"
+        assert abs(Q - 0.5) < 0.05, (
+            f"unscaled Q={Q:.3f} (expected ~0.5 for mild truncation)"
+        )
 
     def test_gamma3_default_subvirial_offset_is_pinned(self):
         """Audit S2: the gamma=3 DEFAULT + sharp truncation is KNOWN ~8% sub-virial
@@ -259,6 +269,7 @@ class TestEFFVelocityDF:
         0.45<Q<0.47 absorbs seed/platform noise (>>3sigma) while still excluding the
         two regressions (Q<=0.425 and Q>=0.49)."""
         from jaxstro.units import STELLAR
+
         from progenax.builders import compute_kinetic_energy, compute_potential_energy
 
         a, gamma, r_t = 1.0, 3.0, 10.0  # the EFF default config
@@ -297,7 +308,9 @@ class TestEFFVelocityDF:
         kappa = G * jnp.sum(masses) / (4.0 * jnp.pi * df.mu)
         v_esc = jnp.sqrt(2.0 * kappa * jnp.maximum(Psi_r, 0.0))
         v = jnp.linalg.norm(vel, axis=1)
-        assert float(jnp.mean(v <= v_esc + 1e-9)) == 1.0, "all EFF velocities must be bound"
+        assert float(jnp.mean(v <= v_esc + 1e-9)) == 1.0, (
+            "all EFF velocities must be bound"
+        )
 
     # grad through EFFVelocityDF.sample_velocities is FD-audited by the grad-audit
     # registry (tests/validation/grad_audit/registry.py ::
@@ -328,8 +341,9 @@ class TestEFFVelocityDF:
         for i in range(3):
             # Mean should be within ~3 sigma/sqrt(N) of zero
             expected_error = float(sigma_per_component[i]) / jnp.sqrt(N_stats)
-            assert abs(float(v_mean[i])) < 5 * expected_error, \
-                f"<v{['x','y','z'][i]}> = {float(v_mean[i]):.6f}, expected ~0"
+            assert abs(float(v_mean[i])) < 5 * expected_error, (
+                f"<v{['x', 'y', 'z'][i]}> = {float(v_mean[i]):.6f}, expected ~0"
+            )
 
 
 class TestEFFScaleRadius:
@@ -351,8 +365,9 @@ class TestEFFScaleRadius:
         # For EFF gamma=3 with r_t >> a, only ~5-20% of mass is within a
         # (power-law profile has most mass at larger radii)
         # Larger a/r_t ratio means more mass within a
-        assert 0.01 < f_within_a < 0.5, \
-            f"a={a}: fraction within a = {f_within_a*100:.1f}%"
+        assert 0.01 < f_within_a < 0.5, (
+            f"a={a}: fraction within a = {f_within_a * 100:.1f}%"
+        )
 
     def test_larger_scale_radius_more_core_mass(self, N_validation, key):
         """Larger scale radius means more mass within the core region."""
@@ -371,8 +386,9 @@ class TestEFFScaleRadius:
             fractions.append(float(jnp.mean(radii < a)))
 
         # Larger a should have more mass within a (since a is bigger)
-        assert fractions[0] < fractions[1] < fractions[2], \
+        assert fractions[0] < fractions[1] < fractions[2], (
             f"Mass fraction within a should increase with a: a=[0.5,1,2] -> f={fractions}"
+        )
 
 
 @pytest.mark.slow
@@ -402,7 +418,7 @@ class TestEFFHighRtOverACoreResolution:
             tol = max(0.02, shot)  # 2% grid budget or 3-sigma shot, whichever larger
             assert abs(m_samp / m_ref - 1.0) < tol, (
                 f"r={r_probe}a: sampled {m_samp:.4e} vs reference {m_ref:.4e} "
-                f"(rel err {(m_samp/m_ref-1)*100:+.2f}%, tol {tol*100:.2f}%)"
+                f"(rel err {(m_samp / m_ref - 1) * 100:+.2f}%, tol {tol * 100:.2f}%)"
             )
 
 

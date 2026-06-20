@@ -17,14 +17,16 @@ a finding (the Phase-4 sweep spans the ratio).
 
 See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
 """
+
 import os
-import sys
 import pathlib
+import sys
 
 import jax.numpy as jnp
 import pytest
-import progenax  # noqa: F401  -- enables float64 at import
 from jaxstro.units import STELLAR
+
+import progenax  # noqa: F401  -- enables float64 at import
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
 # OED demos are informax-bound (out of v0.1.0); their helper imports optax (experimental
@@ -73,7 +75,7 @@ def test_cluster_sigma_los_matches_project_dispersion():
     low-sigma outskirts)."""
     from progenax import project_dispersion
 
-    th = oedb.theta_truth_clusteronly()           # (M, r_a, gamma, a)
+    th = oedb.theta_truth_clusteronly()  # (M, r_a, gamma, a)
     R = oedb.R_BINS
     sig = oedb.cluster_sigma_los(th, R, STELLAR.G)  # (K,) km/s, RV channel only
 
@@ -94,10 +96,10 @@ def test_cluster_sigma_los_matches_project_dispersion():
     # flat binary pedestal dominates). Assert (i) a big drop core->outskirts and
     # (ii) strict decline past the interior peak (NOT strict monotonicity from bin 0,
     # which would encode the wrong physics).
-    assert float(sig[0]) > 5.0 * float(sig[-1])         # >5x core->outskirt contrast
+    assert float(sig[0]) > 5.0 * float(sig[-1])  # >5x core->outskirt contrast
     peak = int(jnp.argmax(sig))
-    assert peak < sig.shape[0] - 1                       # the peak is interior, not the last bin
-    assert bool(jnp.all(jnp.diff(sig[peak:]) < 0.0))     # strictly declining past the peak
+    assert peak < sig.shape[0] - 1  # the peak is interior, not the last bin
+    assert bool(jnp.all(jnp.diff(sig[peak:]) < 0.0))  # strictly declining past the peak
 
 
 def test_sigma_cluster_ref_is_max_of_cluster_sigma_los():
@@ -115,14 +117,14 @@ def test_predict_sigma_obs_adds_binary_pedestal():
     """sigma_obs^2 = sigma_cluster^2 + f_bin * V_BIN (the flat binary pedestal),
     exactly (rtol 1e-10), and the observable is everywhere larger than the bare
     cluster dispersion (binaries inflate the second moment)."""
-    th = oedb.theta_truth()                       # (M, r_a, gamma, a, f_bin)
+    th = oedb.theta_truth()  # (M, r_a, gamma, a, f_bin)
     R = oedb.R_BINS
-    sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)        # (K,) km/s
+    sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)  # (K,) km/s
     sig_cluster = oedb.cluster_sigma_los(th[:4], R, STELLAR.G)
-    expected2 = sig_cluster ** 2 + oedb.th_fbin(th) * oedb.V_BIN
+    expected2 = sig_cluster**2 + oedb.th_fbin(th) * oedb.V_BIN
     assert sig_obs.shape == (R.shape[0],)
-    assert jnp.allclose(sig_obs ** 2, expected2, rtol=1e-10)
-    assert bool(jnp.all(sig_obs > sig_cluster))   # pedestal strictly inflates
+    assert jnp.allclose(sig_obs**2, expected2, rtol=1e-10)
+    assert bool(jnp.all(sig_obs > sig_cluster))  # pedestal strictly inflates
 
 
 def test_jacobian_lntheta_shape_and_fbin_concentrates_in_outskirts():
@@ -133,7 +135,7 @@ def test_jacobian_lntheta_shape_and_fbin_concentrates_in_outskirts():
     falls toward the outskirts -- the leverage that breaks M<->f_bin."""
     th = oedb.theta_truth()
     R = oedb.R_BINS
-    J = oedb.jacobian_lntheta(th, R, STELLAR.G)   # (K, 5)
+    J = oedb.jacobian_lntheta(th, R, STELLAR.G)  # (K, 5)
     assert J.shape == (R.shape[0], 5)
     assert bool(jnp.all(jnp.isfinite(J)))
     fcol = J[:, oedb.IDX_FBIN]
@@ -150,12 +152,12 @@ def test_jacobian_lntheta_clusteronly_chain_rule_to_full():
     caches the cluster-only jacrev (the binary-free model's sensitivity)."""
     th = oedb.theta_truth()
     R = oedb.R_BINS
-    J_full = oedb.jacobian_lntheta(th, R, STELLAR.G)                 # (K, 5)
-    J_bf = oedb.jacobian_lntheta_clusteronly(th[:4], R, STELLAR.G)   # (K, 4)
+    J_full = oedb.jacobian_lntheta(th, R, STELLAR.G)  # (K, 5)
+    J_bf = oedb.jacobian_lntheta_clusteronly(th[:4], R, STELLAR.G)  # (K, 4)
     assert J_bf.shape == (R.shape[0], 4)
     sig_cluster = oedb.cluster_sigma_los(th[:4], R, STELLAR.G)
     sig_obs = oedb.predict_sigma_obs(th, R, STELLAR.G)
-    factor = (sig_cluster / sig_obs)[:, None]                        # (K, 1)
+    factor = (sig_cluster / sig_obs)[:, None]  # (K, 1)
     assert jnp.allclose(J_full[:, :4], J_bf * factor, rtol=1e-8, atol=1e-12)
 
 
@@ -181,7 +183,7 @@ def test_optimize_design_M_normalized_and_positive_sigma():
     assert jnp.isclose(jnp.sum(res.n_eff), oedb.N_TOTAL, rtol=1e-4)
     assert res.sigma_M_over_M > 0.0
     assert res.n_eff.shape == (oedb.R_BINS.shape[0],)
-    assert bool(jnp.all(res.n_eff > 0.0))     # softmax keeps every bin populated
+    assert bool(jnp.all(res.n_eff > 0.0))  # softmax keeps every bin populated
 
 
 def test_c_optimal_beats_uniform_for_M():
@@ -240,7 +242,7 @@ def test_per_bin_counts_drops_empty_bins_no_floor():
     assert bool(jnp.all(counts[keep] >= oedb.N_MIN_FIT))
     # The c-optimal design populates only a few bins -> most are dropped.
     assert int(jnp.sum(keep)) < K
-    assert int(jnp.sum(keep)) >= 1            # at least one bin survives
+    assert int(jnp.sum(keep)) >= 1  # at least one bin survives
     # n_max is the width over KEPT bins (the array the masked sigma_hat reduction uses).
     assert n_max == int(jnp.max(counts[keep]))
 
@@ -252,8 +254,12 @@ def test_draw_binned_sigma_hat_uses_realized_scatter_se():
     then have large sigma_hat -> large se -> appropriately DOWN-weighted."""
     design = oedb.optimize_design_M(oedb.N_TOTAL, key=jax.random.PRNGKey(0)).n_eff
     counts, n_max, keep = oedb._per_bin_star_counts(design)
-    sig_model = oedb.cluster_sigma_los(oedb.theta_truth_clusteronly(), oedb.R_BINS, STELLAR.G)
-    korb = jnp.zeros(8)  # zero-Delta pool: with f_bin contamination off, isolate the SE form
+    sig_model = oedb.cluster_sigma_los(
+        oedb.theta_truth_clusteronly(), oedb.R_BINS, STELLAR.G
+    )
+    korb = jnp.zeros(
+        8
+    )  # zero-Delta pool: with f_bin contamination off, isolate the SE form
     sigma_hat, se = oedb._draw_binned_sigma_hat(
         jax.random.PRNGKey(7), sig_model, counts, n_max, keep, korb, 0.0
     )
@@ -297,7 +303,9 @@ def test_H0_no_binary_baseline_is_unbiased():
 
     If this FAILS the mock and the fit are still inconsistent (likely the eps term or
     a sigma-vs-sigma^2 mismatch) -- FIX the harness, do NOT weaken the test."""
-    res = oedb.run_H1(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0), f_bin_truth=0.0)
+    res = oedb.run_H1(
+        n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0), f_bin_truth=0.0
+    )
     # sampler == fit-model: with zero binaries, M is recovered unbiased within forecast.
     assert abs(res.bias_M_frac) < 2.0 * res.forecast_sigma_M_frac
 
@@ -315,7 +323,9 @@ def test_H1_naive_design_biased_beyond_forecast():
     Pre-registered (LOCKED 2026-06-19); do NOT weaken. A reject is a reportable
     finding, not a test to relax."""
     res = oedb.run_H1(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
-    assert res.bias_M_frac > 2.0 * res.forecast_sigma_M_frac   # pre-registered; do NOT weaken
+    assert (
+        res.bias_M_frac > 2.0 * res.forecast_sigma_M_frac
+    )  # pre-registered; do NOT weaken
     assert res.accept
 
 
@@ -384,7 +394,7 @@ def test_prior_diag_marg_shape_and_fbin_weak():
     pinned; the design's core<->outskirts contrast is what constrains it."""
     pd = oedb.PRIOR_DIAG_MARG
     assert pd.shape == (5,)
-    assert float(pd[oedb.IDX_M]) == 0.0                       # target: no prior
+    assert float(pd[oedb.IDX_M]) == 0.0  # target: no prior
     # f_bin is a weak (data-driven) nuisance: its prior precision is far below the tight
     # photometric (gamma, a) precision (1/0.1^2 = 100) -- the radial leverage constrains it.
     assert float(pd[oedb.IDX_FBIN]) < float(pd[oedb.IDX_GAMMA])
@@ -404,16 +414,16 @@ def test_jacobian_lntheta_fbin_column_ad_vs_fd():
     O(h^2)-truncation-limited, so 1e-3 is the achievable accuracy at a sane step)."""
     th = oedb.theta_truth()
     R = oedb.R_BINS
-    J = oedb.jacobian_lntheta(th, R, STELLAR.G)               # (K, 5)
-    ad_fcol = J[:, oedb.IDX_FBIN]                             # d sigma_obs / d ln f_bin (AD)
+    J = oedb.jacobian_lntheta(th, R, STELLAR.G)  # (K, 5)
+    ad_fcol = J[:, oedb.IDX_FBIN]  # d sigma_obs / d ln f_bin (AD)
 
     # Central FD of sigma_obs(exp(lnth)) wrt the f_bin log-coordinate, at ln(truth).
     lnth = jnp.log(th)
-    h = 1e-4                                                  # log-step
+    h = 1e-4  # log-step
     e_fbin = jnp.zeros(5).at[oedb.IDX_FBIN].set(1.0)
     sig_plus = oedb.predict_sigma_obs(jnp.exp(lnth + h * e_fbin), R, STELLAR.G)
     sig_minus = oedb.predict_sigma_obs(jnp.exp(lnth - h * e_fbin), R, STELLAR.G)
-    fd_fcol = (sig_plus - sig_minus) / (2.0 * h)             # d sigma_obs / d ln f_bin (FD)
+    fd_fcol = (sig_plus - sig_minus) / (2.0 * h)  # d sigma_obs / d ln f_bin (FD)
 
     rel = jnp.max(jnp.abs(ad_fcol - fd_fcol) / jnp.abs(fd_fcol))
     assert float(rel) < 1e-3, f"AD-vs-FD f_bin column rel-err {float(rel):.2e} >= 1e-3"
@@ -426,7 +436,7 @@ def test_marginalized_fisher_uses_inflated_denominator():
     binary-free _SIG_BF (the f_bin pedestal inflates the observed second moment)."""
     sig_obs = oedb.predict_sigma_obs(oedb.theta_truth(), oedb.R_BINS, STELLAR.G)
     assert jnp.allclose(oedb._SIG_MARG, sig_obs, rtol=1e-12)
-    assert bool(jnp.all(oedb._SIG_MARG >= oedb._SIG_BF))      # inflated >= bare cluster
+    assert bool(jnp.all(oedb._SIG_MARG >= oedb._SIG_BF))  # inflated >= bare cluster
     # _J_MARG is the full 5-column jacrev at the truth (build-once, no re-jacrev in loop).
     assert oedb._J_MARG.shape == (oedb.R_BINS.shape[0], 5)
     assert jnp.allclose(
@@ -448,7 +458,7 @@ def test_optimize_design_M_marg_normalized_and_positive_sigma():
     assert jnp.isclose(jnp.sum(res.n_eff), oedb.N_TOTAL, rtol=1e-4)
     assert res.sigma_M_over_M > 0.0
     assert res.n_eff.shape == (oedb.R_BINS.shape[0],)
-    assert bool(jnp.all(res.n_eff > 0.0))     # softmax keeps every bin populated
+    assert bool(jnp.all(res.n_eff > 0.0))  # softmax keeps every bin populated
 
 
 def test_marg_design_costs_info_vs_binary_free():
@@ -478,7 +488,9 @@ def test_H2_precision_gain_meets_threshold():
     binary-aware design recovers a 1.3x precision gain. LOCKED -- do NOT weaken; a
     reject is a reportable null finding (binary-free was accidentally near-optimal)."""
     gain = oedb.h2_precision_gain(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
-    assert gain >= 1.3, f"H2 precision_gain {gain:.3f} < 1.3 (pre-registered) -- report as null"
+    assert gain >= 1.3, (
+        f"H2 precision_gain {gain:.3f} < 1.3 (pre-registered) -- report as null"
+    )
 
 
 def test_H3_allocation_non_monotone():
@@ -491,7 +503,9 @@ def test_H3_allocation_non_monotone():
     weakened."""
     h3 = oedb.h3_allocation_comparison(oedb.N_TOTAL, key=jax.random.PRNGKey(0))
     # Non-monotone signature 1: the per-bin weight rank order changes.
-    assert h3.ranks_differ, "binary-aware allocation preserved the binary-free rank order"
+    assert h3.ranks_differ, (
+        "binary-aware allocation preserved the binary-free rank order"
+    )
     # Non-monotone signature 2: the weight-vector cosine similarity is far below 1 (a
     # monotone rescaling would give cosine ~ 1). Documented threshold: < 0.9.
     assert h3.cosine_similarity < 0.9, (
@@ -525,7 +539,9 @@ def test_fix_binary_aware_fit_is_unbiased():
     |bias_M_frac| < 2 * sigma_M_marg (the binary-aware forecast). LOCKED -- do NOT
     weaken; if it cannot be made unbiased, fix the harness (or report as a finding)."""
     res = oedb.run_fix(n_draws=oedb.N_DRAWS_H1, key=jax.random.PRNGKey(0))
-    assert abs(res.bias_M_frac) < 2.0 * res.sigma_M_marg   # the binary-aware fit removes the bias
+    assert (
+        abs(res.bias_M_frac) < 2.0 * res.sigma_M_marg
+    )  # the binary-aware fit removes the bias
     # Regression guard #2 (review): the binary-aware fit RECOVERS the binary fraction (guards
     # the MECHANISM, not just the M symptom). f_bin_hat must agree with the truth within 3 sigma
     # of its own draw-to-draw scatter -- the radial leverage identifies f_bin, not just the prior.
@@ -579,12 +595,19 @@ def test_worstcase_sigmaM_bounds_each_grid_point():
     wc = oedb.worstcase_sigmaM(z, oedb.N_TOTAL)
     assert jnp.isfinite(wc) and wc > 0.0
     for i in range(oedb.N_FBIN_GRID):
-        sigmaM_i = float(jnp.sqrt(oed.c_criterion(
-            oedb.fisher_marginalized(
-                z, oedb.N_TOTAL, J=oedb._J_MARG_GRID[i], sig=oedb._SIG_MARG_GRID[i]
-            ),
-            target=oedb.IDX_M,
-        )))
+        sigmaM_i = float(
+            jnp.sqrt(
+                oed.c_criterion(
+                    oedb.fisher_marginalized(
+                        z,
+                        oedb.N_TOTAL,
+                        J=oedb._J_MARG_GRID[i],
+                        sig=oedb._SIG_MARG_GRID[i],
+                    ),
+                    target=oedb.IDX_M,
+                )
+            )
+        )
         assert wc >= sigmaM_i - 1e-9
 
 
@@ -616,22 +639,34 @@ def test_marg_fit_is_data_driven_not_pinned_at_truth():
     # (the core<->outskirts contrast breaks M<->f_bin) while staying cheap. Counts well above
     # N_MIN_FIT so both bins are kept.
     K = oedb.R_BINS.shape[0]
-    design = jnp.zeros(K).at[2].set(2000.0).at[K - 1].set(1500.0)   # core-ish + outermost bin
+    design = (
+        jnp.zeros(K).at[2].set(2000.0).at[K - 1].set(1500.0)
+    )  # core-ish + outermost bin
     counts, n_max, keep = oedb._per_bin_star_counts(design)
-    assert int(jnp.sum(keep)) == 2                                   # exactly the two populated bins
+    assert int(jnp.sum(keep)) == 2  # exactly the two populated bins
 
     sig_model = oedb.cluster_sigma_los(oedb.theta_truth_clusteronly(), oedb.R_BINS, G)
     # Build-once K_orb pool exactly as the MC does (Var == V_BIN), so the mock is a faithful
     # binary-contaminated draw at the truth f_bin.
-    korb_raw = jnp.asarray(oedb.binaries.sample_blend_velocities(
-        jax.random.PRNGKey(oedb.V_BIN_SEED + 1), oedb._KORB_POOL_N,
-        imf=oedb.massive_primary_imf(), Z=oedb.V_BIN_Z,
-    ))
+    korb_raw = jnp.asarray(
+        oedb.binaries.sample_blend_velocities(
+            jax.random.PRNGKey(oedb.V_BIN_SEED + 1),
+            oedb._KORB_POOL_N,
+            imf=oedb.massive_primary_imf(),
+            Z=oedb.V_BIN_Z,
+        )
+    )
     korb_centered = korb_raw - jnp.mean(korb_raw)
     korb_pool = korb_centered * jnp.sqrt(oedb.V_BIN / jnp.var(korb_centered, ddof=1))
 
     sigma_hat, se = oedb._draw_binned_sigma_hat(
-        jax.random.PRNGKey(123), sig_model, counts, n_max, keep, korb_pool, oedb.F_BIN_TRUTH
+        jax.random.PRNGKey(123),
+        sig_model,
+        counts,
+        n_max,
+        keep,
+        korb_pool,
+        oedb.F_BIN_TRUTH,
     )
 
     th = oedb.theta_truth()
@@ -649,7 +684,9 @@ def test_marg_fit_is_data_driven_not_pinned_at_truth():
     m_hats = jnp.array([oedb.th_M(f) for f in fits])
     f_hats = jnp.array([oedb.th_fbin(f) for f in fits])
     # Agreement across inits -> the fit converged to the SAME data minimum (data-driven).
-    assert float(jnp.max(m_hats) / jnp.min(m_hats) - 1.0) < 0.02, f"M_hat spread {m_hats}"
+    assert float(jnp.max(m_hats) / jnp.min(m_hats) - 1.0) < 0.02, (
+        f"M_hat spread {m_hats}"
+    )
     assert float(jnp.max(f_hats) - jnp.min(f_hats)) < 0.02, f"f_bin_hat spread {f_hats}"
 
 
@@ -700,8 +737,14 @@ def test_deterministic_sweep_runs_monotone_finite():
     # sigma_bin is the FIXED massive-primary scale (mass-independent).
     assert jnp.isclose(sw.sigma_bin_kms, jnp.sqrt(oedb.V_BIN))
     # all arrays finite + positive.
-    for arr in (sw.M_grid, sw.sigma_cluster_kms, sw.ratio, sw.sigmaM_bf,
-                sw.sigmaM_marg, sw.h2_gain):
+    for arr in (
+        sw.M_grid,
+        sw.sigma_cluster_kms,
+        sw.ratio,
+        sw.sigmaM_bf,
+        sw.sigmaM_marg,
+        sw.h2_gain,
+    ):
         assert arr.shape == (n,)
         assert bool(jnp.all(jnp.isfinite(arr)))
         assert bool(jnp.all(arr > 0.0))

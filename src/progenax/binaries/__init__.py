@@ -15,32 +15,6 @@ Modules:
                     sample_mass_dependent_orbits
 """
 
-from .kepler import (
-    KeplerElements,
-    CartesianState,
-    BinaryState,
-)
-from .kepler_period import compute_period, period_to_semimajor_axis
-
-from .orbital_state import (
-    BinaryOrbitalState,
-    batch_elements_to_resolved,
-)
-
-from .period import LogUniformPeriod, LogNormalPeriod, SanaOBPeriod
-from .eccentricity import (
-    ThermalEccentricity,
-    UniformEccentricity,
-    LogisticThermalEccentricity,
-    MoeEccentricity,
-)
-from .orientation import sample_isotropic_orientations
-from .mass_dependent import (
-    RadialBinaryFraction,
-    CombinedBinaryFraction,
-    MassDependentBinaryConfig,
-    sample_mass_dependent_orbits,
-)
 from .assembly import ResolvedBinaries, resolve_binary_components
 from .companions import (
     CompanionElements,
@@ -48,13 +22,37 @@ from .companions import (
     MoeCompanions,
 )
 from .diagnostics import (
-    relative_energy,
-    find_bound_pairs,
-    find_bound_multiples,
-    primordial_survival,
     BinaryEnergyBudget,
     binary_energy_budget,
+    find_bound_multiples,
+    find_bound_pairs,
+    primordial_survival,
+    relative_energy,
 )
+from .eccentricity import (
+    LogisticThermalEccentricity,
+    MoeEccentricity,
+    ThermalEccentricity,
+    UniformEccentricity,
+)
+from .kepler import (
+    BinaryState,
+    CartesianState,
+    KeplerElements,
+)
+from .kepler_period import compute_period, period_to_semimajor_axis
+from .mass_dependent import (
+    CombinedBinaryFraction,
+    MassDependentBinaryConfig,
+    RadialBinaryFraction,
+    sample_mass_dependent_orbits,
+)
+from .orbital_state import (
+    BinaryOrbitalState,
+    batch_elements_to_resolved,
+)
+from .orientation import sample_isotropic_orientations
+from .period import LogNormalPeriod, LogUniformPeriod, SanaOBPeriod
 
 __all__ = [
     # Kepler mechanics

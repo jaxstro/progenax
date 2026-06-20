@@ -51,9 +51,9 @@ import ast
 import hashlib
 from pathlib import Path
 
-import progenax
-
 from jaxstro.testing import ratchet
+
+import progenax
 from tests.validation.provenance_registry.manifest import (
     ALLOWLIST_MODULES,
     ALLOWLIST_NON_COEFFICIENT,

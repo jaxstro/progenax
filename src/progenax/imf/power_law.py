@@ -6,6 +6,7 @@ Features exact analytical CDF/PPF for efficiency and differentiability.
 """
 
 from __future__ import annotations
+
 from typing import List, Tuple
 
 import equinox as eqx

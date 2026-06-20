@@ -12,24 +12,23 @@ import jax.numpy as jnp
 import pytest
 
 from progenax.imf import (
+    JERABKOVA_COEFFICIENTS,
+    MARKS_COEFFICIENTS,
     BirthEnvironment,
-    env_to_imf_params,
     alpha3_jerabkova_mecl,
     alpha3_jerabkova_rho,
     alpha3_marks_plane,
+    env_to_imf_params,
     lowmass_slopes_metallicity,
-    JERABKOVA_COEFFICIENTS,
-    MARKS_COEFFICIENTS,
 )
 from progenax.imf.differentiable import individual_mass_nll
+from progenax.imf.environment.coefficients import MARKS_TABLE3_COEFFICIENTS
 from progenax.imf.environment.mapping import (
-    alpha3_marks_table3,
     _alpha3_from_x,
     alpha3_jerabkova_generalized,
+    alpha3_marks_table3,
     x_jerabkova_generalized,
 )
-from progenax.imf.environment.coefficients import MARKS_TABLE3_COEFFICIENTS
-
 
 # =============================================================================
 # Test BirthEnvironment
@@ -92,8 +91,8 @@ class TestJerabkovaCoefficients:
         c = JERABKOVA_COEFFICIENTS
         assert c["FeH_coeff"] == -0.14
         assert c["logMecl_coeff"] == 0.6039  # 0.99 × 0.61 = 0.6039 (exact)
-        assert c["constant"] == 0.2161       # 8π half-mass density derived
-        assert c["x_threshold"] == -0.87     # NEGATIVE threshold
+        assert c["constant"] == 0.2161  # 8π half-mass density derived
+        assert c["x_threshold"] == -0.87  # NEGATIVE threshold
         assert c["alpha3_slope"] == -0.41
         assert c["alpha3_intercept"] == 1.94
 
@@ -133,7 +132,9 @@ class TestJerabkovaCoefficients:
         alpha3 = alpha3_jerabkova_mecl(log_mecl_6, FeH)
         # Below threshold: x < -0.87, so canonical Kroupa
         assert x < c["x_threshold"], f"x={x} should be below threshold"
-        assert jnp.isclose(alpha3, c["alpha3_canonical"], atol=0.01)  # CANONICAL KROUPA!
+        assert jnp.isclose(
+            alpha3, c["alpha3_canonical"], atol=0.01
+        )  # CANONICAL KROUPA!
 
     def test_smooth_transition(self):
         """Smooth mode produces differentiable transition."""
@@ -169,7 +170,9 @@ class TestMarksCoefficients:
         c = MARKS_COEFFICIENTS
         assert jnp.isclose(c["cos_theta"], -0.139, atol=0.001)
         assert jnp.isclose(c["sin_theta"], 0.990, atol=0.001)
-        assert jnp.isclose(c["x_hat_threshold"], -0.87, atol=0.01)  # erratum (was +0.87 typo)
+        assert jnp.isclose(
+            c["x_hat_threshold"], -0.87, atol=0.01
+        )  # erratum (was +0.87 typo)
         assert jnp.isclose(c["alpha3_slope"], -0.4072, atol=0.001)
         assert jnp.isclose(c["alpha3_intercept"], 1.9383, atol=0.001)
 
@@ -183,7 +186,9 @@ class TestMarksCoefficients:
         assert c["x_hat_threshold"] < 0, "Marks threshold must be NEGATIVE (erratum)"
         # the line meets canonical 2.3 continuously at the threshold:
         knee = c["alpha3_slope"] * c["x_hat_threshold"] + c["alpha3_intercept"]
-        assert jnp.isclose(knee, 2.3, atol=0.02), "threshold must give a continuous knee"
+        assert jnp.isclose(knee, 2.3, atol=0.02), (
+            "threshold must give a continuous knee"
+        )
 
     def test_high_density_metal_poor(self):
         """High density + metal poor: top-heavy IMF."""
@@ -280,7 +285,9 @@ class TestEnvToIMFParams:
         # At sfe=0.33: log10(sfe/0.33) = 0, so same as jerabkova_mecl
         c = JERABKOVA_COEFFICIENTS
         log_mecl_6 = 0.0  # log10(1e6 / 1e6) = 0
-        x = c["FeH_coeff"] * (-1.5) + c["logMecl_coeff"] * log_mecl_6 + c["constant"]  # ~0.43
+        x = (
+            c["FeH_coeff"] * (-1.5) + c["logMecl_coeff"] * log_mecl_6 + c["constant"]
+        )  # ~0.43
         expected_alpha3 = c["alpha3_slope"] * x + c["alpha3_intercept"]  # ~1.76
 
         assert jnp.isclose(params.alpha3, expected_alpha3, atol=0.05)
@@ -384,6 +391,7 @@ class TestGradientFlow:
 
     def test_jit_compatibility(self):
         """env_to_imf_params is JIT-compatible."""
+
         @jax.jit
         def compute_alpha3(log_mecl, FeH):
             env = BirthEnvironment(metallicity=FeH, log_mecl=log_mecl)
@@ -521,7 +529,7 @@ class TestMarksTable3:
         """
         coef = MARKS_TABLE3_COEFFICIENTS["feh"]
         assert coef["branch"] == "<", "feh relation must use the '<' branch"
-        p, q, lim = coef["p"], coef["q"], coef["lim"]
+        p, q, _ = coef["p"], coef["q"], coef["lim"]
 
         # Below lim (metal-poor): varied value
         feh_lo = jnp.array(-1.5)
@@ -539,7 +547,7 @@ class TestMarksTable3:
         """The '>' branch (rho): lambda > lim varies; lambda < lim canonical."""
         coef = MARKS_TABLE3_COEFFICIENTS["rho"]
         assert coef["branch"] == ">"
-        p, q, lim = coef["p"], coef["q"], coef["lim"]
+        p, q, _ = coef["p"], coef["q"], coef["lim"]
 
         # Above lim (dense): varied
         lam_hi = jnp.array(2.0)
@@ -554,6 +562,7 @@ class TestMarksTable3:
 
     def test_smooth_feh_branch_differentiable(self):
         """smooth=True for the '<' (feh) branch is finite and gradient-friendly."""
+
         def f(feh):
             return alpha3_marks_table3(feh, relation="feh", smooth=True)
 
@@ -575,6 +584,7 @@ class TestAlpha3FromXSmooth:
 
     def test_smooth_is_differentiable_and_finite(self):
         """jax.grad through the smooth tanh transition is finite."""
+
         def f(x):
             return _alpha3_from_x(
                 x, threshold=-0.87, slope=-0.41, intercept=1.94, smooth=True
@@ -596,8 +606,12 @@ class TestAlpha3FromXSmooth:
     def test_smooth_approaches_canonical_below_threshold(self):
         """Far below threshold, smooth alpha3 -> canonical 2.3."""
         a3 = _alpha3_from_x(
-            jnp.array(-5.0), threshold=-0.87, slope=-0.41, intercept=1.94,
-            smooth=True, smooth_width=0.2,
+            jnp.array(-5.0),
+            threshold=-0.87,
+            slope=-0.41,
+            intercept=1.94,
+            smooth=True,
+            smooth_width=0.2,
         )
         assert jnp.isclose(a3, 2.3, atol=0.05)
 
@@ -649,7 +663,7 @@ class TestEnvToIMFParamsAllModels:
         # With high mass + low SFE, M_cl is large -> top-heavy via '>' branch
         env = BirthEnvironment.from_cluster_mass(M_ecl=1e7, FeH=-1.0, sfe=0.05)
         params = env_to_imf_params(env, model="marks_mcl")
-        M_ecl = 10.0 ** env.log_mecl
+        M_ecl = 10.0**env.log_mecl
         log_mcl_6 = jnp.log10(M_ecl / env.sfe) - 6.0
         expected = alpha3_marks_table3(log_mcl_6, relation="mcl")
         assert jnp.isclose(params.alpha3, expected, atol=1e-5)
@@ -685,12 +699,8 @@ class TestEnvToIMFParamsAllModels:
         # FeH = -4.0 is below the calibrated floor (-2.5)
         env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-4.0)
 
-        params_clamped = env_to_imf_params(
-            env, model="marks_feh", clamp_domain=True
-        )
-        params_raw = env_to_imf_params(
-            env, model="marks_feh", clamp_domain=False
-        )
+        params_clamped = env_to_imf_params(env, model="marks_feh", clamp_domain=True)
+        params_raw = env_to_imf_params(env, model="marks_feh", clamp_domain=False)
 
         # Clamped uses FeH=-2.5; raw uses FeH=-4.0 -> different alpha3
         a3_at_clamp = alpha3_marks_table3(jnp.array(-2.5), relation="feh")
@@ -737,7 +747,9 @@ class TestEnvGradients:
 
     def test_jerabkova_generalized_grad_sfe(self):
         _assert_grad_matches_fd(
-            lambda s: alpha3_jerabkova_generalized(-1.0, 1e6, s, smooth=True), 0.33, h=1e-4
+            lambda s: alpha3_jerabkova_generalized(-1.0, 1e6, s, smooth=True),
+            0.33,
+            h=1e-4,
         )
 
     def test_jerabkova_mecl_grad_logmass(self):
@@ -747,9 +759,7 @@ class TestEnvGradients:
         )
 
     def test_marks_plane_grad_logrho(self):
-        _assert_grad_matches_fd(
-            lambda r: alpha3_marks_plane(r, -1.5, smooth=True), 1.0
-        )
+        _assert_grad_matches_fd(lambda r: alpha3_marks_plane(r, -1.5, smooth=True), 1.0)
 
     def test_marks_plane_grad_FeH(self):
         _assert_grad_matches_fd(
@@ -758,9 +768,7 @@ class TestEnvGradients:
 
     def test_x_jerabkova_grad_FeH(self):
         # x is unconditional (no threshold): grad is exactly the FeH coefficient.
-        _assert_grad_matches_fd(
-            lambda fe: x_jerabkova_generalized(fe, 1e6, 0.33), -1.0
-        )
+        _assert_grad_matches_fd(lambda fe: x_jerabkova_generalized(fe, 1e6, 0.33), -1.0)
 
 
 class TestSFEExtreme:
@@ -768,13 +776,29 @@ class TestSFEExtreme:
 
     @pytest.mark.parametrize("sfe", [1e-6, 1e-3, 0.33, 100.0, 1e6])
     def test_alpha3_finite_and_bounded(self, sfe):
-        a3 = alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(sfe))
+        a3 = alpha3_jerabkova_generalized(
+            jnp.array(-1.0), jnp.array(1e6), jnp.array(sfe)
+        )
         assert jnp.isfinite(a3), f"alpha3 non-finite at sfe={sfe}: {a3}"
-        assert 0.5 - 1e-9 <= float(a3) <= 2.3 + 1e-9, f"alpha3={float(a3)} out of [0.5,2.3] at sfe={sfe}"
+        assert 0.5 - 1e-9 <= float(a3) <= 2.3 + 1e-9, (
+            f"alpha3={float(a3)} out of [0.5,2.3] at sfe={sfe}"
+        )
 
     def test_sfe_extremes_saturate(self):
         # sfe -> 0 => most top-heavy (clips to 0.5); sfe -> inf => canonical (2.3)
-        a_low = float(alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(1e-6)))
-        a_high = float(alpha3_jerabkova_generalized(jnp.array(-1.0), jnp.array(1e6), jnp.array(1e6)))
-        assert a_low == pytest.approx(0.5, abs=1e-6), f"sfe->0 should clip to 0.5, got {a_low}"
-        assert a_high == pytest.approx(2.3, abs=1e-6), f"sfe->inf should be canonical 2.3, got {a_high}"
+        a_low = float(
+            alpha3_jerabkova_generalized(
+                jnp.array(-1.0), jnp.array(1e6), jnp.array(1e-6)
+            )
+        )
+        a_high = float(
+            alpha3_jerabkova_generalized(
+                jnp.array(-1.0), jnp.array(1e6), jnp.array(1e6)
+            )
+        )
+        assert a_low == pytest.approx(0.5, abs=1e-6), (
+            f"sfe->0 should clip to 0.5, got {a_low}"
+        )
+        assert a_high == pytest.approx(2.3, abs=1e-6), (
+            f"sfe->inf should be canonical 2.3, got {a_high}"
+        )

@@ -39,6 +39,7 @@ Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_limepy_reference.py
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_limepy_reference.py --regen
 """
+
 import argparse
 import json
 import os
@@ -51,6 +52,7 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 
+from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.imf.smooth import Maschberger
 from progenax.profiles.limepy import _aniso_density_scalar, limepy_density_hat
 from progenax.profiles.limepy_multimass import (
@@ -58,7 +60,6 @@ from progenax.profiles.limepy_multimass import (
     _bin_imf,
     find_alpha_for_masses,
 )
-from progenax.cluster.multicomponent import MultiComponentCluster
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig
@@ -80,30 +81,90 @@ IMF_N_COMP, IMF_M_RANGE, IMF_ALPHA = 4, (0.1, 20.0), 2.3
 # mass fractions at 0..7.1e-5, c at 1.4e-5..1.5e-4, r_h at <=6.3e-6. Every gate
 # is <=5e-4 -- 20x tighter than the 1% physics target. NEVER loosen to pass.
 CONFIGS = [
-    dict(name="single_g1", label="single-mass g=1 (King), W0=5",
-         W0=5.0, g=1.0, mj=None, Mj=None, delta=None, eta=None, ra=None,
-         xi_max=30.0, n_ode=8000,
-         gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4)),
-    dict(name="single_g15", label="single-mass g=1.5, W0=5",
-         W0=5.0, g=1.5, mj=None, Mj=None, delta=None, eta=None, ra=None,
-         xi_max=45.0, n_ode=8000,
-         gates=dict(rho=5e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4)),
-    dict(name="twocomp_iso", label="2-comp m=[0.3,1], f=[0.7,0.3], delta=0.5",
-         W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=None, ra=None,
-         xi_max=30.0, n_ode=8000,
-         gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
-    dict(name="imf4", label="4-comp Maschberger(2.3) [0.1,20], delta=0.4 (B2)",
-         W0=5.0, g=1.0, mj="imf", Mj="imf", delta=0.4, eta=None, ra=None,
-         xi_max=30.0, n_ode=8000,
-         gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
-    dict(name="twocomp_ra_eta0", label="2-comp + ra=5 r0, eta=0 (aniso)",
-         W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=0.0, ra=5.0,
-         xi_max=30.0, n_ode=6000,
-         gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
-    dict(name="twocomp_ra_eta05", label="2-comp + ra=5 r0, eta=0.5 (aniso)",
-         W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=0.5, ra=5.0,
-         xi_max=30.0, n_ode=6000,
-         gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
+    dict(
+        name="single_g1",
+        label="single-mass g=1 (King), W0=5",
+        W0=5.0,
+        g=1.0,
+        mj=None,
+        Mj=None,
+        delta=None,
+        eta=None,
+        ra=None,
+        xi_max=30.0,
+        n_ode=8000,
+        gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4),
+    ),
+    dict(
+        name="single_g15",
+        label="single-mass g=1.5, W0=5",
+        W0=5.0,
+        g=1.5,
+        mj=None,
+        Mj=None,
+        delta=None,
+        eta=None,
+        ra=None,
+        xi_max=45.0,
+        n_ode=8000,
+        gates=dict(rho=5e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4),
+    ),
+    dict(
+        name="twocomp_iso",
+        label="2-comp m=[0.3,1], f=[0.7,0.3], delta=0.5",
+        W0=5.0,
+        g=1.0,
+        mj=[0.3, 1.0],
+        Mj=[0.7, 0.3],
+        delta=0.5,
+        eta=None,
+        ra=None,
+        xi_max=30.0,
+        n_ode=8000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
+    dict(
+        name="imf4",
+        label="4-comp Maschberger(2.3) [0.1,20], delta=0.4 (B2)",
+        W0=5.0,
+        g=1.0,
+        mj="imf",
+        Mj="imf",
+        delta=0.4,
+        eta=None,
+        ra=None,
+        xi_max=30.0,
+        n_ode=8000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
+    dict(
+        name="twocomp_ra_eta0",
+        label="2-comp + ra=5 r0, eta=0 (aniso)",
+        W0=5.0,
+        g=1.0,
+        mj=[0.3, 1.0],
+        Mj=[0.7, 0.3],
+        delta=0.5,
+        eta=0.0,
+        ra=5.0,
+        xi_max=30.0,
+        n_ode=6000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
+    dict(
+        name="twocomp_ra_eta05",
+        label="2-comp + ra=5 r0, eta=0.5 (aniso)",
+        W0=5.0,
+        g=1.0,
+        mj=[0.3, 1.0],
+        Mj=[0.7, 0.3],
+        delta=0.5,
+        eta=0.5,
+        ra=5.0,
+        xi_max=30.0,
+        n_ode=6000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
 ]
 
 REPRESENTATIVE = "imf4"  # the figure's multimass config
@@ -118,8 +179,11 @@ def _ref_config_json(cfg):
     """The worker's config dict (concrete floats only; 'imf' bins resolved here)."""
     out = {"W0": cfg["W0"], "g": cfg["g"]}
     if cfg["mj"] is not None:
-        mj, Mj = (cfg["mj"], cfg["Mj"]) if cfg["mj"] != "imf" else \
-            tuple([float(x) for x in arr] for arr in _imf_bins())
+        mj, Mj = (
+            (cfg["mj"], cfg["Mj"])
+            if cfg["mj"] != "imf"
+            else tuple([float(x) for x in arr] for arr in _imf_bins())
+        )
         out.update(mj=list(mj), Mj=list(Mj), delta=cfg["delta"])
         if cfg["eta"] is not None:
             out["eta"] = cfg["eta"]
@@ -137,14 +201,29 @@ def load_or_generate_reference(cfg, regen=False):
         os.makedirs(CACHE_DIR, exist_ok=True)
         ref_cfg = _ref_config_json(cfg)
         print(f"  [regen] running reference LIMEPY subprocess for {cfg['name']} ...")
-        cmd = ["env", "-u", "VIRTUAL_ENV", "uv", "run", "--no-project",
-               "--python", "3.11", "--with", "numpy==1.26.4",
-               "--with", "scipy==1.11.4", "python", WORKER,
-               json.dumps(ref_cfg), path]
+        cmd = [
+            "env",
+            "-u",
+            "VIRTUAL_ENV",
+            "uv",
+            "run",
+            "--no-project",
+            "--python",
+            "3.11",
+            "--with",
+            "numpy==1.26.4",
+            "--with",
+            "scipy==1.11.4",
+            "python",
+            WORKER,
+            json.dumps(ref_cfg),
+            path,
+        ]
         res = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
         if res.returncode != 0:
             raise RuntimeError(
-                f"reference worker failed for {cfg['name']}:\n{res.stderr[-2000:]}")
+                f"reference worker failed for {cfg['name']}:\n{res.stderr[-2000:]}"
+            )
         print("    " + res.stdout.strip().splitlines()[-1])
     return np.load(path)
 
@@ -162,8 +241,13 @@ def build_ours(cfg):
     kw = dict(xi_max=cfg["xi_max"], n_ode_points=cfg["n_ode"])
     if cfg["mj"] is None:
         return MultiComponentCluster.from_components(
-            alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]), m_j=jnp.array([1.0]),
-            W0=W0, g=g, **kw)
+            alpha_j=jnp.array([1.0]),
+            w_j=jnp.array([1.0]),
+            m_j=jnp.array([1.0]),
+            W0=W0,
+            g=g,
+            **kw,
+        )
     if cfg["mj"] == "imf":
         m_j, M_j = _imf_bins()
     else:
@@ -171,11 +255,27 @@ def build_ours(cfg):
     ra_hat = cfg["ra"]  # ours r_a/r_c == reference ra/r0 (shared -9 normalization)
     eta = cfg["eta"] if cfg["eta"] is not None else 0.0
     alpha_j, residual = find_alpha_for_masses(
-        m_j, M_j, W0, g, cfg["delta"], xi_max=cfg["xi_max"],
-        n_points=cfg["n_ode"], ra_hat=ra_hat, eta=eta)
+        m_j,
+        M_j,
+        W0,
+        g,
+        cfg["delta"],
+        xi_max=cfg["xi_max"],
+        n_points=cfg["n_ode"],
+        ra_hat=ra_hat,
+        eta=eta,
+    )
     model = MultiComponentCluster.from_mass_segregation(
-        alpha_j=alpha_j, m_j=m_j, W0=W0, g=g, delta=cfg["delta"],
-        r_a=ra_hat, eta=eta, r_c=1.0, **kw)
+        alpha_j=alpha_j,
+        m_j=m_j,
+        W0=W0,
+        g=g,
+        delta=cfg["delta"],
+        r_a=ra_hat,
+        eta=eta,
+        r_c=1.0,
+        **kw,
+    )
     return model
 
 
@@ -191,14 +291,17 @@ def ours_profiles(model, xi):
         p = jnp.where(jnp.isfinite(ra_j[j]), xi / ra_j[j], 0.0)
         if bool(jnp.isfinite(ra_j[j])):
             rho_j = jax.vmap(lambda W, pp: _aniso_density_scalar(W, pp, model.g))(
-                rescale[j] * psi, p)
-            rho_0 = _aniso_density_scalar(rescale[j] * model.W0, jnp.asarray(0.0),
-                                          model.g)
+                rescale[j] * psi, p
+            )
+            rho_0 = _aniso_density_scalar(
+                rescale[j] * model.W0, jnp.asarray(0.0), model.g
+            )
         else:
             rho_j = limepy_density_hat(rescale[j] * psi, model.g)
             rho_0 = limepy_density_hat(rescale[j] * model.W0, model.g)
         v2_j = jax.vmap(lambda W, pp: _aniso_v2hat_scalar(W, pp, model.g))(
-            rescale[j] * psi, p)
+            rescale[j] * psi, p
+        )
         v2_0 = _aniso_v2hat_scalar(rescale[j] * model.W0, jnp.asarray(0.0), model.g)
         rho.append(rho_j / rho_0)
         sig.append(jnp.sqrt(v2_j / v2_0))
@@ -214,8 +317,9 @@ def ours_mass_profile(model, n=6000):
     nu_j = jnp.trapezoid(w_j * xg[None, :] ** 2, xg, axis=1)
     f_j = nu_j / jnp.sum(nu_j)
     integ = jnp.sum(w_j, axis=0) * xg**2
-    M = jnp.concatenate([jnp.zeros(1), jnp.cumsum(
-        0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xg))])
+    M = jnp.concatenate(
+        [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xg))]
+    )
     return xg, M / M[-1], f_j
 
 
@@ -246,11 +350,15 @@ def compare_config(cfg, ref, model):
     rh_ref = float(ref["rh"]) / r0
     d_rh = abs(rh_ours - rh_ref) / rh_ref
 
-    measured = dict(rho=d_rho, sig=d_sig, alpha=d_alpha, mfrac=d_mfrac,
-                    c=d_c, rh=d_rh)
-    return measured, dict(c_ours=c_ours, c_ref=c_ref, rh_ours=rh_ours,
-                          rh_ref=rh_ref, alpha_ours=np.asarray(model.alpha_j),
-                          alpha_ref=np.asarray(ref["alpha"]))
+    measured = dict(rho=d_rho, sig=d_sig, alpha=d_alpha, mfrac=d_mfrac, c=d_c, rh=d_rh)
+    return measured, dict(
+        c_ours=c_ours,
+        c_ref=c_ref,
+        rh_ours=rh_ours,
+        rh_ref=rh_ref,
+        alpha_ours=np.asarray(model.alpha_j),
+        alpha_ref=np.asarray(ref["alpha"]),
+    )
 
 
 def make_figure(cfg, ref, model):
@@ -266,37 +374,56 @@ def make_figure(cfg, ref, model):
     rho_ref = ref["rhoj"][:, sel] / ref["rhoj"][:, 0:1]
     sig_ref = np.sqrt(ref["v2j"][:, sel] / ref["v2j"][:, 0:1])
     m_j = np.asarray(ref["mj"])
-    cols = [OI["sky"], OI["green"], OI["orange"], OI["vermilion"]][:len(m_j)]
+    cols = [OI["sky"], OI["green"], OI["orange"], OI["vermilion"]][: len(m_j)]
 
     fig, axes = plt.subplots(
-        2, 2, figsize=(8.6, 5.6), sharex="col",
-        gridspec_kw=dict(height_ratios=[3.0, 1.2], hspace=0.07, wspace=0.26))
+        2,
+        2,
+        figsize=(8.6, 5.6),
+        sharex="col",
+        gridspec_kw=dict(height_ratios=[3.0, 1.2], hspace=0.07, wspace=0.26),
+    )
     (axR, axS), (axRr, axSr) = axes
     x = np.asarray(xi)
     for j, col in enumerate(cols):
-        axR.plot(x, rho_ref[j], color=col, lw=2.4, alpha=0.45,
-                 label=rf"ref $m_j={m_j[j]:.2f}$")
-        axR.plot(x, np.asarray(rho_ours[j]), color=col, lw=1.0, ls="--",
-                 label="ours" if j == 0 else None)
+        axR.plot(
+            x,
+            rho_ref[j],
+            color=col,
+            lw=2.4,
+            alpha=0.45,
+            label=rf"ref $m_j={m_j[j]:.2f}$",
+        )
+        axR.plot(
+            x,
+            np.asarray(rho_ours[j]),
+            color=col,
+            lw=1.0,
+            ls="--",
+            label="ours" if j == 0 else None,
+        )
         axRr.plot(x, np.asarray(rho_ours[j]) - rho_ref[j], color=col, lw=1.0)
         axS.plot(x, sig_ref[j], color=col, lw=2.4, alpha=0.45)
         axS.plot(x, np.asarray(sig_ours[j]), color=col, lw=1.0, ls="--")
         axSr.plot(x, np.asarray(sig_ours[j]) - sig_ref[j], color=col, lw=1.0)
-    axR.set_xscale("log"); axR.set_yscale("log")
+    axR.set_xscale("log")
+    axR.set_yscale("log")
     axR.set_ylim(1e-7, 2.0)
     axR.set_ylabel(r"$\rho_j(r)/\rho_j(0)$")
     axR.legend(fontsize=7, loc="lower left")
     panel_label(axR, "(a)", loc="upper right")
     axRr.set_xscale("log")
     axRr.axhline(0.0, color="0.6", lw=0.8, ls=":")
-    axRr.set_xlabel(r"$r/r_0$"); axRr.set_ylabel("ours $-$ ref")
+    axRr.set_xlabel(r"$r/r_0$")
+    axRr.set_ylabel("ours $-$ ref")
     axS.set_xscale("log")
     axS.set_ylabel(r"$\sigma_j(r)/\sigma_j(0)$")
     axS.set_ylim(0.0, 1.05)
     panel_label(axS, "(b)", loc="lower left")
     axSr.set_xscale("log")
     axSr.axhline(0.0, color="0.6", lw=0.8, ls=":")
-    axSr.set_xlabel(r"$r/r_0$"); axSr.set_ylabel("ours $-$ ref")
+    axSr.set_xlabel(r"$r/r_0$")
+    axSr.set_ylabel("ours $-$ ref")
     for ax in (axRr, axSr):
         ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
     save_fig(fig, OUTPUT_DIR, "limepy_reference_parity")
@@ -304,20 +431,25 @@ def make_figure(cfg, ref, model):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--regen", action="store_true",
-                    help="re-run the reference subprocess (pinned env) and "
-                         "refresh the npz cache")
+    ap.add_argument(
+        "--regen",
+        action="store_true",
+        help="re-run the reference subprocess (pinned env) and refresh the npz cache",
+    )
     args = ap.parse_args()
 
     print("\n" + "=" * 88)
-    print("OURS-vs-REFERENCE-LIMEPY PARITY (canonical Gieles & Zocchi 2015 code, "
-          "meanmassdef='central')")
+    print(
+        "OURS-vs-REFERENCE-LIMEPY PARITY (canonical Gieles & Zocchi 2015 code, "
+        "meanmassdef='central')"
+    )
     print("=" * 88)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     all_ok = True
-    header = (f"  {'config':<18} {'quantity':<22} {'measured':>10} {'gate':>9} "
-              f"{'status':>7}")
+    header = (
+        f"  {'config':<18} {'quantity':<22} {'measured':>10} {'gate':>9} {'status':>7}"
+    )
     rows = []
     for cfg in CONFIGS:
         ref = load_or_generate_reference(cfg, regen=args.regen)
@@ -328,19 +460,26 @@ def main():
         model = build_ours(cfg)
         measured, extra = compare_config(cfg, ref, model)
         labels = {
-            "rho": "max|drho_j(r)| (shape)", "sig": "max|dsigma_j(r)| (shape)",
-            "alpha": "max|dalpha_j|", "mfrac": "max|dM_j/M|",
-            "c": "|dlog10(rt/r0)|", "rh": "|drh|/rh",
+            "rho": "max|drho_j(r)| (shape)",
+            "sig": "max|dsigma_j(r)| (shape)",
+            "alpha": "max|dalpha_j|",
+            "mfrac": "max|dM_j/M|",
+            "c": "|dlog10(rt/r0)|",
+            "rh": "|drh|/rh",
         }
         for k in ("rho", "sig", "alpha", "mfrac", "c", "rh"):
             ok = measured[k] <= cfg["gates"][k]
             all_ok &= ok
-            rows.append(f"  {cfg['name']:<18} {labels[k]:<22} {measured[k]:>10.2e} "
-                        f"{cfg['gates'][k]:>9.0e} {'PASS' if ok else 'FAIL':>7}")
-        rows.append(f"  {'':<18} alpha ours={np.round(extra['alpha_ours'], 5)} "
-                    f"ref={np.round(extra['alpha_ref'], 5)}; "
-                    f"c={extra['c_ours']:.5f} vs {extra['c_ref']:.5f}; "
-                    f"rh/r0={extra['rh_ours']:.5f} vs {extra['rh_ref']:.5f}")
+            rows.append(
+                f"  {cfg['name']:<18} {labels[k]:<22} {measured[k]:>10.2e} "
+                f"{cfg['gates'][k]:>9.0e} {'PASS' if ok else 'FAIL':>7}"
+            )
+        rows.append(
+            f"  {'':<18} alpha ours={np.round(extra['alpha_ours'], 5)} "
+            f"ref={np.round(extra['alpha_ref'], 5)}; "
+            f"c={extra['c_ours']:.5f} vs {extra['c_ref']:.5f}; "
+            f"rh/r0={extra['rh_ours']:.5f} vs {extra['rh_ref']:.5f}"
+        )
         if cfg["name"] == REPRESENTATIVE:
             make_figure(cfg, ref, model)
 
@@ -350,8 +489,11 @@ def main():
         print(row)
     print("=" * 88)
     print(f"  figure: {OUTPUT_DIR}/limepy_reference_parity.{{png,pdf}}")
-    print("  REFERENCE-LIMEPY PARITY PASS" if all_ok
-          else "  REFERENCE-LIMEPY PARITY FAILED")
+    print(
+        "  REFERENCE-LIMEPY PARITY PASS"
+        if all_ok
+        else "  REFERENCE-LIMEPY PARITY FAILED"
+    )
     return 0 if all_ok else 1
 
 

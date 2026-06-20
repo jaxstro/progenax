@@ -8,17 +8,18 @@ Anisotropy (Merritt 1985): the `anisotropy_radius` r_a realizes the Osipkov-Merr
 profile beta(r) = r^2/(r^2 + r_a^2) *exactly* via a velocity-direction stretch -- in
 contrast to the self-consistent Michie-King DF, whose beta is suppressed below OM.
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from progenax.profiles import PlummerProfile, EFFProfile
-from progenax.kinematics import PlummerVelocityDF, EFFVelocityDF
+from progenax.kinematics import EFFVelocityDF, PlummerVelocityDF
 from progenax.kinematics.rotation import (
-    apply_solid_body_rotation,
     apply_differential_rotation,
+    apply_solid_body_rotation,
 )
+from progenax.profiles import EFFProfile, PlummerProfile
 
 G = 1.0
 ZAXIS = jnp.array([0.0, 0.0, 1.0])
@@ -27,7 +28,7 @@ ZAXIS = jnp.array([0.0, 0.0, 1.0])
 def _cyl(pos, vel):
     """Cylindrical R, v_phi, v_R about the z-axis."""
     x, y = pos[:, 0], pos[:, 1]
-    R = jnp.sqrt(x ** 2 + y ** 2)
+    R = jnp.sqrt(x**2 + y**2)
     v_phi = (x * vel[:, 1] - y * vel[:, 0]) / (R + 1e-30)
     v_R = (x * vel[:, 0] + y * vel[:, 1]) / (R + 1e-30)
     return np.asarray(R), np.asarray(v_phi), np.asarray(v_R)
@@ -55,8 +56,9 @@ class TestSolidBodyRotation:
         sel = R < 3.0
         slope, intercept = np.polyfit(R[sel], dphi[sel], 1)
         resid = np.max(np.abs(dphi[sel] - omega * R[sel]))
-        assert abs(slope - omega) < 1e-6 and resid < 1e-6, \
+        assert abs(slope - omega) < 1e-6 and resid < 1e-6, (
             f"slope={slope:.6f} vs Omega={omega}, max resid={resid:.2e}"
+        )
 
     def test_angular_momentum_budget(self):
         """Added L_z = Omega * sum(m R^2) exactly."""
@@ -65,8 +67,10 @@ class TestSolidBodyRotation:
         R = np.sqrt(np.asarray(pos[:, 0]) ** 2 + np.asarray(pos[:, 1]) ** 2)
         dvel = apply_solid_body_rotation(vel, pos, omega, ZAXIS) - vel
         dLz = float(jnp.sum(m * (pos[:, 0] * dvel[:, 1] - pos[:, 1] * dvel[:, 0])))
-        Lz_expected = omega * float(np.sum(np.asarray(m) * R ** 2))
-        assert abs(dLz - Lz_expected) / Lz_expected < 1e-6, f"dLz={dLz:.1f} vs {Lz_expected:.1f}"
+        Lz_expected = omega * float(np.sum(np.asarray(m) * R**2))
+        assert abs(dLz - Lz_expected) / Lz_expected < 1e-6, (
+            f"dLz={dLz:.1f} vs {Lz_expected:.1f}"
+        )
 
     def test_radial_velocity_unchanged(self):
         """Rotation is purely azimuthal: cylindrical v_R is unchanged."""
@@ -85,7 +89,9 @@ class TestDifferentialRotation:
         dvel = apply_differential_rotation(vel, pos, v_peak, R_peak, ZAXIS) - vel
         R, dphi, _ = _cyl(pos, dvel)
         expected = v_peak * (R / R_peak) * np.exp(1 - R / R_peak)
-        assert np.max(np.abs(dphi - expected)) < 1e-6, "differential v_phi must match the curve"
+        assert np.max(np.abs(dphi - expected)) < 1e-6, (
+            "differential v_phi must match the curve"
+        )
 
     def test_peak_value_at_R_peak(self):
         """The added v_phi(R_peak) = v_peak (the curve maximum)."""
@@ -122,8 +128,10 @@ class TestOsipkovMerrittAnisotropy:
         kp, kv = jax.random.split(jax.random.PRNGKey(1))
         pos = prof.sample_positions(m, kp)
         vel = df.sample_velocities(pos, m, kv, G=G)
-        mids, beta = _beta_binned(pos, vel, [(0.4, 0.8), (0.9, 1.3), (1.6, 2.2), (2.6, 3.6)])
-        target = mids ** 2 / (mids ** 2 + r_a ** 2)
+        mids, beta = _beta_binned(
+            pos, vel, [(0.4, 0.8), (0.9, 1.3), (1.6, 2.2), (2.6, 3.6)]
+        )
+        target = mids**2 / (mids**2 + r_a**2)
         assert np.all(np.abs(beta - target) < 0.04), f"beta={beta} vs OM={target}"
 
     def test_eff_beta_matches_om(self):
@@ -135,8 +143,10 @@ class TestOsipkovMerrittAnisotropy:
         kp, kv = jax.random.split(jax.random.PRNGKey(2))
         pos = prof.sample_positions(m, kp)
         vel = df.sample_velocities(pos, m, kv, G=G)
-        mids, beta = _beta_binned(pos, vel, [(0.4, 0.8), (0.9, 1.3), (1.6, 2.2), (2.6, 3.6)])
-        target = mids ** 2 / (mids ** 2 + r_a ** 2)
+        mids, beta = _beta_binned(
+            pos, vel, [(0.4, 0.8), (0.9, 1.3), (1.6, 2.2), (2.6, 3.6)]
+        )
+        target = mids**2 / (mids**2 + r_a**2)
         assert np.all(np.abs(beta - target) < 0.05), f"beta={beta} vs OM={target}"
 
     def test_none_is_isotropic(self):

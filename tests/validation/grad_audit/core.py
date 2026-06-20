@@ -12,6 +12,7 @@ progenax differentiates N-body IC / summary entry points, so its registry uses t
 labels ``"params->IC"`` / ``"params->summary"`` — the shared engine treats ``direction`` as a
 free string, so no per-package label override is needed.
 """
+
 from jaxstro.testing.grad_audit import (  # noqa: F401  (re-exported public surface)
     AuditResult,
     Case,

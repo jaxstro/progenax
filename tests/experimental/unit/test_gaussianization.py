@@ -20,8 +20,8 @@ pytestmark = pytest.mark.experimental
 
 def test_s_of_g_lognormal_limit_recovers_gaussian_moments():
     """Large-alpha (tail-negligible) BM19 => s ~ Normal(-sigma_s^2/2, sigma_s^2)."""
-    from gravoturb_fdf.theory.gaussianization import s_of_g
     from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb_fdf.theory.gaussianization import s_of_g
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))
@@ -105,8 +105,8 @@ def test_hermite_exp_map_variance_identity():
 
 def test_bm19_hermite_coefficients_lognormal_limit_variance():
     """Large alpha (tail negligible): sum_{n>=1} c_n^2/n! ~ sigma_s^2 = Var[s]."""
-    from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients
     from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))

@@ -3,15 +3,17 @@ IMF-detectable counts). Reusable by the OED Stage-2 demo, B4 (binary mass functi
 any future magnitude-limited demo. Bolometric magnitudes (documented simplification: no band/BC/
 extinction); band-specific photometry (BCs, extinction, crowding) is a planned follow-up via the
 `fluxax` package once it is finalised. All functions are jnp / differentiable."""
+
 import jax.numpy as jnp
-from progenax.stellar import zams_luminosity, inverse_zams_luminosity
+
+from progenax.stellar import inverse_zams_luminosity, zams_luminosity
 
 M_BOL_SUN = 4.74
 
 
 def abs_bol_mag(mass, Z=0.02):
     """Absolute bolometric magnitude from the Tout+1996 ZAMS L(M)."""
-    L = zams_luminosity(mass, Z)                      # [L_sun]
+    L = zams_luminosity(mass, Z)  # [L_sun]
     return M_BOL_SUN - 2.5 * jnp.log10(L)
 
 

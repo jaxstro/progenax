@@ -32,6 +32,7 @@ References:
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_imfs.py
 """
+
 import os
 import sys
 
@@ -62,7 +63,7 @@ apply_pub_style()
 OUTPUT_DIR = "validation/plots"
 SEED = 42
 N_SAMPLES = 100_000
-N_KS = 20_000       # moderate N keeps KS sensitivity sane (D_crit ~ 0.01)
+N_KS = 20_000  # moderate N keeps KS sensitivity sane (D_crit ~ 0.01)
 N_GRAD = 30_000
 
 
@@ -85,7 +86,7 @@ def powerlaw_mle_slope(samples, a, b):
 
     def neg_ll(alpha):
         e = 1.0 - alpha
-        logC = np.log(abs(e)) - np.log(abs(b ** e - a ** e))
+        logC = np.log(abs(e)) - np.log(abs(b**e - a**e))
         return -(logC - alpha * Lm)
 
     res = scipy.optimize.minimize_scalar(neg_ll, bounds=(0.05, 3.5), method="bounded")
@@ -147,13 +148,22 @@ def fig_recovered_slopes(output_dir):
         a_hat, n_win = powerlaw_mle_slope(smp, lo, hi)
         s_hat = _bootstrap_slope_sigma(smp, lo, hi, rng=rng)
         passed = abs(a_hat - a_exp) < t
-        labels.append(name); exp.append(a_exp); rec.append(a_hat)
-        sig.append(s_hat); tol.append(t); ok.append(passed)
-        print(f"  {name.splitlines()[0]:14s} alpha_lit={a_exp:.2f}  "
-              f"recovered={a_hat:.3f}+-{s_hat:.3f}  (N_win={n_win:>6d}, tol {t})  "
-              f"-> {'PASS' if passed else 'FAIL'}")
+        labels.append(name)
+        exp.append(a_exp)
+        rec.append(a_hat)
+        sig.append(s_hat)
+        tol.append(t)
+        ok.append(passed)
+        print(
+            f"  {name.splitlines()[0]:14s} alpha_lit={a_exp:.2f}  "
+            f"recovered={a_hat:.3f}+-{s_hat:.3f}  (N_win={n_win:>6d}, tol {t})  "
+            f"-> {'PASS' if passed else 'FAIL'}"
+        )
 
-    exp = np.array(exp); rec = np.array(rec); sig = np.array(sig); tol = np.array(tol)
+    exp = np.array(exp)
+    rec = np.array(rec)
+    sig = np.array(sig)
+    tol = np.array(tol)
     passed_all = bool(np.all(ok))
 
     fig, ax = plt.subplots(figsize=(4.6, 3.6))
@@ -161,20 +171,46 @@ def fig_recovered_slopes(output_dir):
     ax.plot(lim, lim, "-", color="0.6", lw=1.0, zorder=0, label="$y=x$ (exact)")
     # tolerance band around identity (use the loosest tol for the shaded guide)
     xs = np.linspace(*lim, 10)
-    ax.fill_between(xs, xs - tol.max(), xs + tol.max(), color=OI["green"],
-                    alpha=0.10, zorder=0, label=f"$\\pm{tol.max():.2f}$ band")
+    ax.fill_between(
+        xs,
+        xs - tol.max(),
+        xs + tol.max(),
+        color=OI["green"],
+        alpha=0.10,
+        zorder=0,
+        label=f"$\\pm{tol.max():.2f}$ band",
+    )
     cols = [OI["blue"] if k else OI["vermilion"] for k in ok]
     for x, y, e, c in zip(exp, rec, sig, cols):
-        ax.errorbar(x, y, yerr=e, fmt="o", color=c, ms=6, mec="white", mew=0.6,
-                    capsize=2.5, lw=1.0, zorder=3)
+        ax.errorbar(
+            x,
+            y,
+            yerr=e,
+            fmt="o",
+            color=c,
+            ms=6,
+            mec="white",
+            mew=0.6,
+            capsize=2.5,
+            lw=1.0,
+            zorder=3,
+        )
     ax.set_xlabel(r"published slope $\alpha_{\rm lit}$")
     ax.set_ylabel(r"recovered slope $\hat\alpha$ (sample MLE)")
-    ax.set_xlim(*lim); ax.set_ylim(*lim)
+    ax.set_xlim(*lim)
+    ax.set_ylim(*lim)
     ax.set_aspect("equal")
     ax.legend(loc="upper left", fontsize=7.5)
-    ax.text(0.97, 0.05, "Salpeter, Kroupa(3),\nChabrier tail, Maschberger",
-            transform=ax.transAxes, ha="right", va="bottom", fontsize=7.5,
-            color="0.35")
+    ax.text(
+        0.97,
+        0.05,
+        "Salpeter, Kroupa(3),\nChabrier tail, Maschberger",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=7.5,
+        color="0.35",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "imf_recovered_slopes")
     print("  saved imf_recovered_slopes.{png,pdf}")
@@ -196,8 +232,16 @@ def _overlay_panel(ax, imf, label, color, seed):
     pdf = np.asarray(jnp.exp(imf.logpdf(jnp.asarray(g))))
 
     ax.loglog(g, g * pdf, "-", color=OI["black"], lw=1.8, label=r"analytic $m\,\xi(m)$")
-    ax.loglog(centers, centers * counts, "o", color=color, ms=3.2, mec="white",
-              mew=0.3, label=r"samples ($N{=}10^5$)")
+    ax.loglog(
+        centers,
+        centers * counts,
+        "o",
+        color=color,
+        ms=3.2,
+        mec="white",
+        mew=0.3,
+        label=r"samples ($N{=}10^5$)",
+    )
 
     # median relative deviation over well-populated bins
     pop = counts > 0
@@ -225,10 +269,13 @@ def fig_pdf_overlay(output_dir):
     for ax, (imf, lab, col, sd, tag) in zip(axes, panels):
         med = _overlay_panel(ax, imf, lab, col, sd)
         passed = med < 0.05
-        meds.append(med); ok.append(passed)
+        meds.append(med)
+        ok.append(passed)
         panel_label(ax, tag, loc="upper right")
-        print(f"  {lab:28s} median |hist-analytic|/analytic = {med:.3f} "
-              f"(tol 0.05)  -> {'PASS' if passed else 'FAIL'}")
+        print(
+            f"  {lab:28s} median |hist-analytic|/analytic = {med:.3f} "
+            f"(tol 0.05)  -> {'PASS' if passed else 'FAIL'}"
+        )
     axes[0].set_ylabel(r"$m\,\xi(m)$  (mass per dex)")
     fig.tight_layout(pad=0.4, w_pad=0.8)
     save_fig(fig, output_dir, "imf_pdf_overlay")
@@ -261,7 +308,8 @@ def fig_cdf_ks(output_dir):
         res = scipy.stats.kstest(samples, cdf_fn)
         D, p = float(res.statistic), float(res.pvalue)
         passed = p > 0.01
-        ok.append(passed); rows.append((name, D, p, passed))
+        ok.append(passed)
+        rows.append((name, D, p, passed))
 
         # analytic CDF line + empirical points (subsampled for a clean curve)
         srt = np.sort(samples)
@@ -270,18 +318,28 @@ def fig_cdf_ks(output_dir):
         ss = srt[:: max(1, N_KS // 400)]
         emp = np.searchsorted(srt, ss, side="right") / N_KS
         ax.semilogx(ss, emp, ".", color=col, ms=2.0, alpha=0.5, zorder=1)
-        print(f"  {name:28s} KS D={D:.4f} (D_crit={d_crit:.4f})  p={p:.3f}  "
-              f"-> {'PASS' if passed else 'FAIL'}")
+        print(
+            f"  {name:28s} KS D={D:.4f} (D_crit={d_crit:.4f})  p={p:.3f}  "
+            f"-> {'PASS' if passed else 'FAIL'}"
+        )
 
     ax.set_xlabel(r"$m$ [$M_\odot$]")
     ax.set_ylabel(r"$F(m)$  (cumulative)")
     ax.set_ylim(-0.02, 1.02)
     ax.legend(loc="upper left", fontsize=7.5)
-    txt = "\n".join(rf"{n.split(' (')[0]}: $D{{=}}{d:.4f}$, $p{{=}}{p:.2f}$"
-                    for n, d, p, _ in rows)
-    ax.text(0.97, 0.05, txt + f"\n$D_{{\\rm crit}}{{=}}{d_crit:.4f}$",
-            transform=ax.transAxes, ha="right", va="bottom", fontsize=6.8,
-            bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.5))
+    txt = "\n".join(
+        rf"{n.split(' (')[0]}: $D{{=}}{d:.4f}$, $p{{=}}{p:.2f}$" for n, d, p, _ in rows
+    )
+    ax.text(
+        0.97,
+        0.05,
+        txt + f"\n$D_{{\\rm crit}}{{=}}{d_crit:.4f}$",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=6.8,
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.5),
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "imf_cdf_ks")
     print("  saved imf_cdf_ks.{png,pdf}")
@@ -302,17 +360,22 @@ def fig_mean_mass_accuracy(output_dir):
         ("Schechter", Schechter()),
         ("Chabrier", ChabrierIMF()),
         ("Kroupa", PowerLawIMF.kroupa()),
-        (r"PL $\alpha{=}2.35$", PowerLawIMF(exponents=[2.35], breakpoints=[],
-                                            m_min=0.1, m_max=100.0)),
+        (
+            r"PL $\alpha{=}2.35$",
+            PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=0.1, m_max=100.0),
+        ),
     ]
     names, rel = [], []
     for name, imf in imfs:
         ref = loggrid_mean(imf)
         got = float(imf.mean_mass())
         r = abs(got - ref) / ref
-        names.append(name); rel.append(r)
-        print(f"  {name:16s} mean_mass={got:.4f}  ref={ref:.4f}  "
-              f"rel={r:.2e} (tol 1e-2)  -> {'PASS' if r < 1e-2 else 'FAIL'}")
+        names.append(name)
+        rel.append(r)
+        print(
+            f"  {name:16s} mean_mass={got:.4f}  ref={ref:.4f}  "
+            f"rel={r:.2e} (tol 1e-2)  -> {'PASS' if r < 1e-2 else 'FAIL'}"
+        )
     rel = np.array(rel)
     passed_bars = bool(np.all(rel < 1e-2))
 
@@ -330,10 +393,13 @@ def fig_mean_mass_accuracy(output_dir):
         logm = np.trapezoid(gg * pg, gg) / np.trapezoid(pg, gg)
         lin_err.append(abs(lin - ref) / ref)
         log_err.append(abs(logm - ref) / ref)
-    lin_err = np.array(lin_err); log_err = np.array(log_err)
+    lin_err = np.array(lin_err)
+    log_err = np.array(log_err)
     log_wins = bool(log_err[-1] < lin_err[-1])
-    print(f"  linear-grid failure mode: lin rel @N=4000 = {lin_err[-1]:.2e} "
-          f">> log rel = {log_err[-1]:.2e}  -> {'PASS' if log_wins else 'FAIL'}")
+    print(
+        f"  linear-grid failure mode: lin rel @N=4000 = {lin_err[-1]:.2e} "
+        f">> log rel = {log_err[-1]:.2e}  -> {'PASS' if log_wins else 'FAIL'}"
+    )
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(7.2, 3.0))
 
@@ -348,17 +414,26 @@ def fig_mean_mass_accuracy(output_dir):
     axA.legend(loc="upper right", fontsize=7.5)
     panel_label(axA, "(a)", loc="upper left")
 
-    axB.loglog(Ns, lin_err, "o-", color=OI["vermilion"], ms=4.5, lw=1.3,
-               label="linear grid")
-    axB.loglog(Ns, log_err, "s-", color=OI["blue"], ms=4.5, lw=1.3,
-               label="log grid (used)")
+    axB.loglog(
+        Ns, lin_err, "o-", color=OI["vermilion"], ms=4.5, lw=1.3, label="linear grid"
+    )
+    axB.loglog(
+        Ns, log_err, "s-", color=OI["blue"], ms=4.5, lw=1.3, label="log grid (used)"
+    )
     axB.axhline(1e-2, color="0.5", ls=":", lw=1.0)
     axB.set_xlabel("grid points $N$")
     axB.set_ylabel(r"rel. error of $\langle m\rangle$ (Salpeter)")
     axB.legend(loc="lower left", fontsize=7.5)
-    axB.text(0.5, 0.93, "steep $m^{-2.35}$ spike\nunder-resolved by linear grid",
-             transform=axB.transAxes, ha="center", va="top", fontsize=7.2,
-             color="0.35")
+    axB.text(
+        0.5,
+        0.93,
+        "steep $m^{-2.35}$ spike\nunder-resolved by linear grid",
+        transform=axB.transAxes,
+        ha="center",
+        va="top",
+        fontsize=7.2,
+        color="0.35",
+    )
     panel_label(axB, "(b)", loc="upper right")
 
     fig.tight_layout(pad=0.4, w_pad=1.0)
@@ -382,12 +457,18 @@ def fig_gradient_validation(output_dir):
     masses = sample_masses_from_params(truth, u)
 
     def make_nll(which):
-        base = dict(alpha0=truth.alpha0, alpha1=truth.alpha1,
-                    alpha2=truth.alpha2, alpha3=truth.alpha3)
+        base = dict(
+            alpha0=truth.alpha0,
+            alpha1=truth.alpha1,
+            alpha2=truth.alpha2,
+            alpha3=truth.alpha3,
+        )
 
         def nll(val):
-            kw = dict(base); kw[which] = val
+            kw = dict(base)
+            kw[which] = val
             return individual_mass_nll(masses, IMFParams(**kw))
+
         return nll
 
     specs = [
@@ -401,8 +482,9 @@ def fig_gradient_validation(output_dir):
         nll = make_nll(key)
         gfn = jax.grad(nll)
         ad = np.array([float(gfn(float(x))) for x in xs])
-        fd = np.array([float((nll(float(x) + h) - nll(float(x) - h)) / (2 * h))
-                       for x in xs])
+        fd = np.array(
+            [float((nll(float(x) + h) - nll(float(x) - h)) / (2 * h)) for x in xs]
+        )
         rel = np.abs(ad - fd) / (np.abs(ad) + np.abs(fd) + 1e-30)
         worst = max(worst, float(np.max(rel)))
 
@@ -410,27 +492,55 @@ def fig_gradient_validation(output_dir):
         mle = float(np.interp(0.0, ad, xs))
 
         ax.axhline(0.0, color="0.7", lw=0.7)
-        ax.axvline(a_true, color=OI["green"], ls=":", lw=1.2,
-                   label=rf"input $={a_true:.2f}$")
+        ax.axvline(
+            a_true, color=OI["green"], ls=":", lw=1.2, label=rf"input $={a_true:.2f}$"
+        )
         ax.plot(xs, ad, "-", color=OI["blue"], lw=1.8, label="autodiff", zorder=2)
-        ax.plot(xs, fd, "o", color=OI["vermilion"], ms=4.0, mfc="none", mew=1.1,
-                label="finite diff", zorder=3)
-        ax.plot([mle], [0.0], "*", color=OI["black"], ms=10, zorder=4,
-                label=rf"MLE $={mle:.2f}$")
+        ax.plot(
+            xs,
+            fd,
+            "o",
+            color=OI["vermilion"],
+            ms=4.0,
+            mfc="none",
+            mew=1.1,
+            label="finite diff",
+            zorder=3,
+        )
+        ax.plot(
+            [mle],
+            [0.0],
+            "*",
+            color=OI["black"],
+            ms=10,
+            zorder=4,
+            label=rf"MLE $={mle:.2f}$",
+        )
         ax.set_xlabel(lab)
         ax.set_ylabel(rf"$\partial\,\mathrm{{NLL}} / \partial {lab.strip('$')}$")
         ax.legend(loc="upper left", fontsize=6.8)
-        ax.text(0.5, 0.05, rf"max rel err $={np.max(rel):.0e}$",
-                transform=ax.transAxes, ha="center", va="bottom", fontsize=7.5,
-                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5))
+        ax.text(
+            0.5,
+            0.05,
+            rf"max rel err $={np.max(rel):.0e}$",
+            transform=ax.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=7.5,
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5),
+        )
         panel_label(ax, f"({tag})", loc="upper right")
-        print(f"  d(NLL)/d{key}: max rel err {np.max(rel):.2e}; "
-              f"MLE recovers {mle:.3f} (input {a_true:.2f})  "
-              f"-> {'DIFFERENTIABLE' if np.max(rel) < 1e-3 else 'CHECK'}")
+        print(
+            f"  d(NLL)/d{key}: max rel err {np.max(rel):.2e}; "
+            f"MLE recovers {mle:.3f} (input {a_true:.2f})  "
+            f"-> {'DIFFERENTIABLE' if np.max(rel) < 1e-3 else 'CHECK'}"
+        )
 
     passed = worst < 1e-3
-    print(f"  overall worst AD-vs-FD rel err {worst:.2e} (tol 1e-3)  "
-          f"-> {'PASS' if passed else 'FAIL'}")
+    print(
+        f"  overall worst AD-vs-FD rel err {worst:.2e} (tol 1e-3)  "
+        f"-> {'PASS' if passed else 'FAIL'}"
+    )
     fig.tight_layout(pad=0.4, w_pad=1.0)
     save_fig(fig, output_dir, "imf_gradient_validation")
     print("  saved imf_gradient_validation.{png,pdf}")
@@ -458,8 +568,11 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
     all_ok = all(results.values())
     print("=" * 70)
-    print("  ALL IMF VALIDATION FIGURES PASS" if all_ok
-          else "  SOME IMF VALIDATION FIGURES FAILED")
+    print(
+        "  ALL IMF VALIDATION FIGURES PASS"
+        if all_ok
+        else "  SOME IMF VALIDATION FIGURES FAILED"
+    )
     print("=" * 70)
     print(f"\nFigures written to {OUTPUT_DIR}/imf_*.png")
     return 0 if all_ok else 1

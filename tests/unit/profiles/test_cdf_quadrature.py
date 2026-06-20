@@ -13,7 +13,6 @@ from the same analytic integrand, plus a measured order-of-accuracy check
 
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 import progenax  # noqa: F401  (enables float64)
 from progenax.profiles.eff import EFFProfile
@@ -41,11 +40,11 @@ def _king_reference_cdf(profile, r_eval, n_fine=200_001):
     ODE-interpolated psi (same density formula the constructor uses)."""
     rf = jnp.linspace(0.0, profile.r_t, n_fine)
     xi_local = rf / profile.r_c
-    psi = jnp.interp(xi_local, profile.xi_grid, profile.psi_grid,
-                     left=profile.W0, right=0.0)
+    psi = jnp.interp(
+        xi_local, profile.xi_grid, profile.psi_grid, left=profile.W0, right=0.0
+    )
     rho0 = king_lowered_maxwellian_density(profile.W0)
-    rho = jnp.where(rho0 > 1e-10,
-                    king_lowered_maxwellian_density(psi) / rho0, 0.0)
+    rho = jnp.where(rho0 > 1e-10, king_lowered_maxwellian_density(psi) / rho0, 0.0)
     rho = jnp.where(rf <= profile.r_t, rho, 0.0)
     f = 4.0 * jnp.pi * rf**2 * rho
     return _fine_trapezoid_cdf(rf, f, r_eval)

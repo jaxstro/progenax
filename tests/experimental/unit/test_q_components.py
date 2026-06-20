@@ -22,7 +22,9 @@ def _uniform_sphere(n, rng):
 
 def _concentrated_smooth(n, rng, a=0.2):
     u = rng.uniform(0, 1, n)
-    r = a * np.sqrt(u ** (2 / 3) / (1 - u ** (2 / 3)))  # Plummer radii (centrally concentrated)
+    r = a * np.sqrt(
+        u ** (2 / 3) / (1 - u ** (2 / 3))
+    )  # Plummer radii (centrally concentrated)
     ct = 2 * rng.uniform(0, 1, n) - 1
     st = np.sqrt(1 - ct**2)
     phi = rng.uniform(0, 2 * np.pi, n)
@@ -56,14 +58,16 @@ def test_components_decouple_concentration_from_substructure():
     from gravoturb_fdf.diagnostics.q import q_components
 
     rng = np.random.default_rng(1)
-    _Qu, m_u, s_u = q_components(_uniform_sphere(500, rng))           # smooth, unconcentrated
-    _Qc, m_c, s_c = q_components(_concentrated_smooth(500, rng))      # smooth, concentrated
-    _Qk, m_k, s_k = q_components(_clumpy(500, rng))                   # substructured
+    _Qu, m_u, s_u = q_components(_uniform_sphere(500, rng))  # smooth, unconcentrated
+    _Qc, m_c, s_c = q_components(_concentrated_smooth(500, rng))  # smooth, concentrated
+    _Qk, m_k, s_k = q_components(_clumpy(500, rng))  # substructured
 
     # s_bar is the CONCENTRATION axis: concentrated has much smaller s_bar; clumpy ~ uniform
     assert s_c < 0.5 * s_u
-    assert 0.7 * s_u < s_k < 1.3 * s_u            # clumpy at ~the same (low) concentration as uniform
+    assert (
+        0.7 * s_u < s_k < 1.3 * s_u
+    )  # clumpy at ~the same (low) concentration as uniform
     # at matched concentration (uniform vs clumpy), m_bar isolates SUBSTRUCTURE
     assert m_k < 0.6 * m_u
     # the three regimes are distinct points in the (m_bar, s_bar) plane
-    assert s_c < 0.5 * s_k                        # concentrated separated from clumpy by s_bar
+    assert s_c < 0.5 * s_k  # concentrated separated from clumpy by s_bar

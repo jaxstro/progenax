@@ -24,7 +24,7 @@ from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax.numerics import inverse_cdf_draw
 
-_N_C = 128           # cos(theta) grid (anisotropic conditional)
+_N_C = 128  # cos(theta) grid (anisotropic conditional)
 _ORACLE_BATCH = 2048  # lax.map chunk size for the per-star quadrature oracles
 
 

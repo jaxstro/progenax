@@ -16,6 +16,7 @@ function is jit/grad-safe so the demos can differentiate through the forward
 model. float64 is the demos' responsibility (they call
 ``jax.config.update("jax_enable_x64", True)`` before importing this).
 """
+
 from typing import NamedTuple
 
 import jax
@@ -98,11 +99,11 @@ def binned_sigma1d(pos, vel, group_ids, n_groups, r_edges, n_min=30):
 class SigmaBetaResult(NamedTuple):
     """Return of :func:`binned_sigma_beta`; all arrays shaped (C, K)."""
 
-    sig_hat: jax.Array   # 1-D dispersion sqrt((sigma_r^2 + sigma_t^2)/3)
-    se: jax.Array        # SE of sig_hat = sig_hat / sqrt(6 n) (3 pooled components)
+    sig_hat: jax.Array  # 1-D dispersion sqrt((sigma_r^2 + sigma_t^2)/3)
+    se: jax.Array  # SE of sig_hat = sig_hat / sqrt(6 n) (3 pooled components)
     beta_hat: jax.Array  # Binney anisotropy 1 - sigma_t^2 / (2 sigma_r^2)
-    weight: jax.Array    # 1.0 if populated (n >= n_min) else 0.0
-    n: jax.Array         # member counts
+    weight: jax.Array  # 1.0 if populated (n >= n_min) else 0.0
+    n: jax.Array  # member counts
 
 
 def binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=50):
@@ -320,7 +321,7 @@ def fisher_information_gn(residual_fn, z_hat, extra_negloglike=None):
     F : (P, P) array
         ``J^T J`` (+ ``Hess(extra_negloglike)`` if given), symmetrized.
     """
-    J = jax.jacrev(residual_fn)(z_hat)          # (M, P), reverse-mode (ODE-safe)
+    J = jax.jacrev(residual_fn)(z_hat)  # (M, P), reverse-mode (ODE-safe)
     F = J.T @ J
     if extra_negloglike is not None:
         F = F + jax.hessian(extra_negloglike)(z_hat)  # ODE-free -> hessian OK
@@ -355,7 +356,7 @@ def poisson_fisher_information(predict_mu_fn, z_hat, weight=None):
     F : (P, P) array, symmetrized.
     """
     mu = predict_mu_fn(z_hat)
-    J = jax.jacrev(predict_mu_fn)(z_hat)          # (K, P), reverse-mode (ODE-safe)
+    J = jax.jacrev(predict_mu_fn)(z_hat)  # (K, P), reverse-mode (ODE-safe)
     w = jnp.ones_like(mu) if weight is None else weight
     # Floor mu (as poisson_loglike does): a TRUNCATION fit has empty bins with
     # mu==0 AND dmu/dz==0 (beyond the edge), where 1/mu would be inf and 0*inf=NaN.
@@ -394,8 +395,8 @@ def constrained_cov(F_z, dtheta_dz):
 class NUTSResult(NamedTuple):
     """Return of :func:`run_nuts`: posterior draws + the divergence count."""
 
-    samples: jax.Array          # (n_samples, P) unconstrained-space draws
-    n_divergent: jax.Array      # () int -- total divergent transitions (gate: 0)
+    samples: jax.Array  # (n_samples, P) unconstrained-space draws
+    n_divergent: jax.Array  # () int -- total divergent transitions (gate: 0)
 
 
 def run_nuts(logdensity_fn, z0, key, n_warmup=300, n_samples=600):

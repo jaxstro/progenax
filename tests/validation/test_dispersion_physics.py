@@ -34,16 +34,16 @@ import numpy as np
 import pytest
 
 from progenax import project_dispersion
-from progenax.profiles import PlummerProfile, EFFProfile, MichieProfile
 from progenax.kinematics import (
-    PlummerVelocityDF,
     EFFVelocityDF,
     MichieVelocityDF,
-    jeans_dispersion,
+    PlummerVelocityDF,
     df_moment_dispersion,
+    jeans_dispersion,
 )
 from progenax.kinematics.dispersion import ftable_sigma_r_isotropic
 from progenax.kinematics.eff_df import _eff_eddington_table
+from progenax.profiles import EFFProfile, MichieProfile, PlummerProfile
 
 G = 0.00449
 
@@ -82,7 +82,9 @@ def _plummer_om_sigma_r2_analytic(r, M, a, r_a):
     here sigma_t^2 = (1 - beta) sigma_r^2 with beta = r^2/(r^2 + r_a^2).
     """
     return (
-        G * M * (a**2 + 3.0 * r**2 + 2.0 * r_a**2)
+        G
+        * M
+        * (a**2 + 3.0 * r**2 + 2.0 * r_a**2)
         / (12.0 * (r**2 + r_a**2) * jnp.sqrt(a**2 + r**2))
     )
 
@@ -125,7 +127,8 @@ def test_jeans_quadrature_convergence():
 
     ns = [500, 1000, 2000, 4000, 8000]
     vals = [
-        float(jeans_dispersion(prof, None, r, M=M, G=G, n_s=n_s).sigma_r[0]) for n_s in ns
+        float(jeans_dispersion(prof, None, r, M=M, G=G, n_s=n_s).sigma_r[0])
+        for n_s in ns
     ]
     # Cauchy differences d_n = |sigma(n) - sigma(2n)|: the truncation bias cancels.
     diffs = [abs(vals[i] - vals[i + 1]) for i in range(len(vals) - 1)]
@@ -164,9 +167,10 @@ def test_plummer_isotropic_jeans_equals_ftable():
     Psi_r = 6.0 / jnp.sqrt(1.0 + (r / prof.a) ** 2)
 
     # f-table sigma_r (dimensionless) -> physical via sigma0.
-    sigma_r2_ft = jax.vmap(
-        lambda psi: ftable_sigma_r_isotropic(E_grid, f_grid, psi)
-    )(Psi_r) * sigma0_2
+    sigma_r2_ft = (
+        jax.vmap(lambda psi: ftable_sigma_r_isotropic(E_grid, f_grid, psi))(Psi_r)
+        * sigma0_2
+    )
     sigma_r_ft = jnp.sqrt(sigma_r2_ft)
 
     sigma_r_jeans = jeans_dispersion(prof, None, r, M=M, G=G).sigma_r
@@ -727,9 +731,9 @@ def _project_population(positions, velocities):
     y, z = positions[:, 1], positions[:, 2]
     R = jnp.sqrt(y**2 + z**2)
     R_safe = jnp.maximum(R, 1e-12)
-    e_Ry, e_Rz = y / R_safe, z / R_safe           # on-sky radial unit vector
-    e_Ty, e_Tz = -z / R_safe, y / R_safe          # on-sky tangential (perp)
-    v_los = velocities[:, 0]                        # LOS = x
+    e_Ry, e_Rz = y / R_safe, z / R_safe  # on-sky radial unit vector
+    e_Ty, e_Tz = -z / R_safe, y / R_safe  # on-sky tangential (perp)
+    v_los = velocities[:, 0]  # LOS = x
     v_y, v_z = velocities[:, 1], velocities[:, 2]
     v_pmR = v_y * e_Ry + v_z * e_Rz
     v_pmT = v_y * e_Ty + v_z * e_Tz
@@ -761,7 +765,7 @@ def _sample_om_plummer_population(r_a, M, N, seed):
     df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=r_a)
     key = jax.random.PRNGKey(seed)
     key_pos, key_vel = jax.random.split(key)
-    masses = jnp.full((N,), M / N)               # sum == M (the mass jeans uses)
+    masses = jnp.full((N,), M / N)  # sum == M (the mass jeans uses)
     positions = prof.sample_positions(masses, key_pos)
     velocities = df.sample_velocities(positions, masses, key_vel, G=G)
     return prof, positions, velocities
@@ -778,7 +782,9 @@ def test_projection_isotropic_geometry_sanity():
     this isotropic check is what would catch it (per the Task 6 brief). Uses a
     smaller N (this is a structural geometry check, not a precision anchor).
     """
-    prof, pos, vel = _sample_om_plummer_population(r_a=None, M=_PROJ_M, N=200_000, seed=0)
+    prof, pos, vel = _sample_om_plummer_population(
+        r_a=None, M=_PROJ_M, N=200_000, seed=0
+    )
     R, v_los, v_pmR, v_pmT = _project_population(pos, vel)
     centers, counts, slos, spmr, spmt = _bin_empirical(
         R, v_los, v_pmR, v_pmT, _PROJ_BIN_EDGES
@@ -823,16 +829,13 @@ def test_projection_empirical_los_and_pm():
     pj = project_dispersion(prof, _PROJ_R_A, centers, _PROJ_M, G)
 
     assert jnp.allclose(pj.sigma_los, slos, rtol=0.05), (
-        f"sigma_los: pred={pj.sigma_los} emp={slos} "
-        f"R={centers} counts={counts}"
+        f"sigma_los: pred={pj.sigma_los} emp={slos} R={centers} counts={counts}"
     )
     assert jnp.allclose(pj.sigma_pm_r, spmr, rtol=0.05), (
-        f"sigma_pm,R: pred={pj.sigma_pm_r} emp={spmr} "
-        f"R={centers} counts={counts}"
+        f"sigma_pm,R: pred={pj.sigma_pm_r} emp={spmr} R={centers} counts={counts}"
     )
     assert jnp.allclose(pj.sigma_pm_t, spmt, rtol=0.05), (
-        f"sigma_pm,T: pred={pj.sigma_pm_t} emp={spmt} "
-        f"R={centers} counts={counts}"
+        f"sigma_pm,T: pred={pj.sigma_pm_t} emp={spmt} R={centers} counts={counts}"
     )
 
 
@@ -960,11 +963,11 @@ def test_df_moment_matches_sampler_all_radii():
         dp = df_moment_dispersion(df, jnp.array([r0]), M, G)
         assert jnp.allclose(dp.sigma_r[0], sr_emp, rtol=0.05), (
             f"Tier-B sigma_r r0={r0}: df_moment={float(dp.sigma_r[0]):.4f} "
-            f"emp={float(sr_emp):.4f} rel={float(abs(dp.sigma_r[0]/sr_emp - 1)):.3e}"
+            f"emp={float(sr_emp):.4f} rel={float(abs(dp.sigma_r[0] / sr_emp - 1)):.3e}"
         )
         assert jnp.allclose(dp.sigma_t[0], st_emp, rtol=0.05), (
             f"Tier-B sigma_t r0={r0}: df_moment={float(dp.sigma_t[0]):.4f} "
-            f"emp={float(st_emp):.4f} rel={float(abs(dp.sigma_t[0]/st_emp - 1)):.3e}"
+            f"emp={float(st_emp):.4f} rel={float(abs(dp.sigma_t[0] / st_emp - 1)):.3e}"
         )
 
 

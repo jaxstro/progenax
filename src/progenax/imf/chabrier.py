@@ -65,7 +65,9 @@ class ChabrierIMF(eqx.Module):
     m_max: float = 100.0
     m_c: float = 0.08  # Chabrier (2003) Table 1 characteristic mass (0.079, rounded)
     sigma: float = 0.69  # Lognormal width (Chabrier 2003 Table 1, single-object disk)
-    alpha: float = 2.3  # High-mass slope dN/dm ∝ m^-α (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
+    alpha: float = (
+        2.3  # High-mass slope dN/dm ∝ m^-α (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
+    )
     m_trans: float = 1.0  # Transition mass [M☉]
     A_ln: float = 0.158  # Chabrier (2003) lognormal coefficient
 
@@ -94,7 +96,9 @@ class ChabrierIMF(eqx.Module):
         if self.sigma <= 0:
             raise ValueError(f"Lognormal width sigma ({self.sigma}) must be positive")
         if self.alpha <= 0:
-            raise ValueError(f"Power-law exponent alpha ({self.alpha}) must be positive")
+            raise ValueError(
+                f"Power-law exponent alpha ({self.alpha}) must be positive"
+            )
         if self.m_min >= self.m_trans:
             raise ValueError(
                 f"m_min ({self.m_min}) must be less than m_trans ({self.m_trans})"
@@ -120,7 +124,7 @@ class ChabrierIMF(eqx.Module):
         log10_mc = self._log10(self.m_c)
 
         # Gaussian in log₁₀ space
-        quad = -((log10_m - log10_mc) ** 2) / (2.0 * self.sigma ** 2)
+        quad = -((log10_m - log10_mc) ** 2) / (2.0 * self.sigma**2)
 
         # Jacobian: 1 / (m × ln 10)
         jacobian = 1.0 / (m * jnp.log(10.0) + 1e-30)
@@ -335,8 +339,12 @@ class ChabrierIMF(eqx.Module):
 
         # Lognormal erf bounds (within [m_min, m_trans])
         m_ln_max = jnp.minimum(self.m_trans, self.m_max)
-        erf_min = jax.scipy.special.erf((self._log10(self.m_min) - log10_mc) / sqrt_2_sigma)
-        erf_max = jax.scipy.special.erf((self._log10(m_ln_max) - log10_mc) / sqrt_2_sigma)
+        erf_min = jax.scipy.special.erf(
+            (self._log10(self.m_min) - log10_mc) / sqrt_2_sigma
+        )
+        erf_max = jax.scipy.special.erf(
+            (self._log10(m_ln_max) - log10_mc) / sqrt_2_sigma
+        )
 
         # Lognormal initial guess: for u in [0, p_ln]
         # Scale u to [0, 1] within lognormal region
@@ -352,11 +360,10 @@ class ChabrierIMF(eqx.Module):
         exp_safe = jnp.where(jnp.abs(exp) < 1e-10, 1e-10, exp)
 
         # Power-law inverse: m = [u_scaled * (m_max^exp - m_trans^exp) + m_trans^exp]^(1/exp)
-        m_trans_exp = self.m_trans ** exp_safe
-        m_max_exp = self.m_max ** exp_safe
+        m_trans_exp = self.m_trans**exp_safe
+        m_max_exp = self.m_max**exp_safe
         m0_pl = jnp.power(
-            u_pl_scaled * (m_max_exp - m_trans_exp) + m_trans_exp,
-            1.0 / exp_safe
+            u_pl_scaled * (m_max_exp - m_trans_exp) + m_trans_exp, 1.0 / exp_safe
         )
         m0_pl = jnp.clip(m0_pl, self.m_trans, self.m_max)
 

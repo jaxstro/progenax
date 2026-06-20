@@ -55,6 +55,7 @@ Usage:
     XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
       env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_cluster_builders.py
 """
+
 import os
 import sys
 
@@ -66,17 +67,18 @@ import numpy as np
 # STELLAR.G is a plain Python float and no jnp array is created before that import, so no
 # explicit jax.config.update is needed here (matches the sibling B-series demos).
 from jaxstro.units import STELLAR
+
 from progenax import (
-    build_plummer_cluster,
-    build_cluster,
-    build_cluster_from_params,
     ClusterParams,
-    PlummerProfile,
     EFFProfile,
     KingProfile,
-    MichieProfile,
     LIMEPYProfile,
+    MichieProfile,
+    PlummerProfile,
     PowerLawIMF,
+    build_cluster,
+    build_cluster_from_params,
+    build_plummer_cluster,
     compute_kinetic_energy,
     compute_potential_energy,
 )
@@ -84,7 +86,7 @@ from progenax import (
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _demo_inference import fisher_information_gn
 
-G = STELLAR.G                       # pc^3 Msun^-1 Myr^-2
+G = STELLAR.G  # pc^3 Msun^-1 Myr^-2
 SEED = 0
 
 
@@ -125,7 +127,9 @@ def demo_onboarding():
     print("\n" + "=" * 74)
     print("DEMO 1 -- onboarding one-liner: build_plummer_cluster(n, r_h, key)")
     print("=" * 74)
-    print("  >>> ic = build_plummer_cluster(n=1000, r_h=1.0, key=jax.random.PRNGKey(0))")
+    print(
+        "  >>> ic = build_plummer_cluster(n=1000, r_h=1.0, key=jax.random.PRNGKey(0))"
+    )
 
     n, r_h = 1000, 1.0
     ic = build_plummer_cluster(n=n, r_h=r_h, key=jax.random.PRNGKey(SEED))
@@ -135,14 +139,22 @@ def demo_onboarding():
 
     n_ok = N == n
     q_ok = abs(Q - 0.5) < 0.03
-    rh_ok = abs(r_h_meas - r_h) < 0.15        # finite-N sampling scatter of r_h(empirical)
+    rh_ok = abs(r_h_meas - r_h) < 0.15  # finite-N sampling scatter of r_h(empirical)
     passed = n_ok and q_ok and rh_ok
 
-    print(f"\n  N (particles)        = {N:5d}        (expected {n}, {'PASS' if n_ok else 'FAIL'})")
-    print(f"  Q = T/|V|            = {Q:7.4f}      (expected 0.500, {'PASS' if q_ok else 'FAIL'})")
-    print(f"  r_h (empirical)      = {r_h_meas:7.4f} pc   (expected {r_h:.3f}, "
-          f"{'PASS' if rh_ok else 'FAIL'})")
-    print(f"\n  one-liner -> equilibrium Plummer IC  ->  {'PASS' if passed else 'FAIL'}")
+    print(
+        f"\n  N (particles)        = {N:5d}        (expected {n}, {'PASS' if n_ok else 'FAIL'})"
+    )
+    print(
+        f"  Q = T/|V|            = {Q:7.4f}      (expected 0.500, {'PASS' if q_ok else 'FAIL'})"
+    )
+    print(
+        f"  r_h (empirical)      = {r_h_meas:7.4f} pc   (expected {r_h:.3f}, "
+        f"{'PASS' if rh_ok else 'FAIL'})"
+    )
+    print(
+        f"\n  one-liner -> equilibrium Plummer IC  ->  {'PASS' if passed else 'FAIL'}"
+    )
     return passed
 
 
@@ -213,7 +225,7 @@ def _fisher_for_knob(summary_at, theta0, se_floor=1e-3):
     not a calibrated CRLB), so r(theta0)=0 and F = J^T J = (d summary/d theta / se)^2
     summed. F = 1/sigma^2 (a scalar Fisher), sigma = 1/sqrt(F)."""
     s0 = np.asarray(summary_at(theta0))
-    se = np.maximum(np.sqrt(np.abs(s0)), se_floor)         # per-cell scale (Poisson-like)
+    se = np.maximum(np.sqrt(np.abs(s0)), se_floor)  # per-cell scale (Poisson-like)
     se = jnp.asarray(se)
     s0j = jnp.asarray(s0)
 
@@ -233,8 +245,12 @@ def demo_inference_fisher():
     print("DEMO 2 -- differentiable theta->ICResult Fisher inference (the headline)")
     print("=" * 74)
     print("  build_cluster_from_params is the ONE-CALL forward map theta -> ICResult;")
-    print("  fisher_information_gn (Gauss-Newton J^T J) gives Fisher info / CRLB sigma(theta)")
-    print("  for each differentiable knob. r_t uses the apply_tidal_truncation straight-")
+    print(
+        "  fisher_information_gn (Gauss-Newton J^T J) gives Fisher info / CRLB sigma(theta)"
+    )
+    print(
+        "  for each differentiable knob. r_t uses the apply_tidal_truncation straight-"
+    )
     print("  through surrogate gradient on a COUNT summary (live, NOT FD-consistent).")
 
     key = jax.random.PRNGKey(SEED)
@@ -246,54 +262,79 @@ def demo_inference_fisher():
     # r_h: profile scale -> positions. Summary = sorted enclosed-radius profile.
     def fwd_rh(r_h):
         ic = build_cluster_from_params(
-            ClusterParams(profile=PlummerProfile(r_h=r_h)), masses=m, key=key)
+            ClusterParams(profile=PlummerProfile(r_h=r_h)), masses=m, key=key
+        )
         return _enclosed_radius_summary(ic)
 
     # r_a (anisotropy): OM DF -> velocities. Summary = binned beta(r). Q=None keeps the
     # pure OM equilibrium (a virial rescale leaves beta unchanged, but Q=None is cleaner).
     def fwd_ra(r_a):
         ic = build_cluster_from_params(
-            ClusterParams(profile=PlummerProfile(r_h=1.0), anisotropy_radius=r_a, Q=None),
-            masses=m, key=key)
+            ClusterParams(
+                profile=PlummerProfile(r_h=1.0), anisotropy_radius=r_a, Q=None
+            ),
+            masses=m,
+            key=key,
+        )
         return _beta_summary(ic, beta_edges)
 
     # omega (rotation): solid-body overlay -> velocities. Summary = binned <v_phi>(R).
     def fwd_omega(omega):
         ic = build_cluster_from_params(
-            ClusterParams(profile=PlummerProfile(r_h=1.0), rotation=omega), masses=m, key=key)
+            ClusterParams(profile=PlummerProfile(r_h=1.0), rotation=omega),
+            masses=m,
+            key=key,
+        )
         return _vphi_summary(ic, vphi_edges)
 
     # r_t (tidal): straight-through surrogate -> masses (positions r_t-invariant!).
     # Summary = binned surviving mass per shell (the count/mass channel).
     def fwd_rt(r_t):
         ic = build_cluster_from_params(
-            ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t), masses=m, key=key)
+            ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t),
+            masses=m,
+            key=key,
+        )
         return _surviving_counts_summary(ic, tidal_edges)
 
     knobs = [
-        ("r_h    (profile scale)",   fwd_rh,    1.0, "FD-consistent"),
-        ("r_a    (OM anisotropy)",   fwd_ra,    0.7, "FD-consistent"),
-        ("omega  (solid rotation)",  fwd_omega, 0.3, "FD-consistent"),
-        ("r_t    (tidal cut)",       fwd_rt,    1.5, "straight-through"),
+        ("r_h    (profile scale)", fwd_rh, 1.0, "FD-consistent"),
+        ("r_a    (OM anisotropy)", fwd_ra, 0.7, "FD-consistent"),
+        ("omega  (solid rotation)", fwd_omega, 0.3, "FD-consistent"),
+        ("r_t    (tidal cut)", fwd_rt, 1.5, "straight-through"),
     ]
 
-    print(f"\n  {'knob':<26}{'theta0':>8}{'Fisher info':>14}{'sigma(theta)':>14}"
-          f"{'grad kind':>17}{'':>6}")
+    print(
+        f"\n  {'knob':<26}{'theta0':>8}{'Fisher info':>14}{'sigma(theta)':>14}"
+        f"{'grad kind':>17}{'':>6}"
+    )
     print("  " + "-" * 84)
     all_ok = True
     for label, fwd, theta0, gradkind in knobs:
         info, sigma = _fisher_for_knob(fwd, theta0)
         ok = np.isfinite(info) and info > 0 and np.isfinite(sigma)
         all_ok = all_ok and ok
-        print(f"  {label:<26}{theta0:>8.2f}{info:>14.4e}{sigma:>14.4e}"
-              f"{gradkind:>17}{('PASS' if ok else 'FAIL'):>6}")
+        print(
+            f"  {label:<26}{theta0:>8.2f}{info:>14.4e}{sigma:>14.4e}"
+            f"{gradkind:>17}{('PASS' if ok else 'FAIL'):>6}"
+        )
     print("  " + "-" * 84)
-    print("  NOTE: r_t's Fisher uses the apply_tidal_truncation STRAIGHT-THROUGH surrogate")
+    print(
+        "  NOTE: r_t's Fisher uses the apply_tidal_truncation STRAIGHT-THROUGH surrogate"
+    )
     print("        gradient on a surviving-mass-per-shell summary (positions are r_t-")
-    print("        invariant, so a position summary would be dead). The surrogate is LIVE")
-    print("        but DELIBERATELY not FD-consistent -- it is a teeth-tested channel, not")
-    print("        a calibrated CRLB. r_h/r_a/omega are FD-consistent (grad-audit registry).")
-    print(f"\n  every knob's Fisher info finite + positive  ->  {'PASS' if all_ok else 'FAIL'}")
+    print(
+        "        invariant, so a position summary would be dead). The surrogate is LIVE"
+    )
+    print(
+        "        but DELIBERATELY not FD-consistent -- it is a teeth-tested channel, not"
+    )
+    print(
+        "        a calibrated CRLB. r_h/r_a/omega are FD-consistent (grad-audit registry)."
+    )
+    print(
+        f"\n  every knob's Fisher info finite + positive  ->  {'PASS' if all_ok else 'FAIL'}"
+    )
     return all_ok
 
 
@@ -304,20 +345,27 @@ def demo_all_profiles():
     print("\n" + "=" * 74)
     print("DEMO 3 -- all 5 profiles via the generic build_cluster engine")
     print("=" * 74)
-    print("  loop build_cluster(profile, masses, key) over the 5 families -> Q + Lagrangian radii")
+    print(
+        "  loop build_cluster(profile, masses, key) over the 5 families -> Q + Lagrangian radii"
+    )
 
     n = 4000
     m = jnp.ones(n)
     profiles = [
         ("Plummer", PlummerProfile(r_h=1.0)),
-        ("EFF",     EFFProfile(a=1.0, gamma=5.0, r_t=15.0)),   # gamma=5/mild trunc -> near-virial
-        ("King",    KingProfile.from_W0_rc(W0=7.0, r_c=1.0)),
-        ("Michie",  MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)),
-        ("LIMEPY",  LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)),
+        (
+            "EFF",
+            EFFProfile(a=1.0, gamma=5.0, r_t=15.0),
+        ),  # gamma=5/mild trunc -> near-virial
+        ("King", KingProfile.from_W0_rc(W0=7.0, r_c=1.0)),
+        ("Michie", MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)),
+        ("LIMEPY", LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)),
     ]
 
-    print(f"\n  {'profile':<9}{'Q=T/|V|':>10}{'r_10%':>9}{'r_50%':>9}{'r_90%':>9}"
-          f"{'monotone':>10}{'':>7}")
+    print(
+        f"\n  {'profile':<9}{'Q=T/|V|':>10}{'r_10%':>9}{'r_50%':>9}{'r_90%':>9}"
+        f"{'monotone':>10}{'':>7}"
+    )
     print("  " + "-" * 64)
     all_ok = True
     key = jax.random.PRNGKey(SEED)
@@ -330,11 +378,15 @@ def demo_all_profiles():
         mono_ok = (r10 < r50 < r90) and (r10 > 0.0)
         ok = q_ok and mono_ok
         all_ok = all_ok and ok
-        print(f"  {name:<9}{Q:>10.4f}{r10:>9.4f}{r50:>9.4f}{r90:>9.4f}"
-              f"{str(mono_ok):>10}{('PASS' if ok else 'FAIL'):>7}")
+        print(
+            f"  {name:<9}{Q:>10.4f}{r10:>9.4f}{r50:>9.4f}{r90:>9.4f}"
+            f"{str(mono_ok):>10}{('PASS' if ok else 'FAIL'):>7}"
+        )
     print("  " + "-" * 64)
-    print(f"\n  all 5 families near-virial (|Q-0.5|<0.04) + monotone radii  ->  "
-          f"{'PASS' if all_ok else 'FAIL'}")
+    print(
+        f"\n  all 5 families near-virial (|Q-0.5|<0.04) + monotone radii  ->  "
+        f"{'PASS' if all_ok else 'FAIL'}"
+    )
     return all_ok
 
 
@@ -350,53 +402,66 @@ def demo_modifiers():
 
     # --- anisotropy: measured beta at a mid radius vs analytic r^2/(r^2+r_a^2) ---
     r_a = 0.8
-    ic_a = build_plummer_cluster(masses=jnp.ones(40_000), r_h=1.0, key=key,
-                                 anisotropy_radius=r_a, Q=None)
+    ic_a = build_plummer_cluster(
+        masses=jnp.ones(40_000), r_h=1.0, key=key, anisotropy_radius=r_a, Q=None
+    )
     pos, vel = np.asarray(ic_a.positions), np.asarray(ic_a.velocities)
     r = np.linalg.norm(pos, axis=1)
     rhat = pos / (r[:, None] + 1e-12)
     vr = np.sum(vel * rhat, axis=1)
-    vt2 = np.sum(vel ** 2, axis=1) - vr ** 2
-    lo, hi = 1.0, 1.4                                   # mid radius shell
+    vt2 = np.sum(vel**2, axis=1) - vr**2
+    lo, hi = 1.0, 1.4  # mid radius shell
     msk = (r >= lo) & (r < hi)
     rm = float(np.mean(r[msk]))
     beta_meas = 1.0 - float(np.mean(vt2[msk])) / (2.0 * float(np.mean(vr[msk] ** 2)))
-    beta_an = rm ** 2 / (rm ** 2 + r_a ** 2)
+    beta_an = rm**2 / (rm**2 + r_a**2)
     aniso_dev = abs(beta_meas - beta_an)
     aniso_ok = aniso_dev < 0.05
     print(f"\n  anisotropy (r_a={r_a}):")
-    print(f"    beta_meas(r={rm:.3f}) = {beta_meas:.4f}   analytic r^2/(r^2+r_a^2) = "
-          f"{beta_an:.4f}   |dev| = {aniso_dev:.4f}  ({'PASS' if aniso_ok else 'FAIL'})")
+    print(
+        f"    beta_meas(r={rm:.3f}) = {beta_meas:.4f}   analytic r^2/(r^2+r_a^2) = "
+        f"{beta_an:.4f}   |dev| = {aniso_dev:.4f}  ({'PASS' if aniso_ok else 'FAIL'})"
+    )
 
     # --- tidal: surviving-mass fraction + massless ghosts beyond r_t ---
     r_t = 1.5
     n_t = 20_000
-    ic_t = build_plummer_cluster(masses=jnp.ones(n_t), r_h=1.0, key=key, tidal_radius=r_t)
+    ic_t = build_plummer_cluster(
+        masses=jnp.ones(n_t), r_h=1.0, key=key, tidal_radius=r_t
+    )
     rt_r = np.asarray(jnp.linalg.norm(ic_t.positions, axis=1))
     mt = np.asarray(ic_t.masses)
     inside = rt_r <= r_t
-    surv_frac = float(np.sum(mt) / n_t)                # total surviving mass / N
-    ghost_mass = float(np.sum(mt[~inside]))            # mass beyond r_t (must be exactly 0)
+    surv_frac = float(np.sum(mt) / n_t)  # total surviving mass / N
+    ghost_mass = float(np.sum(mt[~inside]))  # mass beyond r_t (must be exactly 0)
     ghosts_massless = ghost_mass == 0.0
     surv_ok = (0.0 < surv_frac < 1.0) and ghosts_massless
     print(f"\n  tidal (r_t={r_t}):")
-    print(f"    surviving-mass fraction = {surv_frac:.4f}   ghost mass beyond r_t = "
-          f"{ghost_mass:.3e}   (massless: {ghosts_massless}, {'PASS' if surv_ok else 'FAIL'})")
+    print(
+        f"    surviving-mass fraction = {surv_frac:.4f}   ghost mass beyond r_t = "
+        f"{ghost_mass:.3e}   (massless: {ghosts_massless}, {'PASS' if surv_ok else 'FAIL'})"
+    )
 
     # --- rotation: net L_z > 0 ---
     omega = 0.3
-    ic_r = build_plummer_cluster(masses=jnp.ones(5_000), r_h=1.0, key=key, rotation=omega)
+    ic_r = build_plummer_cluster(
+        masses=jnp.ones(5_000), r_h=1.0, key=key, rotation=omega
+    )
     x, y = np.asarray(ic_r.positions[:, 0]), np.asarray(ic_r.positions[:, 1])
     vx, vy = np.asarray(ic_r.velocities[:, 0]), np.asarray(ic_r.velocities[:, 1])
     Lz = float(np.sum(np.asarray(ic_r.masses) * (x * vy - y * vx)))
     rot_ok = Lz > 0.0
     print(f"\n  rotation (omega={omega}):")
-    print(f"    net L_z = {Lz:.4f} Msun pc^2 Myr^-1   (> 0: {rot_ok}, "
-          f"{'PASS' if rot_ok else 'FAIL'})")
+    print(
+        f"    net L_z = {Lz:.4f} Msun pc^2 Myr^-1   (> 0: {rot_ok}, "
+        f"{'PASS' if rot_ok else 'FAIL'})"
+    )
 
     passed = aniso_ok and surv_ok and rot_ok
-    print(f"\n  anisotropy beta(r) + tidal cut + rotation L_z all physical  ->  "
-          f"{'PASS' if passed else 'FAIL'}")
+    print(
+        f"\n  anisotropy beta(r) + tidal cut + rotation L_z all physical  ->  "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
     return passed
 
 
@@ -417,9 +482,13 @@ def demo_generative_vs_inference():
     mg = np.asarray(ic_gen.masses)
     p10, p50, p90 = np.percentile(mg, [10, 50, 90])
     gen_ok = (mg.shape[0] == n) and (mg.std() > 0.0) and bool(np.all(mg > 0.0))
-    print(f"\n  generative: build_plummer_cluster(n={n}, r_h=1.0, imf=PowerLawIMF.kroupa())")
+    print(
+        f"\n  generative: build_plummer_cluster(n={n}, r_h=1.0, imf=PowerLawIMF.kroupa())"
+    )
     print(f"    N sampled        = {mg.shape[0]}    (expected {n})")
-    print(f"    mean mass        = {mg.mean():.4f} Msun   (std {mg.std():.4f} > 0 -> IMF sampled)")
+    print(
+        f"    mean mass        = {mg.mean():.4f} Msun   (std {mg.std():.4f} > 0 -> IMF sampled)"
+    )
     print(f"    min / max mass   = {mg.min():.4f} / {mg.max():.4f} Msun")
     print(f"    p10 / p50 / p90  = {p10:.4f} / {p50:.4f} / {p90:.4f} Msun")
     print(f"    sampled mass function -> {'PASS' if gen_ok else 'FAIL'}")
@@ -429,14 +498,18 @@ def demo_generative_vs_inference():
     ic_fix = build_plummer_cluster(masses=m_fixed, r_h=1.0, key=key)
     roundtrip = bool(jnp.all(ic_fix.masses == m_fixed))
     fix_ok = roundtrip and (ic_fix.masses.shape == m_fixed.shape)
-    print(f"\n  inference: build_plummer_cluster(masses=<fixed 256-array>, r_h=1.0)")
+    print("\n  inference: build_plummer_cluster(masses=<fixed 256-array>, r_h=1.0)")
     print(f"    masses round-trip EXACTLY (jnp.all(ic.masses == input)) = {roundtrip}")
-    print(f"    shape {tuple(ic_fix.masses.shape)} == input {tuple(m_fixed.shape)}   "
-          f"-> {'PASS' if fix_ok else 'FAIL'}")
+    print(
+        f"    shape {tuple(ic_fix.masses.shape)} == input {tuple(m_fixed.shape)}   "
+        f"-> {'PASS' if fix_ok else 'FAIL'}"
+    )
 
     passed = gen_ok and fix_ok
-    print(f"\n  generative draw + fixed-data exact round-trip  ->  "
-          f"{'PASS' if passed else 'FAIL'}")
+    print(
+        f"\n  generative draw + fixed-data exact round-trip  ->  "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
     return passed
 
 
@@ -449,11 +522,11 @@ def main():
     print("=" * 74)
 
     results = {
-        "1. onboarding one-liner":            demo_onboarding(),
+        "1. onboarding one-liner": demo_onboarding(),
         "2. theta->ICResult Fisher inference": demo_inference_fisher(),
-        "3. all 5 profiles, one engine":      demo_all_profiles(),
-        "4. each modifier readout":           demo_modifiers(),
-        "5. generative vs inference paths":   demo_generative_vs_inference(),
+        "3. all 5 profiles, one engine": demo_all_profiles(),
+        "4. each modifier readout": demo_modifiers(),
+        "5. generative vs inference paths": demo_generative_vs_inference(),
     }
 
     print("\n" + "=" * 74)
@@ -463,8 +536,11 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
     all_ok = all(results.values())
     print("=" * 74)
-    print("  ALL CLUSTER-BUILDER DEMOS PASS" if all_ok
-          else "  SOME CLUSTER-BUILDER DEMOS FAILED")
+    print(
+        "  ALL CLUSTER-BUILDER DEMOS PASS"
+        if all_ok
+        else "  SOME CLUSTER-BUILDER DEMOS FAILED"
+    )
     print("=" * 74)
     return 0 if all_ok else 1
 

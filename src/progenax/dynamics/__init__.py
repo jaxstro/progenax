@@ -1,4 +1,5 @@
 """Dynamics utilities for progenax."""
+
 from progenax.dynamics.virial import (
     compute_kinetic_energy,
     compute_potential_energy,

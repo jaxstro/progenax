@@ -107,16 +107,21 @@ def test_s_density_drives_placement():
 
     n = 16
     s_t = 1.0
-    s_uniform = jnp.zeros((n, n, n))           # tail field: featureless
+    s_uniform = jnp.zeros((n, n, n))  # tail field: featureless
     half = jnp.zeros((n, n, n)).at[: n // 2].set(5.0)  # density piled in x<n/2
     tail_idx, smooth_idx = sample_cell_indices(
-        s_uniform, s_t, KAPPA, f_sub=0.3, n_stars=4000,
-        key=jax.random.PRNGKey(11), s_density=half,
+        s_uniform,
+        s_t,
+        KAPPA,
+        f_sub=0.3,
+        n_stars=4000,
+        key=jax.random.PRNGKey(11),
+        s_density=half,
     )
     idx = jnp.concatenate([tail_idx, smooth_idx])
     pos = cells_to_positions(idx, (n, n, n), key=jax.random.PRNGKey(12), box_size=1.0)
     frac_low_half = float(jnp.mean(pos[:, 0] < 0.5))
-    assert frac_low_half > 0.9                  # placement tracks s_density, not uniform s
+    assert frac_low_half > 0.9  # placement tracks s_density, not uniform s
 
 
 def test_tail_mask_reads_s_not_density():
@@ -133,12 +138,17 @@ def test_tail_mask_reads_s_not_density():
     n = 16
     s_t = 1.0
     s_turb = jnp.zeros((n, n, n)).at[0, 0, 0].set(10.0)  # one clump cell above s_t
-    s_density = jnp.zeros((n, n, n))                      # uniform placement density
+    s_density = jnp.zeros((n, n, n))  # uniform placement density
     tail_idx, smooth_idx = sample_cell_indices(
-        s_turb, s_t, KAPPA, f_sub=0.5, n_stars=4000,
-        key=jax.random.PRNGKey(13), s_density=s_density,
+        s_turb,
+        s_t,
+        KAPPA,
+        f_sub=0.5,
+        n_stars=4000,
+        key=jax.random.PRNGKey(13),
+        s_density=s_density,
     )
     tail_frac = float(jnp.mean(tail_idx == 0))
     smooth_frac = float(jnp.mean(smooth_idx == 0))
-    assert tail_frac > 0.03           # tail localizes on s_turb's clump (≫ uniform 1/4096)
-    assert smooth_frac < 0.01         # smooth follows uniform s_density (no localization)
+    assert tail_frac > 0.03  # tail localizes on s_turb's clump (≫ uniform 1/4096)
+    assert smooth_frac < 0.01  # smooth follows uniform s_density (no localization)

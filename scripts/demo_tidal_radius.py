@@ -54,6 +54,7 @@ K=22 bins to 15.6 pc, keys PRNGKey(0/1/2), wall ~5 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_tidal_radius.py
 """
+
 import os
 import sys
 
@@ -64,6 +65,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import EFFProfile
 from progenax.imf import Maschberger
 from progenax.tidal import jacobi_radius
@@ -89,11 +91,11 @@ N_STARS = 20_000
 SEED = 0
 
 # Galaxy model for the Jacobi -> Galactocentric conversion (point-mass MW interior).
-M_GALAXY = 5.0e10        # Msun within the cluster's orbit (representative)
+M_GALAXY = 5.0e10  # Msun within the cluster's orbit (representative)
 
 K_BINS = 22
 R_LO = 0.2
-R_HI_FAC = 1.3           # bin out to 1.3 r_t so the outer bins are EMPTY (pin r_t)
+R_HI_FAC = 1.3  # bin out to 1.3 r_t so the outer bins are EMPTY (pin r_t)
 N_FINE = 3000
 RT_BOX = (6.0, 18.0)
 N_INITS = 3
@@ -133,8 +135,10 @@ def make_predict_counts(r_edges, n_obs):
 
     def predict_mu(z):
         r_t = _rt_of_z(z)
-        enc = jnp.interp(jnp.minimum(r_edges, r_t), r_grid, cum)  # clip bin edges at r_t
-        total = jnp.interp(r_t, r_grid, cum)                      # enclosed up to r_t
+        enc = jnp.interp(
+            jnp.minimum(r_edges, r_t), r_grid, cum
+        )  # clip bin edges at r_t
+        total = jnp.interp(r_t, r_grid, cum)  # enclosed up to r_t
         p_k = (enc[1:] - enc[:-1]) / total
         return n_obs * p_k
 
@@ -143,7 +147,8 @@ def make_predict_counts(r_edges, n_obs):
 
 def build_truth_data():
     masses = Maschberger(alpha=2.3, m_min=0.08, m_max=100.0).sample(
-        jax.random.PRNGKey(SEED + 2), N_STARS)
+        jax.random.PRNGKey(SEED + 2), N_STARS
+    )
     prof = EFFProfile(a=A_FIXED, gamma=GAMMA, r_t=RT_TRUE)
     pos = prof.sample_positions(masses, jax.random.PRNGKey(SEED))
     r_edges = jnp.geomspace(R_LO, R_HI_FAC * RT_TRUE, K_BINS + 1)
@@ -154,7 +159,11 @@ def build_truth_data():
 def run_mle(negloglike, key):
     z_true = _z_of_rt(RT_TRUE)
     inits = jnp.concatenate(
-        [z_true[None, :], z_true[None, :] + jax.random.normal(key, (N_INITS - 1, 1)) * 0.4])
+        [
+            z_true[None, :],
+            z_true[None, :] + jax.random.normal(key, (N_INITS - 1, 1)) * 0.4,
+        ]
+    )
     nll = jax.jit(negloglike)
     finals = [mle_adam(nll, z0, n_steps=N_ADAM, lr=ADAM_LR)[0] for z0 in inits]
     losses = [float(nll(z)) for z in finals]
@@ -167,18 +176,27 @@ def main():
     print("=" * 78)
 
     r_edges, counts, n_obs, m_cl = build_truth_data()
-    print(f"\n  truth EFF a={A_FIXED} (fixed), gamma={GAMMA}, r_t={RT_TRUE} pc; N={N_STARS}, "
-          f"M_cl={m_cl:.0f} Msun")
-    print(f"  binned N_obs={n_obs:.0f} over {K_BINS} bins to {float(r_edges[-1]):.1f} pc")
+    print(
+        f"\n  truth EFF a={A_FIXED} (fixed), gamma={GAMMA}, r_t={RT_TRUE} pc; N={N_STARS}, "
+        f"M_cl={m_cl:.0f} Msun"
+    )
+    print(
+        f"  binned N_obs={n_obs:.0f} over {K_BINS} bins to {float(r_edges[-1]):.1f} pc"
+    )
 
     predict_mu = make_predict_counts(r_edges, n_obs)
-    negloglike = lambda z: -poisson_loglike((counts, jnp.ones_like(counts)), predict_mu)(z)
+    negloglike = lambda z: (
+        -poisson_loglike((counts, jnp.ones_like(counts)), predict_mu)(z)
+    )
 
     z_true = _z_of_rt(RT_TRUE)
     mu_true = np.asarray(predict_mu(z_true))
-    selfcon = float(np.max(np.abs(np.asarray(counts) - mu_true)
-                           / np.sqrt(np.maximum(mu_true, 1.0))))
-    print(f"\n  self-consistency: max|N_k - mu_k|/sqrt(mu_k) = {selfcon:.2f} (gate < {SELFCON_NSIG})")
+    selfcon = float(
+        np.max(np.abs(np.asarray(counts) - mu_true) / np.sqrt(np.maximum(mu_true, 1.0)))
+    )
+    print(
+        f"\n  self-consistency: max|N_k - mu_k|/sqrt(mu_k) = {selfcon:.2f} (gate < {SELFCON_NSIG})"
+    )
 
     z_hat = run_mle(negloglike, jax.random.PRNGKey(SEED + 1))
     rt_hat = float(_rt_of_z(z_hat))
@@ -186,17 +204,21 @@ def main():
     drt = float(_drt_dz(z_hat))
     sig_rt = float(jnp.sqrt(1.0 / F_z[0, 0]) * abs(drt))
     pull = (rt_hat - RT_TRUE) / sig_rt
-    print(f"\n  r_t recovery: {RT_TRUE} -> {rt_hat:.4f} +- {sig_rt:.4f} pc (pull {pull:+.2f})")
+    print(
+        f"\n  r_t recovery: {RT_TRUE} -> {rt_hat:.4f} +- {sig_rt:.4f} pc (pull {pull:+.2f})"
+    )
 
     # per-bin Fisher information for r_t: info_k = (dmu_k/dr_t)^2 / mu_k.
-    J = np.asarray(jax.jacrev(predict_mu)(z_hat))[:, 0]   # dmu_k/dz
+    J = np.asarray(jax.jacrev(predict_mu)(z_hat))[:, 0]  # dmu_k/dz
     mu_hat = np.asarray(predict_mu(z_hat))
     info_k = J**2 / np.maximum(mu_hat, 1e-300)
     r_mid = np.sqrt(np.asarray(r_edges)[:-1] * np.asarray(r_edges)[1:])
     outer = r_mid > 0.6 * rt_hat
     outer_frac = float(info_k[outer].sum() / info_k.sum())
-    print(f"  r_t Fisher info: {outer_frac*100:.0f}% from the outer bins (r > 0.6 r_t) "
-          f"-- the count-limited outskirts pin r_t")
+    print(
+        f"  r_t Fisher info: {outer_frac * 100:.0f}% from the outer bins (r > 0.6 r_t) "
+        f"-- the count-limited outskirts pin r_t"
+    )
 
     # forecast sigma(r_t) ~ N^-1/2.
     info_rt = 1.0 / (sig_rt**2 * N_STARS)
@@ -209,11 +231,24 @@ def main():
     R_gal, sig_Rgal = rt_hat * fac, sig_rt * fac
     rt_check = float(jacobi_radius(m_cl, M_GALAXY, R_gal))
     print(f"\n  forecast sigma(r_t) ~ N^{slope:.3f}")
-    print(f"  Jacobi -> R_gal = {R_gal/1e3:.2f} +- {sig_Rgal/1e3:.2f} kpc "
-          f"(M_gal={M_GALAXY:.0e} Msun); jacobi_radius round-trip r_t={rt_check:.3f}")
+    print(
+        f"  Jacobi -> R_gal = {R_gal / 1e3:.2f} +- {sig_Rgal / 1e3:.2f} kpc "
+        f"(M_gal={M_GALAXY:.0e} Msun); jacobi_radius round-trip r_t={rt_check:.3f}"
+    )
 
-    make_figure(r_edges, counts, mu_hat, rt_hat, sig_rt, r_mid, info_k,
-                n_grid, sig_rt_grid, R_gal / 1e3, sig_Rgal / 1e3)
+    make_figure(
+        r_edges,
+        counts,
+        mu_hat,
+        rt_hat,
+        sig_rt,
+        r_mid,
+        info_k,
+        n_grid,
+        sig_rt_grid,
+        R_gal / 1e3,
+        sig_Rgal / 1e3,
+    )
 
     selfcon_ok = selfcon < SELFCON_NSIG
     recovery_ok = abs(pull) < RECOVERY_NSIG
@@ -222,13 +257,36 @@ def main():
     jacobi_ok = np.isfinite(R_gal) and abs(rt_check - rt_hat) < 1e-6 * rt_hat
 
     rows = [
-        ("self-consistency at truth", "PASS" if selfcon_ok else "FAIL",
-         f"<{SELFCON_NSIG} sigma", selfcon_ok),
-        ("r_t recovery", "PASS" if recovery_ok else "FAIL", f"<{RECOVERY_NSIG} sigma", recovery_ok),
-        ("outskirts pin r_t (>50% info)", "PASS" if outer_ok else "FAIL",
-         f"{outer_frac*100:.0f}%", outer_ok),
-        ("forecast sigma(r_t)~N^-1/2", "PASS" if forecast_ok else "FAIL", "slope -0.5", forecast_ok),
-        ("Jacobi R_gal round-trip", "PASS" if jacobi_ok else "FAIL", "consistent", jacobi_ok),
+        (
+            "self-consistency at truth",
+            "PASS" if selfcon_ok else "FAIL",
+            f"<{SELFCON_NSIG} sigma",
+            selfcon_ok,
+        ),
+        (
+            "r_t recovery",
+            "PASS" if recovery_ok else "FAIL",
+            f"<{RECOVERY_NSIG} sigma",
+            recovery_ok,
+        ),
+        (
+            "outskirts pin r_t (>50% info)",
+            "PASS" if outer_ok else "FAIL",
+            f"{outer_frac * 100:.0f}%",
+            outer_ok,
+        ),
+        (
+            "forecast sigma(r_t)~N^-1/2",
+            "PASS" if forecast_ok else "FAIL",
+            "slope -0.5",
+            forecast_ok,
+        ),
+        (
+            "Jacobi R_gal round-trip",
+            "PASS" if jacobi_ok else "FAIL",
+            "consistent",
+            jacobi_ok,
+        ),
     ]
     print("\n" + "-" * 78)
     print(f"  {'CHECK':<32s} {'status':>6s} {'gate':>14s}")
@@ -244,8 +302,19 @@ def main():
     return 0 if all_ok else 1
 
 
-def make_figure(r_edges, counts, mu_hat, rt_hat, sig_rt, r_mid, info_k,
-                n_grid, sig_rt_grid, R_gal_kpc, sig_Rgal_kpc):
+def make_figure(
+    r_edges,
+    counts,
+    mu_hat,
+    rt_hat,
+    sig_rt,
+    r_mid,
+    info_k,
+    n_grid,
+    sig_rt_grid,
+    R_gal_kpc,
+    sig_Rgal_kpc,
+):
     import matplotlib.pyplot as plt
 
     e = np.asarray(r_edges)
@@ -257,11 +326,23 @@ def make_figure(r_edges, counts, mu_hat, rt_hat, sig_rt, r_mid, info_k,
     # (a) number-density profile + the recovered truncation.
     ax = axes[0]
     pop = cnt > 0
-    ax.errorbar(cen[pop], (cnt / shell)[pop], yerr=(np.sqrt(cnt) / shell)[pop],
-                fmt="o", ms=3.5, color=OI["black"], label="counts", zorder=4)
+    ax.errorbar(
+        cen[pop],
+        (cnt / shell)[pop],
+        yerr=(np.sqrt(cnt) / shell)[pop],
+        fmt="o",
+        ms=3.5,
+        color=OI["black"],
+        label="counts",
+        zorder=4,
+    )
     ax.plot(cen, mu_hat / shell, "-", color=OI["vermilion"], label="MLE")
-    ax.axvline(rt_hat, color=OI["green"], ls="--",
-               label=fr"$\hat r_t={rt_hat:.2f}\pm{sig_rt:.2f}$ pc")
+    ax.axvline(
+        rt_hat,
+        color=OI["green"],
+        ls="--",
+        label=rf"$\hat r_t={rt_hat:.2f}\pm{sig_rt:.2f}$ pc",
+    )
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel(r"$r$  [pc]")
@@ -273,7 +354,7 @@ def make_figure(r_edges, counts, mu_hat, rt_hat, sig_rt, r_mid, info_k,
     ax = axes[1]
     ax.fill_between(cen, info_k, step="mid", color=OI["sky"], alpha=0.6)
     ax.plot(cen, info_k, "o-", ms=3, color=OI["blue"])
-    ax.axvline(rt_hat, color=OI["green"], ls="--", label=fr"$\hat r_t$")
+    ax.axvline(rt_hat, color=OI["green"], ls="--", label=r"$\hat r_t$")
     ax.set_xscale("log")
     ax.set_xlabel(r"$r$  [pc]")
     ax.set_ylabel(r"$r_t$ Fisher info per bin")
@@ -285,9 +366,16 @@ def make_figure(r_edges, counts, mu_hat, rt_hat, sig_rt, r_mid, info_k,
     ax.loglog(n_grid, sig_rt_grid, "o-", color=OI["green"])
     ax.set_xlabel(r"$N_\star$")
     ax.set_ylabel(r"$\sigma(r_t)$  [pc]")
-    ax.text(0.5, 0.92, fr"$R_{{\rm gal}}={R_gal_kpc:.2f}\pm{sig_Rgal_kpc:.2f}$ kpc",
-            transform=ax.transAxes, ha="center", va="top", fontsize=7.5,
-            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7"))
+    ax.text(
+        0.5,
+        0.92,
+        rf"$R_{{\rm gal}}={R_gal_kpc:.2f}\pm{sig_Rgal_kpc:.2f}$ kpc",
+        transform=ax.transAxes,
+        ha="center",
+        va="top",
+        fontsize=7.5,
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7"),
+    )
     panel_label(ax, "(c)")
 
     fig.tight_layout()

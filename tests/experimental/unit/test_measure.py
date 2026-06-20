@@ -50,8 +50,8 @@ def test_measured_2pt_white_noise_decorrelates():
 
 def test_smooth_copula_field_marginal_lognormal_limit():
     """smooth_copula_field marginal: large alpha => Var(s) ~ sigma_s^2."""
-    from gravoturb_fdf.validation.measure import smooth_copula_field
     from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb_fdf.validation.measure import smooth_copula_field
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))
@@ -79,12 +79,12 @@ def test_measure_exceedances_counts_edges_and_alpha_recovery():
     s_thr. Mechanics: edges span [s_thr, s_max] closed at the realized max; counts sum to n_tail =
     #(s>s_thr). Physics: on a pure-exponential tail above s_thr, maximizing tail_exceedance_loglike
     over alpha recovers alpha_true to within ~3 sigma (sigma = alpha/sqrt(N_tail))."""
-    from gravoturb_fdf.validation.measure import measure_exceedances
     from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+    from gravoturb_fdf.validation.measure import measure_exceedances
 
     rng = np.random.default_rng(0)
     alpha_true, s_thr, n_tail_draw = 2.5, 1.0, 40000
-    body = rng.uniform(-5.0, 0.99, size=30000)                      # all below s_thr
+    body = rng.uniform(-5.0, 0.99, size=30000)  # all below s_thr
     tail = s_thr + rng.exponential(1.0 / alpha_true, size=n_tail_draw)
     s_field = np.concatenate([body, tail])
 
@@ -93,13 +93,21 @@ def test_measure_exceedances_counts_edges_and_alpha_recovery():
     assert n_tail == int((s_field > s_thr).sum()) == n_tail_draw
     assert edges[0] == pytest.approx(s_thr) and edges[-1] == pytest.approx(s_max)
     assert s_max == pytest.approx(float(s_field.max()))
-    assert int(round(float(counts.sum()))) == n_tail               # every exceedance binned
+    assert int(round(float(counts.sum()))) == n_tail  # every exceedance binned
 
     # --- physics: 1-D MLE over alpha recovers the tail slope ---
     alphas = np.linspace(1.5, 4.0, 501)
     theta = lambda a: jnp.array([5.0, 0.4, a, 3.0])
-    lls = np.array([float(tail_exceedance_loglike(
-        jnp.asarray(counts), jnp.asarray(edges), theta(a), s_thr, s_max)) for a in alphas])
+    lls = np.array(
+        [
+            float(
+                tail_exceedance_loglike(
+                    jnp.asarray(counts), jnp.asarray(edges), theta(a), s_thr, s_max
+                )
+            )
+            for a in alphas
+        ]
+    )
     alpha_hat = alphas[int(np.argmax(lls))]
     sigma = alpha_true / np.sqrt(n_tail)
     assert abs(alpha_hat - alpha_true) < 3.0 * sigma
@@ -131,8 +139,16 @@ def test_log_count_variance_estimator_var_positive():
     from gravoturb_fdf.validation.measure import estimate_log_count_variance_var
 
     vv = estimate_log_count_variance_var(
-        mach=8.0, b=0.4, alpha=2.5, beta=3.0, shape=(24, 24, 24),
-        cell_size=4, n_bar=5.0, n_real=8, key=jax.random.PRNGKey(0))
+        mach=8.0,
+        b=0.4,
+        alpha=2.5,
+        beta=3.0,
+        shape=(24, 24, 24),
+        cell_size=4,
+        n_bar=5.0,
+        n_real=8,
+        key=jax.random.PRNGKey(0),
+    )
     assert vv > 0.0 and vv == vv
 
 
@@ -153,7 +169,9 @@ def test_measure_angular_bandpowers_2d_shape_and_positive():
     from gravoturb_fdf.validation.measure import measure_angular_bandpowers_2d
 
     rng = np.random.default_rng(0)
-    bp = measure_angular_bandpowers_2d(rng.normal(size=(32, 32)), np.linspace(1.0, 8.0, 4))
+    bp = measure_angular_bandpowers_2d(
+        rng.normal(size=(32, 32)), np.linspace(1.0, 8.0, 4)
+    )
     assert bp.shape == (3,) and np.all(bp >= 0.0)
 
 

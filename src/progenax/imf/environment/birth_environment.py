@@ -7,22 +7,16 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from .coefficients import (
-    JERABKOVA_COEFFICIENTS,
-    MARKS_COEFFICIENTS,
-    MARKS_TABLE3_COEFFICIENTS,
     DEFAULT_SFE,
 )
 from .density import (
-    compute_r_half,
-    compute_rho_ecl,
     compute_rho_cl,
-    compute_log_rho_cl_6,
 )
-
 
 # =============================================================================
 # BirthEnvironment - Primary inference target
 # =============================================================================
+
 
 class BirthEnvironment(eqx.Module):
     """Physical birth environment with SFE parameter.
@@ -331,8 +325,8 @@ class BirthEnvironment(eqx.Module):
         >>> print(f"σ_ln_ρ (b=0.4) = {float(env.sigma_ln_rho(b=0.4)):.2f}")
         """
         from progenax.cluster.turbulence import (
-            sigma_ln_rho_from_mach,
             b_from_environment,
+            sigma_ln_rho_from_mach,
         )
 
         # Derive b from environment if not provided
@@ -401,5 +395,3 @@ class BirthEnvironment(eqx.Module):
 
         mach = self.turbulent_mach(c_s, sigma_v0, alpha)
         return spectral_slope_from_mach(mach)
-
-

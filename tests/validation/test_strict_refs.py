@@ -1,4 +1,5 @@
 """Strict-mode guard: reference caches must exist when PROGENAX_STRICT_REFS=1."""
+
 import os
 from pathlib import Path
 

@@ -23,9 +23,9 @@ from scipy import integrate
 from scipy.special import gammainc as scipy_gammainc
 
 from progenax.profiles.king import (
+    _find_tidal_radius,
     king_lowered_maxwellian_density,
     solve_king_profile,
-    _find_tidal_radius,
 )
 
 
@@ -38,6 +38,7 @@ def _direct_density_integral(W, g):
     *definition* the closed form E_gamma(g + 3/2, W) must reproduce — an oracle
     independent of the gammainc identity, valid for ANY g. (scipy: test-only.)
     """
+
     def E_gamma(a, y):
         if a == 0.0:
             return np.exp(y)
@@ -113,8 +114,12 @@ class TestLimepyDensityContract:
         a normalized profile-extent property, tested on solve_limepy_profile."""
         from progenax.profiles.limepy import limepy_density_hat
 
-        dg = jax.grad(lambda g: jnp.sum(limepy_density_hat(jnp.array([2.0, 5.0]), g)))(1.0)
-        dW = jax.grad(lambda W: jnp.sum(limepy_density_hat(W, g=1.0)))(jnp.array([2.0, 5.0]))
+        dg = jax.grad(lambda g: jnp.sum(limepy_density_hat(jnp.array([2.0, 5.0]), g)))(
+            1.0
+        )
+        dW = jax.grad(lambda W: jnp.sum(limepy_density_hat(W, g=1.0)))(
+            jnp.array([2.0, 5.0])
+        )
         assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0  # g genuinely moves the density
         assert jnp.all(jnp.isfinite(dW)) and jnp.all(dW > 0.0)  # deeper -> denser
 
@@ -140,10 +145,15 @@ class TestSolveLimepyProfile:
         inside = psi_k > 1e-3
         psi_l_on_k = jnp.interp(xi_k, xi_l, psi_l)
         np.testing.assert_allclose(
-            np.asarray(psi_l_on_k[inside]), np.asarray(psi_k[inside]), rtol=1e-4, atol=1e-4
+            np.asarray(psi_l_on_k[inside]),
+            np.asarray(psi_k[inside]),
+            rtol=1e-4,
+            atol=1e-4,
         )
 
-    @pytest.mark.parametrize("W0,c_table_ii", [(5.0, 10.70), (7.0, 33.71), (9.0, 131.4)])
+    @pytest.mark.parametrize(
+        "W0,c_table_ii", [(5.0, 10.70), (7.0, 33.71), (9.0, 131.4)]
+    )
     def test_g1_truncation_radius_matches_king_table_ii(self, W0, c_table_ii):
         """g=1 truncation radius xi_t = r_t/r_c equals King (1966) Table II
         concentration c(W0). A first-principles anchor: the general-g solver lands
@@ -207,23 +217,32 @@ class TestLimepyAnisotropicDensity:
 
         for W in (1.0, 3.0, 6.0, 9.0):
             for p in (0.0, 0.3, 1.0, 3.0):
-                lim = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(p), g=1.0))
+                lim = float(
+                    limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(p), g=1.0)
+                )
                 mic = float(michie_density(jnp.asarray(W), jnp.asarray(p)))
-                np.testing.assert_allclose(lim, mic, rtol=2e-3, atol=1e-6,
-                                           err_msg=f"W={W} p={p}")
+                np.testing.assert_allclose(
+                    lim, mic, rtol=2e-3, atol=1e-6, err_msg=f"W={W} p={p}"
+                )
 
     @pytest.mark.parametrize("g", [0.0, 1.0, 2.0])
     def test_isotropic_limit_recovers_limepy_density(self, g):
         """As p->0 the normalized anisotropic density -> the isotropic limepy
         density rho_hat(W)/rho_hat(W0) (T(0)=2 makes the angle integral isotropic)."""
-        from progenax.profiles.limepy import limepy_density_aniso_hat, limepy_density_hat
+        from progenax.profiles.limepy import (
+            limepy_density_aniso_hat,
+            limepy_density_hat,
+        )
 
         W = jnp.linspace(0.2, 8.0, 40)
         W0 = 8.0
-        aniso = limepy_density_aniso_hat(W, jnp.asarray(1e-4), g=g) / \
-            limepy_density_aniso_hat(jnp.asarray(W0), jnp.asarray(1e-4), g=g)
+        aniso = limepy_density_aniso_hat(
+            W, jnp.asarray(1e-4), g=g
+        ) / limepy_density_aniso_hat(jnp.asarray(W0), jnp.asarray(1e-4), g=g)
         iso = limepy_density_hat(W, g=g) / limepy_density_hat(jnp.asarray(W0), g=g)
-        np.testing.assert_allclose(np.asarray(aniso), np.asarray(iso), rtol=2e-3, atol=1e-4)
+        np.testing.assert_allclose(
+            np.asarray(aniso), np.asarray(iso), rtol=2e-3, atol=1e-4
+        )
 
     @pytest.mark.parametrize("g", [0.0, 1.0, 2.0])
     @pytest.mark.parametrize("W,p", [(5.0, 0.5), (5.0, 1.0), (3.0, 1.5)])
@@ -235,15 +254,19 @@ class TestLimepyAnisotropicDensity:
                     1F1(1, g+5/2, -p^2 W).
 
         Both are normalized to the isotropic central value to compare on one scale."""
-        from scipy.special import gammainc as sp_gammainc, gamma as sp_gamma, hyp1f1
+        from scipy.special import gamma as sp_gamma
+        from scipy.special import gammainc as sp_gammainc
+        from scipy.special import hyp1f1
+
         from progenax.profiles.limepy import limepy_density_aniso_hat
 
         x = p**2 * W
         assert x < 80.0  # guard: only test where hyp1f1 is reliable
         a = g + 1.5
         E = np.exp(W) * sp_gammainc(a, W)  # E_gamma(g+3/2, W)
-        closed = E / (1 + p**2) + p**2 / (1 + p**2) * W**(g + 1.5) / sp_gamma(g + 2.5) \
-            * hyp1f1(1.0, g + 2.5, -(p**2) * W)
+        closed = E / (1 + p**2) + p**2 / (1 + p**2) * W ** (g + 1.5) / sp_gamma(
+            g + 2.5
+        ) * hyp1f1(1.0, g + 2.5, -(p**2) * W)
         # quadrature is unnormalized by sqrt(2 pi) vs E_gamma; rescale by the s=0 ratio.
         quad = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(p), g=g))
         quad0 = float(limepy_density_aniso_hat(jnp.asarray(W), jnp.asarray(1e-6), g=g))
@@ -260,7 +283,9 @@ class TestLimepyAnisotropicDensity:
         Wv = jnp.array([2.0, 5.0])
         dW = jax.grad(f, 0)(Wv, jnp.asarray(0.8), 1.0)
         dp = jax.grad(lambda p: limepy_density_aniso_hat(jnp.asarray(5.0), p, 1.0))(0.8)
-        dg = jax.grad(lambda g: limepy_density_aniso_hat(jnp.asarray(5.0), jnp.asarray(0.8), g))(1.0)
+        dg = jax.grad(
+            lambda g: limepy_density_aniso_hat(jnp.asarray(5.0), jnp.asarray(0.8), g)
+        )(1.0)
         assert jnp.all(jnp.isfinite(dW)) and jnp.isfinite(dp) and jnp.isfinite(dg)
         assert jnp.abs(dp) > 0.0 and jnp.abs(dg) > 0.0
 
@@ -279,21 +304,28 @@ class TestLimepyAnisotropicProfile:
 
         W0, ra = 7.0, 8.0
         xi_m, psi_m, _ = solve_michie_profile(W0, ra, xi_max=800.0, n_points=4000)
-        xi_l, psi_l, _ = solve_limepy_profile(W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000)
+        xi_l, psi_l, _ = solve_limepy_profile(
+            W0, g=1.0, ra_hat=ra, xi_max=800.0, n_points=4000
+        )
         inside = psi_m > 1e-3
         psi_l_on_m = jnp.interp(xi_m, xi_l, psi_l)
         np.testing.assert_allclose(
-            np.asarray(psi_l_on_m[inside]), np.asarray(psi_m[inside]), rtol=3e-3, atol=3e-3
+            np.asarray(psi_l_on_m[inside]),
+            np.asarray(psi_m[inside]),
+            rtol=3e-3,
+            atol=3e-3,
         )
 
     def test_profile_g1_aniso_matches_michie_profile(self):
         """LIMEPYProfile(g=1, r_a).density(r) == MichieProfile.density(r) — the
         anisotropic King profile corner, end to end (W0 -> r_t -> normalized rho)."""
-        from progenax.profiles.michie import MichieProfile
         from progenax.profiles.limepy import LIMEPYProfile
+        from progenax.profiles.michie import MichieProfile
 
         mic = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
-        lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000)
+        lim = LIMEPYProfile.from_W0_rc(
+            W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000
+        )
         r = jnp.linspace(0.0, float(mic.r_t), 400)
         np.testing.assert_allclose(
             np.asarray(lim.density(r)), np.asarray(mic.density(r)), rtol=5e-3, atol=5e-3
@@ -305,9 +337,15 @@ class TestLimepyAnisotropicProfile:
         The defining qualitative signature of Michie/OM anisotropy."""
         from progenax.profiles.limepy import LIMEPYProfile
 
-        iso = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, xi_max=800.0, n_ode_points=3000)
-        ani = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000)
-        assert float(ani.r_t) > float(iso.r_t), f"aniso r_t={float(ani.r_t)} !> iso {float(iso.r_t)}"
+        iso = LIMEPYProfile.from_W0_rc(
+            W0=7.0, g=1.0, r_c=1.0, xi_max=800.0, n_ode_points=3000
+        )
+        ani = LIMEPYProfile.from_W0_rc(
+            W0=7.0, g=1.0, r_c=1.0, r_a=8.0, xi_max=800.0, n_ode_points=3000
+        )
+        assert float(ani.r_t) > float(iso.r_t), (
+            f"aniso r_t={float(ani.r_t)} !> iso {float(iso.r_t)}"
+        )
 
     def test_differentiable_in_anisotropy_radius(self):
         """A profile-shape functional is differentiable in r_a through the radius-
@@ -315,7 +353,9 @@ class TestLimepyAnisotropicProfile:
         from progenax.profiles.limepy import solve_limepy_profile
 
         def metric(ra_hat):
-            xi, psi, _ = solve_limepy_profile(7.0, g=1.0, ra_hat=ra_hat, xi_max=800.0, n_points=3000)
+            xi, psi, _ = solve_limepy_profile(
+                7.0, g=1.0, ra_hat=ra_hat, xi_max=800.0, n_points=3000
+            )
             return jnp.mean(psi[:300])
 
         d = jax.grad(metric)(5.0)
@@ -338,7 +378,10 @@ class TestLimepyProfile:
         lim = LIMEPYProfile.from_W0_rc(W0=7.0, g=1.0, r_c=1.0)
         r = jnp.linspace(0.0, float(king.r_t), 400)
         np.testing.assert_allclose(
-            np.asarray(lim.density(r)), np.asarray(king.density(r)), rtol=2e-3, atol=2e-3
+            np.asarray(lim.density(r)),
+            np.asarray(king.density(r)),
+            rtol=2e-3,
+            atol=2e-3,
         )
 
     def test_truncation_radius_grows_with_g(self):
@@ -346,8 +389,10 @@ class TestLimepyProfile:
         (Woolley<King<Wilson) at fixed (W0, r_c)."""
         from progenax.profiles.limepy import LIMEPYProfile
 
-        r_t = [float(LIMEPYProfile.from_W0_rc(W0=6.0, g=g, r_c=1.0).r_t)
-               for g in (0.0, 1.0, 2.0)]
+        r_t = [
+            float(LIMEPYProfile.from_W0_rc(W0=6.0, g=g, r_c=1.0).r_t)
+            for g in (0.0, 1.0, 2.0)
+        ]
         assert r_t[0] < r_t[1] < r_t[2], f"r_t not ordered in g: {r_t}"
 
     def test_sampled_positions_recover_density_profile(self):
@@ -366,13 +411,19 @@ class TestLimepyProfile:
         r_test = jnp.linspace(0.1, float(prof.r_t) * 0.95, 6)
         rr = jnp.linspace(0.0, float(prof.r_t), 2000)
         integrand = 4.0 * jnp.pi * rr**2 * prof.density(rr)
-        m_cum = jnp.concatenate([jnp.zeros(1),
-                                 jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * (rr[1] - rr[0])])
+        m_cum = jnp.concatenate(
+            [
+                jnp.zeros(1),
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * (rr[1] - rr[0]),
+            ]
+        )
         cdf_analytic = m_cum / m_cum[-1]
         for rt in r_test:
             emp = float(jnp.mean(radii <= rt))
             ana = float(jnp.interp(rt, rr, cdf_analytic))
-            assert abs(emp - ana) < 0.02, f"CDF mismatch at r={float(rt):.2f}: {emp:.3f} vs {ana:.3f}"
+            assert abs(emp - ana) < 0.02, (
+                f"CDF mismatch at r={float(rt):.2f}: {emp:.3f} vs {ana:.3f}"
+            )
 
     def test_differentiable_construction_in_W0_and_g(self):
         """A profile-shape functional is differentiable through construction in both

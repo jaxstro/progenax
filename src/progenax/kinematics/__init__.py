@@ -23,22 +23,25 @@ High-level API:
 All classes implement the VelocityDF protocol for use with IC assembly.
 """
 
-from progenax.kinematics.plummer_df import PlummerVelocityDF
-from progenax.kinematics.king_df import KingVelocityDF
-from progenax.kinematics.michie_df import MichieVelocityDF
-from progenax.kinematics.limepy_df import LIMEPYVelocityDF
-from progenax.kinematics.eff_df import EFFVelocityDF
-from progenax.kinematics.rotation import apply_solid_body_rotation, apply_differential_rotation
-from progenax.kinematics.dispersion import (
-    jeans_dispersion,
-    project_dispersion,
-    df_moment_dispersion,
-)
 from progenax.kinematics.api import (
-    VelocityDF,
     RotationParams,
+    VelocityDF,
     VelocityModel,
     sample_velocities_pipeline,
+)
+from progenax.kinematics.dispersion import (
+    df_moment_dispersion,
+    jeans_dispersion,
+    project_dispersion,
+)
+from progenax.kinematics.eff_df import EFFVelocityDF
+from progenax.kinematics.king_df import KingVelocityDF
+from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+from progenax.kinematics.michie_df import MichieVelocityDF
+from progenax.kinematics.plummer_df import PlummerVelocityDF
+from progenax.kinematics.rotation import (
+    apply_differential_rotation,
+    apply_solid_body_rotation,
 )
 
 __all__ = [

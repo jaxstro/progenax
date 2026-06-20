@@ -36,7 +36,9 @@ class TestComputeStellarRadii:
 
     def test_near_continuous_at_hydrogen_burning_limit(self):
         r = compute_stellar_radii(jnp.array([0.079, 0.081]))
-        assert abs(float(r[1]) / float(r[0]) - 1.0) < 0.1  # no factor-2.4 jump (audit F7)
+        assert (
+            abs(float(r[1]) / float(r[0]) - 1.0) < 0.1
+        )  # no factor-2.4 jump (audit F7)
 
 
 class TestToCOMFrame:
@@ -67,7 +69,11 @@ class TestVirialScale:
 
     def test_virial_ratio_is_target(self):
         """After scaling, Q = T/|V| should equal target."""
-        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+        from progenax.builders import (
+            compute_kinetic_energy,
+            compute_potential_energy,
+            virial_scale,
+        )
 
         positions = jnp.array([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]])
         velocities = jnp.array([[0.0, 0.5, 0.0], [0.0, -0.5, 0.0]])
@@ -84,16 +90,28 @@ class TestVirialScale:
 
     def test_q_half_equilibrium(self):
         """Q = 0.5 gives virial equilibrium (2T + V = 0)."""
-        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+        from progenax.builders import (
+            compute_kinetic_energy,
+            compute_potential_energy,
+            virial_scale,
+        )
 
-        positions = jnp.array([
-            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
-        ])
-        velocities = jnp.array([
-            [0.0, 0.1, 0.0], [0.0, -0.1, 0.0],
-            [0.1, 0.0, 0.0], [-0.1, 0.0, 0.0],
-        ])
+        positions = jnp.array(
+            [
+                [1.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, -1.0, 0.0],
+            ]
+        )
+        velocities = jnp.array(
+            [
+                [0.0, 0.1, 0.0],
+                [0.0, -0.1, 0.0],
+                [0.1, 0.0, 0.0],
+                [-0.1, 0.0, 0.0],
+            ]
+        )
         masses = jnp.ones(4)
         G = 1.0
 
@@ -107,16 +125,28 @@ class TestVirialScale:
 
     def test_q_less_than_half_collapsing(self):
         """Q < 0.5 gives sub-virial (cold) system."""
-        from progenax.builders import virial_scale, compute_kinetic_energy, compute_potential_energy
+        from progenax.builders import (
+            compute_kinetic_energy,
+            compute_potential_energy,
+            virial_scale,
+        )
 
-        positions = jnp.array([
-            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
-        ])
-        velocities = jnp.array([
-            [0.0, 0.1, 0.0], [0.0, -0.1, 0.0],
-            [0.1, 0.0, 0.0], [-0.1, 0.0, 0.0],
-        ])
+        positions = jnp.array(
+            [
+                [1.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, -1.0, 0.0],
+            ]
+        )
+        velocities = jnp.array(
+            [
+                [0.0, 0.1, 0.0],
+                [0.0, -0.1, 0.0],
+                [0.1, 0.0, 0.0],
+                [-0.1, 0.0, 0.0],
+            ]
+        )
         masses = jnp.ones(4)
         G = 1.0
 
@@ -132,6 +162,7 @@ class TestVirialScale:
     def test_virial_scale_zero_velocities_raises(self):
         """Audit J5: cold input (T=0) used to return all-NaN velocities silently."""
         from progenax.builders import virial_scale
+
         pos = jax.random.normal(jax.random.PRNGKey(0), (50, 3))
         vel = jnp.zeros((50, 3))
         m = jnp.ones(50)
@@ -141,6 +172,7 @@ class TestVirialScale:
     def test_rescale_velocities_to_virial_zero_raises(self):
         """The deduped sibling shares the same eager T=0 guard (audit J5)."""
         from progenax.dynamics.virial import rescale_velocities_to_virial
+
         pos = jax.random.normal(jax.random.PRNGKey(1), (50, 3))
         vel = jnp.zeros((50, 3))
         m = jnp.ones(50)
@@ -150,6 +182,7 @@ class TestVirialScale:
     def test_virial_scale_traced_zero_returns_nan(self):
         """Under tracing the guard can't fire; NaN is the honest sentinel."""
         from progenax.builders import virial_scale
+
         pos = jax.random.normal(jax.random.PRNGKey(2), (10, 3))
         m = jnp.ones(10)
 
@@ -165,9 +198,9 @@ class TestBuildSpatialIC:
 
     def test_build_with_plummer(self):
         """Build IC with Plummer profile produces valid output."""
-        from progenax.builders import build_spatial_ic, ICResult
-        from progenax.profiles import PlummerProfile
+        from progenax.builders import ICResult, build_spatial_ic
         from progenax.kinematics import PlummerVelocityDF
+        from progenax.profiles import PlummerProfile
 
         masses = jnp.ones(100)
         profile = PlummerProfile(r_h=1.0)
@@ -191,8 +224,8 @@ class TestBuildSpatialIC:
     def test_ic_in_com_frame(self):
         """IC should be in COM frame (zero mean position/velocity)."""
         from progenax.builders import build_spatial_ic
-        from progenax.profiles import PlummerProfile
         from progenax.kinematics import PlummerVelocityDF
+        from progenax.profiles import PlummerProfile
 
         masses = jnp.ones(100)
         profile = PlummerProfile(r_h=1.0)

@@ -156,10 +156,9 @@ def energy_sorted_segregation(
     # Guard against degenerate total mass (e.g., all-zero masses)
     M_total = jnp.maximum(M_cum_sorted[-1], 1e-12)
     M_cum_norm = M_cum_sorted / M_total
-    M_cum_norm_shifted = jnp.concatenate([
-        jnp.array([0.0], dtype=M_cum_norm.dtype),
-        M_cum_norm[:-1]
-    ])
+    M_cum_norm_shifted = jnp.concatenate(
+        [jnp.array([0.0], dtype=M_cum_norm.dtype), M_cum_norm[:-1]]
+    )
     # Target energy-rank for each mass rank = N_pool * (bin-centre cumulative mass).
     # Monotonic in rank (masses > 0); most massive rank 0 -> smallest target -> most bound.
     M_cum_mid = 0.5 * (M_cum_norm + M_cum_norm_shifted)

@@ -5,9 +5,9 @@ Plummer (1911) density profile as Equinox module.
 Implements SpatialProfile protocol for use with IC assembly.
 """
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
 
@@ -45,7 +45,7 @@ class PlummerProfile(eqx.Module):
         # Scale radius from half-mass radius
         # From Plummer CDF: M(<r_h)/M = 0.5 = r_h³ / (r_h² + a²)^(3/2)
         # Solving: a = r_h * sqrt((1 - 0.5^(2/3)) / 0.5^(2/3))
-        a = r_h_arr * jnp.sqrt((1.0 - 0.5**(2/3)) / 0.5**(2/3))
+        a = r_h_arr * jnp.sqrt((1.0 - 0.5 ** (2 / 3)) / 0.5 ** (2 / 3))
         object.__setattr__(self, "r_h", r_h_arr)
         object.__setattr__(self, "a", a)
 
@@ -77,7 +77,7 @@ class PlummerProfile(eqx.Module):
 
         # Sample isotropic angles
         cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
-        phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2*jnp.pi)
+        phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2 * jnp.pi)
 
         # Convert to Cartesian
         sin_theta = jnp.sqrt(1.0 - cos_theta**2)

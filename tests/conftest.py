@@ -10,14 +10,14 @@ Provides:
 
 import os
 
-import pytest
 import jax
 import jax.numpy as jnp
-
+import pytest
 
 # =============================================================================
 # JAX Configuration
 # =============================================================================
+
 
 def pytest_configure(config):
     """Enable float64 for all tests and configure warnings."""
@@ -27,8 +27,7 @@ def pytest_configure(config):
     # design in EnvironmentIMF where environment→IMF conversion is not meant
     # to be differentiated through
     config.addinivalue_line(
-        "filterwarnings",
-        "ignore:Using.*field.*init=False.*:UserWarning"
+        "filterwarnings", "ignore:Using.*field.*init=False.*:UserWarning"
     )
 
 
@@ -50,6 +49,7 @@ def _bound_jax_compilation_cache():
 # =============================================================================
 # Standard Particle Counts
 # =============================================================================
+
 
 @pytest.fixture
 def N_unit():
@@ -79,11 +79,13 @@ def N_stats():
 # Physics Tolerance Thresholds
 # =============================================================================
 
+
 class PhysicsTolerances:
     """Standard tolerances for physics validation tests.
 
     Based on literature values and statistical expectations.
     """
+
     # Exact formulas (machine precision)
     EXACT = 1e-10
 
@@ -103,11 +105,11 @@ class PhysicsTolerances:
     # Q = T/|V| for a sampled Plummer (analytic V) at N=5000: |Q-0.5| ~ 0.002,
     # 40-seed std 0.005 (max 0.011) -> 0.05 is an ~11-sigma, discriminating bound.
     # (Was 0.20, which would have accepted a 40%-wrong kinetic energy.)
-    VIRIAL_RATIO = 0.05      # Q = T/|V| within 5% of 0.5 (regime-anchored, N=5000)
-    HALF_MASS = 0.03         # Half-mass radius: 3% tolerance
+    VIRIAL_RATIO = 0.05  # Q = T/|V| within 5% of 0.5 (regime-anchored, N=5000)
+    HALF_MASS = 0.03  # Half-mass radius: 3% tolerance
     VELOCITY_DISPERSION = 0.10  # σ(r) profile: 10% tolerance
-    CDF_MONOTONIC = 1e-10    # CDF must be strictly increasing
-    BOUND_FRACTION = 1.0     # 100% of particles must be bound
+    CDF_MONOTONIC = 1e-10  # CDF must be strictly increasing
+    BOUND_FRACTION = 1.0  # 100% of particles must be bound
 
 
 @pytest.fixture
@@ -120,6 +122,7 @@ def tolerances():
 # Random Keys
 # =============================================================================
 
+
 @pytest.fixture
 def key():
     """Standard JAX random key for reproducibility."""
@@ -129,8 +132,10 @@ def key():
 @pytest.fixture
 def key_factory():
     """Factory for generating multiple keys."""
+
     def _make_key(seed=42):
         return jax.random.PRNGKey(seed)
+
     return _make_key
 
 
@@ -138,10 +143,12 @@ def key_factory():
 # IMF Factories
 # =============================================================================
 
+
 @pytest.fixture
 def kroupa_imf():
     """Standard Kroupa IMF for testing."""
     from progenax.imf import KroupaIMF
+
     return KroupaIMF()
 
 
@@ -149,12 +156,14 @@ def kroupa_imf():
 def chabrier_imf():
     """Standard Chabrier IMF for testing."""
     from progenax.imf import ChabrierIMF
+
     return ChabrierIMF()
 
 
 # =============================================================================
 # Standard Test Data
 # =============================================================================
+
 
 @pytest.fixture
 def equal_masses(N_validation):
@@ -172,6 +181,7 @@ def unit_G():
 # Physics Constants (for validation)
 # =============================================================================
 
+
 class PlummerConstants:
     """Plummer model constants from literature.
 
@@ -179,9 +189,10 @@ class PlummerConstants:
         Plummer (1911), MNRAS 71, 460
         Binney & Tremaine (2008), "Galactic Dynamics"
     """
+
     # Scale radius to half-mass radius ratio
     # a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
-    SCALE_RADIUS_FACTOR = jnp.sqrt(2**(2/3) - 1)
+    SCALE_RADIUS_FACTOR = jnp.sqrt(2 ** (2 / 3) - 1)
 
     # Mass fraction within scale radius
     # M(<a)/M = 1/2^(3/2) ≈ 0.354
@@ -212,9 +223,10 @@ class KingConstants:
         King (1966), AJ 71, 64
         Binney & Tremaine (2008), "Galactic Dynamics"
     """
+
     # W0 ranges for different concentration
-    W0_LOW = 3.0    # Low concentration
-    W0_MED = 7.0    # Medium concentration
+    W0_LOW = 3.0  # Low concentration
+    W0_MED = 7.0  # Medium concentration
     W0_HIGH = 12.0  # High concentration
 
 
@@ -232,6 +244,7 @@ class IMFConstants:
         Kroupa (2001), MNRAS 322, 231
         Chabrier (2003), PASP 115, 763
     """
+
     # Salpeter slope
     SALPETER_ALPHA = 2.35
 
@@ -240,9 +253,15 @@ class IMFConstants:
     KROUPA_BREAKS = (0.08, 0.5)  # M_sun
 
     # Chabrier log-normal parameters
-    CHABRIER_MC = 0.08  # M_sun (characteristic mass; Chabrier 2003 Table 1 m_c=0.079, rounded)
-    CHABRIER_SIGMA = 0.69  # Log-normal width (Chabrier 2003 Table 1, single-object disk)
-    CHABRIER_ALPHA_HIGH = 2.3  # High-mass slope dN/dm ∝ m^-2.3 (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
+    CHABRIER_MC = (
+        0.08  # M_sun (characteristic mass; Chabrier 2003 Table 1 m_c=0.079, rounded)
+    )
+    CHABRIER_SIGMA = (
+        0.69  # Log-normal width (Chabrier 2003 Table 1, single-object disk)
+    )
+    CHABRIER_ALPHA_HIGH = (
+        2.3  # High-mass slope dN/dm ∝ m^-2.3 (Chabrier 2003 Table 1: x=1.3 ⇒ α=2.3)
+    )
 
 
 @pytest.fixture

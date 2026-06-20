@@ -4,6 +4,7 @@ Mutation-sensitive by construction: every test calls the module functions and
 compares against an INDEPENDENTLY derived analytic value (not an inline
 re-implementation of the same arithmetic).
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -31,7 +32,9 @@ class TestComputeKineticEnergy:
         assert jnp.isclose(compute_kinetic_energy(v, m), 7.0, atol=1e-12)
 
     def test_zero_velocity_is_zero(self):
-        assert jnp.isclose(compute_kinetic_energy(jnp.zeros((5, 3)), jnp.ones(5)), 0.0, atol=1e-12)
+        assert jnp.isclose(
+            compute_kinetic_energy(jnp.zeros((5, 3)), jnp.ones(5)), 0.0, atol=1e-12
+        )
 
     def test_grad_fd_match(self):
         v0 = jnp.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
@@ -48,7 +51,9 @@ class TestComputePotentialEnergy:
         # two unit masses separated by r=2 -> V = -G * m1 m2 / r = -G/2
         pos = jnp.array([[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]])
         G = 3.7
-        assert jnp.isclose(compute_potential_energy(pos, jnp.ones(2), G, 0.0), -G / 2.0, atol=1e-12)
+        assert jnp.isclose(
+            compute_potential_energy(pos, jnp.ones(2), G, 0.0), -G / 2.0, atol=1e-12
+        )
 
     def test_linear_in_G(self):
         pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
@@ -151,8 +156,10 @@ class TestBlockedPotentialEnergy:
         key = jax.random.PRNGKey(5)
         pos = jax.random.normal(key, (100, 3))
         m = jnp.ones(100)
-        vals = [float(compute_potential_energy(pos, m, G=1.0, block_size=b))
-                for b in (7, 32, 100, 1024)]
+        vals = [
+            float(compute_potential_energy(pos, m, G=1.0, block_size=b))
+            for b in (7, 32, 100, 1024)
+        ]
         np.testing.assert_allclose(vals, vals[0], rtol=1e-13)
 
     def test_softened_matches_dense_oracle(self):
@@ -169,8 +176,7 @@ class TestBlockedPotentialEnergy:
         gradient trap)."""
         pos = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
         m = jnp.ones(3)
-        g = jax.grad(lambda p: compute_potential_energy(p, m, G=1.0,
-                                                        block_size=2))(pos)
+        g = jax.grad(lambda p: compute_potential_energy(p, m, G=1.0, block_size=2))(pos)
         assert bool(jnp.all(jnp.isfinite(g)))
 
     def test_memory_bounded_smoke_n20000(self):

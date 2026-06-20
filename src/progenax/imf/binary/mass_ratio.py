@@ -7,13 +7,12 @@ unchanged: these symbols remain importable from ``progenax.imf`` and
 
 from __future__ import annotations
 
-from typing import Protocol, Tuple, Union, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, PRNGKeyArray
-
+from jaxtyping import Array, Float, PRNGKeyArray
 
 # =============================================================================
 # Mass Ratio Distribution Protocol
@@ -200,7 +199,7 @@ class PowerLawMassRatio(eqx.Module):
             # must stay finite (the eq-branch result is selected there).
             g_plus_1 = g + 1.0
             g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
-            integral = (q_val ** g_plus_1 - q0 ** g_plus_1) / g_plus_1_safe
+            integral = (q_val**g_plus_1 - q0**g_plus_1) / g_plus_1_safe
             return integral / norm
 
         def cdf_eq_m1(q_val):
@@ -247,7 +246,7 @@ class PowerLawMassRatio(eqx.Module):
             # result is selected there, so this dead value only needs to stay finite.
             g_plus_1 = g + 1.0
             g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
-            inner = u_val * g_plus_1 * norm + q0 ** g_plus_1
+            inner = u_val * g_plus_1 * norm + q0**g_plus_1
             return inner ** (1.0 / g_plus_1_safe)
 
         def ppf_eq_m1(u_val):
@@ -434,5 +433,3 @@ class TwinPeakedMassRatio(eqx.Module):
         """Sample via inverse transform."""
         u = jax.random.uniform(key, (n,))
         return self.ppf(u)
-
-

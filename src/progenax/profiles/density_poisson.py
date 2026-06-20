@@ -82,7 +82,9 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     if r_t is not None:
         rt_arr = jnp.asarray(r_t)
         for j, (p, ext) in enumerate(zip(profiles, extents)):
-            if isinstance(p, KingProfile) and float(ext) > float(rt_arr) * (1.0 + 1e-12):
+            if isinstance(p, KingProfile) and float(ext) > float(rt_arr) * (
+                1.0 + 1e-12
+            ):
                 raise ValueError(
                     f"r_t override {float(rt_arr):.6g} would re-truncate the King "
                     f"component {j} (natural r_t = {float(ext):.6g}). A King model's "
@@ -95,7 +97,11 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
         # vmap/stack breakage). The value itself is dynamic data (the r_t field).
         return rt_arr, "override (explicit r_t)"
 
-    finite = [(j, p, ext) for j, (p, ext) in enumerate(zip(profiles, extents)) if ext is not None]
+    finite = [
+        (j, p, ext)
+        for j, (p, ext) in enumerate(zip(profiles, extents))
+        if ext is not None
+    ]
     if finite:
         rt_arr = jnp.max(jnp.stack([jnp.asarray(ext) for _, _, ext in finite]))
         j_max, p_max, _ = max(finite, key=lambda t: float(t[2]))
@@ -137,7 +143,10 @@ def _king_drho_dW(W: Float[Array, "..."]) -> Float[Array, "..."]:
     """
     W_pos = jnp.where(W > 0.0, W, 1.0)
     sqrt_W = jnp.sqrt(W_pos)
-    val = jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W) - (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W
+    val = (
+        jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W)
+        - (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W
+    )
     return jnp.where(W > 0.0, val, 0.0)
 
 
@@ -303,8 +312,11 @@ def shared_potential(
     total = jnp.sum(mass_fractions)
     try:
         total_f = float(total)
-    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-            TypeError):
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
         total_f = None  # traced build: the sum cannot be checked at trace time
     if total_f is not None and abs(total_f - 1.0) > 1e-8:
         raise ValueError(
@@ -319,7 +331,9 @@ def shared_potential(
     rho_rows, M_rows, trunc_rows = [], [], []
     for j, p in enumerate(profiles):
         rho_hat, _ = _density_and_derivative(p, r)
-        m_hat = 4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, dx=dr)[-1]  # truncated mass of rho_hat
+        m_hat = (
+            4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, dx=dr)[-1]
+        )  # truncated mass of rho_hat
         rho_j = mass_fractions[j] * rho_hat / m_hat
         rho_rows.append(rho_j)
         M_rows.append(4.0 * jnp.pi * cumulative_trapz(rho_j * r**2, dx=dr))
@@ -331,13 +345,13 @@ def shared_potential(
     rho_tot = jnp.sum(rho_j_grid, axis=0)
 
     inner = cumulative_trapz(rho_tot * r**2, dx=dr)  # int_0^r rho s^2 ds
-    tail = cumulative_trapz(rho_tot * r, dx=dr)      # int_0^r rho s ds
-    outer = tail[-1] - tail                  # int_r^{r_t} rho s ds
+    tail = cumulative_trapz(rho_tot * r, dx=dr)  # int_0^r rho s ds
+    outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
-    Psi = Phi[-1] - Phi                      # Psi(r_t) = 0, increases inward
+    Psi = Phi[-1] - Phi  # Psi(r_t) = 0, increases inward
     M_cum = 4.0 * jnp.pi * inner
-    dPsi_dr = -M_cum / r**2                  # r starts at 1e-5; M_cum[0] = 0 -> 0
-    mu = inner[-1]                           # sum_j int rho_j r^2 dr
+    dPsi_dr = -M_cum / r**2  # r starts at 1e-5; M_cum[0] = 0 -> 0
+    mu = inner[-1]  # sum_j int rho_j r^2 dr
 
     return SharedPotential(
         r_grid=r,

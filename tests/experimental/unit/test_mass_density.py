@@ -21,7 +21,7 @@ def test_local_surface_density_exact_formula():
 
     xy = np.array([[0.0, 0.0]] + [[d, 0.0] for d in (1, 2, 3, 4, 5, 6)])  # 7 points
     sigma = np.asarray(local_surface_density(jnp.asarray(xy), k=6))
-    expected = 5.0 / (np.pi * 36.0)   # (6-1)/(π·6²)
+    expected = 5.0 / (np.pi * 36.0)  # (6-1)/(π·6²)
     assert sigma[0] == pytest.approx(expected, rel=1e-6)
 
 
@@ -59,7 +59,8 @@ def test_no_correlation_for_random_masses():
     for s in range(15):
         masses = jnp.asarray(np.random.default_rng(s).random(400) ** -0.5)
         r = mass_density_segregation(jnp.asarray(pos), masses, k=6)
-        rhos.append(r["rho_m_sigma"]); ratios.append(r["median_sigma_ratio"])
+        rhos.append(r["rho_m_sigma"])
+        ratios.append(r["median_sigma_ratio"])
     assert abs(float(np.mean(rhos))) < 0.1
     assert 0.8 < float(np.mean(ratios)) < 1.25
 
@@ -78,19 +79,23 @@ def test_primordial_correlation_detected():
     halo = rng.uniform(-3, 3, (150, 3))
     pos = jnp.asarray(np.vstack([clump, halo]))
     masses = jnp.asarray(rng.random(300) ** -0.5)
-    local_dens = local_surface_density(pos[:, :2], k=6)            # density proxy at each star
-    assigned = correlated_mass_assignment(masses, local_dens, lambda_corr=1.0,
-                                          key=jax.random.PRNGKey(4))
+    local_dens = local_surface_density(pos[:, :2], k=6)  # density proxy at each star
+    assigned = correlated_mass_assignment(
+        masses, local_dens, lambda_corr=1.0, key=jax.random.PRNGKey(4)
+    )
     r = mass_density_segregation(pos, assigned, k=6)
     assert r["rho_m_sigma"] > 0.5, f"ρ(m,Σ)={r['rho_m_sigma']:.3f}, expected strong +"
-    assert r["median_sigma_ratio"] > 1.5, f"ratio={r['median_sigma_ratio']:.2f}, expected >1"
+    assert r["median_sigma_ratio"] > 1.5, (
+        f"ratio={r['median_sigma_ratio']:.2f}, expected >1"
+    )
 
 
 def test_reproducible_and_finite():
     from gravoturb_fdf.diagnostics.mass_density import mass_density_segregation
 
     rng = np.random.default_rng(5)
-    pos = jnp.asarray(rng.normal(size=(200, 3))); m = jnp.asarray(rng.random(200) ** -0.5)
+    pos = jnp.asarray(rng.normal(size=(200, 3)))
+    m = jnp.asarray(rng.random(200) ** -0.5)
     a = mass_density_segregation(pos, m, k=6)
     b = mass_density_segregation(pos, m, k=6)
     assert a["rho_m_sigma"] == b["rho_m_sigma"]

@@ -7,6 +7,7 @@ Physical interpretation:
     - Q < 0.5: Subvirial (cold), system will collapse
     - Q > 0.5: Supervirial (hot), system will expand/unbind
 """
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float
@@ -66,9 +67,9 @@ def compute_potential_energy(
 
     @jax.checkpoint
     def block_sum(pb, mb, ib):
-        diff = pb[:, None, :] - positions[None, :, :]          # (block, N, 3)
-        r2 = jnp.sum(diff**2, axis=2)                          # (block, N)
-        upper = ib[:, None] < col[None, :]                     # i<j; padded rows all-False
+        diff = pb[:, None, :] - positions[None, :, :]  # (block, N, 3)
+        r2 = jnp.sum(diff**2, axis=2)  # (block, N)
+        upper = ib[:, None] < col[None, :]  # i<j; padded rows all-False
         r_soft = jnp.sqrt(jnp.where(upper, r2 + softening**2, 1.0))
         pair = jnp.where(upper, (mb[:, None] * masses[None, :]) / r_soft, 0.0)
         return jnp.sum(pair)
@@ -77,8 +78,7 @@ def compute_potential_energy(
         pb, mb, ib = blk
         return acc + block_sum(pb, mb, ib), None
 
-    V, _ = jax.lax.scan(body, jnp.zeros((), dtype=positions.dtype),
-                        (pos_b, m_b, idx_b))
+    V, _ = jax.lax.scan(body, jnp.zeros((), dtype=positions.dtype), (pos_b, m_b, idx_b))
     return -G * V
 
 
@@ -160,13 +160,13 @@ def _accelerations(
 
     @jax.checkpoint
     def block_acc(pb, ib):
-        diff = pb[:, None, :] - positions[None, :, :]            # (block, N, 3)
+        diff = pb[:, None, :] - positions[None, :, :]  # (block, N, 3)
         r2 = jnp.sum(diff**2, axis=2)
         interact = (ib[:, None] != col[None, :]) & (ib[:, None] < N)
         inv_r3 = jnp.where(interact, 1.0, 0.0) * jnp.where(
-            interact, r2 + softening**2, 1.0) ** (-1.5)
-        return -G * jnp.sum(masses[None, :, None] * diff * inv_r3[:, :, None],
-                            axis=1)
+            interact, r2 + softening**2, 1.0
+        ) ** (-1.5)
+        return -G * jnp.sum(masses[None, :, None] * diff * inv_r3[:, :, None], axis=1)
 
     def body(_, blk):
         pb, ib = blk
@@ -238,8 +238,11 @@ def _is_concrete(x) -> bool:
     try:
         float(x)
         return True
-    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-            TypeError):
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
         return False
 
 
@@ -272,7 +275,9 @@ def rescale_velocities_to_virial(
     Returns:
         Rescaled velocities with Q = target_Q
     """
-    Q_current = compute_virial_ratio(positions, velocities, masses, G=G, softening=softening)
+    Q_current = compute_virial_ratio(
+        positions, velocities, masses, G=G, softening=softening
+    )
     if _is_concrete(Q_current) and float(Q_current) <= 0.0:
         raise ValueError(
             "cannot rescale from zero kinetic energy (T=0): velocities are all "

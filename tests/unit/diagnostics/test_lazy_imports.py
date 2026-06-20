@@ -12,7 +12,7 @@ def test_diagnostics_import_without_scipy_gives_actionable_error():
         "sys.modules['scipy'] = None; sys.modules['scipy.sparse'] = None;"
         "sys.modules['scipy.sparse.csgraph'] = None; sys.modules['scipy.spatial'] = None;"
         "sys.modules['scipy.spatial.distance'] = None;"
-        "import progenax.diagnostics as d;"           # must import fine
+        "import progenax.diagnostics as d;"  # must import fine
         "from progenax.diagnostics import q_approx;"  # JAX-native: must work
         "import jax.numpy as jnp, jax;"
         "q_approx(jax.random.normal(jax.random.PRNGKey(0), (50, 3)));"

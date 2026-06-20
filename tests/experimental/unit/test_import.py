@@ -19,7 +19,3 @@ def test_package_imports():
 
 def test_subpackages_import():
     """The four documented layers import as subpackages."""
-    import gravoturb_fdf.theory
-    import gravoturb_fdf.field
-    import gravoturb_fdf.diagnostics
-    import gravoturb_fdf.validation

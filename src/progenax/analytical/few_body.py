@@ -8,15 +8,15 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from .base import AnalyticalIC
-from .two_body import two_body_kepler
-
 
 # ============================================================================
 # Three-Body Figure-8 Orbit
 # ============================================================================
 
 
-def three_body_figure_eight(mass: float = 1.0, scale: float = 1.0, G: float = 1.0) -> AnalyticalIC:
+def three_body_figure_eight(
+    mass: float = 1.0, scale: float = 1.0, G: float = 1.0
+) -> AnalyticalIC:
     """
     Create three-body figure-8 periodic orbit.
 
@@ -256,5 +256,3 @@ def harmonic_solution(
         velocities = jnp.array([[v, vy, 0.0]])
 
     return positions, velocities
-
-

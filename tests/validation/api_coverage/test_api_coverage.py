@@ -8,12 +8,13 @@ an asserting physics test), so ``test_no_untested_holes`` is a HARD assertion (n
 xfail) and ``UNTESTED`` is empty; the line-coverage floor is HARD against the committed
 full-suite coverage.json (Task 2.2).
 """
+
 import json
 from pathlib import Path
 
-import progenax
-
 from jaxstro.testing.ratchet import assert_no_stale, assert_partition
+
+import progenax
 from tests.validation.api_coverage.manifest import (
     EXEMPT,
     FULL_SELECTOR,
@@ -23,7 +24,9 @@ from tests.validation.api_coverage.manifest import (
 )
 
 # Repo-root-relative path to the committed full-suite coverage artifact (Task 2.2).
-_COVERAGE_JSON = Path(__file__).resolve().parents[3] / "validation" / "data" / "coverage.json"
+_COVERAGE_JSON = (
+    Path(__file__).resolve().parents[3] / "validation" / "data" / "coverage.json"
+)
 
 
 def test_every_public_symbol_is_categorized():
@@ -64,7 +67,8 @@ def test_no_untested_holes():
     """
     assert not UNTESTED, (
         f"public symbols with NO asserting test (real holes — fill them with an asserting "
-        f"test and move to SYMBOL_TESTS, or justify EXEMPT with Anna): {sorted(UNTESTED)}")
+        f"test and move to SYMBOL_TESTS, or justify EXEMPT with Anna): {sorted(UNTESTED)}"
+    )
 
 
 def test_line_coverage_above_floor():
@@ -78,17 +82,20 @@ def test_line_coverage_above_floor():
     """
     assert _COVERAGE_JSON.exists(), (
         f"committed full-suite coverage.json missing at {_COVERAGE_JSON} — regenerate it with "
-        f"`build_test_dashboard.py --stamp-coverage <raw --cov json>` (Task 2.2).")
+        f"`build_test_dashboard.py --stamp-coverage <raw --cov json>` (Task 2.2)."
+    )
     cov = json.loads(_COVERAGE_JSON.read_text())
     provenance = cov["coverage_provenance"]
     selector = provenance["selector"]
     assert selector == FULL_SELECTOR, (
         f"coverage.json selector={selector!r} (not {FULL_SELECTOR!r}) — regenerate with the "
-        f"FULL suite; a partial selector understates coverage and would game the floor.")
+        f"FULL suite; a partial selector understates coverage and would game the floor."
+    )
     total = float(provenance["total_percent"])
     assert total >= LINE_COV_FLOOR, (
         f"line coverage {total:.1f}% < floor {LINE_COV_FLOOR:.1f}% — raise coverage, do not "
-        f"lower the floor (ratchet-up-only).")
+        f"lower the floor (ratchet-up-only)."
+    )
 
 
 def test_exempt_crosscheck_grad_audit():
@@ -107,14 +114,12 @@ def test_exempt_crosscheck_grad_audit():
     """
     from tests.validation.grad_audit.manifest import AUDITED, SYMBOL_CATEGORY
 
-    hard_fail = sorted(
-        s for s in EXEMPT
-        if SYMBOL_CATEGORY.get(s) == AUDITED
-    )
+    hard_fail = sorted(s for s in EXEMPT if SYMBOL_CATEGORY.get(s) == AUDITED)
     assert not hard_fail, (
         f"symbols EXEMPT in api-coverage but AUDITED (with a registry case) in grad-audit — "
         f"a grad-audited entry point should have an asserting test, so EXEMPT is suspect: "
-        f"{hard_fail}. Map them in SYMBOL_TESTS or justify with Anna.")
+        f"{hard_fail}. Map them in SYMBOL_TESTS or justify with Anna."
+    )
 
     # Informational: where the two partitions disagree (documented, non-fatal). Surfaces drift
     # for human review without making the suite brittle to each registry's distinct lens.
@@ -129,7 +134,9 @@ def test_exempt_crosscheck_grad_audit():
             api = "UNTESTED"
         ga_is_exempt = ga.startswith("EXEMPT")
         # Disagreement of interest: grad-audit EXEMPT but api-coverage maps it (or vice-versa).
-        if (ga_is_exempt and api == "SYMBOL_TESTS") or (ga == AUDITED and api != "SYMBOL_TESTS"):
+        if (ga_is_exempt and api == "SYMBOL_TESTS") or (
+            ga == AUDITED and api != "SYMBOL_TESTS"
+        ):
             divergences.append(f"{s}: grad_audit={ga} api_coverage={api}")
     # Not asserted — printed for the record (visible with -s / on failure of a sibling test).
     if divergences:

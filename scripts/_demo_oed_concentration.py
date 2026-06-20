@@ -30,6 +30,7 @@ Fisher model:
 
 Velocity units: pc/Myr (STELLAR), matching project_dispersion's sqrt(G M / length).
 """
+
 import functools
 import os
 import pathlib
@@ -54,16 +55,22 @@ jax.config.update("jax_compilation_cache_dir", _CACHE_DIR)
 # kernels are persisted; this is a scripts-only demo cache, not a CI hot path.
 jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.5)
 
+from jaxstro.units import STELLAR
+
 import progenax  # noqa: F401  enables float64 at import
-from progenax import KingProfile, MichieProfile, MultiComponentCluster, project_dispersion
-from progenax.profiles.michie import michie_density
-from progenax.numerics import cumulative_trapz
+from progenax import (
+    KingProfile,
+    MichieProfile,
+    MultiComponentCluster,
+    project_dispersion,
+)
 from progenax.kinematics.eddington import (
     assign_om_directions,
     eddington_invert,
     sample_speed_from_f_table,
 )
-from jaxstro.units import STELLAR
+from progenax.numerics import cumulative_trapz
+from progenax.profiles.michie import michie_density
 
 # Reuse the Stage-1 sky projection (line of sight = +z) + unit conversions, and the
 # MODEL-AGNOSTIC Fisher/criteria backbone (consume per-star blocks Mb + a design
@@ -82,10 +89,7 @@ import optax  # noqa: E402
 from _demo_oed import (  # noqa: E402
     _MIN_CELL,
     DesignResult,
-    a_criterion,
     blocks_from_eps,
-    c_criterion,
-    d_criterion,
     design_counts,
     fisher,
     kms_to_pcMyr,
@@ -94,9 +98,9 @@ from _demo_oed import (  # noqa: E402
 )
 
 # Resolution of the hand-rolled Michie Eddington table (mirrors eff_df defaults).
-_N_R = 6000      # radial grid for the potential / density tabulation
-_N_E = 1000      # energy grid for f(E)
-_N_SPEED = 256   # per-particle speed inverse-CDF resolution
+_N_R = 6000  # radial grid for the potential / density tabulation
+_N_E = 1000  # energy grid for f(E)
+_N_SPEED = 256  # per-particle speed inverse-CDF resolution
 
 # Levenberg-Marquardt damping for the calibration's MAP fit (see _fit_theta_W0_gn). LAM0
 # is the initial damping; the per-draw fit adapts it (down on a cost decrease, up on an
@@ -115,8 +119,13 @@ _GN_N_ITER = 25
 # index map W0=0 (TARGET concentration), r_a=1, M=2. r_c == 1 is the length unit.
 # ---------------------------------------------------------------------------
 MOCK = dict(
-    W0=6.0, r_a=6.0, M=1e5, r_c=1.0, d_kpc=4.0,
-    eps_RV_kms=1.0, eps_PM_masyr=0.05,
+    W0=6.0,
+    r_a=6.0,
+    M=1e5,
+    r_c=1.0,
+    d_kpc=4.0,
+    eps_RV_kms=1.0,
+    eps_PM_masyr=0.05,
 )
 
 # K=12 log-spaced on-sky bin-centre radii in r_c units. At (W0=6, r_a=6) King r_t
@@ -129,7 +138,7 @@ R_BINS = jnp.logspace(jnp.log10(0.3), jnp.log10(12.0), 12)
 # astrometric error.
 _eps_RV = kms_to_pcMyr(MOCK["eps_RV_kms"])
 _eps_PM = kms_to_pcMyr(pm_masyr_to_kms(MOCK["eps_PM_masyr"], MOCK["d_kpc"]))
-EPS = jnp.array([_eps_RV, _eps_PM, _eps_PM])      # (3,) [pc/Myr]
+EPS = jnp.array([_eps_RV, _eps_PM, _eps_PM])  # (3,) [pc/Myr]
 
 
 def theta_truth():
@@ -173,7 +182,9 @@ def _build_king_om_sampler(W0, r_a, M, n_stars):
     """
     king = build_profile(W0, r_a, "king")
     return MultiComponentCluster.from_density_profiles(
-        [king], jnp.array([1.0]), m_j=jnp.array([M / n_stars]),
+        [king],
+        jnp.array([1.0]),
+        m_j=jnp.array([M / n_stars]),
         r_a_j=jnp.array([r_a]),
     )
 
@@ -261,11 +272,11 @@ def _michie_dimensionless_table(prof, r_a, n_r=_N_R, n_e=_N_E):
     # A future cleanup that forces dW_dr and dPsi_dr to be numerically equal would
     # silently reintroduce a real bias (the 5% gate could still pass). Keep them
     # built from their own normalizations.
-    inner = cumulative_trapz(rho * r**2, dx=dr)   # int_0^r rho s^2 ds
-    tail = cumulative_trapz(rho * r, dx=dr)       # int_0^r rho s ds
-    outer = tail[-1] - tail                        # int_r^{r_t} rho s ds
+    inner = cumulative_trapz(rho * r**2, dx=dr)  # int_0^r rho s^2 ds
+    tail = cumulative_trapz(rho * r, dx=dr)  # int_0^r rho s ds
+    outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
-    Psi = Phi[-1] - Phi                            # Psi(r_t) = 0, increases inward
+    Psi = Phi[-1] - Phi  # Psi(r_t) = 0, increases inward
     mu = inner[-1]
     Mr = 4.0 * jnp.pi * inner
     dPsi_dr = -Mr / r**2
@@ -292,6 +303,7 @@ class _MichieOMSampler(NamedTuple):
     f_grid, mu) + the velocity scale kappa = G M / (4 pi mu). All depend only on the
     fixed truth (W0, r_a, M), so the table is built ONCE and reused across draws.
     """
+
     prof: object
     r_grid: object
     Psi_grid: object
@@ -327,8 +339,9 @@ def _draw_michie_om(sampler, n_stars, key):
     pos = sampler.prof.sample_positions(masses, k_pos)
     radii = jnp.linalg.norm(pos, axis=1)
 
-    Psi_r = jnp.interp(radii, sampler.r_grid, sampler.Psi_grid,
-                       left=sampler.Psi_grid[0], right=0.0)
+    Psi_r = jnp.interp(
+        radii, sampler.r_grid, sampler.Psi_grid, left=sampler.Psi_grid[0], right=0.0
+    )
 
     speed_keys = jax.random.split(k_speed, n_stars)
     s = jax.vmap(
@@ -408,7 +421,7 @@ def predict_sigma(theta, R_bins, G, model):
     """
     prof = build_profile(theta[0], theta[1], model)
     pd = project_dispersion(prof, theta[1], R_bins, theta[2], G)
-    return jnp.stack([pd.sigma_los, pd.sigma_pm_r, pd.sigma_pm_t])   # (3, K)
+    return jnp.stack([pd.sigma_los, pd.sigma_pm_r, pd.sigma_pm_t])  # (3, K)
 
 
 def jacobian_and_sigma(theta, R_bins, G, model):
@@ -425,9 +438,13 @@ def jacobian_and_sigma(theta, R_bins, G, model):
     solvers hit custom_vjp ODEs with no jvp rule, so forward-mode (jacfwd/hessian)
     would crash. jacrev is the supported/tested gradient path for both profiles.
     """
-    sig = predict_sigma(theta, R_bins, G, model)                          # (3, K)
-    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G, model)     # (3, K, 3) -- d sigma / d theta
-    return J * theta[None, None, :], sig    # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
+    sig = predict_sigma(theta, R_bins, G, model)  # (3, K)
+    J = jax.jacrev(predict_sigma, argnums=0)(
+        theta, R_bins, G, model
+    )  # (3, K, 3) -- d sigma / d theta
+    return J * theta[
+        None, None, :
+    ], sig  # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
 
 
 # ===========================================================================
@@ -466,8 +483,10 @@ def jacobian_and_sigma(theta, R_bins, G, model):
 # conditioning regularizer on W0 or r_a is needed). The escalation path -- a WEAK r_a
 # conditioning regularizer PRIOR_DIAG[1] = 1/0.5**2 (NOT an external r_a constraint) --
 # is documented but UNUSED, since SPD holds without it.
-_FRAC_PRIOR_M = 0.3   # 30% fractional prior on M (the only externally-constrained param)
-PRIOR_DIAG = jnp.array([0.0, 0.0, 1.0 / _FRAC_PRIOR_M**2])   # [W0, r_a, M] fractional precision
+_FRAC_PRIOR_M = 0.3  # 30% fractional prior on M (the only externally-constrained param)
+PRIOR_DIAG = jnp.array(
+    [0.0, 0.0, 1.0 / _FRAC_PRIOR_M**2]
+)  # [W0, r_a, M] fractional precision
 
 
 def completeness(R_bins, R_turn=6.0, width=1.5):
@@ -526,7 +545,9 @@ def _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr):
     return z, trace
 
 
-def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+def optimize_design(
+    criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05
+):
     """Multi-start Adam over the design vector z; keep the lowest-criterion result.
 
     Returns a DesignResult (z, trace, criterion) for the best start. Faithful copy of
@@ -620,7 +641,7 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
 
     K = R_BINS.shape[0]
     edges_np = np.asarray(edges)
-    bin_of = np.digitize(np.asarray(R), edges_np) - 1   # 0..K-1; -1/K out of range
+    bin_of = np.digitize(np.asarray(R), edges_np) - 1  # 0..K-1; -1/K out of range
     sigma_hat = np.zeros((3, K))
     se = np.zeros((3, K))
     for b in range(K):
@@ -652,7 +673,9 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
             # fall below _MIN_CELL=10, and flooring n_se gave those cells a too-tight
             # SE -> the realized fit over-weighted them vs the Fisher -> realized
             # variance ~0.4x too small. Using the true n_eff closes the gate at ~1.0x.)
-            n_se = max(float(n_eff[c, b]), 1e-6)   # true design count; guard div-by-0 only
+            n_se = max(
+                float(n_eff[c, b]), 1e-6
+            )  # true design count; guard div-by-0 only
             se[c, b] = sig / jnp.sqrt(2.0 * n_se)
     return jnp.asarray(sigma_hat), jnp.asarray(se)
 
@@ -671,8 +694,8 @@ def _bin_of(R, edges):
     """Per-star bin index (n,) in 0..K-1; out-of-range stars get K (a never-selected
     sentinel bin). searchsorted on the K+1 edges == np.digitize(R, edges) - 1."""
     K = R_BINS.shape[0]
-    b = jnp.searchsorted(edges, R, side="right") - 1     # -1 (below) .. K (above)
-    return jnp.where((b < 0) | (b >= K), K, b)           # sentinel K for out-of-range
+    b = jnp.searchsorted(edges, R, side="right") - 1  # -1 (below) .. K (above)
+    return jnp.where((b < 0) | (b >= K), K, b)  # sentinel K for out-of-range
 
 
 def _within_bin_rank(bin_of, priority, n, K):
@@ -685,15 +708,19 @@ def _within_bin_rank(bin_of, priority, n, K):
     keeping stars with within-bin rank < n_use (a uniform-priority draw == uniform
     without-replacement subsample). bin sentinel K sorts last and is never selected.
     """
-    composite = bin_of.astype(jnp.float64) + priority    # priority in [0,1) keeps bins separate
-    order = jnp.argsort(composite)                       # (n,) ascending
+    composite = (
+        bin_of.astype(jnp.float64) + priority
+    )  # priority in [0,1) keeps bins separate
+    order = jnp.argsort(composite)  # (n,) ascending
     sorted_bin = bin_of[order]
     # bin_start[k] = number of stars in bins < k = first global sorted index of bin k.
-    counts = jnp.bincount(bin_of, length=K + 1)          # (K+1,) incl sentinel
+    counts = jnp.bincount(bin_of, length=K + 1)  # (K+1,) incl sentinel
     bin_start = jnp.concatenate([jnp.zeros(1, counts.dtype), jnp.cumsum(counts)[:-1]])
-    rank_sorted = jnp.arange(n) - bin_start[sorted_bin]  # within-bin rank in sorted order
+    rank_sorted = (
+        jnp.arange(n) - bin_start[sorted_bin]
+    )  # within-bin rank in sorted order
     rank = jnp.zeros(n, dtype=rank_sorted.dtype).at[order].set(rank_sorted)
-    return rank                                          # (n,) within-bin rank, original order
+    return rank  # (n,) within-bin rank, original order
 
 
 def _binned_sigma_hat_jax(key, channels, R, n_use, n_se, edges):
@@ -713,30 +740,34 @@ def _binned_sigma_hat_jax(key, channels, R, n_use, n_se, edges):
     """
     K = R_BINS.shape[0]
     n = R.shape[0]
-    bin_of = _bin_of(R, edges)                           # (n,) 0..K-1, K = sentinel
-    cell = jnp.arange(K)                                  # (K,)
+    bin_of = _bin_of(R, edges)  # (n,) 0..K-1, K = sentinel
+    cell = jnp.arange(K)  # (K,)
 
     def per_channel(c, kc):
         kp, kn = jax.random.split(kc)
-        priority = jax.random.uniform(kp, (n,))          # (n,) in [0,1)
+        priority = jax.random.uniform(kp, (n,))  # (n,) in [0,1)
         rank = _within_bin_rank(bin_of, priority, n, K)  # (n,) within-bin rank
         # star i selected for its cell c iff rank < n_use[c, bin_of[i]] (sentinel bin
         # K has n_use 0 by construction -> never selected).
         nuse_star = jnp.where(bin_of < K, n_use[c][jnp.minimum(bin_of, K - 1)], 0)
-        selected = rank < nuse_star                      # (n,) bool
-        v_obs = channels[c] + EPS[c] * jax.random.normal(kn, (n,))   # (n,)
+        selected = rank < nuse_star  # (n,) bool
+        v_obs = channels[c] + EPS[c] * jax.random.normal(kn, (n,))  # (n,)
         # Masked per-cell ddof=1 std via grouped moments. sel_cb[b, i] = star i in cell (c,b).
-        in_bin = bin_of[None, :] == cell[:, None]        # (K, n)
-        sel_cb = in_bin & selected[None, :]              # (K, n)
-        w = sel_cb.astype(jnp.float64)                   # (K, n) 0/1 weights
-        cnt = jnp.sum(w, axis=1)                         # (K,) selected count == n_use[c]
+        in_bin = bin_of[None, :] == cell[:, None]  # (K, n)
+        sel_cb = in_bin & selected[None, :]  # (K, n)
+        w = sel_cb.astype(jnp.float64)  # (K, n) 0/1 weights
+        cnt = jnp.sum(w, axis=1)  # (K,) selected count == n_use[c]
         mean = jnp.sum(w * v_obs[None, :], axis=1) / jnp.maximum(cnt, 1.0)
-        var = jnp.sum(w * (v_obs[None, :] - mean[:, None]) ** 2, axis=1) / jnp.maximum(cnt - 1.0, 1.0)
-        return jnp.sqrt(var)                             # (K,) ddof=1 sigma_hat for channel c
+        var = jnp.sum(w * (v_obs[None, :] - mean[:, None]) ** 2, axis=1) / jnp.maximum(
+            cnt - 1.0, 1.0
+        )
+        return jnp.sqrt(var)  # (K,) ddof=1 sigma_hat for channel c
 
     kc0, kc1, kc2 = jax.random.split(key, 3)
-    sigma_hat = jnp.stack([per_channel(0, kc0), per_channel(1, kc1), per_channel(2, kc2)])
-    se = sigma_hat / jnp.sqrt(2.0 * n_se)                # (3, K); n_se = true design count
+    sigma_hat = jnp.stack(
+        [per_channel(0, kc0), per_channel(1, kc1), per_channel(2, kc2)]
+    )
+    se = sigma_hat / jnp.sqrt(2.0 * n_se)  # (3, K); n_se = true design count
     return sigma_hat, se
 
 
@@ -754,7 +785,7 @@ def _static_cell_sizes(n_eff, R, edges):
     bin_of = np.digitize(np.asarray(R), np.asarray(edges)) - 1
     members_per_bin = np.array([int(np.sum(bin_of == b)) for b in range(K)])
     n_eff_np = np.asarray(n_eff)
-    n_use = np.maximum(np.round(n_eff_np).astype(int), _MIN_CELL)   # (3, K)
+    n_use = np.maximum(np.round(n_eff_np).astype(int), _MIN_CELL)  # (3, K)
     for b in range(K):
         for c in range(3):
             if n_use[c, b] > members_per_bin[b]:
@@ -808,24 +839,24 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
     sf = sigma_hat.flatten()
     ef = se.flatten()
 
-    def resid(u):                                              # whitened residual (model - data)/se
+    def resid(u):  # whitened residual (model - data)/se
         theta = theta_fid * jnp.exp(u)
         return (predict_sigma(theta, R_BINS, G, model).flatten() - sf) / ef
 
-    def cost_of(u, r):                                        # MAP negative-log-posterior (whitened)
+    def cost_of(u, r):  # MAP negative-log-posterior (whitened)
         return 0.5 * (r @ r + jnp.sum(PRIOR_DIAG * u**2))
 
     def lm_step(carry, _):
         u, lam = carry
         r = resid(u)
         c = cost_of(u, r)
-        Jr = jax.jacrev(resid)(u)                             # (n_obs, 3) = d r / d u
+        Jr = jax.jacrev(resid)(u)  # (n_obs, 3) = d r / d u
         grad = Jr.T @ r + PRIOR_DIAG * u
-        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG)               # Gauss-Newton Hessian (PSD)
-        du = -jnp.linalg.solve(hess + lam * jnp.eye(3), grad) # Levenberg-damped step
+        hess = Jr.T @ Jr + jnp.diag(PRIOR_DIAG)  # Gauss-Newton Hessian (PSD)
+        du = -jnp.linalg.solve(hess + lam * jnp.eye(3), grad)  # Levenberg-damped step
         u_try = u + du
         c_try = cost_of(u_try, resid(u_try))
-        improved = c_try < c                                  # NaN (Michie ODE blow-up) -> False -> reject
+        improved = c_try < c  # NaN (Michie ODE blow-up) -> False -> reject
         u_next = jnp.where(improved, u_try, u)
         lam_next = jnp.clip(jnp.where(improved, lam * 0.3, lam * 3.0), 1e-9, 1e9)
         # Emit the W0-COMPONENT (index 0) of the accepted step, not the all-param ||du||_inf.
@@ -836,7 +867,9 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
         w0_moved = jnp.abs((u_next - u)[0])
         return (u_next, lam_next), w0_moved
 
-    (u_hat, _), w0_steps = jax.lax.scan(lm_step, (jnp.zeros(3), _GN_LM_LAM0), None, length=n_iter)
+    (u_hat, _), w0_steps = jax.lax.scan(
+        lm_step, (jnp.zeros(3), _GN_LM_LAM0), None, length=n_iter
+    )
     # B2 convergence witness: the MAX |W0-step| over the LAST 5 iterations (not just the final
     # iter). Taking the last-5 max -- not step_norms[-1] -- is load-bearing: a single rejected
     # final step reports 0 and would FALSELY read as converged (review I1); the window catches
@@ -847,12 +880,13 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
 
 class CalibResultW0(NamedTuple):
     """Result of calibrate_fisher_W0 (variances are FRACTIONAL/ln variances, ADR 0011):
-      * realized_var_W0  : Var(ln W0_hat over draws, ddof=1),
-      * fisher_var_W0    : (inv F_design)_{W0, W0} at the same (z, N_total),
-      * max_W0_step      : max over draws of each LM fit's W0-target witness (the max
-                           |W0-step| over its last 5 iterations; ~0 means W0_hat settled),
-      * n_unconverged    : # draws whose W0 witness exceeds _GN_CONVERGED_STEP (the B2 count
-                           gated on; LM settles W0 for all but the occasional hard draw)."""
+    * realized_var_W0  : Var(ln W0_hat over draws, ddof=1),
+    * fisher_var_W0    : (inv F_design)_{W0, W0} at the same (z, N_total),
+    * max_W0_step      : max over draws of each LM fit's W0-target witness (the max
+                         |W0-step| over its last 5 iterations; ~0 means W0_hat settled),
+    * n_unconverged    : # draws whose W0 witness exceeds _GN_CONVERGED_STEP (the B2 count
+                         gated on; LM settles W0 for all but the occasional hard draw)."""
+
     realized_var_W0: float
     fisher_var_W0: float
     max_W0_step: float
@@ -897,7 +931,7 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     theta = theta_truth()
     Mb, _ = per_star_blocks(theta, R_BINS, EPS, G, model)
     cb = completeness(R_BINS)
-    n_eff = design_counts(z, cb, N_total)                       # (3, K)
+    n_eff = design_counts(z, cb, N_total)  # (3, K)
     fisher_var_W0 = float(jnp.linalg.inv(fisher(z, Mb, cb, N_total, PRIOR_DIAG))[0, 0])
 
     edges = _r_bin_edges()
@@ -934,7 +968,9 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     # of them. A full jax.vmap here batches all n_draws Michie reverse-mode solves into one
     # fused computation (~48x the live tape memory) and OOM-killed the host -- the memory/
     # speed trade is wrong for a reverse-mode-through-ODE inner loop, so we keep it serial.
-    draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d))(jnp.arange(n_draws))  # cheap (no ODE)
+    draw_keys = jax.vmap(lambda d: jax.random.fold_in(key, d))(
+        jnp.arange(n_draws)
+    )  # cheap (no ODE)
     ln_W0_hats, w0_witnesses = jax.lax.map(one_draw, draw_keys)
 
     # B2: surface (do NOT swallow) any draw whose W0_hat had not settled (W0-target witness:

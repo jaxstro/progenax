@@ -9,11 +9,11 @@ shape (slopes + twin + normalization + q=0.3 continuity), the sampler, and grads
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 
 def _full():
     from progenax.imf.binary import MoeDiStefano2017Full
+
     return MoeDiStefano2017Full()
 
 
@@ -27,7 +27,12 @@ class TestTable13Interpolation:
     def test_gamma_largeq_cells(self):
         moe = _full()
         # (logP, M, expected gamma_largeq) from the verified grid
-        cases = [(1.0, 1.0, -0.5), (3.0, 20.0, -1.7), (5.0, 3.2, -1.4), (7.0, 1.0, -1.1)]
+        cases = [
+            (1.0, 1.0, -0.5),
+            (3.0, 20.0, -1.7),
+            (5.0, 3.2, -1.4),
+            (7.0, 1.0, -1.1),
+        ]
         P = 10.0 ** jnp.array([c[0] for c in cases])
         M = jnp.array([c[1] for c in cases])
         exp = jnp.array([c[2] for c in cases])
@@ -53,7 +58,9 @@ class TestTable13Interpolation:
     def test_clamped_outside_grid(self):
         moe = _full()
         # below logP=1 and above logP=7 clamp to edge rows; below 1 Msun clamps to solar
-        g_lo = moe.gamma_largeq(jnp.array([10.0 ** 0.2]), jnp.array([0.5]))  # logP<1, M<1 -> solar logP=1
+        g_lo = moe.gamma_largeq(
+            jnp.array([10.0**0.2]), jnp.array([0.5])
+        )  # logP<1, M<1 -> solar logP=1
         assert jnp.allclose(g_lo, -0.5, atol=1e-6)
 
 
@@ -68,7 +75,10 @@ class TestMoeFullPdf:
     def test_largeq_slope_ratio(self):
         """In q in (0.3,0.95) the pdf is the power-law q^gamma_largeq."""
         moe = _full()
-        m1, P = jnp.array(20.0), jnp.array(1e7)  # O-type logP=7 -> gamma_largeq=-2.0, Ftwin=0
+        m1, P = (
+            jnp.array(20.0),
+            jnp.array(1e7),
+        )  # O-type logP=7 -> gamma_largeq=-2.0, Ftwin=0
         p = moe.pdf(jnp.array([0.5, 0.6]), m1, P)
         ratio = p[1] / p[0]
         assert jnp.abs(ratio - (0.6 / 0.5) ** (-2.0)) < 1e-4
@@ -93,7 +103,8 @@ class TestMoeFullSampling:
         moe = _full()
         key = jax.random.PRNGKey(0)
         n = 200000
-        m1 = jnp.full(n, 1.0); P = jnp.full(n, 10.0)  # solar logP=1, Ftwin=0.30
+        m1 = jnp.full(n, 1.0)
+        P = jnp.full(n, 10.0)  # solar logP=1, Ftwin=0.30
         q = moe.sample(key, m1, P)
         assert jnp.all((q >= 0.1) & (q <= 1.0))
         # P(q>0.95) is the twin block PLUS the power-law content in [0.95,1],
@@ -111,7 +122,8 @@ class TestMoeFullSampling:
         moe = _full()
         key = jax.random.PRNGKey(1)
         n = 300000
-        m1 = jnp.full(n, 6.7); P = jnp.full(n, 1e3)  # mid-B logP=3
+        m1 = jnp.full(n, 6.7)
+        P = jnp.full(n, 1e3)  # mid-B logP=3
         q = moe.sample(key, m1, P)
         # analytic mean via the pdf
         qq = jnp.linspace(0.1, 1.0, 400000)
@@ -121,8 +133,10 @@ class TestMoeFullSampling:
 
     def test_grad_finite(self):
         from progenax.imf.binary import MoeDiStefano2017Full
+
         key = jax.random.PRNGKey(2)
-        m1 = jnp.full(2000, 5.0); P = jnp.full(2000, 1e2)
+        m1 = jnp.full(2000, 5.0)
+        P = jnp.full(2000, 1e2)
 
         def loss(qmin):
             return jnp.mean(MoeDiStefano2017Full(q_min=qmin).sample(key, m1, P))
@@ -134,8 +148,10 @@ class TestMoeFullSampling:
         """The grid-based inverse-CDF is properly reparameterized: autodiff matches FD
         (a multi-uniform segment/twin sampler would lose the mixture-weight gradient)."""
         from progenax.imf.binary import MoeDiStefano2017Full
+
         key = jax.random.PRNGKey(7)
-        m1 = jnp.full(8000, 6.7); P = jnp.full(8000, 1e3)
+        m1 = jnp.full(8000, 6.7)
+        P = jnp.full(8000, 1e3)
 
         def loss(qmin):
             return jnp.mean(MoeDiStefano2017Full(q_min=qmin).sample(key, m1, P))
@@ -166,9 +182,7 @@ class TestFTwinPaperConvention:
             p_pl, p_twin = md._components(qs, mass, period)
             mask = qs >= 0.3
             twin_mass = float(jnp.trapezoid(jnp.where(mask, p_twin, 0.0), qs))
-            total_gt03 = float(
-                jnp.trapezoid(jnp.where(mask, p_pl + p_twin, 0.0), qs)
-            )
+            total_gt03 = float(jnp.trapezoid(jnp.where(mask, p_pl + p_twin, 0.0), qs))
             realized = twin_mass / total_gt03
             assert abs(realized - ft_table) < 2e-3, (
                 f"(M1={m1}, logP={logP}): realized paper-convention F_twin "
@@ -179,9 +193,9 @@ class TestFTwinPaperConvention:
         md = _full()
         qs = jnp.linspace(md.q_min, 1.0, 200_001)
         for m1, logP in self.NODES:
-            p = jax.vmap(
-                lambda q: md.pdf(q, jnp.asarray(m1), jnp.asarray(10.0**logP))
-            )(qs)
+            p = jax.vmap(lambda q: md.pdf(q, jnp.asarray(m1), jnp.asarray(10.0**logP)))(
+                qs
+            )
             Z = float(jnp.trapezoid(p, qs))
             assert abs(Z - 1.0) < 1e-3
 
@@ -196,8 +210,7 @@ class TestFTwinPaperConvention:
         qs = jnp.linspace(md.q_min, 1.0, 200_001)
         p = jax.vmap(lambda qq: md.pdf(qq, jnp.asarray(1.0), jnp.asarray(10.0)))(qs)
         expected = float(
-            jnp.trapezoid(jnp.where(qs >= 0.95, p, 0.0), qs)
-            / jnp.trapezoid(p, qs)
+            jnp.trapezoid(jnp.where(qs >= 0.95, p, 0.0), qs) / jnp.trapezoid(p, qs)
         )
         observed = float(jnp.mean(q >= 0.95))
         assert abs(observed - expected) < 0.01  # shot noise ~0.001 at n=2e5
@@ -206,6 +219,7 @@ class TestFTwinPaperConvention:
 class TestMoePeriod:
     def test_range(self):
         from progenax.imf.binary import MoePeriod
+
         P = MoePeriod().sample(jax.random.PRNGKey(0), jnp.full(50000, 5.0))
         lp = jnp.log10(P)
         assert jnp.all((lp >= 0.2 - 1e-6) & (lp <= 8.0 + 1e-6))
@@ -214,6 +228,7 @@ class TestMoePeriod:
         """Solar companion frequency peaks at long logP (~5); O-type is flatter/shorter
         => median logP of O-type binaries < median logP of solar-type."""
         from progenax.imf.binary import MoePeriod
+
         mp = MoePeriod()
         P_solar = mp.sample(jax.random.PRNGKey(1), jnp.full(100000, 1.0))
         P_O = mp.sample(jax.random.PRNGKey(1), jnp.full(100000, 20.0))
@@ -221,8 +236,11 @@ class TestMoePeriod:
 
     def test_grad_finite(self):
         from progenax.imf.binary import MoePeriod
+
         g = jax.grad(
-            lambda m: jnp.mean(jnp.log10(MoePeriod().sample(jax.random.PRNGKey(2), jnp.full(3000, m))))
+            lambda m: jnp.mean(
+                jnp.log10(MoePeriod().sample(jax.random.PRNGKey(2), jnp.full(3000, m)))
+            )
         )(5.0)
         assert jnp.isfinite(g)
 
@@ -230,6 +248,7 @@ class TestMoePeriod:
 class TestMoeJointOrbit:
     def test_shapes_and_ranges(self):
         from progenax.imf.binary import MoeJointOrbit
+
         jo = MoeJointOrbit.default()
         n = 20000
         m1 = jnp.full(n, 5.0)
@@ -244,6 +263,7 @@ class TestMoeJointOrbit:
         """The paper's central result: short-P binaries favour larger q (twins/equal),
         long-P favour smaller q. Bin a massive-star population by logP and check <q> falls."""
         from progenax.imf.binary import MoeJointOrbit
+
         jo = MoeJointOrbit.default()
         n = 400000
         m1 = jnp.full(n, 12.0)  # early-B: γlargeq steepens strongly with logP
@@ -251,11 +271,18 @@ class TestMoeJointOrbit:
         lp = jnp.log10(P)
         q_short = jnp.mean(q[lp < 2.0])
         q_long = jnp.mean(q[lp > 5.0])
-        assert q_short > q_long, f"<q>_shortP={q_short:.3f} should exceed <q>_longP={q_long:.3f}"
+        assert q_short > q_long, (
+            f"<q>_shortP={q_short:.3f} should exceed <q>_longP={q_long:.3f}"
+        )
 
     def test_jit(self):
         from progenax.imf.binary import MoeJointOrbit
+
         jo = MoeJointOrbit.default()
         m1 = jnp.full(1000, 5.0)
         P, q, e = jax.jit(jo.sample)(jax.random.PRNGKey(4), m1)
-        assert jnp.all(jnp.isfinite(P)) and jnp.all(jnp.isfinite(q)) and jnp.all(jnp.isfinite(e))
+        assert (
+            jnp.all(jnp.isfinite(P))
+            and jnp.all(jnp.isfinite(q))
+            and jnp.all(jnp.isfinite(e))
+        )

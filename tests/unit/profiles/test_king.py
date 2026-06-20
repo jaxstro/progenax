@@ -14,6 +14,7 @@ duplicates were removed in the 2026-06 pre-release test consolidation.
 import jax
 import jax.numpy as jnp
 import pytest
+
 from progenax.profiles import KingProfile, solve_king_profile
 
 

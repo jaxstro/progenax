@@ -39,9 +39,9 @@ from progenax.kinematics._speed_kernels import (
 from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import (
+    _angle_integral_T,
     _aniso_density_scalar,
     _aniso_density_vec,
-    _angle_integral_T,
     limepy_density_hat,
     lowered_exponential,
     solve_limepy_profile,
@@ -59,7 +59,9 @@ def _sample_unit_speed(
     """Isotropic: sample u ~ u^2 E_gamma(g, W - u^2/2) on [0, sqrt(2W)] (u = v/s)."""
     W_safe = jnp.maximum(W, 1e-12)
     u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W_safe), n_u)
-    weight = jnp.maximum(u_grid**2 * lowered_exponential(g, W_safe - u_grid**2 / 2.0), 0.0)
+    weight = jnp.maximum(
+        u_grid**2 * lowered_exponential(g, W_safe - u_grid**2 / 2.0), 0.0
+    )
     u = inverse_cdf_draw(weight, u_grid, jax.random.uniform(key))
     # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
     # (see numerics.inverse_cdf_draw docstring).
@@ -67,8 +69,12 @@ def _sample_unit_speed(
 
 
 def _sample_speed_angle(
-    key: PRNGKeyArray, W: Float[Array, ""], s: Float[Array, ""], g: Float[Array, ""],
-    n_u: int, n_c: int,
+    key: PRNGKeyArray,
+    W: Float[Array, ""],
+    s: Float[Array, ""],
+    g: Float[Array, ""],
+    n_u: int,
+    n_c: int,
 ):
     """Anisotropic: sample (u_r, u_t) in units of s from the Michie/OM-LIMEPY DF.
 
@@ -175,7 +181,9 @@ class LIMEPYVelocityDF(eqx.Module):
             rho_tilde = _aniso_density_vec(psi_grid, xi_grid / ra_hat, self.g) / rho0
         else:
             rho0 = limepy_density_hat(self.W0, self.g)
-            rho_tilde = jnp.where(rho0 > 1e-300, limepy_density_hat(psi_grid, self.g) / rho0, 0.0)
+            rho_tilde = jnp.where(
+                rho0 > 1e-300, limepy_density_hat(psi_grid, self.g) / rho0, 0.0
+            )
         self.mu = jnp.trapezoid(rho_tilde * xi_grid**2, xi_grid)
         self.is_aniso = is_aniso
 

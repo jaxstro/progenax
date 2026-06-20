@@ -2,7 +2,6 @@
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 
 class TestIMFToICPipeline:
@@ -10,10 +9,10 @@ class TestIMFToICPipeline:
 
     def test_kroupa_to_plummer_ic(self):
         """Generate Plummer IC with Kroupa IMF masses."""
-        from progenax.imf import PowerLawIMF
-        from progenax.profiles import PlummerProfile
-        from progenax.kinematics import PlummerVelocityDF
         from progenax.builders import build_spatial_ic
+        from progenax.imf import PowerLawIMF
+        from progenax.kinematics import PlummerVelocityDF
+        from progenax.profiles import PlummerProfile
 
         # Sample masses from Kroupa IMF
         imf = PowerLawIMF.kroupa()
@@ -41,10 +40,10 @@ class TestIMFToICPipeline:
 
     def test_chabrier_to_king_ic(self):
         """Generate King IC with Chabrier IMF masses."""
-        from progenax.imf import ChabrierIMF
-        from progenax.profiles import KingProfile, solve_king_profile
-        from progenax.kinematics import KingVelocityDF
         from progenax.builders import build_spatial_ic
+        from progenax.imf import ChabrierIMF
+        from progenax.kinematics import KingVelocityDF
+        from progenax.profiles import KingProfile
 
         # Sample masses from Chabrier IMF
         imf = ChabrierIMF()
@@ -75,7 +74,7 @@ class TestAnalyticalValidation:
 
     def test_two_body_energy_conservation(self):
         """Two-body system should have correct total energy."""
-        from progenax.analytical import two_body_kepler, two_body_energy
+        from progenax.analytical import two_body_energy, two_body_kepler
         from progenax.builders import compute_kinetic_energy, compute_potential_energy
 
         G = 1.0
@@ -146,8 +145,7 @@ class TestBinaryICGeneration:
         zeros = jnp.zeros(N)
 
         r1, v1, r2, v2 = batch_elements_to_resolved(
-            m1, m2, logP, e, zeros, zeros, zeros, zeros,
-            G=G, day_in_time_units=1.0
+            m1, m2, logP, e, zeros, zeros, zeros, zeros, G=G, day_in_time_units=1.0
         )
 
         assert r1.shape == (N, 3)
@@ -169,28 +167,27 @@ class TestProtocolCompliance:
     """Test that classes implement protocols correctly."""
 
     def test_plummer_implements_spatial_profile(self):
-        from progenax.protocols import SpatialProfile
         from progenax.profiles import PlummerProfile
+        from progenax.protocols import SpatialProfile
 
         profile = PlummerProfile(r_h=1.0)
         assert isinstance(profile, SpatialProfile)
 
     def test_plummer_df_implements_velocity_df(self):
-        from progenax.protocols import VelocityDF
         from progenax.kinematics import PlummerVelocityDF
+        from progenax.protocols import VelocityDF
 
         df = PlummerVelocityDF(r_h=1.0)
         assert isinstance(df, VelocityDF)
 
     def test_kroupa_implements_imf_protocol(self):
-        from progenax.protocols import IMFProtocol
         from progenax.imf import PowerLawIMF
 
         imf = PowerLawIMF.kroupa()
         # Check required attributes
-        assert hasattr(imf, 'm_min')
-        assert hasattr(imf, 'm_max')
-        assert hasattr(imf, 'logpdf')
-        assert hasattr(imf, 'cdf')
-        assert hasattr(imf, 'ppf')
-        assert hasattr(imf, 'sample')
+        assert hasattr(imf, "m_min")
+        assert hasattr(imf, "m_max")
+        assert hasattr(imf, "logpdf")
+        assert hasattr(imf, "cdf")
+        assert hasattr(imf, "ppf")
+        assert hasattr(imf, "sample")

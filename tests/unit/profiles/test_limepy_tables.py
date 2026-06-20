@@ -6,6 +6,7 @@ The tables must reproduce the exact quadrature oracles (_aniso_density_scalar,
 _sample_unit_speed / direct DF quadrature) to the stated budgets across their
 whole domains, and be differentiable in (g, queries).
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -25,8 +26,8 @@ def _ks_two_sample(a: np.ndarray, b: np.ndarray) -> float:
 class TestAnisoDensityTable:
     def _table(self, W_max=12.0, p_max=80.0, g=1.0, n_W=512, n_p=96):
         from progenax.profiles.limepy_tables import AnisoDensityTable
-        return AnisoDensityTable.build(W_max=W_max, p_max=p_max, g=g,
-                                       n_W=n_W, n_p=n_p)
+
+        return AnisoDensityTable.build(W_max=W_max, p_max=p_max, g=g, n_W=n_W, n_p=n_p)
 
     def test_reproduces_exact_quadrature_on_random_points(self):
         """Max relative error <= 1e-5 against _aniso_density_scalar on 2000
@@ -38,11 +39,13 @@ class TestAnisoDensityTable:
         W = jnp.asarray(rng.uniform(1e-3 * 12.0, 12.0, 2000))
         p = jnp.asarray(rng.uniform(0.0, 80.0, 2000))
         approx = jax.vmap(tab.evaluate)(W, p)
-        exact = jax.vmap(lambda w, pp: _aniso_density_scalar(w, pp, jnp.asarray(1.0)))(W, p)
-        central = float(_aniso_density_scalar(jnp.asarray(12.0), jnp.asarray(0.0),
-                                              jnp.asarray(1.0)))
-        rel = np.asarray(jnp.abs(approx - exact) /
-                         jnp.maximum(exact, 1e-8 * central))
+        exact = jax.vmap(lambda w, pp: _aniso_density_scalar(w, pp, jnp.asarray(1.0)))(
+            W, p
+        )
+        central = float(
+            _aniso_density_scalar(jnp.asarray(12.0), jnp.asarray(0.0), jnp.asarray(1.0))
+        )
+        rel = np.asarray(jnp.abs(approx - exact) / jnp.maximum(exact, 1e-8 * central))
         assert rel.max() <= 1e-5, f"max rel err {rel.max():.2e}"
 
     def test_W_zero_gives_zero_density(self):
@@ -67,8 +70,9 @@ class TestAnisoDensityTable:
         W = jnp.linspace(0.05, 11.5, 64)
         approx = jax.vmap(lambda w: tab.evaluate(w, jnp.asarray(0.0)))(W)
         exact = jnp.sqrt(2.0 * jnp.pi) * limepy_density_hat(W, 1.0)
-        np.testing.assert_allclose(np.asarray(approx), np.asarray(exact),
-                                   rtol=5e-5, atol=1e-12)
+        np.testing.assert_allclose(
+            np.asarray(approx), np.asarray(exact), rtol=5e-5, atol=1e-12
+        )
 
     def test_gradient_finite_at_W_nonpositive(self):
         """C1 regression: d(evaluate)/dW must be FINITE at W=0 and W=-1.
@@ -106,8 +110,9 @@ class TestAnisoDensityTable:
 
         tab = self._table()
         W1 = jnp.geomspace(1e-6, 0.012, 500)
-        central = float(_aniso_density_scalar(jnp.asarray(12.0), jnp.asarray(0.0),
-                                              jnp.asarray(1.0)))
+        central = float(
+            _aniso_density_scalar(jnp.asarray(12.0), jnp.asarray(0.0), jnp.asarray(1.0))
+        )
         worst = 0.0
         for p0 in (0.0, 1.0, 10.0, 80.0):
             pp = jnp.full_like(W1, p0)
@@ -115,8 +120,9 @@ class TestAnisoDensityTable:
             exact = jax.vmap(
                 lambda w, q: _aniso_density_scalar(w, q, jnp.asarray(1.0))
             )(W1, pp)
-            rel = np.asarray(jnp.abs(approx - exact) /
-                             jnp.maximum(exact, 1e-8 * central))
+            rel = np.asarray(
+                jnp.abs(approx - exact) / jnp.maximum(exact, 1e-8 * central)
+            )
             worst = max(worst, float(rel.max()))
             assert rel.max() <= 1e-5, f"p={p0}: max rel err {rel.max():.2e}"
 
@@ -125,8 +131,7 @@ class TestAnisoDensityTable:
         from progenax.profiles.limepy_tables import AnisoDensityTable
 
         def f(g, W, p):
-            tab = AnisoDensityTable.build(W_max=10.0, p_max=20.0, g=g,
-                                          n_W=128, n_p=32)
+            tab = AnisoDensityTable.build(W_max=10.0, p_max=20.0, g=g, n_W=128, n_p=32)
             return tab.evaluate(W, p)
 
         g0, W0_, p0 = 1.0, 4.0, 2.0
@@ -135,8 +140,10 @@ class TestAnisoDensityTable:
         dp = jax.grad(f, 2)(g0, jnp.asarray(W0_), jnp.asarray(p0))
         assert all(jnp.isfinite(d) for d in (dg, dW, dp))
         eps = 1e-5
-        fd_g = (f(g0 + eps, jnp.asarray(W0_), jnp.asarray(p0))
-                - f(g0 - eps, jnp.asarray(W0_), jnp.asarray(p0))) / (2 * eps)
+        fd_g = (
+            f(g0 + eps, jnp.asarray(W0_), jnp.asarray(p0))
+            - f(g0 - eps, jnp.asarray(W0_), jnp.asarray(p0))
+        ) / (2 * eps)
         np.testing.assert_allclose(float(dg), float(fd_g), rtol=1e-4, atol=1e-8)
 
 
@@ -144,13 +151,27 @@ class TestTableBackedSolver:
     """solve_multicomponent_limepy(aniso_method='table') reproduces the exact
     quadrature solve to the stated budget and is the new default."""
 
-    def _solve(self, method, W0=7.0, rescale=(1.0, 1.6), ra=(10.0, 10.0),
-               xi_max=800.0, n_points=2000):
+    def _solve(
+        self,
+        method,
+        W0=7.0,
+        rescale=(1.0, 1.6),
+        ra=(10.0, 10.0),
+        xi_max=800.0,
+        n_points=2000,
+    ):
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
         xi, psi, _psi_raw, rho_j = solve_multicomponent_limepy(
-            jnp.array([0.6, 0.4]), jnp.array(rescale), W0=W0, g=1.0,
-            xi_max=xi_max, n_points=n_points, ra_hat_j=jnp.array(ra),
-            aniso_method=method)
+            jnp.array([0.6, 0.4]),
+            jnp.array(rescale),
+            W0=W0,
+            g=1.0,
+            xi_max=xi_max,
+            n_points=n_points,
+            ra_hat_j=jnp.array(ra),
+            aniso_method=method,
+        )
         return xi, psi, rho_j
 
     @pytest.mark.parametrize(
@@ -159,15 +180,18 @@ class TestTableBackedSolver:
             # baseline (measured max|dpsi| 8.9e-5 vs budget 7e-4, 2026-06)
             (7.0, (1.0, 1.6), (10.0, 10.0), 800.0, 2000),
             # stronger anisotropy, shallower well (measured 1.14e-4 vs 5e-4)
-            pytest.param(5.0, (1.0, 1.6), (5.0, 5.0), 800.0, 2000,
-                         marks=pytest.mark.slow),
+            pytest.param(
+                5.0, (1.0, 1.6), (5.0, 5.0), 800.0, 2000, marks=pytest.mark.slow
+            ),
             # deep well, wide rescale span, huge box (measured 1.93e-4 vs 9e-4)
-            pytest.param(9.0, (1.0, 2.2), (40.0, 40.0), 5000.0, 3000,
-                         marks=pytest.mark.slow),
+            pytest.param(
+                9.0, (1.0, 2.2), (40.0, 40.0), 5000.0, 3000, marks=pytest.mark.slow
+            ),
         ],
     )
-    def test_table_solve_matches_quadrature_solve(self, W0, rescale, ra,
-                                                  xi_max, n_points):
+    def test_table_solve_matches_quadrature_solve(
+        self, W0, rescale, ra, xi_max, n_points
+    ):
         """|psi_table - psi_quad| <= 1e-4 * W0 everywhere; per-component
         densities match to 2e-4 absolute (normalized units)."""
         kw = dict(W0=W0, rescale=rescale, ra=ra, xi_max=xi_max, n_points=n_points)
@@ -183,12 +207,22 @@ class TestTableBackedSolver:
         """Default aniso_method is 'table'; the ISOTROPIC path is bit-identical
         to before (no table involved when ra_hat_j is None)."""
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
+
         xi_d, psi_d, _ = self._solve("table")
         from inspect import signature
-        assert signature(solve_multicomponent_limepy).parameters["aniso_method"].default == "table"
+
+        assert (
+            signature(solve_multicomponent_limepy).parameters["aniso_method"].default
+            == "table"
+        )
         xi_i, psi_i, _, _ = solve_multicomponent_limepy(
-            jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), W0=7.0, g=1.0,
-            xi_max=300.0, n_points=2000)  # iso: no ra_hat_j
+            jnp.array([0.6, 0.4]),
+            jnp.array([1.0, 1.6]),
+            W0=7.0,
+            g=1.0,
+            xi_max=300.0,
+            n_points=2000,
+        )  # iso: no ra_hat_j
         assert bool(jnp.all(jnp.isfinite(psi_i)))
 
     def test_table_solve_differentiable_in_rescale_ra(self):
@@ -196,8 +230,15 @@ class TestTableBackedSolver:
 
         def metric(rescale, ra):
             xi, psi, _, _ = solve_multicomponent_limepy(
-                jnp.array([0.5, 0.5]), rescale, 7.0, 1.0, xi_max=800.0,
-                n_points=1500, ra_hat_j=ra, aniso_method="table")
+                jnp.array([0.5, 0.5]),
+                rescale,
+                7.0,
+                1.0,
+                xi_max=800.0,
+                n_points=1500,
+                ra_hat_j=ra,
+                aniso_method="table",
+            )
             return jnp.mean(psi[:300])
 
         d_r = jax.grad(metric, 0)(jnp.array([1.0, 1.6]), jnp.array([10.0, 10.0]))
@@ -221,9 +262,12 @@ class TestTableBackedSolver:
         ra = jnp.array([10.0, 10.0])
         tab = _solver_table(rescale, ra, 7.0, 1.0, 800.0)
         kw = dict(xi_max=800.0, n_points=500, ra_hat_j=ra, aniso_method="table")
-        xi_i, psi_i, _, rho_i = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0, **kw)
-        xi_e, psi_e, _, rho_e = solve_multicomponent_limepy(alpha, rescale, 7.0, 1.0,
-                                                         aniso_table=tab, **kw)
+        xi_i, psi_i, _, rho_i = solve_multicomponent_limepy(
+            alpha, rescale, 7.0, 1.0, **kw
+        )
+        xi_e, psi_e, _, rho_e = solve_multicomponent_limepy(
+            alpha, rescale, 7.0, 1.0, aniso_table=tab, **kw
+        )
         np.testing.assert_array_equal(np.asarray(psi_e), np.asarray(psi_i))
         np.testing.assert_array_equal(np.asarray(rho_e), np.asarray(rho_i))
 
@@ -235,15 +279,26 @@ class TestTableBackedSolver:
 
         with pytest.raises(ValueError, match="aniso_method"):
             MultiComponentCluster.from_components(
-                alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.79]),
-                m_j=jnp.array([1.0, 4.0]), W0=7.0, g=1.0,
-                ra_hat_j=jnp.array([10.0, 10.0]), xi_max=800.0,
-                aniso_method="bogus")
+                alpha_j=jnp.array([0.6, 0.4]),
+                w_j=jnp.array([1.0, 0.79]),
+                m_j=jnp.array([1.0, 4.0]),
+                W0=7.0,
+                g=1.0,
+                ra_hat_j=jnp.array([10.0, 10.0]),
+                xi_max=800.0,
+                aniso_method="bogus",
+            )
         with pytest.raises(ValueError, match="aniso_method"):
             solve_multicomponent_limepy(
-                jnp.array([0.6, 0.4]), jnp.array([1.0, 1.6]), 7.0, 1.0,
-                xi_max=800.0, n_points=500, ra_hat_j=jnp.array([10.0, 10.0]),
-                aniso_method="bogus")
+                jnp.array([0.6, 0.4]),
+                jnp.array([1.0, 1.6]),
+                7.0,
+                1.0,
+                xi_max=800.0,
+                n_points=500,
+                ra_hat_j=jnp.array([10.0, 10.0]),
+                aniso_method="bogus",
+            )
 
     @pytest.mark.slow
     def test_table_solve_is_faster(self):
@@ -262,8 +317,13 @@ class TestTableBackedSolver:
         import sys
         import time
 
-        if os.environ.get("PYTEST_XDIST_WORKER") is not None or sys.gettrace() is not None:
-            pytest.skip("timing-ratio benchmark unreliable under coverage/xdist; runs serially")
+        if (
+            os.environ.get("PYTEST_XDIST_WORKER") is not None
+            or sys.gettrace() is not None
+        ):
+            pytest.skip(
+                "timing-ratio benchmark unreliable under coverage/xdist; runs serially"
+            )
 
         def timed(method):
             self._solve(method)  # warm/compile
@@ -286,6 +346,7 @@ class TestSpeedCDFTable:
 
     def _table(self, W_max=10.0, g=1.0, n_W=256, n_x=256):
         from progenax.profiles.limepy_tables import SpeedCDFTable
+
         return SpeedCDFTable.build(W_max=W_max, g=g, n_W=n_W, n_x=n_x)
 
     def test_sampled_moments_match_exact_sampler(self):
@@ -313,9 +374,11 @@ class TestSpeedCDFTable:
             rms_e = float(jnp.sqrt(jnp.mean(u_exact**2)))
             rms_t = float(jnp.sqrt(jnp.mean(u_tab**2)))
             assert abs(mean_t - mean_e) / mean_e < 0.01, (
-                f"W={W0:.2f}: mean u {mean_t:.4f} vs exact {mean_e:.4f}")
+                f"W={W0:.2f}: mean u {mean_t:.4f} vs exact {mean_e:.4f}"
+            )
             assert abs(rms_t - rms_e) / rms_e < 0.01, (
-                f"W={W0:.2f}: rms u {rms_t:.4f} vs exact {rms_e:.4f}")
+                f"W={W0:.2f}: rms u {rms_t:.4f} vs exact {rms_e:.4f}"
+            )
             ks = _ks_two_sample(np.asarray(u_exact), np.asarray(u_tab))
             assert ks < 0.02, f"W={W0:.2f}: KS statistic {ks:.4f} >= 0.02"
 
@@ -342,9 +405,11 @@ class TestSpeedCDFTable:
             mean_t = float(jnp.mean(u))
             u2_t = float(jnp.mean(u**2))
             assert abs(mean_t - mean_q) / mean_q < 0.01, (
-                f"W={W0}: <u> {mean_t:.4f} vs DF quadrature {mean_q:.4f}")
+                f"W={W0}: <u> {mean_t:.4f} vs DF quadrature {mean_q:.4f}"
+            )
             assert abs(u2_t - u2_q) / u2_q < 0.01, (
-                f"W={W0}: <u^2> {u2_t:.4f} vs DF quadrature {u2_q:.4f}")
+                f"W={W0}: <u^2> {u2_t:.4f} vs DF quadrature {u2_q:.4f}"
+            )
 
     def test_differentiable_through_table_draw(self):
         """grad of the mean drawn speed w.r.t. a velocity multiplier is finite
@@ -384,7 +449,8 @@ class TestSpeedCDFTable:
 
         tab = self._table(W_max=10.0, g=g)
         assert float(tab.cdf[0, -1]) == 1.0, (
-            f"g={g}: row-0 CDF ends at {float(tab.cdf[0, -1]):.3e}, not 1.0")
+            f"g={g}: row-0 CDF ends at {float(tab.cdf[0, -1]):.3e}, not 1.0"
+        )
 
         n = 20_000
         W0 = 1e-5
@@ -400,17 +466,20 @@ class TestSpeedCDFTable:
         rms_t = float(jnp.sqrt(jnp.mean(u_tab**2)))
         assert abs(mean_t - mean_e) / mean_e < 0.02, (
             f"g={g}, W={W0}: mean u {mean_t:.4e} vs exact {mean_e:.4e} "
-            f"(ratio {mean_t / mean_e:.3f})")
+            f"(ratio {mean_t / mean_e:.3f})"
+        )
         assert abs(rms_t - rms_e) / rms_e < 0.02, (
             f"g={g}, W={W0}: rms u {rms_t:.4e} vs exact {rms_e:.4e} "
-            f"(ratio {rms_t / rms_e:.3f})")
+            f"(ratio {rms_t / rms_e:.3f})"
+        )
 
     def test_w_zero_draw_is_zero(self):
         """W = 0 (a star at the truncation radius) draws u = 0, no NaN; the
         normalized coordinate makes this automatic (u = x sqrt(2W) = 0)."""
         tab = self._table()
         u0 = jax.vmap(tab.inverse, in_axes=(None, 0))(
-            jnp.asarray(0.0), jnp.array([0.0, 0.3, 0.7, 1.0]))
+            jnp.asarray(0.0), jnp.array([0.0, 0.3, 0.7, 1.0])
+        )
         np.testing.assert_array_equal(np.asarray(u0), 0.0)
         assert bool(jnp.all(jnp.isfinite(u0)))
 
@@ -428,8 +497,10 @@ class TestAnisoSpeedCDFTable:
 
     def _table(self, W_max=10.0, p_max=10.0, g=1.0, n_W=192, n_p=48, n_x=192):
         from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
-        return AnisoSpeedCDFTable.build(W_max=W_max, p_max=p_max, g=g,
-                                        n_W=n_W, n_p=n_p, n_x=n_x)
+
+        return AnisoSpeedCDFTable.build(
+            W_max=W_max, p_max=p_max, g=g, n_W=n_W, n_p=n_p, n_x=n_x
+        )
 
     def test_marginal_moments_match_df_quadrature(self):
         """Per (W, p) in {0.5, 2, 5, 9} x {0, 0.5, 2, 8}: table-drawn <u> and
@@ -453,30 +524,37 @@ class TestAnisoSpeedCDFTable:
         for W0 in (0.5, 2.0, 5.0, 9.0):
             for p0 in (0.0, 0.5, 2.0, 8.0):
                 u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W0), 4001)
-                wgt = (u_grid**2
-                       * lowered_exponential(jnp.asarray(g), W0 - u_grid**2 / 2.0)
-                       * _angle_integral_T(p0**2 * u_grid**2 / 2.0))
+                wgt = (
+                    u_grid**2
+                    * lowered_exponential(jnp.asarray(g), W0 - u_grid**2 / 2.0)
+                    * _angle_integral_T(p0**2 * u_grid**2 / 2.0)
+                )
                 norm = jnp.trapezoid(wgt, u_grid)
                 mean_q = float(jnp.trapezoid(u_grid * wgt, u_grid) / norm)
                 u2_q = float(jnp.trapezoid(u_grid**2 * wgt, u_grid) / norm)
 
                 unif = jax.random.uniform(jax.random.PRNGKey(3000 + i), (n,))
                 u = jax.vmap(tab.inverse, in_axes=(None, None, 0))(
-                    jnp.asarray(W0), jnp.asarray(p0), unif)
+                    jnp.asarray(W0), jnp.asarray(p0), unif
+                )
                 mean_t, u2_t = float(jnp.mean(u)), float(jnp.mean(u**2))
                 assert abs(mean_t - mean_q) / mean_q < 0.015, (
-                    f"W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}")
+                    f"W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}"
+                )
                 assert abs(u2_t - u2_q) / u2_q < 0.015, (
-                    f"W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}")
+                    f"W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}"
+                )
 
                 if p0 == 0.0:
                     u_iso = jax.vmap(iso.inverse)(jnp.full((n,), W0), unif)
                     mean_i = float(jnp.mean(u_iso))
                     u2_i = float(jnp.mean(u_iso**2))
                     assert abs(mean_t - mean_i) / mean_i < 0.01, (
-                        f"W={W0}, p=0: aniso <u> {mean_t:.4f} vs iso table {mean_i:.4f}")
+                        f"W={W0}, p=0: aniso <u> {mean_t:.4f} vs iso table {mean_i:.4f}"
+                    )
                     assert abs(u2_t - u2_i) / u2_i < 0.01, (
-                        f"W={W0}, p=0: aniso <u^2> {u2_t:.4f} vs iso table {u2_i:.4f}")
+                        f"W={W0}, p=0: aniso <u^2> {u2_t:.4f} vs iso table {u2_i:.4f}"
+                    )
                 i += 1
 
         # Off-g spot check (Task-6 review): g=2.5 at one off-node (W, p) --
@@ -487,20 +565,25 @@ class TestAnisoSpeedCDFTable:
         tab2 = self._table(W_max=10.0, p_max=10.0, g=g2)
         W0, p0 = 3.3, 1.7  # off any sqrt(W)/asinh(p) grid node
         u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W0), 4001)
-        wgt = (u_grid**2
-               * lowered_exponential(jnp.asarray(g2), W0 - u_grid**2 / 2.0)
-               * _angle_integral_T(p0**2 * u_grid**2 / 2.0))
+        wgt = (
+            u_grid**2
+            * lowered_exponential(jnp.asarray(g2), W0 - u_grid**2 / 2.0)
+            * _angle_integral_T(p0**2 * u_grid**2 / 2.0)
+        )
         norm = jnp.trapezoid(wgt, u_grid)
         mean_q = float(jnp.trapezoid(u_grid * wgt, u_grid) / norm)
         u2_q = float(jnp.trapezoid(u_grid**2 * wgt, u_grid) / norm)
         unif = jax.random.uniform(jax.random.PRNGKey(3100), (n,))
         u = jax.vmap(tab2.inverse, in_axes=(None, None, 0))(
-            jnp.asarray(W0), jnp.asarray(p0), unif)
+            jnp.asarray(W0), jnp.asarray(p0), unif
+        )
         mean_t, u2_t = float(jnp.mean(u)), float(jnp.mean(u**2))
         assert abs(mean_t - mean_q) / mean_q < 0.015, (
-            f"g={g2}, W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}")
+            f"g={g2}, W={W0}, p={p0}: <u> {mean_t:.4f} vs quadrature {mean_q:.4f}"
+        )
         assert abs(u2_t - u2_q) / u2_q < 0.015, (
-            f"g={g2}, W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}")
+            f"g={g2}, W={W0}, p={p0}: <u^2> {u2_t:.4f} vs quadrature {u2_q:.4f}"
+        )
 
     @pytest.mark.parametrize("g", [0.0, 2.5, 3.5])
     def test_high_g_low_W_rows_normalized(self, g):
@@ -522,23 +605,30 @@ class TestAnisoSpeedCDFTable:
 
         iso = SpeedCDFTable.build(W_max=10.0, g=g, n_W=48, n_x=96)
         tab = self._table(W_max=10.0, p_max=10.0, g=g, n_W=48, n_p=16, n_x=96)
-        for name, cdf in (("SpeedCDFTable", np.asarray(iso.cdf)),
-                          ("AnisoSpeedCDFTable", np.asarray(tab.cdf))):
+        for name, cdf in (
+            ("SpeedCDFTable", np.asarray(iso.cdf)),
+            ("AnisoSpeedCDFTable", np.asarray(tab.cdf)),
+        ):
             assert np.isfinite(cdf).all(), (
                 f"g={g} {name}: non-finite CDF entries "
-                f"({np.size(cdf) - np.isfinite(cdf).sum()} of {np.size(cdf)})")
+                f"({np.size(cdf) - np.isfinite(cdf).sum()} of {np.size(cdf)})"
+            )
             ends = cdf[..., -1]
             np.testing.assert_array_equal(
-                ends, 1.0, err_msg=f"g={g} {name}: CDF row ends range "
-                f"[{ends.min():.3e}, {ends.max():.3e}], expected exactly 1.0")
+                ends,
+                1.0,
+                err_msg=f"g={g} {name}: CDF row ends range "
+                f"[{ends.min():.3e}, {ends.max():.3e}], expected exactly 1.0",
+            )
             diffs = np.diff(cdf, axis=-1)
             assert (diffs >= 0.0).all(), (
-                f"g={g} {name}: non-monotone CDF rows "
-                f"(min diff {diffs.min():.3e})")
+                f"g={g} {name}: non-monotone CDF rows (min diff {diffs.min():.3e})"
+            )
             penult = cdf[..., -2]
             assert np.isfinite(penult).all() and (penult < 1.0).all(), (
                 f"g={g} {name}: cdf[..., -2] range "
-                f"[{penult.min():.3e}, {penult.max():.3e}], expected all < 1")
+                f"[{penult.min():.3e}, {penult.max():.3e}], expected all < 1"
+            )
 
     def test_differentiable(self):
         """grad through the table BUILD (g) and through a drawn-speed
@@ -558,8 +648,9 @@ class TestAnisoSpeedCDFTable:
         assert bool(jnp.isfinite(d_scale)) and float(d_scale) > 0.0
 
         def mean_speed_g(g):
-            t = AnisoSpeedCDFTable.build(W_max=10.0, p_max=10.0, g=g,
-                                         n_W=32, n_p=12, n_x=48)
+            t = AnisoSpeedCDFTable.build(
+                W_max=10.0, p_max=10.0, g=g, n_W=32, n_p=12, n_x=48
+            )
             return jnp.mean(jax.vmap(t.inverse)(W, p, unif))
 
         d_g = jax.grad(mean_speed_g)(jnp.asarray(1.0))
@@ -575,7 +666,9 @@ class TestAnisoSpeedCDFTable:
         """W = 0 (truncation radius) draws u = 0, no NaN, at any p."""
         tab = self._table(n_W=48, n_p=16, n_x=96)
         u0 = jax.vmap(tab.inverse, in_axes=(None, 0, 0))(
-            jnp.asarray(0.0), jnp.array([0.0, 1.0, 5.0, 9.0]),
-            jnp.array([0.0, 0.3, 0.7, 1.0]))
+            jnp.asarray(0.0),
+            jnp.array([0.0, 1.0, 5.0, 9.0]),
+            jnp.array([0.0, 0.3, 0.7, 1.0]),
+        )
         np.testing.assert_array_equal(np.asarray(u0), 0.0)
         assert bool(jnp.all(jnp.isfinite(u0)))

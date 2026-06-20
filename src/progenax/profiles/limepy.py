@@ -100,7 +100,7 @@ def limepy_density_hat(
 # ==============================================================================
 
 # Resolution of the tangential-angle Poisson sum and the speed quadrature.
-_N_POIS = 91   # Poisson terms for the small-beta angle integral (covers beta < 25)
+_N_POIS = 91  # Poisson terms for the small-beta angle integral (covers beta < 25)
 _N_U_ANISO = 256  # speed-grid resolution for the anisotropic density quadrature
 
 
@@ -215,7 +215,9 @@ def solve_limepy_profile(
     ra_hat: float | None = None,
     xi_max: float = 300.0,
     n_points: int = 2000,
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"]]:
+) -> Tuple[
+    Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"]
+]:
     """Solve the general-g (optionally anisotropic) LIMEPY Poisson equation (diffrax).
 
     Integrates W(xi) from the centre (W=W0, dW/dxi=0) outward to the truncation
@@ -281,8 +283,12 @@ def solve_limepy_profile(
     # tracing). Too-small ra_hat builds a radial-orbit 1/r^2 density tail -> no finite
     # tidal radius (infinite mass); mu and the virial scale then become grid-dependent.
     # Mirrors solve_michie_profile. Isotropic models (g <= 3.5) always truncate.
-    if (not isotropic and isinstance(W0, (int, float))
-            and isinstance(ra_hat, (int, float)) and isinstance(g, (int, float))):
+    if (
+        not isotropic
+        and isinstance(W0, (int, float))
+        and isinstance(ra_hat, (int, float))
+        and isinstance(g, (int, float))
+    ):
         if float(psi_end) > 1e-3 * W0:
             raise ValueError(
                 f"Anisotropic LIMEPY model (W0={W0}, g={g}, r_a/r_c={ra_hat}) does not "
@@ -330,7 +336,9 @@ class LIMEPYProfile(eqx.Module):
     _cdf_grid: Float[Array, "n_grid"]
     is_aniso: bool = eqx.field(static=True)
 
-    def __init__(self, W0, g, r_c, r_t, xi_grid, psi_grid, r_a=None, n_grid: int = 1000):
+    def __init__(
+        self, W0, g, r_c, r_t, xi_grid, psi_grid, r_a=None, n_grid: int = 1000
+    ):
         is_aniso = r_a is not None
         W0_arr = jnp.asarray(W0, dtype=jnp.float64)
         g_arr = jnp.asarray(g, dtype=jnp.float64)
@@ -342,7 +350,9 @@ class LIMEPYProfile(eqx.Module):
 
         r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
         xi_local = r_grid / r_c_arr
-        psi_vals = jnp.interp(xi_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0)
+        psi_vals = jnp.interp(
+            xi_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0
+        )
 
         if is_aniso:
             rho0 = _aniso_density_scalar(W0_arr, jnp.asarray(0.0), g_arr)
@@ -357,10 +367,12 @@ class LIMEPYProfile(eqx.Module):
 
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
         dr = r_grid[1] - r_grid[0]
-        M_cum = jnp.concatenate([
-            jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
-        ])
+        M_cum = jnp.concatenate(
+            [
+                jnp.zeros(1, dtype=integrand.dtype),
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+            ]
+        )
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
 
         object.__setattr__(self, "W0", W0_arr)
@@ -403,8 +415,16 @@ class LIMEPYProfile(eqx.Module):
         # crossing node's gradient). Forward r_t is the interpolated crossing.
         xi_t = _find_tidal_radius(xi_grid, psi_raw)
         r_t = r_c * xi_t
-        return cls(W0=W0, g=g, r_c=r_c, r_t=r_t, xi_grid=xi_grid, psi_grid=psi_grid,
-                   r_a=r_a, n_grid=n_grid)
+        return cls(
+            W0=W0,
+            g=g,
+            r_c=r_c,
+            r_t=r_t,
+            xi_grid=xi_grid,
+            psi_grid=psi_grid,
+            r_a=r_a,
+            n_grid=n_grid,
+        )
 
     def sample_positions(
         self, masses: Float[Array, "N"], key: PRNGKeyArray
@@ -430,16 +450,21 @@ class LIMEPYProfile(eqx.Module):
     def density(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
         """Normalized radial density rho(r)/rho_0 (general-g; anisotropic if r_a set)."""
         r_arr = jnp.asarray(r)
-        psi_vals = jnp.interp(r_arr / self.r_c, self.xi_grid, self.psi_grid,
-                              left=self.W0, right=0.0)
+        psi_vals = jnp.interp(
+            r_arr / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0
+        )
         if self.is_aniso:
             rho0 = _aniso_density_scalar(self.W0, jnp.asarray(0.0), self.g)
             flat_psi = jnp.atleast_1d(psi_vals).reshape(-1)
             flat_p = jnp.atleast_1d(r_arr / self.r_a).reshape(-1)
-            rho = (_aniso_density_vec(flat_psi, flat_p, self.g) / rho0).reshape(r_arr.shape)
+            rho = (_aniso_density_vec(flat_psi, flat_p, self.g) / rho0).reshape(
+                r_arr.shape
+            )
         else:
             rho0 = limepy_density_hat(self.W0, self.g)
-            rho = jnp.where(rho0 > 1e-300, limepy_density_hat(psi_vals, self.g) / rho0, 0.0)
+            rho = jnp.where(
+                rho0 > 1e-300, limepy_density_hat(psi_vals, self.g) / rho0, 0.0
+            )
         return jnp.where(r_arr <= self.r_t, rho, 0.0)
 
     def characteristic_radius(self) -> Float[Array, ""]:

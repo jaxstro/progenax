@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Callable, Tuple, Union
-
 import equinox as eqx
-import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, PRNGKeyArray
-
+from jaxtyping import Array, Float
 
 # =============================================================================
 # Binary Fraction Models
@@ -88,5 +84,3 @@ class MassDependentBinaryFraction(eqx.Module):
     def probability(self, masses, radii=None):
         """BinaryFractionModel protocol: f_bin(masses) (radii ignored)."""
         return self(masses)
-
-

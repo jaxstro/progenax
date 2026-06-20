@@ -42,7 +42,9 @@ from progenax.profiles.limepy_tables import SpeedCDFTable
 _N_SPEED_GRID = 256
 
 
-def _sample_unit_speed(key: PRNGKeyArray, W: Float[Array, ""], n_u: int) -> Float[Array, ""]:
+def _sample_unit_speed(
+    key: PRNGKeyArray, W: Float[Array, ""], n_u: int
+) -> Float[Array, ""]:
     """Sample one normalized speed u ~ g(u) = u^2 (exp(W - u^2/2) - 1) on [0, sqrt(2W)].
 
     u is in units of sigma; the physical speed is sigma * u. Differentiable inverse-CDF
@@ -135,7 +137,8 @@ class KingVelocityDF(eqx.Module):
         # call. Differentiable: the table leaves are functions of W0.
         self.speed_table = (
             SpeedCDFTable.build(self.W0, jnp.asarray(1.0))
-            if speed_method == "table" else None
+            if speed_method == "table"
+            else None
         )
 
     def _sigma(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:

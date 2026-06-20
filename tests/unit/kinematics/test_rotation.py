@@ -4,7 +4,10 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.kinematics.rotation import apply_solid_body_rotation, apply_differential_rotation
+from progenax.kinematics.rotation import (
+    apply_differential_rotation,
+    apply_solid_body_rotation,
+)
 
 
 class TestSolidBodyRotation:
@@ -14,13 +17,15 @@ class TestSolidBodyRotation:
         """Rotation adds tangential velocity: v = ω × r."""
         N = 100
         R = 2.0
-        theta = jnp.linspace(0, 2*jnp.pi, N, endpoint=False)
-        positions = jnp.stack([R * jnp.cos(theta), R * jnp.sin(theta), jnp.zeros(N)], axis=1)
+        theta = jnp.linspace(0, 2 * jnp.pi, N, endpoint=False)
+        positions = jnp.stack(
+            [R * jnp.cos(theta), R * jnp.sin(theta), jnp.zeros(N)], axis=1
+        )
         velocities = jnp.zeros((N, 3))
 
         omega = 0.5
         v_out = apply_solid_body_rotation(
-            velocities, positions, omega=omega, axis=jnp.array([0., 0., 1.])
+            velocities, positions, omega=omega, axis=jnp.array([0.0, 0.0, 1.0])
         )
 
         expected_v_mag = omega * R
@@ -33,7 +38,7 @@ class TestSolidBodyRotation:
         velocities = jnp.zeros((1, 3))
 
         v_out = apply_solid_body_rotation(
-            velocities, positions, omega=1.0, axis=jnp.array([0., 0., 1.])
+            velocities, positions, omega=1.0, axis=jnp.array([0.0, 0.0, 1.0])
         )
 
         # At (1,0,0) with z-rotation: velocity should be in +y direction
@@ -48,7 +53,7 @@ class TestSolidBodyRotation:
         velocities = velocities.at[:, 2].set(1.0)
 
         v_out = apply_solid_body_rotation(
-            velocities, positions, omega=1.0, axis=jnp.array([0., 0., 1.])
+            velocities, positions, omega=1.0, axis=jnp.array([0.0, 0.0, 1.0])
         )
 
         assert jnp.allclose(v_out[:, 2], 1.0, rtol=1e-10)
@@ -59,7 +64,7 @@ class TestSolidBodyRotation:
         velocities = jax.random.normal(jax.random.PRNGKey(1), (100, 3))
 
         v_out = apply_solid_body_rotation(
-            velocities, positions, omega=0.0, axis=jnp.array([0., 0., 1.])
+            velocities, positions, omega=0.0, axis=jnp.array([0.0, 0.0, 1.0])
         )
 
         assert jnp.allclose(v_out, velocities, rtol=1e-10)
@@ -74,18 +79,18 @@ class TestDifferentialRotation:
         R_peak = 2.0
         v_peak = 1.5
 
-        theta = jnp.linspace(0, 2*jnp.pi, N, endpoint=False)
-        positions = jnp.stack([
-            R_peak * jnp.cos(theta),
-            R_peak * jnp.sin(theta),
-            jnp.zeros(N)
-        ], axis=1)
+        theta = jnp.linspace(0, 2 * jnp.pi, N, endpoint=False)
+        positions = jnp.stack(
+            [R_peak * jnp.cos(theta), R_peak * jnp.sin(theta), jnp.zeros(N)], axis=1
+        )
         velocities = jnp.zeros((N, 3))
 
         v_out = apply_differential_rotation(
-            velocities, positions,
-            v_peak=v_peak, R_peak=R_peak,
-            axis=jnp.array([0., 0., 1.])
+            velocities,
+            positions,
+            v_peak=v_peak,
+            R_peak=R_peak,
+            axis=jnp.array([0.0, 0.0, 1.0]),
         )
 
         v_mag = jnp.linalg.norm(v_out, axis=1)
@@ -100,9 +105,11 @@ class TestDifferentialRotation:
         velocities = jnp.zeros((1, 3))
 
         v_out = apply_differential_rotation(
-            velocities, positions,
-            v_peak=v_peak, R_peak=R_peak,
-            axis=jnp.array([0., 0., 1.])
+            velocities,
+            positions,
+            v_peak=v_peak,
+            R_peak=R_peak,
+            axis=jnp.array([0.0, 0.0, 1.0]),
         )
 
         v_mag = jnp.linalg.norm(v_out, axis=1)
@@ -114,9 +121,11 @@ class TestDifferentialRotation:
         velocities = jnp.zeros((1, 3))
 
         v_out = apply_differential_rotation(
-            velocities, positions,
-            v_peak=1.0, R_peak=1.0,
-            axis=jnp.array([0., 0., 1.])
+            velocities,
+            positions,
+            v_peak=1.0,
+            R_peak=1.0,
+            axis=jnp.array([0.0, 0.0, 1.0]),
         )
 
         assert jnp.allclose(v_out, 0.0, atol=1e-10)
@@ -137,4 +146,6 @@ class TestZeroAxisRefused:
         v = jnp.zeros((5, 3))
         pos = jax.random.normal(jax.random.PRNGKey(1), (5, 3))
         with pytest.raises(ValueError, match="zero vector|rotation direction"):
-            apply_differential_rotation(v, pos, v_peak=1.0, R_peak=1.0, axis=jnp.zeros(3))
+            apply_differential_rotation(
+                v, pos, v_peak=1.0, R_peak=1.0, axis=jnp.zeros(3)
+            )

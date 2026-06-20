@@ -75,12 +75,24 @@ def test_birth_environment_imports_turbulence_directly():
 # The gravoturb-FDF subsystem modules still EXIST (deleted in P5), but released
 # progenax must not import them, so P5 deletion is a pure file removal.
 _SUBSYSTEM_FILES = {
-    "fdf.py", "fdf_tail.py", "gravoturbulent.py", "fdf_config.py",
-    "fdf_calibration.py", "fdf_hyperparams.py", "fractal_gw_legacy.py",
+    "fdf.py",
+    "fdf_tail.py",
+    "gravoturbulent.py",
+    "fdf_config.py",
+    "fdf_calibration.py",
+    "fdf_hyperparams.py",
+    "fractal_gw_legacy.py",
 }
 _SUBSYSTEM_TOKENS = {
-    "fdf", "fdf_density", "fdf_tail", "gravoturbulent", "fdf_config",
-    "fdf_calibration", "fdf_hyperparams", "fractal_gw_legacy", "gravoturb",
+    "fdf",
+    "fdf_density",
+    "fdf_tail",
+    "gravoturbulent",
+    "fdf_config",
+    "fdf_calibration",
+    "fdf_hyperparams",
+    "fractal_gw_legacy",
+    "gravoturb",
 }
 
 
@@ -93,8 +105,7 @@ def _is_subsystem_module(modname):
 
 def _in_subsystem_file(path):
     s = str(path)
-    return ("/gravoturb/" in s or "/fdf_density/" in s
-            or path.name in _SUBSYSTEM_FILES)
+    return "/gravoturb/" in s or "/fdf_density/" in s or path.name in _SUBSYSTEM_FILES
 
 
 def test_no_core_module_imports_subsystem_at_module_level():
@@ -117,11 +128,13 @@ def test_no_core_module_imports_subsystem_at_module_level():
             elif isinstance(node, ast.Import):
                 for alias in node.names:
                     if _is_subsystem_module(alias.name):
-                        offenders.append(f"{path.name}:{node.lineno} import {alias.name}")
+                        offenders.append(
+                            f"{path.name}:{node.lineno} import {alias.name}"
+                        )
 
     assert not offenders, (
         "Released-core modules still import the gravoturb-FDF subsystem at module "
-        f"level (must be importer-free before P5 deletion):\n" + "\n".join(offenders)
+        "level (must be importer-free before P5 deletion):\n" + "\n".join(offenders)
     )
 
 
@@ -133,7 +146,6 @@ def test_importing_progenax_pulls_in_no_subsystem_module():
     import progenax  # noqa: F401
 
     leaked = [
-        m for m in sys.modules
-        if _is_subsystem_module(m) and "gravoturb_fdf" not in m
+        m for m in sys.modules if _is_subsystem_module(m) and "gravoturb_fdf" not in m
     ]
     assert not leaked, f"import progenax leaked subsystem modules: {leaked}"

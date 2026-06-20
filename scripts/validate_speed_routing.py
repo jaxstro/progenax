@@ -24,6 +24,7 @@ Outputs: validation/plots/speed_routing_{king,limepy,michie}.{png,pdf}
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_speed_routing.py
 """
+
 import sys
 from pathlib import Path
 
@@ -34,11 +35,10 @@ from scipy.stats import ks_2samp
 
 sys.path.insert(0, str(Path(__file__).parent))
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
-
 from jaxstro.units import STELLAR  # noqa: E402
 
 PLOT_DIR = Path(__file__).parent.parent / "validation" / "plots"
-N = 20_000          # oracle-N convention: KS 95% critical D ~ 0.0136 < 0.02
+N = 20_000  # oracle-N convention: KS 95% critical D ~ 0.0136 < 0.02
 KS_GATE = 0.02
 MEAN_GATE = 0.02
 M2_GATE = 0.03
@@ -89,13 +89,31 @@ def _criteria(name, s_t, s_q):
 
 def _speed_panel(ax, s_t, s_q, D):
     bins = np.linspace(0.0, max(s_t.max(), s_q.max()), 60)
-    ax.hist(s_q, bins=bins, density=True, histtype="step", lw=1.8,
-            color=OI["vermilion"], label="quadrature oracle")
-    ax.hist(s_t, bins=bins, density=True, histtype="step", lw=1.4,
-            color=OI["blue"], label="table (default)")
-    ax.annotate(f"KS $D = {D:.4f}$\n($N = {N:,}$, gate $< {KS_GATE}$)",
-                xy=(0.97, 0.55), xycoords="axes fraction", ha="right",
-                fontsize=8)
+    ax.hist(
+        s_q,
+        bins=bins,
+        density=True,
+        histtype="step",
+        lw=1.8,
+        color=OI["vermilion"],
+        label="quadrature oracle",
+    )
+    ax.hist(
+        s_t,
+        bins=bins,
+        density=True,
+        histtype="step",
+        lw=1.4,
+        color=OI["blue"],
+        label="table (default)",
+    )
+    ax.annotate(
+        f"KS $D = {D:.4f}$\n($N = {N:,}$, gate $< {KS_GATE}$)",
+        xy=(0.97, 0.55),
+        xycoords="axes fraction",
+        ha="right",
+        fontsize=8,
+    )
     ax.set_xlabel("speed $|v|$ [model units]")
     ax.set_ylabel("probability density")
     ax.legend(loc="upper right")
@@ -116,13 +134,18 @@ def _beta_panel(ax, pos, v_t, v_q, r_edges):
 
 def run_king(rows):
     import matplotlib.pyplot as plt
+
     from progenax import KingVelocityDF
     from progenax.profiles.king import KingProfile
 
     kw = dict(W0=5.0, r_c=1.0)
     prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
-    _, v_t, v_q = _draw(prof, KingVelocityDF(**kw),
-                        KingVelocityDF(**kw, speed_method="quadrature"), G=1.0)
+    _, v_t, v_q = _draw(
+        prof,
+        KingVelocityDF(**kw),
+        KingVelocityDF(**kw, speed_method="quadrature"),
+        G=1.0,
+    )
     crit, D = _criteria("King", _speeds(v_t), _speeds(v_q))
     rows += crit
     fig, ax = plt.subplots(figsize=(4.2, 3.0))
@@ -132,14 +155,18 @@ def run_king(rows):
 
 def run_limepy(rows):
     import matplotlib.pyplot as plt
+
     from progenax.kinematics.limepy_df import LIMEPYVelocityDF
     from progenax.profiles.limepy import LIMEPYProfile
 
     kw = dict(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)
     prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
-    pos, v_t, v_q = _draw(prof, LIMEPYVelocityDF(**kw),
-                          LIMEPYVelocityDF(**kw, speed_method="quadrature"),
-                          G=1.0)
+    pos, v_t, v_q = _draw(
+        prof,
+        LIMEPYVelocityDF(**kw),
+        LIMEPYVelocityDF(**kw, speed_method="quadrature"),
+        G=1.0,
+    )
     crit, D = _criteria("LIMEPY", _speeds(v_t), _speeds(v_q))
     rows += crit
     fig, (axa, axb) = plt.subplots(1, 2, figsize=(7.0, 3.0))
@@ -156,14 +183,18 @@ def run_limepy(rows):
 
 def run_michie(rows):
     import matplotlib.pyplot as plt
+
     from progenax import MichieVelocityDF
     from progenax.profiles.michie import MichieProfile
 
     kw = dict(W0=7.0, r_c=1.0, r_a=8.0)
     prof = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
-    pos, v_t, v_q = _draw(prof, MichieVelocityDF(**kw),
-                          MichieVelocityDF(**kw, speed_method="quadrature"),
-                          G=STELLAR.G)
+    pos, v_t, v_q = _draw(
+        prof,
+        MichieVelocityDF(**kw),
+        MichieVelocityDF(**kw, speed_method="quadrature"),
+        G=STELLAR.G,
+    )
     crit, D = _criteria("Michie", _speeds(v_t), _speeds(v_q))
     rows += crit
     fig, (axa, axb) = plt.subplots(1, 2, figsize=(7.0, 3.0))
@@ -193,15 +224,16 @@ def main() -> int:
     for name, val, gate in rows:
         ok = val < gate
         all_pass &= ok
-        print(f"  {name:<34} {val:11.5f}   < {gate:<6}  "
-              f"{'PASS' if ok else 'FAIL'}")
+        print(f"  {name:<34} {val:11.5f}   < {gate:<6}  {'PASS' if ok else 'FAIL'}")
     print("-" * 72)
-    for stem in ("speed_routing_king", "speed_routing_limepy",
-                 "speed_routing_michie"):
+    for stem in ("speed_routing_king", "speed_routing_limepy", "speed_routing_michie"):
         print(f"  saved validation/plots/{stem}.{{png,pdf}}")
     print("=" * 72)
-    print("  SPEED-ROUTING FIDELITY: ALL PASS" if all_pass
-          else "  SPEED-ROUTING FIDELITY: FAILED")
+    print(
+        "  SPEED-ROUTING FIDELITY: ALL PASS"
+        if all_pass
+        else "  SPEED-ROUTING FIDELITY: FAILED"
+    )
     return 0 if all_pass else 1
 
 

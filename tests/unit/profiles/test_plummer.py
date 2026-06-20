@@ -15,6 +15,7 @@ duplicates were removed in the 2026-06 pre-release cross-tier test consolidation
 import jax
 import jax.numpy as jnp
 import pytest
+
 from progenax.profiles import PlummerProfile
 
 
@@ -28,7 +29,7 @@ class TestPlummerPhysics:
         M(<r)/M = r³ / (r² + a²)^(3/2)
         """
         profile = PlummerProfile(r_h=1.0)
-        M_frac = profile.r_h**3 / (profile.r_h**2 + profile.a**2)**(3/2)
+        M_frac = profile.r_h**3 / (profile.r_h**2 + profile.a**2) ** (3 / 2)
         assert jnp.isclose(M_frac, 0.5, rtol=1e-6)
 
     def test_characteristic_radius_returns_r_h(self):
@@ -50,7 +51,9 @@ class TestEnclosedMassFraction:
         """M(<a) = 1/(2√2) ≈ 0.35355 (the a-scale-radius value)."""
         profile = PlummerProfile(r_h=1.0)
         expected = 1.0 / (2.0 * jnp.sqrt(2.0))  # ≈ 0.353553
-        assert jnp.isclose(profile.enclosed_mass_fraction(profile.a), expected, rtol=1e-12)
+        assert jnp.isclose(
+            profile.enclosed_mass_fraction(profile.a), expected, rtol=1e-12
+        )
 
     def test_zero_at_origin(self):
         """M(<0) = 0."""

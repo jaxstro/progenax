@@ -74,7 +74,7 @@ def q_approx_naive(
     def normal_case(_):
         # 1. Compute all pairwise distances [N, N]
         diff = xy[:, None, :] - xy[None, :, :]  # [N, N, D]
-        dist_sq = jnp.sum(diff ** 2, axis=-1)  # [N, N]
+        dist_sq = jnp.sum(diff**2, axis=-1)  # [N, N]
         dist = jnp.sqrt(dist_sq + 1e-12)
 
         # 2. Find 1-NN distance (exclude self with large value on diagonal)
@@ -90,7 +90,7 @@ def q_approx_naive(
         R_cluster = jnp.maximum(jnp.max(radii), 1e-10)
 
         # Approximate area (bounding circle)
-        A_approx = jnp.pi * R_cluster ** 2
+        A_approx = jnp.pi * R_cluster**2
 
         # 5. m_bar approximation
         m_bar = L_approx / jnp.sqrt(N * A_approx)
@@ -128,12 +128,18 @@ def q_approx_fast(
     Returns:
         Q_approx: Approximate Q parameter (scalar)
     """
-    from jaxstro.spatial import assign_particles_to_bins, fill_bins, approx_knn_candidates
+    from jaxstro.spatial import (
+        approx_knn_candidates,
+        assign_particles_to_bins,
+        fill_bins,
+    )
 
     # Handle 2D/3D input
     if positions.shape[1] == 2:
         xy = positions
-        pos_3d = jnp.concatenate([positions, jnp.zeros((positions.shape[0], 1))], axis=1)
+        pos_3d = jnp.concatenate(
+            [positions, jnp.zeros((positions.shape[0], 1))], axis=1
+        )
     elif positions.shape[1] == 3:
         if project_to_2d:
             xy = positions[:, :2]
@@ -142,12 +148,12 @@ def q_approx_fast(
             xy = positions
             pos_3d = positions
     else:
-        raise ValueError(f"positions must be (N, 2) or (N, 3)")
+        raise ValueError("positions must be (N, 2) or (N, 3)")
 
     N = xy.shape[0]
 
     # Pre-compute static parameters outside of cond
-    Nbins = nbins_per_dim ** 3
+    Nbins = nbins_per_dim**3
     # Use fixed Bcap (maximum expected particles per bin)
     # For N=5000, nbins=32: 5000/(32^3/8) = ~1.2, so 128 is safe
     Bcap = max(128, int(N // (Nbins // 8) + 1))
@@ -163,8 +169,7 @@ def q_approx_fast(
         center = (pos_min + pos_max) / 2
 
         bin_of = assign_particles_to_bins(
-            pos_3d, L_box=L_box, Nbins_per_dim=nbins_per_dim,
-            box_center=center
+            pos_3d, L_box=L_box, Nbins_per_dim=nbins_per_dim, box_center=center
         )
 
         particle_ids = jnp.arange(N, dtype=jnp.int32)
@@ -187,7 +192,7 @@ def q_approx_fast(
         xy_sentinel = jnp.concatenate([xy, jnp.zeros((1, 2))], axis=0)
         cand_pos = xy_sentinel[cand_idx]  # [N, Cand_max, 2]
         diff = xy[:, None, :] - cand_pos
-        cand_dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)
+        cand_dist = jnp.sqrt(jnp.sum(diff**2, axis=-1) + 1e-12)
         cand_dist = jnp.where(cand_mask, cand_dist, jnp.inf)
 
         # 5. Find 1-NN distance
@@ -200,7 +205,7 @@ def q_approx_fast(
         center_2d = jnp.mean(xy, axis=0)
         radii = jnp.sqrt(jnp.sum((xy - center_2d) ** 2, axis=1))
         R_cluster = jnp.maximum(jnp.max(radii), 1e-10)
-        A_approx = jnp.pi * R_cluster ** 2
+        A_approx = jnp.pi * R_cluster**2
 
         # 8. m_bar
         m_bar = L_approx / jnp.sqrt(N * A_approx)
@@ -224,7 +229,7 @@ def _compute_s_bar_subsampled(
 
     def exact():
         diff = xy[:, None, :] - xy[None, :, :]
-        dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)
+        dist = jnp.sqrt(jnp.sum(diff**2, axis=-1) + 1e-12)
         triu_mask = jnp.triu(jnp.ones((N, N), dtype=bool), k=1)
         return jnp.sum(dist * triu_mask) / n_pairs / R_cluster
 
@@ -234,7 +239,7 @@ def _compute_s_bar_subsampled(
         idx_j = (jnp.arange(n_sample) * 7919 + 1) % N
         idx_j = jnp.where(idx_i == idx_j, (idx_j + 1) % N, idx_j)
         diffs = xy[idx_i] - xy[idx_j]
-        return jnp.mean(jnp.sqrt(jnp.sum(diffs ** 2, axis=-1) + 1e-12)) / R_cluster
+        return jnp.mean(jnp.sqrt(jnp.sum(diffs**2, axis=-1) + 1e-12)) / R_cluster
 
     # n_pairs and max_pairs are STATIC Python ints; a Python if avoids tracing
     # and compiling the O(N^2) exact() branch when subsampling (audit J6 — saves
@@ -269,16 +274,20 @@ def q_approx(
     if method == "naive":
         return q_approx_naive(positions, project_to_2d, calibration)
     elif method == "fast":
-        return q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs)
+        return q_approx_fast(
+            positions, project_to_2d, calibration=calibration, **kwargs
+        )
     elif method == "auto":
         # N is a STATIC Python int, so a lax.cond would compile BOTH branches
         # every shape (~0.4 s + the fast branch's extra memory). A Python if
         # selects exactly one — identical semantics, half the compile (audit J6).
         if N > 1000:
-            return q_approx_fast(positions, project_to_2d, calibration=calibration, **kwargs)
+            return q_approx_fast(
+                positions, project_to_2d, calibration=calibration, **kwargs
+            )
         return q_approx_naive(positions, project_to_2d, calibration)
     else:
-        raise ValueError(f"method must be 'auto', 'naive', or 'fast'")
+        raise ValueError("method must be 'auto', 'naive', or 'fast'")
 
 
 def calibrate_q_approx(
@@ -298,6 +307,7 @@ def calibrate_q_approx(
         Dictionary with calibration factors and statistics
     """
     import numpy as np
+
     from progenax.diagnostics.substructure import compute_q_parameter
 
     Q_exact_list, Q_naive_list, Q_fast_list = [], [], []
@@ -309,14 +319,13 @@ def calibrate_q_approx(
         u = jax.random.uniform(key_r, (N_stars,))
         r = u ** (1 / 3)
         cos_theta = jax.random.uniform(key_theta, (N_stars,), minval=-1.0, maxval=1.0)
-        sin_theta = jnp.sqrt(1 - cos_theta ** 2)
+        sin_theta = jnp.sqrt(1 - cos_theta**2)
         phi = jax.random.uniform(key_phi, (N_stars,), minval=0.0, maxval=2 * jnp.pi)
 
-        positions = jnp.stack([
-            r * sin_theta * jnp.cos(phi),
-            r * sin_theta * jnp.sin(phi),
-            r * cos_theta
-        ], axis=1)
+        positions = jnp.stack(
+            [r * sin_theta * jnp.cos(phi), r * sin_theta * jnp.sin(phi), r * cos_theta],
+            axis=1,
+        )
 
         Q_exact_list.append(compute_q_parameter(np.asarray(positions)))
         Q_naive_list.append(float(q_approx_naive(positions, calibration=1.0)))

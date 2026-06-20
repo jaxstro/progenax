@@ -49,6 +49,7 @@ wall ~9 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_anisotropy.py
 """
+
 import os
 import sys
 
@@ -59,6 +60,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import (
     MichieProfile,
     MichieVelocityDF,
@@ -67,7 +69,13 @@ from progenax import (
 )
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _demo_inference import binned_sigma_beta, fisher_cov, gaussian_loglike, mle_adam, expit
+from _demo_inference import (
+    binned_sigma_beta,
+    expit,
+    fisher_cov,
+    gaussian_loglike,
+    mle_adam,
+)
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig
 
 apply_pub_style()
@@ -95,8 +103,9 @@ def _beta_profile(pos, vel, r_edges):
     """Binned beta_hat(r) with the conservative SE beta_se = (1+|beta|)/sqrt(n)."""
     res = binned_sigma_beta(pos, vel, r_edges, component_id=None, n_min=N_MIN)
     beta_hat, weight, n = res.beta_hat[0], res.weight[0], res.n[0]
-    beta_se = jnp.where(weight > 0,
-                        (1.0 + jnp.abs(beta_hat)) / jnp.sqrt(jnp.maximum(n, 1.0)), 1.0)
+    beta_se = jnp.where(
+        weight > 0, (1.0 + jnp.abs(beta_hat)) / jnp.sqrt(jnp.maximum(n, 1.0)), 1.0
+    )
     r_mid = jnp.sqrt(r_edges[:-1] * r_edges[1:])
     return r_mid, beta_hat, beta_se, weight
 
@@ -119,7 +128,9 @@ def fit_om(r_mid, beta_hat, beta_se, weight):
     nll = lambda z: -gaussian_loglike(data, predict)(z)
     # init r_a at the radius where beta_hat first exceeds 0.5 (else the median bin).
     above = np.where((np.asarray(weight) > 0) & (np.asarray(beta_hat) > 0.5))[0]
-    r_init = float(r_mid[above[0]]) if len(above) else float(np.median(np.asarray(r_mid)))
+    r_init = (
+        float(r_mid[above[0]]) if len(above) else float(np.median(np.asarray(r_mid)))
+    )
     r_init = float(np.clip(r_init, RA_BOX[0] + 1e-3, RA_BOX[1] - 1e-3))
     z0 = jnp.array([float(jnp.log((r_init - RA_BOX[0]) / (RA_BOX[1] - r_init)))])
     z_hat, _ = mle_adam(jax.jit(nll), z0, n_steps=N_ADAM, lr=ADAM_LR)
@@ -136,7 +147,9 @@ def sample_plummer_om(r_a, key):
     kp, kv = jax.random.split(key)
     m = jnp.ones(N_STARS)
     pos = PlummerProfile(r_h=R_H).sample_positions(m, kp)
-    vel = PlummerVelocityDF(r_h=R_H, anisotropy_radius=r_a).sample_velocities(pos, m, kv, G=G)
+    vel = PlummerVelocityDF(r_h=R_H, anisotropy_radius=r_a).sample_velocities(
+        pos, m, kv, G=G
+    )
     return pos, vel
 
 
@@ -145,8 +158,9 @@ def sample_michie(key):
     m = jnp.ones(N_STARS)
     prof = MichieProfile.from_W0_rc(W0=MICHIE_W0, r_c=MICHIE_RC, r_a=RA_MICHIE_TRUE)
     pos = prof.sample_positions(m, kp)
-    vel = MichieVelocityDF(W0=MICHIE_W0, r_c=MICHIE_RC, r_a=RA_MICHIE_TRUE
-                           ).sample_velocities(pos, m, kv, G=G)
+    vel = MichieVelocityDF(
+        W0=MICHIE_W0, r_c=MICHIE_RC, r_a=RA_MICHIE_TRUE
+    ).sample_velocities(pos, m, kv, G=G)
     return pos, vel
 
 
@@ -173,8 +187,10 @@ def main():
     sigma_grid = 1.0 / np.sqrt(n_grid * info_per_star)
     slope = float(np.polyfit(np.log(n_grid), np.log(sigma_grid), 1)[0])
     n_detect = 9.0 / (info_per_star * RA_OM_TRUE**2)  # 3-sigma r_a vs isotropic
-    print(f"      forecast sigma(r_a) ~ N^{slope:.3f}; N for 3-sigma anisotropy "
-          f"detection ~ {n_detect:.0f}")
+    print(
+        f"      forecast sigma(r_a) ~ N^{slope:.3f}; N for 3-sigma anisotropy "
+        f"detection ~ {n_detect:.0f}"
+    )
 
     # --- (b) misspecified: OM fit to a Michie sample ----------------------- #
     pos_b, vel_b = sample_michie(jax.random.PRNGKey(SEED + 1))
@@ -186,9 +202,21 @@ def main():
     print(f"      OM-fit reduced chi^2 = {chi2_michie:.2f}  (misspecified -> inflated)")
     print(f"      chi^2 inflation vs well-specified = {chi2_michie / chi2_om:.1f}x")
 
-    make_figure(r_a_mid, beta_a, bse_a, w_a, ra_hat,
-                r_b_mid, beta_b, bse_b, w_b, ra_hat_b,
-                n_grid, sigma_grid, n_detect)
+    make_figure(
+        r_a_mid,
+        beta_a,
+        bse_a,
+        w_a,
+        ra_hat,
+        r_b_mid,
+        beta_b,
+        bse_b,
+        w_b,
+        ra_hat_b,
+        n_grid,
+        sigma_grid,
+        n_detect,
+    )
 
     recovery_ok = abs(pull) < 3.0
     goodfit_ok = chi2_om < 2.5
@@ -196,13 +224,30 @@ def main():
     misspec_ok = chi2_michie > 3.0 * chi2_om
 
     rows = [
-        ("(a) OM r_a recovery", "PASS" if recovery_ok else "FAIL", "<3 sigma", recovery_ok),
-        ("(a) OM-fit good (red chi2~1)", "PASS" if goodfit_ok else "FAIL",
-         "<2.5", goodfit_ok),
-        ("(a) forecast sigma~N^-1/2", "PASS" if forecast_ok else "FAIL",
-         "slope -0.5", forecast_ok),
-        ("(b) Michie misfit detectable", "PASS" if misspec_ok else "FAIL",
-         ">3x chi2", misspec_ok),
+        (
+            "(a) OM r_a recovery",
+            "PASS" if recovery_ok else "FAIL",
+            "<3 sigma",
+            recovery_ok,
+        ),
+        (
+            "(a) OM-fit good (red chi2~1)",
+            "PASS" if goodfit_ok else "FAIL",
+            "<2.5",
+            goodfit_ok,
+        ),
+        (
+            "(a) forecast sigma~N^-1/2",
+            "PASS" if forecast_ok else "FAIL",
+            "slope -0.5",
+            forecast_ok,
+        ),
+        (
+            "(b) Michie misfit detectable",
+            "PASS" if misspec_ok else "FAIL",
+            ">3x chi2",
+            misspec_ok,
+        ),
     ]
     print("\n" + "-" * 78)
     print(f"  {'CHECK':<32s} {'status':>6s} {'gate':>12s}")
@@ -219,9 +264,21 @@ def main():
 
 
 # --------------------------------------------------------------------------- #
-def make_figure(r_a_mid, beta_a, bse_a, w_a, ra_hat,
-                r_b_mid, beta_b, bse_b, w_b, ra_hat_b,
-                n_grid, sigma_grid, n_detect):
+def make_figure(
+    r_a_mid,
+    beta_a,
+    bse_a,
+    w_a,
+    ra_hat,
+    r_b_mid,
+    beta_b,
+    bse_b,
+    w_b,
+    ra_hat_b,
+    n_grid,
+    sigma_grid,
+    n_detect,
+):
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(1, 3, figsize=(10.4, 3.2))
@@ -229,11 +286,20 @@ def make_figure(r_a_mid, beta_a, bse_a, w_a, ra_hat,
     def _plot_beta(ax, r_mid, beta, bse, w, ra_fit, label, fitlabel):
         m = np.asarray(w) > 0
         rm = np.asarray(r_mid)[m]
-        ax.errorbar(rm, np.asarray(beta)[m], yerr=np.asarray(bse)[m], fmt="o", ms=3.5,
-                    color=OI["black"], label=label, zorder=4)
+        ax.errorbar(
+            rm,
+            np.asarray(beta)[m],
+            yerr=np.asarray(bse)[m],
+            fmt="o",
+            ms=3.5,
+            color=OI["black"],
+            label=label,
+            zorder=4,
+        )
         rr = np.geomspace(rm.min(), rm.max(), 100)
-        ax.plot(rr, rr**2 / (rr**2 + ra_fit**2), "-", color=OI["vermilion"],
-                label=fitlabel)
+        ax.plot(
+            rr, rr**2 / (rr**2 + ra_fit**2), "-", color=OI["vermilion"], label=fitlabel
+        )
         ax.set_xscale("log")
         ax.set_xlabel(r"$r$  [pc]")
         ax.set_ylabel(r"$\beta(r)$")
@@ -241,21 +307,44 @@ def make_figure(r_a_mid, beta_a, bse_a, w_a, ra_hat,
         ax.legend(fontsize=7)
 
     # (a) OM Plummer: OM fits well.
-    _plot_beta(axes[0], r_a_mid, beta_a, bse_a, w_a, ra_hat, "OM Plummer",
-               fr"OM fit $r_a={ra_hat:.2f}$")
+    _plot_beta(
+        axes[0],
+        r_a_mid,
+        beta_a,
+        bse_a,
+        w_a,
+        ra_hat,
+        "OM Plummer",
+        rf"OM fit $r_a={ra_hat:.2f}$",
+    )
     panel_label(axes[0], "(a)")
 
     # (b) Michie: OM fit leaves a residual.
-    _plot_beta(axes[1], r_b_mid, beta_b, bse_b, w_b, ra_hat_b, "Michie King",
-               fr"OM fit $r_a={ra_hat_b:.2f}$")
+    _plot_beta(
+        axes[1],
+        r_b_mid,
+        beta_b,
+        bse_b,
+        w_b,
+        ra_hat_b,
+        "Michie King",
+        rf"OM fit $r_a={ra_hat_b:.2f}$",
+    )
     panel_label(axes[1], "(b)")
 
     # (c) forecast sigma(r_a) vs N.
     ax = axes[2]
     ax.loglog(n_grid, sigma_grid, "o-", color=OI["green"])
     ax.axvline(n_detect, color="0.6", ls=":")
-    ax.text(n_detect * 1.25, sigma_grid.min() * 1.5, fr"$N\approx{n_detect:.0f}$",
-            fontsize=7.5, ha="left", va="bottom", color="0.3")
+    ax.text(
+        n_detect * 1.25,
+        sigma_grid.min() * 1.5,
+        rf"$N\approx{n_detect:.0f}$",
+        fontsize=7.5,
+        ha="left",
+        va="bottom",
+        color="0.3",
+    )
     ax.set_xlabel(r"$N_\star$")
     ax.set_ylabel(r"$\sigma(r_a)$  [pc]")
     panel_label(ax, "(c)")

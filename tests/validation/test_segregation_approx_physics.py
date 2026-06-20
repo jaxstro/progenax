@@ -18,12 +18,12 @@ import numpy as np
 import pytest
 from scipy.spatial import cKDTree
 
+from progenax.diagnostics import compute_lambda_msr
 from progenax.diagnostics.segregation_approx import (
     lambda_msr_approx,
     radial_concentration_approx,
     sigma_m_approx,
 )
-from progenax.diagnostics import compute_lambda_msr
 
 
 # ----------------------------------------------------------------------------
@@ -44,9 +44,7 @@ def _cluster(key, N=400, n_massive=20, core_scale=0.05, inverse=False):
         halo = jax.random.normal(k1, (N - n_massive, 3)) * 1.0
         special = jax.random.normal(k2, (n_massive, 3)) * core_scale
     positions = jnp.concatenate([halo, special], axis=0)
-    masses = jnp.concatenate(
-        [jnp.full(N - n_massive, 0.5), jnp.full(n_massive, 10.0)]
-    )
+    masses = jnp.concatenate([jnp.full(N - n_massive, 0.5), jnp.full(n_massive, 10.0)])
     return positions, masses
 
 
@@ -71,7 +69,7 @@ def _exact_sigma(xy, massive, k=6):
     tree = cKDTree(xy)
     d, _ = tree.query(xy, k=k + 1)
     r_k = d[:, k]
-    sigma = (k - 1) / (np.pi * r_k ** 2)
+    sigma = (k - 1) / (np.pi * r_k**2)
     return np.corrcoef(massive.astype(float), np.log(sigma))[0, 1]
 
 
@@ -136,8 +134,8 @@ class TestSegregationSweep:
         scales, lam, rad, sig, _ = self._sweep()
         # tighter core (smaller scale) = more segregated:
         assert spearmanr(scales, lam).correlation < -0.8  # Lambda up as scale down
-        assert spearmanr(scales, rad).correlation > 0.8    # C up as scale up
-        assert spearmanr(scales, sig).correlation < -0.8   # S up as scale down
+        assert spearmanr(scales, rad).correlation > 0.8  # C up as scale up
+        assert spearmanr(scales, sig).correlation < -0.8  # S up as scale down
 
     def test_rank_correlates_with_exact_lambda_msr(self):
         from scipy.stats import spearmanr
@@ -210,7 +208,10 @@ class TestDifferentiability:
 
     def test_no_nan_on_degenerate_inputs(self):
         # All-equal masses (no massive population) and coincident points.
-        pos = jnp.zeros((50, 3)) + jax.random.normal(jax.random.PRNGKey(5), (50, 3)) * 1e-6
+        pos = (
+            jnp.zeros((50, 3))
+            + jax.random.normal(jax.random.PRNGKey(5), (50, 3)) * 1e-6
+        )
         m = jnp.full(50, 1.0)
         for val in (
             radial_concentration_approx(pos, m, m_cut=2.0, tau=0.5),

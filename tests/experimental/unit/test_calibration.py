@@ -20,8 +20,12 @@ def test_measure_q_ensemble_shape_finite():
     from gravoturb_fdf.validation.calibration import measure_q_ensemble
 
     q = measure_q_ensemble(
-        **PARAMS, f_sub=0.4, n_stars=400, n_real=5,
-        shape=(48, 48, 48), key=jax.random.PRNGKey(0),
+        **PARAMS,
+        f_sub=0.4,
+        n_stars=400,
+        n_real=5,
+        shape=(48, 48, 48),
+        key=jax.random.PRNGKey(0),
     )
     assert q.shape == (5,)
     assert np.all(np.isfinite(q))
@@ -33,8 +37,12 @@ def test_q_vs_fsub_monotone_decreasing():
     from gravoturb_fdf.validation.calibration import q_vs_fsub
 
     res = q_vs_fsub(
-        **PARAMS, f_sub_values=(0.1, 0.4, 0.7), n_stars=400, n_real=6,
-        shape=(48, 48, 48), key=jax.random.PRNGKey(1),
+        **PARAMS,
+        f_sub_values=(0.1, 0.4, 0.7),
+        n_stars=400,
+        n_real=6,
+        shape=(48, 48, 48),
+        key=jax.random.PRNGKey(1),
     )
     qm = res["q_mean"]
     assert qm[0] > qm[1] > qm[2]  # strictly decreasing
@@ -45,8 +53,12 @@ def test_q_vs_fsub_physical_range_and_struct():
     from gravoturb_fdf.validation.calibration import q_vs_fsub
 
     res = q_vs_fsub(
-        **PARAMS, f_sub_values=(0.0, 0.3, 0.6), n_stars=400, n_real=6,
-        shape=(48, 48, 48), key=jax.random.PRNGKey(2),
+        **PARAMS,
+        f_sub_values=(0.0, 0.3, 0.6),
+        n_stars=400,
+        n_real=6,
+        shape=(48, 48, 48),
+        key=jax.random.PRNGKey(2),
     )
     assert res["f_sub"].shape == res["q_mean"].shape == res["q_std"].shape == (3,)
     assert np.all((res["q_mean"] > 0.4) & (res["q_mean"] < 0.8))

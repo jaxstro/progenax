@@ -25,16 +25,16 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
-from progenax.numerics import cumulative_trapz
 from progenax.kinematics.eddington import (
     assign_om_directions,
     eddington_invert,
     sample_speed_from_f_table,
 )
+from progenax.numerics import cumulative_trapz
 
-_N_R = 6000      # radial grid for potential / density tabulation
-_N_E = 1000      # energy grid for f(E)
-_N_SPEED = 256   # per-particle speed inverse-CDF resolution
+_N_R = 6000  # radial grid for potential / density tabulation
+_N_E = 1000  # energy grid for f(E)
+_N_SPEED = 256  # per-particle speed inverse-CDF resolution
 
 
 def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
@@ -51,15 +51,17 @@ def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
 
     dr = r[1] - r[0]
 
-    inner = cumulative_trapz(rho * r**2, dx=dr)  # int_0^r rho s^2 ds (true density -> potential)
-    tail = cumulative_trapz(rho * r, dx=dr)      # int_0^r rho s ds
-    outer = tail[-1] - tail            # int_r^{r_t} rho s ds
-    Phi = -4.0 * jnp.pi * (inner / r + outer)   # gravitational potential (G=1, rho_0=1)
-    Psi = Phi[-1] - Phi                # relative potential, Psi(r_t)=0, increases inward
-    mu = inner[-1]                     # int_0^{r_t} rho s^2 ds (dimensionless mass / 4pi)
+    inner = cumulative_trapz(
+        rho * r**2, dx=dr
+    )  # int_0^r rho s^2 ds (true density -> potential)
+    tail = cumulative_trapz(rho * r, dx=dr)  # int_0^r rho s ds
+    outer = tail[-1] - tail  # int_r^{r_t} rho s ds
+    Phi = -4.0 * jnp.pi * (inner / r + outer)  # gravitational potential (G=1, rho_0=1)
+    Psi = Phi[-1] - Phi  # relative potential, Psi(r_t)=0, increases inward
+    mu = inner[-1]  # int_0^{r_t} rho s^2 ds (dimensionless mass / 4pi)
 
     Mr = 4.0 * jnp.pi * inner
-    dPsi_dr = -Mr / r**2               # analytic dPsi/dr (from true density)
+    dPsi_dr = -Mr / r**2  # analytic dPsi/dr (from true density)
     # Generic inversion (eddington.eddington_invert): OM augmentation, the r->0
     # double-where dPsi guard, and the u-substituted singular integral live there.
     E_grid, f_grid = eddington_invert(r, rho, drho_dr, Psi, dPsi_dr, r_a, n_e=n_e)
@@ -127,7 +129,9 @@ class EFFVelocityDF(eqx.Module):
         self.anisotropy_radius = (
             None if anisotropy_radius is None else jnp.asarray(anisotropy_radius)
         )
-        r, Psi, E_grid, f_grid, mu = _eff_eddington_table(a, gamma, r_t, anisotropy_radius)
+        r, Psi, E_grid, f_grid, mu = _eff_eddington_table(
+            a, gamma, r_t, anisotropy_radius
+        )
         # Refuse a genuinely negative (unphysical) Osipkov-Merritt DF rather than
         # silently clamping it: too small an r_a asks for more radial anisotropy than
         # the density can support with f >= 0 (Merritt 1985, Eq. 46). Concrete-r_a only;
@@ -169,13 +173,17 @@ class EFFVelocityDF(eqx.Module):
         M_total = jnp.sum(masses)
         radii = jnp.linalg.norm(positions, axis=1)
 
-        Psi_r = jnp.interp(radii, self.r_grid, self.Psi_grid, left=self.Psi_grid[0], right=0.0)
+        Psi_r = jnp.interp(
+            radii, self.r_grid, self.Psi_grid, left=self.Psi_grid[0], right=0.0
+        )
         kappa = G * M_total / (4.0 * jnp.pi * self.mu)
 
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
         s = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(k, p, self.E_grid, self.f_grid, _N_SPEED)
+            lambda k, p: sample_speed_from_f_table(
+                k, p, self.E_grid, self.f_grid, _N_SPEED
+            )
         )(speed_keys, Psi_r)
         speeds = jnp.sqrt(kappa) * s
 

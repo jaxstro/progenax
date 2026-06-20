@@ -5,11 +5,12 @@ Port from gravax-legacy with explicit G parameter for progenax.
 All functions take explicit G parameter (NOT get_G() defaults).
 """
 
+from typing import NamedTuple
+
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float
-from typing import NamedTuple
 
 from .kepler_inverse import orbital_elements_from_state
 
@@ -78,12 +79,12 @@ class KeplerElements(eqx.Module):
         >>> state = elements.to_state(M_total=1.0, G=1.0)
     """
 
-    a: Float[Array, ""]      # Semi-major axis
-    e: Float[Array, ""]      # Eccentricity
-    i: Float[Array, ""]      # Inclination
+    a: Float[Array, ""]  # Semi-major axis
+    e: Float[Array, ""]  # Eccentricity
+    i: Float[Array, ""]  # Inclination
     Omega: Float[Array, ""]  # Longitude of ascending node
     omega: Float[Array, ""]  # Argument of periapsis
-    M0: Float[Array, ""]     # Mean anomaly at epoch
+    M0: Float[Array, ""]  # Mean anomaly at epoch
 
     def __init__(
         self,
@@ -167,12 +168,8 @@ class KeplerElements(eqx.Module):
 
         # Step 3: Rotate to inertial frame
         # Rotation matrices for (Omega, i, omega)
-        position = self._rotate_perifocal_to_inertial(
-            jnp.array([x_p, y_p, 0.0])
-        )
-        velocity = self._rotate_perifocal_to_inertial(
-            jnp.array([vx_p, vy_p, 0.0])
-        )
+        position = self._rotate_perifocal_to_inertial(jnp.array([x_p, y_p, 0.0]))
+        velocity = self._rotate_perifocal_to_inertial(jnp.array([vx_p, vy_p, 0.0]))
 
         return CartesianState(position=position, velocity=velocity)
 

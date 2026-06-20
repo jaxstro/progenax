@@ -16,16 +16,16 @@ import jax.numpy as jnp
 import pytest
 
 from progenax.imf import (
-    PowerLawIMF,
     ChabrierIMF,
-    TruncatedIMF,
     Maschberger,
+    PowerLawIMF,
+    TruncatedIMF,
 )
-
 
 # =============================================================================
 # IMF Factory Fixtures
 # =============================================================================
+
 
 def create_salpeter():
     """Salpeter (1955) single power-law IMF."""
@@ -79,20 +79,23 @@ def imf(request):
 # CDF Properties (Mathematical)
 # =============================================================================
 
+
 class TestCDFProperties:
     """CDF must satisfy mathematical constraints."""
 
     def test_cdf_at_m_min(self, imf):
         """CDF(m_min) = 0."""
         cdf_min = imf.cdf(jnp.array(imf.m_min))
-        assert abs(float(cdf_min)) < 1e-6, \
+        assert abs(float(cdf_min)) < 1e-6, (
             f"CDF(m_min={imf.m_min}) = {float(cdf_min)}, expected 0"
+        )
 
     def test_cdf_at_m_max(self, imf):
         """CDF(m_max) = 1."""
         cdf_max = imf.cdf(jnp.array(imf.m_max))
-        assert abs(float(cdf_max) - 1.0) < 1e-6, \
+        assert abs(float(cdf_max) - 1.0) < 1e-6, (
             f"CDF(m_max={imf.m_max}) = {float(cdf_max)}, expected 1"
+        )
 
     def test_cdf_monotonic_increasing(self, imf):
         """CDF is monotonically increasing."""
@@ -100,24 +103,22 @@ class TestCDFProperties:
         cdf_grid = imf.cdf(m_grid)
 
         diffs = jnp.diff(cdf_grid)
-        assert jnp.all(diffs >= -1e-3), \
+        assert jnp.all(diffs >= -1e-3), (
             f"CDF not monotonic: min diff = {float(jnp.min(diffs))}"
+        )
 
 
 # =============================================================================
 # PPF Inverse Property (Mathematical)
 # =============================================================================
 
+
 class TestPPFInverse:
     """PPF must be inverse of CDF."""
 
     def test_ppf_cdf_roundtrip(self, imf):
         """PPF(CDF(m)) recovers original mass."""
-        m_test = jnp.linspace(
-            imf.m_min * 1.01,
-            imf.m_max * 0.99,
-            10
-        )
+        m_test = jnp.linspace(imf.m_min * 1.01, imf.m_max * 0.99, 10)
 
         u_values = imf.cdf(m_test)
         m_recovered = imf.ppf(u_values)
@@ -125,13 +126,15 @@ class TestPPFInverse:
         relative_errors = jnp.abs(m_recovered - m_test) / m_test
         max_error = float(jnp.max(relative_errors))
 
-        assert max_error < 0.10, \
-            f"PPF(CDF(m)) roundtrip error: {max_error*100:.2f}% (expected <10%)"
+        assert max_error < 0.10, (
+            f"PPF(CDF(m)) roundtrip error: {max_error * 100:.2f}% (expected <10%)"
+        )
 
 
 # =============================================================================
 # PDF Normalization (Physics)
 # =============================================================================
+
 
 class TestPDFNormalization:
     """PDF must integrate to 1 over [m_min, m_max]."""
@@ -146,13 +149,15 @@ class TestPDFNormalization:
         integrand = pdf_grid * m_grid
         integral = jnp.trapezoid(integrand, log_m_grid)
 
-        assert abs(float(integral) - 1.0) < 0.15, \
+        assert abs(float(integral) - 1.0) < 0.15, (
             f"PDF integral = {float(integral):.4f}, expected 1.0"
+        )
 
 
 # =============================================================================
 # Statistical Properties
 # =============================================================================
+
 
 class TestStatisticalProperties:
     """Statistical properties of IMF samples."""
@@ -165,19 +170,22 @@ class TestStatisticalProperties:
 
         relative_error = abs(sample_mean - theory_mean) / theory_mean
 
-        assert relative_error < 0.20, \
-            f"Sample mean {sample_mean:.4f} vs theory {theory_mean:.4f}, error {relative_error*100:.1f}%"
+        assert relative_error < 0.20, (
+            f"Sample mean {sample_mean:.4f} vs theory {theory_mean:.4f}, error {relative_error * 100:.1f}%"
+        )
 
 
 # =============================================================================
 # JIT Compatibility (keep 1 test)
 # =============================================================================
 
+
 class TestJITCompatibility:
     """IMF methods must be JIT-compilable."""
 
     def test_sample_jits(self, imf, key):
         """sample() can be JIT-compiled."""
+
         @jax.jit
         def sample_wrapper(k):
             return imf.sample(k, 100)
@@ -190,6 +198,7 @@ class TestJITCompatibility:
 # Chabrier-Specific Tests
 # =============================================================================
 
+
 class TestChabrierSpecific:
     """Chabrier-specific tests for lognormal + power-law structure."""
 
@@ -200,8 +209,9 @@ class TestChabrierSpecific:
         ln_pdf = imf._lognormal_pdf_unnorm(imf.m_trans)
         pl_pdf = imf._powerlaw_pdf_unnorm(imf.m_trans)
 
-        assert jnp.abs(ln_pdf - pl_pdf) / ln_pdf < 0.01, \
+        assert jnp.abs(ln_pdf - pl_pdf) / ln_pdf < 0.01, (
             f"Discontinuity at m_trans: lognormal={ln_pdf}, powerlaw={pl_pdf}"
+        )
 
     def test_lognormal_jacobian_factor(self):
         """Low-mass PDF has correct 1/(m ln 10) Jacobian factor (Chabrier 2003).
@@ -216,8 +226,9 @@ class TestChabrierSpecific:
         expected = imf.A_ln / (m_c * jnp.log(10.0))
 
         rel_error = jnp.abs(pdf_at_mc - expected) / expected
-        assert rel_error < 0.01, \
+        assert rel_error < 0.01, (
             f"PDF at m_c: {float(pdf_at_mc):.6f}, expected {float(expected):.6f}"
+        )
 
 
 if __name__ == "__main__":

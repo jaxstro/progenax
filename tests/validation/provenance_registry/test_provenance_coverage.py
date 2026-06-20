@@ -32,6 +32,7 @@ the ALLOWLIST_NON_COEFFICIENT carve.
 NEVER weaken a test to make it pass. A real hole goes to UNPROVENANCED for Anna, not into
 a fabricated PROVENANCE citation.
 """
+
 import ast
 import re
 from pathlib import Path
@@ -56,7 +57,9 @@ _LEDGER = _REPO_ROOT / "docs" / "provenance-ledger.md"
 # straight to ``scan_module_numeric_literals``.
 _TRIVIAL: set[float] = {0.0, 1.0, 2.0, 0.5, -1.0, -0.5, 3.0, 4.0}
 _SMALL_INT_MAX = 12
-_CITE_WINDOW = 4  # nearby-comment window for has_nearby_citation (lines above the literal)
+_CITE_WINDOW = (
+    4  # nearby-comment window for has_nearby_citation (lines above the literal)
+)
 
 # A PROVENANCE *citation string* counts as traceable if it names a paper/year, a table/eq
 # reference, an authority (CODATA/IAU), or an explicit ``provenance:`` marker. This is the
@@ -81,14 +84,16 @@ def test_every_provenance_entry_has_a_citation():
     blank = sorted(k for k, v in PROVENANCE.items() if not v or not v.strip())
     assert not blank, (
         f"PROVENANCE entries with an empty citation (port the real source or move to "
-        f"UNPROVENANCED): {blank}")
+        f"UNPROVENANCED): {blank}"
+    )
 
     # A citation must name SOMETHING — a year, a table/eq, or an authority. A bare phrase
     # with no source token is provenance theater (the C2 anti-theater discipline applied here).
     untraceable = sorted(k for k, v in PROVENANCE.items() if not _CITE_RE.search(v))
     assert not untraceable, (
         f"PROVENANCE citations that name no source token (year / Table / Eq / CODATA / IAU / "
-        f"author) — not a traceable citation: {untraceable}")
+        f"author) — not a traceable citation: {untraceable}"
+    )
 
 
 # ======================================================================================
@@ -104,19 +109,19 @@ _LEDGER_CONSTANT_ANCHORS = (
     "Kroupa",
     "Chabrier",
     "Maschberger",
-    "Marks",       # Marks+2012 / 2014 erratum (alpha3 FP + Table 3)
-    "Jerab",       # Jerabkova+2018 (alpha3(x), Eq.7/9)
-    "Moe",         # Moe & Di Stefano 2017 Table 13 grids
-    "Sana",        # Sana 2012 OB period pi / q-slope kappa
-    "Lucy",        # Lucy 2006 twin excess
-    "King",        # King 1966 Table II c(W0)
-    "Gieles",      # Gieles & Zocchi 2015 LIMEPY g+3/2  (OR "Zocchi")
-    "CW04",        # Cartwright & Whitworth 2004 Table 1 radial Q
-    "von Hoerner", # M&C 2011 Sigma estimator upstream
-    "Demircan",    # D&K91 mass-radius
-    "IAU",         # IAU 2009 / Luzum 2011 planet mass ratios
-    "Chenciner",   # figure-eight period
-    "Plummer",     # Plummer scale-radius
+    "Marks",  # Marks+2012 / 2014 erratum (alpha3 FP + Table 3)
+    "Jerab",  # Jerabkova+2018 (alpha3(x), Eq.7/9)
+    "Moe",  # Moe & Di Stefano 2017 Table 13 grids
+    "Sana",  # Sana 2012 OB period pi / q-slope kappa
+    "Lucy",  # Lucy 2006 twin excess
+    "King",  # King 1966 Table II c(W0)
+    "Gieles",  # Gieles & Zocchi 2015 LIMEPY g+3/2  (OR "Zocchi")
+    "CW04",  # Cartwright & Whitworth 2004 Table 1 radial Q
+    "von Hoerner",  # M&C 2011 Sigma estimator upstream
+    "Demircan",  # D&K91 mass-radius
+    "IAU",  # IAU 2009 / Luzum 2011 planet mass ratios
+    "Chenciner",  # figure-eight period
+    "Plummer",  # Plummer scale-radius
 )
 
 
@@ -130,7 +135,9 @@ def _ledger_verified_anchors_present():
     )
     # Many anchors appear in the surrounding prose batch headers too; accept the whole doc
     # for presence, but require the verified context to be non-trivially populated.
-    present_in_doc = {a for a in _LEDGER_CONSTANT_ANCHORS if a.lower() in ledger.lower()}
+    present_in_doc = {
+        a for a in _LEDGER_CONSTANT_ANCHORS if a.lower() in ledger.lower()
+    }
     present_in_verified = {
         a for a in _LEDGER_CONSTANT_ANCHORS if a.lower() in verified_blob.lower()
     }
@@ -144,7 +151,8 @@ def test_ledger_anchors_exist_in_the_committed_ledger():
     missing_from_ledger = sorted(set(_LEDGER_CONSTANT_ANCHORS) - present_in_doc)
     assert not missing_from_ledger, (
         f"anchors not found in docs/provenance-ledger.md (the doc moved / anchor typo — fix "
-        f"the anchor list): {missing_from_ledger}")
+        f"the anchor list): {missing_from_ledger}"
+    )
 
 
 def test_every_ledger_constant_anchor_is_in_provenance():
@@ -159,13 +167,15 @@ def test_every_ledger_constant_anchor_is_in_provenance():
     missing = sorted(a for a in _LEDGER_CONSTANT_ANCHORS if a.lower() not in blob)
     assert not missing, (
         "ledger-verified constant sources NOT represented in PROVENANCE (port the citation "
-        f"from docs/provenance-ledger.md): {missing}")
+        f"from docs/provenance-ledger.md): {missing}"
+    )
 
     # FLOOR: the manifest must cover at least this many distinct ledger anchors. ZERO
     # fabricated values were found by the audit, so the realistic floor is the full set.
     covered = [a for a in _LEDGER_CONSTANT_ANCHORS if a.lower() in blob]
     assert len(covered) >= 15, (
-        f"PROVENANCE covers only {len(covered)} ledger anchors (floor 15) — port the rest.")
+        f"PROVENANCE covers only {len(covered)} ledger anchors (floor 15) — port the rest."
+    )
 
 
 # ======================================================================================
@@ -178,7 +188,13 @@ def _module_provenance_blob(rel_path: str) -> str:
     keyed ``imf/power_law.py::...``). A literal whose value-text appears here is provenanced
     by the ported manifest citation (value-level provenance)."""
     suffix = rel_path.split("src/progenax/", 1)[-1]
-    return "\n".join(v for k, v in PROVENANCE.items() if k.startswith(suffix.split("::")[0]) or suffix in k or k.startswith(suffix[: suffix.find("::")] if "::" in suffix else suffix))
+    return "\n".join(
+        v
+        for k, v in PROVENANCE.items()
+        if k.startswith(suffix.split("::")[0])
+        or suffix in k
+        or k.startswith(suffix[: suffix.find("::")] if "::" in suffix else suffix)
+    )
 
 
 def _value_in_provenance(value, blob: str) -> bool:
@@ -187,11 +203,11 @@ def _value_in_provenance(value, blob: str) -> bool:
     citation that lists the value covers it. Conservative: only exact-string occurrence."""
     candidates = set()
     f = float(value)
-    candidates.add(repr(value))           # e.g. '2.35', '512'
-    candidates.add(f"{f:g}")              # e.g. '2.35', '-0.41'
-    candidates.add(f"{abs(f):g}")         # the magnitude (citations often drop the sign)
+    candidates.add(repr(value))  # e.g. '2.35', '512'
+    candidates.add(f"{f:g}")  # e.g. '2.35', '-0.41'
+    candidates.add(f"{abs(f):g}")  # the magnitude (citations often drop the sign)
     if f == int(f):
-        candidates.add(str(int(f)))       # '20', '100'
+        candidates.add(str(int(f)))  # '20', '100'
     return any(c in blob for c in candidates if c)
 
 
@@ -232,7 +248,8 @@ def test_allowlist_modules_exist():
     missing = sorted(m for m in ALLOWLIST_MODULES if not (_REPO_ROOT / m).exists())
     assert not missing, (
         f"ALLOWLIST_MODULES paths not found (update the allowlist for the rename/move): "
-        f"{missing}")
+        f"{missing}"
+    )
 
 
 def test_no_new_unprovenanced_literal_in_allowlist_modules():
@@ -254,7 +271,8 @@ def test_no_new_unprovenanced_literal_in_allowlist_modules():
         "unprovenanced citable-shaped literals in allowlisted modules (add an inline "
         "citation comment + a PROVENANCE row, or — only with Anna's sign-off — document "
         "the literal in ALLOWLIST_NON_COEFFICIENT with a reason):\n"
-        + "\n".join(f"  {rel}: {vals}" for rel, vals in report.items()))
+        + "\n".join(f"  {rel}: {vals}" for rel, vals in report.items())
+    )
 
 
 def test_allowlist_non_coefficient_carve_is_not_stale():
@@ -270,7 +288,8 @@ def test_allowlist_non_coefficient_carve_is_not_stale():
         present = {
             float(n.value)
             for n in ast.walk(tree)
-            if isinstance(n, ast.Constant) and isinstance(n.value, (int, float))
+            if isinstance(n, ast.Constant)
+            and isinstance(n.value, (int, float))
             and not isinstance(n.value, bool)
         }
         dead = sorted(v for v in carve if v not in present)
@@ -278,7 +297,8 @@ def test_allowlist_non_coefficient_carve_is_not_stale():
             stale[rel] = dead
     assert not stale, (
         f"ALLOWLIST_NON_COEFFICIENT entries no longer present in their module (remove the "
-        f"stale carve): {stale}")
+        f"stale carve): {stale}"
+    )
 
 
 # ======================================================================================
@@ -295,4 +315,5 @@ def test_no_unprovenanced_constants():
     fabricate a citation to make this pass."""
     assert not UNPROVENANCED, (
         f"allowlisted constants with NO citation (Anna adjudicates each — port a source or "
-        f"de-assert): {sorted(UNPROVENANCED)}")
+        f"de-assert): {sorted(UNPROVENANCED)}"
+    )

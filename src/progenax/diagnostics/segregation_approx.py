@@ -25,8 +25,6 @@ positions), with a 3D flag for theory checks. Inputs are true masses for now; th
 noisy mass proxy is a deferred data-realism layer (milestone B).
 """
 
-from typing import Optional
-
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
@@ -40,7 +38,9 @@ __all__ = [
 ]
 
 
-def _project(positions: Float[Array, "N D"], project_to_2d: bool) -> Float[Array, "N d"]:
+def _project(
+    positions: Float[Array, "N D"], project_to_2d: bool
+) -> Float[Array, "N d"]:
     """Project to the (x, y) sky plane when requested; pass through otherwise."""
     if positions.shape[1] == 2:
         return positions
@@ -140,7 +140,7 @@ def _softmin_nn_distance(
     """
     N = xy.shape[0]
     diff = xy[:, None, :] - xy[None, :, :]
-    dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)  # (N, N)
+    dist = jnp.sqrt(jnp.sum(diff**2, axis=-1) + 1e-12)  # (N, N)
     dist = dist + jnp.eye(N) * 1e10  # exclude self
     # Scale-relative temperature: normalise by the median hard 1-NN distance. The median
     # scale depends on the positions, so its derivative is a genuine part of d(softmin)/d(x):
@@ -206,14 +206,12 @@ def lambda_msr_approx(
     return calibration * baseline / (massive + 1e-12)
 
 
-def _weighted_pearson(
-    x: Float[Array, "N"], y: Float[Array, "N"]
-) -> Float[Array, ""]:
+def _weighted_pearson(x: Float[Array, "N"], y: Float[Array, "N"]) -> Float[Array, ""]:
     """Smooth (unweighted) Pearson correlation coefficient of two vectors."""
     xc = x - jnp.mean(x)
     yc = y - jnp.mean(y)
     num = jnp.sum(xc * yc)
-    den = jnp.sqrt(jnp.sum(xc ** 2) * jnp.sum(yc ** 2)) + 1e-12
+    den = jnp.sqrt(jnp.sum(xc**2) * jnp.sum(yc**2)) + 1e-12
     return num / den
 
 
@@ -266,12 +264,12 @@ def sigma_m_approx(
     w = soft_mass_weights(masses, m_cut, tau)
 
     diff = xy[:, None, :] - xy[None, :, :]
-    dist = jnp.sqrt(jnp.sum(diff ** 2, axis=-1) + 1e-12)
+    dist = jnp.sqrt(jnp.sum(diff**2, axis=-1) + 1e-12)
     dist = dist + jnp.eye(N) * 1e10  # exclude self before sorting
     dist_sorted = jnp.sort(dist, axis=1)  # ascending; differentiable order statistic
     r_k = dist_sorted[:, k - 1]  # k-th nearest real neighbour (self masked out)
 
-    sigma = (k - 1) / (jnp.pi * r_k ** 2 + 1e-12)
+    sigma = (k - 1) / (jnp.pi * r_k**2 + 1e-12)
     log_sigma = jnp.log(sigma + 1e-12)
     return calibration * _weighted_pearson(w, log_sigma)
 
@@ -297,7 +295,7 @@ def _exact_sigma_m(xy, massive, k):
     tree = cKDTree(xy)
     dists, _ = tree.query(xy, k=k + 1)  # +1 includes self at distance 0
     r_k = dists[:, k]  # k-th nearest real neighbour
-    sigma = (k - 1) / (np.pi * r_k ** 2 + 1e-12)
+    sigma = (k - 1) / (np.pi * r_k**2 + 1e-12)
     log_sigma = np.log(sigma + 1e-12)
     return float(np.corrcoef(massive.astype(float), log_sigma)[0, 1])
 
@@ -333,6 +331,7 @@ def calibrate_segregation_approx(
         Dict of calibration factors, correlations, and ``n_samples``.
     """
     import numpy as np
+
     from progenax.diagnostics.mass_segregation import compute_lambda_msr
 
     lam_soft, lam_exact = [], []

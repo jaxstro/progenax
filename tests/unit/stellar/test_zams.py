@@ -4,17 +4,18 @@ Anchors are the PDF-verified solar (M=1, Z=0.02) values from
 docs/core-papers/tout1996_zams_coefficients_verified.md:
     L = 0.6977 Lsun, R = 0.8882 Rsun, T_eff ~ 5600 K, log g ~ 4.54.
 """
+
 import jax
 import jax.numpy as jnp
 import pytest
 
 import progenax  # noqa: F401 — enables float64 on import
 from progenax.stellar import (
+    inverse_zams_luminosity,
+    zams_effective_temperature,
     zams_luminosity,
     zams_radius,
-    zams_effective_temperature,
     zams_surface_gravity,
-    inverse_zams_luminosity,
 )
 
 
@@ -124,15 +125,23 @@ class TestMetallicityDependence:
 class TestValidRange:
     def test_low_mass_finite_positive(self):
         # 0.1 Msun — lower edge of the Tout+1996 fitted range
-        for fn in (zams_luminosity, zams_radius,
-                   zams_effective_temperature, zams_surface_gravity):
+        for fn in (
+            zams_luminosity,
+            zams_radius,
+            zams_effective_temperature,
+            zams_surface_gravity,
+        ):
             v = fn(jnp.array(0.1))
             assert jnp.isfinite(v) and v > 0
 
     def test_high_mass_finite_positive(self):
         # 100 Msun — upper edge of the fitted range
-        for fn in (zams_luminosity, zams_radius,
-                   zams_effective_temperature, zams_surface_gravity):
+        for fn in (
+            zams_luminosity,
+            zams_radius,
+            zams_effective_temperature,
+            zams_surface_gravity,
+        ):
             v = fn(jnp.array(100.0))
             assert jnp.isfinite(v) and v > 0
 

@@ -24,6 +24,7 @@ a standalone PASS/FAIL gate + one 5-panel figure:
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_multicomponent_eddington.py
 """
+
 import os
 import sys
 
@@ -34,6 +35,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import EFFProfile, KingProfile, PlummerProfile, compute_potential_energy
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.dynamics.virial import _accelerations
@@ -66,7 +68,9 @@ def _headline_model(**kw):
 
 def _com_arrays(ic):
     p = np.asarray(ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses))
-    v = np.asarray(ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses))
+    v = np.asarray(
+        ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+    )
     return p, v, np.asarray(ic.masses)
 
 
@@ -83,8 +87,12 @@ def _sampled_component_Q(model, seed, n_stars):
     a = np.asarray(_accelerations(jnp.asarray(p), jnp.asarray(mass), G))
     T_i = 0.5 * mass * np.sum(v**2, axis=1)
     W_i = mass * np.sum(p * a, axis=1)
-    return np.array([T_i[cid == j].sum() / abs(W_i[cid == j].sum())
-                     for j in range(int(cid.max()) + 1)])
+    return np.array(
+        [
+            T_i[cid == j].sum() / abs(W_i[cid == j].sum())
+            for j in range(int(cid.max()) + 1)
+        ]
+    )
 
 
 def _predicted_component_Q(model, n_w=400):
@@ -138,10 +146,16 @@ def section_king(ax):
     print("\n[a] King A-vs-B (W0=5, r_c=1 pc): two independent engines")
     king = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
     mB = MultiComponentCluster.from_density_profiles(
-        [king], jnp.array([1.0]), m_j=jnp.array([1.0]))
+        [king], jnp.array([1.0]), m_j=jnp.array([1.0])
+    )
     mA = MultiComponentCluster.from_components(
-        alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]), m_j=jnp.array([1.0]),
-        W0=5.0, g=1.0, r_c=1.0)
+        alpha_j=jnp.array([1.0]),
+        w_j=jnp.array([1.0]),
+        m_j=jnp.array([1.0]),
+        W0=5.0,
+        g=1.0,
+        r_c=1.0,
+    )
 
     N = 20000
     key = jax.random.PRNGKey(0)
@@ -154,9 +168,14 @@ def section_king(ax):
     v2A, v2B = np.sum(vA**2, axis=1), np.sum(vB**2, axis=1)
 
     grid = np.sort(np.concatenate([rA, rB]))
-    ks = float(np.max(np.abs(
-        np.searchsorted(np.sort(rA), grid, side="right") / N
-        - np.searchsorted(np.sort(rB), grid, side="right") / N)))
+    ks = float(
+        np.max(
+            np.abs(
+                np.searchsorted(np.sort(rA), grid, side="right") / N
+                - np.searchsorted(np.sort(rB), grid, side="right") / N
+            )
+        )
+    )
 
     edges = np.quantile(rA, np.linspace(0.05, 0.90, 7))
     centers, sigA, sigB = [], [], []
@@ -172,10 +191,26 @@ def section_king(ax):
     print(f"    radial KS distance          = {ks:.4f}  (gate < 0.02)")
     print(f"    max |sigma_B/sigma_A - 1|   = {max_dev:.4f}  (gate < 0.02)")
 
-    ax.plot(centers, sigA, color=OI["blue"], lw=1.7, marker="o", ms=4,
-            label="Engine A (ODE + lowered DF)")
-    ax.plot(centers, sigB, color=OI["vermilion"], lw=1.7, marker="s", ms=4,
-            mfc="white", ls="--", label="Engine B (Eddington)")
+    ax.plot(
+        centers,
+        sigA,
+        color=OI["blue"],
+        lw=1.7,
+        marker="o",
+        ms=4,
+        label="Engine A (ODE + lowered DF)",
+    )
+    ax.plot(
+        centers,
+        sigB,
+        color=OI["vermilion"],
+        lw=1.7,
+        marker="s",
+        ms=4,
+        mfc="white",
+        ls="--",
+        label="Engine B (Eddington)",
+    )
     ax.set_xlabel(r"$r$ [pc]")
     ax.set_ylabel(r"$\sigma_{1d}$ [pc Myr$^{-1}$]")
     ax.legend(frameon=False, fontsize=7)
@@ -209,20 +244,35 @@ def section_plummer(ax):
     k = (a / float(M_tot)) ** 5
     E_n = np.asarray(E_t)
     b = E_n + c
-    integral = (2.0 * b**3 * np.sqrt(E_n) - 2.0 * b**2 * E_n**1.5
-                + 1.2 * b * E_n**2.5 - (2.0 / 7.0) * E_n**3.5)
+    integral = (
+        2.0 * b**3 * np.sqrt(E_n)
+        - 2.0 * b**2 * E_n**1.5
+        + 1.2 * b * E_n**2.5
+        - (2.0 / 7.0) * E_n**3.5
+    )
     f_exact = (20.0 * k * integral + 5.0 * k * c**4 / np.sqrt(E_n)) / (
-        np.sqrt(8.0) * np.pi**2)
+        np.sqrt(8.0) * np.pi**2
+    )
     Psi0_t = float(Psi_t[0])
     sel_t = (E_n > 0.1 * Psi0_t) & (E_n < 0.8 * Psi0_t)
     err_cf = np.abs(np.asarray(f_t)[sel_t] / f_exact[sel_t] - 1.0)
     max_cf = float(np.max(err_cf))
-    print(f"    max rel err vs E^3.5 law (untruncated zero pt) = {max_law:.2e}  (gate < 1e-3)")
-    print(f"    max rel err vs truncated closed form           = {max_cf:.2e}  (gate < 1e-4)")
+    print(
+        f"    max rel err vs E^3.5 law (untruncated zero pt) = {max_law:.2e}  (gate < 1e-3)"
+    )
+    print(
+        f"    max rel err vs truncated closed form           = {max_cf:.2e}  (gate < 1e-4)"
+    )
 
     ax.loglog(E_i, f_i, color=OI["blue"], lw=1.7, label=r"$f(E)$ (inverter)")
-    ax.loglog(E_i, f_i[i_ref] * (E_i / E_i[i_ref]) ** 3.5, color=OI["orange"],
-              lw=1.4, ls="--", label=r"$\propto E^{7/2}$ (BT2008)")
+    ax.loglog(
+        E_i,
+        f_i[i_ref] * (E_i / E_i[i_ref]) ** 3.5,
+        color=OI["orange"],
+        lw=1.4,
+        ls="--",
+        label=r"$\propto E^{7/2}$ (BT2008)",
+    )
     ax.set_xlabel(r"$E$ (model units, $G=1$)")
     ax.set_ylabel(r"$f(E)$ (model units)")
     ax.legend(frameon=False, fontsize=7, loc="upper left")
@@ -234,7 +284,12 @@ def section_plummer(ax):
     ins.set_ylabel(r"|rel err|", fontsize=6)
     ins.tick_params(labelsize=5)
     return [
-        ("Plummer f vs E^3.5 law (untrunc)", f"{max_law:.2e}", "< 1e-3", max_law < 1e-3),
+        (
+            "Plummer f vs E^3.5 law (untrunc)",
+            f"{max_law:.2e}",
+            "< 1e-3",
+            max_law < 1e-3,
+        ),
         ("Plummer f vs trunc closed form", f"{max_cf:.2e}", "< 1e-4", max_cf < 1e-4),
     ]
 
@@ -246,8 +301,10 @@ def section_headline(ax_rho, ax_q):
 
     Qj = np.asarray(m.component_virial_ratios())
     dev_th = float(np.max(np.abs(Qj - 0.5)))
-    print(f"    theory Q_j (DF-weighted oracle)  = [{Qj[0]:.5f}, {Qj[1]:.5f}]"
-          f"  (gate 0.5 +- 3e-3)")
+    print(
+        f"    theory Q_j (DF-weighted oracle)  = [{Qj[0]:.5f}, {Qj[1]:.5f}]"
+        f"  (gate 0.5 +- 3e-3)"
+    )
 
     ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=30000, G=G)
     p, v, mass = _com_arrays(ic)
@@ -264,11 +321,15 @@ def section_headline(ax_rho, ax_q):
     Q_meas = Q_seeds.mean(axis=0)
     Q_sem = Q_seeds.std(axis=0) / np.sqrt(len(seeds))
     dev_pred = float(np.max(np.abs(Q_meas - Q_pred)))
-    print(f"    predicted hybrid Q_j  = [{Q_pred[0]:.4f}, {Q_pred[1]:.4f}]"
-          f"  (halo plateaus BELOW 0.5: truncation-edge physics)")
-    print(f"    sampled Q_j ({len(seeds)} seeds x 16k) = "
-          f"[{Q_meas[0]:.4f} +- {Q_sem[0]:.4f}, {Q_meas[1]:.4f} +- {Q_sem[1]:.4f}]"
-          f"  (gate |sampled - predicted| < 0.012)")
+    print(
+        f"    predicted hybrid Q_j  = [{Q_pred[0]:.4f}, {Q_pred[1]:.4f}]"
+        f"  (halo plateaus BELOW 0.5: truncation-edge physics)"
+    )
+    print(
+        f"    sampled Q_j ({len(seeds)} seeds x 16k) = "
+        f"[{Q_meas[0]:.4f} +- {Q_sem[0]:.4f}, {Q_meas[1]:.4f} +- {Q_sem[1]:.4f}]"
+        f"  (gate |sampled - predicted| < 0.012)"
+    )
 
     # Panel 3: rho_DF,j vs rho_presc,j (truncation-consistent form, both comps).
     st = m.engine_b
@@ -281,6 +342,7 @@ def section_headline(ax_rho, ax_q):
             w = jnp.linspace(0.0, jnp.sqrt(2.0 * jnp.maximum(Psi_r, 1e-12)), n_w)
             f_at = jnp.maximum(jnp.interp(Psi_r - 0.5 * w**2, st.E_grid, f_row), 0.0)
             return jnp.trapezoid(w**2 * f_at, w)
+
         return 4.0 * np.pi * np.asarray(jax.vmap(m0)(Psi))
 
     for j, (col, lab) in enumerate([(OI["blue"], "halo"), (OI["vermilion"], "core")]):
@@ -288,27 +350,63 @@ def section_headline(ax_rho, ax_q):
         rho_presc = np.asarray(st.rho_j_poisson[j])
         target = rho_presc - rho_presc[-1]  # the DF represents rho(Psi)-rho(0)
         sel = (r > 0.02) & (target > 0)
-        ax_rho.loglog(r[sel], target[sel], color=col, lw=1.7,
-                      label=rf"{lab} $\rho_{{\rm presc}} - \rho(r_t)$")
-        ax_rho.loglog(r[sel][::40], rho_df[sel][::40], color=col, ls="none",
-                      marker="o", ms=3, mfc="white",
-                      label=rf"{lab} $\rho_{{\rm DF}}$")
+        ax_rho.loglog(
+            r[sel],
+            target[sel],
+            color=col,
+            lw=1.7,
+            label=rf"{lab} $\rho_{{\rm presc}} - \rho(r_t)$",
+        )
+        ax_rho.loglog(
+            r[sel][::40],
+            rho_df[sel][::40],
+            color=col,
+            ls="none",
+            marker="o",
+            ms=3,
+            mfc="white",
+            label=rf"{lab} $\rho_{{\rm DF}}$",
+        )
     ax_rho.set_xlabel(r"$r$ [pc]")
     ax_rho.set_ylabel(r"$\hat\rho_j$ (model units, $M_{\rm tot}=1$)")
     ax_rho.legend(frameon=False, fontsize=6.5)
-    ax_rho.set_title(r"DF integrates back to $\rho_{\rm presc}$ (trunc.-consistent)",
-                     fontsize=9)
+    ax_rho.set_title(
+        r"DF integrates back to $\rho_{\rm presc}$ (trunc.-consistent)", fontsize=9
+    )
 
     # Panel 5: Q_j summary (theory, predicted-hybrid, sampled +- sem).
     x = np.arange(2)
     ax_q.axhline(0.5, color="0.6", ls="--", lw=1.0, label=r"virial $Q=0.5$")
-    ax_q.plot(x - 0.18, Qj, ls="none", marker="^", ms=7, color=OI["green"],
-              label="theory (DF oracle)")
-    ax_q.plot(x, Q_pred, ls="none", marker="D", ms=6, mfc="white",
-              color=OI["orange"], label="predicted hybrid")
-    ax_q.errorbar(x + 0.18, Q_meas, yerr=Q_sem, ls="none", marker="o", ms=6,
-                  color=OI["blue"], capsize=3,
-                  label=rf"sampled ({len(seeds)} seeds $\times$ 16k)")
+    ax_q.plot(
+        x - 0.18,
+        Qj,
+        ls="none",
+        marker="^",
+        ms=7,
+        color=OI["green"],
+        label="theory (DF oracle)",
+    )
+    ax_q.plot(
+        x,
+        Q_pred,
+        ls="none",
+        marker="D",
+        ms=6,
+        mfc="white",
+        color=OI["orange"],
+        label="predicted hybrid",
+    )
+    ax_q.errorbar(
+        x + 0.18,
+        Q_meas,
+        yerr=Q_sem,
+        ls="none",
+        marker="o",
+        ms=6,
+        color=OI["blue"],
+        capsize=3,
+        label=rf"sampled ({len(seeds)} seeds $\times$ 16k)",
+    )
     ax_q.set_xticks(x)
     ax_q.set_xticklabels(["halo (Plummer)", "core (EFF)"])
     ax_q.set_xlim(-0.6, 1.6)
@@ -318,8 +416,12 @@ def section_headline(ax_rho, ax_q):
     ax_q.set_title("per-component virial: predict-the-offset", fontsize=9)
     return [
         ("Headline theory max|Q_j - 0.5|", f"{dev_th:.1e}", "< 3e-3", dev_th < 3e-3),
-        ("Headline global Q (N=30k)", f"{Q_glob:.4f}", "0.5 +- 0.02",
-         abs(Q_glob - 0.5) < 0.02),
+        (
+            "Headline global Q (N=30k)",
+            f"{Q_glob:.4f}",
+            "0.5 +- 0.02",
+            abs(Q_glob - 0.5) < 0.02,
+        ),
         ("Headline max|Q_j - Q_pred|", f"{dev_pred:.4f}", "< 0.012", dev_pred < 0.012),
     ]
 
@@ -359,10 +461,23 @@ def section_om(ax):
     print(f"    max |beta_sampled - beta_OM|  = {max_dev:.4f}  (gate < 0.05)")
 
     rr = np.linspace(0.05, float(m.r_t), 200)
-    ax.plot(rr, rr**2 / (rr**2 + r_a**2), color=OI["orange"], lw=1.7,
-            label=r"OM: $r^2/(r^2 + r_a^2)$")
-    ax.plot(centers, beta_s, ls="none", marker="o", ms=5, mfc="white",
-            color=OI["blue"], label=rf"sampled halo ({n_seeds} seeds)")
+    ax.plot(
+        rr,
+        rr**2 / (rr**2 + r_a**2),
+        color=OI["orange"],
+        lw=1.7,
+        label=r"OM: $r^2/(r^2 + r_a^2)$",
+    )
+    ax.plot(
+        centers,
+        beta_s,
+        ls="none",
+        marker="o",
+        ms=5,
+        mfc="white",
+        color=OI["blue"],
+        label=rf"sampled halo ({n_seeds} seeds)",
+    )
     ax.axhline(0.0, color="0.6", ls="--", lw=1.0)
     ax.set_xlabel(r"$r$ [pc]")
     ax.set_ylabel(r"$\beta(r) = 1 - \sigma_t^2 / 2\sigma_r^2$")
@@ -385,30 +500,50 @@ def section_gradients():
     def loss_rh(x):
         state, _ = build_engine_b_state(
             [PlummerProfile(r_h=x), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
-            jnp.array([0.6, 0.4]), jnp.array([jnp.inf, jnp.inf]),
-            None, 0.995, n_r, n_e)
+            jnp.array([0.6, 0.4]),
+            jnp.array([jnp.inf, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
     def loss_t(t):
         state, _ = build_engine_b_state(
-            [king, PlummerProfile(r_h=2.0)], jnp.stack([t, 1.0 - t]),
-            jnp.array([3.0, jnp.inf]), None, 0.995, n_r, n_e)
+            [king, PlummerProfile(r_h=2.0)],
+            jnp.stack([t, 1.0 - t]),
+            jnp.array([3.0, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
     def loss_ra(ra):
         state, _ = build_engine_b_state(
-            [king, PlummerProfile(r_h=2.0)], jnp.array([0.5, 0.5]),
-            jnp.stack([ra, jnp.inf]), None, 0.995, n_r, n_e)
+            [king, PlummerProfile(r_h=2.0)],
+            jnp.array([0.5, 0.5]),
+            jnp.stack([ra, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
     rows = []
-    for name, loss, x0 in (("halo r_h", loss_rh, 2.0),
-                           ("mass fraction t", loss_t, 0.5),
-                           ("r_a_j[0]", loss_ra, 3.0)):
+    for name, loss, x0 in (
+        ("halo r_h", loss_rh, 2.0),
+        ("mass fraction t", loss_t, 0.5),
+        ("r_a_j[0]", loss_ra, 3.0),
+    ):
         ad = float(jax.grad(loss)(jnp.asarray(x0)))
         h = 1e-4 * abs(x0)
-        fd = (float(loss(jnp.asarray(x0 + h)))
-              - float(loss(jnp.asarray(x0 - h)))) / (2.0 * h)
+        fd = (float(loss(jnp.asarray(x0 + h))) - float(loss(jnp.asarray(x0 - h)))) / (
+            2.0 * h
+        )
         rel = abs(ad - fd) / abs(fd)
         print(f"    {name:<16s} AD = {ad:+.8e}  FD = {fd:+.8e}  rel = {rel:.2e}")
         rows.append((f"grad {name} AD-vs-FD", f"{rel:.2e}", "< 1e-3", rel < 1e-3))
@@ -434,8 +569,13 @@ def main():
     rows += section_om(axD)
     rows += section_gradients()
 
-    for ax, tag in ((axA, "(a)"), (axB, "(b)"), (axC, "(c)"), (axD, "(d)"),
-                    (axE, "(e)")):
+    for ax, tag in (
+        (axA, "(a)"),
+        (axB, "(b)"),
+        (axC, "(c)"),
+        (axD, "(d)"),
+        (axE, "(e)"),
+    ):
         loc = "upper right" if ax in (axB, axE) else "upper left"
         panel_label(ax, tag, loc=loc)
 
@@ -452,8 +592,9 @@ def main():
     print("-" * 78)
     print(f"  saved {OUTPUT_DIR}/engine_b_eddington.{{png,pdf}}")
     print("=" * 78)
-    print("  ENGINE B VALIDATION: ALL PASS" if all_ok
-          else "  ENGINE B VALIDATION: FAILED")
+    print(
+        "  ENGINE B VALIDATION: ALL PASS" if all_ok else "  ENGINE B VALIDATION: FAILED"
+    )
     return 0 if all_ok else 1
 
 

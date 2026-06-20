@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import jax.numpy as jnp
-from jaxtyping import Array, Float
-
-
 # =============================================================================
 # Paper Coefficients - EXACT values from literature
 # =============================================================================
@@ -24,14 +20,14 @@ JERABKOVA_COEFFICIENTS = {
     # Constants derived from: log₁₀(3)=0.4771, log₁₀(8π)=1.4003, log₁₀(0.33)=-0.4815
     "FeH_coeff": -0.14,
     "logMecl_coeff": 0.6039,  # 0.99 × 0.61 = 0.6039 (exact)
-    "constant": 0.2161,       # 0.99 × (2.5583 - 6) + 3.6234 = 0.2161 (8π-derived)
+    "constant": 0.2161,  # 0.99 × (2.5583 - 6) + 3.6234 = 0.2161 (8π-derived)
     # α₃(x) relation — Jerabkova+2018 Eq. 6 (= Marks+2012 + 2014 erratum):
     #   α₃ = 2.3 (x < -0.87);  α₃ = -0.41·x + 1.94 (x ≥ -0.87)
     # NOTE: distinct from the Marks+2012 MNRAS Fundamental-Plane fit (-0.4072 / 1.9383),
     # which is kept separately in MARKS_COEFFICIENTS.
-    "x_threshold": -0.87,     # NEGATIVE threshold (top-heavy when x ≥ -0.87); Jerabkova Eq. 6
-    "alpha3_slope": -0.41,    # Jerabkova+2018 Eq. 6
-    "alpha3_intercept": 1.94, # Jerabkova+2018 Eq. 6
+    "x_threshold": -0.87,  # NEGATIVE threshold (top-heavy when x ≥ -0.87); Jerabkova Eq. 6
+    "alpha3_slope": -0.41,  # Jerabkova+2018 Eq. 6
+    "alpha3_intercept": 1.94,  # Jerabkova+2018 Eq. 6
     "alpha3_canonical": 2.3,  # Kroupa (2001) canonical high-mass slope
     # Jerabkova+2018 Eq. 7 (density-based, NO constant term)
     "rho_logRho_coeff": 0.99,
@@ -40,7 +36,7 @@ JERABKOVA_COEFFICIENTS = {
 MARKS_COEFFICIENTS = {
     # Marks+2012 Eq. 14-15 (Fundamental Plane), with the 2014 ERRATUM applied.
     "cos_theta": -0.139,  # cos(98 deg)
-    "sin_theta": 0.990,   # sin(98 deg)
+    "sin_theta": 0.990,  # sin(98 deg)
     # THRESHOLD = -0.87 (NEGATIVE). The originally PRINTED Marks+2012 Eq.14/15 had a
     # missing minus sign ("x' >= 0.87"); the 2014 erratum (Marks et al. 2014, MNRAS
     # 442, 3315; PDF in docs/core-papers/marks-2014-erratum.pdf) states Eq.14 should
@@ -69,5 +65,3 @@ MARKS_TABLE3_COEFFICIENTS = {
 
 # Default SFE from literature (Jerabkova+2018 assumes ε = 0.33)
 DEFAULT_SFE = 0.33
-
-

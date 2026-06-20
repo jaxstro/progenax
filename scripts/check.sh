@@ -6,13 +6,9 @@
 # scripts/release_gate.sh, NOT here.
 #
 # progenax differs from the sibling fluxax/jaxstro gates:
-#   1. NO ruff / mypy step. progenax's pyproject declares no [tool.ruff]/[tool.mypy]
-#      config and its `dev` extra carries no ruff/mypy (fluxax's does). The dormant
-#      progenax CI (.github/workflows/tests.yml) has NO lint/typecheck job either —
-#      it only lock-checks, syncs `--extra dev`, runs `pytest -m "not slow"`, and
-#      wheel-smokes. We mirror CI faithfully rather than introduce a lint toolchain
-#      this repo has never used (which would add config + surface pre-existing debt
-#      out of scope for this gate).
+#   1. Lint: progenax now declares [tool.ruff]/[tool.mypy] in pyproject (jaxstro-matched)
+#      and its `dev` extra carries ruff/mypy. We run `ruff check`, `ruff format --check`,
+#      and `mypy src/progenax` as HARD steps before the test tier (mirroring fluxax/jaxstro).
 #   2. The test invocation uses the XLA thread caps + pytest-xdist `-n auto`
 #      (progenax/CLAUDE.md "Quick Commands"): the multimass-LIMEPY equilibrium tests
 #      make the serial suite slow, so we cap XLA threads and shard with xdist.
@@ -43,6 +39,13 @@ echo "== sync (extra dev) =="
 # the experimental/viz extras. Run them under `--extra experimental` (+ a jaxstroviz checkout
 # for the CLI smokes) when you want the OED demos exercised.
 env -u VIRTUAL_ENV uv sync --extra dev
+
+echo "== lint: ruff check =="
+$RUN ruff check src/progenax tests scripts
+echo "== lint: ruff format --check =="
+$RUN ruff format --check src/progenax tests scripts
+echo "== lint: mypy =="
+$RUN mypy src/progenax
 
 echo "== fast test tier (-m 'not slow', xdist, XLA-capped) =="
 # This is the FAST tier of the two-tier gate. It runs:

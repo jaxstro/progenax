@@ -6,9 +6,9 @@ Implements SpatialProfile protocol for use with IC assembly.
 This is the CW04 '3D0' reference distribution for Q parameter validation.
 """
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
 
@@ -82,7 +82,7 @@ class UniformSphereProfile(eqx.Module):
 
         # Sample isotropic angles
         cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
-        phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2*jnp.pi)
+        phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2 * jnp.pi)
 
         # Convert to Cartesian
         sin_theta = jnp.sqrt(1.0 - cos_theta**2)

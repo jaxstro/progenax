@@ -54,7 +54,9 @@ def _eval_binary_fraction(bf: Any, m1: Float[Array, "N"]) -> Float[Array, "N"]:
     return bf(m1)
 
 
-def _sample_mass_ratio(q_dist: Any, key: PRNGKeyArray, m1: Float[Array, "N"]) -> Float[Array, "N"]:
+def _sample_mass_ratio(
+    q_dist: Any, key: PRNGKeyArray, m1: Float[Array, "N"]
+) -> Float[Array, "N"]:
     """Sample q given primaries (duck-typed dispatch, mirrors BinaryIMF.sample_mass_ratios).
 
     - mass-dependent (`sample_given_primary`, e.g. MoeDiStefano2017) -> q | m1

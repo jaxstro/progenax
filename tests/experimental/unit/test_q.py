@@ -15,16 +15,22 @@ import pytest
 
 pytestmark = pytest.mark.experimental
 
-import sys, pathlib  # noqa: E402
+import pathlib  # noqa: E402
+import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # tests/experimental
+sys.path.insert(
+    0, str(pathlib.Path(__file__).resolve().parents[1])
+)  # tests/experimental
 from fixtures.cw04_models import radial_profile_positions  # noqa: E402
 
 
 def _q_ensemble(alpha, n_real=30, N=200):
     from gravoturb_fdf.diagnostics.q import compute_q_parameter
 
-    qs = [compute_q_parameter(radial_profile_positions(alpha, N, seed=s)) for s in range(n_real)]
+    qs = [
+        compute_q_parameter(radial_profile_positions(alpha, N, seed=s))
+        for s in range(n_real)
+    ]
     return float(np.mean(qs)), float(np.std(qs))
 
 
@@ -72,9 +78,12 @@ def test_core_and_experimental_q_agree():
     released reference.
     """
     from gravoturb_fdf.diagnostics.q import compute_q_parameter as q_exp
+
     from progenax.diagnostics.substructure import compute_q_parameter as q_core
 
     for alpha in (0.0, 1.0, 2.0):
         for seed in range(8):
             pos = radial_profile_positions(alpha, 200, seed)
-            assert q_core(np.asarray(pos)) == pytest.approx(float(q_exp(np.asarray(pos))), abs=1e-9)
+            assert q_core(np.asarray(pos)) == pytest.approx(
+                float(q_exp(np.asarray(pos))), abs=1e-9
+            )

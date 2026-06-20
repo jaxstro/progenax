@@ -8,10 +8,11 @@ invariants, r_a domain guard, jit smoke.
 import jax
 import jax.numpy as jnp
 import pytest
+
 import progenax
 from progenax import jeans_dispersion, project_dispersion
 from progenax.kinematics.dispersion import DispersionProfile, ProjectedDispersion
-from progenax.profiles import PlummerProfile, EFFProfile
+from progenax.profiles import EFFProfile, PlummerProfile
 
 G_STELLAR = 0.00449
 
@@ -31,20 +32,26 @@ def _assert_ad_fd(f, theta0, *, h=None, name=""):
     g_ad = float(jax.grad(f)(theta0))
     g_fd = float((f(theta0 + h) - f(theta0 - h)) / (2.0 * h))
     rel = abs(g_ad - g_fd) / (abs(g_fd) + 1e-12)
-    assert rel < 1e-3, f"{name}: AD-vs-FD inconsistent g_ad={g_ad!r} g_fd={g_fd!r} rel={rel!r}"
+    assert rel < 1e-3, (
+        f"{name}: AD-vs-FD inconsistent g_ad={g_ad!r} g_fd={g_fd!r} rel={rel!r}"
+    )
     assert abs(g_ad) > 1e-9, f"{name}: silent/blocked-zero gradient g_ad={g_ad!r}"
     return g_ad, g_fd, rel
 
 
 class TestPchipInterp:
     def test_passes_through_nodes(self):
-        x = jnp.linspace(0.5, 4.0, 12); y = jnp.sin(x)
+        x = jnp.linspace(0.5, 4.0, 12)
+        y = jnp.sin(x)
         from progenax.kinematics.dispersion import _pchip_interp
+
         assert jnp.allclose(_pchip_interp(x, x, y), y, atol=1e-12)
 
     def test_exact_on_linear(self):
         from progenax.kinematics.dispersion import _pchip_interp
-        x = jnp.linspace(0.0, 10.0, 9); y = 3.0 * x - 1.0
+
+        x = jnp.linspace(0.0, 10.0, 9)
+        y = 3.0 * x - 1.0
         xq = jnp.linspace(0.3, 9.7, 50)
         assert jnp.allclose(_pchip_interp(xq, x, y), 3.0 * xq - 1.0, atol=1e-10)
 
@@ -52,18 +59,31 @@ class TestPchipInterp:
         # central FD of the interpolant straddling an interior node must agree
         # left vs right (C1); linear interp would show a jump here.
         from progenax.kinematics.dispersion import _pchip_interp
-        x = jnp.linspace(0.0, 6.0, 13); y = jnp.exp(-x)        # smooth, monotone
-        node = x[6]; e = 1e-3
-        d_left  = (_pchip_interp(jnp.array([node - e]), x, y) - _pchip_interp(jnp.array([node - 2*e]), x, y)) / e
-        d_right = (_pchip_interp(jnp.array([node + 2*e]), x, y) - _pchip_interp(jnp.array([node + e]), x, y)) / e
+
+        x = jnp.linspace(0.0, 6.0, 13)
+        y = jnp.exp(-x)  # smooth, monotone
+        node = x[6]
+        e = 1e-3
+        d_left = (
+            _pchip_interp(jnp.array([node - e]), x, y)
+            - _pchip_interp(jnp.array([node - 2 * e]), x, y)
+        ) / e
+        d_right = (
+            _pchip_interp(jnp.array([node + 2 * e]), x, y)
+            - _pchip_interp(jnp.array([node + e]), x, y)
+        ) / e
         assert abs(float(d_left[0] - d_right[0])) < 1e-2 * abs(float(d_right[0]))
 
     def test_differentiable_in_data(self):
         from progenax.kinematics.dispersion import _pchip_interp
+
         x = jnp.linspace(0.5, 4.0, 10)
+
         def loss(scale):
             return jnp.sum(_pchip_interp(jnp.array([1.3, 2.7]), x, scale * jnp.cos(x)))
-        g = float(jax.grad(loss)(1.0)); assert abs(g) > 1e-9 and jnp.isfinite(g)
+
+        g = float(jax.grad(loss)(1.0))
+        assert abs(g) > 1e-9 and jnp.isfinite(g)
 
     def test_nan_safe_grad_on_degenerate_data(self):
         # Non-monotone data with a local max (sign-changing secants -> the
@@ -71,17 +91,29 @@ class TestPchipInterp:
         # (zero secants), exercising the double-`where` NaN guard. jax.grad must
         # stay finite (a naive 1/0 in the harmonic-mean slope would NaN here).
         from progenax.kinematics.dispersion import _pchip_interp
+
         x = jnp.linspace(0.0, 6.0, 13)
-        base = jnp.array([0.,1.,2.,3.,2.,1.,1.,1.,1.,2.,3.,4.,5.])
+        base = jnp.array(
+            [0.0, 1.0, 2.0, 3.0, 2.0, 1.0, 1.0, 1.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+        )
+
         def loss(c):
             return jnp.sum(_pchip_interp(jnp.array([1.5, 3.0, 4.5]), x, c * base))
-        g = float(jax.grad(loss)(1.0)); assert jnp.isfinite(g)
+
+        g = float(jax.grad(loss)(1.0))
+        assert jnp.isfinite(g)
 
 
 def test_exports_and_namedtuples():
     assert {"jeans_dispersion", "project_dispersion"} <= set(progenax.__all__)
     assert DispersionProfile._fields == ("r", "sigma_r", "sigma_t", "sigma_1d", "beta")
-    assert ProjectedDispersion._fields == ("R", "sigma_los", "sigma_pm_r", "sigma_pm_t", "Sigma")
+    assert ProjectedDispersion._fields == (
+        "R",
+        "sigma_los",
+        "sigma_pm_r",
+        "sigma_pm_t",
+        "Sigma",
+    )
 
 
 def test_plummer_isotropic_closed_form():
@@ -99,15 +131,18 @@ def test_gm_scaling_invariants():
     r = jnp.array([1.0])
     s1 = jeans_dispersion(prof, 2.0, r, 400.0, 0.00449).sigma_r
     assert jnp.allclose(
-        jeans_dispersion(prof, 2.0, r, 800.0, 0.00449).sigma_r**2, 2 * s1**2, rtol=1e-4
+        jeans_dispersion(prof, 2.0, r, 800.0, 0.00449).sigma_r ** 2,
+        2 * s1**2,
+        rtol=1e-4,
     )
     assert jnp.allclose(
-        jeans_dispersion(prof, 2.0, r, 400.0, 2 * 0.00449).sigma_r**2, 2 * s1**2, rtol=1e-4
+        jeans_dispersion(prof, 2.0, r, 400.0, 2 * 0.00449).sigma_r ** 2,
+        2 * s1**2,
+        rtol=1e-4,
     )
 
 
 def test_r_a_domain_guard():
-    import pytest
 
     prof = PlummerProfile(r_h=1.0)
     with pytest.raises(ValueError):  # r_a < 0.75 a is unphysical for Plummer OM
@@ -116,7 +151,9 @@ def test_r_a_domain_guard():
 
 def test_jit_smoke():
     prof = PlummerProfile(r_h=1.0)
-    f = jax.jit(lambda ra: jeans_dispersion(prof, ra, jnp.array([1.0]), 400.0, 0.00449).sigma_r)
+    f = jax.jit(
+        lambda ra: jeans_dispersion(prof, ra, jnp.array([1.0]), 400.0, 0.00449).sigma_r
+    )
     assert jnp.isfinite(f(2.0)).all()
 
 
@@ -163,6 +200,7 @@ def test_grad_jeans_dispersion_wrt_r_h():
 
 def test_grad_jeans_dispersion_wrt_gamma():
     """4. d(sum sigma_r)/d(gamma) — through EFFProfile (isotropic, mild trunc)."""
+
     # a=1.0, r_t=30.0 (wide truncation); query radii [0.5,2.0] well inside.
     # Isotropic (r_a=None) so no OM validity domain to worry about for EFF.
     def f(gamma):
@@ -177,7 +215,9 @@ def test_grad_project_sigma_los_wrt_r_a():
     prof = PlummerProfile(r_h=1.0)
 
     def f(r_a):
-        return jnp.sum(project_dispersion(prof, r_a, R_QUERY, 400.0, G_STELLAR).sigma_los)
+        return jnp.sum(
+            project_dispersion(prof, r_a, R_QUERY, 400.0, G_STELLAR).sigma_los
+        )
 
     _assert_ad_fd(f, 2.0, name="project sigma_los / r_a")
 
@@ -197,7 +237,9 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
     prof = PlummerProfile(r_h=1.0)
 
     def f(r_a):
-        return jnp.sum(project_dispersion(prof, r_a, R_QUERY, 400.0, G_STELLAR).sigma_pm_t)
+        return jnp.sum(
+            project_dispersion(prof, r_a, R_QUERY, 400.0, G_STELLAR).sigma_pm_t
+        )
 
     _assert_ad_fd(f, 2.0, name="project sigma_pm_t / r_a")
 
@@ -225,7 +267,11 @@ def test_grad_jeans_eff_wrt_r_t():
     def f(r_t):
         return jnp.sum(
             jeans_dispersion(
-                EFFProfile(a=1.0, gamma=4.0, r_t=r_t), None, jnp.array([1.0]), 400.0, G_STELLAR
+                EFFProfile(a=1.0, gamma=4.0, r_t=r_t),
+                None,
+                jnp.array([1.0]),
+                400.0,
+                G_STELLAR,
             ).sigma_r
         )
 
@@ -238,7 +284,11 @@ def test_grad_jeans_eff_wrt_gamma():
     def f(g):
         return jnp.sum(
             jeans_dispersion(
-                EFFProfile(a=1.0, gamma=g, r_t=8.0), None, jnp.array([1.0]), 400.0, G_STELLAR
+                EFFProfile(a=1.0, gamma=g, r_t=8.0),
+                None,
+                jnp.array([1.0]),
+                400.0,
+                G_STELLAR,
             ).sigma_r
         )
 
@@ -258,7 +308,11 @@ def test_grad_jeans_king_wrt_W0():
     def f(W0):
         return jnp.sum(
             jeans_dispersion(
-                KingProfile.from_W0_rc(W0=W0, r_c=1.0), None, jnp.array([1.0]), 400.0, G_STELLAR
+                KingProfile.from_W0_rc(W0=W0, r_c=1.0),
+                None,
+                jnp.array([1.0]),
+                400.0,
+                G_STELLAR,
             ).sigma_r
         )
 
@@ -286,7 +340,9 @@ def test_grad_jeans_michie_wrt_W0():
             ).sigma_r
         )
 
-    _assert_ad_fd(f, 6.0, name="jeans Michie sigma_r / W0")  # measured rel ~3.5e-4 < 1e-3
+    _assert_ad_fd(
+        f, 6.0, name="jeans Michie sigma_r / W0"
+    )  # measured rel ~3.5e-4 < 1e-3
 
 
 def test_grad_jeans_michie_high_W0_ad_correct():
@@ -346,7 +402,9 @@ def test_grad_df_moment_michie_wrt_W0():
     def f(W0):
         df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
         return jnp.sum(
-            df_moment_dispersion(df, jnp.array([2.0, 13.0, 25.0]), 400.0, G_STELLAR).sigma_r
+            df_moment_dispersion(
+                df, jnp.array([2.0, 13.0, 25.0]), 400.0, G_STELLAR
+            ).sigma_r
         )
 
     _assert_ad_fd(f, 6.0, name="df_moment Michie sigma_r / W0")  # measured rel ~1e-7
@@ -366,7 +424,9 @@ def test_grad_df_moment_michie_high_W0_ad_correct():
     def f(W0):
         df = MichieVelocityDF(W0=W0, r_c=1.0, r_a=5.0, xi_max=800.0, n_ode_points=3000)
         # r=20 is deep interior at W0=7 (r_t ~ 545, so ~0.037 r_t); well inside r_t
-        return jnp.sum(df_moment_dispersion(df, jnp.array([20.0]), 400.0, G_STELLAR).sigma_r)
+        return jnp.sum(
+            df_moment_dispersion(df, jnp.array([20.0]), 400.0, G_STELLAR).sigma_r
+        )
 
     W0 = 7.0
     g_ad = float(jax.grad(f)(W0))
@@ -453,7 +513,12 @@ def test_grad_jeans_beta_fn_wrt_M():
     def f(M):
         return jnp.sum(
             jeans_dispersion(
-                PlummerProfile(r_h=1.0), None, jnp.array([1.0]), M, G_STELLAR, beta_fn=beta_om
+                PlummerProfile(r_h=1.0),
+                None,
+                jnp.array([1.0]),
+                M,
+                G_STELLAR,
+                beta_fn=beta_om,
             ).sigma_r
         )
 
@@ -593,21 +658,31 @@ def test_grad_jeans_finite_rt_grad_finite_beyond_r_t():
 
     # (a) grad of a single beyond-r_t point wrt M is finite.
     g_single = jax.grad(
-        lambda M: jeans_dispersion(prof, None, jnp.array([10.0]), M, G_STELLAR).sigma_r[0]
+        lambda M: jeans_dispersion(prof, None, jnp.array([10.0]), M, G_STELLAR).sigma_r[
+            0
+        ]
     )(400.0)
     assert jnp.isfinite(g_single)
 
     # (b) grad over an EFF grid SPANNING r_t wrt gamma (rebuild profile inside) is finite.
     def f_eff_gamma(gamma):
         p = EFFProfile(a=1.0, gamma=gamma, r_t=8.0)
-        return jnp.sum(jeans_dispersion(p, None, jnp.array([1.0, 5.0, 10.0]), 400.0, G_STELLAR).sigma_r)
+        return jnp.sum(
+            jeans_dispersion(
+                p, None, jnp.array([1.0, 5.0, 10.0]), 400.0, G_STELLAR
+            ).sigma_r
+        )
 
     assert jnp.isfinite(jax.grad(f_eff_gamma)(4.0))
 
     # (c) King: grad over a grid SPANNING r_t wrt r_c (rebuild profile inside) is finite.
     def f_king_rc(r_c):
         p = KingProfile.from_W0_rc(W0=6.0, r_c=r_c)  # r_t ~ a few r_c
-        return jnp.sum(jeans_dispersion(p, None, jnp.array([1.0, 5.0, 50.0]), 400.0, G_STELLAR).sigma_r)
+        return jnp.sum(
+            jeans_dispersion(
+                p, None, jnp.array([1.0, 5.0, 50.0]), 400.0, G_STELLAR
+            ).sigma_r
+        )
 
     assert jnp.isfinite(jax.grad(f_king_rc)(1.0))
 
@@ -621,11 +696,14 @@ def test_grad_project_finite_rt_grad_finite_beyond_r_t():
     a grad/jacrev over an on-sky grid spanning r_t returned NaN. _safe_sqrt fixes
     both the value (exact 0) and the gradient (finite 0) at the argument's 0.
     """
-    prof = EFFProfile(a=1.0, gamma=5.0, r_t=8.0)
 
     def f_eff_a(a):
         p = EFFProfile(a=a, gamma=5.0, r_t=8.0)
-        return jnp.sum(project_dispersion(p, None, jnp.array([2.0, 6.0, 10.0]), 400.0, G_STELLAR).sigma_los)
+        return jnp.sum(
+            project_dispersion(
+                p, None, jnp.array([2.0, 6.0, 10.0]), 400.0, G_STELLAR
+            ).sigma_los
+        )
 
     assert jnp.isfinite(jax.grad(f_eff_a)(1.0))
 
@@ -644,7 +722,9 @@ def test_grad_project_king_rc_finite_beyond_r_t():
 
     def f_king_rc(r_c):
         p = KingProfile.from_W0_rc(W0=6.0, r_c=r_c)
-        return project_dispersion(p, None, jnp.array([2.0, 6.0, 40.0]), 400.0, G_STELLAR).sigma_los
+        return project_dispersion(
+            p, None, jnp.array([2.0, 6.0, 40.0]), 400.0, G_STELLAR
+        ).sigma_los
 
     jac = jax.jacrev(lambda rc: jnp.sum(f_king_rc(rc)))(1.0)
     assert jnp.isfinite(jac)

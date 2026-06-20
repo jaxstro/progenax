@@ -33,9 +33,7 @@ def test_volume_pdf_normalized(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_icdf_analytic_roundtrip(mach, b, alpha):
     """Analytic iCDF inverts the volume CDF exactly: F(F^{-1}(u)) = u, incl. deep tail."""
-    import jax
-    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic
-    from gravoturb_fdf.theory.pdf import build_bm19_cdf_table
+    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic, build_bm19_cdf_table
 
     u = np.array([1e-6, 0.01, 0.2, 0.5, 0.8, 0.99, 1 - 1e-6, 1 - 5e-7])
     s = np.asarray(bm19_icdf_analytic(u, mach, b, alpha))
@@ -51,7 +49,11 @@ def test_icdf_analytic_differentiable():
     from gravoturb_fdf.theory.pdf import bm19_icdf_analytic
 
     for u in (0.3, 0.95):
-        g = float(jax.grad(lambda a: jnp.sum(bm19_icdf_analytic(jnp.array([u]), 6.0, 0.4, a)))(1.8))
+        g = float(
+            jax.grad(
+                lambda a: jnp.sum(bm19_icdf_analytic(jnp.array([u]), 6.0, 0.4, a))
+            )(1.8)
+        )
         assert jnp.isfinite(g)
 
 
@@ -63,7 +65,9 @@ def test_mass_cdf_matches_numeric(mach, b, alpha):
     s = np.linspace(-30.0, 90.0, 2_000_000)
     p = np.asarray(bm19_volume_pdf(s, mach, b, alpha))
     mass_density = np.exp(s) * p
-    cum = np.concatenate([[0.0], np.cumsum(0.5 * (mass_density[1:] + mass_density[:-1]) * np.diff(s))])
+    cum = np.concatenate(
+        [[0.0], np.cumsum(0.5 * (mass_density[1:] + mass_density[:-1]) * np.diff(s))]
+    )
     cum /= cum[-1]  # normalize to M(∞)=1
     grid = np.linspace(-10.0, 20.0, 40)
     m_analytic = np.asarray(bm19_mass_cdf(grid, mach, b, alpha))
@@ -83,7 +87,9 @@ def test_mass_cdf_at_transition_is_one_minus_f_dense(mach, b, alpha):
 
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
     f_dense = float(f_dense_bm19_full(mach, b, alpha))
-    assert 1.0 - float(bm19_mass_cdf(s_t, mach, b, alpha)) == pytest.approx(f_dense, rel=1e-4)
+    assert 1.0 - float(bm19_mass_cdf(s_t, mach, b, alpha)) == pytest.approx(
+        f_dense, rel=1e-4
+    )
 
 
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
@@ -92,7 +98,9 @@ def test_mean_density_matches_numeric(mach, b, alpha):
     from gravoturb_fdf.theory.pdf import bm19_mean_density, bm19_volume_pdf
 
     s = np.linspace(-30.0, 90.0, 2_000_000)
-    numeric = np.trapezoid(np.exp(s) * np.asarray(bm19_volume_pdf(s, mach, b, alpha)), s)
+    numeric = np.trapezoid(
+        np.exp(s) * np.asarray(bm19_volume_pdf(s, mach, b, alpha)), s
+    )
     val = float(bm19_mean_density(mach, b, alpha))
     assert val >= 1.0
     assert val == pytest.approx(numeric, rel=2e-3)
@@ -130,7 +138,7 @@ def test_cdf_monotone_and_bounds(mach, b, alpha):
 
     s_grid, cdf = build_bm19_cdf_table(mach, b, alpha)
     s_grid, cdf = np.asarray(s_grid), np.asarray(cdf)
-    assert np.all(np.diff(cdf) >= -1e-12)          # non-decreasing
+    assert np.all(np.diff(cdf) >= -1e-12)  # non-decreasing
     assert cdf[0] == pytest.approx(0.0, abs=1e-3)
     assert cdf[-1] == pytest.approx(1.0, abs=1e-3)
 
@@ -139,7 +147,6 @@ def test_cdf_monotone_and_bounds(mach, b, alpha):
 def test_icdf_roundtrip(mach, b, alpha):
     """F(F^{-1}(u)) ~= u for u in (0,1)."""
     import jax.numpy as jnp
-
     from gravoturb_fdf.theory.pdf import bm19_icdf, build_bm19_cdf_table
 
     s_grid, cdf = build_bm19_cdf_table(mach, b, alpha)
@@ -151,8 +158,8 @@ def test_icdf_roundtrip(mach, b, alpha):
 
 
 def test_icdf_monotone_in_u():
-    from gravoturb_fdf.theory.pdf import bm19_icdf
     import jax.numpy as jnp
+    from gravoturb_fdf.theory.pdf import bm19_icdf
 
     s = np.asarray(bm19_icdf(jnp.linspace(0.05, 0.95, 100), 5.0, 0.4, 2.0))
     assert np.all(np.diff(s) > 0)
@@ -160,8 +167,8 @@ def test_icdf_monotone_in_u():
 
 def test_icdf_differentiable_in_params():
     """bm19_icdf is differentiable in alpha (grad-safe table) - enables P2 copula grads."""
-    from gravoturb_fdf.theory.pdf import bm19_icdf
     import jax.numpy as jnp
+    from gravoturb_fdf.theory.pdf import bm19_icdf
 
     def mean_s(alpha):
         u = jnp.linspace(0.1, 0.9, 64)

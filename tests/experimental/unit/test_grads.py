@@ -21,7 +21,9 @@ def _central_fd(f, x, eps=1e-6):
 def test_grad_sign_sigma_s_squared_positive():
     from gravoturb_fdf.theory.bm19 import sigma_s_squared
 
-    assert float(jax.grad(lambda m: sigma_s_squared(m, 0.4))(5.0)) > 0.0  # widens with Mach
+    assert (
+        float(jax.grad(lambda m: sigma_s_squared(m, 0.4))(5.0)) > 0.0
+    )  # widens with Mach
 
 
 def test_grad_sign_f_dense_decreases_with_mach_and_alpha():
@@ -29,8 +31,8 @@ def test_grad_sign_f_dense_decreases_with_mach_and_alpha():
 
     dM = float(jax.grad(lambda m: f_dense_bm19_full(m, 1.0 / 3, 1.8))(8.0))
     da = float(jax.grad(lambda a: f_dense_bm19_full(8.0, 1.0 / 3, a))(1.8))
-    assert dM < 0.0   # higher Mach -> less dense gas
-    assert da < 0.0   # steeper tail  -> less dense gas
+    assert dM < 0.0  # higher Mach -> less dense gas
+    assert da < 0.0  # steeper tail  -> less dense gas
 
 
 def test_grad_sign_zeta_decreases_with_alpha():

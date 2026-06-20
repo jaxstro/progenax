@@ -29,16 +29,17 @@ asymmetry): a symbol is a model iff
   - its name matches ``build_*cluster*`` (a cluster entry point).
 The protocol classes themselves (SpatialProfile/VelocityDF/IMFProtocol/...) are NOT models.
 """
+
 import re
 from pathlib import Path
-
-import progenax
 
 from jaxstro.testing.ratchet import (
     assert_no_stale,
     assert_partition,
     resolve_node_ids,
 )
+
+import progenax
 from progenax.protocols import SpatialProfile, VelocityDF
 from tests.validation.physics_registry.manifest import (
     EXEMPT_NON_EQUILIBRIUM_MODEL,
@@ -50,11 +51,19 @@ from tests.validation.physics_registry.manifest import (
 # The runtime-checkable typing Protocols themselves are NOT models (they are the
 # yardstick, not a measured object). issubclass(SpatialProfile, SpatialProfile) is True,
 # so they would otherwise self-classify as models.
-_PROTOCOL_NAMES = frozenset({
-    "SpatialProfile", "VelocityDF", "IMFProtocol", "PeriodDistribution",
-    "EccentricityDistribution", "ConditionalEccentricityDistribution",
-    "MassPeriodEccentricityDistribution", "BinaryFractionModel", "CompanionModel",
-})
+_PROTOCOL_NAMES = frozenset(
+    {
+        "SpatialProfile",
+        "VelocityDF",
+        "IMFProtocol",
+        "PeriodDistribution",
+        "EccentricityDistribution",
+        "ConditionalEccentricityDistribution",
+        "MassPeriodEccentricityDistribution",
+        "BinaryFractionModel",
+        "CompanionModel",
+    }
+)
 
 # The method set IMFProtocol REQUIRES (it cannot be used with issubclass because it also
 # declares the data members m_min/m_max; this class-level method check is the structural
@@ -142,15 +151,19 @@ def test_operational_models_are_not_mis_filed_as_non_model():
         "OPERATIONAL models (profile/DF/IMF by protocol or build_*_cluster) mis-filed in "
         f"EXEMPT_NON_MODEL — they cannot escape physics validation: {mis_filed}. Move each "
         f"to MODEL_INVARIANTS (with its invariants) or EXEMPT_NON_EQUILIBRIUM_MODEL "
-        f"(reference-parity / non-equilibrium, with a documented reason).")
+        f"(reference-parity / non-equilibrium, with a documented reason)."
+    )
 
     # And every operational model must be ACCOUNTED FOR by a model dict (the registry's
     # whole point). An operational model in none of the model dicts is an unguarded hole.
-    accounted = set(MODEL_INVARIANTS) | set(EXEMPT_NON_EQUILIBRIUM_MODEL) | set(UNTESTED_MODELS)
+    accounted = (
+        set(MODEL_INVARIANTS) | set(EXEMPT_NON_EQUILIBRIUM_MODEL) | set(UNTESTED_MODELS)
+    )
     unguarded = sorted(s for s in ops if s not in accounted)
     assert not unguarded, (
         f"OPERATIONAL models not in any model dict (unguarded by the registry): {unguarded}. "
-        f"Add each to MODEL_INVARIANTS, EXEMPT_NON_EQUILIBRIUM_MODEL, or UNTESTED_MODELS.")
+        f"Add each to MODEL_INVARIANTS, EXEMPT_NON_EQUILIBRIUM_MODEL, or UNTESTED_MODELS."
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -166,7 +179,10 @@ def test_no_stale_mappings():
     assert_no_stale(MODEL_INVARIANTS, public, label="physics.MODEL_INVARIANTS")
     assert_no_stale(EXEMPT_NON_MODEL, public, label="physics.EXEMPT_NON_MODEL")
     assert_no_stale(
-        EXEMPT_NON_EQUILIBRIUM_MODEL, public, label="physics.EXEMPT_NON_EQUILIBRIUM_MODEL")
+        EXEMPT_NON_EQUILIBRIUM_MODEL,
+        public,
+        label="physics.EXEMPT_NON_EQUILIBRIUM_MODEL",
+    )
     assert_no_stale(UNTESTED_MODELS, public, label="physics.UNTESTED_MODELS")
 
 
@@ -182,7 +198,8 @@ def test_no_untested_model_holes():
     RED until the validation test exists (a Task-4.2 hole for Anna)."""
     assert not UNTESTED_MODELS, (
         "models with NO enumerated physics invariant (real holes — write the validation "
-        f"test and move to MODEL_INVARIANTS with Anna's sign-off): {sorted(UNTESTED_MODELS)}")
+        f"test and move to MODEL_INVARIANTS with Anna's sign-off): {sorted(UNTESTED_MODELS)}"
+    )
 
 
 # --------------------------------------------------------------------------------------
@@ -207,7 +224,8 @@ def test_crosscheck_grad_audit_symbol_category():
     assert not hard_fail, (
         f"symbols EXEMPT_NON_MODEL here but OPERATIONALLY a profile/DF/IMF: {hard_fail}. "
         f"A real model is not a non-model — move to MODEL_INVARIANTS or "
-        f"EXEMPT_NON_EQUILIBRIUM_MODEL.")
+        f"EXEMPT_NON_EQUILIBRIUM_MODEL."
+    )
 
     # Informational: where the physics-registry and grad-audit partitions disagree.
     # Documented for human review without making the suite brittle to each registry's lens.
@@ -223,10 +241,16 @@ def test_crosscheck_grad_audit_symbol_category():
         else:
             pr = "EXEMPT_NON_MODEL"
         ga_audited = ga == AUDITED
-        pr_model = pr in ("MODEL_INVARIANTS", "EXEMPT_NON_EQUILIBRIUM_MODEL", "UNTESTED_MODELS")
+        pr_model = pr in (
+            "MODEL_INVARIANTS",
+            "EXEMPT_NON_EQUILIBRIUM_MODEL",
+            "UNTESTED_MODELS",
+        )
         # Disagreement of interest: grad-audit AUDITED a symbol we call a non-model, or
         # we call a symbol a model that grad-audit marks EXEMPT.
-        if (ga_audited and not pr_model) or (not ga_audited and pr_model and ga != "<absent>"):
+        if (ga_audited and not pr_model) or (
+            not ga_audited and pr_model and ga != "<absent>"
+        ):
             divergences.append(f"{s}: grad_audit={ga} physics_registry={pr}")
     if divergences:
         print(
@@ -253,7 +277,9 @@ def test_every_cited_test_node_id_resolves():
     guarantee — every cited id collects — is preserved by asserting the resolved set
     equals the full requested set.
     """
-    node_ids = sorted({nid for inv in MODEL_INVARIANTS.values() for nid in inv.values()})
+    node_ids = sorted(
+        {nid for inv in MODEL_INVARIANTS.values() for nid in inv.values()}
+    )
     assert node_ids, "MODEL_INVARIANTS cites no tests — the registry is empty."
 
     repo_root = Path(__file__).resolve().parents[3]
@@ -261,4 +287,5 @@ def test_every_cited_test_node_id_resolves():
     unresolved = sorted(set(node_ids) - resolved)
     assert not unresolved, (
         "at least one MODEL_INVARIANTS node id did not collect (a mapping to a "
-        f"non-existent or import-broken test — fix the citation): {unresolved}")
+        f"non-existent or import-broken test — fix the citation): {unresolved}"
+    )

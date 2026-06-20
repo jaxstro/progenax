@@ -24,6 +24,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from progenax.cluster.constants import (
+    ALPHA_LARSON,
     B_DEFAULT,
     BETA_DENSITY_FLOOR,
     BETA_KOLMOGOROV,
@@ -32,9 +33,7 @@ from progenax.cluster.constants import (
     KIMRYU_BETA_INTERCEPT,
     KIMRYU_BETA_LOGSLOPE,
     SIGMA_V0_DEFAULT,
-    ALPHA_LARSON,
 )
-
 
 # =============================================================================
 # Density-Mach Relation (Federrath+2010)

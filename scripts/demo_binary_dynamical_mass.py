@@ -36,6 +36,7 @@ References:
   Moe & Di Stefano (2017) ApJS 230, 15  -- the P-q-e binary statistics.
   Tout et al. (1996) MNRAS 281, 257     -- the ZAMS mass-luminosity relation.
 """
+
 import os
 import sys
 
@@ -47,11 +48,11 @@ import progenax  # noqa: F401  -- enables float64 at import
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _demo_binaries import (  # noqa: E402
+    _kernel_std,
     build_korb_kernel,
     dyn_mass_ratio,
     predict_vlos_counts,
     sample_blend_velocities,
-    _kernel_std,
 )
 from _demo_inference import (  # noqa: E402
     constrained_cov,
@@ -70,18 +71,18 @@ OUTPUT_DIR = "validation/plots"
 # --- configuration ---------------------------------------------------------- #
 # UFD-like regime: a low-dispersion, metal-poor system where unresolved binaries
 # are a large fractional contaminant of the velocity dispersion.
-SIGMA_TRUE = 5.0          # true cluster LOS velocity dispersion [km/s]
-Z_MET = 1e-3              # metallicity for the Tout ZAMS photometry (metal-poor)
-F_B_TRUE = 0.5            # unresolved binary fraction
-N_STARS = 1500            # RV stars in the mock survey
-EPS_KMS = 1.0             # per-star RV measurement precision [km/s]
-R_H_PC = 30.0             # half-mass radius [pc] (sets the virial-mass scale)
+SIGMA_TRUE = 5.0  # true cluster LOS velocity dispersion [km/s]
+Z_MET = 1e-3  # metallicity for the Tout ZAMS photometry (metal-poor)
+F_B_TRUE = 0.5  # unresolved binary fraction
+N_STARS = 1500  # RV stars in the mock survey
+EPS_KMS = 1.0  # per-star RV measurement precision [km/s]
+R_H_PC = 30.0  # half-mass radius [pc] (sets the virial-mass scale)
 
 # Binned-likelihood velocity grid: wide enough (~+/-10 sigma_obs) to hold the
 # non-Gaussian binary wings that break the degeneracy.
-V_EDGES = np.linspace(-60.0, 60.0, 121)   # 120 bins of 1 km/s
-N_POOL = 200_000          # K_orb template pool (low template noise)
-KORB_GRID_MAX = 150.0     # K_orb grid half-width [km/s] (must span the wings)
+V_EDGES = np.linspace(-60.0, 60.0, 121)  # 120 bins of 1 km/s
+N_POOL = 200_000  # K_orb template pool (low template noise)
+KORB_GRID_MAX = 150.0  # K_orb grid half-width [km/s] (must span the wings)
 KORB_N_GRID = 601
 
 # Parameter boxes for the bounded MLE (logit/expit reparametrization).
@@ -92,8 +93,9 @@ ADAM_LR = 3e-2
 SEED = 0
 
 
-def build_mock_vlos(key, f_b=F_B_TRUE, sigma_true=SIGMA_TRUE, eps=EPS_KMS,
-                    n_stars=N_STARS, Z=Z_MET):
+def build_mock_vlos(
+    key, f_b=F_B_TRUE, sigma_true=SIGMA_TRUE, eps=EPS_KMS, n_stars=N_STARS, Z=Z_MET
+):
     r"""Mock observed LOS velocities of a binary-contaminated cluster [km/s].
 
     ``n_b = round(f_b * n_stars)`` stars are unresolved binaries: their observed
@@ -133,7 +135,7 @@ def gate1_bias(key, var_korb, f_b_grid=None, n_real=20, eps=EPS_KMS):
     Returns ``(passed, info)`` with ``info`` carrying the curve for the figure.
     """
     if f_b_grid is None:
-        f_b_grid = np.linspace(0.0, 0.7, 8)   # includes 0.5
+        f_b_grid = np.linspace(0.0, 0.7, 8)  # includes 0.5
 
     keys = jax.random.split(key, len(f_b_grid) * n_real).reshape(
         len(f_b_grid), n_real, 2
@@ -141,11 +143,16 @@ def gate1_bias(key, var_korb, f_b_grid=None, n_real=20, eps=EPS_KMS):
     m_ratio_mean = np.zeros(len(f_b_grid))
     m_ratio_se = np.zeros(len(f_b_grid))
     for i, f_b in enumerate(f_b_grid):
-        ratios = np.array([
-            float(dyn_mass_ratio(
-                jnp.std(build_mock_vlos(keys[i, j], f_b=float(f_b))), SIGMA_TRUE))
-            for j in range(n_real)
-        ])
+        ratios = np.array(
+            [
+                float(
+                    dyn_mass_ratio(
+                        jnp.std(build_mock_vlos(keys[i, j], f_b=float(f_b))), SIGMA_TRUE
+                    )
+                )
+                for j in range(n_real)
+            ]
+        )
         m_ratio_mean[i] = ratios.mean()
         m_ratio_se[i] = ratios.std() / np.sqrt(n_real)
 
@@ -155,10 +162,15 @@ def gate1_bias(key, var_korb, f_b_grid=None, n_real=20, eps=EPS_KMS):
     sigma_obs_50 = SIGMA_TRUE * np.sqrt(m_ratio_50)
     passed = bool(sigma_obs_50 > SIGMA_TRUE and m_ratio_50 > 1.10)
 
-    m_ratio_pred = 1.0 + (eps ** 2 + f_b_grid * var_korb) / SIGMA_TRUE ** 2
-    info = dict(f_b_grid=f_b_grid, m_ratio_mean=m_ratio_mean,
-                m_ratio_se=m_ratio_se, m_ratio_50=m_ratio_50,
-                sigma_obs_50=sigma_obs_50, m_ratio_pred=m_ratio_pred)
+    m_ratio_pred = 1.0 + (eps**2 + f_b_grid * var_korb) / SIGMA_TRUE**2
+    info = dict(
+        f_b_grid=f_b_grid,
+        m_ratio_mean=m_ratio_mean,
+        m_ratio_se=m_ratio_se,
+        m_ratio_50=m_ratio_50,
+        sigma_obs_50=sigma_obs_50,
+        m_ratio_pred=m_ratio_pred,
+    )
     _plot_bias(info)
     return passed, info
 
@@ -168,16 +180,43 @@ def _plot_bias(info):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(5.2, 4.0))
-    ax.axhline(1.0, color="0.5", ls="--", lw=1.0, label="unbiased ($M_{\\rm naive}=M_{\\rm true}$)")
-    ax.plot(info["f_b_grid"], info["m_ratio_pred"], color=OI["black"], lw=1.2,
-            ls="-", alpha=0.7, label=r"variance budget $1+(\epsilon^2+f_b\,{\rm Var}\,K_{\rm orb})/\sigma_{\rm true}^2$")
-    ax.errorbar(info["f_b_grid"], info["m_ratio_mean"], yerr=info["m_ratio_se"],
-                marker="o", ls="none", color=OI["blue"], capsize=2,
-                label="measured (mock $\\sigma_{\\rm obs}$)")
-    ax.scatter([0.5], [info["m_ratio_50"]], color=OI["vermilion"], zorder=5,
-               label=f"$f_b=0.5$: {info['m_ratio_50']:.2f}$\\times$ bias")
+    ax.axhline(
+        1.0,
+        color="0.5",
+        ls="--",
+        lw=1.0,
+        label="unbiased ($M_{\\rm naive}=M_{\\rm true}$)",
+    )
+    ax.plot(
+        info["f_b_grid"],
+        info["m_ratio_pred"],
+        color=OI["black"],
+        lw=1.2,
+        ls="-",
+        alpha=0.7,
+        label=r"variance budget $1+(\epsilon^2+f_b\,{\rm Var}\,K_{\rm orb})/\sigma_{\rm true}^2$",
+    )
+    ax.errorbar(
+        info["f_b_grid"],
+        info["m_ratio_mean"],
+        yerr=info["m_ratio_se"],
+        marker="o",
+        ls="none",
+        color=OI["blue"],
+        capsize=2,
+        label="measured (mock $\\sigma_{\\rm obs}$)",
+    )
+    ax.scatter(
+        [0.5],
+        [info["m_ratio_50"]],
+        color=OI["vermilion"],
+        zorder=5,
+        label=f"$f_b=0.5$: {info['m_ratio_50']:.2f}$\\times$ bias",
+    )
     ax.set_xlabel("binary fraction $f_b$")
-    ax.set_ylabel(r"$M_{\rm naive}/M_{\rm true} = (\sigma_{\rm obs}/\sigma_{\rm true})^2$")
+    ax.set_ylabel(
+        r"$M_{\rm naive}/M_{\rm true} = (\sigma_{\rm obs}/\sigma_{\rm true})^2$"
+    )
     ax.legend(frameon=False, fontsize=8, loc="lower right")
     panel_label(ax, "B12")
     save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_bias")
@@ -201,19 +240,24 @@ def gate2_dispersion_degeneracy(var_korb, eps=EPS_KMS):
     theta0 = jnp.array([SIGMA_TRUE, F_B_TRUE])
 
     def sigma_obs_pred(theta):
-        return jnp.sqrt(theta[0] ** 2 + theta[1] * var_korb + eps ** 2)
+        return jnp.sqrt(theta[0] ** 2 + theta[1] * var_korb + eps**2)
 
-    J = jax.grad(sigma_obs_pred)(theta0)          # (2,)
+    J = jax.grad(sigma_obs_pred)(theta0)  # (2,)
     # Single scalar summary with SE se: F = (1/se^2) J J^T; rank is se-independent.
     F_disp = jnp.outer(J, J)
-    eigs = jnp.linalg.eigvalsh(F_disp)            # ascending; [~0, |J|^2]
+    eigs = jnp.linalg.eigvalsh(F_disp)  # ascending; [~0, |J|^2]
     largest = float(eigs[-1])
     smallest = float(eigs[0])
     cond = largest / max(smallest, np.finfo(float).tiny)
     passed = bool(smallest < 1e-8 * largest or cond > 1e8)
 
-    info = dict(J=np.asarray(J), eigs=np.asarray(eigs), cond=cond,
-                smallest=smallest, largest=largest)
+    info = dict(
+        J=np.asarray(J),
+        eigs=np.asarray(eigs),
+        cond=cond,
+        smallest=smallest,
+        largest=largest,
+    )
     return passed, info
 
 
@@ -273,9 +317,14 @@ def recover_sigma_fb(v_obs, korb_grid, korb, eps=EPS_KMS, fb_guess=0.3):
     cond = float(eigs[-1] / max(eigs[0], np.finfo(float).tiny))
 
     return dict(
-        sigma_hat=sigma_hat, fb_hat=fb_hat,
-        sigma_err=float(np.sqrt(cov[0, 0])), fb_err=float(np.sqrt(cov[1, 1])),
-        cov=cov, F=np.asarray(F), cond=cond, z_hat=np.asarray(z_hat),
+        sigma_hat=sigma_hat,
+        fb_hat=fb_hat,
+        sigma_err=float(np.sqrt(cov[0, 0])),
+        fb_err=float(np.sqrt(cov[1, 1])),
+        cov=cov,
+        F=np.asarray(F),
+        cond=cond,
+        z_hat=np.asarray(z_hat),
         counts=np.asarray(counts),
     )
 
@@ -298,8 +347,9 @@ def gate3_recovery(key, korb_grid, korb, var_korb, eps=EPS_KMS):
     passed_3a = bool(within_3sig and mass_unbiased)
     passed_3b = bool(rec["cond"] < 1e6)
 
-    info = dict(sigma_obs=sigma_obs, var_korb=var_korb, eps=eps,
-                m_ratio_rec=m_ratio_rec, **rec)
+    info = dict(
+        sigma_obs=sigma_obs, var_korb=var_korb, eps=eps, m_ratio_rec=m_ratio_rec, **rec
+    )
     _plot_constraint(info)
     return passed_3a, passed_3b, info
 
@@ -324,27 +374,49 @@ def _plot_constraint(info):
 
     # Dispersion-only ridge: every (sigma, f_b) with the SAME sigma_obs.
     fb_line = np.linspace(FB_BOX[0], FB_BOX[1], 300)
-    sig_ridge = np.sqrt(np.clip(
-        info["sigma_obs"] ** 2 - info["eps"] ** 2 - fb_line * info["var_korb"],
-        0.0, None))
+    sig_ridge = np.sqrt(
+        np.clip(
+            info["sigma_obs"] ** 2 - info["eps"] ** 2 - fb_line * info["var_korb"],
+            0.0,
+            None,
+        )
+    )
     keep = sig_ridge > 0
-    ax.plot(sig_ridge[keep], fb_line[keep], color=OI["orange"], lw=1.8,
-            label="dispersion-only ridge (rank-1)")
+    ax.plot(
+        sig_ridge[keep],
+        fb_line[keep],
+        color=OI["orange"],
+        lw=1.8,
+        label="dispersion-only ridge (rank-1)",
+    )
 
     # Full-distribution constraint: 1- and 2-sigma ellipses at the joint MLE.
     mean = (info["sigma_hat"], info["fb_hat"])
     for nsig, a in ((1.0, 0.9), (2.0, 0.45)):
-        _cov_ellipse(ax, mean, info["cov"], nsig=nsig, color=OI["blue"],
-                     lw=1.6, alpha=a)
-    ax.scatter([info["sigma_hat"]], [info["fb_hat"]], color=OI["blue"], s=20,
-               zorder=5, label="joint MLE (full distribution)")
-    ax.scatter([SIGMA_TRUE], [F_B_TRUE], color=OI["vermilion"], marker="*",
-               s=120, zorder=6, label="truth")
+        _cov_ellipse(
+            ax, mean, info["cov"], nsig=nsig, color=OI["blue"], lw=1.6, alpha=a
+        )
+    ax.scatter(
+        [info["sigma_hat"]],
+        [info["fb_hat"]],
+        color=OI["blue"],
+        s=20,
+        zorder=5,
+        label="joint MLE (full distribution)",
+    )
+    ax.scatter(
+        [SIGMA_TRUE],
+        [F_B_TRUE],
+        color=OI["vermilion"],
+        marker="*",
+        s=120,
+        zorder=6,
+        label="truth",
+    )
 
     ax.set_xlabel(r"$\sigma_{\rm true}$ [km/s]")
     ax.set_ylabel(r"binary fraction $f_b$")
-    ax.set_xlim(SIGMA_TRUE - 5.0 * info["sigma_err"] - 0.5,
-                info["sigma_obs"] + 0.5)
+    ax.set_xlim(SIGMA_TRUE - 5.0 * info["sigma_err"] - 0.5, info["sigma_obs"] + 0.5)
     ax.set_ylim(FB_BOX[0], FB_BOX[1])
     ax.legend(frameon=False, fontsize=8, loc="upper right")
     panel_label(ax, "B12")
@@ -371,7 +443,9 @@ def gate4_eps_floor(key, korb_grid, korb, eps_grid=None, n_real=16):
     if eps_grid is None:
         eps_grid = np.array([0.2, 0.5, 1.0, 2.0, 3.0, 5.0])
 
-    keys = jax.random.split(key, len(eps_grid) * n_real).reshape(len(eps_grid), n_real, 2)
+    keys = jax.random.split(key, len(eps_grid) * n_real).reshape(
+        len(eps_grid), n_real, 2
+    )
     sig_err = np.zeros(len(eps_grid))
     fb_err = np.zeros(len(eps_grid))
     m_ratio = np.zeros(len(eps_grid))
@@ -380,13 +454,19 @@ def gate4_eps_floor(key, korb_grid, korb, eps_grid=None, n_real=16):
         for j in range(n_real):
             v = build_mock_vlos(keys[i, j], f_b=F_B_TRUE, eps=float(eps))
             r = recover_sigma_fb(v, korb_grid, korb, eps=float(eps))
-            se.append(r["sigma_err"]); fe.append(r["fb_err"])
+            se.append(r["sigma_err"])
+            fe.append(r["fb_err"])
             mr.append((r["sigma_hat"] / SIGMA_TRUE) ** 2)
-        sig_err[i] = np.mean(se); fb_err[i] = np.mean(fe); m_ratio[i] = np.mean(mr)
+        sig_err[i] = np.mean(se)
+        fb_err[i] = np.mean(fe)
+        m_ratio[i] = np.mean(mr)
 
     # Detectable fraction f_b * P(|Delta| > eps) from a fresh blend sample.
-    delta = np.abs(np.asarray(sample_blend_velocities(
-        jax.random.PRNGKey(SEED + 7), 200_000, Z=Z_MET)))
+    delta = np.abs(
+        np.asarray(
+            sample_blend_velocities(jax.random.PRNGKey(SEED + 7), 200_000, Z=Z_MET)
+        )
+    )
     f_det = np.array([F_B_TRUE * (delta > e).mean() for e in eps_grid])
 
     # Precision degrades with eps, but PLATEAUS at eps << std(K_orb) (information-
@@ -397,9 +477,16 @@ def gate4_eps_floor(key, korb_grid, korb, eps_grid=None, n_real=16):
     unbiased = bool(np.all(np.abs(m_ratio - 1.0) < 0.05))
     passed = degrades and no_big_reversal and unbiased
 
-    info = dict(eps_grid=eps_grid, sig_err=sig_err, fb_err=fb_err,
-                m_ratio=m_ratio, f_det=f_det, degrades=degrades,
-                no_big_reversal=no_big_reversal, unbiased=unbiased)
+    info = dict(
+        eps_grid=eps_grid,
+        sig_err=sig_err,
+        fb_err=fb_err,
+        m_ratio=m_ratio,
+        f_det=f_det,
+        degrades=degrades,
+        no_big_reversal=no_big_reversal,
+        unbiased=unbiased,
+    )
     _plot_eps_floor(info)
     return passed, info
 
@@ -410,8 +497,13 @@ def _plot_eps_floor(info):
 
     fig, ax = plt.subplots(figsize=(5.4, 4.0))
     # Left axis: mass precision sigma(sigma_true) in km/s (the headline metric).
-    ax.plot(info["eps_grid"], info["sig_err"], marker="o", color=OI["blue"],
-            label=r"$\sigma(\sigma_{\rm true})$ [km/s] (mass precision)")
+    ax.plot(
+        info["eps_grid"],
+        info["sig_err"],
+        marker="o",
+        color=OI["blue"],
+        label=r"$\sigma(\sigma_{\rm true})$ [km/s] (mass precision)",
+    )
     ax.set_xlabel(r"RV precision $\epsilon$ [km/s]")
     ax.set_ylabel(r"$\sigma(\sigma_{\rm true})$ [km/s]", color=OI["blue"])
     ax.tick_params(axis="y", labelcolor=OI["blue"])
@@ -419,16 +511,33 @@ def _plot_eps_floor(info):
 
     # Right axis: dimensionless quantities -- sigma(f_b) and the detectable fraction.
     ax2 = ax.twinx()
-    ax2.plot(info["eps_grid"], info["fb_err"], marker="s", color=OI["sky"], ls="--",
-             label=r"$\sigma(f_b)$")
-    ax2.plot(info["eps_grid"], info["f_det"], marker="^", color=OI["vermilion"], ls=":",
-             label=r"detectable $f_b\,P(|\Delta|>\epsilon)$")
+    ax2.plot(
+        info["eps_grid"],
+        info["fb_err"],
+        marker="s",
+        color=OI["sky"],
+        ls="--",
+        label=r"$\sigma(f_b)$",
+    )
+    ax2.plot(
+        info["eps_grid"],
+        info["f_det"],
+        marker="^",
+        color=OI["vermilion"],
+        ls=":",
+        label=r"detectable $f_b\,P(|\Delta|>\epsilon)$",
+    )
     ax2.set_ylabel(r"$f_b$: uncertainty $\sigma(f_b)$ / detectable fraction")
     ax2.set_ylim(bottom=0.0)
 
     lines = ax.get_lines() + ax2.get_lines()
-    ax.legend(lines, [l.get_label() for l in lines], frameon=False, fontsize=8,
-              loc="upper center")
+    ax.legend(
+        lines,
+        [l.get_label() for l in lines],
+        frameon=False,
+        fontsize=8,
+        loc="upper center",
+    )
     panel_label(ax, "B12", loc="lower left")
     save_fig(fig, OUTPUT_DIR, "demo_binary_dynamical_mass_eps_floor")
     plt.close(fig)
@@ -446,7 +555,8 @@ def gate5_null(key, korb_grid, korb, n_real=12):
     for kk in keys:
         v = build_mock_vlos(kk, f_b=0.0)
         r = recover_sigma_fb(v, korb_grid, korb)
-        fb.append(r["fb_hat"]); sig.append(r["sigma_hat"])
+        fb.append(r["fb_hat"])
+        sig.append(r["sigma_hat"])
     fb_mean, sig_mean = float(np.mean(fb)), float(np.mean(sig))
     passed = bool(fb_mean < 0.05 and abs(sig_mean - SIGMA_TRUE) < 0.1)
     return passed, dict(fb_mean=fb_mean, sig_mean=sig_mean)
@@ -460,10 +570,11 @@ def gate6_ad_vs_fd(korb_grid, korb, eps=EPS_KMS, h=1e-5):
     predict_mu = _predict_mu_factory(korb_grid, korb, N_STARS, eps)
     z = jnp.array([logit(SIGMA_TRUE, *SIGMA_BOX), logit(F_B_TRUE, *FB_BOX)])
 
-    J_ad = np.asarray(jax.jacrev(predict_mu)(z))                  # (K, 2)
+    J_ad = np.asarray(jax.jacrev(predict_mu)(z))  # (K, 2)
     J_fd = np.zeros_like(J_ad)
     for i in range(2):
-        zp = z.at[i].add(h); zm = z.at[i].add(-h)
+        zp = z.at[i].add(h)
+        zm = z.at[i].add(-h)
         J_fd[:, i] = np.asarray((predict_mu(zp) - predict_mu(zm)) / (2.0 * h))
 
     scale = np.max(np.abs(J_fd))
@@ -481,11 +592,13 @@ def forecast_vs_N(key, korb_grid, korb, n_grid=None):
     if n_grid is None:
         n_grid = np.array([500, 1500, 5000, 15000])
     keys = jax.random.split(key, len(n_grid))
-    sig_err = np.zeros(len(n_grid)); fb_err = np.zeros(len(n_grid))
+    sig_err = np.zeros(len(n_grid))
+    fb_err = np.zeros(len(n_grid))
     for i, n in enumerate(n_grid):
         v = build_mock_vlos(keys[i], f_b=F_B_TRUE, n_stars=int(n))
         r = recover_sigma_fb(v, korb_grid, korb)
-        sig_err[i] = r["sigma_err"]; fb_err[i] = r["fb_err"]
+        sig_err[i] = r["sigma_err"]
+        fb_err[i] = r["fb_err"]
     info = dict(n_grid=n_grid, sig_err=sig_err, fb_err=fb_err)
     _plot_forecast(info)
     return info
@@ -497,10 +610,14 @@ def _plot_forecast(info):
 
     n = info["n_grid"].astype(float)
     fig, ax = plt.subplots(figsize=(5.2, 4.0))
-    ax.loglog(n, info["sig_err"], marker="o", color=OI["blue"],
-              label=r"$\sigma(\sigma_{\rm true})$ [km/s]")
-    ax.loglog(n, info["fb_err"], marker="s", color=OI["orange"],
-              label=r"$\sigma(f_b)$")
+    ax.loglog(
+        n,
+        info["sig_err"],
+        marker="o",
+        color=OI["blue"],
+        label=r"$\sigma(\sigma_{\rm true})$ [km/s]",
+    )
+    ax.loglog(n, info["fb_err"], marker="s", color=OI["orange"], label=r"$\sigma(f_b)$")
     guide = info["sig_err"][0] * np.sqrt(n[0] / n)
     ax.loglog(n, guide, color="0.5", ls=":", lw=1.0, label=r"$\propto N^{-1/2}$")
     ax.set_xlabel("number of RV stars $N$")
@@ -527,25 +644,46 @@ def plot_vlos_distribution(key, korb_grid, korb):
     counts, _ = np.histogram(v_obs, bins=V_EDGES)
     ctr = 0.5 * (V_EDGES[:-1] + V_EDGES[1:])
 
-    mu_single = np.asarray(predict_vlos_counts(
-        SIGMA_TRUE, 0.0, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS))
-    mu_full = np.asarray(predict_vlos_counts(
-        SIGMA_TRUE, F_B_TRUE, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS))
+    mu_single = np.asarray(
+        predict_vlos_counts(SIGMA_TRUE, 0.0, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS)
+    )
+    mu_full = np.asarray(
+        predict_vlos_counts(
+            SIGMA_TRUE, F_B_TRUE, N_STARS, V_EDGES, korb_grid, korb, EPS_KMS
+        )
+    )
 
     fig, ax = plt.subplots(figsize=(5.4, 4.0))
-    ax.step(ctr, np.maximum(counts, 0.1), where="mid", color="0.55", lw=1.0,
-            label=f"mock $v_{{\\rm obs}}$ ($f_b={F_B_TRUE}$)")
-    ax.plot(ctr, mu_single, color=OI["orange"], lw=1.6,
-            label=r"single-only $\mathcal{N}(0,\sigma_{\rm true}^2+\epsilon^2)$")
-    ax.plot(ctr, mu_full, color=OI["blue"], lw=1.6,
-            label="single + binary mixture")
+    ax.step(
+        ctr,
+        np.maximum(counts, 0.1),
+        where="mid",
+        color="0.55",
+        lw=1.0,
+        label=f"mock $v_{{\\rm obs}}$ ($f_b={F_B_TRUE}$)",
+    )
+    ax.plot(
+        ctr,
+        mu_single,
+        color=OI["orange"],
+        lw=1.6,
+        label=r"single-only $\mathcal{N}(0,\sigma_{\rm true}^2+\epsilon^2)$",
+    )
+    ax.plot(ctr, mu_full, color=OI["blue"], lw=1.6, label="single + binary mixture")
 
     # Shade the wing regions where the binary excess lives.
-    wing = 2.5 * np.sqrt(SIGMA_TRUE ** 2 + EPS_KMS ** 2)
+    wing = 2.5 * np.sqrt(SIGMA_TRUE**2 + EPS_KMS**2)
     ax.axvspan(wing, V_EDGES[-1], color=OI["vermilion"], alpha=0.08)
     ax.axvspan(V_EDGES[0], -wing, color=OI["vermilion"], alpha=0.08)
-    ax.text(0.97, 0.6, "non-Gaussian\nbinary wings", transform=ax.transAxes,
-            fontsize=8, color=OI["vermilion"], ha="right")
+    ax.text(
+        0.97,
+        0.6,
+        "non-Gaussian\nbinary wings",
+        transform=ax.transAxes,
+        fontsize=8,
+        color=OI["vermilion"],
+        ha="right",
+    )
 
     ax.set_yscale("log")
     ax.set_ylim(0.5, 1.5 * counts.max())
@@ -564,14 +702,16 @@ def main():
     """Run all six gates, print an expected-vs-measured PASS/FAIL table, exit 0/1."""
     print("=" * 72)
     print("B12 -- binary-inflated dynamical mass (gated demo)")
-    print(f"  sigma_true={SIGMA_TRUE} km/s  f_b={F_B_TRUE}  N={N_STARS}  "
-          f"eps={EPS_KMS} km/s  Z={Z_MET}  r_h={R_H_PC} pc")
+    print(
+        f"  sigma_true={SIGMA_TRUE} km/s  f_b={F_B_TRUE}  N={N_STARS}  "
+        f"eps={EPS_KMS} km/s  Z={Z_MET}  r_h={R_H_PC} pc"
+    )
     print("=" * 72)
 
     # Build the sigma-independent contamination kernel ONCE.
     korb_grid, korb = build_korb_kernel(
-        n_pool=N_POOL, Z=Z_MET, seed=SEED,
-        grid_max=KORB_GRID_MAX, n_grid=KORB_N_GRID)
+        n_pool=N_POOL, Z=Z_MET, seed=SEED, grid_max=KORB_GRID_MAX, n_grid=KORB_N_GRID
+    )
     var_korb = _kernel_std(korb_grid, korb) ** 2
     print(f"K_orb: std={np.sqrt(var_korb):.3f} km/s  (n_pool={N_POOL})\n")
 
@@ -581,26 +721,50 @@ def main():
     rows = []  # (gate, expected, measured, passed)
 
     p1, i1 = gate1_bias(k1, var_korb)
-    rows.append(("1 bias", "M_ratio(0.5)>1.10",
-                 f"{i1['m_ratio_50']:.3f} (sigma_obs={i1['sigma_obs_50']:.2f})", p1))
+    rows.append(
+        (
+            "1 bias",
+            "M_ratio(0.5)>1.10",
+            f"{i1['m_ratio_50']:.3f} (sigma_obs={i1['sigma_obs_50']:.2f})",
+            p1,
+        )
+    )
 
     p2, i2 = gate2_dispersion_degeneracy(var_korb)
     rows.append(("2 degeneracy", "cond>1e8 (rank-1)", f"{i2['cond']:.1e}", p2))
 
     p3a, p3b, i3 = gate3_recovery(k3, korb_grid, korb, var_korb)
-    rows.append(("3a recovery", "M_ratio~1, <3sigma",
-                 f"sigma={i3['sigma_hat']:.2f}+/-{i3['sigma_err']:.2f}, "
-                 f"M={i3['m_ratio_rec']:.3f}", p3a))
+    rows.append(
+        (
+            "3a recovery",
+            "M_ratio~1, <3sigma",
+            f"sigma={i3['sigma_hat']:.2f}+/-{i3['sigma_err']:.2f}, "
+            f"M={i3['m_ratio_rec']:.3f}",
+            p3a,
+        )
+    )
     rows.append(("3b full-rank", "cond<1e6", f"{i3['cond']:.0f}", p3b))
 
     p4, i4 = gate4_eps_floor(k4, korb_grid, korb)
-    rows.append(("4 eps-floor", "precision degrades, M~1",
-                 f"sigma_err {i4['sig_err'][0]:.3f}->{i4['sig_err'][-1]:.3f}, "
-                 f"max|M-1|={np.max(np.abs(i4['m_ratio']-1)):.3f}", p4))
+    rows.append(
+        (
+            "4 eps-floor",
+            "precision degrades, M~1",
+            f"sigma_err {i4['sig_err'][0]:.3f}->{i4['sig_err'][-1]:.3f}, "
+            f"max|M-1|={np.max(np.abs(i4['m_ratio'] - 1)):.3f}",
+            p4,
+        )
+    )
 
     p5, i5 = gate5_null(k5, korb_grid, korb)
-    rows.append(("5 null", "fb_hat<0.05",
-                 f"fb={i5['fb_mean']:.3f}, sigma={i5['sig_mean']:.2f}", p5))
+    rows.append(
+        (
+            "5 null",
+            "fb_hat<0.05",
+            f"fb={i5['fb_mean']:.3f}, sigma={i5['sig_mean']:.2f}",
+            p5,
+        )
+    )
 
     p6, i6 = gate6_ad_vs_fd(korb_grid, korb)
     rows.append(("6 AD-vs-FD", "rel-err<1e-4", f"{i6['max_rel_err']:.1e}", p6))
@@ -616,10 +780,14 @@ def main():
     print("-" * 88)
 
     all_pass = all(ok for *_, ok in rows)
-    print(f"\n{'ALL GATES PASS' if all_pass else 'SOME GATES FAILED'} "
-          f"({sum(ok for *_, ok in rows)}/{len(rows)})")
-    print("Figures: validation/plots/demo_binary_dynamical_mass_"
-          "{distribution,bias,constraint,eps_floor,fisher_vs_N}.png")
+    print(
+        f"\n{'ALL GATES PASS' if all_pass else 'SOME GATES FAILED'} "
+        f"({sum(ok for *_, ok in rows)}/{len(rows)})"
+    )
+    print(
+        "Figures: validation/plots/demo_binary_dynamical_mass_"
+        "{distribution,bias,constraint,eps_floor,fisher_vs_N}.png"
+    )
     return 0 if all_pass else 1
 
 

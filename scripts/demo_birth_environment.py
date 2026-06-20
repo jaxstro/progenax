@@ -60,6 +60,7 @@ wall ~7 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_birth_environment.py
 """
+
 import os
 import sys
 
@@ -91,11 +92,13 @@ A3_BOX = (1.0, 3.0)
 N_ADAM = 400
 ADAM_LR = 3e-2
 RECOVERY_NSIG = 3.0
-COND_GATE = 1e8           # env-space Fisher condition number -> degeneracy
+COND_GATE = 1e8  # env-space Fisher condition number -> degeneracy
 
-ENV_TRUE = BirthEnvironment(metallicity=jnp.array(FEH_TRUE),
-                            log_mecl=jnp.array(LOGM_TRUE),
-                            sfe=jnp.array(SFE_TRUE))
+ENV_TRUE = BirthEnvironment(
+    metallicity=jnp.array(FEH_TRUE),
+    log_mecl=jnp.array(LOGM_TRUE),
+    sfe=jnp.array(SFE_TRUE),
+)
 PARAMS_TRUE = env_to_imf_params(ENV_TRUE)
 ALPHA3_TRUE = float(PARAMS_TRUE.alpha3)
 
@@ -135,14 +138,18 @@ def main():
     nll = lambda z: -jnp.sum(log_prob_masses(masses, _params_with_alpha3(_a3_of_z(z))))
 
     # --- alpha3 MLE -------------------------------------------------------- #
-    z_hat, trace = mle_adam(jax.jit(nll), _z_of_a3(ALPHA3_TRUE), n_steps=N_ADAM, lr=ADAM_LR)
+    z_hat, trace = mle_adam(
+        jax.jit(nll), _z_of_a3(ALPHA3_TRUE), n_steps=N_ADAM, lr=ADAM_LR
+    )
     a3_hat = float(_a3_of_z(z_hat))
     cov_z = fisher_cov(nll, z_hat)
     da3_dz = float(jax.grad(lambda z: _a3_of_z(z))(z_hat)[0])
     sigma_a3 = float(jnp.sqrt(cov_z[0, 0]) * abs(da3_dz))
     pull = (a3_hat - ALPHA3_TRUE) / sigma_a3
-    print(f"\n  alpha3 recovery: {ALPHA3_TRUE:.4f} -> {a3_hat:.4f} +- {sigma_a3:.4f} "
-          f"(pull {pull:+.2f})")
+    print(
+        f"\n  alpha3 recovery: {ALPHA3_TRUE:.4f} -> {a3_hat:.4f} +- {sigma_a3:.4f} "
+        f"(pull {pull:+.2f})"
+    )
 
     # --- forecast: sigma(alpha3) vs N from the per-star Fisher info --------- #
     info_per_star = 1.0 / (sigma_a3**2 * N_STARS)  # I_total = N * I_1 (CRLB)
@@ -160,20 +167,29 @@ def main():
     for s in range(12):
         u_s = jax.random.uniform(jax.random.PRNGKey(1000 + s), (n_emp,))
         m_s = sample_masses_from_params(PARAMS_TRUE, u_s)
-        nll_s = lambda z: -jnp.sum(log_prob_masses(m_s, _params_with_alpha3(_a3_of_z(z))))
-        z_s, _ = mle_adam(jax.jit(nll_s), _z_of_a3(ALPHA3_TRUE), n_steps=N_ADAM, lr=ADAM_LR)
+        nll_s = lambda z: (
+            -jnp.sum(log_prob_masses(m_s, _params_with_alpha3(_a3_of_z(z))))
+        )
+        z_s, _ = mle_adam(
+            jax.jit(nll_s), _z_of_a3(ALPHA3_TRUE), n_steps=N_ADAM, lr=ADAM_LR
+        )
         a3_fits.append(float(_a3_of_z(z_s)))
     sigma_emp = float(np.std(a3_fits, ddof=1))
     sigma_crlb = float(sigma_a3 * np.sqrt(N_STARS / n_emp))
     emp_ratio = sigma_emp / sigma_crlb
-    print(f"  forecast: sigma(alpha3) ~ N^{slope:.3f}; N for 3-sigma top-heavy "
-          f"detection ~ {n_3sig:.0f} (complete census)")
-    print(f"  CRLB check @ N={n_emp}: sigma_emp={sigma_emp:.4f} vs "
-          f"CRLB={sigma_crlb:.4f}  (ratio {emp_ratio:.2f})")
+    print(
+        f"  forecast: sigma(alpha3) ~ N^{slope:.3f}; N for 3-sigma top-heavy "
+        f"detection ~ {n_3sig:.0f} (complete census)"
+    )
+    print(
+        f"  CRLB check @ N={n_emp}: sigma_emp={sigma_emp:.4f} vs "
+        f"CRLB={sigma_crlb:.4f}  (ratio {emp_ratio:.2f})"
+    )
 
     # --- environment degeneracy: rank-1 Fisher ----------------------------- #
     grads = jax.grad(a3_of_env, argnums=(0, 1, 2))(
-        jnp.array(FEH_TRUE), jnp.array(LOGM_TRUE), jnp.array(SFE_TRUE))
+        jnp.array(FEH_TRUE), jnp.array(LOGM_TRUE), jnp.array(SFE_TRUE)
+    )
     g_env = jnp.array([float(x) for x in grads])  # (dα3/dFeH, dα3/dlogM, dα3/dsfe)
     F_env = jnp.outer(g_env, g_env) / sigma_a3**2
     eig = jnp.linalg.eigvalsh(F_env)
@@ -182,8 +198,7 @@ def main():
     print(f"  env-space Fisher eigenvalues = {np.asarray(eig)}")
     print(f"  condition number = {cond:.2e}  (gate > {COND_GATE:.0e} -> degenerate)")
 
-    make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig,
-                n_emp, sigma_emp)
+    make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig, n_emp, sigma_emp)
 
     # --- gates ------------------------------------------------------------- #
     recovery_ok = abs(pull) < RECOVERY_NSIG
@@ -191,12 +206,24 @@ def main():
     degeneracy_ok = cond > COND_GATE
 
     rows = [
-        ("alpha3 recovery", "PASS" if recovery_ok else "FAIL",
-         f"< {RECOVERY_NSIG} sigma", recovery_ok),
-        ("forecast CRLB (emp/analytic)", "PASS" if forecast_ok else "FAIL",
-         f"{emp_ratio:.2f} in [0.7,1.4]", forecast_ok),
-        ("env Fisher rank-deficient", "PASS" if degeneracy_ok else "FAIL",
-         f"cond>{COND_GATE:.0e}", degeneracy_ok),
+        (
+            "alpha3 recovery",
+            "PASS" if recovery_ok else "FAIL",
+            f"< {RECOVERY_NSIG} sigma",
+            recovery_ok,
+        ),
+        (
+            "forecast CRLB (emp/analytic)",
+            "PASS" if forecast_ok else "FAIL",
+            f"{emp_ratio:.2f} in [0.7,1.4]",
+            forecast_ok,
+        ),
+        (
+            "env Fisher rank-deficient",
+            "PASS" if degeneracy_ok else "FAIL",
+            f"cond>{COND_GATE:.0e}",
+            degeneracy_ok,
+        ),
     ]
     print("\n" + "-" * 78)
     print(f"  {'CHECK':<30s} {'status':>6s} {'gate':>16s}")
@@ -208,8 +235,11 @@ def main():
     print("-" * 78)
     print(f"  saved {OUTPUT_DIR}/demo_birth_environment.{{png,pdf}}")
     print("=" * 78)
-    print("  BIRTH-ENVIRONMENT DEMO: ALL PASS" if all_ok
-          else "  BIRTH-ENVIRONMENT DEMO: FAILED")
+    print(
+        "  BIRTH-ENVIRONMENT DEMO: ALL PASS"
+        if all_ok
+        else "  BIRTH-ENVIRONMENT DEMO: FAILED"
+    )
     return 0 if all_ok else 1
 
 
@@ -230,11 +260,21 @@ def make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig, n_emp, sig
     ax.step(cen, cnt / dlogm, where="mid", color=OI["black"], label="sampled")
     # power-law guides anchored at the first populated bin.
     norm = (cnt / dlogm)[0] * cen[0] ** (ALPHA3_TRUE - 1)
-    ax.plot(cen, norm * cen ** -(ALPHA3_TRUE - 1), "--", color=OI["vermilion"],
-            label=fr"top-heavy $\alpha_3={ALPHA3_TRUE:.2f}$")
+    ax.plot(
+        cen,
+        norm * cen ** -(ALPHA3_TRUE - 1),
+        "--",
+        color=OI["vermilion"],
+        label=rf"top-heavy $\alpha_3={ALPHA3_TRUE:.2f}$",
+    )
     norm2 = (cnt / dlogm)[0] * cen[0] ** (ALPHA3_CANON - 1)
-    ax.plot(cen, norm2 * cen ** -(ALPHA3_CANON - 1), ":", color=OI["blue"],
-            label=fr"canonical $\alpha_3={ALPHA3_CANON}$")
+    ax.plot(
+        cen,
+        norm2 * cen ** -(ALPHA3_CANON - 1),
+        ":",
+        color=OI["blue"],
+        label=rf"canonical $\alpha_3={ALPHA3_CANON}$",
+    )
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel(r"$m$  [$M_\odot$]")
@@ -245,14 +285,29 @@ def make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig, n_emp, sig
     # (b) forecast: sigma(alpha3) vs N (analytic CRLB + empirical validation).
     ax = axes[1]
     ax.loglog(n_grid, sigma_grid, "-", color=OI["green"], label="CRLB")
-    ax.scatter([n_emp], [sigma_emp], marker="s", s=36, color=OI["black"],
-               zorder=6, label="empirical")
+    ax.scatter(
+        [n_emp],
+        [sigma_emp],
+        marker="s",
+        s=36,
+        color=OI["black"],
+        zorder=6,
+        label="empirical",
+    )
     target = abs(ALPHA3_TRUE - ALPHA3_CANON) / 3.0
-    ax.axhline(target, color=OI["vermilion"], ls="--",
-               label=r"$\sigma=|\Delta\alpha_3|/3$")
+    ax.axhline(
+        target, color=OI["vermilion"], ls="--", label=r"$\sigma=|\Delta\alpha_3|/3$"
+    )
     ax.axvline(n_3sig, color="0.6", ls=":")
-    ax.text(n_3sig * 1.25, sigma_grid.min() * 1.5, fr"$N\approx{n_3sig:.0f}$",
-            fontsize=7.5, ha="left", va="bottom", color="0.3")
+    ax.text(
+        n_3sig * 1.25,
+        sigma_grid.min() * 1.5,
+        rf"$N\approx{n_3sig:.0f}$",
+        fontsize=7.5,
+        ha="left",
+        va="bottom",
+        color="0.3",
+    )
     ax.set_xlabel(r"$N_\star$")
     ax.set_ylabel(r"$\sigma(\alpha_3)$")
     ax.legend(fontsize=7)
@@ -263,18 +318,32 @@ def make_figure(masses, a3_hat, sigma_a3, n_grid, sigma_grid, n_3sig, n_emp, sig
     feh = np.linspace(-2.5, 0.0, 60)
     logm = np.linspace(4.0, 8.0, 60)
     FE, LM = np.meshgrid(feh, logm)
-    a3_grid = np.vectorize(lambda f, l: float(a3_of_env(
-        jnp.array(f), jnp.array(l), jnp.array(SFE_TRUE))))(FE, LM)
+    a3_grid = np.vectorize(
+        lambda f, l: float(a3_of_env(jnp.array(f), jnp.array(l), jnp.array(SFE_TRUE)))
+    )(FE, LM)
     cs = ax.contourf(FE, LM, a3_grid, levels=12, cmap="viridis")
-    ax.contour(FE, LM, a3_grid, levels=[a3_hat], colors=[OI["vermilion"]],
-               linewidths=2)
-    ax.scatter([FEH_TRUE], [LOGM_TRUE], marker="*", s=110, color="white",
-               edgecolor="k", zorder=5)
+    ax.contour(FE, LM, a3_grid, levels=[a3_hat], colors=[OI["vermilion"]], linewidths=2)
+    ax.scatter(
+        [FEH_TRUE],
+        [LOGM_TRUE],
+        marker="*",
+        s=110,
+        color="white",
+        edgecolor="k",
+        zorder=5,
+    )
     fig.colorbar(cs, ax=ax, label=r"$\alpha_3$", fraction=0.046)
     ax.set_xlabel(r"[Fe/H]")
     ax.set_ylabel(r"$\log_{10} M_{\rm ecl}$")
-    ax.text(0.04, 0.06, "degenerate\nridge", transform=ax.transAxes, fontsize=7.5,
-            color=OI["vermilion"], va="bottom")
+    ax.text(
+        0.04,
+        0.06,
+        "degenerate\nridge",
+        transform=ax.transAxes,
+        fontsize=7.5,
+        color=OI["vermilion"],
+        va="bottom",
+    )
     panel_label(ax, "(c)")
 
     fig.tight_layout()

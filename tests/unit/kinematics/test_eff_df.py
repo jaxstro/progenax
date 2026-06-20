@@ -12,9 +12,8 @@ the 2026-06 pre-release cross-tier test consolidation.
 
 import jax
 import jax.numpy as jnp
-import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax.kinematics.eff_df import EFFVelocityDF
 
 G = STELLAR.G
@@ -29,7 +28,7 @@ class TestEFFVelocityDFPhysics:
         N = 500
         positions = jax.random.normal(jax.random.PRNGKey(0), (N, 3))
 
-        masses_low = jnp.ones(N) * 0.5   # Total = 2500
+        masses_low = jnp.ones(N) * 0.5  # Total = 2500
         masses_high = jnp.ones(N) * 2.0  # Total = 10000
 
         key_low, key_high = jax.random.split(jax.random.PRNGKey(42))

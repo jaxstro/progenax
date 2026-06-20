@@ -23,16 +23,19 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax import PlummerProfile, PlummerVelocityDF
 from progenax.cluster import energy_sorted_segregation
-from progenax.profiles.api import compute_profile_potential
-from progenax.imf import PowerLawIMF
 from progenax.dynamics import (
-    mass_group_masks, per_group_virial_ratio, compute_virial_ratio,
-    compute_potential_energy, rescale_velocities_to_virial,
+    compute_potential_energy,
+    compute_virial_ratio,
+    mass_group_masks,
+    per_group_virial_ratio,
+    rescale_velocities_to_virial,
 )
+from progenax.imf import PowerLawIMF
+from progenax.profiles.api import compute_profile_potential
 
 G = STELLAR.G
 N_STARS = 800
@@ -67,8 +70,9 @@ def _primordial_cluster(seed, N=N_STARS):
     def potential_fn(p):
         return compute_profile_potential(p, "plummer", M_total, R_HALF, G)
 
-    m, pos, vel = energy_sorted_segregation(k_seg, masses, pos_pool, vel_pool,
-                                            potential_fn)
+    m, pos, vel = energy_sorted_segregation(
+        k_seg, masses, pos_pool, vel_pool, potential_fn
+    )
 
     x_com = jnp.sum(m[:, None] * pos, axis=0) / jnp.sum(m)
     v_com = jnp.sum(m[:, None] * vel, axis=0) / jnp.sum(m)
@@ -83,8 +87,9 @@ def _mean_group_drift(seeds=SEEDS):
     for s in seeds:
         m, pos, vel, _ = _primordial_cluster(s)
         masks = mass_group_masks(m, n_groups=N_GROUPS)
-        Qj = np.asarray(per_group_virial_ratio(
-            pos, vel, m, G=G, group_masks=masks, softening=SOFT))
+        Qj = np.asarray(
+            per_group_virial_ratio(pos, vel, m, G=G, group_masks=masks, softening=SOFT)
+        )
         drifts.append(np.max(np.abs(Qj - 0.5)))
     return float(np.mean(drifts))
 
@@ -96,13 +101,21 @@ def test_primordial_full_segregation_is_per_group_equilibrium():
     virial (Q_j ~ 0.5). Same 0.08 budget the lambda=1 endpoint carried before the
     blend's retirement."""
     drift = _mean_group_drift()
-    assert drift < 0.08, f"primordial endpoint should be a clean equilibrium, drift={drift:.3f}"
+    assert drift < 0.08, (
+        f"primordial endpoint should be a clean equilibrium, drift={drift:.3f}"
+    )
 
 
 def test_global_virial_is_half():
     """The finalization rescales the GLOBAL virial to Q = 0.5 exactly."""
-    Qg = np.mean([float(compute_virial_ratio(
-        (c := _primordial_cluster(s))[1], c[2], c[0], G=G)) for s in range(3)])
+    Qg = np.mean(
+        [
+            float(
+                compute_virial_ratio((c := _primordial_cluster(s))[1], c[2], c[0], G=G)
+            )
+            for s in range(3)
+        ]
+    )
     assert abs(Qg - 0.5) < 0.02, f"global Q is {Qg:.3f}"
 
 
@@ -127,7 +140,9 @@ def test_segregation_increases_lambda_msr():
     m, pos, _, pos_pool = _primordial_cluster(123)
     lam_seg, _ = compute_lambda_msr(np.asarray(pos), np.asarray(m), N_massive=20)
     # Unsegregated reference: the same masses on a random subset of pool orbits
-    lam_unseg, _ = compute_lambda_msr(np.asarray(pos_pool[:m.shape[0]]),
-                                      np.asarray(m), N_massive=20)
+    lam_unseg, _ = compute_lambda_msr(
+        np.asarray(pos_pool[: m.shape[0]]), np.asarray(m), N_massive=20
+    )
     assert lam_seg > lam_unseg, (
-        f"energy ordering should raise Lambda_MSR: {lam_seg:.2f} vs {lam_unseg:.2f}")
+        f"energy ordering should raise Lambda_MSR: {lam_seg:.2f} vs {lam_unseg:.2f}"
+    )

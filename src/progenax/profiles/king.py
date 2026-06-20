@@ -41,8 +41,11 @@ def _is_concrete(x) -> bool:
     try:
         float(x)
         return True
-    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-            TypeError):
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
         return False
 
 
@@ -81,10 +84,9 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
     """
     W_pos = jnp.where(W > 0.0, W, 1.0)  # never feed 0/negative to sqrt
     sqrt_W = jnp.sqrt(W_pos)
-    rho_pos = (
-        jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W)
-        - (2.0 / jnp.sqrt(jnp.pi)) * sqrt_W * (1.0 + 2.0 * W_pos / 3.0)
-    )
+    rho_pos = jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W) - (
+        2.0 / jnp.sqrt(jnp.pi)
+    ) * sqrt_W * (1.0 + 2.0 * W_pos / 3.0)
     return jnp.where(W > 0.0, rho_pos, 0.0)
 
 
@@ -93,7 +95,9 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
 # ==============================================================================
 
 
-def _king_poisson_rhs(xi: float, y: Float[Array, "2"], args: tuple) -> Float[Array, "2"]:
+def _king_poisson_rhs(
+    xi: float, y: Float[Array, "2"], args: tuple
+) -> Float[Array, "2"]:
     """
     Right-hand side of King's dimensionless Poisson equation.
 
@@ -169,8 +173,11 @@ def _auto_ode_domain(W0: float) -> Tuple[float, int]:
     """
     try:
         w = float(W0)
-    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-            TypeError):
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
         return 300.0, 2000  # traced W0: array sizes cannot depend on a tracer
     xi_max = max(300.0, 10.0 ** (0.21 * w + 0.45))
     n_points = int(max(2000, math.ceil(xi_max / 0.15)))
@@ -178,7 +185,9 @@ def _auto_ode_domain(W0: float) -> Tuple[float, int]:
 
 
 def solve_king_profile(
-    W0: float, xi_max: float = 300.0, n_points: int = 2000,
+    W0: float,
+    xi_max: float = 300.0,
+    n_points: int = 2000,
 ):
     """
     Solve King's Poisson equation numerically using diffrax.
@@ -395,20 +404,14 @@ class KingProfile(eqx.Module):
 
         # Compute density on grid via interpolation of ODE solution
         psi_vals = jnp.interp(
-            xi_grid_local,
-            xi_grid_arr,
-            psi_grid_arr,
-            left=W0_arr,
-            right=0.0
+            xi_grid_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0
         )
 
         # King density: rho(r)/rho_0 = rho_hat(psi) / rho_hat(W0)
         # (lowered-Maxwellian volume density; see king_lowered_maxwellian_density)
         rho0 = king_lowered_maxwellian_density(W0_arr)
         rho_grid = jnp.where(
-            rho0 > 1e-10,
-            king_lowered_maxwellian_density(psi_vals) / rho0,
-            0.0
+            rho0 > 1e-10, king_lowered_maxwellian_density(psi_vals) / rho0, 0.0
         )
 
         # Truncate at tidal radius
@@ -420,10 +423,12 @@ class KingProfile(eqx.Module):
         # Cumulative mass via the NON-UNIFORM trapezoid rule (2nd-order): the
         # sqrt-stretched grid has variable spacing, so the per-interval width
         # diff(r_grid) must weight each trapezoid (a single dr would mis-integrate).
-        M_cum = jnp.concatenate([
-            jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
-        ])
+        M_cum = jnp.concatenate(
+            [
+                jnp.zeros(1, dtype=integrand.dtype),
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
+            ]
+        )
 
         # Normalize to [0, 1] for CDF
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
@@ -437,8 +442,7 @@ class KingProfile(eqx.Module):
         # r_t. For concrete, non-pinned inputs, warn if r_t deviates from the
         # c(W0) tidal radius r_c*xi_t by >5% — a non-self-consistent, non-
         # equilibrium model. from_W0_rc derives r_t, so it never trips this.
-        if (_is_concrete(r_t_arr) and _is_concrete(W0_arr)
-                and not bool(r_t_is_pinned)):
+        if _is_concrete(r_t_arr) and _is_concrete(W0_arr) and not bool(r_t_is_pinned):
             xi_t = _find_tidal_radius(xi_grid_arr, psi_grid_arr)
             r_t_consistent = float(r_c_arr * xi_t)
             if abs(float(r_t_arr) - r_t_consistent) > 0.05 * r_t_consistent:

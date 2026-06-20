@@ -41,7 +41,7 @@ class LogUniformPeriod(eqx.Module):
         """Sample n periods [days]."""
         u = jax.random.uniform(key, (n,))
         log_P = self.log_P_min + u * (self.log_P_max - self.log_P_min)
-        return 10.0 ** log_P
+        return 10.0**log_P
 
     def pdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
         """PDF: p(P) = 1 / (P * ln(10) * (log_P_max - log_P_min))."""
@@ -59,7 +59,7 @@ class LogUniformPeriod(eqx.Module):
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF."""
         log_P = self.log_P_min + u * (self.log_P_max - self.log_P_min)
-        return 10.0 ** log_P
+        return 10.0**log_P
 
 
 class LogNormalPeriod(eqx.Module):
@@ -82,7 +82,7 @@ class LogNormalPeriod(eqx.Module):
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n periods [days]."""
         log_P = self.mu_log_P + self.sigma_log_P * jax.random.normal(key, (n,))
-        return 10.0 ** log_P
+        return 10.0**log_P
 
     def pdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
         """Log-normal PDF."""
@@ -106,7 +106,7 @@ class LogNormalPeriod(eqx.Module):
         u_safe = jnp.clip(u, 1e-12, 1.0 - 1e-12)
         z = jnp.sqrt(2.0) * jax.scipy.special.erfinv(2.0 * u_safe - 1.0)
         log_P = self.mu_log_P + self.sigma_log_P * z
-        return 10.0 ** log_P
+        return 10.0**log_P
 
 
 class SanaOBPeriod(eqx.Module):
@@ -166,8 +166,8 @@ class SanaOBPeriod(eqx.Module):
         is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
         ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
 
-        a_pow = a ** ap1_safe
-        b_pow = b ** ap1_safe
+        a_pow = a**ap1_safe
+        b_pow = b**ap1_safe
         log_P_general = jnp.power(u * (b_pow - a_pow) + a_pow, 1.0 / ap1_safe)
 
         # True alpha -> -1 limit is log-uniform IN x (not uniform): x = a (b/a)^u.
@@ -195,7 +195,7 @@ class SanaOBPeriod(eqx.Module):
 
         is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
         ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
-        F_general = (x_safe ** ap1_safe - a ** ap1_safe) / (b ** ap1_safe - a ** ap1_safe)
+        F_general = (x_safe**ap1_safe - a**ap1_safe) / (b**ap1_safe - a**ap1_safe)
         F_log_uniform = jnp.log(x_safe / a) / jnp.log(b / a)
         F = jnp.where(is_log_uniform, F_log_uniform, F_general)
         return jnp.clip(F, 0.0, 1.0)
@@ -214,7 +214,7 @@ class SanaOBPeriod(eqx.Module):
         Z = jnp.where(
             is_log_uniform,
             jnp.log(b / a),
-            (b ** ap1_safe - a ** ap1_safe) / ap1_safe,
+            (b**ap1_safe - a**ap1_safe) / ap1_safe,
         )
         # p(x) = x^alpha / Z (x>0 on [a,b]); convert to density in P: dx = dP/(P ln10).
         x_pos = jnp.where(in_range, x, 1.0)

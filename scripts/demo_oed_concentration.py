@@ -46,6 +46,7 @@ Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_oed_concentration.py
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_oed_concentration.py --outdir /tmp/oedc
 """
+
 import argparse
 import json
 import os
@@ -100,15 +101,20 @@ def _designs(Mb, cb, n_total, key, n_starts, n_steps):
     variance (target=0); D/A are the W0-OED arc's D/A optima at the SAME design space.
     """
     crit_fns = {
-        "c": lambda F: oedc.c_criterion(F, target=0),   # W0 marginal fractional variance
+        "c": lambda F: oedc.c_criterion(F, target=0),  # W0 marginal fractional variance
         "d": oedc.d_criterion,
         "a": oedc.a_criterion,
     }
     out = {}
     for i, (name, fn) in enumerate(crit_fns.items()):
         out[name] = oedc.optimize_design(
-            fn, Mb, cb, n_total, key=jax.random.fold_in(key, i),
-            n_starts=n_starts, n_steps=n_steps,
+            fn,
+            Mb,
+            cb,
+            n_total,
+            key=jax.random.fold_in(key, i),
+            n_starts=n_starts,
+            n_steps=n_steps,
         )
     return out
 
@@ -123,7 +129,7 @@ def _radial_channel_split(n_eff):
     K = n_eff.shape[1]
     total = jnp.sum(n_eff)
     core = float(jnp.sum(n_eff[:, : K // 2]) / total)
-    outer = float(jnp.sum(n_eff[:, K // 2:]) / total)
+    outer = float(jnp.sum(n_eff[:, K // 2 :]) / total)
     rv = float(jnp.sum(n_eff[0]) / total)
     pm = float(jnp.sum(n_eff[1] + n_eff[2]) / total)
     return core, outer, rv, pm
@@ -152,36 +158,53 @@ def _compute_model(model, n_total, key, n_starts, n_steps):
     optimization + the uniform baseline + the H1 splits + the W0-r_a correlation.
     """
     theta = oedc.theta_truth()
-    Mb, _ = oedc.per_star_blocks(theta, oedc.R_BINS, oedc.EPS, G, model)   # ONE jacrev
+    Mb, _ = oedc.per_star_blocks(theta, oedc.R_BINS, oedc.EPS, G, model)  # ONE jacrev
     cb = oedc.completeness(oedc.R_BINS)
     K = oedc.R_BINS.shape[0]
 
     z_unif = jnp.zeros(3 * K)
     F_unif = oedc.fisher(z_unif, Mb, cb, n_total, oedc.PRIOR_DIAG)
-    c_unif = float(oedc.c_criterion(F_unif, target=0))     # uniform W0 fractional variance
+    c_unif = float(oedc.c_criterion(F_unif, target=0))  # uniform W0 fractional variance
 
     designs = _designs(Mb, cb, n_total, key, n_starts, n_steps)
     c_res = designs["c"]
     F_c = oedc.fisher(c_res.z, Mb, cb, n_total, oedc.PRIOR_DIAG)
 
-    n_c = oedc.design_counts(c_res.z, cb, n_total)          # (3, K) c-optimal allocation
+    n_c = oedc.design_counts(c_res.z, cb, n_total)  # (3, K) c-optimal allocation
     core, outer, rv, pm = _radial_channel_split(n_c)
     pm_bin = _pm_fraction_per_bin(n_c)
 
     # HEADLINE gain: equal-precision factor on the FRACTIONAL precision sigma(lnW0).
     # c is the squared fractional precision, so the precision RATIO is sqrt(c_unif/c_opt).
-    sig_unif = c_unif ** 0.5
-    sig_c = c_res.criterion ** 0.5
+    sig_unif = c_unif**0.5
+    sig_c = c_res.criterion**0.5
     gain = sig_unif / sig_c
 
     return dict(
-        model=model, Mb=Mb, cb=cb, n_total=n_total, K=K, designs=designs,
-        z_unif=z_unif, F_unif=F_unif, F_c=F_c, n_c=n_c,
-        c_unif=c_unif, c_opt=c_res.criterion,
-        d_unif=float(oedc.d_criterion(F_unif)), d_opt=designs["d"].criterion,
-        a_unif=float(oedc.a_criterion(F_unif)), a_opt=designs["a"].criterion,
-        sig_unif=sig_unif, sig_c=sig_c, gain=gain,
-        core=core, outer=outer, rv=rv, pm=pm, pm_bin=pm_bin,
+        model=model,
+        Mb=Mb,
+        cb=cb,
+        n_total=n_total,
+        K=K,
+        designs=designs,
+        z_unif=z_unif,
+        F_unif=F_unif,
+        F_c=F_c,
+        n_c=n_c,
+        c_unif=c_unif,
+        c_opt=c_res.criterion,
+        d_unif=float(oedc.d_criterion(F_unif)),
+        d_opt=designs["d"].criterion,
+        a_unif=float(oedc.a_criterion(F_unif)),
+        a_opt=designs["a"].criterion,
+        sig_unif=sig_unif,
+        sig_c=sig_c,
+        gain=gain,
+        core=core,
+        outer=outer,
+        rv=rv,
+        pm=pm,
+        pm_bin=pm_bin,
         rho_wa=_wa_correlation(F_c),
     )
 
@@ -205,14 +228,18 @@ def _stage1_ra_design():
     z_c = jnp.asarray(rec["designs_z"]["c"])
     n_total = float(rec["params"]["n_total"])
     cb = oed.completeness(oed.R_BINS)
-    n_eff = oed.design_counts(z_c, cb, n_total)            # (3, K1)
+    n_eff = oed.design_counts(z_c, cb, n_total)  # (3, K1)
     K1 = oed.R_BINS.shape[0]
     total = jnp.sum(n_eff)
     core = float(jnp.sum(n_eff[:, : K1 // 2]) / total)
-    outer = float(jnp.sum(n_eff[:, K1 // 2:]) / total)
+    outer = float(jnp.sum(n_eff[:, K1 // 2 :]) / total)
     pm_bin = (n_eff[1] + n_eff[2]) / jnp.sum(n_eff, axis=0)
     return dict(
-        n_eff=n_eff, R_BINS=oed.R_BINS, core=core, outer=outer, pm_bin=pm_bin,
+        n_eff=n_eff,
+        R_BINS=oed.R_BINS,
+        core=core,
+        outer=outer,
+        pm_bin=pm_bin,
         pm_inner=float(rec["results"]["pm_fraction_inner"]),
         pm_outer=float(rec["results"]["pm_fraction_outer"]),
         n_total=n_total,
@@ -225,21 +252,45 @@ def main(argv=None):
         description="W0-OED concentration demo: the c-optimal observing design for W0 "
         "(King + Michie), with the pre-registered W0-vs-r_a hypothesis check."
     )
-    p.add_argument("--outdir", type=str, default=FIGURE_DIR,
-                   help=f"Directory for the figures (default {FIGURE_DIR}).")
-    p.add_argument("--n-starts", type=int, default=N_STARTS_DEFAULT,
-                   help=f"Multi-start Adam restarts for each c/D/A optimize "
-                        f"(default {N_STARTS_DEFAULT}).")
-    p.add_argument("--n-steps", type=int, default=N_STEPS_DEFAULT,
-                   help=f"Adam steps per start (default {N_STEPS_DEFAULT}).")
-    p.add_argument("--n-total", type=float, default=N_TOTAL_DEFAULT,
-                   help=f"Total star budget across (radius x channel); the King calibration "
-                        f"operating point (default {N_TOTAL_DEFAULT:.0f}).")
-    p.add_argument("--seed", type=int, default=0, help="PRNG seed for the optimizer (default 0).")
-    p.add_argument("--quick", action="store_true",
-                   help="Dial the optimizer down (smoke-test/CI fast path): few starts/steps.")
-    p.add_argument("--no-figures", action="store_true",
-                   help="Skip figure generation; print the summary + write the run-record only.")
+    p.add_argument(
+        "--outdir",
+        type=str,
+        default=FIGURE_DIR,
+        help=f"Directory for the figures (default {FIGURE_DIR}).",
+    )
+    p.add_argument(
+        "--n-starts",
+        type=int,
+        default=N_STARTS_DEFAULT,
+        help=f"Multi-start Adam restarts for each c/D/A optimize "
+        f"(default {N_STARTS_DEFAULT}).",
+    )
+    p.add_argument(
+        "--n-steps",
+        type=int,
+        default=N_STEPS_DEFAULT,
+        help=f"Adam steps per start (default {N_STEPS_DEFAULT}).",
+    )
+    p.add_argument(
+        "--n-total",
+        type=float,
+        default=N_TOTAL_DEFAULT,
+        help=f"Total star budget across (radius x channel); the King calibration "
+        f"operating point (default {N_TOTAL_DEFAULT:.0f}).",
+    )
+    p.add_argument(
+        "--seed", type=int, default=0, help="PRNG seed for the optimizer (default 0)."
+    )
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="Dial the optimizer down (smoke-test/CI fast path): few starts/steps.",
+    )
+    p.add_argument(
+        "--no-figures",
+        action="store_true",
+        help="Skip figure generation; print the summary + write the run-record only.",
+    )
     args = p.parse_args(argv)
 
     n_starts = N_STARTS_QUICK if args.quick else args.n_starts
@@ -250,44 +301,60 @@ def main(argv=None):
     print("=" * 78)
     print("W0-OED CONCENTRATION: the c-optimal observing design for W0 (King + Michie)")
     print("=" * 78)
-    print(f"  mock: W0={oedc.MOCK['W0']}, r_a={oedc.MOCK['r_a']} r_c, M={oedc.MOCK['M']:.0e} Msun, "
-          f"r_c={oedc.MOCK['r_c']} (length unit), d={oedc.MOCK['d_kpc']} kpc")
-    print(f"  errors: eps_RV={oedc.MOCK['eps_RV_kms']} km/s, eps_PM={oedc.MOCK['eps_PM_masyr']} "
-          f"mas/yr  |  K={oedc.R_BINS.shape[0]} bins  |  N_total={n_total:.0f}")
-    print(f"  optimizer: {n_starts} starts x {n_steps} steps"
-          f"{'  [--quick]' if args.quick else ''}  |  theta=(W0=0, r_a=1, M=2), c-target=W0")
+    print(
+        f"  mock: W0={oedc.MOCK['W0']}, r_a={oedc.MOCK['r_a']} r_c, M={oedc.MOCK['M']:.0e} Msun, "
+        f"r_c={oedc.MOCK['r_c']} (length unit), d={oedc.MOCK['d_kpc']} kpc"
+    )
+    print(
+        f"  errors: eps_RV={oedc.MOCK['eps_RV_kms']} km/s, eps_PM={oedc.MOCK['eps_PM_masyr']} "
+        f"mas/yr  |  K={oedc.R_BINS.shape[0]} bins  |  N_total={n_total:.0f}"
+    )
+    print(
+        f"  optimizer: {n_starts} starts x {n_steps} steps"
+        f"{'  [--quick]' if args.quick else ''}  |  theta=(W0=0, r_a=1, M=2), c-target=W0"
+    )
 
     # --- per-model cheap OED products (ONE jacrev + 3x3 linalg each) ------- #
     results = {}
     for i, model in enumerate(MODELS):
-        print(f"\n  computing {model} design (1 jacrev at truth + c/D/A 3x3 optimization) ...")
+        print(
+            f"\n  computing {model} design (1 jacrev at truth + c/D/A 3x3 optimization) ..."
+        )
         results[model] = _compute_model(
             model, n_total, jax.random.fold_in(key, i), n_starts, n_steps
         )
 
-    ra = _stage1_ra_design()   # the contrast (cheap; from the committed Stage-1 record)
+    ra = _stage1_ra_design()  # the contrast (cheap; from the committed Stage-1 record)
 
     # --- quantitative summary --------------------------------------------- #
     print("\n" + "-" * 78)
     print("  W0 c-OPTIMAL DESIGN (per model)")
-    print(f"  {'model':<8s}{'sig(lnW0) unif':>16s}{'-> c-opt':>11s}{'gain':>8s}"
-          f"{'RV/PM':>13s}{'core/outer':>14s}")
+    print(
+        f"  {'model':<8s}{'sig(lnW0) unif':>16s}{'-> c-opt':>11s}{'gain':>8s}"
+        f"{'RV/PM':>13s}{'core/outer':>14s}"
+    )
     print("-" * 78)
     for model in MODELS:
         r = results[model]
-        print(f"  {model:<8s}{r['sig_unif']:>16.4f}{r['sig_c']:>11.4f}{r['gain']:>7.2f}x"
-              f"{r['rv']:>7.2f}/{r['pm']:<5.2f}{r['core']:>8.2f}/{r['outer']:<5.2f}")
+        print(
+            f"  {model:<8s}{r['sig_unif']:>16.4f}{r['sig_c']:>11.4f}{r['gain']:>7.2f}x"
+            f"{r['rv']:>7.2f}/{r['pm']:<5.2f}{r['core']:>8.2f}/{r['outer']:<5.2f}"
+        )
     print("-" * 78)
 
     # c/D/A table (each criterion on the uniform + each design's own optimum).
     print("  c / D / A criteria  (uniform  ->  that-criterion optimum), per model")
-    print(f"  {'model':<8s}{'c unif':>12s}{'c opt':>12s}{'D unif':>12s}{'D opt':>12s}"
-          f"{'A unif':>12s}{'A opt':>12s}")
+    print(
+        f"  {'model':<8s}{'c unif':>12s}{'c opt':>12s}{'D unif':>12s}{'D opt':>12s}"
+        f"{'A unif':>12s}{'A opt':>12s}"
+    )
     print("-" * 78)
     for model in MODELS:
         r = results[model]
-        print(f"  {model:<8s}{r['c_unif']:>12.3e}{r['c_opt']:>12.3e}"
-              f"{r['d_unif']:>12.3e}{r['d_opt']:>12.3e}{r['a_unif']:>12.3e}{r['a_opt']:>12.3e}")
+        print(
+            f"  {model:<8s}{r['c_unif']:>12.3e}{r['c_opt']:>12.3e}"
+            f"{r['d_unif']:>12.3e}{r['d_opt']:>12.3e}{r['a_unif']:>12.3e}{r['a_opt']:>12.3e}"
+        )
     print("-" * 78)
 
     # Per-bin PM fraction (the channel-balance read entering the H1 channel verdict).
@@ -295,7 +362,7 @@ def main(argv=None):
     for model in MODELS:
         r = results[model]
         core_pm = float(jnp.mean(r["pm_bin"][: r["K"] // 2]))
-        outer_pm = float(jnp.mean(r["pm_bin"][r["K"] // 2:]))
+        outer_pm = float(jnp.mean(r["pm_bin"][r["K"] // 2 :]))
         print(f"     {model:<8s} core-half {core_pm:.2f} -> outer-half {outer_pm:.2f}")
     print("-" * 78)
 
@@ -303,29 +370,53 @@ def main(argv=None):
     king = results["king"]
     if ra is not None:
         ra_outer_pct = 100.0 * ra["outer"]
-        ra_contrast = (f"Stage-1 r_a -> {ra_outer_pct:.0f}% OUTSKIRTS "
-                       f"(core {100.0 * ra['core']:.0f}%)")
+        ra_contrast = (
+            f"Stage-1 r_a -> {ra_outer_pct:.0f}% OUTSKIRTS "
+            f"(core {100.0 * ra['core']:.0f}%)"
+        )
     else:
-        ra_contrast = "Stage-1 r_a -> ~99% OUTSKIRTS (documented pattern; record absent)"
+        ra_contrast = (
+            "Stage-1 r_a -> ~99% OUTSKIRTS (documented pattern; record absent)"
+        )
     print("  PRE-REGISTERED HYPOTHESIS H1  (W0 differs from r_a)")
-    print(f"     RADIAL  : CONFIRMED -- W0 -> {100.0 * king['core']:.0f}% CORE "
-          f"(king); {ra_contrast}.")
+    print(
+        f"     RADIAL  : CONFIRMED -- W0 -> {100.0 * king['core']:.0f}% CORE "
+        f"(king); {ra_contrast}."
+    )
     print("                The headline contrast: concentration wants the CORE")
-    print("                (core<->truncation sigma contrast), anisotropy wanted the OUTSKIRTS.")
-    print(f"     CHANNEL : REFUTED -- W0 is PM-DOMINATED (king RV {king['rv']:.2f} / "
-          f"PM {king['pm']:.2f}), NOT")
-    print("                channel-balanced as predicted. At the RV/PM error parity PM gives")
-    print("                2 components/star (PM_R + PM_T) -- a 2-for-1 efficiency. A wrong")
-    print("                sub-prediction is a finding, reported honestly (null-result integrity).")
+    print(
+        "                (core<->truncation sigma contrast), anisotropy wanted the OUTSKIRTS."
+    )
+    print(
+        f"     CHANNEL : REFUTED -- W0 is PM-DOMINATED (king RV {king['rv']:.2f} / "
+        f"PM {king['pm']:.2f}), NOT"
+    )
+    print(
+        "                channel-balanced as predicted. At the RV/PM error parity PM gives"
+    )
+    print(
+        "                2 components/star (PM_R + PM_T) -- a 2-for-1 efficiency. A wrong"
+    )
+    print(
+        "                sub-prediction is a finding, reported honestly (null-result integrity)."
+    )
     print("-" * 78)
     print("  W0 <-> r_a degeneracy (Fisher correlation rho at the c-optimal design):")
     for model in MODELS:
         print(f"     {model:<8s} rho(W0, r_a) = {results[model]['rho_wa']:+.3f}")
-    print(f"  KING real-star calibration (validated separately, env-gated @slow, 48 draws):")
-    print(f"     realized Var(lnW0_hat) / Fisher (F^-1)_W0W0 = {KING_CALIB_RATIO:.3f}  "
-          f"(~1.0 -> the design Fisher is trustworthy)")
-    print("     [Michie calibration MC intentionally NOT run -- its MLE-MC backward tape is")
-    print("      ~28 GB and OOM-crashes the host; Michie is validated by the cheap gradient tests.]")
+    print(
+        "  KING real-star calibration (validated separately, env-gated @slow, 48 draws):"
+    )
+    print(
+        f"     realized Var(lnW0_hat) / Fisher (F^-1)_W0W0 = {KING_CALIB_RATIO:.3f}  "
+        f"(~1.0 -> the design Fisher is trustworthy)"
+    )
+    print(
+        "     [Michie calibration MC intentionally NOT run -- its MLE-MC backward tape is"
+    )
+    print(
+        "      ~28 GB and OOM-crashes the host; Michie is validated by the cheap gradient tests.]"
+    )
     print("-" * 78)
 
     # --- run-record JSON --------------------------------------------------- #
@@ -334,9 +425,14 @@ def main(argv=None):
         "demo": "demo_oed_concentration (W0-OED, King + Michie)",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "params": {
-            "seed": args.seed, "n_total": n_total, "n_starts": n_starts, "n_steps": n_steps,
-            "quick": bool(args.quick), "K_bins": int(oedc.R_BINS.shape[0]),
-            "mock": oedc.MOCK, "eps_pcMyr": [float(e) for e in oedc.EPS],
+            "seed": args.seed,
+            "n_total": n_total,
+            "n_starts": n_starts,
+            "n_steps": n_steps,
+            "quick": bool(args.quick),
+            "K_bins": int(oedc.R_BINS.shape[0]),
+            "mock": oedc.MOCK,
+            "eps_pcMyr": [float(e) for e in oedc.EPS],
             "prior_diag": [float(x) for x in oedc.PRIOR_DIAG],
             "king_calib_ratio_cited": KING_CALIB_RATIO,
         },
@@ -352,9 +448,12 @@ def main(argv=None):
                 "rho_W0_ra": results[model]["rho_wa"],
                 "pm_fraction_per_bin": [float(x) for x in results[model]["pm_bin"]],
                 "criteria": {
-                    "c_uniform": results[model]["c_unif"], "c_opt": results[model]["c_opt"],
-                    "d_uniform": results[model]["d_unif"], "d_opt": results[model]["d_opt"],
-                    "a_uniform": results[model]["a_unif"], "a_opt": results[model]["a_opt"],
+                    "c_uniform": results[model]["c_unif"],
+                    "c_opt": results[model]["c_opt"],
+                    "d_uniform": results[model]["d_unif"],
+                    "d_opt": results[model]["d_opt"],
+                    "a_uniform": results[model]["a_unif"],
+                    "a_opt": results[model]["a_opt"],
                 },
             }
             for model in MODELS
@@ -395,7 +494,6 @@ import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 import numpy as np  # noqa: E402  -- host-side plotting bookkeeping only
-
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
 
 # Channel labels shared across figures (RV, PM_R, PM_T), matching Stage 1/2.
@@ -413,13 +511,14 @@ def _fig_allocation_heatmap(res, fig_dir):
     at a glance (the bars in Fig 3 carry the radial story; this carries both axes)."""
     import matplotlib.pyplot as plt
 
-    n_eff = np.asarray(res["n_c"])                         # (3, K)
+    n_eff = np.asarray(res["n_c"])  # (3, K)
     R = np.asarray(oedc.R_BINS)
     model = res["model"]
 
     fig, ax = plt.subplots(figsize=(6.4, 2.9))
-    im = ax.imshow(n_eff, aspect="auto", origin="lower", cmap="viridis",
-                   interpolation="nearest")
+    im = ax.imshow(
+        n_eff, aspect="auto", origin="lower", cmap="viridis", interpolation="nearest"
+    )
     ax.set_yticks(range(3))
     ax.set_yticklabels(_CH_SHORT)
     # Label a sparse subset of the K radial bins (every 2nd) to keep the axis readable.
@@ -445,10 +544,18 @@ def _stacked_radial(ax, n_eff, R, title, unit="r_c"):
     bw = 0.9 * (logR[1] - logR[0])
     bottom = np.zeros_like(logR)
     for c, (lbl, col) in enumerate(zip(_CH_LABELS, _CH_COLORS)):
-        ax.bar(logR, np.asarray(n_eff)[c], width=bw, bottom=bottom, color=col,
-               edgecolor="white", linewidth=0.2, label=lbl)
+        ax.bar(
+            logR,
+            np.asarray(n_eff)[c],
+            width=bw,
+            bottom=bottom,
+            color=col,
+            edgecolor="white",
+            linewidth=0.2,
+            label=lbl,
+        )
         bottom = bottom + np.asarray(n_eff)[c]
-    ax.set_xlabel(fr"$\log_{{10}}(R\,/\,{unit})$")
+    ax.set_xlabel(rf"$\log_{{10}}(R\,/\,{unit})$")
     panel_label(ax, title, loc="upper right")
 
 
@@ -465,31 +572,57 @@ def _fig_headline_contrast(results, ra, fig_dir):
 
     king = results["king"]
     n_w0 = np.asarray(king["n_c"])
-    n_w0 = n_w0 / n_w0.sum()                               # fraction of the W0 budget
+    n_w0 = n_w0 / n_w0.sum()  # fraction of the W0 budget
     R_w0 = np.asarray(oedc.R_BINS)
 
     fig, (axL, axR) = plt.subplots(1, 2, figsize=(10.2, 4.0))
     # The W0 grid is in r_c; the Stage-1 r_a grid is in r_h. Each panel labels its own unit.
     _stacked_radial(axL, n_w0, R_w0, r"$W_0$ (concentration)", unit="r_c")
     axL.set_ylabel(r"allocation fraction of the budget")
-    axL.text(0.035, 0.80,
-             r"$W_0$ wants the CORE" + "\n"
-             + fr"core ${100 * king['core']:.0f}\%$ / outskirts ${100 * king['outer']:.0f}\%$",
-             transform=axL.transAxes, fontsize=9, va="top", color=OI["vermilion"])
+    axL.text(
+        0.035,
+        0.80,
+        r"$W_0$ wants the CORE"
+        + "\n"
+        + rf"core ${100 * king['core']:.0f}\%$ / outskirts ${100 * king['outer']:.0f}\%$",
+        transform=axL.transAxes,
+        fontsize=9,
+        va="top",
+        color=OI["vermilion"],
+    )
     axL.legend(loc="upper left", fontsize=7.5)
 
     if ra is not None:
         n_ra = np.asarray(ra["n_eff"])
         n_ra = n_ra / n_ra.sum()
-        _stacked_radial(axR, n_ra, np.asarray(ra["R_BINS"]),
-                        r"$r_a$ (anisotropy, Stage 1)", unit="r_h")
-        axR.text(0.035, 0.80,
-                 r"$r_a$ wanted the OUTSKIRTS" + "\n"
-                 + fr"core ${100 * ra['core']:.0f}\%$ / outskirts ${100 * ra['outer']:.0f}\%$",
-                 transform=axR.transAxes, fontsize=9, va="top", color=OI["blue"])
+        _stacked_radial(
+            axR,
+            n_ra,
+            np.asarray(ra["R_BINS"]),
+            r"$r_a$ (anisotropy, Stage 1)",
+            unit="r_h",
+        )
+        axR.text(
+            0.035,
+            0.80,
+            r"$r_a$ wanted the OUTSKIRTS"
+            + "\n"
+            + rf"core ${100 * ra['core']:.0f}\%$ / outskirts ${100 * ra['outer']:.0f}\%$",
+            transform=axR.transAxes,
+            fontsize=9,
+            va="top",
+            color=OI["blue"],
+        )
     else:
-        axR.text(0.5, 0.5, "Stage-1 $r_a$ record absent\n(documented: ~99% outskirts)",
-                 transform=axR.transAxes, ha="center", va="center", fontsize=9)
+        axR.text(
+            0.5,
+            0.5,
+            "Stage-1 $r_a$ record absent\n(documented: ~99% outskirts)",
+            transform=axR.transAxes,
+            ha="center",
+            va="center",
+            fontsize=9,
+        )
         axR.set_xlabel(r"$\log_{10}(R\,/\,r_h)$")
         panel_label(axR, r"$r_a$ (anisotropy, Stage 1)", loc="upper right")
     axR.set_ylabel(r"allocation fraction of the budget")
@@ -524,8 +657,16 @@ def _fig_gain_cda(results, fig_dir):
         # Gain label ON the c-optimal (orange) bar (white text, mid-bar) -- legible and
         # unambiguously attached to the c-optimal result; never collides with the top
         # legend or the panel tag.
-        axL.text(x[i] + w / 2, 0.5 * sig_c[i], fr"${results[m]['gain']:.2f}\times$",
-                 ha="center", va="center", fontsize=9.5, fontweight="bold", color="white")
+        axL.text(
+            x[i] + w / 2,
+            0.5 * sig_c[i],
+            rf"${results[m]['gain']:.2f}\times$",
+            ha="center",
+            va="center",
+            fontsize=9.5,
+            fontweight="bold",
+            color="white",
+        )
     axL.set_xticks(x)
     axL.set_xticklabels([m for m in MODELS])
     axL.set_ylabel(r"fractional precision  $\sigma(\ln W_0)$")
@@ -536,7 +677,11 @@ def _fig_gain_cda(results, fig_dir):
 
     # --- right: c/D/A opt-vs-uniform ratio ---
     crits = ("c", "d", "a")
-    crit_lbl = {"c": "c  (var $W_0$)", "d": r"D  ($-\log\det F$)", "a": r"A  (tr $F^{-1}$)"}
+    crit_lbl = {
+        "c": "c  (var $W_0$)",
+        "d": r"D  ($-\log\det F$)",
+        "a": r"A  (tr $F^{-1}$)",
+    }
     xc = np.arange(len(crits))
     for j, m in enumerate(MODELS):
         r = results[m]
@@ -579,8 +724,14 @@ def _fig_degeneracy(results, fig_dir):
     colors = [OI["blue"] if m == "king" else OI["orange"] for m in MODELS]
     ax.bar(x, rho, 0.5, color=colors)
     for i, v in enumerate(rho):
-        ax.text(x[i], v + (0.03 if v >= 0 else -0.03), f"{v:+.2f}",
-                ha="center", va="bottom" if v >= 0 else "top", fontsize=9.5)
+        ax.text(
+            x[i],
+            v + (0.03 if v >= 0 else -0.03),
+            f"{v:+.2f}",
+            ha="center",
+            va="bottom" if v >= 0 else "top",
+            fontsize=9.5,
+        )
     ax.axhline(0.0, color="0.5", ls="-", lw=0.8)
     # Shade the |rho| > 0.9 'near-degenerate' band for context.
     ax.axhspan(0.9, 1.05, color="0.85", alpha=0.5, zorder=0)
@@ -597,10 +748,10 @@ def _fig_degeneracy(results, fig_dir):
 def make_figures(results, ra, fig_dir):
     """Generate the five W0-OED figures into fig_dir (PNG + PDF via save_fig).
 
-      * figs 1-2 (alloc_{king,michie}): the W0 c-optimal (channel x radius) heatmaps.
-      * fig 3 (headline_contrast):      W0 (core-heavy) vs Stage-1 r_a (outskirts-heavy).
-      * fig 4 (gain_cda):               sigma(lnW0) uniform-vs-c gain + c/D/A ratios.
-      * fig 5 (degeneracy):             the Fisher rho(W0, r_a) at the c-optimal design.
+    * figs 1-2 (alloc_{king,michie}): the W0 c-optimal (channel x radius) heatmaps.
+    * fig 3 (headline_contrast):      W0 (core-heavy) vs Stage-1 r_a (outskirts-heavy).
+    * fig 4 (gain_cda):               sigma(lnW0) uniform-vs-c gain + c/D/A ratios.
+    * fig 5 (degeneracy):             the Fisher rho(W0, r_a) at the c-optimal design.
     """
     apply_pub_style()
     os.makedirs(fig_dir, exist_ok=True)

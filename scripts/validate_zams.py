@@ -28,6 +28,7 @@ Reference:
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_zams.py
 """
+
 import os
 import sys
 
@@ -38,14 +39,14 @@ import numpy as np
 
 jax.config.update("jax_enable_x64", True)
 
+from jaxstro.constants import LSUN_ERG_S, RSUN_CM, SIGMA_SB
+
 import progenax  # noqa: F401  (enables float64)
-from jaxstro.constants import G_CGS, LSUN_ERG_S, MSUN_G, RSUN_CM, SIGMA_SB
 from progenax.stellar import (
     inverse_zams_luminosity,
     zams_effective_temperature,
     zams_luminosity,
     zams_radius,
-    zams_surface_gravity,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -63,9 +64,11 @@ TEFF_SUN_ZAMS = 5597.303626190019
 LOGG_SUN_ZAMS = 4.540995576621913
 
 # Metallicities for the multi-Z panels (the Tout+1996 fitted box, solar + two poorer).
-Z_GRID = [(0.02, OI["vermilion"], r"$Z=0.02$ (solar)"),
-          (0.001, OI["blue"], r"$Z=0.001$"),
-          (0.0001, OI["green"], r"$Z=10^{-4}$")]
+Z_GRID = [
+    (0.02, OI["vermilion"], r"$Z=0.02$ (solar)"),
+    (0.001, OI["blue"], r"$Z=0.001$"),
+    (0.0001, OI["green"], r"$Z=10^{-4}$"),
+]
 
 
 # ============================================================================
@@ -79,25 +82,51 @@ def fig_luminosity_mass(output_dir):
 
     L_sun = float(zams_luminosity(jnp.array(1.0)))
     anchor_ok = abs(L_sun - L_SUN_ZAMS) / L_SUN_ZAMS < 0.03
-    print(f"  L(1 Msun, Z=0.02) = {L_sun:.4f} Lsun (verified {L_SUN_ZAMS:.4f}, tol 3%)"
-          f"  -> {'PASS' if anchor_ok else 'FAIL'}")
+    print(
+        f"  L(1 Msun, Z=0.02) = {L_sun:.4f} Lsun (verified {L_SUN_ZAMS:.4f}, tol 3%)"
+        f"  -> {'PASS' if anchor_ok else 'FAIL'}"
+    )
 
     L_solar = zams_luminosity(M, Z=0.02)
     mono_ok = bool(jnp.all(jnp.diff(L_solar) > 0.0))
-    print(f"  L(M) strictly monotone over [0.1,100] Msun  "
-          f"-> {'PASS' if mono_ok else 'FAIL'}")
+    print(
+        f"  L(M) strictly monotone over [0.1,100] Msun  "
+        f"-> {'PASS' if mono_ok else 'FAIL'}"
+    )
 
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
     for Z, color, label in Z_GRID:
-        ax.loglog(np.asarray(M), np.asarray(zams_luminosity(M, Z=Z)), "-",
-                  color=color, lw=1.7, label=label)
-    ax.plot(1.0, L_SUN_ZAMS, "*", color=OI["black"], ms=12, mec="white", mew=0.6,
-            zorder=5, label=r"Sun (ZAMS, $0.698\,L_\odot$)")
+        ax.loglog(
+            np.asarray(M),
+            np.asarray(zams_luminosity(M, Z=Z)),
+            "-",
+            color=color,
+            lw=1.7,
+            label=label,
+        )
+    ax.plot(
+        1.0,
+        L_SUN_ZAMS,
+        "*",
+        color=OI["black"],
+        ms=12,
+        mec="white",
+        mew=0.6,
+        zorder=5,
+        label=r"Sun (ZAMS, $0.698\,L_\odot$)",
+    )
     ax.set_xlabel(r"$M\ [M_\odot]$")
     ax.set_ylabel(r"$L\ [L_\odot]$")
     ax.legend(loc="upper left", fontsize=7)
-    ax.text(0.96, 0.06, "Tout+1996 Table 1", transform=ax.transAxes, ha="right",
-            fontsize=7, color="0.4")
+    ax.text(
+        0.96,
+        0.06,
+        "Tout+1996 Table 1",
+        transform=ax.transAxes,
+        ha="right",
+        fontsize=7,
+        color="0.4",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "zams_luminosity_mass")
     print("  saved zams_luminosity_mass.{png,pdf}")
@@ -115,22 +144,46 @@ def fig_radius_mass(output_dir):
 
     R_sun = float(zams_radius(jnp.array(1.0)))
     anchor_ok = abs(R_sun - R_SUN_ZAMS) / R_SUN_ZAMS < 0.012
-    print(f"  R(1 Msun, Z=0.02) = {R_sun:.4f} Rsun (verified {R_SUN_ZAMS:.4f}, tol 1.2%)"
-          f"  -> {'PASS' if anchor_ok else 'FAIL'}")
+    print(
+        f"  R(1 Msun, Z=0.02) = {R_sun:.4f} Rsun (verified {R_SUN_ZAMS:.4f}, tol 1.2%)"
+        f"  -> {'PASS' if anchor_ok else 'FAIL'}"
+    )
     pos_ok = bool(jnp.all(zams_radius(M, Z=0.02) > 0.0))
     print(f"  R(M) > 0 over [0.1,100] Msun  -> {'PASS' if pos_ok else 'FAIL'}")
 
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
     for Z, color, label in Z_GRID:
-        ax.loglog(np.asarray(M), np.asarray(zams_radius(M, Z=Z)), "-",
-                  color=color, lw=1.7, label=label)
-    ax.plot(1.0, R_SUN_ZAMS, "*", color=OI["black"], ms=12, mec="white", mew=0.6,
-            zorder=5, label=r"Sun (ZAMS, $0.888\,R_\odot$)")
+        ax.loglog(
+            np.asarray(M),
+            np.asarray(zams_radius(M, Z=Z)),
+            "-",
+            color=color,
+            lw=1.7,
+            label=label,
+        )
+    ax.plot(
+        1.0,
+        R_SUN_ZAMS,
+        "*",
+        color=OI["black"],
+        ms=12,
+        mec="white",
+        mew=0.6,
+        zorder=5,
+        label=r"Sun (ZAMS, $0.888\,R_\odot$)",
+    )
     ax.set_xlabel(r"$M\ [M_\odot]$")
     ax.set_ylabel(r"$R\ [R_\odot]$")
     ax.legend(loc="upper left", fontsize=7)
-    ax.text(0.96, 0.06, "Tout+1996 Table 2", transform=ax.transAxes, ha="right",
-            fontsize=7, color="0.4")
+    ax.text(
+        0.96,
+        0.06,
+        "Tout+1996 Table 2",
+        transform=ax.transAxes,
+        ha="right",
+        fontsize=7,
+        color="0.4",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "zams_radius_mass")
     print("  saved zams_radius_mass.{png,pdf}")
@@ -153,26 +206,60 @@ def fig_teff_mass(output_dir):
     T_hand = (L_cgs / (4.0 * np.pi * R_cgs**2 * SIGMA_SB)) ** 0.25
     max_rel = float(np.max(np.abs(T_mod - T_hand) / T_hand))
     closure_ok = max_rel < 1e-10
-    print(f"  T_eff(M) vs hand Stefan-Boltzmann: max rel {max_rel:.2e} (tol 1e-10)"
-          f"  -> {'PASS' if closure_ok else 'FAIL'}")
+    print(
+        f"  T_eff(M) vs hand Stefan-Boltzmann: max rel {max_rel:.2e} (tol 1e-10)"
+        f"  -> {'PASS' if closure_ok else 'FAIL'}"
+    )
 
     T_sun = float(zams_effective_temperature(jnp.array(1.0)))
     anchor_ok = abs(T_sun - TEFF_SUN_ZAMS) < 5.0
-    print(f"  T_eff(1 Msun) = {T_sun:.1f} K (verified {TEFF_SUN_ZAMS:.1f} K)"
-          f"  -> {'PASS' if anchor_ok else 'FAIL'}")
+    print(
+        f"  T_eff(1 Msun) = {T_sun:.1f} K (verified {TEFF_SUN_ZAMS:.1f} K)"
+        f"  -> {'PASS' if anchor_ok else 'FAIL'}"
+    )
 
     fig, ax = plt.subplots(figsize=(4.8, 3.6))
-    ax.loglog(np.asarray(M), T_hand, "-", color=OI["black"], lw=2.0,
-              label=r"hand $4\pi R^2\sigma T^4=L$")
-    ax.loglog(np.asarray(M)[::6], T_mod[::6], "o", color=OI["vermilion"], ms=4,
-              mfc="none", mew=1.0, label=r"$T_{\rm eff}(M)$ module")
-    ax.plot(1.0, TEFF_SUN_ZAMS, "*", color=OI["blue"], ms=12, mec="white", mew=0.6,
-            zorder=5, label=r"Sun (ZAMS, $5597$ K)")
+    ax.loglog(
+        np.asarray(M),
+        T_hand,
+        "-",
+        color=OI["black"],
+        lw=2.0,
+        label=r"hand $4\pi R^2\sigma T^4=L$",
+    )
+    ax.loglog(
+        np.asarray(M)[::6],
+        T_mod[::6],
+        "o",
+        color=OI["vermilion"],
+        ms=4,
+        mfc="none",
+        mew=1.0,
+        label=r"$T_{\rm eff}(M)$ module",
+    )
+    ax.plot(
+        1.0,
+        TEFF_SUN_ZAMS,
+        "*",
+        color=OI["blue"],
+        ms=12,
+        mec="white",
+        mew=0.6,
+        zorder=5,
+        label=r"Sun (ZAMS, $5597$ K)",
+    )
     ax.set_xlabel(r"$M\ [M_\odot]$")
     ax.set_ylabel(r"$T_{\rm eff}\ [{\rm K}]$")
     ax.legend(loc="upper left", fontsize=7)
-    ax.text(0.5, 0.07, "Stefan-Boltzmann closure", transform=ax.transAxes,
-            ha="center", fontsize=7, color="0.4")
+    ax.text(
+        0.5,
+        0.07,
+        "Stefan-Boltzmann closure",
+        transform=ax.transAxes,
+        ha="center",
+        fontsize=7,
+        color="0.4",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "zams_teff_mass")
     print("  saved zams_teff_mass.{png,pdf}")
@@ -194,36 +281,63 @@ def fig_hr_diagram(output_dir):
     T0 = np.asarray(zams_effective_temperature(M, Z=0.02))
     order = np.argsort(T0)
     mono_ok = bool(np.all(np.diff(np.log10(L0[order])) > -1e-9))
-    print(f"  ZAMS locus monotone in (log T_eff, log L)  "
-          f"-> {'PASS' if mono_ok else 'FAIL'}")
+    print(
+        f"  ZAMS locus monotone in (log T_eff, log L)  "
+        f"-> {'PASS' if mono_ok else 'FAIL'}"
+    )
     # metal-poor ZAMS is hotter at fixed mass (lower opacity) -- bluer track
     T_poor = float(zams_effective_temperature(jnp.array(1.0), Z=0.0001))
     bluer_ok = T_poor > TEFF_SUN_ZAMS
-    print(f"  T_eff(1 Msun): Z=1e-4 {T_poor:.0f} K > Z=0.02 {TEFF_SUN_ZAMS:.0f} K "
-          f"(metal-poor is bluer)  -> {'PASS' if bluer_ok else 'FAIL'}")
+    print(
+        f"  T_eff(1 Msun): Z=1e-4 {T_poor:.0f} K > Z=0.02 {TEFF_SUN_ZAMS:.0f} K "
+        f"(metal-poor is bluer)  -> {'PASS' if bluer_ok else 'FAIL'}"
+    )
 
     fig, ax = plt.subplots(figsize=(5.0, 4.0))
     for Z, color, label in Z_GRID:
         L = np.asarray(zams_luminosity(M, Z=Z))
         T = np.asarray(zams_effective_temperature(M, Z=Z))
         ax.plot(np.log10(T), np.log10(L), "-", color=color, lw=1.7, label=label)
-    ax.plot(np.log10(TEFF_SUN_ZAMS), np.log10(L_SUN_ZAMS), "*", color=OI["black"],
-            ms=13, mec="white", mew=0.6, zorder=5, label="Sun (ZAMS)")
+    ax.plot(
+        np.log10(TEFF_SUN_ZAMS),
+        np.log10(L_SUN_ZAMS),
+        "*",
+        color=OI["black"],
+        ms=13,
+        mec="white",
+        mew=0.6,
+        zorder=5,
+        label="Sun (ZAMS)",
+    )
     # mass tick marks along the solar track
     for Mt in (0.3, 1.0, 3.0, 10.0, 30.0):
         Tt = float(zams_effective_temperature(jnp.array(Mt), Z=0.02))
         Lt = float(zams_luminosity(jnp.array(Mt), Z=0.02))
-        ax.plot(np.log10(Tt), np.log10(Lt), "o", color=OI["vermilion"], ms=3.5,
-                zorder=4)
-        ax.annotate(rf"${Mt:g}\,M_\odot$", (np.log10(Tt), np.log10(Lt)),
-                    textcoords="offset points", xytext=(5, -2), fontsize=6,
-                    color="0.4")
+        ax.plot(
+            np.log10(Tt), np.log10(Lt), "o", color=OI["vermilion"], ms=3.5, zorder=4
+        )
+        ax.annotate(
+            rf"${Mt:g}\,M_\odot$",
+            (np.log10(Tt), np.log10(Lt)),
+            textcoords="offset points",
+            xytext=(5, -2),
+            fontsize=6,
+            color="0.4",
+        )
     ax.invert_xaxis()  # HR convention: hot/blue to the left
     ax.set_xlabel(r"$\log_{10}(T_{\rm eff}\,/\,{\rm K})$")
     ax.set_ylabel(r"$\log_{10}(L\,/\,L_\odot)$")
     ax.legend(loc="lower left", fontsize=7)
-    ax.text(0.04, 0.96, "ZAMS (Tout+1996 Fig. 5 view)", transform=ax.transAxes,
-            ha="left", va="top", fontsize=7, color="0.4")
+    ax.text(
+        0.04,
+        0.96,
+        "ZAMS (Tout+1996 Fig. 5 view)",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=7,
+        color="0.4",
+    )
     fig.tight_layout(pad=0.4)
     save_fig(fig, output_dir, "zams_hr_diagram")
     print("  saved zams_hr_diagram.{png,pdf}")
@@ -242,8 +356,10 @@ def fig_inverse_roundtrip(output_dir):
     rel = np.abs(np.asarray(M_rec) - np.asarray(M)) / np.asarray(M)
     max_rel = float(np.max(rel))
     rt_ok = max_rel < 1e-5
-    print(f"  M -> L -> M round-trip: max rel residual {max_rel:.2e} (tol 1e-5)"
-          f"  -> {'PASS' if rt_ok else 'FAIL'}")
+    print(
+        f"  M -> L -> M round-trip: max rel residual {max_rel:.2e} (tol 1e-5)"
+        f"  -> {'PASS' if rt_ok else 'FAIL'}"
+    )
 
     # differentiability of the invert (independent finite-difference check at L=100).
     # inverse_zams_luminosity returns a scalar for scalar input, so jax.grad applies
@@ -251,25 +367,37 @@ def fig_inverse_roundtrip(output_dir):
     L0 = 100.0
     g_ad = float(jax.grad(lambda L: inverse_zams_luminosity(L))(jnp.array(L0)))
     h = 1e-3
-    g_fd = (float(inverse_zams_luminosity(jnp.array(L0 + h)))
-            - float(inverse_zams_luminosity(jnp.array(L0 - h)))) / (2 * h)
+    g_fd = (
+        float(inverse_zams_luminosity(jnp.array(L0 + h)))
+        - float(inverse_zams_luminosity(jnp.array(L0 - h)))
+    ) / (2 * h)
     grad_rel = abs(g_ad - g_fd) / abs(g_fd)
     grad_ok = np.isfinite(g_ad) and grad_rel < 1e-4
-    print(f"  d M/d L at L=100: AD {g_ad:.4e} vs FD {g_fd:.4e}, rel {grad_rel:.1e}"
-          f" (tol 1e-4)  -> {'PASS' if grad_ok else 'FAIL'}")
+    print(
+        f"  d M/d L at L=100: AD {g_ad:.4e} vs FD {g_fd:.4e}, rel {grad_rel:.1e}"
+        f" (tol 1e-4)  -> {'PASS' if grad_ok else 'FAIL'}"
+    )
 
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(7.3, 3.1))
-    axA.loglog(np.asarray(M), np.asarray(M_rec), "-", color=OI["black"], lw=1.6,
-               label="recovered")
-    axA.loglog(np.asarray(M), np.asarray(M), ":", color=OI["vermilion"], lw=1.4,
-               label=r"$y=x$")
+    axA.loglog(
+        np.asarray(M),
+        np.asarray(M_rec),
+        "-",
+        color=OI["black"],
+        lw=1.6,
+        label="recovered",
+    )
+    axA.loglog(
+        np.asarray(M), np.asarray(M), ":", color=OI["vermilion"], lw=1.4, label=r"$y=x$"
+    )
     axA.set_xlabel(r"$M_{\rm in}\ [M_\odot]$")
     axA.set_ylabel(r"$M_{\rm rec}=L^{-1}(L(M))\ [M_\odot]$")
     axA.legend(loc="upper left", fontsize=7.5)
     panel_label(axA, "(a)", loc="lower right")
 
-    axB.loglog(np.asarray(M), np.maximum(rel, 1e-18), "o-", color=OI["blue"], ms=3,
-               lw=1.0)
+    axB.loglog(
+        np.asarray(M), np.maximum(rel, 1e-18), "o-", color=OI["blue"], ms=3, lw=1.0
+    )
     axB.axhline(1e-5, color="0.5", ls="--", lw=1.0)
     axB.text(0.15, 1.5e-5, "tol $10^{-5}$", fontsize=7, color="0.4")
     axB.set_xlabel(r"$M_{\rm in}\ [M_\odot]$")
@@ -302,8 +430,11 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
     all_ok = all(results.values())
     print("=" * 70)
-    print("  ALL ZAMS VALIDATION FIGURES PASS" if all_ok
-          else "  SOME ZAMS VALIDATION FIGURES FAILED")
+    print(
+        "  ALL ZAMS VALIDATION FIGURES PASS"
+        if all_ok
+        else "  SOME ZAMS VALIDATION FIGURES FAILED"
+    )
     print("=" * 70)
     print(f"\nFigures written to {OUTPUT_DIR}/zams_*.png")
     return 0 if all_ok else 1

@@ -38,16 +38,16 @@ Example:
 from typing import Optional
 
 import equinox as eqx
-import jax
 import jax.numpy as jnp
 from jax import Array
 from jaxtyping import Float, PRNGKeyArray
 
-from progenax.kinematics.rotation import (
-    apply_solid_body_rotation,
-    apply_differential_rotation,
-)
 from progenax.dynamics.virial import rescale_velocities_to_virial
+from progenax.kinematics.rotation import (
+    apply_differential_rotation,
+    apply_solid_body_rotation,
+)
+
 # Single source of truth for the VelocityDF protocol (audit A1): re-exported
 # here so progenax.kinematics.api.VelocityDF stays importable, but defined once
 # in progenax.protocols to prevent structural drift.

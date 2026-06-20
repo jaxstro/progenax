@@ -32,7 +32,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from jaxstro.units import STELLAR
 
 from progenax import EFFProfile, KingProfile, PlummerProfile
@@ -66,7 +65,9 @@ def _headline_model(**kw):
 def _com_arrays(ic):
     """COM-frame numpy (positions, velocities, masses) from an ICResult."""
     p = np.asarray(ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses))
-    v = np.asarray(ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses))
+    v = np.asarray(
+        ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+    )
     return p, v, np.asarray(ic.masses)
 
 
@@ -78,11 +79,11 @@ def _chunked_potential(pos, mass, chunk=2000):
     """
     V2 = 0.0
     for i0 in range(0, pos.shape[0], chunk):
-        p = pos[i0:i0 + chunk]
+        p = pos[i0 : i0 + chunk]
         d = np.sqrt(((p[:, None, :] - pos[None, :, :]) ** 2).sum(axis=2))
         rows = np.arange(p.shape[0])
         d[rows, i0 + rows] = np.inf  # drop self-pairs
-        V2 += float(np.sum(mass[i0:i0 + chunk, None] * mass[None, :] / d))
+        V2 += float(np.sum(mass[i0 : i0 + chunk, None] * mass[None, :] / d))
     return -0.5 * G * V2
 
 
@@ -90,12 +91,13 @@ def _chunked_accelerations(pos, mass, chunk=1000):
     """Direct-summation a_i = -G sum_k m_k (r_i - r_k)/r_ik^3, row-chunked."""
     acc = np.zeros_like(pos)
     for i0 in range(0, pos.shape[0], chunk):
-        d = pos[i0:i0 + chunk, None, :] - pos[None, :, :]
+        d = pos[i0 : i0 + chunk, None, :] - pos[None, :, :]
         r2 = (d**2).sum(axis=2)
         rows = np.arange(d.shape[0])
         r2[rows, i0 + rows] = np.inf  # self term -> 0
-        acc[i0:i0 + chunk] = -G * np.sum(mass[None, :, None] * d * r2[:, :, None] ** -1.5,
-                                         axis=1)
+        acc[i0 : i0 + chunk] = -G * np.sum(
+            mass[None, :, None] * d * r2[:, :, None] ** -1.5, axis=1
+        )
     return acc
 
 
@@ -115,8 +117,12 @@ def _sampled_component_Q(model, seed, n_stars):
     a = _chunked_accelerations(p, mass)
     T_i = 0.5 * mass * np.sum(v**2, axis=1)
     W_i = mass * np.sum(p * a, axis=1)
-    return np.array([T_i[cid == j].sum() / abs(W_i[cid == j].sum())
-                     for j in range(int(cid.max()) + 1)])
+    return np.array(
+        [
+            T_i[cid == j].sum() / abs(W_i[cid == j].sum())
+            for j in range(int(cid.max()) + 1)
+        ]
+    )
 
 
 def _predicted_component_Q(model, n_w=400):
@@ -140,7 +146,7 @@ def _predicted_component_Q(model, n_w=400):
     """
     st = model.engine_b
     r, Psi = st.r_poisson, st.Psi_poisson
-    dphi_dr = -st.dPsi_dr_poisson           # = +M_presc(<r)/r^2 (G=1)
+    dphi_dr = -st.dPsi_dr_poisson  # = +M_presc(<r)/r^2 (G=1)
     Psi_safe = jnp.maximum(Psi, 1e-12)
 
     def moments(Psi_r, f_row):
@@ -191,19 +197,30 @@ def test_king_density_engine_b_matches_engine_a():
     """
     king = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
     mB = MultiComponentCluster.from_density_profiles(
-        [king], jnp.array([1.0]), m_j=jnp.array([1.0]))
+        [king], jnp.array([1.0]), m_j=jnp.array([1.0])
+    )
     mA = MultiComponentCluster.from_components(
-        alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]), m_j=jnp.array([1.0]),
-        W0=5.0, g=1.0, r_c=1.0)
+        alpha_j=jnp.array([1.0]),
+        w_j=jnp.array([1.0]),
+        m_j=jnp.array([1.0]),
+        W0=5.0,
+        g=1.0,
+        r_c=1.0,
+    )
 
     # Domain: like with like -- one King model, one tidal radius.
-    np.testing.assert_allclose(float(mA.r_t), float(mB.r_t), rtol=1e-3,
-                               err_msg="A and B disagree on the King r_t")
+    np.testing.assert_allclose(
+        float(mA.r_t),
+        float(mB.r_t),
+        rtol=1e-3,
+        err_msg="A and B disagree on the King r_t",
+    )
 
     for m, name in ((mA, "A"), (mB, "B")):
         Qj = np.asarray(m.component_virial_ratios())
         np.testing.assert_allclose(
-            Qj, 0.5, atol=3e-3, err_msg=f"engine {name} theory Q_j = {Qj}")
+            Qj, 0.5, atol=3e-3, err_msg=f"engine {name} theory Q_j = {Qj}"
+        )
 
     N = 20000
     key = jax.random.PRNGKey(0)
@@ -218,9 +235,14 @@ def test_king_density_engine_b_matches_engine_a():
 
     # Sampled radial CDFs: two-sample KS distance.
     grid = np.sort(np.concatenate([rA, rB]))
-    ks = float(np.max(np.abs(
-        np.searchsorted(np.sort(rA), grid, side="right") / N
-        - np.searchsorted(np.sort(rB), grid, side="right") / N)))
+    ks = float(
+        np.max(
+            np.abs(
+                np.searchsorted(np.sort(rA), grid, side="right") / N
+                - np.searchsorted(np.sort(rB), grid, side="right") / N
+            )
+        )
+    )
     assert ks < 0.02, f"King A-vs-B radial KS distance {ks:.4f} >= 0.02"
 
     # sigma_1d(r) in interior quantile bins (5%-90% of the A radii).
@@ -233,7 +255,8 @@ def test_king_density_engine_b_matches_engine_a():
         dev = abs(sigB / sigA - 1.0)
         assert dev < 0.02, (
             f"sigma_1d mismatch in bin [{lo:.2f}, {hi:.2f}): "
-            f"sigma_B/sigma_A - 1 = {sigB / sigA - 1.0:+.4f}")
+            f"sigma_B/sigma_A - 1 = {sigB / sigA - 1.0:+.4f}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -265,29 +288,39 @@ def test_eff_gamma5_single_component_matches_plummer():
 
     m_eff = MultiComponentCluster.from_density_profiles(
         [EFFProfile(a=a_eff, gamma=5.0, r_t=12.0)],
-        jnp.array([1.0]), m_j=jnp.array([1.0]))
+        jnp.array([1.0]),
+        m_j=jnp.array([1.0]),
+    )
     m_pl = MultiComponentCluster.from_density_profiles(
-        [plummer], jnp.array([1.0]), m_j=jnp.array([1.0]), r_t=12.0)
+        [plummer], jnp.array([1.0]), m_j=jnp.array([1.0]), r_t=12.0
+    )
 
     assert float(m_eff.r_t) == 12.0 and float(m_pl.r_t) == 12.0
 
     np.testing.assert_allclose(
         np.asarray(m_pl.engine_b.Psi_poisson),
-        np.asarray(m_eff.engine_b.Psi_poisson), rtol=1e-8,
-        err_msg="EFF(gamma=5) and Plummer shared-Psi grids differ")
+        np.asarray(m_eff.engine_b.Psi_poisson),
+        rtol=1e-8,
+        err_msg="EFF(gamma=5) and Plummer shared-Psi grids differ",
+    )
 
     f_eff = np.asarray(m_eff.engine_b.f_j_grid)
     f_pl = np.asarray(m_pl.engine_b.f_j_grid)
     np.testing.assert_allclose(
-        f_pl, f_eff, rtol=1e-5, atol=1e-10 * np.max(np.abs(f_eff)),
-        err_msg="EFF(gamma=5) and Plummer Eddington f tables differ")
+        f_pl,
+        f_eff,
+        rtol=1e-5,
+        atol=1e-10 * np.max(np.abs(f_eff)),
+        err_msg="EFF(gamma=5) and Plummer Eddington f tables differ",
+    )
 
     Q_eff = np.asarray(m_eff.component_virial_ratios())
     Q_pl = np.asarray(m_pl.component_virial_ratios())
     np.testing.assert_allclose(Q_eff, 0.5, atol=3e-3)
     np.testing.assert_allclose(Q_pl, 0.5, atol=3e-3)
-    np.testing.assert_allclose(Q_pl, Q_eff, atol=1e-8,
-                               err_msg="theory Q_j differs between the twins")
+    np.testing.assert_allclose(
+        Q_pl, Q_eff, atol=1e-8, err_msg="theory Q_j differs between the twins"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -322,8 +355,9 @@ def test_plummer_halo_eff_core_equilibrium():
     m = _headline_model()
 
     Qj = np.asarray(m.component_virial_ratios())
-    np.testing.assert_allclose(Qj, 0.5, atol=3e-3,
-                               err_msg=f"headline theory Q_j = {Qj}")
+    np.testing.assert_allclose(
+        Qj, 0.5, atol=3e-3, err_msg=f"headline theory Q_j = {Qj}"
+    )
 
     ic = m.sample_cluster(jax.random.PRNGKey(0), n_stars=30000, G=G)
     p, v, mass = _com_arrays(ic)
@@ -338,21 +372,27 @@ def test_plummer_halo_eff_core_equilibrium():
     # ~4e-4 quadrature accuracy the DF-weighted oracle demonstrates).
     Q_pred = _predicted_component_Q(m)
     assert abs(Q_pred[1] - 0.5) < 5e-3, (
-        f"core predicted Q = {Q_pred[1]:.4f}, expected ~0.5")
+        f"core predicted Q = {Q_pred[1]:.4f}, expected ~0.5"
+    )
     assert 0.47 < Q_pred[0] < 0.499, (
         f"halo predicted Q = {Q_pred[0]:.4f}, expected visibly below 0.5 "
-        f"(truncation-edge offset)")
+        f"(truncation-edge offset)"
+    )
 
     # Sampled-vs-predicted: 3 seeds at N=16k. Tolerance 0.012 ~ 3 sigma on
     # the 3-seed mean (sem ~ 0.0035-0.0046 from the measured per-seed
     # scatter above) -- shot noise only, never a tuned offset.
-    Q_seeds = np.stack([_sampled_component_Q(m, seed, 16000)
-                        for seed in (1, 2, 3)])
+    Q_seeds = np.stack([_sampled_component_Q(m, seed, 16000) for seed in (1, 2, 3)])
     Q_meas = Q_seeds.mean(axis=0)
     np.testing.assert_allclose(
-        Q_meas, Q_pred, atol=0.012,
-        err_msg=(f"sampled per-component Q_j {Q_meas} does not match the "
-                 f"hybrid exact-quadrature prediction {Q_pred}"))
+        Q_meas,
+        Q_pred,
+        atol=0.012,
+        err_msg=(
+            f"sampled per-component Q_j {Q_meas} does not match the "
+            f"hybrid exact-quadrature prediction {Q_pred}"
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +448,8 @@ def test_om_beta_profile_realized():
         expect = float(np.mean(r_bin**2 / (r_bin**2 + r_a**2)))
         assert abs(beta - expect) < 0.05, (
             f"halo beta at <r>={r_bin.mean():.2f}: measured {beta:+.3f}, "
-            f"OM expects {expect:+.3f}")
+            f"OM expects {expect:+.3f}"
+        )
 
     # Core (r_a = inf): isotropic everywhere it is resolved.
     core = cid == 1
@@ -416,7 +457,8 @@ def test_om_beta_profile_realized():
     for beta, r_bin in beta_in_bins(core, edges):
         assert abs(beta) < 0.05, (
             f"core beta at <r>={r_bin.mean():.2f}: measured {beta:+.3f}, "
-            f"expected ~0 (isotropic)")
+            f"expected ~0 (isotropic)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -471,11 +513,10 @@ def test_df_density_fidelity_interior():
 
         def rho_q_df_row(f_row, E_grid=st.E_grid, Psi=Psi):
             def m0(Psi_r):
-                w = jnp.linspace(0.0, jnp.sqrt(2.0 * jnp.maximum(Psi_r, 1e-12)),
-                                 n_w)
-                f_at = jnp.maximum(
-                    jnp.interp(Psi_r - 0.5 * w**2, E_grid, f_row), 0.0)
+                w = jnp.linspace(0.0, jnp.sqrt(2.0 * jnp.maximum(Psi_r, 1e-12)), n_w)
+                f_at = jnp.maximum(jnp.interp(Psi_r - 0.5 * w**2, E_grid, f_row), 0.0)
                 return jnp.trapezoid(w**2 * f_at, w)
+
             return 4.0 * np.pi * np.asarray(jax.vmap(m0)(Psi))
 
         for j in range(2):
@@ -495,7 +536,8 @@ def test_df_density_fidelity_interior():
             dev = np.max(np.abs(rho_q_df[sel] / rho_q_target[sel] - 1.0))
             assert dev < 5e-3, (
                 f"[{label}] component {j}: max |rho_Q,DF/(rho_Q,presc - "
-                f"rho_Q,presc(r_t)) - 1| = {dev:.2e} for r < r_h = {r_h_j:.3f}")
+                f"rho_Q,presc(r_t)) - 1| = {dev:.2e} for r < r_h = {r_h_j:.3f}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -543,35 +585,58 @@ def test_gradients_ad_vs_fd():
 
     def loss_rh(x):
         from progenax.cluster.eddington_engine import build_engine_b_state
+
         state, _ = build_engine_b_state(
             [PlummerProfile(r_h=x), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)],
-            jnp.array([0.6, 0.4]), jnp.array([jnp.inf, jnp.inf]),
-            None, 0.995, n_r, n_e)
+            jnp.array([0.6, 0.4]),
+            jnp.array([jnp.inf, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
     def loss_t(t):
         from progenax.cluster.eddington_engine import build_engine_b_state
+
         state, _ = build_engine_b_state(
-            [king, PlummerProfile(r_h=2.0)], jnp.stack([t, 1.0 - t]),
-            jnp.array([3.0, jnp.inf]), None, 0.995, n_r, n_e)
+            [king, PlummerProfile(r_h=2.0)],
+            jnp.stack([t, 1.0 - t]),
+            jnp.array([3.0, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
     def loss_ra(ra):
         from progenax.cluster.eddington_engine import build_engine_b_state
+
         state, _ = build_engine_b_state(
-            [king, PlummerProfile(r_h=2.0)], jnp.array([0.5, 0.5]),
-            jnp.stack([ra, jnp.inf]), None, 0.995, n_r, n_e)
+            [king, PlummerProfile(r_h=2.0)],
+            jnp.array([0.5, 0.5]),
+            jnp.stack([ra, jnp.inf]),
+            None,
+            0.995,
+            n_r,
+            n_e,
+        )
         return scalar(state)
 
-    for name, loss, x0 in (("halo r_h", loss_rh, 2.0),
-                           ("mass fraction t", loss_t, 0.5),
-                           ("r_a_j[0]", loss_ra, 3.0)):
+    for name, loss, x0 in (
+        ("halo r_h", loss_rh, 2.0),
+        ("mass fraction t", loss_t, 0.5),
+        ("r_a_j[0]", loss_ra, 3.0),
+    ):
         ad = float(jax.grad(loss)(jnp.asarray(x0)))
         assert np.isfinite(ad), f"{name}: AD gradient not finite ({ad})"
         assert ad != 0.0, f"{name}: AD gradient is exactly zero"
         h = 1e-4 * abs(x0)
-        fd = (float(loss(jnp.asarray(x0 + h)))
-              - float(loss(jnp.asarray(x0 - h)))) / (2.0 * h)
+        fd = (float(loss(jnp.asarray(x0 + h))) - float(loss(jnp.asarray(x0 - h)))) / (
+            2.0 * h
+        )
         np.testing.assert_allclose(
-            ad, fd, rtol=1e-3,
-            err_msg=f"{name}: AD {ad:.10e} vs FD {fd:.10e}")
+            ad, fd, rtol=1e-3, err_msg=f"{name}: AD {ad:.10e} vs FD {fd:.10e}"
+        )

@@ -6,11 +6,12 @@ Confirmed-but-unfixed hazards are pinned with strict-xfail MARKERS (not imperati
 pytest.xfail) so the assertion still runs: a hazard fails -> the marker converts it to XFAIL,
 but once the hazard is FIXED the assertion passes -> XPASS -> strict-FAIL, forcing the
 marker (and hazard_id) to be removed (design D6 self-cleaning ratchet)."""
+
 import jax
 import jax.numpy as jnp
 import pytest
-import progenax  # noqa: F401  (float64)
 
+import progenax  # noqa: F401  (float64)
 from tests.validation.grad_audit.core import audit_entry_point
 from tests.validation.grad_audit.registry import REGISTRY
 
@@ -20,8 +21,12 @@ def _case_params():
     for c in REGISTRY:
         marks = ()
         if c.hazard_id:
-            marks = (pytest.mark.xfail(strict=True,
-                     reason=f"HAZARD {c.hazard_id}: confirmed, pending triage"),)
+            marks = (
+                pytest.mark.xfail(
+                    strict=True,
+                    reason=f"HAZARD {c.hazard_id}: confirmed, pending triage",
+                ),
+            )
         params.append(pytest.param(c, marks=marks, id=c.id))
     return params
 
@@ -42,8 +47,12 @@ def _edge_params():
         for e in c.edges:
             marks = ()
             if e.hazard_id:
-                marks = (pytest.mark.xfail(strict=True,
-                         reason=f"HAZARD {e.hazard_id}: confirmed at {e.label}, pending triage"),)
+                marks = (
+                    pytest.mark.xfail(
+                        strict=True,
+                        reason=f"HAZARD {e.hazard_id}: confirmed at {e.label}, pending triage",
+                    ),
+                )
             params.append(pytest.param(c, e, marks=marks, id=f"{c.id}::{e.label}"))
     return params
 
@@ -55,8 +64,12 @@ _EDGE_PARAMS = _edge_params()
 @pytest.mark.parametrize("case,edge", _EDGE_PARAMS)
 def test_gradient_audit_edges(case, edge):
     """Edge/boundary params: the hazard probes."""
-    r = audit_entry_point(case, theta=edge.theta0,
-                          tol=edge.tol or case.tol, expect=edge.expect or case.expect)
+    r = audit_entry_point(
+        case,
+        theta=edge.theta0,
+        tol=edge.tol or case.tol,
+        expect=edge.expect or case.expect,
+    )
     assert r.status in ("clean", "known-limitation"), (
         f"{case.id}::{edge.label} -> {r.status}: AD={r.ad:.3e} FD={r.fd:.3e} ratio={r.ratio:.6f}"
     )
@@ -79,12 +92,18 @@ def test_binned_sigma_mutation_has_teeth():
         stopped AD  =  0.000000e+00   (exact collapse — the mutation kills the channel)
     """
     from jaxstro.units import STELLAR
+
     from progenax import PlummerProfile, PlummerVelocityDF, build_spatial_ic
     from tests.validation.grad_audit.binners import binned_sigma1d
-    from tests.validation.grad_audit.registry import (
-        _BK_GROUP, _BK_MASSES, _BK_N_MIN, _BK_R_EDGES, _KEY, _binned_sigma1d_rh,
-    )
     from tests.validation.grad_audit.reductions import identity_sum
+    from tests.validation.grad_audit.registry import (
+        _BK_GROUP,
+        _BK_MASSES,
+        _BK_N_MIN,
+        _BK_R_EDGES,
+        _KEY,
+        _binned_sigma1d_rh,
+    )
 
     theta0 = jnp.asarray(1.0)
     h = 1e-5  # the case's FD step (off the r=8 edge-crossing)
@@ -103,7 +122,8 @@ def test_binned_sigma_mutation_has_teeth():
         pos = jax.lax.stop_gradient(ic.positions)
         vel = jax.lax.stop_gradient(ic.velocities)
         sig_hat, _se, _w, _n = binned_sigma1d(
-            pos, vel, _BK_GROUP, 1, _BK_R_EDGES, n_min=_BK_N_MIN)
+            pos, vel, _BK_GROUP, 1, _BK_R_EDGES, n_min=_BK_N_MIN
+        )
         return identity_sum(sig_hat)
 
     stopped_ad = float(jax.grad(stopped_loss)(theta0))
@@ -136,8 +156,12 @@ def test_cluster_tidal_gradient_has_teeth():
     plain-where AD = 0 (Heaviside grad is 0 a.e. -> the mutation kills it).
     """
     from progenax import (
-        PlummerProfile, build_cluster, build_cluster_from_params, ClusterParams,
+        ClusterParams,
+        PlummerProfile,
+        build_cluster,
+        build_cluster_from_params,
     )
+
     masses = jnp.ones(400)
     key = jax.random.PRNGKey(0)
     total_mass = lambda m: jnp.sum(m)
@@ -145,18 +169,28 @@ def test_cluster_tidal_gradient_has_teeth():
 
     # LIVE: tidal_radius gradient through build_cluster (the straight-through surrogate).
     live = lambda r_t: total_mass(
-        build_cluster(PlummerProfile(r_h=1.0), masses=masses, key=key, tidal_radius=r_t).masses)
+        build_cluster(
+            PlummerProfile(r_h=1.0), masses=masses, key=key, tidal_radius=r_t
+        ).masses
+    )
     live_ad = float(jax.grad(live)(r_t0))
     assert jnp.isfinite(live_ad), f"tidal AD not finite: {live_ad}"
-    assert abs(live_ad) > 1e-3, f"tidal AD unexpectedly ~0 (silent-zero regression?): {live_ad:.3e}"
+    assert abs(live_ad) > 1e-3, (
+        f"tidal AD unexpectedly ~0 (silent-zero regression?): {live_ad:.3e}"
+    )
 
     # Same LIVE gradient through the ClusterParams wrapper (the inference path).
-    live_w = lambda r_t: total_mass(build_cluster_from_params(
-        ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t),
-        masses=masses, key=key).masses)
+    live_w = lambda r_t: total_mass(
+        build_cluster_from_params(
+            ClusterParams(profile=PlummerProfile(r_h=1.0), tidal_radius=r_t),
+            masses=masses,
+            key=key,
+        ).masses
+    )
     live_w_ad = float(jax.grad(live_w)(r_t0))
     assert jnp.isfinite(live_w_ad) and abs(live_w_ad) > 1e-3, (
-        f"build_cluster_from_params tidal AD unexpectedly ~0: {live_w_ad:.3e}")
+        f"build_cluster_from_params tidal AD unexpectedly ~0: {live_w_ad:.3e}"
+    )
 
     # MUTATION: a plain hard cut (no straight-through custom_jvp) -> gradient dies a.e.,
     # proving the live gradient is the apply_tidal_truncation surrogate (not a constant,
@@ -164,10 +198,12 @@ def test_cluster_tidal_gradient_has_teeth():
     def plain_cut(r_t):
         ic = build_cluster(PlummerProfile(r_h=1.0), masses=masses, key=key)
         radii = jnp.linalg.norm(ic.positions, axis=1)
-        m = jnp.where(radii <= r_t, ic.masses, 0.0)   # Heaviside: 0 grad wrt r_t a.e.
+        m = jnp.where(radii <= r_t, ic.masses, 0.0)  # Heaviside: 0 grad wrt r_t a.e.
         return total_mass(m)
+
     plain_ad = float(jax.grad(plain_cut)(r_t0))
     assert abs(plain_ad) < 1e-12, (
         f"plain hard cut should have ~0 gradient a.e. (got {plain_ad:.3e}); the LIVE "
         f"gradient {live_ad:.3e} is therefore the straight-through surrogate, NOT an "
-        f"FD-consistent quantity (so tidal is correctly a teeth test, not a Case)")
+        f"FD-consistent quantity (so tidal is correctly a teeth test, not a Case)"
+    )

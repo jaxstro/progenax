@@ -5,7 +5,6 @@ TDD: These tests are written BEFORE the implementation.
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 jax.config.update("jax_enable_x64", True)
 
@@ -59,7 +58,9 @@ class TestDifferentiableBinaryFraction:
         from progenax.imf.differentiable_binary import DifferentiableBinaryFraction
 
         dbf = DifferentiableBinaryFraction.from_moe2017()
-        grad = jax.grad(lambda a: DifferentiableBinaryFraction(a=a, b=dbf.b, c=dbf.c)(1.0))(dbf.a)
+        grad = jax.grad(
+            lambda a: DifferentiableBinaryFraction(a=a, b=dbf.b, c=dbf.c)(1.0)
+        )(dbf.a)
         assert jnp.isfinite(grad)
         assert float(grad) != 0.0
 
@@ -67,7 +68,9 @@ class TestDifferentiableBinaryFraction:
         from progenax.imf.differentiable_binary import DifferentiableBinaryFraction
 
         dbf = DifferentiableBinaryFraction.from_moe2017()
-        grad = jax.grad(lambda b: DifferentiableBinaryFraction(a=dbf.a, b=b, c=dbf.c)(2.0))(dbf.b)
+        grad = jax.grad(
+            lambda b: DifferentiableBinaryFraction(a=dbf.a, b=b, c=dbf.c)(2.0)
+        )(dbf.b)
         assert jnp.isfinite(grad)
         assert float(grad) != 0.0
 
@@ -82,6 +85,7 @@ class TestDifferentiableBinaryFraction:
 
     def test_is_equinox_module(self):
         import equinox as eqx
+
         from progenax.imf.differentiable_binary import DifferentiableBinaryFraction
 
         dbf = DifferentiableBinaryFraction.from_moe2017()

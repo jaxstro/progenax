@@ -53,6 +53,7 @@ Usage::
     # Fast smoke (no MC, dialed-down optimizer, exit 0): the mechanism figure only.
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_oed_binary.py --quick
 """
+
 import argparse
 import json
 import os
@@ -98,49 +99,96 @@ def main(argv=None):
         "c-optimal-for-M design biases M_hat HIGH with a tiny forecast error bar "
         "(false confidence) when the cluster has binaries."
     )
-    p.add_argument("--outdir", type=str, default=FIGURE_DIR,
-                   help=f"Directory for the figures + run-record (default {FIGURE_DIR}).")
-    p.add_argument("--n-starts", type=int, default=N_STARTS_DEFAULT,
-                   help=f"Multi-start Adam restarts for the c-optimal-for-M design "
-                        f"(default {N_STARTS_DEFAULT}).")
-    p.add_argument("--n-steps", type=int, default=N_STEPS_DEFAULT,
-                   help=f"Adam steps per start (default {N_STEPS_DEFAULT}).")
-    p.add_argument("--n-total", type=float, default=oedb.N_TOTAL,
-                   help=f"Total RV-measurement budget across the K radial bins "
-                        f"(default {oedb.N_TOTAL:.0f}).")
-    p.add_argument("--n-draws", type=int, default=oedb.N_DRAWS_H1,
-                   help=f"Cross-model MC draws (full mode only; default {oedb.N_DRAWS_H1}).")
+    p.add_argument(
+        "--outdir",
+        type=str,
+        default=FIGURE_DIR,
+        help=f"Directory for the figures + run-record (default {FIGURE_DIR}).",
+    )
+    p.add_argument(
+        "--n-starts",
+        type=int,
+        default=N_STARTS_DEFAULT,
+        help=f"Multi-start Adam restarts for the c-optimal-for-M design "
+        f"(default {N_STARTS_DEFAULT}).",
+    )
+    p.add_argument(
+        "--n-steps",
+        type=int,
+        default=N_STEPS_DEFAULT,
+        help=f"Adam steps per start (default {N_STEPS_DEFAULT}).",
+    )
+    p.add_argument(
+        "--n-total",
+        type=float,
+        default=oedb.N_TOTAL,
+        help=f"Total RV-measurement budget across the K radial bins "
+        f"(default {oedb.N_TOTAL:.0f}).",
+    )
+    p.add_argument(
+        "--n-draws",
+        type=int,
+        default=oedb.N_DRAWS_H1,
+        help=f"Cross-model MC draws (full mode only; default {oedb.N_DRAWS_H1}).",
+    )
     p.add_argument("--seed", type=int, default=0, help="PRNG seed (default 0).")
-    p.add_argument("--run-mc", action="store_true",
-                   help="Run the env-gated cross-model calibration MC (the H1 bias + the "
-                        "headline figure). Equivalent to setting PROGENAX_RUN_OED_BINARY. "
-                        "Slow (~80 s, ~2.3 GB peak); OUT of CI.")
-    p.add_argument("--maximin", action="store_true",
-                   help="Run the Task-3.2 maximin-vs-marginalize robust-design comparison "
-                        "(deterministic, NO MC): tabulate sigma(M) at the truth f_bin and the "
-                        "worst-case sigma(M) over f_bin in [0, F_MAX] for both designs, and "
-                        "write the demo_oedb_maximin figure (the hedge).")
-    p.add_argument("--sweep", action="store_true",
-                   help="Run the Task-4.1 sigma_bin/sigma_cluster sweep across system mass: "
-                        "the deterministic forecast sweep (binary-free + marginalized "
-                        "sigma(M)/M + H2 gain, no MC) ALWAYS, and -- when the MC is enabled "
-                        "(--run-mc / PROGENAX_RUN_OED_BINARY, @slow) -- the realized "
-                        "cross-model M-bias sweep (binary-free-fit bias rising; binary-aware "
-                        "residual bias ~0). Writes the demo_oedb_sweep figure.")
-    p.add_argument("--sweep-n-mass-det", type=int, default=oedb.SWEEP_N_MASS,
-                   help=f"Mass-grid points for the DETERMINISTIC sweep (default "
-                        f"{oedb.SWEEP_N_MASS}; fine, cheap).")
-    p.add_argument("--sweep-n-mass-mc", type=int, default=oedb.N_MASS_SWEEP,
-                   help=f"Anchor masses for the @slow MC bias sweep (default "
-                        f"{oedb.N_MASS_SWEEP}).")
-    p.add_argument("--sweep-n-draws", type=int, default=oedb.N_DRAWS_SWEEP,
-                   help=f"Cross-model MC draws per MC-sweep anchor (default "
-                        f"{oedb.N_DRAWS_SWEEP}).")
-    p.add_argument("--quick", action="store_true",
-                   help="Smoke/CI fast path: dial the optimizer down, NO MC, mechanism "
-                        "figure only. Exits 0 quickly without the MC env var.")
-    p.add_argument("--no-figures", action="store_true",
-                   help="Skip figure generation; print the summary + write the run-record only.")
+    p.add_argument(
+        "--run-mc",
+        action="store_true",
+        help="Run the env-gated cross-model calibration MC (the H1 bias + the "
+        "headline figure). Equivalent to setting PROGENAX_RUN_OED_BINARY. "
+        "Slow (~80 s, ~2.3 GB peak); OUT of CI.",
+    )
+    p.add_argument(
+        "--maximin",
+        action="store_true",
+        help="Run the Task-3.2 maximin-vs-marginalize robust-design comparison "
+        "(deterministic, NO MC): tabulate sigma(M) at the truth f_bin and the "
+        "worst-case sigma(M) over f_bin in [0, F_MAX] for both designs, and "
+        "write the demo_oedb_maximin figure (the hedge).",
+    )
+    p.add_argument(
+        "--sweep",
+        action="store_true",
+        help="Run the Task-4.1 sigma_bin/sigma_cluster sweep across system mass: "
+        "the deterministic forecast sweep (binary-free + marginalized "
+        "sigma(M)/M + H2 gain, no MC) ALWAYS, and -- when the MC is enabled "
+        "(--run-mc / PROGENAX_RUN_OED_BINARY, @slow) -- the realized "
+        "cross-model M-bias sweep (binary-free-fit bias rising; binary-aware "
+        "residual bias ~0). Writes the demo_oedb_sweep figure.",
+    )
+    p.add_argument(
+        "--sweep-n-mass-det",
+        type=int,
+        default=oedb.SWEEP_N_MASS,
+        help=f"Mass-grid points for the DETERMINISTIC sweep (default "
+        f"{oedb.SWEEP_N_MASS}; fine, cheap).",
+    )
+    p.add_argument(
+        "--sweep-n-mass-mc",
+        type=int,
+        default=oedb.N_MASS_SWEEP,
+        help=f"Anchor masses for the @slow MC bias sweep (default "
+        f"{oedb.N_MASS_SWEEP}).",
+    )
+    p.add_argument(
+        "--sweep-n-draws",
+        type=int,
+        default=oedb.N_DRAWS_SWEEP,
+        help=f"Cross-model MC draws per MC-sweep anchor (default "
+        f"{oedb.N_DRAWS_SWEEP}).",
+    )
+    p.add_argument(
+        "--quick",
+        action="store_true",
+        help="Smoke/CI fast path: dial the optimizer down, NO MC, mechanism "
+        "figure only. Exits 0 quickly without the MC env var.",
+    )
+    p.add_argument(
+        "--no-figures",
+        action="store_true",
+        help="Skip figure generation; print the summary + write the run-record only.",
+    )
     args = p.parse_args(argv)
 
     n_starts = N_STARTS_QUICK if args.quick else args.n_starts
@@ -153,149 +201,225 @@ def main(argv=None):
     print("=" * 80)
     print("BINARY-MISSPECIFICATION OED (H1): the false-confidence disaster")
     print("=" * 80)
-    print(f"  YMC truth: M={oedb.M_FID:.1e} Msun, gamma={oedb.GAMMA_FID}, a={oedb.A_FID} pc, "
-          f"r_t={oedb.R_T_FID} pc, r_a={oedb.R_A_FID} pc, f_bin={oedb.F_BIN_TRUTH}")
+    print(
+        f"  YMC truth: M={oedb.M_FID:.1e} Msun, gamma={oedb.GAMMA_FID}, a={oedb.A_FID} pc, "
+        f"r_t={oedb.R_T_FID} pc, r_a={oedb.R_A_FID} pc, f_bin={oedb.F_BIN_TRUTH}"
+    )
     sig_bin = float(jnp.sqrt(oedb.V_BIN))
     sig_clu_central = float(oedb.sigma_cluster_ref())
-    print(f"  scales: sigma_bin={sig_bin:.2f} km/s, sigma_cluster,central={sig_clu_central:.2f} "
-          f"km/s (ratio {sig_bin / sig_clu_central:.2f}), eps_RV={oedb.EPS_RV_KMS} km/s")
-    print(f"  budget: K={oedb.R_BINS.shape[0]} bins, N_total={n_total:.0f}  |  "
-          f"optimizer: {n_starts} starts x {n_steps} steps{'  [--quick]' if args.quick else ''}")
+    print(
+        f"  scales: sigma_bin={sig_bin:.2f} km/s, sigma_cluster,central={sig_clu_central:.2f} "
+        f"km/s (ratio {sig_bin / sig_clu_central:.2f}), eps_RV={oedb.EPS_RV_KMS} km/s"
+    )
+    print(
+        f"  budget: K={oedb.R_BINS.shape[0]} bins, N_total={n_total:.0f}  |  "
+        f"optimizer: {n_starts} starts x {n_steps} steps{'  [--quick]' if args.quick else ''}"
+    )
 
     # --- the NAIVE binary-free c-optimal-for-M design + its own forecast sigma(M)/M --- #
-    print("\n  computing the naive binary-free c-optimal-for-M design "
-          "(multi-start Adam, cached jacrev) ...")
-    design = oedb.optimize_design_M(n_total, key=k_design, n_starts=n_starts, n_steps=n_steps)
+    print(
+        "\n  computing the naive binary-free c-optimal-for-M design "
+        "(multi-start Adam, cached jacrev) ..."
+    )
+    design = oedb.optimize_design_M(
+        n_total, key=k_design, n_starts=n_starts, n_steps=n_steps
+    )
     forecast_sigma_M_frac = float(design.sigma_M_over_M)
     n_eff = design.n_eff
 
     # --- the mechanism: per-bin cluster sigma_los (truth) + the binary-inflated observable --- #
-    sig_cluster = oedb.cluster_sigma_los(oedb.theta_truth_clusteronly(), oedb.R_BINS, G)  # (K,)
-    sig_obs = oedb.predict_sigma_obs(oedb.theta_truth(), oedb.R_BINS, G)                   # (K,)
+    sig_cluster = oedb.cluster_sigma_los(
+        oedb.theta_truth_clusteronly(), oedb.R_BINS, G
+    )  # (K,)
+    sig_obs = oedb.predict_sigma_obs(oedb.theta_truth(), oedb.R_BINS, G)  # (K,)
 
     print("\n" + "-" * 80)
     print("  NAIVE c-OPTIMAL-FOR-M DESIGN (per radial bin)")
-    print(f"  {'R [pc]':>9s}{'sigma_clu':>11s}{'sigma_obs':>11s}{'n_eff':>10s}{'frac':>9s}")
+    print(
+        f"  {'R [pc]':>9s}{'sigma_clu':>11s}{'sigma_obs':>11s}{'n_eff':>10s}{'frac':>9s}"
+    )
     print("-" * 80)
     total = float(jnp.sum(n_eff))
     for b in range(oedb.R_BINS.shape[0]):
         ne = float(n_eff[b])
         marker = "  <--" if ne >= oedb.N_MIN_FIT else ""
-        print(f"  {float(oedb.R_BINS[b]):>9.2f}{float(sig_cluster[b]):>11.3f}"
-              f"{float(sig_obs[b]):>11.3f}{ne:>10.1f}{ne / total:>9.3f}{marker}")
+        print(
+            f"  {float(oedb.R_BINS[b]):>9.2f}{float(sig_cluster[b]):>11.3f}"
+            f"{float(sig_obs[b]):>11.3f}{ne:>10.1f}{ne / total:>9.3f}{marker}"
+        )
     print("-" * 80)
     kept = [b for b in range(oedb.R_BINS.shape[0]) if float(n_eff[b]) >= oedb.N_MIN_FIT]
     kept_R = [round(float(oedb.R_BINS[b]), 1) for b in kept]
-    print(f"  forecast sigma(M)/M (binary-free Fisher, c-optimal) = {forecast_sigma_M_frac:.4f}  "
-          f"({100 * forecast_sigma_M_frac:.1f}%)")
-    print(f"  the design POPULATES {len(kept)} bins (n_eff >= {oedb.N_MIN_FIT}): {kept_R} pc "
-          f"-- it concentrates the budget in the COLD outskirts where binaries dominate.")
+    print(
+        f"  forecast sigma(M)/M (binary-free Fisher, c-optimal) = {forecast_sigma_M_frac:.4f}  "
+        f"({100 * forecast_sigma_M_frac:.1f}%)"
+    )
+    print(
+        f"  the design POPULATES {len(kept)} bins (n_eff >= {oedb.N_MIN_FIT}): {kept_R} pc "
+        f"-- it concentrates the budget in the COLD outskirts where binaries dominate."
+    )
     print("-" * 80)
 
     # --- the cross-model bias (full mode only -- the env-gated @slow MC) --------------- #
     h1 = None
     base = None
     if run_mc:
-        print(f"\n  running the cross-model calibration MC (n_draws={args.n_draws}) ... "
-              f"[slow; ~80 s, ~2.3 GB peak]")
+        print(
+            f"\n  running the cross-model calibration MC (n_draws={args.n_draws}) ... "
+            f"[slow; ~80 s, ~2.3 GB peak]"
+        )
         h1 = oedb.run_H1(n_draws=args.n_draws, key=key, N_total=n_total)
-        base = oedb.cross_model_bias(n_eff, n_draws=args.n_draws, key=k_mc, f_bin_truth=0.0)
+        base = oedb.cross_model_bias(
+            n_eff, n_draws=args.n_draws, key=k_mc, f_bin_truth=0.0
+        )
         print("\n" + "-" * 80)
-        print("  CROSS-MODEL BIAS (generate WITH Moe binaries, fit the BINARY-FREE model)")
+        print(
+            "  CROSS-MODEL BIAS (generate WITH Moe binaries, fit the BINARY-FREE model)"
+        )
         print("-" * 80)
         print(f"  naive design + binaries (f_bin={oedb.F_BIN_TRUTH}):")
-        print(f"     M_hat/M_true          = {1.0 + h1.bias_M_frac:.3f}  "
-              f"(bias {h1.bias_M_frac:+.3f} = {100 * h1.bias_M_frac:+.0f}%)")
-        print(f"     forecast sigma(M)/M   = {h1.forecast_sigma_M_frac:.4f}  (the claimed error bar)")
-        print(f"     bias / forecast RATIO = {h1.ratio:.1f}x   <-- the false-confidence headline")
-        print(f"     SEM(bias)             = {h1.sem:.4f}  (2*SEM = {2 * h1.sem:.4f} << bias)")
+        print(
+            f"     M_hat/M_true          = {1.0 + h1.bias_M_frac:.3f}  "
+            f"(bias {h1.bias_M_frac:+.3f} = {100 * h1.bias_M_frac:+.0f}%)"
+        )
+        print(
+            f"     forecast sigma(M)/M   = {h1.forecast_sigma_M_frac:.4f}  (the claimed error bar)"
+        )
+        print(
+            f"     bias / forecast RATIO = {h1.ratio:.1f}x   <-- the false-confidence headline"
+        )
+        print(
+            f"     SEM(bias)             = {h1.sem:.4f}  (2*SEM = {2 * h1.sem:.4f} << bias)"
+        )
         print(f"     M-step unconverged    = {h1.n_unconverged}/{args.n_draws} draws")
-        print(f"  f_bin=0 baseline (mock == fit model):")
-        print(f"     M_hat/M_true          = {1.0 + base.bias_M_frac:.3f}  "
-              f"(bias {base.bias_M_frac:+.4f}; unbiased to ~0.5%, << forecast)")
-        print(f"  PRE-REGISTERED H1: ACCEPT iff bias > 2*forecast AND bias > 0  ->  "
-              f"{'ACCEPT' if h1.accept else 'REJECT'}")
+        print("  f_bin=0 baseline (mock == fit model):")
+        print(
+            f"     M_hat/M_true          = {1.0 + base.bias_M_frac:.3f}  "
+            f"(bias {base.bias_M_frac:+.4f}; unbiased to ~0.5%, << forecast)"
+        )
+        print(
+            f"  PRE-REGISTERED H1: ACCEPT iff bias > 2*forecast AND bias > 0  ->  "
+            f"{'ACCEPT' if h1.accept else 'REJECT'}"
+        )
         print("-" * 80)
     else:
-        print("\n  [cross-model MC NOT run: pass --run-mc or set PROGENAX_RUN_OED_BINARY for "
-              "the\n   H1 bias + the headline false-confidence figure. The mechanism figure "
-              "(no MC)\n   and the design/forecast above are always produced.]")
+        print(
+            "\n  [cross-model MC NOT run: pass --run-mc or set PROGENAX_RUN_OED_BINARY for "
+            "the\n   H1 bias + the headline false-confidence figure. The mechanism figure "
+            "(no MC)\n   and the design/forecast above are always produced.]"
+        )
 
     # --- the maximin-vs-marginalize robust-design comparison (Task 3.2; no MC) ---------- #
     cmp = None
     if args.maximin:
-        print("\n  computing the maximin-vs-marginalize robust-design comparison "
-              "(deterministic; f_bin grid, cached jacrevs) ...")
+        print(
+            "\n  computing the maximin-vs-marginalize robust-design comparison "
+            "(deterministic; f_bin grid, cached jacrevs) ..."
+        )
         cmp = oedb.compare_maximin_vs_marginalize(
             n_total, key=k_design, n_starts=n_starts, n_steps=n_steps
         )
         print("\n" + "-" * 80)
         print("  MAXIMIN vs MARGINALIZE  (sigma(M)/M, c-optimal-for-M)")
-        print(f"  f_bin grid: [0, {oedb.F_MAX}] x {oedb.N_FBIN_GRID} pts  |  "
-              f"smooth-max beta = {oedb._MAXIMIN_BETA:.0f}")
+        print(
+            f"  f_bin grid: [0, {oedb.F_MAX}] x {oedb.N_FBIN_GRID} pts  |  "
+            f"smooth-max beta = {oedb._MAXIMIN_BETA:.0f}"
+        )
         print("-" * 80)
         print(f"  {'design':>14s}{'sigma(M) @ f=0.5':>20s}{'worst-case sigma(M)':>22s}")
-        print(f"  {'marginalize':>14s}{cmp.sigmaM_truth_marg:>20.5f}{cmp.sigmaM_worst_marg:>22.5f}")
-        print(f"  {'maximin':>14s}{cmp.sigmaM_truth_mm:>20.5f}{cmp.sigmaM_worst_mm:>22.5f}")
+        print(
+            f"  {'marginalize':>14s}{cmp.sigmaM_truth_marg:>20.5f}{cmp.sigmaM_worst_marg:>22.5f}"
+        )
+        print(
+            f"  {'maximin':>14s}{cmp.sigmaM_truth_mm:>20.5f}{cmp.sigmaM_worst_mm:>22.5f}"
+        )
         print("-" * 80)
-        print(f"  the HEDGE: maximin SACRIFICES {100 * cmp.sacrifice_at_truth_frac:+.2f}% at "
-              f"the truth f_bin=0.5 to GAIN {100 * cmp.gain_at_worst_frac:+.2f}% at the "
-              f"worst-case f_bin={oedb.F_MAX}.")
-        print(f"  (sigma(M)(f_bin) is monotone in f_bin -> worst case at f_bin=F_MAX; the "
-              f"trade is small\n   because the marginalize design at 0.5 is already near "
-              f"maximin-optimal -- reported faithfully.)")
+        print(
+            f"  the HEDGE: maximin SACRIFICES {100 * cmp.sacrifice_at_truth_frac:+.2f}% at "
+            f"the truth f_bin=0.5 to GAIN {100 * cmp.gain_at_worst_frac:+.2f}% at the "
+            f"worst-case f_bin={oedb.F_MAX}."
+        )
+        print(
+            "  (sigma(M)(f_bin) is monotone in f_bin -> worst case at f_bin=F_MAX; the "
+            "trade is small\n   because the marginalize design at 0.5 is already near "
+            "maximin-optimal -- reported faithfully.)"
+        )
         print("-" * 80)
 
     # --- the sigma_bin/sigma_cluster sweep across system mass (Task 4.1) ---------------- #
     det = None
     mc = None
     if args.sweep:
-        print("\n  computing the DETERMINISTIC sigma_bin/sigma_cluster sweep across system "
-              "mass\n  (binary-free + marginalized sigma(M)/M + H2 gain; per-mass jacrevs, "
-              "no MC) ...")
+        print(
+            "\n  computing the DETERMINISTIC sigma_bin/sigma_cluster sweep across system "
+            "mass\n  (binary-free + marginalized sigma(M)/M + H2 gain; per-mass jacrevs, "
+            "no MC) ..."
+        )
         det = oedb.deterministic_sweep(
-            n_mass=args.sweep_n_mass_det, key=k_design, N_total=n_total,
-            n_starts=n_starts, n_steps=n_steps,
+            n_mass=args.sweep_n_mass_det,
+            key=k_design,
+            N_total=n_total,
+            n_starts=n_starts,
+            n_steps=n_steps,
         )
         print("-" * 80)
-        print("  DETERMINISTIC SWEEP  (sigma_bin = "
-              f"{det.sigma_bin_kms:.2f} km/s, FIXED)")
-        print(f"  {'M [Msun]':>11s}{'sig_clu':>9s}{'ratio':>8s}{'sM_bf':>9s}"
-              f"{'sM_marg':>9s}{'H2 gain':>9s}")
+        print(
+            f"  DETERMINISTIC SWEEP  (sigma_bin = {det.sigma_bin_kms:.2f} km/s, FIXED)"
+        )
+        print(
+            f"  {'M [Msun]':>11s}{'sig_clu':>9s}{'ratio':>8s}{'sM_bf':>9s}"
+            f"{'sM_marg':>9s}{'H2 gain':>9s}"
+        )
         print("-" * 80)
         for i in range(det.M_grid.shape[0]):
-            print(f"  {float(det.M_grid[i]):>11.3e}{float(det.sigma_cluster_kms[i]):>9.2f}"
-                  f"{float(det.ratio[i]):>8.2f}{float(det.sigmaM_bf[i]):>9.4f}"
-                  f"{float(det.sigmaM_marg[i]):>9.4f}{float(det.h2_gain[i]):>9.2f}")
+            print(
+                f"  {float(det.M_grid[i]):>11.3e}{float(det.sigma_cluster_kms[i]):>9.2f}"
+                f"{float(det.ratio[i]):>8.2f}{float(det.sigmaM_bf[i]):>9.4f}"
+                f"{float(det.sigmaM_marg[i]):>9.4f}{float(det.h2_gain[i]):>9.2f}"
+            )
         print("-" * 80)
-        print("  the binary-AWARE (marginalized) sigma(M)/M GROWS as sigma_bin/sigma_cluster "
-              "rises\n  (binaries matter more); the H2 gain is LARGEST where binaries "
-              "dominate -- contextualizing\n  the thin gain at the fiducial ratio ~ 1.08.")
+        print(
+            "  the binary-AWARE (marginalized) sigma(M)/M GROWS as sigma_bin/sigma_cluster "
+            "rises\n  (binaries matter more); the H2 gain is LARGEST where binaries "
+            "dominate -- contextualizing\n  the thin gain at the fiducial ratio ~ 1.08."
+        )
         print("-" * 80)
 
         if run_mc:
-            print(f"\n  running the @slow MC bias sweep (n_mass={args.sweep_n_mass_mc}, "
-                  f"n_draws={args.sweep_n_draws}) ... [slow; ~5-8 min, ~2.9 GB peak]")
+            print(
+                f"\n  running the @slow MC bias sweep (n_mass={args.sweep_n_mass_mc}, "
+                f"n_draws={args.sweep_n_draws}) ... [slow; ~5-8 min, ~2.9 GB peak]"
+            )
             mc = oedb.mc_bias_sweep(
-                n_mass=args.sweep_n_mass_mc, n_draws=args.sweep_n_draws, key=k_mc,
-                N_total=n_total, n_starts=n_starts, n_steps=n_steps,
+                n_mass=args.sweep_n_mass_mc,
+                n_draws=args.sweep_n_draws,
+                key=k_mc,
+                N_total=n_total,
+                n_starts=n_starts,
+                n_steps=n_steps,
             )
             print("-" * 80)
             print("  MC BIAS SWEEP  (realized cross-model M-bias across system mass)")
             print(f"  {'ratio':>8s}{'bias_bf':>11s}{'bias_marg':>12s}{'fbin_hat':>11s}")
             print("-" * 80)
             for i in range(mc.M_grid.shape[0]):
-                print(f"  {float(mc.ratio[i]):>8.2f}{float(mc.bias_bf[i]):>11.3f}"
-                      f"{float(mc.bias_marg[i]):>12.3f}{float(mc.fbin_marg[i]):>11.3f}")
+                print(
+                    f"  {float(mc.ratio[i]):>8.2f}{float(mc.bias_bf[i]):>11.3f}"
+                    f"{float(mc.bias_marg[i]):>12.3f}{float(mc.fbin_marg[i]):>11.3f}"
+                )
             print("-" * 80)
-            print("  the binary-FREE-fit M-bias (bias_bf) GROWS with sigma_bin/sigma_cluster "
-                  "(the H1\n  disaster gets worse for colder clusters); the binary-AWARE-fit "
-                  "residual (bias_marg)\n  stays ~0 across the sweep (the fix holds).")
+            print(
+                "  the binary-FREE-fit M-bias (bias_bf) GROWS with sigma_bin/sigma_cluster "
+                "(the H1\n  disaster gets worse for colder clusters); the binary-AWARE-fit "
+                "residual (bias_marg)\n  stays ~0 across the sweep (the fix holds)."
+            )
             print("-" * 80)
         else:
-            print("\n  [MC bias sweep NOT run: pass --run-mc or set PROGENAX_RUN_OED_BINARY "
-                  "for the\n   realized cross-model bias curves. The deterministic forecast "
-                  "sweep above is always produced.]")
+            print(
+                "\n  [MC bias sweep NOT run: pass --run-mc or set PROGENAX_RUN_OED_BINARY "
+                "for the\n   realized cross-model bias curves. The deterministic forecast "
+                "sweep above is always produced.]"
+            )
 
     # --- run-record JSON (into --outdir, NOT the fixed FIGURE_DIR; Stage-3 CLI lesson) -- #
     # The smoke test passes --outdir=tmp_path; a FIXED path would clobber the committed
@@ -306,13 +430,24 @@ def main(argv=None):
         "demo": "demo_oed_binary (binary-misspecification OED, H1)",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "params": {
-            "seed": args.seed, "n_total": n_total, "n_starts": n_starts, "n_steps": n_steps,
-            "quick": bool(args.quick), "mc_run": bool(run_mc), "n_draws": int(args.n_draws),
+            "seed": args.seed,
+            "n_total": n_total,
+            "n_starts": n_starts,
+            "n_steps": n_steps,
+            "quick": bool(args.quick),
+            "mc_run": bool(run_mc),
+            "n_draws": int(args.n_draws),
             "K_bins": int(oedb.R_BINS.shape[0]),
-            "M_fid": oedb.M_FID, "gamma_fid": oedb.GAMMA_FID, "a_fid": oedb.A_FID,
-            "r_t_fid": oedb.R_T_FID, "r_a_fid": oedb.R_A_FID, "f_bin_truth": oedb.F_BIN_TRUTH,
-            "eps_RV_kms": oedb.EPS_RV_KMS, "V_bin_kms2": float(oedb.V_BIN),
-            "sigma_bin_kms": sig_bin, "sigma_cluster_central_kms": sig_clu_central,
+            "M_fid": oedb.M_FID,
+            "gamma_fid": oedb.GAMMA_FID,
+            "a_fid": oedb.A_FID,
+            "r_t_fid": oedb.R_T_FID,
+            "r_a_fid": oedb.R_A_FID,
+            "f_bin_truth": oedb.F_BIN_TRUTH,
+            "eps_RV_kms": oedb.EPS_RV_KMS,
+            "V_bin_kms2": float(oedb.V_BIN),
+            "sigma_bin_kms": sig_bin,
+            "sigma_cluster_central_kms": sig_clu_central,
         },
         "design": {
             "R_bins_pc": [float(x) for x in oedb.R_BINS],
@@ -327,16 +462,21 @@ def main(argv=None):
     }
     if h1 is not None:
         record["H1"] = {
-            "bias_M_frac": h1.bias_M_frac, "mhat_over_mtrue": 1.0 + h1.bias_M_frac,
-            "forecast_sigma_M_frac": h1.forecast_sigma_M_frac, "ratio": h1.ratio,
-            "sem": h1.sem, "std_M_frac": h1.std_M_frac, "accept": bool(h1.accept),
+            "bias_M_frac": h1.bias_M_frac,
+            "mhat_over_mtrue": 1.0 + h1.bias_M_frac,
+            "forecast_sigma_M_frac": h1.forecast_sigma_M_frac,
+            "ratio": h1.ratio,
+            "sem": h1.sem,
+            "std_M_frac": h1.std_M_frac,
+            "accept": bool(h1.accept),
             "n_unconverged": int(h1.n_unconverged),
             "bias_other_ra_gamma_a": [float(x) for x in h1.bias_other],
             "baseline_fbin0_bias_M_frac": base.bias_M_frac,
         }
     if cmp is not None:
         record["maximin"] = {
-            "F_max": oedb.F_MAX, "n_fbin_grid": int(oedb.N_FBIN_GRID),
+            "F_max": oedb.F_MAX,
+            "n_fbin_grid": int(oedb.N_FBIN_GRID),
             "beta": float(oedb._MAXIMIN_BETA),
             "f_bin_grid": [float(x) for x in cmp.f_bin_grid],
             "sigmaM_truth_marg": cmp.sigmaM_truth_marg,
@@ -394,7 +534,6 @@ import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 import numpy as np  # noqa: E402  -- host-side plotting bookkeeping only
-
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig  # noqa: E402
 
 
@@ -411,9 +550,9 @@ def _fig_false_confidence(record, h1, fig_dir):
     import matplotlib.pyplot as plt
 
     H = record["H1"]
-    mhat = H["mhat_over_mtrue"]                       # ~2.85
-    forecast = H["forecast_sigma_M_frac"]            # ~0.045 (FRACTIONAL -> same unit as M_hat/M)
-    base = 1.0 + H["baseline_fbin0_bias_M_frac"]     # ~1.0 (f_bin=0 baseline)
+    mhat = H["mhat_over_mtrue"]  # ~2.85
+    forecast = H["forecast_sigma_M_frac"]  # ~0.045 (FRACTIONAL -> same unit as M_hat/M)
+    base = 1.0 + H["baseline_fbin0_bias_M_frac"]  # ~1.0 (f_bin=0 baseline)
     ratio = H["ratio"]
     bias_pct = 100.0 * H["bias_M_frac"]
 
@@ -421,35 +560,81 @@ def _fig_false_confidence(record, h1, fig_dir):
 
     # (ii) the unbiased truth.
     ax.axhline(1.0, color="0.35", ls="--", lw=1.2, zorder=1)
-    ax.text(0.5, 1.0, "  unbiased truth $\\hat M / M = 1$", color="0.35", fontsize=8.5,
-            va="bottom", ha="left", transform=ax.get_yaxis_transform())
+    ax.text(
+        0.5,
+        1.0,
+        "  unbiased truth $\\hat M / M = 1$",
+        color="0.35",
+        fontsize=8.5,
+        va="bottom",
+        ha="left",
+        transform=ax.get_yaxis_transform(),
+    )
 
     # (i) the naive design WITH binaries: the +/- forecast-sigma error bar is the claimed
     #     precision (forecast is fractional sigma(M)/M, so the absolute bar on M_hat/M is
     #     mhat*forecast). It is TINY next to the bias -- that is the disaster.
     err = mhat * forecast
-    ax.errorbar([0], [mhat], yerr=[err], fmt="o", ms=11, color=OI["vermilion"],
-                ecolor=OI["vermilion"], elinewidth=2.4, capsize=7, capthick=2.4,
-                zorder=4, label="naive design + binaries")
+    ax.errorbar(
+        [0],
+        [mhat],
+        yerr=[err],
+        fmt="o",
+        ms=11,
+        color=OI["vermilion"],
+        ecolor=OI["vermilion"],
+        elinewidth=2.4,
+        capsize=7,
+        capthick=2.4,
+        zorder=4,
+        label="naive design + binaries",
+    )
 
     # (iii) the f_bin=0 baseline (mock == fit model -> unbiased).
-    ax.errorbar([1], [base], yerr=[base * forecast], fmt="s", ms=9, color=OI["blue"],
-                ecolor=OI["blue"], elinewidth=2.0, capsize=6, capthick=2.0,
-                zorder=4, label="$f_{\\rm bin}=0$ baseline")
+    ax.errorbar(
+        [1],
+        [base],
+        yerr=[base * forecast],
+        fmt="s",
+        ms=9,
+        color=OI["blue"],
+        ecolor=OI["blue"],
+        elinewidth=2.0,
+        capsize=6,
+        capthick=2.0,
+        zorder=4,
+        label="$f_{\\rm bin}=0$ baseline",
+    )
 
     # The bias annotation: a vertical span from truth to M_hat, labelled.
-    ax.annotate("", xy=(0.22, mhat), xytext=(0.22, 1.0),
-                arrowprops=dict(arrowstyle="<->", color="0.25", lw=1.4))
-    ax.text(0.27, 0.5 * (1.0 + mhat),
-            f"bias $= {bias_pct:+.0f}\\%$\n$\\,$($\\hat M/M = {mhat:.2f}$)",
-            color="0.15", fontsize=10, va="center", ha="left")
+    ax.annotate(
+        "",
+        xy=(0.22, mhat),
+        xytext=(0.22, 1.0),
+        arrowprops=dict(arrowstyle="<->", color="0.25", lw=1.4),
+    )
+    ax.text(
+        0.27,
+        0.5 * (1.0 + mhat),
+        f"bias $= {bias_pct:+.0f}\\%$\n$\\,$($\\hat M/M = {mhat:.2f}$)",
+        color="0.15",
+        fontsize=10,
+        va="center",
+        ha="left",
+    )
 
     # The headline ratio, in a callout box.
-    ax.text(0.5, 0.93,
-            f"forecast error bar $\\pm{100 * forecast:.1f}\\%$\n"
-            f"is dwarfed: bias is $\\mathbf{{{ratio:.0f}\\times}}$ the forecast $\\sigma(M)$",
-            transform=ax.transAxes, fontsize=10.5, va="top", ha="center",
-            bbox=dict(boxstyle="round,pad=0.4", fc=OI["yellow"], ec="0.4", alpha=0.85))
+    ax.text(
+        0.5,
+        0.93,
+        f"forecast error bar $\\pm{100 * forecast:.1f}\\%$\n"
+        f"is dwarfed: bias is $\\mathbf{{{ratio:.0f}\\times}}$ the forecast $\\sigma(M)$",
+        transform=ax.transAxes,
+        fontsize=10.5,
+        va="top",
+        ha="center",
+        bbox=dict(boxstyle="round,pad=0.4", fc=OI["yellow"], ec="0.4", alpha=0.85),
+    )
 
     ax.set_xlim(-0.5, 1.6)
     ax.set_ylim(0.0, mhat * 1.22)
@@ -480,7 +665,6 @@ def _fig_mechanism(record, fig_dir):
     sig_clu = np.asarray(record["mechanism"]["sigma_cluster_los_kms"])
     sig_obs = np.asarray(record["mechanism"]["sigma_obs_kms"])
     n_eff = np.asarray(record["design"]["n_eff"])
-    sig_bin = record["params"]["sigma_bin_kms"]
 
     fig, axL = plt.subplots(figsize=(7.2, 4.6))
 
@@ -488,35 +672,73 @@ def _fig_mechanism(record, fig_dir):
     axR = axL.twinx()
     logR = np.log10(R)
     bw = 0.9 * (logR[1] - logR[0])
-    axR.bar(logR, n_eff, width=bw, color=OI["sky"], alpha=0.55, edgecolor="white",
-            linewidth=0.3, zorder=1, label="design allocation")
+    axR.bar(
+        logR,
+        n_eff,
+        width=bw,
+        color=OI["sky"],
+        alpha=0.55,
+        edgecolor="white",
+        linewidth=0.3,
+        zorder=1,
+        label="design allocation",
+    )
     axR.set_ylabel(r"design allocation  $n_{\rm eff}$  per bin", color=OI["blue"])
     axR.tick_params(axis="y", labelcolor=OI["blue"])
     axR.set_ylim(0, n_eff.max() * 1.25)
 
     # --- left axis: the two sigma profiles (the mechanism) --- #
-    axL.set_zorder(axR.get_zorder() + 1)   # sigma curves drawn ON TOP of the bars
-    axL.patch.set_visible(False)           # but let the bars show through
-    axL.plot(logR, sig_clu, "-o", ms=5, color=OI["vermilion"], zorder=3,
-             label=r"truth cluster $\sigma_{\rm los}$")
-    axL.plot(logR, sig_obs, "-s", ms=5, color=OI["green"], zorder=3,
-             label=r"binary-inflated $\sigma_{\rm obs}=\sqrt{\sigma_{\rm clu}^2+f_{\rm bin}V_{\rm bin}}$")
+    axL.set_zorder(axR.get_zorder() + 1)  # sigma curves drawn ON TOP of the bars
+    axL.patch.set_visible(False)  # but let the bars show through
+    axL.plot(
+        logR,
+        sig_clu,
+        "-o",
+        ms=5,
+        color=OI["vermilion"],
+        zorder=3,
+        label=r"truth cluster $\sigma_{\rm los}$",
+    )
+    axL.plot(
+        logR,
+        sig_obs,
+        "-s",
+        ms=5,
+        color=OI["green"],
+        zorder=3,
+        label=r"binary-inflated $\sigma_{\rm obs}=\sqrt{\sigma_{\rm clu}^2+f_{\rm bin}V_{\rm bin}}$",
+    )
     # The binary pedestal floor sqrt(f_bin*V_bin) as a horizontal reference.
-    pedestal = float(np.sqrt(record["params"]["f_bin_truth"] * record["params"]["V_bin_kms2"]))
+    pedestal = float(
+        np.sqrt(record["params"]["f_bin_truth"] * record["params"]["V_bin_kms2"])
+    )
     axL.axhline(pedestal, color=OI["green"], ls=":", lw=1.1, zorder=2)
-    axL.text(logR[0], pedestal, f"  binary pedestal $\\sqrt{{f_{{\\rm bin}}V_{{\\rm bin}}}}$ "
-             f"$= {pedestal:.1f}$ km/s", color=OI["green"], fontsize=8, va="bottom", ha="left")
+    axL.text(
+        logR[0],
+        pedestal,
+        f"  binary pedestal $\\sqrt{{f_{{\\rm bin}}V_{{\\rm bin}}}}$ "
+        f"$= {pedestal:.1f}$ km/s",
+        color=OI["green"],
+        fontsize=8,
+        va="bottom",
+        ha="left",
+    )
 
     axL.set_xlabel(r"$\log_{10}(R\,/\,{\rm pc})$")
     axL.set_ylabel(r"line-of-sight dispersion  $\sigma$  [km/s]")
     axL.set_ylim(0, max(sig_obs.max(), sig_clu.max()) * 1.18)
 
     # Annotate the core-vs-outskirt contrast that the design IGNORES.
-    axL.annotate(f"cluster $\\sigma_{{\\rm los}}$ falls\n"
-                 f"{sig_clu.max():.1f} $\\to$ {sig_clu.min():.2f} km/s",
-                 xy=(logR[-1], sig_clu[-1]), xytext=(logR[len(R) // 2], 0.55 * sig_obs.max()),
-                 fontsize=8.5, color=OI["vermilion"], ha="center",
-                 arrowprops=dict(arrowstyle="->", color=OI["vermilion"], lw=1.0))
+    axL.annotate(
+        f"cluster $\\sigma_{{\\rm los}}$ falls\n"
+        f"{sig_clu.max():.1f} $\\to$ {sig_clu.min():.2f} km/s",
+        xy=(logR[-1], sig_clu[-1]),
+        xytext=(logR[len(R) // 2], 0.55 * sig_obs.max()),
+        fontsize=8.5,
+        color=OI["vermilion"],
+        ha="center",
+        arrowprops=dict(arrowstyle="->", color=OI["vermilion"], lw=1.0),
+    )
 
     # Merge the two axes' legends into one.
     hL, lL = axL.get_legend_handles_labels()
@@ -553,29 +775,73 @@ def _fig_maximin(record, fig_dir):
     fig, ax = plt.subplots(figsize=(7.2, 4.8))
 
     # main: sigma(M)/M(f_bin) for both designs (as a percentage for readability).
-    ax.plot(fg, 100 * s_marg, "-o", ms=4.5, color=OI["blue"], zorder=3,
-            label="marginalize design (optimal @ $f_{\\rm bin}=0.5$)")
-    ax.plot(fg, 100 * s_mm, "-s", ms=4.5, color=OI["vermilion"], zorder=3,
-            label="maximin design (optimal @ worst case)")
+    ax.plot(
+        fg,
+        100 * s_marg,
+        "-o",
+        ms=4.5,
+        color=OI["blue"],
+        zorder=3,
+        label="marginalize design (optimal @ $f_{\\rm bin}=0.5$)",
+    )
+    ax.plot(
+        fg,
+        100 * s_mm,
+        "-s",
+        ms=4.5,
+        color=OI["vermilion"],
+        zorder=3,
+        label="maximin design (optimal @ worst case)",
+    )
 
     # mark the truth f_bin (where marginalize wins) and the worst-case f_bin (where maximin wins).
     ax.axvline(f_truth, color="0.45", ls="--", lw=1.1, zorder=1)
-    ax.text(f_truth, ax.get_ylim()[0], "  truth $f_{\\rm bin}=0.5$", color="0.35",
-            fontsize=8.5, va="bottom", ha="left", rotation=90)
+    ax.text(
+        f_truth,
+        ax.get_ylim()[0],
+        "  truth $f_{\\rm bin}=0.5$",
+        color="0.35",
+        fontsize=8.5,
+        va="bottom",
+        ha="left",
+        rotation=90,
+    )
     ax.axvline(f_max, color="0.45", ls=":", lw=1.1, zorder=1)
     # worst-case points (the design-defining values).
-    ax.plot([f_max], [100 * M["sigmaM_worst_marg"]], "o", ms=9, mfc="none",
-            mec=OI["blue"], mew=1.8, zorder=4)
-    ax.plot([f_max], [100 * M["sigmaM_worst_mm"]], "s", ms=9, mfc="none",
-            mec=OI["vermilion"], mew=1.8, zorder=4)
+    ax.plot(
+        [f_max],
+        [100 * M["sigmaM_worst_marg"]],
+        "o",
+        ms=9,
+        mfc="none",
+        mec=OI["blue"],
+        mew=1.8,
+        zorder=4,
+    )
+    ax.plot(
+        [f_max],
+        [100 * M["sigmaM_worst_mm"]],
+        "s",
+        ms=9,
+        mfc="none",
+        mec=OI["vermilion"],
+        mew=1.8,
+        zorder=4,
+    )
 
     # the hedge callout: sacrifice at truth, gain at worst.
-    ax.text(0.03, 0.97,
-            f"the hedge:\nmaximin gives up ${100 * M['sacrifice_at_truth_frac']:+.2f}\\%$ "
-            f"at $f_{{\\rm bin}}=0.5$\nto gain ${100 * M['gain_at_worst_frac']:+.2f}\\%$ "
-            f"at the worst case ($f_{{\\rm bin}}={f_max}$)",
-            transform=ax.transAxes, fontsize=9.5, va="top", ha="left",
-            bbox=dict(boxstyle="round,pad=0.4", fc=OI["yellow"], ec="0.4", alpha=0.85))
+    ax.text(
+        0.03,
+        0.97,
+        f"the hedge:\nmaximin gives up ${100 * M['sacrifice_at_truth_frac']:+.2f}\\%$ "
+        f"at $f_{{\\rm bin}}=0.5$\nto gain ${100 * M['gain_at_worst_frac']:+.2f}\\%$ "
+        f"at the worst case ($f_{{\\rm bin}}={f_max}$)",
+        transform=ax.transAxes,
+        fontsize=9.5,
+        va="top",
+        ha="left",
+        bbox=dict(boxstyle="round,pad=0.4", fc=OI["yellow"], ec="0.4", alpha=0.85),
+    )
 
     ax.set_xlabel(r"assumed binary fraction  $f_{\rm bin}$")
     ax.set_ylabel(r"forecast precision  $\sigma(M)/M$  [\%]")
@@ -586,10 +852,26 @@ def _fig_maximin(record, fig_dir):
     axin = ax.inset_axes([0.11, 0.40, 0.42, 0.34])
     logR = np.log10(R)
     bw = 0.38 * (logR[1] - logR[0])
-    axin.bar(logR - bw / 2, n_marg, width=bw, color=OI["blue"], alpha=0.7,
-             label="marg.", edgecolor="white", linewidth=0.2)
-    axin.bar(logR + bw / 2, n_mm, width=bw, color=OI["vermilion"], alpha=0.7,
-             label="maximin", edgecolor="white", linewidth=0.2)
+    axin.bar(
+        logR - bw / 2,
+        n_marg,
+        width=bw,
+        color=OI["blue"],
+        alpha=0.7,
+        label="marg.",
+        edgecolor="white",
+        linewidth=0.2,
+    )
+    axin.bar(
+        logR + bw / 2,
+        n_mm,
+        width=bw,
+        color=OI["vermilion"],
+        alpha=0.7,
+        label="maximin",
+        edgecolor="white",
+        linewidth=0.2,
+    )
     axin.set_xlabel(r"$\log_{10}(R/{\rm pc})$", fontsize=7.5, labelpad=1)
     axin.set_ylabel(r"$n_{\rm eff}$", fontsize=7.5, labelpad=1)
     axin.tick_params(labelsize=6.5)
@@ -621,19 +903,30 @@ def _fig_sweep(record, fig_dir):
     ratio_det = np.asarray(det["ratio"])
     M_det = np.asarray(det["M_grid"])
     h2_gain = np.asarray(det["h2_gain"])
-    f_truth = record["params"]["f_bin_truth"]
-    fiducial_ratio = record["params"]["sigma_bin_kms"] / record["params"][
-        "sigma_cluster_central_kms"]
+    fiducial_ratio = (
+        record["params"]["sigma_bin_kms"]
+        / record["params"]["sigma_cluster_central_kms"]
+    )
 
     fig, axL = plt.subplots(figsize=(7.4, 5.0))
 
     # --- twin (right) axis FIRST: the H2 precision-gain (deterministic, fine grid) --- #
     axR = axL.twinx()
-    axR.plot(ratio_det, h2_gain, "-", lw=1.6, color=OI["sky"], alpha=0.9, zorder=2,
-             label="H2 precision-gain (forecast)")
+    axR.plot(
+        ratio_det,
+        h2_gain,
+        "-",
+        lw=1.6,
+        color=OI["sky"],
+        alpha=0.9,
+        zorder=2,
+        label="H2 precision-gain (forecast)",
+    )
     axR.axhline(1.0, color=OI["sky"], ls=":", lw=0.9, alpha=0.7, zorder=1)
-    axR.set_ylabel(r"H2 precision-gain  $\sigma(M)_{\rm free\,design}/\sigma(M)_{\rm aware}$",
-                   color=OI["blue"])
+    axR.set_ylabel(
+        r"H2 precision-gain  $\sigma(M)_{\rm free\,design}/\sigma(M)_{\rm aware}$",
+        color=OI["blue"],
+    )
     axR.tick_params(axis="y", labelcolor=OI["blue"])
     axR.set_ylim(0.9, max(1.6, float(h2_gain.max()) * 1.08))
 
@@ -646,28 +939,60 @@ def _fig_sweep(record, fig_dir):
     if have_mc:
         mc = record["sweep_mc"]
         ratio_mc = np.asarray(mc["ratio"])
-        bias_bf = 100.0 * np.asarray(mc["bias_bf"])      # -> percent
+        bias_bf = 100.0 * np.asarray(mc["bias_bf"])  # -> percent
         bias_marg = 100.0 * np.asarray(mc["bias_marg"])
-        axL.plot(ratio_mc, bias_bf, "-o", ms=6.5, color=OI["vermilion"], zorder=5,
-                 label="binary-free fit (the H1 disaster)")
-        axL.plot(ratio_mc, bias_marg, "-s", ms=6, color=OI["green"], zorder=5,
-                 label="binary-aware fit (the fix)")
+        axL.plot(
+            ratio_mc,
+            bias_bf,
+            "-o",
+            ms=6.5,
+            color=OI["vermilion"],
+            zorder=5,
+            label="binary-free fit (the H1 disaster)",
+        )
+        axL.plot(
+            ratio_mc,
+            bias_marg,
+            "-s",
+            ms=6,
+            color=OI["green"],
+            zorder=5,
+            label="binary-aware fit (the fix)",
+        )
         ymax = max(220.0, float(bias_bf.max()) * 1.15)
     else:
         ymax = 220.0
-        axL.text(0.5, 0.5, "MC bias sweep not run\n(pass --run-mc for the realized curves)",
-                 transform=axL.transAxes, fontsize=10, ha="center", va="center", color="0.4")
+        axL.text(
+            0.5,
+            0.5,
+            "MC bias sweep not run\n(pass --run-mc for the realized curves)",
+            transform=axL.transAxes,
+            fontsize=10,
+            ha="center",
+            va="center",
+            color="0.4",
+        )
 
     # mark the fiducial operating point (the single-point +185% headline).
     axL.axvline(fiducial_ratio, color="0.35", ls="-.", lw=1.1, zorder=2)
-    axL.text(fiducial_ratio, ymax * 0.62,
-             f"  fiducial $\\sigma_{{\\rm bin}}/\\sigma_{{\\rm clu}}={fiducial_ratio:.2f}$\n"
-             f"  (single-point $+185\\%$)", color="0.2", fontsize=8.5, va="top", ha="left")
+    axL.text(
+        fiducial_ratio,
+        ymax * 0.62,
+        f"  fiducial $\\sigma_{{\\rm bin}}/\\sigma_{{\\rm clu}}={fiducial_ratio:.2f}$\n"
+        f"  (single-point $+185\\%$)",
+        color="0.2",
+        fontsize=8.5,
+        va="top",
+        ha="left",
+    )
 
-    axL.set_xlabel(r"binary contamination  $\sigma_{\rm bin}/\sigma_{\rm cluster}$"
-                   r"  (central; $\sigma_{\rm bin}=9.73$ km/s fixed)")
-    axL.set_ylabel(r"realized dynamical-mass bias  $(\hat M-M)/M$  [\%]",
-                   color=OI["vermilion"])
+    axL.set_xlabel(
+        r"binary contamination  $\sigma_{\rm bin}/\sigma_{\rm cluster}$"
+        r"  (central; $\sigma_{\rm bin}=9.73$ km/s fixed)"
+    )
+    axL.set_ylabel(
+        r"realized dynamical-mass bias  $(\hat M-M)/M$  [\%]", color=OI["vermilion"]
+    )
     axL.tick_params(axis="y", labelcolor=OI["vermilion"])
     axL.set_ylim(-12.0, ymax)
     # x grows to the RIGHT toward MORE contamination (colder, lower-mass clusters).
@@ -678,19 +1003,23 @@ def _fig_sweep(record, fig_dir):
     axT.set_xlim(axL.get_xlim())
     # pick a few ratio ticks and label them with the corresponding system mass.
     tick_ratios = np.array([0.7, 1.0, 1.5, 2.0, 3.0])
-    tick_ratios = tick_ratios[(tick_ratios >= ratio_det.min()) & (tick_ratios <= ratio_det.max())]
+    tick_ratios = tick_ratios[
+        (tick_ratios >= ratio_det.min()) & (tick_ratios <= ratio_det.max())
+    ]
     # interpolate M(ratio): ratio decreases with M, so sort by ratio ascending for np.interp.
     order = np.argsort(ratio_det)
     tick_M = np.interp(tick_ratios, ratio_det[order], M_det[order])
     axT.set_xticks(tick_ratios)
-    axT.set_xticklabels([f"{m/1e5:.1f}" for m in tick_M])
+    axT.set_xticklabels([f"{m / 1e5:.1f}" for m in tick_M])
     axT.set_xlabel(r"system mass  $M\,/\,10^5\,M_\odot$")
 
     # merged legend.
     hL, lL = axL.get_legend_handles_labels()
     hR, lR = axR.get_legend_handles_labels()
     axL.legend(hL + hR, lL + lR, loc="upper left", fontsize=8.5)
-    panel_label(axL, "the sweep: bias + fix + H2 gain vs contamination", loc="lower right")
+    panel_label(
+        axL, "the sweep: bias + fix + H2 gain vs contamination", loc="lower right"
+    )
     fig.tight_layout()
     save_fig(fig, fig_dir, "demo_oedb_sweep")
 
@@ -698,15 +1027,15 @@ def _fig_sweep(record, fig_dir):
 def make_figures(record, h1, fig_dir, cmp=None, det=None):
     """Generate the binary-misspecification figures into fig_dir (PNG + PDF via save_fig).
 
-      * fig 1 (false_confidence): M_hat/M for the naive design + binaries (~2.85, tiny
-        forecast error bar) vs truth vs the f_bin=0 baseline. ONLY in full MC mode (h1 set).
-      * fig 2 (mechanism): sigma_los(R) + the binary pedestal + the design's allocation --
-        WHY the bias happens. Always produced (no MC).
-      * fig 3 (maximin): sigma(M)/M(f_bin) for the marginalize vs maximin design + the two
-        allocations -- the robust-design hedge. ONLY when --maximin (cmp set).
-      * fig 4 (sweep): the realized M-bias (binary-free-fit rising, binary-aware-fit ~0) +
-        the H2 gain vs sigma_bin/sigma_cluster across system mass. ONLY when --sweep (det
-        set); the MC bias curves appear only if the @slow MC sweep ran (record['sweep_mc']).
+    * fig 1 (false_confidence): M_hat/M for the naive design + binaries (~2.85, tiny
+      forecast error bar) vs truth vs the f_bin=0 baseline. ONLY in full MC mode (h1 set).
+    * fig 2 (mechanism): sigma_los(R) + the binary pedestal + the design's allocation --
+      WHY the bias happens. Always produced (no MC).
+    * fig 3 (maximin): sigma(M)/M(f_bin) for the marginalize vs maximin design + the two
+      allocations -- the robust-design hedge. ONLY when --maximin (cmp set).
+    * fig 4 (sweep): the realized M-bias (binary-free-fit rising, binary-aware-fit ~0) +
+      the H2 gain vs sigma_bin/sigma_cluster across system mass. ONLY when --sweep (det
+      set); the MC bias curves appear only if the @slow MC sweep ran (record['sweep_mc']).
     """
     apply_pub_style()
     os.makedirs(fig_dir, exist_ok=True)
@@ -722,10 +1051,12 @@ def make_figures(record, h1, fig_dir, cmp=None, det=None):
     if det is not None:
         _fig_sweep(record, fig_dir)
         n_figs += 1
-    print(f"  figures: wrote {n_figs} PNG+PDF (mechanism"
-          f"{' + false_confidence' if h1 is not None else ''}"
-          f"{' + maximin' if cmp is not None else ''}"
-          f"{' + sweep' if det is not None else ''}) to {fig_dir}/demo_oedb_*.png")
+    print(
+        f"  figures: wrote {n_figs} PNG+PDF (mechanism"
+        f"{' + false_confidence' if h1 is not None else ''}"
+        f"{' + maximin' if cmp is not None else ''}"
+        f"{' + sweep' if det is not None else ''}) to {fig_dir}/demo_oedb_*.png"
+    )
 
 
 if __name__ == "__main__":

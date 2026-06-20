@@ -5,18 +5,19 @@ binary-inflated dynamical-mass demo: the isotropic LOS projection, the
 sigma-independent flux-weighted blend kernel K_orb (Moe P-q-e + ZAMS L), and the
 differentiable binned single+binary mixture model.
 """
-import numpy as np
+
 import jax
 import jax.numpy as jnp
-import progenax  # noqa: F401  -- enables float64 at import
-
+import numpy as np
 from scripts._demo_binaries import (
-    project_los_velocity,
-    build_korb_kernel,
     _kernel_std,
-    predict_vlos_counts,
+    build_korb_kernel,
     dyn_mass_ratio,
+    predict_vlos_counts,
+    project_los_velocity,
 )
+
+import progenax  # noqa: F401  -- enables float64 at import
 
 
 def test_los_projection_is_isotropic_mean_zero():
@@ -27,7 +28,7 @@ def test_los_projection_is_isotropic_mean_zero():
     dirs = rng.normal(size=(20000, 3))
     dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
     los = np.array([float(project_los_velocity(v, jnp.asarray(d))) for d in dirs])
-    assert abs(los.mean()) < 0.3                        # isotropic -> mean ~0
+    assert abs(los.mean()) < 0.3  # isotropic -> mean ~0
     assert np.isclose(los.std(), 10.0 / np.sqrt(3), rtol=0.05)  # variance/3 per axis
 
 
@@ -38,7 +39,7 @@ def test_korb_high_q_self_cancels():
     spread_hi = _kernel_std(v_grid, k)
     v_grid2, k2 = build_korb_kernel(n_pool=20000, q_fixed=0.2, Z=1e-3, seed=1)
     spread_lo = _kernel_std(v_grid2, k2)
-    assert spread_hi < 0.3 * spread_lo   # high-q cancels, low-q (primary) does not
+    assert spread_hi < 0.3 * spread_lo  # high-q cancels, low-q (primary) does not
 
 
 def test_korb_normalized_and_zero_mean():
@@ -46,8 +47,8 @@ def test_korb_normalized_and_zero_mean():
     isotropic orientation give a symmetric blend-velocity distribution)."""
     v_grid, k = build_korb_kernel(n_pool=50000, Z=1e-3, seed=2)
     dv = v_grid[1] - v_grid[0]
-    assert np.isclose(np.sum(k) * dv, 1.0, atol=1e-3)   # normalized density
-    assert abs(np.sum(k * v_grid) * dv) < 0.5           # ~zero mean
+    assert np.isclose(np.sum(k) * dv, 1.0, atol=1e-3)  # normalized density
+    assert abs(np.sum(k * v_grid) * dv) < 0.5  # ~zero mean
 
 
 def test_predict_reduces_to_gaussian_at_fb0():
@@ -55,9 +56,10 @@ def test_predict_reduces_to_gaussian_at_fb0():
     the analytic CDF path conserves the total count to high precision."""
     v_edges = np.linspace(-30, 30, 61)
     v_grid, k = build_korb_kernel(n_pool=20000, Z=1e-3, seed=3)
-    mu = predict_vlos_counts(sigma=5.0, f_b=0.0, N=1500, v_edges=v_edges,
-                             korb_grid=v_grid, korb=k, eps=1.0)
-    assert np.isclose(float(jnp.sum(mu)), 1500, rtol=1e-6)   # count conserved
+    mu = predict_vlos_counts(
+        sigma=5.0, f_b=0.0, N=1500, v_edges=v_edges, korb_grid=v_grid, korb=k, eps=1.0
+    )
+    assert np.isclose(float(jnp.sum(mu)), 1500, rtol=1e-6)  # count conserved
     assert int(jnp.argmax(mu)) in (len(mu) // 2 - 1, len(mu) // 2)  # peaked, symmetric
 
 

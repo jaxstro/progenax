@@ -33,7 +33,7 @@ dependencies = [
 Repository = "https://github.com/jaxstro/progenax"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0"]
+dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0", "ruff>=0.6", "mypy>=1.8"]
 # Exact (non-differentiable) CW04 Q / Lambda_MSR diagnostics path. progenax core
 # is JAX-native; numpy+scipy are needed ONLY by progenax.diagnostics' scipy-backed
 # estimators (compute_q_parameter, compute_lambda_msr), which import them lazily
@@ -106,3 +106,40 @@ exclude_lines = [
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests"]
+fix = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # pyflakes, pycodestyle errors, isort (matches jaxstro/fluxax)
+ignore = [
+    "E203",  # whitespace before ':' (formatter compat)
+    "E501",  # line length — rely on the formatter / judgment
+    "E741",  # ambiguous variable name (l is standard for galactic longitude)
+    "F722",  # forward-annotation syntax error (jaxtyping uses "N 3" shape strings)
+    "F821",  # undefined name (jaxtyping pattern vars like N, Array)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Demo/test/validation code uses idiomatic compact style that is fine OUTSIDE the shipped
+# library: sys.path-insert-then-import (E402), compact one-liners (E702), and lambda
+# assignments (E731). These dirs stay LINTED for real bugs (F401/F811/F841/F541); only the
+# stylistic codes are carved. The shipped package src/progenax is linted strictly.
+"tests/**" = ["E402", "E702", "E731"]
+"scripts/**" = ["E402", "E702", "E731"]
+# progenax enables float64 via enable_high_precision() BEFORE importing its submodules
+# (high precision must be configured before any JAX array is created); the package-init
+# imports therefore legitimately follow that call, so E402 is carved here only.
+"src/progenax/__init__.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/progenax"]
+ignore_missing_imports = true

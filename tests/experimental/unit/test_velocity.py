@@ -30,7 +30,7 @@ def test_velocity_field_shape_and_spatial_coherence():
 
     v = turbulent_velocity_field(SHAPE, beta_v=4.0, key=jax.random.PRNGKey(0))
     assert v.shape == SHAPE + (3,)
-    assert _neighbor_corr(v) > 0.5          # coherent, not white noise
+    assert _neighbor_corr(v) > 0.5  # coherent, not white noise
 
 
 def test_steeper_spectrum_more_coherent():
@@ -44,10 +44,13 @@ def test_steeper_spectrum_more_coherent():
 
 def test_sample_velocities_interpolates_and_is_differentiable():
     """Stars sample the local field velocity (trilinear); differentiable in positions."""
-    from gravoturb_fdf.field.velocity import sample_turbulent_velocities, turbulent_velocity_field
+    from gravoturb_fdf.field.velocity import (
+        sample_turbulent_velocities,
+        turbulent_velocity_field,
+    )
 
     v = turbulent_velocity_field(SHAPE, beta_v=4.0, key=jax.random.PRNGKey(2))
-    pos = jnp.array([[0.5, 0.5, 0.5], [0.1, 0.9, 0.3]])   # in [0, box)^3
+    pos = jnp.array([[0.5, 0.5, 0.5], [0.1, 0.9, 0.3]])  # in [0, box)^3
     vs = sample_turbulent_velocities(pos, v, box_size=1.0)
     assert vs.shape == (2, 3)
     assert np.all(np.isfinite(np.asarray(vs)))
@@ -57,10 +60,13 @@ def test_sample_velocities_interpolates_and_is_differentiable():
 
 def test_virial_scale_achieves_target_Q():
     """After core virial_scale, the measured Q = T/|V| matches the target (envelope auto-accounted)."""
-    from progenax import compute_kinetic_energy, compute_potential_energy, virial_scale
+    from gravoturb_fdf.field.velocity import (
+        sample_turbulent_velocities,
+        turbulent_velocity_field,
+    )
     from jaxstro.units import STELLAR
 
-    from gravoturb_fdf.field.velocity import sample_turbulent_velocities, turbulent_velocity_field
+    from progenax import compute_kinetic_energy, compute_potential_energy, virial_scale
 
     key = jax.random.PRNGKey(3)
     pos = jax.random.uniform(key, (300, 3))

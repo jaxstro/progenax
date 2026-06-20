@@ -47,6 +47,7 @@ k=omega sin(i)=1.7321, key PRNGKey(0), wall ~4 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_rotation.py
 """
+
 import os
 import sys
 
@@ -57,6 +58,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import PlummerProfile, PlummerVelocityDF
 from progenax.kinematics import apply_solid_body_rotation
 
@@ -70,15 +72,15 @@ OUTPUT_DIR = "validation/plots"
 G = STELLAR.G
 
 R_H = 1.0
-OMEGA_TRUE = 2.0           # rotation rate [1/Myr] (moderate: v_rot ~ 0.2 sigma at r_h)
-INCL_TRUE = np.pi / 3.0    # 60 deg inclination
+OMEGA_TRUE = 2.0  # rotation rate [1/Myr] (moderate: v_rot ~ 0.2 sigma at r_h)
+INCL_TRUE = np.pi / 3.0  # 60 deg inclination
 N_STARS = 20_000
 SEED = 0
 
 K_BINS = 16
 N_ADAM = 400
 ADAM_LR = 3e-2
-K_BOX = (-20.0, 20.0)      # slope box (sign-agnostic)
+K_BOX = (-20.0, 20.0)  # slope box (sign-agnostic)
 N_INITS = 3
 SELFCON_NSIG = 4.0
 RECOVERY_NSIG = 3.0
@@ -117,8 +119,14 @@ def build_truth_data():
         vbar.append(float(np.mean(v_los[sel])))
         se.append(float(np.std(v_los[sel]) / np.sqrt(max(n, 1))))
         wt.append(1.0 if n >= 30 else 0.0)
-    return (jnp.asarray(x_mid), jnp.asarray(vbar), jnp.asarray(se), jnp.asarray(wt),
-            pos, vel)
+    return (
+        jnp.asarray(x_mid),
+        jnp.asarray(vbar),
+        jnp.asarray(se),
+        jnp.asarray(wt),
+        pos,
+        vel,
+    )
 
 
 def main():
@@ -126,20 +134,26 @@ def main():
     print("ROTATION, PROJECTION, AND THE omega-i DEGENERACY (B8)")
     print("=" * 78)
     k_true = OMEGA_TRUE * np.sin(INCL_TRUE)
-    print(f"\n  truth: omega={OMEGA_TRUE} /Myr, i={np.degrees(INCL_TRUE):.0f} deg "
-          f"-> slope k = omega sin(i) = {k_true:.4f}")
+    print(
+        f"\n  truth: omega={OMEGA_TRUE} /Myr, i={np.degrees(INCL_TRUE):.0f} deg "
+        f"-> slope k = omega sin(i) = {k_true:.4f}"
+    )
 
     x_mid, vbar, se, wt, pos, vel = build_truth_data()
-    predict = lambda z: z[0] * x_mid          # <v_los> = k * x_sky
+    predict = lambda z: z[0] * x_mid  # <v_los> = k * x_sky
     nll = lambda z: -gaussian_loglike((vbar, se, wt), predict)(z)
 
     # self-consistency: chi^2 of the truth-slope model.
     resid_true = np.asarray((vbar - k_true * x_mid) / jnp.where(se > 0, se, 1.0))
     selfcon = float(np.max(np.abs(resid_true[np.asarray(wt) > 0])))
-    print(f"\n  self-consistency: max|resid|/SE at truth k = {selfcon:.2f} (gate < {SELFCON_NSIG})")
+    print(
+        f"\n  self-consistency: max|resid|/SE at truth k = {selfcon:.2f} (gate < {SELFCON_NSIG})"
+    )
 
-    inits = [jnp.array([k_true])] + [jnp.array([k_true + float(s)])
-                                     for s in np.random.default_rng(SEED).normal(0, 1.0, N_INITS - 1)]
+    inits = [jnp.array([k_true])] + [
+        jnp.array([k_true + float(s)])
+        for s in np.random.default_rng(SEED).normal(0, 1.0, N_INITS - 1)
+    ]
     nll_j = jax.jit(nll)
     finals = [mle_adam(nll_j, z0, n_steps=N_ADAM, lr=ADAM_LR)[0] for z0 in inits]
     z_hat = finals[int(np.argmin([float(nll_j(z)) for z in finals]))]
@@ -154,7 +168,9 @@ def main():
     eig = np.linalg.eigvalsh(F_oi)
     cond = float(eig[-1] / max(eig[0], 1e-300))
     print(f"\n  d k/d(omega, i) = {g};  (omega,i) Fisher eigenvalues = {eig}")
-    print(f"  condition number = {cond:.2e} (gate > {COND_GATE:.0e} -> omega-i degenerate)")
+    print(
+        f"  condition number = {cond:.2e} (gate > {COND_GATE:.0e} -> omega-i degenerate)"
+    )
 
     info_per_star = 1.0 / (sig_k**2 * N_STARS)
     n_grid = np.array([1e3, 3e3, 1e4, 3e4, 1e5, 3e5])
@@ -170,14 +186,30 @@ def main():
     forecast_ok = -0.55 < slope < -0.45
 
     rows = [
-        ("self-consistency at truth", "PASS" if selfcon_ok else "FAIL",
-         f"<{SELFCON_NSIG} sigma", selfcon_ok),
-        ("slope k=omega sin(i) recovery", "PASS" if recovery_ok else "FAIL",
-         f"<{RECOVERY_NSIG} sigma", recovery_ok),
-        ("(omega,i) Fisher rank-deficient", "PASS" if degeneracy_ok else "FAIL",
-         f"cond>{COND_GATE:.0e}", degeneracy_ok),
-        ("forecast sigma(k)~N^-1/2", "PASS" if forecast_ok else "FAIL",
-         "slope -0.5", forecast_ok),
+        (
+            "self-consistency at truth",
+            "PASS" if selfcon_ok else "FAIL",
+            f"<{SELFCON_NSIG} sigma",
+            selfcon_ok,
+        ),
+        (
+            "slope k=omega sin(i) recovery",
+            "PASS" if recovery_ok else "FAIL",
+            f"<{RECOVERY_NSIG} sigma",
+            recovery_ok,
+        ),
+        (
+            "(omega,i) Fisher rank-deficient",
+            "PASS" if degeneracy_ok else "FAIL",
+            f"cond>{COND_GATE:.0e}",
+            degeneracy_ok,
+        ),
+        (
+            "forecast sigma(k)~N^-1/2",
+            "PASS" if forecast_ok else "FAIL",
+            "slope -0.5",
+            forecast_ok,
+        ),
     ]
     print("\n" + "-" * 78)
     print(f"  {'CHECK':<34s} {'status':>6s} {'gate':>12s}")
@@ -207,8 +239,9 @@ def make_figure(pos, vel, x_mid, vbar, se, wt, k_hat, k_true, n_grid, sig_grid):
     ax = axes[0]
     sub = np.random.default_rng(0).choice(len(sky_x), size=3000, replace=False)
     vmax = np.percentile(np.abs(v_los), 95)
-    sc = ax.scatter(sky_x[sub], sky_y[sub], c=v_los[sub], s=4, cmap="RdBu_r",
-                    vmin=-vmax, vmax=vmax)
+    sc = ax.scatter(
+        sky_x[sub], sky_y[sub], c=v_los[sub], s=4, cmap="RdBu_r", vmin=-vmax, vmax=vmax
+    )
     fig.colorbar(sc, ax=ax, label=r"$v_{\rm los}$", fraction=0.046)
     lim = float(np.percentile(np.abs(np.concatenate([sky_x, sky_y])), 96))
     ax.set_xlim(-lim, lim)
@@ -220,10 +253,18 @@ def make_figure(pos, vel, x_mid, vbar, se, wt, k_hat, k_true, n_grid, sig_grid):
 
     # (b) the rotation curve <v_los>(x_sky) + the recovered slope.
     ax = axes[1]
-    ax.errorbar(x_mid[m], vbar[m], yerr=se[m], fmt="o", ms=3.5, color=OI["black"],
-                label=r"$\langle v_{\rm los}\rangle$", zorder=4)
+    ax.errorbar(
+        x_mid[m],
+        vbar[m],
+        yerr=se[m],
+        fmt="o",
+        ms=3.5,
+        color=OI["black"],
+        label=r"$\langle v_{\rm los}\rangle$",
+        zorder=4,
+    )
     xx = np.linspace(x_mid[m].min(), x_mid[m].max(), 50)
-    ax.plot(xx, k_hat * xx, "-", color=OI["vermilion"], label=fr"slope $k={k_hat:.2f}$")
+    ax.plot(xx, k_hat * xx, "-", color=OI["vermilion"], label=rf"slope $k={k_hat:.2f}$")
     ax.set_xlabel(r"sky $x$  [pc]")
     ax.set_ylabel(r"$\langle v_{\rm los}\rangle$  [pc Myr$^{-1}$]")
     ax.legend(fontsize=7)
@@ -232,10 +273,22 @@ def make_figure(pos, vel, x_mid, vbar, se, wt, k_hat, k_true, n_grid, sig_grid):
     # (c) the omega-i degeneracy: the k = omega sin(i) curve.
     ax = axes[2]
     incl = np.linspace(np.radians(10), np.radians(90), 200)
-    ax.plot(np.degrees(incl), k_hat / np.sin(incl), "-", color=OI["purple"],
-            label=r"$\omega=\hat k/\sin i$")
-    ax.scatter([np.degrees(INCL_TRUE)], [OMEGA_TRUE], marker="*", s=110,
-               color=OI["blue"], zorder=5, label="truth")
+    ax.plot(
+        np.degrees(incl),
+        k_hat / np.sin(incl),
+        "-",
+        color=OI["purple"],
+        label=r"$\omega=\hat k/\sin i$",
+    )
+    ax.scatter(
+        [np.degrees(INCL_TRUE)],
+        [OMEGA_TRUE],
+        marker="*",
+        s=110,
+        color=OI["blue"],
+        zorder=5,
+        label="truth",
+    )
     ax.set_xlabel(r"inclination $i$  [deg]")
     ax.set_ylabel(r"$\omega$  [Myr$^{-1}$]")
     ax.set_ylim(0, OMEGA_TRUE * 3)

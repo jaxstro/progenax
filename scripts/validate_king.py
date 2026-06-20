@@ -33,6 +33,7 @@ Output:
     validation/plots/king_*.png   (curate the verified set into
     docs/website/50-validation/figures/)
 """
+
 import os
 import sys
 
@@ -45,12 +46,15 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
-from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
-from progenax.kinematics import KingVelocityDF
+
 from progenax.builders import compute_kinetic_energy, compute_potential_energy
+from progenax.kinematics import KingVelocityDF
+from progenax.profiles.king import KingProfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _plotstyle import OI, apply_pub_style, panel_label as _panel_label, save_fig as _save
+from _plotstyle import OI, apply_pub_style
+from _plotstyle import panel_label as _panel_label
+from _plotstyle import save_fig as _save
 
 apply_pub_style()
 
@@ -62,8 +66,17 @@ SEED = 42
 
 # King (1966) Table II, p. 73 (verbatim; see per-paper note). c = r_t/r_c.
 TABLE_II = {
-    2.5: 3.891, 3.0: 4.699, 4.0: 6.920, 5.0: 10.70, 6.0: 17.99,
-    7.0: 33.71, 8.0: 68.15, 9.0: 131.4, 10.0: 223.7, 12.0: 548.2, 15.0: 2272.0,
+    2.5: 3.891,
+    3.0: 4.699,
+    4.0: 6.920,
+    5.0: 10.70,
+    6.0: 17.99,
+    7.0: 33.71,
+    8.0: 68.15,
+    9.0: 131.4,
+    10.0: 223.7,
+    12.0: 548.2,
+    15.0: 2272.0,
 }
 
 
@@ -110,21 +123,47 @@ def fig_concentration(output_dir):
     tol = 0.03
     passed = bool(np.all(np.abs(resid) <= tol))
 
-    print(f"  {'W0':>5} {'c_progenax':>11} {'c_TableII':>10} {'delta':>8} {'pass(<=0.03)':>13}")
+    print(
+        f"  {'W0':>5} {'c_progenax':>11} {'c_TableII':>10} {'delta':>8} {'pass(<=0.03)':>13}"
+    )
     for w, cp, cr, d in zip(W0s, c_prog, c_ref, resid):
-        print(f"  {w:>5.1f} {cp:>11.3f} {cr:>10.3f} {d:>+8.3f} "
-              f"{'PASS' if abs(d) <= tol else 'FAIL':>13}")
-    print(f"  max |delta| = {np.max(np.abs(resid)):.3f}  ->  "
-          f"{'PASS' if passed else 'FAIL'}")
+        print(
+            f"  {w:>5.1f} {cp:>11.3f} {cr:>10.3f} {d:>+8.3f} "
+            f"{'PASS' if abs(d) <= tol else 'FAIL':>13}"
+        )
+    print(
+        f"  max |delta| = {np.max(np.abs(resid)):.3f}  ->  "
+        f"{'PASS' if passed else 'FAIL'}"
+    )
 
     fig, (ax0, ax1) = plt.subplots(
-        2, 1, figsize=(3.6, 4.1), sharex=True,
-        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.06})
+        2,
+        1,
+        figsize=(3.6, 4.1),
+        sharex=True,
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.06},
+    )
 
-    ax0.plot(W0s, c_prog, "-", color=OI["blue"], lw=1.4, zorder=1,
-             label=r"progenax $\log_{10}(r_t/r_c)$")
-    ax0.plot(W0s, c_ref, "o", color=OI["black"], ms=5, mfc="none", mew=1.1,
-             zorder=2, label="King (1966) Table II")
+    ax0.plot(
+        W0s,
+        c_prog,
+        "-",
+        color=OI["blue"],
+        lw=1.4,
+        zorder=1,
+        label=r"progenax $\log_{10}(r_t/r_c)$",
+    )
+    ax0.plot(
+        W0s,
+        c_ref,
+        "o",
+        color=OI["black"],
+        ms=5,
+        mfc="none",
+        mew=1.1,
+        zorder=2,
+        label="King (1966) Table II",
+    )
     ax0.set_ylabel(r"concentration $c = \log_{10}(r_t/r_c)$")
     ax0.set_ylim(0.4, 3.6)
     ax0.legend(loc="lower right", handletextpad=0.5)
@@ -171,8 +210,10 @@ def fig_density_oracle(output_dir):
     tol = 5e-3
     passed = max_rel < tol
 
-    print(f"  max relative deviation (method vs oracle): {max_rel:.2e}  "
-          f"(tol < {tol:.0e})  -> {'PASS' if passed else 'FAIL'}")
+    print(
+        f"  max relative deviation (method vs oracle): {max_rel:.2e}  "
+        f"(tol < {tol:.0e})  -> {'PASS' if passed else 'FAIL'}"
+    )
 
     # sampled histogram
     key = jax.random.PRNGKey(SEED)
@@ -193,13 +234,18 @@ def fig_density_oracle(output_dir):
     xmax = float(prof.r_t / prof.r_c)
     fig, (axA, axB) = plt.subplots(1, 2, figsize=(6.8, 3.3))
 
-    axA.semilogy(xr, oracle_n, "-", color=OI["black"], lw=2.2,
-                 label="King DF integral")
-    axA.semilogy(xr, rho_n, "--", color=OI["blue"],
-                 label=r"progenax $\rho(r)$")
-    axA.semilogy(centers[valid] / float(prof.r_c), rho_hist[valid], "o",
-                 color=OI["green"], ms=3.5, alpha=0.7, mec="none",
-                 label=rf"sampled ($N={N_SAMPLES:,}$)")
+    axA.semilogy(xr, oracle_n, "-", color=OI["black"], lw=2.2, label="King DF integral")
+    axA.semilogy(xr, rho_n, "--", color=OI["blue"], label=r"progenax $\rho(r)$")
+    axA.semilogy(
+        centers[valid] / float(prof.r_c),
+        rho_hist[valid],
+        "o",
+        color=OI["green"],
+        ms=3.5,
+        alpha=0.7,
+        mec="none",
+        label=rf"sampled ($N={N_SAMPLES:,}$)",
+    )
     axA.set_xlabel(r"$r / r_c$")
     axA.set_ylabel(r"$\rho(r) / \rho_0$")
     axA.set_xlim(0, xmax)
@@ -207,18 +253,27 @@ def fig_density_oracle(output_dir):
     axA.legend(loc="upper right")
     _panel_label(axA, "(a)", loc="lower left")
 
-    axB.semilogy(xr, np.maximum(rel, 1e-16), "-", color=OI["blue"], marker="o", ms=3,
-                 mec="none")
-    axB.axhline(tol, color=OI["vermilion"], ls="--",
-                label=rf"tolerance $={tol:.0e}$")
+    axB.semilogy(
+        xr, np.maximum(rel, 1e-16), "-", color=OI["blue"], marker="o", ms=3, mec="none"
+    )
+    axB.axhline(tol, color=OI["vermilion"], ls="--", label=rf"tolerance $={tol:.0e}$")
     axB.set_xlabel(r"$r / r_c$")
-    axB.set_ylabel(r"$|\rho_{\rm method} - \rho_{\rm integral}|\,/\,\rho_{\rm integral}$")
+    axB.set_ylabel(
+        r"$|\rho_{\rm method} - \rho_{\rm integral}|\,/\,\rho_{\rm integral}$"
+    )
     axB.set_xlim(0, xmax)
     axB.set_ylim(1e-12, 1e-1)
     axB.legend(loc="upper right")
-    axB.text(0.04, 0.30, rf"max $={max_rel:.1e}$", transform=axB.transAxes,
-             fontsize=8, va="top", ha="left",
-             bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85))
+    axB.text(
+        0.04,
+        0.30,
+        rf"max $={max_rel:.1e}$",
+        transform=axB.transAxes,
+        fontsize=8,
+        va="top",
+        ha="left",
+        bbox=dict(boxstyle="round,pad=0.18", fc="white", ec="none", alpha=0.85),
+    )
     _panel_label(axB, "(b)", loc="lower left")
 
     fig.tight_layout(pad=0.4, w_pad=0.8)
@@ -261,8 +316,13 @@ def fig_velocity_equilibrium(output_dir):
     for lo, hi in bins_phys:
         msk = (r_d >= lo) & (r_d < hi)
         n_bin = int(jnp.sum(msk))
-        W_bin = float(jnp.mean(jnp.interp(
-            r_d[msk] / prof.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)))
+        W_bin = float(
+            jnp.mean(
+                jnp.interp(
+                    r_d[msk] / prof.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0
+                )
+            )
+        )
         s_s = float(jnp.sqrt(jnp.mean(v2_d[msk]) / 3.0))
         s_a = sigma * jnp.sqrt(_u2_mean(W_bin) / 3.0)
         bin_mid.append(0.5 * (lo + hi))
@@ -274,10 +334,17 @@ def fig_velocity_equilibrium(output_dir):
 
     # smooth analytic sigma_1d(r) over the full radial range for the figure
     r_curve = np.linspace(0.1, 0.97 * float(prof.r_t), 80)
-    W_curve = np.asarray(jnp.interp(
-        r_curve / float(prof.r_c), df.xi_grid, df.psi_grid, left=df.W0, right=0.0))
-    sig_curve = np.array([sigma * np.sqrt(_u2_mean(float(w)) / 3.0)
-                          if w > 1e-6 else 0.0 for w in W_curve])
+    W_curve = np.asarray(
+        jnp.interp(
+            r_curve / float(prof.r_c), df.xi_grid, df.psi_grid, left=df.W0, right=0.0
+        )
+    )
+    sig_curve = np.array(
+        [
+            sigma * np.sqrt(_u2_mean(float(w)) / 3.0) if w > 1e-6 else 0.0
+            for w in W_curve
+        ]
+    )
 
     # --- boundedness + virial (separate seeds, matching the tests) ---
     m_v = jnp.ones(N_VIRIAL)
@@ -298,31 +365,56 @@ def fig_velocity_equilibrium(output_dir):
 
     # ODE boundary condition psi(0) = W0, and velocity isotropy <v_i^2> spread.
     ode_bc = float(jnp.abs(prof.psi_grid[0] - prof.W0))
-    v2c = np.asarray(jnp.mean(vel_d ** 2, axis=0))
+    v2c = np.asarray(jnp.mean(vel_d**2, axis=0))
     iso_spread = float(np.max(np.abs(v2c - v2c.mean())) / v2c.mean())
     bc_pass = ode_bc < 0.1
     iso_pass = iso_spread < 0.10
     passed = disp_pass and bound_pass and q_pass and bc_pass and iso_pass
 
-    print(f"  ODE BC |psi(0)-W0|: {ode_bc:.2e} (tol 0.1)  "
-          f"-> {'PASS' if bc_pass else 'FAIL'}")
-    print(f"  sigma_1d(r) vs King moment:")
+    print(
+        f"  ODE BC |psi(0)-W0|: {ode_bc:.2e} (tol 0.1)  "
+        f"-> {'PASS' if bc_pass else 'FAIL'}"
+    )
+    print("  sigma_1d(r) vs King moment:")
     for (lo, hi), ss, sa, rl in zip(bins_phys, sig_samp, sig_ana, sig_rel):
-        print(f"    r in [{lo},{hi}): sampled={ss:.3f} analytic={sa:.3f} "
-              f"rel={rl:.2%} {'PASS' if rl < 0.12 else 'FAIL'}")
-    print(f"  velocity isotropy: max |<v_i^2>-mean|/mean = {iso_spread:.2%} "
-          f"(tol 10%)  -> {'PASS' if iso_pass else 'FAIL'}")
-    print(f"  bound fraction (v<=v_esc): {bound_frac*100:.2f}%  "
-          f"-> {'PASS' if bound_pass else 'FAIL'}")
-    print(f"  unscaled virial Q=T/|V|: {Q:.3f} (expect 0.5+-0.05)  "
-          f"-> {'PASS' if q_pass else 'FAIL'}")
+        print(
+            f"    r in [{lo},{hi}): sampled={ss:.3f} analytic={sa:.3f} "
+            f"rel={rl:.2%} {'PASS' if rl < 0.12 else 'FAIL'}"
+        )
+    print(
+        f"  velocity isotropy: max |<v_i^2>-mean|/mean = {iso_spread:.2%} "
+        f"(tol 10%)  -> {'PASS' if iso_pass else 'FAIL'}"
+    )
+    print(
+        f"  bound fraction (v<=v_esc): {bound_frac * 100:.2f}%  "
+        f"-> {'PASS' if bound_pass else 'FAIL'}"
+    )
+    print(
+        f"  unscaled virial Q=T/|V|: {Q:.3f} (expect 0.5+-0.05)  "
+        f"-> {'PASS' if q_pass else 'FAIL'}"
+    )
 
     fig, (axA, axB, axC) = plt.subplots(1, 3, figsize=(7.2, 2.7))
 
-    axA.plot(r_curve, sig_curve, "-", color=OI["black"], lw=1.6,
-             label=r"analytic King $\sigma_{1d}(r)$")
-    axA.errorbar(bin_mid, sig_samp, yerr=sig_err, fmt="s", color=OI["blue"],
-                 ms=5, capsize=2.5, lw=1.0, label=rf"sampled ($N={N_DISPERSION:,}$)")
+    axA.plot(
+        r_curve,
+        sig_curve,
+        "-",
+        color=OI["black"],
+        lw=1.6,
+        label=r"analytic King $\sigma_{1d}(r)$",
+    )
+    axA.errorbar(
+        bin_mid,
+        sig_samp,
+        yerr=sig_err,
+        fmt="s",
+        color=OI["blue"],
+        ms=5,
+        capsize=2.5,
+        lw=1.0,
+        label=rf"sampled ($N={N_DISPERSION:,}$)",
+    )
     axA.set_xlabel(r"$r$ [pc]")
     axA.set_ylabel(r"$\sigma_{1d}(r)$ [pc Myr$^{-1}$]")
     axA.set_xlim(0, 12)
@@ -332,22 +424,47 @@ def fig_velocity_equilibrium(output_dir):
 
     axB.hist(ratio, bins=40, color=OI["sky"], edgecolor="white", linewidth=0.3)
     axB.axvline(1.0, color=OI["vermilion"], ls="--", lw=1.4)
-    axB.text(0.97, 0.5, r"$v_{\rm esc}$", transform=axB.get_xaxis_transform(),
-             rotation=90, va="center", ha="right", color=OI["vermilion"], fontsize=8.5)
-    axB.text(0.5, 0.92, rf"{bound_frac*100:.1f}% bound", transform=axB.transAxes,
-             ha="center", va="top", fontsize=8.5)
+    axB.text(
+        0.97,
+        0.5,
+        r"$v_{\rm esc}$",
+        transform=axB.get_xaxis_transform(),
+        rotation=90,
+        va="center",
+        ha="right",
+        color=OI["vermilion"],
+        fontsize=8.5,
+    )
+    axB.text(
+        0.5,
+        0.92,
+        rf"{bound_frac * 100:.1f}% bound",
+        transform=axB.transAxes,
+        ha="center",
+        va="top",
+        fontsize=8.5,
+    )
     axB.set_xlabel(r"$v / v_{\rm esc}(r)$")
     axB.set_ylabel("count")
     axB.set_xlim(0, 1.08)
     _panel_label(axB, "(b)", loc="upper left")
 
-    axC.axhspan(0.45, 0.55, color=OI["green"], alpha=0.15,
-                label=r"equilibrium $\pm0.05$")
+    axC.axhspan(
+        0.45, 0.55, color=OI["green"], alpha=0.15, label=r"equilibrium $\pm0.05$"
+    )
     axC.axhline(0.5, color=OI["black"], ls="--", label=r"$Q=0.5$")
     axC.errorbar([0], [Q], fmt="o", color=OI["vermilion"], ms=8, zorder=5)
-    axC.text(0.5, 0.84, rf"$Q={Q:.3f}$", transform=axC.transAxes, ha="center",
-             va="center", fontsize=10, fontweight="bold",
-             bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.6))
+    axC.text(
+        0.5,
+        0.84,
+        rf"$Q={Q:.3f}$",
+        transform=axC.transAxes,
+        ha="center",
+        va="center",
+        fontsize=10,
+        fontweight="bold",
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="0.7", lw=0.6),
+    )
     axC.set_xticks([])
     axC.set_xlim(-0.6, 0.6)
     axC.set_ylim(0.4, 0.6)
@@ -376,8 +493,10 @@ def fig_w0_sweep(output_dir):
     all_pass = True
 
     fig, ax = plt.subplots(figsize=(3.8, 3.5))
-    print(f"  {'W0':>5} {'xi_t_prog':>10} {'c_prog':>8} {'c_TableII':>10} "
-          f"{'delta':>8} {'pass':>6}")
+    print(
+        f"  {'W0':>5} {'xi_t_prog':>10} {'c_prog':>8} {'c_TableII':>10} "
+        f"{'delta':>8} {'pass':>6}"
+    )
     y_floor = 1e-12
     for W0, col in zip(W0s, colors):
         prof = KingProfile.from_W0_rc(W0, 1.0, xi_max=400.0, n_ode_points=8000)
@@ -387,16 +506,24 @@ def fig_w0_sweep(output_dir):
         d = c_prog - c_ref
         ok = abs(d) <= tol
         all_pass = all_pass and ok
-        print(f"  {W0:>5.1f} {xi_t:>10.2f} {c_prog:>8.3f} {c_ref:>10.3f} "
-              f"{d:>+8.3f} {'PASS' if ok else 'FAIL':>6}")
+        print(
+            f"  {W0:>5.1f} {xi_t:>10.2f} {c_prog:>8.3f} {c_ref:>10.3f} "
+            f"{d:>+8.3f} {'PASS' if ok else 'FAIL':>6}"
+        )
 
         # dense grid to ~r_t so the curve plunges to the floor right at xi_t
         r = jnp.linspace(0.01, xi_t * 0.99999, 4000) * prof.r_c
         rho = np.asarray(prof.density(r))
         rho = rho / rho[0]
         xi = np.asarray(r / prof.r_c)
-        ax.semilogy(xi, rho, "-", color=col, lw=1.6,
-                    label=rf"$W_0={W0:.0f}$ ($\xi_t={xi_t:.0f}$)")
+        ax.semilogy(
+            xi,
+            rho,
+            "-",
+            color=col,
+            lw=1.6,
+            label=rf"$W_0={W0:.0f}$ ($\xi_t={xi_t:.0f}$)",
+        )
         ax.axvline(xi_t, color=col, ls=":", lw=1.0, alpha=0.8)
         # marker at the truncation radius, on the floor, ties curve <-> xi_t line
         ax.plot([xi_t], [y_floor], marker="^", color=col, ms=5, clip_on=False)
@@ -406,13 +533,15 @@ def fig_w0_sweep(output_dir):
     ax.set_xlim(0, 140)
     ax.set_ylim(y_floor, 2)
     ax.yaxis.set_major_locator(mticker.LogLocator(base=10, numticks=8))
-    ax.legend(loc="upper right", title=r"markers: $\xi_t = r_t/r_c$ (King 1966)",
-              title_fontsize=7.5)
+    ax.legend(
+        loc="upper right",
+        title=r"markers: $\xi_t = r_t/r_c$ (King 1966)",
+        title_fontsize=7.5,
+    )
 
     fig.tight_layout(pad=0.4)
     _save(fig, output_dir, "king_w0_sweep")
-    print(f"  xi_t matches Table II for all W0  -> "
-          f"{'PASS' if all_pass else 'FAIL'}")
+    print(f"  xi_t matches Table II for all W0  -> {'PASS' if all_pass else 'FAIL'}")
     print("  saved king_w0_sweep.{png,pdf}")
     return all_pass
 
@@ -423,7 +552,9 @@ def fig_w0_sweep(output_dir):
 def _grad_check_sweep(loss, xs, h):
     """Autodiff and central-FD gradients of loss across parameter values xs."""
     ad = np.array([float(jax.grad(loss)(float(x))) for x in xs])
-    fd = np.array([float((loss(float(x) + h) - loss(float(x) - h)) / (2 * h)) for x in xs])
+    fd = np.array(
+        [float((loss(float(x) + h) - loss(float(x) - h)) / (2 * h)) for x in xs]
+    )
     rel = np.abs(ad - fd) / (np.abs(ad) + np.abs(fd) + 1e-30)
     return ad, fd, rel
 
@@ -436,8 +567,6 @@ def fig_gradient_validation(output_dir):
     print("FIG 5: gradient validation (autodiff vs finite difference)")
     print("=" * 60)
     G = STELLAR.G
-    N = 300
-    KEY = jax.random.PRNGKey(0)
 
     # Model observables a likelihood is actually built from: the density profile
     # (number counts) and the velocity scale (dispersion). These carry the
@@ -447,18 +576,35 @@ def fig_gradient_validation(output_dir):
         return jnp.log10(p.density(jnp.array([r_phys]))[0] + 1e-30)
 
     def sigma_scale(M_total, W0=7.0, r_c=1.0):
-        p = KingProfile.from_W0_rc(W0, r_c)
         df = KingVelocityDF(W0=W0, r_c=r_c)
         return df._sigma(M_total, G)
 
     # one differentiable structural parameter per panel
     specs = [
-        ("r_c", r"$r_c$ [pc]", r"$\partial\,\log\rho(2\,{\rm pc}) / \partial r_c$",
-         lambda rc: log_density_at(2.0, 7.0, rc), np.linspace(0.6, 2.0, 11), 1e-5),
-        ("W0", r"$W_0$", r"$\partial\,\log\rho(2\,{\rm pc}) / \partial W_0$",
-         lambda w: log_density_at(2.0, w, 1.0), np.linspace(4.0, 9.0, 11), 1e-4),
-        ("M", r"$M_{\rm tot}$ [$M_\odot$]", r"$\partial\,\sigma_0 / \partial M_{\rm tot}$",
-         lambda M: sigma_scale(M), np.linspace(200.0, 2000.0, 11), 1.0),
+        (
+            "r_c",
+            r"$r_c$ [pc]",
+            r"$\partial\,\log\rho(2\,{\rm pc}) / \partial r_c$",
+            lambda rc: log_density_at(2.0, 7.0, rc),
+            np.linspace(0.6, 2.0, 11),
+            1e-5,
+        ),
+        (
+            "W0",
+            r"$W_0$",
+            r"$\partial\,\log\rho(2\,{\rm pc}) / \partial W_0$",
+            lambda w: log_density_at(2.0, w, 1.0),
+            np.linspace(4.0, 9.0, 11),
+            1e-4,
+        ),
+        (
+            "M",
+            r"$M_{\rm tot}$ [$M_\odot$]",
+            r"$\partial\,\sigma_0 / \partial M_{\rm tot}$",
+            lambda M: sigma_scale(M),
+            np.linspace(200.0, 2000.0, 11),
+            1.0,
+        ),
     ]
 
     fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.7))
@@ -467,14 +613,30 @@ def fig_gradient_validation(output_dir):
         ad, fd, rel = _grad_check_sweep(loss, xs, h)
         worst = max(worst, float(np.max(rel)))
         ax.plot(xs, ad, "-", color=OI["blue"], lw=1.8, label="autodiff", zorder=2)
-        ax.plot(xs, fd, "o", color=OI["vermilion"], ms=4.5, mfc="none", mew=1.2,
-                label="finite diff", zorder=3)
+        ax.plot(
+            xs,
+            fd,
+            "o",
+            color=OI["vermilion"],
+            ms=4.5,
+            mfc="none",
+            mew=1.2,
+            label="finite diff",
+            zorder=3,
+        )
         ax.set_xlabel(xlab)
         ax.set_ylabel(ylab)
         ax.legend(loc="best")
-        ax.text(0.5, 0.05, rf"max rel err $={np.max(rel):.0e}$", transform=ax.transAxes,
-                ha="center", va="bottom", fontsize=8,
-                bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5))
+        ax.text(
+            0.5,
+            0.05,
+            rf"max rel err $={np.max(rel):.0e}$",
+            transform=ax.transAxes,
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="0.7", lw=0.5),
+        )
         _panel_label(ax, f"({tag})", loc="upper left")
         diffable = "DIFFERENTIABLE" if np.max(rel) < 1e-4 else "CHECK"
         print(f"  d(loss)/d{key:3}: max rel err {np.max(rel):.2e}  -> {diffable}")
@@ -508,8 +670,11 @@ def main():
         print(f"  {'PASS' if ok else 'FAIL'}  {name}")
     all_ok = all(results.values())
     print("=" * 70)
-    print("  ALL KING VALIDATION FIGURES PASS" if all_ok
-          else "  SOME KING VALIDATION FIGURES FAILED")
+    print(
+        "  ALL KING VALIDATION FIGURES PASS"
+        if all_ok
+        else "  SOME KING VALIDATION FIGURES FAILED"
+    )
     print("=" * 70)
     print(f"\nFigures written to {OUTPUT_DIR}/king_*.png")
     return 0 if all_ok else 1

@@ -2,14 +2,13 @@
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from progenax.tidal import (
-    jacobi_radius,
-    jacobi_radius_isothermal,
+    _truncation_weight,
     apply_tidal_truncation,
     fill_factor_to_r_h,
-    _truncation_weight,
+    jacobi_radius,
+    jacobi_radius_isothermal,
 )
 
 
@@ -73,12 +72,13 @@ class TestTidalTruncation:
         r_t = 3.0
         _, _, mt, mask = apply_tidal_truncation(pos, vel, m, r_t)
         radii = jnp.linalg.norm(pos, axis=1)
-        assert jnp.all(mt[radii > r_t] == 0.0)               # outside -> massless
+        assert jnp.all(mt[radii > r_t] == 0.0)  # outside -> massless
         assert jnp.allclose(mt[radii <= r_t], m[radii <= r_t])  # inside -> unchanged
         assert jnp.array_equal(mask, radii <= r_t)
 
     def test_zero_mass_ghosts_are_inert_in_potential_energy(self):
         from progenax.dynamics.virial import compute_potential_energy
+
         pos, vel, m = self._system(N=60)
         _, _, mt, _ = apply_tidal_truncation(pos, vel, m, 3.0)
         assert jnp.isfinite(compute_potential_energy(pos, mt, 0.00450, 0.0))
@@ -106,7 +106,9 @@ class TestTidalTruncation:
     def test_surrogate_matches_logistic_derivative(self):
         """Self-consistency: d(weight)/d(r_t) == sigma(1-sigma)/w (the surrogate)."""
         r, w = 2.0, 0.1
-        g = jax.grad(lambda r_t: _truncation_weight(jnp.asarray(r_t - r), jnp.asarray(w)))(2.05)
+        g = jax.grad(
+            lambda r_t: _truncation_weight(jnp.asarray(r_t - r), jnp.asarray(w))
+        )(2.05)
         s = jax.nn.sigmoid((2.05 - r) / w)
         assert jnp.isclose(g, s * (1.0 - s) / w, rtol=1e-6)
 

@@ -11,19 +11,20 @@ These validate the *existing* implementation (already unit-tested); each asserts
 measured-vs-expected match the validation figures (scripts/validate_michie.py) also
 reproduce.
 """
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from progenax.profiles import KingProfile, MichieProfile
-from progenax.kinematics import MichieVelocityDF
 from progenax.builders import compute_kinetic_energy, compute_potential_energy
+from progenax.kinematics import MichieVelocityDF
+from progenax.profiles import KingProfile, MichieProfile
 
 G = 1.0
 W0, RC = 7.0, 1.0
-RA_ISO = 1.0e4   # r_a >> r_t  -> isotropic King limit
-RA_ANISO = 8.0   # clear radial anisotropy that still truncates at W0=7 (r_t/r_c~56)
+RA_ISO = 1.0e4  # r_a >> r_t  -> isotropic King limit
+RA_ANISO = 8.0  # clear radial anisotropy that still truncates at W0=7 (r_t/r_c~56)
 
 
 def _radial_tangential(positions, velocities):
@@ -47,12 +48,12 @@ def _michie_beta_oracle(W, s, n=400):
     ur = np.linspace(-umax, umax, n)
     ut = np.linspace(0.0, umax, n)
     UR, UT = np.meshgrid(ur, ut)
-    bound = UR ** 2 + UT ** 2 < 2.0 * W
-    w = UT * np.exp(-(s ** 2) * UT ** 2 / 2.0) * (np.exp(W - (UR ** 2 + UT ** 2) / 2.0) - 1.0)
+    bound = UR**2 + UT**2 < 2.0 * W
+    w = UT * np.exp(-(s**2) * UT**2 / 2.0) * (np.exp(W - (UR**2 + UT**2) / 2.0) - 1.0)
     w = np.where(bound, np.maximum(w, 0.0), 0.0)
     norm = w.sum()
-    ur2 = (w * UR ** 2).sum() / norm
-    ut2 = (w * UT ** 2).sum() / norm
+    ur2 = (w * UR**2).sum() / norm
+    ut2 = (w * UT**2).sum() / norm
     return 1.0 - ut2 / (2.0 * ur2)
 
 
@@ -110,12 +111,20 @@ class TestMichieAnisotropyProfile:
         edges = [(1.0, 3.0), (4.0, 7.0), (9.0, 15.0), (18.0, 30.0)]
         mids, beta = _beta_binned(pos, vel, edges)
         # oracle at each bin midpoint: interpolate W(r) from the ODE, s = r/r_a
-        W_mid = np.asarray(jnp.interp(jnp.asarray(mids) / RC, df.xi_grid, df.psi_grid,
-                                      left=df.W0, right=0.0))
-        beta_oracle = np.array([_michie_beta_oracle(float(w), float(r) / RA_ANISO)
-                                for w, r in zip(W_mid, mids)])
-        assert np.all(np.abs(beta - beta_oracle) < 0.05), \
+        W_mid = np.asarray(
+            jnp.interp(
+                jnp.asarray(mids) / RC, df.xi_grid, df.psi_grid, left=df.W0, right=0.0
+            )
+        )
+        beta_oracle = np.array(
+            [
+                _michie_beta_oracle(float(w), float(r) / RA_ANISO)
+                for w, r in zip(W_mid, mids)
+            ]
+        )
+        assert np.all(np.abs(beta - beta_oracle) < 0.05), (
             f"sampled beta={beta} vs DF oracle={beta_oracle}"
+        )
 
     def test_beta_below_osipkov_merritt_ceiling(self):
         """The King energy cutoff suppresses beta below the pure Osipkov-Merritt
@@ -127,8 +136,10 @@ class TestMichieAnisotropyProfile:
         pos = prof.sample_positions(m, kp)
         vel = df.sample_velocities(pos, m, kv, G=G)
         mids, beta = _beta_binned(pos, vel, [(4.0, 7.0), (9.0, 15.0), (18.0, 30.0)])
-        beta_om = mids ** 2 / (mids ** 2 + RA_ANISO ** 2)
-        assert np.all(beta < beta_om), f"beta={beta} should be below OM ceiling {beta_om}"
+        beta_om = mids**2 / (mids**2 + RA_ANISO**2)
+        assert np.all(beta < beta_om), (
+            f"beta={beta} should be below OM ceiling {beta_om}"
+        )
 
     def test_beta_increases_outward(self):
         """Radial anisotropy grows with radius (beta_inner < beta_outer)."""
@@ -151,8 +162,10 @@ class TestMichieEquilibrium:
         kp, kv = jax.random.split(jax.random.PRNGKey(3))
         pos = prof.sample_positions(m, kp)
         vel = df.sample_velocities(pos, m, kv, G=G)
-        Q = float(compute_kinetic_energy(vel, m)
-                  / jnp.abs(compute_potential_energy(pos, m, G=G)))
+        Q = float(
+            compute_kinetic_energy(vel, m)
+            / jnp.abs(compute_potential_energy(pos, m, G=G))
+        )
         assert abs(Q - 0.5) < 0.05, f"unscaled Q = {Q:.3f}"
 
     def test_all_particles_bound(self):
@@ -164,8 +177,10 @@ class TestMichieEquilibrium:
         pos = prof.sample_positions(m, kp)
         vel = df.sample_velocities(pos, m, kv, G=G)
         radii = jnp.linalg.norm(pos, axis=1)
-        W = jnp.maximum(jnp.interp(radii / df.r_c, df.xi_grid, df.psi_grid,
-                                   left=df.W0, right=0.0), 0.0)
+        W = jnp.maximum(
+            jnp.interp(radii / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0),
+            0.0,
+        )
         sigma = jnp.sqrt(G * jnp.sum(m) / (9.0 * df.r_c * df.mu))
         v_esc = sigma * jnp.sqrt(2.0 * W)
         v = jnp.linalg.norm(vel, axis=1)
@@ -198,6 +213,7 @@ class TestMichieDifferentiability:
     # test_grad_wrt_mass_velocity_scale (closed-form sigma(M)) and all physics tests stay.
     def test_grad_wrt_mass_velocity_scale(self):
         """Velocity scale sigma ~ sqrt(M) is differentiable in total mass."""
+
         def sigma(M):
             df = MichieVelocityDF(W0=W0, r_c=RC, r_a=RA_ANISO)
             return jnp.sqrt(G * M / (9.0 * df.r_c * df.mu))

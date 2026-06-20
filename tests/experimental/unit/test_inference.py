@@ -19,34 +19,55 @@ def test_power_spectrum_bandpowers_positive_and_differentiable():
     from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
 
     shape, k_edges = (32, 32, 32), jnp.linspace(1.0, 13.0, 7)
-    kc, P, nmodes = power_spectrum_bandpowers(shape, 3.0, 5.0, 0.4, 2.5, k_edges, n_max=12)
+    kc, P, nmodes = power_spectrum_bandpowers(
+        shape, 3.0, 5.0, 0.4, 2.5, k_edges, n_max=12
+    )
     assert P.shape == kc.shape and kc.shape[0] == 6
     assert jnp.all(P > 0) and jnp.all(nmodes > 0)
 
     for j, name in enumerate(["beta", "mach", "b", "alpha"]):
         args = [3.0, 5.0, 0.4, 2.5]
-        g = jax.grad(lambda v, j=j: jnp.sum(power_spectrum_bandpowers(
-            shape, *[v if i == j else args[i] for i in range(4)], k_edges, n_max=12)[1]))(args[j])
+        g = jax.grad(
+            lambda v, j=j: jnp.sum(
+                power_spectrum_bandpowers(
+                    shape,
+                    *[v if i == j else args[i] for i in range(4)],
+                    k_edges,
+                    n_max=12,
+                )[1]
+            )
+        )(args[j])
         assert np.isfinite(float(g))
 
 
 def test_bandpowers_match_mock():
     """Analytic band-powers == ensemble-mean measured periodogram band-powers of the
     smooth-copula log-density field (forward fidelity of P_s(k), the Fourier dual of AC11)."""
-    from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers, measured_bandpowers
     from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.inference.covariance import (
+        measured_bandpowers,
+        power_spectrum_bandpowers,
+    )
     from gravoturb_fdf.validation.measure import smooth_copula_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(1.0, 13.0, 7)
-    _, P_an, _ = power_spectrum_bandpowers(shape, beta, mach, b, alpha, k_edges, n_max=14)
+    _, P_an, _ = power_spectrum_bandpowers(
+        shape, beta, mach, b, alpha, k_edges, n_max=14
+    )
 
     key = jax.random.PRNGKey(0)
     acc = np.zeros(len(k_edges) - 1)
     n_real = 24
     for i in range(n_real):
-        s = np.asarray(smooth_copula_field(
-            gaussian_random_field(shape, beta, jax.random.fold_in(key, i)), mach, b, alpha))
+        s = np.asarray(
+            smooth_copula_field(
+                gaussian_random_field(shape, beta, jax.random.fold_in(key, i)),
+                mach,
+                b,
+                alpha,
+            )
+        )
         acc += measured_bandpowers(s, shape, k_edges)
     P_mock = acc / n_real
     rel = np.abs(np.asarray(P_an) - P_mock) / np.abs(P_mock)
@@ -57,7 +78,10 @@ def test_mock_covariance_psd_and_hartlap():
     """mock_covariance is symmetric positive-definite and recovers a known covariance;
     the Hartlap inverse-debias factor is in (0,1) and -> 1 as n_real -> inf."""
     from gravoturb_fdf.inference.covariance import (
-        mock_covariance, hartlap_factor, mock_precision)
+        hartlap_factor,
+        mock_covariance,
+        mock_precision,
+    )
 
     rng = np.random.default_rng(0)
     A = rng.normal(size=(4, 4))
@@ -79,31 +103,53 @@ def test_gaussian_bandpower_covariance_underestimates_mock():
     """Documents the Phase-5 finding (regression guard): the diagnostic Gaussian band-power
     covariance 2P^2/N UNDERESTIMATES the true mock band-power variance for the non-Gaussian
     log-density field -- which is WHY the Fisher uses the mock covariance (Anna 2026-06-05)."""
-    from gravoturb_fdf.inference.covariance import (
-        power_spectrum_bandpowers, gaussian_bandpower_covariance, measured_bandpowers,
-        mock_covariance)
     from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb_fdf.inference.covariance import (
+        gaussian_bandpower_covariance,
+        measured_bandpowers,
+        mock_covariance,
+        power_spectrum_bandpowers,
+    )
     from gravoturb_fdf.validation.measure import smooth_copula_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(2.0, 14.0, 7)
-    _, P, nmodes = power_spectrum_bandpowers(shape, beta, mach, b, alpha, k_edges, n_max=14)
+    _, P, nmodes = power_spectrum_bandpowers(
+        shape, beta, mach, b, alpha, k_edges, n_max=14
+    )
     gauss_diag = np.diag(np.asarray(gaussian_bandpower_covariance(P, nmodes)))
 
     key = jax.random.PRNGKey(0)
-    rows = [measured_bandpowers(np.asarray(smooth_copula_field(
-        gaussian_random_field(shape, beta, jax.random.fold_in(key, i)), mach, b, alpha)),
-        shape, k_edges) for i in range(80)]
+    rows = [
+        measured_bandpowers(
+            np.asarray(
+                smooth_copula_field(
+                    gaussian_random_field(shape, beta, jax.random.fold_in(key, i)),
+                    mach,
+                    b,
+                    alpha,
+                )
+            ),
+            shape,
+            k_edges,
+        )
+        for i in range(80)
+    ]
     mock_diag = np.diag(mock_covariance(rows))
     ratio = mock_diag / gauss_diag
-    assert np.all(ratio > 1.3)          # Gaussian C is an underestimate everywhere
-    assert ratio[-1] > 2.0 * ratio[0]   # excess grows toward small scales (high k)
+    assert np.all(ratio > 1.3)  # Gaussian C is an underestimate everywhere
+    assert ratio[-1] > 2.0 * ratio[0]  # excess grows toward small scales (high k)
 
 
 # --- Task 5.2: Gaussian likelihood on the data vector --------------------------
 
-_CFG = dict(shape=(24, 24, 24), k_edges=jnp.linspace(2.0, 11.0, 5), cell_sizes=(4,),
-            n_bar=30.0, n_max=12)
+_CFG = dict(
+    shape=(24, 24, 24),
+    k_edges=jnp.linspace(2.0, 11.0, 5),
+    cell_sizes=(4,),
+    n_bar=30.0,
+    n_max=12,
+)
 _THETA = jnp.array([5.0, 0.4, 2.5, 3.0])  # (mach, b, alpha, beta)
 
 
@@ -133,7 +179,9 @@ def test_gaussian_loglike_max_at_truth_and_differentiable():
         pert = _THETA.at[j].add(dth)
         assert float(gaussian_loglike(data, pert, precision, **_CFG)) < ll0 - 1e-6
 
-    g = np.asarray(jax.grad(lambda th: gaussian_loglike(data, th, precision, **_CFG))(_THETA))
+    g = np.asarray(
+        jax.grad(lambda th: gaussian_loglike(data, th, precision, **_CFG))(_THETA)
+    )
     assert np.all(np.isfinite(g))
 
 
@@ -198,8 +246,18 @@ def test_count_loglike_max_at_truth_and_differentiable():
 
     N = jnp.arange(0, 250)
     w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
-    pN_true = count_distribution(N, _CCFG["n_bar"], _CCFG["shape"], 3.0, float(_CCFG["cell_size"]),
-                                 5.0, 0.4, 2.5, n_max=_CCFG["n_max"], w2=w2)
+    pN_true = count_distribution(
+        N,
+        _CCFG["n_bar"],
+        _CCFG["shape"],
+        3.0,
+        float(_CCFG["cell_size"]),
+        5.0,
+        0.4,
+        2.5,
+        n_max=_CCFG["n_max"],
+        w2=w2,
+    )
     n_cells = (_CCFG["shape"][0] // _CCFG["cell_size"]) ** 3
     hist = np.asarray(pN_true) * n_cells  # noiseless expected histogram
 
@@ -220,14 +278,27 @@ def test_count_loglike_constrains_alpha_strongly():
 
     N = jnp.arange(0, 250)
     w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
-    pN_true = count_distribution(N, _CCFG["n_bar"], _CCFG["shape"], 3.0, 4.0, 5.0, 0.4, 2.5,
-                                 n_max=_CCFG["n_max"], w2=w2)
+    pN_true = count_distribution(
+        N,
+        _CCFG["n_bar"],
+        _CCFG["shape"],
+        3.0,
+        4.0,
+        5.0,
+        0.4,
+        2.5,
+        n_max=_CCFG["n_max"],
+        w2=w2,
+    )
     n_cells = (_CCFG["shape"][0] // _CCFG["cell_size"]) ** 3
     hist = np.asarray(pN_true) * n_cells
 
     # second derivative in alpha = Fisher curvature; must be clearly negative (a real constraint)
-    d2 = float(jax.grad(jax.grad(
-        lambda a: count_loglike(hist, _THETA.at[2].set(a), **_CCFG)))(2.5))
+    d2 = float(
+        jax.grad(jax.grad(lambda a: count_loglike(hist, _THETA.at[2].set(a), **_CCFG)))(
+            2.5
+        )
+    )
     assert d2 < -1.0  # sharply peaked in alpha
 
 
@@ -238,17 +309,29 @@ def test_log_count_variance_loglike_peaks_at_truth():
     """The Gaussian sigma_s^2 -> mach block: on noiseless data (measured = prediction at the
     injected theta) the loglike peaks at the injected mach (ll(8) > ll(5) and ll(8) > ll(12)),
     and is differentiable in mach (finite grad)."""
+    from gravoturb_fdf.inference.likelihood import log_count_variance_loglike
     from gravoturb_fdf.theory.cic import predict_log_count_variance
     from gravoturb_fdf.theory.projection import box_window_sq_grid
-    from gravoturb_fdf.inference.likelihood import log_count_variance_loglike
+
     shape, c, n_bar = (24, 24, 24), 4, 5.0
     w2 = box_window_sq_grid(shape, c)
-    truth = jnp.array([8.0, 0.4, 2.5, 3.0])
     # noiseless "measured" = prediction at truth
-    meas = float(predict_log_count_variance(n_bar, shape, 3.0, float(c), 8.0, 0.4, 2.5, w2=w2))
-    ll = lambda m: float(log_count_variance_loglike(meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3))
-    assert ll(8.0) > ll(5.0) and ll(8.0) > ll(12.0)     # peaks at the injected mach
-    g = float(jax.grad(lambda m: log_count_variance_loglike(meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3))(8.0))
+    meas = float(
+        predict_log_count_variance(n_bar, shape, 3.0, float(c), 8.0, 0.4, 2.5, w2=w2)
+    )
+    ll = lambda m: float(
+        log_count_variance_loglike(
+            meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3
+        )
+    )
+    assert ll(8.0) > ll(5.0) and ll(8.0) > ll(12.0)  # peaks at the injected mach
+    g = float(
+        jax.grad(
+            lambda m: log_count_variance_loglike(
+                meas, jnp.array([m, 0.4, 2.5, 3.0]), shape, c, n_bar, var_v=1e-3
+            )
+        )(8.0)
+    )
     assert g == g
 
 
@@ -262,8 +345,9 @@ def test_run_nuts_recovers_gaussian():
 
     mu = jnp.array([1.0, -2.0])
     logdensity = lambda x: -0.5 * jnp.sum((x - mu) ** 2)
-    samples = run_nuts(logdensity, jnp.zeros(2), jax.random.PRNGKey(0),
-                       n_warmup=300, n_samples=1500)
+    samples = run_nuts(
+        logdensity, jnp.zeros(2), jax.random.PRNGKey(0), n_warmup=300, n_samples=1500
+    )
     assert samples.shape == (1500, 2)
     assert np.allclose(np.asarray(samples.mean(0)), np.asarray(mu), atol=0.15)
     assert np.allclose(np.asarray(samples.std(0)), 1.0, atol=0.2)
@@ -272,19 +356,25 @@ def test_run_nuts_recovers_gaussian():
 def test_run_nuts_diagnostic_shapes_and_recovers_gaussian():
     import blackjax  # noqa
     from gravoturb_fdf.inference.hmc import run_nuts_diagnostic
+
     # 2-D unit Gaussian target
-    logdensity = lambda x: -0.5 * jnp.sum(x ** 2)
+    logdensity = lambda x: -0.5 * jnp.sum(x**2)
     out = run_nuts_diagnostic(
-        logdensity, jnp.zeros(2), jax.random.PRNGKey(0),
-        n_warmup=300, n_samples=400, n_chains=4)
-    assert out["positions"].shape == (4, 400, 2)        # (chains, samples, dim)
-    assert out["divergences"].shape == (4, 400)         # bool per step
+        logdensity,
+        jnp.zeros(2),
+        jax.random.PRNGKey(0),
+        n_warmup=300,
+        n_samples=400,
+        n_chains=4,
+    )
+    assert out["positions"].shape == (4, 400, 2)  # (chains, samples, dim)
+    assert out["divergences"].shape == (4, 400)  # bool per step
     assert out["tree_depth"].shape == (4, 400)
     assert out["energy"].shape == (4, 400)
     m = out["positions"].reshape(-1, 2).mean(0)
     s = out["positions"].reshape(-1, 2).std(0)
     assert jnp.all(jnp.abs(m) < 0.15) and jnp.all(jnp.abs(s - 1.0) < 0.15)
-    assert out["divergences"].mean() < 0.02             # healthy target -> few divergences
+    assert out["divergences"].mean() < 0.02  # healthy target -> few divergences
 
 
 def test_density_pdf_loglike_constrains_alpha():
@@ -298,21 +388,31 @@ def test_density_pdf_loglike_constrains_alpha():
     s = jnp.linspace(-8.0, 25.0, 400)
     theta = jnp.array([5.0, 0.4, 2.5, 3.0])
     p_true = bm19_volume_pdf(s, 5.0, 0.4, 2.5)
-    hist = np.asarray(p_true / jnp.trapezoid(p_true, s)) * 1e4  # noiseless expected histogram
+    hist = (
+        np.asarray(p_true / jnp.trapezoid(p_true, s)) * 1e4
+    )  # noiseless expected histogram
 
     ll0 = float(density_pdf_loglike(hist, s, theta))
     for j, dth in [(0, 0.5), (2, 0.3)]:  # mach, alpha
         assert float(density_pdf_loglike(hist, s, theta.at[j].add(dth))) < ll0 - 1e-6
     g = np.asarray(jax.grad(lambda th: density_pdf_loglike(hist, s, th))(theta))
     assert np.all(np.isfinite(g))
-    d2 = float(jax.grad(jax.grad(lambda a: density_pdf_loglike(hist, s, theta.at[2].set(a))))(2.5))
+    d2 = float(
+        jax.grad(jax.grad(lambda a: density_pdf_loglike(hist, s, theta.at[2].set(a))))(
+            2.5
+        )
+    )
     assert d2 < -10.0  # sharply constrains alpha (the PDF-tail slope)
 
 
 def test_bounded_transforms_roundtrip_and_jacobian():
     """The bounded->unconstrained reparametrization (mach>0, alpha>1, beta>0) round-trips and
     its log-Jacobian is finite (needed so HMC samples in unconstrained space)."""
-    from gravoturb_fdf.inference.hmc import to_unconstrained, to_constrained, log_jacobian
+    from gravoturb_fdf.inference.hmc import (
+        log_jacobian,
+        to_constrained,
+        to_unconstrained,
+    )
 
     theta_c = jnp.array([5.0, 2.5, 3.0])  # (mach, alpha, beta), all in-bounds
     z = to_unconstrained(theta_c)
@@ -350,7 +450,9 @@ def test_tail_exceedance_loglike_max_at_truth():
 
     ll0 = float(tail_exceedance_loglike(counts, edges, theta(alpha_true), s_thr, s_max))
     for da in (+0.3, -0.3):
-        llp = float(tail_exceedance_loglike(counts, edges, theta(alpha_true + da), s_thr, s_max))
+        llp = float(
+            tail_exceedance_loglike(counts, edges, theta(alpha_true + da), s_thr, s_max)
+        )
         assert llp < ll0 - 1e-6
 
 
@@ -362,8 +464,15 @@ def test_tail_exceedance_loglike_constrains_alpha_sharply():
     edges = jnp.linspace(s_thr, s_max, 21)
     counts = jnp.asarray(_trunc_exp_binprob(edges, s_thr, s_max, alpha_true) * n_tail)
 
-    d2 = float(jax.grad(jax.grad(lambda a: tail_exceedance_loglike(
-        counts, edges, jnp.array([5.0, 0.4, a, 3.0]), s_thr, s_max)))(alpha_true))
+    d2 = float(
+        jax.grad(
+            jax.grad(
+                lambda a: tail_exceedance_loglike(
+                    counts, edges, jnp.array([5.0, 0.4, a, 3.0]), s_thr, s_max
+                )
+            )
+        )(alpha_true)
+    )
     assert d2 < -10.0
 
 
@@ -377,8 +486,13 @@ def test_tail_exceedance_loglike_grad_finite_incl_small_alphaL():
         edges = jnp.linspace(s_thr, s_max, 11)
         counts = jnp.ones(10) * 50.0  # every bin populated
         for a in (1.1, 2.5, 6.0):
-            g = float(jax.grad(lambda av: tail_exceedance_loglike(
-                counts, edges, jnp.array([5.0, 0.4, av, 3.0]), s_thr, s_max))(a))
+            g = float(
+                jax.grad(
+                    lambda av: tail_exceedance_loglike(
+                        counts, edges, jnp.array([5.0, 0.4, av, 3.0]), s_thr, s_max
+                    )
+                )(a)
+            )
             assert np.isfinite(g)
 
 
@@ -394,7 +508,9 @@ def test_tail_exceedance_loglike_shift_invariance():
     ll = float(tail_exceedance_loglike(counts, edges, theta, s_thr, s_max))
 
     c = 10.0
-    ll_shift = float(tail_exceedance_loglike(counts, edges + c, theta, s_thr + c, s_max + c))
+    ll_shift = float(
+        tail_exceedance_loglike(counts, edges + c, theta, s_thr + c, s_max + c)
+    )
     assert ll_shift == pytest.approx(ll, abs=1e-9)
 
 
@@ -419,7 +535,8 @@ def test_sigma_alpha_truncation_corrected_value_and_asymptote():
     assert float(sigma_alpha(2.5, 1e3, 1.0)) == pytest.approx(2.5, rel=1e-5)
     # 1/sqrt(N_tail) scaling
     assert float(sigma_alpha(2.5, 3.0, 100.0)) == pytest.approx(
-        float(sigma_alpha(2.5, 3.0, 1.0)) / 10.0, rel=1e-6)
+        float(sigma_alpha(2.5, 3.0, 1.0)) / 10.0, rel=1e-6
+    )
 
 
 def test_alpha_fisher_info_monotone_in_L():

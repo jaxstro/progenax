@@ -14,14 +14,15 @@ Note: For pure power-law IMFs (like Salpeter), use PowerLawIMF which
 has analytical CDF and is much faster.
 """
 
-import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from .base import BaseIMF
 
 
-def _shared_grid_cdf_unnorm(log_pdf_fn, m, m_min: float, m_max: float, n_points: int = 4000):
+def _shared_grid_cdf_unnorm(
+    log_pdf_fn, m, m_min: float, m_max: float, n_points: int = 4000
+):
     """Unnormalized CDF int_{m_min}^m pdf dm' via one shared cumulative-trapezoid grid.
 
     A single (log-spaced) grid is evaluated once, then
@@ -71,11 +72,13 @@ class Maschberger(BaseIMF):
         "On the function describing the stellar initial mass function"
     """
 
-    mu: float = 0.2       # Scale parameter [M_sun] (Maschberger 2013 Table 1)
-    alpha: float = 2.3    # High-mass slope (canonical; cf. Salpeter 2.35)
-    beta: float = 1.4     # Low-mass turnover
-    m_min: float = 0.01   # Lower limit (Maschberger 2013 fiducial m_l)
-    m_max: float = 300.0  # Upper limit (paper fiducial m_u=150; 300 here, normalization-only)
+    mu: float = 0.2  # Scale parameter [M_sun] (Maschberger 2013 Table 1)
+    alpha: float = 2.3  # High-mass slope (canonical; cf. Salpeter 2.35)
+    beta: float = 1.4  # Low-mass turnover
+    m_min: float = 0.01  # Lower limit (Maschberger 2013 fiducial m_l)
+    m_max: float = (
+        300.0  # Upper limit (paper fiducial m_u=150; 300 here, normalization-only)
+    )
 
     def _logpdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
         """Unnormalized log-PDF.
@@ -194,8 +197,8 @@ class TaperedPowerLaw(BaseIMF):
     """
 
     alpha: float = 2.3
-    m_peak: float = 0.3   # Turnover mass [M_sun]
-    beta: float = 2.0     # Taper sharpness
+    m_peak: float = 0.3  # Turnover mass [M_sun]
+    beta: float = 2.0  # Taper sharpness
     m_min: float = 0.01
     m_max: float = 300.0
 
@@ -205,11 +208,11 @@ class TaperedPowerLaw(BaseIMF):
         powerlaw = -self.alpha * jnp.log(m + 1e-30)
         # log(1 - exp(-x^β)) with numerical stability
         # For small x: 1 - exp(-x^β) ≈ x^β, so log ≈ β*log(x)
-        taper_arg = x ** self.beta
+        taper_arg = x**self.beta
         taper = jnp.where(
             taper_arg < 0.01,
             self.beta * jnp.log(x + 1e-30),  # Small argument approximation
-            jnp.log1p(-jnp.exp(-taper_arg) + 1e-30)
+            jnp.log1p(-jnp.exp(-taper_arg) + 1e-30),
         )
         return powerlaw + taper
 

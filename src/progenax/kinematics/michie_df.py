@@ -48,8 +48,10 @@ def _sample_ur_ut(key, W, s, n_t: int = _N_T, n_r: int = _N_R):
     arg = 2.0 * W_pos - u_t**2
     a = jnp.where(arg > 0.0, jnp.sqrt(jnp.where(arg > 0.0, arg, 1.0)), 0.0)
     inner = (
-        jnp.exp(W_pos - u_t**2 / 2.0) * jnp.sqrt(2.0 * jnp.pi)
-        * jax.scipy.special.erf(a / jnp.sqrt(2.0)) - 2.0 * a
+        jnp.exp(W_pos - u_t**2 / 2.0)
+        * jnp.sqrt(2.0 * jnp.pi)
+        * jax.scipy.special.erf(a / jnp.sqrt(2.0))
+        - 2.0 * a
     )
     m = jnp.maximum(u_t * jnp.exp(-(s**2) * u_t**2 / 2.0) * inner, 0.0)
 
@@ -111,8 +113,12 @@ class MichieVelocityDF(eqx.Module):
     speed_method: str = eqx.field(static=True)
 
     def __init__(
-        self, W0: float = 7.0, r_c: float = 1.0, r_a: float = 10.0,
-        xi_max: float = 800.0, n_ode_points: int = 3000,
+        self,
+        W0: float = 7.0,
+        r_c: float = 1.0,
+        r_a: float = 10.0,
+        xi_max: float = 800.0,
+        n_ode_points: int = 3000,
         speed_method: str = "table",
     ):
         if speed_method not in ("table", "quadrature"):
@@ -143,13 +149,18 @@ class MichieVelocityDF(eqx.Module):
             p_box = jnp.maximum(
                 self.r_c * _find_tidal_radius(xi_grid, psi_raw) / self.r_a, 1e-3
             )
-            self.speed_table = AnisoSpeedCDFTable.build(self.W0, p_box, jnp.asarray(1.0))
+            self.speed_table = AnisoSpeedCDFTable.build(
+                self.W0, p_box, jnp.asarray(1.0)
+            )
         else:
             self.speed_table = None
 
     def sample_velocities(
-        self, positions: Float[Array, "N 3"], masses: Float[Array, "N"],
-        key: PRNGKeyArray, G: float,
+        self,
+        positions: Float[Array, "N 3"],
+        masses: Float[Array, "N"],
+        key: PRNGKeyArray,
+        G: float,
     ) -> Float[Array, "N 3"]:
         """Sample velocities from the Michie-King DF via the 2-D (u_r, u_t) sampler.
 
@@ -195,9 +206,9 @@ def _sample_velocities_core(
         ku_kc = jax.vmap(jax.random.split)(speed_keys)
         unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
         u_sp = jax.vmap(df.speed_table.inverse)(W, s, unif)
-        cos_t = jax.vmap(
-            lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
-        )(ku_kc[:, 1], u_sp, s)
+        cos_t = jax.vmap(lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C))(
+            ku_kc[:, 1], u_sp, s
+        )
         ur = u_sp * cos_t
         ut = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
     else:

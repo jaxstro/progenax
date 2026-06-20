@@ -6,26 +6,26 @@ the 500-LOC file limit. The public API is unchanged — every symbol below remai
 importable from ``progenax.imf`` and ``progenax.imf.binary``.
 """
 
+from .binary_fraction import (
+    ConstantBinaryFraction,
+    MassDependentBinaryFraction,
+)
+from .imf import (
+    BinaryFractionCallable,
+    BinaryIMF,
+    MassRatioSamplerCallable,
+)
 from .mass_ratio import (
-    MassRatioProtocol,
     FlatMassRatio,
+    MassRatioProtocol,
     PowerLawMassRatio,
     TwinPeakedMassRatio,
 )
 from .moe_di_stefano import (
     MoeDiStefano2017,
     MoeDiStefano2017Full,
-    MoePeriod,
     MoeJointOrbit,
-)
-from .binary_fraction import (
-    ConstantBinaryFraction,
-    MassDependentBinaryFraction,
-)
-from .imf import (
-    BinaryIMF,
-    BinaryFractionCallable,
-    MassRatioSamplerCallable,
+    MoePeriod,
 )
 
 __all__ = [
@@ -40,4 +40,6 @@ __all__ = [
     "ConstantBinaryFraction",
     "MassDependentBinaryFraction",
     "BinaryIMF",
+    "BinaryFractionCallable",
+    "MassRatioSamplerCallable",
 ]

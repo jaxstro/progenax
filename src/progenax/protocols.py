@@ -7,6 +7,7 @@ These protocols enable composition: mix Plummer positions with King velocities.
 """
 
 from typing import Protocol, runtime_checkable
+
 from jaxtyping import Array, Float, PRNGKeyArray
 
 

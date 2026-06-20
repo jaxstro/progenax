@@ -17,6 +17,7 @@ forward-mode also happens to work -- but reverse-mode is the canonical choice. S
 src/progenax/kinematics/dispersion.py module docstring for the per-profile forward-mode
 support matrix.
 """
+
 import os
 import sys
 from typing import NamedTuple
@@ -24,9 +25,9 @@ from typing import NamedTuple
 import jax
 import jax.numpy as jnp
 import optax
+from jaxstro.units import STELLAR  # noqa: F401  -- re-exported for the demo's callers
 
 from progenax import PlummerProfile, PlummerVelocityDF, project_dispersion
-from jaxstro.units import STELLAR  # noqa: F401  -- re-exported for the demo's callers
 
 # Scripts-local inference helpers (NOT a packaged API): the fixed-step Adam MLE and
 # the Gauss-Newton Fisher used by the calibration ensemble (Task 5). The sibling
@@ -60,7 +61,7 @@ R_BINS = jnp.logspace(jnp.log10(0.3 * MOCK["r_h"]), jnp.log10(3.0 * MOCK["r_h"])
 # Both PM axes (pm_r, pm_t) share the single astrometric error.
 _eps_RV = kms_to_pcMyr(MOCK["eps_RV_kms"])
 _eps_PM = kms_to_pcMyr(pm_masyr_to_kms(MOCK["eps_PM_masyr"], MOCK["d_kpc"]))
-EPS = jnp.array([_eps_RV, _eps_PM, _eps_PM])      # (3,) [pc/Myr]
+EPS = jnp.array([_eps_RV, _eps_PM, _eps_PM])  # (3,) [pc/Myr]
 
 
 def theta_truth():
@@ -77,7 +78,7 @@ def predict_sigma(theta, R_bins, G):
     r_a, M, r_h = theta[0], theta[1], theta[2]
     prof = PlummerProfile(r_h=r_h)
     pd = project_dispersion(prof, r_a, R_bins, M, G)
-    return jnp.stack([pd.sigma_los, pd.sigma_pm_r, pd.sigma_pm_t])   # (3, K)
+    return jnp.stack([pd.sigma_los, pd.sigma_pm_r, pd.sigma_pm_t])  # (3, K)
 
 
 def per_star_blocks(theta, R_bins, eps, G):
@@ -109,16 +110,18 @@ def jacobian_and_sigma(theta, R_bins, G):
     (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance (ADR 0011). Reverse-mode jacrev
     by policy (forward-mode would crash through the King/Michie custom_vjp ODEs).
     """
-    sig = predict_sigma(theta, R_bins, G)                       # (3, K)
-    J = jax.jacrev(predict_sigma, argnums=0)(theta, R_bins, G)  # (3, K, 3) -- d sigma / d theta
-    return J * theta[None, None, :], sig                        # -> d sigma / d ln theta (DIMENSIONLESS)
+    sig = predict_sigma(theta, R_bins, G)  # (3, K)
+    J = jax.jacrev(predict_sigma, argnums=0)(
+        theta, R_bins, G
+    )  # (3, K, 3) -- d sigma / d theta
+    return J * theta[None, None, :], sig  # -> d sigma / d ln theta (DIMENSIONLESS)
 
 
 def blocks_from_eps(J, sig, eps):
     """M_{c,b} = 2 J J^T / (sigma^2 + eps^2). eps broadcasts: (3,) per-channel or (3, K) per-cell."""
     eps = jnp.asarray(eps)
-    eps2 = (eps[:, None] if eps.ndim == 1 else eps) ** 2        # (3, K)
-    denom = sig**2 + eps2                                       # (3, K)
+    eps2 = (eps[:, None] if eps.ndim == 1 else eps) ** 2  # (3, K)
+    denom = sig**2 + eps2  # (3, K)
     return 2.0 * jnp.einsum("ckp,ckq->ckpq", J, J) / denom[..., None, None]
 
 
@@ -171,8 +174,12 @@ def design_counts(z, completeness_b, N_total):
 # prior precision is exactly 0. In the dimensionless (d ln theta) metric (ADR
 # 0011) the prior is a FRACTIONAL precision: a 30% fractional prior on each
 # nuisance is precision 1/0.3**2; deliberately weak.
-_FRAC_PRIOR = 0.3   # 30% fractional prior on each nuisance (M, r_h); none on the target r_a
-PRIOR_DIAG = jnp.array([0.0, 1.0 / _FRAC_PRIOR**2, 1.0 / _FRAC_PRIOR**2])   # fractional precision
+_FRAC_PRIOR = (
+    0.3  # 30% fractional prior on each nuisance (M, r_h); none on the target r_a
+)
+PRIOR_DIAG = jnp.array(
+    [0.0, 1.0 / _FRAC_PRIOR**2, 1.0 / _FRAC_PRIOR**2]
+)  # fractional precision
 
 
 def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
@@ -182,7 +189,7 @@ def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
     fractions). With prior_diag (e.g. PRIOR_DIAG) the nuisance prior precision
     is added on the diagonal. Returns a symmetric (3, 3) Fisher in theta.
     """
-    n_eff = design_counts(z, completeness_b, N_total)            # (3, K)
+    n_eff = design_counts(z, completeness_b, N_total)  # (3, K)
     F = jnp.einsum("ck,ckpq->pq", n_eff, Mb)
     if prior_diag is not None:
         F = F + jnp.diag(prior_diag)
@@ -206,7 +213,7 @@ def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
 # Each is a smooth function of the SPD F, so jax.grad flows cleanly through the
 # 3x3 inverse / slogdet (AD-vs-FD gate, rtol 1e-4, at cond(F) ~ 45).
 
-_TARGET = 0   # index of r_a in theta = (r_a, M, r_h)
+_TARGET = 0  # index of r_a in theta = (r_a, M, r_h)
 
 
 def c_criterion(F, target=_TARGET):
@@ -257,6 +264,7 @@ def a_criterion(F):
 class DesignResult(NamedTuple):
     """Result of optimize_design: best design vector z (3*K,), the per-step
     criterion trace of that start, and the final scalar criterion value."""
+
     z: jnp.ndarray
     trace: jnp.ndarray
     criterion: float
@@ -280,7 +288,9 @@ def _optimize_one(criterion_fn, z0, Mb, cb, N_total, n_steps, lr):
     return z, trace
 
 
-def optimize_design(criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05):
+def optimize_design(
+    criterion_fn, Mb, cb, N_total, key, n_starts=8, n_steps=500, lr=0.05
+):
     """Multi-start Adam over the design vector z; keep the lowest-criterion result.
 
     Returns a DesignResult (z, trace, criterion) for the best start.
@@ -355,8 +365,9 @@ def project_to_sky(pos, vel):
 
 class CalibResult(NamedTuple):
     """Result of calibrate_fisher (both entries are FRACTIONAL variances, ADR 0011):
-      * realized_var_ra : Var(r_a_hat over draws) / r_a_truth**2,
-      * fisher_var_ra   : (inv F_design)_{r_a, r_a} at the same (z, N_total)."""
+    * realized_var_ra : Var(r_a_hat over draws) / r_a_truth**2,
+    * fisher_var_ra   : (inv F_design)_{r_a, r_a} at the same (z, N_total)."""
+
     realized_var_ra: float
     fisher_var_ra: float
 
@@ -411,7 +422,7 @@ def _binned_sigma_hat(key, channels, R, n_eff, edges):
 
     K = R_BINS.shape[0]
     edges_np = np.asarray(edges)
-    bin_of = np.digitize(np.asarray(R), edges_np) - 1   # 0..K-1; -1/K out of range
+    bin_of = np.digitize(np.asarray(R), edges_np) - 1  # 0..K-1; -1/K out of range
     sigma_hat = np.zeros((3, K))
     se = np.zeros((3, K))
     for b in range(K):
@@ -492,8 +503,10 @@ def calibrate_fisher(z, N_total, n_draws, key):
     theta = theta_truth()
     Mb, _ = per_star_blocks(theta, R_BINS, EPS, G)
     cb = completeness(R_BINS)
-    n_eff = design_counts(z, cb, N_total)                       # (3, K)
-    fisher_var_ra = float(jnp.linalg.inv(fisher(z, Mb, cb, N_total, PRIOR_DIAG))[_TARGET, _TARGET])
+    n_eff = design_counts(z, cb, N_total)  # (3, K)
+    fisher_var_ra = float(
+        jnp.linalg.inv(fisher(z, Mb, cb, N_total, PRIOR_DIAG))[_TARGET, _TARGET]
+    )
 
     edges = _r_bin_edges()
     # Parent catalog large enough that every R-bin holds >> the largest design

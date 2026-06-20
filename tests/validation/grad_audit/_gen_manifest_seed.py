@@ -2,6 +2,7 @@
 Prints the (id, param) coverage units in REGISTRY and the full __all__ list, so the
 manifest literals can be seeded without transcription error. The manifest is then an
 INDEPENDENT frozen literal — deleting a registry case must trip the coverage ratchet."""
+
 import progenax  # noqa: F401 (float64 + __all__)
 from tests.validation.grad_audit.registry import REGISTRY
 

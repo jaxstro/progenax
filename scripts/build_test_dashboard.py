@@ -20,6 +20,7 @@ Direct invocation (``python scripts/build_test_dashboard.py``) puts only
 so ``import tests.*`` / ``import scripts.*`` would ImportError. We mirror the
 bootstrap in ``scripts/audit_gradients.py`` and insert the repo root first.
 """
+
 import argparse
 import json
 import subprocess
@@ -86,8 +87,16 @@ def collect_test_inventory() -> dict[str, dict[str, int]]:
     three tier keys present (zero-filled) for every module that has any tests.
     """
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", *_TIER_DIRS, "--collect-only", "-q",
-         "-p", "no:cacheprovider"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            *_TIER_DIRS,
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+        ],
         cwd=str(_REPO_ROOT),
         capture_output=True,
         text=True,
@@ -134,7 +143,7 @@ def _file_key_to_module(file_key: str) -> str:
     """
     if not file_key.startswith(_SRC_PREFIX):
         return ""
-    rel = file_key[len(_SRC_PREFIX):]
+    rel = file_key[len(_SRC_PREFIX) :]
     if rel.endswith(".py"):
         rel = rel[: -len(".py")]
     return rel
@@ -295,8 +304,10 @@ def _stamp_coverage(raw_cov_path: str) -> None:
     out_path = _REPO_ROOT / _COVERAGE_JSON
     write_coverage_json(raw_cov_path, str(out_path), selector="full", git_sha=git_sha)
     total = json.loads(out_path.read_text())["coverage_provenance"]["total_percent"]
-    print(f"wrote {out_path.relative_to(_REPO_ROOT)} (selector=full, "
-          f"sha={git_sha[:8]}, total={total:.2f}%)")
+    print(
+        f"wrote {out_path.relative_to(_REPO_ROOT)} (selector=full, "
+        f"sha={git_sha[:8]}, total={total:.2f}%)"
+    )
 
 
 # grad-audit row statuses are COMPUTED by grad_audit/core.py::_classify into exactly
@@ -350,7 +361,8 @@ def read_registry_status() -> dict:
     rows = json.loads((_REPO_ROOT / _GRAD_AUDIT_JSON).read_text())
     status_hist = dict(Counter(r["status"] for r in rows))
     hazards = sum(
-        n for status, n in status_hist.items()
+        n
+        for status, n in status_hist.items()
         if status not in _GRAD_AUDIT_BENIGN_STATUSES
     )
 
@@ -443,7 +455,9 @@ def read_registry_status() -> dict:
         "provenance": provenance,
     }
     for reg in _NOT_BUILT_REGISTRIES:
-        result[reg] = {"status": "not-built"}  # no `full` -> holds registries_full False
+        result[reg] = {
+            "status": "not-built"
+        }  # no `full` -> holds registries_full False
     return result
 
 
@@ -605,18 +619,22 @@ def _render(json_path: Path, page_path: Path) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--emit", action="store_true",
+        "--emit",
+        action="store_true",
         help="build + write the timestamped dashboard JSON (validation/data/).",
     )
     parser.add_argument(
-        "--render", action="store_true",
+        "--render",
+        action="store_true",
         help="render the committed dashboard JSON to the MyST matrix page.",
     )
     parser.add_argument(
-        "--stamp-coverage", metavar="RAW_COV_JSON", default=None,
+        "--stamp-coverage",
+        metavar="RAW_COV_JSON",
+        default=None,
         help="stamp a raw pytest-cov JSON (from a FULL-suite --cov run) with "
-             "provenance (selector=full, HEAD sha, total_percent, measured_utc) "
-             "and write it to validation/data/coverage.json.",
+        "provenance (selector=full, HEAD sha, total_percent, measured_utc) "
+        "and write it to validation/data/coverage.json.",
     )
     args = parser.parse_args(argv)
 

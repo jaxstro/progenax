@@ -55,8 +55,8 @@ class AnisoDensityTable(eqx.Module):
     all components of a coupled solve: component j queries
     (rescale_j*psi, xi/ra_j))."""
 
-    s_nodes: Float[Array, "n_W"]   # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
-    q_nodes: Float[Array, "n_p"]   # asinh(p) nodes, uniform on [0, asinh(p_max)]
+    s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
+    q_nodes: Float[Array, "n_p"]  # asinh(p) nodes, uniform on [0, asinh(p_max)]
     values: Float[Array, "n_W n_p"]
 
     @classmethod
@@ -72,7 +72,10 @@ class AnisoDensityTable(eqx.Module):
         q = jnp.linspace(0.0, jnp.arcsinh(jnp.asarray(p_max)), n_p)
         W = s**2
         p = jnp.sinh(q)
-        row = lambda w: jax.vmap(lambda pp: _aniso_density_scalar(w, pp, g))(p)
+
+        def row(w):
+            return jax.vmap(lambda pp: _aniso_density_scalar(w, pp, g))(p)
+
         vals = jax.lax.map(row, W)
         return cls(s_nodes=s, q_nodes=q, values=vals)
 
@@ -158,13 +161,16 @@ class SpeedCDFTable(eqx.Module):
         x = jnp.linspace(0.0, 1.0, n_x)
         W = jnp.maximum(s**2, 1e-6)  # W=0-row floor at the draw guard (see above)
         wgt = jnp.maximum(
-            x[None, :] ** 2 * lowered_exponential(g, W[:, None] * (1.0 - x[None, :] ** 2)),
+            x[None, :] ** 2
+            * lowered_exponential(g, W[:, None] * (1.0 - x[None, :] ** 2)),
             0.0,
         )
         dx = x[1] - x[0]
         cdf = jnp.concatenate(
-            [jnp.zeros((n_W, 1)),
-             jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx],
+            [
+                jnp.zeros((n_W, 1)),
+                jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx,
+            ],
             axis=1,
         )
         # Relative normalization: every row total is strictly positive (the
@@ -237,8 +243,7 @@ class AnisoSpeedCDFTable(eqx.Module):
     cdf: Float[Array, "n_W n_p n_x"]  # normalized speed-marginal CDF per row
 
     @classmethod
-    def build(cls, W_max, p_max, g, n_W: int = 192, n_p: int = 48,
-              n_x: int = 192):
+    def build(cls, W_max, p_max, g, n_W: int = 192, n_p: int = 48, n_x: int = 192):
         """Tabulate normalized speed-marginal CDFs on the (sqrt W, asinh p, x)
         grid (1.8M float64 = 14 MB at the defaults).
 
@@ -262,8 +267,10 @@ class AnisoSpeedCDFTable(eqx.Module):
             wgt = jnp.maximum(x[None, :] ** 2 * E[None, :] * T, 0.0)
             dx = x[1] - x[0]
             c = jnp.concatenate(
-                [jnp.zeros((n_p, 1)),
-                 jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx],
+                [
+                    jnp.zeros((n_p, 1)),
+                    jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx,
+                ],
                 axis=1,
             )
             # Relative normalization: the 1e-6 W floor keeps every row total
@@ -293,20 +300,25 @@ class AnisoSpeedCDFTable(eqx.Module):
         # under jax.grad and the final where() masks only the primal.
         W_safe = jnp.maximum(W, 1e-12)
         s = jnp.clip(jnp.sqrt(W_safe), self.s_nodes[0], self.s_nodes[-1])
-        q = jnp.clip(jnp.arcsinh(jnp.maximum(p, 0.0)),
-                     self.q_nodes[0], self.q_nodes[-1])
+        q = jnp.clip(
+            jnp.arcsinh(jnp.maximum(p, 0.0)), self.q_nodes[0], self.q_nodes[-1]
+        )
         hs = self.s_nodes[1] - self.s_nodes[0]  # uniform grids by construction
         hq = self.q_nodes[1] - self.q_nodes[0]
         i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
         j = jnp.clip(jnp.searchsorted(self.q_nodes, q) - 1, 0, self.q_nodes.size - 2)
         ts = jnp.clip((s - self.s_nodes[i]) / hs, 0.0, 1.0)
         tq = jnp.clip((q - self.q_nodes[j]) / hq, 0.0, 1.0)
-        rows = jax.lax.dynamic_slice(self.cdf, (i, j, jnp.asarray(0, i.dtype)),
-                                     (2, 2, self.x_nodes.size))
-        x4 = jax.vmap(lambda c: jnp.interp(unif, c, self.x_nodes))(
-            rows.reshape(4, -1))
-        x = ((1.0 - ts) * (1.0 - tq) * x4[0] + (1.0 - ts) * tq * x4[1]
-             + ts * (1.0 - tq) * x4[2] + ts * tq * x4[3])
+        rows = jax.lax.dynamic_slice(
+            self.cdf, (i, j, jnp.asarray(0, i.dtype)), (2, 2, self.x_nodes.size)
+        )
+        x4 = jax.vmap(lambda c: jnp.interp(unif, c, self.x_nodes))(rows.reshape(4, -1))
+        x = (
+            (1.0 - ts) * (1.0 - tq) * x4[0]
+            + (1.0 - ts) * tq * x4[1]
+            + ts * (1.0 - tq) * x4[2]
+            + ts * tq * x4[3]
+        )
         u = x * jnp.sqrt(2.0 * W_safe)
         return jnp.where(W > 1e-6, u, 0.0)
 

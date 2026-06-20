@@ -32,10 +32,14 @@ def _direct_density_integral(W, nv=400_000):
 def test_density_shape_matches_direct_velocity_integral(W):
     """The normalized rho_hat(W)/rho_hat(W_ref) must equal the direct integral ratio."""
     W_ref = 5.0
-    analytic = float(king_lowered_maxwellian_density(W) / king_lowered_maxwellian_density(W_ref))
+    analytic = float(
+        king_lowered_maxwellian_density(W) / king_lowered_maxwellian_density(W_ref)
+    )
     direct = float(_direct_density_integral(W) / _direct_density_integral(W_ref))
     rel = abs(analytic - direct) / (abs(direct) + 1e-30)
-    assert rel < 1e-5, f"W={W}: rho_hat ratio {analytic} vs direct {direct} (rel {rel:.2e})"
+    assert rel < 1e-5, (
+        f"W={W}: rho_hat ratio {analytic} vs direct {direct} (rel {rel:.2e})"
+    )
 
 
 def test_density_zero_and_gradient_finite_at_zero():

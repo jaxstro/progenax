@@ -7,12 +7,11 @@ One test per category per module type.
 
 import jax
 import jax.numpy as jnp
-import pytest
-
 from jaxstro.units import STELLAR
-from progenax.profiles import PlummerProfile, EFFProfile
+
+from progenax.imf import PowerLawIMF
 from progenax.kinematics import PlummerVelocityDF
-from progenax.imf import PowerLawIMF, ChabrierIMF
+from progenax.profiles import PlummerProfile
 
 G = STELLAR.G  # ≈ 0.00450 [pc³ Msun⁻¹ Myr⁻²]
 
@@ -105,11 +104,13 @@ class TestIMFJAXCompatibility:
         imf = PowerLawIMF.kroupa()
 
         # Batch of uniform samples
-        u_batch = jnp.array([
-            [0.1, 0.2, 0.3],
-            [0.4, 0.5, 0.6],
-            [0.7, 0.8, 0.9],
-        ])
+        u_batch = jnp.array(
+            [
+                [0.1, 0.2, 0.3],
+                [0.4, 0.5, 0.6],
+                [0.7, 0.8, 0.9],
+            ]
+        )
 
         # vmap over first axis
         batched_ppf = jax.vmap(imf.ppf)
@@ -144,6 +145,7 @@ def test_compute_potential_energy_grad_finite_at_default_softening():
     import jax
     import jax.numpy as jnp
     from jaxstro.units import STELLAR
+
     from progenax import compute_potential_energy
 
     pos = jax.random.normal(jax.random.PRNGKey(1), (16, 3))

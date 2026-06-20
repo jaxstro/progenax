@@ -35,33 +35,64 @@ from progenax.profiles.limepy_multimass import (
 pytestmark = pytest.mark.slow  # each case is a hi-res (n_ode>=6000) coupled solve
 
 CACHE_DIR = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "..",
-    "validation", "data", "limepy_reference")
+    os.path.dirname(os.path.abspath(__file__)),
+    "..",
+    "..",
+    "validation",
+    "data",
+    "limepy_reference",
+)
 
 # name -> (config, gates); mirrors scripts/validate_limepy_reference.py CONFIGS
 # (the IMF config needs the binning at collection time, so the test covers the
 # single-mass sanity corner + the two-component iso + aniso multimass cases).
 CASES = {
     "single_g1": dict(
-        W0=5.0, g=1.0, mj=None, Mj=None, delta=None, eta=None, ra=None,
-        xi_max=30.0, n_ode=8000,
-        gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4)),
+        W0=5.0,
+        g=1.0,
+        mj=None,
+        Mj=None,
+        delta=None,
+        eta=None,
+        ra=None,
+        xi_max=30.0,
+        n_ode=8000,
+        gates=dict(rho=2e-5, sig=2e-5, alpha=1e-8, mfrac=1e-8, c=5e-4, rh=1e-4),
+    ),
     "twocomp_iso": dict(
-        W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=None,
-        ra=None, xi_max=30.0, n_ode=8000,
-        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
+        W0=5.0,
+        g=1.0,
+        mj=[0.3, 1.0],
+        Mj=[0.7, 0.3],
+        delta=0.5,
+        eta=None,
+        ra=None,
+        xi_max=30.0,
+        n_ode=8000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
     "twocomp_ra_eta05": dict(
-        W0=5.0, g=1.0, mj=[0.3, 1.0], Mj=[0.7, 0.3], delta=0.5, eta=0.5,
-        ra=5.0, xi_max=30.0, n_ode=6000,
-        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4)),
+        W0=5.0,
+        g=1.0,
+        mj=[0.3, 1.0],
+        Mj=[0.7, 0.3],
+        delta=0.5,
+        eta=0.5,
+        ra=5.0,
+        xi_max=30.0,
+        n_ode=6000,
+        gates=dict(rho=5e-5, sig=3e-4, alpha=5e-4, mfrac=5e-4, c=5e-4, rh=1e-4),
+    ),
 }
 
 
 def _load_reference(name):
     path = os.path.join(CACHE_DIR, f"{name}.npz")
     if not os.path.exists(path):
-        msg = (f"reference-LIMEPY cache absent: {path} "
-               "(run scripts/validate_limepy_reference.py --regen)")
+        msg = (
+            f"reference-LIMEPY cache absent: {path} "
+            "(run scripts/validate_limepy_reference.py --regen)"
+        )
         # In strict (nightly/release) mode a missing cache must NOT silently
         # disable the strongest external-reference gate (audit T4/H2).
         if os.environ.get("PROGENAX_STRICT_REFS") == "1":
@@ -73,18 +104,39 @@ def _load_reference(name):
 def _build_ours(cfg):
     if cfg["mj"] is None:
         return MultiComponentCluster.from_components(
-            alpha_j=jnp.array([1.0]), w_j=jnp.array([1.0]), m_j=jnp.array([1.0]),
-            W0=cfg["W0"], g=cfg["g"], xi_max=cfg["xi_max"],
-            n_ode_points=cfg["n_ode"])
+            alpha_j=jnp.array([1.0]),
+            w_j=jnp.array([1.0]),
+            m_j=jnp.array([1.0]),
+            W0=cfg["W0"],
+            g=cfg["g"],
+            xi_max=cfg["xi_max"],
+            n_ode_points=cfg["n_ode"],
+        )
     m_j, M_j = jnp.asarray(cfg["mj"]), jnp.asarray(cfg["Mj"])
     eta = cfg["eta"] if cfg["eta"] is not None else 0.0
     alpha_j, _ = find_alpha_for_masses(
-        m_j, M_j, cfg["W0"], cfg["g"], cfg["delta"], xi_max=cfg["xi_max"],
-        n_points=cfg["n_ode"], ra_hat=cfg["ra"], eta=eta)
+        m_j,
+        M_j,
+        cfg["W0"],
+        cfg["g"],
+        cfg["delta"],
+        xi_max=cfg["xi_max"],
+        n_points=cfg["n_ode"],
+        ra_hat=cfg["ra"],
+        eta=eta,
+    )
     return MultiComponentCluster.from_mass_segregation(
-        alpha_j=alpha_j, m_j=m_j, W0=cfg["W0"], g=cfg["g"], delta=cfg["delta"],
-        r_a=cfg["ra"], eta=eta, r_c=1.0, xi_max=cfg["xi_max"],
-        n_ode_points=cfg["n_ode"])
+        alpha_j=alpha_j,
+        m_j=m_j,
+        W0=cfg["W0"],
+        g=cfg["g"],
+        delta=cfg["delta"],
+        r_a=cfg["ra"],
+        eta=eta,
+        r_c=1.0,
+        xi_max=cfg["xi_max"],
+        n_ode_points=cfg["n_ode"],
+    )
 
 
 def _ours_profiles(model, xi):
@@ -98,16 +150,18 @@ def _ours_profiles(model, xi):
         p = jnp.where(jnp.isfinite(ra_j[j]), xi / ra_j[j], 0.0)
         if bool(jnp.isfinite(ra_j[j])):
             rho_j = jax.vmap(lambda W, pp: _aniso_density_scalar(W, pp, model.g))(
-                rescale[j] * psi, p)
-            rho_0 = _aniso_density_scalar(rescale[j] * model.W0, jnp.asarray(0.0),
-                                          model.g)
+                rescale[j] * psi, p
+            )
+            rho_0 = _aniso_density_scalar(
+                rescale[j] * model.W0, jnp.asarray(0.0), model.g
+            )
         else:
             rho_j = limepy_density_hat(rescale[j] * psi, model.g)
             rho_0 = limepy_density_hat(rescale[j] * model.W0, model.g)
         v2_j = jax.vmap(lambda W, pp: _aniso_v2hat_scalar(W, pp, model.g))(
-            rescale[j] * psi, p)
-        v2_0 = _aniso_v2hat_scalar(rescale[j] * model.W0, jnp.asarray(0.0),
-                                   model.g)
+            rescale[j] * psi, p
+        )
+        v2_0 = _aniso_v2hat_scalar(rescale[j] * model.W0, jnp.asarray(0.0), model.g)
         rho.append(rho_j / rho_0)
         sig.append(jnp.sqrt(v2_j / v2_0))
     return jnp.stack(rho), jnp.stack(sig)
@@ -149,16 +203,17 @@ def test_parity_with_reference_limepy(name):
     xg = jnp.linspace(1e-5, float(model.r_t), 6000)
     rho_g, _ = _ours_profiles(model, xg)
     integ = jnp.sum(model.alpha_j[:, None] * rho_g, axis=0) * xg**2
-    M = jnp.concatenate([jnp.zeros(1), jnp.cumsum(
-        0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xg))])
+    M = jnp.concatenate(
+        [jnp.zeros(1), jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xg))]
+    )
     rh_ours = float(jnp.interp(0.5 * M[-1], M, xg))
     rh_ref = float(ref["rh"]) / r0
-    assert abs(rh_ours - rh_ref) / rh_ref < gates["rh"], \
+    assert abs(rh_ours - rh_ref) / rh_ref < gates["rh"], (
         f"{name}: |drh|/rh = {abs(rh_ours - rh_ref) / rh_ref:.2e}"
+    )
 
     # realized per-component mass fractions vs the reference's Mj
-    nu_j = jnp.trapezoid(
-        model.alpha_j[:, None] * rho_g * xg[None, :] ** 2, xg, axis=1)
+    nu_j = jnp.trapezoid(model.alpha_j[:, None] * rho_g * xg[None, :] ** 2, xg, axis=1)
     f_ours = nu_j / jnp.sum(nu_j)
     f_ref = ref["Mj"] / ref["Mj"].sum()
     d_mfrac = float(np.max(np.abs(np.asarray(f_ours) - f_ref)))

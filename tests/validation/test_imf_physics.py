@@ -13,11 +13,11 @@ import jax.numpy as jnp
 import pytest
 
 from progenax.imf import (
-    PowerLawIMF,
     ChabrierIMF,
     Maschberger,
-    TaperedPowerLaw,
+    PowerLawIMF,
     Schechter,
+    TaperedPowerLaw,
 )
 
 
@@ -36,8 +36,9 @@ class TestSalpeterSlope:
 
         measured_alpha = -jnp.log(pdf2 / pdf1) / jnp.log(m2 / m1)
 
-        assert abs(float(measured_alpha) - imf_constants.SALPETER_ALPHA) < 0.01, \
+        assert abs(float(measured_alpha) - imf_constants.SALPETER_ALPHA) < 0.01, (
             f"Salpeter slope = {float(measured_alpha):.4f}, expected {imf_constants.SALPETER_ALPHA}"
+        )
 
     def test_salpeter_mean_mass(self, key):
         """Salpeter mean mass matches the exact analytic value (not a coarse grid)."""
@@ -52,15 +53,17 @@ class TestSalpeterSlope:
         num = (m_max ** (2 - alpha) - m_min ** (2 - alpha)) / (2 - alpha)
         den = (m_max ** (1 - alpha) - m_min ** (1 - alpha)) / (1 - alpha)
         analytic = num / den  # ~0.3514 M_sun
-        assert abs(mean_computed - analytic) < 1e-3, \
+        assert abs(mean_computed - analytic) < 1e-3, (
             f"Salpeter mean mass = {mean_computed:.5f}, analytic = {analytic:.5f}"
+        )
 
         # Verify Monte-Carlo sample mean matches the (now exact) computed mean
         masses = imf.sample(key, 10000)
         sample_mean = float(jnp.mean(masses))
         rel_error = abs(sample_mean - mean_computed) / mean_computed
-        assert rel_error < 0.10, \
+        assert rel_error < 0.10, (
             f"Sample mean {sample_mean:.4f} vs computed {mean_computed:.4f}"
+        )
 
 
 class TestKroupaBreakpoints:
@@ -77,8 +80,9 @@ class TestKroupaBreakpoints:
             m_max=100.0,
         )
 
-        assert imf.breakpoints == expected_breaks, \
+        assert imf.breakpoints == expected_breaks, (
             f"Kroupa breakpoints {imf.breakpoints} != expected {expected_breaks}"
+        )
 
     def test_kroupa_segment_slopes(self, imf_constants):
         """Kroupa slopes match literature values."""
@@ -93,7 +97,9 @@ class TestKroupaBreakpoints:
         # Measure slopes in each segment
         segments = [(0.01, 0.08), (0.08, 0.5), (0.5, 10.0)]
 
-        for i, ((m_lo, m_hi), expected_alpha) in enumerate(zip(segments, expected_alphas)):
+        for i, ((m_lo, m_hi), expected_alpha) in enumerate(
+            zip(segments, expected_alphas)
+        ):
             m1 = (m_lo + m_hi) / 3  # 1/3 into segment
             m2 = 2 * (m_lo + m_hi) / 3  # 2/3 into segment
 
@@ -102,8 +108,9 @@ class TestKroupaBreakpoints:
 
             measured_alpha = -jnp.log(pdf2 / pdf1) / jnp.log(m2 / m1)
 
-            assert abs(float(measured_alpha) - expected_alpha) < 0.02, \
-                f"Segment {i+1}: measured slope {float(measured_alpha):.3f} != expected {expected_alpha}"
+            assert abs(float(measured_alpha) - expected_alpha) < 0.02, (
+                f"Segment {i + 1}: measured slope {float(measured_alpha):.3f} != expected {expected_alpha}"
+            )
 
     def test_kroupa_pdf_continuous(self):
         """PDF is continuous at Kroupa breakpoints."""
@@ -120,8 +127,9 @@ class TestKroupaBreakpoints:
             pdf_above = float(jnp.exp(imf.logpdf(jnp.array(m_break + eps))))
 
             rel_diff = abs(pdf_below - pdf_above) / pdf_below
-            assert rel_diff < 0.01, \
+            assert rel_diff < 0.01, (
                 f"PDF discontinuity at m={m_break}: {pdf_below:.4f} vs {pdf_above:.4f}"
+            )
 
 
 class TestChabrierParameters:
@@ -130,14 +138,16 @@ class TestChabrierParameters:
     def test_chabrier_characteristic_mass(self, imf_constants):
         """Chabrier characteristic mass m_c = 0.08 M_sun."""
         imf = ChabrierIMF()
-        assert imf.m_c == imf_constants.CHABRIER_MC, \
+        assert imf.m_c == imf_constants.CHABRIER_MC, (
             f"Chabrier m_c = {imf.m_c}, expected {imf_constants.CHABRIER_MC}"
+        )
 
     def test_chabrier_lognormal_width(self, imf_constants):
         """Chabrier lognormal width sigma = 0.69."""
         imf = ChabrierIMF()
-        assert imf.sigma == imf_constants.CHABRIER_SIGMA, \
+        assert imf.sigma == imf_constants.CHABRIER_SIGMA, (
             f"Chabrier sigma = {imf.sigma}, expected {imf_constants.CHABRIER_SIGMA}"
+        )
 
     def test_chabrier_high_mass_slope(self, imf_constants):
         """Chabrier high-mass slope = Chabrier (2003) Table 1: x=1.3 ⇒ α=2.3 (dN/dm)."""
@@ -150,8 +160,9 @@ class TestChabrierParameters:
 
         measured_alpha = -jnp.log(pdf2 / pdf1) / jnp.log(m2 / m1)
 
-        assert abs(float(measured_alpha) - imf_constants.CHABRIER_ALPHA_HIGH) < 0.05, \
+        assert abs(float(measured_alpha) - imf_constants.CHABRIER_ALPHA_HIGH) < 0.05, (
             f"Chabrier high-mass slope = {float(measured_alpha):.3f}, expected {imf_constants.CHABRIER_ALPHA_HIGH}"
+        )
 
     def test_chabrier_pdf_continuous_at_mtrans(self):
         """PDF is value-continuous at m_trans=1 M_sun (A_pl is set FOR continuity).
@@ -167,8 +178,9 @@ class TestChabrierParameters:
         pdf_below = float(jnp.exp(imf.logpdf(jnp.array(m_t - eps))))
         pdf_above = float(jnp.exp(imf.logpdf(jnp.array(m_t + eps))))
         rel_diff = abs(pdf_below - pdf_above) / pdf_below
-        assert rel_diff < 1e-3, \
+        assert rel_diff < 1e-3, (
             f"PDF jump at m_trans={m_t}: {pdf_below:.6f} vs {pdf_above:.6f} (rel {rel_diff:.2e})"
+        )
 
     def test_chabrier_mean_mass_reasonable(self, key):
         """Chabrier mean mass is in reasonable range for mass limits."""
@@ -178,15 +190,15 @@ class TestChabrierParameters:
         # For the Chabrier (2003) Table 1 single-object disk IMF (log10-based
         # lognormal + α=2.3 tail), the mean over [0.08, 100] M_sun is ~0.4-0.8 M_sun
         # (the correct Jacobian factor 1/(m ln 10) is included).
-        assert 0.40 < mean < 0.80, \
+        assert 0.40 < mean < 0.80, (
             f"Chabrier mean mass = {mean:.3f} M_sun (expected 0.40-0.80)"
+        )
 
         # Verify sample mean matches
         masses = imf.sample(key, 10000)
         sample_mean = float(jnp.mean(masses))
         rel_error = abs(sample_mean - mean) / mean
-        assert rel_error < 0.15, \
-            f"Sample mean {sample_mean:.3f} vs computed {mean:.3f}"
+        assert rel_error < 0.15, f"Sample mean {sample_mean:.3f} vs computed {mean:.3f}"
 
 
 class TestIMFLowMassTurnover:
@@ -206,8 +218,9 @@ class TestIMFLowMassTurnover:
         low_mass_frac = float(jnp.mean(masses < 0.08))
 
         # Should have significant fraction below 0.08 M_sun due to shallow slope
-        assert low_mass_frac > 0.10, \
-            f"Only {low_mass_frac*100:.1f}% below 0.08 M_sun (expected >10%)"
+        assert low_mass_frac > 0.10, (
+            f"Only {low_mass_frac * 100:.1f}% below 0.08 M_sun (expected >10%)"
+        )
 
     def test_chabrier_lognormal_peak(self, key):
         """Chabrier has peak near m_c = 0.08 M_sun."""
@@ -222,8 +235,7 @@ class TestIMFLowMassTurnover:
         m_peak = float(m_grid[max_idx])
 
         # Peak should be between 0.1 and 0.3 M_sun (lognormal peak + normalization)
-        assert 0.05 < m_peak < 0.4, \
-            f"Chabrier PDF peak at {m_peak:.3f} M_sun"
+        assert 0.05 < m_peak < 0.4, f"Chabrier PDF peak at {m_peak:.3f} M_sun"
 
 
 class TestMaschbergerProperties:
@@ -246,8 +258,9 @@ class TestMaschbergerProperties:
         measured_alpha = -jnp.log(pdf2 / pdf1) / jnp.log(m2 / m1)
 
         # Should be close to 2.3 (Maschberger alpha parameter)
-        assert abs(float(measured_alpha) - 2.3) < 0.1, \
+        assert abs(float(measured_alpha) - 2.3) < 0.1, (
             f"Maschberger high-mass slope = {float(measured_alpha):.3f}, expected ~2.3"
+        )
 
 
 class TestIMFMassiveStars:
@@ -262,8 +275,9 @@ class TestIMFMassiveStars:
 
         # For Salpeter with m_min=0.1, alpha=2.35: ~0.2-0.5% above 8 M_sun
         # This is small because most stars are low-mass (power-law with alpha > 2)
-        assert 0.001 < massive_frac < 0.01, \
-            f"Massive star fraction = {massive_frac*100:.3f}% (expected 0.1-1%)"
+        assert 0.001 < massive_frac < 0.01, (
+            f"Massive star fraction = {massive_frac * 100:.3f}% (expected 0.1-1%)"
+        )
 
     def test_few_very_massive(self, key):
         """Very few stars above 50 M_sun."""
@@ -273,13 +287,18 @@ class TestIMFMassiveStars:
         very_massive_frac = float(jnp.mean(masses > 50.0))
 
         # Should be very rare (< 0.1%)
-        assert very_massive_frac < 0.002, \
-            f"Very massive (>50 M_sun) fraction = {very_massive_frac*100:.3f}% (expected <0.2%)"
+        assert very_massive_frac < 0.002, (
+            f"Very massive (>50 M_sun) fraction = {very_massive_frac * 100:.3f}% (expected <0.2%)"
+        )
 
     def test_massive_more_common_with_lower_alpha(self, key):
         """Shallower slope produces more massive stars."""
-        imf_steep = PowerLawIMF(exponents=[2.35], breakpoints=[], m_min=0.1, m_max=100.0)
-        imf_shallow = PowerLawIMF(exponents=[1.5], breakpoints=[], m_min=0.1, m_max=100.0)
+        imf_steep = PowerLawIMF(
+            exponents=[2.35], breakpoints=[], m_min=0.1, m_max=100.0
+        )
+        imf_shallow = PowerLawIMF(
+            exponents=[1.5], breakpoints=[], m_min=0.1, m_max=100.0
+        )
 
         masses_steep = imf_steep.sample(key, 50000)
         masses_shallow = imf_shallow.sample(key, 50000)
@@ -287,8 +306,9 @@ class TestIMFMassiveStars:
         frac_steep = float(jnp.mean(masses_steep > 5.0))
         frac_shallow = float(jnp.mean(masses_shallow > 5.0))
 
-        assert frac_shallow > frac_steep, \
-            f"Shallower slope should produce more massive stars: {frac_shallow*100:.2f}% vs {frac_steep*100:.2f}%"
+        assert frac_shallow > frac_steep, (
+            f"Shallower slope should produce more massive stars: {frac_shallow * 100:.2f}% vs {frac_steep * 100:.2f}%"
+        )
 
 
 # IMF-sampler differentiability is owned by the grad-audit registry
@@ -335,8 +355,9 @@ class TestMeanMassAccuracy:
         ref = self._fine_loggrid_mean(imf)
         got = float(imf.mean_mass())
         rel = abs(got - ref) / ref
-        assert rel < 0.01, \
+        assert rel < 0.01, (
             f"{type(imf).__name__}.mean_mass()={got:.5f} vs fine-grid {ref:.5f} (rel {rel:.2%})"
+        )
 
 
 if __name__ == "__main__":

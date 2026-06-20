@@ -35,9 +35,18 @@ def _ic(n=600, Q_target=0.5, beta=3.5, key=0):
 
     return build_cluster_ic(
         masses,
-        mach=8.0, b=0.5, alpha=1.8, beta=beta,
-        profile=_profile(), beta_v=4.0, Q_target=Q_target, f_sub=0.3,
-        shape=SHAPE, box_size=BOX, G=STELLAR.G, key=jax.random.PRNGKey(key),
+        mach=8.0,
+        b=0.5,
+        alpha=1.8,
+        beta=beta,
+        profile=_profile(),
+        beta_v=4.0,
+        Q_target=Q_target,
+        f_sub=0.3,
+        shape=SHAPE,
+        box_size=BOX,
+        G=STELLAR.G,
+        key=jax.random.PRNGKey(key),
     )
 
 
@@ -61,17 +70,21 @@ def test_build_cluster_ic_is_spherical_and_concentrated():
     ic = _ic(n=3000)
     pos = np.asarray(ic.positions)
     com = pos.mean(axis=0)
-    assert np.allclose(com, 0.0, atol=0.15)               # COM-centered
+    assert np.allclose(com, 0.0, atol=0.15)  # COM-centered
     med_r = float(np.median(np.linalg.norm(pos - com, axis=1)))
     # uniform-box baseline (same centered box) for an honest comparison
-    u = np.asarray(jax.random.uniform(jax.random.PRNGKey(99), (20000, 3))) * BOX - BOX / 2
+    u = (
+        np.asarray(jax.random.uniform(jax.random.PRNGKey(99), (20000, 3))) * BOX
+        - BOX / 2
+    )
     med_r_uniform = float(np.median(np.linalg.norm(u, axis=1)))
-    assert med_r < 0.78 * med_r_uniform                   # clearly concentrated (worst seed ≈0.62)
+    assert med_r < 0.78 * med_r_uniform  # clearly concentrated (worst seed ≈0.62)
 
 
 def test_build_cluster_ic_achieves_target_Q():
     """Realized virial ratio Q = T/|V| matches the target (velocities + virial scaling wired)."""
     from jaxstro.units import STELLAR
+
     from progenax import compute_kinetic_energy, compute_potential_energy
 
     ic = _ic(n=600, Q_target=0.5)
@@ -79,7 +92,7 @@ def test_build_cluster_ic_achieves_target_Q():
     V = compute_potential_energy(ic.positions, ic.masses, G=STELLAR.G)
     Q = float(T / jnp.abs(V))
     assert abs(Q - 0.5) < 1e-2
-    assert abs(float(ic.Q) - 0.5) < 1e-2                  # reported Q matches
+    assert abs(float(ic.Q) - 0.5) < 1e-2  # reported Q matches
 
 
 def test_build_cluster_ic_carries_field_for_diagnostics():

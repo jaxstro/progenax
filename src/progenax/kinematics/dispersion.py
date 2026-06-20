@@ -52,10 +52,9 @@ roadmap in ``docs/plans/2026-06-15-oed-dispersion-arc-design.md``.
 from typing import NamedTuple, Optional
 
 import jax
+import jax.core
 import jax.numpy as jnp
 from jaxtyping import Array, Float
-
-import jax.core
 
 from progenax.numerics import cumulative_trapz
 
@@ -103,15 +102,23 @@ def _pchip_interp(xq, x, y):
     w2 = h[1:] + 2.0 * h[:-1]
     dprev, dnext = d[:-1], d[1:]
     same = dprev * dnext > 0.0
-    denom = w1 / jnp.where(dprev == 0.0, 1.0, dprev) + w2 / jnp.where(dnext == 0.0, 1.0, dnext)
+    denom = w1 / jnp.where(dprev == 0.0, 1.0, dprev) + w2 / jnp.where(
+        dnext == 0.0, 1.0, dnext
+    )
     m_int = jnp.where(same, (w1 + w2) / jnp.where(same, denom, 1.0), 0.0)
     m = jnp.concatenate([d[:1], m_int, d[-1:]])  # one-sided endpoint slopes
     # Hermite evaluation on the bracketing interval
     idx = jnp.clip(jnp.searchsorted(x, xq, side="right") - 1, 0, n - 2)
-    x0 = x[idx]; x1 = x[idx + 1]; y0 = y[idx]; y1 = y[idx + 1]; m0 = m[idx]; m1 = m[idx + 1]
+    x0 = x[idx]
+    x1 = x[idx + 1]
+    y0 = y[idx]
+    y1 = y[idx + 1]
+    m0 = m[idx]
+    m1 = m[idx + 1]
     hh = x1 - x0
     t = (xq - x0) / hh
-    t2 = t * t; t3 = t2 * t
+    t2 = t * t
+    t3 = t2 * t
     h00 = 2.0 * t3 - 3.0 * t2 + 1.0
     h10 = t3 - 2.0 * t2 + t
     h01 = -2.0 * t3 + 3.0 * t2
@@ -420,8 +427,8 @@ def ftable_sigma_r_isotropic(
     s = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_safe), n_s)
     f_at = jnp.interp(Psi_r - s**2 / 2.0, E_grid, f_grid)
     p = jnp.maximum(s**2 * f_at, 0.0)  # speed pdf (unnormalised)
-    num = jnp.trapezoid(s**2 * p, s)   # int s^2 p(s) ds
-    den = jnp.trapezoid(p, s)          # int p(s) ds (normalisation)
+    num = jnp.trapezoid(s**2 * p, s)  # int s^2 p(s) ds
+    den = jnp.trapezoid(p, s)  # int p(s) ds (normalisation)
     s2_mean = num / jnp.maximum(den, 1e-30)
     return s2_mean / 3.0
 
@@ -549,7 +556,9 @@ def jeans_dispersion(
     # sigma_r^2 at the query radii. Bit-identical to the old inlined
     # rho/M_enc/s -> I_outward path — same grid, integrand, I_outward,
     # prefactor, and interpolation, just factored into reusable helpers.
-    s, rho, I_outward, F_shifted = _jeans_tables(profile, r_a, M, G, n_s, beta_fn=beta_fn)
+    s, rho, I_outward, F_shifted = _jeans_tables(
+        profile, r_a, M, G, n_s, beta_fn=beta_fn
+    )
     sigma_r2 = jnp.maximum(
         _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=F_shifted), 0.0
     )
@@ -792,7 +801,9 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
     # to the old per-R jeans_dispersion(...).sigma_r**2 path. The master Jeans
     # grid uses jeans_dispersion's own default n_s (4000) — independent of the
     # u-quadrature resolution n_u, exactly as the old per-R call did.
-    s, rho_tab, I_outward, _F_shifted = _jeans_tables(profile, r_a, M, G, _JEANS_N_S_DEFAULT)
+    s, rho_tab, I_outward, _F_shifted = _jeans_tables(
+        profile, r_a, M, G, _JEANS_N_S_DEFAULT
+    )
 
     if r_a is None:
         r_a2 = None
@@ -826,7 +837,9 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         # sigma_r^2/beta straight from the master Jeans tables (interpolated),
         # NOT a fresh per-R re-solve.
         rho = profile.density(r)
-        sigma_r2 = jnp.maximum(_sigma_r2_from_tables(r, s, rho_tab, I_outward, r_a), 0.0)
+        sigma_r2 = jnp.maximum(
+            _sigma_r2_from_tables(r, s, rho_tab, I_outward, r_a), 0.0
+        )
         if r_a is None:
             beta = jnp.zeros_like(r)
         else:
@@ -843,7 +856,9 @@ def project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> ProjectedDispe
         # uniform-u quadrature.
         Sigma = 2.0 * jnp.trapezoid(rho * jac, grid)
         S_los = 2.0 * jnp.trapezoid((1.0 - beta * ratio) * w * jac, grid)  # B&M82 Eq. 7
-        S_pmr = 2.0 * jnp.trapezoid((1.0 - beta + beta * ratio) * w * jac, grid)  # Strigari+2007 Eq. 2
+        S_pmr = 2.0 * jnp.trapezoid(
+            (1.0 - beta + beta * ratio) * w * jac, grid
+        )  # Strigari+2007 Eq. 2
         S_pmt = 2.0 * jnp.trapezoid((1.0 - beta) * w * jac, grid)  # Strigari+2007 Eq. 3
         return Sigma, S_los, S_pmr, S_pmt
 

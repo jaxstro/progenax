@@ -116,9 +116,11 @@ def test_mass_conserving_differentiable_in_alpha():
     from gravoturb_fdf.field.field import mass_conserving_copula_field
 
     g = jax.random.normal(jax.random.PRNGKey(13), (4096,))
-    grad = float(jax.grad(
-        lambda a: jnp.mean(mass_conserving_copula_field(g, 8.0, 0.5, a) ** 2)
-    )(1.8))
+    grad = float(
+        jax.grad(lambda a: jnp.mean(mass_conserving_copula_field(g, 8.0, 0.5, a) ** 2))(
+            1.8
+        )
+    )
     assert jnp.isfinite(grad)
 
 

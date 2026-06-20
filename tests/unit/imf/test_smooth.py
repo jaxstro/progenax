@@ -12,7 +12,6 @@ These assert real behavior:
 
 import jax
 import jax.numpy as jnp
-import pytest
 
 from progenax.imf.smooth import (
     Maschberger,
@@ -20,7 +19,6 @@ from progenax.imf.smooth import (
     TaperedPowerLaw,
     _shared_grid_cdf_unnorm,
 )
-
 
 # =============================================================================
 # Shared-grid cumulative CDF helper
@@ -48,21 +46,28 @@ class TestSharedGridCdfUnnorm:
 
     def test_boundaries(self):
         """m <= m_min -> 0; m >= m_max -> the full integral; monotone throughout."""
+
         def log_pdf(m):
             return -2.3 * jnp.log(m + 1e-30)
 
-        assert float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(0.005), 0.01, 100.0)) == 0.0
+        assert (
+            float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(0.005), 0.01, 100.0))
+            == 0.0
+        )
         full = float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(100.0), 0.01, 100.0))
         beyond = float(_shared_grid_cdf_unnorm(log_pdf, jnp.array(200.0), 0.01, 100.0))
         assert beyond == full and full > 0.0
 
     def test_shape_preserved(self):
         """jnp.interp preserves arbitrary query shape (scalar, 1-D, 2-D)."""
+
         def log_pdf(m):
             return -2.3 * jnp.log(m + 1e-30)
 
         assert _shared_grid_cdf_unnorm(log_pdf, jnp.array(1.0), 0.01, 100.0).ndim == 0
-        assert _shared_grid_cdf_unnorm(log_pdf, jnp.ones((4, 3)), 0.01, 100.0).shape == (4, 3)
+        assert _shared_grid_cdf_unnorm(
+            log_pdf, jnp.ones((4, 3)), 0.01, 100.0
+        ).shape == (4, 3)
 
     def test_grad_flows_through_ppf(self):
         """The shared-grid CDF (cumsum + interp) keeps ppf differentiable in the IMF
@@ -159,9 +164,7 @@ class TestTaperedPowerLaw:
         assert jnp.all(m >= imf.m_min - 1e-6)
         assert jnp.all(m <= imf.m_max + 1e-6)
         u_round = imf.cdf(m)
-        assert jnp.allclose(u_round, u, atol=1e-3), (
-            f"cdf(ppf(u)) != u: {u_round}"
-        )
+        assert jnp.allclose(u_round, u, atol=1e-3), f"cdf(ppf(u)) != u: {u_round}"
 
 
 # =============================================================================

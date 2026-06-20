@@ -74,6 +74,7 @@ wall ~32 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_binary_energy_budget.py
 """
+
 import os
 import sys
 
@@ -84,6 +85,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import (
     EFFProfile,
     EFFVelocityDF,
@@ -110,7 +112,7 @@ OUTPUT_DIR = "validation/plots"
 G = STELLAR.G  # pc^3 Msun^-1 Myr^-2 -> lengths pc, masses Msun, velocities pc/Myr
 
 # --- cluster + population configuration ------------------------------------- #
-N_SYSTEMS = 2000          # system COMs (resolved stars up to ~2N at f_b=1)
+N_SYSTEMS = 2000  # system COMs (resolved stars up to ~2N at f_b=1)
 SEED = 0
 
 # EFF young-cluster profile (extended power-law halo; gamma ~ 2.5 is YMC-typical).
@@ -125,7 +127,7 @@ ECC_DIST = ThermalEccentricity()
 
 # Hardness sweep (EFF, f_b=0.5): log10(P/day) band centres, hard -> soft.
 LOGP_CENTERS = [1.5, 2.5, 3.5, 4.5, 5.5]
-LOGP_BAND = 0.25          # half-width of the log-uniform period band [dex]
+LOGP_BAND = 0.25  # half-width of the log-uniform period band [dex]
 HARDNESS_FB = 0.5
 
 # Binary-fraction sweep (EFF, fixed broad Opik period band).
@@ -133,13 +135,14 @@ FB_VALUES = [0.1, 0.3, 0.5, 0.7, 1.0]
 FB_SWEEP_PERIOD = LogUniformPeriod(log_P_min=1.5, log_P_max=5.5)
 
 # Gate tolerances.
-Q_COM_TOL = 1.0e-2        # |Q_com - 0.5|
+Q_COM_TOL = 1.0e-2  # |Q_com - 0.5|
 NSIG_POISSON = 3.0
 
 
 def _eff():
-    return EFFProfile(a=EFF_A, gamma=EFF_GAMMA, r_t=EFF_RT), \
-        EFFVelocityDF(a=EFF_A, gamma=EFF_GAMMA, r_t=EFF_RT)
+    return EFFProfile(a=EFF_A, gamma=EFF_GAMMA, r_t=EFF_RT), EFFVelocityDF(
+        a=EFF_A, gamma=EFF_GAMMA, r_t=EFF_RT
+    )
 
 
 def _king():
@@ -205,8 +208,9 @@ def fb_sweep():
     prof, df = _eff()
     out = []
     for i, fb in enumerate(FB_VALUES):
-        ic = _build(prof, df, _indep(fb, FB_SWEEP_PERIOD),
-                    jax.random.PRNGKey(SEED + 100 + i))
+        ic = _build(
+            prof, df, _indep(fb, FB_SWEEP_PERIOD), jax.random.PRNGKey(SEED + 100 + i)
+        )
         out.append((fb, _budget(ic)))
     return out
 
@@ -219,8 +223,10 @@ def environment_point():
     king_prof, king_df = _king()
     ic_eff = _build(eff_prof, eff_df, moe, key)
     ic_king = _build(king_prof, king_df, moe, key)
-    return (_budget(ic_eff), _half_mass_radius(ic_eff)), \
-        (_budget(ic_king), _half_mass_radius(ic_king))
+    return (_budget(ic_eff), _half_mass_radius(ic_eff)), (
+        _budget(ic_king),
+        _half_mass_radius(ic_king),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -273,12 +279,25 @@ def make_sweep_figure(hardness, fbs, moe_eff):
 
     # (d) f_b: reservoir fraction.
     ax = axes[1, 1]
-    ax.semilogy(fb, ratio_f, "o-", color=OI["orange"], label=r"$|E_{\rm internal}|/|W_{\rm com}|$")
+    ax.semilogy(
+        fb,
+        ratio_f,
+        "o-",
+        color=OI["orange"],
+        label=r"$|E_{\rm internal}|/|W_{\rm com}|$",
+    )
     # Moe reference point (its realized f_b).
     moe_fb = moe_eff.n_binaries / N_SYSTEMS
     moe_ratio = abs(float(moe_eff.E_internal)) / abs(float(moe_eff.W_com))
-    ax.scatter([moe_fb], [moe_ratio], marker="*", s=90, color=OI["black"], zorder=5,
-               label=r"Moe \& Di Stefano (2017)")
+    ax.scatter(
+        [moe_fb],
+        [moe_ratio],
+        marker="*",
+        s=90,
+        color=OI["black"],
+        zorder=5,
+        label=r"Moe \& Di Stefano (2017)",
+    )
     ax.set_xlabel(r"binary fraction $f_b$")
     ax.set_ylabel(r"reservoir fraction")
     ax.legend()
@@ -294,8 +313,10 @@ def make_environment_figure(eff, king):
     (b_eff, rh_eff), (b_king, rh_king) = eff, king
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.1))
     x = np.arange(2)
-    labels = [f"EFF (young)\n$r_h={rh_eff:.2f}$ pc",
-              f"King $W_0=7$ (GC)\n$r_h={rh_king:.2f}$ pc"]
+    labels = [
+        f"EFF (young)\n$r_h={rh_eff:.2f}$ pc",
+        f"King $W_0=7$ (GC)\n$r_h={rh_king:.2f}$ pc",
+    ]
 
     # (a) the two energy scales; E_internal is identical (same key), W_com differs.
     ax = axes[0]
@@ -332,33 +353,47 @@ def main():
     print("(units: STELLAR -- lengths pc, masses Msun, velocities pc/Myr)")
     print("=" * 78)
 
-    print(f"\n  EFF young cluster: a={EFF_A}, gamma={EFF_GAMMA}, r_t={EFF_RT} pc; "
-          f"N_systems={N_SYSTEMS}")
-    print(f"  Maschberger IMF alpha=2.3 [{PRIMARY_IMF.m_min}, {PRIMARY_IMF.m_max}] Msun\n")
+    print(
+        f"\n  EFF young cluster: a={EFF_A}, gamma={EFF_GAMMA}, r_t={EFF_RT} pc; "
+        f"N_systems={N_SYSTEMS}"
+    )
+    print(
+        f"  Maschberger IMF alpha=2.3 [{PRIMARY_IMF.m_min}, {PRIMARY_IMF.m_max}] Msun\n"
+    )
 
     hardness = hardness_sweep()
     print("  HARDNESS sweep (EFF, f_b=0.5):")
-    print(f"  {'logP':>6s} {'Q_com':>9s} {'Q_res':>9s} {'|E_int|':>11s} "
-          f"{'|W_com|':>11s} {'n_bin':>6s}")
+    print(
+        f"  {'logP':>6s} {'Q_com':>9s} {'Q_res':>9s} {'|E_int|':>11s} "
+        f"{'|W_com|':>11s} {'n_bin':>6s}"
+    )
     for c, b in zip(LOGP_CENTERS, hardness):
-        print(f"  {c:>6.2f} {float(b.Q_com):>9.4f} {float(b.Q_resolved):>9.4f} "
-              f"{abs(float(b.E_internal)):>11.3e} {abs(float(b.W_com)):>11.3e} "
-              f"{b.n_binaries:>6d}")
+        print(
+            f"  {c:>6.2f} {float(b.Q_com):>9.4f} {float(b.Q_resolved):>9.4f} "
+            f"{abs(float(b.E_internal)):>11.3e} {abs(float(b.W_com)):>11.3e} "
+            f"{b.n_binaries:>6d}"
+        )
 
     fbs = fb_sweep()
     print("\n  BINARY-FRACTION sweep (EFF, broad period band):")
     print(f"  {'f_b':>6s} {'Q_com':>9s} {'Q_res':>9s} {'ratio':>11s} {'n_bin':>6s}")
     for fb, b in fbs:
         ratio = abs(float(b.E_internal)) / abs(float(b.W_com))
-        print(f"  {fb:>6.2f} {float(b.Q_com):>9.4f} {float(b.Q_resolved):>9.4f} "
-              f"{ratio:>11.3e} {b.n_binaries:>6d}")
+        print(
+            f"  {fb:>6.2f} {float(b.Q_com):>9.4f} {float(b.Q_resolved):>9.4f} "
+            f"{ratio:>11.3e} {b.n_binaries:>6d}"
+        )
 
     (b_eff, rh_eff), (b_king, rh_king) = environment_point()
     print("\n  ENVIRONMENT (same Moe population, same key):")
-    print(f"    EFF  : r_h={rh_eff:.3f} pc  |E_int|={abs(float(b_eff.E_internal)):.3e} "
-          f" |W_com|={abs(float(b_eff.W_com)):.3e}  n_bin={b_eff.n_binaries}")
-    print(f"    King : r_h={rh_king:.3f} pc  |E_int|={abs(float(b_king.E_internal)):.3e} "
-          f" |W_com|={abs(float(b_king.W_com)):.3e}  n_bin={b_king.n_binaries}")
+    print(
+        f"    EFF  : r_h={rh_eff:.3f} pc  |E_int|={abs(float(b_eff.E_internal)):.3e} "
+        f" |W_com|={abs(float(b_eff.W_com)):.3e}  n_bin={b_eff.n_binaries}"
+    )
+    print(
+        f"    King : r_h={rh_king:.3f} pc  |E_int|={abs(float(b_king.E_internal)):.3e} "
+        f" |W_com|={abs(float(b_king.W_com)):.3e}  n_bin={b_king.n_binaries}"
+    )
 
     make_sweep_figure(hardness, fbs, b_eff)
     env_ratio = make_environment_figure((b_eff, rh_eff), (b_king, rh_king))
@@ -380,33 +415,54 @@ def main():
     # hard binary's internal virial is itself ~0.5 (time-averaged), so at random
     # orbital PHASES the resolved ratio scatters around 0.5 rather than deflating
     # monotonically; it is reported as a contaminated diagnostic (!= Q_com).
-    reservoir_ratios = [abs(float(b.E_internal)) / abs(float(b.W_com))
-                        for b in all_budgets]
+    reservoir_ratios = [
+        abs(float(b.E_internal)) / abs(float(b.W_com)) for b in all_budgets
+    ]
     reservoir_ok = all(rr > 1.0 for rr in reservoir_ratios)
     qres_contam = max(abs(float(b.Q_resolved) - float(b.Q_com)) for b in all_budgets)
 
     # environment: identical E_internal (same key) and larger reservoir in EFF.
-    e_identical = abs(float(b_eff.E_internal) - float(b_king.E_internal)) <= \
-        1e-6 * abs(float(b_eff.E_internal))
+    e_identical = abs(float(b_eff.E_internal) - float(b_king.E_internal)) <= 1e-6 * abs(
+        float(b_eff.E_internal)
+    )
     env_ok = env_ratio[0] > env_ratio[1]
 
-    print(f"\n  diagnostic: max |Q_resolved - Q_com| = {qres_contam:.3f}  "
-          f"(contaminated; Q_resolved is NOT the cluster's virial ratio)")
-    print(f"  diagnostic: reservoir ratio |E_int|/|W_com| in "
-          f"[{min(reservoir_ratios):.1f}, {max(reservoir_ratios):.1f}]")
+    print(
+        f"\n  diagnostic: max |Q_resolved - Q_com| = {qres_contam:.3f}  "
+        f"(contaminated; Q_resolved is NOT the cluster's virial ratio)"
+    )
+    print(
+        f"  diagnostic: reservoir ratio |E_int|/|W_com| in "
+        f"[{min(reservoir_ratios):.1f}, {max(reservoir_ratios):.1f}]"
+    )
 
     rows = [
-        ("Q_com ~ 0.5 (all points)", "PASS" if q_com_ok else "FAIL",
-         f"< {Q_COM_TOL}", q_com_ok),
+        (
+            "Q_com ~ 0.5 (all points)",
+            "PASS" if q_com_ok else "FAIL",
+            f"< {Q_COM_TOL}",
+            q_com_ok,
+        ),
         ("E_internal < 0 (all bound)", "PASS" if bound_ok else "FAIL", "< 0", bound_ok),
-        ("realized f_b ~ set f_b", "PASS" if fb_ok else "FAIL",
-         f"{NSIG_POISSON:.0f}sigma Poisson", fb_ok),
-        ("|E_internal| > |W_com| (all)", "PASS" if reservoir_ok else "FAIL",
-         "reservoir", reservoir_ok),
-        ("E_int(EFF)==E_int(King) @key", "PASS" if e_identical else "FAIL",
-         "controlled", e_identical),
-        ("reservoir EFF > King", "PASS" if env_ok else "FAIL",
-         "environment", env_ok),
+        (
+            "realized f_b ~ set f_b",
+            "PASS" if fb_ok else "FAIL",
+            f"{NSIG_POISSON:.0f}sigma Poisson",
+            fb_ok,
+        ),
+        (
+            "|E_internal| > |W_com| (all)",
+            "PASS" if reservoir_ok else "FAIL",
+            "reservoir",
+            reservoir_ok,
+        ),
+        (
+            "E_int(EFF)==E_int(King) @key",
+            "PASS" if e_identical else "FAIL",
+            "controlled",
+            e_identical,
+        ),
+        ("reservoir EFF > King", "PASS" if env_ok else "FAIL", "environment", env_ok),
     ]
 
     print("\n" + "-" * 78)
@@ -417,10 +473,15 @@ def main():
         all_ok &= ok
         print(f"  {name:<34s} {status:>6s} {gate:>18s}")
     print("-" * 78)
-    print(f"  saved {OUTPUT_DIR}/demo_binary_energy_budget{{,_environment}}.{{png,pdf}}")
+    print(
+        f"  saved {OUTPUT_DIR}/demo_binary_energy_budget{{,_environment}}.{{png,pdf}}"
+    )
     print("=" * 78)
-    print("  BINARY ENERGY BUDGET DEMO: ALL PASS" if all_ok
-          else "  BINARY ENERGY BUDGET DEMO: FAILED")
+    print(
+        "  BINARY ENERGY BUDGET DEMO: ALL PASS"
+        if all_ok
+        else "  BINARY ENERGY BUDGET DEMO: FAILED"
+    )
     return 0 if all_ok else 1
 
 

@@ -49,7 +49,8 @@ def michie_density(W, s, n_u: int = _N_U):
     arg = 2.0 * W_pos - u_t**2
     a = jnp.where(arg > 0.0, jnp.sqrt(jnp.where(arg > 0.0, arg, 1.0)), 0.0)
     inner = (
-        jnp.exp(W_pos - u_t**2 / 2.0) * jnp.sqrt(2.0 * jnp.pi)
+        jnp.exp(W_pos - u_t**2 / 2.0)
+        * jnp.sqrt(2.0 * jnp.pi)
         * jax.scipy.special.erf(a / jnp.sqrt(2.0))
         - 2.0 * a
     )
@@ -79,7 +80,10 @@ def _michie_poisson_rhs(xi, y, args):
 
 
 def solve_michie_profile(
-    W0: float, ra_hat: float, xi_max: float = 800.0, n_points: int = 3000,
+    W0: float,
+    ra_hat: float,
+    xi_max: float = 800.0,
+    n_points: int = 3000,
 ):
     """Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
 
@@ -214,10 +218,12 @@ class MichieProfile(eqx.Module):
 
         # Non-uniform trapezoid: variable spacing -> weight by diff(r_grid).
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
-        M_cum = jnp.concatenate([
-            jnp.zeros(1, dtype=integrand.dtype),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
-        ])
+        M_cum = jnp.concatenate(
+            [
+                jnp.zeros(1, dtype=integrand.dtype),
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
+            ]
+        )
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
 
         object.__setattr__(self, "W0", W0_a)
@@ -231,8 +237,13 @@ class MichieProfile(eqx.Module):
 
     @classmethod
     def from_W0_rc(
-        cls, W0: float, r_c: float, r_a: float,
-        xi_max: float = 800.0, n_ode_points: int = 3000, n_grid: int = 1000,
+        cls,
+        W0: float,
+        r_c: float,
+        r_a: float,
+        xi_max: float = 800.0,
+        n_ode_points: int = 3000,
+        n_grid: int = 1000,
     ) -> "MichieProfile":
         """Construct a self-consistent Michie-King profile from (W0, r_c, r_a).
 
@@ -331,9 +342,14 @@ class MichieProfile(eqx.Module):
             at r_t is a smooth-elsewhere step; cf. the gradient notes on the King/Michie
             equilibrium-solver profiles in ``kinematics/dispersion.py``).
         """
-        psi = jnp.interp(r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0)
+        psi = jnp.interp(
+            r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0
+        )
         rho0 = michie_density(self.W0, 0.0)
-        rho = _michie_density_vec(jnp.atleast_1d(psi), jnp.atleast_1d(r / self.r_a)) / rho0
+        rho = (
+            _michie_density_vec(jnp.atleast_1d(psi), jnp.atleast_1d(r / self.r_a))
+            / rho0
+        )
         rho = jnp.reshape(rho, jnp.shape(r))
         return jnp.where(r <= self.r_t, rho, 0.0)
 

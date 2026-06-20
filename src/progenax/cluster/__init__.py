@@ -29,29 +29,28 @@ References:
     Baumgardt, De Marchi & Kroupa (2008), ApJ 685, 247
 """
 
-from progenax.cluster.mass_segregation import energy_sorted_segregation
-from progenax.cluster.multicomponent import MultiComponentCluster
-
 # Physical constants
 from progenax.cluster.constants import (
-    G_KMS,
-    C_S_DEFAULT,
-    B_DEFAULT,
-    BETA_KOLMOGOROV,
-    BETA_BURGERS,
-    SIGMA_V0_DEFAULT,
     ALPHA_LARSON,
+    B_DEFAULT,
+    BETA_BURGERS,
+    BETA_KOLMOGOROV,
+    C_S_DEFAULT,
+    G_KMS,
+    SIGMA_V0_DEFAULT,
 )
+from progenax.cluster.mass_segregation import energy_sorted_segregation
+from progenax.cluster.multicomponent import MultiComponentCluster
 
 # Turbulence physics (stays in core; used by the environment-dependent IMF —
 # BirthEnvironment / env_to_imf_params, NOT a phantom "EnvironmentIMF" class)
 from progenax.cluster.turbulence import (
-    sigma_ln_rho_from_mach,
-    spectral_slope_from_mach,
+    b_from_environment,
     cloud_radius_from_density,
     larson_sigma_v,
+    sigma_ln_rho_from_mach,
+    spectral_slope_from_mach,
     turbulent_mach_from_cloud,
-    b_from_environment,
 )
 
 __all__ = [

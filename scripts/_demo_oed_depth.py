@@ -27,27 +27,27 @@ ENDPOINTS move with ``m_lim`` -- no boolean-mask cuts), so the AD ``m_lim`` grad
 AD-vs-FD gate depends on flows cleanly. Reverse-mode only (``jacrev``/``grad``); forward-mode is
 banned through ``project_dispersion``'s ``custom_vjp`` (inherited from the Stage-1 core).
 """
+
 import math
 from typing import NamedTuple
 
+import _demo_oed as oed
+import _demo_selection as sel
 import jax
 import jax.numpy as jnp
 import optax
-
 from jaxstro.units import STELLAR
+
 from progenax import ChabrierIMF
 
-import _demo_oed as oed
-import _demo_selection as sel
-
 # --- Selection constants (single cluster distance; bolometric magnitudes, no band/BC/extinction) ---
-D_PC = oed.MOCK["d_kpc"] * 1000.0      # cluster distance: 4 kpc -> 4000 pc
-M_MAX = 100.0                          # IMF upper mass [M_sun]
+D_PC = oed.MOCK["d_kpc"] * 1000.0  # cluster distance: 4 kpc -> 4000 pc
+M_MAX = 100.0  # IMF upper mass [M_sun]
 _IMF = ChabrierIMF(m_min=0.08, m_max=M_MAX)
 
 # Per-channel Stage-1 errors (pc/Myr): [RV, PM_R, PM_T]. These are the errors AT the reference
 # apparent magnitude M_REF; fainter stars are noisier via sel.photon_noise_error (Stage-1 tie-back).
-EPS0 = oed.EPS                         # (3,) [pc/Myr]
+EPS0 = oed.EPS  # (3,) [pc/Myr]
 
 # Reference apparent magnitude: a BRIGHT reference star near the top of the present-day mass function
 # -- a 5 M_sun star at the cluster distance. Rationale: anchor the per-star error at a well-measured
@@ -88,16 +88,16 @@ def _n_field_bins():
     bins are relatively star-poor, with N_FIELD_BINS[0] > N_FIELD_BINS[-1] (outskirts starved -- the
     physics that makes depth a real trade for M_dyn's radial leverage in the outer bins).
     """
-    R = oed.R_BINS                                              # (K,) on-sky bin centres
-    a = oed.MOCK["r_h"] * jnp.sqrt(2.0 ** (2.0 / 3.0) - 1.0)    # Plummer scale radius
-    edges = oed._r_bin_edges()                                  # (K+1,) geometric-mean edges
-    area = edges[1:] ** 2 - edges[:-1] ** 2                     # (K,) annular area (drop the 2pi)
-    sigma = a ** 2 / (a ** 2 + R ** 2) ** 2                     # projected Plummer surface density (shape)
-    pool = sigma * area                                         # per-bin intrinsic count (shape)
-    return N_FIELD * pool / jnp.sum(pool)                       # normalise to N_FIELD
+    R = oed.R_BINS  # (K,) on-sky bin centres
+    a = oed.MOCK["r_h"] * jnp.sqrt(2.0 ** (2.0 / 3.0) - 1.0)  # Plummer scale radius
+    edges = oed._r_bin_edges()  # (K+1,) geometric-mean edges
+    area = edges[1:] ** 2 - edges[:-1] ** 2  # (K,) annular area (drop the 2pi)
+    sigma = a**2 / (a**2 + R**2) ** 2  # projected Plummer surface density (shape)
+    pool = sigma * area  # per-bin intrinsic count (shape)
+    return N_FIELD * pool / jnp.sum(pool)  # normalise to N_FIELD
 
 
-N_FIELD_BINS = _n_field_bins()                                 # (K,) module constant
+N_FIELD_BINS = _n_field_bins()  # (K,) module constant
 
 # The per-star Jacobian J = d sigma_pred / d ln theta (3,K,3) and sigma (3,K), evaluated at the FIXED
 # fiducial theta. These are the single expensive computation in the whole Stage-2 layer: jacrev through
@@ -107,7 +107,9 @@ N_FIELD_BINS = _n_field_bins()                                 # (K,) module con
 # evaluates depth_fisher thousands of times, ~32 min instead of seconds; XLA cannot hoist the opaque
 # custom_vjp ODE jacrev out of the Adam scan.) The design optimisation differentiates only wrt (z, m_lim),
 # never wrt theta, so caching J/SIG as constants leaves every design gradient bit-identical.
-_J, _SIG = oed.jacobian_and_sigma(oed.theta_truth(), oed.R_BINS, STELLAR.G)   # ODE jacrev, ONCE at import
+_J, _SIG = oed.jacobian_and_sigma(
+    oed.theta_truth(), oed.R_BINS, STELLAR.G
+)  # ODE jacrev, ONCE at import
 
 
 def eps_eff(m_lim):
@@ -129,17 +131,23 @@ def eps_eff(m_lim):
     # These guards activate ONLY in the unphysical m_lim<4 regime -- far outside the
     # [M_LIM_LO, M_LIM_HI] operating range -- so they do NOT alter eps_eff or its
     # gradient anywhere in range (verified byte-identical at m_lim=12; see Task 4 report).
-    m_lo = jnp.minimum(sel.m_min(m_lim, D_PC), M_MAX * (1.0 - 1e-3))   # differentiable, clipped edge
+    m_lo = jnp.minimum(
+        sel.m_min(m_lim, D_PC), M_MAX * (1.0 - 1e-3)
+    )  # differentiable, clipped edge
     frac = jnp.linspace(0.0, 1.0, _NGRID)
-    m_grid = m_lo * (M_MAX / m_lo) ** frac                      # geometric grid, moving lower endpoint
-    dP = _IMF.cdf(m_grid[1:]) - _IMF.cdf(m_grid[:-1])           # (_NGRID-1,) IMF probability mass/cell
-    m_mid = jnp.sqrt(m_grid[1:] * m_grid[:-1])                  # geometric cell midpoints
-    m_app = sel.apparent_mag(m_mid, D_PC)                       # (_NGRID-1,) apparent magnitudes
-    norm = jnp.maximum(jnp.sum(dP), 1e-30)                      # guard the normaliser (never 0)
+    m_grid = m_lo * (M_MAX / m_lo) ** frac  # geometric grid, moving lower endpoint
+    dP = _IMF.cdf(m_grid[1:]) - _IMF.cdf(
+        m_grid[:-1]
+    )  # (_NGRID-1,) IMF probability mass/cell
+    m_mid = jnp.sqrt(m_grid[1:] * m_grid[:-1])  # geometric cell midpoints
+    m_app = sel.apparent_mag(m_mid, D_PC)  # (_NGRID-1,) apparent magnitudes
+    norm = jnp.maximum(jnp.sum(dP), 1e-30)  # guard the normaliser (never 0)
 
     def rms(eps0_c):
-        eps_c = sel.photon_noise_error(m_app, eps0_c, M_REF)    # per-star error in channel c
-        return jnp.sqrt(jnp.sum(dP * eps_c ** 2) / norm)
+        eps_c = sel.photon_noise_error(
+            m_app, eps0_c, M_REF
+        )  # per-star error in channel c
+        return jnp.sqrt(jnp.sum(dP * eps_c**2) / norm)
 
     return jnp.array([rms(EPS0[0]), rms(EPS0[1]), rms(EPS0[2])])
 
@@ -164,12 +172,12 @@ def depth_fisher(z, m_lim, N_total, prior_diag=PRIOR_DIAG_M):
     n >> avail -- a differentiable finite-supply constraint). eps_eff (3,) broadcasts per channel;
     avail (K,) is shared across channels at a single distance. Differentiable in both z and m_lim.
     """
-    Mb = oed.blocks_from_eps(_J, _SIG, eps_eff(m_lim))                          # (3,K,3,3), J/SIG cached once
+    Mb = oed.blocks_from_eps(_J, _SIG, eps_eff(m_lim))  # (3,K,3,3), J/SIG cached once
 
     K = oed.R_BINS.shape[0]
-    n_design = N_total * jax.nn.softmax(z).reshape(3, K)                        # (3,K) budget allocation
-    avail = avail_bins(m_lim)[None, :]                                          # (1,K) per-channel pool
-    n_eff = avail * jnp.tanh(n_design / avail)                                  # smooth availability cap
+    n_design = N_total * jax.nn.softmax(z).reshape(3, K)  # (3,K) budget allocation
+    avail = avail_bins(m_lim)[None, :]  # (1,K) per-channel pool
+    n_eff = avail * jnp.tanh(n_design / avail)  # smooth availability cap
     return jnp.einsum("ck,ckpq->pq", n_eff, Mb) + jnp.diag(prior_diag)
 
 
@@ -185,9 +193,9 @@ def depth_fisher(z, m_lim, N_total, prior_diag=PRIOR_DIAG_M):
 # and the I1 belt-and-braces guard in eps_eff covers any excursion). The joint design
 # vector is [z (3K logits), u (1 scalar)] and Adam runs over the whole thing.
 
-M_LIM_LO = 9.0    # expit lower bound. m_min(9, 4kpc) ~ 8.4 M_sun, FAR above the
-                  # m_min=M_MAX NaN crossover (~m_lim<4); confirmed m_min(M_LIM_LO) << M_MAX.
-M_LIM_HI = 18.0   # m_min(18, 4kpc) ~ 1.03 M_sun (deep into the IMF bulk).
+M_LIM_LO = 9.0  # expit lower bound. m_min(9, 4kpc) ~ 8.4 M_sun, FAR above the
+# m_min=M_MAX NaN crossover (~m_lim<4); confirmed m_min(M_LIM_LO) << M_MAX.
+M_LIM_HI = 18.0  # m_min(18, 4kpc) ~ 1.03 M_sun (deep into the IMF bulk).
 
 
 def u_to_mlim(u):
@@ -202,12 +210,13 @@ def depth_fisher_u(z, u, N_total, prior_diag=PRIOR_DIAG_M):
 
 class DepthDesignResult(NamedTuple):
     """Result of optimize_depth_design (best multi-start trajectory):
-      * criterion : best scalar criterion value (minimised),
-      * m_lim     : optimal limiting magnitude = u_to_mlim(best u),
-      * z         : best allocation logits (3*K,),
-      * u         : best unconstrained depth scalar,
-      * n_design  : realised per-cell counts N_total * softmax(z) (3, K), pre-cap,
-      * n_eff     : per-cell counts after the availability soft-cap (3, K)."""
+    * criterion : best scalar criterion value (minimised),
+    * m_lim     : optimal limiting magnitude = u_to_mlim(best u),
+    * z         : best allocation logits (3*K,),
+    * u         : best unconstrained depth scalar,
+    * n_design  : realised per-cell counts N_total * softmax(z) (3, K), pre-cap,
+    * n_eff     : per-cell counts after the availability soft-cap (3, K)."""
+
     criterion: float
     m_lim: float
     z: jnp.ndarray
@@ -244,8 +253,9 @@ def _optimize_joint(loss, params0, n_steps, lr):
     return params, trace
 
 
-def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05,
-                          prior_diag=PRIOR_DIAG_M):
+def optimize_depth_design(
+    target, N_total, key, n_starts=8, n_steps=500, lr=0.05, prior_diag=PRIOR_DIAG_M
+):
     """Multi-start Adam over the JOINT design [z (3K logits), u (1 scalar)]; keep the best.
 
     Minimises ``c_criterion(depth_fisher_u(z, u, N_total), target)`` -- the marginal fractional
@@ -266,20 +276,38 @@ def optimize_depth_design(target, N_total, key, n_starts=8, n_steps=500, lr=0.05
     for s in range(n_starts):
         ks = jax.random.fold_in(key, s)
         kz, ku = jax.random.split(ks)
-        p0 = {"z": jax.random.normal(kz, (3 * K,)) * 0.5,
-              "u": jax.random.normal(ku, ()) * 0.5}
+        p0 = {
+            "z": jax.random.normal(kz, (3 * K,)) * 0.5,
+            "u": jax.random.normal(ku, ()) * 0.5,
+        }
         p, _ = _optimize_joint(loss, p0, n_steps, lr)
         crit = float(loss(p))
-        if math.isfinite(crit) and (best is None or crit < best.criterion):   # skip NaN/inf starts (M1)
+        if math.isfinite(crit) and (
+            best is None or crit < best.criterion
+        ):  # skip NaN/inf starts (M1)
             m_lim = u_to_mlim(p["u"])
             n_design, n_eff = _n_design_eff(p["z"], m_lim, N_total)
-            best = DepthDesignResult(criterion=crit, m_lim=float(m_lim),
-                                     z=p["z"], u=p["u"], n_design=n_design, n_eff=n_eff)
+            best = DepthDesignResult(
+                criterion=crit,
+                m_lim=float(m_lim),
+                z=p["z"],
+                u=p["u"],
+                n_design=n_design,
+                n_eff=n_eff,
+            )
     return best
 
 
-def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
-                        n_starts=6, n_steps=400, lr=0.05, prior_diag=PRIOR_DIAG_M):
+def crit_at_fixed_depth(
+    m_lim,
+    target,
+    N_total,
+    key=jax.random.PRNGKey(0),
+    n_starts=6,
+    n_steps=400,
+    lr=0.05,
+    prior_diag=PRIOR_DIAG_M,
+):
     """Best criterion optimising the ALLOCATION z ONLY at a FROZEN m_lim (depth held fixed).
 
     Multi-start Adam over z alone (same fixed-iteration scan pattern), m_lim a constant. Used by
@@ -295,7 +323,7 @@ def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
         z0 = jax.random.normal(jax.random.fold_in(key, s), (3 * K,)) * 0.5
         z, _ = _optimize_joint(loss, z0, n_steps, lr)
         crit = float(loss(z))
-        if math.isfinite(crit):                                               # skip NaN/inf starts (M1)
+        if math.isfinite(crit):  # skip NaN/inf starts (M1)
             best = crit if best is None else min(best, crit)
     return best
 
@@ -304,7 +332,10 @@ def crit_at_fixed_depth(m_lim, target, N_total, key=jax.random.PRNGKey(0),
 # Task 5: the interior-optimum-in-depth result (the Stage-2 headline)
 # ===========================================================================
 
-def sigma_M_vs_depth(m_grid, target, N_total, key=jax.random.PRNGKey(0), n_starts=4, n_steps=300):
+
+def sigma_M_vs_depth(
+    m_grid, target, N_total, key=jax.random.PRNGKey(0), n_starts=4, n_steps=300
+):
     """sigma(theta[target])/theta[target] (fractional, ln-metric) vs limiting magnitude.
 
     For each m_lim in m_grid, the best achievable fractional precision at that FROZEN depth
@@ -312,8 +343,21 @@ def sigma_M_vs_depth(m_grid, target, N_total, key=jax.random.PRNGKey(0), n_start
     stars, esp. in the outskirts), a too-deep one is photon-noise-limited, so sigma(M)/M has an
     INTERIOR minimum -- the optimal depth to weigh the cluster. Returns an array shaped like m_grid.
     """
-    return jnp.array([jnp.sqrt(crit_at_fixed_depth(float(m), target, N_total,
-                               key=key, n_starts=n_starts, n_steps=n_steps)) for m in m_grid])
+    return jnp.array(
+        [
+            jnp.sqrt(
+                crit_at_fixed_depth(
+                    float(m),
+                    target,
+                    N_total,
+                    key=key,
+                    n_starts=n_starts,
+                    n_steps=n_steps,
+                )
+            )
+            for m in m_grid
+        ]
+    )
 
 
 # ===========================================================================
@@ -386,7 +430,9 @@ def _binned_sigma_hat_selected(key, m_lim, n_eff):
     import numpy as np  # host-side bookkeeping only; never numpy.random
 
     K = oed.R_BINS.shape[0]
-    m_lo = sel.m_min(jnp.array(float(m_lim)), D_PC)            # detection floor (differentiable; here scalar)
+    m_lo = sel.m_min(
+        jnp.array(float(m_lim)), D_PC
+    )  # detection floor (differentiable; here scalar)
     sigma_hat = np.zeros((3, K))
     se = np.zeros((3, K))
     for c in range(3):
@@ -394,14 +440,24 @@ def _binned_sigma_hat_selected(key, m_lim, n_eff):
             n_need = int(round(float(n_eff[c, b])))
             n_use = max(n_need, oed._MIN_CELL)
             key, kmass, kvel = jax.random.split(key, 3)
-            masses = _truncated_imf_masses(kmass, n_use, m_lo)              # (n_use,) detected masses
-            m_app = sel.apparent_mag(masses, D_PC)                         # (n_use,) apparent mags
-            eps_i = sel.photon_noise_error(m_app, EPS0[c], M_REF)          # (n_use,) heterogeneous errors
-            sd = jnp.sqrt(_SIG[c, b] ** 2 + eps_i ** 2)                    # per-star total spread (truth sigma_pred)
-            v_obs = sd * jax.random.normal(kvel, (n_use,))                 # zero-mean velocity component
+            masses = _truncated_imf_masses(
+                kmass, n_use, m_lo
+            )  # (n_use,) detected masses
+            m_app = sel.apparent_mag(masses, D_PC)  # (n_use,) apparent mags
+            eps_i = sel.photon_noise_error(
+                m_app, EPS0[c], M_REF
+            )  # (n_use,) heterogeneous errors
+            sd = jnp.sqrt(
+                _SIG[c, b] ** 2 + eps_i**2
+            )  # per-star total spread (truth sigma_pred)
+            v_obs = sd * jax.random.normal(
+                kvel, (n_use,)
+            )  # zero-mean velocity component
             sig = float(jnp.std(v_obs, ddof=1))
             sigma_hat[c, b] = sig
-            n_se = max(float(n_eff[c, b]), float(oed._MIN_CELL))           # Fisher per-cell weight, floored
+            n_se = max(
+                float(n_eff[c, b]), float(oed._MIN_CELL)
+            )  # Fisher per-cell weight, floored
             se[c, b] = sig / jnp.sqrt(2.0 * n_se)
     return jnp.asarray(sigma_hat), jnp.asarray(se)
 
@@ -424,15 +480,15 @@ def _fit_theta_gn(sigma_hat, se, prior_diag, n_iter=8):
     sf = sigma_hat.flatten()
     ef = se.flatten()
 
-    def resid(u):                                              # whitened residual (model - data)/se
+    def resid(u):  # whitened residual (model - data)/se
         theta = theta_fid * jnp.exp(u)
         return (oed.predict_sigma(theta, oed.R_BINS, STELLAR.G).flatten() - sf) / ef
 
     def gn_step(u, _):
         r = resid(u)
-        Jr = jax.jacrev(resid)(u)                             # (n_obs, 3) = d r / d u
+        Jr = jax.jacrev(resid)(u)  # (n_obs, 3) = d r / d u
         grad = Jr.T @ r + prior_diag * u
-        hess = Jr.T @ Jr + jnp.diag(prior_diag)               # Gauss-Newton Hessian (SPD)
+        hess = Jr.T @ Jr + jnp.diag(prior_diag)  # Gauss-Newton Hessian (SPD)
         return u - jnp.linalg.solve(hess, grad), None
 
     u_hat, _ = jax.lax.scan(gn_step, jnp.zeros(3), None, length=n_iter)
@@ -441,8 +497,9 @@ def _fit_theta_gn(sigma_hat, se, prior_diag, n_iter=8):
 
 class DepthCalibResult(NamedTuple):
     """Result of calibrate_depth_fisher (both FRACTIONAL variances of M, ADR 0011):
-      * realized : Var(M_hat over draws) / M_truth**2,
-      * predicted : (inv depth_fisher(z, m_lim, N_total))_{M, M}."""
+    * realized : Var(M_hat over draws) / M_truth**2,
+    * predicted : (inv depth_fisher(z, m_lim, N_total))_{M, M}."""
+
     realized: float
     predicted: float
 
@@ -463,11 +520,13 @@ def calibrate_depth_fisher(z, m_lim, N_total, n_draws, key):
     own GN fitter -- oed.fit_map_theta's physical-Adam pins the large-scale M target.)
     Returns DepthCalibResult(realized, predicted) -- a tuple so callers can unpack.
     """
-    _M = 1                                                     # M_dyn index in theta = (r_a, M, r_h)
-    F = depth_fisher(z, m_lim, N_total)                        # uses PRIOR_DIAG_M (M free) by default
+    _M = 1  # M_dyn index in theta = (r_a, M, r_h)
+    F = depth_fisher(z, m_lim, N_total)  # uses PRIOR_DIAG_M (M free) by default
     predicted = float(jnp.linalg.inv(F)[_M, _M])
 
-    _, n_eff = _n_design_eff(z, m_lim, N_total)                # availability-capped observed counts (3, K)
+    _, n_eff = _n_design_eff(
+        z, m_lim, N_total
+    )  # availability-capped observed counts (3, K)
 
     M_hats = []
     for d in range(n_draws):

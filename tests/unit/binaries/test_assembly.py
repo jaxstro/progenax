@@ -9,8 +9,6 @@ is resolved. Singles pass through (primary = the single, secondary = ghost).
 
 import jax
 import jax.numpy as jnp
-import pytest
-
 from jaxstro.units import STELLAR
 
 G = STELLAR.G
@@ -34,6 +32,7 @@ def _example():
 
 def _resolve(*args):
     from progenax.binaries import resolve_binary_components
+
     com_pos, com_vel, m1, m2, is_binary, a, e, inc, Omega, omega, M_anom = args
     return resolve_binary_components(
         com_pos, com_vel, m1, m2, is_binary, a, e, inc, Omega, omega, M_anom, G=G
@@ -53,15 +52,16 @@ class TestResolveBinaryComponents:
         rb = _resolve(*_example())
         # interleaved [p0,s0,p1,s1,p2,s2]; s0 is the single's ghost
         assert bool(rb.is_real[0]) and not bool(rb.is_real[1])  # single + ghost
-        assert bool(rb.is_real[2]) and bool(rb.is_real[3])      # binary 1
-        assert bool(rb.is_real[4]) and bool(rb.is_real[5])      # binary 2
+        assert bool(rb.is_real[2]) and bool(rb.is_real[3])  # binary 1
+        assert bool(rb.is_real[4]) and bool(rb.is_real[5])  # binary 2
         assert int(jnp.sum(rb.is_real)) == 5
 
     def test_primordial_bookkeeping(self):
         rb = _resolve(*_example())
         assert jnp.array_equal(rb.primordial_system_id, jnp.array([0, 0, 1, 1, 2, 2]))
         assert jnp.array_equal(
-            rb.is_primordial_secondary, jnp.array([False, True, False, True, False, True])
+            rb.is_primordial_secondary,
+            jnp.array([False, True, False, True, False, True]),
         )
 
     def test_single_passthrough(self):
@@ -102,6 +102,7 @@ class TestResolveBinaryComponents:
         """
         args = _example()
         from progenax.binaries import resolve_binary_components
+
         jitted = jax.jit(lambda *a: resolve_binary_components(*a, G=G).positions)
         pos = jitted(*args)
         assert jnp.all(jnp.isfinite(pos))

@@ -80,7 +80,7 @@ class TestStefanBoltzmannClosure:
     in cgs from the module's own L(M), R(M) and require round-off agreement -- a
     physics closure independent of the coefficient values."""
 
-    from jaxstro.constants import LSUN_ERG_S, RSUN_CM, SIGMA_SB, G_CGS, MSUN_G
+    from jaxstro.constants import G_CGS, LSUN_ERG_S, MSUN_G, RSUN_CM, SIGMA_SB
 
     @pytest.mark.parametrize("M", [0.2, 0.5, 1.0, 5.0, 30.0, 80.0])
     def test_teff_matches_stefan_boltzmann(self, M):

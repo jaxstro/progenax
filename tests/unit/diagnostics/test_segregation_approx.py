@@ -8,7 +8,6 @@ Oracles live in tests/validation/test_segregation_approx_physics.py.
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 
 
 # --------------------------------------------------------------------------
@@ -24,9 +23,7 @@ def _segregated_cluster(key, N=400, n_massive=20):
     halo = jax.random.normal(k1, (N - n_massive, 3)) * 1.0
     core = jax.random.normal(k2, (n_massive, 3)) * 0.05
     positions = jnp.concatenate([halo, core], axis=0)
-    masses = jnp.concatenate(
-        [jnp.full(N - n_massive, 0.5), jnp.full(n_massive, 10.0)]
-    )
+    masses = jnp.concatenate([jnp.full(N - n_massive, 0.5), jnp.full(n_massive, 10.0)])
     return positions, masses
 
 
@@ -123,7 +120,9 @@ class TestRadialConcentration:
 
         pos, m = _segregated_cluster(jax.random.PRNGKey(3))
         C2d = radial_concentration_approx(pos, m, m_cut=2.0, tau=0.5)
-        C3d = radial_concentration_approx(pos, m, m_cut=2.0, tau=0.5, project_to_2d=False)
+        C3d = radial_concentration_approx(
+            pos, m, m_cut=2.0, tau=0.5, project_to_2d=False
+        )
         assert not np.isclose(float(C2d), float(C3d))
 
     def test_differentiable_in_m_cut_matches_fd(self):

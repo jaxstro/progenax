@@ -17,14 +17,14 @@ import pytest
 from jaxstro.units import STELLAR
 
 from progenax import (
-    build_cluster,
-    build_cluster_from_params,
     ClusterParams,
-    PlummerProfile,
     EFFProfile,
     KingProfile,
-    MichieProfile,
     LIMEPYProfile,
+    MichieProfile,
+    PlummerProfile,
+    build_cluster,
+    build_cluster_from_params,
     compute_kinetic_energy,
     compute_potential_energy,
 )
@@ -117,7 +117,9 @@ def test_grad_through_build_cluster_from_params_bites_each_channel():
 
     # (1) profile leaf r_h -> mean radius (modifiers present but r_h-orthogonal here).
     def loss_rh(r_h):
-        p = ClusterParams(profile=PlummerProfile(r_h=r_h), tidal_radius=3.0, rotation=0.1)
+        p = ClusterParams(
+            profile=PlummerProfile(r_h=r_h), tidal_radius=3.0, rotation=0.1
+        )
         ic = build_cluster_from_params(p, masses=m, key=_K)
         return jnp.mean(jnp.linalg.norm(ic.positions, axis=1))
 
@@ -131,7 +133,9 @@ def test_grad_through_build_cluster_from_params_bites_each_channel():
         return jnp.sum(ic.masses)
 
     g_rt = jax.grad(loss_rt)(1.5)
-    assert jnp.isfinite(g_rt) and abs(g_rt) > 1e-6, f"tidal_radius gradient dead: {g_rt}"
+    assert jnp.isfinite(g_rt) and abs(g_rt) > 1e-6, (
+        f"tidal_radius gradient dead: {g_rt}"
+    )
 
     # (3) rotation omega channel -> L_z (the solid-body overlay injects angular momentum).
     def loss_omega(omega):
@@ -140,4 +144,6 @@ def test_grad_through_build_cluster_from_params_bites_each_channel():
         return _Lz(ic)
 
     g_omega = jax.grad(loss_omega)(0.3)
-    assert jnp.isfinite(g_omega) and abs(g_omega) > 1e-6, f"omega gradient dead: {g_omega}"
+    assert jnp.isfinite(g_omega) and abs(g_omega) > 1e-6, (
+        f"omega gradient dead: {g_omega}"
+    )

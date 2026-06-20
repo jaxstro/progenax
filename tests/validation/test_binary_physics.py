@@ -12,11 +12,11 @@ Each test has quantitative error bounds based on theoretical expectations.
 import jax
 import jax.numpy as jnp
 import pytest
-
 from jaxstro.units import PLANETARY
+
 from progenax.binaries import (
-    KeplerElements,
     BinaryOrbitalState,
+    KeplerElements,
     compute_period,
     period_to_semimajor_axis,
 )
@@ -36,8 +36,9 @@ class TestKeplerThirdLaw:
         period = compute_period(a, M_total, G)
         expected = 2.0 * jnp.pi * jnp.sqrt(a**3 / (G * M_total))
 
-        assert abs(float(period) - float(expected)) < 1e-10, \
+        assert abs(float(period) - float(expected)) < 1e-10, (
             f"Period = {float(period):.6f}, expected {float(expected):.6f}"
+        )
 
     @pytest.mark.parametrize("a", [0.5, 1.0, 2.0, 5.0, 10.0])
     def test_period_scales_as_a_cubed(self, a):
@@ -48,10 +49,11 @@ class TestKeplerThirdLaw:
         period_a = compute_period(a, M_total, G)
 
         ratio = float(period_a / period_1)
-        expected_ratio = a ** 1.5
+        expected_ratio = a**1.5
 
-        assert abs(ratio - expected_ratio) < 1e-10, \
+        assert abs(ratio - expected_ratio) < 1e-10, (
             f"T(a={a})/T(1) = {ratio:.4f}, expected {expected_ratio:.4f}"
+        )
 
     def test_period_semimajor_axis_roundtrip(self):
         """period_to_semimajor_axis is inverse of compute_period."""
@@ -61,8 +63,9 @@ class TestKeplerThirdLaw:
         period = compute_period(a_original, M_total, G)
         a_recovered = period_to_semimajor_axis(period, M_total, G)
 
-        assert abs(float(a_recovered) - a_original) < 1e-10, \
+        assert abs(float(a_recovered) - a_original) < 1e-10, (
             f"a recovered = {float(a_recovered):.6f}, expected {a_original}"
+        )
 
 
 class TestKeplerEquation:
@@ -70,7 +73,7 @@ class TestKeplerEquation:
 
     def test_circular_orbit_mean_equals_eccentric(self):
         """For e=0: E = M (mean anomaly equals eccentric anomaly)."""
-        elements = KeplerElements(a=1.0, e=0.0, M0=jnp.pi/4)
+        elements = KeplerElements(a=1.0, e=0.0, M0=jnp.pi / 4)
         M_total = 1.0
 
         state = elements.to_state(M_total, G)
@@ -80,8 +83,10 @@ class TestKeplerEquation:
         angle = jnp.arctan2(r[1], r[0])
 
         # Should be close to M0 (allowing for 2π periodicity)
-        angle_diff = abs(float(angle) - jnp.pi/4)
-        assert angle_diff < 0.01, f"Position angle {float(angle):.4f} != M0 = {jnp.pi/4:.4f}"
+        angle_diff = abs(float(angle) - jnp.pi / 4)
+        assert angle_diff < 0.01, (
+            f"Position angle {float(angle):.4f} != M0 = {jnp.pi / 4:.4f}"
+        )
 
     def test_eccentric_orbit_periapsis(self):
         """At M=0 (periapsis), r = a(1-e)."""
@@ -94,8 +99,9 @@ class TestKeplerEquation:
         r = jnp.linalg.norm(state.position)
 
         expected_r = a * (1 - e)
-        assert abs(float(r) - expected_r) < 1e-6, \
+        assert abs(float(r) - expected_r) < 1e-6, (
             f"r at periapsis = {float(r):.6f}, expected {expected_r}"
+        )
 
     def test_eccentric_orbit_apoapsis(self):
         """At M=π (apoapsis), r = a(1+e)."""
@@ -108,8 +114,9 @@ class TestKeplerEquation:
         r = jnp.linalg.norm(state.position)
 
         expected_r = a * (1 + e)
-        assert abs(float(r) - expected_r) < 1e-6, \
+        assert abs(float(r) - expected_r) < 1e-6, (
             f"r at apoapsis = {float(r):.6f}, expected {expected_r}"
+        )
 
 
 class TestBinaryMomentumConservation:
@@ -129,8 +136,7 @@ class TestBinaryMomentumConservation:
         # COM = (m1*r1 + m2*r2) / (m1 + m2)
         com = (m1 * pos1 + m2 * pos2) / M_total
 
-        assert jnp.allclose(com, 0.0, atol=1e-10), \
-            f"COM = {com}, expected (0, 0, 0)"
+        assert jnp.allclose(com, 0.0, atol=1e-10), f"COM = {com}, expected (0, 0, 0)"
 
     def test_momentum_zero(self):
         """Total momentum is zero (no bulk motion)."""
@@ -144,8 +150,9 @@ class TestBinaryMomentumConservation:
         # Total momentum = m1*v1 + m2*v2
         momentum = m1 * vel1 + m2 * vel2
 
-        assert jnp.allclose(momentum, 0.0, atol=1e-10), \
+        assert jnp.allclose(momentum, 0.0, atol=1e-10), (
             f"Total momentum = {momentum}, expected (0, 0, 0)"
+        )
 
 
 class TestOrbitalEnergy:
@@ -174,9 +181,12 @@ class TestOrbitalEnergy:
         # Analytical: E = -GM1M2/(2a)
         E_analytical = -G * m1 * m2 / (2 * a)
 
-        rel_error = abs(float(E_computed) - float(E_analytical)) / abs(float(E_analytical))
-        assert rel_error < 0.01, \
+        rel_error = abs(float(E_computed) - float(E_analytical)) / abs(
+            float(E_analytical)
+        )
+        assert rel_error < 0.01, (
             f"E_computed = {float(E_computed):.6f}, E_analytical = {float(E_analytical):.6f}"
+        )
 
 
 class TestOrbitalVelocity:
@@ -199,8 +209,9 @@ class TestOrbitalVelocity:
         # Expected: v_rel = √(G * M_total / a)
         expected = jnp.sqrt(G * M_total / a)
 
-        assert abs(float(v_rel) - float(expected)) < 1e-6, \
+        assert abs(float(v_rel) - float(expected)) < 1e-6, (
             f"v_rel = {float(v_rel):.6f}, expected {float(expected):.6f}"
+        )
 
     def test_periapsis_velocity(self):
         """Velocity at periapsis is maximum for eccentric orbit."""
@@ -219,8 +230,9 @@ class TestOrbitalVelocity:
         state_apo = elements_apo.to_state(M_total, G)
         v_apo = jnp.linalg.norm(state_apo.velocity)
 
-        assert float(v_peri) > float(v_apo), \
+        assert float(v_peri) > float(v_apo), (
             f"v_periapsis = {float(v_peri):.4f} should > v_apoapsis = {float(v_apo):.4f}"
+        )
 
 
 class TestInclinationAndOrientation:
@@ -241,7 +253,9 @@ class TestInclinationAndOrientation:
 
     def test_polar_orbit_passes_poles(self):
         """i=π/2 orbit passes through poles."""
-        elements = KeplerElements(a=1.0, e=0.0, i=jnp.pi/2, Omega=0.0, omega=0.0, M0=0.0)
+        elements = KeplerElements(
+            a=1.0, e=0.0, i=jnp.pi / 2, Omega=0.0, omega=0.0, M0=0.0
+        )
         M_total = 1.0
 
         state = elements.to_state(M_total, G)
@@ -273,6 +287,7 @@ class TestSmallSemiMajorAxisSTELLAR:
 
     def test_circular_velocity_exact_across_scales_stellar(self):
         from jaxstro.units import STELLAR
+
         G_st = STELLAR.G
         M = 2.0
         # 1.86e-7 pc ~ 0.04 AU, a typical short-period stellar binary separation.
@@ -296,7 +311,9 @@ class TestKeplerEccentricityGradientBoundary:
 
         assert jnp.isfinite(jax.grad(loss)(0.9999))
         g_one = jax.grad(loss)(1.0)
-        assert jnp.isfinite(g_one), f"grad at e=1.0 = {float(g_one)} (NaN before the B4-3 fix)"
+        assert jnp.isfinite(g_one), (
+            f"grad at e=1.0 = {float(g_one)} (NaN before the B4-3 fix)"
+        )
 
 
 # B4-15: AD-vs-FD grad-checks for the KeplerElements transforms (to_state a/e/M0,

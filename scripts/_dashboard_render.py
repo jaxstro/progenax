@@ -14,6 +14,7 @@ paragraph that says so and names the regenerating command, then a MyST
     module | unit | integration | validation | line-cov % | grad-audit fill |
     slowest test | validation PASS
 """
+
 from __future__ import annotations
 
 _GENERATING_CMD = "uv run python scripts/build_test_dashboard.py --emit --render"
@@ -158,7 +159,9 @@ def _validation_scripts_section(validation_scripts: dict) -> list[str]:
         else:
             verdict = "—"
         rows.append(f"* - `{name}`\n  - {verdict}")
-    n_fail = sum(1 for c in validation_scripts.values() if isinstance(c, int) and c != 0)
+    n_fail = sum(
+        1 for c in validation_scripts.values() if isinstance(c, int) and c != 0
+    )
     return [
         "## Validation scripts",
         "",

@@ -4,9 +4,9 @@ Plummer (1911) velocity distribution function as Equinox module.
 Implements VelocityDF protocol for use with IC assembly.
 """
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax.kinematics.eddington import (
@@ -113,7 +113,7 @@ class PlummerVelocityDF(eqx.Module):
         # From Plummer (1911): M(<r)/M = r³/(r²+a²)^(3/2)
         # At r = r_h: 0.5 = r_h³/(r_h²+a²)^(3/2)
         # Solving: a = r_h * sqrt(2^(2/3) - 1) ≈ 0.7664 * r_h
-        self.a = self.r_h * jnp.sqrt(2**(2/3) - 1)
+        self.a = self.r_h * jnp.sqrt(2 ** (2 / 3) - 1)
 
         if anisotropy_radius is None:
             self.anisotropy_radius = None
@@ -190,7 +190,9 @@ class PlummerVelocityDF(eqx.Module):
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
         s = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(k, p, self._om_E_grid, self._om_f_grid)
+            lambda k, p: sample_speed_from_f_table(
+                k, p, self._om_E_grid, self._om_f_grid
+            )
         )(speed_keys, psi_r)
         speeds = sigma0 * s
         return assign_om_directions(key_dir, positions, speeds, self.anisotropy_radius)

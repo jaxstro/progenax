@@ -60,11 +60,13 @@ class TestSolveMichieProfileIsotropicLimit:
     @pytest.mark.parametrize("W0", [3.0, 5.0, 7.0])
     def test_large_r_a_matches_king(self, W0):
         """ra_hat -> inf reduces the anisotropic ODE to King's; psi(xi) must match."""
-        from progenax.profiles.michie import solve_michie_profile
         from progenax.profiles.king import solve_king_profile
+        from progenax.profiles.michie import solve_michie_profile
 
         # Match King's grid (xi_max, n_points) so psi can be compared pointwise.
-        xi_m, psi_m, _ = solve_michie_profile(W0, ra_hat=1e5, xi_max=300.0, n_points=2000)
+        xi_m, psi_m, _ = solve_michie_profile(
+            W0, ra_hat=1e5, xi_max=300.0, n_points=2000
+        )
         xi_k, psi_k, _ = solve_king_profile(W0)
         assert jnp.allclose(xi_m, xi_k), "grids must align for comparison"
         assert jnp.allclose(psi_m, psi_k, atol=5e-3, rtol=5e-3), (

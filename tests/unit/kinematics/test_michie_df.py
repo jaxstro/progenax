@@ -14,8 +14,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax.profiles.michie import MichieProfile
 
 G = STELLAR.G
@@ -43,7 +43,9 @@ class TestMichieVelocityDF:
         betas = []
         for r, seed in [(1.0, 0), (8.0, 1), (25.0, 2)]:
             pos = _shell(r, N, seed)
-            v = df.sample_velocities(pos, jnp.ones(N), jax.random.PRNGKey(seed + 10), G=G)
+            v = df.sample_velocities(
+                pos, jnp.ones(N), jax.random.PRNGKey(seed + 10), G=G
+            )
             betas.append(float(_beta(v, pos)))
         assert abs(betas[0]) < 0.06, f"beta(center)={betas[0]:.3f} should be ~0"
         assert betas[0] < betas[1] < betas[2], f"beta must increase outward: {betas}"
@@ -92,15 +94,16 @@ class TestMichieTableRouting:
         from progenax.kinematics.michie_df import MichieVelocityDF
 
         kw = dict(W0=7.0, r_c=1.0, r_a=8.0)
-        return (MichieVelocityDF(**kw),                       # default: table
-                MichieVelocityDF(**kw, speed_method="quadrature"))
+        return (
+            MichieVelocityDF(**kw),  # default: table
+            MichieVelocityDF(**kw, speed_method="quadrature"),
+        )
 
     def _pos_vel(self, df, n=20000, seed=0):
         masses = jnp.ones(n)
         prof = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
         pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
-        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
-                                   G=G)
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1), G=G)
         return pos, vel
 
     def _speeds(self, df, n=20000, seed=0):
@@ -158,8 +161,7 @@ class TestMichieSamplerOptimization:
     def test_quadrature_method_has_no_table(self):
         from progenax.kinematics.michie_df import MichieVelocityDF
 
-        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0,
-                              speed_method="quadrature")
+        df = MichieVelocityDF(W0=7.0, r_c=1.0, r_a=8.0, speed_method="quadrature")
         assert df.speed_table is None
 
     def test_cached_table_bit_identical_to_fresh_build(self):
@@ -177,10 +179,12 @@ class TestMichieSamplerOptimization:
             7.0, 8.0 / 1.0, xi_max=800.0, n_points=3000
         )
         p_box = jnp.maximum(
-            df.r_c * _find_tidal_radius(df.xi_grid, psi_raw) / df.r_a, 1e-3)
+            df.r_c * _find_tidal_radius(df.xi_grid, psi_raw) / df.r_a, 1e-3
+        )
         fresh = AnisoSpeedCDFTable.build(df.W0, p_box, jnp.asarray(1.0))
-        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
-                                      np.asarray(fresh.cdf))
+        np.testing.assert_array_equal(
+            np.asarray(df.speed_table.cdf), np.asarray(fresh.cdf)
+        )
 
     def test_same_key_same_velocities(self):
         from progenax.kinematics.michie_df import MichieVelocityDF

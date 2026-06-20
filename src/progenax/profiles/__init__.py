@@ -34,22 +34,22 @@ References:
     Cartwright & Whitworth (2004) MNRAS 348, 589
 """
 
-from progenax.profiles.plummer import PlummerProfile
-from progenax.profiles.king import KingProfile, solve_king_profile
-from progenax.profiles.michie import MichieProfile, solve_michie_profile
-from progenax.profiles.limepy import LIMEPYProfile, solve_limepy_profile
-from progenax.profiles.limepy_multimass import (
-    solve_multimass_limepy,
-    find_alpha_for_masses,
-)
-from progenax.profiles.eff import EFFProfile
-from progenax.profiles.uniform import UniformSphereProfile
 from progenax.profiles.api import (
     ProfileName,
+    compute_profile_potential,
     make_profile,
     sample_density_profile,
-    compute_profile_potential,
 )
+from progenax.profiles.eff import EFFProfile
+from progenax.profiles.king import KingProfile, solve_king_profile
+from progenax.profiles.limepy import LIMEPYProfile, solve_limepy_profile
+from progenax.profiles.limepy_multimass import (
+    find_alpha_for_masses,
+    solve_multimass_limepy,
+)
+from progenax.profiles.michie import MichieProfile, solve_michie_profile
+from progenax.profiles.plummer import PlummerProfile
+from progenax.profiles.uniform import UniformSphereProfile
 
 __all__ = [
     # Profile classes

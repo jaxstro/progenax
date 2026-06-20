@@ -10,8 +10,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from jaxstro.units import STELLAR
+
 from progenax.kinematics.king_df import KingVelocityDF
 
 G = STELLAR.G
@@ -44,9 +44,9 @@ class TestKingVelocityDFPhysics:
 
         velocities = df.sample_velocities(positions, masses, key, G=G)
 
-        vx2_mean = jnp.mean(velocities[:, 0]**2)
-        vy2_mean = jnp.mean(velocities[:, 1]**2)
-        vz2_mean = jnp.mean(velocities[:, 2]**2)
+        vx2_mean = jnp.mean(velocities[:, 0] ** 2)
+        vy2_mean = jnp.mean(velocities[:, 1] ** 2)
+        vz2_mean = jnp.mean(velocities[:, 2] ** 2)
 
         assert jnp.abs(vx2_mean - vy2_mean) / vx2_mean < 0.20
         assert jnp.abs(vy2_mean - vz2_mean) / vy2_mean < 0.20
@@ -103,8 +103,10 @@ class TestKingTableRouting:
 
     def _two_dfs(self):
         kw = dict(W0=5.0, r_c=1.0)
-        return (KingVelocityDF(**kw),                       # default: table
-                KingVelocityDF(**kw, speed_method="quadrature"))
+        return (
+            KingVelocityDF(**kw),  # default: table
+            KingVelocityDF(**kw, speed_method="quadrature"),
+        )
 
     def _speeds(self, df, n=20000, seed=0):
         from progenax.profiles.king import KingProfile
@@ -112,8 +114,7 @@ class TestKingTableRouting:
         prof = KingProfile.from_W0_rc(W0=5.0, r_c=1.0)
         masses = jnp.ones(n)
         pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
-        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
-                                   G=1.0)
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1), G=1.0)
         return np.asarray(jnp.linalg.norm(vel, axis=1))
 
     def test_speed_moments_match_quadrature_oracle(self):
@@ -161,8 +162,7 @@ class TestKingSamplerOptimization:
         assert isinstance(df.speed_table, SpeedCDFTable)
 
     def test_quadrature_method_has_no_table(self):
-        df = KingVelocityDF(W0=5.0, r_c=1.0,
-                            speed_method="quadrature")
+        df = KingVelocityDF(W0=5.0, r_c=1.0, speed_method="quadrature")
         assert df.speed_table is None
 
     def test_cached_table_bit_identical_to_fresh_build(self):
@@ -170,8 +170,9 @@ class TestKingSamplerOptimization:
 
         df = KingVelocityDF(W0=5.0, r_c=1.0)
         fresh = SpeedCDFTable.build(df.W0, jnp.asarray(1.0))
-        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
-                                      np.asarray(fresh.cdf))
+        np.testing.assert_array_equal(
+            np.asarray(df.speed_table.cdf), np.asarray(fresh.cdf)
+        )
 
     def test_same_key_same_velocities(self):
         from progenax.profiles.king import KingProfile

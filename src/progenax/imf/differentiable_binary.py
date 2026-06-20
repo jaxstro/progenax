@@ -21,7 +21,7 @@ References:
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Float, Array
+from jaxtyping import Array, Float
 
 
 class DifferentiableBinaryFraction(eqx.Module):
@@ -52,7 +52,7 @@ class DifferentiableBinaryFraction(eqx.Module):
             f_b in (0, 1)
         """
         log_m = jnp.log10(jnp.maximum(m, 1e-10))
-        log_odds = self.a + self.b * log_m + self.c * log_m ** 2
+        log_odds = self.a + self.b * log_m + self.c * log_m**2
         return jax.nn.sigmoid(log_odds)
 
     def probability(self, masses, radii=None):
@@ -128,9 +128,7 @@ class DifferentiableBinaryModel(eqx.Module):
         f_b = self.binary_fraction(m1)
 
         # Smooth threshold (reparameterized Bernoulli)
-        soft_weights = jax.nn.sigmoid(
-            (f_b - u_binary) / self.temperature
-        )
+        soft_weights = jax.nn.sigmoid((f_b - u_binary) / self.temperature)
 
         # Mass-dependent q distribution (reparameterized power law)
         # gamma(m) = c + d * log10(m)

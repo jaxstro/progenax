@@ -73,7 +73,7 @@ class TestUniformSphereBaseline:
 
         # Q should vary by less than 25% across different N
         assert Q_range / Q_mean < 0.25, (
-            f"Q should be N-independent, but varies by {Q_range/Q_mean*100:.1f}%: "
+            f"Q should be N-independent, but varies by {Q_range / Q_mean * 100:.1f}%: "
             f"{Q_by_N}"
         )
 
@@ -91,18 +91,18 @@ class TestPlummerBaseline:
 
         # Plummer scale radius from half-mass radius
         r_h = 1.0
-        a = r_h / np.sqrt(2**(2/3) - 1)
+        a = r_h / np.sqrt(2 ** (2 / 3) - 1)
 
         # Sample radii via inverse CDF
         u = rng.uniform(0, 1, N)
         # Inverse CDF: r = a * u^(1/3) / sqrt(1 - u^(2/3))
         u_clipped = np.clip(u, 1e-10, 1 - 1e-10)
-        radii = a * u_clipped**(1/3) / np.sqrt(1 - u_clipped**(2/3))
+        radii = a * u_clipped ** (1 / 3) / np.sqrt(1 - u_clipped ** (2 / 3))
 
         # Sample angles
         cos_theta = rng.uniform(-1, 1, N)
         sin_theta = np.sqrt(1 - cos_theta**2)
-        phi = rng.uniform(0, 2*np.pi, N)
+        phi = rng.uniform(0, 2 * np.pi, N)
 
         # Cartesian
         x = radii * sin_theta * np.cos(phi)
@@ -185,10 +185,10 @@ class TestBirthEnvironmentTurbulence:
 
         # Expected ranges with Marks+2012 cloud densities
         test_cases = [
-            (1e3, 2, 5),     # Small OC: M ~ 2.8
-            (1e4, 2.5, 5),   # Large OC: M ~ 3.2
-            (1e5, 3, 5.5),   # YMC: M ~ 3.8
-            (1e6, 3.5, 6),   # GC: M ~ 4.4
+            (1e3, 2, 5),  # Small OC: M ~ 2.8
+            (1e4, 2.5, 5),  # Large OC: M ~ 3.2
+            (1e5, 3, 5.5),  # YMC: M ~ 3.8
+            (1e6, 3.5, 6),  # GC: M ~ 4.4
         ]
 
         for M_ecl, M_min, M_max in test_cases:
@@ -222,10 +222,10 @@ class TestBirthEnvironmentTurbulence:
         # Expected ranges with environment-dependent b
         # Higher-mass clusters have denser clouds → higher b → higher σ_ln_ρ
         test_cases = [
-            (1e3, 0.8, 1.5),   # Small OC
-            (1e4, 0.9, 1.6),   # Large OC
-            (1e5, 1.0, 1.7),   # YMC
-            (1e6, 1.1, 1.9),   # GC
+            (1e3, 0.8, 1.5),  # Small OC
+            (1e4, 0.9, 1.6),  # Large OC
+            (1e5, 1.0, 1.7),  # YMC
+            (1e6, 1.1, 1.9),  # GC
         ]
 
         for M_ecl, sigma_min, sigma_max in test_cases:

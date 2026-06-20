@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
-from jaxtyping import Array, Float
 
 from .base import AnalyticalIC
-
 
 # ============================================================================
 # Two-Body Keplerian Orbits
@@ -69,9 +67,8 @@ def two_body_kepler(
         - Murray & Dermott (1999), "Solar System Dynamics", Ch. 2
         - Hairer et al. (2006), "Geometric Numerical Integration", §I.2.4
     """
-    # Total mass and reduced mass
+    # Total mass
     M_total = M1 + M2
-    mu = M1 * M2 / M_total
 
     # Semi-latus rectum
     p = a * (1.0 - e**2)
@@ -196,5 +193,3 @@ def two_body_energy(M1: float, M2: float, a: float, G: float) -> float:
         Independent of eccentricity!
     """
     return -G * M1 * M2 / (2.0 * a)
-
-

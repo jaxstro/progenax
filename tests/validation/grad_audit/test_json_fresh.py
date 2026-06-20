@@ -12,12 +12,12 @@ sample_cluster). If A5's CI evidence shows a well-conditioned case exceeding 2e-
 widen _RTOL to the measured max ×3 and record the measured deltas here. Do NOT loosen blindly — a
 large reldiff on a closed-form case is a real drift, not arch noise.
 """
+
 import json
 import math
 from pathlib import Path
 
 import pytest
-
 from scripts.audit_gradients import _DEFAULT_JSON
 
 # Exact-compared, arch-invariant structural fields. `tol` is the per-case tolerance from the
@@ -25,7 +25,7 @@ from scripts.audit_gradients import _DEFAULT_JSON
 # flip `status` would otherwise slip through, so it is compared exactly here.
 _DISCRETE = ("id", "direction", "param", "expect", "tol", "status")
 _FLOAT = ("ad", "fd", "ratio", "abs_ad")
-_RTOL = 2e-3   # PROVISIONAL — see module docstring; calibrated cross-arch in Task A5.
+_RTOL = 2e-3  # PROVISIONAL — see module docstring; calibrated cross-arch in Task A5.
 # Non-vacuous floor: the registry has many tens of rows (66+ and growing through the D4
 # completion); guard against a silently-emptied registry/JSON (an emptied set passes cset==fset
 # trivially — the classic staleness blind spot). Count-agnostic so it needn't track the exact total.
@@ -44,11 +44,13 @@ def test_committed_json_matches_fresh_regeneration(fresh_audit):
     # collapsed (a zeroed registry is itself a drift the gate must catch).
     assert len(committed) >= _MIN_ROWS and len(fresh) >= _MIN_ROWS, (
         f"too few rows (committed={len(committed)}, fresh={len(fresh)}; floor={_MIN_ROWS}) — "
-        f"the registry/JSON looks emptied, not merely drifted.")
+        f"the registry/JSON looks emptied, not merely drifted."
+    )
     cset, fset = {_key(r) for r in committed}, {_key(r) for r in fresh}
     assert cset == fset, (
         f"row-set drift (cases added/removed/retheta'd):\n  only committed: {sorted(cset - fset)}"
-        f"\n  only fresh: {sorted(fset - cset)}\n  -> regenerate + recommit the JSON.")
+        f"\n  only fresh: {sorted(fset - cset)}\n  -> regenerate + recommit the JSON."
+    )
     cby, fby = {_key(r): r for r in committed}, {_key(r): r for r in fresh}
     drift = []
     for k in cby:
@@ -64,15 +66,25 @@ def test_committed_json_matches_fresh_regeneration(fresh_audit):
             if c_fin != f_fin:
                 # A clean<->inf/nan transition is exactly the regression a staleness gate exists
                 # to catch (core.py emits ratio=inf when fd==0, ad!=0; nan if a grad blows up).
-                drift.append(f"{k} {field}: finiteness changed committed={cv!r} fresh={fv!r}")
-            elif not c_fin:  # both non-finite -> require the same kind (inf / -inf / nan)
+                drift.append(
+                    f"{k} {field}: finiteness changed committed={cv!r} fresh={fv!r}"
+                )
+            elif (
+                not c_fin
+            ):  # both non-finite -> require the same kind (inf / -inf / nan)
                 if repr(cv) != repr(fv):
-                    drift.append(f"{k} {field}: non-finite kind changed "
-                                 f"committed={cv!r} fresh={fv!r}")
+                    drift.append(
+                        f"{k} {field}: non-finite kind changed "
+                        f"committed={cv!r} fresh={fv!r}"
+                    )
             else:
                 denom = max(abs(cv), abs(fv), 1e-30)
                 if abs(cv - fv) / denom > _RTOL:
-                    drift.append(f"{k} {field}: committed={cv:.6e} fresh={fv:.6e} "
-                                 f"(reldiff={abs(cv - fv)/denom:.2e} > rtol={_RTOL:.0e})")
-    assert not drift, "staleness drift (regenerate + recommit JSON if intended):\n  " + \
-        "\n  ".join(drift)
+                    drift.append(
+                        f"{k} {field}: committed={cv:.6e} fresh={fv:.6e} "
+                        f"(reldiff={abs(cv - fv) / denom:.2e} > rtol={_RTOL:.0e})"
+                    )
+    assert not drift, (
+        "staleness drift (regenerate + recommit JSON if intended):\n  "
+        + "\n  ".join(drift)
+    )

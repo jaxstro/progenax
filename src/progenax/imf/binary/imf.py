@@ -10,17 +10,17 @@ import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, PRNGKeyArray
 
 from ..base import BaseIMF
-from .mass_ratio import (
-    MassRatioProtocol,
-    FlatMassRatio,
-    PowerLawMassRatio,
-    TwinPeakedMassRatio,
-)
-from .moe_di_stefano import MoeDiStefano2017
 from .binary_fraction import (
     ConstantBinaryFraction,
     MassDependentBinaryFraction,
 )
+from .mass_ratio import (
+    FlatMassRatio,
+    MassRatioProtocol,
+    PowerLawMassRatio,
+    TwinPeakedMassRatio,
+)
+from .moe_di_stefano import MoeDiStefano2017
 
 # Type aliases
 BinaryFractionCallable = Callable[[Float[Array, "..."]], Float[Array, "..."]]
@@ -362,4 +362,3 @@ class BinaryIMF(eqx.Module):
             q_distribution=PowerLawMassRatio(gamma=gamma, q_min=0.1),
             binary_fraction=binary_fraction,
         )
-

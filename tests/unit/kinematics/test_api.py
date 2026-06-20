@@ -14,18 +14,16 @@ rescaling produces a physically meaningful equilibrium.
 import jax
 import jax.numpy as jnp
 import pytest
-
 from jaxstro.units import STELLAR
-from progenax import defaults
-from progenax.profiles.plummer import PlummerProfile
+
+from progenax.dynamics.virial import compute_virial_ratio
 from progenax.kinematics import (
     PlummerVelocityDF,
-    VelocityModel,
     RotationParams,
+    VelocityModel,
     sample_velocities_pipeline,
 )
-from progenax.dynamics.virial import compute_virial_ratio
-
+from progenax.profiles.plummer import PlummerProfile
 
 G = STELLAR.G
 
@@ -87,8 +85,13 @@ class TestExplicitGRequired:
         from progenax.cluster.multicomponent import MultiComponentCluster
 
         model = MultiComponentCluster.from_components(
-            alpha_j=jnp.array([0.6, 0.4]), w_j=jnp.array([1.0, 0.8]),
-            m_j=jnp.array([0.4, 1.0]), W0=6.0, g=1.0, r_c=1.0)
+            alpha_j=jnp.array([0.6, 0.4]),
+            w_j=jnp.array([1.0, 0.8]),
+            m_j=jnp.array([0.4, 1.0]),
+            W0=6.0,
+            g=1.0,
+            r_c=1.0,
+        )
         with pytest.raises(TypeError):
             model.sample_cluster(jax.random.PRNGKey(0), n_stars=100)
 
@@ -109,6 +112,7 @@ class TestPipelineAnisotropicDF:
         assert v_aniso.shape == positions.shape and jnp.all(jnp.isfinite(v_aniso))
 
         r_hat = positions / jnp.linalg.norm(positions, axis=1, keepdims=True)
+
         def radial_frac(v):
             v_r = jnp.sum(v * r_hat, axis=1)
             return jnp.sum(v_r**2) / jnp.sum(v**2)
@@ -142,7 +146,9 @@ class TestPipelineRotation:
 
         # L_z = sum m (x vy - y vx). Positive pattern speed -> positive net L_z.
         def Lz(v):
-            return jnp.sum(masses * (positions[:, 0] * v[:, 1] - positions[:, 1] * v[:, 0]))
+            return jnp.sum(
+                masses * (positions[:, 0] * v[:, 1] - positions[:, 1] * v[:, 0])
+            )
 
         Lz_rot = Lz(v_rot)
         assert float(Lz_rot) > float(Lz(v_base)), "solid-body rotation should add +L_z"
@@ -185,9 +191,13 @@ class TestPipelineRotation:
         assert jnp.all(jnp.isfinite(v_diff))
 
         def Lz(v):
-            return jnp.sum(masses * (positions[:, 0] * v[:, 1] - positions[:, 1] * v[:, 0]))
+            return jnp.sum(
+                masses * (positions[:, 0] * v[:, 1] - positions[:, 1] * v[:, 0])
+            )
 
-        assert float(Lz(v_diff)) > float(Lz(v_base)), "differential rotation should add +L_z"
+        assert float(Lz(v_diff)) > float(Lz(v_base)), (
+            "differential rotation should add +L_z"
+        )
 
     def test_custom_rotation_axis_used(self, plummer_setup):
         """A non-default rotation axis is honored (x-axis -> L_x, not L_z)."""
@@ -283,7 +293,9 @@ class TestPipelineFullIntegration:
         # COM velocity removed (mass-weighted mean ~ 0)
         M_total = jnp.sum(masses)
         v_com = jnp.sum(masses[:, None] * v, axis=0) / M_total
-        assert jnp.allclose(v_com, 0.0, atol=1e-10), f"COM velocity not removed: {v_com}"
+        assert jnp.allclose(v_com, 0.0, atol=1e-10), (
+            f"COM velocity not removed: {v_com}"
+        )
 
         # Virial ratio matches target. Rescaling targets Q BEFORE COM subtraction
         # and rotation injects ordered KE, so allow a modest tolerance.
@@ -307,7 +319,9 @@ class TestPipelineFullIntegration:
 
         T_cold = 0.5 * jnp.sum(masses * jnp.sum(v_cold**2, axis=1))
         T_eq = 0.5 * jnp.sum(masses * jnp.sum(v_eq**2, axis=1))
-        assert float(T_cold) < float(T_eq), "subvirial Q=0.3 should be colder than Q=0.5"
+        assert float(T_cold) < float(T_eq), (
+            "subvirial Q=0.3 should be colder than Q=0.5"
+        )
 
         # And the cold system's virial ratio lands near 0.3 (no rotation here)
         Q_cold = compute_virial_ratio(positions, v_cold, masses, G=G)

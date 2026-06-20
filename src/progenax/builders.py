@@ -17,7 +17,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
-from .protocols import SpatialProfile, VelocityDF
+from .binaries import resolve_binary_components
+
 # Single canonical energy implementation lives in dynamics.virial; re-export it
 # here so the public API (progenax.compute_*_energy) and virial_scale share one
 # gradient-safe source of truth (Batch 0, F1+F2).
@@ -26,7 +27,7 @@ from .dynamics.virial import (
     compute_potential_energy,
     rescale_velocities_to_virial,
 )
-from .binaries import resolve_binary_components
+from .protocols import SpatialProfile, VelocityDF
 
 # Seconds in one (SI) day — exact; used to convert sampled periods (days) into the
 # code time unit via units.time_scale_cgs.
@@ -348,7 +349,9 @@ def build_spatial_ic(
     )
 
 
-_MASS_PRESAMPLE = 8192  # systems presampled to estimate mean system mass for a TotalMass budget.
+_MASS_PRESAMPLE = (
+    8192  # systems presampled to estimate mean system mass for a TotalMass budget.
+)
 
 
 def _index_companions(comp, keep: Bool[Array, "N"]):
@@ -489,8 +492,18 @@ def build_binary_cluster(
 
     # 4. Resolve binaries into the masked 2N representation (COM preserved exactly).
     resolved = resolve_binary_components(
-        ic_sys.positions, ic_sys.velocities, m1, comp.m2, is_binary,
-        comp.a, comp.e, comp.inc, comp.Omega, comp.omega, comp.M_anom, G=G,
+        ic_sys.positions,
+        ic_sys.velocities,
+        m1,
+        comp.m2,
+        is_binary,
+        comp.a,
+        comp.e,
+        comp.inc,
+        comp.Omega,
+        comp.omega,
+        comp.M_anom,
+        G=G,
     )
 
     if not compact:

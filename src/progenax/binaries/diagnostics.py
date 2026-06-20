@@ -27,7 +27,7 @@ from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, Int
+from jaxtyping import Array, Float, Int
 
 from ..dynamics.virial import compute_kinetic_energy, compute_potential_energy
 
@@ -85,8 +85,13 @@ def find_bound_pairs(
 
     e_with_nn = jax.vmap(
         lambda i, j: relative_energy(
-            positions[i], positions[j], velocities[i], velocities[j],
-            masses[i], masses[j], G=G,
+            positions[i],
+            positions[j],
+            velocities[i],
+            velocities[j],
+            masses[i],
+            masses[j],
+            G=G,
         )
     )(idx, nn)
     is_member = mutual & (e_with_nn < 0.0)
@@ -142,14 +147,18 @@ def find_bound_multiples(
             )
         )(idx, nn)
         pair = mutual & (e_nn < 0.0)
-        keeper = pair & (idx < nn)       # low index absorbs its partner
+        keeper = pair & (idx < nn)  # low index absorbs its partner
         absorbed = pair & (idx > nn)
         p = nn
 
         Mtot = bmass + jnp.where(keeper, bmass[p], 0.0)
         Mtot_safe = jnp.where(Mtot > 0.0, Mtot, 1.0)
-        merged_pos = (bmass[:, None] * bpos + bmass[p][:, None] * bpos[p]) / Mtot_safe[:, None]
-        merged_vel = (bmass[:, None] * bvel + bmass[p][:, None] * bvel[p]) / Mtot_safe[:, None]
+        merged_pos = (bmass[:, None] * bpos + bmass[p][:, None] * bpos[p]) / Mtot_safe[
+            :, None
+        ]
+        merged_vel = (bmass[:, None] * bvel + bmass[p][:, None] * bvel[p]) / Mtot_safe[
+            :, None
+        ]
         bpos = jnp.where(keeper[:, None], merged_pos, bpos)
         bvel = jnp.where(keeper[:, None], merged_vel, bvel)
         bmass = jnp.where(keeper, Mtot, bmass)
@@ -228,7 +237,9 @@ class BinaryEnergyBudget(NamedTuple):
     n_binaries: int
 
 
-def _system_pairs(system_id: Int[Array, "N"], masses: Float[Array, "N"]) -> Int[Array, "K 2"]:
+def _system_pairs(
+    system_id: Int[Array, "N"], masses: Float[Array, "N"]
+) -> Int[Array, "K 2"]:
     """(K, 2) index pairs for systems with exactly two positive-mass members (eager).
 
     Ghost secondaries (mass 0, from the masked `ResolvedBinaries`) are excluded, so the
@@ -287,8 +298,14 @@ def binary_energy_budget(
     # (none for a contiguous system_id) are guarded to mass 1 and contribute 0.
     M_sys = jax.ops.segment_sum(masses, system_id, n_sys)
     M_safe = jnp.where(M_sys > 0.0, M_sys, 1.0)
-    com_pos = jax.ops.segment_sum(masses[:, None] * positions, system_id, n_sys) / M_safe[:, None]
-    com_vel = jax.ops.segment_sum(masses[:, None] * velocities, system_id, n_sys) / M_safe[:, None]
+    com_pos = (
+        jax.ops.segment_sum(masses[:, None] * positions, system_id, n_sys)
+        / M_safe[:, None]
+    )
+    com_vel = (
+        jax.ops.segment_sum(masses[:, None] * velocities, system_id, n_sys)
+        / M_safe[:, None]
+    )
 
     T_com = compute_kinetic_energy(com_vel, M_sys)
     W_com = compute_potential_energy(com_pos, M_sys, G=G, softening=softening)
@@ -303,8 +320,13 @@ def binary_energy_budget(
         E_internal = jnp.sum(
             jax.vmap(
                 lambda p: relative_energy(
-                    positions[p[0]], positions[p[1]], velocities[p[0]], velocities[p[1]],
-                    masses[p[0]], masses[p[1]], G=G,
+                    positions[p[0]],
+                    positions[p[1]],
+                    velocities[p[0]],
+                    velocities[p[1]],
+                    masses[p[0]],
+                    masses[p[1]],
+                    G=G,
                 )
             )(pairs)
         )

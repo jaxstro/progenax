@@ -16,19 +16,21 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
 from jaxstro.units import STELLAR
 
 G = STELLAR.G
 
 
 def _build_ic(W0, g, r_c=1.0, N=5000, seed=0, r_a=None, xi_max=300.0, n_ode=2000):
-    from progenax.profiles.limepy import LIMEPYProfile
     from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+    from progenax.profiles.limepy import LIMEPYProfile
 
-    prof = LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=r_c, r_a=r_a,
-                                    xi_max=xi_max, n_ode_points=n_ode)
-    df = LIMEPYVelocityDF(W0=W0, g=g, r_c=r_c, r_a=r_a, xi_max=xi_max, n_ode_points=n_ode)
+    prof = LIMEPYProfile.from_W0_rc(
+        W0=W0, g=g, r_c=r_c, r_a=r_a, xi_max=xi_max, n_ode_points=n_ode
+    )
+    df = LIMEPYVelocityDF(
+        W0=W0, g=g, r_c=r_c, r_a=r_a, xi_max=xi_max, n_ode_points=n_ode
+    )
     masses = jnp.ones(N)
     kp, kv = jax.random.split(jax.random.PRNGKey(seed))
     pos = prof.sample_positions(masses, kp)
@@ -107,8 +109,8 @@ class TestLimepyVelocityCorner:
     def test_g1_dispersion_profile_matches_king(self):
         """The sampled 1-D dispersion profile sigma_1d(r) at g=1 matches a King DF
         cluster (same W0, r_c) within sampling noise — same equilibrium kinematics."""
-        from progenax.profiles.king import KingProfile
         from progenax.kinematics.king_df import KingVelocityDF
+        from progenax.profiles.king import KingProfile
 
         N = 40000
         # LIMEPY g=1
@@ -143,12 +145,19 @@ class TestLimepyAnisotropicVelocity:
         from progenax.kinematics.limepy_df import _sample_speed_angle
 
         keys = jax.random.split(jax.random.PRNGKey(0), 20000)
-        for s_val, lo, hi, label in [(0.05, -0.05, 0.05, "core->isotropic"),
-                                     (1.0, 0.25, 0.55, "outskirts->radial")]:
-            ur, ut = jax.vmap(lambda k: _sample_speed_angle(
-                k, jnp.asarray(7.0), jnp.asarray(s_val), jnp.asarray(1.0), 256, 128))(keys)
+        for s_val, lo, hi, label in [
+            (0.05, -0.05, 0.05, "core->isotropic"),
+            (1.0, 0.25, 0.55, "outskirts->radial"),
+        ]:
+            ur, ut = jax.vmap(
+                lambda k: _sample_speed_angle(
+                    k, jnp.asarray(7.0), jnp.asarray(s_val), jnp.asarray(1.0), 256, 128
+                )
+            )(keys)
             beta = 1.0 - float(jnp.mean(ut**2)) / (2.0 * float(jnp.mean(ur**2)))
-            assert lo < beta < hi, f"{label}: s={s_val} beta={beta:.3f} not in ({lo},{hi})"
+            assert lo < beta < hi, (
+                f"{label}: s={s_val} beta={beta:.3f} not in ({lo},{hi})"
+            )
 
     def test_aniso_unscaled_virial_is_half(self):
         """A finite r_a anisotropic LIMEPY cluster is STILL a true equilibrium:
@@ -159,8 +168,9 @@ class TestLimepyAnisotropicVelocity:
 
         Qs = []
         for seed in range(4):
-            _, _, m, pos, vel = _build_ic(W0=7.0, g=1.0, r_a=8.0, N=6000, seed=seed,
-                                          xi_max=800.0, n_ode=3000)
+            _, _, m, pos, vel = _build_ic(
+                W0=7.0, g=1.0, r_a=8.0, N=6000, seed=seed, xi_max=800.0, n_ode=3000
+            )
             T = compute_kinetic_energy(vel, m)
             V = compute_potential_energy(pos, m, G=G)
             Qs.append(float(T / jnp.abs(V)))
@@ -170,8 +180,9 @@ class TestLimepyAnisotropicVelocity:
     def test_radial_anisotropy_increases_outward(self):
         """The defining Michie/OM kinematic signature in a full IC: beta(r) is small in
         the core (r << r_a) and rises (radially biased) outward. r_a/r_c=8, r_t~56."""
-        _, df, m, pos, vel = _build_ic(W0=7.0, g=1.0, r_a=8.0, N=60000, seed=1,
-                                       xi_max=800.0, n_ode=3000)
+        _, df, m, pos, vel = _build_ic(
+            W0=7.0, g=1.0, r_a=8.0, N=60000, seed=1, xi_max=800.0, n_ode=3000
+        )
         r_t = float(df.r_t)
         edges = np.linspace(0.0, 0.8 * r_t, 8)
         centers, betas = _beta_profile(pos, vel, edges)
@@ -182,12 +193,14 @@ class TestLimepyAnisotropicVelocity:
     def test_g1_aniso_matches_michie_velocity_df(self):
         """g=1 anisotropic LIMEPY velocity sampling reproduces MichieVelocityDF: same
         self-consistent velocity scale and same beta(r) anisotropy profile."""
-        from progenax.profiles.michie import MichieProfile
-        from progenax.kinematics.michie_df import MichieVelocityDF
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+        from progenax.kinematics.michie_df import MichieVelocityDF
+        from progenax.profiles.michie import MichieProfile
 
         W0, r_a = 7.0, 8.0
-        lim = LIMEPYVelocityDF(W0=W0, g=1.0, r_c=1.0, r_a=r_a, xi_max=800.0, n_ode_points=3000)
+        lim = LIMEPYVelocityDF(
+            W0=W0, g=1.0, r_c=1.0, r_a=r_a, xi_max=800.0, n_ode_points=3000
+        )
         mic = MichieVelocityDF(W0=W0, r_c=1.0, r_a=r_a, xi_max=800.0, n_ode_points=3000)
         M = jnp.asarray(6000.0)
         # velocity scale s (LIMEPY) == sigma (Michie)
@@ -209,8 +222,9 @@ class TestLimepyAnisotropicVelocity:
         np.testing.assert_allclose(bl, bm, atol=0.06)
 
     def test_aniso_all_bound(self):
-        _, df, m, pos, vel = _build_ic(W0=7.0, g=1.5, r_a=8.0, N=4000, seed=2,
-                                       xi_max=800.0, n_ode=3000)
+        _, df, m, pos, vel = _build_ic(
+            W0=7.0, g=1.5, r_a=8.0, N=4000, seed=2, xi_max=800.0, n_ode=3000
+        )
         r = jnp.linalg.norm(pos, axis=1)
         v = jnp.linalg.norm(vel, axis=1)
         W = jnp.interp(r / df.r_c, df.xi_grid, df.psi_grid, left=df.W0, right=0.0)
@@ -236,8 +250,10 @@ class TestLimepyTableRouting:
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 
         kw = dict(W0=5.0, g=1.0, r_c=1.0, r_a=r_a)
-        return (LIMEPYVelocityDF(**kw),                       # default: table
-                LIMEPYVelocityDF(**kw, speed_method="quadrature"))
+        return (
+            LIMEPYVelocityDF(**kw),  # default: table
+            LIMEPYVelocityDF(**kw, speed_method="quadrature"),
+        )
 
     def _pos_vel(self, df, n=20000, seed=0):
         from progenax.profiles.limepy import LIMEPYProfile
@@ -245,8 +261,7 @@ class TestLimepyTableRouting:
         prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
         masses = jnp.ones(n)
         pos = prof.sample_positions(masses, jax.random.PRNGKey(seed))
-        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1),
-                                   G=1.0)
+        vel = df.sample_velocities(pos, masses, jax.random.PRNGKey(seed + 1), G=1.0)
         return pos, vel
 
     def _speeds(self, df, n=20000, seed=0):
@@ -293,8 +308,9 @@ class TestLimepyTableRouting:
         def mean_ke(g):
             df = LIMEPYVelocityDF(W0=5.0, g=g, r_c=1.0, r_a=4.0)
             prof_pos = jnp.array([[0.5, 0.0, 0.0]] * 64)
-            v = df.sample_velocities(prof_pos, jnp.ones(64),
-                                     jax.random.PRNGKey(0), G=1.0)
+            v = df.sample_velocities(
+                prof_pos, jnp.ones(64), jax.random.PRNGKey(0), G=1.0
+            )
             return jnp.mean(jnp.sum(v**2, axis=1))
 
         g = jax.grad(mean_ke)(1.0)
@@ -305,9 +321,11 @@ class TestLimepyVelocityDifferentiable:
     def test_velocity_sampling_differentiable_in_g(self):
         """grad of mean kinetic energy w.r.t. g flows through the DF speed sampling
         (E_gamma's a-derivative): g is inferable from kinematics."""
+
         def loss(g):
-            from progenax.profiles.limepy import LIMEPYProfile
             from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+            from progenax.profiles.limepy import LIMEPYProfile
+
             prof = LIMEPYProfile.from_W0_rc(W0=7.0, g=g, r_c=1.0)
             df = LIMEPYVelocityDF(W0=7.0, g=g, r_c=1.0)
             m = jnp.ones(300)
@@ -345,8 +363,9 @@ class TestSamplerOptimization:
     def test_quadrature_method_has_no_table(self):
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
 
-        df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0,
-                              speed_method="quadrature")
+        df = LIMEPYVelocityDF(
+            W0=5.0, g=1.0, r_c=1.0, r_a=4.0, speed_method="quadrature"
+        )
         assert df.speed_table is None
 
     def test_cached_table_bit_identical_to_fresh_build(self):
@@ -357,13 +376,14 @@ class TestSamplerOptimization:
         df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)
         p_box = jnp.maximum(df.r_t / df.r_a, 1e-3)
         fresh = AnisoSpeedCDFTable.build(df.W0, p_box, df.g)
-        np.testing.assert_array_equal(np.asarray(df.speed_table.cdf),
-                                      np.asarray(fresh.cdf))
+        np.testing.assert_array_equal(
+            np.asarray(df.speed_table.cdf), np.asarray(fresh.cdf)
+        )
 
     def test_same_key_same_velocities(self):
         """Determinism through the jitted core: identical inputs, identical draws."""
-        from progenax.profiles.limepy import LIMEPYProfile
         from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+        from progenax.profiles.limepy import LIMEPYProfile
 
         prof = LIMEPYProfile.from_W0_rc(W0=5.0, g=1.0, r_c=1.0)
         df = LIMEPYVelocityDF(W0=5.0, g=1.0, r_c=1.0, r_a=4.0)

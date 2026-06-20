@@ -12,12 +12,12 @@ isotropic DF (beta(r) == 0).
 import jax
 import jax.numpy as jnp
 import pytest
-
 from jaxstro.units import STELLAR
-from progenax.kinematics.plummer_df import PlummerVelocityDF
-from progenax.kinematics.eff_df import EFFVelocityDF
-from progenax.profiles.plummer import PlummerProfile
+
 from progenax.dynamics.virial import compute_virial_ratio
+from progenax.kinematics.eff_df import EFFVelocityDF
+from progenax.kinematics.plummer_df import PlummerVelocityDF
+from progenax.profiles.plummer import PlummerProfile
 
 G = STELLAR.G
 
@@ -49,14 +49,18 @@ class TestPlummerOMRealizedBeta:
 
         beta = float(_measure_beta(v, pos))
         target = r**2 / (r**2 + r_a**2)
-        assert abs(beta - target) < 0.03, f"r={r}: realized beta={beta:.3f} vs target {target:.3f}"
+        assert abs(beta - target) < 0.03, (
+            f"r={r}: realized beta={beta:.3f} vs target {target:.3f}"
+        )
 
     def test_r_a_none_is_isotropic(self):
         df = PlummerVelocityDF(r_h=1.0, anisotropy_radius=None)
         N = 40000
         pos = _shell(2.0, N, seed=2)
         v = df.sample_velocities(pos, jnp.ones(N), jax.random.PRNGKey(3), G=G)
-        assert abs(float(_measure_beta(v, pos))) < 0.03, "r_a=None must stay isotropic (beta~0)"
+        assert abs(float(_measure_beta(v, pos))) < 0.03, (
+            "r_a=None must stay isotropic (beta~0)"
+        )
 
     def test_large_r_a_recovers_isotropy(self):
         """The f-table OM path with very large r_a must reduce to isotropy (beta~0)."""
@@ -78,7 +82,9 @@ class TestEFFOMRealizedBeta:
 
         beta = float(_measure_beta(v, pos))
         target = r**2 / (r**2 + r_a**2)
-        assert abs(beta - target) < 0.03, f"r={r}: realized beta={beta:.3f} vs target {target:.3f}"
+        assert abs(beta - target) < 0.03, (
+            f"r={r}: realized beta={beta:.3f} vs target {target:.3f}"
+        )
 
 
 class TestOMVirialEquilibrium:
@@ -92,7 +98,9 @@ class TestOMVirialEquilibrium:
         df = PlummerVelocityDF(r_h=r_h, anisotropy_radius=r_a)
         v = df.sample_velocities(pos, masses, jax.random.PRNGKey(1), G=G)
         Q = float(compute_virial_ratio(pos, v, masses, G=G))
-        assert abs(Q - 0.5) < 0.06, f"OM Plummer Q={Q:.3f} should be ~0.5 (still equilibrium)"
+        assert abs(Q - 0.5) < 0.06, (
+            f"OM Plummer Q={Q:.3f} should be ~0.5 (still equilibrium)"
+        )
 
 
 class TestOMNonNegativity:

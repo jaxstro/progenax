@@ -65,8 +65,9 @@ def test_spectral_slope_bounded_and_not_burgers():
 
 
 def test_spectral_slope_differentiable():
-    from progenax.cluster.turbulence import spectral_slope_from_mach
     import jax.numpy as jnp
+
+    from progenax.cluster.turbulence import spectral_slope_from_mach
 
     g = float(jax.grad(spectral_slope_from_mach)(8.0))
     assert jnp.isfinite(g) and g < 0.0  # decreasing

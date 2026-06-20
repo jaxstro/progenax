@@ -6,12 +6,10 @@ ApJS 230, 15.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, PRNGKeyArray
+from jaxtyping import Array, Float, PRNGKeyArray
 
 
 class MoeDiStefano2017(eqx.Module):
@@ -129,7 +127,7 @@ class MoeDiStefano2017(eqx.Module):
         # Sample twin component (truncated Gaussian centered at q=1, truncated to [q_min, 1])
         # Use inverse CDF sampling for correct distribution
         z_min = (self.q_min - 1.0) / self.sigma_twin
-        z_max = 0.0  # (1.0 - 1.0) / sigma = 0
+        _z_max = 0.0  # (1.0 - 1.0) / sigma = 0  (documents upper truncation bound)
         # CDF values at boundaries
         cdf_min = 0.5 * (1.0 + jax.scipy.special.erf(z_min / jnp.sqrt(2.0)))
         cdf_max = 0.5  # Φ(0) = 0.5
@@ -185,24 +183,30 @@ class MoeDiStefano2017(eqx.Module):
 # at representative masses 1.0/3.2/6.7/12/20 Msun. "<0.03" twin cells -> 0.
 _MASS_NODES_LOG = jnp.log10(jnp.array([1.0, 3.2, 6.7, 12.0, 20.0]))
 _LOGP_NODES = jnp.array([1.0, 3.0, 5.0, 7.0])
-_GAMMA_LARGEQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
-    [-0.5, -0.5, -0.5, -0.5, -0.5],
-    [-0.5, -0.9, -1.7, -1.7, -1.7],
-    [-0.5, -1.4, -2.0, -2.0, -2.0],
-    [-1.1, -2.0, -2.0, -2.0, -2.0],
-])
-_GAMMA_SMALLQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
-    [0.3, 0.2, 0.1, 0.1, 0.1],
-    [0.3, 0.1, -0.2, -0.2, -0.2],
-    [0.3, -0.5, -1.2, -1.2, -1.2],
-    [0.3, -1.0, -1.5, -1.5, -1.5],
-])
-_F_TWIN = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52), F_twin(logP=1)
-    [0.30, 0.22, 0.17, 0.14, 0.08],
-    [0.20, 0.10, 0.0, 0.0, 0.0],
-    [0.10, 0.0, 0.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0, 0.0, 0.0],
-])
+_GAMMA_LARGEQ = jnp.array(
+    [  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
+        [-0.5, -0.5, -0.5, -0.5, -0.5],
+        [-0.5, -0.9, -1.7, -1.7, -1.7],
+        [-0.5, -1.4, -2.0, -2.0, -2.0],
+        [-1.1, -2.0, -2.0, -2.0, -2.0],
+    ]
+)
+_GAMMA_SMALLQ = jnp.array(
+    [  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
+        [0.3, 0.2, 0.1, 0.1, 0.1],
+        [0.3, 0.1, -0.2, -0.2, -0.2],
+        [0.3, -0.5, -1.2, -1.2, -1.2],
+        [0.3, -1.0, -1.5, -1.5, -1.5],
+    ]
+)
+_F_TWIN = jnp.array(
+    [  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52), F_twin(logP=1)
+        [0.30, 0.22, 0.17, 0.14, 0.08],
+        [0.20, 0.10, 0.0, 0.0, 0.0],
+        [0.10, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ]
+)
 
 
 def _bilinear(grid: Float[Array, "4 5"], logP, logm1):
@@ -213,7 +217,9 @@ def _bilinear(grid: Float[Array, "4 5"], logP, logm1):
     shape = logP.shape
     fp = logP.reshape(-1)
     fm = logm1.reshape(-1)
-    rows = jnp.stack([jnp.interp(fm, _MASS_NODES_LOG, grid[i]) for i in range(4)], axis=0)
+    rows = jnp.stack(
+        [jnp.interp(fm, _MASS_NODES_LOG, grid[i]) for i in range(4)], axis=0
+    )
     out = jax.vmap(lambda lp, col: jnp.interp(lp, _LOGP_NODES, col))(fp, rows.T)
     return out.reshape(shape)
 
@@ -223,7 +229,7 @@ def _pl_integral(a, b, gamma):
     gp1 = gamma + 1.0
     is_m1 = jnp.abs(gp1) < 1e-10
     gp1s = jnp.where(is_m1, 1.0, gp1)
-    general = (b ** gp1s - a ** gp1s) / gp1s
+    general = (b**gp1s - a**gp1s) / gp1s
     return jnp.where(is_m1, jnp.log(b / a), general)
 
 
@@ -297,9 +303,7 @@ class MoeDiStefano2017Full(eqx.Module):
         p_pl_unnorm = jnp.where(q < self.q_break, p_lo, p_hi)
         ft_safe = jnp.minimum(ft, 0.95)  # Table 13 max is ~0.3; guard 1/(1-ft)
         twin_mass = ft_safe / (1.0 - ft_safe) * I_B
-        twin_unnorm = twin_mass * jnp.where(
-            (q >= 0.95) & (q <= 1.0), 1.0 / 0.05, 0.0
-        )
+        twin_unnorm = twin_mass * jnp.where((q >= 0.95) & (q <= 1.0), 1.0 / 0.05, 0.0)
         Z_tot = I_A + I_B + twin_mass
         in_range = (q >= self.q_min) & (q <= 1.0)
         p_pl = jnp.where(in_range, p_pl_unnorm / Z_tot, 0.0)
@@ -339,12 +343,14 @@ class MoeDiStefano2017Full(eqx.Module):
 
 # Companion frequency f_logP;q>0.1 per dex (Table 13) — the M1-dependent period
 # distribution shape. Rows = logP {1,3,5,7}; cols = mass bins.
-_COMPANION_FREQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52) f_logP;q>0.1
-    [0.027, 0.07, 0.14, 0.19, 0.29],
-    [0.057, 0.12, 0.22, 0.26, 0.32],
-    [0.095, 0.13, 0.20, 0.23, 0.30],
-    [0.075, 0.09, 0.11, 0.13, 0.18],
-])
+_COMPANION_FREQ = jnp.array(
+    [  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52) f_logP;q>0.1
+        [0.027, 0.07, 0.14, 0.19, 0.29],
+        [0.057, 0.12, 0.22, 0.26, 0.32],
+        [0.095, 0.13, 0.20, 0.23, 0.30],
+        [0.075, 0.09, 0.11, 0.13, 0.18],
+    ]
+)
 
 
 class MoePeriod(eqx.Module):
@@ -384,7 +390,7 @@ class MoePeriod(eqx.Module):
         cdf = cdf / cdf[:, -1:]
         u = jax.random.uniform(key, (masses.shape[0],))
         log_P = jax.vmap(lambda c, uu: jnp.interp(uu, c, grid))(cdf, u)
-        return 10.0 ** log_P
+        return 10.0**log_P
 
 
 class MoeJointOrbit(eqx.Module):
@@ -424,5 +430,3 @@ class MoeJointOrbit(eqx.Module):
         q = self.massratio.sample(k_q, masses, P)
         e = self.eccentricity.sample(k_e, P, masses)
         return P, q, e
-
-

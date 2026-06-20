@@ -59,7 +59,9 @@ class TestMarksTable1GlobularClusters:
     def test_ngc7078_is_most_top_heavy(self):
         """NGC 7078 (M15) is the most top-heavy GC in Marks+2012 Table 1."""
         a3 = {
-            name: float(alpha3_marks_plane(jnp.log10(jnp.asarray(rho)), jnp.asarray(feh)))
+            name: float(
+                alpha3_marks_plane(jnp.log10(jnp.asarray(rho)), jnp.asarray(feh))
+            )
             for name, feh, rho, _ in MARKS_TABLE1_GCS
         }
         assert a3["NGC 7078"] == min(a3.values()), a3
@@ -85,8 +87,12 @@ class TestMarksTable4LowMassSlopes:
     @pytest.mark.parametrize("FeH,a1_pub,a2_pub", MARKS_TABLE4_SLOPES)
     def test_lowmass_slopes_match_table4(self, FeH, a1_pub, a2_pub):
         a1, a2 = lowmass_slopes_metallicity(jnp.asarray(FeH))
-        assert abs(float(a1) - a1_pub) < 0.02, f"alpha1({FeH}) {float(a1):.3f} vs {a1_pub}"
-        assert abs(float(a2) - a2_pub) < 0.02, f"alpha2({FeH}) {float(a2):.3f} vs {a2_pub}"
+        assert abs(float(a1) - a1_pub) < 0.02, (
+            f"alpha1({FeH}) {float(a1):.3f} vs {a1_pub}"
+        )
+        assert abs(float(a2) - a2_pub) < 0.02, (
+            f"alpha2({FeH}) {float(a2):.3f} vs {a2_pub}"
+        )
 
     def test_slopes_steepen_with_metallicity(self):
         """Both low-mass slopes increase monotonically with [Fe/H]."""
@@ -105,6 +111,7 @@ class TestErratumCorrectedPlane:
 
     def test_marks_threshold_is_erratum_value(self):
         from progenax.imf.environment.coefficients import MARKS_COEFFICIENTS as M
+
         assert M["x_hat_threshold"] == -0.87, "must use the 2014-erratum threshold"
         # the corrected line meets canonical 2.3 continuously at the threshold
         knee = M["alpha3_slope"] * M["x_hat_threshold"] + M["alpha3_intercept"]
@@ -112,19 +119,24 @@ class TestErratumCorrectedPlane:
 
     def test_corrected_marks_equals_jerabkova(self):
         from progenax.imf.environment.mapping import (
-            alpha3_marks_plane, alpha3_jerabkova_rho,
+            alpha3_jerabkova_rho,
+            alpha3_marks_plane,
         )
+
         lr = jnp.linspace(-1.0, 3.0, 50)
         for feh in (-2.0, -1.0, 0.0):
             am = alpha3_marks_plane(lr, jnp.full_like(lr, feh))
             aj = alpha3_jerabkova_rho(lr, jnp.full_like(lr, feh))
             gap = float(jnp.max(jnp.abs(am - aj)))
             # identical up to the -0.4072-vs-(-0.41) slope rounding
-            assert gap < 0.05, f"[Fe/H]={feh}: corrected Marks vs Jerabkova gap {gap:.3f}"
+            assert gap < 0.05, (
+                f"[Fe/H]={feh}: corrected Marks vs Jerabkova gap {gap:.3f}"
+            )
 
     def test_canonical_recovered_at_low_density(self):
         """Below the knee (x_hat < -0.87) the corrected plane returns canonical 2.3."""
         from progenax.imf.environment.mapping import alpha3_marks_plane
+
         # FeH=0, log_rho_6 = -2 -> x_hat = -1.98 < -0.87
         a3 = float(alpha3_marks_plane(jnp.asarray(-2.0), jnp.asarray(0.0)))
         assert abs(a3 - 2.3) < 0.01, f"diffuse field must be canonical, got {a3:.3f}"

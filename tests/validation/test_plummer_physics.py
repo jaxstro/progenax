@@ -13,8 +13,8 @@ import jax
 import jax.numpy as jnp
 import pytest
 
-from progenax.profiles import PlummerProfile
 from progenax.kinematics import PlummerVelocityDF
+from progenax.profiles import PlummerProfile
 
 
 class TestPlummerScaleRadius:
@@ -30,8 +30,9 @@ class TestPlummerScaleRadius:
         profile = PlummerProfile(r_h=r_h)
 
         expected_a = r_h * plummer_constants.SCALE_RADIUS_FACTOR
-        assert jnp.allclose(profile.a, expected_a, rtol=1e-6), \
+        assert jnp.allclose(profile.a, expected_a, rtol=1e-6), (
             f"Scale radius a={float(profile.a):.10f}, expected={float(expected_a):.10f}"
+        )
 
     def test_scale_radius_numerical_value(self):
         """Scale radius approximately 0.7664 × r_h."""
@@ -39,8 +40,9 @@ class TestPlummerScaleRadius:
         profile = PlummerProfile(r_h=r_h)
 
         # Numerical value: sqrt(2^(2/3) - 1) ≈ 0.76643...
-        assert jnp.allclose(profile.a, 0.7664 * r_h, rtol=0.001), \
+        assert jnp.allclose(profile.a, 0.7664 * r_h, rtol=0.001), (
             f"Scale radius a={float(profile.a):.4f}, expected ≈ 0.7664"
+        )
 
     @pytest.mark.parametrize("r_h", [0.5, 1.0, 2.0, 5.0, 10.0])
     def test_scale_radius_scales_linearly(self, r_h, plummer_constants):
@@ -56,8 +58,9 @@ class TestPlummerScaleRadius:
         profile = PlummerProfile(r_h=r_h)
         df = PlummerVelocityDF(r_h=r_h)
 
-        assert jnp.allclose(profile.a, df.a, rtol=1e-6), \
+        assert jnp.allclose(profile.a, df.a, rtol=1e-6), (
             f"Mismatch: profile.a={float(profile.a):.6f}, df.a={float(df.a):.6f}"
+        )
 
 
 class TestPlummerDensityProfile:
@@ -74,10 +77,13 @@ class TestPlummerDensityProfile:
 
         fraction_within = float(jnp.mean(radii < r_h))
 
-        assert abs(fraction_within - 0.5) < tolerances.HALF_MASS, \
+        assert abs(fraction_within - 0.5) < tolerances.HALF_MASS, (
             f"Fraction within r_h = {fraction_within:.4f}, expected 0.50 ± {tolerances.HALF_MASS}"
+        )
 
-    def test_cumulative_mass_at_scale_radius(self, N_validation, key, plummer_constants, tolerances):
+    def test_cumulative_mass_at_scale_radius(
+        self, N_validation, key, plummer_constants, tolerances
+    ):
         """M(<a)/M = 1/2^(3/2) ≈ 0.354 at scale radius.
 
         From Plummer CDF: M(<r)/M = r³/(r²+a²)^(3/2)
@@ -93,8 +99,9 @@ class TestPlummerDensityProfile:
         fraction_within_a = float(jnp.mean(radii < profile.a))
         expected = float(plummer_constants.MASS_WITHIN_SCALE_RADIUS)
 
-        assert abs(fraction_within_a - expected) < tolerances.HALF_MASS, \
+        assert abs(fraction_within_a - expected) < tolerances.HALF_MASS, (
             f"M(<a)/M = {fraction_within_a:.4f}, expected {expected:.4f}"
+        )
 
     def test_cdf_formula_accuracy(self, N_stats, key):
         """Sampled radii match theoretical CDF: M(<r)/M = r³/(r²+a²)^(3/2)."""
@@ -112,10 +119,11 @@ class TestPlummerDensityProfile:
             # Measured
             measured = float(jnp.mean(radii < r_test))
             # Theoretical
-            expected = float(r_test**3 / (r_test**2 + a**2)**1.5)
+            expected = float(r_test**3 / (r_test**2 + a**2) ** 1.5)
 
-            assert abs(measured - expected) < 0.03, \
+            assert abs(measured - expected) < 0.03, (
                 f"At r={float(r_test):.2f}: measured={measured:.4f}, expected={expected:.4f}"
+            )
 
     def test_positions_isotropic(self, N_validation, key):
         """Sampled positions are isotropically distributed."""
@@ -132,8 +140,9 @@ class TestPlummerDensityProfile:
         for i, (mean, std) in enumerate(zip(mean_pos, std_pos)):
             # Mean within 3σ/√N of zero
             threshold = 3 * std / jnp.sqrt(N_validation)
-            assert jnp.abs(mean) < threshold, \
+            assert jnp.abs(mean) < threshold, (
                 f"Component {i}: mean={float(mean):.4f}, expected ~0 (threshold={float(threshold):.4f})"
+            )
 
 
 class TestPlummerVelocityDispersion:
@@ -160,8 +169,9 @@ class TestPlummerVelocityDispersion:
         sigma_theory = float(jnp.sqrt(G * M_total / (6.0 * a)))
 
         relative_error = abs(sigma_measured - sigma_theory) / sigma_theory
-        assert relative_error < tolerances.VELOCITY_DISPERSION, \
-            f"σ_measured={sigma_measured:.4f}, σ_theory={sigma_theory:.4f}, error={relative_error*100:.1f}%"
+        assert relative_error < tolerances.VELOCITY_DISPERSION, (
+            f"σ_measured={sigma_measured:.4f}, σ_theory={sigma_theory:.4f}, error={relative_error * 100:.1f}%"
+        )
 
     def test_radial_dispersion_profile(self, N_validation, key, tolerances):
         """Velocity dispersion decreases with radius per σ²(r) = GM/(6√(r²+a²))."""
@@ -193,14 +203,16 @@ class TestPlummerVelocityDispersion:
 
         # Verify monotonic decrease
         for i in range(len(test_radii) - 1):
-            assert measured_sigmas[i] > measured_sigmas[i+1] * 0.85, \
-                f"σ should decrease: σ({test_radii[i]})={measured_sigmas[i]:.3f} vs σ({test_radii[i+1]})={measured_sigmas[i+1]:.3f}"
+            assert measured_sigmas[i] > measured_sigmas[i + 1] * 0.85, (
+                f"σ should decrease: σ({test_radii[i]})={measured_sigmas[i]:.3f} vs σ({test_radii[i + 1]})={measured_sigmas[i + 1]:.3f}"
+            )
 
         # Verify matches theory within tolerance
         for r, sm, st in zip(test_radii, measured_sigmas, theory_sigmas):
             error = abs(sm - st) / st
-            assert error < tolerances.VELOCITY_DISPERSION, \
-                f"At r={r}: error={error*100:.1f}% exceeds {tolerances.VELOCITY_DISPERSION*100:.0f}%"
+            assert error < tolerances.VELOCITY_DISPERSION, (
+                f"At r={r}: error={error * 100:.1f}% exceeds {tolerances.VELOCITY_DISPERSION * 100:.0f}%"
+            )
 
     def test_velocity_isotropy(self, N_stats, key):
         """Velocities are isotropically distributed (no radial bias)."""
@@ -222,8 +234,9 @@ class TestPlummerVelocityDispersion:
         mean_v2 = float(jnp.mean(v2_mean))
         for i, v2i in enumerate(v2_mean):
             rel_diff = abs(float(v2i) - mean_v2) / mean_v2
-            assert rel_diff < 0.05, \
-                f"Anisotropy detected: <v{['x','y','z'][i]}²>={float(v2i):.4f}, mean={mean_v2:.4f}"
+            assert rel_diff < 0.05, (
+                f"Anisotropy detected: <v{['x', 'y', 'z'][i]}²>={float(v2i):.4f}, mean={mean_v2:.4f}"
+            )
 
 
 class TestPlummerVirialEquilibrium:
@@ -254,8 +267,9 @@ class TestPlummerVirialEquilibrium:
         # Virial ratio: Q = T/|V| (NOT 2T/|V|)
         Q = T / abs(float(V_analytical))
 
-        assert abs(Q - 0.5) < tolerances.VIRIAL_RATIO, \
+        assert abs(Q - 0.5) < tolerances.VIRIAL_RATIO, (
             f"Virial ratio Q={Q:.4f}, expected 0.5 ± {tolerances.VIRIAL_RATIO}"
+        )
 
 
 class TestPlummerBoundParticles:
@@ -285,8 +299,9 @@ class TestPlummerBoundParticles:
 
         # All must be bound
         bound_fraction = float(jnp.mean(v_mag < v_esc))
-        assert bound_fraction == 1.0, \
-            f"Only {bound_fraction*100:.2f}% bound (expected 100%)"
+        assert bound_fraction == 1.0, (
+            f"Only {bound_fraction * 100:.2f}% bound (expected 100%)"
+        )
 
     def test_velocity_to_escape_ratio(self, N_stats, key, plummer_constants):
         """Mean v/v_esc ≈ 0.5 (from Beta distribution mean √⟨q²⟩ = 0.5)."""
@@ -311,8 +326,7 @@ class TestPlummerBoundParticles:
 
         # From Beta(3/2, 9/2): E[q] = E[√u] where u ~ Beta(3/2, 9/2)
         # E[√u] ≈ 0.47 (numerical integration)
-        assert 0.40 < q_mean < 0.55, \
-            f"Mean q = v/v_esc = {q_mean:.4f}, expected ~0.47"
+        assert 0.40 < q_mean < 0.55, f"Mean q = v/v_esc = {q_mean:.4f}, expected ~0.47"
 
 
 class TestPlummerBetaDistribution:
@@ -341,8 +355,9 @@ class TestPlummerBetaDistribution:
         q2_mean = float(jnp.mean(q**2))
 
         expected = float(plummer_constants.MEAN_Q_SQUARED)  # 0.25
-        assert abs(q2_mean - expected) < 0.02, \
+        assert abs(q2_mean - expected) < 0.02, (
             f"⟨q²⟩ = {q2_mean:.4f}, expected {expected:.4f}"
+        )
 
     def test_q_squared_variance(self, N_stats, key):
         """Variance of q² matches Beta(3/2, 9/2) prediction.
@@ -366,15 +381,18 @@ class TestPlummerBetaDistribution:
         v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + a**2))
         v_mag = jnp.linalg.norm(velocities, axis=1)
 
-        q2 = (v_mag / v_esc)**2
+        q2 = (v_mag / v_esc) ** 2
         q2_var = float(jnp.var(q2))
 
         # Theoretical variance for Beta(1.5, 4.5)
         a_beta, b_beta = 1.5, 4.5
-        expected_var = (a_beta * b_beta) / ((a_beta + b_beta)**2 * (a_beta + b_beta + 1))
+        expected_var = (a_beta * b_beta) / (
+            (a_beta + b_beta) ** 2 * (a_beta + b_beta + 1)
+        )
 
-        assert abs(q2_var - expected_var) / expected_var < 0.15, \
+        assert abs(q2_var - expected_var) / expected_var < 0.15, (
             f"Var(q²) = {q2_var:.4f}, expected {expected_var:.4f}"
+        )
 
 
 if __name__ == "__main__":

@@ -35,8 +35,8 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
 from progenax.profiles.limepy import (
-    _aniso_density_scalar,
     _angle_integral_T,
+    _aniso_density_scalar,
     limepy_density_hat,
     lowered_exponential,
 )
@@ -70,17 +70,23 @@ def _grid_density_components(psi_arr, xi_arr, rescale, W0, g, ra_hat_j, is_aniso
     normalized to the central (p=0) value. xi_arr is the dimensionless radius r/r_c.
     """
     if is_aniso:
-        rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
+        rho0_j = jax.vmap(
+            lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g)
+        )(rescale)
 
         def at(xi, psi):
             p_j = xi / ra_hat_j
-            rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(rescale, p_j)
+            rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(
+                rescale, p_j
+            )
             return jnp.where(rho0_j > 1e-300, rho / rho0_j, 0.0)
 
         return jax.vmap(at, out_axes=1)(xi_arr, psi_arr)
     return jnp.where(
         psi_arr[None, :] > 0.0,
-        jax.vmap(lambda p: _multimass_density_sources(p, rescale, W0, g), out_axes=1)(psi_arr),
+        jax.vmap(lambda p: _multimass_density_sources(p, rescale, W0, g), out_axes=1)(
+            psi_arr
+        ),
         0.0,
     )
 
@@ -125,8 +131,9 @@ def _solver_table(rescale, ra_j, W0, g, xi_max):
     p_max = 0 -> zero-width q grid -> NaN; floor it.
     """
     p_max = jnp.maximum(xi_max / jnp.min(ra_j), 1e-3)
-    return _build_density_table(jnp.max(rescale) * W0, p_max, g,
-                                n_W=_TAB_N_W, n_p=_TAB_N_P)
+    return _build_density_table(
+        jnp.max(rescale) * W0, p_max, g, n_W=_TAB_N_W, n_p=_TAB_N_P
+    )
 
 
 class _TableRHS(eqx.Module):
@@ -146,7 +153,9 @@ class _TableRHS(eqx.Module):
 
     def density_components(self, xi, psi):  # (n_comp,) normalized to central
         p_j = xi / self.ra_j
-        rho = jax.vmap(lambda res, pj: self.tab.evaluate(res * psi, pj))(self.rescale, p_j)
+        rho = jax.vmap(lambda res, pj: self.tab.evaluate(res * psi, pj))(
+            self.rescale, p_j
+        )
         return jnp.where(self.rho0_j > 1e-300, rho / self.rho0_j, 0.0)
 
     def __call__(self, xi, y, args):
@@ -156,8 +165,7 @@ class _TableRHS(eqx.Module):
         return jnp.array([dpsi, d2])
 
 
-def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method,
-                      table=None):
+def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method, table=None):
     """Anisotropic per-component density source for the coupled RHS.
 
     Returns (density_components, rhs_fn_or_None). aniso_method is a STATIC
@@ -185,12 +193,17 @@ def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method,
         return rhs_fn.density_components, rhs_fn
     if aniso_method != "quadrature":
         raise ValueError(
-            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}")
-    rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(rescale)
+            f"aniso_method must be 'table' or 'quadrature', got {aniso_method!r}"
+        )
+    rho0_j = jax.vmap(lambda res: _aniso_density_scalar(res * W0, jnp.asarray(0.0), g))(
+        rescale
+    )
 
     def density_components(xi, psi):  # (n_comp,) normalized to central
         p_j = xi / ra_j
-        rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(rescale, p_j)
+        rho = jax.vmap(lambda res, pj: _aniso_density_scalar(res * psi, pj, g))(
+            rescale, p_j
+        )
         return jnp.where(rho0_j > 1e-300, rho / rho0_j, 0.0)
 
     return density_components, None
@@ -206,7 +219,12 @@ def solve_multicomponent_limepy(
     ra_hat_j: Float[Array, "n_comp"] | None = None,
     aniso_method: str = "table",
     aniso_table: AnisoDensityTable | None = None,
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
+) -> Tuple[
+    Float[Array, "n_points"],
+    Float[Array, "n_points"],
+    Float[Array, "n_points"],
+    Float[Array, "n_comp n_points"],
+]:
     """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
 
     Given central density fractions alpha_j (sum to 1) and a DIRECT per-component
@@ -254,19 +272,31 @@ def solve_multicomponent_limepy(
 
     rhs_fn = None  # the table path supplies an eqx.Module RHS (jit-cache stable)
     if isotropic:
+
         def density_components(xi, psi):  # (n_comp,)
             return _multimass_density_sources(psi, rescale, W0, g)
     else:
         density_components, rhs_fn = _aniso_density_fn(
-            alpha_j, rescale, jnp.asarray(ra_hat_j), W0, g, xi_max, aniso_method,
-            table=aniso_table)
+            alpha_j,
+            rescale,
+            jnp.asarray(ra_hat_j),
+            W0,
+            g,
+            xi_max,
+            aniso_method,
+            table=aniso_table,
+        )
 
     if rhs_fn is None:
+
         def rhs(xi, y, args):
             psi, dpsi = y[0], y[1]
             rho_tot = jnp.sum(alpha_j * density_components(xi, psi))
-            d2 = jnp.where(xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot)
+            d2 = jnp.where(
+                xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot
+            )
             return jnp.array([dpsi, d2])
+
         rhs_fn = rhs
 
     y0 = jnp.array([W0, 0.0])
@@ -298,8 +328,11 @@ def solve_multicomponent_limepy(
         try:
             psi_end_val = float(psi_end)
             W0_val = float(W0)
-        except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-                TypeError):
+        except (
+            jax.errors.ConcretizationTypeError,
+            jax.errors.TracerArrayConversionError,
+            TypeError,
+        ):
             psi_end_val = None
         if psi_end_val is not None and psi_end_val > 1e-3 * W0_val:
             raise ValueError(
@@ -321,7 +354,12 @@ def solve_multimass_limepy(
     ra_hat: float | None = None,
     eta: float = 0.0,
     aniso_method: str = "table",
-) -> Tuple[Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_comp n_points"]]:
+) -> Tuple[
+    Float[Array, "n_points"],
+    Float[Array, "n_points"],
+    Float[Array, "n_points"],
+    Float[Array, "n_comp n_points"],
+]:
     """Mass-segregation convenience over solve_multicomponent_limepy (Engine A).
 
     The Gieles & Zocchi (2015) equipartition parametrization: per-component rescaling
@@ -342,9 +380,15 @@ def solve_multimass_limepy(
     bar_m = jnp.sum(m_j * alpha_j)
     mu_j = m_j / bar_m
     rescale_j = mu_j ** (2.0 * delta)  # mu_j^(2 delta) per component
-    ra_hat_j = None if ra_hat is None else ra_hat * mu_j ** eta
+    ra_hat_j = None if ra_hat is None else ra_hat * mu_j**eta
     return solve_multicomponent_limepy(
-        alpha_j, rescale_j, W0, g, xi_max=xi_max, n_points=n_points, ra_hat_j=ra_hat_j,
+        alpha_j,
+        rescale_j,
+        W0,
+        g,
+        xi_max=xi_max,
+        n_points=n_points,
+        ra_hat_j=ra_hat_j,
         aniso_method=aniso_method,
     )
 
@@ -363,9 +407,18 @@ def _realized_fractions(
 ) -> Float[Array, "n_comp"]:
     """Realized mass fractions f_j' = alpha_j nu_j / sum_k alpha_k nu_k from a coupled
     solve, nu_j = int rho_hat_j xi^2 dxi (the per-component dimensionless mass)."""
-    xi, _, _, rho_j = solve_multimass_limepy(alpha_j, m_j, W0, g, delta, xi_max, n_points,
-                                             ra_hat=ra_hat, eta=eta,
-                                             aniso_method=aniso_method)
+    xi, _, _, rho_j = solve_multimass_limepy(
+        alpha_j,
+        m_j,
+        W0,
+        g,
+        delta,
+        xi_max,
+        n_points,
+        ra_hat=ra_hat,
+        eta=eta,
+        aniso_method=aniso_method,
+    )
     nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
     M_real = alpha_j * nu_j
     return M_real / (jnp.sum(M_real) + 1e-300)
@@ -375,24 +428,28 @@ def _realized_fractions(
 # Layer B fixed-point map + residual (shared by the two custom_vjp solvers below).
 # Explicit args (no closure) so jax.vjp is clean for the implicit backward.
 # ------------------------------------------------------------------------------
-def _alpha_map(alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta,
-               aniso_method):
+def _alpha_map(
+    alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+):
     """One Gieles & Zocchi sqrt-update: alpha <- normalize(alpha sqrt(f_target/f_real))."""
-    f_real = _realized_fractions(alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta,
-                                 aniso_method)
+    f_real = _realized_fractions(
+        alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    )
     a = alpha * jnp.sqrt(f_target / (f_real + 1e-300))
     return a / jnp.sum(a)
 
 
-def _alpha_residual(alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta,
-                    aniso_method):
+def _alpha_residual(
+    alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+):
     """Fixed-point residual R(alpha, theta) = alpha - sqrt-map(alpha); zero at alpha*.
 
     The implicit VJP differentiates THIS residual (cond ~2.6 with a benign Sigma=0
     simplex null direction handled by lstsq), NOT f_real - f_target (cond ~1e16).
     """
-    return alpha - _alpha_map(alpha, m_j, f_target, W0, g, delta, xi_max, n_points,
-                              ra_hat, eta, aniso_method)
+    return alpha - _alpha_map(
+        alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    )
 
 
 # ------------------------------------------------------------------------------
@@ -406,8 +463,9 @@ def _alpha_residual(alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat
 #                                        aniso_method, tol, max_iter)
 # ------------------------------------------------------------------------------
 @functools.partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
-def _solve_alpha_iso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                     aniso_method, tol, max_iter):
+def _solve_alpha_iso(
+    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+):
     f_target = M_j / jnp.sum(M_j)
 
     def cond(s):
@@ -416,36 +474,70 @@ def _solve_alpha_iso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
 
     def body(s):
         a, it, _ = s
-        a_new = _alpha_map(a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta,
-                           aniso_method)
-        f_real = _realized_fractions(a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat,
-                                     eta, aniso_method)
+        a_new = _alpha_map(
+            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
+        f_real = _realized_fractions(
+            a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
         return a_new, it + 1, jnp.max(jnp.abs(f_real - f_target))
 
     a_star, _, _ = jax.lax.while_loop(
-        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf)))
+        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf))
+    )
     return a_star
 
 
-def _solve_alpha_iso_fwd(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                         aniso_method, tol, max_iter):
-    a_star = _solve_alpha_iso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                              aniso_method, tol, max_iter)
+def _solve_alpha_iso_fwd(
+    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+):
+    a_star = _solve_alpha_iso(
+        m_j,
+        M_j,
+        W0,
+        g,
+        delta,
+        ra_hat,
+        eta,
+        xi_max,
+        n_points,
+        aniso_method,
+        tol,
+        max_iter,
+    )
     return a_star, (a_star, m_j, M_j, W0, g, delta)
 
 
-def _solve_alpha_iso_bwd(ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter,
-                         res, a_bar):
+def _solve_alpha_iso_bwd(
+    ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter, res, a_bar
+):
     a_star, m_j, M_j, W0, g, delta = res
     f_target = M_j / jnp.sum(M_j)
-    R_a = lambda a: _alpha_residual(a, m_j, f_target, W0, g, delta, xi_max, n_points,
-                                    ra_hat, eta, aniso_method)
+
+    def R_a(a):
+        return _alpha_residual(
+            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
+
     _, vjp_a = jax.vjp(R_a, a_star)
     J = jax.vmap(lambda e: vjp_a(e)[0])(jnp.eye(a_star.shape[0]))  # n x n, reverse-mode
     w = jnp.linalg.lstsq(J.T, a_bar, rcond=None)[0]
-    R_th = lambda mj, Mj, W, gg, d: _alpha_residual(
-        a_star, mj, Mj / jnp.sum(Mj), W, gg, d, xi_max, n_points, ra_hat, eta,
-        aniso_method)
+
+    def R_th(mj, Mj, W, gg, d):
+        return _alpha_residual(
+            a_star,
+            mj,
+            Mj / jnp.sum(Mj),
+            W,
+            gg,
+            d,
+            xi_max,
+            n_points,
+            ra_hat,
+            eta,
+            aniso_method,
+        )
+
     _, vjp_th = jax.vjp(R_th, m_j, M_j, W0, g, delta)
     gm, gM, gW, gg, gd = vjp_th(w)
     return (-gm, -gM, -gW, -gg, -gd)
@@ -459,8 +551,9 @@ _solve_alpha_iso.defvjp(_solve_alpha_iso_fwd, _solve_alpha_iso_bwd)
 # ra_hat, eta) -> bwd returns a 7-tuple. Statics via nondiff_argnums = (7,8,9,10,11).
 # ------------------------------------------------------------------------------
 @functools.partial(jax.custom_vjp, nondiff_argnums=(7, 8, 9, 10, 11))
-def _solve_alpha_aniso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                       aniso_method, tol, max_iter):
+def _solve_alpha_aniso(
+    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+):
     f_target = M_j / jnp.sum(M_j)
 
     def cond(s):
@@ -469,34 +562,68 @@ def _solve_alpha_aniso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
 
     def body(s):
         a, it, _ = s
-        a_new = _alpha_map(a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta,
-                           aniso_method)
-        f_real = _realized_fractions(a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat,
-                                     eta, aniso_method)
+        a_new = _alpha_map(
+            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
+        f_real = _realized_fractions(
+            a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
         return a_new, it + 1, jnp.max(jnp.abs(f_real - f_target))
 
     a_star, _, _ = jax.lax.while_loop(
-        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf)))
+        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf))
+    )
     return a_star
 
 
-def _solve_alpha_aniso_fwd(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                           aniso_method, tol, max_iter):
-    a_star = _solve_alpha_aniso(m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points,
-                                aniso_method, tol, max_iter)
+def _solve_alpha_aniso_fwd(
+    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+):
+    a_star = _solve_alpha_aniso(
+        m_j,
+        M_j,
+        W0,
+        g,
+        delta,
+        ra_hat,
+        eta,
+        xi_max,
+        n_points,
+        aniso_method,
+        tol,
+        max_iter,
+    )
     return a_star, (a_star, m_j, M_j, W0, g, delta, ra_hat, eta)
 
 
 def _solve_alpha_aniso_bwd(xi_max, n_points, aniso_method, tol, max_iter, res, a_bar):
     a_star, m_j, M_j, W0, g, delta, ra_hat, eta = res
     f_target = M_j / jnp.sum(M_j)
-    R_a = lambda a: _alpha_residual(a, m_j, f_target, W0, g, delta, xi_max, n_points,
-                                    ra_hat, eta, aniso_method)
+
+    def R_a(a):
+        return _alpha_residual(
+            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        )
+
     _, vjp_a = jax.vjp(R_a, a_star)
     J = jax.vmap(lambda e: vjp_a(e)[0])(jnp.eye(a_star.shape[0]))  # n x n, reverse-mode
     w = jnp.linalg.lstsq(J.T, a_bar, rcond=None)[0]
-    R_th = lambda mj, Mj, W, gg, d, rah, et: _alpha_residual(
-        a_star, mj, Mj / jnp.sum(Mj), W, gg, d, xi_max, n_points, rah, et, aniso_method)
+
+    def R_th(mj, Mj, W, gg, d, rah, et):
+        return _alpha_residual(
+            a_star,
+            mj,
+            Mj / jnp.sum(Mj),
+            W,
+            gg,
+            d,
+            xi_max,
+            n_points,
+            rah,
+            et,
+            aniso_method,
+        )
+
     _, vjp_th = jax.vjp(R_th, m_j, M_j, W0, g, delta, ra_hat, eta)
     gm, gM, gW, gg, gd, gra, get = vjp_th(w)
     return (-gm, -gM, -gW, -gg, -gd, -gra, -get)
@@ -565,14 +692,38 @@ def find_alpha_for_masses(
     if ra_hat is None:
         # iso: eta passed bare -- it is nondiff here; jnp.asarray(eta) would become a
         # tracer under jit in a nondiff_argnums slot and crash jit(grad).
-        alpha = _solve_alpha_iso(m_j, M_j, W0, g, delta, None, eta,
-                                 xi_max, n_points, aniso_method, tol, n_iter)
+        alpha = _solve_alpha_iso(
+            m_j,
+            M_j,
+            W0,
+            g,
+            delta,
+            None,
+            eta,
+            xi_max,
+            n_points,
+            aniso_method,
+            tol,
+            n_iter,
+        )
     else:
-        alpha = _solve_alpha_aniso(m_j, M_j, W0, g, delta, jnp.asarray(ra_hat),
-                                   jnp.asarray(eta), xi_max, n_points, aniso_method,
-                                   tol, n_iter)
-    f_real = _realized_fractions(alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat,
-                                 eta, aniso_method)
+        alpha = _solve_alpha_aniso(
+            m_j,
+            M_j,
+            W0,
+            g,
+            delta,
+            jnp.asarray(ra_hat),
+            jnp.asarray(eta),
+            xi_max,
+            n_points,
+            aniso_method,
+            tol,
+            n_iter,
+        )
+    f_real = _realized_fractions(
+        alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    )
     residual = jnp.max(jnp.abs(f_real - M_j / jnp.sum(M_j)))
     return alpha, residual
 
@@ -600,7 +751,9 @@ def _bin_imf(imf, n_comp: int, m_range):
     M_j = int m xi dm (trapezoid of m * pdf over a sub-grid), representative mass
     m_j = M_j / N_j (number-weighted mean). Test/convenience path (concrete inputs).
     """
-    edges = jnp.asarray(__import__("numpy").geomspace(m_range[0], m_range[1], n_comp + 1))
+    edges = jnp.asarray(
+        __import__("numpy").geomspace(m_range[0], m_range[1], n_comp + 1)
+    )
     N_j, M_j = [], []
     for e0, e1 in zip(edges[:-1], edges[1:]):
         n_sub = 64

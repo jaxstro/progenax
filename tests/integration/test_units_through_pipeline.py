@@ -10,9 +10,8 @@ exposed: the realized virial ratio collapses to ``0.5 * G_STELLAR / G_used``.
 
 import jax
 import jax.numpy as jnp
-import pytest
-
 from jaxstro.units import PLANETARY, STELLAR
+
 from progenax import (
     PlummerProfile,
     PlummerVelocityDF,
@@ -33,8 +32,12 @@ def test_build_spatial_ic_respects_G_without_virial_rescale():
     key = jax.random.PRNGKey(0)
 
     ic = build_spatial_ic(
-        PlummerProfile(1.0), m, PlummerVelocityDF(1.0),
-        key=key, G=PLANETARY.G, Q=None,
+        PlummerProfile(1.0),
+        m,
+        PlummerVelocityDF(1.0),
+        key=key,
+        G=PLANETARY.G,
+        Q=None,
     )
 
     T = compute_kinetic_energy(ic.velocities, m)
@@ -55,8 +58,12 @@ def test_virial_rescale_masks_dropped_G():
     key = jax.random.PRNGKey(0)
 
     ic = build_spatial_ic(
-        PlummerProfile(1.0), m, PlummerVelocityDF(1.0),
-        key=key, G=PLANETARY.G, Q=0.5,
+        PlummerProfile(1.0),
+        m,
+        PlummerVelocityDF(1.0),
+        key=key,
+        G=PLANETARY.G,
+        Q=0.5,
     )
 
     T = compute_kinetic_energy(ic.velocities, m)

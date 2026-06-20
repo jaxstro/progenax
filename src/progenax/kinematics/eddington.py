@@ -79,7 +79,7 @@ def eddington_invert(
     Psi0 = Psi_grid[0]
     Psi_asc = Psi_grid[::-1]
     d2_asc = d2rho_dPsi2[::-1]
-    bnd = drho_dPsi[-1]                # d rho/d Psi at Psi=0 (truncation boundary term)
+    bnd = drho_dPsi[-1]  # d rho/d Psi at Psi=0 (truncation boundary term)
 
     # End just below Psi0: E=Psi0 is the singular central energy (the Eddington
     # integrand reaches r->0); central lookups clamp to f_grid[-1], and the w^2 factor
@@ -90,7 +90,9 @@ def eddington_invert(
         # u = sqrt(E - Psi): int_0^E g/sqrt(E-Psi) dPsi = 2 int_0^sqrt(E) g(E-u^2) du
         u = jnp.linspace(0.0, jnp.sqrt(E), n_u)
         g = jnp.interp(E - u**2, Psi_asc, d2_asc)
-        return (2.0 * jnp.trapezoid(g, u) + bnd / jnp.sqrt(E)) / (jnp.sqrt(8.0) * jnp.pi**2)
+        return (2.0 * jnp.trapezoid(g, u) + bnd / jnp.sqrt(E)) / (
+            jnp.sqrt(8.0) * jnp.pi**2
+        )
 
     # Raw (unclamped) f(E): the speed sampler clamps the speed pdf at use, and the raw
     # values let callers detect a genuinely negative (unphysical) OM DF.
@@ -166,8 +168,8 @@ def assign_om_directions(
     ra_safe = jnp.where(finite, ra_arr, 1.0)
     stretch = jnp.where(finite, jnp.sqrt(1.0 + (radii / ra_safe) ** 2), 1.0)
 
-    v_r = speeds * cos_t                 # signed radial component (stretched frame)
-    v_t = speeds * sin_t / stretch       # physical tangential magnitude (un-stretched)
+    v_r = speeds * cos_t  # signed radial component (stretched frame)
+    v_t = speeds * sin_t / stretch  # physical tangential magnitude (un-stretched)
 
     # Random azimuthal unit vector in the plane perpendicular to r_hat.
     rand = jax.random.normal(k_az, (N, 3))

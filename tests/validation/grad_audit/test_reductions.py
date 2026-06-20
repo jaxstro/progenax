@@ -5,21 +5,21 @@ physical channel (radius / speed / mass), and is differentiable (these feed
 ``jax.grad`` in the audit engine) — including a finite gradient at zero thanks
 to the ``+ 1e-30`` guard inside the ``sqrt``.
 """
+
 import jax
 import jax.numpy as jnp
 import pytest
 
 import progenax  # noqa: F401  (enables float64 at import time)
-
 from tests.validation.grad_audit.reductions import (
+    identity_sum,
+    mean_mass,
     mean_radius,
     mean_speed,
-    mean_mass,
-    identity_sum,
 )
 
-
 # --- (a) each reduction returns a finite scalar --------------------------------
+
 
 def test_mean_radius_finite_scalar():
     out = mean_radius(jnp.ones((10, 3)))
@@ -47,6 +47,7 @@ def test_identity_sum_finite_scalar():
 
 # --- (b) each reduction scales with its own channel ----------------------------
 
+
 def test_mean_radius_scales_with_positions():
     pos = jnp.ones((10, 3))
     assert float(mean_radius(2.0 * pos)) == pytest.approx(2.0 * float(mean_radius(pos)))
@@ -59,7 +60,9 @@ def test_mean_speed_scales_with_velocities():
 
 def test_mean_mass_scales_with_masses():
     masses = jnp.linspace(0.5, 5.0, 10)
-    assert float(mean_mass(4.0 * masses)) == pytest.approx(4.0 * float(mean_mass(masses)))
+    assert float(mean_mass(4.0 * masses)) == pytest.approx(
+        4.0 * float(mean_mass(masses))
+    )
 
 
 def test_identity_sum_value():
@@ -68,6 +71,7 @@ def test_identity_sum_value():
 
 
 # --- (c) the 1e-30 guard: finite value (and gradient) on zeros -----------------
+
 
 def test_mean_radius_finite_on_zeros():
     out = mean_radius(jnp.zeros((5, 3)))

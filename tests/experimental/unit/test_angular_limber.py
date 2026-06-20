@@ -79,15 +79,22 @@ def test_bandpower_slope_steepens_with_beta():
 def test_slab_full_depth_reduces_to_full_projection():
     """At depth = n_los the slab projection equals the periodic full projection."""
     from gravoturb_fdf.inference.covariance import (
-        angular_bandpowers_2d_limber,
         _angular_bandpowers_from_xi_rho_full,
+        angular_bandpowers_2d_limber,
     )
 
     shape = (32, 32, 32)
     k_edges = jnp.linspace(1.0, 12.0, 7)
     _, bp_slab, _ = angular_bandpowers_2d_limber(
-        shape, 3.0, 8.0, 0.4, 2.5, depth=float(shape[2]), k_edges=k_edges,
-        n_max=8, n_quad=64,
+        shape,
+        3.0,
+        8.0,
+        0.4,
+        2.5,
+        depth=float(shape[2]),
+        k_edges=k_edges,
+        n_max=8,
+        n_quad=64,
     )
     _, bp_full, _ = _angular_bandpowers_from_xi_rho_full(
         shape, 3.0, 8.0, 0.4, 2.5, k_edges=k_edges, n_max=8, n_quad=64

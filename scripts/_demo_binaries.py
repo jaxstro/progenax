@@ -14,11 +14,12 @@ JAX-native (``jax.numpy``); the kernel/predict pieces are jit/grad-safe so the
 demo can differentiate the mixture model in ``(sigma, f_b)``. float64 is the
 demo's responsibility (``import progenax`` enables it before this module is used).
 """
-import numpy as np
+
 import jax
 import jax.numpy as jnp
-
+import numpy as np
 from jaxstro.units import BINARY
+
 from progenax.binaries import period_to_semimajor_axis
 from progenax.binaries.kepler import KeplerElements
 from progenax.imf import Maschberger
@@ -29,8 +30,8 @@ from progenax.stellar import zams_luminosity
 # gives a in AU, to_binary_state returns AU/yr, converted ONCE to km/s. This is the
 # verified-clean path for day-scale binary periods (vs STELLAR's awkward ~1e-5 pc).
 _G_BIN = BINARY.G
-_VEL_KMS = BINARY.velocity_scale_km_s   # AU/yr -> km/s (~4.74); NOT `velocity_scale`
-_DAY_YR = 1.0 / 365.25                   # day -> year
+_VEL_KMS = BINARY.velocity_scale_km_s  # AU/yr -> km/s (~4.74); NOT `velocity_scale`
+_DAY_YR = 1.0 / 365.25  # day -> year
 
 
 def project_los_velocity(vel3, los_hat):
@@ -244,25 +245,27 @@ def predict_vlos_counts(sigma, f_b, N, v_edges, korb_grid, korb, eps):
     v_edges = jnp.asarray(v_edges)
     korb_grid = jnp.asarray(korb_grid)
     korb = jnp.asarray(korb)
-    sig_obs = jnp.sqrt(sigma ** 2 + eps ** 2)
+    sig_obs = jnp.sqrt(sigma**2 + eps**2)
 
     # Single component: exact analytic CDF differences per bin.
     cdf_edges = norm.cdf(v_edges, loc=0.0, scale=sig_obs)
-    phi_single = cdf_edges[1:] - cdf_edges[:-1]                      # (K,)
+    phi_single = cdf_edges[1:] - cdf_edges[:-1]  # (K,)
 
     # Binary component: (Gaussian (*) K_orb) integrated per bin via a trapezoid
     # cumulative CDF interpolated at the bin edges (exact to the grid resolution,
     # alignment-robust). A membership-mask rectangle sum would dump the v=0 peak
     # grid point wholly into one bin and bias the fit.
     dv = korb_grid[1] - korb_grid[0]
-    g = norm.pdf(korb_grid, loc=0.0, scale=sig_obs)                  # (G,) density
-    b_density = jnp.convolve(g, korb, mode="same") * dv             # (G,) density
-    cdf_b = jnp.concatenate([
-        jnp.zeros(1),
-        jnp.cumsum(0.5 * (b_density[1:] + b_density[:-1]) * dv),
-    ])                                                               # (G,) trapezoid CDF
-    cdf_at_edges = jnp.interp(v_edges, korb_grid, cdf_b)            # (K+1,)
-    phi_binary = cdf_at_edges[1:] - cdf_at_edges[:-1]               # (K,)
+    g = norm.pdf(korb_grid, loc=0.0, scale=sig_obs)  # (G,) density
+    b_density = jnp.convolve(g, korb, mode="same") * dv  # (G,) density
+    cdf_b = jnp.concatenate(
+        [
+            jnp.zeros(1),
+            jnp.cumsum(0.5 * (b_density[1:] + b_density[:-1]) * dv),
+        ]
+    )  # (G,) trapezoid CDF
+    cdf_at_edges = jnp.interp(v_edges, korb_grid, cdf_b)  # (K+1,)
+    phi_binary = cdf_at_edges[1:] - cdf_at_edges[:-1]  # (K,)
 
     phi = (1.0 - f_b) * phi_single + f_b * phi_binary
     return N * phi

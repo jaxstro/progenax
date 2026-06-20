@@ -247,7 +247,7 @@ class MoeEccentricity(eqx.Module):
         # tidally circularized. Floor the denominator so η -> very negative
         # (=> circular) there rather than blowing up with the wrong sign.
         denom = jnp.maximum(log_P - 0.5, 1e-3)
-        eta_late = 0.6 - 0.7 / denom   # Eq. 17 (0.8 < M1 < 3 Msun)
+        eta_late = 0.6 - 0.7 / denom  # Eq. 17 (0.8 < M1 < 3 Msun)
         eta_early = 0.9 - 0.2 / denom  # Eq. 18 (M1 > 7 Msun)
         # Linear interpolation in M1 across 3-7 Msun (w=0 late, w=1 early).
         w = jnp.clip((masses - 3.0) / (7.0 - 3.0), 0.0, 1.0)

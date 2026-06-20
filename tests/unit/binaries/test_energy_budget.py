@@ -14,10 +14,8 @@ and masked==compacted.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-import pytest
-from jaxtyping import Array, Float
-
 from jaxstro.units import STELLAR
+from jaxtyping import Array, Float
 
 G = STELLAR.G
 
@@ -33,8 +31,12 @@ def _one_binary(m1, m2, a, e=0.3, shift=0.0):
     from progenax.binaries import KeplerElements
 
     elem = KeplerElements(
-        a=jnp.asarray(a), e=jnp.asarray(e), i=jnp.asarray(0.5),
-        Omega=jnp.asarray(1.0), omega=jnp.asarray(2.0), M0=jnp.asarray(1.5),
+        a=jnp.asarray(a),
+        e=jnp.asarray(e),
+        i=jnp.asarray(0.5),
+        Omega=jnp.asarray(1.0),
+        omega=jnp.asarray(2.0),
+        M0=jnp.asarray(1.5),
     )
     bs = elem.to_binary_state(m1=jnp.asarray(m1), m2=jnp.asarray(m2), G=G)
     d = jnp.array([shift, 0.0, 0.0])
@@ -46,8 +48,8 @@ def _one_binary(m1, m2, a, e=0.3, shift=0.0):
 
 def _cluster(fbin=0.5, P_days=2.0, n_systems=200, seed=0, compact=True):
     from progenax import PlummerProfile, PlummerVelocityDF, ThermalEccentricity
-    from progenax.builders import build_binary_cluster, Systems
     from progenax.binaries import IndependentCompanions
+    from progenax.builders import Systems, build_binary_cluster
     from progenax.imf import PowerLawIMF
     from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 
@@ -107,15 +109,19 @@ class TestEInternal:
 
     def test_grad_dE_internal_da(self):
         """E_internal = -G m1 m2 / 2a (exact, vis-viva) -> dE/da = +G m1 m2 / 2a^2."""
-        from progenax.binaries import binary_energy_budget, KeplerElements
+        from progenax.binaries import KeplerElements, binary_energy_budget
 
         m1, m2 = 2.0, 1.0
         sid = jnp.array([0, 0])
 
         def E_int(a):
             elem = KeplerElements(
-                a=a, e=jnp.asarray(0.3), i=jnp.asarray(0.5),
-                Omega=jnp.asarray(1.0), omega=jnp.asarray(2.0), M0=jnp.asarray(1.5),
+                a=a,
+                e=jnp.asarray(0.3),
+                i=jnp.asarray(0.5),
+                Omega=jnp.asarray(1.0),
+                omega=jnp.asarray(2.0),
+                M0=jnp.asarray(1.5),
             )
             bs = elem.to_binary_state(m1=jnp.asarray(m1), m2=jnp.asarray(m2), G=G)
             pos = jnp.stack([bs.r1, bs.r2])
@@ -135,7 +141,9 @@ class TestQConvention:
         from progenax.binaries import binary_energy_budget
 
         ic = _cluster(fbin=0.5, P_days=2.0, seed=1)
-        b = binary_energy_budget(ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G)
+        b = binary_energy_budget(
+            ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G
+        )
         assert jnp.abs(b.Q_com - 0.5) < 5e-3, f"Q_com={b.Q_com}"
 
     def test_internal_reservoir_dwarfs_cluster_potential(self):
@@ -147,11 +155,17 @@ class TestQConvention:
         from progenax.binaries import binary_energy_budget
 
         ic = _cluster(fbin=1.0, P_days=1.0, seed=2)  # all hard (short-period) binaries
-        b = binary_energy_budget(ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G)
+        b = binary_energy_budget(
+            ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G
+        )
         assert b.E_internal < 0.0  # bound binaries
         assert jnp.abs(b.Q_com - 0.5) < 5e-3  # cluster virial intact on the COMs
-        assert jnp.abs(b.E_internal) > 100.0 * jnp.abs(b.W_com)  # reservoir >> cluster potential
-        assert jnp.abs(b.Q_resolved - b.Q_com) > 1e-3  # resolved ratio is not the cluster's
+        assert jnp.abs(b.E_internal) > 100.0 * jnp.abs(
+            b.W_com
+        )  # reservoir >> cluster potential
+        assert (
+            jnp.abs(b.Q_resolved - b.Q_com) > 1e-3
+        )  # resolved ratio is not the cluster's
 
     def test_masked_matches_compacted(self):
         """system_id keying gives the same E_internal on the masked ResolvedBinaries
@@ -160,7 +174,13 @@ class TestQConvention:
 
         ic = _cluster(fbin=0.5, seed=3, compact=True)
         rb = _cluster(fbin=0.5, seed=3, compact=False)
-        b_c = binary_energy_budget(ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G)
-        b_m = binary_energy_budget(rb.positions, rb.velocities, rb.masses, rb.primordial_system_id, G=G)
+        b_c = binary_energy_budget(
+            ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=G
+        )
+        b_m = binary_energy_budget(
+            rb.positions, rb.velocities, rb.masses, rb.primordial_system_id, G=G
+        )
         assert b_m.n_binaries == b_c.n_binaries
-        assert jnp.abs(b_m.E_internal - b_c.E_internal) <= 1e-6 * jnp.abs(b_c.E_internal)
+        assert jnp.abs(b_m.E_internal - b_c.E_internal) <= 1e-6 * jnp.abs(
+            b_c.E_internal
+        )

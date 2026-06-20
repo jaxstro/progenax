@@ -34,15 +34,18 @@ def _sample_cluster_arrays(model, key: PRNGKeyArray, n_stars: int, G: float):
     """
     k_assign, k_pos, k_pdir, k_speed, k_vdir = jax.random.split(key, 5)
 
-    c = jax.random.categorical(k_assign, jnp.log(model.N_frac_j + 1e-30),
-                               shape=(n_stars,))
+    c = jax.random.categorical(
+        k_assign, jnp.log(model.N_frac_j + 1e-30), shape=(n_stars,)
+    )
     m_i = model.m_j[c]
     M_total = jnp.sum(m_i)  # the cluster mass IS the sum of its stars
 
     # Positions: per-star inverse-CDF on its component's mass CDF + isotropic dirs
     # (shared by Engine A and Engine B -- N_frac_j and _cdf_j are engine-agnostic).
     u = jax.random.uniform(k_pos, (n_stars,))
-    radii = jax.vmap(lambda uu, cc: jnp.interp(uu, model._cdf_j[cc], model._r_grid))(u, c)
+    radii = jax.vmap(lambda uu, cc: jnp.interp(uu, model._cdf_j[cc], model._r_grid))(
+        u, c
+    )
     pos = radii[:, None] * _isotropic_dirs(k_pdir, n_stars)
     speed_keys = jax.random.split(k_speed, n_stars)
 
@@ -52,8 +55,9 @@ def _sample_cluster_arrays(model, key: PRNGKeyArray, n_stars: int, G: float):
         # speed from the star's component Eddington row, physical scale
         # sqrt(G M_sampled / (4 pi mu)) from the ACTUAL sampled mass, OM
         # stretched directions with per-star r_a_j[c] (inf -> isotropic).
-        vel = engine_b_star_velocities(model.engine_b, speed_keys, k_vdir, pos,
-                                       radii, model._r_grid, c, G, M_total)
+        vel = engine_b_star_velocities(
+            model.engine_b, speed_keys, k_vdir, pos, radii, model._r_grid, c, G, M_total
+        )
         return pos, vel, m_i, compute_stellar_radii(m_i), c
 
     # Engine A: per-star rescaled potential W_j(r) = psi(r)/w_j^2 and velocity
@@ -62,8 +66,11 @@ def _sample_cluster_arrays(model, key: PRNGKeyArray, n_stars: int, G: float):
     s = jnp.sqrt(G * M_total / (9.0 * model.r_c * model.mu_tot))
     s_i = s * model.w_j[c]
     W_i = rescale_i * jnp.maximum(
-        jnp.interp(radii / model.r_c, model.xi_grid, model.psi_grid,
-                   left=model.W0, right=0.0), 0.0)
+        jnp.interp(
+            radii / model.r_c, model.xi_grid, model.psi_grid, left=model.W0, right=0.0
+        ),
+        0.0,
+    )
 
     if model.is_aniso:
         # Anisotropic: the speed u comes from ONE precomputed 3-D speed-MARGINAL
@@ -77,14 +84,15 @@ def _sample_cluster_arrays(model, key: PRNGKeyArray, n_stars: int, G: float):
         # _solver_table. Built per call, differentiable in (W0, g, w_j, ra_hat_j).
         p_i = (radii / model.r_c) / model.ra_hat_j[c]
         p_box = jnp.maximum((model.r_t / model.r_c) / jnp.min(model.ra_hat_j), 1e-3)
-        table = AnisoSpeedCDFTable.build(jnp.max(model.rescale_j) * model.W0,
-                                         p_box, model.g)
+        table = AnisoSpeedCDFTable.build(
+            jnp.max(model.rescale_j) * model.W0, p_box, model.g
+        )
         ku_kc = jax.vmap(jax.random.split)(speed_keys)
         unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
         u_sp = jax.vmap(table.inverse)(W_i, p_i, unif)
-        cos_t = jax.vmap(
-            lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
-        )(ku_kc[:, 1], u_sp, p_i)
+        cos_t = jax.vmap(lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C))(
+            ku_kc[:, 1], u_sp, p_i
+        )
         u_r = u_sp * cos_t
         u_t = u_sp * jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
         v_r, v_t = s_i * u_r, s_i * u_t

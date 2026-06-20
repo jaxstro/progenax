@@ -35,8 +35,10 @@ from progenax.profiles.density_poisson import (
 )
 
 # Remedy text from the design doc (decision 3) -- quoted in the gate's ValueError.
-_REMEDY = ("density too shallow to be supported in this shared potential -- "
-           "steepen it, raise its mass fraction, or raise r_a_j")
+_REMEDY = (
+    "density too shallow to be supported in this shared potential -- "
+    "steepen it, raise its mass fraction, or raise r_a_j"
+)
 
 # Genuine-negativity threshold in RELATIVE units (min f / max |f|); anything
 # above this is grid-level quadrature ringing, clamped harmlessly at sampling.
@@ -48,8 +50,11 @@ def _is_concrete(x) -> bool:
     try:
         float(x)
         return True
-    except (jax.errors.ConcretizationTypeError, jax.errors.TracerArrayConversionError,
-            TypeError):
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
         return False
 
 
@@ -73,7 +78,8 @@ def _validate_engine_b_inputs(profiles, mass_fractions, r_a_j):
                 f"({type(profiles[j]).__name__}). A zero fraction means the "
                 f"component carries no mass -- omit it from the profile list "
                 f"instead (its Eddington DF would be identically zero, and "
-                f"relative-amplitude normalizations divide by max|f_j|).")
+                f"relative-amplitude normalizations divide by max|f_j|)."
+            )
         ra = r_a_j[j]
         if _is_concrete(ra) and not (float(ra) > 0.0):
             raise ValueError(
@@ -81,7 +87,8 @@ def _validate_engine_b_inputs(profiles, mass_fractions, r_a_j):
                 f"for component {j} ({type(profiles[j]).__name__}): the "
                 f"Osipkov-Merritt augmented-density weight 1 + r^2/r_a^2 "
                 f"diverges as r_a -> 0 (every orbit purely radial is not a "
-                f"DF limit), producing a non-finite f table.")
+                f"DF limit), producing a non-finite f table."
+            )
 
 
 class _EngineBState(eqx.Module):
@@ -136,8 +143,9 @@ class _EngineBState(eqx.Module):
     r_t_provenance: str = eqx.field(static=True)
 
 
-def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
-                         n_r: int, n_e: int):
+def build_engine_b_state(
+    profiles, mass_fractions, r_a_j, r_t, f_enc, n_r: int, n_e: int
+):
     """Construct the Engine B state: domain -> shared Psi -> per-component DFs.
 
     Returns ``(state, pot)`` where `state` is the `_EngineBState` (Psi_grid on
@@ -154,8 +162,9 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
     _validate_engine_b_inputs(profiles, mass_fractions, r_a_j)
 
     r_t_arr, prov = derive_r_t(profiles, mass_fractions, r_t=r_t, f_enc=f_enc)
-    pot = shared_potential(profiles, mass_fractions, r_t_arr, n_r=n_r,
-                           r_t_provenance=prov)
+    pot = shared_potential(
+        profiles, mass_fractions, r_t_arr, n_r=n_r, r_t_provenance=prov
+    )
     r = pot.r_grid
 
     # Per-component Eddington inversion in the SHARED Psi (Python loop over the
@@ -168,9 +177,15 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
         rho_hat, drho_hat = _density_and_derivative(p, r)
         m_hat = 4.0 * jnp.pi * jnp.trapezoid(rho_hat * r**2, r)
         scale = mass_fractions[j] / m_hat
-        E_j, f_j = eddington_invert(r, scale * rho_hat, scale * drho_hat,
-                                    pot.Psi_grid, pot.dPsi_dr_grid,
-                                    r_a=r_a_j[j], n_e=n_e)
+        E_j, f_j = eddington_invert(
+            r,
+            scale * rho_hat,
+            scale * drho_hat,
+            pot.Psi_grid,
+            pot.dPsi_dr_grid,
+            r_a=r_a_j[j],
+            n_e=n_e,
+        )
         # ONE shared E_grid: all components share Psi0 in one potential, so the
         # per-component grids are the same computation -- assert identity on
         # concrete builds (a mismatch would mean the shared-Psi contract broke).
@@ -183,7 +198,8 @@ def build_engine_b_state(profiles, mass_fractions, r_a_j, r_t, f_enc,
                 # means the shared-Psi contract broke, never a tolerance issue.
                 raise ValueError(
                     f"per-component E_grids must be identical (one shared Psi0); "
-                    f"component {j} differs by {float(diff):.3e}")
+                    f"component {j} differs by {float(diff):.3e}"
+                )
         f_rows.append(f_j)
         f_min_rows.append(jnp.min(f_j) / jnp.max(jnp.abs(f_j)))
 
@@ -264,15 +280,17 @@ def engine_b_star_velocities(
     """
     Psi_i = jnp.interp(radii, r_grid, state.Psi_grid)
     s = jax.vmap(
-        lambda kk, pp, cc: sample_speed_from_f_table(kk, pp, state.E_grid,
-                                                     state.f_j_grid[cc])
+        lambda kk, pp, cc: sample_speed_from_f_table(
+            kk, pp, state.E_grid, state.f_j_grid[cc]
+        )
     )(speed_keys, Psi_i, c)
     speeds = jnp.sqrt(G * M_sampled / (4.0 * jnp.pi * state.mu)) * s
     return assign_om_directions(k_vdir, pos, speeds, state.r_a_j[c])
 
 
-def engine_b_component_virials(state: _EngineBState,
-                               n_w: int = 400) -> Float[Array, "n_comp"]:
+def engine_b_component_virials(
+    state: _EngineBState, n_w: int = 400
+) -> Float[Array, "n_comp"]:
     """EXACT-quadrature per-component virial ratios Q_j = T_j/|W_j| (Engine B).
 
     The bias-free equilibrium oracle -- independent of every sampled quantity.
@@ -315,7 +333,7 @@ def engine_b_component_virials(state: _EngineBState,
     dimensionless: the velocity scale and the total mass cancel in T_j/|W_j|.
     """
     r, Psi = state.r_poisson, state.Psi_poisson
-    dphi_dr = -state.dPsi_dr_poisson           # = +M(<r)/r^2 (G=1)
+    dphi_dr = -state.dPsi_dr_poisson  # = +M(<r)/r^2 (G=1)
     Psi_safe = jnp.maximum(Psi, 1e-12)
 
     def moments(Psi_r, f_row):
@@ -337,9 +355,17 @@ def engine_b_component_virials(state: _EngineBState,
     return jnp.stack(Qs)
 
 
-def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
-                             r_t=None, f_enc: float = 0.995, n_r: int = 6000,
-                             n_e: int = 1000, n_grid: int = 1000) -> dict:
+def assemble_engine_b_fields(
+    profiles,
+    mass_fractions,
+    m_j,
+    r_a_j=None,
+    r_t=None,
+    f_enc: float = 0.995,
+    n_r: int = 6000,
+    n_e: int = 1000,
+    n_grid: int = 1000,
+) -> dict:
     """Build the complete MultiComponentCluster field dict for an Engine B model.
 
     SHARED sampler fields are filled meaningfully: `_r_grid` (the Poisson grid
@@ -359,28 +385,39 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
     # vector longer than the profile list builds the potential from the wrong
     # total mass, and the categorical draw emits phantom component ids whose
     # gathers silently clamp to the last real component.
-    lens = {"profiles": n_comp, "mass_fractions": len(mass_fractions),
-            "m_j": len(m_arr)}
+    lens = {
+        "profiles": n_comp,
+        "mass_fractions": len(mass_fractions),
+        "m_j": len(m_arr),
+    }
     if r_a_j is not None:
         lens["r_a_j"] = len(jnp.asarray(r_a_j, dtype=jnp.float64))
     if len(set(lens.values())) > 1:
         raise ValueError(
             "Engine B per-component inputs must share one length (entry j is "
             "ONE component); got "
-            + ", ".join(f"len({name}) = {n}" for name, n in lens.items()) + ".")
+            + ", ".join(f"len({name}) = {n}" for name, n in lens.items())
+            + "."
+        )
 
-    ra_arr = (jnp.full((n_comp,), jnp.inf, dtype=jnp.float64) if r_a_j is None
-              else jnp.asarray(r_a_j, dtype=jnp.float64))
+    ra_arr = (
+        jnp.full((n_comp,), jnp.inf, dtype=jnp.float64)
+        if r_a_j is None
+        else jnp.asarray(r_a_j, dtype=jnp.float64)
+    )
 
-    state, pot = build_engine_b_state(profiles, mass_fractions, ra_arr,
-                                      r_t, f_enc, n_r, n_e)
+    state, pot = build_engine_b_state(
+        profiles, mass_fractions, ra_arr, r_t, f_enc, n_r, n_e
+    )
 
     r_grid = jnp.linspace(0.0, pot.r_t, n_grid)
     cdf_full = pot.M_cum_j / (pot.M_cum_j[:, -1:] + 1e-30)
-    cdf_j = jax.vmap(lambda row: jnp.interp(r_grid, pot.r_grid, row,
-                                            left=0.0))(cdf_full)
-    state = eqx.tree_at(lambda s: s.Psi_grid, state,
-                        jnp.interp(r_grid, pot.r_grid, pot.Psi_grid))
+    cdf_j = jax.vmap(lambda row: jnp.interp(r_grid, pot.r_grid, row, left=0.0))(
+        cdf_full
+    )
+    state = eqx.tree_at(
+        lambda s: s.Psi_grid, state, jnp.interp(r_grid, pot.r_grid, pot.Psi_grid)
+    )
     N_frac = (mass_fractions / m_arr) / jnp.sum(mass_fractions / m_arr)
 
     # is_aniso reports the model's OM content TRUTHFULLY (it is a static field,
@@ -395,13 +432,19 @@ def assemble_engine_b_fields(profiles, mass_fractions, m_j, r_a_j=None,
 
     return dict(
         # Shared fields, filled meaningfully.
-        r_t=jnp.asarray(pot.r_t, dtype=jnp.float64), m_j=m_arr,
-        N_frac_j=N_frac, _r_grid=r_grid, _cdf_j=cdf_j,
+        r_t=jnp.asarray(pot.r_t, dtype=jnp.float64),
+        m_j=m_arr,
+        N_frac_j=N_frac,
+        _r_grid=r_grid,
+        _cdf_j=cdf_j,
         # Engine dispatch: Engine B dispatches on `engine` (Task 4) and carries
         # r_a_j itself; is_aniso (see above) is truthful introspection. A-only
         # state is absent by construction (engine_a=None -> AttributeError on
         # access through the model's delegating properties).
-        is_aniso=is_aniso, engine="B", engine_a=None, engine_b=state,
+        is_aniso=is_aniso,
+        engine="B",
+        engine_a=None,
+        engine_b=state,
     )
 
 

@@ -8,10 +8,10 @@ and validation-script exit codes. NONE of these run the suite, ``pytest
 --durations``, or the ``validate_*.py`` scripts — they only import frozen-literal
 modules and parse COMMITTED artifacts (so the Task-1.6 staleness gate stays cheap).
 """
+
 from pathlib import Path
 
 import pytest
-
 from scripts.build_test_dashboard import (
     build_dashboard,
     collect_test_inventory,
@@ -23,12 +23,8 @@ from scripts.build_test_dashboard import (
     write_coverage_json,
 )
 
-_FIXTURE = str(
-    Path(__file__).parent / "fixtures" / "coverage_sample.json"
-)
-_DURATIONS_FIXTURE = str(
-    Path(__file__).parent / "fixtures" / "durations_sample.json"
-)
+_FIXTURE = str(Path(__file__).parent / "fixtures" / "coverage_sample.json")
+_DURATIONS_FIXTURE = str(Path(__file__).parent / "fixtures" / "durations_sample.json")
 _DURATIONS_NO_MODULES_FIXTURE = str(
     Path(__file__).parent / "fixtures" / "durations_no_modules.json"
 )
@@ -41,7 +37,9 @@ _ROLLUP_FIXTURE = str(
 
 
 def test_inventory_has_modules_and_counts():
-    inv = collect_test_inventory()  # {module: {"unit": n, "integration": n, "validation": n}}
+    inv = (
+        collect_test_inventory()
+    )  # {module: {"unit": n, "integration": n, "validation": n}}
     assert "builders" in inv
     assert inv["builders"]["unit"] > 0
     assert sum(t for m in inv.values() for t in m.values()) > 1000
@@ -50,7 +48,7 @@ def test_inventory_has_modules_and_counts():
 def test_load_coverage_parses_totals_and_per_module():
     cov = load_coverage(_FIXTURE)
     assert 0 <= cov["total_percent"] <= 100
-    assert cov["per_module"]            # non-empty mapping of module -> percent
+    assert cov["per_module"]  # non-empty mapping of module -> percent
     # only src/progenax files become modules; non-src files are ignored.
     assert "builders" in cov["per_module"]
     assert "analytical/base" in cov["per_module"]
@@ -91,6 +89,7 @@ def test_rollup_coverage_by_dir_is_weighted_by_statements():
 
 
 # --- Task 1.4: read_registry_status -----------------------------------------
+
 
 def test_registry_status_all_four_built():
     status = read_registry_status()
@@ -162,15 +161,20 @@ def test_registries_full_flag_gates_on_built_and_full():
     assert regs["provenance"]["full"] is True
     assert dash["gate"]["registries_full"] is True
     built_and_full = {
-        name for name, b in regs.items()
+        name
+        for name, b in regs.items()
         if b.get("status") == "built" and b.get("full") is True
     }
     assert built_and_full == {
-        "differentiability", "api_coverage", "physics_validation", "provenance"
+        "differentiability",
+        "api_coverage",
+        "physics_validation",
+        "provenance",
     }
 
 
 # --- Task 1.4: read_durations -----------------------------------------------
+
 
 def test_durations_parses_committed_artifact():
     dur = read_durations(path=_DURATIONS_FIXTURE)
@@ -196,6 +200,7 @@ def test_durations_missing_modules_key_raises_runtime_error():
 
 # --- Task 1.4: read_validation_scripts --------------------------------------
 
+
 def test_validation_scripts_enumerates_all_24_with_exit_codes():
     runs = read_validation_scripts(path=_VALRUNS_FIXTURE)
     # All 24 scripts/validate_*.py are enumerated (24 = 23 + validate_zams.py, ZAMS migration).
@@ -214,6 +219,7 @@ def test_validation_scripts_absent_artifact_all_unknown():
 
 
 # --- Task 1.5: write_coverage_json (provenance injection) -------------------
+
 
 def test_write_coverage_json_injects_provenance(tmp_path):
     """The Phase-2 path: read a raw pytest-cov json, inject a top-level
@@ -257,12 +263,19 @@ def test_write_coverage_json_injects_provenance(tmp_path):
 
 # --- Task 1.5: build_dashboard ----------------------------------------------
 
+
 def test_build_dashboard_has_all_blocks():
     dash = build_dashboard("2026-01-01T00:00:00Z")
     # generated_utc is stamped EXACTLY as passed (staleness gate ignores it).
     assert dash["generated_utc"] == "2026-01-01T00:00:00Z"
-    for key in ("modules", "registries", "line_coverage", "durations",
-                "validation_scripts", "gate"):
+    for key in (
+        "modules",
+        "registries",
+        "line_coverage",
+        "durations",
+        "validation_scripts",
+        "gate",
+    ):
         assert key in dash, f"missing top-level block: {key}"
 
 

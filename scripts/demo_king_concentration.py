@@ -62,6 +62,7 @@ keys PRNGKey(0)/(1), wall ~29 s, exit 0 / ALL PASS):
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_king_concentration.py
 """
+
 import os
 import sys
 
@@ -72,6 +73,7 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)
 
 from jaxstro.units import STELLAR
+
 from progenax import KingProfile
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.profiles.limepy import limepy_density_hat
@@ -80,10 +82,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _demo_inference import (
     binned_number_density,
     constrained_cov,
+    expit,
     mle_adam,
     poisson_fisher_information,
     poisson_loglike,
-    expit,
 )
 from _plotstyle import OI, apply_pub_style, panel_label, save_fig
 
@@ -93,21 +95,21 @@ OUTPUT_DIR = "validation/plots"
 G = STELLAR.G
 
 # --- truth + fit configuration ---------------------------------------------- #
-W0_TRUE, RC_TRUE = 6.0, 1.0     # GC-like concentration (c ~ 1.3); core radius 1 pc
+W0_TRUE, RC_TRUE = 6.0, 1.0  # GC-like concentration (c ~ 1.3); core radius 1 pc
 N_STARS = 30_000
 SEED = 0
 
-K_BINS = 20                     # log-spaced radial bins
-R_LO = 0.10                     # inner edge [pc] (excludes the flat-core centre, ~0.1% mass)
-N_FINE = 3000                   # predict-side radial integration grid
+K_BINS = 20  # log-spaced radial bins
+R_LO = 0.10  # inner edge [pc] (excludes the flat-core centre, ~0.1% mass)
+N_FINE = 3000  # predict-side radial integration grid
 
-W0_BOX = (3.5, 7.5)             # from_components diffrax ODE hits max_steps above ~8
-RC_BOX = (0.3, 3.0)             # (B2 used (3,8) for W0_true=5; truth 6 here, capped at 7.5)
+W0_BOX = (3.5, 7.5)  # from_components diffrax ODE hits max_steps above ~8
+RC_BOX = (0.3, 3.0)  # (B2 used (3,8) for W0_true=5; truth 6 here, capped at 7.5)
 
 N_INITS = 3
 N_ADAM = 400
 ADAM_LR = 3e-2
-SELFCON_NSIG = 4.0              # self-consistency gate: |N_k - mu_k|/sqrt(mu_k)
+SELFCON_NSIG = 4.0  # self-consistency gate: |N_k - mu_k|/sqrt(mu_k)
 RECOVERY_NSIG = 3.0
 
 
@@ -126,8 +128,12 @@ def _theta_of_z(z):
 def _dtheta_dz(z):
     """Diagonal Jacobian of the box reparametrization (for the delta method)."""
     s0, s1 = jax.nn.sigmoid(z[0]), jax.nn.sigmoid(z[1])
-    return jnp.array([(W0_BOX[1] - W0_BOX[0]) * s0 * (1.0 - s0),
-                      (RC_BOX[1] - RC_BOX[0]) * s1 * (1.0 - s1)])
+    return jnp.array(
+        [
+            (W0_BOX[1] - W0_BOX[0]) * s0 * (1.0 - s0),
+            (RC_BOX[1] - RC_BOX[0]) * s1 * (1.0 - s1),
+        ]
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -145,7 +151,7 @@ def make_predict_counts(r_edges, n_obs):
         W0, r_c = _theta_of_z(z)
         m = _king_model(W0, r_c)
         W_r = jnp.interp(r_grid, m.xi_grid * r_c, m.psi_grid, left=W0, right=0.0)
-        n_hat = limepy_density_hat(W_r, 1.0)              # King volume density (g=1)
+        n_hat = limepy_density_hat(W_r, 1.0)  # King volume density (g=1)
         integrand = 4.0 * jnp.pi * r_grid**2 * n_hat
         incr = 0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)
         cum = jnp.concatenate([jnp.zeros(1), jnp.cumsum(incr)])  # enclosed(r) on r_grid
@@ -173,10 +179,12 @@ def build_truth_data():
 
 
 def dispersed_inits(key):
-    z_true = jnp.array([
-        float(jnp.log((W0_TRUE - W0_BOX[0]) / (W0_BOX[1] - W0_TRUE))),
-        float(jnp.log((RC_TRUE - RC_BOX[0]) / (RC_BOX[1] - RC_TRUE))),
-    ])
+    z_true = jnp.array(
+        [
+            float(jnp.log((W0_TRUE - W0_BOX[0]) / (W0_BOX[1] - W0_TRUE))),
+            float(jnp.log((RC_TRUE - RC_BOX[0]) / (RC_BOX[1] - RC_TRUE))),
+        ]
+    )
     noise = jax.random.normal(key, (N_INITS - 1, 2)) * 0.3
     return jnp.concatenate([z_true[None, :], z_true[None, :] + noise], axis=0)
 
@@ -211,7 +219,9 @@ def make_figure(r_edges, counts, predict_mu, z_hat, theta_hat, sigma_theta, cov)
     r_mid = np.sqrt(r_edges_np[:-1] * r_edges_np[1:])
     n_obs = float(jnp.sum(counts))
     mu_hat = np.asarray(predict_mu(z_hat))
-    mu_true = np.asarray(make_predict_counts(r_edges, n_obs)(_z_of_theta(W0_TRUE, RC_TRUE)))
+    mu_true = np.asarray(
+        make_predict_counts(r_edges, n_obs)(_z_of_theta(W0_TRUE, RC_TRUE))
+    )
     counts_np = np.asarray(counts)
     shell = 4.0 / 3.0 * np.pi * (r_edges_np[1:] ** 3 - r_edges_np[:-1] ** 3)
 
@@ -219,8 +229,16 @@ def make_figure(r_edges, counts, predict_mu, z_hat, theta_hat, sigma_theta, cov)
 
     # (a) number-density profile: data counts/shell-volume vs fit + truth.
     ax = axes[0]
-    ax.errorbar(r_mid, counts_np / shell, yerr=np.sqrt(counts_np) / shell,
-                fmt="o", ms=3.5, color=OI["black"], label="counts", zorder=4)
+    ax.errorbar(
+        r_mid,
+        counts_np / shell,
+        yerr=np.sqrt(counts_np) / shell,
+        fmt="o",
+        ms=3.5,
+        color=OI["black"],
+        label="counts",
+        zorder=4,
+    )
     ax.plot(r_mid, mu_hat / shell, "-", color=OI["vermilion"], label="MLE")
     ax.plot(r_mid, mu_true / shell, "--", color=OI["blue"], label="truth")
     ax.set_xscale("log")
@@ -235,12 +253,25 @@ def make_figure(r_edges, counts, predict_mu, z_hat, theta_hat, sigma_theta, cov)
     th = np.linspace(0, 2 * np.pi, 200)
     circ = np.stack([np.cos(th), np.sin(th)])
     L = np.linalg.cholesky(np.asarray(cov))
-    ell = (theta_hat[:, None] + 2.0 * L @ circ)
+    ell = theta_hat[:, None] + 2.0 * L @ circ
     ax.plot(ell[0], ell[1], "-", color=OI["purple"], label=r"$2\sigma$ Fisher")
-    ax.scatter([theta_hat[0]], [theta_hat[1]], marker="o", color=OI["vermilion"],
-               zorder=5, label="MLE")
-    ax.scatter([W0_TRUE], [RC_TRUE], marker="*", s=90, color=OI["blue"],
-               zorder=5, label="truth")
+    ax.scatter(
+        [theta_hat[0]],
+        [theta_hat[1]],
+        marker="o",
+        color=OI["vermilion"],
+        zorder=5,
+        label="MLE",
+    )
+    ax.scatter(
+        [W0_TRUE],
+        [RC_TRUE],
+        marker="*",
+        s=90,
+        color=OI["blue"],
+        zorder=5,
+        label="truth",
+    )
     ax.set_xlabel(r"$W_0$")
     ax.set_ylabel(r"$r_c$  [pc]")
     ax.legend()
@@ -251,10 +282,12 @@ def make_figure(r_edges, counts, predict_mu, z_hat, theta_hat, sigma_theta, cov)
 
 
 def _z_of_theta(W0, r_c):
-    return jnp.array([
-        float(jnp.log((W0 - W0_BOX[0]) / (W0_BOX[1] - W0))),
-        float(jnp.log((r_c - RC_BOX[0]) / (RC_BOX[1] - r_c))),
-    ])
+    return jnp.array(
+        [
+            float(jnp.log((W0 - W0_BOX[0]) / (W0_BOX[1] - W0))),
+            float(jnp.log((r_c - RC_BOX[0]) / (RC_BOX[1] - r_c))),
+        ]
+    )
 
 
 def _concentration(W0, r_c):
@@ -271,12 +304,16 @@ def main():
     print("=" * 78)
 
     r_edges, counts, n_obs = build_truth_data()
-    print(f"\n  truth W0={W0_TRUE}, r_c={RC_TRUE} pc; N={N_STARS}, "
-          f"binned N_obs={n_obs:.0f} over {K_BINS} log bins "
-          f"[{float(r_edges[0]):.2f}, {float(r_edges[-1]):.2f}] pc")
+    print(
+        f"\n  truth W0={W0_TRUE}, r_c={RC_TRUE} pc; N={N_STARS}, "
+        f"binned N_obs={n_obs:.0f} over {K_BINS} log bins "
+        f"[{float(r_edges[0]):.2f}, {float(r_edges[-1]):.2f}] pc"
+    )
 
     predict_mu = make_predict_counts(r_edges, n_obs)
-    negloglike = lambda z: -poisson_loglike((counts, jnp.ones_like(counts)), predict_mu)(z)
+    negloglike = lambda z: (
+        -poisson_loglike((counts, jnp.ones_like(counts)), predict_mu)(z)
+    )
 
     # self-consistency at truth (before the optimizer).
     z_true = _z_of_theta(W0_TRUE, RC_TRUE)
@@ -284,8 +321,10 @@ def main():
     resid = (np.asarray(counts) - mu_true) / np.sqrt(np.maximum(mu_true, 1.0))
     selfcon = float(np.max(np.abs(resid)))
     selfcon_ok = selfcon < SELFCON_NSIG
-    print(f"\n  self-consistency: max|N_k - mu_k|/sqrt(mu_k) = {selfcon:.2f}  "
-          f"(gate < {SELFCON_NSIG})")
+    print(
+        f"\n  self-consistency: max|N_k - mu_k|/sqrt(mu_k) = {selfcon:.2f}  "
+        f"(gate < {SELFCON_NSIG})"
+    )
 
     z_hat, trace, losses = run_mle(negloglike, jax.random.PRNGKey(SEED + 1))
     W0_hat, rc_hat = _theta_of_z(z_hat)
@@ -298,29 +337,52 @@ def main():
     truth = jnp.array([W0_TRUE, RC_TRUE])
     pulls = (theta_hat - truth) / sigma_theta
     print(f"\n  losses (per init): {[round(x, 4) for x in losses]}")
-    print(f"  {'param':>6s} {'truth':>8s} {'theta_hat':>12s} {'sigma':>10s} {'pull':>8s}")
+    print(
+        f"  {'param':>6s} {'truth':>8s} {'theta_hat':>12s} {'sigma':>10s} {'pull':>8s}"
+    )
     names = ["W0", "r_c"]
     for i in range(2):
-        print(f"  {names[i]:>6s} {float(truth[i]):>8.3f} {float(theta_hat[i]):>12.4f} "
-              f"{float(sigma_theta[i]):>10.4f} {float(pulls[i]):>8.2f}")
+        print(
+            f"  {names[i]:>6s} {float(truth[i]):>8.3f} {float(theta_hat[i]):>12.4f} "
+            f"{float(sigma_theta[i]):>10.4f} {float(pulls[i]):>8.2f}"
+        )
 
     c_hat = _concentration(float(W0_hat), float(rc_hat))
     c_true = _concentration(W0_TRUE, RC_TRUE)
-    print(f"\n  King concentration c = log10(r_t/r_c): MLE {c_hat:.3f}  vs truth {c_true:.3f}")
-    print(f"  Fisher rho(W0, r_c) = {float(cov[0, 1] / jnp.sqrt(cov[0, 0] * cov[1, 1])):.3f}")
+    print(
+        f"\n  King concentration c = log10(r_t/r_c): MLE {c_hat:.3f}  vs truth {c_true:.3f}"
+    )
+    print(
+        f"  Fisher rho(W0, r_c) = {float(cov[0, 1] / jnp.sqrt(cov[0, 0] * cov[1, 1])):.3f}"
+    )
 
-    make_figure(r_edges, counts, predict_mu, z_hat, np.asarray(theta_hat),
-                np.asarray(sigma_theta), cov)
+    make_figure(
+        r_edges,
+        counts,
+        predict_mu,
+        z_hat,
+        np.asarray(theta_hat),
+        np.asarray(sigma_theta),
+        cov,
+    )
 
     recovery_ok = bool(jnp.all(jnp.abs(pulls) < RECOVERY_NSIG))
     plat_ok = plateau_ok(trace)
     fisher_ok = bool(jnp.all(jnp.linalg.eigvalsh(cov) > 0))
 
     rows = [
-        ("self-consistency at truth", "PASS" if selfcon_ok else "FAIL",
-         f"< {SELFCON_NSIG} sigma", selfcon_ok),
-        ("MLE recovery (both params)", "PASS" if recovery_ok else "FAIL",
-         f"< {RECOVERY_NSIG} sigma", recovery_ok),
+        (
+            "self-consistency at truth",
+            "PASS" if selfcon_ok else "FAIL",
+            f"< {SELFCON_NSIG} sigma",
+            selfcon_ok,
+        ),
+        (
+            "MLE recovery (both params)",
+            "PASS" if recovery_ok else "FAIL",
+            f"< {RECOVERY_NSIG} sigma",
+            recovery_ok,
+        ),
         ("loss plateau", "PASS" if plat_ok else "FAIL", "tail<1%", plat_ok),
         ("Fisher covariance PD", "PASS" if fisher_ok else "FAIL", "PD", fisher_ok),
     ]
@@ -335,8 +397,11 @@ def main():
     print("-" * 78)
     print(f"  saved {OUTPUT_DIR}/demo_king_concentration.{{png,pdf}}")
     print("=" * 78)
-    print("  KING CONCENTRATION DEMO: ALL PASS" if all_ok
-          else "  KING CONCENTRATION DEMO: FAILED")
+    print(
+        "  KING CONCENTRATION DEMO: ALL PASS"
+        if all_ok
+        else "  KING CONCENTRATION DEMO: FAILED"
+    )
     return 0 if all_ok else 1
 
 

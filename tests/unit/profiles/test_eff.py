@@ -16,7 +16,7 @@ consolidation.
 
 import jax
 import jax.numpy as jnp
-import pytest
+
 from progenax.profiles import EFFProfile
 
 
@@ -33,14 +33,18 @@ class TestEFFPhysics:
 
         # Check mean position is near origin (within ~3σ/√N tolerance)
         mean_pos = jnp.mean(positions, axis=0)
-        assert jnp.all(jnp.abs(mean_pos) < 0.1), f"Mean pos {mean_pos} too far from origin"
+        assert jnp.all(jnp.abs(mean_pos) < 0.1), (
+            f"Mean pos {mean_pos} too far from origin"
+        )
 
         # Check each axis has similar spread (ratio < 1.3)
-        stds = jnp.array([
-            jnp.std(positions[:, 0]),
-            jnp.std(positions[:, 1]),
-            jnp.std(positions[:, 2]),
-        ])
+        stds = jnp.array(
+            [
+                jnp.std(positions[:, 0]),
+                jnp.std(positions[:, 1]),
+                jnp.std(positions[:, 2]),
+            ]
+        )
         ratio = jnp.max(stds) / jnp.min(stds)
         assert ratio < 1.3, f"Std ratio {float(ratio):.3f} > 1.3 (not isotropic)"
 

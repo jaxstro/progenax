@@ -9,6 +9,7 @@ draw the SAME model it projects: "that profile's density under OM", for BOTH Kin
 the Michie density -- Engine B does not ingest MichieProfile, and we must NOT use
 `MichieVelocityDF`'s NATIVE anisotropy, which would mismatch the OM projection).
 """
+
 import os
 import pathlib
 import sys
@@ -16,9 +17,9 @@ import sys
 import jax
 import jax.numpy as jnp
 import pytest
+from jaxstro.units import STELLAR
 
 import progenax  # noqa: F401  enables float64 at import
-from jaxstro.units import STELLAR
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
 # OED demos are informax-bound (out of v0.1.0); their helper imports optax (experimental
@@ -49,13 +50,21 @@ def test_om_sampler_matches_project_dispersion(model):
     for R_center in (2.0, 6.0):
         prof = oedc.build_profile(W0, r_a, model)
         pd = progenax.project_dispersion(prof, r_a, jnp.array([R_center]), M, STELLAR.G)
-        pred = {"los": pd.sigma_los[0], "pm_r": pd.sigma_pm_r[0], "pm_t": pd.sigma_pm_t[0]}
+        pred = {
+            "los": pd.sigma_los[0],
+            "pm_r": pd.sigma_pm_r[0],
+            "pm_t": pd.sigma_pm_t[0],
+        }
         sel = (R > R_center - 0.5) & (R < R_center + 0.5)
         assert sel.sum() > 2000, (model, R_center, int(sel.sum()))
         for name, v in channels.items():
             meas = jnp.std(v[sel], ddof=1)
             assert jnp.abs(meas - pred[name]) / pred[name] < 0.05, (
-                model, R_center, name, float(meas), float(pred[name])
+                model,
+                R_center,
+                name,
+                float(meas),
+                float(pred[name]),
             )
 
 
@@ -79,7 +88,7 @@ def test_predict_sigma_shape_and_bins_bound():
     R_BINS bin is dynamically BOUND (r_t > R_BINS[-1]) for BOTH models -- otherwise
     the outer bins probe unbound radii where project_dispersion is undefined."""
     for model in ("king", "michie"):
-        th = oedc.theta_truth()                       # (3,) = (W0, r_a, M)
+        th = oedc.theta_truth()  # (3,) = (W0, r_a, M)
         sig = oedc.predict_sigma(th, oedc.R_BINS, STELLAR.G, model)
         assert sig.shape == (3, oedc.R_BINS.shape[0])
         assert jnp.all(jnp.isfinite(sig)) and jnp.all(sig > 0)
@@ -94,9 +103,9 @@ def test_jacobian_lntheta_shape_and_W0_column_nonzero():
         th = oedc.theta_truth()
         J, sig = oedc.jacobian_and_sigma(th, oedc.R_BINS, STELLAR.G, model)
         K = oedc.R_BINS.shape[0]
-        assert J.shape == (3, K, 3)                    # channel, bin, param
+        assert J.shape == (3, K, 3)  # channel, bin, param
         assert jnp.all(jnp.isfinite(J))
-        assert jnp.any(jnp.abs(J[:, :, 0]) > 0)        # W0 column carries signal
+        assert jnp.any(jnp.abs(J[:, :, 0]) > 0)  # W0 column carries signal
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +150,7 @@ def _dsigma_dlnW0(model, channel, R_bins):
     def f(w0):
         return oedc.predict_sigma(th.at[0].set(w0), R_bins, STELLAR.G, model)[channel]
 
-    J_ad = jax.jacrev(f)(W0) * W0          # (K,) d sigma / d ln W0
+    J_ad = jax.jacrev(f)(W0) * W0  # (K,) d sigma / d ln W0
     return f, W0, J_ad
 
 
@@ -162,23 +171,26 @@ def _assert_ad_is_hto0_limit(model, channel, R_bins):
     (h=1e-4) rel-errs so the caller can additionally floor the FD-RELIABLE bins.
     """
     f, W0, J_ad = _dsigma_dlnW0(model, channel, R_bins)
-    assert jnp.all(jnp.isfinite(J_ad)), (model, channel, J_ad)   # AD finite everywhere
+    assert jnp.all(jnp.isfinite(J_ad)), (model, channel, J_ad)  # AD finite everywhere
 
     fd_by_h = {h: _central_fd_lnW0(f, W0, h) for h in _FD_STEPS}
     rel_by_h = {
         h: jnp.abs(J_ad - fd) / (jnp.abs(fd) + 1e-30) for h, fd in fd_by_h.items()
     }
-    rel_coarse = rel_by_h[_FD_STEPS[0]]                 # h = 1e-2
-    rel_fine = rel_by_h[_FD_STEPS[-1]]                  # h = 1e-6 (converged proxy)
+    rel_coarse = rel_by_h[_FD_STEPS[0]]  # h = 1e-2
+    rel_fine = rel_by_h[_FD_STEPS[-1]]  # h = 1e-6 (converged proxy)
 
     # (a) AD == converged FD, every bin.
     assert jnp.all(rel_fine < _FD_FLOOR), (model, channel, "AD!=converged-FD", rel_fine)
     # (b) FD -> AD as h shrinks, every bin (Richardson trend).
     assert jnp.all(rel_fine < rel_coarse), (
-        model, channel, "FD did not converge to AD as h shrank (would be a real defect)",
-        rel_coarse, rel_fine,
+        model,
+        channel,
+        "FD did not converge to AD as h shrank (would be a real defect)",
+        rel_coarse,
+        rel_fine,
     )
-    return rel_by_h[_FD_FLOOR_H]                         # (K,) fixed-step rel at h=1e-4
+    return rel_by_h[_FD_FLOOR_H]  # (K,) fixed-step rel at h=1e-4
 
 
 def test_grad_sigma_W0_king_AD_vs_FD():
@@ -213,7 +225,7 @@ def test_grad_sigma_W0_michie_inner_AD_vs_FD():
     Richardson-gate the rest (measured, not tuned).
     """
     th = oedc.theta_truth()
-    R_inner = oedc.R_BINS[oedc.R_BINS <= th[1]]        # R <= r_a (= 6 r_c)
+    R_inner = oedc.R_BINS[oedc.R_BINS <= th[1]]  # R <= r_a (= 6 r_c)
     for channel in range(3):
         rel_h4 = _assert_ad_is_hto0_limit("michie", channel, R_inner)
         reliable = rel_h4 < _FD_FLOOR
@@ -248,21 +260,25 @@ def test_grad_sigma_W0_michie_outer_richardson():
     h=1e-4 floor demonstrably FAILS (Task 3 characterization), confirming these gates
     have teeth.
     """
-    R_outer = jnp.array([oedc.R_BINS[-1]])              # outermost bin, R = 12 r_c
+    R_outer = jnp.array([oedc.R_BINS[-1]])  # outermost bin, R = 12 r_c
     for channel in range(3):
         f, W0, J_ad = _dsigma_dlnW0("michie", channel, R_outer)
-        assert jnp.isfinite(J_ad[0]), (channel, J_ad)   # AD finite (not a divergence)
+        assert jnp.isfinite(J_ad[0]), (channel, J_ad)  # AD finite (not a divergence)
 
         rels = [
-            float(jnp.abs(J_ad[0] - _central_fd_lnW0(f, W0, h)[0])
-                  / (jnp.abs(_central_fd_lnW0(f, W0, h)[0]) + 1e-30))
+            float(
+                jnp.abs(J_ad[0] - _central_fd_lnW0(f, W0, h)[0])
+                / (jnp.abs(_central_fd_lnW0(f, W0, h)[0]) + 1e-30)
+            )
             for h in _FD_STEPS
         ]
         # AD matches the converged (finest-step) FD ...
         assert rels[-1] < _FD_FLOOR, (channel, "AD != converged-FD", rels)
         # ... and the FD CONVERGES toward AD as h shrinks (Richardson; ADR-0016).
         assert rels[-1] < rels[0], (
-            channel, "FD did not converge to AD as h shrank -- a real gradient defect", rels
+            channel,
+            "FD did not converge to AD as h shrank -- a real gradient defect",
+            rels,
         )
 
 
@@ -291,7 +307,7 @@ def test_blocks_shape_symmetry_and_fisher_spd():
         z = jnp.zeros(3 * K)
         F = oedc.fisher(z, Mb, oedc.completeness(oedc.R_BINS), 1000.0, oedc.PRIOR_DIAG)
         evals = jnp.linalg.eigvalsh(F)
-        assert jnp.all(evals > 0), (model, evals)        # SPD with M-only prior
+        assert jnp.all(evals > 0), (model, evals)  # SPD with M-only prior
 
 
 def test_fisher_spd_over_random_designs():
@@ -331,7 +347,9 @@ def test_c_criterion_targets_W0_and_grad_AD_vs_FD():
         eps = 1e-4
         g_fd = (loss(z.at[i].add(eps)) - loss(z.at[i].add(-eps))) / (2 * eps)
         assert jnp.allclose(g_ad[i], g_fd, rtol=1e-4, atol=1e-8), (
-            model, float(g_ad[i]), float(g_fd)
+            model,
+            float(g_ad[i]),
+            float(g_fd),
         )
 
 
@@ -423,7 +441,9 @@ def test_cli_concentration_smoke(tmp_path):
 
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "scripts"))
     cli = importlib.import_module("demo_oed_concentration")
-    rc = cli.main(["--outdir", str(tmp_path), "--n-starts", "2", "--n-steps", "60", "--quick"])
+    rc = cli.main(
+        ["--outdir", str(tmp_path), "--n-starts", "2", "--n-steps", "60", "--quick"]
+    )
     assert rc == 0
     figs = list(tmp_path.glob("*.png"))
     assert len(figs) >= 4, figs

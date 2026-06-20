@@ -5,11 +5,12 @@ All functions take explicit G parameter (NOT get_G() defaults).
 """
 
 from __future__ import annotations
+
 from typing import Tuple
 
+import equinox as eqx
 import jax
 import jax.numpy as jnp
-import equinox as eqx
 from jaxtyping import Array, Float
 
 from .kepler import KeplerElements
@@ -39,6 +40,7 @@ class BinaryOrbitalState(eqx.Module):
         ... )
         >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
     """
+
     m1: Float[Array, ""]
     m2: Float[Array, ""]
     elements: KeplerElements
@@ -78,16 +80,14 @@ class BinaryOrbitalState(eqx.Module):
             BinaryOrbitalState ready for IC generation
         """
         # Convert period
-        P = (10.0 ** logP_days) * day_in_time_units
+        P = (10.0**logP_days) * day_in_time_units
 
         # Derive semi-major axis from Kepler's 3rd law
         M_total = m1 + m2
         a = period_to_semimajor_axis(P, M_total, G)
 
         # Create orbital elements
-        elements = KeplerElements(
-            a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom
-        )
+        elements = KeplerElements(a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom)
 
         return cls(
             m1=jnp.asarray(m1),
@@ -125,9 +125,7 @@ class BinaryOrbitalState(eqx.Module):
         Returns:
             BinaryOrbitalState ready for IC generation
         """
-        elements = KeplerElements(
-            a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom
-        )
+        elements = KeplerElements(a=a, e=e, i=inc, Omega=Omega, omega=omega, M0=M_anom)
 
         return cls(
             m1=jnp.asarray(m1),
@@ -138,7 +136,9 @@ class BinaryOrbitalState(eqx.Module):
     def to_resolved_positions(
         self,
         G: float,
-    ) -> Tuple[Float[Array, "3"], Float[Array, "3"], Float[Array, "3"], Float[Array, "3"]]:
+    ) -> Tuple[
+        Float[Array, "3"], Float[Array, "3"], Float[Array, "3"], Float[Array, "3"]
+    ]:
         """Get resolved barycentric positions and velocities.
 
         Args:
@@ -171,9 +171,16 @@ def _make_elements_from_inputs(
 ) -> BinaryOrbitalState:
     """Internal: build a BinaryOrbitalState from standard binary-sampler outputs."""
     return BinaryOrbitalState.from_log_period(
-        m1=m1, m2=m2, logP_days=logP_days, e=e,
-        inc=inc, Omega=Omega, omega=omega, M_anom=M_anom,
-        G=G, day_in_time_units=day_in_time_units,
+        m1=m1,
+        m2=m2,
+        logP_days=logP_days,
+        e=e,
+        inc=inc,
+        Omega=Omega,
+        omega=omega,
+        M_anom=M_anom,
+        G=G,
+        day_in_time_units=day_in_time_units,
     )
 
 
@@ -197,7 +204,9 @@ def batch_elements_to_resolved(
     *,
     G: float,
     day_in_time_units: float = 1.0,
-) -> Tuple[Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"]]:
+) -> Tuple[
+    Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N 3"]
+]:
     """Vectorized wrapper to get resolved (r1, v1, r2, v2) for N binaries.
 
     Args:
