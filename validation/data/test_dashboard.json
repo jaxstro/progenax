@@ -215,7 +215,7 @@
     "line_cov_measured": 96.12178325480247,
     "registries_full": true
   },
-  "generated_utc": "2026-06-20T04:17:17.222255+00:00",
+  "generated_utc": "2026-06-20T04:20:04.023468+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "027ada92e20f6949ef735d80dc3965fe8aacd0af",

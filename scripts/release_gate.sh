@@ -4,10 +4,10 @@
 # coverage-floor READ inside `pytest -m "not slow"`. THIS script is the HEAVY tier: it
 # re-measures FULL-suite coverage, refreshes the observability artifacts, regenerates
 # coverage.json + the dashboard at HEAD, runs the floor + freshness tests (incl. the @slow
-# full-regeneration match), and asserts the 4-part conjunction:
+# full-regeneration match), and asserts the 5-part conjunction:
 #
 #   registries_full  AND  line_cov_measured >= line_cov_floor  AND  dashboard_fresh
-#       AND  full_suite_green
+#       AND  full_suite_green  AND  validation_scripts_pass
 #
 # Run from the repo root. Exits non-zero on FAIL.
 #
@@ -128,8 +128,8 @@ env -u VIRTUAL_ENV XLA_FLAGS="$XLA_CAPS" uv run --no-sync \
     tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor \
     tests/validation/test_dashboard_fresh.py -q
 
-echo "== release-gate: assert the 4-part conjunction =="
-# Read the regenerated dashboard's gate block and assert all four parts. full_suite_green is
+echo "== release-gate: assert the 5-part conjunction =="
+# Read the regenerated dashboard's gate block and assert all five parts. full_suite_green is
 # injected from THIS shell run (the dashboard records None — it is introspection-only).
 $RUN python - "$FULL_SUITE_GREEN" <<'PY'
 import json, sys
@@ -144,14 +144,26 @@ line_cov_ok = line_cov is not None and float(line_cov) >= float(floor)
 # dashboard_fresh: the freshness pytest step above passed (set -e would have aborted on a
 # drift), so by here the committed dashboard matched a fresh regeneration.
 dashboard_fresh = True
-ok = registries_full and line_cov_ok and dashboard_fresh and full_suite_green
+# validation_scripts_pass: every scripts/validate_*.py exited 0 in this run's refresh. A
+# broken validate script (API drift, failed assertion) reds the release gate — it no longer
+# sits invisibly under green (the Phase-3 gap).
+val_scripts = dash.get("validation_scripts", {})
+def _code(v):
+    return v.get("exit") if isinstance(v, dict) else v
+val_fails = sorted(k for k, v in val_scripts.items() if isinstance(_code(v), int) and _code(v) != 0)
+validation_scripts_pass = not val_fails
+if val_fails:
+    print("  WARN: failing validate scripts:", ", ".join(val_fails))
+ok = (registries_full and line_cov_ok and dashboard_fresh and full_suite_green
+      and validation_scripts_pass)
 verdict = "PASS" if ok else "FAIL"
 cov_str = f"{line_cov:.2f}" if line_cov is not None else "None"
 print(
     f"RELEASE GATE: registries_full={registries_full} "
     f"line_cov={cov_str}(>={floor}) "
     f"dashboard_fresh={dashboard_fresh} "
-    f"full_suite_green={full_suite_green} -> {verdict}"
+    f"full_suite_green={full_suite_green} "
+    f"validation_scripts_pass={validation_scripts_pass}({len(val_scripts)} scripts) -> {verdict}"
 )
 sys.exit(0 if ok else 1)
 PY

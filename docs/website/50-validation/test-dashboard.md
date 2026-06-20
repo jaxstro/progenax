@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-06-20T04:17:17.222255+00:00`. Line coverage: 96.1% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
+Generated at `2026-06-20T04:20:04.023468+00:00`. Line coverage: 96.1% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -482,4 +482,64 @@ Generated at `2026-06-20T04:17:17.222255+00:00`. Line coverage: 96.1% (floor 90%
   - 41/122 audited, 0 haz
   - test_finite_across_Z_box (1.2s)
   - —
+```
+
+## Validation scripts
+
+Exit status of every `scripts/validate_*.py` (from `validation/data/validation_runs.json`): **24 scripts, 0 failing**.
+
+```{list-table} Validation script runs
+:header-rows: 1
+:align: left
+
+* - Script
+  - Status
+* - `validate_analytical.py`
+  - PASS
+* - `validate_azimuthal_variation.py`
+  - PASS
+* - `validate_binaries.py`
+  - PASS
+* - `validate_cluster_builders.py`
+  - PASS
+* - `validate_cluster_ic.py`
+  - PASS
+* - `validate_df_tables.py`
+  - PASS
+* - `validate_eff.py`
+  - PASS
+* - `validate_environment.py`
+  - PASS
+* - `validate_equipartition_saturation.py`
+  - PASS
+* - `validate_imfs.py`
+  - PASS
+* - `validate_king.py`
+  - PASS
+* - `validate_limepy_reference.py`
+  - PASS
+* - `validate_mass_segregation.py`
+  - PASS
+* - `validate_michie.py`
+  - PASS
+* - `validate_multicomponent_eddington.py`
+  - PASS
+* - `validate_multimass_anisotropy.py`
+  - PASS
+* - `validate_multimass_equilibrium.py`
+  - PASS
+* - `validate_plummer.py`
+  - PASS
+* - `validate_rotation_anisotropy.py`
+  - PASS
+* - `validate_segregation_approx.py`
+  - PASS
+* - `validate_speed_routing.py`
+  - PASS
+* - `validate_substructure_q.py`
+  - PASS
+* - `validate_tidal.py`
+  - PASS
+* - `validate_zams.py`
+  - PASS
 ```

@@ -139,6 +139,44 @@ def _registry_status_phrase(registries: dict) -> str:
     return " ".join(parts)
 
 
+def _validation_scripts_section(validation_scripts: dict) -> list[str]:
+    """A standalone table of EVERY ``validate_*.py`` -> PASS/FAIL/—.
+
+    The per-module matrix only surfaces scripts whose stem matches a census module
+    (``validate_<module>.py``), so 22 of 24 never appear there. This section lists ALL
+    of them straight from ``validation/data/validation_runs.json`` so a failing
+    validation script is visible on the page, not just in the JSON.
+    """
+    if not validation_scripts:
+        return []
+    rows: list[str] = []
+    for name, code in sorted(validation_scripts.items()):
+        if code == 0:
+            verdict = "PASS"
+        elif isinstance(code, int):
+            verdict = f"FAIL (exit {code})"
+        else:
+            verdict = "—"
+        rows.append(f"* - `{name}`\n  - {verdict}")
+    n_fail = sum(1 for c in validation_scripts.values() if isinstance(c, int) and c != 0)
+    return [
+        "## Validation scripts",
+        "",
+        f"Exit status of every `scripts/validate_*.py` "
+        f"(from `validation/data/validation_runs.json`): "
+        f"**{len(validation_scripts)} scripts, {n_fail} failing**.",
+        "",
+        "```{list-table} Validation script runs",
+        ":header-rows: 1",
+        ":align: left",
+        "",
+        "* - Script\n  - Status",
+        "\n".join(rows),
+        "```",
+        "",
+    ]
+
+
 def render_dashboard_page(dashboard: dict) -> str:
     """Return the full MyST page text for the dashboard JSON.
 
@@ -199,5 +237,6 @@ def render_dashboard_page(dashboard: dict) -> str:
         "\n".join(_matrix_rows(dashboard)),
         "```",
         "",
+        *_validation_scripts_section(dashboard.get("validation_scripts", {})),
     ]
     return "\n".join(lines)
