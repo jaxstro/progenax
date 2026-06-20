@@ -13,19 +13,33 @@ Four ratchets keep the hand-curated manifest honest and in sync with the audited
      constant-bearing files, NOT all of src/) for numeric literals that look like citable
      coefficients (exclude trivial 0/1/2/±0.5, small ints, and the documented
      ALLOWLIST_NON_COEFFICIENT carve). Any flagged literal that is NOT a PROVENANCE value
-     AND does NOT carry an inline citation comment -> a hole. Conservative + documented:
-     this is the C6-scoped tripwire, NOT the 2,525-match full-src scan.
+     AND does NOT carry an inline citation comment / scoped citation docstring -> a hole.
+     Conservative + documented: this is the C6-scoped tripwire, NOT the 2,525-match
+     full-src scan.
   4. No unprovenanced constants — UNPROVENANCED is a hole list (Task-5.2 / Anna
      adjudication), asserted empty under @xfail(strict=False) mirroring api_coverage.
+
+STRICT harness behavior (ratchet-harness hoist, 2026-06-19): the literal scanner and the
+nearby-citation check are now the canonical ``jaxstro.testing.ratchet`` primitives
+(``scan_module_numeric_literals`` + ``has_nearby_citation``). The harness DELIBERATELY
+EXCLUDES the module-level docstring from citation whitelisting — a module docstring that
+names a paper must NOT stand in for per-coefficient provenance (a tripwire-defeat). So every
+citable-shaped coefficient must carry its OWN in-window citation comment (or a scoped
+function/class docstring, or a PROVENANCE value match). The progenax-LOCAL orchestration
+survives: the ``_scan_module_for_unprovenanced`` walk, the value-in-provenance matching, and
+the ALLOWLIST_NON_COEFFICIENT carve.
 
 NEVER weaken a test to make it pass. A real hole goes to UNPROVENANCED for Anna, not into
 a fabricated PROVENANCE citation.
 """
 import ast
-import io
 import re
-import tokenize
 from pathlib import Path
+
+from jaxstro.testing.ratchet import (
+    has_nearby_citation,
+    scan_module_numeric_literals,
+)
 
 from tests.validation.provenance_registry.manifest import (
     ALLOWLIST_MODULES,
@@ -37,12 +51,17 @@ from tests.validation.provenance_registry.manifest import (
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _LEDGER = _REPO_ROOT / "docs" / "provenance-ledger.md"
 
-# Numeric literals that are NEVER citable coefficients regardless of file (the trivial set).
-_TRIVIAL = frozenset({0.0, 1.0, 2.0, 0.5, -1.0, -0.5, 3.0, 4.0})
+# The SAME literal-scanner knobs the harness consumes: the trivial set (never-citable values
+# regardless of file) and the small-int cutoff (indices / shapes / loop bounds). Passed
+# straight to ``scan_module_numeric_literals``.
+_TRIVIAL: set[float] = {0.0, 1.0, 2.0, 0.5, -1.0, -0.5, 3.0, 4.0}
+_SMALL_INT_MAX = 12
+_CITE_WINDOW = 4  # nearby-comment window for has_nearby_citation (lines above the literal)
 
-# A comment counts as a citation if it names a paper/year, a table/equation reference, an
-# authority (CODATA/IAU), or carries an explicit `provenance:` marker. This is the
-# comment-presence signal the C6 design specifies (the human's provenance assertion).
+# A PROVENANCE *citation string* counts as traceable if it names a paper/year, a table/eq
+# reference, an authority (CODATA/IAU), or an explicit ``provenance:`` marker. This is the
+# anti-theater signal for the manifest's own citation values (ratchet #1) — NOT the
+# source-literal scan, which uses the harness's content-free citation regex.
 _CITE_RE = re.compile(
     r"(provenance:|\b(19|20)\d{2}\b|\bTable\b|\bEq\.?\b|\bSection\b|§|\bCODATA\b|\bIAU\b|"
     r"Salpeter|Kroupa|Chabrier|Maschberger|Sana|Moe|Di Stefano|Marks|Jerab|Demircan|"
@@ -154,71 +173,6 @@ def test_every_ledger_constant_anchor_is_in_provenance():
 # ======================================================================================
 
 
-def _cited_comment_lines(src: str) -> set[int]:
-    """Set of line numbers carrying a ``#`` comment that names a citation token."""
-    out: set[int] = set()
-    try:
-        for tok in tokenize.generate_tokens(io.StringIO(src).readline):
-            if tok.type == tokenize.COMMENT and _CITE_RE.search(tok.string):
-                out.add(tok.start[0])
-    except tokenize.TokenError:
-        pass
-    return out
-
-
-def _cited_docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:
-    """Line spans (start, end) of every function/class/module whose docstring carries a
-    citation token. A coefficient assigned inside such a block (e.g. ``exponents=[0.3, ...]``
-    inside ``kroupa()`` whose docstring cites 'Kroupa (2001), Eq. 2') is provenanced by the
-    docstring's References section — the standard way these classmethods record their source.
-    """
-    spans: list[tuple[int, int]] = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module)):
-            doc = ast.get_docstring(node, clean=False)
-            if doc and _CITE_RE.search(doc):
-                start = getattr(node, "lineno", 1)
-                end = max(
-                    (getattr(c, "end_lineno", start) or start) for c in ast.walk(node)
-                ) if list(ast.walk(node)) else start
-                spans.append((start, end))
-    return spans
-
-
-def _enclosing_stmt_span(tree: ast.AST, lineno: int) -> tuple[int, int]:
-    """Line span of the smallest top-level/class-level Assign/AnnAssign statement enclosing
-    ``lineno`` (so a long dict/array literal block under a header comment is one unit)."""
-    best = (lineno, lineno)
-    best_size = None
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Assign, ast.AnnAssign)):
-            s, e = node.lineno, (node.end_lineno or node.lineno)
-            if s <= lineno <= e:
-                size = e - s
-                if best_size is None or size < best_size:
-                    best, best_size = (s, e), size
-    return best
-
-
-def _has_nearby_citation(lineno: int, cited_lines: set[int]) -> bool:
-    """True if the literal's line — or one of the 4 lines above it (a block-header comment
-    over a dict/array of coefficients) — carries a citation comment."""
-    return any(L in cited_lines for L in range(lineno, max(0, lineno - 5), -1))
-
-
-def _is_citable_shaped(value) -> bool:
-    """A literal is 'citable-shaped' (a candidate coefficient) unless it is trivial."""
-    if isinstance(value, bool):
-        return False
-    v = float(value)
-    if v in _TRIVIAL or abs(v) < 1e-9:
-        return False
-    # Small integers are indices / loop bounds / array shapes, not coefficients.
-    if isinstance(value, int) and abs(value) <= 12:
-        return False
-    return True
-
-
 def _module_provenance_blob(rel_path: str) -> str:
     """The concatenated PROVENANCE citations whose KEY names this module (e.g. all rows
     keyed ``imf/power_law.py::...``). A literal whose value-text appears here is provenanced
@@ -244,37 +198,32 @@ def _value_in_provenance(value, blob: str) -> bool:
 def _scan_module_for_unprovenanced(rel_path: str):
     """Return the distinct citable-shaped literals in ``rel_path`` that are unprovenanced:
     NOT a documented ALLOWLIST_NON_COEFFICIENT carve, NOT covered by a nearby citation
-    comment, NOT inside a citation-bearing docstring block, and NOT named in this module's
-    PROVENANCE citations. Each surviving value is a candidate hole (a NEW unsourced number)."""
-    path = _REPO_ROOT / rel_path
-    src = path.read_text()
-    tree = ast.parse(src)
-    cited_lines = _cited_comment_lines(src)
-    doc_spans = _cited_docstring_spans(tree)
+    comment / scoped (function/class) citation docstring, and NOT named in this module's
+    PROVENANCE citations. Each surviving value is a candidate hole (a NEW unsourced number).
+
+    Strict harness behavior (ratchet-harness hoist): the citable-shaped scan is the canonical
+    ``scan_module_numeric_literals`` (signed-literal folding included), and the nearby-citation
+    check is ``has_nearby_citation`` — which EXCLUDES the module-level docstring, so a module
+    docstring that names a paper does NOT whitelist a file-level coefficient. Each coefficient
+    must carry its own in-window citation, a scoped docstring, or a PROVENANCE value match.
+    """
     blob = _module_provenance_blob(rel_path)
     carve = ALLOWLIST_NON_COEFFICIENT.get(rel_path, {})
 
-    def in_cited_docstring(lineno: int) -> bool:
-        return any(s <= lineno <= e for s, e in doc_spans)
-
     holes: dict[float, list[int]] = {}
-    for node in ast.walk(tree):
-        if not (isinstance(node, ast.Constant) and isinstance(node.value, (int, float))):
+    for value, lineno in scan_module_numeric_literals(
+        _REPO_ROOT / rel_path, trivial=_TRIVIAL, small_int_max=_SMALL_INT_MAX
+    ):
+        if value in carve:
             continue
-        if not _is_citable_shaped(node.value):
+        # Provenance signals (any one suffices): an in-window citation comment or scoped
+        # citation docstring (harness), or the value-text appearing in this module's
+        # PROVENANCE citations (local).
+        if has_nearby_citation(
+            _REPO_ROOT / rel_path, lineno, window=_CITE_WINDOW
+        ) or _value_in_provenance(value, blob):
             continue
-        v = float(node.value)
-        if v in carve:
-            continue
-        # Provenance signals (any one suffices):
-        stmt_s, stmt_e = _enclosing_stmt_span(tree, node.lineno)
-        stmt_cited = any(L in cited_lines for L in range(max(0, stmt_s - 4), stmt_e + 1))
-        if (_has_nearby_citation(node.lineno, cited_lines)
-                or stmt_cited
-                or in_cited_docstring(node.lineno)
-                or _value_in_provenance(node.value, blob)):
-            continue
-        holes.setdefault(v, []).append(node.lineno)
+        holes.setdefault(value, []).append(lineno)
     return holes
 
 

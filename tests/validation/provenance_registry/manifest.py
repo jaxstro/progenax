@@ -265,6 +265,13 @@ ALLOWLIST_NON_COEFFICIENT: dict[str, dict[float, str]] = {
         2.0: "Tout R(M) denominator mass exponent M**2 (eq.2 structure, not a fitted coeff)",
         8.5: "Tout R(M) denominator mass exponent M**8.5 (eq.2 structure, not a fitted coeff)",
         18.5: "Tout R(M) denominator mass exponent M**18.5 (eq.2 structure, not a fitted coeff)",
+        # Homology-motivated inverse-Newton initial-guess literals (numerical method, NOT
+        # Tout table cells): the L<1e-3 regime split and the high-mass L~M^3.5 exponent used
+        # ONLY to seed the Newton iterate (low-mass uses the already-carved M^5.5):
+        0.001: "inverse-Newton initial-guess regime threshold L<1e-3 [Lsun] (numerical "
+               "helper: low- vs high-mass homology guess split, not a cited coefficient)",
+        3.5: "inverse-Newton high-mass initial-guess exponent L~M^3.5 (numerical helper: "
+             "homology seed for the Newton iterate, not a cited Tout coefficient)",
         # Numerical guards (avoid 0/0 and NaN slopes; not paper coefficients):
         1e-10: "denominator guard jnp.maximum(den, 1e-10) (numerical-method literal)",
         1e-15: "inverse-Newton L_target floor jnp.clip(..., 1e-15, 1e8) (guard, not a coeff)",

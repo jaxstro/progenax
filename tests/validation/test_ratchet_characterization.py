@@ -1,39 +1,46 @@
-"""Characterization safety-net for the ``jaxstro.testing.ratchet`` hoist (Task 2.1).
+"""Characterization safety-net for the ``jaxstro.testing.ratchet`` hoist (Task 2.1/2.4).
 
 Phase 2 of the registry-harness hoist deletes each progenax registry's *inline*
 partition / staleness / literal-scanner / citation-proximity / node-id helpers and calls
-``jaxstro.testing.ratchet`` instead (Tasks 2.2-2.5). This module pins the *current
-observable behavior* as a FROZEN GOLDEN so that refactor is provably behavior-preserving.
+``jaxstro.testing.ratchet`` instead (Tasks 2.2-2.5). This module pins the *observable
+behavior* of the harness primitives as a FROZEN GOLDEN so the refactor is provably correct.
 
 By construction it depends ONLY on ``jaxstro.testing.ratchet`` + frozen expected data +
-the four manifests — NOT on any inline helper (those get deleted in 2.2-2.5). It therefore
-stays valid BOTH before and after the refactor: the golden was captured ONCE from the
-current source tree and the harness primitives must keep reproducing it.
+the four manifests — NOT on any inline helper (those are deleted). The harness primitives
+must keep reproducing the golden.
+
+STRICT-MODE ADOPTION (Task 2.4, 2026-06-19)
+-------------------------------------------
+progenax has ADOPTED the harness's stricter SoTA provenance behavior: the provenance
+registry now uses ``has_nearby_citation`` directly, which DELIBERATELY EXCLUDES the
+module-level docstring from citation whitelisting (a module docstring naming a paper must
+NOT stand in for per-coefficient provenance — the tripwire-defeat fix). To re-green under
+that stricter rule, the already-PDF-verified Tout+1996 (``stellar.py``) and Moe & Di Stefano
+2017 (``moe_di_stefano.py``) coefficient arrays now carry their OWN in-window citation
+comments, so each array is provenanced by a scoped/in-window citation rather than by the
+module docstring. The end-to-end registry verdict is therefore STILL ZERO holes — but now
+under strict semantics with real per-array citations, NOT the old module-docstring whitelist.
 
 What is pinned
 --------------
 1. Literal-scanner output (the critical one): per ALLOWLIST_MODULE, a frozen (count,
    sha256) fingerprint of ``scan_module_numeric_literals`` over the SAME trivial set /
    small_int_max the provenance registry uses (FAST: a handful of files only).
-2. Citation-proximity verdicts: representative (module, lineno) pairs exercising BOTH the
-   harness True path (scoped function/class docstring; comment-in-window) and the harness
-   False path — INCLUDING the "module-level docstring does NOT whitelist a literal"
-   tripwire-defeat fix (stellar.py / moe_di_stefano.py coefficient rows that the inline
-   scanner whitelisted via the module docstring but the harness, correctly, does not).
+2. Citation-proximity verdicts: representative (module, lineno) pairs exercising the harness
+   True path (scoped function/class docstring; in-window comment — INCLUDING the Tout / Moe
+   coefficient rows that now carry their own in-window citation comment post-adoption), plus
+   a synthetic-fixture proof that a MODULE-level docstring does NOT whitelist a literal.
 3. Partition / staleness pass on the CURRENT manifests for the three ``__all__``-keyed
    registries (api_coverage, physics_registry, grad_audit).
-4. End-to-end provenance verdict = ZERO holes, reproduced with harness primitives + the
-   LOCAL orchestration that survives the refactor (the module-docstring-inclusive whitelist
-   + value-in-provenance carve) — the proof the subtle docstring/sign semantics are
-   preserved.
+4. End-to-end provenance verdict = ZERO holes, reproduced with the SAME strict orchestration
+   the registry now runs (harness scanner + harness ``has_nearby_citation`` — NO module-
+   docstring whitelist — + the local value-in-provenance carve).
 5. A representative ``test_body_has_assert`` + ``resolve_node_ids`` snapshot.
 
-Harness-vs-inline divergences (DELIBERATE, documented — see ``test_documented_harness_vs_
-inline_divergences``): the harness FOLDS signed literals (``-2.0`` survives where the inline
-raw-``Constant`` walk saw a trivial ``2.0``) and EXCLUDES the module-level docstring from
-citation whitelisting. Both are the SoTA fixes the hoist design intends; neither changes the
-registry's observable zero-holes verdict because the affected literals are covered by
-``value-in-provenance`` and the local module-docstring whitelist.
+Harness signed-literal folding (DELIBERATE, documented — see ``test_documented_harness_
+signed_literal_folding``): the harness FOLDS signed literals (``-2.0`` survives where a raw-
+``Constant`` walk saw a trivial ``2.0``). It is a SoTA fix that closes a blind spot; the
+value is provenanced, so the registry verdict is unchanged.
 
 NOTE on collection: ``ratchet.test_body_has_assert`` is ``test_``-prefixed; it is reached
 ONLY through the ``ratchet.`` namespace here (never imported as a bare name), so pytest does
@@ -86,11 +93,12 @@ def _fingerprint(rel: str) -> tuple[int, str]:
 # 1. Literal-scanner equivalence (FROZEN GOLDEN — the critical characterization).
 # ======================================================================================
 #
-# Frozen ONCE from the current source tree (2026-06-19). Each value is
-# (distinct (value, lineno) count, sha256 of the sorted list). The harness
+# Frozen from the current source tree (2026-06-19, re-frozen post strict-mode adoption for
+# stellar.py + moe_di_stefano.py, which gained per-array in-window citation comments). Each
+# value is (distinct (value, lineno) count, sha256 of the sorted list). The harness
 # scan_module_numeric_literals must reproduce this EXACTLY for every allowlist module. A
-# drift here means the refactored provenance registry would scan a different literal set
-# than the inline scanner did — the exact regression this safety-net exists to catch.
+# drift here means the refactored provenance registry would scan a different literal set —
+# the exact regression this safety-net exists to catch.
 _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
     "src/progenax/imf/power_law.py": (
         14,
@@ -126,7 +134,7 @@ _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
     ),
     "src/progenax/stellar.py": (
         103,
-        "82fa256012737390e82d46eed9c63c6b63c76f6121ec32318ea096d912e692f0",
+        "2d5984c84a11a94b29ab8b4125c4bf6a9a243285fdc2ed8d8168a3f5ae1fc60c",
     ),
 }
 
@@ -175,7 +183,7 @@ _GOLDEN_REPRESENTATIVE_LITERALS: dict[str, list[tuple[float, int]]] = {
         (-1.1, 192),
     ],
     "src/progenax/binaries/period.py": [(-0.55, 138)],
-    "src/progenax/stellar.py": [(-48.96066856, 52)],
+    "src/progenax/stellar.py": [(-48.96066856, 57)],
 }
 
 
@@ -195,29 +203,32 @@ def test_representative_signed_literals_present():
 # ======================================================================================
 #
 # (module, lineno, expected has_nearby_citation(window=4)). Captured from the current tree.
-#   True  : a scoped function/class docstring (or in-window comment) cites the literal.
-#   False : NO scoped citation in window. CRUCIALLY the False cases below sit inside a
-#           MODULE-level docstring that names a paper (Tout 1996 / Moe Table 13) — the inline
-#           _cited_docstring_spans whitelisted them via ast.Module, but the harness EXCLUDES
-#           the module docstring (the tripwire-defeat fix), so it returns False. This pins
-#           that the "module docstring does NOT whitelist a literal" semantics is live.
+# All True: a scoped function/class docstring OR an in-window citation comment cites the
+# literal. The Tout (stellar.py) and Moe (moe_di_stefano.py) coefficient rows are True
+# because — under strict-mode adoption (Task 2.4) — each array now carries its OWN in-window
+# citation comment ("Tout+1996 Table 1/2", "Moe & Di Stefano (2017) ... Table 13"), NOT
+# because the module docstring whitelists them (the harness excludes ast.Module; that
+# tripwire-defeat exclusion is proved on a synthetic fixture below).
 _GOLDEN_CITATION_VERDICTS: list[tuple[str, int, bool]] = [
     # True via the scoped METHOD docstring (Salpeter (1955) in the classmethod docstring).
     ("src/progenax/imf/power_law.py", 147, True),
     # True via the scoped CLASS docstring (SanaOBPeriod cites Sana et al. (2012)).
     ("src/progenax/binaries/period.py", 138, True),
-    # False: the Moe Table-13 -2.0 tail row is whitelisted ONLY by the module docstring
-    # (excluded by the harness) — no scoped/in-window citation.
-    ("src/progenax/imf/binary/moe_di_stefano.py", 191, False),
-    # False: a Tout ZAMS coefficient row; the "Tout+1996 Table 1" header comment is >4 lines
-    # above, and only the module docstring otherwise cites it (excluded by the harness).
-    ("src/progenax/stellar.py", 37, False),
+    # True via the per-array in-window citation comment added at strict-mode adoption: the
+    # Moe Table-13 gamma_largeq rows (lines 191-192) carry "Moe & Di Stefano (2017) ... Table
+    # 13" on the array-opening line within window=4.
+    ("src/progenax/imf/binary/moe_di_stefano.py", 191, True),
+    ("src/progenax/imf/binary/moe_di_stefano.py", 192, True),
+    # True via the per-row in-window citation comment: each Tout L/R coefficient row now
+    # carries "Tout+1996 Table 1/2" inline.
+    ("src/progenax/stellar.py", 40, True),
+    ("src/progenax/stellar.py", 57, True),
 ]
 
 
 def test_citation_proximity_matches_frozen_verdicts():
-    """``has_nearby_citation`` reproduces the frozen True/False verdicts (same window=4),
-    including the module-docstring-does-NOT-whitelist tripwire-defeat case."""
+    """``has_nearby_citation`` reproduces the frozen True verdicts (same window=4) for the
+    scoped-docstring and (post-adoption) per-array in-window-comment citation paths."""
     mismatches = []
     for rel, lineno, expected in _GOLDEN_CITATION_VERDICTS:
         got = ratchet.has_nearby_citation(rel, lineno, window=_CITE_WINDOW)
@@ -229,15 +240,30 @@ def test_citation_proximity_matches_frozen_verdicts():
     )
 
 
-def test_module_docstring_does_not_whitelist_a_literal():
-    """Explicit tripwire-defeat regression pin: a coefficient literal whose ONLY citation is
-    the MODULE docstring must NOT register as cited (the harness excludes ast.Module)."""
-    # stellar.py module docstring cites Tout 1996; line 37 is a coefficient row with no
-    # scoped/in-window citation of its own.
-    assert (
-        ratchet.has_nearby_citation("src/progenax/stellar.py", 37, window=_CITE_WINDOW)
-        is False
+def test_module_docstring_does_not_whitelist_a_literal(tmp_path):
+    """Tripwire-defeat regression pin (now strict-mode REALITY, not just harness theory): a
+    literal whose ONLY citation is the MODULE-level docstring must NOT register as cited —
+    the harness excludes ``ast.Module``.
+
+    Proved on a SYNTHETIC fixture (decoupled from progenax src, where every real coefficient
+    now carries its own in-window citation): a module whose docstring cites "Table 1 (1996)"
+    but whose coefficient row has no scoped/in-window citation of its own -> False. The
+    contrasting positive control (the same literal WITH an in-window comment) -> True, so the
+    test cannot pass vacuously."""
+    fixture = tmp_path / "moddocstring_only.py"
+    fixture.write_text(
+        '"""A module whose docstring cites Tout (1996), Table 1 — but no scoped citation."""\n'
+        "VALUE = 0.39704170\n"  # uncited coefficient row (only the module docstring cites)
     )
+    # line 2 = the uncited coefficient; the module docstring (line 1) must NOT whitelist it.
+    assert ratchet.has_nearby_citation(fixture, 2, window=_CITE_WINDOW) is False
+
+    cited = tmp_path / "inwindow_cited.py"
+    cited.write_text(
+        '"""Plain module docstring, no citation."""\n'
+        "VALUE = 0.39704170  # Tout (1996), Table 1\n"  # in-window comment cites the row
+    )
+    assert ratchet.has_nearby_citation(cited, 2, window=_CITE_WINDOW) is True
 
 
 # ======================================================================================
@@ -315,55 +341,21 @@ def _value_in_provenance(value: float, blob: str) -> bool:
     return any(c in blob for c in candidates if c)
 
 
-def _cited_docstring_spans_module_inclusive(tree: ast.AST) -> list[tuple[int, int]]:
-    """LOCAL orchestration: the provenance registry whitelists a literal that sits inside a
-    citation-bearing docstring of ANY scope INCLUDING the module (its inline
-    ``_cited_docstring_spans`` walks ``ast.Module`` too). The harness deliberately drops the
-    module scope; the registry layers the module whitelist back on locally. This reproduces
-    the registry's inline span set so the end-to-end verdict matches."""
-    import re
-
-    cite_re = re.compile(
-        r"(provenance:|\b(18|19|20)\d{2}\b|\bTable\b|\bEq\.?\b|\bSection\b|§|"
-        r"\bCODATA\b|\bIAU\b|\bp(?:p|g|age)?\.?\s*\d|"
-        r"Salpeter|Kroupa|Chabrier|Maschberger|Sana|Moe|Di Stefano|Marks|Jerab|Demircan|"
-        r"Kahraman|King|Plummer|Lucy|von Hoerner|Casertano|Hut|Cartwright|Whitworth|CW04|"
-        r"canonical|erratum|Elson|Fall|Freeman|Chenciner|Montgomery|Tout|Pols|Eggleton)",
-        re.IGNORECASE,
-    )
-    spans: list[tuple[int, int]] = []
-    for node in ast.walk(tree):
-        if isinstance(
-            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module)
-        ):
-            doc = ast.get_docstring(node, clean=False)
-            if doc and cite_re.search(doc):
-                start = getattr(node, "lineno", 1)
-                ends = [getattr(c, "end_lineno", None) for c in ast.walk(node)]
-                end = max([e for e in ends if e is not None], default=start)
-                spans.append((start, end))
-    return spans
-
-
 def _harness_orchestrated_holes(rel: str) -> dict[float, list[int]]:
-    """Reproduce the provenance registry's hole detection with the HARNESS scanner +
-    HARNESS nearby-citation, plus the LOCAL carve / value-in-provenance / module-inclusive
-    docstring whitelist (the orchestration that stays progenax-local through the refactor)."""
-    src = (_REPO_ROOT / rel).read_text()
-    tree = ast.parse(src)
+    """Reproduce the provenance registry's STRICT hole detection: HARNESS scanner + HARNESS
+    nearby-citation (which excludes the module docstring) + the LOCAL carve and value-in-
+    provenance check. This mirrors the post-adoption registry orchestration EXACTLY — there
+    is NO module-docstring whitelist anymore (Task 2.4 strict-mode adoption)."""
     blob = _module_provenance_blob(rel)
     carve = ALLOWLIST_NON_COEFFICIENT.get(rel, {})
-    doc_spans = _cited_docstring_spans_module_inclusive(tree)
 
     holes: dict[float, list[int]] = {}
     for value, lineno in ratchet.scan_module_numeric_literals(
-        rel, trivial=_TRIVIAL, small_int_max=_SMALL_INT_MAX
+        _REPO_ROOT / rel, trivial=_TRIVIAL, small_int_max=_SMALL_INT_MAX
     ):
         if value in carve:
             continue
-        if ratchet.has_nearby_citation(rel, lineno, window=_CITE_WINDOW):
-            continue
-        if any(s <= lineno <= e for s, e in doc_spans):
+        if ratchet.has_nearby_citation(_REPO_ROOT / rel, lineno, window=_CITE_WINDOW):
             continue
         if _value_in_provenance(value, blob):
             continue
@@ -372,42 +364,38 @@ def _harness_orchestrated_holes(rel: str) -> dict[float, list[int]]:
 
 
 def test_harness_orchestration_reproduces_zero_holes():
-    """The registry reports ZERO unprovenanced holes today. Reproducing the orchestration
-    with harness primitives (+ the local carve / value-in-provenance / module-docstring
-    whitelist) must ALSO yield zero holes — the proof the refactor preserves the observable
-    verdict despite the harness's stricter signed-literal and module-docstring semantics."""
+    """The registry reports ZERO unprovenanced holes under STRICT semantics. Reproducing the
+    orchestration with harness primitives (+ the local carve / value-in-provenance check, and
+    NO module-docstring whitelist) must ALSO yield zero holes — the proof that the strict
+    refactor + the per-array in-window citations added at adoption truly close every hole."""
     report = {
         rel: h for rel in ALLOWLIST_MODULES if (h := _harness_orchestrated_holes(rel))
     }
     assert not report, (
-        "harness-orchestrated provenance scan found holes the inline registry does not "
-        "(parity broken — the local orchestration is not faithfully reproducing the inline "
+        "harness-orchestrated provenance scan found holes the registry does not (parity "
+        "broken — the local orchestration is not faithfully reproducing the strict registry "
         "semantics):\n" + "\n".join(f"  {rel}: {h}" for rel, h in report.items())
     )
 
 
 # ======================================================================================
-# 5. Documented harness-vs-inline divergences (pinned so the SoTA deltas stay deliberate).
+# 5. Documented harness SoTA behaviors (pinned so the deltas stay deliberate).
 # ======================================================================================
 
 
-def test_documented_harness_vs_inline_divergences():
-    """Pin the two DELIBERATE harness-vs-inline differences so they cannot silently change:
-
-    (a) Signed-literal folding — the harness yields the Moe Table-13 ``-2.0`` tail (lines
-        191-192) as a citable literal; the inline raw-``Constant`` walk saw only a trivial
-        ``+2.0`` and dropped it. The harness is stricter (closes a blind spot); the value is
-        provenanced, so the verdict is unchanged.
-    (b) Module-docstring exclusion — the harness excludes ``ast.Module`` from citation
-        whitelisting; the inline ``_cited_docstring_spans`` included it.
-    """
+def test_documented_harness_signed_literal_folding():
+    """Pin the harness's DELIBERATE signed-literal folding so it cannot silently change:
+    the harness yields the Moe Table-13 ``-2.0`` tail (lines 191-192) as a SIGNED citable
+    literal, whereas a raw-``Constant`` walk sees only a trivial ``+2.0`` (the ``-`` lives in
+    a ``UnaryOp(USub)``). The harness is stricter (closes a sign blind spot); the value is
+    provenanced, so the registry verdict is unchanged."""
     rel = "src/progenax/imf/binary/moe_di_stefano.py"
 
-    # (a) signed -2.0 IS in the harness scan ...
+    # signed -2.0 IS in the harness scan ...
     harness_lits = set(_scan(rel))
     assert (-2.0, 191) in harness_lits and (-2.0, 192) in harness_lits
 
-    # ... and the inline raw-Constant walk would NOT see it (it sees a trivial +2.0).
+    # ... and a raw-Constant walk would NOT see it (it sees a trivial +2.0).
     tree = ast.parse((_REPO_ROOT / rel).read_text())
     raw_constants_at_191_192 = {
         (float(n.value), n.lineno)
@@ -421,15 +409,18 @@ def test_documented_harness_vs_inline_divergences():
     assert (2.0, 191) in raw_constants_at_191_192
     assert (-2.0, 191) not in raw_constants_at_191_192
 
-    # (b) the harness scoped-docstring spans EXCLUDE the whole-file (1, N) module span; the
-    # module-inclusive local reproduction INCLUDES it.
+
+def test_harness_excludes_module_docstring_span():
+    """Pin the harness's module-docstring EXCLUSION (the strict-mode behavior progenax has
+    adopted): ``_cited_docstring_spans`` must NOT emit a whole-file ``(1, N)`` span for a
+    module whose docstring cites a paper. moe_di_stefano.py's module docstring cites Moe
+    (2017), yet no scoped-docstring span starts at line 1."""
+    rel = "src/progenax/imf/binary/moe_di_stefano.py"
+    tree = ast.parse((_REPO_ROOT / rel).read_text())
     harness_spans = ratchet._cited_docstring_spans(tree)
-    local_spans = _cited_docstring_spans_module_inclusive(tree)
     assert not any(s == 1 for s, _ in harness_spans), (
-        "harness unexpectedly included the module-level docstring span"
-    )
-    assert any(s == 1 for s, _ in local_spans), (
-        "local module-inclusive reproduction lost the module-level docstring span"
+        "harness unexpectedly included the module-level docstring span (tripwire-defeat "
+        "regression — a module docstring would whitelist the whole file)"
     )
 
 

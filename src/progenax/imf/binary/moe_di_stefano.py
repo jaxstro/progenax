@@ -185,19 +185,19 @@ class MoeDiStefano2017(eqx.Module):
 # at representative masses 1.0/3.2/6.7/12/20 Msun. "<0.03" twin cells -> 0.
 _MASS_NODES_LOG = jnp.log10(jnp.array([1.0, 3.2, 6.7, 12.0, 20.0]))
 _LOGP_NODES = jnp.array([1.0, 3.0, 5.0, 7.0])
-_GAMMA_LARGEQ = jnp.array([
+_GAMMA_LARGEQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
     [-0.5, -0.5, -0.5, -0.5, -0.5],
     [-0.5, -0.9, -1.7, -1.7, -1.7],
     [-0.5, -1.4, -2.0, -2.0, -2.0],
     [-1.1, -2.0, -2.0, -2.0, -2.0],
 ])
-_GAMMA_SMALLQ = jnp.array([
+_GAMMA_SMALLQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52)
     [0.3, 0.2, 0.1, 0.1, 0.1],
     [0.3, 0.1, -0.2, -0.2, -0.2],
     [0.3, -0.5, -1.2, -1.2, -1.2],
     [0.3, -1.0, -1.5, -1.5, -1.5],
 ])
-_F_TWIN = jnp.array([
+_F_TWIN = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52), F_twin(logP=1)
     [0.30, 0.22, 0.17, 0.14, 0.08],
     [0.20, 0.10, 0.0, 0.0, 0.0],
     [0.10, 0.0, 0.0, 0.0, 0.0],
@@ -339,7 +339,7 @@ class MoeDiStefano2017Full(eqx.Module):
 
 # Companion frequency f_logP;q>0.1 per dex (Table 13) — the M1-dependent period
 # distribution shape. Rows = logP {1,3,5,7}; cols = mass bins.
-_COMPANION_FREQ = jnp.array([
+_COMPANION_FREQ = jnp.array([  # Moe & Di Stefano (2017) ApJS 230, 15, Table 13 (p.52) f_logP;q>0.1
     [0.027, 0.07, 0.14, 0.19, 0.29],
     [0.057, 0.12, 0.22, 0.26, 0.32],
     [0.095, 0.13, 0.20, 0.23, 0.30],
