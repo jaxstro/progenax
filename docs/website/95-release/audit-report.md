@@ -11,6 +11,20 @@ description: >-
 (release-audit-report)=
 # Release-readiness audit report
 
+:::{important} Frozen point-in-time snapshot (commit `24cb6b9`, 2026-06-17)
+This report is a **frozen record of the audit run at commit `24cb6b9` on
+2026-06-17** — it is deliberately *not* updated as the tree moves. Read its
+present-tense statements as "true at the audited commit." Several were
+subsequently superseded by the 2026-06-18 fix cycle and the v0.1.0
+documentation-hardening pass (e.g. the `40-howto/` "empty stubs" finding below was
+authored 2026-06-18; the internal-doc links were fixed; the OED and gravoturbulence
+sections were re-scoped); those changes are tracked live in the
+[checklist](#release-checklist) and [release strategy](#release-strategy). For the
+**live** test/coverage counts, see the
+[test dashboard](../50-validation/test-dashboard.md), not the absolute numbers
+quoted here.
+:::
+
 This report verifies, dimension by dimension, whether progenax is ready for a
 public release. The rule throughout: **no claim without evidence produced this
 session.** Where a value could not be independently verified, it is marked
@@ -20,8 +34,8 @@ than a confident guess.
 **Audited:** commit `24cb6b9` on `main`, 2026-06-17. **Method:** a full local
 test gate, the validation scripts, the gradient-audit run, a wheel build +
 clean-venv install, a documentation build, and a citation sweep against the
-source PDFs in `docs/core-papers/` — parallelised across read-only sub-audits and
-synthesised here.
+published source PDFs — parallelised across read-only sub-audits and synthesised
+here.
 
 Severity legend: ✅ ready · ⚠️ should fix before a *polished public* launch ·
 ❌ blocks release.
@@ -51,6 +65,10 @@ auto`, including the `@slow` trust anchors) ran to completion:
 ```text
 1553 passed, 3 skipped, 1 xfailed in 1305.40s   (exit 0)
 ```
+
+*(Superseded — this is the count at the audited commit. For the live test and
+coverage numbers see the [test dashboard](../50-validation/test-dashboard.md);
+the post-audit fix cycle already moved them, e.g. to 1561 passed / 0 xfailed.)*
 
 (The 21-minute wall time reflects four parallel audit agents contending for the
 CPU; the inner-loop fast gate is ~4 minutes.) Line coverage is **95.96%** against
@@ -193,13 +211,18 @@ b\log M$ with $(a,b)=(0.026, 0.945)$ for $M<1.66\,\Msun$ and $(0.124, 0.555)$
 above, i.e. $R = 1.06\,M^{0.945}$ and $1.33\,M^{0.555}$ — matching the code
 exactly.
 
-Two editorial issues remain for a polished launch:
+Two editorial issues remained for a polished launch *at the audited commit* — both
+have since been resolved (see the [checklist](#release-checklist)):
 
 - **The `40-howto/` section is six empty `TBD.` stubs** published in the table of
-  contents.
+  contents. *(Superseded: the how-tos were authored 2026-06-18 — four run-verified
+  progenax-only guides; `interface-with-gravax` backlogged out of the toc. No empty
+  stubs remain.)*
 - **Ten-plus links point to internal `docs/plans/` and `docs/notes/` files
-  outside the site root** — they build locally (the files exist on disk) but will
-  deploy as broken links exposing internal planning filenames.
+  outside the site root** — they build locally but would deploy as broken links
+  exposing internal planning filenames. *(Superseded: these internal-path links
+  were rewritten/removed and a link-integrity gate now drives broken `.md` links to
+  0.)*
 
 :::{aside} Honesty caveat on the citation sweep
 About five load-bearing PDFs (Demircan & Kahraman 1991, EFF 1987, Plummer 1911,

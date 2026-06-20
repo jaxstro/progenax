@@ -94,20 +94,35 @@ pairs naturally with the methods-paper plan sketched in the prior audit.
 ## Experimental and OED-demo code at release
 
 - **`gravoturb_fdf`** stays repo-only — excluded from the wheel and the public API,
-  labelled experimental throughout the docs. Mention it in release notes as future
-  work (a separate paper), not as a shipped feature.
-- **OED demos** are **held out of v0.1.0** and migrate to the planned **informax**
-  package (the CAREER Aim-1 prototype). Drop `60-science-demos/optimal-design/` from
-  the release TOC and exclude the `_demo_oed*` / `demo_oed*` scripts from the
-  release scope (tracked in the [checklist](#release-checklist)).
+  and labelled experimental throughout the docs. During the v0.1.0
+  documentation-hardening pass its theory subsection was consolidated 10 → 5 pages
+  and **moved out of the public navigation**: the five pages are kept in the repo
+  and still build (they are `hidden: true` in the `myst.yml` toc and reachable by
+  URL), but they no longer appear in the site nav and are linked instead from the
+  [unlisted-pages index](../_unlisted/index.md). Mention `gravoturb_fdf` in release
+  notes as future work (a separate paper), not as a shipped feature.
+- **OED demos** keep a **single public overview page**
+  (`60-science-demos/optimal-design/index.md`) — the telescope-time hook plus the
+  four headline numbers and the one-paragraph "any differentiable forward model +
+  likelihood = Fisher = OED" framing. The five worked-example detail pages
+  (`background`, `anisotropy`, `dynamical-mass`, `concentration`,
+  `binary-robustness`) were set `hidden: true` (built and URL-reachable, kept out
+  of the public nav, linked from the [unlisted-pages index](../_unlisted/index.md)).
+  The **OED tooling code itself is held out of v0.1.0** and is slated to migrate to
+  the planned **informax** package (the CAREER Aim-1 prototype); the public
+  overview says so plainly (tracked in the [checklist](#release-checklist)).
 
 (strategy-docs-hosting)=
 ## Documentation hosting
 
-The MyST site builds to 172 pages with zero content warnings and is the project's
-single source of truth. Deploy it (GitHub Pages or the existing MyST hosting) from
-the release tag — *after* the [internal-doc-link fixes](#release-checklist), since
-those links would otherwise deploy broken.
+The MyST site builds to 178 pages with zero content warnings and is the project's
+single source of truth. (The count rose from the 172 of the 2026-06-17 audit as the
+v0.1.0 docs-hardening pass added a bibliography landing, missing per-paper notes,
+and the unlisted-pages index, while consolidating the gravoturbulence subsection.)
+Deploy it (GitHub Pages or the existing MyST hosting) from the release tag — the
+[internal-doc-link fixes](#release-checklist) that would otherwise deploy broken
+were completed during the docs-hardening pass (the link gate now reports 0 broken
+cross-references).
 
 :::{note} What this strategy commits to
 A **GitHub source release of v0.1.0 now** on a re-enabled, green CI, with a DOI for
