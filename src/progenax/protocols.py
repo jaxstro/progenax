@@ -120,7 +120,7 @@ class IMFProtocol(Protocol):
         """Draw n samples using reparameterization trick."""
         ...
 
-    def mean_mass(self) -> float:
+    def mean_mass(self) -> Float[Array, ""]:
         """Expected mass E[m] over domain."""
         ...
 

@@ -202,18 +202,18 @@ def sun_earth_jupiter_3body(G: float) -> AnalyticalIC:
         planet_velocities.append(ic.velocities[1])
 
     # Stack into arrays
-    planet_positions = jnp.array(planet_positions)  # (2, 3)
-    planet_velocities = jnp.array(planet_velocities)  # (2, 3)
+    planet_positions_arr = jnp.array(planet_positions)  # (2, 3)
+    planet_velocities_arr = jnp.array(planet_velocities)  # (2, 3)
     planet_masses = jnp.array([M_earth, M_jupiter])
 
     # Compute Sun position and velocity for barycentric frame
     # Center of mass condition: M_sun*q_sun + sum(M_i*q_i) = 0
-    q_sun = -jnp.sum(planet_masses[:, None] * planet_positions, axis=0) / M_sun
-    v_sun = -jnp.sum(planet_masses[:, None] * planet_velocities, axis=0) / M_sun
+    q_sun = -jnp.sum(planet_masses[:, None] * planet_positions_arr, axis=0) / M_sun
+    v_sun = -jnp.sum(planet_masses[:, None] * planet_velocities_arr, axis=0) / M_sun
 
     # Combine into full system (Sun + planets)
-    positions = jnp.vstack([q_sun[None, :], planet_positions])
-    velocities = jnp.vstack([v_sun[None, :], planet_velocities])
+    positions = jnp.vstack([q_sun[None, :], planet_positions_arr])
+    velocities = jnp.vstack([v_sun[None, :], planet_velocities_arr])
     masses = jnp.array([M_sun, M_earth, M_jupiter])
 
     return AnalyticalIC(

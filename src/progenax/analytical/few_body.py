@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Literal
 
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, ArrayLike, Float
 
 from .base import AnalyticalIC
 
@@ -110,7 +110,9 @@ def three_body_figure_eight(
     )
 
 
-def figure_eight_period(scale: float = 1.0, G: float = 1.0, mass: float = 1.0) -> float:
+def figure_eight_period(
+    scale: ArrayLike = 1.0, G: ArrayLike = 1.0, mass: ArrayLike = 1.0
+) -> Float[Array, ""]:
     """
     Return period of figure-8 orbit.
 

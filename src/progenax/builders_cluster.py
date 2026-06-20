@@ -13,7 +13,7 @@ from typing import Optional, Union
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from .builders import ICResult, build_spatial_ic, compute_stellar_radii, virial_scale
 from .defaults import DEFAULT_UNITS
@@ -52,7 +52,7 @@ __all__ = [
 
 def matched_velocity_df(
     profile: SpatialProfile,
-    anisotropy_radius: Optional[float] = None,
+    anisotropy_radius: Optional[ArrayLike] = None,
 ) -> VelocityDF:
     """Return the equilibrium velocity DF whose scale params match `profile` exactly.
 

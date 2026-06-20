@@ -26,13 +26,13 @@ References:
 """
 
 import functools
-from typing import Tuple
+from typing import SupportsFloat, Tuple, cast
 
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.profiles.limepy import (
     _angle_integral_T,
@@ -212,8 +212,8 @@ def _aniso_density_fn(alpha_j, rescale, ra_j, W0, g, xi_max, aniso_method, table
 def solve_multicomponent_limepy(
     alpha_j: Float[Array, "n_comp"],
     rescale_j: Float[Array, "n_comp"],
-    W0: float,
-    g: float,
+    W0: ArrayLike,
+    g: ArrayLike,
     xi_max: float = 300.0,
     n_points: int = 2000,
     ra_hat_j: Float[Array, "n_comp"] | None = None,
@@ -327,7 +327,10 @@ def solve_multicomponent_limepy(
     if not isotropic:
         try:
             psi_end_val = float(psi_end)
-            W0_val = float(W0)
+            # W0 is a real scalar here; cast documents that for the type checker
+            # (ArrayLike nominally includes complex). float() raises on a tracer,
+            # which is caught below.
+            W0_val = float(cast(SupportsFloat, W0))
         except (
             jax.errors.ConcretizationTypeError,
             jax.errors.TracerArrayConversionError,
@@ -346,9 +349,9 @@ def solve_multicomponent_limepy(
 def solve_multimass_limepy(
     alpha_j: Float[Array, "n_comp"],
     m_j: Float[Array, "n_comp"],
-    W0: float,
-    g: float,
-    delta: float,
+    W0: ArrayLike,
+    g: ArrayLike,
+    delta: ArrayLike,
     xi_max: float = 300.0,
     n_points: int = 2000,
     ra_hat: float | None = None,
@@ -396,9 +399,9 @@ def solve_multimass_limepy(
 def _realized_fractions(
     alpha_j: Float[Array, "n_comp"],
     m_j: Float[Array, "n_comp"],
-    W0: float,
-    g: float,
-    delta: float,
+    W0: ArrayLike,
+    g: ArrayLike,
+    delta: ArrayLike,
     xi_max: float,
     n_points: int,
     ra_hat=None,
@@ -635,9 +638,9 @@ _solve_alpha_aniso.defvjp(_solve_alpha_aniso_fwd, _solve_alpha_aniso_bwd)
 def find_alpha_for_masses(
     m_j: Float[Array, "n_comp"],
     M_j: Float[Array, "n_comp"],
-    W0: float,
-    g: float,
-    delta: float,
+    W0: ArrayLike,
+    g: ArrayLike,
+    delta: ArrayLike,
     n_iter: int = 30,
     xi_max: float = 300.0,
     n_points: int = 2000,
@@ -763,10 +766,10 @@ def _bin_imf(imf, n_comp: int, m_range):
         M = jnp.trapezoid(m_sub * pdf, m_sub)
         N_j.append(N)
         M_j.append(M)
-    N_j = jnp.array(N_j)
-    M_j = jnp.array(M_j)
-    m_j = M_j / N_j
-    return m_j, M_j
+    N_j_arr = jnp.array(N_j)
+    M_j_arr = jnp.array(M_j)
+    m_j = M_j_arr / N_j_arr
+    return m_j, M_j_arr
 
 
 __all__ = [

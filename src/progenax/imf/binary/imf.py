@@ -7,7 +7,7 @@ from typing import Callable, Tuple, Union
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
 from ..base import BaseIMF
 from .binary_fraction import (
@@ -230,7 +230,7 @@ class BinaryIMF(eqx.Module):
 
         return all_masses, is_binary
 
-    def mean_system_mass(self) -> float:
+    def mean_system_mass(self) -> Float[Array, ""]:
         """Expected total mass per system.
 
         Returns:
@@ -244,6 +244,7 @@ class BinaryIMF(eqx.Module):
         q_dist = self._get_q_distribution()
 
         # Get average binary fraction (approximate for mass-dependent)
+        avg_f_bin: ArrayLike
         if isinstance(f_bin_model, float):
             avg_f_bin = f_bin_model
         else:

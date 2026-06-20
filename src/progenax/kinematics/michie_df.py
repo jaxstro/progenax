@@ -16,7 +16,7 @@ See docs/website/99-bibliography/per-paper/michie-1963.md.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics._speed_kernels import (
     _N_C,
@@ -114,9 +114,9 @@ class MichieVelocityDF(eqx.Module):
 
     def __init__(
         self,
-        W0: float = 7.0,
-        r_c: float = 1.0,
-        r_a: float = 10.0,
+        W0: ArrayLike = 7.0,
+        r_c: ArrayLike = 1.0,
+        r_a: ArrayLike = 10.0,
         xi_max: float = 800.0,
         n_ode_points: int = 3000,
         speed_method: str = "table",
@@ -205,6 +205,8 @@ def _sample_velocities_core(
         # exp(-s^2 u_t^2/2) reparametrized via u_t = u sin(theta)).
         ku_kc = jax.vmap(jax.random.split)(speed_keys)
         unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+        # speed_method == "table" guarantees __init__ built the aniso speed_table.
+        assert df.speed_table is not None
         u_sp = jax.vmap(df.speed_table.inverse)(W, s, unif)
         cos_t = jax.vmap(lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C))(
             ku_kc[:, 1], u_sp, s

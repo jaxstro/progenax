@@ -10,7 +10,7 @@ from typing import NamedTuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, ArrayLike, Float
 
 from .kepler_inverse import orbital_elements_from_state
 
@@ -88,12 +88,12 @@ class KeplerElements(eqx.Module):
 
     def __init__(
         self,
-        a: float,
-        e: float = 0.0,
-        i: float = 0.0,
-        Omega: float = 0.0,
-        omega: float = 0.0,
-        M0: float = 0.0,
+        a: ArrayLike,
+        e: ArrayLike = 0.0,
+        i: ArrayLike = 0.0,
+        Omega: ArrayLike = 0.0,
+        omega: ArrayLike = 0.0,
+        M0: ArrayLike = 0.0,
     ):
         """
         Initialize Keplerian orbital elements.
@@ -115,8 +115,8 @@ class KeplerElements(eqx.Module):
 
     def to_state(
         self,
-        M_total: float,
-        G: float,
+        M_total: ArrayLike,
+        G: ArrayLike,
     ) -> CartesianState:
         """
         Convert orbital elements to Cartesian state (position, velocity).
@@ -175,9 +175,9 @@ class KeplerElements(eqx.Module):
 
     def to_binary_state(
         self,
-        m1: float,
-        m2: float,
-        G: float,
+        m1: ArrayLike,
+        m2: ArrayLike,
+        G: ArrayLike,
     ) -> BinaryState:
         """
         Convert orbital elements to resolved binary state vectors.
@@ -227,6 +227,8 @@ class KeplerElements(eqx.Module):
             Murray & Dermott (1999) §2.2 - Center-of-mass frame
             Binney & Tremaine (2008) §3.1 - Two-body problem
         """
+        m1 = jnp.asarray(m1)
+        m2 = jnp.asarray(m2)
         M_total = m1 + m2
 
         # Get relative orbit state: r_rel = r2 - r1, v_rel = v2 - v1

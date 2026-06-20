@@ -6,10 +6,15 @@ ApJS 230, 15.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
+
+if TYPE_CHECKING:
+    from ...binaries import MoeEccentricity
 
 
 class MoeDiStefano2017(eqx.Module):
@@ -428,5 +433,7 @@ class MoeJointOrbit(eqx.Module):
         k_P, k_q, k_e = jax.random.split(key, 3)
         P = self.period.sample(k_P, masses)
         q = self.massratio.sample(k_q, masses, P)
-        e = self.eccentricity.sample(k_e, P, masses)
+        # eccentricity is declared as the generic eqx.Module base but is always a
+        # MoeEccentricity (set in from_defaults); narrow for the type checker.
+        e = cast("MoeEccentricity", self.eccentricity).sample(k_e, P, masses)
         return P, q, e

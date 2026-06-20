@@ -14,7 +14,7 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.profiles.king import _find_tidal_radius
 
@@ -80,8 +80,8 @@ def _michie_poisson_rhs(xi, y, args):
 
 
 def solve_michie_profile(
-    W0: float,
-    ra_hat: float,
+    W0: ArrayLike,
+    ra_hat: ArrayLike,
     xi_max: float = 800.0,
     n_points: int = 3000,
 ):

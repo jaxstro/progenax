@@ -11,7 +11,7 @@ from typing import Tuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, ArrayLike, Float
 
 from .kepler import KeplerElements
 from .kepler_period import period_to_semimajor_axis
@@ -48,16 +48,16 @@ class BinaryOrbitalState(eqx.Module):
     @classmethod
     def from_log_period(
         cls,
-        m1: float,
-        m2: float,
-        logP_days: float,
-        e: float,
-        inc: float = 0.0,
-        Omega: float = 0.0,
-        omega: float = 0.0,
-        M_anom: float = 0.0,
+        m1: ArrayLike,
+        m2: ArrayLike,
+        logP_days: ArrayLike,
+        e: ArrayLike,
+        inc: ArrayLike = 0.0,
+        Omega: ArrayLike = 0.0,
+        omega: ArrayLike = 0.0,
+        M_anom: ArrayLike = 0.0,
         *,
-        G: float,
+        G: ArrayLike,
         day_in_time_units: float = 1.0,
     ) -> "BinaryOrbitalState":
         """Create binary state from log10(period/days) format.

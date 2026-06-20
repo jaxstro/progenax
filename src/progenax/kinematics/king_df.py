@@ -27,7 +27,7 @@ differentiable, no while_loop) as the exact oracle. Directions are isotropic.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics._speed_kernels import _ORACLE_BATCH
 from progenax.numerics import inverse_cdf_draw
@@ -105,8 +105,8 @@ class KingVelocityDF(eqx.Module):
 
     def __init__(
         self,
-        W0: float = 5.0,
-        r_c: float = 1.0,
+        W0: ArrayLike = 5.0,
+        r_c: ArrayLike = 1.0,
         xi_max: float | None = None,
         n_ode_points: int | None = None,
         speed_method: str = "table",
@@ -141,7 +141,7 @@ class KingVelocityDF(eqx.Module):
             else None
         )
 
-    def _sigma(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:
+    def _sigma(self, M_total: Float[Array, ""], G: ArrayLike) -> Float[Array, ""]:
         """Self-consistent central velocity scale sigma = sqrt(G M / (9 r_c mu(W0)))."""
         rho0 = king_lowered_maxwellian_density(self.W0)
         rho_tilde = jnp.where(
@@ -210,6 +210,8 @@ def _sample_velocities_core(
         # quadrature. g=1 is the EXACT King reduction:
         # E_gamma(1, x) = e^x - 1 (see class docstring).
         unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+        # speed_method == "table" guarantees __init__ built the speed_table.
+        assert df.speed_table is not None
         u = jax.vmap(df.speed_table.inverse)(W, unif)
     else:
         # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars

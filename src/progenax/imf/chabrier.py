@@ -23,7 +23,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxstro.numerics import newton_ppf
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 
 class ChabrierIMF(eqx.Module):
@@ -108,7 +108,7 @@ class ChabrierIMF(eqx.Module):
     # Internal helpers for lognormal + power-law
     # ==========================================================================
 
-    def _log10(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _log10(self, m: ArrayLike) -> Float[Array, "..."]:
         """Safe log₁₀ computation."""
         return jnp.log10(jnp.maximum(m, 1e-30))
 
@@ -141,7 +141,7 @@ class ChabrierIMF(eqx.Module):
         """
         return self.A_pl * (m + 1e-30) ** (-self.alpha)
 
-    def _lognormal_integral(self, m_lo: float, m_hi: float) -> Float[Array, ""]:
+    def _lognormal_integral(self, m_lo: ArrayLike, m_hi: ArrayLike) -> Float[Array, ""]:
         """Analytical integral of lognormal using log₁₀ form.
 
         For ξ(m) = A_ln / (m × ln 10) × exp[-(log₁₀ m - log₁₀ m_c)² / (2σ²)]:
@@ -172,7 +172,7 @@ class ChabrierIMF(eqx.Module):
         # Correct integral: A_ln × σ × √(π/2)
         return self.A_ln * self.sigma * jnp.sqrt(jnp.pi / 2.0) * (erf_hi - erf_lo)
 
-    def _powerlaw_integral(self, m_lo: float, m_hi: float) -> float:
+    def _powerlaw_integral(self, m_lo: ArrayLike, m_hi: ArrayLike) -> Float[Array, ""]:
         """Integral of power-law component from m_lo to m_hi.
 
         For ξ_pl(m) = A_pl × m^(-α):
@@ -186,7 +186,9 @@ class ChabrierIMF(eqx.Module):
         )
         return self.A_pl * base_integral
 
-    def _compute_normalization(self) -> Tuple[float, float, float]:
+    def _compute_normalization(
+        self,
+    ) -> Tuple[Float[Array, ""], Float[Array, ""], Float[Array, ""]]:
         """Compute normalization constants.
 
         Returns:
@@ -238,7 +240,7 @@ class ChabrierIMF(eqx.Module):
         pdf_unnorm = jnp.where(is_lognormal, ln_pdf, pl_pdf)
         return jnp.log(pdf_unnorm + 1e-30)
 
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF (for TruncatedIMF compatibility).
 
         Integrates the piecewise IMF from m_min to m.
@@ -269,7 +271,7 @@ class ChabrierIMF(eqx.Module):
             return jax.vmap(cdf_unnorm_scalar)(m_arr.ravel()).reshape(m_arr.shape)
 
     @property
-    def _log_norm(self) -> float:
+    def _log_norm(self) -> Float[Array, ""]:
         """Log normalization constant."""
         _, _, Z = self._compute_normalization()
         return jnp.log(Z + 1e-30)
@@ -400,7 +402,7 @@ class ChabrierIMF(eqx.Module):
         u = jax.random.uniform(key, (n,))
         return self.ppf(u)
 
-    def mean_mass(self) -> float:
+    def mean_mass(self) -> Float[Array, ""]:
         """Expected mass E[m] via a LOG-spaced trapezoid.
 
         Log-spacing is robust to a steep low-mass spike if m_min is lowered into the

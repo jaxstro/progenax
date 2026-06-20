@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
+from jaxtyping import Array, ArrayLike, Float
 
 from .base import AnalyticalIC
 
@@ -153,7 +154,9 @@ def two_body_kepler(
     )
 
 
-def two_body_period(M1: float, M2: float, a: float, G: float) -> float:
+def two_body_period(
+    M1: ArrayLike, M2: ArrayLike, a: ArrayLike, G: ArrayLike
+) -> Float[Array, ""]:
     """
     Compute orbital period for 2-body system (Kepler's 3rd law).
 

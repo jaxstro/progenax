@@ -19,6 +19,11 @@ References:
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
+
 
 def _diagnostics_deps():
     """Lazy numpy+scipy import for the exact (non-differentiable) substructure

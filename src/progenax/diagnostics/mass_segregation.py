@@ -15,7 +15,10 @@ References:
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 def _diagnostics_deps():

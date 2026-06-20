@@ -43,7 +43,7 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.profiles.king import _find_tidal_radius
 
@@ -210,9 +210,9 @@ def _limepy_poisson_rhs_aniso(xi, y, args):
 
 
 def solve_limepy_profile(
-    W0: float,
-    g: float,
-    ra_hat: float | None = None,
+    W0: ArrayLike,
+    g: ArrayLike,
+    ra_hat: ArrayLike | None = None,
     xi_max: float = 300.0,
     n_points: int = 2000,
 ) -> Tuple[

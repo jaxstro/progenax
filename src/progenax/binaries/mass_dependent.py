@@ -12,7 +12,7 @@ References:
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple, cast
 
 import equinox as eqx
 import jax
@@ -26,6 +26,9 @@ from .eccentricity import (
     UniformEccentricity,
 )
 from .period import LogNormalPeriod, LogUniformPeriod, SanaOBPeriod
+
+if TYPE_CHECKING:
+    from ..protocols import BinaryFractionModel
 
 
 class RadialBinaryFraction(eqx.Module):
@@ -146,8 +149,12 @@ class CombinedBinaryFraction(eqx.Module):
         radii: Float[Array, "N"] | None = None,
     ) -> Float[Array, "N"]:
         """Product of the mass and radial fractions, clipped to [0, 1]."""
-        f_mass = self.mass_model.probability(masses)
-        f_radial = self.radial_model.probability(masses, radii)
+        # Both sub-models are duck-typed BinaryFractionModel instances (the field is
+        # declared as the generic eqx.Module base); narrow for the type checker.
+        f_mass = cast("BinaryFractionModel", self.mass_model).probability(masses)
+        f_radial = cast("BinaryFractionModel", self.radial_model).probability(
+            masses, radii
+        )
         return jnp.clip(f_mass * f_radial, 0.0, 1.0)
 
 

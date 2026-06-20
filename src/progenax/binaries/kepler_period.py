@@ -6,13 +6,14 @@ KeplerElements state machinery. All functions take an explicit ``G``.
 """
 
 import jax.numpy as jnp
+from jaxtyping import Array, ArrayLike, Float
 
 
 def compute_period(
-    a: float,
-    M_total: float,
-    G: float,
-) -> float:
+    a: ArrayLike,
+    M_total: ArrayLike,
+    G: ArrayLike,
+) -> Float[Array, "..."]:
     """
     Compute orbital period from semi-major axis using Kepler's 3rd law.
 
@@ -47,7 +48,8 @@ def compute_period(
     # T = 2π√(a³/(GM)). Divide-safe double-where (mirrors KeplerElements.to_state):
     # the sqrt' and 1/denom blow up at a=0 / GM=0, so guard both so the gradient
     # stays finite at those (unphysical) boundaries rather than NaN-poisoning.
-    denom = G * M_total
+    a = jnp.asarray(a)
+    denom = jnp.asarray(G) * jnp.asarray(M_total)
     denom_safe = jnp.where(denom > 0.0, denom, 1.0)
     arg = a**3 / denom_safe
     arg_safe = jnp.where(arg > 0.0, arg, 1.0)
@@ -57,10 +59,10 @@ def compute_period(
 
 
 def period_to_semimajor_axis(
-    period: float,
-    M_total: float,
-    G: float,
-) -> float:
+    period: ArrayLike,
+    M_total: ArrayLike,
+    G: ArrayLike,
+) -> Float[Array, "..."]:
     """
     Compute semi-major axis from orbital period using Kepler's 3rd law.
 
@@ -95,7 +97,12 @@ def period_to_semimajor_axis(
     """
     # a = (GM*T²/(4π²))^(1/3). The cube-root derivative (1/3)x^(-2/3) diverges at
     # x=0, so guard with a double-where so grad is finite at P=0 / GM=0 boundaries.
-    arg = G * M_total * period**2 / (4.0 * jnp.pi**2)
+    arg = (
+        jnp.asarray(G)
+        * jnp.asarray(M_total)
+        * jnp.asarray(period) ** 2
+        / (4.0 * jnp.pi**2)
+    )
     arg_safe = jnp.where(arg > 0.0, arg, 1.0)
     a = jnp.where(arg > 0.0, arg_safe ** (1.0 / 3.0), 0.0)
 

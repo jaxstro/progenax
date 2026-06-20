@@ -58,12 +58,12 @@ class TruncatedIMF(eqx.Module):
             )
 
     @property
-    def _cdf_min(self) -> float:
+    def _cdf_min(self) -> Float[Array, ""]:
         """CDF at m_min."""
         return self.inner.cdf(jnp.asarray(self.m_min))
 
     @property
-    def _cdf_max(self) -> float:
+    def _cdf_max(self) -> Float[Array, ""]:
         """CDF at m_max."""
         return self.inner.cdf(jnp.asarray(self.m_max))
 
@@ -110,7 +110,7 @@ class TruncatedIMF(eqx.Module):
         u = jax.random.uniform(key, (n,))
         return self.ppf(u)
 
-    def mean_mass(self) -> float:
+    def mean_mass(self) -> Float[Array, ""]:
         """Mean mass over the truncated domain via a LOG-spaced trapezoid.
 
         Log-spacing resolves a steep low-mass spike that a linear grid of the same size

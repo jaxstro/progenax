@@ -249,6 +249,8 @@ def compute_profile_potential(
         # self-consistent velocity scale sigma^2 = G M / (9 r_c mu(W0)), matching
         # KingVelocityDF so energies are consistent with the sampled velocities.
         profile_instance = make_profile(profile, R_half, **kwargs)
+        # profile_lower == "king" => make_profile returned a KingProfile.
+        assert isinstance(profile_instance, KingProfile)
         rho0 = king_lowered_maxwellian_density(profile_instance.W0)
         rho_tilde = jnp.where(
             rho0 > 1e-10,
@@ -275,6 +277,8 @@ def compute_profile_potential(
         # (interior monopole + outer-shell term). Uses the same density grid as
         # the sampler, and is jit/grad-safe in gamma (no Python branch on gamma).
         profile_instance = make_profile(profile, R_half, **kwargs)
+        # profile_lower == "eff" => make_profile returned an EFFProfile.
+        assert isinstance(profile_instance, EFFProfile)
         rgrid = profile_instance._r_grid
         rho_t = (1.0 + (rgrid / profile_instance.a) ** 2) ** (
             -profile_instance.gamma / 2.0

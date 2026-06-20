@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, cast
+
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from ..params import IMFParams
+
+if TYPE_CHECKING:
+    from .birth_environment import BirthEnvironment
 from .coefficients import (
     DEFAULT_SFE,
     JERABKOVA_COEFFICIENTS,
@@ -308,7 +313,12 @@ def alpha3_marks_table3(
         )
 
     coef = MARKS_TABLE3_COEFFICIENTS[relation]
-    p, q, lim, branch = coef["p"], coef["q"], coef["lim"], coef["branch"]
+    # The table mixes float coefficients with a str branch flag, so mypy infers the
+    # values as ``object``; cast the numeric ones back to float for the arithmetic.
+    p = cast(float, coef["p"])
+    q = cast(float, coef["q"])
+    lim = cast(float, coef["lim"])
+    branch = coef["branch"]
 
     alpha3_varied = p * lambda_param + q
 

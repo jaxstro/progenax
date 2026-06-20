@@ -322,7 +322,7 @@ class TwinPeakedMassRatio(eqx.Module):
             power_case,
         )
 
-    def _gaussian_norm(self) -> float:
+    def _gaussian_norm(self) -> Float[Array, ""]:
         """Normalization for truncated Gaussian at q=1."""
         # Gaussian centered at μ=1, truncated to [q_min, 1]
         # Full Gaussian integral from -∞ to ∞ is 1

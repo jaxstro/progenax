@@ -12,7 +12,7 @@ from typing import List, Tuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 
 class PowerLawIMF(eqx.Module):
@@ -174,7 +174,7 @@ class PowerLawIMF(eqx.Module):
         # Log-PDF: log(C_i * m^(-alpha_i))
         return jnp.log(self._continuity_factors[idx]) - alphas[idx] * jnp.log(m)
 
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF."""
         bounds = jnp.array([self.m_min] + list(self.breakpoints) + [self.m_max])
         alphas = jnp.array(self.exponents)
@@ -268,7 +268,7 @@ class PowerLawIMF(eqx.Module):
         u = jax.random.uniform(key, (n,))
         return self.ppf(u)
 
-    def mean_mass(self) -> float:
+    def mean_mass(self) -> Float[Array, ""]:
         """Exact mean mass E[m] for the piecewise power law (analytic, differentiable).
 
         E[m] = (Σ_i ∫ m·ξ_i dm) / (Σ_i ∫ ξ_i dm), where ξ_i(m) = C_i·m^(-α_i) on

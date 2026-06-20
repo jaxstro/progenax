@@ -7,7 +7,7 @@ Implements VelocityDF protocol for use with IC assembly.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics.eddington import (
     assign_om_directions,
@@ -97,7 +97,9 @@ class PlummerVelocityDF(eqx.Module):
     _om_E_grid: Float[Array, "n_e"] | None
     _om_f_grid: Float[Array, "n_e"] | None
 
-    def __init__(self, r_h: float = 1.0, anisotropy_radius: float | None = None):
+    def __init__(
+        self, r_h: ArrayLike = 1.0, anisotropy_radius: ArrayLike | None = None
+    ):
         """
         Initialize Plummer velocity distribution function.
 
@@ -189,10 +191,13 @@ class PlummerVelocityDF(eqx.Module):
 
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
+        # In this branch anisotropy_radius is not None, so __init__ built both OM grids.
+        assert self._om_E_grid is not None
+        assert self._om_f_grid is not None
+        om_E_grid = self._om_E_grid
+        om_f_grid = self._om_f_grid
         s = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(
-                k, p, self._om_E_grid, self._om_f_grid
-            )
+            lambda k, p: sample_speed_from_f_table(k, p, om_E_grid, om_f_grid)
         )(speed_keys, psi_r)
         speeds = sigma0 * s
         return assign_om_directions(key_dir, positions, speeds, self.anisotropy_radius)

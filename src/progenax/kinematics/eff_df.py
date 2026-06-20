@@ -23,7 +23,7 @@ use the King model.)
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics.eddington import (
     assign_om_directions,
@@ -118,10 +118,10 @@ class EFFVelocityDF(eqx.Module):
 
     def __init__(
         self,
-        a: float = 1.0,
-        gamma: float = 3.0,
-        r_t: float = 10.0,
-        anisotropy_radius: float | None = None,
+        a: ArrayLike = 1.0,
+        gamma: ArrayLike = 3.0,
+        r_t: ArrayLike = 10.0,
+        anisotropy_radius: ArrayLike | None = None,
     ):
         self.a = jnp.asarray(a)
         self.gamma = jnp.asarray(gamma)

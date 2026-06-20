@@ -623,6 +623,8 @@ class MultiComponentCluster(eqx.Module):
         stored grid resolution is the quadrature).
         """
         if self.engine == "B":
+            # engine == "B" guarantees engine_b was populated at construction.
+            assert self.engine_b is not None
             return engine_b_component_virials(self.engine_b)
         r = jnp.linspace(1e-3, self.r_t, n)
         psi = jnp.interp(
@@ -684,6 +686,8 @@ class MultiComponentCluster(eqx.Module):
         amplitudes are not.
         """
         if self.engine == "B":
+            # engine == "B" guarantees engine_b was populated at construction.
+            assert self.engine_b is not None
             rho_tot = jnp.sum(self.engine_b.rho_j_poisson, axis=0)
             r1 = jnp.atleast_1d(jnp.asarray(r))
             tot = jnp.interp(

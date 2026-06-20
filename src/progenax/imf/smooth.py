@@ -15,7 +15,7 @@ has analytical CDF and is much faster.
 """
 
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, ArrayLike, Float
 
 from .base import BaseIMF
 
@@ -93,7 +93,7 @@ class Maschberger(BaseIMF):
         term2 = -self.beta * jnp.log1p(x ** (1 - self.alpha))
         return term1 + term2
 
-    def _primitive(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _primitive(self, m: ArrayLike) -> Float[Array, "..."]:
         """Antiderivative P(m) such that dP/dm = p̃(m).
 
         For Maschberger PDF: p̃(m) = (m/μ)^(-α) × [1 + (m/μ)^(1-α)]^(-β)
@@ -102,7 +102,7 @@ class Maschberger(BaseIMF):
 
         Valid for β ≠ 1 and α ≠ 1.
         """
-        x = m / self.mu  # Dimensionless mass
+        x = jnp.asarray(m) / self.mu  # Dimensionless mass
         u = x ** (1 - self.alpha)  # Auxiliary variable
 
         # Compute primitive
@@ -111,7 +111,7 @@ class Maschberger(BaseIMF):
 
         return P
 
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF via analytical primitive.
 
         Uses the analytical antiderivative for exact, fast computation.
@@ -216,7 +216,7 @@ class TaperedPowerLaw(BaseIMF):
         )
         return powerlaw + taper
 
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF via the shared cumulative-trapezoid grid (monotone by
         construction). Analytical primitive exists but the gamma recurrence for
         negative shape parameters (alpha > 1) is numerically unstable; the shared-grid
@@ -262,7 +262,7 @@ class Schechter(BaseIMF):
         """Unnormalized log-PDF."""
         return -self.alpha * jnp.log(m + 1e-30) - m / self.m_star
 
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF via the shared cumulative-trapezoid grid (monotone by
         construction); see TaperedPowerLaw._cdf_unnorm.
         """

@@ -29,7 +29,7 @@ while_loop).
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics._speed_kernels import (
     _N_C,
@@ -147,10 +147,10 @@ class LIMEPYVelocityDF(eqx.Module):
 
     def __init__(
         self,
-        W0: float = 5.0,
-        g: float = 1.0,
-        r_c: float = 1.0,
-        r_a: float | None = None,
+        W0: ArrayLike = 5.0,
+        g: ArrayLike = 1.0,
+        r_c: ArrayLike = 1.0,
+        r_a: ArrayLike | None = None,
         xi_max: float = 300.0,
         n_ode_points: int = 2000,
         speed_method: str = "table",
@@ -177,6 +177,8 @@ class LIMEPYVelocityDF(eqx.Module):
 
         # mu = int rho_tilde xi^2 dxi, rho_tilde normalized to 1 at the centre.
         if is_aniso:
+            # is_aniso == (r_a is not None), so ra_hat = r_a / r_c is not None here.
+            assert ra_hat is not None
             rho0 = _aniso_density_scalar(self.W0, jnp.asarray(0.0), self.g)
             rho_tilde = _aniso_density_vec(psi_grid, xi_grid / ra_hat, self.g) / rho0
         else:
@@ -202,7 +204,7 @@ class LIMEPYVelocityDF(eqx.Module):
         else:
             self.speed_table = None  # quadrature oracle needs no table
 
-    def _s(self, M_total: Float[Array, ""], G: float) -> Float[Array, ""]:
+    def _s(self, M_total: Float[Array, ""], G: ArrayLike) -> Float[Array, ""]:
         """Self-consistent central velocity scale s = sqrt(G M / (9 r_c mu))."""
         return jnp.sqrt(G * M_total / (9.0 * self.r_c * self.mu))
 
@@ -262,6 +264,8 @@ def _sample_velocities_core(
             # conditional cos(theta)|u stays EXACT (_sample_costheta_given_u).
             ku_kc = jax.vmap(jax.random.split)(speed_keys)
             unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
+            # is_aniso + speed_method == "table" => __init__ built an AnisoSpeedCDFTable.
+            assert isinstance(df.speed_table, AnisoSpeedCDFTable)
             u_sp = jax.vmap(df.speed_table.inverse)(W, s_local, unif)
             cos_t = jax.vmap(
                 lambda kk, uu, pp: _sample_costheta_given_u(kk, uu, pp, _N_C)
@@ -290,6 +294,8 @@ def _sample_velocities_core(
     # Isotropic: speed * isotropic direction.
     if df.speed_method == "table":
         unif = jax.vmap(lambda kk: jax.random.uniform(kk))(speed_keys)
+        # Isotropic + speed_method == "table" => __init__ built a SpeedCDFTable.
+        assert isinstance(df.speed_table, SpeedCDFTable)
         u = jax.vmap(df.speed_table.inverse)(W, unif)
     else:
         # Bounded-memory oracle: lax.map in chunks of _ORACLE_BATCH stars.

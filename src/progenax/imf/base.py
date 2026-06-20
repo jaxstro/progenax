@@ -15,7 +15,7 @@ import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxstro.numerics import newton_ppf
-from jaxtyping import Array, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 # ============================================================================
 # IMFProtocol - Runtime-checkable Protocol for Type-Safe Composition
@@ -37,7 +37,7 @@ class IMFProtocol(Protocol):
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]: ...
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]: ...
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]: ...
-    def mean_mass(self) -> float: ...
+    def mean_mass(self) -> Float[Array, ""]: ...
 
 
 # ============================================================================
@@ -116,12 +116,12 @@ class BaseIMF(eqx.Module):
         ...
 
     @abstractmethod
-    def _cdf_unnorm(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+    def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:
         """Unnormalized CDF. Override in subclass."""
         ...
 
     @property
-    def _log_norm(self) -> float:
+    def _log_norm(self) -> Float[Array, ""]:
         """Log normalization constant over [m_min, m_max]."""
         F_min = self._cdf_unnorm(self.m_min)
         F_max = self._cdf_unnorm(self.m_max)
@@ -146,7 +146,7 @@ class BaseIMF(eqx.Module):
         u = jax.random.uniform(key, (n,))
         return self.ppf(u)
 
-    def mean_mass(self) -> float:
+    def mean_mass(self) -> Float[Array, ""]:
         """Expected mass E[m] via a LOG-spaced trapezoid (override for analytic forms).
 
         Log-spacing concentrates nodes on the steep low-mass region; a linear grid of

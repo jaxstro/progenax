@@ -232,6 +232,9 @@ def build_engine_b_state(
                 f"{_F_MIN_GENUINE:g}). This component's {_REMEDY}."
             )
 
+    # The profiles loop above runs at least once (Engine B requires >= 1 component),
+    # so E_ref was assigned E_j and is non-None here.
+    assert E_ref is not None
     state = _EngineBState(
         Psi_grid=pot.Psi_grid,
         E_grid=E_ref,

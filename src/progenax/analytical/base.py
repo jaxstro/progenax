@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, cast
 
 import equinox as eqx
 from jaxtyping import Array, Float
@@ -156,10 +156,12 @@ def get_planet(name: str) -> dict:
         Mass: 9.5479e-04 Msun, a: 5.20 AU
     """
     for planet in SOLAR_SYSTEM_PLANETS:
-        if planet["name"].lower() == name.lower():
+        # The planet dict mixes str names with float orbital data, so mypy types the
+        # values as ``object``; the "name" entry is always a str.
+        if cast(str, planet["name"]).lower() == name.lower():
             return planet.copy()  # Return copy to prevent accidental mutation
 
-    available = [p["name"] for p in SOLAR_SYSTEM_PLANETS]
+    available = [cast(str, p["name"]) for p in SOLAR_SYSTEM_PLANETS]
     raise ValueError(
         f"Unknown planet: '{name}'. Available planets: {', '.join(available)}"
     )

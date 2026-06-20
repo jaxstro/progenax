@@ -27,7 +27,7 @@ noisy mass proxy is a deferred data-realism layer (milestone B).
 
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Float
+from jaxtyping import Array, ArrayLike, Float
 
 __all__ = [
     "soft_mass_weights",
@@ -51,8 +51,8 @@ def _project(
 
 def soft_mass_weights(
     masses: Float[Array, "N"],
-    m_cut: Float[Array, ""],
-    tau: Float[Array, ""],
+    m_cut: ArrayLike,
+    tau: ArrayLike,
 ) -> Float[Array, "N"]:
     """Smooth soft mass-cut weights ``w_i = sigmoid((m_i - m_cut) / tau)``.
 
@@ -74,8 +74,8 @@ def radial_concentration_approx(
     positions: Float[Array, "N D"],
     masses: Float[Array, "N"],
     *,
-    m_cut: Float[Array, ""],
-    tau: Float[Array, ""],
+    m_cut: ArrayLike,
+    tau: ArrayLike,
     project_to_2d: bool = True,
     calibration: float = 1.0,
 ) -> Float[Array, ""]:
@@ -122,9 +122,7 @@ def radial_concentration_approx(
     return calibration * r_massive / (r_all + 1e-12)
 
 
-def _softmin_nn_distance(
-    xy: Float[Array, "N d"], beta: Float[Array, ""]
-) -> Float[Array, "N"]:
+def _softmin_nn_distance(xy: Float[Array, "N d"], beta: ArrayLike) -> Float[Array, "N"]:
     """Per-star smooth nearest-neighbour distance ``softmin_{j!=i} d_ij``.
 
     softmin with temperature ``beta``: ``sum_j softmax(-(d_ij/scale)/beta) * d_ij``. As
@@ -155,9 +153,9 @@ def lambda_msr_approx(
     positions: Float[Array, "N D"],
     masses: Float[Array, "N"],
     *,
-    m_cut: Float[Array, ""],
-    tau: Float[Array, ""],
-    beta: Float[Array, ""] = 0.1,
+    m_cut: ArrayLike,
+    tau: ArrayLike,
+    beta: ArrayLike = 0.1,
     project_to_2d: bool = True,
     calibration: float = 1.0,
 ) -> Float[Array, ""]:
@@ -219,8 +217,8 @@ def sigma_m_approx(
     positions: Float[Array, "N D"],
     masses: Float[Array, "N"],
     *,
-    m_cut: Float[Array, ""],
-    tau: Float[Array, ""],
+    m_cut: ArrayLike,
+    tau: ArrayLike,
     k: int = 6,
     project_to_2d: bool = True,
     calibration: float = 1.0,
@@ -370,18 +368,18 @@ def calibrate_segregation_approx(
         rad_exact.append(_exact_radial_concentration(xy, massive, m_cut))
         sig_exact.append(_exact_sigma_m(xy, massive, k))
 
-    lam_soft, lam_exact = np.array(lam_soft), np.array(lam_exact)
-    rad_soft, rad_exact = np.array(rad_soft), np.array(rad_exact)
-    sig_soft, sig_exact = np.array(sig_soft), np.array(sig_exact)
+    lam_soft_a, lam_exact_a = np.array(lam_soft), np.array(lam_exact)
+    rad_soft_a, rad_exact_a = np.array(rad_soft), np.array(rad_exact)
+    sig_soft_a, sig_exact_a = np.array(sig_soft), np.array(sig_exact)
 
     return {
-        "calibration_lambda": float(np.mean(lam_exact) / np.mean(lam_soft)),
-        "calibration_radial": float(np.mean(rad_exact) / np.mean(rad_soft)),
+        "calibration_lambda": float(np.mean(lam_exact_a) / np.mean(lam_soft_a)),
+        "calibration_radial": float(np.mean(rad_exact_a) / np.mean(rad_soft_a)),
         "calibration_sigma": float(
-            np.mean(np.abs(sig_exact)) / (np.mean(np.abs(sig_soft)) + 1e-12)
+            np.mean(np.abs(sig_exact_a)) / (np.mean(np.abs(sig_soft_a)) + 1e-12)
         ),
-        "correlation_lambda": float(np.corrcoef(lam_exact, lam_soft)[0, 1]),
-        "correlation_radial": float(np.corrcoef(rad_exact, rad_soft)[0, 1]),
-        "correlation_sigma": float(np.corrcoef(sig_exact, sig_soft)[0, 1]),
+        "correlation_lambda": float(np.corrcoef(lam_exact_a, lam_soft_a)[0, 1]),
+        "correlation_radial": float(np.corrcoef(rad_exact_a, rad_soft_a)[0, 1]),
+        "correlation_sigma": float(np.corrcoef(sig_exact_a, sig_soft_a)[0, 1]),
         "n_samples": n_samples,
     }

@@ -27,13 +27,13 @@ Notes:
 
 import math
 import warnings
-from typing import Tuple
+from typing import SupportsFloat, Tuple, cast
 
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
 
 def _is_concrete(x) -> bool:
@@ -96,7 +96,7 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
 
 
 def _king_poisson_rhs(
-    xi: float, y: Float[Array, "2"], args: tuple
+    xi: ArrayLike, y: Float[Array, "2"], args: tuple
 ) -> Float[Array, "2"]:
     """
     Right-hand side of King's dimensionless Poisson equation.
@@ -128,6 +128,7 @@ def _king_poisson_rhs(
         Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3.2
     """
     (W0,) = args
+    xi = jnp.asarray(xi)
     psi, dpsi_dxi = y[0], y[1]
 
     # Dimensionless density = lowered-Maxwellian volume density rho_hat(psi),
@@ -150,7 +151,7 @@ def _king_poisson_rhs(
     return jnp.array([dpsi_dxi, d2psi_dxi2])
 
 
-def _auto_ode_domain(W0: float) -> Tuple[float, int]:
+def _auto_ode_domain(W0: ArrayLike) -> Tuple[float, int]:
     """Default King ODE integration domain ``(xi_max, n_points)`` sized from ``W0``.
 
     The tidal radius grows super-exponentially with concentration (King 1966
@@ -172,7 +173,10 @@ def _auto_ode_domain(W0: float) -> Tuple[float, int]:
     default -- pass an explicit ``xi_max`` for traced high-W0 work.
     """
     try:
-        w = float(W0)
+        # W0 is a real scalar here; cast documents that for the type checker
+        # (ArrayLike nominally includes complex). Runtime float() is unchanged and
+        # raises on a tracer, which is caught below.
+        w = float(cast(SupportsFloat, W0))
     except (
         jax.errors.ConcretizationTypeError,
         jax.errors.TracerArrayConversionError,
@@ -185,7 +189,7 @@ def _auto_ode_domain(W0: float) -> Tuple[float, int]:
 
 
 def solve_king_profile(
-    W0: float,
+    W0: ArrayLike,
     xi_max: float = 300.0,
     n_points: int = 2000,
 ):
@@ -369,9 +373,9 @@ class KingProfile(eqx.Module):
 
     def __init__(
         self,
-        W0: float,
-        r_c: float,
-        r_t: float,
+        W0: ArrayLike,
+        r_c: ArrayLike,
+        r_t: ArrayLike,
         xi_grid: Float[Array, "n_points"],
         psi_grid: Float[Array, "n_points"],
         n_grid: int = 1000,

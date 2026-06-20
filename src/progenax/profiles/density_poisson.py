@@ -82,9 +82,11 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     if r_t is not None:
         rt_arr = jnp.asarray(r_t)
         for j, (p, ext) in enumerate(zip(profiles, extents)):
-            if isinstance(p, KingProfile) and float(ext) > float(rt_arr) * (
-                1.0 + 1e-12
-            ):
+            if not isinstance(p, KingProfile):
+                continue
+            # component_extent returns r_t (never None) for a KingProfile.
+            assert ext is not None
+            if float(ext) > float(rt_arr) * (1.0 + 1e-12):
                 raise ValueError(
                     f"r_t override {float(rt_arr):.6g} would re-truncate the King "
                     f"component {j} (natural r_t = {float(ext):.6g}). A King model's "
