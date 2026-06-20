@@ -159,7 +159,7 @@ Commit: `chore(docs): add link/count gate + hidden-index scaffold`.
 
 **Honesty:**
 - `physics-tests.md` (**V3**) — admits the test files "do not exist in this checkout" yet shows PASS tables + a literal "…" placeholder row. Rewrite as "covered indirectly by listed unit/integration tests" OR make real OR fold into methodology/testing-architecture.
-- King-`r_t` CONTRADICTION: `king-profile.md` says "blocked/zeroed by argmax"; `differentiability-audit.md:34-38,154` says fixed/differentiable. Reconcile to one truth (verify vs `src/` which is current).
+- King-`r_t` CONTRADICTION + SITE-WIDE RECONCILIATION: `king-profile.md` says "blocked/zeroed by argmax"; `differentiability-audit.md:34-38,154` says fixed/differentiable. **VERIFIED (Task 6, independently re-confirmed): r_t IS differentiable** — `jax.grad` of `KingProfile.from_W0_rc(W0).r_t` gives AD=22.88 matching FD to 3.6e-8 (src returns unclamped `psi_raw` so the zero-crossing carries d(xi_t)/dW0). Fix the stale "deferred/not differentiable" claim to "RESOLVED/differentiable" on ALL THREE pages: `50-validation/king-profile.md:178-186`, AND (cross-section, Tasks 2/3 left them stale) `00-getting-started/science-capabilities.md:366-369` and `10-theory/spatial-profiles/lowered-model-family.md:225-228`. (`20-architecture/differentiability.md` already fixed in Task 6.)
 - `imf-statistics.md:9` TaperedPowerLaw/Schechter called "released" but not in `__all__` → mark internal.
 - `engine-b-eddington.md` evidence-page self-mismatch: 18-seed (0.4947±0.0014, L126) vs 3-seed (0.4917±0.0062, L55) — reconcile (theory pages cite the 18-seed figure).
 
