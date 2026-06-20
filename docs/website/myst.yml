@@ -222,18 +222,27 @@ project:
     - title: Development log
       children:
         - file: 90-development-log/index.md
-        - file: 90-development-log/whats-changed.md
-        - file: 90-development-log/by-topic.md
+          hidden: true
         - file: 90-development-log/2026-04-28-pp20-fix.md
+          hidden: true
         - file: 90-development-log/2026-02-12-ic-redesign.md
+          hidden: true
         - file: 90-development-log/2025-12-07-imf-stack-fix.md
+          hidden: true
         - file: 90-development-log/2026-02-12-imf-hmc-recovery.md
+          hidden: true
         - file: 90-development-log/2026-02-13-binary-aware-imf-recovery.md
+          hidden: true
         - file: 90-development-log/2026-02-13-binary-aware-imf-recovery-impl.md
+          hidden: true
         - file: 90-development-log/2026-02-13-precision-scaling-panel.md
+          hidden: true
         - file: 90-development-log/2025-12-07-progenax-review.md
+          hidden: true
         - file: 90-development-log/phase1-complete.md
+          hidden: true
         - file: 90-development-log/code-reviews.md
+          hidden: true
     - title: Release readiness
       children:
         - file: 95-release/index.md

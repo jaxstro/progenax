@@ -666,7 +666,7 @@ findings are resolved.
 
 **All audit Critical/Major findings are resolved.** One maintainability follow-up
 remains ticketed: the eight files still 500–1000 LOC (the audit named only the
->1000-LOC files for splitting) → `docs/notes/2026-06-02-file-length-followup-ticket.md`.
+>1000-LOC files for splitting).
 
 ---
 

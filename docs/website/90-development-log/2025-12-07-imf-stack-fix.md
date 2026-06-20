@@ -1405,7 +1405,7 @@ Before declaring complete:
 
 ---
 
-**Plan complete and saved to `docs/plans/2025-12-07-imf-stack-fix.md`.**
+**Plan complete.**
 
 **Two execution options:**
 

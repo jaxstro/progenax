@@ -26,9 +26,8 @@ with Moe & Di Stefano (2017) binary population, then compares:
   - Naive: fit single-star IMF to system masses (biased)
   - Binary-aware: mixture likelihood marginalizing over binary status (unbiased)
 
-Run:
-  cd /Users/anna/projects/jaxstro-dev/progenax
-  python validation/imf/validate_binary_aware_recovery.py
+Run (from the repo root):
+  env -u VIRTUAL_ENV uv run python validation/imf/validate_binary_aware_recovery.py
 """
 
 from __future__ import annotations
@@ -167,7 +166,7 @@ def generate_system_masses(
 
 **Step 2: Run a smoke test**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && python -c "
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python -c "
 from validation.imf.validate_binary_aware_recovery import generate_system_masses
 m_sys, f_bin = generate_system_masses(2.3, 1000, 42)
 print(f'Generated {len(m_sys)} systems, f_bin={f_bin:.2f}, mass range=[{float(m_sys.min()):.3f}, {float(m_sys.max()):.1f}]')
@@ -261,7 +260,7 @@ def log_system_mass_likelihood(
 
 **Step 2: Add a numerical test**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && python -c "
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python -c "
 import jax.numpy as jnp
 from validation.imf.validate_binary_aware_recovery import log_system_mass_likelihood
 
@@ -428,7 +427,7 @@ def run_all_recoveries() -> tuple[list[RecoveryResult], list[RecoveryResult]]:
 
 **Step 2: Smoke test the MCMC runner with one environment**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && python -c "
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python -c "
 from validation.imf.validate_binary_aware_recovery import *
 import jax.numpy as jnp
 
@@ -779,7 +778,7 @@ git commit -m "feat(validation): add main + evaluation for binary-aware recovery
 
 **Step 1: Run the script**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && source /Users/anna/miniforge3/etc/profile.d/conda.sh && conda activate astro && python validation/imf/validate_binary_aware_recovery.py`
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python validation/imf/validate_binary_aware_recovery.py`
 
 Expected runtime: ~5-10 minutes (8 NUTS runs, binary-aware ones slower due to quadrature).
 

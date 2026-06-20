@@ -27,7 +27,7 @@ Append to end of `progenax/.gitignore`:
 
 **Step 2: Verify**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && git diff .gitignore`
+Run (from the repo root): `git diff .gitignore`
 
 Expected: Shows the two new lines.
 
@@ -63,9 +63,8 @@ Output:
   validation/plots/imf_hmc_recovery_table.{png,pdf}
   validation/plots/imf_hmc_recovery_posteriors.{png,pdf}
 
-Run:
-  cd /Users/anna/projects/jaxstro-dev/progenax
-  python validation/validate_hmc_imf_recovery.py
+Run (from the repo root):
+  env -u VIRTUAL_ENV uv run python validation/validate_hmc_imf_recovery.py
 """
 
 from __future__ import annotations
@@ -133,9 +132,9 @@ class RecoveryResult:
 
 **Step 2: Verify imports**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && python -c "exec(open('validation/validate_hmc_imf_recovery.py').read().split('ALPHA_VALUES')[0])"`
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python -c "exec(open('validation/validate_hmc_imf_recovery.py').read().split('ALPHA_VALUES')[0])"`
 
-Expected: No import errors. If `jaxstroviz` not found, run `pip install -e ../jaxstroviz`.
+Expected: No import errors. If `jaxstroviz` not found, install it from the sibling package directory (`uv pip install -e ../jaxstroviz`).
 
 **Step 3: Commit**
 
@@ -197,10 +196,9 @@ def imf_model(observed_masses: jnp.ndarray) -> None:
 
 **Step 2: Smoke-test model**
 
-Run:
+Run (from the repo root):
 ```bash
-cd /Users/anna/projects/jaxstro-dev/progenax
-python -c "
+env -u VIRTUAL_ENV uv run python -c "
 from validation.validate_hmc_imf_recovery import generate_mock_masses, imf_model
 import jax.numpy as jnp
 masses = generate_mock_masses(2.3, 100, 42)
@@ -307,10 +305,9 @@ def run_all_recoveries() -> list[RecoveryResult]:
 
 **Step 2: Test with ONE α value (quick sanity check, reduced N)**
 
-Run:
+Run (from the repo root):
 ```bash
-cd /Users/anna/projects/jaxstro-dev/progenax
-python -c "
+env -u VIRTUAL_ENV uv run python -c "
 from validation.validate_hmc_imf_recovery import run_single_recovery
 r = run_single_recovery(2.3, n_masses=500, seed=42)
 print(f'PASS: median={r.median:.3f}, ESS={r.ess:.0f}, in_68ci={r.in_68ci}')
@@ -400,7 +397,7 @@ def plot_recovery(ax: plt.Axes, results: list[RecoveryResult]) -> None:
 
 **Step 2: Verify syntax**
 
-Run: `cd /Users/anna/projects/jaxstro-dev/progenax && python -c "from validation.validate_hmc_imf_recovery import plot_recovery; print('OK')"`
+Run (from the repo root): `env -u VIRTUAL_ENV uv run python -c "from validation.validate_hmc_imf_recovery import plot_recovery; print('OK')"`
 
 Expected: "OK"
 
@@ -632,10 +629,9 @@ git commit -m "feat(validation): add figure assembly, pass/fail, and main"
 
 **Step 1: Run the complete validation**
 
-Run:
+Run (from the repo root):
 ```bash
-cd /Users/anna/projects/jaxstro-dev/progenax
-python validation/validate_hmc_imf_recovery.py
+env -u VIRTUAL_ENV uv run python validation/validate_hmc_imf_recovery.py
 ```
 
 Expected: ~3-5 min total. All 4 α₃ values recovered. "OVERALL: PASS".
@@ -676,7 +672,7 @@ Common issues and fixes:
 - Increase `N_WARMUP` to 1000
 
 **If jaxstroviz import fails:**
-- Run: `pip install -e /Users/anna/projects/jaxstro-dev/jaxstroviz`
+- Install it from the sibling package directory: `uv pip install -e ../jaxstroviz`
 
 **If XLA_FLAGS device count errors:**
 - Set `N_CHAINS=1` and skip R-hat check (single chain still gives ESS + CI)

@@ -91,7 +91,32 @@ public navigation):
 
 ## Development log
 
-Dated development-log entries (decisions, recovery notes, scaling panels) may be
-curated and relocated here, pending a final public-vs-unlisted decision.
+The development log is progenax's **internal development history** — dated design
+specs, full-package code-review audits, and validation recovery/scaling notes.
+The pages are point-in-time snapshots (several reference since-renamed APIs and
+carry pointers to the current entry point). The whole section is `hidden: true`
+in the toc (built and URL-reachable, kept out of the public navigation):
 
-*Links will be wired in by a later task.*
+- [](../90-development-log/index.md) — section landing: the curated map of every
+  surviving entry, grouped by code-review audit / design spec / milestone, with
+  pointers to the current package state.
+- [](../90-development-log/code-reviews.md) — landing record for the 2026-06
+  post-hardening (A−) and expert-audit (B+) reviews + resolution tables.
+- [](../90-development-log/2025-12-07-progenax-review.md) — the original
+  2025-12-07 comprehensive review (A, 95/100).
+- [](../90-development-log/2026-02-12-ic-redesign.md) — the protocol-based,
+  composable, differentiable IC architecture design spec.
+- [](../90-development-log/phase1-complete.md) — the 2025-12-06 Phase 1
+  completion snapshot.
+- [](../90-development-log/2025-12-07-imf-stack-fix.md) — the IMF-stack
+  correction plan (Chabrier log₁₀, gradient + domain fixes).
+- [](../90-development-log/2026-02-12-imf-hmc-recovery.md) — the IMF-only NUTS
+  α₃ slope-recovery proposal figure.
+- [](../90-development-log/2026-02-13-binary-aware-imf-recovery.md) — the
+  binary-aware IMF recovery spec (Moe+17 mixture likelihood).
+- [](../90-development-log/2026-02-13-binary-aware-imf-recovery-impl.md) — the
+  matching task-by-task implementation plan.
+- [](../90-development-log/2026-02-13-precision-scaling-panel.md) — the
+  σ(α)-vs-N precision-scaling panel.
+- [](../90-development-log/2026-04-28-pp20-fix.md) — the PP20 ζ(p)
+  transcription-bug fix (superseded by the `gravoturb_fdf` rewrite).

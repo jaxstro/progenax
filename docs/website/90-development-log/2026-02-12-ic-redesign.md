@@ -1,6 +1,6 @@
 ---
 title: IC redesign spec (2026-02-12)
-description: Original design specification for progenax's protocol-based, composable, differentiable IC architecture. Absorbed verbatim from docs/specs/2026-02-12-progenax-ic-redesign-design.md.
+description: Original design specification for progenax's protocol-based, composable, differentiable IC architecture, preserved as a historical development-log record.
 ---
 
 # Progenax IC redesign: unified, composable, differentiable (2026-02-12)

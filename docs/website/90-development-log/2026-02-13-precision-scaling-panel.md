@@ -311,8 +311,8 @@ git commit -m "feat(validation): add --run-scaling flag for panel (d)"
 **Step 1: Run with --run-scaling**
 
 ```bash
-cd /Users/anna/projects/jaxstro-dev/progenax
-python validation/imf/validate_binary_aware_recovery.py --plot-only --run-scaling
+# from the repo root
+env -u VIRTUAL_ENV uv run python validation/imf/validate_binary_aware_recovery.py --plot-only --run-scaling
 ```
 
 Note: `--plot-only` loads existing 4-env results (skip re-running those). `--run-scaling` runs the 5×2 = 10 new HMC runs for Solar at varying N. Expected wall-clock: ~30-40 min on CPU.
