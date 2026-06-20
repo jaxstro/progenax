@@ -5,7 +5,81 @@ description: Release-style changelog for progenax — most recent change first. 
 # What's new
 
 Release-style changelog. Most recent change first. Curated from the
-[development log](../90-development-log/index.md).
+[development log](../90-development-log/index.md). For the live test count
+across the three tiers, see the
+[test dashboard](../50-validation/test-dashboard.md); the dated entries below
+keep their point-in-time counts as historical records.
+
+## 2026-06-20 — Documentation site hardening pass (v0.1.0)
+
+A section-by-section review and hardening pass over the whole documentation
+site (the pages you are reading now):
+
+- **Snippet and citation correctness** — every changed code snippet was run
+  against the live `src/` and reconciled to the actual symbol signatures;
+  citation claims were checked against the per-paper notes and, for
+  equation/table/coefficient claims, the source PDFs.
+- **Test-count drift removed** — hardcoded current-tense test counts on the
+  onboarding and capability pages were replaced with pointers to the
+  [test dashboard](../50-validation/test-dashboard.md); dated changelog/audit
+  counts stay frozen as point-in-time records.
+- **Dead/internal path references scrubbed** — pointers to gitignored
+  copyrighted PDFs, internal working notes, and design-plan directories were
+  replaced with public per-paper notes or proper site cross-references; a
+  link/count gate (`scripts/check_links_and_counts.py`) drove broken `.md`
+  targets to zero.
+- **Gravoturbulence consolidated and unlisted** — the experimental
+  `gravoturb_fdf` theory section was consolidated 10 → 5 pages and moved out of
+  the public navigation (it documents a repo-only, not-in-the-wheel subsystem).
+- **OED trimmed to a public overview** — the science-demos optimal-design
+  section keeps one public overview page; the longer worked-example detail
+  pages are kept built but out of the public navigation.
+- **Development log curated and unlisted** — the dev-log was curated to a
+  map of surviving entries (point-in-time snapshots, with pointers to the
+  current entry points) and kept out of the public navigation.
+- **Bibliography** — added a bibliography index plus the missing per-paper
+  notes.
+
+The internal-but-built pages are collected in the
+[unlisted index](../_unlisted/index.md).
+
+## 2026-06-20 — Test-registry harness hoist + local release gate
+
+A pre-release engineering-hardening pass on the test infrastructure (no
+physics change):
+
+- **Ratchet harness hoisted** to a shared, content-free `jaxstro.testing.ratchet`
+  (ADR-0021): the generic partition / staleness / numeric-literal-scan / citation
+  primitives now live in the base package, and progenax's four test registries
+  (grad-audit, API-coverage, physics, provenance) were refactored onto it with
+  the prior behaviour pinned by a characterization test.
+- **Strict citation provenance** (ADR-0022): the module-docstring whitelist was
+  dropped — each Tout+1996 / Moe+2017 coefficient array now carries its own
+  in-window citation comment (no coefficient values changed; PDF-verified).
+- **Local two-tier gate** (ADR-0023): a fast `scripts/check.sh` (lock check, ruff,
+  mypy, fast suite, wheel smoke) and a heavy `scripts/release_gate.sh` (full
+  coverage run, dashboard regeneration, and a multi-part release conjunction).
+  CI stays dormant until the repository is made public; `src/progenax` is now
+  ruff- and mypy-clean.
+
+## 2026-06-19 — Binary-misspecification optimal-design demo
+
+A scripts-only optimal experimental design (OED) demonstration (held out of the
+released `v0.1.0` wheel) showing the cost of a binary-blind survey design: a
+binary-free fit of binary-contaminated mock clusters biases the inferred
+dynamical mass high while reporting a far-too-tight uncertainty, and a
+binary-aware fit removes the bias and recovers the binary fraction. Worked-design
+detail page at [](../60-science-demos/optimal-design/binary-robustness.md)
+(see the [unlisted index](../_unlisted/index.md)).
+
+## 2026-06-14 — ZAMS stellar relations internalized
+
+The Tout et al. (1996) zero-age-main-sequence mass–luminosity–radius relations
+were internalized into `src/progenax/stellar.py` (luminosity, radius, effective
+temperature, surface gravity, and a differentiable inverse), removing the
+binary-IMF demo's dependency on `fluxax`. All coefficients are cited to the
+Tout+1996 tables and PDF-verified. Validation page:
+[](../50-validation/zams-relations.md).
 
 ## 2026-06-10 — Standalone-DF sampler fusion (cached tables + jitted cores)
 

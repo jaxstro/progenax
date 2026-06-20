@@ -5,7 +5,7 @@ description: The Elson, Fall & Freeman (1987) profile — a power-law spatial de
 
 # The EFF profile
 
-The {cite:t}`ElsonFallFreeman1987` (EFF) profile is the production-grade
+The {cite:t}`ElsonFallFreeman1987` (EFF) profile is the standard
 choice for **young massive star clusters** — typically $\lesssim 100$
 Myr old, cluster mass $M_{\mathrm{cl}} \gtrsim 10^4\,\Msun$ — where
 the surface-brightness profile shows a power-law fall-off whose slope

@@ -1,6 +1,6 @@
 ---
 title: Spatial density profiles
-description: The production-grade spatial density profiles in progenax — Plummer, King, EFF, and the anisotropic Michie–King — and when to use each.
+description: The spatial density profiles in progenax — Plummer, King, EFF, and the anisotropic Michie–King — and when to use each.
 ---
 
 # Spatial density profiles
