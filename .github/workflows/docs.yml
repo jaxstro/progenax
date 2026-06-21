@@ -1,0 +1,37 @@
+name: docs
+
+# Docs gate for the MyST site under docs/website/. Mirrors tests.yml: runs on PRs
+# and manual dispatch only (a green PR certifies the merge commit; no per-push runs).
+# Like the other workflows, this stays DORMANT until the repo is public and Actions
+# is re-enabled — the trigger block is normal; CI is disabled at the GitHub level.
+# The gate it runs (`make -C docs/website gate`) is validated LOCALLY: it is exactly
+# `bash docs/website/scripts/check_docs.sh`, which any contributor can run.
+
+on:
+  pull_request:
+    paths:
+      - "docs/website/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # mystmd is a Node CLI; the link/count gate is stdlib Python (python3 is
+      # preinstalled on the runner, so no Python deps to install).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install mystmd
+        run: npm install -g mystmd@1.10.1
+
+      - name: Docs gate (0 broken .md links + 0 content warnings)
+        run: make -C docs/website gate

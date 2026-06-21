@@ -7,10 +7,13 @@
 # genuinely new node warning would still surface.
 export NODE_OPTIONS = --no-deprecation
 
-.PHONY: build start
+.PHONY: build start gate
 
 build:  ## Build the static HTML site (docs/website/_build/html)
 	myst build --html
 
 start:  ## Live-reload development server
 	myst start
+
+gate:  ## Release-clean docs gate: 0 broken .md links + 0 content warnings
+	bash scripts/check_docs.sh

@@ -30,10 +30,12 @@ separate, maintainer-approved step.
   Decision deferred to the maintainer (PyPI-first / namespace package / vendor /
   git-URL) — see [release strategy](#release-strategy). *Not a blocker for a
   GitHub source tag; a hard blocker for PyPI.*
-- [ ] **Re-enable CI (D8).** Both GitHub Actions workflows are `disabled_manually`.
-  Re-enable `tests.yml` (PR gate) and `physics-validation.yml` (release-tag slow
-  lane) so the advertised gate actually runs. Confirm a green run on a real PR
-  before tagging.
+- [ ] **Re-enable CI (D8).** Three GitHub Actions workflows are `disabled_manually`.
+  Re-enable `tests.yml` (PR gate), `physics-validation.yml` (release-tag slow
+  lane), and `docs.yml` (the docs gate — 0 broken `.md` links + 0 MyST content
+  warnings, via `make -C docs/website gate`; added + validated locally 2026-06-20,
+  including negative tests, but never run on GitHub). Confirm a green run on a real
+  PR before tagging.
 
 (checklist-important)=
 ## ⚠️ Should fix before a polished public launch
