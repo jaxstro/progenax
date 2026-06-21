@@ -643,12 +643,16 @@ requires-dist = [
     { name = "jaxlib", specifier = ">=0.10.1" },
     { name = "jaxtyping", specifier = ">=0.3.11" },
     { name = "mypy", marker = "extra == 'dev'" },
+    { name = "numcodecs", marker = "extra == 'data'", specifier = ">=0.16.5" },
     { name = "numpyro", marker = "extra == 'ml'", specifier = ">=0.21.0" },
     { name = "optax", marker = "extra == 'ml'", specifier = ">=0.2.8" },
+    { name = "polars", marker = "extra == 'data'", specifier = ">=1.41.2" },
+    { name = "pyarrow", marker = "extra == 'data'", specifier = ">=24.0.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "zarr", marker = "extra == 'data'", specifier = ">=3.1.6" },
 ]
-provides-extras = ["dev", "ml"]
+provides-extras = ["dev", "ml", "data"]
 
 [package.metadata.requires-dev]
 dev = [
