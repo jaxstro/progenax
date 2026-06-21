@@ -33,6 +33,13 @@ structure** to the **integrated star formation rate**. The chain is:
 5. **Inference** — running the chain *backwards* to recover natal cloud
    parameters from observed substructure.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers entering the (experimental) gravoturbulence track — learning the chain from molecular-cloud density structure to the integrated SFR and back; no prior turbulence-SFR literature assumed.
+**Prerequisites:** none — a good entry point for the gravoturbulence track. (This subsystem is experimental and repo-only; see the banner above.)
+**You'll get:** the forward chain (density PDF → freefall-density factor → ζ → BM19 → inference), why ζ is computed three ways, and a map of the five chapters.
+:::
+
 ## Map of the section
 
 ```{list-table}
@@ -90,11 +97,24 @@ three are differentiable and `gravoturb_fdf` exposes them through a
 unified API. The choice of which to use depends on the level of cloud
 parameterisation in the inference target.
 
-## References
+## Implementation, validation & references
 
-The density-PDF framework is {cite:t}`FederrathKlessen2012`. The
-PP20 magnification factor is {cite:t}`ParmentierPasquali2020`, with
-the {cite:t}`Kainulainen2014` observational anchor for $p \approx 5/3$.
-The BM19 framework is {cite:t}`Burkhart2018,BurkhartMocz2019`. The
-{cite:t}`TanKrumholzMcKee2006` cluster-formation framework provides
-some of the structural underpinning.
+- **In code:** the experimental, repo-only `gravoturb_fdf` package under
+  `src/experimental/gravoturb_fdf/` (`theory/`, `field/`, `inference/`);
+  it is **not** in the released wheel and has **no generated website API
+  page** — the module reference is the package source, its `README.md`,
+  and its `VALIDATION_SUMMARY.md` (both repo-only, under
+  `src/experimental/gravoturb_fdf/`). Each chapter below carries its
+  exact module path.
+- **Validated in:** [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md)
+  and the AC1–AC17 acceptance suite
+  (`src/experimental/gravoturb_fdf/validation/acceptance.py`,
+  summarised in `VALIDATION_SUMMARY.md`).
+- **Primary sources:** the density-PDF framework is
+  {cite:t}`FederrathKlessen2012`; the PP20 magnification factor is
+  {cite:t}`ParmentierPasquali2020`, with the {cite:t}`Kainulainen2014`
+  observational anchor for $p \approx 5/3$; the BM19 framework is
+  {cite:t}`Burkhart2018,BurkhartMocz2019`; {cite:t}`TanKrumholzMcKee2006`
+  provides some structural underpinning. Full notes in the
+  [bibliography](../../99-bibliography/index.md); each chapter below
+  points at the specific result(s) used.

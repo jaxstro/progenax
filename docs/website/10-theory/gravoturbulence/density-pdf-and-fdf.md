@@ -29,6 +29,13 @@ the framework and then joins them:
 The chapter ends with the single, canonical **α↔p mapping** ($p = 3/\alpha$) that connects the
 PDF-tail slope to the radial-profile slope — every downstream page refers back to this statement.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the molecular-cloud density PDF and the freefall-density factor that the rest of the (experimental) gravoturbulence section consumes; no prior turbulence literature assumed.
+**Prerequisites:** [gravoturbulence overview](index.md) (the forward-chain framing and experimental scope).
+**You'll get:** the Federrath–Klessen lognormal+power-law PDF, the $\rho^{3/2}$ FDF kernel, how they combine into the cloud-integrated SFR, and the canonical α↔p mapping ($p = 3/\alpha$).
+:::
+
 ---
 
 ## Part 1 — The density PDF
@@ -395,13 +402,25 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
    is genuinely unresolved at that grid and a warning is emitted (see the [α wall in the inference
    chapter](inference.md)).
 
-## References
+## Implementation, validation & references
 
-The lognormal core is the standard turbulence prediction; see {cite:t}`FederrathKlessen2012` for the
-canonical reference and the $\sigma_s^2 = \ln(1 + b^2 \mathcal{M}^2)$ derivation. The power-law tail
-and the analytic α↔p mapping are {cite:t}`Kritsuk2011`. The transition-density matching and the
-PDF+FDF combination are {cite:t}`Burkhart2018`. The intrinsic SFE $\varepsilon_{\mathrm{ff,int}}
-\sim 0.01$ comes from {cite:t}`FederrathKlessen2012`. {cite:t}`TanKrumholzMcKee2006` is an earlier
-"single-mean-density" framework that uses the same kernel without integrating over a density PDF. For
-observational verification of the lognormal+power-law form and the dense-gas threshold see
-{cite:t}`Kainulainen2014`. The full forward-chain implementation is at [](bm19.md).
+- **In code:** `src/experimental/gravoturb_fdf/theory/bm19.py`
+  (`sigma_s_squared`, `transition_density`, `f_dense_bm19_full`,
+  `pdf_slope_to_radial`) and
+  `src/experimental/gravoturb_fdf/theory/pdf.py` (`bm19_volume_pdf`);
+  3-D field realisation is
+  `src/experimental/gravoturb_fdf/field/pipeline.py`. This experimental
+  subsystem is repo-only with no generated website API page; the
+  module reference is the package source and its `VALIDATION_SUMMARY.md`.
+- **Validated in:** [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md);
+  the $p = 3/\alpha$ mapping is pinned by
+  `tests/experimental/unit/test_bm19.py`.
+- **Primary sources:** the lognormal core is {cite:t}`FederrathKlessen2012`
+  (the $\sigma_s^2 = \ln(1 + b^2 \mathcal{M}^2)$ derivation); the
+  power-law tail and the analytic α↔p mapping are {cite:t}`Kritsuk2011`;
+  the transition-density matching and PDF+FDF combination are
+  {cite:t}`Burkhart2018`; {cite:t}`TanKrumholzMcKee2006` is the earlier
+  single-mean-density framework; observational verification of the form
+  and dense-gas threshold is {cite:t}`Kainulainen2014`. Full notes in
+  the [bibliography](../../99-bibliography/per-paper/federrath-klessen-2012.md).
+  The full forward chain is [](bm19.md).

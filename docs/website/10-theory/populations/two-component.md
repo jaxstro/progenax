@@ -13,6 +13,13 @@ densities define it (Engine B). Both are *true joint equilibria* — no
 external virial rescale anywhere — and both come with the measured
 numbers that prove it.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers wanting a worked two-population cluster through each engine, including the honest physics; no prior multi-component-equilibrium literature assumed.
+**Prerequisites:** [the Eddington engine](eddington-engine.md) (Engine B theory) and the [multi-component overview](index.md) (the two-engine framing).
+**You'll get:** an Engine-A cold/hot pair and the Engine-B Plummer-halo + EFF-core headline — with the unrealizable-mix gate and the verified truncation-edge $Q_j$ plateau spelled out.
+:::
+
 ## Engine A: a cold population inside a hot one
 
 Engine A components are lowered-isothermal DFs
@@ -152,10 +159,21 @@ and $|\sigma_B/\sigma_A - 1| \le 3\times 10^{-4}$
    [](../velocity-dfs/index.md) and
    [](../../20-architecture/q-virial-convention.md).
 
-## References
+## Implementation, validation & references
 
-Self-consistent multi-mass lowered models: {cite:t}`Gieles2015`.
-Eddington inversion with Osipkov–Merritt anisotropy:
-{cite:t}`Merritt1985`. EFF profile: {cite:t}`ElsonFallFreeman1987`.
-Layered multi-population ICs in N-body practice:
-{cite:p}`Kuepper2011`.
+- **In code:** both engines are `MultiComponentCluster` in
+  `src/progenax/cluster/multicomponent.py`
+  (`from_components` for Engine A, `from_density_profiles` for Engine B);
+  the worked numbers come from `scripts/validate_cluster_ic.py` and
+  `scripts/validate_multicomponent_eddington.py`. See the
+  [cluster API](../../30-api/cluster.md).
+- **Validated in:** [two-component](../../50-validation/two-component.md),
+  with Engine-specific anchors in
+  [multimass equilibrium](../../50-validation/multimass-equilibrium.md)
+  and [Engine B (Eddington)](../../50-validation/engine-b-eddington.md).
+- **Primary sources:** self-consistent multi-mass lowered models
+  {cite:t}`Gieles2015`; Eddington inversion with Osipkov–Merritt
+  anisotropy {cite:t}`Merritt1985`; EFF profile
+  {cite:t}`ElsonFallFreeman1987`; layered multi-population ICs in N-body
+  practice {cite:p}`Kuepper2011`. Full notes in the
+  [bibliography](../../99-bibliography/index.md).

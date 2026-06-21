@@ -10,6 +10,13 @@ ingredients used alongside the mass-ratio and eccentricity
 distributions. progenax currently exposes three direct period samplers
 and one mass-dependent routing helper.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers choosing a binary period distribution; no prior binary-statistics literature assumed.
+**Prerequisites:** [Kepler orbital elements](kepler-elements.md) (period $P$ is the element these distributions sample; $a$ follows from Kepler III).
+**You'll get:** the three implemented period families (log-uniform, log-normal, Sana OB), when each applies, the mass-dependent routing helper, and the honest note on period–mass-ratio coupling.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -133,9 +140,18 @@ m1, m2, is_binary = binary_imf.sample_systems(key, 1000)
 3. **IC-time only.** Dynamical encounters and stellar evolution can
    alter periods after birth; those belong in downstream evolution.
 
-## References
+## Implementation, validation & references
 
-{cite:t}`Sana2012` provides the OB-period anchor. The broader
-mass-dependent binary-statistics reference is {cite:t}`MoeDiStefano2017`; see
-[](../imfs/multiplicity-statistics.md) and
-[](../imfs/mass-ratio-distributions.md).
+- **In code:** `src/progenax/binaries/period.py` (`LogUniformPeriod`,
+  `LogNormalPeriod`, `SanaOBPeriod`) and
+  `src/progenax/binaries/mass_dependent.py`
+  (`MassDependentBinaryConfig`, `sample_mass_dependent_orbits`); the
+  full Moe & Di Stefano machinery lives in `src/progenax/imf/binary/`.
+  See the [binaries API](../../30-api/binaries.md).
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md).
+- **Primary sources:** {cite:t}`Sana2012` provides the OB-period anchor;
+  the broader mass-dependent binary-statistics reference is
+  {cite:t}`MoeDiStefano2017`. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/sana-2012.md); see also
+  [](../imfs/multiplicity-statistics.md) and
+  [](../imfs/mass-ratio-distributions.md).

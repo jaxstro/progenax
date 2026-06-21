@@ -18,6 +18,13 @@ This chapter derives the Jacobi-radius formula from the restricted
 three-body problem, gives the two host-potential forms progenax
 implements, and documents the truncation utility.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the tidal (Jacobi) radius and how progenax truncates an IC to it; no prior galactic-dynamics literature assumed.
+**Prerequisites:** [tidal physics & substructure](index.md) (the modifier-layer framing); the [King profile](../spatial-profiles/king.md) for the built-in $r_t$ context.
+**You'll get:** the Jacobi-radius derivation, the point-mass (factor 3) vs. flat-rotation-curve (factor 2) forms, the differentiable `apply_tidal_truncation` utility, and the fill-factor $r_h/r_J$.
+:::
+
 ## The Jacobi radius
 
 For a cluster of mass $M_{\mathrm{cl}}$ on a *circular* orbit at
@@ -231,11 +238,18 @@ must be applied externally; it is not built in.
    each other (e.g. mutually-bound binary clusters) require a
    different treatment beyond the scope of this utility.
 
-## References
+## Implementation, validation & references
 
-The Jacobi-radius derivation is standard textbook material; Murray &
-Dermott *Solar System Dynamics* §3 gives a clean treatment. The
-isothermal-halo approximation is standard in the cluster literature;
-{cite:t}`King1966` and {cite:t}`Kuepper2011` use it in the contexts
-relevant here. Fill-factor data for observed clusters comes from
-{cite:t}`Kuepper2011`'s McLuster comparison sample.
+- **In code:** `src/progenax/tidal.py` (`jacobi_radius`,
+  `jacobi_radius_isothermal`, `apply_tidal_truncation`,
+  `fill_factor_to_r_h`). See the [tidal API](../../30-api/tidal.md).
+- **Validated in:** [tidal truncation](../../50-validation/tidal-truncation.md)
+  — the regression suite for $r_J$ and the shape-preserving truncation.
+- **Primary sources:** the Jacobi-radius derivation is standard
+  textbook material (Murray & Dermott *Solar System Dynamics* §3;
+  Binney & Tremaine 2008 §8.3); the point-mass factor-3 form traces to
+  {cite:t}`King1962` and the N-body-calibrated isothermal form to
+  {cite:t}`Baumgardt2003`. The isothermal-halo approximation and
+  fill-factor comparison sample follow {cite:t}`King1966` and
+  {cite:t}`Kuepper2011`. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/king-1962.md).

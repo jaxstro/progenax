@@ -14,6 +14,13 @@ distribution function by **Eddington inversion in that shared
 potential**, and samples a true joint equilibrium — or refuses, with
 the physics named, when the decomposition does not exist as one.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the density-defined (Eddington-inversion) route to a multi-component equilibrium; no prior distribution-function-theory literature assumed.
+**Prerequisites:** [multi-component populations](index.md) (the two-engine framing) and the [Plummer](../spatial-profiles/plummer.md)/[King](../spatial-profiles/king.md) densities the engine consumes.
+**You'll get:** the one-pass shared-potential quadrature, per-component Eddington inversion (with Osipkov–Merritt anisotropy), the $f \ge 0$ realizability gate, derived domains, and the predicted truncation-edge $Q_j$ offset.
+:::
+
 ```python
 from progenax import MultiComponentCluster, PlummerProfile, EFFProfile
 
@@ -299,13 +306,23 @@ constant with respect to the differentiated parameters.
   profiling shows Engine B sampling matters at $N \ge 10^5$.
 :::
 
-## References
+## Implementation, validation & references
 
-Eddington inversion is standard ergodic-DF machinery; the
-augmented-density Osipkov–Merritt construction is
-{cite:t}`Merritt1985`. The density components are
-[Plummer](../spatial-profiles/plummer.md) {cite:p}`Plummer1911`,
-[EFF](../spatial-profiles/eff.md) {cite:p}`ElsonFallFreeman1987`, and
-[King](../spatial-profiles/king.md) {cite:p}`King1966`. The DF-defined
-counterpart is the {cite:t}`Gieles2015` family —
-[Engine A](../spatial-profiles/lowered-model-family.md).
+- **In code:** the shared-potential quadrature is
+  `src/progenax/profiles/density_poisson.py`, the ergodic/OM inverter is
+  `eddington_invert` in `src/progenax/kinematics/eddington.py`, and the
+  Engine-B constructor is `MultiComponentCluster.from_density_profiles`
+  in `src/progenax/cluster/multicomponent.py`. See the
+  [cluster API](../../30-api/cluster.md).
+- **Validated in:** [Engine B (Eddington)](../../50-validation/engine-b-eddington.md)
+  — the 11-anchor close-out (A-vs-B trust anchor, $f(E) \propto E^{7/2}$,
+  realizability, OM $\beta(r)$, AD-vs-FD gradients) summarised above.
+- **Primary sources:** Eddington inversion is standard ergodic-DF
+  machinery; the augmented-density Osipkov–Merritt construction is
+  {cite:t}`Merritt1985`. The density components are
+  [Plummer](../spatial-profiles/plummer.md) {cite:p}`Plummer1911`,
+  [EFF](../spatial-profiles/eff.md) {cite:p}`ElsonFallFreeman1987`, and
+  [King](../spatial-profiles/king.md) {cite:p}`King1966`; the DF-defined
+  counterpart is the {cite:t}`Gieles2015` family
+  ([Engine A](../spatial-profiles/lowered-model-family.md)). Full notes
+  in the [bibliography](../../99-bibliography/per-paper/merritt-1985.md).

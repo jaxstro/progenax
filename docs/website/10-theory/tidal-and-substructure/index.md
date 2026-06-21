@@ -9,6 +9,13 @@ This section covers three orthogonal *modifier* layers that progenax
 applies on top of the base spatial profile + velocity DF + IMF
 combination ([](../ic-philosophy.md)):
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the modifier layers progenax applies on top of a base equilibrium IC — tidal truncation, substructure, and mass segregation; no prior cluster-dynamics literature assumed.
+**Prerequisites:** [spatial profiles](../spatial-profiles/index.md) and the [IC philosophy](../ic-philosophy.md) (these modifiers perturb a base profile + velocity DF + IMF).
+**You'll get:** what the three modifier layers add to an IC, why each maps to an observed cluster deviation, and which are released vs. experimental.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -88,13 +95,27 @@ string-dispatch generator (`generate_cluster_ic` with
 `SpatialStructureParams` layers) was retired in the 2026-06 unified
 redesign.
 
-## References
+## Implementation, validation & references
 
-Tidal physics: standard textbook material; the Jacobi-radius
-approximation traces to Roche; cluster-specific applications follow
-{cite:t}`Aarseth1974` and {cite:t}`Kuepper2011`. Fractal substructure:
-{cite:t}`Goodwin2004` for the original recursive tree;
-{cite:t}`Allison2009` for the dynamical-segregation consequence;
-progenax's FDF method is original. Mass segregation:
-{cite:t}`Baumgardt2008` for the energy-ordered construction;
-{cite:t}`Kuepper2011` for the McLuster S-shuffle.
+- **In code:** tidal truncation is `src/progenax/tidal.py`; the
+  equilibrium and primordial segregation routes are
+  `src/progenax/cluster/multicomponent.py` and
+  `src/progenax/cluster/mass_segregation.py`; the substructure
+  diagnostics are `src/progenax/diagnostics/`. See the
+  [tidal API](../../30-api/tidal.md), the [cluster API](../../30-api/cluster.md),
+  and the [diagnostics API](../../30-api/diagnostics.md); each chapter
+  below carries its exact module path. (The fractal *generator* moved to
+  the experimental, repo-only `gravoturb_fdf` package; only the CW04 $Q$
+  diagnostic remains in released progenax.)
+- **Validated in:** [tidal truncation](../../50-validation/tidal-truncation.md),
+  [fractal substructure](../../50-validation/fractal-substructure.md),
+  and [mass segregation](../../50-validation/mass-segregation.md).
+- **Primary sources:** tidal physics is standard textbook material (the
+  Jacobi-radius approximation traces to Roche), with cluster-specific
+  applications following {cite:t}`Aarseth1974` and {cite:t}`Kuepper2011`;
+  fractal substructure {cite:t}`Goodwin2004` (recursive tree) and
+  {cite:t}`Allison2009`; mass segregation {cite:t}`Baumgardt2008`
+  (energy-ordered construction) and {cite:t}`Kuepper2011` (McLuster
+  S-shuffle). Full notes in the
+  [bibliography](../../99-bibliography/index.md); each chapter below
+  points at the specific result(s) used.

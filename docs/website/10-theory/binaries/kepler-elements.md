@@ -18,6 +18,13 @@ This chapter derives the elements-to-phase-space conversion, lists
 the conventions progenax uses, and documents the differentiability
 properties that make `KeplerElements` HMC-compatible.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning Keplerian orbital elements and how progenax converts them to phase-space coordinates; no prior celestial-mechanics literature assumed.
+**Prerequisites:** [binary populations](index.md) (what a binary is in progenax, and the COM placement that this orbit sits on top of).
+**You'll get:** the seven orbital elements, Kepler's third law, the differentiable elements→$(\mathbf r,\mathbf v)$ pipeline (Kepler-equation solve included), and the relative→component split.
+:::
+
 ## The seven elements
 
 ```{list-table}
@@ -223,11 +230,19 @@ gradient call.
    binaries with $a \ll 1$ AU and component masses $\gtrsim 10\,\Msun$,
    relativistic corrections become observable on Gyr timescales.
 
-## References
+## Implementation, validation & references
 
-Kepler-element machinery is standard textbook material; Murray &
-Dermott *Solar System Dynamics* §2 gives a clean derivation. Modern
-N-body codes (NBODY6, COSMIC) use the same conventions and conversion
-sequence. progenax's `KeplerElements` is JAX-native via
-{cite:t}`Equinox`'s PyTree pattern; the Newton solver follows the
-standard fixed-iteration approach.
+- **In code:** `src/progenax/binaries/kepler.py` (`KeplerElements`, the
+  fixed-iteration Kepler-equation solver, and the elements→phase-space
+  conversion), with `compute_period` / `period_to_semimajor_axis` in
+  `src/progenax/binaries/kepler_period.py`. See the
+  [binaries API](../../30-api/binaries.md).
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
+  — the binary regression suite that exercises the orbit machinery
+  (Kepler's third law to $\sim 10^{-10}$).
+- **Primary sources:** Kepler-element machinery is standard textbook
+  material; Murray & Dermott *Solar System Dynamics* §2 gives a clean
+  derivation, and modern N-body codes (NBODY6, COSMIC) use the same
+  conventions. progenax's `KeplerElements` is JAX-native via
+  {cite:t}`Equinox`'s PyTree pattern; the Newton solver follows the
+  standard fixed-iteration approach.

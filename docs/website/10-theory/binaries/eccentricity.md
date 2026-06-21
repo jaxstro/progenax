@@ -12,6 +12,13 @@ calibration. Unlike $P$ and $q$, the eccentricity distribution is
 (small $e$); long-period binaries retain whatever eccentricity they
 formed with (typically thermal). progenax implements three families:
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers choosing a binary eccentricity distribution and learning why it is period-dependent; no prior binary-statistics literature assumed.
+**Prerequisites:** [Kepler orbital elements](kepler-elements.md) (eccentricity $e$ is the orbit-shape element) and [period distributions](period-distributions.md) (the Moe form is period-dependent).
+**You'll get:** the thermal, uniform, and Moe & Di Stefano period-dependent $f(e)$ laws, their sampling, the Roche-lobe ceiling, and how tidal circularisation enters.
+:::
+
 ```{list-table}
 :header-rows: 1
 
@@ -256,9 +263,17 @@ binary module, not in this eccentricity sampler.
    binaries, RS CVn analogues) the effects should be modelled
    separately.
 
-## References
+## Implementation, validation & references
 
-The thermal distribution is {cite:t}`Heggie1975`; the period-
-dependent treatment is {cite:t}`MoeDiStefano2017`; the tidal-circularisation
-timescale follows {cite:t}`Hurley2002`. For population-synthesis
-context see {cite:t}`Sana2012`.
+- **In code:** `src/progenax/binaries/eccentricity.py`
+  (`ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`),
+  with mixed-population routing in
+  `src/progenax/binaries/mass_dependent.py`. See the
+  [binaries API](../../30-api/binaries.md).
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md).
+- **Primary sources:** the thermal distribution is {cite:t}`Heggie1975`;
+  the period-dependent power law is {cite:t}`MoeDiStefano2017` (Eqs.
+  17–18, verified against their Fig. 36); the tidal-circularisation
+  timescale follows {cite:t}`Hurley2002`. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/moe-distefano-2017.md);
+  for population-synthesis context see {cite:t}`Sana2012`.

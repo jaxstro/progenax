@@ -50,6 +50,13 @@ in the redesign: its intermediate states drift from per-mass-group
 virial balance, while the equilibrium route gives a smooth,
 HMC-compatible segregation parameter *without* leaving equilibrium.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning primordial mass segregation — both the discrete energy-ordered generator and the differentiable equilibrium route; no prior cluster-dynamics literature assumed.
+**Prerequisites:** [spatial profiles](../spatial-profiles/index.md) and the multimass-equipartition idea (the equilibrium route is a [`MultiComponentCluster`](../populations/index.md) constructor).
+**You'll get:** the Baumgardt energy-ordered construction, the McLuster $S$-shuffle, the differentiable $\delta$-equipartition route, and the $\Lambda_{\mathrm{MSR}}$ diagnostic.
+:::
+
 ## The Baumgardt + McLuster construction
 
 The {cite:t}`Baumgardt2008` algorithm proceeds in four steps. We assume
@@ -394,12 +401,24 @@ implemented anywhere; for most production use cases, choose *one* of:
 
 See [](fractal.md) for the substructure side.
 
-## References
+## Implementation, validation & references
 
-The energy-ordered construction follows {cite:t}`Baumgardt2008`; the
-partial-segregation S-shuffle follows {cite:t}`Kuepper2011`; the
-diagnostic $\Lambda_{\mathrm{MSR}}$ is from {cite:t}`Allison2009`.
-{cite:t}`Subr2008` describes the alternative interparticle-energy
-construction not implemented here. The original observational evidence
-for primordial segregation in globular clusters is the focus of
-{cite:t}`Baumgardt2008`.
+- **In code:** the primordial energy-ordered generator is
+  `energy_sorted_segregation` in
+  `src/progenax/cluster/mass_segregation.py`; the differentiable
+  equilibrium route is `MultiComponentCluster.from_mass_segregation` in
+  `src/progenax/cluster/multicomponent.py`; the $\Lambda_{\mathrm{MSR}}$
+  diagnostic is `src/progenax/diagnostics/mass_segregation.py`. See the
+  [cluster API](../../30-api/cluster.md) and the
+  [diagnostics API](../../30-api/diagnostics.md).
+- **Validated in:** [mass segregation](../../50-validation/mass-segregation.md)
+  — the $\Lambda_{\mathrm{MSR}}$ ground-truth suite and the end-to-end
+  generator check; the equilibrium route is additionally pinned by
+  [multimass equilibrium](../../50-validation/multimass-equilibrium.md).
+- **Primary sources:** the energy-ordered construction follows
+  {cite:t}`Baumgardt2008`; the partial-segregation $S$-shuffle follows
+  {cite:t}`Kuepper2011`; the $\Lambda_{\mathrm{MSR}}$ diagnostic is
+  {cite:t}`Allison2009`; the equipartition law is {cite:t}`Gieles2015`;
+  {cite:t}`Subr2008` describes the alternative interparticle-energy
+  construction not implemented here. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/baumgardt-2008.md).

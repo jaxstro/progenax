@@ -34,6 +34,13 @@ into ζ(p) are developed in [](density-pdf-and-fdf.md). The {cite:t}`Burkhart201
 consumes ζ downstream is [](bm19.md).
 ```
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the magnification factor ζ and the three ways progenax computes it; no prior SFR-theory literature assumed.
+**Prerequisites:** [density PDFs and the freefall-density factor](density-pdf-and-fdf.md) (ζ is the FDF integral; the α↔p mapping feeds $p$ into ζ(p)).
+**You'll get:** the single integral definition of ζ, the PP20 analytic ζ(p), the cored-profile ζ, the parameter-free direct-3D ζ, and a "which mode when" guide.
+:::
+
 ## Why ζ exists, and how it is defined
 
 The local star formation rate per unit volume scales as $\dot\rho_\star \propto \rho /
@@ -412,14 +419,25 @@ The fix landed 2026-04-28 along with regression tests anchoring ζ on the values
 table above. Full history: [](../../90-development-log/2026-04-28-pp20-fix.md).
 ```
 
-## References
+## Implementation, validation & references
 
-ζ in this chapter follows {cite:t}`ParmentierPasquali2020` directly; the integral definition
-{eq}`zeta-def` and the α↔p correspondence come from {cite:t}`TanKrumholzMcKee2006`,
-{cite:t}`FederrathKlessen2012`, and {cite:t}`Kritsuk2011`. The {cite:t}`Kainulainen2014`
-observational anchor provides the $p = 1.67$ check value used in regression tests. The cored profile
-{eq}`cored-profile` is a standard {cite:t}`King1966`-style generalisation; the direct-3D soft-mask
-measurement is original to `gravoturb_fdf`, with the soft-sigmoid following the standard
-differentiable-programming "reparameterise discrete thresholds for autodiff" technique. The
-{cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ downstream is [](bm19.md).
-```
+- **In code:** `src/experimental/gravoturb_fdf/theory/pp20.py`
+  (`magnification_factor`, `magnification_factor_with_core`,
+  `zeta_fdf_direct`). This experimental subsystem is repo-only with no
+  generated website API page; the module reference is the package source
+  and its `VALIDATION_SUMMARY.md`.
+- **Validated in:** [physics tests](../../50-validation/physics-tests.md)
+  (the ζ spot-value regression suite) and
+  [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md);
+  the AC3/AC4 acceptance checks lock the anchors.
+- **Primary sources:** ζ follows {cite:t}`ParmentierPasquali2020`
+  directly; the integral definition {eq}`zeta-def` and the α↔p
+  correspondence come from {cite:t}`TanKrumholzMcKee2006`,
+  {cite:t}`FederrathKlessen2012`, and {cite:t}`Kritsuk2011`; the
+  {cite:t}`Kainulainen2014` observational anchor provides the
+  $p = 1.67$ check value; the cored profile {eq}`cored-profile` is a
+  standard {cite:t}`King1966`-style generalisation, and the direct-3D
+  soft-mask measurement is original to `gravoturb_fdf`. Full notes in
+  the [bibliography](../../99-bibliography/per-paper/parmentier-pasquali-2020.md).
+  The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ
+  is [](bm19.md).

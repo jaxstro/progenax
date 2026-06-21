@@ -14,6 +14,13 @@ fraction and mass ratios, how to assign Keplerian orbits to each
 binary, sample the orbital phase, and produce the resolved component
 positions and velocities that an N-body integrator consumes.
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers entering the binary-population track — learning how progenax turns a binary fraction and mass ratios into resolved Keplerian orbits; no prior binary-statistics literature assumed.
+**Prerequisites:** the [binary IMF](../imfs/binary.md) (which stars are paired, and their mass ratios) is the natural companion, but this is also a good entry point for the orbital-mechanics track.
+**You'll get:** what a "binary" is in progenax (provenance at $t=0$ vs. measured-from-state), the five composability axes of `build_binary_cluster`, and a map of the three chapters (elements, periods, eccentricities).
+:::
+
 ## Map of the section
 
 ```{list-table}
@@ -123,10 +130,21 @@ the same {cite:t}`MoeDiStefano2017` calibration — periods from
 and `MoeCompanions` samples them *jointly* to preserve the period-conditional
 non-separability noted at [](../imfs/multiplicity-statistics.md).
 
-## References
+## Implementation, validation & references
 
-Kepler-element machinery is standard textbook material. The period
-distributions follow {cite:t}`Sana2012` (OB-type),
-{cite:t}`DuquennoyMayor1991` (solar), and {cite:t}`MoeDiStefano2017`
-(joint $f(P)$). The eccentricity
-distributions follow {cite:t}`MoeDiStefano2017` and earlier compilations.
+- **In code:** the binary subsystem lives under `src/progenax/binaries/`
+  (`kepler.py`, `period.py`, `eccentricity.py`, `companions.py`,
+  `assembly.py`, `diagnostics.py`); composition with the IMF + spatial
+  profile + velocity DF is `build_binary_cluster` in
+  `src/progenax/builders.py`. See the [binaries API](../../30-api/binaries.md)
+  and the [builders API](../../30-api/builders.md); each chapter below
+  carries its exact module path.
+- **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
+  (the binary-IMF + composition regression suite).
+- **Primary sources:** Kepler-element machinery is standard textbook
+  material; period distributions {cite:t}`Sana2012` (OB-type),
+  {cite:t}`DuquennoyMayor1991` (solar), {cite:t}`MoeDiStefano2017`
+  (joint $f(P)$); eccentricity distributions {cite:t}`MoeDiStefano2017`
+  and earlier compilations. Full notes in the
+  [bibliography](../../99-bibliography/index.md); each chapter below
+  points at the specific result(s) used.

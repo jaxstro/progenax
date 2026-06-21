@@ -22,6 +22,13 @@ substructure) and a *different* turbulent-IC method:
   gravoturbulent method, **not** a displacement-field fractal; repo-only, not in the wheel).
 ```
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning the theory of clumpy young-cluster substructure and *why* the Goodwin–Whitworth fractal does not differentiate in JAX; no prior substructure literature assumed.
+**Prerequisites:** [tidal physics & substructure](index.md) (the modifier-layer framing). Note this is now a **theory/diagnostic** chapter — the generator was removed.
+**You'll get:** why GW04 is JAX-incompatible, the "match the statistics, not the algorithm" insight, the fractal-dimension $D$ ↔ CW04 $Q$ relationship, and pointers to the released $Q$ diagnostic and the experimental turbulent-IC method.
+:::
+
 Stars do not form in smooth, spherically symmetric distributions. Young
 clusters inherit clumpy, hierarchical spatial structure from the
 turbulent molecular clouds that birthed them, and that substructure
@@ -163,11 +170,24 @@ substructure that erases itself within $\sim 1$ Myr of evolution. See
 the primordial `energy_sorted_segregation` generator and the equilibrium
 `MultiComponentCluster.from_mass_segregation` constructor.
 
-## References
+## Implementation, validation & references
 
-The GW04 baseline is {cite:t}`Goodwin2004`; the substructure diagnostic is
-{cite:t}`Cartwright2004` (Q parameter) with the azimuthal-variation
-relation from {cite:t}`Kuepper2011`. The turbulent-fragmentation physical
-picture follows {cite:t}`FederrathKlessen2012` and {cite:t}`Kritsuk2011`.
-The cool-fractal dynamical-segregation pathway is {cite:t}`Allison2009`;
-the primordially-segregated comparison case is {cite:t}`Baumgardt2008`.
+- **In code:** the GW04/FDF *generator* was removed and has no released
+  successor; what survives in released progenax is the **diagnostic** —
+  `src/progenax/diagnostics/substructure.py`
+  (`compute_q_parameter`) and `src/progenax/diagnostics/q_approx.py`
+  (the differentiable kNN approximation). See the
+  [diagnostics API](../../30-api/diagnostics.md) and the
+  [JAX-native substructure-$Q$ design](../../20-architecture/jax-native-substructure-q.md).
+  Turbulent-density ICs now live in the experimental, repo-only
+  `src/experimental/gravoturb_fdf/` package.
+- **Validated in:** [fractal substructure](../../50-validation/fractal-substructure.md)
+  (the CW04 $Q$ uniform-sphere anchor $Q = 0.79 \pm 0.02$).
+- **Primary sources:** the GW04 baseline is {cite:t}`Goodwin2004`; the
+  substructure diagnostic is {cite:t}`Cartwright2004` ($Q$ parameter)
+  with the azimuthal-variation relation from {cite:t}`Kuepper2011`; the
+  turbulent-fragmentation picture follows {cite:t}`FederrathKlessen2012`
+  and {cite:t}`Kritsuk2011`; the cool-fractal dynamical-segregation
+  pathway is {cite:t}`Allison2009` and the primordially-segregated
+  comparison case {cite:t}`Baumgardt2008`. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/goodwin-2004.md).

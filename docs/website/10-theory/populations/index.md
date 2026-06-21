@@ -58,6 +58,13 @@ the constructor:
   - [](eddington-engine.md)
 ```
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning how progenax builds a single IC containing multiple stellar populations in one shared self-consistent potential; no prior multi-component-equilibrium literature assumed.
+**Prerequisites:** [spatial profiles](../spatial-profiles/index.md) and [velocity DFs](../velocity-dfs/index.md) (a multi-component cluster is the synthesis of both).
+**You'll get:** the two equilibrium engines (DF-defined Engine A vs. density-defined Engine B), when to choose which, and the per-component "no rescale" principle ($Q_j = 0.5$ from the DF).
+:::
+
 ## When to choose which engine
 
 **Choose Engine A when the DF family *is* the model.** The
@@ -150,13 +157,23 @@ Each component composes with the modifier layers:
 star's generating component, so per-population diagnostics (radial
 profiles, $\sigma_j(r)$, $Q_j$, $\Lambda_{\rm MSR}$) are one mask away.
 
-## References
+## Implementation, validation & references
 
-Self-consistent multi-mass lowered-isothermal equilibria follow
-{cite:t}`Gieles2015` (Section 4.1 for the multi-mass coupling);
-Eddington inversion with Osipkov–Merritt anisotropy follows
-{cite:t}`Merritt1985`. Multi-population N-body initial conditions are
-standard practice — {cite:t}`Kuepper2011`'s McLuster supports layered
-multi-population ICs — but the layered single-DF-per-component
-approach is *not* a joint equilibrium; the shared-potential treatment
-on this page is what replaces it in progenax.
+- **In code:** `src/progenax/cluster/multicomponent.py`
+  (`MultiComponentCluster`, both engines), with the Engine-B
+  shared-potential quadrature in
+  `src/progenax/profiles/density_poisson.py` and the Eddington inverter
+  in `src/progenax/kinematics/eddington.py`. See the
+  [cluster API](../../30-api/cluster.md); each chapter below carries its
+  exact module path.
+- **Validated in:** [multimass equilibrium](../../50-validation/multimass-equilibrium.md)
+  (Engine A), [Engine B (Eddington)](../../50-validation/engine-b-eddington.md),
+  and [two-component](../../50-validation/two-component.md).
+- **Primary sources:** self-consistent multi-mass lowered-isothermal
+  equilibria follow {cite:t}`Gieles2015` (§4.1 multi-mass coupling);
+  Eddington inversion with Osipkov–Merritt anisotropy follows
+  {cite:t}`Merritt1985`; layered multi-population ICs are standard
+  N-body practice ({cite:t}`Kuepper2011`'s McLuster), but that layered
+  single-DF-per-component approach is *not* a joint equilibrium — the
+  shared-potential treatment here is what replaces it. Full notes in the
+  [bibliography](../../99-bibliography/index.md).

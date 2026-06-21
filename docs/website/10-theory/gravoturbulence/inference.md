@@ -34,6 +34,13 @@ This chapter develops the method in two settings: the **3-D gas-map** inference 
 density-PDF tail slope $\alpha$ becomes recoverable) and the **projected 2-D star-map** inference
 (the differentiable successor to the heuristic $Q$/MST substructure metrics for $\beta$).
 
+:::{admonition} Who this page is for
+:class: note
+**Audience:** new students & researchers learning how the (experimental) gravoturbulence forward chain is inverted — recovering natal cloud parameters from cluster substructure via differentiable predicted statistics + HMC; some prior exposure to Bayesian inference helps but no clustering-statistics literature is assumed.
+**Prerequisites:** [the BM19 framework](bm19.md) (the forward model being inverted) and [the magnification factor](magnification-factor.md) (the soft-mask differentiability trick).
+**You'll get:** the "predict the statistic, not the simulator" playbook, the Gaussianization/Mehler 2-point carrier, counts-in-cells, the peaks-over-threshold α block, and the projected differentiable β estimator (the Q/MST successor).
+:::
+
 ## The obstacle, and the breakthrough
 
 The forward model is stochastic and full of non-differentiable steps: a rank sort imposes the
@@ -406,17 +413,31 @@ These define what the method does *not* claim.
 - **Survey design.** The forecast answers "to measure $\alpha$ to $10\%$ in this cloud, you need a
   gas map with $N_{\rm eff} \approx X$ independent tail elements" — a concrete depth and resolution.
 
-## References
+## Implementation, validation & references
 
-The density-PDF framework is {cite:t}`FederrathKlessen2012` and {cite:t}`BurkhartMocz2019`; the
-dense-gas SFR formalism is {cite:t}`Burkhart2018`. The fractal density field follows the
-fractional-Brownian-motion construction of {cite:t}`Lomax2018`, with the density-spectrum slope
-$\beta$ from {cite:t}`KimRyu2005`. The Gaussianization/Mehler machinery is from {cite:t}`ColesJones1991`
-and {cite:t}`SzapudiPan2004`, with the information-theoretic basis in
-{cite:p}`Neyrinck2009,Neyrinck2011,CarronSzapudi2013,CarronSzapudi2014`; the FFT field generation and
-2-point estimators follow {cite:p}`CarronWolkSzapudi2014,Szapudi2005`. The substructure metric is
-{cite:t}`Cartwright2004`. Inference uses the No-U-Turn Sampler {cite:p}`HoffmanGelman2014` via
-blackjax {cite:p}`blackjax`, on {cite:p}`JAX`; SBC follows {cite:t}`Talts2018`; the
-simulation-based-inference alternative is {cite:t}`Bairagi2026`. Module reference and fresh validation
-numbers: `src/experimental/gravoturb_fdf/README.md` and `VALIDATION_SUMMARY.md`.
-```
+- **In code:** the inference layer is
+  `src/experimental/gravoturb_fdf/inference/` (`likelihood.py`,
+  `fisher.py`, `hmc.py`, `priors.py`, `projected_logp.py`,
+  `covariance.py`, `flow_npe.py`, `sbc.py`), with the field generator in
+  `src/experimental/gravoturb_fdf/field/` and the 2-point machinery in
+  `src/experimental/gravoturb_fdf/theory/gaussianization.py`. This
+  experimental subsystem is repo-only with no generated website API
+  page; the module reference is the package source and its
+  `VALIDATION_SUMMARY.md`.
+- **Validated in:** [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md)
+  (current validation status); the AC16/AC17 acceptance assertions cover
+  the α recovery and the σ(α)-vs-$N_{\rm tail}$ forecast.
+- **Primary sources:** the density-PDF framework is
+  {cite:t}`FederrathKlessen2012` and {cite:t}`BurkhartMocz2019`, the
+  dense-gas SFR formalism {cite:t}`Burkhart2018`; the fractal density
+  field follows {cite:t}`Lomax2018` with the density-spectrum slope
+  $\beta$ from {cite:t}`KimRyu2005`; the Gaussianization/Mehler
+  machinery is {cite:t}`ColesJones1991` and {cite:t}`SzapudiPan2004`,
+  with the information-theoretic basis in
+  {cite:p}`Neyrinck2009,Neyrinck2011,CarronSzapudi2013,CarronSzapudi2014`
+  and FFT estimators from {cite:p}`CarronWolkSzapudi2014,Szapudi2005`;
+  the substructure metric is {cite:t}`Cartwright2004`. Inference uses
+  the No-U-Turn Sampler {cite:p}`HoffmanGelman2014` via blackjax
+  {cite:p}`blackjax` on {cite:p}`JAX`; SBC follows {cite:t}`Talts2018`;
+  the SBI alternative is {cite:t}`Bairagi2026`. Full notes in the
+  [bibliography](../../99-bibliography/per-paper/burkhart-mocz-2019.md).
