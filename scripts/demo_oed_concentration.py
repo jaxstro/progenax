@@ -4,17 +4,17 @@ r"""W0-OED (concentration) -- the c-optimal observing design for a cluster's W0.
 Stage-1 (``demo_oed.py``) asked where to spend a fixed star budget (radial bins x
 {RV, PM_R, PM_T}) to best constrain the Osipkov-Merritt anisotropy radius ``r_a``.
 This demo asks the SAME question for the cluster CONCENTRATION ``W0`` -- the headline
-of the W0-differentiability arc (ADR-0016 C1 PCHIP, ADR-0017 df_moment W0 lock) closed
+of the W0-differentiability arc (C1 PCHIP interpolation + fixed-node DF-moment W0 gradient) closed
 through an actual Fisher/OED inference that treats W0 as a parameter, for BOTH a King
 (headline OM-King) and a Michie profile. See
-``docs/plans/2026-06-18-oed-concentration-w0-{design,plan}.md``.
+an internal design note.
 
-The load-bearing idea (Stage-1, ADR-0004) is unchanged: the design Fisher is ADDITIVE
+The load-bearing idea (Stage-1) is unchanged: the design Fisher is ADDITIVE
 and LINEAR in the design, ``F(z) = sum_{bin b, channel c} n_eff,{b,c} * M_{b,c}``, each
 per-star block ``M_{b,c} = 2 J J^T / (sigma^2 + eps_c^2)`` design-INDEPENDENT and built
 ONCE via a single reverse-mode ``jacrev`` through ``project_dispersion`` (the OM Jeans +
 Binney & Mamon 1982 projection of the King/Michie density). The optimization is then
-pure 3x3 linear algebra. The Fisher is built wrt ``ln theta`` (ADR-0011), so every
+pure 3x3 linear algebra. The Fisher is built wrt ``ln theta``, so every
 covariance entry is a FRACTIONAL variance and the c-headline is the fractional precision
 ``sigma(W0)/... = sqrt((F^-1)_{W0,W0})`` -- the squared fractional precision on ln W0.
 

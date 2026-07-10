@@ -3,7 +3,7 @@
 Headlines W0 = concentration: "where to spend a fixed star budget (radial bins x
 {RV, PM_R, PM_T}) to best constrain a cluster's concentration W0", on the Stage-1
 additive-Fisher backbone (scripts/_demo_oed.py), for King (headline OM-King) and
-Michie. See docs/plans/2026-06-18-oed-concentration-w0-{plan,design}.md.
+Michie.
 
 Scripts-only: no src/progenax/ surface, informax-bound, held OUT of v0.1.0 (the OED
 hold-out decision). This module is a CONSUMER of progenax.project_dispersion (the
@@ -433,7 +433,7 @@ def jacobian_and_sigma(theta, R_bins, G, model):
     theta = (W0, r_a, M) spans ~5 orders of magnitude (W0~6, r_a~6, M~1e5), so the
     raw Fisher is ill-conditioned. Differentiating wrt ln theta (J -> J * diag(theta))
     makes the Fisher dimensionless and every (F^-1) entry a FRACTIONAL variance
-    (ADR 0011) -- the natural metric for "fractional precision on the concentration
+    -- the natural metric for "fractional precision on the concentration
     W0". The ln-theta scaling is the single multiply J * theta[None, None, :], by the
     chain rule d sigma / d ln theta_i = (d sigma / d theta_i) * theta_i.
 
@@ -447,7 +447,7 @@ def jacobian_and_sigma(theta, R_bins, G, model):
     )  # (3, K, 3) -- d sigma / d theta
     return J * theta[
         None, None, :
-    ], sig  # -> d sigma / d ln theta (DIMENSIONLESS, ADR 0011)
+    ], sig  # -> d sigma / d ln theta (DIMENSIONLESS)
 
 
 # ===========================================================================
@@ -475,7 +475,7 @@ def jacobian_and_sigma(theta, R_bins, G, model):
 #   * M (index 2) is the total mass -> a 30% fractional prior (precision 1/0.3**2):
 #     M has an external observational constraint (integrated light x M/L) OUTSIDE
 #     the kinematic dataset, so we encode it as a weak Gaussian prior. In the
-#     dimensionless (d ln theta) metric (ADR 0011) this is a FRACTIONAL precision.
+#     dimensionless (d ln theta) metric this is a FRACTIONAL precision.
 #
 # SPD finding (measured, not assumed; test_blocks_shape_symmetry_and_fisher_spd +
 # test_fisher_spd_over_random_designs): with this M-only prior the additive design
@@ -601,7 +601,7 @@ def optimize_design(
 #       and takes no model arg, so it cannot be reused directly). Physical-Adam is
 #       NOT used: it pins the large-scale M~1e5 (Stage-2 lesson);
 #   (c) collect ln(W0_hat) and compare Var(ln W0_hat) to (inv F_design)_{W0, W0}
-#       (already a fractional/ln variance in the ln-theta metric, ADR 0011).
+#       (already a fractional/ln variance in the ln-theta metric).
 #
 # Binning-helper COUPLING TRAP (handled): _demo_oed._r_bin_edges / _binned_sigma_hat
 # read Stage-1's MODULE-GLOBAL R_BINS / EPS (different VALUES from ours -- Stage-1 is
@@ -882,7 +882,7 @@ def _fit_theta_W0_gn(sigma_hat, se, G, model, n_iter=_GN_N_ITER):
 
 
 class CalibResultW0(NamedTuple):
-    """Result of calibrate_fisher_W0 (variances are FRACTIONAL/ln variances, ADR 0011):
+    """Result of calibrate_fisher_W0 (variances are FRACTIONAL/ln variances):
     * realized_var_W0  : Var(ln W0_hat over draws, ddof=1),
     * fisher_var_W0    : (inv F_design)_{W0, W0} at the same (z, N_total),
     * max_W0_step      : max over draws of each LM fit's W0-target witness (the max
@@ -910,7 +910,7 @@ def calibrate_fisher_W0(z, N_total, n_draws, key, model, n_iter=_GN_N_ITER):
     Returns a CalibResultW0(realized_var_W0, fisher_var_W0, max_W0_step, n_unconverged). The
     Fisher prediction is (inv F_design)_{W0, W0} at (z, N_total) with the per-star blocks at the
     truth; the realized quantity is Var(ln W0_hat over n_draws independent OM mocks, ddof=1)
-    (both fractional/ln variances, ADR 0011). The gate
+    (both fractional/ln variances). The gate
     (test_W0_fisher_calibration_matches_realized_scatter) asserts they agree to
     2 sqrt(2/n_draws) -- the MC error on a variance from n_draws draws.
 

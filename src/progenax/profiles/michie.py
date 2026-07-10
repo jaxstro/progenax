@@ -7,7 +7,7 @@ given density fixed and inverts for f), Michie specifies the DF and solves Poiss
 new, self-consistent, more centrally-radial density.
 
 See docs/website/99-bibliography/per-paper/michie-1963.md and
-docs/plans/2026-06-03-michie-king-anisotropic-model-design.md.
+an internal design note.
 """
 
 import diffrax
@@ -277,7 +277,7 @@ class MichieProfile(eqx.Module):
 
         Differentiability:
             Reverse-mode differentiable wrt W0/r_c/r_a (the r_t crossing uses the
-            UNCLAMPED psi_raw so the gradient flows; ADR-0016 / audit Task 1.2b).
+            UNCLAMPED psi_raw so the gradient flows).
         """
         # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
         # through the crossing interpolation (audit Task 1.2b).

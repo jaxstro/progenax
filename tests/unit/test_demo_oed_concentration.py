@@ -116,14 +116,14 @@ def test_jacobian_lntheta_shape_and_W0_column_nonzero():
 # gradient ON THE W0 PARAMETER is the h->0 truth. We differentiate the per-bin,
 # per-channel observable w.r.t. theta[0] (= W0) and scale by W0 to get the
 # DIMENSIONLESS d sigma / d ln W0 (the same ln-theta metric the Fisher uses,
-# jacobian_and_sigma / ADR-0011).
+# jacobian_and_sigma).
 #
-# METHODOLOGY (ADR-0016, mirroring the repo's ratified Michie Richardson idiom
+# METHODOLOGY (mirroring the repo's ratified Michie Richardson idiom
 # tests/unit/kinematics/test_dispersion.py::test_grad_jeans_michie_high_W0_ad_correct):
 # a fixed-step central FD is only a faithful truth-proxy where d sigma/d W0 has
 # mild curvature. Near a high-curvature bin (project_dispersion's B&M82 projection
 # weights a thin radial shell where sigma_r(W0) bends sharply -- the same r_t(W0)
-# proximity effect as ADR-0016) the fixed-step FD's O(h^2 sigma''') truncation
+# proximity effect) the fixed-step FD's O(h^2 sigma''') truncation
 # error dominates, so a fixed `rel < 1e-3` floor would mis-flag a CORRECT AD
 # gradient. The faithful proxy there is the Richardson TREND: the central-FD
 # estimate must CONVERGE toward AD as h shrinks (FD -> AD), proving AD is the h->0
@@ -160,7 +160,7 @@ def _central_fd_lnW0(f, W0, h):
 
 
 def _assert_ad_is_hto0_limit(model, channel, R_bins):
-    """At EVERY bin, assert AD is the h->0 FD limit (ADR-0016 Richardson proof):
+    """At EVERY bin, assert AD is the h->0 FD limit (Richardson proof):
 
       (a) AD matches a CONVERGED (fine-step) FD to < 1e-3  -> AD value is correct;
       (b) the fixed-step FD CONVERGES toward AD as h shrinks (rel_fine < rel_coarse)
@@ -194,7 +194,7 @@ def _assert_ad_is_hto0_limit(model, channel, R_bins):
 
 
 def test_grad_sigma_W0_king_AD_vs_FD():
-    """OM-King d sigma/d ln W0 AD-vs-FD, all bins, all 3 channels (ADR-0016).
+    """OM-King d sigma/d ln W0 AD-vs-FD, all bins, all 3 channels.
 
     AD is the h->0 truth at EVERY bin (converged-FD match + Richardson trend). On the
     FD-RELIABLE bins (where the fixed-step central FD is a faithful proxy) the
@@ -215,7 +215,7 @@ def test_grad_sigma_W0_king_AD_vs_FD():
 
 
 def test_grad_sigma_W0_michie_inner_AD_vs_FD():
-    """OM-Michie d sigma/d ln W0 AD-vs-FD at R <= r_a, all 3 channels (ADR-0016).
+    """OM-Michie d sigma/d ln W0 AD-vs-FD at R <= r_a, all 3 channels.
 
     AD is the h->0 truth at every inner bin (converged-FD + Richardson trend). The
     design's strict `rel < 1e-3` fixed-step floor holds on the FD-reliable inner bins;
@@ -240,7 +240,7 @@ def test_grad_sigma_W0_michie_inner_AD_vs_FD():
 
 
 def test_grad_sigma_W0_michie_outer_richardson():
-    """OM-Michie d sigma/d ln W0 at the OUTERMOST bin: Richardson convergence (ADR-0016).
+    """OM-Michie d sigma/d ln W0 at the OUTERMOST bin: Richardson convergence.
 
     At R = R_BINS[-1] (= 12 r_c, well beyond r_a = 6) Michie's r_t(W0) near-divergence
     makes a FIXED-STEP central FD a poor truth-proxy (design: ~8e-3 at R=8, h=1e-4),
@@ -274,7 +274,7 @@ def test_grad_sigma_W0_michie_outer_richardson():
         ]
         # AD matches the converged (finest-step) FD ...
         assert rels[-1] < _FD_FLOOR, (channel, "AD != converged-FD", rels)
-        # ... and the FD CONVERGES toward AD as h shrinks (Richardson; ADR-0016).
+        # ... and the FD CONVERGES toward AD as h shrinks (Richardson).
         assert rels[-1] < rels[0], (
             channel,
             "FD did not converge to AD as h shrank -- a real gradient defect",
@@ -389,7 +389,7 @@ def test_W0_fisher_calibration_matches_realized_scatter():
     still parametrized king/michie. (calibrate_fisher_W0(model="michie") still exists but is
     not exercised here; running it needs the memory caveat above.)
 
-    Both quantities are fractional/ln variances (ADR-0011). The tolerance band is the
+    Both quantities are fractional/ln variances. The tolerance band is the
     Monte-Carlo error on a variance estimated from n_draws draws (~2 sqrt(2/n_draws));
     if the ratio is outside the band the design Fisher is wrong -- root-cause it, do NOT
     widen the band.

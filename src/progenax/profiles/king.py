@@ -300,9 +300,7 @@ def _find_tidal_radius(
         The forward VALUE is identical to the clamped path (psi1 enters only via
         the same interpolation fraction); only the gradient differs. Feeding the
         CLAMPED psi instead sets psi1=0 at the crossing node, zeroing
-        d(xi_t)/dW0 (the original silent-zero hazard). Rationale + design:
-        docs/plans/2026-06-08-king-differentiable-tidal-radius-deferred.md
-        (RESOLVED).
+        d(xi_t)/dW0 (the original silent-zero hazard). Rationale + design: internal design note (RESOLVED).
     """
     # Find where psi drops to zero (or below due to numerics)
     crossing_mask = psi_grid <= 0

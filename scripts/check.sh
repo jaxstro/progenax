@@ -12,7 +12,7 @@
 #   2. The test invocation uses the XLA thread caps + pytest-xdist `-n auto`
 #      (progenax/CLAUDE.md "Quick Commands"): the multimass-LIMEPY equilibrium tests
 #      make the serial suite slow, so we cap XLA threads and shard with xdist.
-#   3. The wheel depends on the PUBLIC jaxstro sibling (local path source, ADR-0012),
+#   3. The wheel depends on the PUBLIC jaxstro sibling (local path source),
 #      not PyPI, so the clean-venv smoke installs the jaxstro checkout alongside the
 #      wheel (mirrors CI's wheel-smoke job) and imports progenax + progenax.diagnostics
 #      (the R9 lazy-scipy carve: the clean venv has no scipy, so diagnostics must

@@ -1,10 +1,10 @@
 """Stage-1 OED demo core: additive Fisher over (radius x channel), c/D/A criteria,
 optax optimizer, sky projection + calibration. Consumer of progenax.project_dispersion.
-See docs/plans/2026-06-16-oed-demo-stage1-design.md.
+See the internal design note.
 
 This module is the integrated Stage-1 core (the predicted observable g(theta); the
 design-INDEPENDENT per-star Fisher blocks; the additive Fisher F = Sum n*c*M in the
-dimensionless ln-theta metric, ADR 0011; the c/D/A criteria; the optax optimizer; and
+dimensionless ln-theta metric; the c/D/A criteria; the optax optimizer; and
 the sky-projection + mock-draw calibration). The predicted observable g(theta) and the
 per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2) are computed via ONE
 reverse-mode jacrev through project_dispersion (the only place the forward model is
@@ -83,7 +83,7 @@ def predict_sigma(theta, R_bins, G):
 
 def per_star_blocks(theta, R_bins, eps, G):
     """Design-INDEPENDENT per-star Fisher blocks M_{c,b} = 2 J J^T / (sigma^2 + eps_c^2),
-    in the DIMENSIONLESS fractional (d ln theta) metric (ADR 0011).
+    in the DIMENSIONLESS fractional (d ln theta) metric.
 
     A dispersion measured from n stars (per-star error eps, predicted dispersion
     sigma) has Gaussian error delta_sigma^2 = (sigma^2 + eps^2) / (2 n), so the
@@ -107,7 +107,7 @@ def jacobian_and_sigma(theta, R_bins, G):
 
     theta = (r_a, M, r_h) spans ~5 orders of magnitude, so the raw Fisher is ill-conditioned
     (cond ~ 1.7e9). Differentiating wrt ln theta (J -> J * diag(theta)) makes F dimensionless
-    (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance (ADR 0011). Reverse-mode jacrev
+    (cond ~ 45) and every (F^-1) entry a FRACTIONAL variance. Reverse-mode jacrev
     by policy (forward-mode would crash through the King/Michie custom_vjp ODEs).
     """
     sig = predict_sigma(theta, R_bins, G)  # (3, K)
@@ -129,7 +129,7 @@ def blocks_from_eps(J, sig, eps):
 # Task 2: design allocation, completeness, and the additive Fisher F = Sum n*c*M
 # ===========================================================================
 #
-# The Fisher information is ADDITIVE and LINEAR in the design (ADR 0004): each
+# The Fisher information is ADDITIVE and LINEAR in the design: each
 # per-star block M_{c,b} (Task 1) is design-independent, so the full design
 # Fisher is just the weighted sum F = sum_{c,b} n_eff,{c,b} M_{c,b}, where the
 # effective per-(channel,bin) star count is the budget allocated via a softmax
@@ -201,7 +201,7 @@ def fisher(z, Mb, completeness_b, N_total, prior_diag=None):
 # ===========================================================================
 #
 # F is the dimensionless ln-theta Fisher (Task 2.5), so every F^-1 entry is a
-# FRACTIONAL variance (ADR 0011). The three classical alphabet-optimality
+# FRACTIONAL variance. The three classical alphabet-optimality
 # criteria below are therefore all in the fractional metric and are each cast
 # as a quantity to MINIMIZE, so the same optax loop (Task 4) drives all three:
 #   c-optimality: minimize the marginal fractional variance of the TARGET r_a
@@ -336,7 +336,7 @@ def optimize_design(
 #   broaden by the per-star measurement error, form sigma_hat + its SE  ->
 #   fit the MAP theta=(r_a, M, r_h) with the SAME fractional ln-theta prior the
 #   design Fisher uses  ->  collect r_a_hat.
-# Then Var(r_a_hat)/r_a_truth**2 (REALIZED FRACTIONAL variance, ADR 0011) is
+# Then Var(r_a_hat)/r_a_truth**2 (REALIZED FRACTIONAL variance) is
 # compared to (inv F_design)_{r_a, r_a} (the design's FRACTIONAL variance).
 
 
@@ -364,7 +364,7 @@ def project_to_sky(pos, vel):
 
 
 class CalibResult(NamedTuple):
-    """Result of calibrate_fisher (both entries are FRACTIONAL variances, ADR 0011):
+    """Result of calibrate_fisher (both entries are FRACTIONAL variances):
     * realized_var_ra : Var(r_a_hat over draws) / r_a_truth**2,
     * fisher_var_ra   : (inv F_design)_{r_a, r_a} at the same (z, N_total)."""
 
@@ -493,7 +493,7 @@ def calibrate_fisher(z, N_total, n_draws, key):
     """Calibrate the design Fisher against the realized scatter of r_a_hat.
 
     Returns a CalibResult(realized_var_ra, fisher_var_ra), BOTH fractional
-    variances (ADR 0011). The Fisher prediction is (inv F_design)_{r_a, r_a} at
+    variances. The Fisher prediction is (inv F_design)_{r_a, r_a} at
     (z, N_total) with the per-star blocks at the truth; the realized quantity is
     Var(r_a_hat over n_draws independent mocks) / r_a_truth**2. The gate
     (test_fisher_calibration_matches_realized_scatter) asserts they agree to 35%

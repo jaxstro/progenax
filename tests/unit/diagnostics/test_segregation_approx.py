@@ -1,6 +1,6 @@
 """Unit tests for differentiable mass-segregation observables.
 
-RED-first per docs/plans/2026-06-09-differentiable-segregation-observable-design.md.
+RED-first per the internal design note.
 Covers the shared soft-mass-cut kernel and the radial-concentration observable.
 Oracles live in tests/validation/test_segregation_approx_physics.py.
 """

@@ -1,6 +1,6 @@
 """The release gradient-gate: every registered entry point is finite + FD-consistent
 (or a documented, pinned limitation). Numbers are emitted to JSON by scripts/audit_gradients.py;
-this gate asserts on the same engine. See docs/plans/2026-06-13-...-design.md.
+this gate asserts on the same engine.
 
 Confirmed-but-unfixed hazards are pinned with strict-xfail MARKERS (not imperative
 pytest.xfail) so the assertion still runs: a hazard fails -> the marker converts it to XFAIL,

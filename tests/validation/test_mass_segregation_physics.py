@@ -2,7 +2,7 @@
 
 Validates ``progenax.diagnostics.compute_lambda_msr`` (Allison et al. 2009) against
 *analytic / hand-constructed* ground truth — NO N-body evolution (that is deferred to the
-gravax session; see docs/notes/2026-06-08-gravax-segregation-validation-followup.md).
+gravax session; internal design note).
 
 Λ_MSR = ⟨L_random⟩ / L_massive  (>1 segregated, ≈1 none, <1 inverse), error = σ_random/L_massive,
 verified against the held ApJ 700 L99 PDF (see docs/website/99-bibliography/per-paper/allison-2009.md).

@@ -603,7 +603,7 @@ def test_projection_plummer_los_oracle_converges():
 
     (Pre-2026-06-17 this test also asserted the error DECREASES as n_u grows, when
     the residual was the projection-u O(h^2) trapezoid term. The C¹ PCHIP master
-    back-interp (ADR-0016) lowered the master-Jeans interpolation floor to ~5.2e-6
+    back-interp lowered the master-Jeans interpolation floor to ~5.2e-6
     and that floor — controlled by the master n_s, NOT n_u — now dominates the
     projection-u term for n_u >~ 1000. So refining n_u no longer reduces the total
     (it approaches the master floor), and n_u-convergence can no longer discriminate

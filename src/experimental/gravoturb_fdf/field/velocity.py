@@ -14,7 +14,7 @@ is automatically accounted for.
 spectrum). Match it to the target turbulence (e.g. Larson σ–size / compressible-turbulence velocity
 spectra; verify against Heyer 2009 / Federrath et al. before treating any default as physical).
 
-JAX-native, differentiable in positions. See docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md.
+JAX-native, differentiable in positions.
 """
 
 import jax

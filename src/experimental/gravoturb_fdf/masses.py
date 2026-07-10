@@ -16,7 +16,7 @@ built on the McLuster Eq. A1 partial-shuffle (Küpper et al. 2011) applied to a 
 than an orbital-energy key. Mass-conserving (a pure permutation). Non-differentiable (categorical
 ranking), consistent with the rest of star placement (spec §8); ``lambda_corr`` is the knob.
 
-JAX-native (``jax.lax.scan``). See docs/plans/2026-06-07-gravoturb-fdf-methods-figures-and-segregation-validation-design.md.
+JAX-native (``jax.lax.scan``).
 """
 
 import jax

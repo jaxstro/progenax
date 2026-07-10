@@ -15,7 +15,7 @@ the gate is ``ratio > 0.5``. The threshold is NOT to be weakened — if the phys
 operating point gives ``ratio <= 0.5`` the test must FAIL and the number is reported as
 a finding (the Phase-4 sweep spans the ratio).
 
-See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
+See the internal design note.
 """
 
 import os
@@ -111,7 +111,7 @@ def test_sigma_cluster_ref_is_max_of_cluster_sigma_los():
 
 
 # ---------------------------------------------------------------------------
-# Task 1.2: binary-inflated observable + ONE jacrev (ln-theta, ADR 0011)
+# Task 1.2: binary-inflated observable + ONE jacrev (ln-theta)
 # ---------------------------------------------------------------------------
 def test_predict_sigma_obs_adds_binary_pedestal():
     """sigma_obs^2 = sigma_cluster^2 + f_bin * V_BIN (the flat binary pedestal),

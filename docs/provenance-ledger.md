@@ -1,8 +1,12 @@
 # Provenance & Credibility Ledger — progenax release-prep
 
 **Arc:** `feat/provenance-credibility-audit` ·
-**Design:** [`docs/plans/2026-06-14-provenance-credibility-audit-design.md`](plans/2026-06-14-provenance-credibility-audit-design.md) ·
+**Design:** an internal design note (maintainer-local) ·
 **Started:** 2026-06-14
+
+> Design and plan documents referenced in this ledger are maintainer-local
+> (untracked in the public tree as of 2026-07); they are named here for provenance
+> but their files live only in a maintainer checkout.
 
 One row per audited scientific claim / constant / citation →
 `source (paper + eq/table/page)` → **verdict**:
@@ -187,7 +191,7 @@ API confirmed at definition sites: env-IMF = **functional** `BirthEnvironment` +
 | IGIMF/EnvironmentIMF in module table | `2025-12-07-progenax-review.md` | extended the existing retirement banner (body preserved unedited) | 🔧 fixed |
 
 **Deferred to the build_cluster batch** (Anna: make `build_plummer_cluster` a *real* API — design
-`docs/plans/2026-06-14-cluster-builder-api-design.md`, commit `0a7a424`): `methodology.md:117` +
+commit `0a7a424`): `methodology.md:117` +
 `units-policy.md:103` / `three-brick-state.md:151` `build_plummer_cluster` snippets → repoint to the
 real builder once it exists (avoids double-editing).
 
@@ -326,7 +330,7 @@ untraceable-but-loads-nothing value and the phantom-API docs:
   retired; galaxy-wide-IGIMF overclaim scoped; stale snapshots banner-archived.
 
 **Spin-off (ratified):** the phantom `build_plummer_cluster` → a real SoTA differentiable IC-builder
-API (design `docs/plans/2026-06-14-cluster-builder-api-design.md`, `0a7a424`), implementation pending.
+API (design commit `0a7a424`), implementation pending.
 
 **Remaining (Anna's adjudication, non-blocking):** see the ⚠ bullet above (Kroupa 1995 page;
 build_plummer_cluster repoint; low-priority hygiene). Needs-fetch deferred (Tier-3/experimental +

@@ -6,13 +6,13 @@ A pure pre-DATA optimal-experimental-design (OED) demo. We have a fixed budget o
 want to MINIMIZE the marginal (fractional) variance of the Osipkov-Merritt
 anisotropy radius ``r_a`` of a mock GC-scale cluster -- a c-optimal design.
 
-The load-bearing idea (ADR 0004): the design Fisher is ADDITIVE and LINEAR in the
+The load-bearing idea: the design Fisher is ADDITIVE and LINEAR in the
 design, ``F(design) = sum_{bin b, channel c} n_eff,{b,c} * M_{b,c}``, where each
 per-star block ``M_{b,c} = 2 J J^T / (sigma^2 + eps_c^2)`` is design-INDEPENDENT
 and computed ONCE via a single reverse-mode ``jacrev`` through the packaged
 ``project_dispersion`` (Binney & Mamon 1982 projection of the OM-Plummer Jeans
 model). The optimization is then pure 3x3 linear algebra. The Fisher is built wrt
-``ln theta`` (ADR 0011), so it is dimensionless and every covariance entry is a
+``ln theta``, so it is dimensionless and every covariance entry is a
 FRACTIONAL variance; the c-headline is the fractional precision ``sigma(r_a)/r_a``.
 
 What the demo computes and gates:

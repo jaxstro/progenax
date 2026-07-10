@@ -238,7 +238,16 @@ docs/core-papers/
 !docs/website/60-science-demos/optimal-design/figures/
 !docs/website/60-science-demos/optimal-design/figures/*.png
 
+# Internal working documents — maintainer-local, not part of the public tree.
+# Kept on disk (and reachable in git history); untracked at HEAD so the public
+# repo shows the curated science/provenance surface, not the process scaffolding.
+# See docs/provenance-ledger.md for the note on the design-doc links.
 .adr/
+docs/plans/
+docs/notes/
+docs/archive/
+audits/
+papers/
 
 # JAX persistent compilation cache (scripts-only demo cache; opt#3 in _demo_oed_concentration.py)
 .jax_cache/

@@ -448,7 +448,7 @@ matches a converged finite difference), but a single fixed-step FD is an
 unreliable truth-proxy because the map's curvature is near-singular — so the
 Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``);
 the high-``W0`` correctness is pinned by a Richardson-FD test
-(``test_grad_jeans_michie_high_W0_ad_correct``). See ADR-0016.
+(``test_grad_jeans_michie_high_W0_ad_correct``).
 
 *Source: [`progenax/kinematics/dispersion.py#L436`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L436)*
 

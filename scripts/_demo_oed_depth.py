@@ -463,7 +463,7 @@ def _binned_sigma_hat_selected(key, m_lim, n_eff):
 
 
 def _fit_theta_gn(sigma_hat, se, prior_diag, n_iter=8):
-    """Gauss-Newton MAP fit of theta=(r_a, M, r_h) in the DIMENSIONLESS ln-theta metric (ADR 0011),
+    """Gauss-Newton MAP fit of theta=(r_a, M, r_h) in the DIMENSIONLESS ln-theta metric,
     for the Stage-2 (M-target) calibration.
 
     Stage 2 targets the dynamical mass M~1e5, which a single-learning-rate optimiser over physical
@@ -496,7 +496,7 @@ def _fit_theta_gn(sigma_hat, se, prior_diag, n_iter=8):
 
 
 class DepthCalibResult(NamedTuple):
-    """Result of calibrate_depth_fisher (both FRACTIONAL variances of M, ADR 0011):
+    """Result of calibrate_depth_fisher (both FRACTIONAL variances of M):
     * realized : Var(M_hat over draws) / M_truth**2,
     * predicted : (inv depth_fisher(z, m_lim, N_total))_{M, M}."""
 
@@ -515,7 +515,7 @@ def calibrate_depth_fisher(z, m_lim, N_total, n_draws, key):
       realized  = Var(M_hat over n_draws independent magnitude-selected mocks) / M_truth**2.
     Per draw: take the observed counts n_eff from _n_design_eff (availability-capped),
     form the magnitude-selected binned dispersions (_binned_sigma_hat_selected), and
-    MAP-fit theta with the Gauss-Newton ln-theta fitter (_fit_theta_gn, ADR 0011), with the SAME
+    MAP-fit theta with the Gauss-Newton ln-theta fitter (_fit_theta_gn), with the SAME
     M-free Stage-2 prior PRIOR_DIAG_M the depth Fisher uses, picking M = index 1. (Stage 2 needs its
     own GN fitter -- oed.fit_map_theta's physical-Adam pins the large-scale M target.)
     Returns DepthCalibResult(realized, predicted) -- a tuple so callers can unpack.

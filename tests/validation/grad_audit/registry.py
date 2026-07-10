@@ -1629,10 +1629,9 @@ def _project_dispersion_om_r_a_pmt(r_a):
 # well inside the bound region). df_moment_dispersion integrates the DF's 2nd velocity
 # moments by polar quadrature (smooth, no boundary mask), so sigma_r is a clean trapezoid
 # function of M (sigma^2 ∝ G M). Both the M-gradient AND the W0-gradient are now audited:
-# the W0 path was previously deferred (docs/plans/2026-06-16-michie-king-equilibrium-gradient-
-# redesign-deferred.md) but is confirmed AD-correct by the 2026-06-18 discriminating experiment
-# (ADR-0017) — the DF-moment path interpolates W on a FIXED xi_grid (static linspace), so there
-# is NO moving-node kink, unlike the jeans path's r_t(W0)-endpoint s-grid (ADR-0016).
+# the W0 path was previously deferred but is confirmed AD-correct by the 2026-06-18 discriminating experiment
+# — the DF-moment path interpolates W on a FIXED xi_grid (static linspace), so there
+# is NO moving-node kink, unlike the jeans path's r_t(W0)-endpoint s-grid.
 # MEASURED (theta0=400.0, identity_sum over sigma_r at the three interior radii), STELLAR.G:
 # AD/FD |ratio-1| ~ 4.2e-4 -- consistent (tol=1e-3).
 _DISP_MICHIE_DF = MichieVelocityDF(W0=6.0, r_c=1.0, r_a=5.0)
@@ -1644,7 +1643,7 @@ def _df_moment_dispersion_M(M):
 
 
 # W0 gradient (NOT deferred — confirmed AD-correct by the 2026-06-18 discriminating
-# experiment, ADR-0017; fixed xi_grid nodes => no moving-node kink, unlike the jeans path).
+# experiment; fixed xi_grid nodes => no moving-node kink, unlike the jeans path).
 # Build the DF inside so W0 flows through solve_michie_profile; fixed xi_max=800 keeps
 # the ODE domain W0-consistent. radii [2,13,25] span interior->near-r_t (r_t~27.9 @ W0=6).
 def _df_moment_dispersion_W0(W0):
@@ -2789,7 +2788,7 @@ REGISTRY: list[Case] = [
         tol=1e-3,
     ),  # |ratio-1|=1e-8
     # df_moment_dispersion (exact Michie DF 2nd-moment quadrature); M-gradient (W0 now
-    # audited below, ADR-0017). FD-consistent at interior radii r in [0.5,2.0]. tol=1e-3 (smooth quadrature).
+    # audited below). FD-consistent at interior radii r in [0.5,2.0]. tol=1e-3 (smooth quadrature).
     Case(
         id="df_moment_dispersion[Michie]",
         direction="params->summary",
@@ -2801,7 +2800,7 @@ REGISTRY: list[Case] = [
         tol=1e-3,
     ),  # |ratio-1|~4.2e-4
     # W0-gradient (the deferred axis, NOW audited): exact Michie DF-moment sigma_r is
-    # AD-correct in W0 (fixed-node interp => no kink; 2026-06-18 experiment, ADR-0017).
+    # AD-correct in W0 (fixed-node interp => no kink; 2026-06-18 experiment).
     Case(
         id="df_moment_dispersion[Michie].W0",
         direction="params->summary",

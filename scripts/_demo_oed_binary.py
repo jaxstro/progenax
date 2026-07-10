@@ -29,7 +29,7 @@ f_bin Fisher block, the marginalize / maximin criteria) will build on.
 
 JAX-native (``jax.numpy``); ``import progenax`` enables float64 before this module is used.
 
-See docs/plans/2026-06-19-oed-binary-misspecification-{plan,design}.md.
+See the internal design note.
 """
 
 import functools
@@ -267,7 +267,7 @@ def th_fbin(theta):
 # (this is the model prediction, not the noise model).
 #
 # The Fisher backbone (Stage-1, _demo_oed) needs J = d sigma_obs / d ln theta, ONE
-# reverse-mode jacrev (ADR 0011: differentiating wrt ln theta makes F dimensionless
+# reverse-mode jacrev (differentiating wrt ln theta makes F dimensionless
 # and every F^-1 entry a FRACTIONAL variance; reverse-mode by policy -- King/Michie
 # use custom_vjp ODEs with no jvp rule, so forward-mode would crash, and EFF is kept
 # reverse-mode for consistency). jacrev of g(ln theta) = sigma_obs(exp(ln theta))
@@ -292,7 +292,7 @@ def jacobian_lntheta(theta_full, R, G):
     r"""ONE reverse-mode jacrev: J = d sigma_obs / d ln theta, shape (K, 5).
 
     The full (5-parameter, theta = (M, r_a, gamma, a, f_bin)) sensitivity matrix in
-    the dimensionless ln-theta metric (ADR 0011). Implemented as
+    the dimensionless ln-theta metric. Implemented as
     ``jax.jacrev`` of ``lambda lnth: predict_sigma_obs(exp(lnth), R, G)`` evaluated at
     ``log(theta_full)`` -- the ``d/d ln theta = theta * d/d theta`` scaling is built in
     by the ``exp`` reparametrisation, so no separate ``* theta`` step. Reverse-mode by
@@ -338,7 +338,7 @@ def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
 #
 # with n_b = N_total * softmax(z) the per-bin counts, J_b = d sigma_cluster / d ln theta
 # (row b of the cached binary-free jacrev), sigma_b the cached truth sigma_los. In the
-# dimensionless ln-theta metric (ADR 0011) every (F^-1) entry is a FRACTIONAL variance,
+# dimensionless ln-theta metric every (F^-1) entry is a FRACTIONAL variance,
 # so c_criterion(F)[M, M] = [sigma(M)/M]^2 directly.
 
 # Total RV-measurement budget allocated across the K bins. A round number on the scale
@@ -347,7 +347,7 @@ def jacobian_lntheta_clusteronly(theta_clusteronly, R, G):
 N_TOTAL = 5000.0
 
 # Priors on the binary-free theta = (M, r_a, gamma, a), as ln-theta FRACTIONAL
-# precisions 1/sigma_frac^2 on the diagonal (ADR 0011). Choices (design doc
+# precisions 1/sigma_frac^2 on the diagonal. Choices (design doc
 # "Priors / degeneracy structure"):
 #  * M (idx 0)  = 0      -- the TARGET dynamical mass: NO prior. You do not constrain
 #                           the very quantity you are designing to measure; M must be
@@ -509,7 +509,7 @@ def optimize_design_M(N_total, key, n_starts=8, n_steps=500, lr=0.05):
 # NOT the bare cluster sigma -- the binaries inflate the per-bin scatter the analyst sees.
 
 # Priors on the marginalized theta = (M, r_a, gamma, a, f_bin), as ln-theta FRACTIONAL
-# precisions 1/sigma_frac^2 (ADR 0011). The first four match PRIOR_DIAG_BF exactly (so
+# precisions 1/sigma_frac^2. The first four match PRIOR_DIAG_BF exactly (so
 # the binary-aware vs binary-free comparison is apples-to-apples on the cluster subspace);
 # the new f_bin entry is the modeling choice this task documents:
 #  * f_bin (idx 4) = 1/0.5^2 -- a WEAK prior (50% fractional), the SAME weak structure as
@@ -1244,7 +1244,7 @@ _BF_CONVERGED_STEP = 1e-3
 
 class CrossModelResult(NamedTuple):
     """Result of cross_model_bias (the H1 headline statistic; bias/std are FRACTIONAL,
-    i.e. relative to the truth M, in the ln-theta spirit of ADR 0011):
+    i.e. relative to the truth M, in the ln-theta spirit):
 
       * bias_M_frac   : mean over draws of (M_hat - M_true) / M_true,
       * std_M_frac    : std (ddof=1) over draws of (M_hat - M_true) / M_true,

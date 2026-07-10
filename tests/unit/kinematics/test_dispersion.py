@@ -255,7 +255,7 @@ def test_grad_project_sigma_pm_t_wrt_r_a():
 #     ODE-solver defect (earlier mis-attribution) but the C⁰ jnp.interp back-interp
 #     in _sigma_r2_from_tables: as r_t(W0) moved the master s-grid nodes, the
 #     piecewise-linear bracket switched and kinked ∂σ/∂W0. The C¹ PCHIP back-interp
-#     (ADR-0016) removes the slope-jump => gate now clean. (Beyond W0≈7 at r_a=5 the
+#     removes the slope-jump => gate now clean. (Beyond W0≈7 at r_a=5 the
 #     Michie model nears its mass-divergence, r_t->∞; the gradient stays correct but
 #     a fixed-step FD is a poor truth-proxy there — see the high-W0 Richardson test.)
 # Both King and Michie share solve_*/_find_tidal_radius and are FD-consistent here.
@@ -322,7 +322,7 @@ def test_grad_jeans_king_wrt_W0():
 def test_grad_jeans_michie_wrt_W0():
     """Michie sigma_r gradient w.r.t. W0 (solved equilibrium; clean gate).
 
-    The C¹ PCHIP back-interpolation in _sigma_r2_from_tables (ADR-0016) removes
+    The C¹ PCHIP back-interpolation in _sigma_r2_from_tables removes
     the bracket-crossing slope-jump that the old C⁰ jnp.interp injected into
     ∂σ/∂W0 as r_t(W0) moved the s-grid nodes, so this AD-vs-FD gate is now clean
     (was a deferred xfail at ~5e-3).
@@ -354,8 +354,7 @@ def test_grad_jeans_michie_high_W0_ad_correct():
     gradient is nonetheless CORRECT: a central FD CONVERGES to AD as the step shrinks
     (rel ~3e-3 @ h=1e-3 -> ~2e-5 @ h=1e-6), so the coarse-step inconsistency is the FD's
     own O(h^2 f''') truncation error, not a gradient defect. The GATED Michie-W0 test
-    (test_grad_jeans_michie_wrt_W0) runs in the well-truncated W0=6 regime; see ADR-0016
-    and the jeans_dispersion docstring.
+    (test_grad_jeans_michie_wrt_W0) runs in the well-truncated W0=6 regime; see the jeans_dispersion docstring.
     """
     from progenax.profiles import MichieProfile
 
@@ -391,10 +390,9 @@ def test_grad_df_moment_michie_wrt_W0():
     """df_moment_dispersion sigma_r gradient w.r.t. W0 (exact Michie DF moment).
 
     The DF-moment path interpolates the potential W on a FIXED xi_grid (static
-    linspace) — unlike the jeans path's moving r_t(W0)-endpoint s-grid (ADR-0016) —
+    linspace) — unlike the jeans path's moving r_t(W0)-endpoint s-grid —
     so there is NO node-crossing kink and this AD-vs-FD gate is clean on merit
-    (measured rel ~1e-7 at the default valid step h=6e-4). See ADR-0017 and the
-    2026-06-18 design doc: the STATUS "same-cause C0-kink" hypothesis was falsified
+    (measured rel ~1e-7 at the default valid step h=6e-4). The STATUS "same-cause C0-kink" hypothesis was falsified
     by a pre-registered discriminating experiment.
     """
     from progenax import MichieVelocityDF, df_moment_dispersion
@@ -461,7 +459,7 @@ def test_grad_df_moment_michie_high_W0_ad_correct():
 # i.e. ~23x closer at the worst R. So each re-captured baseline is MORE accurate,
 # not a regression.
 # (3) 2026-06-17: gradient-motivated re-capture. _sigma_r2_from_tables now uses a
-# C¹ PCHIP back-interp (ADR-0016) instead of C⁰ jnp.interp, to remove the
+# C¹ PCHIP back-interp instead of C⁰ jnp.interp, to remove the
 # bracket-crossing slope-jump in ∂σ/∂W0 (see test_grad_jeans_michie_wrt_W0). Shared
 # by project_dispersion, this shifts the pinned values ~1.6e-6 (rel) — above the
 # 1e-9 pin, so re-captured here. It ALSO improves oracle accuracy: the isotropic

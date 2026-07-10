@@ -168,7 +168,7 @@ The OED/Fisher forward model differentiates the *equilibrium* dispersion
 to the query radii. That back-interpolation was a piecewise-linear $C^0$ `jnp.interp`:
 as the truncation radius $r_t(W_0)$ moved the table's grid nodes, the interpolant's slope
 jumped at a fixed query radius and kinked $\partial\sigma/\partial W_0$, so a coarse
-finite difference reported a $\sim 5\times10^{-3}$ inconsistency. The fix (ADR-0016) is a
+finite difference reported a $\sim 5\times10^{-3}$ inconsistency. The fix is a
 monotone $C^1$ (PCHIP) back-interpolation, which removes the slope jump: the Michie-$W_0$
 dispersion gradient is now FD-consistent ($5.1\times10^{-3}\to3.5\times10^{-4}$ at the gate
 step), model-general across King/Michie/EFF/Plummer. **Caveat:** beyond $W_0\approx7$ (at

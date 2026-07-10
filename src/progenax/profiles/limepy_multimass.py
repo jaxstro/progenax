@@ -7,7 +7,7 @@ equipartition parameter delta. Heavier components get a smaller velocity scale, 
 deeper effective well and central concentration -- mass segregation AS A GENUINE
 EQUILIBRIUM (each component individually virial, Q_j ~ 0.5), unlike the lambda_seg blend.
 
-Three layers (see docs/plans/2026-06-09-multimass-limepy-equilibrium-design.md):
+Three layers:
   A. solve_multicomponent_limepy(alpha_j, rescale_j, ...) -- one coupled Poisson solve
      given central density fractions alpha_j and DIRECT per-component scales (Engine A
      core); solve_multimass_limepy is its thin mass-segregation wrapper.

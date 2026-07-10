@@ -60,7 +60,7 @@ def test_completeness_rolls_off_outward():
     assert jnp.all((c > 0) & (c <= 1.0))
 
 
-# --- Task 2.5: dimensionless (ln-theta) Fisher (ADR 0011) ---
+# --- Task 2.5: dimensionless (ln-theta) Fisher ---
 
 
 def test_fisher_dimensionless_well_conditioned():

@@ -5,8 +5,8 @@ inference arc, which was **banked as a methods result, not optimized further** (
 observable is cosmic-variance + dynamics limited and gas measures β more directly. See the decision
 record and the full numbers in:
 
-- `docs/plans/2026-06-07-gravoturb-fdf-2d-inference-retrospective.md`
-- `docs/plans/2026-06-07-gravoturb-fdf-2d-projection-native-inference-design.md`
+- an internal 2D-inference retrospective
+- an internal 2D-projection design note
 
 **Status: not maintained, not run in CI, not imported by any test or live module.** They are kept for
 reproducibility of the banked result. The *live* validation lives one directory up:

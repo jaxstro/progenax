@@ -112,7 +112,7 @@ def test_depth_fisher_calibration_is_validated_and_bounded():
     apparent bias was design/seed-specific MC scatter, not a systematic.)
 
     Both the depth Fisher and the calibration fit use the M-free Stage-2 prior (PRIOR_DIAG_M) and the
-    ln-theta metric (ADR 0011), so the two are consistent by construction.
+    ln-theta metric, so the two are consistent by construction.
 
     This gate is DETERMINISTIC (fixed design seed 1, calib seed 0 -> ratio ~0.79) and asserts the ratio
     lies in a sanity band [0.25, 1.15]. The bounds are NOT a tight calibration claim (the cross-design

@@ -163,4 +163,4 @@ Pan (2004); Szapudi et al. (2005); Neyrinck, Szapudi & Szalay (2009, 2011); Carr
 2014); Carron, Wolk & Szapudi (2014); Hoffman & Gelman (2014, NUTS); contrasted with the SBI
 approach of Bairagi & Wandelt (2026). Per-paper notes:
 `docs/website/99-bibliography/per-paper/`. Authoritative spec:
-`docs/plans/2026-06-05-fdf-clean-room-spec.md` (§8).
+an internal clean-room spec (§8).

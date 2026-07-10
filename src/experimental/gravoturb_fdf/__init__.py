@@ -17,7 +17,7 @@ Layers
 
 Every formula is re-derived from the held PDFs and re-validated against committed,
 printing acceptance scripts before it is believed. See
-``docs/plans/2026-06-05-fdf-clean-room-spec.md`` (§8 authoritative).
+an internal clean-room spec (§8 authoritative).
 """
 
 # Configure JAX for 64-bit precision BEFORE any JAX arrays are created (ecosystem

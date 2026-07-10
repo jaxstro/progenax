@@ -154,7 +154,7 @@ def test_ac17_alpha_forecast():
     "limitation (the known fat-tail tail-sensitivity), NOT a sampler/prior bug (prior+Jacobian "
     "verified correct; AC16 passes at M=5 where the bias is ~0; larger grid does not fix the "
     "mean). Tail-robust count-model redesign is the next workstream; see "
-    "docs/plans/2026-06-06-gravoturb-fdf-count-model-tail-robustness-handoff.md. Remove this "
+    "an internal handoff note. Remove this "
     "xfail once the count model is calibrated across the M prior and the M ranks are uniform.",
     strict=False,
 )

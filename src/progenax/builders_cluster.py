@@ -3,7 +3,7 @@
 Public API: build_cluster, matched_velocity_df, RotationSpec, ClusterParams,
 build_cluster_from_params, and the named aliases build_{plummer,king,eff,michie,limepy}_cluster.
 
-Design: docs/plans/2026-06-14-cluster-builder-api-design.md (round-2 addendum).
+Design: internal design note (round-2 addendum).
 """
 
 from __future__ import annotations

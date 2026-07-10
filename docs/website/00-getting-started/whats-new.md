@@ -49,14 +49,14 @@ A pre-release engineering-hardening pass on the test infrastructure (no
 physics change):
 
 - **Ratchet harness hoisted** to a shared, content-free `jaxstro.testing.ratchet`
-  (ADR-0021): the generic partition / staleness / numeric-literal-scan / citation
+  the generic partition / staleness / numeric-literal-scan / citation
   primitives now live in the base package, and progenax's four test registries
   (grad-audit, API-coverage, physics, provenance) were refactored onto it with
   the prior behaviour pinned by a characterization test.
-- **Strict citation provenance** (ADR-0022): the module-docstring whitelist was
+- **Strict citation provenance** the module-docstring whitelist was
   dropped — each Tout+1996 / Moe+2017 coefficient array now carries its own
   in-window citation comment (no coefficient values changed; PDF-verified).
-- **Local two-tier gate** (ADR-0023): a fast `scripts/check.sh` (lock check, ruff,
+- **Local two-tier gate** a fast `scripts/check.sh` (lock check, ruff,
   mypy, fast suite, wheel smoke) and a heavy `scripts/release_gate.sh` (full
   coverage run, dashboard regeneration, and a multi-part release conjunction).
   CI stays dormant until the repository is made public; `src/progenax` is now

@@ -7,7 +7,7 @@ combinatorial spatial statistic (MST). This module provides smooth surrogates so
 segregation can enter gradient-based / HMC inference, mirroring the surrogate +
 calibration pattern of :mod:`progenax.diagnostics.q_approx` (CW04 Q).
 
-Design: docs/plans/2026-06-09-differentiable-segregation-observable-design.md.
+Design: internal design note.
 
 Shared kernel
 -------------

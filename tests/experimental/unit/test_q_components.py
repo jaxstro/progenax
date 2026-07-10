@@ -2,7 +2,7 @@
 
 CW04 Q = m_bar/s_bar conflates substructure with central concentration. Reporting the components
 separately decouples them: m_bar (normalized MST length) tracks CLUMPINESS; s_bar (normalized mean
-separation) tracks CONCENTRATION. See docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md.
+separation) tracks CONCENTRATION.
 """
 
 import numpy as np

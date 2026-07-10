@@ -46,7 +46,7 @@ works for all profiles and is the supported/tested path.
 Scope (Phase 0): spherical, single-population, mass-follows-light, Osipkov-Merritt
 anisotropy. Rotation, non-sphericity, tracer != mass, native (non-OM) anisotropy,
 and multi-population kinematics are tracked extensions — see the versatility
-roadmap in ``docs/plans/2026-06-15-oed-dispersion-arc-design.md``.
+roadmap (internal design note).
 """
 
 from typing import NamedTuple, Optional
@@ -374,7 +374,7 @@ def _sigma_r2_from_tables(r, s, rho, I_outward, r_a, F_shifted=None):
     On a grid whose nodes move with a differentiated profile parameter (e.g.
     ``r_t(W0)``), ``jnp.interp``'s slope-jump at each node injected a
     bracket-crossing kink into ``∂σ/∂(param)``; the C¹ interpolant removes that
-    jump, making the parameter gradient FD-consistent (ADR-0016).
+    jump, making the parameter gradient FD-consistent.
     """
     rho_r = _pchip_interp(r, s, rho)
     I_r = _pchip_interp(r, s, I_outward)
@@ -525,7 +525,7 @@ def jeans_dispersion(
     unreliable truth-proxy because the map's curvature is near-singular — so the
     Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``);
     the high-``W0`` correctness is pinned by a Richardson-FD test
-    (``test_grad_jeans_michie_high_W0_ad_correct``). See ADR-0016.
+    (``test_grad_jeans_michie_high_W0_ad_correct``).
     """
     # Eager r_a validity-domain guard (Plummer OM): mirror plummer_df.py:128.
     # Concrete = a Python scalar or a non-traced array; under tracing the value

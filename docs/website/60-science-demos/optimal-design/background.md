@@ -1,7 +1,7 @@
 ---
 title: The OED formalism — Fisher information, the additive backbone, and sky projection
 subtitle: The shared machinery every worked example on this page reuses — derived once, from first principles
-description: "The shared theory for progenax's optimal-experimental-design demos. Fisher information and the Cramer-Rao bound make the achievable error bar a known function of the observing strategy, computable before any photon is collected. For binned Gaussian dispersions the Fisher is additive and design-linear -- F = sum of budget-weighted, design-independent per-star blocks -- so a single reverse-mode Jacobian through the differentiable forward model is computed once and the optimisation reduces to linear algebra. Includes the dimensionless ln-theta metric (ADR 0011), the c/D/A optimality criteria, and the Binney & Mamon (1982) projection geometry that turns sigma_r(r) and beta(r) into the three sky observables (RV, PM_R, PM_T)."
+description: "The shared theory for progenax's optimal-experimental-design demos. Fisher information and the Cramer-Rao bound make the achievable error bar a known function of the observing strategy, computable before any photon is collected. For binned Gaussian dispersions the Fisher is additive and design-linear -- F = sum of budget-weighted, design-independent per-star blocks -- so a single reverse-mode Jacobian through the differentiable forward model is computed once and the optimisation reduces to linear algebra. Includes the dimensionless ln-theta metric, the c/D/A optimality criteria, and the Binney & Mamon (1982) projection geometry that turns sigma_r(r) and beta(r) into the three sky observables (RV, PM_R, PM_T)."
 ---
 
 # The OED formalism — the machinery every example reuses
@@ -105,7 +105,7 @@ rule (a Hessian would need forward-over-reverse). Here
 :::
 
 (sec-oed-dimensionless)=
-## The dimensionless $\ln\theta$ metric (ADR 0011)
+## The dimensionless $\ln\theta$ metric
 
 Cluster parameters span enormous dynamic ranges: a total mass $M\approx10^5\,\Msun$
 sits next to a half-mass radius $r_h\approx3$ pc in the same vector. Built in raw
@@ -127,7 +127,7 @@ on us by the unit spread.
 ```
 
 (sec-oed-additive)=
-## The additive, design-linear backbone (ADR 0004)
+## The additive, design-linear backbone
 
 This is the structural trick that makes the whole optimisation cheap. Start from the
 per-datum noise: a velocity dispersion measured from $n$ stars, each with intrinsic

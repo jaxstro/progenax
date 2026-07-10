@@ -3,7 +3,7 @@
 
 Validates ``progenax.diagnostics.compute_lambda_msr`` (Allison et al. 2009) on hand-constructed
 configurations with KNOWN answers — no N-body evolution (that is deferred to the gravax session;
-see docs/notes/2026-06-08-gravax-segregation-validation-followup.md). This is the human-facing
+internal design note). This is the human-facing
 companion to ``tests/validation/test_mass_segregation_physics.py``.
 
 Λ_MSR = ⟨L_random⟩ / L_massive   (≈1 none, >1 segregated, <1 inverse),  error = σ_random/L_massive.

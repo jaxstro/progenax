@@ -11,7 +11,7 @@ has unresolved binaries, so the observed second moment carries a flat pedestal
 the binary-free model to that contaminated data biases ``M_hat`` HIGH -- and, because
 the design concentrated the budget in the cold contaminated OUTSKIRTS, the forecast
 error bar is tiny: a false-confidence disaster. See
-``docs/plans/2026-06-19-oed-binary-misspecification-{design,plan}.md`` (Task 1.6).
+an internal design note.
 
 The headline (H1, pre-registration LOCKED 2026-06-19): the naive binary-free
 c-optimal-for-M design, fit binary-free on binary-contaminated mocks, biases ``M_hat``

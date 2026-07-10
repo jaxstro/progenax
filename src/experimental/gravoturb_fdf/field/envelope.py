@@ -12,7 +12,7 @@ exact, so the BM19 marginal / dense-tail (s_t, f_dense, AC6) stay defined on ``s
 LOCAL overdensities), while the envelope only imposes the large-scale spherical shape. Differentiable
 in the profile parameters and ``s_turb``.
 
-JAX-native. See docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md.
+JAX-native.
 """
 
 import jax.numpy as jnp

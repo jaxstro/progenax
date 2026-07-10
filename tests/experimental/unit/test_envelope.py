@@ -2,7 +2,7 @@
 
 Separable log-space model: s_total(x) = s_turb(x) + ln rho_env(r), with rho_env from any progenax
 SpatialProfile (.density). The envelope adds the centrally-concentrated SHAPE; s_turb carries the
-SUBSTRUCTURE. See docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md.
+SUBSTRUCTURE.
 """
 
 import jax

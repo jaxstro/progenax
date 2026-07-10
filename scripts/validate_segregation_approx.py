@@ -20,7 +20,7 @@ Figures (-> what they validate):
   5. seg_gradient_validation.png     autodiff vs finite-difference d(obs)/d m_cut, and a
                                      gradient-descent recovery of segregation strength
 
-Design: docs/plans/2026-06-09-differentiable-segregation-observable-design.md.
+Design: internal design note.
 
 Usage:
     env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_segregation_approx.py

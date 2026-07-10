@@ -20,7 +20,7 @@ units (pc for ``STELLAR``), masses are M⊙, and the output velocities come out 
 (pc/Myr for ``STELLAR.G``). Positions/velocities are non-differentiable (categorical placement, spec §8);
 the differentiable interface is the inference layer, not this generator.
 
-JAX-native. See docs/plans/2026-06-07-gravoturb-fdf-spherical-ic-design.md.
+JAX-native.
 """
 
 from typing import NamedTuple

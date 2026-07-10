@@ -4,7 +4,7 @@ Phase 1 of the differentiable predicted-statistics layer. The copula map
 ``s = T(g) = bm19_icdf(Phi(g)) - log<e^s>`` carries the BM19 marginal onto a unit
 Gaussian field; its Hermite expansion gives the analytic log-density 2-point ``xi_s``.
 
-Grounding: docs/plans/2026-06-05-gaussianization-formula-verification.md
+Grounding: internal design note
 (Coles & Jones 1991 Eq 21 mean-1 shift; Eq 30 exp-case 2-pt; Eq 17 moments).
 """
 

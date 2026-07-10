@@ -2,7 +2,7 @@
 
 Validates the soft observables in ``progenax.diagnostics.segregation_approx`` against
 **external / exact** oracles (never self-consistency), per
-docs/plans/2026-06-09-differentiable-segregation-observable-design.md:
+the internal design note:
 
 - Oracle 1 (central): soft -> exact as the softness (tau, beta) -> 0.
 - Oracle 2: monotonic response + rank-correlation with the exact Allison+2009 Lambda_MSR

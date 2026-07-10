@@ -9,7 +9,7 @@ expansion gives the analytic log-density 2-point (added in later tasks)
 
     xi_s(r) = sum_{n>=1} (c_n^2 / n!) rho_g(r)^n ,   c_n = <T(g) He_n(g)> .
 
-Grounding (docs/plans/2026-06-05-gaussianization-formula-verification.md):
+Grounding:
   - mean-1 shift <e^s> = 1 .................... Coles & Jones 1991, Eq (21)
   - 2-pt series (Mehler bivariate-Hermite); reduces to C&J Eq (30) 1+xi=exp[Xi]
     in the exp/lognormal case
