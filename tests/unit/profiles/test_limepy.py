@@ -440,3 +440,41 @@ class TestLimepyProfile:
         dg = jax.grad(metric, argnums=1)(7.0, 1.0)
         assert jnp.isfinite(dW0) and jnp.abs(dW0) > 0.0
         assert jnp.isfinite(dg) and jnp.abs(dg) > 0.0
+
+
+class TestLimepyTruncationGuard:
+    """Isotropic general-g models must not silently pin r_t to the ODE-domain edge.
+
+    A Wilson-branch model (g=2) at high W0 truncates at a large xi_t (W0=9, g=2 ->
+    xi_t ~ 2132); with the default xi_max=300 the ODE never reaches the crossing,
+    so r_t would be pinned to 300*r_c — a wrong tidal radius, wrong mass CDF, and
+    wrong DF velocity scale, silently. The guard (mirroring KingProfile) refuses
+    concrete pinned inputs eagerly and flags the traced case via r_t_is_pinned.
+    """
+
+    def test_pinned_rt_raises_eagerly(self):
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        with pytest.raises(ValueError, match="xi_max"):
+            LIMEPYProfile.from_W0_rc(9.0, 2.0, 1.0)
+
+    def test_larger_domain_builds_true_rt(self):
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        p = LIMEPYProfile.from_W0_rc(9.0, 2.0, 1.0, xi_max=5000.0)
+        assert 2100.0 < float(p.r_t / p.r_c) < 2160.0  # true xi_t ~ 2131.7
+        assert not bool(p.r_t_is_pinned)
+
+    def test_king_branch_unaffected(self):
+        # g=1, W0=5 truncates well inside the default domain -> not pinned.
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        p = LIMEPYProfile.from_W0_rc(5.0, 1.0, 1.0)
+        assert float(p.r_t / p.r_c) < 300.0 * 0.99
+        assert not bool(p.r_t_is_pinned)
+
+    def test_velocity_df_guard(self):
+        from progenax.kinematics.limepy_df import LIMEPYVelocityDF
+
+        with pytest.raises(ValueError, match="xi_max"):
+            LIMEPYVelocityDF(W0=9.0, g=2.0, r_c=1.0)

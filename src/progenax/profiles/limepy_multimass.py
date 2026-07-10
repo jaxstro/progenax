@@ -320,29 +320,39 @@ def solve_multicomponent_limepy(
     rho_j_grid = jax.vmap(density_components, out_axes=1)(xi_grid, psi_grid)
     rho_j_grid = jnp.where(psi_grid[None, :] > 0.0, rho_j_grid, 0.0)
 
-    # Non-truncation guard for anisotropic models (concrete inputs only; mirrors
-    # solve_michie / solve_limepy: too-small ra -> radial-orbit 1/r^2 tail -> no finite
-    # tidal radius). Skipped under tracing -- psi_end is a tracer when ANY input is
-    # differentiated, even if ra_hat_j itself is concrete.
-    if not isotropic:
-        try:
-            psi_end_val = float(psi_end)
-            # W0 is a real scalar here; cast documents that for the type checker
-            # (ArrayLike nominally includes complex). float() raises on a tracer,
-            # which is caught below.
-            W0_val = float(cast(SupportsFloat, W0))
-        except (
-            jax.errors.ConcretizationTypeError,
-            jax.errors.TracerArrayConversionError,
-            TypeError,
-        ):
-            psi_end_val = None
-        if psi_end_val is not None and psi_end_val > 1e-3 * W0_val:
+    # Non-truncation guard (concrete inputs only; mirrors solve_limepy_profile). If
+    # W(xi_max) has not crossed ~0 the model did not truncate within the ODE domain, so
+    # r_t would be silently pinned to the boundary — a wrong tidal radius, mass CDF, and
+    # DF velocity scale. Isotropic g < 3.5 truncates mathematically but the true xi_t can
+    # far exceed xi_max (e.g. W0=9, g=2 -> xi_t ~ 2100); anisotropic: too-small ra builds
+    # a radial-orbit 1/r^2 tail (no finite tidal radius). Skipped under tracing -- psi_end
+    # is a tracer when ANY input is differentiated, even if ra_hat_j itself is concrete.
+    try:
+        psi_end_val = float(psi_end)
+        # W0 is a real scalar here; cast documents that for the type checker
+        # (ArrayLike nominally includes complex). float() raises on a tracer,
+        # which is caught below.
+        W0_val = float(cast(SupportsFloat, W0))
+    except (
+        jax.errors.ConcretizationTypeError,
+        jax.errors.TracerArrayConversionError,
+        TypeError,
+    ):
+        psi_end_val = None
+    if psi_end_val is not None and psi_end_val > 1e-3 * W0_val:
+        if isotropic:
             raise ValueError(
-                f"Anisotropic multi-component LIMEPY (W0={W0_val}, r_a/r_c={ra_hat_j}) "
-                f"does not truncate within xi_max={xi_max} (W(xi_max)={psi_end_val:.3f}): "
-                f"the anisotropy is too strong (no finite tidal radius). Increase ra / xi_max."
+                f"Isotropic multi-component LIMEPY (W0={W0_val}, g={g}) does not "
+                f"truncate within xi_max={xi_max} (W(xi_max)={psi_end_val:.3g}): r_t "
+                f"would be silently pinned to the domain edge (a wrong tidal radius). "
+                f"Increase xi_max — the true xi_t can be large (e.g. W0=9, g=2 needs "
+                f"xi_t~2100)."
             )
+        raise ValueError(
+            f"Anisotropic multi-component LIMEPY (W0={W0_val}, r_a/r_c={ra_hat_j}) "
+            f"does not truncate within xi_max={xi_max} (W(xi_max)={psi_end_val:.3f}): "
+            f"the anisotropy is too strong (no finite tidal radius). Increase ra / xi_max."
+        )
     return xi_grid, psi_grid, psi_raw, rho_j_grid
 
 

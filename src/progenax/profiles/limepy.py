@@ -43,7 +43,7 @@ import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
+from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
 from progenax.profiles.king import _find_tidal_radius
 
@@ -279,23 +279,37 @@ def solve_limepy_profile(
     psi_raw = solution.ys[:, 0]  # UNCLAMPED W(xi) (negative past r_t)
     psi_grid = jnp.maximum(psi_raw, 0.0)
 
-    # Non-truncation guard for anisotropic models (concrete inputs only; skipped under
-    # tracing). Too-small ra_hat builds a radial-orbit 1/r^2 density tail -> no finite
-    # tidal radius (infinite mass); mu and the virial scale then become grid-dependent.
-    # Mirrors solve_michie_profile. Isotropic models (g <= 3.5) always truncate.
+    # Non-truncation guard (concrete inputs only; skipped under tracing). If W(xi_max)
+    # has not crossed ~0, the model does not truncate within the ODE domain and r_t
+    # would be silently PINNED to xi_max*r_c — a wrong tidal radius, and hence a wrong
+    # mass CDF and DF velocity scale (mu / the virial scale become grid-dependent).
+    # Two ways this happens; both refuse eagerly with the same psi_end test:
+    #   - Isotropic: g < 3.5 truncates mathematically, but the true xi_t can far exceed
+    #     the default domain (e.g. W0=9, g=2 -> xi_t ~ 2100 >> xi_max=300). The domain,
+    #     not the physics, is the limit -> raise and tell the caller to increase xi_max.
+    #   - Anisotropic: too-small ra_hat builds a radial-orbit 1/r^2 tail (no finite tidal
+    #     radius / infinite mass). Mirrors solve_michie_profile.
     if (
-        not isotropic
-        and isinstance(W0, (int, float))
-        and isinstance(ra_hat, (int, float))
+        isinstance(W0, (int, float))
         and isinstance(g, (int, float))
+        and (isotropic or isinstance(ra_hat, (int, float)))
+        and float(psi_end) > 1e-3 * W0
     ):
-        if float(psi_end) > 1e-3 * W0:
+        if isotropic:
             raise ValueError(
-                f"Anisotropic LIMEPY model (W0={W0}, g={g}, r_a/r_c={ra_hat}) does not "
-                f"truncate within xi_max={xi_max} (W(xi_max)={float(psi_end):.3f} > 0): the "
-                f"anisotropy is too strong (no finite tidal radius / infinite mass). "
-                f"Increase ra_hat, or raise xi_max if the model is genuinely this extended."
+                f"LIMEPY model (W0={W0}, g={g}) does not truncate within "
+                f"xi_max={xi_max} (W(xi_max)={float(psi_end):.3g} > 0): r_t would be "
+                f"silently PINNED to the domain edge (a wrong tidal radius). Increase "
+                f"xi_max — the true xi_t can be large (e.g. W0=9, g=2 needs xi_t~2100). "
+                f"Note g >= 3.5 models have no finite extent at all (Gieles & Zocchi "
+                f"2015, Sec. 3.1.3)."
             )
+        raise ValueError(
+            f"Anisotropic LIMEPY model (W0={W0}, g={g}, r_a/r_c={ra_hat}) does not "
+            f"truncate within xi_max={xi_max} (W(xi_max)={float(psi_end):.3f} > 0): the "
+            f"anisotropy is too strong (no finite tidal radius / infinite mass). "
+            f"Increase ra_hat, or raise xi_max if the model is genuinely this extended."
+        )
     return xi_grid, psi_grid, psi_raw
 
 
@@ -323,6 +337,9 @@ class LIMEPYProfile(eqx.Module):
         xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
         is_aniso: static flag selecting the anisotropic density path.
         _r_grid, _cdf_grid: precomputed mass CDF for sampling.
+        r_t_is_pinned: traced bool; True iff the ODE domain was too small to reach
+            the tidal crossing (r_t pinned to the boundary). Concrete inputs raise
+            in ``from_W0_rc``; this flag is the only signal under tracing.
     """
 
     W0: Float[Array, ""]
@@ -334,6 +351,7 @@ class LIMEPYProfile(eqx.Module):
     psi_grid: Float[Array, "n_points"]
     _r_grid: Float[Array, "n_grid"]
     _cdf_grid: Float[Array, "n_grid"]
+    r_t_is_pinned: Bool[Array, ""]
     is_aniso: bool = eqx.field(static=True)
 
     def __init__(
@@ -375,6 +393,13 @@ class LIMEPYProfile(eqx.Module):
         )
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)
 
+        # Traced diagnostic (mirrors KingProfile.r_t_is_pinned): the clamped psi_grid
+        # has a node <= 0 iff the model truncated within the ODE domain. If none does,
+        # r_t was pinned to the grid boundary — a wrong tidal radius. For concrete
+        # inputs solve_limepy_profile already raised; this carries the signal under
+        # tracing, where the eager check cannot fire.
+        r_t_is_pinned = jnp.logical_not(jnp.any(psi_grid_arr <= 0.0))
+
         object.__setattr__(self, "W0", W0_arr)
         object.__setattr__(self, "g", g_arr)
         object.__setattr__(self, "r_c", r_c_arr)
@@ -385,6 +410,7 @@ class LIMEPYProfile(eqx.Module):
         object.__setattr__(self, "is_aniso", is_aniso)
         object.__setattr__(self, "_r_grid", r_grid)
         object.__setattr__(self, "_cdf_grid", cdf_grid)
+        object.__setattr__(self, "r_t_is_pinned", r_t_is_pinned)
 
     @classmethod
     def from_W0_rc(

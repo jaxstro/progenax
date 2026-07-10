@@ -1134,3 +1134,40 @@ class TestEngineStateGrouping:
             return jnp.sum(m.total_density(jnp.linspace(0.1, 2.0, 16)))
 
         assert jnp.isfinite(jax.grad(f)(1.0))
+
+
+class TestEngineATruncationGuard:
+    """Engine-A isotropic multi-component models must not silently pin r_t either.
+
+    solve_multicomponent_limepy shares the general-g non-truncation bug: an
+    isotropic high-(W0, g) model (e.g. W0=9, g=2) truncates at xi_t ~ 2100, far
+    beyond the default xi_max=300, so r_t would be pinned to the domain edge. The
+    guard now refuses this eagerly for concrete inputs (audit B3 / S1).
+    """
+
+    def test_pinned_isotropic_multicomponent_raises(self):
+        from progenax import MultiComponentCluster
+
+        with pytest.raises(ValueError, match="xi_max"):
+            MultiComponentCluster.from_components(
+                alpha_j=jnp.array([0.6, 0.4]),
+                w_j=jnp.array([1.0, 1.0]),
+                m_j=jnp.array([0.4, 5.0]),
+                W0=9.0,
+                g=2.0,
+                r_c=1.0,
+            )
+
+    def test_truncating_multicomponent_builds(self):
+        from progenax import MultiComponentCluster
+
+        # King-like (g=1, W0=7) truncates well inside the default domain.
+        model = MultiComponentCluster.from_components(
+            alpha_j=jnp.array([0.6, 0.4]),
+            w_j=jnp.array([1.0, 1.0]),
+            m_j=jnp.array([0.4, 5.0]),
+            W0=7.0,
+            g=1.0,
+            r_c=1.0,
+        )
+        assert model is not None
