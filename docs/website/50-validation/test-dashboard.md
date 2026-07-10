@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-07-10T18:12:14.138447+00:00`. Line coverage: 96.1% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
+Generated at `2026-07-10T20:31:34.069543+00:00`. Line coverage: 96.1% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -59,7 +59,7 @@ Generated at `2026-07-10T18:12:14.138447+00:00`. Line coverage: 96.1% (floor 90%
   - test_matched_limepy_anisotropic_threads_r_a (15.0s)
   - —
 * - `cluster`
-  - 63
+  - 65
   - 0
   - 0
   - 98.8
@@ -115,7 +115,7 @@ Generated at `2026-07-10T18:12:14.138447+00:00`. Line coverage: 96.1% (floor 90%
   - test_every_cited_test_node_id_resolves (20.2s)
   - —
 * - `profiles`
-  - 201
+  - 205
   - 0
   - 0
   - 98.9

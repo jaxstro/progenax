@@ -212,16 +212,16 @@
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 96.12333213126578,
+    "line_cov_measured": 96.12682399567646,
     "registries_full": true
   },
-  "generated_utc": "2026-07-10T18:12:14.138447+00:00",
+  "generated_utc": "2026-07-10T20:31:34.069543+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "4933c266e83ea75bf9b57c0574f127514d334988",
-      "measured_utc": "2026-06-20T14:28:55.764262+00:00",
+      "git_sha": "65b00e47ce324fa732dd7dda77f1cea59d7807c9",
+      "measured_utc": "2026-07-10T20:31:34.015988+00:00",
       "selector": "full",
-      "total_percent": 96.12333213126578
+      "total_percent": 96.12682399567646
     },
     "per_file_lines": {
       "__init__": {
@@ -509,12 +509,12 @@
         "num_statements": 137
       },
       "profiles/limepy": {
-        "covered_lines": 153,
-        "num_statements": 155
+        "covered_lines": 157,
+        "num_statements": 159
       },
       "profiles/limepy_multimass": {
-        "covered_lines": 210,
-        "num_statements": 211
+        "covered_lines": 211,
+        "num_statements": 212
       },
       "profiles/limepy_tables": {
         "covered_lines": 105,
@@ -617,8 +617,8 @@
       "profiles/density_poisson": 96.95121951219512,
       "profiles/eff": 100.0,
       "profiles/king": 99.31972789115646,
-      "profiles/limepy": 98.15950920245399,
-      "profiles/limepy_multimass": 99.12663755458516,
+      "profiles/limepy": 98.20359281437126,
+      "profiles/limepy_multimass": 99.1304347826087,
       "profiles/limepy_tables": 100.0,
       "profiles/michie": 99.05660377358491,
       "profiles/plummer": 100.0,
@@ -628,7 +628,7 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 96.12333213126578
+    "total_percent": 96.12682399567646
   },
   "modules": {
     "analytical": {
@@ -658,7 +658,7 @@
     "cluster": {
       "integration": 0,
       "line_cov": 98.83177570093459,
-      "unit": 63,
+      "unit": 65,
       "validation": 0
     },
     "diagnostics": {
@@ -699,8 +699,8 @@
     },
     "profiles": {
       "integration": 0,
-      "line_cov": 98.9412897016362,
-      "unit": 201,
+      "line_cov": 98.9463601532567,
+      "unit": 205,
       "validation": 0
     },
     "provenance_registry": {
