@@ -122,7 +122,7 @@ _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
     ),
     "src/progenax/imf/binary/moe_di_stefano.py": (
         74,
-        "2b4b1014ebdd021d81ea5c0c7651f6f8e36fb4239cfadf9a152039eb765e84f3",
+        "e7ed77e5d46fd3c136153fb94387b710a65a3d9b718dde4b8da015ed63d5d5ec",
     ),
     "src/progenax/imf/binary/mass_ratio.py": (
         6,
@@ -178,9 +178,9 @@ _GOLDEN_REPRESENTATIVE_LITERALS: dict[str, list[tuple[float, int]]] = {
     "src/progenax/imf/power_law.py": [(2.35, 148)],
     "src/progenax/imf/environment/coefficients.py": [(-0.4072, 50), (-0.87, 28)],
     "src/progenax/imf/binary/moe_di_stefano.py": [
+        (-2.0, 194),
         (-2.0, 195),
-        (-2.0, 196),
-        (-1.1, 196),
+        (-1.1, 195),
     ],
     "src/progenax/binaries/period.py": [(-0.55, 138)],
     "src/progenax/stellar.py": [(-48.96066856, 70)],
@@ -215,10 +215,10 @@ _GOLDEN_CITATION_VERDICTS: list[tuple[str, int, bool]] = [
     # True via the scoped CLASS docstring (SanaOBPeriod cites Sana et al. (2012)).
     ("src/progenax/binaries/period.py", 138, True),
     # True via the per-array in-window citation comment added at strict-mode adoption: the
-    # Moe Table-13 gamma_largeq rows (lines 195-196) carry "Moe & Di Stefano (2017) ... Table
+    # Moe Table-13 gamma_largeq rows (lines 194-195) carry "Moe & Di Stefano (2017) ... Table
     # 13" on the array-opening line within window=4.
+    ("src/progenax/imf/binary/moe_di_stefano.py", 194, True),
     ("src/progenax/imf/binary/moe_di_stefano.py", 195, True),
-    ("src/progenax/imf/binary/moe_di_stefano.py", 196, True),
     # True via the per-row in-window citation comment: each Tout L/R coefficient row (kept on
     # one line under fmt:off) now carries "Tout+1996 Table 1/2" inline on the row's own line.
     ("src/progenax/stellar.py", 43, True),
@@ -385,7 +385,7 @@ def test_harness_orchestration_reproduces_zero_holes():
 
 def test_documented_harness_signed_literal_folding():
     """Pin the harness's DELIBERATE signed-literal folding so it cannot silently change:
-    the harness yields the Moe Table-13 ``-2.0`` tail (lines 195-196) as a SIGNED citable
+    the harness yields the Moe Table-13 ``-2.0`` tail (lines 194-195) as a SIGNED citable
     literal, whereas a raw-``Constant`` walk sees only a trivial ``+2.0`` (the ``-`` lives in
     a ``UnaryOp(USub)``). The harness is stricter (closes a sign blind spot); the value is
     provenanced, so the registry verdict is unchanged."""
@@ -393,21 +393,21 @@ def test_documented_harness_signed_literal_folding():
 
     # signed -2.0 IS in the harness scan ...
     harness_lits = set(_scan(rel))
-    assert (-2.0, 195) in harness_lits and (-2.0, 196) in harness_lits
+    assert (-2.0, 194) in harness_lits and (-2.0, 195) in harness_lits
 
     # ... and a raw-Constant walk would NOT see it (it sees a trivial +2.0).
     tree = ast.parse((_REPO_ROOT / rel).read_text())
-    raw_constants_at_195_196 = {
+    raw_constants_at_194_195 = {
         (float(n.value), n.lineno)
         for n in ast.walk(tree)
         if isinstance(n, ast.Constant)
         and isinstance(n.value, (int, float))
         and not isinstance(n.value, bool)
-        and n.lineno in (195, 196)
+        and n.lineno in (194, 195)
     }
     # The raw constants are +2.0 (trivial); the SIGNED -2.0 only appears via UnaryOp folding.
-    assert (2.0, 195) in raw_constants_at_195_196
-    assert (-2.0, 195) not in raw_constants_at_195_196
+    assert (2.0, 194) in raw_constants_at_194_195
+    assert (-2.0, 194) not in raw_constants_at_194_195
 
 
 def test_harness_excludes_module_docstring_span():
