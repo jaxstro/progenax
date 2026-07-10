@@ -96,8 +96,10 @@ from _demo_oed import (  # noqa: E402
     pm_masyr_to_kms,
     project_to_sky,
 )
-from _demo_oed import (
-    c_criterion as c_criterion,  # re-export: callers use oedc.c_criterion (see header note)
+from _demo_oed import (  # re-exports: callers use oedc.{c,d,a}_criterion (see header note)
+    a_criterion as a_criterion,
+    c_criterion as c_criterion,
+    d_criterion as d_criterion,
 )
 
 # Resolution of the hand-rolled Michie Eddington table (mirrors eff_df defaults).
