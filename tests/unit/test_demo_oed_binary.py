@@ -340,6 +340,7 @@ def test_H1_naive_design_biased_beyond_forecast():
 # It also guards the Stage-3 CLI lesson: the run-record path derives from --outdir, so a
 # smoke run into tmp_path NEVER clobbers the committed full-quality run-record/figures.
 # ---------------------------------------------------------------------------
+@pytest.mark.slow  # informax-bound OED demo CLI; full inference — full/release gate only
 def test_cli_binary_quick_smoke(tmp_path):
     """The CLI --quick path runs end-to-end (design + forecast + the no-MC mechanism
     figure) and exits 0 WITHOUT the cross-model MC or its env var.

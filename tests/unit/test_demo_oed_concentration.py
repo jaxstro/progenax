@@ -428,6 +428,7 @@ def test_W0_fisher_calibration_matches_realized_scatter():
 # ===========================================================================
 
 
+@pytest.mark.slow  # informax-bound OED demo CLI; full inference — full/release gate only
 def test_cli_concentration_smoke(tmp_path):
     """The CLI runs end-to-end (both models, c/D/A optimize, 5 figures) and exits 0.
 

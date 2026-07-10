@@ -132,6 +132,7 @@ def test_depth_fisher_calibration_is_validated_and_bounded():
     assert 0.25 < ratio < 1.15  # sanity band; lower bound guards the old M-pinned bug
 
 
+@pytest.mark.slow  # informax-bound OED demo CLI; full inference — full/release gate only
 def test_cli_dynamical_mass_smoke(tmp_path):
     """Smoke-test the Stage-2 gated CLI: run main() end to end with a SMALL config and assert it
     exits 0 (all gates pass) and writes a run-record JSON with the expected schema.
