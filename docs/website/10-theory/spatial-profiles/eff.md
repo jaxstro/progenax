@@ -86,76 +86,73 @@ $r_t \to \infty$ limit and applies only when $\gamma > 3$; the actual sampled ma
 truncated $M(<r_t)$.
 ```
 
-## Closed-form mass
+## Enclosed mass
 
-The cumulative mass for $\gamma > 3$ is
+For the density $\rho(r) = \rho_0\,(1 + r^2/a^2)^{-\gamma/2}$ the enclosed mass
+has **no elementary closed form for general $\gamma$**; the exact result is a
+hypergeometric function,
 
 ```{math}
 :label: eff-mcum
-M(<r) \;=\; \frac{4\pi\,\rho_0\,a^3}{\gamma - 3}\,\biggl[1 - \biggl(1 + \frac{r^2}{a^2}\biggr)^{\!(3-\gamma)/2}\,\biggr]
+M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\;
+  {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\gamma}{2};\,\tfrac{5}{2};\,-\frac{r^2}{a^2}\right).
 ```
 
-with total mass
+The total (untruncated) mass converges only for $\gamma > 3$, where the integral
+evaluates to a ratio of Gamma functions,
 
 ```{math}
 :label: eff-mtotal
-M_{\mathrm{total}} \;=\; \lim_{r\to\infty} M(<r) \;=\; \frac{4\pi\,\rho_0\,a^3}{\gamma - 3}.
+M_{\mathrm{total}} \;=\; \lim_{r\to\infty} M(<r)
+  \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\,
+        \frac{\Gamma\!\big(\tfrac{\gamma-3}{2}\big)}{\Gamma\!\big(\tfrac{\gamma}{2}\big)}.
 ```
 
-The half-mass-radius condition $M(<r_h) = M/2$ gives
+As $\gamma \to 3^{+}$ the factor $\Gamma\!\big(\tfrac{\gamma-3}{2}\big)$ diverges:
+a shallow outer slope makes the profile so extended that its *untruncated* mass is
+infinite. This is exactly why a finite truncation radius $r_t$ is required for
+shallow $\gamma$ — the sampled mass is always the truncated $M(<r_t)$.
 
-```{math}
-:label: eff-rh-a
-r_h \;=\; a\,\sqrt{\,2^{2/(\gamma - 3)} - 1\,}.
+Two special cases are worth keeping as sanity anchors:
+
+- **$\gamma = 5$** is *identical* to a Plummer sphere of scale radius $a$ (both are
+  $\rho \propto (1+r^2/a^2)^{-5/2}$), so the hypergeometric collapses to the
+  elementary Plummer form
+  $M(<r) = \tfrac{4\pi}{3}\rho_0 a^3\,\hat r^{3}\,(1+\hat r^2)^{-3/2}$ with
+  $\hat r = r/a$, giving $M_{\mathrm{total}} = \tfrac{4\pi}{3}\rho_0 a^3$ and the
+  Plummer half-mass radius $r_h = a/\sqrt{2^{2/3}-1} \approx 1.305\,a$.
+- **$\gamma = 4$** integrates elementarily to
+  $M(<r) = 2\pi\rho_0 a^3\big[\arctan\hat r - \hat r/(1+\hat r^2)\big]$, with
+  $M_{\mathrm{total}} = \pi^2\rho_0 a^3$.
+
+```{note}
+There is **no closed-form $r_h \leftrightarrow a$ relation for general $\gamma$**.
+At $\gamma = 5$ the profile *is* a Plummer sphere, so $a = r_h\sqrt{2^{2/3}-1}$
+(equivalently $r_h \approx 1.305\,a$). For other $\gamma$, convert a literature
+$r_h$ to $a$ by constructing the profile and inverting its (numerical) cumulative
+mass, or by bisecting $M(<r_h) = M_{\mathrm{total}}/2$ using {eq}`eff-mcum`. Note
+that, contrary to a common shortcut, EFF and Plummer at $\gamma = 5$ share the
+*same* density with the *same* $a$ — there is no separate "EFF $r_h = a$"
+convention; the two are the same sphere.
 ```
 
-At $\gamma = 5$, this *untruncated* EFF half-mass relation gives $r_h = a$.
-This does not reproduce the Plummer scale-radius convention even though both
-profiles have an outer $r^{-5}$ density falloff; the profiles share an
-asymptotic slope but use different normalisations and mass profiles.
+## Sampling
 
-```{important}
-{eq}`eff-rh-a` is the **untruncated, analytic** $r_h \leftrightarrow a$
-relation. progenax's `EFFProfile` is constructed from the **scale radius $a$
-directly** (`EFFProfile(a, gamma, r_t)`) — it does *not* take $r_h$ and does
-not apply this mapping internally. The relation is provided for context (e.g.
-converting a literature $r_h$ to an $a$ by hand); with a finite $r_t$ the true
-half-mass radius is the truncated one, which differs from {eq}`eff-rh-a`.
-```
+`EFFProfile` is constructed from the scale radius $a$ directly
+(`EFFProfile(a, gamma, r_t)`) — it does not take $r_h$. Because {eq}`eff-mcum` has
+no elementary inverse, `EFFProfile.sample_positions` builds a **numerical
+cumulative-mass table**: it evaluates $4\pi r^2\rho(r)$ on a square-stretched grid
+$r = r_t\,u^2$ (which concentrates points in the core), forms the running
+trapezoidal integral, normalises it to a CDF, and draws radii by inverse-CDF
+interpolation (`jnp.interp`) of uniform deviates. The sampled mass is therefore the
+truncated $M(<r_t)$.
 
-```{admonition} Why EFF and Plummer don't match at $\gamma = 5$
-:class: note
-The EFF density is $\rho \propto (1 + r^2/a^2)^{-\gamma/2}$. The
-Plummer density is $\rho \propto (1 + r^2/a^2)^{-5/2}$. These are
-the same functional form *with the same scale radius $a$* only when
-$\gamma = 5$. The half-mass radii therefore differ by a constant — at
-$\gamma = 5$, EFF gives $r_h = a$, Plummer gives $r_h \approx 1.31\,a$
-({eq}`plummer-rh-a` inverted). This is not a bug; it is a difference
-of convention between the two papers. progenax keeps each profile's
-native parameterisation — `PlummerProfile(r_h=...)` is built from the
-half-mass radius, while `EFFProfile(a=..., gamma=..., r_t=...)` is built
-from the scale radius $a$ — so the two are not interchangeable as a single
-`r_h`.
-```
-
-## Inverse-CDF sampling
-
-Inverting {eq}`eff-mcum` is straightforward. Setting $u = M(<r) / M$:
-
-```{math}
-:label: eff-inverse-cdf
-r(u) \;=\; a\,\sqrt{\,(1 - u)^{2/(3 - \gamma)} - 1\,}
-```
-
-Differentiable analytically in $u$, $a$, and $\gamma$. progenax's
-`EFFProfile.sample_positions` uses this expression directly via
-`vmap`, with `lax.scan` not needed because the inversion is one-shot.
-
-The differentiability in $\gamma$ is the practical advantage of EFF
-over King: when fitting a cluster's outer slope from observational
-data, $\gamma$ can be inferred via HMC alongside $r_h$ and the IMF
-parameters. The King concentration $W_0$ requires re-solving the ODE
-for each gradient evaluation, whereas $\gamma$ enters EFF analytically.
+Sampling stays **differentiable in $a$, $\gamma$, and $r_t$**: the density enters
+the grid analytically, so gradients flow through the tabulated CDF and the
+interpolation. This is the practical advantage of EFF over King for fitting a
+cluster's outer slope — $\gamma$ can be inferred via HMC alongside $r_h$ and the
+IMF parameters, whereas the King concentration $W_0$ requires re-solving the
+Poisson ODE at each gradient evaluation.
 
 ## Velocities: Eddington inversion (no closed form)
 

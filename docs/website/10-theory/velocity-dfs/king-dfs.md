@@ -115,9 +115,13 @@ form in general, but progenax precomputes $\sigma(W)$ on the same
 $W$-grid used for the speed-CDF table inside the sampler. The current
 public `KingVelocityDF` API exposes `sample_velocities`; it does not
 export a separate velocity-dispersion method. The dispersion is
-monotonically decreasing in $W$ — i.e. *increasing* with radius — which
-is the King DF's defining property and the reason King clusters look
-"puffed up" at the tidal radius compared to Plummer.
+monotonically **increasing** in $W$: $\sigma^2 \to 0$ as $W \to 0$ and
+$\sigma^2 \to 3\sigma_0^2$ as $W \to \infty$ (the untruncated-Maxwellian
+limit). Since $W$ decreases outward — from $W_0$ at the centre to $0$ at
+the tidal radius — **$\sigma$ falls with radius and vanishes at the tidal
+boundary**, where the escape speed $\to 0$. King clusters therefore have
+*cold outskirts*, in contrast to a Plummer sphere whose dispersion also
+declines outward but stays finite at all radii.
 
 ## Pairing with the King profile
 
