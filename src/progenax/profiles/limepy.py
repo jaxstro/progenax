@@ -366,7 +366,12 @@ class LIMEPYProfile(eqx.Module):
         xi_grid_arr = jnp.asarray(xi_grid, dtype=jnp.float64)
         psi_grid_arr = jnp.asarray(psi_grid, dtype=jnp.float64)
 
-        r_grid = jnp.linspace(0.0, r_t_arr, n_grid)
+        # Sqrt-stretched grid r = r_t * u^2 (as in KingProfile / EFFProfile, audit R4/S2):
+        # a linear grid under-resolves the core when r_t >> r_c (W0=12, g=1: r_t ~ 548 r_c,
+        # so a 1000-pt linear grid has ~1 node inside 0.5 r_c -> ~+49% core-mass error).
+        # u^2 concentrates nodes near the centre where the mass is; smooth in r_t, so the
+        # sampling stays differentiable in r_t.
+        r_grid = r_t_arr * jnp.linspace(0.0, 1.0, n_grid) ** 2
         xi_local = r_grid / r_c_arr
         psi_vals = jnp.interp(
             xi_local, xi_grid_arr, psi_grid_arr, left=W0_arr, right=0.0
@@ -384,11 +389,12 @@ class LIMEPYProfile(eqx.Module):
         rho_grid = jnp.where(r_grid <= r_t_arr, rho_grid, 0.0)
 
         integrand = 4.0 * jnp.pi * r_grid**2 * rho_grid
-        dr = r_grid[1] - r_grid[0]
+        # Non-uniform trapezoid: the sqrt-stretched grid has per-interval widths, so weight
+        # each interval by its own diff(r_grid) (a scalar dr would be wrong here).
         M_cum = jnp.concatenate(
             [
                 jnp.zeros(1, dtype=integrand.dtype),
-                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dr,
+                jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r_grid)),
             ]
         )
         cdf_grid = M_cum / (M_cum[-1] + 1e-30)

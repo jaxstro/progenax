@@ -478,3 +478,29 @@ class TestLimepyTruncationGuard:
 
         with pytest.raises(ValueError, match="xi_max"):
             LIMEPYVelocityDF(W0=9.0, g=2.0, r_c=1.0)
+
+
+class TestLimepyCoreMassResolution:
+    """The tabulated mass CDF must resolve the core at high concentration.
+
+    A linear r-grid under-resolves M(<r) near the centre when r_t >> r_c
+    (W0=12, g=1: r_t ~ 548 r_c, so a 1000-pt linear grid has ~1 node inside
+    0.5 r_c -> ~+49% core-mass error). King/EFF use a sqrt-stretched grid
+    (r = r_t u^2) + a non-uniform trapezoid; LIMEPY must too (audit S2). Test:
+    the DEFAULT-resolution core mass must already match a fine-grid reference.
+    """
+
+    def test_core_mass_cdf_converged_at_default_resolution(self):
+        from progenax.profiles.limepy import LIMEPYProfile
+
+        kw = dict(xi_max=800.0, n_ode_points=8000)  # W0=12 needs a wide, fine ODE domain
+        coarse = LIMEPYProfile.from_W0_rc(12.0, 1.0, 1.0, n_grid=1000, **kw)
+        fine = LIMEPYProfile.from_W0_rc(12.0, 1.0, 1.0, n_grid=200000, **kw)
+        r_c = float(coarse.r_c)
+        m_coarse = float(jnp.interp(0.5 * r_c, coarse._r_grid, coarse._cdf_grid))
+        m_fine = float(jnp.interp(0.5 * r_c, fine._r_grid, fine._cdf_grid))
+        rel = abs(m_coarse - m_fine) / m_fine
+        assert rel < 0.02, (
+            f"core-mass CDF at 0.5 r_c is {rel:.1%} off the converged value "
+            f"(coarse={m_coarse:.4g}, fine={m_fine:.4g}) — grid under-resolves the core"
+        )
