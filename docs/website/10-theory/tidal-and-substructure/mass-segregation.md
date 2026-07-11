@@ -77,6 +77,8 @@ sample $(\mathbf{r}_i, \mathbf{v}_i)$.
 E_i \;=\; \tfrac{1}{2}|\mathbf{v}_i|^2 \;+\; \Phi(\mathbf{r}_i)
 ```
 
+[↗ model card](#card-orbit-energy)
+
 Sort ascending; index 0 is the most-bound orbit, index $N_{\mathrm{pool}}-1$
 is the least-bound.
 
@@ -232,6 +234,8 @@ quantifying segregation strength:
 \Lambda_{\mathrm{MSR}} \;=\; \frac{\langle\, \ell_{\mathrm{random}}\,\rangle}{\ell_{\mathrm{massive}}}
 \;\pm\;\frac{\sigma_{\mathrm{random}}}{\ell_{\mathrm{massive}}}
 ```
+
+[↗ model card](#card-lambda-msr)
 
 where $\ell_{\mathrm{massive}}$ is the MST length of the $N_{\mathrm{m}}$
 most massive stars (typically $N_{\mathrm{m}} = 10$–$20$),

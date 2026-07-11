@@ -36,6 +36,8 @@ $M_{\mathrm{gal}}(<R)$, the Jacobi radius is
 r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(3 - \mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R)\,M_{\mathrm{gal}}(<R)}\biggr]^{1/3}.
 ```
 
+[↗ model card](#card-jacobi-circular)
+
 The numerical factor in the denominator carries the host's mass-profile
 dependence through $\mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R$:
 
@@ -177,6 +179,8 @@ A useful dimensionless quantity is the **fill-factor**
 :label: fill-factor
 \mathcal{F} \;\equiv\; \frac{r_h}{r_J}
 ```
+
+[↗ model card](#card-fill-factor)
 
 which measures how "full" the cluster is relative to its tidal limit.
 Galactic globular clusters have observed $\mathcal{F}$ in the range

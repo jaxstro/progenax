@@ -24,6 +24,8 @@ Phase log (ADR-0034 sequencing):
   2026-07-11  B4 engines: engine_a_multimass_limepy, engine_b_density_eddington
               (both map to MultiComponentCluster; A carries the registry row).
               Coverage 14/21. GZ15 misprint-admonition fabrication FIXED.
+  2026-07-11  B5 tidal+diagnostics: jacobi_tidal, cw04_q, mass_segregation
+              (all extra-registry). Coverage still 14/21 registry models.
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
