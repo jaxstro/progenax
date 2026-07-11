@@ -45,7 +45,7 @@ diagnostics = ["numpy>=1.24", "scipy>=1.11"]
 # progenax uses matplotlib only — no seaborn (cf. startrax's viz extra). There is no
 # `[data]` extra: progenax's data artifacts are stdlib json + numpy .npz (numpy
 # already arrives via jax / `[diagnostics]`), so no polars/pyarrow/pandas/h5py is used.
-viz = ["matplotlib>=3.7"]
+viz = ["matplotlib>=3.7", "seaborn>=0.13"]
 # Repo-only experimental subsystem (src/experimental/gravoturb_fdf; NOT in the wheel).
 # Differentiable-inference deps. blackjax 1.x `window_adaptation`/`nuts` API per
 # inference/hmc.py (verified against 1.5); arviz for HMC convergence diagnostics

@@ -254,3 +254,9 @@ papers/
 
 # ADR-0034: Brain equation-digest STAGING (Anna reviews + commits to ~/brain herself)
 .brain-drafts/
+
+# ICViz figure masters (PDF/PNG/WebP) are paper-local; only the site WebP copies
+# under docs/website/10-theory/figures/ are committed.
+laboratory/icviz/plots/
+docs/website/10-theory/figures/*.png
+docs/website/10-theory/figures/*.pdf

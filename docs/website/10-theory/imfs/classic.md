@@ -46,6 +46,22 @@ This chapter derives each form, lists the parameter values that turn
 it into "the" canonical IMF, and explains why progenax picks
 {cite:t}`Maschberger2013` as its default in production.
 
+```{figure} ../figures/imf_classic_slopes.webp
+:label: fig-imf-classic-slopes
+:width: 100%
+
+The four classic IMFs and why smoothness matters. **(a)** $m\,\xi(m) =
+\mathrm{d}N/\mathrm{d}\ln m$ for each family on its canonical support
+(curves: analytic; faint steps: $2\times 10^5$ sampled masses each, seed 42 —
+the sampler-equals-theory check). **(b)** the local slope
+$S(m) = -\mathrm{d}\ln\xi/\mathrm{d}\ln m$ computed **by autodiff**:
+Kroupa's breakpoints and Chabrier's $1\,\Msun$ join are $C^0$ kinks in
+exactly the quantity gradient-based inference differentiates through, while
+Maschberger is one smooth curve — the reason it is progenax's production
+default. Regenerate: `python -m laboratory.icviz --only imf-classic-slopes`.
+```
+
+
 ## Salpeter (1955): the original power-law
 
 The first published IMF, fit to Galactic-disk solar-neighbourhood
@@ -77,6 +93,15 @@ N(<m) / N \;=\; \frac{m^{1-\alpha} - m_{\min}^{1-\alpha}}{m_{\max}^{1-\alpha} - 
 inverted analytically for inverse-CDF sampling. progenax's
 `PowerLawIMF.salpeter(m_min=1.0, m_max=150.0)` is the Salpeter
 configuration (internally `exponents=[2.35], breakpoints=[]`).
+
+:::{warning}
+**The 1.35-vs-2.35 convention trap.** Salpeter's paper quotes the slope
+$\Gamma = 1.35$ — in *logarithmic* mass, $\mathrm{d}N/\mathrm{d}\log m
+\propto m^{-\Gamma}$. progenax's $\alpha = 2.35$ is the *linear*-mass
+slope, $\xi(m) = \mathrm{d}N/\mathrm{d}m \propto m^{-\alpha}$, with
+$\alpha = \Gamma + 1$. Mixing the two conventions is the single most common
+IMF-fitting error; every progenax IMF uses the linear-mass $\alpha$.
+:::
 
 ## Kroupa (2001): multi-segment broken power-law
 
@@ -216,6 +241,43 @@ differentiate through — so prefer Maschberger unless a like-for-like
 comparison against a Kroupa/Chabrier-defined literature analysis demands
 the segmented forms.
 ```
+
+## Check yourself
+
+:::{dropdown} 1. The slope trap — reconcile 1.35 with 2.35
+Salpeter (1955) reports a slope of $1.35$; `PowerLawIMF.salpeter()` uses
+$2.35$. Before peeking: which convention is which, and how do they relate?
+
+Verify numerically: sample $10^5$ masses, histogram them in $\log m$, and
+fit the high-mass tail slope — you should recover $\Gamma \approx 1.35 =
+\alpha - 1$ (the $\mathrm{d}\ln m = m\,\mathrm{d}m$ Jacobian shifts the
+exponent by one).
+:::
+
+:::{dropdown} 2. Rank the mean masses — then explain the outlier
+Predict the ordering of $\langle m \rangle$ for the four default
+configurations, then run `imf.mean_mass()` for each. Measured values
+(analytic, this checkout): Salpeter $0.351$, Maschberger $0.367$, Kroupa
+$0.376$, **Chabrier $0.607\,\Msun$**.
+
+The lesson: the biggest driver is the *support*, not the shape — Chabrier's
+default $m_{\min} = 0.08$ (the hydrogen-burning limit) excludes the brown
+dwarfs the other defaults include, nearly doubling $\langle m \rangle$;
+Salpeter's missing turnover is almost exactly offset by its $m_{\min} = 0.1$
+floor. For a fixed total mass, your IMF choice changes the *number of stars*
+by the same factor.
+:::
+
+:::{dropdown} 3. Feel the kink with `jax.grad`
+Compute `jax.grad(lambda mu: Maschberger(mu=mu).mean_mass())(0.2)` — a
+clean $\mathrm{d}\langle m\rangle/\mathrm{d}\mu \approx 1.52$. Now try
+the same through a Kroupa *breakpoint* (rebuild `PowerLawIMF` with a traced
+break). Both are finite — but relate what you see to panel (b) of
+{numref}`fig-imf-classic-slopes`: the Maschberger derivative is smooth in
+*all* its parameters everywhere, while a sampled mass sitting exactly at a
+Kroupa break feels a $C^0$ kink. Smoothness is why HMC chains on
+($\alpha, \beta, \mu$) mix cleanly.
+:::
 
 ## Truncated power-law
 
