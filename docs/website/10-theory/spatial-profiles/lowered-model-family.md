@@ -37,6 +37,8 @@ f(E) \;\propto\; e^{-E/\sigma^2}\,
 \gamma\!\Big(g,\; \tfrac{E_{\rm cut}-E}{\sigma^2}\Big),
 ```
 
+[↗ model card](#card-limepy-df-family)
+
 with $g=0$ recovering the Woolley cutoff, $g=1$ the King model, and $g=2$ the
 Wilson model, interpolating smoothly in between. The same framework extends
 naturally to **multiple mass components** (each mass group its own
@@ -68,6 +70,8 @@ coupled Poisson equation
 \;=\; -\,9\sum_j \alpha_j\,\hat\rho_j(\xi),
 ```
 
+[↗ model card](#card-multimass-poisson)
+
 with $\alpha_j$ the central density fractions ($\sum_j\alpha_j = 1$). A
 *colder* component ($w_j < 1$) feels a deeper effective well and concentrates
 — as a **genuine equilibrium**, not a post-hoc radial reshuffling. Mass
@@ -78,6 +82,8 @@ segregation is then the equipartition convenience
 w_j \;=\; \mu_j^{-\delta}, \qquad \mu_j = m_j/\bar m, \quad
 \bar m = \sum_j m_j\,\alpha_j,
 ```
+
+[↗ model card](#card-mass-seg-law)
 
 ({cite:t}`Gieles2015`, Eqs. 24–26): $\delta = 1/2$ is the standard
 partial-equipartition choice, $\delta = 0$ collapses every component to the
@@ -97,10 +103,17 @@ $\gtrsim 100$.
 :::{admonition} A misprint worth knowing about
 :class: note
 The density index of the lowered-isothermal family is
-$E_\gamma(g+\tfrac32, W)$ — the form in {cite:t}`Gieles2015` Appendix B —
-**not** the $g+\tfrac12$ that appears in the main text of the paper.
-progenax verified the index three independent ways (including the published
-erratum) before implementing `limepy_density_hat`.
+$E_\gamma(g+\tfrac32, \hat\phi)$ — printed **correctly** in
+{cite:t}`Gieles2015` main-text Eq. 8 (p. 578). What the published 2018
+**erratum** (MNRAS 474, 3997) corrects are the $\hat\phi \to 0$
+*limiting expressions* Eqs. 20–21 (whose corrected right-hand sides carry
+exactly these $E_\gamma(g+\tfrac32,\cdot)$ / $\Gamma(g+\tfrac52)$ indices)
+and a typo in the $\sigma_S^2(r)$ Eq. 41 — the LIMEPY code itself was
+always correct. progenax verified the index three independent ways
+(main-text Eq. 8, the erratum, and the King $g=1$ corner) before
+implementing `limepy_density_hat`. (An earlier revision of this note
+mislocated the misprint as "main text $g+\tfrac12$ vs Appendix B" —
+corrected 2026-07-11 against both PDFs.)
 :::
 
 ## Entry points

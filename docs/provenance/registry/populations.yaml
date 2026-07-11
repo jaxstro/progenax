@@ -1,0 +1,178 @@
+# Provenance model cards — multi-component cluster engines (ADR-0034).
+# Generated glossary: docs/website/15-model-reference/populations.md (do not hand-edit).
+# Equations transcribed VERBATIM from the theory pages. B4 sweep PDF work
+# (2026-07-11): GZ15 main-text Eq. 8 re-read (E_gamma(g+3/2) is CORRECT there;
+# the 2018 erratum fixes Eqs. 20-21 + 41) — the lowered-model-family.md
+# misprint admonition was itself wrong about the misprint's location and has
+# been corrected against both PDFs.
+
+- model: engine_a_multimass_limepy
+  family_display: Engine A — multimass lowered-isothermal (LIMEPY family)
+  description: >
+    DF-first multi-component equilibrium: every mass component shares one
+    dimensionless potential, each riding it at its own velocity-scale ratio
+    w_j (mass segregation via the equipartition ansatz w_j = mu_j^-delta),
+    with the Gieles & Zocchi (2015) continuous truncation parameter g
+    (Woolley 0 / King 1 / Wilson 2). Equilibrium by construction.
+  when_to_use:
+    good_for:
+      - "relaxed multi-mass globular clusters with primordial/partial mass segregation"
+      - "physically motivated equilibrium family (DF-defined; unscaled Q = 0.5)"
+      - "GC 1G/2G, halo+core, binaries-vs-singles component splits via direct w_j"
+    not_for:
+      - "prescribed observed density shapes (use Engine B)"
+      - "full energy equipartition (the model SATURATES: sigma(m) flattens below m_eq — that is the physics, not a bug)"
+  parameters:
+    - name: W0
+      meaning: "dimensionless central potential of the shared well"
+      units: dimensionless
+      typical_range: "3–12"
+      code_arg: "MultiComponentCluster.from_components(W0=...)"
+    - name: g
+      meaning: "continuous truncation parameter (0 Woolley, 1 King, 2 Wilson)"
+      units: dimensionless
+      typical_range: "0–2.5"
+      code_arg: "from_components(g=...)"
+    - name: alpha_j
+      meaning: "central density fractions (sum to 1)"
+      units: dimensionless
+      typical_range: "—"
+      code_arg: "from_components(alpha_j=...)"
+    - name: w_j
+      meaning: "velocity-scale ratios s_j/s (the single free Engine-A scale per component); mass segregation sets w_j = mu_j^-delta"
+      units: dimensionless
+      typical_range: "0.5–2"
+      code_arg: "from_components(w_j=...) / from_mass_segregation(delta=...)"
+    - name: ra_hat_j
+      meaning: "optional per-component anisotropy radii (OM/Michie term)"
+      units: "r_c units"
+      typical_range: "inf = isotropic"
+      code_arg: "from_components(ra_hat_j=...)"
+  sources:
+    - bibkey: Gieles2015
+      provides: "the LIMEPY family: DF, E_gamma(g+3/2) density integral, multimass scalings"
+      locators: ["Eq. 8, p. 578 (density integral — CORRECT in the main text, re-verified 2026-07-11)", "Eqs. 24-26 (multimass s_j = s mu_j^-delta, mean mass)", "Appendix B (fractional-calculus derivation)"]
+    - bibkey: Gieles2018erratum
+      provides: "corrections to the phi->0 limits (Eqs. 20-21) and the sigma_S^2 Eq. 41 typo — the LIMEPY code was always correct"
+      locators: ["MNRAS 474, 3997 — whole erratum, PDF-verified 2026-07-11"]
+    - bibkey: Peuten2017
+      provides: "the multimass anisotropy scaling r_hat_a,j = r_hat_a mu_j^eta"
+      locators: ["Eqs. 3-5"]
+    - bibkey: Bianchini2016
+      provides: "the sigma(m) closed form (their Eq. A1, with the paper's missing 1/2 power restored — see the per-paper typo note) and the m_eq crossover"
+      locators: ["Eq. A1", "Eq. 3", "Appendix A (A2-A3 matching)"]
+  equations:
+    - label: limepy-df-family
+      latex: 'f(E) \;\propto\; e^{-E/\sigma^2}\, \gamma\!\Big(g,\; \tfrac{E_{\rm cut}-E}{\sigma^2}\Big)'
+      symbols:
+        g: {latex: 'g', meaning: "continuous truncation parameter", units: dimensionless}
+        E_cut: {latex: 'E_{\rm cut}', meaning: "truncation energy (the escape edge)", units: "pc^2 / Myr^2"}
+      assumptions: ["g = 0 Woolley, g = 1 King, g = 2 Wilson; equals GZ15 Eq. 1 up to the constant e^{E_cut/sigma^2}"]
+      theory_ref: "10-theory/spatial-profiles/lowered-model-family.md#limepy-df-family"
+    - label: multimass-poisson
+      latex: '\frac{1}{\xi^2}\frac{\mathrm{d}}{\mathrm{d}\xi} \Big(\xi^2\frac{\mathrm{d}\psi}{\mathrm{d}\xi}\Big) \;=\; -\,9\sum_j \alpha_j\,\hat\rho_j(\xi)'
+      symbols:
+        alpha_j: {latex: '\alpha_j', meaning: "central density fractions", units: dimensionless}
+        rho_hat_j: {latex: '\hat\rho_j', meaning: "component density E_gamma(g+3/2, rescale_j psi), the GZ15 lowered exponential", units: dimensionless}
+      assumptions: ["one shared potential; component j rides it at depth W_j = rescale_j psi = w_j^-2 psi"]
+      theory_ref: "10-theory/spatial-profiles/lowered-model-family.md#multimass-poisson"
+    - label: mass-seg-law
+      latex: 'w_j \;=\; \mu_j^{-\delta}, \qquad \mu_j = m_j/\bar m, \quad \bar m = \sum_j m_j\,\alpha_j'
+      symbols:
+        delta: {latex: '\delta', meaning: "equipartition exponent (1/2 = traditional partial equipartition; 0 = single-mass oracle)", units: dimensionless}
+        m_bar: {latex: '\bar m', meaning: "central-density-weighted mean mass (GZ15 Eq. 26)", units: Msun}
+      assumptions: ["mass segregation as a genuine equilibrium property, not a positional reshuffle"]
+      theory_ref: "10-theory/spatial-profiles/lowered-model-family.md#mass-seg-law"
+    - label: meq-derived
+      latex: 'm_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\phi_0}'
+      symbols:
+        m_eq: {latex: 'm_{\rm eq}', meaning: "equipartition crossover mass — DERIVED from the DF (Bianchini A2-A3 matching), not fitted", units: Msun}
+        phi_0: {latex: '\hat\phi_0', meaning: "central dimensionless potential W_0", units: dimensionless}
+      assumptions: ["more concentrated clusters (larger W_0) equipartition down to lighter stars", "validated fit-free via the exact mu -> 0 identity (autodiff eta(m))"]
+      theory_ref: "10-theory/spatial-profiles/multimass-equipartition.md#meq-derived"
+  code_refs:
+    - "cluster/multicomponent.py::MultiComponentCluster"
+  validation:
+    - "tests/validation/test_multimass_equilibrium_physics.py::test_global_virial_is_half_across_delta"
+    - "tests/validation/test_multimass_equilibrium_physics.py::test_delta0_is_single_mass_and_segregation_grows"
+    - "tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic"
+  status: verified
+  deviations: []
+
+- model: engine_b_density_eddington
+  family_display: Engine B — density-defined shared-Ψ Eddington equilibria
+  description: >
+    Density-first multi-component equilibrium: prescribe each component's
+    density shape (Plummer/EFF/King mixes with mass fractions), build the
+    shared potential in ONE quadrature pass (no ODE), and derive each
+    component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in
+    that shared Psi — with a realizability gate (f_j >= 0 or refuse).
+  when_to_use:
+    good_for:
+      - "observationally prescribed shapes (e.g. Plummer halo + EFF core) needing THE equilibrium DF"
+      - "per-component OM anisotropy with independent r_a,j"
+      - "differentiable builds (quadrature only — no ODE solve)"
+    not_for:
+      - "component mixes whose Eddington DF is negative (unrealizable — the gate raises, by design)"
+      - "DF-defined families with a physical truncation parameter (use Engine A)"
+  parameters:
+    - name: profiles
+      meaning: "prescribed per-component density shapes (PlummerProfile / EFFProfile / KingProfile)"
+      units: "—"
+      typical_range: "—"
+      code_arg: "MultiComponentCluster.from_density_profiles(profiles=[...])"
+    - name: mass_fractions
+      meaning: "M_j / M_total amplitudes (must sum to 1)"
+      units: dimensionless
+      typical_range: "—"
+      code_arg: "from_density_profiles(mass_fractions=...)"
+    - name: r_a_j
+      meaning: "optional per-component OM anisotropy radii (None/inf = isotropic)"
+      units: pc
+      typical_range: "large enough that f_j(Q) >= 0"
+      code_arg: "from_density_profiles(r_a_j=...)"
+    - name: r_t
+      meaning: "cluster truncation radius — DERIVED from component extents (max finite extent, else the f_enc mass radius); explicit override cannot cut a King edge"
+      units: pc
+      typical_range: "derived"
+      code_arg: "from_density_profiles(r_t=...)"
+  sources:
+    - bibkey: BinneyTremaine2008
+      provides: "the Eddington inversion with the truncation boundary term (textbook form; Eddington 1916 original)"
+      locators: ["Section 4.3"]
+    - bibkey: Merritt1985
+      provides: "the OM augmented-density device rho_Q = (1 + r^2/r_a^2) rho"
+      locators: ["Eqs. 45-46 context (per-paper note)"]
+    - bibkey: King1966
+      provides: "the King-component density branch and the Poisson identity used for dW/dr (never differentiate interpolated data)"
+      locators: ["Eq. 16 (integrated to the dpsi/dxi identity)"]
+  equations:
+    - label: engine-b-poisson
+      latex: 'M(<r) = 4\pi\!\int_0^r \rho_{\rm tot}\, s^2\, \mathrm{d}s, \qquad \Phi(r) = -G\left[\frac{M(<r)}{r} + 4\pi\!\int_r^{r_t} \rho_{\rm tot}\, s\, \mathrm{d}s\right]'
+      symbols:
+        rho_tot: {latex: '\rho_{\rm tot}', meaning: "sum of mass-fraction-normalized prescribed component densities", units: "Msun / pc^3"}
+      assumptions: ["one cumulative-trapezoid pass on the sqrt-stretched grid (audit S2); dPsi/dr = -GM/r^2 analytic"]
+      theory_ref: "10-theory/populations/eddington-engine.md#engine-b-poisson"
+    - label: om-augmented
+      latex: '\rho_{Q,j}(r) \;=\; \left(1 + \frac{r^2}{r_{a,j}^2}\right)\rho_j(r)'
+      symbols:
+        r_aj: {latex: 'r_{a,j}', meaning: "per-component OM anisotropy radius", units: pc}
+      assumptions: ["yields f_j(Q), Q = E - J^2/2r_a,j^2, with beta_j(r) = r^2/(r^2 + r_a,j^2)"]
+      theory_ref: "10-theory/populations/eddington-engine.md#om-augmented"
+    - label: king-poisson-identity
+      latex: '\frac{\mathrm{d}\psi}{\mathrm{d}\xi} \;=\; -\frac{9}{\hat\rho_0}\,\xi^{-2}\int_0^{\xi} \hat\rho(\psi(s))\, s^2\, \mathrm{d}s'
+      symbols:
+        xi: {latex: '\xi', meaning: "dimensionless radius r/r_c of the King component", units: dimensionless}
+      assumptions: ["dW/dr from King's own integrated Poisson identity of the CLOSED-FORM density — in Abel-type inversions, never differentiate interpolated data (the jnp.gradient staircase drove a single King component to f_min = -0.679)"]
+      theory_ref: "10-theory/populations/eddington-engine.md#king-poisson-identity"
+  code_refs:
+    - "cluster/eddington_engine.py::build_engine_b_state"
+    - "profiles/density_poisson.py::shared_potential"
+    - "kinematics/eddington.py::eddington_invert"
+  validation:
+    - "tests/validation/test_engine_b_physics.py::test_king_density_engine_b_matches_engine_a"
+    - "tests/validation/test_engine_b_physics.py::test_plummer_halo_eff_core_equilibrium"
+    - "tests/validation/test_engine_b_physics.py::test_df_density_fidelity_interior"
+  status: verified
+  deviations:
+    - "Hard-truncated prescribed components carry a constant edge offset no ergodic f(E) can represent; the sampled Q_j therefore plateaus slightly below 0.5 (predicted 0.4953, sampled 0.4947 +/- 0.0014) — verified truncation-edge physics. Do NOT virial-rescale Engine B output."

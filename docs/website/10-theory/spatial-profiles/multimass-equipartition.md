@@ -101,6 +101,8 @@ matching linear terms (A2 ↔ A3) identifies
 \boxed{\;m_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\phi_0}\;}
 ```
 
+[↗ model card](#card-meq-derived)
+
 so $m_{\rm eq}$ is fixed by the mean mass, the truncation order $g$, and the
 central concentration $\hat\phi_0 = W_0$ — **not** a free input. Note
 $m_{\rm eq}/\bar m \propto 1/W_0$: **more concentrated clusters reach

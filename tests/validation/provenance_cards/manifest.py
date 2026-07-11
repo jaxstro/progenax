@@ -21,6 +21,9 @@ Phase log (ADR-0034 sequencing):
               Coverage 12/21. House guidance: Maschberger preferred (smooth).
   2026-07-11  B3 binaries: moe_pqe, period_distributions, eccentricity,
               kepler_elements, binary_cluster_assembly. Coverage 13/21.
+  2026-07-11  B4 engines: engine_a_multimass_limepy, engine_b_density_eddington
+              (both map to MultiComponentCluster; A carries the registry row).
+              Coverage 14/21. GZ15 misprint-admonition fabrication FIXED.
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
@@ -39,6 +42,7 @@ CARDED_MODELS: dict[str, str] = {
     "Maschberger": "maschberger",
     "TruncatedIMF": "truncated",
     "build_binary_cluster": "binary_cluster_assembly",
+    "MultiComponentCluster": "engine_a_multimass_limepy",
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).

@@ -55,12 +55,16 @@ M(<r) = 4\pi\!\int_0^r \rho_{\rm tot}\, s^2\, \mathrm{d}s, \qquad
 \Phi(r) = -G\left[\frac{M(<r)}{r} + 4\pi\!\int_r^{r_t} \rho_{\rm tot}\, s\, \mathrm{d}s\right],
 ```
 
+[↗ model card](#card-engine-b-poisson)
+
 with the relative potential $\Psi = \Phi(r_t) - \Phi$ (so
 $\Psi(r_t) = 0$, increasing inward) and
 $\mathrm{d}\Psi/\mathrm{d}r = -GM(<r)/r^2$ analytic from the enclosed
 mass. The implementation (`profiles/density_poisson.py`) works in
 dimensionless units ($G = 1$, total truncated mass 1) on a fixed
-$n_r = 6000$ grid, and stores per-component enclosed-mass CDFs
+$n_r = 6000$ grid — sqrt-stretched toward the core ($r = r_{\rm floor} +
+(r_t - r_{\rm floor})\,u^2$, audit S2), with non-uniform trapezoid
+weights — and stores per-component enclosed-mass CDFs
 $M_j(<r)$ for the position sampler.
 
 ## Per-component Eddington inversion in the shared Ψ
@@ -108,6 +112,8 @@ Per-component radial anisotropy uses the augmented-density device of
 :label: om-augmented
 \rho_{Q,j}(r) \;=\; \left(1 + \frac{r^2}{r_{a,j}^2}\right)\rho_j(r)
 ```
+
+[↗ model card](#card-om-augmented)
 
 in {eq}`eddington-formula` yields $f_j(Q)$ with
 $Q = E - J^2/2r_{a,j}^2$, i.e. the Osipkov–Merritt anisotropy profile
@@ -220,6 +226,8 @@ Poisson identity,
 \frac{\mathrm{d}\psi}{\mathrm{d}\xi} \;=\;
 -\frac{9}{\hat\rho_0}\,\xi^{-2}\int_0^{\xi} \hat\rho(\psi(s))\, s^2\, \mathrm{d}s,
 ```
+
+[↗ model card](#card-king-poisson-identity)
 
 by cumulative trapezoid of the **closed-form** density — after which
 $f_{\min} = +5.1\times 10^{-7}$. The general rule is worth the
