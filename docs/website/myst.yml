@@ -121,6 +121,10 @@ project:
             - file: 10-theory/populations/index.md
             - file: 10-theory/populations/eddington-engine.md
             - file: 10-theory/populations/two-component.md
+    - title: Model reference (provenance)
+      children:
+        - file: 15-model-reference/index.md
+        - file: 15-model-reference/spatial_profiles.md
     - title: Architecture & design
       children:
         - file: 20-architecture/index.md

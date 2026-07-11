@@ -31,6 +31,8 @@ The EFF profile is
 \rho(r) \;=\; \rho_0\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-\gamma/2}
 ```
 
+[↗ model card](#card-eff-rho)
+
 with three parameters: central density $\rho_0$, scale radius $a$, and
 power-law slope $\gamma$. The structural similarity to Plummer (which
 is exactly EFF at $\gamma = 5$) is intentional — EFF generalises Plummer
@@ -98,6 +100,8 @@ M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\;
   {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\gamma}{2};\,\tfrac{5}{2};\,-\frac{r^2}{a^2}\right).
 ```
 
+[↗ model card](#card-eff-mcum)
+
 The total (untruncated) mass converges only for $\gamma > 3$, where the integral
 evaluates to a ratio of Gamma functions,
 
@@ -107,6 +111,8 @@ M_{\mathrm{total}} \;=\; \lim_{r\to\infty} M(<r)
   \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\,
         \frac{\Gamma\!\big(\tfrac{\gamma-3}{2}\big)}{\Gamma\!\big(\tfrac{\gamma}{2}\big)}.
 ```
+
+[↗ model card](#card-eff-mtotal)
 
 As $\gamma \to 3^{+}$ the factor $\Gamma\!\big(\tfrac{\gamma-3}{2}\big)$ diverges:
 a shallow outer slope makes the profile so extended that its *untruncated* mass is

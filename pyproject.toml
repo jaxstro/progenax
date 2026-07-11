@@ -33,7 +33,7 @@ dependencies = [
 Repository = "https://github.com/jaxstro/progenax"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0", "ruff>=0.6", "mypy>=1.8"]
+dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0", "ruff>=0.6", "mypy>=1.8", "pyyaml>=6.0"]
 # Exact (non-differentiable) CW04 Q / Lambda_MSR diagnostics path. progenax core
 # is JAX-native; numpy+scipy are needed ONLY by progenax.diagnostics' scipy-backed
 # estimators (compute_q_parameter, compute_lambda_msr), which import them lazily

@@ -56,6 +56,8 @@ f(E) \;=\;
 \end{cases}
 ```
 
+[↗ model card](#card-king-df)
+
 The "$-1$" in the bracket is the *lowering*: it removes the high-energy
 tail of the Maxwell-Boltzmann distribution that would otherwise extend
 to $E \to \infty$, producing a finite cluster with a sharp tidal cutoff.
@@ -70,6 +72,8 @@ Integrating $f(E)$ over velocity space gives the density profile:
 \rho(W) \;=\; \rho_1 \cdot
 \bigl[\,e^W\,\mathrm{erf}(\sqrt{W}) - \sqrt{4W/\pi}\,(1 + \tfrac{2}{3}W)\,\bigr]
 ```
+
+[↗ model card](#card-king-rho-W)
 
 where $\mathrm{erf}$ is the error function. $\rho(W = 0) = 0$ (cluster
 edge) and $\rho(W = W_0) = \rho_0$ at the centre. Note that $\rho$ is
@@ -92,6 +96,8 @@ and non-dimensionalising via $\xi = r / r_c$ where $r_c$ is the King
 :label: king-rc
 r_c^2 \;=\; \frac{9\,\sigma_0^2}{4\pi G\,\rho_0},
 ```
+
+[↗ model card](#card-king-rc)
 
 yields the dimensionless King ODE:
 
@@ -126,6 +132,8 @@ concentration parameter
 :label: king-c
 c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t).
 ```
+
+[↗ model card](#card-king-c)
 
 For Galactic globular clusters, observational fits give $c$ in the
 range $\sim 0.7$–$2.5$, with $W_0 \sim 5$–$9$ for most clusters (the

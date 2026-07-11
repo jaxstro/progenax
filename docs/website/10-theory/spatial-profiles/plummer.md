@@ -37,6 +37,8 @@ The Plummer profile is
 \rho(r) \;=\; \frac{3\,M}{4\pi\,a^3}\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-5/2}
 ```
 
+[↗ model card](#card-plummer-rho)
+
 where $M$ is the total mass and $a$ is the **Plummer scale radius**.
 The profile is centrally smooth ($\rho(0) = 3M/(4\pi a^3) < \infty$),
 asymptotically $\rho \propto r^{-5}$ at $r \gg a$, and integrates to
@@ -60,6 +62,8 @@ gives the cumulative mass:
 M(<r) \;=\; M\,\frac{r^3}{(r^2 + a^2)^{3/2}}
 ```
 
+[↗ model card](#card-plummer-mcum)
+
 The total mass is recovered as $r \to \infty$: $M(<\infty) = M$. Solving
 $M(<r_h) = M/2$ for the half-mass radius gives the relation that
 recurs throughout progenax,
@@ -68,6 +72,8 @@ recurs throughout progenax,
 :label: plummer-rh-a
 \boxed{\;\;a \;=\; r_h\,\sqrt{2^{2/3} - 1}\;\approx\;0.7664\,r_h\;\;}
 ```
+
+[↗ model card](#card-plummer-rh-a)
 
 so that progenax's user-facing `r_h` parameter unambiguously specifies
 the radius enclosing half the cluster mass, regardless of the internal
@@ -133,6 +139,8 @@ dispersion has the closed form
 \sigma_r^2(r) \;=\; \frac{G\,M}{6\,\sqrt{r^2 + a^2}}
 ```
 
+[↗ model card](#card-plummer-sigma-r)
+
 Tangential and total velocity dispersions are equal to $\sigma_r$ for
 the *isotropic* Plummer DF (the standard equilibrium choice; see
 [](../velocity-dfs/plummer-dfs.md)). The central velocity dispersion is
@@ -161,6 +169,8 @@ Eddington 1916 / Binney & Tremaine §4) — **not** derived in
 f(E) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,(-E)^{7/2},
 \qquad E < 0
 ```
+
+[↗ model card](#card-plummer-df)
 
 with $E = \tfrac{1}{2}v^2 + \Phi(r)$ the specific energy. The
 exponent $7/2$ derives from the $(\rho)^{-5/2}$ density and the

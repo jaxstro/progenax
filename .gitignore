@@ -251,3 +251,6 @@ papers/
 
 # JAX persistent compilation cache (scripts-only demo cache; opt#3 in _demo_oed_concentration.py)
 .jax_cache/
+
+# ADR-0034: Brain equation-digest STAGING (Anna reviews + commits to ~/brain herself)
+.brain-drafts/

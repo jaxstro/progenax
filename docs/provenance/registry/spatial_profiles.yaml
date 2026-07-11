@@ -1,0 +1,208 @@
+# Provenance model cards — spatial profiles (ADR-0034).
+# Single source of truth: the glossary pages under docs/website/15-model-reference/
+# are GENERATED from this file (scripts/build_provenance_registry.py --emit) and the
+# enforcement test (tests/validation/provenance_cards/) pins bibkeys, code_refs,
+# validation node ids, and glossary freshness. Equations are transcribed VERBATIM
+# from the ledger-verified theory pages (docs/website/10-theory/spatial-profiles/);
+# each `theory_ref` names the hand-authored page + equation label it mirrors.
+
+- model: plummer_profile
+  family_display: Plummer sphere
+  description: >
+    Cored, infinitely extended spherical density profile with an analytic
+    inverse-CDF: the classic smooth model for young and idealized clusters and
+    the standard N-body test problem.
+  when_to_use:
+    good_for:
+      - "idealized/controlled N-body experiments (fully analytic chain: rho, M(<r), Phi, f(E))"
+      - "smooth cored systems without tidal truncation"
+      - "differentiable pipelines needing a closed-form position sampler"
+    not_for:
+      - "tidally truncated clusters (no finite edge — use King/LIMEPY)"
+      - "steep young-cluster outer slopes gamma < 5 (use EFF)"
+  parameters:
+    - name: r_h
+      meaning: "3-D half-mass radius; sets the scale radius a = r_h*sqrt(2^(2/3)-1)"
+      units: pc
+      typical_range: "0.1–10"
+      code_arg: "PlummerProfile(r_h=...)"
+  sources:
+    - bibkey: Plummer1911
+      provides: "the space-density law (Schuster n=5 polytrope fit to globular clusters)"
+      locators: ["Eqs. 11-12 (space density, in scale-radius units)"]
+    - bibkey: Aarseth1974
+      provides: "the Plummer model as the standard N-body test problem + IC recipe (inverse-CDF positions; Beta(3/2,9/2) speed draw)"
+      locators: ["Eq. 1, p. 183"]
+  equations:
+    - label: plummer-rho
+      latex: '\rho(r) \;=\; \frac{3\,M}{4\pi\,a^3}\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-5/2}'
+      symbols:
+        rho: {meaning: "mass density", units: "Msun / pc^3"}
+        M: {meaning: "total mass", units: Msun}
+        a: {meaning: "Plummer scale radius", units: pc}
+      assumptions: ["spherical symmetry", "isotropic (for the paired DF)"]
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-rho"
+    - label: plummer-mcum
+      latex: 'M(<r) \;=\; M\,\frac{r^3}{(r^2 + a^2)^{3/2}}'
+      symbols:
+        M_cum: {meaning: "enclosed mass", units: Msun}
+      assumptions: ["spherical symmetry"]
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-mcum"
+    - label: plummer-rh-a
+      latex: 'a \;=\; r_h\,\sqrt{2^{2/3} - 1}\;\approx\;0.7664\,r_h'
+      symbols:
+        r_h: {meaning: "3-D half-mass radius", units: pc}
+      assumptions: []
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-rh-a"
+    - label: plummer-sigma-r
+      latex: '\sigma_r^2(r) \;=\; \frac{G\,M}{6\,\sqrt{r^2 + a^2}}'
+      symbols:
+        sigma_r: {meaning: "1-D radial velocity dispersion", units: "pc / Myr"}
+        G: {meaning: "gravitational constant (explicit, units-carried)", units: "pc^3 / (Msun Myr^2)"}
+      assumptions: ["isotropic Plummer DF"]
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-sigma-r"
+    - label: plummer-df
+      latex: 'f(E) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,(-E)^{7/2}, \qquad E < 0'
+      symbols:
+        E: {meaning: "specific energy (bound: E < 0)", units: "pc^2 / Myr^2"}
+      assumptions: ["ergodic f(E)", "isotropic"]
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-df"
+  code_refs:
+    - "profiles/plummer.py::PlummerProfile"
+  validation:
+    - "tests/validation/test_plummer_physics.py::TestPlummerScaleRadius::test_scale_radius_formula_exact"
+    - "tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_cdf_formula_accuracy"
+    - "tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio"
+  status: verified
+  deviations: []
+
+- model: king_profile
+  family_display: King (1966) lowered isothermal
+  description: >
+    Single-mass lowered-isothermal sphere: an isothermal core with a finite
+    tidal cutoff, parameterised by the dimensionless central concentration W0.
+    The standard model for old, dynamically relaxed globular clusters.
+  when_to_use:
+    good_for:
+      - "old, dynamically relaxed globular clusters"
+      - "tidally truncated systems needing a finite edge r_t"
+    not_for:
+      - "young/expanding clusters with power-law halos (use EFF)"
+      - "radially anisotropic systems (use Michie)"
+      - "generalized truncation g != 1 or multi-mass (use LIMEPY / Engine A)"
+  parameters:
+    - name: W0
+      meaning: "dimensionless central potential Psi(0)/sigma_0^2; sets the concentration c = log10(r_t/r_c)"
+      units: dimensionless
+      typical_range: "3–12 (supported to ~15)"
+      code_arg: "KingProfile.from_W0_rc(W0=...)"
+    - name: r_c
+      meaning: "King core radius r_c^2 = 9 sigma_0^2 / (4 pi G rho_0)"
+      units: pc
+      typical_range: "0.1–5"
+      code_arg: "KingProfile.from_W0_rc(r_c=...)"
+  sources:
+    - bibkey: King1966
+      provides: "lowered-Maxwellian f(E), rho(W) with erf, the factor-9 Poisson ODE, Table II c(W0)"
+      locators: ["Eq. 3 (DF)", "Eq. 15 (r_c normalization)", "Eq. 16 (Poisson ODE)", "Eq. 17 (rho(W))", "Table II p. 73 (c(W0))"]
+  equations:
+    - label: king-df
+      latex: 'f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\bigl[\,e^{(\Phi(r_t)-E)/\sigma_0^2} - 1\,\bigr], & E < \Phi(r_t) \\ 0, & E \ge \Phi(r_t) \end{cases}'
+      symbols:
+        E: {meaning: "specific energy", units: "pc^2 / Myr^2"}
+        sigma_0: {meaning: "central velocity-scale parameter", units: "pc / Myr"}
+        rho_1: {meaning: "density normalization", units: "Msun / pc^3"}
+      assumptions: ["isotropic", "single-mass", "lowered Maxwellian"]
+      theory_ref: "10-theory/spatial-profiles/king.md#king-df"
+    - label: king-rho-W
+      latex: '\rho(W) \;=\; \rho_1 \cdot \bigl[\,e^W\,\mathrm{erf}(\sqrt{W}) - \sqrt{4W/\pi}\,(1 + \tfrac{2}{3}W)\,\bigr]'
+      symbols:
+        W: {meaning: "dimensionless potential Psi/sigma_0^2", units: dimensionless}
+      assumptions: ["follows from integrating the lowered-Maxwellian DF over velocities"]
+      theory_ref: "10-theory/spatial-profiles/king.md#king-rho-W"
+    - label: king-rc
+      latex: 'r_c^2 \;=\; \frac{9\,\sigma_0^2}{4\pi G\,\rho_0}'
+      symbols:
+        rho_0: {meaning: "central density", units: "Msun / pc^3"}
+      assumptions: []
+      theory_ref: "10-theory/spatial-profiles/king.md#king-rc"
+    - label: king-c
+      latex: 'c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t)'
+      symbols:
+        r_t: {meaning: "tidal (truncation) radius, the psi -> 0 crossing", units: pc}
+        xi_t: {meaning: "dimensionless tidal radius r_t/r_c", units: dimensionless}
+      assumptions: []
+      theory_ref: "10-theory/spatial-profiles/king.md#king-c"
+  code_refs:
+    - "profiles/king.py::KingProfile"
+    - "profiles/king.py::king_lowered_maxwellian_density"
+  validation:
+    - "tests/validation/test_king_physics.py::test_concentration_matches_king1966_table_ii"
+    - "tests/validation/test_king_physics.py::TestKingODESolution::test_boundary_conditions"
+    - "tests/validation/test_king_physics.py::TestKingLoweredMaxwellianDensity::test_density_shape_matches_direct_velocity_integral"
+  status: verified
+  deviations: []
+
+- model: eff_profile
+  family_display: EFF (1987) power-law halo
+  description: >
+    Cored profile with a power-law outer halo of 3-D slope gamma: the empirical
+    fit to young LMC clusters. gamma = 5 recovers the Plummer sphere exactly;
+    gamma <= 3 has divergent total mass, so a finite truncation radius r_t is
+    carried in practice.
+  when_to_use:
+    good_for:
+      - "young massive clusters with shallow power-law halos (LMC-style)"
+      - "systems needing a tunable outer slope between Plummer and isothermal"
+    not_for:
+      - "relaxed, tidally truncated globulars (use King)"
+      - "gamma <= 3 without an explicit r_t (untruncated mass diverges)"
+  parameters:
+    - name: a
+      meaning: "core scale radius"
+      units: pc
+      typical_range: "0.1–10"
+      code_arg: "EFFProfile(a=...)"
+    - name: gamma
+      meaning: "3-D density power-law slope (EFF87 fit the PROJECTED surface slope; 3-D ~ projected + 1)"
+      units: dimensionless
+      typical_range: "3.2–7 (EFF87 surface slopes 2.2–3.2 map to 3-D ~3.2–4.2; gamma = 5 is Plummer)"
+      code_arg: "EFFProfile(gamma=...)"
+    - name: r_t
+      meaning: "truncation radius (required for gamma <= 3; finite in practice)"
+      units: pc
+      typical_range: "5–100"
+      code_arg: "EFFProfile(r_t=...)"
+  sources:
+    - bibkey: ElsonFallFreeman1987
+      provides: "the EFF surface-brightness law and the young-LMC-cluster fits"
+      locators: ["Eq. 1 (projected surface-brightness law)", "Eq. 2 (enclosed projected luminosity)", "Table 1 (surface slopes 2.2-3.2, median 2.6)"]
+  equations:
+    - label: eff-rho
+      latex: '\rho(r) \;=\; \rho_0\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-\gamma/2}'
+      symbols:
+        rho_0: {meaning: "central density", units: "Msun / pc^3"}
+        gamma: {meaning: "3-D power-law slope", units: dimensionless}
+      assumptions: ["spherical symmetry", "3-D (deprojected) slope convention"]
+      theory_ref: "10-theory/spatial-profiles/eff.md#eff-rho"
+    - label: eff-mcum
+      latex: 'M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\; {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\gamma}{2};\,\tfrac{5}{2};\,-\frac{r^2}{a^2}\right)'
+      symbols:
+        M_cum: {meaning: "enclosed mass (Gauss hypergeometric closed form)", units: Msun}
+      assumptions: ["spherical symmetry"]
+      theory_ref: "10-theory/spatial-profiles/eff.md#eff-mcum"
+    - label: eff-mtotal
+      latex: 'M_{\mathrm{total}} \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\, \frac{\Gamma\!\big(\tfrac{\gamma-3}{2}\big)}{\Gamma\!\big(\tfrac{\gamma}{2}\big)}'
+      symbols:
+        Gamma: {meaning: "Euler gamma function", units: dimensionless}
+      assumptions: ["gamma > 3 (else the untruncated mass diverges)"]
+      theory_ref: "10-theory/spatial-profiles/eff.md#eff-mtotal"
+  code_refs:
+    - "profiles/eff.py::EFFProfile"
+  validation:
+    - "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_central_density_unity"
+    - "tests/validation/test_eff_physics.py::TestEFFDensityFormula::test_power_law_slope_asymptotic"
+    - "tests/validation/test_eff_physics.py::TestEFFTidalTruncation::test_all_particles_within_tidal_radius"
+  status: verified
+  deviations:
+    - "progenax's gamma is the 3-D DENSITY slope; EFF87 Eq. 1 defines gamma as the PROJECTED surface-brightness slope (Abel projection shifts the slope by ~1). The 3-D form is the standard N-body/IC convention (e.g. McLuster); at gamma=5 it reduces exactly to Plummer. Documented in 10-theory/spatial-profiles/eff.md."
