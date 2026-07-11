@@ -232,3 +232,31 @@ class TestCalibration:
             exact_ordering = Q_clumpy_exact < Q_smooth_exact
             approx_ordering = Q_clumpy_approx < Q_smooth_approx
             assert exact_ordering == approx_ordering, "Monotonicity violated!"
+
+
+class TestQApproxCalibrationAccuracy:
+    """Calibrated q_approx must track the EXACT CW04 Q, not a stale constant.
+
+    DEFAULT_CALIBRATION was fit against an older exact oracle; after the exact
+    compute_q_parameter switched to the A=pi R^2 convention (which lowers Q_exact),
+    the stale factor made calibrated q_approx over-read Q_exact by ~+7% (audit S3).
+    The calibrated approximation should match the exact diagnostic to a few %.
+    """
+
+    def test_calibrated_q_approx_matches_exact(self):
+        pytest.importorskip("scipy")  # exact compute_q_parameter needs the [diagnostics] extra
+        from progenax import UniformSphereProfile
+        from progenax.diagnostics.q_approx import q_approx
+        from progenax.diagnostics.substructure import compute_q_parameter
+
+        key = jax.random.PRNGKey(11)
+        ratios = []
+        for _ in range(6):
+            key, k = jax.random.split(key)
+            pos = UniformSphereProfile(R=1.0).sample_positions(jnp.ones(500), k)
+            ratios.append(float(q_approx(pos)) / float(compute_q_parameter(pos)))
+        mean_ratio = float(np.mean(ratios))
+        assert 0.97 < mean_ratio < 1.03, (
+            f"calibrated q_approx / exact CW04 Q = {mean_ratio:.3f} (should be ~1.0); "
+            f"DEFAULT_CALIBRATION is stale vs the current exact oracle"
+        )

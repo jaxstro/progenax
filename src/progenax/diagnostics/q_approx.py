@@ -33,10 +33,13 @@ __all__ = [
     "DEFAULT_CALIBRATION",
 ]
 
-# Default calibration factor (determined empirically in Task 6)
-# Calibrated using n_samples=100, N_stars=500 uniform spheres
-# Q_approx underestimates by ~37.6%, so we multiply by 1.376 to correct
-DEFAULT_CALIBRATION: float = 1.375696
+# Default calibration factor from calibrate_q_approx(n_samples=100, N_stars=500, seed=42):
+# the raw m_bar/s_bar underestimates the EXACT CW04 Q (compute_q_parameter, A=pi R^2
+# convention) by ~22% on uniform spheres, so multiply by ~1.287 to correct. Re-fit against
+# the current exact oracle (audit S3): the previous 1.375696 predated the A=pi R^2 switch
+# and made calibrated q_approx over-read Q_exact by ~+7%. Pinned by
+# TestQApproxCalibrationAccuracy (calibrated q_approx must track the exact Q to a few %).
+DEFAULT_CALIBRATION: float = 1.287344
 
 
 def q_approx_naive(
