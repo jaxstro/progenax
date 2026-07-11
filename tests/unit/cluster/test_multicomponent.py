@@ -1171,3 +1171,37 @@ class TestEngineATruncationGuard:
             r_c=1.0,
         )
         assert model is not None
+
+
+class TestEngineACoreMassResolution:
+    """Engine-A's star-position CDF must resolve the core at high concentration.
+
+    Same linear-grid bug as LIMEPYProfile (audit S2): a W0=12, g=1 model
+    (r_t ~ 548 r_c) built on a linear r-grid under-resolves M(<r) near the
+    centre. The sqrt-stretched grid (r = r_t u^2) + non-uniform trapezoid fixes
+    it. Test: the default-resolution per-component CDF must already match a
+    fine-grid reference at 0.5 r_c.
+    """
+
+    def test_engine_a_core_mass_converged(self):
+        from progenax import MultiComponentCluster
+
+        kw = dict(
+            alpha_j=jnp.array([1.0]),
+            w_j=jnp.array([1.0]),
+            m_j=jnp.array([1.0]),
+            W0=12.0,
+            g=1.0,
+            r_c=1.0,
+            xi_max=800.0,
+            n_ode_points=8000,
+        )
+        coarse = MultiComponentCluster.from_components(n_grid=1000, **kw)
+        fine = MultiComponentCluster.from_components(n_grid=200000, **kw)
+        m_coarse = float(jnp.interp(0.5, coarse._r_grid, coarse._cdf_j[0]))
+        m_fine = float(jnp.interp(0.5, fine._r_grid, fine._cdf_j[0]))
+        rel = abs(m_coarse - m_fine) / m_fine
+        assert rel < 0.02, (
+            f"Engine-A core-mass CDF at 0.5 r_c is {rel:.1%} off the converged "
+            f"value (coarse={m_coarse:.4g}, fine={m_fine:.4g}) — grid under-resolves"
+        )

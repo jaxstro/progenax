@@ -320,14 +320,17 @@ class MultiComponentCluster(eqx.Module):
         # forward value). Forward r_t is the interpolated crossing.
         psi_for_rt = psi_grid if psi_raw is None else psi_raw
         r_t = r_c * _find_tidal_radius(xi_grid, psi_for_rt)
-        r_grid = jnp.linspace(0.0, r_t, n_grid)
+        # Sqrt-stretched grid r = r_t u^2 (as in KingProfile / LIMEPYProfile, audit R4/S2):
+        # a linear grid under-resolves the core when r_t >> r_c (W0=12, g=1: r_t ~ 548 r_c).
+        # u^2 concentrates nodes near the centre; smooth in r_t (differentiable sampling).
+        r_grid = r_t * jnp.linspace(0.0, 1.0, n_grid) ** 2
         psi_r = jnp.interp(r_grid / r_c, xi_grid, psi_grid, left=W0, right=0.0)
         rho_j_r = dens(psi_r, r_grid / r_c)
         rho_j_r = jnp.where(r_grid[None, :] <= r_t, rho_j_r, 0.0)
 
         integrand = 4.0 * jnp.pi * r_grid[None, :] ** 2 * rho_j_r
-        dr = r_grid[1] - r_grid[0]
-        M_cum = cumulative_trapz(integrand, dx=dr, axis=1)
+        # Non-uniform trapezoid: pass the stretched grid as x (a scalar dr would be wrong).
+        M_cum = cumulative_trapz(integrand, x=r_grid, axis=1)
         cdf_j = M_cum / (M_cum[:, -1:] + 1e-30)
 
         state_a = _EngineAState(
