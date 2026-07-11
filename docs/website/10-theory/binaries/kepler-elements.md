@@ -72,6 +72,8 @@ P^2 \;=\; \frac{4\pi^2\,a^3}{G\,(m_1 + m_2)}
 a \;=\; \biggl[\frac{G\,(m_1+m_2)\,P^2}{4\pi^2}\biggr]^{1/3}.
 ```
 
+[↗ model card](#card-kepler-third)
+
 progenax exposes both directions:
 
 - `compute_period(a, m_total, *, G)` — given $a$, returns $P$.
@@ -95,6 +97,8 @@ velocity $\mathbf{v}$ at time $t$ requires four steps:
 E - e\,\sin E \;=\; M(t),
 \qquad M(t) = M_0 + n\,t,\quad n = 2\pi/P.
 ```
+
+[↗ model card](#card-kepler-eq)
 
 This is a transcendental equation in $E$. progenax uses a
 fixed-iteration Newton solver built on `jax.lax.scan` (not a Python
@@ -172,6 +176,8 @@ component masses $m_1, m_2$, the individual particle coordinates are
 \mathbf{r}_2 &= +\frac{m_1}{m_1 + m_2}\,\mathbf{r}_{\mathrm{rel}}
 \end{aligned}
 ```
+
+[↗ model card](#card-components)
 
 with the corresponding velocity decomposition for $\mathbf{v}_1,
 \mathbf{v}_2$. These are then *added to* the binary's centre-of-mass

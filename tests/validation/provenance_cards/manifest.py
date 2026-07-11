@@ -19,6 +19,8 @@ Phase log (ADR-0034 sequencing):
   2026-07-11  B2 IMFs: powerlaw_imf, chabrier, maschberger, tapered_powerlaw +
               truncated + environment_imf (last three partly extra-registry).
               Coverage 12/21. House guidance: Maschberger preferred (smooth).
+  2026-07-11  B3 binaries: moe_pqe, period_distributions, eccentricity,
+              kepler_elements, binary_cluster_assembly. Coverage 13/21.
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
@@ -36,6 +38,7 @@ CARDED_MODELS: dict[str, str] = {
     "ChabrierIMF": "chabrier",
     "Maschberger": "maschberger",
     "TruncatedIMF": "truncated",
+    "build_binary_cluster": "binary_cluster_assembly",
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).

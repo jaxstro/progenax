@@ -35,6 +35,8 @@ g(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{p
                   \;+\; f_{\mathrm{twin}}\,\mathcal{N}(q \mid 1,\,\sigma_{\mathrm{twin}})
 ```
 
+[↗ model card](#card-gq-form)
+
 with $Z_{\mathrm{pl}} = \int_{q_{\min}}^{1} q^\gamma\,\mathrm{d}q$ the
 power-law normalisation and $\sigma_{\mathrm{twin}} \approx 0.03$ the
 twin-peak width. The twin Gaussian is sharply peaked at $q = 1$ and

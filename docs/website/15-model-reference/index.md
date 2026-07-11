@@ -11,6 +11,7 @@ One generated page per model family. Each card: description, when to use,
 parameters, governing equations, sources (DOI/arXiv/ADS), code entry points,
 and the validation tests that pin the physics.
 
+- [Binary populations & orbits](binaries.md) — Moe & Di Stefano (2017) P–q–e statistics, Period distributions (Öpik / DM91 / Sana+2012), Eccentricity distributions (thermal / uniform / Moe), Kepler orbital elements, Binary-cluster assembly (build_binary_cluster)
 - [Initial mass functions](imfs.md) — Salpeter / Kroupa piecewise power law, Chabrier (2003) lognormal + power law, Maschberger (2013) L3 — the smooth house default, Tapered power law (Parravano+2011 STPL), Truncated IMF (operator), Environment-dependent IMF (Marks+2012 / Jerabkova+2018)
 - [Spatial profiles](spatial_profiles.md) — Plummer sphere, King (1966) lowered isothermal, EFF (1987) power-law halo, Michie (1963) anisotropic lowered isothermal
 - [Velocity distribution functions](velocity_dfs.md) — Plummer isotropic DF, King lowered-Maxwellian DF, Michie–King anisotropic DF, EFF Eddington-inversion DF, Osipkov–Merritt anisotropy overlay

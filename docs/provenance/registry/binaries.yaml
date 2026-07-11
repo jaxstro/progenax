@@ -1,0 +1,281 @@
+# Provenance model cards — binary populations & orbits (ADR-0034).
+# Generated glossary: docs/website/15-model-reference/binaries.md (do not hand-edit).
+# Equations transcribed VERBATIM from the theory pages; locators read from the
+# PDF-verified per-paper notes (moe-distefano-2017.md Table 13 p. 52 cell-verified;
+# sana-2012.md pi = -0.55; duquennoy-mayor-1991.md sec 7.3; heggie-1975.md).
+# Phase B3: moe_pqe, period_distributions, eccentricity, kepler_elements,
+# binary_cluster_assembly.
+
+- model: moe_pqe
+  family_display: Moe & Di Stefano (2017) P–q–e statistics
+  description: >
+    The faithful non-separable multiplicity statistics: mass-ratio power laws
+    with a twin excess, all conditioned on primary mass AND period (Table 13
+    grids), plus the period- and mass-dependent eccentricity slope. The
+    companion-composition engine behind MoeCompanions / MoeDiStefano2017Full.
+  when_to_use:
+    good_for:
+      - "observationally faithful binary populations across 0.8-40+ Msun primaries"
+      - "massive-star population synthesis where the q-P coupling matters (twin excess at short P)"
+    not_for:
+      - "separable q-only toys (use FlatMassRatio / PowerLawMassRatio)"
+      - "sub-solar primaries below the MD17 calibration range"
+  parameters:
+    - name: primary_mass
+      meaning: "primary mass M1 conditioning every grid lookup"
+      units: Msun
+      typical_range: "0.8–40 (Table 13 bins, interpolated)"
+      code_arg: "MoeCompanions()/MoeDiStefano2017Full() consume M1 arrays at sample time"
+  sources:
+    - bibkey: MoeDiStefano2017
+      provides: "Table 13 multiplicity grids (gamma_largeq, gamma_smallq, F_twin, f_logP) — ledger-verified cell-by-cell; eccentricity slopes and the Roche ceiling"
+      locators: ["Table 13, p. 52", "Eqs. 17-18 (eta fits)", "Eq. 3, p. 38 (e_max Roche ceiling)"]
+  equations:
+    - label: gq-form
+      latex: 'g(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{pl}}} \;+\; f_{\mathrm{twin}}\,\mathcal{N}(q \mid 1,\,\sigma_{\mathrm{twin}})'
+      symbols:
+        q: {latex: 'q', meaning: "mass ratio m2/m1 (twin excess = fraction with q > 0.95, defined over q > 0.3)", units: dimensionless}
+        gamma: {latex: '\gamma(M_1)', meaning: "broken power-law slope (gamma_largeq above q = 0.3, gamma_smallq below)", units: dimensionless}
+      assumptions: ["Table-13 grid interpolation in (M1, log P)", "twin convention: excess fraction over 0.3 < q < 1.0"]
+      theory_ref: "10-theory/imfs/mass-ratio-distributions.md#gq-form"
+    - label: moe-eta-ecc
+      latex: '\eta(M_1, P) = \begin{cases} 0.6 - \dfrac{0.7}{\log_{10} P - 0.5}, & 0.8 < M_1 < 3\,M_\odot\ \text{(Eq. 17)} \\ 0.9 - \dfrac{0.2}{\log_{10} P - 0.5}, & M_1 > 7\,M_\odot\ \text{(Eq. 18)} \end{cases}'
+      symbols:
+        eta: {latex: '\eta', meaning: "eccentricity power-law slope p(e) proportional to e^eta (0 = uniform, 1 = thermal)", units: dimensionless}
+      assumptions: ["linear interpolation in M1 across 3-7 Msun", "eta <= -1 (very short P) returns e ~ 0"]
+      theory_ref: "10-theory/binaries/eccentricity.md#moe-eta-ecc"
+    - label: moe-emax-ecc
+      latex: 'e_{\max}(P) \;=\; 1 - \Bigl(\frac{P}{2\,\mathrm{d}}\Bigr)^{-2/3} \quad (P > 2\ \mathrm{d})'
+      symbols:
+        e_max: {latex: 'e_{\max}', meaning: "period-dependent Roche-lobe eccentricity ceiling; P <= 2 d circularizes", units: dimensionless}
+      assumptions: ["components must not overflow Roche lobes at periapsis (MD17 Eq. 3)"]
+      theory_ref: "10-theory/binaries/eccentricity.md#moe-emax-ecc"
+  code_refs:
+    - "imf/binary/moe_di_stefano.py::MoeDiStefano2017Full"
+    - "binaries/companions.py::MoeCompanions"
+    - "binaries/eccentricity.py::MoeEccentricity"
+  validation:
+    - "tests/unit/imf/test_moe_full.py::TestTable13Interpolation::test_gamma_largeq_cells"
+    - "tests/unit/imf/test_moe_full.py::TestTable13Interpolation::test_ftwin_cells"
+    - "tests/unit/imf/test_moe_full.py::TestFTwinPaperConvention::test_f_twin_excess_over_q_gt_03"
+  status: verified
+  deviations: []
+
+- model: period_distributions
+  family_display: Period distributions (Öpik / DM91 / Sana+2012)
+  description: >
+    The three direct period samplers: log-uniform (Öpik baseline), the
+    Duquennoy & Mayor (1991) solar-type log-normal, and the Sana+2012
+    short-period-biased OB power law — plus mass-dependent routing between
+    them.
+  when_to_use:
+    good_for:
+      - "solar-type primaries: LogNormalPeriod (DM91 sec 7.3 defaults)"
+      - "O/B primaries: SanaOBPeriod (pi = -0.55 in log10 P)"
+      - "mixed populations via MassDependentBinaryConfig routing at m_break"
+    not_for:
+      - "compact binaries / post-interaction periods (IC-time statistics only)"
+      - "a generic low-mass field population sampled with the Sana OB law"
+  parameters:
+    - name: mu_log_P
+      meaning: "log-normal mean of log10(P/day) (DM91: 4.8, median ~180 yr)"
+      units: "dex(day)"
+      typical_range: "4.8"
+      code_arg: "LogNormalPeriod(mu_log_P=...)"
+    - name: sigma_log_P
+      meaning: "log-normal width (DM91: 2.3)"
+      units: dex
+      typical_range: "2.3"
+      code_arg: "LogNormalPeriod(sigma_log_P=...)"
+    - name: power
+      meaning: "Sana OB slope pi of f(log10 P) proportional to (log10 P)^pi"
+      units: dimensionless
+      typical_range: "-0.55 (+/- 0.2, Sana 2012)"
+      code_arg: "SanaOBPeriod(power=-0.55)"
+  sources:
+    - bibkey: DuquennoyMayor1991
+      provides: "the solar-type Gaussian in log P (mean 4.8, sigma 2.3, P in days)"
+      locators: ["Section 7.3 (per-paper note, PDF-verified; scanned source)"]
+    - bibkey: Sana2012
+      provides: "the OB-star intrinsic period power law pi = -0.55 +/- 0.2"
+      locators: ["Table S3 exponents (per-paper note)"]
+  equations:
+    - label: dm91-lognormal
+      latex: 'f(\log P) \;=\; C\,\exp\!\left[-\frac{(\log P - \overline{\log P})^2}{2\,\sigma_{\log P}^2}\right], \qquad \overline{\log P} = 4.8,\ \sigma_{\log P} = 2.3'
+      symbols:
+        P: {latex: 'P', meaning: "orbital period in days", units: day}
+      assumptions: ["solar-type primaries (DM91 sample)"]
+      theory_ref: null
+    - label: sana-period
+      latex: 'f(\log_{10} P) \;\propto\; (\log_{10} P)^{\pi}, \qquad \pi = -0.55,\ \ 0.15 \le \log_{10} P \le 3.5'
+      symbols:
+        pi: {latex: '\pi', meaning: "Sana 2012 period exponent (short-period biased)", units: dimensionless}
+      assumptions: ["O/B primaries; intrinsic (bias-corrected) distribution"]
+      theory_ref: null
+  code_refs:
+    - "binaries/period.py::LogUniformPeriod"
+    - "binaries/period.py::LogNormalPeriod"
+    - "binaries/period.py::SanaOBPeriod"
+  validation:
+    - "tests/unit/binaries/test_population.py::TestLogNormalPeriod::test_mean_log_period"
+    - "tests/unit/binaries/test_population.py::TestLogNormalPeriod::test_std_log_period"
+  status: verified
+  deviations: []
+
+- model: eccentricity
+  family_display: Eccentricity distributions (thermal / uniform / Moe)
+  description: >
+    The three eccentricity samplers: Heggie's thermal f(e) = 2e (dynamical
+    equilibrium), the uniform baseline, and the Moe & Di Stefano
+    period-and-mass-dependent power law with the Roche ceiling.
+  when_to_use:
+    good_for:
+      - "dynamically processed populations: ThermalEccentricity (f = 2e, <e> = 2/3)"
+      - "observationally faithful primordial e: MoeEccentricity (couples to P, M1)"
+    not_for:
+      - "post-tidal-circularization populations at short P without the Moe ceiling"
+  parameters:
+    - name: e_max
+      meaning: "optional hard ceiling on ThermalEccentricity/UniformEccentricity draws"
+      units: dimensionless
+      typical_range: "0.9–1.0"
+      code_arg: "ThermalEccentricity(e_max=...)"
+  sources:
+    - bibkey: Heggie1975
+      provides: "the thermal/equilibrium f(e) = 2e from energy equipartition (with <e> = 2/3; CDF e^2, PPF sqrt(u))"
+      locators: ["per-paper note (heggie-1975.md), thermal-distribution discussion"]
+    - bibkey: MoeDiStefano2017
+      provides: "the period/mass-dependent eta slope and the Roche e_max ceiling (see the moe_pqe card)"
+      locators: ["Eqs. 17-18", "Eq. 3, p. 38"]
+  equations:
+    - label: thermal
+      latex: 'f(e) \;=\; 2e,\qquad e \in [0, 1]'
+      symbols:
+        e: {latex: 'e', meaning: "orbital eccentricity", units: dimensionless}
+      assumptions: ["dynamical (thermal) equilibrium; <e> = 2/3; sampled as e = sqrt(u)"]
+      theory_ref: "10-theory/binaries/eccentricity.md#thermal"
+    - label: uniform-ecc
+      latex: 'f(e) \;=\; 1,\qquad e \in [0, 1]'
+      symbols:
+        e: {latex: 'e', meaning: "orbital eccentricity", units: dimensionless}
+      assumptions: ["agnostic baseline; <e> = 1/2"]
+      theory_ref: "10-theory/binaries/eccentricity.md#uniform-ecc"
+  code_refs:
+    - "binaries/eccentricity.py::ThermalEccentricity"
+    - "binaries/eccentricity.py::UniformEccentricity"
+    - "binaries/eccentricity.py::MoeEccentricity"
+  validation:
+    - "tests/unit/binaries/test_population.py::TestThermalEccentricity::test_thermal_mean"
+    - "tests/unit/binaries/test_population.py::TestThermalEccentricity::test_canonical_moments_emax1"
+  status: verified
+  deviations: []
+
+- model: kepler_elements
+  family_display: Kepler orbital elements
+  description: >
+    The two-body orbital-element chain: Kepler III (P <-> a), the Kepler
+    equation solved by fixed-iteration Newton, true anomaly, orbit-plane
+    state, and the 3-1-3 Euler rotation to inertial components — the
+    machinery that turns (P, e, angles) into positions and velocities.
+  when_to_use:
+    good_for:
+      - "resolving sampled binaries into component positions/velocities (the binary -> spatial connector)"
+      - "machine-precision two-body ICs (energy/L conserved to ~1e-16)"
+    not_for:
+      - "N >= 3 hierarchical dynamics (no secular evolution here)"
+      - "relativistic or tidally evolving orbits"
+  parameters:
+    - name: elements
+      meaning: "KeplerElements(a, e, i, omega, Omega, M0): semi-major axis, eccentricity, inclination, argument of periapsis, longitude of ascending node, mean anomaly"
+      units: "pc / dimensionless / rad"
+      typical_range: "e in [0, 1); angles in [0, 2 pi)"
+      code_arg: "KeplerElements(a=..., e=..., i=..., omega=..., Omega=..., M0=...)"
+  sources:
+    - bibkey: MurrayDermott2000
+      provides: "the standard celestial-mechanics chain (Kepler equation, anomalies, orbit-plane state, Euler rotations)"
+      locators: ["Ch. 2 (the two-body problem)"]
+  equations:
+    - label: kepler-third
+      latex: 'P^2 \;=\; \frac{4\pi^2\,a^3}{G\,(m_1 + m_2)}'
+      symbols:
+        P: {latex: 'P', meaning: "orbital period", units: "Myr (or day via unit conversion)"}
+        a: {latex: 'a', meaning: "semi-major axis of the RELATIVE orbit", units: pc}
+      assumptions: ["two-body; G explicit and units-carried"]
+      theory_ref: "10-theory/binaries/kepler-elements.md#kepler-third"
+    - label: kepler-eq
+      latex: 'E - e\,\sin E \;=\; M(t), \qquad M(t) = M_0 + n\,t,\quad n = 2\pi/P'
+      symbols:
+        E: {latex: 'E', meaning: "eccentric anomaly (fixed-iteration Newton solve — differentiable, JIT-safe)", units: rad}
+        M_anom: {latex: 'M', meaning: "mean anomaly", units: rad}
+      assumptions: ["fixed iteration count (no while_loop): converged to float64 for e < 0.99"]
+      theory_ref: "10-theory/binaries/kepler-elements.md#kepler-eq"
+    - label: components
+      latex: '\mathbf{r}_1 = -\frac{m_2}{m_1 + m_2}\,\mathbf{r}_{\mathrm{rel}}, \qquad \mathbf{r}_2 = +\frac{m_1}{m_1 + m_2}\,\mathbf{r}_{\mathrm{rel}}'
+      symbols:
+        r_rel: {latex: '\mathbf{r}_{\mathrm{rel}}', meaning: "relative separation vector after the 3-1-3 Euler rotation", units: pc}
+      assumptions: ["center-of-mass frame: momentum exactly zero per binary"]
+      theory_ref: "10-theory/binaries/kepler-elements.md#components"
+  code_refs:
+    - "binaries/kepler.py::KeplerElements"
+    - "binaries/kepler_period.py::compute_period"
+    - "binaries/kepler_period.py::period_to_semimajor_axis"
+  validation:
+    - "tests/validation/test_binary_physics.py::TestKeplerThirdLaw::test_period_semimajor_axis_roundtrip"
+    - "tests/validation/test_binary_physics.py::TestKeplerEquation::test_eccentric_orbit_periapsis"
+    - "tests/validation/test_binary_physics.py::TestBinaryMomentumConservation::test_momentum_zero"
+  status: verified
+  deviations: []
+
+- model: binary_cluster_assembly
+  family_display: Binary-cluster assembly (build_binary_cluster)
+  description: >
+    The composition operator: primary IMF x companion model x population
+    target -> a cluster whose binaries are resolved into components
+    (resolve_binary_components) with per-binary COM preservation and full
+    primordial-pair bookkeeping. A semantics card — the physics lives in the
+    composed model cards.
+  when_to_use:
+    good_for:
+      - "one-call binary-population ICs (Systems / Stars / TotalMass targets)"
+      - "energy-budget-aware binary populations (binary_energy_budget diagnostics)"
+    not_for:
+      - "hierarchical triples+ (pairs only at IC time)"
+  parameters:
+    - name: primary_imf
+      meaning: "any IMF card's model (house default: the SMOOTH Maschberger)"
+      units: "—"
+      typical_range: "—"
+      code_arg: "build_binary_cluster(primary_imf=...)"
+    - name: companion_model
+      meaning: "IndependentCompanions (separable) or MoeCompanions (faithful P-q-e)"
+      units: "—"
+      typical_range: "—"
+      code_arg: "build_binary_cluster(companions=...)"
+    - name: target
+      meaning: "population size specification: Systems(n) / Stars(n) / TotalMass(M)"
+      units: "count or Msun"
+      typical_range: "—"
+      code_arg: "build_binary_cluster(target=...)"
+  sources:
+    - bibkey: MoeDiStefano2017
+      provides: "the faithful companion statistics option (see moe_pqe)"
+      locators: ["Table 13"]
+    - bibkey: MurrayDermott2000
+      provides: "the orbital resolution (see kepler_elements)"
+      locators: ["Ch. 2"]
+  equations:
+    - label: assembly-com
+      latex: '\sum_{\mathrm{pair}} m_j \mathbf{v}_j \;=\; \mathbf{0} \quad \text{and} \quad \frac{\sum_{\mathrm{pair}} m_j \mathbf{r}_j}{\sum_{\mathrm{pair}} m_j} \;=\; \mathbf{r}_{\mathrm{sys}}'
+      symbols:
+        r_sys: {latex: '\mathbf{r}_{\mathrm{sys}}', meaning: "the system (center-of-mass) position drawn from the spatial profile", units: pc}
+      assumptions: ["each binary's internal orbit is superposed on its system's cluster orbit; COM and momentum exact per pair"]
+      theory_ref: null
+  code_refs:
+    - "builders.py::build_binary_cluster"
+    - "binaries/assembly.py::resolve_binary_components"
+  validation:
+    - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_units_kepler_third_law_roundtrip"
+    - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved"
+    - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance"
+  status: verified
+  deviations: []

@@ -50,6 +50,8 @@ binaries with isotropic angular-momentum vectors:
 f(e) \;=\; 2e,\qquad e \in [0, 1].
 ```
 
+[↗ model card](#card-thermal)
+
 Physically, the thermal $f(e)$ arises because a binary's specific
 angular momentum scales as $L \propto \sqrt{1 - e^2}$, and an
 isotropic distribution in $L$ produces $f(e) \propto e$. The factor
@@ -86,6 +88,8 @@ and is not isotropic.
 :label: uniform-ecc
 f(e) \;=\; 1,\qquad e \in [0, 1].
 ```
+
+[↗ model card](#card-uniform-ecc)
 
 Sampling: $e = u$ for $u \sim \mathcal{U}(0, 1)$. Mean and median both
 $0.5$.
@@ -134,6 +138,8 @@ against their Fig. 36):
 \end{cases}
 ```
 
+[↗ model card](#card-moe-eta-ecc)
+
 with linear interpolation in $M_1$ across $3$–$7\,\Msun$. Here $\eta = 0$
 is uniform ($\langle e\rangle = 0.5$) and $\eta = 1$ is thermal
 ($\langle e\rangle = 2/3$); short-period massive binaries are driven to
@@ -145,6 +151,8 @@ upper limit is the period-dependent Roche-lobe ceiling (their Eq. 3),
 :label: moe-emax-ecc
 e_{\max}(P) \;=\; 1 - \Bigl(\frac{P}{2\,\mathrm{d}}\Bigr)^{-2/3} \quad (P > 2\ \mathrm{d}),
 ```
+
+[↗ model card](#card-moe-emax-ecc)
 
 so the components do not overflow their Roche lobes at periapsis (e.g.
 $e_{\max}(10\,\mathrm{d}) \approx 0.66$, $e_{\max}(100\,\mathrm{d})
