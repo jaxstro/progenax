@@ -18,7 +18,7 @@ single source of truth.
 (card-moe_pqe)=
 ## Moe & Di Stefano (2017) P–q–e statistics
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 1 source · [API: `MoeDiStefano2017Full`](../30-api/imf.md#api-imf-moedistefano2017full)
 
 The faithful non-separable multiplicity statistics: mass-ratio power laws with a twin excess, all conditioned on primary mass AND period (Table 13 grids), plus the period- and mass-dependent eccentricity slope. The companion-composition engine behind MoeCompanions / MoeDiStefano2017Full.
 
@@ -79,7 +79,7 @@ e_{\max}(P) \;=\; 1 - \Bigl(\frac{P}{2\,\mathrm{d}}\Bigr)^{-2/3} \quad (P > 2\ \
 (card-period_distributions)=
 ## Period distributions (Öpik / DM91 / Sana+2012)
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `LogUniformPeriod`](../30-api/binaries.md#api-binaries-loguniformperiod)
 
 The three direct period samplers: log-uniform (Öpik baseline), the Duquennoy & Mayor (1991) solar-type log-normal, and the Sana+2012 short-period-biased OB power law — plus mass-dependent routing between them.
 
@@ -132,7 +132,7 @@ f(\log_{10} P) \;\propto\; (\log_{10} P)^{\pi}, \qquad \pi = -0.55,\ \ 0.15 \le 
 (card-eccentricity)=
 ## Eccentricity distributions (thermal / uniform / Moe)
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `ThermalEccentricity`](../30-api/binaries.md#api-binaries-thermaleccentricity)
 
 The three eccentricity samplers: Heggie's thermal f(e) = 2e (dynamical equilibrium), the uniform baseline, and the Moe & Di Stefano period-and-mass-dependent power law with the Roche ceiling.
 
@@ -184,7 +184,7 @@ f(e) \;=\; 1,\qquad e \in [0, 1]
 (card-kepler_elements)=
 ## Kepler orbital elements
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 1 source · [API: `KeplerElements`](../30-api/binaries.md#api-binaries-keplerelements)
 
 The two-body orbital-element chain: Kepler III (P <-> a), the Kepler equation solved by fixed-iteration Newton, true anomaly, orbit-plane state, and the 3-1-3 Euler rotation to inertial components — the machinery that turns (P, e, angles) into positions and velocities.
 
@@ -245,7 +245,7 @@ E - e\,\sin E \;=\; M(t), \qquad M(t) = M_0 + n\,t,\quad n = 2\pi/P
 (card-binary_cluster_assembly)=
 ## Binary-cluster assembly (build_binary_cluster)
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 2 sources · [API: `build_binary_cluster`](../30-api/builders.md#api-builders-build_binary_cluster)
 
 The composition operator: primary IMF x companion model x population target -> a cluster whose binaries are resolved into components (resolve_binary_components) with per-binary COM preservation and full primordial-pair bookkeeping. A semantics card — the physics lives in the composed model cards.
 

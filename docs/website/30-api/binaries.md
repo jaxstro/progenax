@@ -49,6 +49,8 @@ Public symbols: **30**
 
 *class*
 
+[📇 model card](../15-model-reference/binaries.md#card-kepler_elements) · [∇ gradient-verified — 5 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 KeplerElements(a: ArrayLike, e: ArrayLike = 0.0, i: ArrayLike = 0.0, Omega: ArrayLike = 0.0, omega: ArrayLike = 0.0, M0: ArrayLike = 0.0)
 ```
@@ -58,30 +60,31 @@ Keplerian orbital elements as Equinox module.
 Represents an orbit in the two-body problem using classical elements.
 All angles in radians, distances in current unit system.
 
-Attributes:
-    a: Semi-major axis [length units]
-    e: Eccentricity (0 ≤ e < 1 for bound orbits)
-    i: Inclination [rad] (0 to π)
-    Omega: Longitude of ascending node [rad] (0 to 2π)
-    omega: Argument of periapsis [rad] (0 to 2π)
-    M0: Mean anomaly at epoch [rad] (0 to 2π)
+**Attributes**
 
-References:
-    Murray & Dermott (1999) "Solar System Dynamics" Eq 2.122
-    Binney & Tremaine (2008) "Galactic Dynamics" Ch 3
+| Parameter | Description |
+|---|---|
+| `a` | Semi-major axis [length units] |
+| `e` | Eccentricity (0 ≤ e < 1 for bound orbits) |
+| `i` | Inclination [rad] (0 to π) |
+| `Omega` | Longitude of ascending node [rad] (0 to 2π) |
+| `omega` | Argument of periapsis [rad] (0 to 2π) |
+| `M0` | Mean anomaly at epoch [rad] (0 to 2π) |
 
-Examples:
-    >>> # Circular orbit
-    >>> elements = KeplerElements(a=1.0, e=0.0, i=0.0, Omega=0.0, omega=0.0, M0=0.0)
-    >>> state = elements.to_state(M_total=1.0, G=1.0)
+**References.** Murray & Dermott (1999) "Solar System Dynamics" Eq 2.122
+Binney & Tremaine (2008) "Galactic Dynamics" Ch 3
 
-    >>> # Eccentric orbit
-    >>> import jax.numpy as jnp
-    >>> elements = KeplerElements(
-    ...     a=1.0, e=0.5, i=jnp.pi/4,
-    ...     Omega=0.0, omega=0.0, M0=0.0
-    ... )
-    >>> state = elements.to_state(M_total=1.0, G=1.0)
+**Examples.** >>> # Circular orbit
+>>> elements = KeplerElements(a=1.0, e=0.0, i=0.0, Omega=0.0, omega=0.0, M0=0.0)
+>>> state = elements.to_state(M_total=1.0, G=1.0)
+
+>>> # Eccentric orbit
+>>> import jax.numpy as jnp
+>>> elements = KeplerElements(
+...     a=1.0, e=0.5, i=jnp.pi/4,
+...     Omega=0.0, omega=0.0, M0=0.0
+... )
+>>> state = elements.to_state(M_total=1.0, G=1.0)
 
 *Source: [`src/progenax/binaries/kepler.py#L49`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler.py#L49)*
 
@@ -99,9 +102,12 @@ Cartesian phase-space state of a single body.
 A JAX-pytree NamedTuple (transparent to jit/grad/vmap); also tuple-iterable,
 so ``pos, vel = state`` works.
 
-Attributes:
-    position: (3,) Cartesian position [length units]
-    velocity: (3,) Cartesian velocity [velocity units]
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `position` | (3,) Cartesian position [length units] |
+| `velocity` | (3,) Cartesian velocity [velocity units] |
 
 *Source: [`src/progenax/binaries/kepler.py#L18`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler.py#L18)*
 
@@ -129,39 +135,38 @@ Attributes:
 
 *function*
 
+[📇 model card](../15-model-reference/binaries.md#card-kepler_elements)
+
 ```python
 compute_period(a: ArrayLike, M_total: ArrayLike, G: ArrayLike) -> Float[Array, '...']
 ```
 
 Compute orbital period from semi-major axis using Kepler's 3rd law.
 
-Args:
-    a: Semi-major axis [length units]
-    M_total: Total mass of binary system [M☉]
-    G: Gravitational constant (REQUIRED, no default)
+**Args**
 
-Returns:
-    period: Orbital period [time units]
+| Parameter | Description |
+|---|---|
+| `a` | Semi-major axis [length units] |
+| `M_total` | Total mass of binary system [M☉] |
+| `G` | Gravitational constant (REQUIRED, no default) |
 
-Formula:
-    T = 2π√(a³/(GM))
+**Returns:** period: Orbital period [time units] Formula: T = 2π√(a³/(GM))
 
-Examples:
-    >>> # Earth orbit: a=1 AU, M=1 M☉ → T≈1 year
-    >>> G = 39.478  # AU³/Msun/yr²
-    >>> T = compute_period(a=1.0, M_total=1.0, G=G)
-    >>> print(f"Period: {T:.2f} years")
-    Period: 1.00 years
+**Examples.** >>> # Earth orbit: a=1 AU, M=1 M☉ → T≈1 year
+>>> G = 39.478  # AU³/Msun/yr²
+>>> T = compute_period(a=1.0, M_total=1.0, G=G)
+>>> print(f"Period: {T:.2f} years")
+Period: 1.00 years
 
-    >>> # Stellar cluster orbit: a=1 pc, M=1000 M☉
-    >>> G = 0.00450  # pc³/Msun/Myr²
-    >>> T = compute_period(a=1.0, M_total=1000.0, G=G)
-    >>> print(f"Period: {T:.2f} Myr")
-    Period: 0.94 Myr
+>>> # Stellar cluster orbit: a=1 pc, M=1000 M☉
+>>> G = 0.00450  # pc³/Msun/Myr²
+>>> T = compute_period(a=1.0, M_total=1000.0, G=G)
+>>> print(f"Period: {T:.2f} Myr")
+Period: 0.94 Myr
 
-References:
-    Kepler's 3rd Law: T² ∝ a³/M
-    Murray & Dermott (1999) Eq 2.37
+**References.** Kepler's 3rd Law: T² ∝ a³/M
+Murray & Dermott (1999) Eq 2.37
 
 *Source: [`src/progenax/binaries/kepler_period.py#L12`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler_period.py#L12)*
 
@@ -170,40 +175,39 @@ References:
 
 *function*
 
+[📇 model card](../15-model-reference/binaries.md#card-kepler_elements)
+
 ```python
 period_to_semimajor_axis(period: ArrayLike, M_total: ArrayLike, G: ArrayLike) -> Float[Array, '...']
 ```
 
 Compute semi-major axis from orbital period using Kepler's 3rd law.
 
-Args:
-    period: Orbital period [time units]
-    M_total: Total mass of binary system [M☉]
-    G: Gravitational constant (REQUIRED, no default)
+**Args**
 
-Returns:
-    a: Semi-major axis [length units]
+| Parameter | Description |
+|---|---|
+| `period` | Orbital period [time units] |
+| `M_total` | Total mass of binary system [M☉] |
+| `G` | Gravitational constant (REQUIRED, no default) |
 
-Formula:
-    a = (GMT²/(4π²))^(1/3)
+**Returns:** a: Semi-major axis [length units] Formula: a = (GMT²/(4π²))^(1/3)
 
-Examples:
-    >>> # Binary with 10 day period, M_total=2 M☉
-    >>> G = 39.478  # AU³/Msun/yr²
-    >>> P_yr = 10.0 / 365.25  # Convert days to years
-    >>> a = period_to_semimajor_axis(P_yr, M_total=2.0, G=G)
-    >>> print(f"Semi-major axis: {a:.3f} AU")
-    Semi-major axis: 0.089 AU
+**Examples.** >>> # Binary with 10 day period, M_total=2 M☉
+>>> G = 39.478  # AU³/Msun/yr²
+>>> P_yr = 10.0 / 365.25  # Convert days to years
+>>> a = period_to_semimajor_axis(P_yr, M_total=2.0, G=G)
+>>> print(f"Semi-major axis: {a:.3f} AU")
+Semi-major axis: 0.089 AU
 
-    >>> # Star cluster binary: 10 Myr period, M_total=2 M☉
-    >>> G = 0.00450  # pc³/Msun/Myr²
-    >>> a = period_to_semimajor_axis(10.0, M_total=2.0, G=G)
-    >>> print(f"Semi-major axis: {a:.2f} pc")
-    Semi-major axis: 4.64 pc
+>>> # Star cluster binary: 10 Myr period, M_total=2 M☉
+>>> G = 0.00450  # pc³/Msun/Myr²
+>>> a = period_to_semimajor_axis(10.0, M_total=2.0, G=G)
+>>> print(f"Semi-major axis: {a:.2f} pc")
+Semi-major axis: 4.64 pc
 
-References:
-    Kepler's 3rd Law: a³ ∝ T²M
-    Murray & Dermott (1999) Eq 2.37
+**References.** Kepler's 3rd Law: a³ ∝ T²M
+Murray & Dermott (1999) Eq 2.37
 
 *Source: [`src/progenax/binaries/kepler_period.py#L61`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler_period.py#L61)*
 
@@ -222,21 +226,22 @@ Combines component masses with Keplerian orbital elements.
 This is an IC-specific container - for general orbital mechanics,
 use KeplerElements directly.
 
-Attributes:
-    m1: Primary mass [M_sun]
-    m2: Secondary mass [M_sun]
-    elements: KeplerElements (a, e, i, Omega, omega, M0). The period/mean motion
-        is derived on demand from (a, m1+m2, G) in to_state, not cached here.
+**Attributes**
 
-Example:
-    >>> from jaxstro.units import PLANETARY
-    >>> # PLANETARY.G is per-year, so convert the period days -> years.
-    >>> state = BinaryOrbitalState.from_log_period(
-    ...     m1=1.0, m2=0.5, logP_days=2.0, e=0.3,
-    ...     inc=0.1, Omega=0.0, omega=0.0, M_anom=0.0,
-    ...     G=PLANETARY.G, day_in_time_units=1.0 / 365.25
-    ... )
-    >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
+| Parameter | Description |
+|---|---|
+| `m1` | Primary mass [M_sun] |
+| `m2` | Secondary mass [M_sun] |
+| `elements` | KeplerElements (a, e, i, Omega, omega, M0). The period/mean motion is derived on demand from (a, m1+m2, G) in to_state, not cached here. |
+
+**Example.** >>> from jaxstro.units import PLANETARY
+>>> # PLANETARY.G is per-year, so convert the period days -> years.
+>>> state = BinaryOrbitalState.from_log_period(
+...     m1=1.0, m2=0.5, logP_days=2.0, e=0.3,
+...     inc=0.1, Omega=0.0, omega=0.0, M_anom=0.0,
+...     G=PLANETARY.G, day_in_time_units=1.0 / 365.25
+... )
+>>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
 
 *Source: [`src/progenax/binaries/orbital_state.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orbital_state.py#L20)*
 
@@ -251,19 +256,20 @@ batch_elements_to_resolved(m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", log
 
 Vectorized wrapper to get resolved (r1, v1, r2, v2) for N binaries.
 
-Args:
-    m1, m2: Component masses [N]
-    logP_days: log10(P / day) [N]
-    e: Eccentricity [N]
-    inc: Inclination [rad] [N]
-    Omega: Longitude of ascending node [rad] [N]
-    omega: Argument of periapsis [rad] [N]
-    M_anom: Mean anomaly [rad] [N]
-    G: Gravitational constant (REQUIRED, no default)
-    day_in_time_units: Conversion factor days -> code time units
+**Args**
 
-Returns:
-    r1, v1, r2, v2: Arrays of shape [N, 3]
+| Parameter | Description |
+|---|---|
+| `logP_days` | log10(P / day) [N] |
+| `e` | Eccentricity [N] |
+| `inc` | Inclination [rad] [N] |
+| `Omega` | Longitude of ascending node [rad] [N] |
+| `omega` | Argument of periapsis [rad] [N] |
+| `M_anom` | Mean anomaly [rad] [N] |
+| `G` | Gravitational constant (REQUIRED, no default) |
+| `day_in_time_units` | Conversion factor days -> code time units |
+
+**Returns:** r1, v1, r2, v2: Arrays of shape [N, 3]
 
 *Source: [`src/progenax/binaries/orbital_state.py#L195`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orbital_state.py#L195)*
 
@@ -271,6 +277,8 @@ Returns:
 ## `binaries.LogUniformPeriod`
 
 *class*
+
+[📇 model card](../15-model-reference/binaries.md#card-period_distributions) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 LogUniformPeriod(log_P_min: 'float' = 0.0, log_P_max: 'float' = 8.0) -> None
@@ -295,6 +303,8 @@ Parameters:
 
 *class*
 
+[📇 model card](../15-model-reference/binaries.md#card-period_distributions) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 LogNormalPeriod(mu_log_P: 'float' = 4.8, sigma_log_P: 'float' = 2.3) -> None
 ```
@@ -317,6 +327,8 @@ Parameters:
 ## `binaries.SanaOBPeriod`
 
 *class*
+
+[📇 model card](../15-model-reference/binaries.md#card-period_distributions) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 SanaOBPeriod(log_P_min: 'float' = 0.15, log_P_max: 'float' = 3.5, power: 'float' = -0.55) -> None
@@ -351,6 +363,8 @@ Parameters:
 
 *class*
 
+[📇 model card](../15-model-reference/binaries.md#card-eccentricity) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 ThermalEccentricity(e_max: 'float' = 0.99) -> None
 ```
@@ -374,6 +388,8 @@ Parameters:
 
 *class*
 
+[📇 model card](../15-model-reference/binaries.md#card-eccentricity) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 UniformEccentricity(e_min: 'float' = 0.0, e_max: 'float' = 0.9) -> None
 ```
@@ -392,6 +408,8 @@ Parameters:
 ## `binaries.LogisticThermalEccentricity`
 
 *class*
+
+[∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 LogisticThermalEccentricity(P_circ: 'float' = 10.0, P_thermal: 'float' = 1000.0, e_max: 'float' = 0.99, transition_width: 'float' = 0.5) -> None
@@ -414,16 +432,15 @@ It is NOT Moe & Di Stefano's (2017) f(e) ∝ e^η(P, M1) law — for that, use
 :class:`MoeEccentricity`. This class is a smooth, mass-independent surrogate
 motivated by the tidal-circularization physics (Zahn 1977).
 
-References:
-    Duquennoy & Mayor (1991) A&A 248, 485 §6.1/§7.2 - three-period e model.
-    Ambartsumian (1937); Heggie (1975) MNRAS 173, 729 - thermal f(e)=2e.
-    Zahn (1977) A&A 57, 383 - tidal circularization.
+**References.** Duquennoy & Mayor (1991) A&A 248, 485 §6.1/§7.2 - three-period e model.
+Ambartsumian (1937); Heggie (1975) MNRAS 173, 729 - thermal f(e)=2e.
+Zahn (1977) A&A 57, 383 - tidal circularization.
 
 Parameters:
-    P_circ: Circularization period [days] (default: 10.0; DM91 ~11.6 d)
-    P_thermal: Thermalization period [days] (default: 1000.0; DM91 wide onset)
-    e_max: Maximum eccentricity (default: 0.99)
-    transition_width: Width of transition region in log10(P) (default: 0.5)
+P_circ: Circularization period [days] (default: 10.0; DM91 ~11.6 d)
+P_thermal: Thermalization period [days] (default: 1000.0; DM91 wide onset)
+e_max: Maximum eccentricity (default: 0.99)
+transition_width: Width of transition region in log10(P) (default: 0.5)
 
 *Source: [`src/progenax/binaries/eccentricity.py#L98`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/eccentricity.py#L98)*
 
@@ -431,6 +448,8 @@ Parameters:
 ## `binaries.MoeEccentricity`
 
 *class*
+
+[📇 model card](../15-model-reference/binaries.md#card-moe_pqe) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 MoeEccentricity(e_max: 'float' = 0.99) -> None
@@ -494,19 +513,14 @@ For randomly oriented orbits in 3D space:
 - ω ~ U(0, 2π)  (argument of periapsis)
 - M₀ ~ U(0, 2π)  (mean anomaly at epoch)
 
-Args:
-    key: JAX random key
-    n: Number of orientations to sample
+**Args**
 
-Returns:
-    Tuple of (inclination, Omega, omega, M_anom) arrays, each shape (n,)
-    - inclination: [0, π] radians
-    - Omega: [0, 2π) radians
-    - omega: [0, 2π) radians
-    - M_anom: [0, 2π) radians
+| Parameter | Description |
+|---|---|
+| `key` | JAX random key |
+| `n` | Number of orientations to sample |
 
-Reference:
-    Binney & Tremaine (2008) "Galactic Dynamics" Section 3.1
+**Returns:** Tuple of (inclination, Omega, omega, M_anom) arrays, each shape (n,) - inclination: [0, π] radians - Omega: [0, 2π) radians - omega: [0, 2π) radians - M_anom: [0, 2π) radians Reference: Binney & Tremaine (2008) "Galactic Dynamics" Section 3.1
 
 *Source: [`src/progenax/binaries/orientation.py#L16`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orientation.py#L16)*
 
@@ -548,15 +562,14 @@ Parameters:
     alpha: Power-law index (default: 1.0)
     r_scale: Scale radius for radial variation (default: 1.0)
 
-Examples:
-    >>> # Core-enhanced: more binaries in center
-    >>> rbf = RadialBinaryFraction(fb0=0.5, A=0.5, alpha=1.0, r_scale=1.0)
-    >>> radii = jnp.array([0.1, 1.0, 5.0])
-    >>> fb_r = rbf.compute(radii)  # Higher at r=0.1, lower at r=5.0
-    >>>
-    >>> # Sample binary membership
-    >>> key = jax.random.PRNGKey(42)
-    >>> is_binary = rbf.sample_membership(radii, key)
+**Examples.** >>> # Core-enhanced: more binaries in center
+>>> rbf = RadialBinaryFraction(fb0=0.5, A=0.5, alpha=1.0, r_scale=1.0)
+>>> radii = jnp.array([0.1, 1.0, 5.0])
+>>> fb_r = rbf.compute(radii)  # Higher at r=0.1, lower at r=5.0
+>>>
+>>> # Sample binary membership
+>>> key = jax.random.PRNGKey(42)
+>>> is_binary = rbf.sample_membership(radii, key)
 
 *Source: [`src/progenax/binaries/mass_dependent.py#L34`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L34)*
 
@@ -598,29 +611,27 @@ Routes stars to different period/eccentricity distributions based on mass:
 - Low-mass stars (M < m_break): Solar-type binaries (Duquennoy & Mayor)
 - High-mass stars (M >= m_break): O/B-type binaries (Sana+2012, Moe+2017)
 
-References:
-    Sana et al. (2012) Science 337, 444 - O-star binary fraction
-    Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
-    Duquennoy & Mayor (1991) A&A 248, 485 - Solar-type binary periods
+**References.** Sana et al. (2012) Science 337, 444 - O-star binary fraction
+Moe & Di Stefano (2017) ApJS 230, 15 - Binary statistics review
+Duquennoy & Mayor (1991) A&A 248, 485 - Solar-type binary periods
 
 Parameters:
-    m_break: Mass threshold [Msun] separating low/high-mass prescriptions (default: 8.0)
-    low_mass_period: Period distribution for M < m_break
-    high_mass_period: Period distribution for M >= m_break
-    low_mass_eccentricity: Eccentricity distribution for M < m_break
-    high_mass_eccentricity: Eccentricity distribution for M >= m_break
+m_break: Mass threshold [Msun] separating low/high-mass prescriptions (default: 8.0)
+low_mass_period: Period distribution for M < m_break
+high_mass_period: Period distribution for M >= m_break
+low_mass_eccentricity: Eccentricity distribution for M < m_break
+high_mass_eccentricity: Eccentricity distribution for M >= m_break
 
-Example:
-    >>> config = MassDependentBinaryConfig(
-    ...     m_break=8.0,
-    ...     low_mass_period=LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3),
-    ...     high_mass_period=SanaOBPeriod(),
-    ...     low_mass_eccentricity=ThermalEccentricity(),
-    ...     high_mass_eccentricity=MoeEccentricity(),
-    ... )
-    >>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
-    >>> key = jax.random.PRNGKey(42)
-    >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
+**Example.** >>> config = MassDependentBinaryConfig(
+...     m_break=8.0,
+...     low_mass_period=LogNormalPeriod(mu_log_P=4.8, sigma_log_P=2.3),
+...     high_mass_period=SanaOBPeriod(),
+...     low_mass_eccentricity=ThermalEccentricity(),
+...     high_mass_eccentricity=MoeEccentricity(),
+... )
+>>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
+>>> key = jax.random.PRNGKey(42)
+>>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
 *Source: [`src/progenax/binaries/mass_dependent.py#L161`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L161)*
 
@@ -641,33 +652,31 @@ Routes each star to appropriate period/eccentricity distribution based on mass:
 
 Uses JAX-native branching (jnp.where) for JIT compatibility.
 
-Args:
-    masses: Stellar masses [Msun] (shape N,)
-    config: Mass-dependent binary configuration
-    key: JAX random key
+**Args**
 
-Returns:
-    Tuple of:
-        - periods: Orbital periods [days] (shape N,)
-        - eccentricities: Orbital eccentricities (shape N,)
+| Parameter | Description |
+|---|---|
+| `masses` | Stellar masses [Msun] (shape N,) |
+| `config` | Mass-dependent binary configuration |
+| `key` | JAX random key |
 
-Note:
-    Only the high-mass branch supports period-dependent eccentricity
-    (MoeEccentricity, conditioned on the high-mass periods). The low-mass
-    eccentricity is sampled unconditionally (Thermal/Uniform), enforced by
-    the config type hints.
+**Returns:** Tuple of: - periods: Orbital periods [days] (shape N,) - eccentricities: Orbital eccentricities (shape N,)
 
-Example:
-    >>> config = MassDependentBinaryConfig(
-    ...     m_break=8.0,
-    ...     low_mass_period=LogNormalPeriod(),
-    ...     high_mass_period=SanaOBPeriod(),
-    ...     low_mass_eccentricity=ThermalEccentricity(),
-    ...     high_mass_eccentricity=MoeEccentricity(),
-    ... )
-    >>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
-    >>> key = jax.random.PRNGKey(42)
-    >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
+**Note.** Only the high-mass branch supports period-dependent eccentricity
+(MoeEccentricity, conditioned on the high-mass periods). The low-mass
+eccentricity is sampled unconditionally (Thermal/Uniform), enforced by
+the config type hints.
+
+**Example.** >>> config = MassDependentBinaryConfig(
+...     m_break=8.0,
+...     low_mass_period=LogNormalPeriod(),
+...     high_mass_period=SanaOBPeriod(),
+...     low_mass_eccentricity=ThermalEccentricity(),
+...     high_mass_eccentricity=MoeEccentricity(),
+... )
+>>> masses = jnp.array([1.0, 5.0, 10.0, 20.0])
+>>> key = jax.random.PRNGKey(42)
+>>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
 *Source: [`src/progenax/binaries/mass_dependent.py#L200`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L200)*
 
@@ -682,14 +691,16 @@ ResolvedBinaries(positions: ForwardRef("Float[Array, 'M 3']"), velocities: Forwa
 
 Masked fixed-shape (2N) particle set from resolving N systems.
 
-Attributes:
-    positions: (2N, 3) component positions [length units].
-    velocities: (2N, 3) component velocities [velocity units].
-    masses: (2N,) component masses [M_sun] (ghosts = 0).
-    is_real: (2N,) bool — True for real particles (all primaries + binary
-        secondaries); False for single-star ghost secondaries.
-    primordial_system_id: (2N,) int — slots 2i, 2i+1 both = i.
-    is_primordial_secondary: (2N,) bool — True on the odd (secondary) slots.
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `positions` | (2N, 3) component positions [length units]. |
+| `velocities` | (2N, 3) component velocities [velocity units]. |
+| `masses` | (2N,) component masses [M_sun] (ghosts = 0). |
+| `is_real` | (2N,) bool — True for real particles (all primaries + binary secondaries); False for single-star ghost secondaries. |
+| `primordial_system_id` | (2N,) int — slots 2i, 2i+1 both = i. |
+| `is_primordial_secondary` | (2N,) bool — True on the odd (secondary) slots. |
 
 *Source: [`src/progenax/binaries/assembly.py#L27`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py#L27)*
 
@@ -698,22 +709,22 @@ Attributes:
 
 *function*
 
+[📇 model card](../15-model-reference/binaries.md#card-binary_cluster_assembly) · [∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 resolve_binary_components(com_pos: "Float[Array, 'N 3']", com_vel: "Float[Array, 'N 3']", m1: "Float[Array, 'N']", m2: "Float[Array, 'N']", is_binary: "Bool[Array, 'N']", a: "Float[Array, 'N']", e: "Float[Array, 'N']", inc: "Float[Array, 'N']", Omega: "Float[Array, 'N']", omega: "Float[Array, 'N']", M_anom: "Float[Array, 'N']", *, G: 'float') -> 'ResolvedBinaries'
 ```
 
 Resolve N system COMs into a masked 2N component set (see module docstring).
 
-Args:
-    com_pos, com_vel: (N, 3) system center-of-mass positions/velocities.
-    m1, m2: (N,) primary / secondary masses (m2 = 0 for singles).
-    is_binary: (N,) bool — True for binary systems.
-    a, e, inc, Omega, omega, M_anom: (N,) Keplerian elements of the relative
-        orbit (ignored for singles; sanitized internally so grads stay finite).
-    G: gravitational constant (REQUIRED).
+**Args**
 
-Returns:
-    ResolvedBinaries (2N slots + is_real mask + primordial provenance).
+| Parameter | Description |
+|---|---|
+| `is_binary` | (N,) bool — True for binary systems. a, e, inc, Omega, omega, M_anom: (N,) Keplerian elements of the relative orbit (ignored for singles; sanitized internally so grads stay finite). |
+| `G` | gravitational constant (REQUIRED). |
+
+**Returns:** ResolvedBinaries (2N slots + is_real mask + primordial provenance).
 
 *Source: [`src/progenax/binaries/assembly.py#L53`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py#L53)*
 
@@ -737,6 +748,8 @@ Plugs directly into `resolve_binary_components(..., a, e, inc, Omega, omega, M_a
 
 *class*
 
+[∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 IndependentCompanions(binary_fraction: 'Any', q_distribution: 'Any', period_distribution: 'Any', eccentricity_distribution: 'Any') -> None
 ```
@@ -757,6 +770,8 @@ Entropy layout (the equivalence contract): ``split(key, 5)`` ->
 ## `binaries.MoeCompanions`
 
 *class*
+
+[📇 model card](../15-model-reference/binaries.md#card-moe_pqe) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 MoeCompanions(q_min: 'float' = 0.1) -> None
@@ -834,13 +849,13 @@ not differentiable (a diagnostic). O(N^2) per level (materializes the N×N separ
 matrix) — intended for N ≲ a few×10^3; an accelerated neighbour-list version is
 tracked for a future gravax acceleration.
 
-Args:
-    max_levels: hierarchy depth to resolve (default 3 ⇒ up to ~octuples).
+**Args**
 
-Returns:
-    (system_id, multiplicity), each (N,): `system_id[i]` is the body slot of
-    particle i (members of one hierarchy share it); `multiplicity[i]` is the
-    number of particles in that system.
+| Parameter | Description |
+|---|---|
+| `max_levels` | hierarchy depth to resolve (default 3 ⇒ up to ~octuples). |
+
+**Returns:** (system_id, multiplicity), each (N,): `system_id[i]` is the body slot of particle i (members of one hierarchy share it); `multiplicity[i]` is the number of particles in that system.
 
 *Source: [`src/progenax/binaries/diagnostics.py#L105`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L105)*
 
@@ -855,15 +870,14 @@ primordial_survival(current_pairs, primordial_system_id: "Int[Array, 'N']") -> '
 
 Compare the current bound pairing to the t=0 primordial labelling.
 
-Args:
-    current_pairs: (K, 2) index pairs from :func:`find_bound_pairs`.
-    primordial_system_id: (N,) the IC-time `primordial_system_id` (paired
-        particles share an id).
+**Args**
 
-Returns:
-    dict with integer counts: ``survived`` (primordial binaries still bound),
-    ``disrupted`` (primordial binaries no longer a current pair), and
-    ``newly_formed`` (current pairs that were not primordial binaries).
+| Parameter | Description |
+|---|---|
+| `current_pairs` | (K, 2) index pairs from :func:`find_bound_pairs`. |
+| `primordial_system_id` | (N,) the IC-time `primordial_system_id` (paired particles share an id). |
+
+**Returns:** dict with integer counts: ``survived`` (primordial binaries still bound), ``disrupted`` (primordial binaries no longer a current pair), and ``newly_formed`` (current pairs that were not primordial binaries).
 
 *Source: [`src/progenax/binaries/diagnostics.py#L187`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L187)*
 
@@ -878,21 +892,14 @@ BinaryEnergyBudget(E_internal: ForwardRef("Float[Array, '']"), T_com: ForwardRef
 
 Two-scale energy budget of a primordial-binary cluster.
 
-Attributes:
-    E_internal: total internal orbital energy of the primordial binaries
-        (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the
-        global virial scaling (``Q``) does NOT touch. NB the ``softening`` passed
-        to the bound-pair finders does NOT soften this internal binding energy —
-        it only regularizes the inter-system potential (audit S18).
-    T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the
-        scale the cluster is virialized on.
-    Q_com: ``T_com / |W_com|`` — the virial ratio the cluster was scaled to
-        (≈ the ``Q`` passed to ``build_binary_cluster``).
-    Q_resolved: ``T / |W|`` on the *resolved* stars — the naive ratio that mixes
-        the cluster and internal-binary scales. The deep internal binary binding
-        dominates |W|, so Q_resolved is DEFLATED below the cluster Q (measured
-        ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10).
-    n_binaries: number of primordial binaries (two positive-mass members).
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `E_internal` | total internal orbital energy of the primordial binaries (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the global virial scaling (``Q``) does NOT touch. NB the ``softening`` passed to the bound-pair finders does NOT soften this internal binding energy — it only regularizes the inter-system potential (audit S18). T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the scale the cluster is virialized on. |
+| `Q_com` | ``T_com / \|W_com\|`` — the virial ratio the cluster was scaled to (≈ the ``Q`` passed to ``build_binary_cluster``). |
+| `Q_resolved` | ``T / \|W\|`` on the *resolved* stars — the naive ratio that mixes the cluster and internal-binary scales. The deep internal binary binding dominates \|W\|, so Q_resolved is DEFLATED below the cluster Q (measured ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10). |
+| `n_binaries` | number of primordial binaries (two positive-mass members). |
 
 *Source: [`src/progenax/binaries/diagnostics.py#L212`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L212)*
 
@@ -920,15 +927,15 @@ contribute exactly 0). The COM reconstruction is differentiable; the binary pair
 is eager (like `find_bound_pairs`). Handles singles + binaries — systems with > 2
 members (triples/quadruples) are skipped (the higher-multiplicity seam).
 
-Args:
-    positions, velocities, masses: resolved per-star state.
-    system_id: per-star system label (members of one system share it).
-    G: gravitational constant (REQUIRED).
-    softening: softening for the COM/resolved PE (default 0 = exact, matching the
-        collisional build default).
+**Args**
 
-Returns:
-    :class:`BinaryEnergyBudget`.
+| Parameter | Description |
+|---|---|
+| `system_id` | per-star system label (members of one system share it). |
+| `G` | gravitational constant (REQUIRED). |
+| `softening` | softening for the COM/resolved PE (default 0 = exact, matching the collisional build default). |
+
+**Returns:** :class:`BinaryEnergyBudget`.
 
 *Source: [`src/progenax/binaries/diagnostics.py#L261`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L261)*
 

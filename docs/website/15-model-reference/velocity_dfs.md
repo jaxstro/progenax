@@ -18,7 +18,7 @@ single source of truth.
 (card-plummer_df)=
 ## Plummer isotropic DF
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 3 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
 
 The closed-form ergodic equilibrium DF of the Plummer sphere, f(E) ∝ E^(7/2) — the canonical worked example of Eddington inversion and the exact equilibrium behind progenax's Plummer velocity sampler.
 
@@ -81,7 +81,7 @@ f(v \mid r) \;\propto\; v^2\,\mathcal{E}(r, v)^{7/2},\qquad \mathcal{E}(r, v) = 
 (card-king_df)=
 ## King lowered-Maxwellian DF
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 1 source · [API: `KingVelocityDF`](../30-api/kinematics.md#api-kinematics-kingvelocitydf)
 
 The velocity side of the King (1966) model: an isothermal Maxwellian lowered by a constant so f vanishes at the tidal-boundary energy — sampled per-particle by inverse-CDF on the marginal speed distribution.
 
@@ -141,7 +141,7 @@ f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr], \q
 (card-michie_df)=
 ## Michie–King anisotropic DF
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `MichieVelocityDF`](../30-api/kinematics.md#api-kinematics-michievelocitydf)
 
 The self-consistent radially anisotropic King model: Michie's (1963) angular-momentum Gaussian times the King lowering. Unlike the Osipkov–Merritt overlay, the DF is specified first and Poisson is re-solved, so the density itself changes with r_a.
 
@@ -193,7 +193,7 @@ f(E, J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right) \left[\exp\!\le
 (card-eff_df)=
 ## EFF Eddington-inversion DF
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 2 sources · [API: `EFFVelocityDF`](../30-api/kinematics.md#api-kinematics-effvelocitydf)
 
 The isotropic ergodic DF of the (truncated) EFF density, obtained by numerical Eddington inversion — tabulated f(E) with the truncation boundary term, sampled by inverse-CDF.
 
@@ -238,7 +238,7 @@ f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2} \left[\int_0^{\mathcal{E}} \frac{
 (card-om_anisotropy)=
 ## Osipkov–Merritt anisotropy overlay
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
 
 The one-parameter radial-anisotropy construction shared by the Plummer and EFF DFs: replace f(E) by f(Q) built from the augmented density rho_Q = (1 + r^2/r_a^2) rho, holding the TRUE density and potential fixed. beta(r) = r^2/(r^2 + r_a^2) exactly.
 

@@ -18,7 +18,7 @@ single source of truth.
 (card-engine_a_multimass_limepy)=
 ## Engine A — multimass lowered-isothermal (LIMEPY family)
 
-**Status:** ✅ verified
+✅ verified · 4 equations · 4 sources · [API: `MultiComponentCluster`](../30-api/cluster.md#api-cluster-multicomponentcluster)
 
 DF-first multi-component equilibrium: every mass component shares one dimensionless potential, each riding it at its own velocity-scale ratio w_j (mass segregation via the equipartition ansatz w_j = mu_j^-delta), with the Gieles & Zocchi (2015) continuous truncation parameter g (Woolley 0 / King 1 / Wilson 2). Equilibrium by construction.
 
@@ -94,7 +94,7 @@ m_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\ph
 (card-engine_b_density_eddington)=
 ## Engine B — density-defined shared-Ψ Eddington equilibria
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 3 sources · [API: `build_engine_b_state`](../30-api/cluster.md#api-cluster-build_engine_b_state)
 
 Density-first multi-component equilibrium: prescribe each component's density shape (Plummer/EFF/King mixes with mass fractions), build the shared potential in ONE quadrature pass (no ODE), and derive each component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in that shared Psi — with a realizability gate (f_j >= 0 or refuse).
 

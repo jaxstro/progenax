@@ -97,7 +97,25 @@ def _render_card(card: dict) -> str:
     lines.append(f"(card-{card['model']})=")
     lines.append(f"## {title}")
     lines.append("")
-    lines.append(f"**Status:** {_STATUS_BADGE[card['status']]}")
+    # Compact meta row: status · counts · API backlink (from the first code_ref).
+    meta = [_STATUS_BADGE[card["status"]]]
+    n_eq = len(card["equations"])
+    n_src = len(card["sources"])
+    meta.append(f"{n_eq} equation{'s' if n_eq != 1 else ''}")
+    meta.append(f"{n_src} source{'s' if n_src != 1 else ''}")
+    if card["code_refs"]:
+        relpath, qualname = card["code_refs"][0].split("::")
+        module_short = relpath.split("/")[0].removesuffix(".py")
+        # module aliases: builders_cluster documents under builders
+        module_short = {"builders_cluster": "builders"}.get(module_short, module_short)
+        symbol = qualname.split(".")[0]
+        api_page = _REPO_ROOT / "docs" / "website" / "30-api" / f"{module_short}.md"
+        if api_page.exists():  # e.g. stellar.py has no API page yet
+            meta.append(
+                f"[API: `{symbol}`](../30-api/{module_short}.md"
+                f"#api-{module_short}-{symbol.lower()})"
+            )
+    lines.append(" · ".join(meta))
     lines.append("")
     lines.append(" ".join(card["description"].split()))
     lines.append("")

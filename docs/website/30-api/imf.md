@@ -96,9 +96,12 @@ Subclasses must implement:
 
 The base class handles normalization automatically via _log_norm property.
 
-Attributes:
-    m_min: Minimum mass [M_sun] (default: 0.0)
-    m_max: Maximum mass [M_sun] (default: inf)
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `m_min` | Minimum mass [M_sun] (default: 0.0) |
+| `m_max` | Maximum mass [M_sun] (default: inf) |
 
 *Source: [`src/progenax/imf/base.py#L92`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/base.py#L92)*
 
@@ -122,12 +125,14 @@ loops. Initial guess uses linear interpolation in log-mass space.
 Gradients flow through all iterations via automatic differentiation,
 enabling differentiation w.r.t. both u and IMF parameters.
 
-Args:
-    imf: IMF instance
-    u: Uniform samples in [0, 1]
+**Args**
 
-Returns:
-    Mass values m such that CDF(m) ≈ u
+| Parameter | Description |
+|---|---|
+| `imf` | IMF instance |
+| `u` | Uniform samples in [0, 1] |
+
+**Returns:** Mass values m such that CDF(m) ≈ u
 
 *Source: [`src/progenax/imf/base.py#L48`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/base.py#L48)*
 
@@ -135,6 +140,8 @@ Returns:
 ## `imf.TruncatedIMF`
 
 *class*
+
+[📇 model card](../15-model-reference/imfs.md#card-truncated)
 
 ```python
 TruncatedIMF(inner: progenax.imf.base.IMFProtocol, m_min: float, m_max: float)
@@ -145,16 +152,18 @@ Wrapper for hard mass truncation of any IMF.
 Takes an existing IMF and enforces strict bounds [m_min, m_max].
 Renormalizes the PDF over the truncated domain.
 
-Attributes:
-    inner: The wrapped IMF
-    m_min: Minimum mass [M_sun]
-    m_max: Maximum mass [M_sun]
+**Attributes**
 
-Example:
-    >>> from progenax.imf import ChabrierIMF, TruncatedIMF
-    >>> chabrier = ChabrierIMF()
-    >>> truncated = TruncatedIMF(chabrier, m_min=0.08, m_max=150.0)
-    >>> masses = truncated.sample(key, 1000)
+| Parameter | Description |
+|---|---|
+| `inner` | The wrapped IMF |
+| `m_min` | Minimum mass [M_sun] |
+| `m_max` | Maximum mass [M_sun] |
+
+**Example.** >>> from progenax.imf import ChabrierIMF, TruncatedIMF
+>>> chabrier = ChabrierIMF()
+>>> truncated = TruncatedIMF(chabrier, m_min=0.08, m_max=150.0)
+>>> masses = truncated.sample(key, 1000)
 
 *Source: [`src/progenax/imf/truncated.py#L15`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/truncated.py#L15)*
 
@@ -162,6 +171,8 @@ Example:
 ## `imf.PowerLawIMF`
 
 *class*
+
+[📇 model card](../15-model-reference/imfs.md#card-powerlaw_imf) · [∇ gradient-verified — 9 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 PowerLawIMF(exponents: 'List[float]', breakpoints: 'List[float]', m_min: 'float' = 0.01, m_max: 'float' = 100.0)
@@ -175,18 +186,20 @@ The PDF is:
 where α_i are the exponents and b_i are the breakpoints.
 Continuity is enforced at breakpoints.
 
-Attributes:
-    m_min: Minimum mass [M_sun]
-    m_max: Maximum mass [M_sun]
-    breakpoints: Mass breakpoints (excluding m_min, m_max)
-    exponents: Power-law exponents for each segment
-    _continuity_factors: Multiplicative factors for PDF continuity
-    _segment_integrals: Integral of PDF over each segment
-    _segment_cumprob: Cumulative probability at segment boundaries
+**Attributes**
 
-Example:
-    >>> imf = PowerLawIMF.kroupa()  # Kroupa (2001)
-    >>> masses = imf.sample(key, 1000)
+| Parameter | Description |
+|---|---|
+| `m_min` | Minimum mass [M_sun] |
+| `m_max` | Maximum mass [M_sun] |
+| `breakpoints` | Mass breakpoints (excluding m_min, m_max) |
+| `exponents` | Power-law exponents for each segment |
+| `_continuity_factors` | Multiplicative factors for PDF continuity |
+| `_segment_integrals` | Integral of PDF over each segment |
+| `_segment_cumprob` | Cumulative probability at segment boundaries |
+
+**Example.** >>> imf = PowerLawIMF.kroupa()  # Kroupa (2001)
+>>> masses = imf.sample(key, 1000)
 
 *Source: [`src/progenax/imf/power_law.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/power_law.py#L20)*
 
@@ -201,12 +214,14 @@ prepare_imf_samples(N: 'int', key: 'PRNGKeyArray') -> "Float[Array, 'N']"
 
 Prepare uniform samples for reparameterized IMF sampling.
 
-Args:
-    N: Number of samples
-    key: JAX random key
+**Args**
 
-Returns:
-    Uniform samples in [0, 1]
+| Parameter | Description |
+|---|---|
+| `N` | Number of samples |
+| `key` | JAX random key |
+
+**Returns:** Uniform samples in [0, 1]
 
 *Source: [`src/progenax/imf/power_law.py#L287`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/power_law.py#L287)*
 
@@ -241,6 +256,8 @@ Alias for estimate_N_max_for_M_total.
 
 *class*
 
+[📇 model card](../15-model-reference/imfs.md#card-maschberger) · [∇ gradient-verified — 3 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 Maschberger(m_min: float = 0.01, m_max: float = 300.0, mu: float = 0.2, alpha: float = 2.3, beta: float = 1.4) -> None
 ```
@@ -274,6 +291,8 @@ Reference:
 
 *class*
 
+[📇 model card](../15-model-reference/imfs.md#card-tapered_powerlaw)
+
 ```python
 TaperedPowerLaw(m_min: float = 0.01, m_max: float = 300.0, alpha: float = 2.3, m_peak: float = 0.3, beta: float = 2.0) -> None
 ```
@@ -290,10 +309,13 @@ No closed-form CDF inverse: the CDF uses the shared cumulative-trapezoid grid
 and ``ppf`` is the inherited BaseIMF fixed-iteration Newton solver (unlike
 Maschberger, which has an analytic quantile). Differentiable and JIT-safe.
 
-Attributes:
-    alpha: Power-law slope (default: 2.3, canonical high-mass)
-    m_peak: Turnover/peak mass [M_sun]
-    beta: Taper sharpness (higher = sharper cutoff)
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `alpha` | Power-law slope (default: 2.3, canonical high-mass) |
+| `m_peak` | Turnover/peak mass [M_sun] |
+| `beta` | Taper sharpness (higher = sharper cutoff) |
 
 *Source: [`src/progenax/imf/smooth.py#L180`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/smooth.py#L180)*
 
@@ -301,6 +323,8 @@ Attributes:
 ## `imf.Schechter`
 
 *class*
+
+[📇 model card](../15-model-reference/imfs.md#card-schechter) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 Schechter(m_min: float = 0.01, m_max: float = 300.0, alpha: float = 2.3, m_star: float = 100.0) -> None
@@ -324,13 +348,15 @@ For stellar IMFs with meaningful high-mass cutoff, consider:
     - α = 1.0-1.5 (flatter slope)
     - m_star = 10-50 M_sun (relevant cutoff scale)
 
-Example:
-    >>> # IGIMF-style with cluster-dependent upper mass limit
-    >>> imf = Schechter(alpha=1.35, m_star=m_max_from_cluster_mass(M_cluster))
+**Example.** >>> # IGIMF-style with cluster-dependent upper mass limit
+>>> imf = Schechter(alpha=1.35, m_star=m_max_from_cluster_mass(M_cluster))
 
-Attributes:
-    alpha: Power-law slope (default: 2.3, Salpeter-like)
-    m_star: Exponential cutoff mass [M_sun] (default: 100)
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `alpha` | Power-law slope (default: 2.3, Salpeter-like) |
+| `m_star` | Exponential cutoff mass [M_sun] (default: 100) |
 
 *Source: [`src/progenax/imf/smooth.py#L228`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/smooth.py#L228)*
 
@@ -338,6 +364,8 @@ Attributes:
 ## `imf.ChabrierIMF`
 
 *class*
+
+[📇 model card](../15-model-reference/imfs.md#card-chabrier) · [∇ gradient-verified — 4 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 ChabrierIMF(m_min: float = 0.08, m_max: float = 100.0, m_c: float = 0.08, sigma: float = 0.69, alpha: float = 2.3, m_trans: float = 1.0, A_ln: float = 0.158) -> None
@@ -354,27 +382,26 @@ at the transition mass m_trans = 1 M☉.
 
 Implements IMFProtocol for compatibility with BaseIMF framework.
 
-Attributes:
-    m_min: Minimum mass [M☉] (default: 0.08 - hydrogen burning limit)
-    m_max: Maximum mass [M☉] (default: 100)
-    m_c: Characteristic mass for lognormal [M☉] (default: 0.08, Chabrier 2003)
-    sigma: Width of lognormal in log-space (default: 0.69)
-    alpha: High-mass slope for ξ(m)=dN/dm ∝ m^(-α) (default: 2.3, Chabrier 2003
-        Table 1 high-mass tail x=1.3 ⇒ α=2.3; the original Salpeter slope is
-        2.35, available via PowerLawIMF.salpeter())
-    m_trans: Transition mass between lognormal and power-law (default: 1.0)
-    A_ln: Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF)
-    A_pl: Power-law coefficient (computed for continuity at m_trans)
+**Attributes**
 
-Examples:
-    >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
-    >>> key = jax.random.PRNGKey(42)
-    >>> masses = imf.sample(key, 1000)
-    >>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.61 M☉ over [0.08, 100]
+| Parameter | Description |
+|---|---|
+| `m_min` | Minimum mass [M☉] (default: 0.08 - hydrogen burning limit) |
+| `m_max` | Maximum mass [M☉] (default: 100) |
+| `m_c` | Characteristic mass for lognormal [M☉] (default: 0.08, Chabrier 2003) |
+| `sigma` | Width of lognormal in log-space (default: 0.69) |
+| `alpha` | High-mass slope for ξ(m)=dN/dm ∝ m^(-α) (default: 2.3, Chabrier 2003 Table 1 high-mass tail x=1.3 ⇒ α=2.3; the original Salpeter slope is 2.35, available via PowerLawIMF.salpeter()) |
+| `m_trans` | Transition mass between lognormal and power-law (default: 1.0) |
+| `A_ln` | Lognormal coefficient (default: 0.158, Chabrier 2003 single-star disk IMF) |
+| `A_pl` | Power-law coefficient (computed for continuity at m_trans) |
 
-References:
-    Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
-    Chabrier (2005), ASSL, 327, 41 - Review of IMF determinations
+**Examples.** >>> imf = ChabrierIMF()  # Default Chabrier (2003) single-star (disk) IMF
+>>> key = jax.random.PRNGKey(42)
+>>> masses = imf.sample(key, 1000)
+>>> print(f"Mean mass: {imf.mean_mass():.3f} M☉")  # ~0.61 M☉ over [0.08, 100]
+
+**References.** Chabrier (2003), PASP, 115, 763 - Table 1: single-star disk IMF coefficients
+Chabrier (2005), ASSL, 327, 41 - Review of IMF determinations
 
 *Source: [`src/progenax/imf/chabrier.py#L29`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/chabrier.py#L29)*
 
@@ -445,9 +472,8 @@ Parameters:
            γ = 0: Flat distribution
     q_min: Minimum mass ratio (default: 0.1)
 
-Note:
-    For γ = -1, the distribution is singular at q = 0.
-    Use q_min > 0 to avoid singularity.
+**Note.** For γ = -1, the distribution is singular at q = 0.
+Use q_min > 0 to avoid singularity.
 
 *Source: [`src/progenax/imf/binary/mass_ratio.py#L116`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/binary/mass_ratio.py#L116)*
 
@@ -526,6 +552,8 @@ Parameters:
 ## `imf.MoeDiStefano2017Full`
 
 *class*
+
+[📇 model card](../15-model-reference/binaries.md#card-moe_pqe)
 
 ```python
 MoeDiStefano2017Full(q_min: 'float' = 0.1, q_break: 'float' = 0.3, n_grid: 'int' = 512) -> None
@@ -704,42 +732,41 @@ Parameters:
         - float - Shorthand for ConstantBinaryFraction
         - Custom callable: f(m) -> f_bin array
 
-Examples:
-    >>> from progenax.imf import PowerLawIMF
-    >>> from progenax.imf.binary import BinaryIMF
-    >>>
-    >>> # Default: full Moe+17 mass-dependent model
-    >>> imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa())
-    >>> # Equivalent to:
-    >>> # imf = BinaryIMF(
-    >>> #     primary_imf=PowerLawIMF.kroupa(),
-    >>> #     q_distribution=MoeDiStefano2017(),
-    >>> #     binary_fraction=MassDependentBinaryFraction(),
-    >>> # )
-    >>>
-    >>> # Simple constant binary fraction
-    >>> imf = BinaryIMF(
-    ...     primary_imf=PowerLawIMF.kroupa(),
-    ...     binary_fraction=0.5,  # 50% binaries
-    ... )
-    >>>
-    >>> # Custom mass-ratio sampler
-    >>> def my_q_sampler(key, m1):
-    ...     # Custom logic: q depends on m1
-    ...     return jax.random.uniform(key, m1.shape, minval=0.3, maxval=1.0)
-    >>> imf = BinaryIMF(
-    ...     primary_imf=PowerLawIMF.kroupa(),
-    ...     q_distribution=my_q_sampler,
-    ... )
-    >>>
-    >>> # Custom binary fraction function
-    >>> def my_f_bin(m):
-    ...     # Custom: 40% for low mass, 80% for high mass
-    ...     return jnp.where(m < 1.0, 0.4, 0.8)
-    >>> imf = BinaryIMF(
-    ...     primary_imf=PowerLawIMF.kroupa(),
-    ...     binary_fraction=my_f_bin,
-    ... )
+**Examples.** >>> from progenax.imf import PowerLawIMF
+>>> from progenax.imf.binary import BinaryIMF
+>>>
+>>> # Default: full Moe+17 mass-dependent model
+>>> imf = BinaryIMF(primary_imf=PowerLawIMF.kroupa())
+>>> # Equivalent to:
+>>> # imf = BinaryIMF(
+>>> #     primary_imf=PowerLawIMF.kroupa(),
+>>> #     q_distribution=MoeDiStefano2017(),
+>>> #     binary_fraction=MassDependentBinaryFraction(),
+>>> # )
+>>>
+>>> # Simple constant binary fraction
+>>> imf = BinaryIMF(
+...     primary_imf=PowerLawIMF.kroupa(),
+...     binary_fraction=0.5,  # 50% binaries
+... )
+>>>
+>>> # Custom mass-ratio sampler
+>>> def my_q_sampler(key, m1):
+...     # Custom logic: q depends on m1
+...     return jax.random.uniform(key, m1.shape, minval=0.3, maxval=1.0)
+>>> imf = BinaryIMF(
+...     primary_imf=PowerLawIMF.kroupa(),
+...     q_distribution=my_q_sampler,
+... )
+>>>
+>>> # Custom binary fraction function
+>>> def my_f_bin(m):
+...     # Custom: 40% for low mass, 80% for high mass
+...     return jnp.where(m < 1.0, 0.4, 0.8)
+>>> imf = BinaryIMF(
+...     primary_imf=PowerLawIMF.kroupa(),
+...     binary_fraction=my_f_bin,
+... )
 
 *Source: [`src/progenax/imf/binary/imf.py#L37`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/binary/imf.py#L37)*
 
@@ -747,6 +774,8 @@ Examples:
 ## `imf.IMFParams`
 
 *class*
+
+[∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 IMFParams(alpha0: Float[Array, ''], alpha1: Float[Array, ''], alpha2: Float[Array, ''], alpha3: Float[Array, ''], m_break0: float = 0.08, m_break1: float = 0.5, m_break2: float = 1.0, m_min: float = 0.01, m_max: float = 150.0) -> None
@@ -765,29 +794,31 @@ Primary inference targets:
     - α₁, α₂: Metallicity-dependent (optional refinement via Marks Eq. 12)
     - α₀: Fixed at 0.3 (brown dwarf regime, rarely constrained)
 
-Attributes:
-    alpha0: Slope for [0.01, 0.08] M☉ (canonical 0.3, typically FIXED)
-    alpha1: Slope for [0.08, 0.50] M☉ (canonical 1.3)
-    alpha2: Slope for [0.50, 1.00] M☉ (canonical 2.3)
-    alpha3: Slope for [1.00, m_max] M☉ (canonical 2.3, environment-dependent)
-    m_break0: First break at 0.08 M☉ (static)
-    m_break1: Second break at 0.50 M☉ (static)
-    m_break2: Third break at 1.00 M☉ (static)
-    m_min: Minimum mass 0.01 M☉ (static)
-    m_max: Maximum mass 150.0 M☉ (static)
+**Attributes**
 
-Example:
-    >>> params = IMFParams.kroupa()
-    >>> print(f"High-mass slope: {params.alpha3}")
-    High-mass slope: 2.3
+| Parameter | Description |
+|---|---|
+| `alpha0` | Slope for [0.01, 0.08] M☉ (canonical 0.3, typically FIXED) |
+| `alpha1` | Slope for [0.08, 0.50] M☉ (canonical 1.3) |
+| `alpha2` | Slope for [0.50, 1.00] M☉ (canonical 2.3) |
+| `alpha3` | Slope for [1.00, m_max] M☉ (canonical 2.3, environment-dependent) |
+| `m_break0` | First break at 0.08 M☉ (static) |
+| `m_break1` | Second break at 0.50 M☉ (static) |
+| `m_break2` | Third break at 1.00 M☉ (static) |
+| `m_min` | Minimum mass 0.01 M☉ (static) |
+| `m_max` | Maximum mass 150.0 M☉ (static) |
 
-    >>> # Top-heavy IMF (e.g., in dense starburst)
-    >>> params = IMFParams(
-    ...     alpha0=jnp.array(0.3),
-    ...     alpha1=jnp.array(1.3),
-    ...     alpha2=jnp.array(2.3),
-    ...     alpha3=jnp.array(1.8),  # Top-heavy
-    ... )
+**Example.** >>> params = IMFParams.kroupa()
+>>> print(f"High-mass slope: {params.alpha3}")
+High-mass slope: 2.3
+
+>>> # Top-heavy IMF (e.g., in dense starburst)
+>>> params = IMFParams(
+...     alpha0=jnp.array(0.3),
+...     alpha1=jnp.array(1.3),
+...     alpha2=jnp.array(2.3),
+...     alpha3=jnp.array(1.8),  # Top-heavy
+... )
 
 *Source: [`src/progenax/imf/params.py#L23`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/params.py#L23)*
 
@@ -807,17 +838,18 @@ Evaluates the normalized piecewise power-law PDF:
 
 where ξ(m) is the unnormalized IMF with 4 segments.
 
-Args:
-    masses: Stellar masses [M☉], shape (N,)
-    params: IMF parameters
+**Args**
 
-Returns:
-    Log probability for each mass, shape (N,)
+| Parameter | Description |
+|---|---|
+| `masses` | Stellar masses [M☉], shape (N,) |
+| `params` | IMF parameters |
 
-Example:
-    >>> params = IMFParams.kroupa()
-    >>> masses = jnp.array([0.5, 1.0, 10.0])
-    >>> log_probs = log_prob_masses(masses, params)
+**Returns:** Log probability for each mass, shape (N,)
+
+**Example.** >>> params = IMFParams.kroupa()
+>>> masses = jnp.array([0.5, 1.0, 10.0])
+>>> log_probs = log_prob_masses(masses, params)
 
 *Source: [`src/progenax/imf/differentiable.py#L74`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/differentiable.py#L74)*
 
@@ -837,18 +869,19 @@ where F is the cumulative distribution function.
 
 Gradients flow through params, not through the random samples u.
 
-Args:
-    params: IMF parameters
-    u: Uniform samples in [0, 1], shape (N,)
+**Args**
 
-Returns:
-    Sampled masses [M☉], shape (N,)
+| Parameter | Description |
+|---|---|
+| `params` | IMF parameters |
+| `u` | Uniform samples in [0, 1], shape (N,) |
 
-Example:
-    >>> params = IMFParams.kroupa()
-    >>> key = jax.random.PRNGKey(42)
-    >>> u = jax.random.uniform(key, (1000,))
-    >>> masses = sample_masses_from_params(params, u)
+**Returns:** Sampled masses [M☉], shape (N,)
+
+**Example.** >>> params = IMFParams.kroupa()
+>>> key = jax.random.PRNGKey(42)
+>>> u = jax.random.uniform(key, (1000,))
+>>> masses = sample_masses_from_params(params, u)
 
 *Source: [`src/progenax/imf/differentiable.py#L176`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/differentiable.py#L176)*
 
@@ -867,18 +900,19 @@ NLL = -Σᵢ log p(mᵢ | params)
 
 This is the simplest likelihood for gradient-based IMF inference.
 
-Args:
-    masses: Observed stellar masses [M☉], shape (N,)
-    params: IMF parameters to evaluate
+**Args**
 
-Returns:
-    Negative log-likelihood (scalar)
+| Parameter | Description |
+|---|---|
+| `masses` | Observed stellar masses [M☉], shape (N,) |
+| `params` | IMF parameters to evaluate |
 
-Example:
-    >>> params = IMFParams.kroupa()
-    >>> masses = jnp.array([0.5, 1.0, 10.0, 50.0])
-    >>> nll = individual_mass_nll(masses, params)
-    >>> # Minimize NLL to fit params to data
+**Returns:** Negative log-likelihood (scalar)
+
+**Example.** >>> params = IMFParams.kroupa()
+>>> masses = jnp.array([0.5, 1.0, 10.0, 50.0])
+>>> nll = individual_mass_nll(masses, params)
+>>> # Minimize NLL to fit params to data
 
 *Source: [`src/progenax/imf/differentiable.py#L265`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/differentiable.py#L265)*
 
@@ -886,6 +920,8 @@ Example:
 ## `imf.BirthEnvironment`
 
 *class*
+
+[📇 model card](../15-model-reference/imfs.md#card-environment_imf)
 
 ```python
 BirthEnvironment(metallicity: "Float[Array, ''] | None" = None, log_mecl: "Float[Array, ''] | None" = None, sfe: "Float[Array, ''] | None" = None, log_rho_cl: "Float[Array, ''] | None" = None)
@@ -896,24 +932,26 @@ Physical birth environment with SFE parameter.
 Represents conditions during star formation that influence the IMF.
 All fields are JAX arrays for gradient-based inference.
 
-Attributes:
-    metallicity: [Fe/H], default 0.0 (solar). Calibrated range [-2.5, +0.5]
-    log_mecl: log₁₀(M_ecl / M☉). Calibrated range [3, 8]
-    sfe: Star formation efficiency ε = M_ecl / M_cl, default 0.33
-    log_rho_cl: Optional override for log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
+**Attributes**
 
-Example:
-    >>> # Solar neighborhood cluster
-    >>> env = BirthEnvironment.solar()
-    >>> params = env_to_imf_params(env)
-    >>> print(f"α₃ = {float(params.alpha3):.2f}")  # ~2.3
+| Parameter | Description |
+|---|---|
+| `metallicity` | [Fe/H], default 0.0 (solar). Calibrated range [-2.5, +0.5] |
+| `log_mecl` | log₁₀(M_ecl / M☉). Calibrated range [3, 8] |
+| `sfe` | Star formation efficiency ε = M_ecl / M_cl, default 0.33 |
+| `log_rho_cl` | Optional override for log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) |
 
-    >>> # Dense, metal-poor globular cluster with low SFE
-    >>> env = BirthEnvironment.from_cluster_mass(
-    ...     M_ecl=1e6, FeH=-1.5, sfe=0.1
-    ... )
-    >>> params = env_to_imf_params(env)
-    >>> print(f"α₃ = {float(params.alpha3):.2f}")  # Top-heavy!
+**Example.** >>> # Solar neighborhood cluster
+>>> env = BirthEnvironment.solar()
+>>> params = env_to_imf_params(env)
+>>> print(f"α₃ = {float(params.alpha3):.2f}")  # ~2.3
+
+>>> # Dense, metal-poor globular cluster with low SFE
+>>> env = BirthEnvironment.from_cluster_mass(
+...     M_ecl=1e6, FeH=-1.5, sfe=0.1
+... )
+>>> params = env_to_imf_params(env)
+>>> print(f"α₃ = {float(params.alpha3):.2f}")  # Top-heavy!
 
 *Source: [`src/progenax/imf/environment/birth_environment.py#L21`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/birth_environment.py#L21)*
 
@@ -921,6 +959,8 @@ Example:
 ## `imf.env_to_imf_params`
 
 *function*
+
+[📇 model card](../15-model-reference/imfs.md#card-environment_imf)
 
 ```python
 env_to_imf_params(env: 'BirthEnvironment', model: 'str' = 'jerabkova_generalized', include_lowmass_variation: 'bool' = False, smooth_alpha3: 'bool' = False, smooth_width: 'float' = 0.2, clamp_domain: 'bool' = True) -> 'IMFParams'
@@ -942,25 +982,26 @@ Models:
     - "marks_rho": Table 3 (density, requires log_rho_cl)
     - "marks_feh": Table 3 (metallicity only)
 
-Args:
-    env: BirthEnvironment with metallicity, log_mecl, sfe
-    model: Model name (see above)
-    include_lowmass_variation: Apply Marks Eq. 12 to α₁, α₂ (default False)
-    smooth_alpha3: Use tanh smoothing at threshold (for gradients)
-    smooth_width: Width of tanh transition
-    clamp_domain: Clamp inputs to calibrated ranges
+**Args**
 
-Returns:
-    4-segment IMFParams (α₀, α₁, α₂, α₃)
+| Parameter | Description |
+|---|---|
+| `env` | BirthEnvironment with metallicity, log_mecl, sfe |
+| `model` | Model name (see above) |
+| `include_lowmass_variation` | Apply Marks Eq. 12 to α₁, α₂ (default False) |
+| `smooth_alpha3` | Use tanh smoothing at threshold (for gradients) |
+| `smooth_width` | Width of tanh transition |
+| `clamp_domain` | Clamp inputs to calibrated ranges |
 
-Example:
-    >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5)
-    >>> params = env_to_imf_params(env)
-    >>> print(f"α₃ = {float(params.alpha3):.2f}")
+**Returns:** 4-segment IMFParams (α₀, α₁, α₂, α₃)
 
-    >>> # With explicit SFE
-    >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, sfe=0.1)
-    >>> params = env_to_imf_params(env, model="jerabkova_generalized")
+**Example.** >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5)
+>>> params = env_to_imf_params(env)
+>>> print(f"α₃ = {float(params.alpha3):.2f}")
+
+>>> # With explicit SFE
+>>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5, sfe=0.1)
+>>> params = env_to_imf_params(env, model="jerabkova_generalized")
 
 *Source: [`src/progenax/imf/environment/mapping.py#L382`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L382)*
 
@@ -977,11 +1018,13 @@ Radius-mass relation from Marks & Kroupa (2012).
 
 r_h [pc] = 0.1 × (M_ecl / M☉)^0.13
 
-Args:
-    M_ecl: Stellar mass of embedded cluster [M☉]
+**Args**
 
-Returns:
-    Half-mass radius [pc]
+| Parameter | Description |
+|---|---|
+| `M_ecl` | Stellar mass of embedded cluster [M☉] |
+
+**Returns:** Half-mass radius [pc]
 
 *Source: [`src/progenax/imf/environment/density.py#L13`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/density.py#L13)*
 
@@ -1008,11 +1051,13 @@ NOTE: Jerabkova+2018 Eq. 8 writes 4π, but that is internally inconsistent with 
 own ρ_ecl=0.61·logM+2.08 relation (which is 8π); progenax follows the 8π convention
 that matches the actual α₃–ρ calibration data.
 
-Args:
-    M_ecl: Stellar mass of embedded cluster [M☉]
+**Args**
 
-Returns:
-    Stellar half-mass density [M☉ pc⁻³]
+| Parameter | Description |
+|---|---|
+| `M_ecl` | Stellar mass of embedded cluster [M☉] |
+
+**Returns:** Stellar half-mass density [M☉ pc⁻³]
 
 *Source: [`src/progenax/imf/environment/density.py#L27`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/density.py#L27)*
 
@@ -1029,12 +1074,14 @@ Cloud-core density from stellar mass and SFE.
 
 ρ_cl = ρ_ecl / ε
 
-Args:
-    M_ecl: Stellar mass of embedded cluster [M☉]
-    sfe: Star formation efficiency ε = M_ecl / M_cl
+**Args**
 
-Returns:
-    Cloud density [M☉ pc⁻³]
+| Parameter | Description |
+|---|---|
+| `M_ecl` | Stellar mass of embedded cluster [M☉] |
+| `sfe` | Star formation efficiency ε = M_ecl / M_cl |
+
+**Returns:** Cloud density [M☉ pc⁻³]
 
 *Source: [`src/progenax/imf/environment/density.py#L52`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/density.py#L52)*
 
@@ -1049,12 +1096,14 @@ compute_log_rho_cl_6(M_ecl: "Float[Array, '...']", sfe: "Float[Array, '...']") -
 
 log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) from cluster mass and SFE.
 
-Args:
-    M_ecl: Stellar mass of embedded cluster [M☉]
-    sfe: Star formation efficiency
+**Args**
 
-Returns:
-    log₁₀(ρ_cl / 10⁶)
+| Parameter | Description |
+|---|---|
+| `M_ecl` | Stellar mass of embedded cluster [M☉] |
+| `sfe` | Star formation efficiency |
+
+**Returns:** log₁₀(ρ_cl / 10⁶)
 
 *Source: [`src/progenax/imf/environment/density.py#L70`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/density.py#L70)*
 
@@ -1074,13 +1123,15 @@ x = -0.14 × [Fe/H] + 0.6039 × log₁₀(M_ecl/10⁶) + 0.2161 - 0.99 × log₁
 Derived from Jeřábková Eq. 7 using Marks & Kroupa r_h-M_ecl relation
 and 8π half-mass density convention. See JERABKOVA_COEFFICIENTS for derivation.
 
-Args:
-    FeH: Metallicity [Fe/H]
-    M_ecl: Cluster stellar mass [M☉]
-    sfe: Star formation efficiency ε
+**Args**
 
-Returns:
-    x parameter for α₃ calculation
+| Parameter | Description |
+|---|---|
+| `FeH` | Metallicity [Fe/H] |
+| `M_ecl` | Cluster stellar mass [M☉] |
+| `sfe` | Star formation efficiency ε |
+
+**Returns:** x parameter for α₃ calculation
 
 *Source: [`src/progenax/imf/environment/mapping.py#L29`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L29)*
 
@@ -1099,12 +1150,14 @@ x = -0.14 × [Fe/H] + 0.99 × log₁₀(ρ_cl/10⁶)
 
 NOTE: This density-based formula has NO constant term (unlike the mass-based Eq. 9).
 
-Args:
-    FeH: Metallicity [Fe/H]
-    log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
+**Args**
 
-Returns:
-    x parameter for α₃ calculation
+| Parameter | Description |
+|---|---|
+| `FeH` | Metallicity [Fe/H] |
+| `log_rho_6` | log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) |
+
+**Returns:** x parameter for α₃ calculation
 
 *Source: [`src/progenax/imf/environment/mapping.py#L60`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L60)*
 
@@ -1122,12 +1175,14 @@ Marks+2012 Fundamental Plane coordinate (Eq. 14).
 x̂ = cos(θ) × [Fe/H] + sin(θ) × log₁₀(ρ_cl/10⁶)
    = -0.139 × [Fe/H] + 0.990 × log₁₀(ρ_cl/10⁶)
 
-Args:
-    FeH: Metallicity [Fe/H]
-    log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
+**Args**
 
-Returns:
-    x̂ coordinate on Fundamental Plane
+| Parameter | Description |
+|---|---|
+| `FeH` | Metallicity [Fe/H] |
+| `log_rho_6` | log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) |
+
+**Returns:** x̂ coordinate on Fundamental Plane
 
 *Source: [`src/progenax/imf/environment/mapping.py#L82`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L82)*
 
@@ -1150,15 +1205,17 @@ her own Eq. 7+8 density relation (which reconstructs to ~0.50, not 2.83). We
 deliberately use the density-consistent 8π constant so the mass- and density-
 based paths agree; it does not reproduce Eq. 9 as literally printed.
 
-Args:
-    FeH: Metallicity [Fe/H]
-    M_ecl: Cluster stellar mass [M☉]
-    sfe: Star formation efficiency
-    smooth: Use tanh smoothing
-    smooth_width: Smoothing width
+**Args**
 
-Returns:
-    α₃, clipped to [0.5, 2.3]
+| Parameter | Description |
+|---|---|
+| `FeH` | Metallicity [Fe/H] |
+| `M_ecl` | Cluster stellar mass [M☉] |
+| `sfe` | Star formation efficiency |
+| `smooth` | Use tanh smoothing |
+| `smooth_width` | Smoothing width |
+
+**Returns:** α₃, clipped to [0.5, 2.3]
 
 *Source: [`src/progenax/imf/environment/mapping.py#L148`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L148)*
 
@@ -1175,14 +1232,16 @@ Mass-based α₃ from cluster mass (assumes ε = 0.33).
 
 x = -0.14 × [Fe/H] + 0.6039 × log₁₀(M_ecl/10⁶) + 0.2161
 
-Args:
-    log_mecl_6: log₁₀(M_ecl / 10⁶ M☉)
-    FeH: Metallicity [Fe/H]
-    smooth: Use tanh smoothing
-    smooth_width: Smoothing width
+**Args**
 
-Returns:
-    α₃, clipped to [0.5, 2.3]
+| Parameter | Description |
+|---|---|
+| `log_mecl_6` | log₁₀(M_ecl / 10⁶ M☉) |
+| `FeH` | Metallicity [Fe/H] |
+| `smooth` | Use tanh smoothing |
+| `smooth_width` | Smoothing width |
+
+**Returns:** α₃, clipped to [0.5, 2.3]
 
 *Source: [`src/progenax/imf/environment/mapping.py#L188`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L188)*
 
@@ -1197,14 +1256,16 @@ alpha3_jerabkova_rho(log_rho_6: "Float[Array, '...']", FeH: "Float[Array, '...']
 
 Jerabkova+2018 Eq. 7: α₃ from density.
 
-Args:
-    log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
-    FeH: Metallicity [Fe/H]
-    smooth: Use tanh smoothing
-    smooth_width: Smoothing width
+**Args**
 
-Returns:
-    α₃, clipped to [0.5, 2.3]
+| Parameter | Description |
+|---|---|
+| `log_rho_6` | log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) |
+| `FeH` | Metallicity [Fe/H] |
+| `smooth` | Use tanh smoothing |
+| `smooth_width` | Smoothing width |
+
+**Returns:** α₃, clipped to [0.5, 2.3]
 
 *Source: [`src/progenax/imf/environment/mapping.py#L220`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L220)*
 
@@ -1230,14 +1291,16 @@ With this correction the Marks plane coincides with the Jerabkova (2018) IGIMF
 density relation `alpha3_jerabkova_rho` (which adopts the same erratum-corrected
 form) to within the -0.4072-vs-(-0.41) rounding (~0.01).
 
-Args:
-    log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
-    FeH: Metallicity [Fe/H]
-    smooth: Use tanh smoothing
-    smooth_width: Smoothing width
+**Args**
 
-Returns:
-    α₃, clipped to [0.5, 2.3]
+| Parameter | Description |
+|---|---|
+| `log_rho_6` | log₁₀(ρ_cl / 10⁶ M☉ pc⁻³) |
+| `FeH` | Metallicity [Fe/H] |
+| `smooth` | Use tanh smoothing |
+| `smooth_width` | Smoothing width |
+
+**Returns:** α₃, clipped to [0.5, 2.3]
 
 *Source: [`src/progenax/imf/environment/mapping.py#L250`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L250)*
 
@@ -1254,14 +1317,16 @@ Marks+2012 Table 3: 1D relations for α₃.
 
 α₃(λ) = p × λ + q, if λ ≷ λ_lim
 
-Args:
-    lambda_param: Parameter value (log₁₀(M/10⁶), log₁₀(ρ/10⁶), or [Fe/H])
-    relation: One of "mcl", "mecl", "rho", "feh"
-    smooth: Use tanh smoothing
-    smooth_width: Smoothing width
+**Args**
 
-Returns:
-    α₃, clipped to [0.5, 2.3]
+| Parameter | Description |
+|---|---|
+| `lambda_param` | Parameter value (log₁₀(M/10⁶), log₁₀(ρ/10⁶), or [Fe/H]) |
+| `relation` | One of "mcl", "mecl", "rho", "feh" |
+| `smooth` | Use tanh smoothing |
+| `smooth_width` | Smoothing width |
+
+**Returns:** α₃, clipped to [0.5, 2.3]
 
 *Source: [`src/progenax/imf/environment/mapping.py#L291`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L291)*
 
@@ -1282,12 +1347,14 @@ For 4-segment IMF convention:
 
 TENTATIVE: Extrapolation for [Fe/H] < -0.5 is uncertain.
 
-Args:
-    FeH: Metallicity [Fe/H]
-    clamp_FeH: If True, clamp to calibrated range [-2.5, +0.5]
+**Args**
 
-Returns:
-    (α₁, α₂) - slopes for segments 1 and 2
+| Parameter | Description |
+|---|---|
+| `FeH` | Metallicity [Fe/H] |
+| `clamp_FeH` | If True, clamp to calibrated range [-2.5, +0.5] |
+
+**Returns:** (α₁, α₂) - slopes for segments 1 and 2
 
 *Source: [`src/progenax/imf/environment/mapping.py#L345`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/environment/mapping.py#L345)*
 

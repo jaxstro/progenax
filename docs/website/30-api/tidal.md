@@ -23,6 +23,8 @@ Public symbols: **4**
 
 *function*
 
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-jacobi_tidal)
+
 ```python
 jacobi_radius(M_cluster: float, M_galaxy: float, R_galactic: float) -> float
 ```
@@ -36,21 +38,22 @@ equals the tidal force from the galaxy (point mass approximation):
 
 Beyond r_J, stars become unbound from the cluster.
 
-Args:
-    M_cluster: Cluster mass [Msun]
-    M_galaxy: Galaxy mass (enclosed within R) [Msun]
-    R_galactic: Distance from galactic center [pc]
+**Args**
 
-Returns:
-    Jacobi radius [pc]
+| Parameter | Description |
+|---|---|
+| `M_cluster` | Cluster mass [Msun] |
+| `M_galaxy` | Galaxy mass (enclosed within R) [Msun] |
+| `R_galactic` | Distance from galactic center [pc] |
 
-Note:
-    This assumes a point-mass galaxy and circular orbit.
-    For more realistic models, use galactic potential functions.
+**Returns:** Jacobi radius [pc]
+
+**Note.** This assumes a point-mass galaxy and circular orbit.
+For more realistic models, use galactic potential functions.
 
 Reference:
-    King (1962) AJ 67, 471
-    Binney & Tremaine (2008) Eq. 8.91
+King (1962) AJ 67, 471
+Binney & Tremaine (2008) Eq. 8.91
 
 *Source: [`src/progenax/tidal.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L20)*
 
@@ -82,19 +85,16 @@ The ecosystem's display convention quotes velocities in km/s, but G is in
 pc^3 Msun^-1 Myr^-2, so pass V_circ in pc/Myr (1 km/s = 1.0227 pc/Myr);
 mixing the two biases r_J by ~1.5% per the km/s->pc/Myr factor.
 
-Args:
-    M_cluster: Cluster mass [Msun]
-    V_circ: Circular velocity [pc/Myr for STELLAR — same units as G, not km/s]
-    R_galactic: Distance from galactic center [pc]
-    G: Gravitational constant [pc^3 Msun^-1 Myr^-2 for STELLAR]
+**Args**
 
-Returns:
-    Jacobi radius [pc]
+| Parameter | Description |
+|---|---|
+| `M_cluster` | Cluster mass [Msun] |
+| `V_circ` | Circular velocity [pc/Myr for STELLAR — same units as G, not km/s] |
+| `R_galactic` | Distance from galactic center [pc] |
+| `G` | Gravitational constant [pc^3 Msun^-1 Myr^-2 for STELLAR] |
 
-Reference:
-    Binney & Tremaine (2008) Section 8.3.1
-    Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - the same relation,
-        N-body-calibrated for clusters in a logarithmic Galactic potential.
+**Returns:** Jacobi radius [pc] Reference: Binney & Tremaine (2008) Section 8.3.1 Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - the same relation, N-body-calibrated for clusters in a logarithmic Galactic potential.
 
 *Source: [`src/progenax/tidal.py#L54`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L54)*
 
@@ -102,6 +102,8 @@ Reference:
 ## `tidal.apply_tidal_truncation`
 
 *function*
+
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-jacobi_tidal)
 
 ```python
 apply_tidal_truncation(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], r_t: float, grad_width: float = 0.05) -> Tuple[Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N'], Float[Array, 'N']]
@@ -125,29 +127,20 @@ shape ``N``, so the function is ``jit`` / ``vmap`` / ``grad`` safe.
    (``virial_scale`` / ``rescale_velocities_to_virial``) or use an r_t-consistent
    equilibrium model (King / LIMEPY) if you need a stationary IC.
 
-Args:
-    positions: Particle positions (N, 3)
-    velocities: Particle velocities (N, 3)
-    masses: Particle masses (N,)
-    r_t: Tidal truncation radius [same length units as ``positions``]
-    grad_width: Surrogate-gradient smoothing scale as a fraction of ``r_t``
-        (default 0.05). Affects ONLY the gradient w.r.t. ``r_t``, never the
-        (exact) forward truncation.
+**Args**
 
-Returns:
-    Tuple ``(positions, velocities, masses_truncated, keep_mask)``, all
-    length ``N``:
-    - ``positions``, ``velocities``: unchanged (truncated particles are left
-      in place — never moved to ``inf``, which would give ``0 * inf = nan``
-      in mass-weighted sums).
-    - ``masses_truncated``: masses with ``r > r_t`` entries set to 0.
-    - ``keep_mask``: boolean (N,), ``True`` where ``r <= r_t`` (use this to
-      filter NUMBER-based downstream quantities, which still see the
-      zero-mass "ghost" particles).
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions (N, 3) |
+| `velocities` | Particle velocities (N, 3) |
+| `masses` | Particle masses (N,) |
+| `r_t` | Tidal truncation radius [same length units as ``positions``] |
+| `grad_width` | Surrogate-gradient smoothing scale as a fraction of ``r_t`` (default 0.05). Affects ONLY the gradient w.r.t. ``r_t``, never the (exact) forward truncation. |
 
-Note:
-    Sharp cutoff. For a physically smooth truncation consistent with King
-    models, use the King profile directly.
+**Returns:** Tuple ``(positions, velocities, masses_truncated, keep_mask)``, all length ``N``: - ``positions``, ``velocities``: unchanged (truncated particles are left in place — never moved to ``inf``, which would give ``0 * inf = nan`` in mass-weighted sums). - ``masses_truncated``: masses with ``r > r_t`` entries set to 0. - ``keep_mask``: boolean (N,), ``True`` where ``r <= r_t`` (use this to filter NUMBER-based downstream quantities, which still see the zero-mass "ghost" particles).
+
+**Note.** Sharp cutoff. For a physically smooth truncation consistent with King
+models, use the King profile directly.
 
 *Source: [`src/progenax/tidal.py#L128`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L128)*
 
@@ -173,12 +166,14 @@ Typical values:
     - fill_factor ~ 0.15-0.30: Typical globular cluster
     - fill_factor ~ 0.30-0.50: Tidally filling
 
-Args:
-    fill_factor: r_h / r_J ratio (typically 0.05 to 0.5)
-    r_J: Jacobi radius [length units]
+**Args**
 
-Returns:
-    Half-mass radius r_h [length units]
+| Parameter | Description |
+|---|---|
+| `fill_factor` | r_h / r_J ratio (typically 0.05 to 0.5) |
+| `r_J` | Jacobi radius [length units] |
+
+**Returns:** Half-mass radius r_h [length units]
 
 *Source: [`src/progenax/tidal.py#L187`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L187)*
 

@@ -34,6 +34,8 @@ Public symbols: **15**
 
 *class*
 
+[📇 model card](../15-model-reference/populations.md#card-engine_a_multimass_limepy) · [∇ gradient-verified — 9 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 MultiComponentCluster(alpha_j=None, w_j=None, m_j=None, W0=None, g=None, r_c=None, xi_grid=None, psi_grid=None, ra_hat_j=None, residual=0.0, n_grid: int = 1000, rho_on_xi=None, dens_fn=None, psi_raw=None, *, _fields=None)
 ```
@@ -59,26 +61,21 @@ Differentiable in every per-component parameter (Engine A: alpha_j, w_j,
 ra_hat_j, W0, g; Engine B: profile scales, mass fractions, r_a_j)
 through construction AND sampling.
 
-Attributes:
-    r_t: tidal/truncation radius (shared by both engines).
-    m_j: representative stellar mass per component [M_sun] (labels only).
-    N_frac_j: number fraction of stars per component.
-    engine: "A" or "B" (static; resolves dispatch at trace time).
-    engine_a: grouped Engine A state (`_EngineAState`; None on B models).
-    engine_b: grouped Engine B state (`_EngineBState`; None on A models).
+**Attributes**
 
-Engine-A-only quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j,
-xi_grid, psi_grid, residual) are exposed as delegating properties reading
-through `engine_a`:
-    W0, g, r_c: structural parameters / scales.
-    alpha_j: central density fractions (sum to 1).
-    w_j: per-component velocity-scale ratios s_j/s (rescale_j = w_j^-2).
-    ra_hat_j: per-component anisotropy radii r_{a,j}/r_c (inf = isotropic).
-    mu_tot: total dimensionless mass integral (sets the velocity scale).
-    residual: eigenvalue-solve residual (0 for direct constructors).
-    xi_grid, psi_grid: shared coupled-Poisson solution W(xi).
-On an Engine B model each raises an informative AttributeError naming the
-engine (this replaced the NaN-sentinel tripwires).
+| Parameter | Description |
+|---|---|
+| `r_t` | tidal/truncation radius (shared by both engines). |
+| `m_j` | representative stellar mass per component [M_sun] (labels only). |
+| `N_frac_j` | number fraction of stars per component. |
+| `engine` | "A" or "B" (static; resolves dispatch at trace time). |
+| `engine_a` | grouped Engine A state (`_EngineAState`; None on B models). |
+| `engine_b` | grouped Engine B state (`_EngineBState`; None on A models). Engine-A-only quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j, xi_grid, psi_grid, residual) are exposed as delegating properties reading through `engine_a`: W0, g, r_c: structural parameters / scales. |
+| `alpha_j` | central density fractions (sum to 1). |
+| `w_j` | per-component velocity-scale ratios s_j/s (rescale_j = w_j^-2). |
+| `ra_hat_j` | per-component anisotropy radii r_{a,j}/r_c (inf = isotropic). |
+| `mu_tot` | total dimensionless mass integral (sets the velocity scale). |
+| `residual` | eigenvalue-solve residual (0 for direct constructors). xi_grid, psi_grid: shared coupled-Poisson solution W(xi). On an Engine B model each raises an informative AttributeError naming the engine (this replaced the NaN-sentinel tripwires). |
 
 *Source: [`src/progenax/cluster/multicomponent.py#L143`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L143)*
 
@@ -86,6 +83,8 @@ engine (this replaced the NaN-sentinel tripwires).
 ## `cluster.energy_sorted_segregation`
 
 *function*
+
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-mass_segregation)
 
 ```python
 energy_sorted_segregation(key: PRNGKeyArray, masses: Float[Array, 'N'], positions_pool: Float[Array, 'N_pool 3'], velocities_pool: Float[Array, 'N_pool 3'], potential_fn: Callable[[Float[Array, 'N_pool 3']], Float[Array, 'N_pool']]) -> Tuple[Float[Array, 'N'], Float[Array, 'N 3'], Float[Array, 'N 3']]
@@ -123,62 +122,17 @@ whose cumulative-mass bins collapsed below one orbit for steep IMFs, forcing man
 low-mass ranks onto the same orbit (coincident stars, V = -inf). See
 docs/website/50-validation/mass-segregation.md.
 
-Args:
-    key: JAX random key (retained for API stability; the assignment is now
-        deterministic — realisation variety comes from the random orbit pool).
-    masses: Stellar masses with shape (N,). Will be sorted internally;
-        output preserves original ordering.
-    positions_pool: Orbit pool positions with shape (N_pool, 3) from
-        equilibrium distribution function.
-    velocities_pool: Orbit pool velocities with shape (N_pool, 3) from
-        equilibrium distribution function. Must use consistent units with
-        potential_fn so that E = 0.5 * v² + Φ is meaningful.
-    potential_fn: Callable computing specific potential Φ(r) (per unit mass)
-        at positions. Must return shape (N_pool,) with same energy units as
-        0.5 * v². Should be the analytic profile potential (Plummer/King/EFF),
-        NOT a direct N-body sum, ensuring consistency between the DF used to
-        draw orbits and the energy ordering used for segregation.
+**Args**
 
-Returns:
-    Tuple of (masses_out, positions, velocities):
-        - masses_out: Masses in original order (N,) - unchanged from input
-        - positions: Assigned positions (N, 3)
-        - velocities: Assigned velocities (N, 3)
+| Parameter | Description |
+|---|---|
+| `key` | JAX random key (retained for API stability; the assignment is now deterministic — realisation variety comes from the random orbit pool). |
+| `masses` | Stellar masses with shape (N,). Will be sorted internally; output preserves original ordering. |
+| `positions_pool` | Orbit pool positions with shape (N_pool, 3) from equilibrium distribution function. |
+| `velocities_pool` | Orbit pool velocities with shape (N_pool, 3) from equilibrium distribution function. Must use consistent units with potential_fn so that E = 0.5 * v² + Φ is meaningful. |
+| `potential_fn` | Callable computing specific potential Φ(r) (per unit mass) at positions. Must return shape (N_pool,) with same energy units as 0.5 * v². Should be the analytic profile potential (Plummer/King/EFF), NOT a direct N-body sum, ensuring consistency between the DF used to draw orbits and the energy ordering used for segregation. |
 
-Shape Expectations:
-    - masses: (N,)
-    - positions_pool: (N_pool, 3)
-    - velocities_pool: (N_pool, 3)
-    - potential_fn(positions_pool) must return: (N_pool,)
-
-Pool Size Recommendations:
-    Set N_pool = pool_factor * N with pool_factor >= 4 so the assigned orbits are
-    a well-spread mass-weighted subsample of the pool and the segregation signal is
-    smooth. Any N_pool >= N yields a valid no-reuse assignment; small N_pool just
-    leaves fewer distinct orbits between mass ranks.
-
-No-Orbit-Reuse Guarantee:
-    The isotonic-rounding assignment (Step 4) produces a strictly increasing integer
-    sequence in [0, N_pool-1], so every mass rank receives a DISTINCT orbit and no
-    two stars are coincident — for ANY mass spectrum, including steep IMFs. (The
-    previous per-bin sampler did NOT guarantee this: sub-orbit bins collapsed and
-    reused orbits.) Verified for uniform/bimodal/Kroupa/extreme-steep spectra in
-    tests/unit/cluster/test_mass_segregation.py.
-
-Non-Differentiability:
-    This function is NOT differentiable (argsort, floor) and is not meant to
-    be: it is a discrete primordial-assignment generator. For gradient-based
-    inference over segregation strength, use the first-principles equilibrium
-    knob instead — MultiComponentCluster.from_mass_segregation(delta), which
-    is differentiable in delta and a true shared-potential equilibrium at
-    every value. (The historical lambda_seg catalog blend was retired: its
-    intermediate states drift from per-mass-group virial balance — see
-    per_group_virial_ratio and the mass-segregation validation page.)
-
-Segregation Strength:
-    Implements full Baumgardt-style energy ordering (S=1): the most massive
-    stars occupy the most bound orbits. The assignment is deterministic given
-    the pool; realisation variety comes from re-drawing the random orbit pool.
+**Returns:** Tuple of (masses_out, positions, velocities): - masses_out: Masses in original order (N,) - unchanged from input - positions: Assigned positions (N, 3) - velocities: Assigned velocities (N, 3) Shape Expectations: - masses: (N,) - positions_pool: (N_pool, 3) - velocities_pool: (N_pool, 3) - potential_fn(positions_pool) must return: (N_pool,) Pool Size Recommendations: Set N_pool = pool_factor * N with pool_factor >= 4 so the assigned orbits are a well-spread mass-weighted subsample of the pool and the segregation signal is smooth. Any N_pool >= N yields a valid no-reuse assignment; small N_pool just leaves fewer distinct orbits between mass ranks. No-Orbit-Reuse Guarantee: The isotonic-rounding assignment (Step 4) produces a strictly increasing integer sequence in [0, N_pool-1], so every mass rank receives a DISTINCT orbit and no two stars are coincident — for ANY mass spectrum, including steep IMFs. (The previous per-bin sampler did NOT guarantee this: sub-orbit bins collapsed and reused orbits.) Verified for uniform/bimodal/Kroupa/extreme-steep spectra in tests/unit/cluster/test_mass_segregation.py. Non-Differentiability: This function is NOT differentiable (argsort, floor) and is not meant to be: it is a discrete primordial-assignment generator. For gradient-based inference over segregation strength, use the first-principles equilibrium knob instead — MultiComponentCluster.from_mass_segregation(delta), which is differentiable in delta and a true shared-potential equilibrium at every value. (The historical lambda_seg catalog blend was retired: its intermediate states drift from per-mass-group virial balance — see per_group_virial_ratio and the mass-segregation validation page.) Segregation Strength: Implements full Baumgardt-style energy ordering (S=1): the most massive stars occupy the most bound orbits. The assignment is deterministic given the pool; realisation variety comes from re-drawing the random orbit pool.
 
 *Source: [`src/progenax/cluster/mass_segregation.py#L45`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/mass_segregation.py#L45)*
 

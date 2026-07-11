@@ -34,6 +34,8 @@ Public symbols: **15**
 
 *class*
 
+[📇 model card](../15-model-reference/spatial_profiles.md#card-plummer_profile) · [∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 PlummerProfile(r_h: float = 1.0)
 ```
@@ -42,18 +44,19 @@ Plummer (1911) spherical density profile.
 
 ρ(r) = (3M / 4πa³) × (1 + r²/a²)^(-5/2)
 
-Attributes:
-    r_h: Half-mass radius [length units]
-    a: Scale radius [length units] (computed from r_h)
+**Attributes**
 
-References:
-    Plummer (1911) MNRAS 71, 460
+| Parameter | Description |
+|---|---|
+| `r_h` | Half-mass radius [length units] |
+| `a` | Scale radius [length units] (computed from r_h) |
 
-Examples:
-    >>> profile = PlummerProfile(r_h=1.0)  # 1 pc
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> positions = profile.sample_positions(masses, key)
+**References.** Plummer (1911) MNRAS 71, 460
+
+**Examples.** >>> profile = PlummerProfile(r_h=1.0)  # 1 pc
+>>> masses = jnp.ones(100)
+>>> key = jax.random.PRNGKey(42)
+>>> positions = profile.sample_positions(masses, key)
 
 *Source: [`src/progenax/profiles/plummer.py#L16`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/plummer.py#L16)*
 
@@ -61,6 +64,8 @@ Examples:
 ## `profiles.KingProfile`
 
 *class*
+
+[📇 model card](../15-model-reference/spatial_profiles.md#card-king_profile) · [∇ gradient-verified — 4 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 KingProfile(W0: ArrayLike, r_c: ArrayLike, r_t: ArrayLike, xi_grid: Float[Array, 'n_points'], psi_grid: Float[Array, 'n_points'], n_grid: int = 1000)
@@ -72,29 +77,30 @@ Implements SpatialProfile protocol for IC assembly.
 
 The CDF is precomputed at initialization for efficient sampling.
 
-Attributes:
-    W0: King concentration parameter (dimensionless)
-    r_c: Core radius [length units]
-    r_t: Tidal (truncation) radius [length units]
-    xi_grid: Pre-computed dimensionless radii from ODE solver
-    psi_grid: Pre-computed dimensionless potential from ODE solver
-    _r_grid: Precomputed radial grid for CDF interpolation
-    _cdf_grid: Precomputed CDF values on grid
+**Attributes**
 
-References:
-    King (1966), AJ, 71, 64
+| Parameter | Description |
+|---|---|
+| `W0` | King concentration parameter (dimensionless) |
+| `r_c` | Core radius [length units] |
+| `r_t` | Tidal (truncation) radius [length units] |
+| `xi_grid` | Pre-computed dimensionless radii from ODE solver |
+| `psi_grid` | Pre-computed dimensionless potential from ODE solver |
+| `_r_grid` | Precomputed radial grid for CDF interpolation |
+| `_cdf_grid` | Precomputed CDF values on grid |
 
-Examples:
-    # Recommended: Use from_W0_rc for self-consistent model
-    >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+**References.** King (1966), AJ, 71, 64
 
-    # Or manually with pre-computed ODE solution
-    >>> xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
-    >>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0,
-    ...                       xi_grid=xi_grid, psi_grid=psi_grid)
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> positions = profile.sample_positions(masses, key)
+**Examples.** # Recommended: Use from_W0_rc for self-consistent model
+>>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+
+# Or manually with pre-computed ODE solution
+>>> xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)
+>>> profile = KingProfile(W0=7.0, r_c=1.0, r_t=10.0,
+...                       xi_grid=xi_grid, psi_grid=psi_grid)
+>>> masses = jnp.ones(100)
+>>> key = jax.random.PRNGKey(42)
+>>> positions = profile.sample_positions(masses, key)
 
 *Source: [`src/progenax/profiles/king.py#L330`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L330)*
 
@@ -115,34 +121,23 @@ Boundary conditions (King 1966, Eq. 10):
     psi(0) = W0  (central potential)
     d psi/d xi|_0 = 0  (symmetry at center)
 
-Args:
-    W0: King concentration parameter
-    xi_max: Maximum dimensionless radius to integrate to
-    n_points: Number of points in output grid
+**Args**
 
-Returns:
-    3-tuple ``(xi_grid, psi_clamped, psi_raw)``:
+| Parameter | Description |
+|---|---|
+| `W0` | King concentration parameter |
+| `xi_max` | Maximum dimensionless radius to integrate to |
+| `n_points` | Number of points in output grid |
 
-    - ``xi_grid``: dimensionless radii (``solution.ts``).
-    - ``psi_clamped``: ``max(psi, 0)``, truncated at the tidal radius. This
-      is the physical potential used for density / CDF / mu / virial.
-    - ``psi_raw``: the UNCLAMPED ODE solution ``solution.ys[:, 0]`` (goes
-      negative beyond the zero-crossing). Feed ``psi_raw`` to
-      ``_find_tidal_radius`` so the zero-crossing linear interpolation
-      carries d(xi_t)/dW0 from the diffrax solve -- the clamp would
-      otherwise set psi=0 at the crossing node, killing the gradient (audit
-      Task 1.2b, RESOLVED). The forward value of xi_t is identical either
-      way; only the gradient differs.
+**Returns:** 3-tuple ``(xi_grid, psi_clamped, psi_raw)``: - ``xi_grid``: dimensionless radii (``solution.ts``). - ``psi_clamped``: ``max(psi, 0)``, truncated at the tidal radius. This is the physical potential used for density / CDF / mu / virial. - ``psi_raw``: the UNCLAMPED ODE solution ``solution.ys[:, 0]`` (goes negative beyond the zero-crossing). Feed ``psi_raw`` to ``_find_tidal_radius`` so the zero-crossing linear interpolation carries d(xi_t)/dW0 from the diffrax solve -- the clamp would otherwise set psi=0 at the crossing node, killing the gradient (audit Task 1.2b, RESOLVED). The forward value of xi_t is identical either way; only the gradient differs.
 
-References:
-    King (1966), AJ, 71, 64
-    Binney & Tremaine (2008), Section 4.3.2
+**References.** King (1966), AJ, 71, 64
+Binney & Tremaine (2008), Section 4.3.2
 
-Note:
-    JIT-compatible when ``n_points`` (and ``xi_max``) are static: they set the
-    ``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
-    traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
-    diffrax for robustness.
+**Note.** JIT-compatible when ``n_points`` (and ``xi_max``) are static: they set the
+``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
+traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
+diffrax for robustness.
 
 *Source: [`src/progenax/profiles/king.py#L193`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L193)*
 
@@ -150,6 +145,8 @@ Note:
 ## `profiles.MichieProfile`
 
 *class*
+
+[📇 model card](../15-model-reference/spatial_profiles.md#card-michie_profile) · [∇ gradient-verified — 4 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 MichieProfile(W0, r_c, r_a, r_t, xi_grid, psi_grid, n_grid: int = 1000)
@@ -161,13 +158,14 @@ The self-consistent density of the Michie-King model (Michie 1963 anisotropy + K
 1966 cutoff). More centrally-radial and more extended than the isotropic King model;
 r_a -> infinity recovers King. Construct with ``from_W0_rc``.
 
-Attributes:
-    W0: central concentration. r_c: core radius. r_a: anisotropy radius [length].
-    r_t: tidal radius (derived). xi_grid, psi_grid: ODE solution. _r_grid, _cdf_grid:
-    precomputed mass-CDF for inverse-transform position sampling.
+**Attributes**
 
-References:
-    Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
+| Parameter | Description |
+|---|---|
+| `W0` | central concentration. r_c: core radius. r_a: anisotropy radius [length]. |
+| `r_t` | tidal radius (derived). xi_grid, psi_grid: ODE solution. _r_grid, _cdf_grid: precomputed mass-CDF for inverse-transform position sampling. |
+
+**References.** Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
 *Source: [`src/progenax/profiles/michie.py#L152`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L152)*
 
@@ -176,32 +174,26 @@ References:
 
 *function*
 
+[📇 model card](../15-model-reference/spatial_profiles.md#card-michie_profile)
+
 ```python
 solve_michie_profile(W0: ArrayLike, ra_hat: ArrayLike, xi_max: float = 800.0, n_points: int = 3000)
 ```
 
 Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
 
-Args:
-    W0: Central concentration (psi(0) = W0).
-    ra_hat: Anisotropy radius in core-radius units, r_a / r_c. ra_hat -> infinity is
-        the isotropic King limit. Below a W0-dependent threshold the radial orbits
-        build a 1/r^2 density tail and the model has no finite tidal radius (infinite
-        mass) -- a concrete-input call then raises ValueError.
-    xi_max: Maximum dimensionless radius. Larger than King's default because
-        anisotropic models are far more extended (xi_t up to several hundred).
-    n_points: output grid size.
+**Args**
 
-Returns:
-    3-tuple ``(xi_grid, psi_clamped, psi_raw)``. ``psi_clamped`` is psi >= 0,
-    truncated at the tidal radius (the physical potential used for density /
-    CDF / mu). ``psi_raw`` is the UNCLAMPED ODE solution (negative past the
-    crossing) -- feed it to ``_find_tidal_radius`` so d(xi_t)/dW0 flows (audit
-    Task 1.2b; see ``solve_king_profile``). The forward value of xi_t is the
-    same either way; only the gradient differs.
+| Parameter | Description |
+|---|---|
+| `W0` | Central concentration (psi(0) = W0). |
+| `ra_hat` | Anisotropy radius in core-radius units, r_a / r_c. ra_hat -> infinity is the isotropic King limit. Below a W0-dependent threshold the radial orbits build a 1/r^2 density tail and the model has no finite tidal radius (infinite mass) -- a concrete-input call then raises ValueError. |
+| `xi_max` | Maximum dimensionless radius. Larger than King's default because anisotropic models are far more extended (xi_t up to several hundred). |
+| `n_points` | output grid size. |
 
-References:
-    Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
+**Returns:** 3-tuple ``(xi_grid, psi_clamped, psi_raw)``. ``psi_clamped`` is psi >= 0, truncated at the tidal radius (the physical potential used for density / CDF / mu). ``psi_raw`` is the UNCLAMPED ODE solution (negative past the crossing) -- feed it to ``_find_tidal_radius`` so d(xi_t)/dW0 flows (audit Task 1.2b; see ``solve_king_profile``). The forward value of xi_t is the same either way; only the gradient differs.
+
+**References.** Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
 
 *Source: [`src/progenax/profiles/michie.py#L82`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L82)*
 
@@ -223,18 +215,17 @@ isotropic == KingProfile; g=1 anisotropic == MichieProfile.
 
 The CDF is precomputed at construction for inverse-transform position sampling.
 
-Attributes:
-    W0: Dimensionless central potential.
-    g:  Truncation parameter (continuous; finite extent for g <= 3.5).
-    r_c: Core (King) radius [length units].
-    r_a: Anisotropy radius [length units]; inf for the isotropic model.
-    r_t: Truncation radius [length units], where W(r) -> 0.
-    xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
-    is_aniso: static flag selecting the anisotropic density path.
-    _r_grid, _cdf_grid: precomputed mass CDF for sampling.
-    r_t_is_pinned: traced bool; True iff the ODE domain was too small to reach
-        the tidal crossing (r_t pinned to the boundary). Concrete inputs raise
-        in ``from_W0_rc``; this flag is the only signal under tracing.
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `W0` | Dimensionless central potential. |
+| `g` | Truncation parameter (continuous; finite extent for g <= 3.5). |
+| `r_c` | Core (King) radius [length units]. |
+| `r_a` | Anisotropy radius [length units]; inf for the isotropic model. |
+| `r_t` | Truncation radius [length units], where W(r) -> 0. xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid. |
+| `is_aniso` | static flag selecting the anisotropic density path. _r_grid, _cdf_grid: precomputed mass CDF for sampling. |
+| `r_t_is_pinned` | traced bool; True iff the ODE domain was too small to reach the tidal crossing (r_t pinned to the boundary). Concrete inputs raise in ``from_W0_rc``; this flag is the only signal under tracing. |
 
 *Source: [`src/progenax/profiles/limepy.py#L321`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L321)*
 
@@ -258,27 +249,17 @@ anisotropic reproduces the Michie-King model.
 JIT/grad-safe in (W0, g, ra_hat): n_points and xi_max are static; W0, g, ra_hat
 may be tracers and the ODE -> W(xi) path carries their gradients.
 
-Args:
-    W0: Dimensionless central potential.
-    g: Truncation parameter (finite extent for g <= 3.5).
-    ra_hat: Anisotropy radius in core-radius units, r_a/r_c. None (default) =
-        isotropic (uses the fast isotropic density). Finite values add radial
-        anisotropy (more extended; too-small ra_hat -> no finite tidal radius).
-    xi_max: Max dimensionless radius (anisotropic models are more extended;
-        pass a larger value, e.g. 800).
-    n_points: Output grid size.
+**Args**
 
-Returns:
-    3-tuple ``(xi_grid, psi_clamped, psi_raw)`` (mirrors ``solve_king_profile``):
+| Parameter | Description |
+|---|---|
+| `W0` | Dimensionless central potential. |
+| `g` | Truncation parameter (finite extent for g <= 3.5). |
+| `ra_hat` | Anisotropy radius in core-radius units, r_a/r_c. None (default) = isotropic (uses the fast isotropic density). Finite values add radial anisotropy (more extended; too-small ra_hat -> no finite tidal radius). |
+| `xi_max` | Max dimensionless radius (anisotropic models are more extended; pass a larger value, e.g. 800). |
+| `n_points` | Output grid size. |
 
-    - ``xi_grid``: dimensionless radii.
-    - ``psi_clamped``: ``max(psi, 0)`` -- the physical potential W(xi) >= 0
-      used for density / CDF / mu / virial.
-    - ``psi_raw``: the UNCLAMPED ODE solution (negative past the zero-crossing).
-      Feed ``psi_raw`` to ``_find_tidal_radius`` so the crossing interpolation
-      carries d(xi_t)/dW0 -- the clamp would zero psi at the crossing node and
-      kill that gradient (audit Task 1.2b pattern). The forward xi_t value is
-      identical either way; only the gradient differs.
+**Returns:** 3-tuple ``(xi_grid, psi_clamped, psi_raw)`` (mirrors ``solve_king_profile``): - ``xi_grid``: dimensionless radii. - ``psi_clamped``: ``max(psi, 0)`` -- the physical potential W(xi) >= 0 used for density / CDF / mu / virial. - ``psi_raw``: the UNCLAMPED ODE solution (negative past the zero-crossing). Feed ``psi_raw`` to ``_find_tidal_radius`` so the crossing interpolation carries d(xi_t)/dW0 -- the clamp would zero psi at the crossing node and kill that gradient (audit Task 1.2b pattern). The forward xi_t value is identical either way; only the gradient differs.
 
 *Source: [`src/progenax/profiles/limepy.py#L212`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L212)*
 
@@ -344,16 +325,14 @@ The iteration deliberately uses the SAME aniso_method as the final solve
 actually built; the residual remains a reported diagnostic. Pass
 aniso_method="quadrature" for the exact oracle path.
 
-Args:
-    m_j: component representative masses. M_j: target mass per component.
-    W0, g, delta: model parameters. n_iter: forward iteration safety cap.
-    xi_max, n_points: ODE grid (static). aniso_method: density-source path
-    ("table" default, "quadrature" oracle; static, ignored when ra_hat is None).
-    tol: forward residual tolerance for the adaptive while_loop.
+**Args**
 
-Returns:
-    (alpha_j, residual): converged central density fractions (sum to 1, positive)
-    and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
+| Parameter | Description |
+|---|---|
+| `m_j` | component representative masses. M_j: target mass per component. W0, g, delta: model parameters. n_iter: forward iteration safety cap. xi_max, n_points: ODE grid (static). aniso_method: density-source path ("table" default, "quadrature" oracle; static, ignored when ra_hat is None). |
+| `tol` | forward residual tolerance for the adaptive while_loop. |
+
+**Returns:** (alpha_j, residual): converged central density fractions (sum to 1, positive) and the final fractional residual max_j |f_j' - f_j| (reported, never branched on).
 
 *Source: [`src/progenax/profiles/limepy_multimass.py#L648`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy_multimass.py#L648)*
 
@@ -361,6 +340,8 @@ Returns:
 ## `profiles.EFFProfile`
 
 *class*
+
+[📇 model card](../15-model-reference/spatial_profiles.md#card-eff_profile) · [∇ gradient-verified — 4 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 EFFProfile(a: float = 1.0, gamma: float = 3.0, r_t: float = 10.0, n_grid: int = 1000)
@@ -383,18 +364,18 @@ via Eddington inversion in kinematics.EFFVelocityDF.
 
 The CDF is precomputed at initialization for efficient sampling.
 
-Attributes:
-    a: Scale radius [length units]
-    gamma: 3-D density power-law slope (rho ~ r^-gamma at r >> a)
-           - gamma=3.0: typical young-cluster 3-D slope
-           - gamma=5.0: reduces to the Plummer profile
-    r_t: Tidal/truncation radius [length units]
-    _r_grid: Precomputed radial grid for CDF interpolation
-    _cdf_grid: Precomputed CDF values on grid
+**Attributes**
 
-References:
-    Elson, Fall & Freeman (1987), ApJ, 323, 54 (Eq. 1 = surface brightness,
-    used here as the 3-D volume density; see docs bibliography note).
+| Parameter | Description |
+|---|---|
+| `a` | Scale radius [length units] |
+| `gamma` | 3-D density power-law slope (rho ~ r^-gamma at r >> a) - gamma=3.0: typical young-cluster 3-D slope - gamma=5.0: reduces to the Plummer profile |
+| `r_t` | Tidal/truncation radius [length units] |
+| `_r_grid` | Precomputed radial grid for CDF interpolation |
+| `_cdf_grid` | Precomputed CDF values on grid |
+
+**References.** Elson, Fall & Freeman (1987), ApJ, 323, 54 (Eq. 1 = surface brightness,
+used here as the 3-D volume density; see docs bibliography note).
 
 *Source: [`src/progenax/profiles/eff.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/eff.py#L20)*
 
@@ -413,17 +394,18 @@ Uniform density sphere profile.
 
 This is the CW04 '3D0' distribution with Q ≈ 0.79.
 
-Attributes:
-    R: Outer radius [length units]
+**Attributes**
 
-References:
-    Cartwright & Whitworth (2004) MNRAS 348, 589 - Table 1, '3D0'
+| Parameter | Description |
+|---|---|
+| `R` | Outer radius [length units] |
 
-Examples:
-    >>> profile = UniformSphereProfile(R=1.0)  # 1 pc
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> positions = profile.sample_positions(masses, key)
+**References.** Cartwright & Whitworth (2004) MNRAS 348, 589 - Table 1, '3D0'
+
+**Examples.** >>> profile = UniformSphereProfile(R=1.0)  # 1 pc
+>>> masses = jnp.ones(100)
+>>> key = jax.random.PRNGKey(42)
+>>> positions = profile.sample_positions(masses, key)
 
 *Source: [`src/progenax/profiles/uniform.py#L15`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/uniform.py#L15)*
 
@@ -453,47 +435,31 @@ This is the primary entry point for creating density profiles. It provides
 a uniform interface where R_half is the external scale parameter, with
 profile-specific shape parameters passed via kwargs.
 
-Args:
-    name: Profile type - "plummer", "king", or "eff"
-    R_half: Half-mass radius (for Plummer) or characteristic radius (for King/EFF)
-            in length units [pc in stellar units].
+**Args**
 
-            - **Plummer**: This is the actual half-mass radius r_h
-            - **King**: This is treated as the core radius r_c (not half-mass)
-            - **EFF**: This is treated as the scale radius a (not half-mass)
+| Parameter | Description |
+|---|---|
+| `name` | Profile type - "plummer", "king", or "eff" |
+| `R_half` | Half-mass radius (for Plummer) or characteristic radius (for King/EFF) in length units [pc in stellar units]. - **Plummer**: This is the actual half-mass radius r_h - **King**: This is treated as the core radius r_c (not half-mass) - **EFF**: This is treated as the scale radius a (not half-mass) |
+| `**kwargs` | Profile-specific parameters: **King profile**: - W0: float = 5.0 - King concentration parameter (typical 1-12) - n_grid: int = 1000 - CDF interpolation grid points **EFF profile**: - gamma: float = 3.0 - Power-law index (concentration) - r_t: float = 10*R_half - Tidal/truncation radius - n_grid: int = 1000 - CDF interpolation grid points |
 
-    **kwargs: Profile-specific parameters:
+**Returns:** Profile instance (PlummerProfile, KingProfile, or EFFProfile)
 
-        **King profile**:
-            - W0: float = 5.0 - King concentration parameter (typical 1-12)
-            - n_grid: int = 1000 - CDF interpolation grid points
+**Raises:** ValueError: If profile name is not recognized
 
-        **EFF profile**:
-            - gamma: float = 3.0 - Power-law index (concentration)
-            - r_t: float = 10*R_half - Tidal/truncation radius
-            - n_grid: int = 1000 - CDF interpolation grid points
+**Examples.** >>> # Plummer profile with 1 pc half-mass radius
+>>> profile = make_profile("plummer", R_half=1.0)
 
-Returns:
-    Profile instance (PlummerProfile, KingProfile, or EFFProfile)
+>>> # King profile with W0=7 (globular cluster typical)
+>>> profile = make_profile("king", R_half=1.0, W0=7.0)
 
-Raises:
-    ValueError: If profile name is not recognized
+>>> # EFF profile with gamma=3 (young cluster typical)
+>>> profile = make_profile("eff", R_half=1.0, gamma=3.0, r_t=15.0)
 
-Examples:
-    >>> # Plummer profile with 1 pc half-mass radius
-    >>> profile = make_profile("plummer", R_half=1.0)
-
-    >>> # King profile with W0=7 (globular cluster typical)
-    >>> profile = make_profile("king", R_half=1.0, W0=7.0)
-
-    >>> # EFF profile with gamma=3 (young cluster typical)
-    >>> profile = make_profile("eff", R_half=1.0, gamma=3.0, r_t=15.0)
-
-Notes:
-    For King and EFF profiles, the mapping from R_half to internal parameters
-    is simplified: R_half is used directly as r_c (King) or a (EFF). For
-    precise half-mass radius control, the user should compute the appropriate
-    r_c or a value externally.
+**Notes.** For King and EFF profiles, the mapping from R_half to internal parameters
+is simplified: R_half is used directly as r_c (King) or a (EFF). For
+precise half-mass radius control, the user should compute the appropriate
+r_c or a value externally.
 
 *Source: [`src/progenax/profiles/api.py#L41`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/api.py#L41)*
 
@@ -511,36 +477,33 @@ Sample N_stars positions from the chosen density profile.
 This function creates a profile instance and samples positions from its
 density distribution using inverse CDF sampling.
 
-Args:
-    key: JAX random key for reproducibility
-    N_stars: Number of stars (positions) to sample
-    profile: Profile type - "plummer", "king", or "eff"
-    R_half: Half-mass/characteristic radius in length units [pc]
-    **kwargs: Profile-specific parameters (passed to make_profile)
-              See make_profile() docstring for details.
+**Args**
 
-Returns:
-    positions: Array of shape (N_stars, 3) in length units [pc]
-               Positions are sampled from the density profile's
-               radial distribution with isotropic angular distribution.
+| Parameter | Description |
+|---|---|
+| `key` | JAX random key for reproducibility |
+| `N_stars` | Number of stars (positions) to sample |
+| `profile` | Profile type - "plummer", "king", or "eff" |
+| `R_half` | Half-mass/characteristic radius in length units [pc] |
+| `**kwargs` | Profile-specific parameters (passed to make_profile) See make_profile() docstring for details. |
 
-Examples:
-    >>> import jax
-    >>> key = jax.random.PRNGKey(42)
-    >>>
-    >>> # Sample 1000 positions from Plummer profile
-    >>> positions = sample_density_profile(key, 1000, "plummer", R_half=1.0)
-    >>> positions.shape
-    (1000, 3)
+**Returns:** positions: Array of shape (N_stars, 3) in length units [pc] Positions are sampled from the density profile's radial distribution with isotropic angular distribution.
 
-    >>> # Sample from King profile with specific concentration
-    >>> positions = sample_density_profile(key, 1000, "king", R_half=1.0, W0=7.0)
+**Examples.** >>> import jax
+>>> key = jax.random.PRNGKey(42)
+>>>
+>>> # Sample 1000 positions from Plummer profile
+>>> positions = sample_density_profile(key, 1000, "plummer", R_half=1.0)
+>>> positions.shape
+(1000, 3)
 
-Notes:
-    - All profiles sample radii via inverse CDF for efficiency
-    - Angular distribution is isotropic (uniform on sphere)
-    - The masses argument required by profile.sample_positions() is
-      filled with ones internally (mass values don't affect spatial sampling)
+>>> # Sample from King profile with specific concentration
+>>> positions = sample_density_profile(key, 1000, "king", R_half=1.0, W0=7.0)
+
+**Notes.** - All profiles sample radii via inverse CDF for efficiency
+- Angular distribution is isotropic (uniform on sphere)
+- The masses argument required by profile.sample_positions() is
+filled with ones internally (mass values don't affect spatial sampling)
 
 *Source: [`src/progenax/profiles/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/api.py#L122)*
 
@@ -559,47 +522,42 @@ This function computes Phi(r) for the specified density profile.
 The potential is normalized to the total mass M_total and gravitational
 constant G.
 
-Args:
-    positions: Particle positions, shape (N, 3) [length units]
-    profile: Profile type - "plummer", "king", or "eff"
-    M_total: Total cluster mass [mass units, typically Msun]
-    R_half: Half-mass/characteristic radius [length units, typically pc]
-    G: Gravitational constant in consistent units
-       (use jaxstro.units.STELLAR.G for stellar units)
-    **kwargs: Profile-specific parameters (passed to make_profile)
+**Args**
 
-Returns:
-    phi: SPECIFIC gravitational potential (per unit mass) at each position,
-         shape (N,). All values are negative (bound system).
-         Units: [length units]^2 / [time units]^2 (e.g. pc^2/Myr^2 in
-         STELLAR units) — consistent with specific kinetic energy 0.5*v^2,
-         so E = 0.5*v^2 + phi is a specific orbital energy.
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions, shape (N, 3) [length units] |
+| `profile` | Profile type - "plummer", "king", or "eff" |
+| `M_total` | Total cluster mass [mass units, typically Msun] |
+| `R_half` | Half-mass/characteristic radius [length units, typically pc] |
+| `G` | Gravitational constant in consistent units (use jaxstro.units.STELLAR.G for stellar units) |
+| `**kwargs` | Profile-specific parameters (passed to make_profile) |
 
-Examples:
-    >>> from jaxstro.units import STELLAR
-    >>> import jax.numpy as jnp
-    >>>
-    >>> positions = jnp.array([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
-    >>> phi = compute_profile_potential(
-    ...     positions, "plummer", M_total=1000.0, R_half=1.0, G=STELLAR.G
-    ... )
+**Returns:** phi: SPECIFIC gravitational potential (per unit mass) at each position, shape (N,). All values are negative (bound system). Units: [length units]^2 / [time units]^2 (e.g. pc^2/Myr^2 in STELLAR units) — consistent with specific kinetic energy 0.5*v^2, so E = 0.5*v^2 + phi is a specific orbital energy.
 
-Notes:
-    **Plummer potential** (analytic):
-        Phi(r) = -G * M_total / sqrt(r^2 + a^2)
-        where a = R_half * sqrt(2^(2/3) - 1) is the scale radius.
+**Examples.** >>> from jaxstro.units import STELLAR
+>>> import jax.numpy as jnp
+>>>
+>>> positions = jnp.array([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
+>>> phi = compute_profile_potential(
+...     positions, "plummer", M_total=1000.0, R_half=1.0, G=STELLAR.G
+... )
 
-    **King potential** (exact relative potential):
-        Phi(r) = -sigma^2 * psi(r), with psi the dimensionless King ODE
-        potential (psi(r_t) = 0) and sigma^2 = G M / (9 r_c mu(W0)) the
-        self-consistent velocity scale (matches KingVelocityDF).
+**Notes.** **Plummer potential** (analytic):
+Phi(r) = -G * M_total / sqrt(r^2 + a^2)
+where a = R_half * sqrt(2^(2/3) - 1) is the scale radius.
 
-    **EFF potential** (true spherical potential):
-        Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ], using the exact
-        enclosed mass from the profile's density grid (interior monopole +
-        outer-shell term).
+**King potential** (exact relative potential):
+Phi(r) = -sigma^2 * psi(r), with psi the dimensionless King ODE
+potential (psi(r_t) = 0) and sigma^2 = G M / (9 r_c mu(W0)) the
+self-consistent velocity scale (matches KingVelocityDF).
 
-    The potential is computed per-particle and vectorized for efficiency.
+**EFF potential** (true spherical potential):
+Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ], using the exact
+enclosed mass from the profile's density grid (interior monopole +
+outer-shell term).
+
+The potential is computed per-particle and vectorized for efficiency.
 
 *Source: [`src/progenax/profiles/api.py#L176`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/api.py#L176)*
 

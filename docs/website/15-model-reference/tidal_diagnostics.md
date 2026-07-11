@@ -18,7 +18,7 @@ single source of truth.
 (card-jacobi_tidal)=
 ## Jacobi radius & tidal truncation
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `jacobi_radius`](../30-api/tidal.md#api-tidal-jacobi_radius)
 
 The tidal (Jacobi) radius of a cluster on a circular galactic orbit — the generalized cube-root law covering the point-mass (Keplerian) and flat-rotation-curve (isothermal) hosts — and the post-sampling truncation operator that removes stars beyond it.
 
@@ -71,7 +71,7 @@ r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(3 - \mathrm{d}\ln M_{\mathrm{gal}}/\
 (card-cw04_q)=
 ## Cartwright & Whitworth (2004) Q diagnostic
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 1 source · [API: `compute_q_parameter`](../30-api/diagnostics.md#api-diagnostics-compute_q_parameter)
 
 The MST-based substructure statistic Q = mbar / sbar (normalized mean MST edge length over normalized correlation length): Q < 0.8 flags substructure, Q > 0.8 central concentration. Exact estimator (compute_q_parameter) plus the differentiable kNN surrogate (q_approx, recalibrated in audit S3).
 
@@ -116,7 +116,7 @@ Q \;\equiv\; \frac{\bar m}{\bar s}, \qquad \bar m = \frac{\langle \ell_{\rm MST}
 (card-mass_segregation)=
 ## Primordial mass segregation & Lambda_MSR
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `energy_sorted_segregation`](../30-api/cluster.md#api-cluster-energy_sorted_segregation)
 
 The energy-sorted primordial-segregation generator (most-massive stars on the most-bound orbits, no orbit reuse) and the Allison et al. (2009) Lambda_MSR MST diagnostic that measures it — plus the differentiable soft surrogate lambda_msr_approx.
 

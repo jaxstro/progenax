@@ -40,13 +40,16 @@ AnalyticalIC(positions: "Float[Array, 'N 3']", velocities: "Float[Array, 'N 3']"
 
 Result from analytical IC generation (immutable Equinox module / PyTree).
 
-Attributes:
-    positions: Particle positions (N, 3)
-    velocities: Particle velocities (N, 3)
-    masses: Particle masses (N,)
-    name: System name (e.g., "two_body_kepler", "figure_eight")
-    period: Orbital period (if applicable)
-    energy: Analytical total energy (if applicable)
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions (N, 3) |
+| `velocities` | Particle velocities (N, 3) |
+| `masses` | Particle masses (N,) |
+| `name` | System name (e.g., "two_body_kepler", "figure_eight") |
+| `period` | Orbital period (if applicable) |
+| `energy` | Analytical total energy (if applicable) |
 
 *Source: [`src/progenax/analytical/base.py#L11`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/base.py#L11)*
 
@@ -71,28 +74,20 @@ get_planet(name: 'str') -> 'dict'
 
 Get orbital elements for a Solar System planet.
 
-Args:
-    name: Planet name (case-insensitive)
-          Valid: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune
+**Args**
 
-Returns:
-    dict with keys:
-        - name: Planet name (str)
-        - M: Mass in solar masses (float)
-        - a: Semi-major axis in AU (float)
-        - e: Eccentricity (float)
-        - inc: Inclination in degrees (float)
-        - Omega: Longitude of ascending node in degrees (float)
-        - omega: Argument of perihelion in degrees (float)
-        - nu: True anomaly in degrees (float)
+| Parameter | Description |
+|---|---|
+| `name` | Planet name (case-insensitive) |
+| `Valid` | Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, Neptune |
 
-Raises:
-    ValueError: If planet name not recognized
+**Returns:** dict with keys: - name: Planet name (str) - M: Mass in solar masses (float) - a: Semi-major axis in AU (float) - e: Eccentricity (float) - inc: Inclination in degrees (float) - Omega: Longitude of ascending node in degrees (float) - omega: Argument of perihelion in degrees (float) - nu: True anomaly in degrees (float)
 
-Example:
-    >>> jupiter = get_planet("Jupiter")
-    >>> print(f"Mass: {jupiter['M']:.4e} Msun, a: {jupiter['a']:.2f} AU")
-    Mass: 9.5479e-04 Msun, a: 5.20 AU
+**Raises:** ValueError: If planet name not recognized
+
+**Example.** >>> jupiter = get_planet("Jupiter")
+>>> print(f"Mass: {jupiter['M']:.4e} Msun, a: {jupiter['a']:.2f} AU")
+Mass: 9.5479e-04 Msun, a: 5.20 AU
 
 *Source: [`src/progenax/analytical/base.py#L131`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/base.py#L131)*
 
@@ -115,39 +110,32 @@ Orbital Elements:
     - omega: Argument of periapsis [radians]
     - true_anomaly: Initial position angle [radians]
 
-Args:
-    M1: Primary mass [Msun]
-    M2: Secondary mass [Msun]
-    a: Semi-major axis [length units]
-    G: Gravitational constant [appropriate units]
-    e: Eccentricity (default: 0.0, circular)
-    inclination: Orbital inclination [radians] (default: 0, planar)
-    Omega: Longitude of ascending node [radians] (default: 0)
-    omega: Argument of periapsis [radians] (default: 0)
-    true_anomaly: Initial true anomaly [radians] (default: 0)
+**Args**
 
-Returns:
-    AnalyticalIC with 2 particles in Keplerian orbit
+| Parameter | Description |
+|---|---|
+| `M1` | Primary mass [Msun] |
+| `M2` | Secondary mass [Msun] |
+| `a` | Semi-major axis [length units] |
+| `G` | Gravitational constant [appropriate units] |
+| `e` | Eccentricity (default: 0.0, circular) |
+| `inclination` | Orbital inclination [radians] (default: 0, planar) |
+| `Omega` | Longitude of ascending node [radians] (default: 0) |
+| `omega` | Argument of periapsis [radians] (default: 0) |
+| `true_anomaly` | Initial true anomaly [radians] (default: 0) |
 
-Analytical solution:
-    - Period: T = 2π√(a³/(G(M1+M2)))
-    - Total energy: E = -G M1 M2 / (2a)
-    - Total angular momentum: L = μ√(G M_tot a (1-e²))
-    - Conservation: ΔE/E and ΔL/L should be < machine precision
+**Returns:** AnalyticalIC with 2 particles in Keplerian orbit Analytical solution: - Period: T = 2π√(a³/(G(M1+M2))) - Total energy: E = -G M1 M2 / (2a) - Total angular momentum: L = μ√(G M_tot a (1-e²)) - Conservation: ΔE/E and ΔL/L should be < machine precision
 
-Example:
-    >>> G = 39.478  # Binary units (AU³/Msun/yr²)
-    >>> ic = two_body_kepler(M1=1.0, M2=0.001, a=1.0, e=0.0, G=G)
-    >>> # Period = 1.0 yr (by construction)
+**Example.** >>> G = 39.478  # Binary units (AU³/Msun/yr²)
+>>> ic = two_body_kepler(M1=1.0, M2=0.001, a=1.0, e=0.0, G=G)
+>>> # Period = 1.0 yr (by construction)
 
-Notes:
-    - e=0 (circular) is best for initial validation
-    - Reduced mass μ = M1*M2/(M1+M2)
-    - Center of mass at origin (p_total = 0)
+**Notes.** - e=0 (circular) is best for initial validation
+- Reduced mass μ = M1*M2/(M1+M2)
+- Center of mass at origin (p_total = 0)
 
-References:
-    - Murray & Dermott (1999), "Solar System Dynamics", Ch. 2
-    - Hairer et al. (2006), "Geometric Numerical Integration", §I.2.4
+**References.** - Murray & Dermott (1999), "Solar System Dynamics", Ch. 2
+- Hairer et al. (2006), "Geometric Numerical Integration", §I.2.4
 
 *Source: [`src/progenax/analytical/two_body.py#L15`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/two_body.py#L15)*
 
@@ -162,19 +150,20 @@ two_body_period(M1: 'ArrayLike', M2: 'ArrayLike', a: 'ArrayLike', G: 'ArrayLike'
 
 Compute orbital period for 2-body system (Kepler's 3rd law).
 
-Args:
-    M1: Primary mass [Msun]
-    M2: Secondary mass [Msun]
-    a: Semi-major axis [length units]
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    Orbital period [time units]
+| Parameter | Description |
+|---|---|
+| `M1` | Primary mass [Msun] |
+| `M2` | Secondary mass [Msun] |
+| `a` | Semi-major axis [length units] |
+| `G` | Gravitational constant [appropriate units] |
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> T = two_body_period(M1=1.0, M2=0.001, a=1.0, G=G)
-    >>> # T = 1.0 yr (Earth orbit)
+**Returns:** Orbital period [time units]
+
+**Example.** >>> G = 39.478  # Binary units
+>>> T = two_body_period(M1=1.0, M2=0.001, a=1.0, G=G)
+>>> # T = 1.0 yr (Earth orbit)
 
 *Source: [`src/progenax/analytical/two_body.py#L157`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/two_body.py#L157)*
 
@@ -189,18 +178,19 @@ two_body_energy(M1: 'float', M2: 'float', a: 'float', G: 'float') -> 'float'
 
 Compute total energy for 2-body Keplerian orbit.
 
-Args:
-    M1: Primary mass [Msun]
-    M2: Secondary mass [Msun]
-    a: Semi-major axis [length units]
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    Total energy (negative for bound orbit)
+| Parameter | Description |
+|---|---|
+| `M1` | Primary mass [Msun] |
+| `M2` | Secondary mass [Msun] |
+| `a` | Semi-major axis [length units] |
+| `G` | Gravitational constant [appropriate units] |
 
-Notes:
-    E = -G M1 M2 / (2a)
-    Independent of eccentricity!
+**Returns:** Total energy (negative for bound orbit)
+
+**Notes.** E = -G M1 M2 / (2a)
+Independent of eccentricity!
 
 *Source: [`src/progenax/analytical/two_body.py#L181`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/two_body.py#L181)*
 
@@ -225,40 +215,33 @@ The orbit is:
 - Choreographic (particles equally spaced along curve)
 - Stable under small perturbations
 
-Args:
-    mass: Mass of each particle [Msun] (default: 1.0)
-    scale: Spatial scale factor (default: 1.0)
-    G: Gravitational constant (default: 1.0, dimensionless)
+**Args**
 
-Returns:
-    AnalyticalIC with 3 equal masses in figure-8 orbit
+| Parameter | Description |
+|---|---|
+| `mass` | Mass of each particle [Msun] (default: 1.0) |
+| `scale` | Spatial scale factor (default: 1.0) |
+| `G` | Gravitational constant (default: 1.0, dimensionless) |
 
-Analytical solution:
-    - Period: T = 6.3259... [dimensionless, G=1 units]
-    - Total energy: E = constant (conserved to machine precision)
-    - Angular momentum: L = 0 (zero total angular momentum)
-    - Symmetry: 3-fold rotational symmetry
+**Returns:** AnalyticalIC with 3 equal masses in figure-8 orbit Analytical solution: - Period: T = 6.3259... [dimensionless, G=1 units] - Total energy: E = constant (conserved to machine precision) - Angular momentum: L = 0 (zero total angular momentum) - Symmetry: 3-fold rotational symmetry
 
-Example:
-    >>> # Dimensionless units (default, for mathematical testing)
-    >>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=1.0)
-    >>> # Integrate for 1 period: t_end = 6.3259
+**Example.** >>> # Dimensionless units (default, for mathematical testing)
+>>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=1.0)
+>>> # Integrate for 1 period: t_end = 6.3259
 
-    >>> # Physical units (use jaxstro.units for consistent G)
-    >>> from jaxstro.units import STELLAR
-    >>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=STELLAR.G)
+>>> # Physical units (use jaxstro.units for consistent G)
+>>> from jaxstro.units import STELLAR
+>>> ic = three_body_figure_eight(mass=1.0, scale=1.0, G=STELLAR.G)
 
-Notes:
-    - **Uses dimensionless units by default** (G=1, m=1, scale=1)
-    - This is a mathematical test problem with known exact solution
-    - For physical units, pass G from jaxstro.units (STELLAR or PLANETARY)
-    - Period scales as T ∝ sqrt(scale³ / G) from dimensionless T₀ = 6.3259
-    - Works best with zero softening (pure Newtonian)
+**Notes.** - **Uses dimensionless units by default** (G=1, m=1, scale=1)
+- This is a mathematical test problem with known exact solution
+- For physical units, pass G from jaxstro.units (STELLAR or PLANETARY)
+- Period scales as T ∝ sqrt(scale³ / G) from dimensionless T₀ = 6.3259
+- Works best with zero softening (pure Newtonian)
 
-References:
-    - Chenciner & Montgomery (2000), Ann. Math., 152, 881
-    - Simó (2001), private communication (numerical coefficients)
-    - Montgomery (2001), Notices AMS, 48, 471 - Popular review
+**References.** - Chenciner & Montgomery (2000), Ann. Math., 152, 881
+- Simó (2001), private communication (numerical coefficients)
+- Montgomery (2001), Notices AMS, 48, 471 - Popular review
 
 *Source: [`src/progenax/analytical/few_body.py#L17`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/few_body.py#L17)*
 
@@ -273,17 +256,18 @@ figure_eight_period(scale: 'ArrayLike' = 1.0, G: 'ArrayLike' = 1.0, mass: 'Array
 
 Return period of figure-8 orbit.
 
-Args:
-    scale: Spatial scale factor used in three_body_figure_eight()
-    G: Gravitational constant [appropriate units]
-    mass: Mass of each particle [same units as three_body_figure_eight] (default 1.0)
+**Args**
 
-Returns:
-    Period in time units
+| Parameter | Description |
+|---|---|
+| `scale` | Spatial scale factor used in three_body_figure_eight() |
+| `G` | Gravitational constant [appropriate units] |
+| `mass` | Mass of each particle [same units as three_body_figure_eight] (default 1.0) |
 
-Notes:
-    - Period is T₀ = 6.32591398 in dimensionless units (G=1, m=1, scale=1)
-    - Scales as T = T₀ · √(scale³ / (G·m))
+**Returns:** Period in time units
+
+**Notes.** - Period is T₀ = 6.32591398 in dimensionless units (G=1, m=1, scale=1)
+- Scales as T = T₀ · √(scale³ / (G·m))
 
 *Source: [`src/progenax/analytical/few_body.py#L113`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/few_body.py#L113)*
 
@@ -307,37 +291,31 @@ This is the SIMPLEST possible test for an integrator:
 - Energy conserved exactly
 - Period independent of amplitude
 
-Args:
-    amplitude: Oscillation amplitude (default: 1.0)
-    omega: Angular frequency (default: 1.0) → Period = 2π/ω
-    phase: Initial phase [radians] (default: 0)
-    mass: Particle mass (default: 1.0)
-    dimension: "1D" or "2D" (default: "1D")
+**Args**
 
-Returns:
-    AnalyticalIC with 1 particle in harmonic potential
+| Parameter | Description |
+|---|---|
+| `amplitude` | Oscillation amplitude (default: 1.0) |
+| `omega` | Angular frequency (default: 1.0) → Period = 2π/ω |
+| `phase` | Initial phase [radians] (default: 0) |
+| `mass` | Particle mass (default: 1.0) |
+| `dimension` | "1D" or "2D" (default: "1D") |
 
-Analytical solution:
-    x(t) = A cos(ωt + φ)
-    v(t) = -A ω sin(ωt + φ)
-    E = (1/2) k A² = (1/2) m ω² A² (constant)
+**Returns:** AnalyticalIC with 1 particle in harmonic potential Analytical solution: x(t) = A cos(ωt + φ) v(t) = -A ω sin(ωt + φ) E = (1/2) k A² = (1/2) m ω² A² (constant)
 
-Example:
-    >>> ic = harmonic_oscillator(amplitude=1.0, omega=2*jnp.pi)
-    >>> # Period T = 1.0, x(0)=1.0, v(0)=0
+**Example.** >>> ic = harmonic_oscillator(amplitude=1.0, omega=2*jnp.pi)
+>>> # Period T = 1.0, x(0)=1.0, v(0)=0
 
-Notes:
-    - This tests integrator mechanics WITHOUT gravitational forces
-    - Requires external force implementation: F_ext = -k·x
-    - 1D: oscillation along x-axis
-    - 2D: circular motion (2D isotropic oscillator)
-    - Use for sanity checks before testing gravity
+**Notes.** - This tests integrator mechanics WITHOUT gravitational forces
+- Requires external force implementation: F_ext = -k·x
+- 1D: oscillation along x-axis
+- 2D: circular motion (2D isotropic oscillator)
+- Use for sanity checks before testing gravity
 
-Warning:
-    This returns initial conditions for an external harmonic potential
-    (F_ext = -k·x), not a self-gravitating system. Most N-body integrators
-    provide only pairwise gravity, so they cannot evolve this case without an
-    external-force hook. Use ``two_body_kepler()`` for gravity-only tests.
+**Warning.** This returns initial conditions for an external harmonic potential
+(F_ext = -k·x), not a self-gravitating system. Most N-body integrators
+provide only pairwise gravity, so they cannot evolve this case without an
+external-force hook. Use ``two_body_kepler()`` for gravity-only tests.
 
 *Source: [`src/progenax/analytical/few_body.py#L140`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/few_body.py#L140)*
 
@@ -352,19 +330,20 @@ harmonic_solution(t: 'float', amplitude: 'float', omega: 'float', phase: 'float'
 
 Compute analytical solution for harmonic oscillator at time t.
 
-Args:
-    t: Time
-    amplitude: Oscillation amplitude
-    omega: Angular frequency
-    phase: Initial phase [radians]
-    dimension: "1D" or "2D"
+**Args**
 
-Returns:
-    (positions, velocities) at time t
+| Parameter | Description |
+|---|---|
+| `t` | Time |
+| `amplitude` | Oscillation amplitude |
+| `omega` | Angular frequency |
+| `phase` | Initial phase [radians] |
+| `dimension` | "1D" or "2D" |
 
-Example:
-    >>> pos, vel = harmonic_solution(t=1.0, amplitude=1.0, omega=2*jnp.pi)
-    >>> # Compare with integrated result
+**Returns:** (positions, velocities) at time t
+
+**Example.** >>> pos, vel = harmonic_solution(t=1.0, amplitude=1.0, omega=2*jnp.pi)
+>>> # Compare with integrated result
 
 *Source: [`src/progenax/analytical/few_body.py#L225`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/few_body.py#L225)*
 
@@ -385,30 +364,24 @@ Physical parameters:
     - a = 1.0 AU (semi-major axis)
     - e = 0.0167 (actual eccentricity, approximated as circular)
 
-Args:
-    G: Gravitational constant [appropriate units, e.g., AU³/Msun/yr²]
+**Args**
 
-Returns:
-    AnalyticalIC with Sun + Earth in circular orbit
+| Parameter | Description |
+|---|---|
+| `G` | Gravitational constant [appropriate units, e.g., AU³/Msun/yr²] |
 
-Validation targets:
-    - Period: T = 1.0 yr (by construction with binary units)
-    - Energy conservation: |ΔE/E| < 10^-12
-    - Angular momentum conservation: |ΔL/L| < 10^-15
+**Returns:** AnalyticalIC with Sun + Earth in circular orbit Validation targets: - Period: T = 1.0 yr (by construction with binary units) - Energy conservation: |ΔE/E| < 10^-12 - Angular momentum conservation: |ΔL/L| < 10^-15
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> ic = earth_sun_2body(G=G)
-    >>> # Integrate for 10 orbits, check energy conservation
+**Example.** >>> G = 39.478  # Binary units
+>>> ic = earth_sun_2body(G=G)
+>>> # Integrate for 10 orbits, check energy conservation
 
-Notes:
-    - Uses circular orbit (e=0) for simplicity
-    - True Earth orbit has e=0.0167 (use earth_sun_eccentric() for that)
-    - Mass ratio: M_sun/M_earth ≈ 333,000
+**Notes.** - Uses circular orbit (e=0) for simplicity
+- True Earth orbit has e=0.0167 (use earth_sun_eccentric() for that)
+- Mass ratio: M_sun/M_earth ≈ 333,000
 
-References:
-    - JPL Horizons ephemeris data
-    - Murray & Dermott (1999), "Solar System Dynamics", Appendix B
+**References.** - JPL Horizons ephemeris data
+- Murray & Dermott (1999), "Solar System Dynamics", Appendix B
 
 *Source: [`src/progenax/analytical/solar_system.py#L56`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/solar_system.py#L56)*
 
@@ -431,22 +404,17 @@ Physical parameters:
     - a = 1.0 AU
     - e = 0.0167 (true eccentricity)
 
-Args:
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    AnalyticalIC with Sun + Earth in eccentric orbit
+| Parameter | Description |
+|---|---|
+| `G` | Gravitational constant [appropriate units] |
 
-Validation targets:
-    - Perihelion distance: r_peri = a(1-e) = 0.9833 AU
-    - Aphelion distance: r_aph = a(1+e) = 1.0167 AU
-    - Period: T = 1.0 yr
-    - Energy conservation: |ΔE/E| < 10^-12
+**Returns:** AnalyticalIC with Sun + Earth in eccentric orbit Validation targets: - Perihelion distance: r_peri = a(1-e) = 0.9833 AU - Aphelion distance: r_aph = a(1+e) = 1.0167 AU - Period: T = 1.0 yr - Energy conservation: |ΔE/E| < 10^-12
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> ic = earth_sun_eccentric(G=G)
-    >>> # Tests adaptive timestep handling (dt varies by ~3%)
+**Example.** >>> G = 39.478  # Binary units
+>>> ic = earth_sun_eccentric(G=G)
+>>> # Tests adaptive timestep handling (dt varies by ~3%)
 
 *Source: [`src/progenax/analytical/solar_system.py#L99`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/solar_system.py#L99)*
 
@@ -472,30 +440,24 @@ Physical parameters:
     - a_earth = 1.0 AU, e_earth = 0.0167
     - a_jupiter = 5.2044 AU, e_jupiter = 0.04839
 
-Args:
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    AnalyticalIC with Sun + Earth + Jupiter
+| Parameter | Description |
+|---|---|
+| `G` | Gravitational constant [appropriate units] |
 
-Validation targets:
-    - Hierarchical timesteps: Jupiter needs ~10× longer dt than Earth
-    - Energy conservation: |ΔE/E| < 10^-10 (3-body is harder than 2-body)
-    - Perturbations: Earth's orbit perturbed by Jupiter (~0.1% level)
+**Returns:** AnalyticalIC with Sun + Earth + Jupiter Validation targets: - Hierarchical timesteps: Jupiter needs ~10× longer dt than Earth - Energy conservation: |ΔE/E| < 10^-10 (3-body is harder than 2-body) - Perturbations: Earth's orbit perturbed by Jupiter (~0.1% level)
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> ic = sun_earth_jupiter_3body(G=G)
-    >>> # Integrate for 100 yr, check energy conservation
+**Example.** >>> G = 39.478  # Binary units
+>>> ic = sun_earth_jupiter_3body(G=G)
+>>> # Integrate for 100 yr, check energy conservation
 
-Notes:
-    - Jupiter mass ≈ 318 Earth masses
-    - Mass ratio: M_jup/M_earth ≈ 318
-    - Hierarchical: a_jup/a_earth ≈ 5.2 (well-separated)
+**Notes.** - Jupiter mass ≈ 318 Earth masses
+- Mass ratio: M_jup/M_earth ≈ 318
+- Hierarchical: a_jup/a_earth ≈ 5.2 (well-separated)
 
-References:
-    - JPL Horizons ephemeris (epoch J2000.0)
-    - Murray & Dermott (1999), Appendix B
+**References.** - JPL Horizons ephemeris (epoch J2000.0)
+- Murray & Dermott (1999), Appendix B
 
 *Source: [`src/progenax/analytical/solar_system.py#L136`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/solar_system.py#L136)*
 
@@ -519,30 +481,24 @@ Physical parameters (epoch J2000.0):
     - Earth: M = 3.00e-6 Msun, a = 1.000 AU, e = 0.017
     - Mars: M = 3.23e-7 Msun, a = 1.524 AU, e = 0.093
 
-Args:
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    AnalyticalIC with Sun + 4 inner planets
+| Parameter | Description |
+|---|---|
+| `G` | Gravitational constant [appropriate units] |
 
-Validation targets:
-    - Timestep hierarchy: Mercury (88 d) → Venus (225 d) → Earth (365 d) → Mars (687 d)
-    - Energy conservation: |ΔE/E| < 10^-9 (more challenging than 2-body)
-    - Secular perturbations: orbital precession over centuries
+**Returns:** AnalyticalIC with Sun + 4 inner planets Validation targets: - Timestep hierarchy: Mercury (88 d) → Venus (225 d) → Earth (365 d) → Mars (687 d) - Energy conservation: |ΔE/E| < 10^-9 (more challenging than 2-body) - Secular perturbations: orbital precession over centuries
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> ic = solar_system_inner_4(G=G)
-    >>> # Integrate for 1000 yr, measure energy drift
+**Example.** >>> G = 39.478  # Binary units
+>>> ic = solar_system_inner_4(G=G)
+>>> # Integrate for 1000 yr, measure energy drift
 
-Notes:
-    - Mercury has highest eccentricity (e=0.206) → needs shortest timestep
-    - Venus nearly circular (e=0.007) → can use longer timestep
-    - Mars eccentric (e=0.093) → moderate timestep variation
+**Notes.** - Mercury has highest eccentricity (e=0.206) → needs shortest timestep
+- Venus nearly circular (e=0.007) → can use longer timestep
+- Mars eccentric (e=0.093) → moderate timestep variation
 
-References:
-    - JPL Horizons ephemeris (J2000.0)
-    - https://ssd.jpl.nasa.gov/planets/phys_par.html
+**References.** - JPL Horizons ephemeris (J2000.0)
+- https://ssd.jpl.nasa.gov/planets/phys_par.html
 
 *Source: [`src/progenax/analytical/solar_system.py#L229`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/solar_system.py#L229)*
 
@@ -571,39 +527,31 @@ Physical parameters (epoch J2000.0):
     - Uranus: a = 19.20 AU, e = 0.046, T = 84.01 yr
     - Neptune: a = 30.05 AU, e = 0.011, T = 164.8 yr
 
-Args:
-    G: Gravitational constant [appropriate units]
+**Args**
 
-Returns:
-    AnalyticalIC with Sun + 8 planets (N=9)
+| Parameter | Description |
+|---|---|
+| `G` | Gravitational constant [appropriate units] |
 
-Validation targets:
-    - Energy conservation: |ΔE/E| < 10^-8 over 1000 yr
-    - Secular dynamics: planetary precession over millennia
-    - Timestep hierarchy: Mercury (88 d) to Neptune (60,190 d) → 680× range
-    - Conservation over long timescales (Myr)
+**Returns:** AnalyticalIC with Sun + 8 planets (N=9) Validation targets: - Energy conservation: |ΔE/E| < 10^-8 over 1000 yr - Secular dynamics: planetary precession over millennia - Timestep hierarchy: Mercury (88 d) to Neptune (60,190 d) → 680× range - Conservation over long timescales (Myr)
 
-Example:
-    >>> G = 39.478  # Binary units
-    >>> ic = solar_system_full(G=G)
-    >>> # Integrate for 10,000 yr with block timesteps
+**Example.** >>> G = 39.478  # Binary units
+>>> ic = solar_system_full(G=G)
+>>> # Integrate for 10,000 yr with block timesteps
 
-Notes:
-    - **Block timestepping essential**: 680× timestep range (Mercury to Neptune)
-    - Excludes Pluto (dwarf planet, highly eccentric/inclined)
-    - Excludes moons (would need hierarchical treatment)
-    - Uses J2000.0 epoch osculating elements
-    - True 3D orbits (includes inclinations)
+**Notes.** - **Block timestepping essential**: 680× timestep range (Mercury to Neptune)
+- Excludes Pluto (dwarf planet, highly eccentric/inclined)
+- Excludes moons (would need hierarchical treatment)
+- Uses J2000.0 epoch osculating elements
+- True 3D orbits (includes inclinations)
 
-Warning:
-    - Long-term integration (>10 Myr) requires symplectic integrators
-    - Chaotic on 5-10 Myr timescales (Laskar 1989)
-    - Use for validation, not production solar system ephemeris
+**Warning.** - Long-term integration (>10 Myr) requires symplectic integrators
+- Chaotic on 5-10 Myr timescales (Laskar 1989)
+- Use for validation, not production solar system ephemeris
 
-References:
-    - JPL Horizons: https://ssd.jpl.nasa.gov/horizons/
-    - Standish & Williams (2012), "Orbital Ephemerides"
-    - Laskar (1989), Nature, 338, 237 - Solar system chaos
+**References.** - JPL Horizons: https://ssd.jpl.nasa.gov/horizons/
+- Standish & Williams (2012), "Orbital Ephemerides"
+- Laskar (1989), Nature, 338, 237 - Solar system chaos
 
 *Source: [`src/progenax/analytical/solar_system.py#L273`](https://github.com/jaxstro/progenax/blob/main/src/progenax/analytical/solar_system.py#L273)*
 

@@ -49,6 +49,72 @@ API_DIR = Path("30-api")
 GITHUB_BLOB = "https://github.com/jaxstro/progenax/blob/main"
 
 
+# ---------------------------------------------------------------------------
+# Registry cross-links (ADR-0034 provenance cards + the grad-audit gate).
+# Loaded once; failures degrade to no-badges (the API reference must build
+# even if a registry file moves).
+# ---------------------------------------------------------------------------
+
+import json
+import re as _re
+
+
+def _load_card_index() -> dict[str, tuple[str, str]]:
+    """{qualname -> (family_stem, model)} from docs/provenance/registry/*.yaml."""
+    index: dict[str, tuple[str, str]] = {}
+    reg = Path(__file__).resolve().parents[3] / "docs" / "provenance" / "registry"
+    try:
+        import yaml
+
+        for path in sorted(reg.glob("*.yaml")):
+            for card in yaml.safe_load(path.read_text()) or []:
+                for ref in card.get("code_refs", []):
+                    qual = ref.split("::")[-1].split(".")[0]
+                    index.setdefault(qual, (path.stem, card["model"]))
+    except Exception:
+        return {}
+    return index
+
+
+def _load_grad_audit_counts() -> dict[str, int]:
+    """{symbol -> number of grad-audit registry cases} from the committed JSON."""
+    counts: dict[str, int] = {}
+    path = (
+        Path(__file__).resolve().parents[3]
+        / "validation" / "data" / "grad_audit_results.json"
+    )
+    try:
+        rows = json.loads(path.read_text())
+    except Exception:
+        return {}
+    for row in rows:
+        sym = _re.split(r"[.\[]", row.get("id", ""))[0]
+        if sym:
+            counts[sym] = counts.get(sym, 0) + 1
+    return counts
+
+
+_CARD_INDEX = _load_card_index()
+_GRAD_COUNTS = _load_grad_audit_counts()
+
+
+def _badges(name: str) -> str:
+    """One markdown line of registry badges for a symbol, or empty."""
+    bits = []
+    if name in _CARD_INDEX:
+        fam, model = _CARD_INDEX[name]
+        bits.append(
+            f"[📇 model card](../15-model-reference/{fam}.md#card-{model})"
+        )
+    if name in _GRAD_COUNTS:
+        n = _GRAD_COUNTS[name]
+        bits.append(
+            f"[∇ gradient-verified — {n} audit case{'s' if n > 1 else ''}]"
+            "(../50-validation/differentiability-audit.md)"
+        )
+    return " · ".join(bits)
+
+
 def _is_public(name: str) -> bool:
     """A name is public iff it does not start with underscore."""
     return not name.startswith("_")
@@ -81,12 +147,74 @@ def _format_signature(obj) -> str:
     return text
 
 
+_SECTION_RE = None  # compiled lazily
+
+
 def _format_docstring(obj) -> str:
-    """Return cleaned-up docstring for an object."""
+    """Render a Google-style docstring as structured markdown.
+
+    ``Args:``/``Attributes:`` blocks become parameter tables; ``Returns:``/
+    ``Raises:`` become bolded one-liners; other recognized sections become
+    bold-titled paragraphs. Anything unparseable falls back to the raw
+    docstring (the reference must never lose content to the formatter).
+    """
+    import re
+
     doc = inspect.getdoc(obj)
     if not doc:
         return "*(no docstring)*"
-    return doc
+    try:
+        section_re = re.compile(
+            r"^(Args|Arguments|Attributes|Returns|Yields|Raises|Note|Notes|"
+            r"References|Example|Examples|Warning)\s*:\s*$",
+            re.M,
+        )
+        parts: list[tuple[str, str]] = []
+        last, last_name = 0, ""
+        for m in section_re.finditer(doc):
+            parts.append((last_name, doc[last : m.start()].rstrip()))
+            last_name, last = m.group(1), m.end()
+        parts.append((last_name, doc[last:].rstrip()))
+
+        out: list[str] = []
+        for name, body in parts:
+            if not body.strip():
+                continue
+            if name in ("Args", "Arguments", "Attributes"):
+                rows = []
+                current = None
+                for line in body.splitlines():
+                    m = re.match(r"^\s{2,}(\*{0,2}\w+)\s*:\s*(.*)$", line)
+                    if m and not line.startswith(" " * 12):
+                        current = [m.group(1), m.group(2).strip()]
+                        rows.append(current)
+                    elif current is not None and line.strip():
+                        current[1] += " " + line.strip()
+                if not rows:
+                    raise ValueError("unparsed args block")
+                out.append(f"**{name}**")
+                out.append("")
+                out.append("| Parameter | Description |")
+                out.append("|---|---|")
+                for pname, desc in rows:
+                    desc = desc.replace("|", "\\|")
+                    out.append(f"| `{pname}` | {desc} |")
+                out.append("")
+            elif name in ("Returns", "Yields", "Raises"):
+                text = " ".join(x.strip() for x in body.splitlines() if x.strip())
+                out.append(f"**{name}:** {text}")
+                out.append("")
+            elif name:
+                out.append(f"**{name}.** " + "\n".join(
+                    x.strip() for x in body.splitlines()
+                ).strip())
+                out.append("")
+            else:
+                out.append(body)
+                out.append("")
+        return "\n".join(out).rstrip()
+    except Exception:
+        return doc
 
 
 def _source_link(obj, package_root: Path) -> str | None:
@@ -201,6 +329,10 @@ def _emit_module_page(module_name: str, out_path: Path, package_root: Path) -> i
             "value": "*value*",
         }[kind]
         lines.append(kind_label)
+        badge_line = _badges(name)
+        if badge_line:
+            lines.append("")
+            lines.append(badge_line)
         lines.append("")
 
         if sig:

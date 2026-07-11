@@ -97,24 +97,18 @@ Softening is intentionally **NOT** stored here: it is a force-model /
 integration choice (selected on the integrator, e.g. ε=0 for collisional
 Hermite/IAS15), not a property of the initial conditions.
 
-Attributes:
-    positions: Particle positions (N, 3) [length units]
-    velocities: Particle velocities (N, 3) [velocity units]
-    masses: Particle masses (N,) [M_sun]
-    stellar_radii: Stellar radii (N,) [R_sun]
-    ids: Particle IDs (N,) or None
-    primordial_system_id: (N,) int — which primordial system each particle
-        belongs to (paired particles share an id); None for single-only ICs.
-        **PROVENANCE at t=0 only** — goes stale under dynamical evolution
-        (ionization / formation / exchange). Measure the *current* binary
-        population with `binaries.diagnostics.find_bound_pairs`, not this.
-    is_primordial_secondary: (N,) bool — True for the secondary of a
-        primordial binary; None for single-only ICs.
-    component_id: (N,) int — which population component each particle was
-        drawn from (multi-component generators, e.g. MultiComponentCluster);
-        None for single-population ICs. Like primordial_system_id, this is
-        **PROVENANCE at t=0** — a label of the generating component, not a
-        dynamical invariant.
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions (N, 3) [length units] |
+| `velocities` | Particle velocities (N, 3) [velocity units] |
+| `masses` | Particle masses (N,) [M_sun] |
+| `stellar_radii` | Stellar radii (N,) [R_sun] |
+| `ids` | Particle IDs (N,) or None |
+| `primordial_system_id` | (N,) int — which primordial system each particle belongs to (paired particles share an id); None for single-only ICs. **PROVENANCE at t=0 only** — goes stale under dynamical evolution (ionization / formation / exchange). Measure the *current* binary population with `binaries.diagnostics.find_bound_pairs`, not this. |
+| `is_primordial_secondary` | (N,) bool — True for the secondary of a primordial binary; None for single-only ICs. |
+| `component_id` | (N,) int — which population component each particle was drawn from (multi-component generators, e.g. MultiComponentCluster); None for single-population ICs. Like primordial_system_id, this is **PROVENANCE at t=0** — a label of the generating component, not a dynamical invariant. |
 
 *Source: [`src/progenax/builders.py#L118`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L118)*
 
@@ -157,11 +151,13 @@ function is the D&K91 *collision* radius — a different relation for a differen
    evolution). The D&K91 fit here is a static empirical main-sequence
    approximation chosen only to be cited and correct until then.
 
-Args:
-    masses: Particle masses (N,) [M☉]
+**Args**
 
-Returns:
-    Radii in R☉
+| Parameter | Description |
+|---|---|
+| `masses` | Particle masses (N,) [M☉] |
+
+**Returns:** Radii in R☉
 
 *Source: [`src/progenax/builders.py#L160`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L160)*
 
@@ -218,13 +214,15 @@ to_com_frame(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], ma
 
 Transform to center-of-mass frame.
 
-Args:
-    positions: Particle positions (N, 3)
-    velocities: Particle velocities (N, 3)
-    masses: Particle masses (N,)
+**Args**
 
-Returns:
-    (positions_com, velocities_com): Transformed coordinates
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions (N, 3) |
+| `velocities` | Particle velocities (N, 3) |
+| `masses` | Particle masses (N,) |
+
+**Returns:** (positions_com, velocities_com): Transformed coordinates
 
 *Source: [`src/progenax/builders.py#L220`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L220)*
 
@@ -244,23 +242,21 @@ Physical interpretation:
     - Q < 0.5: Sub-virial (cold), system will collapse
     - Q > 0.5: Super-virial (hot), system will expand/unbind
 
-Args:
-    positions: Particle positions (N, 3)
-    velocities: Particle velocities (N, 3)
-    masses: Particle masses (N,)
-    Q_target: Target virial ratio (0.5 for equilibrium)
-    G: Gravitational constant
-    softening: Softening length (default: 0)
+**Args**
 
-Returns:
-    Scaled velocities
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions (N, 3) |
+| `velocities` | Particle velocities (N, 3) |
+| `masses` | Particle masses (N,) |
+| `Q_target` | Target virial ratio (0.5 for equilibrium) |
+| `G` | Gravitational constant |
+| `softening` | Softening length (default: 0) |
 
-Cold input (T=0) raises for concrete inputs / yields NaN under tracing —
-see the delegate's docstring.
+**Returns:** Scaled velocities Cold input (T=0) raises for concrete inputs / yields NaN under tracing — see the delegate's docstring.
 
-References:
-    Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
-    Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
+**References.** Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
+Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
 *Source: [`src/progenax/builders.py#L245`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L245)*
 
@@ -269,29 +265,28 @@ References:
 
 *function*
 
+[∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: PRNGKeyArray, G: float, Q: Optional[float] = 0.5, softening: float = 0.0, id_offset: int = 0) -> progenax.builders.ICResult
 ```
 
 Build initial conditions from spatial profile and velocity DF.
 
-Args:
-    profile: Spatial density profile (must implement SpatialProfile protocol)
-    masses: Particle masses (N,) [M_sun]
-    velocity_df: Velocity distribution function (must implement VelocityDF protocol)
-    key: JAX random key
-    G: Gravitational constant (REQUIRED - no default)
-    Q: Virial ratio target Q = T/|V| (0.5 for equilibrium, None to disable)
-    softening: Softening length used ONLY to virial-scale the IC under the same
-        force law it will be integrated with (default: 0.0 = exact Newtonian,
-        matching the analytic equilibrium DFs and collisional integration).
-        Pass ε>0 for a collisionless science case so the IC is virialized
-        consistently. This is a force-model knob (a future shared `ForceModel`
-        will supply it); it is **not** stored on the returned `ICResult`.
-    id_offset: Offset for particle IDs (default: 0)
+**Args**
 
-Returns:
-    ICResult (pure physical state — no softening field)
+| Parameter | Description |
+|---|---|
+| `profile` | Spatial density profile (must implement SpatialProfile protocol) |
+| `masses` | Particle masses (N,) [M_sun] |
+| `velocity_df` | Velocity distribution function (must implement VelocityDF protocol) |
+| `key` | JAX random key |
+| `G` | Gravitational constant (REQUIRED - no default) |
+| `Q` | Virial ratio target Q = T/\|V\| (0.5 for equilibrium, None to disable) |
+| `softening` | Softening length used ONLY to virial-scale the IC under the same force law it will be integrated with (default: 0.0 = exact Newtonian, matching the analytic equilibrium DFs and collisional integration). Pass ε>0 for a collisionless science case so the IC is virialized consistently. This is a force-model knob (a future shared `ForceModel` will supply it); it is **not** stored on the returned `ICResult`. |
+| `id_offset` | Offset for particle IDs (default: 0) |
+
+**Returns:** ICResult (pure physical state — no softening field)
 
 *Source: [`src/progenax/builders.py#L286`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L286)*
 
@@ -299,6 +294,8 @@ Returns:
 ## `builders.build_binary_cluster`
 
 *function*
+
+[📇 model card](../15-model-reference/binaries.md#card-binary_cluster_assembly) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 build_binary_cluster(profile: progenax.protocols.SpatialProfile, velocity_df: progenax.protocols.VelocityDF, primary_imf, companion_model, target, key: PRNGKeyArray, *, units, Q: Optional[float] = 0.5, softening: float = 0.0, compact: bool = True)
@@ -325,26 +322,20 @@ its two constituents only at the end (the McLuster convention, Kuepper+2011 SA8)
 internal binary binding energy is a separate reservoir untouched by `Q` (measure it
 with `binaries.diagnostics`).
 
-Args:
-    profile, velocity_df: spatial profile + velocity DF for the system COMs.
-    primary_imf: primary-star IMF with `sample(key, n) -> m1 [Msun]`.
-    companion_model: a `CompanionModel` (e.g. `IndependentCompanions`, `MoeCompanions`)
-        owning multiplicity + (q, P, e); `sample(key, m1, *, G, day_in_time_units)
-        -> (is_binary, CompanionElements)`. No separate `binary_fraction` arg — f_b
-        lives in the model (Moe sets it from the masses).
-    target: population-size budget — `Systems(n)` (count systems; companions not
-        counted; the only differentiable / `compact=False` target), `Stars(n)` (count
-        resolved stars, companions included), or `TotalMass(M)` [Msun]. Stars/TotalMass
-        have data-dependent counts and are **eager only** (`compact=True`).
-    key: JAX random key.
-    units: `UnitSystem` (carries G + the time scale for the day->time-unit conversion).
-    Q: system-level virial ratio target (0.5 = equilibrium; None to disable).
-    softening: virial-scaling softening for the COM cluster (default 0 = exact; NOT stored).
-    compact: True (default) -> eagerly compacted `ICResult`; False -> the masked
-        fixed-shape `ResolvedBinaries` (jit/grad-safe; requires a `Systems` target).
+**Args**
 
-Returns:
-    `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
+| Parameter | Description |
+|---|---|
+| `primary_imf` | primary-star IMF with `sample(key, n) -> m1 [Msun]`. |
+| `companion_model` | a `CompanionModel` (e.g. `IndependentCompanions`, `MoeCompanions`) owning multiplicity + (q, P, e); `sample(key, m1, *, G, day_in_time_units) -> (is_binary, CompanionElements)`. No separate `binary_fraction` arg — f_b lives in the model (Moe sets it from the masses). |
+| `target` | population-size budget — `Systems(n)` (count systems; companions not counted; the only differentiable / `compact=False` target), `Stars(n)` (count resolved stars, companions included), or `TotalMass(M)` [Msun]. Stars/TotalMass have data-dependent counts and are **eager only** (`compact=True`). |
+| `key` | JAX random key. |
+| `units` | `UnitSystem` (carries G + the time scale for the day->time-unit conversion). |
+| `Q` | system-level virial ratio target (0.5 = equilibrium; None to disable). |
+| `softening` | virial-scaling softening for the COM cluster (default 0 = exact; NOT stored). |
+| `compact` | True (default) -> eagerly compacted `ICResult`; False -> the masked fixed-shape `ResolvedBinaries` (jit/grad-safe; requires a `Systems` target). |
+
+**Returns:** `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
 
 *Source: [`src/progenax/builders.py#L406`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L406)*
 

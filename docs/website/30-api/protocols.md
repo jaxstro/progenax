@@ -74,9 +74,12 @@ Protocol for Initial Mass Functions.
 All IMF classes must implement these methods for consistent API
 and protocol-based composition (e.g., TruncatedIMF wrapping).
 
-Attributes:
-    m_min: Minimum mass in distribution [M_sun]
-    m_max: Maximum mass in distribution [M_sun]
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `m_min` | Minimum mass in distribution [M_sun] |
+| `m_max` | Maximum mass in distribution [M_sun] |
 
 *Source: [`src/progenax/protocols.py#L87`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L87)*
 

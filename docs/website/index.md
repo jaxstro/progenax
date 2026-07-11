@@ -24,6 +24,17 @@ freefall-density factor formalism, to understand why we chose a protocol-based c
 pattern over inheritance, or to look up a specific function signature —
 there's a path for you.
 
+
+```{figure} 10-theory/figures/phase_space_hexbin.webp
+:width: 100%
+
+Every model on this site is sampled, verified, and drawn: $4\times10^5$-star
+equilibria on the $(r, v_r)$ phase-space plane, with the analytic escape
+envelope computed three independent ways and no star crossing it. From the
+[velocity-DF theory chapter](10-theory/velocity-dfs/index.md); every figure
+regenerates from `laboratory/icviz`.
+```
+
 ## Find your reading path
 
 ::::{grid} 1 1 3 3

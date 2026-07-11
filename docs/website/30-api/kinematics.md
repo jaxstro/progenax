@@ -33,6 +33,8 @@ Public symbols: **14**
 
 *class*
 
+[📇 model card](../15-model-reference/velocity_dfs.md#card-plummer_df) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 PlummerVelocityDF(r_h: ArrayLike = 1.0, anisotropy_radius: ArrayLike | None = None)
 ```
@@ -58,39 +60,39 @@ This gives the exact velocity dispersion:
 Which matches the Plummer formula:
     σ²(r) = GM/(6√(r²+a²))  with  v_esc²(r) = 2GM/√(r²+a²)
 
-Attributes:
-    r_h: Half-mass radius [length units]
-    a: Plummer scale radius [length units] (computed from r_h)
+**Attributes**
 
-References:
-    Plummer (1911), MNRAS, 71, 460 - Original Plummer model
-    Aarseth (2003), "Gravitational N-Body Simulations", Section 4.3.2
-    Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
-    Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
+| Parameter | Description |
+|---|---|
+| `r_h` | Half-mass radius [length units] |
+| `a` | Plummer scale radius [length units] (computed from r_h) |
 
-Notes:
-    - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
-    - Fully differentiable and JIT-compatible
-    - For Plummer sphere: v_esc² = 2GM/√(r²+a²)
-    - Verified: v_esc = sqrt(12) × σ (exact Plummer relation)
+**References.** Plummer (1911), MNRAS, 71, 460 - Original Plummer model
+Aarseth (2003), "Gravitational N-Body Simulations", Section 4.3.2
+Binney & Tremaine (2008), "Galactic Dynamics", Section 4.3
+Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
-Examples:
-    >>> from progenax.profiles.plummer import PlummerProfile
-    >>> import jax
-    >>> import jax.numpy as jnp
-    >>>
-    >>> # Create spatial profile and velocity DF
-    >>> profile = PlummerProfile(r_h=1.0)
-    >>> velocity_df = PlummerVelocityDF(r_h=1.0)
-    >>>
-    >>> # Sample positions and velocities
-    >>> masses = jnp.ones(100)
-    >>> key = jax.random.PRNGKey(42)
-    >>> key_pos, key_vel = jax.random.split(key)
-    >>>
-    >>> positions = profile.sample_positions(masses, key_pos)
-    >>> from jaxstro.units import STELLAR
-    >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
+**Notes.** - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
+- Fully differentiable and JIT-compatible
+- For Plummer sphere: v_esc² = 2GM/√(r²+a²)
+- Verified: v_esc = sqrt(12) × σ (exact Plummer relation)
+
+**Examples.** >>> from progenax.profiles.plummer import PlummerProfile
+>>> import jax
+>>> import jax.numpy as jnp
+>>>
+>>> # Create spatial profile and velocity DF
+>>> profile = PlummerProfile(r_h=1.0)
+>>> velocity_df = PlummerVelocityDF(r_h=1.0)
+>>>
+>>> # Sample positions and velocities
+>>> masses = jnp.ones(100)
+>>> key = jax.random.PRNGKey(42)
+>>> key_pos, key_vel = jax.random.split(key)
+>>>
+>>> positions = profile.sample_positions(masses, key_pos)
+>>> from jaxstro.units import STELLAR
+>>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
 *Source: [`src/progenax/kinematics/plummer_df.py#L36`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/plummer_df.py#L36)*
 
@@ -98,6 +100,8 @@ Examples:
 ## `kinematics.KingVelocityDF`
 
 *class*
+
+[📇 model card](../15-model-reference/velocity_dfs.md#card-king_df) · [∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 KingVelocityDF(W0: ArrayLike = 5.0, r_c: ArrayLike = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
@@ -124,15 +128,16 @@ asserted in TestKingTableRouting). Reuse one DF instance for repeated
 draws: construction (ODE solve + table) dominates; per-draw cost is then
 milliseconds at any N.
 
-Attributes:
-    W0: King concentration parameter (dimensionless central potential)
-    r_c: Core radius [length units] (the King core radius)
-    xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
-    speed_method: static, "table" (default) or "quadrature" (exact oracle)
+**Attributes**
 
-References:
-    King (1966), AJ, 71, 64
-    Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
+| Parameter | Description |
+|---|---|
+| `W0` | King concentration parameter (dimensionless central potential) |
+| `r_c` | Core radius [length units] (the King core radius) xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi)) |
+| `speed_method` | static, "table" (default) or "quadrature" (exact oracle) |
+
+**References.** King (1966), AJ, 71, 64
+Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
 *Source: [`src/progenax/kinematics/king_df.py#L65`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L65)*
 
@@ -140,6 +145,8 @@ References:
 ## `kinematics.MichieVelocityDF`
 
 *class*
+
+[📇 model card](../15-model-reference/velocity_dfs.md#card-michie_df) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 MichieVelocityDF(W0: ArrayLike = 7.0, r_c: ArrayLike = 1.0, r_a: ArrayLike = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
@@ -167,13 +174,14 @@ TestMichieTableRouting). Reuse one DF instance for repeated draws:
 construction (ODE solve + mu integral + table) dominates; per-draw cost
 is then milliseconds at any N.
 
-Attributes:
-    W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.
-    mu: int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma).
-    speed_method: static, "table" (default) or "quadrature" (exact oracle).
+**Attributes**
 
-References:
-    Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
+| Parameter | Description |
+|---|---|
+| `mu` | int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma). |
+| `speed_method` | static, "table" (default) or "quadrature" (exact oracle). |
+
+**References.** Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
 *Source: [`src/progenax/kinematics/michie_df.py#L74`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/michie_df.py#L74)*
 
@@ -211,12 +219,14 @@ anisotropic model: two ODE solves + the mu integral + the cached table
 build) -- reuse one DF instance for repeated draws; per-draw cost is
 then milliseconds at any N.
 
-Attributes:
-    W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).
-    r_t: truncation radius. xi_grid, psi_grid: ODE solution W(xi).
-    mu: dimensionless mass integral int rho_tilde xi^2 dxi (sets s).
-    is_aniso: static flag selecting the anisotropic sampler.
-    speed_method: static, "table" (default) or "quadrature" (exact oracle).
+**Attributes**
+
+| Parameter | Description |
+|---|---|
+| `r_t` | truncation radius. xi_grid, psi_grid: ODE solution W(xi). |
+| `mu` | dimensionless mass integral int rho_tilde xi^2 dxi (sets s). |
+| `is_aniso` | static flag selecting the anisotropic sampler. |
+| `speed_method` | static, "table" (default) or "quadrature" (exact oracle). |
 
 *Source: [`src/progenax/kinematics/limepy_df.py#L102`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/limepy_df.py#L102)*
 
@@ -224,6 +234,8 @@ Attributes:
 ## `kinematics.EFFVelocityDF`
 
 *class*
+
+[📇 model card](../15-model-reference/velocity_dfs.md#card-eff_df) · [∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 EFFVelocityDF(a: ArrayLike = 1.0, gamma: ArrayLike = 3.0, r_t: ArrayLike = 10.0, anisotropy_radius: ArrayLike | None = None)
@@ -250,19 +262,19 @@ anisotropic model for the same EFF density: f = f(Q), Q = E + J^2/2r_a^2, built 
 Eddington inversion of the augmented density rho_Q = (1 + r^2/r_a^2) rho (Merritt
 1985). The realised anisotropy is beta(r) = r^2/(r^2 + r_a^2). r_a=None is isotropic.
 
-Attributes:
-    a: Scale radius [length units], must match the spatial profile
-    gamma: Power-law index
-    r_t: Tidal/truncation radius [length units]
-    anisotropy_radius: Osipkov-Merritt radius r_a, or None for isotropic
-    r_grid, Psi_grid: relative potential Psi(r) (dimensionless: G=1, rho_0=1)
-    E_grid, f_grid: tabulated ergodic DF f(E) (augmented density if anisotropic)
-    mu: int_0^{r_t} rho_tilde r^2 dr (sets rho_0 = M_total / (4 pi mu))
+**Attributes**
 
-References:
-    Elson, Fall & Freeman (1987), ApJ, 323, 54
-    Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
-    Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
+| Parameter | Description |
+|---|---|
+| `a` | Scale radius [length units], must match the spatial profile |
+| `gamma` | Power-law index |
+| `r_t` | Tidal/truncation radius [length units] |
+| `anisotropy_radius` | Osipkov-Merritt radius r_a, or None for isotropic r_grid, Psi_grid: relative potential Psi(r) (dimensionless: G=1, rho_0=1) E_grid, f_grid: tabulated ergodic DF f(E) (augmented density if anisotropic) |
+| `mu` | int_0^{r_t} rho_tilde r^2 dr (sets rho_0 = M_total / (4 pi mu)) |
+
+**References.** Elson, Fall & Freeman (1987), ApJ, 323, 54
+Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
+Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
 *Source: [`src/progenax/kinematics/eff_df.py#L71`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/eff_df.py#L71)*
 
@@ -270,6 +282,8 @@ References:
 ## `kinematics.apply_solid_body_rotation`
 
 *function*
+
+[∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 apply_solid_body_rotation(velocities: Float[Array, 'N 3'], positions: Float[Array, 'N 3'], omega: float, axis: Float[Array, '3']) -> Float[Array, 'N 3']
@@ -287,25 +301,26 @@ angular velocity omega, giving v_phi = omega * R (cylindrical R).
    stationary equilibrium (Q = T/|V| rises above 0.5); see the module
    caveat (audit S3).
 
-Args:
-    velocities: Input velocities (N, 3)
-    positions: Particle positions (N, 3)
-    omega: Angular velocity magnitude [rad/time]
-    axis: Rotation axis vector (3,), will be normalized. Must be nonzero.
+**Args**
 
-Returns:
-    Velocities with rotation added (N, 3)
+| Parameter | Description |
+|---|---|
+| `velocities` | Input velocities (N, 3) |
+| `positions` | Particle positions (N, 3) |
+| `omega` | Angular velocity magnitude [rad/time] |
+| `axis` | Rotation axis vector (3,), will be normalized. Must be nonzero. |
 
-Example:
-    >>> # Add rotation around z-axis with omega = 0.1 rad/Myr
-    >>> v_rot = apply_solid_body_rotation(
-    ...     velocities, positions,
-    ...     omega=0.1,
-    ...     axis=jnp.array([0., 0., 1.])
-    ... )
+**Returns:** Velocities with rotation added (N, 3)
+
+**Example.** >>> # Add rotation around z-axis with omega = 0.1 rad/Myr
+>>> v_rot = apply_solid_body_rotation(
+...     velocities, positions,
+...     omega=0.1,
+...     axis=jnp.array([0., 0., 1.])
+... )
 
 Reference:
-    Binney & Tremaine (2008) Section 4.8
+Binney & Tremaine (2008) Section 4.8
 
 *Source: [`src/progenax/kinematics/rotation.py#L41`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/rotation.py#L41)*
 
@@ -313,6 +328,8 @@ Reference:
 ## `kinematics.apply_differential_rotation`
 
 *function*
+
+[∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 apply_differential_rotation(velocities: Float[Array, 'N 3'], positions: Float[Array, 'N 3'], v_peak: float, R_peak: float, axis: Float[Array, '3']) -> Float[Array, 'N 3']
@@ -331,22 +348,23 @@ This gives:
    Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
    stationary equilibrium (Q rises above 0.5); see the module caveat (S3).
 
-Args:
-    velocities: Input velocities (N, 3)
-    positions: Particle positions (N, 3)
-    v_peak: Peak rotation velocity [velocity units]
-    R_peak: Radius of peak rotation [length units]
-    axis: Rotation axis vector (3,), will be normalized. Must be nonzero.
+**Args**
 
-Returns:
-    Velocities with differential rotation added (N, 3)
+| Parameter | Description |
+|---|---|
+| `velocities` | Input velocities (N, 3) |
+| `positions` | Particle positions (N, 3) |
+| `v_peak` | Peak rotation velocity [velocity units] |
+| `R_peak` | Radius of peak rotation [length units] |
+| `axis` | Rotation axis vector (3,), will be normalized. Must be nonzero. |
 
-Note:
-    The peaked form v_phi(R) = v_peak (R/R_peak) exp(1 - R/R_peak) is a
-    *phenomenological* rotation curve (smooth rise to a single peak at R_peak,
-    then decay) chosen for convenience -- it is NOT taken from a specific paper.
-    Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
-    stellar systems in general, not for this functional form.
+**Returns:** Velocities with differential rotation added (N, 3)
+
+**Note.** The peaked form v_phi(R) = v_peak (R/R_peak) exp(1 - R/R_peak) is a
+*phenomenological* rotation curve (smooth rise to a single peak at R_peak,
+then decay) chosen for convenience -- it is NOT taken from a specific paper.
+Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
+stellar systems in general, not for this functional form.
 
 *Source: [`src/progenax/kinematics/rotation.py#L90`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/rotation.py#L90)*
 
@@ -354,6 +372,8 @@ Note:
 ## `kinematics.jeans_dispersion`
 
 *function*
+
+[∇ gradient-verified — 3 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 jeans_dispersion(profile, r_a, r, M, G, n_s: int = 4000, beta_fn=None) -> progenax.kinematics.dispersion.DispersionProfile
@@ -457,6 +477,8 @@ the high-``W0`` correctness is pinned by a Richardson-FD test
 
 *function*
 
+[∇ gradient-verified — 3 audit cases](../50-validation/differentiability-audit.md)
+
 ```python
 project_dispersion(profile, r_a, R, M, G, n_u: int = 4000) -> progenax.kinematics.dispersion.ProjectedDispersion
 ```
@@ -541,6 +563,8 @@ ProjectedDispersion
 ## `kinematics.df_moment_dispersion`
 
 *function*
+
+[∇ gradient-verified — 2 audit cases](../50-validation/differentiability-audit.md)
 
 ```python
 df_moment_dispersion(df, r, M, G, n_w: int = 256, n_alpha: int = 128) -> progenax.kinematics.dispersion.DispersionProfile
@@ -633,23 +657,22 @@ Parameters for rotation velocity transforms.
 Supports both solid-body and differential rotation. Both can be
 applied together if desired.
 
-Attributes:
-    solid_body: Whether to apply solid-body rotation.
-    differential: Whether to apply differential rotation.
-    pattern_speed: Angular velocity for solid-body rotation [rad/time].
-        Maps to omega in apply_solid_body_rotation.
-    v_peak: Peak rotation velocity for differential rotation [velocity units].
-    r_peak: Radius of peak rotation [length units].
-    axis: Rotation axis vector (3,). If None, uses z-axis [0, 0, 1].
-        Will be normalized internally.
+**Attributes**
 
-Notes:
-    Solid-body: v_rot = omega x r (constant angular velocity)
-    Differential: v_phi(R) = v_peak * (R/R_peak) * exp(1 - R/R_peak)
+| Parameter | Description |
+|---|---|
+| `solid_body` | Whether to apply solid-body rotation. |
+| `differential` | Whether to apply differential rotation. |
+| `pattern_speed` | Angular velocity for solid-body rotation [rad/time]. Maps to omega in apply_solid_body_rotation. |
+| `v_peak` | Peak rotation velocity for differential rotation [velocity units]. |
+| `r_peak` | Radius of peak rotation [length units]. |
+| `axis` | Rotation axis vector (3,). If None, uses z-axis [0, 0, 1]. Will be normalized internally. |
 
-References:
-    Lynden-Bell (1960) MNRAS 120, 204
-    Binney & Tremaine (2008) Section 4.8
+**Notes.** Solid-body: v_rot = omega x r (constant angular velocity)
+Differential: v_phi(R) = v_peak * (R/R_peak) * exp(1 - R/R_peak)
+
+**References.** Lynden-Bell (1960) MNRAS 120, 204
+Binney & Tremaine (2008) Section 4.8
 
 *Source: [`src/progenax/kinematics/api.py#L57`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L57)*
 
@@ -669,22 +692,18 @@ ratio. Radial anisotropy is a property of the DF itself: pass
 ``anisotropy_radius`` to PlummerVelocityDF/EFFVelocityDF for an Osipkov-Merritt
 DF (beta(r)=r^2/(r^2+r_a^2)).
 
-Attributes:
-    df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.;
-        anisotropic DFs supply their own radial anisotropy).
-    rotation: Optional rotation parameters.
-    target_Q: Target virial ratio Q = T / |V|, or None (default). The
-        Plummer/King/EFF DFs are already sampled in detailed equilibrium, so
-        target_Q=None keeps their native equilibrium (no rescale). Pass a float
-        only to deliberately force a virial ratio (e.g. 0.5 for equilibrium,
-        <0.5 subvirial, >0.5 supervirial), or when adding rotation / mixing an
-        inconsistent profile+DF combination.
+**Attributes**
 
-Example:
-    >>> model = VelocityModel(
-    ...     df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
-    ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
-    ... )
+| Parameter | Description |
+|---|---|
+| `df` | Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.; anisotropic DFs supply their own radial anisotropy). |
+| `rotation` | Optional rotation parameters. |
+| `target_Q` | Target virial ratio Q = T / \|V\|, or None (default). The Plummer/King/EFF DFs are already sampled in detailed equilibrium, so target_Q=None keeps their native equilibrium (no rescale). Pass a float only to deliberately force a virial ratio (e.g. 0.5 for equilibrium, <0.5 subvirial, >0.5 supervirial), or when adding rotation / mixing an inconsistent profile+DF combination. |
+
+**Example.** >>> model = VelocityModel(
+...     df=PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
+...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
+... )
 
 *Source: [`src/progenax/kinematics/api.py#L91`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L91)*
 
@@ -710,33 +729,33 @@ Pipeline stages:
     3. Rescale to target virial ratio (only if model.target_Q is not None),
        then remove COM motion
 
-Args:
-    key: JAX random key.
-    positions: Particle positions (N, 3) [length units].
-    masses: Particle masses (N,) [mass units].
-    model: VelocityModel specifying DF + rotation + target Q.
-    G: Gravitational constant (REQUIRED, explicit-units policy; e.g. ``STELLAR.G``).
+**Args**
 
-Returns:
-    velocities: Particle velocities (N, 3) [velocity units].
+| Parameter | Description |
+|---|---|
+| `key` | JAX random key. |
+| `positions` | Particle positions (N, 3) [length units]. |
+| `masses` | Particle masses (N,) [mass units]. |
+| `model` | VelocityModel specifying DF + rotation + target Q. |
+| `G` | Gravitational constant (REQUIRED, explicit-units policy; e.g. ``STELLAR.G``). |
 
-Example:
-    >>> from progenax.kinematics import (
-    ...     PlummerVelocityDF, VelocityModel, sample_velocities_pipeline
-    ... )
-    >>> import jax
-    >>>
-    >>> from jaxstro.units import STELLAR
-    >>> model = VelocityModel(df=PlummerVelocityDF(r_h=1.0), target_Q=0.5)
-    >>> key = jax.random.PRNGKey(42)
-    >>> velocities = sample_velocities_pipeline(
-    ...     key, positions, masses, model, G=STELLAR.G
-    ... )
+**Returns:** velocities: Particle velocities (N, 3) [velocity units].
 
-Notes:
-    - All stages are JAX-compatible and differentiable
-    - Virial rescaling uses O(N^2) pairwise potential energy calculation
-    - COM motion is removed after rescaling
+**Example.** >>> from progenax.kinematics import (
+...     PlummerVelocityDF, VelocityModel, sample_velocities_pipeline
+... )
+>>> import jax
+>>>
+>>> from jaxstro.units import STELLAR
+>>> model = VelocityModel(df=PlummerVelocityDF(r_h=1.0), target_Q=0.5)
+>>> key = jax.random.PRNGKey(42)
+>>> velocities = sample_velocities_pipeline(
+...     key, positions, masses, model, G=STELLAR.G
+... )
+
+**Notes.** - All stages are JAX-compatible and differentiable
+- Virial rescaling uses O(N^2) pairwise potential energy calculation
+- COM motion is removed after rescaling
 
 *Source: [`src/progenax/kinematics/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L122)*
 

@@ -78,15 +78,17 @@ Convention:
     Q < 0.5: Subvirial (cold, collapsing)
     Q > 0.5: Supervirial (hot, expanding)
 
-Args:
-    positions: Particle positions, shape (N, 3)
-    velocities: Particle velocities, shape (N, 3)
-    masses: Particle masses, shape (N,)
-    G: Gravitational constant
-    softening: Softening length for potential calculation
+**Args**
 
-Returns:
-    Virial ratio Q = T / |V|
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions, shape (N, 3) |
+| `velocities` | Particle velocities, shape (N, 3) |
+| `masses` | Particle masses, shape (N,) |
+| `G` | Gravitational constant |
+| `softening` | Softening length for potential calculation |
+
+**Returns:** Virial ratio Q = T / |V|
 
 *Source: [`src/progenax/dynamics/virial.py#L85`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L85)*
 
@@ -143,17 +145,18 @@ so a moving COM does not inflate ``T_j``.
    Callers must therefore pass positions PRE-CENTERED on the cluster COM (all
    in-tree callers do); an off-center origin biases the per-group Q_j (audit S16).
 
-Args:
-    positions: Particle positions, shape (N, 3).
-    velocities: Particle velocities, shape (N, 3).
-    masses: Particle masses, shape (N,).
-    G: Gravitational constant (consistent units).
-    group_masks: Boolean group membership, shape (n_groups, N) — e.g. from
-        :func:`mass_group_masks`.
-    softening: Plummer softening for the acceleration sum.
+**Args**
 
-Returns:
-    Q_j for each group, shape (n_groups,).
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions, shape (N, 3). |
+| `velocities` | Particle velocities, shape (N, 3). |
+| `masses` | Particle masses, shape (N,). |
+| `G` | Gravitational constant (consistent units). |
+| `group_masks` | Boolean group membership, shape (n_groups, N) — e.g. from :func:`mass_group_masks`. |
+| `softening` | Plummer softening for the acceleration sum. |
+
+**Returns:** Q_j for each group, shape (n_groups,).
 
 *Source: [`src/progenax/dynamics/virial.py#L179`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L179)*
 
@@ -176,16 +179,18 @@ CONCRETE T=0 refuses loudly (ValueError); a TRACED T=0 yields NaN — the
 honest sentinel, since a traced scalar cannot gate a Python raise (audit J5;
 the previous +1e-10 hack silently mapped cold input to ~0 velocities).
 
-Args:
-    positions: Particle positions, shape (N, 3)
-    velocities: Particle velocities, shape (N, 3)
-    masses: Particle masses, shape (N,)
-    G: Gravitational constant
-    target_Q: Desired virial ratio (default 0.5 for equilibrium)
-    softening: Softening length for potential calculation
+**Args**
 
-Returns:
-    Rescaled velocities with Q = target_Q
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions, shape (N, 3) |
+| `velocities` | Particle velocities, shape (N, 3) |
+| `masses` | Particle masses, shape (N,) |
+| `G` | Gravitational constant |
+| `target_Q` | Desired virial ratio (default 0.5 for equilibrium) |
+| `softening` | Softening length for potential calculation |
+
+**Returns:** Rescaled velocities with Q = target_Q
 
 *Source: [`src/progenax/dynamics/virial.py#L249`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L249)*
 

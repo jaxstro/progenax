@@ -18,7 +18,7 @@ single source of truth.
 (card-powerlaw_imf)=
 ## Salpeter / Kroupa piecewise power law
 
-**Status:** ✅ verified
+✅ verified · 3 equations · 2 sources · [API: `PowerLawIMF`](../30-api/imf.md#api-imf-powerlawimf)
 
 N-segment piecewise power-law IMF with continuity enforced at the breaks: Salpeter (1955) is the 1-segment classic, Kroupa (2001) the canonical multi-segment form with the observed low-mass turnover. Exact analytic CDF/PPF per segment (expm1-stable through alpha = 1, audit S4).
 
@@ -81,7 +81,7 @@ N(<m) / N \;=\; \frac{m^{1-\alpha} - m_{\min}^{1-\alpha}}{m_{\max}^{1-\alpha} - 
 (card-chabrier)=
 ## Chabrier (2003) lognormal + power law
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 2 sources · [API: `ChabrierIMF`](../30-api/imf.md#api-imf-chabrierimf)
 
 Lognormal low-mass body joined continuously to a Salpeter-like power-law tail at 1 Msun — the single-star (disk) IMF of Chabrier (2003). Smoother at low mass than a broken power law; the inverse CDF needs a fixed-iteration Newton solve.
 
@@ -126,7 +126,7 @@ Lognormal low-mass body joined continuously to a Salpeter-like power-law tail at
 (card-maschberger)=
 ## Maschberger (2013) L3 — the smooth house default
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 1 source · [API: `Maschberger`](../30-api/imf.md#api-imf-maschberger)
 
 The L3 IMF: one smooth analytic form that reproduces the Kroupa/Chabrier shape (Salpeter tail + low-mass turnover) with a CLOSED-FORM quantile function. progenax's production default.
 
@@ -179,7 +179,7 @@ m(u) \;=\; \mu\,\biggl[\biggl(\frac{P_{\min} + u\,(P_{\max} - P_{\min})}{C}\bigg
 (card-tapered_powerlaw)=
 ## Tapered power law (Parravano+2011 STPL)
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 2 sources · [API: `TaperedPowerLaw`](../30-api/imf.md#api-imf-taperedpowerlaw)
 
 Power law with an exponential low-mass taper — the Smoothed Two-Power Law of Parravano, McKee & Hollenbach (2011): power law at both ends, smoothly joined. Smooth like Maschberger but WITHOUT a closed-form inverse (fixed-iteration Newton ppf).
 
@@ -226,7 +226,7 @@ f(m) \;\propto\; m^{-\alpha}\,\Bigl(1 - e^{-(m/m_{\mathrm{peak}})^{\beta}}\Bigr)
 (card-truncated)=
 ## Truncated IMF (operator)
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 1 source · [API: `TruncatedIMF`](../30-api/imf.md#api-imf-truncatedimf)
 
 Wrapper applying hard m_min / m_max cutoffs to any base IMF, with the normalization recomputed on the truncated support. An operator card: the physics lives in the wrapped base IMF.
 
@@ -267,7 +267,7 @@ Wrapper applying hard m_min / m_max cutoffs to any base IMF, with the normalizat
 (card-environment_imf)=
 ## Environment-dependent IMF (Marks+2012 / Jerabkova+2018)
 
-**Status:** ✅ verified
+✅ verified · 2 equations · 2 sources · [API: `BirthEnvironment`](../30-api/imf.md#api-imf-birthenvironment)
 
 The functional alpha_3(environment) relations: the high-mass IMF slope as a function of birth-cloud density and metallicity (the Marks+2012 fundamental-plane relation, erratum-corrected, as restated by Jerabkova+2018). progenax's BirthEnvironment + env_to_imf_params — NOT a galaxy-wide IGIMF integration.
 
@@ -324,7 +324,7 @@ The functional alpha_3(environment) relations: the high-mass IMF slope as a func
 (card-schechter)=
 ## Schechter exponential-cutoff IMF
 
-**Status:** ✅ verified
+✅ verified · 1 equation · 1 source · [API: `Schechter`](../30-api/imf.md#api-imf-schechter)
 
 Power law with an exponential high-mass cutoff, f(m) proportional to m^-alpha exp(-m/m_star) — Schechter's (1976) galaxy-luminosity-function form repurposed as an IMF for extreme environments / IGIMF-style truncation studies.
 

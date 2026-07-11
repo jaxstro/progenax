@@ -49,42 +49,36 @@ Interpretation:
     - Λ_MSR >> 1 (e.g., 3-5): Strong segregation
     - Λ_MSR < 1: Inverse segregation (rare)
 
-Args:
-    positions: Stellar positions (N, 3) as NumPy array
-    masses: Stellar masses (N,) as NumPy array
-    N_massive: Number of most massive stars to use for comparison.
-               Typical values: 10-20 for clusters with N~1000.
-    N_random_samples: Number of random subsets for comparison.
-                      Default 50 is for quick validation; use >= 200
-                      for science-quality results.
-    seed: Random seed for reproducibility
+**Args**
 
-Returns:
-    lambda_msr: Mass segregation ratio
-    error: Standard error estimate (σ_random / L_massive)
+| Parameter | Description |
+|---|---|
+| `positions` | Stellar positions (N, 3) as NumPy array |
+| `masses` | Stellar masses (N,) as NumPy array |
+| `N_massive` | Number of most massive stars to use for comparison. Typical values: 10-20 for clusters with N~1000. |
+| `N_random_samples` | Number of random subsets for comparison. Default 50 is for quick validation; use >= 200 for science-quality results. |
+| `seed` | Random seed for reproducibility |
 
-Raises:
-    ValueError: If N_massive < 2 or N_massive >= N
+**Returns:** lambda_msr: Mass segregation ratio error: Standard error estimate (σ_random / L_massive)
 
-Example:
-    >>> import numpy as np
-    >>> positions = np.random.randn(1000, 3)
-    >>> masses = np.random.power(2.3, 1000)
-    >>> lam, err = compute_lambda_msr(positions, masses, N_massive=10)
-    >>> print(f"Λ_MSR = {lam:.2f} ± {err:.2f}")
+**Raises:** ValueError: If N_massive < 2 or N_massive >= N
 
-Notes:
-    Uses scipy.sparse.csgraph.minimum_spanning_tree for MST computation.
-    Not differentiable; for validation/calibration only.
+**Example.** >>> import numpy as np
+>>> positions = np.random.randn(1000, 3)
+>>> masses = np.random.power(2.3, 1000)
+>>> lam, err = compute_lambda_msr(positions, masses, N_massive=10)
+>>> print(f"Λ_MSR = {lam:.2f} ± {err:.2f}")
 
-    Caution: Strongly affected by binaries (massive binaries have very
-    short MST edges). For systems with binaries, consider using only
-    binary center-of-mass positions.
+**Notes.** Uses scipy.sparse.csgraph.minimum_spanning_tree for MST computation.
+Not differentiable; for validation/calibration only.
 
-References:
-    Allison et al. (2009), MNRAS 395, 1449 — formal Λ_MSR definition.
-    Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
-        Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
+Caution: Strongly affected by binaries (massive binaries have very
+short MST edges). For systems with binaries, consider using only
+binary center-of-mass positions.
+
+**References.** Allison et al. (2009), MNRAS 395, 1449 — formal Λ_MSR definition.
+Allison et al. (2009), ApJ 700, L99 — application (note: L99 Eq. 1 is the
+Spitzer t_seg relation, NOT Λ_MSR; verified against the held PDF 2026-06-08).
 
 *Source: [`src/progenax/diagnostics/mass_segregation.py#L43`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/mass_segregation.py#L43)*
 
@@ -92,6 +86,8 @@ References:
 ## `diagnostics.compute_q_parameter`
 
 *function*
+
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-cw04_q)
 
 ```python
 compute_q_parameter(positions: 'np.ndarray') -> 'float'
@@ -110,55 +106,35 @@ Where:
 
 This is the substructure metric, NOT the virial ratio Q_vir.
 
-Args:
-    positions: Stellar positions (N, 2) or (N, 3) as NumPy array.
-        If 3D, positions are projected to x-y plane (CW04 methodology).
+**Args**
 
-Returns:
-    Q: Cartwright-Whitworth Q parameter
+| Parameter | Description |
+|---|---|
+| `positions` | Stellar positions (N, 2) or (N, 3) as NumPy array. If 3D, positions are projected to x-y plane (CW04 methodology). |
 
-CW04 Table 1 — published Q = m̄/s̄ (artificial clusters, N≈100-300, 3D→2D projected):
-    - Uniform sphere (3D0): s̄=0.80, m̄=0.63, Q=0.79 ± 0.02
-    - r^-1 radial (3D1):    Q = 0.84 ± 0.02
-    - r^-2 radial (3D2):    Q = 0.93 ± 0.03
-    - Fractal D=2.5 (F2.5): Q = 0.73 ± 0.06
-    - Fractal D=2.0 (F2.0): Q = 0.61 ± 0.08
-    - Fractal D=1.5 (F1.5): Q = 0.45 ± 0.09
-This estimator (area A=πR²) reproduces the RADIAL Q to <0.01. For the FRACTAL
-clusters it returns Q ≈ 0.47/0.58/0.70 at D=1.5/2.0/2.5 — consistent within CW04's
-±0.06-0.09 but offset ~0.02-0.03 from the published values, most likely because
-CW04 normalize by a different cluster-footprint area (a clumpy fractal deviates
-most from πR²). Only the radial anchors trace verbatim to CW04 Table 1.
+**Returns:** Q: Cartwright-Whitworth Q parameter CW04 Table 1 — published Q = m̄/s̄ (artificial clusters, N≈100-300, 3D→2D projected): - Uniform sphere (3D0): s̄=0.80, m̄=0.63, Q=0.79 ± 0.02 - r^-1 radial (3D1):    Q = 0.84 ± 0.02 - r^-2 radial (3D2):    Q = 0.93 ± 0.03 - Fractal D=2.5 (F2.5): Q = 0.73 ± 0.06 - Fractal D=2.0 (F2.0): Q = 0.61 ± 0.08 - Fractal D=1.5 (F1.5): Q = 0.45 ± 0.09 This estimator (area A=πR²) reproduces the RADIAL Q to <0.01. For the FRACTAL clusters it returns Q ≈ 0.47/0.58/0.70 at D=1.5/2.0/2.5 — consistent within CW04's ±0.06-0.09 but offset ~0.02-0.03 from the published values, most likely because CW04 normalize by a different cluster-footprint area (a clumpy fractal deviates most from πR²). Only the radial anchors trace verbatim to CW04 Table 1. Interpretation: - Q < 0.80: Substructured (fractal, clumpy) - Q ≈ 0.80: Homogeneous sphere - Q > 0.80: Centrally concentrated (radial profile dominates)
 
-Interpretation:
-    - Q < 0.80: Substructured (fractal, clumpy)
-    - Q ≈ 0.80: Homogeneous sphere
-    - Q > 0.80: Centrally concentrated (radial profile dominates)
+**Example.** >>> import numpy as np
+>>> # Random uniform sphere
+>>> rng = np.random.default_rng(42)
+>>> u = rng.uniform(0, 1, 300)
+>>> r = u**(1/3)
+>>> theta = np.arccos(2*rng.uniform(0, 1, 300) - 1)
+>>> phi = rng.uniform(0, 2*np.pi, 300)
+>>> positions = np.column_stack([
+...     r * np.sin(theta) * np.cos(phi),
+...     r * np.sin(theta) * np.sin(phi),
+...     r * np.cos(theta),
+... ])
+>>> Q = compute_q_parameter(positions)
+>>> print(f"Q = {Q:.2f}")  # Should be ~0.79 for uniform sphere
 
-Example:
-    >>> import numpy as np
-    >>> # Random uniform sphere
-    >>> rng = np.random.default_rng(42)
-    >>> u = rng.uniform(0, 1, 300)
-    >>> r = u**(1/3)
-    >>> theta = np.arccos(2*rng.uniform(0, 1, 300) - 1)
-    >>> phi = rng.uniform(0, 2*np.pi, 300)
-    >>> positions = np.column_stack([
-    ...     r * np.sin(theta) * np.cos(phi),
-    ...     r * np.sin(theta) * np.sin(phi),
-    ...     r * np.cos(theta),
-    ... ])
-    >>> Q = compute_q_parameter(positions)
-    >>> print(f"Q = {Q:.2f}")  # Should be ~0.79 for uniform sphere
+**Notes.** O(N²) complexity due to pairwise distance computation.
+For large N (> 5000), consider using a random subsample.
 
-Notes:
-    O(N²) complexity due to pairwise distance computation.
-    For large N (> 5000), consider using a random subsample.
+Not differentiable; for validation/calibration only.
 
-    Not differentiable; for validation/calibration only.
-
-References:
-    Cartwright & Whitworth (2004), MNRAS 348, 589
+**References.** Cartwright & Whitworth (2004), MNRAS 348, 589
 
 *Source: [`src/progenax/diagnostics/substructure.py#L48`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/substructure.py#L48)*
 
@@ -181,27 +157,26 @@ linearly with fractal dimension:
 
 Where D is the fractal dimension (1.5-3.0).
 
-Args:
-    positions: Stellar positions (N, 3) as NumPy array
-    n_bins: Number of azimuthal bins (default 12, i.e., 30° sectors)
+**Args**
 
-Returns:
-    sigma_over_mean: Relative variation σ_Σ / <Σ>
+| Parameter | Description |
+|---|---|
+| `positions` | Stellar positions (N, 3) as NumPy array |
+| `n_bins` | Number of azimuthal bins (default 12, i.e., 30° sectors) |
 
-Example:
-    >>> import numpy as np
-    >>> positions = np.random.randn(1000, 3)  # Gaussian cluster
-    >>> var = compute_azimuthal_variation(positions)
-    >>> print(f"σ_Σ/<Σ> = {var:.3f}")
+**Returns:** sigma_over_mean: Relative variation σ_Σ / <Σ>
 
-Notes:
-    Practical alternative to Q parameter for large clusters.
+**Example.** >>> import numpy as np
+>>> positions = np.random.randn(1000, 3)  # Gaussian cluster
+>>> var = compute_azimuthal_variation(positions)
+>>> print(f"σ_Σ/<Σ> = {var:.3f}")
 
-    The linear relation to D allows estimation of fractal dimension:
-        D ≈ (1.45 - σ_Σ/<Σ>) / 0.46
+**Notes.** Practical alternative to Q parameter for large clusters.
 
-References:
-    Küpper et al. (2011), MNRAS 417, 2300
+The linear relation to D allows estimation of fractal dimension:
+D ≈ (1.45 - σ_Σ/<Σ>) / 0.46
+
+**References.** Küpper et al. (2011), MNRAS 417, 2300
 
 *Source: [`src/progenax/diagnostics/substructure.py#L167`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/substructure.py#L167)*
 
@@ -210,21 +185,25 @@ References:
 
 *function*
 
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-cw04_q) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
+
 ```python
 q_approx(positions: "Float[Array, 'N 3']", project_to_2d: 'bool' = True, method: "Literal['auto', 'naive', 'fast']" = 'auto', calibration: 'float' = 1.287344, **kwargs) -> "Float[Array, '']"
 ```
 
 Compute approximate Q parameter with automatic method selection.
 
-Args:
-    positions: Particle positions [N, 3] or [N, 2]
-    project_to_2d: Project to xy plane (CW04 methodology)
-    method: "auto" (default), "naive", or "fast"
-    calibration: Multiplicative calibration factor
-    **kwargs: Passed to underlying implementation
+**Args**
 
-Returns:
-    Q_approx: Approximate Q parameter (scalar)
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions [N, 3] or [N, 2] |
+| `project_to_2d` | Project to xy plane (CW04 methodology) |
+| `method` | "auto" (default), "naive", or "fast" |
+| `calibration` | Multiplicative calibration factor |
+| `**kwargs` | Passed to underlying implementation |
+
+**Returns:** Q_approx: Approximate Q parameter (scalar)
 
 *Source: [`src/progenax/diagnostics/q_approx.py#L255`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/q_approx.py#L255)*
 
@@ -241,13 +220,15 @@ Compute approximate Q parameter using O(N^2) brute-force kNN.
 
 Suitable for N < 2000 where O(N^2) is acceptable.
 
-Args:
-    positions: Particle positions [N, 3] or [N, 2]
-    project_to_2d: Project to xy plane (CW04 methodology)
-    calibration: Multiplicative calibration factor
+**Args**
 
-Returns:
-    Q_approx: Approximate Q parameter (scalar)
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions [N, 3] or [N, 2] |
+| `project_to_2d` | Project to xy plane (CW04 methodology) |
+| `calibration` | Multiplicative calibration factor |
+
+**Returns:** Q_approx: Approximate Q parameter (scalar)
 
 *Source: [`src/progenax/diagnostics/q_approx.py#L45`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/q_approx.py#L45)*
 
@@ -265,14 +246,16 @@ Compute approximate Q parameter using O(N log N) spatial indexing.
 Uses Morton-based spatial binning from jaxstro.spatial for efficient
 k-nearest neighbor computation.
 
-Args:
-    positions: Particle positions [N, 3] or [N, 2]
-    project_to_2d: Project to xy plane (CW04 methodology)
-    nbins_per_dim: Spatial bins per dimension (16-32 recommended)
-    calibration: Multiplicative calibration factor
+**Args**
 
-Returns:
-    Q_approx: Approximate Q parameter (scalar)
+| Parameter | Description |
+|---|---|
+| `positions` | Particle positions [N, 3] or [N, 2] |
+| `project_to_2d` | Project to xy plane (CW04 methodology) |
+| `nbins_per_dim` | Spatial bins per dimension (16-32 recommended) |
+| `calibration` | Multiplicative calibration factor |
+
+**Returns:** Q_approx: Approximate Q parameter (scalar)
 
 *Source: [`src/progenax/diagnostics/q_approx.py#L113`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/q_approx.py#L113)*
 
@@ -287,13 +270,15 @@ calibrate_q_approx(n_samples: 'int' = 100, N_stars: 'int' = 500, seed: 'int' = 4
 
 Determine calibration factor by comparing to exact scipy Q.
 
-Args:
-    n_samples: Number of random samples
-    N_stars: Particles per sample
-    seed: Random seed
+**Args**
 
-Returns:
-    Dictionary with calibration factors and statistics
+| Parameter | Description |
+|---|---|
+| `n_samples` | Number of random samples |
+| `N_stars` | Particles per sample |
+| `seed` | Random seed |
+
+**Returns:** Dictionary with calibration factors and statistics
 
 *Source: [`src/progenax/diagnostics/q_approx.py#L296`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/q_approx.py#L296)*
 
@@ -318,13 +303,15 @@ Smooth soft mass-cut weights ``w_i = sigmoid((m_i - m_cut) / tau)``.
 The shared weighting kernel for every differentiable segregation observable. As
 ``tau -> 0`` the weights approach the hard indicator ``1[m_i > m_cut]``.
 
-Args:
-    masses: Stellar masses ``(N,)``.
-    m_cut: Mass cut defining the "massive" population (same units as ``masses``).
-    tau: Softness scale; smaller is sharper. Must be > 0.
+**Args**
 
-Returns:
-    Weights ``(N,)`` in the open interval ``(0, 1)``.
+| Parameter | Description |
+|---|---|
+| `masses` | Stellar masses ``(N,)``. |
+| `m_cut` | Mass cut defining the "massive" population (same units as ``masses``). |
+| `tau` | Softness scale; smaller is sharper. Must be > 0. |
+
+**Returns:** Weights ``(N,)`` in the open interval ``(0, 1)``.
 
 *Source: [`src/progenax/diagnostics/segregation_approx.py#L52`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/segregation_approx.py#L52)*
 
@@ -355,16 +342,18 @@ Smooth in positions and ``m_cut``; no graph, no ranking -- the cleanest-gradient
 member of the family. As ``tau -> 0`` it reduces to the exact mass-cut radial
 ratio.
 
-Args:
-    positions: Positions ``(N, 3)`` or ``(N, 2)``.
-    masses: Stellar masses ``(N,)``.
-    m_cut: Mass cut for the massive population.
-    tau: Soft mass-cut softness (> 0).
-    project_to_2d: Use projected (x, y) positions (observer-faithful) if True.
-    calibration: Multiplicative calibration factor (fit vs the exact oracle).
+**Args**
 
-Returns:
-    Scalar concentration ``C``.
+| Parameter | Description |
+|---|---|
+| `positions` | Positions ``(N, 3)`` or ``(N, 2)``. |
+| `masses` | Stellar masses ``(N,)``. |
+| `m_cut` | Mass cut for the massive population. |
+| `tau` | Soft mass-cut softness (> 0). |
+| `project_to_2d` | Use projected (x, y) positions (observer-faithful) if True. |
+| `calibration` | Multiplicative calibration factor (fit vs the exact oracle). |
+
+**Returns:** Scalar concentration ``C``.
 
 *Source: [`src/progenax/diagnostics/segregation_approx.py#L73`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/segregation_approx.py#L73)*
 
@@ -372,6 +361,8 @@ Returns:
 ## `diagnostics.lambda_msr_approx`
 
 *function*
+
+[📇 model card](../15-model-reference/tidal_diagnostics.md#card-mass_segregation) · [∇ gradient-verified — 1 audit case](../50-validation/differentiability-audit.md)
 
 ```python
 lambda_msr_approx(positions: Float[Array, 'N D'], masses: Float[Array, 'N'], *, m_cut: ArrayLike, tau: ArrayLike, beta: ArrayLike = 0.1, project_to_2d: bool = True, calibration: float = 1.0) -> Float[Array, '']
@@ -401,17 +392,19 @@ Interpretation:
 As ``tau, beta -> 0`` this reduces (up to the multiplicative ``calibration``) to the
 exact Lambda_MSR -- the central validation route (Oracle 1).
 
-Args:
-    positions: Positions ``(N, 3)`` or ``(N, 2)``.
-    masses: Stellar masses ``(N,)``.
-    m_cut: Mass cut for the massive population.
-    tau: Soft mass-cut softness (> 0).
-    beta: Softmin temperature for the nearest-neighbour distance (> 0).
-    project_to_2d: Use projected (x, y) positions if True (observer-faithful).
-    calibration: Multiplicative calibration vs the exact Lambda_MSR oracle.
+**Args**
 
-Returns:
-    Scalar ``Lambda_soft``.
+| Parameter | Description |
+|---|---|
+| `positions` | Positions ``(N, 3)`` or ``(N, 2)``. |
+| `masses` | Stellar masses ``(N,)``. |
+| `m_cut` | Mass cut for the massive population. |
+| `tau` | Soft mass-cut softness (> 0). |
+| `beta` | Softmin temperature for the nearest-neighbour distance (> 0). |
+| `project_to_2d` | Use projected (x, y) positions if True (observer-faithful). |
+| `calibration` | Multiplicative calibration vs the exact Lambda_MSR oracle. |
+
+**Returns:** Scalar ``Lambda_soft``.
 
 *Source: [`src/progenax/diagnostics/segregation_approx.py#L152`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/segregation_approx.py#L152)*
 
@@ -444,19 +437,19 @@ Interpretation:
     - ``S ~ 0``: no mass--density correlation.
     - ``S < 0``: massive stars in sparser regions (inverse).
 
-Args:
-    positions: Positions ``(N, 3)`` or ``(N, 2)``.
-    masses: Stellar masses ``(N,)``.
-    m_cut: Mass cut for the massive population.
-    tau: Soft mass-cut softness (> 0).
-    k: Nearest-neighbour rank for the local-density estimator (``k = 6``;
-        Casertano & Hut 1985, via Maschberger & Clarke 2011). Must satisfy ``2 <= k < N``.
-    project_to_2d: Use projected (x, y) positions if True (observer-faithful;
-        surface density is intrinsically a projected quantity).
-    calibration: Multiplicative calibration vs the exact Sigma--m oracle.
+**Args**
 
-Returns:
-    Scalar correlation ``S``.
+| Parameter | Description |
+|---|---|
+| `positions` | Positions ``(N, 3)`` or ``(N, 2)``. |
+| `masses` | Stellar masses ``(N,)``. |
+| `m_cut` | Mass cut for the massive population. |
+| `tau` | Soft mass-cut softness (> 0). |
+| `k` | Nearest-neighbour rank for the local-density estimator (``k = 6``; Casertano & Hut 1985, via Maschberger & Clarke 2011). Must satisfy ``2 <= k < N``. |
+| `project_to_2d` | Use projected (x, y) positions if True (observer-faithful; surface density is intrinsically a projected quantity). |
+| `calibration` | Multiplicative calibration vs the exact Sigma--m oracle. |
+
+**Returns:** Scalar correlation ``S``.
 
 *Source: [`src/progenax/diagnostics/segregation_approx.py#L216`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/segregation_approx.py#L216)*
 
@@ -479,15 +472,16 @@ calibration) and the Pearson correlation between soft and exact across the sampl
 Exact oracles: :func:`compute_lambda_msr` (SciPy MST), a hard-cut radial
 concentration, and a SciPy cKDTree k-NN Sigma--m correlation.
 
-Args:
-    n_samples: Number of random clusters.
-    N_stars: Stars per cluster.
-    n_massive: Number of massive stars (placed in a core of varying tightness).
-    m_cut, tau, beta, k: Observable hyperparameters.
-    seed: Base PRNG seed.
+**Args**
 
-Returns:
-    Dict of calibration factors, correlations, and ``n_samples``.
+| Parameter | Description |
+|---|---|
+| `n_samples` | Number of random clusters. |
+| `N_stars` | Stars per cluster. |
+| `n_massive` | Number of massive stars (placed in a core of varying tightness). m_cut, tau, beta, k: Observable hyperparameters. |
+| `seed` | Base PRNG seed. |
+
+**Returns:** Dict of calibration factors, correlations, and ``n_samples``.
 
 *Source: [`src/progenax/diagnostics/segregation_approx.py#L301`](https://github.com/jaxstro/progenax/blob/main/src/progenax/diagnostics/segregation_approx.py#L301)*
 
