@@ -9,8 +9,8 @@ Demonstrates that we can compute:
 This enables inference of birth environment from observed stellar masses.
 
 Run:
-    cd /Users/anna/projects/jaxstro-dev/progenax
-    /Users/anna/miniforge3/envs/astro/bin/python validation/imf_env_gradient_flow.py
+    cd progenax
+    uv run python validation/imf_env_gradient_flow.py
 """
 
 import jax

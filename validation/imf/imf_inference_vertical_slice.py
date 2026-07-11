@@ -7,8 +7,8 @@ SUCCESS CRITERIA:
 3. |α̂_high - α_true| < 0.1 for N=1000 masses
 
 Run:
-    cd /Users/anna/projects/jaxstro-dev/progenax
-    /Users/anna/miniforge3/envs/astro/bin/python validation/imf_inference_vertical_slice.py
+    cd progenax
+    uv run python validation/imf_inference_vertical_slice.py
 """
 
 import jax

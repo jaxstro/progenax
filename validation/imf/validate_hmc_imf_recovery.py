@@ -24,7 +24,7 @@ Output:
   validation/plots/hmc_recovery/maschberger_*.{png,pdf}
 
 Run:
-  cd /Users/anna/projects/jaxstro-dev/progenax
+  cd progenax
   python validation/imf/validate_hmc_imf_recovery.py
 """
 

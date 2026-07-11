@@ -14,8 +14,8 @@ SUCCESS CRITERIA:
 3. Gradient-based recovery of log_mecl from masses
 
 Run:
-    cd /Users/anna/projects/jaxstro-dev/progenax
-    /Users/anna/miniforge3/envs/astro/bin/python validation/imf_vertical_slice.py
+    cd progenax
+    uv run python validation/imf_vertical_slice.py
 """
 
 import jax

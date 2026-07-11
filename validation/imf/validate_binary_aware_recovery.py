@@ -22,7 +22,7 @@ Output:
   validation/imf/plots/binary_aware_recovery.{png,pdf}
 
 Run:
-  cd /Users/anna/projects/jaxstro-dev/progenax
+  cd progenax
   python validation/imf/validate_binary_aware_recovery.py
 """
 
