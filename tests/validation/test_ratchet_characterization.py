@@ -100,9 +100,11 @@ def _fingerprint(rel: str) -> tuple[int, str]:
 # drift here means the refactored provenance registry would scan a different literal set —
 # the exact regression this safety-net exists to catch.
 _GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
+    # Re-frozen 2026-07-10 (audit S4): the expm1-stable kernel rewrite removed the
+    # inline exp_safe blocks, shifting linenos (same 14 literals, same values).
     "src/progenax/imf/power_law.py": (
         14,
-        "737ae43b8d71e8c5d401c2218ddec40f75845afd94243710f3d86ba356348ac8",
+        "b246b278bbb045a86aaa2e424cbbfa548fe9c015ccde6cffe89b95973df8cca3",
     ),
     "src/progenax/imf/chabrier.py": (
         10,
@@ -175,7 +177,7 @@ def test_harness_literal_scan_matches_frozen_golden():
 _GOLDEN_REPRESENTATIVE_LITERALS: dict[str, list[tuple[float, int]]] = {
     # Salpeter alpha, signed Marks/Jerabkova FP coefficients, the Moe Table-13 -2.0 tail,
     # the Sana OB period index, and a Tout ZAMS coefficient row.
-    "src/progenax/imf/power_law.py": [(2.35, 148)],
+    "src/progenax/imf/power_law.py": [(2.35, 144)],  # lineno re-frozen post-S4
     "src/progenax/imf/environment/coefficients.py": [(-0.4072, 50), (-0.87, 28)],
     "src/progenax/imf/binary/moe_di_stefano.py": [
         (-2.0, 194),
@@ -211,7 +213,7 @@ def test_representative_signed_literals_present():
 # tripwire-defeat exclusion is proved on a synthetic fixture below).
 _GOLDEN_CITATION_VERDICTS: list[tuple[str, int, bool]] = [
     # True via the scoped METHOD docstring (Salpeter (1955) in the classmethod docstring).
-    ("src/progenax/imf/power_law.py", 147, True),
+    ("src/progenax/imf/power_law.py", 144, True),  # lineno re-frozen post-S4
     # True via the scoped CLASS docstring (SanaOBPeriod cites Sana et al. (2012)).
     ("src/progenax/binaries/period.py", 138, True),
     # True via the per-array in-window citation comment added at strict-mode adoption: the
