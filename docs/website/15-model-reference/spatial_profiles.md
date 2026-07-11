@@ -251,7 +251,7 @@ The spatial side of the self-consistent Michie–King model: the density generat
 ### Equations
 
 ```{math}
-:label: card-mk-poisson
+:label: card-mk-poisson-profile
 \frac{1}{\xi^2}\frac{d}{d\xi}\!\left(\xi^2\frac{d\psi}{d\xi}\right) = -9\,\frac{\hat\rho(\psi,\ \xi/\hat r_a)}{\hat\rho(W_0,0)}, \qquad \psi(0)=W_0,\ \psi^\prime(0)=0
 ```
 

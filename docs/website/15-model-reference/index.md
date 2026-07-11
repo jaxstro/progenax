@@ -12,7 +12,8 @@ parameters, governing equations, sources (DOI/arXiv/ADS), code entry points,
 and the validation tests that pin the physics.
 
 - [Binary populations & orbits](binaries.md) — Moe & Di Stefano (2017) P–q–e statistics, Period distributions (Öpik / DM91 / Sana+2012), Eccentricity distributions (thermal / uniform / Moe), Kepler orbital elements, Binary-cluster assembly (build_binary_cluster)
-- [Initial mass functions](imfs.md) — Salpeter / Kroupa piecewise power law, Chabrier (2003) lognormal + power law, Maschberger (2013) L3 — the smooth house default, Tapered power law (Parravano+2011 STPL), Truncated IMF (operator), Environment-dependent IMF (Marks+2012 / Jerabkova+2018)
+- [Cluster builders & stellar relations](builders_stellar.md) — Cluster builders (build_cluster + named wrappers), Tout+1996 ZAMS stellar relations
+- [Initial mass functions](imfs.md) — Salpeter / Kroupa piecewise power law, Chabrier (2003) lognormal + power law, Maschberger (2013) L3 — the smooth house default, Tapered power law (Parravano+2011 STPL), Truncated IMF (operator), Environment-dependent IMF (Marks+2012 / Jerabkova+2018), Schechter exponential-cutoff IMF
 - [Multi-component cluster engines](populations.md) — Engine A — multimass lowered-isothermal (LIMEPY family), Engine B — density-defined shared-Ψ Eddington equilibria
 - [Spatial profiles](spatial_profiles.md) — Plummer sphere, King (1966) lowered isothermal, EFF (1987) power-law halo, Michie (1963) anisotropic lowered isothermal
 - [Tidal physics & diagnostics](tidal_diagnostics.md) — Jacobi radius & tidal truncation, Cartwright & Whitworth (2004) Q diagnostic, Primordial mass segregation & Lambda_MSR

@@ -320,3 +320,43 @@ The functional alpha_3(environment) relations: the high-mass IMF slope as a func
 - Jerabkova 2018 Eq. 9 prints a 2.83 (4 pi) density-conversion constant; progenax uses the 8 pi form (constant 0.2161), a deliberate deviation RATIFIED 2026-06-09 (see the provenance ledger and imf/environment/coefficients.py docstrings).
 :::
 
+
+(card-schechter)=
+## Schechter exponential-cutoff IMF
+
+**Status:** ✅ verified
+
+Power law with an exponential high-mass cutoff, f(m) proportional to m^-alpha exp(-m/m_star) — Schechter's (1976) galaxy-luminosity-function form repurposed as an IMF for extreme environments / IGIMF-style truncation studies.
+
+| Use it for | Not for |
+|---|---|
+| ✓ smooth (C^inf) high-mass suppression with a tunable cutoff scale m_star | ✗ the production default (no closed-form inverse; Newton ppf — use Maschberger) |
+| ✓ top-light IMF experiments where a hard m_max is too blunt | ✗ low-mass turnover shapes (no taper below m_star; combine with truncation) |
+
+### Parameters
+
+| Name | Meaning | Units | Typical range | Code |
+|---|---|---|---|---|
+| `alpha` | power-law slope | dimensionless | 2.3 | `Schechter(alpha=...)` |
+| `m_star` | exponential cutoff scale | Msun | 10–100 | `Schechter(m_star=...)` |
+
+### Equations
+
+```{math}
+:label: card-schechter-imf
+f(m) \;\propto\; m^{-\alpha}\, e^{-m/m_\star}
+```
+
+*Symbols:* $m_\star$: exponential cutoff mass [Msun].
+*Assumes:* fixed-iteration Newton ppf (no closed-form inverse); differentiable and JIT-safe.
+
+### Sources
+
+- {cite:t}`Schechter1976` — the analytic form (introduced for the galaxy luminosity function; DOI verified live) *(Eq. 2 (the Schechter form))*
+
+### Code & validation
+
+- code: [`Schechter`](https://github.com/jaxstro/progenax/blob/main/src/progenax/imf/smooth.py) (`src/progenax/imf/smooth.py`)
+- validation: `tests/unit/imf/test_smooth.py::TestSchechter::test_logpdf_large_mass_decays`
+- validation: `tests/unit/imf/test_smooth.py::TestSchechter::test_full_cdf_ppf_roundtrip`
+

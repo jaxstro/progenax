@@ -26,6 +26,9 @@ Phase log (ADR-0034 sequencing):
               Coverage 14/21. GZ15 misprint-admonition fabrication FIXED.
   2026-07-11  B5 tidal+diagnostics: jacobi_tidal, cw04_q, mass_segregation
               (all extra-registry). Coverage still 14/21 registry models.
+  2026-07-11  B6 closeout: cluster_builders (7 builder models), zams_tout1996,
+              schechter. Coverage 21/21 -> REGISTRY_FULL = True (the ratchet
+              now asserts total coverage forever).
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
@@ -45,7 +48,14 @@ CARDED_MODELS: dict[str, str] = {
     "TruncatedIMF": "truncated",
     "build_binary_cluster": "binary_cluster_assembly",
     "MultiComponentCluster": "engine_a_multimass_limepy",
+    "build_cluster": "cluster_builders",
+    "build_plummer_cluster": "cluster_builders",
+    "build_king_cluster": "cluster_builders",
+    "build_eff_cluster": "cluster_builders",
+    "build_michie_cluster": "cluster_builders",
+    "build_limepy_cluster": "cluster_builders",
+    "build_cluster_from_params": "cluster_builders",
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).
-REGISTRY_FULL: bool = False
+REGISTRY_FULL: bool = True  # flipped 2026-07-11 (B6): all 21 models carded

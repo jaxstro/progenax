@@ -355,3 +355,47 @@
   status: verified
   deviations:
     - "Jerabkova 2018 Eq. 9 prints a 2.83 (4 pi) density-conversion constant; progenax uses the 8 pi form (constant 0.2161), a deliberate deviation RATIFIED 2026-06-09 (see the provenance ledger and imf/environment/coefficients.py docstrings)."
+
+- model: schechter
+  family_display: Schechter exponential-cutoff IMF
+  description: >
+    Power law with an exponential high-mass cutoff, f(m) proportional to
+    m^-alpha exp(-m/m_star) — Schechter's (1976) galaxy-luminosity-function
+    form repurposed as an IMF for extreme environments / IGIMF-style
+    truncation studies.
+  when_to_use:
+    good_for:
+      - "smooth (C^inf) high-mass suppression with a tunable cutoff scale m_star"
+      - "top-light IMF experiments where a hard m_max is too blunt"
+    not_for:
+      - "the production default (no closed-form inverse; Newton ppf — use Maschberger)"
+      - "low-mass turnover shapes (no taper below m_star; combine with truncation)"
+  parameters:
+    - name: alpha
+      meaning: "power-law slope"
+      units: dimensionless
+      typical_range: "2.3"
+      code_arg: "Schechter(alpha=...)"
+    - name: m_star
+      meaning: "exponential cutoff scale"
+      units: Msun
+      typical_range: "10–100"
+      code_arg: "Schechter(m_star=...)"
+  sources:
+    - bibkey: Schechter1976
+      provides: "the analytic form (introduced for the galaxy luminosity function; DOI verified live)"
+      locators: ["Eq. 2 (the Schechter form)"]
+  equations:
+    - label: schechter-imf
+      latex: 'f(m) \;\propto\; m^{-\alpha}\, e^{-m/m_\star}'
+      symbols:
+        m_star: {latex: 'm_\star', meaning: "exponential cutoff mass", units: Msun}
+      assumptions: ["fixed-iteration Newton ppf (no closed-form inverse); differentiable and JIT-safe"]
+      theory_ref: null
+  code_refs:
+    - "imf/smooth.py::Schechter"
+  validation:
+    - "tests/unit/imf/test_smooth.py::TestSchechter::test_logpdf_large_mass_decays"
+    - "tests/unit/imf/test_smooth.py::TestSchechter::test_full_cdf_ppf_roundtrip"
+  status: verified
+  deviations: []

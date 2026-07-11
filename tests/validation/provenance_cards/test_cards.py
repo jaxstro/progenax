@@ -139,7 +139,16 @@ def test_validation_node_ids_resolve_and_assert(cards):
     assert not missing, f"validation node ids not collectable: {missing}"
     # Strip parametrize suffixes ("::test_x[case]") — the AST helper resolves the
     # FUNCTION; collection above already proved the specific parametrization exists.
-    toothless = [i for i in all_ids if not _body_has_assert(i.split("[")[0])]
+    # Extend the ratchet's default helper allowlist (ADR-0024) with the local
+    # "_assert_*" wrapper convention (e.g. the builders' _assert_ic_equal).
+    from jaxstro.testing.ratchet import ASSERT_HELPERS
+
+    helpers = ASSERT_HELPERS + ("_assert_",)
+    toothless = [
+        i
+        for i in all_ids
+        if not _body_has_assert(i.split("[")[0], assert_helpers=helpers)
+    ]
     assert not toothless, f"validation tests without an assert: {toothless}"
 
 

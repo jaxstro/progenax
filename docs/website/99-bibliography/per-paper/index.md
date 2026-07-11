@@ -25,6 +25,7 @@ The pages are organised alphabetically by first-author surname.
 - [](merritt-1985.md)
 - [](michie-1963.md)
 - [](binney-mamon-1982.md)
+- [](dejonghe-1987.md)
 - [](strigari-bullock-kaplinghat-2007.md)
 
 ## Initial mass functions
@@ -33,6 +34,7 @@ The pages are organised alphabetically by first-author surname.
 - [](kroupa-2001.md)
 - [](chabrier-2003.md)
 - [](maschberger-2013.md)
+- [](parravano-2011.md)
 
 ## Environment-dependent IMF (IGIMF)
 

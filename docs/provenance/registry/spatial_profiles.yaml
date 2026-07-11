@@ -245,7 +245,7 @@
       provides: "the lowering, the factor-9 nondimensionalization, and the r_c normalization"
       locators: ["Eqs. 15-16"]
   equations:
-    - label: mk-poisson
+    - label: mk-poisson-profile
       latex: '\frac{1}{\xi^2}\frac{d}{d\xi}\!\left(\xi^2\frac{d\psi}{d\xi}\right) = -9\,\frac{\hat\rho(\psi,\ \xi/\hat r_a)}{\hat\rho(W_0,0)}, \qquad \psi(0)=W_0,\ \psi^\prime(0)=0'
       symbols:
         xi: {latex: '\xi', meaning: "dimensionless radius r/r_c", units: dimensionless}

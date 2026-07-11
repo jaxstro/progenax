@@ -39,6 +39,7 @@ FAMILY_TITLES: dict[str, str] = {
     "binaries": "Binary populations & orbits",
     "populations": "Multi-component cluster engines",
     "tidal_diagnostics": "Tidal physics & diagnostics",
+    "builders_stellar": "Cluster builders & stellar relations",
 }
 
 _STATUS_BADGE = {

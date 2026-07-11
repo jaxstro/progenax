@@ -125,6 +125,12 @@ project:
       children:
         - file: 15-model-reference/index.md
         - file: 15-model-reference/spatial_profiles.md
+        - file: 15-model-reference/velocity_dfs.md
+        - file: 15-model-reference/imfs.md
+        - file: 15-model-reference/binaries.md
+        - file: 15-model-reference/populations.md
+        - file: 15-model-reference/tidal_diagnostics.md
+        - file: 15-model-reference/builders_stellar.md
     - title: Architecture & design
       children:
         - file: 20-architecture/index.md
@@ -300,6 +306,8 @@ project:
             - file: 99-bibliography/per-paper/hurley-2000.md
             - file: 99-bibliography/per-paper/hurley-2002.md
             - file: 99-bibliography/per-paper/prsa-2016.md
+            - file: 99-bibliography/per-paper/dejonghe-1987.md
+            - file: 99-bibliography/per-paper/parravano-2011.md
     # Unlisted / not-in-public-nav pages. `hidden: true` builds the page and
     # makes it URL-reachable + linkable, but keeps it out of the navigation
     # (mystmd table-of-contents.md). See _unlisted/index.md for the mechanism.
