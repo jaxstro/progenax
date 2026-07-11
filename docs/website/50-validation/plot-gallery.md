@@ -1,105 +1,165 @@
 ---
 title: Validation plot gallery
-description: Curated gallery of physics-validation figures rendered from the validation/plots/ directory — visual confirmation of the quantitative results documented in the per-suite pages.
+description: Curated gallery of physics-validation figures — sampled-vs-analytic densities, equilibrium dispersions, IMF recoveries, binary results, engines, tidal physics, and the gradient audit, each linking to its quantitative per-suite page.
 ---
 # Validation plot gallery
 
-A curated gallery of physics-validation figures. Each plot
-visualises the quantitative result of a corresponding per-suite
-test page. The filenames below are the figures that currently exist
-under `validation/plots/` (PNG).
+A curated visual tour of the physics-validation evidence — one or two headline
+figures per model family, rendered by the per-suite validation scripts and
+committed under `50-validation/figures/`. **The numbers live on the per-suite
+pages** (linked from every caption); this page is for the eyes.
 
-```{seealso}
-For the *quantitative* numbers behind each plot, see the per-suite
-validation pages: [](plummer-equilibrium.md), [](king-profile.md),
-[](eff-profile.md), [](imf-statistics.md), [](binary-imf.md),
-[](fractal-substructure.md), [](mass-segregation.md),
-[](gravoturbulent-pp20.md), [](two-component.md), [](tidal-truncation.md),
-[](analytical-test-cases.md).
+## Spatial profiles & velocity DFs
+
+```{figure} figures/plummer_density.png
+:width: 85%
+Sampled vs analytic Plummer density — the inverse-CDF position sampler against
+$\rho(r) \propto (1+r^2/a^2)^{-5/2}$. Numbers: [](plummer-equilibrium.md).
 ```
 
-## Spatial profiles
+```{figure} figures/plummer_velocity_equilibrium.png
+:width: 85%
+Plummer velocity equilibrium: sampled dispersion against
+$\sigma_r^2 = GM/(6\sqrt{r^2+a^2})$, unscaled $Q_{\rm vir} = 0.5$.
+Numbers: [](plummer-equilibrium.md).
+```
 
-`validation/plots/profiles/profiles_plummer_density.png`,
-`profiles_king_density.png`, `profiles_eff_density.png` — sampled vs
-analytical density profiles for each model.
+```{figure} figures/king_w0_sweep.png
+:width: 85%
+The King family across $W_0$ — concentration $c(W_0)$ against King (1966)
+Table II. Numbers: [](king-profile.md).
+```
 
-`validation/plots/profiles/profiles_comparison.png` — the three
-profiles overlaid; `profiles_isotropy.png` — velocity isotropy check.
+```{figure} figures/king_velocity_equilibrium.png
+:width: 85%
+King lowered-Maxwellian equilibrium: dispersion falls outward and vanishes at
+$r_t$ (cold outskirts). Numbers: [](king-profile.md).
+```
+
+```{figure} figures/eff_gamma_family.png
+:width: 85%
+The EFF power-law-halo family across $\gamma$ ($\gamma = 5$ is Plummer).
+Numbers: [](eff-profile.md).
+```
+
+```{figure} figures/michie_beta_profile.png
+:width: 85%
+Michie–King anisotropy: realised $\beta(r)$ rises outward and sits below the
+pure Osipkov–Merritt ceiling. Numbers: [](michie-anisotropy.md).
+```
 
 ## Initial mass functions
 
-`validation/plots/imf/{salpeter,kroupa,chabrier}_{pdf,cdf,tail}.png` —
-PDF, CDF, and high-mass tail for each analytic IMF family.
+```{figure} figures/imf_pdf_overlay.png
+:width: 85%
+Salpeter / Kroupa / Chabrier / Maschberger sampled PDFs against their analytic
+forms. Numbers: [](imf-statistics.md).
+```
 
-## Binary IMF recovery
+```{figure} figures/env_fundamental_plane.png
+:width: 85%
+The environment-dependent high-mass slope $\alpha_3(\rho_{\rm cl}, [\mathrm{Fe/H}])$
+— the Marks+2012 fundamental plane with the GC anchors.
+Numbers: [](imf-statistics.md).
+```
 
-`validation/imf/plots/binary_aware_recovery.png` — the headline
-"confidently wrong" result: a naive (binary-blind) fit biases the
-recovered slope while the binary-aware fit recovers the truth.
+## Binary populations
 
-`validation/imf/plots/{maschberger,piecewise}_recovery.png` — slope
-recovery for the smooth and piecewise IMFs.
+```{figure} figures/binaries_moe_qdist.png
+:width: 85%
+Moe & Di Stefano mass-ratio statistics: sampled $g(q \mid M_1, P)$ with the
+twin excess. Numbers: [](binary-imf.md).
+```
 
-## HMC inference
+```{figure} figures/binaries_confidently_wrong.png
+:width: 85%
+The "confidently wrong" headline: a binary-blind IMF fit biases the recovered
+slope with shrinking error bars; the binary-aware fit recovers the truth.
+Numbers: [](binary-imf.md).
+```
 
-`validation/plots/hmc_recovery/imf_hmc_recovery.png` and the
-per-environment posteriors `imf_hmc_posterior_*.png` (solar, low-Z,
-massive GC, NGC 7078, starburst, YMC).
+## Multi-component engines
 
-## Fractal substructure
+```{figure} figures/seg_multimass_equilibrium.png
+:width: 85%
+Engine A multimass equilibrium: per-component $Q_j = 0.5$ unscaled across the
+mass spectrum. Numbers: [](two-component.md).
+```
 
-The fractal-displacement-field *generator* was removed in the 2026-06
-rewrite, so its calibration figures ($Q_{\mathrm{CW}}$ /
-$\sigma_\Sigma/\langle\Sigma\rangle$ vs $D$) are no longer produced. The
-surviving substructure tooling is the CW04 $Q$ diagnostic
-([](fractal-substructure.md)) and the experimental `gravoturb_fdf`
-$Q(f_{\mathrm{sub}})$ calibration (below).
+```{figure} figures/equipartition_saturation.png
+:width: 85%
+The honest sub-equipartition physics: $\sigma(m)$ saturates at low mass
+(escape-speed ceiling) and follows $m^{-1/2}$ in the deep-well limit, with the
+DERIVED $m_{\rm eq}$ crossover. Numbers: [](two-component.md).
+```
 
-## Mass segregation
+```{figure} figures/engine_b_eddington.png
+:width: 85%
+Engine B density-defined equilibria: prescribed component densities, the
+shared-$\Psi$ Eddington DFs, and the realizability margin.
+Numbers: [](engine-b-eddington.md).
+```
 
-**Committed, embedded figures** (under `docs/website/50-validation/figures/`, shown on
-the [mass-segregation validation page](mass-segregation.md) — and, for the diagnostic
-theory, on [](../10-theory/tidal-and-substructure/mass-segregation.md)):
+## Tidal physics & diagnostics
 
-- `lambda_msr_regimes.png`, `lambda_msr_monotonic_convergence.png`,
-  `lambda_msr_binary_caveat.png` — the $\Lambda_{\mathrm{MSR}}$ *diagnostic* validated against
-  analytic ground truth (regenerate: `python scripts/validate_mass_segregation.py`).
-- `cluster_ic_energy_sorted_segregation.png` (+ `cluster_ic_plummer_equilibrium.png`,
-  `cluster_ic_two_component.png`) — the released-core cluster-IC generators
-  (regenerate: `python scripts/validate_cluster_ic.py`).
+```{figure} figures/tidal_jacobi_vs_l1.png
+:width: 85%
+The Jacobi radius against the directly-computed L1 Lagrange distance.
+Numbers: [](tidal-truncation.md).
+```
 
-These are the curated set committed for the docs (a deliberate exception to the
-otherwise-gitignored `validation/plots/`). The *dynamical* mass-segregation figures
-(Λ_MSR(t) evolution) await the deferred gravax N-body experiment.
+```{figure} figures/q_mbar_sbar_plane.png
+:width: 85%
+The CW04 $(\bar m, \bar s)$ plane: substructured, uniform, and centrally
+concentrated configurations separate cleanly.
+Numbers: [](fractal-substructure.md).
+```
 
-## Gravoturbulence (BM19 / PN11 / PP20)
+```{figure} figures/lambda_msr_regimes.png
+:width: 85%
+$\Lambda_{\rm MSR}$ across segregation regimes.
+Numbers: [](mass-segregation.md).
+```
 
-The legacy `bm19_fdf_suite` plot scripts were removed in the 2026-06
-clean-room rewrite. The successor is the experimental **`gravoturb_fdf`**
-package, whose acceptance suite currently *prints* its numbers (AC1–AC10)
-rather than committing figures — run
+## Stellar relations & the gradient gate
+
+```{figure} figures/zams_hr_diagram.png
+:width: 85%
+The Tout+1996 ZAMS in the HR diagram (75/75 coefficients PDF-verified).
+Numbers: [](test-dashboard.md).
+```
+
+```{figure} figures/grad_audit_summary.png
+:width: 80%
+The 98-case gradient gate: 97 clean, 1 pinned known-limitation, 0 hazards.
+Numbers: [](differentiability-audit.md).
+```
+
+```{seealso}
+Every figure above (and ~70 more committed alongside them) also appears on its
+per-suite page with the quantitative tables: [](plummer-equilibrium.md),
+[](king-profile.md), [](eff-profile.md), [](michie-anisotropy.md),
+[](imf-statistics.md), [](binary-imf.md), [](fractal-substructure.md),
+[](mass-segregation.md), [](two-component.md), [](engine-b-eddington.md),
+[](tidal-truncation.md), [](analytical-test-cases.md),
+[](differentiability-audit.md).
+```
+
+## Removed suites (history)
+
+The fractal-displacement-field *generator* and the legacy `bm19_fdf_suite`
+plot scripts were removed in the 2026-06 clean-room rewrite; the surviving
+substructure tooling is the CW04 $Q$ diagnostic ([](fractal-substructure.md)).
+The experimental `gravoturb_fdf` acceptance suite *prints* its numbers
+(AC1–AC17) rather than committing figures — run
 `PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance`
 and see `src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`. Publication
-figures await the jaxstroviz port (this is a repo-only, follow-up-paper
-subsystem).
-
-## Environment-dependent IMF
-
-`validation/plots/env_imf/env_imf_alpha3_surface.png`,
-`env_imf_shapes.png`, `env_imf_gc_validation.png` — the
-$\alpha_3$(density) surface, IMF shapes, and GC validation.
+figures for that subsystem await the jaxstroviz port.
 
 ## Plot regeneration
 
-There is no single unified plot-regeneration entry point in the current
-checkout (the legacy `validation/run_all.py` was removed with the
-gravoturbulent suite). Figures are produced by the per-suite validation
-scripts that survive — for example the IMF / inference figures under
-`validation/imf/`. A unified regenerator and the gravoturbulent figures
-await the jaxstroviz port (see the TODO in `progenax/CLAUDE.md`).
-
-## References
-
-Each plot's underlying test is documented in the corresponding
-per-suite page. Methodology is at [](methodology.md).
+Figures are produced by the per-suite validation scripts
+(`scripts/validate_*.py`; `scripts/release_gate.sh` runs all 24 and refreshes
+`validation_runs.json`). The committed copies under `50-validation/figures/`
+are the deliberate exception to the otherwise-gitignored `validation/plots/`.
+Methodology: [](methodology.md).
