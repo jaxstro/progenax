@@ -21,9 +21,11 @@ progenax extends each isotropic DF with two compositional layers:
 2. **Rotation** — solid-body or differential, applied as an additive
    tangential velocity on top of the isotropic base.
 
-Both layers are *decorators* on the underlying DF: any of
-`PlummerVelocityDF`, `KingVelocityDF`, `EFFVelocityDF` can be wrapped
-with either or both. The composition is order-independent (anisotropy
+The two layers attach differently: anisotropy is *intrinsic to the DF*
+(an `anisotropy_radius` constructor argument on `PlummerVelocityDF` /
+`EFFVelocityDF`), while the rotation overlays are *plain functions* applied
+to the already-sampled `(velocities, positions)` arrays (or declared via
+`RotationParams` in the pipeline). The composition is order-independent (anisotropy
 modifies the velocity ellipsoid; rotation adds a bulk flow), so the
 final IC has the right $\beta(r)$ profile *and* the right rotation
 curve.
@@ -45,6 +47,8 @@ $f(\mathcal{E})$ with a DF that depends on the augmented integral
 Q \;\equiv\; \mathcal{E} - \frac{L^2}{2\,r_a^2}
 ```
 
+[↗ model card](#card-om-Q)
+
 where $L = |\mathbf{r}\times\mathbf{v}|$ is the specific angular
 momentum and $r_a$ is the **anisotropy radius**. The DF $f(Q)$ —
 constructed by Eddington-style inversion using the augmented density
@@ -56,6 +60,8 @@ ellipsoid whose anisotropy is
 \beta(r) \;\equiv\; 1 - \frac{\sigma_t^2(r)}{\sigma_r^2(r)}
 \;=\; \frac{r^2}{r^2 + r_a^2}
 ```
+
+[↗ model card](#card-beta-r)
 
 Three regimes:
 
@@ -164,9 +170,12 @@ with $I_\perp$ the moment of inertia perpendicular to $\mathbf{\Omega}$.
 Because solid-body rotation adds *only* tangential velocity, the
 random-motion velocity dispersion is preserved — but the total
 kinetic energy increases, which means the resulting cluster is
-*supervirial* by $T_{\mathrm{rot}}/|V|$. progenax handles this by
-rescaling the velocities to a target $Q_{\mathrm{vir}}$ via
-`virial_scale` after rotation is applied.
+*supervirial* by $T_{\mathrm{rot}}/|V|$. You can rescale the speeds to a
+target $Q_{\mathrm{vir}}$ via `virial_scale` after rotation is applied,
+but note the source module's own warning: a uniform speed rescale does
+**not** restore stationarity — it cannot remove the injected angular
+momentum $L_z$, so a rotation-overlaid IC is a deliberately rotating,
+*non-stationary* initial condition.
 
 ```{note}
 **The virial rescaling preserves rotation direction.** `virial_scale`
@@ -180,14 +189,24 @@ rotation rather than the absolute rotation rate.
 ```
 
 ```python
+from progenax import PlummerProfile, PlummerVelocityDF, virial_scale
 from progenax.kinematics import apply_solid_body_rotation
 
-base_df = PlummerVelocityDF(r_h=1.0)
-rot_df = apply_solid_body_rotation(base_df, omega=jnp.array([0.0, 0.0, 0.5]))
+profile = PlummerProfile(r_h=1.0)
+df = PlummerVelocityDF(r_h=1.0)
+positions = profile.sample_positions(masses, key_pos)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
-velocities = rot_df.sample_velocities(positions, masses, key, G=STELLAR.G)
-# Then virial-rescale to target Q_vir
-positions, velocities, masses = virial_scale(positions, velocities, masses, G=STELLAR.G)
+# Overlay: add the streaming component v_rot = omega x r. The overlays are
+# plain FUNCTIONS on (velocities, positions) arrays — not DF wrappers.
+velocities = apply_solid_body_rotation(
+    velocities, positions, omega=0.5, axis=jnp.array([0.0, 0.0, 1.0])
+)
+
+# Optional: rescale speeds to a target Q_vir (returns the scaled velocities).
+# CAVEAT: the uniform rescale cannot remove the injected L_z — the rotating
+# IC is deliberately NON-STATIONARY (see kinematics/rotation.py's docstring).
+velocities = virial_scale(positions, velocities, masses, Q_target=0.5, G=STELLAR.G)
 ```
 
 ## Differential rotation
@@ -200,33 +219,35 @@ $\mathbf{\Omega}$ to depend on position:
 \mathbf{v}_i \;=\; \mathbf{v}_i^{\mathrm{iso}} + \mathbf{\Omega}(r_i) \times \mathbf{r}_i.
 ```
 
-The most common parameterisation is a power-law in cylindrical
-radius $R = \sqrt{x^2 + y^2}$:
+progenax implements a *peaked* rotation curve in cylindrical radius
+$R = \sqrt{x^2 + y^2}$:
 
 ```{math}
 :label: omega-power-law
-\Omega(R) \;=\; \Omega_0\,\biggl(\frac{R}{R_0}\biggr)^{-q}
+v_\phi(R) \;=\; v_{\mathrm{peak}}\,\frac{R}{R_{\mathrm{peak}}}\,
+  \exp\!\Bigl(1 - \frac{R}{R_{\mathrm{peak}}}\Bigr)
 ```
 
-with $q = 0$ recovering solid-body rotation, $q = 1$ giving
-constant-circular-velocity flat rotation, and $q = 2$ giving
-Keplerian fall-off. progenax exposes the rotation profile as a
-user-supplied callable for full flexibility:
+which is solid-body ($v_\phi \propto R$, $\Omega$ constant) in the core,
+reaches $v_{\mathrm{peak}}$ exactly at $R = R_{\mathrm{peak}}$, and decays
+exponentially outward — no rotation at the centre or in the far outskirts,
+the shape observed in rotating globular clusters. (An earlier revision of
+this page described a user-supplied power-law $\Omega(R)$ callable; the
+shipped API takes the two scalars below.)
 
 ```python
 from progenax.kinematics import apply_differential_rotation
 
-def omega_profile(R):
-    return 0.5 * (R / 1.0) ** -1.0   # Flat rotation curve
-
-rot_df = apply_differential_rotation(base_df, omega_profile=omega_profile)
-velocities = rot_df.sample_velocities(positions, masses, key, G=STELLAR.G)
+velocities = apply_differential_rotation(
+    velocities, positions, v_peak=0.5, R_peak=1.0,
+    axis=jnp.array([0.0, 0.0, 1.0]),
+)
 ```
 
-The decorator takes the callable and applies it via `jax.vmap` over
-particles. The callable must be JAX-traceable (use `jnp` operations
-internally) so the resulting DF remains JIT-compatible and
-differentiable in any parameters of the rotation profile.
+The overlay is a plain function on the sampled `(velocities, positions)`
+arrays, fully `vmap`/JIT-compatible and differentiable in
+$v_{\mathrm{peak}}$ and $R_{\mathrm{peak}}$ (both are grad-audited
+registry cases).
 
 ## Composability
 
@@ -269,7 +290,7 @@ dispersions.
 
 ## Implementation, validation & references
 
-- **In code:** the rotation decorators live in
+- **In code:** the rotation overlays live in
   `src/progenax/kinematics/rotation.py`
   (`apply_solid_body_rotation`, `apply_differential_rotation`); the
   Osipkov–Merritt anisotropy is an intrinsic option on the DFs in

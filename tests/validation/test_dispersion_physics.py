@@ -564,9 +564,10 @@ def test_projection_isotropic_plummer_los_oracle():
     """TIGHT absolute oracle: isotropic-Plummer projected LOS dispersion has the
     EXACT closed form sigma_los^2(R) = (3 pi / 64) G M / sqrt(a^2 + R^2).
 
-    Source: Dejonghe (1987, MNRAS 224, 13) gives the projected dispersion of the
-    Plummer family; for the isotropic member it reduces to the (3 pi / 64) form
-    above. INDEPENDENTLY confirmed in-session by a scipy.integrate.quad evaluation
+    Source: Dejonghe (1987, MNRAS 224, 13) Eq. 43 (p. 24), PDF-verified 2026-07-10:
+    sigma_p^2 = (3 pi / 32) [1/(6-q)] [1/sqrt(1+r_p^2)] (3 - (5q/4) r_p^2/(1+r_p^2))
+    in G=M=a=1 units; the isotropic member q=0 reduces exactly to the (3 pi / 64)
+    form above. INDEPENDENTLY confirmed in-session by a scipy.integrate.quad evaluation
     of the B&M82 LOS integral (r^2=R^2+u^2 substitution), which reproduces this
     closed form to 6+ significant figures across R in [1e-4, 4] a — so it is
     source-verified AND numerically cross-checked, not fabricated.

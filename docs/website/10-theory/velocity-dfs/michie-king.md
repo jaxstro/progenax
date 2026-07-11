@@ -26,6 +26,8 @@ f(E, J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right)
    \left[\exp\!\left(-\frac{E}{\sigma^2}\right) - 1\right],\qquad E \le 0,
 ```
 
+[↗ model card](#card-mk-df)
+
 with $E=\tfrac12 v^2 + \Phi$, $J = r v_t$. The Gaussian $\exp(-J^2/2r_a^2\sigma^2)$
 depopulates high-angular-momentum (tangential) orbits — increasingly so at large $r$
 (since $J^2\propto r^2$) — so the velocity ellipsoid is isotropic at the centre and
@@ -50,14 +52,19 @@ DF-implied profile, **not** the OM form $r^2/(r^2+r_a^2)$.
 ## Self-consistency
 
 The density is the velocity integral of {eq}`mk-df`, which depends on radius explicitly
-through the anisotropy term, giving a radius-dependent King ODE (Michie 1963, Eq. 5.8;
-$\xi=r/r_c$, $\hat r_a = r_a/r_c$):
+through the anisotropy term, giving a radius-dependent King ODE — the King-1966
+nondimensionalization of Michie (1963) Eq. 5.8, whose anisotropy weight
+$e^{-Cz^2\eta^2(1-\mu^2)}$ is our $e^{-J^2/2r_a^2\sigma^2}$ ($\xi=r/r_c$,
+$\hat r_a = r_a/r_c$):
 
 ```{math}
+:label: mk-poisson
 \frac{1}{\xi^2}\frac{d}{d\xi}\!\left(\xi^2\frac{d\psi}{d\xi}\right)
   = -9\,\frac{\hat\rho(\psi,\ \xi/\hat r_a)}{\hat\rho(W_0,0)},
 \qquad \psi(0)=W_0,\ \psi'(0)=0.
 ```
+
+[↗ model card](#card-mk-poisson)
 
 `progenax` solves this with `diffrax` (differentiable), the velocity scale fixed
 self-consistently as $\sigma^2 = GM/(9 r_c \mu)$ — so the ICs are virial ($Q\approx0.5$)

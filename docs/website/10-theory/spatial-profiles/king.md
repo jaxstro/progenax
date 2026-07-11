@@ -255,8 +255,8 @@ profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
 df = KingVelocityDF(W0=7.0, r_c=1.0)                 # r_t derived from W0
 
 masses = jnp.ones(1000)
-positions = profile.sample_positions(masses, key)
-velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+positions = profile.sample_positions(masses, key_pos)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
 The `solve_king_profile` call is the ODE helper for the King profile; it

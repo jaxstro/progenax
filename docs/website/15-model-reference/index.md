@@ -11,4 +11,5 @@ One generated page per model family. Each card: description, when to use,
 parameters, governing equations, sources (DOI/arXiv/ADS), code entry points,
 and the validation tests that pin the physics.
 
-- [Spatial profiles](spatial_profiles.md) — Plummer sphere, King (1966) lowered isothermal, EFF (1987) power-law halo
+- [Spatial profiles](spatial_profiles.md) — Plummer sphere, King (1966) lowered isothermal, EFF (1987) power-law halo, Michie (1963) anisotropic lowered isothermal
+- [Velocity distribution functions](velocity_dfs.md) — Plummer isotropic DF, King lowered-Maxwellian DF, Michie–King anisotropic DF, EFF Eddington-inversion DF, Osipkov–Merritt anisotropy overlay

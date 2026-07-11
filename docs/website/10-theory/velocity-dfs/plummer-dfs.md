@@ -28,28 +28,33 @@ extensions in [](rotation-anisotropy.md).
 ## Eddington inversion in one paragraph
 
 For a spherical, isotropic system, the DF depends only on the binding
-energy $\mathcal{E} \equiv -E = -\tfrac{1}{2}v^2 - \Phi(r)$. The
-Eddington formula
+energy $\mathcal{E} \equiv -E = -\tfrac{1}{2}v^2 + \Psi(r)$, where
+$\Psi \equiv -\Phi$ is the **relative potential** (positive for a bound
+system, $\Psi \to 0$ at infinity). The Eddington formula
 
 ```{math}
 :label: eddington
 f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2}
-\biggl[\,\int_0^{\mathcal{E}} \frac{\mathrm{d}^2\rho}{\mathrm{d}\Phi^2}\,\frac{\mathrm{d}\Phi}{\sqrt{\mathcal{E} - \Phi}} + \frac{1}{\sqrt{\mathcal{E}}}\,\biggl(\frac{\mathrm{d}\rho}{\mathrm{d}\Phi}\biggr)_{\!\Phi=0}\,\biggr]
+\biggl[\,\int_0^{\mathcal{E}} \frac{\mathrm{d}^2\rho}{\mathrm{d}\Psi^2}\,\frac{\mathrm{d}\Psi}{\sqrt{\mathcal{E} - \Psi}} + \frac{1}{\sqrt{\mathcal{E}}}\,\biggl(\frac{\mathrm{d}\rho}{\mathrm{d}\Psi}\biggr)_{\!\Psi=0}\,\biggr]
 ```
 
-inverts the spatial-density profile $\rho(\Phi)$ — the density
-expressed as a function of the local potential — into the DF $f(\mathcal{E})$.
-The boundary term vanishes for systems with $\rho \to 0$ as $\Phi \to 0$
-(i.e. cluster density vanishing at infinity, which Plummer satisfies).
-For Plummer the full inversion gives a closed-form DF in $\mathcal{E}$
-alone.
+[↗ model card](#card-eddington)
+
+inverts the spatial-density profile $\rho(\Psi)$ — the density
+expressed as a function of the relative potential — into the DF $f(\mathcal{E})$.
+(An earlier revision of this page wrote the integration variable as $\Phi$;
+the integral runs over the positive relative potential, so $\Psi$ is the
+honest symbol.) The boundary term vanishes for systems with $\rho \to 0$
+as $\Psi \to 0$ (i.e. cluster density vanishing at infinity, which
+Plummer satisfies). For Plummer the full inversion gives a closed-form
+DF in $\mathcal{E}$ alone.
 
 ## The Plummer DF
 
 Substituting Plummer's
 
 ```{math}
-\rho(\Phi) \;=\; \frac{3 M}{4\pi a^3}\,\biggl(\frac{-\Phi\,a}{GM}\biggr)^{\!5}
+\rho(\Psi) \;=\; \frac{3 M}{4\pi a^3}\,\biggl(\frac{\Psi\,a}{GM}\biggr)^{\!5}
 ```
 
 into {eq}`eddington` and integrating yields
@@ -58,6 +63,8 @@ into {eq}`eddington` and integrating yields
 :label: plummer-df-final
 \boxed{\;\;f(\mathcal{E}) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,\mathcal{E}^{7/2},\qquad \mathcal{E} > 0\;\;}
 ```
+
+[↗ model card](#card-plummer-df-final)
 
 with $\mathcal{E} = -E = GM/\sqrt{r^2 + a^2} - \tfrac{1}{2}v^2$. The
 $\mathcal{E}^{7/2}$ exponent is the signature of the Plummer profile —
@@ -108,6 +115,8 @@ f(v \mid r) \;\propto\; v^2\,\mathcal{E}(r, v)^{7/2},\qquad
 \mathcal{E}(r, v) = \frac{GM}{\sqrt{r^2+a^2}} - \tfrac{1}{2}v^2
 ```
 
+[↗ model card](#card-plummer-fv)
+
 with $v \in [0, v_{\mathrm{esc}}(r)]$. The distribution is bounded,
 unimodal, and smooth, so progenax uses a fixed-iteration
 inverse-CDF lookup table rather than rejection sampling. The lookup
@@ -138,13 +147,14 @@ import jax, jax.numpy as jnp
 df = PlummerVelocityDF(r_h=1.0)        # Half-mass radius in pc
 masses = jnp.ones(1000)
 key = jax.random.PRNGKey(42)
+key_pos, key_vel = jax.random.split(key)   # never reuse a key
 
 # Positions from the matched profile (any sampled positions work)
 from progenax.profiles import PlummerProfile
-positions = PlummerProfile(r_h=1.0).sample_positions(masses, key)
+positions = PlummerProfile(r_h=1.0).sample_positions(masses, key_pos)
 
 # Sample velocities consistent with f(E) ∝ E^(7/2)
-velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
 # The DF is an exact equilibrium, so Q_vir -> 0.5 with no rescale
 # (finite-N: 0.5 +/- ~5e-3 at N=1e4, the Monte-Carlo fluctuation)

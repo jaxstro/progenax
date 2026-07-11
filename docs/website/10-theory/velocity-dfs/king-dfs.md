@@ -35,6 +35,8 @@ f(E) \;=\;
 \end{cases}
 ```
 
+[↗ model card](#card-king-df-velocity)
+
 where $\sigma_0$ is the central one-dimensional velocity dispersion,
 $\Phi_t \equiv \Phi(r_t)$ is the potential at the tidal radius, and
 $\rho_1$ is a normalisation constant. The "$-1$" subtraction is the
@@ -67,6 +69,8 @@ distribution at fixed position:
 f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr],
 \qquad 0 \le v \le \sigma_0\sqrt{2W}
 ```
+
+[↗ model card](#card-king-fv)
 
 The $v^2$ prefactor is the spherical-shell volume element in velocity
 space. The bracketed factor is positive throughout $0 \le v \le
@@ -110,6 +114,8 @@ The King DF's velocity dispersion at radius $r$ is
 \sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} v^4\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}{\int_0^{\sqrt{2W}} v^2\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}
 ```
 
+[↗ model card](#card-king-sigma)
+
 (in units where $\sigma_0 = 1$). The integrals do not have closed
 form in general, but progenax precomputes $\sigma(W)$ on the same
 $W$-grid used for the speed-CDF table inside the sampler. The current
@@ -139,8 +145,8 @@ profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
 df = KingVelocityDF(W0=7.0, r_c=1.0)   # r_t is derived from W0 internally
 
 masses = jnp.ones(1000)
-positions = profile.sample_positions(masses, key)
-velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+positions = profile.sample_positions(masses, key_pos)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
 `KingVelocityDF` takes only `(W0, r_c)` — it re-solves the King ODE

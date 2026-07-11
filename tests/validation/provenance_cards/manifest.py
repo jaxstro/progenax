@@ -14,6 +14,8 @@ manifest could not catch a silently deleted card):
 
 Phase log (ADR-0034 sequencing):
   2026-07-10  pilot: plummer_profile, king_profile, eff_profile (ledger-verified trio).
+  2026-07-11  B1 velocity DFs: plummer_df, king_df, michie_df, eff_df, om_anisotropy
+              (overlay, extra-registry) + michie_profile. Coverage 8/21.
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
@@ -22,6 +24,11 @@ CARDED_MODELS: dict[str, str] = {
     "PlummerProfile": "plummer_profile",
     "KingProfile": "king_profile",
     "EFFProfile": "eff_profile",
+    "MichieProfile": "michie_profile",
+    "PlummerVelocityDF": "plummer_df",
+    "KingVelocityDF": "king_df",
+    "MichieVelocityDF": "michie_df",
+    "EFFVelocityDF": "eff_df",
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).

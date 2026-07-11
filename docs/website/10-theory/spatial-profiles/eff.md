@@ -178,6 +178,8 @@ f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2}
 + \frac{1}{\sqrt{\mathcal{E}}}\left(\frac{\mathrm{d}\rho}{\mathrm{d}\Psi}\right)_{\!\Psi=0}\right],
 ```
 
+[↗ model card](#card-eff-eddington)
+
 evaluated numerically on a tabulated grid at initialisation; speeds are then
 drawn per particle from $g(v)\propto v^2 f(\Psi(r) - v^2/2)$ by inverse-CDF.
 The construction is differentiable in $\gamma$, $a$, and $r_t$ through the
@@ -199,8 +201,8 @@ profile = EFFProfile(a=1.0, gamma=3.0, r_t=10.0)   # a = scale radius, r_t = tru
 df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)      # match a, gamma, r_t
 
 masses = jnp.ones(1000)
-positions = profile.sample_positions(masses, key)
-velocities = df.sample_velocities(positions, masses, key, G=STELLAR.G)
+positions = profile.sample_positions(masses, key_pos)
+velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
 `EFFProfile` is a fully-vectorised Equinox module. `EFFVelocityDF` builds the

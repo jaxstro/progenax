@@ -1,0 +1,290 @@
+# Provenance model cards — velocity distribution functions (ADR-0034).
+# Generated glossary: docs/website/15-model-reference/velocity_dfs.md (do not hand-edit).
+# Equations transcribed VERBATIM from the ledger-verified theory pages; every source
+# locator below was read from the held PDF or the PDF-verified per-paper note
+# (docs/website/99-bibliography/per-paper/) — never from memory.
+# Phase B1 (2026-07-11): plummer_df, king_df, michie_df, eff_df, om_anisotropy.
+
+- model: plummer_df
+  family_display: Plummer isotropic DF
+  description: >
+    The closed-form ergodic equilibrium DF of the Plummer sphere,
+    f(E) ∝ E^(7/2) — the canonical worked example of Eddington inversion and
+    the exact equilibrium behind progenax's Plummer velocity sampler.
+  when_to_use:
+    good_for:
+      - "exact detailed equilibrium for Plummer positions (Q_vir = 0.5 with NO rescale)"
+      - "pedagogical baseline: the one DF whose entire chain is closed-form"
+    not_for:
+      - "tidally truncated systems (use the King DF)"
+      - "intrinsic radial anisotropy (add anisotropy_radius, or use Michie for King-like systems)"
+  parameters:
+    - name: r_h
+      meaning: "3-D half-mass radius of the matched Plummer profile (must equal the profile's)"
+      units: pc
+      typical_range: "0.1–10"
+      code_arg: "PlummerVelocityDF(r_h=...)"
+    - name: anisotropy_radius
+      meaning: "optional Osipkov-Merritt anisotropy radius r_a; None = isotropic"
+      units: pc
+      typical_range: ">= 0.75 a (Merritt 1985 non-negativity bound)"
+      code_arg: "PlummerVelocityDF(r_h=..., anisotropy_radius=...)"
+  sources:
+    - bibkey: Plummer1911
+      provides: "the density model the DF inverts"
+      locators: ["Eqs. 11-12"]
+    - bibkey: Dejonghe1987
+      provides: "closed-form cross-checks: isotropic f(E) coefficient (3/7pi^3)(2E)^{7/2} = 24sqrt(2)/(7pi^3) E^{7/2}; sigma_r^2 = (1/6)(1+r^2)^{-1/2}; projected sigma_p^2 = (3pi/64)/sqrt(1+r_p^2) at q=0"
+      locators: ["Eq. 16 (DF)", "Eq. 17 (dispersion)", "Eq. 43 with q=0 (projected dispersion), p. 24"]
+    - bibkey: Aarseth1974
+      provides: "the N-body sampling recipe (inverse-CDF positions, Beta(3/2,9/2) speed draw)"
+      locators: ["Eq. 1, p. 183"]
+  equations:
+    - label: eddington
+      latex: 'f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2} \biggl[\,\int_0^{\mathcal{E}} \frac{\mathrm{d}^2\rho}{\mathrm{d}\Psi^2}\,\frac{\mathrm{d}\Psi}{\sqrt{\mathcal{E} - \Psi}} + \frac{1}{\sqrt{\mathcal{E}}}\,\biggl(\frac{\mathrm{d}\rho}{\mathrm{d}\Psi}\biggr)_{\!\Psi=0}\,\biggr]'
+      symbols:
+        E_bind: {latex: '\mathcal{E}', meaning: "binding energy -E = Psi - v^2/2", units: "pc^2 / Myr^2"}
+        Psi: {latex: '\Psi', meaning: "relative potential -Phi (positive, -> 0 at infinity)", units: "pc^2 / Myr^2"}
+      assumptions: ["spherical", "isotropic (ergodic f(E))"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md#eddington"
+    - label: plummer-df-final
+      latex: 'f(\mathcal{E}) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,\mathcal{E}^{7/2},\qquad \mathcal{E} > 0'
+      symbols:
+        a: {latex: 'a', meaning: "Plummer scale radius", units: pc}
+        M: {latex: 'M', meaning: "total mass", units: Msun}
+      assumptions: ["ergodic", "isotropic", "coefficient independently confirmed by Dejonghe 1987 Eq. 16 (3*2^{7/2} = 24 sqrt 2)"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md#plummer-df-final"
+    - label: plummer-fv
+      latex: 'f(v \mid r) \;\propto\; v^2\,\mathcal{E}(r, v)^{7/2},\qquad \mathcal{E}(r, v) = \frac{GM}{\sqrt{r^2+a^2}} - \tfrac{1}{2}v^2'
+      symbols:
+        v: {latex: 'v', meaning: "speed at radius r, in [0, v_esc(r)]", units: "pc / Myr"}
+      assumptions: ["marginal speed distribution at fixed r (the inverse-CDF sampling target)"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md#plummer-fv"
+  code_refs:
+    - "kinematics/plummer_df.py::PlummerVelocityDF"
+  validation:
+    - "tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio"
+    - "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile"
+    - "tests/validation/test_plummer_physics.py::TestPlummerBetaDistribution::test_q_squared_mean"
+    - "tests/validation/test_dispersion_physics.py::test_projection_isotropic_plummer_los_oracle"
+  status: verified
+  deviations: []
+
+- model: king_df
+  family_display: King lowered-Maxwellian DF
+  description: >
+    The velocity side of the King (1966) model: an isothermal Maxwellian
+    lowered by a constant so f vanishes at the tidal-boundary energy —
+    sampled per-particle by inverse-CDF on the marginal speed distribution.
+  when_to_use:
+    good_for:
+      - "true detailed equilibrium for King positions (unscaled Q_vir ~ 0.5)"
+      - "sharply truncated clusters with cold outskirts (sigma -> 0 at r_t)"
+    not_for:
+      - "radial anisotropy (KingVelocityDF is isotropic — use Michie)"
+      - "untruncated smooth systems (use Plummer)"
+  parameters:
+    - name: W0
+      meaning: "dimensionless central potential (Phi_t - Phi(0))/sigma_0^2 — must match the profile's"
+      units: dimensionless
+      typical_range: "3–12"
+      code_arg: "KingVelocityDF(W0=...)"
+    - name: r_c
+      meaning: "King core radius (sets sigma_0 self-consistently)"
+      units: pc
+      typical_range: "0.1–5"
+      code_arg: "KingVelocityDF(r_c=...)"
+  sources:
+    - bibkey: King1966
+      provides: "the lowered-Maxwellian DF and its W-form"
+      locators: ["Eq. 3 (DF)", "Eq. 9 (dimensionless W)", "Eq. 17 (density moment)"]
+  equations:
+    - label: king-df-velocity
+      latex: 'f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\Bigl[\,e^{(\Phi_t - E)/\sigma_0^2} - 1\,\Bigr], & E < \Phi_t \\ 0, & E \ge \Phi_t \end{cases}'
+      symbols:
+        sigma_0: {latex: '\sigma_0', meaning: "central 1-D velocity-scale parameter", units: "pc / Myr"}
+        Phi_t: {latex: '\Phi_t', meaning: "potential at the tidal radius (the cutoff energy)", units: "pc^2 / Myr^2"}
+      assumptions: ["isotropic", "single-mass"]
+      theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-df-velocity"
+    - label: king-fv
+      latex: 'f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr], \qquad 0 \le v \le \sigma_0\sqrt{2W}'
+      symbols:
+        W: {latex: 'W', meaning: "local dimensionless potential", units: dimensionless}
+      assumptions: ["marginal speed distribution at fixed W (the inverse-CDF sampling target)"]
+      theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-fv"
+    - label: king-sigma
+      latex: '\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} v^4\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}{\int_0^{\sqrt{2W}} v^2\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}'
+      symbols:
+        sigma: {latex: '\sigma', meaning: "mean-square speed of the lowered Maxwellian at W (-> 3 sigma_0^2 as W -> inf)", units: "pc / Myr"}
+      assumptions: ["decreases outward; vanishes at the tidal boundary"]
+      theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-sigma"
+  code_refs:
+    - "kinematics/king_df.py::KingVelocityDF"
+  validation:
+    - "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_virial_ratio_is_half_unscaled"
+    - "tests/validation/test_king_physics.py::TestKingEquilibriumVelocityDF::test_dispersion_profile_matches_king_moment"
+    - "tests/validation/test_king_physics.py::TestKingVelocityDF::test_velocities_bound_against_king_escape_speed"
+  status: verified
+  deviations: []
+
+- model: michie_df
+  family_display: Michie–King anisotropic DF
+  description: >
+    The self-consistent radially anisotropic King model: Michie's (1963)
+    angular-momentum Gaussian times the King lowering. Unlike the
+    Osipkov–Merritt overlay, the DF is specified first and Poisson is
+    re-solved, so the density itself changes with r_a.
+  when_to_use:
+    good_for:
+      - "globular clusters with observed outer radial anisotropy"
+      - "self-consistent anisotropic equilibria (pairs with MichieProfile)"
+    not_for:
+      - "holding a FIXED density while adding anisotropy (use the OM overlay)"
+      - "r_a below the radial-orbit bound (construction raises: infinite-mass tail)"
+  parameters:
+    - name: W0
+      meaning: "dimensionless central potential (as King)"
+      units: dimensionless
+      typical_range: "3–12"
+      code_arg: "MichieVelocityDF(W0=...)"
+    - name: r_a
+      meaning: "anisotropy radius of the J^2 Gaussian; r_a -> inf recovers King"
+      units: pc
+      typical_range: ">~ 3-4 r_c at W0=7 (below: radial-orbit pathology, raises)"
+      code_arg: "MichieVelocityDF(r_a=...)"
+  sources:
+    - bibkey: Michie1963
+      provides: "the anisotropic DF ansatz and the radius-dependent Poisson equation"
+      locators: ["Eq. 4.0 (f = A e^{-m/m_0(alpha E + beta J^2)} Q)", "Eq. 5.0 (assembled DF)", "Eq. 5.8 (Poisson with anisotropy weight, p. 138 — scanned source, visually verified 2026-07-11)"]
+    - bibkey: King1966
+      provides: "the lowered-Maxwellian cutoff and the factor-9 nondimensionalization"
+      locators: ["Eq. 3", "Eqs. 15-16"]
+  equations:
+    - label: mk-df
+      latex: 'f(E, J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right) \left[\exp\!\left(-\frac{E}{\sigma^2}\right) - 1\right],\qquad E \le 0'
+      symbols:
+        J: {latex: 'J', meaning: "specific angular momentum r v_t", units: "pc^2 / Myr"}
+        r_a: {latex: 'r_a', meaning: "anisotropy radius", units: pc}
+      assumptions: ["single-mass", "Michie 1963 J^2 Gaussian x King 1966 lowering"]
+      theory_ref: "10-theory/velocity-dfs/michie-king.md#mk-df"
+    - label: mk-poisson
+      latex: '\frac{1}{\xi^2}\frac{d}{d\xi}\!\left(\xi^2\frac{d\psi}{d\xi}\right) = -9\,\frac{\hat\rho(\psi,\ \xi/\hat r_a)}{\hat\rho(W_0,0)}, \qquad \psi(0)=W_0,\ \psi^\prime(0)=0'
+      symbols:
+        xi: {latex: '\xi', meaning: "dimensionless radius r/r_c", units: dimensionless}
+        psi: {latex: '\psi', meaning: "dimensionless relative potential", units: dimensionless}
+      assumptions: ["King-1966 nondimensionalization of Michie 1963 Eq. 5.8 (anisotropy weight e^{-C z^2 eta^2 (1-mu^2)} = e^{-J^2/2 r_a^2 sigma^2})"]
+      theory_ref: "10-theory/velocity-dfs/michie-king.md#mk-poisson"
+  code_refs:
+    - "kinematics/michie_df.py::MichieVelocityDF"
+  validation:
+    - "tests/validation/test_michie_physics.py::TestMichieEquilibrium::test_virial_ratio_half_unscaled"
+    - "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_increases_outward"
+    - "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_matches_df_oracle"
+  status: verified
+  deviations: []
+
+- model: eff_df
+  family_display: EFF Eddington-inversion DF
+  description: >
+    The isotropic ergodic DF of the (truncated) EFF density, obtained by
+    numerical Eddington inversion — tabulated f(E) with the truncation
+    boundary term, sampled by inverse-CDF.
+  when_to_use:
+    good_for:
+      - "equilibrium velocities for EFF positions (Q_vir ~ 0.5 at gamma=5, mild truncation)"
+      - "young-cluster power-law halos where Plummer is too steep"
+    not_for:
+      - "strong truncation r_t <~ few a at steep gamma (a few percent sub-virial — see the EFF chapter)"
+      - "self-consistent anisotropy (OM overlay available via anisotropy_radius)"
+  parameters:
+    - name: a
+      meaning: "EFF core scale radius (must match the profile's)"
+      units: pc
+      typical_range: "0.1–10"
+      code_arg: "EFFVelocityDF(a=...)"
+    - name: gamma
+      meaning: "3-D density slope (must match the profile's)"
+      units: dimensionless
+      typical_range: "3.2–7"
+      code_arg: "EFFVelocityDF(gamma=...)"
+    - name: r_t
+      meaning: "truncation radius (sets the Psi = 0 zero point)"
+      units: pc
+      typical_range: "5–100"
+      code_arg: "EFFVelocityDF(r_t=...)"
+    - name: anisotropy_radius
+      meaning: "optional Osipkov-Merritt r_a (None = isotropic)"
+      units: pc
+      typical_range: "large enough that f(Q) >= 0 (construction-checked)"
+      code_arg: "EFFVelocityDF(..., anisotropy_radius=...)"
+  sources:
+    - bibkey: ElsonFallFreeman1987
+      provides: "the density being inverted"
+      locators: ["Eq. 1 (projected law; 3-D convention per the deviations note on the EFF profile card)"]
+    - bibkey: Merritt1985
+      provides: "the Osipkov-Merritt augmented-density construction for the anisotropic option"
+      locators: ["Eqs. 45-46 (per-paper note, PDF-verified)"]
+  equations:
+    - label: eff-eddington
+      latex: 'f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2} \left[\int_0^{\mathcal{E}} \frac{\mathrm{d}^2\rho}{\mathrm{d}\Psi^2}\frac{\mathrm{d}\Psi}{\sqrt{\mathcal{E}-\Psi}} + \frac{1}{\sqrt{\mathcal{E}}}\left(\frac{\mathrm{d}\rho}{\mathrm{d}\Psi}\right)_{\!\Psi=0}\right]'
+      symbols:
+        E_bind: {latex: '\mathcal{E}', meaning: "binding energy relative to the truncation zero point", units: "pc^2 / Myr^2"}
+      assumptions: ["isotropic", "truncated: the boundary term (drho/dPsi)_0 is NONZERO and load-bearing"]
+      theory_ref: "10-theory/spatial-profiles/eff.md#eff-eddington"
+  code_refs:
+    - "kinematics/eff_df.py::EFFVelocityDF"
+  validation:
+    - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_virial_ratio_mild_truncation"
+    - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_f_is_physical"
+    - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound"
+  status: verified
+  deviations: []
+
+- model: om_anisotropy
+  family_display: Osipkov–Merritt anisotropy overlay
+  description: >
+    The one-parameter radial-anisotropy construction shared by the Plummer
+    and EFF DFs: replace f(E) by f(Q) built from the augmented density
+    rho_Q = (1 + r^2/r_a^2) rho, holding the TRUE density and potential
+    fixed. beta(r) = r^2/(r^2 + r_a^2) exactly.
+  when_to_use:
+    good_for:
+      - "adding outer radial anisotropy to a FIXED density (Plummer/EFF)"
+      - "differentiable r_a inference (grad-audited registry cases)"
+    not_for:
+      - "King-family anisotropy (KingVelocityDF stays isotropic — use Michie, whose density responds to r_a)"
+      - "r_a below the non-negativity bound (Plummer: r_a >= 0.75 a; construction raises)"
+  parameters:
+    - name: anisotropy_radius
+      meaning: "r_a: isotropic inside, radial outside; r_a -> inf recovers isotropy"
+      units: pc
+      typical_range: "Plummer: >= 0.75 a (Merritt 1985 Eq. 46); EFF: f(Q) >= 0 checked at construction"
+      code_arg: "PlummerVelocityDF/EFFVelocityDF(anisotropy_radius=...)"
+  sources:
+    - bibkey: Merritt1985
+      provides: "the OM construction, the closed-form anisotropic Plummer DF, and its non-negativity bound"
+      locators: ["Eq. 45 (anisotropic Plummer f(Q))", "Eq. 46 (r_a >= 3/4 r_0 bound)"]
+    - bibkey: Dejonghe1987
+      provides: "independent cross-check: his q-family beta = (q/2) r^2/(1+r^2); the q=2 member equals the Merritt r_a=1 model"
+      locators: ["Eq. 21 + following discussion, p. 18", "Eq. 23 (beta(r))"]
+  equations:
+    - label: om-Q
+      latex: 'Q \;\equiv\; \mathcal{E} - \frac{L^2}{2\,r_a^2}'
+      symbols:
+        L: {latex: 'L', meaning: "specific angular momentum |r x v|", units: "pc^2 / Myr"}
+      assumptions: ["f = f(Q): the OM augmented integral of motion"]
+      theory_ref: "10-theory/velocity-dfs/rotation-anisotropy.md#om-Q"
+    - label: beta-r
+      latex: '\beta(r) \;\equiv\; 1 - \frac{\sigma_t^2(r)}{\sigma_r^2(r)} \;=\; \frac{r^2}{r^2 + r_a^2}'
+      symbols:
+        beta: {latex: '\beta', meaning: "Binney anisotropy (single-component sigma_t convention; the BT two-component form gives the SAME beta)", units: dimensionless}
+      assumptions: ["exact for any OM f(Q)"]
+      theory_ref: "10-theory/velocity-dfs/rotation-anisotropy.md#beta-r"
+  code_refs:
+    - "kinematics/plummer_df.py::PlummerVelocityDF"
+    - "kinematics/eff_df.py::EFFVelocityDF"
+  validation:
+    - "tests/validation/test_dispersion_physics.py::test_eff_om_beta_identity"
+    - "tests/validation/test_engine_b_physics.py::test_om_beta_profile_realized"
+  status: verified
+  deviations: []

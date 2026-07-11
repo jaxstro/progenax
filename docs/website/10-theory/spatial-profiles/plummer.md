@@ -123,7 +123,7 @@ r(u) \;=\; a\,\sqrt{\frac{u^{2/3}}{1 - u^{2/3}}}
 
 The expression is exact, has no singularities for $u \in [0, 1)$, and
 is differentiable analytically in $u$ and $a$. Each call to
-`PlummerProfile.sample_positions(masses, key)` draws $N_\star$
+`PlummerProfile.sample_positions(masses, key_pos)` draws $N_\star$
 uniform variates, evaluates {eq}`plummer-inverse-cdf` to get radii,
 draws isotropic angles, and returns 3D positions — all in a single
 JIT-compiled `vmap` over particles, fully differentiable in $r_h$
@@ -219,9 +219,10 @@ velocity_df = PlummerVelocityDF(r_h=1.0)        # Same r_h for equilibrium
 
 masses = jnp.ones(1000)                         # 1000 M_sun
 key = jax.random.PRNGKey(42)
+key_pos, key_vel = jax.random.split(key)   # never reuse a key
 
 positions = profile.sample_positions(masses, key)
-velocities = velocity_df.sample_velocities(positions, masses, key, G=STELLAR.G)
+velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
 Both `PlummerProfile` and `PlummerVelocityDF` are Equinox modules
