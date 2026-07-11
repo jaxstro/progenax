@@ -88,16 +88,19 @@ def build_binary_phase_space() -> plt.Figure:
 
     setup_style()
     fig, axes = plt.subplots(
-        2, 2, figsize=(7.6, 5.4), constrained_layout=True, sharey="row"
+        2, 2, figsize=(7.8, 5.2), constrained_layout=True,
+        sharey=True, sharex="row",
     )
     cmap = sns.color_palette("mako_r", as_cmap=True)
     hex_norm = LogNorm(vmin=1, vmax=1e3)
+    env_color = "#E76F51"   # same coral as the single-population phase plot
+    binary_color = "#8E5A7F"  # plum (palette NEGATIVE) — distinct from teal/coral
     key = jax.random.PRNGKey(SEED)
     k_eff, k_king = jax.random.split(key)
 
     populations = [
         (
-            "EFF young massive cluster + Moe binaries",
+            "EFF young massive cluster (Moe binaries)",
             EFFProfile(a=1.0, gamma=4.0, r_t=15.0),
             EFFVelocityDF(a=1.0, gamma=4.0, r_t=15.0),
             MoeCompanions(),
@@ -105,7 +108,7 @@ def build_binary_phase_space() -> plt.Figure:
             15.0,
         ),
         (
-            r"King $W_0=7$ old globular + $f_b = 0.15$ binaries",
+            r"King $W_0{=}7$ old globular ($f_b = 0.15$)",
             KingProfile.from_W0_rc(W0=7.0, r_c=1.0),
             KingVelocityDF(W0=7.0, r_c=1.0),
             IndependentCompanions(
@@ -119,80 +122,87 @@ def build_binary_phase_space() -> plt.Figure:
         ),
     ]
 
+    hb = None
     for row, (title, prof, df, companions, k, r_max_in) in enumerate(populations):
         ic = build_binary_cluster(
             prof, df, Maschberger(), companions, Systems(_N_SYS), k, units=STELLAR
         )
         M_tot = float(jnp.sum(ic.masses))
-        r_max = float(getattr(prof, "r_t", r_max_in) or r_max_in)
+        r_t = float(getattr(prof, "r_t", r_max_in) or r_max_in)
+        r_max = r_t * 1.06
 
         # single-star escape envelope in THIS population's realized mass
-        r_grid = np.linspace(1e-4, r_max, 6000)
+        r_grid = np.linspace(1e-4, r_t, 6000)
         psi = _psi_from_density(prof, r_grid, M_tot)
         env = np.sqrt(2.0 * np.clip(psi, 0.0, None))
 
         is_pair = np.bincount(np.array(ic.primordial_system_id)) > 1
         in_binary = is_pair[np.array(ic.primordial_system_id)]
 
-        # --- resolved -----------------------------------------------------
-        ax = axes[row][0]
         pos, vel = np.array(ic.positions), np.array(ic.velocities)
         r, v_r = _signed_vr(pos, vel)
-        # scatter UNDER the hexbin: the punctures live outside the hex extent,
-        # so they stay visible while the cluster lens stays readable on top.
-        ax.plot(
-            r[in_binary], v_r[in_binary], ".", ms=1.1, color="#E76F51", alpha=0.22,
-            rasterized=True, zorder=1,
-        )
-        ax.hexbin(
-            r[~in_binary], v_r[~in_binary], gridsize=95, norm=hex_norm, cmap=cmap,
-            mincnt=1, linewidths=0.1, extent=(0.0, r_max, -3.2, 3.2), zorder=2,
-        )
-        ax.plot(r_grid, env, color="#3A3A3A", lw=1.0)
-        ax.plot(r_grid, -env, color="#3A3A3A", lw=1.0)
-        sigma = float(np.std(vel[:, 2]))
-        sigma_single = float(np.std(vel[~in_binary, 2]))
-        ax.text(
-            0.97, 0.06,
-            rf"$\sigma_{{1\mathrm{{d}}}} = {sigma:.2f}$"
-            "\n"
-            rf"(singles: ${sigma_single:.2f}$)",
-            transform=ax.transAxes, ha="right", fontsize=7.0,
-        )
-        ax.set_title(f"resolved — {title}", fontsize=7.9)
-        ax.set_ylabel(r"$v_r$  [pc/Myr]")
-        if row == 1:
-            ax.set_xlabel(r"$r$  [pc]")
-        polish_axes(ax)
-
-        # --- unresolved ----------------------------------------------------
-        ax = axes[row][1]
         b_pos, b_vel = _blend_unresolved(ic)
         r_b, v_rb = _signed_vr(b_pos, b_vel)
-        ax.hexbin(
-            r_b, v_rb, gridsize=95, norm=hex_norm, cmap=cmap, mincnt=1,
-            linewidths=0.1, extent=(0.0, r_max, -3.2, 3.2),
-        )
-        ax.plot(r_grid, env, color="#3A3A3A", lw=1.0)
-        ax.plot(r_grid, -env, color="#3A3A3A", lw=1.0)
+
+        sigma = float(np.std(vel[:, 2]))
+        sigma_single = float(np.std(vel[~in_binary, 2]))
         sigma_b = float(np.std(b_vel[:, 2]))
-        ax.text(
-            0.97, 0.06, rf"$\sigma_{{1\mathrm{{d}}}} = {sigma_b:.2f}$",
-            transform=ax.transAxes, ha="right", fontsize=7.0,
-        )
-        ax.set_title("unresolved (flux-weighted blends)", fontsize=7.9)
-        if row == 1:
-            ax.set_xlabel(r"$r$  [pc]")
-        polish_axes(ax)
 
-        for a in axes[row]:
-            a.set_yscale("symlog", linthresh=3.0)
-            a.set_ylim(-1500, 1500)
-            for y in (3.0, -3.0):
-                a.axhline(y, color="#CFCFCF", lw=0.4, ls=(0, (1, 2)), zorder=0)
+        # Envelope violators: |v_r| above the local single-star v_esc — the
+        # stars that CANNOT be bound singles (binary-orbital contaminants).
+        # Everything else (singles AND envelope-respecting binary components)
+        # belongs to the population hexbin; the linear zone spans the full
+        # envelope so no bound star is silently clipped.
+        env_at = np.interp(r, r_grid, env)
+        violator = np.abs(v_r) > env_at * 1.02
+        n_viol = int(violator.sum())
 
-    # shared legend proxies on the first panel
-    axes[0][0].plot([], [], ".", ms=4, color="#E76F51", label="binary components")
-    axes[0][0].plot([], [], color="#3A3A3A", lw=1.0, label=r"single-star $\pm v_{\rm esc}$")
-    axes[0][0].legend(frameon=False, fontsize=6.4, loc="upper right")
+        panels = [
+            (axes[row][0], f"resolved — {title}",
+             dict(hex_xy=(r[~violator], v_r[~violator]),
+                  scatter=(r[violator], v_r[violator]),
+                  sigma_text=(rf"$\sigma_{{1\mathrm{{d}}}} = {sigma:.2f}$"
+                              "\n" + rf"singles: ${sigma_single:.2f}$"
+                              "\n" + rf"{n_viol:,} violators"))),
+            (axes[row][1], "unresolved — flux-weighted blends",
+             dict(hex_xy=(r_b, v_rb), scatter=None,
+                  sigma_text=rf"$\sigma_{{1\mathrm{{d}}}} = {sigma_b:.2f}$")),
+        ]
+        for ax, ptitle, d in panels:
+            if d["scatter"] is not None:
+                ax.plot(*d["scatter"], ".", ms=1.4, color=binary_color,
+                        alpha=0.35, rasterized=True, zorder=1)
+            hb = ax.hexbin(
+                *d["hex_xy"], gridsize=(90, 55), norm=hex_norm, cmap=cmap,
+                mincnt=1, linewidths=0.1, extent=(0.0, r_max, -11.0, 11.0),
+                zorder=2,
+            )
+            ax.plot(r_grid, env, color=env_color, lw=1.2, zorder=3)
+            ax.plot(r_grid, -env, color=env_color, lw=1.2, zorder=3)
+            ax.axvline(r_t, color="#9A9A9A", lw=0.7, ls=(0, (4, 2)), alpha=0.8)
+            ax.annotate(r"$r_t$", xy=(r_t, 400), xytext=(r_t * 0.86, 430),
+                        fontsize=7.4, color="#7A7A7A")
+            ax.text(0.975, 0.04, d["sigma_text"], transform=ax.transAxes,
+                    ha="right", va="bottom", fontsize=7.0)
+            ax.set_title(ptitle, fontsize=8.0)
+            ax.set_yscale("symlog", linthresh=11.0, linscale=2.2)
+            ax.set_ylim(-1100, 1100)
+            ax.set_xlim(-r_max * 0.02, r_max)
+            for y in (11.0, -11.0):
+                ax.axhline(y, color="#D8D8D8", lw=0.4, ls=(0, (1, 2)), zorder=0)
+            polish_axes(ax)
+        axes[row][0].set_ylabel(r"$v_r$  [pc/Myr]")
+
+    for ax in axes[1]:
+        ax.set_xlabel(r"$r$  [pc]")
+
+    # legend proxies (first panel), colorbar (shared, like the single-pop figure)
+    axes[0][0].plot([], [], ".", ms=4, color=binary_color,
+                    label="envelope violators (binary orbits)")
+    axes[0][0].plot([], [], color=env_color, lw=1.2,
+                    label=r"single-star $\pm v_{\rm esc}$")
+    axes[0][0].legend(frameon=False, fontsize=6.4, loc="lower left")
+    cb = fig.colorbar(hb, ax=axes, pad=0.012, aspect=34)
+    cb.set_label("stars per hex (log)", fontsize=7.2)
+    cb.ax.tick_params(labelsize=6.4)
     return fig

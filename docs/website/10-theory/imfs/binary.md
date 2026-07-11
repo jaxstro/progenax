@@ -36,17 +36,20 @@ interval shrinks below the bias and excludes the true slope.
 :width: 100%
 
 Binaries in $(r, v_r)$ phase space, and why they lie to your dispersion
-(seed 21, $4\times10^4$ systems each; symlog velocity axis). **Left column
-(resolved):** binary orbital motion (coral) punctures the single-star escape
-envelope by up to *two orders of magnitude* — the classic high-velocity
-contaminants. Measured $\sigma_{1\mathrm{d}}$: 8.4 vs a singles-only 2.2
-(EFF + Moe, top) and 7.9 vs 1.5 (King + $f_b = 0.15$, bottom).
-**Right column (unresolved):** each binary photometrically blended (COM
-position, Tout-ZAMS flux-weighted velocity) — the punctures vanish, the
-population *looks* bound and clean, but the measured dispersion is still
-silently inflated (2.93 vs 2.20; 2.41 vs 1.53). That hidden pedestal is
-exactly the mechanism behind the binary-blind mass bias demonstrated on this
-page. Regenerate: `python -m laboratory.icviz --only binary-phase-space`.
+(seed 21, $4\times10^4$ systems each; symlog wings beyond
+$|v_r| = 11$ pc/Myr). **Left column (resolved):** plum points are
+**envelope violators** — stars above the local single-star
+$\pm v_{\rm esc}$ that cannot be bound singles: 2,873 (EFF + Moe, top) and
+1,689 (King + $f_b = 0.15$, bottom) contaminants reaching hundreds of
+pc/Myr, inflating $\sigma_{1\mathrm{d}}$ to 8.4 (singles: 2.2) and 7.9
+(singles: 1.5). **Right column (unresolved):** each binary photometrically
+blended (COM position, Tout-ZAMS flux-weighted velocity) — the violator
+clouds all but vanish and the population *looks* clean, yet the measured
+dispersion stays silently inflated (2.93 vs 2.20; 2.41 vs 1.53) — and the
+few blend hexes still leaking past the envelope are near-equal-luminosity
+pairs that keep half their orbital velocity. That hidden pedestal is exactly
+the mechanism behind the binary-blind mass bias demonstrated on this page.
+Regenerate: `python -m laboratory.icviz --only binary-phase-space`.
 ```
 
 ## The Maschberger (2013) functional form
