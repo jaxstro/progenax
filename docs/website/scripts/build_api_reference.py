@@ -22,8 +22,9 @@ from __future__ import annotations
 import argparse
 import importlib
 import inspect
+import json
+import re as _re
 import sys
-import textwrap
 from pathlib import Path
 
 # Modules whose public symbols feed the API reference.
@@ -54,9 +55,6 @@ GITHUB_BLOB = "https://github.com/jaxstro/progenax/blob/main"
 # Loaded once; failures degrade to no-badges (the API reference must build
 # even if a registry file moves).
 # ---------------------------------------------------------------------------
-
-import json
-import re as _re
 
 
 def _load_card_index() -> dict[str, tuple[str, str]]:
