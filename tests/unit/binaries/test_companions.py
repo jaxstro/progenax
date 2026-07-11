@@ -206,3 +206,28 @@ class TestProtocolConformance:
 
         assert isinstance(_independent(), CompanionModel)
         assert isinstance(MoeCompanions(), CompanionModel)
+
+
+class TestBinaryFractionHonesty:
+    """A scalar f_b (Python OR jnp/traced) enters only the DISCRETE multiplicity
+    draw (is_binary = u < f_b); its pathwise gradient is zero. Passing an
+    array/traced f_b must NOT crash with a cryptic 'not callable' TypeError
+    (audit D1); f_b inference uses the likelihood route, not sampler gradients.
+    """
+
+    def test_scalar_binary_fraction_accepts_array_not_just_python_float(self):
+        import jax.numpy as jnp
+
+        from progenax.binaries.companions import _eval_binary_fraction
+
+        out = _eval_binary_fraction(jnp.asarray(0.3), jnp.ones(4))
+        assert out.shape == (4,)
+        assert float(out[0]) == 0.3
+
+    def test_callable_binary_fraction_still_dispatches(self):
+        import jax.numpy as jnp
+
+        from progenax.binaries.companions import _eval_binary_fraction
+
+        out = _eval_binary_fraction(lambda m: 0.1 * m, jnp.array([1.0, 2.0]))
+        assert float(out[1]) == 0.2

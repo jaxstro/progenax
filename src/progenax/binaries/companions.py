@@ -48,10 +48,18 @@ class CompanionElements(NamedTuple):
 
 
 def _eval_binary_fraction(bf: Any, m1: Float[Array, "N"]) -> Float[Array, "N"]:
-    """Binary fraction f_b(m1) — float, or any callable model (matches BinaryIMF)."""
-    if isinstance(bf, float):
-        return jnp.full(m1.shape, bf)
-    return bf(m1)
+    """Binary fraction f_b(m1) — a callable model, or a scalar constant fraction.
+
+    Dispatch on ``callable`` (not ``isinstance(float)``) so a jnp/traced scalar
+    ``f_b`` broadcasts instead of crashing with a cryptic "object is not callable"
+    (audit D1). NOTE on gradients: a scalar ``f_b`` feeds only the DISCRETE
+    multiplicity draw ``is_binary = u < f_b`` downstream, whose pathwise gradient
+    w.r.t. ``f_b`` is exactly zero — inferring ``f_b`` requires a likelihood, not
+    a gradient through the sampler.
+    """
+    if callable(bf):
+        return bf(m1)
+    return jnp.broadcast_to(jnp.asarray(bf, dtype=m1.dtype), m1.shape)
 
 
 def _sample_mass_ratio(
@@ -98,6 +106,14 @@ class IndependentCompanions(eqx.Module):
         G: float,
         day_in_time_units: float,
     ) -> Tuple[Bool[Array, "N"], CompanionElements]:
+        """Draw (is_binary, companion elements) for each primary.
+
+        Differentiability: the smooth channels (q, P, e) carry pathwise gradients
+        at a fixed key, but multiplicity is a DISCRETE draw
+        (``is_binary = u < f_b``) — its gradient w.r.t. the binary fraction is
+        exactly zero. Infer ``f_b`` via a likelihood, not a gradient through this
+        sampler (see ``DifferentiableBinaryModel`` for a smooth relaxation).
+        """
         n = m1.shape[0]
         kb, kq, kP, ke, ko = jax.random.split(key, 5)
 
@@ -147,6 +163,13 @@ class MoeCompanions(eqx.Module):
         G: float,
         day_in_time_units: float,
     ) -> Tuple[Bool[Array, "N"], CompanionElements]:
+        """Draw (is_binary, correlated Moe companion elements) per primary.
+
+        Differentiability: the correlated (P, q, e) channels carry pathwise
+        gradients at a fixed key, but multiplicity is a DISCRETE draw
+        (``is_binary = u < f_b``) whose gradient w.r.t. the binary fraction is
+        exactly zero — infer ``f_b`` via a likelihood, not through this sampler.
+        """
         from ..imf.binary import MassDependentBinaryFraction
 
         n = m1.shape[0]
