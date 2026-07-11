@@ -1,6 +1,6 @@
 # progenax — status
 
-next: **Slice B (ADR-0034 provenance registry) POPULATED — 28 model cards, 21/21 registry coverage locked (REGISTRY_FULL), glossary live, 24 Brain digest drafts staged in .brain-drafts/ for Anna. Branch feat/slice-b-provenance-registry awaiting merge go. Then Slice C (docs pedagogy + aesthetics); repo flips public after Slice C.**
+next: **Slice C (docs pedagogy + ICViz + site aesthetics) COMPLETE on branch `feat/slice-c-docs-pedagogy` — awaiting Anna's merge go (release_gate restamp at merge). Then write the Slice-D release checklist (Anna executes); repo flips public after Slice C merges.**
 
 **M1 public-flip remediation** COMPLETE + merged to local `main` (unpushed): green gates, two theory-doc equation corrections (EFF enclosed mass, King dispersion direction), the LIMEPY silent-r_t-pinning guard, and internal-docs pruning. See the release audit (`audits/PROGENAX_PUBLIC_RELEASE_AUDIT.md`, maintainer-local).
 
@@ -22,10 +22,22 @@ House guidance encoded: Maschberger preferred over Kroupa/Chabrier (smooth C^∞
 
 **Provenance architecture decided (ADR-0034):** a machine-readable model-card registry becomes the single source of truth → generated glossary + enforcement test + Brain equation-digest drafts; public in-repo (glass-box), PDFs gitignored (DOI + arXiv as the public pointer); prove in progenax, then hoist to `jaxstro`. Design: `docs/plans/2026-07-10-provenance-registry-design.md`. Slice B = build it + populate via the theory-docs derivation sweep.
 
+**Slice C COMPLETE (2026-07-11, branch `feat/slice-c-docs-pedagogy`):** C1 mechanical docs fixes; C2
+pedagogy pass (Anna-approved page by page): 13 publication-quality figures from the new modular **ICViz**
+library (`laboratory/icviz/` — FigureSpec registry + CLI, StarViz-derived seaborn theme, triple export
+PDF/PNG gitignored + WebP embedded), figures double as correctness proofs (residual panels, escape-envelope
+oracles, binary resolved-vs-unresolved σ-inflation), worked Eddington derivation, exercises on ~8 theory
+pages, ONE canonical reading ramp; C3 site aesthetics: API pages regenerated as structured cards (Google-
+docstring parameter tables + model-card backlinks on 37 symbols + gradient-verified badges from the
+grad-audit JSON), glossary cards carry meta rows (status · counts · API backlink), landing-page hero
+figure, and a MyST plugin (`docs/website/plugins/card-links.mjs`) opening `#card-*` glossary links in a
+new tab (verified in built AST, 17 pages). Docs gate PASS 212 pages / 0 warnings; fast gate 1586 passed;
+provenance suite 6/6.
+
 blocker: none. GitHub Actions CI is dormant and must be re-enabled before the first `v*` tag (tracked in the Slice-D release checklist).
 
 due: none.
 
-next: Anna reviews the glossary + commits .brain-drafts/ digests to ~/brain → merge Slice B → Slice C (docs pedagogy + site aesthetics/MyST plugins) → write the Slice-D release checklist. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
+next: Anna merges Slice C (with a `scripts/release_gate.sh` restamp) → Claude writes the Slice-D release checklist (CI re-enable, CITATION.cff/Zenodo DOI, sdist include/exclude, check.sh path, CONTRIBUTING.md; Anna executes) → repo public. Still on Anna's desk: review/commit `.brain-drafts/` digests to ~/brain; verify the informax OED port before removing the deprecated demo pages. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
