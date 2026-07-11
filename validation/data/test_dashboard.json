@@ -1,231 +1,231 @@
 {
   "durations": {
     "analytical": {
-      "seconds": 0.32,
+      "seconds": 0.34,
       "slowest_test": "tests/unit/analytical/test_analytical.py::TestTwoBodyKepler::test_circular_orbit_com_at_origin"
     },
     "api_coverage": {
-      "seconds": 0.04,
-      "slowest_test": "tests/validation/api_coverage/test_api_coverage.py::test_no_untested_holes"
+      "seconds": 0.01,
+      "slowest_test": "tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor"
     },
     "binaries": {
-      "seconds": 16.68,
-      "slowest_test": "tests/unit/binaries/test_energy_budget.py::TestQConvention::test_Q_com_recovers_virial_target"
+      "seconds": 16.19,
+      "slowest_test": "tests/unit/binaries/test_diagnostics.py::TestPrimordialSurvival::test_all_survive_at_t0"
     },
     "builders": {
-      "seconds": 9.15,
+      "seconds": 12.14,
       "slowest_test": "tests/unit/builders/test_cluster_builders.py::test_matched_limepy_anisotropic_threads_r_a"
     },
     "cluster": {
-      "seconds": 53.34,
+      "seconds": 90.79,
       "slowest_test": "tests/unit/cluster/test_multicomponent.py::TestEngineB::test_engine_b_global_virial_is_half_unscaled"
     },
     "diagnostics": {
-      "seconds": 5.15,
-      "slowest_test": "tests/unit/diagnostics/test_lazy_imports.py::test_diagnostics_import_without_scipy_gives_actionable_error"
+      "seconds": 5.02,
+      "slowest_test": "tests/unit/diagnostics/test_segregation_approx.py::TestCalibration::test_returns_expected_keys"
     },
     "dynamics": {
-      "seconds": 2.83,
+      "seconds": 3.06,
       "slowest_test": "tests/unit/dynamics/test_group_virial.py::TestPerGroupVirialRatio::test_single_group_reproduces_global_virial"
     },
     "grad_audit": {
-      "seconds": 698.73,
-      "slowest_test": "tests/validation/grad_audit/test_json_fresh.py::test_committed_json_matches_fresh_regeneration"
+      "seconds": 810.71,
+      "slowest_test": "tests/validation/grad_audit/test_audit_script.py::test_run_audit_emits_required_keys"
     },
     "imf": {
-      "seconds": 16.82,
+      "seconds": 18.06,
       "slowest_test": "tests/unit/imf/test_moe_full.py::TestMoeJointOrbit::test_p_q_interrelation"
     },
     "kinematics": {
-      "seconds": 32.46,
-      "slowest_test": "tests/unit/kinematics/test_limepy_df.py::TestLimepyVelocityDifferentiable::test_velocity_sampling_differentiable_in_g"
+      "seconds": 29.66,
+      "slowest_test": "tests/unit/kinematics/test_dispersion.py::test_grad_df_moment_michie_high_W0_ad_correct"
     },
     "physics_registry": {
-      "seconds": 18.98,
+      "seconds": 27.39,
       "slowest_test": "tests/validation/physics_registry/test_physics_coverage.py::test_every_cited_test_node_id_resolves"
     },
     "profiles": {
-      "seconds": 433.86,
+      "seconds": 485.82,
       "slowest_test": "tests/unit/profiles/test_find_alpha_ift.py::TestAnisoGradientQuadrature::test_grad_ra_hat_vs_fd_quadrature"
     },
     "provenance_registry": {
-      "seconds": 1.12,
+      "seconds": 0.74,
       "slowest_test": "tests/validation/provenance_registry/test_provenance_coverage.py::test_no_new_unprovenanced_literal_in_allowlist_modules"
     },
     "stellar": {
-      "seconds": 1.68,
-      "slowest_test": "tests/unit/stellar/test_zams.py::TestZAMSSurfaceGravity::test_broadcasts_over_array"
+      "seconds": 2.24,
+      "slowest_test": "tests/unit/stellar/test_zams.py::TestInverseZAMSLuminosity::test_differentiable"
     },
     "substructure": {
-      "seconds": 38.4,
+      "seconds": 35.67,
       "slowest_test": "tests/unit/substructure/test_q_approx.py::TestCalibration::test_calibration_produces_valid_factors"
     },
     "test_analytical_physics": {
-      "seconds": 1.34,
-      "slowest_test": "tests/validation/test_analytical_physics.py::TestSolarSystemPhysics::test_barycentric_and_finite[solar_system_inner_4-5]"
+      "seconds": 2.25,
+      "slowest_test": "tests/validation/test_analytical_physics.py::TestTwoBodyConservation::test_eccentric_orbit_closes_and_conserves"
     },
     "test_azimuthal_variation_physics": {
-      "seconds": 1.01,
+      "seconds": 2.59,
       "slowest_test": "tests/validation/test_azimuthal_variation_physics.py::TestAzimuthalVariation::test_anticorrelates_with_cw04_Q"
     },
     "test_binary_cluster": {
-      "seconds": 20.92,
-      "slowest_test": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_grad_through_r_h"
+      "seconds": 18.77,
+      "slowest_test": "tests/integration/test_binary_cluster.py::TestBudgetTargets::test_totalmass_reaches_budget"
     },
     "test_binary_physics": {
-      "seconds": 1.2,
+      "seconds": 2.57,
       "slowest_test": "tests/validation/test_binary_physics.py::TestKeplerEccentricityGradientBoundary::test_grad_finite_through_e_to_one"
     },
     "test_builders": {
-      "seconds": 4.73,
+      "seconds": 4.37,
       "slowest_test": "tests/unit/test_builders.py::TestBuildSpatialIC::test_build_with_plummer"
     },
     "test_cluster_builders_integration": {
-      "seconds": 10.58,
+      "seconds": 8.27,
       "slowest_test": "tests/integration/test_cluster_builders_integration.py::test_grad_through_build_cluster_from_params_bites_each_channel"
     },
     "test_dashboard_fresh": {
-      "seconds": 83.03,
+      "seconds": 143.96,
       "slowest_test": "tests/validation/test_dashboard_fresh.py::test_committed_dashboard_matches_fresh_regeneration"
     },
     "test_dashboard_gen": {
-      "seconds": 158.15,
-      "slowest_test": "tests/validation/test_dashboard_gen.py::test_build_dashboard_modules_merge_inventory"
+      "seconds": 142.77,
+      "slowest_test": "tests/validation/test_dashboard_gen.py::test_registries_full_flag_gates_on_built_and_full"
     },
     "test_demo_oed": {
-      "seconds": 780.31,
+      "seconds": 915.68,
       "slowest_test": "tests/unit/test_demo_oed.py::test_fisher_calibration_matches_realized_scatter"
     },
     "test_demo_oed_binary": {
-      "seconds": 41.37,
-      "slowest_test": "tests/unit/test_demo_oed_binary.py::test_cross_model_bias_only_fits_kept_bins"
+      "seconds": 36.12,
+      "slowest_test": "tests/unit/test_demo_oed_binary.py::test_deterministic_sweep_span_and_marg_costs_info"
     },
     "test_demo_oed_concentration": {
-      "seconds": 106.85,
-      "slowest_test": "tests/unit/test_demo_oed_concentration.py::test_fisher_spd_over_random_designs"
+      "seconds": 137.64,
+      "slowest_test": "tests/unit/test_demo_oed_concentration.py::test_jacobian_lntheta_shape_and_W0_column_nonzero"
     },
     "test_demo_oed_depth": {
-      "seconds": 697.4,
+      "seconds": 817.15,
       "slowest_test": "tests/unit/test_demo_oed_depth.py::test_depth_fisher_calibration_is_validated_and_bounded"
     },
     "test_demo_selection": {
-      "seconds": 0.18,
+      "seconds": 0.25,
       "slowest_test": "tests/unit/test_demo_selection.py::test_apparent_mag_and_distance_modulus"
     },
     "test_dispersion_physics": {
-      "seconds": 36.55,
-      "slowest_test": "tests/validation/test_dispersion_physics.py::test_eff_isotropic_jeans_matches_sampler"
+      "seconds": 60.34,
+      "slowest_test": "tests/validation/test_dispersion_physics.py::test_projection_empirical_los_and_pm"
     },
     "test_eff_physics": {
-      "seconds": 5.58,
-      "slowest_test": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_gamma3_default_subvirial_offset_is_pinned"
+      "seconds": 9.46,
+      "slowest_test": "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound"
     },
     "test_end_to_end": {
-      "seconds": 6.3,
+      "seconds": 8.8,
       "slowest_test": "tests/integration/test_end_to_end.py::TestIMFToICPipeline::test_chabrier_to_king_ic"
     },
     "test_engine_b_physics": {
-      "seconds": 318.67,
+      "seconds": 351.38,
       "slowest_test": "tests/validation/test_engine_b_physics.py::test_plummer_halo_eff_core_equilibrium"
     },
     "test_environment_physics": {
-      "seconds": 0.5,
-      "slowest_test": "tests/validation/test_environment_physics.py::TestErratumCorrectedPlane::test_corrected_marks_equals_jerabkova"
+      "seconds": 1.86,
+      "slowest_test": "tests/validation/test_environment_physics.py::TestMarksTable4LowMassSlopes::test_slopes_steepen_with_metallicity"
     },
     "test_grad_audit": {
-      "seconds": 152.67,
-      "slowest_test": "tests/validation/test_grad_audit.py::test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]0]"
+      "seconds": 154.91,
+      "slowest_test": "tests/validation/test_grad_audit.py::test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]1]"
     },
     "test_imf_physics": {
-      "seconds": 3.56,
-      "slowest_test": "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_mean_mass_reasonable"
+      "seconds": 4.61,
+      "slowest_test": "tests/validation/test_imf_physics.py::TestSalpeterSlope::test_salpeter_mean_mass"
     },
     "test_jax_compatibility": {
-      "seconds": 3.21,
-      "slowest_test": "tests/integration/test_jax_compatibility.py::TestIMFJAXCompatibility::test_powerlaw_grad"
+      "seconds": 3.04,
+      "slowest_test": "tests/integration/test_jax_compatibility.py::TestIMFJAXCompatibility::test_powerlaw_vmap"
     },
     "test_king_physics": {
-      "seconds": 11.84,
-      "slowest_test": "tests/validation/test_king_physics.py::TestKingODESolution::test_different_concentrations[9.0]"
+      "seconds": 17.83,
+      "slowest_test": "tests/validation/test_king_physics.py::TestHighW0CoreResolution::test_sampled_core_mass_matches_dense_reference[7.0]"
     },
     "test_limepy_reference_parity": {
-      "seconds": 55.14,
-      "slowest_test": "tests/validation/test_limepy_reference_parity.py::test_parity_with_reference_limepy[twocomp_ra_eta05]"
+      "seconds": 59.18,
+      "slowest_test": "tests/validation/test_limepy_reference_parity.py::test_parity_with_reference_limepy[twocomp_iso]"
     },
     "test_mass_segregation_physics": {
-      "seconds": 51.95,
+      "seconds": 113.13,
       "slowest_test": "tests/validation/test_mass_segregation_physics.py::test_estimator_converges_with_random_samples"
     },
     "test_michie_physics": {
-      "seconds": 6.25,
-      "slowest_test": "tests/validation/test_michie_physics.py::TestMichieDifferentiability::test_grad_wrt_mass_velocity_scale"
+      "seconds": 16.35,
+      "slowest_test": "tests/validation/test_michie_physics.py::TestMichieAnisotropyProfile::test_beta_matches_df_oracle"
     },
     "test_multimass_equilibrium_physics": {
-      "seconds": 39.29,
-      "slowest_test": "tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic"
+      "seconds": 43.85,
+      "slowest_test": "tests/validation/test_multimass_equilibrium_physics.py::test_sampled_per_group_virial_converges_to_theory"
     },
     "test_numerics": {
-      "seconds": 1.11,
+      "seconds": 2.68,
       "slowest_test": "tests/unit/test_numerics.py::TestInverseCdfDraw::test_differentiable_in_weight_parameter"
     },
     "test_plummer_physics": {
-      "seconds": 1.1,
-      "slowest_test": "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile"
+      "seconds": 17.37,
+      "slowest_test": "tests/validation/test_plummer_physics.py::TestPlummerBoundParticles::test_all_particles_bound"
     },
     "test_ratchet_characterization": {
-      "seconds": 3.06,
+      "seconds": 6.72,
       "slowest_test": "tests/validation/test_ratchet_characterization.py::test_representative_node_id_resolves_and_asserts"
     },
     "test_readme_examples": {
-      "seconds": 7.93,
-      "slowest_test": "tests/integration/test_readme_examples.py::test_readme_block_executes[7]"
+      "seconds": 9.04,
+      "slowest_test": "tests/integration/test_readme_examples.py::test_readme_block_executes[2]"
     },
     "test_rotation_anisotropy_physics": {
-      "seconds": 5.12,
+      "seconds": 12.12,
       "slowest_test": "tests/validation/test_rotation_anisotropy_physics.py::TestOsipkovMerrittAnisotropy::test_plummer_beta_matches_exact_om"
     },
     "test_segregation_approx_physics": {
-      "seconds": 5.84,
+      "seconds": 7.59,
       "slowest_test": "tests/validation/test_segregation_approx_physics.py::TestDifferentiability::test_grad_positions_finite"
     },
     "test_segregation_equilibrium_physics": {
-      "seconds": 13.07,
+      "seconds": 17.17,
       "slowest_test": "tests/validation/test_segregation_equilibrium_physics.py::test_primordial_full_segregation_is_per_group_equilibrium"
     },
     "test_substructure_q_physics": {
-      "seconds": 5.06,
+      "seconds": 8.38,
       "slowest_test": "tests/validation/test_substructure_q_physics.py::TestQNIndependence::test_q_roughly_n_independent"
     },
     "test_tidal": {
-      "seconds": 1.13,
-      "slowest_test": "tests/unit/test_tidal.py::TestTidalTruncation::test_forward_is_exact_hard_cut"
+      "seconds": 1.87,
+      "slowest_test": "tests/unit/test_tidal.py::TestTidalTruncation::test_zero_mass_ghosts_are_inert_in_potential_energy"
     },
     "test_tidal_physics": {
-      "seconds": 2.75,
-      "slowest_test": "tests/validation/test_tidal_physics.py::TestTruncationBoundMass::test_bound_mass_matches_analytic_plummer_enclosed"
+      "seconds": 2.17,
+      "slowest_test": "tests/validation/test_tidal_physics.py::TestTruncationBoundMass::test_bound_mass_equals_mass_within_rt"
     },
     "test_units_through_pipeline": {
-      "seconds": 4.83,
+      "seconds": 3.06,
       "slowest_test": "tests/integration/test_units_through_pipeline.py::test_build_spatial_ic_respects_G_without_virial_rescale"
     },
     "test_zams_physics": {
-      "seconds": 2.47,
-      "slowest_test": "tests/validation/test_zams_physics.py::TestInverseRoundTrip::test_round_trip_recovers_mass"
+      "seconds": 3.56,
+      "slowest_test": "tests/validation/test_zams_physics.py::TestDifferentiability::test_inverse_differentiable"
     }
   },
   "gate": {
     "full_suite_green": null,
     "line_cov_floor": 90,
-    "line_cov_measured": 96.12682399567646,
+    "line_cov_measured": 96.17525588076855,
     "registries_full": true
   },
-  "generated_utc": "2026-07-10T21:50:10.781209+00:00",
+  "generated_utc": "2026-07-11T02:42:46.242026+00:00",
   "line_coverage": {
     "coverage_provenance": {
-      "git_sha": "5207842ac89209cd2780abcfd8e8983d86927b59",
-      "measured_utc": "2026-07-10T21:50:10.728493+00:00",
+      "git_sha": "0e84936cff3c17208765e540ed3f730eb656ae60",
+      "measured_utc": "2026-07-11T02:39:58.030432+00:00",
       "selector": "full",
-      "total_percent": 96.12682399567646
+      "total_percent": 96.17525588076855
     },
     "per_file_lines": {
       "__init__": {
@@ -261,7 +261,7 @@
         "num_statements": 37
       },
       "binaries/companions": {
-        "covered_lines": 60,
+        "covered_lines": 61,
         "num_statements": 64
       },
       "binaries/diagnostics": {
@@ -325,8 +325,8 @@
         "num_statements": 37
       },
       "cluster/multicomponent": {
-        "covered_lines": 185,
-        "num_statements": 187
+        "covered_lines": 184,
+        "num_statements": 186
       },
       "cluster/sampling": {
         "covered_lines": 48,
@@ -401,8 +401,8 @@
         "num_statements": 124
       },
       "imf/differentiable": {
-        "covered_lines": 99,
-        "num_statements": 99
+        "covered_lines": 94,
+        "num_statements": 94
       },
       "imf/differentiable_binary": {
         "covered_lines": 33,
@@ -433,8 +433,8 @@
         "num_statements": 17
       },
       "imf/power_law": {
-        "covered_lines": 118,
-        "num_statements": 126
+        "covered_lines": 112,
+        "num_statements": 120
       },
       "imf/smooth": {
         "covered_lines": 67,
@@ -489,8 +489,8 @@
         "num_statements": 29
       },
       "numerics": {
-        "covered_lines": 3,
-        "num_statements": 3
+        "covered_lines": 29,
+        "num_statements": 29
       },
       "profiles/__init__": {
         "covered_lines": 9,
@@ -501,20 +501,20 @@
         "num_statements": 59
       },
       "profiles/density_poisson": {
-        "covered_lines": 134,
-        "num_statements": 136
+        "covered_lines": 132,
+        "num_statements": 134
       },
       "profiles/eff": {
         "covered_lines": 49,
         "num_statements": 49
       },
       "profiles/king": {
-        "covered_lines": 136,
-        "num_statements": 137
+        "covered_lines": 139,
+        "num_statements": 140
       },
       "profiles/limepy": {
-        "covered_lines": 157,
-        "num_statements": 159
+        "covered_lines": 156,
+        "num_statements": 158
       },
       "profiles/limepy_multimass": {
         "covered_lines": 211,
@@ -529,8 +529,8 @@
         "num_statements": 102
       },
       "profiles/plummer": {
-        "covered_lines": 39,
-        "num_statements": 39
+        "covered_lines": 41,
+        "num_statements": 41
       },
       "profiles/uniform": {
         "covered_lines": 33,
@@ -558,7 +558,7 @@
       "analytical/two_body": 100.0,
       "binaries/__init__": 100.0,
       "binaries/assembly": 100.0,
-      "binaries/companions": 88.88888888888889,
+      "binaries/companions": 91.66666666666667,
       "binaries/diagnostics": 100.0,
       "binaries/eccentricity": 87.95180722891567,
       "binaries/kepler": 100.0,
@@ -574,7 +574,7 @@
       "cluster/constants": 100.0,
       "cluster/eddington_engine": 98.58156028368795,
       "cluster/mass_segregation": 100.0,
-      "cluster/multicomponent": 98.13953488372093,
+      "cluster/multicomponent": 98.13084112149532,
       "cluster/sampling": 100.0,
       "cluster/turbulence": 92.0,
       "defaults": 100.0,
@@ -601,7 +601,7 @@
       "imf/environment/density": 100.0,
       "imf/environment/mapping": 95.97315436241611,
       "imf/params": 100.0,
-      "imf/power_law": 93.18181818181819,
+      "imf/power_law": 92.85714285714286,
       "imf/smooth": 100.0,
       "imf/truncated": 95.55555555555556,
       "kinematics/__init__": 100.0,
@@ -618,10 +618,10 @@
       "numerics": 100.0,
       "profiles/__init__": 100.0,
       "profiles/api": 100.0,
-      "profiles/density_poisson": 96.95121951219512,
+      "profiles/density_poisson": 96.91358024691358,
       "profiles/eff": 100.0,
-      "profiles/king": 99.31972789115646,
-      "profiles/limepy": 98.20359281437126,
+      "profiles/king": 99.33333333333333,
+      "profiles/limepy": 98.19277108433735,
       "profiles/limepy_multimass": 99.1304347826087,
       "profiles/limepy_tables": 100.0,
       "profiles/michie": 99.05660377358491,
@@ -632,7 +632,7 @@
       "tidal": 100.0
     },
     "status": "measured",
-    "total_percent": 96.12682399567646
+    "total_percent": 96.17525588076855
   },
   "modules": {
     "analytical": {
@@ -649,8 +649,8 @@
     },
     "binaries": {
       "integration": 0,
-      "line_cov": 95.78783151326053,
-      "unit": 128,
+      "line_cov": 95.94383775351014,
+      "unit": 130,
       "validation": 0
     },
     "builders": {
@@ -661,8 +661,8 @@
     },
     "cluster": {
       "integration": 0,
-      "line_cov": 98.83177570093459,
-      "unit": 65,
+      "line_cov": 98.82903981264637,
+      "unit": 67,
       "validation": 0
     },
     "diagnostics": {
@@ -685,8 +685,8 @@
     },
     "imf": {
       "integration": 0,
-      "line_cov": 97.06601466992664,
-      "unit": 269,
+      "line_cov": 97.03947368421052,
+      "unit": 275,
       "validation": 0
     },
     "kinematics": {
@@ -703,8 +703,8 @@
     },
     "profiles": {
       "integration": 0,
-      "line_cov": 98.9463601532567,
-      "unit": 205,
+      "line_cov": 98.94837476099427,
+      "unit": 212,
       "validation": 0
     },
     "provenance_registry": {
@@ -716,13 +716,13 @@
     "stellar": {
       "integration": 0,
       "line_cov": 100.0,
-      "unit": 25,
+      "unit": 20,
       "validation": 0
     },
     "substructure": {
       "integration": 0,
       "line_cov": null,
-      "unit": 34,
+      "unit": 35,
       "validation": 0
     },
     "test_analytical_physics": {
@@ -773,34 +773,10 @@
       "unit": 0,
       "validation": 14
     },
-    "test_demo_oed": {
-      "integration": 0,
-      "line_cov": null,
-      "unit": 13,
-      "validation": 0
-    },
     "test_demo_oed_binary": {
       "integration": 0,
       "line_cov": null,
-      "unit": 36,
-      "validation": 0
-    },
-    "test_demo_oed_concentration": {
-      "integration": 0,
-      "line_cov": null,
-      "unit": 13,
-      "validation": 0
-    },
-    "test_demo_oed_depth": {
-      "integration": 0,
-      "line_cov": null,
-      "unit": 9,
-      "validation": 0
-    },
-    "test_demo_selection": {
-      "integration": 0,
-      "line_cov": null,
-      "unit": 4,
+      "unit": 5,
       "validation": 0
     },
     "test_dispersion_physics": {
@@ -890,7 +866,7 @@
     "test_numerics": {
       "integration": 0,
       "line_cov": null,
-      "unit": 8,
+      "unit": 79,
       "validation": 0
     },
     "test_plummer_physics": {
@@ -1002,8 +978,8 @@
       "must_audit": 88,
       "status": "built",
       "status_histogram": {
-        "clean": 94,
-        "known-limitation": 4
+        "clean": 97,
+        "known-limitation": 1
       }
     },
     "physics_validation": {

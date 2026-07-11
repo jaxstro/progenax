@@ -1,5 +1,12 @@
 """Unit tests for the Tout+1996 ZAMS stellar relations (progenax.stellar).
 
+Gradient coverage note (2026-07 quality trim): the former per-class finite-only
+``test_differentiable`` smokes were deleted — a silently zeroed gradient passes
+``isfinite`` (audit T6). All five entry points are FD-audited with teeth by the
+grad-audit registry (tests/validation/grad_audit/registry.py :: zams_luminosity /
+zams_radius / zams_effective_temperature / zams_surface_gravity /
+inverse_zams_luminosity).
+
 Anchors are the PDF-verified solar (M=1, Z=0.02) values from
 docs/core-papers/tout1996_zams_coefficients_verified.md:
     L = 0.6977 Lsun, R = 0.8882 Rsun, T_eff ~ 5600 K, log g ~ 4.54.
@@ -29,10 +36,6 @@ class TestZAMSLuminosity:
         assert L.shape == (3,)
         assert jnp.all(L[1:] > L[:-1])  # monotone increasing
 
-    def test_differentiable(self):
-        g = jax.grad(lambda m: zams_luminosity(m))(jnp.array(1.0))
-        assert jnp.isfinite(g) and g > 0
-
 
 class TestZAMSRadius:
     def test_sun_anchor(self):
@@ -45,10 +48,6 @@ class TestZAMSRadius:
         assert jnp.all(R > 0)
         # 10 Msun ZAMS radius is a few Rsun
         assert 2.0 < R[2] < 8.0
-
-    def test_differentiable(self):
-        g = jax.grad(lambda m: zams_radius(m))(jnp.array(1.0))
-        assert jnp.isfinite(g)
 
 
 class TestZAMSEffectiveTemperature:
@@ -63,10 +62,6 @@ class TestZAMSEffectiveTemperature:
         assert jnp.all(teff > 0)
         assert jnp.all(teff[1:] > teff[:-1])  # hotter at higher mass
 
-    def test_differentiable(self):
-        g = jax.grad(lambda m: zams_effective_temperature(m))(jnp.array(1.0))
-        assert jnp.isfinite(g)
-
 
 class TestZAMSSurfaceGravity:
     def test_sun_anchor(self):
@@ -78,10 +73,6 @@ class TestZAMSSurfaceGravity:
         logg = zams_surface_gravity(jnp.array([0.5, 1.0, 10.0]))
         assert logg.shape == (3,)
         assert jnp.all(jnp.isfinite(logg))
-
-    def test_differentiable(self):
-        g = jax.grad(lambda m: zams_surface_gravity(m))(jnp.array(1.0))
-        assert jnp.isfinite(g)
 
 
 class TestInverseZAMSLuminosity:
@@ -95,10 +86,6 @@ class TestInverseZAMSLuminosity:
         m = inverse_zams_luminosity(L)
         assert jnp.ndim(m) == 0
         assert m == pytest.approx(1.0, rel=1e-5)
-
-    def test_differentiable(self):
-        g = jax.grad(lambda L: inverse_zams_luminosity(L)[0])(jnp.array([100.0]))
-        assert jnp.isfinite(g)
 
 
 class TestMetallicityDependence:
