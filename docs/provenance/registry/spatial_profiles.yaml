@@ -37,34 +37,34 @@
     - label: plummer-rho
       latex: '\rho(r) \;=\; \frac{3\,M}{4\pi\,a^3}\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-5/2}'
       symbols:
-        rho: {meaning: "mass density", units: "Msun / pc^3"}
-        M: {meaning: "total mass", units: Msun}
-        a: {meaning: "Plummer scale radius", units: pc}
+        rho: {latex: '\rho', meaning: "mass density", units: "Msun / pc^3"}
+        M: {latex: 'M', meaning: "total mass", units: Msun}
+        a: {latex: 'a', meaning: "Plummer scale radius", units: pc}
       assumptions: ["spherical symmetry", "isotropic (for the paired DF)"]
       theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-rho"
     - label: plummer-mcum
       latex: 'M(<r) \;=\; M\,\frac{r^3}{(r^2 + a^2)^{3/2}}'
       symbols:
-        M_cum: {meaning: "enclosed mass", units: Msun}
+        M_cum: {latex: 'M(<r)', meaning: "enclosed mass", units: Msun}
       assumptions: ["spherical symmetry"]
       theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-mcum"
     - label: plummer-rh-a
       latex: 'a \;=\; r_h\,\sqrt{2^{2/3} - 1}\;\approx\;0.7664\,r_h'
       symbols:
-        r_h: {meaning: "3-D half-mass radius", units: pc}
+        r_h: {latex: 'r_h', meaning: "3-D half-mass radius", units: pc}
       assumptions: []
       theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-rh-a"
     - label: plummer-sigma-r
       latex: '\sigma_r^2(r) \;=\; \frac{G\,M}{6\,\sqrt{r^2 + a^2}}'
       symbols:
-        sigma_r: {meaning: "1-D radial velocity dispersion", units: "pc / Myr"}
-        G: {meaning: "gravitational constant (explicit, units-carried)", units: "pc^3 / (Msun Myr^2)"}
+        sigma_r: {latex: '\sigma_r', meaning: "1-D radial velocity dispersion", units: "pc / Myr"}
+        G: {latex: 'G', meaning: "gravitational constant (explicit, units-carried)", units: "pc^3 / (Msun Myr^2)"}
       assumptions: ["isotropic Plummer DF"]
       theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-sigma-r"
     - label: plummer-df
       latex: 'f(E) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,(-E)^{7/2}, \qquad E < 0'
       symbols:
-        E: {meaning: "specific energy (bound: E < 0)", units: "pc^2 / Myr^2"}
+        E: {latex: 'E', meaning: "specific energy (bound: E < 0)", units: "pc^2 / Myr^2"}
       assumptions: ["ergodic f(E)", "isotropic"]
       theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-df"
   code_refs:
@@ -109,28 +109,28 @@
     - label: king-df
       latex: 'f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\bigl[\,e^{(\Phi(r_t)-E)/\sigma_0^2} - 1\,\bigr], & E < \Phi(r_t) \\ 0, & E \ge \Phi(r_t) \end{cases}'
       symbols:
-        E: {meaning: "specific energy", units: "pc^2 / Myr^2"}
-        sigma_0: {meaning: "central velocity-scale parameter", units: "pc / Myr"}
-        rho_1: {meaning: "density normalization", units: "Msun / pc^3"}
+        E: {latex: 'E', meaning: "specific energy", units: "pc^2 / Myr^2"}
+        sigma_0: {latex: '\sigma_0', meaning: "central velocity-scale parameter", units: "pc / Myr"}
+        rho_1: {latex: '\rho_1', meaning: "density normalization", units: "Msun / pc^3"}
       assumptions: ["isotropic", "single-mass", "lowered Maxwellian"]
       theory_ref: "10-theory/spatial-profiles/king.md#king-df"
     - label: king-rho-W
       latex: '\rho(W) \;=\; \rho_1 \cdot \bigl[\,e^W\,\mathrm{erf}(\sqrt{W}) - \sqrt{4W/\pi}\,(1 + \tfrac{2}{3}W)\,\bigr]'
       symbols:
-        W: {meaning: "dimensionless potential Psi/sigma_0^2", units: dimensionless}
+        W: {latex: 'W', meaning: "dimensionless potential Psi/sigma_0^2", units: dimensionless}
       assumptions: ["follows from integrating the lowered-Maxwellian DF over velocities"]
       theory_ref: "10-theory/spatial-profiles/king.md#king-rho-W"
     - label: king-rc
       latex: 'r_c^2 \;=\; \frac{9\,\sigma_0^2}{4\pi G\,\rho_0}'
       symbols:
-        rho_0: {meaning: "central density", units: "Msun / pc^3"}
+        rho_0: {latex: '\rho_0', meaning: "central density", units: "Msun / pc^3"}
       assumptions: []
       theory_ref: "10-theory/spatial-profiles/king.md#king-rc"
     - label: king-c
       latex: 'c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t)'
       symbols:
-        r_t: {meaning: "tidal (truncation) radius, the psi -> 0 crossing", units: pc}
-        xi_t: {meaning: "dimensionless tidal radius r_t/r_c", units: dimensionless}
+        r_t: {latex: 'r_t', meaning: "tidal (truncation) radius, the psi -> 0 crossing", units: pc}
+        xi_t: {latex: '\xi_t', meaning: "dimensionless tidal radius r_t/r_c", units: dimensionless}
       assumptions: []
       theory_ref: "10-theory/spatial-profiles/king.md#king-c"
   code_refs:
@@ -181,20 +181,20 @@
     - label: eff-rho
       latex: '\rho(r) \;=\; \rho_0\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-\gamma/2}'
       symbols:
-        rho_0: {meaning: "central density", units: "Msun / pc^3"}
-        gamma: {meaning: "3-D power-law slope", units: dimensionless}
+        rho_0: {latex: '\rho_0', meaning: "central density", units: "Msun / pc^3"}
+        gamma: {latex: '\gamma', meaning: "3-D power-law slope", units: dimensionless}
       assumptions: ["spherical symmetry", "3-D (deprojected) slope convention"]
       theory_ref: "10-theory/spatial-profiles/eff.md#eff-rho"
     - label: eff-mcum
       latex: 'M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\; {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\gamma}{2};\,\tfrac{5}{2};\,-\frac{r^2}{a^2}\right)'
       symbols:
-        M_cum: {meaning: "enclosed mass (Gauss hypergeometric closed form)", units: Msun}
+        M_cum: {latex: 'M(<r)', meaning: "enclosed mass (Gauss hypergeometric closed form)", units: Msun}
       assumptions: ["spherical symmetry"]
       theory_ref: "10-theory/spatial-profiles/eff.md#eff-mcum"
     - label: eff-mtotal
       latex: 'M_{\mathrm{total}} \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\, \frac{\Gamma\!\big(\tfrac{\gamma-3}{2}\big)}{\Gamma\!\big(\tfrac{\gamma}{2}\big)}'
       symbols:
-        Gamma: {meaning: "Euler gamma function", units: dimensionless}
+        Gamma: {latex: '\Gamma', meaning: "Euler gamma function", units: dimensionless}
       assumptions: ["gamma > 3 (else the untruncated mass diverges)"]
       theory_ref: "10-theory/spatial-profiles/eff.md#eff-mtotal"
   code_refs:

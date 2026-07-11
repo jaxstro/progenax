@@ -41,7 +41,7 @@ Cored, infinitely extended spherical density profile with an analytic inverse-CD
 \rho(r) \;=\; \frac{3\,M}{4\pi\,a^3}\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-5/2}
 ```
 
-*Symbols:* $rho$: mass density [Msun / pc^3]; $M$: total mass [Msun]; $a$: Plummer scale radius [pc].
+*Symbols:* $\rho$: mass density [Msun / pc^3]; $M$: total mass [Msun]; $a$: Plummer scale radius [pc].
 *Assumes:* spherical symmetry; isotropic (for the paired DF).
 *Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-rho).
 
@@ -50,7 +50,7 @@ Cored, infinitely extended spherical density profile with an analytic inverse-CD
 M(<r) \;=\; M\,\frac{r^3}{(r^2 + a^2)^{3/2}}
 ```
 
-*Symbols:* $M_cum$: enclosed mass [Msun].
+*Symbols:* $M(<r)$: enclosed mass [Msun].
 *Assumes:* spherical symmetry.
 *Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-mcum).
 
@@ -67,7 +67,7 @@ a \;=\; r_h\,\sqrt{2^{2/3} - 1}\;\approx\;0.7664\,r_h
 \sigma_r^2(r) \;=\; \frac{G\,M}{6\,\sqrt{r^2 + a^2}}
 ```
 
-*Symbols:* $sigma_r$: 1-D radial velocity dispersion [pc / Myr]; $G$: gravitational constant (explicit, units-carried) [pc^3 / (Msun Myr^2)].
+*Symbols:* $\sigma_r$: 1-D radial velocity dispersion [pc / Myr]; $G$: gravitational constant (explicit, units-carried) [pc^3 / (Msun Myr^2)].
 *Assumes:* isotropic Plummer DF.
 *Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-sigma-r).
 
@@ -120,7 +120,7 @@ Single-mass lowered-isothermal sphere: an isothermal core with a finite tidal cu
 f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\bigl[\,e^{(\Phi(r_t)-E)/\sigma_0^2} - 1\,\bigr], & E < \Phi(r_t) \\ 0, & E \ge \Phi(r_t) \end{cases}
 ```
 
-*Symbols:* $E$: specific energy [pc^2 / Myr^2]; $sigma_0$: central velocity-scale parameter [pc / Myr]; $rho_1$: density normalization [Msun / pc^3].
+*Symbols:* $E$: specific energy [pc^2 / Myr^2]; $\sigma_0$: central velocity-scale parameter [pc / Myr]; $\rho_1$: density normalization [Msun / pc^3].
 *Assumes:* isotropic; single-mass; lowered Maxwellian.
 *Derivation:* [theory page](../10-theory/spatial-profiles/king.md#king-df).
 
@@ -138,7 +138,7 @@ f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\bigl[\,e^{(\Phi(r_t)-
 r_c^2 \;=\; \frac{9\,\sigma_0^2}{4\pi G\,\rho_0}
 ```
 
-*Symbols:* $rho_0$: central density [Msun / pc^3].
+*Symbols:* $\rho_0$: central density [Msun / pc^3].
 *Derivation:* [theory page](../10-theory/spatial-profiles/king.md#king-rc).
 
 ```{math}
@@ -146,7 +146,7 @@ r_c^2 \;=\; \frac{9\,\sigma_0^2}{4\pi G\,\rho_0}
 c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t)
 ```
 
-*Symbols:* $r_t$: tidal (truncation) radius, the psi -> 0 crossing [pc]; $xi_t$: dimensionless tidal radius r_t/r_c [dimensionless].
+*Symbols:* $r_t$: tidal (truncation) radius, the psi -> 0 crossing [pc]; $\xi_t$: dimensionless tidal radius r_t/r_c [dimensionless].
 *Derivation:* [theory page](../10-theory/spatial-profiles/king.md#king-c).
 
 ### Sources
@@ -189,7 +189,7 @@ Cored profile with a power-law outer halo of 3-D slope gamma: the empirical fit 
 \rho(r) \;=\; \rho_0\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-\gamma/2}
 ```
 
-*Symbols:* $rho_0$: central density [Msun / pc^3]; $gamma$: 3-D power-law slope [dimensionless].
+*Symbols:* $\rho_0$: central density [Msun / pc^3]; $\gamma$: 3-D power-law slope [dimensionless].
 *Assumes:* spherical symmetry; 3-D (deprojected) slope convention.
 *Derivation:* [theory page](../10-theory/spatial-profiles/eff.md#eff-rho).
 
@@ -198,7 +198,7 @@ Cored profile with a power-law outer halo of 3-D slope gamma: the empirical fit 
 M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\; {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\gamma}{2};\,\tfrac{5}{2};\,-\frac{r^2}{a^2}\right)
 ```
 
-*Symbols:* $M_cum$: enclosed mass (Gauss hypergeometric closed form) [Msun].
+*Symbols:* $M(<r)$: enclosed mass (Gauss hypergeometric closed form) [Msun].
 *Assumes:* spherical symmetry.
 *Derivation:* [theory page](../10-theory/spatial-profiles/eff.md#eff-mcum).
 
@@ -207,7 +207,7 @@ M(<r) \;=\; \frac{4\pi}{3}\,\rho_0\,r^3\; {}_2F_1\!\left(\tfrac{3}{2},\,\tfrac{\
 M_{\mathrm{total}} \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\, \frac{\Gamma\!\big(\tfrac{\gamma-3}{2}\big)}{\Gamma\!\big(\tfrac{\gamma}{2}\big)}
 ```
 
-*Symbols:* $Gamma$: Euler gamma function [dimensionless].
+*Symbols:* $\Gamma$: Euler gamma function [dimensionless].
 *Assumes:* gamma > 3 (else the untruncated mass diverges).
 *Derivation:* [theory page](../10-theory/spatial-profiles/eff.md#eff-mtotal).
 

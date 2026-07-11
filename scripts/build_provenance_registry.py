@@ -134,7 +134,10 @@ def _render_card(card: dict) -> str:
         lines.append("```")
         lines.append("")
         sym_bits = [
-            f"${name}$: {info['meaning']} [{info.get('units', '—')}]"
+            (
+                f"${info['latex']}$" if "latex" in info else f"`{name}`"
+            )
+            + f": {info['meaning']} [{info.get('units', '—')}]"
             for name, info in eq.get("symbols", {}).items()
         ]
         if sym_bits:
