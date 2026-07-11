@@ -12,7 +12,7 @@ This page is **generated** — do not hand-edit. Regenerate it with
 which stamps the timestamp, emits `validation/data/test_dashboard.json`, and re-renders this page.
 ```
 
-Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
+Generated at `2026-07-11T03:25:23.532929+00:00`. Line coverage: 96.2% (floor 90%). `Line-cov %` cells read **pending (Phase 2)** until the committed full-suite `coverage.json` exists, then show the statement-weighted per-directory coverage. The `Grad-audit fill` column reports the repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -48,7 +48,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 95.9
   - 41/122 audited, 0 haz
-  - test_all_survive_at_t0 (16.2s)
+  - test_Q_com_recovers_virial_target (19.4s)
   - PASS
 * - `builders`
   - 43
@@ -56,7 +56,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 93.7
   - 41/122 audited, 0 haz
-  - test_matched_limepy_anisotropic_threads_r_a (12.1s)
+  - test_matched_limepy_anisotropic_threads_r_a (12.4s)
   - —
 * - `cluster`
   - 67
@@ -64,7 +64,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 98.8
   - 41/122 audited, 0 haz
-  - test_engine_b_global_virial_is_half_unscaled (90.8s)
+  - test_engine_b_global_virial_is_half_unscaled (58.2s)
   - —
 * - `diagnostics`
   - 28
@@ -72,7 +72,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 92.4
   - 41/122 audited, 0 haz
-  - test_returns_expected_keys (5.0s)
+  - test_returns_expected_keys (5.6s)
   - —
 * - `dynamics`
   - 28
@@ -80,7 +80,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 97.8
   - 41/122 audited, 0 haz
-  - test_single_group_reproduces_global_virial (3.1s)
+  - test_single_group_reproduces_global_virial (4.9s)
   - —
 * - `grad_audit`
   - 0
@@ -88,7 +88,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 26
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_run_audit_emits_required_keys (810.7s)
+  - test_run_audit_emits_required_keys (420.8s)
   - —
 * - `imf`
   - 275
@@ -96,7 +96,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 97.0
   - 41/122 audited, 0 haz
-  - test_p_q_interrelation (18.1s)
+  - test_p_q_interrelation (12.1s)
   - —
 * - `kinematics`
   - 138
@@ -104,7 +104,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 99.9
   - 41/122 audited, 0 haz
-  - test_grad_df_moment_michie_high_W0_ad_correct (29.7s)
+  - test_differentiable_in_g_through_table (39.0s)
   - —
 * - `physics_registry`
   - 0
@@ -112,7 +112,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 6
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_every_cited_test_node_id_resolves (27.4s)
+  - test_every_cited_test_node_id_resolves (26.5s)
   - —
 * - `profiles`
   - 212
@@ -120,7 +120,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 98.9
   - 41/122 audited, 0 haz
-  - test_grad_ra_hat_vs_fd_quadrature (485.8s)
+  - test_grad_ra_hat_vs_fd_quadrature (110.3s)
   - —
 * - `provenance_registry`
   - 0
@@ -128,7 +128,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 7
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_no_new_unprovenanced_literal_in_allowlist_modules (0.7s)
+  - test_no_new_unprovenanced_literal_in_allowlist_modules (2.6s)
   - —
 * - `stellar`
   - 20
@@ -136,7 +136,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - 100.0
   - 41/122 audited, 0 haz
-  - test_differentiable (2.2s)
+  - test_inverse_round_trip_wide_grid (1.6s)
   - —
 * - `substructure`
   - 35
@@ -144,7 +144,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_calibration_produces_valid_factors (35.7s)
+  - test_calibration_produces_valid_factors (73.0s)
   - —
 * - `test_analytical_physics`
   - 0
@@ -152,7 +152,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 28
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_eccentric_orbit_closes_and_conserves (2.2s)
+  - test_eccentric_orbit_closes_and_conserves (1.4s)
   - —
 * - `test_azimuthal_variation_physics`
   - 0
@@ -160,7 +160,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 5
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_anticorrelates_with_cw04_Q (2.6s)
+  - test_anticorrelates_with_cw04_Q (1.6s)
   - —
 * - `test_binary_cluster`
   - 0
@@ -168,7 +168,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_totalmass_reaches_budget (18.8s)
+  - test_totalmass_reaches_budget (16.7s)
   - —
 * - `test_binary_physics`
   - 0
@@ -176,7 +176,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 19
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_grad_finite_through_e_to_one (2.6s)
+  - test_grad_finite_through_e_to_one (1.8s)
   - —
 * - `test_builders`
   - 14
@@ -184,7 +184,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_build_with_plummer (4.4s)
+  - test_build_with_plummer (4.7s)
   - —
 * - `test_cluster_builders_integration`
   - 0
@@ -192,7 +192,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_grad_through_build_cluster_from_params_bites_each_channel (8.3s)
+  - test_each_profile_builds_near_virial[michie] (7.0s)
   - —
 * - `test_dashboard_fresh`
   - 0
@@ -200,7 +200,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 3
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_committed_dashboard_matches_fresh_regeneration (144.0s)
+  - test_committed_dashboard_matches_fresh_regeneration (60.2s)
   - —
 * - `test_dashboard_gen`
   - 0
@@ -208,7 +208,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 14
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_registries_full_flag_gates_on_built_and_full (142.8s)
+  - test_registries_full_flag_gates_on_built_and_full (73.1s)
   - —
 * - `test_demo_oed_binary`
   - 5
@@ -216,7 +216,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_deterministic_sweep_span_and_marg_costs_info (36.1s)
+  - test_cli_binary_quick_smoke (3.4s)
   - —
 * - `test_dispersion_physics`
   - 0
@@ -224,7 +224,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 24
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_projection_empirical_los_and_pm (60.3s)
+  - test_projection_empirical_los_and_pm (21.6s)
   - —
 * - `test_documented_api`
   - 16
@@ -240,7 +240,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 24
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_eff_all_particles_bound (9.5s)
+  - test_velocity_isotropy (9.5s)
   - —
 * - `test_end_to_end`
   - 0
@@ -256,7 +256,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 6
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_plummer_halo_eff_core_equilibrium (351.4s)
+  - test_plummer_halo_eff_core_equilibrium (174.7s)
   - —
 * - `test_environment_physics`
   - 0
@@ -264,7 +264,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 15
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_slopes_steepen_with_metallicity (1.9s)
+  - test_corrected_marks_equals_jerabkova (0.6s)
   - —
 * - `test_grad_audit`
   - 0
@@ -272,7 +272,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 100
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]1] (154.9s)
+  - test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]1] (97.6s)
   - —
 * - `test_imf_physics`
   - 0
@@ -280,7 +280,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 23
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_salpeter_mean_mass (4.6s)
+  - test_chabrier_mean_mass_reasonable (4.5s)
   - —
 * - `test_jax_compatibility`
   - 0
@@ -288,7 +288,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_powerlaw_vmap (3.0s)
+  - test_powerlaw_grad (2.7s)
   - —
 * - `test_king_physics`
   - 0
@@ -296,7 +296,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 35
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_sampled_core_mass_matches_dense_reference[7.0] (17.8s)
+  - test_concentration_matches_king_table_ii[9-2.12] (6.0s)
   - —
 * - `test_limepy_reference_parity`
   - 0
@@ -304,7 +304,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 3
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_parity_with_reference_limepy[twocomp_iso] (59.2s)
+  - test_parity_with_reference_limepy[twocomp_ra_eta05] (49.9s)
   - —
 * - `test_mass_segregation_physics`
   - 0
@@ -312,7 +312,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 9
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_estimator_converges_with_random_samples (113.1s)
+  - test_estimator_converges_with_random_samples (60.6s)
   - —
 * - `test_michie_physics`
   - 0
@@ -320,7 +320,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 10
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_beta_matches_df_oracle (16.4s)
+  - test_grad_wrt_mass_velocity_scale (9.0s)
   - —
 * - `test_multimass_equilibrium_physics`
   - 0
@@ -328,7 +328,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 6
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_sampled_per_group_virial_converges_to_theory (43.9s)
+  - test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic (37.3s)
   - —
 * - `test_numerics`
   - 79
@@ -336,7 +336,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_differentiable_in_weight_parameter (2.7s)
+  - test_differentiable_in_weight_parameter (1.5s)
   - —
 * - `test_plummer_physics`
   - 0
@@ -344,7 +344,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 20
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_all_particles_bound (17.4s)
+  - test_all_particles_bound (2.5s)
   - —
 * - `test_protocols`
   - 14
@@ -368,7 +368,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 12
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_representative_node_id_resolves_and_asserts (6.7s)
+  - test_harness_orchestration_reproduces_zero_holes (3.9s)
   - —
 * - `test_readme_examples`
   - 0
@@ -376,7 +376,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_readme_block_executes[2] (9.0s)
+  - test_readme_block_executes[1] (4.2s)
   - —
 * - `test_rotation_anisotropy_physics`
   - 0
@@ -384,7 +384,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 8
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_plummer_beta_matches_exact_om (12.1s)
+  - test_plummer_beta_matches_exact_om (6.0s)
   - —
 * - `test_segregation_approx_physics`
   - 0
@@ -392,7 +392,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 13
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_grad_positions_finite (7.6s)
+  - test_grad_positions_finite (6.3s)
   - —
 * - `test_segregation_equilibrium_physics`
   - 0
@@ -400,7 +400,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 4
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_primordial_full_segregation_is_per_group_equilibrium (17.2s)
+  - test_primordial_full_segregation_is_per_group_equilibrium (17.8s)
   - —
 * - `test_strict_refs`
   - 0
@@ -416,7 +416,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 8
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_q_roughly_n_independent (8.4s)
+  - test_q_roughly_n_independent (5.9s)
   - —
 * - `test_tidal`
   - 15
@@ -424,7 +424,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_zero_mass_ghosts_are_inert_in_potential_energy (1.9s)
+  - test_vmap_over_r_t_monotone (1.2s)
   - —
 * - `test_tidal_physics`
   - 0
@@ -432,7 +432,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 9
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_bound_mass_equals_mass_within_rt (2.2s)
+  - test_bound_mass_matches_analytic_plummer_enclosed (2.6s)
   - —
 * - `test_units_through_pipeline`
   - 0
@@ -440,7 +440,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 0
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_build_spatial_ic_respects_G_without_virial_rescale (3.1s)
+  - test_virial_rescale_masks_dropped_G (4.8s)
   - —
 * - `test_zams_physics`
   - 0
@@ -448,7 +448,7 @@ Generated at `2026-07-11T02:42:46.242026+00:00`. Line coverage: 96.2% (floor 90%
   - 34
   - pending (Phase 2)
   - 41/122 audited, 0 haz
-  - test_inverse_differentiable (3.6s)
+  - test_inverse_differentiable (2.6s)
   - —
 ```
 
