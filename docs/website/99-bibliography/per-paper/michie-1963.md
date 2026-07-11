@@ -57,7 +57,7 @@ $\Phi(0)=0$, and $\alpha,\beta$ model constants. The two ingredients:
   function** ($Q\to1$ at $E=0$, $Q\to0$ at the escape energy $E_e$), *not* a lowered
   Maxwellian. It carries a slight $J^2$-dependent correction (Eq. 5.3).
 
-```{admonition} What "Michie-King" means — and what progenax implements
+:::{admonition} What "Michie-King" means — and what progenax implements
 :class: important
 Michie's *literal* cutoff $Q$ (Eq. 4.8) is more elaborate than King's. Modern IC codes
 (Gunn & Griffin 1979; LIMEPY, Gieles & Zocchi 2015) use the **Michie anisotropy term**
@@ -73,7 +73,7 @@ f(E,J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right)
 This is the standard **Michie–King** model. progenax adopts {eq}`michie-king-df`
 (Michie 1963 anisotropy + King 1966 cutoff), not Michie's full $Q$ — the $Q$ refinement
 is a high-energy-tail correction irrelevant to equilibrium ICs.
-```
+:::
 
 ## Self-consistency: the anisotropic King ODE (verified, §5)
 
@@ -103,8 +103,8 @@ radius where $\beta\to 0.5$) is the same parameter as Michie's $C$, rescaled.
 
 ## Use in progenax
 
-- `progenax.kinematics` / `progenax.profiles` — the planned **Michie–King anisotropic
-  model** (a self-consistent profile + velocity DF pair): solve {eq}`michie-poisson` for
+- `progenax.kinematics` / `progenax.profiles` — the **implemented Michie–King anisotropic
+  model** (`MichieProfile` + `MichieVelocityDF`): solve {eq}`michie-poisson` for
   $\rho(r),\Phi(r),r_t$ given $(W_0, r_a)$, then sample $(v_r,v_t)$ from
   {eq}`michie-king-df`. Distinct from the isotropic [](king-1966.md) (different density)
   and from the [](merritt-1985.md) Osipkov–Merritt construction (which holds the density
