@@ -175,11 +175,11 @@ def _king_density_and_dW(profile, r: Float[Array, "n_r"]):
     historical single-King read had min f/max|f| = -0.68 that way, while the
     true King ergodic DF is strictly positive (fixed in commit dccedbe).
 
-    Uniform-grid contract: the cumulative integral assumes ``r`` is a dense,
-    UNIFORM, ascending grid anchored at ~0 (scalar-dx trapezoid) -- exactly the
-    Poisson linspace grid both call sites (shared_potential,
-    build_engine_b_state) pass. A non-uniform (e.g. log-spaced) grid would give
-    a silently wrong dW/dr.
+    Grid contract: ``r`` must be a dense, ASCENDING grid anchored at ~0; the
+    cumulative integral uses the non-uniform trapezoid (x=xi), so it is correct
+    on both the historical uniform linspace and the sqrt-stretched Poisson grid
+    (audit S2) that both call sites (shared_potential, build_engine_b_state)
+    now pass. Density still needs the grid DENSE near the core for accuracy.
     """
     xi = r / profile.r_c
     psi = jnp.interp(xi, profile.xi_grid, profile.psi_grid, left=profile.W0, right=0.0)
@@ -193,9 +193,10 @@ def _king_density_and_dW(profile, r: Float[Array, "n_r"]):
     # xi -> 0 limit: dpsi/dxi -> -3 rho_tilde xi -> 0 (double-where guard,
     # gradient-safe: no 0/0 enters the graph). xi = r/r_c, so dW/dr =
     # (dpsi/dxi)/r_c.
-    dxi = xi[1] - xi[0]
     integ = rho * xi**2
-    cum = cumulative_trapz(integ, dx=dxi)
+    # Non-uniform trapezoid (x=xi): the Poisson grid is sqrt-stretched (audit
+    # S2), so a scalar dxi would be silently wrong here.
+    cum = cumulative_trapz(integ, x=xi)
     small = xi <= 1e-4
     xi_safe = jnp.where(small, 1.0, xi)
     dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
@@ -262,7 +263,9 @@ class SharedPotential(eqx.Module):
     mass_fractions_j = 1).
 
     Attributes:
-        r_grid: radial grid, linspace(1e-5, r_t, n_r) (EFF-table precedent).
+        r_grid: radial grid, sqrt-stretched 1e-5 + (r_t - 1e-5) u^2 with
+            u = linspace(0, 1, n_r) (audit S2): nodes concentrate in the core;
+            the 1e-5 floor guards the 1/r in Phi and dPsi/dr.
         Psi_grid: relative potential Psi = Phi(r_t) - Phi, Psi(r_t) = 0.
         dPsi_dr_grid: -M(<r)/r^2 (analytic from the enclosed mass).
         rho_j_grid: (n_comp, n_r) per-component densities, each normalized so its
@@ -327,18 +330,24 @@ def shared_potential(
         )
 
     r_t = jnp.asarray(r_t)
-    r = jnp.linspace(1e-5, r_t, n_r)
-    dr = r[1] - r[0]
+    # Sqrt-stretched grid r = floor + (r_t - floor) u^2 (audit S2, third sibling
+    # after LIMEPYProfile and Engine-A): a linear grid under-resolves the core
+    # when r_t >> r_c (King W0=12: r_t ~ 548 r_c -> +2.5% on M(<0.5 r_c) at the
+    # default n_r). The 1e-5 floor is kept — it guards the 1/r in Phi (inner/r)
+    # and dPsi/dr = -M/r^2 below. Smooth in r_t, so the build stays
+    # differentiable. All integrals on this grid MUST use the non-uniform
+    # trapezoid (x=r), never a scalar dx.
+    r = 1e-5 + (r_t - 1e-5) * jnp.linspace(0.0, 1.0, n_r) ** 2
 
     rho_rows, M_rows, trunc_rows = [], [], []
     for j, p in enumerate(profiles):
         rho_hat, _ = _density_and_derivative(p, r)
         m_hat = (
-            4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, dx=dr)[-1]
+            4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, x=r)[-1]
         )  # truncated mass of rho_hat
         rho_j = mass_fractions[j] * rho_hat / m_hat
         rho_rows.append(rho_j)
-        M_rows.append(4.0 * jnp.pi * cumulative_trapz(rho_j * r**2, dx=dr))
+        M_rows.append(4.0 * jnp.pi * cumulative_trapz(rho_j * r**2, x=r))
         trunc_rows.append(m_hat / _untruncated_mass(p, m_hat))
 
     rho_j_grid = jnp.stack(rho_rows)
@@ -346,8 +355,8 @@ def shared_potential(
     trunc_frac_j = jnp.stack(trunc_rows)
     rho_tot = jnp.sum(rho_j_grid, axis=0)
 
-    inner = cumulative_trapz(rho_tot * r**2, dx=dr)  # int_0^r rho s^2 ds
-    tail = cumulative_trapz(rho_tot * r, dx=dr)  # int_0^r rho s ds
+    inner = cumulative_trapz(rho_tot * r**2, x=r)  # int_0^r rho s^2 ds
+    tail = cumulative_trapz(rho_tot * r, x=r)  # int_0^r rho s ds
     outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
     Psi = Phi[-1] - Phi  # Psi(r_t) = 0, increases inward

@@ -175,3 +175,40 @@ class TestKingDrhoDW:
         np.testing.assert_allclose(
             np.asarray(_king_drho_dW(W)), np.asarray(ad), rtol=1e-10
         )
+
+
+class TestSharedPotentialCoreResolution:
+    """Engine-B's Poisson grid must resolve the core at high concentration.
+
+    The linear r-grid (audit S2's third sibling, after LIMEPYProfile and
+    Engine-A): at W0=12 (r_t ~ 548 r_c) the default n_r=6000 linear grid has
+    ~55 nodes inside 0.5 r_c and over-reads M(<0.5 r_c) by ~+2.5%. The
+    sqrt-stretched grid (r = floor + (r_t - floor) u^2, keeping the 1e-5 floor
+    that guards the 1/r in Phi and dPsi/dr) + non-uniform trapezoid must make
+    the default resolution match a fine-grid reference.
+    """
+
+    def test_core_mass_converged_at_high_concentration(self):
+        from progenax.profiles.density_poisson import shared_potential
+
+        king = KingProfile.from_W0_rc(W0=12.0, r_c=1.0)
+        coarse = shared_potential([king], jnp.array([1.0]), king.r_t)  # n_r default
+        fine = shared_potential([king], jnp.array([1.0]), king.r_t, n_r=400000)
+        m_c = float(jnp.interp(0.5, coarse.r_grid, coarse.M_cum_j[0]))
+        m_f = float(jnp.interp(0.5, fine.r_grid, fine.M_cum_j[0]))
+        rel = abs(m_c - m_f) / m_f
+        assert rel < 0.005, (
+            f"Engine-B M(<0.5 r_c) at default n_r is {rel:.2%} off the converged "
+            f"value (coarse={m_c:.4g}, fine={m_f:.4g}) — grid under-resolves the core"
+        )
+
+    def test_central_potential_converged_at_high_concentration(self):
+        from progenax.profiles.density_poisson import shared_potential
+
+        king = KingProfile.from_W0_rc(W0=12.0, r_c=1.0)
+        coarse = shared_potential([king], jnp.array([1.0]), king.r_t)
+        fine = shared_potential([king], jnp.array([1.0]), king.r_t, n_r=400000)
+        rel = abs(float(coarse.Psi_grid[0]) - float(fine.Psi_grid[0])) / float(
+            fine.Psi_grid[0]
+        )
+        assert rel < 1e-3, f"Engine-B Psi(0) at default n_r is {rel:.2%} off converged"

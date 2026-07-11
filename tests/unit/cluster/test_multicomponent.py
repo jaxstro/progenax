@@ -1205,3 +1205,31 @@ class TestEngineACoreMassResolution:
             f"Engine-A core-mass CDF at 0.5 r_c is {rel:.1%} off the converged "
             f"value (coarse={m_coarse:.4g}, fine={m_fine:.4g}) — grid under-resolves"
         )
+
+
+class TestEngineBCoreMassResolution:
+    """Engine-B's star-position CDF must resolve the core at high concentration.
+
+    Two linear grids stacked (audit S2, third sibling): the density_poisson
+    Poisson grid (n_r=6000: +2.5% at 0.5 r_c) and the assemble_engine_b_fields
+    position-CDF resampling grid (n_grid=1000 over r_t ~ 548 r_c: ~1 node in
+    the core), compounding to ~+17% at 0.5 r_c for W0=12. Both get the
+    sqrt-stretched grid + non-uniform trapezoid (as Engine-A / LIMEPYProfile).
+    """
+
+    def test_engine_b_core_mass_converged(self):
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        king = KingProfile.from_W0_rc(W0=12.0, r_c=1.0)
+        kw = dict(mass_fractions=jnp.array([1.0]), m_j=jnp.array([1.0]))
+        coarse = MultiComponentCluster.from_density_profiles([king], **kw)
+        fine = MultiComponentCluster.from_density_profiles(
+            [king], n_r=200000, n_grid=200000, **kw
+        )
+        m_coarse = float(jnp.interp(0.5, coarse._r_grid, coarse._cdf_j[0]))
+        m_fine = float(jnp.interp(0.5, fine._r_grid, fine._cdf_j[0]))
+        rel = abs(m_coarse - m_fine) / m_fine
+        assert rel < 0.02, (
+            f"Engine-B core-mass CDF at 0.5 r_c is {rel:.1%} off the converged "
+            f"value (coarse={m_coarse:.4g}, fine={m_fine:.4g}) — grid under-resolves"
+        )

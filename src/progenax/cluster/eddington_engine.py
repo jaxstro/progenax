@@ -413,7 +413,11 @@ def assemble_engine_b_fields(
         profiles, mass_fractions, ra_arr, r_t, f_enc, n_r, n_e
     )
 
-    r_grid = jnp.linspace(0.0, pot.r_t, n_grid)
+    # Sqrt-stretched position-CDF grid r = r_t u^2 (audit S2, as Engine-A /
+    # LIMEPYProfile): a linear n_grid over r_t ~ 548 r_c (King W0=12) has ~1
+    # node in the core and over-read CDF(<0.5 r_c) by ~+17%. Pure interpolation
+    # query grid (no 1/r), so it may start at 0. Smooth in r_t (differentiable).
+    r_grid = pot.r_t * jnp.linspace(0.0, 1.0, n_grid) ** 2
     cdf_full = pot.M_cum_j / (pot.M_cum_j[:, -1:] + 1e-30)
     cdf_j = jax.vmap(lambda row: jnp.interp(r_grid, pot.r_grid, row, left=0.0))(
         cdf_full
