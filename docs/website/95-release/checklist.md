@@ -22,6 +22,55 @@ with a dated note. The genuine remaining blockers (re-enable CI, resolve the
 separate, maintainer-approved step.
 :::
 
+(checklist-slice-d)=
+## 🚀 Slice D — the pre-flip / pre-tag punch list (maintainer executes)
+
+*Added 2026-07-11 at the close of the pre-public improvement program (Slices A–C).
+These are the concrete actions between "repo goes public" and "tag `v0.1.0`", in
+order. Every claim below was re-verified against the repo on 2026-07-11.*
+
+**Before or at the public flip:**
+
+- [ ] **Re-enable the 3 GitHub Actions workflows.** All three are
+  `disabled_manually` in the repo settings (the YAML itself is current):
+  `tests.yml` (PR gate), `physics-validation.yml` (slow lane), `docs.yml`
+  (docs gate). Re-enable in *Settings → Actions*, then confirm one green run on a
+  real PR before trusting them.
+- [ ] **Fix the stale Python-3.10 matrix leg first.** `pyproject.toml` declares
+  `requires-python = ">=3.11"`, but `.github/workflows/physics-validation.yml`
+  line 62 still runs a `"3.10"` matrix leg (and the comment above it, line 54,
+  still says `>=3.10`). Change the matrix to `["3.11", "3.13"]` and fix the
+  comment — otherwise the first CI run after re-enable fails on an
+  unsupported interpreter, not on physics.
+- [ ] **Add `CONTRIBUTING.md`.** Minimum useful content: uv-based setup
+  (`uv pip install -e ".[dev]"` with the side-by-side `jaxstro` checkout), the
+  two-tier local gate (FAST `-m "not slow"` / FULL), the JAX-native ground rules
+  (no numpy/scipy on core paths, differentiability non-negotiable), and that PRs
+  must pass `make -C docs/website gate` when they touch docs.
+
+**At the `v0.1.0` tag:**
+
+- [ ] **Add `CITATION.cff` + mint the Zenodo DOI.** File does not exist yet.
+  Enable the GitHub–Zenodo integration *before* pushing the tag (Zenodo archives
+  on tag-push), then backfill the minted DOI into `CITATION.cff` and the README.
+  Template details in [release strategy](#release-strategy).
+- [ ] **Add an sdist include/exclude.** The build backend is hatchling and only a
+  `[tool.hatch.build.targets.wheel]` table exists — the sdist currently bundles
+  ~20 MB of `docs/` (built figures included) and internal files. Add a
+  `[tool.hatch.build.targets.sdist]` table with `exclude` (at minimum
+  `docs/`, `laboratory/`, `audits/`, `papers/`, `.brain-drafts/`,
+  `tests/experimental/`) or an explicit `include` allowlist, then verify with
+  `uv build --sdist` + `tar -tzf dist/*.tar.gz | head -50`.
+- [ ] **Fix the hardcoded path in `scripts/check.sh` (line 77).** The clean-venv
+  wheel smoke installs `/Users/anna/projects/jaxstro-dev/jaxstro` verbatim.
+  Replace with a repo-relative resolution, e.g.
+  `"$(cd "$(dirname "$0")/../../jaxstro" && pwd)"`, so the gate script survives
+  on any checkout (CI included).
+
+**Explicitly NOT in Slice D** (tracked in [Blockers](#checklist-blockers) below):
+the `jaxstro`/PyPI dependency story stays deferred — a GitHub source tag is fine
+without it.
+
 (checklist-blockers)=
 ## ❌ Blockers — must resolve to claim "released"
 
