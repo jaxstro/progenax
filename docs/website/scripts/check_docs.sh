@@ -13,20 +13,15 @@
 #      warnings (verified against mystmd v1.10.1). So we capture the build output
 #      and fail if any `⚠` warning line survives the node/dev-server noise filter.
 #
-#   3. Card-link resolution. The card-links plugin (plugins/card-links.mjs)
-#      computes glossary URLs from slug assumptions `myst build` does not
-#      enforce (root-flat slugs + build-order-dependent dedup); every emitted
-#      href is verified against the build's own myst.xref.json.
-#
 # Usage:  bash scripts/check_docs.sh   (or `make gate`)   from docs/website/.
-# Exit:   0 = all gates pass; 1 = any broken link, warning, or dead card link.
+# Exit:   0 = both gates pass; 1 = any broken link or content warning.
 
 set -uo pipefail
 cd "$(dirname "$0")/.."   # -> docs/website/
 
 fail=0
 
-echo "== [1/3] link / count gate =================================="
+echo "== [1/2] link / count gate =================================="
 if python3 scripts/check_links_and_counts.py; then
   echo "  link gate: PASS"
 else
@@ -35,7 +30,7 @@ else
 fi
 
 echo ""
-echo "== [2/3] build content-warning gate ========================="
+echo "== [2/2] build content-warning gate ========================="
 log="$(mktemp)"
 NODE_OPTIONS=--no-deprecation myst build --html >"$log" 2>&1
 build_rc=$?
@@ -60,16 +55,6 @@ elif [ "$build_rc" -eq 0 ]; then
   [ -n "$pages" ] && echo "$pages"
 fi
 rm -f "$log"
-
-echo ""
-echo "== [3/3] card-link resolution gate =========================="
-if [ "$build_rc" -eq 0 ]; then
-  if ! python3 scripts/check_card_links.py; then
-    fail=1
-  fi
-else
-  echo "  card-link gate: SKIP (build failed above)"
-fi
 
 echo ""
 if [ "$fail" -eq 0 ]; then

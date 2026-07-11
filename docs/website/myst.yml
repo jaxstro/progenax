@@ -6,8 +6,6 @@
 version: 1
 project:
   id: progenax-docs
-  plugins:
-    - plugins/card-links.mjs
   title: progenax — differentiable initial conditions for N-body simulations
   description: >-
     progenax is a JAX-native package in the jaxstro ecosystem providing
