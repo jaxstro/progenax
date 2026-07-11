@@ -271,23 +271,13 @@ care.
 
 ## Reading order
 
-The theory chapters are roughly self-contained, but a recommended
-ordering for a student-style first pass:
-
-1. This page.
-2. [](spatial-profiles/plummer.md) — the canonical example, simplest
-   closed form.
-3. [](velocity-dfs/plummer-dfs.md) — the canonical equilibrium DF.
-4. [](imfs/classic.md) — single-star IMFs.
-5. [](spatial-profiles/king.md), [](spatial-profiles/eff.md) — the two
-   alternative profiles.
-6. [](imfs/binary.md) — when and why binaries change everything.
-7. [](tidal-and-substructure/fractal.md) — the differentiable
-   substructure construction.
-8. [](gravoturbulence/index.md) — the SFR-from-cloud-properties chain.
-
-Each later chapter assumes only the conventions from this page plus
-the chapter immediately before it.
+This page is step 1 of the section's canonical path — the full
+seven-step ramp (profiles → velocity DFs → IMFs → binaries → modifiers →
+composite populations) lives in one place:
+[the theory index's suggested reading order](index.md). (An earlier
+revision kept a second, divergent ordering here that routed first-pass
+readers into experimental and since-removed material; there is now ONE
+ramp, and this is its trailhead.)
 
 ## Implementation, validation & references
 
