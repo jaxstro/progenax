@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .binaries_phase import build_binary_phase_space
 from .dfs import SEED as _DF_SEED
 from .dfs import (
     build_beta_anisotropy,
@@ -91,8 +92,17 @@ FIGURES: dict[str, FigureSpec] = {
             stem="phase_space_hexbin",
             page="10-theory/velocity-dfs/index.md",
             seed=13,
-            caption="The DF on the (r, |v|) plane: Plummer's open envelope vs King pinched shut at r_t.",
+            caption="The DF on the (r, v_r) plane: Plummer's open envelope vs King/EFF pinched shut at r_t.",
             tags=("dfs",),
+        ),
+        FigureSpec(
+            name="binary-phase-space",
+            builder=build_binary_phase_space,
+            stem="binary_phase_space",
+            page="10-theory/imfs/binary.md",
+            seed=21,
+            caption="Binaries in phase space, resolved vs unresolved: envelope punctures vs hidden dispersion inflation (EFF young / King old).",
+            tags=("binaries",),
         ),
     ]
 }

@@ -31,6 +31,24 @@ interval shrinks below the bias and excludes the true slope.
 **You'll get:** the system mass function under the Moe & Di Stefano (2017) statistics, the marginalisation likelihood, and the "confidently wrong" regime where the naive single-star fit excludes the truth at large $N$.
 :::
 
+```{figure} ../figures/binary_phase_space.webp
+:label: fig-binary-phase-space
+:width: 100%
+
+Binaries in $(r, v_r)$ phase space, and why they lie to your dispersion
+(seed 21, $4\times10^4$ systems each; symlog velocity axis). **Left column
+(resolved):** binary orbital motion (coral) punctures the single-star escape
+envelope by up to *two orders of magnitude* — the classic high-velocity
+contaminants. Measured $\sigma_{1\mathrm{d}}$: 8.4 vs a singles-only 2.2
+(EFF + Moe, top) and 7.9 vs 1.5 (King + $f_b = 0.15$, bottom).
+**Right column (unresolved):** each binary photometrically blended (COM
+position, Tout-ZAMS flux-weighted velocity) — the punctures vanish, the
+population *looks* bound and clean, but the measured dispersion is still
+silently inflated (2.93 vs 2.20; 2.41 vs 1.53). That hidden pedestal is
+exactly the mechanism behind the binary-blind mass bias demonstrated on this
+page. Regenerate: `python -m laboratory.icviz --only binary-phase-space`.
+```
+
 ## The Maschberger (2013) functional form
 
 progenax uses the {cite:t}`Maschberger2013` "L3 distribution" as the

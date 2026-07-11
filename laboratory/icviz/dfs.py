@@ -392,23 +392,27 @@ def build_phase_space_hexbin() -> plt.Figure:
         key, k_pos, k_vel = jax.random.split(key, 3)
         pos = prof.sample_positions(masses, k_pos)
         vel = df.sample_velocities(pos, masses, k_vel, G=_G)
-        r = np.array(jnp.linalg.norm(pos, axis=1))
-        v = np.array(jnp.linalg.norm(vel, axis=1))
+        pos_np, vel_np = np.array(pos), np.array(vel)
+        r = np.linalg.norm(pos_np, axis=1)
+        # SIGNED radial velocity: the classic (r, v_r) phase-space plane.
+        v_r = np.einsum("ij,ij->i", vel_np, pos_np / r[:, None])
         hb = ax.hexbin(
-            r, v, gridsize=100, norm=hex_norm, cmap=cmap, mincnt=1,
-            linewidths=0.1, extent=(0.0, r_max, 0.0, 2.3),
+            r, v_r, gridsize=100, norm=hex_norm, cmap=cmap, mincnt=1,
+            linewidths=0.1, extent=(0.0, r_max, -2.3, 2.3),
         )
         r_line = np.linspace(1e-3, r_max if r_t is None else r_t, 500)
         ax.plot(r_line, env(r_line), color="#E76F51", lw=1.3, label=env_label)
+        ax.plot(r_line, -env(r_line), color="#E76F51", lw=1.3)
+        ax.axhline(0.0, color="#C9C9C9", lw=0.4, zorder=0)
         if r_t is not None:
             ax.axvline(r_t, color="#6C5B7B", lw=0.8, ls=(0, (4, 2)), alpha=0.8)
-            ax.annotate(r"$r_t$", xy=(r_t, 2.05), xytext=(r_t * 0.87, 2.08),
+            ax.annotate(r"$r_t$", xy=(r_t, 1.95), xytext=(r_t * 0.85, 2.0),
                         fontsize=7.6, color="#6C5B7B")
         ax.set_title(title, fontsize=8.2)
         ax.set_xlabel(r"$r$  [pc]")
         ax.legend(frameon=False, fontsize=6.4, loc="upper right")
         polish_axes(ax)
-    axes[0].set_ylabel(r"$|v|$  [pc/Myr]")
+    axes[0].set_ylabel(r"$v_r$  [pc/Myr]")
 
     cb = fig.colorbar(hb, ax=list(axes), pad=0.012, aspect=26)
     cb.set_label("stars per hex (log)", fontsize=7.2)
