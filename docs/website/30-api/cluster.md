@@ -80,7 +80,7 @@ through `engine_a`:
 On an Engine B model each raises an informative AttributeError naming the
 engine (this replaced the NaN-sentinel tripwires).
 
-*Source: [`progenax/cluster/multicomponent.py#L143`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/multicomponent.py#L143)*
+*Source: [`src/progenax/cluster/multicomponent.py#L143`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L143)*
 
 (api-cluster-energy_sorted_segregation)=
 ## `cluster.energy_sorted_segregation`
@@ -88,7 +88,7 @@ engine (this replaced the NaN-sentinel tripwires).
 *function*
 
 ```python
-energy_sorted_segregation(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], masses: jaxtyping.Float[Array, 'N'], positions_pool: jaxtyping.Float[Array, 'N_pool 3'], velocities_pool: jaxtyping.Float[Array, 'N_pool 3'], potential_fn: Callable[[jaxtyping.Float[Array, 'N_pool 3']], jaxtyping.Float[Array, 'N_pool']]) -> Tuple[jaxtyping.Float[Array, 'N'], jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3']]
+energy_sorted_segregation(key: PRNGKeyArray, masses: Float[Array, 'N'], positions_pool: Float[Array, 'N_pool 3'], velocities_pool: Float[Array, 'N_pool 3'], potential_fn: Callable[[Float[Array, 'N_pool 3']], Float[Array, 'N_pool']]) -> Tuple[Float[Array, 'N'], Float[Array, 'N 3'], Float[Array, 'N 3']]
 ```
 
 Assign positions/velocities to masses using Baumgardt energy-ordered method.
@@ -180,7 +180,7 @@ Segregation Strength:
     stars occupy the most bound orbits. The assignment is deterministic given
     the pool; realisation variety comes from re-drawing the random orbit pool.
 
-*Source: [`progenax/cluster/mass_segregation.py#L45`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/mass_segregation.py#L45)*
+*Source: [`src/progenax/cluster/mass_segregation.py#L45`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/mass_segregation.py#L45)*
 
 (api-cluster-g_kms)=
 ## `cluster.G_KMS`
@@ -276,7 +276,7 @@ References
 ----------
 .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 19
 
-*Source: [`progenax/cluster/turbulence.py#L43`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L43)*
+*Source: [`src/progenax/cluster/turbulence.py#L43`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L43)*
 
 (api-cluster-spectral_slope_from_mach)=
 ## `cluster.spectral_slope_from_mach`
@@ -324,7 +324,7 @@ References
 .. [1] Kim & Ryu (2005) ApJ 630, L45 - density power spectrum vs Mach
 .. [2] Kolmogorov (1941) - transonic ceiling (E_ρ slope ≈ -5/3)
 
-*Source: [`progenax/cluster/turbulence.py#L86`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L86)*
+*Source: [`src/progenax/cluster/turbulence.py#L86`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L86)*
 
 (api-cluster-cloud_radius_from_density)=
 ## `cluster.cloud_radius_from_density`
@@ -364,7 +364,7 @@ References
 ----------
 .. [1] Larson (1981) MNRAS 194, 809
 
-*Source: [`progenax/cluster/turbulence.py#L133`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L133)*
+*Source: [`src/progenax/cluster/turbulence.py#L133`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L133)*
 
 (api-cluster-larson_sigma_v)=
 ## `cluster.larson_sigma_v`
@@ -404,7 +404,7 @@ References
 .. [1] Larson (1981) MNRAS 194, 809
 .. [2] Solomon et al. (1987) ApJ 319, 730
 
-*Source: [`progenax/cluster/turbulence.py#L172`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L172)*
+*Source: [`src/progenax/cluster/turbulence.py#L172`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L172)*
 
 (api-cluster-turbulent_mach_from_cloud)=
 ## `cluster.turbulent_mach_from_cloud`
@@ -452,7 +452,7 @@ References
 .. [1] Larson (1981) MNRAS 194, 809
 .. [2] Federrath et al. (2010) A&A 512, A81
 
-*Source: [`progenax/cluster/turbulence.py#L209`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L209)*
+*Source: [`src/progenax/cluster/turbulence.py#L209`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L209)*
 
 (api-cluster-b_from_environment)=
 ## `cluster.b_from_environment`
@@ -497,5 +497,5 @@ References
 .. [1] Federrath et al. (2010) A&A 512, A81
 .. [2] Federrath (2013) MNRAS 436, 1245
 
-*Source: [`progenax/cluster/turbulence.py#L290`](https://github.com/jaxstro/progenax/blob/main/progenax/cluster/turbulence.py#L290)*
+*Source: [`src/progenax/cluster/turbulence.py#L290`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L290)*
 

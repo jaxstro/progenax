@@ -26,12 +26,12 @@ Public symbols: **6**
 *function*
 
 ```python
-compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N']) -> jaxtyping.Float[Array, '']
+compute_kinetic_energy(velocities: Float[Array, 'N 3'], masses: Float[Array, 'N']) -> Float[Array, '']
 ```
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-*Source: [`progenax/dynamics/virial.py#L16`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L16)*
+*Source: [`src/progenax/dynamics/virial.py#L16`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L16)*
 
 (api-dynamics-compute_potential_energy)=
 ## `dynamics.compute_potential_energy`
@@ -39,7 +39,7 @@ Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 *function*
 
 ```python
-compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> jaxtyping.Float[Array, '']
+compute_potential_energy(positions: Float[Array, 'N 3'], masses: Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> Float[Array, '']
 ```
 
 Total potential energy V = -G * sum_{i<j} m_i m_j / r_ij (Plummer-softened).
@@ -60,7 +60,7 @@ Differentiable at ``softening=0``: the i<j mask feeds excluded entries
 masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
 single canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L34`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L34)*
+*Source: [`src/progenax/dynamics/virial.py#L34`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L34)*
 
 (api-dynamics-compute_virial_ratio)=
 ## `dynamics.compute_virial_ratio`
@@ -68,7 +68,7 @@ single canonical energy implementation; ``progenax.builders`` re-exports it.
 *function*
 
 ```python
-compute_virial_ratio(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0) -> jaxtyping.Float[Array, '']
+compute_virial_ratio(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], G: float, softening: float = 0.0) -> Float[Array, '']
 ```
 
 Compute virial ratio Q = T / |V|.
@@ -88,7 +88,7 @@ Args:
 Returns:
     Virial ratio Q = T / |V|
 
-*Source: [`progenax/dynamics/virial.py#L85`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L85)*
+*Source: [`src/progenax/dynamics/virial.py#L85`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L85)*
 
 (api-dynamics-mass_group_masks)=
 ## `dynamics.mass_group_masks`
@@ -96,7 +96,7 @@ Returns:
 *function*
 
 ```python
-mass_group_masks(masses: jaxtyping.Float[Array, 'N'], n_groups: int) -> jaxtyping.Bool[Array, 'n_groups N']
+mass_group_masks(masses: Float[Array, 'N'], n_groups: int) -> Bool[Array, 'n_groups N']
 ```
 
 Partition stars into ``n_groups`` equal-count mass-rank bins (light -> heavy).
@@ -109,7 +109,7 @@ Used to ask whether each mass sub-population is individually in virial equilibri
 (:func:`per_group_virial_ratio`) — the diagnostic that distinguishes a true
 multi-mass equilibrium from a globally-rescaled blend.
 
-*Source: [`progenax/dynamics/virial.py#L114`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L114)*
+*Source: [`src/progenax/dynamics/virial.py#L114`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L114)*
 
 (api-dynamics-per_group_virial_ratio)=
 ## `dynamics.per_group_virial_ratio`
@@ -117,7 +117,7 @@ multi-mass equilibrium from a globally-rescaled blend.
 *function*
 
 ```python
-per_group_virial_ratio(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, group_masks: jaxtyping.Bool[Array, 'n_groups N'], softening: float = 0.0) -> jaxtyping.Float[Array, 'n_groups']
+per_group_virial_ratio(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], G: float, group_masks: Bool[Array, 'n_groups N'], softening: float = 0.0) -> Float[Array, 'n_groups']
 ```
 
 Per-mass-group virial ratio Q_j = T_j / |W_j| in the TOTAL gravitational field.
@@ -155,7 +155,7 @@ Args:
 Returns:
     Q_j for each group, shape (n_groups,).
 
-*Source: [`progenax/dynamics/virial.py#L179`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L179)*
+*Source: [`src/progenax/dynamics/virial.py#L179`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L179)*
 
 (api-dynamics-rescale_velocities_to_virial)=
 ## `dynamics.rescale_velocities_to_virial`
@@ -163,7 +163,7 @@ Returns:
 *function*
 
 ```python
-rescale_velocities_to_virial(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, target_Q: float = 0.5, softening: float = 0.0) -> jaxtyping.Float[Array, 'N 3']
+rescale_velocities_to_virial(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], G: float, target_Q: float = 0.5, softening: float = 0.0) -> Float[Array, 'N 3']
 ```
 
 Rescale velocities to achieve target virial ratio Q = T/|V|.
@@ -187,5 +187,5 @@ Args:
 Returns:
     Rescaled velocities with Q = target_Q
 
-*Source: [`progenax/dynamics/virial.py#L249`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L249)*
+*Source: [`src/progenax/dynamics/virial.py#L249`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L249)*
 

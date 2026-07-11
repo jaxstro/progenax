@@ -42,7 +42,7 @@ Example implementations:
     - KingProfile: King (1966) models
     - EFFProfile: Elson-Fall-Freeman (1987)
 
-*Source: [`progenax/protocols.py#L14`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L14)*
+*Source: [`src/progenax/protocols.py#L14`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L14)*
 
 (api-protocols-velocitydf)=
 ## `protocols.VelocityDF`
@@ -58,7 +58,7 @@ Protocol for velocity distribution functions.
 Implementations must sample velocities given positions and masses.
 Enables composability: mix Plummer positions + King velocities.
 
-*Source: [`progenax/protocols.py#L55`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L55)*
+*Source: [`src/progenax/protocols.py#L55`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L55)*
 
 (api-protocols-imfprotocol)=
 ## `protocols.IMFProtocol`
@@ -78,7 +78,7 @@ Attributes:
     m_min: Minimum mass in distribution [M_sun]
     m_max: Maximum mass in distribution [M_sun]
 
-*Source: [`progenax/protocols.py#L87`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L87)*
+*Source: [`src/progenax/protocols.py#L87`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L87)*
 
 (api-protocols-perioddistribution)=
 ## `protocols.PeriodDistribution`
@@ -98,7 +98,7 @@ Example implementations:
     - LogNormalPeriod (Duquennoy & Mayor 1991)
     - SanaOBPeriod (Sana et al. 2012)
 
-*Source: [`progenax/protocols.py#L128`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L128)*
+*Source: [`src/progenax/protocols.py#L128`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L128)*
 
 (api-protocols-eccentricitydistribution)=
 ## `protocols.EccentricityDistribution`
@@ -117,7 +117,7 @@ Example implementations:
     - ThermalEccentricity (f(e) = 2e; Ambartsumian 1937 / Heggie 1975)
     - UniformEccentricity
 
-*Source: [`progenax/protocols.py#L161`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L161)*
+*Source: [`src/progenax/protocols.py#L161`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L161)*
 
 (api-protocols-conditionaleccentricitydistribution)=
 ## `protocols.ConditionalEccentricityDistribution`
@@ -136,7 +136,7 @@ from the unconditional :class:`EccentricityDistribution` (sample(key, n)).
 Example implementations:
     - MoeEccentricity (period-dependent circular->thermal heuristic)
 
-*Source: [`progenax/protocols.py#L193`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L193)*
+*Source: [`src/progenax/protocols.py#L193`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L193)*
 
 (api-protocols-massperiodeccentricitydistribution)=
 ## `protocols.MassPeriodEccentricityDistribution`
@@ -156,7 +156,7 @@ Example implementations:
     - MoeEccentricity (Moe & Di Stefano 2017 e^η(logP, M1))
     - LogisticThermalEccentricity (accepts masses but ignores them)
 
-*Source: [`progenax/protocols.py#L211`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L211)*
+*Source: [`src/progenax/protocols.py#L211`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L211)*
 
 (api-protocols-binaryfractionmodel)=
 ## `protocols.BinaryFractionModel`
@@ -180,7 +180,7 @@ Example implementations:
     - RadialBinaryFraction (phenomenological f_b(r))
     - CombinedBinaryFraction (mass x radial)
 
-*Source: [`progenax/protocols.py#L233`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L233)*
+*Source: [`src/progenax/protocols.py#L233`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L233)*
 
 (api-protocols-companionmodel)=
 ## `protocols.CompanionModel`
@@ -204,5 +204,5 @@ Example implementations (progenax.binaries):
     - MoeCompanions(q_min) — faithful Moe+2017 joint (P, q, e) with Moe's own
       mass-dependent f_b; the same q sets m2 (self-consistent).
 
-*Source: [`progenax/protocols.py#L258`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L258)*
+*Source: [`src/progenax/protocols.py#L258`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L258)*
 

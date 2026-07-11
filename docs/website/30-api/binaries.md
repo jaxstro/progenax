@@ -50,7 +50,7 @@ Public symbols: **30**
 *class*
 
 ```python
-KeplerElements(a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], e: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.0, i: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.0, Omega: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.0, omega: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.0, M0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 0.0)
+KeplerElements(a: ArrayLike, e: ArrayLike = 0.0, i: ArrayLike = 0.0, Omega: ArrayLike = 0.0, omega: ArrayLike = 0.0, M0: ArrayLike = 0.0)
 ```
 
 Keplerian orbital elements as Equinox module.
@@ -83,7 +83,7 @@ Examples:
     ... )
     >>> state = elements.to_state(M_total=1.0, G=1.0)
 
-*Source: [`progenax/binaries/kepler.py#L49`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/kepler.py#L49)*
+*Source: [`src/progenax/binaries/kepler.py#L49`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler.py#L49)*
 
 (api-binaries-cartesianstate)=
 ## `binaries.CartesianState`
@@ -91,7 +91,7 @@ Examples:
 *class*
 
 ```python
-CartesianState(position: jaxtyping.Float[Array, '3'], velocity: jaxtyping.Float[Array, '3'])
+CartesianState(position: Float[Array, '3'], velocity: Float[Array, '3'])
 ```
 
 Cartesian phase-space state of a single body.
@@ -103,7 +103,7 @@ Attributes:
     position: (3,) Cartesian position [length units]
     velocity: (3,) Cartesian velocity [velocity units]
 
-*Source: [`progenax/binaries/kepler.py#L18`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/kepler.py#L18)*
+*Source: [`src/progenax/binaries/kepler.py#L18`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler.py#L18)*
 
 (api-binaries-binarystate)=
 ## `binaries.BinaryState`
@@ -111,7 +111,7 @@ Attributes:
 *class*
 
 ```python
-BinaryState(r1: jaxtyping.Float[Array, '3'], v1: jaxtyping.Float[Array, '3'], r2: jaxtyping.Float[Array, '3'], v2: jaxtyping.Float[Array, '3'])
+BinaryState(r1: Float[Array, '3'], v1: Float[Array, '3'], r2: Float[Array, '3'], v2: Float[Array, '3'])
 ```
 
 Resolved barycentric phase-space state of a binary's two components.
@@ -122,7 +122,7 @@ Attributes:
     r1, v1: Position/velocity of the primary [length, velocity units]
     r2, v2: Position/velocity of the secondary [length, velocity units]
 
-*Source: [`progenax/binaries/kepler.py#L33`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/kepler.py#L33)*
+*Source: [`src/progenax/binaries/kepler.py#L33`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler.py#L33)*
 
 (api-binaries-compute_period)=
 ## `binaries.compute_period`
@@ -130,7 +130,7 @@ Attributes:
 *function*
 
 ```python
-compute_period(a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], M_total: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], G: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex]) -> jaxtyping.Float[Array, '...']
+compute_period(a: ArrayLike, M_total: ArrayLike, G: ArrayLike) -> Float[Array, '...']
 ```
 
 Compute orbital period from semi-major axis using Kepler's 3rd law.
@@ -163,7 +163,7 @@ References:
     Kepler's 3rd Law: T² ∝ a³/M
     Murray & Dermott (1999) Eq 2.37
 
-*Source: [`progenax/binaries/kepler_period.py#L12`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/kepler_period.py#L12)*
+*Source: [`src/progenax/binaries/kepler_period.py#L12`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler_period.py#L12)*
 
 (api-binaries-period_to_semimajor_axis)=
 ## `binaries.period_to_semimajor_axis`
@@ -171,7 +171,7 @@ References:
 *function*
 
 ```python
-period_to_semimajor_axis(period: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], M_total: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex], G: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex]) -> jaxtyping.Float[Array, '...']
+period_to_semimajor_axis(period: ArrayLike, M_total: ArrayLike, G: ArrayLike) -> Float[Array, '...']
 ```
 
 Compute semi-major axis from orbital period using Kepler's 3rd law.
@@ -205,7 +205,7 @@ References:
     Kepler's 3rd Law: a³ ∝ T²M
     Murray & Dermott (1999) Eq 2.37
 
-*Source: [`progenax/binaries/kepler_period.py#L61`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/kepler_period.py#L61)*
+*Source: [`src/progenax/binaries/kepler_period.py#L61`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/kepler_period.py#L61)*
 
 (api-binaries-binaryorbitalstate)=
 ## `binaries.BinaryOrbitalState`
@@ -238,7 +238,7 @@ Example:
     ... )
     >>> r1, v1, r2, v2 = state.to_resolved_positions(G=PLANETARY.G)
 
-*Source: [`progenax/binaries/orbital_state.py#L20`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/orbital_state.py#L20)*
+*Source: [`src/progenax/binaries/orbital_state.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orbital_state.py#L20)*
 
 (api-binaries-batch_elements_to_resolved)=
 ## `binaries.batch_elements_to_resolved`
@@ -265,7 +265,7 @@ Args:
 Returns:
     r1, v1, r2, v2: Arrays of shape [N, 3]
 
-*Source: [`progenax/binaries/orbital_state.py#L195`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/orbital_state.py#L195)*
+*Source: [`src/progenax/binaries/orbital_state.py#L195`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orbital_state.py#L195)*
 
 (api-binaries-loguniformperiod)=
 ## `binaries.LogUniformPeriod`
@@ -288,7 +288,7 @@ Parameters:
     log_P_min: Minimum log10(P/days) (default: 0.0 = 1 day)
     log_P_max: Maximum log10(P/days) (default: 8.0 = ~27,000 years)
 
-*Source: [`progenax/binaries/period.py#L23`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/period.py#L23)*
+*Source: [`src/progenax/binaries/period.py#L23`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/period.py#L23)*
 
 (api-binaries-lognormalperiod)=
 ## `binaries.LogNormalPeriod`
@@ -311,7 +311,7 @@ Parameters:
     mu_log_P: Mean of log10(P/days) (default: 4.8)
     sigma_log_P: Std dev of log10(P/days) (default: 2.3)
 
-*Source: [`progenax/binaries/period.py#L65`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/period.py#L65)*
+*Source: [`src/progenax/binaries/period.py#L65`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/period.py#L65)*
 
 (api-binaries-sanaobperiod)=
 ## `binaries.SanaOBPeriod`
@@ -344,7 +344,7 @@ Parameters:
     log_P_max: Maximum log10(P/days) (default: 3.5 = ~3162 days ~ 9 yr)
     power: Power-law index (default: -0.55 from Sana+2012)
 
-*Source: [`progenax/binaries/period.py#L112`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/period.py#L112)*
+*Source: [`src/progenax/binaries/period.py#L112`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/period.py#L112)*
 
 (api-binaries-thermaleccentricity)=
 ## `binaries.ThermalEccentricity`
@@ -367,7 +367,7 @@ Reference:
 Parameters:
     e_max: Maximum eccentricity (default: 0.99, avoids singularity)
 
-*Source: [`progenax/binaries/eccentricity.py#L24`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/eccentricity.py#L24)*
+*Source: [`src/progenax/binaries/eccentricity.py#L24`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/eccentricity.py#L24)*
 
 (api-binaries-uniformeccentricity)=
 ## `binaries.UniformEccentricity`
@@ -386,7 +386,7 @@ Parameters:
     e_min: Minimum eccentricity (default: 0.0)
     e_max: Maximum eccentricity (default: 0.9)
 
-*Source: [`progenax/binaries/eccentricity.py#L65`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/eccentricity.py#L65)*
+*Source: [`src/progenax/binaries/eccentricity.py#L65`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/eccentricity.py#L65)*
 
 (api-binaries-logisticthermaleccentricity)=
 ## `binaries.LogisticThermalEccentricity`
@@ -425,7 +425,7 @@ Parameters:
     e_max: Maximum eccentricity (default: 0.99)
     transition_width: Width of transition region in log10(P) (default: 0.5)
 
-*Source: [`progenax/binaries/eccentricity.py#L98`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/eccentricity.py#L98)*
+*Source: [`src/progenax/binaries/eccentricity.py#L98`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/eccentricity.py#L98)*
 
 (api-binaries-moeeccentricity)=
 ## `binaries.MoeEccentricity`
@@ -475,7 +475,7 @@ Parameters:
     e_max: Numerical eccentricity ceiling at long P (default: 0.99); the
         physical cap is the period-dependent Roche relation (Eq. 3).
 
-*Source: [`progenax/binaries/eccentricity.py#L176`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/eccentricity.py#L176)*
+*Source: [`src/progenax/binaries/eccentricity.py#L176`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/eccentricity.py#L176)*
 
 (api-binaries-sample_isotropic_orientations)=
 ## `binaries.sample_isotropic_orientations`
@@ -508,7 +508,7 @@ Returns:
 Reference:
     Binney & Tremaine (2008) "Galactic Dynamics" Section 3.1
 
-*Source: [`progenax/binaries/orientation.py#L16`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/orientation.py#L16)*
+*Source: [`src/progenax/binaries/orientation.py#L16`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/orientation.py#L16)*
 
 (api-binaries-radialbinaryfraction)=
 ## `binaries.RadialBinaryFraction`
@@ -558,7 +558,7 @@ Examples:
     >>> key = jax.random.PRNGKey(42)
     >>> is_binary = rbf.sample_membership(radii, key)
 
-*Source: [`progenax/binaries/mass_dependent.py#L34`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/mass_dependent.py#L34)*
+*Source: [`src/progenax/binaries/mass_dependent.py#L34`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L34)*
 
 (api-binaries-combinedbinaryfraction)=
 ## `binaries.CombinedBinaryFraction`
@@ -581,7 +581,7 @@ Parameters:
     mass_model: a mass-based BinaryFractionModel (ignores radii).
     radial_model: a RadialBinaryFraction-like BinaryFractionModel (uses radii).
 
-*Source: [`progenax/binaries/mass_dependent.py#L129`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/mass_dependent.py#L129)*
+*Source: [`src/progenax/binaries/mass_dependent.py#L129`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L129)*
 
 (api-binaries-massdependentbinaryconfig)=
 ## `binaries.MassDependentBinaryConfig`
@@ -622,7 +622,7 @@ Example:
     >>> key = jax.random.PRNGKey(42)
     >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
-*Source: [`progenax/binaries/mass_dependent.py#L161`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/mass_dependent.py#L161)*
+*Source: [`src/progenax/binaries/mass_dependent.py#L161`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L161)*
 
 (api-binaries-sample_mass_dependent_orbits)=
 ## `binaries.sample_mass_dependent_orbits`
@@ -669,7 +669,7 @@ Example:
     >>> key = jax.random.PRNGKey(42)
     >>> periods, ecc = sample_mass_dependent_orbits(masses, config, key)
 
-*Source: [`progenax/binaries/mass_dependent.py#L200`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/mass_dependent.py#L200)*
+*Source: [`src/progenax/binaries/mass_dependent.py#L200`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/mass_dependent.py#L200)*
 
 (api-binaries-resolvedbinaries)=
 ## `binaries.ResolvedBinaries`
@@ -691,7 +691,7 @@ Attributes:
     primordial_system_id: (2N,) int — slots 2i, 2i+1 both = i.
     is_primordial_secondary: (2N,) bool — True on the odd (secondary) slots.
 
-*Source: [`progenax/binaries/assembly.py#L27`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/assembly.py#L27)*
+*Source: [`src/progenax/binaries/assembly.py#L27`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py#L27)*
 
 (api-binaries-resolve_binary_components)=
 ## `binaries.resolve_binary_components`
@@ -715,7 +715,7 @@ Args:
 Returns:
     ResolvedBinaries (2N slots + is_real mask + primordial provenance).
 
-*Source: [`progenax/binaries/assembly.py#L53`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/assembly.py#L53)*
+*Source: [`src/progenax/binaries/assembly.py#L53`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py#L53)*
 
 (api-binaries-companionelements)=
 ## `binaries.CompanionElements`
@@ -730,7 +730,7 @@ Per-system companion mass + relative-orbit elements (singles: m2=0, a sanitized)
 
 Plugs directly into `resolve_binary_components(..., a, e, inc, Omega, omega, M_anom)`.
 
-*Source: [`progenax/binaries/companions.py#L35`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/companions.py#L35)*
+*Source: [`src/progenax/binaries/companions.py#L35`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/companions.py#L35)*
 
 (api-binaries-independentcompanions)=
 ## `binaries.IndependentCompanions`
@@ -751,7 +751,7 @@ single owner of q -> `m2 = m1 * q` (0 for singles).
 Entropy layout (the equivalence contract): ``split(key, 5)`` ->
 ``[is_binary, q, period, eccentricity, orientation]``.
 
-*Source: [`progenax/binaries/companions.py#L76`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/companions.py#L76)*
+*Source: [`src/progenax/binaries/companions.py#L84`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/companions.py#L84)*
 
 (api-binaries-moecompanions)=
 ## `binaries.MoeCompanions`
@@ -772,7 +772,7 @@ so short-period binaries carry larger q than long-period ones.
 
 Reference: Moe & Di Stefano (2017) ApJS 230, 15 (full joint distribution).
 
-*Source: [`progenax/binaries/companions.py#L117`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/companions.py#L117)*
+*Source: [`src/progenax/binaries/companions.py#L133`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/companions.py#L133)*
 
 (api-binaries-relative_energy)=
 ## `binaries.relative_energy`
@@ -789,7 +789,7 @@ E_rel = ½ μ |v_j - v_i|² − G m_i m_j / |r_j - r_i|,  μ = m_i m_j / (m_i + 
 E_rel < 0 ⇒ the pair is gravitationally bound. For a bound orbit of semi-major
 axis a, E_rel = −G m_i m_j / (2a). Differentiable (separation guarded).
 
-*Source: [`progenax/binaries/diagnostics.py#L35`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L35)*
+*Source: [`src/progenax/binaries/diagnostics.py#L35`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L35)*
 
 (api-binaries-find_bound_pairs)=
 ## `binaries.find_bound_pairs`
@@ -811,7 +811,7 @@ N ≲ a few×10^3 (memory ~ N^2). For larger snapshots use an accelerated neighb
 finder (cell list / kd-tree) — tracked for a future gravax acceleration, which already
 has the Hermite-AC neighbour machinery.
 
-*Source: [`progenax/binaries/diagnostics.py#L59`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L59)*
+*Source: [`src/progenax/binaries/diagnostics.py#L59`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L59)*
 
 (api-binaries-find_bound_multiples)=
 ## `binaries.find_bound_multiples`
@@ -842,7 +842,7 @@ Returns:
     particle i (members of one hierarchy share it); `multiplicity[i]` is the
     number of particles in that system.
 
-*Source: [`progenax/binaries/diagnostics.py#L105`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L105)*
+*Source: [`src/progenax/binaries/diagnostics.py#L105`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L105)*
 
 (api-binaries-primordial_survival)=
 ## `binaries.primordial_survival`
@@ -865,7 +865,7 @@ Returns:
     ``disrupted`` (primordial binaries no longer a current pair), and
     ``newly_formed`` (current pairs that were not primordial binaries).
 
-*Source: [`progenax/binaries/diagnostics.py#L187`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L187)*
+*Source: [`src/progenax/binaries/diagnostics.py#L187`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L187)*
 
 (api-binaries-binaryenergybudget)=
 ## `binaries.BinaryEnergyBudget`
@@ -894,7 +894,7 @@ Attributes:
         ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10).
     n_binaries: number of primordial binaries (two positive-mass members).
 
-*Source: [`progenax/binaries/diagnostics.py#L212`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L212)*
+*Source: [`src/progenax/binaries/diagnostics.py#L212`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L212)*
 
 (api-binaries-binary_energy_budget)=
 ## `binaries.binary_energy_budget`
@@ -930,5 +930,5 @@ Args:
 Returns:
     :class:`BinaryEnergyBudget`.
 
-*Source: [`progenax/binaries/diagnostics.py#L261`](https://github.com/jaxstro/progenax/blob/main/progenax/binaries/diagnostics.py#L261)*
+*Source: [`src/progenax/binaries/diagnostics.py#L261`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/diagnostics.py#L261)*
 

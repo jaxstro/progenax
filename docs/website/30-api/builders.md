@@ -41,7 +41,7 @@ Rosen, *Confidently Wrong* (``N`` = observed systems; primaries from the IMF,
 companions attached on top, so total stars = ``n + n_binary``). The only
 **fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
 
-*Source: [`progenax/builders.py#L42`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L42)*
+*Source: [`src/progenax/builders.py#L42`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L42)*
 
 (api-builders-stars)=
 ## `builders.Stars`
@@ -60,7 +60,7 @@ in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 
 — a binary is never split, so the result is ``n`` or ``n+1`` stars). The
 data-dependent system count makes this **eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L54`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L54)*
+*Source: [`src/progenax/builders.py#L54`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L54)*
 
 (api-builders-totalmass)=
 ## `builders.TotalMass`
@@ -76,7 +76,7 @@ Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
 Whole-system, McLuster-style mass filling: draw until the cumulative system
 mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
 
-*Source: [`progenax/builders.py#L67`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L67)*
+*Source: [`src/progenax/builders.py#L67`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L67)*
 
 (api-builders-icresult)=
 ## `builders.ICResult`
@@ -84,7 +84,7 @@ mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=T
 *class*
 
 ```python
-ICResult(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], stellar_radii: jaxtyping.Float[Array, 'N'], ids: Optional[jaxtyping.Float[Array, 'N']] = None, primordial_system_id: Optional[jaxtyping.Int[Array, 'N']] = None, is_primordial_secondary: Optional[jaxtyping.Bool[Array, 'N']] = None, component_id: Optional[jaxtyping.Int[Array, 'N']] = None) -> None
+ICResult(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], stellar_radii: Float[Array, 'N'], ids: Optional[Float[Array, 'N']] = None, primordial_system_id: Optional[Int[Array, 'N']] = None, is_primordial_secondary: Optional[Bool[Array, 'N']] = None, component_id: Optional[Int[Array, 'N']] = None) -> None
 ```
 
 Result from initial conditions generation — pure physical state.
@@ -116,7 +116,7 @@ Attributes:
         **PROVENANCE at t=0** — a label of the generating component, not a
         dynamical invariant.
 
-*Source: [`progenax/builders.py#L118`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L118)*
+*Source: [`src/progenax/builders.py#L118`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L118)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -124,7 +124,7 @@ Attributes:
 *function*
 
 ```python
-compute_stellar_radii(masses: jaxtyping.Float[Array, 'N']) -> jaxtyping.Float[Array, 'N']
+compute_stellar_radii(masses: Float[Array, 'N']) -> Float[Array, 'N']
 ```
 
 Main-sequence stellar radii from mass, in SOLAR RADII.
@@ -163,7 +163,7 @@ Args:
 Returns:
     Radii in R☉
 
-*Source: [`progenax/builders.py#L160`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L160)*
+*Source: [`src/progenax/builders.py#L160`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L160)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -171,12 +171,12 @@ Returns:
 *function*
 
 ```python
-compute_kinetic_energy(velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N']) -> jaxtyping.Float[Array, '']
+compute_kinetic_energy(velocities: Float[Array, 'N 3'], masses: Float[Array, 'N']) -> Float[Array, '']
 ```
 
 Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 
-*Source: [`progenax/dynamics/virial.py#L16`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L16)*
+*Source: [`src/progenax/dynamics/virial.py#L16`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L16)*
 
 (api-builders-compute_potential_energy)=
 ## `builders.compute_potential_energy`
@@ -184,7 +184,7 @@ Compute total kinetic energy: T = 0.5 * sum(m_i * v_i^2).
 *function*
 
 ```python
-compute_potential_energy(positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> jaxtyping.Float[Array, '']
+compute_potential_energy(positions: Float[Array, 'N 3'], masses: Float[Array, 'N'], G: float, softening: float = 0.0, block_size: int = 256) -> Float[Array, '']
 ```
 
 Total potential energy V = -G * sum_{i<j} m_i m_j / r_ij (Plummer-softened).
@@ -205,7 +205,7 @@ Differentiable at ``softening=0``: the i<j mask feeds excluded entries
 masked-out ``sqrt(0)`` cotangent can NaN-poison the gradient. This is the
 single canonical energy implementation; ``progenax.builders`` re-exports it.
 
-*Source: [`progenax/dynamics/virial.py#L34`](https://github.com/jaxstro/progenax/blob/main/progenax/dynamics/virial.py#L34)*
+*Source: [`src/progenax/dynamics/virial.py#L34`](https://github.com/jaxstro/progenax/blob/main/src/progenax/dynamics/virial.py#L34)*
 
 (api-builders-to_com_frame)=
 ## `builders.to_com_frame`
@@ -213,7 +213,7 @@ single canonical energy implementation; ``progenax.builders`` re-exports it.
 *function*
 
 ```python
-to_com_frame(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N']) -> tuple[jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3']]
+to_com_frame(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N']) -> tuple[Float[Array, 'N 3'], Float[Array, 'N 3']]
 ```
 
 Transform to center-of-mass frame.
@@ -226,7 +226,7 @@ Args:
 Returns:
     (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`progenax/builders.py#L220`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L220)*
+*Source: [`src/progenax/builders.py#L220`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L220)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -234,7 +234,7 @@ Returns:
 *function*
 
 ```python
-virial_scale(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], Q_target: float, G: float, softening: float = 0.0) -> jaxtyping.Float[Array, 'N 3']
+virial_scale(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], Q_target: float, G: float, softening: float = 0.0) -> Float[Array, 'N 3']
 ```
 
 Scale velocities to achieve target virial ratio Q = T/|V|.
@@ -262,7 +262,7 @@ References:
     Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
     Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`progenax/builders.py#L245`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L245)*
+*Source: [`src/progenax/builders.py#L245`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L245)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -270,7 +270,7 @@ References:
 *function*
 
 ```python
-build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: jaxtyping.Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], G: float, Q: Optional[float] = 0.5, softening: float = 0.0, id_offset: int = 0) -> progenax.builders.ICResult
+build_spatial_ic(profile: progenax.protocols.SpatialProfile, masses: Float[Array, 'N'], velocity_df: progenax.protocols.VelocityDF, key: PRNGKeyArray, G: float, Q: Optional[float] = 0.5, softening: float = 0.0, id_offset: int = 0) -> progenax.builders.ICResult
 ```
 
 Build initial conditions from spatial profile and velocity DF.
@@ -293,7 +293,7 @@ Args:
 Returns:
     ICResult (pure physical state — no softening field)
 
-*Source: [`progenax/builders.py#L286`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L286)*
+*Source: [`src/progenax/builders.py#L286`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L286)*
 
 (api-builders-build_binary_cluster)=
 ## `builders.build_binary_cluster`
@@ -301,7 +301,7 @@ Returns:
 *function*
 
 ```python
-build_binary_cluster(profile: progenax.protocols.SpatialProfile, velocity_df: progenax.protocols.VelocityDF, primary_imf, companion_model, target, key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], *, units, Q: Optional[float] = 0.5, softening: float = 0.0, compact: bool = True)
+build_binary_cluster(profile: progenax.protocols.SpatialProfile, velocity_df: progenax.protocols.VelocityDF, primary_imf, companion_model, target, key: PRNGKeyArray, *, units, Q: Optional[float] = 0.5, softening: float = 0.0, compact: bool = True)
 ```
 
 Assemble a star cluster with a primordial binary population (SoTA composition).
@@ -346,5 +346,5 @@ Args:
 Returns:
     `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
 
-*Source: [`progenax/builders.py#L406`](https://github.com/jaxstro/progenax/blob/main/progenax/builders.py#L406)*
+*Source: [`src/progenax/builders.py#L406`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L406)*
 

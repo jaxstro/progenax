@@ -55,12 +55,30 @@ def _is_public(name: str) -> bool:
 
 
 def _format_signature(obj) -> str:
-    """Return the signature string for a callable/class, or an empty string."""
+    """Return the signature string for a callable/class, or an empty string.
+
+    Collapses the jaxtyping/ArrayLike union that inspect stringifies as
+    ``Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int,
+    float, complex]`` (x5 parameters on some constructors) into the readable
+    alias ``ArrayLike`` (docs audit, Medium: unreadable generated signatures).
+    """
     try:
         sig = inspect.signature(obj)
     except (TypeError, ValueError):
         return ""
-    return str(sig)
+    text = str(sig)
+    for union, alias in (
+        ("Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType]", "ArrayLike | None"),
+        ("Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex]", "ArrayLike"),
+        ("Union[Array, ndarray, bool, number, bool, int, float, complex]", "ArrayLike"),
+        ("jax.Array | numpy.ndarray | numpy.bool | numpy.number | bool | int | float | complex", "ArrayLike"),
+        # the jaxtyping PRNG-key union (Key[''] | UInt32[2] | UInt32[4])
+        ("Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']]", "PRNGKeyArray"),
+    ):
+        text = text.replace(union, alias)
+    # Shorten the module-qualified jaxtyping shape annotations for readability.
+    text = text.replace("jaxtyping.", "")
+    return text
 
 
 def _format_docstring(obj) -> str:
@@ -86,7 +104,10 @@ def _source_link(obj, package_root: Path) -> str | None:
     except ValueError:
         # Object not in our source tree
         return None
-    return f"{rel.as_posix()}#L{line}"
+    # package_root is <repo>/src (src-layout), but the GitHub blob URL needs the
+    # REPO-relative path — without the "src/" prefix every source link 404s
+    # (docs audit, Medium). Emit src/<rel> so the displayed path is honest too.
+    return f"src/{rel.as_posix()}#L{line}"
 
 
 def _anchor(short_module: str, symbol: str) -> str:

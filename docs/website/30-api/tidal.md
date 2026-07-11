@@ -52,7 +52,7 @@ Reference:
     King (1962) AJ 67, 471
     Binney & Tremaine (2008) Eq. 8.91
 
-*Source: [`progenax/tidal.py#L20`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L20)*
+*Source: [`src/progenax/tidal.py#L20`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L20)*
 
 (api-tidal-jacobi_radius_isothermal)=
 ## `tidal.jacobi_radius_isothermal`
@@ -96,7 +96,7 @@ Reference:
     Baumgardt & Makino (2003) MNRAS 340, 227, Eq. 1 - the same relation,
         N-body-calibrated for clusters in a logarithmic Galactic potential.
 
-*Source: [`progenax/tidal.py#L54`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L54)*
+*Source: [`src/progenax/tidal.py#L54`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L54)*
 
 (api-tidal-apply_tidal_truncation)=
 ## `tidal.apply_tidal_truncation`
@@ -104,7 +104,7 @@ Reference:
 *function*
 
 ```python
-apply_tidal_truncation(positions: jaxtyping.Float[Array, 'N 3'], velocities: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], r_t: float, grad_width: float = 0.05) -> Tuple[jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N 3'], jaxtyping.Float[Array, 'N'], jaxtyping.Float[Array, 'N']]
+apply_tidal_truncation(positions: Float[Array, 'N 3'], velocities: Float[Array, 'N 3'], masses: Float[Array, 'N'], r_t: float, grad_width: float = 0.05) -> Tuple[Float[Array, 'N 3'], Float[Array, 'N 3'], Float[Array, 'N'], Float[Array, 'N']]
 ```
 
 Sharp tidal truncation — shape-preserving and differentiable in ``r_t``.
@@ -149,7 +149,7 @@ Note:
     Sharp cutoff. For a physically smooth truncation consistent with King
     models, use the King profile directly.
 
-*Source: [`progenax/tidal.py#L128`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L128)*
+*Source: [`src/progenax/tidal.py#L128`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L128)*
 
 (api-tidal-fill_factor_to_r_h)=
 ## `tidal.fill_factor_to_r_h`
@@ -180,5 +180,5 @@ Args:
 Returns:
     Half-mass radius r_h [length units]
 
-*Source: [`progenax/tidal.py#L187`](https://github.com/jaxstro/progenax/blob/main/progenax/tidal.py#L187)*
+*Source: [`src/progenax/tidal.py#L187`](https://github.com/jaxstro/progenax/blob/main/src/progenax/tidal.py#L187)*
 

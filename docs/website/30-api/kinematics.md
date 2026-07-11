@@ -34,7 +34,7 @@ Public symbols: **14**
 *class*
 
 ```python
-PlummerVelocityDF(r_h: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, anisotropy_radius: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None)
+PlummerVelocityDF(r_h: ArrayLike = 1.0, anisotropy_radius: ArrayLike | None = None)
 ```
 
 Plummer (1911) velocity distribution function.
@@ -92,7 +92,7 @@ Examples:
     >>> from jaxstro.units import STELLAR
     >>> velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 
-*Source: [`progenax/kinematics/plummer_df.py#L36`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/plummer_df.py#L36)*
+*Source: [`src/progenax/kinematics/plummer_df.py#L36`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/plummer_df.py#L36)*
 
 (api-kinematics-kingvelocitydf)=
 ## `kinematics.KingVelocityDF`
@@ -100,7 +100,7 @@ Examples:
 *class*
 
 ```python
-KingVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 5.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
+KingVelocityDF(W0: ArrayLike = 5.0, r_c: ArrayLike = 1.0, xi_max: float | None = None, n_ode_points: int | None = None, speed_method: str = 'table')
 ```
 
 King (1966) lowered-Maxwellian velocity distribution function.
@@ -134,7 +134,7 @@ References:
     King (1966), AJ, 71, 64
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-*Source: [`progenax/kinematics/king_df.py#L65`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/king_df.py#L65)*
+*Source: [`src/progenax/kinematics/king_df.py#L65`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L65)*
 
 (api-kinematics-michievelocitydf)=
 ## `kinematics.MichieVelocityDF`
@@ -142,7 +142,7 @@ References:
 *class*
 
 ```python
-MichieVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 7.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
+MichieVelocityDF(W0: ArrayLike = 7.0, r_c: ArrayLike = 1.0, r_a: ArrayLike = 10.0, xi_max: float = 800.0, n_ode_points: int = 3000, speed_method: str = 'table')
 ```
 
 Michie-King anisotropic velocity DF (radially anisotropic, lowered-Maxwellian).
@@ -175,7 +175,7 @@ Attributes:
 References:
     Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
 
-*Source: [`progenax/kinematics/michie_df.py#L74`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/michie_df.py#L74)*
+*Source: [`src/progenax/kinematics/michie_df.py#L74`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/michie_df.py#L74)*
 
 (api-kinematics-limepyvelocitydf)=
 ## `kinematics.LIMEPYVelocityDF`
@@ -183,7 +183,7 @@ References:
 *class*
 
 ```python
-LIMEPYVelocityDF(W0: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 5.0, g: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_c: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, r_a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None, xi_max: float = 300.0, n_ode_points: int = 2000, speed_method: str = 'table')
+LIMEPYVelocityDF(W0: ArrayLike = 5.0, g: ArrayLike = 1.0, r_c: ArrayLike = 1.0, r_a: ArrayLike | None = None, xi_max: float = 300.0, n_ode_points: int = 2000, speed_method: str = 'table')
 ```
 
 General-g LIMEPY lowered-isothermal velocity DF (isotropic or Michie/OM).
@@ -218,7 +218,7 @@ Attributes:
     is_aniso: static flag selecting the anisotropic sampler.
     speed_method: static, "table" (default) or "quadrature" (exact oracle).
 
-*Source: [`progenax/kinematics/limepy_df.py#L102`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/limepy_df.py#L102)*
+*Source: [`src/progenax/kinematics/limepy_df.py#L102`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/limepy_df.py#L102)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`
@@ -226,7 +226,7 @@ Attributes:
 *class*
 
 ```python
-EFFVelocityDF(a: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 1.0, gamma: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 3.0, r_t: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex] = 10.0, anisotropy_radius: Union[jax.Array, numpy.ndarray, numpy.bool, numpy.number, bool, int, float, complex, NoneType] = None)
+EFFVelocityDF(a: ArrayLike = 1.0, gamma: ArrayLike = 3.0, r_t: ArrayLike = 10.0, anisotropy_radius: ArrayLike | None = None)
 ```
 
 EFF (Elson-Fall-Freeman 1987) velocity DF via Eddington inversion.
@@ -264,7 +264,7 @@ References:
     Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.46 (Eddington)
     Merritt (1985), AJ, 90, 1027 (Osipkov-Merritt anisotropy)
 
-*Source: [`progenax/kinematics/eff_df.py#L71`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/eff_df.py#L71)*
+*Source: [`src/progenax/kinematics/eff_df.py#L71`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/eff_df.py#L71)*
 
 (api-kinematics-apply_solid_body_rotation)=
 ## `kinematics.apply_solid_body_rotation`
@@ -272,7 +272,7 @@ References:
 *function*
 
 ```python
-apply_solid_body_rotation(velocities: jaxtyping.Float[Array, 'N 3'], positions: jaxtyping.Float[Array, 'N 3'], omega: float, axis: jaxtyping.Float[Array, '3']) -> jaxtyping.Float[Array, 'N 3']
+apply_solid_body_rotation(velocities: Float[Array, 'N 3'], positions: Float[Array, 'N 3'], omega: float, axis: Float[Array, '3']) -> Float[Array, 'N 3']
 ```
 
 Add solid body rotation to velocities.
@@ -307,7 +307,7 @@ Example:
 Reference:
     Binney & Tremaine (2008) Section 4.8
 
-*Source: [`progenax/kinematics/rotation.py#L41`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L41)*
+*Source: [`src/progenax/kinematics/rotation.py#L41`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/rotation.py#L41)*
 
 (api-kinematics-apply_differential_rotation)=
 ## `kinematics.apply_differential_rotation`
@@ -315,7 +315,7 @@ Reference:
 *function*
 
 ```python
-apply_differential_rotation(velocities: jaxtyping.Float[Array, 'N 3'], positions: jaxtyping.Float[Array, 'N 3'], v_peak: float, R_peak: float, axis: jaxtyping.Float[Array, '3']) -> jaxtyping.Float[Array, 'N 3']
+apply_differential_rotation(velocities: Float[Array, 'N 3'], positions: Float[Array, 'N 3'], v_peak: float, R_peak: float, axis: Float[Array, '3']) -> Float[Array, 'N 3']
 ```
 
 Add differential rotation with peaked rotation curve.
@@ -348,7 +348,7 @@ Note:
     Lynden-Bell (1960), MNRAS 120, 204 is the classic reference for rotating
     stellar systems in general, not for this functional form.
 
-*Source: [`progenax/kinematics/rotation.py#L90`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/rotation.py#L90)*
+*Source: [`src/progenax/kinematics/rotation.py#L90`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/rotation.py#L90)*
 
 (api-kinematics-jeans_dispersion)=
 ## `kinematics.jeans_dispersion`
@@ -450,7 +450,7 @@ Michie-``W0`` gradient gate is exercised in the well-truncated regime (``W0=6``)
 the high-``W0`` correctness is pinned by a Richardson-FD test
 (``test_grad_jeans_michie_high_W0_ad_correct``).
 
-*Source: [`progenax/kinematics/dispersion.py#L436`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L436)*
+*Source: [`src/progenax/kinematics/dispersion.py#L436`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/dispersion.py#L436)*
 
 (api-kinematics-project_dispersion)=
 ## `kinematics.project_dispersion`
@@ -535,7 +535,7 @@ Returns
 -------
 ProjectedDispersion
 
-*Source: [`progenax/kinematics/dispersion.py#L692`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L692)*
+*Source: [`src/progenax/kinematics/dispersion.py#L692`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/dispersion.py#L692)*
 
 (api-kinematics-df_moment_dispersion)=
 ## `kinematics.df_moment_dispersion`
@@ -601,7 +601,7 @@ Returns
 -------
 DispersionProfile
 
-*Source: [`progenax/kinematics/dispersion.py#L570`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/dispersion.py#L570)*
+*Source: [`src/progenax/kinematics/dispersion.py#L570`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/dispersion.py#L570)*
 
 (api-kinematics-velocitydf)=
 ## `kinematics.VelocityDF`
@@ -617,7 +617,7 @@ Protocol for velocity distribution functions.
 Implementations must sample velocities given positions and masses.
 Enables composability: mix Plummer positions + King velocities.
 
-*Source: [`progenax/protocols.py#L55`](https://github.com/jaxstro/progenax/blob/main/progenax/protocols.py#L55)*
+*Source: [`src/progenax/protocols.py#L55`](https://github.com/jaxstro/progenax/blob/main/src/progenax/protocols.py#L55)*
 
 (api-kinematics-rotationparams)=
 ## `kinematics.RotationParams`
@@ -651,7 +651,7 @@ References:
     Lynden-Bell (1960) MNRAS 120, 204
     Binney & Tremaine (2008) Section 4.8
 
-*Source: [`progenax/kinematics/api.py#L57`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L57)*
+*Source: [`src/progenax/kinematics/api.py#L57`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L57)*
 
 (api-kinematics-velocitymodel)=
 ## `kinematics.VelocityModel`
@@ -686,7 +686,7 @@ Example:
     ...     rotation=RotationParams(solid_body=True, pattern_speed=0.1),
     ... )
 
-*Source: [`progenax/kinematics/api.py#L91`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L91)*
+*Source: [`src/progenax/kinematics/api.py#L91`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L91)*
 
 (api-kinematics-sample_velocities_pipeline)=
 ## `kinematics.sample_velocities_pipeline`
@@ -694,7 +694,7 @@ Example:
 *function*
 
 ```python
-sample_velocities_pipeline(key: Union[jaxtyping.Key[Array, ''], jaxtyping.UInt32[Array, '2'], jaxtyping.UInt32[Array, '4']], positions: jaxtyping.Float[Array, 'N 3'], masses: jaxtyping.Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float) -> jaxtyping.Float[Array, 'N 3']
+sample_velocities_pipeline(key: PRNGKeyArray, positions: Float[Array, 'N 3'], masses: Float[Array, 'N'], model: progenax.kinematics.api.VelocityModel, G: float) -> Float[Array, 'N 3']
 ```
 
 Velocity pipeline: DF sampling -> rotation -> optional virial rescale.
@@ -738,5 +738,5 @@ Notes:
     - Virial rescaling uses O(N^2) pairwise potential energy calculation
     - COM motion is removed after rescaling
 
-*Source: [`progenax/kinematics/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/progenax/kinematics/api.py#L122)*
+*Source: [`src/progenax/kinematics/api.py#L122`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/api.py#L122)*
 
