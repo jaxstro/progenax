@@ -43,12 +43,25 @@ between the conventions using each profile's own $r_h$ relation (e.g.
   - You want a tidally-truncated cluster with *radial velocity anisotropy* increasing outward (the Michie–King model). Density and DF are solved together.
 ```
 
-Plummer is the default. King is the right choice for old globular
-clusters where the King-radius / tidal-radius ratio is observationally
-constrained ($W_0 \sim 5$–$9$ for most Galactic GCs). EFF is the right
-choice for young massive clusters in the LMC and elsewhere where the
-power-law outer slope is a free parameter not well captured by King's
-exponential cutoff {cite:p}`ElsonFallFreeman1987`.
+```{figure} ../figures/profile_family_portrait.webp
+:label: fig-profile-family-portrait
+:width: 88%
+
+The model-selection table, drawn: every released density family,
+half-mass-normalized. Plummer's untruncated $r^{-5}$ tail; the King
+$W_0 = 3 \to 12$ sequence (each $\sim$4–5 units of $W_0$ buys a decade of
+core-to-tidal contrast $c = \log_{10} r_t/r_c$: $0.67 \to 1.53 \to 2.74$);
+EFF's shallow power-law halo crossing Plummer at large radii; Michie
+(dashed) as "King, but more extended" — radial anisotropy visible as pure
+structure. Regenerate: `python -m laboratory.icviz --only
+profile-family-portrait`.
+```
+
+Plummer is the default (closed-form everything). King fits old, tidally
+truncated globulars ($W_0 \sim 5$–$9$); EFF fits young massive clusters
+whose power-law halos King's exponential edge cannot capture
+{cite:p}`ElsonFallFreeman1987`; Michie–King adds self-consistent radial
+anisotropy to the King picture.
 
 ## Common API contract
 
@@ -110,6 +123,39 @@ All four profiles compose with the modifier layers — mass segregation
 substructure ([](../tidal-and-substructure/fractal.md)), and tidal
 truncation ([](../tidal-and-substructure/tidal.md)) — without changing
 the underlying $\rho(r)$.
+
+## Sampler fidelity at a glance
+
+```{figure} ../figures/profile_density_residuals.webp
+:label: fig-profile-density-residuals
+:width: 100%
+
+Sampled radial densities ($N = 2\times 10^5$ per family, seed 7) against
+the analytic curves, spanning 6–7 decades, with residuals inside the
+$\pm 1/\sqrt{N_{\rm bin}}$ Poisson bands (shaded). Bins with fewer than
+10 stars are dropped. Quantitative gates: [Plummer](../../50-validation/plummer-equilibrium.md),
+[King](../../50-validation/king-profile.md), [EFF](../../50-validation/eff-profile.md).
+Regenerate: `python -m laboratory.icviz --only profile-density-residuals`.
+```
+
+## Check yourself
+
+:::{dropdown} 1. Read the portrait
+At $r = 3\,r_h$, rank the families in {numref}`fig-profile-family-portrait`
+by $\rho$ before looking closely. Why must EFF ($\gamma = 3.5$) eventually
+exceed *every* King model, however concentrated? (Truncation beats any
+power law: King's $\rho \to 0$ at finite $r_t$, EFF's tail only falls as
+$r^{-3.5}$.)
+:::
+
+:::{dropdown} 2. The $r_h$ trap
+Build `KingProfile.from_W0_rc(W0=7.0, r_c=1.0)` and `PlummerProfile(r_h=1.0)`.
+Are they the same size? Compute the King model's half-mass radius (integrate
+its density, or sample and take the median radius) — you'll find
+$r_h \approx 3.9\,r_c$, so this King cluster is nearly four times larger
+than the Plummer sphere despite the unit scale parameter. This is why the
+portrait normalizes by $r_h$ and why cross-profile comparisons must too.
+:::
 
 ## Implementation, validation & references
 
