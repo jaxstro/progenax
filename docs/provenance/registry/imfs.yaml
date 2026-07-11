@@ -1,0 +1,357 @@
+# Provenance model cards — initial mass functions (ADR-0034).
+# Generated glossary: docs/website/15-model-reference/imfs.md (do not hand-edit).
+# Equations transcribed VERBATIM from the ledger-verified theory pages
+# (10-theory/imfs/classic.md, environment.md); source locators read from the
+# held PDFs / per-paper notes — never from memory. Maschberger Table 1 + Eq. 12
+# and Parravano Eq. 1 PDF-verified 2026-07-11.
+# Phase B2: powerlaw_imf, chabrier, maschberger, tapered_powerlaw, truncated,
+# environment_imf.
+#
+# House guidance (Anna, 2026-07-11): Maschberger is the PREFERRED production
+# default over Kroupa/Chabrier because it is SMOOTH — one C^inf functional form
+# with no breakpoint kinks and a closed-form inverse CDF, which is what
+# gradient-based inference (HMC / Fisher) wants. The cards' when_to_use fields
+# encode this.
+
+- model: powerlaw_imf
+  family_display: Salpeter / Kroupa piecewise power law
+  description: >
+    N-segment piecewise power-law IMF with continuity enforced at the breaks:
+    Salpeter (1955) is the 1-segment classic, Kroupa (2001) the canonical
+    multi-segment form with the observed low-mass turnover. Exact analytic
+    CDF/PPF per segment (expm1-stable through alpha = 1, audit S4).
+  when_to_use:
+    good_for:
+      - "literature-standard Salpeter/Kroupa populations and comparisons"
+      - "exact segment-wise closed-form sampling (no solver)"
+    not_for:
+      - "gradient-based IMF inference as the production default — the segment breaks are C^0 kinks; prefer the SMOOTH Maschberger form (house default)"
+      - "smooth low-mass turnover shapes (use Chabrier or Maschberger)"
+  parameters:
+    - name: exponents
+      meaning: "per-segment slopes alpha_i (dN/dm proportional to m^-alpha_i); Salpeter 2.35, Kroupa (0.3, 1.3, 2.3)"
+      units: dimensionless
+      typical_range: "0.3–2.7"
+      code_arg: "PowerLawIMF(exponents=[...])"
+    - name: breakpoints
+      meaning: "interior segment breaks (Kroupa: 0.08, 0.5 Msun)"
+      units: Msun
+      typical_range: "0.08–1.0"
+      code_arg: "PowerLawIMF(breakpoints=[...])"
+    - name: m_min
+      meaning: "lower mass limit"
+      units: Msun
+      typical_range: "0.01–1"
+      code_arg: "PowerLawIMF(m_min=...)"
+    - name: m_max
+      meaning: "upper mass limit"
+      units: Msun
+      typical_range: "100–150"
+      code_arg: "PowerLawIMF(m_max=...)"
+  sources:
+    - bibkey: Salpeter1955
+      provides: "the original xi(m) proportional to m^-2.35 (scanned source; slope ledger-verified)"
+      locators: ["Eq. 5 + the luminosity-function fit (dN/dlogm slope 1.35 = linear-mass 2.35)"]
+    - bibkey: Kroupa2001
+      provides: "the canonical 4-segment broken power law with alpha = (0.3, 1.3, 2.3, 2.3)"
+      locators: ["Eq. 2"]
+  equations:
+    - label: imf-salpeter
+      latex: '\xi(m) \;=\; \xi_0\,m^{-\alpha},\qquad \alpha = 2.35'
+      symbols:
+        xi: {latex: '\xi(m)', meaning: "IMF in LINEAR mass, dN/dm (the log-mass slope is alpha - 1 = 1.35)", units: "1 / Msun"}
+      assumptions: ["valid for m >~ 1 Msun (no low-mass turnover)"]
+      theory_ref: "10-theory/imfs/classic.md#imf-salpeter"
+    - label: imf-salpeter-cdf
+      latex: 'N(<m) / N \;=\; \frac{m^{1-\alpha} - m_{\min}^{1-\alpha}}{m_{\max}^{1-\alpha} - m_{\min}^{1-\alpha}}'
+      symbols:
+        N: {latex: 'N', meaning: "cumulative count fraction", units: dimensionless}
+      assumptions: ["closed-form; inverted analytically for sampling", "the alpha = 1 (and mean-mass alpha = 2) removable singularities use the expm1-stable kernels (progenax.numerics, audit S4) — gradients FD-exact AT the singular points"]
+      theory_ref: "10-theory/imfs/classic.md#imf-salpeter-cdf"
+    - label: imf-kroupa
+      latex: '\xi(m) \;\propto\; \begin{cases} m^{-\alpha_0}, & 0.01 \le m < 0.08\,M_\odot & (\alpha_0 = 0.3) \\ m^{-\alpha_1}, & 0.08 \le m < 0.50\,M_\odot & (\alpha_1 = 1.3) \\ m^{-\alpha_2}, & 0.50 \le m < 1.00\,M_\odot & (\alpha_2 = 2.3) \\ m^{-\alpha_3}, & 1.00 \le m \le m_{\max} & (\alpha_3 = 2.3) \end{cases}'
+      symbols:
+        alpha_i: {latex: '\alpha_i', meaning: "per-segment slope; continuity coefficients enforced at each break", units: dimensionless}
+      assumptions: ["alpha_2 = alpha_3 = 2.3, so the 3-segment merge used by PowerLawIMF.kroupa() is exact"]
+      theory_ref: "10-theory/imfs/classic.md#imf-kroupa"
+  code_refs:
+    - "imf/power_law.py::PowerLawIMF"
+  validation:
+    - "tests/validation/test_imf_physics.py::TestSalpeterSlope::test_salpeter_high_mass_slope"
+    - "tests/validation/test_imf_physics.py::TestKroupaBreakpoints::test_kroupa_segment_slopes"
+    - "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged"
+  status: verified
+  deviations: []
+
+- model: chabrier
+  family_display: Chabrier (2003) lognormal + power law
+  description: >
+    Lognormal low-mass body joined continuously to a Salpeter-like power-law
+    tail at 1 Msun — the single-star (disk) IMF of Chabrier (2003). Smoother
+    at low mass than a broken power law; the inverse CDF needs a fixed-iteration
+    Newton solve.
+  when_to_use:
+    good_for:
+      - "literature-standard Chabrier single-star populations"
+      - "smooth low-mass turnover with the canonical disk parameters"
+    not_for:
+      - "the fastest / cleanest-gradient sampling (no closed-form inverse; ~30 Newton steps per draw — the SMOOTH closed-form Maschberger is the house default)"
+      - "system (unresolved-binary) IMF studies without switching to the Table-1 system parameters"
+  parameters:
+    - name: m_c
+      meaning: "lognormal characteristic mass (single-star disk value 0.079 Msun)"
+      units: Msun
+      typical_range: "0.08 (single-star) – 0.22 (system)"
+      code_arg: "ChabrierIMF(m_c=...)"
+    - name: sigma
+      meaning: "lognormal width in log10 m (single-star disk 0.69)"
+      units: dex
+      typical_range: "0.55–0.69"
+      code_arg: "ChabrierIMF(sigma=...)"
+    - name: alpha
+      meaning: "high-mass power-law slope (linear-mass convention)"
+      units: dimensionless
+      typical_range: "2.3"
+      code_arg: "ChabrierIMF(alpha=...)"
+    - name: m_trans
+      meaning: "lognormal-to-power-law transition mass"
+      units: Msun
+      typical_range: "1.0"
+      code_arg: "ChabrierIMF(m_trans=...)"
+  sources:
+    - bibkey: Chabrier2003
+      provides: "the lognormal + power-law single-star (disk) IMF and its parameters"
+      locators: ["Table 1 (single-star disk: m_c = 0.079, sigma = 0.69)", "Eq. 17 form"]
+    - bibkey: Maschberger2013
+      provides: "independent parameter cross-check: his Eq. 8 restates the Chabrier form with k1 = 0.158, log m_c = log 0.079, sigma = 0.69, tail m^-2.3"
+      locators: ["Eq. 8, p. 1727"]
+  equations:
+    - label: imf-chabrier
+      latex: '\xi(m) \;\propto\; \begin{cases} \dfrac{1}{m\,\ln 10}\,\exp\!\Bigl[-\dfrac{(\log_{10} m - \log_{10} m_c)^2}{2\sigma_{\log m}^2}\Bigr], & m \le 1\,M_\odot \\ m^{-\alpha_3}, & m > 1\,M_\odot \end{cases}'
+      symbols:
+        m_c: {latex: 'm_c', meaning: "characteristic (peak) mass of the lognormal", units: Msun}
+        sigma_logm: {latex: '\sigma_{\log m}', meaning: "lognormal width in dex", units: dex}
+      assumptions: ["single-star DISK parameters (not the system IMF)", "continuity enforced at m_trans"]
+      theory_ref: "10-theory/imfs/classic.md#imf-chabrier"
+  code_refs:
+    - "imf/chabrier.py::ChabrierIMF"
+  validation:
+    - "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_characteristic_mass"
+    - "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_pdf_continuous_at_mtrans"
+    - "tests/validation/test_imf_physics.py::TestChabrierParameters::test_chabrier_high_mass_slope"
+  status: verified
+  deviations: []
+
+- model: maschberger
+  family_display: Maschberger (2013) L3 — the smooth house default
+  description: >
+    The L3 IMF: one smooth analytic form that reproduces the Kroupa/Chabrier
+    shape (Salpeter tail + low-mass turnover) with a CLOSED-FORM quantile
+    function. progenax's production default.
+  when_to_use:
+    good_for:
+      - "PREFERRED over Kroupa/Chabrier as the production default: SMOOTH (C^inf, no breakpoint kinks) — exactly what gradient-based inference (HMC / Fisher forecasting) wants"
+      - "fast exact sampling: closed-form quantile, no solver, ~5x faster than Chabrier under vmap"
+      - "IMF-parameter inference (alpha, beta, mu are clean continuous knobs)"
+    not_for:
+      - "matching a literature analysis that is DEFINED on Kroupa/Chabrier segments (use those forms for like-for-like comparisons)"
+  parameters:
+    - name: alpha
+      meaning: "high-mass exponent (Salpeter-like tail)"
+      units: dimensionless
+      typical_range: "2.3 (canonical single-star)"
+      code_arg: "Maschberger(alpha=...)"
+    - name: beta
+      meaning: "low-mass tapering exponent"
+      units: dimensionless
+      typical_range: "1.4 (single-star; 2.0 system)"
+      code_arg: "Maschberger(beta=...)"
+    - name: mu
+      meaning: "scale parameter (sets the turnover; NOT the peak mass itself)"
+      units: Msun
+      typical_range: "0.2"
+      code_arg: "Maschberger(mu=...)"
+  sources:
+    - bibkey: Maschberger2013
+      provides: "the L3 pdf, auxiliary function G(m), closed-form quantile, and canonical parameters"
+      locators: ["Table 1 rows 1-4 (G, CDF, pdf, quantile; alpha = 2.3, beta = 1.4, mu = 0.2), p. 1726 — PDF-verified 2026-07-11"]
+  equations:
+    - label: imf-maschberger
+      latex: '\xi(m) \;\propto\; \biggl(\frac{m}{\mu}\biggr)^{\!-\alpha}\, \biggl[\,1 + \biggl(\frac{m}{\mu}\biggr)^{\!1-\alpha}\,\biggr]^{-\beta}'
+      symbols:
+        mu: {latex: '\mu', meaning: "scale parameter", units: Msun}
+        alpha: {latex: '\alpha', meaning: "high-mass exponent", units: dimensionless}
+        beta: {latex: '\beta', meaning: "low-mass tapering exponent", units: dimensionless}
+      assumptions: ["alpha != 1, beta != 1 (the L3 parameterization)", "m >> mu: Salpeter tail; m << mu: turnover"]
+      theory_ref: "10-theory/imfs/classic.md#imf-maschberger"
+    - label: imf-maschberger-inverse
+      latex: 'm(u) \;=\; \mu\,\biggl[\biggl(\frac{P_{\min} + u\,(P_{\max} - P_{\min})}{C}\biggr)^{\!1/(1-\beta)} - 1\biggr]^{1/(1-\alpha)}'
+      symbols:
+        u: {latex: 'u', meaning: "uniform draw in [0, 1]", units: dimensionless}
+        C: {latex: 'C', meaning: "mu/[(1-beta)(1-alpha)]: converts the primitive P to Maschberger's auxiliary G, making this ALGEBRAICALLY IDENTICAL to his Table-1 quantile", units: Msun}
+      assumptions: ["closed-form: no Newton solve, no rejection — fully vmap-compatible and cleanly differentiable"]
+      theory_ref: "10-theory/imfs/classic.md#imf-maschberger-inverse"
+  code_refs:
+    - "imf/smooth.py::Maschberger"
+  validation:
+    - "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_peak_mass"
+    - "tests/validation/test_imf_physics.py::TestMaschbergerProperties::test_maschberger_high_mass_salpeter"
+    - "tests/validation/test_imf_physics.py::TestMeanMassAccuracy::test_mean_mass_resolution_converged"
+  status: verified
+  deviations: []
+
+- model: tapered_powerlaw
+  family_display: Tapered power law (Parravano+2011 STPL)
+  description: >
+    Power law with an exponential low-mass taper — the Smoothed Two-Power Law
+    of Parravano, McKee & Hollenbach (2011): power law at both ends, smoothly
+    joined. Smooth like Maschberger but WITHOUT a closed-form inverse
+    (fixed-iteration Newton ppf).
+  when_to_use:
+    good_for:
+      - "the PMH11 galactic-disk IMF shape specifically"
+      - "smooth turnover with an independently tunable taper sharpness beta"
+    not_for:
+      - "the production default (Maschberger has the same smoothness PLUS a closed-form quantile)"
+  parameters:
+    - name: alpha
+      meaning: "power-law slope (LINEAR-mass convention; PMH11's log-mass Gamma = alpha - 1)"
+      units: dimensionless
+      typical_range: "2.3"
+      code_arg: "TaperedPowerLaw(alpha=...)"
+    - name: m_peak
+      meaning: "taper/turnover mass (PMH11's m_ch)"
+      units: Msun
+      typical_range: "0.3"
+      code_arg: "TaperedPowerLaw(m_peak=...)"
+    - name: beta
+      meaning: "taper sharpness (PMH11's gamma + Gamma exponent)"
+      units: dimensionless
+      typical_range: "2.0"
+      code_arg: "TaperedPowerLaw(beta=...)"
+  sources:
+    - bibkey: Parravano2011
+      provides: "the STPL form psi(m) proportional to m^-Gamma [1 - exp(-(m/m_ch)^(gamma+Gamma))] — PDF-verified 2026-07-11"
+      locators: ["Eq. 1, p. 2 (form historically first proposed by Paresce & De Marchi 2000)"]
+    - bibkey: Maschberger2013
+      provides: "the same form in linear-mass notation, as his comparison Eq. 12"
+      locators: ["Eq. 12, p. 1727"]
+  equations:
+    - label: tapered-powerlaw
+      latex: 'f(m) \;\propto\; m^{-\alpha}\,\Bigl(1 - e^{-(m/m_{\mathrm{peak}})^{\beta}}\Bigr)'
+      symbols:
+        m_peak: {latex: 'm_{\mathrm{peak}}', meaning: "turnover mass (PMH11 m_ch)", units: Msun}
+        beta: {latex: '\beta', meaning: "taper sharpness", units: dimensionless}
+      assumptions: ["linear-mass convention: PMH11 write the log-mass slope Gamma = alpha - 1 and taper exponent gamma + Gamma = beta"]
+      theory_ref: null
+  code_refs:
+    - "imf/smooth.py::TaperedPowerLaw"
+  validation:
+    - "tests/unit/imf/test_smooth.py::TestTaperedPowerLaw::test_taper_suppresses_low_mass"
+    - "tests/unit/imf/test_smooth.py::TestTaperedPowerLaw::test_full_cdf_ppf_roundtrip"
+  status: verified
+  deviations:
+    - "Exponent convention: the code's alpha is the LINEAR-mass slope; PMH11 Eq. 1 is written in the log-mass convention (their Gamma = alpha - 1, their taper exponent gamma + Gamma = the code's beta). Values are equivalent; symbols differ."
+
+- model: truncated
+  family_display: Truncated IMF (operator)
+  description: >
+    Wrapper applying hard m_min / m_max cutoffs to any base IMF, with the
+    normalization recomputed on the truncated support. An operator card:
+    the physics lives in the wrapped base IMF.
+  when_to_use:
+    good_for:
+      - "cluster-mass-dependent upper limits (m_max(M_cl))"
+      - "regime studies with forced mass windows"
+    not_for:
+      - "changing the SHAPE of the IMF (only the support is modified)"
+  parameters:
+    - name: base_imf
+      meaning: "any IMF implementing the shared protocol"
+      units: "—"
+      typical_range: "—"
+      code_arg: "TruncatedIMF(base_imf=...)"
+    - name: m_min
+      meaning: "hard lower cutoff"
+      units: Msun
+      typical_range: "0.01–1"
+      code_arg: "TruncatedIMF(m_min=...)"
+    - name: m_max
+      meaning: "hard upper cutoff"
+      units: Msun
+      typical_range: "5–150"
+      code_arg: "TruncatedIMF(m_max=...)"
+  sources:
+    - bibkey: Marks2012
+      provides: "the m_max(M_cl) motivation (Weidner-Kroupa relation) for cluster-dependent truncation"
+      locators: ["Section 2 context"]
+  equations:
+    - label: truncated-renorm
+      latex: '\xi_{\mathrm{trunc}}(m) \;=\; \frac{\xi(m)\,\mathbf{1}[m_{\min} \le m \le m_{\max}]}{\int_{m_{\min}}^{m_{\max}} \xi(m^\prime)\,\mathrm{d}m^\prime}'
+      symbols:
+        one: {latex: '\mathbf{1}[\cdot]', meaning: "indicator of the truncated support", units: dimensionless}
+      assumptions: ["shape inherited from the base IMF; support and normalization replaced"]
+      theory_ref: null
+  code_refs:
+    - "imf/truncated.py::TruncatedIMF"
+  validation:
+    - "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_max[TruncatedChabrier]"
+    - "tests/unit/imf/test_imf_core.py::TestCDFProperties::test_cdf_at_m_min[TruncatedChabrier]"
+  status: verified
+  deviations: []
+
+- model: environment_imf
+  family_display: Environment-dependent IMF (Marks+2012 / Jerabkova+2018)
+  description: >
+    The functional alpha_3(environment) relations: the high-mass IMF slope as
+    a function of birth-cloud density and metallicity (the Marks+2012
+    fundamental-plane relation, erratum-corrected, as restated by
+    Jerabkova+2018). progenax's BirthEnvironment + env_to_imf_params — NOT a
+    galaxy-wide IGIMF integration.
+  when_to_use:
+    good_for:
+      - "top-heavy IMFs in dense / metal-poor birth environments (per-cluster alpha_3)"
+      - "environment-dependent population synthesis inputs to the binary engine"
+    not_for:
+      - "galaxy-wide IGIMF calculations (out of scope; no IGIMF class exists — audit R7)"
+      - "sub-solar-mass slope changes (only alpha_3, and optionally alpha_1/alpha_2 via metallicity, respond)"
+  parameters:
+    - name: rho_cl
+      meaning: "birth-cloud (pre-cluster core) density"
+      units: "Msun / pc^3"
+      typical_range: "1e2–1e7"
+      code_arg: "BirthEnvironment(rho_cl=...)"
+    - name: Fe_H
+      meaning: "metallicity [Fe/H]"
+      units: dex
+      typical_range: "-2 – +0.5"
+      code_arg: "BirthEnvironment(Fe_H=...)"
+  sources:
+    - bibkey: Marks2012
+      provides: "the fundamental-plane alpha_3(x) relation and the Table-3 1-D relations (all ledger-verified cell-for-cell)"
+      locators: ["Eqs. 14-15, p. 2252 (slope -0.4072, intercept 1.9383)", "Table 3, p. 2251"]
+    - bibkey: Jerabkova2018
+      provides: "the erratum-corrected threshold x >= -0.87 and the restated relations"
+      locators: ["Eq. 6 (cites the Marks erratum)", "Eq. 9 (the 4pi form; see deviations)"]
+  equations:
+    - label: fundamental-fit
+      latex: '\alpha_3(\hat x) \;=\; \begin{cases} -0.4072\,\hat x + 1.9383, & \hat x \ge -0.87 \\ 2.3, & \hat x < -0.87 \end{cases}'
+      symbols:
+        x_hat: {latex: '\hat x', meaning: "fundamental-plane coordinate (density-metallicity combination)", units: dimensionless}
+      assumptions: ["erratum-corrected threshold -0.87 (Jerabkova 2018 Eq. 6)", "canonical 2.3 below threshold"]
+      theory_ref: "10-theory/imfs/environment.md#fundamental-fit"
+    - label: alpha3-marks-eq15
+      latex: '\alpha_3(\log\rho_{\mathrm{cl}}, [\mathrm{Fe/H}]) \;=\; 0.0572\,[\mathrm{Fe/H}] - 0.4072\,\log_{10}\!\left(\frac{\rho_{\mathrm{cl}}}{10^6\,M_\odot\,\mathrm{pc}^{-3}}\right) + 1.9383'
+      symbols:
+        rho_cl: {latex: '\rho_{\mathrm{cl}}', meaning: "birth-cloud density", units: "Msun / pc^3"}
+      assumptions: ["the Marks 2012 Eq. 15 plane in physical variables"]
+      theory_ref: "10-theory/imfs/environment.md#alpha3-marks-eq15"
+  code_refs:
+    - "imf/environment/birth_environment.py::BirthEnvironment"
+    - "imf/environment/mapping.py::env_to_imf_params"
+  validation:
+    - "tests/unit/imf/test_environment.py::TestMarksCoefficients::test_coefficient_values"
+    - "tests/unit/imf/test_environment.py::TestGCValidation::test_marks_table1_gc"
+  status: verified
+  deviations:
+    - "Jerabkova 2018 Eq. 9 prints a 2.83 (4 pi) density-conversion constant; progenax uses the 8 pi form (constant 0.2161), a deliberate deviation RATIFIED 2026-06-09 (see the provenance ledger and imf/environment/coefficients.py docstrings)."

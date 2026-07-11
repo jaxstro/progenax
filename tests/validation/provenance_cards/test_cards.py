@@ -137,7 +137,9 @@ def test_validation_node_ids_resolve_and_assert(cards):
     resolved = resolve_node_ids(all_ids, rootdir=str(_REPO))
     missing = [i for i in all_ids if i not in resolved]
     assert not missing, f"validation node ids not collectable: {missing}"
-    toothless = [i for i in all_ids if not _body_has_assert(i)]
+    # Strip parametrize suffixes ("::test_x[case]") — the AST helper resolves the
+    # FUNCTION; collection above already proved the specific parametrization exists.
+    toothless = [i for i in all_ids if not _body_has_assert(i.split("[")[0])]
     assert not toothless, f"validation tests without an assert: {toothless}"
 
 

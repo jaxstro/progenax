@@ -16,6 +16,9 @@ Phase log (ADR-0034 sequencing):
   2026-07-10  pilot: plummer_profile, king_profile, eff_profile (ledger-verified trio).
   2026-07-11  B1 velocity DFs: plummer_df, king_df, michie_df, eff_df, om_anisotropy
               (overlay, extra-registry) + michie_profile. Coverage 8/21.
+  2026-07-11  B2 IMFs: powerlaw_imf, chabrier, maschberger, tapered_powerlaw +
+              truncated + environment_imf (last three partly extra-registry).
+              Coverage 12/21. House guidance: Maschberger preferred (smooth).
 """
 
 # physics-registry model name (tests/validation/physics_registry/manifest.py
@@ -29,6 +32,10 @@ CARDED_MODELS: dict[str, str] = {
     "KingVelocityDF": "king_df",
     "MichieVelocityDF": "michie_df",
     "EFFVelocityDF": "eff_df",
+    "PowerLawIMF": "powerlaw_imf",
+    "ChabrierIMF": "chabrier",
+    "Maschberger": "maschberger",
+    "TruncatedIMF": "truncated",
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).

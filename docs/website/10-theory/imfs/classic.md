@@ -56,6 +56,8 @@ stars {cite:p}`Salpeter1955`:
 \xi(m) \;=\; \xi_0\,m^{-\alpha},\qquad \alpha = 2.35
 ```
 
+[↗ model card](#card-imf-salpeter)
+
 valid for $m \gtrsim 1\,\Msun$. Below $\sim 1\,\Msun$ the actual stellar
 distribution turns over (the IMF flattens and eventually decreases
 toward sub-stellar masses), which Salpeter does *not* capture. Modern
@@ -69,6 +71,8 @@ The cumulative is closed-form:
 :label: imf-salpeter-cdf
 N(<m) / N \;=\; \frac{m^{1-\alpha} - m_{\min}^{1-\alpha}}{m_{\max}^{1-\alpha} - m_{\min}^{1-\alpha}}
 ```
+
+[↗ model card](#card-imf-salpeter-cdf)
 
 inverted analytically for inverse-CDF sampling. progenax's
 `PowerLawIMF.salpeter(m_min=1.0, m_max=150.0)` is the Salpeter
@@ -89,6 +93,8 @@ that captures the observed low-mass turnover:
   m^{-\alpha_3}, & 1.00 \le m \le m_{\max} & (\alpha_3 = 2.3)
 \end{cases}
 ```
+
+[↗ model card](#card-imf-kroupa)
 
 with continuity coefficients enforced at each break. The four-segment
 form includes the brown-dwarf regime ($m < 0.08\,\Msun$); a common
@@ -135,6 +141,8 @@ with a lognormal:
 \end{cases}
 ```
 
+[↗ model card](#card-imf-chabrier)
+
 with the {cite:t}`Chabrier2003` Table 1 **single-star (disk)** values
 $m_c \approx 0.08\,\Msun$ ($0.079$), $\sigma_{\log m} = 0.69$, and
 $\alpha_3 = 2.3$, joined continuously at $m = 1\,\Msun$. (The
@@ -163,6 +171,8 @@ because it captures the same physics as Chabrier+Kroupa with a
                   \biggl[\,1 + \biggl(\frac{m}{\mu}\biggr)^{\!1-\alpha}\,\biggr]^{-\beta}
 ```
 
+[↗ model card](#card-imf-maschberger)
+
 with default parameters $\alpha = 2.3$ (Salpeter slope), $\beta = 1.4$,
 $\mu = 0.2\,\Msun$ (peak mass). The two factors interact:
 
@@ -178,6 +188,8 @@ The closed-form CDF and its inverse are derived in {cite:t}`Maschberger2013`
 :label: imf-maschberger-inverse
 m(u) \;=\; \mu\,\biggl[\biggl(\frac{P_{\min} + u\,(P_{\max} - P_{\min})}{C}\biggr)^{\!1/(1-\beta)} - 1\biggr]^{1/(1-\alpha)}
 ```
+
+[↗ model card](#card-imf-maschberger-inverse)
 
 with $C = \mu / [(1-\beta)(1-\alpha)]$ and $P_{\min}, P_{\max}$ the
 primitive evaluated at the integration endpoints. progenax's
@@ -195,6 +207,14 @@ IMF parameters (Maschberger's $\alpha$, $\beta$, $\mu$), the
 analytical invertibility translates into substantially cleaner
 gradients and a $\sim 5\times$ speed-up over Chabrier in `vmap`'d
 sampling.
+
+Just as important as invertibility is **smoothness**: Maschberger is one
+$C^\infty$ functional form, whereas Kroupa's segment breaks are $C^0$
+kinks (and Chabrier keeps a residual kink at $1\,\Msun$). Kinks propagate
+into the derivatives that gradient-based inference and Fisher forecasting
+differentiate through — so prefer Maschberger unless a like-for-like
+comparison against a Kroupa/Chabrier-defined literature analysis demands
+the segmented forms.
 ```
 
 ## Truncated power-law

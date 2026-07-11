@@ -227,6 +227,8 @@ with a weak negative metallicity contribution. The fit reads
 \end{cases}
 ```
 
+[↗ model card](#card-fundamental-fit)
+
 ```{warning}
 **The threshold is $\hat x \ge -0.87$ (negative).** The *printed* {cite:t}`Marks2012`
 Eq. 14/15 (p. 2252) give "$\hat x \ge +0.87$", but this is a missing-minus-sign typo
@@ -249,6 +251,8 @@ Eq. 15):
 \alpha_3(\log\rho_{\mathrm{cl}}, [\mathrm{Fe/H}])
 \;=\; 0.0572\,[\mathrm{Fe/H}] - 0.4072\,\log_{10}\!\left(\frac{\rho_{\mathrm{cl}}}{10^6\,\Msun\,\mathrm{pc}^{-3}}\right) + 1.9383
 ```
+
+[↗ model card](#card-alpha3-marks-eq15)
 
 valid when $\hat x \ge -0.87$, with $\alpha_3 = 2.3$ otherwise.
 
