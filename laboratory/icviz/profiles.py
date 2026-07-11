@@ -125,7 +125,7 @@ def build_density_residuals() -> plt.Figure:
             lw=0.7,
             color=color,
             alpha=0.55,
-            label=rf"sampled ($N=2{{\times}}10^5$)",
+            label=r"sampled ($N=2{\times}10^5$)",
         )
         ax.set_xscale("log")
         ax.set_yscale("log")

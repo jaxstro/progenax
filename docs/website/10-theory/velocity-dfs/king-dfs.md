@@ -78,6 +78,19 @@ space. The bracketed factor is positive throughout $0 \le v \le
 inverse-CDF sampling on $f(v \mid W)$ produces velocities in $[0,
 v_{\mathrm{esc}}]$ with no rejection.
 
+
+```{figure} ../figures/king_lowered_maxwellian.webp
+:label: fig-king-lowered-maxwellian
+:width: 88%
+
+What "lowering" means. One normalized Maxwellian (grey, dashed) and the King
+speed distribution at three local well depths: at $W = 6$ (a cluster core)
+the truncation barely bites, at $W = 1$ (near the tidal edge) most of the
+Maxwellian is cut away. The lowering matters most where the well is
+shallow — the origin of King clusters' cold outskirts. Regenerate:
+`python -m laboratory.icviz --only king-lowered-maxwellian`.
+```
+
 ## Sampling
 
 progenax samples King velocities via a per-particle inverse-CDF on
@@ -128,6 +141,23 @@ the tidal radius — **$\sigma$ falls with radius and vanishes at the tidal
 boundary**, where the escape speed $\to 0$. King clusters therefore have
 *cold outskirts*, in contrast to a Plummer sphere whose dispersion also
 declines outward but stays finite at all radii.
+
+## Check yourself
+
+:::{dropdown} 1. Which $W$ is most Maxwellian?
+Before studying {numref}`fig-king-lowered-maxwellian`: does the King DF
+resemble a Maxwellian most at the cluster centre or the edge? (Centre: large
+$W$ pushes $v_{\rm esc} = \sigma_0\sqrt{2W}$ far into the Maxwellian tail,
+so almost nothing is cut.)
+:::
+
+:::{dropdown} 2. Quantify the cut
+Compute the fraction of a pure Maxwellian beyond $v_{\rm esc} = \sqrt{2W}$:
+$\mathrm{erfc}(\sqrt{W}) + \sqrt{4W/\pi}\,e^{-W}$. At $W = 1$ that is
+$0.57$ — the lowering removes the *majority* of the distribution — while at
+$W = 6$ it is $0.007$. Check both against the figure by eye, then verify with
+a quick quadrature of $v^2 e^{-v^2/2}$.
+:::
 
 ## Pairing with the King profile
 

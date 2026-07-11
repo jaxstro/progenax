@@ -63,6 +63,20 @@ ellipsoid whose anisotropy is
 
 [↗ model card](#card-beta-r)
 
+
+```{figure} ../figures/beta_anisotropy.webp
+:label: fig-beta-anisotropy
+:width: 92%
+
+Anisotropy machinery, measured ($N = 2\times10^5$ per model, seed 12).
+OM-Plummer and OM-EFF realized $\beta(r)$ sit **on** the exact identity
+$r^2/(r^2+r_a^2)$ (curves); the self-consistent Michie model (squares) rises
+along, then saturates visibly *below* its OM ceiling (dashed) with a
+truncation-edge dip — the lowering removes the most-radial high-energy
+orbits, so a lowered model can never reach the pure OM limit. Regenerate:
+`python -m laboratory.icviz --only beta-anisotropy`.
+```
+
 Three regimes:
 
 ```{list-table}
@@ -144,6 +158,23 @@ density profile. It is implemented as the separate self-consistent pair
 `MichieProfile` + `MichieVelocityDF` (`KingVelocityDF` stays isotropic).
 See [](michie-king.md) and [](../../99-bibliography/per-paper/michie-1963.md).
 ```
+
+## Check yourself
+
+:::{dropdown} 1. Read $r_a$ off a curve
+The OM identity gives $\beta(r_a) = \tfrac12$ exactly. Read the two OM
+models' $r_a$ off {numref}`fig-beta-anisotropy` by finding where each curve
+crosses $\beta = 0.5$ — you should recover $r_a = 2$ and $3$.
+:::
+
+:::{dropdown} 2. Why does Michie sit below its OM ceiling?
+Both constructions use the same $e^{-J^2/2 r_a^2 \sigma^2}$ weight — so why
+do the squares saturate near $\beta \approx 0.5$ instead of climbing to the
+dashed curve? (The King-style lowering removes the highest-energy orbits, and
+at large radii those are precisely the most *radial* ones an OM model relies
+on; near $r_t$ the DF empties entirely and $\beta$ dips. The validation
+suite pins this ordering: `test_beta_below_osipkov_merritt_ceiling`.)
+:::
 
 ## Solid-body rotation
 

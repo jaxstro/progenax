@@ -57,7 +57,19 @@ Substituting Plummer's
 \rho(\Psi) \;=\; \frac{3 M}{4\pi a^3}\,\biggl(\frac{\Psi\,a}{GM}\biggr)^{\!5}
 ```
 
-into {eq}`eddington` and integrating yields
+into {eq}`eddington`. The boundary term vanishes ($\rho \propto \Psi^5
+\to 0$ as $\Psi \to 0$), and the second derivative is a pure power:
+$\mathrm{d}^2\rho/\mathrm{d}\Psi^2 = \tfrac{3M}{4\pi a^3}\,
+(a/GM)^5\, 20\,\Psi^3$. The Abel integral is then a Beta function,
+
+```{math}
+\int_0^{\mathcal{E}} \frac{\Psi^3\,\mathrm{d}\Psi}{\sqrt{\mathcal{E}-\Psi}}
+\;=\; B\!\left(4, \tfrac12\right)\mathcal{E}^{7/2}
+\;=\; \frac{32}{35}\,\mathcal{E}^{7/2},
+```
+
+and collecting constants ($\tfrac{1}{\sqrt8 \pi^2} \cdot \tfrac{3}{4\pi}
+\cdot 20 \cdot \tfrac{32}{35} = \tfrac{24\sqrt2}{7\pi^3}$) yields
 
 ```{math}
 :label: plummer-df-final
@@ -71,6 +83,21 @@ $\mathcal{E}^{7/2}$ exponent is the signature of the Plummer profile —
 it follows directly from $\rho \propto \Phi^5$ and the Abel-integral
 $\frac{1}{2}$-power kernel of {eq}`eddington`. progenax's sampler uses
 this exact form, with no truncation or smoothing.
+
+
+```{figure} ../figures/eddington_triptych.webp
+:label: fig-eddington-triptych
+:width: 100%
+
+The inversion, step by step: the density as a function of the relative
+potential, its second derivative (the Abel-kernel ingredient), and the
+resulting DF — with the output of the **numerical** inverter
+(`eddington_invert`, the same code Engine B uses) as dots on the closed-form
+law. Max relative deviation $3.4\times10^{-4}$ with these grid inputs
+($1.06\times10^{-4}$ with analytic derivative inputs — the validation suite's
+strongest truth test). Regenerate: `python -m laboratory.icviz --only
+eddington-triptych`.
+```
 
 ## Closed-form moments
 
@@ -92,6 +119,19 @@ reason a Plummer cluster sampled from {eq}`plummer-df-final` lands at
 $Q_{\mathrm{vir}} = 0.5$ at the DF level — realised as $0.5$ up to the
 finite-$N$ Monte-Carlo fluctuation, with no rescale
 ([](../ic-philosophy.md)).
+
+
+```{figure} ../figures/plummer_dispersion_oracles.webp
+:label: fig-plummer-dispersion-oracles
+:width: 100%
+
+Both dispersion oracles, measured. Left: sampled $\sigma_r(r)$
+($N = 2\times10^5$, seed 11) threading the closed form, residuals inside the
+Poisson band. Right: `project_dispersion` against the source-verified
+{cite:t}`Dejonghe1987` Eq. 43 oracle — residuals $\lesssim 10^{-5}$ (the
+outer-radius rise is the documented master-interpolation floor).
+Regenerate: `python -m laboratory.icviz --only plummer-dispersion-oracles`.
+```
 
 The central velocity dispersion is
 
@@ -208,6 +248,25 @@ positions sampled from `PlummerProfile` plus velocities from
 the residual being the finite-$N$ fluctuation of the Monte Carlo
 energy estimate. No virial rescaling is needed — equilibrium is
 exact at the DF level.
+
+## Check yourself
+
+:::{dropdown} 1. The 7/2 exponent by power counting
+Without integrating: $\rho \propto \Psi^n$ feeds the Abel kernel
+$\int_0^{\mathcal{E}} \Psi^{n-2}\,(\mathcal{E}-\Psi)^{-1/2}\mathrm{d}\Psi
+\propto \mathcal{E}^{\,n - 3/2}$. Plummer has $n = 5$; check that Dejonghe's
+$q$-family (which generalizes $\rho \propto \Psi^{5-q}(1+r^2)^{-q/2}$)
+recovers the same $7/2$ at $q = 0$.
+:::
+
+:::{dropdown} 2. The central projected dispersion
+Evaluate `project_dispersion` at $R \to 0$ and compare with
+$\sigma_{\rm los}^2(0) = \tfrac{3\pi}{64}\,GM/a$. With $M = 400$,
+$r_h = 1$ (so $a \approx 0.766$ pc, STELLAR units) you should get
+$\sigma_{\rm los}(0) \approx 0.59$ pc/Myr — and it should agree with the
+left panel's central $\sigma_r$ times $\sqrt{3\pi a/(64) \cdot 6}$… work
+out that ratio ($\approx 0.94$) before running.
+:::
 
 ## Anisotropy and rotation extensions
 
