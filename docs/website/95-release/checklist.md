@@ -67,9 +67,21 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   `"$(cd "$(dirname "$0")/../../jaxstro" && pwd)"`, so the gate script survives
   on any checkout (CI included).
 
-**Explicitly NOT in Slice D** (tracked in [Blockers](#checklist-blockers) below):
-the `jaxstro`/PyPI dependency story stays deferred — a GitHub source tag is fine
-without it.
+**After the tag — get it on PyPI:**
+
+- [ ] **Publish `progenax` to PyPI** *(added to scope 2026-07-11)*. This is
+  gated on the dependency story: the wheel depends on the sibling `jaxstro`,
+  which is also unpublished, so **`jaxstro` must reach PyPI first** (or the
+  strategy in [release strategy](#release-strategy) — namespace package /
+  vendor / git-URL — must be decided instead). Concrete steps once decided:
+  1. Publish `jaxstro` (its own gate + tag).
+  2. Replace the `[tool.uv.sources]` local-path dependency with a versioned
+     PyPI pin (`jaxstro>=X.Y`).
+  3. `uv build` → `twine check dist/*` → upload to **TestPyPI** and verify
+     `pip install progenax` in a clean venv resolves end-to-end.
+  4. Upload to PyPI (`twine upload` or a trusted-publisher GitHub Action on
+     the tag).
+  A GitHub source release does NOT wait on this — flip/tag first, PyPI after.
 
 (checklist-blockers)=
 ## ❌ Blockers — must resolve to claim "released"
