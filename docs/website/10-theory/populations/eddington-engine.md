@@ -122,6 +122,21 @@ $r_{a,j}$ (`inf` = isotropic). The sampled anisotropy realizes the
 target profile: max $|\beta_{\rm sampled} - r^2/(r^2+r_a^2)| = 0.028$
 (4 seeds × 20k stars, gate 0.05).
 
+
+```{figure} ../figures/engine_b_mix.webp
+:label: fig-engine-b-mix
+:width: 100%
+
+The density-defined route, measured (seed 32, $3\times10^5$ stars): a
+Plummer halo (60%) + EFF $\gamma{=}5$ core (40%) in ONE shared potential.
+Left: sampled per-component densities riding the prescribed curves through
+the crossover. Right: the same well, two different dispersion profiles —
+the halo component is HOTTER at small $r$ (its wide-orbit stars pass through
+the core), a pure shared-$\Psi$ Eddington effect; the theory oracle reads
+$Q_1 = Q_2 = 0.500$. Regenerate: `python -m laboratory.icviz --only
+engine-b-mix`.
+```
+
 ## Derived domains (the model decides, never the code)
 
 A component's radial extent is part of the prescribed model, so the
@@ -233,6 +248,25 @@ by cumulative trapezoid of the **closed-form** density — after which
 $f_{\min} = +5.1\times 10^{-7}$. The general rule is worth the
 emphasis: in any Abel-type inversion, differentiate closed forms or
 exact identities, never interpolated data.
+
+## Check yourself
+
+:::{dropdown} 1. Why is the halo hotter in the core?
+In {numref}`fig-engine-b-mix` both components share one $\Psi(r)$, yet
+$\sigma_{r,\rm halo}(0) > \sigma_{r,\rm core}(0)$. Explain via the
+Eddington construction: a shallower $\rho_j(\Psi)$ requires a hotter
+$f_j(E)$ to be self-consistent in the same well — the halo's stars seen at
+small $r$ are passing through on wide, energetic orbits.
+:::
+
+:::{dropdown} 2. Make the gate refuse
+Rebuild the mix with the EFF core shrunk to $a = 0.4$. The Eddington
+candidate DF for the halo goes genuinely negative
+($f_{\min} \approx -0.20$, resolution-independent) and construction raises
+with the physics named — see [](two-component.md) for why, and where the
+realizable boundary sits ($a \approx 0.65$–$0.68$).
+:::
+
 
 ## Validation summary
 

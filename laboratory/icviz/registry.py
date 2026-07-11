@@ -11,8 +11,10 @@ from .dfs import (
     build_phase_space_hexbin,
     build_plummer_dispersion_oracles,
 )
+from .engines import build_engine_a_segregation, build_engine_b_mix
 from .imfs import SEED as _IMF_SEED
 from .imfs import build_imf_classic_slopes
+from .moe import build_moe_pqe
 from .profiles import SEED as _PROFILE_SEED
 from .profiles import build_density_residuals, build_family_portrait
 from .specs import FigureSpec
@@ -103,6 +105,33 @@ FIGURES: dict[str, FigureSpec] = {
             seed=21,
             caption="Binaries in phase space, resolved vs unresolved: envelope punctures vs hidden dispersion inflation (EFF young / King old).",
             tags=("binaries",),
+        ),
+        FigureSpec(
+            name="moe-pqe",
+            builder=build_moe_pqe,
+            stem="moe_pqe",
+            page="10-theory/imfs/multiplicity-statistics.md",
+            seed=41,
+            caption="Moe P-q-e: the non-separable q distribution (twin excess at short P) + the (P, e) Roche ceiling.",
+            tags=("binaries",),
+        ),
+        FigureSpec(
+            name="engine-a-segregation",
+            builder=build_engine_a_segregation,
+            stem="engine_a_segregation",
+            page="10-theory/spatial-profiles/lowered-model-family.md",
+            seed=31,
+            caption="Engine A: per-component densities at delta=0 (degenerate) vs delta=1/2 (segregated equilibrium).",
+            tags=("engines",),
+        ),
+        FigureSpec(
+            name="engine-b-mix",
+            builder=build_engine_b_mix,
+            stem="engine_b_mix",
+            page="10-theory/populations/eddington-engine.md",
+            seed=31,
+            caption="Engine B: Plummer halo + EFF core in one shared potential — sampled densities on the prescribed curves, Q_j = 1/2 oracle.",
+            tags=("engines",),
         ),
     ]
 }

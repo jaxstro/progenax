@@ -35,6 +35,21 @@ per-period numbers progenax stores as backing data.
 **You'll get:** why binary properties vary with primary mass and why the joint $f(M_1, q, P, e)$ is non-separable, the companion-frequency / multiplicity-fraction / binary-fraction vocabulary, the per-mass $f_b$ and twin-fraction grids, and how the calibration was selection-corrected.
 :::
 
+
+```{figure} ../figures/moe_pqe.webp
+:label: fig-moe-pqe
+:width: 100%
+
+The Moe & Di Stefano statistics, sampled (seed 41, $4\times10^5$ primaries
+per $M_1$). **(a)** $g(q)$ for three $(M_1, P)$ slices: the twin excess is a
+short-period, mass-dependent feature — enormous for solar primaries, moderate
+for $M_1 = 10\,\mathrm{M_\odot}$ at short $P$, absent at long $P$. The $q$
+distribution is not separable from $(M_1, P)$. **(b)** the $(\log P, e)$
+plane under the Roche ceiling $e_{\max}(P)$: the sampled binaries hug the
+ceiling but never cross it, and the $P \le 2$ d pile is fully circularized.
+Regenerate: `python -m laboratory.icviz --only moe-pqe`.
+```
+
 ## Two properties that complicate the naive picture
 
 **Property 1: binary properties vary systematically with primary mass.**
@@ -254,6 +269,22 @@ effect; for solar-type-dominated populations it is a small correction.
 The architectural extension to triples is straightforward — replace
 the single $f_b(m_1)$ with a Poisson-companion model — but is
 deferred to a future progenax version.
+
+## Check yourself
+
+:::{dropdown} 1. Where does the twin spike live?
+Before studying {numref}`fig-moe-pqe`(a): which of the three slices carries
+the strongest $q > 0.95$ excess — solar short-$P$, massive short-$P$, or
+massive long-$P$? Rank them, then check. (Twins are a short-period
+phenomenon, strongest for low-mass primaries.)
+:::
+
+:::{dropdown} 2. Measure the twin fraction
+Sample `MoeCompanions()` on $10^5$ solar primaries, select
+$0.2 < \log P < 2$, and compute the excess fraction of $q > 0.95$ binaries
+over $0.3 < q < 1$. Compare with the Table-13 anchor for that bin (see the
+[per-paper note](../../99-bibliography/per-paper/moe-distefano-2017.md)).
+:::
 
 ## Implementation, validation & references
 

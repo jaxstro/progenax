@@ -116,6 +116,21 @@ mislocated the misprint as "main text $g+\tfrac12$ vs Appendix B" —
 corrected 2026-07-11 against both PDFs.)
 :::
 
+
+```{figure} ../figures/engine_a_segregation.webp
+:label: fig-engine-a-segregation
+:width: 100%
+
+Mass segregation as a genuine equilibrium (seed 31, $3\times10^5$ stars,
+$m_j = 0.3/1/3\,\mathrm{M_\odot}$). At $\delta = 0$ every component's
+density collapses onto the same profile — the single-mass oracle, visually
+exact. At $\delta = \frac12$ the heavy component concentrates (and the
+whole model restructures: note the smaller $r_t$) while the light component
+extends: heavier components feel a DEEPER effective well $W_j = \mu_j^{2\delta} W_0$
+— segregation is in the DF, not a positional reshuffle.
+Regenerate: `python -m laboratory.icviz --only engine-a-segregation`.
+```
+
 ## Entry points
 
 The family is exposed through three `MultiComponentCluster` constructors
@@ -150,6 +165,22 @@ per-component $Q_j$ within $\pm 0.07$ at test resolution. The single-mass
 corners were validated against the released models directly: $g=1$ isotropic
 $\equiv$ [King](king.md), $g=1$ anisotropic $\equiv$
 [Michie](../velocity-dfs/michie-king.md), both with $Q = 0.5$ unscaled.
+
+## Check yourself
+
+:::{dropdown} 1. Why does $r_t$ shrink when segregation turns on?
+Compare the two panels' radial extents in {numref}`fig-engine-a-segregation`.
+Turning on $\delta$ makes the heavy component colder ($w_j < 1$), deepening
+the central potential it generates — at fixed $W_0$ the whole model becomes
+more concentrated and its dimensionless truncation moves inward.
+:::
+
+:::{dropdown} 2. Verify the $\delta = 0$ degeneracy numerically
+Sample `from_mass_segregation(..., delta=0.0)` and run a two-sample KS test
+between the radii of any two components — it should be consistent with one
+distribution (the components differ only by their decoupled mass labels).
+:::
+
 
 ## The DF-table performance layer
 
