@@ -165,6 +165,11 @@ project:
         - file: 40-howto/gradient-based-r_h-fit.md
         - file: 40-howto/mix-plummer-positions-king-velocities.md
         - file: 40-howto/add-binary-population.md
+        # Backlogged placeholder (audit F3): built + linkable so the six inbound
+        # cross-references resolve, but hidden from the nav until the gravax
+        # integration interface stabilizes (ADR-0031 hidden-not-deleted pattern).
+        - file: 40-howto/interface-with-gravax.md
+          hidden: true
     - title: Validation
       children:
         - file: 50-validation/index.md
@@ -308,6 +313,32 @@ project:
             - file: 99-bibliography/per-paper/prsa-2016.md
             - file: 99-bibliography/per-paper/dejonghe-1987.md
             - file: 99-bibliography/per-paper/parravano-2011.md
+            # 23 notes below were on disk but MISSING from the toc (unbuilt on
+            # the site despite inbound links) — completed 2026-07-11, Slice C; the
+            # link gate now enforces toc membership so this cannot regress.
+            - file: 99-bibliography/per-paper/bairagi-2026.md
+            - file: 99-bibliography/per-paper/baumgardt-makino-2003.md
+            - file: 99-bibliography/per-paper/binney-mamon-1982.md
+            - file: 99-bibliography/per-paper/carron-szapudi-2013.md
+            - file: 99-bibliography/per-paper/carron-szapudi-2014.md
+            - file: 99-bibliography/per-paper/carron-wolk-szapudi-2014.md
+            - file: 99-bibliography/per-paper/coles-jones-1991.md
+            - file: 99-bibliography/per-paper/federrath-2010.md
+            - file: 99-bibliography/per-paper/heyer-2009.md
+            - file: 99-bibliography/per-paper/kim-ryu-2005.md
+            - file: 99-bibliography/per-paper/lomax-2018.md
+            - file: 99-bibliography/per-paper/maschberger-clarke-2011.md
+            - file: 99-bibliography/per-paper/merritt-1985.md
+            - file: 99-bibliography/per-paper/michie-1963.md
+            - file: 99-bibliography/per-paper/neyrinck-2009.md
+            - file: 99-bibliography/per-paper/neyrinck-2011.md
+            - file: 99-bibliography/per-paper/padoan-nordlund-2011.md
+            - file: 99-bibliography/per-paper/sailynoja-2022.md
+            - file: 99-bibliography/per-paper/sailynoja-2026.md
+            - file: 99-bibliography/per-paper/strigari-bullock-kaplinghat-2007.md
+            - file: 99-bibliography/per-paper/szapudi-2005.md
+            - file: 99-bibliography/per-paper/szapudi-pan-2004.md
+            - file: 99-bibliography/per-paper/talts-2018.md
     # Unlisted / not-in-public-nav pages. `hidden: true` builds the page and
     # makes it URL-reachable + linkable, but keeps it out of the navigation
     # (mystmd table-of-contents.md). See _unlisted/index.md for the mechanism.

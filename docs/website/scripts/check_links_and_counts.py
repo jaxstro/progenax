@@ -159,6 +159,45 @@ def scan_broken_links(path: Path, lines: list[str]) -> list[Finding]:
     return findings
 
 
+def load_toc_files() -> set[str]:
+    """Website-root-relative paths of every ``file:`` entry in myst.yml.
+
+    mystmd builds ONLY toc-listed pages, so a relative link whose target exists
+    on disk but is absent from the toc still 404s on the built site (the
+    ``interface-with-gravax`` half-state, audit F3). Stdlib-only parse: the toc
+    is a simple ``- file: <path>`` list (``hidden: true`` entries count as
+    listed — they are built and URL-reachable, just out of the nav).
+    """
+    myst = WEBSITE_ROOT / "myst.yml"
+    entries = re.findall(r"^\s*-\s*file:\s*(\S+)", myst.read_text(), re.M)
+    return set(entries)
+
+
+def scan_toc_membership(
+    path: Path, lines: list[str], toc: set[str]
+) -> list[Finding]:
+    """(d) GATE: every resolving .md link must point at a toc-listed page."""
+    findings: list[Finding] = []
+    base_dir = path.parent
+    for lineno, line in enumerate(lines, start=1):
+        for match in MD_LINK_RE.finditer(line):
+            target = match.group(1)
+            if target.startswith(("http://", "https://", "//", "mailto:")):
+                continue
+            resolved = (base_dir / target).resolve()
+            if not resolved.is_file():
+                continue  # scan_broken_links owns the missing-file class
+            try:
+                rel = resolved.relative_to(WEBSITE_ROOT).as_posix()
+            except ValueError:
+                continue  # outside the site tree (e.g. repo README links)
+            if rel not in toc:
+                findings.append(
+                    Finding(path, lineno, f"-> {target} (exists but NOT in the myst.yml toc — unbuilt on the site)")
+                )
+    return findings
+
+
 def scan_count_drift(path: Path, lines: list[str]) -> list[Finding]:
     """(b) Flag hardcoded test-count phrasings (informational)."""
     findings: list[Finding] = []
@@ -205,8 +244,10 @@ def main(argv: list[str]) -> int:
         return 0
 
     broken: list[Finding] = []
+    untoccd: list[Finding] = []
     counts: list[Finding] = []
     hygiene: list[Finding] = []
+    toc = load_toc_files()
 
     for path in files:
         try:
@@ -215,25 +256,28 @@ def main(argv: list[str]) -> int:
             print(f"  (could not read {path}: {exc})")
             continue
         broken.extend(scan_broken_links(path, lines))
+        untoccd.extend(scan_toc_membership(path, lines, toc))
         counts.extend(scan_count_drift(path, lines))
         hygiene.extend(scan_hygiene(path, lines))
 
     print(f"Scanned {len(files)} markdown file(s) under {WEBSITE_ROOT}")
 
     print_section("BROKEN .md LINKS (gate: nonzero exit if any)", broken)
+    print_section("LINKS TO NON-TOC PAGES (gate: nonzero exit if any)", untoccd)
     print_section("HARDCODED TEST-COUNT PHRASINGS (informational)", counts)
     print_section("HYGIENE / PATH-LEAK STRINGS (informational)", hygiene)
 
     print("\nSUMMARY")
     print("-------")
     print(f"  broken .md links : {len(broken)}  <- gate")
+    print(f"  non-toc targets  : {len(untoccd)}  <- gate")
     print(f"  count phrasings  : {len(counts)}  (informational)")
     print(f"  hygiene strings  : {len(hygiene)}  (informational)")
 
-    if broken:
-        print(f"\nFAIL: {len(broken)} broken .md link(s).")
+    if broken or untoccd:
+        print(f"\nFAIL: {len(broken)} broken + {len(untoccd)} non-toc .md link(s).")
         return 1
-    print("\nPASS: no broken .md links.")
+    print("\nPASS: no broken or non-toc .md links.")
     return 0
 
 
