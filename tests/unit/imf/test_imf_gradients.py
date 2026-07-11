@@ -56,20 +56,16 @@ class TestBoundaryGradients:
 
 
 class TestAlphaOneGradients:
-    """Audit R10: bare where(|1-a|<eps, log, pow/e) backprops 0*NaN at a=1.
+    """Audit S4 (supersedes the R10 branch-limited pin): the expm1-stable form
+    (lo**e * D * phi(e*D), phi = expm1(x)/x; sibling psi = log1p(y)/y for the
+    inverse) is ONE smooth expression in e = 1 - alpha, so the autodiff gradient
+    is CORRECT (FD-exact) everywhere INCLUDING exactly alpha=1.
 
-    The exp_safe double-where fix (ported from imf/differentiable.py:47-54 to
-    PowerLawIMF's 4 power/division sites) makes the gradient FINITE everywhere
-    and FD-EXACT in a neighborhood of a=1. At EXACTLY a=1 the double-where
-    selects the alpha-INDEPENDENT log branch, so AD there is branch-limited
-    (grad 0 for ppf; off for mean_mass via dZ/da=0) — a measure-zero point the
-    function is still smooth through. The exp_safe pattern guarantees finiteness,
-    not point-FD (same property as the reference differentiable.py, whose tests
-    likewise check finiteness, not point-FD).
-
-    These tests pin the achievable + honest guarantee, asserting MORE than the
-    existing convention: finite AT a=1, FD-exact at a=1±1e-3, and a smooth
-    (kink-free) forward value through a=1.
+    The old exp_safe double-where kept the VJP finite but selected an
+    alpha-INDEPENDENT log branch at exactly alpha=1: AD(ppf)=0 vs FD=-1.384e4,
+    AD(mean_mass)=-52.2 vs FD=-35.6 (audit S4 measurements). These tests pin the
+    strengthened guarantee: AD == FD at exactly a=1 (and a=2 for mean_mass's
+    numerator singularity), plus the original finiteness/smoothness properties.
     """
 
     @staticmethod
@@ -91,15 +87,36 @@ class TestAlphaOneGradients:
         assert jnp.isfinite(g), f"grad({stat}) at alpha=1 is {g}"
 
     @pytest.mark.parametrize("stat", ["mean_mass", "ppf"])
-    @pytest.mark.parametrize("a0", [1.0 - 1e-3, 1.0 + 1e-3])
-    def test_grad_fd_exact_near_alpha_one(self, stat, a0):
-        """In a neighborhood of the removable singularity the gradient is exact
-        (the regular branch is active and FD-matches to <1e-4)."""
+    @pytest.mark.parametrize("a0", [1.0 - 1e-3, 1.0, 1.0 + 1e-3])
+    def test_grad_fd_exact_at_and_near_alpha_one(self, stat, a0):
+        """AD == central FD at AND around the removable singularity — including
+        exactly alpha=1 (the S4 fix; the old form silently returned AD=0 there)."""
         f = self._stat_fn(stat)
         g = float(jax.grad(f)(a0))
         h = 1e-4
         fd = float((f(a0 + h) - f(a0 - h)) / (2 * h))
         assert abs(g / fd - 1.0) < 1e-4, f"{stat} a={a0}: AD={g} FD={fd}"
+
+    def test_mean_mass_grad_fd_exact_at_alpha_two(self):
+        """mean_mass's NUMERATOR exponent e = 2 - alpha hits its removable
+        singularity at alpha=2 — the same stable form must carry that gradient."""
+        f = self._stat_fn("mean_mass")
+        g = float(jax.grad(f)(2.0))
+        h = 1e-4
+        fd = float((f(2.0 + h) - f(2.0 - h)) / (2 * h))
+        assert abs(g / fd - 1.0) < 1e-4, f"mean_mass a=2: AD={g} FD={fd}"
+
+    def test_ppf_forward_regression_vs_closed_form(self):
+        """Forward regression: at alpha != 1 the stable form must agree with the
+        textbook closed form (u*(hi**e - lo**e) + lo**e)**(1/e) to < 1e-10 rel."""
+        import numpy as np
+
+        lo, hi, a = 0.1, 100.0, 2.35
+        e = 1.0 - a
+        u = np.linspace(0.01, 0.99, 21)
+        expected = (u * (hi**e - lo**e) + lo**e) ** (1.0 / e)
+        got = np.asarray(self._imf(a).ppf(jnp.asarray(u)))
+        np.testing.assert_allclose(got, expected, rtol=1e-10)
 
     @pytest.mark.parametrize("stat", ["mean_mass", "ppf"])
     def test_value_smooth_through_alpha_one(self, stat):
@@ -118,3 +135,40 @@ class TestAlphaOneGradients:
             return jnp.mean(jnp.log(m))
 
         assert jnp.isfinite(jax.grad(loss)(1.0))
+
+
+class TestAlphaOneGradientsDifferentiableIMF:
+    """S4 sibling for imf/differentiable.py (the IMFParams inference path):
+    AD == FD at exactly alpha_j = 1 through _compute_normalization,
+    _compute_cdf_at_breaks, and the per-segment inverse CDF."""
+
+    @staticmethod
+    def _params(a1):
+        from progenax.imf.params import IMFParams
+
+        return IMFParams(
+            alpha0=jnp.array(0.3),
+            alpha1=a1,
+            alpha2=jnp.array(2.3),
+            alpha3=jnp.array(2.3),
+        )
+
+    def test_nll_grad_fd_exact_at_alpha_one(self):
+        from progenax.imf.differentiable import log_prob_masses
+
+        masses = PowerLawIMF.kroupa().sample(jax.random.PRNGKey(3), 200)
+        f = lambda a1: -jnp.sum(log_prob_masses(masses, self._params(a1)))
+        g = float(jax.grad(f)(1.0))
+        h = 1e-4
+        fd = float((f(1.0 + h) - f(1.0 - h)) / (2 * h))
+        assert abs(g / fd - 1.0) < 1e-4, f"NLL a1=1: AD={g} FD={fd}"
+
+    def test_sampled_mass_grad_fd_exact_at_alpha_one(self):
+        from progenax.imf.differentiable import sample_masses_from_params
+
+        u = jax.random.uniform(jax.random.PRNGKey(4), (500,))
+        f = lambda a1: jnp.mean(sample_masses_from_params(self._params(a1), u))
+        g = float(jax.grad(f)(1.0))
+        h = 1e-4
+        fd = float((f(1.0 + h) - f(1.0 - h)) / (2 * h))
+        assert abs(g / fd - 1.0) < 1e-4, f"sample a1=1: AD={g} FD={fd}"

@@ -330,15 +330,14 @@ def _build_spatial_ic_rh_velocities(r_h):
 #       is LIVE and tracks FD even at the boundary; the clamp does not zero it (the
 #       sampled mass still moves smoothly with m_c through the Newton residual).
 #
-#   alpha=1.0: the exp_safe double-where removable-singularity guards keep the VJP
-#       FINITE at exactly alpha=1, but the value/gradient there is BRANCH-LIMITED:
-#       - PowerLawIMF.ppf  @alpha=1.0: AD=0 vs FD=-1.384e4 (the log branch is
-#         alpha-independent, so AD=0) -> known_blocked.
-#       - PowerLawIMF.mean_mass @alpha=1.0: AD=-52.2 vs FD=-35.6 (ratio 1.47); the
-#         Z-denominator's alpha=1 branch flips while the numerator's does not, so AD
-#         is finite-but-inconsistent -> known_blocked.
-#       - IMFParams log_prob NLL @alpha3=1.0: AD=23.8 vs FD=-274.7 -> known_blocked.
-#       In ALL cases alpha=1.0 is FINITE (no NaN) and alpha=1+-1e-3 is FD-consistent.
+#   alpha=1.0 (audit S4 fix): the power-law segment kernels now use the
+#       expm1/log1p-stable forms (progenax.numerics.power_integral_stable /
+#       power_ppf_stable) — ONE smooth expression in e = 1-alpha — so the AD
+#       gradient is FD-EXACT at exactly alpha=1. The former exp_safe double-where
+#       kept the VJP finite but selected an alpha-INDEPENDENT log branch there
+#       (measured: ppf AD=0 vs FD=-1.384e4; mean_mass AD=-52.2 vs FD=-35.6;
+#       IMFParams NLL AD=23.8 vs FD=-274.7 — all silently wrong). The three
+#       formerly-known_blocked alpha=1.0 edges are now audited "consistent".
 # ---------------------------------------------------------------------------
 # Fixed uniform draw for the ppf/sample cases (same N as the spatial cases). The
 # ppf cases reduce identity_sum over this vector; the sample cases reduce mean_mass.
@@ -364,7 +363,7 @@ def _powerlaw_sample_alpha(alpha):
 
 def _powerlaw_mean_mass_alpha(alpha):
     # params->summary: analytic E[m] for the single-segment power law. The alpha=1.0
-    # edge is branch-limited (Z's removable singularity), known_blocked.
+    # edge (Z's removable singularity) is FD-exact via the expm1-stable form (S4).
     return jnp.atleast_1d(
         PowerLawIMF(
             exponents=[alpha], breakpoints=[], m_min=_PL_M_MIN, m_max=_PL_M_MAX
@@ -1933,8 +1932,8 @@ REGISTRY: list[Case] = [
     ),
     # --- IMF samplers (params->IC) + mass-function summary (Task 1.5) ---
     # PowerLawIMF.ppf Salpeter single-segment: closed-form inverse CDF, tol=1e-5.
-    # alpha=1.0 is the branch-limited point (AD=0 vs live FD) -> known_blocked edge;
-    # alpha=0.999 is FD-consistent (ratio 1.0000000).
+    # alpha=1.0 is the removable singularity of the segment kernels; the
+    # expm1-stable form (S4) makes AD FD-exact there, so the edge is consistent.
     Case(
         id="PowerLawIMF.ppf[Salpeter]",
         direction="params->IC",
@@ -1946,7 +1945,7 @@ REGISTRY: list[Case] = [
         tol=1e-5,
         edges=(
             EdgeConfig("alpha=0.999", 0.999),
-            EdgeConfig("alpha=1.0", 1.0, expect="known_blocked"),
+            EdgeConfig("alpha=1.0", 1.0),
         ),
     ),
     # PowerLawIMF.sample (reparam ppf), reduced by mean_mass over the sampled set.
@@ -2087,8 +2086,8 @@ REGISTRY: list[Case] = [
     ),
     # --- params->summary mass-function channel ---
     # PowerLawIMF.mean_mass (analytic E[m]) in the single-segment slope alpha.
-    # alpha=1.0 is branch-limited (Z removable singularity): AD=-52.2 vs FD=-35.6
-    # (finite but inconsistent) -> known_blocked; alpha=0.999 is FD-consistent.
+    # alpha=1.0 (Z's removable singularity) is FD-exact via the expm1-stable
+    # form (S4), so the edge is consistent.
     Case(
         id="PowerLawIMF.mean_mass",
         direction="params->summary",
@@ -2100,11 +2099,11 @@ REGISTRY: list[Case] = [
         tol=1e-3,
         edges=(
             EdgeConfig("alpha=0.999", 0.999),
-            EdgeConfig("alpha=1.0", 1.0, expect="known_blocked"),
+            EdgeConfig("alpha=1.0", 1.0),
         ),
     ),
     # IMFParams log_prob NLL (the 4-segment mass-function Fisher channel) in alpha3.
-    # alpha3=1.0 branch-limited: AD=23.8 vs FD=-274.7 (finite) -> known_blocked edge.
+    # alpha3=1.0 is FD-exact via the expm1-stable segment integral (S4).
     Case(
         id="IMFParams.log_prob_nll",
         direction="params->summary",
@@ -2114,7 +2113,7 @@ REGISTRY: list[Case] = [
         reduce=identity_sum,
         expect="consistent",
         tol=1e-3,
-        edges=(EdgeConfig("alpha3=1.0", 1.0, expect="known_blocked"),),
+        edges=(EdgeConfig("alpha3=1.0", 1.0),),
     ),
     # --- Differentiable summary diagnostics (Task 1.6) ---
     # CW04 substructure-Q surrogate, audited in the EFF slope gamma (Q is

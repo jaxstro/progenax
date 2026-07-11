@@ -14,6 +14,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
+from ..numerics import power_integral_stable, power_ppf_stable
+
 
 class PowerLawIMF(eqx.Module):
     """
@@ -89,16 +91,10 @@ class PowerLawIMF(eqx.Module):
         def segment_integral(i):
             a = alphas[i]
             lo, hi = bounds[i], bounds[i + 1]
-            e = 1.0 - a
-            # exp_safe double-where: keep BOTH branches finite so the VJP is
-            # finite at exactly alpha=1 (bare where backprops 0*NaN — audit R10).
-            # Same pattern as imf/differentiable.py power_integral.
-            e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
-            return jnp.where(
-                jnp.abs(e) < 1e-12,
-                cont[i] * jnp.log(hi / lo),
-                cont[i] * (hi**e_safe - lo**e_safe) / e_safe,
-            )
+            # expm1-stable form (audit S4): one smooth expression in e = 1-a, so
+            # the alpha-gradient is FD-exact through the removable alpha=1
+            # singularity (the former exp_safe double-where silently zeroed it).
+            return cont[i] * power_integral_stable(lo, hi, 1.0 - a)
 
         integrals = jax.vmap(segment_integral)(jnp.arange(n_segments))
         Z = jnp.sum(integrals)
@@ -198,16 +194,11 @@ class PowerLawIMF(eqx.Module):
         else:
             cum_before = jax.vmap(sum_before_idx)(idx)
 
-        # Integral within segment
+        # Integral within segment (expm1-stable through alpha=1 — audit S4)
         lo = bounds[idx]
         a = alphas[idx]
-        e = 1.0 - a
-        # exp_safe double-where (audit R10): finite VJP at exactly alpha=1.
-        e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
-        within_segment = jnp.where(
-            jnp.abs(e) < 1e-12,
-            self._continuity_factors[idx] * jnp.log(m / lo),
-            self._continuity_factors[idx] * (m**e_safe - lo**e_safe) / e_safe,
+        within_segment = self._continuity_factors[idx] * power_integral_stable(
+            lo, m, 1.0 - a
         )
 
         return cum_before + within_segment
@@ -247,21 +238,15 @@ class PowerLawIMF(eqx.Module):
         u1 = self._segment_cumprob[idx + 1]
         ur = (u - u0) / (u1 - u0 + 1e-30)
 
-        # Inverse within segment
+        # Inverse within segment: m solves (m**e - lo**e)/e = ur*(hi**e - lo**e)/e.
+        # expm1/log1p-stable pair (audit S4): smooth in alpha through alpha=1, so
+        # the parameter gradient is FD-exact there (the former exp_safe branch
+        # was alpha-independent at exactly alpha=1 -> silent AD=0).
         lo = bounds[idx]
         hi = bounds[idx + 1]
         a = alphas[idx]
         e = 1.0 - a
-        # exp_safe double-where (audit R10): e_safe substitutes for e in EVERY
-        # power/division of the inverse-CDF branch (including the **(1/e) outer
-        # exponent), so the VJP is finite at exactly alpha=1.
-        e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
-
-        return jnp.where(
-            jnp.abs(e) < 1e-12,
-            lo * jnp.exp(ur * jnp.log(hi / lo)),
-            (ur * (hi**e_safe - lo**e_safe) + lo**e_safe) ** (1.0 / e_safe),
-        )
+        return power_ppf_stable(lo, ur * power_integral_stable(lo, hi, e), e)
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n masses."""
@@ -283,16 +268,11 @@ class PowerLawIMF(eqx.Module):
         def first_moment(i):
             a = alphas[i]
             lo, hi = bounds[i], bounds[i + 1]
-            e = 2.0 - a  # antiderivative exponent of m·m^(-a) = m^(1-a)
-            # exp_safe double-where (audit R10): here the removable singularity
-            # is at alpha=2 (e=0); the alpha=1 NaN in mean_mass flows through Z
-            # (segment_integral, fixed above), but guard this branch too.
-            e_safe = jnp.where(jnp.abs(e) < 1e-12, 1.0, e)
-            return jnp.where(
-                jnp.abs(e) < 1e-12,
-                cont[i] * jnp.log(hi / lo),
-                cont[i] * (hi**e_safe - lo**e_safe) / e_safe,
-            )
+            # antiderivative exponent of m·m^(-a) is e = 2-a: the removable
+            # singularity sits at alpha=2 here. expm1-stable (audit S4), so the
+            # alpha-gradient is FD-exact at alpha=2 too (the alpha=1 path flows
+            # through Z via segment_integral above).
+            return cont[i] * power_integral_stable(lo, hi, 2.0 - a)
 
         moments = jax.vmap(first_moment)(jnp.arange(len(self.exponents)))
         Z = jnp.sum(self._segment_integrals)

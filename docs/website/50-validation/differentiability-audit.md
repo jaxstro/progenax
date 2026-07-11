@@ -40,8 +40,12 @@ forward physics is bit-identical):
    default softmin temperature $\beta=0.1$. Removed; now finite-difference-consistent.
 
 Every other suspect was *cleared with a measured number*: the power-law CDF clip (ratio
-$1.0000000$), the Chabrier Newton clamp ($0.99967$), and the $\alpha=1$ IMF singularity (a
-documented branch-limited point, finite and consistent at $\alpha = 1 \pm 10^{-3}$).
+$1.0000000$) and the Chabrier Newton clamp ($0.99967$). The $\alpha=1$ IMF singularity —
+at the time a documented branch-limited point (finite at $\alpha=1$, FD-consistent only at
+$\alpha = 1 \pm 10^{-3}$) — was later **fixed outright** (audit S4): the `expm1`-stable
+segment kernels (`progenax.numerics.power_integral_stable` / `power_ppf_stable`) are one
+smooth expression in $e = 1-\alpha$, so the gradient is FD-exact at exactly $\alpha=1$ and
+the registry now audits those edges as `consistent`.
 
 **Tier 2** extended the coverage map by **15 cases** through the multi-component cluster
 engines (Engine A lowered-isothermal + Engine B density-defined Eddington/OM), the binary
@@ -479,8 +483,9 @@ differentiability-through-a-path). Each was classified **migrate / keep / delete
   comparison, has the teeth those smoke tests lacked.
 - **~62 tests were kept** — genuine non-gradient physics, or *unique* gradient properties the
   registry should not absorb: the `find_alpha` custom-VJP / implicit-function-theorem
-  regression, the $\alpha=1$ kink pins (forward value smoothness, which the registry's
-  `known_blocked` pin does not assert), the Engine-B $\beta(r)$ anisotropy anchor, the
+  regression, the $\alpha=1$ pins (forward-value smoothness plus, post-S4, AD $=$ FD at
+  exactly $\alpha=1$ — properties the registry rows do not assert), the Engine-B $\beta(r)$
+  anisotropy anchor, the
   energy-kernel double-`where` softening=0 guards, and the uncovered-channel grad-correctness
   pins (binary period/eccentricity distributions, mass-ratio samplers, the environment-IMF
   $\alpha_3$ relations). Each kept test gained a registry-pointer comment.
@@ -559,10 +564,10 @@ manifest could not catch a *deleted* case or a *new* symbol):
   newly-added public sampler is **absent from the map**, so the keys-equality
   check fails and the symbol cannot ship ungated.
 - **`PARAM_ALLOWLIST`** — the carry-forward known-limitations, each tied to a registry
-  `known_blocked`/expect and a reason: the $\alpha=1$ IMF branch points
-  (`PowerLawIMF.ppf`/`mean_mass`, `IMFParams.log_prob_nll`), the binned-count data side
-  (`binned_number_density`, AD $=0$ correct-by-design), and the du-monotonicity data-side
-  property.
+  `known_blocked`/expect and a reason: the binned-count data side
+  (`binned_number_density`, AD $=0$ correct-by-design) and the du-monotonicity data-side
+  property. (The $\alpha=1$ IMF branch points formerly carried here were fixed by audit S4
+  and now audit as `consistent`.)
 
 ### The three CI enforcement layers
 
@@ -667,12 +672,15 @@ into the `tests` aggregator and fires when CI runs.
 These are documented, deliberate limitations — not bugs. The audit *pins* them so an
 unannounced change fails loudly.
 
-- **IMF singularity at $\alpha = 1$ exactly.** The `exp_safe` double-where guard that removes
-  the $\int m^{-\alpha}\,\mathrm{d}m$ singularity selects the $\alpha$-independent $\log$
-  branch *at exactly* $\alpha=1$, so the gradient there is finite but branch-limited (it does
-  not match FD). This is a measure-zero point; the forward value is smooth through it and the
-  gradient is FD-exact at $\alpha = 1 \pm 10^{-3}$. Classified `known_blocked`. See
-  `tests/unit/imf/test_imf_gradients.py::TestAlphaOneGradients`.
+- **IMF singularity at $\alpha = 1$ — FIXED (audit S4), no longer a limitation.** The
+  historical `exp_safe` double-where guard removed the $\int m^{-\alpha}\,\mathrm{d}m$
+  singularity but selected an $\alpha$-independent $\log$ branch *at exactly* $\alpha=1$, so
+  AD there was finite yet silently wrong (ppf: AD $=0$ vs FD $=-1.384\times10^4$). The
+  segment kernels now use the `expm1`/`log1p`-stable forms
+  (`progenax.numerics.power_integral_stable` / `power_ppf_stable`) — one smooth expression in
+  $e = 1-\alpha$ — so the gradient is FD-exact at exactly $\alpha=1$ (and at $\alpha=2$ for
+  `mean_mass`'s numerator). Audited `consistent`; pinned in
+  `tests/unit/imf/test_imf_gradients.py::TestAlphaOneGradients` and the registry edges.
 
 :::{note}
 The two sites the original audit map listed as "intentional / correct by design" — the King
@@ -721,6 +729,6 @@ differentiable diagnostics, the parameter gradients used to build a Fisher matri
 and finite-difference-consistent — or are explicitly pinned limitations. It is a *gradient
 coverage map*: the entries that say "clean" are the ones a forecasting study can trust, and the
 two `fixed` rows are entries that would previously have produced a confidently wrong Fisher
-element. The audit does **not** cover non-public internals, and the `known_blocked` $\alpha=1$
-points remain measure-zero exceptions (harmless for continuous inference, which never lands
-exactly on them).
+element. The audit does **not** cover non-public internals. (The formerly-pinned
+`known_blocked` $\alpha=1$ points were eliminated by the audit-S4 `expm1`-stable kernels and
+now audit `consistent` — see the fixed-site note above.)

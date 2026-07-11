@@ -403,16 +403,11 @@ SYMBOL_CATEGORY: dict[str, str] = {
 
 # --- PARAM_ALLOWLIST: registry (id, param) legitimately not FD-consistent ----
 PARAM_ALLOWLIST: dict[tuple[str, str], str] = {
-    (
-        "PowerLawIMF.ppf[Salpeter]",
-        "alpha",
-    ): "alpha=1.0 edge is a branch-limited removable "
-    "singularity (known_blocked); alpha=0.999 is FD-consistent",
-    (
-        "PowerLawIMF.mean_mass",
-        "alpha",
-    ): "alpha=1.0 Z-denominator branch (known_blocked)",
-    ("IMFParams.log_prob_nll", "alpha3"): "alpha3=1.0 branch-limited (known_blocked)",
+    # The three alpha=1.0 IMF branch points formerly carried here
+    # (PowerLawIMF.ppf[Salpeter]/mean_mass alpha, IMFParams.log_prob_nll alpha3)
+    # were FIXED by audit S4 (expm1-stable segment kernels in progenax.numerics):
+    # their edges are now expect="consistent" (AD FD-exact at exactly alpha=1),
+    # so they no longer belong on the known-limitations carry-forward.
     (
         "binned_number_density[data, pinned non-diff]",
         "r_h",

@@ -11,7 +11,10 @@
     "abs_ad": 1.441214584012726,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PlummerVelocityDF.sample_velocities",
@@ -25,7 +28,10 @@
     "abs_ad": 0.36973905990756833,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PlummerVelocityDF+OM.sample_velocities",
@@ -39,7 +45,10 @@
     "abs_ad": 0.005220367415083006,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PlummerVelocityDF+OM.sample_velocities",
@@ -53,7 +62,10 @@
     "abs_ad": 0.03208809104970323,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingProfile.sample_positions",
@@ -67,7 +79,10 @@
     "abs_ad": 3.295546692327221,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingProfile.sample_positions",
@@ -81,7 +96,10 @@
     "abs_ad": 49.654223639254,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingProfile.sample_positions",
@@ -95,7 +113,10 @@
     "abs_ad": 5.733909904455593,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingVelocityDF.sample_velocities",
@@ -109,7 +130,10 @@
     "abs_ad": 0.0893602355732448,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingVelocityDF.sample_velocities",
@@ -123,7 +147,10 @@
     "abs_ad": 0.19060475196196613,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KingProfile.r_t",
@@ -137,7 +164,10 @@
     "abs_ad": 47.99929703023154,
     "expect": "consistent",
     "tol": 0.01,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MichieProfile.sample_positions",
@@ -151,7 +181,10 @@
     "abs_ad": 5.422525254733961,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MichieProfile.r_t",
@@ -165,7 +198,10 @@
     "abs_ad": 78.89342885827884,
     "expect": "consistent",
     "tol": 0.01,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MichieVelocityDF.sample_velocities",
@@ -179,7 +215,10 @@
     "abs_ad": 0.10309921008723118,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MichieProfile.density[log rho(r)]",
@@ -193,7 +232,10 @@
     "abs_ad": 2.2098590819084674,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MichieProfile.density[log rho(r)]",
@@ -207,7 +249,10 @@
     "abs_ad": 0.025735077370800344,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFProfile.sample_positions",
@@ -221,7 +266,10 @@
     "abs_ad": 1.586589173485789,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFProfile.sample_positions",
@@ -235,7 +283,10 @@
     "abs_ad": 1.3622296344967366,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFProfile.sample_positions",
@@ -249,7 +300,10 @@
     "abs_ad": 0.30104182087903086,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFProfile.sample_positions",
@@ -263,7 +317,10 @@
     "abs_ad": 1.1436712016362551,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFVelocityDF.sample_velocities",
@@ -277,7 +334,10 @@
     "abs_ad": 0.11917248751928892,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "EFFVelocityDF.sample_velocities",
@@ -291,7 +351,10 @@
     "abs_ad": 0.31607647135362327,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_spatial_ic[Plummer]",
@@ -305,7 +368,10 @@
     "abs_ad": 1.4409153851320782,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_spatial_ic[Plummer].velocities",
@@ -319,7 +385,10 @@
     "abs_ad": 0.3800252472190392,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.ppf[Salpeter]",
@@ -327,13 +396,16 @@
     "param": "alpha",
     "theta": 2.35,
     "finite": true,
-    "ad": -283.86080442508677,
-    "fd": -283.86083457853164,
-    "ratio": 0.9999998937738455,
-    "abs_ad": 283.86080442508677,
+    "ad": -283.8608044250615,
+    "fd": -283.8608346109445,
+    "ratio": 0.9999998936595706,
+    "abs_ad": 283.8608044250615,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.ppf[Salpeter]",
@@ -341,13 +413,16 @@
     "param": "alpha",
     "theta": 0.999,
     "finite": true,
-    "ad": -13860.597384493269,
-    "fd": -13860.597303000759,
-    "ratio": 1.0000000058794372,
-    "abs_ad": 13860.597384493269,
+    "ad": -13860.597384702693,
+    "fd": -13860.597304105795,
+    "ratio": 1.0000000058148213,
+    "abs_ad": 13860.597384702693,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.ppf[Salpeter]",
@@ -355,13 +430,16 @@
     "param": "alpha",
     "theta": 1.0,
     "finite": true,
-    "ad": 0.0,
-    "fd": -13841.982389503755,
-    "ratio": -0.0,
-    "abs_ad": 0.0,
-    "expect": "known_blocked",
+    "ad": -13841.982448008312,
+    "fd": -13841.982367921446,
+    "ratio": 1.0000000057857945,
+    "abs_ad": 13841.982448008312,
+    "expect": "consistent",
     "tol": 1e-05,
-    "status": "known-limitation"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.sample[Salpeter]",
@@ -369,13 +447,16 @@
     "param": "alpha",
     "theta": 2.35,
     "finite": true,
-    "ad": -0.7096520110626852,
-    "fd": -0.7096520864463433,
-    "ratio": 0.9999998937737808,
-    "abs_ad": 0.7096520110626852,
+    "ad": -0.7096520110626322,
+    "fd": -0.7096520865273659,
+    "ratio": 0.9999998936595339,
+    "abs_ad": 0.7096520110626322,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "ChabrierIMF.ppf",
@@ -389,7 +470,10 @@
     "abs_ad": 1271.314258347055,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "ChabrierIMF.ppf[H6 boundary]",
@@ -403,7 +487,10 @@
     "abs_ad": 9.343597334871843e-11,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "ChabrierIMF.ppf",
@@ -417,7 +504,10 @@
     "abs_ad": 458.4051136172324,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "ChabrierIMF.ppf",
@@ -431,7 +521,10 @@
     "abs_ad": 339.3005275866198,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "Maschberger.ppf",
@@ -445,7 +538,10 @@
     "abs_ad": 760.1931239308327,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "Maschberger.ppf",
@@ -459,7 +555,10 @@
     "abs_ad": 405.5597960279895,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "Maschberger.ppf",
@@ -473,7 +572,10 @@
     "abs_ad": 210.35777464491395,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "Schechter.ppf",
@@ -487,7 +589,10 @@
     "abs_ad": 38.84953113978078,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.cdf[H4]",
@@ -495,13 +600,16 @@
     "param": "m_min",
     "theta": 0.1,
     "finite": true,
-    "ad": -13.321038965194337,
-    "fd": -13.321038460666093,
-    "ratio": 1.0000000378745428,
-    "abs_ad": 13.321038965194337,
+    "ad": -13.321038965194344,
+    "fd": -13.321038460668202,
+    "ratio": 1.0000000378743852,
+    "abs_ad": 13.321038965194344,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.ppf[m_min]",
@@ -509,13 +617,16 @@
     "param": "m_min",
     "theta": 0.1,
     "finite": true,
-    "ad": 1572.808434477395,
-    "fd": 1572.8084382794805,
-    "ratio": 0.9999999975826137,
-    "abs_ad": 1572.808434477395,
+    "ad": 1572.8084344776073,
+    "fd": 1572.808438345703,
+    "ratio": 0.9999999975406441,
+    "abs_ad": 1572.8084344776073,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.mean_mass",
@@ -523,13 +634,16 @@
     "param": "alpha",
     "theta": 2.35,
     "finite": true,
-    "ad": -0.5063661306806054,
-    "fd": -0.506366186626529,
-    "ratio": 0.9999998895148905,
-    "abs_ad": 0.5063661306806054,
+    "ad": -0.5063661306806059,
+    "fd": -0.5063661866264109,
+    "ratio": 0.9999998895151246,
+    "abs_ad": 0.5063661306806059,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.mean_mass",
@@ -537,13 +651,16 @@
     "param": "alpha",
     "theta": 0.999,
     "finite": true,
-    "ad": -35.63176603837107,
-    "fd": -35.63176581835137,
-    "ratio": 1.0000000061748189,
-    "abs_ad": 35.63176603837107,
+    "ad": -35.63176603815962,
+    "fd": -35.6317658179961,
+    "ratio": 1.0000000061788552,
+    "abs_ad": 35.63176603815962,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PowerLawIMF.mean_mass",
@@ -551,13 +668,16 @@
     "param": "alpha",
     "theta": 1.0,
     "finite": true,
-    "ad": -52.23799375262172,
-    "fd": -35.58799352100017,
-    "ratio": 1.4678544246052119,
-    "abs_ad": 52.23799375262172,
-    "expect": "known_blocked",
+    "ad": -35.58799375262171,
+    "fd": -35.58799353342579,
+    "ratio": 1.0000000061592662,
+    "abs_ad": 35.58799375262171,
+    "expect": "consistent",
     "tol": 0.001,
-    "status": "known-limitation"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "IMFParams.log_prob_nll",
@@ -565,13 +685,16 @@
     "param": "alpha3",
     "theta": 2.35,
     "finite": true,
-    "ad": 6.437987456155135,
+    "ad": 6.437987456155078,
     "fd": 6.437987005853678,
-    "ratio": 1.0000000699444493,
-    "abs_ad": 6.437987456155135,
+    "ratio": 1.0000000699444407,
+    "abs_ad": 6.437987456155078,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "IMFParams.log_prob_nll",
@@ -579,13 +702,16 @@
     "param": "alpha3",
     "theta": 1.0,
     "finite": true,
-    "ad": 23.764901108778638,
-    "fd": -274.69237980405126,
-    "ratio": -0.08651459907890807,
-    "abs_ad": 23.764901108778638,
-    "expect": "known_blocked",
+    "ad": -274.6923768967958,
+    "fd": -274.6923799755763,
+    "ratio": 0.999999988791897,
+    "abs_ad": 274.6923768967958,
+    "expect": "consistent",
     "tol": 0.001,
-    "status": "known-limitation"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "q_approx[EFF]",
@@ -593,13 +719,16 @@
     "param": "gamma",
     "theta": 3.0,
     "finite": true,
-    "ad": 0.09238875632506874,
-    "fd": 0.09237185988479149,
-    "ratio": 1.0001829176147186,
-    "abs_ad": 0.09238875632506874,
+    "ad": 0.08645522784287958,
+    "fd": 0.08643941655080607,
+    "ratio": 1.0001829176168053,
+    "abs_ad": 0.08645522784287958,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "lambda_msr_approx",
@@ -613,7 +742,10 @@
     "abs_ad": 0.2852961679339629,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineA]",
@@ -621,13 +753,16 @@
     "param": "W0",
     "theta": 5.0,
     "finite": true,
-    "ad": 0.47099315151425847,
-    "fd": 0.4710074263902797,
-    "ratio": 0.9999696928854591,
-    "abs_ad": 0.47099315151425847,
+    "ad": 0.47098994355985013,
+    "fd": 0.4709451568949419,
+    "ratio": 1.0000950995338895,
+    "abs_ad": 0.47098994355985013,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineA]",
@@ -635,13 +770,16 @@
     "param": "W0",
     "theta": 3.0,
     "finite": true,
-    "ad": 0.36721399960211076,
-    "fd": 0.3671193594330842,
-    "ratio": 1.0002577912784896,
-    "abs_ad": 0.36721399960211076,
+    "ad": 0.3671285793528801,
+    "fd": 0.3672081273827417,
+    "ratio": 0.9997833707264908,
+    "abs_ad": 0.3671285793528801,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineA]",
@@ -649,13 +787,16 @@
     "param": "g",
     "theta": 1.0,
     "finite": true,
-    "ad": 0.1459178670616724,
-    "fd": 0.14593412065000422,
-    "ratio": 0.9998886237964129,
-    "abs_ad": 0.1459178670616724,
+    "ad": 0.14593020374634688,
+    "fd": 0.14593135003293511,
+    "ratio": 0.9999921450285496,
+    "abs_ad": 0.14593020374634688,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineA]",
@@ -663,13 +804,16 @@
     "param": "delta",
     "theta": 0.5,
     "finite": true,
-    "ad": 0.8716899260261972,
-    "fd": 0.8716973007349971,
-    "ratio": 0.9999915398283399,
-    "abs_ad": 0.8716899260261972,
+    "ad": 0.871685306680714,
+    "fd": 0.8716852472279157,
+    "ratio": 1.0000000682044332,
+    "abs_ad": 0.871685306680714,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.from_components[EngineA]",
@@ -677,13 +821,16 @@
     "param": "w_j",
     "theta": 0.8,
     "finite": true,
-    "ad": 0.11610027230843362,
-    "fd": 0.11610437517739491,
-    "ratio": 0.9999646622364142,
-    "abs_ad": 0.11610027230843362,
+    "ad": 0.11606459186096493,
+    "fd": 0.11606619149284736,
+    "ratio": 0.9999862179342507,
+    "abs_ad": 0.11606459186096493,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.from_mass_segregation[EngineA]",
@@ -691,13 +838,16 @@
     "param": "r_a",
     "theta": 4.0,
     "finite": true,
-    "ad": 0.012552775526918816,
-    "fd": 0.012533452590363092,
-    "ratio": 1.0015417089917091,
-    "abs_ad": 0.012552775526918816,
+    "ad": 0.012547465014555611,
+    "fd": 0.012526577750429646,
+    "ratio": 1.0016674357946844,
+    "abs_ad": 0.012547465014555611,
     "expect": "consistent",
     "tol": 0.003,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_binary_cluster",
@@ -706,12 +856,15 @@
     "theta": 1.0,
     "finite": true,
     "ad": 1.3464086739680754,
-    "fd": 1.3464086739689574,
-    "ratio": 0.999999999999345,
+    "fd": 1.3464086739678471,
+    "ratio": 1.0000000000001696,
     "abs_ad": 1.3464086739680754,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "SanaOBPeriod.sample",
@@ -725,7 +878,10 @@
     "abs_ad": 0.7920134119280207,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "LogNormalPeriod.sample",
@@ -739,7 +895,10 @@
     "abs_ad": 1.0000000000000007,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "LogUniformPeriod.sample",
@@ -753,7 +912,10 @@
     "abs_ad": 0.4938855194259164,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "ThermalEccentricity.sample",
@@ -767,7 +929,10 @@
     "abs_ad": 0.6619815297830586,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "UniformEccentricity.sample",
@@ -781,7 +946,10 @@
     "abs_ad": 0.4938855194259164,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MoeEccentricity.sample",
@@ -795,7 +963,10 @@
     "abs_ad": 0.6471312617647365,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "LogisticThermalEccentricity.sample",
@@ -809,7 +980,10 @@
     "abs_ad": 0.33080370959960204,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "IndependentCompanions.sample",
@@ -823,7 +997,10 @@
     "abs_ad": 0.6681601326323479,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
@@ -837,7 +1014,10 @@
     "abs_ad": 0.6767522474315355,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
@@ -851,7 +1031,10 @@
     "abs_ad": 0.12049713122683248,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MultiComponentCluster.sample_cluster[EngineB]",
@@ -865,7 +1048,10 @@
     "abs_ad": 0.0017680065985731259,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KeplerElements.to_state",
@@ -879,7 +1065,10 @@
     "abs_ad": 0.44395696715953137,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KeplerElements.to_state",
@@ -893,7 +1082,10 @@
     "abs_ad": 0.9995240266333603,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KeplerElements.to_state",
@@ -907,7 +1099,10 @@
     "abs_ad": 0.9163137092954955,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KeplerElements.to_state",
@@ -921,7 +1116,10 @@
     "abs_ad": 0.314402491514981,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "KeplerElements.from_state",
@@ -935,7 +1133,10 @@
     "abs_ad": 2.365317204601671,
     "expect": "consistent",
     "tol": 0.0001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "resolve_binary_components",
@@ -949,7 +1150,10 @@
     "abs_ad": 0.08437446981630453,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "resolve_binary_components[mixed]",
@@ -963,7 +1167,10 @@
     "abs_ad": 0.030191776125247607,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "MoeCompanions.sample",
@@ -971,13 +1178,16 @@
     "param": "m1_scale",
     "theta": 1.0,
     "finite": true,
-    "ad": -0.00010232897220608075,
+    "ad": -0.00010232897220608127,
     "fd": -0.00010232897529327545,
-    "ratio": 0.9999999698306888,
-    "abs_ad": 0.00010232897220608075,
+    "ratio": 0.9999999698306938,
+    "abs_ad": 0.00010232897220608127,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "apply_solid_body_rotation",
@@ -991,7 +1201,10 @@
     "abs_ad": 1.1226200070504277,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "apply_differential_rotation",
@@ -1005,7 +1218,10 @@
     "abs_ad": 0.7635383829813772,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "apply_differential_rotation",
@@ -1019,7 +1235,10 @@
     "abs_ad": 0.04356503544180393,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "binned_sigma1d[Plummer]",
@@ -1033,7 +1252,10 @@
     "abs_ad": 3.3459688419013176,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "binned_sigma_beta[Plummer+OM]",
@@ -1047,7 +1269,10 @@
     "abs_ad": 1.0007593029266972,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "PlummerProfile.enclosed_mass_fraction[N(r) model]",
@@ -1061,7 +1286,10 @@
     "abs_ad": 0.026912646852171505,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "binned_number_density[data, pinned non-diff]",
@@ -1075,7 +1303,10 @@
     "abs_ad": 0.0,
     "expect": "known_blocked",
     "tol": 0.001,
-    "status": "known-limitation"
+    "status": "known-limitation",
+    "grad_contract": "known_blocked",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_cluster[Plummer]",
@@ -1089,7 +1320,10 @@
     "abs_ad": 1.4409153851320782,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_cluster[Plummer+OM]",
@@ -1103,7 +1337,10 @@
     "abs_ad": 0.027280367455917498,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_cluster[Plummer+rotation]",
@@ -1117,7 +1354,10 @@
     "abs_ad": 0.6424280721588935,
     "expect": "consistent",
     "tol": 0.0001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_king_cluster",
@@ -1131,7 +1371,10 @@
     "abs_ad": 5.731809864973602,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_eff_cluster",
@@ -1145,7 +1388,10 @@
     "abs_ad": 1.58499110075342,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_michie_cluster",
@@ -1159,7 +1405,10 @@
     "abs_ad": 5.439463623667858,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_limepy_cluster",
@@ -1167,13 +1416,16 @@
     "param": "W0",
     "theta": 5.0,
     "finite": true,
-    "ad": 0.7729311202129883,
-    "fd": 0.7728722179694003,
-    "ratio": 1.0000762121372957,
-    "abs_ad": 0.7729311202129883,
+    "ad": 0.7729742581439513,
+    "fd": 0.772941166510499,
+    "ratio": 1.0000428126161292,
+    "abs_ad": 0.7729742581439513,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "build_cluster_from_params[ClusterParams]",
@@ -1187,7 +1439,10 @@
     "abs_ad": 1.4409153851320782,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "zams_luminosity",
@@ -1201,7 +1456,10 @@
     "abs_ad": 378.518711114702,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "zams_radius",
@@ -1215,7 +1473,10 @@
     "abs_ad": 0.3002905916638509,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "zams_effective_temperature",
@@ -1229,7 +1490,10 @@
     "abs_ad": 2073.397082359093,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "zams_surface_gravity",
@@ -1243,7 +1507,10 @@
     "abs_ad": 0.01210520315975673,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "inverse_zams_luminosity",
@@ -1257,7 +1524,10 @@
     "abs_ad": 0.00264187732504714,
     "expect": "consistent",
     "tol": 1e-05,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "jeans_dispersion[Plummer+OM]",
@@ -1271,7 +1541,10 @@
     "abs_ad": 0.07774603857442763,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "jeans_dispersion[Plummer]",
@@ -1285,7 +1558,10 @@
     "abs_ad": 0.001937061594515591,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "project_dispersion[Plummer+OM]",
@@ -1299,7 +1575,10 @@
     "abs_ad": 0.04022209247583286,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "project_dispersion[Plummer+OM].pm_t",
@@ -1313,7 +1592,10 @@
     "abs_ad": 0.09143337756874709,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "df_moment_dispersion[Michie]",
@@ -1327,7 +1609,10 @@
     "abs_ad": 0.0013407431625041715,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "df_moment_dispersion[Michie].W0",
@@ -1341,7 +1626,10 @@
     "abs_ad": 0.27978711930266564,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "jeans_dispersion[EFF spans r_t]",
@@ -1355,7 +1643,10 @@
     "abs_ad": 0.057296170084121495,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   },
   {
     "id": "project_dispersion[EFF spans r_t]",
@@ -1369,6 +1660,9 @@
     "abs_ad": 0.027126142523286344,
     "expect": "consistent",
     "tol": 0.001,
-    "status": "clean"
+    "status": "clean",
+    "grad_contract": "smooth_pathwise",
+    "allowed_claim": "",
+    "forbidden_claims": []
   }
 ]
