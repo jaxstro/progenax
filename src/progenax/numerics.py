@@ -21,6 +21,8 @@ form they agree only to ~1 ulp (measured: 124/257 elements differ, max rel. diff
 8.9e-16), within their existing test budgets.
 """
 
+import math
+
 from jaxstro.numerics.integration import cumulative_trapz
 from jaxstro.numerics.sampling import inverse_cdf_draw
 
@@ -28,16 +30,20 @@ __all__ = ["cumulative_trapz", "inverse_cdf_draw", "require_positive"]
 
 
 def require_positive(value, name: str) -> None:
-    """Raise ``ValueError`` if a CONCRETE ``value`` is not strictly positive.
+    """Raise ``ValueError`` if a CONCRETE ``value`` is a finite, non-positive number.
 
-    Eager input validation for constructors (audit S7): a negative/zero scale
-    silently produces garbage (e.g. a negative Plummer scale radius flips
-    positions; W0<=0 gives a degenerate King r_t). Skipped under tracing —
-    ``float()`` raises on a tracer, so jit/grad see no host-side control flow.
+    Eager input validation for constructors (audit S7): a *finite* negative/zero
+    scale silently produces garbage (a negative Plummer scale radius flips
+    positions; W0<=0 gives a degenerate King r_t). Non-finite (NaN/inf) input is
+    deliberately NOT caught here — it propagates loudly (NaN outputs) and is
+    handled by downstream realizability gates (e.g. Engine-B's non-finite-DF
+    check); intercepting it here would mask those more specific messages.
+    Skipped under tracing — ``float()`` raises on a tracer, so jit/grad see no
+    host-side control flow.
     """
     try:
         v = float(value)
     except (TypeError, ValueError):
         return  # traced: cannot check at trace time
-    if not (v > 0.0):
+    if math.isfinite(v) and v <= 0.0:
         raise ValueError(f"{name} must be > 0 (got {v:g}).")
