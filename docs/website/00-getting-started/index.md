@@ -17,6 +17,8 @@ the rest of the docs.
 
 * - Page
   - What you'll do
+* - [](science-capabilities.md)
+  - Survey what progenax can model (the model inventory with validity regimes)
 * - [](installation.md)
   - Install progenax via UV (preferred) or pip; verify with the smoke test
 * - [](first-plummer-sphere.md)
@@ -61,8 +63,8 @@ planned.
 progenax does **not** evolve simulations forward in time — that is
 gravax's job. The handoff is documented in
 [](../40-howto/interface-with-gravax.md). progenax also does not
-compute mock observations from final snapshots — that is fluxax (and
-gravax's renderer module).
+compute mock observations from final snapshots — that is fluxax
+(`fluxax.render`; the old `gravax.render` monolith is legacy).
 
 ## Next step
 

@@ -68,6 +68,23 @@ If you see a `jax` GPU-allocation message, JAX has detected your GPU
 — this is fine. CPU-only is the default and sufficient for the
 tutorials.
 
+## Precision: progenax enables float64 at import
+
+`import progenax` sets `jax_enable_x64=True` and
+`jax_default_matmul_precision="highest"` **process-wide** (via
+`jaxstro.jaxconfig.enable_high_precision()`). Cluster initial conditions are
+energy-balance-sensitive, and every validation gate on this site runs in double
+precision — float32 is **not** validated anywhere in progenax.
+
+Two practical consequences if you embed progenax in a larger JAX application:
+
+1. Arrays created *after* the import default to `float64` — roughly double the
+   memory of a float32 pipeline. Import progenax early (before building other
+   JAX state) so your whole process runs in one consistent precision regime.
+2. Reverting x64 after import (`jax.config.update("jax_enable_x64", False)`)
+   downcasts progenax's outputs with warnings and voids the validation
+   guarantees. Don't mix regimes.
+
 ## GPU support
 
 progenax runs on any JAX-supported device (CPU, GPU, TPU). For GPU:

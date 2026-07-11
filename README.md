@@ -126,6 +126,15 @@ uv pip install -e ".[dev]"
 Optional extras: `[experimental]` (the repo-only `gravoturb_fdf` inference layer — blackjax,
 optax, …), `[diagnostics]` (numpy + scipy, for the exact non-differentiable CW04 Q path).
 
+> **Import-time precision side effect.** `import progenax` enables JAX float64
+> (`jax_enable_x64=True`) and sets `jax_default_matmul_precision="highest"`
+> **process-wide** — cluster ICs are energy-balance-sensitive and are validated in
+> double precision only. If you embed progenax in a float32 pipeline, be aware that
+> arrays created after the import default to float64 (roughly double the memory), and
+> that flipping x64 back off after import downcasts progenax's outputs with warnings —
+> nothing in progenax is float32-validated. Import progenax early, before building
+> other JAX state, so the precision regime is consistent.
+
 ## Quick Start
 
 ### Plummer sphere IC
