@@ -6,6 +6,16 @@ description: "Landing page for progenax's optimal-experimental-design (OED) sect
 
 # Optimal experimental design
 
+:::{warning} Deprecation — this OED demo is migrating to informax
+The OED tooling has been ported to the dedicated inference-design package
+**informax** (developed alongside progenax). This page and its
+`scripts/` harness are retained temporarily while the port is being
+verified, and will be removed from progenax afterwards. The demo's
+dedicated test suite was retired in 2026-07 (the release gate no longer
+exercises it), so treat the scripts here as frozen reference copies.
+:::
+
+
 Every other demo on this site answers the same kind of question: *given data, can you
 recover a parameter?* This section asks the question that comes **before any data
 exist**. You have been awarded a fixed amount of telescope time — call it a budget of

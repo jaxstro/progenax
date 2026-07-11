@@ -6,6 +6,18 @@ description: "A pre-data optimal-experimental-design demo that turns the OED mac
 
 # OED for robustness — when binaries lie to your mass estimate (Stage 4)
 
+:::{note} Status — candidate to remain as progenax's basic OED example
+The OED tooling is migrating to the dedicated inference-design package
+**informax**; most OED demos here will be removed once the port is
+verified. This binary-robustness demo (binary RVs vs. the inferred
+cluster mass) is the candidate to stay as progenax's single basic OED
+example. Its 2026-07 test trim kept the load-bearing physics pins (the
+V_bin/sigma_cluster ratio gate, the sampler-vs-projection integrity
+check, the binary pedestal, and a CLI smoke); the full inference /
+design-machinery gates now live in informax.
+:::
+
+
 The three OED demos before this one each end with the optimiser *rediscovering* a piece
 of physics: [anisotropy](anisotropy.md) wants the **outskirts**,
 [concentration](concentration.md) wants the **core**, [dynamical mass](dynamical-mass.md)

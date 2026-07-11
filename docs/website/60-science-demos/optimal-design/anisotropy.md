@@ -6,6 +6,16 @@ description: "A pedagogical pure pre-data Bayesian optimal-experimental-design d
 
 # OED for anisotropy — where to spend telescope time on $r_a$ (B14)
 
+:::{warning} Deprecation — this OED demo is migrating to informax
+The OED tooling has been ported to the dedicated inference-design package
+**informax** (developed alongside progenax). This page and its
+`scripts/` harness are retained temporarily while the port is being
+verified, and will be removed from progenax afterwards. The demo's
+dedicated test suite was retired in 2026-07 (the release gate no longer
+exercises it), so treat the scripts here as frozen reference copies.
+:::
+
+
 This is the first worked example of [optimal experimental design](index.md): given a
 fixed budget of stars, *where on the sky* and *in which channel* should you measure to
 pin one number — the cluster's velocity **anisotropy**? The answer the optimiser

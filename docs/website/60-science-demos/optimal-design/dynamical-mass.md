@@ -6,6 +6,16 @@ description: "An optimal-experimental-design demo that promotes survey DEPTH (th
 
 # OED for dynamical mass — how deep to survey (Stage 2)
 
+:::{warning} Deprecation — this OED demo is migrating to informax
+The OED tooling has been ported to the dedicated inference-design package
+**informax** (developed alongside progenax). This page and its
+`scripts/` harness are retained temporarily while the port is being
+verified, and will be removed from progenax afterwards. The demo's
+dedicated test suite was retired in 2026-07 (the release gate no longer
+exercises it), so treat the scripts here as frozen reference copies.
+:::
+
+
 You have a cluster to weigh and a telescope to do it with. The
 [anisotropy example](anisotropy.md) asked *where* to point and in *which* channel. This
 one asks a question with a sharper answer: **how faint should you go?** Surveying deeper

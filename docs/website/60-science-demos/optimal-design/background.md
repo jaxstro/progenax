@@ -6,6 +6,16 @@ description: "The shared theory for progenax's optimal-experimental-design demos
 
 # The OED formalism — the machinery every example reuses
 
+:::{warning} Deprecation — this OED demo is migrating to informax
+The OED tooling has been ported to the dedicated inference-design package
+**informax** (developed alongside progenax). This page and its
+`scripts/` harness are retained temporarily while the port is being
+verified, and will be removed from progenax afterwards. The demo's
+dedicated test suite was retired in 2026-07 (the release gate no longer
+exercises it), so treat the scripts here as frozen reference copies.
+:::
+
+
 Every worked example in this section — [the anisotropy design](anisotropy.md), [the
 dynamical-mass depth knob](dynamical-mass.md) — runs on the *same* engine. This page
 builds that engine once, from first principles, so the example pages can spend their
