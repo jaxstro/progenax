@@ -1,6 +1,6 @@
 # progenax — status
 
-next: **Slice C (docs pedagogy + ICViz + site aesthetics) COMPLETE on branch `feat/slice-c-docs-pedagogy` — awaiting Anna's merge go (release_gate restamp at merge). Then write the Slice-D release checklist (Anna executes); repo flips public after Slice C merges.**
+next: **REPO IS PUBLIC (flipped 2026-07-11). Slice C merged + pushed (release gate PASSED at merge: 1651/2skip, cov 96.18%, 24/24 validation scripts). Anna executes the Slice-D punch list (`docs/website/95-release/checklist.md` §Slice D): CI re-enable + 3.10-matrix fix, CONTRIBUTING.md, then at the tag CITATION.cff + Zenodo DOI, sdist excludes, check.sh path — and after the tag, PyPI (jaxstro first).**
 
 **M1 public-flip remediation** COMPLETE + merged to local `main` (unpushed): green gates, two theory-doc equation corrections (EFF enclosed mass, King dispersion direction), the LIMEPY silent-r_t-pinning guard, and internal-docs pruning. See the release audit (`audits/PROGENAX_PUBLIC_RELEASE_AUDIT.md`, maintainer-local).
 
@@ -38,6 +38,6 @@ blocker: none. GitHub Actions CI is dormant and must be re-enabled before the fi
 
 due: none.
 
-next: Anna merges Slice C (with a `scripts/release_gate.sh` restamp) → Claude writes the Slice-D release checklist (CI re-enable, CITATION.cff/Zenodo DOI, sdist include/exclude, check.sh path, CONTRIBUTING.md; Anna executes) → repo public. Still on Anna's desk: review/commit `.brain-drafts/` digests to ~/brain; verify the informax OED port before removing the deprecated demo pages. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
+next: Anna executes Slice D (checklist on the site, `95-release/checklist.md`) → tag `v0.1.0` → PyPI (after jaxstro publishes). Still on Anna's desk: review/commit `.brain-drafts/` digests to ~/brain; verify the informax OED port before removing the deprecated demo pages. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
