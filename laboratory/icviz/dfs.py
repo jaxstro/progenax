@@ -303,3 +303,114 @@ def build_eddington_triptych() -> plt.Figure:
     for ax in (ax1, ax2, ax3):
         polish_axes(ax)
     return fig
+
+
+# ---------------------------------------------------------------------------
+# F11 — phase space: the DF as a density on the (r, v) plane
+# ---------------------------------------------------------------------------
+
+
+def _psi_from_density(prof, r_grid: np.ndarray, M: float) -> np.ndarray:
+    """Relative potential Psi(r) (zero at the outer edge) by direct quadrature
+    of the profile density — the engine-b-poisson interior/exterior split."""
+    # prof.density may be an UNNORMALIZED shape (EFF: rho_0 = 1); rescale so
+    # the truncated mass on the grid equals M — the mass the sampler actually
+    # uses (masses.sum()) and hence the potential the velocities live in.
+    rho = np.array(prof.density(jnp.asarray(r_grid)))
+    m_shape = np.trapezoid(4.0 * np.pi * rho * r_grid**2, r_grid)
+    rho = rho * (M / m_shape)
+    inner = np.concatenate(
+        [[0.0], np.cumsum(0.5 * (rho[1:] * r_grid[1:] ** 2 + rho[:-1] * r_grid[:-1] ** 2) * np.diff(r_grid))]
+    )
+    tail = np.concatenate(
+        [[0.0], np.cumsum(0.5 * (rho[1:] * r_grid[1:] + rho[:-1] * r_grid[:-1]) * np.diff(r_grid))]
+    )
+    outer = tail[-1] - tail
+    phi = -4.0 * np.pi * float(_G) * (inner / np.maximum(r_grid, 1e-12) + outer)
+    return phi[-1] - phi  # Psi, zero at the last grid point (the edge)
+
+
+def build_phase_space_hexbin() -> plt.Figure:
+    import seaborn as sns
+
+    from progenax import KingProfile, KingVelocityDF
+
+    setup_style()
+    fig, axes = plt.subplots(
+        1, 3, figsize=(8.6, 3.0), constrained_layout=True, sharey=True
+    )
+    from matplotlib.colors import LogNorm
+
+    cmap = sns.color_palette("mako_r", as_cmap=True)
+    hex_norm = LogNorm(vmin=1, vmax=3e3)
+    M = 400.0
+    n = 400_000
+    key = jax.random.PRNGKey(SEED + 2)
+    masses = jnp.full(n, M / n)
+
+    # Three envelope stories, three routes to v_esc:
+    #   Plummer — closed form; King — the ODE psi-grid; EFF — direct quadrature.
+    plummer = PlummerProfile(r_h=1.0)
+    king_prof = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
+    king_df = KingVelocityDF(W0=7.0, r_c=1.0)
+    eff_prof = EFFProfile(a=1.0, gamma=4.0, r_t=15.0)
+    eff_df = EFFVelocityDF(a=1.0, gamma=4.0, r_t=15.0)
+
+    a_pl = float(plummer.a)
+    r_t_king = float(king_prof.r_t)
+
+    def plummer_env(r):
+        return np.sqrt(2.0 * _G * M / np.sqrt(r**2 + a_pl**2))
+
+    sigma_k = float(king_df._sigma(jnp.asarray(M), _G))  # laboratory-tier use
+
+    def king_env(r):
+        psi = np.interp(
+            r / float(king_prof.r_c),
+            np.array(king_df.xi_grid),
+            np.array(king_df.psi_grid),
+        )
+        return sigma_k * np.sqrt(2.0 * np.clip(psi, 0.0, None))
+
+    r_eff_grid = np.linspace(1e-4, 15.0, 6000)
+    psi_eff = _psi_from_density(eff_prof, r_eff_grid, M)
+
+    def eff_env(r):
+        return np.sqrt(2.0 * np.clip(np.interp(r, r_eff_grid, psi_eff), 0.0, None))
+
+    cases = [
+        ("Plummer — envelope never closes", plummer, PlummerVelocityDF(r_h=1.0),
+         8.0, plummer_env, r"$v_{\rm esc}$: closed form", None),
+        (r"King $W_0=7$ — pinched shut at $r_t$", king_prof, king_df,
+         r_t_king * 1.04, king_env, r"$v_{\rm esc}$: ODE $\psi$-grid", r_t_king),
+        (r"EFF $\gamma=4$ — halo, then a hard edge", eff_prof, eff_df,
+         15.0 * 1.04, eff_env, r"$v_{\rm esc}$: density quadrature", 15.0),
+    ]
+
+    hb = None
+    for ax, (title, prof, df, r_max, env, env_label, r_t) in zip(axes, cases):
+        key, k_pos, k_vel = jax.random.split(key, 3)
+        pos = prof.sample_positions(masses, k_pos)
+        vel = df.sample_velocities(pos, masses, k_vel, G=_G)
+        r = np.array(jnp.linalg.norm(pos, axis=1))
+        v = np.array(jnp.linalg.norm(vel, axis=1))
+        hb = ax.hexbin(
+            r, v, gridsize=100, norm=hex_norm, cmap=cmap, mincnt=1,
+            linewidths=0.1, extent=(0.0, r_max, 0.0, 2.3),
+        )
+        r_line = np.linspace(1e-3, r_max if r_t is None else r_t, 500)
+        ax.plot(r_line, env(r_line), color="#E76F51", lw=1.3, label=env_label)
+        if r_t is not None:
+            ax.axvline(r_t, color="#6C5B7B", lw=0.8, ls=(0, (4, 2)), alpha=0.8)
+            ax.annotate(r"$r_t$", xy=(r_t, 2.05), xytext=(r_t * 0.87, 2.08),
+                        fontsize=7.6, color="#6C5B7B")
+        ax.set_title(title, fontsize=8.2)
+        ax.set_xlabel(r"$r$  [pc]")
+        ax.legend(frameon=False, fontsize=6.4, loc="upper right")
+        polish_axes(ax)
+    axes[0].set_ylabel(r"$|v|$  [pc/Myr]")
+
+    cb = fig.colorbar(hb, ax=list(axes), pad=0.012, aspect=26)
+    cb.set_label("stars per hex (log)", fontsize=7.2)
+    cb.ax.tick_params(labelsize=6.4)
+    return fig

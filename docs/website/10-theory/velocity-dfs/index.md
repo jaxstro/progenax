@@ -69,6 +69,21 @@ for isotropic). progenax's validation suite
 sampled positions+velocities.
 ```
 
+
+```{figure} ../figures/phase_space_hexbin.webp
+:label: fig-phase-space-hexbin
+:width: 100%
+
+The DF as a density on the $(r, |v|)$ plane ($4\times10^5$ stars per model,
+seed 13), with the analytic escape envelope $v_{\rm esc}(r) = \sqrt{2\Psi(r)}$
+computed three different ways (closed form / ODE $\psi$-grid / direct density
+quadrature). Plummer's envelope never closes — and its stars stop visibly
+*below* it, because $f \propto \mathcal{E}^{7/2}$ vanishes toward the escape
+energy; King hugs its envelope and pinches shut at $r_t$; EFF fills its
+power-law halo out to the hard edge. No star crosses an envelope: bound-ness,
+visually. Regenerate: `python -m laboratory.icviz --only phase-space-hexbin`.
+```
+
 ## When you actually want a non-equilibrium IC
 
 Three deliberate non-equilibrium configurations are useful enough to

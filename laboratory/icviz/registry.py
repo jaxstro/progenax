@@ -7,6 +7,7 @@ from .dfs import (
     build_beta_anisotropy,
     build_eddington_triptych,
     build_king_lowered_maxwellian,
+    build_phase_space_hexbin,
     build_plummer_dispersion_oracles,
 )
 from .imfs import SEED as _IMF_SEED
@@ -82,6 +83,15 @@ FIGURES: dict[str, FigureSpec] = {
             page="10-theory/velocity-dfs/plummer-dfs.md",
             seed=_DF_SEED,
             caption="The Eddington pipeline rho(Psi) -> d2rho/dPsi2 -> f(E), numerical dots on the law.",
+            tags=("dfs",),
+        ),
+        FigureSpec(
+            name="phase-space-hexbin",
+            builder=build_phase_space_hexbin,
+            stem="phase_space_hexbin",
+            page="10-theory/velocity-dfs/index.md",
+            seed=13,
+            caption="The DF on the (r, |v|) plane: Plummer's open envelope vs King pinched shut at r_t.",
             tags=("dfs",),
         ),
     ]
