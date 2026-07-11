@@ -106,3 +106,24 @@ class TestDifferentiableTidalRadius:
     # n_ode_points=8000 config); see docs/website/50-validation/differentiability-audit.md.
     # The former test_r_t_grad_is_nonzero_and_fd_consistent was removed here (audit T6
     # consolidation; registry is SoT). The forward-VALUE pin above stays (unique regression).
+
+
+class TestKingInputValidation:
+    """Invalid concrete inputs must raise eagerly (audit S7): W0<=0 silently gave a
+    degenerate r_t=1e-6 r_c model; r_c<=0 is unphysical."""
+
+    def test_nonpositive_W0_raises(self):
+        import pytest
+
+        from progenax import KingProfile
+
+        with pytest.raises(ValueError, match="W0"):
+            KingProfile.from_W0_rc(-1.0, 1.0)
+
+    def test_nonpositive_r_c_raises(self):
+        import pytest
+
+        from progenax import KingProfile
+
+        with pytest.raises(ValueError, match="r_c"):
+            KingProfile.from_W0_rc(7.0, -1.0)

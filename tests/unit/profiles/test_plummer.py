@@ -137,3 +137,23 @@ class TestPlummerDifferentiability:
 
         result = sample_and_sum(masses, key)
         assert jnp.isfinite(result)
+
+
+class TestPlummerInputValidation:
+    """Invalid concrete inputs must raise eagerly, not silently build garbage (audit S7)."""
+
+    def test_negative_r_h_raises(self):
+        import pytest
+
+        from progenax import PlummerProfile
+
+        with pytest.raises(ValueError, match="r_h"):
+            PlummerProfile(r_h=-1.0)
+
+    def test_zero_r_h_raises(self):
+        import pytest
+
+        from progenax import PlummerProfile
+
+        with pytest.raises(ValueError, match="r_h"):
+            PlummerProfile(r_h=0.0)

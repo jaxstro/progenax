@@ -35,6 +35,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
+from progenax.numerics import require_positive
+
 
 def _is_concrete(x) -> bool:
     """True iff x is a concrete value (codebase idiom; cf. _auto_ode_domain)."""
@@ -501,6 +503,8 @@ class KingProfile(eqx.Module):
             >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
             >>> print(f"Tidal radius: {profile.r_t:.2f}")
         """
+        require_positive(W0, "KingProfile W0")
+        require_positive(r_c, "KingProfile r_c")
         auto_xi_max, auto_n_points = _auto_ode_domain(W0)
         if xi_max is None:
             xi_max = auto_xi_max

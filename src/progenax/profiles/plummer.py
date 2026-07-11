@@ -10,6 +10,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax.numerics import require_positive
+
 
 class PlummerProfile(eqx.Module):
     """
@@ -41,6 +43,7 @@ class PlummerProfile(eqx.Module):
         Args:
             r_h: Half-mass radius [length units]
         """
+        require_positive(r_h, "PlummerProfile r_h")
         r_h_arr = jnp.asarray(r_h, dtype=jnp.float64)
         # Scale radius from half-mass radius
         # From Plummer CDF: M(<r_h)/M = 0.5 = r_h³ / (r_h² + a²)^(3/2)

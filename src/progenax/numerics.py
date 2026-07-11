@@ -24,4 +24,20 @@ form they agree only to ~1 ulp (measured: 124/257 elements differ, max rel. diff
 from jaxstro.numerics.integration import cumulative_trapz
 from jaxstro.numerics.sampling import inverse_cdf_draw
 
-__all__ = ["cumulative_trapz", "inverse_cdf_draw"]
+__all__ = ["cumulative_trapz", "inverse_cdf_draw", "require_positive"]
+
+
+def require_positive(value, name: str) -> None:
+    """Raise ``ValueError`` if a CONCRETE ``value`` is not strictly positive.
+
+    Eager input validation for constructors (audit S7): a negative/zero scale
+    silently produces garbage (e.g. a negative Plummer scale radius flips
+    positions; W0<=0 gives a degenerate King r_t). Skipped under tracing —
+    ``float()`` raises on a tracer, so jit/grad see no host-side control flow.
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return  # traced: cannot check at trace time
+    if not (v > 0.0):
+        raise ValueError(f"{name} must be > 0 (got {v:g}).")
