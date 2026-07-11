@@ -1,0 +1,71 @@
+# Deploy the MyST documentation site to GitHub Pages.
+#
+# Source lives in docs/website/ but the PUBLIC URL is the project site
+#   https://jaxstro.github.io/progenax/
+# — the source directory never appears in the URL. BASE_URL tells MyST (and
+# the card-links plugin, which reads the same env var) the /progenax URL
+# prefix so assets and internal links resolve under the subpath.
+#
+# One-time repo setting (done 2026-07-11): Settings → Pages → Source =
+# "GitHub Actions" — with a branch source this workflow deploys nothing.
+#
+# docs.yml stays the PR-time quality gate; this workflow is the production
+# deploy on main. It runs the SAME gate (broken-link + content-warning
+# checks wrap the `myst build --html` whose output we publish), so nothing
+# unvalidated ever deploys.
+
+name: Deploy docs site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/website/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+env:
+  BASE_URL: /${{ github.event.repository.name }}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build MyST site (gate + html)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Pin to the version the local gate is validated against (see the
+      # docs/website/Makefile NODE_OPTIONS note, tied to mystmd 1.10.1).
+      - name: Install MyST
+        run: npm install --global mystmd@1.10.1
+
+      - name: Gate + build (0 broken links, 0 content warnings)
+        run: make -C docs/website gate
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/website/_build/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

@@ -12,16 +12,24 @@
 // dependency, no hardcoded map to drift. Links whose anchor is not found are
 // left untouched (the normal cross-ref pipeline still handles them).
 //
+// URL scheme: MyST serves every page at a ROOT-LEVEL slug (the filename stem,
+// html-normalized: `spatial_profiles.md` -> /spatial-profiles), NOT its
+// directory path. Slugs are also deduplicated build-order-dependently (the
+// glossary `binaries.md` currently wins `/binaries`; the API page gets
+// `/binaries-1`) — so every href this plugin emits is verified against the
+// built `myst.xref.json` by scripts/check_card_links.py in the docs gate.
+//
 // Constraint notes (mystmd): only the `html` node carries raw markup, and
 // plain anchors survive sanitization (no <script> involved). Built-site URLs
-// are root-absolute (/15-model-reference/<stem>#<anchor>) — adjust BASE if
-// the site ever deploys under a subpath.
+// are root-absolute (/15-model-reference/<stem>#<anchor>), so a project Pages
+// site needs its subpath prefix: BASE follows the same BASE_URL env var the
+// Pages workflow already passes to `myst build` (e.g. /progenax).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const BASE = '';
+const BASE = (process.env.BASE_URL ?? '').replace(/\/+$/, '');
 const GLOSSARY_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
@@ -49,6 +57,12 @@ function buildAnchorMap() {
     }
   }
   return map;
+}
+
+// MyST's html-id normalization (lowercase, non-alphanumerics -> '-'): applied
+// to both the page slug (filename stem) and the anchor fragment.
+function htmlNormalize(s) {
+  return s.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-');
 }
 
 function textOf(node) {
@@ -79,7 +93,7 @@ const cardLinkTransform = {
       parent.children[index] = {
         type: 'html',
         value:
-          `<a href="${BASE}/15-model-reference/${stem}#${m[1]}" ` +
+          `<a href="${BASE}/${htmlNormalize(stem)}#${htmlNormalize(m[1])}" ` +
           'target="_blank" rel="noopener" ' +
           'title="opens the model-card glossary in a new tab">' +
           `${label}</a>`,
