@@ -42,9 +42,13 @@ env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # ~956 uni
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # ~43 integration tests
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # ~244 physics validation tests
 
-# Experimental gravoturb subsystem (repo-only; needs src/experimental on the path):
-PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 322 tests
+# Experimental gravoturb subsystem (repo-only; needs src/experimental on the path).
+# GRAVOTURB_BYTE_GATE=1 makes the byte-identity pins a HARD gate (they silently skip
+# when XLA_FLAGS doesn't exactly match the canonical thread-capped value):
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" GRAVOTURB_BYTE_GATE=1 \
+  PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q -n auto
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb.validation.acceptance   # AC1-AC17
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb.validation.cluster_acceptance  # AC-IC0-IC7
 ```
 
 ## Units Policy (progenax)

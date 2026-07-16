@@ -20,15 +20,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-
-from jaxstro.units import STELLAR
-from progenax import PlummerProfile
-
 from gravoturb.cluster import build_cluster_ic
 from gravoturb.realization.envelope import apply_spherical_envelope
 from gravoturb.realization.pipeline import build_turbulent_field
 from gravoturb.realization.placement import sample_positions
 from gravoturb.realization.turbulent_velocity import turbulent_velocity_field
+from jaxstro.units import STELLAR
+
+from progenax import PlummerProfile
 
 pytestmark = [pytest.mark.experimental, pytest.mark.unit]
 
@@ -41,16 +40,33 @@ _PINS = json.loads(
 # threading config: multi- vs single-threaded FFTs reduce in different orders. The pins
 # were captured at pre-rename commit 66f627d under the canonical gate env (XLA_FLAGS
 # thread-capped, per CLAUDE.md); rank-copula-derived pins are threading-insensitive
-# (the copula consumes only the GRF's ranks). Skip rather than fail off-env.
+# (the copula consumes only the GRF's ranks).
+#
+# Fingerprint (review-hardened): EXACT XLA_FLAGS equality (extra flags could
+# legitimately change FFT reduction order) + Darwin/arm64 (the capture machine class —
+# a linux-aarch64 runner would spuriously fail on libm differences). Off-env the tests
+# skip — EXCEPT under GRAVOTURB_BYTE_GATE=1 (the documented gate command / CI job),
+# where a skip becomes a hard failure so the zero-behavior-change contract can never
+# pass vacuously on the machine that is supposed to enforce it.
 import os
 
 _env_ok = (
     platform.machine() == _PINS["_env"]["machine"]
-    and _PINS["_env"]["xla_flags"] in os.environ.get("XLA_FLAGS", "")
+    and platform.system() == "Darwin"
+    and os.environ.get("XLA_FLAGS", "").strip() == _PINS["_env"]["xla_flags"]
 )
+_strict = os.environ.get("GRAVOTURB_BYTE_GATE") == "1"
+if not _env_ok and _strict:
+    raise RuntimeError(
+        "GRAVOTURB_BYTE_GATE=1 but the environment fingerprint does not match the "
+        f"pin-capture env: need Darwin/arm64 with XLA_FLAGS exactly "
+        f"{_PINS['_env']['xla_flags']!r}, got system={platform.system()!r}, "
+        f"machine={platform.machine()!r}, XLA_FLAGS={os.environ.get('XLA_FLAGS')!r}"
+    )
 skip_foreign = pytest.mark.skipif(
     not _env_ok,
-    reason="byte-identity pins are same-machine, canonical-XLA-env references",
+    reason="byte-identity pins are same-machine, canonical-XLA-env references "
+    "(set GRAVOTURB_BYTE_GATE=1 in the gate command to make this a hard failure)",
 )
 
 
@@ -106,9 +122,9 @@ def test_sigma_s_squared_parity_with_released_core():
     progenax.cluster.turbulence.sigma_ln_rho_from_mach returns the STD σ_s.
     Both implement FK10 Eq. 19.
     """
-    from progenax.cluster.turbulence import sigma_ln_rho_from_mach
-
     from gravoturb.theory.density_pdf import sigma_s_squared
+
+    from progenax.cluster.turbulence import sigma_ln_rho_from_mach
 
     for mach, b in [(5.0, 0.4), (8.0, 0.5), (12.0, 1.0 / 3.0), (25.0, 1.0)]:
         var = float(sigma_s_squared(mach, b))
