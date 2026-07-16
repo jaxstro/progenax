@@ -33,18 +33,14 @@ def _ic(n=600, Q_target=0.5, beta=3.5, key=0):
     masses = jnp.ones(n)
     from jaxstro.units import STELLAR
 
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+
     return build_cluster_ic(
         masses,
-        mach=8.0,
-        b=0.5,
-        alpha=1.8,
-        beta=beta,
-        profile=_profile(),
-        beta_v=4.0,
-        Q_target=Q_target,
-        f_sub=0.3,
-        shape=SHAPE,
-        box_size=BOX,
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=beta),
+        geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=SHAPE),
+        velocity=VelocitySpec(beta_v=4.0, Q_target=Q_target),
+        composition=CompositionSpec(f_sub=0.3),
         G=STELLAR.G,
         key=jax.random.PRNGKey(key),
     )

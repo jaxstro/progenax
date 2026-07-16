@@ -145,6 +145,23 @@ dense_mass_fraction(mach=8.0, b=0.5, alpha=1.8) # dense-mass fraction (BM19 Eq. 
 fld = build_turbulent_field(mach=8.0, b=0.5, alpha=1.8, beta=3.5,
                       shape=(128, 128, 128), key=jax.random.PRNGKey(0))
 fld.f_dense, fld.f_dense_realized   # match to O(1/N) — the AC6 cornerstone
+
+# End-to-end cluster IC via the typed specs (validated at construction):
+from jaxstro.units import STELLAR
+from progenax import PlummerProfile
+from gravoturb import (CloudSpec, GeometrySpec, VelocitySpec, CompositionSpec,
+                       build_cluster_ic)
+import jax.numpy as jnp
+
+ic = build_cluster_ic(
+    jnp.ones(1000),
+    cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+    geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0, shape=(32,)*3),
+    velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+    composition=CompositionSpec(f_sub=0.3),
+    G=STELLAR.G, key=jax.random.PRNGKey(0),
+)
+ic.positions, ic.velocities, ic.Q_virial, ic.field.f_dense_realized
 ```
 
 ## Conventions

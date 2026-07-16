@@ -33,6 +33,7 @@ from progenax import (
 )
 
 from gravoturb.cluster import build_cluster_ic
+from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
 from gravoturb.diagnostics.q import q_components
 from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
 from gravoturb.realization.pipeline import build_turbulent_field
@@ -51,9 +52,12 @@ G = STELLAR.G
 
 def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, f_sub=0.3, seed=0):
     return build_cluster_ic(
-        jnp.ones(n), mach=MACH, b=B, alpha=ALPHA, beta=beta,
-        profile=PlummerProfile(r_h=r_h), beta_v=BETA_V, Q_target=Q_target,
-        f_sub=f_sub, shape=SHAPE, box_size=BOX, G=G, key=jax.random.PRNGKey(seed),
+        jnp.ones(n),
+        cloud=CloudSpec(mach=MACH, b=B, alpha=ALPHA, beta=beta),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX, shape=SHAPE),
+        velocity=VelocitySpec(beta_v=BETA_V, Q_target=Q_target),
+        composition=CompositionSpec(f_sub=f_sub),
+        G=G, key=jax.random.PRNGKey(seed),
     )
 
 

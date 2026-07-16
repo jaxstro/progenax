@@ -31,12 +31,16 @@ G = STELLAR.G
 
 @pytest.fixture(scope="module")
 def ic():
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+
     return build_cluster_ic(
         jnp.ones(200),
-        mach=8.0, b=0.5, alpha=1.8, beta=3.0,
-        profile=PlummerProfile(r_h=0.5), beta_v=4.0,
-        Q_target=0.5, f_sub=0.3, shape=(32, 32, 32),
-        box_size=4.0, G=G, key=jax.random.PRNGKey(0),
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0,
+                              shape=(32, 32, 32)),
+        velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+        composition=CompositionSpec(f_sub=0.3),
+        G=G, key=jax.random.PRNGKey(0),
     )
 
 

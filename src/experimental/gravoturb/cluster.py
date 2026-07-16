@@ -36,6 +36,7 @@ from gravoturb.realization.turbulent_velocity import (
     sample_turbulent_velocities,
     turbulent_velocity_field,
 )
+from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
 
 
 class ClusterIC(NamedTuple):
@@ -51,39 +52,34 @@ class ClusterIC(NamedTuple):
 def build_cluster_ic(
     masses: Float[Array, "n"],
     *,
-    mach: float,
-    b: float,
-    alpha: float,
-    beta: float,
-    profile,
-    beta_v: float,
-    Q_target: float,
-    f_sub: float,
-    shape: tuple[int, int, int],
-    box_size: float,
+    cloud: CloudSpec,
+    geometry: GeometrySpec,
+    velocity: VelocitySpec,
+    composition: CompositionSpec,
     G: float,
     key: jax.Array,
-    mask_sharpness: float = 8.0,
 ) -> ClusterIC:
     r"""Build a spherical, substructured, virial-scaled FDF cluster IC.
 
     ``masses`` (M⊙, masses-first per the ecosystem convention) sets ``n_stars = len(masses)``.
-    ``profile`` is any progenax ``SpatialProfile`` (the envelope shape; e.g. ``PlummerProfile``),
-    in the same length units as ``box_size``. Returns a :class:`ClusterIC`.
+    Parameters are grouped into the four typed specs (:mod:`gravoturb.specs`), each validated
+    at construction; ``G`` stays explicit (units mandate). Returns a :class:`ClusterIC`.
     """
     n_stars = int(masses.shape[0])
     k_field, k_vfield, k_pos = jax.random.split(key, 3)
 
-    field = build_turbulent_field(mach, b, alpha, beta, shape, k_field)
-    s_total = apply_spherical_envelope(field.s, profile, box_size)
+    field = build_turbulent_field(
+        cloud.mach, cloud.b, cloud.alpha, cloud.beta, geometry.shape, k_field
+    )
+    s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
 
     positions = sample_positions(
-        field.s, field.s_t, mask_sharpness, f_sub, n_stars, k_pos,
-        box_size=box_size, s_density=s_total,
+        field.s, field.s_t, composition.mask_sharpness, composition.f_sub, n_stars, k_pos,
+        box_size=geometry.box_size, s_density=s_total,
     )
 
-    v_field = turbulent_velocity_field(shape, beta_v, k_vfield)
-    v_raw = sample_turbulent_velocities(positions, v_field, box_size=box_size)
+    v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
+    v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
 
     from progenax import (
         compute_kinetic_energy,
@@ -93,7 +89,7 @@ def build_cluster_ic(
     )
 
     pos_com, v_com = to_com_frame(positions, v_raw, masses)
-    v_scaled = virial_scale(pos_com, v_com, masses, Q_target=Q_target, G=G)
+    v_scaled = virial_scale(pos_com, v_com, masses, Q_target=velocity.Q_target, G=G)
 
     T = compute_kinetic_energy(v_scaled, masses)
     V = compute_potential_energy(pos_com, masses, G=G)

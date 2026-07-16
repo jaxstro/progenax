@@ -83,10 +83,16 @@ def test_positions_and_velocity_field_match_pins():
 
 @skip_foreign
 def test_cluster_ic_matches_pins():
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+
     ic = build_cluster_ic(
-        jnp.ones(400), mach=8.0, b=0.5, alpha=1.8, beta=3.0,
-        profile=PlummerProfile(r_h=0.5), beta_v=4.0, Q_target=0.5, f_sub=0.3,
-        shape=(32, 32, 32), box_size=4.0, G=STELLAR.G, key=jax.random.PRNGKey(42),
+        jnp.ones(400),
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0,
+                              shape=(32, 32, 32)),
+        velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+        composition=CompositionSpec(f_sub=0.3),
+        G=STELLAR.G, key=jax.random.PRNGKey(42),
     )
     assert _h(ic.positions) == _PINS["cluster_positions"]
     assert _h(ic.velocities) == _PINS["cluster_velocities"]

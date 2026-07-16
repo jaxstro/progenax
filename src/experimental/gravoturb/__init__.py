@@ -11,9 +11,11 @@ on ``progenax.cluster.turbulence``; nothing in released progenax imports it.
 Layers
 ------
 - ``theory``      : BM19 / PP20 / PN11 1D density-PDF theory (JAX-native, differentiable).
-- ``field``       : 3D realization — GRF + rank copula, dense-tail mask, star sampling.
+- ``realization`` : 3D realization — GRF + rank copula, dense-tail mask, star placement.
 - ``diagnostics`` : CW04 Q substructure metric (numpy/scipy, non-differentiable).
-- ``validation``  : AC1–AC10 acceptance scripts that print real numbers.
+- ``inference``   : differentiable predicted-statistics inference (blackjax NUTS).
+- ``cluster``     : the end-to-end natal-parameters → N-body IC builder + typed specs.
+- ``validation``  : AC1–AC17 + AC-IC acceptance scripts that print real numbers.
 
 Every formula is re-derived from the held PDFs and re-validated against committed,
 printing acceptance scripts before it is believed. See
@@ -28,4 +30,15 @@ _enable_jax_hp()
 del _enable_jax_hp
 
 __version__ = "0.0.0.dev0"
-__all__: list[str] = []
+
+from gravoturb.cluster import ClusterIC, build_cluster_ic
+from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+
+__all__ = [
+    "ClusterIC",
+    "CloudSpec",
+    "CompositionSpec",
+    "GeometrySpec",
+    "VelocitySpec",
+    "build_cluster_ic",
+]
