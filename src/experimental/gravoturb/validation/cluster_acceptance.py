@@ -1,4 +1,4 @@
-"""Acceptance suite + figure gallery for the FDF *cluster* IC (Build 4 forward tool).
+"""Acceptance suite + figure gallery for the gravoturbulent *cluster* IC (Build 4 forward tool).
 
 ``build_cluster_ic`` turns natal-turbulence parameters into a complete N-body IC:
 turbulent BM19 field (β,ℳ,α) → spherical envelope (progenax SpatialProfile) → star
@@ -19,25 +19,21 @@ import os
 
 import jax
 import jax.numpy as jnp
-import matplotlib
 import numpy as np
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-
 from jaxstro.units import STELLAR
+
+from gravoturb.cluster import build_cluster_ic
+from gravoturb.diagnostics.q import q_components
+from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
+from gravoturb.realization.pipeline import build_turbulent_field
+from gravoturb.realization.placement import FREEFALL_EXPONENT, sample_positions
+from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+from gravoturb.validation.oracles import ks_two_sample, rho_weighted_reference_positions
 from progenax import (
     PlummerProfile,
     compute_kinetic_energy,
     compute_potential_energy,
 )
-
-from gravoturb.cluster import build_cluster_ic
-from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
-from gravoturb.diagnostics.q import q_components
-from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
-from gravoturb.realization.pipeline import build_turbulent_field
-from gravoturb.realization.placement import sample_positions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLOTS = os.path.join(HERE, "plots")
@@ -50,13 +46,21 @@ MACH, B, ALPHA, BETA_V = 8.0, 0.5, 1.8, 4.0
 G = STELLAR.G
 
 
-def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, f_sub=0.3, seed=0):
+def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, seed=0,
+        placement="two_population", f_sub=0.3, shape=None):
+    # NB multi-freefall at the fiducial ℳ=8 needs ≥64³ (AC-IC0/AC-IC4 caveat: at 32³ the
+    # PMF concentrates ~90% of stars into ~8 cells, n_eff≈few, and COM-frame velocity
+    # coherence is erased). Position-sensitive multi-freefall gates pass shape=(64,)*3.
+    composition = (CompositionSpec()  # multi_freefall default; f_sub is DERIVED
+                   if placement == "multi_freefall"
+                   else CompositionSpec(placement="two_population", f_sub=f_sub))
     return build_cluster_ic(
         jnp.ones(n),
         cloud=CloudSpec(mach=MACH, b=B, alpha=ALPHA, beta=beta),
-        geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX, shape=SHAPE),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX,
+                              shape=shape or SHAPE),
         velocity=VelocitySpec(beta_v=BETA_V, Q_target=Q_target),
-        composition=CompositionSpec(placement="two_population", f_sub=f_sub),
+        composition=composition,
         G=G, key=jax.random.PRNGKey(seed),
     )
 
@@ -70,7 +74,15 @@ def _qms(beta, r_h, seeds, n=2000):
 
 # ── power-spectrum tools (β recovery) ──
 def radial_power_spectrum(field3d, n_bins=24):
-    """Isotropic P(k) of a 3D field via FFT periodogram, radially binned in integer |k|."""
+    """Isotropic P(k) of a 3D field via FFT periodogram, radially binned in integer |k|.
+
+    |k| convention: ``fftfreq(n)·n`` integer wavenumbers — the SAME convention as
+    ``inference/covariance.measured_bandpowers`` and ``theory/projection.kmag_grid``.
+    Kept as an independent numpy re-derivation on purpose (oracle); do not refactor
+    to import those JAX implementations.
+    """
+    # unit consistency: k in dimensionless grid wavenumbers (cycles per box), matching
+    # the inference/theory modules above.
     f = np.asarray(field3d, dtype=float)
     f = f - f.mean()
     pk = np.abs(np.fft.fftn(f)) ** 2 / f.size
@@ -100,14 +112,17 @@ def fit_slope(k, p):
 
 
 # ── AC-IC1: spherical envelope sets the cluster scale ──
-def ac_ic1_envelope(seeds=(0, 1, 2)):
-    print("\n=== AC-IC1 — spherical envelope: median radius scales with r_h ===")
+def ac_ic1_envelope(seeds=(0, 1, 2), placement="two_population"):
+    print("\n=== AC-IC1 — spherical envelope: median radius scales with r_h "
+          f"(placement={placement}) ===")
     r_hs = [0.3, 0.5, 0.8]
     med = []
     for r_h in r_hs:
         rs = []
         for sd in seeds:
-            pos = np.asarray(_ic(n=3000, r_h=r_h, seed=sd).positions)
+            shape = (64,) * 3 if placement == "multi_freefall" else None  # ≥64³ caveat
+            pos = np.asarray(_ic(n=3000, r_h=r_h, seed=sd, placement=placement,
+                                 shape=shape).positions)
             rs.append(np.median(np.linalg.norm(pos, axis=1)))
         med.append(float(np.mean(rs)))
         print(f"  r_h={r_h:.2f} pc  ->  median cluster radius = {med[-1]:.3f} pc")
@@ -166,8 +181,7 @@ def ac_ic3_substructure(seeds=(0, 1, 2)):
         print(f"                                   {r_h:>4} {Q:>6.3f}±{dQ:.3f} {m:>6.3f}±{dm:.3f} {s:>6.3f}±{ds:.3f}")
 
     Qb = np.array([r[1] for r in beta_rows]); mb = np.array([r[2] for r in beta_rows])
-    sb = np.array([r[3] for r in beta_rows])
-    Qc = np.array([r[1] for r in conc_rows]); mc = np.array([r[2] for r in conc_rows])
+    mc = np.array([r[2] for r in conc_rows])
 
     # (1) Q monotonic in β (Q is a substructure indicator at fixed concentration)
     q_mono_beta = bool(np.all(np.diff(Qb) < 0))
@@ -187,9 +201,18 @@ def ac_ic3_substructure(seeds=(0, 1, 2)):
 
 
 # ── AC-IC4: turbulent velocities are spatially coherent ──
-def ac_ic4_velocity_coherence(seed=0):
-    print("\n=== AC-IC4 — turbulent velocities are spatially coherent (nearby stars move together) ===")
-    ic = _ic(n=2500, seed=seed)
+def ac_ic4_velocity_coherence(seed=0, placement="two_population"):
+    # multi-freefall runs at 64³ (the recorded ℳ≥8 caveat): at 32³ the star sample
+    # concentrates into ~8 cells (90% of stars) and COM subtraction erases coherence
+    # (measured near-alignment +0.013 at 32³ vs +0.631 at 64³) — the 2026-07-16 AC-IC4
+    # diagnosis. Resolution fix per the recorded caveat, NOT a weakened threshold.
+    print("\n=== AC-IC4 — turbulent velocities are spatially coherent "
+          f"(nearby stars move together) (placement={placement}) ===")
+    shape = (64,) * 3 if placement == "multi_freefall" else None  # ≥64³ caveat
+    ic = _ic(n=2500, seed=seed, placement=placement, shape=shape)
+    if ic.placement_n_eff is not None:
+        print(f"  placement_n_eff = {float(ic.placement_n_eff):.1f} cells "
+              "(resolution-monitoring diagnostic)")
     pos = np.asarray(ic.positions); vel = np.asarray(ic.velocities)
     # cosine alignment of velocity vectors vs pair separation
     rng = np.random.default_rng(0)
@@ -286,9 +309,15 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5, placement="two_po
         for mach in [None, 4.0, 8.0, 12.0]:  # None → turbulence OFF (pure envelope)
             r50 = []
             for sd in seeds:
-                fld = build_turbulent_field(mach or MACH, B, ALPHA, 3.0, shape,
-                                      jax.random.PRNGKey(sd))
-                s_turb = jnp.zeros(shape) if mach is None else fld.s
+                if placement == "multi_freefall" and mach is None:
+                    # turbulence-OFF multi_freefall never reads the field (sentinel
+                    # s_t=-1e3 below) — skip the dead build_turbulent_field call
+                    fld = None
+                    s_turb = jnp.zeros(shape)
+                else:
+                    fld = build_turbulent_field(mach or MACH, B, ALPHA, 3.0, shape,
+                                          jax.random.PRNGKey(sd))
+                    s_turb = jnp.zeros(shape) if mach is None else fld.s
                 s_tot = apply_spherical_envelope(s_turb, PlummerProfile(r_h=r_h), BOX)
                 if placement == "multi_freefall":
                     pos = np.asarray(sample_positions_multi_freefall(
@@ -309,7 +338,7 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5, placement="two_po
     # truncated grid (p=1 two-population smooth stars, p=3/2 multi-freefall). Judging
     # the ρ^{3/2} law against r_h itself would mislabel correct extra concentration
     # as a sampling bias (amendment A4).
-    p_exp = 1.5 if placement == "multi_freefall" else 1.0
+    p_exp = FREEFALL_EXPONENT if placement == "multi_freefall" else 1.0
     ref = {}
     for shape in [(32,) * 3, (64,) * 3]:
         rg = np.asarray(radius_grid(shape, BOX)).ravel()
@@ -331,18 +360,19 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5, placement="two_po
 # ── AC-IC7: FK12 multi-freefall placement (Phase 1 gate) ──
 def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
     """(a) turbulence-OFF control: multi-freefall placement = ρ_env^{3/2}-weighted
-    envelope (independent numpy oracle, two-sample KS); (b) f_sub_derived vs (α, ℳ)
+    envelope (independent numpy oracle, two-sample KS); (b) collapse_eligible_fraction vs (α, ℳ)
     printed table (α-direction asserted — PDF-grounded; ℳ characterized); (c) Q(β)
     re-baselined under multi_freefall; (d) paired legacy-vs-new Q at matched tail
     fraction. Design 2026-07-16 Phase 1 + amendment A4 (AC-IC0 re-run appended)."""
     from gravoturb.realization.placement import (
-        f_sub_derived,
+        collapse_eligible_fraction,
         sample_positions_multi_freefall,
     )
 
     print("\n=== AC-IC7 — FK12 multi-freefall placement (p ∝ w·ρ_total^{3/2}) ===")
 
-    # (a) envelope control vs independent numpy oracle
+    # (a) envelope control vs the independent numpy oracle (validation/oracles.py;
+    # documented constants: 48³ grid, N=40000 stars, oracle rng seed 2026)
     n_grid, n_star = 48, 40000
     prof = PlummerProfile(r_h=0.5)
     s0 = jnp.zeros((n_grid,) * 3)
@@ -350,26 +380,18 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
     pos = np.asarray(sample_positions_multi_freefall(
         s0, -1e3, 8.0, n_star, jax.random.PRNGKey(11), box_size=BOX,
         s_density=s_tot)) - BOX / 2
-    r_star = np.sort(np.linalg.norm(pos, axis=1))
-    ax = (np.arange(n_grid) + 0.5) / n_grid * BOX - BOX / 2
-    X, Y, Z = np.meshgrid(ax, ax, ax, indexing="ij")
-    r_cell = np.sqrt(X**2 + Y**2 + Z**2).ravel()
-    w = np.asarray(PlummerProfile(r_h=0.5).density(jnp.asarray(r_cell))) ** 1.5
-    rng = np.random.default_rng(2026)
-    idx = rng.choice(w.size, size=n_star, p=w / w.sum())
-    ijk = np.stack(np.unravel_index(idx, (n_grid,) * 3), axis=-1)
-    ref = (ijk + rng.uniform(size=ijk.shape)) * (BOX / n_grid) - BOX / 2
-    r_ref = np.sort(np.linalg.norm(ref, axis=1))
-    allr = np.concatenate([r_star, r_ref])
-    ks = float(np.max(np.abs(
-        np.searchsorted(r_star, allr, side="right") / r_star.size
-        - np.searchsorted(r_ref, allr, side="right") / r_ref.size)))
+    r_star = np.linalg.norm(pos, axis=1)
+    ref = rho_weighted_reference_positions(
+        prof, (n_grid,) * 3, BOX, FREEFALL_EXPONENT, n_star,
+        np.random.default_rng(2026))
+    r_ref = np.linalg.norm(ref, axis=1)
+    ks = ks_two_sample(r_star, r_ref)
     ok_a = ks < 0.015
-    print(f"  (a) envelope control: two-sample KS vs numpy ρ^1.5 oracle = {ks:.4f} "
-          f"(<0.015) {'PASS' if ok_a else 'FAIL'}")
+    print(f"  (a) envelope control: two-sample KS vs numpy ρ^{FREEFALL_EXPONENT} "
+          f"oracle = {ks:.4f} (<0.015) {'PASS' if ok_a else 'FAIL'}")
 
-    # (b) f_sub_derived response table
-    print("  (b) f_sub_derived(α, ℳ)  [envelope-free box, 32³, seed-averaged]:")
+    # (b) collapse_eligible_fraction response table (the smooth analytic diagnostic)
+    print("  (b) collapse_eligible_fraction(α, ℳ)  [envelope-free box, 32³, seed-averaged]:")
     grid_a = [1.5, 1.8, 2.2, 2.6]
     grid_m = [4.0, 8.0, 12.0]
     fsd = {}
@@ -379,7 +401,7 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
             for sd in seeds:
                 fld = build_turbulent_field(m, B, al, 3.0, (32,) * 3,
                                             jax.random.PRNGKey(sd))
-                vals.append(float(f_sub_derived(fld.s, fld.s_t, 8.0)))
+                vals.append(float(collapse_eligible_fraction(fld.s, fld.s_t, 8.0)))
             fsd[(al, m)] = float(np.mean(vals))
     header = "      α\\ℳ " + "".join(f"{m:>9.1f}" for m in grid_m)
     print(header)
@@ -396,20 +418,23 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
     for beta in [2.0, 3.0, 4.0]:
         qs = []
         for sd in seeds:
-            ic = _ic_mff(n=2000, beta=beta, seed=sd)
+            ic = _ic(n=2000, beta=beta, seed=sd, placement="multi_freefall")
             qs.append(q_components(np.asarray(ic.positions))[0])
         q_rows.append((beta, float(np.mean(qs)), float(np.std(qs))))
         print(f"      β={beta:.1f}  Q = {q_rows[-1][1]:.3f} ± {q_rows[-1][2]:.3f}")
     ok_c = q_rows[0][1] > q_rows[-1][1]  # rough→smooth ordering preserved
     print(f"      Q(β=2) > Q(β=4) = {ok_c} {'PASS' if ok_c else 'FAIL'}")
 
-    # (d) paired legacy-vs-new at matched tail fraction
-    ic_new = _ic_mff(n=2000, beta=3.0, seed=0)
-    f_match = float(ic_new.f_sub_derived)
+    # (d) paired legacy-vs-new at matched TAIL-STAR fraction (the actual placement-PMF
+    # fraction — review fix: the ungated eligible fraction was a >2x mismatched knob)
+    ic_new = _ic(n=2000, beta=3.0, seed=0, placement="multi_freefall")
+    f_match = float(ic_new.tail_star_fraction)
+    f_elig = float(ic_new.collapse_eligible_fraction)
     ic_old = _ic(n=2000, beta=3.0, f_sub=min(max(f_match, 0.0), 1.0), seed=0)
     q_new = q_components(np.asarray(ic_new.positions))[0]
     q_old = q_components(np.asarray(ic_old.positions))[0]
-    print(f"  (d) matched-fraction comparison: f_sub_derived={f_match:.3f}; "
+    print(f"  (d) matched-fraction comparison: tail_star_fraction={f_match:.3f} "
+          f"(eligible fraction {f_elig:.3f}); "
           f"Q_new={q_new:.3f} vs Q_legacy={q_old:.3f} (documented, not gated)")
 
     ok = ok_a and ok_b and ok_c
@@ -418,170 +443,35 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
             "f_match": f_match, "q_new": q_new, "q_legacy": q_old}
 
 
-def _ic_mff(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, seed=0):
-    return build_cluster_ic(
-        jnp.ones(n),
-        cloud=CloudSpec(mach=MACH, b=B, alpha=ALPHA, beta=beta),
-        geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX, shape=SHAPE),
-        velocity=VelocitySpec(beta_v=BETA_V, Q_target=Q_target),
-        composition=CompositionSpec(),  # multi_freefall default
-        G=G, key=jax.random.PRNGKey(seed),
-    )
-
-
-# ── figure gallery ──
-def _fig_scatter(seed=0):
-    ic = _ic(n=4000, seed=seed)
-    pos = np.asarray(ic.positions)
-    r = np.linalg.norm(pos, axis=1)
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for ax, (a, bx, lbl) in zip(
-        axes, [(0, 1, "x–y"), (0, 2, "x–z"), (1, 2, "y–z")]
-    ):
-        ax.scatter(pos[:, a], pos[:, bx], s=3, c=r, cmap="viridis", alpha=0.5)
-        ax.set_xlim(-BOX / 2, BOX / 2); ax.set_ylim(-BOX / 2, BOX / 2)
-        ax.set_aspect("equal"); ax.set_title(f"{lbl}  (colour = radius)")
-        ax.set_xlabel("pc")
-    fig.suptitle("FDF cluster IC — spherical envelope + turbulent substructure "
-                 f"(ℳ={MACH}, β=3.0, r_h=0.5 pc, N=4000)")
-    fig.savefig(os.path.join(PLOTS, "cluster_scatter.png"), dpi=120, bbox_inches="tight")
-    plt.close(fig)
-
-
-_RP_EDGES = np.linspace(0, 2.0, 24)
-_RP_CEN = 0.5 * (_RP_EDGES[:-1] + _RP_EDGES[1:])
-_RP_SHELL = 4 / 3 * np.pi * (_RP_EDGES[1:] ** 3 - _RP_EDGES[:-1] ** 3)
-
-
-def _radial_profile_sampled(r_h, mach, s_turb_zero, seeds, n=6000):
-    """Mean sampled number-density profile ρ(r). ``s_turb_zero`` → pure-envelope control."""
-    prof = PlummerProfile(r_h=r_h)
-    stack = []
-    for sd in seeds:
-        fld = build_turbulent_field(mach, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(sd))
-        s_turb = jnp.zeros(SHAPE) if s_turb_zero else fld.s
-        s_tot = apply_spherical_envelope(s_turb, prof, BOX)
-        pos = np.asarray(sample_positions(s_turb, fld.s_t, 8.0, 0.3, n,
-                                          jax.random.PRNGKey(sd + 50), box_size=BOX,
-                                          s_density=s_tot)) - BOX / 2
-        cnt, _ = np.histogram(np.linalg.norm(pos, axis=1), bins=_RP_EDGES)
-        stack.append(cnt / _RP_SHELL)
-    return np.mean(stack, axis=0)
-
-
-def _fig_radial_profile(seeds=(0, 1, 2)):
-    # normalise at r = r_h (a RESOLVED radius, ~4 cells) — NOT the sub-cell innermost bin
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5))
-    # panel A: fiducial (ℳ=8) sampled vs analytic, 3 envelopes
-    ax = axes[0]
-    for r_h, col in zip([0.3, 0.5, 0.8], ["C0", "C1", "C2"]):
-        iref = int(np.argmin(np.abs(_RP_CEN - r_h)))
-        dens = _radial_profile_sampled(r_h, MACH, False, seeds)
-        ax.plot(_RP_CEN, dens / dens[iref], "o-", color=col, label=f"sampled, r_h={r_h}")
-        pl = np.asarray(PlummerProfile(r_h=r_h).density(jnp.asarray(_RP_CEN)))
-        ax.plot(_RP_CEN, pl / pl[iref], "--", color=col, alpha=0.7)
-    ax.set_yscale("log"); ax.set_xlabel("r (pc)"); ax.set_ylabel("ρ(r)/ρ(r_h)")
-    ax.set_title("Fiducial (ℳ=8) sampled (points) vs analytic Plummer (dashed)\n"
-                 "normalised at r=r_h; turbulent BM19 tail broadens the wings")
-    ax.legend()
-    # panel B: control — turbulence on/off at r_h=0.5 proves envelope fidelity
-    ax = axes[1]
-    iref = int(np.argmin(np.abs(_RP_CEN - 0.5)))
-    pl = np.asarray(PlummerProfile(r_h=0.5).density(jnp.asarray(_RP_CEN)))
-    pe = _radial_profile_sampled(0.5, MACH, True, seeds)    # pure envelope (turbulence off)
-    m8 = _radial_profile_sampled(0.5, MACH, False, seeds)   # fiducial (turbulence on)
-    ax.plot(_RP_CEN, pl / pl[iref], "k--", lw=2, label="analytic Plummer")
-    ax.plot(_RP_CEN, pe / pe[iref], "s-", color="C2", label="sampled, turbulence OFF")
-    ax.plot(_RP_CEN, m8 / m8[iref], "o-", color="C3", label="sampled, ℳ=8 (turbulence ON)")
-    ax.set_yscale("log"); ax.set_xlabel("r (pc)"); ax.set_ylabel("ρ(r)/ρ(r_h)")
-    ax.set_title("Control (r_h=0.5): envelope sampling = analytic (few %);\n"
-                 "turbulence is the large-r EXCESS; central cusp grid-under-resolved")
-    ax.legend()
-    fig.savefig(os.path.join(PLOTS, "cluster_radial_profile.png"), dpi=120, bbox_inches="tight")
-    plt.close(fig)
-
-
-def _fig_beta_recovery(rec):
-    rows = np.array(rec["rows"])  # (β, slope_s, σ_s, slope_dens, σ_dens, err)
-    fig, ax = plt.subplots(figsize=(7.5, 5.5))
-    lo, hi = rows[:, 0].min() - 0.2, rows[:, 0].max() + 0.2
-    ax.plot([lo, hi], [lo, hi], "k:", label="1:1 (perfect recovery)")
-    ax.errorbar(rows[:, 0], rows[:, 1], yerr=rows[:, 2], fmt="o-", color="C0", capsize=3,
-                label="log-density slope (≈ input β)")
-    ax.errorbar(rows[:, 0], rows[:, 3], yerr=rows[:, 4], fmt="s-", color="C1", capsize=3,
-                label="density e^s slope (compressed)")
-    ax.set_xlabel("input β"); ax.set_ylabel("measured P(k) slope")
-    ax.set_title(f"β recovery: log-density slope tracks input β to "
-                 f"max |err|={rec['max_err']:.3f}\n(density slope is compressed by the BM19 tail)")
-    ax.legend()
-    fig.savefig(os.path.join(PLOTS, "cluster_beta_recovery.png"), dpi=120, bbox_inches="tight")
-    plt.close(fig)
-
-
-def _fig_substructure_plane(sub):
-    beta_rows = np.array(sub["beta_rows"]); conc_rows = np.array(sub["conc_rows"])
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    # (m̄, s̄) plane with the two trajectories
-    ax = axes[0]
-    ax.plot(beta_rows[:, 2], beta_rows[:, 3], "o-", color="C3", label="β-sweep (r_h=0.5)")
-    for b, _, m, s in beta_rows:
-        ax.annotate(f"{b:.1f}", (m, s), fontsize=7, color="C3")
-    ax.plot(conc_rows[:, 2], conc_rows[:, 3], "s-", color="C0", label="concentration (β=3.0)")
-    for rh, _, m, s in conc_rows:
-        ax.annotate(f"{rh:.1f}", (m, s), fontsize=7, color="C0")
-    ax.set_xlabel("m̄  (normalised MST edge — concentration axis)")
-    ax.set_ylabel("s̄  (normalised mean separation)")
-    ax.set_title("CW04 (m̄, s̄) plane\nβ and concentration trace independent directions")
-    ax.legend()
-    # Q vs β and Q vs r_h (the conflation Q alone can't resolve)
-    axes[1].plot(beta_rows[:, 0], beta_rows[:, 1], "o-", color="C3")
-    axes[1].set_xlabel("β"); axes[1].set_ylabel("CW04 Q")
-    axes[1].set_title("Q ↓ with β (substructure) — at fixed envelope")
-    axes[2].plot(conc_rows[:, 0], conc_rows[:, 1], "s-", color="C0")
-    axes[2].set_xlabel("envelope r_h (pc)"); axes[2].set_ylabel("CW04 Q")
-    axes[2].set_title("Q ↓ with r_h (less concentrated) — at fixed β\n→ Q alone conflates the two")
-    fig.savefig(os.path.join(PLOTS, "cluster_substructure_plane.png"), dpi=120, bbox_inches="tight")
-    plt.close(fig)
-
-
-def _fig_velocity(vc, seed=0):
-    ic = _ic(n=1200, seed=seed)
-    pos = np.asarray(ic.positions); vel = np.asarray(ic.velocities)
-    fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
-    sp = np.linalg.norm(vel, axis=1)
-    axes[0].quiver(pos[:, 0], pos[:, 1], vel[:, 0], vel[:, 1], sp,
-                   cmap="coolwarm", scale_units="xy", angles="xy", width=0.003)
-    axes[0].set_aspect("equal"); axes[0].set_xlabel("x (pc)"); axes[0].set_ylabel("y (pc)")
-    axes[0].set_title("Stellar velocity field (x–y)\ncoherent — nearby stars move together")
-    # alignment vs separation
-    sep, cos = vc["sep"], vc["cos"]
-    edges = np.linspace(0, sep.max(), 18); cen = 0.5 * (edges[:-1] + edges[1:])
-    idx = np.clip(np.digitize(sep, edges) - 1, 0, len(cen) - 1)
-    prof = np.array([cos[idx == i].mean() if np.any(idx == i) else np.nan for i in range(len(cen))])
-    axes[1].plot(cen, prof, "o-")
-    axes[1].axhline(0, color="k", lw=0.8, ls=":")
-    axes[1].set_xlabel("pair separation (pc)"); axes[1].set_ylabel("mean velocity alignment cosθ")
-    axes[1].set_title(f"Velocity coherence decays with separation\n"
-                      f"near {vc['align_near']:+.2f} → far {vc['align_far']:+.2f}")
-    fig.savefig(os.path.join(PLOTS, "cluster_velocity_coherence.png"), dpi=120, bbox_inches="tight")
-    plt.close(fig)
+# ── figure gallery (moved) ──
+# _fig_scatter / _fig_radial_profile / _fig_beta_recovery / _fig_substructure_plane /
+# _fig_velocity now live in gravoturb.validation.cluster_figures (imported in main()).
 
 
 def main():
     print("=" * 78)
-    print(f"FDF CLUSTER IC ACCEPTANCE  |  ℳ={MACH}, b={B}, α={ALPHA}, box={BOX}pc, shape={SHAPE}")
+    print(f"GRAVOTURB CLUSTER IC ACCEPTANCE  |  ℳ={MACH}, b={B}, α={ALPHA}, box={BOX}pc, shape={SHAPE}")
     print("=" * 78)
     r0 = ac_ic0_envelope_fidelity()
     r0m = ac_ic0_envelope_fidelity(placement="multi_freefall")  # A4 re-run (Phase 1)
     r7 = ac_ic7_multi_freefall()
     r1 = ac_ic1_envelope()
+    r1m = ac_ic1_envelope(placement="multi_freefall")   # shipped default, gated too
     r2 = ac_ic2_virial()
     r3 = ac_ic3_substructure()
     r4 = ac_ic4_velocity_coherence()
+    r4m = ac_ic4_velocity_coherence(placement="multi_freefall")
     r5 = ac_ic5_gradient()
     r6 = ac_ic6_beta_recovery()
 
     print("\n[gallery] writing figures ...")
+    from gravoturb.validation.cluster_figures import (  # deferred: avoids import cycle
+        _fig_beta_recovery,
+        _fig_radial_profile,
+        _fig_scatter,
+        _fig_substructure_plane,
+        _fig_velocity,
+    )
     _fig_scatter()
     _fig_radial_profile()
     _fig_substructure_plane(r3)
@@ -591,12 +481,16 @@ def main():
     results = {"AC-IC0 envelope fidelity": r0,
                "AC-IC0 (multi_freefall, A4)": r0m,
                "AC-IC7 multi-freefall": r7,
-               "AC-IC1 envelope": r1, "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
-               "AC-IC4 coherence": r4, "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
+               "AC-IC1 envelope (legacy)": r1,
+               "AC-IC1 envelope (multi_freefall)": r1m,
+               "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
+               "AC-IC4 coherence (legacy)": r4,
+               "AC-IC4 coherence (multi_freefall)": r4m,
+               "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
     print("\n" + "=" * 78)
     print("SUMMARY")
     for name, r in results.items():
-        print(f"  {name:<26} {'PASS' if r['passed'] else 'FAIL'}")
+        print(f"  {name:<34} {'PASS' if r['passed'] else 'FAIL'}")
     n_pass = sum(r["passed"] for r in results.values())
     print(f"  {n_pass}/{len(results)} acceptance checks passed")
     print("  figures:")

@@ -11,19 +11,18 @@ numpy/scipy are permitted here (validation/analysis side).
 
 import math
 
-import numpy as np
-
 import jax
 import jax.numpy as jnp
+import numpy as np
 
+from gravoturb.diagnostics.q import compute_q_parameter
+from gravoturb.realization.pipeline import build_turbulent_field
+from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_from_field
 from gravoturb.theory.density_pdf import (
     dense_mass_fraction,
     sigma_s_squared,
     transition_density,
 )
-from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_from_field
-from gravoturb.diagnostics.q import compute_q_parameter
-from gravoturb.realization.pipeline import build_turbulent_field
 
 
 # ── small printing helpers ──
@@ -89,7 +88,7 @@ def ac3_ac4_zeta():
     for p in (0.5, 1.0, 1.5):
         r = np.linspace(1e-3, 1.0, 40_000)
         zfdf = float(zeta_from_field(r ** (-p), 4 * np.pi * r**2))
-        ok &= _row(f"zeta_FDF vs analytic (p={p})", float(magnification_factor(p)),
+        ok &= _row(f"zeta (direct field) vs analytic (p={p})", float(magnification_factor(p)),
                    zfdf, 0.03, "rel")
     return {"passed": bool(ok)}
 
@@ -204,11 +203,16 @@ def ac11_xi_s_vs_oracle(shape=(64, 64, 64), n_real=8, beta=3.0, mach=5.0, b=0.4,
     oracle (smooth-copula field measured xi_s). Reports max/median relative error on
     bins with rho_g > rho_floor and the Gaussianization convergence (n_max/2 -> n_max).
     """
+    from gravoturb.diagnostics.measure import (
+        field_2pt_measured,
+        gaussian_correlation_measured,
+        smooth_copula_field,
+    )
     from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.validation.measure import (
-        field_2pt_measured, gaussian_correlation_measured, smooth_copula_field)
     from gravoturb.theory.log_correlations import (
-        log_density_hermite_coefficients, gaussianized_xi)
+        gaussianized_xi,
+        log_density_hermite_coefficients,
+    )
 
     _header("AC11 — predicted xi_s vs realization oracle (+ Gaussianization convergence)")
     key = jax.random.PRNGKey(seed)
@@ -254,12 +258,19 @@ def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5
     perturbs the marginal (1-pt) but barely the log-density 2-pt. (The discrepancy is
     noise-limited, not a systematic rank-vs-Phi bias.)
     """
+    from gravoturb.diagnostics.measure import (
+        field_2pt_measured,
+        gaussian_correlation_measured,
+    )
+    from gravoturb.realization.copula import (
+        mass_conserving_copula_field,
+        rank_copula_field,
+    )
     from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.realization.copula import mass_conserving_copula_field, rank_copula_field
-    from gravoturb.validation.measure import (
-        field_2pt_measured, gaussian_correlation_measured)
     from gravoturb.theory.log_correlations import (
-        log_density_hermite_coefficients, gaussianized_xi)
+        gaussianized_xi,
+        log_density_hermite_coefficients,
+    )
 
     _header("AC11b — rank/mass-conserving copula xi_s vs analytic prediction (map-mismatch)")
     key = jax.random.PRNGKey(seed)
@@ -305,10 +316,12 @@ def ac12_limber_projection_vs_oracle(shape=(48, 48, 48), n_real=48, beta=3.0, n_
     steep red beta=3 -> few low-k modes coherently tilt the normalized curve): seed=0 n_real=48
     -> 0.008, worst of seeds 0-4 -> 0.026, so abs_tol=0.03 is robust and deterministic at the
     fiducial seed=0. main() runs that 48^3 x 48 ensemble."""
+    from gravoturb.diagnostics.measure import autocovariance_3d, radial_average
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.theory.projection import (
-        gaussian_correlation_grid, limber_project_grid)
-    from gravoturb.validation.measure import autocovariance_3d, radial_average
+        gaussian_correlation_grid,
+        limber_project_grid,
+    )
 
     _header("AC12 — Limber-projected analytic 2-pt vs realization oracle")
     proj = np.asarray(limber_project_grid(gaussian_correlation_grid(shape, beta), los_axis=2))
@@ -347,11 +360,14 @@ def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b
     the measured clustering; (3) the compound-Poisson P(N) vs the mock count histogram.
     The linear-rho moment is genuinely tail-sensitive (the old realization pipeline scattered
     ~90%); Route A reaches a few % at n_real=24 (cosmic-variance-limited at small n_real)."""
+    from gravoturb.diagnostics.measure import smooth_copula_field
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.pipeline import TurbulentField, cloud_to_stars
-    from gravoturb.validation.measure import smooth_copula_field
     from gravoturb.theory.counts_in_cells import (
-        cell_averaged_xi_rho, cic_variance, count_distribution)
+        cell_averaged_xi_rho,
+        cic_variance,
+        count_distribution,
+    )
     from gravoturb.theory.projection import box_window_sq_grid
 
     _header("AC13 — counts-in-cells sigma^2_N and P(N) vs mock star counts")
@@ -421,9 +437,15 @@ def ac14_grad_validation(shape=(24, 24, 24), R=2.0, mach=5.0, b=0.4, alpha=2.5, 
         The residual (~8% on a 24^3, R=2 grid) is the FORWARD-model discretization bias (the
         same theory-vs-simulator fidelity AC13 drives to ~2.4% at the production grid), NOT a
         gradient error -- part (1) proves the gradient math to ~1e-5. Reported as rel agreement."""
+    from gravoturb.diagnostics.measure import (
+        smooth_copula_field,
+        smoothed_linear_variance,
+    )
     from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.validation.measure import smooth_copula_field, smoothed_linear_variance
-    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho, smoothed_log_variance
+    from gravoturb.theory.counts_in_cells import (
+        cell_averaged_xi_rho,
+        smoothed_log_variance,
+    )
     from gravoturb.theory.projection import top_hat_window
 
     _header("AC14 — gradient validation (autodiff vs FD; analytic beta vs simulator CRN)")
@@ -484,11 +506,14 @@ def ac15_fisher_forecast(shape=(32, 32, 32), n_real=150, c=4, beta=3.0, mach=5.0
     PDF-TAIL slope needing the high-N tail of P(N)), the 1/sqrt(V) scaling, and the mach-b
     degeneracy. The realistic, shot-noise-consistent forecast (with alpha rescued by the
     compound-Poisson P(N) likelihood) is the Phase-6 deliverable (AC16, inherently star-level)."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.validation.measure import smooth_copula_field
-    from gravoturb.inference.covariance import measured_bandpowers, mock_covariance, hartlap_factor
-    from gravoturb.inference.likelihood import data_vector
+    from gravoturb.diagnostics.measure import smooth_copula_field
+    from gravoturb.inference.covariance import (
+        hartlap_factor,
+        measured_bandpowers,
+        mock_covariance,
+    )
     from gravoturb.inference.fisher import fisher_matrix, marginal_errors
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     _header("AC15 -- Fisher forecast (FIELD-LEVEL UPPER BOUND; band-powers + CIC variance)")
     print("  NOTE: optimistic upper bound -- band-powers are field-level (no star shot noise) and")
@@ -570,16 +595,20 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     and small |corr(mach, alpha)| (the POT block breaks the old mach-alpha degeneracy). This is an
     INJECTION-RECOVERY test of the inference machinery (mock drawn from the same BM19 model); the
     transferable science result is AC17's sigma(alpha)-vs-N_tail forecast."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field, expected_cells_above_transition
-    from gravoturb.realization.copula import rank_copula_field
-    from gravoturb.realization.placement import sample_cic_counts
-    from gravoturb.validation.measure import (
-        measure_exceedances, measure_log_count_variance,
-        estimate_log_count_variance_var)
+    from gravoturb.diagnostics.measure import (
+        estimate_log_count_variance_var,
+        measure_exceedances,
+        measure_log_count_variance,
+    )
     from gravoturb.inference.covariance import measured_bandpowers, mock_precision
     from gravoturb.inference.fisher import sigma_alpha
-    from gravoturb.inference.hmc import (
-        run_nuts, to_unconstrained, to_constrained)
+    from gravoturb.inference.hmc import run_nuts, to_constrained, to_unconstrained
+    from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.realization.gaussian_field import (
+        expected_cells_above_transition,
+        gaussian_random_field,
+    )
+    from gravoturb.realization.placement import sample_cic_counts
 
     _header("AC16 -- joint (mach,alpha,beta) HMC recovery (stellar CIC -> M,beta; POT tail -> alpha)")
     key = jax.random.PRNGKey(seed)
@@ -599,8 +628,14 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     # (truth-INDEPENDENT: computed at (M,alpha,beta)=(_MACH_FID,_ALPHA_FID,_BETA_FID), NOT at the
     # injected mach/alpha/beta -- a truth-keyed var_v would be exactly the SBC artifact the old POT
     # barrier was). Replaces the tail-sensitive bincount count-histogram block (the AC18 M-bias).
+    from gravoturb.inference.model import K_EDGES as _K_EDGES
     from gravoturb.inference.sbc import (
-        _MACH_FID, _ALPHA_FID, _BETA_FID, _N_REAL_VAR_V, _N_REAL_BP, _K_EDGES)
+        _ALPHA_FID,
+        _BETA_FID,
+        _MACH_FID,
+        _N_REAL_BP,
+        _N_REAL_VAR_V,
+    )
     s_lo = rank_copula_field(gaussian_random_field(shape, beta, jax.random.fold_in(key, 1)),
                              mach, b, alpha)
     k_var = jax.random.fold_in(key, 2**31)  # disjoint stream for the fixed-fiducial var_v
@@ -629,8 +664,8 @@ def ac16_hmc_recovery(shape=(24, 24, 24), density_shape=(128, 128, 128), cell_si
     # Task 6). AC16 uses a weakly-informative BM19Prior whose log-uniform/uniform boxes
     # comfortably contain the injected (mach, alpha, beta), so the prior is nearly flat over
     # the posterior bulk and the recovery is unchanged from the old flat-in-theta closure.
+    from gravoturb.inference.model import build_logdensity
     from gravoturb.inference.priors import BM19Prior
-    from gravoturb.inference.sbc import build_logdensity
     data = {"exc_counts": exc_counts, "exc_edges": exc_edges,
             "log_count_vars": tuple(log_count_vars), "var_vs": tuple(var_vs),
             "n_bars": tuple(nbars), "band_powers": band_powers}
@@ -701,10 +736,13 @@ def ac17_alpha_forecast(grids=((64, 64, 64), (96, 96, 96), (128, 128, 128)), n_i
 
     Also (Option B) the robust f_dense cross-check: a MASS-conserving realization's dense-mass
     fraction matches ``dense_mass_fraction`` (convergent, truncation-robust). numpy MLE (validation)."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.realization.copula import rank_copula_field, mass_conserving_copula_field
-    from gravoturb.validation.measure import measure_exceedances, smooth_copula_field
+    from gravoturb.diagnostics.measure import measure_exceedances, smooth_copula_field
     from gravoturb.inference.fisher import sigma_alpha
+    from gravoturb.realization.copula import (
+        mass_conserving_copula_field,
+        rank_copula_field,
+    )
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     _header("AC17 -- sigma(alpha) vs N_tail forecast (iid-validated Fisher + correlation caveat)")
     key = jax.random.PRNGKey(seed)
@@ -815,9 +853,12 @@ def ac18_sbc_rank_uniformity(n_trials, b=0.4, s_thr_margin=0.75, shape=(24,) * 3
     """
     import matplotlib  # noqa: E402  (lazy: keep acceptance.py import light for other ACs)
     matplotlib.use("Agg")
-    from scipy import stats  # noqa: E402  (validation/analysis side)
     from jaxstroviz.experimental.analysis.sbc import (  # noqa: E402
-        resolve_sbc_n_bins, sbc_bin_assignment, sbc_expected_counts)
+        resolve_sbc_n_bins,
+        sbc_bin_assignment,
+        sbc_expected_counts,
+    )
+    from scipy import stats  # noqa: E402  (validation/analysis side)
 
     from gravoturb.inference.priors import BM19Prior
     from gravoturb.inference.sbc import sbc_ranks
@@ -882,12 +923,12 @@ def ac20_log_count_variance_oracle(
     extent); pass an explicit ``n_count_max`` to probe that (a no-op if truly tail-robust). numpy
     oracle (validation/non-differentiable); the prediction is the differentiable theory side.
     """
-    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.diagnostics.measure import measure_log_count_variance
     from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.placement import sample_cic_counts
     from gravoturb.theory.counts_in_cells import predict_log_count_variance
     from gravoturb.theory.projection import box_window_sq_grid
-    from gravoturb.validation.measure import measure_log_count_variance
 
     _header("AC20 -- tail-robust log-count variance: predicted vs finite-field oracle across Mach")
     w2 = box_window_sq_grid(shape, c)

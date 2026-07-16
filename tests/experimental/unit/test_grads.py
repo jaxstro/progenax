@@ -1,7 +1,7 @@
 """Differentiability of the gravoturb 1D theory — AC8 (grad signs) + AC9 (FD vs autodiff).
 
 Public differentiable entry points: sigma_s_squared, dense_mass_fraction,
-magnification_factor (and log_density_icdf, checked in test_pdf). All must be smooth and
+magnification_factor (and log_density_icdf, checked in test_density_cdf). All must be smooth and
 grad-correct in the cloud parameters; float64 is enabled at package import.
 """
 
@@ -37,8 +37,8 @@ def test_grad_sign_f_dense_decreases_with_mach_and_alpha():
 
 def test_grad_sign_zeta_decreases_with_alpha():
     """zeta rises with p but p = 3/alpha, so d zeta/d alpha < 0."""
-    from gravoturb.theory.density_pdf import pdf_slope_to_radial
     from gravoturb.theory.dense_gas_sfr import magnification_factor
+    from gravoturb.theory.density_pdf import pdf_slope_to_radial
 
     zeta_of_alpha = lambda a: magnification_factor(pdf_slope_to_radial(a))
     assert float(jax.grad(zeta_of_alpha)(2.0)) < 0.0  # alpha=2 -> p=1.5
@@ -83,8 +83,8 @@ def test_fd_vs_autodiff_magnification(p):
 
 # ── guard regions: gradients stay finite near the alpha->1 and p->2 singularities ──
 def test_grads_finite_near_guards():
-    from gravoturb.theory.density_pdf import dense_mass_fraction
     from gravoturb.theory.dense_gas_sfr import magnification_factor
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
     g_fdense = float(jax.grad(lambda a: dense_mass_fraction(6.0, 0.5, a))(1.05))
     g_zeta = float(jax.grad(magnification_factor)(1.95))

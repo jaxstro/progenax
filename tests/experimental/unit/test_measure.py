@@ -1,4 +1,4 @@
-"""Unit tests for gravoturb.validation.measure (the oracle-measurement side).
+"""Unit tests for gravoturb.diagnostics.measure (the oracle-measurement side).
 
 These utilities measure 2-point statistics from realization fields and build the
 theory-consistent ``smooth_copula_field`` (s = log_density_icdf(Phi(g_hat)) - shift on an
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.experimental
 
 def test_autocovariance_3d_recovers_cosine_mode():
     """xi(r) of a single cosine mode = 0.5 cos(2 pi k0 dx / N) (Wiener-Khinchin)."""
-    from gravoturb.validation.measure import autocovariance_3d
+    from gravoturb.diagnostics.measure import autocovariance_3d
 
     n, k0 = 16, 2
     i = np.arange(n)
@@ -29,7 +29,7 @@ def test_autocovariance_3d_recovers_cosine_mode():
 
 def test_autocovariance_3d_zero_lag_is_variance():
     """xi(0) = Var(field)."""
-    from gravoturb.validation.measure import autocovariance_3d
+    from gravoturb.diagnostics.measure import autocovariance_3d
 
     rng = np.random.default_rng(0)
     f = rng.normal(size=(24, 24, 24))
@@ -39,7 +39,7 @@ def test_autocovariance_3d_zero_lag_is_variance():
 
 def test_measured_2pt_white_noise_decorrelates():
     """White noise: rho(r>0) ~ 0 (within sampling noise); variance recovered."""
-    from gravoturb.validation.measure import gaussian_correlation_measured
+    from gravoturb.diagnostics.measure import gaussian_correlation_measured
 
     rng = np.random.default_rng(1)
     g = rng.normal(size=(32, 32, 32))
@@ -50,8 +50,8 @@ def test_measured_2pt_white_noise_decorrelates():
 
 def test_smooth_copula_field_marginal_lognormal_limit():
     """smooth_copula_field marginal: large alpha => Var(s) ~ sigma_s^2."""
+    from gravoturb.diagnostics.measure import smooth_copula_field
     from gravoturb.theory.density_pdf import sigma_s_squared
-    from gravoturb.validation.measure import smooth_copula_field
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))
@@ -63,7 +63,7 @@ def test_smooth_copula_field_marginal_lognormal_limit():
 
 def test_smooth_copula_field_mean_density_unity():
     """smooth_copula_field marginal: <e^s> ~ 1 (alpha=3, finite 2nd moment)."""
-    from gravoturb.validation.measure import smooth_copula_field
+    from gravoturb.diagnostics.measure import smooth_copula_field
 
     key = jax.random.PRNGKey(4)
     g = jax.random.normal(key, (48, 48, 48))
@@ -79,8 +79,8 @@ def test_measure_exceedances_counts_edges_and_alpha_recovery():
     s_thr. Mechanics: edges span [s_thr, s_max] closed at the realized max; counts sum to n_tail =
     #(s>s_thr). Physics: on a pure-exponential tail above s_thr, maximizing tail_exceedance_loglike
     over alpha recovers alpha_true to within ~3 sigma (sigma = alpha/sqrt(N_tail))."""
+    from gravoturb.diagnostics.measure import measure_exceedances
     from gravoturb.inference.likelihood import tail_exceedance_loglike
-    from gravoturb.validation.measure import measure_exceedances
 
     rng = np.random.default_rng(0)
     alpha_true, s_thr, n_tail_draw = 2.5, 1.0, 40000
@@ -117,7 +117,7 @@ def test_measure_exceedances_counts_edges_and_alpha_recovery():
 
 
 def test_measure_log_count_variance_matches_log_plus():
-    from gravoturb.validation.measure import measure_log_count_variance
+    from gravoturb.diagnostics.measure import measure_log_count_variance
 
     rng = np.random.default_rng(0)
     n_bar = 5.0
@@ -136,7 +136,7 @@ def test_measure_log_count_variance_matches_log_plus():
 def test_log_count_variance_estimator_var_positive():
     """The fiducial estimator variance of measure_log_count_variance over an n_real mock ensemble
     (used as the fixed var_v in log_count_variance_loglike) is a finite, strictly positive number."""
-    from gravoturb.validation.measure import estimate_log_count_variance_var
+    from gravoturb.diagnostics.measure import estimate_log_count_variance_var
 
     vv = estimate_log_count_variance_var(
         mach=8.0,
@@ -157,7 +157,7 @@ def test_log_count_variance_estimator_var_positive():
 
 def test_project_counts_los_sums_slices():
     import numpy as np
-    from gravoturb.validation.measure import project_counts_los
+    from gravoturb.diagnostics.measure import project_counts_los
 
     c = np.ones((8, 8, 8))
     assert np.allclose(project_counts_los(c, depth=8), 8.0)
@@ -166,7 +166,7 @@ def test_project_counts_los_sums_slices():
 
 def test_measure_angular_bandpowers_2d_shape_and_positive():
     import numpy as np
-    from gravoturb.validation.measure import measure_angular_bandpowers_2d
+    from gravoturb.diagnostics.measure import measure_angular_bandpowers_2d
 
     rng = np.random.default_rng(0)
     bp = measure_angular_bandpowers_2d(
@@ -179,7 +179,7 @@ def test_measure_log_count_variance_is_shape_agnostic_2d():
     """measure_log_count_variance is shape-agnostic: it runs on a 2D (projected) count map and
     returns a finite, non-negative float. The 2D inference path relies on this same statistic."""
     import numpy as np
-    from gravoturb.validation.measure import measure_log_count_variance
+    from gravoturb.diagnostics.measure import measure_log_count_variance
 
     rng = np.random.default_rng(0)
     n_bar = 5.0

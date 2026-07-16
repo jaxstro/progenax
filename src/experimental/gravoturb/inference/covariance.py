@@ -18,12 +18,12 @@ from jaxtyping import Array, Float
 
 from gravoturb.theory.log_correlations import (
     density_hermite_coefficients,
-    log_density_hermite_coefficients,
     gaussianized_xi,
+    log_density_hermite_coefficients,
 )
 from gravoturb.theory.projection import (
-    _kmag_grid,
     gaussian_correlation_grid,
+    kmag_grid,
     limber_project_grid,
     limber_project_slab,
 )
@@ -76,7 +76,7 @@ def power_spectrum_bandpowers(
     r"""Radially-binned log-density power spectrum: returns (k_centers, P_s band-powers,
     N_modes per bin). The 2-pt block of the Fisher data vector; differentiable in theta."""
     P = power_spectrum_grid(shape, beta, mach, b, alpha, n_max, n_quad)
-    kmag = _kmag_grid(shape)
+    kmag = kmag_grid(shape)
     return _bin_by_kmag(P, kmag, k_edges)
 
 
@@ -117,7 +117,7 @@ def mock_precision(rows):
 
 def _kmag_grid_2d(shape: tuple[int, int]) -> Float[Array, " ny nx"]:
     r"""2-D isotropic |k| grid (kx = fftfreq(n)*n per axis), matching
-    :func:`gravoturb.validation.measure.measure_angular_bandpowers_2d` so the predicted
+    :func:`gravoturb.diagnostics.measure.measure_angular_bandpowers_2d` so the predicted
     and measured angular band-powers share an identical |k| convention."""
     ny, nx = shape
     ky = jnp.fft.fftfreq(ny) * ny
@@ -125,7 +125,7 @@ def _kmag_grid_2d(shape: tuple[int, int]) -> Float[Array, " ny nx"]:
     return jnp.sqrt(ky[:, None] ** 2 + kx[None, :] ** 2)
 
 
-def _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges):
+def angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges):
     r"""Bin the 2-D projected autocovariance into angular band-powers via Wiener-Khinchin.
 
     ``P_Sigma(k) = fft2(xi_Sigma)(k)`` is the EXACT discrete 2-D power spectrum for the
@@ -137,7 +137,7 @@ def _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges):
     return _bin_by_kmag(P_2d, kmag, k_edges)
 
 
-def _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad):
+def xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad):
     r"""3-D EXACT BM19 density 2-point ``xi_rho(r) = sum_{n>=1} d_n^2/n! rho_g(r)^n``.
 
     Uses the DENSITY Hermite coefficients ``d_n = <e^s He_n(g)>`` (the exact Mehler
@@ -172,9 +172,9 @@ def angular_bandpowers_2d_limber(
     mirroring :func:`power_spectrum_bandpowers`. Differentiable in (beta, mach, b, alpha) and
     the ``depth`` nuisance. This is the CLUSTERING predictor only; compose with
     :func:`add_poisson_shot` for the count observable."""
-    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_rho = xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
     xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
-    return _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
+    return angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
 
 
 def _angular_bandpowers_from_xi_rho_full(
@@ -183,9 +183,9 @@ def _angular_bandpowers_from_xi_rho_full(
     r"""Full-depth periodic-projection variant of :func:`angular_bandpowers_2d_limber`
     (uses ``limber_project_grid`` directly). At ``depth = n_los`` the slab predictor reduces
     to this exactly; kept as the reduction-limit reference for tests."""
-    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_rho = xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
     xi_Sigma = limber_project_grid(xi_rho, los_axis=2)
-    return _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
+    return angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
 
 
 def add_poisson_shot(
@@ -209,7 +209,7 @@ def measured_bandpowers(s, shape, k_edges):
     f = np.asarray(s, dtype=float)
     f = f - f.mean()
     pk = np.abs(np.fft.fftn(f)) ** 2 / f.size
-    kmag = np.asarray(_kmag_grid(shape))
+    kmag = np.asarray(kmag_grid(shape))
     out = np.zeros(len(k_edges) - 1)
     ke = np.asarray(k_edges)
     for i, (lo, hi) in enumerate(zip(ke[:-1], ke[1:])):

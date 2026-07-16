@@ -141,14 +141,14 @@ def _logplus_limit_reference(
     deterministic log_+ of the lognormal projected density -- NOT pure ln (that is the ln-vs-log_+
     difference the calibrated transfer absorbs)."""
     from gravoturb.inference.covariance import (
-        _angular_bandpowers_from_xi_rho_2d,
-        _xi_rho_grid,
+        angular_bandpowers_from_xi_rho_2d,
+        xi_rho_grid,
     )
-    from jaxstro.numerics.quadrature import hermite_coefficients
     from gravoturb.theory.log_correlations import gaussianized_xi
     from gravoturb.theory.projection import limber_project_slab
+    from jaxstro.numerics.quadrature import hermite_coefficients
 
-    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_rho = xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
     xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
     L = float(depth)
     s2 = jnp.log1p(xi_Sigma[0, 0] / L**2)
@@ -161,7 +161,7 @@ def _logplus_limit_reference(
 
     a = hermite_coefficients(lp_map, n_max, n_quad)
     return np.asarray(
-        _angular_bandpowers_from_xi_rho_2d(gaussianized_xi(rho_g, a), k_edges)[1]
+        angular_bandpowers_from_xi_rho_2d(gaussianized_xi(rho_g, a), k_edges)[1]
     )
 
 

@@ -31,13 +31,13 @@ def test_cell_averaged_xi_rho_vs_field_oracle():
     ensemble-mean Var of the realized rho_tilde smoothed at scale R (top-hat). Isolates
     the linear-rho Gaussianization series from Poisson shot noise. alpha=2.5 keeps
     <rho^2> finite so the series converges cleanly (alpha<=2 stress + convergence -> AC13)."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
-    from gravoturb.theory.projection import top_hat_window
-    from gravoturb.validation.measure import (
+    from gravoturb.diagnostics.measure import (
         smooth_copula_field,
         smoothed_linear_variance,
     )
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
+    from gravoturb.theory.projection import top_hat_window
 
     shape, beta, R = (48, 48, 48), 3.0, 2.5
     mach, b, alpha, n_real = 5.0, 0.4, 2.5, 16
@@ -79,8 +79,8 @@ def test_smoothed_log_variance_limits():
     """sigma_s^2(R) (exact smoothed log-density variance, the log-map analog of Route A):
     -> sigma_s_squared(mach,b) as R->0 (cell = point, full variance), strictly decreasing
     in R (more smoothing), and differentiable in (mach,b,alpha,beta)."""
-    from gravoturb.theory.density_pdf import sigma_s_squared
     from gravoturb.theory.counts_in_cells import smoothed_log_variance
+    from gravoturb.theory.density_pdf import sigma_s_squared
 
     shape, beta = (32, 32, 32), 3.0
     mach, b, alpha = 5.0, 0.4, 2.5
@@ -198,9 +198,9 @@ def test_sample_cic_counts_clean_poisson():
     """sample_cic_counts is a true inhomogeneous-Poisson CIC: count_cell ~ Poisson(n_bar*rho_cell).
     Mean ~ n_bar and Var(N) ~ N_bar + N_bar^2 Var(rho_cell) (the clean Cox relation, no fine-cell
     pile-up artifact) -- so it matches the count_distribution model and is resolution-independent."""
+    from gravoturb.diagnostics.measure import smooth_copula_field
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.placement import sample_cic_counts
-    from gravoturb.validation.measure import smooth_copula_field
 
     shape, c, n_bar = (24, 24, 24), 4, 30.0
     M = shape[0] // c

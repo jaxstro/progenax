@@ -10,7 +10,7 @@ where ``A_s`` walks the analytic chain (log-density Hermite c_n, NOT the density
       -> c_n = <s_of_g He_n>                            log_density_hermite_coefficients
       -> xi_s(r) = sum_{n>=1} c_n^2/n! rho_g(r)^n       gaussianized_xi
       -> xi_Sigma(r_perp) = Limber_slab(xi_s; depth)    limber_project_slab
-      -> P_s(k) = bin( fft2(xi_Sigma) )                 _angular_bandpowers_from_xi_rho_2d
+      -> P_s(k) = bin( fft2(xi_Sigma) )                 angular_bandpowers_from_xi_rho_2d
 
 and ``T_fixed(k)`` is a beta-independent per-bin multiplicative transfer calibrated ONCE at a fixed
 fiducial theta (truth-independent). Phase-0 (validation/_d03,_d05) established that the log+ observable
@@ -25,14 +25,16 @@ JAX-native; differentiable in beta (and mach) through the analytic chain. ``T`` 
 import jax
 import jax.numpy as jnp
 from jax.scipy.special import gammaln
+from jaxstro.numerics.quadrature import gauss_hermite_nodes, hermite_coefficients
 from jaxtyping import Array, Float
 
-from gravoturb.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
-from jaxstro.numerics.quadrature import gauss_hermite_nodes, hermite_coefficients
-
+from gravoturb.inference.covariance import (
+    angular_bandpowers_from_xi_rho_2d,
+    xi_rho_grid,
+)
 from gravoturb.theory.log_correlations import (
-    log_density_hermite_coefficients,
     gaussianized_xi,
+    log_density_hermite_coefficients,
 )
 from gravoturb.theory.projection import gaussian_correlation_grid, limber_project_slab
 
@@ -57,7 +59,7 @@ def analytic_logdensity_bandpowers(
     c = log_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
     xi_s = gaussianized_xi(rho_g, c)
     xi_Sigma = limber_project_slab(xi_s, depth, los_axis=2)
-    _kc, P, _nm = _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
+    _kc, P, _nm = angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)
     return P
 
 
@@ -216,7 +218,7 @@ def logp_shot_components(
     correlation ``rho_g = ln(1 + xi_Sigma/L^2)/s_sigma^2`` (lognormal copula), reusing
     :func:`gaussianized_xi`. Fully differentiable in (beta, mach, ...). At high ``n_bar`` reduces to
     the lognormal-copula log predictor (``m -> ln``, ``W_shot -> 0``)."""
-    xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
+    xi_rho = xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
     xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
     L = depth
     sigma_sigma2 = xi_Sigma[0, 0]                                          # projected-density variance
@@ -230,7 +232,7 @@ def logp_shot_components(
         lambda g: _poisson_logp_moments(g, n_bar_sky, s_sigma, n_count_max)[0], n_max, n_quad
     )
     xi_clust = gaussianized_xi(rho_g_und, a)
-    _kc, P_clust, _nm = _angular_bandpowers_from_xi_rho_2d(xi_clust, k_edges)
+    _kc, P_clust, _nm = angular_bandpowers_from_xi_rho_2d(xi_clust, k_edges)
 
     # white shot floor: <Var(log+ N | Sigma)>_Sigma via the same Gauss-Hermite rule
     g_nodes, weights = gauss_hermite_nodes(n_quad)

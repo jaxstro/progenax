@@ -12,8 +12,9 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from gravoturb.inference.hmc import to_unconstrained
+from gravoturb.inference.model import build_logdensity
 from gravoturb.inference.priors import BM19Prior
-from gravoturb.inference.sbc import build_logdensity, sbc_ranks
+from gravoturb.inference.sbc import sbc_ranks
 
 pytestmark = [pytest.mark.experimental, pytest.mark.slow]
 
@@ -23,14 +24,15 @@ def test_build_logdensity_uses_log_count_variance_and_bandpower_blocks():
 
     Mirrors the SBC mock bundle with the count keys (Task 7) ``log_count_vars`` (per-cell measured
     Var_cells[log_plus(N)]) + threaded ``var_vs`` (fixed-fiducial estimator variance), PLUS the new
-    field-level 2-pt beta channel: ``band_powers`` (measured periodogram on ``_K_EDGES``) fit with a
+    field-level 2-pt beta channel: ``band_powers`` (measured periodogram on ``K_EDGES``) fit with a
     fixed-fiducial ``bp_precision``. Asserts logdensity(z) is finite and jax.grad is finite (the
     band-power block must be differentiable in theta via the analytic power_spectrum_bandpowers).
     """
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.realization.copula import rank_copula_field
     from gravoturb.inference.covariance import measured_bandpowers, mock_precision
-    from gravoturb.inference.sbc import _ALPHA_FID, _BETA_FID, _K_EDGES, _MACH_FID
+    from gravoturb.inference.model import K_EDGES
+    from gravoturb.inference.sbc import _ALPHA_FID, _BETA_FID, _MACH_FID
+    from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     pr = BM19Prior()
     shape = (24, 24, 24)
@@ -46,7 +48,7 @@ def test_build_logdensity_uses_log_count_variance_and_bandpower_blocks():
         b,
         _ALPHA_FID,
     )
-    band_powers = measured_bandpowers(np.asarray(s_lo), shape, _K_EDGES)
+    band_powers = measured_bandpowers(np.asarray(s_lo), shape, K_EDGES)
     k_bp = jax.random.fold_in(key, 2**30)
     bp_rows = [
         measured_bandpowers(
@@ -61,7 +63,7 @@ def test_build_logdensity_uses_log_count_variance_and_bandpower_blocks():
                 )
             ),
             shape,
-            _K_EDGES,
+            K_EDGES,
         )
         for i in range(16)
     ]

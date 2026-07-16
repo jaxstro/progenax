@@ -1,6 +1,6 @@
 """Oracle-measurement utilities for validating the analytic predicted statistics.
 
-numpy/scipy are permitted here (validation path, non-differentiable). These functions
+numpy/scipy are permitted here (analysis-side diagnostics leaf, non-differentiable). These functions
 measure 2-point statistics from realization fields and build the theory-consistent
 ``smooth_copula_field``: the exact pointwise map ``s = log_density_icdf(Phi(g_hat)) - log<e^s>``
 on an EXACTLY unit-variance Gaussian ``g_hat``. That is the map the Gaussianization
@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from gravoturb.theory.log_correlations import s_of_g
-from gravoturb.theory.projection import _kmag_grid
+from gravoturb.theory.projection import kmag_grid
 
 
 def smooth_copula_field(g, mach, b, alpha):
@@ -172,8 +172,8 @@ def estimate_log_count_variance_var(mach, b, alpha, beta, shape, cell_size, n_ba
     pattern; computed ONCE per inference, not per NUTS step -> SBC-valid as a fixed constant)."""
     import jax
 
-    from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.placement import sample_cic_counts
 
     vals = []
@@ -198,7 +198,7 @@ def smoothed_linear_variance(rho_tilde, R, window_fn):
     f = np.asarray(rho_tilde, dtype=float)
     f = f - f.mean()
     pk = np.abs(np.fft.fftn(f)) ** 2
-    kmag = np.asarray(_kmag_grid(f.shape))
+    kmag = np.asarray(kmag_grid(f.shape))
     w2 = np.asarray(window_fn(jnp.asarray(kmag * R))) ** 2
     w2 = np.where(kmag > 0, w2, 0.0)  # exclude DC (empirical mean already removed)
     return float(np.sum(pk * w2) / f.size ** 2)

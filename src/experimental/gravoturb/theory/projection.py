@@ -6,7 +6,7 @@ spectrum P(k) = k^{-beta} (DC = 0) on the simulator's grid -- the beta-carrier o
 2-point. It enters the Gaussianization series xi_s(r) = sum_n (c_n^2/n!) rho_g(r)^n, so
 beta flows analytically (P(k) = exp(-beta ln k) is smooth in beta). Matches
 gravoturb.realization.gaussian_random_field's spectrum, so the analytic rho_g equals the
-ensemble-mean of gravoturb.validation.measure.gaussian_correlation_measured.
+ensemble-mean of gravoturb.diagnostics.measure.gaussian_correlation_measured.
 
 JAX-native; differentiable in beta.
 """
@@ -15,7 +15,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 
-def _kmag_grid(shape: tuple[int, int, int]) -> Float[Array, " nx ny nz"]:
+def kmag_grid(shape: tuple[int, int, int]) -> Float[Array, " nx ny nz"]:
     r"""Isotropic wavenumber magnitude |k| on the full grid (integer modes), matching
     ``gaussian_random_field`` (kx = fftfreq(n)*n)."""
     kx = jnp.fft.fftfreq(shape[0]) * shape[0]
@@ -35,7 +35,7 @@ def gaussian_correlation_grid(
     measured autocovariance of ``gaussian_random_field``). Differentiable in ``beta`` via
     a grad-safe ``where`` at the DC mode.
     """
-    kmag = _kmag_grid(shape)
+    kmag = kmag_grid(shape)
     kmag_safe = jnp.where(kmag > 0, kmag, 1.0)  # avoid 0^{-beta} / ln(0) in the dead branch
     power = jnp.where(kmag > 0, kmag_safe ** (-beta), 0.0)
     xi = jnp.fft.ifftn(power).real
@@ -91,7 +91,7 @@ def smoothed_variance_fraction(
     (DC=0). ->1 as R->0, decreasing in R. The single scale R shared by the 2-pt window
     and the CIC cell. Differentiable in ``beta`` and ``R``.
     """
-    kmag = _kmag_grid(shape)
+    kmag = kmag_grid(shape)
     kmag_safe = jnp.where(kmag > 0, kmag, 1.0)
     power = jnp.where(kmag > 0, kmag_safe ** (-beta), 0.0)
     w = window(kmag * R)

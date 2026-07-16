@@ -43,12 +43,12 @@ def test_power_spectrum_bandpowers_positive_and_differentiable():
 def test_bandpowers_match_mock():
     """Analytic band-powers == ensemble-mean measured periodogram band-powers of the
     smooth-copula log-density field (forward fidelity of P_s(k), the Fourier dual of AC11)."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.diagnostics.measure import smooth_copula_field
     from gravoturb.inference.covariance import (
         measured_bandpowers,
         power_spectrum_bandpowers,
     )
-    from gravoturb.validation.measure import smooth_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(1.0, 13.0, 7)
@@ -103,14 +103,14 @@ def test_gaussian_bandpower_covariance_underestimates_mock():
     """Documents the Phase-5 finding (regression guard): the diagnostic Gaussian band-power
     covariance 2P^2/N UNDERESTIMATES the true mock band-power variance for the non-Gaussian
     log-density field -- which is WHY the Fisher uses the mock covariance (Anna 2026-06-05)."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.diagnostics.measure import smooth_copula_field
     from gravoturb.inference.covariance import (
         gaussian_bandpower_covariance,
         measured_bandpowers,
         mock_covariance,
         power_spectrum_bandpowers,
     )
-    from gravoturb.validation.measure import smooth_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(2.0, 14.0, 7)

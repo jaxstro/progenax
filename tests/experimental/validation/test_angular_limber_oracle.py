@@ -53,12 +53,12 @@ def _slope_in_band(kc, bp):
 
 
 def _measured_minus_predicted_slope(beta):
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
-    from gravoturb.validation.measure import (
+    from gravoturb.diagnostics.measure import (
         measure_angular_bandpowers_2d,
         smooth_copula_field,
     )
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     key = jax.random.fold_in(jax.random.PRNGKey(20260607), int(beta * 100))
     rows = []

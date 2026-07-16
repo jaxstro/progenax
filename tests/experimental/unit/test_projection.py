@@ -24,12 +24,12 @@ def test_rho_g_grid_normalized_at_zero_lag():
 
 def test_rho_g_grid_matches_measured_oracle():
     """Analytic rho_g(r;beta) == ensemble-mean measured rho_g from gaussian_random_field."""
-    from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.theory.projection import gaussian_correlation_grid
-    from gravoturb.validation.measure import (
+    from gravoturb.diagnostics.measure import (
         gaussian_correlation_measured,
         radial_average,
     )
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.projection import gaussian_correlation_grid
 
     # The .real full-grid construction matches the analytic rho_g = IFFT[k^-beta]/(.)[0]
     # in expectation (proof: <autocov(Re h)> = (1/2) IFFT(|amp|^2)), so the residual is
@@ -59,10 +59,10 @@ def test_grf_realizes_power_law_spectrum():
     ratio P_meas(k)/k^{-beta} is flat (to <10%) across k -- no high-k excess from
     un-enforced Hermitian symmetry."""
     from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.theory.projection import _kmag_grid
+    from gravoturb.theory.projection import kmag_grid
 
     shape, beta, n_real = (40, 40, 40), 3.0, 8
-    kmag = np.asarray(_kmag_grid(shape))
+    kmag = np.asarray(kmag_grid(shape))
     ideal = np.where(kmag > 0, np.where(kmag > 0, kmag, 1.0) ** (-beta), 0.0)
     key = jax.random.PRNGKey(0)
     power = np.zeros(shape)
@@ -129,14 +129,14 @@ def test_smoothed_variance_matches_oracle():
     per-realization var(g_R)/var(g) average suffers)."""
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.theory.projection import (
-        _kmag_grid,
+        kmag_grid,
         smoothed_variance_fraction,
         top_hat_window,
     )
 
     shape, beta, R = (40, 40, 40), 3.0, 2.0
     pred = float(smoothed_variance_fraction(shape, beta, R))
-    W2 = np.asarray(top_hat_window(jnp.asarray(np.asarray(_kmag_grid(shape)) * R))) ** 2
+    W2 = np.asarray(top_hat_window(jnp.asarray(np.asarray(kmag_grid(shape)) * R))) ** 2
     key = jax.random.PRNGKey(0)
     x_tot = y_tot = 0.0
     for i in range(16):
@@ -166,8 +166,8 @@ def test_smoothed_variance_differentiable():
 def test_limber_project_grid_exact_identity():
     """Discrete Limber is exact: the 2D autocovariance of the LOS-projected field equals
     N_los * sum over the LOS axis of the 3D autocovariance (periodic identity)."""
+    from gravoturb.diagnostics.measure import autocovariance_3d
     from gravoturb.theory.projection import limber_project_grid
-    from gravoturb.validation.measure import autocovariance_3d
 
     rng = np.random.default_rng(0)
     f = rng.normal(size=(20, 20, 16))
