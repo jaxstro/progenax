@@ -16,7 +16,7 @@ description: Annotated reference for Peter Coles & Bernard Jones — the lognorm
 
 **Verified.** Summary, §2–3 (definitions, the multiplicative central-limit argument, Eqs. 1–7)
 and §5 (correlations of all orders) checked against the held PDF (2026-06). This is the
-**founding paper** for two pillars of `gravoturb_fdf`: *why* a turbulent density field is
+**founding paper** for two pillars of `gravoturb`: *why* a turbulent density field is
 lognormal, and *how* one Gaussian covariance fixes the statistics at all orders.
 ```
 
@@ -76,7 +76,7 @@ and analogous closed forms at all higher orders. This is the **prototype of "Gau
 statistics of a non-Gaussian-but-monotone-mapped field are computable analytically from the
 underlying Gaussian correlation. Szapudi & Pan ([](szapudi-pan-2004.md)) generalize {eq}`cj-lognormal-xi`
 to an arbitrary monotone map via a Hermite expansion; that generalization is exactly the
-[`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) series used
+[`gaussianized_xi`](../../../../src/experimental/gravoturb/theory/log_correlations.py) series used
 to predict $\xi_s(r)$ in progenax.
 
 Coles & Jones also flag a subtlety progenax inherits: the LN field is **not** fully specified by its
@@ -90,7 +90,7 @@ analyses ([](neyrinck-2009.md), [](carron-szapudi-2013.md)).
   k^{-\beta}$ exponentiated/copula-mapped to a target marginal — precisely the Coles & Jones
   construction {eq}`cj-exp`, generalized from a *pure* lognormal to the BM19 *lognormal + power-law*
   marginal via the rank copula
-  ([field.py](../../../../src/experimental/gravoturb_fdf/field/field.py)).
+  ([gaussian_field.py](../../../../src/experimental/gravoturb/realization/gaussian_field.py)).
 - **The lognormal body.** {eq}`cj-mclt` is the physical justification for the lognormal core of the
   [](../../10-theory/gravoturbulence/density-pdf-and-fdf.md) / [](burkhart-mocz-2019.md) PDF.
 - **The Gaussianization series.** {eq}`cj-lognormal-xi` is the $n=1$, pure-exp special case of the
@@ -104,4 +104,4 @@ analyses ([](neyrinck-2009.md), [](carron-szapudi-2013.md)).
   power-law tail; progenax imposes that fuller marginal through the copula.
 - §7's Monte-Carlo recipe for point patterns with correlations of all orders (1D/2D/3D) is the
   conceptual ancestor of the FDF star-sampling step
-  ([sampling.py](../../../../src/experimental/gravoturb_fdf/field/sampling.py)).
+  ([placement.py](../../../../src/experimental/gravoturb/realization/placement.py)).

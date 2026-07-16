@@ -140,8 +140,8 @@ exponent $p$; the autodiff vs finite-difference gradients agree to 4% at $p=0.5$
 
 ```{warning}
 - **Smooth + simple-clump axis only.** The substructured end of (a) is a Gaussian
-  *blob* generator, not the experimental `gravoturb_fdf` **fractal-density field**.
-  Full fractal-substructure inference lives in the repo-only `gravoturb_fdf` package
+  *blob* generator, not the experimental `gravoturb` **fractal-density field**.
+  Full fractal-substructure inference lives in the repo-only `gravoturb` package
   (its own AC1–AC17 acceptance suite), not the released core.
 - **`q_approx` is calibrated for $Q\lesssim0.8$.** It is the substructure-inference
   regime; the surrogate degrades toward high concentration and is undefined outside

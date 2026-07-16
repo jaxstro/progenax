@@ -94,7 +94,7 @@ $0.58$, $D'\simeq1.9$).
 
 - [](../../20-architecture/jax-native-substructure-q.md) — JAX-native kNN approximation + scipy reference.
 - [](../../10-theory/tidal-and-substructure/fractal.md) — $\mathcal{Q}$ as the substructure truth metric.
-- `experimental/gravoturb_fdf/diagnostics/q.py` — clean-room CW04 estimator (numpy/scipy, non-differentiable).
+- `experimental/gravoturb/diagnostics/q.py` — clean-room CW04 estimator (numpy/scipy, non-differentiable).
 - `tests/experimental/fixtures/cw04_models.py` — analytic radial models for the AC5 validation.
 
 Validation (AC5): the estimator reproduces the 3D0/3D1/3D2 anchors (0.79/0.84/0.93) within

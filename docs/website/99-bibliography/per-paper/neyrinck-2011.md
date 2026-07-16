@@ -32,7 +32,7 @@ peculiar velocities partly Gaussianize the field already.
 **1-point + 2-point sufficiency.** The paper states the assumption cleanly: *"in the approximation
 that a non-Gaussian field is a non-linear transformation of a Gaussian field, PDF Gaussianization
 will produce a Gaussian field, vanishing all higher-order correlations."* That is **exactly the
-`gravoturb_fdf` generative model** — a Gaussian random field passed through a monotone marginal map
+`gravoturb` generative model** — a Gaussian random field passed through a monotone marginal map
 (the copula). For such a field the one-point PDF plus the two-point function are *sufficient
 statistics*; the higher-order correlations carry no independent information. This is the formal
 licence for restricting the [](../../10-theory/gravoturbulence/inference.md) likelihood to 1pt + 2pt: it is not a

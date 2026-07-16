@@ -114,7 +114,7 @@ that benefits from GPU.
 * - `[dev]`
   - pytest, pytest-cov, pytest-xdist, ruff, mypy
 * - `[experimental]`
-  - the repo-only `gravoturb_fdf` inference layer (blackjax, optax, arviz, scipy, flowjax)
+  - the repo-only `gravoturb` inference layer (blackjax, optax, arviz, scipy, flowjax)
 * - `[diagnostics]`
   - numpy + scipy, for the exact (non-differentiable) CW04 `compute_q_parameter` path
 ```

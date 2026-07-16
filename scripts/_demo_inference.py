@@ -402,8 +402,8 @@ class NUTSResult(NamedTuple):
 def run_nuts(logdensity_fn, z0, key, n_warmup=300, n_samples=600):
     r"""Sample ``logdensity_fn`` with blackjax NUTS (window adaptation -> NUTS).
 
-    Vendored (NOT imported) from the experimental gravoturb_fdf NUTS driver
-    ``src/experimental/gravoturb_fdf/inference/hmc.py:38-55`` (released-core demo
+    Vendored (NOT imported) from the experimental gravoturb NUTS driver
+    ``src/experimental/gravoturb/inference/hmc.py:38-55`` (released-core demo
     scripts must not import experimental code). The single change is that this
     wrapper ALSO accumulates the per-step ``is_divergent`` flag so the demo can
     gate on 0 divergences (the gravoturb sibling ``run_nuts`` discards ``info``;

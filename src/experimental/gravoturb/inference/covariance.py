@@ -1,4 +1,4 @@
-r"""Data-vector covariance for the gravoturb_fdf Fisher/likelihood (Milestone 1).
+r"""Data-vector covariance for the gravoturb Fisher/likelihood (Milestone 1).
 
 Data vector d(theta) = [log-density power-spectrum band-powers P_s(k_i), CIC variance
 sigma^2_N(R)]. Band-powers (Anna 2026-06-05) have the textbook diagonal Gaussian covariance
@@ -16,12 +16,12 @@ import jax.numpy as jnp
 import numpy as np
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.gaussianization import (
+from gravoturb.theory.log_correlations import (
     bm19_density_hermite_coefficients,
     bm19_hermite_coefficients,
     gaussianized_xi,
 )
-from gravoturb_fdf.theory.projection import (
+from gravoturb.theory.projection import (
     _kmag_grid,
     gaussian_correlation_grid,
     limber_project_grid,
@@ -117,7 +117,7 @@ def mock_precision(rows):
 
 def _kmag_grid_2d(shape: tuple[int, int]) -> Float[Array, " ny nx"]:
     r"""2-D isotropic |k| grid (kx = fftfreq(n)*n per axis), matching
-    :func:`gravoturb_fdf.validation.measure.measure_angular_bandpowers_2d` so the predicted
+    :func:`gravoturb.validation.measure.measure_angular_bandpowers_2d` so the predicted
     and measured angular band-powers share an identical |k| convention."""
     ny, nx = shape
     ky = jnp.fft.fftfreq(ny) * ny

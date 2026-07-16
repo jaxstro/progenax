@@ -27,7 +27,7 @@ mass, it collapses. The **minimum** density at which this happens is the critica
 $\rho_\mathrm{crit}$. The star-formation rate then follows from the mass fraction of the
 turbulent density PDF lying above $\rho_\mathrm{crit}$.
 
-In `gravoturb_fdf` PN11 is kept as a **clearly-labelled classical alternative** to the
+In `gravoturb` PN11 is kept as a **clearly-labelled classical alternative** to the
 BM19 transition density $s_t$ — *not* the default path.
 
 ## Core equations
@@ -69,7 +69,7 @@ $$
 **Virial parameter (Eqs. 1, 9).** Equivalently
 $\alpha_\mathrm{vir} = 5\sigma_{v,\mathrm{1D}}^2 R/(GM)$ (Bertoldi & McKee 1992; Eq. 1) or
 $\alpha_\mathrm{vir} = 5 v_0^2 / (\pi G \rho_0 L_0^2)$ (Eq. 9, a uniform sphere of radius
-$L_0/2$, mean density $\rho_0$, 3-D rms velocity $v_0$). `gravoturb_fdf`'s
+$L_0/2$, mean density $\rho_0$, 3-D rms velocity $v_0$). `gravoturb`'s
 `virial_parameter` helper uses the Eq. 1 form. $\alpha_\mathrm{vir}\approx1$ is virial
 equilibrium; the SFR *decreases* with increasing $\alpha_\mathrm{vir}$ (more turbulent
 support relative to gravity) and increases with $\mathcal{M}_{S,0}$.
@@ -83,12 +83,12 @@ $$
     \frac{\left(1+0.925\,\beta_0^{-3/2}\right)^{2/3}}{\left(1+\beta_0^{-1}\right)^{2}},
 $$
 
-which reduces to the HD case as $\beta_0\to\infty$. `gravoturb_fdf` implements only the
+which reduces to the HD case as $\beta_0\to\infty$. `gravoturb` implements only the
 HD form (Eq. 8/11); the MHD form is noted but not coded.
 
 ## Use in progenax
 
-- `experimental/gravoturb_fdf/theory/pn11.py` — `critical_overdensity_pn11` (Eq. 8),
+- `experimental/gravoturb/theory/collapse_threshold.py` — `critical_overdensity_pn11` (Eq. 8),
   `s_crit_pn11` (classical-alternative threshold), `THETA_PN11 = 0.35`.
 
 Validation: prefactor $0.067\,\theta^{-2}=0.547$ at $\theta=0.35$; $\partial s_\mathrm{crit}/\partial\mathcal{M}=2/\mathcal{M}$.

@@ -39,7 +39,7 @@ tested in simulations.
   ones the [](../../10-theory/gravoturbulence/inference.md) likelihood already uses (the count distribution and its
   two-point clustering), not high-order count moments.
 - **Connects the count likelihood to a principled estimator** rather than an ad hoc summary — the
-  [`count_loglike`](../../../../src/experimental/gravoturb_fdf/inference/likelihood.py) block sits in
+  [`count_loglike`](../../../../src/experimental/gravoturb/inference/likelihood.py) block sits in
   this lineage.
 
 ## Notes

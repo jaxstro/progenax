@@ -24,7 +24,7 @@ from jax.scipy.special import erf, gammaln
 from jaxstro.numerics.quadrature import hermite_coefficients
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.pdf import bm19_icdf_analytic, bm19_mean_density
+from gravoturb.theory.density_cdf import bm19_icdf_analytic, bm19_mean_density
 
 
 def _standard_normal_cdf(g: Float[Array, " ..."]) -> Float[Array, " ..."]:

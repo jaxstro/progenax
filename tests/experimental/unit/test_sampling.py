@@ -16,7 +16,8 @@ MACH, B, ALPHA, KAPPA = 8.0, 0.5, 1.8, 6.0
 
 
 def _field(seed=0, n=16):
-    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.copula import rank_copula_field
 
     g = gaussian_random_field((n, n, n), beta=3.5, key=jax.random.PRNGKey(seed))
     return rank_copula_field(g, MACH, B, ALPHA)
@@ -24,10 +25,10 @@ def _field(seed=0, n=16):
 
 def test_sampling_counts_split():
     """N_tail = round(f_sub·N⋆); N_smooth = N⋆ − N_tail; total = N⋆."""
-    from gravoturb_fdf.field.sampling import sample_cell_indices
+    from gravoturb.realization.placement import sample_cell_indices
 
     s = _field()
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
 
     s_t = float(transition_density(ALPHA, sigma_s_squared(MACH, B)))
     tail_idx, smooth_idx = sample_cell_indices(
@@ -40,8 +41,8 @@ def test_sampling_counts_split():
 
 def test_tail_stars_in_denser_cells():
     """Tail-sampled cells have higher mean ρ than smooth-sampled cells."""
-    from gravoturb_fdf.field.sampling import sample_cell_indices
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+    from gravoturb.realization.placement import sample_cell_indices
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
 
     s = _field()
     rho = jnp.exp(s).ravel()
@@ -54,8 +55,8 @@ def test_tail_stars_in_denser_cells():
 
 def test_positions_within_box_and_count():
     """sample_positions returns (N⋆,3) inside [0,box_size)."""
-    from gravoturb_fdf.field.sampling import sample_positions
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+    from gravoturb.realization.placement import sample_positions
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
 
     s = _field()
     s_t = float(transition_density(ALPHA, sigma_s_squared(MACH, B)))
@@ -68,7 +69,7 @@ def test_positions_within_box_and_count():
 
 def test_subvoxel_jitter_keeps_star_in_its_cell():
     """floor(position/dx) recovers the sampled cell index (jitter stays sub-voxel)."""
-    from gravoturb_fdf.field.sampling import cells_to_positions
+    from gravoturb.realization.placement import cells_to_positions
 
     shape = (8, 8, 8)
     idx = jnp.array([0, 73, 511, 256])
@@ -82,8 +83,8 @@ def test_subvoxel_jitter_keeps_star_in_its_cell():
 
 def test_sampling_deterministic_in_key():
     """Same key → identical positions."""
-    from gravoturb_fdf.field.sampling import sample_positions
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+    from gravoturb.realization.placement import sample_positions
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
 
     s = _field()
     s_t = float(transition_density(ALPHA, sigma_s_squared(MACH, B)))
@@ -103,7 +104,7 @@ def test_sampling_deterministic_in_key():
 
 def test_s_density_drives_placement():
     """With a separate ``s_density`` concentrated in one half-box, stars follow it (not ``s``)."""
-    from gravoturb_fdf.field.sampling import cells_to_positions, sample_cell_indices
+    from gravoturb.realization.placement import cells_to_positions, sample_cell_indices
 
     n = 16
     s_t = 1.0
@@ -133,7 +134,7 @@ def test_tail_mask_reads_s_not_density():
     cell (≈330× the uniform 1/4096), whereas the smooth population (∝ uniform ``s_density``) stays
     at the uniform fraction.
     """
-    from gravoturb_fdf.field.sampling import sample_cell_indices
+    from gravoturb.realization.placement import sample_cell_indices
 
     n = 16
     s_t = 1.0

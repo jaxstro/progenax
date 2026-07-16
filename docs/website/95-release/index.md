@@ -56,7 +56,7 @@ dependency) is the deferred decision above.
 
 :::{note} Scope
 This audit covers the **released-core** package (`src/progenax/`, the wheel
-contents). The experimental `gravoturb_fdf` subsystem (`src/experimental/`, not in
+contents). The experimental `gravoturb` subsystem (`src/experimental/`, not in
 the wheel) was confirmed present, green, and correctly quarantined, but is out of
 scope for the public-API and release-blocker assessment.
 :::

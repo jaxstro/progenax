@@ -93,13 +93,13 @@ pairs naturally with the methods-paper plan sketched in the prior audit.
 (strategy-scope)=
 ## Experimental and OED-demo code at release
 
-- **`gravoturb_fdf`** stays repo-only — excluded from the wheel and the public API,
+- **`gravoturb`** stays repo-only — excluded from the wheel and the public API,
   and labelled experimental throughout the docs. During the v0.1.0
   documentation-hardening pass its theory subsection was consolidated 10 → 5 pages
   and **moved out of the public navigation**: the five pages are kept in the repo
   and still build (they are `hidden: true` in the `myst.yml` toc and reachable by
   URL), but they no longer appear in the site nav and are linked instead from the
-  [unlisted-pages index](../_unlisted/index.md). Mention `gravoturb_fdf` in release
+  [unlisted-pages index](../_unlisted/index.md). Mention `gravoturb` in release
   notes as future work (a separate paper), not as a shipped feature.
 - **OED demos** keep a **single public overview page**
   (`60-science-demos/optimal-design/index.md`) — the telescope-time hook plus the
@@ -127,6 +127,6 @@ cross-references).
 :::{note} What this strategy commits to
 A **GitHub source release of v0.1.0 now** on a re-enabled, green CI, with a DOI for
 citation; **PyPI deferred** until the `jaxstro` ecosystem-packaging decision lands;
-**OED demos held** for informax; **`gravoturb_fdf` experimental**. None of this
+**OED demos held** for informax; **`gravoturb` experimental**. None of this
 blocks the verified scientific core from being released.
 :::

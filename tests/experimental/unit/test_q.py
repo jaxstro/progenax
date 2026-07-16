@@ -25,7 +25,7 @@ from fixtures.cw04_models import radial_profile_positions  # noqa: E402
 
 
 def _q_ensemble(alpha, n_real=30, N=200):
-    from gravoturb_fdf.diagnostics.q import compute_q_parameter
+    from gravoturb.diagnostics.q import compute_q_parameter
 
     qs = [
         compute_q_parameter(radial_profile_positions(alpha, N, seed=s))
@@ -62,7 +62,7 @@ def test_q_uniform_not_degenerate():
 
 
 def test_q_requires_three_points():
-    from gravoturb_fdf.diagnostics.q import compute_q_parameter
+    from gravoturb.diagnostics.q import compute_q_parameter
 
     with pytest.raises(ValueError):
         compute_q_parameter(np.zeros((2, 2)))
@@ -77,7 +77,7 @@ def test_core_and_experimental_q_agree():
     identical inputs (same CW04 convention), so the experimental rebuild is pinned to the
     released reference.
     """
-    from gravoturb_fdf.diagnostics.q import compute_q_parameter as q_exp
+    from gravoturb.diagnostics.q import compute_q_parameter as q_exp
 
     from progenax.diagnostics.substructure import compute_q_parameter as q_core
 

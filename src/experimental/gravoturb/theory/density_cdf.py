@@ -16,7 +16,7 @@ import jax.numpy as jnp
 from jax.scipy.special import erf, erfinv
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
 
 
 def _pdf_pieces(mach, b, alpha):

@@ -11,7 +11,7 @@ Part of the **jaxstro ecosystem** — providing IC generation that can be differ
 Eddington inversion, no external virial rescale). The binary-population engine is finalized —
 `build_binary_cluster` composes `primary_imf × companion_model × target` with the faithful
 Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`). The gravoturbulent + fractal-
-density-field subsystem lives in the **experimental, repo-only `gravoturb_fdf` package**
+density-field subsystem lives in the **experimental, repo-only `gravoturb` package**
 (`src/experimental/`, **not** shipped in the wheel). Every public model carries a
 machine-readable **provenance card** (equation-level citations, enforced by tests), and every
 public entry point is **gradient-audited** (AD-vs-FD, ~98 registry cases, 0 hazards). For
@@ -165,7 +165,7 @@ cd progenax
 uv pip install -e ".[dev]"
 ```
 
-Optional extras: `[experimental]` (the repo-only `gravoturb_fdf` inference layer — blackjax,
+Optional extras: `[experimental]` (the repo-only `gravoturb` inference layer — blackjax,
 optax, …), `[diagnostics]` (numpy + scipy, for the exact non-differentiable CW04 Q path).
 
 > **Import-time precision side effect.** `import progenax` enables JAX float64
@@ -364,7 +364,7 @@ src/progenax/
 ├── cluster/               # MultiComponentCluster (Engine A + B), mass segregation
 ├── diagnostics/           # CW04 Q (compute_q_parameter), differentiable q_approx
 └── analytical/            # solar system, Kepler orbits, figure-eight
-src/experimental/          # gravoturb_fdf (repo-only; NOT in the wheel)
+src/experimental/          # gravoturb (repo-only; NOT in the wheel)
 docs/website/              # the MyST documentation site (single source of truth)
 docs/provenance/registry/  # machine-readable model cards (YAML) → glossary + enforcement tests
 laboratory/icviz/          # ICViz figure library (publication figures for docs + methods paper)
@@ -381,7 +381,7 @@ XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   uv run --no-sync pytest tests/unit tests/integration tests/validation -n auto
 
-# Experimental gravoturb_fdf subsystem (repo-only)
+# Experimental gravoturb subsystem (repo-only)
 PYTHONPATH=src:src/experimental uv run --no-sync pytest tests/experimental
 ```
 

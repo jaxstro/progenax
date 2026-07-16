@@ -1,6 +1,6 @@
 """Assert the committed AC printing scripts report PASS (AC1-AC5, AC8, AC9).
 
-The scripts in gravoturb_fdf.validation.acceptance print expected-vs-measured tables;
+The scripts in gravoturb.validation.acceptance print expected-vs-measured tables;
 these tests assert their PASS verdicts so "validated" is backed by fresh output.
 """
 
@@ -8,7 +8,7 @@ import pytest
 
 pytestmark = [pytest.mark.experimental, pytest.mark.validation]
 
-from gravoturb_fdf.validation import acceptance  # noqa: E402
+from gravoturb.validation import acceptance  # noqa: E402
 
 
 def test_ac1_ac2_bm19():

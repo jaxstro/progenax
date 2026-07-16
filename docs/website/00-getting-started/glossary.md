@@ -137,7 +137,7 @@ Fractal Displacement Field
   **removed in the 2026-06 clean-room rewrite with no released
   successor**. (Not to be confused with the freefall-density factor
   below, also abbreviated FDF.) Turbulent-density ICs are now the
-  experimental `gravoturb_fdf` package. See
+  experimental `gravoturb` package. See
   [](../10-theory/tidal-and-substructure/fractal.md).
 
 mass segregation

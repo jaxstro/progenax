@@ -1,5 +1,10 @@
 # Banked 2D-β inference — archived scratch drivers
 
+> **FROZEN (2026-07-16 rename, amendment A2):** these scripts import the **pre-rename package
+> name `gravoturb_fdf`** and were deliberately left untouched by the `gravoturb` rename — they
+> are banked evidence, not live code. Do not run them against the current tree; the live
+> package is `gravoturb` (see `../../README.md`).
+
 These are **historical, one-off investigation drivers** from the 2-D-projected spectral-slope (β)
 inference arc, which was **banked as a methods result, not optimized further** (2026-06-07): the
 observable is cosmic-variance + dynamics limited and gas measures β more directly. See the decision

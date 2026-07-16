@@ -32,11 +32,11 @@ dev-log narrative see [](index.md).
 The **gravoturbulent, PN11, and fractal-density-field portions** of this 2026-02-12 plan
 (e.g. "PN11 removal", `bm19_model.py`, `TurbulentDensityProfile`, the `cluster.fdf*`
 modules) were **superseded by the 2026-06 clean-room rewrite**: that whole subsystem was
-deleted from released progenax and rebuilt as the experimental, repo-only **`gravoturb_fdf`**
+deleted from released progenax and rebuilt as the experimental, repo-only **`gravoturb`**
 package. The replacement names this spec proposes (e.g. `TurbulentDensityProfile`,
 `bm19_model.py`) were themselves later removed. Treat the gravoturbulent parts below as the
 *2026-02-12 plan of record*, not the current state; see
-`src/experimental/gravoturb_fdf/` and [](../10-theory/gravoturbulence/index.md).
+`src/experimental/gravoturb/` and [](../10-theory/gravoturbulence/index.md).
 ```
 
 **Goal:** Restructure progenax's initial conditions pipeline into a clean, protocol-driven architecture where every component — IMF, spatial profile, velocity DF, and modifier — can be swapped independently, composed freely, and (where physics allows) differentiated through.

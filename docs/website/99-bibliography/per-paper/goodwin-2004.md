@@ -39,5 +39,5 @@ progenax's differentiable Fractal Displacement Field replacement (`cluster.fdf`,
 `cluster.fractal_gw_legacy`) was **removed in the 2026-06 clean-room rewrite** and
 has no released successor; GW04 now appears only as theory pedagogy and as the
 fractal-dimension ladder behind the CW04 $Q$ diagnostic (the surviving substructure
-tool). Turbulent-density ICs are now the experimental `gravoturb_fdf` package
+tool). Turbulent-density ICs are now the experimental `gravoturb` package
 (a *density*-field method, distinct from the GW04 displacement fractal).

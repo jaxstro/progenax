@@ -35,7 +35,7 @@ information plateau seen in SDSS and $N$-body simulations.
 
 - **The GRF realization step.** progenax builds its field with the same idea — draw Gaussian Fourier
   amplitudes scaled by $\sqrt{P(k)} = k^{-\beta/2}$ and inverse-FFT
-  ([`gaussian_random_field`](../../../../src/experimental/gravoturb_fdf/field/field.py)) — then apply
+  ([`gaussian_random_field`](../../../../src/experimental/gravoturb/realization/gaussian_field.py)) — then apply
   the monotone copula map. This is the FFT-based, prescribed-spectrum construction of this paper.
 - **Mock covariances.** The realization simulator supplies the mock covariance used (Hartlap-corrected)
   in the Fisher forecast and the Gaussian-likelihood block; the supersurvey/beat-coupling caveat is

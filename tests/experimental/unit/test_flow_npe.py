@@ -18,7 +18,7 @@ BETA_LO, BETA_HI = 2.0, 11.0 / 3.0
 
 def test_beta_z_transform_roundtrip():
     """z_to_beta(beta_to_z(beta)) == beta across the prior range (log-uniform reparam)."""
-    from gravoturb_fdf.inference.flow_npe import beta_to_z, z_to_beta
+    from gravoturb.inference.flow_npe import beta_to_z, z_to_beta
 
     beta = jnp.array([2.0, 2.5, 3.0, 3.4, 11.0 / 3.0])
     z = beta_to_z(beta, BETA_LO, BETA_HI)
@@ -29,7 +29,7 @@ def test_beta_z_transform_roundtrip():
 
 def test_whiten_zero_mean_unit_std():
     """whiten(s; stats) has ~0 mean and ~1 std per summary dimension."""
-    from gravoturb_fdf.inference.flow_npe import whiten, whiten_stats
+    from gravoturb.inference.flow_npe import whiten, whiten_stats
 
     rng = np.random.default_rng(0)
     s = jnp.asarray(rng.normal(5.0, 2.0, size=(500, 4)))
@@ -45,7 +45,7 @@ def test_npe_recovers_synthetic_conditional():
     End-to-end test of build + train + sample on a cheap synthetic problem (no simulator), proving the
     NPE machinery learns a conditional density correctly.
     """
-    from gravoturb_fdf.inference.flow_npe import (
+    from gravoturb.inference.flow_npe import (
         build_npe_flow,
         npe_posterior_z,
         train_npe,

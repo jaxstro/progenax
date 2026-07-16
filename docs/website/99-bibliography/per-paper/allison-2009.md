@@ -88,7 +88,7 @@ collapse; subvirial supplies the cold start.**
   ($\langle L_{\mathrm{rand}}\rangle/L_{\mathrm{massive}}$, std error) **matches the held L99
   description**. *Validation still owed* (see below) and the docstring citation needs the MNRAS fix.
 - The cool-fractal pathway is the canonical alternative to {cite:t}`Baumgardt2008` *primordial*
-  segregation; the experimental `gravoturb_fdf` cluster-IC forward tool targets exactly this regime
+  segregation; the experimental `gravoturb` cluster-IC forward tool targets exactly this regime
   (turbulent substructure + chosen sub-virial $Q$).
 
 ### Validation owed (planned)

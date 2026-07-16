@@ -1,6 +1,6 @@
 ---
 title: Szapudi & Pan (2004)
-description: Annotated reference for István Szapudi & Jun Pan — the locally-Poisson counts-in-cells likelihood and the skewed-lognormal (Hermite) Gaussianization that underpin the gravoturb_fdf CIC and 2-point machinery.
+description: Annotated reference for István Szapudi & Jun Pan — the locally-Poisson counts-in-cells likelihood and the skewed-lognormal (Hermite) Gaussianization that underpin the gravoturb CIC and 2-point machinery.
 ---
 
 # Szapudi & Pan (2004)
@@ -35,7 +35,7 @@ P_N \;=\; \int_{-1}^{\infty} p(\delta)\,
 The discrete count distribution is a **Poisson average of the continuous density PDF** $p(\delta)$.
 Their goal is to invert this — recover $p(\delta)$ (and hence galaxy bias) from measured $P_N$ — but
 for progenax the forward direction of {eq}`sp-cic` *is* the model: it is exactly the compound-Poisson
-[`count_distribution`](../../../../src/experimental/gravoturb_fdf/theory/cic.py) that predicts
+[`count_distribution`](../../../../src/experimental/gravoturb/theory/counts_in_cells.py) that predicts
 counts-in-cells from the BM19 density PDF.
 
 ## Core results
@@ -49,7 +49,7 @@ $\tilde P_N$ over $M$ cells uses the Poisson likelihood
 ```
 
 minimised over the PDF parameters. This is precisely the structure of progenax's
-[`count_loglike`](../../../../src/experimental/gravoturb_fdf/inference/likelihood.py) — a 1-point
+[`count_loglike`](../../../../src/experimental/gravoturb/inference/likelihood.py) — a 1-point
 count likelihood whose high-$N$ tail constrains the density PDF.
 
 **Skewed-lognormal Gaussianization (SLN3, Eq. 6).** To model the continuous $p(\delta)$ they expand
@@ -71,11 +71,11 @@ $\xi_s$, not the tail-divergent linear $\langle\rho\rho\rangle$.
 ## Use in progenax
 
 - **The CIC count model.** {eq}`sp-cic` is the compound-Poisson
-  [`count_distribution`](../../../../src/experimental/gravoturb_fdf/theory/cic.py); {eq}`sp-like` is
-  [`count_loglike`](../../../../src/experimental/gravoturb_fdf/inference/likelihood.py). These give
+  [`count_distribution`](../../../../src/experimental/gravoturb/theory/counts_in_cells.py); {eq}`sp-like` is
+  [`count_loglike`](../../../../src/experimental/gravoturb/inference/likelihood.py). These give
   the stellar counts-in-cells block of the [](../../10-theory/gravoturbulence/inference.md) likelihood.
 - **The Hermite Gaussianization.** {eq}`sp-sln3` is the parametric ancestor of the
-  [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) series:
+  [`gaussianized_xi`](../../../../src/experimental/gravoturb/theory/log_correlations.py) series:
   both expand the log-density transform in Hermite polynomials. progenax differs in two ways — it
   uses the *exact* BM19 copula map (not a 3-term skewed-lognormal truncation), and it propagates the
   Hermite coefficients into the **two-point** function $\xi_s(r) = \sum_n (c_n^2/n!)\,\rho_g(r)^n$
@@ -89,6 +89,6 @@ $\xi_s$, not the tail-divergent linear $\langle\rho\rho\rangle$.
   Szapudi ([](carron-szapudi-2013.md), [](carron-szapudi-2014.md)).
 - The "local Poisson" assumption — counts are Poisson given the local density — is the same
   assumption behind the clean inhomogeneous-Poisson star sampler
-  ([sampling.py](../../../../src/experimental/gravoturb_fdf/field/sampling.py)); an *incorrect*
+  ([placement.py](../../../../src/experimental/gravoturb/realization/placement.py)); an *incorrect*
   with-replacement multinomial sampler is what produced the spurious $\alpha$-signal diagnosed in
   the [](../../10-theory/gravoturbulence/inference.md) work.

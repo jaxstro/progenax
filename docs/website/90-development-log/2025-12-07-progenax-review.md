@@ -7,7 +7,7 @@ redesign. APIs it discusses as current were since **retired**:
 `generate_cluster_ic`/`ClusterState`, the `populations` module
 (`generate_two_component_cluster`/`TwoComponentConfig`),
 `MassSegregationLayer`/`lambda_seg`, and `generate_fractal_positions`
-(the fractal generator moved to the experimental `gravoturb_fdf`
+(the fractal generator moved to the experimental `gravoturb`
 package). Multi-population clusters are now built with
 `MultiComponentCluster` — see [](../10-theory/populations/index.md) and
 [](../30-api/cluster.md). The `imf/` table below also lists `IGIMF` and

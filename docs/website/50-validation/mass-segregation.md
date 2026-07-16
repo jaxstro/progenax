@@ -191,14 +191,14 @@ labeled primordial (non-equilibrium, non-differentiable) generator above.
 
 ## 3. Mass-weighted substructure metric (experimental, repo-only)
 
-`gravoturb_fdf.diagnostics.mass_density` — Maschberger & Clarke (2011) local surface density
+`gravoturb.diagnostics.mass_density` — Maschberger & Clarke (2011) local surface density
 $\Sigma=(k-1)/(\pi r_k^2)$, $k=6$ (Eq. 4, verified vs the held PDF —
 [](../99-bibliography/per-paper/maschberger-clarke-2011.md)) + the $m$–$\Sigma$ plane. Robust to
 substructure (a *local* density), unlike CW04 $\mathcal{Q}$ on small massive subsets. Validated in
 `tests/experimental/unit/test_mass_density.py` (6 tests: exact Eq. 4 formula; uniform-density
 recovery; dense $>$ sparse; random masses $\to \rho\approx 0$; **primordial correlation detected**
 $\rho(m,\Sigma)>0.5$ when massive stars are placed in dense clumps via
-`gravoturb_fdf.masses.correlated_mass_assignment`; reproducible).
+`gravoturb.realization.mass_assignment.correlated_mass_assignment`; reproducible).
 
 ## 4. Differentiability status — generator parameter vs. observable
 

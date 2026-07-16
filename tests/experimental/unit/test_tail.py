@@ -14,14 +14,14 @@ pytestmark = pytest.mark.experimental
 
 def test_tail_weight_half_at_transition():
     """w(s_t) = σ(0) = 0.5 exactly."""
-    from gravoturb_fdf.field.tail import tail_weights
+    from gravoturb.realization.placement import tail_weights
 
     assert float(tail_weights(jnp.array(2.0), s_t=2.0, kappa=8.0)) == pytest.approx(0.5)
 
 
 def test_tail_weight_monotone_increasing():
     """w increases monotonically with s."""
-    from gravoturb_fdf.field.tail import tail_weights
+    from gravoturb.realization.placement import tail_weights
 
     s = jnp.linspace(-3.0, 6.0, 50)
     w = tail_weights(s, s_t=1.5, kappa=4.0)
@@ -31,7 +31,7 @@ def test_tail_weight_monotone_increasing():
 
 def test_f_tail_actual_sharp_limit_equals_mass_fraction():
     """κ→∞: f_tail_actual → Σ_{s>s_t} ρ / Σ ρ (hard mass fraction above s_t)."""
-    from gravoturb_fdf.field.tail import f_tail_actual
+    from gravoturb.realization.placement import f_tail_actual
 
     s = jnp.array([0.0, 1.0, 2.0, 3.0])
     rho = jnp.exp(s)
@@ -43,7 +43,7 @@ def test_f_tail_actual_sharp_limit_equals_mass_fraction():
 
 def test_f_tail_actual_matches_definition():
     """f_tail_actual reproduces Σ w ρ / Σ ρ on a known array."""
-    from gravoturb_fdf.field.tail import f_tail_actual, tail_weights
+    from gravoturb.realization.placement import f_tail_actual, tail_weights
 
     s = jnp.array([-1.0, 0.5, 2.0, 4.0])
     rho = jnp.exp(s)
@@ -54,7 +54,7 @@ def test_f_tail_actual_matches_definition():
 
 def test_f_tail_actual_differentiable():
     """f_tail_actual is differentiable in the soft-mask parameters."""
-    from gravoturb_fdf.field.tail import f_tail_actual
+    from gravoturb.realization.placement import f_tail_actual
 
     s = jnp.linspace(-2.0, 5.0, 200)
     rho = jnp.exp(s)

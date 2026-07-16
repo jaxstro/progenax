@@ -63,11 +63,11 @@ times**, only mildly affected by subcluster merging. Up to $\approx2$–3 per ce
 
 ## Use in progenax
 
-- `gravoturb_fdf.diagnostics.mass_density` (experimental) — implements **Eq. 4** (`local_surface_density`)
+- `gravoturb.diagnostics.mass_density` (experimental) — implements **Eq. 4** (`local_surface_density`)
   and the m–Σ diagnostic (`mass_density_segregation`: Spearman ρ(m,Σ), high/low median-Σ ratio, KS p).
   This is the **substructure-robust mass-weighted metric** for the FDF cluster IC — it detects
   *primordial* mass–density correlation (massive stars placed in dense BM19 clumps by
-  `gravoturb_fdf.masses.correlated_mass_assignment`) where CW04 $\mathcal{Q}$ on small massive subsets
+  `gravoturb.realization.mass_assignment.correlated_mass_assignment`) where CW04 $\mathcal{Q}$ on small massive subsets
   is too noisy. Validated in `tests/experimental/unit/test_mass_density.py` (exact-formula + uniform-density
   recovery + primordial-correlation detection).
 - Complements [](allison-2009.md) ($\Lambda_{\mathrm{MSR}}$ concentration) and

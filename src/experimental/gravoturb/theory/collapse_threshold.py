@@ -9,7 +9,7 @@ verified against the held PDF (docs/core-papers/Padoan_2011_ApJ_730_40.pdf):
 theta = 0.35 is the turbulence integral-scale fraction adopted by PN11 (their
 Section 2, after Wang & George 2002). This is a clearly-labelled CLASSICAL
 ALTERNATIVE to the BM19 transition density s_t, not the default path for the
-gravoturb_fdf pipeline. The full MHD critical density (PN11 Eq. 18) is not
+gravoturb pipeline. The full MHD critical density (PN11 Eq. 18) is not
 implemented here.
 
 JAX-native and differentiable in (mach, alpha_vir).

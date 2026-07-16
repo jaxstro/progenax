@@ -1,7 +1,7 @@
-r"""HMC convergence diagnostics for gravoturb_fdf inference (AC19, Task 3).
+r"""HMC convergence diagnostics for gravoturb inference (AC19, Task 3).
 
 A thin **arviz** wrapper that turns the multi-chain output of
-:func:`gravoturb_fdf.inference.hmc.run_nuts_diagnostic` into the standard per-fit
+:func:`gravoturb.inference.hmc.run_nuts_diagnostic` into the standard per-fit
 NUTS convergence diagnostics: split-R-hat, bulk-ESS, tail-ESS, divergence rate,
 BFMI, and max-tree-depth saturation, plus an overall ``passed`` boolean.
 

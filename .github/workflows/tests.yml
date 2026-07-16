@@ -91,7 +91,7 @@ jobs:
         working-directory: progenax
         run: uv run --no-sync pytest ${{ matrix.paths }} -m "not slow" -q
 
-  # Experimental gravoturb_fdf subsystem (repo-only, NOT in the wheel). Needs the
+  # Experimental gravoturb subsystem (repo-only, NOT in the wheel). Needs the
   # [experimental] extra (blackjax, optax); runs the non-slow experimental suite.
   experimental:
     runs-on: ubuntu-latest

@@ -16,7 +16,7 @@ pytestmark = pytest.mark.experimental
 
 def test_bandpowers_shape():
     """Returns band-powers of length len(k_edges)-1 (and matching centers, n_modes)."""
-    from gravoturb_fdf.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
 
     shape = (32, 32, 32)
     k_edges = jnp.linspace(1.0, 12.0, 7)  # 6 bins
@@ -30,7 +30,7 @@ def test_bandpowers_shape():
 
 def test_bandpowers_differentiable_in_beta_and_mach():
     """jax.grad of sum(bandpowers) wrt beta and wrt mach are finite and nonzero."""
-    from gravoturb_fdf.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
 
     shape = (32, 32, 32)
     k_edges = jnp.linspace(1.0, 12.0, 7)
@@ -57,7 +57,7 @@ def test_bandpowers_differentiable_in_beta_and_mach():
 
 def test_bandpower_slope_steepens_with_beta():
     """Higher beta -> steeper predicted band-power slope (more large-scale power)."""
-    from gravoturb_fdf.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
 
     shape = (48, 48, 48)
     k_edges = jnp.linspace(1.0, 18.0, 10)
@@ -78,7 +78,7 @@ def test_bandpower_slope_steepens_with_beta():
 
 def test_slab_full_depth_reduces_to_full_projection():
     """At depth = n_los the slab projection equals the periodic full projection."""
-    from gravoturb_fdf.inference.covariance import (
+    from gravoturb.inference.covariance import (
         _angular_bandpowers_from_xi_rho_full,
         angular_bandpowers_2d_limber,
     )
@@ -104,7 +104,7 @@ def test_slab_full_depth_reduces_to_full_projection():
 
 def test_add_poisson_shot_limits():
     """Shot model: high-k (clustering->0) approaches n_bar_sky; low-k dominated by clustering."""
-    from gravoturb_fdf.inference.covariance import add_poisson_shot
+    from gravoturb.inference.covariance import add_poisson_shot
 
     n_bar_sky = 50.0
     depth = 96.0

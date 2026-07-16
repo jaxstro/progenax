@@ -32,8 +32,8 @@ def test_uses_logdensity_chain_steeper_than_density():
     (density d_n chain): Phase-0 D01 measured A_s slope ~ -3.2 vs A_rho ~ -2.4 at beta=3, i.e. the
     log-density observable is markedly steeper.
     """
-    from gravoturb_fdf.inference.covariance import angular_bandpowers_2d_limber
-    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.inference.projected_logp import predict_logp_bandpowers
 
     T = jnp.ones(NB)
     mu = predict_logp_bandpowers(
@@ -47,7 +47,7 @@ def test_uses_logdensity_chain_steeper_than_density():
 
 def test_transfer_scales_per_bin():
     """mu(T) == mu(ones) * T elementwise (the transfer is a per-bin multiplicative factor)."""
-    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers
+    from gravoturb.inference.projected_logp import predict_logp_bandpowers
 
     T = jnp.linspace(0.5, 2.0, NB)
     base = predict_logp_bandpowers(
@@ -61,7 +61,7 @@ def test_transfer_scales_per_bin():
 
 def test_differentiable_in_beta():
     """jax.grad of sum(mu) wrt beta is finite and nonzero (analytic beta-response)."""
-    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers
+    from gravoturb.inference.projected_logp import predict_logp_bandpowers
 
     T = jnp.ones(NB)
 
@@ -76,7 +76,7 @@ def test_differentiable_in_beta():
 
 def test_slope_steepens_with_beta():
     """Higher beta -> steeper (more negative) predicted log-density band-power slope."""
-    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers
+    from gravoturb.inference.projected_logp import predict_logp_bandpowers
 
     T = jnp.ones(NB)
     lo = predict_logp_bandpowers(SHAPE, 2.5, 8.0, 0.4, 2.5, 32.0, K_EDGES, T, 8, 64)
@@ -91,7 +91,7 @@ def test_analytic_emulator_matches_direct_model():
     A_s is deterministic and smooth, so a table + linear interp preserves the beta-response. Tested at
     a random OFF-node beta against the direct analytic chain.
     """
-    from gravoturb_fdf.inference.projected_logp import (
+    from gravoturb.inference.projected_logp import (
         interp_logp_bandpowers,
         precompute_a_s_table,
         predict_logp_bandpowers,
@@ -113,7 +113,7 @@ def test_analytic_emulator_matches_direct_model():
 
 def test_analytic_emulator_differentiable():
     """jax.grad through the interpolated emulator wrt beta is finite and nonzero."""
-    from gravoturb_fdf.inference.projected_logp import (
+    from gravoturb.inference.projected_logp import (
         interp_logp_bandpowers,
         precompute_a_s_table,
     )
@@ -140,15 +140,15 @@ def _logplus_limit_reference(
     linear below), so the shot model's clustering term must converge to the band-powers of this
     deterministic log_+ of the lognormal projected density -- NOT pure ln (that is the ln-vs-log_+
     difference the calibrated transfer absorbs)."""
-    from gravoturb_fdf.inference.covariance import (
+    from gravoturb.inference.covariance import (
         _angular_bandpowers_from_xi_rho_2d,
         _xi_rho_grid,
     )
-    from gravoturb_fdf.theory.gaussianization import (
+    from gravoturb.theory.log_correlations import (
         gaussianized_xi,
         hermite_coefficients,
     )
-    from gravoturb_fdf.theory.projection import limber_project_slab
+    from gravoturb.theory.projection import limber_project_slab
 
     xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)
     xi_Sigma = limber_project_slab(xi_rho, depth, los_axis=2)
@@ -169,7 +169,7 @@ def _logplus_limit_reference(
 
 def test_shot_model_differentiable_in_beta():
     """jax.grad of the shot-transfer forward model wrt beta is finite and nonzero."""
-    from gravoturb_fdf.inference.projected_logp import predict_logp_bandpowers_shot
+    from gravoturb.inference.projected_logp import predict_logp_bandpowers_shot
 
     def total(beta):
         return jnp.sum(
@@ -194,7 +194,7 @@ def test_shot_model_differentiable_in_beta():
 
 def test_shot_floor_positive_and_decreases_with_nbar():
     """W_shot (white Poisson floor) is positive and SMALLER at higher mean count."""
-    from gravoturb_fdf.inference.projected_logp import logp_shot_components
+    from gravoturb.inference.projected_logp import logp_shot_components
 
     _Pc_lo, W_lo = logp_shot_components(
         SHAPE,
@@ -228,7 +228,7 @@ def test_shot_floor_positive_and_decreases_with_nbar():
 
 def test_shot_clustering_reduces_to_log_limit_at_high_nbar():
     """At high mean count the clustering term -> the lognormal-copula log predictor (A_logSig)."""
-    from gravoturb_fdf.inference.projected_logp import logp_shot_components
+    from gravoturb.inference.projected_logp import logp_shot_components
 
     # high n_bar but modest absolute count (low n_bar_3d on a deep box) so the Poisson sum is fully
     # resolved by n_count_max (the shot model is cheap only at low counts -- exactly the regime we need
@@ -254,7 +254,7 @@ def test_shot_clustering_reduces_to_log_limit_at_high_nbar():
 
 def test_loglike_stationary_and_peaked_at_truth():
     """Noiseless data = mu(beta_true): the Gaussian log-like is peaked at beta_true with grad ~ 0."""
-    from gravoturb_fdf.inference.projected_logp import (
+    from gravoturb.inference.projected_logp import (
         logp_loglike,
         predict_logp_bandpowers,
     )
@@ -279,7 +279,7 @@ def test_loglike_stationary_and_peaked_at_truth():
 
 def test_loglike_differentiable_off_truth():
     """jax.grad of the log-like wrt beta is finite away from the truth (gradient-based inference)."""
-    from gravoturb_fdf.inference.projected_logp import (
+    from gravoturb.inference.projected_logp import (
         logp_loglike,
         predict_logp_bandpowers,
     )
@@ -303,7 +303,7 @@ def test_calibrate_transfer_makes_model_match_fiducial_mean():
     This is the defining contract: at the fiducial, mu(theta_fid) = A_s(theta_fid) * T == E[data|fid].
     The beta-RESPONSE is unaffected (T is a constant) -- step-1 tests cover that.
     """
-    from gravoturb_fdf.inference.projected_logp import calibrate_transfer
+    from gravoturb.inference.projected_logp import calibrate_transfer
 
     rng = np.random.default_rng(0)
     rows = rng.uniform(1.0, 5.0, size=(16, NB))  # synthetic observable band-power rows

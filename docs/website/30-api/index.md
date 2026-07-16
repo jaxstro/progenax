@@ -111,7 +111,7 @@ chapter.
   - `PlummerProfile`, `MultiComponentCluster`
 * - **Experimental**
   - Repo-only packages under `src/experimental/`; not in the released wheel
-  - `gravoturb_fdf` (turbulent/fractal ICs + inference)
+  - `gravoturb` (turbulent/fractal ICs + inference)
 * - **Internal**
   - Underscore-prefixed; not in `__all__`
   - `_grid_density_components`

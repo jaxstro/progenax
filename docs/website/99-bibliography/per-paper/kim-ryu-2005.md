@@ -72,7 +72,7 @@ There are two spectra in circulation and they differ by $k^2$:
 Kim & Ryu quote $E_\rho$ (their transonic $-1.73$ is "close to Kolmogorov $-5/3$", which is
 an $E(k)$ statement). The progenax FDF Gaussian random field is built and *measured* in
 the **$P_\mathrm{3D}$** convention ($P_\mathrm{3D}\propto k^{-\beta}$, see
-[field.py](../../../../src/experimental/gravoturb_fdf/field/field.py)). Translating:
+[gaussian_field.py](../../../../src/experimental/gravoturb/realization/gaussian_field.py)). Translating:
 
 $$
 \beta_{P_\mathrm{3D}} = s + 2:\qquad
@@ -86,7 +86,7 @@ with Mach — shallower than, and trending opposite to, a pure Kolmogorov/Burger
 ## Use in progenax
 
 - This is the **correct primary reference for the density power-spectrum slope** $\beta$
-  fed to the FDF GRF ([field.py](../../../../src/experimental/gravoturb_fdf/field/field.py)) —
+  fed to the FDF GRF ([gaussian_field.py](../../../../src/experimental/gravoturb/realization/gaussian_field.py)) —
   *not* the velocity-spectrum theories (Kolmogorov/Burgers).
 - Cross-check for [](lomax-2018.md): Lomax's FBM field is generated with $\beta=E+2H=3+2H$
   (the *generating* Gaussian field), set by the desired fractal dimension $D=3-H$; the

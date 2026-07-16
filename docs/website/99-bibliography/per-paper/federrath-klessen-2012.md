@@ -55,7 +55,7 @@ $$
 $$
 
 which in the **hydrodynamic limit** ($\beta\to\infty$, no field) reduces to the relation
-used throughout `gravoturb_fdf`:
+used throughout `gravoturb`:
 
 $$
 \boxed{\;\sigma_s^2 = \ln\!\left(1 + b^2\mathcal{M}^2\right)\;}
@@ -89,7 +89,7 @@ lower integration limit) and whether the $t_\mathrm{ff}$ factor is kept inside t
 Two facts that matter downstream:
 
 - The **PN** critical density carries the prefactor **$0.067\,\theta^{-2}$** — the same
-  form `gravoturb_fdf.theory.pn11` implements (HD: $0.547$ at $\theta=0.35$); see
+  form `gravoturb.theory.collapse_threshold` implements (HD: $0.547$ at $\theta=0.35$); see
   [](padoan-nordlund-2011.md).
 - The **KM/HC** critical density carries the **$(\pi^2/5)\phi_x^2$** form — *distinct* from
   PN's, which is why the PN11 note flags them as different prefactor conventions.
@@ -102,7 +102,7 @@ Two facts that matter downstream:
 
 ## Notes
 
-- **The HD `gravoturb_fdf` path drops magnetic fields**: it uses $\sigma_s^2=\ln(1+b^2\mathcal{M}^2)$,
+- **The HD `gravoturb` path drops magnetic fields**: it uses $\sigma_s^2=\ln(1+b^2\mathcal{M}^2)$,
   i.e. FK12 Eq. 4 with $\beta\to\infty$. Magnetization ($\beta<\infty$) *narrows* the PDF
   and lowers the SFR by ~2× — not modelled here.
 - Best-fit efficiencies from the simulations: SFE $=1$–$10\%$, local

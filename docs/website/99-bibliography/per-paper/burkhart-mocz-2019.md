@@ -113,9 +113,9 @@ finding the dense fraction (and hence SFE) is **weakly anti-correlated with Mach
 
 - [](../../10-theory/gravoturbulence/bm19.md) — BM19 1-D PDF theory and the $\alpha$ window.
 - [](../../10-theory/gravoturbulence/magnification-factor.md) — the $\alpha\leftrightarrow p$ ($\kappa=3/\alpha$) mapping.
-- `experimental/gravoturb_fdf/theory/bm19.py` — `sigma_s_squared`, `transition_density`,
+- `experimental/gravoturb/theory/density_pdf.py` — `sigma_s_squared`, `transition_density`,
   `f_dense_bm19_full`, `f_dense_lognormal_limit`, `pdf_slope_to_radial`.
-- `experimental/gravoturb_fdf/theory/pdf.py` — the BM19 volume PDF + inverse-CDF that
+- `experimental/gravoturb/theory/density_cdf.py` — the BM19 volume PDF + inverse-CDF that
   imprints the BM19 marginal on the 3-D FDF field via the rank copula.
 
 Validation: closed-form $f_\mathrm{dense}$ matches direct quadrature of Eq. 18 to

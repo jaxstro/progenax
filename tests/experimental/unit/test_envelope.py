@@ -18,7 +18,7 @@ BOX = 1.0
 
 def test_radius_grid_min_at_center_max_at_corner():
     """radius_grid is ~0 near the box center and ~sqrt(3)/2*box at the corners."""
-    from gravoturb_fdf.field.envelope import radius_grid
+    from gravoturb.realization.envelope import radius_grid
 
     r = np.asarray(radius_grid(SHAPE, box_size=BOX))
     assert r.shape == SHAPE
@@ -28,7 +28,7 @@ def test_radius_grid_min_at_center_max_at_corner():
 
 def test_envelope_reproduces_plummer_profile_when_no_turbulence():
     """With s_turb=0, e^{s_total} azimuthally averages to the Plummer density profile."""
-    from gravoturb_fdf.field.envelope import apply_spherical_envelope, radius_grid
+    from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
 
     from progenax import PlummerProfile
 
@@ -46,7 +46,7 @@ def test_envelope_reproduces_plummer_profile_when_no_turbulence():
 
 def test_envelope_is_separable():
     """s_total - ln rho_env(r) recovers s_turb exactly (envelope only adds a radial mean)."""
-    from gravoturb_fdf.field.envelope import apply_spherical_envelope, radius_grid
+    from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
 
     from progenax import PlummerProfile
 
@@ -62,7 +62,7 @@ def test_envelope_is_separable():
 
 def test_envelope_differentiable_in_rh():
     """jax.grad of total enveloped mass-ish wrt the profile r_h is finite (differentiable shape)."""
-    from gravoturb_fdf.field.envelope import apply_spherical_envelope
+    from gravoturb.realization.envelope import apply_spherical_envelope
 
     from progenax import PlummerProfile
 

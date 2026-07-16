@@ -104,5 +104,5 @@ The McLuster code paper and the dynamical-diagnostics calibration paper are the 
 publication (MNRAS 417, 2300). progenax's spatial IC machinery is an independent JAX-native
 re-implementation, **cross-validated against** McLuster's conventions and calibrated ranges
 rather than ported from it. The fractal/substructure ICs themselves now live in the
-experimental `gravoturb_fdf` subsystem; the Cartwright & Whitworth $\mathcal{Q}$ *diagnostic*
+experimental `gravoturb` subsystem; the Cartwright & Whitworth $\mathcal{Q}$ *diagnostic*
 survives in `progenax.diagnostics`.

@@ -1,4 +1,4 @@
-r"""Thin blackjax NUTS driver + bounded reparametrization for gravoturb_fdf inference (M2).
+r"""Thin blackjax NUTS driver + bounded reparametrization for gravoturb inference (M2).
 
 We sample the free parameters (mach, alpha, beta) with b fixed (the mach-b degeneracy: the
 data constrains (mach,b) only via sigma_s^2). HMC runs in UNCONSTRAINED space; the bounds

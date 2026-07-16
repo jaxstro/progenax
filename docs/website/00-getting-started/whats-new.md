@@ -29,7 +29,7 @@ site (the pages you are reading now):
   link/count gate (`scripts/check_links_and_counts.py`) drove broken `.md`
   targets to zero.
 - **Gravoturbulence consolidated and unlisted** — the experimental
-  `gravoturb_fdf` theory section was consolidated 10 → 5 pages and moved out of
+  `gravoturb` theory section was consolidated 10 → 5 pages and moved out of
   the public navigation (it documents a repo-only, not-in-the-wheel subsystem).
 - **OED trimmed to a public overview** — the science-demos optimal-design
   section keeps one public overview page; the longer worked-example detail

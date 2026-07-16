@@ -61,7 +61,7 @@ trace. The error message is usually a cryptic
 scipy presents the same problem with bigger consequences:
 `scipy.integrate.quad` cannot be JIT-traced because its iteration
 count depends on the value of the integrand. The gravoturbulence
-quadratures (now in the experimental `gravoturb_fdf` package) use
+quadratures (now in the experimental `gravoturb` package) use
 fixed-grid trapezoidal or Gauss-Legendre instead — both of which are
 pure-JAX operations.
 

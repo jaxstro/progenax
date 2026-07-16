@@ -12,7 +12,7 @@ without a fresh artifact. numpy/matplotlib are permitted here (validation/analys
 
 Run:
     PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync \
-        python -m gravoturb_fdf.validation.cluster_acceptance
+        python -m gravoturb.validation.cluster_acceptance
 """
 
 import os
@@ -32,11 +32,11 @@ from progenax import (
     compute_potential_energy,
 )
 
-from gravoturb_fdf.cluster import build_cluster_ic
-from gravoturb_fdf.diagnostics.q import q_components
-from gravoturb_fdf.field.envelope import apply_spherical_envelope, radius_grid
-from gravoturb_fdf.field.pipeline import build_fdf_field
-from gravoturb_fdf.field.sampling import sample_positions
+from gravoturb.cluster import build_cluster_ic
+from gravoturb.diagnostics.q import q_components
+from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
+from gravoturb.realization.pipeline import build_fdf_field
+from gravoturb.realization.placement import sample_positions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLOTS = os.path.join(HERE, "plots")

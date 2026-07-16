@@ -73,7 +73,7 @@ $\alpha_\mathrm{vir}\propto\Sigma^{-1}$.
 
 - The **correct grounding** for any $\sigma_v(R,\Sigma)$ or $\alpha_\mathrm{vir}(\Sigma)$
   relation in the PN11 alternative path
-  ([pn11.py](../../../../src/experimental/gravoturb_fdf/theory/pn11.py)), which currently
+  ([collapse_threshold.py](../../../../src/experimental/gravoturb/theory/collapse_threshold.py)), which currently
   takes $\alpha_\mathrm{vir}$ as an explicit input.
 - Confirms the Larson/Solomon size–linewidth exponents used by
   [cluster/turbulence.py](../../../../src/progenax/cluster/turbulence.py) `larson_sigma_v`.

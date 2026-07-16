@@ -20,7 +20,7 @@ What this page validates is the substructure **diagnostic** — the exact
 `compute_q_parameter` and the differentiable `q_approx`, both alive in
 released `progenax.diagnostics` (unit suites in `tests/unit/substructure/`).
 Turbulent/fractal IC *generation* lives in the experimental, repo-only
-`gravoturb_fdf` package (`src/experimental/`, not in the released wheel —
+`gravoturb` package (`src/experimental/`, not in the released wheel —
 see its `VALIDATION_SUMMARY.md` and the AC1–AC17 acceptance suite).
 ```
 
@@ -215,7 +215,7 @@ python scripts/validate_azimuthal_variation.py                     # 3 azimuthal
 ## What this suite does *not* test
 
 - **Fractal IC *generation*** — removed in the 2026-06 rewrite (no released
-  successor); the turbulent-density method is experimental `gravoturb_fdf`
+  successor); the turbulent-density method is experimental `gravoturb`
   (`src/experimental/`, AC6/AC7 — see its `VALIDATION_SUMMARY.md`).
 - **The Küpper $\sigma_\Sigma\!-\!D$ slope** — requires fractal-dimension models
   (generator removed); only the metric's floor/span/monotonicity is validated.

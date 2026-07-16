@@ -1,4 +1,4 @@
-"""Unit tests for gravoturb_fdf.theory.gaussianization.
+"""Unit tests for gravoturb.theory.log_correlations.
 
 Phase 1 of the differentiable predicted-statistics layer. The copula map
 ``s = T(g) = bm19_icdf(Phi(g)) - log<e^s>`` carries the BM19 marginal onto a unit
@@ -20,8 +20,8 @@ pytestmark = pytest.mark.experimental
 
 def test_s_of_g_lognormal_limit_recovers_gaussian_moments():
     """Large-alpha (tail-negligible) BM19 => s ~ Normal(-sigma_s^2/2, sigma_s^2)."""
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
-    from gravoturb_fdf.theory.gaussianization import s_of_g
+    from gravoturb.theory.density_pdf import sigma_s_squared
+    from gravoturb.theory.log_correlations import s_of_g
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))
@@ -36,7 +36,7 @@ def test_s_of_g_mean_density_unity():
 
     Uses alpha=3 (finite second moment) so the sample mean of rho is well behaved.
     """
-    from gravoturb_fdf.theory.gaussianization import s_of_g
+    from gravoturb.theory.log_correlations import s_of_g
 
     mach, b, alpha = 5.0, 0.4, 3.0
     g = jax.random.normal(jax.random.PRNGKey(1), (400_000,))
@@ -46,7 +46,7 @@ def test_s_of_g_mean_density_unity():
 
 def test_s_of_g_monotone_in_g():
     """T = F^{-1} o Phi is monotone increasing in g."""
-    from gravoturb_fdf.theory.gaussianization import s_of_g
+    from gravoturb.theory.log_correlations import s_of_g
 
     g = jnp.linspace(-4.0, 4.0, 500)
     s = s_of_g(g, 5.0, 0.4, 2.0)
@@ -55,7 +55,7 @@ def test_s_of_g_monotone_in_g():
 
 def test_s_of_g_differentiable_in_params():
     """grad of a permutation-invariant functional of s wrt mach is finite (no NaN)."""
-    from gravoturb_fdf.theory.gaussianization import s_of_g
+    from gravoturb.theory.log_correlations import s_of_g
 
     g = jax.random.normal(jax.random.PRNGKey(2), (2000,))
 
@@ -71,7 +71,7 @@ def test_s_of_g_differentiable_in_params():
 
 def test_hermite_coefficients_linear_map_only_c1():
     """T(g) = sigma g + const  =>  c_0=const, c_1=sigma, c_{n>=2}=0 (to machine eps)."""
-    from gravoturb_fdf.theory.gaussianization import hermite_coefficients
+    from gravoturb.theory.log_correlations import hermite_coefficients
 
     sigma, const = 1.3, 0.7
     c = np.asarray(hermite_coefficients(lambda g: sigma * g + const, n_max=6))
@@ -82,7 +82,7 @@ def test_hermite_coefficients_linear_map_only_c1():
 
 def test_hermite_coefficients_exp_map_generating_function():
     """T(g)=exp(sigma g)  =>  c_n = sigma^n e^{sigma^2/2}  (C&J 1991 Eq 17 structure)."""
-    from gravoturb_fdf.theory.gaussianization import hermite_coefficients
+    from gravoturb.theory.log_correlations import hermite_coefficients
 
     sigma, n_max = 0.5, 6
     c = np.asarray(hermite_coefficients(lambda g: jnp.exp(sigma * g), n_max=n_max))
@@ -93,7 +93,7 @@ def test_hermite_coefficients_exp_map_generating_function():
 
 def test_hermite_exp_map_variance_identity():
     """Var[e^{sigma g}] = sum_{n>=1} c_n^2/n! = e^{sigma^2}(e^{sigma^2}-1)."""
-    from gravoturb_fdf.theory.gaussianization import hermite_coefficients
+    from gravoturb.theory.log_correlations import hermite_coefficients
 
     sigma = 0.5
     c = np.asarray(hermite_coefficients(lambda g: jnp.exp(sigma * g), n_max=14))
@@ -105,8 +105,8 @@ def test_hermite_exp_map_variance_identity():
 
 def test_bm19_hermite_coefficients_lognormal_limit_variance():
     """Large alpha (tail negligible): sum_{n>=1} c_n^2/n! ~ sigma_s^2 = Var[s]."""
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
-    from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients
+    from gravoturb.theory.density_pdf import sigma_s_squared
+    from gravoturb.theory.log_correlations import bm19_hermite_coefficients
 
     mach, b, alpha = 5.0, 0.4, 6.0
     sig2 = float(sigma_s_squared(mach, b))
@@ -118,7 +118,7 @@ def test_bm19_hermite_coefficients_lognormal_limit_variance():
 
 def test_bm19_hermite_coefficients_differentiable():
     """c_n(mach,b,alpha) differentiable: grad of c_2 wrt mach is finite."""
-    from gravoturb_fdf.theory.gaussianization import bm19_hermite_coefficients
+    from gravoturb.theory.log_correlations import bm19_hermite_coefficients
 
     def c2(mach):
         return bm19_hermite_coefficients(mach, 0.4, 2.0, n_max=4)[2]
@@ -131,7 +131,7 @@ def test_bm19_hermite_coefficients_differentiable():
 
 def test_gaussianized_xi_zero_at_rho0_and_variance_at_rho1():
     """xi_s(0)=0; xi_s(1)=sum_{n>=1} c_n^2/n! = Var[s]."""
-    from gravoturb_fdf.theory.gaussianization import (
+    from gravoturb.theory.log_correlations import (
         bm19_hermite_coefficients,
         gaussianized_xi,
     )
@@ -145,7 +145,7 @@ def test_gaussianized_xi_zero_at_rho0_and_variance_at_rho1():
 
 def test_gaussianized_xi_monotone_nondecreasing_in_rho():
     """All c_n^2/n! >= 0 => xi_s nondecreasing on rho in [0,1]."""
-    from gravoturb_fdf.theory.gaussianization import (
+    from gravoturb.theory.log_correlations import (
         bm19_hermite_coefficients,
         gaussianized_xi,
     )
@@ -159,7 +159,7 @@ def test_gaussianized_xi_monotone_nondecreasing_in_rho():
 def test_gaussianized_xi_exp_map_matches_coles_jones_eq30():
     """Series with exp-map c_n reproduces e^{s^2}(e^{s^2 rho} - 1) = Coles & Jones
     1991 Eq (30) (the lognormal 1+xi=exp[Xi], up to the <Y>^2 normalization)."""
-    from gravoturb_fdf.theory.gaussianization import (
+    from gravoturb.theory.log_correlations import (
         gaussianized_xi,
         hermite_coefficients,
     )
@@ -174,7 +174,7 @@ def test_gaussianized_xi_exp_map_matches_coles_jones_eq30():
 
 def test_gaussianized_xi_differentiable_in_params():
     """xi_s(rho*; theta) differentiable in (mach,b,alpha): finite grad wrt mach."""
-    from gravoturb_fdf.theory.gaussianization import (
+    from gravoturb.theory.log_correlations import (
         bm19_hermite_coefficients,
         gaussianized_xi,
     )

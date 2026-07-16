@@ -17,7 +17,7 @@ PARAMS = dict(mach=8.0, b=0.5, alpha=1.8, beta=3.5)
 
 def test_measure_q_ensemble_shape_finite():
     """measure_q_ensemble returns n_real finite Q values in a physical range."""
-    from gravoturb_fdf.validation.calibration import measure_q_ensemble
+    from gravoturb.validation.calibration import measure_q_ensemble
 
     q = measure_q_ensemble(
         **PARAMS,
@@ -34,7 +34,7 @@ def test_measure_q_ensemble_shape_finite():
 
 def test_q_vs_fsub_monotone_decreasing():
     """Mean Q decreases with f_sub (more dense-tail stars → more substructure)."""
-    from gravoturb_fdf.validation.calibration import q_vs_fsub
+    from gravoturb.validation.calibration import q_vs_fsub
 
     res = q_vs_fsub(
         **PARAMS,
@@ -50,7 +50,7 @@ def test_q_vs_fsub_monotone_decreasing():
 
 def test_q_vs_fsub_physical_range_and_struct():
     """Result carries f_sub/q_mean/q_std arrays; means in CW04 substructured band."""
-    from gravoturb_fdf.validation.calibration import q_vs_fsub
+    from gravoturb.validation.calibration import q_vs_fsub
 
     res = q_vs_fsub(
         **PARAMS,

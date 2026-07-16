@@ -1,4 +1,4 @@
-r"""Gaussian likelihood on the gravoturb_fdf data vector (Milestone 1).
+r"""Gaussian likelihood on the gravoturb data vector (Milestone 1).
 
 Data vector ``d(theta) = [P_s(k_i) band-powers, sigma^2_N(c_j) CIC variances]``, all analytic
 and differentiable in ``theta = (mach, b, alpha, beta)``. The CIC block uses the cubic-cell
@@ -14,15 +14,15 @@ and exact at the MAP on noiseless data. JAX-native.
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
-from gravoturb_fdf.theory.cic import (
+from gravoturb.inference.covariance import power_spectrum_bandpowers
+from gravoturb.theory.counts_in_cells import (
     cell_averaged_xi_rho,
     cic_variance,
     count_distribution,
     predict_log_count_variance,
 )
-from gravoturb_fdf.theory.pdf import bm19_volume_pdf
-from gravoturb_fdf.theory.projection import box_window_sq_grid
+from gravoturb.theory.density_cdf import bm19_volume_pdf
+from gravoturb.theory.projection import box_window_sq_grid
 
 
 def data_vector(
@@ -113,7 +113,7 @@ def log_count_variance_loglike(
     r"""Gaussian log-likelihood on the tail-robust CIC log-count variance (the sigma_s^2 -> mach block).
 
     Compares the measured ``Var_cells[log_plus(N)]`` to the analytic
-    :func:`~gravoturb_fdf.theory.cic.predict_log_count_variance` at ``theta``; ``var_v`` is the fixed
+    :func:`~gravoturb.theory.counts_in_cells.predict_log_count_variance` at ``theta``; ``var_v`` is the fixed
     (fiducial-mock) estimator variance (Decision #4 mock-precision pattern, no log|C| term). Replaces
     ``count_loglike`` in the inference path: tail-robust, so it does not bias mach high. Differentiable
     in ``theta = (mach, b, alpha, beta)`` (carries mach; alpha/beta enter only weakly via P(N)/R).

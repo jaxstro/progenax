@@ -1,6 +1,6 @@
 ---
 title: Säilynoja et al. (2026)
-description: Annotated reference for Säilynoja, Schmitt, Bürkner & Vehtari — "Posterior SBC", calibration checking conditional on the observed data; a future-direction extension of the prior-SBC check gravoturb_fdf currently uses.
+description: Annotated reference for Säilynoja, Schmitt, Bürkner & Vehtari — "Posterior SBC", calibration checking conditional on the observed data; a future-direction extension of the prior-SBC check gravoturb currently uses.
 ---
 
 # Säilynoja et al. (2026)
@@ -15,7 +15,7 @@ description: Annotated reference for Säilynoja, Schmitt, Bürkner & Vehtari —
 **DOI.** [10.1007/s11222-026-10825-9](https://doi.org/10.1007/s11222-026-10825-9)
 
 **Verified.** Abstract, §1–§3 (Eqs. 1–3, Algorithms 1–2), Figs. 1–2 checked against the held
-PDF (2026-06). The fact `gravoturb_fdf` cares about: ordinary ("prior") SBC validates
+PDF (2026-06). The fact `gravoturb` cares about: ordinary ("prior") SBC validates
 calibration *averaged over the prior* and can miss miscalibration confined to the small region
 of parameter space relevant for a *given* dataset (their Fig. 1); **posterior SBC** instead
 draws `θ' ~ π(θ|y_obs)`, simulates `y_i ~ π(y|θ'_i)`, refits, and tests PIT uniformity — a
@@ -37,7 +37,7 @@ remains valid under model misspecification. It is operationalized for both MCMC 
 
 ## Use in progenax
 
-Not yet used — recorded as a **future direction**. The current `gravoturb_fdf` AC18 is *prior*
+Not yet used — recorded as a **future direction**. The current `gravoturb` AC18 is *prior*
 SBC (calibration over the BM19 prior); its documented honest-scope caveat ("validates the engine
 under the model, averaged over the prior") is exactly the limitation posterior SBC addresses. A
 natural follow-up beyond workstream ① would add a posterior-SBC check conditioned on a specific
@@ -49,7 +49,7 @@ paper, not this one.
 ## Notes
 
 - Code for the paper's experiments: `github.com/TeemuSailynoja/posterior-sbc` (R / `bayesplot`;
-  cross-check only — the `gravoturb_fdf` figures use the `arviz` array layer).
+  cross-check only — the `gravoturb` figures use the `arviz` array layer).
 - Posterior SBC is still **embarrassingly parallel** (independent refits) and inherits SBC's
   honest scope: it certifies *self-consistency of the inference*, not that the generative model
   matches reality.

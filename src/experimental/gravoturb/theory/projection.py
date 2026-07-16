@@ -5,8 +5,8 @@ rho_g(r) is the normalized real-space autocovariance of the Gaussian field with 
 spectrum P(k) = k^{-beta} (DC = 0) on the simulator's grid -- the beta-carrier of the
 2-point. It enters the Gaussianization series xi_s(r) = sum_n (c_n^2/n!) rho_g(r)^n, so
 beta flows analytically (P(k) = exp(-beta ln k) is smooth in beta). Matches
-gravoturb_fdf.field.gaussian_random_field's spectrum, so the analytic rho_g equals the
-ensemble-mean of gravoturb_fdf.validation.measure.gaussian_correlation_measured.
+gravoturb.realization.gaussian_random_field's spectrum, so the analytic rho_g equals the
+ensemble-mean of gravoturb.validation.measure.gaussian_correlation_measured.
 
 JAX-native; differentiable in beta.
 """

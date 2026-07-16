@@ -15,7 +15,7 @@ description: Annotated reference for Blakesley Burkhart — the analytic star fo
 **DOI.** [10.3847/1538-4357/aad002](https://doi.org/10.3847/1538-4357/aad002)
 
 **Verified.** Abstract, §1–3 (Eqs. 1–19) checked against the held PDF (2026-06). The two facts
-`gravoturb_fdf` depends on: the **piecewise lognormal + power-law density PDF** (Eq. 18 — the
+`gravoturb` depends on: the **piecewise lognormal + power-law density PDF** (Eq. 18 — the
 `bm19_volume_pdf` form) and the **positive-α convention** $p_{\rm PL}\propto e^{-\alpha s}$ (Eq. 6).
 ```
 
@@ -66,8 +66,8 @@ N\,C\,e^{-\alpha s}, & s > s_t,
 normalised by $N$ (Eq. 19, a closed form in $C$, $\alpha$, $s_t$, $\sigma_s$). Requiring
 $p_{\rm LN+PL}$ to be **continuous and differentiable** at $s_t$ fixes the amplitude $C$ and the
 transition $s_t$ analytically. This is exactly the
-[`bm19_volume_pdf`](../../../../src/experimental/gravoturb_fdf/theory/pdf.py) implemented in
-`gravoturb_fdf`.
+[`bm19_volume_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py) implemented in
+`gravoturb`.
 
 **The α sign convention (Eq. 6).** Burkhart writes the tail as $p_{\rm PL}(s)=C\,e^{-\alpha s}$ for
 $s>s_t$ and notes explicitly that *"in our definition of the PL slope $\alpha$ is positive since the
@@ -92,8 +92,8 @@ KM05, PN11, and Hennebelle–Chabrier models (Eqs. 9–17).
 
 ## Use in progenax
 
-- The piecewise PDF {eq}`bk18-pdf` is [`bm19_volume_pdf`](../../../../src/experimental/gravoturb_fdf/theory/pdf.py);
-  {eq}`bk18-sigma` is [`sigma_s_squared`](../../../../src/experimental/gravoturb_fdf/theory/bm19.py).
+- The piecewise PDF {eq}`bk18-pdf` is [`bm19_volume_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py);
+  {eq}`bk18-sigma` is [`sigma_s_squared`](../../../../src/experimental/gravoturb/theory/density_pdf.py).
   These 1-point scalars are the inputs the differentiable-inference layer
   ([](../../10-theory/gravoturbulence/inference.md)) recovers from observed
   substructure.

@@ -1,0 +1,100 @@
+"""Phase 0.5 rename gate: the `gravoturb` package reproduces pre-rename realizations exactly.
+
+Reference hashes were captured on the pre-rename `gravoturb_fdf` tree (commit 66f627d) at
+pinned PRNG keys (tests/experimental/fixtures/rename_pins/pre_rename_sha256.json). A mismatch
+means a split/merge changed `jax.random` call order or a computation — the refactor was
+required to be zero-behavior-change.
+
+Same-machine/env reference: float64 bit-exactness across the rename is the contract on the
+machine that captured the pins; cross-platform FFT/libm differences may legitimately break
+these hashes, so skip (don't fail) if the environment fingerprint differs — the physics
+suites cover correctness there.
+"""
+
+import hashlib
+import json
+import pathlib
+import platform
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+from jaxstro.units import STELLAR
+from progenax import PlummerProfile
+
+from gravoturb.cluster import build_cluster_ic
+from gravoturb.realization.envelope import apply_spherical_envelope
+from gravoturb.realization.pipeline import build_fdf_field
+from gravoturb.realization.placement import sample_positions
+from gravoturb.realization.turbulent_velocity import turbulent_velocity_field
+
+pytestmark = [pytest.mark.experimental, pytest.mark.unit]
+
+_PINS = json.loads(
+    (pathlib.Path(__file__).parents[1] / "fixtures" / "rename_pins" /
+     "pre_rename_sha256.json").read_text()
+)
+_CAPTURE_ARCH = "arm64"  # pins captured on Anna's darwin/arm64 dev machine
+
+skip_foreign = pytest.mark.skipif(
+    platform.machine() != _CAPTURE_ARCH,
+    reason="byte-identity pins are same-machine references (darwin/arm64)",
+)
+
+
+def _h(x):
+    arr = np.ascontiguousarray(np.asarray(x, dtype=np.float64))
+    return hashlib.sha256(arr.tobytes()).hexdigest()
+
+
+@skip_foreign
+def test_field_realizations_match_pins():
+    for i, (mach, b, alpha, beta) in enumerate(
+        [(8.0, 0.5, 1.8, 3.0), (12.0, 0.33, 1.6, 3.5)]
+    ):
+        fld = build_fdf_field(mach, b, alpha, beta, (32, 32, 32), jax.random.PRNGKey(7 + i))
+        assert _h(fld.s) == _PINS[f"field_s_{i}"]
+        scalars = jnp.stack([fld.s_t, fld.f_dense, fld.f_dense_realized])
+        assert _h(scalars) == _PINS[f"field_scalars_{i}"]
+
+
+@skip_foreign
+def test_positions_and_velocity_field_match_pins():
+    fld = build_fdf_field(8.0, 0.5, 1.8, 3.0, (32, 32, 32), jax.random.PRNGKey(7))
+    s_tot = apply_spherical_envelope(fld.s, PlummerProfile(r_h=0.5), 4.0)
+    pos = sample_positions(fld.s, fld.s_t, 8.0, 0.3, 500, jax.random.PRNGKey(21),
+                           box_size=4.0, s_density=s_tot)
+    assert _h(pos) == _PINS["positions"]
+    vf = turbulent_velocity_field((32, 32, 32), 4.0, jax.random.PRNGKey(33))
+    assert _h(vf) == _PINS["velocity_field"]
+
+
+@skip_foreign
+def test_cluster_ic_matches_pins():
+    ic = build_cluster_ic(
+        jnp.ones(400), mach=8.0, b=0.5, alpha=1.8, beta=3.0,
+        profile=PlummerProfile(r_h=0.5), beta_v=4.0, Q_target=0.5, f_sub=0.3,
+        shape=(32, 32, 32), box_size=4.0, G=STELLAR.G, key=jax.random.PRNGKey(42),
+    )
+    assert _h(ic.positions) == _PINS["cluster_positions"]
+    assert _h(ic.velocities) == _PINS["cluster_velocities"]
+    assert _h(ic.Q) == _PINS["cluster_Q"]
+
+
+def test_sigma_s_squared_parity_with_released_core():
+    """The duplicate σ_s² across the package boundary stays pinned together.
+
+    gravoturb.theory.density_pdf.sigma_s_squared returns the VARIANCE σ_s²;
+    progenax.cluster.turbulence.sigma_ln_rho_from_mach returns the STD σ_s.
+    Both implement FK10 Eq. 19.
+    """
+    from progenax.cluster.turbulence import sigma_ln_rho_from_mach
+
+    from gravoturb.theory.density_pdf import sigma_s_squared
+
+    for mach, b in [(5.0, 0.4), (8.0, 0.5), (12.0, 1.0 / 3.0), (25.0, 1.0)]:
+        var = float(sigma_s_squared(mach, b))
+        std = float(sigma_ln_rho_from_mach(jnp.asarray(mach), b=b))
+        np.testing.assert_allclose(var, std**2, rtol=1e-12)

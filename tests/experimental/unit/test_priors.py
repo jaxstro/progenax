@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
-from gravoturb_fdf.inference.priors import BM19Prior
+from gravoturb.inference.priors import BM19Prior
 
 pytestmark = pytest.mark.experimental
 

@@ -1,4 +1,4 @@
-r"""Simulation-Based Calibration (SBC) driver for the gravoturb_fdf inference layer (Task 6).
+r"""Simulation-Based Calibration (SBC) driver for the gravoturb inference layer (Task 6).
 
 Simulation-Based Calibration (Talts et al. 2018, *Validating Bayesian Inference Algorithms
 with Simulation-Based Calibration*) checks that the inference machinery (prior + likelihood +
@@ -68,7 +68,7 @@ Two pieces:
   and threaded into every trial's log-density (SBC-valid as truth-independent constants).
 
 The mock construction (n_bar per cell, the rank-copula gas/stellar fields) mirrors
-:func:`gravoturb_fdf.validation.acceptance.ac16_hmc_recovery` so the calibrated object is the
+:func:`gravoturb.validation.acceptance.ac16_hmc_recovery` so the calibrated object is the
 SAME inference machinery AC16 exercises. The numpy paths (``measure_exceedances``,
 ``measure_log_count_variance``, the per-trial scalar threshold) are the non-differentiable
 oracle side -- the differentiable interface is the log-density itself (Phase 5 design).
@@ -80,26 +80,27 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
-from gravoturb_fdf.field.sampling import sample_cic_counts
-from gravoturb_fdf.inference.covariance import (
+from gravoturb.realization.gaussian_field import gaussian_random_field
+from gravoturb.realization.copula import rank_copula_field
+from gravoturb.realization.placement import sample_cic_counts
+from gravoturb.inference.covariance import (
     measured_bandpowers,
     mock_precision,
     power_spectrum_bandpowers,
 )
-from gravoturb_fdf.inference.hmc import (
+from gravoturb.inference.hmc import (
     log_jacobian,
     run_nuts,
     to_constrained,
     to_unconstrained,
 )
-from gravoturb_fdf.inference.likelihood import (
+from gravoturb.inference.likelihood import (
     log_count_variance_loglike,
     tail_exceedance_loglike,
 )
-from gravoturb_fdf.inference.priors import BM19Prior
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-from gravoturb_fdf.validation.measure import (
+from gravoturb.inference.priors import BM19Prior
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+from gravoturb.validation.measure import (
     estimate_log_count_variance_var,
     measure_exceedances,
     measure_log_count_variance,

@@ -16,8 +16,8 @@ inference interface is the analytic predicted-statistics layer in ``inference/``
 import jax
 import numpy as np
 
-from gravoturb_fdf.diagnostics.q import compute_q_parameter
-from gravoturb_fdf.field.pipeline import build_fdf_field, cloud_to_stars
+from gravoturb.diagnostics.q import compute_q_parameter
+from gravoturb.realization.pipeline import build_fdf_field, cloud_to_stars
 
 
 def measure_q_ensemble(

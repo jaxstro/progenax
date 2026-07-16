@@ -1,6 +1,6 @@
 ---
 title: Bairagi & Wandelt (2026)
-description: Annotated reference for Anirban Bairagi & Benjamin Wandelt — neural simulation-based field-level inference (PatchNet), the SBI alternative that the gravoturb_fdf physics-direct layer deliberately contrasts with.
+description: Annotated reference for Anirban Bairagi & Benjamin Wandelt — neural simulation-based field-level inference (PatchNet), the SBI alternative that the gravoturb physics-direct layer deliberately contrasts with.
 ---
 
 # Bairagi & Wandelt (2026)
@@ -16,7 +16,7 @@ description: Annotated reference for Anirban Bairagi & Benjamin Wandelt — neur
 **DOI.** [10.1088/1475-7516/2026/03/028](https://doi.org/10.1088/1475-7516/2026/03/028)
 
 **Verified.** Abstract checked against the held PDF (2026-06). Cited as the **contrast**: the neural,
-simulation-based field-level inference that the `gravoturb_fdf` physics-direct approach is the
+simulation-based field-level inference that the `gravoturb` physics-direct approach is the
 counterpoint to.
 ```
 

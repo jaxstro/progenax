@@ -95,7 +95,7 @@ not the coherent filaments and sheets of real supersonic turbulence.
 - [cluster/turbulence.py](../../../../src/progenax/cluster/turbulence.py) —
   `sigma_ln_rho_from_mach` implements **Eq. 19**; `b_from_environment` interpolates
   $b\in[1/3, \sim0.7]$ with density (a *tentative* mapping, not from FK10).
-- `experimental/gravoturb_fdf/theory/bm19.py` — `sigma_s_squared(mach, b)` is exactly
+- `experimental/gravoturb/theory/density_pdf.py` — `sigma_s_squared(mach, b)` is exactly
   Eq. 19; it is the entry point of the BM19 gravoturbulent density PDF
   ([](burkhart-mocz-2019.md)).
 

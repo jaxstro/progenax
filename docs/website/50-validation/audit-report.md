@@ -153,7 +153,7 @@ A useful trust grading:
 * - **Released, *unit-tested only*** ⚠️
   - (none — tidal-truncation hardened-and-validated 2026-06-09: new `tests/validation/test_tidal_physics.py`, 9 tests vs the L1 Lagrange point + analytic Plummer, + 5 figures; see the validated row).
 * - **Experimental (repo-only, not in the wheel)** 🔬
-  - `gravoturb_fdf` turbulent/fractal density-field subsystem (`src/experimental/`, AC1–AC17).
+  - `gravoturb` turbulent/fractal density-field subsystem (`src/experimental/`, AC1–AC17).
 * - **Deferred / not implemented** ⏳ 🚧
   - differentiable King $r_t$ (IFT, plan written); unified differentiable lowered-model family (Wilson/Woolley/multi-mass); multi-mass equipartition; self-consistent rotating equilibria.
 ```
@@ -226,7 +226,7 @@ Scoped to the *validated, differentiable* capability:
 These are **not** merely unplotted; they need implementation/hardening before a
 validation tier is meaningful:
 
-- **`gravoturb_fdf`** (experimental, repo-only) → harden to release quality, then validate turbulent ICs + the Küpper $\sigma_\Sigma$–$D$ slope (which the released azimuthal test deliberately does *not* claim, pending fractal-$D$ models).
+- **`gravoturb`** (experimental, repo-only) → harden to release quality, then validate turbulent ICs + the Küpper $\sigma_\Sigma$–$D$ slope (which the released azimuthal test deliberately does *not* claim, pending fractal-$D$ models).
 - **Differentiable King $r_t$** → implement (R1), then add the gradient panel.
 - **Unified differentiable lowered-model family** (Wilson/Woolley/multi-mass) → implement per the [roadmap](../10-theory/spatial-profiles/lowered-model-family.md), then validate against the original models.
 - **Self-consistent rotating equilibria** → implement (current rotation is a streaming transform on a non-rotating equilibrium), then validate.

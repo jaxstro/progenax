@@ -57,12 +57,12 @@ forward chain and the magnification-factor calculation.
 - [](../../10-theory/gravoturbulence/bm19.md) — step 5 of the forward chain applies the mapping.
 - [](../../10-theory/gravoturbulence/magnification-factor.md) — consumes the resulting $p$ to
   compute the geometric SFR boost $\zeta(p)$.
-- `gravoturb_fdf` (experimental) — `pdf_slope_to_radial` implements $p = 3/\alpha$;
+- `gravoturb` (experimental) — `pdf_slope_to_radial` implements $p = 3/\alpha$;
   `tests/experimental/unit/test_bm19.py` verifies it.
 
 ## Notes
 
-The gravoturbulence subsystem is the **experimental, repo-only** `gravoturb_fdf` package (not
+The gravoturbulence subsystem is the **experimental, repo-only** `gravoturb` package (not
 in the released wheel). The α↔p mapping is also discussed alongside
 [](federrath-klessen-2012.md). Until the PDF is held and verified, treat the specific
 $p = 3/\alpha$ form as progenax's working attribution rather than a confirmed transcription.

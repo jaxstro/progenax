@@ -1,6 +1,6 @@
 ---
 title: Säilynoja et al. (2022)
-description: Annotated reference for Säilynoja, Bürkner & Vehtari — the ECDF-difference graphical uniformity test with simultaneous confidence bands, the calibration plot gravoturb_fdf uses to visualize SBC rank uniformity.
+description: Annotated reference for Säilynoja, Bürkner & Vehtari — the ECDF-difference graphical uniformity test with simultaneous confidence bands, the calibration plot gravoturb uses to visualize SBC rank uniformity.
 ---
 
 # Säilynoja et al. (2022)
@@ -18,7 +18,7 @@ description: Annotated reference for Säilynoja, Bürkner & Vehtari — the ECDF
 **Verified.** Abstract, §1.1 (PIT, Eqs. 1–2), §2 (Eqs. 3–9), §2.1 pointwise bands (Eqs. 7–9),
 §2.2 simulation method (Eqs. 10–14 + the boxed algorithm), §2.3 optimization method (Eqs.
 15–24), and Figs. 1–3 (esp. Fig. 3d, the ECDF-difference plot) checked against the held PDF
-(2026-06). The two facts `gravoturb_fdf` depends on: the **scaled-ECDF binomial law**
+(2026-06). The two facts `gravoturb` depends on: the **scaled-ECDF binomial law**
 `N·F(z_i) ~ Binomial(N, z_i)` (Eq. 8) giving pointwise bands, and the **simulation-based
 simultaneous band** — inflate the pointwise level to `γ` (Eq. 13, the α-percentile of the
 per-trajectory minimum two-sided binomial tail) so the bands jointly cover `1-α`, then plot
@@ -107,12 +107,12 @@ values), the binomial coverage is not exact — Brown et al. (2001) "lucky/unluc
 but the authors report the effect on the *simultaneous* band coverage is within `±1%` for
 `N ∈ [50, 2000]`, and their fractional-rank construction "behaves better for the smallest and
 largest ranks." The multiple-sample extension (§3) swaps the binomial for the **hypergeometric**
-distribution; `gravoturb_fdf` uses only the **single-sample** test, so that machinery is not
+distribution; `gravoturb` uses only the **single-sample** test, so that machinery is not
 needed here.
 
 ## Use in progenax
 
-The experimental `gravoturb_fdf` trustworthiness arc (workstream ①; see
+The experimental `gravoturb` trustworthiness arc (workstream ①; see
 [](../../10-theory/gravoturbulence/inference.md)) visualizes SBC calibration two
 complementary ways. The {cite:t}`Talts2018` **rank histogram** + binomial band is one; this
 paper's **ECDF-difference plot with simultaneous bands** is the second, sharper view:
@@ -139,7 +139,7 @@ paper's **ECDF-difference plot with simultaneous bands** is the second, sharper 
   this paper supplies the *simultaneous* graphical test for that uniformity (and quantifies the
   multiple-comparison correction the χ² histogram band only approximates).
 - Implemented in the R packages `bayesplot` (`ppc_pit_ecdf`) and the `SBC` package, and in
-  `arviz` (`arviz_stats.ecdf_utils.ecdf_pit` / `arviz.plot_ecdf_pit`); the `gravoturb_fdf`
+  `arviz` (`arviz_stats.ecdf_utils.ecdf_pit` / `arviz.plot_ecdf_pit`); the `gravoturb`
   figure side **reuses the arviz array-layer `ecdf_pit`** (the authors' reference
   implementation) rather than re-deriving the simulation, adding `arviz`/`xarray` to the
   jaxstroviz `[experimental]` extra.

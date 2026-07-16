@@ -33,11 +33,11 @@ whichever is convenient and convert between them robustly.
 ## Use in progenax
 
 - **The measurement oracle.** progenax's
-  [`measure.py`](../../../../src/experimental/gravoturb_fdf/validation/measure.py) uses exactly this
+  [`measure.py`](../../../../src/experimental/gravoturb/validation/measure.py) uses exactly this
   Wiener–Khinchin route: `autocovariance_3d` computes $\xi(r)$ as the inverse FFT of the squared
   field transform, and the inference covariance layer measures **power-spectrum band-powers** from the
   same field. These are the ground-truth measurements against which the analytic
-  [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) prediction
+  [`gaussianized_xi`](../../../../src/experimental/gravoturb/theory/log_correlations.py) prediction
   and the Limber-projected two-point are validated.
 - **The $\xi \leftrightarrow P$ duality** is what lets the [](../../10-theory/gravoturbulence/inference.md) 2-point
   block be expressed either as the configuration-space $\xi_s(r)$ (Gaussianization series) or as

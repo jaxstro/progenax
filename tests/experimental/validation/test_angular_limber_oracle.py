@@ -53,9 +53,9 @@ def _slope_in_band(kc, bp):
 
 
 def _measured_minus_predicted_slope(beta):
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.inference.covariance import angular_bandpowers_2d_limber
-    from gravoturb_fdf.validation.measure import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.inference.covariance import angular_bandpowers_2d_limber
+    from gravoturb.validation.measure import (
         measure_angular_bandpowers_2d,
         smooth_copula_field,
     )

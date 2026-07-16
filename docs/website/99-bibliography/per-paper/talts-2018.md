@@ -15,7 +15,7 @@ description: Annotated reference for Talts, Betancourt, Simpson, Vehtari & Gelma
 **DOI / arXiv.** [arXiv:1804.06788](https://arxiv.org/abs/1804.06788)
 
 **Verified.** Abstract, §2–4 (Eqs. 1–2, Theorem 1, Algorithm 1) and §5.1 (Algorithm 2)
-checked against the held PDF (2026-06). The two facts `gravoturb_fdf` depends on: the
+checked against the held PDF (2026-06). The two facts `gravoturb` depends on: the
 **SBC rank statistic** `r = Σ_l 𝟙[f(θ_l) < f(θ̃)] ∈ [0, L]`, uniform over the integers
 `{0,…,L}` under correct calibration (Theorem 1, §4.1); and the **uniform-histogram band** =
 the 0.5%–99.5% percentiles of `Binomial(N, 1/B)` (Algorithm 1, §4.1), with the binning rule
@@ -100,7 +100,7 @@ a credible interval under the assumed model."
 
 ## Use in progenax
 
-The experimental `gravoturb_fdf` differentiable-inference layer uses SBC as **workstream ①**
+The experimental `gravoturb` differentiable-inference layer uses SBC as **workstream ①**
 of its trustworthiness arc (see [](../../10-theory/gravoturbulence/inference.md)),
 upgrading the α-recovery result from single-θ injection–recovery (AC16) to calibration across
 the whole prior:
@@ -125,7 +125,7 @@ the whole prior:
   artifacts); it shares the self-consistency identity {eq}`talts-dap` with the Geweke (2004)
   Gibbs-sampler validator but avoids the auxiliary sampler's convergence problems.
 - The procedure is **embarrassingly parallel** across the `N` simulated datasets — the cost is
-  `N` full posterior fits — which is why the `gravoturb_fdf` SBC acceptance test is slow-marked
+  `N` full posterior fits — which is why the `gravoturb` SBC acceptance test is slow-marked
   and run at a reduced grid/`N` in the test wrapper, full `N` in the acceptance driver `main()`.
 - HMC convergence diagnostics (R̂, bulk/tail-ESS, divergences, BFMI) are the complementary
   per-fit check (AC19); SBC is the across-the-prior calibration check. Both are needed.

@@ -1,4 +1,4 @@
-"""Unit tests for gravoturb_fdf.theory.cic (Phase 3: counts-in-cells).
+"""Unit tests for gravoturb.theory.counts_in_cells (Phase 3: counts-in-cells).
 
 CIC counts trace the LINEAR (mean-1) density rho_tilde = rho/<rho> (the simulator places
 stars proportional to rho -- a Cox / doubly-stochastic Poisson process). So the CIC
@@ -19,7 +19,7 @@ pytestmark = pytest.mark.experimental
 def test_cic_variance_formula():
     """sigma^2_N = N_bar + N_bar^2 xi_bar: Poisson floor (xi_bar=0 -> var=mean) plus the
     clustering over-dispersion term."""
-    from gravoturb_fdf.theory.cic import cic_variance
+    from gravoturb.theory.counts_in_cells import cic_variance
 
     assert float(cic_variance(10.0, 0.0)) == pytest.approx(10.0)  # pure Poisson
     assert float(cic_variance(10.0, 0.1)) == pytest.approx(20.0)  # 10 + 100*0.1
@@ -31,10 +31,10 @@ def test_cell_averaged_xi_rho_vs_field_oracle():
     ensemble-mean Var of the realized rho_tilde smoothed at scale R (top-hat). Isolates
     the linear-rho Gaussianization series from Poisson shot noise. alpha=2.5 keeps
     <rho^2> finite so the series converges cleanly (alpha<=2 stress + convergence -> AC13)."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
-    from gravoturb_fdf.theory.projection import top_hat_window
-    from gravoturb_fdf.validation.measure import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
+    from gravoturb.theory.projection import top_hat_window
+    from gravoturb.validation.measure import (
         smooth_copula_field,
         smoothed_linear_variance,
     )
@@ -58,7 +58,7 @@ def test_cell_averaged_xi_rho_vs_field_oracle():
 def test_cic_moments_differentiable():
     """jax.grad of sigma^2_N(R) wrt (mach, b, alpha, beta) is finite and nonzero -- the
     heavy linear tail must not produce NaN gradients (cf. the Task 1.2 clip)."""
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho, cic_variance
 
     shape, R, n_bar = (24, 24, 24), 2.0, 5.0
 
@@ -79,8 +79,8 @@ def test_smoothed_log_variance_limits():
     """sigma_s^2(R) (exact smoothed log-density variance, the log-map analog of Route A):
     -> sigma_s_squared(mach,b) as R->0 (cell = point, full variance), strictly decreasing
     in R (more smoothing), and differentiable in (mach,b,alpha,beta)."""
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
-    from gravoturb_fdf.theory.cic import smoothed_log_variance
+    from gravoturb.theory.density_pdf import sigma_s_squared
+    from gravoturb.theory.counts_in_cells import smoothed_log_variance
 
     shape, beta = (32, 32, 32), 3.0
     mach, b, alpha = 5.0, 0.4, 2.5
@@ -107,8 +107,8 @@ def test_smoothed_log_variance_limits():
 def test_smoothed_pdf_normalized_and_R0_limit():
     """Route B p_R(s) = reduced-variance BM19 (effective Mach from sigma_s^2(R)): integrates
     to 1, and as R->0 (cell = point) recovers the full unsmoothed BM19 volume PDF."""
-    from gravoturb_fdf.theory.cic import smoothed_pdf
-    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+    from gravoturb.theory.counts_in_cells import smoothed_pdf
+    from gravoturb.theory.density_cdf import bm19_volume_pdf
 
     shape, beta = (32, 32, 32), 3.0
     mach, b, alpha = 5.0, 0.4, 2.5
@@ -125,7 +125,7 @@ def test_smoothed_pdf_normalized_and_R0_limit():
 def test_smoothed_pdf_log_variance_matches_in_body_limit():
     """Large alpha (negligible tail): the log-variance of p_R equals sigma_s^2(R), so the
     reduced-variance construction is faithful (Var of s under p_R == the smoothed log-var)."""
-    from gravoturb_fdf.theory.cic import smoothed_log_variance, smoothed_pdf
+    from gravoturb.theory.counts_in_cells import smoothed_log_variance, smoothed_pdf
 
     shape, beta = (32, 32, 32), 3.0
     mach, b, alpha, R = (
@@ -148,7 +148,7 @@ def test_smoothed_pdf_log_variance_matches_in_body_limit():
 def test_pN_normalizes_and_mean_matches():
     """P(N) = int Poisson(N | N_bar e^s/mu) p_R(s) ds: sum_N P(N) = 1 and sum_N N P(N) = N_bar
     (the compound-Poisson identities). N range wide enough to capture the over-dispersed tail."""
-    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb.theory.counts_in_cells import count_distribution
 
     N = jnp.arange(0, 250)
     n_bar = 8.0
@@ -160,7 +160,7 @@ def test_pN_normalizes_and_mean_matches():
 def test_pN_overdispersed():
     """Clustering makes counts over-dispersed relative to pure Poisson: Var(N) > N_bar.
     Heavy regime (R=2, alpha=3): the density fluctuations broaden the count distribution."""
-    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb.theory.counts_in_cells import count_distribution
 
     N = jnp.arange(0, 400)
     n_bar = 10.0
@@ -175,7 +175,7 @@ def test_pN_compound_poisson_moment_identity():
     Validated in a light regime (R=4, alpha=4) where the lambda^2 tail is captured by the N
     range (in heavy regimes the identity still holds but needs a far larger N_max to sum the
     rare high-density tail -- see the AC13 convergence note)."""
-    from gravoturb_fdf.theory.cic import count_distribution, smoothed_pdf
+    from gravoturb.theory.counts_in_cells import count_distribution, smoothed_pdf
 
     N = jnp.arange(0, 300)
     n_bar = 8.0
@@ -198,9 +198,9 @@ def test_sample_cic_counts_clean_poisson():
     """sample_cic_counts is a true inhomogeneous-Poisson CIC: count_cell ~ Poisson(n_bar*rho_cell).
     Mean ~ n_bar and Var(N) ~ N_bar + N_bar^2 Var(rho_cell) (the clean Cox relation, no fine-cell
     pile-up artifact) -- so it matches the count_distribution model and is resolution-independent."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.field.sampling import sample_cic_counts
-    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.placement import sample_cic_counts
+    from gravoturb.validation.measure import smooth_copula_field
 
     shape, c, n_bar = (24, 24, 24), 4, 30.0
     M = shape[0] // c
@@ -221,7 +221,7 @@ def test_sample_cic_counts_clean_poisson():
 
 def test_pN_differentiable():
     """jax.grad of a functional of P(N) wrt (mach,b,alpha,beta) is finite and nonzero."""
-    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb.theory.counts_in_cells import count_distribution
 
     N = jnp.arange(0, 200)
 
@@ -241,7 +241,7 @@ def test_log_plus_neyrinck_eq2():
     """log_+ modified-log count transform (Neyrinck, Szapudi & Szalay 2011, Eq. 2):
     A = ln(1+delta) for delta>0 else delta, with delta = N/N_bar - 1. N=0-safe (delta=-1),
     continuous at N=N_bar (A=0), and equals ln(N/N_bar) on the over-dense branch."""
-    from gravoturb_fdf.theory.cic import log_plus
+    from gravoturb.theory.counts_in_cells import log_plus
 
     n_bar = 4.0
     n = jnp.array([0.0, 2.0, 4.0, 8.0, 100.0])
@@ -266,8 +266,8 @@ def test_log_plus_neyrinck_eq2():
 
 
 def test_predict_log_count_variance_monotone_and_tailrobust():
-    from gravoturb_fdf.theory.cic import predict_log_count_variance
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.theory.counts_in_cells import predict_log_count_variance
+    from gravoturb.theory.projection import box_window_sq_grid
 
     shape, c, n_bar = (24, 24, 24), 4, 5.0
     w2 = box_window_sq_grid(shape, c)
@@ -289,8 +289,8 @@ def test_predict_log_count_variance_monotone_and_tailrobust():
 
 def test_predict_log_count_variance_differentiable():
     import jax
-    from gravoturb_fdf.theory.cic import predict_log_count_variance
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.theory.counts_in_cells import predict_log_count_variance
+    from gravoturb.theory.projection import box_window_sq_grid
 
     shape, c = (16, 16, 16), 4
     w2 = box_window_sq_grid(shape, c)

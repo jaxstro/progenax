@@ -67,7 +67,7 @@ the prototyped worked designs:
 ## Gravoturbulence (experimental, repo-only)
 
 The gravoturbulent / fractal-density-field theory documents the experimental
-`gravoturb_fdf` subsystem, which is **repo-only and not part of the released
+`gravoturb` subsystem, which is **repo-only and not part of the released
 wheel** (`src/experimental/`). The section was consolidated 10 → 5 pages; all
 five are `hidden: true` in the toc (built and URL-reachable, kept out of the
 public navigation):
@@ -85,7 +85,7 @@ public navigation):
   physics-direct inference layer (3-D α recovery + projected β estimator).
 - [](../50-validation/gravoturbulent-pp20.md) — the validation-side companion:
   the PP20 ζ(p) regression suite + BM19 unit coverage (now backed by the
-  experimental `gravoturb_fdf` AC suite), and the historical record of the
+  experimental `gravoturb` AC suite), and the historical record of the
   2026-04-28 transcription-bug fix. Hidden to match the gravoturb theory subsection.
 
 ## Development log
@@ -118,4 +118,4 @@ in the toc (built and URL-reachable, kept out of the public navigation):
 - [](../90-development-log/2026-02-13-precision-scaling-panel.md) — the
   σ(α)-vs-N precision-scaling panel.
 - [](../90-development-log/2026-04-28-pp20-fix.md) — the PP20 ζ(p)
-  transcription-bug fix (superseded by the `gravoturb_fdf` rewrite).
+  transcription-bug fix (superseded by the `gravoturb` rewrite).

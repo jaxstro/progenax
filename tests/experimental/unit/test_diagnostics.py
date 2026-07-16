@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from gravoturb_fdf.inference.diagnostics import compute_hmc_diagnostics
+from gravoturb.inference.diagnostics import compute_hmc_diagnostics
 
 pytestmark = pytest.mark.experimental
 

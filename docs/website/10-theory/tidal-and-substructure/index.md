@@ -1,6 +1,6 @@
 ---
 title: Tidal physics & substructure
-description: progenax's tidal physics and substructure section — Jacobi-radius computation, fractal-substructure theory + the CW04 Q diagnostic (the FDF generator moved to the experimental gravoturb_fdf package), and Baumgardt energy-ranked mass segregation.
+description: progenax's tidal physics and substructure section — Jacobi-radius computation, fractal-substructure theory + the CW04 Q diagnostic (the FDF generator moved to the experimental gravoturb package), and Baumgardt energy-ranked mass segregation.
 ---
 
 # Tidal physics & substructure
@@ -24,14 +24,14 @@ combination ([](../ic-philosophy.md)):
 * - [](tidal.md)
   - Truncation at the Jacobi (tidal) radius set by the host galaxy's tidal field
 * - [](fractal.md)
-  - Theory of fractal/clumpy substructure ({cite:t}`Goodwin2004`) and the CW04 $Q$ diagnostic. The differentiable *generator* moved to the experimental, repo-only `gravoturb_fdf` package in the 2026-06 clean-room rewrite; released progenax keeps the diagnostics (`progenax.diagnostics`)
+  - Theory of fractal/clumpy substructure ({cite:t}`Goodwin2004`) and the CW04 $Q$ diagnostic. The differentiable *generator* moved to the experimental, repo-only `gravoturb` package in the 2026-06 clean-room rewrite; released progenax keeps the diagnostics (`progenax.diagnostics`)
 * - [](mass-segregation.md)
   - Mass segregation two ways: the energy-ranked PRIMORDIAL generator (`energy_sorted_segregation`, after {cite:t}`Baumgardt2008`) and the differentiable EQUILIBRIUM route (`MultiComponentCluster.from_mass_segregation`)
 ```
 
 Tidal truncation is a standalone array utility and can be applied
 around either path. Turbulent/fractal substructure ICs live outside
-the released package (experimental `gravoturb_fdf`), so within released
+the released package (experimental `gravoturb`), so within released
 progenax the segregation routes and tidal truncation are the two
 modifiers you can actually apply.
 
@@ -105,7 +105,7 @@ redesign.
   [tidal API](../../30-api/tidal.md), the [cluster API](../../30-api/cluster.md),
   and the [diagnostics API](../../30-api/diagnostics.md); each chapter
   below carries its exact module path. (The fractal *generator* moved to
-  the experimental, repo-only `gravoturb_fdf` package; only the CW04 $Q$
+  the experimental, repo-only `gravoturb` package; only the CW04 $Q$
   diagnostic remains in released progenax.)
 - **Validated in:** [tidal truncation](../../50-validation/tidal-truncation.md),
   [fractal substructure](../../50-validation/fractal-substructure.md),

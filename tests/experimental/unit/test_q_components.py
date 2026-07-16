@@ -39,7 +39,7 @@ def _clumpy(n, rng, n_blobs=6):
 
 def test_q_components_consistent_with_Q():
     """q_components returns (Q, m_bar, s_bar) with Q == m_bar/s_bar == compute_q_parameter."""
-    from gravoturb_fdf.diagnostics.q import compute_q_parameter, q_components
+    from gravoturb.diagnostics.q import compute_q_parameter, q_components
 
     rng = np.random.default_rng(0)
     pos = _uniform_sphere(300, rng)
@@ -55,7 +55,7 @@ def test_components_decouple_concentration_from_substructure():
     s_bar is the concentration axis; at FIXED concentration (matched s_bar), m_bar isolates
     substructure. The three regimes occupy distinct regions.
     """
-    from gravoturb_fdf.diagnostics.q import q_components
+    from gravoturb.diagnostics.q import q_components
 
     rng = np.random.default_rng(1)
     _Qu, m_u, s_u = q_components(_uniform_sphere(500, rng))  # smooth, unconcentrated

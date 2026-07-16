@@ -39,7 +39,7 @@ def test_no_fractal_layer_in_released_api():
 
     assert not hasattr(cluster, "FractalLayer"), (
         "progenax.cluster.FractalLayer still exists; the D-stub fractal layer is "
-        "retired to experimental gravoturb_fdf."
+        "retired to experimental gravoturb."
     )
     assert "FractalLayer" not in getattr(cluster, "__all__", [])
 
@@ -146,6 +146,6 @@ def test_importing_progenax_pulls_in_no_subsystem_module():
     import progenax  # noqa: F401
 
     leaked = [
-        m for m in sys.modules if _is_subsystem_module(m) and "gravoturb_fdf" not in m
+        m for m in sys.modules if _is_subsystem_module(m) and "gravoturb" not in m
     ]
     assert not leaked, f"import progenax leaked subsystem modules: {leaked}"

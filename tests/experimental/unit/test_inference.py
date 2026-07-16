@@ -16,7 +16,7 @@ pytestmark = pytest.mark.experimental
 def test_power_spectrum_bandpowers_positive_and_differentiable():
     """P_s(k_i) band-powers (radially-binned FFT of the xi_s grid) are positive and
     differentiable in (mach,b,alpha,beta)."""
-    from gravoturb_fdf.inference.covariance import power_spectrum_bandpowers
+    from gravoturb.inference.covariance import power_spectrum_bandpowers
 
     shape, k_edges = (32, 32, 32), jnp.linspace(1.0, 13.0, 7)
     kc, P, nmodes = power_spectrum_bandpowers(
@@ -43,12 +43,12 @@ def test_power_spectrum_bandpowers_positive_and_differentiable():
 def test_bandpowers_match_mock():
     """Analytic band-powers == ensemble-mean measured periodogram band-powers of the
     smooth-copula log-density field (forward fidelity of P_s(k), the Fourier dual of AC11)."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.inference.covariance import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.inference.covariance import (
         measured_bandpowers,
         power_spectrum_bandpowers,
     )
-    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb.validation.measure import smooth_copula_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(1.0, 13.0, 7)
@@ -77,7 +77,7 @@ def test_bandpowers_match_mock():
 def test_mock_covariance_psd_and_hartlap():
     """mock_covariance is symmetric positive-definite and recovers a known covariance;
     the Hartlap inverse-debias factor is in (0,1) and -> 1 as n_real -> inf."""
-    from gravoturb_fdf.inference.covariance import (
+    from gravoturb.inference.covariance import (
         hartlap_factor,
         mock_covariance,
         mock_precision,
@@ -103,14 +103,14 @@ def test_gaussian_bandpower_covariance_underestimates_mock():
     """Documents the Phase-5 finding (regression guard): the diagnostic Gaussian band-power
     covariance 2P^2/N UNDERESTIMATES the true mock band-power variance for the non-Gaussian
     log-density field -- which is WHY the Fisher uses the mock covariance (Anna 2026-06-05)."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.inference.covariance import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.inference.covariance import (
         gaussian_bandpower_covariance,
         measured_bandpowers,
         mock_covariance,
         power_spectrum_bandpowers,
     )
-    from gravoturb_fdf.validation.measure import smooth_copula_field
+    from gravoturb.validation.measure import smooth_copula_field
 
     shape, beta, mach, b, alpha = (32, 32, 32), 3.0, 5.0, 0.4, 2.5
     k_edges = jnp.linspace(2.0, 14.0, 7)
@@ -156,7 +156,7 @@ _THETA = jnp.array([5.0, 0.4, 2.5, 3.0])  # (mach, b, alpha, beta)
 def test_data_vector_shape_and_differentiable():
     """d(theta) = [P_s(k_i) band-powers, sigma^2_N(c)] is finite, correctly shaped, and
     differentiable in theta=(mach,b,alpha,beta)."""
-    from gravoturb_fdf.inference.likelihood import data_vector
+    from gravoturb.inference.likelihood import data_vector
 
     d = data_vector(_THETA, **_CFG)
     assert d.shape == (4 + 1,)  # 4 band-power bins + 1 CIC variance
@@ -168,7 +168,7 @@ def test_data_vector_shape_and_differentiable():
 def test_gaussian_loglike_max_at_truth_and_differentiable():
     """gaussian_loglike on NOISELESS data (= d(theta_true)) peaks at theta_true (zero residual)
     and is a finite, differentiable scalar."""
-    from gravoturb_fdf.inference.likelihood import data_vector, gaussian_loglike
+    from gravoturb.inference.likelihood import data_vector, gaussian_loglike
 
     data = data_vector(_THETA, **_CFG)
     precision = jnp.diag(1.0 / data**2)  # any PD precision -> max at truth
@@ -191,8 +191,8 @@ def test_gaussian_loglike_max_at_truth_and_differentiable():
 def test_fisher_3param_pd_and_errors_finite():
     """With b fixed, the free params (mach, alpha, beta) are identifiable: F = J^T Cinv J is
     symmetric positive-definite and the marginal errors sigma(theta_i) are finite and positive."""
-    from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
-    from gravoturb_fdf.inference.likelihood import data_vector
+    from gravoturb.inference.fisher import fisher_matrix, marginal_errors
+    from gravoturb.inference.likelihood import data_vector
 
     data = data_vector(_THETA, **_CFG)
     prec = jnp.diag(1.0 / data**2)
@@ -208,8 +208,8 @@ def test_fisher_full_4param_singular_mach_b_degeneracy():
     """The predicted statistics depend on (mach,b) ONLY via sigma_s^2 = ln(1+(b*mach)^2), so the
     full 4-param Fisher is rank-3 singular -- value the data can't break the mach-b degeneracy
     (need fixed b). A genuine model property, asserted here as a guard."""
-    from gravoturb_fdf.inference.fisher import fisher_matrix
-    from gravoturb_fdf.inference.likelihood import data_vector
+    from gravoturb.inference.fisher import fisher_matrix
+    from gravoturb.inference.likelihood import data_vector
 
     data = data_vector(_THETA, **_CFG)
     prec = jnp.diag(1.0 / data**2)
@@ -221,8 +221,8 @@ def test_fisher_full_4param_singular_mach_b_degeneracy():
 def test_fisher_errors_shrink_as_sqrt_volume():
     """sigma(theta_i) ~ 1/sqrt(V_survey): scaling the precision by n_boxes (independent survey
     volumes add Fisher information) shrinks the errors by 1/sqrt(n_boxes)."""
-    from gravoturb_fdf.inference.fisher import fisher_matrix, marginal_errors
-    from gravoturb_fdf.inference.likelihood import data_vector
+    from gravoturb.inference.fisher import fisher_matrix, marginal_errors
+    from gravoturb.inference.likelihood import data_vector
 
     data = data_vector(_THETA, **_CFG)
     prec = jnp.diag(1.0 / data**2)
@@ -240,9 +240,9 @@ def test_count_loglike_max_at_truth_and_differentiable():
     """1-pt count log-likelihood sum_N hist[N] log P(N|theta). On the noiseless expected
     histogram hist = n_cells * P(N|theta_true) it is maximal at theta_true (Gibbs' inequality:
     cross-entropy is minimised when the model PDF matches), and differentiable in theta."""
-    from gravoturb_fdf.inference.likelihood import count_loglike
-    from gravoturb_fdf.theory.cic import count_distribution
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.inference.likelihood import count_loglike
+    from gravoturb.theory.counts_in_cells import count_distribution
+    from gravoturb.theory.projection import box_window_sq_grid
 
     N = jnp.arange(0, 250)
     w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
@@ -272,9 +272,9 @@ def test_count_loglike_max_at_truth_and_differentiable():
 def test_count_loglike_constrains_alpha_strongly():
     """The COUNT distribution's high-N tail pins alpha (the PDF-tail slope) -- the curvature of
     the count log-likelihood in alpha is sharp, the M1-vs-M2 improvement that rescues alpha."""
-    from gravoturb_fdf.inference.likelihood import count_loglike
-    from gravoturb_fdf.theory.cic import count_distribution
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.inference.likelihood import count_loglike
+    from gravoturb.theory.counts_in_cells import count_distribution
+    from gravoturb.theory.projection import box_window_sq_grid
 
     N = jnp.arange(0, 250)
     w2 = box_window_sq_grid(_CCFG["shape"], _CCFG["cell_size"])
@@ -309,9 +309,9 @@ def test_log_count_variance_loglike_peaks_at_truth():
     """The Gaussian sigma_s^2 -> mach block: on noiseless data (measured = prediction at the
     injected theta) the loglike peaks at the injected mach (ll(8) > ll(5) and ll(8) > ll(12)),
     and is differentiable in mach (finite grad)."""
-    from gravoturb_fdf.inference.likelihood import log_count_variance_loglike
-    from gravoturb_fdf.theory.cic import predict_log_count_variance
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.inference.likelihood import log_count_variance_loglike
+    from gravoturb.theory.counts_in_cells import predict_log_count_variance
+    from gravoturb.theory.projection import box_window_sq_grid
 
     shape, c, n_bar = (24, 24, 24), 4, 5.0
     w2 = box_window_sq_grid(shape, c)
@@ -341,7 +341,7 @@ def test_log_count_variance_loglike_peaks_at_truth():
 def test_run_nuts_recovers_gaussian():
     """The thin blackjax NUTS wrapper recovers a known 2-D Gaussian target (mean + std) --
     validates window-adaptation + sampling independent of our likelihood."""
-    from gravoturb_fdf.inference.hmc import run_nuts
+    from gravoturb.inference.hmc import run_nuts
 
     mu = jnp.array([1.0, -2.0])
     logdensity = lambda x: -0.5 * jnp.sum((x - mu) ** 2)
@@ -355,7 +355,7 @@ def test_run_nuts_recovers_gaussian():
 
 def test_run_nuts_diagnostic_shapes_and_recovers_gaussian():
     import blackjax  # noqa
-    from gravoturb_fdf.inference.hmc import run_nuts_diagnostic
+    from gravoturb.inference.hmc import run_nuts_diagnostic
 
     # 2-D unit Gaussian target
     logdensity = lambda x: -0.5 * jnp.sum(x**2)
@@ -382,8 +382,8 @@ def test_density_pdf_loglike_constrains_alpha():
     alpha-sensitive observable (a gas-density tracer; stars don't carry alpha). Maximal at
     theta_true on the noiseless expected histogram, differentiable, and SHARPLY peaked in
     alpha (d2/dalpha2 << 0) -- this is the block that recovers the PDF-tail slope alpha."""
-    from gravoturb_fdf.inference.likelihood import density_pdf_loglike
-    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+    from gravoturb.inference.likelihood import density_pdf_loglike
+    from gravoturb.theory.density_cdf import bm19_volume_pdf
 
     s = jnp.linspace(-8.0, 25.0, 400)
     theta = jnp.array([5.0, 0.4, 2.5, 3.0])
@@ -408,7 +408,7 @@ def test_density_pdf_loglike_constrains_alpha():
 def test_bounded_transforms_roundtrip_and_jacobian():
     """The bounded->unconstrained reparametrization (mach>0, alpha>1, beta>0) round-trips and
     its log-Jacobian is finite (needed so HMC samples in unconstrained space)."""
-    from gravoturb_fdf.inference.hmc import (
+    from gravoturb.inference.hmc import (
         log_jacobian,
         to_constrained,
         to_unconstrained,
@@ -441,7 +441,7 @@ def test_tail_exceedance_loglike_max_at_truth():
     """On the noiseless expected exceedance histogram at alpha_true, the POT truncated-exponential
     likelihood is maximal at alpha_true (Gibbs' inequality), strictly above alpha_true +/- 0.3.
     s_thr, s_max are data-derived constants; only theta[2]=alpha is fit."""
-    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+    from gravoturb.inference.likelihood import tail_exceedance_loglike
 
     s_thr, s_max, alpha_true, n_tail = 0.0, 3.0, 2.5, 2000.0
     edges = jnp.linspace(s_thr, s_max, 21)
@@ -458,7 +458,7 @@ def test_tail_exceedance_loglike_max_at_truth():
 
 def test_tail_exceedance_loglike_constrains_alpha_sharply():
     """d2(ll)/dalpha2 << 0 at truth: the exceedance slope sharply pins alpha (= -N_tail*I(alpha))."""
-    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+    from gravoturb.inference.likelihood import tail_exceedance_loglike
 
     s_thr, s_max, alpha_true, n_tail = 0.0, 3.0, 2.5, 2000.0
     edges = jnp.linspace(s_thr, s_max, 21)
@@ -479,7 +479,7 @@ def test_tail_exceedance_loglike_constrains_alpha_sharply():
 def test_tail_exceedance_loglike_grad_finite_incl_small_alphaL():
     """grad in alpha is finite for alpha in [1.1, 6] AND in the alpha*L -> 0 limit (L = 1e-3) --
     guards the stable -expm1 normalizer against 0/0."""
-    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+    from gravoturb.inference.likelihood import tail_exceedance_loglike
 
     s_thr = 0.0
     for s_max in (3.0, 1e-3):
@@ -499,7 +499,7 @@ def test_tail_exceedance_loglike_grad_finite_incl_small_alphaL():
 def test_tail_exceedance_loglike_shift_invariance():
     """Shift-immunity: adding a constant c to (s-edges, s_thr, s_max) together leaves ll unchanged
     -- the POT alpha-block needs no mean-1 shift, only s_thr/s_max co-measured with the counts."""
-    from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
+    from gravoturb.inference.likelihood import tail_exceedance_loglike
 
     s_thr, s_max = 0.7, 3.4
     edges = jnp.linspace(s_thr, s_max, 16)
@@ -520,7 +520,7 @@ def test_tail_exceedance_loglike_shift_invariance():
 def test_alpha_fisher_info_untruncated_limit():
     """Per-exceedance Fisher info of the truncated exponential -> 1/alpha^2 as L -> inf (the EVT/
     Hill asymptote sigma(alpha)=alpha/sqrt(N))."""
-    from gravoturb_fdf.inference.fisher import alpha_fisher_info
+    from gravoturb.inference.fisher import alpha_fisher_info
 
     for a in (1.5, 2.5, 4.0):
         assert float(alpha_fisher_info(a, 1e3)) == pytest.approx(1.0 / a**2, rel=1e-6)
@@ -529,7 +529,7 @@ def test_alpha_fisher_info_untruncated_limit():
 def test_sigma_alpha_truncation_corrected_value_and_asymptote():
     """sigma(alpha)*sqrt(N) = 1/sqrt(I): at (alpha=2.5, L=3) the truncation correction gives ~2.54
     (above the naive alpha/sqrt(N)=2.5); as L -> inf it relaxes to the alpha/sqrt(N) asymptote."""
-    from gravoturb_fdf.inference.fisher import sigma_alpha
+    from gravoturb.inference.fisher import sigma_alpha
 
     assert float(sigma_alpha(2.5, 3.0, 1.0)) == pytest.approx(2.5399, abs=1e-3)
     assert float(sigma_alpha(2.5, 1e3, 1.0)) == pytest.approx(2.5, rel=1e-5)
@@ -541,7 +541,7 @@ def test_sigma_alpha_truncation_corrected_value_and_asymptote():
 
 def test_alpha_fisher_info_monotone_in_L():
     """Information grows with the tail's dynamic range L (truncation only loses info)."""
-    from gravoturb_fdf.inference.fisher import alpha_fisher_info
+    from gravoturb.inference.fisher import alpha_fisher_info
 
     Is = [float(alpha_fisher_info(2.5, L)) for L in (0.5, 1.0, 2.0, 3.0, 5.0)]
     assert all(Is[i] < Is[i + 1] for i in range(len(Is) - 1))

@@ -53,5 +53,5 @@ JAX/differentiability, testing, provenance), newest first:
 - [](2026-02-13-precision-scaling-panel.md) — the σ(α)-vs-N precision-scaling
   panel added to the binary-aware recovery figure.
 - [](2026-04-28-pp20-fix.md) — the PP20 magnification-factor ζ(p)
-  transcription-bug fix (now superseded by the experimental `gravoturb_fdf`
+  transcription-bug fix (now superseded by the experimental `gravoturb`
   rewrite; see the page's update banner).

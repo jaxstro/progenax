@@ -8,10 +8,10 @@ description: The Federrath & Klessen (2012) lognormal+power-law density PDF, the
 ```{admonition} Experimental — not in the released wheel
 :class: warning
 The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
-the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
-progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+the standalone **`gravoturb`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb` (repo-only, under `src/experimental/`), **not** as
 `progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
-`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+`src/experimental/gravoturb/VALIDATION_SUMMARY.md`.
 ```
 
 A turbulent molecular cloud has a *distribution* of densities, not a single density. The shape of
@@ -116,7 +116,7 @@ s_t \;=\; \Bigl(\alpha - \tfrac{1}{2}\Bigr)\,\sigma_s^2
 ```
 
 This is a closed-form expression: given $\sigma_s^2$ (set by Mach + forcing) and $\alpha$ (a free
-parameter), $s_t$ is determined. `gravoturb_fdf`'s `transition_density(alpha, sigma_s_sq)` returns
+parameter), $s_t$ is determined. `gravoturb`'s `transition_density(alpha, sigma_s_sq)` returns
 this value directly; it is differentiable in both arguments. (For $\alpha = 3/2$ it reduces to
 $s_t = \sigma_s^2$, BM19 Eq. 16.)
 
@@ -126,12 +126,12 @@ transition occurs around $\rho/\langle\rho\rangle \approx e^{4.25} \approx 70$. 
 {cite:t}`Kainulainen2014` observational dense-gas threshold $s_{\mathrm{th}} \approx 4.2$ (as adopted
 by {cite:t}`ParmentierPasquali2020`).
 
-### Evaluating the PDF in `gravoturb_fdf`
+### Evaluating the PDF in `gravoturb`
 
 ```python
 import jax.numpy as jnp
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+from gravoturb.theory.density_cdf import bm19_volume_pdf
 
 mach = 10.0          # Sonic Mach number
 b = 0.4              # Forcing parameter
@@ -197,7 +197,7 @@ Three alternative scalings are sometimes proposed:
   - Physical assumption
 * - $\rho / t_{\mathrm{ff}}$
   - $\rho^{3/2}$
-  - Local SFR set by free-fall collapse — **`gravoturb_fdf` default**
+  - Local SFR set by free-fall collapse — **`gravoturb` default**
 * - $\rho / t_{\mathrm{cross}}$
   - $\rho$
   - Local SFR set by turbulent crossing time (constant Mach)
@@ -214,7 +214,7 @@ some massive-star-feedback-regulated regimes but not in the dense-core regime re
 SFR observations.
 
 The {cite:t}`FederrathKlessen2012` and {cite:t}`Burkhart2018` frameworks both adopt the $\rho^{3/2}$
-kernel; `gravoturb_fdf` inherits this convention.
+kernel; `gravoturb` inherits this convention.
 
 ---
 
@@ -230,7 +230,7 @@ each density contributes to star formation*. The cloud-integrated SFR is the con
 Every density-space integral below is written in **dimensionless** form, with $\rho$ measured
 relative to the volume-mean $\langle\rho\rangle$ — equivalently in log-density $s = \ln(\rho/\langle
 \rho\rangle)$. SFR-weighting uses the kernel $(\rho/\langle\rho\rangle)^{3/2}$ (from {eq}`fdf`); pure
-mass-weighting uses $(\rho/\langle\rho\rangle)$. This matches the `gravoturb_fdf` code, where
+mass-weighting uses $(\rho/\langle\rho\rangle)$. This matches the `gravoturb` code, where
 `f_dense_bm19_full` integrates the *mass-weighted* PDF in $s$-space and all densities are referred to
 $\langle\rho\rangle$ (the $\langle e^s\rangle = 1$ convention enforced by `rank_copula_field`). The
 overall dimensional rate is carried by the prefactors $M/\langle t_{\mathrm{ff}}\rangle$ and
@@ -276,11 +276,11 @@ This is *not* the SFR-weighted fraction; it is the simple **mass** fraction (ker
 $\rho/\langle\rho\rangle = e^s$, exponent 1). The SFR uses the FDF-weighted version with
 $(\rho/\langle\rho\rangle)^{3/2}$ (exponent $3/2$) in the integrand. The two differ only in the
 exponent of the dimensionless density kernel — both integrate the volume PDF, both are
-dimensionless. `gravoturb_fdf` computes both:
+dimensionless. `gravoturb` computes both:
 
 ```python
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density, f_dense_bm19_full
-from gravoturb_fdf.theory.pp20 import magnification_factor
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density, f_dense_bm19_full
+from gravoturb.theory.dense_gas_sfr import magnification_factor
 
 mach, b, alpha = 10.0, 0.4, 2.0
 sigma_s_sq = sigma_s_squared(mach, b)        # lognormal variance        ≈ 2.833
@@ -375,7 +375,7 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
 ## Domain of validity
 
 1. **Supersonic turbulence required** — at low Mach the lognormal variance shrinks below $\sim 1$
-   and the lognormal approximation breaks down. `gravoturb_fdf`'s parameterisation works for
+   and the lognormal approximation breaks down. `gravoturb`'s parameterisation works for
    $\mathcal{M} \gtrsim 3$.
 2. **Self-gravity required for the power-law tail** — at very low density (diffuse warm neutral
    medium) there is no gravitating tail and the PDF is purely lognormal. The {cite:t}`Burkhart2018`
@@ -386,7 +386,7 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
    equilibrium effects matter. The isothermal $t_{\mathrm{ff}}$ of {eq}`tff` ignores
    thermal-pressure support; the standard treatment lumps this into $\varepsilon_{\mathrm{ff,int}}$.
 4. **No magnetic-field or feedback support** — magnetic fields slow collapse via ambipolar
-   diffusion ({cite:t}`FederrathKlessen2012` give a magnetic correction; `gravoturb_fdf` does not
+   diffusion ({cite:t}`FederrathKlessen2012` give a magnetic correction; `gravoturb` does not
    include it), and the kernel assumes star formation does not back-react on the gas. For clouds
    older than a few $t_{\mathrm{ff}}$, feedback becomes important and the kernel under-predicts SFR.
 5. **Spherical/cylindrical symmetry** assumed in the α↔p mapping; for highly filamentary or
@@ -395,7 +395,7 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
    multi-cloud line-of-sight superposition requires a separate treatment, and the PDF parameters
    themselves evolve on the cloud's free-fall timescale.
 7. **3-D field realisation.** When a sampled 3-D field is built from the PDF
-   (`gravoturb_fdf.field.pipeline.build_fdf_field`), the one-point statistics are imposed by a
+   (`gravoturb.realization.pipeline.build_fdf_field`), the one-point statistics are imposed by a
    **rank / empirical-CDF copula** (Gaussian anamorphosis), which reproduces the dense-tail mass
    fraction $f_{\mathrm{dense}}$ at any power-spectrum slope $\beta$. For a very extreme threshold
    $s_t$, where the tail count-probability $1 - F_V(s_t) \lesssim 1/N_{\mathrm{grid}}^3$, the tail
@@ -404,12 +404,12 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
 
 ## Implementation, validation & references
 
-- **In code:** `src/experimental/gravoturb_fdf/theory/bm19.py`
+- **In code:** `src/experimental/gravoturb/theory/density_pdf.py`
   (`sigma_s_squared`, `transition_density`, `f_dense_bm19_full`,
   `pdf_slope_to_radial`) and
-  `src/experimental/gravoturb_fdf/theory/pdf.py` (`bm19_volume_pdf`);
+  `src/experimental/gravoturb/theory/density_cdf.py` (`bm19_volume_pdf`);
   3-D field realisation is
-  `src/experimental/gravoturb_fdf/field/pipeline.py`. This experimental
+  `src/experimental/gravoturb/realization/pipeline.py`. This experimental
   subsystem is repo-only with no generated website API page; the
   module reference is the package source and its `VALIDATION_SUMMARY.md`.
 - **Validated in:** [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md);

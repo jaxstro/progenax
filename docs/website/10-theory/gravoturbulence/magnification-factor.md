@@ -1,6 +1,6 @@
 ---
 title: The magnification factor ζ — three ways to compute it
-description: The Parmentier & Pasquali (2020) ζ(p) for power-law profiles, the numerical cored-profile ζ, and the parameter-free direct-3D ζ measurement — one definition, one "which mode when" table, and the gravoturb_fdf implementations verified against source.
+description: The Parmentier & Pasquali (2020) ζ(p) for power-law profiles, the numerical cored-profile ζ, and the parameter-free direct-3D ζ measurement — one definition, one "which mode when" table, and the gravoturb implementations verified against source.
 ---
 
 # The magnification factor ζ
@@ -8,10 +8,10 @@ description: The Parmentier & Pasquali (2020) ζ(p) for power-law profiles, the 
 ```{admonition} Experimental — not in the released wheel
 :class: warning
 The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
-the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
-progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+the standalone **`gravoturb`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb` (repo-only, under `src/experimental/`), **not** as
 `progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
-`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+`src/experimental/gravoturb/VALIDATION_SUMMARY.md`.
 ```
 
 The **magnification factor** ζ quantifies how much the cloud-integrated star formation rate (SFR) of
@@ -21,7 +21,7 @@ mass and outer radius. {cite:t}`ParmentierPasquali2020` introduced ζ as a compa
 "single-mean-density" frameworks {cite:p}`TanKrumholzMcKee2006,FederrathKlessen2012,Burkhart2018`.
 
 This chapter gives the single integral definition of ζ, then derives and implements the **three
-computation modes** that `gravoturb_fdf` exposes — each captures a different physical situation:
+computation modes** that `gravoturb` exposes — each captures a different physical situation:
 
 - **PP20 analytic ζ(p)** — exact, closed-form, for a *pure power-law* profile.
 - **Cored ζ** — numerical, for a profile with a *flat inner core* (realistic molecular clouds).
@@ -121,7 +121,7 @@ M\,\langle\rho\rangle^{1/2}
        \;=\; \frac{(3-p)^{3/2}}{(3^{3/2}/2)\,(2-p)}\;}
 ```
 
-This is the canonical analytic form implemented in `gravoturb_fdf.theory.pp20.magnification_factor`.
+This is the canonical analytic form implemented in `gravoturb.theory.dense_gas_sfr.magnification_factor`.
 {cite:t}`ParmentierPasquali2020` quote the same result in Eq. 6 as
 
 ```{math}
@@ -131,14 +131,14 @@ This is the canonical analytic form implemented in `gravoturb_fdf.theory.pp20.ma
 
 where "2.6" is a numerical approximation to $3^{3/2}/2 = 2.598\ldots$ Equations
 {eq}`pp20-zeta-canonical` and {eq}`pp20-eq6` therefore agree to 0.08% across the entire physical
-$0 \le p < 2$ domain. `gravoturb_fdf` uses the unrounded {eq}`pp20-zeta-canonical` form so that
+$0 \le p < 2$ domain. `gravoturb` uses the unrounded {eq}`pp20-zeta-canonical` form so that
 anchor values are exact, and the exact constant is fixed by the physical top-hat lower limit
 $\zeta(0) = 1$.
 
 ### Spot values
 
 These anchors are exact analytic values; `tests/experimental/unit/test_pp20.py` and AC3 lock them
-(the AC suite prints them — see `gravoturb_fdf/VALIDATION_SUMMARY.md`). The ζ column is computed
+(the AC suite prints them — see `gravoturb/VALIDATION_SUMMARY.md`). The ζ column is computed
 directly with `magnification_factor`.
 
 ```{list-table}
@@ -201,7 +201,7 @@ def magnification_factor(p: Float[Array, ""]) -> Float[Array, ""]:
 ```
 
 The function is JIT-compatible, vectorisable via `jax.vmap`, and differentiable across the physical
-domain. See the `gravoturb_fdf.theory.pp20` source for the full signature and
+domain. See the `gravoturb.theory.dense_gas_sfr` source for the full signature and
 [](../../50-validation/physics-tests.md) for the regression suite that anchors every spot value
 above.
 
@@ -209,7 +209,7 @@ above.
 
 The PP20 analytic ζ(p) assumes a *pure power-law* profile, which predicts infinite density at
 $r = 0$. Real molecular clouds have **flat inner cores** — set by thermal pressure or magnetic
-support — that transition to a power-law envelope outside some core radius $r_c$. `gravoturb_fdf`'s
+support — that transition to a power-law envelope outside some core radius $r_c$. `gravoturb`'s
 `magnification_factor_with_core` numerically integrates ζ for the cored profile
 
 ```{math}
@@ -227,7 +227,7 @@ slope that drives the gravitating-tail SFR. This matters for ζ in two ways:
    the pure form diverges — and exposes $r_c/R$ as a free parameter.
 
 Substituting {eq}`cored-profile` into {eq}`zeta-def`, the result has no closed form for general
-$(p, r_c/R)$. `gravoturb_fdf` evaluates the integral numerically on a fixed (grad-safe) radial grid
+$(p, r_c/R)$. `gravoturb` evaluates the integral numerically on a fixed (grad-safe) radial grid
 and delegates the actual ratio to the direct estimator below — the constant $4\pi R^3$ volume factor
 cancels in the ratio:
 
@@ -350,8 +350,8 @@ the inference layer *infer* $s_t$ and the PDF parameters from observed dense-gas
 ```python
 import jax
 import jax.numpy as jnp
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-from gravoturb_fdf.theory.pp20 import zeta_fdf_direct
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+from gravoturb.theory.dense_gas_sfr import zeta_fdf_direct
 
 # BM19 transition density is closed-form in (sigma_s, alpha)
 sigma_s_sq = sigma_s_squared(10.0, 0.4)
@@ -366,8 +366,8 @@ zeta_direct = zeta_fdf_direct(rho_grid.ravel(), tail_weights)
 ```
 
 In the full subsystem the density field and soft mask come from
-`gravoturb_fdf.field.pipeline.build_fdf_field` (the AC6 cornerstone); the realized dense fraction is
-`gravoturb_fdf.field.tail.f_tail_actual`. The soft-mask reparameterisation of a discrete threshold is
+`gravoturb.realization.pipeline.build_fdf_field` (the AC6 cornerstone); the realized dense fraction is
+`gravoturb.realization.placement.f_tail_actual`. The soft-mask reparameterisation of a discrete threshold is
 the standard differentiable-programming technique; here it makes $\partial\zeta/\partial s_t$
 analytic and HMC-compatible (see [](inference.md)).
 
@@ -421,7 +421,7 @@ table above. Full history: [](../../90-development-log/2026-04-28-pp20-fix.md).
 
 ## Implementation, validation & references
 
-- **In code:** `src/experimental/gravoturb_fdf/theory/pp20.py`
+- **In code:** `src/experimental/gravoturb/theory/dense_gas_sfr.py`
   (`magnification_factor`, `magnification_factor_with_core`,
   `zeta_fdf_direct`). This experimental subsystem is repo-only with no
   generated website API page; the module reference is the package source
@@ -437,7 +437,7 @@ table above. Full history: [](../../90-development-log/2026-04-28-pp20-fix.md).
   {cite:t}`Kainulainen2014` observational anchor provides the
   $p = 1.67$ check value; the cored profile {eq}`cored-profile` is a
   standard {cite:t}`King1966`-style generalisation, and the direct-3D
-  soft-mask measurement is original to `gravoturb_fdf`. Full notes in
+  soft-mask measurement is original to `gravoturb`. Full notes in
   the [bibliography](../../99-bibliography/per-paper/parmentier-pasquali-2020.md).
   The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ
   is [](bm19.md).

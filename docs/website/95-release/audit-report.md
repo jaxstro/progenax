@@ -54,7 +54,7 @@ Severity legend: ✅ ready · ⚠️ should fix before a *polished public* launc
 | [7. Packaging & metadata](#audit-d7) | ✅ | Wheel clean; `twine` passes; clean-venv import works |
 | [8. Reproducibility & CI](#audit-d8) | ⚠️ | CI config excellent but **disabled**; demos exit 0 |
 | [9. README & examples](#audit-d9) | ✅ | 9 README code blocks execute in CI |
-| [10. Release-scope decisions](#audit-d10) | — | OED demos → informax; `gravoturb_fdf` experimental |
+| [10. Release-scope decisions](#audit-d10) | — | OED demos → informax; `gravoturb` experimental |
 
 (audit-d1)=
 ## 1. Correctness & tests — ✅
@@ -97,7 +97,7 @@ fixed-step FD straddled; a C¹ PCHIP back-interp fixed it, so released-core now 
 **0 xfail**. (The audit's original "genuinely incorrect / ODE-solver" reading of this
 row was a misdiagnosis, corrected by the arc's discriminating experiments.)
 
-The experimental `gravoturb_fdf` suite (repo-only) ran **343 passed, 8 deselected,
+The experimental `gravoturb` suite (repo-only) ran **343 passed, 8 deselected,
 exit 0** — green as documented.
 
 (audit-d2)=
@@ -236,7 +236,7 @@ red flags but are marked `UNVERIFIED-by-automated-sweep` rather than asserted.
 ## 7. Packaging & metadata — ✅
 
 The wheel and sdist build cleanly and pass `twine check`. The wheel contains
-**only `src/progenax/`** — the experimental `gravoturb_fdf`, the `scripts/`
+**only `src/progenax/`** — the experimental `gravoturb`, the `scripts/`
 demos, the tests, and the paper PDFs are all correctly excluded. `pyproject.toml`
 carries a real author/email, version, license, classifiers, URLs, and a sensible
 extras split; a `LICENSE` file (Apache-2.0) is present; the sdist ships no
@@ -286,7 +286,7 @@ Two scoping calls were referred to the maintainer and **decided**:
   `60-science-demos/optimal-design/` pages) are the CAREER Aim-1 prototype slated
   to migrate to the planned **informax** package. **Decision: hold them out of the
   v0.1.0 release scope** (tracked in the [checklist](#release-checklist)).
-- The experimental **`gravoturb_fdf`** subsystem stays repo-only, excluded from the
+- The experimental **`gravoturb`** subsystem stays repo-only, excluded from the
   wheel and the public API, and is correctly labelled experimental throughout the
   docs. It may be mentioned in release notes as future work.
 

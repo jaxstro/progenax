@@ -54,6 +54,6 @@ boost.
 
 ## Notes
 
-The gravoturbulence subsystem is the **experimental, repo-only** `gravoturb_fdf` package (not
+The gravoturbulence subsystem is the **experimental, repo-only** `gravoturb` package (not
 in the released wheel). Until the PDF is held and verified, treat this note as a role/context
 summary rather than a confirmed transcription.

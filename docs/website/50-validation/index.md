@@ -78,7 +78,7 @@ ratchet coverage against `progenax.__all__` — are documented in
   - $\Lambda_{\mathrm{MSR}}$ diagnostic (analytic), energy-ranked generator, and the
     differentiable segregation observables (soft $\Lambda_{\mathrm{MSR}}$ / radial / $\Sigma$–$m$)
 * - [](gravoturbulent-pp20.md)
-  - PP20 ζ(p) regression suite + BM19 forward chain (now in the experimental `gravoturb_fdf` package; historical record of the 2026-04-28 transcription-bug fix)
+  - PP20 ζ(p) regression suite + BM19 forward chain (now in the experimental `gravoturb` package; historical record of the 2026-04-28 transcription-bug fix)
 * - [](multimass-equilibrium.md)
   - Engine A: coupled multi-mass LIMEPY equilibrium — per-component σ(r) vs the DF moment, Q_j across δ, anisotropic β(r) vs the DF, DF-table budgets
 * - [](engine-b-eddington.md)

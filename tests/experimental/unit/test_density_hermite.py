@@ -21,7 +21,7 @@ pytestmark = pytest.mark.experimental
 
 def test_density_hermite_shape_and_mean_density_unity():
     """Returns (n_max+1,); d_0 = <e^s> = 1 (mean density, rho0 convention)."""
-    from gravoturb_fdf.theory.gaussianization import bm19_density_hermite_coefficients
+    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
 
     n_max = 8
     d = bm19_density_hermite_coefficients(8.0, 0.4, 2.5, n_max)
@@ -41,11 +41,9 @@ def test_density_variance_matches_measured_field():
     residual is the known forecast-grade term; the keystone observable for beta is the SLOPE,
     tested separately.)
     """
-    from gravoturb_fdf.field.field import (
-        gaussian_random_field,
-        mass_conserving_copula_field,
-    )
-    from gravoturb_fdf.theory.gaussianization import bm19_density_hermite_coefficients
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.copula import mass_conserving_copula_field
+    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
 
     mach, b, alpha = 8.0, 0.4, 2.5
     shape = (96, 96, 96)
@@ -65,7 +63,7 @@ def test_density_variance_matches_measured_field():
 
 def test_density_hermite_differentiable_in_mach():
     """jax.grad of sum(d_n) wrt mach is finite and nonzero."""
-    from gravoturb_fdf.theory.gaussianization import bm19_density_hermite_coefficients
+    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
 
     g = jax.grad(lambda m: jnp.sum(bm19_density_hermite_coefficients(m, 0.4, 2.5, 8)))(
         8.0

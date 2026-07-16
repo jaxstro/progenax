@@ -15,7 +15,7 @@ profiles, isotropic or anisotropic velocity distributions, IMF samples, and
 binary orbits — is differentiable through `jax.grad`, vectorisable through
 `jax.vmap`, and JIT-compilable through `jax.jit`. Gravoturbulent /
 fractal-density-field substructure is an **experimental** follow-up-paper
-feature in the repo-only `gravoturb_fdf` package (not in the released wheel).
+feature in the repo-only `gravoturb` package (not in the released wheel).
 
 This site is the **single source of truth** for the package: theory,
 architecture, API, tutorials, and history. Whether you arrived to learn

@@ -14,11 +14,11 @@ IMF→companion composition (`build_binary_cluster` over `primary_imf × compani
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
 (`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
 fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
-`gravoturb_fdf` package** (2,975 LOC, 322 experimental tests; `src/experimental/`, **not** in the
+`gravoturb` package** (2,975 LOC, 322 experimental tests; `src/experimental/`, **not** in the
 released wheel), now including a **differentiable physics-direct inference layer** (analytic
 predicted statistics + blackjax NUTS; AC11–AC17) — the BM19 tail slope **α is recoverable** via a
 peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail forecast (AC17). See
-`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md` and Physics Validation Results below.
+`src/experimental/gravoturb/VALIDATION_SUMMARY.md` and Physics Validation Results below.
 
 ## Quick Commands
 
@@ -42,9 +42,9 @@ env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # ~956 uni
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # ~43 integration tests
 env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # ~244 physics validation tests
 
-# Experimental gravoturb_fdf subsystem (repo-only; needs src/experimental on the path):
+# Experimental gravoturb subsystem (repo-only; needs src/experimental on the path):
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q   # 322 tests
-PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb_fdf.validation.acceptance   # AC1-AC17
+PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb.validation.acceptance   # AC1-AC17
 ```
 
 ## Units Policy (progenax)
@@ -219,7 +219,7 @@ tests/                   ~1243 released-core tests (see CI for the live count)
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
 
-tests/experimental/      322 tests (gravoturb_fdf; repo-only, PYTHONPATH=src:src/experimental)
+tests/experimental/      322 tests (gravoturb; repo-only, PYTHONPATH=src:src/experimental)
 ├── unit/                303 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
 │                                    + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC)
 └── validation/          19 tests   (AC1-AC17 acceptance assertions)
@@ -259,7 +259,7 @@ All public symbols exported from `progenax.__init__`:
 
 **Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `energy_sorted_segregation()`, `MultiComponentCluster` (Engine A constructors `from_components`/`from_mass_segregation`/`from_imf`; Engine B `from_density_profiles` — prescribed Plummer/EFF/King densities, shared-Ψ Eddington/OM DFs)
 
-(The fractal-substructure generator `generate_fractal_positions()` was removed in the 2026-06 clean-room rewrite; turbulent/fractal ICs now live in the experimental `gravoturb_fdf` package. The CW04 `Q` substructure *diagnostic* survives in `progenax.diagnostics`.)
+(The fractal-substructure generator `generate_fractal_positions()` was removed in the 2026-06 clean-room rewrite; turbulent/fractal ICs now live in the experimental `gravoturb` package. The CW04 `Q` substructure *diagnostic* survives in `progenax.diagnostics`.)
 
 **Protocols**: `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `PeriodDistribution`, `EccentricityDistribution`, `BinaryFractionModel`, `CompanionModel`
 

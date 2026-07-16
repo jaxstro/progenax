@@ -18,7 +18,7 @@ pytestmark = pytest.mark.experimental
 
 # ── Task 1.1: BM19 Eq. 1 — lognormal width sigma_s^2 = ln(1 + b^2 M^2) ──
 def test_sigma_s_squared_known_value():
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb.theory.density_pdf import sigma_s_squared
 
     # b=0.4, M=5 -> ln(1 + 0.16*25) = ln(5) = 1.6094379124341003
     val = float(sigma_s_squared(mach=5.0, b=0.4))
@@ -26,14 +26,14 @@ def test_sigma_s_squared_known_value():
 
 
 def test_sigma_s_squared_zero_mach():
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb.theory.density_pdf import sigma_s_squared
 
     # No turbulence -> delta-function density -> zero width.
     assert float(sigma_s_squared(mach=0.0, b=0.4)) == pytest.approx(0.0, abs=1e-12)
 
 
 def test_sigma_s_squared_differentiable():
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared
+    from gravoturb.theory.density_pdf import sigma_s_squared
 
     g = jax.grad(lambda m: sigma_s_squared(m, 0.4))(5.0)
     # d/dM ln(1+b^2 M^2) = 2 b^2 M / (1 + b^2 M^2) > 0
@@ -42,7 +42,7 @@ def test_sigma_s_squared_differentiable():
 
 # ── Task 1.2: BM19 Eq. 2 — transition density s_t = (alpha - 1/2) sigma_s^2 ──
 def test_transition_density_known_value():
-    from gravoturb_fdf.theory.bm19 import transition_density
+    from gravoturb.theory.density_pdf import transition_density
 
     # alpha=2, sigma_s^2=ln(5) -> s_t = 1.5 * ln(5)
     s_t = float(transition_density(alpha=2.0, sigma_s_sq=math.log(5.0)))
@@ -51,7 +51,7 @@ def test_transition_density_known_value():
 
 def test_transition_density_alpha_1p5_identity():
     # BM19 Eq. 16: for alpha=1.5, s_t = sigma_s^2 exactly.
-    from gravoturb_fdf.theory.bm19 import transition_density
+    from gravoturb.theory.density_pdf import transition_density
 
     s2 = math.log(5.0)
     assert float(transition_density(1.5, s2)) == pytest.approx(s2, abs=1e-12)
@@ -59,7 +59,7 @@ def test_transition_density_alpha_1p5_identity():
 
 # ── Task 1.4: radial slope kappa = 3/alpha (BM19 §2) ──
 def test_pdf_slope_to_radial():
-    from gravoturb_fdf.theory.bm19 import pdf_slope_to_radial
+    from gravoturb.theory.density_pdf import pdf_slope_to_radial
 
     # alpha=2 -> kappa=1.5; alpha=1.5 -> kappa=2 (rho ~ r^-2 isothermal core, Shu 1977)
     assert float(pdf_slope_to_radial(2.0)) == pytest.approx(1.5, abs=1e-12)
@@ -109,7 +109,7 @@ def test_mass_conservation_lognormal():  # AC2
 )
 def test_f_dense_matches_eq18_quadrature(mach, b, alpha):  # AC1
     """Closed-form f_dense (Eq. 19/20) matches direct quadrature of Eq. 18."""
-    from gravoturb_fdf.theory.bm19 import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import f_dense_bm19_full
 
     closed = float(f_dense_bm19_full(mach=mach, b=b, alpha=alpha))
     ref = _numpy_eq18_f_dense(mach, b, alpha)
@@ -119,7 +119,7 @@ def test_f_dense_matches_eq18_quadrature(mach, b, alpha):  # AC1
 def test_f_dense_lognormal_limit_formula():  # AC1
     """f_dense_lognormal_limit == 1/2 erfc((s_t - sigma_s^2/2)/(sqrt2 sigma_s)),
     the dense-mass fraction of a *pure* lognormal above s_t (BM19 comparison form)."""
-    from gravoturb_fdf.theory.bm19 import f_dense_lognormal_limit
+    from gravoturb.theory.density_pdf import f_dense_lognormal_limit
     from scipy.special import erfc
 
     mach, b, alpha = 5.0, 0.4, 1.8
@@ -134,7 +134,7 @@ def test_f_dense_lognormal_limit_formula():  # AC1
 def test_f_dense_exceeds_lognormal_only():  # AC1
     """The shallower continuity-matched powerlaw tail adds dense gas beyond the
     pure-lognormal fraction: f_dense_full > f_dense_lognormal_limit."""
-    from gravoturb_fdf.theory.bm19 import f_dense_bm19_full, f_dense_lognormal_limit
+    from gravoturb.theory.density_pdf import f_dense_bm19_full, f_dense_lognormal_limit
 
     for alpha in (1.6, 2.0):
         full = float(f_dense_bm19_full(mach=5.0, b=0.4, alpha=alpha))
@@ -144,7 +144,7 @@ def test_f_dense_exceeds_lognormal_only():  # AC1
 
 def test_f_dense_bounds_and_monotonic():
     """0 < f_dense < 1; decreases with Mach and with alpha (BM19 Fig. 5)."""
-    from gravoturb_fdf.theory.bm19 import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import f_dense_bm19_full
 
     f = lambda M, a: float(f_dense_bm19_full(mach=M, b=1.0 / 3, alpha=a))
     assert 0.0 < f(5.0, 2.0) < 1.0

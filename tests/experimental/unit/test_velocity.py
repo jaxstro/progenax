@@ -26,7 +26,7 @@ def _neighbor_corr(v_field):
 
 def test_velocity_field_shape_and_spatial_coherence():
     """turbulent_velocity_field is (nx,ny,nz,3) and spatially COHERENT (neighbours correlated)."""
-    from gravoturb_fdf.field.velocity import turbulent_velocity_field
+    from gravoturb.realization.turbulent_velocity import turbulent_velocity_field
 
     v = turbulent_velocity_field(SHAPE, beta_v=4.0, key=jax.random.PRNGKey(0))
     assert v.shape == SHAPE + (3,)
@@ -35,7 +35,7 @@ def test_velocity_field_shape_and_spatial_coherence():
 
 def test_steeper_spectrum_more_coherent():
     """Larger beta_v -> smoother (more large-scale-dominated) field -> higher neighbour correlation."""
-    from gravoturb_fdf.field.velocity import turbulent_velocity_field
+    from gravoturb.realization.turbulent_velocity import turbulent_velocity_field
 
     shallow = turbulent_velocity_field(SHAPE, beta_v=2.0, key=jax.random.PRNGKey(1))
     steep = turbulent_velocity_field(SHAPE, beta_v=5.0, key=jax.random.PRNGKey(1))
@@ -44,7 +44,7 @@ def test_steeper_spectrum_more_coherent():
 
 def test_sample_velocities_interpolates_and_is_differentiable():
     """Stars sample the local field velocity (trilinear); differentiable in positions."""
-    from gravoturb_fdf.field.velocity import (
+    from gravoturb.realization.turbulent_velocity import (
         sample_turbulent_velocities,
         turbulent_velocity_field,
     )
@@ -60,7 +60,7 @@ def test_sample_velocities_interpolates_and_is_differentiable():
 
 def test_virial_scale_achieves_target_Q():
     """After core virial_scale, the measured Q = T/|V| matches the target (envelope auto-accounted)."""
-    from gravoturb_fdf.field.velocity import (
+    from gravoturb.realization.turbulent_velocity import (
         sample_turbulent_velocities,
         turbulent_velocity_field,
     )

@@ -11,8 +11,8 @@ error from the empirical-CDF / finite-grid non-Gaussianity of the rank-copula si
 import jax.numpy as jnp
 import numpy as np
 
-from gravoturb_fdf.theory.gaussianization import s_of_g
-from gravoturb_fdf.theory.projection import _kmag_grid
+from gravoturb.theory.log_correlations import s_of_g
+from gravoturb.theory.projection import _kmag_grid
 
 
 def smooth_copula_field(g, mach, b, alpha):
@@ -107,7 +107,7 @@ def measure_exceedances(s_field, s_thr, n_bins=20):
     into ``n_bins`` equal s-bins spanning ``[s_thr, s_max]`` (``s_max`` = the realized field maximum,
     i.e. the finite-field truncation ceiling, so the top bin is CLOSED at ``s_max``); the s-space bin
     edges; the realized maximum; and the number of exceedances ``n_tail``. The output feeds
-    :func:`gravoturb_fdf.inference.likelihood.tail_exceedance_loglike`. ``s_thr`` and ``s_max`` are
+    :func:`gravoturb.inference.likelihood.tail_exceedance_loglike`. ``s_thr`` and ``s_max`` are
     measured here on the SAME field as the counts, which is what makes the POT block shift-immune.
     numpy path (non-differentiable, validation/oracle only).
     """
@@ -133,7 +133,7 @@ def project_counts_los(counts3d, depth, los_axis=2):
 def measure_angular_bandpowers_2d(map2d, k_edges):
     r"""Measured 2D periodogram band-powers ``<|fft2(f-<f>)|^2 / N>`` of a projected map ``map2d``,
     binned by 2D ``|k|`` into ``k_edges`` (numpy; the angular analog of
-    :func:`gravoturb_fdf.inference.covariance.measured_bandpowers`).
+    :func:`gravoturb.inference.covariance.measured_bandpowers`).
 
     Uses the EXACT same periodogram normalization (``/ f.size``) and the same ``|k|`` convention
     (``kx = fftfreq(n)*n`` per axis) so a future predicted ``angular_bandpowers_2d`` matches.
@@ -156,7 +156,7 @@ def measure_angular_bandpowers_2d(map2d, k_edges):
 def measure_log_count_variance(counts, n_bar):
     r"""Measured CIC log-count variance ``Var_cells[log_plus(N_cell)]`` (Neyrinck+2011 Eq 2).
 
-    The data-side counterpart of :func:`gravoturb_fdf.theory.cic.predict_log_count_variance`;
+    The data-side counterpart of :func:`gravoturb.theory.counts_in_cells.predict_log_count_variance`;
     uses the identical ``log_plus`` transform so the statistic is consistent in generation and
     inference (SBC-valid). ``counts`` is an integer count grid; ``n_bar`` the mean count per cell.
     """
@@ -172,8 +172,9 @@ def estimate_log_count_variance_var(mach, b, alpha, beta, shape, cell_size, n_ba
     pattern; computed ONCE per inference, not per NUTS step -> SBC-valid as a fixed constant)."""
     import jax
 
-    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
-    from gravoturb_fdf.field.sampling import sample_cic_counts
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.realization.placement import sample_cic_counts
 
     vals = []
     for r in range(n_real):

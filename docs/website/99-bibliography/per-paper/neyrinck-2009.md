@@ -1,6 +1,6 @@
 ---
 title: Neyrinck, Szapudi & Szalay (2009)
-description: Annotated reference for Mark Neyrinck, István Szapudi & Alexander Szalay — log-density Gaussianization restores Fisher information to the power spectrum, the motivation for using the log-density 2-point in gravoturb_fdf.
+description: Annotated reference for Mark Neyrinck, István Szapudi & Alexander Szalay — log-density Gaussianization restores Fisher information to the power spectrum, the motivation for using the log-density 2-point in gravoturb.
 ---
 
 # Neyrinck, Szapudi & Szalay (2009)
@@ -49,7 +49,7 @@ the power spectrum, so a monotone one-point remap recovers what it can without n
   This is the cosmology precedent for the choice made throughout [](../../10-theory/gravoturbulence/inference.md): the
   fat power-law tail makes linear-density 2-point statistics divergent / information-poor, while the
   log-density two-point is well-behaved and information-rich. The
-  [`gaussianized_xi`](../../../../src/experimental/gravoturb_fdf/theory/gaussianization.py) series
+  [`gaussianized_xi`](../../../../src/experimental/gravoturb/theory/log_correlations.py) series
   predicts exactly this $\xi_s(r)$.
 - **The "predict the statistic, restore the information" philosophy** of the cosmology playbook that
   the differentiable-inference layer adopts.

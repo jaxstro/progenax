@@ -30,9 +30,9 @@ Panels / gates
 Honest scope
 ------------
 The substructure end of panel (a) uses a simple GAUSSIAN-CLUMP generator, not the
-experimental ``gravoturb_fdf`` fractal-density field. This is the smooth/radial +
+experimental ``gravoturb`` fractal-density field. This is the smooth/radial +
 simple-clump calibration axis; full fractal-substructure inference lives in the
-repo-only ``gravoturb_fdf`` package (its own AC1-AC17 acceptance suite), not the
+repo-only ``gravoturb`` package (its own AC1-AC17 acceptance suite), not the
 released core.
 
 Run record (2026-06-12, CPU/float64, N=400, 6 seeds, wall ~6 s, exit 0 / ALL PASS):

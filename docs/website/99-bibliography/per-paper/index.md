@@ -79,7 +79,7 @@ The pages are organised alphabetically by first-author surname.
 
 ## Gaussianization & log-density inference
 
-The differentiable inference layer (gravoturb_fdf; see [](../../10-theory/gravoturbulence/inference.md))
+The differentiable inference layer (gravoturb; see [](../../10-theory/gravoturbulence/inference.md))
 predicts log-density statistics analytically and differentiates them. This lineage grounds that
 machinery: lognormal fields, the Hermite/Gaussianization of the two-point function, the
 information-optimality of the log transform, the counts-in-cells likelihood, and the
@@ -103,7 +103,7 @@ simulation-based-inference alternative.
 
 ## Calibration & convergence diagnostics
 
-The `gravoturb_fdf` trustworthiness arc (workstream ①; see
+The `gravoturb` trustworthiness arc (workstream ①; see
 [](../../10-theory/gravoturbulence/inference.md)) validates the
 differentiable-inference engine with simulation-based calibration (SBC) and HMC convergence
 diagnostics. These papers ground that machinery: the SBC rank statistic, the graphical

@@ -150,10 +150,10 @@ per-suite page with the quantitative tables: [](plummer-equilibrium.md),
 The fractal-displacement-field *generator* and the legacy `bm19_fdf_suite`
 plot scripts were removed in the 2026-06 clean-room rewrite; the surviving
 substructure tooling is the CW04 $Q$ diagnostic ([](fractal-substructure.md)).
-The experimental `gravoturb_fdf` acceptance suite *prints* its numbers
+The experimental `gravoturb` acceptance suite *prints* its numbers
 (AC1–AC17) rather than committing figures — run
-`PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance`
-and see `src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`. Publication
+`PYTHONPATH=src:src/experimental python -m gravoturb.validation.acceptance`
+and see `src/experimental/gravoturb/VALIDATION_SUMMARY.md`. Publication
 figures for that subsystem await the jaxstroviz port.
 
 ## Plot regeneration

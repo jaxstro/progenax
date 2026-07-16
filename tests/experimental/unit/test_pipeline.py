@@ -15,8 +15,8 @@ pytestmark = pytest.mark.experimental
 
 def test_build_fdf_field_struct():
     """Field carries s (right shape), s_t and f_dense matching the theory functions."""
-    from gravoturb_fdf.field.pipeline import build_fdf_field
-    from gravoturb_fdf.theory.bm19 import (
+    from gravoturb.realization.pipeline import build_fdf_field
+    from gravoturb.theory.density_pdf import (
         f_dense_bm19_full,
         sigma_s_squared,
         transition_density,
@@ -40,8 +40,8 @@ def test_build_fdf_field_struct():
 
 def test_build_fdf_field_marginal_mean_density():
     """Mass-conserving copula gives ⟨e^s⟩ = bm19_mean_density (BM19-consistent ρ_0, ≳1)."""
-    from gravoturb_fdf.field.pipeline import build_fdf_field
-    from gravoturb_fdf.theory.pdf import bm19_mean_density
+    from gravoturb.realization.pipeline import build_fdf_field
+    from gravoturb.theory.density_cdf import bm19_mean_density
 
     fld = build_fdf_field(
         mach=8.0,
@@ -58,7 +58,7 @@ def test_build_fdf_field_marginal_mean_density():
 
 def test_cornerstone_single_64():
     """AC6 single-realization: |f_dense_realized − f_dense| < 0.5% at 64³ (mass-conserving)."""
-    from gravoturb_fdf.field.pipeline import build_fdf_field
+    from gravoturb.realization.pipeline import build_fdf_field
 
     fld = build_fdf_field(
         mach=10.0,
@@ -76,7 +76,7 @@ def test_cornerstone_single_64():
 
 def test_cloud_to_stars_end_to_end():
     """Full cloud→stars: build field then sample N⋆ positions in the box."""
-    from gravoturb_fdf.field.pipeline import build_fdf_field, cloud_to_stars
+    from gravoturb.realization.pipeline import build_fdf_field, cloud_to_stars
 
     fld = build_fdf_field(
         mach=8.0,

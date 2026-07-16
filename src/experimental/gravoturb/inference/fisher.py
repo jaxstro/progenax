@@ -1,4 +1,4 @@
-r"""Fisher forecast for gravoturb_fdf (Milestone 1) -- the first science deliverable.
+r"""Fisher forecast for gravoturb (Milestone 1) -- the first science deliverable.
 
 ``F = J^T Cinv J``, ``J = d(data_vector)/d theta`` via ``jax.jacobian`` at the fiducial theta;
 ``Cinv`` is the fixed mock precision (Hartlap-corrected). Marginal errors
@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.inference.likelihood import data_vector
+from gravoturb.inference.likelihood import data_vector
 
 
 def fisher_matrix(

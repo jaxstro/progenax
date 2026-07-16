@@ -7,7 +7,7 @@ description: The patterns that preserve gradient flow through progenax — fixed
 
 progenax's promise is that every IC parameter — half-mass radius,
 IMF slope, virial Q, mass-segregation strength (and, in the experimental
-`gravoturb_fdf` package, gravoturbulent Mach and α) — is
+`gravoturb` package, gravoturbulent Mach and α) — is
 **differentiable** through `jax.grad`. Gradients flow from any
 downstream observable (final-snapshot energy, mock observation
 likelihood) all the way back to the IC parameters. This is what makes

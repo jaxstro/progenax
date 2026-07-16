@@ -371,7 +371,7 @@ here outruns the test suite.
   validation script; the released `BinaryIMF` exposes sampling helpers
   (see [](../10-theory/imfs/index.md)).
 - **Turbulent/fractal IC generation is experimental and repo-only**
-  (the `gravoturb_fdf` package, not in the released wheel). The
+  (the `gravoturb` package, not in the released wheel). The
   released core retains only the substructure *diagnostics*
   ([CW04 Q](../50-validation/fractal-substructure.md)).
 - **Known current limitations of the multi-component engines**

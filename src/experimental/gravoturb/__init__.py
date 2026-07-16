@@ -1,4 +1,4 @@
-"""gravoturb_fdf — gravoturbulent-1D + fractal-density-field (FDF) initial conditions.
+"""gravoturb — gravoturbulent-1D + fractal-density-field (FDF) initial conditions.
 
 Clean-room rewrite (2026-06) of the gravoturbulent + FDF IC subsystem, authored from
 PDF-grounded theory (Burkhart & Mocz 2019; Parmentier & Pasquali 2020; Padoan &

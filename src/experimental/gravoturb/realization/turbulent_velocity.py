@@ -22,7 +22,7 @@ import jax.numpy as jnp
 from jax.scipy.ndimage import map_coordinates
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.field.field import gaussian_random_field
+from gravoturb.realization.gaussian_field import gaussian_random_field
 
 
 def turbulent_velocity_field(
@@ -45,7 +45,7 @@ def sample_turbulent_velocities(
 ) -> Float[Array, "n 3"]:
     r"""Trilinearly interpolate the velocity field to continuous star ``positions`` (in [0, box)^3).
 
-    Cell centres sit at ``(i+0.5)/n * box`` (matching :func:`gravoturb_fdf.field.envelope.radius_grid`),
+    Cell centres sit at ``(i+0.5)/n * box`` (matching :func:`gravoturb.realization.envelope.radius_grid`),
     so the grid coordinate is ``c = position/box * n - 0.5``. Periodic (``mode='wrap'``) to match the
     periodic GRF. Differentiable in ``positions``; nearby stars get nearly-equal velocities (coherent)."""
     n_axes = jnp.asarray(v_field.shape[:3])

@@ -27,7 +27,7 @@ def _setup(n=300, seed=0):
 
 def test_lambda1_perfect_density_mass_correlation():
     """λ_corr=1 → most-massive stars at densest positions (Spearman ρ = 1)."""
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     masses, dens = _setup()
     assigned = correlated_mass_assignment(
@@ -39,7 +39,7 @@ def test_lambda1_perfect_density_mass_correlation():
 
 def test_lambda0_no_correlation():
     """λ_corr=0 → random placement, mean |ρ| ≈ 0 over seeds."""
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     masses, dens = _setup()
     rhos = []
@@ -55,7 +55,7 @@ def test_lambda0_no_correlation():
 
 def test_correlation_monotonic_in_lambda():
     """Density–mass correlation increases monotonically with λ_corr."""
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     masses, dens = _setup()
 
@@ -85,7 +85,7 @@ def test_correlation_monotonic_in_lambda():
 
 def test_mass_conserving_permutation():
     """Output is a permutation of the input masses (mass-conserving) for any λ_corr."""
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     masses, dens = _setup(n=200)
     for lam in (0.0, 0.5, 1.0):
@@ -99,7 +99,7 @@ def test_mass_conserving_permutation():
 
 def test_reproducible_with_key():
     """Same key → identical assignment."""
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     masses, dens = _setup(n=150)
     a = correlated_mass_assignment(

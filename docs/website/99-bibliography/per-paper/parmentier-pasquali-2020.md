@@ -97,7 +97,7 @@ the same quantity: $p = \kappa = 3/\alpha$. So $\alpha\in[1.5,3]\Leftrightarrow 
 ## Use in progenax
 
 - [](../../10-theory/gravoturbulence/magnification-factor.md) — full $\zeta(p)$ derivation, equivalence proof, spot values, and the generalisation to cored and direct-3D profiles.
-- `experimental/gravoturb_fdf/theory/pp20.py` — `magnification_factor` (analytic),
+- `experimental/gravoturb/theory/dense_gas_sfr.py` — `magnification_factor` (analytic),
   `magnification_factor_with_core` (trapezoid), `zeta_fdf_direct` (field estimator).
 
 Validation: anchors $\zeta(0)=1,\ \zeta(1)=1.089,\ \zeta(1.5)=\sqrt2,\ \zeta(1.67)=1.79$

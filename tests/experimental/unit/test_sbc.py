@@ -11,9 +11,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from gravoturb_fdf.inference.hmc import to_unconstrained
-from gravoturb_fdf.inference.priors import BM19Prior
-from gravoturb_fdf.inference.sbc import build_logdensity, sbc_ranks
+from gravoturb.inference.hmc import to_unconstrained
+from gravoturb.inference.priors import BM19Prior
+from gravoturb.inference.sbc import build_logdensity, sbc_ranks
 
 pytestmark = [pytest.mark.experimental, pytest.mark.slow]
 
@@ -27,9 +27,10 @@ def test_build_logdensity_uses_log_count_variance_and_bandpower_blocks():
     fixed-fiducial ``bp_precision``. Asserts logdensity(z) is finite and jax.grad is finite (the
     band-power block must be differentiable in theta via the analytic power_spectrum_bandpowers).
     """
-    from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
-    from gravoturb_fdf.inference.covariance import measured_bandpowers, mock_precision
-    from gravoturb_fdf.inference.sbc import _ALPHA_FID, _BETA_FID, _K_EDGES, _MACH_FID
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.copula import rank_copula_field
+    from gravoturb.inference.covariance import measured_bandpowers, mock_precision
+    from gravoturb.inference.sbc import _ALPHA_FID, _BETA_FID, _K_EDGES, _MACH_FID
 
     pr = BM19Prior()
     shape = (24, 24, 24)

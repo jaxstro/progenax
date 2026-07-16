@@ -46,7 +46,7 @@ def _scalar_and_grad(which, stat_fn):
 @pytest.mark.parametrize("which", ["mach", "b", "alpha", "beta"])
 def test_gradcheck_cell_averaged_xi_rho(which):
     """Route-A CIC clustering term xi_bar_rho(R): autodiff vs central FD in each param."""
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
 
     shape, R = (24, 24, 24), 2.0
     stat = lambda p: cell_averaged_xi_rho(
@@ -59,7 +59,7 @@ def test_gradcheck_cell_averaged_xi_rho(which):
 @pytest.mark.parametrize("which", ["mach", "b", "alpha", "beta"])
 def test_gradcheck_cic_variance(which):
     """sigma^2_N(R) = N_bar + N_bar^2 xi_bar: autodiff vs central FD in each param."""
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho, cic_variance
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho, cic_variance
 
     shape, R, n_bar = (24, 24, 24), 2.0, 20.0
     stat = lambda p: cic_variance(
@@ -75,7 +75,7 @@ def test_gradcheck_cic_variance(which):
 @pytest.mark.parametrize("which", ["mach", "b", "alpha", "beta"])
 def test_gradcheck_smoothed_log_variance(which):
     """Route-B sigma_s^2(R) (sets p_R): autodiff vs central FD in each param."""
-    from gravoturb_fdf.theory.cic import smoothed_log_variance
+    from gravoturb.theory.counts_in_cells import smoothed_log_variance
 
     shape, R = (24, 24, 24), 2.0
     stat = lambda p: smoothed_log_variance(
@@ -88,7 +88,7 @@ def test_gradcheck_smoothed_log_variance(which):
 @pytest.mark.parametrize("which", ["mach", "b", "alpha", "beta"])
 def test_gradcheck_count_distribution_tail(which):
     """A compound-Poisson P(N) functional (P(N>25), the over-dense cells): autodiff vs FD."""
-    from gravoturb_fdf.theory.cic import count_distribution
+    from gravoturb.theory.counts_in_cells import count_distribution
 
     shape, R, n_bar = (20, 20, 20), 2.0, 12.0
     N = jnp.arange(0, 160)
@@ -117,7 +117,7 @@ def test_gradcheck_count_distribution_tail(which):
 def test_grad_finite_at_fat_tail_boundary(alpha):
     """Gradients finite (no NaN/inf) at the alpha->2 fat-tail boundary where <rho^2> diverges
     -- the cell scale R must keep the moment + its gradient finite (Decision #1)."""
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
 
     shape, R = (24, 24, 24), 2.0
     g = jax.grad(lambda a: cell_averaged_xi_rho(shape, 3.0, R, 5.0, 0.4, a, n_max=14))(
@@ -131,7 +131,7 @@ def test_grad_finite_at_fat_tail_boundary(alpha):
 def test_grad_finite_small_R_and_beta_extremes(R, beta):
     """beta-gradient finite across the smoothing scale R and beta range (the analytic
     beta path through ifftn(k^{-beta}) -- Decision #3, validated not just nonzero but finite)."""
-    from gravoturb_fdf.theory.cic import cell_averaged_xi_rho
+    from gravoturb.theory.counts_in_cells import cell_averaged_xi_rho
 
     shape = (24, 24, 24)
     g = jax.grad(

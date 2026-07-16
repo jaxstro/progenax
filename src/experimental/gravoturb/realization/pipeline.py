@@ -22,13 +22,10 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.field.field import (
-    gaussian_random_field,
-    low_resolution_flag,
-    mass_conserving_copula_field,
-)
-from gravoturb_fdf.field.sampling import sample_positions
-from gravoturb_fdf.theory.bm19 import (
+from gravoturb.realization.gaussian_field import gaussian_random_field, low_resolution_flag
+from gravoturb.realization.copula import mass_conserving_copula_field
+from gravoturb.realization.placement import sample_positions
+from gravoturb.theory.density_pdf import (
     f_dense_bm19_full,
     sigma_s_squared,
     transition_density,

@@ -8,10 +8,10 @@ description: progenax's gravoturbulence section — the chain from molecular-clo
 ```{admonition} Experimental — not in the released wheel
 :class: warning
 The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
-the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
-progenax wheel**. Import it as `gravoturb_fdf` (repo-only, under `src/experimental/`), **not** as
+the standalone **`gravoturb`** package — a follow-up-paper feature **excluded from the released
+progenax wheel**. Import it as `gravoturb` (repo-only, under `src/experimental/`), **not** as
 `progenax.gravoturb` (removed in the 2026-06 rewrite). Fresh validation:
-`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+`src/experimental/gravoturb/VALIDATION_SUMMARY.md`.
 ```
 
 This section covers the framework that links **cloud-scale density
@@ -71,8 +71,8 @@ modes, and the Historical Note on the 2026-04-28 transcription bug fix,
 or to [](bm19.md) for the full forward chain that consumes ζ.
 
 For implementation work: each chapter ends with a code snippet showing
-the corresponding `gravoturb_fdf` API. The module reference is the package
-source under `src/experimental/gravoturb_fdf/` (see its `README.md` and
+the corresponding `gravoturb` API. The module reference is the package
+source under `src/experimental/gravoturb/` (see its `README.md` and
 `VALIDATION_SUMMARY.md`); this experimental subsystem has no generated
 website API page.
 
@@ -93,22 +93,22 @@ not redundant — each captures a different physical situation:
   simulation snapshot or detailed observation.
 
 For HMC-based inference of cloud parameters from observed SFR, all
-three are differentiable and `gravoturb_fdf` exposes them through a
+three are differentiable and `gravoturb` exposes them through a
 unified API. The choice of which to use depends on the level of cloud
 parameterisation in the inference target.
 
 ## Implementation, validation & references
 
-- **In code:** the experimental, repo-only `gravoturb_fdf` package under
-  `src/experimental/gravoturb_fdf/` (`theory/`, `field/`, `inference/`);
+- **In code:** the experimental, repo-only `gravoturb` package under
+  `src/experimental/gravoturb/` (`theory/`, `field/`, `inference/`);
   it is **not** in the released wheel and has **no generated website API
   page** — the module reference is the package source, its `README.md`,
   and its `VALIDATION_SUMMARY.md` (both repo-only, under
-  `src/experimental/gravoturb_fdf/`). Each chapter below carries its
+  `src/experimental/gravoturb/`). Each chapter below carries its
   exact module path.
 - **Validated in:** [gravoturbulent PP20](../../50-validation/gravoturbulent-pp20.md)
   and the AC1–AC17 acceptance suite
-  (`src/experimental/gravoturb_fdf/validation/acceptance.py`,
+  (`src/experimental/gravoturb/validation/acceptance.py`,
   summarised in `VALIDATION_SUMMARY.md`).
 - **Primary sources:** the density-PDF framework is
   {cite:t}`FederrathKlessen2012`; the PP20 magnification factor is

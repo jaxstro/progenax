@@ -1,4 +1,4 @@
-"""Unit tests for gravoturb_fdf.theory.projection (Phase 2).
+"""Unit tests for gravoturb.theory.projection (Phase 2).
 
 The analytic normalized Gaussian correlation rho_g(r; beta) for P(k) = k^{-beta} on the
 simulator's grid -- the beta-carrier of the predicted 2-point. Validated against the
@@ -15,7 +15,7 @@ pytestmark = pytest.mark.experimental
 
 def test_rho_g_grid_normalized_at_zero_lag():
     """rho_g(0) = 1 by construction (xi / xi[0])."""
-    from gravoturb_fdf.theory.projection import gaussian_correlation_grid
+    from gravoturb.theory.projection import gaussian_correlation_grid
 
     rho = gaussian_correlation_grid((24, 24, 24), 3.0)
     assert float(rho[0, 0, 0]) == pytest.approx(1.0, abs=1e-12)
@@ -24,9 +24,9 @@ def test_rho_g_grid_normalized_at_zero_lag():
 
 def test_rho_g_grid_matches_measured_oracle():
     """Analytic rho_g(r;beta) == ensemble-mean measured rho_g from gaussian_random_field."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.theory.projection import gaussian_correlation_grid
-    from gravoturb_fdf.validation.measure import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.projection import gaussian_correlation_grid
+    from gravoturb.validation.measure import (
         gaussian_correlation_measured,
         radial_average,
     )
@@ -58,8 +58,8 @@ def test_grf_realizes_power_law_spectrum():
     """gaussian_random_field must realize P(k) ~ k^{-beta}: the azimuthally-averaged
     ratio P_meas(k)/k^{-beta} is flat (to <10%) across k -- no high-k excess from
     un-enforced Hermitian symmetry."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.theory.projection import _kmag_grid
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.projection import _kmag_grid
 
     shape, beta, n_real = (40, 40, 40), 3.0, 8
     kmag = np.asarray(_kmag_grid(shape))
@@ -85,7 +85,7 @@ def test_grf_realizes_power_law_spectrum():
 
 def test_rho_g_grid_differentiable_in_beta():
     """d rho_g(r;beta)/d beta finite and nonzero at a representative separation."""
-    from gravoturb_fdf.theory.projection import gaussian_correlation_grid
+    from gravoturb.theory.projection import gaussian_correlation_grid
 
     def rho_at(beta):
         return gaussian_correlation_grid((24, 24, 24), beta)[3, 0, 0]
@@ -99,7 +99,7 @@ def test_rho_g_grid_differentiable_in_beta():
 
 def test_window_functions_normalized_at_zero():
     """W(0) = 1 for both top-hat and Gaussian windows (grad-safe at k=0)."""
-    from gravoturb_fdf.theory.projection import gaussian_window, top_hat_window
+    from gravoturb.theory.projection import gaussian_window, top_hat_window
 
     assert float(top_hat_window(jnp.array(0.0))) == pytest.approx(1.0, abs=1e-8)
     assert float(gaussian_window(jnp.array(0.0))) == pytest.approx(1.0, abs=1e-12)
@@ -107,7 +107,7 @@ def test_window_functions_normalized_at_zero():
 
 def test_smoothed_variance_fraction_limits_and_monotone():
     """sigma_g^2(R)/sigma_g^2(0): ->1 as R->0, decreasing in R."""
-    from gravoturb_fdf.theory.projection import smoothed_variance_fraction
+    from gravoturb.theory.projection import smoothed_variance_fraction
 
     shape, beta = (32, 32, 32), 3.0
     assert float(smoothed_variance_fraction(shape, beta, 1e-3)) == pytest.approx(
@@ -127,8 +127,8 @@ def test_smoothed_variance_matches_oracle():
     sum_real sum_k |g_k|^2 W^2 / sum_real sum_k |g_k|^2 (an unbiased estimator of
     sum P W^2 / sum P; avoids the ratio-of-sums bias from few low-k modes that a
     per-realization var(g_R)/var(g) average suffers)."""
-    from gravoturb_fdf.field.field import gaussian_random_field
-    from gravoturb_fdf.theory.projection import (
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.theory.projection import (
         _kmag_grid,
         smoothed_variance_fraction,
         top_hat_window,
@@ -149,7 +149,7 @@ def test_smoothed_variance_matches_oracle():
 
 def test_smoothed_variance_differentiable():
     """sigma_g^2(R) differentiable in beta and R (d/dR < 0)."""
-    from gravoturb_fdf.theory.projection import smoothed_variance_fraction
+    from gravoturb.theory.projection import smoothed_variance_fraction
 
     gb = float(
         jax.grad(lambda beta: smoothed_variance_fraction((24, 24, 24), beta, 2.0))(3.0)
@@ -166,8 +166,8 @@ def test_smoothed_variance_differentiable():
 def test_limber_project_grid_exact_identity():
     """Discrete Limber is exact: the 2D autocovariance of the LOS-projected field equals
     N_los * sum over the LOS axis of the 3D autocovariance (periodic identity)."""
-    from gravoturb_fdf.theory.projection import limber_project_grid
-    from gravoturb_fdf.validation.measure import autocovariance_3d
+    from gravoturb.theory.projection import limber_project_grid
+    from gravoturb.validation.measure import autocovariance_3d
 
     rng = np.random.default_rng(0)
     f = rng.normal(size=(20, 20, 16))
@@ -182,7 +182,7 @@ def test_limber_project_grid_exact_identity():
 def test_limber_project_radial_matches_gaussian_closed_form():
     """w(r_perp) = int xi(sqrt(r_perp^2+l^2)) dl; for xi=exp(-r^2/2sigma^2) the closed
     form is sigma*sqrt(2pi)*exp(-r_perp^2/2sigma^2)."""
-    from gravoturb_fdf.theory.projection import limber_project_radial
+    from gravoturb.theory.projection import limber_project_radial
 
     sigma = 2.0
     xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
@@ -198,7 +198,7 @@ def test_box_window_sq_matches_kernel_fft():
     """box_window_sq_grid(shape, c) is the EXACT discrete c-cell box-average filter |H(k)|^2,
     separable across axes -- the correct window for counts-in-cells in CUBIC cells (vs the
     spherical top-hat). Validate against the explicit FFT of a width-c normalized box kernel."""
-    from gravoturb_fdf.theory.projection import box_window_sq_grid
+    from gravoturb.theory.projection import box_window_sq_grid
 
     n, c = 16, 4
     h = np.zeros(n)
@@ -212,7 +212,7 @@ def test_box_window_sq_matches_kernel_fft():
 
 def test_limber_project_radial_differentiable():
     """w(r_perp) differentiable in a parameter of xi (finite nonzero grad)."""
-    from gravoturb_fdf.theory.projection import limber_project_radial
+    from gravoturb.theory.projection import limber_project_radial
 
     def w0(sigma):
         xi = lambda r: jnp.exp(-0.5 * (r / sigma) ** 2)
@@ -225,7 +225,7 @@ def test_limber_project_radial_differentiable():
 
 
 def test_limber_slab_matches_periodic_at_full_depth():
-    from gravoturb_fdf.theory.projection import (
+    from gravoturb.theory.projection import (
         gaussian_correlation_grid,
         limber_project_grid,
         limber_project_slab,
@@ -238,7 +238,7 @@ def test_limber_slab_matches_periodic_at_full_depth():
 
 
 def test_limber_slab_shallower_depth_lowers_amplitude_and_is_differentiable():
-    from gravoturb_fdf.theory.projection import (
+    from gravoturb.theory.projection import (
         gaussian_correlation_grid,
         limber_project_slab,
     )
@@ -262,7 +262,7 @@ def test_limber_slab_periodization_pins_actual_lag_slab_sum_incl_L_gt_half_n():
     for all L <= n, especially L > n/2 where the periodic wrap matters. Verifies the
     predicted-vs-measured SBC-consistency claim at the unit level.
     """
-    from gravoturb_fdf.theory.projection import limber_project_slab
+    from gravoturb.theory.projection import limber_project_slab
 
     n = 12
     los_axis = 2

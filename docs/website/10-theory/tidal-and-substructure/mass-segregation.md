@@ -391,13 +391,13 @@ real, $\Lambda_{\mathrm{MSR}}$-detectable mass segregation.
 
 Mass segregation and fractal/clumpy substructure are conceptually
 orthogonal pathways, but they live in different packages: turbulent
-substructure ICs are the experimental, repo-only `gravoturb_fdf`
+substructure ICs are the experimental, repo-only `gravoturb`
 package, while both segregation routes are released progenax. Defining
 "most bound" orbits inside a strongly clumpy potential is not
 implemented anywhere; for most production use cases, choose *one* of:
 
 - Clumpy + subvirial ($Q_{\mathrm{vir}} \approx 0.3$, experimental
-  `gravoturb_fdf` ICs) — let dynamical segregation emerge during
+  `gravoturb` ICs) — let dynamical segregation emerge during
   evolution {cite:p}`Allison2009`.
 - Smooth + segregated ($Q_{\mathrm{vir}} = 0.5$,
   `MultiComponentCluster.from_mass_segregation` or

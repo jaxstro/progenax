@@ -28,7 +28,7 @@ def _profile():
 
 
 def _ic(n=600, Q_target=0.5, beta=3.5, key=0):
-    from gravoturb_fdf.cluster import build_cluster_ic
+    from gravoturb.cluster import build_cluster_ic
 
     masses = jnp.ones(n)
     from jaxstro.units import STELLAR

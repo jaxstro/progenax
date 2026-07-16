@@ -1,4 +1,4 @@
-r"""Counts-in-cells (CIC): the differentiable stellar observable for gravoturb_fdf.
+r"""Counts-in-cells (CIC): the differentiable stellar observable for gravoturb.
 
 The simulator places stars proportional to the LINEAR density rho (field/sampling.py:
 ``p_smooth proportional to rho``) -- a Cox / doubly-stochastic Poisson process with
@@ -26,14 +26,14 @@ import jax.numpy as jnp
 from jax.scipy.special import gammaln, xlogy
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.theory.gaussianization import (
+from gravoturb.theory.log_correlations import (
     bm19_hermite_coefficients,
     gaussianized_xi,
     hermite_coefficients,
     s_of_g,
 )
-from gravoturb_fdf.theory.pdf import bm19_volume_pdf
-from gravoturb_fdf.theory.projection import (
+from gravoturb.theory.density_cdf import bm19_volume_pdf
+from gravoturb.theory.projection import (
     _kmag_grid,
     gaussian_correlation_grid,
     top_hat_window,

@@ -22,7 +22,7 @@ from progenax import (  # noqa: E402
     compute_potential_energy,
 )
 
-from gravoturb_fdf.cluster import build_cluster_ic  # noqa: E402
+from gravoturb.cluster import build_cluster_ic  # noqa: E402
 
 pytestmark = [pytest.mark.experimental, pytest.mark.integration]
 

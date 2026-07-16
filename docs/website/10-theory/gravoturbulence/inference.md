@@ -1,6 +1,6 @@
 ---
 title: Differentiable inference — natal cloud parameters from cluster substructure
-description: The physics-direct, differentiable inference layer of gravoturb_fdf — predict the summary statistic analytically and differentiate it (Gaussianization/Mehler 2-point + counts-in-cells + a peaks-over-threshold tail block), then sample with HMC — in 3-D and in projection. Makes the BM19 density-PDF tail slope α inferable and gives the differentiable β estimator that succeeds Q/MST.
+description: The physics-direct, differentiable inference layer of gravoturb — predict the summary statistic analytically and differentiate it (Gaussianization/Mehler 2-point + counts-in-cells + a peaks-over-threshold tail block), then sample with HMC — in 3-D and in projection. Makes the BM19 density-PDF tail slope α inferable and gives the differentiable β estimator that succeeds Q/MST.
 ---
 
 # Differentiable inference: natal cloud parameters from cluster substructure
@@ -8,9 +8,9 @@ description: The physics-direct, differentiable inference layer of gravoturb_fdf
 ```{admonition} Experimental — not in the released wheel
 :class: warning
 The gravoturbulent + fractal-density-field (FDF) pipeline was rebuilt **clean-room** (2026-06) as
-the standalone **`gravoturb_fdf`** package — a follow-up-paper feature **excluded from the released
+the standalone **`gravoturb`** package — a follow-up-paper feature **excluded from the released
 progenax wheel** (repo-only, under `src/experimental/`). Fresh validation:
-`src/experimental/gravoturb_fdf/VALIDATION_SUMMARY.md`.
+`src/experimental/gravoturb/VALIDATION_SUMMARY.md`.
 ```
 
 ```{seealso}
@@ -236,11 +236,11 @@ vs ideal $-0.5$).
 ```python
 import jax
 import jax.numpy as jnp
-from gravoturb_fdf.field.field import gaussian_random_field, rank_copula_field
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-from gravoturb_fdf.validation.measure import measure_exceedances
-from gravoturb_fdf.inference.likelihood import tail_exceedance_loglike
-from gravoturb_fdf.inference.fisher import sigma_alpha
+from gravoturb.realization.gaussian_field import gaussian_random_field, rank_copula_field
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+from gravoturb.validation.measure import measure_exceedances
+from gravoturb.inference.likelihood import tail_exceedance_loglike
+from gravoturb.inference.fisher import sigma_alpha
 
 mach, b, alpha, beta = 5.0, 0.4, 2.5, 3.0
 key = jax.random.PRNGKey(0)
@@ -263,7 +263,7 @@ print(f"N_tail = {n_tail},  sigma(alpha) forecast = {float(forecast):.3f}")
 There is **no `pot_validity_barrier`** in the shipping likelihood. Earlier drafts added a soft
 barrier keyed to the trial truth to keep the chain where $s_t(\theta) \le s_{\rm thr}$, but that is a
 *truth-keyed prior* that biases simulation-based calibration; it was dropped, and the proper
-`gravoturb_fdf.inference.priors.BM19Prior` bounds $(\mathcal{M}, \alpha, \beta)$ instead. The POT
+`gravoturb.inference.priors.BM19Prior` bounds $(\mathcal{M}, \alpha, \beta)$ instead. The POT
 block is shift-immune in $s_{\rm thr}$, so no validity barrier is needed.
 ```
 
@@ -416,11 +416,11 @@ These define what the method does *not* claim.
 ## Implementation, validation & references
 
 - **In code:** the inference layer is
-  `src/experimental/gravoturb_fdf/inference/` (`likelihood.py`,
+  `src/experimental/gravoturb/inference/` (`likelihood.py`,
   `fisher.py`, `hmc.py`, `priors.py`, `projected_logp.py`,
   `covariance.py`, `flow_npe.py`, `sbc.py`), with the field generator in
-  `src/experimental/gravoturb_fdf/field/` and the 2-point machinery in
-  `src/experimental/gravoturb_fdf/theory/gaussianization.py`. This
+  `src/experimental/gravoturb/realization/` and the 2-point machinery in
+  `src/experimental/gravoturb/theory/log_correlations.py`. This
   experimental subsystem is repo-only with no generated website API
   page; the module reference is the package source and its
   `VALIDATION_SUMMARY.md`.

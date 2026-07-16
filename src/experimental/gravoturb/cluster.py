@@ -8,7 +8,7 @@ physically-scaled N-body IC, composing the verified subsystem pieces:
      ``s_total = s_turb + ln ρ_env(r)`` (the SHAPE: r_h, concentration).
   3. ``sample_positions`` — star positions with the PLACEMENT density ∝ e^{s_total} (centrally
      concentrated) while the dense-tail mask stays on ``s_turb`` against ``s_t`` (substructure
-     decoupled from the envelope; see :func:`gravoturb_fdf.field.sampling.sample_cell_indices`).
+     decoupled from the envelope; see :func:`gravoturb.realization.placement.sample_cell_indices`).
   4. ``turbulent_velocity_field`` + ``sample_turbulent_velocities`` — coherent turbulent velocities
      (β_v); nearby stars move together (Goodwin & Whitworth 2004).
   5. core ``to_com_frame`` then ``virial_scale`` — centre the cluster and set the velocity amplitude
@@ -29,10 +29,10 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.field.envelope import apply_spherical_envelope
-from gravoturb_fdf.field.pipeline import FDFField, build_fdf_field
-from gravoturb_fdf.field.sampling import sample_positions
-from gravoturb_fdf.field.velocity import (
+from gravoturb.realization.envelope import apply_spherical_envelope
+from gravoturb.realization.pipeline import FDFField, build_fdf_field
+from gravoturb.realization.placement import sample_positions
+from gravoturb.realization.turbulent_velocity import (
     sample_turbulent_velocities,
     turbulent_velocity_field,
 )

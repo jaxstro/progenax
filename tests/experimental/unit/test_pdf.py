@@ -23,7 +23,7 @@ PARAMS = [(5.0, 0.4, 2.0), (10.0, 1.0 / 3, 1.6), (8.0, 0.5, 1.8)]
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_volume_pdf_normalized(mach, b, alpha):
     """int p(s) ds = 1 over the support (volume normalization)."""
-    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+    from gravoturb.theory.density_cdf import bm19_volume_pdf
 
     s = np.linspace(-30.0, 80.0, 2_000_000)
     p = np.asarray(bm19_volume_pdf(s, mach, b, alpha))
@@ -33,7 +33,7 @@ def test_volume_pdf_normalized(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_icdf_analytic_roundtrip(mach, b, alpha):
     """Analytic iCDF inverts the volume CDF exactly: F(F^{-1}(u)) = u, incl. deep tail."""
-    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic, build_bm19_cdf_table
+    from gravoturb.theory.density_cdf import bm19_icdf_analytic, build_bm19_cdf_table
 
     u = np.array([1e-6, 0.01, 0.2, 0.5, 0.8, 0.99, 1 - 1e-6, 1 - 5e-7])
     s = np.asarray(bm19_icdf_analytic(u, mach, b, alpha))
@@ -46,7 +46,7 @@ def test_icdf_analytic_roundtrip(mach, b, alpha):
 def test_icdf_analytic_differentiable():
     """Analytic iCDF is differentiable in alpha across body and tail (no where-nan)."""
     import jax
-    from gravoturb_fdf.theory.pdf import bm19_icdf_analytic
+    from gravoturb.theory.density_cdf import bm19_icdf_analytic
 
     for u in (0.3, 0.95):
         g = float(
@@ -60,7 +60,7 @@ def test_icdf_analytic_differentiable():
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_mass_cdf_matches_numeric(mach, b, alpha):
     """Normalized mass CDF M(s)=∫_{-∞}^s e^{s'}p ds' / ⟨e^s⟩ matches numeric integration."""
-    from gravoturb_fdf.theory.pdf import bm19_mass_cdf, bm19_volume_pdf
+    from gravoturb.theory.density_cdf import bm19_mass_cdf, bm19_volume_pdf
 
     s = np.linspace(-30.0, 90.0, 2_000_000)
     p = np.asarray(bm19_volume_pdf(s, mach, b, alpha))
@@ -78,12 +78,12 @@ def test_mass_cdf_matches_numeric(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_mass_cdf_at_transition_is_one_minus_f_dense(mach, b, alpha):
     """1 − M(s_t) equals BM19 f_dense (mass fraction above the transition)."""
-    from gravoturb_fdf.theory.bm19 import (
+    from gravoturb.theory.density_pdf import (
         f_dense_bm19_full,
         sigma_s_squared,
         transition_density,
     )
-    from gravoturb_fdf.theory.pdf import bm19_mass_cdf
+    from gravoturb.theory.density_cdf import bm19_mass_cdf
 
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
     f_dense = float(f_dense_bm19_full(mach, b, alpha))
@@ -95,7 +95,7 @@ def test_mass_cdf_at_transition_is_one_minus_f_dense(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_mean_density_matches_numeric(mach, b, alpha):
     """bm19_mean_density = ⟨ρ/ρ_0⟩ = ∫ e^s p ds ≥ 1 (power-law tail adds mass)."""
-    from gravoturb_fdf.theory.pdf import bm19_mean_density, bm19_volume_pdf
+    from gravoturb.theory.density_cdf import bm19_mean_density, bm19_volume_pdf
 
     s = np.linspace(-30.0, 90.0, 2_000_000)
     numeric = np.trapezoid(
@@ -109,8 +109,8 @@ def test_mean_density_matches_numeric(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_volume_tail_fraction_matches_integral(mach, b, alpha):
     """bm19_volume_tail_fraction = ∫_{s_t}^∞ p(s) ds (volume fraction above s_t)."""
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-    from gravoturb_fdf.theory.pdf import bm19_volume_pdf, bm19_volume_tail_fraction
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+    from gravoturb.theory.density_cdf import bm19_volume_pdf, bm19_volume_tail_fraction
 
     s_t = float(transition_density(alpha, sigma_s_squared(mach, b)))
     s = np.linspace(s_t, s_t + 200.0, 2_000_000)
@@ -123,8 +123,8 @@ def test_volume_tail_fraction_matches_integral(mach, b, alpha):
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_volume_pdf_continuous_at_st(mach, b, alpha):
     """p(s) is continuous across the lognormal->powerlaw transition s_t."""
-    from gravoturb_fdf.theory.bm19 import sigma_s_squared, transition_density
-    from gravoturb_fdf.theory.pdf import bm19_volume_pdf
+    from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
+    from gravoturb.theory.density_cdf import bm19_volume_pdf
 
     s_t = float(transition_density(alpha, sigma_s_squared(mach, b)))
     lo = float(bm19_volume_pdf(s_t - 1e-6, mach, b, alpha))
@@ -134,7 +134,7 @@ def test_volume_pdf_continuous_at_st(mach, b, alpha):
 
 @pytest.mark.parametrize("mach,b,alpha", PARAMS)
 def test_cdf_monotone_and_bounds(mach, b, alpha):
-    from gravoturb_fdf.theory.pdf import build_bm19_cdf_table
+    from gravoturb.theory.density_cdf import build_bm19_cdf_table
 
     s_grid, cdf = build_bm19_cdf_table(mach, b, alpha)
     s_grid, cdf = np.asarray(s_grid), np.asarray(cdf)
@@ -147,7 +147,7 @@ def test_cdf_monotone_and_bounds(mach, b, alpha):
 def test_icdf_roundtrip(mach, b, alpha):
     """F(F^{-1}(u)) ~= u for u in (0,1)."""
     import jax.numpy as jnp
-    from gravoturb_fdf.theory.pdf import bm19_icdf, build_bm19_cdf_table
+    from gravoturb.theory.density_cdf import bm19_icdf, build_bm19_cdf_table
 
     s_grid, cdf = build_bm19_cdf_table(mach, b, alpha)
     u = jnp.linspace(0.02, 0.98, 50)
@@ -159,7 +159,7 @@ def test_icdf_roundtrip(mach, b, alpha):
 
 def test_icdf_monotone_in_u():
     import jax.numpy as jnp
-    from gravoturb_fdf.theory.pdf import bm19_icdf
+    from gravoturb.theory.density_cdf import bm19_icdf
 
     s = np.asarray(bm19_icdf(jnp.linspace(0.05, 0.95, 100), 5.0, 0.4, 2.0))
     assert np.all(np.diff(s) > 0)
@@ -168,7 +168,7 @@ def test_icdf_monotone_in_u():
 def test_icdf_differentiable_in_params():
     """bm19_icdf is differentiable in alpha (grad-safe table) - enables P2 copula grads."""
     import jax.numpy as jnp
-    from gravoturb_fdf.theory.pdf import bm19_icdf
+    from gravoturb.theory.density_cdf import bm19_icdf
 
     def mean_s(alpha):
         u = jnp.linspace(0.1, 0.9, 64)

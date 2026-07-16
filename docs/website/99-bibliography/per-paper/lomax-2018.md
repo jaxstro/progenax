@@ -29,7 +29,7 @@ roughness) and the **log-density standard deviation $\sigma$**. Crucially, FBM c
 *both* centrally-concentrated and substructured clusters, giving a much better match to
 real clusters than BF or RDP.
 
-**This is the same construction `gravoturb_fdf` uses for its 3-D density field** (a
+**This is the same construction `gravoturb` uses for its 3-D density field** (a
 Gaussian random field with a power-law power spectrum, exponentiated to a lognormal) — so
 Lomax+ 2018 is the published, peer-reviewed grounding for our *differentiable* field
 method. We differ only in the final marginal map (see Notes).
@@ -97,14 +97,14 @@ $\mathcal{Q}$ is therefore a **poor predictor of $H$ and/or $\sigma$**; they res
 **machine-learning regressor** trained on $(\bar m,\bar s)$ to recover $(H,\sigma)$ with
 uncertainties.
 
-> **Implication (AC7 risk).** Because the `gravoturb_fdf` density field *is* an FBM-type
+> **Implication (AC7 risk).** Because the `gravoturb` density field *is* an FBM-type
 > field, a clean monotonic $\mathcal{Q}(f_\mathrm{sub})$ calibration may be **optimistic** —
 > $\mathcal{Q}$ may weakly discriminate our GRF-based substructure, exactly as Lomax+ found.
 > This caution is recorded for the P3 / AC7 calibration.
 
 ## Use in progenax
 
-- `experimental/gravoturb_fdf/field/field.py` (P2) — the GRF + exponentiation engine is
+- `experimental/gravoturb/realization/gaussian_field.py` (P2) — the GRF + exponentiation engine is
   the Lomax-2018 FBM construction; we map $(H,\sigma)\leftrightarrow(\beta,\sigma_s)$ via
   $\beta = E+2H$ and $\sigma_s$ from BM19.
 - [](cartwright-2004.md) — the $\mathcal{Q}$ estimator Lomax+ analyse (different $R$ convention).

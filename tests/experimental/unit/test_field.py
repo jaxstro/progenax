@@ -44,7 +44,7 @@ def _measured_power_slope(field_np, k_lo=3.0, k_hi=None):
 
 def test_grf_zero_mean():
     """DC mode is zeroed → field has (near) zero spatial mean."""
-    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     g = gaussian_random_field((32, 32, 32), beta=3.5, key=jax.random.PRNGKey(0))
     assert abs(float(jnp.mean(g))) < 1e-8
@@ -52,7 +52,7 @@ def test_grf_zero_mean():
 
 def test_grf_is_real():
     """irfftn output is a real-valued float array (Hermitian symmetry enforced)."""
-    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     g = gaussian_random_field((16, 16, 16), beta=3.0, key=jax.random.PRNGKey(1))
     assert jnp.isrealobj(g)
@@ -63,7 +63,7 @@ def test_grf_is_real():
 @pytest.mark.parametrize("beta", [3.0, 3.667, 4.0])
 def test_grf_power_spectrum_slope(beta):
     """Radially-binned P(k) recovers slope ≈ -β over an intermediate k band."""
-    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     g = gaussian_random_field((64, 64, 64), beta=beta, key=jax.random.PRNGKey(7))
     slope = _measured_power_slope(np.asarray(g))
@@ -72,8 +72,8 @@ def test_grf_power_spectrum_slope(beta):
 
 def test_expected_cells_above_transition():
     """Expected count = n_cells × BM19 volume tail fraction above s_t."""
-    from gravoturb_fdf.field.field import expected_cells_above_transition
-    from gravoturb_fdf.theory.pdf import bm19_volume_tail_fraction
+    from gravoturb.realization.gaussian_field import expected_cells_above_transition
+    from gravoturb.theory.density_cdf import bm19_volume_tail_fraction
 
     n_cells = 128**3
     expected = float(expected_cells_above_transition(n_cells, 6.0, 0.4, 1.8))
@@ -84,7 +84,7 @@ def test_expected_cells_above_transition():
 
 def test_resolution_guard_flags_small_field():
     """A tiny field with a steep tail expects <5 cells above s_t → low-resolution flag."""
-    from gravoturb_fdf.field.field import low_resolution_flag
+    from gravoturb.realization.gaussian_field import low_resolution_flag
 
     # 8³=512 cells, steep alpha + modest Mach → ~1.3 cells above s_t
     assert bool(low_resolution_flag(8**3, mach=3.0, b=0.4, alpha=3.0))
@@ -92,14 +92,14 @@ def test_resolution_guard_flags_small_field():
 
 def test_resolution_guard_ok_for_large_field():
     """A well-resolved 128³ field at typical params is NOT flagged."""
-    from gravoturb_fdf.field.field import low_resolution_flag
+    from gravoturb.realization.gaussian_field import low_resolution_flag
 
     assert not bool(low_resolution_flag(128**3, mach=6.0, b=0.4, alpha=1.8))
 
 
 def test_grf_deterministic_in_key():
     """Same key → identical field (reproducible); different key → different field."""
-    from gravoturb_fdf.field.field import gaussian_random_field
+    from gravoturb.realization.gaussian_field import gaussian_random_field
 
     a = gaussian_random_field((16, 16, 16), beta=3.5, key=jax.random.PRNGKey(3))
     b = gaussian_random_field((16, 16, 16), beta=3.5, key=jax.random.PRNGKey(3))

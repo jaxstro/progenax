@@ -1,6 +1,6 @@
 ---
 title: Fractal substructure
-description: Theory of clumpy, hierarchical young-cluster substructure — the Goodwin & Whitworth (2004) recursive-tree fractal, the Cartwright & Whitworth (2004) Q diagnostic, and the fractal-dimension D ↔ Q relationship. The differentiable generator that once lived here was removed in the 2026-06 rewrite; turbulent-density ICs are now the experimental gravoturb_fdf method.
+description: Theory of clumpy, hierarchical young-cluster substructure — the Goodwin & Whitworth (2004) recursive-tree fractal, the Cartwright & Whitworth (2004) Q diagnostic, and the fractal-dimension D ↔ Q relationship. The differentiable generator that once lived here was removed in the 2026-06 rewrite; turbulent-density ICs are now the experimental gravoturb method.
 ---
 
 # Fractal substructure
@@ -18,7 +18,7 @@ substructure) and a *different* turbulent-IC method:
 - **CW04 $Q$ diagnostic** — `progenax.diagnostics.substructure.compute_q_parameter`
   (+ the differentiable kNN approximation `progenax.diagnostics.q_approx`); see
   [](../../20-architecture/jax-native-substructure-q.md).
-- **Turbulent-density ICs** — the experimental **`gravoturb_fdf`** package (a *density*-field
+- **Turbulent-density ICs** — the experimental **`gravoturb`** package (a *density*-field
   gravoturbulent method, **not** a displacement-field fractal; repo-only, not in the wheel).
 ```
 
@@ -151,7 +151,7 @@ $100 \le N \le 300$). What progenax's CW04 $Q$ estimator *is*
 quantitatively validated against is the {cite:t}`Cartwright2004`
 uniform-sphere anchor $Q = 0.79 \pm 0.02$ (reproduced to $<0.01$; see
 [](../../20-architecture/jax-native-substructure-q.md)). The
-experimental `gravoturb_fdf` package's headline calibration reproduces
+experimental `gravoturb` package's headline calibration reproduces
 the *direction* of this ladder — $Q$ decreasing as more stars are drawn
 from the dense turbulent tail — measured with realization bands (its
 `VALIDATION_SUMMARY.md`, AC7).
@@ -180,7 +180,7 @@ the primordial `energy_sorted_segregation` generator and the equilibrium
   [diagnostics API](../../30-api/diagnostics.md) and the
   [JAX-native substructure-$Q$ design](../../20-architecture/jax-native-substructure-q.md).
   Turbulent-density ICs now live in the experimental, repo-only
-  `src/experimental/gravoturb_fdf/` package.
+  `src/experimental/gravoturb/` package.
 - **Validated in:** [fractal substructure](../../50-validation/fractal-substructure.md)
   (the CW04 $Q$ uniform-sphere anchor $Q = 0.79 \pm 0.02$).
 - **Primary sources:** the GW04 baseline is {cite:t}`Goodwin2004`; the

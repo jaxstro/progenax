@@ -281,7 +281,7 @@ no `r_t` argument is passed.
 3. **No primordial substructure.** King is a smooth equilibrium
    profile. Turbulent/fractal substructure — relevant to cool-clumpy
    initial conditions {cite:p}`Allison2009` — is provided separately by
-   the experimental `gravoturb_fdf` subsystem
+   the experimental `gravoturb` subsystem
    ([](../tidal-and-substructure/fractal.md)), not by the released King
    profile, and deliberately breaks the equilibrium assumption.
 

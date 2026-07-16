@@ -27,14 +27,14 @@ import jax.numpy as jnp
 from jax.scipy.special import gammaln
 from jaxtyping import Array, Float
 
-from gravoturb_fdf.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
+from gravoturb.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _xi_rho_grid
 from jaxstro.numerics.quadrature import gauss_hermite_nodes, hermite_coefficients
 
-from gravoturb_fdf.theory.gaussianization import (
+from gravoturb.theory.log_correlations import (
     bm19_hermite_coefficients,
     gaussianized_xi,
 )
-from gravoturb_fdf.theory.projection import gaussian_correlation_grid, limber_project_slab
+from gravoturb.theory.projection import gaussian_correlation_grid, limber_project_slab
 
 
 def analytic_logdensity_bandpowers(

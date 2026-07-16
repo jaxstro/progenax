@@ -6,7 +6,7 @@ description: The PP20 ζ(p) regression suite, BM19 unit coverage, and the histor
 
 ```{admonition} Experimental — not in the released wheel
 :class: warning
-The gravoturbulent ζ/BM19 code now lives in the experimental **`gravoturb_fdf`** package
+The gravoturbulent ζ/BM19 code now lives in the experimental **`gravoturb`** package
 (repo-only, **not** in the released wheel; the old `progenax.gravoturb` and
 `tests/unit/physics/` were removed in the 2026-06 rewrite). The anchors below are now
 backed by the committed **AC suite** (AC1–AC4) and `tests/experimental/`, not the deleted
@@ -21,10 +21,10 @@ at [](../10-theory/gravoturbulence/magnification-factor.md).
 
 Current test + acceptance files:
 
-- `gravoturb_fdf/validation/acceptance.py` — **AC3/AC4** anchor ζ(p) on
+- `gravoturb/validation/acceptance.py` — **AC3/AC4** anchor ζ(p) on
   PP20 Eq. 6 + analytic + the direct-field estimator; **AC1/AC2** anchor the
   BM19 scalars + mass conservation. These *print* their numbers (see
-  `gravoturb_fdf/VALIDATION_SUMMARY.md`).
+  `gravoturb/VALIDATION_SUMMARY.md`).
 - `tests/experimental/unit/test_pp20.py` — PP20 ζ(p) unit tests (anchors,
   no-spurious-pole regression, divergence at $p=2$).
 - `tests/experimental/unit/test_bm19.py`, `tests/experimental/unit/test_pdf.py`
@@ -100,7 +100,7 @@ and printed by AC3/AC4; run the commands below for fresh status.
   - Definition
 * - End-to-end forward chain (1D → 3D realization)
   - AC6 cornerstone: realized vs BM19 $f_{\mathrm{dense}}$, ensemble bias $<1\%$
-  - `gravoturb_fdf` AC6 (128³); see its `VALIDATION_SUMMARY.md`
+  - `gravoturb` AC6 (128³); see its `VALIDATION_SUMMARY.md`
 ```
 
 ## Spot ζ values (canonical anchors)
@@ -139,7 +139,7 @@ PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_pp20.py -v
 PYTHONPATH=src:src/experimental pytest tests/experimental/unit/test_bm19.py tests/experimental/unit/test_pdf.py -v
 
 # Acceptance suite — prints the ζ/BM19 anchor numbers (AC1–AC4)
-PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance
+PYTHONPATH=src:src/experimental python -m gravoturb.validation.acceptance
 ```
 
 A few seconds for the unit tests; the full AC suite (incl. the 128³ AC6
@@ -148,7 +148,7 @@ cornerstone) takes a couple of minutes.
 ## The 2026-04-28 fix
 
 The ζ(p) regression suite was added simultaneously with the bug fix on
-2026-04-28 (those tests now live in the experimental `gravoturb_fdf`
+2026-04-28 (those tests now live in the experimental `gravoturb`
 package; see the [test dashboard](test-dashboard.md) for current counts).
 Pre-fix, the buggy `magnification_factor` returned values like
 $\zeta(0.5) = 1.235$ that all *prior* tests accepted (because the

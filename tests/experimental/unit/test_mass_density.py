@@ -17,7 +17,7 @@ pytestmark = pytest.mark.experimental
 
 def test_local_surface_density_exact_formula():
     """Σ_center = (k−1)/(π r_k²) exactly (M&C Eq. 4): center + 6 collinear neighbours, r₆=6."""
-    from gravoturb_fdf.diagnostics.mass_density import local_surface_density
+    from gravoturb.diagnostics.mass_density import local_surface_density
 
     xy = np.array([[0.0, 0.0]] + [[d, 0.0] for d in (1, 2, 3, 4, 5, 6)])  # 7 points
     sigma = np.asarray(local_surface_density(jnp.asarray(xy), k=6))
@@ -27,7 +27,7 @@ def test_local_surface_density_exact_formula():
 
 def test_local_surface_density_recovers_uniform_density():
     """Median Σ of a uniform field ≈ true surface density N/A (Casertano–Hut ~unbiased)."""
-    from gravoturb_fdf.diagnostics.mass_density import local_surface_density
+    from gravoturb.diagnostics.mass_density import local_surface_density
 
     rng = np.random.default_rng(0)
     L, N = 10.0, 2000
@@ -39,7 +39,7 @@ def test_local_surface_density_recovers_uniform_density():
 
 def test_dense_region_has_higher_sigma():
     """Stars in a tight clump have higher Σ than stars in a sparse halo."""
-    from gravoturb_fdf.diagnostics.mass_density import local_surface_density
+    from gravoturb.diagnostics.mass_density import local_surface_density
 
     rng = np.random.default_rng(1)
     clump = rng.normal(0, 0.1, (100, 2))
@@ -51,7 +51,7 @@ def test_dense_region_has_higher_sigma():
 
 def test_no_correlation_for_random_masses():
     """Random masses ⇒ m–Σ Spearman ρ ≈ 0 and high/low median-Σ ratio ≈ 1."""
-    from gravoturb_fdf.diagnostics.mass_density import mass_density_segregation
+    from gravoturb.diagnostics.mass_density import mass_density_segregation
 
     rng = np.random.default_rng(2)
     pos = rng.normal(size=(400, 3))
@@ -68,11 +68,11 @@ def test_no_correlation_for_random_masses():
 def test_primordial_correlation_detected():
     """When massive stars are placed in dense clumps (via correlated_mass_assignment λ=1),
     the metric detects it: ρ(m,Σ) > 0 and massive-vs-low median Σ ratio > 1."""
-    from gravoturb_fdf.diagnostics.mass_density import (
+    from gravoturb.diagnostics.mass_density import (
         local_surface_density,
         mass_density_segregation,
     )
-    from gravoturb_fdf.masses import correlated_mass_assignment
+    from gravoturb.realization.mass_assignment import correlated_mass_assignment
 
     rng = np.random.default_rng(3)
     clump = rng.normal(0, 0.15, (150, 3))
@@ -91,7 +91,7 @@ def test_primordial_correlation_detected():
 
 
 def test_reproducible_and_finite():
-    from gravoturb_fdf.diagnostics.mass_density import mass_density_segregation
+    from gravoturb.diagnostics.mass_density import mass_density_segregation
 
     rng = np.random.default_rng(5)
     pos = jnp.asarray(rng.normal(size=(200, 3)))
