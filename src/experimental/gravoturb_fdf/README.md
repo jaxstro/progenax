@@ -26,9 +26,14 @@ re-validates it before believing it. The cornerstone that was −37% in the old 
 gravoturb_fdf/
   theory/      bm19.py pp20.py pn11.py pdf.py gaussianization.py projection.py cic.py  # 1D PDF + predicted stats — JAX, differentiable
   field/       field.py tail.py sampling.py pipeline.py  # 3D realization — GRF + rank copula → stars
-  diagnostics/ q.py                                   # CW04 Q substructure metric (numpy/scipy, non-diff)
-  inference/   covariance.py likelihood.py fisher.py hmc.py  # differentiable predicted-statistics inference (blackjax NUTS)
+               envelope.py velocity.py                  # cluster shape (log-envelope) + coherent turbulent velocities
+  cluster.py   build_cluster_ic → ClusterIC             # end-to-end natal-parameters → N-body IC (Build 4)
+  masses.py    correlated_mass_assignment               # optional density-correlated (primordial-segregation) masses
+  diagnostics/ q.py                                     # CW04 Q substructure metric (numpy/scipy, non-diff)
+  inference/   covariance.py likelihood.py fisher.py hmc.py       # differentiable predicted-statistics inference (blackjax NUTS)
+               projected_logp.py priors.py sbc.py flow_npe.py diagnostics.py  # 2D projected-β forward model, priors, SBC, NPE baseline, HMC diagnostics
   validation/  acceptance.py calibration.py measure.py  # AC1–AC17 printing scripts + Q(f_sub) driver + oracles
+               cluster_acceptance.py                    # AC-IC1–IC6 cluster-IC suite + figure gallery
 ```
 
 | Layer | Key public symbols |

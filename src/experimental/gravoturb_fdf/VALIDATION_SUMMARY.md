@@ -166,6 +166,44 @@ mass-conserving realization's dense-mass fraction matches `f_dense_bm19_full` to
 
 ---
 
+## Cluster IC acceptance (Build 4 forward tool) — AC-IC1–AC-IC6
+
+The `build_cluster_ic` layer (turbulent field → spherical envelope → star placement → coherent
+velocities → COM + virial scaling) has its own acceptance suite,
+`gravoturb_fdf/validation/cluster_acceptance.py`, under the same discipline: every number below
+was printed by the committed script. Reproduce with:
+
+```bash
+PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.cluster_acceptance
+```
+
+**Fresh run 2026-07-16** (fiducial ℳ=8, b=0.5, α=1.8, box=4 pc, 32³): **6/6 PASS.**
+
+| AC | Criterion | Measured | Verdict |
+|----|-----------|----------|---------|
+| **AC-IC0** | envelope fidelity map (2026-07-16): turbulence-OFF realized r_half vs requested r_h | OFF bias 2.7% (32³ and 64³); ON: 1.23×/1.59×/1.71× at ℳ=4/8/12 (32³), resolution-converged → turbulent relocation is physical; **r_h is a SHAPE parameter** (re-run at Phase 1 close, amendment A4) | **PASS** |
+| **AC-IC1** | envelope: median radius ↑ with r_h, concentrated vs uniform box | 0.412/0.641/0.837 pc for r_h=0.3/0.5/0.8; 0.837 < 0.85·1.678 | **PASS** |
+| **AC-IC2** | realized virial ratio Q=T/\|V\| hits Q_target | \|err\| = 0.0 at Q_target ∈ {0.3, 0.5, 0.75} | **PASS** |
+| **AC-IC3** | CW04 (m̄,s̄) plane separates β-substructure from concentration | Q↓ in β (1.119→0.837) and in r_h; m̄ swing: β 0.08 vs conc 0.46 | **PASS** |
+| **AC-IC4** | velocity coherence (nearby stars co-move) | cosθ near +0.675 vs far −0.038 | **PASS** |
+| **AC-IC5** | envelope+field construction differentiable | d(core mass)/d r_h = +626.8, finite/nonzero | **PASS** |
+| **AC-IC6** | input β recovered from log-density P(k) slope | max \|err\| = 0.012; recovery-line slope 0.995 | **PASS** |
+
+**Honest caveats (2026-07-16 science audit):** (i) Q alone conflates β with concentration —
+AC-IC3's (m̄,s̄) plane is the separable statistic; per-realization β identifiability from Q is
+marginal (β=4 seed scatter ±0.196 vs β 2→4 response ≈0.28). (ii) The requested envelope r_h is a
+*shape parameter*, not the realized concentration: with turbulence ON the sampled profile is
+centrally suppressed (~3×) and wing-enhanced (~3×) relative to the analytic profile at 32³
+(turbulence-OFF control matches the analytic profile to few %). (iii) The velocity field is an
+independent GRF — spatially coherent, but its amplitude is set by `virial_scale` (Q_target), not
+by the cloud's Mach number, and β_v is a free parameter. (iv) A Gravax seam + 2-crossing-time
+smoke (2026-07-16, N=500) transferred cleanly (COM ~1e-16, Q=0.5000, \|ΔE/E\| ≤ 1e-3) and the
+β=2-vs-β=4 substructure ordering survived evolution at ~1.5–2σ (3 seeds). The finalization design
+(`docs/plans/2026-07-16-gravoturb-cluster-ic-finalization-design.md`, maintainer-local) addresses
+(ii)–(iv).
+
+---
+
 ## What this validates (and what it does not)
 
 **Validated:** the BM19 1D density-PDF scalars and mass normalization; the PP20 ζ(p) law and its
