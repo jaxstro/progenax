@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **178** across all submodules.
+Total public symbols: **188** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -38,6 +38,13 @@ Total public symbols: **178** across all submodules.
 | [`BinaryState`](binaries.md#api-binaries-binarystate) | class | `progenax.binaries` |
 | [`BirthEnvironment`](imf.md#api-imf-birthenvironment) | class | `progenax.imf` |
 | [`build_binary_cluster`](builders.md#api-builders-build_binary_cluster) | function | `progenax.builders` |
+| [`build_cluster`](builders_cluster.md#api-builders_cluster-build_cluster) | function | `progenax.builders_cluster` |
+| [`build_cluster_from_params`](builders_cluster.md#api-builders_cluster-build_cluster_from_params) | function | `progenax.builders_cluster` |
+| [`build_eff_cluster`](builders_cluster.md#api-builders_cluster-build_eff_cluster) | function | `progenax.builders_cluster` |
+| [`build_king_cluster`](builders_cluster.md#api-builders_cluster-build_king_cluster) | function | `progenax.builders_cluster` |
+| [`build_limepy_cluster`](builders_cluster.md#api-builders_cluster-build_limepy_cluster) | function | `progenax.builders_cluster` |
+| [`build_michie_cluster`](builders_cluster.md#api-builders_cluster-build_michie_cluster) | function | `progenax.builders_cluster` |
+| [`build_plummer_cluster`](builders_cluster.md#api-builders_cluster-build_plummer_cluster) | function | `progenax.builders_cluster` |
 | [`build_spatial_ic`](builders.md#api-builders-build_spatial_ic) | function | `progenax.builders` |
 | [`C_S_DEFAULT`](cluster.md#api-cluster-c_s_default) | value | `progenax.cluster` |
 | [`calibrate_q_approx`](diagnostics.md#api-diagnostics-calibrate_q_approx) | function | `progenax.diagnostics` |
@@ -45,6 +52,7 @@ Total public symbols: **178** across all submodules.
 | [`CartesianState`](binaries.md#api-binaries-cartesianstate) | class | `progenax.binaries` |
 | [`ChabrierIMF`](imf.md#api-imf-chabrierimf) | class | `progenax.imf` |
 | [`cloud_radius_from_density`](cluster.md#api-cluster-cloud_radius_from_density) | function | `progenax.cluster` |
+| [`ClusterParams`](builders_cluster.md#api-builders_cluster-clusterparams) | class | `progenax.builders_cluster` |
 | [`CombinedBinaryFraction`](binaries.md#api-binaries-combinedbinaryfraction) | class | `progenax.binaries` |
 | [`CompanionElements`](binaries.md#api-binaries-companionelements) | class | `progenax.binaries` |
 | [`CompanionModel`](protocols.md#api-protocols-companionmodel) | protocol | `progenax.protocols` |
@@ -118,6 +126,7 @@ Total public symbols: **178** across all submodules.
 | [`MassDependentBinaryFraction`](imf.md#api-imf-massdependentbinaryfraction) | class | `progenax.imf` |
 | [`MassPeriodEccentricityDistribution`](protocols.md#api-protocols-massperiodeccentricitydistribution) | protocol | `progenax.protocols` |
 | [`MassRatioProtocol`](imf.md#api-imf-massratioprotocol) | protocol | `progenax.imf` |
+| [`matched_velocity_df`](builders_cluster.md#api-builders_cluster-matched_velocity_df) | function | `progenax.builders_cluster` |
 | [`MichieProfile`](profiles.md#api-profiles-michieprofile) | class | `progenax.profiles` |
 | [`MichieVelocityDF`](kinematics.md#api-kinematics-michievelocitydf) | class | `progenax.kinematics` |
 | [`MoeCompanions`](binaries.md#api-binaries-moecompanions) | class | `progenax.binaries` |
@@ -148,6 +157,7 @@ Total public symbols: **178** across all submodules.
 | [`resolve_binary_components`](binaries.md#api-binaries-resolve_binary_components) | function | `progenax.binaries` |
 | [`ResolvedBinaries`](binaries.md#api-binaries-resolvedbinaries) | class | `progenax.binaries` |
 | [`RotationParams`](kinematics.md#api-kinematics-rotationparams) | class | `progenax.kinematics` |
+| [`RotationSpec`](builders_cluster.md#api-builders_cluster-rotationspec) | class | `progenax.builders_cluster` |
 | [`sample_density_profile`](profiles.md#api-profiles-sample_density_profile) | function | `progenax.profiles` |
 | [`sample_isotropic_orientations`](binaries.md#api-binaries-sample_isotropic_orientations) | function | `progenax.binaries` |
 | [`sample_mass_dependent_orbits`](binaries.md#api-binaries-sample_mass_dependent_orbits) | function | `progenax.binaries` |

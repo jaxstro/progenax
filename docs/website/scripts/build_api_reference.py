@@ -33,6 +33,7 @@ PUBLIC_MODULES: list[str] = [
     "progenax.analytical",
     "progenax.binaries",
     "progenax.builders",
+    "progenax.builders_cluster",
     "progenax.cluster",
     "progenax.diagnostics",
     "progenax.dynamics",

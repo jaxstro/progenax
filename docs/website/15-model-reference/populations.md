@@ -94,7 +94,7 @@ m_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\ph
 (card-engine_b_density_eddington)=
 ## Engine B — density-defined shared-Ψ Eddington equilibria
 
-✅ verified · 3 equations · 3 sources · [API: `build_engine_b_state`](../30-api/cluster.md#api-cluster-build_engine_b_state)
+✅ verified · 3 equations · 3 sources · [API: `build_engine_b_state`](../30-api/cluster.md)
 
 Density-first multi-component equilibrium: prescribe each component's density shape (Plummer/EFF/King mixes with mass fractions), build the shared potential in ONE quadrature pass (no ODE), and derive each component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in that shared Psi — with a realizability gate (f_j >= 0 or refuse).
 

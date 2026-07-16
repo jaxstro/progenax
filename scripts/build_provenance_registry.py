@@ -106,15 +106,19 @@ def _render_card(card: dict) -> str:
     if card["code_refs"]:
         relpath, qualname = card["code_refs"][0].split("::")
         module_short = relpath.split("/")[0].removesuffix(".py")
-        # module aliases: builders_cluster documents under builders
-        module_short = {"builders_cluster": "builders"}.get(module_short, module_short)
         symbol = qualname.split(".")[0]
         api_page = _REPO_ROOT / "docs" / "website" / "30-api" / f"{module_short}.md"
         if api_page.exists():  # e.g. stellar.py has no API page yet
-            meta.append(
-                f"[API: `{symbol}`](../30-api/{module_short}.md"
-                f"#api-{module_short}-{symbol.lower()})"
-            )
+            # Link the anchor only if the generated page actually defines it — a
+            # code_ref may name a non-public symbol (e.g. build_engine_b_state),
+            # which has provenance but no API card; fall back to the module page.
+            anchor = f"api-{module_short}-{symbol.lower()}"
+            if f"({anchor})=" in api_page.read_text():
+                meta.append(
+                    f"[API: `{symbol}`](../30-api/{module_short}.md#{anchor})"
+                )
+            else:
+                meta.append(f"[API: `{symbol}`](../30-api/{module_short}.md)")
     lines.append(" · ".join(meta))
     lines.append("")
     lines.append(" ".join(card["description"].split()))

@@ -18,7 +18,7 @@ single source of truth.
 (card-cluster_builders)=
 ## Cluster builders (build_cluster + named wrappers)
 
-✅ verified · 1 equation · 1 source · [API: `build_cluster`](../30-api/builders.md#api-builders-build_cluster)
+✅ verified · 1 equation · 1 source · [API: `build_cluster`](../30-api/builders_cluster.md#api-builders_cluster-build_cluster)
 
 The one-call IC convenience layer: build_cluster and the six named wrappers (Plummer/King/EFF/Michie/LIMEPY + from_params) are pure sugar over build_spatial_ic — bit-identical outputs — pairing each profile with its matched equilibrium DF (matched_velocity_df kills the mismatched-r_h footgun). A semantics card: the physics lives in the composed model cards.
 

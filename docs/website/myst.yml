@@ -152,6 +152,7 @@ project:
         - file: 30-api/binaries.md
         - file: 30-api/analytical.md
         - file: 30-api/builders.md
+        - file: 30-api/builders_cluster.md
         - file: 30-api/tidal.md
         - file: 30-api/cluster.md
         - file: 30-api/diagnostics.md
