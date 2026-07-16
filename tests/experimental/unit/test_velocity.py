@@ -58,6 +58,40 @@ def test_sample_velocities_interpolates_and_is_differentiable():
     assert np.all(np.isfinite(np.asarray(g)))
 
 
+def test_scale_to_dispersion_is_exact_and_direction_preserving():
+    """scale_to_dispersion rescales the mass-weighted 3-D dispersion to sigma_target exactly
+    (sigma^2 = sum(m |v|^2)/sum(m) — the full 3-D dispersion, so each component carries
+    ~sigma/sqrt(3); amendment A5), preserving direction (coherence untouched)."""
+    from gravoturb.realization.turbulent_velocity import scale_to_dispersion
+
+    key = jax.random.PRNGKey(5)
+    v = 3.7 * jax.random.normal(key, (200, 3))
+    m = jax.random.uniform(jax.random.PRNGKey(6), (200,), minval=0.1, maxval=2.0)
+    v2 = scale_to_dispersion(v, m, sigma_target=1.3)
+    sigma = float(jnp.sqrt(jnp.sum(m * jnp.sum(v2**2, axis=1)) / jnp.sum(m)))
+    assert abs(sigma - 1.3) < 1e-12
+    # pure rescale: v2 = c * v for one global scalar c (directions/coherence preserved)
+    c = np.asarray(v2) / np.asarray(v)
+    assert np.allclose(c, c.ravel()[0], rtol=1e-12)
+
+
+def test_scale_to_dispersion_differentiable_in_sigma_target():
+    """d(mean speed)/d(sigma_target) is the AD gradient and matches FD (Fisher integrity)."""
+    from gravoturb.realization.turbulent_velocity import scale_to_dispersion
+
+    v = jax.random.normal(jax.random.PRNGKey(7), (100, 3))
+    m = jnp.ones(100)
+
+    def mean_speed(sig):
+        return jnp.mean(jnp.linalg.norm(scale_to_dispersion(v, m, sig), axis=1))
+
+    g = float(jax.grad(mean_speed)(1.3))
+    eps = 1e-6
+    fd = (float(mean_speed(1.3 + eps)) - float(mean_speed(1.3 - eps))) / (2 * eps)
+    assert g == pytest.approx(fd, rel=1e-6)
+    assert g > 0.0  # output is linear in sigma_target
+
+
 def test_virial_scale_achieves_target_Q():
     """After core virial_scale, the measured Q = T/|V| matches the target (envelope auto-accounted)."""
     from gravoturb.realization.turbulent_velocity import (

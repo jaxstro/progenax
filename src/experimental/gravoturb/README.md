@@ -95,7 +95,9 @@ explained pedagogically in
   sampler, and the default multi-freefall (∝ w·ρ^{3/2}) placement (`sample_positions`).
 - **`envelope.py`** — the cluster shape: any `SpatialProfile` applied additively in log-space to
   the turbulent field.
-- **`turbulent_velocity.py`** — coherent turbulent velocity field (β_v) + virial `Q_target` rescale.
+- **`turbulent_velocity.py`** — coherent turbulent velocity field (β_v) + amplitude scaling
+  (`scale_to_dispersion` for the physical σ_⋆ mode; the virial `Q_target` rescale uses core
+  `virial_scale`).
 - **`mass_assignment.py`** — optional density-correlated (primordial-segregation) mass assignment.
 - **`pipeline.py`** — the end-to-end `build_turbulent_field` and `cloud_to_stars`.
 
@@ -166,11 +168,15 @@ ic = build_cluster_ic(
     cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
     geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0, shape=(32,)*3),
     velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+    # physical mode (Phase 2): stars inherit the gas turbulence amplitude and Q is EMERGENT
+    # — VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2), plus units=STELLAR below
     composition=CompositionSpec(),  # multi_freefall default; f_sub is DERIVED
     # (legacy ablation mode: CompositionSpec(placement="two_population", f_sub=0.3))
     G=STELLAR.G, key=jax.random.PRNGKey(0),
 )
 ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dense_realized
+# ic.alpha_vir — BM92-form consistency diagnostic (both modes);
+# cloud_spec_from_larson(M_ecl=…, sfe=…, rho_cl=…, alpha=…) closes (ℳ, β, b, box) from cloud inputs
 ```
 
 ## Conventions

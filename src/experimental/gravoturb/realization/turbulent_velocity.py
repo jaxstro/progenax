@@ -38,6 +38,25 @@ def turbulent_velocity_field(
     )
 
 
+def scale_to_dispersion(
+    velocities: Float[Array, "n 3"],
+    masses: Float[Array, "n"],
+    sigma_target: Float[Array, ""],
+) -> Float[Array, "n 3"]:
+    r"""Rescale velocities so the mass-weighted 3-D dispersion equals ``sigma_target``.
+
+    The dispersion is the full 3-D one, ``σ² = Σᵢ mᵢ|vᵢ|² / Σᵢ mᵢ`` (each Cartesian
+    component then carries ~σ/√3 for an isotropic field — amendment A5), so
+    ``σ_target = η_v·ℳ·c_s`` closes the Larson chain in the builder's physical mode.
+    One global scalar multiplies every velocity: directions and the turbulent
+    coherence structure are untouched. Call in the COM frame (rescaling does not
+    remove a bulk drift). Zero-dispersion input yields NaN (same convention as the
+    core ``virial_scale`` cold-input behavior). Differentiable in all arguments.
+    """
+    sigma2 = jnp.sum(masses * jnp.sum(velocities**2, axis=1)) / jnp.sum(masses)
+    return velocities * (sigma_target / jnp.sqrt(sigma2))
+
+
 def sample_turbulent_velocities(
     positions: Float[Array, "n 3"],
     v_field: Float[Array, "nx ny nz 3"],

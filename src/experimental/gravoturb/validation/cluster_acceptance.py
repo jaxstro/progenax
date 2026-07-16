@@ -443,6 +443,93 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
             "f_match": f_match, "q_new": q_new, "q_legacy": q_old}
 
 
+# ── AC-IC8: physical velocity mode (Phase 2 gate) ──
+def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
+    """(a) round-trip σ_⋆ = η_v·ℳ·c_s to <1% after COM removal; (b) emergent Q_virial
+    across a (ℳ, r_h) grid with seed bands + exact Q ∝ η_v² sanity; (c) units pin
+    (1 pc/Myr = 0.9778 km/s); (d) the physical-mode gravax seam re-run lives in
+    tests/experimental/integration/test_gravax_seam.py (needs gravax installed).
+    Design 2026-07-16 Phase 2."""
+    c_s = 0.2  # cold-GMC sound speed [km/s] (released C_S_DEFAULT)
+
+    def _ic_phys(mach, r_h=0.5, eta_v=1.0, seed=0, n=2000):
+        return build_cluster_ic(
+            jnp.ones(n),
+            cloud=CloudSpec(mach=mach, b=B, alpha=ALPHA, beta=3.0),
+            geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX,
+                                  shape=SHAPE),
+            velocity=VelocitySpec(beta_v=BETA_V, mode="physical", c_s=c_s, eta_v=eta_v),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3),
+            G=G, units=STELLAR, key=jax.random.PRNGKey(seed),
+        )
+
+    def _sigma_3d(ic):
+        return float(jnp.sqrt(jnp.sum(ic.masses * jnp.sum(ic.velocities**2, axis=1))
+                              / jnp.sum(ic.masses)))
+
+    print("\n=== AC-IC8 — physical velocity mode: σ_⋆ = η_v·ℳ·c_s, Q emergent ===")
+
+    # (c) units pin — the km/s ↔ pc/Myr conversion the mode depends on
+    pin = float(STELLAR.velocity_scale_km_s)
+    ok_c = abs(pin - 0.9778) < 2e-4
+    print(f"  (c) units pin: 1 pc/Myr = {pin:.5f} km/s (expected 0.9778, |err|<2e-4) "
+          f"{'PASS' if ok_c else 'FAIL'}")
+
+    # (a) dispersion round trip (COM removed by the builder before scaling)
+    print(f"  (a) σ_⋆ round trip (c_s={c_s} km/s):"
+          f"  {'ℳ':>4} {'η_v':>5} {'target σ_⋆ [pc/Myr]':>20} {'measured':>10} {'rel err':>9}")
+    ok_a = True
+    for mach in [4.0, 8.0, 12.0]:
+        for eta_v in [0.5, 1.0]:
+            ic = _ic_phys(mach, eta_v=eta_v)
+            target = eta_v * mach * c_s / pin
+            meas = _sigma_3d(ic)
+            rel = abs(meas / target - 1.0)
+            ok_a = ok_a and rel < 0.01
+            print(f"      {mach:>8.1f} {eta_v:>5.1f} {target:>20.4f} {meas:>10.4f} "
+                  f"{rel:>9.2e}")
+    print(f"      all <1% {'PASS' if ok_a else 'FAIL'} "
+          "(exact by construction; the bound is the design gate)")
+
+    # (b) emergent Q_virial over (ℳ, r_h) with seed bands
+    print(f"  (b) emergent Q_virial = T/|V| (output, not imposed) ± seed σ, "
+          f"n=2000, {len(seeds)} seeds:")
+    machs, r_hs = [4.0, 8.0, 12.0], [0.3, 0.5, 0.8]
+    qgrid = {}
+    print("      ℳ\\r_h " + "".join(f"{r:>15.1f}" for r in r_hs))
+    for mach in machs:
+        row = []
+        for r_h in r_hs:
+            qs = [float(_ic_phys(mach, r_h=r_h, seed=sd).Q_virial) for sd in seeds]
+            qgrid[(mach, r_h)] = (float(np.mean(qs)), float(np.std(qs)))
+            row.append(f"{qgrid[(mach, r_h)][0]:>9.3f}±{qgrid[(mach, r_h)][1]:.3f}")
+        print(f"      {mach:>5.1f} " + "".join(f"{c:>15}" for c in row))
+    # physics direction: T ∝ ℳ² at fixed positions-statistics, |V| shrinks with r_h,
+    # so Q must rise along BOTH axes of the grid
+    ok_b_mono = all(qgrid[(machs[i], r)][0] < qgrid[(machs[i + 1], r)][0]
+                    for i in range(len(machs) - 1) for r in r_hs) and \
+                all(qgrid[(m, r_hs[j])][0] < qgrid[(m, r_hs[j + 1])][0]
+                    for j in range(len(r_hs) - 1) for m in machs)
+    # α_vir consistency diagnostic at the fiducial point
+    ic_fid = _ic_phys(8.0)
+    print(f"      fiducial (ℳ=8, r_h=0.5): Q = {float(ic_fid.Q_virial):.3f}, "
+          f"α_vir = {float(ic_fid.alpha_vir):.3f} (BM92 form on the realized cluster)")
+    # exact η_v² scaling at frozen key (same positions)
+    q1 = float(_ic_phys(8.0, eta_v=1.0, seed=0).Q_virial)
+    q5 = float(_ic_phys(8.0, eta_v=0.5, seed=0).Q_virial)
+    ok_b_eta = abs(q5 / q1 - 0.25) < 1e-9
+    print(f"      Q(η_v=0.5)/Q(η_v=1) = {q5 / q1:.12f} (exact 0.25) "
+          f"{'PASS' if ok_b_eta else 'FAIL'};  grid monotone in ℳ and r_h = {ok_b_mono} "
+          f"{'PASS' if ok_b_mono else 'FAIL'}")
+
+    ok = ok_a and ok_b_mono and ok_b_eta and ok_c
+    print("  (d) physical-mode seam: tests/experimental/integration/test_gravax_seam.py")
+    print(f"  {'PASS' if ok else 'FAIL'}")
+    return {"passed": ok, "qgrid": qgrid, "units_pin": pin,
+            "eta_ratio": q5 / q1, "Q_fiducial": float(ic_fid.Q_virial),
+            "alpha_vir_fiducial": float(ic_fid.alpha_vir)}
+
+
 # ── figure gallery (moved) ──
 # _fig_scatter / _fig_radial_profile / _fig_beta_recovery / _fig_substructure_plane /
 # _fig_velocity now live in gravoturb.validation.cluster_figures (imported in main()).
@@ -463,6 +550,7 @@ def main():
     r4m = ac_ic4_velocity_coherence(placement="multi_freefall")
     r5 = ac_ic5_gradient()
     r6 = ac_ic6_beta_recovery()
+    r8 = ac_ic8_physical_velocity()
 
     print("\n[gallery] writing figures ...")
     from gravoturb.validation.cluster_figures import (  # deferred: avoids import cycle
@@ -486,7 +574,8 @@ def main():
                "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
                "AC-IC4 coherence (legacy)": r4,
                "AC-IC4 coherence (multi_freefall)": r4m,
-               "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
+               "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6,
+               "AC-IC8 physical velocity": r8}
     print("\n" + "=" * 78)
     print("SUMMARY")
     for name, r in results.items():

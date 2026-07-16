@@ -63,8 +63,15 @@ FDF de-jargoning, layering fixed (measure→diagnostics; model.py factory; 2-D �
 per Anna), tests renamed to module mirrors, both monoliths split, AC-IC1/IC4 now validate BOTH
 placement modes (AC-IC4 multi-freefall initially FAILED at 32³ — root-caused to the ≥64³-at-ℳ≥8
 caveat, fixed by resolution not thresholds; placement_n_eff diagnostic added). Gates: 380 passed
-+1 xfail strict; acceptance 11/11; docs 213pp/0 warnings. Next: **Phase 2 physical velocity mode**
-(σ_⋆ = η_v·ℳ·c_s, Q becomes an OUTPUT), then Helmholtz coupling, composition, identifiability +
-production run.
++1 xfail strict; acceptance 11/11; docs 213pp/0 warnings. **Phase 2 COMPLETE (2026-07-16, TDD):**
+physical velocity mode `VelocitySpec(mode='physical', c_s=…[km/s], eta_v=1)` — σ_⋆ = η_v·ℳ·c_s
+via `scale_to_dispersion` after COM removal, **Q_virial emergent**, BM92-form `alpha_vir`
+diagnostic on-path (both modes), builder takes `units=` for the km/s→pc/Myr conversion
+(G-consistency checked, no silent precedence), `cloud_spec_from_larson` closes (M_ecl, SFE,
+ρ_cl) → (ℳ, β, b, box=2R_cloud) through the released Larson chain. Gate **AC-IC8 PASS**
+(σ round trip ≤2e-16; emergent-Q grid monotone in ℳ and r_h, fiducial Q≈0.10–0.16 strongly
+SUBVIRIAL — the physical cold-birth regime; Q∝η_v² exact; units pin 0.97779; physical-mode
+gravax seam 6/6); acceptance now 12/12; `virial_target` byte-identical (rename pins re-passed).
+Next: **Phase 3 Helmholtz coupling**, then composition, identifiability + production run.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)

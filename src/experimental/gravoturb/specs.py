@@ -6,7 +6,8 @@ Equinox modules, so the builder signature never grows again as physics modes lan
 
 - :class:`CloudSpec`     — the turbulent cloud: PDF physics (ℳ, b, α) + density spectrum β.
 - :class:`GeometrySpec`  — the realization geometry: envelope profile, box, grid.
-- :class:`VelocitySpec`  — stellar velocity structure: coherence slope β_v + virial target.
+- :class:`VelocitySpec`  — stellar velocity structure: coherence slope β_v + amplitude mode
+  (imposed Q_target, or physical σ_⋆ = η_v·ℳ·c_s with Q emergent).
 - :class:`CompositionSpec` — who forms where: placement law + substructure knobs.
 
 Validation is loud and constructor-time (``__check_init__``): a bad parameter fails at spec
@@ -16,9 +17,9 @@ tracers (parity with the pre-spec flat signature) — static fields (mode string
 f_sub) must always be concrete. All specs are immutable
 PyTrees; grid shape / mode strings are static fields.
 
-Planned mode fields (documented so reviewers see the trajectory; each lands with its phase):
-Phase 1 ``CompositionSpec.placement='multi_freefall'`` (default) with derived f_sub; Phase 2
-``VelocitySpec.mode='physical'`` (σ_⋆ = η_v·ℳ·c_s, Q emergent); Phase 3
+Mode fields land with their phases (documented so reviewers see the trajectory):
+Phase 1 ``CompositionSpec.placement='multi_freefall'`` (default) with derived f_sub — LANDED;
+Phase 2 ``VelocitySpec.mode='physical'`` (σ_⋆ = η_v·ℳ·c_s, Q emergent) — LANDED; Phase 3
 ``CloudSpec.coupling='helmholtz'`` (β derived = β_v − 2, χ compressive fraction); Phase 4
 ``CompositionSpec.lambda_corr`` / ``companions``.
 
@@ -27,6 +28,7 @@ JAX-native (Equinox).
 
 import equinox as eqx
 import jax.core
+import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 
@@ -97,20 +99,54 @@ class GeometrySpec(eqx.Module):
 
 
 class VelocitySpec(eqx.Module):
-    r"""Stellar velocity structure: coherent turbulent field + virial-target amplitude.
+    r"""Stellar velocity structure: coherent turbulent field + amplitude mode.
 
     ``beta_v`` is the velocity-spectrum slope P_v(k) ∝ k^{-β_v} (spatial coherence; larger =
-    smoother). ``Q_target`` is the imposed virial ratio Q ≡ T/|V| (0.5 virial, <0.5 cold /
-    collapsing, >0.5 super-virial); the amplitude is set by ``virial_scale`` on the actual
-    positions. (Phase 2 adds ``mode='physical'`` where σ_⋆ = η_v·ℳ·c_s and Q is emergent.)
+    smoother). The AMPLITUDE is set by ``mode``:
+
+    - ``mode='virial_target'`` (default): impose the virial ratio ``Q_target`` ≡ T/|V|
+      (0.5 virial, <0.5 cold / collapsing, >0.5 super-virial) via ``virial_scale`` on the
+      actual positions. ``c_s``/``eta_v`` must stay unset.
+    - ``mode='physical'`` (Phase 2): the stars inherit the gas turbulence amplitude,
+      σ_⋆ = η_v·ℳ·c_s (3-D mass-weighted dispersion; each component carries ~σ_⋆/√3).
+      ``c_s`` is the sound speed in **km/s** (literature convention; the builder converts
+      via the ``units`` UnitSystem), ``eta_v`` is the stars-inherit-gas efficiency
+      (default 1; η_v<1 for subvirial-star studies, cf. Foster+2015). **Q_virial becomes
+      an output**; passing ``Q_target`` here is an error (no silent precedence).
     """
 
     beta_v: Float[Array, ""] | float
-    Q_target: Float[Array, ""] | float
+    Q_target: Float[Array, ""] | float | None = None
+    mode: str = eqx.field(static=True, default="virial_target")
+    c_s: Float[Array, ""] | float | None = None    # sound speed [km/s] (physical mode)
+    eta_v: Float[Array, ""] | float = 1.0          # σ_⋆ = η_v·ℳ·c_s (physical mode)
 
     def __check_init__(self):
         _positive("beta_v", self.beta_v)
-        _non_negative("Q_target", self.Q_target)  # Q_target=0: cold collapse (v=0 IC)
+        if self.mode not in ("virial_target", "physical"):
+            raise ValueError(
+                f"mode must be 'virial_target' or 'physical', got {self.mode!r}"
+            )
+        if self.mode == "physical":
+            if self.Q_target is not None:
+                raise ValueError(
+                    "Q_target is EMERGENT under mode='physical' (read ClusterIC.Q_virial); "
+                    "pass Q_target only with mode='virial_target' — no silent precedence"
+                )
+            if self.c_s is None:
+                raise ValueError("mode='physical' requires the sound speed c_s [km/s]")
+            _positive("c_s", self.c_s)
+            _positive("eta_v", self.eta_v)
+        else:
+            if self.Q_target is None:
+                raise ValueError("mode='virial_target' requires Q_target (0.5 = virial)")
+            _non_negative("Q_target", self.Q_target)  # Q_target=0: cold collapse (v=0 IC)
+            if self.c_s is not None:
+                raise ValueError("c_s is a physical-mode knob; unused with mode='virial_target'")
+            if not _is_traced(self.eta_v) and float(self.eta_v) != 1.0:
+                raise ValueError(
+                    "eta_v is a physical-mode knob; unused with mode='virial_target'"
+                )
 
 
 class CompositionSpec(eqx.Module):
@@ -154,3 +190,53 @@ class CompositionSpec(eqx.Module):
             if not 0.0 <= float(self.f_sub) <= 1.0:
                 raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
         _positive("mask_sharpness", self.mask_sharpness)
+
+
+def cloud_spec_from_larson(
+    *,
+    M_ecl: Float[Array, ""] | float,
+    sfe: Float[Array, ""] | float,
+    rho_cl: Float[Array, ""] | float,
+    alpha: Float[Array, ""] | float,
+    b: Float[Array, ""] | float | None = None,
+    c_s: float | None = None,
+    sigma_v0: float | None = None,
+    alpha_larson: float | None = None,
+) -> tuple[CloudSpec, Float[Array, ""]]:
+    r"""Close cloud-level inputs through the released Larson chain → (CloudSpec, box_size).
+
+    Given the embedded-cluster mass ``M_ecl`` [M⊙], star-formation efficiency ``sfe``, and
+    cloud density ``rho_cl`` [M⊙ pc⁻³], derives the parent-cloud radius
+    R_cloud = (3 M_ecl/sfe / 4πρ_cl)^{1/3}, then ℳ = σ_v(R_cloud)/c_s from the Larson
+    velocity–size relation, β from the Kim & Ryu (2005) density-spectrum calibration, and
+    (unless ``b`` is given) the driving parameter from ``b_from_environment(log₁₀ρ_cl)``.
+    ``alpha`` (the BM19 tail slope) stays a free physics input. Returns the CloudSpec plus
+    ``box_size = 2 R_cloud`` [pc] so the realization box spans the parent cloud.
+
+    ``c_s``/``sigma_v0``/``alpha_larson`` default to the released
+    :mod:`progenax.cluster.constants` values (0.2 km/s cold-GMC sound speed, 1 km/s at
+    1 pc, exponent 0.5). Under ``VelocitySpec(mode='physical')`` pass the SAME ``c_s`` so
+    σ_⋆ = η_v·ℳ·c_s = η_v·σ_v(R_cloud) — the Larson chain then closes end to end.
+
+    Differentiable in (M_ecl, sfe, rho_cl).
+    """
+    # Lazy released-core import: keeps the spec module import-light; the dependency
+    # direction (experimental -> released) is the cycle-free one (see cluster.py).
+    from progenax.cluster.constants import ALPHA_LARSON, C_S_DEFAULT, SIGMA_V0_DEFAULT
+    from progenax.cluster.turbulence import (
+        b_from_environment,
+        cloud_radius_from_density,
+        spectral_slope_from_mach,
+        turbulent_mach_from_cloud,
+    )
+
+    c_s = C_S_DEFAULT if c_s is None else c_s
+    sigma_v0 = SIGMA_V0_DEFAULT if sigma_v0 is None else sigma_v0
+    alpha_larson = ALPHA_LARSON if alpha_larson is None else alpha_larson
+
+    R_cloud = cloud_radius_from_density(jnp.asarray(M_ecl), sfe, rho_cl)
+    mach = turbulent_mach_from_cloud(R_cloud, c_s=c_s, sigma_v0=sigma_v0, alpha=alpha_larson)
+    beta = spectral_slope_from_mach(mach)
+    if b is None:
+        b = b_from_environment(jnp.log10(jnp.asarray(rho_cl)))
+    return CloudSpec(mach=mach, b=b, alpha=alpha, beta=beta), 2.0 * R_cloud

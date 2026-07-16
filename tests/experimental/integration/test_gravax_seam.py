@@ -82,3 +82,46 @@ def test_short_integration_conserves_energy(ic):
     # Clumpy ICs + fixed-dt leapfrog: a loose smoke tolerance (production uses
     # collisional integrators); catches unit / softening / handoff blunders.
     assert abs((e1 - e0) / e0) < 5e-3
+
+
+# ── Phase 2 (AC-IC8d): the physical velocity mode crosses the seam intact ──
+
+@pytest.fixture(scope="module")
+def ic_physical():
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+
+    return build_cluster_ic(
+        jnp.ones(200),
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0,
+                              shape=(32, 32, 32)),
+        velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2),  # km/s
+        composition=CompositionSpec(placement="two_population", f_sub=0.3),
+        G=G, units=STELLAR, key=jax.random.PRNGKey(0),
+    )
+
+
+def test_physical_mode_dispersion_survives_seam(ic_physical):
+    """σ_⋆ = ℳ·c_s in pc/Myr, COM-centred; the handoff contract for the Phase-2 mode."""
+    ic = ic_physical
+    m = ic.masses
+    vcom = jnp.sum(ic.velocities * m[:, None], axis=0) / jnp.sum(m)
+    assert float(jnp.max(jnp.abs(vcom))) < 1e-10
+    sigma = float(jnp.sqrt(jnp.sum(m * jnp.sum(ic.velocities**2, axis=1)) / jnp.sum(m)))
+    target = 8.0 * 0.2 / STELLAR.velocity_scale_km_s  # η_v=1
+    assert abs(sigma / target - 1.0) < 1e-8
+    assert float(ic.Q_virial) > 0.0  # emergent, reported
+
+
+def test_physical_mode_short_integration_conserves_energy(ic_physical):
+    from gravax import LeapfrogIntegrator, ParticleSystem
+
+    system = ParticleSystem.from_velocities(
+        positions=ic_physical.positions, velocities=ic_physical.velocities,
+        masses=ic_physical.masses, units=STELLAR, softening=0.02,
+    )
+    e0 = float(system.total_energy)
+    final = LeapfrogIntegrator(dt=0.002).integrate(system, t_end=0.1)
+    e1 = float(final.total_energy)
+    assert jnp.isfinite(e1)
+    assert abs((e1 - e0) / e0) < 5e-3

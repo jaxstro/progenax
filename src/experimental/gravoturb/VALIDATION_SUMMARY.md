@@ -166,7 +166,7 @@ mass-conserving realization's dense-mass fraction matches `dense_mass_fraction` 
 
 ---
 
-## Cluster IC acceptance (Build 4 forward tool) — AC-IC1–AC-IC6
+## Cluster IC acceptance (Build 4 forward tool) — AC-IC0–AC-IC8
 
 The `build_cluster_ic` layer (turbulent field → spherical envelope → star placement → coherent
 velocities → COM + virial scaling) has its own acceptance suite,
@@ -208,6 +208,28 @@ mode is retained for ablations and reproduces the pre-rename pins byte-exactly.
 ℳ≥8 — **use ≥64³ grids with multi-freefall at high Mach** (the low-resolution guard is
 more binding under ρ^{3/2} weighting).
 
+**AC-IC8 — physical velocity mode (Phase 2 gate, fresh 2026-07-16): PASS.**
+``VelocitySpec(mode='physical', c_s=…, eta_v=1.0)`` sets the stellar mass-weighted 3-D
+dispersion to σ_⋆ = η_v·ℳ·c_s (stars inherit the gas turbulence amplitude; η_v<1 for
+subvirial-star studies, cf. Foster+2015) and **Q_virial becomes an output**; the
+Bertoldi & McKee (1992)-form ``alpha_vir`` = 5σ²r_h/(GM) on the realized cluster is
+reported in both modes as the consistency diagnostic. ``c_s`` is in km/s; the builder
+requires ``units`` (a jaxstro UnitSystem consistent with G) for the conversion.
+Measured: (a) σ_⋆ round trip exact to ≤2e-16 across ℳ∈{4,8,12} × η_v∈{0.5,1}
+(gate bound <1%; scaling happens after COM removal); (b) emergent Q grid over
+(ℳ, r_h) with 3-seed bands — Q monotone ↑ in both ℳ and r_h (0.028±0.006 at
+ℳ=4/r_h=0.3 → 0.480±0.139 at ℳ=12/r_h=0.8; fiducial ℳ=8/r_h=0.5: Q≈0.10–0.16,
+α_vir≈0.53 — the Larson-chain amplitude leaves these N=2000×1 M⊙ clusters strongly
+SUBVIRIAL, the physically expected cold-birth regime), and Q(η_v=0.5)/Q(η_v=1) =
+0.250000000000 (exact, frozen positions); (c) units pin 1 pc/Myr = 0.97779 km/s
+(0.9778 ± 2e-4); (d) physical-mode gravax seam re-run PASS (COM ~1e-16, σ_⋆
+round-trip < 1e-8 across the handoff, |ΔE/E| < 5e-3 leapfrog smoke). NB the emergent Q
+couples the cloud ℳ to the STELLAR mass/size only through the user's choice of
+(masses, r_h); ``cloud_spec_from_larson`` (M_ecl, SFE, ρ_cl → ℳ, β, b, box=2R_cloud)
+closes that loop through the released Larson chain when cloud-level consistency is
+wanted. ``mode='virial_target'`` is byte-identical to the pre-Phase-2 pipeline
+(rename-pin gate re-passed).
+
 **2026-07-16 review remediation (adversarial 8-angle code review, 10 verified findings):**
 (i) the former ``f_sub_derived`` conflated two materially different quantities — replaced by
 ``tail_star_fraction`` (Σ_{s>s_t} p under the actual placement PMF; ~0.97 at the fiducial —
@@ -228,8 +250,9 @@ marginal (β=4 seed scatter ±0.196 vs β 2→4 response ≈0.28). (ii) The requ
 *shape parameter*, not the realized concentration: with turbulence ON the sampled profile is
 centrally suppressed (~3×) and wing-enhanced (~3×) relative to the analytic profile at 32³
 (turbulence-OFF control matches the analytic profile to few %). (iii) The velocity field is an
-independent GRF — spatially coherent, but its amplitude is set by `virial_scale` (Q_target), not
-by the cloud's Mach number, and β_v is a free parameter. (iv) A Gravax seam + 2-crossing-time
+independent GRF — spatially coherent; its AMPLITUDE is now Mach-set under the Phase-2
+``mode='physical'`` (σ_⋆ = η_v·ℳ·c_s, AC-IC8), but the field remains statistically independent
+of the density (no density–velocity coupling until Phase 3), and β_v is a free parameter. (iv) A Gravax seam + 2-crossing-time
 smoke (2026-07-16, N=500) transferred cleanly (COM ~1e-16, Q=0.5000, \|ΔE/E\| ≤ 1e-3) and the
 β=2-vs-β=4 substructure ordering survived evolution at ~1.5–2σ (3 seeds). The finalization design
 (`docs/plans/2026-07-16-gravoturb-cluster-ic-finalization-design.md`, maintainer-local) addresses
