@@ -262,6 +262,45 @@ def ac_ic6_beta_recovery(seeds=(0, 1, 2), n_grid=64):
     return {"passed": ok, "rows": rows, "max_err": max_err, "recovery_slope": fit_slope_1to1}
 
 
+# ── AC-IC0: envelope-fidelity map — requested r_h vs realized concentration ──
+def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5):
+    """Characterization map (audit C9 / design amendment A4): how far the realized
+    half-mass radius sits from the requested envelope r_h, vs Mach and resolution.
+
+    The turbulence-OFF rows isolate the grid/box/sampling bias; the ON−OFF gap is the
+    turbulent mass relocation. PASS = map fully printed + OFF-bias small (<15%); the ON
+    rows are *documentation* (r_h is an envelope-shape parameter, not the realized r_h).
+    NOTE (A4): this map is placement-mode-dependent — re-run at Phase 1 close under the
+    multi-freefall placement law.
+    """
+    print("\n=== AC-IC0 — envelope fidelity: realized r_half vs requested r_h "
+          f"(r_h={r_h} pc, Plummer) ===")
+    rows = []
+    for shape in [(32,) * 3, (64,) * 3]:
+        for mach in [None, 4.0, 8.0, 12.0]:  # None → turbulence OFF (pure envelope)
+            r50 = []
+            for sd in seeds:
+                fld = build_fdf_field(mach or MACH, B, ALPHA, 3.0, shape,
+                                      jax.random.PRNGKey(sd))
+                s_turb = jnp.zeros(shape) if mach is None else fld.s
+                s_tot = apply_spherical_envelope(s_turb, PlummerProfile(r_h=r_h), BOX)
+                pos = np.asarray(sample_positions(
+                    s_turb, fld.s_t, 8.0, 0.3, n, jax.random.PRNGKey(sd + 77),
+                    box_size=BOX, s_density=s_tot)) - BOX / 2
+                r50.append(np.median(np.linalg.norm(pos, axis=1)))
+            m, s = float(np.mean(r50)), float(np.std(r50))
+            rows.append((shape[0], mach, m, s))
+            lbl = "OFF " if mach is None else f"{mach:4.1f}"
+            print(f"  grid {shape[0]:>3}³  ℳ={lbl}  realized r_half = {m:.3f}±{s:.3f} pc"
+                  f"   (ratio {m / r_h:.2f}× requested)")
+    off_bias = max(abs(r[2] / r_h - 1.0) for r in rows if r[1] is None)
+    ok = off_bias < 0.15 and len(rows) == 8
+    print(f"  turbulence-OFF |bias| = {off_bias:.3f} (<0.15 → grid/box/sampling honest); "
+          f"ON rows document turbulent relocation (r_h = SHAPE parameter).")
+    print(f"  {'PASS' if ok else 'FAIL'}")
+    return {"passed": ok, "rows": rows, "off_bias": off_bias}
+
+
 # ── figure gallery ──
 def _fig_scatter(seed=0):
     ic = _ic(n=4000, seed=seed)
@@ -404,6 +443,7 @@ def main():
     print("=" * 78)
     print(f"FDF CLUSTER IC ACCEPTANCE  |  ℳ={MACH}, b={B}, α={ALPHA}, box={BOX}pc, shape={SHAPE}")
     print("=" * 78)
+    r0 = ac_ic0_envelope_fidelity()
     r1 = ac_ic1_envelope()
     r2 = ac_ic2_virial()
     r3 = ac_ic3_substructure()
@@ -418,7 +458,8 @@ def main():
     _fig_velocity(r4)
     _fig_beta_recovery(r6)
 
-    results = {"AC-IC1 envelope": r1, "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
+    results = {"AC-IC0 envelope fidelity": r0,
+               "AC-IC1 envelope": r1, "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
                "AC-IC4 coherence": r4, "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
     print("\n" + "=" * 78)
     print("SUMMARY")
