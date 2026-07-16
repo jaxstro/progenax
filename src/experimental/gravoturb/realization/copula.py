@@ -17,10 +17,10 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb.theory.density_cdf import (
-    bm19_icdf,
-    bm19_icdf_analytic,
-    bm19_mass_cdf,
-    bm19_mean_density,
+    log_density_icdf,
+    log_density_icdf_analytic,
+    mass_cdf,
+    mean_density,
 )
 
 
@@ -58,7 +58,7 @@ def rank_copula_field(
     Returns ``s = ln(ρ/ρ_0)`` with the same shape as ``g``.
     """
     u = rank_to_uniform(g)
-    s_raw = bm19_icdf(u.ravel(), mach, b, alpha).reshape(g.shape)
+    s_raw = log_density_icdf(u.ravel(), mach, b, alpha).reshape(g.shape)
     # Enforce ρ_0 = volume mean: ⟨e^s⟩ = 1  ⇒  s = s_raw − ln⟨e^{s_raw}⟩.
     shift = jnp.log(jnp.mean(jnp.exp(s_raw)))
     return s_raw - shift
@@ -82,7 +82,7 @@ def mass_conserving_copula_field(
     (vs. the −2…−5.5% truncation bias of the point-value rank copula), because the
     extreme power-law tail mass is collected analytically into the top slab.
 
-    The volume mean ⟨e^s⟩ = bm19_mean_density (≥1) is the BM19-consistent ρ_0 (not a
+    The volume mean ⟨e^s⟩ = mean_density (≥1) is the BM19-consistent ρ_0 (not a
     forced 1). Monotone in ``g`` (order preserved); differentiable in (mach,b,alpha):
     interior slab edges are smooth, the 0/1 mass endpoints are constants.
     """
@@ -91,11 +91,11 @@ def mass_conserving_copula_field(
     ranks = jnp.argsort(jnp.argsort(flat))
 
     u_inner = jnp.arange(1, n) / n  # interior edges in (0,1)
-    s_inner = bm19_icdf_analytic(u_inner, mach, b, alpha)
-    m_inner = bm19_mass_cdf(s_inner, mach, b, alpha)
+    s_inner = log_density_icdf_analytic(u_inner, mach, b, alpha)
+    m_inner = mass_cdf(s_inner, mach, b, alpha)
     m_edges = jnp.concatenate([jnp.zeros(1), m_inner, jnp.ones(1)])  # M(0)=0, M(1)=1
     dM = jnp.diff(m_edges)  # N normalized slab masses, sum = 1
 
-    rho_sorted = n * dM * bm19_mean_density(mach, b, alpha)  # ρ_i/ρ_0
+    rho_sorted = n * dM * mean_density(mach, b, alpha)  # ρ_i/ρ_0
     s_sorted = jnp.log(rho_sorted)
     return s_sorted[ranks].reshape(g.shape)

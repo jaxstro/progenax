@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb.theory.density_cdf import bm19_volume_tail_fraction
+from gravoturb.theory.density_cdf import volume_tail_fraction
 
 
 def gaussian_random_field(
@@ -75,7 +75,7 @@ def expected_cells_above_transition(
     Uses the closed-form BM19 volume tail fraction. The dense tail must be resolved by
     enough cells for the rank copula to populate it faithfully (spec §3.5).
     """
-    return n_cells * bm19_volume_tail_fraction(mach, b, alpha)
+    return n_cells * volume_tail_fraction(mach, b, alpha)
 
 
 def low_resolution_flag(

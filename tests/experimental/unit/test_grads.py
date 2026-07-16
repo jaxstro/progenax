@@ -1,7 +1,7 @@
 """Differentiability of the gravoturb 1D theory — AC8 (grad signs) + AC9 (FD vs autodiff).
 
-Public differentiable entry points: sigma_s_squared, f_dense_bm19_full,
-magnification_factor (and bm19_icdf, checked in test_pdf). All must be smooth and
+Public differentiable entry points: sigma_s_squared, dense_mass_fraction,
+magnification_factor (and log_density_icdf, checked in test_pdf). All must be smooth and
 grad-correct in the cloud parameters; float64 is enabled at package import.
 """
 
@@ -27,10 +27,10 @@ def test_grad_sign_sigma_s_squared_positive():
 
 
 def test_grad_sign_f_dense_decreases_with_mach_and_alpha():
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
-    dM = float(jax.grad(lambda m: f_dense_bm19_full(m, 1.0 / 3, 1.8))(8.0))
-    da = float(jax.grad(lambda a: f_dense_bm19_full(8.0, 1.0 / 3, a))(1.8))
+    dM = float(jax.grad(lambda m: dense_mass_fraction(m, 1.0 / 3, 1.8))(8.0))
+    da = float(jax.grad(lambda a: dense_mass_fraction(8.0, 1.0 / 3, a))(1.8))
     assert dM < 0.0  # higher Mach -> less dense gas
     assert da < 0.0  # steeper tail  -> less dense gas
 
@@ -56,19 +56,19 @@ def test_fd_vs_autodiff_sigma_s_squared(mach):
 
 @pytest.mark.parametrize("alpha", [1.6, 1.8, 2.2])
 def test_fd_vs_autodiff_f_dense_in_alpha(alpha):
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
-    f = lambda a: float(f_dense_bm19_full(6.0, 0.5, a))
-    ad = float(jax.grad(lambda a: f_dense_bm19_full(6.0, 0.5, a))(alpha))
+    f = lambda a: float(dense_mass_fraction(6.0, 0.5, a))
+    ad = float(jax.grad(lambda a: dense_mass_fraction(6.0, 0.5, a))(alpha))
     assert ad == pytest.approx(_central_fd(f, alpha), rel=1e-4)
 
 
 @pytest.mark.parametrize("mach", [4.0, 9.0])
 def test_fd_vs_autodiff_f_dense_in_mach(mach):
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
-    f = lambda m: float(f_dense_bm19_full(m, 0.4, 1.7))
-    ad = float(jax.grad(lambda m: f_dense_bm19_full(m, 0.4, 1.7))(mach))
+    f = lambda m: float(dense_mass_fraction(m, 0.4, 1.7))
+    ad = float(jax.grad(lambda m: dense_mass_fraction(m, 0.4, 1.7))(mach))
     assert ad == pytest.approx(_central_fd(f, mach), rel=1e-4)
 
 
@@ -83,10 +83,10 @@ def test_fd_vs_autodiff_magnification(p):
 
 # ── guard regions: gradients stay finite near the alpha->1 and p->2 singularities ──
 def test_grads_finite_near_guards():
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
     from gravoturb.theory.dense_gas_sfr import magnification_factor
 
-    g_fdense = float(jax.grad(lambda a: f_dense_bm19_full(6.0, 0.5, a))(1.05))
+    g_fdense = float(jax.grad(lambda a: dense_mass_fraction(6.0, 0.5, a))(1.05))
     g_zeta = float(jax.grad(magnification_factor)(1.95))
     assert math.isfinite(g_fdense)
     assert math.isfinite(g_zeta)

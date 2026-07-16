@@ -71,7 +71,7 @@ def _lognormal_dense_z(
     return (s_t - 0.5 * sigma_s_sq) / (jnp.sqrt(2.0) * sigma_s)
 
 
-def f_dense_bm19_full(
+def dense_mass_fraction(
     mach: Float[Array, ""], b: Float[Array, ""], alpha: Float[Array, ""]
 ) -> Float[Array, ""]:
     r"""Self-gravitating (dense) gas mass fraction (BM19 Eq. 17-20).
@@ -108,7 +108,7 @@ def f_dense_bm19_full(
     return M_PL / (M_LN + M_PL)
 
 
-def f_dense_lognormal_limit(
+def dense_mass_fraction_lognormal(
     mach: Float[Array, ""], b: Float[Array, ""], alpha: Float[Array, ""]
 ) -> Float[Array, ""]:
     r"""Dense-mass fraction of a *pure* lognormal above s_t (BM19 comparison form).

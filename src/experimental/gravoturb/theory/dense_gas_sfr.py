@@ -59,10 +59,10 @@ def magnification_factor_with_core(
     x = jnp.linspace(1.0 / n_nodes, 1.0, n_nodes)  # r/R in (0,1]
     rho = (1.0 + (x / r_c_over_R) ** 2) ** (-p / 2.0)
     w = x**2  # dV ~ r^2 dr; constant 4*pi*R^3 factor cancels in the ratio
-    return zeta_fdf_direct(rho, w)
+    return zeta_from_field(rho, w)
 
 
-def zeta_fdf_direct(
+def zeta_from_field(
     rho: Float[Array, " n"], weights: Float[Array, " n"]
 ) -> Float[Array, ""]:
     r"""Direct (field) magnification estimator (PP20-consistent).

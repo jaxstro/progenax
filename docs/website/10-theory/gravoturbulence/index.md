@@ -50,7 +50,7 @@ structure** to the **integrated star formation rate**. The chain is:
 * - [](density-pdf-and-fdf.md)
   - The {cite:t}`FederrathKlessen2012` lognormal + power-law density PDF (Mach scaling, forcing $b$), the $\rho^{3/2}$ freefall-density kernel, the cloud-integrated SFR they combine to give, and the single canonical α↔p mapping.
 * - [](magnification-factor.md)
-  - The magnification factor ζ three ways: {cite:t}`ParmentierPasquali2020` analytic ζ(p) for power-law profiles, `magnification_factor_with_core` for cored profiles, and `zeta_fdf_direct` for an arbitrary 3D field — with the "which ζ-mode when" table.
+  - The magnification factor ζ three ways: {cite:t}`ParmentierPasquali2020` analytic ζ(p) for power-law profiles, `magnification_factor_with_core` for cored profiles, and `zeta_from_field` for an arbitrary 3D field — with the "which ζ-mode when" table.
 * - [](bm19.md)
   - The {cite:t}`Burkhart2018,BurkhartMocz2019` framework that consumes ζ in a forward model for dense-gas SFR.
 * - [](inference.md)

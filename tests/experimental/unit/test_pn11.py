@@ -20,36 +20,36 @@ pytestmark = pytest.mark.experimental
 
 def test_pn11_prefactor_is_0p547():
     """0.067 * theta^{-2} with theta=0.35 = 0.547 (PN11 Eq. 11), not 0.242."""
-    from gravoturb.theory.collapse_threshold import critical_overdensity_pn11
+    from gravoturb.theory.collapse_threshold import critical_overdensity
 
     val = float(
-        critical_overdensity_pn11(mach=1.0, alpha_vir=1.0)
+        critical_overdensity(mach=1.0, alpha_vir=1.0)
     )  # theta=0.35 default
     assert val == pytest.approx(0.067 * 0.35**-2, rel=1e-6)
     assert val == pytest.approx(0.547, abs=1e-3)
 
 
-def test_s_crit_pn11_known_value():
+def test_critical_log_density_known_value():
     """s_crit = ln(0.547 alpha_vir M^2); alpha_vir=1, M=10 -> ln(54.7)."""
-    from gravoturb.theory.collapse_threshold import s_crit_pn11
+    from gravoturb.theory.collapse_threshold import critical_log_density
 
-    val = float(s_crit_pn11(mach=10.0, alpha_vir=1.0))
+    val = float(critical_log_density(mach=10.0, alpha_vir=1.0))
     assert val == pytest.approx(math.log(0.067 * 0.35**-2 * 100.0), abs=1e-9)
 
 
-def test_s_crit_pn11_monotonic():
-    from gravoturb.theory.collapse_threshold import s_crit_pn11
+def test_critical_log_density_monotonic():
+    from gravoturb.theory.collapse_threshold import critical_log_density
 
     # rises with Mach (M^2) and with virial parameter
-    assert float(s_crit_pn11(20.0, 1.0)) > float(s_crit_pn11(10.0, 1.0))
-    assert float(s_crit_pn11(10.0, 2.0)) > float(s_crit_pn11(10.0, 1.0))
+    assert float(critical_log_density(20.0, 1.0)) > float(critical_log_density(10.0, 1.0))
+    assert float(critical_log_density(10.0, 2.0)) > float(critical_log_density(10.0, 1.0))
 
 
-def test_s_crit_pn11_mach_squared_grad():
-    from gravoturb.theory.collapse_threshold import s_crit_pn11
+def test_critical_log_density_mach_squared_grad():
+    from gravoturb.theory.collapse_threshold import critical_log_density
 
     # d s_crit / d M = 2/M  -> at M=10, grad = 0.2
-    g = float(jax.grad(lambda m: s_crit_pn11(m, 1.0))(10.0))
+    g = float(jax.grad(lambda m: critical_log_density(m, 1.0))(10.0))
     assert g == pytest.approx(0.2, rel=1e-6)
 
 
@@ -74,11 +74,11 @@ def test_virial_parameter_unity_when_virialised():
 
 
 def test_virial_parameter_feeds_pn11():
-    """alpha_vir from the helper can be passed straight into critical_overdensity_pn11."""
-    from gravoturb.theory.collapse_threshold import critical_overdensity_pn11, virial_parameter
+    """alpha_vir from the helper can be passed straight into critical_overdensity."""
+    from gravoturb.theory.collapse_threshold import critical_overdensity, virial_parameter
 
     av = virial_parameter(mass=1.0e4, radius=2.0, sigma_v=2.0, G=4.3009e-3)
-    val = float(critical_overdensity_pn11(mach=10.0, alpha_vir=av))
+    val = float(critical_overdensity(mach=10.0, alpha_vir=av))
     assert val == pytest.approx(0.547 * float(av) * 100.0, rel=1e-3)
 
 

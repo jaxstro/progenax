@@ -2,7 +2,7 @@ r"""Gaussianization: the analytic log-density 2-point xi_s from the BM19 copula 
 
 Differentiate the PREDICTED statistic, not the stochastic simulator. The copula map
 
-    s = T(g) = bm19_icdf_analytic(Phi(g)) - log<e^s>
+    s = T(g) = log_density_icdf_analytic(Phi(g)) - log<e^s>
 
 carries the BM19 marginal onto a unit Gaussian field ``g``; its probabilists'-Hermite
 expansion gives the analytic log-density 2-point (added in later tasks)
@@ -21,10 +21,12 @@ JAX-native; differentiable in (mach, b, alpha). The Gaussian field ``g`` is held
 
 import jax.numpy as jnp
 from jax.scipy.special import erf, gammaln
-from jaxstro.numerics.quadrature import hermite_coefficients
+from jaxstro.numerics.quadrature import (
+    hermite_coefficients as _quadrature_hermite_coefficients,
+)
 from jaxtyping import Array, Float
 
-from gravoturb.theory.density_cdf import bm19_icdf_analytic, bm19_mean_density
+from gravoturb.theory.density_cdf import log_density_icdf_analytic, mean_density
 
 
 def _standard_normal_cdf(g: Float[Array, " ..."]) -> Float[Array, " ..."]:
@@ -40,7 +42,7 @@ def s_of_g(
 ) -> Float[Array, " ..."]:
     r"""Copula map T(g): unit Gaussian -> BM19 log-density ``s`` with <e^s> = 1.
 
-    ``s = bm19_icdf_analytic(Phi(g); M,b,alpha) - log(bm19_mean_density)``. The
+    ``s = log_density_icdf_analytic(Phi(g); M,b,alpha) - log(mean_density)``. The
     subtractive shift = ``log<e^s>`` enforces the rho0 convention (population
     <e^s> = 1; Coles & Jones 1991 Eq 21). The additive shift does NOT affect the
     Hermite coefficients c_n for n >= 1 (they are orthogonal to constants), so the
@@ -49,14 +51,14 @@ def s_of_g(
     Differentiable in (mach, b, alpha); ``g`` is held fixed.
     """
     # Clip u away from {0,1}: the outer Gauss-Hermite quadrature nodes reach |g|~30,
-    # where Phi(g) saturates to exactly 0 or 1 in float64 and bm19_icdf_analytic hits
+    # where Phi(g) saturates to exactly 0 or 1 in float64 and log_density_icdf_analytic hits
     # its tail singularity (log(0) -> +-inf). Those nodes carry ~e^{-450} weight, so the
     # clip's bias is negligible; delta=1e-10 keeps the tail-icdf cancellation accurate to
     # ~6 digits (so param-gradients stay bounded). Finite-sample realizations (|g|<~5)
     # never trigger the clip.
     u = jnp.clip(_standard_normal_cdf(g), 1e-10, 1.0 - 1e-10)
-    s_raw = bm19_icdf_analytic(u, mach, b, alpha)
-    shift = jnp.log(bm19_mean_density(mach, b, alpha))
+    s_raw = log_density_icdf_analytic(u, mach, b, alpha)
+    shift = jnp.log(mean_density(mach, b, alpha))
     return s_raw - shift
 
 
@@ -66,7 +68,7 @@ def s_of_g(
 # Only the BM19-specific wrappers below remain local (domain-specific maps).
 
 
-def bm19_hermite_coefficients(
+def log_density_hermite_coefficients(
     mach: Float[Array, ""],
     b: Float[Array, ""],
     alpha: Float[Array, ""],
@@ -74,10 +76,12 @@ def bm19_hermite_coefficients(
     n_quad: int = 256,
 ) -> Float[Array, " n"]:
     r"""Hermite coefficients of the BM19 copula map ``s_of_g(.; mach,b,alpha)``."""
-    return hermite_coefficients(lambda g: s_of_g(g, mach, b, alpha), n_max, n_quad)
+    return _quadrature_hermite_coefficients(
+        lambda g: s_of_g(g, mach, b, alpha), n_max, n_quad
+    )
 
 
-def bm19_density_hermite_coefficients(
+def density_hermite_coefficients(
     mach: Float[Array, ""],
     b: Float[Array, ""],
     alpha: Float[Array, ""],
@@ -87,7 +91,7 @@ def bm19_density_hermite_coefficients(
     r"""Hermite coefficients of the BM19 DENSITY map ``rho = e^s = exp(s_of_g(.))``.
 
     ``d_n = <exp(T(g)) He_n(g)>``, ``T(g) = s_of_g(g; mach,b,alpha)`` (probabilists'
-    Hermite), the density analog of :func:`bm19_hermite_coefficients` (which expands the
+    Hermite), the density analog of :func:`log_density_hermite_coefficients` (which expands the
     log-density ``s`` itself). Feeding ``d`` to :func:`gaussianized_xi` gives the EXACT
     BM19 density 2-point (Mehler bivariate-Hermite),
     ``xi_rho(r) = sum_{n>=1} d_n^2/n! rho_g(r)^n`` -- the copula-faithful density 2-pt,
@@ -98,9 +102,9 @@ def bm19_density_hermite_coefficients(
       - ``xi_rho(0) = sum_{n>=1} d_n^2/n! = Var(rho)`` (the density variance).
 
     Differentiable in (mach, b, alpha) via the Gauss-Hermite quadrature in
-    :func:`hermite_coefficients`; ``g`` is held fixed.
+    ``jaxstro.numerics.quadrature.hermite_coefficients``; ``g`` is held fixed.
     """
-    return hermite_coefficients(
+    return _quadrature_hermite_coefficients(
         lambda g: jnp.exp(s_of_g(g, mach, b, alpha)), n_max, n_quad
     )
 
@@ -112,7 +116,7 @@ def gaussianized_xi(
 
     The Mehler bivariate-Hermite expansion (Szapudi & Pan 2004); it reduces to
     Coles & Jones 1991 Eq (30) ``1+xi = exp[Xi]`` in the exp/lognormal case. ``c`` is
-    the :func:`hermite_coefficients` output (n=0..n_max); the n=0 (mean) term is
+    the :func:`log_density_hermite_coefficients` output (n=0..n_max); the n=0 (mean) term is
     dropped. ``rho_g`` is the normalized Gaussian correlation (``rho_g(0)=1``), scalar
     or array. Differentiable in both ``c`` (hence theta) and ``rho_g`` (hence beta).
     """

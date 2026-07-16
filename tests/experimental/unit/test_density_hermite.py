@@ -21,10 +21,10 @@ pytestmark = pytest.mark.experimental
 
 def test_density_hermite_shape_and_mean_density_unity():
     """Returns (n_max+1,); d_0 = <e^s> = 1 (mean density, rho0 convention)."""
-    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
+    from gravoturb.theory.log_correlations import density_hermite_coefficients
 
     n_max = 8
-    d = bm19_density_hermite_coefficients(8.0, 0.4, 2.5, n_max)
+    d = density_hermite_coefficients(8.0, 0.4, 2.5, n_max)
     assert d.shape == (n_max + 1,)
     assert float(d[0]) == pytest.approx(1.0, abs=1e-3)
 
@@ -43,11 +43,11 @@ def test_density_variance_matches_measured_field():
     """
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.copula import mass_conserving_copula_field
-    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
+    from gravoturb.theory.log_correlations import density_hermite_coefficients
 
     mach, b, alpha = 8.0, 0.4, 2.5
     shape = (96, 96, 96)
-    d = bm19_density_hermite_coefficients(mach, b, alpha, n_max=14)
+    d = density_hermite_coefficients(mach, b, alpha, n_max=14)
     n = jnp.arange(d.shape[0])
     # sum_{n>=1} d_n^2 / n!  (drop the n=0 mean term) = xi_rho(0) = Var(rho)
     var_pred = float(jnp.sum((d**2 / jnp.exp(jax.scipy.special.gammaln(n + 1.0)))[1:]))
@@ -63,9 +63,9 @@ def test_density_variance_matches_measured_field():
 
 def test_density_hermite_differentiable_in_mach():
     """jax.grad of sum(d_n) wrt mach is finite and nonzero."""
-    from gravoturb.theory.log_correlations import bm19_density_hermite_coefficients
+    from gravoturb.theory.log_correlations import density_hermite_coefficients
 
-    g = jax.grad(lambda m: jnp.sum(bm19_density_hermite_coefficients(m, 0.4, 2.5, 8)))(
+    g = jax.grad(lambda m: jnp.sum(density_hermite_coefficients(m, 0.4, 2.5, 8)))(
         8.0
     )
     assert np.isfinite(float(g))

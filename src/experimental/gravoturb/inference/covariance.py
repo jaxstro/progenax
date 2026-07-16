@@ -17,8 +17,8 @@ import numpy as np
 from jaxtyping import Array, Float
 
 from gravoturb.theory.log_correlations import (
-    bm19_density_hermite_coefficients,
-    bm19_hermite_coefficients,
+    density_hermite_coefficients,
+    log_density_hermite_coefficients,
     gaussianized_xi,
 )
 from gravoturb.theory.projection import (
@@ -58,7 +58,7 @@ def power_spectrum_grid(
     ``xi_s(r) = sum_{n>=1}(c_n^2/n!) rho_g(r;beta)^n`` is a valid PSD autocovariance, so its
     FFT is a non-negative power spectrum. Differentiable in (mach,b,alpha,beta)."""
     rho_g = gaussian_correlation_grid(shape, beta)
-    c = bm19_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    c = log_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
     xi_s = gaussianized_xi(rho_g, c)
     return jnp.fft.fftn(xi_s).real
 
@@ -144,7 +144,7 @@ def _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad):
     expansion), NOT the lognormal-limit ``expm1(xi_s)`` -- the only change vs a naive build
     (A-new1). Differentiable in (beta, mach, b, alpha)."""
     rho_g = gaussian_correlation_grid(shape, beta)
-    d = bm19_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    d = density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
     return gaussianized_xi(rho_g, d)
 
 

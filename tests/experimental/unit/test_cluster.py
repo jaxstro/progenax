@@ -92,11 +92,11 @@ def test_build_cluster_ic_achieves_target_Q():
     V = compute_potential_energy(ic.positions, ic.masses, G=STELLAR.G)
     Q = float(T / jnp.abs(V))
     assert abs(Q - 0.5) < 1e-2
-    assert abs(float(ic.Q) - 0.5) < 1e-2  # reported Q matches
+    assert abs(float(ic.Q_virial) - 0.5) < 1e-2  # reported Q matches
 
 
 def test_build_cluster_ic_carries_field_for_diagnostics():
-    """The realized FDFField is returned (BM19 provenance: f_dense_realized defined on s_turb)."""
+    """The realized TurbulentField is returned (BM19 provenance: f_dense_realized defined on s_turb)."""
     ic = _ic(n=400)
     assert hasattr(ic.field, "f_dense_realized")
     assert np.isfinite(float(ic.field.f_dense_realized))

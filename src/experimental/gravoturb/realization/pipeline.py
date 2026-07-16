@@ -12,7 +12,7 @@ AC6 (make-or-break): f_dense_realized must reproduce BM19 f_dense — |bias|<5% 
 <1% ensemble. The realized fraction is honest field fidelity, independent of any soft-
 mask sharpness.
 
-JAX-native; build_fdf_field is an eager builder (host-side resolution warning).
+JAX-native; build_turbulent_field is an eager builder (host-side resolution warning).
 """
 
 import warnings
@@ -26,13 +26,13 @@ from gravoturb.realization.gaussian_field import gaussian_random_field, low_reso
 from gravoturb.realization.copula import mass_conserving_copula_field
 from gravoturb.realization.placement import sample_positions
 from gravoturb.theory.density_pdf import (
-    f_dense_bm19_full,
+    dense_mass_fraction,
     sigma_s_squared,
     transition_density,
 )
 
 
-class FDFField(NamedTuple):
+class TurbulentField(NamedTuple):
     """A realized FDF log-density field plus its BM19 scalars (a JAX pytree)."""
 
     s: Float[Array, "nx ny nz"]      # log-density ln(ρ/ρ_0), ⟨e^s⟩=1
@@ -42,17 +42,17 @@ class FDFField(NamedTuple):
     low_resolution: bool             # < ~5 cells expected above s_t
 
 
-def build_fdf_field(
+def build_turbulent_field(
     mach: float,
     b: float,
     alpha: float,
     beta: float,
     shape: tuple[int, int, int],
     key: jax.Array,
-) -> FDFField:
+) -> TurbulentField:
     r"""Realize the FDF field (steps 1-4) and report the AC6 cornerstone metric."""
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
-    f_dense = f_dense_bm19_full(mach, b, alpha)
+    f_dense = dense_mass_fraction(mach, b, alpha)
 
     n_cells = shape[0] * shape[1] * shape[2]
     low_res = bool(low_resolution_flag(n_cells, mach, b, alpha))
@@ -71,7 +71,7 @@ def build_fdf_field(
     above = s > s_t
     f_dense_realized = jnp.sum(jnp.where(above, rho, 0.0)) / jnp.sum(rho)
 
-    return FDFField(
+    return TurbulentField(
         s=s,
         s_t=s_t,
         f_dense=f_dense,
@@ -81,14 +81,14 @@ def build_fdf_field(
 
 
 def cloud_to_stars(
-    field: FDFField,
+    field: TurbulentField,
     f_sub: float,
     n_stars: int,
     key: jax.Array,
-    kappa: float = 8.0,
+    mask_sharpness: float = 8.0,
     box_size: float = 1.0,
 ) -> Float[Array, "n_stars 3"]:
     r"""Sample ``n_stars`` star positions from a realized FDF field (step 5)."""
     return sample_positions(
-        field.s, field.s_t, kappa, f_sub, n_stars, key, box_size=box_size
+        field.s, field.s_t, mask_sharpness, f_sub, n_stars, key, box_size=box_size
     )

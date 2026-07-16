@@ -383,11 +383,11 @@ def test_density_pdf_loglike_constrains_alpha():
     theta_true on the noiseless expected histogram, differentiable, and SHARPLY peaked in
     alpha (d2/dalpha2 << 0) -- this is the block that recovers the PDF-tail slope alpha."""
     from gravoturb.inference.likelihood import density_pdf_loglike
-    from gravoturb.theory.density_cdf import bm19_volume_pdf
+    from gravoturb.theory.density_cdf import log_density_pdf
 
     s = jnp.linspace(-8.0, 25.0, 400)
     theta = jnp.array([5.0, 0.4, 2.5, 3.0])
-    p_true = bm19_volume_pdf(s, 5.0, 0.4, 2.5)
+    p_true = log_density_pdf(s, 5.0, 0.4, 2.5)
     hist = (
         np.asarray(p_true / jnp.trapezoid(p_true, s)) * 1e4
     )  # noiseless expected histogram

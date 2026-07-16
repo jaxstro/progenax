@@ -2,7 +2,7 @@
 
 numpy/scipy are permitted here (validation path, non-differentiable). These functions
 measure 2-point statistics from realization fields and build the theory-consistent
-``smooth_copula_field``: the exact pointwise map ``s = bm19_icdf(Phi(g_hat)) - log<e^s>``
+``smooth_copula_field``: the exact pointwise map ``s = log_density_icdf(Phi(g_hat)) - log<e^s>``
 on an EXACTLY unit-variance Gaussian ``g_hat``. That is the map the Gaussianization
 series assumes, so comparing the series to this oracle isolates the series-truncation
 error from the empirical-CDF / finite-grid non-Gaussianity of the rank-copula simulator.

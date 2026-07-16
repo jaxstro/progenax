@@ -59,14 +59,14 @@ def test_rank_copula_mean_density_unity():
 def test_rank_copula_marginal_matches_bm19():
     """s-marginal matches BM19: quantile spacings equal the analytic iCDF (shift-free)."""
     from gravoturb.realization.copula import rank_copula_field
-    from gravoturb.theory.density_cdf import bm19_icdf
+    from gravoturb.theory.density_cdf import log_density_icdf
 
     mach, b, alpha = 6.0, 0.4, 1.8
     g = jax.random.normal(jax.random.PRNGKey(4), (200_000,))
     s = np.asarray(rank_copula_field(g, mach=mach, b=b, alpha=alpha))
     probs = jnp.array([0.1, 0.3, 0.5, 0.7, 0.9, 0.97])
     emp = np.quantile(s, np.asarray(probs))
-    theo = np.asarray(bm19_icdf(probs, mach, b, alpha))
+    theo = np.asarray(log_density_icdf(probs, mach, b, alpha))
     # shift-invariant: compare quantile spacings (the normalization shift cancels)
     assert np.allclose(np.diff(emp), np.diff(theo), atol=0.05)
 
@@ -81,14 +81,14 @@ def test_mass_conserving_preserves_order():
 
 
 def test_mass_conserving_mean_density_matches_theory():
-    """⟨e^s⟩ equals bm19_mean_density exactly (mass-conserving construction)."""
+    """⟨e^s⟩ equals mean_density exactly (mass-conserving construction)."""
     from gravoturb.realization.copula import mass_conserving_copula_field
-    from gravoturb.theory.density_cdf import bm19_mean_density
+    from gravoturb.theory.density_cdf import mean_density
 
     g = jax.random.normal(jax.random.PRNGKey(11), (50_000,))
     s = mass_conserving_copula_field(g, mach=8.0, b=0.5, alpha=1.8)
     assert float(jnp.mean(jnp.exp(s))) == pytest.approx(
-        float(bm19_mean_density(8.0, 0.5, 1.8)), rel=1e-6
+        float(mean_density(8.0, 0.5, 1.8)), rel=1e-6
     )
 
 
@@ -97,7 +97,7 @@ def test_mass_conserving_f_dense_exact(mach, b, alpha):
     """Realized hard mass fraction reproduces BM19 f_dense to <0.5% (the AC6 fix)."""
     from gravoturb.realization.copula import mass_conserving_copula_field
     from gravoturb.theory.density_pdf import (
-        f_dense_bm19_full,
+        dense_mass_fraction,
         sigma_s_squared,
         transition_density,
     )
@@ -107,7 +107,7 @@ def test_mass_conserving_f_dense_exact(mach, b, alpha):
     rho = jnp.exp(s)
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
     realized = float(jnp.sum(jnp.where(s > s_t, rho, 0.0)) / jnp.sum(rho))
-    theory = float(f_dense_bm19_full(mach, b, alpha))
+    theory = float(dense_mass_fraction(mach, b, alpha))
     assert abs(realized - theory) / theory < 0.005
 
 

@@ -16,7 +16,7 @@ description: Annotated reference for Blakesley Burkhart — the analytic star fo
 
 **Verified.** Abstract, §1–3 (Eqs. 1–19) checked against the held PDF (2026-06). The two facts
 `gravoturb` depends on: the **piecewise lognormal + power-law density PDF** (Eq. 18 — the
-`bm19_volume_pdf` form) and the **positive-α convention** $p_{\rm PL}\propto e^{-\alpha s}$ (Eq. 6).
+`log_density_pdf` form) and the **positive-α convention** $p_{\rm PL}\propto e^{-\alpha s}$ (Eq. 6).
 ```
 
 ## The big idea
@@ -66,13 +66,13 @@ N\,C\,e^{-\alpha s}, & s > s_t,
 normalised by $N$ (Eq. 19, a closed form in $C$, $\alpha$, $s_t$, $\sigma_s$). Requiring
 $p_{\rm LN+PL}$ to be **continuous and differentiable** at $s_t$ fixes the amplitude $C$ and the
 transition $s_t$ analytically. This is exactly the
-[`bm19_volume_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py) implemented in
+[`log_density_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py) implemented in
 `gravoturb`.
 
 **The α sign convention (Eq. 6).** Burkhart writes the tail as $p_{\rm PL}(s)=C\,e^{-\alpha s}$ for
 $s>s_t$ and notes explicitly that *"in our definition of the PL slope $\alpha$ is positive since the
 minus sign appears in the exponent separately."* progenax uses this same convention throughout
-(`bm19_volume_pdf`, the peaks-over-threshold tail block), so $\alpha$ is positive and a *steeper*
+(`log_density_pdf`, the peaks-over-threshold tail block), so $\alpha$ is positive and a *steeper*
 tail means a *larger* $\alpha$.
 
 **The SFR integral (Eqs. 7–8).** The SFR per free-fall time is the freefall-weighted integral over
@@ -92,7 +92,7 @@ KM05, PN11, and Hennebelle–Chabrier models (Eqs. 9–17).
 
 ## Use in progenax
 
-- The piecewise PDF {eq}`bk18-pdf` is [`bm19_volume_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py);
+- The piecewise PDF {eq}`bk18-pdf` is [`log_density_pdf`](../../../../src/experimental/gravoturb/theory/density_cdf.py);
   {eq}`bk18-sigma` is [`sigma_s_squared`](../../../../src/experimental/gravoturb/theory/density_pdf.py).
   These 1-point scalars are the inputs the differentiable-inference layer
   ([](../../10-theory/gravoturbulence/inference.md)) recovers from observed

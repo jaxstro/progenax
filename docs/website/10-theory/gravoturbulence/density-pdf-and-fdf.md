@@ -131,7 +131,7 @@ by {cite:t}`ParmentierPasquali2020`).
 ```python
 import jax.numpy as jnp
 from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
-from gravoturb.theory.density_cdf import bm19_volume_pdf
+from gravoturb.theory.density_cdf import log_density_pdf
 
 mach = 10.0          # Sonic Mach number
 b = 0.4              # Forcing parameter
@@ -143,10 +143,10 @@ s_t = transition_density(alpha, sigma_s_sq)      # ≈ 4.250   (args: alpha, σ_
 
 # Evaluate the full PDF (it takes mach, b, alpha directly — σ_s² and s_t are internal)
 s_grid = jnp.linspace(-5, 10, 200)
-pdf_values = bm19_volume_pdf(s_grid, mach, b, alpha)
+pdf_values = log_density_pdf(s_grid, mach, b, alpha)
 ```
 
-`bm19_volume_pdf` evaluates the lognormal piece for $s < s_t$ and the power-law piece for
+`log_density_pdf` evaluates the lognormal piece for $s < s_t$ and the power-law piece for
 $s \ge s_t$, with continuous matching at $s_t$ enforced by the closed-form {eq}`s-t`. The function
 is JIT-compatible and differentiable in $\mathcal{M}$, $b$, and $\alpha$ — useful for inferring all
 three from observed cloud properties.
@@ -231,7 +231,7 @@ Every density-space integral below is written in **dimensionless** form, with $\
 relative to the volume-mean $\langle\rho\rangle$ — equivalently in log-density $s = \ln(\rho/\langle
 \rho\rangle)$. SFR-weighting uses the kernel $(\rho/\langle\rho\rangle)^{3/2}$ (from {eq}`fdf`); pure
 mass-weighting uses $(\rho/\langle\rho\rangle)$. This matches the `gravoturb` code, where
-`f_dense_bm19_full` integrates the *mass-weighted* PDF in $s$-space and all densities are referred to
+`dense_mass_fraction` integrates the *mass-weighted* PDF in $s$-space and all densities are referred to
 $\langle\rho\rangle$ (the $\langle e^s\rangle = 1$ convention enforced by `rank_copula_field`). The
 overall dimensional rate is carried by the prefactors $M/\langle t_{\mathrm{ff}}\rangle$ and
 $\varepsilon_{\mathrm{ff,int}}$, **not** by the integrand.
@@ -279,7 +279,7 @@ exponent of the dimensionless density kernel — both integrate the volume PDF, 
 dimensionless. `gravoturb` computes both:
 
 ```python
-from gravoturb.theory.density_pdf import sigma_s_squared, transition_density, f_dense_bm19_full
+from gravoturb.theory.density_pdf import sigma_s_squared, transition_density, dense_mass_fraction
 from gravoturb.theory.dense_gas_sfr import magnification_factor
 
 mach, b, alpha = 10.0, 0.4, 2.0
@@ -287,14 +287,14 @@ sigma_s_sq = sigma_s_squared(mach, b)        # lognormal variance        ≈ 2.8
 s_t = transition_density(alpha, sigma_s_sq)  # transition log-density    ≈ 4.250  (args: alpha, σ_s²)
 
 # f_dense — mass fraction in the dense power-law tail
-f_dense = f_dense_bm19_full(mach, b, alpha)  # ≈ 0.057
+f_dense = dense_mass_fraction(mach, b, alpha)  # ≈ 0.057
 
 # geometric magnification ζ for the implied radial slope p = 3/α
 zeta = magnification_factor(3.0 / alpha)     # ζ(1.5) = √2 ≈ 1.414
 print(f"f_dense = {f_dense:.3f}, ζ = {zeta:.3f}")
 ```
 
-`f_dense_bm19_full` evaluates {eq}`f-dense` for the {cite:t}`Burkhart2018` framework by splitting
+`dense_mass_fraction` evaluates {eq}`f-dense` for the {cite:t}`Burkhart2018` framework by splitting
 the integral into a lognormal body (an `erf` term) and a power-law tail
 ($M_{\mathrm{PL}} = C\,e^{(1-\alpha)s_t}/(\alpha-1)$, valid for $\alpha > 1$) and returning the
 ratio $M_{\mathrm{PL}}/(M_{\mathrm{LN}} + M_{\mathrm{PL}})$. For typical Galactic-cloud parameters
@@ -395,7 +395,7 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
    multi-cloud line-of-sight superposition requires a separate treatment, and the PDF parameters
    themselves evolve on the cloud's free-fall timescale.
 7. **3-D field realisation.** When a sampled 3-D field is built from the PDF
-   (`gravoturb.realization.pipeline.build_fdf_field`), the one-point statistics are imposed by a
+   (`gravoturb.realization.pipeline.build_turbulent_field`), the one-point statistics are imposed by a
    **rank / empirical-CDF copula** (Gaussian anamorphosis), which reproduces the dense-tail mass
    fraction $f_{\mathrm{dense}}$ at any power-spectrum slope $\beta$. For a very extreme threshold
    $s_t$, where the tail count-probability $1 - F_V(s_t) \lesssim 1/N_{\mathrm{grid}}^3$, the tail
@@ -405,9 +405,9 @@ radial-profile slope, and $\zeta(p)$ gives the geometric SFR boost.
 ## Implementation, validation & references
 
 - **In code:** `src/experimental/gravoturb/theory/density_pdf.py`
-  (`sigma_s_squared`, `transition_density`, `f_dense_bm19_full`,
+  (`sigma_s_squared`, `transition_density`, `dense_mass_fraction`,
   `pdf_slope_to_radial`) and
-  `src/experimental/gravoturb/theory/density_cdf.py` (`bm19_volume_pdf`);
+  `src/experimental/gravoturb/theory/density_cdf.py` (`log_density_pdf`);
   3-D field realisation is
   `src/experimental/gravoturb/realization/pipeline.py`. This experimental
   subsystem is repo-only with no generated website API page; the

@@ -26,13 +26,16 @@ import jax.numpy as jnp
 from jax.scipy.special import gammaln, xlogy
 from jaxtyping import Array, Float
 
+from jaxstro.numerics.quadrature import (
+    hermite_coefficients as _quadrature_hermite_coefficients,
+)
+
 from gravoturb.theory.log_correlations import (
-    bm19_hermite_coefficients,
     gaussianized_xi,
-    hermite_coefficients,
+    log_density_hermite_coefficients,
     s_of_g,
 )
-from gravoturb.theory.density_cdf import bm19_volume_pdf
+from gravoturb.theory.density_cdf import log_density_pdf
 from gravoturb.theory.projection import (
     _kmag_grid,
     gaussian_correlation_grid,
@@ -90,14 +93,14 @@ def linear_hermite_coefficients(
     r"""Hermite coefficients ``d_n = <rho_tilde(g) He_n(g)>`` of the LINEAR mean-1 density.
 
     Route A: the linear map ``rho_tilde = exp(s_of_g)`` (``<rho_tilde>=1`` by the rho0
-    convention) fed through the SAME quadrature as :func:`bm19_hermite_coefficients`. The
+    convention) fed through the SAME quadrature as :func:`log_density_hermite_coefficients`. The
     n>=1 coefficients carry the linear 2-point ``xi_rho(r) = sum (d_n^2/n!) rho_g(r)^n``;
     ``d_0 = <rho_tilde> ~ 1`` is dropped by :func:`gaussianized_xi`. Differentiable in
     (mach, b, alpha). The heavy tail (alpha<=2) makes ``sum d_n^2/n! = Var(rho)`` diverge in
     the continuum, so unsmoothed ``xi_rho(0)`` is quadrature-dependent -- but the cell-
     averaged (smoothed) ``xi_bar_rho(R)`` suppresses the high-k tail and stays robust.
     """
-    return hermite_coefficients(
+    return _quadrature_hermite_coefficients(
         lambda g: jnp.exp(s_of_g(g, mach, b, alpha)), n_max, n_quad
     )
 
@@ -148,7 +151,7 @@ def smoothed_log_variance(
     This sets the effective Mach of the reduced-variance BM19 smoothed PDF (:func:`smoothed_pdf`).
     Pass ``w2`` for cubic CIC cells. Differentiable in (mach, b, alpha, beta).
     """
-    c = bm19_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    c = log_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
     return _windowed_series_variance(shape, beta, R, c, window, w2)
 
 
@@ -181,7 +184,7 @@ def smoothed_pdf(
     r"""Route B smoothed-density volume PDF ``p_R(s)`` (reduced-variance BM19).
 
     The cell-averaged (scale-R) log-density follows a BM19 PDF at the reduced log-variance
-    ``sigma_s^2(R)`` (:func:`smoothed_log_variance`), i.e. ``bm19_volume_pdf`` evaluated at
+    ``sigma_s^2(R)`` (:func:`smoothed_log_variance`), i.e. ``log_density_pdf`` evaluated at
     the effective Mach ``M_eff(R)`` with (b, alpha) preserved. ``int p_R ds = 1``; as
     ``R->0`` it recovers the full unsmoothed BM19 PDF. This sources the compound-Poisson
     count distribution P(N) (Task 3.3). **Approximation:** keeping the BM19 tail shape at the
@@ -194,7 +197,7 @@ def smoothed_pdf(
         shape, beta, R, mach, b, alpha, n_max, n_quad, window, w2
     )
     mach_eff = effective_mach(sigma_s_sq_R, b)
-    return bm19_volume_pdf(s, mach_eff, b, alpha)
+    return log_density_pdf(s, mach_eff, b, alpha)
 
 
 def cic_variance(
@@ -246,7 +249,7 @@ def count_distribution(
     )
     mach_eff = effective_mach(sigma_s_sq_R, b)
     s = jnp.linspace(s_min, s_max, n_s)
-    p = bm19_volume_pdf(s, mach_eff, b, alpha)
+    p = log_density_pdf(s, mach_eff, b, alpha)
     p = p / jnp.trapezoid(p, s)  # normalize on the grid (tail truncation absorbed in mu)
     mu = jnp.trapezoid(jnp.exp(s) * p, s)  # grid <e^s>; mean-1 rho_tilde = e^s/mu
     lam = n_bar * jnp.exp(s) / mu  # Poisson intensity per cell, (n_s,)

@@ -1,7 +1,7 @@
 """Unit tests for gravoturb.validation.measure (the oracle-measurement side).
 
 These utilities measure 2-point statistics from realization fields and build the
-theory-consistent ``smooth_copula_field`` (s = bm19_icdf(Phi(g_hat)) - shift on an
+theory-consistent ``smooth_copula_field`` (s = log_density_icdf(Phi(g_hat)) - shift on an
 EXACTLY unit-variance g_hat) used as the clean oracle for the Gaussianization series
 (AC11). numpy/scipy are permitted here (validation path, non-differentiable).
 """

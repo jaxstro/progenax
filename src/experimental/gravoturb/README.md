@@ -38,14 +38,14 @@ gravoturb_fdf/
 
 | Layer | Key public symbols |
 |-------|--------------------|
-| `theory.bm19` | `sigma_s_squared`, `transition_density`, `f_dense_bm19_full`, `f_dense_lognormal_limit`, `pdf_slope_to_radial` |
-| `theory.pp20` | `magnification_factor`, `magnification_factor_with_core`, `zeta_fdf_direct` |
-| `theory.pn11` | `virial_parameter`, `critical_overdensity_pn11`, `s_crit_pn11` |
-| `theory.pdf` | `bm19_volume_pdf`, `bm19_icdf`, `bm19_icdf_analytic`, `bm19_mass_cdf`, `bm19_mean_density`, `build_bm19_cdf_table` |
+| `theory.bm19` | `sigma_s_squared`, `transition_density`, `dense_mass_fraction`, `dense_mass_fraction_lognormal`, `pdf_slope_to_radial` |
+| `theory.pp20` | `magnification_factor`, `magnification_factor_with_core`, `zeta_from_field` |
+| `theory.pn11` | `virial_parameter`, `critical_overdensity`, `critical_log_density` |
+| `theory.pdf` | `log_density_pdf`, `log_density_icdf`, `log_density_icdf_analytic`, `mass_cdf`, `mean_density`, `build_cdf_table` |
 | `field.field` | `gaussian_random_field`, `rank_copula_field`, `mass_conserving_copula_field`, `low_resolution_flag` |
-| `field.tail` | `tail_weights`, `f_tail_actual` |
+| `field.tail` | `collapse_weights`, `f_tail_actual` |
 | `field.sampling` | `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
-| `field.pipeline` | `FDFField`, `build_fdf_field`, `cloud_to_stars` |
+| `field.pipeline` | `TurbulentField`, `build_turbulent_field`, `cloud_to_stars` |
 | `diagnostics.q` | `compute_q_parameter` (CW04, `A = πR²`) |
 | `theory.gaussianization` / `projection` / `cic` | `gaussianized_xi`, `gaussian_correlation_grid`, `cic_variance`, `count_distribution` |
 | `inference` | `data_vector`, `gaussian_loglike`, `count_loglike`, `tail_exceedance_loglike`, `alpha_fisher_info`, `sigma_alpha`, `run_nuts` |
@@ -65,10 +65,10 @@ explained pedagogically in
 
 - **`bm19.py`** — the one-point physics: lognormal width `sigma_s_squared` $=\ln(1+(b\mathcal{M})^2)$
   (FK10 Eq. 19), the lognormal→powerlaw transition `transition_density` $s_t=(\alpha-\tfrac12)\sigma_s^2$,
-  and the self-gravitating mass fraction `f_dense_bm19_full`.
-- **`pdf.py`** — the BM19 *volume* PDF `bm19_volume_pdf` (lognormal body + power-law tail), its CDF
-  and analytic inverse-CDF (`bm19_icdf`, `bm19_icdf_analytic`) — the marginal the field is mapped to,
-  and the engine of the rank copula — plus `bm19_mass_cdf` / `bm19_mean_density`.
+  and the self-gravitating mass fraction `dense_mass_fraction`.
+- **`pdf.py`** — the BM19 *volume* PDF `log_density_pdf` (lognormal body + power-law tail), its CDF
+  and analytic inverse-CDF (`log_density_icdf`, `log_density_icdf_analytic`) — the marginal the field is mapped to,
+  and the engine of the rank copula — plus `mass_cdf` / `mean_density`.
 - **`pp20.py`, `pn11.py`** — the dense-gas SFR side: the Parmentier & Pasquali ζ magnification factor
   and the Padoan & Nordlund critical density (the forward-SFR chapters, [](../../../docs/website/10-theory/gravoturbulence/index.md)).
 - **`gaussianization.py`** — the log-density **2-point** $\xi_s(r)=\sum_n (c_n^2/n!)\,\rho_g(r)^n$ via
@@ -87,10 +87,10 @@ explained pedagogically in
   BM19 marginal: `rank_copula_field` (faithful volume marginal — used for the tail) and
   `mass_conserving_copula_field` (exact `f_dense` — used for the cornerstone). `low_resolution_flag`
   guards the under-resolved-tail regime.
-- **`tail.py`** — the soft dense-tail mask (`tail_weights`, `f_tail_actual`).
+- **`tail.py`** — the soft dense-tail mask (`collapse_weights`, `f_tail_actual`).
 - **`sampling.py`** — `sample_cic_counts` (clean inhomogeneous-Poisson counts) and the categorical
   tail/smooth star sampler (`sample_positions`).
-- **`pipeline.py`** — the end-to-end `build_fdf_field` and `cloud_to_stars`.
+- **`pipeline.py`** — the end-to-end `build_turbulent_field` and `cloud_to_stars`.
 
 ### `diagnostics/` — substructure metric (validation/demo only)
 
@@ -134,15 +134,15 @@ PYTHONPATH=src:src/experimental pytest tests/experimental -q                    
 ```
 
 ```python
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, f_dense_bm19_full
-from gravoturb_fdf.field.pipeline import build_fdf_field
+from gravoturb_fdf.theory.bm19 import sigma_s_squared, dense_mass_fraction
+from gravoturb_fdf.field.pipeline import build_turbulent_field
 import jax
 
 sigma_s_squared(mach=5.0, b=0.4)              # ln(1 + b²ℳ²)  (FK10 Eq. 19)
-f_dense_bm19_full(mach=8.0, b=0.5, alpha=1.8) # dense-mass fraction (BM19 Eq. 19–20)
+dense_mass_fraction(mach=8.0, b=0.5, alpha=1.8) # dense-mass fraction (BM19 Eq. 19–20)
 
 # Build a 3D realization and read back the realized dense fraction:
-fld = build_fdf_field(mach=8.0, b=0.5, alpha=1.8, beta=3.5,
+fld = build_turbulent_field(mach=8.0, b=0.5, alpha=1.8, beta=3.5,
                       shape=(128, 128, 128), key=jax.random.PRNGKey(0))
 fld.f_dense, fld.f_dense_realized   # match to O(1/N) — the AC6 cornerstone
 ```

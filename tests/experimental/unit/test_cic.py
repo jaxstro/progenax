@@ -108,7 +108,7 @@ def test_smoothed_pdf_normalized_and_R0_limit():
     """Route B p_R(s) = reduced-variance BM19 (effective Mach from sigma_s^2(R)): integrates
     to 1, and as R->0 (cell = point) recovers the full unsmoothed BM19 volume PDF."""
     from gravoturb.theory.counts_in_cells import smoothed_pdf
-    from gravoturb.theory.density_cdf import bm19_volume_pdf
+    from gravoturb.theory.density_cdf import log_density_pdf
 
     shape, beta = (32, 32, 32), 3.0
     mach, b, alpha = 5.0, 0.4, 2.5
@@ -118,7 +118,7 @@ def test_smoothed_pdf_normalized_and_R0_limit():
     assert float(jnp.trapezoid(p, s)) == pytest.approx(1.0, rel=2e-3)
 
     p0 = smoothed_pdf(s, shape, beta, 1e-3, mach, b, alpha, n_max=12)
-    full = bm19_volume_pdf(s, mach, b, alpha)
+    full = log_density_pdf(s, mach, b, alpha)
     assert float(jnp.max(jnp.abs(p0 - full))) < 1e-2 * float(jnp.max(full))
 
 

@@ -88,8 +88,8 @@ HD form (Eq. 8/11); the MHD form is noted but not coded.
 
 ## Use in progenax
 
-- `experimental/gravoturb/theory/collapse_threshold.py` — `critical_overdensity_pn11` (Eq. 8),
-  `s_crit_pn11` (classical-alternative threshold), `THETA_PN11 = 0.35`.
+- `experimental/gravoturb/theory/collapse_threshold.py` — `critical_overdensity` (Eq. 8),
+  `critical_log_density` (classical-alternative threshold), `THETA_PN11 = 0.35`.
 
 Validation: prefactor $0.067\,\theta^{-2}=0.547$ at $\theta=0.35$; $\partial s_\mathrm{crit}/\partial\mathcal{M}=2/\mathcal{M}$.
 

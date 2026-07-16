@@ -7,7 +7,7 @@ The forward model is the analytic projected LOG-density band-power times a calib
 where ``A_s`` walks the analytic chain (log-density Hermite c_n, NOT the density d_n):
 
     rho_g(beta)  [P(k)=k^-beta]                         gaussian_correlation_grid
-      -> c_n = <s_of_g He_n>                            bm19_hermite_coefficients
+      -> c_n = <s_of_g He_n>                            log_density_hermite_coefficients
       -> xi_s(r) = sum_{n>=1} c_n^2/n! rho_g(r)^n       gaussianized_xi
       -> xi_Sigma(r_perp) = Limber_slab(xi_s; depth)    limber_project_slab
       -> P_s(k) = bin( fft2(xi_Sigma) )                 _angular_bandpowers_from_xi_rho_2d
@@ -31,7 +31,7 @@ from gravoturb.inference.covariance import _angular_bandpowers_from_xi_rho_2d, _
 from jaxstro.numerics.quadrature import gauss_hermite_nodes, hermite_coefficients
 
 from gravoturb.theory.log_correlations import (
-    bm19_hermite_coefficients,
+    log_density_hermite_coefficients,
     gaussianized_xi,
 )
 from gravoturb.theory.projection import gaussian_correlation_grid, limber_project_slab
@@ -54,7 +54,7 @@ def analytic_logdensity_bandpowers(
     ``xi_s = sum_{n>=1} c_n^2/n! rho_g^n`` -- the near-Gaussian log-density field whose band-power slope
     carries beta with gain ~1 (Phase-0 D01). Differentiable in (beta, mach, b, alpha) and depth."""
     rho_g = gaussian_correlation_grid(shape, beta)
-    c = bm19_hermite_coefficients(mach, b, alpha, n_max, n_quad)
+    c = log_density_hermite_coefficients(mach, b, alpha, n_max, n_quad)
     xi_s = gaussianized_xi(rho_g, c)
     xi_Sigma = limber_project_slab(xi_s, depth, los_axis=2)
     _kc, P, _nm = _angular_bandpowers_from_xi_rho_2d(xi_Sigma, k_edges)

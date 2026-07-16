@@ -73,11 +73,11 @@ def test_grf_power_spectrum_slope(beta):
 def test_expected_cells_above_transition():
     """Expected count = n_cells × BM19 volume tail fraction above s_t."""
     from gravoturb.realization.gaussian_field import expected_cells_above_transition
-    from gravoturb.theory.density_cdf import bm19_volume_tail_fraction
+    from gravoturb.theory.density_cdf import volume_tail_fraction
 
     n_cells = 128**3
     expected = float(expected_cells_above_transition(n_cells, 6.0, 0.4, 1.8))
-    frac = float(bm19_volume_tail_fraction(6.0, 0.4, 1.8))
+    frac = float(volume_tail_fraction(6.0, 0.4, 1.8))
     assert expected == pytest.approx(n_cells * frac, rel=1e-9)
     assert expected > 100  # 128³ at these params is well-resolved
 

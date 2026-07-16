@@ -109,44 +109,44 @@ def test_mass_conservation_lognormal():  # AC2
 )
 def test_f_dense_matches_eq18_quadrature(mach, b, alpha):  # AC1
     """Closed-form f_dense (Eq. 19/20) matches direct quadrature of Eq. 18."""
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
-    closed = float(f_dense_bm19_full(mach=mach, b=b, alpha=alpha))
+    closed = float(dense_mass_fraction(mach=mach, b=b, alpha=alpha))
     ref = _numpy_eq18_f_dense(mach, b, alpha)
     assert closed == pytest.approx(ref, rel=1e-4)
 
 
-def test_f_dense_lognormal_limit_formula():  # AC1
-    """f_dense_lognormal_limit == 1/2 erfc((s_t - sigma_s^2/2)/(sqrt2 sigma_s)),
+def test_dense_mass_fraction_lognormal_formula():  # AC1
+    """dense_mass_fraction_lognormal == 1/2 erfc((s_t - sigma_s^2/2)/(sqrt2 sigma_s)),
     the dense-mass fraction of a *pure* lognormal above s_t (BM19 comparison form)."""
-    from gravoturb.theory.density_pdf import f_dense_lognormal_limit
+    from gravoturb.theory.density_pdf import dense_mass_fraction_lognormal
     from scipy.special import erfc
 
     mach, b, alpha = 5.0, 0.4, 1.8
     s2 = math.log(1.0 + (b * mach) ** 2)
     s_t = (alpha - 0.5) * s2
     z = (s_t - 0.5 * s2) / (math.sqrt(2.0) * math.sqrt(s2))
-    assert float(f_dense_lognormal_limit(mach=mach, b=b, alpha=alpha)) == pytest.approx(
+    assert float(dense_mass_fraction_lognormal(mach=mach, b=b, alpha=alpha)) == pytest.approx(
         0.5 * erfc(z), rel=1e-6
     )
 
 
 def test_f_dense_exceeds_lognormal_only():  # AC1
     """The shallower continuity-matched powerlaw tail adds dense gas beyond the
-    pure-lognormal fraction: f_dense_full > f_dense_lognormal_limit."""
-    from gravoturb.theory.density_pdf import f_dense_bm19_full, f_dense_lognormal_limit
+    pure-lognormal fraction: f_dense_full > dense_mass_fraction_lognormal."""
+    from gravoturb.theory.density_pdf import dense_mass_fraction, dense_mass_fraction_lognormal
 
     for alpha in (1.6, 2.0):
-        full = float(f_dense_bm19_full(mach=5.0, b=0.4, alpha=alpha))
-        lim = float(f_dense_lognormal_limit(mach=5.0, b=0.4, alpha=alpha))
+        full = float(dense_mass_fraction(mach=5.0, b=0.4, alpha=alpha))
+        lim = float(dense_mass_fraction_lognormal(mach=5.0, b=0.4, alpha=alpha))
         assert full > lim
 
 
 def test_f_dense_bounds_and_monotonic():
     """0 < f_dense < 1; decreases with Mach and with alpha (BM19 Fig. 5)."""
-    from gravoturb.theory.density_pdf import f_dense_bm19_full
+    from gravoturb.theory.density_pdf import dense_mass_fraction
 
-    f = lambda M, a: float(f_dense_bm19_full(mach=M, b=1.0 / 3, alpha=a))
+    f = lambda M, a: float(dense_mass_fraction(mach=M, b=1.0 / 3, alpha=a))
     assert 0.0 < f(5.0, 2.0) < 1.0
     assert f(5.0, 2.0) < f(5.0, 1.5)  # shallower tail -> more dense gas
     assert f(20.0, 1.8) < f(5.0, 1.8)  # higher Mach -> less dense gas

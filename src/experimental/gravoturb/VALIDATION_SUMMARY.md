@@ -110,8 +110,8 @@ and differentiates *those* (the `inference/` layer, AC11–AC17 / Differentiable
 | AC9 f_dense'(ℳ) autodiff vs FD | relerr 4.5e-9 | PASS |
 | AC9 ζ'(p) autodiff vs FD | relerr 1.6e-10 | PASS |
 
-The public differentiable entry points (`sigma_s_squared`, `f_dense_bm19_full`,
-`magnification_factor`, `bm19_icdf`) survive `jax.grad`; finite-difference and autodiff agree to
+The public differentiable entry points (`sigma_s_squared`, `dense_mass_fraction`,
+`magnification_factor`, `log_density_icdf`) survive `jax.grad`; finite-difference and autodiff agree to
 machine precision, including across the α→1 and p→2 guard regions.
 
 ---
@@ -161,7 +161,7 @@ exact order statistics — so it has zero 1-pt scatter and cannot validate this)
 √N law: empirical slope −0.556 (Fisher −0.544; ideal −0.5). **Caveat (honest, cf. AC15):** a
 *realistic correlated* field (smooth copula, β=3) scatters ~2.5× wider than the i.i.d. bound
 (N_eff ≈ N_tail/6) — red-spectrum tail cells are not independent. Option B cross-check: a
-mass-conserving realization's dense-mass fraction matches `f_dense_bm19_full` to rel 0.000
+mass-conserving realization's dense-mass fraction matches `dense_mass_fraction` to rel 0.000
 (convergent, truncation-robust).
 
 ---

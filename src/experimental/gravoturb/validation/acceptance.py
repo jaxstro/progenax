@@ -17,13 +17,13 @@ import jax
 import jax.numpy as jnp
 
 from gravoturb.theory.density_pdf import (
-    f_dense_bm19_full,
+    dense_mass_fraction,
     sigma_s_squared,
     transition_density,
 )
-from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_fdf_direct
+from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_from_field
 from gravoturb.diagnostics.q import compute_q_parameter
-from gravoturb.realization.pipeline import build_fdf_field
+from gravoturb.realization.pipeline import build_turbulent_field
 
 
 # ── small printing helpers ──
@@ -67,7 +67,7 @@ def ac1_ac2_bm19():
     for (M, b, a) in [(5.0, 0.4, 2.0), (10.0, 1 / 3, 1.6), (8.0, 0.5, 1.8)]:
         ok &= _row(f"f_dense(M={M},b={b:.2f},a={a}) vs quad",
                    _numpy_eq18_f_dense(M, b, a),
-                   float(f_dense_bm19_full(M, b, a)), 1e-4, "rel")
+                   float(dense_mass_fraction(M, b, a)), 1e-4, "rel")
     # AC2 mass conservation of the lognormal body
     s2 = math.log(1.0 + (0.4 * 5.0) ** 2)
     s0 = -0.5 * s2
@@ -88,7 +88,7 @@ def ac3_ac4_zeta():
     # AC4: direct field estimator on a power-law sphere vs analytic
     for p in (0.5, 1.0, 1.5):
         r = np.linspace(1e-3, 1.0, 40_000)
-        zfdf = float(zeta_fdf_direct(r ** (-p), 4 * np.pi * r**2))
+        zfdf = float(zeta_from_field(r ** (-p), 4 * np.pi * r**2))
         ok &= _row(f"zeta_FDF vs analytic (p={p})", float(magnification_factor(p)),
                    zfdf, 0.03, "rel")
     return {"passed": bool(ok)}
@@ -127,7 +127,7 @@ def ac6_cornerstone(shape=(128, 128, 128), n_real=8):
     for mach, b, alpha, beta in cases:
         biases = []
         for seed in range(n_real):
-            fld = build_fdf_field(mach, b, alpha, beta, shape, jax.random.PRNGKey(seed))
+            fld = build_turbulent_field(mach, b, alpha, beta, shape, jax.random.PRNGKey(seed))
             fd = float(fld.f_dense)
             fr = float(fld.f_dense_realized)
             biases.append((fr - fd) / fd)
@@ -178,8 +178,8 @@ def ac8_ac9_grads():
     fd = lambda f, x, e=1e-6: (f(x + e) - f(x - e)) / (2 * e)
     # AC8 signs
     s1 = float(jax.grad(lambda m: sigma_s_squared(m, 0.4))(5.0))
-    s2 = float(jax.grad(lambda m: f_dense_bm19_full(m, 1 / 3, 1.8))(8.0))
-    s3 = float(jax.grad(lambda a: f_dense_bm19_full(8.0, 1 / 3, a))(1.8))
+    s2 = float(jax.grad(lambda m: dense_mass_fraction(m, 1 / 3, 1.8))(8.0))
+    s3 = float(jax.grad(lambda a: dense_mass_fraction(8.0, 1 / 3, a))(1.8))
     s4 = float(jax.grad(lambda a: magnification_factor(3.0 / a))(2.0))
     for label, val, want in [("d sigma_s^2/dM > 0", s1, +1), ("d f_dense/dM < 0", s2, -1),
                              ("d f_dense/dalpha < 0", s3, -1), ("d zeta/dalpha < 0", s4, -1)]:
@@ -187,9 +187,9 @@ def ac8_ac9_grads():
         ok &= good
         print(f"  {label:<26} grad={val:+.4e}  {'PASS' if good else 'FAIL'}")
     # AC9 FD-vs-autodiff
-    ad = float(jax.grad(lambda m: f_dense_bm19_full(m, 0.4, 1.7))(9.0))
+    ad = float(jax.grad(lambda m: dense_mass_fraction(m, 0.4, 1.7))(9.0))
     ok &= _row("AC9 f_dense'(M) autodiff vs FD",
-               fd(lambda m: float(f_dense_bm19_full(m, 0.4, 1.7)), 9.0), ad, 1e-4, "rel")
+               fd(lambda m: float(dense_mass_fraction(m, 0.4, 1.7)), 9.0), ad, 1e-4, "rel")
     adz = float(jax.grad(magnification_factor)(1.5))
     ok &= _row("AC9 zeta'(p) autodiff vs FD",
                fd(lambda p: float(magnification_factor(p)), 1.5), adz, 1e-4, "rel")
@@ -208,7 +208,7 @@ def ac11_xi_s_vs_oracle(shape=(64, 64, 64), n_real=8, beta=3.0, mach=5.0, b=0.4,
     from gravoturb.validation.measure import (
         field_2pt_measured, gaussian_correlation_measured, smooth_copula_field)
     from gravoturb.theory.log_correlations import (
-        bm19_hermite_coefficients, gaussianized_xi)
+        log_density_hermite_coefficients, gaussianized_xi)
 
     _header("AC11 — predicted xi_s vs realization oracle (+ Gaussianization convergence)")
     key = jax.random.PRNGKey(seed)
@@ -223,14 +223,14 @@ def ac11_xi_s_vs_oracle(shape=(64, 64, 64), n_real=8, beta=3.0, mach=5.0, b=0.4,
     rho_m = np.mean(rho_acc, axis=0)
     xis_m = np.mean(xis_acc, axis=0)
 
-    c = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max))
+    c = np.asarray(log_density_hermite_coefficients(mach, b, alpha, n_max=n_max))
     xis_pred = np.asarray(gaussianized_xi(jnp.asarray(rho_m), jnp.asarray(c)))
 
     mask = rho_m > rho_floor
     rel = np.abs(xis_pred[mask] - xis_m[mask]) / np.abs(xis_m[mask])
     max_rel, med_rel = float(rel.max()), float(np.median(rel))
 
-    c_half = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max // 2))
+    c_half = np.asarray(log_density_hermite_coefficients(mach, b, alpha, n_max=n_max // 2))
     xp_half = float(gaussianized_xi(jnp.asarray(rho_m[:1]), jnp.asarray(c_half))[0])
     conv = abs(xis_pred[0] - xp_half) / abs(xis_pred[0])
 
@@ -259,7 +259,7 @@ def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5
     from gravoturb.validation.measure import (
         field_2pt_measured, gaussian_correlation_measured)
     from gravoturb.theory.log_correlations import (
-        bm19_hermite_coefficients, gaussianized_xi)
+        log_density_hermite_coefficients, gaussianized_xi)
 
     _header("AC11b — rank/mass-conserving copula xi_s vs analytic prediction (map-mismatch)")
     key = jax.random.PRNGKey(seed)
@@ -276,7 +276,7 @@ def ac11b_rank_copula_equivalence(shape=(64, 64, 64), n_real=6, beta=3.0, mach=5
         xm_a.append(xm)
     rho_m = np.mean(rho_a, axis=0)
     xr_m, xm_m = np.mean(xr_a, axis=0), np.mean(xm_a, axis=0)
-    c = np.asarray(bm19_hermite_coefficients(mach, b, alpha, n_max=n_max))
+    c = np.asarray(log_density_hermite_coefficients(mach, b, alpha, n_max=n_max))
     xpred = np.asarray(gaussianized_xi(jnp.asarray(rho_m), jnp.asarray(c)))
 
     mask = rho_m > rho_floor
@@ -348,7 +348,7 @@ def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b
     The linear-rho moment is genuinely tail-sensitive (the old realization pipeline scattered
     ~90%); Route A reaches a few % at n_real=24 (cosmic-variance-limited at small n_real)."""
     from gravoturb.realization.gaussian_field import gaussian_random_field
-    from gravoturb.realization.pipeline import FDFField, cloud_to_stars
+    from gravoturb.realization.pipeline import TurbulentField, cloud_to_stars
     from gravoturb.validation.measure import smooth_copula_field
     from gravoturb.theory.counts_in_cells import (
         cell_averaged_xi_rho, cic_variance, count_distribution)
@@ -372,7 +372,7 @@ def ac13_cic_vs_oracle(shape=(48, 48, 48), n_real=24, c=4, beta=3.0, mach=5.0, b
     for i in range(n_real):
         g = gaussian_random_field(shape, beta, jax.random.fold_in(key, i))
         s = jnp.asarray(smooth_copula_field(g, mach, b, alpha))
-        field = FDFField(s=s, s_t=s_t, f_dense=jnp.asarray(0.0),
+        field = TurbulentField(s=s, s_t=s_t, f_dense=jnp.asarray(0.0),
                          f_dense_realized=jnp.asarray(0.0), low_resolution=False)
         pos = np.asarray(cloud_to_stars(field, 0.0, n_stars, jax.random.fold_in(key, 1000 + i)))
         ijk = np.floor(pos * M).astype(int) % M
@@ -700,7 +700,7 @@ def ac17_alpha_forecast(grids=((64, 64, 64), (96, 96, 96), (128, 128, 128)), n_i
     bounded to ``[corr_lo, corr_hi]`` as a sanity check, not pinned.
 
     Also (Option B) the robust f_dense cross-check: a MASS-conserving realization's dense-mass
-    fraction matches ``f_dense_bm19_full`` (convergent, truncation-robust). numpy MLE (validation)."""
+    fraction matches ``dense_mass_fraction`` (convergent, truncation-robust). numpy MLE (validation)."""
     from gravoturb.realization.gaussian_field import gaussian_random_field
     from gravoturb.realization.copula import rank_copula_field, mass_conserving_copula_field
     from gravoturb.validation.measure import measure_exceedances, smooth_copula_field
@@ -769,7 +769,7 @@ def ac17_alpha_forecast(grids=((64, 64, 64), (96, 96, 96), (128, 128, 128)), n_i
     s_mc = np.asarray(mass_conserving_copula_field(
         gaussian_random_field((96, 96, 96), beta, jax.random.fold_in(key, 99)), mach, b, alpha))
     rho = np.exp(s_mc)
-    f_dense_real, f_dense_an = float(rho[s_mc > s_t].sum() / rho.sum()), float(f_dense_bm19_full(mach, b, alpha))
+    f_dense_real, f_dense_an = float(rho[s_mc > s_t].sum() / rho.sum()), float(dense_mass_fraction(mach, b, alpha))
     fd_rel = abs(f_dense_real / f_dense_an - 1.0)
     fd_ok = fd_rel < fdense_tol
 

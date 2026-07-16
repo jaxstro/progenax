@@ -144,10 +144,8 @@ def _logplus_limit_reference(
         _angular_bandpowers_from_xi_rho_2d,
         _xi_rho_grid,
     )
-    from gravoturb.theory.log_correlations import (
-        gaussianized_xi,
-        hermite_coefficients,
-    )
+    from jaxstro.numerics.quadrature import hermite_coefficients
+    from gravoturb.theory.log_correlations import gaussianized_xi
     from gravoturb.theory.projection import limber_project_slab
 
     xi_rho = _xi_rho_grid(shape, beta, mach, b, alpha, n_max, n_quad)

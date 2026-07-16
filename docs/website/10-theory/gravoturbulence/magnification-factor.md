@@ -244,7 +244,7 @@ def magnification_factor_with_core(
     x = jnp.linspace(1.0 / n_nodes, 1.0, n_nodes)        # r/R in (0,1]
     rho = (1.0 + (x / r_c_over_R) ** 2) ** (-p / 2.0)    # rho / rho_c
     w = x**2                                             # dV ~ r^2 dr (4*pi*R^3 cancels)
-    return zeta_fdf_direct(rho, w)
+    return zeta_from_field(rho, w)
 ```
 
 The output is differentiable in both $p$ and $r_c/R$. As $r_c/R \to 0$ the profile approaches a pure
@@ -285,11 +285,11 @@ the core, the omitted region contributes $\mathcal{O}((1/n_{\mathrm{nodes}})^3) 
 analytic value at $p \in \{0.5, 1.0, 1.5\}$ as $r_c/R \to 0$.
 
 (direct-3d)=
-## Mode 3 — direct 3D ζ: `zeta_fdf_direct`
+## Mode 3 — direct 3D ζ: `zeta_from_field`
 
 The PP20 and cored modes both *parameterise* the cloud's density profile. For inferences using
 simulation snapshots or detailed observational density maps, that parameterisation throws away most
-of the information in the data. `zeta_fdf_direct` instead measures ζ *directly* from a sampled
+of the information in the data. `zeta_from_field` instead measures ζ *directly* from a sampled
 density field and its volume weights:
 
 ```{math}
@@ -306,7 +306,7 @@ verbatim:
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-def zeta_fdf_direct(
+def zeta_from_field(
     rho: Float[Array, " n"], weights: Float[Array, " n"]
 ) -> Float[Array, ""]:
     # zeta = sum(rho^{3/2} w) * sqrt(sum w) / (sum(rho w))^{3/2}.  rho need not be normalized.
@@ -322,7 +322,7 @@ estimator `magnification_factor_with_core` (Mode 2) delegates to, and the right 
 from a 3D field with no parametric assumption.
 
 ```{note}
-**No clamps, no floors.** The shipping `zeta_fdf_direct` and `magnification_factor_with_core`
+**No clamps, no floors.** The shipping `zeta_from_field` and `magnification_factor_with_core`
 contain no `jnp.maximum(..., 1.0)` clip and no `1e-10` division guard — earlier doc snippets that
 showed those were stale. ζ is the bare ratio {eq}`zeta-fdf-direct`; for a degenerate all-zero field
 the ratio is naturally undefined and the caller is responsible for supplying a non-empty field.
@@ -351,7 +351,7 @@ the inference layer *infer* $s_t$ and the PDF parameters from observed dense-gas
 import jax
 import jax.numpy as jnp
 from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
-from gravoturb.theory.dense_gas_sfr import zeta_fdf_direct
+from gravoturb.theory.dense_gas_sfr import zeta_from_field
 
 # BM19 transition density is closed-form in (sigma_s, alpha)
 sigma_s_sq = sigma_s_squared(10.0, 0.4)
@@ -359,14 +359,14 @@ s_t = transition_density(2.0, sigma_s_sq)            # args: alpha, σ_s²
 
 # soft tail weights via a sigmoid in log-density space
 s = jnp.log(rho_grid.ravel() / jnp.mean(rho_grid))
-tail_weights = jax.nn.sigmoid(10.0 * (s - s_t))
+collapse_weights = jax.nn.sigmoid(10.0 * (s - s_t))
 
 # direct ζ over the soft-masked field
-zeta_direct = zeta_fdf_direct(rho_grid.ravel(), tail_weights)
+zeta_direct = zeta_from_field(rho_grid.ravel(), collapse_weights)
 ```
 
 In the full subsystem the density field and soft mask come from
-`gravoturb.realization.pipeline.build_fdf_field` (the AC6 cornerstone); the realized dense fraction is
+`gravoturb.realization.pipeline.build_turbulent_field` (the AC6 cornerstone); the realized dense fraction is
 `gravoturb.realization.placement.f_tail_actual`. The soft-mask reparameterisation of a discrete threshold is
 the standard differentiable-programming technique; here it makes $\partial\zeta/\partial s_t$
 analytic and HMC-compatible (see [](inference.md)).
@@ -388,7 +388,7 @@ analytic and HMC-compatible (see [](inference.md)).
   - Real cloud with a thermal/magnetic inner core; $p$ inference that may approach 2; $r_c/R$ a free parameter
   - $\mathcal{O}(n_{\mathrm{nodes}})$ trapezoid, grad-safe in $p$ and $r_c/R$
   - Spherical, single core scale; stays finite at $p \to 2$
-* - **Direct 3D** `zeta_fdf_direct(rho, w)`
+* - **Direct 3D** `zeta_from_field(rho, w)`
   - You have a simulation snapshot or detailed map; substructure; $s_t$ itself a free parameter
   - $\mathcal{O}(N_{\mathrm{cells}})$ sum, grad-safe through soft-mask weights
   - Assumes uniform voxels unless explicit `w` given; needs a non-empty field
@@ -423,7 +423,7 @@ table above. Full history: [](../../90-development-log/2026-04-28-pp20-fix.md).
 
 - **In code:** `src/experimental/gravoturb/theory/dense_gas_sfr.py`
   (`magnification_factor`, `magnification_factor_with_core`,
-  `zeta_fdf_direct`). This experimental subsystem is repo-only with no
+  `zeta_from_field`). This experimental subsystem is repo-only with no
   generated website API page; the module reference is the package source
   and its `VALIDATION_SUMMARY.md`.
 - **Validated in:** [physics tests](../../50-validation/physics-tests.md)

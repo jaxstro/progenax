@@ -35,7 +35,7 @@ from progenax import (
 from gravoturb.cluster import build_cluster_ic
 from gravoturb.diagnostics.q import q_components
 from gravoturb.realization.envelope import apply_spherical_envelope, radius_grid
-from gravoturb.realization.pipeline import build_fdf_field
+from gravoturb.realization.pipeline import build_turbulent_field
 from gravoturb.realization.placement import sample_positions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -210,7 +210,7 @@ def ac_ic5_gradient():
 
     def total_mass_in_core(r_h):
         # envelope-modulated density on the grid; smooth scalar of the construction
-        fld = build_fdf_field(MACH, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(0))
+        fld = build_turbulent_field(MACH, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(0))
         s_tot = apply_spherical_envelope(fld.s, PlummerProfile(r_h=r_h), BOX)
         r = radius_grid(SHAPE, BOX)
         return jnp.sum(jnp.where(r < 1.0, jnp.exp(s_tot), 0.0))
@@ -240,7 +240,7 @@ def ac_ic6_beta_recovery(seeds=(0, 1, 2), n_grid=64):
     for beta in betas:
         ss, se = [], []
         for sd in seeds:
-            fld = build_fdf_field(MACH, B, ALPHA, beta, (n_grid,) * 3, jax.random.PRNGKey(sd))
+            fld = build_turbulent_field(MACH, B, ALPHA, beta, (n_grid,) * 3, jax.random.PRNGKey(sd))
             s = np.asarray(fld.s)
             for arr, acc in [(s, ss), (np.exp(s), se)]:
                 k, p = radial_power_spectrum(arr)
@@ -280,7 +280,7 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5):
         for mach in [None, 4.0, 8.0, 12.0]:  # None → turbulence OFF (pure envelope)
             r50 = []
             for sd in seeds:
-                fld = build_fdf_field(mach or MACH, B, ALPHA, 3.0, shape,
+                fld = build_turbulent_field(mach or MACH, B, ALPHA, 3.0, shape,
                                       jax.random.PRNGKey(sd))
                 s_turb = jnp.zeros(shape) if mach is None else fld.s
                 s_tot = apply_spherical_envelope(s_turb, PlummerProfile(r_h=r_h), BOX)
@@ -330,7 +330,7 @@ def _radial_profile_sampled(r_h, mach, s_turb_zero, seeds, n=6000):
     prof = PlummerProfile(r_h=r_h)
     stack = []
     for sd in seeds:
-        fld = build_fdf_field(mach, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(sd))
+        fld = build_turbulent_field(mach, B, ALPHA, 3.0, SHAPE, jax.random.PRNGKey(sd))
         s_turb = jnp.zeros(SHAPE) if s_turb_zero else fld.s
         s_tot = apply_spherical_envelope(s_turb, prof, BOX)
         pos = np.asarray(sample_positions(s_turb, fld.s_t, 8.0, 0.3, n,

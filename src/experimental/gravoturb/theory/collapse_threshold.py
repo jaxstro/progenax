@@ -39,7 +39,7 @@ def virial_parameter(
     ``v_0 = sigma_v/R^{1/2} ∝ Sigma^{1/2}``, which makes alpha_vir ≈ const (~1-2) across
     surface density — i.e. clouds self-regulate to virial equilibrium. This is the
     correct grounding; the older code's ``alpha_vir ∝ Sigma^{-1}`` assumed Larson's
-    (refuted) constant v_0 and is NOT used. ``critical_overdensity_pn11`` still accepts
+    (refuted) constant v_0 and is NOT used. ``critical_overdensity`` still accepts
     ``alpha_vir`` directly, so this helper is optional.
 
     JAX-native, differentiable.
@@ -47,7 +47,7 @@ def virial_parameter(
     return 5.0 * sigma_v**2 * radius / (G * mass)
 
 
-def critical_overdensity_pn11(
+def critical_overdensity(
     mach: Float[Array, ""],
     alpha_vir: Float[Array, ""],
     theta: float = THETA_PN11,
@@ -61,7 +61,7 @@ def critical_overdensity_pn11(
     return 0.067 * theta**-2 * alpha_vir * mach**2
 
 
-def s_crit_pn11(
+def critical_log_density(
     mach: Float[Array, ""],
     alpha_vir: Float[Array, ""],
     theta: float = THETA_PN11,
@@ -72,4 +72,4 @@ def s_crit_pn11(
 
     The classical-alternative analogue of the BM19 transition density s_t.
     """
-    return jnp.log(critical_overdensity_pn11(mach, alpha_vir, theta))
+    return jnp.log(critical_overdensity(mach, alpha_vir, theta))

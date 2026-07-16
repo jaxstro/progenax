@@ -21,7 +21,7 @@ from gravoturb.theory.counts_in_cells import (
     count_distribution,
     predict_log_count_variance,
 )
-from gravoturb.theory.density_cdf import bm19_volume_pdf
+from gravoturb.theory.density_cdf import log_density_pdf
 from gravoturb.theory.projection import box_window_sq_grid
 
 
@@ -137,16 +137,16 @@ def density_pdf_loglike(
 
     A 1-pt density-PDF fit over the WHOLE BM19 PDF (lognormal body + power-law tail). CONTRACT:
     ``s_hist``/``s_centers`` must be on the same rho_0 = volume-mean convention as the model (the
-    ``bm19_volume_pdf`` s-axis, i.e. <e^s>=1) -- histogram a field with the empirical mean-1 shift
+    ``log_density_pdf`` s-axis, i.e. <e^s>=1) -- histogram a field with the empirical mean-1 shift
     (``rank_copula_field`` already returns shifted s). NOTE: for inferring the TAIL slope alpha,
     prefer :func:`tail_exceedance_loglike` (the POT block): fitting the full infinite-tail PDF to a
     finite (truncated) field biases alpha high, whereas the POT exceedance fit is exact,
     shift-immune, and geometry-free (see AC16). The robust convergent cross-check on the tail mass
-    is ``f_dense_bm19_full`` (AC17, Option B). This block remains a body+tail diagnostic.
+    is ``dense_mass_fraction`` (AC17, Option B). This block remains a body+tail diagnostic.
     ``s_hist[i]`` = count in bin ``i`` centred at ``s_centers[i]``; ``p_BM19`` normalized over the
     bins. Differentiable in theta."""
     mach, b, alpha, _beta = theta
-    p = bm19_volume_pdf(s_centers, mach, b, alpha)
+    p = log_density_pdf(s_centers, mach, b, alpha)
     p = p / jnp.trapezoid(p, s_centers)  # normalize over the observed support
     return jnp.sum(s_hist * jnp.log(jnp.clip(p, floor, None)))
 

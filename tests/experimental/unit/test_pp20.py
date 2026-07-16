@@ -85,15 +85,15 @@ def test_zeta_with_core_top_hat_limit():
 
 
 @pytest.mark.parametrize("p", [0.5, 1.0, 1.5])
-def test_zeta_fdf_direct_matches_analytic_powerlaw(p):  # AC4
+def test_zeta_from_field_matches_analytic_powerlaw(p):  # AC4
     """Direct-field estimator on a sampled pure power-law sphere matches
     analytic zeta(p) within a few percent for p < 1.7."""
     import numpy as np
-    from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_fdf_direct
+    from gravoturb.theory.dense_gas_sfr import magnification_factor, zeta_from_field
 
     # Radial power-law rho ~ (r/R)^{-p} on shells; weights = shell volumes.
     r = np.linspace(1e-3, 1.0, 40_000)
     rho = r ** (-p)
     w = 4.0 * np.pi * r**2  # dV ~ r^2 dr (uniform dr -> constant factor cancels)
-    val = float(zeta_fdf_direct(rho, w))
+    val = float(zeta_from_field(rho, w))
     assert val == pytest.approx(float(magnification_factor(p)), rel=0.03)

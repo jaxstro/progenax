@@ -21,30 +21,30 @@ from jaxtyping import Array, Float, Int
 # ── dense-tail mask (merged from the pre-rename tail.py; bodies unchanged, spec §3.6) ──
 
 
-def tail_weights(
+def collapse_weights(
     s: Float[Array, "..."],
     s_t: Float[Array, ""],
-    kappa: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
 ) -> Float[Array, "..."]:
     r"""Soft tail membership w = σ(κ(s − s_t)) ∈ (0,1).
 
     w(s_t) = 0.5; monotone increasing in s; κ→∞ recovers the hard indicator s > s_t.
     """
-    return jax.nn.sigmoid(kappa * (s - s_t))
+    return jax.nn.sigmoid(mask_sharpness * (s - s_t))
 
 
 def f_tail_actual(
     s: Float[Array, "..."],
     rho: Float[Array, "..."],
     s_t: Float[Array, ""],
-    kappa: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
 ) -> Float[Array, ""]:
     r"""Mass-weighted dense-tail fraction f_tail_actual = Σ w ρ / Σ ρ.
 
     The realized counterpart of BM19 f_dense (AC6 compares the two). Differentiable
     in (s_t, κ); raising s_t removes mass from the tail (∂/∂s_t < 0).
     """
-    w = tail_weights(s, s_t, kappa)
+    w = collapse_weights(s, s_t, mask_sharpness)
     return jnp.sum(w * rho) / jnp.sum(rho)
 
 
@@ -74,7 +74,7 @@ def sample_cic_counts(
 def sample_cell_indices(
     s: Float[Array, "nx ny nz"],
     s_t: Float[Array, ""],
-    kappa: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
     f_sub: float,
     n_stars: int,
     key: jax.Array,
@@ -94,7 +94,7 @@ def sample_cell_indices(
     """
     s_place = s if s_density is None else s_density
     rho = jnp.exp(s_place).ravel()
-    w = tail_weights(s, s_t, kappa).ravel()
+    w = collapse_weights(s, s_t, mask_sharpness).ravel()
     p_tail = w * rho
     p_tail = p_tail / jnp.sum(p_tail)
     p_smooth = rho / jnp.sum(rho)
@@ -130,7 +130,7 @@ def cells_to_positions(
 def sample_positions(
     s: Float[Array, "nx ny nz"],
     s_t: Float[Array, ""],
-    kappa: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
     f_sub: float,
     n_stars: int,
     key: jax.Array,
@@ -146,7 +146,7 @@ def sample_positions(
     """
     k_idx, k_jit = jax.random.split(key)
     tail_idx, smooth_idx = sample_cell_indices(
-        s, s_t, kappa, f_sub, n_stars, k_idx, s_density=s_density
+        s, s_t, mask_sharpness, f_sub, n_stars, k_idx, s_density=s_density
     )
     all_idx = jnp.concatenate([tail_idx, smooth_idx])
     return cells_to_positions(all_idx, s.shape, k_jit, box_size)

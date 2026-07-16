@@ -17,7 +17,7 @@ import jax
 import numpy as np
 
 from gravoturb.diagnostics.q import compute_q_parameter
-from gravoturb.realization.pipeline import build_fdf_field, cloud_to_stars
+from gravoturb.realization.pipeline import build_turbulent_field, cloud_to_stars
 
 
 def measure_q_ensemble(
@@ -39,7 +39,7 @@ def measure_q_ensemble(
     q = np.empty(n_real)
     for i in range(n_real):
         k_field, k_stars = jax.random.split(jax.random.fold_in(key, i))
-        fld = build_fdf_field(mach, b, alpha, beta, shape, k_field)
+        fld = build_turbulent_field(mach, b, alpha, beta, shape, k_field)
         pos = cloud_to_stars(fld, f_sub, n_stars, k_stars)
         q[i] = compute_q_parameter(np.asarray(pos))
     return q
@@ -67,7 +67,7 @@ def q_vs_fsub(
     q_all = np.empty((n_real, f_sub_values.size))
     for i in range(n_real):
         k_field, k_stars = jax.random.split(jax.random.fold_in(key, i))
-        fld = build_fdf_field(mach, b, alpha, beta, shape, k_field)
+        fld = build_turbulent_field(mach, b, alpha, beta, shape, k_field)
         for j, f_sub in enumerate(f_sub_values):
             pos = cloud_to_stars(fld, float(f_sub), n_stars, jax.random.fold_in(k_stars, j))
             q_all[i, j] = compute_q_parameter(np.asarray(pos))

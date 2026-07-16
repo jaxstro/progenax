@@ -26,7 +26,7 @@ from progenax import PlummerProfile
 
 from gravoturb.cluster import build_cluster_ic
 from gravoturb.realization.envelope import apply_spherical_envelope
-from gravoturb.realization.pipeline import build_fdf_field
+from gravoturb.realization.pipeline import build_turbulent_field
 from gravoturb.realization.placement import sample_positions
 from gravoturb.realization.turbulent_velocity import turbulent_velocity_field
 
@@ -36,11 +36,21 @@ _PINS = json.loads(
     (pathlib.Path(__file__).parents[1] / "fixtures" / "rename_pins" /
      "pre_rename_sha256.json").read_text()
 )
-_CAPTURE_ARCH = "arm64"  # pins captured on Anna's darwin/arm64 dev machine
 
+# Raw-GRF outputs (velocity field, cluster velocities) are bit-sensitive to the XLA
+# threading config: multi- vs single-threaded FFTs reduce in different orders. The pins
+# were captured at pre-rename commit 66f627d under the canonical gate env (XLA_FLAGS
+# thread-capped, per CLAUDE.md); rank-copula-derived pins are threading-insensitive
+# (the copula consumes only the GRF's ranks). Skip rather than fail off-env.
+import os
+
+_env_ok = (
+    platform.machine() == _PINS["_env"]["machine"]
+    and _PINS["_env"]["xla_flags"] in os.environ.get("XLA_FLAGS", "")
+)
 skip_foreign = pytest.mark.skipif(
-    platform.machine() != _CAPTURE_ARCH,
-    reason="byte-identity pins are same-machine references (darwin/arm64)",
+    not _env_ok,
+    reason="byte-identity pins are same-machine, canonical-XLA-env references",
 )
 
 
@@ -54,7 +64,7 @@ def test_field_realizations_match_pins():
     for i, (mach, b, alpha, beta) in enumerate(
         [(8.0, 0.5, 1.8, 3.0), (12.0, 0.33, 1.6, 3.5)]
     ):
-        fld = build_fdf_field(mach, b, alpha, beta, (32, 32, 32), jax.random.PRNGKey(7 + i))
+        fld = build_turbulent_field(mach, b, alpha, beta, (32, 32, 32), jax.random.PRNGKey(7 + i))
         assert _h(fld.s) == _PINS[f"field_s_{i}"]
         scalars = jnp.stack([fld.s_t, fld.f_dense, fld.f_dense_realized])
         assert _h(scalars) == _PINS[f"field_scalars_{i}"]
@@ -62,7 +72,7 @@ def test_field_realizations_match_pins():
 
 @skip_foreign
 def test_positions_and_velocity_field_match_pins():
-    fld = build_fdf_field(8.0, 0.5, 1.8, 3.0, (32, 32, 32), jax.random.PRNGKey(7))
+    fld = build_turbulent_field(8.0, 0.5, 1.8, 3.0, (32, 32, 32), jax.random.PRNGKey(7))
     s_tot = apply_spherical_envelope(fld.s, PlummerProfile(r_h=0.5), 4.0)
     pos = sample_positions(fld.s, fld.s_t, 8.0, 0.3, 500, jax.random.PRNGKey(21),
                            box_size=4.0, s_density=s_tot)
@@ -80,7 +90,7 @@ def test_cluster_ic_matches_pins():
     )
     assert _h(ic.positions) == _PINS["cluster_positions"]
     assert _h(ic.velocities) == _PINS["cluster_velocities"]
-    assert _h(ic.Q) == _PINS["cluster_Q"]
+    assert _h(ic.Q_virial) == _PINS["cluster_Q"]
 
 
 def test_sigma_s_squared_parity_with_released_core():

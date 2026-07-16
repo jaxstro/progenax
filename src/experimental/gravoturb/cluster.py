@@ -3,7 +3,7 @@ r"""End-to-end FDF cluster initial conditions (Build 4 — the forward generativ
 This is the user-facing assembly that turns natal-turbulence parameters into a complete,
 physically-scaled N-body IC, composing the verified subsystem pieces:
 
-  1. ``build_fdf_field`` — BM19 turbulent log-density box ``s_turb`` (carries β, ℳ, α; ⟨e^{s_turb}⟩=1).
+  1. ``build_turbulent_field`` — BM19 turbulent log-density box ``s_turb`` (carries β, ℳ, α; ⟨e^{s_turb}⟩=1).
   2. ``apply_spherical_envelope`` — add the radial log-envelope of a progenax ``SpatialProfile``:
      ``s_total = s_turb + ln ρ_env(r)`` (the SHAPE: r_h, concentration).
   3. ``sample_positions`` — star positions with the PLACEMENT density ∝ e^{s_total} (centrally
@@ -30,7 +30,7 @@ import jax.numpy as jnp
 from jaxtyping import Array, Float
 
 from gravoturb.realization.envelope import apply_spherical_envelope
-from gravoturb.realization.pipeline import FDFField, build_fdf_field
+from gravoturb.realization.pipeline import TurbulentField, build_turbulent_field
 from gravoturb.realization.placement import sample_positions
 from gravoturb.realization.turbulent_velocity import (
     sample_turbulent_velocities,
@@ -44,8 +44,8 @@ class ClusterIC(NamedTuple):
     positions: Float[Array, "n 3"]    # COM-centred, length units of box_size (pc for STELLAR)
     velocities: Float[Array, "n 3"]   # COM frame, units set by G (pc/Myr for STELLAR)
     masses: Float[Array, "n"]         # M⊙
-    field: FDFField                   # realized turbulent field (BM19 provenance / diagnostics)
-    Q: Float[Array, ""]               # realized virial ratio T/|V|
+    field: TurbulentField                   # realized turbulent field (BM19 provenance / diagnostics)
+    Q_virial: Float[Array, ""]        # realized virial ratio T/|V|
 
 
 def build_cluster_ic(
@@ -63,7 +63,7 @@ def build_cluster_ic(
     box_size: float,
     G: float,
     key: jax.Array,
-    kappa: float = 8.0,
+    mask_sharpness: float = 8.0,
 ) -> ClusterIC:
     r"""Build a spherical, substructured, virial-scaled FDF cluster IC.
 
@@ -74,11 +74,11 @@ def build_cluster_ic(
     n_stars = int(masses.shape[0])
     k_field, k_vfield, k_pos = jax.random.split(key, 3)
 
-    field = build_fdf_field(mach, b, alpha, beta, shape, k_field)
+    field = build_turbulent_field(mach, b, alpha, beta, shape, k_field)
     s_total = apply_spherical_envelope(field.s, profile, box_size)
 
     positions = sample_positions(
-        field.s, field.s_t, kappa, f_sub, n_stars, k_pos,
+        field.s, field.s_t, mask_sharpness, f_sub, n_stars, k_pos,
         box_size=box_size, s_density=s_total,
     )
 
@@ -97,8 +97,9 @@ def build_cluster_ic(
 
     T = compute_kinetic_energy(v_scaled, masses)
     V = compute_potential_energy(pos_com, masses, G=G)
-    Q = T / jnp.abs(V)
+    Q_virial = T / jnp.abs(V)
 
     return ClusterIC(
-        positions=pos_com, velocities=v_scaled, masses=masses, field=field, Q=Q
+        positions=pos_com, velocities=v_scaled, masses=masses, field=field,
+        Q_virial=Q_virial,
     )

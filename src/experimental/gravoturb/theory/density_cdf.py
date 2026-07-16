@@ -40,7 +40,7 @@ def _pdf_pieces(mach, b, alpha):
     return s0, sigma, s_t, p_ln_st, C, Z
 
 
-def bm19_volume_pdf(
+def log_density_pdf(
     s: Float[Array, " n"],
     mach: Float[Array, ""],
     b: Float[Array, ""],
@@ -54,7 +54,7 @@ def bm19_volume_pdf(
     return jnp.where(s < s_t, p_ln, p_pl) / Z
 
 
-def bm19_icdf_analytic(
+def log_density_icdf_analytic(
     u: Float[Array, " m"],
     mach: Float[Array, ""],
     b: Float[Array, ""],
@@ -66,7 +66,7 @@ def bm19_icdf_analytic(
     Tail (u > u_t): invert ``u Z = Φ_LN(s_t) + C(e^{-α s_t} − e^{-α s})/α`` →
     ``s = −ln[e^{-α s_t} − (u Z − Φ_LN(s_t)) α / C] / α``.
 
-    Unlike the tabulated ``bm19_icdf``, this resolves u arbitrarily close to 1 (the
+    Unlike the tabulated ``log_density_icdf``, this resolves u arbitrarily close to 1 (the
     heavy power-law tail), which the mass-conserving copula needs at ~10⁶ cells. The
     double-``where`` keeps both branches finite so grads in (mach,b,alpha) are NaN-free.
     """
@@ -100,7 +100,7 @@ def _mass_pieces(mach, b, alpha):
     return s_t, s1, sigma, C, M_un_st, M_un_inf, Z
 
 
-def bm19_mass_cdf(
+def mass_cdf(
     s: Float[Array, " n"],
     mach: Float[Array, ""],
     b: Float[Array, ""],
@@ -119,7 +119,7 @@ def bm19_mass_cdf(
     return M_un / M_un_inf
 
 
-def bm19_mean_density(
+def mean_density(
     mach: Float[Array, ""],
     b: Float[Array, ""],
     alpha: Float[Array, ""],
@@ -129,7 +129,7 @@ def bm19_mean_density(
     return M_un_inf / Z
 
 
-def bm19_volume_tail_fraction(
+def volume_tail_fraction(
     mach: Float[Array, ""],
     b: Float[Array, ""],
     alpha: Float[Array, ""],
@@ -145,7 +145,7 @@ def bm19_volume_tail_fraction(
     return vol_pl / Z
 
 
-def build_bm19_cdf_table(
+def build_cdf_table(
     mach: Float[Array, ""],
     b: Float[Array, ""],
     alpha: Float[Array, ""],
@@ -177,7 +177,7 @@ def build_bm19_cdf_table(
     return s_grid, cdf
 
 
-def bm19_icdf(
+def log_density_icdf(
     u: Float[Array, " m"],
     mach: Float[Array, ""],
     b: Float[Array, ""],
@@ -189,5 +189,5 @@ def bm19_icdf(
     ``jnp.interp(u, cdf, s_grid)`` maps uniform u in (0,1) -> s. Differentiable in
     (mach, b, alpha) through the smooth table; the caller's ranks/u are frozen.
     """
-    s_grid, cdf = build_bm19_cdf_table(mach, b, alpha, n_nodes=n_nodes)
+    s_grid, cdf = build_cdf_table(mach, b, alpha, n_nodes=n_nodes)
     return jnp.interp(u, cdf, s_grid)
