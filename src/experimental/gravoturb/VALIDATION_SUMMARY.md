@@ -256,7 +256,24 @@ of the density (no density–velocity coupling until Phase 3), and β_v is a fre
 smoke (2026-07-16, N=500) transferred cleanly (COM ~1e-16, Q=0.5000, \|ΔE/E\| ≤ 1e-3) and the
 β=2-vs-β=4 substructure ordering survived evolution at ~1.5–2σ (3 seeds). The finalization design
 (`docs/plans/2026-07-16-gravoturb-cluster-ic-finalization-design.md`, maintainer-local) addresses
-(ii)–(iv).
+(ii)–(iv). (v) **No gas potential**: the IC is the stellar system alone. In the embedded phase the
+gas (1/SFE − 1 ≈ 4× the stellar mass at SFE=0.2) deepens the true potential, so the embedded state
+is even MORE subvirial than the emergent Q reports; the classic SUPER-virial post-gas-expulsion
+state (Hills 1980; Baumgardt & Kroupa 2007) is the other physical regime — representable via
+``virial_target`` with Q>0.5 or η_v>1, but physical mode as-built reads "stars at birth, gas
+potential neglected". (vi) **Hydro-only (no magnetic fields)**: B would suppress the density-PDF
+variance (Molina+2012: σ_s² = ln(1 + b²ℳ²·β_plasma/(β_plasma+1))), the PN11 MHD critical density
+(their Eq. 18) is explicitly not implemented (HD limit only), and magnetic support raises the gas
+α_vir — so at fixed (ℳ, b) we somewhat overproduce dense-tail substructure. Internally consistent
+(FK10's b calibration and BM19's PDF are hydro), but strongly magnetized applications need the
+Molina extension. (vii) **IMF characterization (2026-07-16, Maschberger, Larson-closed cloud,
+physical mode, 3 seeds)**: emergent Q tracks TOTAL mass, not the mass-function shape — matched
+M_tot=2000 M⊙ gives Q=0.167±0.027 vs equal-mass 0.163±0.023, while fixed-N=2000 (M_tot=737)
+warms to Q=0.340±0.029; the massive tail triples the α_vir seed scatter (±0.04→±0.13; one draw
+hit m_max≈130 M⊙ — consider ``TruncatedIMF``/an m_max–M_ecl cap for production). Velocities are
+mass-independent by construction (stars inherit gas velocity; NO primordial equipartition — the
+correct birth state) and mass↔position assignment is random until Phase 4's λ_corr wiring
+(primordial segregation, gate AC-IC10).
 
 ---
 
