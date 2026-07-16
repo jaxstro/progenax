@@ -3,8 +3,9 @@
 The placement PMF is ``p_⋆ ∝ w(s_turb) · e^{(3/2)·s_total}`` — the normalized FK12 Eq. 7
 integrand (t_ff ∝ ρ^{-1/2}, Eq. 8; ε/φ_t cancel in the PMF), with the collapse-eligibility
 gate w on the BM19 transition s_t (the s_t-for-s_crit substitution; per-paper note
-federrath-klessen-2012). The tail-star fraction becomes the DERIVED, differentiable
-``f_sub_derived = Σ w·ρ^{3/2} / Σ_eligible-part`` rather than a chosen knob.
+federrath-klessen-2012). The former free f_sub knob is replaced by two DERIVED quantities:
+``tail_star_fraction`` (hard, from the actual placement PMF — the f_sub successor) and
+``collapse_eligible_fraction`` (smooth, ungated — the differentiable analytic hook).
 """
 
 import jax
@@ -59,49 +60,72 @@ def test_pmf_separates_eligibility_from_placement_density():
 # ── the derived tail fraction ──
 
 
-def test_f_sub_derived_monotone_in_alpha():
+def test_collapse_eligible_fraction_monotone_in_alpha():
     """Heavier-tailed clouds (lower alpha) put more star-forming weight in the
-    collapsing tail: f_sub_derived decreases with alpha (the PDF-grounded direction,
-    matching BM19 f_dense). The mach-response direction is regime-dependent
-    (AC8: ∂f_dense/∂ℳ < 0 at the fiducial — s_t rises faster than the tail widens),
-    so it is characterized by the printed AC-IC7 table, not asserted here."""
+    collapsing tail: collapse_eligible_fraction decreases with alpha (the PDF-grounded
+    direction, matching BM19 f_dense). The mach-response direction is regime-dependent
+    (AC8: ∂f_dense/∂ℳ < 0 at the fiducial), so it is characterized by the printed
+    AC-IC7 table, not asserted here."""
     from gravoturb.realization.pipeline import build_turbulent_field
-    from gravoturb.realization.placement import f_sub_derived
+    from gravoturb.realization.placement import collapse_eligible_fraction
 
-    def fsd(mach, alpha, seed=0):
+    def fel(mach, alpha, seed=0):
         fld = build_turbulent_field(mach, 0.5, alpha, 3.0, (24, 24, 24),
                                     jax.random.PRNGKey(seed))
-        return float(f_sub_derived(fld.s, fld.s_t, mask_sharpness=8.0, s_density=fld.s))
+        return float(collapse_eligible_fraction(fld.s, fld.s_t, mask_sharpness=8.0,
+                                                s_density=fld.s))
 
-    assert fsd(mach=8.0, alpha=1.5) > fsd(mach=8.0, alpha=2.5)
-    assert 0.0 < fsd(mach=8.0, alpha=1.8) < 1.0
+    assert fel(mach=8.0, alpha=1.5) > fel(mach=8.0, alpha=2.5)
+    assert 0.0 < fel(mach=8.0, alpha=1.8) < 1.0
 
 
-def test_f_sub_derived_differentiable_in_s_t():
-    """d f_sub_derived / d s_t is finite and negative (raising the threshold empties
-    the tail) — the differentiable hook the analytic layer can use."""
+def test_tail_star_fraction_is_the_placement_pmf_fraction():
+    """tail_star_fraction = Σ_{s>s_t} p under the ACTUAL gated PMF — near 1 for a sharp
+    gate, and strictly larger than collapse_eligible_fraction (review finding: the two
+    quantities differ by >2x at the fiducial; they must never be conflated again)."""
     from gravoturb.realization.pipeline import build_turbulent_field
-    from gravoturb.realization.placement import f_sub_derived
+    from gravoturb.realization.placement import (
+        collapse_eligible_fraction,
+        multi_freefall_pmf,
+        tail_star_fraction,
+    )
+
+    fld = build_turbulent_field(8.0, 0.5, 1.8, 3.0, (24, 24, 24), jax.random.PRNGKey(0))
+    f_tail = float(tail_star_fraction(fld.s, fld.s_t, mask_sharpness=8.0))
+    f_elig = float(collapse_eligible_fraction(fld.s, fld.s_t, mask_sharpness=8.0))
+    # exact cross-check against the PMF itself
+    p = multi_freefall_pmf(fld.s, fld.s_t, mask_sharpness=8.0)
+    direct = float(jnp.sum(jnp.where(fld.s > fld.s_t, p, 0.0)))
+    np.testing.assert_allclose(f_tail, direct, rtol=1e-12)
+    assert f_tail > 0.8            # sharp gate: stars land in eligible cells
+    assert f_tail > f_elig + 0.1   # the two quantities are materially different
+
+
+def test_collapse_eligible_fraction_differentiable_in_s_t():
+    """d collapse_eligible_fraction / d s_t is finite and negative (raising the
+    threshold empties the tail) — the smooth analytic hook."""
+    from gravoturb.realization.pipeline import build_turbulent_field
+    from gravoturb.realization.placement import collapse_eligible_fraction
 
     fld = build_turbulent_field(8.0, 0.5, 1.8, 3.0, (16, 16, 16), jax.random.PRNGKey(0))
-    g = jax.grad(lambda st: f_sub_derived(fld.s, st, mask_sharpness=8.0,
-                                          s_density=fld.s))(fld.s_t)
+    g = jax.grad(lambda st: collapse_eligible_fraction(fld.s, st, mask_sharpness=8.0,
+                                                       s_density=fld.s))(fld.s_t)
     assert jnp.isfinite(g) and float(g) < 0.0
 
 
-def test_f_sub_derived_ad_matches_fd():
-    """AD-vs-FD on the new analytic quantity (design policy): d f_sub_derived/d s_t
-    and /d mask_sharpness agree with central finite differences to <1e-6 rel."""
+def test_collapse_eligible_fraction_ad_matches_fd():
+    """AD-vs-FD on the smooth analytic quantity (design policy): d/d s_t and
+    d/d mask_sharpness agree with central finite differences to <1e-6 rel."""
     from gravoturb.realization.pipeline import build_turbulent_field
-    from gravoturb.realization.placement import f_sub_derived
+    from gravoturb.realization.placement import collapse_eligible_fraction
 
     fld = build_turbulent_field(8.0, 0.5, 1.8, 3.0, (16, 16, 16), jax.random.PRNGKey(0))
 
     for argname, val in [("s_t", float(fld.s_t)), ("mask_sharpness", 8.0)]:
         if argname == "s_t":
-            f = lambda x: f_sub_derived(fld.s, x, mask_sharpness=8.0)
+            f = lambda x: collapse_eligible_fraction(fld.s, x, mask_sharpness=8.0)
         else:
-            f = lambda x: f_sub_derived(fld.s, fld.s_t, mask_sharpness=x)
+            f = lambda x: collapse_eligible_fraction(fld.s, fld.s_t, mask_sharpness=x)
         ad = float(jax.grad(f)(val))
         h = 1e-5 * max(abs(val), 1.0)
         fd = (float(f(val + h)) - float(f(val - h))) / (2 * h)
@@ -135,37 +159,35 @@ def test_multi_freefall_stars_trace_denser_gas_than_rho_placement():
 def test_envelope_control_reproduces_rho_15_weighted_plummer():
     """AC-IC7(a) in miniature: turbulence OFF ⇒ placement ∝ ρ_env^{3/2}. With w≈1
     everywhere (s_t → −∞ on a zero field), the sampled radial distribution must match
-    an INDEPENDENT numpy reference draw (numpy ρ_env^{3/2} cell weights + numpy jitter
-    — no gravoturb code in the oracle path): two-sample KS < 0.015 at N=M=40000."""
+    an INDEPENDENT numpy reference draw (shared oracle in gravoturb.validation.oracles:
+    numpy ρ_env^{3/2} cell weights + numpy jitter — no gravoturb realization code in the
+    oracle path beyond the FREEFALL_EXPONENT constant): two-sample KS < 0.015 at
+    N=M=40000."""
     from gravoturb.realization.envelope import apply_spherical_envelope
-    from gravoturb.realization.placement import sample_positions_multi_freefall
+    from gravoturb.realization.placement import (
+        FREEFALL_EXPONENT,
+        sample_positions_multi_freefall,
+    )
+    from gravoturb.validation.oracles import (
+        ks_two_sample,
+        rho_weighted_reference_positions,
+    )
 
     shape, box = (48, 48, 48), 4.0
-    n = shape[0]
     prof = PlummerProfile(r_h=0.5)
     s_turb = jnp.zeros(shape)
     s_tot = apply_spherical_envelope(s_turb, prof, box)
     pos = sample_positions_multi_freefall(
         s_turb, -1e3, 8.0, 40000, jax.random.PRNGKey(11),
         box_size=box, s_density=s_tot)
-    r_star = np.sort(np.linalg.norm(np.asarray(pos) - box / 2, axis=1))
+    r_star = np.linalg.norm(np.asarray(pos) - box / 2, axis=1)
 
     # independent numpy reference: same cell geometry, weights from profile.density
-    ax = (np.arange(n) + 0.5) / n * box - box / 2
-    X, Y, Z = np.meshgrid(ax, ax, ax, indexing="ij")
-    r_cell = np.sqrt(X**2 + Y**2 + Z**2).ravel()
-    w = np.asarray(prof.density(jnp.asarray(r_cell))) ** 1.5
-    rng = np.random.default_rng(2026)
-    idx = rng.choice(w.size, size=40000, p=w / w.sum())
-    ijk = np.stack(np.unravel_index(idx, shape), axis=-1)
-    ref = (ijk + rng.uniform(size=ijk.shape)) * (box / n) - box / 2
-    r_ref = np.sort(np.linalg.norm(ref, axis=1))
+    ref = rho_weighted_reference_positions(
+        prof, shape, box, FREEFALL_EXPONENT, 40000, np.random.default_rng(2026))
+    r_ref = np.linalg.norm(ref, axis=1)
 
-    # two-sample KS
-    allr = np.concatenate([r_star, r_ref])
-    cdf1 = np.searchsorted(r_star, allr, side="right") / r_star.size
-    cdf2 = np.searchsorted(r_ref, allr, side="right") / r_ref.size
-    ks = np.max(np.abs(cdf1 - cdf2))
+    ks = ks_two_sample(r_star, r_ref)
     assert ks < 0.015, f"two-sample KS {ks:.4f}"
 
 
@@ -200,25 +222,25 @@ def test_composition_spec_mode_guards():
 
 def test_builder_multi_freefall_reports_derived_fraction():
     import jax.numpy as jnp
-
-    from jaxstro.units import STELLAR
     from gravoturb.cluster import build_cluster_ic
+    from jaxstro.units import STELLAR
 
     ic = build_cluster_ic(jnp.ones(400), **_specs("multi_freefall"),
                           G=STELLAR.G, key=jax.random.PRNGKey(0))
-    assert ic.f_sub_derived is not None
-    assert 0.0 < float(ic.f_sub_derived) < 1.0
+    assert ic.tail_star_fraction is not None
+    assert ic.collapse_eligible_fraction is not None
+    assert 0.0 < float(ic.collapse_eligible_fraction) < float(ic.tail_star_fraction) <= 1.0
     assert np.all(np.isfinite(np.asarray(ic.positions)))
 
 
 def test_builder_two_population_unchanged():
-    """Legacy mode still runs and reports f_sub_derived=None (no derived fraction)."""
+    """Legacy mode still runs and reports no derived fractions."""
     import jax.numpy as jnp
-
-    from jaxstro.units import STELLAR
     from gravoturb.cluster import build_cluster_ic
+    from jaxstro.units import STELLAR
 
     ic = build_cluster_ic(jnp.ones(400), **_specs("two_population", f_sub=0.3),
                           G=STELLAR.G, key=jax.random.PRNGKey(0))
-    assert ic.f_sub_derived is None
+    assert ic.tail_star_fraction is None
+    assert ic.collapse_eligible_fraction is None
     assert abs(float(ic.Q_virial) - 0.5) < 1e-2

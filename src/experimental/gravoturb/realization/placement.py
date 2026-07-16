@@ -1,4 +1,4 @@
-"""Tail/smooth star sampling from an FDF density field (spec §3.6).
+"""Tail/smooth star sampling from a turbulent density field (spec §3.6).
 
 Two categorical PMFs over field cells set where stars form:
   p_tail   ∝ w ρ   — the dense, gravitationally-collapsing tail (w = soft mask),
@@ -50,6 +50,32 @@ def f_tail_actual(
 
 # ── FK12 multi-freefall placement (Phase 1; per-paper note federrath-klessen-2012) ──
 
+# SFR density ∝ ρ/t_ff with t_ff ∝ ρ^{-1/2} (FK12 Eq. 8) ⇒ placement weight ∝ ρ^{3/2}.
+# Single source of truth for the exponent: the validation references (AC-IC0 ρ^p OFF
+# reference, the AC-IC7 numpy oracle) import this constant so they stay structurally
+# tied to the law.
+FREEFALL_EXPONENT: float = 1.5
+
+
+def _collapse_and_freefall(
+    s: Float[Array, "..."],
+    s_t: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
+    s_density: Float[Array, "..."] | None,
+) -> tuple[Float[Array, "..."], Float[Array, "..."]]:
+    r"""The two factors of the FK12 placement measure: gate ``w`` and freefall weight ``ff``.
+
+    ``w = σ(mask_sharpness·(s − s_t))`` on the LOCAL overdensity;
+    ``ff = e^{(3/2)(s_density − max)}`` (overflow-safe common shift; ``s_density``
+    defaults to ``s`` — with an envelope, pass ``s_total`` so t_ff sees the TOTAL
+    density while eligibility stays local). Every placement quantity below is built
+    from this one pair so the gate and exponent can never drift apart.
+    """
+    s_place = s if s_density is None else s_density
+    w = collapse_weights(s, s_t, mask_sharpness)
+    ff = jnp.exp(FREEFALL_EXPONENT * (s_place - jnp.max(s_place)))
+    return w, ff
+
 
 def multi_freefall_pmf(
     s: Float[Array, "..."],
@@ -60,43 +86,70 @@ def multi_freefall_pmf(
     r"""Normalized star-placement PMF ``p_⋆ ∝ w(s)·e^{(3/2)·s_density}``.
 
     The FK12 Eq. 7 multi-freefall integrand per cell: SFR density ∝ ρ/t_ff ∝ ρ^{3/2}
-    (t_ff ∝ ρ^{-1/2}, Eq. 8), gated by the collapse-eligibility mask
-    ``w = σ(mask_sharpness·(s − s_t))`` on the BM19 transition (the s_t-for-s_crit
-    substitution). The ε/φ_t efficiency prefactors cancel in the normalization, so
-    *where* stars form carries no efficiency knob. ``s`` (local overdensity) feeds the
-    gate; ``s_density`` (default ``s``) feeds the freefall weight — with an envelope,
-    pass ``s_total`` so t_ff sees the TOTAL density while eligibility stays local.
+    (t_ff ∝ ρ^{-1/2}, Eq. 8), gated by the collapse-eligibility mask on the BM19
+    transition (the s_t-for-s_crit substitution). The ε/φ_t efficiency prefactors
+    cancel in the normalization, so *where* stars form carries no efficiency knob.
 
-    Differentiable in (s, s_t, mask_sharpness, s_density); the exponent is shifted by
-    the max before exponentiation for overflow-safe normalization.
+    Differentiable in (s, s_t, mask_sharpness, s_density).
     """
-    s_place = s if s_density is None else s_density
-    log_w = jax.nn.log_sigmoid(mask_sharpness * (s - s_t))
-    logits = log_w + 1.5 * s_place
-    logits = logits - jnp.max(logits)
-    p = jnp.exp(logits)
+    w, ff = _collapse_and_freefall(s, s_t, mask_sharpness, s_density)
+    p = w * ff
     return p / jnp.sum(p)
 
 
-def f_sub_derived(
+def tail_star_fraction(
     s: Float[Array, "..."],
     s_t: Float[Array, ""],
     mask_sharpness: Float[Array, ""],
     s_density: Float[Array, "..."] | None = None,
 ) -> Float[Array, ""]:
-    r"""Derived tail-star fraction: the collapse-eligible share of the freefall weight.
+    r"""Expected fraction of stars in dense-tail cells under the ACTUAL placement PMF.
 
-    ``f_sub_derived = Σ w·e^{(3/2)s_density} / Σ e^{(3/2)s_density}`` — the fraction of
-    the *ungated* multi-freefall placement measure that is collapse-eligible. This is
-    the physically-predicted successor of the former free ``f_sub`` knob (finalization
-    design Phase 1): →1 when the whole cloud sits above s_t, →0 for a shallow PDF.
-    Differentiable in every argument (∂/∂s_t < 0: raising the threshold empties the
-    tail); reported on ``ClusterIC`` in ``placement='multi_freefall'`` mode.
+    ``Σ_{s>s_t} p_⋆`` with the hard indicator (the star-side analogue of
+    ``f_dense_realized``) — the honest successor of the legacy ``f_sub`` knob and the
+    number to compare against it. Near 1 for a sharp gate (multi-freefall places stars
+    almost exclusively in eligible gas). Differentiable in ``mask_sharpness`` and the
+    fields; the hard indicator makes the ∂/∂s_t path piecewise (use
+    :func:`collapse_eligible_fraction` for a fully smooth threshold response).
     """
-    s_place = s if s_density is None else s_density
-    w = collapse_weights(s, s_t, mask_sharpness)
-    ff = jnp.exp(1.5 * (s_place - jnp.max(s_place)))  # overflow-safe common shift
+    w, ff = _collapse_and_freefall(s, s_t, mask_sharpness, s_density)
+    p = w * ff
+    p = p / jnp.sum(p)
+    return jnp.sum(jnp.where(s > s_t, p, 0.0))
+
+
+def collapse_eligible_fraction(
+    s: Float[Array, "..."],
+    s_t: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
+    s_density: Float[Array, "..."] | None = None,
+) -> Float[Array, ""]:
+    r"""Collapse-eligible share of the UNGATED freefall measure (fully smooth).
+
+    ``Σ w·e^{(3/2)s_density} / Σ e^{(3/2)s_density}`` — how much of the cloud's
+    star-formation-weighted mass is eligible to collapse: →1 when the whole cloud
+    sits above s_t, →0 for a shallow PDF. NOT a star fraction (the PMF is gated, so
+    nearly all stars land in eligible cells regardless — that is
+    :func:`tail_star_fraction`). Differentiable in every argument (∂/∂s_t < 0);
+    the smooth hook for analytic/Fisher work.
+    """
+    w, ff = _collapse_and_freefall(s, s_t, mask_sharpness, s_density)
     return jnp.sum(w * ff) / jnp.sum(ff)
+
+
+def effective_cell_count(p: Float[Array, "..."]) -> Float[Array, ""]:
+    r"""Inverse participation ratio of a placement PMF: ``n_eff = 1/Σ p²``.
+
+    The effective number of cells the PMF spreads stars over — ``n_eff → n_cells`` for a
+    uniform PMF, ``→ 1`` when a single cell dominates. A resolution-monitoring diagnostic:
+    at the fiducial (ℳ=8, α=1.8, r_h=0.5/box 4) it grows 11.5 → 18 → 22 across 32³→64³→128³.
+    It is NOT a sharp failure predictor — the AC-IC4 coherence erasure at 32³ (measured
+    2026-07-16: near-alignment +0.013 at 32³ vs +0.631 at 64³; 90% of stars in 8 vs 64
+    cells) is diagnosed by the star-sample spread, which n_eff tracks only loosely. Use
+    ≥64³ at ℳ≥8 (the recorded caveat). Reported on ``ClusterIC``; documentation, not a
+    gate. Differentiable.
+    """
+    return 1.0 / jnp.sum(p**2)
 
 
 def sample_positions_multi_freefall(
@@ -112,7 +165,7 @@ def sample_positions_multi_freefall(
 
     Categorical placement — non-differentiable in the positions (same contract as
     :func:`sample_positions`); the differentiable objects are the PMF and
-    :func:`f_sub_derived`.
+    :func:`tail_star_fraction` / :func:`collapse_eligible_fraction`.
     """
     k_idx, k_jit = jax.random.split(key)
     p = multi_freefall_pmf(s, s_t, mask_sharpness, s_density=s_density).ravel()
@@ -209,7 +262,7 @@ def sample_positions(
     box_size: float = 1.0,
     s_density: Float[Array, "nx ny nz"] | None = None,
 ) -> Float[Array, "n_stars 3"]:
-    r"""Sample ``n_stars`` star positions (tail + smooth) from the FDF field.
+    r"""Sample ``n_stars`` star positions (tail + smooth) from the turbulent density field.
 
     Returns positions in [0, box_size)^3. Non-differentiable in the positions
     (categorical sampling); Q is scale-invariant, so ``box_size`` is conventional.

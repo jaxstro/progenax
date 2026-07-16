@@ -4,10 +4,9 @@ Bad physics fails loudly at spec construction — never deep inside the pipeline
 """
 
 import pytest
+from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
 
 from progenax import PlummerProfile
-
-from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
 
 pytestmark = [pytest.mark.experimental, pytest.mark.unit]
 
@@ -44,10 +43,24 @@ def test_geometry_spec_guards():
 
 def test_velocity_spec_guards():
     VelocitySpec(beta_v=4.0, Q_target=0.5)
+    VelocitySpec(beta_v=4.0, Q_target=0.0)  # cold collapse (v=0 IC) is physical
     with pytest.raises(ValueError, match="Q_target"):
-        VelocitySpec(beta_v=4.0, Q_target=0.0)
+        VelocitySpec(beta_v=4.0, Q_target=-0.1)
     with pytest.raises(ValueError, match="beta_v"):
         VelocitySpec(beta_v=-1.0, Q_target=0.5)
+
+
+def test_specs_constructible_with_traced_values():
+    """Traced construction (vmap/jit/grad sweeps) is supported: value checks skip
+    tracers (parity with the pre-spec flat signature) — review regression fix."""
+    import jax
+    import jax.numpy as jnp
+
+    machs = jax.vmap(lambda m: CloudSpec(mach=m, b=0.5, alpha=1.8, beta=3.0).mach)(
+        jnp.array([4.0, 8.0]))
+    assert machs.shape == (2,)
+    g = jax.grad(lambda q: VelocitySpec(beta_v=4.0, Q_target=q).Q_target * 2.0)(0.5)
+    assert float(g) == 2.0
 
 
 def test_composition_spec_guards():

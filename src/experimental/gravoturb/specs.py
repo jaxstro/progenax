@@ -10,7 +10,10 @@ Equinox modules, so the builder signature never grows again as physics modes lan
 - :class:`CompositionSpec` — who forms where: placement law + substructure knobs.
 
 Validation is loud and constructor-time (``__check_init__``): a bad parameter fails at spec
-construction with a physics message, never deep inside the pipeline. All specs are immutable
+construction with a physics message, never deep inside the pipeline. Constructing a spec
+from TRACED values (inside jit/vmap/grad sweeps) is supported: value checks are skipped for
+tracers (parity with the pre-spec flat signature) — static fields (mode strings, grid shape,
+f_sub) must always be concrete. All specs are immutable
 PyTrees; grid shape / mode strings are static fields.
 
 Planned mode fields (documented so reviewers see the trajectory; each lands with its phase):
@@ -23,12 +26,26 @@ JAX-native (Equinox).
 """
 
 import equinox as eqx
+import jax.core
 from jaxtyping import Array, Float
 
 
+def _is_traced(value) -> bool:
+    return isinstance(value, jax.core.Tracer)
+
+
 def _positive(name: str, value) -> None:
+    if _is_traced(value):  # traced construction: defer to the physics (main parity)
+        return
     if not float(value) > 0.0:
         raise ValueError(f"{name} must be > 0, got {value}")
+
+
+def _non_negative(name: str, value) -> None:
+    if _is_traced(value):
+        return
+    if not float(value) >= 0.0:
+        raise ValueError(f"{name} must be >= 0, got {value}")
 
 
 class CloudSpec(eqx.Module):
@@ -46,9 +63,9 @@ class CloudSpec(eqx.Module):
 
     def __check_init__(self):
         _positive("mach", self.mach)
-        if not 0.0 < float(self.b) <= 1.0:
+        if not _is_traced(self.b) and not 0.0 < float(self.b) <= 1.0:
             raise ValueError(f"b must be in (0, 1] (FK10 driving parameter), got {self.b}")
-        if not float(self.alpha) > 1.0:
+        if not _is_traced(self.alpha) and not float(self.alpha) > 1.0:
             raise ValueError(
                 f"alpha must be > 1 (BM19: the power-law tail mass diverges as alpha→1), "
                 f"got {self.alpha}"
@@ -93,7 +110,7 @@ class VelocitySpec(eqx.Module):
 
     def __check_init__(self):
         _positive("beta_v", self.beta_v)
-        _positive("Q_target", self.Q_target)
+        _non_negative("Q_target", self.Q_target)  # Q_target=0: cold collapse (v=0 IC)
 
 
 class CompositionSpec(eqx.Module):
@@ -101,7 +118,8 @@ class CompositionSpec(eqx.Module):
 
     ``placement='multi_freefall'`` (default, Phase 1): the FK12 law p_⋆ ∝ w·ρ_total^{3/2}
     (SFR ∝ ρ/t_ff, gated on the BM19 transition) — the tail-star fraction is DERIVED
-    (``ClusterIC.f_sub_derived``), not chosen; passing ``f_sub`` here is an error.
+    (``ClusterIC.tail_star_fraction`` + the smooth ``collapse_eligible_fraction``),
+    not chosen; passing ``f_sub`` here is an error.
 
     ``placement='two_population'`` (legacy/ablation): ``n_tail = round(f_sub·N)`` stars
     from p ∝ w·ρ, the rest from p ∝ ρ — requires the free ``f_sub`` knob.
@@ -111,6 +129,9 @@ class CompositionSpec(eqx.Module):
     slope κ = 3/α.
     """
 
+    # Design note: `placement` is kept as an explicit mode string (not derived from
+    # `f_sub is None`) deliberately — Phase-4 fields (lambda_corr, companions) attach
+    # mode-specific validation (decision: 2026-07-16 review).
     placement: str = eqx.field(static=True, default="multi_freefall")
     f_sub: float | None = eqx.field(static=True, default=None)
     mask_sharpness: Float[Array, ""] | float = 8.0
@@ -124,7 +145,7 @@ class CompositionSpec(eqx.Module):
         if self.placement == "multi_freefall" and self.f_sub is not None:
             raise ValueError(
                 "f_sub is DERIVED under placement='multi_freefall' "
-                "(read ClusterIC.f_sub_derived); pass f_sub only with "
+                "(read ClusterIC.tail_star_fraction); pass f_sub only with "
                 "placement='two_population'"
             )
         if self.placement == "two_population":
