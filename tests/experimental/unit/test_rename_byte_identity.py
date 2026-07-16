@@ -91,7 +91,7 @@ def test_cluster_ic_matches_pins():
         geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0,
                               shape=(32, 32, 32)),
         velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
-        composition=CompositionSpec(f_sub=0.3),
+        composition=CompositionSpec(placement="two_population", f_sub=0.3),
         G=STELLAR.G, key=jax.random.PRNGKey(42),
     )
     assert _h(ic.positions) == _PINS["cluster_positions"]

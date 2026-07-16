@@ -1,4 +1,4 @@
-# gravoturb_fdf — Validation Summary
+# gravoturb — Validation Summary
 
 **Status: EXPERIMENTAL** — follow-up paper, **not** part of the initial progenax/jaxstro
 release and **not** shipped in the progenax wheel.
@@ -10,11 +10,11 @@ no prose claim of correctness exists without a fresh artifact behind it. Reprodu
 
 ```bash
 cd progenax
-PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance
+PYTHONPATH=src:src/experimental python -m gravoturb.validation.acceptance
 ```
 
-The acceptance suite lives in `gravoturb_fdf/validation/acceptance.py` (AC1–AC17) +
-`gravoturb_fdf/validation/calibration.py` (the Q(f_sub) driver behind AC7). numpy/scipy are
+The acceptance suite lives in `gravoturb/validation/acceptance.py` (AC1–AC17) +
+`gravoturb/validation/calibration.py` (the Q(f_sub) driver behind AC7). numpy/scipy are
 permitted on this validation/diagnostics side; the `theory/`, `field/`, and `inference/` cores
 are JAX-native.
 
@@ -170,11 +170,11 @@ mass-conserving realization's dense-mass fraction matches `dense_mass_fraction` 
 
 The `build_cluster_ic` layer (turbulent field → spherical envelope → star placement → coherent
 velocities → COM + virial scaling) has its own acceptance suite,
-`gravoturb_fdf/validation/cluster_acceptance.py`, under the same discipline: every number below
+`gravoturb/validation/cluster_acceptance.py`, under the same discipline: every number below
 was printed by the committed script. Reproduce with:
 
 ```bash
-PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.cluster_acceptance
+PYTHONPATH=src:src/experimental python -m gravoturb.validation.cluster_acceptance
 ```
 
 **Fresh run 2026-07-16** (fiducial ℳ=8, b=0.5, α=1.8, box=4 pc, 32³): **6/6 PASS.**
@@ -188,6 +188,22 @@ PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.cluster_accep
 | **AC-IC4** | velocity coherence (nearby stars co-move) | cosθ near +0.675 vs far −0.038 | **PASS** |
 | **AC-IC5** | envelope+field construction differentiable | d(core mass)/d r_h = +626.8, finite/nonzero | **PASS** |
 | **AC-IC6** | input β recovered from log-density P(k) slope | max \|err\| = 0.012; recovery-line slope 0.995 | **PASS** |
+
+**AC-IC7 — FK12 multi-freefall placement (Phase 1 gate, fresh 2026-07-16): PASS.**
+The default placement law is now ``p_⋆ ∝ w(s_turb)·ρ_total^{3/2}`` (FK12 Eq. 7 integrand,
+t_ff ∝ ρ^{−1/2} Eq. 8, verified against the held PDF; ε/φ_t cancel in the PMF — see the
+federrath-klessen-2012 per-paper note), with the former free ``f_sub`` replaced by the
+derived, differentiable ``f_sub_derived`` (AD=FD < 1e-6). Measured: (a) turbulence-OFF
+envelope control vs an independent numpy ρ^{3/2} oracle, two-sample KS = 0.006 (< 0.015);
+(b) f_sub_derived monotone ↓ in α at every ℳ (printed 4×3 table; ℳ-direction characterized,
+regime-dependent per AC8); (c) Q(β) re-baselined under multi-freefall (β=2→4 ordering
+preserved); (d) matched-fraction legacy comparison printed. The legacy ``two_population``
+mode is retained for ablations and reproduces the pre-rename pins byte-exactly.
+**A4 re-run of AC-IC0 under multi-freefall: PASS** against the placement-consistent
+ρ^{3/2}-weighted reference (OFF bias 5.4%); note the ℳ-relocation is STRONGER than legacy
+(realized/requested r_h up to ~1.9× at ℳ=12, 64³) and resolution-sensitive at 32³ for
+ℳ≥8 — **use ≥64³ grids with multi-freefall at high Mach** (the low-resolution guard is
+more binding under ρ^{3/2} weighting).
 
 **Honest caveats (2026-07-16 science audit):** (i) Q alone conflates β with concentration —
 AC-IC3's (m̄,s̄) plane is the separable statistic; per-realization β identifiability from Q is

@@ -39,7 +39,7 @@ def ic():
         geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0,
                               shape=(32, 32, 32)),
         velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
-        composition=CompositionSpec(f_sub=0.3),
+        composition=CompositionSpec(placement="two_population", f_sub=0.3),
         G=G, key=jax.random.PRNGKey(0),
     )
 

@@ -48,6 +48,78 @@ def f_tail_actual(
     return jnp.sum(w * rho) / jnp.sum(rho)
 
 
+# ── FK12 multi-freefall placement (Phase 1; per-paper note federrath-klessen-2012) ──
+
+
+def multi_freefall_pmf(
+    s: Float[Array, "..."],
+    s_t: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
+    s_density: Float[Array, "..."] | None = None,
+) -> Float[Array, "..."]:
+    r"""Normalized star-placement PMF ``p_⋆ ∝ w(s)·e^{(3/2)·s_density}``.
+
+    The FK12 Eq. 7 multi-freefall integrand per cell: SFR density ∝ ρ/t_ff ∝ ρ^{3/2}
+    (t_ff ∝ ρ^{-1/2}, Eq. 8), gated by the collapse-eligibility mask
+    ``w = σ(mask_sharpness·(s − s_t))`` on the BM19 transition (the s_t-for-s_crit
+    substitution). The ε/φ_t efficiency prefactors cancel in the normalization, so
+    *where* stars form carries no efficiency knob. ``s`` (local overdensity) feeds the
+    gate; ``s_density`` (default ``s``) feeds the freefall weight — with an envelope,
+    pass ``s_total`` so t_ff sees the TOTAL density while eligibility stays local.
+
+    Differentiable in (s, s_t, mask_sharpness, s_density); the exponent is shifted by
+    the max before exponentiation for overflow-safe normalization.
+    """
+    s_place = s if s_density is None else s_density
+    log_w = jax.nn.log_sigmoid(mask_sharpness * (s - s_t))
+    logits = log_w + 1.5 * s_place
+    logits = logits - jnp.max(logits)
+    p = jnp.exp(logits)
+    return p / jnp.sum(p)
+
+
+def f_sub_derived(
+    s: Float[Array, "..."],
+    s_t: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
+    s_density: Float[Array, "..."] | None = None,
+) -> Float[Array, ""]:
+    r"""Derived tail-star fraction: the collapse-eligible share of the freefall weight.
+
+    ``f_sub_derived = Σ w·e^{(3/2)s_density} / Σ e^{(3/2)s_density}`` — the fraction of
+    the *ungated* multi-freefall placement measure that is collapse-eligible. This is
+    the physically-predicted successor of the former free ``f_sub`` knob (finalization
+    design Phase 1): →1 when the whole cloud sits above s_t, →0 for a shallow PDF.
+    Differentiable in every argument (∂/∂s_t < 0: raising the threshold empties the
+    tail); reported on ``ClusterIC`` in ``placement='multi_freefall'`` mode.
+    """
+    s_place = s if s_density is None else s_density
+    w = collapse_weights(s, s_t, mask_sharpness)
+    ff = jnp.exp(1.5 * (s_place - jnp.max(s_place)))  # overflow-safe common shift
+    return jnp.sum(w * ff) / jnp.sum(ff)
+
+
+def sample_positions_multi_freefall(
+    s: Float[Array, "nx ny nz"],
+    s_t: Float[Array, ""],
+    mask_sharpness: Float[Array, ""],
+    n_stars: int,
+    key: jax.Array,
+    box_size: float = 1.0,
+    s_density: Float[Array, "nx ny nz"] | None = None,
+) -> Float[Array, "n_stars 3"]:
+    r"""Sample ``n_stars`` positions from the multi-freefall PMF (+ sub-voxel jitter).
+
+    Categorical placement — non-differentiable in the positions (same contract as
+    :func:`sample_positions`); the differentiable objects are the PMF and
+    :func:`f_sub_derived`.
+    """
+    k_idx, k_jit = jax.random.split(key)
+    p = multi_freefall_pmf(s, s_t, mask_sharpness, s_density=s_density).ravel()
+    idx = jax.random.choice(k_idx, p.size, (n_stars,), replace=True, p=p)
+    return cells_to_positions(idx, s.shape, k_jit, box_size)
+
+
 def sample_cic_counts(
     s: Float[Array, "n n n"],
     n_bar: Float[Array, ""],

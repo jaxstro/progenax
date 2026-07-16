@@ -1,10 +1,10 @@
-# `gravoturb_fdf` — gravoturbulent + fractal-density-field initial conditions
+# `gravoturb` — gravoturbulent + fractal-density-field initial conditions
 
 > ## ⚠️ EXPERIMENTAL — follow-up paper
 > This package is **not** part of the initial progenax/jaxstro release and is **not** shipped in
 > the progenax wheel. It is a standalone, repo-only subsystem for a follow-up paper. It depends
 > one-way on `progenax.cluster.turbulence`; **nothing in released progenax imports it.**
-> Import it as `gravoturb_fdf` (after putting `src/experimental` on the path), never as
+> Import it as `gravoturb` (after putting `src/experimental` on the path), never as
 > `progenax.gravoturb` (that module was removed in the 2026-06 clean-room rewrite).
 
 Clean-room rewrite (2026-06) of the gravoturbulent-1D + FDF-3D IC pipeline, authored from
@@ -23,7 +23,7 @@ re-validates it before believing it. The cornerstone that was −37% in the old 
 ## Layout
 
 ```
-gravoturb_fdf/
+gravoturb/
   theory/      bm19.py pp20.py pn11.py pdf.py gaussianization.py projection.py cic.py  # 1D PDF + predicted stats — JAX, differentiable
   field/       field.py tail.py sampling.py pipeline.py  # 3D realization — GRF + rank copula → stars
                envelope.py velocity.py                  # cluster shape (log-envelope) + coherent turbulent velocities
@@ -38,16 +38,16 @@ gravoturb_fdf/
 
 | Layer | Key public symbols |
 |-------|--------------------|
-| `theory.bm19` | `sigma_s_squared`, `transition_density`, `dense_mass_fraction`, `dense_mass_fraction_lognormal`, `pdf_slope_to_radial` |
-| `theory.pp20` | `magnification_factor`, `magnification_factor_with_core`, `zeta_from_field` |
-| `theory.pn11` | `virial_parameter`, `critical_overdensity`, `critical_log_density` |
-| `theory.pdf` | `log_density_pdf`, `log_density_icdf`, `log_density_icdf_analytic`, `mass_cdf`, `mean_density`, `build_cdf_table` |
-| `field.field` | `gaussian_random_field`, `rank_copula_field`, `mass_conserving_copula_field`, `low_resolution_flag` |
-| `field.tail` | `collapse_weights`, `f_tail_actual` |
-| `field.sampling` | `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
-| `field.pipeline` | `TurbulentField`, `build_turbulent_field`, `cloud_to_stars` |
+| `theory.density_pdf` | `sigma_s_squared`, `transition_density`, `dense_mass_fraction`, `dense_mass_fraction_lognormal`, `pdf_slope_to_radial` |
+| `theory.dense_gas_sfr` | `magnification_factor`, `magnification_factor_with_core`, `zeta_from_field` |
+| `theory.collapse_threshold` | `virial_parameter`, `critical_overdensity`, `critical_log_density` |
+| `theory.density_cdf` | `log_density_pdf`, `log_density_icdf`, `log_density_icdf_analytic`, `mass_cdf`, `mean_density`, `build_cdf_table` |
+| `realization.gaussian_field` | `gaussian_random_field`, `rank_copula_field`, `mass_conserving_copula_field`, `low_resolution_flag` |
+| `realization.placement` | `collapse_weights`, `f_tail_actual` |
+| `realization.placement` | `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
+| `realization.pipeline` | `TurbulentField`, `build_turbulent_field`, `cloud_to_stars` |
 | `diagnostics.q` | `compute_q_parameter` (CW04, `A = πR²`) |
-| `theory.gaussianization` / `projection` / `cic` | `gaussianized_xi`, `gaussian_correlation_grid`, `cic_variance`, `count_distribution` |
+| `theory.log_correlations` / `projection` / `cic` | `gaussianized_xi`, `gaussian_correlation_grid`, `cic_variance`, `count_distribution` |
 | `inference` | `data_vector`, `gaussian_loglike`, `count_loglike`, `tail_exceedance_loglike`, `alpha_fisher_info`, `sigma_alpha`, `run_nuts` |
 
 ## Module reference
@@ -63,32 +63,32 @@ explained pedagogically in
 
 ### `theory/` — analytic density-PDF physics + predicted statistics (JAX, differentiable)
 
-- **`bm19.py`** — the one-point physics: lognormal width `sigma_s_squared` $=\ln(1+(b\mathcal{M})^2)$
+- **`density_pdf.py`** — the one-point physics: lognormal width `sigma_s_squared` $=\ln(1+(b\mathcal{M})^2)$
   (FK10 Eq. 19), the lognormal→powerlaw transition `transition_density` $s_t=(\alpha-\tfrac12)\sigma_s^2$,
   and the self-gravitating mass fraction `dense_mass_fraction`.
-- **`pdf.py`** — the BM19 *volume* PDF `log_density_pdf` (lognormal body + power-law tail), its CDF
+- **`density_cdf.py`** — the BM19 *volume* PDF `log_density_pdf` (lognormal body + power-law tail), its CDF
   and analytic inverse-CDF (`log_density_icdf`, `log_density_icdf_analytic`) — the marginal the field is mapped to,
   and the engine of the rank copula — plus `mass_cdf` / `mean_density`.
-- **`pp20.py`, `pn11.py`** — the dense-gas SFR side: the Parmentier & Pasquali ζ magnification factor
+- **`dense_gas_sfr.py`, `collapse_threshold.py`** — the dense-gas SFR side: the Parmentier & Pasquali ζ magnification factor
   and the Padoan & Nordlund critical density (the forward-SFR chapters, [](../../../docs/website/10-theory/gravoturbulence/index.md)).
-- **`gaussianization.py`** — the log-density **2-point** $\xi_s(r)=\sum_n (c_n^2/n!)\,\rho_g(r)^n$ via
+- **`log_correlations.py`** — the log-density **2-point** $\xi_s(r)=\sum_n (c_n^2/n!)\,\rho_g(r)^n$ via
   the Hermite coefficients $c_n$ of the copula map (`gaussianized_xi`). The $\beta$-carrier; the
   Szapudi & Pan / Coles & Jones machinery.
 - **`projection.py`** — the Gaussian correlation $\rho_g(r;\beta)$ from $k^{-\beta}$
   (`gaussian_correlation_grid`), Gaussian smoothing at a cell scale, and the **Limber** 3-D→2-D
   projection (the data are 2-D sky positions).
-- **`cic.py`** — counts-in-cells: the cell-averaged linear variance and CIC moment `cic_variance`
+- **`counts_in_cells.py`** — counts-in-cells: the cell-averaged linear variance and CIC moment `cic_variance`
   $\sigma_N^2=\bar N+\bar N^2\bar\xi$, and the compound-Poisson count distribution `count_distribution`
   $P(N)$ (the locally-Poisson CIC of Szapudi & Pan).
 
 ### `field/` — the stochastic 3-D realization (the ground-truth oracle; non-differentiable)
 
-- **`field.py`** — `gaussian_random_field` (FFT, $P(k)\propto k^{-\beta}$), then the copula map to the
+- **`gaussian_field.py` + `copula.py`** — `gaussian_random_field` (FFT, $P(k)\propto k^{-\beta}$), then the copula map to the
   BM19 marginal: `rank_copula_field` (faithful volume marginal — used for the tail) and
   `mass_conserving_copula_field` (exact `f_dense` — used for the cornerstone). `low_resolution_flag`
   guards the under-resolved-tail regime.
-- **`tail.py`** — the soft dense-tail mask (`collapse_weights`, `f_tail_actual`).
-- **`sampling.py`** — `sample_cic_counts` (clean inhomogeneous-Poisson counts) and the categorical
+- **`placement.py`** — the soft dense-tail mask (`collapse_weights`, `f_tail_actual`).
+- **`placement.py`** — `sample_cic_counts` (clean inhomogeneous-Poisson counts) and the categorical
   tail/smooth star sampler (`sample_positions`).
 - **`pipeline.py`** — the end-to-end `build_turbulent_field` and `cloud_to_stars`.
 
@@ -124,18 +124,18 @@ explained pedagogically in
 
 ## Use
 
-The wheel packages only `src/progenax`, so `gravoturb_fdf` is dev/repo-only. Pytest sees it via
+The wheel packages only `src/progenax`, so `gravoturb` is dev/repo-only. Pytest sees it via
 `pythonpath = ["src", "src/experimental"]` in `pyproject.toml`; for bare scripts, set the path:
 
 ```bash
 cd progenax
-PYTHONPATH=src:src/experimental python -m gravoturb_fdf.validation.acceptance   # print AC1–AC17
+PYTHONPATH=src:src/experimental python -m gravoturb.validation.acceptance   # print AC1–AC17
 PYTHONPATH=src:src/experimental pytest tests/experimental -q                     # 245 experimental tests
 ```
 
 ```python
-from gravoturb_fdf.theory.bm19 import sigma_s_squared, dense_mass_fraction
-from gravoturb_fdf.field.pipeline import build_turbulent_field
+from gravoturb.theory.density_pdf import sigma_s_squared, dense_mass_fraction
+from gravoturb.realization.pipeline import build_turbulent_field
 import jax
 
 sigma_s_squared(mach=5.0, b=0.4)              # ln(1 + b²ℳ²)  (FK10 Eq. 19)
@@ -158,10 +158,11 @@ ic = build_cluster_ic(
     cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
     geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=4.0, shape=(32,)*3),
     velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
-    composition=CompositionSpec(f_sub=0.3),
+    composition=CompositionSpec(),  # multi_freefall default; f_sub is DERIVED
+    # (legacy ablation mode: CompositionSpec(placement="two_population", f_sub=0.3))
     G=STELLAR.G, key=jax.random.PRNGKey(0),
 )
-ic.positions, ic.velocities, ic.Q_virial, ic.field.f_dense_realized
+ic.positions, ic.velocities, ic.Q_virial, ic.f_sub_derived, ic.field.f_dense_realized
 ```
 
 ## Conventions

@@ -51,12 +51,13 @@ def test_velocity_spec_guards():
 
 
 def test_composition_spec_guards():
-    CompositionSpec(f_sub=0.3)
-    assert float(CompositionSpec(f_sub=0.0).mask_sharpness) == 8.0
+    CompositionSpec()  # multi_freefall default, f_sub derived
+    CompositionSpec(placement="two_population", f_sub=0.3)
+    assert float(CompositionSpec().mask_sharpness) == 8.0
     with pytest.raises(ValueError, match="f_sub"):
-        CompositionSpec(f_sub=1.2)
+        CompositionSpec(placement="two_population", f_sub=1.2)
     with pytest.raises(ValueError, match="mask_sharpness"):
-        CompositionSpec(f_sub=0.3, mask_sharpness=0.0)
+        CompositionSpec(mask_sharpness=0.0)
 
 
 def test_top_level_api_exports():

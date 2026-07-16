@@ -97,18 +97,39 @@ class VelocitySpec(eqx.Module):
 
 
 class CompositionSpec(eqx.Module):
-    r"""Star placement: which cells form stars, and the dense-tail split.
+    r"""Star placement: which cells form stars, and the dense-tail physics.
 
-    Current (two-population) law: ``n_tail = round(f_sub·N)`` stars from p ∝ w·ρ (w = soft
-    collapse mask of sharpness ``mask_sharpness`` on the LOCAL overdensity), the rest from
-    p ∝ ρ. (Phase 1 makes the FK12 multi-freefall law p ∝ w·ρ^{3/2} the default, with f_sub
-    derived rather than chosen.)
+    ``placement='multi_freefall'`` (default, Phase 1): the FK12 law p_⋆ ∝ w·ρ_total^{3/2}
+    (SFR ∝ ρ/t_ff, gated on the BM19 transition) — the tail-star fraction is DERIVED
+    (``ClusterIC.f_sub_derived``), not chosen; passing ``f_sub`` here is an error.
+
+    ``placement='two_population'`` (legacy/ablation): ``n_tail = round(f_sub·N)`` stars
+    from p ∝ w·ρ, the rest from p ∝ ρ — requires the free ``f_sub`` knob.
+
+    ``mask_sharpness`` is the numerical sigmoid sharpness of the collapse-eligibility
+    mask w (κ→∞ recovers the hard s > s_t indicator); distinct from the physical radial
+    slope κ = 3/α.
     """
 
-    f_sub: float = eqx.field(static=True)
+    placement: str = eqx.field(static=True, default="multi_freefall")
+    f_sub: float | None = eqx.field(static=True, default=None)
     mask_sharpness: Float[Array, ""] | float = 8.0
 
     def __check_init__(self):
-        if not 0.0 <= float(self.f_sub) <= 1.0:
-            raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
+        if self.placement not in ("multi_freefall", "two_population"):
+            raise ValueError(
+                f"placement must be 'multi_freefall' or 'two_population', "
+                f"got {self.placement!r}"
+            )
+        if self.placement == "multi_freefall" and self.f_sub is not None:
+            raise ValueError(
+                "f_sub is DERIVED under placement='multi_freefall' "
+                "(read ClusterIC.f_sub_derived); pass f_sub only with "
+                "placement='two_population'"
+            )
+        if self.placement == "two_population":
+            if self.f_sub is None:
+                raise ValueError("placement='two_population' requires the f_sub knob")
+            if not 0.0 <= float(self.f_sub) <= 1.0:
+                raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
         _positive("mask_sharpness", self.mask_sharpness)

@@ -31,7 +31,11 @@ from jaxtyping import Array, Float
 
 from gravoturb.realization.envelope import apply_spherical_envelope
 from gravoturb.realization.pipeline import TurbulentField, build_turbulent_field
-from gravoturb.realization.placement import sample_positions
+from gravoturb.realization.placement import (
+    f_sub_derived,
+    sample_positions,
+    sample_positions_multi_freefall,
+)
 from gravoturb.realization.turbulent_velocity import (
     sample_turbulent_velocities,
     turbulent_velocity_field,
@@ -45,8 +49,10 @@ class ClusterIC(NamedTuple):
     positions: Float[Array, "n 3"]    # COM-centred, length units of box_size (pc for STELLAR)
     velocities: Float[Array, "n 3"]   # COM frame, units set by G (pc/Myr for STELLAR)
     masses: Float[Array, "n"]         # M⊙
-    field: TurbulentField                   # realized turbulent field (BM19 provenance / diagnostics)
+    field: TurbulentField             # realized turbulent field (BM19 provenance / diagnostics)
     Q_virial: Float[Array, ""]        # realized virial ratio T/|V|
+    f_sub_derived: Float[Array, ""] | None = None  # FK12-derived tail-star fraction
+    #   (multi_freefall mode only; None under the legacy two_population placement)
 
 
 def build_cluster_ic(
@@ -73,10 +79,20 @@ def build_cluster_ic(
     )
     s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
 
-    positions = sample_positions(
-        field.s, field.s_t, composition.mask_sharpness, composition.f_sub, n_stars, k_pos,
-        box_size=geometry.box_size, s_density=s_total,
-    )
+    if composition.placement == "multi_freefall":
+        positions = sample_positions_multi_freefall(
+            field.s, field.s_t, composition.mask_sharpness, n_stars, k_pos,
+            box_size=geometry.box_size, s_density=s_total,
+        )
+        fsub_der = f_sub_derived(
+            field.s, field.s_t, composition.mask_sharpness, s_density=s_total
+        )
+    else:  # 'two_population' (legacy/ablation; guarded by CompositionSpec)
+        positions = sample_positions(
+            field.s, field.s_t, composition.mask_sharpness, composition.f_sub,
+            n_stars, k_pos, box_size=geometry.box_size, s_density=s_total,
+        )
+        fsub_der = None
 
     v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
@@ -97,5 +113,5 @@ def build_cluster_ic(
 
     return ClusterIC(
         positions=pos_com, velocities=v_scaled, masses=masses, field=field,
-        Q_virial=Q_virial,
+        Q_virial=Q_virial, f_sub_derived=fsub_der,
     )

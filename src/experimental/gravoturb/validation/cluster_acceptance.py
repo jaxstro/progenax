@@ -56,7 +56,7 @@ def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, f_sub=0.3, seed=0):
         cloud=CloudSpec(mach=MACH, b=B, alpha=ALPHA, beta=beta),
         geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX, shape=SHAPE),
         velocity=VelocitySpec(beta_v=BETA_V, Q_target=Q_target),
-        composition=CompositionSpec(f_sub=f_sub),
+        composition=CompositionSpec(placement="two_population", f_sub=f_sub),
         G=G, key=jax.random.PRNGKey(seed),
     )
 
@@ -267,7 +267,7 @@ def ac_ic6_beta_recovery(seeds=(0, 1, 2), n_grid=64):
 
 
 # ── AC-IC0: envelope-fidelity map — requested r_h vs realized concentration ──
-def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5):
+def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5, placement="two_population"):
     """Characterization map (audit C9 / design amendment A4): how far the realized
     half-mass radius sits from the requested envelope r_h, vs Mach and resolution.
 
@@ -277,8 +277,10 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5):
     NOTE (A4): this map is placement-mode-dependent — re-run at Phase 1 close under the
     multi-freefall placement law.
     """
+    from gravoturb.realization.placement import sample_positions_multi_freefall
+
     print("\n=== AC-IC0 — envelope fidelity: realized r_half vs requested r_h "
-          f"(r_h={r_h} pc, Plummer) ===")
+          f"(r_h={r_h} pc, Plummer, placement={placement}) ===")
     rows = []
     for shape in [(32,) * 3, (64,) * 3]:
         for mach in [None, 4.0, 8.0, 12.0]:  # None → turbulence OFF (pure envelope)
@@ -288,21 +290,143 @@ def ac_ic0_envelope_fidelity(seeds=(0, 1, 2), n=3000, r_h=0.5):
                                       jax.random.PRNGKey(sd))
                 s_turb = jnp.zeros(shape) if mach is None else fld.s
                 s_tot = apply_spherical_envelope(s_turb, PlummerProfile(r_h=r_h), BOX)
-                pos = np.asarray(sample_positions(
-                    s_turb, fld.s_t, 8.0, 0.3, n, jax.random.PRNGKey(sd + 77),
-                    box_size=BOX, s_density=s_tot)) - BOX / 2
+                if placement == "multi_freefall":
+                    pos = np.asarray(sample_positions_multi_freefall(
+                        s_turb, fld.s_t if mach is not None else -1e3, 8.0, n,
+                        jax.random.PRNGKey(sd + 77), box_size=BOX,
+                        s_density=s_tot)) - BOX / 2
+                else:
+                    pos = np.asarray(sample_positions(
+                        s_turb, fld.s_t, 8.0, 0.3, n, jax.random.PRNGKey(sd + 77),
+                        box_size=BOX, s_density=s_tot)) - BOX / 2
                 r50.append(np.median(np.linalg.norm(pos, axis=1)))
             m, s = float(np.mean(r50)), float(np.std(r50))
             rows.append((shape[0], mach, m, s))
             lbl = "OFF " if mach is None else f"{mach:4.1f}"
             print(f"  grid {shape[0]:>3}³  ℳ={lbl}  realized r_half = {m:.3f}±{s:.3f} pc"
                   f"   (ratio {m / r_h:.2f}× requested)")
-    off_bias = max(abs(r[2] / r_h - 1.0) for r in rows if r[1] is None)
+    # Placement-consistent OFF reference: the ρ^p-weighted median radius of the SAME
+    # truncated grid (p=1 two-population smooth stars, p=3/2 multi-freefall). Judging
+    # the ρ^{3/2} law against r_h itself would mislabel correct extra concentration
+    # as a sampling bias (amendment A4).
+    p_exp = 1.5 if placement == "multi_freefall" else 1.0
+    ref = {}
+    for shape in [(32,) * 3, (64,) * 3]:
+        rg = np.asarray(radius_grid(shape, BOX)).ravel()
+        wgt = np.asarray(PlummerProfile(r_h=r_h).density(jnp.asarray(rg))) ** p_exp
+        order = np.argsort(rg)
+        cw = np.cumsum(wgt[order])
+        ref[shape[0]] = float(rg[order][np.searchsorted(cw, 0.5 * cw[-1])])
+    off_bias = max(abs(r[2] / ref[r[0]] - 1.0) for r in rows if r[1] is None)
     ok = off_bias < 0.15 and len(rows) == 8
-    print(f"  turbulence-OFF |bias| = {off_bias:.3f} (<0.15 → grid/box/sampling honest); "
-          f"ON rows document turbulent relocation (r_h = SHAPE parameter).")
+    print(f"  OFF reference (ρ^{p_exp}-weighted median radius, truncated grid): "
+          + ", ".join(f"{k}³ → {v:.3f} pc" for k, v in ref.items()))
+    print(f"  turbulence-OFF |bias vs reference| = {off_bias:.3f} (<0.15 → "
+          f"grid/box/sampling honest); ON rows document turbulent relocation "
+          f"(r_h = SHAPE parameter).")
     print(f"  {'PASS' if ok else 'FAIL'}")
-    return {"passed": ok, "rows": rows, "off_bias": off_bias}
+    return {"passed": ok, "rows": rows, "off_bias": off_bias, "off_reference": ref}
+
+
+# ── AC-IC7: FK12 multi-freefall placement (Phase 1 gate) ──
+def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
+    """(a) turbulence-OFF control: multi-freefall placement = ρ_env^{3/2}-weighted
+    envelope (independent numpy oracle, two-sample KS); (b) f_sub_derived vs (α, ℳ)
+    printed table (α-direction asserted — PDF-grounded; ℳ characterized); (c) Q(β)
+    re-baselined under multi_freefall; (d) paired legacy-vs-new Q at matched tail
+    fraction. Design 2026-07-16 Phase 1 + amendment A4 (AC-IC0 re-run appended)."""
+    from gravoturb.realization.placement import (
+        f_sub_derived,
+        sample_positions_multi_freefall,
+    )
+
+    print("\n=== AC-IC7 — FK12 multi-freefall placement (p ∝ w·ρ_total^{3/2}) ===")
+
+    # (a) envelope control vs independent numpy oracle
+    n_grid, n_star = 48, 40000
+    prof = PlummerProfile(r_h=0.5)
+    s0 = jnp.zeros((n_grid,) * 3)
+    s_tot = apply_spherical_envelope(s0, prof, BOX)
+    pos = np.asarray(sample_positions_multi_freefall(
+        s0, -1e3, 8.0, n_star, jax.random.PRNGKey(11), box_size=BOX,
+        s_density=s_tot)) - BOX / 2
+    r_star = np.sort(np.linalg.norm(pos, axis=1))
+    ax = (np.arange(n_grid) + 0.5) / n_grid * BOX - BOX / 2
+    X, Y, Z = np.meshgrid(ax, ax, ax, indexing="ij")
+    r_cell = np.sqrt(X**2 + Y**2 + Z**2).ravel()
+    w = np.asarray(PlummerProfile(r_h=0.5).density(jnp.asarray(r_cell))) ** 1.5
+    rng = np.random.default_rng(2026)
+    idx = rng.choice(w.size, size=n_star, p=w / w.sum())
+    ijk = np.stack(np.unravel_index(idx, (n_grid,) * 3), axis=-1)
+    ref = (ijk + rng.uniform(size=ijk.shape)) * (BOX / n_grid) - BOX / 2
+    r_ref = np.sort(np.linalg.norm(ref, axis=1))
+    allr = np.concatenate([r_star, r_ref])
+    ks = float(np.max(np.abs(
+        np.searchsorted(r_star, allr, side="right") / r_star.size
+        - np.searchsorted(r_ref, allr, side="right") / r_ref.size)))
+    ok_a = ks < 0.015
+    print(f"  (a) envelope control: two-sample KS vs numpy ρ^1.5 oracle = {ks:.4f} "
+          f"(<0.015) {'PASS' if ok_a else 'FAIL'}")
+
+    # (b) f_sub_derived response table
+    print("  (b) f_sub_derived(α, ℳ)  [envelope-free box, 32³, seed-averaged]:")
+    grid_a = [1.5, 1.8, 2.2, 2.6]
+    grid_m = [4.0, 8.0, 12.0]
+    fsd = {}
+    for al in grid_a:
+        for m in grid_m:
+            vals = []
+            for sd in seeds:
+                fld = build_turbulent_field(m, B, al, 3.0, (32,) * 3,
+                                            jax.random.PRNGKey(sd))
+                vals.append(float(f_sub_derived(fld.s, fld.s_t, 8.0)))
+            fsd[(al, m)] = float(np.mean(vals))
+    header = "      α\\ℳ " + "".join(f"{m:>9.1f}" for m in grid_m)
+    print(header)
+    for al in grid_a:
+        print(f"      {al:>4.1f} " + "".join(f"{fsd[(al, m)]:>9.4f}" for m in grid_m))
+    ok_b = all(fsd[(grid_a[i], m)] > fsd[(grid_a[i + 1], m)]
+               for i in range(len(grid_a) - 1) for m in grid_m)
+    print(f"      monotone ↓ in α at every ℳ = {ok_b} {'PASS' if ok_b else 'FAIL'} "
+          "(ℳ-direction characterized, not asserted)")
+
+    # (c) Q(β) under multi_freefall (the Phase-1 re-baseline; cf. AC-IC3 legacy values)
+    print("  (c) CW04 Q(β) re-baseline, placement=multi_freefall (r_h=0.5, n=2000):")
+    q_rows = []
+    for beta in [2.0, 3.0, 4.0]:
+        qs = []
+        for sd in seeds:
+            ic = _ic_mff(n=2000, beta=beta, seed=sd)
+            qs.append(q_components(np.asarray(ic.positions))[0])
+        q_rows.append((beta, float(np.mean(qs)), float(np.std(qs))))
+        print(f"      β={beta:.1f}  Q = {q_rows[-1][1]:.3f} ± {q_rows[-1][2]:.3f}")
+    ok_c = q_rows[0][1] > q_rows[-1][1]  # rough→smooth ordering preserved
+    print(f"      Q(β=2) > Q(β=4) = {ok_c} {'PASS' if ok_c else 'FAIL'}")
+
+    # (d) paired legacy-vs-new at matched tail fraction
+    ic_new = _ic_mff(n=2000, beta=3.0, seed=0)
+    f_match = float(ic_new.f_sub_derived)
+    ic_old = _ic(n=2000, beta=3.0, f_sub=min(max(f_match, 0.0), 1.0), seed=0)
+    q_new = q_components(np.asarray(ic_new.positions))[0]
+    q_old = q_components(np.asarray(ic_old.positions))[0]
+    print(f"  (d) matched-fraction comparison: f_sub_derived={f_match:.3f}; "
+          f"Q_new={q_new:.3f} vs Q_legacy={q_old:.3f} (documented, not gated)")
+
+    ok = ok_a and ok_b and ok_c
+    print(f"  {'PASS' if ok else 'FAIL'}")
+    return {"passed": ok, "ks": ks, "fsd": fsd, "q_rows": q_rows,
+            "f_match": f_match, "q_new": q_new, "q_legacy": q_old}
+
+
+def _ic_mff(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, seed=0):
+    return build_cluster_ic(
+        jnp.ones(n),
+        cloud=CloudSpec(mach=MACH, b=B, alpha=ALPHA, beta=beta),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=r_h), box_size=BOX, shape=SHAPE),
+        velocity=VelocitySpec(beta_v=BETA_V, Q_target=Q_target),
+        composition=CompositionSpec(),  # multi_freefall default
+        G=G, key=jax.random.PRNGKey(seed),
+    )
 
 
 # ── figure gallery ──
@@ -448,6 +572,8 @@ def main():
     print(f"FDF CLUSTER IC ACCEPTANCE  |  ℳ={MACH}, b={B}, α={ALPHA}, box={BOX}pc, shape={SHAPE}")
     print("=" * 78)
     r0 = ac_ic0_envelope_fidelity()
+    r0m = ac_ic0_envelope_fidelity(placement="multi_freefall")  # A4 re-run (Phase 1)
+    r7 = ac_ic7_multi_freefall()
     r1 = ac_ic1_envelope()
     r2 = ac_ic2_virial()
     r3 = ac_ic3_substructure()
@@ -463,6 +589,8 @@ def main():
     _fig_beta_recovery(r6)
 
     results = {"AC-IC0 envelope fidelity": r0,
+               "AC-IC0 (multi_freefall, A4)": r0m,
+               "AC-IC7 multi-freefall": r7,
                "AC-IC1 envelope": r1, "AC-IC2 virial": r2, "AC-IC3 substructure": r3,
                "AC-IC4 coherence": r4, "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6}
     print("\n" + "=" * 78)

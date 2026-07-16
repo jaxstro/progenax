@@ -100,6 +100,18 @@ Two facts that matter downstream:
 - [](burkhart-mocz-2019.md) — BM19 *simplifies* this framework by tying $s_\mathrm{crit}$ to the PDF transition density $s_t$, removing a free critical density.
 - $b\in[1/3,1]$ grounds `cluster.turbulence.b_from_environment` and the FK10 forcing parameter.
 
+## Placement-PMF corollary (gravoturb Phase 1, verified vs the PDF 2026-07-16)
+
+The multi-freefall integrand of Eq. 7 — ``[t_ff(ρ₀)/t_ff(ρ)]·(ρ/ρ₀) = (ρ/ρ₀)^{3/2}`` via
+Eq. 8 — is the *relative star-formation weight per cell*. Normalizing it into a placement
+PMF cancels the ``ε/φ_t`` efficiency prefactors exactly, so **where** stars form needs no
+efficiency knob (only **how many** does, and the IC generator takes N⋆ as input). gravoturb's
+``placement='multi_freefall'`` uses ``p_⋆ ∝ w(s_turb)·e^{(3/2)s_total}`` with the eligibility
+gate ``w`` on the BM19 transition ``s_t`` — the s_t-for-s_crit substitution described under
+"Use in progenax" (BM19's derived transition replaces FK12's assumed critical density; FK12
+itself does not license s_t, BM19 does). The derived tail-star fraction
+``f_sub_derived = Σ_tail p_⋆ / Σ p_⋆`` then replaces the former free ``f_sub`` knob.
+
 ## Notes
 
 - **The HD `gravoturb` path drops magnetic fields**: it uses $\sigma_s^2=\ln(1+b^2\mathcal{M}^2)$,
