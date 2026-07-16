@@ -21,7 +21,7 @@ Smooth single-population ICs are built with ``progenax.build_spatial_ic``
 (``generate_cluster_ic``/``ClusterState``) and the ``lambda_seg`` blend were
 retired in the 2026-06 unified redesign (pre-launch, no backwards compat).
 
-Turbulent/fractal substructure ICs live in the experimental ``gravoturb_fdf``
+Turbulent/fractal substructure ICs live in the experimental ``gravoturb``
 package (follow-up paper), not in released progenax.
 
 References:

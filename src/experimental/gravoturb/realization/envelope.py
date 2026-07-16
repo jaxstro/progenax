@@ -1,4 +1,4 @@
-r"""Spherical cluster-shape envelope for the FDF ICs (separable log-space).
+r"""Spherical cluster-shape envelope for the gravoturbulent ICs (separable log-space).
 
 A young cluster forms from a centrally-concentrated turbulent clump: a smooth radial profile
 (the SHAPE) modulated by turbulent fluctuations (the SUBSTRUCTURE). We model this by adding a radial

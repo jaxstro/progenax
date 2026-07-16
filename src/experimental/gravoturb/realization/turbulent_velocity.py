@@ -1,4 +1,4 @@
-r"""Turbulent coherent velocities for the FDF ICs (build 2).
+r"""Turbulent coherent velocities for the gravoturbulent ICs (build 2).
 
 A young cluster's stars inherit the local coherent velocity of the natal turbulent gas (Goodwin &
 Whitworth 2004 argue coherent, mildly super-virial velocities are the most realistic post-gas state).

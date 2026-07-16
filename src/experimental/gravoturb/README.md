@@ -1,4 +1,4 @@
-# `gravoturb` — gravoturbulent + fractal-density-field initial conditions
+# `gravoturb` — gravoturbulent initial conditions (turbulent density fields → star clusters)
 
 > ## ⚠️ EXPERIMENTAL — follow-up paper
 > This package is **not** part of the initial progenax/jaxstro release and is **not** shipped in
@@ -7,9 +7,10 @@
 > Import it as `gravoturb` (after putting `src/experimental` on the path), never as
 > `progenax.gravoturb` (that module was removed in the 2026-06 clean-room rewrite).
 
-Clean-room rewrite (2026-06) of the gravoturbulent-1D + FDF-3D IC pipeline, authored from
-PDF-grounded theory and validated by a committed acceptance suite that prints real numbers.
-See [`VALIDATION_SUMMARY.md`](VALIDATION_SUMMARY.md) for the current AC1–AC17 results.
+Clean-room rewrite (2026-06) of the gravoturbulent IC pipeline — 1-D density-PDF theory plus a
+3-D turbulent-density-field realization — authored from PDF-grounded theory and validated by a
+committed acceptance suite that prints real numbers.
+See [`VALIDATION_SUMMARY.md`](VALIDATION_SUMMARY.md) for the current AC1–AC17 + AC-IC0–IC7 results.
 
 ## Why a rewrite
 
@@ -24,16 +25,17 @@ re-validates it before believing it. The cornerstone that was −37% in the old 
 
 ```
 gravoturb/
-  theory/      bm19.py pp20.py pn11.py pdf.py gaussianization.py projection.py cic.py  # 1D PDF + predicted stats — JAX, differentiable
-  field/       field.py tail.py sampling.py pipeline.py  # 3D realization — GRF + rank copula → stars
-               envelope.py velocity.py                  # cluster shape (log-envelope) + coherent turbulent velocities
-  cluster.py   build_cluster_ic → ClusterIC             # end-to-end natal-parameters → N-body IC (Build 4)
-  masses.py    correlated_mass_assignment               # optional density-correlated (primordial-segregation) masses
-  diagnostics/ q.py                                     # CW04 Q substructure metric (numpy/scipy, non-diff)
+  specs.py     CloudSpec GeometrySpec VelocitySpec CompositionSpec  # typed, validated parameter specs
+  cluster.py   build_cluster_ic → ClusterIC             # end-to-end natal-parameters → N-body IC
+  theory/      density_pdf.py density_cdf.py dense_gas_sfr.py collapse_threshold.py
+               log_correlations.py projection.py counts_in_cells.py  # 1D PDF + predicted stats — JAX, differentiable
+  realization/ gaussian_field.py copula.py placement.py pipeline.py  # 3D realization — GRF + rank copula → stars
+               envelope.py turbulent_velocity.py mass_assignment.py  # cluster shape (log-envelope) + coherent turbulent velocities + density-correlated masses
+  diagnostics/ q.py mass_density.py                     # CW04 Q substructure metric (numpy/scipy, non-diff) + mass-density diagnostics
   inference/   covariance.py likelihood.py fisher.py hmc.py       # differentiable predicted-statistics inference (blackjax NUTS)
                projected_logp.py priors.py sbc.py flow_npe.py diagnostics.py  # 2D projected-β forward model, priors, SBC, NPE baseline, HMC diagnostics
   validation/  acceptance.py calibration.py measure.py  # AC1–AC17 printing scripts + Q(f_sub) driver + oracles
-               cluster_acceptance.py                    # AC-IC1–IC6 cluster-IC suite + figure gallery
+               cluster_acceptance.py                    # AC-IC0–IC7 cluster-IC suite + figure gallery
 ```
 
 | Layer | Key public symbols |
@@ -42,9 +44,9 @@ gravoturb/
 | `theory.dense_gas_sfr` | `magnification_factor`, `magnification_factor_with_core`, `zeta_from_field` |
 | `theory.collapse_threshold` | `virial_parameter`, `critical_overdensity`, `critical_log_density` |
 | `theory.density_cdf` | `log_density_pdf`, `log_density_icdf`, `log_density_icdf_analytic`, `mass_cdf`, `mean_density`, `build_cdf_table` |
-| `realization.gaussian_field` | `gaussian_random_field`, `rank_copula_field`, `mass_conserving_copula_field`, `low_resolution_flag` |
-| `realization.placement` | `collapse_weights`, `f_tail_actual` |
-| `realization.placement` | `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
+| `realization.gaussian_field` | `gaussian_random_field`, `low_resolution_flag` |
+| `realization.copula` | `rank_copula_field`, `mass_conserving_copula_field`, `rank_to_uniform` |
+| `realization.placement` | `collapse_weights`, `f_tail_actual`, `sample_cell_indices`, `cells_to_positions`, `sample_positions` |
 | `realization.pipeline` | `TurbulentField`, `build_turbulent_field`, `cloud_to_stars` |
 | `diagnostics.q` | `compute_q_parameter` (CW04, `A = πR²`) |
 | `theory.log_correlations` / `projection` / `cic` | `gaussianized_xi`, `gaussian_correlation_grid`, `cic_variance`, `count_distribution` |
@@ -54,7 +56,7 @@ gravoturb/
 
 The package has two faces. **`theory/` + `inference/` are the analytic, differentiable forward
 model and its likelihood** — they predict summary statistics as smooth functions of
-$\theta=(\mathcal{M}, b, \alpha, \beta)$ and never realize a random field. **`field/` +
+$\theta=(\mathcal{M}, b, \alpha, \beta)$ and never realize a random field. **`realization/` +
 `diagnostics/` + `validation/` are the stochastic realization simulator and its oracles** — they
 draw actual fields and stars, and serve as the ground truth against which the analytic predictions
 are checked. The design philosophy (predict the statistic, don't differentiate the simulator) is
@@ -81,15 +83,20 @@ explained pedagogically in
   $\sigma_N^2=\bar N+\bar N^2\bar\xi$, and the compound-Poisson count distribution `count_distribution`
   $P(N)$ (the locally-Poisson CIC of Szapudi & Pan).
 
-### `field/` — the stochastic 3-D realization (the ground-truth oracle; non-differentiable)
+### `realization/` — the stochastic 3-D realization (the ground-truth oracle; non-differentiable)
 
-- **`gaussian_field.py` + `copula.py`** — `gaussian_random_field` (FFT, $P(k)\propto k^{-\beta}$), then the copula map to the
-  BM19 marginal: `rank_copula_field` (faithful volume marginal — used for the tail) and
-  `mass_conserving_copula_field` (exact `f_dense` — used for the cornerstone). `low_resolution_flag`
-  guards the under-resolved-tail regime.
-- **`placement.py`** — the soft dense-tail mask (`collapse_weights`, `f_tail_actual`).
-- **`placement.py`** — `sample_cic_counts` (clean inhomogeneous-Poisson counts) and the categorical
-  tail/smooth star sampler (`sample_positions`).
+- **`gaussian_field.py`** — `gaussian_random_field` (FFT, $P(k)\propto k^{-\beta}$);
+  `low_resolution_flag` guards the under-resolved-tail regime.
+- **`copula.py`** — the copula map to the BM19 marginal: `rank_copula_field` (faithful volume
+  marginal — used for the tail), `mass_conserving_copula_field` (exact `f_dense` — used for the
+  cornerstone), and `rank_to_uniform`.
+- **`placement.py`** — the soft dense-tail mask (`collapse_weights`, `f_tail_actual`) plus the star
+  samplers: `sample_cic_counts` (clean inhomogeneous-Poisson counts), the categorical tail/smooth
+  sampler, and the default multi-freefall (∝ w·ρ^{3/2}) placement (`sample_positions`).
+- **`envelope.py`** — the cluster shape: any `SpatialProfile` applied additively in log-space to
+  the turbulent field.
+- **`turbulent_velocity.py`** — coherent turbulent velocity field (β_v) + virial `Q_target` rescale.
+- **`mass_assignment.py`** — optional density-correlated (primordial-segregation) mass assignment.
 - **`pipeline.py`** — the end-to-end `build_turbulent_field` and `cloud_to_stars`.
 
 ### `diagnostics/` — substructure metric (validation/demo only)
@@ -121,6 +128,7 @@ explained pedagogically in
 - **`measure.py`** — the oracle measurements: `autocovariance_3d` / band-powers (Wiener–Khinchin),
   `smooth_copula_field`, and `measure_exceedances` (the gas-tail → exceedance histogram for the POT
   block).
+- **`cluster_acceptance.py`** — the AC-IC0–IC7 cluster-IC acceptance suite + figure gallery.
 
 ## Use
 
@@ -130,7 +138,7 @@ The wheel packages only `src/progenax`, so `gravoturb` is dev/repo-only. Pytest 
 ```bash
 cd progenax
 PYTHONPATH=src:src/experimental python -m gravoturb.validation.acceptance   # print AC1–AC17
-PYTHONPATH=src:src/experimental pytest tests/experimental -q                     # 245 experimental tests
+PYTHONPATH=src:src/experimental pytest tests/experimental -q                     # experimental tests (see CI for the live count)
 ```
 
 ```python
@@ -162,12 +170,12 @@ ic = build_cluster_ic(
     # (legacy ablation mode: CompositionSpec(placement="two_population", f_sub=0.3))
     G=STELLAR.G, key=jax.random.PRNGKey(0),
 )
-ic.positions, ic.velocities, ic.Q_virial, ic.f_sub_derived, ic.field.f_dense_realized
+ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dense_realized
 ```
 
 ## Conventions
 
-- **JAX-native cores.** `theory/` and `field/` use `jax.numpy`, `lax`, `vmap`/`grad`/`jit`,
+- **JAX-native cores.** `theory/` and `realization/` use `jax.numpy`, `lax`, `vmap`/`grad`/`jit`,
   Equinox/jaxtyping; sampling uses fixed-iteration `lax.scan`, never `while_loop`. float64 is
   enabled at import. `diagnostics/q.py` and `validation/` are the *only* places numpy/scipy appear.
 - **Differentiable interface = the predicted-statistics inference layer.** Categorical star sampling

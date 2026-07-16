@@ -10,7 +10,7 @@ evaluated in projection (M&C analyse the m–Σ plane in 2-D). Mass segregation 
 mass–density correlation is read off the **m–Σ plane**: massive stars sit at systematically higher
 Σ. We summarise this with the Spearman rank correlation ρ(m, Σ), the high-vs-low median-Σ ratio, and
 the two-sample KS p-value M&C use. **Robust to substructure** (a local density, not a global MST/Q),
-so it works in clumpy FDF fields where CW04 Q on small subsets is too noisy.
+so it works in clumpy turbulent-density fields where CW04 Q on small subsets is too noisy.
 
 Non-differentiable (kNN ranking), a diagnostic — numpy/scipy on the analysis side (cf. ``q.py``).
 """

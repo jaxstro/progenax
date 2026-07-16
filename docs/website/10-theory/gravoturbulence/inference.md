@@ -236,9 +236,10 @@ vs ideal $-0.5$).
 ```python
 import jax
 import jax.numpy as jnp
-from gravoturb.realization.gaussian_field import gaussian_random_field, rank_copula_field
+from gravoturb.realization.copula import rank_copula_field
+from gravoturb.realization.gaussian_field import gaussian_random_field
 from gravoturb.theory.density_pdf import sigma_s_squared, transition_density
-from gravoturb.validation.measure import measure_exceedances
+from gravoturb.diagnostics.measure import measure_exceedances
 from gravoturb.inference.likelihood import tail_exceedance_loglike
 from gravoturb.inference.fisher import sigma_alpha
 

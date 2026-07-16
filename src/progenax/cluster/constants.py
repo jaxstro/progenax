@@ -1,7 +1,7 @@
 # progenax/src/progenax/cluster/constants.py
 """Physical constants for cluster turbulence relations.
 
-Consumed by ``cluster.turbulence`` (released) and the experimental ``gravoturb_fdf``
+Consumed by ``cluster.turbulence`` (released) and the experimental ``gravoturb``
 subsystem. (The legacy FDF/gravoturbulent modules that also used these were removed in
 the 2026-06 clean-room rewrite.)
 

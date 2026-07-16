@@ -7,7 +7,7 @@
 > ## ⚠️ DEPRECATED DESIGN PROSE — the clean-room implementation is authoritative
 >
 > This guide predates the 2026-06 clean-room rewrite. The implementation
-> (`src/experimental/gravoturb_fdf/`, validated in its `VALIDATION_SUMMARY.md`) supersedes this
+> (`src/experimental/gravoturb/`, validated in its `VALIDATION_SUMMARY.md`) supersedes this
 > document wherever they disagree. Known disagreements (2026-07-16 audit, D1–D8):
 >
 > 1. **`f_sub = η_survive · f_dense` (the boxed "Key Result") was never built.** `η_survive` does
@@ -19,11 +19,12 @@
 >    §6.3 matches no code.
 > 3. **§6.2's field recipe is superseded**: no `exp(δ−σ²/2)` lognormal transform, no λ-mixing —
 >    the field is a GRF remapped by a rank / mass-conserving copula to the exact BM19 marginal,
->    with the base profile applied *additively in log-space* (`field/envelope.py`).
+>    with the base profile applied *additively in log-space* (`realization/envelope.py`).
 > 4. **Appendix A's module/function map is entirely dead** (pre-rewrite `progenax/gravoturb/*`
 >    paths, `bm19_pipeline`, `compute_tail_pmfs_bm19`, `mode='pn11_legacy'` — none exist).
 > 5. The guide is **silent** on three shipped subsystems: the coherent turbulent velocity field
->    (β_v), virial `Q_target` rescaling, and density-correlated mass assignment (`masses.py`).
+>    (β_v), virial `Q_target` rescaling, and density-correlated mass assignment
+>    (`realization/mass_assignment.py`).
 > 6. Symbol overloads: "Q" here is CW04 substructure (the code's virial ratio is a different Q);
 >    the tail-mask sharpness κ is numerical and distinct from the physical radial slope κ = 3/α.
 > 7. §7.4's calibration claims describe a pre-rewrite validation that was found fabricated

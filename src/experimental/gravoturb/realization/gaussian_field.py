@@ -1,6 +1,6 @@
 """Gaussian random field with turbulent power spectrum P(k) ∝ k^{-β}.
 
-Step 1 of the FDF realization (spec §3.5) and the Lomax+2018 FBM construction:
+Step 1 of the turbulent-density-field realization (spec §3.5) and the Lomax+2018 FBM construction:
 draw full-grid complex Gaussian amplitudes, scale by √P(k) = k^{-β/2}, zero the DC mode,
 and take the real part of the inverse FFT. The full-grid + ``.real`` construction yields a
 real, isotropic field whose ensemble power spectrum is |amplitude|² ∝ k^{-β} *exactly*

@@ -1,4 +1,4 @@
-r"""Density-correlated mass placement for the FDF cluster IC (Tier C — primordial segregation).
+r"""Density-correlated mass placement for the gravoturbulent cluster IC (Tier C — primordial segregation).
 
 By default ``build_cluster_ic`` pairs the input IMF masses with sampled positions in arbitrary
 order — i.e. *no* primordial mass segregation (the clean Allison-2009 setup for studying *dynamical*

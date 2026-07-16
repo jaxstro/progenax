@@ -6,17 +6,20 @@
 > package is `gravoturb` (see `../../README.md`).
 
 These are **historical, one-off investigation drivers** from the 2-D-projected spectral-slope (β)
-inference arc, which was **banked as a methods result, not optimized further** (2026-06-07): the
-observable is cosmic-variance + dynamics limited and gas measures β more directly. See the decision
-record and the full numbers in:
+inference arc. **Only these old scratch drivers are banked** — the 2-D projected-β forward model
+itself is the **ACTIVE headline** (per Anna's decision), living in the package's inference layer:
+`inference/projected_logp.py` (the 2-D projected forward model + likelihood) and
+`inference/flow_npe.py` (the NPE baseline). What is banked here is the evidence trail of the
+scratch investigation (2026-06-07 numbers, grid/HMC/emulator/SBC attempts), not the method. See:
 
 - an internal 2D-inference retrospective
 - an internal 2D-projection design note
 
 **Status: not maintained, not run in CI, not imported by any test or live module.** They are kept for
-reproducibility of the banked result. The *live* validation lives one directory up:
-`acceptance.py` (AC1–AC17), `cluster_acceptance.py` (FDF cluster-IC forward tool), `calibration.py`,
-`measure.py`.
+reproducibility of the banked evidence. The *live* validation lives one directory up:
+`acceptance.py` (AC1–AC17), `cluster_acceptance.py` (gravoturbulent cluster-IC forward tool),
+`calibration.py`, `measure.py`; the live 2-D inference path is `../../inference/projected_logp.py`
++ `../../inference/flow_npe.py`.
 
 Naming: `_d0*` = discriminating diagnostics (gate "is analytic possible?"); `_v1*`–`_v5*` = the
 inference attempts (grid/HMC/emulator/SBC/rank-G/log₊/shot/flow); `_m1/_m2` = milestone bake-off +

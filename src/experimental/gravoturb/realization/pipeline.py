@@ -1,4 +1,4 @@
-"""End-to-end cloud→field→stars FDF pipeline (spec §8 algorithm, §3.5-3.6).
+"""End-to-end cloud→field→stars turbulent-density-field pipeline (spec §8 algorithm, §3.5-3.6).
 
 Steps:
   1. (ℳ,b,α) → σ_s², s_t, f_dense (BM19 1D theory).
@@ -22,8 +22,11 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb.realization.gaussian_field import gaussian_random_field, low_resolution_flag
 from gravoturb.realization.copula import mass_conserving_copula_field
+from gravoturb.realization.gaussian_field import (
+    gaussian_random_field,
+    low_resolution_flag,
+)
 from gravoturb.realization.placement import sample_positions
 from gravoturb.theory.density_pdf import (
     dense_mass_fraction,
@@ -33,7 +36,7 @@ from gravoturb.theory.density_pdf import (
 
 
 class TurbulentField(NamedTuple):
-    """A realized FDF log-density field plus its BM19 scalars (a JAX pytree)."""
+    """A realized turbulent log-density field plus its BM19 scalars (a JAX pytree)."""
 
     s: Float[Array, "nx ny nz"]      # log-density ln(ρ/ρ_0), ⟨e^s⟩=1
     s_t: Float[Array, ""]            # transition log-density (BM19 Eq.2)
@@ -50,7 +53,7 @@ def build_turbulent_field(
     shape: tuple[int, int, int],
     key: jax.Array,
 ) -> TurbulentField:
-    r"""Realize the FDF field (steps 1-4) and report the AC6 cornerstone metric."""
+    r"""Realize the turbulent density field (steps 1-4) and report the AC6 cornerstone metric."""
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
     f_dense = dense_mass_fraction(mach, b, alpha)
 
@@ -58,7 +61,7 @@ def build_turbulent_field(
     low_res = bool(low_resolution_flag(n_cells, mach, b, alpha))
     if low_res:
         warnings.warn(
-            f"FDF field {shape}: <5 cells expected above s_t "
+            f"Turbulent density field {shape}: <5 cells expected above s_t "
             f"(tail under-resolved at ℳ={mach}, b={b}, α={alpha}); "
             "increase resolution or soften the tail.",
             stacklevel=2,
@@ -88,7 +91,7 @@ def cloud_to_stars(
     mask_sharpness: float = 8.0,
     box_size: float = 1.0,
 ) -> Float[Array, "n_stars 3"]:
-    r"""Sample ``n_stars`` star positions from a realized FDF field (step 5)."""
+    r"""Sample ``n_stars`` star positions from a realized turbulent density field (step 5)."""
     return sample_positions(
         field.s, field.s_t, mask_sharpness, f_sub, n_stars, key, box_size=box_size
     )

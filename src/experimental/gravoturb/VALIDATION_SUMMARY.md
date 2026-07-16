@@ -28,7 +28,7 @@ are JAX-native.
 | **AC1** | f_dense vs numeric quadrature (3 cases) | rel <1e-4 | relerr ≤5.8e-9 | **PASS** |
 | **AC2** | Mass conservation ∫eˢ p_LN ds = 1 | =1 ± 1e-3 | 1.000000 (abserr 0) | **PASS** |
 | **AC3** | ζ(p) anchors: ζ(0)=1, ζ(1)=1.0887, ζ(1.5)=√2, ζ(1.67)=1.79 | <0.1% | relerr ≤5.6e-4 | **PASS** |
-| **AC4** | ζ_FDF (direct field) vs analytic ζ(p), p∈{0.5,1.0,1.5} | within few % | relerr ≤0.55% | **PASS** |
+| **AC4** | ζ (direct field) vs analytic ζ(p), p∈{0.5,1.0,1.5} | within few % | relerr ≤0.55% | **PASS** |
 | **AC5** | CW04 Q vs Table 1 (3D radial models, A=πR²) | within CW04 σ | see below | **PASS** |
 | **AC6** | **Cornerstone**: f_dense_realized vs BM19 f_dense (mass-conserving copula, 128³×8) | ens<1%, single<5% | see below | **PASS** |
 | **AC7** | **Headline**: Q(f_sub) monotone↓ + Q∈[0.4,0.8] (64³×10×500★) | trend↓ + band | see below | **PASS** |
@@ -193,10 +193,13 @@ PYTHONPATH=src:src/experimental python -m gravoturb.validation.cluster_acceptanc
 The default placement law is now ``p_⋆ ∝ w(s_turb)·ρ_total^{3/2}`` (FK12 Eq. 7 integrand,
 t_ff ∝ ρ^{−1/2} Eq. 8, verified against the held PDF; ε/φ_t cancel in the PMF — see the
 federrath-klessen-2012 per-paper note), with the former free ``f_sub`` replaced by the
-derived, differentiable ``f_sub_derived`` (AD=FD < 1e-6). Measured: (a) turbulence-OFF
+derived ``tail_star_fraction`` (hard, from the actual placement PMF — the f_sub
+successor) plus the smooth ``collapse_eligible_fraction`` (AD=FD < 1e-6). NB the two are
+materially different (~0.97 vs ~0.44 at the fiducial): the eligible fraction is a
+measure share, not a star fraction — conflating them was a caught review finding. Measured: (a) turbulence-OFF
 envelope control vs an independent numpy ρ^{3/2} oracle, two-sample KS = 0.006 (< 0.015);
-(b) f_sub_derived monotone ↓ in α at every ℳ (printed 4×3 table; ℳ-direction characterized,
-regime-dependent per AC8); (c) Q(β) re-baselined under multi-freefall (β=2→4 ordering
+(b) collapse_eligible_fraction monotone ↓ in α at every ℳ (printed 4×3 table; ℳ-direction
+characterized, regime-dependent per AC8); (c) Q(β) re-baselined under multi-freefall (β=2→4 ordering
 preserved); (d) matched-fraction legacy comparison printed. The legacy ``two_population``
 mode is retained for ablations and reproduces the pre-rename pins byte-exactly.
 **A4 re-run of AC-IC0 under multi-freefall: PASS** against the placement-consistent
@@ -204,6 +207,20 @@ mode is retained for ablations and reproduces the pre-rename pins byte-exactly.
 (realized/requested r_h up to ~1.9× at ℳ=12, 64³) and resolution-sensitive at 32³ for
 ℳ≥8 — **use ≥64³ grids with multi-freefall at high Mach** (the low-resolution guard is
 more binding under ρ^{3/2} weighting).
+
+**2026-07-16 review remediation (adversarial 8-angle code review, 10 verified findings):**
+(i) the former ``f_sub_derived`` conflated two materially different quantities — replaced by
+``tail_star_fraction`` (Σ_{s>s_t} p under the actual placement PMF; ~0.97 at the fiducial —
+the honest f_sub successor, now the AC-IC7(d) matching knob) and ``collapse_eligible_fraction``
+(the smooth ungated measure share, ~0.44 — the analytic hook); a unit test pins them apart.
+(ii) AC-IC1/AC-IC4 now run in BOTH placement modes; **AC-IC4 initially FAILED under the
+multi-freefall default at the 32³ fiducial** (near-alignment +0.013): the star sample
+concentrates into ~8 cells and COM subtraction erases coherence — the recorded ≥64³-at-ℳ≥8
+caveat biting our own fiducial. At 64³: near +0.631 / far +0.018, PASS. Resolution fix per the
+caveat, thresholds untouched; ``ClusterIC.placement_n_eff`` (PMF inverse participation ratio)
+added as the resolution-monitoring diagnostic (11.5→18→22 across 32³→64³→128³ at the fiducial).
+(iii) Q_target=0 (cold collapse) and traced spec construction restored (regressions vs main);
+byte-identity gate hardened (exact env fingerprint + GRAVOTURB_BYTE_GATE=1 strict mode).
 
 **Honest caveats (2026-07-16 science audit):** (i) Q alone conflates β with concentration —
 AC-IC3's (m̄,s̄) plane is the separable statistic; per-realization β identifiability from Q is

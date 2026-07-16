@@ -33,7 +33,7 @@ whichever is convenient and convert between them robustly.
 ## Use in progenax
 
 - **The measurement oracle.** progenax's
-  [`measure.py`](../../../../src/experimental/gravoturb/validation/measure.py) uses exactly this
+  [`measure.py`](../../../../src/experimental/gravoturb/diagnostics/measure.py) uses exactly this
   Wiener–Khinchin route: `autocovariance_3d` computes $\xi(r)$ as the inverse FFT of the squared
   field transform, and the inference covariance layer measures **power-spectrum band-powers** from the
   same field. These are the ground-truth measurements against which the analytic

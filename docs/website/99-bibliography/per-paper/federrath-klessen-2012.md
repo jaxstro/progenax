@@ -109,8 +109,9 @@ efficiency knob (only **how many** does, and the IC generator takes N⋆ as inpu
 ``placement='multi_freefall'`` uses ``p_⋆ ∝ w(s_turb)·e^{(3/2)s_total}`` with the eligibility
 gate ``w`` on the BM19 transition ``s_t`` — the s_t-for-s_crit substitution described under
 "Use in progenax" (BM19's derived transition replaces FK12's assumed critical density; FK12
-itself does not license s_t, BM19 does). The derived tail-star fraction
-``f_sub_derived = Σ_tail p_⋆ / Σ p_⋆`` then replaces the former free ``f_sub`` knob.
+itself does not license s_t, BM19 does). The derived ``tail_star_fraction`` (Σ_{s>s_t} p_⋆ under the gated PMF) then replaces the
+former free ``f_sub`` knob, with the smooth ``collapse_eligible_fraction`` (the eligible
+share of the ungated ρ^{3/2} measure — a different, smaller number) as the analytic hook.
 
 ## Notes
 

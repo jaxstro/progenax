@@ -1,9 +1,13 @@
 r"""Counts-in-cells (CIC): the differentiable stellar observable for gravoturb.
 
-The simulator places stars proportional to the LINEAR density rho (field/sampling.py:
+The simulator places stars proportional to the LINEAR density rho (realization/placement.py:
 ``p_smooth proportional to rho``) -- a Cox / doubly-stochastic Poisson process with
-intensity ``lambda(x) = n_bar * rho_tilde(x)``, ``rho_tilde = rho/<rho>`` (mean 1). The
-law of total variance then gives the standard counts-in-cells variance (design doc Sec.4)
+intensity ``lambda(x) = n_bar * rho_tilde(x)``, ``rho_tilde = rho/<rho>`` (mean 1). Note this
+``proportional to rho`` Cox-process premise describes ``sample_cic_counts`` and the legacy
+``two_population`` smooth component; the DEFAULT ``multi_freefall`` placement is proportional
+to ``w * rho^{3/2}``, so stellar CIC on multi-freefall catalogs needs the rho^{3/2} kernel
+(Phase-5 note). The law of total variance then gives the standard counts-in-cells variance
+(design doc Sec.4)
 
     sigma^2_N(R) = N_bar + N_bar^2 * xi_bar(R) ,    xi_bar(R) = Var(rho_tilde_cell) ,
 
@@ -24,21 +28,20 @@ JAX-native; differentiable in (mach, b, alpha, beta).
 
 import jax.numpy as jnp
 from jax.scipy.special import gammaln, xlogy
-from jaxtyping import Array, Float
-
 from jaxstro.numerics.quadrature import (
     hermite_coefficients as _quadrature_hermite_coefficients,
 )
+from jaxtyping import Array, Float
 
+from gravoturb.theory.density_cdf import log_density_pdf
 from gravoturb.theory.log_correlations import (
     gaussianized_xi,
     log_density_hermite_coefficients,
     s_of_g,
 )
-from gravoturb.theory.density_cdf import log_density_pdf
 from gravoturb.theory.projection import (
-    _kmag_grid,
     gaussian_correlation_grid,
+    kmag_grid,
     top_hat_window,
 )
 
@@ -77,7 +80,7 @@ def _windowed_series_variance(
     rho_g = gaussian_correlation_grid(shape, beta)
     xi = gaussianized_xi(rho_g, coeffs)
     power = jnp.fft.fftn(xi).real
-    kmag = _kmag_grid(shape)
+    kmag = kmag_grid(shape)
     w2_full = window(kmag * R) ** 2 if w2 is None else w2
     w2_masked = jnp.where(kmag > 0, w2_full, 0.0)
     return jnp.sum(power * w2_masked) / power.size

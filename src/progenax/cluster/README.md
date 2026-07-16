@@ -14,9 +14,9 @@ Smooth single-population ICs are built with `progenax.build_spatial_ic` (any
 
 > **Turbulent / fractal substructure ICs are not here.** The gravoturbulent density-PDF +
 > fractal-density-field (FDF) pipeline was rebuilt clean-room in the experimental
-> `gravoturb_fdf` package (a follow-up-paper feature, excluded from the released wheel).
+> `gravoturb` package (a follow-up-paper feature, excluded from the released wheel).
 > The legacy `fdf*`, `gravoturbulent`, and `gravoturb/` modules were removed in the
-> 2026-06 clean-room rewrite. See `src/experimental/gravoturb_fdf/` and the per-paper notes
+> 2026-06 clean-room rewrite. See `src/experimental/gravoturb/` and the per-paper notes
 > under `docs/website/99-bibliography/per-paper/` (Burkhart & Mocz 2019, Parmentier &
 > Pasquali 2020, Padoan & Nordlund 2011, Federrath 2010, Kim & Ryu 2005, Heyer 2009, Lomax 2018).
 
