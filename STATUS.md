@@ -45,8 +45,13 @@ Aim 1 science audit DONE (verdict: preliminary-figure only until gaps close; not
 maintainer-local) → six-phase finalization design RATIFIED + adversarially reviewed (A1–A5
 amendments applied; `docs/plans/2026-07-16-…`, maintainer-local). **Phase 0 hardening COMPLETE**
 (5 commits: AC-IC0–IC6 committed record incl. new envelope-fidelity map, Gravax seam test 4/4,
-guide deprecation banner, byte-identity pins; baseline 350 passed/1 xfail). Next: Phase 0.5
-rename `gravoturb_fdf`→`gravoturb` + spec-object refactor, then multi-freefall placement,
+guide deprecation banner, byte-identity pins; baseline 350 passed/1 xfail). **Phase 0.5 COMPLETE**
+(4 commits: package renamed `gravoturb_fdf`→`gravoturb` w/ physics-descriptive module+symbol
+names, field.py split, spec objects CloudSpec/GeometrySpec/VelocitySpec/CompositionSpec, curated
+top-level API; byte-identity 9-pin gate PASSES through the new API — zero behavior change proven;
+full experimental suite 368 passed/1 xfail; docs 213 pages/0 warnings incl. a pre-existing
+model-card backlink fix + new builders_cluster API page; released core untouched, `git diff main
+-- src/progenax` empty). Next: Phase 1 multi-freefall placement (FK12 verified vs PDF), then
 physical velocity mode, Helmholtz coupling, composition, identifiability + production run.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
