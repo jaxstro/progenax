@@ -40,4 +40,13 @@ due: none.
 
 next: Anna executes Slice D (checklist on the site, `95-release/checklist.md`) → tag `v0.1.0` → PyPI (after jaxstro publishes). Still on Anna's desk: review/commit `.brain-drafts/` digests to ~/brain; verify the informax OED port before removing the deprecated demo pages. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
 
+**Gravoturb finalization arc (started 2026-07-16, branch `feat/gravoturb-finalization`):** CAREER
+Aim 1 science audit DONE (verdict: preliminary-figure only until gaps close; note in `audits/`,
+maintainer-local) → six-phase finalization design RATIFIED + adversarially reviewed (A1–A5
+amendments applied; `docs/plans/2026-07-16-…`, maintainer-local). **Phase 0 hardening COMPLETE**
+(5 commits: AC-IC0–IC6 committed record incl. new envelope-fidelity map, Gravax seam test 4/4,
+guide deprecation banner, byte-identity pins; baseline 350 passed/1 xfail). Next: Phase 0.5
+rename `gravoturb_fdf`→`gravoturb` + spec-object refactor, then multi-freefall placement,
+physical velocity mode, Helmholtz coupling, composition, identifiability + production run.
+
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
