@@ -4,6 +4,36 @@
 
 ---
 
+> ## ⚠️ DEPRECATED DESIGN PROSE — the clean-room implementation is authoritative
+>
+> This guide predates the 2026-06 clean-room rewrite. The implementation
+> (`src/experimental/gravoturb_fdf/`, validated in its `VALIDATION_SUMMARY.md`) supersedes this
+> document wherever they disagree. Known disagreements (2026-07-16 audit, D1–D8):
+>
+> 1. **`f_sub = η_survive · f_dense` (the boxed "Key Result") was never built.** `η_survive` does
+>    not exist; `f_sub` is a free argument of the sampler. (The 2026-07 finalization design
+>    replaces it with a multi-freefall placement law.)
+> 2. **§6.3's β(ℳ) is wrong in sign and source**: the implementation uses the *density*-spectrum
+>    slope of Kim & Ryu (2005), which *decreases* with ℳ (β = 3.788 − 1.203 log₁₀ℳ, clipped to
+>    [2, 11/3]) — not a rising Kolmogorov→Burgers velocity-cascade slope; the numeric table in
+>    §6.3 matches no code.
+> 3. **§6.2's field recipe is superseded**: no `exp(δ−σ²/2)` lognormal transform, no λ-mixing —
+>    the field is a GRF remapped by a rank / mass-conserving copula to the exact BM19 marginal,
+>    with the base profile applied *additively in log-space* (`field/envelope.py`).
+> 4. **Appendix A's module/function map is entirely dead** (pre-rewrite `progenax/gravoturb/*`
+>    paths, `bm19_pipeline`, `compute_tail_pmfs_bm19`, `mode='pn11_legacy'` — none exist).
+> 5. The guide is **silent** on three shipped subsystems: the coherent turbulent velocity field
+>    (β_v), virial `Q_target` rescaling, and density-correlated mass assignment (`masses.py`).
+> 6. Symbol overloads: "Q" here is CW04 substructure (the code's virial ratio is a different Q);
+>    the tail-mask sharpness κ is numerical and distinct from the physical radial slope κ = 3/α.
+> 7. §7.4's calibration claims describe a pre-rewrite validation that was found fabricated
+>    (white-noise field, √N-less Q estimator) — see the package README's "Why a rewrite".
+>
+> Reliable parts: the 1-D BM19 PDF core (§4–5: σ_s², s_t, f_dense) and the corrected PP20 (§9.4)
+> / PN11 (Appendix B) formulae, which match the implementation and the held PDFs.
+
+---
+
 ## Purpose
 
 This document develops a physically-motivated framework for generating star cluster initial conditions with environment-dependent substructure. We adopt the gravoturbulent density-PDF framework of Burkhart & Mocz (2019, hereafter BM19) and extend it in three linked pieces:
