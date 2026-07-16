@@ -54,9 +54,17 @@ model-card backlink fix + new builders_cluster API page; released core untouched
 -- src/progenax` empty). **Phase 1 COMPLETE** (multi-freefall placement default: p⋆ ∝ w·ρ^{3/2}
 per FK12 Eq. 7/8 verified vs held PDF; f_sub → derived differentiable `f_sub_derived`; gate
 AC-IC7 PASS incl. independent-numpy-oracle KS=0.006 + A4 AC-IC0 re-run vs placement-consistent
-reference; caveat recorded: ≥64³ at ℳ≥8; unit tier 357 passed). **AWAITING ANNA at the phase
-boundary** — next: Phase 2 physical velocity mode (σ_⋆ = η_v·ℳ·c_s, Q becomes an OUTPUT —
-semantics change worth explicit review), then Helmholtz coupling, composition, identifiability +
+reference; caveat recorded: ≥64³ at ℳ≥8; unit tier 357 passed). **Comprehensive review + remediation COMPLETE (2026-07-16, Anna-directed "everything now"):**
+8-angle adversarial review + architecture assessment → 10 verified findings, all fixed in 4
+commits: honest placement fractions (tail_star_fraction + collapse_eligible_fraction replace the
+conflated f_sub_derived — >2× semantic bug), spec regressions (Q_target≥0, traced construction),
+byte-identity gate hardened (exact fingerprint + GRAVOTURB_BYTE_GATE strict mode), docs drift +
+FDF de-jargoning, layering fixed (measure→diagnostics; model.py factory; 2-D β = ACTIVE headline
+per Anna), tests renamed to module mirrors, both monoliths split, AC-IC1/IC4 now validate BOTH
+placement modes (AC-IC4 multi-freefall initially FAILED at 32³ — root-caused to the ≥64³-at-ℳ≥8
+caveat, fixed by resolution not thresholds; placement_n_eff diagnostic added). Gates: 380 passed
++1 xfail strict; acceptance 11/11; docs 213pp/0 warnings. Next: **Phase 2 physical velocity mode**
+(σ_⋆ = η_v·ℳ·c_s, Q becomes an OUTPUT), then Helmholtz coupling, composition, identifiability +
 production run.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
