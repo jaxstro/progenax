@@ -25,7 +25,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import LogNorm
+import seaborn as sns
+from matplotlib.colors import BoundaryNorm, ListedColormap, LogNorm
 from jaxstro.units import STELLAR
 
 from gravoturb.cluster import build_cluster_ic
@@ -37,6 +38,7 @@ from gravoturb.specs import (
     VelocitySpec,
 )
 from progenax import Maschberger, PlummerProfile
+from progenax.stellar import zams_effective_temperature
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "plots", "feasibility")
@@ -53,6 +55,18 @@ MSUN_PC2_TO_G_CM2 = 1.98892e33 / (3.0857e18) ** 2
 
 IMF = Maschberger()  # m_min=0.01, m_max=300, mu=0.2 M_sun
 
+# ZAMS spectral sequence (Tout+1996 T_eff -> conventional stellar colours). This is
+# a diverging temperature map: cool dark-red (M) -> white (F/A) -> hot blue-violet
+# (O). Binned into the canonical spectral classes so colour reads as a discrete
+# spectral type. Validated (dataviz skill): adjacent-class CVD dE >= 15, and every
+# class clears 3:1 contrast against the dark star-field surface below.
+SPECTRAL_EDGES = np.array([2400., 3700., 5200., 6000., 7500., 10000., 30000., 55000.])
+SPECTRAL_LETTERS = ["M", "K", "G", "F", "A", "B", "O"]
+SPECTRAL_COLORS = ["#c24a28", "#e8791f", "#f3c95a", "#f7f3e2",
+                   "#cdd9ff", "#9ab8ff", "#8172ff"]
+STARFIELD_BG = "#0d0d12"  # near-black so hot/pale stars pop; unifies with (a)/(b)
+
+sns.set_theme(style="ticks", context="paper", font="serif")
 plt.rcParams.update({
     "font.family": "serif", "font.size": 10, "axes.labelsize": 11,
     "axes.titlesize": 11, "legend.fontsize": 8.5, "figure.dpi": 120,
@@ -109,16 +123,27 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
              title=r"(b) Residual gas ($\epsilon_\star$ partition)")
     ax_b.set_aspect("equal")
 
-    # (c) primordial mass segregation (lambda_corr). Single layer, mass-ordered:
-    # marker AREA ∝ mass (small floor so sub-solar stars stay visible) with the
-    # full population sorted ascending, so the rare massive stars bloom and draw
-    # on top. Colour also encodes mass on a LogNorm clipped to the IMF's
-    # [m_min, m_max], so colorbar ticks read as physical masses.
+    # (c) primordial mass segregation (lambda_corr), coloured by ZAMS spectral
+    # type (Tout+1996 T_eff) on a dark star-field, sized by mass (area ~ sqrt m,
+    # compressed range). Full population sorted ascending so the rare hot massive
+    # stars draw on top; m>1 Msun (the high-mass alpha-slope population) carries a
+    # white outline. Colour is the physical observable (temperature); size + outline
+    # are the secondary encodings that keep identity from being colour-alone.
+    teff = np.asarray(zams_effective_temperature(jnp.clip(jnp.asarray(masses), 0.08, 150.0)))
+    teff = np.clip(teff, SPECTRAL_EDGES[0] + 1.0, SPECTRAL_EDGES[-1] - 1.0)
+    cmap_sp = ListedColormap(SPECTRAL_COLORS)
+    norm_sp = BoundaryNorm(SPECTRAL_EDGES, cmap_sp.N)
     order = np.argsort(masses)  # most-massive drawn last (on top)
-    po, mo = pos[order], masses[order]
-    sc = ax_c.scatter(po[:, 0], po[:, 1], s=2 + 1.2 * mo, c=mo, cmap="plasma",
-                      norm=LogNorm(vmin=IMF.m_min, vmax=IMF.m_max), lw=0, alpha=0.8)
-    plt.colorbar(sc, ax=ax_c, fraction=0.046, label=r"stellar mass $m$ [$M_\odot$]")
+    po, mo, to = pos[order], masses[order], teff[order]
+    ax_c.set_facecolor(STARFIELD_BG)
+    sc = ax_c.scatter(po[:, 0], po[:, 1], s=7.0 + 5.5 * np.sqrt(mo), c=to,
+                      cmap=cmap_sp, norm=norm_sp, alpha=0.95,
+                      edgecolors=np.where(mo > 1.0, "#f7f7ff", "none"),
+                      linewidths=np.where(mo > 1.0, 0.6, 0.0))
+    centers = 0.5 * (SPECTRAL_EDGES[:-1] + SPECTRAL_EDGES[1:])
+    cb = plt.colorbar(sc, ax=ax_c, fraction=0.046, ticks=centers, spacing="uniform")
+    cb.ax.set_yticklabels(SPECTRAL_LETTERS)
+    cb.set_label(r"ZAMS spectral type ($T_{\rm eff}$: M cool $\to$ O hot)")
     ax_c.set(xlabel="x [pc]", ylabel="y [pc]",
              title=r"(c) Primordial segregation ($\lambda_{\rm corr}{=}0.6$, Maschberger IMF)")
     ax_c.set_aspect("equal")
