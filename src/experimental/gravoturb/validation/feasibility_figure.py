@@ -143,11 +143,18 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
     alpha = 0.12 + 0.88 * np.clip((logL + 2.0) / 6.0, 0.0, 1.0)  # haze -> blaze
     cmap_sp = ListedColormap(SPECTRAL_COLORS)
     norm_sp = BoundaryNorm(SPECTRAL_EDGES, cmap_sp.N)
-    order = np.argsort(masses)  # massive drawn last (on top)
+    # Painter's algorithm on the line-of-sight depth (z): draw far->near so nearer
+    # stars occlude farther ones, as in a real projected image — this uses the full
+    # 3D IC. A mild depth-of-field factor dims the far face (atmospheric perspective)
+    # so the cluster reads as a volume; luminosity still sets the dynamic range, so
+    # faint foreground M dwarfs never hide a bright background O star.
+    z = np.asarray(pos[:, 2])
+    order = np.argsort(z)  # far (low z) first, near (high z) drawn last / on top
     po, mo, to = pos[order], masses[order], teff[order]
     size = 6.0 + 14.0 * np.sqrt(radii[order])
+    depth = (z[order] - z.min()) / (np.ptp(z) + 1e-9)  # 0 far .. 1 near
     face = cmap_sp(norm_sp(to))
-    face[:, 3] = alpha[order]
+    face[:, 3] = np.clip(alpha[order] * (0.55 + 0.45 * depth), 0.0, 1.0)
     ax_c.set_facecolor(STARFIELD_BG)
     bright = mo > 3.0  # soft PSF bloom behind the luminous (>~ A-type) stars
     ax_c.scatter(po[bright, 0], po[bright, 1], s=5.0 * size[bright],
