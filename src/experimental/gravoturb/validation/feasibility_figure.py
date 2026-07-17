@@ -42,7 +42,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "plots", "feasibility")
 os.makedirs(OUT, exist_ok=True)
 
-N, BOX, NGRID = 5000, 4.0, 96
+N, BOX, NGRID = 5000, 6.0, 96
 DX = BOX / NGRID
 G = STELLAR.G
 
@@ -65,7 +65,7 @@ def build():
     return build_cluster_ic(
         masses,
         cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz"),
-        geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=BOX,
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=1.5), box_size=BOX,
                               shape=(NGRID,) * 3),
         velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2),
         composition=CompositionSpec(lambda_corr=0.6),
