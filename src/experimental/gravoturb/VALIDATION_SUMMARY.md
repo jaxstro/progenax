@@ -258,6 +258,30 @@ narrow windows (a pure k⁻² GRF read 1.83) → unbiased mode-level regression 
 Honest claim: perfect correlation on the compressive channel, none on the solenoidal —
 the "frozen flow at star-formation epoch" limit, not resolved turbulence.
 
+**AC-G1–G8 — Phase-4a stars+gas handoff (`TurbulentCloudIC`, fresh 2026-07-16, new
+script ``gas_acceptance.py``): 8/8 PASS.** The Aim 2 handoff: the SAME cloud realization
+is normalized to a physical parent cloud (ρ_cl = M_cl·ρ̃/∫ρ̃dV; M_cl = Σmᵢ/ε_global,
+masses-first) and partitioned by the local free-fall model ε⋆ = 1−exp(−τ⋆w/t_ff)
+(t_ff = √(3π/32Gρ_cl); τ⋆ by 120-step scan-bisection with the IFT derivative — AD/FD
+agree to 6e-11). ``ClusterIC`` was REPLACED outright by the nested ``TurbulentCloudIC``
+(stars/gas/fields/geometry/physics/ledger; gas=None star-only path; no shim), and the
+physical velocity mode became **field-first** (ratified): the gas grid's volume-weighted
+rms is σ_g = ℳ·c_s EXACTLY (measured rel err <1e-10), while the stellar COM-frame
+dispersion is EMERGENT — characterized at σ_⋆/σ_g = 0.75–0.89 ± 0.07–0.14 (COM removal
+strips the coherent box-scale bulk at β_v=4; AC-IC8(a) re-scoped to grid-exactness +
+band, thresholds set from measurement). Measured: mass closure |residual|/M_cl ≤ 3e-15;
+pointwise ρ⋆+ρ_g=ρ_cl to 2e-16 with positivity; continuous-partition SFE reproduced to
+≤8e-16 across (ℳ, sfe); the sfe→0 limit reproduces the AC-IC7 w·ρ^{3/2} law (ratio-field
+CV 4e-4); normalization exact + envelope-offset invariant at 16³/32³; joint stars+gas
+COM and momentum close to <1e-8; deterministic at fixed seed. **Physics found by the
+gates:** the freefall partition CAPS the reachable SFE at the collapse-eligible mass
+share — the ceiling falls with ℳ (≈0.79/0.36/0.16 at ℳ=4/8/12 for the printed fiducial
+normalization) and is seed-dependent; over-ceiling requests RAISE loudly (never clip),
+and fully-consumed cells (ε⋆→1, ρ_g = 0 exactly) are counted, not hidden. virial_target
++ gas is refused (an imposed Q has no cloud meaning); ``ledger.gas_included`` labels
+star-only products loudly. Ownership boundary held: NO feedback/B-splines/gas
+gravity/evolution here — gravax owns those (Aim 2 Phases 2+).
+
 **2026-07-16 review remediation (adversarial 8-angle code review, 10 verified findings):**
 (i) the former ``f_sub_derived`` conflated two materially different quantities — replaced by
 ``tail_star_fraction`` (Σ_{s>s_t} p under the actual placement PMF; ~0.97 at the fiducial —

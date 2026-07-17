@@ -180,11 +180,17 @@ ic = build_cluster_ic(
     # (legacy ablation mode: CompositionSpec(placement="two_population", f_sub=0.3))
     G=STELLAR.G, key=jax.random.PRNGKey(0),
 )
-ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dense_realized
-# ic.alpha_vir — BM92 consistency diagnostic, 1-D literature convention (both modes);
-# ic.frame — FrameTransform (origin, bulk_velocity, velocity_scale): the exact star↔grid
+ic.stars.positions, ic.stars.velocities, ic.ledger.Q_virial, ic.ledger.tail_star_fraction
+# The canonical product is the NESTED TurbulentCloudIC (Phase 4a; ClusterIC replaced,
+# no shim): stars / gas / fields / geometry / physics / ledger.
+# ic.ledger.alpha_vir — BM92 consistency diagnostic, 1-D literature convention;
+# ic.ledger.frame — FrameTransform (origin, bulk_velocity, velocity_scale): the exact star↔grid
 #            affine map, so the cluster-frame stars and the carried field grid reconcile;
 # cloud_spec_from_larson(M_ecl=…, sfe=…, rho_cl=…, alpha=…) closes (ℳ, β, b, box) from cloud inputs
+# Residual gas (Aim 2 handoff): add gas=GasSpec(sfe=0.2) (requires mode="physical"+units) →
+#   ic.gas.rho_residual / ic.gas.velocity / ic.gas.pressure (→ gravax gas basis) with the
+#   exact mass-closure ledger; star-only builds keep ic.gas None (ledger.gas_included=False).
+#   Gates: AC-G1–G8 (validation/gas_acceptance.py).
 ```
 
 ## Conventions

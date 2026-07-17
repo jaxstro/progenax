@@ -32,7 +32,7 @@ from progenax import PlummerProfile
 
 def _fig_scatter(seed=0):
     ic = _ic(n=4000, seed=seed)
-    pos = np.asarray(ic.positions)
+    pos = np.asarray(ic.stars.positions)
     r = np.linalg.norm(pos, axis=1)
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
     for ax, (a, bx, lbl) in zip(
@@ -146,7 +146,7 @@ def _fig_substructure_plane(sub):
 
 def _fig_velocity(vc, seed=0):
     ic = _ic(n=1200, seed=seed)
-    pos = np.asarray(ic.positions); vel = np.asarray(ic.velocities)
+    pos = np.asarray(ic.stars.positions); vel = np.asarray(ic.stars.velocities)
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.5))
     sp = np.linalg.norm(vel, axis=1)
     axes[0].quiver(pos[:, 0], pos[:, 1], vel[:, 0], vel[:, 1], sp,

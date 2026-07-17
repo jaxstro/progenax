@@ -67,7 +67,7 @@ def _ic(n=2000, beta=3.0, r_h=0.5, Q_target=0.5, seed=0,
 
 def _qms(beta, r_h, seeds, n=2000):
     """Per-seed (Q, m̄, s̄) → (mean[3], std[3]) for the CW04 plane (expected value ± scatter)."""
-    vals = np.array([q_components(np.asarray(_ic(n=n, beta=beta, r_h=r_h, seed=sd).positions))
+    vals = np.array([q_components(np.asarray(_ic(n=n, beta=beta, r_h=r_h, seed=sd).stars.positions))
                      for sd in seeds])
     return vals.mean(axis=0), vals.std(axis=0)
 
@@ -122,7 +122,7 @@ def ac_ic1_envelope(seeds=(0, 1, 2), placement="two_population"):
         for sd in seeds:
             shape = (64,) * 3 if placement == "multi_freefall" else None  # ≥64³ caveat
             pos = np.asarray(_ic(n=3000, r_h=r_h, seed=sd, placement=placement,
-                                 shape=shape).positions)
+                                 shape=shape).stars.positions)
             rs.append(np.median(np.linalg.norm(pos, axis=1)))
         med.append(float(np.mean(rs)))
         print(f"  r_h={r_h:.2f} pc  ->  median cluster radius = {med[-1]:.3f} pc")
@@ -148,8 +148,8 @@ def ac_ic2_virial(seeds=(0, 1, 2)):
         qs = []
         for sd in seeds:
             ic = _ic(n=1500, Q_target=Qt, seed=sd)
-            T = float(compute_kinetic_energy(ic.velocities, ic.masses))
-            V = float(compute_potential_energy(ic.positions, ic.masses, G=G))
+            T = float(compute_kinetic_energy(ic.stars.velocities, ic.stars.masses))
+            V = float(compute_potential_energy(ic.stars.positions, ic.stars.masses, G=G))
             qs.append(T / abs(V))
         q = float(np.mean(qs))
         realized.append(q)
@@ -210,10 +210,10 @@ def ac_ic4_velocity_coherence(seed=0, placement="two_population"):
           f"(nearby stars move together) (placement={placement}) ===")
     shape = (64,) * 3 if placement == "multi_freefall" else None  # ≥64³ caveat
     ic = _ic(n=2500, seed=seed, placement=placement, shape=shape)
-    if ic.placement_n_eff is not None:
-        print(f"  placement_n_eff = {float(ic.placement_n_eff):.1f} cells "
+    if ic.ledger.placement_n_eff is not None:
+        print(f"  placement_n_eff = {float(ic.ledger.placement_n_eff):.1f} cells "
               "(resolution-monitoring diagnostic)")
-    pos = np.asarray(ic.positions); vel = np.asarray(ic.velocities)
+    pos = np.asarray(ic.stars.positions); vel = np.asarray(ic.stars.velocities)
     # cosine alignment of velocity vectors vs pair separation
     rng = np.random.default_rng(0)
     i = rng.integers(0, len(pos), 6000); j = rng.integers(0, len(pos), 6000)
@@ -419,7 +419,7 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
         qs = []
         for sd in seeds:
             ic = _ic(n=2000, beta=beta, seed=sd, placement="multi_freefall")
-            qs.append(q_components(np.asarray(ic.positions))[0])
+            qs.append(q_components(np.asarray(ic.stars.positions))[0])
         q_rows.append((beta, float(np.mean(qs)), float(np.std(qs))))
         print(f"      β={beta:.1f}  Q = {q_rows[-1][1]:.3f} ± {q_rows[-1][2]:.3f}")
     ok_c = q_rows[0][1] > q_rows[-1][1]  # rough→smooth ordering preserved
@@ -428,11 +428,11 @@ def ac_ic7_multi_freefall(seeds=(0, 1, 2)):
     # (d) paired legacy-vs-new at matched TAIL-STAR fraction (the actual placement-PMF
     # fraction — review fix: the ungated eligible fraction was a >2x mismatched knob)
     ic_new = _ic(n=2000, beta=3.0, seed=0, placement="multi_freefall")
-    f_match = float(ic_new.tail_star_fraction)
-    f_elig = float(ic_new.collapse_eligible_fraction)
+    f_match = float(ic_new.ledger.tail_star_fraction)
+    f_elig = float(ic_new.ledger.collapse_eligible_fraction)
     ic_old = _ic(n=2000, beta=3.0, f_sub=min(max(f_match, 0.0), 1.0), seed=0)
-    q_new = q_components(np.asarray(ic_new.positions))[0]
-    q_old = q_components(np.asarray(ic_old.positions))[0]
+    q_new = q_components(np.asarray(ic_new.stars.positions))[0]
+    q_old = q_components(np.asarray(ic_old.stars.positions))[0]
     print(f"  (d) matched-fraction comparison: tail_star_fraction={f_match:.3f} "
           f"(eligible fraction {f_elig:.3f}); "
           f"Q_new={q_new:.3f} vs Q_legacy={q_old:.3f} (documented, not gated)")
@@ -464,8 +464,8 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
         )
 
     def _sigma_3d(ic):
-        return float(jnp.sqrt(jnp.sum(ic.masses * jnp.sum(ic.velocities**2, axis=1))
-                              / jnp.sum(ic.masses)))
+        return float(jnp.sqrt(jnp.sum(ic.stars.masses * jnp.sum(ic.stars.velocities**2, axis=1))
+                              / jnp.sum(ic.stars.masses)))
 
     print("\n=== AC-IC8 — physical velocity mode: σ_⋆ = η_v·ℳ·c_s, Q emergent ===")
 
@@ -475,21 +475,43 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
     print(f"  (c) units pin: 1 pc/Myr = {pin:.5f} km/s (expected 0.9778, |err|<2e-4) "
           f"{'PASS' if ok_c else 'FAIL'}")
 
-    # (a) dispersion round trip (COM removed by the builder before scaling)
-    print(f"  (a) σ_⋆ round trip (c_s={c_s} km/s):"
-          f"  {'ℳ':>4} {'η_v':>5} {'target σ_⋆ [pc/Myr]':>20} {'measured':>10} {'rel err':>9}")
-    ok_a = True
+    # (a) FIELD-FIRST re-scope (Phase 4a, ratified): the EXACT identity moved to the
+    # gas velocity grid (volume-weighted rms = ℳ·c_s to machine precision); the
+    # stellar COM-frame dispersion is EMERGENT — systematically below η_v·ℳ·c_s
+    # because COM removal strips the coherent box-scale bulk (β_v=4 is large-scale
+    # dominated; characterized 0.75–0.79 ± 0.12–0.14 at the fiducial) — and is gated
+    # on the characterization band, not weakened-to-fit.
+    from gravoturb.specs import GasSpec
+
+    print(f"  (a) field-first: gas-grid σ_g exactness + emergent stellar band "
+          f"(c_s={c_s} km/s):")
+    ic_g = build_cluster_ic(
+        jnp.ones(500),
+        cloud=CloudSpec(mach=8.0, b=B, alpha=ALPHA, beta=3.0),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5), box_size=BOX,
+                              shape=SHAPE),
+        velocity=VelocitySpec(beta_v=BETA_V, mode="physical", c_s=c_s),
+        composition=CompositionSpec(placement="two_population", f_sub=0.3),
+        G=G, units=STELLAR, key=jax.random.PRNGKey(0), gas=GasSpec(sfe=0.2),
+    )
+    fr = ic_g.ledger.frame
+    v_unshifted = (np.asarray(ic_g.gas.velocity)
+                   + np.asarray(fr.bulk_velocity) * float(fr.velocity_scale))
+    rms = float(np.sqrt(np.mean(np.sum(v_unshifted**2, axis=-1))))
+    sigma_g = 8.0 * c_s / pin
+    rel_g = abs(rms / sigma_g - 1.0)
+    ok_grid = rel_g < 1e-10
+    print(f"      gas grid: rms = {rms:.6f} vs σ_g = ℳ·c_s = {sigma_g:.6f} pc/Myr  "
+          f"rel err {rel_g:.2e} (<1e-10) {'PASS' if ok_grid else 'FAIL'}")
+    ok_a = ok_grid
+    print(f"      stellar band:  {'ℳ':>4} {'η_v':>5} {'σ_⋆/(η_v ℳ c_s)':>16}")
     for mach in [4.0, 8.0, 12.0]:
         for eta_v in [0.5, 1.0]:
             ic = _ic_phys(mach, eta_v=eta_v)
-            target = eta_v * mach * c_s / pin
-            meas = _sigma_3d(ic)
-            rel = abs(meas / target - 1.0)
-            ok_a = ok_a and rel < 0.01
-            print(f"      {mach:>8.1f} {eta_v:>5.1f} {target:>20.4f} {meas:>10.4f} "
-                  f"{rel:>9.2e}")
-    print(f"      all <1% {'PASS' if ok_a else 'FAIL'} "
-          "(exact by construction; the bound is the design gate)")
+            ratio = _sigma_3d(ic) / (eta_v * mach * c_s / pin)
+            ok_a = ok_a and 0.4 < ratio < 1.1
+            print(f"      {mach:>8.1f} {eta_v:>5.1f} {ratio:>16.3f}")
+    print(f"      grid exact + all ratios in (0.4, 1.1) {'PASS' if ok_a else 'FAIL'}")
 
     # (b) emergent Q_virial over (ℳ, r_h) with seed bands
     print(f"  (b) emergent Q_virial = T/|V| (output, not imposed) ± seed σ, "
@@ -500,7 +522,7 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
     for mach in machs:
         row = []
         for r_h in r_hs:
-            qs = [float(_ic_phys(mach, r_h=r_h, seed=sd).Q_virial) for sd in seeds]
+            qs = [float(_ic_phys(mach, r_h=r_h, seed=sd).ledger.Q_virial) for sd in seeds]
             qgrid[(mach, r_h)] = (float(np.mean(qs)), float(np.std(qs)))
             row.append(f"{qgrid[(mach, r_h)][0]:>9.3f}±{qgrid[(mach, r_h)][1]:.3f}")
         print(f"      {mach:>5.1f} " + "".join(f"{c:>15}" for c in row))
@@ -513,12 +535,12 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
     # α_vir consistency diagnostic at the fiducial point (BM92 1-D convention:
     # σ_1D = σ_3D/√3, so α_vir ~ 1 reads as virial on the GMC literature scale)
     ic_fid = _ic_phys(8.0)
-    print(f"      fiducial (ℳ=8, r_h=0.5): Q = {float(ic_fid.Q_virial):.3f}, "
-          f"α_vir = {float(ic_fid.alpha_vir):.3f} "
+    print(f"      fiducial (ℳ=8, r_h=0.5): Q = {float(ic_fid.ledger.Q_virial):.3f}, "
+          f"α_vir = {float(ic_fid.ledger.alpha_vir):.3f} "
           "(BM92 1-D convention on the realized cluster)")
     # exact η_v² scaling at frozen key (same positions)
-    q1 = float(_ic_phys(8.0, eta_v=1.0, seed=0).Q_virial)
-    q5 = float(_ic_phys(8.0, eta_v=0.5, seed=0).Q_virial)
+    q1 = float(_ic_phys(8.0, eta_v=1.0, seed=0).ledger.Q_virial)
+    q5 = float(_ic_phys(8.0, eta_v=0.5, seed=0).ledger.Q_virial)
     ok_b_eta = abs(q5 / q1 - 0.25) < 1e-9
     print(f"      Q(η_v=0.5)/Q(η_v=1) = {q5 / q1:.12f} (exact 0.25) "
           f"{'PASS' if ok_b_eta else 'FAIL'};  grid monotone in ℳ and r_h = {ok_b_mono} "
@@ -528,8 +550,8 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
     print("  (d) physical-mode seam: tests/experimental/integration/test_gravax_seam.py")
     print(f"  {'PASS' if ok else 'FAIL'}")
     return {"passed": ok, "qgrid": qgrid, "units_pin": pin,
-            "eta_ratio": q5 / q1, "Q_fiducial": float(ic_fid.Q_virial),
-            "alpha_vir_fiducial": float(ic_fid.alpha_vir)}
+            "eta_ratio": q5 / q1, "Q_fiducial": float(ic_fid.ledger.Q_virial),
+            "alpha_vir_fiducial": float(ic_fid.ledger.alpha_vir)}
 
 
 # ── IMF characterization (committed artifact for VALIDATION_SUMMARY caveat vii) ──
@@ -575,8 +597,8 @@ def characterize_imf(seeds=(0, 1, 2)):
         for sd in seeds:
             m = _masses(case, sd)
             ic = _build(m, sd)
-            Qs.append(float(ic.Q_virial))
-            avs.append(float(ic.alpha_vir))
+            Qs.append(float(ic.ledger.Q_virial))
+            avs.append(float(ic.ledger.alpha_vir))
             Ms.append(float(jnp.sum(m)))
             mmaxs.append(float(jnp.max(m)))
             Ns.append(int(m.shape[0]))

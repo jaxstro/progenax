@@ -93,6 +93,17 @@ unweakened thresholds; carrier→2.0 + coupled≡independent convergence; infall
 −0.006 ablation). TDD caught 3 instrument defects (mixed-Nyquist transversality leak → planes
 zeroed; scale-invariant draft gate statistic → amplitude-weighted C, correction surfaced; integer-|k|
 binning slope bias → mode-level regression). `independent` mode byte-identical (pins re-passed).
-Next: **Phase 4a stars+gas handoff** (ratified), 4b composition, 5 identifiability + production run.
+**Phase 4a stars+gas handoff COMPLETE (2026-07-16, TDD; gates pending final suite confirmation):**
+`realization/gas.py` (normalization ρ_cl=M_cl·ρ̃/∫ρ̃dV exact; ε⋆=1−exp(−τ⋆w/t_ff) partition; τ⋆ by
+scan-bisection + IFT derivative, AD/FD 6e-11) + `GasSpec` + **`TurbulentCloudIC` replaces ClusterIC
+outright** (nested stars/gas/fields/geometry/physics/ledger; gas=None star-only; no shim; all callers
++tests cut over, byte pins re-passed) + **field-first physical velocities** (gas grid σ_g=ℳc_s exact
+<1e-10; stellar σ emergent, characterized 0.75–0.89±0.07–0.14 — COM removal strips coherent bulk;
+AC-IC8a re-scoped from measurement) + joint stars+gas COM/momentum frame. Gate **AC-G1–G8 8/8**
+(new gas_acceptance.py): closure ≤3e-15, pointwise conservation 2e-16, SFE reproduced ≤8e-16,
+w·ρ^{3/2} limit CV 4e-4, refusals loud. Physics found: the freefall partition CAPS reachable SFE at
+the collapse-eligible share (falls with ℳ: ~0.79/0.36/0.16 at ℳ=4/8/12), over-ceiling RAISES;
+fully-consumed cells (ρ_g=0) counted. Next: **Phase 4b composition** (λ_corr, binaries, gated local
+IMF), then Phase 5 identifiability + CAREER production run; gravax consumes TurbulentCloudIC.gas.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)

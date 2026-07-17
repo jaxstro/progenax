@@ -171,20 +171,22 @@ def ac_ic9c_cluster_gates_in_coupled_mode(seed=0):
         G=G, units=STELLAR, key=jax.random.PRNGKey(seed),
     )
     # AC6: realized dense fraction vs BM19 theory (same fidelity statement as AC6)
-    rel = abs(float(ic.field.f_dense_realized) / float(ic.field.f_dense) - 1.0)
+    rel = abs(float(ic.fields.s_turb.f_dense_realized) / float(ic.fields.s_turb.f_dense) - 1.0)
     ok_ac6 = rel < 0.05
     print(f"  AC6 re-pass: f_dense_realized/f_dense − 1 = {rel:.4f} (<0.05) "
           f"{'PASS' if ok_ac6 else 'FAIL'}")
-    # σ_⋆ round trip (AC-IC8a bound, coupled mode)
-    sigma = float(jnp.sqrt(jnp.sum(ic.masses * jnp.sum(ic.velocities**2, axis=1))
-                           / jnp.sum(ic.masses)))
+    # σ_⋆ inheritance band (field-first re-scope, Phase 4a — matches AC-IC8a: the
+    # EXACT identity lives on the gas grid; the stellar dispersion is emergent)
+    sigma = float(jnp.sqrt(jnp.sum(ic.stars.masses * jnp.sum(ic.stars.velocities**2, axis=1))
+                           / jnp.sum(ic.stars.masses)))
     target = MACH * 0.2 / float(STELLAR.velocity_scale_km_s)
-    ok_sig = abs(sigma / target - 1.0) < 0.01
-    print(f"  σ_⋆ round trip: {sigma:.4f} vs {target:.4f} pc/Myr  "
-          f"rel err {abs(sigma / target - 1.0):.2e} (<1%) {'PASS' if ok_sig else 'FAIL'}")
+    ratio = sigma / target
+    ok_sig = 0.4 < ratio < 1.1
+    print(f"  σ_⋆/σ_g inheritance: {ratio:.3f} (characterized band (0.4, 1.1)) "
+          f"{'PASS' if ok_sig else 'FAIL'}")
     # AC-IC4 coherence thresholds (near>0.3 and near>far+0.15), 64³ per the caveat
-    pos = np.asarray(ic.positions)
-    vel = np.asarray(ic.velocities)
+    pos = np.asarray(ic.stars.positions)
+    vel = np.asarray(ic.stars.velocities)
     rng = np.random.default_rng(0)
     i = rng.integers(0, len(pos), 6000)
     j = rng.integers(0, len(pos), 6000)
