@@ -52,6 +52,7 @@ from gravoturb.realization.helmholtz import (
     coupled_log_density_gaussian,
     helmholtz_velocity_field,
 )
+from gravoturb.realization.mass_assignment import correlated_mass_assignment
 from gravoturb.realization.pipeline import (
     TurbulentField,
     build_turbulent_field,
@@ -85,6 +86,7 @@ from gravoturb.theory.collapse_threshold import virial_parameter
 from progenax import (
     compute_kinetic_energy,
     compute_potential_energy,
+    resolve_binary_components,
     to_com_frame,
     virial_scale,
 )
@@ -116,11 +118,16 @@ class FrameTransform(NamedTuple):
 
 
 class Stars(NamedTuple):
-    """Discrete stellar IC (COM frame; pc, pc/Myr, M⊙ for STELLAR)."""
+    """Discrete stellar IC (COM frame; pc, pc/Myr, M⊙ for STELLAR).
+
+    ``system_id`` is the primordial-system provenance (Aim-2 hierarchy state):
+    singles get their own id; both components of a primordial binary share one id
+    (feeds ``progenax.binary_energy_budget`` and downstream startrax hierarchy)."""
 
     positions: Float[Array, "n 3"]
     velocities: Float[Array, "n 3"]
     masses: Float[Array, "n"]
+    system_id: Array | None = None
 
 
 class GasState(NamedTuple):
@@ -190,6 +197,7 @@ class Ledger(NamedTuple):
     tail_star_fraction: Float[Array, ""] | None = None   # multi_freefall only
     collapse_eligible_fraction: Float[Array, ""] | None = None
     placement_n_eff: Float[Array, ""] | None = None
+    n_binaries: int | None = None                        # companions builds only
 
 
 class TurbulentCloudIC(NamedTuple):
@@ -288,8 +296,47 @@ def build_cluster_ic(
         )
         f_tail = f_elig = n_eff = None
 
+    # ── Phase 4b: primordial mass segregation (λ_corr; OFF by default) ──
+    if composition.lambda_corr is not None:
+        # local density at each star's cell (nearest-cell lookup of the enveloped
+        # field). Key comes from fold_in of the ORIGINAL key so the existing 3-way
+        # split streams (and the byte-identity pins) are untouched.
+        n_ax = jnp.asarray(geometry.shape)
+        cell = jnp.clip(
+            jnp.floor(positions / geometry.box_size * n_ax).astype(jnp.int32),
+            0, n_ax - 1,
+        )
+        local_rho = jnp.exp(s_total)[cell[:, 0], cell[:, 1], cell[:, 2]]
+        masses = correlated_mass_assignment(
+            masses, local_rho, composition.lambda_corr,
+            jax.random.fold_in(key, 4),
+        )
+
+    # ── Phase 4b: companion sampling (barycenter-first contract) ──
+    # Input masses are PRIMARIES; companions are drawn per primary, and the SYSTEM
+    # masses m_sys = m1 + m2 carry every downstream mass role (barycenter dynamics,
+    # frame weights, the gas M_cl contract). Components are split only AFTER the
+    # velocity amplitude is applied to the barycenters (ratified design).
+    if composition.companions is not None:
+        if units is None:
+            raise ValueError(
+                "CompositionSpec(companions=...) requires units=... (a jaxstro "
+                "UnitSystem): orbital periods are drawn in days and must be "
+                "converted to the G-consistent time unit"
+            )
+        day_in_time_units = 86400.0 / units.time_scale_cgs
+        is_binary, comp_elems = composition.companions.sample(
+            jax.random.fold_in(key, 5), masses,
+            G=G, day_in_time_units=day_in_time_units,
+        )
+        m2 = jnp.where(is_binary, comp_elems.m2, 0.0)
+        m_sys = masses + m2
+    else:
+        is_binary = comp_elems = None
+        m_sys = masses
+
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
-    m_star = jnp.sum(masses)
+    m_star = jnp.sum(m_sys)
 
     # ── gas construction (Phase 4a; before the frame so the frame can be joint) ──
     if gas is not None:
@@ -325,18 +372,18 @@ def build_cluster_ic(
             m_gas_cells = rho_gas * cell_volume
             M_tot = m_star + M_gas
             origin = (
-                jnp.sum(positions * masses[:, None], axis=0)
+                jnp.sum(positions * m_sys[:, None], axis=0)
                 + jnp.sum(grid * m_gas_cells[..., None], axis=(0, 1, 2))
             ) / M_tot
             v_gas_unshifted = grid_scale * v_field
             bulk = (
-                jnp.sum(v_star_unshifted * masses[:, None], axis=0)
+                jnp.sum(v_star_unshifted * m_sys[:, None], axis=0)
                 + jnp.sum(v_gas_unshifted * m_gas_cells[..., None], axis=(0, 1, 2))
             ) / M_tot
             v_gas = v_gas_unshifted - bulk
         else:
-            origin = jnp.sum(positions * masses[:, None], axis=0) / m_star
-            bulk = jnp.sum(v_star_unshifted * masses[:, None], axis=0) / m_star
+            origin = jnp.sum(positions * m_sys[:, None], axis=0) / m_star
+            bulk = jnp.sum(v_star_unshifted * m_sys[:, None], axis=0) / m_star
             v_gas = None
         pos_com = positions - origin
         v_scaled = v_star_unshifted - bulk
@@ -347,27 +394,46 @@ def build_cluster_ic(
             velocity_scale=star_scale,
         )
     else:  # 'virial_target' (byte-identical legacy path; gas refused above)
-        pos_com, v_com = to_com_frame(positions, v_raw, masses)
-        origin = jnp.sum(positions * masses[:, None], axis=0) / m_star
-        frame_bulk_v = jnp.sum(v_raw * masses[:, None], axis=0) / m_star
-        v_scaled = virial_scale(pos_com, v_com, masses, Q_target=velocity.Q_target, G=G)
-        T_raw = compute_kinetic_energy(v_com, masses)
-        T_scaled = compute_kinetic_energy(v_scaled, masses)
+        pos_com, v_com = to_com_frame(positions, v_raw, m_sys)
+        origin = jnp.sum(positions * m_sys[:, None], axis=0) / m_star
+        frame_bulk_v = jnp.sum(v_raw * m_sys[:, None], axis=0) / m_star
+        v_scaled = virial_scale(pos_com, v_com, m_sys, Q_target=velocity.Q_target, G=G)
+        T_raw = compute_kinetic_energy(v_com, m_sys)
+        T_scaled = compute_kinetic_energy(v_scaled, m_sys)
         frame = FrameTransform(
             origin=origin, bulk_velocity=frame_bulk_v,
             velocity_scale=jnp.sqrt(T_scaled / T_raw),
         )
         v_gas = None
 
-    # ── diagnostics + ledger ──
-    T = compute_kinetic_energy(v_scaled, masses)
-    V = compute_potential_energy(pos_com, masses, G=G)
+    # ── Phase 4b: split binary components AFTER the barycenter amplitude ──
+    if composition.companions is not None:
+        resolved = resolve_binary_components(
+            pos_com, v_scaled, masses, m2, is_binary,
+            comp_elems.a, comp_elems.e, comp_elems.inc,
+            comp_elems.Omega, comp_elems.omega, comp_elems.M_anom, G=G,
+        )
+        # host-level compaction (the builder is eager): drop single-star ghosts
+        real = resolved.is_real
+        star_pos = resolved.positions[real]
+        star_vel = resolved.velocities[real]
+        star_masses = resolved.masses[real]
+        star_sysid = resolved.primordial_system_id[real]
+        n_binaries = int(jnp.sum(is_binary))
+    else:
+        star_pos, star_vel, star_masses = pos_com, v_scaled, masses
+        star_sysid = jnp.arange(n_stars)
+        n_binaries = None
+
+    # ── diagnostics + ledger (on the FINAL star set gravax will integrate) ──
+    T = compute_kinetic_energy(star_vel, star_masses)
+    V = compute_potential_energy(star_pos, star_masses, G=G)
     Q_virial = T / jnp.abs(V)
     sigma_1d = jnp.sqrt(2.0 * T / (3.0 * m_star))  # BM92/Heyer 1-D convention
     alpha_vir = virial_parameter(
-        m_star, _half_mass_radius(pos_com, masses), sigma_1d, G=G
+        m_star, _half_mass_radius(star_pos, star_masses), sigma_1d, G=G
     )
-    p_stars = jnp.sum(v_scaled * masses[:, None], axis=0)
+    p_stars = jnp.sum(star_vel * star_masses[:, None], axis=0)
     if gas is not None:
         total_momentum = p_stars + jnp.sum(
             v_gas * (rho_gas * cell_volume)[..., None], axis=(0, 1, 2)
@@ -384,7 +450,8 @@ def build_cluster_ic(
         gas_state = None
 
     return TurbulentCloudIC(
-        stars=Stars(positions=pos_com, velocities=v_scaled, masses=masses),
+        stars=Stars(positions=star_pos, velocities=star_vel, masses=star_masses,
+                    system_id=star_sysid),
         gas=gas_state,
         fields=Fields(s_turb=field, s_total=s_total, collapse_weight=w),
         geometry=Geometry(shape=geometry.shape, box_size=geometry.box_size,
@@ -402,7 +469,7 @@ def build_cluster_ic(
             total_momentum=total_momentum, Q_virial=Q_virial, alpha_vir=alpha_vir,
             frame=frame, gas_included=gas is not None,
             tail_star_fraction=f_tail, collapse_eligible_fraction=f_elig,
-            placement_n_eff=n_eff,
+            placement_n_eff=n_eff, n_binaries=n_binaries,
         ),
     )
 

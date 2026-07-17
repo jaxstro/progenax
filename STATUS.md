@@ -103,7 +103,15 @@ AC-IC8a re-scoped from measurement) + joint stars+gas COM/momentum frame. Gate *
 (new gas_acceptance.py): closure ≤3e-15, pointwise conservation 2e-16, SFE reproduced ≤8e-16,
 w·ρ^{3/2} limit CV 4e-4, refusals loud. Physics found: the freefall partition CAPS reachable SFE at
 the collapse-eligible share (falls with ℳ: ~0.79/0.36/0.16 at ℳ=4/8/12), over-ceiling RAISES;
-fully-consumed cells (ρ_g=0) counted. Next: **Phase 4b composition** (λ_corr, binaries, gated local
-IMF), then Phase 5 identifiability + CAREER production run; gravax consumes TurbulentCloudIC.gas.
+fully-consumed cells (ρ_g=0) counted. **Phase 4b composition COMPLETE (2026-07-16, TDD; gate AC-IC10/IC11 2/2** in new
+composition_acceptance.py): λ_corr primordial segregation (Spearman +0.03→+0.997 across the sweep,
+Λ_MSR 1.20→10.4, off-path byte-identical, fold_in key), binaries barycenter-first
+(CompositionSpec.companions = any released CompanionModel; system masses drive dynamics + gas
+contract; amplitude before resolve_binary_components; stars.system_id provenance;
+binary_energy_budget printed — Q_com 0.234 vs Q_resolved 0.445 scale separation), per-cell local
+IMF **defensibility-REFUSED** vs the held Marks+2012 PDF (α₃ is a GLOBAL cloud-core relation; the
+cluster-level env_to_imf_params + masses-first route documented instead). Next: **Phase 5** — A1
+windowing/transfer/covariance for enveloped catalogs, AC-IC12 identifiability coverage, then the
+CAREER production run (cost-estimated first) + 3-panel figure; gravax consumes TurbulentCloudIC.gas.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)

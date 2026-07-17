@@ -376,3 +376,122 @@ def test_gas_build_star_only_and_refusals():
         np.asarray(ic_u.gas.rho_residual),
         0.7 * np.asarray(ic_u.gas.rho_cloud), rtol=1e-12)
     assert ic_u.physics.tau_star is None
+
+
+def test_lambda_corr_primordial_segregation():
+    """Phase 4b: lambda_corr=1 puts massive stars in dense cells (rank corr → 1 on
+    the product's own carried fields); default None leaves the input mass order
+    untouched (byte-identical path — no key consumed)."""
+    from gravoturb.cluster import build_cluster_ic
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+    from jaxstro.units import STELLAR
+    from scipy import stats
+
+    from progenax import Maschberger
+
+    masses = Maschberger().sample(jax.random.PRNGKey(11), 800)
+
+    def build(lam):
+        return build_cluster_ic(
+            masses,
+            cloud=CloudSpec(mach=MACH, b=0.5, alpha=1.8, beta=3.5),
+            geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=SHAPE),
+            velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=C_S_KMS),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3,
+                                        lambda_corr=lam),
+            G=STELLAR.G, units=STELLAR, key=jax.random.PRNGKey(3),
+        )
+
+    def local_log_density(ic):
+        pos_box = np.asarray(ic.stars.positions) + np.asarray(ic.ledger.frame.origin)
+        n = np.asarray(ic.geometry.shape)
+        idx = np.clip((pos_box / float(ic.geometry.box_size) * n).astype(int), 0, n - 1)
+        return np.asarray(ic.fields.s_total)[idx[:, 0], idx[:, 1], idx[:, 2]]
+
+    ic1 = build(1.0)
+    rho_rank = stats.spearmanr(np.asarray(ic1.stars.masses),
+                               local_log_density(ic1)).statistic
+    assert rho_rank > 0.9  # full segregation: mass-rank ↔ density-rank
+
+    ic0 = build(None)
+    np.testing.assert_array_equal(np.asarray(ic0.stars.masses), np.asarray(masses))
+    rho0 = stats.spearmanr(np.asarray(ic0.stars.masses),
+                           local_log_density(ic0)).statistic
+    assert abs(rho0) < 0.15  # random pairing
+
+    # mass conservation: a pure permutation
+    assert float(jnp.sum(ic1.stars.masses)) == pytest.approx(float(jnp.sum(masses)),
+                                                             rel=1e-12)
+
+
+def test_binaries_barycenter_first():
+    """Phase 4b: CompositionSpec(companions=...) resolves binary components AFTER the
+    barycenter velocity scaling (ratified: virial/amplitude scaling BEFORE
+    resolve_binary_components). Contract: star count = N + n_binaries (ghosts
+    compacted), total stellar mass = Σ system masses (feeds the gas M_cl contract),
+    orbital motion ADDS kinetic energy on top of the barycenter flow, the joint
+    momentum still closes, and primordial pairs are bound."""
+    from gravoturb.cluster import build_cluster_ic
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+    from jaxstro.units import STELLAR
+
+    from progenax import (
+        FlatMassRatio,
+        IndependentCompanions,
+        LogUniformPeriod,
+        ThermalEccentricity,
+        compute_kinetic_energy,
+        find_bound_pairs,
+    )
+
+    comp_model = IndependentCompanions(
+        binary_fraction=0.4,
+        q_distribution=FlatMassRatio(q_min=0.1),
+        period_distribution=LogUniformPeriod(log_P_min=2.0, log_P_max=5.0),
+        eccentricity_distribution=ThermalEccentricity(),
+    )
+    n_sys = 200
+
+    def build(companions):
+        return build_cluster_ic(
+            jnp.ones(n_sys),
+            cloud=CloudSpec(mach=MACH, b=0.5, alpha=1.8, beta=3.5),
+            geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=SHAPE),
+            velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=C_S_KMS),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3,
+                                        companions=companions),
+            G=STELLAR.G, units=STELLAR, key=jax.random.PRNGKey(7),
+        )
+
+    ic = build(comp_model)
+    n_bin = int(ic.ledger.n_binaries)
+    assert 0.25 * n_sys < n_bin < 0.55 * n_sys          # f_b = 0.4 ± sampling
+    assert ic.stars.positions.shape == (n_sys + n_bin, 3)
+    assert bool(jnp.all(ic.stars.masses > 0))            # ghosts compacted away
+    # total stellar mass = primaries + companions (the gas-contract M_star)
+    assert float(ic.ledger.M_star) == pytest.approx(float(jnp.sum(ic.stars.masses)),
+                                                    rel=1e-12)
+    assert float(ic.ledger.M_star) > n_sys               # companions add mass
+    # joint momentum closes on the resolved set
+    p = np.asarray(jnp.sum(ic.stars.velocities * ic.stars.masses[:, None], axis=0))
+    assert np.all(np.abs(p) < 1e-8 * float(ic.ledger.M_star))
+    # orbital KE rides ON TOP of the barycenter flow
+    ic0 = build(None)
+    T_res = float(compute_kinetic_energy(ic.stars.velocities, ic.stars.masses))
+    T_bar = float(compute_kinetic_energy(ic0.stars.velocities, ic0.stars.masses))
+    assert T_res > T_bar
+    # primordial pairs are bound at birth
+    pairs = find_bound_pairs(ic.stars.positions, ic.stars.velocities, ic.stars.masses,
+                             G=STELLAR.G)
+    assert int(np.asarray(pairs).sum() if hasattr(pairs, "sum") else len(pairs)) > 0
+    # companions require units (day conversion): loud refusal
+    with pytest.raises(ValueError, match="units"):
+        build_cluster_ic(
+            jnp.ones(50),
+            cloud=CloudSpec(mach=MACH, b=0.5, alpha=1.8, beta=3.5),
+            geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=SHAPE),
+            velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3,
+                                        companions=comp_model),
+            G=STELLAR.G, key=jax.random.PRNGKey(0),
+        )

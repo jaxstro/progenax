@@ -238,3 +238,15 @@ def test_top_level_api_exports():
     for name in ("build_cluster_ic", "TurbulentCloudIC", "GasSpec", "CloudSpec", "GeometrySpec",
                  "VelocitySpec", "CompositionSpec"):
         assert hasattr(gravoturb, name)
+
+
+def test_composition_spec_lambda_corr_guards():
+    """Phase 4b: lambda_corr (primordial mass segregation strength) — None default
+    (feature OFF, byte-identical path), in [0, 1] when set."""
+    c = CompositionSpec(lambda_corr=0.8)
+    assert float(c.lambda_corr) == 0.8
+    assert CompositionSpec().lambda_corr is None
+    with pytest.raises(ValueError, match="lambda_corr"):
+        CompositionSpec(lambda_corr=1.2)
+    with pytest.raises(ValueError, match="lambda_corr"):
+        CompositionSpec(lambda_corr=-0.1)

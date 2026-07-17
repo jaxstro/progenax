@@ -219,6 +219,18 @@ class CompositionSpec(eqx.Module):
     placement: str = eqx.field(static=True, default="multi_freefall")
     f_sub: float | None = eqx.field(static=True, default=None)
     mask_sharpness: Float[Array, ""] | float = 8.0
+    lambda_corr: Float[Array, ""] | float | None = None
+    #   Phase 4b primordial mass segregation: massive stars form preferentially in
+    #   dense cells (McLuster Eq. A1 partial shuffle on the density rank). None
+    #   (default) = feature OFF, byte-identical pairing in the input mass order;
+    #   0 = random re-pairing (ablation); 1 = full mass-rank ↔ density-rank.
+    companions: object | None = None
+    #   Phase 4b binaries: any progenax CompanionModel (IndependentCompanions /
+    #   MoeCompanions). The builder places SYSTEM BARYCENTERS (input masses =
+    #   primaries; system masses = m1 + m2 carry the dynamics and the gas mass
+    #   contract), applies the velocity amplitude to barycenters (ratified:
+    #   scaling BEFORE resolution), then splits components via the released
+    #   resolve_binary_components and compacts ghost slots. None = singles only.
 
     def __check_init__(self):
         if self.placement not in ("multi_freefall", "two_population"):
@@ -238,6 +250,16 @@ class CompositionSpec(eqx.Module):
             if not 0.0 <= float(self.f_sub) <= 1.0:
                 raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
         _positive("mask_sharpness", self.mask_sharpness)
+        if (self.lambda_corr is not None and not _is_traced(self.lambda_corr)
+                and not 0.0 <= float(self.lambda_corr) <= 1.0):
+            raise ValueError(
+                f"lambda_corr must be in [0, 1] (None = off), got {self.lambda_corr}"
+            )
+        if self.companions is not None and not hasattr(self.companions, "sample"):
+            raise TypeError(
+                f"companions must be a progenax CompanionModel (needs .sample), "
+                f"got {type(self.companions).__name__}"
+            )
 
 
 class GasSpec(eqx.Module):

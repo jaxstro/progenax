@@ -282,6 +282,27 @@ and fully-consumed cells (ε⋆→1, ρ_g = 0 exactly) are counted, not hidden. 
 star-only products loudly. Ownership boundary held: NO feedback/B-splines/gas
 gravity/evolution here — gravax owns those (Aim 2 Phases 2+).
 
+**AC-IC10/AC-IC11 — Phase-4b composition (fresh 2026-07-16, new script
+``composition_acceptance.py``): 2/2 PASS.** (i) **λ_corr primordial mass segregation**
+(``CompositionSpec.lambda_corr``; McLuster Eq. A1 partial shuffle on the density rank;
+key from ``fold_in`` so the split streams/byte pins are untouched): Spearman(m, s_local)
+= +0.03/−0.02/+0.47/+0.997 at off/0/0.5/1 (monotone; off preserves the input mass order
+exactly), and the Allison+2009 Λ_MSR(t=0) responds 1.20±0.22 → 10.36±1.93 (independent
+scipy-MST oracle). (ii) **Binaries, barycenter-first** (``CompositionSpec.companions``,
+any released CompanionModel): input masses are PRIMARIES, system masses m1+m2 carry the
+barycenter dynamics and the gas M_cl contract, the velocity amplitude applies to
+barycenters BEFORE ``resolve_binary_components`` (ratified), ghosts compacted,
+``stars.system_id`` carries primordial-system provenance. The released
+``binary_energy_budget`` prints the scale separation (fiducial 400 systems, f_b=0.4:
+E_internal = −18723 vs T_com = +272; **Q_com = 0.234 emergent vs Q_resolved = 0.445**
+— the resolved Q is inflated by internal orbital motion and must not be read as cluster
+dynamics); momentum closes on the resolved set; requires ``units`` (day→Myr conversion,
+loud refusal). (iii) **Per-cell local IMF: DEFENSIBILITY-REFUSED** — verified against
+the held Marks+2012 PDF (MNRAS 422, 2246): the α₃ relation is calibrated on the GLOBAL
+pre-cluster cloud-core density (their Fig. 3), not any per-cell density; the supported
+route is cluster-level ``env_to_imf_params`` (the TurbulentCloudIC now carries the
+physical global ρ_cl) + masses-first. No indefensible code was written.
+
 **2026-07-16 review remediation (adversarial 8-angle code review, 10 verified findings):**
 (i) the former ``f_sub_derived`` conflated two materially different quantities — replaced by
 ``tail_star_fraction`` (Σ_{s>s_t} p under the actual placement PMF; ~0.97 at the fiducial —
