@@ -7,6 +7,11 @@ claims of correctness without a fresh artifact.
 
 Run as a script to print the whole suite:  python -m gravoturb.validation.acceptance
 numpy/scipy are permitted here (validation/analysis side).
+
+**CLOSED TO NEW ACCEPTANCE SECTIONS (2026-07-16 architecture review):** this file is
+at 2× the file-size target and accretes one section per AC. New gates open new
+scripts — cluster-IC gates live in cluster_acceptance.py; Phase-3 coupling gates go
+in a new coupling_acceptance.py.
 """
 
 import math

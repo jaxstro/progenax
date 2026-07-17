@@ -14,6 +14,8 @@ Layers
 - ``realization`` : 3D realization — GRF + rank copula, dense-tail mask, star placement.
 - ``diagnostics`` : CW04 Q substructure metric (numpy/scipy, non-differentiable).
 - ``inference``   : differentiable predicted-statistics inference (blackjax NUTS).
+  The GRADIENT PATH is JAX-native; its estimator/diagnostic utilities (mock
+  covariance, SBC ranks, HMC convergence stats) are numpy-permitted analysis-side.
 - ``cluster``     : the end-to-end natal-parameters → N-body IC builder + typed specs.
 - ``validation``  : AC1–AC17 + AC-IC acceptance scripts that print real numbers.
 
