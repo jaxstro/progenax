@@ -32,7 +32,10 @@ def virial_parameter(
 
     The dimensionless ratio of (twice the) turbulent kinetic to gravitational energy for a
     uniform sphere; ``alpha_vir = 1`` is virial equilibrium, ``< 1`` bound/collapsing,
-    ``>> 1`` unbound. Pass the same unit system through ``(mass, radius, sigma_v, G)``
+    ``>> 1`` unbound. **Convention: ``sigma_v`` is the 1-D (line-of-sight) dispersion**
+    — the BM92/Heyer observational convention under which the calibration above holds;
+    passing a 3-D dispersion inflates alpha_vir by 3 (review 2026-07-16). Pass the same
+    unit system through ``(mass, radius, sigma_v, G)``
     (e.g. M_sun, pc, km/s with G = 4.3009e-3 pc (km/s)^2 M_sun^-1).
 
     Grounding (Heyer et al. 2009, ApJ 699, 1092): Galactic GMCs follow

@@ -143,7 +143,10 @@ class VelocitySpec(eqx.Module):
             _non_negative("Q_target", self.Q_target)  # Q_target=0: cold collapse (v=0 IC)
             if self.c_s is not None:
                 raise ValueError("c_s is a physical-mode knob; unused with mode='virial_target'")
-            if not _is_traced(self.eta_v) and float(self.eta_v) != 1.0:
+            # MISUSE guard, not a value check — so it must fire for tracers too: a
+            # traced eta_v here means someone is differentiating/vmapping over a knob
+            # this mode never reads (silent zero gradients; review 2026-07-16).
+            if _is_traced(self.eta_v) or float(self.eta_v) != 1.0:
                 raise ValueError(
                     "eta_v is a physical-mode knob; unused with mode='virial_target'"
                 )
@@ -218,10 +221,18 @@ def cloud_spec_from_larson(
     1 pc, exponent 0.5). Under ``VelocitySpec(mode='physical')`` pass the SAME ``c_s`` so
     σ_⋆ = η_v·ℳ·c_s = η_v·σ_v(R_cloud) — the Larson chain then closes end to end.
 
+    **Conventions:** σ_v0 is a 3-D dispersion normalization (see
+    :func:`progenax.cluster.turbulence.larson_sigma_v` — Solomon+1987's 0.72 is 1-D and
+    needs ×√3 before use here), matching the 3-D ℳ and the 3-D σ_⋆ downstream. The
+    returned ``box_size = 2 R_cloud`` circumscribes the cloud sphere face-on (cube
+    corners lie √3·R_cloud out), so the periodic-box mean density is below ρ_cl.
+
     Differentiable in (M_ecl, sfe, rho_cl).
     """
-    # Lazy released-core import: keeps the spec module import-light; the dependency
-    # direction (experimental -> released) is the cycle-free one (see cluster.py).
+    # Lazy released-core import. NB `import gravoturb` loads progenax anyway (via
+    # cluster.py), so this laziness only benefits a standalone `import gravoturb.specs`
+    # (e.g. spec-only tooling); the direction (experimental -> released) is the
+    # cycle-free one either way (see cluster.py).
     from progenax.cluster.constants import ALPHA_LARSON, C_S_DEFAULT, SIGMA_V0_DEFAULT
     from progenax.cluster.turbulence import (
         b_from_environment,

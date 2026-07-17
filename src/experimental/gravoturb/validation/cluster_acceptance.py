@@ -510,10 +510,12 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
                     for i in range(len(machs) - 1) for r in r_hs) and \
                 all(qgrid[(m, r_hs[j])][0] < qgrid[(m, r_hs[j + 1])][0]
                     for j in range(len(r_hs) - 1) for m in machs)
-    # α_vir consistency diagnostic at the fiducial point
+    # α_vir consistency diagnostic at the fiducial point (BM92 1-D convention:
+    # σ_1D = σ_3D/√3, so α_vir ~ 1 reads as virial on the GMC literature scale)
     ic_fid = _ic_phys(8.0)
     print(f"      fiducial (ℳ=8, r_h=0.5): Q = {float(ic_fid.Q_virial):.3f}, "
-          f"α_vir = {float(ic_fid.alpha_vir):.3f} (BM92 form on the realized cluster)")
+          f"α_vir = {float(ic_fid.alpha_vir):.3f} "
+          "(BM92 1-D convention on the realized cluster)")
     # exact η_v² scaling at frozen key (same positions)
     q1 = float(_ic_phys(8.0, eta_v=1.0, seed=0).Q_virial)
     q5 = float(_ic_phys(8.0, eta_v=0.5, seed=0).Q_virial)
@@ -528,6 +530,69 @@ def ac_ic8_physical_velocity(seeds=(0, 1, 2)):
     return {"passed": ok, "qgrid": qgrid, "units_pin": pin,
             "eta_ratio": q5 / q1, "Q_fiducial": float(ic_fid.Q_virial),
             "alpha_vir_fiducial": float(ic_fid.alpha_vir)}
+
+
+# ── IMF characterization (committed artifact for VALIDATION_SUMMARY caveat vii) ──
+def characterize_imf(seeds=(0, 1, 2)):
+    """Emergent Q under a Maschberger IMF vs equal masses, each with the cloud
+    Larson-closed to the ACTUAL stellar mass (SFE=0.2, ρ_cl=100 M⊙/pc³). NOT a
+    pass/fail physics gate — a characterization table (the printed artifact behind
+    VALIDATION_SUMMARY caveat vii); the one light assertion is that at MATCHED total
+    mass the IMF changes Q by <3 seed-σ (Q tracks total mass, not IMF shape)."""
+    from gravoturb.specs import cloud_spec_from_larson
+    from progenax import Maschberger
+
+    print("\n=== IMF characterization — emergent Q vs mass function "
+          "(Larson-closed cloud, physical mode) ===")
+    imf = Maschberger()
+
+    def _build(masses, seed):
+        M = float(jnp.sum(masses))
+        cloud, box = cloud_spec_from_larson(M_ecl=M, sfe=0.2, rho_cl=100.0, alpha=ALPHA)
+        return build_cluster_ic(
+            masses, cloud=cloud,
+            geometry=GeometrySpec(profile=PlummerProfile(r_h=0.5),
+                                  box_size=float(box), shape=SHAPE),
+            velocity=VelocitySpec(beta_v=BETA_V, mode="physical", c_s=0.2),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3),
+            G=G, units=STELLAR, key=jax.random.PRNGKey(seed),
+        )
+
+    def _masses(case, sd):
+        key = jax.random.PRNGKey(100 + sd)
+        if case == "equal":
+            return jnp.ones(2000)
+        if case == "imf_fixed_n":
+            return imf.sample(key, 2000)
+        m, n = imf.sample_m_total(key, 2000.0)  # imf_matched_M (padded sampler)
+        m = np.asarray(m)
+        return jnp.asarray(m[m > 0][: int(n)])
+
+    rows = {}
+    print(f"  {'case':<22}{'N':>7}{'M_tot':>8}{'m_max':>8}{'Q':>16}{'alpha_vir':>16}")
+    for case in ["equal", "imf_fixed_n", "imf_matched_M"]:
+        Qs, avs, Ms, mmaxs, Ns = [], [], [], [], []
+        for sd in seeds:
+            m = _masses(case, sd)
+            ic = _build(m, sd)
+            Qs.append(float(ic.Q_virial))
+            avs.append(float(ic.alpha_vir))
+            Ms.append(float(jnp.sum(m)))
+            mmaxs.append(float(jnp.max(m)))
+            Ns.append(int(m.shape[0]))
+        rows[case] = (np.mean(Qs), np.std(Qs), np.mean(avs), np.std(avs))
+        print(f"  {case:<22}{np.mean(Ns):>7.0f}{np.mean(Ms):>8.0f}{np.mean(mmaxs):>8.1f}"
+              f"{rows[case][0]:>9.3f}±{rows[case][1]:.3f}"
+              f"{rows[case][2]:>9.3f}±{rows[case][3]:.3f}")
+    dq = abs(rows["imf_matched_M"][0] - rows["equal"][0])
+    band = 3.0 * max(rows["imf_matched_M"][1], rows["equal"][1], 1e-6)
+    ok = dq < band
+    print(f"  matched-M IMF vs equal-mass |ΔQ| = {dq:.3f} < 3σ_seed = {band:.3f} "
+          f"(Q tracks TOTAL mass, not IMF shape) {'PASS' if ok else 'FAIL'}")
+    print("  (fixed-N and m_max rows are characterization, not gated; unconstrained "
+          "Maschberger can draw m_max >> the Weidner-Kroupa m_max(M_ecl) — use "
+          "TruncatedIMF for production)")
+    return {"passed": ok, "rows": rows}
 
 
 # ── figure gallery (moved) ──
@@ -551,6 +616,7 @@ def main():
     r5 = ac_ic5_gradient()
     r6 = ac_ic6_beta_recovery()
     r8 = ac_ic8_physical_velocity()
+    r8i = characterize_imf()
 
     print("\n[gallery] writing figures ...")
     from gravoturb.validation.cluster_figures import (  # deferred: avoids import cycle
@@ -575,7 +641,8 @@ def main():
                "AC-IC4 coherence (legacy)": r4,
                "AC-IC4 coherence (multi_freefall)": r4m,
                "AC-IC5 gradient": r5, "AC-IC6 β-recovery": r6,
-               "AC-IC8 physical velocity": r8}
+               "AC-IC8 physical velocity": r8,
+               "IMF characterization": r8i}
     print("\n" + "=" * 78)
     print("SUMMARY")
     for name, r in results.items():

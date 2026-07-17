@@ -175,7 +175,7 @@ ic = build_cluster_ic(
     G=STELLAR.G, key=jax.random.PRNGKey(0),
 )
 ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dense_realized
-# ic.alpha_vir — BM92-form consistency diagnostic (both modes);
+# ic.alpha_vir — BM92 consistency diagnostic, 1-D literature convention (both modes);
 # cloud_spec_from_larson(M_ecl=…, sfe=…, rho_cl=…, alpha=…) closes (ℳ, β, b, box) from cloud inputs
 ```
 
@@ -183,7 +183,9 @@ ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dens
 
 - **JAX-native cores.** `theory/` and `realization/` use `jax.numpy`, `lax`, `vmap`/`grad`/`jit`,
   Equinox/jaxtyping; sampling uses fixed-iteration `lax.scan`, never `while_loop`. float64 is
-  enabled at import. `diagnostics/q.py` and `validation/` are the *only* places numpy/scipy appear.
+  enabled at import. numpy/scipy appear only in `diagnostics/`, `validation/`, and the
+  analysis-side (never gradient-path) utilities of `inference/` (mock covariance, SBC
+  ranks, HMC convergence stats — 2026-07-16 layering clarification).
 - **Differentiable interface = the predicted-statistics inference layer.** Categorical star sampling
   and the CW04 Q metric are non-differentiable, so inference predicts summary statistics analytically
   as smooth functions of θ and differentiates *those* (`inference/`; AC11–AC17). Q is a

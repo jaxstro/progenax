@@ -65,8 +65,9 @@ placement modes (AC-IC4 multi-freefall initially FAILED at 32³ — root-caused 
 caveat, fixed by resolution not thresholds; placement_n_eff diagnostic added). Gates: 380 passed
 +1 xfail strict; acceptance 11/11; docs 213pp/0 warnings. **Phase 2 COMPLETE (2026-07-16, TDD):**
 physical velocity mode `VelocitySpec(mode='physical', c_s=…[km/s], eta_v=1)` — σ_⋆ = η_v·ℳ·c_s
-via `scale_to_dispersion` after COM removal, **Q_virial emergent**, BM92-form `alpha_vir`
-diagnostic on-path (both modes), builder takes `units=` for the km/s→pc/Myr conversion
+via `scale_to_dispersion` after COM removal, **Q_virial emergent**, BM92 `alpha_vir` diagnostic
+on-path (both modes; 1-D literature convention per the 2026-07-16 audit — fiducial α_vir≈0.18),
+builder takes `units=` for the km/s→pc/Myr conversion
 (G-consistency checked, no silent precedence), `cloud_spec_from_larson` closes (M_ecl, SFE,
 ρ_cl) → (ℳ, β, b, box=2R_cloud) through the released Larson chain. Gate **AC-IC8 PASS**
 (σ round trip ≤2e-16; emergent-Q grid monotone in ℳ and r_h, fiducial Q≈0.10–0.16 strongly

@@ -34,6 +34,7 @@ from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
+from jaxstro.units import UnitSystem
 from jaxtyping import Array, Float
 
 from gravoturb.realization.envelope import apply_spherical_envelope
@@ -83,10 +84,12 @@ class ClusterIC(NamedTuple):
     #   a resolution-monitoring diagnostic (grows with grid size; low values flag
     #   the under-resolved-tail regime; use ≥64³ at ℳ≥8, the AC-IC4 caveat)
     alpha_vir: Float[Array, ""] | None = None
-    #   Bertoldi & McKee (1992)-form virial parameter 5σ²r_h/(GM) measured on the
-    #   REALIZED cluster (mass-weighted 3-D dispersion, realized half-mass radius) —
-    #   the physical-mode consistency diagnostic (reported in both modes; ~2Q for a
-    #   uniform sphere, so expect O(1) values, not exact Q agreement)
+    #   Bertoldi & McKee (1992) virial parameter 5σ_1D²r_h/(GM) measured on the
+    #   REALIZED cluster, in the LITERATURE convention: σ_1D = σ_3D/√3 (BM92/Heyer
+    #   2009 use the 1-D line-of-sight dispersion, so α_vir ~ 1 ≈ virial on the GMC
+    #   scale). Reported in both modes. NB with r_h in place of BM92's outer radius
+    #   the uniform-sphere identity α = 2Q shifts to α ≈ 1.6Q (r_h/R = 2^{-1/3});
+    #   expect order-Q values, not exact Q agreement.
 
 
 def build_cluster_ic(
@@ -98,7 +101,7 @@ def build_cluster_ic(
     composition: CompositionSpec,
     G: float,
     key: jax.Array,
-    units=None,
+    units: UnitSystem | None = None,
 ) -> ClusterIC:
     r"""Build a spherical, substructured, velocity-scaled gravoturbulent cluster IC.
 
@@ -139,6 +142,16 @@ def build_cluster_ic(
     v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
 
+    # units/G consistency is checked whenever units is provided, in ANY mode (a
+    # mismatch is never ignored — no silent precedence). G and units are host-concrete
+    # by contract: the builder is host-level (categorical placement inside), so the
+    # float() casts here never see tracers.
+    if units is not None and abs(float(units.G) - float(G)) > 1e-9 * abs(float(G)):
+        raise ValueError(
+            f"units and G disagree (units.G={units.G!r}, G={G!r}); pass a "
+            f"consistent pair — no silent precedence"
+        )
+
     pos_com, v_com = to_com_frame(positions, v_raw, masses)
     if velocity.mode == "physical":
         if units is None:
@@ -146,11 +159,6 @@ def build_cluster_ic(
                 "VelocitySpec(mode='physical') requires units=... (a jaxstro UnitSystem, "
                 "e.g. STELLAR): c_s is in km/s and must be converted to the G-consistent "
                 "velocity unit"
-            )
-        if abs(float(units.G) - float(G)) > 1e-9 * abs(float(G)):
-            raise ValueError(
-                f"units and G disagree (units.G={units.G!r}, G={G!r}); pass a "
-                f"consistent pair — no silent precedence"
             )
         # σ_⋆ = η_v·ℳ·c_s, with c_s [km/s] → length/time units of G (0.9778 km/s per
         # pc/Myr for STELLAR); scaling happens AFTER COM removal, so the realized
@@ -165,9 +173,12 @@ def build_cluster_ic(
     Q_virial = T / jnp.abs(V)
 
     m_total = jnp.sum(masses)
-    sigma_3d = jnp.sqrt(2.0 * T / m_total)  # mass-weighted 3-D dispersion (COM frame)
+    # BM92/Heyer literature convention: 1-D dispersion σ_1D² = σ_3D²/3 = 2T/(3M),
+    # so α_vir reads on the GMC scale (α ~ 1 ≈ virial). Review fix 2026-07-16:
+    # the 3-D form inflated the diagnostic ~3× vs that scale.
+    sigma_1d = jnp.sqrt(2.0 * T / (3.0 * m_total))
     alpha_vir = virial_parameter(
-        m_total, _half_mass_radius(pos_com, masses), sigma_3d, G=G
+        m_total, _half_mass_radius(pos_com, masses), sigma_1d, G=G
     )
 
     return ClusterIC(

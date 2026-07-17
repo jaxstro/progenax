@@ -148,16 +148,18 @@ def test_physical_mode_Q_emergent_and_eta_v_squared_scaling():
 
 
 def test_physical_mode_reports_alpha_vir():
-    """alpha_vir = 5 sigma^2 r_h / (G M) (Bertoldi & McKee 1992 form on the realized
-    cluster: measured 3-D dispersion + realized half-mass radius) — the consistency
-    diagnostic, reported in BOTH modes; scales as eta_v^2 with frozen positions."""
+    """alpha_vir = 5 sigma_1D^2 r_h / (G M) — BM92/Heyer LITERATURE convention (1-D
+    dispersion, sigma_1D = sigma_3D/sqrt(3)), measured on the realized cluster; the
+    consistency diagnostic, reported in BOTH modes; scales as eta_v^2 with frozen
+    positions. (Review 2026-07-16: the 3-D form inflated the diagnostic ~3x vs the
+    GMC literature scale where alpha_vir ~ 1 means virial.)"""
     from jaxstro.units import STELLAR
 
     ic = _ic_physical(n=600, key=3)
-    sigma = _sigma_3d(ic)
+    sigma_1d_sq = _sigma_3d(ic) ** 2 / 3.0
     r = np.sort(np.linalg.norm(np.asarray(ic.positions), axis=1))
     r_h = r[np.searchsorted(np.cumsum(np.ones_like(r)), r.size / 2.0)]  # equal masses
-    expected = 5.0 * sigma**2 * r_h / (STELLAR.G * float(jnp.sum(ic.masses)))
+    expected = 5.0 * sigma_1d_sq * r_h / (STELLAR.G * float(jnp.sum(ic.masses)))
     assert float(ic.alpha_vir) == pytest.approx(expected, rel=1e-6)
     ic5 = _ic_physical(n=600, eta_v=0.5, key=3)
     assert float(ic5.alpha_vir) / float(ic.alpha_vir) == pytest.approx(0.25, rel=1e-10)
@@ -180,8 +182,26 @@ def test_physical_mode_requires_consistent_units():
     )
     with pytest.raises(ValueError, match="units"):
         build_cluster_ic(jnp.ones(100), G=STELLAR.G, **kwargs)
-    with pytest.raises(ValueError, match="units"):
+    with pytest.raises(ValueError, match="disagree"):
         build_cluster_ic(jnp.ones(100), G=STELLAR.G, units=PLANETARY, **kwargs)
+
+
+def test_units_consistency_checked_in_any_mode():
+    """A provided units must agree with G even in virial_target mode (review: no
+    silent precedence — a units/G mismatch is never ignored)."""
+    from gravoturb.cluster import build_cluster_ic
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+    from jaxstro.units import PLANETARY, STELLAR
+
+    with pytest.raises(ValueError, match="disagree"):
+        build_cluster_ic(
+            jnp.ones(100),
+            cloud=CloudSpec(mach=MACH, b=0.5, alpha=1.8, beta=3.5),
+            geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=SHAPE),
+            velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+            composition=CompositionSpec(placement="two_population", f_sub=0.3),
+            G=STELLAR.G, units=PLANETARY, key=jax.random.PRNGKey(0),
+        )
 
 
 def test_build_cluster_ic_carries_field_for_diagnostics():

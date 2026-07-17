@@ -212,15 +212,17 @@ more binding under ρ^{3/2} weighting).
 ``VelocitySpec(mode='physical', c_s=…, eta_v=1.0)`` sets the stellar mass-weighted 3-D
 dispersion to σ_⋆ = η_v·ℳ·c_s (stars inherit the gas turbulence amplitude; η_v<1 for
 subvirial-star studies, cf. Foster+2015) and **Q_virial becomes an output**; the
-Bertoldi & McKee (1992)-form ``alpha_vir`` = 5σ²r_h/(GM) on the realized cluster is
+Bertoldi & McKee (1992) ``alpha_vir`` = 5σ_1D²r_h/(GM) on the realized cluster
+(**1-D literature convention**, σ_1D = σ_3D/√3, so α_vir ~ 1 reads as virial on the
+GMC scale — 2026-07-16 review fix: the 3-D form inflated the diagnostic 3×) is
 reported in both modes as the consistency diagnostic. ``c_s`` is in km/s; the builder
 requires ``units`` (a jaxstro UnitSystem consistent with G) for the conversion.
 Measured: (a) σ_⋆ round trip exact to ≤2e-16 across ℳ∈{4,8,12} × η_v∈{0.5,1}
 (gate bound <1%; scaling happens after COM removal); (b) emergent Q grid over
 (ℳ, r_h) with 3-seed bands — Q monotone ↑ in both ℳ and r_h (0.028±0.006 at
 ℳ=4/r_h=0.3 → 0.480±0.139 at ℳ=12/r_h=0.8; fiducial ℳ=8/r_h=0.5: Q≈0.10–0.16,
-α_vir≈0.53 — the Larson-chain amplitude leaves these N=2000×1 M⊙ clusters strongly
-SUBVIRIAL, the physically expected cold-birth regime), and Q(η_v=0.5)/Q(η_v=1) =
+α_vir≈0.18 — the Larson-chain amplitude leaves these N=2000×1 M⊙ clusters strongly
+SUBVIRIAL on both scales, the physically expected cold-birth regime), and Q(η_v=0.5)/Q(η_v=1) =
 0.250000000000 (exact, frozen positions); (c) units pin 1 pc/Myr = 0.97779 km/s
 (0.9778 ± 2e-4); (d) physical-mode gravax seam re-run PASS (COM ~1e-16, σ_⋆
 round-trip < 1e-8 across the handoff, |ΔE/E| < 5e-3 leapfrog smoke). NB the emergent Q
@@ -266,14 +268,16 @@ variance (Molina+2012: σ_s² = ln(1 + b²ℳ²·β_plasma/(β_plasma+1))), the 
 (their Eq. 18) is explicitly not implemented (HD limit only), and magnetic support raises the gas
 α_vir — so at fixed (ℳ, b) we somewhat overproduce dense-tail substructure. Internally consistent
 (FK10's b calibration and BM19's PDF are hydro), but strongly magnetized applications need the
-Molina extension. (vii) **IMF characterization (2026-07-16, Maschberger, Larson-closed cloud,
-physical mode, 3 seeds)**: emergent Q tracks TOTAL mass, not the mass-function shape — matched
-M_tot=2000 M⊙ gives Q=0.167±0.027 vs equal-mass 0.163±0.023, while fixed-N=2000 (M_tot=737)
-warms to Q=0.340±0.029; the massive tail triples the α_vir seed scatter (±0.04→±0.13; one draw
-hit m_max≈130 M⊙ — consider ``TruncatedIMF``/an m_max–M_ecl cap for production). Velocities are
-mass-independent by construction (stars inherit gas velocity; NO primordial equipartition — the
-correct birth state) and mass↔position assignment is random until Phase 4's λ_corr wiring
-(primordial segregation, gate AC-IC10).
+Molina extension. (vii) **IMF characterization (2026-07-16, Maschberger, Larson-closed cloud, physical mode,
+3 seeds; committed artifact: ``cluster_acceptance.characterize_imf``)**: emergent Q tracks
+TOTAL mass, not the mass-function shape — matched M_tot≈2029 M⊙ gives Q=0.167±0.027 vs
+equal-mass 0.163±0.023 (|ΔQ|=0.004 < 3σ_seed, the gated check), while fixed-N=2000
+(M_tot=737) warms to Q=0.340±0.029; the massive tail broadens the α_vir seed scatter
+(±0.012→±0.042 in the 1-D convention; one draw hit m_max≈130 M⊙ — consider
+``TruncatedIMF``/an m_max–M_ecl cap for production). Velocities are mass-independent by
+construction (stars inherit gas velocity; NO primordial equipartition — the correct birth
+state) and mass↔position assignment is random until Phase 4's λ_corr wiring (primordial
+segregation, gate AC-IC10).
 
 ---
 

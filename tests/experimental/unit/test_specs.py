@@ -93,6 +93,18 @@ def test_velocity_spec_mode_guards(kwargs, match):
         VelocitySpec(**kwargs)
 
 
+def test_velocity_spec_traced_eta_v_in_virial_target_raises():
+    """A TRACED eta_v in virial_target mode must raise, not silently pass: the knob is
+    unused there, so differentiating/vmapping over it yields meaningless zero gradients
+    (review: the misuse guard must not carry the _is_traced value-check exemption)."""
+    import jax
+
+    with pytest.raises(ValueError, match="eta_v"):
+        jax.grad(
+            lambda e: VelocitySpec(beta_v=4.0, Q_target=0.5, eta_v=e).Q_target * 1.0
+        )(0.8)
+
+
 def test_velocity_spec_physical_traced_construction():
     """c_s / eta_v are differentiable leaves: traced construction supported (main parity)."""
     import jax
