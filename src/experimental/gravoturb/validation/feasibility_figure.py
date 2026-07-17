@@ -140,28 +140,40 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
                    SPECTRAL_EDGES[0] + 1.0, SPECTRAL_EDGES[-1] - 1.0)
     radii = np.asarray(zams_radius(m_clip))  # R_sun
     logL = np.log10(np.clip(np.asarray(zams_luminosity(m_clip)), 1e-4, None))
-    alpha = 0.12 + 0.88 * np.clip((logL + 2.0) / 6.0, 0.0, 1.0)  # haze -> blaze
     cmap_sp = ListedColormap(SPECTRAL_COLORS)
     norm_sp = BoundaryNorm(SPECTRAL_EDGES, cmap_sp.N)
-    # Painter's algorithm on the line-of-sight depth (z): draw far->near so nearer
-    # stars occlude farther ones, as in a real projected image — this uses the full
-    # 3D IC. A mild depth-of-field factor dims the far face (atmospheric perspective)
-    # so the cluster reads as a volume; luminosity still sets the dynamic range, so
-    # faint foreground M dwarfs never hide a bright background O star.
     z = np.asarray(pos[:, 2])
-    order = np.argsort(z)  # far (low z) first, near (high z) drawn last / on top
-    po, mo, to = pos[order], masses[order], teff[order]
-    size = 6.0 + 14.0 * np.sqrt(radii[order])
-    depth = (z[order] - z.min()) / (np.ptp(z) + 1e-9)  # 0 far .. 1 near
-    face = cmap_sp(norm_sp(to))
-    face[:, 3] = np.clip(alpha[order] * (0.55 + 0.45 * depth), 0.0, 1.0)
+    zmin, zptp = z.min(), np.ptp(z) + 1e-9
+    sizes_all = 6.0 + 14.0 * np.sqrt(radii)
+    depth_all = (z - zmin) / zptp  # 0 far .. 1 near
     ax_c.set_facecolor(STARFIELD_BG)
-    bright = mo > 3.0  # soft PSF bloom behind the luminous (>~ A-type) stars
-    ax_c.scatter(po[bright, 0], po[bright, 1], s=5.0 * size[bright],
-                 c=cmap_sp(norm_sp(to[bright])), alpha=0.10, lw=0)
-    ax_c.scatter(po[:, 0], po[:, 1], s=size, facecolors=face,
-                 edgecolors=np.where(mo > 1.0, "#f7f7ff", "none"),
-                 linewidths=np.where(mo > 1.0, 0.55, 0.0))
+    # Two-tier composite. The numerous M dwarfs are the unresolved low-mass field,
+    # so they go to the back as a soft haze (nudged alpha) regardless of depth. The
+    # K..O stars — which carry the segregation signal — are then composited on top,
+    # ordered among themselves by line-of-sight depth (painter's far->near), each
+    # with luminosity-set brightness, a mild depth-of-field dim, a white outline on
+    # m>1 Msun, and a PSF glow on the O/B/A stars. Within a tier depth is respected;
+    # across tiers mass wins, so the resolved stars are structurally never buried.
+    is_M = teff < SPECTRAL_EDGES[1]  # T_eff < 3700 K
+    mi = np.where(is_M)[0]
+    mi = mi[np.argsort(z[mi])]
+    faceM = cmap_sp(norm_sp(teff[mi]))
+    faceM[:, 3] = 0.20 * (0.5 + 0.5 * depth_all[mi])  # faint haze ~0.10-0.20
+    ax_c.scatter(pos[mi, 0], pos[mi, 1], s=sizes_all[mi], facecolors=faceM, lw=0)
+
+    fi = np.where(~is_M)[0]
+    fi = fi[np.argsort(z[fi])]  # painter's far->near within the resolved tier
+    m_f = masses[fi]
+    alpha_f = ((0.20 + 0.80 * np.clip((logL[fi] + 2.0) / 6.0, 0.0, 1.0))
+               * (0.55 + 0.45 * depth_all[fi]))
+    faceF = cmap_sp(norm_sp(teff[fi]))
+    faceF[:, 3] = np.clip(alpha_f, 0.0, 1.0)
+    fb = fi[m_f > 3.0]  # soft PSF bloom behind the luminous (>~ A-type) stars
+    ax_c.scatter(pos[fb, 0], pos[fb, 1], s=5.0 * sizes_all[fb],
+                 c=cmap_sp(norm_sp(teff[fb])), alpha=0.10, lw=0)
+    ax_c.scatter(pos[fi, 0], pos[fi, 1], s=sizes_all[fi], facecolors=faceF,
+                 edgecolors=np.where(m_f > 1.0, "#f7f7ff", "none"),
+                 linewidths=np.where(m_f > 1.0, 0.55, 0.0))
     centers = 0.5 * (SPECTRAL_EDGES[:-1] + SPECTRAL_EDGES[1:])
     sm = plt.cm.ScalarMappable(cmap=cmap_sp, norm=norm_sp)
     sm.set_array([])
