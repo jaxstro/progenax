@@ -194,9 +194,10 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
                * (0.55 + 0.45 * depth_all[fi]))
     faceF = cmap_sp(norm_sp(teff[fi]))
     faceF[:, 3] = np.clip(alpha_f, 0.0, 1.0)
-    if opaque:  # massive stars fully opaque in their true spectral colour, no ring
+    if opaque:  # full-opacity spectral colour + a thin background-coloured separator
         faceF[m_f > 1.0, 3] = 1.0
-        edge, lw = "none", 0.0
+        edge, lw = STARFIELD_BG, 0.7  # invisible on isolated stars; cuts a gap
+        #                               between overlapping (segregation-crowded) stars
     else:  # white outline on the m>1 Msun (alpha-slope) population
         edge = np.where(m_f > 1.0, "#f7f7ff", "none")
         lw = np.where(m_f > 1.0, 0.55, 0.0)
