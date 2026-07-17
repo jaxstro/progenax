@@ -33,7 +33,7 @@ del _enable_jax_hp
 
 __version__ = "0.0.0.dev0"
 
-from gravoturb.cluster import ClusterIC, build_cluster_ic
+from gravoturb.cluster import ClusterIC, FrameTransform, build_cluster_ic
 from gravoturb.specs import (
     CloudSpec,
     CompositionSpec,
@@ -45,6 +45,7 @@ from gravoturb.specs import (
 __all__ = [
     "ClusterIC",
     "CloudSpec",
+    "FrameTransform",
     "CompositionSpec",
     "GeometrySpec",
     "VelocitySpec",

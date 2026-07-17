@@ -204,6 +204,55 @@ def test_units_consistency_checked_in_any_mode():
         )
 
 
+@pytest.mark.parametrize("mode", ["virial_target", "physical"])
+def test_frame_transform_reconstructs_grid_frame(mode):
+    """ClusterIC.frame records the exact affine star↔grid map (review: the star-only COM
+    shift was silently unrecorded, leaving stars and the field grid in different frames).
+
+    Contract: positions + frame.origin reproduces the box-frame draw, and
+    velocities = frame.velocity_scale · (v_field(sampled at box positions) − frame.bulk_velocity),
+    both to machine roundoff (fp: (x−c)+c is not bitwise x)."""
+    from gravoturb.realization.envelope import apply_spherical_envelope
+    from gravoturb.realization.pipeline import build_turbulent_field
+    from gravoturb.realization.placement import sample_positions
+    from gravoturb.realization.turbulent_velocity import (
+        sample_turbulent_velocities,
+        turbulent_velocity_field,
+    )
+
+    n, seed = 600, 0
+    ic = _ic(n=n, key=seed) if mode == "virial_target" else _ic_physical(n=n, key=seed)
+
+    # replicate the builder's deterministic pipeline from the same key
+    k_field, k_vfield, k_pos = jax.random.split(jax.random.PRNGKey(seed), 3)
+    field = build_turbulent_field(8.0, 0.5, 1.8, 3.5, SHAPE, k_field)
+    s_tot = apply_spherical_envelope(field.s, _profile(), BOX)
+    pos_box = sample_positions(field.s, field.s_t, 8.0, 0.3, n, k_pos,
+                               box_size=BOX, s_density=s_tot)
+    np.testing.assert_allclose(
+        np.asarray(ic.positions) + np.asarray(ic.frame.origin),
+        np.asarray(pos_box), rtol=0.0, atol=1e-12)
+
+    v_field = turbulent_velocity_field(SHAPE, 4.0, k_vfield)
+    v_raw = np.asarray(sample_turbulent_velocities(pos_box, v_field, box_size=BOX))
+    expected = float(ic.frame.velocity_scale) * (v_raw - np.asarray(ic.frame.bulk_velocity))
+    np.testing.assert_allclose(np.asarray(ic.velocities), expected, rtol=1e-10, atol=1e-13)
+
+
+def test_frame_velocity_scale_semantics():
+    """velocity_scale is the global post-COM rescale: in physical mode it maps the raw
+    COM-frame dispersion onto σ_⋆ exactly (σ_after/σ_before); Q_target=0 gives scale 0."""
+    ic = _ic_physical(n=800, key=2)
+    from jaxstro.units import STELLAR
+
+    sigma_after = _sigma_3d(ic)
+    target = MACH * C_S_KMS / STELLAR.velocity_scale_km_s
+    assert sigma_after == pytest.approx(target, rel=1e-10)
+    assert float(ic.frame.velocity_scale) > 0.0
+    ic_cold = _ic(n=300, Q_target=0.0, key=1)
+    assert float(ic_cold.frame.velocity_scale) == pytest.approx(0.0, abs=1e-15)
+
+
 def test_build_cluster_ic_carries_field_for_diagnostics():
     """The realized TurbulentField is returned (BM19 provenance: f_dense_realized defined on s_turb)."""
     ic = _ic(n=400)

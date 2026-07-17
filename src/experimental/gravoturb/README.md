@@ -176,6 +176,8 @@ ic = build_cluster_ic(
 )
 ic.positions, ic.velocities, ic.Q_virial, ic.tail_star_fraction, ic.field.f_dense_realized
 # ic.alpha_vir — BM92 consistency diagnostic, 1-D literature convention (both modes);
+# ic.frame — FrameTransform (origin, bulk_velocity, velocity_scale): the exact star↔grid
+#            affine map, so the cluster-frame stars and the carried field grid reconcile;
 # cloud_spec_from_larson(M_ecl=…, sfe=…, rho_cl=…, alpha=…) closes (ℳ, β, b, box) from cloud inputs
 ```
 

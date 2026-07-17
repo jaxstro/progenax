@@ -65,6 +65,30 @@ from progenax import (
 )
 
 
+class FrameTransform(NamedTuple):
+    """The affine map between the cluster (COM) frame and the realization grid frame.
+
+    The builder samples stars in the grid/box frame ([0, box)³, cell centres at
+    (i+0.5)·box/n), then shifts to the stellar COM frame and rescales the velocity
+    amplitude. This ledger records that transformation exactly, so stars and the
+    carried field grid are always mutually reconcilable (review 2026-07-16: the shift
+    was previously unrecorded — a silent frame mismatch):
+
+    - grid frame:    positions_box = positions + origin
+                     (grid cell centres in the cluster frame: (i+0.5)·box/n − origin)
+    - velocities:    velocities = velocity_scale · (v_raw(positions_box) − bulk_velocity),
+                     where v_raw is the trilinear sample of the turbulent velocity grid.
+
+    Reconstruction holds to machine roundoff (floating point: (x−c)+c is not bitwise x).
+    ``velocity_scale`` is the global post-COM amplitude factor (σ_after/σ_before —
+    exact in both modes because both are pure rescales; 0 for Q_target=0 cold ICs).
+    """
+
+    origin: Float[Array, "3"]         # stellar COM in grid/box coordinates [pc]
+    bulk_velocity: Float[Array, "3"]  # subtracted bulk velocity [raw field units]
+    velocity_scale: Float[Array, ""]  # global scalar applied after COM removal
+
+
 class ClusterIC(NamedTuple):
     """A complete gravoturbulent cluster IC (a JAX pytree)."""
 
@@ -90,6 +114,9 @@ class ClusterIC(NamedTuple):
     #   scale). Reported in both modes. NB with r_h in place of BM92's outer radius
     #   the uniform-sphere identity α = 2Q shifts to α ≈ 1.6Q (r_h/R = 2^{-1/3});
     #   expect order-Q values, not exact Q agreement.
+    frame: FrameTransform | None = None
+    #   the exact star↔grid affine map (COM shift, bulk velocity, amplitude factor)
+    #   — see FrameTransform; always populated by build_cluster_ic
 
 
 def build_cluster_ic(
@@ -153,6 +180,13 @@ def build_cluster_ic(
         )
 
     pos_com, v_com = to_com_frame(positions, v_raw, masses)
+    # Frame ledger: recompute the COM/bulk exactly as core to_com_frame does (same
+    # expressions on the same inputs → identical values), so the star↔grid map is
+    # recorded rather than silently discarded (review 2026-07-16).
+    m_total = jnp.sum(masses)
+    frame_origin = jnp.sum(positions * masses[:, None], axis=0) / m_total
+    frame_bulk_v = jnp.sum(v_raw * masses[:, None], axis=0) / m_total
+
     if velocity.mode == "physical":
         if units is None:
             raise ValueError(
@@ -172,7 +206,14 @@ def build_cluster_ic(
     V = compute_potential_energy(pos_com, masses, G=G)
     Q_virial = T / jnp.abs(V)
 
-    m_total = jnp.sum(masses)
+    # velocity_scale: both modes apply one global scalar to the COM-frame velocities,
+    # so the energy ratio recovers it exactly (0 for a Q_target=0 cold IC).
+    T_raw = compute_kinetic_energy(v_com, masses)
+    frame = FrameTransform(
+        origin=frame_origin, bulk_velocity=frame_bulk_v,
+        velocity_scale=jnp.sqrt(T / T_raw),
+    )
+
     # BM92/Heyer literature convention: 1-D dispersion σ_1D² = σ_3D²/3 = 2T/(3M),
     # so α_vir reads on the GMC scale (α ~ 1 ≈ virial). Review fix 2026-07-16:
     # the 3-D form inflated the diagnostic ~3× vs that scale.
@@ -185,7 +226,7 @@ def build_cluster_ic(
         positions=pos_com, velocities=v_scaled, masses=masses, field=field,
         Q_virial=Q_virial, tail_star_fraction=f_tail,
         collapse_eligible_fraction=f_elig, placement_n_eff=n_eff,
-        alpha_vir=alpha_vir,
+        alpha_vir=alpha_vir, frame=frame,
     )
 
 
