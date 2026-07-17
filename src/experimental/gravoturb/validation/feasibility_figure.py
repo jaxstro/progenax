@@ -38,7 +38,11 @@ from gravoturb.specs import (
     VelocitySpec,
 )
 from progenax import Maschberger, PlummerProfile
-from progenax.stellar import zams_effective_temperature
+from progenax.stellar import (
+    zams_effective_temperature,
+    zams_luminosity,
+    zams_radius,
+)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "plots", "feasibility")
@@ -123,25 +127,38 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
              title=r"(b) Residual gas ($\epsilon_\star$ partition)")
     ax_b.set_aspect("equal")
 
-    # (c) primordial mass segregation (lambda_corr), coloured by ZAMS spectral
-    # type (Tout+1996 T_eff) on a dark star-field, sized by mass (area ~ sqrt m,
-    # compressed range). Full population sorted ascending so the rare hot massive
-    # stars draw on top; m>1 Msun (the high-mass alpha-slope population) carries a
-    # white outline. Colour is the physical observable (temperature); size + outline
-    # are the secondary encodings that keep identity from being colour-alone.
-    teff = np.asarray(zams_effective_temperature(jnp.clip(jnp.asarray(masses), 0.08, 150.0)))
-    teff = np.clip(teff, SPECTRAL_EDGES[0] + 1.0, SPECTRAL_EDGES[-1] - 1.0)
+    # (c) primordial mass segregation (lambda_corr) as a luminosity-weighted
+    # star-field — an observation-like rendering where all four marks are physical
+    # ZAMS observables (Tout+1996): colour = spectral type (T_eff), size = radius,
+    # and brightness (per-star alpha) = luminosity. Because L ~ M^3.5, the rare
+    # massive stars dominate the light and the ~100x-more-numerous M dwarfs recede
+    # to a faint haze (floored, not erased) — exactly how a telescope would see it.
+    # Massive stars draw on top, get a white outline (m>1 Msun, the alpha-slope
+    # population), and a soft PSF-style glow (O/B/A) for the long-exposure look.
+    m_clip = jnp.clip(jnp.asarray(masses), 0.08, 150.0)
+    teff = np.clip(np.asarray(zams_effective_temperature(m_clip)),
+                   SPECTRAL_EDGES[0] + 1.0, SPECTRAL_EDGES[-1] - 1.0)
+    radii = np.asarray(zams_radius(m_clip))  # R_sun
+    logL = np.log10(np.clip(np.asarray(zams_luminosity(m_clip)), 1e-4, None))
+    alpha = 0.12 + 0.88 * np.clip((logL + 2.0) / 6.0, 0.0, 1.0)  # haze -> blaze
     cmap_sp = ListedColormap(SPECTRAL_COLORS)
     norm_sp = BoundaryNorm(SPECTRAL_EDGES, cmap_sp.N)
-    order = np.argsort(masses)  # most-massive drawn last (on top)
+    order = np.argsort(masses)  # massive drawn last (on top)
     po, mo, to = pos[order], masses[order], teff[order]
+    size = 6.0 + 14.0 * np.sqrt(radii[order])
+    face = cmap_sp(norm_sp(to))
+    face[:, 3] = alpha[order]
     ax_c.set_facecolor(STARFIELD_BG)
-    sc = ax_c.scatter(po[:, 0], po[:, 1], s=7.0 + 5.5 * np.sqrt(mo), c=to,
-                      cmap=cmap_sp, norm=norm_sp, alpha=0.95,
-                      edgecolors=np.where(mo > 1.0, "#f7f7ff", "none"),
-                      linewidths=np.where(mo > 1.0, 0.6, 0.0))
+    bright = mo > 3.0  # soft PSF bloom behind the luminous (>~ A-type) stars
+    ax_c.scatter(po[bright, 0], po[bright, 1], s=5.0 * size[bright],
+                 c=cmap_sp(norm_sp(to[bright])), alpha=0.10, lw=0)
+    ax_c.scatter(po[:, 0], po[:, 1], s=size, facecolors=face,
+                 edgecolors=np.where(mo > 1.0, "#f7f7ff", "none"),
+                 linewidths=np.where(mo > 1.0, 0.55, 0.0))
     centers = 0.5 * (SPECTRAL_EDGES[:-1] + SPECTRAL_EDGES[1:])
-    cb = plt.colorbar(sc, ax=ax_c, fraction=0.046, ticks=centers, spacing="uniform")
+    sm = plt.cm.ScalarMappable(cmap=cmap_sp, norm=norm_sp)
+    sm.set_array([])
+    cb = plt.colorbar(sm, ax=ax_c, fraction=0.046, ticks=centers, spacing="uniform")
     cb.ax.set_yticklabels(SPECTRAL_LETTERS)
     cb.set_label(r"ZAMS spectral type ($T_{\rm eff}$: M cool $\to$ O hot)")
     ax_c.set(xlabel="x [pc]", ylabel="y [pc]",
@@ -160,12 +177,12 @@ def _headline(led):
 
 def career_figure(ic):
     """The NSF 'money' figure: the three spatial panels, standalone."""
-    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.2))
+    fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
     scales = _spatial_panels(fig, axes, ic, star_size=1.6)
+    fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
     fig.suptitle(
         "Turbulence-native cluster initial conditions (gravoturb)  —  "
-        + _headline(ic.ledger), fontsize=14, y=1.02)
-    fig.tight_layout()
+        + _headline(ic.ledger), fontsize=14)
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
     plt.close(fig)
@@ -176,7 +193,7 @@ def dev_figure(ic):
     """The full dev figure: spatial row on top + PDF / coupling / scorecard."""
     led = ic.ledger
     fig = plt.figure(figsize=(15, 9))
-    gs = fig.add_gridspec(2, 3, hspace=0.32, wspace=0.28)
+    gs = fig.add_gridspec(2, 3, hspace=0.34, wspace=0.42)
     top = [fig.add_subplot(gs[0, i]) for i in range(3)]
     _spatial_panels(fig, top, ic)
 
