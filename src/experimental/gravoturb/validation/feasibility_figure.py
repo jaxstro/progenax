@@ -109,14 +109,21 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
              title=r"(b) Residual gas ($\epsilon_\star$ partition)")
     ax_b.set_aspect("equal")
 
-    # (c) primordial mass segregation (lambda_corr) — mass-coloured stars.
-    # LogNorm clipped to the IMF's [m_min, m_max]; ticks read as physical masses.
-    order = np.argsort(masses)
-    sc = ax_c.scatter(pos[order, 0], pos[order, 1],
-                      s=3 + 9 * (masses[order] / masses.max()),
-                      c=masses[order], cmap="plasma", lw=0,
-                      norm=LogNorm(vmin=IMF.m_min, vmax=IMF.m_max))
+    # (c) primordial mass segregation (lambda_corr). Two layers on one colour
+    # scale [LogNorm clipped to the IMF's m_min,m_max, so ticks read as physical
+    # masses]: a faint low-mass field backdrop + the m>=5 Msun stars drawn on top
+    # as large symbols (marker AREA ∝ mass), so the segregated massive stars pop.
+    norm = LogNorm(vmin=IMF.m_min, vmax=IMF.m_max)
+    hi = masses >= 5.0
+    ax_c.scatter(pos[~hi, 0], pos[~hi, 1], s=3, c=masses[~hi], cmap="plasma",
+                 norm=norm, lw=0, alpha=0.35)
+    order = np.argsort(masses[hi])  # draw most-massive last (on top)
+    ph, mh = pos[hi][order], masses[hi][order]
+    sc = ax_c.scatter(ph[:, 0], ph[:, 1], s=6 + 1.0 * mh, c=mh, cmap="plasma",
+                      norm=norm, edgecolors="0.15", linewidths=0.3, alpha=0.95)
     plt.colorbar(sc, ax=ax_c, fraction=0.046, label=r"stellar mass $m$ [$M_\odot$]")
+    ax_c.text(0.03, 0.97, r"large symbols: $m\geq5\,M_\odot$", transform=ax_c.transAxes,
+              fontsize=7.5, va="top", color="0.25")
     ax_c.set(xlabel="x [pc]", ylabel="y [pc]",
              title=r"(c) Primordial segregation ($\lambda_{\rm corr}{=}0.6$, Maschberger IMF)")
     ax_c.set_aspect("equal")
