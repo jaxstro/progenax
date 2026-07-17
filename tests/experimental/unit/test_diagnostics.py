@@ -56,3 +56,26 @@ def test_diagnostics_saturation_and_low_bfmi_each_fail():
     )
     assert low["bfmi"] < 0.3
     assert low["passed"] is False
+
+
+def test_diagnostics_rejects_mismatched_companion_shapes():
+    """Companion arrays must be (n_chains, n_draws): a shape mismatch previously computed
+    a silently wrong divergence rate / BFMI (2026-07-16 hardening)."""
+    rng = np.random.default_rng(1)
+    pos = rng.standard_normal((4, 100, 2))
+    with pytest.raises(ValueError, match="divergences"):
+        compute_hmc_diagnostics(pos, divergences=np.zeros((4, 99), dtype=bool))
+    with pytest.raises(ValueError, match="energy"):
+        compute_hmc_diagnostics(pos, energy=np.zeros((3, 100)))
+    with pytest.raises(ValueError, match="tree_depth"):
+        compute_hmc_diagnostics(pos, tree_depth=np.zeros((4, 99)), max_tree_depth=10)
+
+
+def test_diagnostics_rejects_half_specified_tree_depth():
+    """tree_depth and max_tree_depth come as a pair: providing one silently skipped the
+    saturation gate (2026-07-16 hardening — misuse must be loud)."""
+    pos = np.random.default_rng(2).standard_normal((4, 100, 2))
+    with pytest.raises(ValueError, match="max_tree_depth"):
+        compute_hmc_diagnostics(pos, tree_depth=np.zeros((4, 100)))
+    with pytest.raises(ValueError, match="max_tree_depth"):
+        compute_hmc_diagnostics(pos, max_tree_depth=10)

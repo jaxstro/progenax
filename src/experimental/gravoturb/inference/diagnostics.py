@@ -41,6 +41,42 @@ import numpy as np
 _TAIL_PROB = (0.05, 0.95)
 
 
+def _validated_companion(name, arr, chain_draw_shape):
+    """Validate an optional per-step companion array against (n_chains, n_draws).
+
+    A silently mismatched shape previously produced a WRONG divergence rate / BFMI /
+    saturation instead of an error (2026-07-16 hardening)."""
+    arr = np.asarray(arr)
+    if arr.shape != chain_draw_shape:
+        raise ValueError(
+            f"{name} must have shape (n_chains, n_draws) = {chain_draw_shape}, "
+            f"got {arr.shape}"
+        )
+    return arr
+
+
+def _per_param_stats(positions):
+    """Rank-normalized split-R-hat + bulk/tail ESS per parameter (Vehtari et al. 2021).
+
+    arviz accepts a (chain, draw) ndarray slice directly (chain_axis=0, draw_axis=1 by
+    default) — no need for the deprecated az.InferenceData constructor (migrated to
+    xarray DataTree in arviz 1.x). Convergence stats can warn on degenerate (e.g.
+    exactly-constant) chains; those are exactly the cases we WANT to flag via R-hat,
+    so the cosmetic warnings are silenced."""
+    n_params = positions.shape[2]
+    r_hat = np.empty(n_params)
+    ess_bulk = np.empty(n_params)
+    ess_tail = np.empty(n_params)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for p in range(n_params):
+            chain_draw = positions[:, :, p]
+            r_hat[p] = float(az.rhat(chain_draw))
+            ess_bulk[p] = float(az.ess(chain_draw, method="bulk"))
+            ess_tail[p] = float(az.ess(chain_draw, method="tail", prob=_TAIL_PROB))
+    return r_hat, ess_bulk, ess_tail
+
+
 def compute_hmc_diagnostics(
     positions,
     *,
@@ -100,53 +136,47 @@ def compute_hmc_diagnostics(
             f"(n_chains, n_draws, n_params); got {positions.shape}"
         )
     n_chains, n_draws, n_params = positions.shape
+    chain_draw_shape = (n_chains, n_draws)
+
+    # tree_depth / max_tree_depth come as a pair: half-specifying them previously
+    # SKIPPED the saturation gate silently (2026-07-16 hardening — misuse is loud).
+    if (tree_depth is None) != (max_tree_depth is None):
+        raise ValueError(
+            "tree_depth and max_tree_depth must be provided together "
+            f"(got tree_depth={'set' if tree_depth is not None else None}, "
+            f"max_tree_depth={max_tree_depth})"
+        )
 
     if param_names is None:
         param_names = [f"theta_{p}" for p in range(n_params)]
 
-    # Per-parameter R-hat and bulk/tail ESS. arviz accepts a (chain, draw) ndarray slice
-    # directly (chain_axis=0, draw_axis=1 by default) -- no need for the deprecated
-    # az.InferenceData constructor (migrated to xarray DataTree in arviz 1.x).
-    r_hat = np.empty(n_params)
-    ess_bulk = np.empty(n_params)
-    ess_tail = np.empty(n_params)
-    # Convergence stats can warn on degenerate (e.g. exactly-constant) chains; those are
-    # exactly the cases we WANT to flag via R-hat, so silence the cosmetic warnings.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        for p in range(n_params):
-            chain_draw = positions[:, :, p]
-            r_hat[p] = float(az.rhat(chain_draw))
-            ess_bulk[p] = float(az.ess(chain_draw, method="bulk"))
-            ess_tail[p] = float(az.ess(chain_draw, method="tail", prob=_TAIL_PROB))
+    r_hat, ess_bulk, ess_tail = _per_param_stats(positions)
 
     # Divergence rate (skip gate gracefully if not provided).
-    if divergences is not None:
-        divergence_rate = float(np.mean(np.asarray(divergences)))
-        has_div = True
-    else:
-        divergence_rate = 0.0
-        has_div = False
+    has_div = divergences is not None
+    divergence_rate = (
+        float(np.mean(_validated_companion("divergences", divergences, chain_draw_shape)))
+        if has_div else 0.0
+    )
 
     # E-BFMI: az.bfmi returns one value per chain; report the minimum (most conservative
     # -- one bad chain is enough to signal poor momentum resampling).
-    if energy is not None:
+    has_bfmi = energy is not None
+    if has_bfmi:
+        energy = _validated_companion("energy", energy, chain_draw_shape)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            bfmi_per_chain = np.asarray(az.bfmi(np.asarray(energy)))
-        bfmi = float(np.min(bfmi_per_chain))
-        has_bfmi = True
+            bfmi = float(np.min(np.asarray(az.bfmi(energy))))
     else:
         bfmi = float("nan")
-        has_bfmi = False
 
     # Max-tree-depth saturation: fraction of steps that hit the doubling ceiling.
-    if tree_depth is not None and max_tree_depth is not None:
-        saturation = float(np.mean(np.asarray(tree_depth) >= max_tree_depth))
-        has_depth = True
-    else:
-        saturation = 0.0
-        has_depth = False
+    has_depth = tree_depth is not None
+    saturation = (
+        float(np.mean(_validated_companion("tree_depth", tree_depth, chain_draw_shape)
+                      >= max_tree_depth))
+        if has_depth else 0.0
+    )
 
     # Note: a *provided* but degenerate `energy` (e.g. constant) makes az.bfmi -> nan, and
     # `nan > 0.3` is False, so the run intentionally FAILS the gate (degenerate energy is a

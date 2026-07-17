@@ -157,6 +157,61 @@ def _build_mock(
     return data, float(s_thr), float(s_max)
 
 
+def _fiducial_var_vs(key, *, b, shape, cell_sizes, n_stars):
+    """Fixed-fiducial estimator variance var_v for the log-count-variance block.
+
+    CRITICAL FOR SBC VALIDITY: var_v MUST be truth-independent. It is computed ONCE,
+    before the trial loop, at a FIXED fiducial theta (M=_MACH_FID, alpha=_ALPHA_FID,
+    beta=_BETA_FID; the same fixed b as inference) -- NEVER at the trial truth theta*.
+    A truth-keyed var_v is exactly the kind of artifact (like the old POT validity
+    barrier) that breaks SBC by tying the likelihood's precision to the injected truth.
+    Per cell, with the SAME shape/cell_size/n_bar the inference uses, its own fold-in
+    key. The caller's tag (2**31) keeps this stream disjoint from the per-trial
+    fold-ins (i in 0..n_trials-1)."""
+    return tuple(
+        estimate_log_count_variance_var(
+            mach=_MACH_FID,
+            b=b,
+            alpha=_ALPHA_FID,
+            beta=_BETA_FID,
+            shape=shape,
+            cell_size=c,
+            n_bar=n_stars / (shape[0] // c) ** 3,
+            n_real=_N_REAL_VAR_V,
+            key=jax.random.fold_in(key, c),
+        )
+        for c in cell_sizes
+    )
+
+
+def _fiducial_bp_precision(key, *, b, shape):
+    """Fixed-fiducial band-power precision bp_precision for the 2-pt beta block.
+
+    SAME SBC-validity contract as :func:`_fiducial_var_vs`: it MUST be
+    truth-independent. Computed ONCE, at the FIXED fiducial theta (_MACH_FID,
+    _ALPHA_FID, _BETA_FID; fixed b), as the Hartlap-corrected mock precision of an
+    ensemble of measured band-powers -- NEVER at the trial truth theta*. The caller's
+    tag (2**30) keeps this stream disjoint from the var_v (2**31) and per-trial
+    (0..n_trials-1) fold-ins. n_real (=_N_REAL_BP) > k (band-power bins) is required
+    for an invertible Hartlap C."""
+    bp_rows = [
+        measured_bandpowers(
+            np.asarray(
+                rank_copula_field(
+                    gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(key, i)),
+                    _MACH_FID,
+                    b,
+                    _ALPHA_FID,
+                )
+            ),
+            shape,
+            K_EDGES,
+        )
+        for i in range(_N_REAL_BP)
+    ]
+    return mock_precision(bp_rows)
+
+
 def sbc_ranks(
     prior: BM19Prior,
     key,
@@ -195,57 +250,31 @@ def sbc_ranks(
         ``"param_names"`` ["M", "alpha", "beta"]
         ``"thetas_true"`` (n_trials, 3) float -- the drawn theta* per trial
     """
+    # Loud input guards (2026-07-16 hardening): a non-dividing cell size silently
+    # biased n_bar through the integer-floored (shape[0] // c); n_trials=0 crashed on
+    # int(None) after the loop; n_thin<1 broke the thinning slice.
+    if n_trials < 1:
+        raise ValueError(f"n_trials must be >= 1, got {n_trials}")
+    if n_thin < 1:
+        raise ValueError(f"n_thin must be >= 1, got {n_thin}")
+    bad = [c for c in cell_sizes if shape[0] % c != 0]
+    if bad:
+        raise ValueError(
+            f"cell_sizes must divide the grid side {shape[0]} exactly "
+            f"(offending sizes: {bad}; a non-dividing size silently biases n_bar)"
+        )
+
     ranks = np.zeros((n_trials, 3), dtype=int)
     thetas_true = np.zeros((n_trials, 3), dtype=float)
     n_draws = None
 
-    # --- Fixed-fiducial estimator variance var_v for the log-count-variance block. ---
-    # CRITICAL FOR SBC VALIDITY: var_v MUST be truth-independent. It is computed ONCE here,
-    # before the trial loop, at a FIXED fiducial theta (M=_MACH_FID, alpha=_ALPHA_FID,
-    # beta=_BETA_FID; the same fixed b as inference) -- NEVER at the trial truth theta*. A
-    # truth-keyed var_v is exactly the kind of artifact (like the old POT validity barrier)
-    # that breaks SBC by tying the likelihood's precision to the injected truth. Per cell,
-    # with the SAME shape/cell_size/n_bar the inference uses, its own fold-in key.
-    # Tag 2**31 keeps this stream disjoint from the per-trial fold-ins (i in 0..n_trials-1).
-    k_var = jax.random.fold_in(key, 2**31)
-    var_vs = tuple(
-        estimate_log_count_variance_var(
-            mach=_MACH_FID,
-            b=b,
-            alpha=_ALPHA_FID,
-            beta=_BETA_FID,
-            shape=shape,
-            cell_size=c,
-            n_bar=n_stars / (shape[0] // c) ** 3,
-            n_real=_N_REAL_VAR_V,
-            key=jax.random.fold_in(k_var, c),
-        )
-        for c in cell_sizes
+    # Fixed-fiducial, truth-independent precisions (SBC-validity contracts on the
+    # helpers); tags 2**31 / 2**30 keep their key streams disjoint from the trials.
+    var_vs = _fiducial_var_vs(
+        jax.random.fold_in(key, 2**31), b=b, shape=shape,
+        cell_sizes=cell_sizes, n_stars=n_stars,
     )
-
-    # --- Fixed-fiducial band-power precision bp_precision for the 2-pt beta block. ---
-    # SAME SBC-validity contract as var_v: it MUST be truth-independent. Computed ONCE here, at the
-    # FIXED fiducial theta (_MACH_FID, _ALPHA_FID, _BETA_FID; fixed b), as the Hartlap-corrected
-    # mock precision of an ensemble of measured band-powers -- NEVER at the trial truth theta*.
-    # Tag 2**30 keeps this stream disjoint from the var_v (2**31) and per-trial (0..n_trials-1)
-    # fold-ins. n_real (=_N_REAL_BP) > k (band-power bins) is required for an invertible Hartlap C.
-    k_bp = jax.random.fold_in(key, 2**30)
-    bp_rows = [
-        measured_bandpowers(
-            np.asarray(
-                rank_copula_field(
-                    gaussian_random_field(shape, _BETA_FID, jax.random.fold_in(k_bp, i)),
-                    _MACH_FID,
-                    b,
-                    _ALPHA_FID,
-                )
-            ),
-            shape,
-            K_EDGES,
-        )
-        for i in range(_N_REAL_BP)
-    ]
-    bp_precision = mock_precision(bp_rows)
+    bp_precision = _fiducial_bp_precision(jax.random.fold_in(key, 2**30), b=b, shape=shape)
 
     for i in range(n_trials):
         # Per-trial fold-in keys: prior draw / mock realization / NUTS, each its own stream.

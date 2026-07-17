@@ -118,3 +118,20 @@ def test_sbc_ranks_shape_and_support():
     L = out["n_draws"]
     assert bool(jnp.all((out["ranks"] >= 0) & (out["ranks"] <= L)))
     assert out["param_names"] == ["M", "alpha", "beta"]
+
+
+def test_sbc_ranks_rejects_bad_inputs_loudly():
+    """Guards fire before any NUTS work: non-dividing cell_sizes silently biased n_bar
+    via integer floor; n_trials=0 crashed on int(None); n_thin<1 slice-crashed
+    (2026-07-16 hardening)."""
+    common = dict(
+        prior=BM19Prior(), key=jax.random.PRNGKey(0), b=0.4, s_thr_margin=0.5,
+        shape=(24, 24, 24), density_shape=(24, 24, 24), n_warmup=10, n_samples=10,
+        n_stars=500.0,
+    )
+    with pytest.raises(ValueError, match="cell_sizes"):
+        sbc_ranks(n_trials=1, n_thin=2, cell_sizes=(5,), **common)  # 5 ∤ 24
+    with pytest.raises(ValueError, match="n_trials"):
+        sbc_ranks(n_trials=0, n_thin=2, cell_sizes=(4,), **common)
+    with pytest.raises(ValueError, match="n_thin"):
+        sbc_ranks(n_trials=1, n_thin=0, cell_sizes=(4,), **common)
