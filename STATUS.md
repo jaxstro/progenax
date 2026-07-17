@@ -110,8 +110,12 @@ composition_acceptance.py): λ_corr primordial segregation (Spearman +0.03→+0.
 contract; amplitude before resolve_binary_components; stars.system_id provenance;
 binary_energy_budget printed — Q_com 0.234 vs Q_resolved 0.445 scale separation), per-cell local
 IMF **defensibility-REFUSED** vs the held Marks+2012 PDF (α₃ is a GLOBAL cloud-core relation; the
-cluster-level env_to_imf_params + masses-first route documented instead). Next: **Phase 5** — A1
-windowing/transfer/covariance for enveloped catalogs, AC-IC12 identifiability coverage, then the
-CAREER production run (cost-estimated first) + 3-panel figure; gravax consumes TurbulentCloudIC.gas.
+cluster-level env_to_imf_params + masses-first route documented instead). **Phase 5 A1 windowing COMPLETE (2026-07-16, 9720265):** envelope distortion characterized per
+channel (β immune ≤2%; ℳ count-channel +0.06–0.14; α tail flooded 44→150 cells) → survey-style
+treatment: known-intensity detrend + DECLARED effective-volume mask (n̄≥n_min; unmasked detrending
+diverges 0.31-vs-0.02 in the wings) + `envelope_cell_intensity` forward-model side; transfer
+statement verified (turbulence excess enveloped ≡ periodic within scatter). REMAINING (Anna-gated):
+AC-IC12 coverage grid (NUTS campaign, ~4 h focused / ~12 h full — scale is her call) and the CAREER
+production run (timing pilot → cost estimate → her go) + 3-panel ICViz figure.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
