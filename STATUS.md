@@ -114,8 +114,17 @@ cluster-level env_to_imf_params + masses-first route documented instead). **Phas
 channel (β immune ≤2%; ℳ count-channel +0.06–0.14; α tail flooded 44→150 cells) → survey-style
 treatment: known-intensity detrend + DECLARED effective-volume mask (n̄≥n_min; unmasked detrending
 diverges 0.31-vs-0.02 in the wings) + `envelope_cell_intensity` forward-model side; transfer
-statement verified (turbulence excess enveloped ≡ periodic within scatter). REMAINING (Anna-gated):
-AC-IC12 coverage grid (NUTS campaign, ~4 h focused / ~12 h full — scale is her call) and the CAREER
-production run (timing pilot → cost estimate → her go) + 3-panel ICViz figure.
+statement verified (turbulence excess enveloped ≡ periodic within scatter). **Phase 5 CLOSED for the CAREER deliverable (2026-07-17):** scope reset to FEASIBILITY
+(demonstrate a validated WIP instrument, NOT complete the science). Shipped
+`feasibility_figure.py` (1ce26c1) — a 6-panel publication figure: cloud+stars / residual gas /
+primordial segregation (real IMF) / BM19 PDF / χ_F10 coupling / validation scorecard with the WIP
+status line. The two heavy Phase-5 jobs (symmetric-Hermite production run + AC-IC12 NUTS coverage
+campaign) were KILLED mid-run and are **committed drivers + a DEFERRED TODO** (Anna: optimize/
+refactor later — gravax must be perfected first, and inference should route through informax's
+pipeline). This makes gravoturb a **cross-package pipeline-validation strategy**: gravoturb IC →
+gravax dynamics → informax inference. Pilot findings recorded for the resume: production IC is
+near-cold (Q≈0.01) hyper-clumped; unsoftened adaptive Hermite dt→1e-9 (impossible), unsoftened
+fixed-dt symmetric explodes, order-4 symmetric+ε=Δx/4 is stable (~1e-5). AC-IC12 needs the α-tail
+grid + informax port before it gates.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
