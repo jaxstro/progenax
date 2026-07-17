@@ -1,12 +1,19 @@
-"""CAREER feasibility figure (Anna-directed 2026-07-17): demonstrate the instrument.
+"""CAREER figures (Anna-directed 2026-07-17): demonstrate the instrument.
 
-Goal: show what the gravoturb generator PRODUCES and that it is validated — a
-work-in-progress capability, not a blank slate. NO dynamical evolution and NO
-inference are needed for feasibility; the compelling evidence is the natal
-stars+gas state (a ~6 s IC build) plus the committed acceptance-gate results.
+Two products, one IC build (no dynamical evolution, no inference needed for
+feasibility — the compelling evidence is the natal stars+gas state plus the
+committed acceptance-gate results):
 
-Output: validation/plots/feasibility/gravoturb_feasibility.{png,pdf} — a single
-publication-quality multi-panel figure.
+  1. gravoturb_career.{png,pdf}      — the NSF "money" figure: the three spatial
+                                        panels only (cloud+stars, residual gas,
+                                        primordial mass segregation), standalone.
+  2. gravoturb_feasibility.{png,pdf} — the full dev figure: the same spatial row
+                                        on top + BM19 PDF / Helmholtz coupling /
+                                        validation scorecard beneath (for records).
+
+Both share one `_spatial_panels()` helper so the money row can never drift from
+the dev figure. Column densities are plotted in M_sun/pc^2 (cluster/galactic
+convention); the g/cm^2 equivalents are printed to stdout for the SF/ISM reader.
 """
 
 import os
@@ -18,10 +25,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import LogNorm
 from jaxstro.units import STELLAR
 
 from gravoturb.cluster import build_cluster_ic
-from gravoturb.realization.helmholtz import helmholtz_velocity_field
 from gravoturb.specs import (
     CloudSpec,
     CompositionSpec,
@@ -35,9 +42,16 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "plots", "feasibility")
 os.makedirs(OUT, exist_ok=True)
 
-N, BOX, NGRID = 3000, 4.0, 96
+N, BOX, NGRID = 5000, 4.0, 96
 DX = BOX / NGRID
 G = STELLAR.G
+
+# Column-density unit bridge: cluster people read M_sun/pc^2, SF/ISM people read
+# g/cm^2 (it sets optical depth / the KS threshold). 1 M_sun/pc^2 = 2.089e-4 g/cm^2
+# (M_sun = 1.98892e33 g over pc^2 = 9.5214e36 cm^2).
+MSUN_PC2_TO_G_CM2 = 1.98892e33 / (3.0857e18) ** 2
+
+IMF = Maschberger()  # m_min=0.01, m_max=300, mu=0.2 M_sun
 
 plt.rcParams.update({
     "font.family": "serif", "font.size": 10, "axes.labelsize": 11,
@@ -47,7 +61,7 @@ plt.rcParams.update({
 
 
 def build():
-    masses = Maschberger().sample(jax.random.PRNGKey(9), N)  # real IMF for panel (c)
+    masses = IMF.sample(jax.random.PRNGKey(9), N)  # real IMF for the segregation panel
     return build_cluster_ic(
         masses,
         cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz"),
@@ -63,46 +77,81 @@ def _column(rho3d, cell_volume):
     return rho3d.sum(axis=2) * cell_volume / DX**2  # M_sun/pc^2
 
 
-def main():
-    ic = build()
-    led, geo = ic.ledger, ic.geometry
-    origin = np.asarray(led.frame.origin)
+def _spatial_panels(fig, axes, ic, star_size=1.2):
+    """Draw the three spatial panels into the given (ax_a, ax_b, ax_c).
+
+    Returns (col_cloud_max, col_gas_max) in M_sun/pc^2 for unit reporting.
+    """
+    ax_a, ax_b, ax_c = axes
+    origin = np.asarray(ic.ledger.frame.origin)
     ext = [-origin[0], BOX - origin[0], -origin[1], BOX - origin[1]]
     pos = np.asarray(ic.stars.positions)
     masses = np.asarray(ic.stars.masses)
 
-    fig = plt.figure(figsize=(15, 9))
-    gs = fig.add_gridspec(2, 3, hspace=0.32, wspace=0.28)
-
     # (a) parent cloud column density + stars
-    ax = fig.add_subplot(gs[0, 0])
     col = _column(np.asarray(ic.gas.rho_cloud), float(ic.gas.cell_volume))
-    im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma")
-    plt.colorbar(im, ax=ax, fraction=0.046,
+    im = ax_a.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma")
+    plt.colorbar(im, ax=ax_a, fraction=0.046,
                  label=r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]")
-    ax.scatter(pos[:, 0], pos[:, 1], s=1.2, c="cyan", alpha=0.5, lw=0)
-    ax.set(xlabel="x [pc]", ylabel="y [pc]", title="(a) Turbulent parent cloud + stars")
-    ax.set_aspect("equal")
+    ax_a.scatter(pos[:, 0], pos[:, 1], s=star_size, c="cyan", alpha=0.5, lw=0)
+    ax_a.set(xlabel="x [pc]", ylabel="y [pc]",
+             title="(a) Turbulent parent cloud + stars")
+    ax_a.set_aspect("equal")
 
     # (b) residual gas (the Aim-2 handoff product)
-    ax = fig.add_subplot(gs[0, 1])
     colg = _column(np.asarray(ic.gas.rho_residual), float(ic.gas.cell_volume))
     floor = colg[colg > 0].min()
-    im = ax.imshow(np.log10(np.maximum(colg, floor)).T, origin="lower", extent=ext,
-                   cmap="viridis")
-    plt.colorbar(im, ax=ax, fraction=0.046,
+    im = ax_b.imshow(np.log10(np.maximum(colg, floor)).T, origin="lower", extent=ext,
+                     cmap="viridis")
+    plt.colorbar(im, ax=ax_b, fraction=0.046,
                  label=r"$\log_{10}\,\Sigma_{g,0}$ [$M_\odot\,{\rm pc}^{-2}$]")
-    ax.set(xlabel="x [pc]", title="(b) Residual gas ($\\epsilon_\\star$ partition)")
-    ax.set_aspect("equal")
+    ax_b.set(xlabel="x [pc]", ylabel="y [pc]",
+             title=r"(b) Residual gas ($\epsilon_\star$ partition)")
+    ax_b.set_aspect("equal")
 
-    # (c) primordial mass segregation (lambda_corr) — mass-coloured stars
-    ax = fig.add_subplot(gs[0, 2])
+    # (c) primordial mass segregation (lambda_corr) — mass-coloured stars.
+    # LogNorm clipped to the IMF's [m_min, m_max]; ticks read as physical masses.
     order = np.argsort(masses)
-    sc = ax.scatter(pos[order, 0], pos[order, 1], s=3 + 6 * (masses[order] /
-                    masses.max()), c=np.log10(masses[order]), cmap="plasma", lw=0)
-    plt.colorbar(sc, ax=ax, fraction=0.046, label=r"$\log_{10}(m/M_\odot)$")
-    ax.set(xlabel="x [pc]", title="(c) Primordial segregation ($\\lambda_{\\rm corr}{=}0.6$, IMF)")
-    ax.set_aspect("equal")
+    sc = ax_c.scatter(pos[order, 0], pos[order, 1],
+                      s=3 + 9 * (masses[order] / masses.max()),
+                      c=masses[order], cmap="plasma", lw=0,
+                      norm=LogNorm(vmin=IMF.m_min, vmax=IMF.m_max))
+    plt.colorbar(sc, ax=ax_c, fraction=0.046, label=r"stellar mass $m$ [$M_\odot$]")
+    ax_c.set(xlabel="x [pc]", ylabel="y [pc]",
+             title=r"(c) Primordial segregation ($\lambda_{\rm corr}{=}0.6$, Maschberger IMF)")
+    ax_c.set_aspect("equal")
+
+    return float(col.max()), float(colg.max())
+
+
+def _headline(led):
+    return (f"$N={N}$, $\\mathcal{{M}}=8$, "
+            f"$M_{{\\rm cl}}={float(led.M_cl):.0f}\\,M_\\odot$, SFE $=0.2$, "
+            f"$Q_0={float(led.Q_virial):.3f}$, "
+            f"$\\alpha_{{\\rm vir}}={float(led.alpha_vir):.2f}$")
+
+
+def career_figure(ic):
+    """The NSF 'money' figure: the three spatial panels, standalone."""
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.2))
+    scales = _spatial_panels(fig, axes, ic, star_size=1.6)
+    fig.suptitle(
+        "Turbulence-native cluster initial conditions (gravoturb)  —  "
+        + _headline(ic.ledger), fontsize=14, y=1.02)
+    fig.tight_layout()
+    for e in ("png", "pdf"):
+        fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
+    plt.close(fig)
+    return scales
+
+
+def dev_figure(ic):
+    """The full dev figure: spatial row on top + PDF / coupling / scorecard."""
+    led = ic.ledger
+    fig = plt.figure(figsize=(15, 9))
+    gs = fig.add_gridspec(2, 3, hspace=0.32, wspace=0.28)
+    top = [fig.add_subplot(gs[0, i]) for i in range(3)]
+    _spatial_panels(fig, top, ic)
 
     # (d) density PDF: realized vs BM19 target (the validated core)
     ax = fig.add_subplot(gs[1, 0])
@@ -157,18 +206,31 @@ def main():
             fontsize=8, style="italic", transform=ax.transAxes, color="#444")
 
     fig.suptitle(
-        "Differentiable turbulence-native cluster initial conditions "
-        f"(gravoturb)  —  $N={N}$, $\\mathcal{{M}}=8$, "
-        f"$M_{{\\rm cl}}={float(led.M_cl):.0f}\\,M_\\odot$, SFE $=0.2$, "
-        f"$Q_0={float(led.Q_virial):.3f}$, $\\alpha_{{\\rm vir}}={float(led.alpha_vir):.2f}$",
-        fontsize=13, y=0.98)
-
+        "Differentiable turbulence-native cluster initial conditions (gravoturb)  —  "
+        + _headline(led), fontsize=13, y=0.98)
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_feasibility.{e}"))
     plt.close(fig)
+
+
+def main():
+    ic = build()
+    led = ic.ledger
+    col_cloud_max, col_gas_max = career_figure(ic)
+    dev_figure(ic)
+
+    k = MSUN_PC2_TO_G_CM2
     print(f"[feasibility] M_cl={float(led.M_cl):.0f} M_sun, M_gas={float(led.M_gas):.0f}, "
-          f"Q0={float(led.Q_virial):.3f}, closure={float(led.mass_closure_residual):.1e}")
-    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png (+ .pdf)")
+          f"Q0={float(led.Q_virial):.3f}, alpha_vir={float(led.alpha_vir):.2f}, "
+          f"closure={float(led.mass_closure_residual):.1e}")
+    print(f"[feasibility] wrote {OUT}/gravoturb_career.png (+ .pdf)  [NSF money figure]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png (+ .pdf)  [dev figure]")
+    print("[feasibility] column-density scales (peak, projected along z):")
+    print(f"    parent cloud  Sigma_cl,max  = {col_cloud_max:.3e} M_sun/pc^2 "
+          f"= {col_cloud_max * k:.3e} g/cm^2")
+    print(f"    residual gas  Sigma_g0,max   = {col_gas_max:.3e} M_sun/pc^2 "
+          f"= {col_gas_max * k:.3e} g/cm^2")
+    print(f"    (conversion: 1 M_sun/pc^2 = {k:.4e} g/cm^2)")
 
 
 if __name__ == "__main__":
