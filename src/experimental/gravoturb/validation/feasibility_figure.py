@@ -158,8 +158,9 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
     mi = np.where(is_M)[0]
     mi = mi[np.argsort(z[mi])]
     faceM = cmap_sp(norm_sp(teff[mi]))
-    faceM[:, 3] = 0.20 * (0.5 + 0.5 * depth_all[mi])  # faint haze ~0.10-0.20
-    ax_c.scatter(pos[mi, 0], pos[mi, 1], s=sizes_all[mi], facecolors=faceM, lw=0)
+    faceM[:, 3] = 0.30 * (0.65 + 0.35 * depth_all[mi])  # crisp faint field ~0.20-0.30
+    sizeM = 3.5 + 5.0 * np.sqrt(radii[mi])  # small points, not big soft blobs (no mud)
+    ax_c.scatter(pos[mi, 0], pos[mi, 1], s=sizeM, facecolors=faceM, lw=0)
 
     fi = np.where(~is_M)[0]
     fi = fi[np.argsort(z[fi])]  # painter's far->near within the resolved tier
@@ -169,7 +170,7 @@ def _spatial_panels(fig, axes, ic, star_size=1.2):
     faceF = cmap_sp(norm_sp(teff[fi]))
     faceF[:, 3] = np.clip(alpha_f, 0.0, 1.0)
     fb = fi[m_f > 3.0]  # soft PSF bloom behind the luminous (>~ A-type) stars
-    ax_c.scatter(pos[fb, 0], pos[fb, 1], s=5.0 * sizes_all[fb],
+    ax_c.scatter(pos[fb, 0], pos[fb, 1], s=3.5 * sizes_all[fb],
                  c=cmap_sp(norm_sp(teff[fb])), alpha=0.10, lw=0)
     ax_c.scatter(pos[fi, 0], pos[fi, 1], s=sizes_all[fi], facecolors=faceF,
                  edgecolors=np.where(m_f > 1.0, "#f7f7ff", "none"),
