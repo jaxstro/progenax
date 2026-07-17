@@ -98,6 +98,12 @@ explained pedagogically in
 - **`turbulent_velocity.py`** — coherent turbulent velocity field (β_v) + amplitude scaling
   (`scale_to_dispersion` for the physical σ_⋆ mode; the virial `Q_target` rescale uses core
   `virial_scale`).
+- **`helmholtz.py`** — Phase-3 coupled construction: one white field → Helmholtz projectors
+  (compressive power fraction exactly χ, default `chi_f10(b) = b/√3` per F10 Eqs. 21–22) →
+  the density Gaussian carrier ĝ ∝ −∇·v (linearized continuity; **β derived = β_v − 2**;
+  corr(g, −∇·v) = 1 by construction). Cross-spec resolution at builder entry via
+  `validate_spec_bundle` (ADR-0041); `CloudSpec(coupling='helmholtz', beta=None)`.
+  Gates: AC-IC9 (`validation/coupling_acceptance.py`).
 - **`mass_assignment.py`** — optional density-correlated (primordial-segregation) mass assignment.
 - **`pipeline.py`** — the end-to-end `build_turbulent_field` and `cloud_to_stars`.
 

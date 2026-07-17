@@ -73,6 +73,26 @@ builder takes `units=` for the km/s→pc/Myr conversion
 (σ round trip ≤2e-16; emergent-Q grid monotone in ℳ and r_h, fiducial Q≈0.10–0.16 strongly
 SUBVIRIAL — the physical cold-birth regime; Q∝η_v² exact; units pin 0.97779; physical-mode
 gravax seam 6/6); acceptance now 12/12; `virial_target` byte-identical (rename pins re-passed).
-Next: **Phase 3 Helmholtz coupling**, then composition, identifiability + production run.
+**Post-Phase-2 audit (2026-07-16, Anna-directed):** 3-angle review (plan-adherence + physics + architecture),
+zero critical; fixes committed (α_vir 1-D convention, traced-η_v guard, units-any-mode, committed IMF
+artifact, layering policy, Larson σ_v0 convention; gates 403+1xfail strict / 13/13 acceptance / released
+1587). **FrameTransform ledger** added (star↔grid COM/velocity map recorded — the frames were silently
+unreconcilable); inference diagnostics/SBC split at seams + hardened (loud guards, RED-first); strict
+test mirrors. **Aim 2 handoff RATIFIED into the plan (Phase 4a,** design addendum in the maintainer-local
+plan doc): Helmholtz first → single `TurbulentCloudIC` replacing ClusterIC (nested blocks, gas=None
+star-only path, no shim), field-first velocity normalization (volume-weighted σ_g=ℳc_s exact; stellar
+σ emergent-with-scatter), ε⋆=1−exp(−τ⋆w/t_ff) partition (IFT-differentiated bisection), gates AC-G1–G8
+in a new gas_acceptance.py. **Phase 3 Helmholtz coupling COMPLETE (2026-07-16, TDD):** `theory/driving.py` (χ_F10 = b/√3,
+PDF-verified — F10 Eq. 22's radical is over D only; Eq. 23 is the forcing-side cubic, NOT the
+inversion; χ never reaches 1 for forced turbulence) + `realization/helmholtz.py` (one white field →
+P∥/P⊥ projectors with per-mode compressive fraction exactly χ → ĝ ∝ −∇·v, **β derived = β_v−2**,
+corr(g,−∇·v)=1 by construction) + `CloudSpec(coupling='helmholtz', beta=None)` with builder-entry
+`validate_spec_bundle` (ADR-0041 Option A). Gate **AC-IC9 5/5 PASS** (new `coupling_acceptance.py`;
+derived slope |err|<0.05; C=corr·√(E_long/E_tot) tracks √χ; AC6/σ_⋆/AC-IC4 re-pass coupled at
+unweakened thresholds; carrier→2.0 + coupled≡independent convergence; infall signature +1.74 vs
+−0.006 ablation). TDD caught 3 instrument defects (mixed-Nyquist transversality leak → planes
+zeroed; scale-invariant draft gate statistic → amplitude-weighted C, correction surfaced; integer-|k|
+binning slope bias → mode-level regression). `independent` mode byte-identical (pins re-passed).
+Next: **Phase 4a stars+gas handoff** (ratified), 4b composition, 5 identifiability + production run.
 
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)

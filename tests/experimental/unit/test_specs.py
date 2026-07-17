@@ -144,6 +144,64 @@ def test_cloud_spec_from_larson_closure():
     assert float(cloud_b.b) == 0.4
 
 
+def test_cloud_spec_helmholtz_mode_valid():
+    """Phase 3: coupling='helmholtz' derives beta (= beta_v − 2), so beta must be the
+    None sentinel (ADR-0041 Option A); chi=None resolves to chi_f10(b) at builder entry."""
+    c = CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz")
+    assert c.coupling == "helmholtz"
+    assert c.beta is None and c.chi is None
+    c2 = CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz", chi=0.4)
+    assert float(c2.chi) == 0.4
+    # default mode is byte-identical legacy behavior
+    assert CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0).coupling == "independent"
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        # beta is DERIVED under helmholtz — passing it is a loud error
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=3.0, coupling="helmholtz"), "beta"),
+        # independent mode requires beta (no silent default)
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=None), "beta"),
+        # chi is a helmholtz-mode knob
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=3.0, chi=0.4), "chi"),
+        # chi=0 has no compressive channel (A3): use coupling='independent'
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz", chi=0.0),
+         "independent"),
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz", chi=1.2),
+         "chi"),
+        (dict(mach=8.0, b=0.5, alpha=1.8, beta=3.0, coupling="bogus"), "coupling"),
+    ],
+)
+def test_cloud_spec_coupling_guards(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        CloudSpec(**kwargs)
+
+
+def test_validate_spec_bundle_resolves_coupling():
+    """Builder-entry cross-spec validation (ADR-0041 Option A): helmholtz derives
+    beta = beta_v − 2 and resolves chi (chi_f10(b) default); independent passes
+    cloud.beta through untouched."""
+    import numpy as np
+    from gravoturb.specs import validate_spec_bundle
+    from gravoturb.theory.driving import chi_f10
+
+    cloud_h = CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz")
+    vel = VelocitySpec(beta_v=4.0, Q_target=0.5)
+    beta, chi = validate_spec_bundle(cloud_h, vel)
+    assert float(beta) == pytest.approx(2.0, rel=1e-12)          # beta_v − 2
+    assert float(chi) == pytest.approx(float(chi_f10(0.5)), rel=1e-12)
+
+    cloud_i = CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0)
+    beta_i, chi_i = validate_spec_bundle(cloud_i, vel)
+    assert float(beta_i) == 3.0 and chi_i is None
+
+    # derived beta must stay physical: beta_v <= 2 → beta <= 0 is refused loudly
+    with pytest.raises(ValueError, match="beta_v"):
+        validate_spec_bundle(cloud_h, VelocitySpec(beta_v=2.0, Q_target=0.5))
+    assert np.isfinite(float(beta))
+
+
 def test_composition_spec_guards():
     CompositionSpec()  # multi_freefall default, f_sub derived
     CompositionSpec(placement="two_population", f_sub=0.3)

@@ -89,3 +89,25 @@ def test_cloud_to_stars_end_to_end():
     pos = cloud_to_stars(fld, f_sub=0.3, n_stars=800, key=jax.random.PRNGKey(3))
     assert pos.shape == (800, 3)
     assert jnp.all(jnp.isfinite(pos))
+
+
+def test_turbulent_field_from_gaussian_matches_default_path():
+    """The extracted copula-side seam (Phase 3): feeding the SAME GRF through
+    turbulent_field_from_gaussian reproduces build_turbulent_field byte-exactly —
+    the helmholtz path swaps only the Gaussian carrier, nothing else."""
+    import jax
+    import numpy as np
+    from gravoturb.realization.gaussian_field import gaussian_random_field
+    from gravoturb.realization.pipeline import (
+        build_turbulent_field,
+        turbulent_field_from_gaussian,
+    )
+
+    mach, b, alpha, beta = 8.0, 0.5, 1.8, 3.0
+    key = jax.random.PRNGKey(7)
+    ref = build_turbulent_field(mach, b, alpha, beta, (24, 24, 24), key)
+    g = gaussian_random_field((24, 24, 24), beta, key)
+    fld = turbulent_field_from_gaussian(g, mach, b, alpha)
+    np.testing.assert_array_equal(np.asarray(fld.s), np.asarray(ref.s))
+    assert float(fld.s_t) == float(ref.s_t)
+    assert float(fld.f_dense_realized) == float(ref.f_dense_realized)

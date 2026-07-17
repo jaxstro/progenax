@@ -54,6 +54,26 @@ def build_turbulent_field(
     key: jax.Array,
 ) -> TurbulentField:
     r"""Realize the turbulent density field (steps 1-4) and report the AC6 cornerstone metric."""
+    g = gaussian_random_field(shape, beta, key)
+    return turbulent_field_from_gaussian(g, mach, b, alpha)
+
+
+def turbulent_field_from_gaussian(
+    g: Float[Array, "nx ny nz"],
+    mach: float,
+    b: float,
+    alpha: float,
+) -> TurbulentField:
+    r"""Impose the BM19 marginal on a PROVIDED Gaussian carrier (the copula side).
+
+    The seam behind :func:`build_turbulent_field` (which draws its own free-β GRF) and
+    the Phase-3 Helmholtz path (whose carrier is the coupled ĝ ∝ −∇·v from
+    :func:`gravoturb.realization.helmholtz.coupled_log_density_gaussian`, with the
+    DERIVED slope β = β_v − 2). The mass-conserving rank copula consumes only the
+    carrier's ranks, so AC6 (f_dense fidelity) holds by construction on either carrier;
+    the carrier chooses the RANK ARRANGEMENT (spectrum/coupling), the copula the marginal.
+    """
+    shape = g.shape
     s_t = transition_density(alpha, sigma_s_squared(mach, b))
     f_dense = dense_mass_fraction(mach, b, alpha)
 
@@ -67,7 +87,6 @@ def build_turbulent_field(
             stacklevel=2,
         )
 
-    g = gaussian_random_field(shape, beta, key)
     s = mass_conserving_copula_field(g, mach, b, alpha)
 
     rho = jnp.exp(s)

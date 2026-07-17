@@ -38,7 +38,15 @@ from jaxstro.units import UnitSystem
 from jaxtyping import Array, Float
 
 from gravoturb.realization.envelope import apply_spherical_envelope
-from gravoturb.realization.pipeline import TurbulentField, build_turbulent_field
+from gravoturb.realization.helmholtz import (
+    coupled_log_density_gaussian,
+    helmholtz_velocity_field,
+)
+from gravoturb.realization.pipeline import (
+    TurbulentField,
+    build_turbulent_field,
+    turbulent_field_from_gaussian,
+)
 from gravoturb.realization.placement import (
     collapse_eligible_fraction,
     effective_cell_count,
@@ -52,7 +60,13 @@ from gravoturb.realization.turbulent_velocity import (
     scale_to_dispersion,
     turbulent_velocity_field,
 )
-from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+from gravoturb.specs import (
+    CloudSpec,
+    CompositionSpec,
+    GeometrySpec,
+    VelocitySpec,
+    validate_spec_bundle,
+)
 from gravoturb.theory.collapse_threshold import virial_parameter
 
 # One-way dependency: released progenax never imports gravoturb (enforced by
@@ -145,9 +159,28 @@ def build_cluster_ic(
     n_stars = int(masses.shape[0])
     k_field, k_vfield, k_pos = jax.random.split(key, 3)
 
-    field = build_turbulent_field(
-        cloud.mach, cloud.b, cloud.alpha, cloud.beta, geometry.shape, k_field
-    )
+    # Cross-spec resolution at the boundary (ADR-0041): beta is derived (= beta_v − 2)
+    # and chi resolved (chi_f10(b) default) under coupling='helmholtz'.
+    beta, chi = validate_spec_bundle(cloud, velocity)
+
+    if cloud.coupling == "helmholtz":
+        # ONE white field drives both: the velocity realization and (via linearized
+        # continuity, ĝ ∝ −∇·v) the density Gaussian carrier — no new randomness on
+        # the compressive channel. k_vfield is intentionally unused (the split stays
+        # 3-way so k_field/k_pos match the independent mode's key streams).
+        bundle = helmholtz_velocity_field(
+            geometry.shape, velocity.beta_v, chi, k_field, return_fourier=True
+        )
+        field = turbulent_field_from_gaussian(
+            coupled_log_density_gaussian(bundle), cloud.mach, cloud.b, cloud.alpha
+        )
+        v_field = bundle.velocity
+    else:  # 'independent' (byte-identical to the pre-Phase-3 pipeline)
+        field = build_turbulent_field(
+            cloud.mach, cloud.b, cloud.alpha, beta, geometry.shape, k_field
+        )
+        v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
+
     s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
 
     if composition.placement == "multi_freefall":
@@ -166,7 +199,6 @@ def build_cluster_ic(
         )
         f_tail = f_elig = n_eff = None
 
-    v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
 
     # units/G consistency is checked whenever units is provided, in ANY mode (a

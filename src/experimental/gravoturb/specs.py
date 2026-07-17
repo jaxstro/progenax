@@ -20,8 +20,9 @@ PyTrees; grid shape / mode strings are static fields.
 Mode fields land with their phases (documented so reviewers see the trajectory):
 Phase 1 ``CompositionSpec.placement='multi_freefall'`` (default) with derived f_sub — LANDED;
 Phase 2 ``VelocitySpec.mode='physical'`` (σ_⋆ = η_v·ℳ·c_s, Q emergent) — LANDED; Phase 3
-``CloudSpec.coupling='helmholtz'`` (β derived = β_v − 2, χ compressive fraction); Phase 4
-``CompositionSpec.lambda_corr`` / ``companions``.
+``CloudSpec.coupling='helmholtz'`` (β derived = β_v − 2, χ compressive fraction, cross-spec
+resolution via :func:`validate_spec_bundle` per ADR-0041) — LANDED; Phase 4
+``CompositionSpec.lambda_corr`` / ``companions``; Phase 4a ``GasSpec`` (stars+gas handoff).
 
 JAX-native (Equinox).
 """
@@ -56,12 +57,26 @@ class CloudSpec(eqx.Module):
     ``mach`` (rms sonic ℳ), ``b`` (FK10 driving parameter, 1/3 solenoidal → 1 compressive),
     ``alpha`` (BM19 power-law tail slope, must be > 1 or the whole cloud is self-gravitating),
     ``beta`` (density power-spectrum slope P(k) ∝ k^{-β}; Kim & Ryu 2005 regime ≈ 2–11/3).
+
+    ``coupling`` selects the density–velocity construction (Phase 3):
+
+    - ``'independent'`` (default, byte-identical legacy): free (β, β_v) pair, the
+      density GRF and velocity GRF are statistically independent.
+    - ``'helmholtz'``: ONE white field drives both — the density Gaussian carrier is
+      ĝ ∝ −i k·v̂∥ (linearized continuity), so **β is DERIVED (= β_v − 2)** and must be
+      the ``None`` sentinel (ADR-0041 Option A; resolved by :func:`validate_spec_bundle`
+      at builder entry). ``chi`` is the compressive power fraction E_long/E_tot;
+      ``None`` resolves to the PDF-verified F10 default ``chi_f10(b) = b/√3``. χ = 0
+      has no compressive channel (the coupled carrier is degenerate — amendment A3):
+      use ``'independent'`` for that ablation.
     """
 
     mach: Float[Array, ""] | float
     b: Float[Array, ""] | float
     alpha: Float[Array, ""] | float
-    beta: Float[Array, ""] | float
+    beta: Float[Array, ""] | float | None
+    coupling: str = eqx.field(static=True, default="independent")
+    chi: Float[Array, ""] | float | None = None
 
     def __check_init__(self):
         _positive("mach", self.mach)
@@ -72,7 +87,35 @@ class CloudSpec(eqx.Module):
                 f"alpha must be > 1 (BM19: the power-law tail mass diverges as alpha→1), "
                 f"got {self.alpha}"
             )
-        _positive("beta", self.beta)
+        if self.coupling not in ("independent", "helmholtz"):
+            raise ValueError(
+                f"coupling must be 'independent' or 'helmholtz', got {self.coupling!r}"
+            )
+        if self.coupling == "helmholtz":
+            if self.beta is not None:
+                raise ValueError(
+                    "beta is DERIVED (= beta_v − 2) under coupling='helmholtz'; "
+                    "pass beta=None (ADR-0041) — no silent precedence"
+                )
+            if self.chi is not None and not _is_traced(self.chi):
+                if float(self.chi) == 0.0:
+                    raise ValueError(
+                        "chi=0 has no compressive channel (the coupled density carrier "
+                        "is degenerate); use coupling='independent' for that ablation"
+                    )
+                if not 0.0 < float(self.chi) <= 1.0:
+                    raise ValueError(f"chi must be in (0, 1], got {self.chi}")
+        else:
+            if self.beta is None:
+                raise ValueError(
+                    "beta is required with coupling='independent' (it is derived only "
+                    "under coupling='helmholtz')"
+                )
+            _positive("beta", self.beta)
+            if self.chi is not None:
+                raise ValueError(
+                    "chi is a helmholtz-mode knob; unused with coupling='independent'"
+                )
 
 
 class GeometrySpec(eqx.Module):
@@ -193,6 +236,37 @@ class CompositionSpec(eqx.Module):
             if not 0.0 <= float(self.f_sub) <= 1.0:
                 raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
         _positive("mask_sharpness", self.mask_sharpness)
+
+
+def validate_spec_bundle(
+    cloud: CloudSpec, velocity: "VelocitySpec"
+) -> tuple[Float[Array, ""] | float, Float[Array, ""] | float | None]:
+    r"""Cross-spec validation at the builder entry (ADR-0041 Option A).
+
+    Intra-spec constraints live in each spec's ``__check_init__``; constraints that
+    COUPLE specs are enforced here, at the boundary, so specs never know about each
+    other. Returns ``(beta, chi)``:
+
+    - ``coupling='helmholtz'``: β = β_v − 2 (linearized continuity, P_g ∝ k²P∥ —
+      refused loudly when β_v ≤ 2, which would give an unphysical non-red density
+      spectrum); χ resolves to :func:`gravoturb.theory.driving.chi_f10` (= b/√3)
+      when the spec left it ``None``. NB the theory chain is VALIDATED for derived
+      β ∈ [1.67, 2] (β_v ∈ [Kolmogorov 11/3, Burgers 4]) — outside that range the
+      construction runs but the Kim & Ryu grounding no longer applies.
+    - ``coupling='independent'``: ``cloud.beta`` passes through untouched, χ is None.
+    """
+    from gravoturb.theory.driving import chi_f10
+
+    if cloud.coupling == "helmholtz":
+        if not _is_traced(velocity.beta_v) and float(velocity.beta_v) <= 2.0:
+            raise ValueError(
+                f"beta_v must be > 2 under coupling='helmholtz' (the derived density "
+                f"slope beta = beta_v − 2 must stay positive), got {velocity.beta_v}"
+            )
+        beta = velocity.beta_v - 2.0
+        chi = chi_f10(cloud.b) if cloud.chi is None else cloud.chi
+        return beta, chi
+    return cloud.beta, None
 
 
 def cloud_spec_from_larson(

@@ -40,7 +40,9 @@ from gravoturb.specs import (
     GeometrySpec,
     VelocitySpec,
     cloud_spec_from_larson,
+    validate_spec_bundle,
 )
+from gravoturb.theory.driving import chi_f10
 
 __all__ = [
     "ClusterIC",
@@ -50,5 +52,7 @@ __all__ = [
     "GeometrySpec",
     "VelocitySpec",
     "build_cluster_ic",
+    "chi_f10",
     "cloud_spec_from_larson",
+    "validate_spec_bundle",
 ]

@@ -259,3 +259,41 @@ def test_build_cluster_ic_carries_field_for_diagnostics():
     assert hasattr(ic.field, "f_dense_realized")
     assert np.isfinite(float(ic.field.f_dense_realized))
     assert float(ic.field.f_dense_realized) > 0.0
+
+
+def test_build_cluster_ic_helmholtz_coupling():
+    """coupling='helmholtz': one white field drives BOTH the density carrier and the
+    stellar velocities (β derived = β_v − 2, χ = chi_f10(b) default); the realized
+    log-density spectrum carries the derived slope, and stars near dense clumps share
+    the converging-flow kinematics (the strong version is gate AC-IC9)."""
+    from gravoturb.cluster import build_cluster_ic
+    from gravoturb.specs import CloudSpec, CompositionSpec, GeometrySpec, VelocitySpec
+    from jaxstro.units import STELLAR
+
+    ic = build_cluster_ic(
+        jnp.ones(600),
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=None, coupling="helmholtz"),
+        geometry=GeometrySpec(profile=_profile(), box_size=BOX, shape=(32,) * 3),
+        velocity=VelocitySpec(beta_v=4.0, Q_target=0.5),
+        composition=CompositionSpec(placement="two_population", f_sub=0.3),
+        G=STELLAR.G, key=jax.random.PRNGKey(0),
+    )
+    assert ic.positions.shape == (600, 3)
+    assert np.all(np.isfinite(np.asarray(ic.velocities)))
+    assert abs(float(ic.Q_virial) - 0.5) < 1e-2
+    # the coupled carrier imposes the DERIVED slope beta_v − 2 = 2 on the log-density
+    s = np.asarray(ic.field.s)
+    n = s.shape[0]
+    pk = np.abs(np.fft.fftn(s - s.mean())) ** 2
+    k1 = np.fft.fftfreq(n) * n
+    KX, KY, KZ = np.meshgrid(k1, k1, k1, indexing="ij")
+    kmag = np.sqrt(KX**2 + KY**2 + KZ**2).ravel()
+    keep = (kmag > 2.0) & (kmag < 8.0)
+    kb = np.round(kmag[keep]).astype(int)
+    pf = pk.ravel()[keep]
+    ks = np.unique(kb)
+    means = np.array([pf[kb == k].mean() for k in ks])
+    coef, *_ = np.linalg.lstsq(
+        np.vstack([np.log10(ks.astype(float)), np.ones(len(ks))]).T,
+        np.log10(means), rcond=None)
+    assert -coef[0] == pytest.approx(2.0, abs=0.5)  # single-realization scatter

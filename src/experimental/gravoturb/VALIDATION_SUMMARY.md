@@ -232,6 +232,32 @@ closes that loop through the released Larson chain when cloud-level consistency 
 wanted. ``mode='virial_target'`` is byte-identical to the pre-Phase-2 pipeline
 (rename-pin gate re-passed).
 
+**AC-IC9 — Helmholtz-coupled density–velocity construction (Phase 3 gate, fresh
+2026-07-16, new script ``coupling_acceptance.py``): 5/5 PASS.**
+``CloudSpec(coupling='helmholtz', beta=None)``: ONE white field drives both the velocity
+realization (Helmholtz projectors P∥/P⊥, per-mode compressive power fraction exactly χ;
+default χ = chi_f10(b) = b/√3, PDF-verified against F10 Eqs. 21–22/Fig. 8 — the radical
+is over D only, and forced turbulence never reaches χ=1) and, via linearized continuity
+(ĝ ∝ −i k·v̂∥, no new randomness), the density Gaussian carrier — so **β is DERIVED
+(= β_v − 2)** and resolved with χ at builder entry by ``validate_spec_bundle``
+(ADR-0041 Option A). Measured: (a) coupled log-density slope 1.629±0.025 / 1.951±0.025
+at β_v = 11/3, 4 (derived 1.667/2.0, |err| < 0.05); (b) coupling strength
+C = corr(s,−∇·v)·√(E_long/E_tot) tracks √χ (0.333/0.569/0.776 vs 0.316/0.548/0.760),
+independent ablation −0.002; (c) coupled-mode re-pass of AC6 (rel 2e-4), σ_⋆ round trip
+(1e-16), AC-IC4 coherence (near +0.827/far −0.237) at unweakened thresholds; (d) carrier
+slope → 2.0 at 96³ + coupled≡independent equivalence per resolution; (e) mass-weighted
+convergence signature ⟨−∇·v⟩ρ/σ_div = +1.735±0.007 coupled vs −0.006 independent.
+TDD caught TWO instrument defects en route, both root-caused with discriminating
+experiments and fixed without touching thresholds: (i) mixed-Nyquist bins break
+transversality under the ``.real`` Hermitian symmetrization (2e-4 longitudinal leak,
+corr 0.9896) → Nyquist planes zeroed in the vector construction; (ii) the draft gate
+statistic corr(s,−∇·v) is scale-invariant and CANNOT depend on χ (measured 1.000
+everywhere) → replaced by the amplitude-weighted C above (gate-statistic correction,
+surfaced to Anna); an apparent β=2 slope depression was integer-|k| binning bias in
+narrow windows (a pure k⁻² GRF read 1.83) → unbiased mode-level regression estimator.
+Honest claim: perfect correlation on the compressive channel, none on the solenoidal —
+the "frozen flow at star-formation epoch" limit, not resolved turbulence.
+
 **2026-07-16 review remediation (adversarial 8-angle code review, 10 verified findings):**
 (i) the former ``f_sub_derived`` conflated two materially different quantities — replaced by
 ``tail_star_fraction`` (Σ_{s>s_t} p under the actual placement PMF; ~0.97 at the fiducial —
