@@ -44,11 +44,7 @@ from gravoturb.specs import (
 from scipy.stats import spearmanr
 
 from progenax import Maschberger, PlummerProfile
-from progenax.stellar import (
-    zams_effective_temperature,
-    zams_luminosity,
-    zams_radius,
-)
+from progenax.stellar import zams_effective_temperature, zams_radius
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "plots", "feasibility")
@@ -161,7 +157,6 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
     teff = np.clip(np.asarray(zams_effective_temperature(m_clip)),
                    SPECTRAL_EDGES[0] + 1.0, SPECTRAL_EDGES[-1] - 1.0)
     radii = np.asarray(zams_radius(m_clip))
-    logL = np.log10(np.clip(np.asarray(zams_luminosity(m_clip)), 1e-4, None))
     cmap_sp = ListedColormap(SPECTRAL_COLORS)
     norm_sp = BoundaryNorm(SPECTRAL_EDGES, cmap_sp.N)
     z = np.asarray(pos[:, 2])
@@ -179,32 +174,30 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
         ax.contour(xs, ys, lc.T, levels=np.percentile(lc, [80, 90, 96, 99]),
                    colors="#8ea3bf", alpha=0.25, linewidths=0.5)
 
-    is_M = teff < SPECTRAL_EDGES[1]  # M dwarfs -> back haze
-    mi = np.where(is_M)[0]
-    mi = mi[np.argsort(z[mi])]
-    faceM = cmap_sp(norm_sp(teff[mi]))
-    faceM[:, 3] = 0.30 * (0.65 + 0.35 * depth_all[mi])
-    ax.scatter(pos[mi, 0], pos[mi, 1], s=3.5 + 5.0 * np.sqrt(radii[mi]),
-               facecolors=faceM, lw=0)
+    # Tier split at 1 Msun. The sub-solar field is drawn first as a faint backdrop;
+    # the >1 Msun (resolved / alpha-slope) stars are then drawn most-massive-first
+    # -> lowest, with per-star alpha encoding line-of-sight depth (near opaque, far
+    # faint) — so depth reads as transparency and mass sets the draw order.
+    sub = np.where(masses < 1.0)[0]
+    sub = sub[np.argsort(z[sub])]  # far -> near within the field
+    faceS = cmap_sp(norm_sp(teff[sub]))
+    faceS[:, 3] = 0.12 + 0.22 * depth_all[sub]  # faint, depth-scaled
+    ax.scatter(pos[sub, 0], pos[sub, 1], s=3.5 + 5.0 * np.sqrt(radii[sub]),
+               facecolors=faceS, lw=0)
 
-    fi = np.where(~is_M)[0]
-    fi = fi[np.argsort(z[fi])]  # painter's far->near within the resolved tier
-    m_f = masses[fi]
-    alpha_f = ((0.20 + 0.80 * np.clip((logL[fi] + 2.0) / 6.0, 0.0, 1.0))
-               * (0.55 + 0.45 * depth_all[fi]))
-    faceF = cmap_sp(norm_sp(teff[fi]))
-    faceF[:, 3] = np.clip(alpha_f, 0.0, 1.0)
-    if opaque:  # full-opacity spectral colour + a thin background-coloured separator
-        faceF[m_f > 1.0, 3] = 1.0
-        edge, lw = STARFIELD_BG, 0.7  # invisible on isolated stars; cuts a gap
-        #                               between overlapping (segregation-crowded) stars
-    else:  # white outline on the m>1 Msun (alpha-slope) population
-        edge = np.where(m_f > 1.0, "#f7f7ff", "none")
-        lw = np.where(m_f > 1.0, 0.55, 0.0)
-    fb = fi[m_f > 3.0]  # soft PSF bloom behind the luminous (>~ A-type) stars
-    ax.scatter(pos[fb, 0], pos[fb, 1], s=3.5 * sizes_all[fb],
-               c=cmap_sp(norm_sp(teff[fb])), alpha=0.10, lw=0)
-    ax.scatter(pos[fi, 0], pos[fi, 1], s=sizes_all[fi], facecolors=faceF,
+    res = np.where(masses >= 1.0)[0]
+    res = res[np.argsort(masses[res])[::-1]]  # most massive first -> lowest last
+    m_r = masses[res]
+    faceR = cmap_sp(norm_sp(teff[res]))
+    faceR[:, 3] = np.clip(0.30 + 0.70 * depth_all[res], 0.0, 1.0)  # alpha = depth
+    if opaque:  # full spectral colour + thin bg-coloured separator (de-overlap)
+        edge, lw = STARFIELD_BG, 0.7
+    else:  # white outline (all resolved are the m>1 alpha-slope population)
+        edge, lw = "#f7f7ff", 0.55
+    rb = res[m_r > 3.0]  # soft PSF bloom behind the luminous (O/B/A) stars
+    ax.scatter(pos[rb, 0], pos[rb, 1], s=3.5 * sizes_all[rb],
+               c=cmap_sp(norm_sp(teff[rb])), alpha=0.10, lw=0)
+    ax.scatter(pos[res, 0], pos[res, 1], s=sizes_all[res], facecolors=faceR,
                edgecolors=edge, linewidths=lw)
 
     if cbar:
@@ -242,54 +235,9 @@ def _headline(led):
             f"$\\alpha_{{\\rm vir}}={float(led.alpha_vir):.2f}$")
 
 
-def career_figure(ic):
-    """Option A — the 3-panel money figure (standalone)."""
-    fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
-    scales = _spatial_panels(fig, axes, ic)
-    fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
-    fig.suptitle(
-        "Turbulence-native cluster initial conditions (gravoturb)  —  "
-        + _headline(ic.ledger), fontsize=14)
-    for e in ("png", "pdf"):
-        fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
-    plt.close(fig)
-    return scales
-
-
-def career_4panel(ic0, ic6):
-    """Option B — 4-in-a-row: cloud + gas + a matched lambda_corr control (c,d)."""
-    led = ic6.ledger
-    ext = _extent(ic6)
-    pos0, m0 = np.asarray(ic0.stars.positions), np.asarray(ic0.stars.masses)
-    pos6, m6 = np.asarray(ic6.stars.positions), np.asarray(ic6.stars.masses)
-    rs0, rs6 = _mass_density_spearman(ic0), _mass_density_spearman(ic6)
-
-    fig, axes = plt.subplots(1, 4, figsize=(21.0, 5.3), layout="constrained")
-    _, cloud_col = _cloud_panel(axes[0], ic6, ext, title="(a) Parent cloud + stars")
-    _gas_panel(axes[1], ic6, ext, title="(b) Residual gas after star formation")
-    _starfield(axes[2], pos0, m0, ext, opaque=True, cloud_col=cloud_col, rho_s=rs0,
-               cbar=False, title=r"(c) No coupling ($\lambda_{\rm corr}=0$)")
-    _starfield(axes[3], pos6, m6, ext, opaque=True, cloud_col=cloud_col, rho_s=rs6,
-               cbar=True, title=r"(d) Mass$-$gas coupling ($\lambda_{\rm corr}=0.6$)")
-    fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.06, hspace=0.0)
-    fig.suptitle(
-        "Gravoturbulent cluster initial conditions — one cloud yields the stars, "
-        "residual gas, and controlled primordial segregation", fontsize=14)
-    fig.text(0.5, -0.015,
-             _headline(led) + r"  ·  (c) and (d) share identical cloud, star "
-             r"positions and IMF; only $\lambda_{\rm corr}$ differs.  "
-             r"$\rho_S$ = Spearman(stellar mass, local gas density); the massive "
-             r"stars sink into the densest gas (contours) as $\lambda_{\rm corr}$ rises.",
-             ha="center", fontsize=8.5, color="#555")
-    for e in ("png", "pdf"):
-        fig.savefig(os.path.join(OUT, f"gravoturb_career_4panel.{e}"))
-    plt.close(fig)
-    return rs0, rs6
-
-
-def career_split(ic0, ic6):
-    """Option C — 3-panel with the control IN the row: cloud+stars, then the
-    lambda_corr split (b: 0, c: 0.6). Residual gas moves to the dev figure."""
+def career_figure(ic0, ic6):
+    """The NSF money figure: (a) cloud+stars, then the matched lambda_corr control
+    (b: 0, c: 0.6) at identical cloud/positions/IMF. Residual gas -> dev figure."""
     led = ic6.ledger
     ext = _extent(ic6)
     pos0, m0 = np.asarray(ic0.stars.positions), np.asarray(ic0.stars.masses)
@@ -312,7 +260,7 @@ def career_split(ic0, ic6):
              r"gas density); massive stars sink into the densest gas (contours) as "
              r"$\lambda_{\rm corr}$ rises.", ha="center", fontsize=8.5, color="#555")
     for e in ("png", "pdf"):
-        fig.savefig(os.path.join(OUT, f"gravoturb_career_split.{e}"))
+        fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
     plt.close(fig)
     return rs0, rs6
 
@@ -392,11 +340,11 @@ def main():
     dpos = float(np.max(np.abs(np.asarray(ic6.stars.positions)
                                 - np.asarray(ic0.stars.positions))))
 
-    col_cloud_max, col_gas_max = career_figure(ic6)   # Option A: 3-panel (+gas)
-    career_split(ic0, ic6)                            # Option C: 3-panel (+control)
-    rs0, rs6 = career_4panel(ic0, ic6)                # Option B: 4-panel (both)
+    rs0, rs6 = career_figure(ic0, ic6)   # the money figure (controlled segregation)
     dev_figure(ic6)
 
+    col_cloud = _column(np.asarray(ic6.gas.rho_cloud), float(ic6.gas.cell_volume))
+    col_gas = _column(np.asarray(ic6.gas.rho_residual), float(ic6.gas.cell_volume))
     k = MSUN_PC2_TO_G_CM2
     print(f"[feasibility] M_cl={float(led.M_cl):.0f} M_sun, M_gas={float(led.M_gas):.0f}, "
           f"Q0={float(led.Q_virial):.3f}, alpha_vir={float(led.alpha_vir):.2f}")
@@ -404,14 +352,12 @@ def main():
           "(rigid COM shift; structure identical)")
     print(f"[feasibility] rho_S(mass, local gas density): lam_corr=0 -> {rs0:+.3f} ; "
           f"lam_corr=0.6 -> {rs6:+.3f}")
-    print(f"[feasibility] wrote {OUT}/gravoturb_career.png        [Option A: 3-panel + gas]")
-    print(f"[feasibility] wrote {OUT}/gravoturb_career_split.png  [Option C: 3-panel + control]")
-    print(f"[feasibility] wrote {OUT}/gravoturb_career_4panel.png [Option B: 4-panel, both]")
-    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png   [dev figure]")
-    print(f"    parent cloud  Sigma_cl,max = {col_cloud_max:.3e} M_sun/pc^2 "
-          f"= {col_cloud_max * k:.3e} g/cm^2")
-    print(f"    residual gas  Sigma_g0,max  = {col_gas_max:.3e} M_sun/pc^2 "
-          f"= {col_gas_max * k:.3e} g/cm^2")
+    print(f"[feasibility] wrote {OUT}/gravoturb_career.png      [money figure: controlled]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png [dev figure]")
+    print(f"    parent cloud  Sigma_cl,max = {float(col_cloud.max()):.3e} M_sun/pc^2 "
+          f"= {float(col_cloud.max()) * k:.3e} g/cm^2")
+    print(f"    residual gas  Sigma_g0,max  = {float(col_gas.max()):.3e} M_sun/pc^2 "
+          f"= {float(col_gas.max()) * k:.3e} g/cm^2")
 
 
 if __name__ == "__main__":
