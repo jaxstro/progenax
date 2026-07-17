@@ -119,13 +119,18 @@ def _mass_density_spearman(ic):
     return float(spearmanr(np.asarray(ic.stars.masses), local).statistic)
 
 
-def _cloud_panel(ax, ic, ext, star_size=1.4, title="(a) Turbulent parent cloud + stars"):
+def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
     col = _column(np.asarray(ic.gas.rho_cloud), float(ic.gas.cell_volume))
     im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma")
     plt.colorbar(im, ax=ax, fraction=0.046,
                  label=r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]")
+    # stars as small uniform white points with a thin dark edge, sized by ZAMS
+    # radius — reads on both the bright core and the dark envelope of the magma map
+    # (the old cyan clashed with the warm colormap and blocked up into squares).
     pos = np.asarray(ic.stars.positions)
-    ax.scatter(pos[:, 0], pos[:, 1], s=star_size, c="cyan", alpha=0.5, lw=0)
+    rad = np.asarray(zams_radius(jnp.clip(jnp.asarray(ic.stars.masses), 0.08, 150.0)))
+    ax.scatter(pos[:, 0], pos[:, 1], s=3.0 + 7.0 * np.sqrt(rad), c="white",
+               alpha=0.6, edgecolors="#101014", linewidths=0.25)
     ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
     ax.set_aspect("equal")
     return float(col.max()), col
@@ -217,11 +222,11 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
     ax.set_aspect("equal")
 
 
-def _spatial_panels(fig, axes, ic, star_size=1.2):
+def _spatial_panels(fig, axes, ic):
     """Option-A three-panel row (cloud+stars / residual gas / segregation)."""
     ax_a, ax_b, ax_c = axes
     ext = _extent(ic)
-    cmax, _ = _cloud_panel(ax_a, ic, ext, star_size=star_size)
+    cmax, _ = _cloud_panel(ax_a, ic, ext)
     gmax = _gas_panel(ax_b, ic, ext)
     _starfield(ax_c, np.asarray(ic.stars.positions), np.asarray(ic.stars.masses), ext,
                opaque=False, cbar=True,
@@ -239,7 +244,7 @@ def _headline(led):
 def career_figure(ic):
     """Option A — the 3-panel money figure (standalone)."""
     fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
-    scales = _spatial_panels(fig, axes, ic, star_size=1.6)
+    scales = _spatial_panels(fig, axes, ic)
     fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
     fig.suptitle(
         "Turbulence-native cluster initial conditions (gravoturb)  —  "
@@ -259,8 +264,7 @@ def career_4panel(ic0, ic6):
     rs0, rs6 = _mass_density_spearman(ic0), _mass_density_spearman(ic6)
 
     fig, axes = plt.subplots(1, 4, figsize=(21.0, 5.3), layout="constrained")
-    _, cloud_col = _cloud_panel(axes[0], ic6, ext, star_size=1.4,
-                                title="(a) Parent cloud + stars")
+    _, cloud_col = _cloud_panel(axes[0], ic6, ext, title="(a) Parent cloud + stars")
     _gas_panel(axes[1], ic6, ext, title="(b) Residual gas after star formation")
     _starfield(axes[2], pos0, m0, ext, opaque=True, cloud_col=cloud_col, rho_s=rs0,
                cbar=False, title=r"(c) No coupling ($\lambda_{\rm corr}=0$)")
@@ -278,6 +282,36 @@ def career_4panel(ic0, ic6):
              ha="center", fontsize=8.5, color="#555")
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_career_4panel.{e}"))
+    plt.close(fig)
+    return rs0, rs6
+
+
+def career_split(ic0, ic6):
+    """Option C — 3-panel with the control IN the row: cloud+stars, then the
+    lambda_corr split (b: 0, c: 0.6). Residual gas moves to the dev figure."""
+    led = ic6.ledger
+    ext = _extent(ic6)
+    pos0, m0 = np.asarray(ic0.stars.positions), np.asarray(ic0.stars.masses)
+    pos6, m6 = np.asarray(ic6.stars.positions), np.asarray(ic6.stars.masses)
+    rs0, rs6 = _mass_density_spearman(ic0), _mass_density_spearman(ic6)
+
+    fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
+    _, cloud_col = _cloud_panel(axes[0], ic6, ext, title="(a) Parent cloud + stars")
+    _starfield(axes[1], pos0, m0, ext, opaque=True, cloud_col=cloud_col, rho_s=rs0,
+               cbar=False, title=r"(b) No coupling ($\lambda_{\rm corr}=0$)")
+    _starfield(axes[2], pos6, m6, ext, opaque=True, cloud_col=cloud_col, rho_s=rs6,
+               cbar=True, title=r"(c) Mass$-$gas coupling ($\lambda_{\rm corr}=0.6$)")
+    fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
+    fig.suptitle(
+        "Gravoturbulent cluster initial conditions (gravoturb) — controlled "
+        "primordial mass segregation  ·  " + _headline(led), fontsize=13)
+    fig.text(0.5, -0.02,
+             r"(b) and (c) share identical cloud, star positions and IMF; only "
+             r"$\lambda_{\rm corr}$ differs.  $\rho_S$ = Spearman(stellar mass, local "
+             r"gas density); massive stars sink into the densest gas (contours) as "
+             r"$\lambda_{\rm corr}$ rises.", ha="center", fontsize=8.5, color="#555")
+    for e in ("png", "pdf"):
+        fig.savefig(os.path.join(OUT, f"gravoturb_career_split.{e}"))
     plt.close(fig)
     return rs0, rs6
 
@@ -357,8 +391,9 @@ def main():
     dpos = float(np.max(np.abs(np.asarray(ic6.stars.positions)
                                 - np.asarray(ic0.stars.positions))))
 
-    col_cloud_max, col_gas_max = career_figure(ic6)   # Option A
-    rs0, rs6 = career_4panel(ic0, ic6)                # Option B (controlled)
+    col_cloud_max, col_gas_max = career_figure(ic6)   # Option A: 3-panel (+gas)
+    career_split(ic0, ic6)                            # Option C: 3-panel (+control)
+    rs0, rs6 = career_4panel(ic0, ic6)                # Option B: 4-panel (both)
     dev_figure(ic6)
 
     k = MSUN_PC2_TO_G_CM2
@@ -368,9 +403,10 @@ def main():
           "(rigid COM shift; structure identical)")
     print(f"[feasibility] rho_S(mass, local gas density): lam_corr=0 -> {rs0:+.3f} ; "
           f"lam_corr=0.6 -> {rs6:+.3f}")
-    print(f"[feasibility] wrote {OUT}/gravoturb_career.png (+ .pdf)         [Option A: 3-panel]")
-    print(f"[feasibility] wrote {OUT}/gravoturb_career_4panel.png (+ .pdf)  [Option B: 4-panel control]")
-    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png (+ .pdf)    [dev figure]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_career.png        [Option A: 3-panel + gas]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_career_split.png  [Option C: 3-panel + control]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_career_4panel.png [Option B: 4-panel, both]")
+    print(f"[feasibility] wrote {OUT}/gravoturb_feasibility.png   [dev figure]")
     print(f"    parent cloud  Sigma_cl,max = {col_cloud_max:.3e} M_sun/pc^2 "
           f"= {col_cloud_max * k:.3e} g/cm^2")
     print(f"    residual gas  Sigma_g0,max  = {col_gas_max:.3e} M_sun/pc^2 "
