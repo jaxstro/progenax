@@ -166,6 +166,43 @@ def measure_log_count_variance(counts, n_bar):
     return float(np.var(A))
 
 
+def measure_log_count_variance_detrended(counts, n_bar_cells, n_min=10.0):
+    r"""Envelope-detrended, effective-volume-masked CIC log-count variance (Phase 5/A1).
+
+    The cluster envelope enters the observation process as a KNOWN deterministic
+    Poisson-intensity modulation, so the per-cell relative overdensity uses the
+    position-dependent intensity, ``d_i = N_i/n̄_i − 1`` (same ``log_plus`` transform
+    as the homogeneous statistic — generation/inference consistency). Detrending
+    alone is NOT enough: in the envelope's near-empty wings (n̄_i ≪ 1) the statistic
+    is shot-noise amplified by 1/n̄_i and diverges (measured: 0.31 vs the 0.02 shot
+    level on a pure envelope). The survey-style treatment is a DECLARED
+    effective-volume mask ``n̄_i ≥ n_min`` — the statistic is computed inside it and
+    the forward model must predict under the SAME mask. Reduces exactly to the
+    homogeneous statistic for uniform ``n_bar_cells`` (≥ n_min).
+    """
+    counts = np.asarray(counts, dtype=float)
+    n_bar_cells = np.asarray(n_bar_cells, dtype=float)
+    mask = n_bar_cells >= n_min
+    d = counts[mask] / n_bar_cells[mask] - 1.0
+    A = np.where(d > 0.0, np.log1p(np.where(d > 0.0, d, 0.0)), d)
+    return float(np.var(A))
+
+
+def envelope_cell_intensity(profile, box_size, shape, cell_size, n_bar):
+    r"""The KNOWN per-coarse-cell Poisson intensity of a pure envelope: cell-mean of
+    ρ_env on the fine grid, coarse-grained to ``cell_size`` blocks and normalized to
+    mean ``n_bar``. The forward-model side of the A1 detrending."""
+    import jax.numpy as jnp
+
+    from gravoturb.realization.envelope import apply_spherical_envelope
+
+    s_env = apply_spherical_envelope(jnp.zeros(shape), profile, box_size)
+    w = np.asarray(jnp.exp(s_env))
+    n = shape[0] // cell_size
+    w = w.reshape(n, cell_size, n, cell_size, n, cell_size).mean(axis=(1, 3, 5))
+    return n_bar * w / w.mean()
+
+
 def estimate_log_count_variance_var(mach, b, alpha, beta, shape, cell_size, n_bar, n_real, key):
     r"""Fixed (fiducial) variance of the ``measure_log_count_variance`` estimator from an ``n_real``
     mock ensemble at theta_fid. Used as ``var_v`` in :func:`log_count_variance_loglike` (mock-precision

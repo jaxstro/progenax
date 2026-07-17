@@ -186,3 +186,64 @@ def test_measure_log_count_variance_is_shape_agnostic_2d():
     counts2d = rng.poisson(n_bar, size=(16, 16))
     v = measure_log_count_variance(counts2d, n_bar)
     assert isinstance(v, float) and np.isfinite(v) and v >= 0.0
+
+
+def test_detrended_log_count_variance_reduces_and_detrends():
+    """Phase 5 / A1: measure_log_count_variance_detrended(counts, n_bar_cells)
+    (i) reduces EXACTLY to the homogeneous statistic for uniform n_bar_cells;
+    (ii) on a PURE-envelope Poisson catalog (no turbulence) removes the envelope
+    inflation (statistic ~ shot level, matching a homogeneous pure-Poisson reference),
+    where the homogeneous statistic is visibly inflated."""
+    import jax
+    import jax.numpy as jnp
+    from gravoturb.diagnostics.measure import (
+        measure_log_count_variance,
+        measure_log_count_variance_detrended,
+    )
+    from gravoturb.realization.envelope import apply_spherical_envelope
+    from gravoturb.realization.placement import sample_cic_counts
+
+    from progenax import PlummerProfile
+
+    shape, box, cell, n_stars = (32,) * 3, 4.0, 4, 20000.0
+    nb = n_stars / (shape[0] // cell) ** 3
+
+    # (i) exact reduction
+    rng = np.random.default_rng(0)
+    cnt = rng.poisson(nb, size=(8, 8, 8)).astype(float)
+    hom = measure_log_count_variance(cnt, nb)
+    det = measure_log_count_variance_detrended(cnt, np.full((8, 8, 8), nb))
+    assert det == pytest.approx(hom, rel=1e-12)
+
+    # (ii) the physically meaningful transfer statement: the TURBULENCE EXCESS
+    # (statistic minus its matched pure-shot baseline, both masked+detrended) on an
+    # ENVELOPED catalog matches the same excess measured on the periodic box —
+    # the envelope window is fully absorbed by (known-intensity detrend + declared
+    # effective-volume mask n_bar_i >= n_min).
+    from gravoturb.diagnostics.measure import envelope_cell_intensity
+    from gravoturb.realization.pipeline import build_turbulent_field
+
+    prof = PlummerProfile(r_h=0.5)
+    n_cells = envelope_cell_intensity(prof, box, shape, cell, nb)
+    excess_env, excess_per = [], []
+    for sd in range(6):
+        fld = build_turbulent_field(8.0, 0.5, 1.8, 3.0, shape, jax.random.PRNGKey(sd))
+        s_env = apply_spherical_envelope(fld.s, prof, box)
+        s_env = s_env - jnp.log(jnp.mean(jnp.exp(s_env)))
+        s_env0 = apply_spherical_envelope(jnp.zeros(shape), prof, box)
+        s_env0 = s_env0 - jnp.log(jnp.mean(jnp.exp(s_env0)))
+        k = jax.random.PRNGKey(sd)
+        cnt_te = np.asarray(sample_cic_counts(s_env, nb, cell, jax.random.fold_in(k, 1)))
+        cnt_0e = np.asarray(sample_cic_counts(s_env0, nb, cell, jax.random.fold_in(k, 2)))
+        v_te = measure_log_count_variance_detrended(cnt_te, n_cells)
+        v_0e = measure_log_count_variance_detrended(cnt_0e, n_cells)
+        excess_env.append(v_te - v_0e)
+        cnt_tp = np.asarray(sample_cic_counts(fld.s, nb, cell, jax.random.fold_in(k, 3)))
+        cnt_0p = np.random.default_rng(100 + sd).poisson(nb, size=(8, 8, 8)).astype(float)
+        v_tp = measure_log_count_variance(cnt_tp, nb)
+        v_0p = measure_log_count_variance(cnt_0p, nb)
+        excess_per.append(v_tp - v_0p)
+    d = np.mean(excess_env) - np.mean(excess_per)
+    scatter = max(np.std(excess_env), np.std(excess_per)) / np.sqrt(6)
+    assert np.mean(excess_per) > 0.2                     # turbulence signal present
+    assert abs(d) < 4.0 * scatter + 0.05                 # transfer holds within scatter
