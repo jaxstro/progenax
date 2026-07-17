@@ -146,7 +146,7 @@ def effective_cell_count(p: Float[Array, "..."]) -> Float[Array, ""]:
     It is NOT a sharp failure predictor — the AC-IC4 coherence erasure at 32³ (measured
     2026-07-16: near-alignment +0.013 at 32³ vs +0.631 at 64³; 90% of stars in 8 vs 64
     cells) is diagnosed by the star-sample spread, which n_eff tracks only loosely. Use
-    ≥64³ at ℳ≥8 (the recorded caveat). Reported on ``ClusterIC``; documentation, not a
+    ≥64³ at ℳ≥8 (the recorded caveat). Reported on the ``TurbulentCloudIC`` ledger; documentation, not a
     gate. Differentiable.
     """
     return 1.0 / jnp.sum(p**2)

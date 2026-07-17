@@ -227,10 +227,10 @@ def test_builder_multi_freefall_reports_derived_fraction():
 
     ic = build_cluster_ic(jnp.ones(400), **_specs("multi_freefall"),
                           G=STELLAR.G, key=jax.random.PRNGKey(0))
-    assert ic.tail_star_fraction is not None
-    assert ic.collapse_eligible_fraction is not None
-    assert 0.0 < float(ic.collapse_eligible_fraction) < float(ic.tail_star_fraction) <= 1.0
-    assert np.all(np.isfinite(np.asarray(ic.positions)))
+    assert ic.ledger.tail_star_fraction is not None
+    assert ic.ledger.collapse_eligible_fraction is not None
+    assert 0.0 < float(ic.ledger.collapse_eligible_fraction) < float(ic.ledger.tail_star_fraction) <= 1.0
+    assert np.all(np.isfinite(np.asarray(ic.stars.positions)))
 
 
 def test_builder_two_population_unchanged():
@@ -241,6 +241,6 @@ def test_builder_two_population_unchanged():
 
     ic = build_cluster_ic(jnp.ones(400), **_specs("two_population", f_sub=0.3),
                           G=STELLAR.G, key=jax.random.PRNGKey(0))
-    assert ic.tail_star_fraction is None
-    assert ic.collapse_eligible_fraction is None
-    assert abs(float(ic.Q_virial) - 0.5) < 1e-2
+    assert ic.ledger.tail_star_fraction is None
+    assert ic.ledger.collapse_eligible_fraction is None
+    assert abs(float(ic.ledger.Q_virial) - 0.5) < 1e-2

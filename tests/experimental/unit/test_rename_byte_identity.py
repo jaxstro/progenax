@@ -110,9 +110,9 @@ def test_cluster_ic_matches_pins():
         composition=CompositionSpec(placement="two_population", f_sub=0.3),
         G=STELLAR.G, key=jax.random.PRNGKey(42),
     )
-    assert _h(ic.positions) == _PINS["cluster_positions"]
-    assert _h(ic.velocities) == _PINS["cluster_velocities"]
-    assert _h(ic.Q_virial) == _PINS["cluster_Q"]
+    assert _h(ic.stars.positions) == _PINS["cluster_positions"]
+    assert _h(ic.stars.velocities) == _PINS["cluster_velocities"]
+    assert _h(ic.ledger.Q_virial) == _PINS["cluster_Q"]
 
 
 def test_sigma_s_squared_parity_with_released_core():

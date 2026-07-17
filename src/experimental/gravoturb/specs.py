@@ -1,14 +1,16 @@
 r"""Typed parameter specs for the gravoturbulent cluster-IC builder.
 
-Groups :func:`gravoturb.cluster.build_cluster_ic`'s parameters into four physically-coherent
+Groups :func:`gravoturb.cluster.build_cluster_ic`'s parameters into physically-coherent
 Equinox modules, so the builder signature never grows again as physics modes land
 (finalization design 2026-07-16, Phase 0.5):
 
-- :class:`CloudSpec`     — the turbulent cloud: PDF physics (ℳ, b, α) + density spectrum β.
+- :class:`CloudSpec`     — the turbulent cloud: PDF physics (ℳ, b, α) + density spectrum β
+  (or the Phase-3 ``coupling='helmholtz'`` derived-β mode).
 - :class:`GeometrySpec`  — the realization geometry: envelope profile, box, grid.
 - :class:`VelocitySpec`  — stellar velocity structure: coherence slope β_v + amplitude mode
-  (imposed Q_target, or physical σ_⋆ = η_v·ℳ·c_s with Q emergent).
+  (imposed Q_target, or field-first physical mode: gas grid at σ_g = ℳ·c_s, stars ×η_v).
 - :class:`CompositionSpec` — who forms where: placement law + substructure knobs.
+- :class:`GasSpec`       — Phase-4a residual gas: global SFE + partition mode + γ.
 
 Validation is loud and constructor-time (``__check_init__``): a bad parameter fails at spec
 construction with a physics message, never deep inside the pipeline. Constructing a spec
@@ -173,7 +175,7 @@ class VelocitySpec(eqx.Module):
         if self.mode == "physical":
             if self.Q_target is not None:
                 raise ValueError(
-                    "Q_target is EMERGENT under mode='physical' (read ClusterIC.Q_virial); "
+                    "Q_target is EMERGENT under mode='physical' (read TurbulentCloudIC.ledger.Q_virial); "
                     "pass Q_target only with mode='virial_target' — no silent precedence"
                 )
             if self.c_s is None:
@@ -200,7 +202,7 @@ class CompositionSpec(eqx.Module):
 
     ``placement='multi_freefall'`` (default, Phase 1): the FK12 law p_⋆ ∝ w·ρ_total^{3/2}
     (SFR ∝ ρ/t_ff, gated on the BM19 transition) — the tail-star fraction is DERIVED
-    (``ClusterIC.tail_star_fraction`` + the smooth ``collapse_eligible_fraction``),
+    (``TurbulentCloudIC.ledger.tail_star_fraction`` + the smooth ``collapse_eligible_fraction``),
     not chosen; passing ``f_sub`` here is an error.
 
     ``placement='two_population'`` (legacy/ablation): ``n_tail = round(f_sub·N)`` stars
@@ -227,7 +229,7 @@ class CompositionSpec(eqx.Module):
         if self.placement == "multi_freefall" and self.f_sub is not None:
             raise ValueError(
                 "f_sub is DERIVED under placement='multi_freefall' "
-                "(read ClusterIC.tail_star_fraction); pass f_sub only with "
+                "(read ledger.tail_star_fraction); pass f_sub only with "
                 "placement='two_population'"
             )
         if self.placement == "two_population":
@@ -236,6 +238,34 @@ class CompositionSpec(eqx.Module):
             if not 0.0 <= float(self.f_sub) <= 1.0:
                 raise ValueError(f"f_sub must be in [0, 1], got {self.f_sub}")
         _positive("mask_sharpness", self.mask_sharpness)
+
+
+class GasSpec(eqx.Module):
+    r"""Residual-gas construction parameters (Phase 4a, Aim 2 handoff).
+
+    ``sfe`` is the global star-formation efficiency ε_global ∈ (0, 1): the mass
+    contract is M⋆ = Σmᵢ (masses-first), M_cl = M⋆/ε_global, M_g,0 = M_cl − M⋆.
+    ``partition`` selects the local split: ``'local_freefall'`` (default, the physical
+    ε⋆ = 1−exp(−τ⋆w/t_ff) model) or ``'uniform'`` (the controlled ablation
+    ρ_g,0 = (1−ε_global)ρ_cl). ``gamma`` is the adiabatic index recorded with the cold
+    isothermal pressure P_g,0 = ρ_g,0·c_s². The sound speed is deliberately NOT
+    duplicated here — it lives in ``VelocitySpec`` (single source of truth; gas
+    construction requires ``mode='physical'``, so c_s is always present).
+    """
+
+    sfe: Float[Array, ""] | float
+    partition: str = eqx.field(static=True, default="local_freefall")
+    gamma: Float[Array, ""] | float = 5.0 / 3.0
+
+    def __check_init__(self):
+        if not _is_traced(self.sfe) and not 0.0 < float(self.sfe) < 1.0:
+            raise ValueError(f"sfe must be in (0, 1), got {self.sfe}")
+        if self.partition not in ("local_freefall", "uniform"):
+            raise ValueError(
+                f"partition must be 'local_freefall' or 'uniform', got {self.partition!r}"
+            )
+        if not _is_traced(self.gamma) and not float(self.gamma) > 1.0:
+            raise ValueError(f"gamma must be > 1, got {self.gamma}")
 
 
 def validate_spec_bundle(

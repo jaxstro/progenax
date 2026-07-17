@@ -1,31 +1,35 @@
-r"""End-to-end gravoturbulent cluster initial conditions (the forward generative tool).
+r"""End-to-end gravoturbulent initial conditions: stars, and optionally residual gas.
 
-This is the user-facing assembly that turns natal-turbulence parameters into a complete,
-physically-scaled N-body IC, composing the verified subsystem pieces:
+The user-facing assembly that turns natal-turbulence parameters into a complete,
+physically-scaled IC (the Phase-4a ``TurbulentCloudIC``), composing the verified pieces:
 
-  1. ``build_turbulent_field`` — BM19 turbulent log-density box ``s_turb`` (carries β, ℳ, α; ⟨e^{s_turb}⟩=1).
-  2. ``apply_spherical_envelope`` — add the radial log-envelope of a progenax ``SpatialProfile``:
-     ``s_total = s_turb + ln ρ_env(r)`` (the SHAPE: r_h, concentration).
-  3. star placement (per ``CompositionSpec.placement``):
-     **default ``'multi_freefall'``** — ``p_⋆ ∝ w(s_turb)·e^{(3/2)s_total}`` (the FK12 Eq. 7
-     SFR ∝ ρ/t_ff law, collapse-gated on the BM19 transition; ``ClusterIC`` reports the derived
-     ``tail_star_fraction`` and ``collapse_eligible_fraction``);
-     legacy ``'two_population'`` — ``n_tail = round(f_sub·N)`` from p ∝ w·ρ, the rest ∝ ρ
-     (ablation mode; the dense-tail mask always stays on ``s_turb``, decoupled from the envelope).
-  4. ``turbulent_velocity_field`` + ``sample_turbulent_velocities`` — coherent turbulent velocities
-     (β_v); nearby stars move together (Goodwin & Whitworth 2004).
-  5. core ``to_com_frame``, then the velocity AMPLITUDE per ``VelocitySpec.mode``:
-     ``'virial_target'`` — ``virial_scale`` imposes a CHOSEN virial ratio ``Q ≡ T/|V|`` (0.5
-     virial, <0.5 collapsing, 0.75 super-virial; the potential uses the actual positions, so the
-     envelope's deeper well is auto-accounted for); ``'physical'`` (Phase 2) —
-     ``scale_to_dispersion`` sets the mass-weighted 3-D dispersion to σ_⋆ = η_v·ℳ·c_s (stars
-     inherit the gas turbulence; **Q_virial is then emergent**, and the BM92-form ``alpha_vir``
-     is the consistency diagnostic, reported in both modes).
+  1. density construction per ``CloudSpec.coupling``: ``'independent'`` — free-β GRF;
+     ``'helmholtz'`` — ONE white field yields the velocity realization AND (via linearized
+     continuity, ĝ ∝ −∇·v) the density carrier, so β is DERIVED = β_v − 2 (Phase 3).
+     The mass-conserving copula imposes the BM19 marginal either way.
+  2. ``apply_spherical_envelope`` — ``s_total = s_turb + ln ρ_env(r)`` (the SHAPE).
+  3. star placement per ``CompositionSpec.placement`` (default FK12 multi-freefall,
+     ``p_⋆ ∝ w·ρ_total^{3/2}``; legacy ``'two_population'`` ablation).
+  4. velocities per ``VelocitySpec.mode``:
+     ``'virial_target'`` — sample the coherent field, impose Q via core ``virial_scale``
+     (byte-identical legacy path; REFUSES a physical gas — the imposed amplitude has no
+     cloud meaning);
+     ``'physical'`` (Phase 2, **field-first since Phase 4a**) — the velocity GRID is
+     normalized so its volume-weighted rms is σ_g = ℳ·c_s (the FK10 convention: ℳ is a
+     GAS parameter), stars sample it ×η_v, and the stellar dispersion is EMERGENT with
+     sampling scatter (≈ η_v·ℳ·c_s; gate AC-G7 band). Q_virial is emergent; the BM92
+     1-D ``alpha_vir`` is the consistency diagnostic.
+  5. optional residual gas per ``GasSpec`` (Phase 4a, Aim 2 handoff): the SAME cloud is
+     normalized to M_cl = M⋆/ε_global, partitioned by the local free-fall model
+     ε⋆ = 1−exp(−τ⋆w/t_ff) (or the uniform ablation), and carried as
+     (ρ_cloud, ρ_residual, velocity, pressure) with an exact mass-closure ledger.
+  6. ONE frame: with gas, the joint stars+gas COM/momentum frame; star-only, the stellar
+     COM frame — recorded exactly in ``FrameTransform`` either way.
 
-Units are explicit (pass ``G``; CLAUDE.md mandate): ``box_size`` and the profile's ``r_h`` share length
-units (pc for ``STELLAR``), masses are M⊙, and the output velocities come out in the matching system
-(pc/Myr for ``STELLAR.G``). Positions/velocities are non-differentiable (categorical placement);
-the differentiable interface is the inference layer plus the analytic fraction diagnostics.
+Units are explicit (pass ``G``; CLAUDE.md mandate): lengths in pc, masses in M⊙,
+velocities in pc/Myr for STELLAR. Positions/velocities are non-differentiable
+(categorical placement); the differentiable interface is the inference layer, the
+analytic fraction diagnostics, and the τ⋆ root (IFT).
 
 JAX-native.
 """
@@ -38,6 +42,12 @@ from jaxstro.units import UnitSystem
 from jaxtyping import Array, Float
 
 from gravoturb.realization.envelope import apply_spherical_envelope
+from gravoturb.realization.gas import (
+    local_freefall_time,
+    normalized_cloud_density,
+    partition_star_gas,
+    solve_tau_star,
+)
 from gravoturb.realization.helmholtz import (
     coupled_log_density_gaussian,
     helmholtz_velocity_field,
@@ -49,6 +59,7 @@ from gravoturb.realization.pipeline import (
 )
 from gravoturb.realization.placement import (
     collapse_eligible_fraction,
+    collapse_weights,
     effective_cell_count,
     multi_freefall_pmf,
     sample_positions,
@@ -57,12 +68,12 @@ from gravoturb.realization.placement import (
 )
 from gravoturb.realization.turbulent_velocity import (
     sample_turbulent_velocities,
-    scale_to_dispersion,
     turbulent_velocity_field,
 )
 from gravoturb.specs import (
     CloudSpec,
     CompositionSpec,
+    GasSpec,
     GeometrySpec,
     VelocitySpec,
     validate_spec_bundle,
@@ -83,54 +94,118 @@ class FrameTransform(NamedTuple):
     """The affine map between the cluster (COM) frame and the realization grid frame.
 
     The builder samples stars in the grid/box frame ([0, box)³, cell centres at
-    (i+0.5)·box/n), then shifts to the stellar COM frame and rescales the velocity
-    amplitude. This ledger records that transformation exactly, so stars and the
-    carried field grid are always mutually reconcilable (review 2026-07-16: the shift
-    was previously unrecorded — a silent frame mismatch):
+    (i+0.5)·box/n), then shifts to the COM frame (JOINT stars+gas when gas is built,
+    stellar otherwise) and applies one global velocity-amplitude factor. This ledger
+    records that transformation exactly, so stars and the carried grids are always
+    mutually reconcilable:
 
     - grid frame:    positions_box = positions + origin
                      (grid cell centres in the cluster frame: (i+0.5)·box/n − origin)
     - velocities:    velocities = velocity_scale · (v_raw(positions_box) − bulk_velocity),
-                     where v_raw is the trilinear sample of the turbulent velocity grid.
+                     where v_raw is the trilinear sample of the (unnormalized) velocity
+                     grid and bulk_velocity is in the same raw units.
 
     Reconstruction holds to machine roundoff (floating point: (x−c)+c is not bitwise x).
-    ``velocity_scale`` is the global post-COM amplitude factor (σ_after/σ_before —
-    exact in both modes because both are pure rescales; 0 for Q_target=0 cold ICs).
+    ``velocity_scale`` is exact in both modes because both apply one global scalar
+    (0 for Q_target=0 cold ICs).
     """
 
-    origin: Float[Array, "3"]         # stellar COM in grid/box coordinates [pc]
+    origin: Float[Array, "3"]         # COM in grid/box coordinates [pc]
     bulk_velocity: Float[Array, "3"]  # subtracted bulk velocity [raw field units]
-    velocity_scale: Float[Array, ""]  # global scalar applied after COM removal
+    velocity_scale: Float[Array, ""]  # global scalar applied around the bulk
 
 
-class ClusterIC(NamedTuple):
-    """A complete gravoturbulent cluster IC (a JAX pytree)."""
+class Stars(NamedTuple):
+    """Discrete stellar IC (COM frame; pc, pc/Myr, M⊙ for STELLAR)."""
 
-    positions: Float[Array, "n 3"]    # COM-centred, length units of box_size (pc for STELLAR)
-    velocities: Float[Array, "n 3"]   # COM frame, units set by G (pc/Myr for STELLAR)
-    masses: Float[Array, "n"]         # M⊙
-    field: TurbulentField             # realized turbulent field (BM19 provenance / diagnostics)
-    Q_virial: Float[Array, ""]        # realized virial ratio T/|V|
-    tail_star_fraction: Float[Array, ""] | None = None
-    #   expected fraction of stars in dense-tail (s>s_t) cells under the ACTUAL
-    #   placement PMF — the successor of the legacy f_sub knob (multi_freefall only)
+    positions: Float[Array, "n 3"]
+    velocities: Float[Array, "n 3"]
+    masses: Float[Array, "n"]
+
+
+class GasState(NamedTuple):
+    """Residual-gas grids (grid frame + recorded origin; Phase 4a handoff to gravax).
+
+    ``rho_cloud`` is the normalized parent cloud ρ_cl [M⊙/pc³]; ``rho_residual`` the
+    post-partition gas ρ_g,0 = (1−ε⋆)ρ_cl; ``velocity`` the physical coherent gas
+    velocity in the joint COM frame [pc/Myr]; ``pressure`` the cold isothermal
+    P_g,0 = ρ_g,0·c_s² [M⊙ pc⁻¹ Myr⁻²]; ``cell_volume`` [pc³] makes ∫ρdV = Σρ·dV
+    explicit."""
+
+    rho_cloud: Float[Array, "nx ny nz"]
+    rho_residual: Float[Array, "nx ny nz"]
+    velocity: Float[Array, "nx ny nz 3"]
+    pressure: Float[Array, "nx ny nz"]
+    cell_volume: Float[Array, ""]
+
+
+class Fields(NamedTuple):
+    """The realized dimensionless fields (diagnostics/provenance)."""
+
+    s_turb: TurbulentField            # BM19 log-density box + scalars (⟨e^s⟩=1)
+    s_total: Float[Array, "nx ny nz"]  # s_turb + ln ρ_env (enveloped, unnormalized)
+    collapse_weight: Float[Array, "nx ny nz"]  # the smooth eligibility w(s_turb) ∈ [0,1]
+
+
+class Geometry(NamedTuple):
+    """Grid geometry; ``origin`` maps grids into the cluster frame (= frame.origin)."""
+
+    shape: tuple[int, int, int]
+    box_size: Float[Array, ""] | float
+    origin: Float[Array, "3"]
+
+
+class Physics(NamedTuple):
+    """The resolved physical parameters this realization was built from."""
+
+    mach: Float[Array, ""] | float
+    b: Float[Array, ""] | float
+    alpha: Float[Array, ""] | float
+    beta: Float[Array, ""] | float            # resolved (derived β_v−2 under helmholtz)
+    beta_v: Float[Array, ""] | float
+    chi: Float[Array, ""] | float | None      # compressive fraction (helmholtz only)
+    coupling: str
+    velocity_mode: str
+    placement: str
+    eta_v: Float[Array, ""] | float | None    # physical mode only
+    c_s: Float[Array, ""] | float | None      # [km/s]; physical mode only
+    sfe_global: Float[Array, ""] | float | None   # gas build only
+    tau_star: Float[Array, ""] | None         # local_freefall partition only
+    gamma: Float[Array, ""] | float | None    # gas build only
+
+
+class Ledger(NamedTuple):
+    """Conservation accounting + realization diagnostics + provenance."""
+
+    M_star: Float[Array, ""]
+    M_cl: Float[Array, ""] | None             # gas build only (= M_star/sfe)
+    M_gas: Float[Array, ""] | None            # ∫ρ_g,0 dV (gas build only)
+    mass_closure_residual: Float[Array, ""] | None
+    #   M_cl − (M_star + ∫ρ_g dV); must be ~roundoff (gate AC-G1)
+    total_momentum: Float[Array, "3"]         # stars (+ gas) in the adopted frame
+    Q_virial: Float[Array, ""]                # stellar T/|V| (emergent in physical mode)
+    alpha_vir: Float[Array, ""]               # BM92 1-D convention on the realized stars
+    frame: FrameTransform
+    gas_included: bool                        # LOUD star-only label (Anna's guard)
+    tail_star_fraction: Float[Array, ""] | None = None   # multi_freefall only
     collapse_eligible_fraction: Float[Array, ""] | None = None
-    #   collapse-eligible share of the UNGATED freefall measure — the smooth
-    #   differentiable diagnostic; NOT a star fraction (multi_freefall only)
     placement_n_eff: Float[Array, ""] | None = None
-    #   effective number of cells the placement PMF spreads stars over (1/Σp²) —
-    #   a resolution-monitoring diagnostic (grows with grid size; low values flag
-    #   the under-resolved-tail regime; use ≥64³ at ℳ≥8, the AC-IC4 caveat)
-    alpha_vir: Float[Array, ""] | None = None
-    #   Bertoldi & McKee (1992) virial parameter 5σ_1D²r_h/(GM) measured on the
-    #   REALIZED cluster, in the LITERATURE convention: σ_1D = σ_3D/√3 (BM92/Heyer
-    #   2009 use the 1-D line-of-sight dispersion, so α_vir ~ 1 ≈ virial on the GMC
-    #   scale). Reported in both modes. NB with r_h in place of BM92's outer radius
-    #   the uniform-sphere identity α = 2Q shifts to α ≈ 1.6Q (r_h/R = 2^{-1/3});
-    #   expect order-Q values, not exact Q agreement.
-    frame: FrameTransform | None = None
-    #   the exact star↔grid affine map (COM shift, bulk velocity, amplitude factor)
-    #   — see FrameTransform; always populated by build_cluster_ic
+
+
+class TurbulentCloudIC(NamedTuple):
+    """The canonical gravoturbulent IC product (a JAX pytree; Phase 4a).
+
+    ``gas`` is ``None`` for star-only builds (no ``GasSpec``) — a first-class,
+    zero-cost path; ``ledger.gas_included`` records it loudly so gas-requiring
+    pipelines fail immediately instead of treating a star-only IC as a gas-free cloud.
+    """
+
+    stars: Stars
+    gas: GasState | None
+    fields: Fields
+    geometry: Geometry
+    physics: Physics
+    ledger: Ledger
 
 
 def build_cluster_ic(
@@ -143,31 +218,43 @@ def build_cluster_ic(
     G: float,
     key: jax.Array,
     units: UnitSystem | None = None,
-) -> ClusterIC:
-    r"""Build a spherical, substructured, velocity-scaled gravoturbulent cluster IC.
+    gas: GasSpec | None = None,
+) -> TurbulentCloudIC:
+    r"""Build a spherical, substructured gravoturbulent IC (stars + optional gas).
 
-    ``masses`` (M⊙, masses-first per the ecosystem convention) sets ``n_stars = len(masses)``.
-    Parameters are grouped into the four typed specs (:mod:`gravoturb.specs`), each validated
-    at construction; ``G`` stays explicit (units mandate). Returns a :class:`ClusterIC`.
-
-    The velocity amplitude follows ``velocity.mode``: ``'virial_target'`` imposes Q via
-    ``virial_scale``; ``'physical'`` sets the mass-weighted 3-D dispersion to
-    σ_⋆ = η_v·ℳ·c_s (stars inherit the gas turbulence; **Q_virial is then emergent**) and
-    additionally requires ``units`` (a jaxstro ``UnitSystem`` consistent with ``G``) to
-    convert ``c_s`` from km/s into the G-implied velocity unit (pc/Myr for STELLAR).
+    ``masses`` (M⊙, masses-first) sets ``n_stars``; with ``gas=GasSpec(sfe=…)`` the
+    parent cloud is normalized to M_cl = Σmᵢ/sfe and the residual gas is carried with
+    an exact mass-closure ledger. Gas requires ``velocity.mode='physical'`` (an imposed
+    Q has no cloud meaning — loud refusal) and ``units``. Returns
+    :class:`TurbulentCloudIC`.
     """
     n_stars = int(masses.shape[0])
     k_field, k_vfield, k_pos = jax.random.split(key, 3)
 
-    # Cross-spec resolution at the boundary (ADR-0041): beta is derived (= beta_v − 2)
-    # and chi resolved (chi_f10(b) default) under coupling='helmholtz'.
+    # ── boundary validation (ADR-0041 + Phase-4a refusals) ──
     beta, chi = validate_spec_bundle(cloud, velocity)
+    if units is not None and abs(float(units.G) - float(G)) > 1e-9 * abs(float(G)):
+        raise ValueError(
+            f"units and G disagree (units.G={units.G!r}, G={G!r}); pass a "
+            f"consistent pair — no silent precedence"
+        )
+    if velocity.mode == "physical" and units is None:
+        raise ValueError(
+            "VelocitySpec(mode='physical') requires units=... (a jaxstro UnitSystem, "
+            "e.g. STELLAR): c_s is in km/s and must be converted to the G-consistent "
+            "velocity unit"
+        )
+    if gas is not None and velocity.mode != "physical":
+        raise ValueError(
+            "a physical residual gas requires VelocitySpec(mode='physical'): the "
+            "virial_target amplitude is an imposed stellar ablation with no cloud "
+            "meaning — refusing to label it gas (design 2026-07-16)"
+        )
 
+    # ── density + velocity construction (Phase 3 coupling modes) ──
     if cloud.coupling == "helmholtz":
-        # ONE white field drives both: the velocity realization and (via linearized
-        # continuity, ĝ ∝ −∇·v) the density Gaussian carrier — no new randomness on
-        # the compressive channel. k_vfield is intentionally unused (the split stays
-        # 3-way so k_field/k_pos match the independent mode's key streams).
+        # ONE white field drives both (ĝ ∝ −∇·v; no new randomness on the compressive
+        # channel). k_vfield intentionally unused (key-stream parity across modes).
         bundle = helmholtz_velocity_field(
             geometry.shape, velocity.beta_v, chi, k_field, return_fourier=True
         )
@@ -182,7 +269,9 @@ def build_cluster_ic(
         v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
 
     s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
+    w = collapse_weights(field.s, field.s_t, composition.mask_sharpness)
 
+    # ── star placement ──
     if composition.placement == "multi_freefall":
         positions = sample_positions_multi_freefall(
             field.s, field.s_t, composition.mask_sharpness, n_stars, k_pos,
@@ -200,66 +289,134 @@ def build_cluster_ic(
         f_tail = f_elig = n_eff = None
 
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
+    m_star = jnp.sum(masses)
 
-    # units/G consistency is checked whenever units is provided, in ANY mode (a
-    # mismatch is never ignored — no silent precedence). G and units are host-concrete
-    # by contract: the builder is host-level (categorical placement inside), so the
-    # float() casts here never see tracers.
-    if units is not None and abs(float(units.G) - float(G)) > 1e-9 * abs(float(G)):
-        raise ValueError(
-            f"units and G disagree (units.G={units.G!r}, G={G!r}); pass a "
-            f"consistent pair — no silent precedence"
+    # ── gas construction (Phase 4a; before the frame so the frame can be joint) ──
+    if gas is not None:
+        M_cl = m_star / gas.sfe
+        rho_cl, cell_volume = normalized_cloud_density(
+            s_total, geometry.box_size, M_cl
         )
+        t_ff = local_freefall_time(rho_cl, G=G)
+        if gas.partition == "local_freefall":
+            tau_star = solve_tau_star(w, t_ff, rho_cl, cell_volume, gas.sfe)
+            _, rho_gas = partition_star_gas(rho_cl, w, t_ff, tau_star)
+        else:  # 'uniform' (the controlled ablation): ρ_g = (1−ε)ρ_cl
+            tau_star = None
+            rho_gas = (1.0 - gas.sfe) * rho_cl
+        M_gas = jnp.sum(rho_gas) * cell_volume
+    else:
+        M_cl = M_gas = rho_cl = rho_gas = cell_volume = tau_star = None
 
-    pos_com, v_com = to_com_frame(positions, v_raw, masses)
-    # Frame ledger: recompute the COM/bulk exactly as core to_com_frame does (same
-    # expressions on the same inputs → identical values), so the star↔grid map is
-    # recorded rather than silently discarded (review 2026-07-16).
-    m_total = jnp.sum(masses)
-    frame_origin = jnp.sum(positions * masses[:, None], axis=0) / m_total
-    frame_bulk_v = jnp.sum(v_raw * masses[:, None], axis=0) / m_total
-
+    # ── velocity amplitude + ONE frame ──
     if velocity.mode == "physical":
-        if units is None:
-            raise ValueError(
-                "VelocitySpec(mode='physical') requires units=... (a jaxstro UnitSystem, "
-                "e.g. STELLAR): c_s is in km/s and must be converted to the G-consistent "
-                "velocity unit"
-            )
-        # σ_⋆ = η_v·ℳ·c_s, with c_s [km/s] → length/time units of G (0.9778 km/s per
-        # pc/Myr for STELLAR); scaling happens AFTER COM removal, so the realized
-        # 3-D dispersion equals σ_⋆ exactly and Q_virial below is emergent.
-        sigma_star = velocity.eta_v * cloud.mach * velocity.c_s / units.velocity_scale_km_s
-        v_scaled = scale_to_dispersion(v_com, masses, sigma_star)
-    else:  # 'virial_target' (byte-identical to the pre-Phase-2 pipeline)
+        # FIELD-FIRST (Phase 4a, ratified): normalize the GRID so its volume-weighted
+        # rms is σ_g = ℳ·c_s (FK10 convention — ℳ is a gas parameter); stars sample
+        # it ×η_v, so the stellar dispersion is EMERGENT with sampling scatter.
+        c_s_internal = velocity.c_s / units.velocity_scale_km_s
+        sigma_g = cloud.mach * c_s_internal
+        rms_grid = jnp.sqrt(jnp.mean(jnp.sum(v_field**2, axis=-1)))
+        grid_scale = sigma_g / rms_grid
+        star_scale = velocity.eta_v * grid_scale
+        v_star_unshifted = star_scale * v_raw
+        if gas is not None:
+            # joint stars+gas COM and momentum (one frame — design contract 4)
+            grid = _cell_centre_grid(geometry.shape, geometry.box_size)
+            m_gas_cells = rho_gas * cell_volume
+            M_tot = m_star + M_gas
+            origin = (
+                jnp.sum(positions * masses[:, None], axis=0)
+                + jnp.sum(grid * m_gas_cells[..., None], axis=(0, 1, 2))
+            ) / M_tot
+            v_gas_unshifted = grid_scale * v_field
+            bulk = (
+                jnp.sum(v_star_unshifted * masses[:, None], axis=0)
+                + jnp.sum(v_gas_unshifted * m_gas_cells[..., None], axis=(0, 1, 2))
+            ) / M_tot
+            v_gas = v_gas_unshifted - bulk
+        else:
+            origin = jnp.sum(positions * masses[:, None], axis=0) / m_star
+            bulk = jnp.sum(v_star_unshifted * masses[:, None], axis=0) / m_star
+            v_gas = None
+        pos_com = positions - origin
+        v_scaled = v_star_unshifted - bulk
+        # FrameTransform contract: v = scale·(v_raw − bulk_raw) with bulk in RAW units
+        frame = FrameTransform(
+            origin=origin,
+            bulk_velocity=bulk / star_scale,
+            velocity_scale=star_scale,
+        )
+    else:  # 'virial_target' (byte-identical legacy path; gas refused above)
+        pos_com, v_com = to_com_frame(positions, v_raw, masses)
+        origin = jnp.sum(positions * masses[:, None], axis=0) / m_star
+        frame_bulk_v = jnp.sum(v_raw * masses[:, None], axis=0) / m_star
         v_scaled = virial_scale(pos_com, v_com, masses, Q_target=velocity.Q_target, G=G)
+        T_raw = compute_kinetic_energy(v_com, masses)
+        T_scaled = compute_kinetic_energy(v_scaled, masses)
+        frame = FrameTransform(
+            origin=origin, bulk_velocity=frame_bulk_v,
+            velocity_scale=jnp.sqrt(T_scaled / T_raw),
+        )
+        v_gas = None
 
+    # ── diagnostics + ledger ──
     T = compute_kinetic_energy(v_scaled, masses)
     V = compute_potential_energy(pos_com, masses, G=G)
     Q_virial = T / jnp.abs(V)
-
-    # velocity_scale: both modes apply one global scalar to the COM-frame velocities,
-    # so the energy ratio recovers it exactly (0 for a Q_target=0 cold IC).
-    T_raw = compute_kinetic_energy(v_com, masses)
-    frame = FrameTransform(
-        origin=frame_origin, bulk_velocity=frame_bulk_v,
-        velocity_scale=jnp.sqrt(T / T_raw),
-    )
-
-    # BM92/Heyer literature convention: 1-D dispersion σ_1D² = σ_3D²/3 = 2T/(3M),
-    # so α_vir reads on the GMC scale (α ~ 1 ≈ virial). Review fix 2026-07-16:
-    # the 3-D form inflated the diagnostic ~3× vs that scale.
-    sigma_1d = jnp.sqrt(2.0 * T / (3.0 * m_total))
+    sigma_1d = jnp.sqrt(2.0 * T / (3.0 * m_star))  # BM92/Heyer 1-D convention
     alpha_vir = virial_parameter(
-        m_total, _half_mass_radius(pos_com, masses), sigma_1d, G=G
+        m_star, _half_mass_radius(pos_com, masses), sigma_1d, G=G
+    )
+    p_stars = jnp.sum(v_scaled * masses[:, None], axis=0)
+    if gas is not None:
+        total_momentum = p_stars + jnp.sum(
+            v_gas * (rho_gas * cell_volume)[..., None], axis=(0, 1, 2)
+        )
+        closure = M_cl - (m_star + M_gas)
+        c_s_internal = velocity.c_s / units.velocity_scale_km_s
+        gas_state = GasState(
+            rho_cloud=rho_cl, rho_residual=rho_gas, velocity=v_gas,
+            pressure=rho_gas * c_s_internal**2, cell_volume=cell_volume,
+        )
+    else:
+        total_momentum = p_stars
+        closure = None
+        gas_state = None
+
+    return TurbulentCloudIC(
+        stars=Stars(positions=pos_com, velocities=v_scaled, masses=masses),
+        gas=gas_state,
+        fields=Fields(s_turb=field, s_total=s_total, collapse_weight=w),
+        geometry=Geometry(shape=geometry.shape, box_size=geometry.box_size,
+                          origin=frame.origin),
+        physics=Physics(
+            mach=cloud.mach, b=cloud.b, alpha=cloud.alpha, beta=beta,
+            beta_v=velocity.beta_v, chi=chi, coupling=cloud.coupling,
+            velocity_mode=velocity.mode, placement=composition.placement,
+            eta_v=velocity.eta_v if velocity.mode == "physical" else None,
+            c_s=velocity.c_s, sfe_global=gas.sfe if gas is not None else None,
+            tau_star=tau_star, gamma=gas.gamma if gas is not None else None,
+        ),
+        ledger=Ledger(
+            M_star=m_star, M_cl=M_cl, M_gas=M_gas, mass_closure_residual=closure,
+            total_momentum=total_momentum, Q_virial=Q_virial, alpha_vir=alpha_vir,
+            frame=frame, gas_included=gas is not None,
+            tail_star_fraction=f_tail, collapse_eligible_fraction=f_elig,
+            placement_n_eff=n_eff,
+        ),
     )
 
-    return ClusterIC(
-        positions=pos_com, velocities=v_scaled, masses=masses, field=field,
-        Q_virial=Q_virial, tail_star_fraction=f_tail,
-        collapse_eligible_fraction=f_elig, placement_n_eff=n_eff,
-        alpha_vir=alpha_vir, frame=frame,
-    )
+
+def _cell_centre_grid(
+    shape: tuple[int, int, int], box_size
+) -> Float[Array, "nx ny nz 3"]:
+    """Cell-centre coordinates (i+0.5)·box/n — the same convention as radius_grid /
+    sample_turbulent_velocities."""
+    axes = [
+        (jnp.arange(n) + 0.5) * (box_size / n) for n in shape
+    ]
+    X, Y, Z = jnp.meshgrid(*axes, indexing="ij")
+    return jnp.stack([X, Y, Z], axis=-1)
 
 
 def _half_mass_radius(

@@ -212,9 +212,29 @@ def test_composition_spec_guards():
         CompositionSpec(mask_sharpness=0.0)
 
 
+def test_gas_spec_guards():
+    """Phase 4a: GasSpec(sfe, partition, gamma) — c_s deliberately NOT duplicated here
+    (single source of truth: VelocitySpec, ratified model checkpoint)."""
+    from gravoturb.specs import GasSpec
+
+    g = GasSpec(sfe=0.2)
+    assert float(g.sfe) == 0.2
+    assert g.partition == "local_freefall"  # the physical default
+    assert float(g.gamma) == pytest.approx(5.0 / 3.0)
+    GasSpec(sfe=0.3, partition="uniform")  # the controlled ablation
+    with pytest.raises(ValueError, match="sfe"):
+        GasSpec(sfe=0.0)
+    with pytest.raises(ValueError, match="sfe"):
+        GasSpec(sfe=1.0)
+    with pytest.raises(ValueError, match="partition"):
+        GasSpec(sfe=0.2, partition="bogus")
+    with pytest.raises(ValueError, match="gamma"):
+        GasSpec(sfe=0.2, gamma=0.5)
+
+
 def test_top_level_api_exports():
     import gravoturb
 
-    for name in ("build_cluster_ic", "ClusterIC", "CloudSpec", "GeometrySpec",
+    for name in ("build_cluster_ic", "TurbulentCloudIC", "GasSpec", "CloudSpec", "GeometrySpec",
                  "VelocitySpec", "CompositionSpec"):
         assert hasattr(gravoturb, name)

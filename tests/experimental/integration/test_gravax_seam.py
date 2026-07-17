@@ -1,4 +1,4 @@
-"""Gravax seam test: a ClusterIC transfers to an N-body integration intact (audit C13).
+"""Gravax seam test: a TurbulentCloudIC transfers to an N-body integration intact (audit C13).
 
 Asserts the handoff contract — units (explicit G), COM centring, realized virial ratio,
 finiteness, and energy conservation through a short symplectic integration. Small N and a
@@ -45,25 +45,25 @@ def ic():
 
 
 def test_ic_is_finite_and_com_centred(ic):
-    assert bool(jnp.all(jnp.isfinite(ic.positions)))
-    assert bool(jnp.all(jnp.isfinite(ic.velocities)))
-    m = ic.masses
-    com = jnp.sum(ic.positions * m[:, None], axis=0) / jnp.sum(m)
-    vcom = jnp.sum(ic.velocities * m[:, None], axis=0) / jnp.sum(m)
+    assert bool(jnp.all(jnp.isfinite(ic.stars.positions)))
+    assert bool(jnp.all(jnp.isfinite(ic.stars.velocities)))
+    m = ic.stars.masses
+    com = jnp.sum(ic.stars.positions * m[:, None], axis=0) / jnp.sum(m)
+    vcom = jnp.sum(ic.stars.velocities * m[:, None], axis=0) / jnp.sum(m)
     assert float(jnp.max(jnp.abs(com))) < 1e-10   # pc
     assert float(jnp.max(jnp.abs(vcom))) < 1e-10  # pc/Myr
 
 
 def test_realized_virial_ratio_matches_target(ic):
-    T = compute_kinetic_energy(ic.velocities, ic.masses)
-    V = compute_potential_energy(ic.positions, ic.masses, G=G)
+    T = compute_kinetic_energy(ic.stars.velocities, ic.stars.masses)
+    V = compute_potential_energy(ic.stars.positions, ic.stars.masses, G=G)
     assert abs(float(T / jnp.abs(V)) - 0.5) < 1e-6
 
 
 def test_velocity_scale_is_physical(ic):
     # ~200 Msun inside ~0.5 pc: sigma ~ sqrt(GM/r) ~ 1.3 pc/Myr; median |v| must be
     # the right order of magnitude (unit-threading guard, not a physics assertion).
-    speed = jnp.linalg.norm(ic.velocities, axis=1)
+    speed = jnp.linalg.norm(ic.stars.velocities, axis=1)
     med = float(jnp.median(speed))
     assert 0.1 < med < 10.0  # pc/Myr
 
@@ -72,7 +72,7 @@ def test_short_integration_conserves_energy(ic):
     from gravax import LeapfrogIntegrator, ParticleSystem
 
     system = ParticleSystem.from_velocities(
-        positions=ic.positions, velocities=ic.velocities, masses=ic.masses,
+        positions=ic.stars.positions, velocities=ic.stars.velocities, masses=ic.stars.masses,
         units=STELLAR, softening=0.02,
     )
     e0 = float(system.total_energy)
@@ -102,23 +102,25 @@ def ic_physical():
 
 
 def test_physical_mode_dispersion_survives_seam(ic_physical):
-    """σ_⋆ = ℳ·c_s in pc/Myr, COM-centred; the handoff contract for the Phase-2 mode."""
+    """Field-first (Phase 4a): stars COM-centred with the EMERGENT dispersion inside
+    the characterized inheritance band (the exact identity lives on the gas grid —
+    AC-G7); the handoff contract for the physical mode."""
     ic = ic_physical
-    m = ic.masses
-    vcom = jnp.sum(ic.velocities * m[:, None], axis=0) / jnp.sum(m)
+    m = ic.stars.masses
+    vcom = jnp.sum(ic.stars.velocities * m[:, None], axis=0) / jnp.sum(m)
     assert float(jnp.max(jnp.abs(vcom))) < 1e-10
-    sigma = float(jnp.sqrt(jnp.sum(m * jnp.sum(ic.velocities**2, axis=1)) / jnp.sum(m)))
-    target = 8.0 * 0.2 / STELLAR.velocity_scale_km_s  # η_v=1
-    assert abs(sigma / target - 1.0) < 1e-8
-    assert float(ic.Q_virial) > 0.0  # emergent, reported
+    sigma = float(jnp.sqrt(jnp.sum(m * jnp.sum(ic.stars.velocities**2, axis=1)) / jnp.sum(m)))
+    target = 8.0 * 0.2 / STELLAR.velocity_scale_km_s  # η_v=1 → σ_g
+    assert 0.4 < sigma / target < 1.1  # characterized band (see AC-IC8a re-scope)
+    assert float(ic.ledger.Q_virial) > 0.0  # emergent, reported
 
 
 def test_physical_mode_short_integration_conserves_energy(ic_physical):
     from gravax import LeapfrogIntegrator, ParticleSystem
 
     system = ParticleSystem.from_velocities(
-        positions=ic_physical.positions, velocities=ic_physical.velocities,
-        masses=ic_physical.masses, units=STELLAR, softening=0.02,
+        positions=ic_physical.stars.positions, velocities=ic_physical.stars.velocities,
+        masses=ic_physical.stars.masses, units=STELLAR, softening=0.02,
     )
     e0 = float(system.total_energy)
     final = LeapfrogIntegrator(dt=0.002).integrate(system, t_end=0.1)
