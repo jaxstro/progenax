@@ -229,7 +229,8 @@ def _spatial_panels(fig, axes, ic):
 
 
 def _headline(led):
-    return (f"$N={N}$, $\\mathcal{{M}}=8$, $\\alpha=1.8$, "
+    return (f"$N={N}$, $\\mathcal{{M}}=8$, "
+            f"$\\alpha_{{\\rm IMF}}={float(IMF.alpha):.1f}$, "
             f"$M_{{\\rm cl}}={float(led.M_cl):.0f}\\,M_\\odot$, SFE $=0.2$, "
             f"$Q_0={float(led.Q_virial):.3f}$, "
             f"$\\alpha_{{\\rm vir}}={float(led.alpha_vir):.2f}$")
