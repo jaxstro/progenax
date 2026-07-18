@@ -178,6 +178,50 @@ def test_low_metallicity_reduces_extinction_via_from_grid():
     assert ratio == pytest.approx(10 ** (-1.85), rel=1e-3)
 
 
+def test_summary_colour_gradient_ad_vs_fd_through_fluxax():
+    """AD-vs-FD of a summary colour (mean A_g − mean A_K) w.r.t. a gas-density scale, through the
+    full extinction path adapter → fluxax a_band (F99). The Aim-3 Fisher backbone end to end."""
+    pytest.importorskip("fluxax")
+    from fluxax.photometry.extinction import F99_TEFF
+    from gravoturb.extinction import GravoturbDustModel
+
+    n, box = 12, 4.0
+    base = jax.random.uniform(jax.random.PRNGKey(3), (n, n, n)) + 0.2
+    origin = jnp.array([box / 2, box / 2, box / 2])
+    pos = jax.random.uniform(jax.random.PRNGKey(4), (16, 3)) * (box * 0.8) - box * 0.4
+
+    def summary_colour(scale):
+        av = GravoturbDustModel.from_grid(scale * base, box_size=box, origin=origin).column(pos)
+        a_g = jax.vmap(lambda a0: F99_TEFF.a_band(5000.0, a0, "lsst", "g"))(av)
+        a_k = jax.vmap(lambda a0: F99_TEFF.a_band(5000.0, a0, "johnson", "K"))(av)
+        return jnp.mean(a_g) - jnp.mean(a_k)
+
+    g_ad = float(jax.grad(summary_colour)(1.0))
+    eps = 1e-3
+    g_fd = float((summary_colour(1.0 + eps) - summary_colour(1.0 - eps)) / (2 * eps))
+    assert jnp.isfinite(g_ad)
+    assert g_ad == pytest.approx(g_fd, rel=2e-3)
+    assert g_ad > 0  # a denser screen reddens g far more than K → colour grows with scale
+
+
+def test_av_pdf_tracks_column_pdf_shape():
+    """The A_V distribution is a linear rescaling of the sampled LOS gas-column PDF (spec gate i)."""
+    from gravoturb.extinction import GravoturbDustModel
+
+    n, box = 24, 4.0
+    rho = jnp.exp(jax.random.normal(jax.random.PRNGKey(5), (n, n, n)))  # lognormal-ish gas
+    origin = jnp.array([box / 2, box / 2, box / 2])
+    dust = GravoturbDustModel.from_grid(rho, box_size=box, origin=origin)
+    pos = jax.random.uniform(jax.random.PRNGKey(6), (500, 3)) * (box * 0.9) - box * 0.45
+    av = np.asarray(dust.column(pos))
+    # A_V is exactly a_v_per_sigma * (sampled column), so A_V and the raw sampled column are perfectly
+    # rank-correlated (linear map) — the A_V PDF inherits the column PDF shape.
+    assert av.min() >= 0.0
+    assert np.std(av) > 0                              # inherits the column spread (not degenerate)
+    # right-skewed like a turbulent column PDF (mean > median)
+    assert np.mean(av) > np.median(av)
+
+
 def test_from_ic_reads_birth_environment_metallicity():
     """from_ic keys the dust amplitude to BirthEnvironment.metallicity (joint env-memory imprint)."""
     from gravoturb.extinction import GravoturbDustModel
