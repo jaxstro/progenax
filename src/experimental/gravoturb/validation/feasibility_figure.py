@@ -258,7 +258,7 @@ def career_figure(ic0, ic6):
              r"(b) and (c) share identical cloud, star positions and IMF; only "
              r"$\lambda_{\rm corr}$ differs.  $\rho_S$ = Spearman(stellar mass, local "
              r"gas density); massive stars sink into the densest gas (contours) as "
-             r"$\lambda_{\rm corr}$ rises.", ha="center", fontsize=8.5, color="#555")
+             r"$\lambda_{\rm corr}$ rises.", ha="center", fontsize=10, color="#555")
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
     plt.close(fig)
