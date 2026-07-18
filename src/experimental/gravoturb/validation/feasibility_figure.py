@@ -70,6 +70,8 @@ SPECTRAL_LETTERS = ["M", "K", "G", "F", "A", "B", "O"]
 SPECTRAL_COLORS = ["#c24a28", "#e8791f", "#f3c95a", "#f7f3e2",
                    "#cdd9ff", "#9ab8ff", "#8172ff"]
 STARFIELD_BG = "#0d0d12"  # near-black so hot/pale stars pop; unifies with (a)/(b)
+TITLE_FS = 17    # panel-title font (proposal: no figure title, so panels carry it)
+CBAR_FS = 15     # colorbar-label font
 
 sns.set_theme(style="ticks", context="paper", font="serif")
 plt.rcParams.update({
@@ -104,6 +106,16 @@ def _extent(ic):
     return [-origin[0], BOX - origin[0], -origin[1], BOX - origin[1]]
 
 
+def _finish(ax, title, ext):
+    """Enlarged title, no axes (scale stated in caption); full (BOX pc)^2 window."""
+    ax.set_title(title, fontsize=TITLE_FS)
+    ax.set_xlim(ext[0], ext[1])
+    ax.set_ylim(ext[2], ext[3])
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_aspect("equal")
+
+
 def _mass_density_spearman(ic):
     """rho_S between stellar mass and local (natal) gas density — the quantity
     lambda_corr controls by construction (McLuster A1 shuffle on density rank)."""
@@ -119,8 +131,9 @@ def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
     col = _column(np.asarray(ic.gas.rho_cloud), float(ic.gas.cell_volume))
     im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma",
                    rasterized=True)
-    plt.colorbar(im, ax=ax, fraction=0.046,
-                 label=r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]")
+    cb = plt.colorbar(im, ax=ax, fraction=0.046)
+    cb.set_label(r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]", fontsize=CBAR_FS)
+    cb.ax.tick_params(labelsize=12)
     # stars as small uniform white points with a thin dark edge, sized by ZAMS
     # radius — reads on both the bright core and the dark envelope of the magma map
     # (the old cyan clashed with the warm colormap and blocked up into squares).
@@ -128,8 +141,7 @@ def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
     rad = np.asarray(zams_radius(jnp.clip(jnp.asarray(ic.stars.masses), 0.08, 150.0)))
     ax.scatter(pos[:, 0], pos[:, 1], s=3.0 + 7.0 * np.sqrt(rad), c="white",
                alpha=0.6, edgecolors="#101014", linewidths=0.25, rasterized=True)
-    ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
-    ax.set_aspect("equal")
+    _finish(ax, title, ext)
     return float(col.max()), col
 
 
@@ -138,10 +150,10 @@ def _gas_panel(ax, ic, ext, title=r"(b) Residual gas ($\epsilon_\star$ partition
     floor = colg[colg > 0].min()
     im = ax.imshow(np.log10(np.maximum(colg, floor)).T, origin="lower", extent=ext,
                    cmap="viridis", rasterized=True)
-    plt.colorbar(im, ax=ax, fraction=0.046,
-                 label=r"$\log_{10}\,\Sigma_{g,0}$ [$M_\odot\,{\rm pc}^{-2}$]")
-    ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
-    ax.set_aspect("equal")
+    cb = plt.colorbar(im, ax=ax, fraction=0.046)
+    cb.set_label(r"$\log_{10}\,\Sigma_{g,0}$ [$M_\odot\,{\rm pc}^{-2}$]", fontsize=CBAR_FS)
+    cb.ax.tick_params(labelsize=12)
+    _finish(ax, title, ext)
     return float(colg.max())
 
 
@@ -206,15 +218,14 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
         sm = plt.cm.ScalarMappable(cmap=cmap_sp, norm=norm_sp)
         sm.set_array([])
         cb = plt.colorbar(sm, ax=ax, fraction=0.046, ticks=centers, spacing="uniform")
-        cb.ax.set_yticklabels(SPECTRAL_LETTERS)
-        cb.set_label(r"ZAMS spectral type ($T_{\rm eff}$: M cool $\to$ O hot)")
+        cb.ax.set_yticklabels(SPECTRAL_LETTERS, fontsize=13)
+        cb.set_label("ZAMS spectral type", fontsize=CBAR_FS)
     if rho_s is not None:
         ax.text(0.045, 0.955, rf"$\rho_S(m,\rho_{{\rm gas}})={rho_s:+.2f}$",
                 transform=ax.transAxes, va="top", ha="left", color="white",
                 fontsize=11, bbox=dict(boxstyle="round,pad=0.3", fc="#0d0d12",
                                        ec="#556", alpha=0.8))
-    ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
-    ax.set_aspect("equal")
+    _finish(ax, title, ext)
 
 
 def _spatial_panels(fig, axes, ic):
@@ -253,9 +264,8 @@ def career_figure(ic0, ic6):
     _starfield(axes[2], pos6, m6, ext, opaque=True, cloud_col=cloud_col,
                cbar=True, title=r"(c) Mass$-$gas coupling ($\lambda_{\rm corr}=0.6$)")
     fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
-    fig.suptitle(
-        "Gravoturbulent cluster initial conditions — controlled primordial "
-        "mass segregation", fontsize=20)
+    # No figure title (proposal): the enlarged panel titles carry it; scale is
+    # stated in the caption ((6 pc)^2 panels), so the x/y axes are removed.
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
     plt.close(fig)
