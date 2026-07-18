@@ -127,10 +127,14 @@ def _mass_density_spearman(ic):
     return float(spearmanr(np.asarray(ic.stars.masses), local).statistic)
 
 
-def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
+def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars", vmax_pct=None):
     col = _column(np.asarray(ic.gas.rho_cloud), float(ic.gas.cell_volume))
-    im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma",
-                   rasterized=True)
+    lcol = np.log10(col)
+    # Data-driven colour cap: without it, a handful of extreme cells (the map max log10 Σ_cl~4.6 is
+    # set by <0.1% of pixels) hijack the scale. ``vmax_pct`` clips at that percentile of the log
+    # column so the interpretable structure fills the range; the densest cells saturate.
+    vmax = None if vmax_pct is None else float(np.percentile(lcol, vmax_pct))
+    im = ax.imshow(lcol.T, origin="lower", extent=ext, cmap="magma", rasterized=True, vmax=vmax)
     cb = plt.colorbar(im, ax=ax, fraction=0.046)
     cb.set_label(r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]", fontsize=CBAR_FS)
     cb.ax.tick_params(labelsize=12)
@@ -185,7 +189,7 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
         xs = np.linspace(ext[0], ext[1], cloud_col.shape[0])
         ys = np.linspace(ext[2], ext[3], cloud_col.shape[1])
         ax.contour(xs, ys, lc.T, levels=np.percentile(lc, [80, 90, 96, 99]),
-                   colors="#8ea3bf", alpha=0.25, linewidths=0.5).set_rasterized(True)
+                   colors="#9aa3b2", alpha=0.6, linewidths=0.6).set_rasterized(True)
 
     # Tier split at 1 Msun. The sub-solar field is drawn first as a faint backdrop;
     # the >1 Msun (resolved / alpha-slope) stars are then drawn most-massive-first

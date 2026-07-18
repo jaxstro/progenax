@@ -112,25 +112,25 @@ def main():
            title="(b) binary fraction vs density")
     ax.legend(fontsize=8.5); ax.grid(alpha=0.3)
 
-    # (c) orbital-compactness coupling: median separation vs density (equal-count bins, AU)
+    # (c) orbital-compactness coupling: median separation vs density (equal-count bins), log-log
     ax = axes[1, 0]
     _PC_TO_AU = 206264.806
     for lm, c in zip([0.0, 0.8], ["C3", "C0"]):
         isb, local, sep, _ = data[lm]
         m = isb & np.isfinite(sep)
-        ln = np.log10(local[m])
-        sep_au = sep[m] * _PC_TO_AU
-        o = np.argsort(ln)
-        ln, sep_au = ln[o], sep_au[o]
-        nb = 6
-        edges = np.linspace(0, len(ln), nb + 1).astype(int)
-        cen = [np.median(ln[a:b]) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+        rho, sep_au = local[m], sep[m] * _PC_TO_AU
+        o = np.argsort(rho)
+        rho, sep_au = rho[o], sep_au[o]
+        edges = np.linspace(0, len(rho), 7).astype(int)
+        cen = [np.median(rho[a:b]) for a, b in zip(edges[:-1], edges[1:]) if b > a]
         med = [np.median(sep_au[a:b]) for a, b in zip(edges[:-1], edges[1:]) if b > a]
         ax.plot(cen, med, "-o", label=rf"$\lambda_{{\rm mult}}={lm}$", color=c)
-    ax.set(xlabel=r"$\log_{10}\,\rho_{\rm gas,local}$",
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set(xlabel=r"$\rho_{\rm gas,local}$ [$M_\odot\,{\rm pc}^{-3}$]",
            ylabel="median component sep. [AU]",
            title="(c) orbital compactness: denser $\\to$ tighter")
-    ax.legend(fontsize=8.5); ax.grid(alpha=0.3)
+    ax.legend(fontsize=8.5); ax.grid(alpha=0.3, which="both")
 
     # (d) binary radial profile
     ax = axes[1, 1]
