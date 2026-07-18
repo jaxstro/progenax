@@ -75,7 +75,7 @@ sns.set_theme(style="ticks", context="paper", font="serif")
 plt.rcParams.update({
     "font.family": "serif", "font.size": 10, "axes.labelsize": 11,
     "axes.titlesize": 11, "legend.fontsize": 8.5, "figure.dpi": 120,
-    "savefig.dpi": 300, "savefig.bbox": "tight", "mathtext.fontset": "cm",
+    "savefig.dpi": 200, "savefig.bbox": "tight", "mathtext.fontset": "cm",
 })
 
 
@@ -117,7 +117,8 @@ def _mass_density_spearman(ic):
 
 def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
     col = _column(np.asarray(ic.gas.rho_cloud), float(ic.gas.cell_volume))
-    im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma")
+    im = ax.imshow(np.log10(col).T, origin="lower", extent=ext, cmap="magma",
+                   rasterized=True)
     plt.colorbar(im, ax=ax, fraction=0.046,
                  label=r"$\log_{10}\,\Sigma_{\rm cl}$ [$M_\odot\,{\rm pc}^{-2}$]")
     # stars as small uniform white points with a thin dark edge, sized by ZAMS
@@ -126,7 +127,7 @@ def _cloud_panel(ax, ic, ext, title="(a) Turbulent parent cloud + stars"):
     pos = np.asarray(ic.stars.positions)
     rad = np.asarray(zams_radius(jnp.clip(jnp.asarray(ic.stars.masses), 0.08, 150.0)))
     ax.scatter(pos[:, 0], pos[:, 1], s=3.0 + 7.0 * np.sqrt(rad), c="white",
-               alpha=0.6, edgecolors="#101014", linewidths=0.25)
+               alpha=0.6, edgecolors="#101014", linewidths=0.25, rasterized=True)
     ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
     ax.set_aspect("equal")
     return float(col.max()), col
@@ -136,7 +137,7 @@ def _gas_panel(ax, ic, ext, title=r"(b) Residual gas ($\epsilon_\star$ partition
     colg = _column(np.asarray(ic.gas.rho_residual), float(ic.gas.cell_volume))
     floor = colg[colg > 0].min()
     im = ax.imshow(np.log10(np.maximum(colg, floor)).T, origin="lower", extent=ext,
-                   cmap="viridis")
+                   cmap="viridis", rasterized=True)
     plt.colorbar(im, ax=ax, fraction=0.046,
                  label=r"$\log_{10}\,\Sigma_{g,0}$ [$M_\odot\,{\rm pc}^{-2}$]")
     ax.set(xlabel="x [pc]", ylabel="y [pc]", title=title)
@@ -172,7 +173,7 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
         xs = np.linspace(ext[0], ext[1], cloud_col.shape[0])
         ys = np.linspace(ext[2], ext[3], cloud_col.shape[1])
         ax.contour(xs, ys, lc.T, levels=np.percentile(lc, [80, 90, 96, 99]),
-                   colors="#8ea3bf", alpha=0.25, linewidths=0.5)
+                   colors="#8ea3bf", alpha=0.25, linewidths=0.5).set_rasterized(True)
 
     # Tier split at 1 Msun. The sub-solar field is drawn first as a faint backdrop;
     # the >1 Msun (resolved / alpha-slope) stars are then drawn most-massive-first
@@ -183,7 +184,7 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
     faceS = cmap_sp(norm_sp(teff[sub]))
     faceS[:, 3] = 0.12 + 0.22 * depth_all[sub]  # faint, depth-scaled
     ax.scatter(pos[sub, 0], pos[sub, 1], s=3.5 + 5.0 * np.sqrt(radii[sub]),
-               facecolors=faceS, lw=0)
+               facecolors=faceS, lw=0, rasterized=True)
 
     res = np.where(masses >= 1.0)[0]
     res = res[np.argsort(masses[res])[::-1]]  # most massive first -> lowest last
@@ -196,9 +197,9 @@ def _starfield(ax, pos, masses, ext, *, opaque=False, cloud_col=None,
         edge, lw = "#f7f7ff", 0.55
     rb = res[m_r > 3.0]  # soft PSF bloom behind the luminous (O/B/A) stars
     ax.scatter(pos[rb, 0], pos[rb, 1], s=3.5 * sizes_all[rb],
-               c=cmap_sp(norm_sp(teff[rb])), alpha=0.10, lw=0)
+               c=cmap_sp(norm_sp(teff[rb])), alpha=0.10, lw=0, rasterized=True)
     ax.scatter(pos[res, 0], pos[res, 1], s=sizes_all[res], facecolors=faceR,
-               edgecolors=edge, linewidths=lw)
+               edgecolors=edge, linewidths=lw, rasterized=True)
 
     if cbar:
         centers = 0.5 * (SPECTRAL_EDGES[:-1] + SPECTRAL_EDGES[1:])
