@@ -127,4 +127,31 @@ near-cold (Q≈0.01) hyper-clumped; unsoftened adaptive Hermite dt→1e-9 (impos
 fixed-dt symmetric explodes, order-4 symmetric+ε=Δx/4 is stable (~1e-5). AC-IC12 needs the α-tail
 grid + informax port before it gates.
 
+**CAREER "money figure" FINALIZED (2026-07-17) — proposal Fig. 4.** `feasibility_figure.py` reworked
+into the controlled 3-panel deliverable: (a) parent cloud + stars, (b) λ_corr=0 vs (c) λ_corr=0.6 at
+IDENTICAL cloud/positions/IMF (only the mass–gas coupling differs) — the matched segregated/unsegregated
+control. Star field renders five physical ZAMS observables (Tout+1996): colour=spectral type,
+size=radius, α=depth, two-tier M-dwarf-haze + resolved composite, dark separators. Proposal styling:
+no axes (each panel (6 pc)², stated in caption), no figure title, enlarged panel/colorbar text,
+**rasterized dense layers + 200 dpi → PDF 3.2 MB → 0.6 MB, loads instantly**. Caption drafted (throughline
++ cite-keywords for Codex; ρ_S/Q_0 dropped for clarity; α_ρ shown as p(s)∝e^{−α_ρ s}). Diagnostic:
+ρ_S(mass, local gas density) ≈ λ_corr (0.00→0.60), logged not annotated.
+
+**gravoturb impact/extension planning (2026-07-17, brainstorm w/ Anna).** Framing: gravoturb = a
+**controlled natal-imprint generator** (each channel a testable "memory" of birth). Two design docs
+(on-disk, docs/plans gitignored; durable record in memory + brain xref): (1) standalone-package vision
+(extract the differentiable field engine + multi-format exporters — Quokka/Athena++/FLASH — for MHD-sim
+ICs; POST-CAREER; already named in the proposal Broader Impacts); (2) Aim-2/Aim-3 extensions spec
+grounded in the project-description PDF. **RATIFIED next arc (FRESH session, new branch): implement A + C.**
+A = residual gas → differential extinction → fluxax (Aim 3): physical star-embedded LOS geometry ×
+metallicity-keyed dust-to-gas (δ_dg∝Z tied to `BirthEnvironment`/env-IMF; low-Z ⇒ top-heavy IMF AND
+less extinction; g-vs-K reveal), couples to fluxax's existing `DustModel.column` slot. C =
+environment-coupled multiplicity (Aims 1–2): `λ_mult` over {f_bin, period, q}, Moe baseline
+byte-identical, measure emergent (mass-channel×λ_corr) coupling first; reuses the binary stack. B
+(feedback η_p, Aim 2) + Quokka comparison are MUCH later, not in the A/C arc.
+
+**Gravoturb-finalization branch MERGED to local main (2026-07-17).** 55 commits; released-core delta is
+docstring-only (gravoturb_fdf→gravoturb rename + σ_v convention note in cluster/turbulence.py). Fast gate
+re-run green at merge. main unpushed (Anna's call). A/C proceed on a NEW branch off main in a fresh session.
+
 (Detailed arc-by-arc development history prior to 2026-07 lives in git history and maintainer-local notes.)
