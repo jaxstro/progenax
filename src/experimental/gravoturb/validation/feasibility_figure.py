@@ -253,15 +253,8 @@ def career_figure(ic0, ic6):
                cbar=True, title=r"(c) Mass$-$gas coupling ($\lambda_{\rm corr}=0.6$)")
     fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
     fig.suptitle(
-        "Gravoturbulent cluster initial conditions (gravoturb) — controlled "
-        "primordial mass segregation", fontsize=14)
-    fig.text(0.5, -0.02,
-             _headline(led) + "\n"
-             r"(b) and (c) share identical cloud, star positions and IMF; only "
-             r"$\lambda_{\rm corr}$ differs.  $\rho_S$ = Spearman(stellar mass, local "
-             r"gas density); massive stars sink into the densest gas (contours) as "
-             r"$\lambda_{\rm corr}$ rises.",
-             ha="center", va="top", fontsize=12, color="#555")
+        "Gravoturbulent cluster initial conditions — controlled primordial "
+        "mass segregation", fontsize=20)
     for e in ("png", "pdf"):
         fig.savefig(os.path.join(OUT, f"gravoturb_career.{e}"))
     plt.close(fig)
