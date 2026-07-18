@@ -1,5 +1,19 @@
 # progenax — status
 
+**Gravoturb Aim-2/3 extensions arc (2026-07-18, branch `feat/gravoturb-extinction-multiplicity`; awaiting Anna merge):**
+**A (gas→extinction→fluxax, Aim 3) COMPLETE** — `GravoturbDustModel` (differentiable star-embedded LOS gas
+column + Rémy-Ruyer+2014 metallicity-keyed dust-to-gas via `BirthEnvironment`), duck-typed into fluxax's
+`DustModel.column` slot. fluxax got **2MASS J/H/Ks bands** (per-curve coverage: G23 excluded at H/Ks — a real
+Gordon+2023 low-R_V NIR pathology) + **A0 axis extended 20→150 mag** (byte-identical below 20) — both on
+fluxax branch `feat/add-2mass-ks-band` (full suite 1239 passed). Aim-3 g→K reveal figure
+(`scripts/demo_extinction_bands.py`; median A_g=18→A_K=2.2, recovery 19%→79%, natal t=0 pre-feedback). Extinction
+verified physically correct (standard A_V=1 at 21 M⊙/pc²). ADR-0055.
+**C (λ_mult env-coupled multiplicity, Aims 1-2) COMPLETE** — `blended_system_placement` (Gaussian-copula: mass
+strength λ_corr × multiplicity strength λ_mult → density), `CompositionSpec.lambda_mult` (None = byte-identical
+legacy path). Measured emergent mass-channel baseline first; whole-system placement preserves marginals + Moe
+joint, no mass-conditioning violation. Byte-gate 60✓, experimental unit 439 passed. ADR-0056.
+B/Quokka are much-later funded-work (NOT this arc). Next: Anna's merge decision + optional Aim-1 binary figure.
+
 next: **REPO IS PUBLIC (flipped 2026-07-11). Slice C merged + pushed (release gate PASSED at merge: 1651/2skip, cov 96.18%, 24/24 validation scripts). Anna executes the Slice-D punch list (`docs/website/95-release/checklist.md` §Slice D): CI re-enable + 3.10-matrix fix, CONTRIBUTING.md, then at the tag CITATION.cff + Zenodo DOI, sdist excludes, check.sh path — and after the tag, PyPI (jaxstro first).**
 
 **M1 public-flip remediation** COMPLETE + merged to local `main` (unpushed): green gates, two theory-doc equation corrections (EFF enclosed mass, King dispersion direction), the LIMEPY silent-r_t-pinning guard, and internal-docs pruning. See the release audit (`audits/PROGENAX_PUBLIC_RELEASE_AUDIT.md`, maintainer-local).

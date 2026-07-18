@@ -34,6 +34,7 @@ del _enable_jax_hp
 __version__ = "0.0.0.dev0"
 
 from gravoturb.cluster import FrameTransform, TurbulentCloudIC, build_cluster_ic
+from gravoturb.extinction import GravoturbDustModel, remy_ruyer_n_h_per_a_v
 from gravoturb.specs import (
     CloudSpec,
     CompositionSpec,
@@ -51,10 +52,12 @@ __all__ = [
     "FrameTransform",
     "GasSpec",
     "GeometrySpec",
+    "GravoturbDustModel",
     "TurbulentCloudIC",
     "VelocitySpec",
     "build_cluster_ic",
     "chi_f10",
     "cloud_spec_from_larson",
+    "remy_ruyer_n_h_per_a_v",
     "validate_spec_bundle",
 ]
