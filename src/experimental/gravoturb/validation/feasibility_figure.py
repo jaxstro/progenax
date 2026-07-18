@@ -247,9 +247,9 @@ def career_figure(ic0, ic6):
 
     fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
     _, cloud_col = _cloud_panel(axes[0], ic6, ext, title="(a) Parent cloud + stars")
-    _starfield(axes[1], pos0, m0, ext, opaque=True, cloud_col=cloud_col, rho_s=rs0,
+    _starfield(axes[1], pos0, m0, ext, opaque=True, cloud_col=cloud_col,
                cbar=False, title=r"(b) No coupling ($\lambda_{\rm corr}=0$)")
-    _starfield(axes[2], pos6, m6, ext, opaque=True, cloud_col=cloud_col, rho_s=rs6,
+    _starfield(axes[2], pos6, m6, ext, opaque=True, cloud_col=cloud_col,
                cbar=True, title=r"(c) Mass$-$gas coupling ($\lambda_{\rm corr}=0.6$)")
     fig.get_layout_engine().set(w_pad=0.03, h_pad=0.03, wspace=0.05, hspace=0.0)
     fig.suptitle(
