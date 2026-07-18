@@ -6,6 +6,12 @@ same cluster through a series of passbands. Optical light from the deeply embedd
 extinguished by their own natal gas; the near-IR reveals them. This is the Aim-3 question made
 visual: *which observation recovers the embedded population through the reddening screen?*
 
+These are the **natal (t=0) columns, before feedback clears the gas** — the maximally-embedded birth
+state. Real clusters are usually observed after partial gas expulsion, so typical member extinctions
+are lower; extension B (winds/radiation → gas clearing) is what would reduce these. The A_V→Σ chain
+is the standard ISM value (A_V=1 at N_H=1.9e21 cm⁻² ≈ 21 M⊙/pc²), so median A_V~20 ↔ Σ~0.09 g/cm²
+(a typical embedded clump) and the tail toward ~150 mag ↔ Σ~0.7 g/cm² (dense proto-cluster core).
+
 The figure is driven by the *differential extinction per band* — the physical quantity extension A
 produces. fluxax's ``a_band`` (Fitzpatrick-99) turns each star's A_V column into a per-band A_λ; a
 star is "recovered" in band b if its extinction there stays under a fixed survey margin (holding
@@ -143,7 +149,11 @@ def main() -> None:
     ax.set_title("metallicity memory (same gas)", fontsize=11); ax.legend(fontsize=8)
 
     fig.suptitle("The cluster you see depends on the gas you don't — and which colours recover it",
-                 fontsize=13, y=0.98)
+                 fontsize=13, y=0.99)
+    fig.text(0.5, 0.945,
+             "natal (t=0) columns, before feedback clears the gas — the maximally-embedded birth "
+             f"state (median $A_V$={np.median(av):.0f} mag)",
+             ha="center", fontsize=9, style="italic", color="0.35")
     out = os.path.abspath(os.path.join(PLOTS, "extinction_bands.png"))
     fig.savefig(out, dpi=150, bbox_inches="tight")
     print(f"wrote {out}")
