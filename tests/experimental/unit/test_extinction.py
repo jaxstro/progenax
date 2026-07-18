@@ -114,3 +114,92 @@ def test_column_gradient_ad_vs_fd():
     g_fd = float((mean_av(1.0 + eps) - mean_av(1.0 - eps)) / (2 * eps))
     assert g_ad == pytest.approx(g_fd, rel=1e-5)
     assert jnp.isfinite(g_ad)
+
+
+# ---------------------------------------------------------------------------
+# Metallicity-keyed dust-to-gas (Rémy-Ruyer+2014 broken power law, X_CO,Z case)
+# ---------------------------------------------------------------------------
+
+def test_remy_ruyer_solar_is_anchor():
+    """At [Fe/H]=0 (solar) the Rémy-Ruyer scaling returns exactly the MW anchor N_H/A_V=1.9e21."""
+    from gravoturb.extinction import remy_ruyer_n_h_per_a_v
+
+    assert float(remy_ruyer_n_h_per_a_v(0.0)) == pytest.approx(1.9e21, rel=1e-6)
+
+
+def test_remy_ruyer_high_metallicity_branch_is_inverse_Z():
+    """Above the break (x>x_t): N_H/A_V ∝ 10^(-[Fe/H]) = Z_sun/Z (near-solar linear regime, slope 1)."""
+    from gravoturb.extinction import remy_ruyer_n_h_per_a_v
+
+    # [Fe/H]=-0.3 → x=8.39 > x_t=8.10 → factor 10^0.3
+    got = float(remy_ruyer_n_h_per_a_v(-0.3))
+    assert got == pytest.approx(1.9e21 * 10 ** 0.3, rel=1e-4)
+
+
+def test_remy_ruyer_low_metallicity_branch_is_steep():
+    """Below the break (x<=x_t): steep slope alpha_L=3.10 → strongly reduced dust (higher N_H/A_V)."""
+    from gravoturb.extinction import remy_ruyer_n_h_per_a_v
+
+    # [Fe/H]=-1.0 → x=7.69 < x_t → log-factor = (0.96-2.21) - 3.10*(-1.0) = 1.85
+    got = float(remy_ruyer_n_h_per_a_v(-1.0))
+    assert got == pytest.approx(1.9e21 * 10 ** 1.85, rel=1e-3)
+
+
+def test_remy_ruyer_continuous_at_break():
+    """The broken power law is C0-continuous at the transition [Fe/H]_t = 8.10-8.69 = -0.59."""
+    from gravoturb.extinction import remy_ruyer_n_h_per_a_v
+
+    feh_t = 8.10 - 8.69
+    below = float(remy_ruyer_n_h_per_a_v(feh_t - 1e-4))
+    above = float(remy_ruyer_n_h_per_a_v(feh_t + 1e-4))
+    assert below == pytest.approx(above, rel=0.03)   # continuous within the paper's 2-dec rounding
+
+
+def test_remy_ruyer_monotone_thins_dust_at_low_Z():
+    """Lower metallicity → more gas per dust → higher N_H/A_V (monotone), so A_V per column drops."""
+    from gravoturb.extinction import remy_ruyer_n_h_per_a_v
+
+    fehs = jnp.array([0.3, 0.0, -0.5, -1.0, -2.0])
+    vals = jnp.array([float(remy_ruyer_n_h_per_a_v(f)) for f in fehs])
+    assert jnp.all(jnp.diff(vals) > 0)               # increasing as [Fe/H] decreases
+
+
+def test_low_metallicity_reduces_extinction_via_from_grid():
+    """A low-Z birth yields less extinction for the SAME gas column (spec decision A(b))."""
+    from gravoturb.extinction import GravoturbDustModel
+
+    rho, box, origin = _uniform_gas(rho0=1.0)
+    pos = jnp.array([[0.0, 0.0, 1.5]])
+    solar = GravoturbDustModel.from_grid(rho, box_size=box, origin=origin, feh=0.0)
+    poor = GravoturbDustModel.from_grid(rho, box_size=box, origin=origin, feh=-1.0)
+    assert float(poor.column(pos)[0]) < float(solar.column(pos)[0])
+    # ratio set purely by the dust-to-gas scaling (same geometry): A_V_poor/A_V_solar = 1.9e21/N_H/A_V(-1)
+    ratio = float(poor.column(pos)[0]) / float(solar.column(pos)[0])
+    assert ratio == pytest.approx(10 ** (-1.85), rel=1e-3)
+
+
+def test_from_ic_reads_birth_environment_metallicity():
+    """from_ic keys the dust amplitude to BirthEnvironment.metallicity (joint env-memory imprint)."""
+    from gravoturb.extinction import GravoturbDustModel
+    from gravoturb.cluster import GasState, Geometry, TurbulentCloudIC
+    from progenax.imf import BirthEnvironment
+
+    n, box = 12, 4.0
+    rho = jnp.full((n, n, n), 1.0)
+    cell_vol = (box / n) ** 3
+    gas = GasState(rho_cloud=rho, rho_residual=rho, velocity=jnp.zeros((n, n, n, 3)),
+                   pressure=rho, cell_volume=jnp.asarray(cell_vol))
+    geom = Geometry(shape=(n, n, n), box_size=jnp.asarray(box),
+                    origin=jnp.array([box / 2, box / 2, box / 2]))
+    ic = TurbulentCloudIC(stars=None, gas=gas, fields=None, geometry=geom,
+                          physics=None, ledger=None)
+    pos = jnp.array([[0.0, 0.0, 1.5]])
+
+    solar_env = BirthEnvironment.solar()
+    poor_env = BirthEnvironment.from_cluster_mass(1e4, FeH=-1.0)
+    av_solar = float(GravoturbDustModel.from_ic(ic, env=solar_env).column(pos)[0])
+    av_poor = float(GravoturbDustModel.from_ic(ic, env=poor_env).column(pos)[0])
+    assert av_poor < av_solar
+    # from_ic with no env defaults to solar
+    av_default = float(GravoturbDustModel.from_ic(ic).column(pos)[0])
+    assert av_default == pytest.approx(av_solar, rel=1e-6)

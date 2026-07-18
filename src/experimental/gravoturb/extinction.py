@@ -35,6 +35,42 @@ _M_H = 1.6726219e-24          # hydrogen mass [g] (CODATA 2018)
 # report N_H/E(B-V) = 5.8e21 → N_H/A_V = 5.8e21/3.1 ≈ 1.87e21; we round to 1.9e21 (spec default).
 _N_H_PER_A_V_SOLAR = 1.9e21
 
+# --- Metallicity-keyed dust-to-gas (Rémy-Ruyer et al. 2014, A&A 563, A31; arXiv:1312.3442) ---
+# Table 1, broken power law, **X_CO,Z case**, with y=log₁₀(G/D), x=12+log(O/H):
+#     x >  x_t :  y = A_HI  + ALPHA_H·(x_⊙ − x)      (near-solar linear regime, slope 1)
+#     x <= x_t :  y = B_LO  + ALPHA_L·(x_⊙ − x)      (steep low-Z regime)
+# a=2.21 gives the solar G/D = 10^2.21 = 162 (Zubko et al. 2004); x_⊙ = 8.69 (Asplund et al. 2009).
+_RR_A_HI = 2.21       # high-Z intercept (= log₁₀ G/D_⊙); fixed in the fit
+_RR_ALPHA_H = 1.00    # high-Z slope; fixed in the fit
+_RR_B_LO = 0.96       # low-Z intercept (X_CO,Z)
+_RR_ALPHA_L = 3.10    # low-Z slope (X_CO,Z)
+_RR_X_T = 8.10        # break metallicity 12+log(O/H) (X_CO,Z)
+_RR_X_SUN = 8.69      # solar 12+log(O/H) (Asplund et al. 2009)
+
+
+def remy_ruyer_n_h_per_a_v(
+    feh, *, n_h_per_a_v_solar: float = _N_H_PER_A_V_SOLAR
+) -> Float[Array, ""]:
+    r"""Metallicity-scaled gas-to-extinction ratio N_H/A_V [cm⁻² mag⁻¹] (spec decision A(b)).
+
+    Since ``A_V ∝ (gas column)/(G/D)``, the gas-to-extinction ratio scales linearly with the
+    gas-to-dust mass ratio: ``N_H/A_V(Z) = (N_H/A_V)_⊙ · (G/D)(Z)/(G/D)_⊙``. G/D(Z) is the
+    Rémy-Ruyer et al. (2014) broken power law (X_CO,Z case); at solar metallicity the factor is 1.
+
+    Metallicity is taken as ``[Fe/H]`` (``BirthEnvironment.metallicity``) and mapped to oxygen
+    abundance by ``12+log(O/H) = x_⊙ + [Fe/H]`` — i.e. assuming solar abundance ratios ([O/Fe]=0.
+    A first-order simplification: α-enhancement at low [Fe/H] would raise the true O/H, so this
+    slightly *over*-thins the dust in the metal-poor regime). Differentiable; the broken power law
+    is C⁰ (a slope kink at the break), which is the intended physics.
+    """
+    feh = jnp.asarray(feh, dtype=float)
+    x_minus_sun = -feh                                  # x_⊙ − x = −[Fe/H]
+    feh_t = _RR_X_T - _RR_X_SUN                          # transition in [Fe/H] (= −0.59)
+    log_gd_hi = _RR_A_HI + _RR_ALPHA_H * x_minus_sun     # x > x_t branch
+    log_gd_lo = _RR_B_LO + _RR_ALPHA_L * x_minus_sun     # x <= x_t branch
+    log_gd = jnp.where(feh >= feh_t, log_gd_hi, log_gd_lo)
+    return n_h_per_a_v_solar * 10.0 ** (log_gd - _RR_A_HI)
+
 
 class GravoturbDustModel(eqx.Module):
     """Differential-extinction screen from a gravoturb residual-gas grid (duck-typed fluxax DustModel).
@@ -69,15 +105,18 @@ class GravoturbDustModel(eqx.Module):
         *,
         box_size,
         origin,
+        feh=0.0,
         mu: float = 1.4,
-        n_h_per_a_v: float = _N_H_PER_A_V_SOLAR,
+        n_h_per_a_v_solar: float = _N_H_PER_A_V_SOLAR,
         los_axis: int = 2,
     ) -> "GravoturbDustModel":
         """Build from a raw residual-gas density grid [M⊙/pc³] and its grid geometry.
 
-        ``mu`` is the mean molecular weight per hydrogen (1.4 for atomic H + He). ``n_h_per_a_v`` is
-        the (already metallicity-scaled) gas-to-extinction ratio; defaults to the MW/solar anchor.
+        ``mu`` is the mean molecular weight per hydrogen (1.4 for atomic H + He). ``feh`` is the
+        birth metallicity [Fe/H]; the gas-to-extinction ratio is scaled from the MW/solar anchor by
+        the Rémy-Ruyer+2014 dust-to-gas law (a low-Z birth thins the dust — spec decision A(b)).
         """
+        n_h_per_a_v = remy_ruyer_n_h_per_a_v(feh, n_h_per_a_v_solar=n_h_per_a_v_solar)
         n_los = rho_residual.shape[los_axis]
         cell = box_size / n_los
         # Column to each cell CENTRE from the near face (index 0): cells fully in front + half of
@@ -89,6 +128,32 @@ class GravoturbDustModel(eqx.Module):
             origin=jnp.asarray(origin, dtype=float),
             box_size=jnp.asarray(box_size, dtype=float),
             a_v_per_sigma=jnp.asarray(a_v_per_sigma, dtype=float),
+            los_axis=los_axis,
+        )
+
+    @classmethod
+    def from_ic(cls, ic, *, env=None, mu: float = 1.4, los_axis: int = 2) -> "GravoturbDustModel":
+        """Build directly from a ``TurbulentCloudIC``, keying dust amplitude to its birth metallicity.
+
+        Reads the residual-gas grid and geometry off ``ic``; ``env`` is a
+        ``progenax.imf.BirthEnvironment`` whose ``metallicity`` ([Fe/H]) sets the Rémy-Ruyer
+        dust-to-gas scaling. Passing the *same* ``BirthEnvironment`` that sets the environment-
+        dependent IMF makes A a coherent joint environment-memory imprint (low-Z → top-heavier IMF
+        AND thinner reddening). ``env=None`` defaults to solar ([Fe/H]=0). Raises if ``ic`` is a
+        star-only build (no gas).
+        """
+        if ic.gas is None:
+            raise ValueError(
+                "GravoturbDustModel.from_ic requires a gas build; this IC is star-only "
+                "(ic.gas is None / ledger.gas_included=False)."
+            )
+        feh = 0.0 if env is None else env.metallicity
+        return cls.from_grid(
+            ic.gas.rho_residual,
+            box_size=ic.geometry.box_size,
+            origin=ic.geometry.origin,
+            feh=feh,
+            mu=mu,
             los_axis=los_axis,
         )
 
