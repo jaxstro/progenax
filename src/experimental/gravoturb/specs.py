@@ -231,6 +231,16 @@ class CompositionSpec(eqx.Module):
     #   contract), applies the velocity amplitude to barycenters (ratified:
     #   scaling BEFORE resolution), then splits components via the released
     #   resolve_binary_components and compacts ghost slots. None = singles only.
+    lambda_mult: Float[Array, ""] | float | None = None
+    #   Phase 4b environment-coupled multiplicity (spec §C): couples system
+    #   MULTIPLICITY (binary fraction + orbital compactness) to local density via the
+    #   blended Gaussian-copula system placement, at a strength INDEPENDENT of the mass
+    #   strength lambda_corr. None (default) = feature OFF → byte-identical legacy path
+    #   (McLuster lambda_corr + Moe). When set, systems are placed by a joint
+    #   (mass·lambda_corr, multiplicity·lambda_mult) → density copula: 0 = mass-only
+    #   (neutral); 1 = denser positions get the more-binary / tighter systems. Requires
+    #   `companions` (multiplicity needs a binary population). See
+    #   docs/plans/2026-07-18-environment-coupled-multiplicity-design.md.
 
     def __check_init__(self):
         if self.placement not in ("multi_freefall", "two_population"):
@@ -260,6 +270,17 @@ class CompositionSpec(eqx.Module):
                 f"companions must be a progenax CompanionModel (needs .sample), "
                 f"got {type(self.companions).__name__}"
             )
+        if self.lambda_mult is not None:
+            if (not _is_traced(self.lambda_mult)
+                    and not 0.0 <= float(self.lambda_mult) <= 1.0):
+                raise ValueError(
+                    f"lambda_mult must be in [0, 1] (None = off), got {self.lambda_mult}"
+                )
+            if self.companions is None:
+                raise ValueError(
+                    "lambda_mult (environment-coupled multiplicity) requires "
+                    "companions=... — a CompanionModel binary population to couple"
+                )
 
 
 class GasSpec(eqx.Module):

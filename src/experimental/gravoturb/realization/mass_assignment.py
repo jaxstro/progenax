@@ -68,3 +68,64 @@ def correlated_mass_assignment(
     mass_desc = jnp.sort(masses)[::-1]                 # mass at mass-rank i (most massive first)
     perm = _partial_shuffle(key, n, lambda_corr)       # density-rank i ← mass-rank perm[i]
     return jnp.zeros_like(masses).at[density_rank].set(mass_desc[perm])
+
+
+def _rank_normal(values: Float[Array, "n"]) -> Float[Array, "n"]:
+    r"""Rank → standard-normal latent: z = Φ⁻¹((rank(values) + 0.5)/n) (a Gaussian-copula margin).
+
+    Distribution-free (uses only ranks), so ``z`` is standard normal regardless of the input
+    marginal. Non-differentiable (argsort), consistent with the rest of star placement."""
+    n = values.shape[0]
+    ranks = jnp.argsort(jnp.argsort(values))
+    u = (ranks + 0.5) / n
+    return jax.scipy.special.ndtri(u)
+
+
+def blended_system_placement(
+    local_density: Float[Array, "n"],
+    mass_score: Float[Array, "n"],
+    mult_score: Float[Array, "n"],
+    *,
+    lambda_corr: Float[Array, ""] | float,
+    lambda_mult: Float[Array, ""] | float,
+    key: jax.Array,
+) -> Array:
+    r"""Assign whole systems to fixed positions by a Gaussian-copula affinity (spec §C).
+
+    Each *system* is a self-consistent (m1, m2, orbit) unit; ``mass_score`` ranks systems by mass
+    (e.g. m_sys) and ``mult_score`` ranks them by multiplicity/compactness (binary & tighter →
+    higher). The returned permutation ``perm`` aligns systems to positions so that, in rank space,
+    system **mass** correlates with local density at strength ``lambda_corr`` and system
+    **multiplicity** correlates with density at an INDEPENDENT strength ``lambda_mult`` — a
+    controlled density→multiplicity birth-imprint *beyond* the emergent mass channel.
+
+    Mechanism (Gaussian copula): system affinity ``a = λ_corr·z_m + λ_mult·z_u + σ·ε`` with
+    ``z_m, z_u`` the rank-normal mass/mult latents, ``ε`` standard-normal noise, and
+    ``σ = √(1 − λ_corr² − λ_mult²)`` (weights renormalized onto the unit circle if they exceed it).
+    Positions (ranked by density) are paired rank-to-rank with systems (ranked by ``a``), so
+    ``corr(z_m, density) ≈ λ_corr`` and ``corr(z_u, density) ≈ λ_mult`` (plus the mass–mult
+    coupling). ``λ_corr = λ_mult = 0`` → random placement. Whole systems move together, so every
+    marginal and the Moe internal (P, q, e) joint are preserved. Non-differentiable (rank op),
+    consistent with ``correlated_mass_assignment``.
+
+    Returns ``perm`` with ``perm[j]`` = the system index placed at position ``j`` (reorder the system
+    arrays by ``perm`` to align them with the positions).
+    """
+    n = local_density.shape[0]
+    lc = jnp.asarray(lambda_corr, dtype=float)
+    lm = jnp.asarray(lambda_mult, dtype=float)
+    w2 = lc**2 + lm**2
+    renorm = jnp.where(w2 > 1.0, 1.0 / jnp.sqrt(jnp.maximum(w2, 1e-12)), 1.0)
+    lc, lm = lc * renorm, lm * renorm
+    sigma = jnp.sqrt(jnp.clip(1.0 - (lc**2 + lm**2), 0.0, 1.0))
+
+    z_d = _rank_normal(local_density)
+    z_m = _rank_normal(mass_score)
+    z_u = _rank_normal(mult_score)
+    eps = jax.random.normal(key, (n,))
+    affinity = lc * z_m + lm * z_u + sigma * eps
+
+    pos_order = jnp.argsort(z_d)       # positions ascending by density
+    sys_order = jnp.argsort(affinity)  # systems ascending by affinity
+    # position pos_order[k] (k-th lowest density) gets system sys_order[k] (k-th lowest affinity)
+    return jnp.zeros(n, dtype=jnp.int32).at[pos_order].set(sys_order.astype(jnp.int32))

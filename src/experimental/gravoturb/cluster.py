@@ -52,7 +52,10 @@ from gravoturb.realization.helmholtz import (
     coupled_log_density_gaussian,
     helmholtz_velocity_field,
 )
-from gravoturb.realization.mass_assignment import correlated_mass_assignment
+from gravoturb.realization.mass_assignment import (
+    blended_system_placement,
+    correlated_mass_assignment,
+)
 from gravoturb.realization.pipeline import (
     TurbulentField,
     build_turbulent_field,
@@ -296,34 +299,27 @@ def build_cluster_ic(
         )
         f_tail = f_elig = n_eff = None
 
-    # ── Phase 4b: primordial mass segregation (λ_corr; OFF by default) ──
-    if composition.lambda_corr is not None:
-        # local density at each star's cell (nearest-cell lookup of the enveloped
-        # field). Key comes from fold_in of the ORIGINAL key so the existing 3-way
-        # split streams (and the byte-identity pins) are untouched.
+    def _local_rho():
+        # local density at each position: nearest-cell lookup of the enveloped field.
         n_ax = jnp.asarray(geometry.shape)
         cell = jnp.clip(
             jnp.floor(positions / geometry.box_size * n_ax).astype(jnp.int32),
             0, n_ax - 1,
         )
-        local_rho = jnp.exp(s_total)[cell[:, 0], cell[:, 1], cell[:, 2]]
-        masses = correlated_mass_assignment(
-            masses, local_rho, composition.lambda_corr,
-            jax.random.fold_in(key, 4),
-        )
+        return jnp.exp(s_total)[cell[:, 0], cell[:, 1], cell[:, 2]]
 
-    # ── Phase 4b: companion sampling (barycenter-first contract) ──
-    # Input masses are PRIMARIES; companions are drawn per primary, and the SYSTEM
-    # masses m_sys = m1 + m2 carry every downstream mass role (barycenter dynamics,
-    # frame weights, the gas M_cl contract). Components are split only AFTER the
-    # velocity amplitude is applied to the barycenters (ratified design).
-    if composition.companions is not None:
+    if composition.lambda_mult is not None:
+        # ── Phase 4b: environment-coupled multiplicity (blended system placement, spec §C) ──
+        # The binary POPULATION is drawn on the input masses (each system self-consistent for
+        # its own primary), then whole systems are placed onto positions by a joint copula that
+        # couples system MASS to density at strength λ_corr and system MULTIPLICITY (binary +
+        # orbital compactness) at the independent strength λ_mult. Reassigning whole systems
+        # preserves every marginal and the Moe (P,q,e) joint.
         if units is None:
             raise ValueError(
-                "CompositionSpec(companions=...) requires units=... (a jaxstro "
-                "UnitSystem): orbital periods are drawn in days and must be "
-                "converted to the G-consistent time unit"
+                "CompositionSpec(lambda_mult=...) requires units=... (companions need it)"
             )
+        local_rho = _local_rho()
         day_in_time_units = 86400.0 / units.time_scale_cgs
         is_binary, comp_elems = composition.companions.sample(
             jax.random.fold_in(key, 5), masses,
@@ -331,9 +327,49 @@ def build_cluster_ic(
         )
         m2 = jnp.where(is_binary, comp_elems.m2, 0.0)
         m_sys = masses + m2
+        # multiplicity/compactness score: binaries (tighter a → higher) rank above singles.
+        a_rank = jnp.argsort(jnp.argsort(comp_elems.a)).astype(float) / masses.shape[0]
+        mult_score = jnp.where(is_binary, 1.0 - a_rank, -1.0)
+        lam_corr = 0.0 if composition.lambda_corr is None else composition.lambda_corr
+        perm = blended_system_placement(
+            local_rho, m_sys, mult_score,
+            lambda_corr=lam_corr, lambda_mult=composition.lambda_mult,
+            key=jax.random.fold_in(key, 6),
+        )
+        masses = masses[perm]
+        is_binary = is_binary[perm]
+        comp_elems = jax.tree_util.tree_map(lambda x: x[perm], comp_elems)
+        m2 = m2[perm]
+        m_sys = m_sys[perm]
     else:
-        is_binary = comp_elems = None
-        m_sys = masses
+        # ── Phase 4b legacy path (byte-identical when λ_mult is OFF) ──
+        # λ_corr primordial mass segregation (McLuster; OFF by default). Key from fold_in of the
+        # ORIGINAL key so the existing 3-way split streams (and byte-identity pins) are untouched.
+        if composition.lambda_corr is not None:
+            masses = correlated_mass_assignment(
+                masses, _local_rho(), composition.lambda_corr,
+                jax.random.fold_in(key, 4),
+            )
+        # Companion sampling (barycenter-first contract). Input masses are PRIMARIES; companions
+        # are drawn per primary, and m_sys = m1 + m2 carries every downstream mass role. Components
+        # are split only AFTER the velocity amplitude is applied to the barycenters (ratified).
+        if composition.companions is not None:
+            if units is None:
+                raise ValueError(
+                    "CompositionSpec(companions=...) requires units=... (a jaxstro "
+                    "UnitSystem): orbital periods are drawn in days and must be "
+                    "converted to the G-consistent time unit"
+                )
+            day_in_time_units = 86400.0 / units.time_scale_cgs
+            is_binary, comp_elems = composition.companions.sample(
+                jax.random.fold_in(key, 5), masses,
+                G=G, day_in_time_units=day_in_time_units,
+            )
+            m2 = jnp.where(is_binary, comp_elems.m2, 0.0)
+            m_sys = masses + m2
+        else:
+            is_binary = comp_elems = None
+            m_sys = masses
 
     v_raw = sample_turbulent_velocities(positions, v_field, box_size=geometry.box_size)
     m_star = jnp.sum(m_sys)
