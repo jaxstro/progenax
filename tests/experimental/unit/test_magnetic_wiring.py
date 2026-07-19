@@ -103,3 +103,111 @@ def test_magnetic_none_builds_and_matches_absent():
             assert la == lb
         else:
             assert jnp.array_equal(la, lb)
+
+
+# --------------------------------------------------------------------------- #
+# W2: L2 velocity anisotropy wiring (realize >= 'anisotropic'). Fixed r_A keeps the
+# mechanism gates deterministic; theory-closure-through-the-builder is validated in W4.
+# --------------------------------------------------------------------------- #
+def _build_mag(realize, mu_phi=0.5, axis=2, **mag):
+    masses = jnp.linspace(0.3, 8.0, 300)
+    return build_cluster_ic(
+        masses,
+        cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+        geometry=GeometrySpec(profile=PlummerProfile(r_h=1.0), box_size=4.0, shape=(24, 24, 24)),
+        velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2),
+        composition=CompositionSpec(),
+        gas=GasSpec(sfe=0.3),
+        G=STELLAR.G, units=STELLAR, key=jax.random.PRNGKey(0),
+        magnetic=MagneticSpec(mu_phi=mu_phi, realize=realize, mean_field_axis=axis, **mag),
+    )
+
+
+def _perp_par_ratio(ic, axis=2):
+    var = jnp.var(ic.stars.velocities, axis=0)
+    perp = [var[i] for i in range(3) if i != axis]
+    return 0.5 * (perp[0] + perp[1]) / var[axis]
+
+
+def test_anisotropic_realize_increases_perp_dominance_vs_scalar():
+    # Comparison-based (cancels baseline GRF scatter): only 'anisotropic' touches the velocity
+    # field, so its perp/par ratio must clearly exceed the 'scalar' baseline for the same params.
+    aniso = _build_mag("anisotropic", anisotropy="fixed", anisotropy_value=6.0)
+    scal = _build_mag("scalar", anisotropy="fixed", anisotropy_value=6.0)
+    assert _perp_par_ratio(aniso) > 1.5 * _perp_par_ratio(scal)
+
+
+def test_mean_field_axis_0_suppresses_that_component_vs_scalar():
+    aniso = _build_mag("anisotropic", axis=0, anisotropy="fixed", anisotropy_value=6.0)
+    scal = _build_mag("scalar", axis=0, anisotropy="fixed", anisotropy_value=6.0)
+    frac0 = lambda ic: jnp.var(ic.stars.velocities, axis=0)[0] / jnp.sum(jnp.var(ic.stars.velocities, axis=0))
+    assert frac0(aniso) < frac0(scal)  # axis-0 (parallel) power fraction is suppressed
+
+
+# --------------------------------------------------------------------------- #
+# W3: L3 vector B-field attachment (realize='field'). Scalars logged at any realize;
+# the divergence-free B grid materialises only at realize='field'.
+# --------------------------------------------------------------------------- #
+def _spectral_div_over_scale(B):
+    n = B.shape[1]
+    kk = jnp.fft.fftfreq(n) * n
+    KX, KY, KZ = jnp.meshgrid(kk, kk, kk, indexing="ij")
+    Bk = jnp.fft.fftn(B, axes=(1, 2, 3))
+    div_k = KX * Bk[0] + KY * Bk[1] + KZ * Bk[2]
+    return jnp.max(jnp.abs(div_k)) / (jnp.max(jnp.abs(Bk)) + 1e-30)
+
+
+def test_realize_field_attaches_divergence_free_B_grid():
+    ic = _build_mag("field", anisotropy="fixed", anisotropy_value=2.0)
+    assert ic.magnetic is not None
+    B = ic.magnetic.B_field
+    assert B.shape == (3, 24, 24, 24)
+    assert _spectral_div_over_scale(B) < 1e-10           # ∇·B = 0 to machine precision
+    means = jnp.mean(B, axis=(1, 2, 3))
+    assert jnp.abs(means[2] - ic.magnetic.B0) < 1e-6     # uniform mean = B0 along z
+    assert jnp.abs(means[0]) < 1e-6 and jnp.abs(means[1]) < 1e-6
+
+
+def test_realize_scalar_logs_quantities_but_no_B_grid():
+    ic = _build_mag("scalar")
+    assert ic.magnetic is not None          # scalars are always logged when magnetism is on
+    assert ic.magnetic.B_field is None      # the grid only materialises at realize='field'
+    assert float(ic.magnetic.beta0) > 0.0
+    assert float(ic.magnetic.mach_alfven) > 0.0
+
+
+def test_magnetic_none_has_no_magnetic_state():
+    ic = build_cluster_ic(_masses(), **_physical_gas_kwargs())
+    assert ic.magnetic is None
+
+
+# --------------------------------------------------------------------------- #
+# W4: L1 magnetized sigma_s^2 in the density build (b_eff = b*sqrt(beta0/(beta0+1))).
+# Applies at every realize level; magnetic support narrows the PDF -> fewer dense cells.
+# --------------------------------------------------------------------------- #
+def test_magnetic_narrows_density_field_variance():
+    # The physically-defensible width-only L1 effect: magnetic cushioning narrows sigma_s^2, so
+    # the realized log-density field is LESS variable. (The BM19 f_dense *diagnostic* moves
+    # counterintuitively under width-only because s_t=(alpha-1/2)sigma_s^2 drops with it — the
+    # physical dense-fraction reduction needs the deferred s_crit channel, ADR-0058.)
+    hydro = build_cluster_ic(_masses(), **_physical_gas_kwargs())
+    mag = _build_mag("scalar", mu_phi=0.3)   # L1 applies even at realize='scalar'
+    assert jnp.var(mag.fields.s_turb.s) < jnp.var(hydro.fields.s_turb.s)
+
+
+def test_weak_field_recovers_hydro_field_variance():
+    hydro = build_cluster_ic(_masses(), **_physical_gas_kwargs())
+    mag = _build_mag("scalar", mu_phi=1.0e4)  # beta0 -> inf, sigma_s^2 -> hydro
+    rel = abs(jnp.var(mag.fields.s_turb.s) - jnp.var(hydro.fields.s_turb.s)) / jnp.var(hydro.fields.s_turb.s)
+    assert float(rel) < 1e-3
+
+
+def test_magnetic_sigma_s_matches_analytic_via_beta0():
+    # The realized transition density s_t must equal the magnetic BM19 value from the logged beta0,
+    # confirming b_eff threaded through the whole PDF (not just f_dense).
+    mag = _build_mag("scalar", mu_phi=0.3)
+    beta0 = float(mag.magnetic.beta0)
+    b, mach, alpha = 0.5, 8.0, 1.8
+    sigma_s2 = jnp.log(1.0 + (b * mach) ** 2 * beta0 / (beta0 + 1.0))
+    s_t_expected = (alpha - 0.5) * sigma_s2
+    assert abs(float(mag.fields.s_turb.s_t) - float(s_t_expected)) < 1e-9

@@ -52,6 +52,17 @@ from gravoturb.realization.helmholtz import (
     coupled_log_density_gaussian,
     helmholtz_velocity_field,
 )
+from gravoturb.realization.magnetic import (
+    alfven_mach,
+    alfven_speed,
+    anisotropy_ratio_phenomenological,
+    anisotropy_ratio_theory,
+    apply_velocity_anisotropy,
+    magnetic_field_grid,
+    mean_density,
+    mean_field_strength,
+    plasma_beta,
+)
 from gravoturb.realization.mass_assignment import (
     blended_system_placement,
     correlated_mass_assignment,
@@ -204,12 +215,30 @@ class Ledger(NamedTuple):
     n_binaries: int | None = None                        # companions builds only
 
 
+class MagneticState(NamedTuple):
+    """Magnetic support (ADR-0060; ``None`` unless a ``MagneticSpec`` was passed).
+
+    The derived scalars (``B0`` mean field, ``mach_alfven`` ℳ_A, ``beta0`` plasma β,
+    ``r_a`` velocity anisotropy ratio) are populated for every ``realize`` level. The
+    divergence-free vector field ``B_field`` (3, nx, ny, nz) materialises **only** at
+    ``realize='field'`` (RMHD seeding); it is ``None`` for ``'scalar'``/``'anisotropic'``.
+    ``mean_field_axis`` records the uniform-mean direction."""
+
+    B0: Float[Array, ""]
+    mach_alfven: Float[Array, ""]
+    beta0: Float[Array, ""]
+    r_a: Float[Array, ""]
+    B_field: Float[Array, "3 nx ny nz"] | None
+    mean_field_axis: int
+
+
 class TurbulentCloudIC(NamedTuple):
     """The canonical gravoturbulent IC product (a JAX pytree; Phase 4a).
 
     ``gas`` is ``None`` for star-only builds (no ``GasSpec``) — a first-class,
     zero-cost path; ``ledger.gas_included`` records it loudly so gas-requiring
     pipelines fail immediately instead of treating a star-only IC as a gas-free cloud.
+    ``magnetic`` is ``None`` unless a ``MagneticSpec`` was passed (ADR-0060).
     """
 
     stars: Stars
@@ -218,6 +247,40 @@ class TurbulentCloudIC(NamedTuple):
     geometry: Geometry
     physics: Physics
     ledger: Ledger
+    magnetic: MagneticState | None = None
+
+
+class MagneticQuantities(NamedTuple):
+    """Derived magnetic state at the profile (half-mass) scale (ADR-0060), logged to the ledger.
+
+    All derived from ``MagneticSpec.mu_phi`` + the cloud (M_cl = M_star/sfe, r_h, c_s): ``B0`` the
+    mean field [internal dynamical units], ``mach_alfven`` ℳ_A, ``beta0`` the plasma β (feeds the
+    magnetic σ_s²), ``r_a`` the velocity anisotropy ratio from the selected closure (ADR-0061)."""
+
+    B0: Float[Array, ""]
+    mach_alfven: Float[Array, ""]
+    beta0: Float[Array, ""]
+    r_a: Float[Array, ""]
+
+
+def _resolve_magnetic(magnetic, mach, c_s_internal, m_cloud, r_h, G) -> MagneticQuantities:
+    """μ_Φ → (B0, ℳ_A, β₀, r_A) at the half-mass scale. m_cloud = M_star/sfe is the total cloud
+    mass threaded by the flux; the input-mass sum is used (companion-independent, available before
+    the density build — the cloud's field must not depend on the stochastic binary draw)."""
+    m_half = 0.5 * m_cloud
+    b0 = mean_field_strength(magnetic.mu_phi, m_half, r_h, G)
+    v_a = alfven_speed(b0, mean_density(m_half, r_h))
+    m_a = alfven_mach(mach, c_s_internal, v_a)
+    beta0 = plasma_beta(mach, m_a)
+    if magnetic.anisotropy == "theory":
+        r_a = anisotropy_ratio_theory(m_a)
+    elif magnetic.anisotropy == "phenomenological":
+        r_a = anisotropy_ratio_phenomenological(
+            m_a, magnetic.anisotropy_eta, magnetic.anisotropy_p
+        )
+    else:  # 'fixed' (empirical override)
+        r_a = jnp.asarray(magnetic.anisotropy_value, dtype=b0.dtype)
+    return MagneticQuantities(B0=b0, mach_alfven=m_a, beta0=beta0, r_a=r_a)
 
 
 def build_cluster_ic(
@@ -278,6 +341,23 @@ def build_cluster_ic(
                 "the cloud mass M_cl = M_star/sfe (the total mass threaded by the flux)"
             )
 
+    # ── magnetic derived quantities (ADR-0060; μ_Φ → B0, ℳ_A, β₀, r_A) ──
+    # Resolved once, before the field build, so L1 (β₀→σ_s²) and L2 (r_A→anisotropy) share them.
+    mag_q = None
+    if magnetic is not None:
+        mag_q = _resolve_magnetic(
+            magnetic, cloud.mach, velocity.c_s / units.velocity_scale_km_s,
+            jnp.sum(masses) / gas.sfe, geometry.profile.r_h, G,
+        )
+
+    # ── L1: magnetic support narrows the density PDF (ADR-0060). (mach, b) enter the entire
+    # BM19 chain ONLY through σ_s²=ln(1+b²ℳ²), so the magnetic σ_s²=ln(1+b²ℳ²·β₀/(β₀+1)) is
+    # exactly b_eff = b·√(β₀/(β₀+1)) into the density build — cloud.b stays intact for
+    # chi_f10/physics. b_eff = b (byte-identical) when magnetism is off.
+    b_density = cloud.b
+    if mag_q is not None:
+        b_density = cloud.b * jnp.sqrt(mag_q.beta0 / (mag_q.beta0 + 1.0))
+
     # ── density + velocity construction (Phase 3 coupling modes) ──
     if cloud.coupling == "helmholtz":
         # ONE white field drives both (ĝ ∝ −∇·v; no new randomness on the compressive
@@ -286,14 +366,18 @@ def build_cluster_ic(
             geometry.shape, velocity.beta_v, chi, k_field, return_fourier=True
         )
         field = turbulent_field_from_gaussian(
-            coupled_log_density_gaussian(bundle), cloud.mach, cloud.b, cloud.alpha
+            coupled_log_density_gaussian(bundle), cloud.mach, b_density, cloud.alpha
         )
         v_field = bundle.velocity
     else:  # 'independent' (byte-identical to the pre-Phase-3 pipeline)
         field = build_turbulent_field(
-            cloud.mach, cloud.b, cloud.alpha, beta, geometry.shape, k_field
+            cloud.mach, b_density, cloud.alpha, beta, geometry.shape, k_field
         )
         v_field = turbulent_velocity_field(geometry.shape, velocity.beta_v, k_vfield)
+
+    # ── L2: magnetic velocity anisotropy (realize ≥ 'anisotropic') ──
+    if mag_q is not None and magnetic.realize in ("anisotropic", "field"):
+        v_field = apply_velocity_anisotropy(v_field, mag_q.r_a, magnetic.mean_field_axis)
 
     s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
     w = collapse_weights(field.s, field.s_t, composition.mask_sharpness)
@@ -501,6 +585,24 @@ def build_cluster_ic(
         closure = None
         gas_state = None
 
+    # ── L3: divergence-free vector B field (realize='field' only) + magnetic ledger ──
+    if mag_q is not None:
+        B_grid = (
+            magnetic_field_grid(
+                geometry.shape, mag_q.B0, mag_q.mach_alfven,
+                jax.random.fold_in(key, 7),
+                axis=magnetic.mean_field_axis, slope=magnetic.field_slope,
+            )
+            if magnetic.realize == "field"
+            else None
+        )
+        magnetic_state = MagneticState(
+            B0=mag_q.B0, mach_alfven=mag_q.mach_alfven, beta0=mag_q.beta0,
+            r_a=mag_q.r_a, B_field=B_grid, mean_field_axis=magnetic.mean_field_axis,
+        )
+    else:
+        magnetic_state = None
+
     return TurbulentCloudIC(
         stars=Stars(positions=star_pos, velocities=star_vel, masses=star_masses,
                     system_id=star_sysid),
@@ -523,6 +625,7 @@ def build_cluster_ic(
             tail_star_fraction=f_tail, collapse_eligible_fraction=f_elig,
             placement_n_eff=n_eff, n_binaries=n_binaries,
         ),
+        magnetic=magnetic_state,
     )
 
 
