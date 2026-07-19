@@ -61,14 +61,21 @@ class LaneEmdenSolution(NamedTuple):
         y: ``psi`` (isothermal) or ``theta`` (polytropic).
         dy: the first derivative of ``y`` with respect to ``xi``.
         m: dimensionless enclosed mass -- ``xi^2 psi'`` or ``-xi^2 theta'``. Strictly
-            increasing wherever the density is positive, so it is a legitimate input to
-            ``jaxstro.numerics.rootfinding.monotone_inverse_interp``.
+            increasing wherever the density is positive.
+        dm: ``dm/dxi``, available in closed form from the ODE itself rather than by
+            differencing. For the isothermal branch ``m = xi^2 psi'`` gives
+            ``dm/dxi = 2 xi psi' + xi^2 psi''``, and substituting
+            ``xi^2 psi'' = xi^2 e^{-psi} - 2 xi psi'`` collapses it to ``xi^2 e^{-psi}``
+            -- which is just ``4 pi r^2 rho`` in dimensionless form, as it must be. The
+            polytropic branch is ``xi^2 theta^n``. Used as the analytic Newton derivative
+            in the differentiable half-mass inversion.
     """
 
     xi: Float[Array, " n"]
     y: Float[Array, " n"]
     dy: Float[Array, " n"]
     m: Float[Array, " n"]
+    dm: Float[Array, " n"]
 
 
 def _isothermal_rhs(xi, state, args):
@@ -140,7 +147,9 @@ def solve_isothermal(xi_max: float, n_points: int = 2000) -> LaneEmdenSolution:
     xi, psi, dpsi = _solve(
         diffrax.ODETerm(_isothermal_rhs), _isothermal_y0(), xi_max, n_points, None
     )
-    return LaneEmdenSolution(xi=xi, y=psi, dy=dpsi, m=xi**2 * dpsi)
+    return LaneEmdenSolution(
+        xi=xi, y=psi, dy=dpsi, m=xi**2 * dpsi, dm=xi**2 * jnp.exp(-psi)
+    )
 
 
 def solve_polytrope(n, xi_max: float, n_points: int = 2000) -> LaneEmdenSolution:
@@ -161,7 +170,13 @@ def solve_polytrope(n, xi_max: float, n_points: int = 2000) -> LaneEmdenSolution
     xi, theta, dtheta = _solve(
         diffrax.ODETerm(_polytropic_rhs), _polytropic_y0(n), xi_max, n_points, (n,)
     )
-    return LaneEmdenSolution(xi=xi, y=theta, dy=dtheta, m=-(xi**2) * dtheta)
+    return LaneEmdenSolution(
+        xi=xi,
+        y=theta,
+        dy=dtheta,
+        m=-(xi**2) * dtheta,
+        dm=xi**2 * jnp.maximum(theta, 0.0) ** n,
+    )
 
 
 def polytrope_xi1(n, xi_search_max: float = 50.0) -> Float[Array, ""]:

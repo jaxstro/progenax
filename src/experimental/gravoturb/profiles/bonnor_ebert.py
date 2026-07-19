@@ -37,7 +37,7 @@ from jaxstro.numerics.interpolation import monotone_cubic_interp
 from jaxstro.numerics.rootfinding import monotone_inverse_interp
 from jaxtyping import Array, Float
 
-from gravoturb.profiles._scaling import half_mass_xi, interp_flat
+from gravoturb.profiles._scaling import half_mass_xi, interp_flat, require
 from gravoturb.profiles.lane_emden import solve_isothermal
 
 # Domain for the critical-point search. The maximum sits near xi ~ 6.45, so 30 is
@@ -120,7 +120,7 @@ class BonnorEbertProfile(eqx.Module):
     """
 
     r_h: Float[Array, ""]
-    xi_max: float = eqx.field(static=True)
+    xi_max: Float[Array, ""]
     n_points: int = eqx.field(static=True)
 
     xi_grid: Float[Array, " n"]
@@ -132,23 +132,21 @@ class BonnorEbertProfile(eqx.Module):
     r_edge: Float[Array, ""]
     total_mass: Float[Array, ""]
 
-    def __init__(self, r_h, xi_max: float = 6.0, n_points: int = 2000):
-        if float(xi_max) <= 0.0:
-            raise ValueError(f"xi_max must be positive, got {xi_max}")
-        if float(r_h) <= 0.0:
-            raise ValueError(f"r_h must be positive, got {r_h}")
+    def __init__(self, r_h, xi_max=6.0, n_points: int = 2000):
+        require(jnp.asarray(xi_max) > 0.0, f"xi_max must be positive, got {xi_max}")
+        require(jnp.asarray(r_h) > 0.0, f"r_h must be positive, got {r_h}")
 
-        self.xi_max = float(xi_max)
+        self.xi_max = jnp.asarray(xi_max, dtype=float)
         self.n_points = int(n_points)
         self.r_h = jnp.asarray(r_h, dtype=float)
 
         sol = solve_isothermal(xi_max=self.xi_max, n_points=self.n_points)
         self.xi_grid, self.psi_grid, self.m_grid = sol.xi, sol.y, sol.m
 
-        # Half-mass inversion: bracket with the linear monotone inverse, which is only
-        # first-order accurate, then refine against the PCHIP m(xi) (ADR-0067).
+        # Half-mass inversion: bisect for the value, one Newton step for the gradient
+        # (see profiles/_scaling.py -- plain bisection would zero d xi_h/dm).
         m_total = sol.m[-1]
-        xi_h = half_mass_xi(sol.xi, sol.m, context=f"xi_max={self.xi_max}")
+        xi_h = half_mass_xi(sol.xi, sol.m, sol.dm)
 
         self.r_0 = self.r_h / xi_h
         self.r_edge = self.xi_max * self.r_0

@@ -22,7 +22,7 @@ import equinox as eqx
 import jax.numpy as jnp
 from jaxtyping import Array, Float
 
-from gravoturb.profiles._scaling import half_mass_xi, interp_flat
+from gravoturb.profiles._scaling import half_mass_xi, interp_flat, require
 from gravoturb.profiles.lane_emden import polytrope_xi1, solve_polytrope
 
 # gamma = 1.2 is exactly n = 5, the onset of infinite extent.
@@ -63,15 +63,16 @@ class PolytropeProfile(eqx.Module):
     total_mass: Float[Array, ""]
 
     def __init__(self, r_h, gamma, n_points: int = 2000):
-        if float(gamma) <= GAMMA_MIN:
-            raise ValueError(
-                f"gamma must exceed {GAMMA_MIN} for a finite radius; got {float(gamma)}. "
+        require(
+            jnp.asarray(gamma) > GAMMA_MIN,
+            (
+                f"gamma must exceed {GAMMA_MIN} for a finite radius; got {gamma}. "
                 f"gamma <= {GAMMA_MIN} is n >= 5, where the polytrope has infinite extent "
                 "and needs pressure truncation. For the isothermal limit (gamma -> 1) use "
                 "BonnorEbertProfile, which truncates on external pressure by construction."
-            )
-        if float(r_h) <= 0.0:
-            raise ValueError(f"r_h must be positive, got {r_h}")
+            ),
+        )
+        require(jnp.asarray(r_h) > 0.0, f"r_h must be positive, got {r_h}")
 
         self.n_points = int(n_points)
         self.r_h = jnp.asarray(r_h, dtype=float)
@@ -84,7 +85,7 @@ class PolytropeProfile(eqx.Module):
         self.xi_grid, self.theta_grid, self.m_grid = sol.xi, sol.y, sol.m
 
         m_total = sol.m[-1]
-        xi_h = half_mass_xi(sol.xi, sol.m, context=f"gamma={float(self.gamma):.4f}")
+        xi_h = half_mass_xi(sol.xi, sol.m, sol.dm)
 
         self.r_0 = self.r_h / xi_h
         self.r_edge = self.xi_1 * self.r_0

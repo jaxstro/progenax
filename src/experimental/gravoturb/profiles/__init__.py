@@ -26,11 +26,14 @@ from gravoturb.profiles.lane_emden import (
     solve_isothermal,
     solve_polytrope,
 )
+from gravoturb.profiles.polytrope import GAMMA_MIN, PolytropeProfile
 
 __all__ = [
+    "GAMMA_MIN",
     "BonnorEbertProfile",
     "CriticalSphere",
     "LaneEmdenSolution",
+    "PolytropeProfile",
     "critical_sphere",
     "polytrope_xi1",
     "solve_isothermal",
