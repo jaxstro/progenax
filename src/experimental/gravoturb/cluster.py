@@ -56,9 +56,11 @@ from gravoturb.realization.magnetic import (
     alfven_mach,
     alfven_speed,
     anisotropy_ratio_phenomenological,
+    ambipolar_attenuation,
     anisotropy_ratio_theory,
     apply_velocity_anisotropy,
     magnetic_field_grid,
+    magnetothermal_threshold_shift,
     mean_density,
     mean_field_strength,
     plasma_beta,
@@ -380,21 +382,35 @@ def build_cluster_ic(
         v_field = apply_velocity_anisotropy(v_field, mag_q.r_a, magnetic.mean_field_axis)
 
     s_total = apply_spherical_envelope(field.s, geometry.profile, geometry.box_size)
-    w = collapse_weights(field.s, field.s_t, composition.mask_sharpness)
+
+    # ── L1 s_crit channel: magnetic support raises the COLLAPSE-eligibility threshold by the
+    # magnetothermal-Jeans shift Δs=ln(1+1/β₀) (ADR-0063; F&K12 Eq.21). field.s_t (the BM19 PDF
+    # transition) is unchanged; s_t_collapse is what gates star formation. 'ambipolar' softens Δs
+    # above the flux-loss density (dense gas sheds flux → collapses anyway). Δs=0 when off.
+    s_t_collapse = field.s_t
+    if mag_q is not None:
+        shift = magnetothermal_threshold_shift(mag_q.beta0)
+        if magnetic.collapse_threshold == "ambipolar":
+            shift = shift * ambipolar_attenuation(
+                field.s, magnetic.flux_loss_density, magnetic.flux_loss_sharpness
+            )
+        s_t_collapse = field.s_t + shift
+
+    w = collapse_weights(field.s, s_t_collapse, composition.mask_sharpness)
 
     # ── star placement ──
     if composition.placement == "multi_freefall":
         positions = sample_positions_multi_freefall(
-            field.s, field.s_t, composition.mask_sharpness, n_stars, k_pos,
+            field.s, s_t_collapse, composition.mask_sharpness, n_stars, k_pos,
             box_size=geometry.box_size, s_density=s_total,
         )
-        args = (field.s, field.s_t, composition.mask_sharpness)
+        args = (field.s, s_t_collapse, composition.mask_sharpness)
         f_tail = tail_star_fraction(*args, s_density=s_total)
         f_elig = collapse_eligible_fraction(*args, s_density=s_total)
         n_eff = effective_cell_count(multi_freefall_pmf(*args, s_density=s_total))
     else:  # 'two_population' (legacy/ablation; guarded by CompositionSpec)
         positions = sample_positions(
-            field.s, field.s_t, composition.mask_sharpness, composition.f_sub,
+            field.s, s_t_collapse, composition.mask_sharpness, composition.f_sub,
             n_stars, k_pos, box_size=geometry.box_size, s_density=s_total,
         )
         f_tail = f_elig = n_eff = None

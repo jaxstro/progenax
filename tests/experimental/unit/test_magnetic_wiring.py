@@ -109,16 +109,30 @@ def test_magnetic_none_builds_and_matches_absent():
 # W2: L2 velocity anisotropy wiring (realize >= 'anisotropic'). Fixed r_A keeps the
 # mechanism gates deterministic; theory-closure-through-the-builder is validated in W4.
 # --------------------------------------------------------------------------- #
-def _build_mag(realize, mu_phi=0.5, axis=2, **mag):
-    masses = jnp.linspace(0.3, 8.0, 300)
-    return build_cluster_ic(
-        masses,
+# Moderate-field regime (c_s=1 km/s, low realistic sfe): a mu_phi range [2,20] builds with the
+# s_crit channel active, spanning trans-Alfvenic (M_A~1.5) to weak (M_A~16). Strongly sub-critical
+# mu_phi (<~1) drives the collapse-eligible fraction below sfe -> the gas solver refuses (SF ceases).
+_MAG_MASSES = jnp.linspace(0.3, 8.0, 300)
+
+
+def _mag_kwargs():
+    return dict(
         cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
         geometry=GeometrySpec(profile=PlummerProfile(r_h=1.0), box_size=4.0, shape=(24, 24, 24)),
-        velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2),
+        velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=1.0),
         composition=CompositionSpec(),
-        gas=GasSpec(sfe=0.3),
+        gas=GasSpec(sfe=0.02),
         G=STELLAR.G, units=STELLAR, key=jax.random.PRNGKey(0),
+    )
+
+
+def _build_hydro():
+    return build_cluster_ic(_MAG_MASSES, **_mag_kwargs())
+
+
+def _build_mag(realize, mu_phi=5.0, axis=2, **mag):
+    return build_cluster_ic(
+        _MAG_MASSES, **_mag_kwargs(),
         magnetic=MagneticSpec(mu_phi=mu_phi, realize=realize, mean_field_axis=axis, **mag),
     )
 
@@ -190,22 +204,82 @@ def test_magnetic_narrows_density_field_variance():
     # the realized log-density field is LESS variable. (The BM19 f_dense *diagnostic* moves
     # counterintuitively under width-only because s_t=(alpha-1/2)sigma_s^2 drops with it — the
     # physical dense-fraction reduction needs the deferred s_crit channel, ADR-0058.)
-    hydro = build_cluster_ic(_masses(), **_physical_gas_kwargs())
-    mag = _build_mag("scalar", mu_phi=0.3)   # L1 applies even at realize='scalar'
+    hydro = _build_hydro()
+    mag = _build_mag("scalar", mu_phi=3.0)   # L1 applies even at realize='scalar'
     assert jnp.var(mag.fields.s_turb.s) < jnp.var(hydro.fields.s_turb.s)
 
 
 def test_weak_field_recovers_hydro_field_variance():
-    hydro = build_cluster_ic(_masses(), **_physical_gas_kwargs())
+    hydro = _build_hydro()
     mag = _build_mag("scalar", mu_phi=1.0e4)  # beta0 -> inf, sigma_s^2 -> hydro
     rel = abs(jnp.var(mag.fields.s_turb.s) - jnp.var(hydro.fields.s_turb.s)) / jnp.var(hydro.fields.s_turb.s)
     assert float(rel) < 1e-3
 
 
+# --------------------------------------------------------------------------- #
+# W5: ideal s_crit collapse-threshold channel (magnetothermal Jeans, F&K12 Eq.21:
+# raise collapse threshold by ln(1+1/beta0)). Magnetic support -> fewer collapse-eligible
+# cells; strong field -> SF ceases. W6: ambipolar flux-loss softening.
+# --------------------------------------------------------------------------- #
+def _f_elig(ic):
+    return float(ic.ledger.collapse_eligible_fraction)
+
+
+def test_magnetic_ideal_reduces_collapse_eligible_fraction():
+    hydro = _build_hydro()
+    mag = _build_mag("scalar", mu_phi=3.0)  # s_crit channel applies at any realize
+    assert _f_elig(mag) < _f_elig(hydro)     # magnetic support -> less collapsing gas
+
+
+def test_stronger_field_suppresses_collapse_more():
+    weak = _build_mag("scalar", mu_phi=5.0)   # M_A~4
+    strong = _build_mag("scalar", mu_phi=2.0)  # M_A~1.5, trans-Alfvenic
+    assert _f_elig(strong) < _f_elig(weak)     # stronger field -> less collapsing gas
+
+
+def test_too_much_flux_ceases_star_formation():
+    # Strongly sub-critical (small mu_phi) with a demanding sfe: the s_crit shift drives the
+    # collapse-eligible ceiling below sfe, so the requested SFE is unreachable and the gas solver
+    # refuses — "too much flux -> SF ceases". (c_s=0.2, sfe=0.3, mu_phi=0.3: ceiling ~0.016 << 0.3.)
+    with pytest.raises((RuntimeError, ValueError), match="SFE|converge|eligible|achievable"):
+        build_cluster_ic(
+            _MAG_MASSES,
+            cloud=CloudSpec(mach=8.0, b=0.5, alpha=1.8, beta=3.0),
+            geometry=GeometrySpec(profile=PlummerProfile(r_h=1.0), box_size=4.0, shape=(24, 24, 24)),
+            velocity=VelocitySpec(beta_v=4.0, mode="physical", c_s=0.2),
+            composition=CompositionSpec(), gas=GasSpec(sfe=0.3),
+            G=STELLAR.G, units=STELLAR, key=jax.random.PRNGKey(0),
+            magnetic=MagneticSpec(mu_phi=0.3, realize="scalar"),
+        )
+
+
+def test_ambipolar_recovers_collapse_vs_ideal():
+    ideal = _build_mag("scalar", mu_phi=3.0, collapse_threshold="ideal")
+    ambi = _build_mag(
+        "scalar", mu_phi=3.0, collapse_threshold="ambipolar",
+        flux_loss_density=1.0, flux_loss_sharpness=4.0,
+    )
+    # ambipolar flux loss at high density lets sub-critical dense gas collapse -> MORE eligible
+    assert _f_elig(ambi) > _f_elig(ideal)
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(mu_phi=1.0, collapse_threshold="bogus"), "collapse_threshold"),
+        (dict(mu_phi=1.0, collapse_threshold="ambipolar"), "flux_loss_density"),
+        (dict(mu_phi=1.0, collapse_threshold="ideal", flux_loss_density=2.0), "flux_loss_density"),
+    ],
+)
+def test_magnetic_spec_collapse_threshold_validation(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        MagneticSpec(**kwargs)
+
+
 def test_magnetic_sigma_s_matches_analytic_via_beta0():
     # The realized transition density s_t must equal the magnetic BM19 value from the logged beta0,
     # confirming b_eff threaded through the whole PDF (not just f_dense).
-    mag = _build_mag("scalar", mu_phi=0.3)
+    mag = _build_mag("scalar", mu_phi=3.0)
     beta0 = float(mag.magnetic.beta0)
     b, mach, alpha = 0.5, 8.0, 1.8
     sigma_s2 = jnp.log(1.0 + (b * mach) ** 2 * beta0 / (beta0 + 1.0))

@@ -34,6 +34,34 @@ from jaxtyping import Array, Float
 
 from .gaussian_field import gaussian_random_field
 
+
+def magnetothermal_threshold_shift(beta0: Float[Array, ""]) -> Float[Array, ""]:
+    r"""Magnetic rise of the collapse threshold, Δs = ln(1 + 1/β₀) (Federrath & Klessen 2012).
+
+    Their §2.3 replaces the thermal Jeans length by the magnetothermal one,
+    λ_{J,mag} = λ_J (1+β⁻¹)^{1/2} (F&K12 Eq. 21), so the critical density for collapse rises to
+    ρ_crit,mag = ρ_crit (1+β⁻¹): the collapse-eligibility log-density threshold shifts by
+    Δs = ln(1+1/β₀). This is the α_vir-free form (avoids the circular s_crit,KM Eq. 20 that needs
+    the emergent virial parameter). β₀→∞ (weak field) ⇒ Δs→0 (hydro). Differentiable.
+    """
+    return jnp.log1p(1.0 / beta0)
+
+
+def ambipolar_attenuation(
+    s: Float[Array, "..."],
+    flux_loss_density: Float[Array, ""],
+    sharpness: Float[Array, ""],
+) -> Float[Array, "..."]:
+    r"""Non-ideal (ambipolar) flux-loss factor on the magnetic threshold shift, in [0, 1].
+
+    Ideal MHD freezes flux; ambipolar diffusion lets neutrals drift through the field in dense,
+    weakly-ionised gas, so above a flux-loss log-density ``flux_loss_density`` the accumulated
+    flux (hence magnetic support) is reduced — sub-critical dense gas can still collapse. A static
+    (snapshot) sigmoid softening σ(κ(s_ad − s)): ~1 below s_ad (flux-frozen), →0 above (flux shed).
+    NOT a diffusion solver (the RMHD sim does the dynamics). Differentiable.
+    """
+    return jax.nn.sigmoid(sharpness * (flux_loss_density - s))
+
 # Critical mass-to-flux coefficient: (M/Phi)_crit = C_PHI / sqrt(G).
 # Padoan & Nordlund 2011 (ApJ 730, 40) Eq. 16, numerical coefficient from Tomisaka et al. 1988
 # (see also Nakano & Nakamura 1978). Verified against docs/core-papers/Padoan_2011_ApJ_730_40.pdf.

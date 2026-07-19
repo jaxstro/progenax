@@ -340,6 +340,9 @@ class MagneticSpec(eqx.Module):
     anisotropy_eta: Float[Array, ""] | float = 1.0
     anisotropy_p: Float[Array, ""] | float = 4.0 / 3.0
     anisotropy_value: Float[Array, ""] | float | None = None
+    collapse_threshold: str = eqx.field(static=True, default="ideal")
+    flux_loss_density: Float[Array, ""] | float | None = None
+    flux_loss_sharpness: Float[Array, ""] | float = 4.0
 
     def __check_init__(self):
         _positive("mu_phi", self.mu_phi)
@@ -365,6 +368,23 @@ class MagneticSpec(eqx.Module):
             raise ValueError(
                 "anisotropy_value is a 'fixed'-mode knob; unused with "
                 f"anisotropy={self.anisotropy!r} (r_A is derived from ℳ_A)"
+            )
+        if self.collapse_threshold not in ("ideal", "ambipolar"):
+            raise ValueError(
+                f"collapse_threshold must be 'ideal' or 'ambipolar', "
+                f"got {self.collapse_threshold!r}"
+            )
+        if self.collapse_threshold == "ambipolar":
+            if self.flux_loss_density is None:
+                raise ValueError(
+                    "collapse_threshold='ambipolar' requires flux_loss_density (the log-density "
+                    "s_ad above which ambipolar flux loss softens the magnetic support)"
+                )
+            _positive("flux_loss_sharpness", self.flux_loss_sharpness)
+        elif self.flux_loss_density is not None:
+            raise ValueError(
+                "flux_loss_density is an 'ambipolar'-mode knob; unused with "
+                f"collapse_threshold={self.collapse_threshold!r}"
             )
 
 
