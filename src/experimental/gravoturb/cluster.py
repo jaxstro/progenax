@@ -79,6 +79,7 @@ from gravoturb.specs import (
     CompositionSpec,
     GasSpec,
     GeometrySpec,
+    MagneticSpec,
     VelocitySpec,
     validate_spec_bundle,
 )
@@ -230,6 +231,7 @@ def build_cluster_ic(
     key: jax.Array,
     units: UnitSystem | None = None,
     gas: GasSpec | None = None,
+    magnetic: "MagneticSpec | None" = None,
 ) -> TurbulentCloudIC:
     r"""Build a spherical, substructured gravoturbulent IC (stars + optional gas).
 
@@ -261,6 +263,20 @@ def build_cluster_ic(
             "virial_target amplitude is an imposed stellar ablation with no cloud "
             "meaning — refusing to label it gas (design 2026-07-16)"
         )
+    if magnetic is not None:
+        # μ_Φ-primary magnetism is a gas-cloud property (decision a, ADR-0060): the mass-to-flux
+        # inversion needs a cloud mass M_cl = M_star/sfe and a sound speed c_s, so it requires
+        # mode='physical' + a GasSpec. magnetic=None is the byte-identical legacy path.
+        if velocity.mode != "physical":
+            raise ValueError(
+                "MagneticSpec requires VelocitySpec(mode='physical'): the mass-to-flux "
+                "inversion mu_phi -> B0 needs the sound speed c_s (km/s)"
+            )
+        if gas is None:
+            raise ValueError(
+                "MagneticSpec requires gas=GasSpec(...): the mass-to-flux inversion needs "
+                "the cloud mass M_cl = M_star/sfe (the total mass threaded by the flux)"
+            )
 
     # ── density + velocity construction (Phase 3 coupling modes) ──
     if cloud.coupling == "helmholtz":

@@ -311,6 +311,63 @@ class GasSpec(eqx.Module):
             raise ValueError(f"gamma must be > 1, got {self.gamma}")
 
 
+class MagneticSpec(eqx.Module):
+    r"""Magnetic support for the turbulent cloud (ADR-0060; μ_Φ-primary, layered L1/L2/L3).
+
+    ``mu_phi`` is the mass-to-flux ratio (M/Φ)/(M/Φ)_crit — the single physical knob; the mean
+    field B₀, Alfvén Mach ℳ_A, and plasma β₀ are DERIVED at the profile (half-mass) scale from
+    μ_Φ + the cloud (M_cl = M_star/sfe, r_h, c_s), using c_Φ = 0.17/√G (ADR-0059). Because that
+    inversion needs a cloud mass and a sound speed, magnetism is a gas-cloud property: the builder
+    requires ``VelocitySpec(mode='physical')`` + a ``GasSpec`` (decision a). μ_Φ<1 subcritical
+    (supported), μ_Φ>1 supercritical.
+
+    ``realize`` dials how much is built: ``'scalar'`` (σ_s² only) → ``'anisotropic'`` (+ velocity
+    anisotropy) → ``'field'`` (default; + divergence-free vector B grid for RMHD seeding).
+
+    ``anisotropy`` selects the r_A = P_⊥/P_∥ closure (ADR-0061, pluggable): ``'theory'`` (default;
+    Hu & Lazarian 2021 ℳ_A^{-4/3}), ``'phenomenological'`` (``1 + η_A ℳ_A^{-p}``, tunable via
+    ``anisotropy_eta``/``anisotropy_p``), or ``'fixed'`` (empirical constant ``anisotropy_value``).
+
+    ``mean_field_axis`` (0/1/2, default 2=ẑ, also Extension-A LOS) and ``field_slope`` (δB tangle
+    P(k)∝k^{-slope}, default 11/3) parametrise the L3 field.
+    """
+
+    mu_phi: Float[Array, ""] | float
+    realize: str = eqx.field(static=True, default="field")
+    mean_field_axis: int = eqx.field(static=True, default=2)
+    field_slope: Float[Array, ""] | float = 11.0 / 3.0
+    anisotropy: str = eqx.field(static=True, default="theory")
+    anisotropy_eta: Float[Array, ""] | float = 1.0
+    anisotropy_p: Float[Array, ""] | float = 4.0 / 3.0
+    anisotropy_value: Float[Array, ""] | float | None = None
+
+    def __check_init__(self):
+        _positive("mu_phi", self.mu_phi)
+        if self.realize not in ("scalar", "anisotropic", "field"):
+            raise ValueError(
+                f"realize must be 'scalar', 'anisotropic', or 'field', got {self.realize!r}"
+            )
+        if self.mean_field_axis not in (0, 1, 2):
+            raise ValueError(f"mean_field_axis must be 0, 1, or 2, got {self.mean_field_axis}")
+        _positive("field_slope", self.field_slope)
+        if self.anisotropy not in ("theory", "phenomenological", "fixed"):
+            raise ValueError(
+                f"anisotropy must be 'theory', 'phenomenological', or 'fixed', "
+                f"got {self.anisotropy!r}"
+            )
+        _positive("anisotropy_eta", self.anisotropy_eta)
+        _positive("anisotropy_p", self.anisotropy_p)
+        if self.anisotropy == "fixed":
+            if self.anisotropy_value is None:
+                raise ValueError("anisotropy='fixed' requires anisotropy_value (the constant r_A)")
+            _positive("anisotropy_value", self.anisotropy_value)
+        elif self.anisotropy_value is not None:
+            raise ValueError(
+                "anisotropy_value is a 'fixed'-mode knob; unused with "
+                f"anisotropy={self.anisotropy!r} (r_A is derived from ℳ_A)"
+            )
+
+
 def validate_spec_bundle(
     cloud: CloudSpec, velocity: "VelocitySpec"
 ) -> tuple[Float[Array, ""] | float, Float[Array, ""] | float | None]:
