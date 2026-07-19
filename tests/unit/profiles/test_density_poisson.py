@@ -58,6 +58,98 @@ class TestDeriveRt:
             derive_r_t([k], jnp.array([1.0]), r_t=0.5 * float(k.r_t))
 
 
+class TestDeriveRtGradient:
+    """AD-vs-FD on the all-infinite branch, which locates r_t by bisection.
+
+    A bisection's answer is built purely from arithmetic on its bracket endpoints; the
+    profile parameters enter only through the comparison ``summed_enclosed(mid) < f_enc``,
+    a hard threshold with zero derivative. So ``r_t = c * hi0`` with ``c`` piecewise
+    constant, and ``d c/d(params)`` is dropped.
+
+    Crucially, a HOMOGENEOUS test cannot detect that. When every component scales with the
+    same parameter, ``r_t`` is degree-1 homogeneous, ``c`` really is constant, and the
+    gradient comes out exactly right through ``hi0`` alone -- so the check passes while the
+    mechanism is broken. These tests therefore break the scale-invariance the bug hides
+    behind, which is the only way the comparison discriminates.
+    """
+
+    STEPS = (1e-4, 1e-5, 1e-6, 1e-7)
+
+    def _grad_check(self, f, x):
+        g_ad = float(jax.grad(f)(x))
+        best = None
+        for h in self.STEPS:
+            g_fd = float((f(x + h) - f(x - h)) / (2.0 * h))
+            rel = abs(g_ad - g_fd) / (abs(g_ad) + abs(g_fd) + 1e-30)
+            if best is None or rel < best[2]:
+                best = (g_ad, g_fd, rel)
+        return best
+
+    @pytest.mark.parametrize("a1", [1.0, 2.0])
+    def test_gradient_wrt_one_component(self, a1):
+        """Vary ONE component; the other is fixed, so r_t is not homogeneous in a1."""
+        from progenax.profiles.density_poisson import derive_r_t
+
+        def f(x):
+            return derive_r_t(
+                [PlummerProfile(r_h=x), PlummerProfile(r_h=3.0)], jnp.array([0.5, 0.5])
+            )[0]
+
+        g_ad, g_fd, rel = self._grad_check(f, a1)
+        assert rel < 1e-5, f"AD={g_ad:.6e} FD={g_fd:.6e} rel={rel:.2e}"
+        assert abs(g_ad) > 1e-8, "gradient is zero -- the bisection lost its derivative"
+
+    @pytest.mark.parametrize("a2", [1.0, 2.0])
+    def test_gradient_when_hi0_is_set_by_another_component(self, a2):
+        """The sharpest case: hi0 = 1e4*max(a) is pinned by the OTHER component.
+
+        With hi0 independent of the varied parameter, a bisection-only r_t has *no*
+        differentiable path at all, so AD is exactly zero while the true derivative is
+        order unity.
+        """
+        from progenax.profiles.density_poisson import derive_r_t
+
+        def f(x):
+            return derive_r_t(
+                [PlummerProfile(r_h=5.0), PlummerProfile(r_h=x)], jnp.array([0.5, 0.5])
+            )[0]
+
+        g_ad, g_fd, rel = self._grad_check(f, a2)
+        assert rel < 1e-5, f"AD={g_ad:.6e} FD={g_fd:.6e} rel={rel:.2e}"
+        assert abs(g_ad) > 1e-8, "gradient is zero -- the bisection lost its derivative"
+
+    def test_homogeneous_case_still_correct(self):
+        """Regression guard for the scale-invariant case, which was already right.
+
+        Kept explicitly so a future fix cannot break what previously worked -- and
+        labelled so nobody mistakes it for a discriminating test.
+        """
+        from progenax.profiles.density_poisson import derive_r_t
+
+        def f(x):
+            return derive_r_t(
+                [PlummerProfile(r_h=x), PlummerProfile(r_h=2.0 * x)],
+                jnp.array([0.5, 0.5]),
+            )[0]
+
+        g_ad, g_fd, rel = self._grad_check(f, 1.0)
+        assert rel < 1e-5, f"AD={g_ad:.6e} FD={g_fd:.6e} rel={rel:.2e}"
+
+    def test_forward_value_unchanged_by_the_gradient_fix(self):
+        """The single-Plummer analytic anchor must be untouched to full precision.
+
+        ``M(<r)/M = x^3/(1+x^2)^{3/2} = f_enc`` has the closed-form solution below; the
+        differentiable inversion must not move the VALUE, only supply the derivative.
+        """
+        from progenax.profiles.density_poisson import derive_r_t
+
+        p = PlummerProfile(r_h=1.0)
+        rt, _ = derive_r_t([p], jnp.array([1.0]), f_enc=0.995)
+        c = 0.995 ** (2.0 / 3.0)
+        x_exact = float(jnp.sqrt(c / (1.0 - c)))
+        assert float(rt) == pytest.approx(float(p.a) * x_exact, rel=1e-9)
+
+
 class TestSharedPotential:
     def test_single_plummer_matches_analytic(self):
         """Psi from the quadrature pass == GM/sqrt(r^2+a^2) - GM/sqrt(rt^2+a^2)
