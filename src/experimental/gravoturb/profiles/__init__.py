@@ -15,6 +15,11 @@ Built here rather than in ``progenax.profiles`` while the physics is being prove
 hoist is planned and these modules stay dependency-clean for it (ADR-0068).
 """
 
+from gravoturb.profiles.bonnor_ebert import (
+    BonnorEbertProfile,
+    CriticalSphere,
+    critical_sphere,
+)
 from gravoturb.profiles.lane_emden import (
     LaneEmdenSolution,
     polytrope_xi1,
@@ -23,7 +28,10 @@ from gravoturb.profiles.lane_emden import (
 )
 
 __all__ = [
+    "BonnorEbertProfile",
+    "CriticalSphere",
     "LaneEmdenSolution",
+    "critical_sphere",
     "polytrope_xi1",
     "solve_isothermal",
     "solve_polytrope",
