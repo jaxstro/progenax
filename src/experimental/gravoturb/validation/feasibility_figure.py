@@ -262,7 +262,9 @@ def career_figure(ic0, ic6):
     rs0, rs6 = _mass_density_spearman(ic0), _mass_density_spearman(ic6)
 
     fig, axes = plt.subplots(1, 3, figsize=(17.0, 5.4), layout="constrained")
-    _, cloud_col = _cloud_panel(axes[0], ic6, ext, title="(a) Parent cloud + stars")
+    _, cloud_col = _cloud_panel(
+        axes[0], ic6, ext, title="(a) Parent cloud + stars", vmax_pct=99.5
+    )
     _starfield(axes[1], pos0, m0, ext, opaque=True, cloud_col=cloud_col,
                cbar=False, title=r"(b) No coupling ($\lambda_{\rm corr}=0$)")
     _starfield(axes[2], pos6, m6, ext, opaque=True, cloud_col=cloud_col,
