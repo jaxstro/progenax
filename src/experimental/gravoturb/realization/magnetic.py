@@ -28,8 +28,11 @@ the spec/builder boundary, not here (mirrors ``VelocitySpec.mode='physical'``). 
 of B₀ for RMHD export is a later phase (L3/P1b); B₀ here is in the caller's dynamical units.
 """
 
+import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float
+
+from .gaussian_field import gaussian_random_field
 
 # Critical mass-to-flux coefficient: (M/Phi)_crit = C_PHI / sqrt(G).
 # Padoan & Nordlund 2011 (ApJ 730, 40) Eq. 16, numerical coefficient from Tomisaka et al. 1988
@@ -110,3 +113,73 @@ def beta_from_mass_to_flux(
     v_a = alfven_speed(b0, rho0)
     m_a = alfven_mach(mach, c_s, v_a)
     return plasma_beta(mach, m_a)
+
+
+# --------------------------------------------------------------------------- #
+# L3 vector field (P1b): uniform mean + independent divergence-free GRF tangle.
+# Decision A (ADR-0060): B-rho correlation is EMERGENT, not imposed on the IC.
+# --------------------------------------------------------------------------- #
+# Default turbulent magnetic power-spectrum slope P(k) ∝ k^{-slope}. Kolmogorov 11/3.
+_FIELD_SLOPE_DEFAULT = 11.0 / 3.0
+
+
+def divergence_free_projection(
+    vec: Float[Array, "3 n n n"],
+) -> Float[Array, "3 n n n"]:
+    r"""Project a 3-vector field onto its transverse (divergence-free) part in k-space.
+
+    Removes the longitudinal component at every wavenumber, B̂(k) → B̂(k) − k̂ (k̂·B̂(k)), so
+    that k·B̂ = 0 for all k (∇·B = 0 exactly, up to float roundoff). The k=0 (mean) mode is
+    left unchanged. JAX-native and differentiable (FFT-based).
+
+    On an even grid the Nyquist mode k_i = ±N/2 is self-conjugate with an ambiguous wavevector
+    sign, so a field cannot be simultaneously exactly real *and* exactly transverse there
+    (``ifftn(...).real`` would reintroduce ~O(1e-1) divergence). We therefore zero the Nyquist
+    planes: every remaining mode has a distinct −k partner, the transverse projection preserves
+    Hermitian symmetry, and the real field is divergence-free to machine precision. The removed
+    power is the highest-frequency plane only — negligible for the steep turbulent spectra used.
+    """
+    shape = vec.shape[1:]
+    ks = [jnp.fft.fftfreq(s) * s for s in shape]
+    grids = jnp.meshgrid(*ks, indexing="ij")
+    kvec = jnp.stack(grids)  # (3, n, n, n)
+    k2 = jnp.sum(kvec**2, axis=0)
+    k2_safe = jnp.where(k2 > 0, k2, 1.0)  # avoid 0/0 at the DC mode (kvec=0 there anyway)
+
+    # Zero the Nyquist planes (|k_i| == N_i/2) so real & transverse can coexist exactly.
+    nyquist = jnp.ones(shape)
+    for ax, s in enumerate(shape):
+        nyquist = nyquist * (jnp.abs(kvec[ax]) != (s // 2))
+
+    vk = jnp.fft.fftn(vec, axes=(1, 2, 3)) * nyquist[None, ...]
+    k_dot_v = jnp.sum(kvec * vk, axis=0)  # (n, n, n)
+    vk_transverse = vk - kvec * (k_dot_v / k2_safe)[None, ...]
+    return jnp.fft.ifftn(vk_transverse, axes=(1, 2, 3)).real
+
+
+def magnetic_field_grid(
+    shape: tuple[int, int, int],
+    b0: Float[Array, ""],
+    mach_alfven: Float[Array, ""],
+    key: jax.Array,
+    *,
+    axis: int = 2,
+    slope: float = _FIELD_SLOPE_DEFAULT,
+) -> Float[Array, "3 n n n"]:
+    r"""Divergence-free vector field B = uniform B₀ ê_axis + independent GRF tangle (L3).
+
+    The tangle is three independent Gaussian random fields with P(k) ∝ k^{-slope}, projected
+    divergence-free and normalised so the 3-D fluctuation amplitude is rms(|δB|) = ℳ_A·B₀
+    (super-Alfvénic → strong tangle, sub-Alfvénic → ordered field). The mean field is uniform
+    (∇·B=0 trivially); the B–ρ correlation is left emergent (decision A). ∇·B = 0 to machine
+    precision. Differentiable in b0/mach_alfven.
+    """
+    keys = jax.random.split(key, 3)
+    comps = jnp.stack([gaussian_random_field(shape, slope, k) for k in keys])  # zero-mean
+    tangle = divergence_free_projection(comps)
+
+    rms = jnp.sqrt(jnp.mean(jnp.sum(tangle**2, axis=0)))
+    tangle = tangle * (mach_alfven * b0 / rms)
+
+    mean_field = jnp.zeros((3,) + tuple(shape)).at[axis].set(b0)
+    return mean_field + tangle

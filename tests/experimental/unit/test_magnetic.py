@@ -140,3 +140,88 @@ def test_sigma_s_magnetic_grad_through_mu_phi_matches_fd():
     assert jnp.isfinite(ad)
     assert ad > 0.0  # higher mu_phi (weaker field) -> larger sigma_s^2 (toward hydro)
     assert jnp.abs(ad - fd) / jnp.abs(fd) < 1e-5
+
+
+# --------------------------------------------------------------------------- #
+# 5. L3 vector B field (P1b): uniform mean B0 e_axis + independent div-free GRF
+#    tangle (decision A; ADR-0060). B-rho correlation is EMERGENT, not imposed.
+# --------------------------------------------------------------------------- #
+def _spectral_divergence_maxabs(B):
+    """max |i k . B_hat(k)| over k, the exact (spectral) divergence of a periodic field."""
+    n = B.shape[1]
+    kk = jnp.fft.fftfreq(n) * n
+    KX, KY, KZ = jnp.meshgrid(kk, kk, kk, indexing="ij")
+    Bk = jnp.fft.fftn(B, axes=(1, 2, 3))
+    div_k = KX * Bk[0] + KY * Bk[1] + KZ * Bk[2]
+    scale = jnp.max(jnp.abs(Bk)) + 1e-30
+    return jnp.max(jnp.abs(div_k)) / scale
+
+
+def test_field_is_divergence_free_to_machine_precision():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    B = magnetic_field_grid((32, 32, 32), b0=2.0, mach_alfven=1.5, key=jax.random.PRNGKey(0))
+    assert B.shape == (3, 32, 32, 32)
+    assert _spectral_divergence_maxabs(B) < 1e-10
+
+
+def test_field_mean_is_uniform_b0_along_axis():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    B = magnetic_field_grid((32, 32, 32), b0=3.0, mach_alfven=0.5, key=jax.random.PRNGKey(1), axis=2)
+    means = jnp.mean(B, axis=(1, 2, 3))
+    assert jnp.abs(means[2] - 3.0) < 1e-6      # mean field along z
+    assert jnp.abs(means[0]) < 1e-6            # transverse means ~0 (tangle is zero-mean)
+    assert jnp.abs(means[1]) < 1e-6
+
+
+def test_tangle_rms_scales_linearly_with_alfven_mach():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    b0 = 2.0
+    key = jax.random.PRNGKey(2)
+
+    def tangle_rms(mach_a):
+        B = magnetic_field_grid((32, 32, 32), b0=b0, mach_alfven=mach_a, key=key)
+        dB = B - jnp.mean(B, axis=(1, 2, 3), keepdims=True)
+        return jnp.sqrt(jnp.mean(jnp.sum(dB**2, axis=0)))
+
+    r_lo = tangle_rms(0.5)
+    r_hi = tangle_rms(2.0)
+    # delta_B / B0 ~ M_A: rms proportional to M_A -> ratio = 2.0/0.5 = 4
+    assert jnp.abs(r_hi / r_lo - 4.0) < 1e-4
+    # and the absolute normalization: rms(|dB|) = M_A * b0
+    assert jnp.abs(r_hi - 2.0 * b0) / (2.0 * b0) < 1e-4
+
+
+def test_field_axis_parameter_selects_mean_direction():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    for axis in (0, 1, 2):
+        B = magnetic_field_grid((16, 16, 16), b0=1.0, mach_alfven=1.0,
+                                key=jax.random.PRNGKey(3), axis=axis)
+        means = jnp.mean(B, axis=(1, 2, 3))
+        assert jnp.abs(means[axis] - 1.0) < 1e-6
+        for other in set(range(3)) - {axis}:
+            assert jnp.abs(means[other]) < 1e-6
+
+
+def test_field_generation_is_deterministic():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    kw = dict(b0=2.0, mach_alfven=1.0, key=jax.random.PRNGKey(7))
+    a = magnetic_field_grid((16, 16, 16), **kw)
+    b = magnetic_field_grid((16, 16, 16), **kw)
+    assert jnp.array_equal(a, b)
+
+
+def test_field_energy_differentiable_in_b0():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    def energy(b0):
+        B = magnetic_field_grid((16, 16, 16), b0=b0, mach_alfven=1.2, key=jax.random.PRNGKey(4))
+        return 0.5 * jnp.sum(B**2)
+
+    g = jax.grad(energy)(2.0)
+    assert jnp.isfinite(g)
+    assert g > 0.0  # energy grows with mean-field strength
