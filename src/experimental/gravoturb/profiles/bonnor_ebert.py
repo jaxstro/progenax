@@ -37,6 +37,7 @@ from jaxstro.numerics.interpolation import monotone_cubic_interp
 from jaxstro.numerics.rootfinding import monotone_inverse_interp
 from jaxtyping import Array, Float
 
+from gravoturb.profiles._scaling import half_mass_xi, interp_flat
 from gravoturb.profiles.lane_emden import solve_isothermal
 
 # Domain for the critical-point search. The maximum sits near xi ~ 6.45, so 30 is
@@ -147,14 +148,7 @@ class BonnorEbertProfile(eqx.Module):
         # Half-mass inversion: bracket with the linear monotone inverse, which is only
         # first-order accurate, then refine against the PCHIP m(xi) (ADR-0067).
         m_total = sol.m[-1]
-        m_half = 0.5 * m_total
-        if not (float(sol.m[0]) < float(m_half) < float(m_total)):
-            raise ValueError(
-                f"half-mass point m={float(m_half):.3e} lies outside the tabulated range "
-                f"[{float(sol.m[0]):.3e}, {float(m_total):.3e}] -- the ODE domain is "
-                f"mis-sized for xi_max={self.xi_max}. Refusing to clamp."
-            )
-        xi_h = _refine_half_mass(sol.xi, sol.m, m_half)
+        xi_h = half_mass_xi(sol.xi, sol.m, context=f"xi_max={self.xi_max}")
 
         self.r_0 = self.r_h / xi_h
         self.r_edge = self.xi_max * self.r_0
@@ -167,14 +161,14 @@ class BonnorEbertProfile(eqx.Module):
         r = jnp.asarray(r)
         xi = r / self.r_0
         xi_clipped = jnp.clip(xi, self.xi_grid[0], self.xi_grid[-1])
-        psi = _interp_flat(self.xi_grid, self.psi_grid, xi_clipped)
+        psi = interp_flat(self.xi_grid, self.psi_grid, xi_clipped)
         return jnp.where(xi <= self.xi_max, self.rho_c * jnp.exp(-psi), 0.0)
 
     def mass_enclosed(self, r: Float[Array, "..."]) -> Float[Array, "..."]:
         """Mass interior to ``r``, saturating at ``total_mass`` beyond ``r_edge``."""
         r = jnp.asarray(r)
         xi = jnp.clip(r / self.r_0, self.xi_grid[0], self.xi_grid[-1])
-        m = _interp_flat(self.xi_grid, self.m_grid, xi)
+        m = interp_flat(self.xi_grid, self.m_grid, xi)
         return 4.0 * jnp.pi * self.rho_c * self.r_0**3 * m
 
     @property
@@ -220,27 +214,3 @@ class BonnorEbertProfile(eqx.Module):
         m_be_stable = crit.m_be[stable]
         xi_max = monotone_inverse_interp(xi_stable, m_be_stable, mu * crit.m_be_max)
         return cls(r_h=r_h, xi_max=float(xi_max), n_points=n_points)
-
-
-def _interp_flat(x, y, x_new):
-    """PCHIP interpolation that accepts an ``x_new`` of any shape (e.g. a 3-D grid)."""
-    shape = x_new.shape
-    return monotone_cubic_interp(x, y, x_new.reshape(-1)).reshape(shape)
-
-
-def _refine_half_mass(xi, m, m_half):
-    """Bracket the half-mass radius linearly, then refine on the PCHIP m(xi).
-
-    ``monotone_inverse_interp`` is linear in the inverse, so on its own it would leave
-    ``xi_h`` with O(dxi^2) error while everything else is Tsit5-accurate (ADR-0067).
-    Two bisection passes against the PCHIP curve remove that.
-    """
-    xi_lo = monotone_inverse_interp(xi, m, m_half)
-    dxi = xi[1] - xi[0]
-    lo, hi = xi_lo - dxi, xi_lo + dxi
-    for _ in range(40):
-        mid = 0.5 * (lo + hi)
-        too_small = monotone_cubic_interp(xi, m, mid.reshape(1))[0] < m_half
-        lo = jnp.where(too_small, mid, lo)
-        hi = jnp.where(too_small, hi, mid)
-    return 0.5 * (lo + hi)
