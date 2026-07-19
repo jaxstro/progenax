@@ -1,5 +1,27 @@
 # progenax — status
 
+**Gravoturb gas-envelope arc (2026-07-19, merged to local `main`):** differentiable **Bonnor-Ebert** and
+**polytropic** natal-gas profiles (`src/experimental/gravoturb/profiles/`), on a shared Lane-Emden core
+(diffrax `Tsit5` matching the king/michie/limepy idiom; jaxstro PCHIP interpolation + implicit-function-theorem
+inversion). Validated against **exact closed forms** (n=0 ξ₁=√6, n=1 π, n=5) plus a convergence-**order** gate.
+The BE critical constants are **derived from our own ODE**, not imported: ξ_crit=6.450912, contrast=14.042883,
+M_BE coefficient=1.18223. `xi_max` is the stored shape primary because the BE mass is non-monotonic in it
+(ADR-0066); the polytrope stores γ, making the EOS a *testable* parameter (ADR-0065).
+**ADR-0069 (supersedes 0062): these profiles describe the GAS, not the stars.** A hydrostatic solution cannot
+predict the material that left equilibrium and collapsed. Gas ensemble shape tracks the prescribed envelope to
+**~5%** (inner/mid shells, 48 seeds); the stellar EFF fit gives γ = 101 ± 132 at rms 0.44 dex against a 0.03 dex
+fitter floor — **and the Plummer control fails too**, so no smooth profile fits a t=0 realization. Cause:
+>100% single-realization shell scatter from large-scale modes (β=3.5 steep spectrum ⇒ many cells, few
+independent modes; refining 64³→128³ made it *worse*). 27 AD-vs-FD gradient gates; two real defects fixed
+(untraceable constructors; a bisection that silently **zeroed** d ξ_h/d(shape)). Drops into the chain with
+**zero** changes to cluster/specs/envelope, Plummer path byte-identical.
+**Open, characterised, unexplained:** the outermost resolved shell runs **12–17% high**, growing with both ℳ
+and envelope contrast; ruled out as a binning/Jensen artifact. AC-BE7's threshold is documented as
+**regime-limited** (fails correctly at ξ_max=12). Also fixed in released core: `derive_r_t`'s bisection had a
+silent **zero-gradient** bug for non-co-scaling multi-component clusters.
+Next arc (ratified, not started): **self-similar BE collapse** to grow contrast + the dense tail
+self-consistently — needs Shu 1977 (full paper), Foster & Chevalier 1993, Larson 1969, Penston 1969.
+
 **Gravoturb Aim-2/3 extensions arc (2026-07-18, branch `feat/gravoturb-extinction-multiplicity`; awaiting Anna merge):**
 **A (gas→extinction→fluxax, Aim 3) COMPLETE** — `GravoturbDustModel` (differentiable star-embedded LOS gas
 column + Rémy-Ruyer+2014 metallicity-keyed dust-to-gas via `BirthEnvironment`), duck-typed into fluxax's
@@ -14,7 +36,7 @@ legacy path). Measured emergent mass-channel baseline first; whole-system placem
 joint, no mass-conditioning violation. Byte-gate 60✓, experimental unit 439 passed. ADR-0056.
 B/Quokka are much-later funded-work (NOT this arc). Next: Anna's merge decision + optional Aim-1 binary figure.
 
-next: **REPO IS PUBLIC (flipped 2026-07-11). Slice C merged + pushed (release gate PASSED at merge: 1651/2skip, cov 96.18%, 24/24 validation scripts). Anna executes the Slice-D punch list (`docs/website/95-release/checklist.md` §Slice D): CI re-enable + 3.10-matrix fix, CONTRIBUTING.md, then at the tag CITATION.cff + Zenodo DOI, sdist excludes, check.sh path — and after the tag, PyPI (jaxstro first).**
+next: **Gas-envelope arc merged to `main` and pushed (2026-07-19); gates green on the merged tree (released core 1593 passed/1 skip, experimental byte-gate under GRAVOTURB_BYTE_GATE=1). Anna is sourcing the collapse papers (Shu 1977 full, Foster & Chevalier 1993, Larson 1969, Penston 1969) for the next arc: self-similar BE collapse. Open first: explain the 12-17% outer-shell excess before building on a steeper envelope, since it grows with contrast.** Still open from before: REPO IS PUBLIC (flipped 2026-07-11). Slice C merged + pushed (release gate PASSED at merge: 1651/2skip, cov 96.18%, 24/24 validation scripts). Anna executes the Slice-D punch list (`docs/website/95-release/checklist.md` §Slice D): CI re-enable + 3.10-matrix fix, CONTRIBUTING.md, then at the tag CITATION.cff + Zenodo DOI, sdist excludes, check.sh path — and after the tag, PyPI (jaxstro first).**
 
 **M1 public-flip remediation** COMPLETE + merged to local `main` (unpushed): green gates, two theory-doc equation corrections (EFF enclosed mass, King dispersion direction), the LIMEPY silent-r_t-pinning guard, and internal-docs pruning. See the release audit (`audits/PROGENAX_PUBLIC_RELEASE_AUDIT.md`, maintainer-local).
 
