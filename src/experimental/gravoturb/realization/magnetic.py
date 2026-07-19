@@ -213,3 +213,38 @@ def apply_velocity_anisotropy(
     b = jnp.sqrt(3.0 * r_a / (1.0 + 2.0 * r_a))
     scales = jnp.full((3,), b).at[axis].set(a)
     return v_field * scales
+
+
+# --- Pluggable r_A(ℳ_A) closures (theory-derived vs phenomenological) ------- #
+# The mechanism above imposes ANY r_A; these map the Alfven Mach number to r_A under different
+# modelling assumptions, so the assumption itself is testable (pluggable-closures principle).
+_THEORY_EXPONENT = 4.0 / 3.0  # Hu & Lazarian 2021 (arXiv:2012.06039) Eq. 20 / Eq. 8.
+
+
+def anisotropy_ratio_theory(mach_alfven: Float[Array, ""]) -> Float[Array, ""]:
+    r"""Theory-derived velocity anisotropy r_A = P_⊥/P_∥ (Hu & Lazarian 2021, arXiv:2012.06039).
+
+    Their Eq. 20 (analytic Eq. 8, from Goldreich-Sridhar 1995 + Lazarian-Vishniac 1999, and
+    numerically confirmed in their Fig. 4):
+
+    .. math:: r_A = \mathcal{M}_A^{-4/3}\ (\mathcal{M}_A \le 1), \qquad 1\ (\mathcal{M}_A > 1).
+
+    Isotropic (r_A=1) at trans/super-Alfvénic; ⊥-dominant and rising as ℳ_A→0. The transition at
+    ℳ_A=1 is a genuine physical kink (C⁰); the deferred scale-dependent Goldreich-Sridhar model
+    would smooth it. Differentiable (the k=1 branch has zero gradient).
+    """
+    return jnp.maximum(1.0, mach_alfven ** (-_THEORY_EXPONENT))
+
+
+def anisotropy_ratio_phenomenological(
+    mach_alfven: Float[Array, ""],
+    eta_a: Float[Array, ""] = 1.0,
+    p: Float[Array, ""] = _THEORY_EXPONENT,
+) -> Float[Array, ""]:
+    r"""Phenomenological velocity anisotropy r_A = 1 + η_A·ℳ_A^{-p} (labelled ansatz, not a law).
+
+    Correct limits (r_A→1 as ℳ_A→∞; rising as ℳ_A→0) with a tunable strength ``eta_a`` and
+    exponent ``p`` (default p=4/3 matches the theory closure's slope). Provided so the *form* of
+    the anisotropy assumption can be varied and tested against the theory closure.
+    """
+    return 1.0 + eta_a * mach_alfven ** (-p)

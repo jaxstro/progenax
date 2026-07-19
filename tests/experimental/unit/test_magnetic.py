@@ -298,3 +298,36 @@ def test_anisotropy_differentiable_in_ratio():
     g = jax.grad(perp_power)(3.0)
     assert jnp.isfinite(g)
     assert g > 0.0  # more anisotropy -> more perpendicular power
+
+
+# --------------------------------------------------------------------------- #
+# 7. Pluggable r_A(M_A) closures (P1c): theory-derived (sourced) + phenomenological.
+#    Theory: Hu & Lazarian 2021 (arXiv:2012.06039) Eq. 20, r_A = M_A^{-4/3} (M_A<=1), 1 (M_A>1).
+# --------------------------------------------------------------------------- #
+def test_anisotropy_ratio_theory_matches_hu_lazarian():
+    from gravoturb.realization.magnetic import anisotropy_ratio_theory
+
+    assert jnp.abs(anisotropy_ratio_theory(1.0) - 1.0) < 1e-12          # trans-Alfvenic: isotropic
+    assert jnp.abs(anisotropy_ratio_theory(0.5) - 2.0 ** (4.0 / 3.0)) < 1e-12  # M_A^{-4/3}
+    assert jnp.abs(anisotropy_ratio_theory(2.0) - 1.0) < 1e-12          # super-Alfvenic: isotropic
+    # monotone decreasing through the sub-Alfvenic regime
+    assert anisotropy_ratio_theory(0.3) > anisotropy_ratio_theory(0.6) > anisotropy_ratio_theory(1.0)
+
+
+def test_anisotropy_ratio_theory_differentiable():
+    from gravoturb.realization.magnetic import anisotropy_ratio_theory
+
+    g = jax.grad(anisotropy_ratio_theory)(0.5)
+    assert jnp.isfinite(g)
+    assert g < 0.0  # anisotropy falls as M_A rises toward 1
+
+
+def test_anisotropy_ratio_phenomenological():
+    from gravoturb.realization.magnetic import anisotropy_ratio_phenomenological
+
+    # r_A = 1 + eta * M_A^{-p}; eta=1, p=2, M_A=0.5 -> 1 + 1*4 = 5
+    assert jnp.abs(anisotropy_ratio_phenomenological(0.5, eta_a=1.0, p=2.0) - 5.0) < 1e-12
+    # isotropic limit: large M_A -> 1
+    assert jnp.abs(anisotropy_ratio_phenomenological(1e6, eta_a=1.0, p=2.0) - 1.0) < 1e-6
+    g = jax.grad(lambda m: anisotropy_ratio_phenomenological(m, eta_a=1.0, p=2.0))(0.7)
+    assert jnp.isfinite(g) and g < 0.0
