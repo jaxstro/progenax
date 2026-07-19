@@ -21,6 +21,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
+from gravoturb.realization.gaussian_field import gaussian_random_field
 from gravoturb.theory.density_pdf import sigma_s_squared  # hydro reference
 
 pytestmark = pytest.mark.experimental
@@ -225,3 +226,75 @@ def test_field_energy_differentiable_in_b0():
     g = jax.grad(energy)(2.0)
     assert jnp.isfinite(g)
     assert g > 0.0  # energy grows with mean-field strength
+
+
+# --------------------------------------------------------------------------- #
+# 6. L2 velocity anisotropy (P1c): energy-preserving perp/parallel rescale to a
+#    ratio r_A = P_perp/P_par (the mechanism; the r_A(M_A) mapping is a separate,
+#    labelled phenomenological helper pinned with Anna, not a sourced law).
+# --------------------------------------------------------------------------- #
+def _aniso_scales(r_A):
+    """Energy-preserving component scales: a (parallel), b (each perp). a^2+2b^2=3, b^2/a^2=r_A."""
+    a = np.sqrt(3.0 / (1.0 + 2.0 * r_A))
+    b = np.sqrt(3.0 * r_A / (1.0 + 2.0 * r_A))
+    return a, b
+
+
+def _equal_power_field(n=12):
+    """(n,n,n,3) field whose three components carry identical power (same base array)."""
+    base = gaussian_random_field((n, n, n), 3.667, jax.random.PRNGKey(11))
+    return jnp.stack([base, base, base], axis=-1)
+
+
+def test_anisotropy_is_identity_when_ratio_is_one():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    out = apply_velocity_anisotropy(v, r_a=1.0, axis=2)
+    assert jnp.max(jnp.abs(out - v)) < 1e-12  # isotropic -> unchanged
+
+
+def test_anisotropy_imposes_perp_to_parallel_ratio():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    r_a = 4.0
+    out = apply_velocity_anisotropy(v, r_a=r_a, axis=2)
+    p_par = jnp.mean(out[..., 2] ** 2)
+    p_perp = 0.5 * (jnp.mean(out[..., 0] ** 2) + jnp.mean(out[..., 1] ** 2))
+    assert jnp.abs(p_perp / p_par - r_a) < 1e-9
+
+
+def test_anisotropy_preserves_total_energy():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    for r_a in (0.5, 2.0, 7.0):
+        out = apply_velocity_anisotropy(v, r_a=r_a, axis=1)
+        assert jnp.abs(jnp.sum(out**2) - jnp.sum(v**2)) / jnp.sum(v**2) < 1e-9
+
+
+def test_anisotropy_axis_selects_parallel_component():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    a, b = _aniso_scales(4.0)
+    for axis in (0, 1, 2):
+        out = apply_velocity_anisotropy(v, r_a=4.0, axis=axis)
+        # the parallel (axis) component is suppressed by a, the perp ones enhanced by b
+        par_ratio = jnp.sqrt(jnp.mean(out[..., axis] ** 2) / jnp.mean(v[..., axis] ** 2))
+        assert jnp.abs(par_ratio - a) < 1e-9
+
+
+def test_anisotropy_differentiable_in_ratio():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+
+    def perp_power(r_a):
+        out = apply_velocity_anisotropy(v, r_a=r_a, axis=2)
+        return jnp.mean(out[..., 0] ** 2)
+
+    g = jax.grad(perp_power)(3.0)
+    assert jnp.isfinite(g)
+    assert g > 0.0  # more anisotropy -> more perpendicular power

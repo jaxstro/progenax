@@ -183,3 +183,33 @@ def magnetic_field_grid(
 
     mean_field = jnp.zeros((3,) + tuple(shape)).at[axis].set(b0)
     return mean_field + tangle
+
+
+# --------------------------------------------------------------------------- #
+# L2 velocity anisotropy (P1c): energy-preserving perp/parallel rescale.
+# --------------------------------------------------------------------------- #
+def apply_velocity_anisotropy(
+    v_field: Float[Array, "... 3"],
+    r_a: Float[Array, ""],
+    axis: int = 2,
+) -> Float[Array, "... 3"]:
+    r"""Impose a global velocity anisotropy ratio r_a = P_⊥/P_∥ about the mean-field axis.
+
+    Sub-Alfvénic turbulence is anisotropic: velocity power is preferentially perpendicular to
+    **B** (Federrath & Klessen 2012 §; Goldreich-Sridhar 1995 for the scale-dependent version,
+    deferred). Here a single *global* ratio is imposed by scaling the parallel component by
+    ``a`` and the two perpendicular components by ``b`` with
+
+    .. math:: b^2/a^2 = r_a, \qquad a^2 + 2b^2 = 3,
+
+    so that (for an isotropic input) the **total kinetic energy is preserved** and r_a = 1 is the
+    identity. r_a > 1 (sub-Alfvénic) enhances ⊥ power at the expense of ∥. The map r_a(ℳ_A) is a
+    separate, phenomenological helper (no closed-form law exists — the rigorous anisotropy is the
+    deferred scale-dependent Goldreich-Sridhar one). ``v_field`` has components on the last axis.
+
+    Differentiable in ``r_a``.
+    """
+    a = jnp.sqrt(3.0 / (1.0 + 2.0 * r_a))
+    b = jnp.sqrt(3.0 * r_a / (1.0 + 2.0 * r_a))
+    scales = jnp.full((3,), b).at[axis].set(a)
+    return v_field * scales
