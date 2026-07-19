@@ -1,0 +1,333 @@
+"""Unit tests for the gravoturb magnetized-turbulence scalar chain (P1a; ADR-0060).
+
+The hydro density-PDF width is sigma_s^2 = ln(1 + b^2 M^2) (Burkhart & Mocz 2019). Magnetic
+support suppresses it via the Molina et al. 2012 / Federrath & Klessen 2012 factor
+beta/(beta+1), with the plasma beta beta_0 = 2 (M_A / M_s)^2 (F&K12, explicit). The primary
+physical knob is the mass-to-flux ratio mu_phi (ADR-0060); B_0, M_A, beta_0 are DERIVED from
+mu_phi + the cloud at the profile (half-mass) scale, using the critical constant
+c_phi = 0.17/sqrt(G) (PN11 Eq. 16, Tomisaka et al. 1988; ADR-0059).
+
+Verified against papers in hand: docs/core-papers/Molina_2012_arXiv_1203.2117.pdf (Eq. for the
+intermediate B ∝ ρ^{1/2} case), Federrath_2012_ApJ_761_156.pdf (Eqs. 4-5, plasma-beta def),
+Padoan_2011_ApJ_730_40.pdf (Eq. 16, critical mass-to-flux).
+
+All core functions are UNIT-AGNOSTIC: pass a consistent (G, mass, length, velocity) set and
+beta_0/sigma_s^2 come out dimensionless. The km/s -> pc/Myr conversion for c_s happens at the
+spec/builder boundary, not here (mirrors VelocitySpec.mode='physical').
+"""
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+from gravoturb.realization.gaussian_field import gaussian_random_field
+from gravoturb.theory.density_pdf import sigma_s_squared  # hydro reference
+
+pytestmark = pytest.mark.experimental
+
+# Critical mass-to-flux coefficient c_phi in (M/Phi)_crit = c_phi / sqrt(G) (ADR-0059).
+_C_PHI = 0.17
+
+
+def _beta0_closed_form(mu_phi, mach, c_s, m_half, r_h, G, c_phi=_C_PHI):
+    """Independent analytic reduction of the mu_phi -> beta_0 chain (test oracle).
+
+    With Phi = B_0 * pi r_h^2, (M/Phi) = mu_phi * c_phi/sqrt(G), rho_0 = m_half/((4/3)pi r_h^3),
+    v_A^2 = B_0^2/(4 pi rho_0), and beta_0 = 2 c_s^2 / v_A^2, the whole chain reduces to
+        beta_0 = 6 pi^2 c_phi^2 mu_phi^2 r_h c_s^2 / (G m_half).
+    """
+    return 6.0 * np.pi**2 * c_phi**2 * mu_phi**2 * r_h * c_s**2 / (G * m_half)
+
+
+# --------------------------------------------------------------------------- #
+# 1. Magnetic sigma_s^2 = ln(1 + b^2 M^2 beta/(beta+1))
+# --------------------------------------------------------------------------- #
+def test_magnetic_sigma_s_recovers_hydro_as_beta_to_infinity():
+    from gravoturb.realization.magnetic import sigma_s_squared_magnetic
+
+    mach, b = 10.0, 0.4
+    hydro = sigma_s_squared(mach, b)
+    mag = sigma_s_squared_magnetic(mach, b, beta0=1e10)
+    assert jnp.abs(mag - hydro) < 1e-6
+
+
+def test_magnetic_sigma_s_suppressed_below_hydro_for_finite_beta():
+    from gravoturb.realization.magnetic import sigma_s_squared_magnetic
+
+    mach, b = 10.0, 0.4
+    hydro = sigma_s_squared(mach, b)
+    mag = sigma_s_squared_magnetic(mach, b, beta0=1.0)
+    assert mag < hydro  # magnetic pressure cushions density fluctuations
+
+
+def test_magnetic_sigma_s_analytic_anchor():
+    from gravoturb.realization.magnetic import sigma_s_squared_magnetic
+
+    # b=0.4, M=10, beta0=1 -> factor=1/2, arg=1+0.16*100*0.5=9, ln 9 = 2.1972245773...
+    val = sigma_s_squared_magnetic(10.0, 0.4, beta0=1.0)
+    assert jnp.abs(val - jnp.log(9.0)) < 1e-12
+
+
+# --------------------------------------------------------------------------- #
+# 2. plasma beta = 2 (M_A / M_s)^2   (F&K12, explicit)
+# --------------------------------------------------------------------------- #
+def test_plasma_beta_definition():
+    from gravoturb.realization.magnetic import plasma_beta
+
+    # M_s=10, M_A=5 -> beta = 2*(5/10)^2 = 0.5
+    assert jnp.abs(plasma_beta(10.0, 5.0) - 0.5) < 1e-12
+
+
+# --------------------------------------------------------------------------- #
+# 3. mu_phi -> B_0 -> v_A -> M_A -> beta_0 chain (profile/half-mass scale)
+# --------------------------------------------------------------------------- #
+def test_mean_density_uniform_sphere():
+    from gravoturb.realization.magnetic import mean_density
+
+    # m=1, r=1 -> 1/((4/3)pi) = 3/(4pi)
+    assert jnp.abs(mean_density(1.0, 1.0) - 3.0 / (4.0 * np.pi)) < 1e-12
+
+
+def test_beta_from_mass_to_flux_matches_closed_form():
+    from gravoturb.realization.magnetic import beta_from_mass_to_flux
+
+    cases = [
+        # (mu_phi, mach, c_s, m_half, r_h, G)
+        (1.0, 10.0, 1.0, 1.0, 1.0, 1.0),
+        (2.0, 8.0, 0.3, 500.0, 1.5, 4.5e-3),   # STELLAR-ish G, c_s already in pc/Myr
+        (0.5, 12.0, 0.2, 1e4, 2.0, 4.5e-3),
+    ]
+    for mu_phi, mach, c_s, m_half, r_h, G in cases:
+        got = beta_from_mass_to_flux(mu_phi, mach, c_s, m_half, r_h, G)
+        want = _beta0_closed_form(mu_phi, mach, c_s, m_half, r_h, G)
+        assert jnp.abs(got - want) / want < 1e-10, (mu_phi, got, want)
+
+
+def test_beta_scales_as_mu_phi_squared():
+    from gravoturb.realization.magnetic import beta_from_mass_to_flux
+
+    args = dict(mach=10.0, c_s=0.3, m_half=1e3, r_h=1.5, G=4.5e-3)
+    b1 = beta_from_mass_to_flux(1.0, **args)
+    b2 = beta_from_mass_to_flux(2.0, **args)
+    assert jnp.abs(b2 / b1 - 4.0) < 1e-9  # weaker field (higher mu_phi) -> higher beta
+
+
+def test_full_chain_recovers_hydro_as_mu_phi_large():
+    from gravoturb.realization.magnetic import beta_from_mass_to_flux, sigma_s_squared_magnetic
+
+    mach, b = 10.0, 0.4
+    beta0 = beta_from_mass_to_flux(1e6, mach=mach, c_s=0.3, m_half=1e3, r_h=1.5, G=4.5e-3)
+    mag = sigma_s_squared_magnetic(mach, b, beta0)
+    assert jnp.abs(mag - sigma_s_squared(mach, b)) < 1e-5
+
+
+# --------------------------------------------------------------------------- #
+# 4. Differentiability (the critical gate): AD through mu_phi vs finite difference
+# --------------------------------------------------------------------------- #
+def test_sigma_s_magnetic_grad_through_mu_phi_matches_fd():
+    from gravoturb.realization.magnetic import beta_from_mass_to_flux, sigma_s_squared_magnetic
+
+    mach, b = 10.0, 0.4
+
+    def sigma_of_mu(mu_phi):
+        beta0 = beta_from_mass_to_flux(mu_phi, mach=mach, c_s=0.3, m_half=1e3, r_h=1.5, G=4.5e-3)
+        return sigma_s_squared_magnetic(mach, b, beta0)
+
+    mu0 = 1.3
+    ad = jax.grad(sigma_of_mu)(mu0)
+    h = 1e-4
+    fd = (sigma_of_mu(mu0 + h) - sigma_of_mu(mu0 - h)) / (2 * h)
+    assert jnp.isfinite(ad)
+    assert ad > 0.0  # higher mu_phi (weaker field) -> larger sigma_s^2 (toward hydro)
+    assert jnp.abs(ad - fd) / jnp.abs(fd) < 1e-5
+
+
+# --------------------------------------------------------------------------- #
+# 5. L3 vector B field (P1b): uniform mean B0 e_axis + independent div-free GRF
+#    tangle (decision A; ADR-0060). B-rho correlation is EMERGENT, not imposed.
+# --------------------------------------------------------------------------- #
+def _spectral_divergence_maxabs(B):
+    """max |i k . B_hat(k)| over k, the exact (spectral) divergence of a periodic field."""
+    n = B.shape[1]
+    kk = jnp.fft.fftfreq(n) * n
+    KX, KY, KZ = jnp.meshgrid(kk, kk, kk, indexing="ij")
+    Bk = jnp.fft.fftn(B, axes=(1, 2, 3))
+    div_k = KX * Bk[0] + KY * Bk[1] + KZ * Bk[2]
+    scale = jnp.max(jnp.abs(Bk)) + 1e-30
+    return jnp.max(jnp.abs(div_k)) / scale
+
+
+def test_field_is_divergence_free_to_machine_precision():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    B = magnetic_field_grid((32, 32, 32), b0=2.0, mach_alfven=1.5, key=jax.random.PRNGKey(0))
+    assert B.shape == (3, 32, 32, 32)
+    assert _spectral_divergence_maxabs(B) < 1e-10
+
+
+def test_field_mean_is_uniform_b0_along_axis():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    B = magnetic_field_grid((32, 32, 32), b0=3.0, mach_alfven=0.5, key=jax.random.PRNGKey(1), axis=2)
+    means = jnp.mean(B, axis=(1, 2, 3))
+    assert jnp.abs(means[2] - 3.0) < 1e-6      # mean field along z
+    assert jnp.abs(means[0]) < 1e-6            # transverse means ~0 (tangle is zero-mean)
+    assert jnp.abs(means[1]) < 1e-6
+
+
+def test_tangle_rms_scales_linearly_with_alfven_mach():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    b0 = 2.0
+    key = jax.random.PRNGKey(2)
+
+    def tangle_rms(mach_a):
+        B = magnetic_field_grid((32, 32, 32), b0=b0, mach_alfven=mach_a, key=key)
+        dB = B - jnp.mean(B, axis=(1, 2, 3), keepdims=True)
+        return jnp.sqrt(jnp.mean(jnp.sum(dB**2, axis=0)))
+
+    r_lo = tangle_rms(0.5)
+    r_hi = tangle_rms(2.0)
+    # delta_B / B0 ~ M_A: rms proportional to M_A -> ratio = 2.0/0.5 = 4
+    assert jnp.abs(r_hi / r_lo - 4.0) < 1e-4
+    # and the absolute normalization: rms(|dB|) = M_A * b0
+    assert jnp.abs(r_hi - 2.0 * b0) / (2.0 * b0) < 1e-4
+
+
+def test_field_axis_parameter_selects_mean_direction():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    for axis in (0, 1, 2):
+        B = magnetic_field_grid((16, 16, 16), b0=1.0, mach_alfven=1.0,
+                                key=jax.random.PRNGKey(3), axis=axis)
+        means = jnp.mean(B, axis=(1, 2, 3))
+        assert jnp.abs(means[axis] - 1.0) < 1e-6
+        for other in set(range(3)) - {axis}:
+            assert jnp.abs(means[other]) < 1e-6
+
+
+def test_field_generation_is_deterministic():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    kw = dict(b0=2.0, mach_alfven=1.0, key=jax.random.PRNGKey(7))
+    a = magnetic_field_grid((16, 16, 16), **kw)
+    b = magnetic_field_grid((16, 16, 16), **kw)
+    assert jnp.array_equal(a, b)
+
+
+def test_field_energy_differentiable_in_b0():
+    from gravoturb.realization.magnetic import magnetic_field_grid
+
+    def energy(b0):
+        B = magnetic_field_grid((16, 16, 16), b0=b0, mach_alfven=1.2, key=jax.random.PRNGKey(4))
+        return 0.5 * jnp.sum(B**2)
+
+    g = jax.grad(energy)(2.0)
+    assert jnp.isfinite(g)
+    assert g > 0.0  # energy grows with mean-field strength
+
+
+# --------------------------------------------------------------------------- #
+# 6. L2 velocity anisotropy (P1c): energy-preserving perp/parallel rescale to a
+#    ratio r_A = P_perp/P_par (the mechanism; the r_A(M_A) mapping is a separate,
+#    labelled phenomenological helper pinned with Anna, not a sourced law).
+# --------------------------------------------------------------------------- #
+def _aniso_scales(r_A):
+    """Energy-preserving component scales: a (parallel), b (each perp). a^2+2b^2=3, b^2/a^2=r_A."""
+    a = np.sqrt(3.0 / (1.0 + 2.0 * r_A))
+    b = np.sqrt(3.0 * r_A / (1.0 + 2.0 * r_A))
+    return a, b
+
+
+def _equal_power_field(n=12):
+    """(n,n,n,3) field whose three components carry identical power (same base array)."""
+    base = gaussian_random_field((n, n, n), 3.667, jax.random.PRNGKey(11))
+    return jnp.stack([base, base, base], axis=-1)
+
+
+def test_anisotropy_is_identity_when_ratio_is_one():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    out = apply_velocity_anisotropy(v, r_a=1.0, axis=2)
+    assert jnp.max(jnp.abs(out - v)) < 1e-12  # isotropic -> unchanged
+
+
+def test_anisotropy_imposes_perp_to_parallel_ratio():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    r_a = 4.0
+    out = apply_velocity_anisotropy(v, r_a=r_a, axis=2)
+    p_par = jnp.mean(out[..., 2] ** 2)
+    p_perp = 0.5 * (jnp.mean(out[..., 0] ** 2) + jnp.mean(out[..., 1] ** 2))
+    assert jnp.abs(p_perp / p_par - r_a) < 1e-9
+
+
+def test_anisotropy_preserves_total_energy():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    for r_a in (0.5, 2.0, 7.0):
+        out = apply_velocity_anisotropy(v, r_a=r_a, axis=1)
+        assert jnp.abs(jnp.sum(out**2) - jnp.sum(v**2)) / jnp.sum(v**2) < 1e-9
+
+
+def test_anisotropy_axis_selects_parallel_component():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+    a, b = _aniso_scales(4.0)
+    for axis in (0, 1, 2):
+        out = apply_velocity_anisotropy(v, r_a=4.0, axis=axis)
+        # the parallel (axis) component is suppressed by a, the perp ones enhanced by b
+        par_ratio = jnp.sqrt(jnp.mean(out[..., axis] ** 2) / jnp.mean(v[..., axis] ** 2))
+        assert jnp.abs(par_ratio - a) < 1e-9
+
+
+def test_anisotropy_differentiable_in_ratio():
+    from gravoturb.realization.magnetic import apply_velocity_anisotropy
+
+    v = _equal_power_field()
+
+    def perp_power(r_a):
+        out = apply_velocity_anisotropy(v, r_a=r_a, axis=2)
+        return jnp.mean(out[..., 0] ** 2)
+
+    g = jax.grad(perp_power)(3.0)
+    assert jnp.isfinite(g)
+    assert g > 0.0  # more anisotropy -> more perpendicular power
+
+
+# --------------------------------------------------------------------------- #
+# 7. Pluggable r_A(M_A) closures (P1c): theory-derived (sourced) + phenomenological.
+#    Theory: Hu & Lazarian 2021 (arXiv:2012.06039) Eq. 20, r_A = M_A^{-4/3} (M_A<=1), 1 (M_A>1).
+# --------------------------------------------------------------------------- #
+def test_anisotropy_ratio_theory_matches_hu_lazarian():
+    from gravoturb.realization.magnetic import anisotropy_ratio_theory
+
+    assert jnp.abs(anisotropy_ratio_theory(1.0) - 1.0) < 1e-12          # trans-Alfvenic: isotropic
+    assert jnp.abs(anisotropy_ratio_theory(0.5) - 2.0 ** (4.0 / 3.0)) < 1e-12  # M_A^{-4/3}
+    assert jnp.abs(anisotropy_ratio_theory(2.0) - 1.0) < 1e-12          # super-Alfvenic: isotropic
+    # monotone decreasing through the sub-Alfvenic regime
+    assert anisotropy_ratio_theory(0.3) > anisotropy_ratio_theory(0.6) > anisotropy_ratio_theory(1.0)
+
+
+def test_anisotropy_ratio_theory_differentiable():
+    from gravoturb.realization.magnetic import anisotropy_ratio_theory
+
+    g = jax.grad(anisotropy_ratio_theory)(0.5)
+    assert jnp.isfinite(g)
+    assert g < 0.0  # anisotropy falls as M_A rises toward 1
+
+
+def test_anisotropy_ratio_phenomenological():
+    from gravoturb.realization.magnetic import anisotropy_ratio_phenomenological
+
+    # r_A = 1 + eta * M_A^{-p}; eta=1, p=2, M_A=0.5 -> 1 + 1*4 = 5
+    assert jnp.abs(anisotropy_ratio_phenomenological(0.5, eta_a=1.0, p=2.0) - 5.0) < 1e-12
+    # isotropic limit: large M_A -> 1
+    assert jnp.abs(anisotropy_ratio_phenomenological(1e6, eta_a=1.0, p=2.0) - 1.0) < 1e-6
+    g = jax.grad(lambda m: anisotropy_ratio_phenomenological(m, eta_a=1.0, p=2.0))(0.7)
+    assert jnp.isfinite(g) and g < 0.0

@@ -54,6 +54,21 @@ due: none.
 
 next: Anna executes Slice D (checklist on the site, `95-release/checklist.md`) → tag `v0.1.0` → PyPI (after jaxstro publishes). Still on Anna's desk: review/commit `.brain-drafts/` digests to ~/brain; verify the informax OED port before removing the deprecated demo pages. Two source PDFs (Dejonghe 1987, Parravano 2011) are in `~/brain/_inbox/` for the sweep.
 
+**Magnetized-turbulence arc COMPLETE + MERGED to local main (2026-07-19, branch
+`feat/gravoturb-magnetic`, 15 commits).** `MagneticSpec` on `build_cluster_ic` — μ_Φ (mass-to-flux)
+is the single primary knob; B₀/ℳ_A/β₀/r_A are derived and logged (ADR-0060). Layers: **L1** magnetic
+σ_s² (Molina 2012 / F&K12, exact via b_eff = b√(β₀/(β₀+1))); **L2** velocity anisotropy with
+*pluggable* r_A(ℳ_A) closures — theory (Hu & Lazarian 2021, ℳ_A^{-4/3}, sourced), phenomenological,
+or empirical override (ADR-0061); **L3** divergence-free vector **B** grid for RMHD seeding (Nyquist-
+plane fix ⇒ ∇·B ~ 4e-16). **s_crit collapse-threshold channel un-deferred** (ADR-0063): the α_vir-free
+magnetothermal-Jeans shift Δs=ln(1+1/β₀) (F&K12 Eq.21) — magnetic support reduces the collapse-eligible
+fraction, and a strongly sub-critical cloud drives it below the requested SFE so the gas solver refuses
+("too much flux ⇒ SF ceases", emergent). **Ambipolar** flux-loss closure (static, not a solver) rescues
+SF. Constants sourced, not memorized (c_Φ=0.17/√G PN11 Eq.16; κ=½ Molina). `magnetic=None` is
+byte-identical (GRAVOTURB_BYTE_GATE=1: 490 passed). AC-MAG1..8 acceptance suite 8/8 PASS + 3-panel
+publication money figure (`validation/magnetic_money_figure.py`). Ohmic/Hall scoped out permanently.
+NEXT ARC: Bonnor-Ebert/polytropic **gas** envelope replacing the stellar Plummer (ADR-0062).
+
 **Gravoturb finalization arc (started 2026-07-16, branch `feat/gravoturb-finalization`):** CAREER
 Aim 1 science audit DONE (verdict: preliminary-figure only until gaps close; note in `audits/`,
 maintainer-local) → six-phase finalization design RATIFIED + adversarially reviewed (A1–A5
