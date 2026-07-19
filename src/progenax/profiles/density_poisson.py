@@ -71,11 +71,16 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     override raises ValueError: a King model's lowered-Maxwellian edge is part of
     the prescribed physics and must not be silently re-truncated. The
     override/conflict branch requires a CONCRETE r_t -- domain resolution is a
-    construction-time decision, not a traced quantity. The finite-extent branch
-    is likewise concrete-only: the max over component extents picks its winner
-    via float() (concretizes), so grad w.r.t. a component's r_t is unsupported
-    BY DESIGN -- the domain is decided at construction time, not differentiated
-    through.
+    construction-time decision, not a traced quantity.
+
+    Differentiability, branch by branch:
+
+    - override: r_t is supplied, so there is nothing to differentiate.
+    - finite extents: ``rt_arr = jnp.max(...)`` DOES carry a gradient to whichever
+      component sets the maximum. Only the provenance STRING is chosen with
+      float(), and that concretization does not touch the returned value.
+    - all infinite: differentiable via the implicit function theorem (see the
+      Newton step below). Plain bisection would silently return a ZERO gradient.
     """
     extents = [component_extent(p) for p in profiles]
 
@@ -111,8 +116,8 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
         return rt_arr, prov
 
     # All components infinite (pure Plummer mix): radius enclosing f_enc of the
-    # summed analytic mass, via a fixed 80-step bisection (jax.lax.scan -- a
-    # fixed-iteration, differentiable-enough construction-time scalar).
+    # summed analytic mass, via a fixed 80-step bisection (jax.lax.scan) for the
+    # VALUE plus one Newton step for the GRADIENT -- see below.
     mass_fractions = jnp.asarray(mass_fractions)
     hi0 = 1e4 * jnp.max(jnp.stack([p.a for p in profiles]))
 
@@ -129,7 +134,23 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
         return (jnp.where(below, mid, lo), jnp.where(below, hi, mid)), None
 
     (lo, hi), _ = jax.lax.scan(step, (jnp.zeros(()), hi0), None, length=80)
-    rt_arr = 0.5 * (lo + hi)
+
+    # Bisection alone has NO usable derivative: its answer is built purely from
+    # arithmetic on the bracket endpoints, and the profile parameters enter only
+    # through the hard comparison `summed_enclosed(mid) < f_enc`, whose gradient
+    # is zero. That leaves r_t = c * hi0 with c piecewise-constant, so d c/d(params)
+    # is silently dropped -- the value stays accurate to ~1e-16 while the gradient
+    # is wrong. (A homogeneous test does NOT catch this: when every component
+    # scales together r_t is degree-1 homogeneous, c really is constant, and the
+    # gradient comes out right through hi0 alone. See TestDeriveRtGradient.)
+    #
+    # Fix: bisect under stop_gradient for the value, then take one Newton step,
+    # which carries the derivative by the implicit function theorem,
+    #     d r_t/dp = -(dF/dp) / (dF/dr),   F = summed_enclosed.
+    # At convergence F(r_b) - f_enc is ~0, so the forward value is unchanged.
+    # Same pattern as gravoturb.profiles._scaling.half_mass_xi.
+    r_b = jax.lax.stop_gradient(0.5 * (lo + hi))
+    rt_arr = r_b - (summed_enclosed(r_b) - f_enc) / jax.grad(summed_enclosed)(r_b)
     # Rule-only provenance (static field; f_enc is a constructor argument, not
     # re-embedded here -- see the override branch's treedef rationale).
     return rt_arr, "f_enc summed-mass radius (all components infinite)"
