@@ -38,7 +38,15 @@ from gravoturb.theory.density_pdf import (
 class TurbulentField(NamedTuple):
     """A realized turbulent log-density field plus its BM19 scalars (a JAX pytree)."""
 
-    s: Float[Array, "nx ny nz"]      # log-density ln(ρ/ρ_0), ⟨e^s⟩=1
+    # log-density ln(ρ/ρ_0). NOTE ⟨e^s⟩ = mean_density(mach,b,alpha) ≥ 1, NOT 1:
+    # ρ_0 is BM19's PRE-COLLAPSE reference density, and the powerlaw tail adds mass
+    # above it. BM19 §2 give the mass-conserving alternative as a density shift
+    # s_new = s − s_s (their Eq. 3, with e^{s_s} = mean_density); we deliberately do
+    # NOT apply it (see realization/copula.py). Downstream this is immaterial:
+    # gas.normalized_cloud_density rescales to ∫ρ dV = M_cl exactly and is invariant to any
+    # additive constant in s, so the offset cancels. See tests/experimental/unit/
+    # test_mass_conservation.py, which pins BOTH the offset and its cancellation.
+    s: Float[Array, "nx ny nz"]
     s_t: Float[Array, ""]            # transition log-density (BM19 Eq.2)
     f_dense: Float[Array, ""]        # BM19 theoretical dense mass fraction
     f_dense_realized: Float[Array, ""]  # realized hard mass fraction above s_t

@@ -33,21 +33,16 @@ HIGH in both profiles, well above its 2.5% standard error. Inner and middle shel
 ~5%. The threshold below covers that systematic with margin rather than excluding the shell
 that exhibits it.
 
-**The systematic is characterised but NOT explained, and the gate is REGIME-LIMITED.**
-Three diagnostics localised it:
+**RESOLVED: the excess is NOT a physical systematic.** Decomposing
+``ratio = <e^s>_shell x [<rho_env>_shell/rho_env(r_c)]`` showed the geometry (Jensen) term
+is 0.4-1.1% at xi_max = 3/6.45/12, and the field term carries everything. Measuring the
+field alone at 96 seeds on these exact shells gives shape [1.023, 0.995, 0.982], dev 2.3%,
+with outer-minus-inner = -0.039 +/- 0.234 -> **0.2 sigma**. The apparent deviation shrinks
+with ensemble size (5.6% at 24 seeds -> 2.3% at 96).
 
-    raw s_total field, no gas partition   12.4%  (vs 12.3% with gas -> not the gas solver)
-    vs Mach   0.5 -> 3.0%,  2 -> 4.0%,  4 -> 6.7%,  8 -> 12.4%     (turbulence-driven)
-    vs xi_max 3 (contrast 2.9) -> 9.6%,  6.45 (14) -> 12.4%,  12 (66) -> 26.2%
-
-It is an interaction between the multiplicative turbulent field and the envelope's radial
-gradient: inner shells low, outer shells high, growing monotonically with BOTH mach and
-contrast. The mechanism is not yet established.
-
-Because it grows with contrast, MAX_SHAPE_DEVIATION = 0.25 is only valid in the tested
-regime (xi_max <~ 6.45 at mach=8). At xi_max=12 the measured deviation is 26.2% and this
-gate would FAIL -- correctly, since the model's fidelity genuinely degrades there. Do not
-raise the threshold to accommodate a steeper envelope; explain the systematic first.
+So MAX_SHAPE_DEVIATION is a NOISE BUDGET for N_SEEDS, not a physical tolerance. If it
+fails, suspect the ensemble size first. The earlier "26.2% at xi_max=12" was a 16-seed
+measurement and has not been re-measured at high seed count.
 """
 
 import jax
