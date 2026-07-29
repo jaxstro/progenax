@@ -47,6 +47,7 @@ CARDED_MODELS: dict[str, str] = {
     "Maschberger": "maschberger",
     "TruncatedIMF": "truncated",
     "build_binary_cluster": "binary_cluster_assembly",
+    "build_cataloged_binary_cluster": "binary_cluster_assembly",
     "MultiComponentCluster": "engine_a_multimass_limepy",
     "build_cluster": "cluster_builders",
     "build_plummer_cluster": "cluster_builders",
@@ -58,4 +59,4 @@ CARDED_MODELS: dict[str, str] = {
 }
 
 # True once every MODEL_INVARIANTS model has a card (Slice-B populate complete).
-REGISTRY_FULL: bool = True  # flipped 2026-07-11 (B6): all 21 models carded
+REGISTRY_FULL: bool = True  # all 22 model/API entries map to provenance cards
