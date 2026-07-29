@@ -10,14 +10,21 @@ Provides:
 - compute_kinetic_energy, compute_potential_energy: Energy helpers
 """
 
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
-from .binaries import resolve_binary_components
+from .binaries import (
+    CatalogedBinaryClusterIC,
+    CompanionElements,
+    PrimordialSystemCatalog,
+    ResolvedBinaries,
+    periapsis_contact_margin,
+    resolve_binary_components,
+)
 
 # Single canonical energy implementation lives in dynamics.virial; re-export it
 # here so the public API (progenax.compute_*_energy) and virial_scale share one
@@ -403,6 +410,72 @@ def _draw_systems_for_target(target, primary_imf, companion_model, key, *, G, da
     raise TypeError(f"Unknown population target: {target!r}")
 
 
+class _BinaryClusterConstruction(NamedTuple):
+    """Shared physical products consumed by both public binary-cluster APIs."""
+
+    primary_masses: Float[Array, "S"]
+    is_binary: Bool[Array, "S"]
+    companion_elements: CompanionElements
+    resolved: ResolvedBinaries
+
+
+def _construct_binary_cluster(
+    profile: SpatialProfile,
+    velocity_df: VelocityDF,
+    primary_imf,
+    companion_model,
+    target,
+    key: PRNGKeyArray,
+    *,
+    units,
+    Q: Optional[float],
+    softening: float,
+    compact: bool,
+) -> _BinaryClusterConstruction:
+    """Run the one physical construction shared by legacy and cataloged APIs."""
+
+    G = units.G
+    day_in_time_units = _SECONDS_PER_DAY / units.time_scale_cgs
+
+    if not compact and not isinstance(target, Systems):
+        raise ValueError(
+            "compact=False (masked, differentiable output) requires a Systems(n) target; "
+            "Stars/TotalMass have data-dependent counts and are eager-only (compact=True)."
+        )
+
+    key_draw, key_spatial = jax.random.split(key)
+    m1, is_binary, comp = _draw_systems_for_target(
+        target, primary_imf, companion_model, key_draw, G=G, day=day_in_time_units
+    )
+    system_masses = m1 + comp.m2
+
+    if not isinstance(target, Systems):
+        keep = _target_system_mask(target, is_binary, system_masses)
+        m1 = m1[keep]
+        is_binary = is_binary[keep]
+        comp = _index_companions(comp, keep)
+        system_masses = system_masses[keep]
+
+    ic_sys = build_spatial_ic(
+        profile, system_masses, velocity_df, key_spatial, G, Q=Q, softening=softening
+    )
+    resolved = resolve_binary_components(
+        ic_sys.positions,
+        ic_sys.velocities,
+        m1,
+        comp.m2,
+        is_binary,
+        comp.a,
+        comp.e,
+        comp.inc,
+        comp.Omega,
+        comp.omega,
+        comp.M_anom,
+        G=G,
+    )
+    return _BinaryClusterConstruction(m1, is_binary, comp, resolved)
+
+
 def build_binary_cluster(
     profile: SpatialProfile,
     velocity_df: VelocityDF,
@@ -458,53 +531,19 @@ def build_binary_cluster(
     Returns:
         `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
     """
-    G = units.G
-    day_in_time_units = _SECONDS_PER_DAY / units.time_scale_cgs
-
-    if not compact and not isinstance(target, Systems):
-        raise ValueError(
-            "compact=False (masked, differentiable output) requires a Systems(n) target; "
-            "Stars/TotalMass have data-dependent counts and are eager-only (compact=True)."
-        )
-
-    key_draw, key_spatial = jax.random.split(key)
-
-    # 1. Draw systems for the budget: primaries from the IMF, companions (f_b, q, P, e)
-    #    from the companion model (the single owner of the binary statistics).
-    m1, is_binary, comp = _draw_systems_for_target(
-        target, primary_imf, companion_model, key_draw, G=G, day=day_in_time_units
+    construction = _construct_binary_cluster(
+        profile,
+        velocity_df,
+        primary_imf,
+        companion_model,
+        target,
+        key,
+        units=units,
+        Q=Q,
+        softening=softening,
+        compact=compact,
     )
-    system_masses = m1 + comp.m2
-
-    # 2. Budget cut. Systems(n) needs no cut (static shape -> compact=False safe);
-    #    Stars/TotalMass keep a whole-system prefix (eager, dynamic shape).
-    if not isinstance(target, Systems):
-        keep = _target_system_mask(target, is_binary, system_masses)
-        m1 = m1[keep]
-        is_binary = is_binary[keep]
-        comp = _index_companions(comp, keep)
-        system_masses = system_masses[keep]
-
-    # 3. System COMs (virialized treating binaries as point masses at COM).
-    ic_sys = build_spatial_ic(
-        profile, system_masses, velocity_df, key_spatial, G, Q=Q, softening=softening
-    )
-
-    # 4. Resolve binaries into the masked 2N representation (COM preserved exactly).
-    resolved = resolve_binary_components(
-        ic_sys.positions,
-        ic_sys.velocities,
-        m1,
-        comp.m2,
-        is_binary,
-        comp.a,
-        comp.e,
-        comp.inc,
-        comp.Omega,
-        comp.omega,
-        comp.M_anom,
-        G=G,
-    )
+    resolved = construction.resolved
 
     if not compact:
         return resolved
@@ -523,6 +562,116 @@ def build_binary_cluster(
     )
 
 
+def build_cataloged_binary_cluster(
+    profile: SpatialProfile,
+    velocity_df: VelocityDF,
+    primary_imf,
+    companion_model,
+    target,
+    key: PRNGKeyArray,
+    *,
+    units,
+    Q: Optional[float] = 0.5,
+    softening: float = 0.0,
+    compact: bool = True,
+) -> CatalogedBinaryClusterIC:
+    """Build binary-cluster ICs with stable system-level birth provenance.
+
+    This opt-in API executes the same physical construction as
+    :func:`build_binary_cluster` but always returns
+    :class:`CatalogedBinaryClusterIC`.  Sampled orbital elements and the
+    initial periapsis contact margin are retained in ``primordial_systems``.
+    The catalog is generation provenance, not a claim that the pair remains
+    bound and not a downstream numerical-owner assignment.
+
+    ``compact=True`` returns real particles only.  ``compact=False`` retains
+    two interleaved slots per primordial system and is available only with a
+    fixed-shape :class:`Systems` target.
+    """
+
+    from jaxstro.constants import RSUN_CM
+
+    construction = _construct_binary_cluster(
+        profile,
+        velocity_df,
+        primary_imf,
+        companion_model,
+        target,
+        key,
+        units=units,
+        Q=Q,
+        softening=softening,
+        compact=compact,
+    )
+    m1 = construction.primary_masses
+    is_binary = construction.is_binary
+    comp = construction.companion_elements
+    resolved = construction.resolved
+    system_count = m1.shape[0]
+
+    primary_ids = 2 * jnp.arange(system_count, dtype=jnp.int64)
+    secondary_ids = primary_ids + 1
+    component_particle_ids = jnp.stack(
+        [primary_ids, jnp.where(is_binary, secondary_ids, -1)], axis=1
+    )
+    component_active = jnp.stack([jnp.ones_like(is_binary), is_binary], axis=1)
+
+    primary_radii = compute_stellar_radii(m1)
+    secondary_radii = jnp.where(is_binary, compute_stellar_radii(comp.m2), 0.0)
+    radius_to_position = RSUN_CM / units.length_scale_cgs
+    contact_margins = periapsis_contact_margin(
+        comp.a,
+        comp.e,
+        primary_radii * radius_to_position,
+        secondary_radii * radius_to_position,
+    )
+
+    def binary_or_zero(value):
+        return jnp.where(is_binary, value, 0.0)
+
+    catalog = PrimordialSystemCatalog(
+        system_ids=jnp.arange(system_count, dtype=jnp.int64),
+        is_binary=is_binary,
+        component_particle_ids=component_particle_ids,
+        component_active=component_active,
+        semimajor_axes=binary_or_zero(comp.a),
+        eccentricities=binary_or_zero(comp.e),
+        inclinations=binary_or_zero(comp.inc),
+        longitudes_ascending_node=binary_or_zero(comp.Omega),
+        arguments_periapsis=binary_or_zero(comp.omega),
+        mean_anomalies=binary_or_zero(comp.M_anom),
+        periapsis_contact_margins=binary_or_zero(contact_margins),
+    )
+
+    masked_ids = jnp.arange(2 * system_count, dtype=jnp.int64)
+    masked_radii = compute_stellar_radii(resolved.masses)
+    if compact:
+        mask = resolved.is_real
+        return CatalogedBinaryClusterIC(
+            positions=resolved.positions[mask],
+            velocities=resolved.velocities[mask],
+            masses=resolved.masses[mask],
+            stellar_radii=masked_radii[mask],
+            ids=masked_ids[mask],
+            is_real=jnp.ones_like(resolved.masses[mask], dtype=bool),
+            primordial_system_id=resolved.primordial_system_id[mask],
+            is_primordial_secondary=resolved.is_primordial_secondary[mask],
+            primordial_systems=catalog,
+        )
+
+    return CatalogedBinaryClusterIC(
+        positions=resolved.positions,
+        velocities=resolved.velocities,
+        masses=resolved.masses,
+        stellar_radii=masked_radii,
+        ids=masked_ids,
+        is_real=resolved.is_real,
+        primordial_system_id=resolved.primordial_system_id,
+        is_primordial_secondary=resolved.is_primordial_secondary,
+        primordial_systems=catalog,
+    )
+
+
 __all__ = [
     "Systems",
     "Stars",
@@ -535,4 +684,5 @@ __all__ = [
     "virial_scale",
     "build_spatial_ic",
     "build_binary_cluster",
+    "build_cataloged_binary_cluster",
 ]

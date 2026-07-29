@@ -15,13 +15,20 @@ from jaxstro.units import STELLAR
 from jaxtyping import Array, Float
 
 from progenax import (
+    CatalogedBinaryClusterIC,
     LogUniformPeriod,
     PlummerProfile,
     PlummerVelocityDF,
     ThermalEccentricity,
 )
 from progenax.binaries import IndependentCompanions, MoeCompanions
-from progenax.builders import Stars, Systems, TotalMass, build_binary_cluster
+from progenax.builders import (
+    Stars,
+    Systems,
+    TotalMass,
+    build_binary_cluster,
+    build_cataloged_binary_cluster,
+)
 from progenax.imf import PowerLawIMF
 from progenax.imf.binary import ConstantBinaryFraction, FlatMassRatio
 
@@ -50,6 +57,19 @@ def _independent(fbin=0.5, period=None, qmin=0.2):
 
 def _cluster(fbin=0.5, period=None, n_systems=300, seed=0, target=None, **kw):
     return build_binary_cluster(
+        profile=PlummerProfile(r_h=1.0),
+        velocity_df=PlummerVelocityDF(r_h=1.0),
+        primary_imf=PowerLawIMF.kroupa(),
+        companion_model=_independent(fbin=fbin, period=period),
+        target=target if target is not None else Systems(n_systems),
+        key=jax.random.PRNGKey(seed),
+        units=STELLAR,
+        **kw,
+    )
+
+
+def _cataloged_cluster(fbin=0.5, period=None, n_systems=300, seed=0, target=None, **kw):
+    return build_cataloged_binary_cluster(
         profile=PlummerProfile(r_h=1.0),
         velocity_df=PlummerVelocityDF(r_h=1.0),
         primary_imf=PowerLawIMF.kroupa(),
@@ -179,3 +199,136 @@ class TestMoeCompanionsCluster:
         # secondaries are real: m2 <= m1 within each primordial binary -> q in (0,1]
         n_sec = int(jnp.sum(ic.is_primordial_secondary))
         assert n_sec > 0
+
+
+class TestCatalogedBinaryCluster:
+    @pytest.mark.parametrize("target", [Systems(32), Stars(32), TotalMass(20.0)])
+    def test_legacy_equivalence_for_compact_targets(self, target):
+        legacy = _cluster(target=target, seed=21)
+        cataloged = _cataloged_cluster(target=target, seed=21)
+        assert isinstance(cataloged, CatalogedBinaryClusterIC)
+        for legacy_value, cataloged_value in (
+            (legacy.positions, cataloged.positions),
+            (legacy.velocities, cataloged.velocities),
+            (legacy.masses, cataloged.masses),
+            (legacy.stellar_radii, cataloged.stellar_radii),
+            (legacy.primordial_system_id, cataloged.primordial_system_id),
+            (legacy.is_primordial_secondary, cataloged.is_primordial_secondary),
+        ):
+            assert jnp.array_equal(legacy_value, cataloged_value)
+
+    def test_legacy_equivalence_for_masked_system_target(self):
+        legacy = _cluster(target=Systems(40), seed=22, compact=False)
+        cataloged = _cataloged_cluster(target=Systems(40), seed=22, compact=False)
+        for legacy_value, cataloged_value in (
+            (legacy.positions, cataloged.positions),
+            (legacy.velocities, cataloged.velocities),
+            (legacy.masses, cataloged.masses),
+            (legacy.is_real, cataloged.is_real),
+            (legacy.primordial_system_id, cataloged.primordial_system_id),
+            (legacy.is_primordial_secondary, cataloged.is_primordial_secondary),
+        ):
+            assert jnp.array_equal(legacy_value, cataloged_value)
+
+    def test_compaction_preserves_logical_birth_ids_and_catalog(self):
+        masked = _cataloged_cluster(target=Systems(60), seed=23, compact=False)
+        compact = _cataloged_cluster(target=Systems(60), seed=23, compact=True)
+        assert jnp.array_equal(compact.ids, masked.ids[masked.is_real])
+        assert jnp.array_equal(compact.positions, masked.positions[masked.is_real])
+        assert jnp.array_equal(
+            compact.primordial_systems.component_particle_ids,
+            masked.primordial_systems.component_particle_ids,
+        )
+        active_ids = compact.primordial_systems.component_particle_ids[
+            compact.primordial_systems.component_active
+        ]
+        assert jnp.array_equal(jnp.sort(active_ids), jnp.sort(compact.ids))
+        assert jnp.any(jnp.diff(compact.ids) > 1)
+        legacy = _cluster(n_systems=60, seed=23)
+        assert jnp.array_equal(legacy.ids, jnp.arange(legacy.ids.shape[0]))
+
+    def test_retains_sampled_orbital_elements(self):
+        n_systems = 24
+        key = jax.random.PRNGKey(24)
+        model = _independent(fbin=0.65)
+        primary_imf = PowerLawIMF.kroupa()
+        key_draw, _ = jax.random.split(key)
+        key_mass, key_companion = jax.random.split(key_draw)
+        primary_masses = primary_imf.sample(key_mass, n_systems)
+        expected_binary, expected = model.sample(
+            key_companion,
+            primary_masses,
+            G=STELLAR.G,
+            day_in_time_units=DAY_IN_TU,
+        )
+        result = build_cataloged_binary_cluster(
+            PlummerProfile(r_h=1.0),
+            PlummerVelocityDF(r_h=1.0),
+            primary_imf,
+            model,
+            Systems(n_systems),
+            key,
+            units=STELLAR,
+            compact=False,
+        )
+        catalog = result.primordial_systems
+        assert jnp.array_equal(catalog.is_binary, expected_binary)
+        for retained, sampled in (
+            (catalog.semimajor_axes, expected.a),
+            (catalog.eccentricities, expected.e),
+            (catalog.inclinations, expected.inc),
+            (catalog.longitudes_ascending_node, expected.Omega),
+            (catalog.arguments_periapsis, expected.omega),
+            (catalog.mean_anomalies, expected.M_anom),
+        ):
+            assert jnp.array_equal(retained[expected_binary], sampled[expected_binary])
+            assert jnp.all(retained[~expected_binary] == 0.0)
+
+    def test_contact_margin_is_in_position_units(self):
+        from jaxstro.constants import RSUN_CM
+
+        result = _cataloged_cluster(target=Systems(48), seed=25, compact=False)
+        catalog = result.primordial_systems
+        radii_position = (
+            result.stellar_radii.reshape((-1, 2))
+            * (RSUN_CM / STELLAR.length_scale_cgs)
+        )
+        expected = catalog.semimajor_axes * (1.0 - catalog.eccentricities) - jnp.sum(
+            radii_position, axis=1
+        )
+        assert jnp.allclose(
+            catalog.periapsis_contact_margins[catalog.is_binary],
+            expected[catalog.is_binary],
+            rtol=2e-14,
+            atol=2e-14,
+        )
+        assert jnp.all(catalog.periapsis_contact_margins[~catalog.is_binary] == 0.0)
+
+    def test_masked_orbit_and_contact_jvp_is_finite(self):
+        def summary(log_period_max):
+            result = build_cataloged_binary_cluster(
+                PlummerProfile(r_h=1.0),
+                PlummerVelocityDF(r_h=1.0),
+                PowerLawIMF.kroupa(),
+                _independent(
+                    fbin=0.6,
+                    period=LogUniformPeriod(
+                        log_P_min=1.0, log_P_max=log_period_max
+                    ),
+                ),
+                Systems(40),
+                jax.random.PRNGKey(26),
+                units=STELLAR,
+                compact=False,
+            )
+            binary = result.primordial_systems.is_binary
+            return (
+                jnp.mean(jnp.square(result.positions))
+                + jnp.sum(result.primordial_systems.semimajor_axes[binary])
+                + jnp.sum(result.primordial_systems.periapsis_contact_margins[binary])
+            )
+
+        value, tangent = jax.jvp(summary, (jnp.array(4.0),), (jnp.array(1.0),))
+        assert jnp.isfinite(value)
+        assert jnp.isfinite(tangent)
+        assert tangent != 0.0
