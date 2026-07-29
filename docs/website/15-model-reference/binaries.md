@@ -243,24 +243,25 @@ E - e\,\sin E \;=\; M(t), \qquad M(t) = M_0 + n\,t,\quad n = 2\pi/P
 
 
 (card-binary_cluster_assembly)=
-## Binary-cluster assembly (build_binary_cluster)
+## Binary-cluster assembly (legacy and cataloged APIs)
 
 ✅ verified · 1 equation · 2 sources · [API: `build_binary_cluster`](../30-api/builders.md#api-builders-build_binary_cluster)
 
-The composition operator: primary IMF x companion model x population target -> a cluster whose binaries are resolved into components (resolve_binary_components) with per-binary COM preservation and full primordial-pair bookkeeping. A semantics card — the physics lives in the composed model cards.
+The composition operator: primary IMF x companion model x population target -> a cluster whose binaries are resolved into components (resolve_binary_components) with per-binary COM preservation and full primordial-pair bookkeeping. build_cataloged_binary_cluster retains stable birth IDs, sampled elements, and periapsis contact margins; the legacy build_binary_cluster return contract remains unchanged. Both wrappers share one physical construction. A semantics card — the physics lives in the composed model cards.
 
 | Use it for | Not for |
 |---|---|
 | ✓ one-call binary-population ICs (Systems / Stars / TotalMass targets) | ✗ hierarchical triples+ (pairs only at IC time) |
 | ✓ energy-budget-aware binary populations (binary_energy_budget diagnostics) |  |
+| ✓ cataloged birth provenance for downstream hierarchy initialization |  |
 
 ### Parameters
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
-| `primary_imf` | any IMF card's model (house default: the SMOOTH Maschberger) | — | — | `build_binary_cluster(primary_imf=...)` |
-| `companion_model` | IndependentCompanions (separable) or MoeCompanions (faithful P-q-e) | — | — | `build_binary_cluster(companions=...)` |
-| `target` | population size specification: Systems(n) / Stars(n) / TotalMass(M) | count or Msun | — | `build_binary_cluster(target=...)` |
+| `primary_imf` | any IMF card's model (house default: the SMOOTH Maschberger) | — | — | `build_binary_cluster(primary_imf=...) or build_cataloged_binary_cluster(primary_imf=...)` |
+| `companion_model` | IndependentCompanions (separable) or MoeCompanions (faithful P-q-e) | — | — | `build_binary_cluster(companion_model=...) or build_cataloged_binary_cluster(companion_model=...)` |
+| `target` | population size specification: Systems(n) / Stars(n) / TotalMass(M) | count or Msun | — | `build_binary_cluster(target=...) or build_cataloged_binary_cluster(target=...)` |
 
 ### Equations
 
@@ -280,8 +281,11 @@ The composition operator: primary IMF x companion model x population target -> a
 ### Code & validation
 
 - code: [`build_binary_cluster`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py) (`src/progenax/builders.py`)
+- code: [`build_cataloged_binary_cluster`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py) (`src/progenax/builders.py`)
 - code: [`resolve_binary_components`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py) (`src/progenax/binaries/assembly.py`)
 - validation: `tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_units_kepler_third_law_roundtrip`
 - validation: `tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved`
 - validation: `tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance`
+- validation: `tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_legacy_equivalence_for_compact_targets`
+- validation: `tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_contact_margin_is_in_position_units`
 

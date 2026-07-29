@@ -10,7 +10,8 @@ Engine B density-defined Eddington) + 2026-06 pre-release audit hardening comple
 Released-core ~1243 tests (unit 956, integration 43, validation 244) + experimental 322;
 see CI for the live count. King & EFF velocity DFs are true
 equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
-IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`),
+IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`,
+plus the opt-in catalog-bearing `build_cataloged_binary_cluster` API),
 faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
 (`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
 fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
@@ -123,7 +124,7 @@ jax.grad(loss)(1.0)  # Fully differentiable!
 | `analytical/` | Test cases with exact solutions | `two_body_kepler()`, `three_body_figure_eight()` |
 | `diagnostics/` | Substructure + mass-segregation diagnostics | `compute_q_parameter()` (CW04 Q, A=πR²), `q_approx` (differentiable kNN), `energy_sorted_segregation()` |
 | `protocols.py` | Runtime-checkable protocols | `SpatialProfile`, `VelocityDF`, `IMFProtocol`, `CompanionModel` |
-| `builders.py` | IC assembly + binary-cluster composition | `build_spatial_ic()`, `build_binary_cluster()`, `Systems`/`Stars`/`TotalMass`, `ICResult` |
+| `builders.py` | IC assembly + binary-cluster composition | `build_spatial_ic()`, legacy `build_binary_cluster()`, opt-in `build_cataloged_binary_cluster()`, `Systems`/`Stars`/`TotalMass`, `ICResult` |
 | `cluster/` | Multi-component equilibrium (Engine A: lowered-isothermal DF; Engine B: density-defined Eddington via `from_density_profiles`) + primordial segregation | `MultiComponentCluster`, `energy_sorted_segregation()` |
 | `tidal.py` | Tidal physics | `jacobi_radius()`, `apply_tidal_truncation()` |
 
@@ -257,11 +258,11 @@ All public symbols exported from `progenax.__init__`:
 
 **IMFs**: `PowerLawIMF`, `ChabrierIMF`, `Maschberger`, `TruncatedIMF`, `BinaryIMF`; mass-ratio: `FlatMassRatio`, `PowerLawMassRatio`, `TwinPeakedMassRatio`, `MoeDiStefano2017`, `MoeDiStefano2017Full`, `MoePeriod`, `MoeJointOrbit`; fractions: `ConstantBinaryFraction`, `MassDependentBinaryFraction`. The environment-dependent stellar IMF (Marks+2012 / Jeřábková+2018 α₃ relations) is the functional `BirthEnvironment` + `env_to_imf_params()` API — **not** a galaxy-wide IGIMF integration and **not** an `IGIMF`/`EnvironmentIMF` class (those never existed; audit R7).
 
-**Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`; **connector/composition**: `resolve_binary_components()`, `ResolvedBinaries`, `CompanionElements`, `IndependentCompanions`, `MoeCompanions`; **diagnostics**: `relative_energy()`, `find_bound_pairs()`, `find_bound_multiples()`, `primordial_survival()`, `binary_energy_budget()`, `BinaryEnergyBudget`
+**Binaries**: `KeplerElements`, `BinaryOrbitalState`, `compute_period()`, `period_to_semimajor_axis()`, `LogUniformPeriod`, `LogNormalPeriod`, `SanaOBPeriod`, `ThermalEccentricity`, `UniformEccentricity`, `MoeEccentricity`; **connector/composition**: `resolve_binary_components()`, `ResolvedBinaries`, `CatalogedBinaryClusterIC`, `PrimordialSystemCatalog`, `CompanionElements`, `IndependentCompanions`, `MoeCompanions`; **diagnostics**: `relative_energy()`, `find_bound_pairs()`, `find_bound_multiples()`, `primordial_survival()`, `binary_energy_budget()`, `BinaryEnergyBudget`
 
 **Analytical**: `two_body_kepler()`, `three_body_figure_eight()`, `earth_sun_2body()`, `solar_system_inner_4()`, `solar_system_full()`, `harmonic_oscillator()`
 
-**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `energy_sorted_segregation()`, `MultiComponentCluster` (Engine A constructors `from_components`/`from_mass_segregation`/`from_imf`; Engine B `from_density_profiles` — prescribed Plummer/EFF/King densities, shared-Ψ Eddington/OM DFs)
+**Utilities**: `build_spatial_ic()`, `build_binary_cluster()`, `build_cataloged_binary_cluster()`, `Systems`, `Stars`, `TotalMass`, `ICResult`, `compute_kinetic_energy()`, `compute_potential_energy()`, `to_com_frame()`, `virial_scale()`, `compute_stellar_radii()`, `jacobi_radius()`, `apply_tidal_truncation()`, `energy_sorted_segregation()`, `MultiComponentCluster` (Engine A constructors `from_components`/`from_mass_segregation`/`from_imf`; Engine B `from_density_profiles` — prescribed Plummer/EFF/King densities, shared-Ψ Eddington/OM DFs)
 
 (The fractal-substructure generator `generate_fractal_positions()` was removed in the 2026-06 clean-room rewrite; turbulent/fractal ICs now live in the experimental `gravoturb` package. The CW04 `Q` substructure *diagnostic* survives in `progenax.diagnostics`.)
 

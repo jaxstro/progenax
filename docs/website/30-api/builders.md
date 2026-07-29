@@ -9,7 +9,7 @@ description: Auto-generated API reference for `progenax.builders` — signatures
 
 Module path: `progenax/builders/`
 
-Public symbols: **11**
+Public symbols: **12**
 
 ## Contents
 
@@ -24,6 +24,7 @@ Public symbols: **11**
 - [`virial_scale`](#api-builders-virial_scale)
 - [`build_spatial_ic`](#api-builders-build_spatial_ic)
 - [`build_binary_cluster`](#api-builders-build_binary_cluster)
+- [`build_cataloged_binary_cluster`](#api-builders-build_cataloged_binary_cluster)
 
 (api-builders-systems)=
 ## `builders.Systems`
@@ -41,7 +42,7 @@ Rosen, *Confidently Wrong* (``N`` = observed systems; primaries from the IMF,
 companions attached on top, so total stars = ``n + n_binary``). The only
 **fixed-shape => differentiable** target (supports the masked ``compact=False`` path).
 
-*Source: [`src/progenax/builders.py#L42`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L42)*
+*Source: [`src/progenax/builders.py#L49`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L49)*
 
 (api-builders-stars)=
 ## `builders.Stars`
@@ -60,7 +61,7 @@ in draw order until the resolved star count first reaches ``n`` (overshoot <= 1 
 — a binary is never split, so the result is ``n`` or ``n+1`` stars). The
 data-dependent system count makes this **eager only** (``compact=True``).
 
-*Source: [`src/progenax/builders.py#L54`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L54)*
+*Source: [`src/progenax/builders.py#L61`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L61)*
 
 (api-builders-totalmass)=
 ## `builders.TotalMass`
@@ -76,7 +77,7 @@ Target a fixed total stellar *mass* Σ(m1+m2) [M_sun] (companions counted).
 Whole-system, McLuster-style mass filling: draw until the cumulative system
 mass first reaches ``m`` (overshoot ≤ one system). **Eager only** (``compact=True``).
 
-*Source: [`src/progenax/builders.py#L67`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L67)*
+*Source: [`src/progenax/builders.py#L74`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L74)*
 
 (api-builders-icresult)=
 ## `builders.ICResult`
@@ -110,7 +111,7 @@ Hermite/IAS15), not a property of the initial conditions.
 | `is_primordial_secondary` | (N,) bool — True for the secondary of a primordial binary; None for single-only ICs. |
 | `component_id` | (N,) int — which population component each particle was drawn from (multi-component generators, e.g. MultiComponentCluster); None for single-population ICs. Like primordial_system_id, this is **PROVENANCE at t=0** — a label of the generating component, not a dynamical invariant. |
 
-*Source: [`src/progenax/builders.py#L118`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L118)*
+*Source: [`src/progenax/builders.py#L125`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L125)*
 
 (api-builders-compute_stellar_radii)=
 ## `builders.compute_stellar_radii`
@@ -159,7 +160,7 @@ function is the D&K91 *collision* radius — a different relation for a differen
 
 **Returns:** Radii in R☉
 
-*Source: [`src/progenax/builders.py#L160`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L160)*
+*Source: [`src/progenax/builders.py#L167`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L167)*
 
 (api-builders-compute_kinetic_energy)=
 ## `builders.compute_kinetic_energy`
@@ -224,7 +225,7 @@ Transform to center-of-mass frame.
 
 **Returns:** (positions_com, velocities_com): Transformed coordinates
 
-*Source: [`src/progenax/builders.py#L220`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L220)*
+*Source: [`src/progenax/builders.py#L227`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L227)*
 
 (api-builders-virial_scale)=
 ## `builders.virial_scale`
@@ -258,7 +259,7 @@ Physical interpretation:
 **References.** Goodwin & Whitworth (2004) A&A 413, 929 - Sub-virial clusters
 Baumgardt & Kroupa (2007) MNRAS 380, 1589 - Cluster dissolution
 
-*Source: [`src/progenax/builders.py#L245`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L245)*
+*Source: [`src/progenax/builders.py#L252`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L252)*
 
 (api-builders-build_spatial_ic)=
 ## `builders.build_spatial_ic`
@@ -288,7 +289,7 @@ Build initial conditions from spatial profile and velocity DF.
 
 **Returns:** ICResult (pure physical state — no softening field)
 
-*Source: [`src/progenax/builders.py#L286`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L286)*
+*Source: [`src/progenax/builders.py#L293`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L293)*
 
 (api-builders-build_binary_cluster)=
 ## `builders.build_binary_cluster`
@@ -337,5 +338,29 @@ with `binaries.diagnostics`).
 
 **Returns:** `ICResult` (compact=True) or `ResolvedBinaries` (compact=False).
 
-*Source: [`src/progenax/builders.py#L406`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L406)*
+*Source: [`src/progenax/builders.py#L479`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L479)*
+
+(api-builders-build_cataloged_binary_cluster)=
+## `builders.build_cataloged_binary_cluster`
+
+*function*
+
+```python
+build_cataloged_binary_cluster(profile: progenax.protocols.SpatialProfile, velocity_df: progenax.protocols.VelocityDF, primary_imf, companion_model, target, key: PRNGKeyArray, *, units, Q: Optional[float] = 0.5, softening: float = 0.0, compact: bool = True) -> progenax.binaries.catalog.CatalogedBinaryClusterIC
+```
+
+Build binary-cluster ICs with stable system-level birth provenance.
+
+This opt-in API executes the same physical construction as
+:func:`build_binary_cluster` but always returns
+:class:`CatalogedBinaryClusterIC`.  Sampled orbital elements and the
+initial periapsis contact margin are retained in ``primordial_systems``.
+The catalog is generation provenance, not a claim that the pair remains
+bound and not a downstream numerical-owner assignment.
+
+``compact=True`` returns real particles only.  ``compact=False`` retains
+two interleaved slots per primordial system and is available only with a
+fixed-shape :class:`Systems` target.
+
+*Source: [`src/progenax/builders.py#L565`](https://github.com/jaxstro/progenax/blob/main/src/progenax/builders.py#L565)*
 

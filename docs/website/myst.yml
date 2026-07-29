@@ -141,6 +141,7 @@ project:
         - file: 20-architecture/units-policy.md
         - file: 20-architecture/q-virial-convention.md
         - file: 20-architecture/jax-native-substructure-q.md
+        - file: 20-architecture/primordial-system-handoff.md
         - file: 20-architecture/contributor-guide.md
         - file: 20-architecture/ic-redesign-history.md
     - title: API reference
@@ -166,11 +167,7 @@ project:
         - file: 40-howto/gradient-based-r_h-fit.md
         - file: 40-howto/mix-plummer-positions-king-velocities.md
         - file: 40-howto/add-binary-population.md
-        # Backlogged placeholder (audit F3): built + linkable so the six inbound
-        # cross-references resolve, but hidden from the nav until the gravax
-        # integration interface stabilizes (ADR-0031 hidden-not-deleted pattern).
         - file: 40-howto/interface-with-gravax.md
-          hidden: true
     - title: Validation
       children:
         - file: 50-validation/index.md

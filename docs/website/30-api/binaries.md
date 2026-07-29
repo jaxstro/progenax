@@ -9,7 +9,7 @@ description: Auto-generated API reference for `progenax.binaries` — signatures
 
 Module path: `progenax/binaries/`
 
-Public symbols: **30**
+Public symbols: **34**
 
 ## Contents
 
@@ -34,6 +34,10 @@ Public symbols: **30**
 - [`sample_mass_dependent_orbits`](#api-binaries-sample_mass_dependent_orbits)
 - [`ResolvedBinaries`](#api-binaries-resolvedbinaries)
 - [`resolve_binary_components`](#api-binaries-resolve_binary_components)
+- [`CatalogedBinaryClusterIC`](#api-binaries-catalogedbinaryclusteric)
+- [`PrimordialSystemCatalog`](#api-binaries-primordialsystemcatalog)
+- [`periapsis_contact_margin`](#api-binaries-periapsis_contact_margin)
+- [`validate_primordial_system_catalog`](#api-binaries-validate_primordial_system_catalog)
 - [`CompanionElements`](#api-binaries-companionelements)
 - [`IndependentCompanions`](#api-binaries-independentcompanions)
 - [`MoeCompanions`](#api-binaries-moecompanions)
@@ -727,6 +731,70 @@ Resolve N system COMs into a masked 2N component set (see module docstring).
 **Returns:** ResolvedBinaries (2N slots + is_real mask + primordial provenance).
 
 *Source: [`src/progenax/binaries/assembly.py#L53`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/assembly.py#L53)*
+
+(api-binaries-catalogedbinaryclusteric)=
+## `binaries.CatalogedBinaryClusterIC`
+
+*class*
+
+```python
+CatalogedBinaryClusterIC(positions: "Float[Array, 'M 3']", velocities: "Float[Array, 'M 3']", masses: "Float[Array, 'M']", stellar_radii: "Float[Array, 'M']", ids: "Int[Array, 'M']", is_real: "Bool[Array, 'M']", primordial_system_id: "Int[Array, 'M']", is_primordial_secondary: "Bool[Array, 'M']", primordial_systems: 'PrimordialSystemCatalog') -> None
+```
+
+Particle state plus immutable primordial-system provenance.
+
+``compact=True`` products contain real particles only and have an all-true
+``is_real`` mask.  ``compact=False`` products retain the interleaved ghost
+secondary of every single system for fixed-shape differentiation.
+
+Stellar radii remain in solar radii, matching :class:`ICResult`.  Contact
+margins in ``primordial_systems`` are stored in the position unit used to
+construct the cluster.
+
+*Source: [`src/progenax/binaries/catalog.py#L36`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/catalog.py#L36)*
+
+(api-binaries-primordialsystemcatalog)=
+## `binaries.PrimordialSystemCatalog`
+
+*class*
+
+```python
+PrimordialSystemCatalog(system_ids: "Int[Array, 'S']", is_binary: "Bool[Array, 'S']", component_particle_ids: "Int[Array, 'S 2']", component_active: "Bool[Array, 'S 2']", semimajor_axes: "Float[Array, 'S']", eccentricities: "Float[Array, 'S']", inclinations: "Float[Array, 'S']", longitudes_ascending_node: "Float[Array, 'S']", arguments_periapsis: "Float[Array, 'S']", mean_anomalies: "Float[Array, 'S']", periapsis_contact_margins: "Float[Array, 'S']") -> None
+```
+
+Immutable birth record for sampled single and binary systems.
+
+Orbital fields are finite zeroes for single systems.  Component particle
+IDs refer to stable logical birth IDs, never array-row positions; the
+inactive secondary of a single has ID ``-1``.
+
+*Source: [`src/progenax/binaries/catalog.py#L15`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/catalog.py#L15)*
+
+(api-binaries-periapsis_contact_margin)=
+## `binaries.periapsis_contact_margin`
+
+*function*
+
+```python
+periapsis_contact_margin(semimajor_axis: "Float[Array, 'S']", eccentricity: "Float[Array, 'S']", primary_radius: "Float[Array, 'S']", secondary_radius: "Float[Array, 'S']") -> "Float[Array, 'S']"
+```
+
+Return ``a(1-e) - (R1+R2)`` in one common length unit.
+
+*Source: [`src/progenax/binaries/catalog.py#L59`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/catalog.py#L59)*
+
+(api-binaries-validate_primordial_system_catalog)=
+## `binaries.validate_primordial_system_catalog`
+
+*function*
+
+```python
+validate_primordial_system_catalog(catalog: 'PrimordialSystemCatalog', particle_ids: "Int[Array, 'M']", is_real: "Bool[Array, 'M']") -> 'None'
+```
+
+Validate identity and finite-value invariants at an eager API boundary.
+
+*Source: [`src/progenax/binaries/catalog.py#L72`](https://github.com/jaxstro/progenax/blob/main/src/progenax/binaries/catalog.py#L72)*
 
 (api-binaries-companionelements)=
 ## `binaries.CompanionElements`

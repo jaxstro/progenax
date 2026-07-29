@@ -227,17 +227,21 @@
   deviations: []
 
 - model: binary_cluster_assembly
-  family_display: Binary-cluster assembly (build_binary_cluster)
+  family_display: Binary-cluster assembly (legacy and cataloged APIs)
   description: >
     The composition operator: primary IMF x companion model x population
     target -> a cluster whose binaries are resolved into components
     (resolve_binary_components) with per-binary COM preservation and full
-    primordial-pair bookkeeping. A semantics card — the physics lives in the
+    primordial-pair bookkeeping. build_cataloged_binary_cluster retains stable
+    birth IDs, sampled elements, and periapsis contact margins; the legacy
+    build_binary_cluster return contract remains unchanged. Both wrappers share
+    one physical construction. A semantics card — the physics lives in the
     composed model cards.
   when_to_use:
     good_for:
       - "one-call binary-population ICs (Systems / Stars / TotalMass targets)"
       - "energy-budget-aware binary populations (binary_energy_budget diagnostics)"
+      - "cataloged birth provenance for downstream hierarchy initialization"
     not_for:
       - "hierarchical triples+ (pairs only at IC time)"
   parameters:
@@ -245,17 +249,17 @@
       meaning: "any IMF card's model (house default: the SMOOTH Maschberger)"
       units: "—"
       typical_range: "—"
-      code_arg: "build_binary_cluster(primary_imf=...)"
+      code_arg: "build_binary_cluster(primary_imf=...) or build_cataloged_binary_cluster(primary_imf=...)"
     - name: companion_model
       meaning: "IndependentCompanions (separable) or MoeCompanions (faithful P-q-e)"
       units: "—"
       typical_range: "—"
-      code_arg: "build_binary_cluster(companions=...)"
+      code_arg: "build_binary_cluster(companion_model=...) or build_cataloged_binary_cluster(companion_model=...)"
     - name: target
       meaning: "population size specification: Systems(n) / Stars(n) / TotalMass(M)"
       units: "count or Msun"
       typical_range: "—"
-      code_arg: "build_binary_cluster(target=...)"
+      code_arg: "build_binary_cluster(target=...) or build_cataloged_binary_cluster(target=...)"
   sources:
     - bibkey: MoeDiStefano2017
       provides: "the faithful companion statistics option (see moe_pqe)"
@@ -272,10 +276,13 @@
       theory_ref: null
   code_refs:
     - "builders.py::build_binary_cluster"
+    - "builders.py::build_cataloged_binary_cluster"
     - "binaries/assembly.py::resolve_binary_components"
   validation:
     - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_units_kepler_third_law_roundtrip"
     - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved"
     - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance"
+    - "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_legacy_equivalence_for_compact_targets"
+    - "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_contact_margin_is_in_position_units"
   status: verified
   deviations: []

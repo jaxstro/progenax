@@ -62,6 +62,12 @@ returns the energy-bound mutual-nearest-neighbour pairs, and
 newly-formed). A single binary's elements are recovered with
 `KeplerElements.from_state(r_rel, v_rel, M_total, G=...)`.
 
+For workflows that must retain the *sampled* orbital elements rather than
+reconstructing them later, use `build_cataloged_binary_cluster`. Its
+`PrimordialSystemCatalog` also records stable component IDs and the initial
+periapsis contact margin $a(1-e)-(R_1+R_2)$. See
+[](../../20-architecture/primordial-system-handoff.md).
+
 ## Composability
 
 `build_binary_cluster` composes **five independent axes**:
@@ -118,6 +124,22 @@ collisional scheme, $\varepsilon = 0$). The COM virialisation treats each binary
 as a single CoM particle (the McLuster convention, {cite:t}`Kuepper2011` §A8) and
 leaves the internal binary binding energy as a separate reservoir, which
 `binary_energy_budget` reports explicitly.
+
+The cataloged builder is opt-in while the original API remains compatible:
+
+```python
+from progenax import build_cataloged_binary_cluster
+
+cataloged = build_cataloged_binary_cluster(
+    profile, velocity_df, primary_imf, MoeCompanions(), Systems(1000), key,
+    units=STELLAR,
+)
+sampled_orbits = cataloged.primordial_systems
+```
+
+At a fixed key, the two builders produce identical physical particle arrays.
+Only the cataloged result adds durable system-level provenance and stable birth
+IDs. See [](../../40-howto/interface-with-gravax.md) for downstream use.
 
 ## Connection to the binary IMF
 

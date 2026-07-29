@@ -14,7 +14,7 @@ Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`). The gravoturbulent
 density-field subsystem lives in the **experimental, repo-only `gravoturb` package**
 (`src/experimental/`, **not** shipped in the wheel). Every public model carries a
 machine-readable **provenance card** (equation-level citations, enforced by tests), and every
-public entry point is **gradient-audited** (AD-vs-FD, ~98 registry cases, 0 hazards). For
+public entry point is **gradient-audited** (AD-vs-FD, 99 registry cases, 0 hazards). For
 current test/LOC counts see CI and `tests/README.md` (counts are not duplicated here to
 avoid drift).
 
@@ -125,6 +125,12 @@ Jeřábková+2018 relations) — **not** a galaxy-wide IGIMF integration, and no
 (`Systems` / `Stars` / `TotalMass`). Connector `resolve_binary_components()` maps binary COMs
 to 2N components. Diagnostics: `find_bound_pairs()`, `find_bound_multiples()`,
 `primordial_survival()`, `binary_energy_budget()`.
+
+For downstream hierarchy initialization, `build_cataloged_binary_cluster()`
+returns the same physical IC at a fixed key plus stable logical birth IDs, the
+sampled orbital elements, and the initial periapsis contact margin
+$a(1-e)-(R_1+R_2)$. The established `build_binary_cluster()` return contract is
+unchanged. See the website's [Progenax→Gravax handoff](docs/website/40-howto/interface-with-gravax.md).
 
 ### Analytical Test Cases
 

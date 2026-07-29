@@ -24,9 +24,6 @@ every code block runs as-is in a Python session with progenax installed
   - How do I compose a Plummer spatial profile with a King velocity DF?
 * - [](add-binary-population.md)
   - How do I add a primordial binary population with `build_binary_cluster`?
-```
-
-```{note}
-Handing a finished IC off to **gravax** for N-body evolution is a planned
-recipe, deferred until the gravax integration interface stabilizes.
+* - [](interface-with-gravax.md)
+  - How do I retain primordial-system provenance and hand the physical IC to Gravax?
 ```

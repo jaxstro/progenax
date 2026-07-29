@@ -349,9 +349,16 @@ sigma_v : array
 
 Notes
 -----
-Typical literature values:
-    - Larson (1981): σ_v0 ≈ 1.1, α ≈ 0.38
-    - Solomon+1987: σ_v0 ≈ 0.72, α ≈ 0.5
+**Dispersion convention:** this chain treats σ_v as the 3-D turbulent
+dispersion (it feeds M = σ_v/c_s with FK10's 3-D rms sonic Mach, and —
+downstream in experimental gravoturb — the stellar 3-D dispersion
+σ_star = η_v·M·c_s). Literature normalizations differ in convention:
+    - Larson (1981): σ_v0 ≈ 1.1, α ≈ 0.38  (3-D)
+    - Solomon+1987: σ_v0 ≈ 0.72, α ≈ 0.5   (1-D linewidth; ×√3 ≈ 1.25 for 3-D)
+The default σ_v0 = 1.0 sits between the two; plugging Solomon's 1-D 0.72
+in unconverted underestimates the 3-D σ_v (and any emergent Q ∝ σ²) by √3 (×3).
+NB ``jnp.maximum(R_cloud, 1e-3)`` floors the radius at 1e-3 pc to keep the
+power law finite for degenerate inputs.
 
 References
 ----------
@@ -406,7 +413,7 @@ References
 .. [1] Larson (1981) MNRAS 194, 809
 .. [2] Federrath et al. (2010) A&A 512, A81
 
-*Source: [`src/progenax/cluster/turbulence.py#L209`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L209)*
+*Source: [`src/progenax/cluster/turbulence.py#L216`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L216)*
 
 (api-cluster-b_from_environment)=
 ## `cluster.b_from_environment`
@@ -451,5 +458,5 @@ References
 .. [1] Federrath et al. (2010) A&A 512, A81
 .. [2] Federrath (2013) MNRAS 436, 1245
 
-*Source: [`src/progenax/cluster/turbulence.py#L290`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L290)*
+*Source: [`src/progenax/cluster/turbulence.py#L297`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/turbulence.py#L297)*
 

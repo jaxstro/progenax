@@ -113,8 +113,9 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   **require** explicit $G$ (no `G=None` default); `VelocityDF` protocol contract
   aligned; CHANGELOG breaking entry added.
 - [x] **Resolve the `40-howto/` stubs (D6).** *(done 2026-06-18)* Authored the 4
-  progenax-only how-tos (each code block run-verified); `interface-with-gravax`
-  backlogged out of the TOC until gravax matures.
+  progenax-only how-tos (each code block run-verified). The originally
+  backlogged `interface-with-gravax` page was replaced and promoted into the
+  TOC with the cataloged-IC boundary on 2026-07-29.
 - [x] **Fix the internal-doc links (D6).** *(done 2026-06-18; re-verified in the
   docs-hardening pass)* Rewrote/removed the `../../plans/` and `../../notes/` links
   in the real-source pages. The docs-hardening pass added a dedicated link-integrity

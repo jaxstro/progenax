@@ -33,6 +33,8 @@ historical decisions that shaped the current API.
   - Why $Q_{\mathrm{vir}} = T/|V|$ (= 0.5 at equilibrium) — and not the factor-of-2 alternatives
 * - [](jax-native-substructure-q.md)
   - The {cite:t}`Cartwright2004` substructure Q parameter: kNN approximation + scipy reference
+* - [](primordial-system-handoff.md)
+  - Why primordial birth provenance, Gravax numerical ownership, and evolved dynamical identity are separate records
 * - [](contributor-guide.md)
   - How to add a new spatial profile, IMF, integrator, or validation suite to progenax
 * - [](ic-redesign-history.md)

@@ -7,7 +7,7 @@ description: Alphabetical index of every public progenax symbol with classificat
 
 *Auto-generated alphabetical index of every public progenax symbol. Click the symbol name to jump to its per-module page entry.*
 
-Total public symbols: **188** across all submodules.
+Total public symbols: **193** across all submodules.
 
 > This counts every symbol in each submodule's `__all__`. The top-level `progenax` package re-exports a curated subset for convenience (e.g. `from progenax import PlummerProfile`); import the submodule (e.g. `from progenax.imf import ...`) to reach the rest.
 
@@ -38,6 +38,7 @@ Total public symbols: **188** across all submodules.
 | [`BinaryState`](binaries.md#api-binaries-binarystate) | class | `progenax.binaries` |
 | [`BirthEnvironment`](imf.md#api-imf-birthenvironment) | class | `progenax.imf` |
 | [`build_binary_cluster`](builders.md#api-builders-build_binary_cluster) | function | `progenax.builders` |
+| [`build_cataloged_binary_cluster`](builders.md#api-builders-build_cataloged_binary_cluster) | function | `progenax.builders` |
 | [`build_cluster`](builders_cluster.md#api-builders_cluster-build_cluster) | function | `progenax.builders_cluster` |
 | [`build_cluster_from_params`](builders_cluster.md#api-builders_cluster-build_cluster_from_params) | function | `progenax.builders_cluster` |
 | [`build_eff_cluster`](builders_cluster.md#api-builders_cluster-build_eff_cluster) | function | `progenax.builders_cluster` |
@@ -50,6 +51,7 @@ Total public symbols: **188** across all submodules.
 | [`calibrate_q_approx`](diagnostics.md#api-diagnostics-calibrate_q_approx) | function | `progenax.diagnostics` |
 | [`calibrate_segregation_approx`](diagnostics.md#api-diagnostics-calibrate_segregation_approx) | function | `progenax.diagnostics` |
 | [`CartesianState`](binaries.md#api-binaries-cartesianstate) | class | `progenax.binaries` |
+| [`CatalogedBinaryClusterIC`](binaries.md#api-binaries-catalogedbinaryclusteric) | class | `progenax.binaries` |
 | [`ChabrierIMF`](imf.md#api-imf-chabrierimf) | class | `progenax.imf` |
 | [`cloud_radius_from_density`](cluster.md#api-cluster-cloud_radius_from_density) | function | `progenax.cluster` |
 | [`ClusterParams`](builders_cluster.md#api-builders_cluster-clusterparams) | class | `progenax.builders_cluster` |
@@ -137,6 +139,7 @@ Total public symbols: **188** across all submodules.
 | [`MoePeriod`](imf.md#api-imf-moeperiod) | class | `progenax.imf` |
 | [`MultiComponentCluster`](cluster.md#api-cluster-multicomponentcluster) | class | `progenax.cluster` |
 | [`per_group_virial_ratio`](dynamics.md#api-dynamics-per_group_virial_ratio) | function | `progenax.dynamics` |
+| [`periapsis_contact_margin`](binaries.md#api-binaries-periapsis_contact_margin) | function | `progenax.binaries` |
 | [`period_to_semimajor_axis`](binaries.md#api-binaries-period_to_semimajor_axis) | function | `progenax.binaries` |
 | [`PeriodDistribution`](protocols.md#api-protocols-perioddistribution) | protocol | `progenax.protocols` |
 | [`PlummerProfile`](profiles.md#api-profiles-plummerprofile) | class | `progenax.profiles` |
@@ -145,6 +148,7 @@ Total public symbols: **188** across all submodules.
 | [`PowerLawMassRatio`](imf.md#api-imf-powerlawmassratio) | class | `progenax.imf` |
 | [`prepare_imf_samples`](imf.md#api-imf-prepare_imf_samples) | function | `progenax.imf` |
 | [`primordial_survival`](binaries.md#api-binaries-primordial_survival) | function | `progenax.binaries` |
+| [`PrimordialSystemCatalog`](binaries.md#api-binaries-primordialsystemcatalog) | class | `progenax.binaries` |
 | [`ProfileName`](profiles.md#api-profiles-profilename) | function | `progenax.profiles` |
 | [`project_dispersion`](kinematics.md#api-kinematics-project_dispersion) | function | `progenax.kinematics` |
 | [`q_approx`](diagnostics.md#api-diagnostics-q_approx) | function | `progenax.diagnostics` |
@@ -194,6 +198,7 @@ Total public symbols: **188** across all submodules.
 | [`two_body_period`](analytical.md#api-analytical-two_body_period) | function | `progenax.analytical` |
 | [`UniformEccentricity`](binaries.md#api-binaries-uniformeccentricity) | class | `progenax.binaries` |
 | [`UniformSphereProfile`](profiles.md#api-profiles-uniformsphereprofile) | class | `progenax.profiles` |
+| [`validate_primordial_system_catalog`](binaries.md#api-binaries-validate_primordial_system_catalog) | function | `progenax.binaries` |
 | [`VelocityDF`](kinematics.md#api-kinematics-velocitydf) | protocol | `progenax.kinematics` |
 | [`VelocityDF`](protocols.md#api-protocols-velocitydf) | protocol | `progenax.protocols` |
 | [`VelocityModel`](kinematics.md#api-kinematics-velocitymodel) | class | `progenax.kinematics` |
