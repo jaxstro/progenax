@@ -406,7 +406,7 @@ From `tests/validation/` (Q ≡ T/|V|; 0.5 = equilibrium), sampled with no exter
 
 ## Dependencies
 
-`jax>=0.4.20`, `jaxlib>=0.4.20`, `equinox>=0.11.0`, `jaxtyping>=0.2.25`,
+Python 3.13+, `jax>=0.11.0`, `jaxlib>=0.11.0`, `equinox>=0.11.0`, `jaxtyping>=0.3.11`,
 `diffrax>=0.4.0` (King ODE), and the sibling `jaxstro` (core utilities; side-by-side checkout).
 
 ## References

@@ -20,22 +20,16 @@ from gravoturb.profiles.bonnor_ebert import (
     CriticalSphere,
     critical_sphere,
 )
-from gravoturb.profiles.lane_emden import (
-    LaneEmdenSolution,
-    polytrope_xi1,
-    solve_isothermal,
-    solve_polytrope,
-)
 from gravoturb.profiles.polytrope import GAMMA_MIN, PolytropeProfile
+
+# The dimensionless Lane-Emden solvers (solve_isothermal, solve_polytrope,
+# polytrope_xi1, LaneEmdenSolution) now live in jaxstro.numerics.lane_emden; import
+# them from there rather than through this package.
 
 __all__ = [
     "GAMMA_MIN",
     "BonnorEbertProfile",
     "CriticalSphere",
-    "LaneEmdenSolution",
     "PolytropeProfile",
     "critical_sphere",
-    "polytrope_xi1",
-    "solve_isothermal",
-    "solve_polytrope",
 ]

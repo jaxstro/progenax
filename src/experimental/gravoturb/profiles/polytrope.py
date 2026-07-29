@@ -20,10 +20,10 @@ unit total mass and exposes ``density(r)`` + ``r_h`` for the gravoturb chain.
 
 import equinox as eqx
 import jax.numpy as jnp
+from jaxstro.numerics.lane_emden import polytrope_xi1, solve_polytrope
 from jaxtyping import Array, Float
 
 from gravoturb.profiles._scaling import half_mass_xi, interp_flat, require
-from gravoturb.profiles.lane_emden import polytrope_xi1, solve_polytrope
 
 # gamma = 1.2 is exactly n = 5, the onset of infinite extent.
 GAMMA_MIN = 1.2

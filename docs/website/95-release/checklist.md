@@ -36,12 +36,10 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   `tests.yml` (PR gate), `physics-validation.yml` (slow lane), `docs.yml`
   (docs gate). Re-enable in *Settings → Actions*, then confirm one green run on a
   real PR before trusting them.
-- [ ] **Fix the stale Python-3.10 matrix leg first.** `pyproject.toml` declares
-  `requires-python = ">=3.11"`, but `.github/workflows/physics-validation.yml`
-  line 62 still runs a `"3.10"` matrix leg (and the comment above it, line 54,
-  still says `>=3.10`). Change the matrix to `["3.11", "3.13"]` and fix the
-  comment — otherwise the first CI run after re-enable fails on an
-  unsupported interpreter, not on physics.
+- [x] **Align the Python matrix with the supported runtime.** The package and
+  MyPy configuration now require Python 3.13, and
+  `.github/workflows/physics-validation.yml` exercises Python 3.13 rather than
+  an unsupported historical floor.
 - [ ] **Add `CONTRIBUTING.md`.** Minimum useful content: uv-based setup
   (`uv pip install -e ".[dev]"` with the side-by-side `jaxstro` checkout), the
   two-tier local gate (FAST `-m "not slow"` / FULL), the JAX-native ground rules

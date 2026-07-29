@@ -25,8 +25,8 @@ function theorem. These tests fail loudly if that ever regresses.
 import jax
 import jax.numpy as jnp
 import pytest
-
-from gravoturb.profiles import BonnorEbertProfile, PolytropeProfile, polytrope_xi1
+from gravoturb.profiles import BonnorEbertProfile, PolytropeProfile
+from jaxstro.numerics.lane_emden import polytrope_xi1
 
 # Skill threshold: relative error below 1e-5 after sweeping the step size.
 GRAD_RTOL = 1e-5

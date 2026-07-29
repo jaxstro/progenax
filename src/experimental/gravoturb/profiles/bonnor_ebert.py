@@ -34,11 +34,11 @@ from typing import NamedTuple
 import equinox as eqx
 import jax.numpy as jnp
 from jaxstro.numerics.interpolation import monotone_cubic_interp
+from jaxstro.numerics.lane_emden import solve_isothermal
 from jaxstro.numerics.rootfinding import monotone_inverse_interp
 from jaxtyping import Array, Float
 
 from gravoturb.profiles._scaling import half_mass_xi, interp_flat, require
-from gravoturb.profiles.lane_emden import solve_isothermal
 
 # Domain for the critical-point search. The maximum sits near xi ~ 6.45, so 30 is
 # comfortably past it while keeping the solve cheap.
