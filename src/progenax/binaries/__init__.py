@@ -16,6 +16,12 @@ Modules:
 """
 
 from .assembly import ResolvedBinaries, resolve_binary_components
+from .catalog import (
+    CatalogedBinaryClusterIC,
+    PrimordialSystemCatalog,
+    periapsis_contact_margin,
+    validate_primordial_system_catalog,
+)
 from .companions import (
     CompanionElements,
     IndependentCompanions,
@@ -83,6 +89,10 @@ __all__ = [
     # Binary -> spatial-IC connector
     "ResolvedBinaries",
     "resolve_binary_components",
+    "CatalogedBinaryClusterIC",
+    "PrimordialSystemCatalog",
+    "periapsis_contact_margin",
+    "validate_primordial_system_catalog",
     # Companion/orbit layer (Batch 4k)
     "CompanionElements",
     "IndependentCompanions",
