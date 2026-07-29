@@ -131,7 +131,7 @@ Numbers: [](test-dashboard.md).
 
 ```{figure} figures/grad_audit_summary.png
 :width: 80%
-The 98-case gradient gate: 97 clean, 1 pinned known-limitation, 0 hazards.
+The 99-case gradient gate: 98 clean, 1 pinned known-limitation, 0 hazards.
 Numbers: [](differentiability-audit.md).
 ```
 

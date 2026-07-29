@@ -89,6 +89,8 @@ SYMBOL_TESTS: dict[str, str] = {
     # --- Binary connector / companions ---
     "resolve_binary_components": "tests/unit/binaries/test_assembly.py::TestResolveBinaryComponents::test_com_conserved_per_binary",  # assert per-binary COM conserved to 1e-12
     "ResolvedBinaries": "tests/unit/binaries/test_assembly.py::TestResolveBinaryComponents::test_output_shape_2N",  # assert rb.positions.shape == (2N, 3)
+    "CatalogedBinaryClusterIC": "tests/unit/binaries/test_primordial_catalog.py::test_cataloged_result_is_a_jax_pytree",
+    "PrimordialSystemCatalog": "tests/unit/binaries/test_primordial_catalog.py::test_single_uses_finite_zero_orbit_storage_and_absent_secondary",
     "CompanionElements": "tests/unit/binaries/test_companions.py::TestCompanionElements::test_namedtuple_fields",  # assert el.m2.shape / el.a.shape
     "IndependentCompanions": "tests/unit/binaries/test_companions.py::TestIndependentCompanions::test_shapes_and_singles",  # assert singles have m2 == 0
     "MoeCompanions": "tests/unit/binaries/test_companions.py::TestMoeCompanions::test_shapes_singles_ranges",  # assert singles have m2 == 0 + ranges
@@ -112,6 +114,7 @@ SYMBOL_TESTS: dict[str, str] = {
     "build_michie_cluster": "tests/unit/builders/test_cluster_builders.py::test_michie_alias_identical",  # assert michie alias IC == build_cluster IC
     "build_limepy_cluster": "tests/unit/builders/test_cluster_builders.py::test_limepy_alias_identical",  # assert limepy alias IC == build_cluster IC
     "build_binary_cluster": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance",  # build_binary_cluster; assert particles == systems + secondaries, masses > 0
+    "build_cataloged_binary_cluster": "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_retains_sampled_orbital_elements",
     "matched_velocity_df": "tests/unit/builders/test_cluster_builders.py::test_matched_plummer_scale_matched",  # assert matched DF type + scale matches profile
     "ClusterParams": "tests/unit/builders/test_cluster_builders.py::test_cluster_params_wrapper_identical_to_build_cluster",  # ClusterParams drives the wrapper; assert wrapper IC == build_cluster IC
     "RotationSpec": "tests/unit/builders/test_cluster_builders.py::test_rotation_spec_solid_matches_float",  # RotationSpec(omega) drives overlay; assert IC == float-omega IC

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from jaxstro.units import STELLAR
 
-from progenax import (  # noqa: F401-adjacent — carries float64 on import
+from progenax import (  # carries float64 configuration on import
     ChabrierIMF,
     ClusterParams,
     EFFProfile,
@@ -42,7 +42,11 @@ from progenax.binaries import (
 from progenax.binaries.assembly import resolve_binary_components
 from progenax.binaries.companions import MoeCompanions
 from progenax.binaries.kepler import KeplerElements
-from progenax.builders import Systems, build_binary_cluster
+from progenax.builders import (
+    Systems,
+    build_binary_cluster,
+    build_cataloged_binary_cluster,
+)
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.diagnostics.q_approx import q_approx
 from progenax.diagnostics.segregation_approx import lambda_msr_approx
@@ -782,6 +786,22 @@ def _build_binary_cluster_rh(r_h):
     # the equilibrium requires); IMF + companion draws are r_h-independent. compact=True
     # -> the real-particle ICResult; reduce its positions with mean_radius.
     ic = build_binary_cluster(
+        profile=PlummerProfile(r_h=r_h),
+        velocity_df=PlummerVelocityDF(r_h=r_h),
+        primary_imf=PowerLawIMF.kroupa(),
+        companion_model=_independent_companions_b3(),
+        target=Systems(100),
+        key=_KEY,
+        units=STELLAR,
+        compact=True,
+    )
+    return ic.positions
+
+
+def _build_cataloged_binary_cluster_rh(r_h):
+    """Cataloged API wrapper over the same fixed-key binary-cluster Fisher path."""
+
+    ic = build_cataloged_binary_cluster(
         profile=PlummerProfile(r_h=r_h),
         velocity_df=PlummerVelocityDF(r_h=r_h),
         primary_imf=PowerLawIMF.kroupa(),
@@ -2230,6 +2250,16 @@ REGISTRY: list[Case] = [
         id="build_binary_cluster",
         direction="params->IC",
         fn=_build_binary_cluster_rh,
+        param="r_h",
+        theta0=1.0,
+        reduce=mean_radius,
+        expect="consistent",
+        tol=1e-5,
+    ),
+    Case(
+        id="build_cataloged_binary_cluster",
+        direction="params->IC",
+        fn=_build_cataloged_binary_cluster_rh,
         param="r_h",
         theta0=1.0,
         reduce=mean_radius,

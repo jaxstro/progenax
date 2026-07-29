@@ -178,6 +178,10 @@ MUST_AUDIT: dict[tuple[str, str], str] = {
         "r_h",
     ): "flagship IMF->companion->spatial binary-cluster Fisher path in r_h",
     (
+        "build_cataloged_binary_cluster",
+        "r_h",
+    ): "catalog-bearing wrapper over the binary-cluster Fisher path in r_h",
+    (
         "build_cluster[Plummer]",
         "r_h",
     ): "convenience builder headline (bit-identical sugar; machine-exact)",
@@ -280,6 +284,7 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "apply_solid_body_rotation": AUDITED,  # rotation overlay omega case (now root-exported)
     "apply_differential_rotation": AUDITED,  # rotation overlay v_peak/R_peak cases
     "build_binary_cluster": AUDITED,  # B3: end-to-end IMF->companion->spatial Fisher path (r_h)
+    "build_cataloged_binary_cluster": AUDITED,
     # --- cluster convenience builders (cluster-builders arc) ---
     "build_cluster": AUDITED,  # r_h + anisotropy_radius + omega (3 FD-consistent cases)
     "build_king_cluster": AUDITED,  # King family through the alias (r_c)
@@ -324,6 +329,8 @@ SYMBOL_CATEGORY: dict[str, str] = {
     "Stars": EXEMPT_CONTAINER,
     "TotalMass": EXEMPT_CONTAINER,
     "ResolvedBinaries": EXEMPT_CONTAINER,
+    "CatalogedBinaryClusterIC": EXEMPT_CONTAINER,
+    "PrimordialSystemCatalog": EXEMPT_CONTAINER,
     "CompanionElements": EXEMPT_CONTAINER,
     "BinaryOrbitalState": EXEMPT_CONTAINER,
     "CartesianState": EXEMPT_CONTAINER,
