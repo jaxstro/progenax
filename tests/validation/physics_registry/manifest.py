@@ -3,7 +3,7 @@
 Mirrors the grad-audit / api-coverage frozen-literal pattern: FOUR hand-curated,
 independent dict literals (NOT computed from the validation tests at runtime — a
 derived map cannot catch a deleted model or a fabricated invariant). Every one of the
-114 ``progenax.__all__`` symbols lands in EXACTLY ONE of the four dicts.
+125 ``progenax.__all__`` symbols lands in EXACTLY ONE of the four dicts.
 
   MODEL_INVARIANTS : model -> {invariant phrase -> the validation test that ASSERTS it}.
                      "Model" = a profile / velocity-DF / IMF / cluster builder /
@@ -168,6 +168,11 @@ MODEL_INVARIANTS: dict[str, dict[str, str]] = {
         "cluster COM and Vcom conserved to 1e-10 after assembly": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_com_preserved",
         "particle count = primaries + secondaries; no ghost masses": "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance",
     },
+    "build_cataloged_binary_cluster": {
+        "physical particle state is identical to the legacy binary-cluster assembly at a fixed key": "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_legacy_equivalence_for_compact_targets",
+        "sampled orbital elements are retained exactly for every primordial binary": "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_retains_sampled_orbital_elements",
+        "periapsis contact margin equals a(1-e)-(R1+R2) in position units": "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_contact_margin_is_in_position_units",
+    },
 }
 
 # --- EXEMPT_NON_MODEL: non-model __all__ symbol -> reason --------------------------------
@@ -193,6 +198,8 @@ EXEMPT_NON_MODEL: dict[str, str] = {
     "Stars": "population-target container (n stars), not a model",
     "TotalMass": "population-target container (total mass budget), not a model",
     "ResolvedBinaries": "resolved-binary PyTree container (2N slots), not a model",
+    "CatalogedBinaryClusterIC": "catalog-bearing particle-state PyTree container, not a model",
+    "PrimordialSystemCatalog": "immutable system-level birth-provenance PyTree, not a model",
     "CompanionElements": "companion-elements NamedTuple container, not a model",
     "BinaryOrbitalState": "binary orbital-state container, not a model",
     "CartesianState": "Cartesian (r, v) state container, not a model",

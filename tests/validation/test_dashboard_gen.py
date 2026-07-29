@@ -108,10 +108,9 @@ def test_registry_status_all_four_built():
     # The histogram only carries the grad-audit status vocabulary.
     assert set(ga["status_histogram"]) <= {"clean", "known-limitation", "hazard"}
     # audited count is consistent with the AUDITED bucket of SYMBOL_CATEGORY.
-    # 122 = 114 base + 5 ZAMS stellar relations (P3 ZAMS-migration) + 3 dispersion
-    # forward models (Phase 0: jeans_dispersion, project_dispersion; Phase 0.5:
-    # df_moment_dispersion; all AUDITED).
-    assert sum(ga["exempt"].values()) + ga["audited"] == 122
+    # 125 = prior 122 + the cataloged binary builder and its two public PyTree
+    # containers. The builder is audited; both data containers are exempt.
+    assert sum(ga["exempt"].values()) + ga["audited"] == 125
 
     # api-coverage is BUILT and FULL (Task 2.3 closed all 6 UNTESTED holes): it
     # partitions __all__ into SYMBOL_TESTS / EXEMPT / UNTESTED, and UNTESTED is now empty.
@@ -119,10 +118,9 @@ def test_registry_status_all_four_built():
     assert api["status"] == "built"
     assert api["full"] is True  # all 6 holes closed (Task 2.3)
     assert api["untested"] == 0
-    # The three partition sizes sum to the full __all__ (122 = 114 base + 5 ZAMS
-    # + 3 dispersion forward models: jeans_dispersion, project_dispersion,
-    # df_moment_dispersion).
-    assert api["symbol_tests"] + api["exempt"] + api["untested"] == 122
+    # The three partition sizes sum to the full 125-symbol public API, including
+    # the cataloged builder and its two public provenance containers.
+    assert api["symbol_tests"] + api["exempt"] + api["untested"] == 125
 
     # physics-validation is BUILT and FULL (Task 4.2): the manifest partitions every
     # model into MODEL_INVARIANTS / EXEMPT_NON_MODEL / EXEMPT_NON_EQUILIBRIUM_MODEL /
