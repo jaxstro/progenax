@@ -1,5 +1,19 @@
 # progenax — status
 
+**Primordial-system catalog checkpoint (2026-07-29, branch `codex/primordial-system-catalog`):** the
+new opt-in `build_cataloged_binary_cluster` API retains stable logical particle IDs, particle-local
+birth provenance, all six sampled binary orbital elements, and per-system periapsis contact margins
+while sharing one physical construction core with the unchanged `build_binary_cluster` API. Compact
+output preserves logical-ID gaps; masked output retains ghost slots and an explicit `is_real` mask.
+The contact margin is reported without clipping or resampling, so initially contacting systems remain
+visible to downstream policy. Evidence: legacy/cataloged physical equivalence, exact orbital-retention
+and unit-aware contact equations, finite JVP, 99-case gradient audit (98 clean, one pinned known
+limitation, zero hazards), complete API/physics/provenance registry coverage, 214-page website gate,
+and released-core gate 1608 passed/1 skipped. Progenax now owns a durable birth-provenance handoff;
+Gravax still owns initial hierarchy certification, numerical owner/slot assignment, transitions,
+replay/restart, and fixed-history AD. No evolved-cluster science or Gravax production-readiness claim
+is promoted by this checkpoint.
+
 **Gravoturb gas-envelope arc (2026-07-19, merged to local `main`):** differentiable **Bonnor-Ebert** and
 **polytropic** natal-gas profiles (`src/experimental/gravoturb/profiles/`), on a shared Lane-Emden core
 (diffrax `Tsit5` matching the king/michie/limepy idiom; jaxstro PCHIP interpolation + implicit-function-theorem
