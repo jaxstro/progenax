@@ -149,14 +149,18 @@ class TestNoZeroGradientTrap:
             return BonnorEbertProfile(r_h=1.0, xi_max=xi_max, n_points=N_POINTS).r_0
 
         g = float(jax.grad(f)(6.0))
-        assert abs(g) > 1e-6, f"d r_0/d xi_max = {g:.3e} -- the inversion lost its gradient"
+        assert abs(g) > 1e-6, (
+            f"d r_0/d xi_max = {g:.3e} -- the inversion lost its gradient"
+        )
 
     def test_polytrope_scale_responds_to_gamma(self):
         def f(gamma):
             return PolytropeProfile(r_h=1.0, gamma=gamma, n_points=N_POINTS).r_0
 
         g = float(jax.grad(f)(5.0 / 3.0))
-        assert abs(g) > 1e-6, f"d r_0/d gamma = {g:.3e} -- the inversion lost its gradient"
+        assert abs(g) > 1e-6, (
+            f"d r_0/d gamma = {g:.3e} -- the inversion lost its gradient"
+        )
 
     def test_be_central_density_responds_to_shape(self):
         def f(xi_max):
@@ -207,8 +211,8 @@ class TestJitCompatibility:
     def test_polytrope_grad_under_jit(self):
         @jax.jit
         def g(gamma):
-            return jax.grad(
-                lambda x: _poly_density_sum(1.0, x, jnp.array([0.3, 0.6]))
-            )(gamma)
+            return jax.grad(lambda x: _poly_density_sum(1.0, x, jnp.array([0.3, 0.6])))(
+                gamma
+            )
 
         assert jnp.isfinite(g(5.0 / 3.0))

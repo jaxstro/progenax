@@ -64,9 +64,7 @@ def periapsis_contact_margin(
 ) -> Float[Array, "S"]:
     """Return ``a(1-e) - (R1+R2)`` in one common length unit."""
 
-    return semimajor_axis * (1.0 - eccentricity) - (
-        primary_radius + secondary_radius
-    )
+    return semimajor_axis * (1.0 - eccentricity) - (primary_radius + secondary_radius)
 
 
 def validate_primordial_system_catalog(
@@ -96,7 +94,9 @@ def validate_primordial_system_catalog(
     if catalog.component_active.shape != (system_count, 2):
         raise ValueError("component_active must have shape (S, 2).")
     if particle_ids.ndim != 1 or is_real.shape != particle_ids.shape:
-        raise ValueError("particle_ids and is_real must be matching one-dimensional arrays.")
+        raise ValueError(
+            "particle_ids and is_real must be matching one-dimensional arrays."
+        )
     if not jnp.issubdtype(catalog.system_ids.dtype, jnp.integer):
         raise ValueError("system IDs must have integer dtype.")
     if not jnp.issubdtype(catalog.component_particle_ids.dtype, jnp.integer):
@@ -116,7 +116,9 @@ def validate_primordial_system_catalog(
             )
         )
     ):
-        raise ValueError("secondary IDs must be active for binaries and -1 for singles.")
+        raise ValueError(
+            "secondary IDs must be active for binaries and -1 for singles."
+        )
 
     active_component_ids = catalog.component_particle_ids[catalog.component_active]
     real_particle_ids = particle_ids[is_real]
@@ -125,7 +127,9 @@ def validate_primordial_system_catalog(
     if int(jnp.unique(real_particle_ids).shape[0]) != real_particle_ids.shape[0]:
         raise ValueError("real particle IDs must be unique.")
     if not bool(jnp.all(jnp.isin(active_component_ids, real_particle_ids))):
-        raise ValueError("every active catalog component must reference a real particle ID.")
+        raise ValueError(
+            "every active catalog component must reference a real particle ID."
+        )
     if active_component_ids.shape[0] != real_particle_ids.shape[0]:
         raise ValueError("every real particle must appear exactly once in the catalog.")
 
