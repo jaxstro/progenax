@@ -61,20 +61,20 @@ def _slowest_cell(durations: dict, module: str) -> str:
     return f"{tail} ({seconds:.1f}s)"
 
 
-def _validation_pass_cell(validation_scripts: dict, module: str) -> str:
-    """PASS/FAIL/unknown for a module's ``validate_<module>.py`` script, if any.
+def _recorded_exit(record):
+    """Read the existing flat or nested exit record without coercing its type."""
+    return record.get("exit") if isinstance(record, dict) else record
 
-    ``validation_scripts`` maps ``validate_*.py`` -> exit code (or ``"unknown"``).
-    We match a script named ``validate_<module>.py`` (exact stem). Exit ``0`` ->
-    PASS, a nonzero int -> FAIL, ``"unknown"`` -> "—". Modules with no matching
-    validate script also show "—".
-    """
-    code = validation_scripts.get(f"validate_{module}.py")
-    if code == 0:
-        return "PASS"
-    if isinstance(code, int):
-        return "FAIL"
-    return "—"
+
+def _validation_pass_cell(validation_scripts: dict, module: str) -> str:
+    """Show strict recorded exits; a module without a matching script gets a dash."""
+    name = f"validate_{module}.py"
+    if name not in validation_scripts:
+        return "—"
+    code = _recorded_exit(validation_scripts[name])
+    if type(code) is not int:
+        return "INCOMPLETE"
+    return "PASS" if code == 0 else "FAIL"
 
 
 def _matrix_rows(dashboard: dict) -> list[str]:
@@ -139,41 +139,44 @@ def _registry_status_phrase(registries: dict) -> str:
 
 
 def _validation_scripts_section(validation_scripts: dict) -> list[str]:
-    """A standalone table of EVERY ``validate_*.py`` -> PASS/FAIL/—.
-
-    The per-module matrix only surfaces scripts whose stem matches a census module
-    (``validate_<module>.py``), so 22 of 24 never appear there. This section lists ALL
-    of them straight from ``validation/data/validation_runs.json`` so a failing
-    validation script is visible on the page, not just in the JSON.
-    """
-    if not validation_scripts:
-        return []
+    """Display required exit records without treating bools or floats as successes."""
     rows: list[str] = []
-    for name, code in sorted(validation_scripts.items()):
-        if code == 0:
+    n_pass = n_fail = n_incomplete = 0
+    for name, record in sorted(validation_scripts.items()):
+        code = _recorded_exit(record)
+        if type(code) is int and code == 0:
             verdict = "PASS"
-        elif isinstance(code, int):
+            n_pass += 1
+        elif type(code) is int:
             verdict = f"FAIL (exit {code})"
+            n_fail += 1
         else:
-            verdict = "—"
+            verdict = "INCOMPLETE"
+            n_incomplete += 1
         rows.append(f"* - `{name}`\n  - {verdict}")
-    n_fail = sum(
-        1 for c in validation_scripts.values() if isinstance(c, int) and c != 0
+    overall = (
+        "FAIL"
+        if n_fail
+        else "INCOMPLETE"
+        if n_incomplete or not validation_scripts
+        else "PASS"
     )
     return [
         "## Validation scripts",
         "",
-        f"Recorded exit status of `scripts/validate_*.py` "
-        f"(from `validation/data/validation_runs.json`): "
-        f"**{len(validation_scripts)} scripts, {n_fail} failing**.",
-        "These are stored results, not executions or freshness checks performed by this page.",
+        "Recorded exit status of the released-core validation scripts "
+        "(from `validation/data/validation_runs.json`): "
+        f"**{len(validation_scripts)} scripts: {n_pass} passed, {n_fail} failed, "
+        f"{n_incomplete} incomplete**. Overall recorded status: **{overall}**.",
+        "These are stored results; rendering this page does not execute the scripts. "
+        "A missing, timeout, bool, float or otherwise invalid exit record is incomplete.",
         "",
         "```{list-table} Validation script runs",
         ":header-rows: 1",
         ":align: left",
         "",
         "* - Script\n  - Status",
-        "\n".join(rows),
+        "\n".join(rows) if rows else "* - No exit records\n  - INCOMPLETE",
         "```",
         "",
     ]
@@ -200,10 +203,10 @@ def render_dashboard_page(dashboard: dict) -> str:
     measured_sha = provenance.get("git_sha", "not recorded")
     full_suite = gate.get("full_suite_green")
     full_suite_text = (
-        "No full-suite pass/fail verdict is recorded in this dashboard."
+        "The dashboard generator does not set a full-suite verdict; the release page records executed test and gate results."
         if full_suite is None
-        else f"Stored full-suite verdict: {'PASS' if full_suite else 'FAIL'}; "
-        "current input freshness still requires a separate check."
+        else f"Recorded full-suite verdict: {'PASS' if full_suite else 'FAIL'}. "
+        "The release page states its revision and scope."
     )
 
     header = [
@@ -221,15 +224,15 @@ def render_dashboard_page(dashboard: dict) -> str:
         "---",
         "title: Test Dashboard",
         "description: Generated display of stored progenax test, coverage, registry, "
-        "duration, and validation artifacts; not a current release verdict.",
+        "duration, and validation artifacts, with a separate scoped release verdict.",
         "---",
         "# Test Dashboard",
         "",
-        "```{warning}",
-        "**Stored snapshot, not a current release verdict.** PASS cells, coverage "
-        "percentages, and hazard counts describe recorded artifacts. Treat them as "
-        "historical until source/test/configuration freshness and the full test "
-        "gate pass for the intended revision.",
+        "```{note}",
+        "**Recorded measurements.** PASS cells, coverage percentages and hazard "
+        "counts display saved artifacts. See the "
+        "[current release verdict](../95-release/index.md#release-readiness-verdict) "
+        "for the revision, input-freshness checks and completed gate stages.",
         full_suite_text,
         "",
         "This page is generated. Display-only regeneration from the unchanged "
@@ -241,12 +244,12 @@ def render_dashboard_page(dashboard: dict) -> str:
         "reruns coverage, gradient checks, or validation scripts.",
         "```",
         "",
-        f"Census generated at `{generated_utc}`. Recorded line coverage: {line_cov_str}. "
+        f"Census generated at `{generated_utc}`. Recorded combined statement/branch coverage: {line_cov_str}. "
         "Coverage, durations and validation PASS entries come from stored artifacts; "
-        "regenerating this page does not rerun those checks or establish their validity "
-        "for the current revision. "
-        "`Line-cov %` cells show the stored statement-weighted per-directory "
-        "percentage, or **not recorded** when no value is present. A missing value "
+        "regenerating this page does not rerun those checks. "
+        "Per-module `Line-cov %` cells show statement-only coverage, weighted by "
+        "statement counts across each directory; they exclude branch coverage. "
+        "They show **not recorded** when no value is present. A missing value "
         "does not imply a pending measurement for a test-only module. "
         "The gradient column reports the stored repo-wide differentiability registry "
         f"(audited / audited+exempt, hazard count). {registry_phrase}",

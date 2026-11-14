@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local released-core measurement: one full coverage/duration run, followed by
-# artifact-consumer checks. Remote CI authorization is a separate requirement.
+# artifact-consumer and serial timing checks. Remote CI authorization is separate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -173,7 +173,8 @@ env -u VIRTUAL_ENV XLA_FLAGS="$XLA_CAPS" uv run --no-sync \
     tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor \
     tests/validation/test_dashboard_fresh.py \
     tests/validation/grad_audit/test_audit_script.py \
-    tests/validation/grad_audit/test_json_fresh.py -q \
+    tests/validation/grad_audit/test_json_fresh.py \
+    tests/unit/profiles/test_limepy_tables.py::TestTableBackedSolver::test_table_solve_is_faster -q \
     2>&1 | tee "$RUN_DIR/artifact-checks.log"
 assert_frozen_inputs
 FULL_SUITE_GREEN=true
