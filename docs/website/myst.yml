@@ -345,7 +345,10 @@ project:
       hidden: true
 
 site:
-  template: book-theme
+  # Theme 2 uses a newer static-rendering API. Keep the supported theme for
+  # mystmd 1.10.1 pinned here as well as the CLI in the docs workflows.
+  # https://github.com/jupyter-book/myst-theme/pull/977
+  template: https://github.com/jupyter-book/myst-theme/releases/download/myst-to-react%401.4.1/book-theme.zip
   options:
     favicon: ''
     logo_text: progenax
