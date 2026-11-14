@@ -47,6 +47,35 @@ _LINE_COV_FLOOR = 90
 _TIERS = ("unit", "integration", "validation")
 _TIER_DIRS = tuple(f"tests/{tier}" for tier in _TIERS)
 
+# Explicit released-core inventory. Local experimental scripts must not enter a
+# release workload or its dashboard merely because their filename matches a glob.
+RELEASED_VALIDATION_SCRIPTS = (
+    "validate_analytical.py",
+    "validate_azimuthal_variation.py",
+    "validate_binaries.py",
+    "validate_cluster_builders.py",
+    "validate_cluster_ic.py",
+    "validate_df_tables.py",
+    "validate_eff.py",
+    "validate_environment.py",
+    "validate_equipartition_saturation.py",
+    "validate_imfs.py",
+    "validate_king.py",
+    "validate_limepy_reference.py",
+    "validate_mass_segregation.py",
+    "validate_michie.py",
+    "validate_multicomponent_eddington.py",
+    "validate_multimass_anisotropy.py",
+    "validate_multimass_equilibrium.py",
+    "validate_plummer.py",
+    "validate_rotation_anisotropy.py",
+    "validate_segregation_approx.py",
+    "validate_speed_routing.py",
+    "validate_substructure_q.py",
+    "validate_tidal.py",
+    "validate_zams.py",
+)
+
 # pytest-cov keys each covered file by its repo-relative path; the released
 # package lives under this prefix. We only report coverage for these files.
 _SRC_PREFIX = "src/progenax/"
@@ -496,21 +525,20 @@ def read_durations(path: str = "validation/data/durations.json") -> dict:
 def read_validation_scripts(
     path: str = "validation/data/validation_runs.json",
 ) -> dict:
-    """Map every ``scripts/validate_*.py`` to its last recorded exit code (no run).
+    """Map each released-core validation script to its recorded exit code (no run).
 
-    Globs the 23 ``scripts/validate_*.py`` files and, for each, reports the exit
+    Uses the explicit released-core inventory and, for each, reports the exit
     code recorded in the COMMITTED ``{script_name: exit_code}`` artifact at
     ``path`` (else ``"unknown"``). The generator does NOT run the scripts — they
     are too slow; a separate ``--run-validations`` flag (Task 1.5 / future)
-    refreshes the artifact. Enumerating from the glob (not from the artifact keys)
-    means a newly-added validate script shows up immediately as ``"unknown"``.
+    refreshes the artifact. Missing required records remain ``"unknown"``;
+    private or untracked scripts do not enter the inventory by filename.
 
-    Returns ``{script_name: exit_code_or_"unknown"}`` for all 23 scripts.
+    Returns ``{script_name: exit_code_or_"unknown"}`` for all 24 scripts.
     """
     p = _REPO_ROOT / path
     recorded = json.loads(p.read_text()) if p.exists() else {}
-    scripts = sorted((_REPO_ROOT / "scripts").glob("validate_*.py"))
-    return {s.name: recorded.get(s.name, "unknown") for s in scripts}
+    return {name: recorded.get(name, "unknown") for name in RELEASED_VALIDATION_SCRIPTS}
 
 
 def _line_coverage_block() -> dict:

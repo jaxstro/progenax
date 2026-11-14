@@ -1,131 +1,182 @@
 #!/usr/bin/env bash
-# Heavy, periodic two-tier RELEASE GATE. The FAST continuous gate (scripts/check.sh)
-# already runs the four registry ratchets + the FAST dashboard-freshness teeth + the
-# coverage-floor READ inside `pytest -m "not slow"`. THIS script is the HEAVY tier: it
-# re-measures FULL-suite coverage, refreshes the observability artifacts, regenerates
-# coverage.json + the dashboard at HEAD, runs the floor + freshness tests (incl. the @slow
-# full-regeneration match), and asserts the 5-part conjunction:
-#
-#   registries_full  AND  line_cov_measured >= line_cov_floor  AND  dashboard_fresh
-#       AND  full_suite_green  AND  validation_scripts_pass
-#
-# Run from the repo root. Exits non-zero on FAIL.
-#
-# progenax notes (vs the fluxax template this is adapted from):
-#   - The dashboard CLI is progenax's: --stamp-coverage RAW_COV (writes coverage.json),
-#     --emit (writes test_dashboard.json), --render (writes the MyST page). It has NO
-#     fluxax-style --write/--timestamp/--selector/--git-sha/--measured-utc/--note flags;
-#     selector/git_sha/measured_utc are derived INSIDE --stamp-coverage from HEAD.
-#   - Coverage measures src/progenax; the gate floor is 90 (build_test_dashboard._LINE_COV_FLOOR).
-#   - The committed coverage file is validation/data/coverage.json, the dashboard is
-#     validation/data/test_dashboard.json, the freshness test is
-#     tests/validation/test_dashboard_fresh.py.
-#   - Test invocation uses the XLA thread caps + pytest-xdist -n auto (progenax/CLAUDE.md).
-#   - Ruff and mypy are configured in pyproject.toml and run by scripts/check.sh.
-#     This heavy script does not repeat those steps.
+# Local released-core measurement: one full coverage/duration run, followed by
+# artifact-consumer checks. Remote CI authorization is a separate requirement.
 set -euo pipefail
-cd "$(dirname "$0")/.."   # repo root
+cd "$(dirname "$0")/.."
 
 RUN="env -u VIRTUAL_ENV uv run --no-sync"
 XLA_CAPS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
-RAW_COV="/tmp/progenax_release_cov.json"
+WORKERS="${PROGENAX_RELEASE_WORKERS:-3}"
+case "$WORKERS" in
+    1|2|3|4) ;;
+    *) echo "PROGENAX_RELEASE_WORKERS must be 1, 2, 3 or 4" >&2; exit 2 ;;
+esac
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/progenax-release.XXXXXX")"
+RAW_COV="$RUN_DIR/coverage-raw.json"
+FULL_LOG="$RUN_DIR/full-tests.log"
+export JAX_ENABLE_X64=true PROGENAX_STRICT_REFS=1
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$RUN_DIR/matplotlib}"
+mkdir -p "$MPLCONFIGDIR"
+echo "Release logs: $RUN_DIR"
+trap 'rc=$?; if [ "$rc" -ne 0 ]; then echo "Release gate failed (exit $rc); retained logs: $RUN_DIR" >&2; fi' EXIT
 
-echo "== release-gate: sync (--all-extras) =="
-# This provisions every optional extra, including experimental dependencies.
-# pyproject.toml declares the supported Python range (currently >=3.13).
-# Every later command uses --no-sync. Provisioning and the workloads below must
-# be scoped separately before running this heavy script.
-env -u VIRTUAL_ENV uv sync --all-extras
+# Same source/test/config scope used by the existing coverage freshness guard.
+# Generated coverage/dashboard/duration records are outputs, not these inputs.
+COVERAGE_INPUTS=(
+    src/progenax/ tests/unit/ tests/integration/ tests/validation/
+    tests/conftest.py tests/__init__.py conftest.py pyproject.toml
+    pytest.ini .coveragerc setup.cfg tox.ini
+)
+MEASURED_SHA="$(git -c gc.auto=0 -c maintenance.auto=false rev-parse --verify HEAD)"
+assert_frozen_inputs() {
+    local current untracked
+    current="$(git -c gc.auto=0 -c maintenance.auto=false rev-parse --verify HEAD)"
+    if [ "$current" != "$MEASURED_SHA" ]; then
+        echo "HEAD changed during measurement; do not stamp this run as another commit" >&2
+        return 1
+    fi
+    if ! git -c gc.auto=0 -c maintenance.auto=false diff --quiet "$MEASURED_SHA" -- "${COVERAGE_INPUTS[@]}" ||
+       ! git -c gc.auto=0 -c maintenance.auto=false diff --cached --quiet "$MEASURED_SHA" -- "${COVERAGE_INPUTS[@]}"; then
+        echo "Commit/freeze released-core source, tests and configuration before measurement" >&2
+        return 1
+    fi
+    untracked="$(git -c gc.auto=0 -c maintenance.auto=false ls-files --others --exclude-standard -- "${COVERAGE_INPUTS[@]}")"
+    if [ -n "$untracked" ]; then
+        echo "Untracked released-core measurement inputs remain:" >&2
+        printf '%s\n' "$untracked" >&2
+        return 1
+    fi
+}
+assert_frozen_inputs
 
-echo "== release-gate: FULL-suite coverage (heavy step, ~14-36 min) =="
-# The FULL suite (NOT -m "not slow"): a partial run understates coverage and would game the
-# floor. --cov-branch matches the committed artifact's branch coverage. DESELECT the
-# dashboard-freshness meta-tests: they assert the committed coverage.json is already fresh,
-# which is CIRCULAR during the very run that produces the new coverage. They test scripts/
-# behavior, not src/progenax, so excluding them does not affect the coverage number; they
-# run in the post-regeneration verification step further down.
+if [ "${PROGENAX_RELEASE_SKIP_SYNC:-0}" = "1" ]; then
+    echo "Using the installed environment without syncing or removing optional dependencies"
+else
+    env -u VIRTUAL_ENV uv sync --locked --extra dev --extra diagnostics --extra viz
+fi
+
+# Refuse missing caches before a validation CLI can provision a foreign Python
+# environment. No --regen or reference download is part of this release gate.
+$RUN python - <<'PY'
+import subprocess
+from pathlib import Path
+import numpy as np
+from scripts.build_test_dashboard import RELEASED_VALIDATION_SCRIPTS
+root = Path.cwd()
+tracked = set(subprocess.check_output(["git", "ls-files", "scripts/*.py"], text=True).splitlines())
+missing_scripts = [name for name in RELEASED_VALIDATION_SCRIPTS
+                   if f"scripts/{name}" not in tracked or not (root / "scripts" / name).is_file()]
+cache = root / "validation/data/limepy_reference"
+required = [cache / f"{name}.npz" for name in (
+    "single_g1", "single_g15", "twocomp_iso", "imf4", "twocomp_ra_eta0", "twocomp_ra_eta05")]
+required.append(cache / "absolute/level-2-base.npz")
+required += [cache / "absolute" / f"level-2-{name}_{sign}_{step}.npz"
+             for name in ("alpha", "delta", "W0")
+             for sign in ("plus", "minus") for step in (1e-4, 1e-5)]
+missing = [str(p.relative_to(root)) for p in required if not p.is_file()]
+if missing_scripts or missing:
+    raise SystemExit(f"Release prerequisites missing; no regeneration attempted: scripts={missing_scripts}, caches={missing}")
+for path in required:
+    with np.load(path, allow_pickle=False) as cached:
+        if not cached.files:
+            raise SystemExit(f"Empty reference cache: {path.relative_to(root)}")
+print(f"Preflight: {len(RELEASED_VALIDATION_SCRIPTS)} core validation scripts and {len(required)} cached references")
+PY
+
+# Refresh the existing registry under its unchanged per-case criteria. A hazard
+# aborts here; neither tolerances nor statuses are rewritten to obtain a pass.
+if [ "${PROGENAX_RELEASE_SKIP_GRAD_REFRESH:-0}" = "1" ]; then
+    echo "Reusing gradient JSON provisionally; independent serial freshness and primary hazard checks remain required"
+else
+    env XLA_FLAGS="$XLA_CAPS" $RUN python scripts/audit_gradients.py \
+        2>&1 | tee "$RUN_DIR/gradient-refresh.log"
+fi
+assert_frozen_inputs
+
+echo "== release-gate: one full released-core coverage and duration measurement =="
+# Defer only artifact consumers. The two fresh_audit consumers run together in
+# one serial post-phase, so their session fixture regenerates once, not per worker.
 env -u VIRTUAL_ENV XLA_FLAGS="$XLA_CAPS" uv run --no-sync \
     pytest tests/unit tests/integration tests/validation \
     --cov=progenax --cov-branch --cov-report=json:"${RAW_COV}" \
-    -n auto -p no:cacheprovider \
-    --deselect tests/validation/test_dashboard_fresh.py
-FULL_SUITE_GREEN=true   # set only because the line above did NOT abort (set -e)
+    --durations=0 -n "$WORKERS" --dist loadscope -p no:cacheprovider \
+    --deselect tests/validation/test_dashboard_fresh.py \
+    --deselect tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor \
+    --deselect tests/validation/grad_audit/test_audit_script.py \
+    --deselect tests/validation/grad_audit/test_json_fresh.py \
+    2>&1 | tee "$FULL_LOG"
+assert_frozen_inputs
 
-echo "== release-gate: refresh observability artifacts (validation_runs + durations) =="
-# durations.json: per-module slowest test over the FULL suite (release-grade refresh of the
-# fast-tier snapshot check.sh commits). Reuses the same bucketing as the dashboard census.
-env -u VIRTUAL_ENV XLA_FLAGS="$XLA_CAPS" uv run --no-sync \
-    pytest tests/unit tests/integration tests/validation -n auto --durations=0 -q \
-    > /tmp/progenax_full_durations.txt 2>&1 || true
-$RUN python - <<'PY'
-import json, re
+# Parse durations from the same successful primary measurement; never rerun the
+# full suite merely to obtain timings, and never suppress a failed pytest exit.
+$RUN python - "$FULL_LOG" <<'PY'
+import json, re, sys
 from pathlib import Path
-root = Path.cwd()
-text = Path("/tmp/progenax_full_durations.txt").read_text()
-TIERS = {"unit", "integration", "validation"}
+text = Path(sys.argv[1]).read_text()
 def node_to_module(node_id):
     parts = Path(node_id.split("::", 1)[0]).parts
-    if len(parts) < 3 or parts[0] != "tests" or parts[1] not in TIERS:
+    if len(parts) < 3 or parts[0] != "tests" or parts[1] not in {"unit", "integration", "validation"}:
         return None
     rest = parts[2:]
     return rest[0] if len(rest) >= 2 else Path(rest[0]).stem
 line_re = re.compile(r"^\s*([\d.]+)s\s+(call|setup|teardown)\s+(\S+::\S+)\s*$")
 node_secs = {}
-for ln in text.splitlines():
-    m = line_re.match(ln)
-    if m:
-        node_secs[m.group(3)] = node_secs.get(m.group(3), 0.0) + float(m.group(1))
+for line in text.splitlines():
+    match = line_re.match(line)
+    if match:
+        node_secs[match.group(3)] = node_secs.get(match.group(3), 0.0) + float(match.group(1))
+if not node_secs:
+    raise SystemExit("Primary pytest log contains no duration rows")
 modules = {}
-for node, secs in node_secs.items():
-    mod = node_to_module(node)
-    if mod is None:
-        continue
-    if mod not in modules or secs > modules[mod]["seconds"]:
-        modules[mod] = {"slowest_test": node, "seconds": round(secs, 2)}
-out = {
-    "_note": ("FULL-suite per-module slowest test (seconds = call+setup+teardown), "
-              "refreshed by scripts/release_gate.sh. Read by "
-              "scripts/build_test_dashboard.py::read_durations."),
-    "modules": dict(sorted(modules.items())),
-}
+for node, seconds in node_secs.items():
+    module = node_to_module(node)
+    if module is not None and (module not in modules or seconds > modules[module]["seconds"]):
+        modules[module] = {"slowest_test": node, "seconds": round(seconds, 2)}
+out = {"_note": "Primary full released-core coverage run; deferred artifact consumers excluded. Seconds sum call+setup+teardown.",
+       "modules": dict(sorted(modules.items()))}
 Path("validation/data/durations.json").write_text(json.dumps(out, indent=2) + "\n")
-print(f"refreshed durations.json with {len(modules)} module buckets")
 PY
-# validation_runs.json: real exit code of every scripts/validate_*.py.
-$RUN python - <<'PY'
-import json, os, subprocess, time
+
+# Exact canonical core list, not a filename discovery of local research scripts.
+$RUN python - "$RUN_DIR" <<'PY'
+import json, os, subprocess, sys, time
 from pathlib import Path
+from scripts.build_test_dashboard import RELEASED_VALIDATION_SCRIPTS
 root = Path.cwd()
 env = dict(os.environ)
 env["XLA_FLAGS"] = "--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 results = {}
-for s in sorted((root / "scripts").glob("validate_*.py")):
-    t0 = time.time()
-    try:
-        p = subprocess.run(
-            ["env", "-u", "VIRTUAL_ENV", "uv", "run", "--no-sync", "python", str(s)],
-            cwd=str(root), env=env, capture_output=True, text=True, timeout=900)
-        rc = p.returncode
-    except subprocess.TimeoutExpired:
-        rc = "timeout"
-    results[s.name] = rc
-    print(f"{s.name}: exit={rc} ({time.time()-t0:.1f}s)", flush=True)
-Path("validation/data/validation_runs.json").write_text(
-    json.dumps(results, indent=2, sort_keys=True) + "\n")
-print(f"refreshed validation_runs.json ({len(results)} scripts)")
+for name in RELEASED_VALIDATION_SCRIPTS:
+    started = time.monotonic()
+    log = Path(sys.argv[1]) / (name + ".log")
+    with log.open("w") as stream:
+        try:
+            process = subprocess.run([sys.executable, str(root / "scripts" / name)],
+                cwd=root, env=env, stdout=stream, stderr=subprocess.STDOUT, timeout=900)
+            code = process.returncode
+        except subprocess.TimeoutExpired:
+            code = "timeout"
+    results[name] = code
+    print(f"{name}: exit={code} ({time.monotonic()-started:.1f}s)", flush=True)
+Path("validation/data/validation_runs.json").write_text(json.dumps(results, indent=2, sort_keys=True) + "\n")
 PY
+assert_frozen_inputs
 
-echo "== release-gate: stamp coverage.json + regen dashboard.json + page at HEAD =="
+echo "== release-gate: stamp measured coverage and regenerate dashboard =="
+# HEAD and all scoped inputs are still the frozen measurement commit.
 $RUN python scripts/build_test_dashboard.py --stamp-coverage "${RAW_COV}"
 $RUN python scripts/build_test_dashboard.py --emit --render
 
-echo "== release-gate: floor + freshness pytest tests (now fresh) =="
-# Fast given freshly-regenerated artifacts. The @slow full-regeneration match re-collects
-# the suite to semantic-diff the dashboard; run it explicitly here (drop -m filter).
+echo "== release-gate: serial artifact-consumer verification =="
 env -u VIRTUAL_ENV XLA_FLAGS="$XLA_CAPS" uv run --no-sync \
-    pytest -p no:cacheprovider \
+    pytest -n 0 -p no:cacheprovider \
     tests/validation/api_coverage/test_api_coverage.py::test_line_coverage_above_floor \
-    tests/validation/test_dashboard_fresh.py -q
+    tests/validation/test_dashboard_fresh.py \
+    tests/validation/grad_audit/test_audit_script.py \
+    tests/validation/grad_audit/test_json_fresh.py -q \
+    2>&1 | tee "$RUN_DIR/artifact-checks.log"
+assert_frozen_inputs
+FULL_SUITE_GREEN=true
 
 echo "== release-gate: assert the 5-part conjunction =="
 # Read the regenerated dashboard's gate block and assert all five parts. full_suite_green is

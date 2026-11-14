@@ -9,10 +9,13 @@ and validation-script exit codes. NONE of these run the suite, ``pytest
 modules and parse COMMITTED artifacts (so the Task-1.6 staleness gate stays cheap).
 """
 
+import json
 from pathlib import Path
 
 import pytest
+import scripts.build_test_dashboard as dashboard_owner
 from scripts.build_test_dashboard import (
+    RELEASED_VALIDATION_SCRIPTS,
     build_dashboard,
     collect_test_inventory,
     load_coverage,
@@ -186,6 +189,36 @@ def test_validation_scripts_absent_artifact_all_unknown():
     runs = read_validation_scripts(path="validation/data/__nope_valruns__.json")
     assert len(runs) == 24
     assert all(code == "unknown" for code in runs.values())
+
+
+def test_core_validation_scope_rejects_private_glob_and_missing_record(
+    tmp_path, monkeypatch
+):
+    """Catch private glob expansion and false PASS with a missing required core record."""
+    from tests.validation.test_release_gate_status import status_program
+
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    (scripts / "validate_private_research.py").write_text(
+        'raise RuntimeError("private source must not execute")\n'
+    )
+    required = "validate_plummer.py"
+    recorded = {name: 0 for name in RELEASED_VALIDATION_SCRIPTS if name != required}
+    recorded["validate_private_research.py"] = 0
+    artifact = tmp_path / "validation_runs.json"
+    artifact.write_text(json.dumps(recorded))
+    monkeypatch.setattr(dashboard_owner, "_REPO_ROOT", tmp_path)
+    runs = read_validation_scripts(path=str(artifact))
+    assert set(runs) == set(RELEASED_VALIDATION_SCRIPTS)
+    assert "validate_private_research.py" not in runs
+    assert runs[required] == "unknown"
+
+    # Reuse the existing predicate extractor, whose independent truth cases
+    # reject bool/float/timeout/unknown statuses as successful process exits.
+    state = {"val_scripts": runs}
+    exec(status_program.__wrapped__(), state)
+    assert state["validation_scripts_pass"] is False
+    assert state["val_fails"] == [required]
 
 
 # --- Task 1.5: write_coverage_json (provenance injection) -------------------

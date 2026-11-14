@@ -123,6 +123,7 @@ exclude = [
     "/docs/tracker/",
     "/docs/gravoturb/",
     "/research/",
+    "/scripts/demo_extinction_bands.py",
     "**/*gravoturb*",
 ]
 
