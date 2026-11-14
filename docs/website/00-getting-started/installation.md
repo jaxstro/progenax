@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install progenax via UV (preferred) or pip — single-environment setup, optional dependencies, and the smoke test that verifies everything works.
+description: Install progenax via UV or pip, select optional dependencies, and run a basic initial-condition smoke test.
 ---
 # Installation
 
@@ -20,7 +20,7 @@ git clone https://github.com/jaxstro/jaxstro.git
 git clone https://github.com/jaxstro/progenax.git
 cd progenax
 uv venv --python 3.13
-uv pip install -e ../jaxstro -e ../jaxstro -e ".[dev]"
+uv pip install -e ../jaxstro -e ".[dev]"
 ```
 
 The `[dev]` extra adds the test/lint tooling (pytest, pytest-cov,
@@ -86,8 +86,8 @@ Two practical consequences if you embed progenax in a larger JAX application:
    memory of a float32 pipeline. Import progenax early (before building other
    JAX state) so your whole process runs in one consistent precision regime.
 2. Reverting x64 after import (`jax.config.update("jax_enable_x64", False)`)
-   downcasts progenax's outputs with warnings and voids the validation
-   guarantees. Don't mix regimes.
+   downcasts progenax's outputs with warnings and changes the precision regime
+   used by the documented checks. Don't mix regimes.
 
 ## Accelerator support
 
@@ -115,9 +115,12 @@ implied by the CPU results.
   - the repo-only `gravoturb` inference layer (blackjax, optax, arviz, scipy, flowjax)
 * - `[diagnostics]`
   - numpy + scipy, for the exact (non-differentiable) CW04 `compute_q_parameter` path
+* - `[viz]`
+  - matplotlib + seaborn, for validation figures
 ```
 
-Install only what you need: `uv pip install -e ../jaxstro -e ".[dev,experimental]"`.
+For the released-core tests, exact diagnostics and validation figures, use
+`uv pip install -e ../jaxstro -e ".[dev,diagnostics,viz]"`.
 
 ## Next step
 

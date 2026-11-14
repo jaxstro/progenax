@@ -1,12 +1,12 @@
 ---
 title: Test Dashboard
-description: Generated display of stored progenax test, coverage, registry, duration, and validation artifacts; not a current release verdict.
+description: Generated display of stored progenax test, coverage, registry, duration, and validation artifacts, with a separate scoped release verdict.
 ---
 # Test Dashboard
 
-```{warning}
-**Stored snapshot, not a current release verdict.** PASS cells, coverage percentages, and hazard counts describe recorded artifacts. Treat them as historical until source/test/configuration freshness and the full test gate pass for the intended revision.
-No full-suite pass/fail verdict is recorded in this dashboard.
+```{note}
+**Recorded measurements.** PASS cells, coverage percentages and hazard counts display saved artifacts. See the [current release verdict](../95-release/index.md#release-readiness-verdict) for the revision, input-freshness checks and completed gate stages.
+The dashboard generator does not set a full-suite verdict; the release page records executed test and gate results.
 
 This page is generated. Display-only regeneration from the unchanged stored JSON is:
 
@@ -15,9 +15,9 @@ This page is generated. Display-only regeneration from the unchanged stored JSON
 Updating the census with `--emit` is separate. Neither operation reruns coverage, gradient checks, or validation scripts.
 ```
 
-Census generated at `2026-09-28T16:24:55.377959+00:00`. Recorded line coverage: 96.2% (floor 90%). Coverage, durations and validation PASS entries come from stored artifacts; regenerating this page does not rerun those checks or establish their validity for the current revision. `Line-cov %` cells show the stored statement-weighted per-directory percentage, or **not recorded** when no value is present. A missing value does not imply a pending measurement for a test-only module. The gradient column reports the stored repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
+Census generated at `2026-11-14T03:26:29.233244+00:00`. Recorded combined statement/branch coverage: 96.6% (floor 90%). Coverage, durations and validation PASS entries come from stored artifacts; regenerating this page does not rerun those checks. Per-module `Line-cov %` cells show statement-only coverage, weighted by statement counts across each directory; they exclude branch coverage. They show **not recorded** when no value is present. A missing value does not imply a pending measurement for a test-only module. The gradient column reports the stored repo-wide differentiability registry (audited / audited+exempt, hazard count). Built registries: differentiability, API-coverage, physics-validation, provenance.
 
-Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `38c32cefbf56c82efd897a4ca1736a0dee7a1f16`. A commit stamp does not identify different dirty-tree inputs. See [testing architecture](testing-architecture.md) for current input-freshness requirements. The stored census and recorded measurements can have different dates.
+Coverage measurement recorded at `2026-11-14T03:26:29.183269+00:00` for commit `59b96f300e0784ca932bc13e6f0143494d50f724`. A commit stamp does not identify different dirty-tree inputs. See [testing architecture](testing-architecture.md) for current input-freshness requirements. The stored census and recorded measurements can have different dates.
 
 ```{list-table} Per-module test + coverage matrix
 :header-rows: 1
@@ -32,12 +32,12 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - Slowest test
   - Recorded validation
 * - `analytical`
-  - 7
+  - 8
   - 0
   - 0
   - 93.2
   - 42/125 audited, 0 haz
-  - test_circular_orbit_com_at_origin (1.1s)
+  - test_analytic_metadata_retains_traced_periods_and_energies (5.6s)
   - PASS
 * - `api_coverage`
   - 0
@@ -45,39 +45,39 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 5
   - not recorded
   - 42/125 audited, 0 haz
-  - test_line_coverage_above_floor (0.0s)
+  - —
   - —
 * - `binaries`
-  - 136
+  - 143
   - 0
   - 0
-  - 95.9
+  - 94.4
   - 42/125 audited, 0 haz
-  - test_recovers_primordial_hard_binaries (30.2s)
+  - test_Q_com_recovers_virial_target (81.6s)
   - PASS
 * - `builders`
-  - 43
+  - 100
   - 0
   - 0
-  - 93.7
+  - 95.2
   - 42/125 audited, 0 haz
-  - test_matched_limepy_anisotropic_threads_r_a (28.7s)
+  - test_binary_imf_derivatives_preserve_mass_units[units0] (105.1s)
   - —
 * - `cluster`
-  - 81
+  - 153
   - 0
   - 0
-  - 98.8
+  - 98.9
   - 42/125 audited, 0 haz
-  - test_engine_b_global_virial_is_half_unscaled (95.3s)
+  - test_direct_per_component_anisotropy (179.0s)
   - —
 * - `diagnostics`
   - 28
   - 0
   - 0
-  - 92.4
+  - 94.6
   - 42/125 audited, 0 haz
-  - test_diagnostics_import_without_scipy_gives_actionable_error (7.9s)
+  - test_missing_scipy_diagnostic_modules_give_actionable_error (36.0s)
   - —
 * - `dynamics`
   - 28
@@ -85,7 +85,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - 97.8
   - 42/125 audited, 0 haz
-  - test_memory_bounded_smoke_n20000 (9.2s)
+  - test_single_group_reproduces_global_virial (19.7s)
   - —
 * - `grad_audit`
   - 0
@@ -93,23 +93,23 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 26
   - not recorded
   - 42/125 audited, 0 haz
-  - test_run_audit_emits_required_keys (685.1s)
+  - test_mean_radius_gradient_finite_on_zeros (10.7s)
   - —
 * - `imf`
-  - 275
+  - 300
   - 0
   - 0
-  - 97.0
+  - 97.8
   - 42/125 audited, 0 haz
-  - test_p_q_interrelation (24.9s)
+  - test_range_and_twin_fraction (42.0s)
   - —
 * - `kinematics`
-  - 159
+  - 176
   - 0
   - 0
   - 99.9
   - 42/125 audited, 0 haz
-  - test_differentiable_in_g_through_table (44.4s)
+  - test_differentiable_in_g_through_table (160.1s)
   - —
 * - `physics_registry`
   - 0
@@ -117,15 +117,15 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 6
   - not recorded
   - 42/125 audited, 0 haz
-  - test_every_cited_test_node_id_resolves (34.5s)
+  - test_every_cited_test_node_id_resolves (81.1s)
   - —
 * - `profiles`
-  - 264
+  - 280
   - 0
   - 0
-  - 98.9
+  - 99.1
   - 42/125 audited, 0 haz
-  - test_grad_ra_hat_vs_fd_quadrature (279.9s)
+  - test_grad_ra_hat_vs_fd_quadrature (129.8s)
   - —
 * - `provenance_cards`
   - 0
@@ -133,7 +133,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 6
   - not recorded
   - 42/125 audited, 0 haz
-  - test_validation_node_ids_resolve_and_assert (47.1s)
+  - test_validation_node_ids_resolve_and_assert (57.0s)
   - —
 * - `provenance_registry`
   - 0
@@ -141,23 +141,23 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 7
   - not recorded
   - 42/125 audited, 0 haz
-  - test_no_new_unprovenanced_literal_in_allowlist_modules (6.4s)
+  - test_no_new_unprovenanced_literal_in_allowlist_modules (0.7s)
   - —
 * - `stellar`
-  - 20
+  - 21
   - 0
   - 0
   - 100.0
   - 42/125 audited, 0 haz
-  - test_inverse_round_trip_wide_grid (1.9s)
+  - test_inverse_zams_preserves_matrix_shape_and_inverse_derivatives (14.7s)
   - —
 * - `substructure`
-  - 35
+  - 40
   - 0
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_calibration_produces_valid_factors (113.1s)
+  - test_calibration_produces_valid_factors (36.4s)
   - —
 * - `test_analytical_physics`
   - 0
@@ -165,7 +165,15 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 28
   - not recorded
   - 42/125 audited, 0 haz
-  - test_eccentric_orbit_closes_and_conserves (2.1s)
+  - test_energy_conserved_over_period (7.9s)
+  - —
+* - `test_api_reference`
+  - 14
+  - 0
+  - 0
+  - not recorded
+  - 42/125 audited, 0 haz
+  - test_check_detects_staleness_without_writing (0.5s)
   - —
 * - `test_azimuthal_variation_physics`
   - 0
@@ -173,7 +181,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 5
   - not recorded
   - 42/125 audited, 0 haz
-  - test_anticorrelates_with_cw04_Q (0.8s)
+  - test_anticorrelates_with_cw04_Q (1.1s)
   - —
 * - `test_binary_cluster`
   - 0
@@ -181,7 +189,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_invariants_with_moe_joint (20.8s)
+  - test_legacy_equivalence_for_compact_targets[target2] (147.5s)
   - —
 * - `test_binary_physics`
   - 0
@@ -189,7 +197,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 19
   - not recorded
   - 42/125 audited, 0 haz
-  - test_grad_finite_through_e_to_one (2.2s)
+  - test_circular_orbit_mean_equals_eccentric (5.5s)
   - —
 * - `test_builders`
   - 14
@@ -197,7 +205,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_build_with_plummer (2.9s)
+  - test_build_with_plummer (7.9s)
   - —
 * - `test_cluster_builders_integration`
   - 0
@@ -205,23 +213,23 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_each_profile_builds_near_virial[plummer] (13.8s)
+  - test_grad_through_build_cluster_from_params_bites_each_channel (69.1s)
   - —
 * - `test_dashboard_fresh`
   - 0
   - 0
-  - 3
+  - 16
   - not recorded
   - 42/125 audited, 0 haz
-  - test_committed_dashboard_matches_fresh_regeneration (122.1s)
+  - —
   - —
 * - `test_dashboard_gen`
   - 0
   - 0
-  - 11
+  - 12
   - not recorded
   - 42/125 audited, 0 haz
-  - test_build_dashboard_has_all_blocks (122.1s)
+  - test_inventory_has_modules_and_counts (223.4s)
   - —
 * - `test_demo_oed_binary`
   - 5
@@ -229,7 +237,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_cli_binary_quick_smoke (8.2s)
+  - test_vbin_and_sigma_ratio_bites (39.5s)
   - —
 * - `test_dispersion_physics`
   - 0
@@ -237,7 +245,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 24
   - not recorded
   - 42/125 audited, 0 haz
-  - test_projection_empirical_los_and_pm (34.8s)
+  - test_projection_empirical_los_and_pm (83.9s)
   - —
 * - `test_documented_api`
   - 16
@@ -253,7 +261,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 24
   - not recorded
   - 42/125 audited, 0 haz
-  - test_eff_eddington_virial_ratio_mild_truncation (11.8s)
+  - test_velocity_isotropy (34.2s)
   - —
 * - `test_end_to_end`
   - 0
@@ -261,7 +269,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_chabrier_to_king_ic (9.8s)
+  - test_chabrier_to_king_ic (29.1s)
   - —
 * - `test_engine_a_ad_modes`
   - 0
@@ -269,7 +277,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 2
   - not recorded
   - 42/125 audited, 0 haz
-  - —
+  - test_engine_a_forward_reverse_and_finite_difference[0.0] (48.3s)
   - —
 * - `test_engine_a_radial_derivatives`
   - 0
@@ -277,7 +285,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 1
   - not recorded
   - 42/125 audited, 0 haz
-  - —
+  - test_radial_derivatives_with_potential_boundaries (14.8s)
   - —
 * - `test_engine_b_physics`
   - 0
@@ -285,7 +293,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 6
   - not recorded
   - 42/125 audited, 0 haz
-  - test_plummer_halo_eff_core_equilibrium (267.8s)
+  - test_king_density_engine_b_matches_engine_a (107.0s)
   - —
 * - `test_environment_physics`
   - 0
@@ -293,7 +301,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 15
   - not recorded
   - 42/125 audited, 0 haz
-  - test_corrected_marks_equals_jerabkova (0.8s)
+  - test_slopes_steepen_with_metallicity (3.3s)
   - —
 * - `test_grad_audit`
   - 0
@@ -301,7 +309,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 101
   - not recorded
   - 42/125 audited, 0 haz
-  - test_gradient_audit[MultiComponentCluster.sample_cluster[EngineA]0] (158.5s)
+  - test_gradient_audit[MultiComponentCluster.from_mass_segregation[EngineA]] (296.2s)
   - —
 * - `test_imf_physics`
   - 0
@@ -309,7 +317,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 23
   - not recorded
   - 42/125 audited, 0 haz
-  - test_massive_more_common_with_lower_alpha (5.3s)
+  - test_massive_star_fraction_salpeter (22.6s)
   - —
 * - `test_jax_compatibility`
   - 0
@@ -317,7 +325,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_powerlaw_grad (4.8s)
+  - test_powerlaw_vmap (13.2s)
   - —
 * - `test_king_physics`
   - 0
@@ -325,15 +333,23 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 35
   - not recorded
   - 42/125 audited, 0 haz
-  - test_auto_domain_preserves_differentiability_high_W0 (9.9s)
+  - test_auto_domain_preserves_differentiability_high_W0 (60.0s)
+  - —
+* - `test_limepy_reference_adapter`
+  - 12
+  - 0
+  - 0
+  - not recorded
+  - 42/125 audited, 0 haz
+  - —
   - —
 * - `test_limepy_reference_parity`
   - 0
   - 0
-  - 3
+  - 6
   - not recorded
   - 42/125 audited, 0 haz
-  - test_parity_with_reference_limepy[twocomp_ra_eta05] (88.4s)
+  - test_parity_with_reference_limepy[imf4] (78.2s)
   - —
 * - `test_mass_segregation_physics`
   - 0
@@ -341,7 +357,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 9
   - not recorded
   - 42/125 audited, 0 haz
-  - test_estimator_converges_with_random_samples (56.0s)
+  - test_estimator_converges_with_random_samples (17.5s)
   - —
 * - `test_michie_physics`
   - 0
@@ -349,7 +365,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 10
   - not recorded
   - 42/125 audited, 0 haz
-  - test_beta_matches_df_oracle (9.1s)
+  - test_beta_matches_df_oracle (42.6s)
   - —
 * - `test_multimass_equilibrium_physics`
   - 0
@@ -357,7 +373,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 6
   - not recorded
   - 42/125 audited, 0 haz
-  - test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic (73.6s)
+  - test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic (99.9s)
   - —
 * - `test_multimass_figure_helpers`
   - 0
@@ -365,7 +381,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 2
   - not recorded
   - 42/125 audited, 0 haz
-  - —
+  - test_half_mass_radius_uses_each_interval_width[radii1] (3.1s)
   - —
 * - `test_numerics`
   - 79
@@ -373,7 +389,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_grad_ad_equals_fd_in_e[0.0] (2.9s)
+  - test_differentiable_in_weight_parameter (8.3s)
   - —
 * - `test_plummer_physics`
   - 0
@@ -381,7 +397,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 19
   - not recorded
   - 42/125 audited, 0 haz
-  - test_radial_dispersion_profile (6.7s)
+  - test_central_velocity_dispersion (10.0s)
   - —
 * - `test_protocols`
   - 14
@@ -389,7 +405,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - —
+  - test_plummer_instances_conform (2.0s)
   - —
 * - `test_public_api`
   - 2
@@ -402,10 +418,10 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
 * - `test_ratchet_characterization`
   - 0
   - 0
-  - 12
+  - 9
   - not recorded
   - 42/125 audited, 0 haz
-  - test_harness_orchestration_reproduces_zero_holes (5.0s)
+  - test_representative_node_id_resolves_and_asserts (1.1s)
   - —
 * - `test_readme_examples`
   - 0
@@ -413,7 +429,15 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_readme_block_executes[2] (10.7s)
+  - test_readme_block_executes[2] (53.1s)
+  - —
+* - `test_release_gate_status`
+  - 0
+  - 0
+  - 13
+  - not recorded
+  - 42/125 audited, 0 haz
+  - —
   - —
 * - `test_rotation_anisotropy_physics`
   - 0
@@ -421,7 +445,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 8
   - not recorded
   - 42/125 audited, 0 haz
-  - test_v_phi_linear_in_R (6.2s)
+  - test_plummer_beta_matches_exact_om (30.6s)
   - —
 * - `test_segregation_approx_physics`
   - 0
@@ -429,7 +453,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 13
   - not recorded
   - 42/125 audited, 0 haz
-  - test_grad_positions_finite (14.1s)
+  - test_no_nan_on_degenerate_inputs (25.8s)
   - —
 * - `test_segregation_equilibrium_physics`
   - 0
@@ -437,7 +461,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 4
   - not recorded
   - 42/125 audited, 0 haz
-  - test_primordial_full_segregation_is_per_group_equilibrium (35.6s)
+  - test_primordial_full_segregation_is_per_group_equilibrium (48.8s)
   - —
 * - `test_strict_refs`
   - 0
@@ -453,7 +477,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 8
   - not recorded
   - 42/125 audited, 0 haz
-  - test_q_roughly_n_independent (15.7s)
+  - test_approx_preserves_ordering (2.8s)
   - —
 * - `test_tidal`
   - 15
@@ -461,7 +485,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_vmap_over_r_t_monotone (2.4s)
+  - test_forward_is_exact_hard_cut (7.1s)
   - —
 * - `test_tidal_physics`
   - 0
@@ -469,7 +493,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 9
   - not recorded
   - 42/125 audited, 0 haz
-  - test_bound_mass_equals_mass_within_rt (5.5s)
+  - test_bound_mass_equals_mass_within_rt (6.0s)
   - —
 * - `test_units_through_pipeline`
   - 0
@@ -477,7 +501,7 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 0
   - not recorded
   - 42/125 audited, 0 haz
-  - test_build_spatial_ic_respects_G_without_virial_rescale (7.2s)
+  - test_build_spatial_ic_respects_G_without_virial_rescale (15.2s)
   - —
 * - `test_zams_physics`
   - 0
@@ -485,14 +509,14 @@ Coverage measurement recorded at `2026-07-11T09:45:19.040494+00:00` for commit `
   - 34
   - not recorded
   - 42/125 audited, 0 haz
-  - test_inverse_differentiable (11.4s)
+  - test_round_trip_recovers_mass (8.2s)
   - —
 ```
 
 ## Validation scripts
 
-Recorded exit status of `scripts/validate_*.py` (from `validation/data/validation_runs.json`): **24 scripts, 0 failing**.
-These are stored results, not executions or freshness checks performed by this page.
+Recorded exit status of the released-core validation scripts (from `validation/data/validation_runs.json`): **24 scripts: 24 passed, 0 failed, 0 incomplete**. Overall recorded status: **PASS**.
+These are stored results; rendering this page does not execute the scripts. A missing, timeout, bool, float or otherwise invalid exit record is incomplete.
 
 ```{list-table} Validation script runs
 :header-rows: 1

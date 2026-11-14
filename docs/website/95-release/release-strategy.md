@@ -2,125 +2,116 @@
 title: Release strategy
 subtitle: Version, channel, the jaxstro dependency, and the path to a citable release
 description: >-
-  The recommended release strategy for progenax v0.1.0 — semantic version,
-  release channel, the jaxstro ecosystem-dependency decision, CHANGELOG and
-  DOI plan, public-API freeze, and how experimental and OED-demo code is handled.
+  Proposed release channels, the unresolved PyPI dependency decision, API scope,
+  citation and publication steps for progenax v0.1.0.
 ---
 
 (release-strategy)=
 # Release strategy
 
-The [current release verdict](index.md#release-readiness-verdict) is that the
-current revision is not qualified for public release. This page records a
-proposed distribution path. Scientific-domain, gradient, installation, artifact,
-and documentation gates must close before a source tag or package publication.
+The [current verdict](index.md#release-readiness-verdict) remains **not qualified
+for release**. This page records the proposed release path. Local engineering
+checks, scientific qualification and authorization to publish are separate.
 
 (strategy-version)=
 ## Version: 0.1.0
 
-Ship as **`0.1.0`** with the `Development Status :: 4 - Beta` classifier already
-in `pyproject.toml`. This is honest: a first public release of research software
-whose qualification and distribution are still in progress. A version number
-does not establish readiness. Adopt [semantic versioning](https://semver.org/)
-for the supported public API after its scope and compatibility policy are
-reviewed; use the generated symbol index for the current surface.
+Retain the proposed **0.1.0** version and the beta classifier in `pyproject.toml`.
+Before a tag, approve the supported public API and its compatibility policy;
+use the [generated symbol index](../30-api/full-symbol-index.md) for the current
+surface. A version number does not establish qualification.
 
 (strategy-channel)=
 ## Proposed channels: source tag and PyPI
 
-The runtime depends on the sibling `jaxstro`, which is not yet on PyPI, so
-`pip install progenax` cannot work for an outsider today. Two consequences:
-
-- **A GitHub source tag (`v0.1.0`) requires current qualification and approval.**
-  The side-by-side checkout is the intended source-install route. Verify it in
-  a clean environment using the [installation instructions](../00-getting-started/installation.md).
-- **PyPI is gated on the `jaxstro` decision below.** Tagging the slow-physics CI
-  lane (`push: tags: ["v*"]`) on the GitHub tag also exercises the headline trust
-  anchors with `PROGENAX_STRICT_REFS=1`.
+- **Source checkout and wheel:** the documented source route uses the public
+  `jaxstro` sibling. An isolated wheel installation with Python 3.13.7, JAX 0.11
+  and public `jaxstro` revision `94b83705` passes its smoke check and six existing
+  compatibility tests, including registry-resource loading, without an editable
+  checkout fallback. This verifies that environment,
+  not every supported version or platform. See the
+  [installation guide](../00-getting-started/installation.md).
+- **Source tag:** requires the remaining [qualification gates](checklist.md),
+  final artifact review and Anna's approval. A tag may match a workflow trigger;
+  inspect current remote state and obtain CI authorization before creating it.
+- **PyPI:** remains gated on a resolvable `jaxstro` distribution and an end-to-end
+  installation check through that channel. A wheel installed with a public Git
+  source for `jaxstro` does not establish `pip install progenax` from PyPI.
 
 (strategy-jaxstro)=
 ## The `jaxstro` ecosystem-dependency decision (maintainer-owned)
 
-progenax core needs only a small, stable slice of `jaxstro` (`jaxstro.units` +
-`jaxstro.jaxconfig`). How that slice reaches an installer is **an open ecosystem
-decision** the maintainer is still resolving — the leading direction is a
-**`jaxstro` namespace package** spanning the ecosystem. The options, with
-trade-offs:
+The source-checkout route is available; the PyPI distribution decision remains
+open. Existing options are proposals, not selected implementation work:
 
 | Option | What it means | Trade-off |
 |---|---|---|
-| **Namespace package** | Publish `jaxstro` as a PEP-420 namespace umbrella; `progenax` depends on the published namespace dist(s). | Cleanest long-term ecosystem story; needs the namespace layout settled first. *(Maintainer's leading direction.)* |
-| **Publish `jaxstro` to PyPI first** | Pin `jaxstro>=0.1,<0.2`; release progenax after. | Simple, conventional; couples two release timelines. |
-| **Vendor `units`+`jaxconfig`** | Copy the two modules into `progenax._vendor` for a standalone wheel. | Fastest path to a standalone PyPI wheel; costs ecosystem coherence (duplicated `UnitSystem` objects shared with gravax). |
-| **git-URL dependency** | `jaxstro @ git+https://…` | Works for a GitHub soft-launch; **PyPI rejects URL deps**, so not a PyPI path. |
+| Namespace package | Publish the required `jaxstro` distributions under a shared namespace. | Requires the ecosystem layout to be settled. |
+| Publish `jaxstro` first | Depend on its published, versioned distribution. | Couples the two release timelines. |
+| Vendor the required `jaxstro` surface | Audit units/configuration, quadrature, numerics, constants, spatial helpers and registry APIs before scoping a copy. | Requires a separate dependency and ownership decision; copying only `units` and `jaxconfig` is insufficient. |
+| Git-URL dependency | Install `jaxstro` from its public Git source. | Supports a source-install route; not a PyPI dependency solution. |
 
-**Proposed sequence:** qualify the supported core and source installation, then
-ask Anna to choose and approve the release channel. PyPI additionally needs a
-resolvable `jaxstro` distribution. No tag, upload, or visibility change is
-authorized by this strategy.
+No namespace migration, vendoring or dependency-policy change is authorized by
+this strategy. Anna chooses the release channel and dependency policy.
 
 (strategy-ci)=
-## Re-enable CI as a release prerequisite
+## Local checks and remote CI authorization
 
-Workflow configuration and remote enablement require fresh checks. For a private
-repository, Anna must explicitly approve the repository and intended CI scope
-before enabling, dispatching, rerunning, or triggering workflows, including
-automatic triggers from pushes, tags, or pull requests. Local gates can run
-without that remote action. Before an approved release, inspect all workflow
-events and record the verification actually performed.
+The local release gate passed, including the primary suite, 24 core validation
+CLIs, 19 serial artifact checks and fresh regeneration of the 99-case gradient
+audit. The separate LIMEPY table timing test also passed serially without coverage.
+The primary measurement uses Progenax `59b96f30` and local `jaxstro` `6451e183`;
+it is distinct from the bounded installed-wheel check against public `jaxstro`
+`94b83705`. The [checklist](checklist.md) records coverage, completed checks and
+remaining qualification. These local results do not demonstrate a remote
+workflow run or universal physical qualification.
+
+Before a push, tag, pull request, dispatch or deployment, inspect repository
+visibility, workflow events and current remote state. Obtain explicit
+authorization for the intended CI scope; private-repository CI always requires
+Anna's permission. Do not infer CI approval from permission to commit or push.
+A publication requested with no CI must suppress every applicable automatic
+trigger.
 
 (strategy-changelog)=
 ## CHANGELOG and provenance
 
-A `CHANGELOG.md` already exists and documents the `0.1.0` cycle's fixes against the
-prior audit's finding IDs — keep it as the canonical changelog and stamp the
-release date when tagging. This audit report, checklist, and strategy live under
-`95-release/` as the release-readiness provenance, complementing the existing
-[validation dashboard](#release-audit-report) and gradient-audit registries.
+Keep `CHANGELOG.md` as the release-change owner and date it when a release is
+approved. Record the exact source revision, environment, artifact identities,
+checks and remaining limits. The [June audit](audit-report.md) retains its
+historical scope; the [current verdict](index.md) owns current readiness.
 
 (strategy-citation)=
 ## Citable release (Zenodo / DOI)
 
-For a research package that a methods paper will cite, mint a **DOI via the
-GitHub–Zenodo integration** on the `v0.1.0` tag and add a `CITATION.cff` to the
-repository root. The docs site already carries the ORCID and Apache-2.0 / CC-BY-4.0
-licensing; a DOI closes the loop so users cite a fixed, archived version. This
-pairs naturally with the methods-paper plan sketched in the prior audit.
+For an approved citable release, add `CITATION.cff` and archive the fixed version
+with a DOI. Configure any GitHub–Zenodo integration deliberately before its
+release trigger, then record the DOI in the citation metadata and README.
+A proposed DOI or integration is not authorization to create a tag or upload.
 
 (strategy-scope)=
 ## Experimental and OED-demo code at release
 
-- **`gravoturb`** stays repo-only — excluded from the wheel and the public API,
-  and labelled experimental throughout the docs. During the v0.1.0
-  documentation-hardening pass its theory subsection was consolidated 10 → 5 pages
-  and **moved out of the public navigation**: the five pages are kept in the repo
-  and still build (they are `hidden: true` in the `myst.yml` toc and reachable by
-  URL), but they no longer appear in the site nav and are linked instead from the
-  [unlisted-pages index](../_unlisted/index.md). Mention `gravoturb` in release
-  notes as future work (a separate paper), not as a shipped feature.
-- **OED demos** keep a **single public overview page**
-  (`60-science-demos/optimal-design/index.md`) — the telescope-time hook plus the
-  four headline numbers and the one-paragraph "any differentiable forward model +
-  likelihood = Fisher = OED" framing. The five worked-example detail pages
-  (`background`, `anisotropy`, `dynamical-mass`, `concentration`,
-  `binary-robustness`) were set `hidden: true` (built and URL-reachable, kept out
-  of the public nav, linked from the [unlisted-pages index](../_unlisted/index.md)).
-  The **OED tooling code itself is held out of v0.1.0** and is slated to migrate to
-  the planned **informax** package (the CAREER Aim-1 prototype); the public
-  overview says so plainly (tracked in the [checklist](#release-checklist)).
+- **Gravoturb** remains outside the supported released core and package artifacts.
+  Keep private research code, outputs and planning material out of public release
+  inputs. Historical public material does not qualify the current experimental
+  workflow or make it a shipped core feature.
+- **OED tooling** remains outside the v0.1.0 supported feature set. The existing
+  public overview and hidden examples describe prototype scope; the proposed
+  migration to informax is future work. Hidden pages remain directly reachable
+  and must meet the same public-content boundary.
 
 (strategy-docs-hosting)=
 ## Documentation hosting
 
-Build the current MyST site, run its link and API-freshness gates, execute
-reviewed examples, and inspect rendered pages before any deployment. Hidden
-TOC pages remain directly reachable; hiding navigation does not provide access
-control. Public hosting requires a separate content-scope review and Anna's
-explicit approval. Unpublished audit material belongs in the private tracker.
+MyST CLI 1.10.1 with book theme 1.4.1 builds 215 HTML pages with zero content
+warnings and zero broken links. Before deployment, verify the approved source
+snapshot, generated API freshness, relevant runnable examples and rendered pages.
+A clean build is an engineering check, not physical qualification or deployment
+approval. Hiding a page from navigation does not make it private.
 
 :::{note} What this strategy commits to
-This is a proposal, not release authorization or a readiness verdict. Current
-qualification, a supported installation, artifact inspection, privacy review,
-and maintainer approval precede any release. OED tooling and experimental
-Gravoturb remain outside the supported wheel scope.
+This remains a proposal. Current qualification, channel-specific installation,
+artifact and privacy checks, and Anna's release approval precede a tag or upload.
+Remote CI and deployment require their own explicit authorization.
 :::
