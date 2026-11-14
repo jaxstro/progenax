@@ -24,7 +24,7 @@ from progenax.kinematics._speed_kernels import (
     _ORACLE_BATCH,
     _sample_costheta_given_u,
 )
-from progenax.profiles.king import _find_tidal_radius
+from progenax.profiles.king import _find_tidal_radius, _require_tidal_crossing
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
 from progenax.profiles.michie import michie_density, solve_michie_profile
 
@@ -130,7 +130,13 @@ class MichieVelocityDF(eqx.Module):
     ):
         """Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
         for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
-        static under JIT; it does not change the physical equations or tolerances."""
+        static under JIT; it does not change the physical equations or tolerances.
+
+        The finite raw ODE solution must start positive and bracket a tidal zero.
+        An unresolved domain is rejected before velocity normalization or table
+        construction, including under JIT and derivative-only AD. A failed
+        finite-domain crossing does not classify physical extent or total mass.
+        """
         if speed_method not in ("table", "quadrature"):
             raise ValueError(
                 f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
@@ -149,6 +155,7 @@ class MichieVelocityDF(eqx.Module):
             n_points=n_ode_points,
             adjoint=adjoint,
         )
+        _require_tidal_crossing(psi_raw)
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
         # mu = int rho_tilde xi^2 dxi (rho_tilde normalised to 1 at centre).

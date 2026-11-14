@@ -33,6 +33,7 @@ from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 from progenax.kinematics._speed_kernels import _ORACLE_BATCH
 from progenax.profiles.king import (
     _auto_ode_domain,
+    _require_tidal_crossing,
     king_lowered_maxwellian_density,
     solve_king_profile,
 )
@@ -118,7 +119,12 @@ class KingVelocityDF(eqx.Module):
     ):
         """Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
         for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
-        static under JIT; it does not change the physical equations or tolerances."""
+        static under JIT; it does not change the physical equations or tolerances.
+
+        The finite raw ODE solution must start positive and bracket a tidal zero.
+        An unresolved domain is rejected before velocity normalization or table
+        construction, including under JIT and derivative-only AD.
+        """
         if speed_method not in ("table", "quadrature"):
             raise ValueError(
                 f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
@@ -133,14 +139,15 @@ class KingVelocityDF(eqx.Module):
             xi_max = auto_xi_max
         if n_ode_points is None:
             n_ode_points = auto_n_points
-        # King DF uses the clamped psi (density/mu); r_t is not needed here, so
-        # psi_raw is discarded.
-        xi_grid, psi_grid, _ = solve_king_profile(
+        # The raw potential establishes the finite tidal boundary; density and
+        # velocity normalization retain the existing clamped potential.
+        xi_grid, psi_grid, psi_raw = solve_king_profile(
             W0,
             xi_max=xi_max,
             n_points=n_ode_points,
             adjoint=adjoint,
         )
+        _require_tidal_crossing(psi_raw)
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
         # Table cached at construction (depends only on W0; g=1 is the exact

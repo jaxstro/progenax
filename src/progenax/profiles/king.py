@@ -291,6 +291,47 @@ def solve_king_profile(
     return xi_grid, psi_clamped, psi_raw
 
 
+def _has_tidal_crossing(psi_raw: Float[Array, "n_points"]) -> Bool[Array, ""]:
+    """Whether a finite raw potential starts positive and brackets a tidal zero."""
+    return (
+        jnp.all(jnp.isfinite(psi_raw))
+        & (psi_raw[0] > 0.0)
+        & jnp.any((psi_raw[:-1] > 0.0) & (psi_raw[1:] <= 0.0))
+    )
+
+
+def _raise_if_unresolved_tidal_crossing(invalid) -> None:
+    # A vmapped cond may execute both branches. Recheck the callback argument
+    # instead of treating callback execution itself as evidence of failure.
+    if bool(invalid):
+        raise ValueError(
+            "Self-consistent profile requires a finite raw potential with a "
+            "positive centre and an actual tidal crossing. The finite ODE "
+            "domain has not established that crossing; check xi_max, "
+            "n_ode_points and any anisotropy."
+        )
+
+
+def _require_tidal_crossing(psi_raw: Float[Array, "n_points"]) -> None:
+    """Reject an unresolved factory solve, including derivative-only JIT outputs.
+
+    The ordered effect retains the check when AD discards all primal values.
+    No derivative of the potential or its tidal root is modified.
+    """
+    invalid = jax.lax.stop_gradient(~_has_tidal_crossing(psi_raw))
+    if _is_concrete(invalid):
+        _raise_if_unresolved_tidal_crossing(invalid)
+    else:
+        jax.lax.cond(
+            invalid,
+            lambda flag: jax.debug.callback(
+                _raise_if_unresolved_tidal_crossing, flag, ordered=True
+            ),
+            lambda flag: None,
+            invalid,
+        )
+
+
 def _find_tidal_radius(
     xi_grid: Float[Array, "n_points"],
     psi_grid: Float[Array, "n_points"],
@@ -536,6 +577,10 @@ class KingProfile(eqx.Module):
         Returns:
             KingProfile with self-consistent r_t derived from W0
 
+        The raw ODE solution must be finite, start positive and bracket an actual
+        tidal zero. An unresolved domain is rejected eagerly and under JIT.
+        This factory check does not constrain the manual precomputed-grid constructor.
+
         Examples:
             >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
             >>> print(f"Tidal radius: {profile.r_t:.2f}")
@@ -569,10 +614,8 @@ class KingProfile(eqx.Module):
             psi_grid=psi_grid,
             n_grid=n_grid,
         )
-        # Eager refusal (audit J4): for CONCRETE W0 a pinned r_t is a silent
-        # wrong answer — raise loudly. Under tracing the flag cannot be tested
-        # (traced bool), so the diagnostic prof.r_t_is_pinned is the only signal
-        # (mirrors the Engine-B concrete/traced guard, eddington_engine.py).
+        # Preserve the existing concrete ValueError. The effectful factory check
+        # also survives consumers that discard every primal profile field in AD.
         if _is_concrete(prof.r_t_is_pinned) and bool(prof.r_t_is_pinned):
             raise ValueError(
                 f"King ODE domain too small: psi(xi) never reached 0 within "
@@ -581,6 +624,7 @@ class KingProfile(eqx.Module):
                 f"xi_max (and n_ode_points), or omit them to auto-size. For "
                 f"traced/jit W0 pass an explicit xi_max sized for the largest W0."
             )
+        _require_tidal_crossing(psi_raw)
         return prof
 
     def sample_positions(

@@ -21,9 +21,7 @@ from progenax.profiles import KingProfile, solve_king_profile
 class TestRtBoundaryPinning:
     """Audit J4: a too-small ODE domain leaves psi(xi)>0 everywhere, so
     _find_tidal_radius silently pins xi_t to the grid boundary (a wrong r_t).
-    Concrete construction must REFUSE loudly; traced construction can't raise
-    on a traced bool, so it stores an r_t_is_pinned diagnostic instead (the
-    Engine-B two-tier concrete/traced pattern)."""
+    Both concrete and traced self-consistent construction must reject it."""
 
     def test_healthy_solve_not_flagged(self):
         prof = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
@@ -34,14 +32,15 @@ class TestRtBoundaryPinning:
         with pytest.raises(ValueError, match="pinned|xi_max"):
             KingProfile.from_W0_rc(W0=12.0, r_c=1.0, xi_max=50.0, n_ode_points=500)
 
-    def test_traced_pinned_solve_is_flagged_not_raised(self):
-        """Under tracing the raise is impossible (traced bool); the flag is set."""
-        prof = jax.jit(
-            lambda w: KingProfile.from_W0_rc(
-                W0=w, r_c=1.0, xi_max=50.0, n_ode_points=500
-            )
-        )(12.0)
-        assert bool(prof.r_t_is_pinned)
+    def test_traced_pinned_solve_raises(self):
+        """Catch a traced factory exposing an invalid boundary-pinned profile."""
+        with pytest.raises(Exception, match="tidal crossing"):
+            prof = jax.jit(
+                lambda w: KingProfile.from_W0_rc(
+                    W0=w, r_c=1.0, xi_max=50.0, n_ode_points=500
+                )
+            )(12.0)
+            jax.block_until_ready(prof)
 
     def test_traced_healthy_solve_constructs(self):
         prof = jax.jit(lambda w: KingProfile.from_W0_rc(W0=w, r_c=1.0))(7.0)

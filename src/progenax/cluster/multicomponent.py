@@ -49,7 +49,7 @@ from progenax.cluster.sampling import (
     _estimate_population_moments,
     _sample_cluster_arrays,
 )
-from progenax.profiles.king import _find_tidal_radius
+from progenax.profiles.king import _find_tidal_radius, _require_tidal_crossing
 from progenax.profiles.limepy import lowered_exponential
 from progenax.profiles.limepy_multimass import (
     _aniso_density_fn,
@@ -391,6 +391,9 @@ class MultiComponentCluster(eqx.Module):
             residual=jnp.asarray(residual, dtype=jnp.float64),
             radial_pdf_j=integrand / (M_cum[:, -1:] + 1e-30),
         )
+        # An ordered check survives derivative-only readers of constant model
+        # fields, whose zero tangents can discard value-only array guards.
+        _require_tidal_crossing(psi_for_rt)
         for name, val in dict(
             r_t=r_t,
             m_j=m_j,

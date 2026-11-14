@@ -20,7 +20,7 @@ from progenax.profiles._spherical_poisson import (
     poisson_second_derivative,
     regular_center_state,
 )
-from progenax.profiles.king import _find_tidal_radius
+from progenax.profiles.king import _find_tidal_radius, _require_tidal_crossing
 
 _N_U = 256  # tangential-velocity quadrature resolution for the density integral
 
@@ -314,6 +314,10 @@ class MichieProfile(eqx.Module):
                 the finite domain has not established a tidal crossing. This is
                 not a proof of infinite extent or infinite mass.
 
+        The factory also requires a finite raw potential that starts positive
+        and brackets an actual tidal zero, including under JIT. The manual
+        precomputed-grid constructor does not impose this factory check.
+
         Differentiability:
             Reverse-mode differentiable wrt W0/r_c/r_a (the r_t crossing uses the
             UNCLAMPED psi_raw so the gradient flows).
@@ -332,7 +336,9 @@ class MichieProfile(eqx.Module):
             adjoint=adjoint,
         )
         xi_t = _find_tidal_radius(xi_grid, psi_raw)
-        return cls(W0, r_c, r_a, r_c * xi_t, xi_grid, psi_grid, n_grid=n_grid)
+        prof = cls(W0, r_c, r_a, r_c * xi_t, xi_grid, psi_grid, n_grid=n_grid)
+        _require_tidal_crossing(psi_raw)
+        return prof
 
     def sample_positions(
         self, masses: Float[Array, "N"], key: PRNGKeyArray

@@ -54,7 +54,7 @@ from progenax.profiles._spherical_poisson import (
     poisson_second_derivative,
     regular_center_state,
 )
-from progenax.profiles.king import _find_tidal_radius
+from progenax.profiles.king import _find_tidal_radius, _require_tidal_crossing
 
 
 @jax.custom_jvp
@@ -346,12 +346,8 @@ def solve_limepy_profile(
     # has not crossed ~0, the model does not truncate within the ODE domain and r_t
     # would be silently PINNED to xi_max*r_c — a wrong tidal radius, and hence a wrong
     # mass CDF and DF velocity scale (mu / the virial scale become grid-dependent).
-    # Two ways this happens; both refuse eagerly with the same psi_end test:
-    #   - Isotropic: g < 3.5 truncates mathematically, but the true xi_t can far exceed
-    #     the default domain (e.g. W0=9, g=2 -> xi_t ~ 2100 >> xi_max=300). The domain,
-    #     not the physics, is the limit -> raise and tell the caller to increase xi_max.
-    #   - Anisotropic: too-small ra_hat builds a radial-orbit 1/r^2 tail (no finite tidal
-    #     radius / infinite mass). Mirrors solve_michie_profile.
+    # A positive finite-domain endpoint does not determine whether a larger domain
+    # would establish a crossing, or classify the model's total mass or stability.
     if (
         isinstance(W0, (int, float))
         and isinstance(g, (int, float))
@@ -370,8 +366,9 @@ def solve_limepy_profile(
         raise ValueError(
             f"Anisotropic LIMEPY model (W0={W0}, g={g}, r_a/r_c={ra_hat}) does not "
             f"truncate within xi_max={xi_max} (W(xi_max)={float(psi_end):.3f} > 0): the "
-            f"anisotropy is too strong (no finite tidal radius / infinite mass). "
-            f"Increase ra_hat, or raise xi_max if the model is genuinely this extended."
+            f"finite domain has not established a tidal crossing. Check resolution "
+            f"and a larger integration domain, and assess the anisotropy before "
+            f"classifying the model's extent."
         )
     return xi_grid, psi_grid, psi_raw
 
@@ -393,16 +390,16 @@ class LIMEPYProfile(eqx.Module):
 
     Attributes:
         W0: Dimensionless central potential.
-        g:  Truncation parameter (continuous; finite extent for g <= 3.5).
+        g: Truncation parameter; g < 3.5 is necessary but not sufficient for finite extent.
         r_c: Core (King) radius [length units].
         r_a: Anisotropy radius [length units]; inf for the isotropic model.
         r_t: Truncation radius [length units], where W(r) -> 0.
         xi_grid, psi_grid: ODE solution W(xi) on a dimensionless grid.
         is_aniso: static flag selecting the anisotropic density path.
         _r_grid, _cdf_grid: precomputed mass CDF for sampling.
-        r_t_is_pinned: traced bool; True iff the ODE domain was too small to reach
-            the tidal crossing (r_t pinned to the boundary). Concrete inputs raise
-            in ``from_W0_rc``; this flag is the only signal under tracing.
+        r_t_is_pinned: Traced diagnostic for a stored potential with no nonpositive
+            node. ``from_W0_rc`` rejects unresolved crossings, including under JIT;
+            manual precomputed-grid construction retains this diagnostic.
     """
 
     W0: Float[Array, ""]
@@ -464,9 +461,9 @@ class LIMEPYProfile(eqx.Module):
 
         # Traced diagnostic (mirrors KingProfile.r_t_is_pinned): the clamped psi_grid
         # has a node <= 0 iff the model truncated within the ODE domain. If none does,
-        # r_t was pinned to the grid boundary — a wrong tidal radius. For concrete
-        # inputs solve_limepy_profile already raised; this carries the signal under
-        # tracing, where the eager check cannot fire.
+        # r_t was pinned to the grid boundary — a wrong tidal radius. Self-consistent
+        # factory construction rejects an unresolved crossing; the manual
+        # precomputed-grid constructor retains this diagnostic without that check.
         r_t_is_pinned = jnp.logical_not(jnp.any(psi_grid_arr <= 0.0))
 
         object.__setattr__(self, "W0", W0_arr)
@@ -504,6 +501,11 @@ class LIMEPYProfile(eqx.Module):
         carry their gradients. The truncation radius r_t is the interpolated
         zero-crossing of the UNCLAMPED psi, so d(r_t)/dW0 flows (as in KingProfile).
 
+        The raw solution must be finite, start positive and bracket an actual
+        tidal zero. An unresolved domain is rejected eagerly and under JIT.
+        This does not classify its physical extent, mass or stability, and does
+        not constrain the manual precomputed-grid constructor.
+
         Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
         for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
         static under JIT; it does not change the physical equations or tolerances.
@@ -521,7 +523,7 @@ class LIMEPYProfile(eqx.Module):
         # crossing node's gradient). Forward r_t is the interpolated crossing.
         xi_t = _find_tidal_radius(xi_grid, psi_raw)
         r_t = r_c * xi_t
-        return cls(
+        prof = cls(
             W0=W0,
             g=g,
             r_c=r_c,
@@ -531,6 +533,8 @@ class LIMEPYProfile(eqx.Module):
             r_a=r_a,
             n_grid=n_grid,
         )
+        _require_tidal_crossing(psi_raw)
+        return prof
 
     def sample_positions(
         self, masses: Float[Array, "N"], key: PRNGKeyArray
