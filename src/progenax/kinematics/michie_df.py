@@ -3,11 +3,11 @@
 The DF f ∝ exp(-J^2/2 r_a^2 sigma^2) [exp(-E/sigma^2) - 1] is not a function of a single
 integral, so (unlike Osipkov-Merritt) there is no stretch trick: velocities are drawn from
 a 2-D joint over (u_r, u_t), u = v/sigma. By default the speed MARGINAL comes from one
-precomputed inverse-CDF table per call (AnisoSpeedCDFTable at g=1 — the exact Michie =
-LIMEPY(g=1, finite r_a) reduction) with the EXACT angular conditional cos(theta)|u
+inverse-CDF table cached at construction (AnisoSpeedCDFTable at g=1 — the exact Michie =
+LIMEPY(g=1, finite r_a) reduction) with the numerically sampled angular conditional cos(theta)|u
 (weight exp(-(s^2 u^2/2)(1 - cos^2 theta)), identical to the u_t-marginal-then-u_r
 factorization under u_t = u sin(theta)); speed_method="quadrature" retains the per-star
-2-D marginal-then-conditional inverse-CDF as the oracle. The self-consistent sigma uses
+2-D marginal-then-conditional inverse-CDF as a reference path. The self-consistent sigma uses
 the same factor-of-9 relation as the King DF, with the anisotropic density.
 
 See docs/website/99-bibliography/per-paper/michie-1963.md.
@@ -16,6 +16,7 @@ See docs/website/99-bibliography/per-paper/michie-1963.md.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics.sampling import inverse_cdf_draw
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics._speed_kernels import (
@@ -23,7 +24,6 @@ from progenax.kinematics._speed_kernels import (
     _ORACLE_BATCH,
     _sample_costheta_given_u,
 )
-from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy_tables import AnisoSpeedCDFTable
 from progenax.profiles.michie import michie_density, solve_michie_profile
@@ -74,9 +74,11 @@ def _sample_ur_ut(key, W, s, n_t: int = _N_T, n_r: int = _N_R):
 class MichieVelocityDF(eqx.Module):
     """Michie-King anisotropic velocity DF (radially anisotropic, lowered-Maxwellian).
 
-    beta(r) ~ 0 at the centre, increasing outward; r_a -> infinity is the isotropic King
-    DF. The velocity scale sigma is self-consistent (sigma^2 = G M / (9 r_c mu), mu the
-    anisotropic dimensionless mass integral), so ICs are virial without external rescale.
+    beta(r) vanishes at the center, becomes radially anisotropic in the interior,
+    and returns toward isotropy at a finite tidal edge. It is not the
+    Osipkov-Merritt beta law. r_a -> infinity is the isotropic King DF. The velocity scale sigma is self-consistent (sigma^2 = G M / (9 r_c mu), mu the
+    anisotropic dimensionless mass integral), which fixes the continuum velocity scale. Finite realizations fluctuate; their
+    measured Q is not guaranteed to equal 0.5.
 
     Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
     marginal comes from the inverse-CDF table CACHED at construction
@@ -84,20 +86,23 @@ class MichieVelocityDF(eqx.Module):
     the g=1 anisotropic LIMEPY model (E_gamma(1, x) = e^x - 1 exactly; the
     standing distributional proof is
     test_g1_aniso_matches_michie_velocity_df). The angular conditional
-    cos(theta)|u stays EXACT (_sample_costheta_given_u, weight
+    cos(theta)|u is sampled numerically (_sample_costheta_given_u, weight
     exp(-(s^2 u^2/2)(1 - cos^2 theta)) = exp(-s^2 u_t^2/2) under
     u_t = u sin(theta)) — only the speed marginal is tabulated.
-    speed_method="quadrature" retains the exact per-star 2-D
-    (u_t-marginal-then-u_r) inverse-CDF as the oracle (statistical agreement
+    speed_method="quadrature" retains the numerical per-star 2-D
+    (u_t-marginal-then-u_r) inverse-CDF as a reference path (statistical agreement
     asserted in tests/unit/kinematics/test_michie_df.py::
-    TestMichieTableRouting). Reuse one DF instance for repeated draws:
-    construction (ODE solve + mu integral + table) dominates; per-draw cost
-    is then milliseconds at any N.
+    TestMichieTableRouting). Reusing the constructed DF avoids rebuilding its sampling tables. Draw time
+    and memory depend on particle count, model configuration, precision,
+    compilation state and hardware.
+
+    Agreement between tabulated and quadrature paths checks their consistency.
+    Accuracy also depends on convergence of the numerical reference.
 
     Attributes:
         W0, r_c, r_a: model parameters. xi_grid, psi_grid: Michie ODE solution.
         mu: int rho_hat(psi, xi/ra_hat) xi^2 dxi (sets sigma).
-        speed_method: static, "table" (default) or "quadrature" (exact oracle).
+        speed_method: static, "table" (default) or "quadrature" (numerical reference path).
 
     References:
         Michie (1963), MNRAS 125, 127; King (1966), AJ 71, 64.
@@ -120,7 +125,12 @@ class MichieVelocityDF(eqx.Module):
         xi_max: float = 800.0,
         n_ode_points: int = 3000,
         speed_method: str = "table",
+        *,
+        adjoint=None,
     ):
+        """Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances."""
         if speed_method not in ("table", "quadrature"):
             raise ValueError(
                 f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
@@ -133,14 +143,23 @@ class MichieVelocityDF(eqx.Module):
         # aniso-table box edge p_box carries d/dW0 (audit Task 1.2b).
         # psi_grid (clamped) is stored + used for mu / density as before.
         xi_grid, psi_grid, psi_raw = solve_michie_profile(
-            W0, r_a / r_c, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            r_a / r_c,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
         # mu = int rho_tilde xi^2 dxi (rho_tilde normalised to 1 at centre).
         rho0 = michie_density(W0, 0.0)
         s_grid = xi_grid / (r_a / r_c)
-        rho_tilde = jax.vmap(michie_density)(psi_grid, s_grid) / rho0
+        rho_tilde = jnp.where(
+            rho0 > 0.0,
+            jax.vmap(michie_density)(psi_grid, s_grid)
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
+            0.0,
+        )
         self.mu = jnp.trapezoid(rho_tilde * xi_grid**2, xi_grid)
         # Aniso table cached at construction (depends only on (W0, r_t/r_a);
         # g=1 is the exact Michie reduction) -- pre-fix it was rebuilt every
@@ -200,7 +219,7 @@ def _sample_velocities_core(
     if df.speed_method == "table":
         # The g=1 aniso table CACHED at construction (the exact Michie
         # reduction): the speed MARGINAL comes from the 3-D CDF table; the
-        # angular conditional cos(theta)|u stays EXACT
+        # angular conditional cos(theta)|u is sampled numerically
         # (_sample_costheta_given_u — the same Michie factor
         # exp(-s^2 u_t^2/2) reparametrized via u_t = u sin(theta)).
         ku_kc = jax.vmap(jax.random.split)(speed_keys)

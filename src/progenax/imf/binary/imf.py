@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
+from ...numerics import power_integral_stable
 from ..base import BaseIMF
 from .binary_fraction import (
     ConstantBinaryFraction,
@@ -236,8 +237,10 @@ class BinaryIMF(eqx.Module):
         Returns:
             E[M_total] = E[M1] × (1 + f_bin × E[q])
 
-        Note: This assumes binary fraction and q are independent of M1.
-        For mass-dependent models, this is approximate.
+        This is analytic for a constant binary fraction with FlatMassRatio or
+        PowerLawMassRatio, using the primary IMF's mean_mass precision.
+        Mass-dependent models and other mass-ratio distributions retain separate
+        approximate averages; their correlations with M1 are not integrated.
         """
         mean_m1 = self.primary_imf.mean_mass()
         f_bin_model = self._get_binary_fraction_model()
@@ -253,7 +256,23 @@ class BinaryIMF(eqx.Module):
             avg_f_bin = jnp.mean(self._get_binary_fraction(test_masses))
 
         # Get average q (approximate for mass-dependent)
-        if isinstance(q_dist, MoeDiStefano2017):
+        avg_q: ArrayLike
+        if isinstance(q_dist, PowerLawMassRatio):
+            # E[q] = int q^(gamma+1) dq / int q^gamma dq. The stable
+            # integral carries the logarithmic gamma=-2 and gamma=-1 limits.
+            # At q_min=0 the distribution requires gamma>-1 and simplifies
+            # to (gamma+1)/(gamma+2); keep both masked branches finite.
+            positive_cutoff = q_dist.q_min > 0.0
+            safe_q_min = jnp.where(positive_cutoff, q_dist.q_min, 0.5)
+            numerator = power_integral_stable(safe_q_min, 1.0, q_dist.gamma + 2.0)
+            denominator = power_integral_stable(safe_q_min, 1.0, q_dist.gamma + 1.0)
+            zero_cutoff_gamma = jnp.where(positive_cutoff, 0.0, q_dist.gamma)
+            avg_q = jnp.where(
+                positive_cutoff,
+                numerator / denominator,
+                (zero_cutoff_gamma + 1.0) / (zero_cutoff_gamma + 2.0),
+            )
+        elif isinstance(q_dist, MoeDiStefano2017):
             # Assume average q ≈ 0.5 for mass-dependent case
             avg_q = 0.5
         elif hasattr(q_dist, "q_min"):

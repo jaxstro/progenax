@@ -5,10 +5,10 @@ PRIMORDIAL (energy-ordered) mass segregation for cluster ICs.
 Implements energy-ordered orbit assignment in the spirit of Baumgardt, De
 Marchi & Kroupa (2008) and McLuster (Küpper et al. 2011): the most massive
 stars are placed on the most bound orbits of an equilibrium pool. This is a
-*primordial-segregation generator*, not an equilibrium construction — the
-fully-ordered output is the one clean state (each mass group is an energy
-shell of the parent equilibrium, hence individually virial, Q_j ~ 0.5;
-validated in tests/validation/test_segregation_equilibrium_physics.py).
+*primordial-segregation generator*, not an exact equilibrium construction.
+Energy ranks refer to the parent potential. Finite mass assignment can change
+the represented density and potential; global or per-group virial values do
+not by themselves establish stationarity.
 
 Departure from the published recipe (deliberate, documented): Baumgardt+2008
 draw orbits randomly within cumulative-mass bins; here the assignment is a
@@ -20,7 +20,7 @@ and V = -inf). Realisation variety comes from re-drawing the random pool.
 For a *differentiable* segregation knob, use the first-principles
 equilibrium family instead: MultiComponentCluster.from_mass_segregation(delta)
 (multi-mass lowered-isothermal, w_j = mu_j^-delta — a true shared-potential
-equilibrium at every delta).
+family on its finite, numerically supported parameter domain).
 
 Core Algorithm:
     1. Generate orbit pool from an equilibrium distribution function
@@ -118,8 +118,9 @@ def energy_sorted_segregation(
 
     No-Orbit-Reuse Guarantee:
         The isotonic-rounding assignment (Step 4) produces a strictly increasing integer
-        sequence in [0, N_pool-1], so every mass rank receives a DISTINCT orbit and no
-        two stars are coincident — for ANY mass spectrum, including steep IMFs. (The
+        sequence in [0, N_pool-1] when N_pool >= N, so every mass rank receives a
+        DISTINCT pool index for any positive mass spectrum. Distinct indices
+        imply distinct positions only if the input pool positions are distinct. (The
         previous per-bin sampler did NOT guarantee this: sub-orbit bins collapsed and
         reused orbits.) Verified for uniform/bimodal/Kroupa/extreme-steep spectra in
         tests/unit/cluster/test_mass_segregation.py.
@@ -130,7 +131,8 @@ def energy_sorted_segregation(
         inference over segregation strength, use the first-principles equilibrium
         knob instead — MultiComponentCluster.from_mass_segregation(delta), which
         is differentiable in delta and a true shared-potential equilibrium at
-        every value. (The historical lambda_seg catalog blend was retired: its
+        every supported finite model. This does not qualify arbitrary parameter
+        domains or inference targets. (The historical lambda_seg catalog blend was retired: its
         intermediate states drift from per-mass-group virial balance — see
         per_group_virial_ratio and the mass-segregation validation page.)
 

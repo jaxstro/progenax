@@ -41,10 +41,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
 import os
+import resource
 import subprocess
 import sys
+import time
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -170,8 +174,8 @@ CONFIGS = [
 REPRESENTATIVE = "imf4"  # the figure's multimass config
 
 
-def _imf_bins():
-    imf = Maschberger(alpha=IMF_ALPHA, m_min=IMF_M_RANGE[0], m_max=IMF_M_RANGE[1])
+def _imf_bins(alpha=IMF_ALPHA):
+    imf = Maschberger(alpha=alpha, m_min=IMF_M_RANGE[0], m_max=IMF_M_RANGE[1])
     return _bin_imf(imf, IMF_N_COMP, IMF_M_RANGE)
 
 
@@ -182,7 +186,10 @@ def _ref_config_json(cfg):
         mj, Mj = (
             (cfg["mj"], cfg["Mj"])
             if cfg["mj"] != "imf"
-            else tuple([float(x) for x in arr] for arr in _imf_bins())
+            else tuple(
+                [float(x) for x in arr]
+                for arr in _imf_bins(cfg.get("imf_alpha", IMF_ALPHA))
+            )
         )
         out.update(mj=list(mj), Mj=list(Mj), delta=cfg["delta"])
         if cfg["eta"] is not None:
@@ -192,14 +199,22 @@ def _ref_config_json(cfg):
     return out
 
 
-def load_or_generate_reference(cfg, regen=False):
+def load_or_generate_reference(
+    cfg, regen=False, *, output_path=None, reference_python=None
+):
     """Load the cached reference npz; (re)generate via the pinned subprocess if
     absent or --regen. The pytest parity test reads the SAME cache and skips if
     absent -- only this CLI ever shells out to uv."""
-    path = os.path.join(CACHE_DIR, f"{cfg['name']}.npz")
+    path = (
+        str(output_path)
+        if output_path is not None
+        else os.path.join(CACHE_DIR, f"{cfg['name']}.npz")
+    )
     if regen or not os.path.exists(path):
         os.makedirs(CACHE_DIR, exist_ok=True)
         ref_cfg = _ref_config_json(cfg)
+        if "numerics" in cfg:
+            ref_cfg["numerics"] = cfg["numerics"]
         print(f"  [regen] running reference LIMEPY subprocess for {cfg['name']} ...")
         cmd = [
             "env",
@@ -219,13 +234,95 @@ def load_or_generate_reference(cfg, regen=False):
             json.dumps(ref_cfg),
             path,
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
+        if reference_python is not None:
+            cmd = [str(reference_python), WORKER, json.dumps(ref_cfg), path]
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=REPO_ROOT,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        if output_path is not None:
+            Path(output_path).with_suffix(".log").write_text(res.stdout + res.stderr)
         if res.returncode != 0:
             raise RuntimeError(
                 f"reference worker failed for {cfg['name']}:\n{res.stderr[-2000:]}"
             )
         print("    " + res.stdout.strip().splitlines()[-1])
     return np.load(path)
+
+
+def absolute_moments_from_reference(ref, *, n_stars=100_000, gravity=1.0, r_c=1.0):
+    """Finite-N A/B identities from independent LIMEPY ODE kinetic energies.
+
+    v2j is three-dimensional; Kj already includes the factor 1/2 in kinetic
+    energy. Scaling by s2 gives q_j; GM/(9 r0 s2) gives the dimensionless mass
+    integral. Legacy shape-only caches cannot supply this comparison.
+    """
+    required = {
+        "Kj",
+        "Mj",
+        "mj",
+        "M",
+        "G",
+        "r0",
+        "s2",
+        "converged",
+        "fit_residual_max_abs",
+        "numerics",
+        "provenance",
+    }
+    missing = required - set(ref)
+    if missing:
+        raise ValueError(f"Absolute LIMEPY metadata missing: {sorted(missing)}")
+    if not bool(ref["converged"]):
+        raise ValueError("Reference LIMEPY model did not converge")
+    mass, budget, kinetic = (
+        np.asarray(ref[k], dtype=float) for k in ("mj", "Mj", "Kj")
+    )
+    if mass.ndim != 1 or mass.shape != budget.shape or mass.shape != kinetic.shape:
+        raise ValueError(
+            "LIMEPY component masses, budgets and kinetic energies must align"
+        )
+    scalars = np.asarray([ref[k] for k in ("M", "G", "r0", "s2")], dtype=float)
+    if (
+        not mass.size
+        or not np.all(np.isfinite(scalars))
+        or np.any(scalars <= 0)
+        or any(
+            not np.all(np.isfinite(x)) or np.any(x <= 0)
+            for x in (mass, budget, kinetic)
+        )
+    ):
+        raise ValueError(
+            "LIMEPY absolute mass/energy/scale inputs must be finite and positive"
+        )
+    residual = float(ref["fit_residual_max_abs"])
+    if not np.isfinite(residual) or residual < 0:
+        raise ValueError("LIMEPY mass-fraction residual must be finite and nonnegative")
+    total, ref_g, r0, s2 = scalars
+    probability = budget / mass
+    probability /= probability.sum()
+    mean_mass = probability @ mass
+    q = 2 * kinetic / (budget * s2)
+    mu = ref_g * total / (9 * r0 * s2)
+    values = np.array(
+        [
+            n_stars * (probability @ mass**2) + n_stars * (n_stars - 1) * mean_mass**2,
+            gravity
+            / (9 * r_c * mu)
+            * np.sum(probability * mass * q * (mass + (n_stars - 1) * mean_mass)),
+        ]
+    )
+    return dict(
+        values=values.tolist(),
+        q=q.tolist(),
+        mu_tot=float(mu),
+        probability=probability.tolist(),
+        masses=mass.tolist(),
+        fit_residual_max_abs=residual,
+    )
 
 
 def build_ours(cfg):
@@ -429,6 +526,356 @@ def make_figure(cfg, ref, model):
     save_fig(fig, OUTPUT_DIR, "limepy_reference_parity")
 
 
+def qualify_absolute_reference(output, reference_python):
+    """Frozen retained-imf4 comparison; preserves legacy structural caches.
+
+    Independent LIMEPY energies test equilibrium/absolute scaling. IMF bins and
+    finite-N observable definitions are shared inputs, not independently certified
+    by this comparison. Values are measured; the existing 0.3% derivative and
+    scaled 1e-8 zero-identity gates supply the bounded verdict.
+    """
+    import diffrax
+    from qualify_general_observables import reference_model
+
+    output = Path(output)
+    if output.exists():
+        raise FileExistsError(
+            f"Preserve existing absolute-reference evidence: {output}"
+        )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cache_dir = output.parent / (output.stem + "-reference")
+    cache_dir.mkdir(exist_ok=False)
+    theta = np.array([2.3, 0.4, 5.0])
+    steps = [1e-4, 1e-5]
+    names = ["alpha", "delta", "W0"]
+    settings = [
+        dict(ode_rtol=1e-7, ode_atol=1e-7, diffcrit=1e-8),
+        dict(ode_rtol=1e-9, ode_atol=1e-9, diffcrit=1e-10),
+        dict(ode_rtol=1e-11, ode_atol=1e-11, diffcrit=1e-12),
+    ]
+    for controls in settings:
+        controls.update(
+            diffdef="rel",
+            max_mf_iter=200,
+            mf_iter_index=0.5,
+            minimum_phi=1e-8,
+            ode_method="dopri5",
+            maxr=1e10,
+            max_step=1e10,
+        )
+    grids = dict(
+        production=dict(xi_max=300.0, n_ode_points=2000),
+        resolved=dict(xi_max=30.0, n_ode_points=8000),
+    )
+    sources = [
+        WORKER,
+        __file__,
+        "scripts/qualify_general_observables.py",
+        "src/progenax/cluster/multicomponent.py",
+        "src/progenax/cluster/sampling.py",
+        "src/progenax/cluster/_radial_cdf.py",
+        "src/progenax/profiles/limepy_multimass.py",
+        "src/progenax/profiles/limepy.py",
+        "src/progenax/profiles/limepy_tables.py",
+    ]
+    hashes = {
+        str(Path(p).resolve().relative_to(REPO_ROOT)): hashlib.sha256(
+            Path(p).read_bytes()
+        ).hexdigest()
+        for p in sources
+    }
+    ref_repo = Path(
+        os.environ.get("LIMEPY_REF_REPO", Path(REPO_ROOT).parent / "ref-repos/limepy")
+    )
+    reference_identity = dict(
+        revision=subprocess.check_output(
+            ["git", "-C", str(ref_repo), "rev-parse", "HEAD"], text=True
+        ).strip(),
+        source_sha256=hashlib.sha256(
+            (ref_repo / "limepy/limepy.py").read_bytes()
+        ).hexdigest(),
+    )
+    legacy_hashes = {
+        str(p.relative_to(REPO_ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in Path(CACHE_DIR).glob("*.npz")
+    }
+    report = dict(
+        status="running",
+        base_revision=subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True
+        ).strip(),
+        source_sha256=hashes,
+        reference_identity=reference_identity,
+        legacy_cache_sha256=legacy_hashes,
+        protocol=dict(
+            theta=theta.tolist(),
+            parameters=names,
+            g=1.0,
+            n_components=4,
+            m_range=list(IMF_M_RANGE),
+            n_stars=100000,
+            G=1.0,
+            r_c=1.0,
+            units="retained G=1 model units",
+            meanmassdef="central",
+            fit_tol=1e-10,
+            n_iter=60,
+            n_grid=1000,
+            radial_subdivisions=4,
+            fd_steps=steps,
+            derivative_relative_gate=0.003,
+            mass_zero_identity_scaled_gate=1e-8,
+            reference_settings=settings,
+            reference_points_per_setting=[1, 13, 13],
+            progenax_grids=grids,
+            compiler_temporary_guard_bytes=32000000000,
+            precision="float64",
+        ),
+        reference_python=str(reference_python),
+        references=[],
+        progenax={},
+        limitations=[
+            "Independent equilibrium/kinetic integration; shares Progenax IMF bins and observable definitions.",
+            "Empirical refinement/FD precision, not a rigorous reference error bound.",
+            "Values are reported without selecting a new value-accuracy threshold.",
+            "No new stochastic, Engine B, higher-derivative or stationarity qualification.",
+        ],
+    )
+    start = time.perf_counter()
+
+    def save():
+        output.write_text(json.dumps(report, indent=2) + "\n")
+
+    def deviations(actual, expected, mass_value):
+        error = np.abs(actual - expected) / np.maximum(np.abs(expected), 1e-30)
+        error[0, 1:] = np.abs(actual[0, 1:] - expected[0, 1:]) / abs(mass_value)
+        gates = np.full((2, 3), 0.003)
+        gates[0, 1:] = 1e-8
+        return dict(
+            error=error.tolist(),
+            passed=(np.isfinite(error) & (error <= gates)).tolist(),
+        )
+
+    save()
+    try:
+        # One compiled forward derivative per grid. No stochastic replay is needed.
+        for name, grid in grids.items():
+            print(f"[absolute] Progenax {name} grid", flush=True)
+
+            def evaluate_forward(t):
+                model = MultiComponentCluster.from_imf(
+                    Maschberger(alpha=t[0], m_min=0.1, m_max=20.0),
+                    4,
+                    t[2],
+                    g=1.0,
+                    delta=t[1],
+                    m_range=IMF_M_RANGE,
+                    fit_tol=1e-10,
+                    n_iter=60,
+                    adjoint=diffrax.ForwardMode(),
+                    **grid,
+                )
+                values = reference_model(model, 4)
+                return values, dict(
+                    values=values,
+                    mu_tot=model.mu_tot,
+                    residual=model.residual,
+                    mass=model.m_j,
+                    probability=model.N_frac_j,
+                )
+
+            t = time.perf_counter()
+            compiled = (
+                jax.jit(jax.jacfwd(evaluate_forward, has_aux=True))
+                .lower(jnp.asarray(theta))
+                .compile()
+            )
+            preparation = time.perf_counter() - t
+            temporary = compiled.memory_analysis().temp_size_in_bytes
+            if temporary > 32000000000:
+                raise RuntimeError(
+                    f"{name} forward compiler temporary exceeds retained 32 GB guard"
+                )
+            t = time.perf_counter()
+            derivative, aux = jax.block_until_ready(compiled(jnp.asarray(theta)))
+            execution = time.perf_counter() - t
+            report["progenax"][name] = dict(
+                **{k: np.asarray(v).tolist() for k, v in aux.items()},
+                derivatives=np.asarray(derivative).tolist(),
+                preparation_seconds=preparation,
+                execution_seconds=execution,
+                compiler_temporary_bytes=temporary,
+            )
+            save()
+            del compiled
+            jax.clear_caches()
+
+        for level, controls in enumerate(settings):
+            row = dict(numerics=controls, points={})
+            report["references"].append(row)
+            points = [("base", theta)]
+            if level:
+                for h in steps:
+                    for axis, name in enumerate(names):
+                        for sign, label in [(1, "plus"), (-1, "minus")]:
+                            point = theta.copy()
+                            point[axis] += sign * h
+                            points.append((f"{name}_{label}_{h}", point))
+            for label, point in points:
+                cfg = dict(next(c for c in CONFIGS if c["name"] == "imf4"))
+                cfg.update(
+                    imf_alpha=float(point[0]),
+                    delta=float(point[1]),
+                    W0=float(point[2]),
+                    numerics=controls,
+                )
+                path = cache_dir / f"level-{level}-{label}.npz"
+                t = time.perf_counter()
+                with load_or_generate_reference(
+                    cfg, regen=True, output_path=path, reference_python=reference_python
+                ) as ref:
+                    result = absolute_moments_from_reference(ref)
+                    result.update(
+                        provenance=json.loads(str(ref["provenance"])),
+                        fit_diff=float(ref["fit_diff"]),
+                        fit_n_iter=int(ref["fit_n_iter"]),
+                    )
+                    if any(
+                        result["provenance"][key] != value
+                        for key, value in {
+                            "numpy": "1.26.4",
+                            "scipy": "1.11.4",
+                            "meanmassdef": "central",
+                        }.items()
+                    ):
+                        raise ValueError(
+                            "Absolute reference environment or mass-scale convention differs from protocol"
+                        )
+                    if (
+                        result["provenance"]["ref_git_sha"]
+                        != reference_identity["revision"]
+                        or result["provenance"]["ref_source_sha256"]
+                        != reference_identity["source_sha256"]
+                    ):
+                        raise RuntimeError(
+                            "LIMEPY reference source changed during frozen comparison"
+                        )
+                result.update(
+                    cache=str(path.resolve().relative_to(REPO_ROOT)),
+                    cache_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                    process_wall_seconds=time.perf_counter() - t,
+                )
+                row["points"][label] = result
+                print(
+                    f"[absolute] level {level} {label}: {result['values']}", flush=True
+                )
+                save()
+            if level:
+                row["derivatives"] = {}
+                for h in steps:
+                    derivative = np.column_stack(
+                        [
+                            (
+                                np.asarray(row["points"][f"{name}_plus_{h}"]["values"])
+                                - np.asarray(
+                                    row["points"][f"{name}_minus_{h}"]["values"]
+                                )
+                            )
+                            / (2 * h)
+                            for name in names
+                        ]
+                    )
+                    row["derivatives"][str(h)] = derivative.tolist()
+                save()
+
+        fine, finest = report["references"][1:]
+        mass_value = finest["points"]["base"]["values"][0]
+        report["reference_refinement"] = {
+            str(h): deviations(
+                np.asarray(fine["derivatives"][str(h)]),
+                np.asarray(finest["derivatives"][str(h)]),
+                mass_value,
+            )
+            for h in steps
+        }
+        report["reference_fd_precision"] = deviations(
+            np.asarray(finest["derivatives"][str(steps[0])]),
+            np.asarray(finest["derivatives"][str(steps[1])]),
+            mass_value,
+        )
+        residual_ok = all(
+            p["fit_residual_max_abs"] <= 1e-10 for p in finest["points"].values()
+        )
+        precision_ok = residual_ok and all(
+            np.all(x["passed"])
+            for x in [
+                *report["reference_refinement"].values(),
+                report["reference_fd_precision"],
+            ]
+        )
+        report["reference_precision_pass"] = bool(precision_ok)
+        for row in report["progenax"].values():
+            row["relative_value_difference"] = (
+                np.asarray(row["values"])
+                / np.asarray(finest["points"]["base"]["values"])
+                - 1
+            ).tolist()
+            row["derivative_comparison"] = {
+                str(h): deviations(
+                    np.asarray(row["derivatives"]),
+                    np.asarray(finest["derivatives"][str(h)]),
+                    mass_value,
+                )
+                for h in steps
+            }
+            row["derivative_pass"] = bool(
+                precision_ok
+                and all(
+                    np.all(x["passed"]) for x in row["derivative_comparison"].values()
+                )
+            )
+        for p, expected in hashes.items():
+            if hashlib.sha256(Path(p).read_bytes()).hexdigest() != expected:
+                raise RuntimeError(f"Source changed during frozen comparison: {p}")
+        for p, expected in legacy_hashes.items():
+            if hashlib.sha256(Path(p).read_bytes()).hexdigest() != expected:
+                raise RuntimeError(
+                    f"Legacy structural cache changed during comparison: {p}"
+                )
+        report["legacy_cache_unchanged"] = True
+        report["status"] = "complete; bounded reference verdict recorded"
+        report["process_wall_seconds"] = time.perf_counter() - start
+        report["process_high_water_rss_bytes"] = resource.getrusage(
+            resource.RUSAGE_SELF
+        ).ru_maxrss
+        save()
+        print(
+            json.dumps(
+                {
+                    "reference_precision_pass": precision_ok,
+                    "grid_derivative_pass": {
+                        k: v["derivative_pass"] for k, v in report["progenax"].items()
+                    },
+                },
+                indent=2,
+            ),
+            flush=True,
+        )
+        return (
+            0
+            if precision_ok
+            and all(x["derivative_pass"] for x in report["progenax"].values())
+            else 1
+        )
+    except Exception as exc:
+        report.update(
+            status="failed; partial evidence retained",
+            exception=f"{type(exc).__name__}: {exc}",
+        )
+        save()
+        raise
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
@@ -436,7 +883,23 @@ def main():
         action="store_true",
         help="re-run the reference subprocess (pinned env) and refresh the npz cache",
     )
+    ap.add_argument(
+        "--absolute-output",
+        type=Path,
+        help="new frozen imf4 absolute-moment/derivative report; preserves old caches",
+    )
+    ap.add_argument(
+        "--reference-python",
+        type=Path,
+        help="existing Python 3.11 with NumPy 1.26.4/SciPy 1.11.4 for the absolute comparison",
+    )
     args = ap.parse_args()
+    if args.absolute_output is not None:
+        if args.reference_python is None or args.regen:
+            ap.error(
+                "--absolute-output requires --reference-python and cannot be combined with --regen"
+            )
+        return qualify_absolute_reference(args.absolute_output, args.reference_python)
 
     print("\n" + "=" * 88)
     print(

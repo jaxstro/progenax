@@ -26,6 +26,8 @@ class PowerLawIMF(eqx.Module):
 
     where α_i are the exponents and b_i are the breakpoints.
     Continuity is enforced at breakpoints.
+    Positive α_i gives a declining number density per unit mass:
+    ``exponents=[2.3]`` means ξ(m) ∝ m^(-2.3). Negative α_i gives a rising PDF.
 
     Attributes:
         m_min: Minimum mass [M_sun]
@@ -60,7 +62,8 @@ class PowerLawIMF(eqx.Module):
         Create power-law IMF.
 
         Args:
-            exponents: Power-law exponents for each segment
+            exponents: α_i in ξ(m) ∝ m^(-α_i) for each segment;
+                positive values give a declining PDF
             breakpoints: Mass breakpoints between segments
             m_min: Minimum mass [M_sun]
             m_max: Maximum mass [M_sun]

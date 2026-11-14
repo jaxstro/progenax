@@ -14,7 +14,7 @@ from typing import Protocol, runtime_checkable
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxstro.numerics import newton_ppf
+from jaxstro.numerics.rootfinding import newton_ppf
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 # ============================================================================
@@ -24,20 +24,100 @@ from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 @runtime_checkable
 class IMFProtocol(Protocol):
-    """Protocol for all IMF implementations.
+    """Interface for scalar stellar-mass distributions used by TruncatedIMF.
 
-    Any class with these attributes and methods can be used as an IMF,
-    enabling TruncatedIMF to wrap any compatible IMF.
+    Mass arguments, bounds and returned masses use solar masses. Probability
+    normalization counts stars, rather than weighting them by mass.
+
+    Attributes:
+        m_min: Lower mass bound [M_sun].
+        m_max: Upper mass bound [M_sun].
+
+    Runtime protocol checks test attribute presence. Numerical accuracy, parameter
+    domains and differentiation limits belong to each concrete implementation.
     """
 
     m_min: float
     m_max: float
 
-    def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]: ...
-    def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]: ...
-    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]: ...
-    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]: ...
-    def mean_mass(self) -> Float[Array, ""]: ...
+    def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Evaluate the natural log of the normalized number density in mass.
+
+        Args:
+            m: Masses [M_sun], scalar or array, within [m_min, m_max].
+
+        Returns:
+            Log-density values with the shape of ``m``. Exponentiating gives a
+            probability density per solar mass, normalized on [m_min, m_max].
+
+        Notes:
+            Out-of-range masking depends on the implementation. TruncatedIMF
+            explicitly returns negative infinity outside its mass bounds.
+        """
+        ...
+
+    def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Evaluate the normalized cumulative number fraction at mass m.
+
+        Args:
+            m: Masses [M_sun], scalar or array, within [m_min, m_max].
+
+        Returns:
+            Dimensionless cumulative probabilities with the shape of ``m``.
+
+        Notes:
+            Out-of-range handling depends on the implementation. TruncatedIMF
+            returns zero below its lower bound and one above its upper bound.
+        """
+        ...
+
+    def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
+        """Map cumulative number fractions to masses using the inverse CDF.
+
+        Args:
+            u: Dimensionless quantiles in [0, 1], scalar or array.
+
+        Returns:
+            Masses [M_sun] with the shape of ``u``.
+
+        Notes:
+            Consult the concrete implementation for inversion precision and
+            differentiation limits. Endpoint handling can include clipping;
+            supplying zero or one need not return the exact mass bound.
+        """
+        ...
+
+    def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
+        """Draw n masses from the normalized number distribution.
+
+        Args:
+            key: JAX random key. Reusing a key with the same implementation,
+                parameters and count repeats the draw.
+            n: Nonnegative sample count; static under JIT because it sets the
+                output shape.
+
+        Returns:
+            Mass array of shape (n,) [M_sun]. The realized total mass varies.
+
+        Notes:
+            The sampling algorithm and its pathwise differentiation limits
+            belong to the concrete implementation.
+        """
+        ...
+
+    def mean_mass(self) -> Float[Array, ""]:
+        """Return the probability-weighted expected stellar mass.
+
+        Returns:
+            Scalar expected mass [M_sun], integrating mass times the normalized
+            number density over [m_min, m_max].
+
+        Notes:
+            Analytic and numerical implementations have their own precision
+            and parameter-domain limits; the expectation requires a finite
+            first moment.
+        """
+        ...
 
 
 # ============================================================================
@@ -128,14 +208,30 @@ class BaseIMF(eqx.Module):
         return jnp.log(F_max - F_min + 1e-30)
 
     def logpdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized log-PDF."""
-        return self._logpdf_unnorm(m) - self._log_norm
+        """Normalized log-PDF, with negative infinity outside the mass support.
+
+        Support endpoints can be nonsmooth. Outside values are evaluated at a
+        valid interior mass before masking, keeping inactive logarithms finite.
+        """
+        m = jnp.asarray(m)
+        in_support = (m >= self.m_min) & (m <= self.m_max)
+        interior = self.m_min + jnp.where(
+            jnp.isfinite(self.m_max), 0.5 * (self.m_max - self.m_min), 1.0
+        )
+        safe_m = jnp.where(in_support, m, interior)
+        value = self._logpdf_unnorm(safe_m) - self._log_norm
+        masked = jnp.where(in_support, value, -jnp.inf)
+        return jnp.where(jnp.isnan(m) | jnp.isnan(value), jnp.nan, masked)
 
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Normalized CDF."""
+        """Normalized CDF, zero below the support and one above it."""
+        m = jnp.asarray(m)
         F_min = self._cdf_unnorm(self.m_min)
         F_max = self._cdf_unnorm(self.m_max)
-        return (self._cdf_unnorm(m) - F_min) / (F_max - F_min + 1e-30)
+        bounded_m = jnp.clip(m, self.m_min, self.m_max)
+        value = (self._cdf_unnorm(bounded_m) - F_min) / (F_max - F_min + 1e-30)
+        masked = jnp.where(m <= self.m_min, 0.0, jnp.where(m >= self.m_max, 1.0, value))
+        return jnp.where(jnp.isnan(value), jnp.nan, masked)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF via Newton solver."""
@@ -154,6 +250,7 @@ class BaseIMF(eqx.Module):
         with m_min=0.01 was ~5x off on a linear grid). 4000 log-nodes converge to <<1%.
         """
         m_grid = jnp.exp(jnp.linspace(jnp.log(self.m_min), jnp.log(self.m_max), 4000))
+        m_grid = m_grid.at[0].set(self.m_min).at[-1].set(self.m_max)
         pdf_grid = jnp.exp(self.logpdf(m_grid))
         return jnp.trapezoid(m_grid * pdf_grid, m_grid)
 

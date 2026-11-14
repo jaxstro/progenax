@@ -2,15 +2,17 @@ import subprocess
 import sys
 
 
-def test_diagnostics_import_without_scipy_gives_actionable_error():
-    """Audit R9: in an env without scipy, importing the subpackage must NOT
-    crash at import time; the JAX-native q_approx must still work; and calling
-    an exact (scipy-backed) function must raise an ImportError naming the
-    [diagnostics] extra."""
+def test_missing_scipy_diagnostic_modules_give_actionable_error():
+    """Catch eager diagnostic imports and loss of the actionable missing-module error.
+
+    JAX 0.11 requires scipy>=1.15 and uses scipy.linalg for LAPACK setup.
+    Blocking the entire SciPy package tests a broken JAX installation. Block
+    only the graph/distance modules required by the exact diagnostics, then
+    verify import, JAX-native Q, and the exact diagnostic's error boundary.
+    """
     code = (
         "import sys;"
-        "sys.modules['scipy'] = None; sys.modules['scipy.sparse'] = None;"
-        "sys.modules['scipy.sparse.csgraph'] = None; sys.modules['scipy.spatial'] = None;"
+        "sys.modules['scipy.sparse.csgraph'] = None;"
         "sys.modules['scipy.spatial.distance'] = None;"
         "import progenax.diagnostics as d;"  # must import fine
         "from progenax.diagnostics import q_approx;"  # JAX-native: must work

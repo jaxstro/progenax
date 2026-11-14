@@ -304,3 +304,18 @@ class TestSharedPotentialCoreResolution:
             fine.Psi_grid[0]
         )
         assert rel < 1e-3, f"Engine-B Psi(0) at default n_r is {rel:.2%} off converged"
+
+
+def test_finite_extent_jit_keeps_provenance_static_when_winner_changes():
+    from progenax.profiles.density_poisson import derive_r_t
+
+    def resolve(extents):
+        profiles = [EFFProfile(a=1.0, gamma=5.0, r_t=r) for r in extents]
+        return derive_r_t(profiles, jnp.array([0.5, 0.5]))[0]
+
+    for extents, gradient in [
+        (jnp.array([8.0, 9.0]), [0.0, 1.0]),
+        (jnp.array([10.0, 9.0]), [1.0, 0.0]),
+    ]:
+        assert float(jax.jit(resolve)(extents)) == float(jnp.max(extents))
+        np.testing.assert_allclose(jax.jit(jax.grad(resolve))(extents), gradient)

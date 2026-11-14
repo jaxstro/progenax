@@ -42,7 +42,8 @@ class CatalogedBinaryClusterIC(eqx.Module):
 
     Stellar radii remain in solar radii, matching :class:`ICResult`.  Contact
     margins in ``primordial_systems`` are stored in the position unit used to
-    construct the cluster.
+    construct the cluster. Particle masses use the selected dynamical mass
+    unit, while IMF/companion sampling and TotalMass budgets use M_sun.
     """
 
     positions: Float[Array, "M 3"]

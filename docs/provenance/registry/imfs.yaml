@@ -88,18 +88,18 @@
   description: >
     Lognormal low-mass body joined continuously to a Salpeter-like power-law
     tail at 1 Msun — the single-star (disk) IMF of Chabrier (2003). Smoother
-    at low mass than a broken power law; the inverse CDF needs a fixed-iteration
-    Newton solve.
+    at low mass than a broken power law. The implemented sampler uses analytic
+    inverse pieces for its initial guess, followed by 30 fixed Newton steps.
   when_to_use:
     good_for:
       - "literature-standard Chabrier single-star populations"
       - "smooth low-mass turnover with the canonical disk parameters"
     not_for:
-      - "the fastest / cleanest-gradient sampling (no closed-form inverse; ~30 Newton steps per draw — the SMOOTH closed-form Maschberger is the house default)"
-      - "system (unresolved-binary) IMF studies without switching to the Table-1 system parameters"
+      - "a sampler without iterative refinement (the current implementation uses 30 Newton steps; Maschberger uses its analytic inverse directly)"
+      - "system (unresolved-binary) IMF studies without switching to the system-form parameters"
   parameters:
     - name: m_c
-      meaning: "lognormal characteristic mass (single-star disk value 0.079 Msun)"
+      meaning: "peak of the low-mass density per log10 mass (single-star disk value 0.079 Msun); not the peak of dN/dm"
       units: Msun
       typical_range: "0.08 (single-star) – 0.22 (system)"
       code_arg: "ChabrierIMF(m_c=...)"
@@ -150,9 +150,9 @@
     function. progenax's production default.
   when_to_use:
     good_for:
-      - "PREFERRED over Kroupa/Chabrier as the production default: SMOOTH (C^inf, no breakpoint kinks) — exactly what gradient-based inference (HMC / Fisher forecasting) wants"
-      - "fast exact sampling: closed-form quantile, no solver, ~5x faster than Chabrier under vmap"
-      - "IMF-parameter inference (alpha, beta, mu are clean continuous knobs)"
+      - "house preference for a smooth density on positive support away from alpha=1 and beta=1, without interior mass breaks"
+      - "analytic inverse-CDF sampling without Newton iterations; timing depends on the workload"
+      - "IMF-parameter inference within the stated domain, with separate likelihood and convergence checks"
     not_for:
       - "matching a literature analysis that is DEFINED on Kroupa/Chabrier segments (use those forms for like-for-like comparisons)"
   parameters:
@@ -266,11 +266,11 @@
     not_for:
       - "changing the SHAPE of the IMF (only the support is modified)"
   parameters:
-    - name: base_imf
+    - name: inner
       meaning: "any IMF implementing the shared protocol"
       units: "—"
       typical_range: "—"
-      code_arg: "TruncatedIMF(base_imf=...)"
+      code_arg: "TruncatedIMF(inner=...)"
     - name: m_min
       meaning: "hard lower cutoff"
       units: Msun
@@ -314,47 +314,314 @@
       - "environment-dependent population synthesis inputs to the binary engine"
     not_for:
       - "galaxy-wide IGIMF calculations (out of scope; no IGIMF class exists — audit R7)"
-      - "sub-solar-mass slope changes (only alpha_3, and optionally alpha_1/alpha_2 via metallicity, respond)"
+      - "environment-dependent brown-dwarf slope changes (alpha_0 stays fixed)"
   parameters:
     - name: rho_cl
-      meaning: "birth-cloud (pre-cluster core) density"
+      meaning: "birth-cloud density; optional constructor override is log10(rho_cl / (1e6 Msun pc^-3))"
       units: "Msun / pc^3"
       typical_range: "1e2–1e7"
-      code_arg: "BirthEnvironment(rho_cl=...)"
+      code_arg: "BirthEnvironment(log_rho_cl=...)"
     - name: Fe_H
       meaning: "metallicity [Fe/H]"
       units: dex
       typical_range: "-2 – +0.5"
-      code_arg: "BirthEnvironment(Fe_H=...)"
+      code_arg: "BirthEnvironment(metallicity=...)"
+    - name: log_mecl
+      meaning: "required log10 embedded stellar mass in Msun; density is computed from this and sfe if no override is supplied"
+      units: dex
+      typical_range: "mapping input guard [3,8], not an empirical validity certificate"
+      code_arg: "BirthEnvironment(log_mecl=...)"
+    - name: sfe
+      meaning: "embedded stellar mass / total birth-cloud mass; mapping does not clip or validate this fraction"
+      units: dimensionless
+      typical_range: "default 0.33; wider domains unqualified"
+      code_arg: "BirthEnvironment(sfe=...)"
   sources:
-    - bibkey: Marks2012
-      provides: "the fundamental-plane alpha_3(x) relation and the Table-3 1-D relations (all ledger-verified cell-for-cell)"
-      locators: ["Eqs. 14-15, p. 2252 (slope -0.4072, intercept 1.9383)", "Table 3, p. 2251"]
-    - bibkey: Jerabkova2018
-      provides: "the erratum-corrected threshold x >= -0.87 and the restated relations"
-      locators: ["Eq. 6 (cites the Marks erratum)", "Eq. 9 (the 4pi form; see deviations)"]
+  - bibkey: Marks2012
+    provides: Table-3 coefficients, low-mass metallicity relation and original Fundamental Plane
+    locators:
+    - Eq.11 and Table3, printed p.2251
+    - Eqs.12–15, printed p.2252
+  - bibkey: Marks2014
+    provides: negative threshold correction; erratum prints rounded -0.41/1.94
+    locators:
+    - Eq.1, printed p.3315
+  - bibkey: MarksKroupa2012
+    provides: nominal stellar half-mass radius fit and 8pi stellar half-mass density
+    locators:
+    - Sect.2.1, PDF p.2
+    - Eq.7, PDF p.10
+  - bibkey: Jerabkova2018
+    provides: rounded high-mass law and density coordinate; distinct printed mass formula
+    locators:
+    - Eqs.6–10, PDF p.6
   equations:
-    - label: fundamental-fit
-      latex: '\alpha_3(\hat x) \;=\; \begin{cases} -0.4072\,\hat x + 1.9383, & \hat x \ge -0.87 \\ 2.3, & \hat x < -0.87 \end{cases}'
-      symbols:
-        x_hat: {latex: '\hat x', meaning: "fundamental-plane coordinate (density-metallicity combination)", units: dimensionless}
-      assumptions: ["erratum-corrected threshold -0.87 (Jerabkova 2018 Eq. 6)", "canonical 2.3 below threshold"]
-      theory_ref: "10-theory/imfs/environment.md#fundamental-fit"
-    - label: alpha3-marks-eq15
-      latex: '\alpha_3(\log\rho_{\mathrm{cl}}, [\mathrm{Fe/H}]) \;=\; 0.0572\,[\mathrm{Fe/H}] - 0.4072\,\log_{10}\!\left(\frac{\rho_{\mathrm{cl}}}{10^6\,M_\odot\,\mathrm{pc}^{-3}}\right) + 1.9383'
-      symbols:
-        rho_cl: {latex: '\rho_{\mathrm{cl}}', meaning: "birth-cloud density", units: "Msun / pc^3"}
-      assumptions: ["the Marks 2012 Eq. 15 plane in physical variables"]
-      theory_ref: "10-theory/imfs/environment.md#alpha3-marks-eq15"
+  - label: fundamental-fit
+    registry_ref:
+      source: progenaxderivations
+      equation: EQ-ENV-MARKS-ALPHA3
+      lhs: \alpha_3(\hat x)
+    symbols:
+      x_hat:
+        latex: \hat x
+        meaning: adopted rounded Marks density/metallicity coordinate
+        units: dimensionless
+    assumptions:
+    - erratum-corrected threshold -0.87 (Jerabkova 2018 Eq. 6)
+    - canonical 2.3 below threshold; retained coefficients give a 0.007436 jump at the default hard threshold
+    - implementation clips alpha_3 to [0.5,2.3]; smooth=True is an opt-in tanh blend, not the default
+    theory_ref: 10-theory/imfs/environment.md#fundamental-fit
+  - label: alpha3-marks-eq15
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-EQ15
+      lhs: \alpha_3
+    symbols:
+      z: &id001
+        latex: '[\mathrm{Fe/H}]'
+        meaning: log10 iron/hydrogen abundance relative to solar, in dex
+        units: dimensionless
+      R: &id002
+        latex: R_\rho
+        meaning: log10(rho_cl / (1e6 Msun pc^-3))
+        units: dimensionless
+    assumptions:
+    - paper transcription of Marks 2012 Eq. 15 in physical variables
+    - kernel instead evaluates the fundamental-fit with rounded rotation (-0.139,0.990); its active branch coefficients are 0.0566008 and -0.403128, not this literal expansion
+    theory_ref: 10-theory/imfs/environment.md#alpha3-marks-eq15
+  - label: environment-table3-mcl
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-TABLE3-MCL
+      lhs: \alpha_3(\lambda)
+    symbols:
+      lambda:
+        latex: \lambda
+        meaning: log10(M_cl / (1e6 Msun))
+        units: dimensionless
+    assumptions:
+    - Marks Eq.11 and Table3, printed p.2251; equality takes canonical branch
+    - source expression excludes production output clip [0.5,2.3] and opt-in tanh blend
+    - agent-checked transcription; no wider empirical-domain qualification
+    theory_ref: 10-theory/imfs/environment.md#alpha3-lambda
+  - label: environment-table3-mecl
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-TABLE3-MECL
+      lhs: \alpha_3(\lambda)
+    symbols:
+      lambda:
+        latex: \lambda
+        meaning: log10(M_ecl / (1e6 Msun))
+        units: dimensionless
+    assumptions:
+    - Marks Eq.11 and Table3, printed p.2251; equality takes canonical branch
+    - source expression excludes production output clip [0.5,2.3] and opt-in tanh blend
+    - agent-checked transcription; no wider empirical-domain qualification
+    theory_ref: 10-theory/imfs/environment.md#alpha3-lambda
+  - label: environment-table3-rho
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-TABLE3-RHO
+      lhs: \alpha_3(\lambda)
+    symbols:
+      lambda:
+        latex: \lambda
+        meaning: log10(rho_cl / (1e6 Msun pc^-3))
+        units: dimensionless
+    assumptions:
+    - Marks Eq.11 and Table3, printed p.2251; equality takes canonical branch
+    - source expression excludes production output clip [0.5,2.3] and opt-in tanh blend
+    - agent-checked transcription; no wider empirical-domain qualification
+    theory_ref: 10-theory/imfs/environment.md#alpha3-lambda
+  - label: environment-table3-feh
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-TABLE3-FEH
+      lhs: \alpha_3(\lambda)
+    symbols:
+      lambda:
+        latex: \lambda
+        meaning: '[Fe/H] in dex'
+        units: dimensionless
+    assumptions:
+    - Marks Eq.11 and Table3, printed p.2251; equality takes canonical branch
+    - source expression excludes production output clip [0.5,2.3] and opt-in tanh blend
+    - agent-checked transcription; no wider empirical-domain qualification
+    theory_ref: 10-theory/imfs/environment.md#alpha3-lambda
+  - label: environment-lowmass
+    registry_ref:
+      source: marks2012topheavy
+      equation: EQ-MARKS-LOWMASS
+      lhs: \alpha_i
+    symbols:
+      z: *id001
+      alpha_c:
+        latex: \alpha_{i,c}
+        meaning: canonical low-mass exponent 1.3 (i=1) or 2.3 (i=2)
+        units: dimensionless
+    assumptions:
+    - Marks Eq.12, printed p.2252; adopts the approximately 0.5 central estimate
+    - excludes production metallicity clip and slope floors; extrapolation below -0.5 is uncertain
+    theory_ref: 10-theory/imfs/environment.md#alpha-low
+  - label: environment-marks-coordinate
+    registry_ref:
+      source: progenaxderivations
+      equation: EQ-ENV-MARKS-ROTATION-ROUNDED
+      lhs: \hat x
+    symbols:
+      z: *id001
+      R: *id002
+    assumptions:
+    - retained rounded (-0.139,0.990) approximation to the 98-degree rotation, distinct from literal Eq.15
+    theory_ref: 10-theory/imfs/environment.md#fundamental-x
+  - label: environment-jerabkova-alpha3
+    registry_ref:
+      source: jerabkova2018igimf
+      equation: EQ-JERABKOVA-ALPHA3
+      lhs: \alpha_3(\hat x)
+    symbols:
+      x_hat:
+        latex: \hat x
+        meaning: Jerabkova density/metallicity coordinate; distinct rounding from Marks
+        units: dimensionless
+    assumptions:
+    - printed Eq.6, PDF p.6
+    - production clips output to [0.5,2.3]; hard-switch derivative is undefined at the jump; smoothing is opt-in
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-jerabkova-coordinate
+    registry_ref:
+      source: jerabkova2018igimf
+      equation: EQ-JERABKOVA-X-RHO
+      lhs: \hat x
+    symbols:
+      z: *id001
+      R: *id002
+    assumptions:
+    - printed Eq.7, PDF p.6; no intercept in the density coordinate
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-jerabkova-printed-density
+    registry_ref:
+      source: jerabkova2018igimf
+      equation: EQ-JERABKOVA-DENSITY-PRINTED
+      lhs: '\rho_{\rm cl}/(M_\odot\,\mathrm{pc}^{-3})'
+    symbols:
+      mcl: {latex: '\mathcal M_{\mathrm{cl}}', meaning: 'M_cl/Msun, total initial birth-cloud mass', units: dimensionless}
+      h: {latex: '\mathcal H', meaning: 'stated three-dimensional half-mass radius r_h/pc', units: dimensionless}
+    assumptions: ['literal printed Eq.8, PDF p.6; 4pi denominator', 'twice the adopted 8pi half-mass cloud density at the same mass/radius; this source expression is not implemented']
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-jerabkova-printed-mass
+    registry_ref:
+      source: jerabkova2018igimf
+      equation: EQ-JERABKOVA-X-MASS-PRINTED
+      lhs: \hat x
+    symbols:
+      z: *id001
+      L: &id003
+        latex: L_M
+        meaning: log10(M_ecl / (1e6 Msun))
+        units: dimensionless
+    assumptions:
+    - literal printed Eq.9 at stated SFE=0.33; this is not the production mass formula
+    - 4pi instead of 8pi adds 0.99 log10(2) to the derived intercept, not enough to yield 2.83; no proposed correction is adopted
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-radius
+    registry_ref:
+      source: marks2012inverse
+      equation: EQ-MK-RADIUS-NOMINAL
+      lhs: r_h/\mathrm{pc}
+    symbols:
+      m:
+        latex: \mathcal M
+        meaning: M_ecl/Msun, positive numerical stellar mass
+        units: dimensionless
+    assumptions:
+    - nominal central fit, Eq.7 PDF p.10; source prefactor +0.07/-0.04 and exponent +/-0.04 uncertainties are not propagated
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-stellar-density
+    registry_ref:
+      source: marks2012inverse
+      equation: EQ-MK-DENSITY
+      lhs: \rho_{\rm ecl}/(M_\odot\,\mathrm{pc}^{-3})
+    symbols:
+      m:
+        latex: \mathcal M
+        meaning: M_ecl/Msun
+        units: dimensionless
+      h:
+        latex: \mathcal H
+        meaning: three-dimensional half-mass radius r_h/pc
+        units: dimensionless
+    assumptions:
+    - positive mass and radius; half of the total stellar mass is within r_h; Sect.2.1 PDF p.2
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-cloud-density
+    registry_ref:
+      source: progenaxderivations
+      equation: EQ-ENV-LOG-DENSITY
+      lhs: R_\rho
+    symbols:
+      L: *id003
+      epsilon: &id004
+        latex: \varepsilon
+        meaning: stellar mass / total birth-cloud mass; positive fraction, physically <=1
+        units: dimensionless
+    assumptions:
+    - local substitution of nominal radius law into 8pi half-mass density, then rho_cl=rho_ecl/epsilon
+    - positive SFE required by logarithm; existing API does not validate SFE
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-generalized-mass
+    registry_ref:
+      source: progenaxderivations
+      equation: EQ-ENV-X-MASS-ROUNDED
+      lhs: \hat x
+    symbols:
+      z: *id001
+      L: *id003
+      epsilon: *id004
+    assumptions:
+    - retained rounded production mass coordinate, distinct from printed Eq.9
+    - 0.6039=0.99*0.61 exactly; 0.2161 comes from intermediate rounding, not exact nominal substitution
+    - exact substitution gives 0.21618378060413992; the constant gap does not change first derivatives in unguarded interiors
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
+  - label: environment-reference-mass
+    registry_ref:
+      source: progenaxderivations
+      equation: EQ-ENV-X-MECL
+      lhs: \hat x
+    symbols:
+      z: *id001
+      L: *id003
+    assumptions:
+    - generalized production coordinate at fixed SFE=0.33; mass-only route ignores supplied SFE and density override
+    theory_ref: 10-theory/imfs/environment.md#cluster-density-conversion
   code_refs:
-    - "imf/environment/birth_environment.py::BirthEnvironment"
-    - "imf/environment/mapping.py::env_to_imf_params"
+  - imf/environment/birth_environment.py::BirthEnvironment
+  - imf/environment/mapping.py::env_to_imf_params
+  - imf/environment/mapping.py::alpha3_marks_plane
+  - imf/environment/mapping.py::alpha3_marks_table3
+  - imf/environment/mapping.py::lowmass_slopes_metallicity
+  - imf/environment/mapping.py::x_hat_marks_plane
+  - imf/environment/mapping.py::x_jerabkova_rho
+  - imf/environment/mapping.py::x_jerabkova_generalized
+  - imf/environment/mapping.py::alpha3_jerabkova_mecl
+  - imf/environment/mapping.py::alpha3_jerabkova_rho
+  - imf/environment/density.py::compute_r_half
+  - imf/environment/density.py::compute_rho_ecl
+  - imf/environment/density.py::compute_log_rho_cl_6
   validation:
-    - "tests/unit/imf/test_environment.py::TestMarksCoefficients::test_coefficient_values"
-    - "tests/unit/imf/test_environment.py::TestGCValidation::test_marks_table1_gc"
+  - tests/unit/imf/test_environment.py::TestMarksCoefficients::test_coefficient_values
+  - tests/validation/test_environment_physics.py::TestMarksTable1GlobularClusters::test_gc_alpha3_matches_published
+  - tests/unit/imf/test_environment_registry.py::test_density_substitution_and_mass_rounding
+  - tests/unit/imf/test_environment_registry.py::test_density_kernels_and_derivatives
+  - tests/unit/imf/test_environment_registry.py::test_coordinate_kernels_and_first_derivatives
+  - tests/unit/imf/test_environment_registry.py::test_table3_source_branches_and_derivative
+  - tests/unit/imf/test_environment_registry.py::test_lowmass_source_and_unclipped_derivative
+  - tests/unit/imf/test_environment_registry.py::test_plane_source_adoption_and_threshold_values
   status: verified
   deviations:
-    - "Jerabkova 2018 Eq. 9 prints a 2.83 (4 pi) density-conversion constant; progenax uses the 8 pi form (constant 0.2161), a deliberate deviation RATIFIED 2026-06-09 (see the provenance ledger and imf/environment/coefficients.py docstrings)."
+  - The ledger records the 8pi density / 0.2161 mass-form choice as ratified 2026-06-09. Printed Jerabkova Eq.9 uses 0.6 and 2.83; it is kept as a separate transcription, not implemented. The earlier explanation that 2.83 follows from 4pi is not an algebraic identity.
+  - Packaged paper records are agent-verified rendered-source checks, not new researcher acceptance or empirical calibration. Exact nominal substitution and the retained intermediate-rounded mass intercept are distinguished.
 
 - model: schechter
   family_display: Schechter exponential-cutoff IMF

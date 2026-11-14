@@ -15,6 +15,7 @@ from typing import NamedTuple, Optional
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.units import STELLAR
 from jaxtyping import Array, Bool, Float, Int, PRNGKeyArray
 
 from .binaries import (
@@ -35,6 +36,7 @@ from .dynamics.virial import (
     rescale_velocities_to_virial,
 )
 from .protocols import SpatialProfile, VelocityDF
+from .stellar import zams_radius
 
 # Seconds in one (SI) day — exact; used to convert sampled periods (days) into the
 # code time unit via units.time_scale_cgs.
@@ -137,8 +139,8 @@ class ICResult(eqx.Module):
     Attributes:
         positions: Particle positions (N, 3) [length units]
         velocities: Particle velocities (N, 3) [velocity units]
-        masses: Particle masses (N,) [M_sun]
-        stellar_radii: Stellar radii (N,) [R_sun]
+        masses: Particle masses (N,) [dynamical mass units; M_sun by default]
+        stellar_radii: Tout et al. (1996) ZAMS stellar radii (N,) [R_sun]
         ids: Particle IDs (N,) or None
         primordial_system_id: (N,) int — which primordial system each particle
             belongs to (paired particles share an id); None for single-only ICs.
@@ -189,7 +191,9 @@ def compute_stellar_radii(masses: Float[Array, "N"]) -> Float[Array, "N"]:
     function is the D&K91 *collision* radius — a different relation for a different use).
 
     .. note::
-       TEMPORARY single-relation stand-in. This will be REPLACED by the
+       Not used by the IC builders, which assign :func:`progenax.zams_radius`
+       (Tout et al. 1996) since 2026-09-15 (Anna's ruling of 2026-09-11); kept as a
+       named alternative. Originally a TEMPORARY single-relation stand-in, to be REPLACED by the
        ``startrax`` package once it lands: first Tout et al. (1996) ZAMS radii
        (metallicity-dependent rational-polynomial fits), then MIST and the
        Hurley+2000 SSE tracks (mass- AND age-dependent radii with real stellar
@@ -299,13 +303,16 @@ def build_spatial_ic(
     Q: Optional[float] = 0.5,
     softening: float = 0.0,
     id_offset: int = 0,
+    *,
+    mass_scale_to_msun: float = 1.0,
 ) -> ICResult:
     """
     Build initial conditions from spatial profile and velocity DF.
 
     Args:
         profile: Spatial density profile (must implement SpatialProfile protocol)
-        masses: Particle masses (N,) [M_sun]
+        masses: Particle masses (N,) in the dynamical mass unit consistent with
+            G and profile lengths. Passed unchanged to sampling and the result.
         velocity_df: Velocity distribution function (must implement VelocityDF protocol)
         key: JAX random key
         G: Gravitational constant (REQUIRED - no default)
@@ -317,6 +324,10 @@ def build_spatial_ic(
             consistently. This is a force-model knob (a future shared `ForceModel`
             will supply it); it is **not** stored on the returned `ICResult`.
         id_offset: Offset for particle IDs (default: 0)
+        mass_scale_to_msun: Solar masses per dynamical mass unit, used only for
+            ZAMS stellar labels. Default 1.0 assumes M_sun masses; for gram
+            masses pass CGS.mass_scale_cgs / STELLAR.mass_scale_cgs. Stellar
+            radii remain in R_sun, independent of the dynamical length unit.
 
     Returns:
         ICResult (pure physical state — no softening field)
@@ -333,8 +344,8 @@ def build_spatial_ic(
     #    the DF silently falls back to DEFAULT_UNITS.G and ignores the caller's units)
     velocities = velocity_df.sample_velocities(positions, masses, key_vel, G=G)
 
-    # 3. Compute stellar radii
-    stellar_radii = compute_stellar_radii(masses)
+    # 3. Stellar radii: Tout et al. (1996) ZAMS (Anna, 2026-09-11)
+    stellar_radii = zams_radius(masses * mass_scale_to_msun)
 
     # 4. Transform to COM frame
     positions, velocities = to_com_frame(positions, velocities, masses)
@@ -378,7 +389,8 @@ def _draw_systems_for_target(target, primary_imf, companion_model, key, *, G, da
     per system guarantees >= n stars). `TotalMass(M)` over-draws from a mean-system-
     mass estimate and tops up until the mass budget is reached.
 
-    Returns (m1, is_binary, CompanionElements).
+    Returns (m1, is_binary, CompanionElements), with masses in M_sun. G must
+    therefore use M_sun as its mass unit and the requested length/time units.
     """
     if isinstance(target, (Systems, Stars)):
         km, kc = jax.random.split(key)
@@ -411,7 +423,7 @@ def _draw_systems_for_target(target, primary_imf, companion_model, key, *, G, da
 
 
 class _BinaryClusterConstruction(NamedTuple):
-    """Shared physical products consumed by both public binary-cluster APIs."""
+    """Shared products; all masses are native dynamical masses after budget cuts."""
 
     primary_masses: Float[Array, "S"]
     is_binary: Bool[Array, "S"]
@@ -435,6 +447,7 @@ def _construct_binary_cluster(
     """Run the one physical construction shared by legacy and cataloged APIs."""
 
     G = units.G
+    mass_scale_to_msun = units.mass_scale_cgs / STELLAR.mass_scale_cgs
     day_in_time_units = _SECONDS_PER_DAY / units.time_scale_cgs
 
     if not compact and not isinstance(target, Systems):
@@ -445,7 +458,12 @@ def _construct_binary_cluster(
 
     key_draw, key_spatial = jax.random.split(key)
     m1, is_binary, comp = _draw_systems_for_target(
-        target, primary_imf, companion_model, key_draw, G=G, day=day_in_time_units
+        target,
+        primary_imf,
+        companion_model,
+        key_draw,
+        G=G / mass_scale_to_msun,
+        day=day_in_time_units,
     )
     system_masses = m1 + comp.m2
 
@@ -456,8 +474,20 @@ def _construct_binary_cluster(
         comp = _index_companions(comp, keep)
         system_masses = system_masses[keep]
 
+    # Empirical companion laws and TotalMass budgets use solar masses. Convert
+    # only after those decisions; sampled orbital lengths are already native.
+    m1 = m1 / mass_scale_to_msun
+    comp = comp._replace(m2=comp.m2 / mass_scale_to_msun)
+    system_masses = system_masses / mass_scale_to_msun
     ic_sys = build_spatial_ic(
-        profile, system_masses, velocity_df, key_spatial, G, Q=Q, softening=softening
+        profile,
+        system_masses,
+        velocity_df,
+        key_spatial,
+        G,
+        Q=Q,
+        softening=softening,
+        mass_scale_to_msun=mass_scale_to_msun,
     )
     resolved = resolve_binary_components(
         ic_sys.positions,
@@ -489,7 +519,7 @@ def build_binary_cluster(
     softening: float = 0.0,
     compact: bool = True,
 ):
-    """Assemble a star cluster with a primordial binary population (SoTA composition).
+    """Assemble a star cluster with a primordial binary population.
 
     Composes five independent axes: `profile` x `velocity_df` (spatial), `primary_imf`
     (the **primary**-star IMF — vary alpha freely), `companion_model` (the single owner
@@ -522,7 +552,11 @@ def build_binary_cluster(
             resolved stars, companions included), or `TotalMass(M)` [Msun]. Stars/TotalMass
             have data-dependent counts and are **eager only** (`compact=True`).
         key: JAX random key.
-        units: `UnitSystem` (carries G + the time scale for the day->time-unit conversion).
+        units: `UnitSystem` supplying G and mass/length/time scales. IMF and
+            companion masses and TotalMass budgets stay in M_sun. The builder
+            converts masses to native units for dynamics and the result; it
+            supplies the companion's Kepler calculation with G in native
+            length/time units per M_sun. Stellar labels remain in R_sun.
         Q: system-level virial ratio target (0.5 = equilibrium; None to disable).
         softening: virial-scaling softening for the COM cluster (default 0 = exact; NOT stored).
         compact: True (default) -> eagerly compacted `ICResult`; False -> the masked
@@ -555,7 +589,9 @@ def build_binary_cluster(
         positions=resolved.positions[mask],
         velocities=resolved.velocities[mask],
         masses=masses,
-        stellar_radii=compute_stellar_radii(masses),
+        stellar_radii=zams_radius(
+            masses * (units.mass_scale_cgs / STELLAR.mass_scale_cgs)
+        ),
         ids=jnp.arange(masses.shape[0]),
         primordial_system_id=resolved.primordial_system_id[mask],
         is_primordial_secondary=resolved.is_primordial_secondary[mask],
@@ -587,6 +623,10 @@ def build_cataloged_binary_cluster(
     ``compact=True`` returns real particles only.  ``compact=False`` retains
     two interleaved slots per primordial system and is available only with a
     fixed-shape :class:`Systems` target.
+
+    IMF/companion inputs and TotalMass budgets use M_sun, as in the legacy
+    builder. Returned masses are native dynamical masses; radii remain R_sun.
+    Orbital semimajor axes and contact margins use the position length unit.
     """
 
     from jaxstro.constants import RSUN_CM
@@ -616,8 +656,11 @@ def build_cataloged_binary_cluster(
     )
     component_active = jnp.stack([jnp.ones_like(is_binary), is_binary], axis=1)
 
-    primary_radii = compute_stellar_radii(m1)
-    secondary_radii = jnp.where(is_binary, compute_stellar_radii(comp.m2), 0.0)
+    mass_scale_to_msun = units.mass_scale_cgs / STELLAR.mass_scale_cgs
+    primary_radii = zams_radius(m1 * mass_scale_to_msun)
+    secondary_radii = jnp.where(
+        is_binary, zams_radius(comp.m2 * mass_scale_to_msun), 0.0
+    )
     radius_to_position = RSUN_CM / units.length_scale_cgs
     contact_margins = periapsis_contact_margin(
         comp.a,
@@ -644,7 +687,7 @@ def build_cataloged_binary_cluster(
     )
 
     masked_ids = jnp.arange(2 * system_count, dtype=jnp.int64)
-    masked_radii = compute_stellar_radii(resolved.masses)
+    masked_radii = zams_radius(resolved.masses * mass_scale_to_msun)
     if compact:
         mask = resolved.is_real
         return CatalogedBinaryClusterIC(

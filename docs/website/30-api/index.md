@@ -7,7 +7,7 @@ description: Auto-generated reference for every public symbol in progenax, regen
 
 This section is **auto-generated** from progenax source. The pages
 in this section are produced by `scripts/build_api_reference.py`,
-which walks `progenax.__all__` for each public submodule, extracts
+which walks each public submodule's `__all__`, checks package-root exports and extracts
 signatures and docstrings via `inspect`, and emits one MyST page per
 module plus an alphabetical full-symbol index.
 
@@ -37,6 +37,10 @@ For physics derivations of the algorithms behind these symbols, see
   - Analytical IC test cases: two-body Kepler, three-body figure-eight, harmonic oscillator
 * - [](builders.md)
   - IC pipeline utilities: `virial_scale`, `to_com_frame`, energy diagnostics
+* - [](builders_cluster.md)
+  - Convenience cluster builders and named profile wrappers
+* - [](stellar.md)
+  - Tout ZAMS luminosity, radius, effective temperature, surface gravity and luminosity inverse
 * - [](tidal.md)
   - Jacobi-radius computation and tidal truncation
 * - [](cluster.md)
@@ -49,12 +53,23 @@ For physics derivations of the algorithms behind these symbols, see
   - Runtime-checkable protocols: `SpatialProfile`, `VelocityDF`, `IMFProtocol`
 ```
 
+(api-progenax-default_units)=
+## `progenax.DEFAULT_UNITS`
+
+*value*
+
+`DEFAULT_UNITS` is `jaxstro.units.STELLAR`: mass in solar masses, length in
+parsecs and time in Myr. Convenience wrappers resolve `units=None` to this
+system; core APIs require explicit `G` or `units`. See the
+[units policy](../20-architecture/units-policy.md).
+
 ## Browse alphabetically
 
 The [full symbol index](full-symbol-index.md) lists every public
-symbol across all submodules, sorted alphabetically, with classification
-(class / function / protocol / value) and link to the per-module page.
-This counts every symbol in each submodule's `__all__`; the top-level
+export, public method and documented property across all submodules, sorted
+alphabetically, with classification and a link to its contract. Re-exported
+names have entries in each owning module; inherited methods link to their
+defining class. The top-level
 `progenax` package re-exports a curated subset for convenience
 (e.g. `from progenax import PlummerProfile`), so `len(progenax.__all__)`
 is smaller. Use the index when you know the symbol name but don't
@@ -70,12 +85,16 @@ The `scripts/build_api_reference.py` script:
    - Signature via `inspect.signature`
    - Cleaned docstring via `inspect.getdoc`
    - Source-file link via `inspect.getsourcefile`
-3. Emits one MyST page per module, with anchored sections per symbol.
-4. Builds the alphabetical full-symbol index from the same data.
+3. Includes public methods, class/static constructors and documented properties.
+   Inherited contracts link to their defining class rather than duplicating it.
+4. Translates Google/NumPy sections and Sphinx/RST markup to MyST, preserving
+   code examples, equations, units and limitations.
+5. Emits one MyST page per module and the alphabetical full-symbol index.
+   Missing exports or failed contracts make generation fail with their owner.
 
-The script uses only Python stdlib (no Griffe / pdoc / sphinx-autoapi
-dependency) and runs in $\\sim 5$ seconds. To regenerate after
-public-API changes:
+Introspection and markup conversion use Python stdlib. Registry badges use
+the existing optional PyYAML dependency; no Sphinx runtime is needed. To
+regenerate after public-API changes:
 
 ```bash
 cd docs/website
@@ -83,8 +102,16 @@ python scripts/build_api_reference.py
 ```
 
 The script is **idempotent**: re-running with no source changes
-produces no diff. CI verifies this by running the script on every
-PR and checking for unstaged changes.
+produces no diff. The docs workflow checks relevant source, dependency and
+registry changes with a non-mutating comparison:
+
+```bash
+python scripts/build_api_reference.py --check
+```
+
+Run it in the project environment. A stale or missing generated page fails
+the check; it does not overwrite files. The workflow also runs focused
+generator tests. Local checks do not establish remote CI success.
 
 ## What the API reference does *not* contain
 
@@ -107,7 +134,7 @@ chapter.
   - Convention
   - Example
 * - **Stable** (default)
-  - In `progenax.__all__`; covered by tests
+  - In a shipped public module's `__all__`; validation scope is recorded separately
   - `PlummerProfile`, `MultiComponentCluster`
 * - **Experimental**
   - Repo-only packages under `src/experimental/`; not in the released wheel
@@ -123,9 +150,7 @@ but do not show up here.
 
 ## Reporting issues
 
-If you find an API reference page that is wrong (missing symbol,
-wrong signature, stale docstring), the cause is almost always a
-docstring problem in the source rather than a script problem. Open
-an issue against the relevant `progenax/<module>/<file>.py` rather
-than against the docs site. Then re-run the build script to update
-the reference page.
+Report a wrong signature or contract against its source owner in
+`progenax/<module>/<file>.py`. Report missing member coverage or malformed
+markup against `scripts/build_api_reference.py`. Regenerate the reference
+after fixing the owning source.

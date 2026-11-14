@@ -37,12 +37,12 @@ The faithful non-separable multiplicity statistics: mass-ratio power laws with a
 
 ```{math}
 :label: card-gq-form
-g(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{pl}}} \;+\; f_{\mathrm{twin}}\,\mathcal{N}(q \mid 1,\,\sigma_{\mathrm{twin}})
+\begin{aligned} g(q\mid M_1,P)&=\frac{\phi(q)+A_t\,\mathbf{1}_{[0.95,1]}(q)/0.05}{I_A+I_B+A_t},\\ A_t&=\frac{F I_B}{1-F},\qquad q\in[q_{\min},1]. \end{aligned}
 ```
 
-*Symbols:* $q$: mass ratio m2/m1 (twin excess = fraction with q > 0.95, defined over q > 0.3) [dimensionless]; $\gamma(M_1)$: broken power-law slope (gamma_largeq above q = 0.3, gamma_smallq below) [dimensionless].
-*Assumes:* Table-13 grid interpolation in (M1, log P); twin convention: excess fraction over 0.3 < q < 1.0.
-*Derivation:* [theory page](../10-theory/imfs/mass-ratio-distributions.md#gq-form).
+*Symbols:* $q$: mass ratio m2/m1; density zero outside [q_min, 1] [dimensionless]; $\phi(q)$: q^gamma_smallq below q_b, q_b^(gamma_smallq-gamma_largeq) q^gamma_largeq above; continuous at q_b [dimensionless]; $q_b$: power-law break, 0.3 in the retained default [dimensionless]; $I_A$: integral of phi from q_min to q_b [dimensionless]; $I_B$: integral of phi from q_b to 1 [dimensionless]; $F$: excess twin fraction within q > q_b; A_t/(I_B+A_t)=F, distinct from total q > 0.95 fraction [dimensionless]; $A_t$: unnormalized mass of uniform excess block [0.95, 1] [dimensionless]; $M_1$: primary mass conditioning the grid [Msun]; $P$: orbital period conditioning the grid [day].
+*Assumes:* retained default q_min=0.1, q_b=0.3; uniform excess block on [0.95, 1]; Table-13 grid interpolation in (M1, log P); implementation clamps outside grid nodes, without wider-domain empirical qualification; local normalization of existing implementation; period-averaged Gaussian mixture is a separate model.
+*Derivation:* [theory page](../10-theory/imfs/mass-ratio-distributions.md#gq-full).
 
 ```{math}
 :label: card-moe-eta-ecc
@@ -155,7 +155,7 @@ f(e) \;=\; 2e,\qquad e \in [0, 1]
 ```
 
 *Symbols:* $e$: orbital eccentricity [dimensionless].
-*Assumes:* dynamical (thermal) equilibrium; <e> = 2/3; sampled as e = sqrt(u).
+*Assumes:* ideal full-support law e_max=1; mean 2/3 and draw sqrt(u); released ThermalEccentricity defaults e_max=0.99: draw e_max*sqrt(u), density 2e/e_max^2, mean 2e_max/3.
 *Derivation:* [theory page](../10-theory/binaries/eccentricity.md#thermal).
 
 ```{math}
@@ -164,7 +164,7 @@ f(e) \;=\; 1,\qquad e \in [0, 1]
 ```
 
 *Symbols:* $e$: orbital eccentricity [dimensionless].
-*Assumes:* agnostic baseline; <e> = 1/2.
+*Assumes:* ideal interval [0,1] has mean 1/2; released UniformEccentricity defaults [0,0.9]; on [e_min,e_max], density 1/(e_max-e_min), mean (e_min+e_max)/2.
 *Derivation:* [theory page](../10-theory/binaries/eccentricity.md#uniform-ecc).
 
 ### Sources
@@ -247,7 +247,7 @@ E - e\,\sin E \;=\; M(t), \qquad M(t) = M_0 + n\,t,\quad n = 2\pi/P
 
 ✅ verified · 1 equation · 2 sources · [API: `build_binary_cluster`](../30-api/builders.md#api-builders-build_binary_cluster)
 
-The composition operator: primary IMF x companion model x population target -> a cluster whose binaries are resolved into components (resolve_binary_components) with per-binary COM preservation and full primordial-pair bookkeeping. build_cataloged_binary_cluster retains stable birth IDs, sampled elements, and periapsis contact margins; the legacy build_binary_cluster return contract remains unchanged. Both wrappers share one physical construction. A semantics card — the physics lives in the composed model cards.
+The composition operator: primary IMF x companion model x population target -> a cluster whose binaries are resolved into components (resolve_binary_components) with per-binary COM preservation and full primordial-pair bookkeeping. build_cataloged_binary_cluster retains stable birth IDs, sampled elements, and periapsis contact margins; the legacy build_binary_cluster return contract remains unchanged. Both wrappers share one physical construction. A semantics card — the physics lives in the composed model cards. IMF/companion masses and TotalMass budgets use solar masses; the shared construction converts masses to native dynamical units. Stellar radii remain in R_sun; orbital axes and contact margins use the position length unit. Deterministic unit checks do not qualify wider domains.
 
 | Use it for | Not for |
 |---|---|
@@ -259,7 +259,7 @@ The composition operator: primary IMF x companion model x population target -> a
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
-| `primary_imf` | any IMF card's model (house default: the SMOOTH Maschberger) | — | — | `build_binary_cluster(primary_imf=...) or build_cataloged_binary_cluster(primary_imf=...)` |
+| `primary_imf` | any IMF card's model (house default: the SMOOTH Maschberger) | sampled masses in Msun | — | `build_binary_cluster(primary_imf=...) or build_cataloged_binary_cluster(primary_imf=...)` |
 | `companion_model` | IndependentCompanions (separable) or MoeCompanions (faithful P-q-e) | — | — | `build_binary_cluster(companion_model=...) or build_cataloged_binary_cluster(companion_model=...)` |
 | `target` | population size specification: Systems(n) / Stars(n) / TotalMass(M) | count or Msun | — | `build_binary_cluster(target=...) or build_cataloged_binary_cluster(target=...)` |
 
@@ -267,11 +267,11 @@ The composition operator: primary IMF x companion model x population target -> a
 
 ```{math}
 :label: card-assembly-com
-\sum_{\mathrm{pair}} m_j \mathbf{v}_j \;=\; \mathbf{0} \quad \text{and} \quad \frac{\sum_{\mathrm{pair}} m_j \mathbf{r}_j}{\sum_{\mathrm{pair}} m_j} \;=\; \mathbf{r}_{\mathrm{sys}}
+\sum_{\mathrm{pair}} m_j \mathbf{v}_j \;=\; \Bigl(\sum_{\mathrm{pair}} m_j\Bigr)\mathbf{v}_{\mathrm{sys}} \quad \text{and} \quad \frac{\sum_{\mathrm{pair}} m_j \mathbf{r}_j}{\sum_{\mathrm{pair}} m_j} \;=\; \mathbf{r}_{\mathrm{sys}}
 ```
 
-*Symbols:* $\mathbf{r}_{\mathrm{sys}}$: the system (center-of-mass) position drawn from the spatial profile [pc].
-*Assumes:* each binary's internal orbit is superposed on its system's cluster orbit; COM and momentum exact per pair.
+*Symbols:* $m_j$: component mass, summed over the pair [native dynamical mass units]; $\mathbf{v}_j$: component velocity in the cluster frame [native velocity units]; $\mathbf{r}_j$: component position in the cluster frame [native length units]; $\mathbf{v}_{\mathrm{sys}}$: system COM velocity before orbital resolution [native velocity units]; $\mathbf{r}_{\mathrm{sys}}$: system COM position before orbital resolution [native length units].
+*Assumes:* internal barycentric position and momentum offsets sum to zero; translating to the cluster frame preserves the system COM and total momentum.
 
 ### Sources
 
@@ -288,4 +288,10 @@ The composition operator: primary IMF x companion model x population target -> a
 - validation: `tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance`
 - validation: `tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_legacy_equivalence_for_compact_targets`
 - validation: `tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_contact_margin_is_in_position_units`
+- validation: `tests/unit/binaries/test_assembly.py::TestResolveBinaryComponents::test_com_conserved_per_binary`
+- validation: `tests/unit/builders/test_binary_units.py::test_binary_same_physical_inputs_across_units`
+- validation: `tests/unit/builders/test_binary_units.py::test_binary_eager_budgets_stay_in_solar_masses`
+- validation: `tests/unit/builders/test_binary_units.py::test_moe_empirical_mass_inputs_remain_solar`
+- validation: `tests/unit/builders/test_binary_units.py::test_cataloged_cgs_kepler_period_and_contact_use_native_arrays`
+- validation: `tests/unit/builders/test_binary_units.py::test_binary_imf_derivatives_preserve_mass_units`
 

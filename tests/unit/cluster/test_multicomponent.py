@@ -36,6 +36,49 @@ def _component_half_mass_radius(model, j):
 class TestFromComponents:
     """Direct constructor: components defined by (alpha_j, w_j, m_j[, ra_hat_j])."""
 
+    def test_component_length_mismatch_raises(self):
+        """Reject phantom mass labels before solving a one-component model."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        with pytest.raises(ValueError, match="per-component inputs.*one shape"):
+            MultiComponentCluster.from_components(
+                alpha_j=[1.0],
+                w_j=[1.0],
+                m_j=[1.0, 2.0],
+                W0=5.0,
+                g=1.0,
+                n_ode_points=500,
+                n_grid=100,
+            )
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"alpha_j": [0.5, 0.5]},
+            {"w_j": [1.0, 0.8]},
+            {"ra_hat_j": [10.0, 10.0]},
+            {"alpha_j": [], "w_j": [], "m_j": []},
+            {"alpha_j": 1.0, "w_j": 1.0, "m_j": 1.0},
+            {"alpha_j": [[1.0]], "w_j": [[1.0]], "m_j": [[1.0]]},
+        ],
+        ids=[
+            "alpha-length",
+            "speed-length",
+            "anisotropy-length",
+            "empty",
+            "scalar",
+            "matrix",
+        ],
+    )
+    def test_component_vectors_cannot_broadcast(self, overrides):
+        """Component labels, scales and densities require aligned vector entries."""
+        from progenax.cluster.multicomponent import MultiComponentCluster
+
+        kwargs = dict(alpha_j=[1.0], w_j=[1.0], m_j=[1.0], W0=5.0, g=1.0)
+        kwargs.update(overrides)
+        with pytest.raises(ValueError, match="per-component inputs.*one shape"):
+            MultiComponentCluster.from_components(**kwargs)
+
     def test_unit_w_recovers_single_mass_density(self):
         """All w_j = 1 => identical components => the total density is the single-mass
         LIMEPY profile (the structural oracle), regardless of alpha_j / m_j."""
@@ -240,6 +283,40 @@ class TestFromMassSegregation:
         assert sig[1] < sig[0], f"heavy sigma={sig[1]:.3f} not < light {sig[0]:.3f}"
 
 
+@pytest.mark.parametrize("constructor", ["components", "mass-segregation", "assembly"])
+@pytest.mark.parametrize("mode", ["eager", "jit", "forward", "reverse"])
+def test_engine_a_shape_rejection_survives_transformations(constructor, mode):
+    """No constructor or AD trace may create labels without matching density rows."""
+    from progenax.cluster.multicomponent import MultiComponentCluster
+
+    def build(m_j):
+        kwargs = dict(alpha_j=jnp.array([1.0]), m_j=m_j, W0=5.0, g=1.0)
+        if constructor == "mass-segregation":
+            model = MultiComponentCluster.from_mass_segregation(delta=0.4, **kwargs)
+        elif constructor == "components":
+            model = MultiComponentCluster.from_components(
+                w_j=jnp.array([1.0]), **kwargs
+            )
+        else:
+            model = MultiComponentCluster(
+                w_j=jnp.array([1.0]),
+                r_c=1.0,
+                xi_grid=jnp.array([0.0, 1.0]),
+                psi_grid=jnp.array([5.0, 0.0]),
+                **kwargs,
+            )
+        return jnp.sum(model.m_j)
+
+    transform = {
+        "eager": lambda f: f,
+        "jit": jax.jit,
+        "forward": jax.jacfwd,
+        "reverse": jax.jacrev,
+    }[mode]
+    with pytest.raises(ValueError, match="per-component inputs.*one shape"):
+        transform(build)(jnp.array([1.0, 2.0]))
+
+
 class TestUnequalMassTwoPopulationEquilibrium:
     """THE new regression (the legacy generate_two_component_cluster bug): an
     unequal-mass two-population model -- realistic mean(m_A) != mean(m_B) -- must be a
@@ -292,7 +369,8 @@ class TestSampleClusterICResult:
     """sample_cluster returns a full ICResult carrying the per-particle component label."""
 
     def test_icresult_fields_and_component_id(self):
-        from progenax.builders import ICResult, compute_stellar_radii
+        from progenax import zams_radius
+        from progenax.builders import ICResult
         from progenax.cluster.multicomponent import MultiComponentCluster
 
         model = MultiComponentCluster.from_components(
@@ -324,7 +402,7 @@ class TestSampleClusterICResult:
 
         np.testing.assert_allclose(
             np.asarray(ic.stellar_radii),
-            np.asarray(compute_stellar_radii(ic.masses)),
+            np.asarray(zams_radius(ic.masses)),
             rtol=1e-12,
         )
 
@@ -618,6 +696,28 @@ class TestAnisotropicSampling:
         np.testing.assert_allclose(
             np.asarray(ic.masses), np.asarray(model.m_j[ic.component_id]), rtol=0
         )
+        # Supplying the same radial draws must preserve the complete realization.
+        from progenax.cluster.sampling import _sample_cluster_arrays_given_components
+
+        k_pos = jax.random.split(jax.random.PRNGKey(0), 5)[1]
+        supplied = _sample_cluster_arrays_given_components(
+            model,
+            jax.random.PRNGKey(0),
+            ic.component_id,
+            G,
+            radial_probabilities=jax.random.uniform(k_pos, (2000,)),
+        )
+        for actual, expected in zip(
+            supplied,
+            (
+                ic.positions,
+                ic.velocities,
+                ic.masses,
+                ic.stellar_radii,
+                ic.component_id,
+            ),
+        ):
+            np.testing.assert_array_equal(actual, expected)
 
     def test_aniso_global_virial_is_half(self):
         """The sampled anisotropic cluster is in virial equilibrium WITHOUT rescaling:
@@ -800,12 +900,11 @@ class TestEngineB:
             assert fragment in msg, f"remedy fragment {fragment!r} missing: {msg}"
 
     def test_traced_build_skips_raise_stores_diagnostic(self):
-        """Under tracing (jit/grad) the realizability gate CANNOT raise -- the
-        contract is "no raise under tracing, f_min_j always stored". Jit a
-        scalar-r_a surrogate of the build and feed it the SAME unrealizable
-        r_a = 0.05: construction must complete and return the genuinely
-        negative diagnostic (consistent with the concrete-path refusal value;
-        not identical -- this surrogate uses a different n_r/n_e)."""
+        """The low-level traced builder retains failed realizability diagnostics.
+
+        Public model assembly rejects the same negative DF under tracing. This
+        diagnostic-only path uses a different n_r/n_e from the concrete refusal.
+        """
         from progenax.cluster.eddington_engine import build_engine_b_state
 
         profiles = [PlummerProfile(r_h=2.0), EFFProfile(a=0.8, gamma=5.0, r_t=9.0)]

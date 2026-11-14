@@ -1,0 +1,11 @@
+[[equation]]
+id = "EQ-PLUMMER-SHAPE"
+name = "Plummer density divided by central density"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "Eq.12, printed p.464 (PDF page 5), phi(r)=N(1+r^2)^(-5/2)"
+source_ids = ["plummer1911distribution"]
+symbol_ids = ["SYM-x"]
+expression = "(1+x**2)**(-Rational(5,2))"
+returns = "density_shape"
+note = "Divide original number density by N; x is the paper's dimensionless r. Physical mapping x=r/a is a local derivation, not a mass normalization transcribed from this equation."

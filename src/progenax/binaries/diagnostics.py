@@ -215,17 +215,18 @@ class BinaryEnergyBudget(NamedTuple):
     Attributes:
         E_internal: total internal orbital energy of the primordial binaries
             (Σ ``relative_energy``; < 0 if bound). The separate "reservoir" that the
-            global virial scaling (``Q``) does NOT touch. NB the ``softening`` passed
-            to the bound-pair finders does NOT soften this internal binding energy —
-            it only regularizes the inter-system potential (audit S18).
+            COM velocity rescale does not alter. This diagnostic applies ``softening``
+            to COM/resolved pair-energy estimates, while this internal orbital
+            energy uses the unsoftened two-body relation.
         T_com, W_com: bulk kinetic / gravitational energy of the *system COMs* — the
             scale the cluster is virialized on.
         Q_com: ``T_com / |W_com|`` — the virial ratio the cluster was scaled to
             (≈ the ``Q`` passed to ``build_binary_cluster``).
         Q_resolved: ``T / |W|`` on the *resolved* stars — the naive ratio that mixes
-            the cluster and internal-binary scales. The deep internal binary binding
-            dominates |W|, so Q_resolved is DEFLATED below the cluster Q (measured
-            ≈ 0.31 vs the 0.5 the cluster was scaled to), NOT inflated (audit S10).
+            bulk and internal-binary scales. It is a valid resolved-system energy
+            ratio, but a different target from Q_com. For an isolated Kepler
+            pair, instantaneous T/|W| = 1-r/(2a), so orbital phase can put
+            it above or below 1/2; there is no universal deflation rule.
         n_binaries: number of primordial binaries (two positive-mass members).
     """
 
@@ -274,7 +275,9 @@ def binary_energy_budget(
     (the McLuster scale-separation convention, Küpper+2011 §A8). This diagnostic makes
     that explicit: it reconstructs the system COMs (segment sums over `system_id`) and
     reports `Q_com` (recovers the virial target), `E_internal` (the reservoir), and the
-    naive `Q_resolved` (which mixes the two scales and is therefore *not* ~`Q`).
+    resolved-system `Q_resolved`, which includes internal orbital motion and
+    need not equal the bulk target. Coincidence with `Q_com` at some phases
+    does not make the quantities identical.
 
     Keyed on `system_id`, so it accepts either the compacted `ICResult`
     (`primordial_system_id`) or the masked `ResolvedBinaries` (ghost secondaries m=0

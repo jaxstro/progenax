@@ -5,15 +5,20 @@
   family_display: Cluster builders (build_cluster + named wrappers)
   description: >
     The one-call IC convenience layer: build_cluster and the six named
-    wrappers (Plummer/King/EFF/Michie/LIMEPY + from_params) are pure sugar
-    over build_spatial_ic — bit-identical outputs — pairing each profile
-    with its matched equilibrium DF (matched_velocity_df kills the
-    mismatched-r_h footgun). A semantics card: the physics lives in the
-    composed model cards.
+    wrappers (Plummer/King/EFF/Michie/LIMEPY + from_params) pair each
+    profile with its scale-matched velocity DF and delegate sampling,
+    center-of-mass subtraction and optional velocity rescaling to
+    build_spatial_ic. The base case without tidal or rotation modifiers
+    has bit-identical outputs to that manual composition. The composed
+    model cards own the profile and DF physics. Supplied masses use the selected
+    dynamical mass unit; IMF draws and n-only one-solar-mass stars are converted
+    to it. ZAMS evaluation converts native masses to solar masses and retains
+    R_sun labels, including after modifiers. Binary and multicomponent builders
+    have separate unit contracts.
   when_to_use:
     good_for:
       - "the recommended one-call entry point for standard cluster ICs"
-      - "Q=None (default) = faithful UNSCALED equilibrium from the matched DF"
+      - "Q=0.5 (default) sets the sampled energy ratio; Q=None skips velocity rescaling"
     not_for:
       - "custom profile/DF cross-pairings (compose build_spatial_ic directly)"
       - "tidal_radius on non-Plummer profiles (they carry a native r_t; the kwarg is Plummer-only by design)"
@@ -24,10 +29,15 @@
       typical_range: "—"
       code_arg: "build_cluster(profile=...) / build_king_cluster(...) etc."
     - name: Q
-      meaning: "optional virial rescale target; None = no rescale (the DF's own equilibrium)"
+      meaning: "optional velocity-rescale target T/abs(V); None skips rescaling"
       units: dimensionless
-      typical_range: "None (or 0.5 to force-rescale, e.g. after rotation overlays)"
+      typical_range: "0.5 (default); None skips velocity rescaling"
       code_arg: "build_cluster(Q=...)"
+    - name: units
+      meaning: "UnitSystem for supplied masses, profile lengths, times and explicit G; generated M_sun masses are converted at the boundary"
+      units: "chosen mass, length and time units; stellar_radii stays R_sun"
+      typical_range: "STELLAR (default), PLANETARY, CGS"
+      code_arg: "build_cluster(units=...)"
   sources:
     - bibkey: Aarseth1974
       provides: "the Q = T/|V| convention the builders report"
@@ -36,8 +46,10 @@
     - label: builders-q-convention
       latex: 'Q \;\equiv\; \frac{T}{|V|}, \qquad Q = \tfrac12 \iff 2T + V = 0'
       symbols:
-        Q: {latex: 'Q', meaning: "virial ratio (0.5 = equilibrium; < 0.5 subvirial/cold; > 0.5 supervirial)", units: dimensionless}
-      assumptions: ["matched profile+DF pairs land at Q = 0.5 WITHOUT rescale (finite-N fluctuation only)"]
+        Q: {latex: 'Q', meaning: "energy ratio; 0.5 satisfies scalar virial balance, without certifying stationarity", units: dimensionless}
+        T: {latex: 'T', meaning: "kinetic energy of the realization", units: energy}
+        V: {latex: 'V', meaning: "negative gravitational potential energy of the realization", units: energy}
+      assumptions: ["V < 0; the relation defines an energy ratio, not a stationarity test"]
       theory_ref: null
   code_refs:
     - "builders_cluster.py::build_cluster"
@@ -53,6 +65,9 @@
     - "tests/unit/builders/test_cluster_builders.py::test_plummer_alias_identical"
     - "tests/unit/builders/test_cluster_builders.py::test_limepy_alias_identical"
     - "tests/unit/builders/test_cluster_builders.py::test_cluster_params_wrapper_identical_to_build_cluster"
+    - "tests/unit/builders/test_cluster_units.py::test_cluster_mass_sources_preserve_physical_units"
+    - "tests/unit/builders/test_cluster_units.py::test_cgs_modifier_labels_use_solar_mass"
+    - "tests/unit/builders/test_cluster_units.py::test_mass_conversion_jit_and_first_derivatives"
   status: verified
   deviations: []
 
@@ -83,7 +98,7 @@
   sources:
     - bibkey: Tout1996
       provides: "the L(M,Z) and R(M,Z) rational-polynomial fits; 75/75 coefficients verified exactly (Tables 1-2)"
-      locators: ["Eq. 3 + Table 1 (luminosity, 35 coefficients)", "Eq. 4 + Table 2 (radius, 40 coefficients; nu fixed at the Z = 0.02 optimum, p. 258)"]
+      locators: ["Eq. 1 (luminosity fit, p. 258); Eq. 3 + Table 1 (luminosity coefficients)", "Eq. 2 (radius fit, p. 258); Eq. 4 + Table 2 (radius coefficients; nu fixed at the Z = 0.02 optimum, p. 258)"]
   equations:
     - label: tout-solar-anchors
       latex: 'L(1\,M_\odot) = 0.6977\,L_\odot,\quad R(1\,M_\odot) = 0.8882\,R_\odot,\quad T_{\rm eff} \approx 5600\,{\rm K},\quad \log g \approx 4.54'

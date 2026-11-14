@@ -100,12 +100,11 @@ class VelocityModel(eqx.Module):
         df: Velocity distribution function (PlummerVelocityDF, KingVelocityDF, etc.;
             anisotropic DFs supply their own radial anisotropy).
         rotation: Optional rotation parameters.
-        target_Q: Target virial ratio Q = T / |V|, or None (default). The
-            Plummer/King/EFF DFs are already sampled in detailed equilibrium, so
-            target_Q=None keeps their native equilibrium (no rescale). Pass a float
-            only to deliberately force a virial ratio (e.g. 0.5 for equilibrium,
-            <0.5 subvirial, >0.5 supervirial), or when adding rotation / mixing an
-            inconsistent profile+DF combination.
+        target_Q: Target kinetic-to-potential energy ratio Q = T / |V|, or None
+            to skip virial rescaling. The velocity pipeline still removes the
+            centre-of-mass velocity. Setting Q=0.5 imposes the virial energy
+            ratio; it does not establish a stationary distribution or repair
+            an inconsistent density-DF pairing.
 
     Example:
         >>> model = VelocityModel(

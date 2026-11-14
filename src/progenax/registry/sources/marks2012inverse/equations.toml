@@ -1,0 +1,23 @@
+[[equation]]
+id = "EQ-MK-RADIUS-NOMINAL"
+name = "Nominal stellar half-mass radius in parsecs"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.10, Eq.7"
+source_ids = ["marks2012inverse"]
+symbol_ids = ["SYM-m_env"]
+expression = "m_env**Rational(13,100)/10"
+returns = "radius_in_parsecs"
+note = "Notation conversion of central fit: r_h/pc=0.1(M_ecl/Msun)^0.13. Published uncertainties are prefactor +0.07/-0.04 and exponent +/-0.04; production fixes central values and does not propagate a joint uncertainty law."
+
+[[equation]]
+id = "EQ-MK-DENSITY"
+name = "Stellar half-mass density in solar/parsec units"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.2, Sect.2.1, unnumbered half-mass density"
+source_ids = ["marks2012inverse"]
+symbol_ids = ["SYM-m_env", "SYM-h_env"]
+expression = "3*m_env/(8*pi*h_env**3)"
+returns = "density_in_solar_parsec_units"
+note = "Notation conversion rho_ecl/(Msun pc^-3)=3 mathcal M/(8pi mathcal H^3). Half the total stellar mass lies within the three-dimensional half-mass radius; positive mass and radius."

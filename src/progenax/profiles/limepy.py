@@ -13,9 +13,11 @@ where E_gamma is the "lowered exponential" of their Eq. 2,
 
     E_gamma(a, x) = e^x P(a, x),   P(a, x) = gamma(a, x) / Gamma(a),
 
-and P is the regularized lower incomplete gamma function (`jax.scipy.special.
-gammainc`), which is differentiable in BOTH arguments — so the truncation index
-g (entering as a = g + 3/2) carries gradients.
+for a > 0, with E_gamma(0, x) = exp(x) on positive x. P is the regularized
+lower incomplete gamma function. The implementation supplies a custom JVP
+using a Poisson-mixture representation for the shape derivative; native JAX
+gammainc alone does not provide the required derivative in both arguments.
+The truncation index g therefore uses that explicit derivative rule.
 
 Index note (verified against the held PDF, MNRAS 454, 576, p. 578): the density
 uses g + 3/2, given DIRECTLY by the main-text Eq. 8,
@@ -37,17 +39,25 @@ References:
     King, I. R. (1966), AJ, 71, 64 (the g=1 corner).
 """
 
+from functools import partial
 from typing import Tuple
 
 import diffrax
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jax.custom_derivatives import SymbolicZero
+from jaxstro.numerics import gauss_legendre_nodes
 from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
+from progenax.profiles._spherical_poisson import (
+    poisson_second_derivative,
+    regular_center_state,
+)
 from progenax.profiles.king import _find_tidal_radius
 
 
+@jax.custom_jvp
 def lowered_exponential(
     a: Float[Array, ""], W: Float[Array, "..."]
 ) -> Float[Array, "..."]:
@@ -64,15 +74,66 @@ def lowered_exponential(
     The density uses a = g + 3/2 >= 3/2 (always the a > 0 branch); the velocity DF
     uses a = g, which is 0 for the Woolley (g=0) corner — hence the a = 0 branch.
 
-    Differentiable in both a and W (carries d/dg).
+    At a=0, the a derivative is the one-sided derivative from a>0.
+    Interior values carry derivatives in both a and W.
     """
+    return _lowered_exponential_value(a, W)
+
+
+def _lowered_exponential_value(a, W):
     W_pos = jnp.where(W > 0.0, W, 0.0)
-    # gammainc requires a > 0; clamp the index for the a=0 Woolley branch, then select.
     a_safe = jnp.where(a > 0.0, a, 1.0)
-    val_pos_a = jnp.exp(W_pos) * jax.scipy.special.gammainc(a_safe, W_pos)
-    val_zero_a = jnp.exp(W_pos)  # E_gamma(0, W) = e^W
-    val = jnp.where(a > 0.0, val_pos_a, val_zero_a)
-    return jnp.where(W > 0.0, val, 0.0)
+    positive = jnp.exp(W_pos) * jax.scipy.special.gammainc(a_safe, W_pos)
+    value = jnp.where(a > 0.0, positive, jnp.exp(W_pos))
+    return jnp.where(W > 0.0, value, 0.0)
+
+
+def _exp1_positive(x):
+    """E1 for positive x, keeping the continued fraction away from x=0.
+
+    The convergent small-x series has remainder below 1/(33*33!) on [0,1].
+    Safe arguments keep inactive vectorized branches bounded.
+    """
+    small = jnp.minimum(x, 1.0)
+
+    def term(k, state):
+        power, total = state
+        power = power * (-small) / k
+        return power, total + power / k
+
+    _, total = jax.lax.fori_loop(1, 33, term, (jnp.ones_like(x), jnp.zeros_like(x)))
+    series = -jnp.euler_gamma - jnp.log(small) - total
+    large = jax.scipy.special.exp1(jnp.maximum(x, 1.0))
+    return jnp.where(x <= 1.0, series, large)
+
+
+@partial(lowered_exponential.defjvp, symbolic_zeros=True)
+def _lowered_exponential_jvp(primals, tangents):
+    a, W = primals
+    da, dW = tangents
+    value = _lowered_exponential_value(a, W)
+    tangent = jnp.zeros_like(value)
+    if not isinstance(dW, SymbolicZero):
+        tangent = jax.jvp(lambda w: _lowered_exponential_value(a, w), (W,), (dW,))[1]
+    if not isinstance(da, SymbolicZero):
+        # dP(a,W)/da at a=0+ is -E1(W), from 1/Gamma(a)~a in
+        # the defining upper incomplete-gamma integral.
+        safe = jnp.where(W > 0.0, W, 1.0)
+
+        def boundary(_):
+            e1 = _exp1_positive(safe)
+            return jnp.where(W > 0.0, -jnp.exp(safe) * e1, 0.0)
+
+        derivative = jax.lax.cond(
+            a == 0.0,
+            boundary,
+            lambda _: jax.jvp(
+                lambda aa: _lowered_exponential_value(aa, W), (a,), (jnp.ones_like(a),)
+            )[1],
+            operand=None,
+        )
+        tangent = tangent + da * derivative
+    return value, tangent
 
 
 def limepy_density_hat(
@@ -87,7 +148,8 @@ def limepy_density_hat(
     Args:
         W: Dimensionless potential (scalar or array). W <= 0 returns 0.
         g: Truncation parameter (g=0 Woolley, g=1 King, g=2 Wilson; continuous).
-           The density is finite-extent for g <= 3.5.
+           Finite extent also depends on W0 and anisotropy. The necessary
+           condition g < 3.5 is not sufficient (Gieles & Zocchi 2015, Sec. 3.1.3).
 
     Returns:
         I_rho(W), the unnormalized LIMEPY volume density. Differentiable in (W, g).
@@ -96,37 +158,34 @@ def limepy_density_hat(
 
 
 # ==============================================================================
-# Anisotropic (Michie / Osipkov-Merritt) density — stable 1-D speed quadrature
+# Anisotropic (Michie exponential angular-momentum) density — stable 1-D speed quadrature
 # ==============================================================================
 
-# Resolution of the tangential-angle Poisson sum and the speed quadrature.
-_N_POIS = 91  # Poisson terms for the small-beta angle integral (covers beta < 25)
-_N_U_ANISO = 256  # speed-grid resolution for the anisotropic density quadrature
+# Fixed setup constants; physical inputs remain differentiable.
+_ANGLE_NODES, _ANGLE_WEIGHTS = gauss_legendre_nodes(64)
+_ANGLE_T = (_ANGLE_NODES + 1.0) / 2.0
+_ANGLE_WEIGHTS = _ANGLE_WEIGHTS / 2.0
+_SPEED_NODES, _SPEED_WEIGHTS = gauss_legendre_nodes(128)
+_SPEED_T = (_SPEED_NODES + 1.0) / 2.0
+_SPEED_WEIGHTS = _SPEED_WEIGHTS / 2.0
 
 
 def _angle_integral_T(beta: Float[Array, "..."]) -> Float[Array, "..."]:
-    """T(beta) = int_{-1}^1 exp(-beta (1 - c^2)) dc, the closed tangential-angle
-    integral of the Michie/OM anisotropy factor (beta = p^2 u^2 / 2 >= 0).
+    """Angular integral T(beta) = integral exp[-beta(1-c^2)] dc over [-1, 1].
 
-    Evaluated *stably for all beta* — avoiding jax's hyp1f1, which is NaN for the
-    arguments this reaches. Rewriting
-
-        T(beta) = 2 sum_n e^{-beta} beta^n / (n! (2n+1)) = 2 sum_n Pois(n; beta)/(2n+1)
-
-    makes every term a bounded Poisson weight (no overflow). For small beta the
-    Poisson sum is used directly; for large beta the Watson asymptotic
-    T ~ (1/beta)(1 + 1/2beta + 3/4beta^2 + 15/8beta^3) (accurate to ~1e-5 by
-    beta=25, where the series is truncated). T(0) = 2 (isotropic). Differentiable.
+    Here c is the velocity-direction cosine and beta = p^2 u^2 / 2 >= 0,
+    with p = r/r_a and dimensionless speed u. Symmetry reduces the domain
+    to [0, 1]. The change c = 1 - t/[1 + beta(1-t)] resolves the narrow
+    angular peak at large beta using one smooth 64-node Gauss-Legendre rule.
+    At the isotropic limit, T(0) = 2 and T'(0) = -4/3.
     """
-    bc = 25.0
-    n = jnp.arange(float(_N_POIS))
-    bs = jnp.maximum(beta, 1e-300)[..., None]
-    log_pois = n * jnp.log(bs) - bs - jax.scipy.special.gammaln(n + 1.0)
-    series = 2.0 * jnp.sum(jnp.exp(log_pois) / (2.0 * n + 1.0), axis=-1)
-
-    b = jnp.maximum(beta, bc)  # clamp keeps the unused asymptotic branch grad-safe
-    asy = (1.0 / b) * (1.0 + 1.0 / (2.0 * b) + 3.0 / (4.0 * b**2) + 15.0 / (8.0 * b**3))
-    return jnp.where(beta < bc, series, asy)
+    b = jnp.asarray(beta)[..., None]
+    denominator = 1.0 + b * (1.0 - _ANGLE_T)
+    y = _ANGLE_T / denominator
+    return 2.0 * jnp.sum(
+        _ANGLE_WEIGHTS * (1.0 + b) / denominator**2 * jnp.exp(-b * y * (2.0 - y)),
+        axis=-1,
+    )
 
 
 def _aniso_density_scalar(
@@ -134,27 +193,28 @@ def _aniso_density_scalar(
 ) -> Float[Array, ""]:
     """Scalar anisotropic density rho_hat(W, p, g), p = r / r_a (unnormalized).
 
-    The velocity-space integral of the LIMEPY DF with the Michie/OM anisotropy,
+    The velocity-space integral of the LIMEPY DF with the Michie exponential angular-momentum anisotropy,
     reduced to a 1-D speed quadrature by closing the angle integral into T(beta):
 
         rho_hat(W, p, g) = int_0^{sqrt(2W)} u^2 E_gamma(g, W - u^2/2) T(p^2 u^2/2) du.
 
     At p=0, T=2 and this is sqrt(2 pi) times the isotropic limepy_density_hat (the
     same proportionality michie_density uses); at g=1 it equals michie_density(W, p).
-    Returns 0 for W <= 0. Mirrors michie_density's quadrature structure.
+    A 128-node Gauss-Legendre speed rule excludes the escape endpoint.
+    Returns 0 for W <= 0.
     """
     W_pos = jnp.maximum(W, 1e-12)
-    u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_pos), _N_U_ANISO)
+    u = jnp.sqrt(2.0 * W_pos) * _SPEED_T
     E = lowered_exponential(g, W_pos - u**2 / 2.0)
     integrand = u**2 * E * _angle_integral_T(p**2 * u**2 / 2.0)
-    rho = jnp.trapezoid(integrand, u)
+    rho = jnp.sqrt(2.0 * W_pos) * jnp.sum(_SPEED_WEIGHTS * integrand)
     return jnp.where(W > 0.0, rho, 0.0)
 
 
 def limepy_density_aniso_hat(
     W: Float[Array, "..."], p: Float[Array, ""], g: Float[Array, ""]
 ) -> Float[Array, "..."]:
-    """Anisotropic (Michie/OM) LIMEPY density rho_hat(W, p, g), p = r/r_a (scalar).
+    """Anisotropic (Michie exponential angular-momentum) LIMEPY density rho_hat(W, p, g), p = r/r_a (scalar).
 
     Broadcasts over W (scalar p, g). Unnormalized (consistent constant across W, p);
     normalize by the central value rho_hat(W0, 0, g) as in the Poisson solve. At p=0
@@ -179,13 +239,8 @@ _aniso_density_vec = jax.vmap(_aniso_density_scalar, in_axes=(0, 0, None))
 
 
 def _poisson_d2(xi, dpsi_dxi, rho_tilde):
-    """The shared -9 King-radius Poisson second derivative with the xi=0 L'Hopital
-    guard (lim (2/xi)dW/dxi = 0 since dW/dxi(0)=0)."""
-    return jnp.where(
-        xi > 1e-6,
-        -9.0 * rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -9.0 * rho_tilde,
-    )
+    """King-radius Poisson curvature with its regular spherical center limit."""
+    return poisson_second_derivative(xi, dpsi_dxi, rho_tilde)
 
 
 def _limepy_poisson_rhs_iso(xi, y, args):
@@ -198,7 +253,7 @@ def _limepy_poisson_rhs_iso(xi, y, args):
 
 
 def _limepy_poisson_rhs_aniso(xi, y, args):
-    """Anisotropic (Michie/OM) LIMEPY Poisson RHS. args = (W0, g, ra_hat). The source
+    """Anisotropic (Michie exponential angular-momentum) LIMEPY Poisson RHS. args = (W0, g, ra_hat). The source
     depends on xi explicitly through p = xi/ra_hat (as in solve_michie). At g=1 ==
     Michie-King. Central normalization uses the isotropic (p=0) central density."""
     W0, g, ra_hat = args
@@ -215,6 +270,8 @@ def solve_limepy_profile(
     ra_hat: ArrayLike | None = None,
     xi_max: float = 300.0,
     n_points: int = 2000,
+    *,
+    adjoint=None,
 ) -> Tuple[
     Float[Array, "n_points"], Float[Array, "n_points"], Float[Array, "n_points"]
 ]:
@@ -223,7 +280,7 @@ def solve_limepy_profile(
     Integrates W(xi) from the centre (W=W0, dW/dxi=0) outward to the truncation
     radius where W -> 0. Generalizes `solve_king_profile` with the continuous
     truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an optional
-    Michie/OM radial anisotropy radius. At g=1: isotropic reproduces King,
+    Michie exponential angular-momentum radial anisotropy radius. At g=1: isotropic reproduces King,
     anisotropic reproduces the Michie-King model.
 
     JIT/grad-safe in (W0, g, ra_hat): n_points and xi_max are static; W0, g, ra_hat
@@ -231,7 +288,8 @@ def solve_limepy_profile(
 
     Args:
         W0: Dimensionless central potential.
-        g: Truncation parameter (finite extent for g <= 3.5).
+        g: Truncation parameter. Finite extent requires g < 3.5 and also
+            depends on W0 and anisotropy; verify an actual zero crossing.
         ra_hat: Anisotropy radius in core-radius units, r_a/r_c. None (default) =
             isotropic (uses the fast isotropic density). Finite values add radial
             anisotropy (more extended; too-small ra_hat -> no finite tidal radius).
@@ -250,13 +308,17 @@ def solve_limepy_profile(
           carries d(xi_t)/dW0 -- the clamp would zero psi at the crossing node and
           kill that gradient (audit Task 1.2b pattern). The forward xi_t value is
           identical either way; only the gradient differs.
+
+    Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+    for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+    static under JIT; it does not change the physical equations or tolerances.
     """
     isotropic = ra_hat is None  # static (Python) -> picks the RHS at trace time
     rhs = _limepy_poisson_rhs_iso if isotropic else _limepy_poisson_rhs_aniso
     args = (W0, g) if isotropic else (W0, g, ra_hat)
 
-    y0 = jnp.array([W0, 0.0])
     xi_span = (1e-6, xi_max)
+    y0 = regular_center_state(W0, xi_span[0])
     term = diffrax.ODETerm(rhs)
     solver = diffrax.Tsit5()
     stepsize_controller = diffrax.PIDController(rtol=1e-8, atol=1e-10)
@@ -272,6 +334,7 @@ def solve_limepy_profile(
         args=args,
         saveat=saveat,
         stepsize_controller=stepsize_controller,
+        adjoint=diffrax.RecursiveCheckpointAdjoint() if adjoint is None else adjoint,
         max_steps=100000,
     )
     xi_grid = solution.ts
@@ -323,7 +386,7 @@ class LIMEPYProfile(eqx.Module):
 
     Implements the SpatialProfile protocol. Generalizes `KingProfile` with a
     continuous truncation parameter g (g=0 Woolley, g=1 King, g=2 Wilson) and an
-    optional Michie/Osipkov-Merritt radial anisotropy radius r_a. Corners: g=1
+    optional Michie exponential angular-momentum radial anisotropy radius r_a. Corners: g=1
     isotropic == KingProfile; g=1 anisotropic == MichieProfile.
 
     The CDF is precomputed at construction for inverse-transform position sampling.
@@ -428,20 +491,31 @@ class LIMEPYProfile(eqx.Module):
         xi_max: float = 300.0,
         n_ode_points: int = 2000,
         n_grid: int = 1000,
+        *,
+        adjoint=None,
     ) -> "LIMEPYProfile":
         """Self-consistent constructor: r_t derived from where W(xi) -> 0.
 
-        r_a=None (default) is the isotropic model; a finite r_a adds Michie/OM radial
+        r_a=None (default) is the isotropic model; a finite r_a adds Michie exponential angular-momentum radial
         anisotropy (more extended -- pass a larger xi_max, e.g. 800).
 
         JIT/grad-safe in (W0, g, r_a): the fixed (xi_max, n_ode_points) keep array
         sizes static, so the parameters may be tracers and profile-shape functionals
         carry their gradients. The truncation radius r_t is the interpolated
         zero-crossing of the UNCLAMPED psi, so d(r_t)/dW0 flows (as in KingProfile).
+
+        Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances.
         """
         ra_hat = None if r_a is None else r_a / r_c
         xi_grid, psi_grid, psi_raw = solve_limepy_profile(
-            W0, g, ra_hat=ra_hat, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            g,
+            ra_hat=ra_hat,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         # Feed UNCLAMPED psi_raw so d(r_t)/dW0 flows (clamped psi zeros the
         # crossing node's gradient). Forward r_t is the interpolated crossing.

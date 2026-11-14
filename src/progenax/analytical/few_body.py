@@ -105,7 +105,7 @@ def three_body_figure_eight(
         velocities=velocities,
         masses=masses,
         name="three_body_figure_eight",
-        period=float(period),
+        period=period,
         energy=None,  # Constant, but not a simple closed form; measured in tests.
     )
 
@@ -217,7 +217,7 @@ def harmonic_oscillator(
         velocities=velocities,
         masses=masses,
         name=f"harmonic_oscillator_{dimension}",
-        period=float(period),
+        period=period,
         energy=0.5 * mass * omega**2 * amplitude**2,
     )
 

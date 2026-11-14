@@ -2,11 +2,10 @@
 """
 Plummer (1911) profile + matched velocity-DF validation figures.
 
-Five publication-quality figures, each anchored to *passing* tests in
-``tests/validation/test_plummer_physics.py``. The script recomputes the same
-quantities those tests assert and prints expected-vs-measured PASS/FAIL tables,
-so the figures are a faithful visualization layer over already-verified physics
-(not a second, drift-prone implementation).
+Five diagnostic figures with related assertions in
+``tests/validation/test_plummer_physics.py``. The script prints expected-vs-measured PASS/FAIL tables. Figure exposures
+and statistics can differ from the tests; inspect their scope and rendered
+layout before reusing them as evidence.
 
 Figures (-> anchoring tests):
   1. plummer_density.png            rho(r)/rho0 + CDF M(<r)/M, half-mass point
@@ -84,7 +83,7 @@ def fig_density(output_dir):
     radii = jnp.linalg.norm(prof.sample_positions(masses, key), axis=1)
     radii_np = np.asarray(radii)
 
-    # --- metrics (match the tests) ---
+    # Figure exposure: N=50000; related tests use their own sample counts.
     a_expected = R_H * np.sqrt((1.0 - 0.5 ** (2 / 3)) / 0.5 ** (2 / 3))
     a_rel = abs(a - a_expected) / a_expected
     frac_within_rh = float(jnp.mean(radii < R_H))
@@ -95,8 +94,8 @@ def fig_density(output_dir):
     cdf_theory = sorted_r**3 / (sorted_r**2 + a**2) ** 1.5
     max_cdf_dev = float(np.max(np.abs(ecdf - cdf_theory)))
 
-    # Pass thresholds mirror the tests exactly (tests/validation/conftest.py:
-    # HALF_MASS = 0.03; test_cdf_formula_accuracy uses 0.03 per radius).
+    # Inherit numeric thresholds, not identical statistical exposures:
+    # the test checks four radii; this metric checks upper ECDF steps.
     a_pass = a_rel < 1e-6
     rh_pass = abs(frac_within_rh - 0.5) < 0.03
     ma_pass = abs(frac_within_a - m_a_expected) < 0.03
@@ -194,7 +193,7 @@ def fig_density(output_dir):
     axB.legend(loc="lower right")
     axB.text(
         0.04,
-        0.94,
+        0.90,
         rf"max $|\Delta\mathrm{{CDF}}| = {max_cdf_dev:.1e}$",
         transform=axB.transAxes,
         fontsize=8,

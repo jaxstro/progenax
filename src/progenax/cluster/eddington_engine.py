@@ -12,8 +12,8 @@ Realizability gate (design decision 3, refuse loudly): a genuinely negative
 per-component DF (min f_j < -1e-3 * max|f_j|, separating physics from grid
 ringing) means the prescribed component CANNOT exist as an equilibrium in this
 shared potential. On concrete inputs we raise ValueError naming the component
-and the remedy; traced builds (grad/jit) necessarily skip the raise but ALWAYS
-store the `f_min_j` diagnostic -- the two-tier pattern EFFVelocityDF uses.
+and the remedy. The low-level builder retains raw `f_min_j` diagnostics under
+tracing. Public model assembly enforces the same gate in eager, JIT and AD paths.
 Never clamp silently: a clamped DF integrates back to a *different* density
 than the one prescribed.
 """
@@ -66,8 +66,8 @@ def _validate_engine_b_inputs(profiles, mass_fractions, r_a_j):
     mass fraction yields f_j == 0 whose max|f_j| normalizations are 0/0; both
     used to slip past the realizability gate (NaN compares False) and surface
     only as NaN velocities from sample_cluster. NaN inputs fail the same
-    strict-positivity checks. Traced entries skip (two-tier contract:
-    grad/jit builds never raise; diagnostics are always stored).
+    strict-positivity checks. This low-level check skips traced entries; public
+    model assembly also checks these inputs at runtime under tracing.
     """
     for j in range(len(profiles)):
         mf = mass_fractions[j]
@@ -282,11 +282,20 @@ def engine_b_star_velocities(
     M_total (the Engine A lesson: energies must use the realized cluster mass).
     """
     Psi_i = jnp.interp(radii, r_grid, state.Psi_grid)
-    s = jax.vmap(
-        lambda kk, pp, cc: sample_speed_from_f_table(
-            kk, pp, state.E_grid, state.f_j_grid[cc]
+
+    @jax.checkpoint
+    def sample_one(args):
+        key, psi, component = args
+        return sample_speed_from_f_table(
+            key,
+            psi,
+            state.E_grid,
+            state.f_j_grid[component],
+            n_w=4096,
+            uniform_energy_grid=True,
         )
-    )(speed_keys, Psi_i, c)
+
+    s = jax.lax.map(sample_one, (speed_keys, Psi_i, c), batch_size=32)
     speeds = jnp.sqrt(G * M_sampled / (4.0 * jnp.pi * state.mu)) * s
     return assign_om_directions(k_vdir, pos, speeds, state.r_a_j[c])
 
@@ -437,7 +446,7 @@ def assemble_engine_b_fields(
     any_finite_ra = jnp.any(jnp.isfinite(ra_arr))
     is_aniso = bool(any_finite_ra) if _is_concrete(any_finite_ra) else False
 
-    return dict(
+    fields = dict(
         # Shared fields, filled meaningfully.
         r_t=jnp.asarray(pot.r_t, dtype=jnp.float64),
         m_j=m_arr,
@@ -453,6 +462,40 @@ def assemble_engine_b_fields(
         engine_a=None,
         engine_b=state,
     )
+    # Attach checks to every returned array: otherwise an unrelated output
+    # (e.g. r_t) can let JIT discard both the DF and its validity check.
+    for j, profile in enumerate(profiles):
+        fields = eqx.error_if(
+            fields,
+            ~jnp.isfinite(mass_fractions[j]) | (mass_fractions[j] <= 0.0),
+            f"mass_fractions[{j}] must be finite and strictly positive "
+            f"for component {j} ({type(profile).__name__}).",
+            on_error="raise",
+        )
+        fields = eqx.error_if(
+            fields,
+            ~(ra_arr[j] > 0.0),
+            f"r_a_j[{j}] must be > 0 (jnp.inf = isotropic) "
+            f"for component {j} ({type(profile).__name__}).",
+            on_error="raise",
+        )
+    fields = eqx.error_if(
+        fields,
+        jnp.abs(jnp.sum(mass_fractions) - 1.0) > 1e-8,
+        "mass_fractions must sum to 1 within 1e-8; they are M_j/M_total amplitudes.",
+        on_error="raise",
+    )
+    for j, profile in enumerate(profiles):
+        fields = eqx.error_if(
+            fields,
+            ~jnp.all(jnp.isfinite(state.f_j_grid[j]))
+            | ~(state.f_min_j[j] > _F_MIN_GENUINE),
+            f"Engine B realizability failure: component {j} "
+            f"({type(profile).__name__}) must have a finite Eddington DF with "
+            f"min f / max|f| > {_F_MIN_GENUINE:g}. This component's {_REMEDY}.",
+            on_error="raise",
+        )
+    return fields
 
 
 __all__ = [

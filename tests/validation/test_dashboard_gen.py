@@ -143,34 +143,6 @@ def test_registry_status_all_four_built():
     assert prov["allowlist_modules"] > 0
 
 
-def test_registries_full_flag_gates_on_built_and_full():
-    """``gate["registries_full"]`` is the all-clear flag: every registry must be
-    BUILT and ``full is True``. As of Task 5.2 ALL FOUR registries (differentiability
-    + api-coverage + physics-validation + provenance) are built+full, so the gate's
-    registry condition is now MET and the aggregate flag is True. This is the milestone:
-    the last registry (provenance) became built+full, flipping registries_full.
-    """
-    dash = build_dashboard("2026-01-01T00:00:00Z")
-    regs = dash["registries"]
-    # All four registries are built+full -> the gate's registry condition is satisfied.
-    assert regs["differentiability"]["full"] is True
-    assert regs["api_coverage"]["full"] is True
-    assert regs["physics_validation"]["full"] is True
-    assert regs["provenance"]["full"] is True
-    assert dash["gate"]["registries_full"] is True
-    built_and_full = {
-        name
-        for name, b in regs.items()
-        if b.get("status") == "built" and b.get("full") is True
-    }
-    assert built_and_full == {
-        "differentiability",
-        "api_coverage",
-        "physics_validation",
-        "provenance",
-    }
-
-
 # --- Task 1.4: read_durations -----------------------------------------------
 
 
@@ -262,9 +234,25 @@ def test_write_coverage_json_injects_provenance(tmp_path):
 # --- Task 1.5: build_dashboard ----------------------------------------------
 
 
-def test_build_dashboard_has_all_blocks():
+def test_build_dashboard_preserves_inventory_and_registry_contract():
     dash = build_dashboard("2026-01-01T00:00:00Z")
-    # generated_utc is stamped EXACTLY as passed (staleness gate ignores it).
+    regs = dash["registries"]
+    assert regs["differentiability"]["full"] is True
+    assert regs["api_coverage"]["full"] is True
+    assert regs["physics_validation"]["full"] is True
+    assert regs["provenance"]["full"] is True
+    assert dash["gate"]["registries_full"] is True
+    built_and_full = {
+        name
+        for name, b in regs.items()
+        if b.get("status") == "built" and b.get("full") is True
+    }
+    assert built_and_full == {
+        "differentiability",
+        "api_coverage",
+        "physics_validation",
+        "provenance",
+    }
     assert dash["generated_utc"] == "2026-01-01T00:00:00Z"
     for key in (
         "modules",
@@ -275,31 +263,17 @@ def test_build_dashboard_has_all_blocks():
         "gate",
     ):
         assert key in dash, f"missing top-level block: {key}"
-
-
-def test_build_dashboard_modules_merge_inventory():
-    dash = build_dashboard("2026-01-01T00:00:00Z")
     builders = dash["modules"]["builders"]
     assert builders["unit"] > 0
     for tier in ("unit", "integration", "validation"):
         assert tier in builders
-    # line_cov is present (float when coverage measured, else None).
     assert "line_cov" in builders
-
-
-def test_build_dashboard_registry_and_gate_state():
-    dash = build_dashboard("2026-01-01T00:00:00Z")
-    # api_coverage registry is BUILT and FULL as of Task 2.3 (all holes closed).
     assert dash["registries"]["api_coverage"]["status"] == "built"
     assert dash["registries"]["api_coverage"]["full"] is True
-    # physics_validation registry is BUILT and FULL as of Task 4.2 (0 untested holes).
     assert dash["registries"]["physics_validation"]["status"] == "built"
     assert dash["registries"]["physics_validation"]["full"] is True
-    # provenance registry is BUILT and FULL as of Task 5.2 (0 unprovenanced holes).
     assert dash["registries"]["provenance"]["status"] == "built"
     assert dash["registries"]["provenance"]["full"] is True
-    # gate: ALL FOUR registries are built+full as of Task 5.2, so registries_full is
-    # now True (the milestone). The line-coverage floor is 90.
     assert dash["gate"]["registries_full"] is True
     assert dash["gate"]["line_cov_floor"] == 90
     assert dash["gate"]["full_suite_green"] is None

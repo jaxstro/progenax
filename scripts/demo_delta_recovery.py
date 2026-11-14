@@ -1,126 +1,9 @@
-r"""B2 science demo (Tasks 3-5): truth dataset, jitted joint (alpha, delta, W0)
-likelihood, MLE recovery, Fisher information panel, and NUTS corner for the
-self-consistent IMF + equipartition recovery.
+"""Single-catalogue IMF/equipartition recovery with BlackJAX.
 
-Task 5 (Fisher information panel + NUTS corner)
------------------------------------------------
-* The Fisher information panel (``demo_delta_recovery_fisher.png``) overlays the
-  Dchi2=4 ('2sigma' per parameter; 86.5% in 2D) (alpha, delta) MARGINAL ellipse
-  from the kinematics-only Fisher (mass term dropped) and from the joint Fisher
-  (kinematics + mass). The kinematics-only correlation rho(alpha, delta) is only
-  a MILD anti-correlation (~ -0.26, NOT near -1): the mass channel has only an
-  alpha-alpha Hessian entry, so it PINS alpha (sigma_alpha ~4.7x tighter) while
-  delta barely moves (~1.04x) -- it adds alpha information, it does NOT rotate /
-  break an alpha-delta degeneracy. rho is quoted in the panel and printed table.
-* The NUTS corner (``demo_delta_recovery_corner.png``) is gated by a wall-time
-  PROJECTION (a STOP point, not a place to silently shrink the run): one warm
-  loss+grad cost is measured, projected as (n_warmup+n_samples) x leapfrog/iter
-  x warm_cost. Projected > 45 min -> STOP and report options; <= 12 min -> run
-  here; in between -> wire the code, defer the long run (re-run --run-nuts).
-
-This script builds ONLY the truth mock dataset and the jitted joint negative
-log-likelihood (the MLE / Fisher / figures are Task 4+). It ends with a
-mandatory RUNTIME BUDGET GATE on one warm ``jit(value_and_grad(negloglike))``
-call: if it exceeds 5 s the script STOPs (it does NOT degrade the solve) and
-reports for escalation.
-
-Physics
--------
-A 4-component equipartition LIMEPY cluster (Gieles & Zocchi 2015) is sampled at
-the truth ``(alpha=2.3, delta=0.4, W0=5.0)``. Two observable channels constrain
-the joint fit:
-
-* **Kinematics** -- per-component binned 1-D velocity dispersion sigma_1d,j(r).
-  ALL stars out to the cluster edge ``R_CUT`` (the outermost sampled radius ~ r_t)
-  are used, split into 16 equal-count (quantile) radial bins on [0, R_CUT]
-  (``R_EDGES``, frozen after one draw). No truncation: the binned-EXPECTATION
-  comparison is unbiased at any width, so the sparse halo cells are simply
-  down-weighted by their large SE rather than discarded.
-
-  The model is compared to the data via the binned EXPECTATION of the estimator,
-  NOT via the oracle evaluated at a single representative radius. The binned
-  estimator's expectation is the number-weighted average of sigma^2 across the
-  bin:
-
-      E[sigma_hat^2_{jk}] = (int_bin n_j(r) sigma_j^2(r) dr) / (int_bin n_j(r) dr),
-
-  with n_j(r) = 4 pi r^2 rho_j(r) the model's OWN per-component number density
-  (encoded in the model's stored normalized cumulative number fraction
-  ``m._cdf_j`` on ``m._r_grid``, so the number weight between two radii is just
-  the cdf increment) and sigma_j^2(r) = s_j^2 * g(W_j(r)), W_j(r) = rescale_j *
-  psi(r), g(W) = I4(W)/I2(W)/3 with I_p(W) = int_0^{sqrt(2 W)} u^p
-  lowered_exponential(g, W - u^2/2) du. g(W) is a 1-D function of the local
-  potential only, so it is precomputed ONCE per loss eval on a 256-point
-  W-table and interpolated -- this keeps the runtime budget (a 256-point
-  I4/I2 quadrature per group/bin/subpoint would be ~64x too expensive).
-
-  This is a like-with-like comparison (binned DATA vs binned EXPECTATION) with
-  NO evaluation-point approximation; it is theta-dependent (cdf_j, psi,
-  rescale_j, w_j, mu_tot all rebuilt from theta) and fully differentiable. The
-  global velocity scale s = sqrt(G * M_FIXED / (9 r_c mu_tot)) uses the measured
-  total cluster mass M_FIXED (a fixed observed scalar), so the dispersion scale
-  is data-anchored rather than re-derived from theta inside the loss.
-
-* **Masses** (Option A, plan amendment 1) -- a SEPARATE global IMF sample
-  ``m_obs`` drawn from the SAME truth ``Maschberger(alpha)`` over the full
-  ``M_RANGE``, independent of the kinematic group. The mass channel is
-  ``sum(Maschberger(alpha).logpdf(m_obs))`` with NO truncation correction (the
-  class bounds equal the draw bounds, so the normalization matches the sample).
-  Per-star mass<->group correlation is NOT modeled -- a clean-mock choice that
-  keeps alpha self-consistent at the population level (one alpha drives both the
-  mass histogram and the equipartition groups).
-
-The unconstrained parameter z in R^3 maps to theta = (alpha, delta, W0) via
-expit boxes (di.expit), so the fit is unconstrained and gradient-safe.
-
-Runtime budget gate + MLE config (measured 2026-06-11, CPU/float64)
--------------------------------------------------------------------
-    R_CUT (cluster edge = max radius) ~7.0 (model units; all stars used)
-    R_EDGES                          16 quantile bins on [0, R_CUT]
-    M_FIXED                          57382.116 (measured total mass; a constant)
-    per-group occupancy (truncated)  j=0: 61896, j=1: 25972, j=2: 5989,
-                                     j=3 (top): 1143 (>= 300 gate)
-    find_alpha_for_masses            IFT-accelerated (hand-rolled jax.custom_vjp:
-                                     adaptive while_loop forward to tol=1e-6 +
-                                     reverse-mode implicit-VJP backward, flat in
-                                     n_iter) -- ~3x faster per value_and_grad than
-                                     the prior unrolled 30-iter eigenvalue scan.
-    MLE optimizer                    3 dispersed inits (z0=0 + 2 draws) x 300 Adam
-                                     steps (lr=3e-2). Right-sized from the prior
-                                     4 inits x 600 steps now that each loss eval is
-                                     ~3x cheaper: the full demo runs in ~5.7 min
-                                     (measured 5:40 wall; vs the prior ~50 min,
-                                     ~9x faster) and still recovers the reference
-                                     theta_hat (alpha=2.2931, delta=0.3972,
-                                     W0=4.9900) bit-for-bit.
-    NUTS corner (--run-nuts)         blackjax NUTS, 300 warmup + 600 samples,
-                                     target -negloglike(z) + sum log(dtheta/dz)
-                                     (flat-in-theta). MEASURED: 0 divergences;
-                                     posterior mean within 1 sigma of the MLE
-                                     (alpha -0.05, delta +0.27, W0 -0.38 sigma);
-                                     ~52 min wall (measured probe projected
-                                     39 min < 45-min STOP budget, deferred from
-                                     the default run -- pass --run-nuts to make
-                                     the corner). Fisher panel runs by default.
-    compile  8.84 s   (cold: traces + differentiates the adaptive
-                       find_alpha_for_masses while_loop + ODE)
-    warm     0.302 s  (second call at a different z) -- PASS (<= 5 s budget)
-    grad(z1) = [1762.96, -233.77, 1406.92]  -- finite AND nonzero in all 3 of
-               (alpha, delta, W0). Independently grad-checked vs central finite
-               differences: rel-err ~1e-9..1e-11 per component (correct, not
-               just finite). The g(W)-moment oracle uses the double-``where``
-               safe pattern at W=0 (clamp before sqrt, clamp the I4/I2
-               denominator before the divide) so the W-table's boundary node
-               does not poison the gradient.
-Self-consistency at truth: predict_binned(truth) vs sig_hat over ALL populated
-(truncated, 16-bin) cells gives max |dev/se| = 1.93 -- no wide-outer-bin
-artifact (the binned-expectation comparison is like-with-like).
-
-Per-(group,bin) cell counts span ~17 (top group, outer bins) to ~6000 (light
-group, inner bins). Both data sig_hat and model prediction are sqrt of a
-number-weighted sigma^2, so the only inexactness is the O(1/n) Jensen bias of
-sqrt(.); at the sparsest cell (n~17) that is ~1/(12 n) ~ 0.5%, a factor ~20
-below the 1-SE width (sigma/sqrt(6 n) ~ 10%), hence negligible everywhere.
+The count term is the sampler's categorical likelihood. The conditional
+kinematic term retains the Gaussian binned-dispersion approximation; its error
+calibration and mass-bin convergence require qualification. Individual exact
+representative masses are deliberately not used as continuous IMF observations.
 """
 
 import os
@@ -131,6 +14,7 @@ import jax
 import jax.numpy as jnp
 
 import progenax  # noqa: F401  -- enables float64 at import
+from progenax.cluster._radial_cdf import potential_interp
 from progenax.cluster.multicomponent import MultiComponentCluster
 from progenax.imf.smooth import Maschberger
 from progenax.profiles.limepy import lowered_exponential
@@ -151,10 +35,7 @@ N_STARS = 100_000
 
 # Unconstrained-reparam boxes (expit):
 ALPHA_BOX = (1.5, 3.2)
-# DELTA_BOX: delta >~ 0.9 is the Spitzer-unstable equipartition regime where
-# from_imf's eigenvalue/ODE solve hard-crashes (an uncatchable diffrax max_steps
-# error); delta <= 0.6 is the documented physical limit, so 0.7 gives margin
-# while keeping the box inside the realizable manifold.
+# Retained demo inference bounds; not a universal stability criterion.
 DELTA_BOX = (0.0, 0.7)
 W0_BOX = (3.0, 8.0)
 
@@ -209,32 +90,59 @@ def _build_g_table(W_max, g):
 # --------------------------------------------------------------------------- #
 # Binned-expectation predictor: E[sigma_hat^2_{jk}] under the model's n_j(r)
 # --------------------------------------------------------------------------- #
-def predict_binned(theta, r_edges, m_fixed):
-    r"""Per-(group, bin) sqrt(E[sigma_hat^2_{jk}]) for theta=(alpha,delta,W0).
-
-    Rebuilds the Engine A model from theta inside the traced function (the
-    find_alpha_for_masses eigenvalue solve is differentiable in alpha, delta,
-    W0), then returns the number-weighted bin-average dispersion: the binned
-    estimator's EXPECTATION under the model's own number density n_j(r) (from
-    the stored cumulative number fraction ``m._cdf_j`` on ``m._r_grid``). No
-    evaluation-point approximation -- a like-with-like comparison to the binned
-    data. The velocity scale uses the FIXED observed total mass ``m_fixed`` (a
-    constant), so sigma is data-anchored. Returns shape (N_COMP, K).
-    """
+def build_model(theta):
+    """Rebuild the same equilibrium used by catalogue generation."""
     alpha, delta, W0 = theta
     imf = Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1])
-    m = MultiComponentCluster.from_imf(
+    return MultiComponentCluster.from_imf(
         imf, N_COMP, W0, g=1.0, delta=delta, m_range=M_RANGE
     )
-    s = jnp.sqrt(G_MODEL * m_fixed / (9.0 * m.r_c * m.mu_tot))  # m_fixed constant
+
+
+def component_log_probabilities(theta):
+    model = build_model(theta)
+    return jax.nn.log_softmax(jnp.log(model.N_frac_j + 1e-30))
+
+
+def count_negloglike(theta, counts):
+    """Multinomial NLL up to a parameter-independent combinatorial constant."""
+    return -jnp.dot(counts, component_log_probabilities(theta))
+
+
+def joint_information(data, z):
+    """Conditional Gaussian information plus expected multinomial information.
+
+    Uses only first derivatives through the equilibrium solver. This local
+    approximation is not a calibrated posterior uncertainty estimate.
+    """
+    kin = di.fisher_information_gn(make_residual_fn(data), z)
+    logp = lambda x: component_log_probabilities(_theta_of_z(x))
+    scores = jax.jacrev(logp)(z)
+    probabilities = jnp.exp(logp(z))
+    return kin + jnp.sum(data["component_counts"]) * (
+        scores.T @ (probabilities[:, None] * scores)
+    )
+
+
+def predict_binned(theta, r_edges, component_counts):
+    """Predict conditional bin dispersions with M(theta)=sum_j n_j m_j(theta).
+
+    Counts are observed and fixed; representative masses change with the IMF.
+    The Gaussian summary likelihood remains an approximation.
+    """
+    alpha, delta, W0 = theta
+    m = build_model(theta)
+    s = jnp.sqrt(
+        G_MODEL * jnp.dot(component_counts, m.m_j) / (9.0 * m.r_c * m.mu_tot)
+    )  # component_counts constant
 
     # g(W) table built ONCE per eval (W spans 0 .. max(rescale_j) * W0).
     W_max = jnp.max(m.rescale_j) * W0
     W_tab, g_tab = _build_g_table(W_max, m.g)
 
     # psi on the model's own r-grid: psi(r/r_c), left=W0 (r->0), right=0 (r>r_t).
-    psi_grid = jnp.interp(
-        m._r_grid / m.r_c, m.xi_grid, m.psi_grid, left=W0, right=0.0
+    psi_grid = potential_interp(
+        m._r_grid / m.r_c, m.xi_grid, m.engine_a.psi_raw, left=W0, right=0.0
     )  # (n_grid,)
     r_grid = m._r_grid
     edges_lo = r_edges[:-1]
@@ -264,24 +172,23 @@ def predict_binned(theta, r_edges, m_fixed):
     return jax.vmap(_per_group)(jnp.arange(N_COMP))  # (N_COMP, K)
 
 
-def sigma_oracle(theta, r_eval, m_fixed):
+def sigma_oracle(theta, r_eval, component_counts):
     r"""Per-group 1-D dispersion sigma_j(r) at theta on radii r_eval (FOR PLOTTING).
 
     Evaluates the SAME Engine A oracle predict_binned integrates, but pointwise:
     sigma_j(r) = s * w_j * sqrt(g(W_j(r))), W_j(r) = rescale_j * psi(r). Returns
     shape (N_COMP, len(r_eval)). This is a smooth-curve helper for the fit figure,
-    NOT used in the likelihood (the likelihood uses the unbiased binned
+    NOT used in the likelihood (the likelihood uses the bin-averaged
     EXPECTATION predict_binned).
     """
     alpha, delta, W0 = theta
-    imf = Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1])
-    m = MultiComponentCluster.from_imf(
-        imf, N_COMP, W0, g=1.0, delta=delta, m_range=M_RANGE
-    )
-    s = jnp.sqrt(G_MODEL * m_fixed / (9.0 * m.r_c * m.mu_tot))
+    m = build_model(theta)
+    s = jnp.sqrt(G_MODEL * jnp.dot(component_counts, m.m_j) / (9.0 * m.r_c * m.mu_tot))
     W_max = jnp.max(m.rescale_j) * W0
     W_tab, g_tab = _build_g_table(W_max, m.g)
-    psi_eval = jnp.interp(r_eval / m.r_c, m.xi_grid, m.psi_grid, left=W0, right=0.0)
+    psi_eval = potential_interp(
+        r_eval / m.r_c, m.xi_grid, m.engine_a.psi_raw, left=W0, right=0.0
+    )
 
     def _per_group(j):
         W_j = m.rescale_j[j] * jnp.maximum(psi_eval, 0.0)
@@ -298,46 +205,28 @@ def sigma_oracle(theta, r_eval, m_fixed):
 # Mock data construction (run once; R_CUT, R_EDGES then frozen)
 # --------------------------------------------------------------------------- #
 def build_truth_data(key=None, alpha_true=ALPHA_TRUE):
-    """Sample the truth cluster, truncate at R_CUT, bin sigma_1d,j(r), draw masses.
+    """Draw one cluster and retain its counts and binned kinematic summaries.
 
-    Returns a dict of constants the loss closes over: R_EDGES (16 quantile bins
-    on [0, R_CUT]), sig_hat, se, weight, n (kinematics), m_obs (Option A mass
-    channel), M_FIXED, R_CUT.
-
-    ``key`` (default ``PRNGKey(0)``) and ``alpha_true`` (default the module
-    truth) are exposed for the Task 6 ensembles (independent seed datasets and
-    the alpha_true robustness grid); the defaults reproduce the Task 3-5
-    headline dataset bit-for-bit. delta / W0 truths stay at the module
-    constants in all cases.
+    Coordinates use the known generating centre and rest frame. Exact
+    representative masses are not treated as continuous IMF measurements.
     """
-    imf = Maschberger(alpha=alpha_true, m_min=M_RANGE[0], m_max=M_RANGE[1])
     if key is None:
         key = jax.random.PRNGKey(0)
-    k_kin, k_mass = jax.random.split(key)
+    k_kin = jax.random.split(key)[0]
 
-    model_true = MultiComponentCluster.from_imf(
-        imf, N_COMP, W0_TRUE, g=1.0, delta=DELTA_TRUE, m_range=M_RANGE
-    )
+    model_true = build_model((alpha_true, DELTA_TRUE, W0_TRUE))
     ic = model_true.sample_cluster(k_kin, n_stars=N_STARS, G=G_MODEL)
 
-    # Mass-weighted COM subtraction (like the validation tests' _com_arrays).
-    pos = ic.positions - jnp.average(ic.positions, axis=0, weights=ic.masses)
-    vel = ic.velocities - jnp.average(ic.velocities, axis=0, weights=ic.masses)
+    # Use the known generating centre and rest frame.
+    pos = ic.positions
+    vel = ic.velocities
     cid = ic.component_id  # int in [0, N_COMP)
 
     r = jnp.linalg.norm(pos, axis=1)
 
-    # Use ALL stars out to the cluster edge (the outermost sampled radius ~ r_t).
-    # The binned-EXPECTATION comparison is unbiased at any bin width, so no
-    # truncation is needed: the sparse outer cells are down-weighted by their
-    # large SE (and masked per-cell if n < n_min). Keeping the halo recovers the
-    # light group's outer-sigma information, which constrains W0/concentration.
-    R_CUT = float(r.max())  # cluster edge (the outermost sampled star)
-    # 16 equal-count (quantile) radial bins on [0, R_CUT], FROZEN after one draw.
-    # 16 is near-optimal: the heavy (segregated) group has only ~1150 stars, so
-    # finer binning would push its outer cells below n_min and drop the very
-    # cells carrying the equipartition (delta) signal; sigma(r) is smooth so the
-    # Fisher information saturates past ~16 bins anyway.
+    # Retain the historical 16 quantile bins and occupancy floor. Their
+    # finite-sample approximation is checked, not assumed unbiased.
+    R_CUT = float(r.max())
     R_EDGES = jnp.quantile(r, jnp.linspace(0.0, 1.0, 17))  # 16 bins, FROZEN
 
     sig_hat, se, weight, n = di.binned_sigma1d(pos, vel, cid, N_COMP, R_EDGES, n_min=30)
@@ -347,8 +236,7 @@ def build_truth_data(key=None, alpha_true=ALPHA_TRUE):
     r_sum, r_cnt = di._grouped_bin_sums(r, cid, bin_ids, N_COMP, R_EDGES.shape[0] - 1)
     r_mean = jnp.where(r_cnt > 0, r_sum / jnp.where(r_cnt > 0, r_cnt, 1.0), 0.0)
 
-    # Observed-mass sample (Option A): global, independent of kinematic group.
-    m_obs = imf.ppf(jax.random.uniform(k_mass, (N_STARS,)))
+    component_counts = jnp.bincount(cid, length=N_COMP)
     M_fixed = float(jnp.sum(ic.masses))  # measured total mass (a CONSTANT)
 
     return dict(
@@ -359,7 +247,11 @@ def build_truth_data(key=None, alpha_true=ALPHA_TRUE):
         weight=weight,
         n=n,
         r_mean=r_mean,
-        m_obs=m_obs,
+        component_counts=component_counts,
+        positions=pos,
+        component_id=cid,
+        representative_masses=model_true.m_j,
+        core_radius=model_true.r_c,
         M_fixed=M_fixed,
     )
 
@@ -398,48 +290,36 @@ def make_residual_fn(data):
     """
     r_edges = data["r_edges"]
     sig_hat, se, weight = data["sig_hat"], data["se"], data["weight"]
-    m_fixed = data["M_fixed"]
+    component_counts = data["component_counts"]
     safe_se = jnp.where(se > 0, se, 1.0)
     sqrt_w = jnp.sqrt(weight)
 
     def residual_fn(z):
-        sig_model = predict_binned(_theta_of_z(z), r_edges, m_fixed)
+        sig_model = predict_binned(_theta_of_z(z), r_edges, component_counts)
         return (sqrt_w * (sig_hat - sig_model) / safe_se).ravel()
 
     return residual_fn
 
 
-def make_mass_negloglike(data):
-    r"""Build the ODE-free mass-channel negloglike(z) = -sum logpdf(m_obs).
-
-    Contains NO diffrax ODE, so ``jax.hessian`` is safe on it (only the alpha-alpha
-    entry of its 3x3 Hessian is nonzero). Used as ``extra_negloglike`` for the
-    Gauss-Newton Fisher.
-    """
-    m_obs = data["m_obs"]
-
-    def mass_negloglike(z):
-        alpha = di.expit(z[0], *ALPHA_BOX)
-        return -jnp.sum(
-            Maschberger(alpha=alpha, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_obs)
-        )
-
-    return mass_negloglike
+def make_count_negloglike(data):
+    """Component-count likelihood from the same catalogue as the kinematics."""
+    counts = data["component_counts"]
+    return lambda z: count_negloglike(_theta_of_z(z), counts)
 
 
 def make_negloglike(data):
     """Build the joint negloglike(z) = kinematic + mass channel over the data.
 
-    Equivalent to ``-0.5 sum r(z)^2 + mass_negloglike(z)`` using the shared
+    Equivalent to ``0.5 sum r(z)^2 + count_negloglike_fn(z)`` using the shared
     residual / mass builders, so the loss and the Gauss-Newton Fisher are
     guaranteed consistent.
     """
     residual_fn = make_residual_fn(data)
-    mass_negloglike = make_mass_negloglike(data)
+    count_negloglike_fn = make_count_negloglike(data)
 
     def negloglike(z):
         r = residual_fn(z)
-        return 0.5 * jnp.sum(r * r) + mass_negloglike(z)
+        return 0.5 * jnp.sum(r * r) + count_negloglike_fn(z)
 
     return negloglike
 
@@ -450,7 +330,7 @@ def make_negloglike(data):
 def self_consistency_check(data):
     """predict_binned(truth) vs binned sig_hat in populated bins (units of se)."""
     sig_model = predict_binned(
-        (ALPHA_TRUE, DELTA_TRUE, W0_TRUE), data["r_edges"], data["M_fixed"]
+        (ALPHA_TRUE, DELTA_TRUE, W0_TRUE), data["r_edges"], data["component_counts"]
     )
     sig_hat, se, weight = data["sig_hat"], data["se"], data["weight"]
     dev = jnp.where(weight > 0, (sig_hat - sig_model) / jnp.where(se > 0, se, 1.0), 0.0)
@@ -518,12 +398,16 @@ def run_mle(negloglike, data):
     loss_jit = jax.jit(negloglike)
     z0s = dispersed_inits()
     z_hats, traces, finals = [], [], []
+    fit = jax.jit(
+        lambda start: di.mle_adam(negloglike, start, n_steps=N_ADAM_STEPS, lr=ADAM_LR)
+    )
     for i in range(N_INITS):
-        z_hat, trace = di.mle_adam(negloglike, z0s[i], n_steps=N_ADAM_STEPS, lr=ADAM_LR)
+        z_hat, trace = fit(z0s[i])
         final = float(loss_jit(z_hat))
         z_hats.append(z_hat)
         traces.append(trace)
         finals.append(final)
+        print(f"  start {i + 1}/{N_INITS}: final objective {final:.8g}", flush=True)
     i_best = int(jnp.argmin(jnp.array(finals)))
     return z_hats[i_best], traces[i_best], finals, i_best, z0s
 
@@ -550,10 +434,68 @@ def recovery_table(theta_hat, sigma_theta, truths=None):
 
 
 # --------------------------------------------------------------------------- #
-# Fit figure (panel a: sigma_j(r) data + fit curves; panel b: mass histogram)
+# Fit figure (panel a: sigma_j(r) data + fit curves; panel b: component counts)
 # --------------------------------------------------------------------------- #
+def make_cluster_figure(data, out_dir):
+    """Project the actual catalogue and compare empirical component radii."""
+    import _plotstyle as ps
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    ps.apply_pub_style()
+    xy = np.asarray(data["positions"])[:, :2] / float(data["core_radius"])
+    component = np.asarray(data["component_id"])
+    radius = np.linalg.norm(xy, axis=1)
+    colors = [ps.OI[c] for c in ("blue", "green", "orange", "vermilion")]
+    styles = ["-", "--", "-.", ":"]
+    fig, (cluster, cumulative) = plt.subplots(
+        1, 2, figsize=(8.5, 3.6), layout="constrained"
+    )
+    extent = float(np.abs(xy).max())
+    cells = cluster.hexbin(
+        xy[:, 0],
+        xy[:, 1],
+        gridsize=100,
+        bins="log",
+        mincnt=1,
+        cmap="viridis",
+        rasterized=True,
+    )
+    cluster.set(
+        xlim=(-extent, extent),
+        ylim=(-extent, extent),
+        xlabel=r"$x/r_c$",
+        ylabel=r"$y/r_c$",
+        aspect="equal",
+    )
+    fig.colorbar(cells, ax=cluster, label="Stars per hexagon", shrink=0.85)
+    edges = np.geomspace(*M_RANGE, N_COMP + 1)
+    for j in range(N_COMP):
+        r = np.sort(radius[component == j])
+        fraction = np.arange(1, r.size + 1) / r.size
+        cumulative.step(
+            r,
+            fraction,
+            where="post",
+            color=colors[j % len(colors)],
+            linestyle=styles[j % len(styles)],
+            label=rf"{edges[j]:.3g}–{edges[j + 1]:.3g} $M_\odot$",
+        )
+    cumulative.set(
+        xscale="log",
+        ylim=(0, 1.02),
+        xlabel=r"Projected radius $R/r_c$",
+        ylabel="Fraction of component inside R",
+    )
+    cumulative.legend(loc="lower right", fontsize=8)
+    ps.panel_label(cluster, "(a)")
+    ps.panel_label(cumulative, "(b)")
+    ps.save_fig(fig, out_dir, "imf_equip_cluster")
+    plt.close(fig)
+
+
 def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
-    """Two-panel fit figure: kinematic sigma_j(r) + observed-mass IMF fit."""
+    """Two-panel fit figure: kinematic sigma_j(r) + component counts."""
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -567,16 +509,16 @@ def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
     se = np.asarray(data["se"])
     weight = np.asarray(data["weight"])
     r_mean = np.asarray(data["r_mean"])
-    m_fixed = data["M_fixed"]
+    component_counts = data["component_counts"]
     a_hat, d_hat, w0_hat = (float(x) for x in theta_hat)
 
     fig, (axa, axb) = plt.subplots(1, 2, figsize=(8.5, 3.6))
 
     # Panel (a): per-group sigma(r) data (SE bars) + best-fit smooth curves.
     r_grid = jnp.linspace(1e-3, float(data["r_cut"]), 400)
-    sig_fit = np.asarray(sigma_oracle((a_hat, d_hat, w0_hat), r_grid, m_fixed))
+    sig_fit = np.asarray(sigma_oracle((a_hat, d_hat, w0_hat), r_grid, component_counts))
     sig_true = np.asarray(
-        sigma_oracle((ALPHA_TRUE, DELTA_TRUE, W0_TRUE), r_grid, m_fixed)
+        sigma_oracle((ALPHA_TRUE, DELTA_TRUE, W0_TRUE), r_grid, component_counts)
     )
     rg = np.asarray(r_grid)
     for j in range(sig_hat.shape[0]):
@@ -587,63 +529,44 @@ def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
             yerr=se[j][mask],
             fmt="o",
             ms=3.5,
-            color=colors[j],
+            color=colors[j % len(colors)],
             capsize=1.5,
             elinewidth=0.8,
             mew=0.0,
             zorder=3,
             label=rf"group $j={j}$",
         )
-        axa.plot(rg, sig_fit[j], "-", color=colors[j], lw=1.6, zorder=2)
-        axa.plot(rg, sig_true[j], ":", color=colors[j], lw=0.8, alpha=0.7, zorder=1)
+        axa.plot(rg, sig_fit[j], "-", color=colors[j % len(colors)], lw=1.6, zorder=2)
+        axa.plot(
+            rg,
+            sig_true[j],
+            ":",
+            color=colors[j % len(colors)],
+            lw=0.8,
+            alpha=0.7,
+            zorder=1,
+        )
     axa.set_xlabel(r"$r$ (model units)")
     axa.set_ylabel(r"$\sigma_{1\mathrm{D}, j}(r)$")
     axa.set_xlim(0.0, float(data["r_cut"]))
     axa.legend(loc="upper right", ncol=1)
     ps.panel_label(axa, "(a)")
 
-    # Panel (b): observed-mass histogram + fitted Maschberger(alpha_hat).
-    m_obs = np.asarray(data["m_obs"])
-    bins = np.logspace(np.log10(M_RANGE[0]), np.log10(M_RANGE[1]), 40)
-    axb.hist(
-        m_obs,
-        bins=bins,
-        density=True,
-        histtype="stepfilled",
-        color=ps.OI["sky"],
-        alpha=0.45,
-        edgecolor=ps.OI["blue"],
-        lw=0.8,
-        label=r"observed $m_{\rm obs}$",
+    # The observed groups have fixed labels, not continuously measured masses.
+    groups = np.arange(N_COMP)
+    counts = np.asarray(data["component_counts"])
+    predicted = counts.sum() * np.exp(
+        np.asarray(component_log_probabilities(theta_hat))
     )
-    m_fine = jnp.logspace(jnp.log10(M_RANGE[0]), jnp.log10(M_RANGE[1]), 300)
-    pdf_hat = jnp.exp(
-        Maschberger(alpha=a_hat, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_fine)
-    )
-    pdf_true = jnp.exp(
-        Maschberger(alpha=ALPHA_TRUE, m_min=M_RANGE[0], m_max=M_RANGE[1]).logpdf(m_fine)
-    )
+    axb.bar(groups, counts, alpha=0.45, color=ps.OI["sky"], label="catalogue counts")
     axb.plot(
-        np.asarray(m_fine),
-        np.asarray(pdf_hat),
-        "-",
-        color=ps.OI["vermilion"],
-        lw=1.6,
-        label=rf"fit $\alpha={a_hat:.3f}$",
+        groups, predicted, "o", color=ps.OI["vermilion"], label="fitted expected counts"
     )
-    axb.plot(
-        np.asarray(m_fine),
-        np.asarray(pdf_true),
-        ":",
-        color=ps.OI["black"],
-        lw=0.8,
-        label=rf"truth $\alpha={ALPHA_TRUE}$",
-    )
-    axb.set_xscale("log")
     axb.set_yscale("log")
-    axb.set_xlabel(r"$m\ (M_\odot)$")
-    axb.set_ylabel(r"$p(m)$")
-    axb.legend(loc="upper right")
+    axb.set_xticks(groups)
+    axb.set_xlabel("Mass-component index")
+    axb.set_ylabel("Number of stars")
+    axb.legend()
     ps.panel_label(axb, "(b)")
 
     cap = (
@@ -660,7 +583,7 @@ def make_fit_figure(data, theta_hat, sigma_theta, out_dir):
 
 # --------------------------------------------------------------------------- #
 # Task 5: Fisher information panel (alpha, delta) -- kinematics-only vs joint
-# (the mass channel PINS alpha; it is NOT an alpha-delta degeneracy break)
+# (compare measured local information with and without component counts)
 # --------------------------------------------------------------------------- #
 def _ad_block_cov(cov_theta3):
     """The (alpha, delta) 2x2 sub-block of a 3x3 constrained covariance.
@@ -685,34 +608,12 @@ def _ellipse_xy(mean2, cov2, n_sigma=2.0, n_pts=200):
 
 
 def fisher_degeneracy(data, z_hat):
-    r"""Kinematics-only vs joint (alpha, delta) marginal Fisher ellipses + rho.
-
-    Returns a dict with the constrained-space (alpha, delta) 2x2 covariances for
-    BOTH the kinematics-only Fisher (mass term DROPPED) and the joint Fisher
-    (kinematics + mass), each marginalized over W0; plus the kinematics-only
-    correlation coefficient ``rho(alpha, delta)`` and the two ellipse areas
-    (Dchi2=4, i.e. '2sigma' per parameter; 86.5% in 2D).
-
-    The measured kinematics-only ``rho`` is only a MILD anti-correlation (~ -0.26,
-    NOT near -1). The mass channel's negloglike has only an alpha-alpha Hessian
-    entry, so adding it PINS alpha (sigma_alpha ~4.7x tighter) while delta barely
-    changes (~1.04x): it ADDS alpha information, it does NOT rotate / break an
-    alpha-delta degeneracy.
-
-    Both Fishers use the Gauss-Newton ``J^T J`` form (jacrev -- ODE-safe); the
-    joint adds the ODE-free mass Hessian via ``extra_negloglike`` (jax.hessian is
-    safe on that term). Each 3x3 Fisher is mapped to a constrained-space 3x3
-    covariance via the expit Jacobian (constrained_cov), then sliced to the
-    (alpha, delta) block.
-    """
+    """Compare local kinematic and joint information, marginalized over W0."""
     residual_fn = make_residual_fn(data)
-    mass_negloglike = make_mass_negloglike(data)
     dtheta_dz = _dtheta_dz(z_hat)
 
     F_kin = di.fisher_information_gn(residual_fn, z_hat)  # kinematics-only J^T J
-    F_joint = di.fisher_information_gn(
-        residual_fn, z_hat, extra_negloglike=mass_negloglike
-    )
+    F_joint = joint_information(data, z_hat)
 
     cov_kin3 = di.constrained_cov(F_kin, dtheta_dz)
     cov_joint3 = di.constrained_cov(F_joint, dtheta_dz)
@@ -768,7 +669,7 @@ def make_fisher_figure(deg, theta_hat, out_dir):
         "-",
         color=ps.OI["blue"],
         lw=1.8,
-        label=rf"joint (+ mass, $\rho={deg['rho_joint']:+.3f}$)",
+        label=rf"joint (+ counts, $\rho={deg['rho_joint']:+.3f}$)",
     )
     ax.fill(np.asarray(xj), np.asarray(yj), color=ps.OI["blue"], alpha=0.12)
 
@@ -814,69 +715,6 @@ def make_fisher_figure(deg, theta_hat, out_dir):
 N_WARMUP = 300
 N_SAMPLES = 600
 NUTS_KEY = 11
-# Conservative expected leapfrog (= gradient) steps per NUTS iteration for a
-# cond~5e2 posterior; used ONLY for the analytic upper-bound projection. The
-# DECISION uses the MEASURED per-step cost from a short probe (below), which is
-# the honest number (the analytic bound is worst-case).
-LEAPFROG_PER_ITER = 12
-N_PROBE_WARMUP = 60  # short window-adaptation just to tune step/mass + time a step
-N_PROBE_STEPS = 12  # tuned sampling steps timed for the per-step cost
-BUDGET_STOP_MIN = 45.0  # projected wall-time > this -> STOP, do not run NUTS
-BUDGET_RUN_MIN = 12.0  # projected wall-time <= this -> run here, foreground
-
-
-def nuts_walltime_projection_analytic(warm_grad_s):
-    """Conservative ANALYTIC NUTS wall-time projection (minutes), worst-case.
-
-    NUTS does a variable number of leapfrog (= gradient) steps per iteration
-    (tree depth). Upper bound: (n_warmup + n_samples) * LEAPFROG_PER_ITER *
-    warm_grad_cost. The logdensity gradient is one value_and_grad of negloglike,
-    so warm_grad_s is the demo's measured warm loss+grad cost. The DECISION uses
-    the MEASURED per-step cost instead (this is only printed as the bound)."""
-    n_iter = N_WARMUP + N_SAMPLES
-    return n_iter * LEAPFROG_PER_ITER * warm_grad_s / 60.0
-
-
-def nuts_walltime_projection_measured(data, z0):
-    """MEASURED NUTS wall-time projection (min) + mean tree depth + per-step cost.
-
-    Runs a SHORT window adaptation (N_PROBE_WARMUP) only to tune the step size +
-    diagonal mass matrix, then times N_PROBE_STEPS tuned sampling steps to get the
-    true per-step cost (which includes the actual, preconditioned tree depth --
-    far below the worst-case LEAPFROG_PER_ITER once the mass matrix is tuned).
-    Projection = (n_warmup + n_samples) * per_step. Returns
-    (proj_min, per_step_s, mean_tree_depth)."""
-    import blackjax
-
-    negloglike = make_negloglike(data)
-
-    def logdensity_fn(z):
-        # Target the flat-in-theta likelihood posterior: pi(z) = L(theta(z)) *
-        # |dtheta/dz|, so logpi(z) = -negloglike(z) + sum log(dtheta_i/dz_i). The
-        # +Jacobian undoes the sigmoid-peaked pushforward of a flat-in-z prior so
-        # the induced theta-density is flat-in-theta x likelihood (mode at MLE).
-        return -negloglike(z) + jnp.sum(jnp.log(_dtheta_dz(z)))
-
-    wk, sk = jax.random.split(jax.random.PRNGKey(NUTS_KEY))
-    warmup = blackjax.window_adaptation(blackjax.nuts, logdensity_fn)
-    (state, params), _ = warmup.run(wk, z0, num_steps=N_PROBE_WARMUP)
-    kernel = blackjax.nuts(logdensity_fn, **params)
-    step = jax.jit(kernel.step)
-
-    keys = jax.random.split(sk, N_PROBE_STEPS + 1)
-    state, info = step(keys[0], state)  # compile + warm one step
-    state.position.block_until_ready()
-
-    depths = []
-    t0 = time.perf_counter()
-    for i in range(1, N_PROBE_STEPS + 1):
-        state, info = step(keys[i], state)
-        state.position.block_until_ready()
-        depths.append(int(info.num_trajectory_expansions))
-    per_step = (time.perf_counter() - t0) / N_PROBE_STEPS
-    mean_depth = sum(depths) / len(depths)
-    proj_min = (N_WARMUP + N_SAMPLES) * per_step / 60.0
-    return proj_min, per_step, mean_depth
 
 
 def run_nuts_corner(data, z_hat, theta_hat, sigma_theta, out_dir):
@@ -897,13 +735,56 @@ def run_nuts_corner(data, z_hat, theta_hat, sigma_theta, out_dir):
         # logdensity_fn for the derivation; the SAME target is projected + sampled.
         return -negloglike(z) + jnp.sum(jnp.log(_dtheta_dz(z)))
 
-    key = jax.random.PRNGKey(NUTS_KEY)
-    out = di.run_nuts(logdensity_fn, z_hat, key, n_warmup=N_WARMUP, n_samples=N_SAMPLES)
-    z_samp = out.samples
-    # Transform unconstrained draws -> theta (vmap the box reparam).
-    theta_samp = jax.vmap(lambda z: jnp.stack(_theta_of_z(z)))(z_samp)  # (n, 3)
+    import json
+
+    import arviz as az
+    import numpy as np
+
+    keys = jax.random.split(jax.random.PRNGKey(NUTS_KEY), 4)
+    starts = jnp.concatenate((dispersed_inits(), z_hat[None, :]), axis=0)
+    chains, divergences = [], []
+    for key, start in zip(keys, starts):
+        out = di.run_nuts(
+            logdensity_fn, start, key, n_warmup=N_WARMUP, n_samples=N_SAMPLES
+        )
+        chains.append(jax.vmap(lambda z: jnp.stack(_theta_of_z(z)))(out.samples))
+        divergences.append(int(out.n_divergent))
+    draws = np.asarray(jnp.stack(chains))
+    names = ("alpha", "delta", "W0")
+    inference = az.from_dict(
+        posterior={name: draws[:, :, i] for i, name in enumerate(names)}
+    )
+    diagnostics = {}
+    for method, result in (
+        ("rhat", az.rhat(inference, method="rank")),
+        ("ess_bulk", az.ess(inference, method="bulk")),
+        ("ess_tail", az.ess(inference, method="tail")),
+    ):
+        diagnostics[method] = {name: float(result[name]) for name in names}
+    diagnostics["divergences_per_chain"] = divergences
+    diagnostics["scope"] = (
+        "Approximate summary posterior; coverage and predictive checks remain open."
+    )
+    os.makedirs(out_dir, exist_ok=True)
+    np.savez(os.path.join(out_dir, "demo_delta_recovery_chains.npz"), samples=draws)
+    with open(
+        os.path.join(out_dir, "demo_delta_recovery_diagnostics.json"), "w"
+    ) as stream:
+        json.dump(diagnostics, stream, indent=2)
+    print(json.dumps(diagnostics, indent=2))
+    diagnostics_ok = (
+        sum(divergences) == 0
+        and all(np.isfinite(v) and v < 1.01 for v in diagnostics["rhat"].values())
+        and all(np.isfinite(v) and v >= 400 for v in diagnostics["ess_bulk"].values())
+        and all(np.isfinite(v) and v >= 400 for v in diagnostics["ess_tail"].values())
+    )
+    if not diagnostics_ok:
+        raise RuntimeError(
+            "BlackJAX convergence checks failed; draws and diagnostics retained."
+        )
+    theta_samp = jnp.asarray(draws.reshape(-1, 3))
     post_mean = jnp.mean(theta_samp, axis=0)
-    n_div = int(out.n_divergent)
+    n_div = sum(divergences)
     make_corner_figure(theta_samp, theta_hat, sigma_theta, out_dir)
     return theta_samp, n_div, post_mean
 
@@ -980,18 +861,54 @@ def make_corner_figure(theta_samp, theta_hat, sigma_theta, out_dir):
 
 
 def main():
+    import argparse
+
+    global N_COMP
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--illustrate-only",
+        action="store_true",
+        help="Draw the cluster illustration without fitting",
+    )
+    parser.add_argument("--seed", type=int, default=0, help="Synthetic catalogue seed")
+    parser.add_argument(
+        "--n-comp", type=int, default=N_COMP, help="IMF component resolution"
+    )
+    parser.add_argument(
+        "--check-only",
+        action="store_true",
+        help="Run catalogue and derivative checks without fitting",
+    )
+    parser.add_argument(
+        "--run-nuts", action="store_true", help="Run four BlackJAX chains after fitting"
+    )
+    args = parser.parse_args()
+    if args.n_comp < 2:
+        parser.error("--n-comp must be at least two for this multimass experiment")
+    N_COMP = args.n_comp
     print("=" * 72)
-    print("B2 demo (Task 4/5): joint (alpha, delta, W0) MLE + Fisher + NUTS")
+    print("B2 single-catalogue recovery: MLE + local information + BlackJAX")
+    print("Scope: discrete component counts plus approximate conditional kinematics.")
     print("=" * 72)
     print(
         f"truth: alpha={ALPHA_TRUE}, delta={DELTA_TRUE}, W0={W0_TRUE}; "
         f"N_COMP={N_COMP}, N_STARS={N_STARS}, M_RANGE={M_RANGE}, G={G_MODEL}"
     )
 
-    data = build_truth_data()
+    data = build_truth_data(jax.random.PRNGKey(args.seed))
+    if args.illustrate_only:
+        out_dir = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)), "validation", "plots"
+        )
+        os.makedirs(out_dir, exist_ok=True)
+        make_cluster_figure(data, out_dir)
+        print("Catalogue counts:", data["component_counts"].tolist())
+        print("Representative masses:", data["representative_masses"].tolist())
+        print("Cluster illustration saved to", out_dir)
+        return
     n = data["n"]
     J = n.shape[0]
-    print(f"\nM_FIXED (measured total mass) = {data['M_fixed']:.3f}")
+    print(f"\nCatalogue total mass (diagnostic only) = {data['M_fixed']:.3f}")
     print(f"R_CUT (cluster edge = max radius) = {data['r_cut']:.4f}")
     print(
         "R_EDGES (16 quantile bins on [0, R_CUT]) =",
@@ -1005,6 +922,44 @@ def main():
         f"top-group (j={J - 1}) occupancy = {top_occ}"
         + ("  [WARN < 300 -- Task 4 has a >=300 gate]" if top_occ < 300 else "")
     )
+
+    if args.check_only:
+        objective = jax.jit(make_negloglike(data))
+        z = jnp.array(
+            [
+                di.logit(ALPHA_TRUE, *ALPHA_BOX),
+                di.logit(DELTA_TRUE, *DELTA_BOX),
+                di.logit(W0_TRUE, *W0_BOX),
+            ]
+        )
+        ad = jax.jit(jax.grad(objective))(z)
+        print("float64:", jax.config.jax_enable_x64)
+        print("counts:", data["component_counts"].tolist())
+        print("AD gradient:", ad.tolist())
+        checks = []
+        for h in (1e-4, 1e-5):
+            fd = jnp.array(
+                [
+                    (
+                        objective(z + h * jnp.eye(3)[i])
+                        - objective(z - h * jnp.eye(3)[i])
+                    )
+                    / (2 * h)
+                    for i in range(3)
+                ]
+            )
+            error = jnp.abs(ad - fd) / jnp.maximum(
+                jnp.maximum(jnp.abs(ad), jnp.abs(fd)), 1e-12
+            )
+            print(
+                "FD step", h, "gradient", fd.tolist(), "relative error", error.tolist()
+            )
+            checks.append(bool(jnp.all(error <= 0.003)))
+        max_dev = self_consistency_check(data)
+        checks.append(max_dev < 4.0)
+        checks.append(bool(jnp.sum(data["component_counts"]) == N_STARS))
+        print("CHECK-ONLY", "PASS" if all(checks) else "FAIL")
+        raise SystemExit(0 if all(checks) else 1)
 
     # Self-consistency BEFORE the budget gate.
     max_dev = self_consistency_check(data)
@@ -1093,9 +1048,7 @@ def main():
     # theta_hat + Gauss-Newton Fisher errors (reverse-mode only).
     # --------------------------------------------------------------------- #
     theta_hat = _theta_of_z(z_hat)
-    residual_fn = make_residual_fn(data)
-    mass_negloglike = make_mass_negloglike(data)
-    F_z = di.fisher_information_gn(residual_fn, z_hat, extra_negloglike=mass_negloglike)
+    F_z = joint_information(data, z_hat)
     eig = jnp.linalg.eigvalsh(F_z)
     F_pd = bool(jnp.all(eig > 0))
     cond = float(eig[-1] / eig[0]) if F_pd else float("inf")
@@ -1155,8 +1108,7 @@ def main():
     deg = fisher_degeneracy(data, z_hat)
     print(
         f"  kinematics-only rho(alpha, delta) = {deg['rho_kin']:+.4f}  "
-        "(mild anti-correlation; the mass channel PINS alpha "
-        "(sigma_alpha ~4.7x tighter) rather than rotating this ellipse)"
+        "(measured for this catalogue)"
     )
     print(f"  joint          rho(alpha, delta) = {deg['rho_joint']:+.4f}")
     sa_k = float(jnp.sqrt(deg["cov_kin"][0, 0]))
@@ -1177,99 +1129,13 @@ def main():
     )
     make_fisher_figure(deg, theta_hat, out_dir)
 
-    # --------------------------------------------------------------------- #
-    # Task 5b: NUTS corner -- BUDGET PROJECTION (STOP gate), then run or defer.
-    # --------------------------------------------------------------------- #
-    print("\n" + "=" * 72)
-    print("NUTS BUDGET GATE (projected wall-time vs 45-min STOP)")
-    print("=" * 72)
-    proj_analytic = nuts_walltime_projection_analytic(t_warm)
-    print(f"  warm loss+grad cost            = {t_warm:.3f} s")
-    print(
-        f"  n_warmup + n_samples           = {N_WARMUP} + {N_SAMPLES} "
-        f"= {N_WARMUP + N_SAMPLES} iters"
-    )
-    print(
-        f"  analytic UPPER BOUND ({LEAPFROG_PER_ITER} leapfrog/iter, worst case) "
-        f"= {proj_analytic:.1f} min"
-    )
-
-    run_nuts_here = "--run-nuts" in sys.argv
-    if run_nuts_here:
-        # Override: we are running NUTS regardless, so skip the ~few-min probe and
-        # use the analytic bound only as the printed projection.
-        print("  --run-nuts override: skipping the measured probe; running NUTS.")
-        proj_min = proj_analytic
-    else:
-        print(
-            f"  probing measured per-step cost ({N_PROBE_WARMUP}-step adapt + "
-            f"{N_PROBE_STEPS} tuned steps; this takes a few min)..."
-        )
-        proj_min, per_step, mean_depth = nuts_walltime_projection_measured(data, z_hat)
-        print(
-            f"  measured per-step cost         = {per_step:.3f} s "
-            f"(mean tree depth {mean_depth:.1f} doublings ~ "
-            f"{2**mean_depth:.0f} leapfrog)"
-        )
-        print(
-            f"  MEASURED projected wall-time   = {proj_min:.1f} min "
-            f"(= {N_WARMUP + N_SAMPLES} x {per_step:.3f} s) <- decision basis"
-        )
-
+    run_nuts_here = args.run_nuts
     nuts_done = False
-    if proj_min > BUDGET_STOP_MIN and not run_nuts_here:
-        print(
-            f"\n  NUTS STOP: projected {proj_min:.1f} min > {BUDGET_STOP_MIN:.0f} "
-            "min budget. NOT running NUTS (and NOT degrading the solve). "
-            "Options: reduce n_samples (600->300), reduce n_warmup, thin, cap "
-            "max_num_doublings/tree depth, or accept the longer run with Anna's "
-            "ok. The Fisher panel above already shows how the mass channel "
-            "tightens alpha (joint vs kinematics-only ellipses); the corner is "
-            "deferred."
-        )
-    elif proj_min <= BUDGET_RUN_MIN or run_nuts_here:
-        why = (
-            "projected <= %.0f min" % BUDGET_RUN_MIN
-            if proj_min <= BUDGET_RUN_MIN
-            else "--run-nuts override"
-        )
-        print(f"\n  Running NUTS now ({why}).")
-        theta_samp, n_div, post_mean = run_nuts_corner(
-            data, z_hat, theta_hat, sigma_theta, out_dir
-        )
-        print(f"\n  NUTS divergences = {n_div} (gate: 0)")
-        names = ("alpha", "delta", "W0")
-        print(
-            f"  {'param':>6} {'post_mean':>10} {'MLE':>10} {'sigma_hat':>10} "
-            f"{'(mean-MLE)/sigma':>18}"
-        )
-        nuts_within_1sig = True
-        for nm, pm, th, sg in zip(names, post_mean, theta_hat, sigma_theta):
-            pull = float((pm - th) / sg)
-            if abs(pull) >= 1.0:
-                nuts_within_1sig = False
-            print(
-                f"  {nm:>6} {float(pm):>10.4f} {float(th):>10.4f} "
-                f"{float(sg):>10.4f} {pull:>18.3f}"
-            )
-        nuts_div_ok = n_div == 0
-        print(
-            f"  NUTS divergence gate: {'PASS' if nuts_div_ok else 'FAIL'} "
-            f"({n_div} divergences)"
-        )
-        print(
-            f"  NUTS posterior-mean vs MLE within 1-sigma: "
-            f"{'PASS' if nuts_within_1sig else 'FAIL'}"
-        )
-        nuts_done = nuts_div_ok and nuts_within_1sig
+    if run_nuts_here:
+        run_nuts_corner(data, z_hat, theta_hat, sigma_theta, out_dir)
+        nuts_done = True  # run_nuts_corner raises after saving failed diagnostics
     else:
-        print(
-            f"\n  NUTS DEFERRED: projected {proj_min:.1f} min is between "
-            f"{BUDGET_RUN_MIN:.0f} and {BUDGET_STOP_MIN:.0f} min -- too long for "
-            "an in-script auto-run on this loop, under the STOP budget. NUTS code "
-            "is wired and ready; re-run with --run-nuts (long timeout) to produce "
-            "the corner. Deferring the actual run."
-        )
+        print("BlackJAX posterior not run; use --run-nuts for four chains.")
 
     all_ok = (
         sc_ok
@@ -1286,12 +1152,13 @@ def main():
     if run_nuts_here and not nuts_done:
         all_ok = False  # if we explicitly ran NUTS, its gates are real
     print("\n" + "=" * 72)
-    print(f"OVERALL {'ALL PASS' if all_ok else 'FAIL'}")
+    print(f"RECORDED DEMO CHECKS {'PASS' if all_ok else 'FAIL'}")
+    print("These checks do not establish posterior calibration or release readiness.")
     print("=" * 72)
     if not all_ok and recovery_ok is False:
         print(
             "\nNOTE: the 3-sigma recovery gate is REAL. A >3-sigma miss is a "
-            "PHYSICS finding -- do NOT widen the gate. Report the table above."
+            "failed recovery check; inspect numerical and statistical causes. Do not widen the gate."
         )
     sys.exit(0 if all_ok else 1)
 

@@ -23,6 +23,7 @@ use the King model.)
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.quad import cumulative_trapezoid
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics.eddington import (
@@ -30,7 +31,6 @@ from progenax.kinematics.eddington import (
     eddington_invert,
     sample_speed_from_f_table,
 )
-from progenax.numerics import cumulative_trapz
 
 _N_R = 6000  # radial grid for potential / density tabulation
 _N_E = 1000  # energy grid for f(E)
@@ -38,23 +38,28 @@ _N_SPEED = 256  # per-particle speed inverse-CDF resolution
 
 
 def _eff_eddington_table(a, gamma, r_t, r_a=None, n_r=_N_R, n_e=_N_E):
-    """Tabulate the dimensionless (G=1, rho_0=1) EFF potential and Eddington f(E).
+    """Tabulate the EFF potential and Eddington f(E) with G=1, rho_0=1.
+
+    The radial grid begins at 1e-5 * a: the inner cutoff is relative to the
+    profile scale, so changing length units preserves r/a and the table shape.
 
     With anisotropy_radius r_a set, the *potential* Psi(r) still comes from the true
     EFF density rho, but the DF is the Eddington inversion of the Osipkov-Merritt
     *augmented* density rho_Q = (1 + r^2/r_a^2) rho (Merritt 1985, Eqs. 9-11). r_a=None
     recovers the isotropic Eddington DF exactly (rho_Q = rho).
     """
-    r = jnp.linspace(1e-5, r_t, n_r)
+    # Keep the inner grid cutoff at the same fraction of the core scale in
+    # every length unit; an absolute native-unit cutoff breaks homology.
+    r = jnp.linspace(1e-5 * a, r_t, n_r)
     rho = (1.0 + (r / a) ** 2) ** (-gamma / 2.0)
     drho_dr = -gamma * (r / a**2) * (1.0 + (r / a) ** 2) ** (-gamma / 2.0 - 1.0)
 
     dr = r[1] - r[0]
 
-    inner = cumulative_trapz(
+    inner = cumulative_trapezoid(
         rho * r**2, dx=dr
     )  # int_0^r rho s^2 ds (true density -> potential)
-    tail = cumulative_trapz(rho * r, dx=dr)  # int_0^r rho s ds
+    tail = cumulative_trapezoid(rho * r, dx=dr)  # int_0^r rho s ds
     outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)  # gravitational potential (G=1, rho_0=1)
     Psi = Phi[-1] - Phi  # relative potential, Psi(r_t)=0, increases inward
@@ -72,7 +77,7 @@ class EFFVelocityDF(eqx.Module):
     """
     EFF (Elson-Fall-Freeman 1987) velocity DF via Eddington inversion.
 
-    Samples the exact ergodic DF f(E) of the (truncated) EFF density. The central
+    Samples the tabulated ergodic DF f(E) of the (truncated) EFF density. The central
     velocity scale is fixed self-consistently from (G, M_total, a, gamma, r_t), so no
     external virial rescale is needed.
 
@@ -96,9 +101,15 @@ class EFFVelocityDF(eqx.Module):
         gamma: Power-law index
         r_t: Tidal/truncation radius [length units]
         anisotropy_radius: Osipkov-Merritt radius r_a, or None for isotropic
-        r_grid, Psi_grid: relative potential Psi(r) (dimensionless: G=1, rho_0=1)
+        r_grid, Psi_grid: relative potential Psi(r), tabulated with G=1, rho_0=1
         E_grid, f_grid: tabulated ergodic DF f(E) (augmented density if anisotropic)
         mu: int_0^{r_t} rho_tilde r^2 dr (sets rho_0 = M_total / (4 pi mu))
+
+    Notes:
+        The 6000-node radial table starts at 1e-5 times a. Changing all length
+        scales together preserves its fractional cutoff; the 1000 energy nodes
+        and 256 speed nodes are unchanged. This numerical unit-covariance
+        convention does not remove the hard-truncation limitation above.
 
     References:
         Elson, Fall & Freeman (1987), ApJ, 323, 54

@@ -23,6 +23,27 @@ from jaxstro.units import STELLAR
 G = STELLAR.G
 
 
+def _single_mass_potential_at(W0, g, xi):
+    """Single-component RHS evaluated at the coupled solver's physical radii."""
+    import diffrax
+
+    from progenax.profiles.limepy import _limepy_poisson_rhs_iso
+
+    solution = diffrax.diffeqsolve(
+        diffrax.ODETerm(_limepy_poisson_rhs_iso),
+        diffrax.Tsit5(),
+        t0=xi[0],
+        t1=xi[-1],
+        dt0=1e-4,
+        y0=jnp.array([W0, 0.0]),
+        args=(W0, g),
+        saveat=diffrax.SaveAt(ts=xi),
+        stepsize_controller=diffrax.PIDController(rtol=1e-8, atol=1e-10),
+        max_steps=100000,
+    )
+    return jnp.maximum(solution.ys[:, 0], 0.0)
+
+
 class TestMultiMassCoreDelta0:
     """delta=0 is the single-mass model, structurally (the cleanest oracle)."""
 
@@ -30,17 +51,15 @@ class TestMultiMassCoreDelta0:
     def test_delta0_recovers_single_mass_potential(self, g):
         """solve_multimass_limepy(delta=0) potential psi(xi) is identical to
         solve_limepy_profile(W0, g), independent of the (alpha_j, m_j) supplied."""
-        from progenax.profiles.limepy import solve_limepy_profile
         from progenax.profiles.limepy_multimass import solve_multimass_limepy
 
         W0 = 7.0
         alpha_j = jnp.array([0.6, 0.3, 0.1])
         m_j = jnp.array([0.3, 1.0, 8.0])
-        xi_s, psi_s, _ = solve_limepy_profile(W0, g=g, xi_max=300.0, n_points=2000)
         xi_m, psi_m, _, rho_j = solve_multimass_limepy(
             alpha_j, m_j, W0=W0, g=g, delta=0.0, xi_max=300.0, n_points=2000
         )
-        np.testing.assert_allclose(np.asarray(xi_m), np.asarray(xi_s), rtol=0, atol=0)
+        psi_s = _single_mass_potential_at(W0, g, xi_m)
         np.testing.assert_allclose(
             np.asarray(psi_m), np.asarray(psi_s), rtol=1e-9, atol=1e-9
         )
@@ -67,32 +86,15 @@ class TestMultiMassCoreDelta0:
 def _half_mass_xi(xi, rho):
     """Dimensionless half-mass radius of a component from its density rho_hat(xi)."""
     integrand = rho * xi**2
-    dxi = xi[1] - xi[0]
+    dxi = jnp.diff(xi)
     M = jnp.concatenate(
-        [jnp.zeros(1), jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * dxi]
+        [jnp.zeros(1), jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * dxi)]
     )
     return float(jnp.interp(0.5 * M[-1], M, xi))
 
 
 class TestMultiMassSegregation:
     """delta>0 produces mass segregation as an equilibrium (heavy more concentrated)."""
-
-    def test_heavy_component_is_more_centrally_concentrated(self):
-        """At delta=0.5 the heavy component has a SMALLER half-mass radius than the
-        light one -- the equilibrium signature of mass segregation (deeper effective
-        well for larger mu_j)."""
-        from progenax.profiles.limepy_multimass import solve_multimass_limepy
-
-        m_j = jnp.array([0.3, 8.0])
-        alpha_j = jnp.array([0.5, 0.5])
-        xi, psi, _, rho_j = solve_multimass_limepy(
-            alpha_j, m_j, W0=7.0, g=1.0, delta=0.5, xi_max=300.0, n_points=3000
-        )
-        xh_light = _half_mass_xi(xi, rho_j[0])
-        xh_heavy = _half_mass_xi(xi, rho_j[1])
-        assert xh_heavy < xh_light, (
-            f"heavy r_h={xh_heavy:.2f} not < light r_h={xh_light:.2f}"
-        )
 
     def test_segregation_strength_increases_with_delta(self):
         """The light/heavy half-mass-radius ratio (a segregation strength) grows
@@ -102,11 +104,12 @@ class TestMultiMassSegregation:
         m_j = jnp.array([0.3, 8.0])
         alpha_j = jnp.array([0.5, 0.5])
         ratios = []
-        for delta in (0.0, 0.2, 0.4, 0.6):
+        for delta in (0.0, 0.2, 0.4, 0.5, 0.6):
             xi, psi, _, rho_j = solve_multimass_limepy(
                 alpha_j, m_j, W0=7.0, g=1.0, delta=delta, xi_max=300.0, n_points=3000
             )
             ratios.append(_half_mass_xi(xi, rho_j[0]) / _half_mass_xi(xi, rho_j[1]))
+        assert np.all(np.asarray(ratios[1:]) > 1.0), ratios
         assert abs(ratios[0] - 1.0) < 1e-3, (
             f"delta=0 should give no segregation: {ratios[0]:.3f}"
         )
@@ -353,10 +356,8 @@ class TestDirectPerComponentScales:
     def test_equal_rescale_recovers_single_component(self):
         """All rescale_j = 1 => identical components => the shared potential is exactly
         the single-mass LIMEPY profile (the structural oracle)."""
-        from progenax.profiles.limepy import solve_limepy_profile
         from progenax.profiles.limepy_multimass import solve_multicomponent_limepy
 
-        xi_s, psi_s, _ = solve_limepy_profile(7.0, g=1.0, xi_max=300.0, n_points=2000)
         xi, psi, _, _ = solve_multicomponent_limepy(
             jnp.array([0.6, 0.4]),
             jnp.array([1.0, 1.0]),
@@ -366,7 +367,10 @@ class TestDirectPerComponentScales:
             n_points=2000,
         )
         np.testing.assert_allclose(
-            np.asarray(psi), np.asarray(psi_s), rtol=1e-9, atol=1e-9
+            np.asarray(psi),
+            np.asarray(_single_mass_potential_at(7.0, 1.0, xi)),
+            rtol=1e-9,
+            atol=1e-9,
         )
 
     def test_colder_component_is_more_concentrated(self):

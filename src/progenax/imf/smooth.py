@@ -1,17 +1,15 @@
 """
 Smooth IMF families: Maschberger, TaperedPowerLaw, Schechter.
 
-These IMFs have smooth functional forms (unlike piecewise power-laws)
-and require numerical integration for their CDFs.
+Maschberger uses an analytic primitive and inverse CDF for alpha != 1,
+beta != 1 and positive mass scale/support. TaperedPowerLaw and Schechter
+integrate a shared 4000-node log-spaced CDF grid, interpolate it to query
+masses, and inherit BaseIMF's fixed-iteration Newton inverse. Their mean
+masses use the base class's separate log-spaced trapezoidal integral.
 
-Integration Strategy:
-We use LINEAR spacing with MANY points (10000+) because:
-1. This matches standard verification methods (what users expect)
-2. Trapezoidal rule with enough points converges for all IMF shapes
-3. JAX can efficiently handle large arrays
-
-Note: For pure power-law IMFs (like Salpeter), use PowerLawIMF which
-has analytical CDF and is much faster.
+These numerical paths have different precision and derivative contracts.
+The IMF validation owners record the tested configurations; a smooth density
+alone does not certify every parameter or boundary derivative.
 """
 
 import jax.numpy as jnp
@@ -57,7 +55,7 @@ class Maschberger(BaseIMF):
     PDF: f(m) ∝ (m/μ)^(-α) * (1 + (m/μ)^(1-α))^(-β)
 
     Default parameters from Maschberger (2013) Table 1 (canonical single-star IMF):
-        mu = 0.2 M_sun (scale parameter; the pdf peak is near here)
+        mu = 0.2 M_sun (scale parameter, not the PDF peak mass itself)
         alpha = 2.3 (high-mass slope; Kroupa/Chabrier canonical, not Salpeter's 2.35)
         beta = 1.4 (low-mass turnover; gives effective low-mass slope γ=α+β(1-α)=0.48)
 
@@ -206,14 +204,9 @@ class TaperedPowerLaw(BaseIMF):
         """Unnormalized log-PDF."""
         x = m / self.m_peak
         powerlaw = -self.alpha * jnp.log(m + 1e-30)
-        # log(1 - exp(-x^β)) with numerical stability
-        # For small x: 1 - exp(-x^β) ≈ x^β, so log ≈ β*log(x)
+        # expm1 retains the specified smooth law even when the taper is small.
         taper_arg = x**self.beta
-        taper = jnp.where(
-            taper_arg < 0.01,
-            self.beta * jnp.log(x + 1e-30),  # Small argument approximation
-            jnp.log1p(-jnp.exp(-taper_arg) + 1e-30),
-        )
+        taper = jnp.log(-jnp.expm1(-taper_arg))
         return powerlaw + taper
 
     def _cdf_unnorm(self, m: ArrayLike) -> Float[Array, "..."]:

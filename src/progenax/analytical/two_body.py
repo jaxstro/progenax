@@ -149,8 +149,8 @@ def two_body_kepler(
         velocities=velocities,
         masses=masses,
         name="two_body_kepler",
-        period=float(period),
-        energy=float(energy),
+        period=period,
+        energy=energy,
     )
 
 

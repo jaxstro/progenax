@@ -1,0 +1,8 @@
+[source]
+id = "plummer1911distribution"
+reference = "Plummer (1911), MNRAS 71, 460-470"
+doi = "10.1093/mnras/71.5.460"
+verification = "agent-verified"
+source_version = "Rendered PDF page 5, printed p.464, Eq.12 inspected 2026-09-27; density shape only."
+pdf_sha256 = "6a1d2286a37a38d21ce74398a3b6b5dd240a60cfd25380ba957efe6b9e78d5c1"
+source_note_ref = "src-plummer1911distribution"

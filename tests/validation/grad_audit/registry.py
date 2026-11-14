@@ -657,53 +657,11 @@ def _cluster_a_w_j(w1):
 
 
 # ---------------------------------------------------------------------------
-# MultiComponentCluster Engine A: from_mass_segregation(r_a) (Task B2) — the
-# Osipkov-Merritt ANISOTROPY-RADIUS channel of the equipartition constructor.
-# from_mass_segregation builds w_j = mu_j^(-delta) (Gieles & Zocchi 2015) from the
-# masses, then sets the per-component anisotropy radius ra_hat_j = (r_a/r_c)*mu_j^eta
-# (eta=0 -> mass-independent, the paper default). r_a is the SCALAR anisotropy radius
-# that an inference would treat as the free OM scale (beta(r)=r^2/(r^2+r_a^2)); it is
-# the Fisher parameter for anisotropic equipartition models. r_a is ALREADY a scalar
-# (no jnp.stack needed, unlike the w_j vector case). Config from the known-clean
-# tests/unit/cluster/test_multicomponent.py::test_aniso_sample_differentiable_in_ra
-# (alpha_j=[0.6,0.4], m_j=[1.0,4.0], W0=7, g=1, delta=0.4, eta=0, r_c=1, xi_max=800,
-# n_ode=2000, n_grid=600). Anisotropy lives in the VELOCITIES, so reduce=mean_speed
-# (measured cleaner than the existing test's mean-squared-RADIAL reduction, whose
-# single-projection-per-star variance gives a 3-16% AD/FD band vs mean_speed's <0.2%).
-#
-# theta0=4.0 (NOT the test's 10.0): the OM gradient grows AND the FD band tightens as
-# r_a shrinks toward the cluster scale (more anisotropy = stronger, cleaner live signal).
-# At r_a=10 (mild anisotropy, beta only reaches ~0.1 over the cluster) |AD|~8e-4 with a
-# ~2.5e-2 ratio band; at r_a=4 |AD|~1.3e-2 (comfortably live) with a ~1.5e-3 band.
-#
-# REALIZABILITY: Engine-A's anisotropic build is TABLE-based (no concrete negative-DF
-# ValueError like Engine B's eddington_engine guard); r_a=4 (ra_hat_j=[4,4]) is well
-# inside the truncating regime and BOTH central-FD probes r_a +- h build cleanly
-# (verified: r_a in {3.9996, 4.0, 4.0004} all sample OK, no raise). The over-anisotropy
-# bound (1/r^2 radial-orbit divergence) is far below r_a=4 for this W0=7 config.
-#
-# CATEGORICAL-ASSIGNMENT DISCRETENESS (out of scope, same as the w_j / sample_cluster
-# Engine-A cases): each star's component is jax.random.categorical(...) off a FIXED
-# gumbel key. MEASURED 0/400 flips at +-h for ALL seeds, so the FD is the pure smooth
-# velocity-physics derivative, discreteness-free.
-#
-# MEASURED (theta0=r_a=4.0, h=4e-4, mean_speed over velocities), 5 PRNG seeds:
-#   seed 0: AD=1.255278e-2  FD=1.253345e-2  |ratio-1|=1.5e-3  flips=0/400
-#   seed 1: AD=1.343451e-2  FD=1.341555e-2  |ratio-1|=1.4e-3  flips=0/400
-#   seed 2: AD=1.357858e-2  FD=1.355928e-2  |ratio-1|=1.4e-3  flips=0/400
-#   seed 3: AD=1.324524e-2  FD=1.322511e-2  |ratio-1|=1.5e-3  flips=0/400
-#   seed 4: AD=1.365211e-2  FD=1.363375e-2  |ratio-1|=1.4e-3  flips=0/400
-# |AD|~1.3e-2 >> eps=1e-9 (live, non-zero); seed-stable; max |ratio-1| over 5 seeds =
-# 1.54e-3. tol=3e-3: the measured band is 1.5e-3, so the sibling 1e-3 would NOT cover it
-# (mean_speed over a stochastic anisotropic mass-CDF sample is intrinsically FD-noisier
-# than a closed form); 3e-3 is ~2x the measured max -- the honest band, NOT a weakened tol
-# to mask a mismatch (a blocked gradient would give |ratio-1|~1, the silent-zero signature).
-# The FD floor here is ROUNDING-limited, not truncation-limited (the table-based anisotropic
-# build + categorical-reparam draw quantizes mean_speed): h=4e-4 is a signal/rounding-noise
-# sweet-spot (h=1e-4 is WORSE, |ratio-1|~2.6e-2), and a wide-secant H=5e-2 cross-check at the
-# test's r_a=10 gives |ratio-1|=2e-4 -- so AD is provably correct, the band is pure FD noise.
-# This architectural noise source (table+categorical) is why the sibling Engine-B r_a (density-
-# defined Eddington quadrature, no table) is machine-exact at tol=1e-3 while this one needs 3e-3.
+# Engine A's lowered-isothermal anisotropy-radius channel, fixed-key mean speed.
+# At default ODE tolerances the FD result is step-sensitive: the 2026-09-27
+# r_a=4 check failed with AD/FD=0.993196. Tightening integration accuracy
+# reduces that discrepancy; it is not evidence of universal AD correctness.
+# See docs/reviews/plummer-registry.md for the frozen exposure and comparison.
 _CLUSTER_A_RA_CFG = dict(
     alpha_j=jnp.array([0.6, 0.4]),
     m_j=jnp.array([1.0, 4.0]),
@@ -715,6 +673,8 @@ _CLUSTER_A_RA_CFG = dict(
     xi_max=800.0,
     n_ode_points=2000,
     n_grid=600,
+    rtol=1e-12,
+    atol=1e-14,
 )
 
 
@@ -2223,13 +2183,7 @@ REGISTRY: list[Case] = [
         expect="consistent",
         tol=1e-3,
     ),
-    # --- MultiComponentCluster Engine A from_mass_segregation(r_a) (Task B2) ---
-    # The OM ANISOTROPY-RADIUS channel of the equipartition constructor (Fisher target).
-    # Scalar r_a -> ra_hat_j=(r_a/r_c)*mu_j^eta; reduce mean_speed (anisotropy in vels).
-    # MEASURED 5 seeds at r_a=4.0: |ratio-1| in {1.4e-3..1.5e-3}, |AD|~1.3e-2 (live),
-    # 0/400 categorical flips at +-h (FD discreteness-free); both FD probes realizable
-    # (table build, no Engine-B-style negative-DF raise). tol=3e-3 (~2x measured 1.5e-3
-    # band; mean_speed over a stochastic anisotropic sample is FD-noisier than closed form).
+    # Existing r_a gradient criterion; solver-accuracy qualification is separate.
     Case(
         id="MultiComponentCluster.from_mass_segregation[EngineA]",
         direction="params->IC",

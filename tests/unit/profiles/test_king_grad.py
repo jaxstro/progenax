@@ -10,7 +10,7 @@ file still guards:
 1. ``_find_tidal_radius`` returned ``float(xi_t)``, concretizing the value and
    making ``KingProfile.from_W0_rc`` non-JIT-able.
 2. ``grad(sum psi)`` through the King ODE was ``nan`` because the Poisson RHS
-   evaluates the density at W=0 (the cluster center, psi(0)=W0); the density's
+   evaluates the density at W=0 (the tidal boundary); the density's
    double-``where`` clamp keeps that gradient finite.
 """
 

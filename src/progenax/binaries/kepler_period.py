@@ -19,7 +19,7 @@ def compute_period(
 
     Args:
         a: Semi-major axis [length units]
-        M_total: Total mass of binary system [M☉]
+        M_total: Total binary mass [native mass units consistent with G]
         G: Gravitational constant (REQUIRED, no default)
 
     Returns:
@@ -39,7 +39,7 @@ def compute_period(
         >>> G = 0.00450  # pc³/Msun/Myr²
         >>> T = compute_period(a=1.0, M_total=1000.0, G=G)
         >>> print(f"Period: {T:.2f} Myr")
-        Period: 0.94 Myr
+        Period: 2.96 Myr
 
     References:
         Kepler's 3rd Law: T² ∝ a³/M
@@ -68,7 +68,7 @@ def period_to_semimajor_axis(
 
     Args:
         period: Orbital period [time units]
-        M_total: Total mass of binary system [M☉]
+        M_total: Total binary mass [native mass units consistent with G]
         G: Gravitational constant (REQUIRED, no default)
 
     Returns:
@@ -83,13 +83,13 @@ def period_to_semimajor_axis(
         >>> P_yr = 10.0 / 365.25  # Convert days to years
         >>> a = period_to_semimajor_axis(P_yr, M_total=2.0, G=G)
         >>> print(f"Semi-major axis: {a:.3f} AU")
-        Semi-major axis: 0.089 AU
+        Semi-major axis: 0.114 AU
 
         >>> # Star cluster binary: 10 Myr period, M_total=2 M☉
         >>> G = 0.00450  # pc³/Msun/Myr²
         >>> a = period_to_semimajor_axis(10.0, M_total=2.0, G=G)
         >>> print(f"Semi-major axis: {a:.2f} pc")
-        Semi-major axis: 4.64 pc
+        Semi-major axis: 0.28 pc
 
     References:
         Kepler's 3rd Law: a³ ∝ T²M

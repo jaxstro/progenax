@@ -1,0 +1,8 @@
+[source]
+id = "jerabkova2018igimf"
+reference = "Jeřábková et al. (2018), A&A 620, A39"
+doi = "10.1051/0004-6361/201833055"
+verification = "agent-verified"
+source_version = "Rendered published PDF pages 6 (of 15), Eqs.6–10 inspected 2026-09-30; bounded transcription/notation checks, not researcher acceptance or empirical qualification."
+pdf_sha256 = "920ab1ad0697204aad1d49198601797cb4b3c772900437673bb294fa0c959949"
+source_note_ref = "src-jerabkova2018igimf"

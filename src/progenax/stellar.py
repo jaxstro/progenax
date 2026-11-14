@@ -1,9 +1,9 @@
 """Tout (1996) ZAMS stellar-structure relations (M -> L, R, T_eff, log g) + inverse.
 
 A differentiable, metallicity-dependent placeholder for the eventual ``startrax``
-stellar tracks. Distinct from :func:`progenax.compute_stellar_radii` (Demircan &
-Kahraman 1991 empirical *collision* radii for N-body); these are *photometric* ZAMS
-relations for CMD / mass-function science.
+stellar tracks. ``zams_radius`` is the radius progenax's IC builders assign
+(Anna's ruling of 2026-09-11, wired 2026-09-15); :func:`progenax.compute_stellar_radii`
+(Demircan & Kahraman 1991) remains a named alternative.
 
 Reference: Tout et al. (1996), MNRAS 281, 257 (Tables 1 & 2). Coefficients verified
 cell-by-cell vs the held PDF (75/75 exact) — see
@@ -170,6 +170,6 @@ def inverse_zams_luminosity(
     Array-aware (vmaps the scalar Newton core internally) and differentiable via the
     fixed-iteration ``lax.scan`` Newton. Returns a scalar for scalar input.
     """
-    L = jnp.atleast_1d(jnp.asarray(L_target, float))
-    out = jax.vmap(lambda Lt: _inverse_scalar(Lt, Z))(L)
-    return out if jnp.ndim(L_target) else out[0]
+    L = jnp.asarray(L_target, float)
+    out = jax.vmap(lambda Lt: _inverse_scalar(Lt, Z))(L.reshape(-1))
+    return out.reshape(L.shape)

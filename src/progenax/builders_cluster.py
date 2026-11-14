@@ -13,9 +13,10 @@ from typing import Optional, Union
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.units import STELLAR
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
-from .builders import ICResult, build_spatial_ic, compute_stellar_radii, virial_scale
+from .builders import ICResult, build_spatial_ic, virial_scale
 from .defaults import DEFAULT_UNITS
 from .kinematics import (
     EFFVelocityDF,
@@ -34,6 +35,7 @@ from .profiles import (
     PlummerProfile,
 )
 from .protocols import SpatialProfile, VelocityDF
+from .stellar import zams_radius
 from .tidal import apply_tidal_truncation
 
 __all__ = [
@@ -101,8 +103,8 @@ def matched_velocity_df(
     )
 
 
-def _resolve_masses(masses, n, imf, key):
-    """Return (masses, key_spatial). Split the key ONLY when an IMF draw is needed."""
+def _resolve_masses(masses, n, imf, key, *, mass_scale_to_msun):
+    """Return native masses and spatial key; IMF/equal-star inputs are in M_sun."""
     if masses is not None:
         if n is not None:
             raise ValueError("pass exactly one of `masses` or `n` (got both).")
@@ -114,9 +116,9 @@ def _resolve_masses(masses, n, imf, key):
     if n is None:
         raise ValueError("pass exactly one of `masses` or `n` (got neither).")
     if imf is None:
-        return jnp.ones(n), key  # equal 1 M_sun, no PRNG needed
+        return jnp.ones(n) / mass_scale_to_msun, key  # physical 1 M_sun each
     key_imf, key_spatial = jax.random.split(key)
-    return imf.sample(key_imf, n), key_spatial
+    return imf.sample(key_imf, n) / mass_scale_to_msun, key_spatial
 
 
 def build_cluster(
@@ -134,25 +136,90 @@ def build_cluster(
     revirialize: bool = False,
     softening: float = 0.0,
 ) -> ICResult:
-    """Build a single-population cluster IC from a profile object (see design doc).
+    """Build a single-population IC with a scale-matched velocity distribution.
 
-    `Q` is the target virial ratio Q = T/|V| passed through to `build_spatial_ic`:
-    `Q=0.5` virial-scales the IC to equilibrium (default); `Q=None` disables the
-    rescale entirely, yielding the faithful UNSCALED equilibrium of the matched DF
-    (the King/EFF/Michie/LIMEPY true-DF samplers are already in detailed equilibrium,
-    so their measured Q lands near 0.5 with no rescale).
+    Resolves masses, pairs the profile through :func:`matched_velocity_df`, and
+    delegates sampling, center-of-mass subtraction and optional velocity
+    rescaling to :func:`build_spatial_ic`. Tidal cuts and rotation follow.
+
+    Args:
+        profile: Plummer, King, EFF, Michie or LIMEPY profile instance. Custom
+            profile/DF pairs use :func:`build_spatial_ic` directly.
+        key: JAX random key. An IMF draw splits it into mass and spatial keys;
+            supplied masses or equal masses pass it directly to spatial sampling.
+        masses: Particle masses of shape (N,). Choose exactly one of ``masses``
+            and ``n``. Supplied masses use the chosen dynamical mass unit.
+        n: Particle count when ``masses`` is omitted; static under JIT. Without
+            ``imf``, each star has physical mass 1 M_sun, converted to native units.
+        imf: Mass sampler providing ``sample(key, n)`` in M_sun; draws are
+            converted to native units. Requires ``n`` and cannot accompany
+            supplied ``masses``. Default None.
+        units: UnitSystem supplying G and mass_scale_cgs; None resolves to
+            DEFAULT_UNITS (STELLAR: M_sun, pc, Myr). Supplied masses, profile
+            lengths and modifier parameters must use this system's units.
+        Q: Target energy ratio T/abs(V), with T the kinetic energy and V the
+            gravitational potential energy. Default 0.5 rescales velocities;
+            None skips this rescaling while retaining center-of-mass subtraction.
+        anisotropy_radius: Osipkov-Merritt radius in profile length units for
+            Plummer/EFF; None is isotropic. Michie/LIMEPY use their profile's r_a.
+        tidal_radius: Optional Plummer cut radius in profile length units.
+            Stars outside it become zero-mass entries with the same array shape.
+            Native truncated profiles reject this additional cut.
+        rotation: Optional angular frequency (inverse time units) for a
+            solid-body overlay, or a :class:`RotationSpec`. Applied after cuts.
+        revirialize: If True, rescale velocities to Q after a tidal cut and
+            before rotation. Requires numeric Q when a cut is requested.
+            Default False.
+        softening: Length used for potential energy during rescaling, default
+            0.0. It is not stored on the returned IC.
+
+    Returns:
+        :class:`ICResult` with positions and velocities (N, 3), masses (N,)
+        and ZAMS stellar radii (N,) [R_sun]. Tidal cuts retain N entries.
+
+    Raises:
+        ValueError: Incompatible mass/count/IMF selection, unsupported anisotropy
+            or tidal modifier, or a tidal revirialization request with Q=None.
+        TypeError: Profile type unsupported by :func:`matched_velocity_df`.
+
+    Notes:
+        Supplied masses and profile lengths are not converted. For stellar
+        labels, native masses are converted to M_sun before :func:`zams_radius`;
+        its output stays in R_sun. Profile/DF domain restrictions still apply.
+        A target Q sets an energy ratio; it does not certify stationarity.
+        Rotation changes that ratio after any requested rescaling. Hard tidal
+        cuts use the existing straight-through gradient surrogate, not the
+        derivative of a smooth physical selection.
     """
     units = DEFAULT_UNITS if units is None else units
-    masses, key_spatial = _resolve_masses(masses, n, imf, key)
+    mass_scale_to_msun = units.mass_scale_cgs / STELLAR.mass_scale_cgs
+    masses, key_spatial = _resolve_masses(
+        masses, n, imf, key, mass_scale_to_msun=mass_scale_to_msun
+    )
     df = matched_velocity_df(profile, anisotropy_radius)
     ic = build_spatial_ic(
-        profile, masses, df, key_spatial, G=units.G, Q=Q, softening=softening
+        profile,
+        masses,
+        df,
+        key_spatial,
+        G=units.G,
+        Q=Q,
+        softening=softening,
+        mass_scale_to_msun=mass_scale_to_msun,
     )
 
     if tidal_radius is None and rotation is None:
         return ic  # base case: bit-identical to build_spatial_ic
     return _apply_modifiers(
-        ic, profile, tidal_radius, rotation, revirialize, Q, units.G, softening
+        ic,
+        profile,
+        tidal_radius,
+        rotation,
+        revirialize,
+        Q,
+        units.G,
+        softening,
+        mass_scale_to_msun=mass_scale_to_msun,
     )
 
 
@@ -195,7 +262,18 @@ class RotationSpec(eqx.Module):
 _TRUNCATED_PROFILES = (KingProfile, LIMEPYProfile, MichieProfile, EFFProfile)
 
 
-def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, softening):
+def _apply_modifiers(
+    ic,
+    profile,
+    tidal_radius,
+    rotation,
+    revirialize,
+    Q,
+    G,
+    softening,
+    *,
+    mass_scale_to_msun,
+):
     positions, velocities, masses = ic.positions, ic.velocities, ic.masses
 
     if tidal_radius is not None:
@@ -232,7 +310,7 @@ def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, sof
         positions=positions,
         velocities=velocities,
         masses=masses,
-        stellar_radii=compute_stellar_radii(masses),
+        stellar_radii=zams_radius(masses * mass_scale_to_msun),
         ids=ic.ids,
         primordial_system_id=ic.primordial_system_id,
         is_primordial_secondary=ic.is_primordial_secondary,
@@ -241,12 +319,49 @@ def _apply_modifiers(ic, profile, tidal_radius, rotation, revirialize, Q, G, sof
 
 
 def build_plummer_cluster(*, key, masses=None, n=None, r_h=1.0, imf=None, **kw):
+    """Build a Plummer IC through :func:`build_cluster`.
+
+    Args:
+        key: JAX random key.
+        masses: Mass array (N,); choose exactly one of ``masses`` and ``n``.
+        n: Static sample count; absent ``imf``, each star has physical mass 1 M_sun.
+        r_h: Three-dimensional half-mass radius in length units, default 1.0.
+        imf: Optional mass sampler; requires ``n``.
+        **kw: :func:`build_cluster` options, including units, Q, anisotropy_radius,
+            tidal_radius, rotation, revirialize and softening. Q defaults to 0.5;
+            use Q=None to skip velocity rescaling.
+
+    Returns:
+        :class:`ICResult` with the units, shapes and modifier behavior documented
+        by :func:`build_cluster`.
+    """
     return build_cluster(
         PlummerProfile(r_h=r_h), key=key, masses=masses, n=n, imf=imf, **kw
     )
 
 
 def build_king_cluster(*, key, masses=None, n=None, W0=7.0, r_c=1.0, imf=None, **kw):
+    """Build an isotropic King IC through :func:`build_cluster`.
+
+    Args:
+        key: JAX random key.
+        masses: Mass array (N,); choose exactly one of ``masses`` and ``n``.
+        n: Static sample count; absent ``imf``, each star has physical mass 1 M_sun.
+        W0: Dimensionless central potential, default 7.0.
+        r_c: King core-radius scale in length units, default 1.0.
+        imf: Optional mass sampler; requires ``n``.
+        **kw: :func:`build_cluster` options. Q defaults to 0.5; Q=None skips
+            velocity rescaling. anisotropy_radius and tidal_radius are rejected.
+
+    Returns:
+        :class:`ICResult` with the units, shapes and modifier behavior documented
+        by :func:`build_cluster`.
+
+    Notes:
+        :meth:`KingProfile.from_W0_rc` derives the tidal radius using its default
+        solve settings. To select profile solve settings, construct the profile
+        explicitly and consult :func:`matched_velocity_df`'s domain limitation.
+    """
     return build_cluster(
         KingProfile.from_W0_rc(W0=W0, r_c=r_c),
         key=key,
@@ -260,6 +375,24 @@ def build_king_cluster(*, key, masses=None, n=None, W0=7.0, r_c=1.0, imf=None, *
 def build_eff_cluster(
     *, key, masses=None, n=None, a=1.0, gamma=3.0, r_t=10.0, imf=None, **kw
 ):
+    """Build a truncated EFF IC through :func:`build_cluster`.
+
+    Args:
+        key: JAX random key.
+        masses: Mass array (N,); choose exactly one of ``masses`` and ``n``.
+        n: Static sample count; absent ``imf``, each star has physical mass 1 M_sun.
+        a: EFF scale radius in length units, default 1.0.
+        gamma: Dimensionless projected-density slope, default 3.0.
+        r_t: Prescribed truncation radius in length units, default 10.0.
+        imf: Optional mass sampler; requires ``n``.
+        **kw: :func:`build_cluster` options, including anisotropy_radius for
+            Osipkov-Merritt velocities. Q defaults to 0.5; Q=None skips velocity
+            rescaling. The additional tidal_radius modifier is rejected.
+
+    Returns:
+        :class:`ICResult` with the units, shapes and modifier behavior documented
+        by :func:`build_cluster`. EFF profile/DF boundary limitations still apply.
+    """
     return build_cluster(
         EFFProfile(a=a, gamma=gamma, r_t=r_t),
         key=key,
@@ -273,6 +406,28 @@ def build_eff_cluster(
 def build_michie_cluster(
     *, key, masses=None, n=None, W0=7.0, r_c=1.0, r_a=8.0, imf=None, **kw
 ):
+    """Build a Michie-King IC through :func:`build_cluster`.
+
+    Args:
+        key: JAX random key.
+        masses: Mass array (N,); choose exactly one of ``masses`` and ``n``.
+        n: Static sample count; absent ``imf``, each star has physical mass 1 M_sun.
+        W0: Dimensionless central potential, default 7.0.
+        r_c: Core-radius scale in length units, default 1.0.
+        r_a: Intrinsic Michie anisotropy radius in length units, default 8.0.
+        imf: Optional mass sampler; requires ``n``.
+        **kw: :func:`build_cluster` options. Q defaults to 0.5; Q=None skips
+            velocity rescaling. anisotropy_radius and tidal_radius are rejected.
+
+    Returns:
+        :class:`ICResult` with the units, shapes and modifier behavior documented
+        by :func:`build_cluster`.
+
+    Notes:
+        :meth:`MichieProfile.from_W0_rc` derives the tidal radius using its
+        default solve settings and concrete-input non-truncation guard.
+        Consult :func:`matched_velocity_df` for custom profile solve domains.
+    """
     return build_cluster(
         MichieProfile.from_W0_rc(W0=W0, r_c=r_c, r_a=r_a),
         key=key,
@@ -286,6 +441,31 @@ def build_michie_cluster(
 def build_limepy_cluster(
     *, key, masses=None, n=None, W0=5.0, g=1.0, r_c=1.0, r_a=None, imf=None, **kw
 ):
+    """Build a single-component LIMEPY IC through :func:`build_cluster`.
+
+    Args:
+        key: JAX random key.
+        masses: Mass array (N,); choose exactly one of ``masses`` and ``n``.
+        n: Static sample count; absent ``imf``, each star has physical mass 1 M_sun.
+        W0: Dimensionless central potential, default 5.0.
+        g: Dimensionless lowering index, default 1.0 (King energy cutoff).
+        r_c: Core-radius scale in length units, default 1.0.
+        r_a: Intrinsic anisotropy radius in length units; default None is
+            isotropic. Use this parameter rather than anisotropy_radius.
+        imf: Optional mass sampler; requires ``n``.
+        **kw: :func:`build_cluster` options. Q defaults to 0.5; Q=None skips
+            velocity rescaling. anisotropy_radius and tidal_radius are rejected.
+
+    Returns:
+        :class:`ICResult` with the units, shapes and modifier behavior documented
+        by :func:`build_cluster`.
+
+    Notes:
+        :meth:`LIMEPYProfile.from_W0_rc` uses its default solve settings and
+        derives the tidal radius. Consult :func:`matched_velocity_df` for custom
+        profile solve domains. Stellar masses share this one spatial/velocity
+        population; multicomponent equilibrium uses MultiComponentCluster.
+    """
     return build_cluster(
         LIMEPYProfile.from_W0_rc(W0=W0, g=g, r_c=r_c, r_a=r_a),
         key=key,

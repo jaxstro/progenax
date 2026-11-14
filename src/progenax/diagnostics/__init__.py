@@ -7,9 +7,11 @@ This module provides tools for measuring and quantifying:
 - Spatial substructure (Cartwright-Whitworth Q parameter)
 - Azimuthal density variation (correlated with fractal dimension)
 
-All functions in this module use NumPy and SciPy for simplicity and are
-NOT part of the jitted, differentiable IC generator. They are intended
-for validation, calibration, and visualization.
+Exact MST-based diagnostics use NumPy and SciPy and are not differentiable
+IC-generator components. Approximate Q and segregation observables use JAX
+and have separate estimator and gradient contracts. The graph and distance
+imports needed by the exact estimators are deferred until those functions run.
+This does not make the JAX runtime independent of its own SciPy dependency.
 
 Functions:
     compute_lambda_msr: Mass segregation ratio via MST (Allison+2009)

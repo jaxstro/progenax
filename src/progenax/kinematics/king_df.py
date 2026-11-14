@@ -15,22 +15,22 @@ velocity scale fixed self-consistently from the model,
     sigma^2 = G M_total / (9 r_c mu(W0)),   mu(W0) = int_0^{xi_t} rho_tilde(xi) xi^2 dxi
 
 (King 1966; Binney & Tremaine 2008, Eq. 4.131; the factor of 9 follows the standard
-nondimensionalization where r_c is the King core radius). With this sigma the sampled
-cluster is in virial equilibrium (Q = T/|V| = 0.5) WITHOUT any external rescale.
+nondimensionalization where r_c is the King core radius). This fixes the continuum velocity scale; finite
+realizations fluctuate and are not guaranteed to have Q = T/|V| = 0.5.
 
-Speed draws are table-backed by default (one precomputed inverse-CDF table per call,
+Speed draws are table-backed by default (one inverse-CDF table cached at construction,
 `SpeedCDFTable` at g=1 — E_gamma(1, x) = e^x - 1 IS the King lowering, exactly);
 `speed_method="quadrature"` retains the per-star tabulated inverse-CDF (vmap'd,
-differentiable, no while_loop) as the exact oracle. Directions are isotropic.
+differentiable, no while_loop) as the numerical reference path. Directions are isotropic.
 """
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics.sampling import inverse_cdf_draw
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
 from progenax.kinematics._speed_kernels import _ORACLE_BATCH
-from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import (
     _auto_ode_domain,
     king_lowered_maxwellian_density,
@@ -68,9 +68,9 @@ class KingVelocityDF(eqx.Module):
 
     A true equilibrium DF: velocities are sampled from the lowered Maxwellian whose
     radial speed structure follows the King potential psi(r), with the central velocity
-    scale sigma fixed self-consistently from (G, M_total, r_c, W0). The resulting ICs are
-    in virial equilibrium (Q = 0.5) without external rescaling, and all particles are
-    bound (v < v_esc(r)).
+    scale sigma fixed self-consistently from (G, M_total, r_c, W0). Finite realizations
+    fluctuate around continuum moments; Q=0.5 is not guaranteed. The model speed
+    support is bounded by v_esc(r); numerical draws require support checks.
 
     Speed draws are TABLE-BACKED by default (speed_method="table"): the
     inverse-CDF table is CACHED at construction (SpeedCDFTable.build(W0, g=1))
@@ -79,17 +79,20 @@ class KingVelocityDF(eqx.Module):
     (identity guarded to rtol 1e-12 in
     tests/unit/kinematics/test_king_df.py::TestKingTableRouting), so the
     table weight x^2 E_gamma(1, W(1-x^2)) IS the King speed weight
-    u^2 (exp(W - u^2/2) - 1). speed_method="quadrature" retains the exact
-    per-star 256-point quadrature as the oracle (statistical agreement
-    asserted in TestKingTableRouting). Reuse one DF instance for repeated
-    draws: construction (ODE solve + table) dominates; per-draw cost is then
-    milliseconds at any N.
+    u^2 (exp(W - u^2/2) - 1). speed_method="quadrature" retains the
+    per-star 256-point quadrature as a numerical reference path (statistical agreement
+    asserted in TestKingTableRouting). Reusing the constructed DF avoids rebuilding its sampling tables. Draw time
+    and memory depend on particle count, model configuration, precision,
+    compilation state and hardware.
+
+    Agreement between tabulated and quadrature paths checks their consistency.
+    Accuracy also depends on convergence of the numerical reference.
 
     Attributes:
         W0: King concentration parameter (dimensionless central potential)
         r_c: Core radius [length units] (the King core radius)
         xi_grid, psi_grid: ODE solution of the King model (xi = r/r_c, psi(xi))
-        speed_method: static, "table" (default) or "quadrature" (exact oracle)
+        speed_method: static, "table" (default) or "quadrature" (numerical reference path)
 
     References:
         King (1966), AJ, 71, 64
@@ -110,7 +113,12 @@ class KingVelocityDF(eqx.Module):
         xi_max: float | None = None,
         n_ode_points: int | None = None,
         speed_method: str = "table",
+        *,
+        adjoint=None,
     ):
+        """Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances."""
         if speed_method not in ("table", "quadrature"):
             raise ValueError(
                 f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
@@ -128,7 +136,10 @@ class KingVelocityDF(eqx.Module):
         # King DF uses the clamped psi (density/mu); r_t is not needed here, so
         # psi_raw is discarded.
         xi_grid, psi_grid, _ = solve_king_profile(
-            W0, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
@@ -145,7 +156,10 @@ class KingVelocityDF(eqx.Module):
         """Self-consistent central velocity scale sigma = sqrt(G M / (9 r_c mu(W0)))."""
         rho0 = king_lowered_maxwellian_density(self.W0)
         rho_tilde = jnp.where(
-            rho0 > 1e-10, king_lowered_maxwellian_density(self.psi_grid) / rho0, 0.0
+            rho0 > 0.0,
+            king_lowered_maxwellian_density(self.psi_grid)
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
+            0.0,
         )
         # mu(W0) = int rho_tilde xi^2 dxi (rho_tilde -> 0 beyond xi_t, so the full grid works)
         mu = jnp.trapezoid(rho_tilde * self.xi_grid**2, self.xi_grid)

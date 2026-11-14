@@ -7,44 +7,46 @@ Implements VelocityDF protocol for use with IC assembly.
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics.sampling import inverse_cdf_draw
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
-from progenax.kinematics.eddington import (
-    assign_om_directions,
-    sample_speed_from_f_table,
-)
-
-# Resolution of the analytic Osipkov-Merritt speed inverse-CDF table.
-_N_OM_E = 1000
+from progenax.kinematics.eddington import assign_om_directions
+from progenax.numerics import require_positive
 
 
-def _plummer_om_f_table(rho_a, n_e=_N_OM_E):
-    """Analytic Osipkov-Merritt Plummer DF table (Merritt 1985, Eq. 45), dimensionless.
+def _om_speed_quantile(uniform, psi, rho_a):
+    """Invert the OM auxiliary-speed CDF (Merritt 1985, Eq. 45).
 
-    x = Q/sigma_0^2 in [0, 6]; rho_a = (r_0/r_a)^2 = (a/r_a)^2. The OM DF is
+    uniform is in [0,1], psi=Psi/sigma0^2 in (0,6], rho_a=(a/r_a)^2
+    in [0,16/9]. The returned speed is in units of sigma0.
 
-        f_I(x) ∝ x^{7/2} [1 - rho_a + (63/4) rho_a x^{-2}]
-               = (1 - rho_a) x^{7/2} + (63/4) rho_a x^{3/2}     (>= 0 for r_a >= 0.75 a).
-
-    The overall positive constant is irrelevant for inverse-CDF sampling.
+    Evaluate the analytic DF on q=s/sqrt(2 psi) in [0,1]. The common
+    psi^(3/2) factor cancels on normalization. Inversion uses 256 points;
+    its derivatives are piecewise smooth between interpolation knots.
     """
-    x = jnp.linspace(0.0, 6.0, n_e)
-    f = (1.0 - rho_a) * x**3.5 + (63.0 / 4.0) * rho_a * x**1.5
-    return x, f
+    q = jnp.linspace(0.0, 1.0, 256)
+    A = (1.0 - rho_a) * psi**2
+    B = (63.0 / 4.0) * rho_a
+    # Scale out amplitude before integration; A can be negative for r_a<a.
+    weight = q**2 * (1.0 - q**2) ** 1.5 * (A * (1.0 - q**2) ** 2 + B) / (psi**2 + B)
+    return jnp.sqrt(2.0 * psi) * inverse_cdf_draw(weight, q, uniform)
 
 
 class PlummerVelocityDF(eqx.Module):
     """
-    Plummer (1911) velocity distribution function.
+    Velocity distribution for the Plummer density model.
 
     Samples velocity magnitudes from the exact Plummer DF using Beta distribution
-    (no rejection sampling required). Velocities are isotropically distributed.
+    in the default isotropic branch. An optional
+    anisotropy radius selects the Osipkov-Merritt branch. The relations below
+    describe the isotropic branch.
 
     The distribution for q = v/v_esc is:
         g(q) ∝ q² (1 - q²)^(7/2)  for q ∈ [0, 1]
 
-    This corresponds to the energy distribution:
-        f(E) ∝ E^(7/2)  where E = ψ - v²/2 is the binding energy
+    The isotropic phase-space distribution function is:
+        f(ℰ) ∝ ℰ^(7/2), where ℰ = ψ - v²/2 is the specific binding energy.
+    The mass distribution per unit energy also includes the density of states.
 
     Sampling method:
         Let u = q², then u ~ Beta(3/2, 9/2)
@@ -67,8 +69,10 @@ class PlummerVelocityDF(eqx.Module):
         Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
     Notes:
-        - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
-        - Fully differentiable and JIT-compatible
+        - The isotropic conditional speed law is sampled through a Beta variate.
+        - Finite samples fluctuate around the analytical moments.
+        - Isotropic fixed-draw scale derivatives are checked for r_h, G, and total mass.
+        - These checks do not establish derivatives of population expectations.
         - For Plummer sphere: v_esc² = 2GM/√(r²+a²)
         - Verified: v_esc = sqrt(12) × σ (exact Plummer relation)
 
@@ -94,8 +98,6 @@ class PlummerVelocityDF(eqx.Module):
     r_h: Float[Array, ""]
     a: Float[Array, ""]
     anisotropy_radius: Float[Array, ""] | None
-    _om_E_grid: Float[Array, "n_e"] | None
-    _om_f_grid: Float[Array, "n_e"] | None
 
     def __init__(
         self, r_h: ArrayLike = 1.0, anisotropy_radius: ArrayLike | None = None
@@ -104,12 +106,14 @@ class PlummerVelocityDF(eqx.Module):
         Initialize Plummer velocity distribution function.
 
         Args:
-            r_h: Half-mass radius [length units], must match spatial profile
+            r_h: Positive half-mass radius [length units], must match spatial profile
             anisotropy_radius: Osipkov-Merritt radius r_a [length units], or None for the
                 isotropic DF. When set, velocities follow the analytic OM Plummer DF
                 (Merritt 1985, Eq. 45) with beta(r) = r^2/(r^2 + r_a^2). Requires
-                r_a >= 0.75 a (Eq. 46); smaller r_a makes the DF negative (refused).
+                r_a >= 0.75 a (Eq. 46). Concrete scalar inputs are checked; callers
+                must enforce this domain for traced parameters.
         """
+        require_positive(r_h, "PlummerVelocityDF r_h")
         self.r_h = jnp.asarray(r_h)
         # Scale radius from half-mass radius
         # From Plummer (1911): M(<r)/M = r³/(r²+a²)^(3/2)
@@ -119,25 +123,21 @@ class PlummerVelocityDF(eqx.Module):
 
         if anisotropy_radius is None:
             self.anisotropy_radius = None
-            self._om_E_grid = None
-            self._om_f_grid = None
         else:
             self.anisotropy_radius = jnp.asarray(anisotropy_radius)
             # Eager non-negativity guard for a concrete r_a (Merritt 1985, Eq. 46). Under
             # tracing (e.g. jax.grad w.r.t. r_a) the check is skipped and the caller owns
             # the r_a >= 0.75 a bound; the table itself stays traced-safe (jnp only).
-            if isinstance(anisotropy_radius, (int, float)):
+            if not isinstance(
+                self.anisotropy_radius, jax.core.Tracer
+            ) and not isinstance(self.a, jax.core.Tracer):
                 a_val = float(self.a)
-                if anisotropy_radius < 0.75 * a_val:
+                if float(self.anisotropy_radius) < 0.75 * a_val:
                     raise ValueError(
                         f"Plummer Osipkov-Merritt DF requires anisotropy_radius >= 0.75 a "
                         f"= {0.75 * a_val:.4f} (Merritt 1985, Eq. 46); got "
                         f"{anisotropy_radius}. Smaller r_a makes the phase-space DF negative."
                     )
-            rho_a = (self.a / self.anisotropy_radius) ** 2  # (r_0/r_a)^2, traced-safe
-            E_grid, f_grid = _plummer_om_f_table(rho_a)
-            self._om_E_grid = E_grid
-            self._om_f_grid = f_grid
 
     def sample_velocities(
         self,
@@ -149,8 +149,9 @@ class PlummerVelocityDF(eqx.Module):
         """
         Sample velocities from Plummer distribution function.
 
-        Samples velocity magnitudes from exact Plummer DF (Beta distribution),
-        then assigns isotropic random directions.
+        The default branch uses the exact isotropic Beta speed law. The OM
+        branch numerically inverts its analytic DF and applies a Cartesian
+        direction stretch.
 
         Args:
             positions: Particle positions (N, 3) [length units]
@@ -163,17 +164,20 @@ class PlummerVelocityDF(eqx.Module):
             Cartesian velocities (N, 3) [velocity units]
 
         Notes:
-            - Velocities are isotropic (no radial bias)
+            - The default branch assigns isotropic directions; a finite anisotropy_radius
+              selects the separate Osipkov-Merritt construction.
             - All velocities satisfy v < v_esc (bound particles)
-            - Statistical properties match Plummer (1911) exactly
+            - Finite samples fluctuate around the analytical moments.
         """
         N = positions.shape[0]
-        radii = jnp.linalg.norm(positions, axis=1)
+        r_squared = jnp.sum(positions**2, axis=1)
 
         if self.anisotropy_radius is None:
             # Isotropic Plummer DF via exact Beta(3/2, 9/2) speed sampling.
             key_mag, key_theta, key_phi = jax.random.split(key, 3)
-            v_magnitudes = self._sample_velocity_magnitudes(radii, masses, key_mag, G)
+            v_magnitudes = self._sample_velocity_magnitudes(
+                r_squared, masses, key_mag, G
+            )
             cos_theta = jax.random.uniform(key_theta, (N,), minval=-1.0, maxval=1.0)
             phi = jax.random.uniform(key_phi, (N,), minval=0.0, maxval=2 * jnp.pi)
             sin_theta = jnp.sqrt(1.0 - cos_theta**2)
@@ -187,24 +191,20 @@ class PlummerVelocityDF(eqx.Module):
         # speed from s^2 f(psi - s^2/2) (shared inverse-CDF), then assign OM directions.
         M_total = jnp.sum(masses)
         sigma0 = jnp.sqrt(G * M_total / (6.0 * self.a))
-        psi_r = 6.0 / jnp.sqrt(1.0 + (radii / self.a) ** 2)
+        psi_r = 6.0 / jnp.sqrt(1.0 + r_squared / self.a**2)
 
         key_speed, key_dir = jax.random.split(key)
         speed_keys = jax.random.split(key_speed, N)
-        # In this branch anisotropy_radius is not None, so __init__ built both OM grids.
-        assert self._om_E_grid is not None
-        assert self._om_f_grid is not None
-        om_E_grid = self._om_E_grid
-        om_f_grid = self._om_f_grid
-        s = jax.vmap(
-            lambda k, p: sample_speed_from_f_table(k, p, om_E_grid, om_f_grid)
-        )(speed_keys, psi_r)
+        rho_a = (self.a / self.anisotropy_radius) ** 2
+        s = jax.vmap(lambda k, p: _om_speed_quantile(jax.random.uniform(k), p, rho_a))(
+            speed_keys, psi_r
+        )
         speeds = sigma0 * s
         return assign_om_directions(key_dir, positions, speeds, self.anisotropy_radius)
 
     def _sample_velocity_magnitudes(
         self,
-        r: Float[Array, "N"],
+        r_squared: Float[Array, "N"],
         masses: Float[Array, "N"],
         key: PRNGKeyArray,
         G: float,
@@ -212,7 +212,7 @@ class PlummerVelocityDF(eqx.Module):
         """
         Sample velocity magnitudes from Plummer distribution function.
 
-        Uses the exact Plummer DF via Beta distribution sampling (no rejection!).
+        Uses the isotropic Plummer conditional speed law via Beta distribution sampling.
         The distribution for q = v/v_esc is:
             g(q) ∝ q² (1 - q²)^(7/2)  for q ∈ [0, 1]
 
@@ -221,7 +221,7 @@ class PlummerVelocityDF(eqx.Module):
             Therefore: q = sqrt(u), v = q × v_esc
 
         Args:
-            r: Particle radii [length units]
+            r_squared: Squared particle radii [length units squared]
             masses: Particle masses [M☉]
             key: JAX random key
             G: Gravitational constant
@@ -236,17 +236,18 @@ class PlummerVelocityDF(eqx.Module):
             Merritt (1985), AJ, 90, 1027, Eq. 42 - explicit isotropic Plummer DF f(E) ∝ (−E)^(7/2)
 
         Notes:
-            - Beta(3/2, 9/2) sampling is EXACT (no rejection, 100% efficient)
-            - Fully differentiable and JIT-compatible
+            - The isotropic conditional speed law is sampled through a Beta variate.
+            - Finite samples fluctuate around the analytical moments.
+            - Isotropic fixed-draw scale derivatives are checked separately from population expectations.
             - For Plummer sphere: v_esc² = 2GM/√(r²+a²)
             - Verified: v_esc = sqrt(12) × σ (exact Plummer relation)
         """
-        N = r.shape[0]  # Use .shape[0] not len() to get concrete int in JIT
+        N = r_squared.shape[0]
 
         # Escape velocity at radius r
         # v_esc² = 2|ψ(r)| = 2GM/√(r²+a²)
         M_total = jnp.sum(masses)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(r**2 + self.a**2))
+        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(r_squared + self.a**2))
 
         # Sample q² from Beta(3/2, 9/2)
         # This gives g(q) ∝ q²(1-q²)^(7/2) exactly!

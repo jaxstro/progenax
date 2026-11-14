@@ -191,9 +191,9 @@ def q_approx_fast(
             K_target=6,
         )
 
-        # 4. Compute distances to candidates (2D)
-        xy_sentinel = jnp.concatenate([xy, jnp.zeros((1, 2))], axis=0)
-        cand_pos = xy_sentinel[cand_idx]  # [N, Cand_max, 2]
+        # 4. Compute distances in the selected coordinate dimension.
+        xy_sentinel = jnp.concatenate([xy, jnp.zeros((1, xy.shape[1]))], axis=0)
+        cand_pos = xy_sentinel[cand_idx]  # [N, Cand_max, D]
         diff = xy[:, None, :] - cand_pos
         cand_dist = jnp.sqrt(jnp.sum(diff**2, axis=-1) + 1e-12)
         cand_dist = jnp.where(cand_mask, cand_dist, jnp.inf)

@@ -18,7 +18,7 @@ single source of truth.
 (card-engine_a_multimass_limepy)=
 ## Engine A — multimass lowered-isothermal (LIMEPY family)
 
-✅ verified · 4 equations · 4 sources · [API: `MultiComponentCluster`](../30-api/cluster.md#api-cluster-multicomponentcluster)
+✅ verified · 6 equations · 4 sources · [API: `MultiComponentCluster`](../30-api/cluster.md#api-cluster-multicomponentcluster)
 
 DF-first multi-component equilibrium: every mass component shares one dimensionless potential, each riding it at its own velocity-scale ratio w_j (mass segregation via the equipartition ansatz w_j = mu_j^-delta), with the Gieles & Zocchi (2015) continuous truncation parameter g (Woolley 0 / King 1 / Wilson 2). Equilibrium by construction.
 
@@ -42,11 +42,11 @@ DF-first multi-component equilibrium: every mass component shares one dimensionl
 
 ```{math}
 :label: card-limepy-df-family
-f(E) \;\propto\; e^{-E/\sigma^2}\, \gamma\!\Big(g,\; \tfrac{E_{\rm cut}-E}{\sigma^2}\Big)
+f(E) \;\propto\; E_\gamma(g,W), \qquad W = \frac{E_{\rm cut}-E}{\sigma^2}, \qquad E_\gamma(g,W) = \begin{cases} e^W, & g=0,\\ e^W P(g,W), & g>0, \end{cases} \qquad W>0
 ```
 
-*Symbols:* $g$: continuous truncation parameter [dimensionless]; $E_{\rm cut}$: truncation energy (the escape edge) [pc^2 / Myr^2].
-*Assumes:* g = 0 Woolley, g = 1 King, g = 2 Wilson; equals GZ15 Eq. 1 up to the constant e^{E_cut/sigma^2}.
+*Symbols:* $g$: continuous truncation parameter [dimensionless]; $E_{\rm cut}$: truncation energy (the escape edge) [pc^2 / Myr^2]; $W$: relative binding energy divided by the squared velocity scale sigma^2 [dimensionless]; $P(g,W)$: regularized lower incomplete gamma function gamma(g,W)/Gamma(g), used only for g>0 [dimensionless].
+*Assumes:* isotropic DF; zero for W<=0 in the implementation; the g=0 boundary convention is a measure-zero choice; g=0 Woolley exp(W), g=1 King exp(W)-1, g=2 Wilson exp(W)-1-W; GZ15 Eqs.1-2.
 *Derivation:* [theory page](../10-theory/spatial-profiles/lowered-model-family.md#limepy-df-family).
 
 ```{math}
@@ -73,8 +73,26 @@ m_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\ph
 ```
 
 *Symbols:* $m_{\rm eq}$: equipartition crossover mass — DERIVED from the DF (Bianchini A2-A3 matching), not fitted [Msun]; $\hat\phi_0$: central dimensionless potential W_0 [dimensionless].
-*Assumes:* more concentrated clusters (larger W_0) equipartition down to lighter stars; validated fit-free via the exact mu -> 0 identity (autodiff eta(m)).
+*Assumes:* delta = 1/2 velocity-scale law; first-order low-mass expansion matched to the Bianchini exponential branch, not a full finite-mass fit; more concentrated clusters (larger W_0) give a lower asymptotic crossover mass.
 *Derivation:* [theory page](../10-theory/spatial-profiles/multimass-equipartition.md#meq-derived).
+
+```{math}
+:label: card-catalogue-mass-squared
+\mathbb{E}[M^2] = N \mu_1^{2} \left(N - 1\right) + N \mu_2
+```
+
+*Symbols:* $N$: fixed positive integer target star count [dimensionless]; $\mu_1$: sum_j pi_j m_j; number-weighted mean representative mass [mass]; $\mu_2$: sum_j pi_j m_j^2; second representative-mass moment [mass squared].
+*Assumes:* Independent categorical labels with normalized number probabilities pi_j and fixed masses m_j; local derivation, not a paper transcription.
+*Derivation:* [theory page](../10-theory/populations/index.md#finite-population-expectations).
+
+```{math}
+:label: card-catalogue-kinetic-per-star
+\mathbb{E}[2T/N] = A_0 \left(K_1 \mu_1 \left(N - 1\right) + K_2\right)
+```
+
+*Symbols:* $T$: one half sum_i m_i |v_i|^2 in the model rest frame [mass times velocity squared]; $A_0$: G/(9 r_c mu_tot), squared-velocity normalization per unit catalogue mass [velocity squared / mass]; $K_1$: sum_j pi_j m_j q_j [mass]; $K_2$: sum_j pi_j m_j^2 q_j [mass squared]; $q_j$: E[w_j^2 u^2 | j], the conditional dimensionless squared-speed moment [dimensionless].
+*Assumes:* Independent labels; retain component/total-mass correlation; no recentering or virial rescale; Local derivation; numerical precision qualified only at the retained isotropic four-component Engine A configuration.
+*Derivation:* [theory page](../10-theory/populations/index.md#finite-population-expectations).
 
 ### Sources
 
@@ -86,23 +104,26 @@ m_{\rm eq} \;=\; \bar m\,\frac{\big(g+\tfrac52\big)\big(g+\tfrac72\big)}{\hat\ph
 ### Code & validation
 
 - code: [`MultiComponentCluster`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py) (`src/progenax/cluster/multicomponent.py`)
+- code: [`MultiComponentCluster.estimate_mass_squared_and_kinetic`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py) (`src/progenax/cluster/multicomponent.py`)
 - validation: `tests/validation/test_multimass_equilibrium_physics.py::test_global_virial_is_half_across_delta`
 - validation: `tests/validation/test_multimass_equilibrium_physics.py::test_delta0_is_single_mass_and_segregation_grows`
 - validation: `tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic`
+- validation: `tests/unit/cluster/test_expectation.py::test_mass_squared_and_kinetic_references_against_all_assignments`
+- validation: `tests/unit/cluster/test_expectation.py::test_named_kinetic_finite_count_correction_against_label_enumeration`
 
 
 (card-engine_b_density_eddington)=
 ## Engine B — density-defined shared-Ψ Eddington equilibria
 
-✅ verified · 3 equations · 3 sources · [API: `build_engine_b_state`](../30-api/cluster.md)
+✅ verified · 5 equations · 3 sources · [API: `build_engine_b_state`](../30-api/cluster.md)
 
-Density-first multi-component equilibrium: prescribe each component's density shape (Plummer/EFF/King mixes with mass fractions), build the shared potential in ONE quadrature pass (no ODE), and derive each component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in that shared Psi — with a realizability gate (f_j >= 0 or refuse).
+Density-first multi-component equilibrium: prescribe each component's density shape (Plummer/EFF/King mixes with mass fractions), build the shared potential by quadrature, and derive each component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in that shared Psi — with a realizability gate (f_j >= 0 or refuse).
 
 | Use it for | Not for |
 |---|---|
 | ✓ observationally prescribed shapes (e.g. Plummer halo + EFF core) needing THE equilibrium DF | ✗ component mixes whose Eddington DF is negative (unrealizable — the gate raises, by design) |
 | ✓ per-component OM anisotropy with independent r_a,j | ✗ DF-defined families with a physical truncation parameter (use Engine A) |
-| ✓ differentiable builds (quadrature only — no ODE solve) |  |
+| ✓ differentiable shared-potential builds; King density construction retains its own ODE |  |
 
 ### Parameters
 
@@ -117,12 +138,29 @@ Density-first multi-component equilibrium: prescribe each component's density sh
 
 ```{math}
 :label: card-engine-b-poisson
-M(<r) = 4\pi\!\int_0^r \rho_{\rm tot}\, s^2\, \mathrm{d}s, \qquad \Phi(r) = -G\left[\frac{M(<r)}{r} + 4\pi\!\int_r^{r_t} \rho_{\rm tot}\, s\, \mathrm{d}s\right]
+\Phi(r) = - 4 \pi G \left(\int\limits_{r}^{r_t} s \rho{\left(s \right)}\, ds + \frac{\int\limits_{0}^{r} s^{2} \rho{\left(s \right)}\, ds}{r}\right)
 ```
 
-*Symbols:* $\rho_{\rm tot}$: sum of mass-fraction-normalized prescribed component densities [Msun / pc^3].
-*Assumes:* one cumulative-trapezoid pass on the sqrt-stretched grid (audit S2); dPsi/dr = -GM/r^2 analytic.
+*Symbols:* $\rho$: sum of mass-fraction-normalized prescribed component densities [Msun / pc^3]; $r$: radius [pc]; $s$: radial integration coordinate [pc]; $G$: gravitational constant [pc^3 / (Msun Myr^2)].
+*Assumes:* Continuum spherical potential; production uses cumulative trapezoids on the sqrt-stretched grid and analytic dPsi/dr = -GM/r^2.
 *Derivation:* [theory page](../10-theory/populations/eddington-engine.md#engine-b-poisson).
+
+```{math}
+:label: card-engine-b-enclosed-mass
+M(<r) = 4 \pi \int\limits_{0}^{r} s^{2} \rho{\left(s \right)}\, ds
+```
+
+*Assumes:* rho is the total mass density; spherical symmetry.
+*Derivation:* [theory page](../10-theory/populations/eddington-engine.md#engine-b-poisson).
+
+```{math}
+:label: card-engine-b-eddington-inversion
+f(E) = \frac{\sqrt{2} \left(\int\limits_{0}^{E} \frac{\frac{d^{2}}{d \Psi^{2}} \rho{\left(\Psi \right)}}{\sqrt{E - \Psi}}\, d\Psi + \frac{\rho^{\prime}_0}{\sqrt{E}}\right)}{4 \pi^{2}}
+```
+
+*Symbols:* $E$: relative binding energy per unit mass [pc^2 / Myr^2]; $\Psi$: relative potential, zero at the outer boundary [pc^2 / Myr^2]; $\rho^{\prime}_0$: density derivative with respect to relative potential at Psi=0 [Msun Myr^2 / pc^5].
+*Assumes:* Relative potential vanishes at the outer boundary; the boundary density derivative is retained. For OM models use augmented density..
+*Derivation:* [theory page](../10-theory/populations/eddington-engine.md#eddington-formula).
 
 ```{math}
 :label: card-om-augmented
@@ -139,7 +177,7 @@ M(<r) = 4\pi\!\int_0^r \rho_{\rm tot}\, s^2\, \mathrm{d}s, \qquad \Phi(r) = -G\l
 ```
 
 *Symbols:* $\xi$: dimensionless radius r/r_c of the King component [dimensionless].
-*Assumes:* dW/dr from King's own integrated Poisson identity of the CLOSED-FORM density — in Abel-type inversions, never differentiate interpolated data (the jnp.gradient staircase drove a single King component to f_min = -0.679).
+*Assumes:* dW/dr follows the integrated Poisson identity of the King density law.
 *Derivation:* [theory page](../10-theory/populations/eddington-engine.md#king-poisson-identity).
 
 ### Sources

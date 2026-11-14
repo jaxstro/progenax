@@ -30,7 +30,8 @@ class ResolvedBinaries(NamedTuple):
     Attributes:
         positions: (2N, 3) component positions [length units].
         velocities: (2N, 3) component velocities [velocity units].
-        masses: (2N,) component masses [M_sun] (ghosts = 0).
+        masses: (2N,) component masses in the dynamical mass unit consistent
+            with G (M_sun by default; ghosts = 0).
         is_real: (2N,) bool — True for real particles (all primaries + binary
             secondaries); False for single-star ghost secondaries.
         primordial_system_id: (2N,) int — slots 2i, 2i+1 both = i.
@@ -69,7 +70,8 @@ def resolve_binary_components(
 
     Args:
         com_pos, com_vel: (N, 3) system center-of-mass positions/velocities.
-        m1, m2: (N,) primary / secondary masses (m2 = 0 for singles).
+        m1, m2: (N,) primary / secondary masses in the dynamical mass unit
+            consistent with G (m2 = 0 for singles); returned unchanged.
         is_binary: (N,) bool — True for binary systems.
         a, e, inc, Omega, omega, M_anom: (N,) Keplerian elements of the relative
             orbit (ignored for singles; sanitized internally so grads stay finite).
@@ -85,6 +87,10 @@ def resolve_binary_components(
     a_safe = jnp.where(is_binary, a, 1.0)
     e_safe = jnp.where(is_binary, e, 0.0)
     m2_safe = jnp.where(is_binary, m2, 0.0)  # singles: m2=0 -> δr1=0 -> primary at COM
+    inc_safe = jnp.where(is_binary, inc, 0.0)
+    Omega_safe = jnp.where(is_binary, Omega, 0.0)
+    omega_safe = jnp.where(is_binary, omega, 0.0)
+    M_safe = jnp.where(is_binary, M_anom, 0.0)
 
     def _one(a_i, e_i, inc_i, Om_i, om_i, M_i, m1_i, m2_i):
         elements = KeplerElements(a=a_i, e=e_i, i=inc_i, Omega=Om_i, omega=om_i, M0=M_i)
@@ -92,7 +98,7 @@ def resolve_binary_components(
         return bs.r1, bs.v1, bs.r2, bs.v2
 
     dr1, dv1, dr2, dv2 = jax.vmap(_one)(
-        a_safe, e_safe, inc, Omega, omega, M_anom, m1, m2_safe
+        a_safe, e_safe, inc_safe, Omega_safe, omega_safe, M_safe, m1, m2_safe
     )
 
     # Place components around the COM (singles: δr1=δv1=0 since m2_safe=0).

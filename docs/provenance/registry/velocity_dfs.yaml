@@ -60,9 +60,25 @@
         v: {latex: 'v', meaning: "speed at radius r, in [0, v_esc(r)]", units: "pc / Myr"}
       assumptions: ["marginal speed distribution at fixed r (the inverse-CDF sampling target)"]
       theory_ref: "10-theory/velocity-dfs/plummer-dfs.md#plummer-fv"
+    - label: plummer-escape-speed
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-PLUMMER-ESCAPE-SPEED
+        lhs: 'v_{\mathrm{esc}}(r)'
+      assumptions: ["G,M,a>0; r>=0; potential zero at infinity", "local derivation"]
+      theory_ref: "10-theory/spatial-profiles/plummer.md#plummer-vesc"
+    - label: plummer-speed-pdf
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-PLUMMER-SPEED-PDF
+        lhs: 'p(q)'
+      assumptions: ["isotropic branch; 0<=q<=1; zero outside support", "local normalization derivation"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md#plummer-fv"
   code_refs:
     - "kinematics/plummer_df.py::PlummerVelocityDF"
   validation:
+    - "tests/unit/kinematics/test_plummer_velocity_registry.py::test_symbolic_speed_normalization_moments_and_scales"
+    - "tests/unit/kinematics/test_plummer_velocity_registry.py::test_fixed_draw_velocity_scales"
     - "tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio"
     - "tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile"
     - "tests/validation/test_plummer_physics.py::TestPlummerBetaDistribution::test_q_squared_mean"
@@ -102,7 +118,7 @@
     - label: king-df-velocity
       latex: 'f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\Bigl[\,e^{(\Phi_t - E)/\sigma_0^2} - 1\,\Bigr], & E < \Phi_t \\ 0, & E \ge \Phi_t \end{cases}'
       symbols:
-        sigma_0: {latex: '\sigma_0', meaning: "central 1-D velocity-scale parameter", units: "pc / Myr"}
+        sigma_0: {latex: '\sigma_0', meaning: "DF velocity-scale parameter; differs from the actual central one-dimensional dispersion at finite W0", units: "pc / Myr"}
         Phi_t: {latex: '\Phi_t', meaning: "potential at the tidal radius (the cutoff energy)", units: "pc^2 / Myr^2"}
       assumptions: ["isotropic", "single-mass"]
       theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-df-velocity"
@@ -113,9 +129,10 @@
       assumptions: ["marginal speed distribution at fixed W (the inverse-CDF sampling target)"]
       theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-fv"
     - label: king-sigma
-      latex: '\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} v^4\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}{\int_0^{\sqrt{2W}} v^2\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}'
+      latex: '\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} u^4\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}{\int_0^{\sqrt{2W}} u^2\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}'
       symbols:
-        sigma: {latex: '\sigma', meaning: "mean-square speed of the lowered Maxwellian at W (-> 3 sigma_0^2 as W -> inf)", units: "pc / Myr"}
+        sigma_squared: {latex: '\sigma^2', meaning: "mean-square three-dimensional speed (tends to 3 sigma_0^2 as W grows); one-dimensional variance is sigma^2/3", units: "pc^2 / Myr^2"}
+        u: {latex: 'u', meaning: "integration speed divided by sigma_0", units: dimensionless}
       assumptions: ["decreases outward; vanishes at the tidal boundary"]
       theory_ref: "10-theory/velocity-dfs/king-dfs.md#king-sigma"
   code_refs:
@@ -133,14 +150,16 @@
     The self-consistent radially anisotropic King model: Michie's (1963)
     angular-momentum Gaussian times the King lowering. Unlike the
     Osipkov–Merritt overlay, the DF is specified first and Poisson is
-    re-solved, so the density itself changes with r_a.
+    re-solved, so the density itself changes with r_a. The concrete-input
+    endpoint guard checks the chosen finite ODE domain; it does not diagnose
+    infinite mass or radial-orbit instability and is skipped under JAX tracing.
   when_to_use:
     good_for:
       - "globular clusters with observed outer radial anisotropy"
       - "self-consistent anisotropic equilibria (pairs with MichieProfile)"
     not_for:
       - "holding a FIXED density while adding anisotropy (use the OM overlay)"
-      - "r_a below the radial-orbit bound (construction raises: infinite-mass tail)"
+      - "configurations without a resolved tidal crossing in the chosen ODE domain (this does not establish infinite mass or dynamical instability)"
   parameters:
     - name: W0
       meaning: "dimensionless central potential (as King)"
@@ -150,7 +169,7 @@
     - name: r_a
       meaning: "anisotropy radius of the J^2 Gaussian; r_a -> inf recovers King"
       units: pc
-      typical_range: ">~ 3-4 r_c at W0=7 (below: radial-orbit pathology, raises)"
+      typical_range: "positive; resolve the tidal crossing and check domain convergence for the requested W0 and r_a/r_c"
       code_arg: "MichieVelocityDF(r_a=...)"
   sources:
     - bibkey: Michie1963
@@ -188,7 +207,10 @@
   description: >
     The isotropic ergodic DF of the (truncated) EFF density, obtained by
     numerical Eddington inversion — tabulated f(E) with the truncation
-    boundary term, sampled by inverse-CDF.
+    boundary term, sampled by inverse-CDF. Its radial table begins at 1e-5
+    times the profile scale a, preserving the fractional cutoff under length
+    conversion. This numerical convention does not remove hard-truncation
+    mismatch or qualify arbitrary domains.
   when_to_use:
     good_for:
       - "equilibrium velocities for EFF positions (Q_vir ~ 0.5 at gamma=5, mild truncation)"
@@ -237,6 +259,8 @@
     - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_virial_ratio_mild_truncation"
     - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_f_is_physical"
     - "tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound"
+    - "tests/unit/kinematics/test_eff_df.py::test_eff_relative_cutoff_preserves_table_and_velocity_homology"
+    - "tests/unit/builders/test_cluster_units.py::test_other_profile_families_preserve_cgs_units"
   status: verified
   deviations: []
 
@@ -280,10 +304,27 @@
         beta: {latex: '\beta', meaning: "Binney anisotropy (single-component sigma_t convention; the BT two-component form gives the SAME beta)", units: dimensionless}
       assumptions: ["exact for any OM f(Q)"]
       theory_ref: "10-theory/velocity-dfs/rotation-anisotropy.md#beta-r"
+    - label: plummer-om-speed-pdf
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-PLUMMER-OM-SPEED-PDF
+        lhs: 'p(q_{\mathrm{OM}})'
+      assumptions: ["local derivation from the implemented analytic Plummer OM DF", "$\\psi=\\Psi/\\sigma_0^2$ lies in $(0,6]$, where $\\Psi=-\\Phi$ is the relative potential and $\\sigma_0^2=GM/(6a)$", "$\\eta=(a/r_a)^2$ lies in $[0,16/9]$; $q_{\\mathrm{OM}}=s/\\sqrt{2\\Psi}$ lies in $[0,1]$, where $s$ is the auxiliary speed before the Cartesian stretch"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md"
+    - label: plummer-om-speed-cdf
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-PLUMMER-OM-SPEED-CDF
+        lhs: 'F(q_{\mathrm{OM}})'
+      assumptions: ["local derivation from the implemented analytic Plummer OM DF", "$\\psi=\\Psi/\\sigma_0^2$ lies in $(0,6]$, where $\\Psi=-\\Phi$ is the relative potential and $\\sigma_0^2=GM/(6a)$", "$\\eta=(a/r_a)^2$ lies in $[0,16/9]$; $q_{\\mathrm{OM}}=s/\\sqrt{2\\Psi}$ lies in $[0,1]$, where $s$ is the auxiliary speed before the Cartesian stretch"]
+      theory_ref: "10-theory/velocity-dfs/plummer-dfs.md"
   code_refs:
     - "kinematics/plummer_df.py::PlummerVelocityDF"
     - "kinematics/eff_df.py::EFFVelocityDF"
   validation:
+    - "tests/unit/kinematics/test_plummer_om_speed.py::test_registered_om_cdf_derivative_and_normalization"
+    - "tests/unit/kinematics/test_plummer_om_speed.py::test_om_quantiles_against_independent_cdf"
+    - "tests/unit/kinematics/test_plummer_om_speed.py::test_full_sampler_cartesian_origin_and_nearby_derivatives"
     - "tests/validation/test_dispersion_physics.py::test_eff_om_beta_identity"
     - "tests/validation/test_engine_b_physics.py::test_om_beta_profile_realized"
   status: verified

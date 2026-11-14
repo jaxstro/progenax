@@ -16,9 +16,38 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
+from progenax.profiles._spherical_poisson import (
+    poisson_second_derivative,
+    regular_center_state,
+)
 from progenax.profiles.king import _find_tidal_radius
 
 _N_U = 256  # tangential-velocity quadrature resolution for the density integral
+
+
+def _michie_radial_integral(a):
+    """Integral of the lowered Maxwellian over the bounded radial velocity.
+
+    I(a) = sqrt(2*pi)*exp(a^2/2)*erf(a/sqrt(2)) - 2*a obeys
+    I' = a*I + 2*a^2. Its positive series starts at (2/3)*a^3,
+    with successive terms multiplied by a^2/(2*k+3), k=1,2,... .
+    Thirteen terms at a<=0.5 leave a relative tail below 7e-24.
+    """
+    small = a <= 0.5
+    a_small = jnp.where(small, a, 0.0)
+    term = (2.0 / 3.0) * a_small**3
+    series = term
+    for k in range(1, 13):
+        term = term * a_small**2 / (2 * k + 3)
+        series = series + term
+    a_large = jnp.where(small, 1.0, a)
+    direct = (
+        jnp.sqrt(2.0 * jnp.pi)
+        * jnp.exp(a_large**2 / 2.0)
+        * jax.scipy.special.erf(a_large / jnp.sqrt(2.0))
+        - 2.0 * a_large
+    )
+    return jnp.where(small, series, direct)
 
 
 def michie_density(W, s, n_u: int = _N_U):
@@ -32,8 +61,10 @@ def michie_density(W, s, n_u: int = _N_U):
                         [ e^{W - u_t^2/2} sqrt(2 pi) erf(a/sqrt 2) - 2 a ] du_t,
         a = sqrt(2W - u_t^2).
 
-    At s=0 this equals sqrt(2 pi) * king_lowered_maxwellian_density(W) (the isotropic
-    limit). W <= 0 returns 0. Gradient-safe at W=0 (clamp before sqrt/exp).
+    At s=0 the continuum integral equals sqrt(2 pi) times the King density.
+    The finite tangential trapezoid approximates that identity. The radial
+    integral uses a positive small-a series to avoid cancellation. W <= 0
+    returns zero with a finite inactive branch; positive W is not floored.
 
     Args:
         W: Dimensionless potential (scalar). s: Dimensionless radius r/r_a (scalar).
@@ -42,18 +73,14 @@ def michie_density(W, s, n_u: int = _N_U):
     Returns:
         rho_hat(W, s), unnormalized (consistent constant across W, s).
     """
-    W_pos = jnp.maximum(W, 1e-12)
+    W = jnp.asarray(W)
+    W_pos = jnp.where(W > 0.0, W, 1.0)
     u_t = jnp.linspace(0.0, jnp.sqrt(2.0 * W_pos), n_u)
     # a = sqrt(2W - u_t^2) hits 0 at the endpoint; sqrt has infinite derivative there,
     # so guard with the double-where pattern (no sqrt(0) reaches the backward pass).
     arg = 2.0 * W_pos - u_t**2
     a = jnp.where(arg > 0.0, jnp.sqrt(jnp.where(arg > 0.0, arg, 1.0)), 0.0)
-    inner = (
-        jnp.exp(W_pos - u_t**2 / 2.0)
-        * jnp.sqrt(2.0 * jnp.pi)
-        * jax.scipy.special.erf(a / jnp.sqrt(2.0))
-        - 2.0 * a
-    )
+    inner = _michie_radial_integral(a)
     integrand = u_t * jnp.exp(-(s**2) * u_t**2 / 2.0) * inner
     rho = jnp.trapezoid(integrand, u_t)
     return jnp.where(W > 0.0, rho, 0.0)
@@ -70,12 +97,12 @@ def _michie_poisson_rhs(xi, y, args):
     psi, dpsi_dxi = y[0], y[1]
     s = xi / ra_hat
     rho0 = michie_density(W0, 0.0)
-    rho_tilde = jnp.where(rho0 > 1e-10, michie_density(psi, s) / rho0, 0.0)
-    d2psi_dxi2 = jnp.where(
-        xi > 1e-6,
-        -9.0 * rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -9.0 * rho_tilde,  # center guard (dpsi/dxi(0)=0)
+    rho_tilde = jnp.where(
+        rho0 > 0.0,
+        michie_density(psi, s) / jnp.where(rho0 > 0.0, rho0, 1.0),
+        0.0,
     )
+    d2psi_dxi2 = poisson_second_derivative(xi, dpsi_dxi, rho_tilde)
     return jnp.array([dpsi_dxi, d2psi_dxi2])
 
 
@@ -84,6 +111,8 @@ def solve_michie_profile(
     ra_hat: ArrayLike,
     xi_max: float = 800.0,
     n_points: int = 3000,
+    *,
+    adjoint=None,
 ):
     """Solve the Michie-King Poisson equation from the centre outward to psi -> 0.
 
@@ -91,8 +120,9 @@ def solve_michie_profile(
         W0: Central concentration (psi(0) = W0).
         ra_hat: Anisotropy radius in core-radius units, r_a / r_c. ra_hat -> infinity is
             the isotropic King limit. Below a W0-dependent threshold the radial orbits
-            build a 1/r^2 density tail and the model has no finite tidal radius (infinite
-            mass) -- a concrete-input call then raises ValueError.
+            can produce very extended models. A concrete-input call raises
+            ValueError when the finite integration domain does not establish
+            the potential crossing; that alone does not classify infinite extent.
         xi_max: Maximum dimensionless radius. Larger than King's default because
             anisotropic models are far more extended (xi_t up to several hundred).
         n_points: output grid size.
@@ -107,9 +137,13 @@ def solve_michie_profile(
 
     References:
         Michie (1963), MNRAS 125, 127 (Eq. 5.8); King (1966), AJ 71, 64.
+
+    Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+    for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+    static under JIT; it does not change the physical equations or tolerances.
     """
-    y0 = jnp.array([W0, 0.0])
     xi_span = (1e-6, xi_max)
+    y0 = regular_center_state(W0, xi_span[0])
     term = diffrax.ODETerm(_michie_poisson_rhs)
     solver = diffrax.Tsit5()
     stepsize_controller = diffrax.PIDController(rtol=1e-8, atol=1e-10)
@@ -124,6 +158,7 @@ def solve_michie_profile(
         args=(W0, ra_hat),
         saveat=saveat,
         stepsize_controller=stepsize_controller,
+        adjoint=diffrax.RecursiveCheckpointAdjoint() if adjoint is None else adjoint,
         max_steps=100000,
     )
     xi_grid = solution.ts
@@ -131,17 +166,17 @@ def solve_michie_profile(
     psi_raw = solution.ys[:, 0]  # UNCLAMPED (negative past r_t); for _find_tidal_radius
     psi_grid = jnp.maximum(psi_raw, 0.0)
 
-    # Non-truncation guard (concrete inputs only; skipped under tracing). If psi has not
-    # crossed 0 by xi_max, the radial-orbit 1/r^2 tail prevents truncation -> no finite
-    # tidal radius (infinite mass). Refuse such an over-anisotropic model.
+    # Finite-domain crossing guard (concrete inputs only; skipped under tracing).
+    # A positive endpoint does not by itself distinguish an unresolved extended
+    # model from an infinite-extent model, or determine its total mass.
     if isinstance(W0, (int, float)) and isinstance(ra_hat, (int, float)):
         if float(psi_end) > 1e-3 * W0:
             raise ValueError(
                 f"Michie-King model with W0={W0}, r_a/r_c={ra_hat} does not truncate "
                 f"within xi_max={xi_max} (psi(xi_max)={float(psi_end):.3f} > 0): the "
-                f"anisotropy is too strong (no finite tidal radius / infinite mass). "
-                f"Increase anisotropy_radius, or raise xi_max if the model is genuinely "
-                f"this extended."
+                f"finite domain has not established a tidal crossing. Check resolution "
+                f"and a larger integration domain, and assess the anisotropy before "
+                f"classifying the model's extent."
             )
     return xi_grid, psi_grid, psi_raw
 
@@ -213,7 +248,9 @@ class MichieProfile(eqx.Module):
 
         rho0 = michie_density(W0_a, 0.0)
         rho_vals = _michie_density_vec(psi_vals, s_vals)
-        rho_grid = jnp.where(rho0 > 1e-10, rho_vals / rho0, 0.0)
+        rho_grid = jnp.where(
+            rho0 > 0.0, rho_vals / jnp.where(rho0 > 0.0, rho0, 1.0), 0.0
+        )
         rho_grid = jnp.where(r_grid <= r_t_a, rho_grid, 0.0)
 
         # Non-uniform trapezoid: variable spacing -> weight by diff(r_grid).
@@ -244,6 +281,8 @@ class MichieProfile(eqx.Module):
         xi_max: float = 800.0,
         n_ode_points: int = 3000,
         n_grid: int = 1000,
+        *,
+        adjoint=None,
     ) -> "MichieProfile":
         """Construct a self-consistent Michie-King profile from (W0, r_c, r_a).
 
@@ -257,8 +296,8 @@ class MichieProfile(eqx.Module):
             W0: Central concentration psi(0) = W0 (dimensionless).
             r_c: Core radius [length].
             r_a: Anisotropy radius [length]; r_a -> infinity recovers the isotropic
-                King model. Below a W0-dependent threshold the radial orbits build a
-                1/r^2 density tail with no finite tidal radius (see Raises).
+                King model. Strong radial anisotropy can require a much larger
+                resolved integration domain to assess the model's extent.
             xi_max: Maximum dimensionless radius xi = r/r_c for the ODE solve
                 (default 800.0; larger than King's because anisotropic models are far
                 more extended).
@@ -271,18 +310,26 @@ class MichieProfile(eqx.Module):
             (xi_grid, psi_grid), and the precomputed inverse-transform CDF.
 
         Raises:
-            ValueError: (via :func:`solve_michie_profile`, concrete inputs only) if r_a
-                is too small for a finite tidal radius -- the radial-orbit 1/r^2 tail
-                pathology (infinite mass).
+            ValueError: Via :func:`solve_michie_profile` for concrete inputs when
+                the finite domain has not established a tidal crossing. This is
+                not a proof of infinite extent or infinite mass.
 
         Differentiability:
             Reverse-mode differentiable wrt W0/r_c/r_a (the r_t crossing uses the
             UNCLAMPED psi_raw so the gradient flows).
+
+        Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances.
         """
         # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
         # through the crossing interpolation (audit Task 1.2b).
         xi_grid, psi_grid, psi_raw = solve_michie_profile(
-            W0, r_a / r_c, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            r_a / r_c,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         xi_t = _find_tidal_radius(xi_grid, psi_raw)
         return cls(W0, r_c, r_a, r_c * xi_t, xi_grid, psi_grid, n_grid=n_grid)
@@ -346,14 +393,26 @@ class MichieProfile(eqx.Module):
             r / self.r_c, self.xi_grid, self.psi_grid, left=self.W0, right=0.0
         )
         rho0 = michie_density(self.W0, 0.0)
-        rho = (
+        rho = jnp.where(
+            rho0 > 0.0,
             _michie_density_vec(jnp.atleast_1d(psi), jnp.atleast_1d(r / self.r_a))
-            / rho0
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
+            0.0,
         )
         rho = jnp.reshape(rho, jnp.shape(r))
         return jnp.where(r <= self.r_t, rho, 0.0)
 
     def characteristic_radius(self) -> Float[Array, ""]:
+        """Return the stored tidal radius r_t as the characteristic length.
+
+        Returns:
+            Scalar tidal radius in the same length units as r_c and r_a
+            (pc when using STELLAR units).
+
+        Notes:
+            The :meth:`from_W0_rc` constructor derives this boundary from the
+            potential's zero crossing. This accessor returns the stored value.
+        """
         return self.r_t
 
 

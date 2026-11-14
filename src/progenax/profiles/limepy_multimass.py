@@ -34,7 +34,13 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
 
+from progenax.profiles._spherical_poisson import (
+    poisson_second_derivative,
+    regular_center_state,
+)
 from progenax.profiles.limepy import (
+    _SPEED_T,
+    _SPEED_WEIGHTS,
     _angle_integral_T,
     _aniso_density_scalar,
     limepy_density_hat,
@@ -57,9 +63,6 @@ def _multimass_density_sources(
     num = limepy_density_hat(rescale * psi, g)
     den = limepy_density_hat(rescale * W0, g)
     return jnp.where(den > 1e-300, num / den, 0.0)
-
-
-_N_U_VIR = 256  # speed quadrature for the anisotropic v^2 moment
 
 
 def _grid_density_components(psi_arr, xi_arr, rescale, W0, g, ra_hat_j, is_aniso):
@@ -97,22 +100,18 @@ def _aniso_v2hat_scalar(W, p, g):
     angle-independent, <u^2> = int u^4 E_gamma(g,W-u^2/2) T(p^2 u^2/2) du /
     int u^2 E_gamma(...) T(...) du, with T the tangential-angle integral (= isotropic
     moment when p -> 0)."""
-    W_pos = jnp.maximum(W, 1e-12)
-    u = jnp.linspace(0.0, jnp.sqrt(2.0 * W_pos), _N_U_VIR)
+    W_pos = jnp.where(W > 0.0, W, 1.0)
+    u = jnp.sqrt(2.0 * W_pos) * _SPEED_T
     E = lowered_exponential(g, W_pos - u**2 / 2.0)
     T = _angle_integral_T(p**2 * u**2 / 2.0)
-    num = jnp.trapezoid(u**4 * E * T, u)
-    den = jnp.trapezoid(u**2 * E * T, u)
+    num = jnp.sum(_SPEED_WEIGHTS * u**4 * E * T)
+    den = jnp.sum(_SPEED_WEIGHTS * u**2 * E * T)
     return jnp.where(W > 0.0, num / jnp.maximum(den, 1e-300), 0.0)
 
 
-# Solver grid for the shared anisotropic density table, sized to the SOLVE-level
-# budget (|psi_table - psi_quad| <= 1e-4 W0, |rho_j| <= 2e-4 absolute; asserted in
-# tests/unit/profiles/test_limepy_tables.py::TestTableBackedSolver). Measured
-# 2026-06 (W0=7, rescale=[1,1.6], ra_hat=10, xi_max=800, cubic Lagrange):
-# max|dpsi| 8.9e-5, max|drho_j| 8.8e-5, warm solve 0.15 s vs 0.78 s quadrature.
+# Shared density grid, qualified against independent values and W/p derivatives.
 _TAB_N_W = 160
-_TAB_N_P = 40
+_TAB_N_P = 160
 
 # Jitted build: the tabulation is one big batched quadrature; jit caches its
 # compilation across solves (n_W/n_p static, W_max/p_max/g dynamic -> grad-safe).
@@ -161,7 +160,7 @@ class _TableRHS(eqx.Module):
     def __call__(self, xi, y, args):
         psi, dpsi = y[0], y[1]
         rho_tot = jnp.sum(self.alpha_j * self.density_components(xi, psi))
-        d2 = jnp.where(xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot)
+        d2 = poisson_second_derivative(xi, dpsi, rho_tot)
         return jnp.array([dpsi, d2])
 
 
@@ -219,6 +218,10 @@ def solve_multicomponent_limepy(
     ra_hat_j: Float[Array, "n_comp"] | None = None,
     aniso_method: str = "table",
     aniso_table: AnisoDensityTable | None = None,
+    *,
+    rtol: float = 1e-8,
+    atol: float = 1e-10,
+    adjoint=None,
 ) -> Tuple[
     Float[Array, "n_points"],
     Float[Array, "n_points"],
@@ -226,6 +229,9 @@ def solve_multicomponent_limepy(
     Float[Array, "n_comp n_points"],
 ]:
     """Solve the GENERAL multi-component coupled LIMEPY Poisson equation (Engine A core).
+
+    ``rtol`` and ``atol`` control adaptive integration accuracy; derivative
+    comparisons may require tighter tolerances than forward-value checks.
 
     Given central density fractions alpha_j (sum to 1) and a DIRECT per-component
     potential-depth rescaling rescale_j, solve
@@ -257,6 +263,9 @@ def solve_multicomponent_limepy(
 
     JIT/grad-safe in (alpha_j, rescale_j, W0, g, ra_hat_j); n_points, xi_max, aniso_method static.
 
+    Output radii use quadratic spacing from 1e-6 to xi_max to resolve the core.
+    Use the returned radii for integration; their spacing is nonuniform.
+
     Returns:
         (xi_grid, psi_grid, psi_raw, rho_j_grid): dimensionless radius, shared
         CLAMPED potential W(xi)>=0 (for density/CDF/virial), the UNCLAMPED psi_raw
@@ -265,6 +274,10 @@ def solve_multicomponent_limepy(
         solve_king_profile), and per-component normalized densities rho_hat_j(xi),
         shape (n_comp, n_points). The forward r_t value is interpolation-identical
         to the clamped path; only the gradient differs.
+
+    Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+    for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+    static under JIT; it does not change the physical equations or tolerances.
     """
     alpha_j = jnp.asarray(alpha_j)
     rescale = jnp.asarray(rescale_j)
@@ -292,15 +305,13 @@ def solve_multicomponent_limepy(
         def rhs(xi, y, args):
             psi, dpsi = y[0], y[1]
             rho_tot = jnp.sum(alpha_j * density_components(xi, psi))
-            d2 = jnp.where(
-                xi > 1e-6, -9.0 * rho_tot - (2.0 / xi) * dpsi, -9.0 * rho_tot
-            )
+            d2 = poisson_second_derivative(xi, dpsi, rho_tot)
             return jnp.array([dpsi, d2])
 
         rhs_fn = rhs
 
-    y0 = jnp.array([W0, 0.0])
     xi_span = (1e-6, xi_max)
+    y0 = regular_center_state(W0, xi_span[0], jnp.sum(alpha_j))
     solution = diffrax.diffeqsolve(
         diffrax.ODETerm(rhs_fn),
         diffrax.Tsit5(),
@@ -308,8 +319,13 @@ def solve_multicomponent_limepy(
         t1=xi_span[1],
         dt0=1e-4,
         y0=y0,
-        saveat=diffrax.SaveAt(ts=jnp.linspace(xi_span[0], xi_span[1], n_points)),
-        stepsize_controller=diffrax.PIDController(rtol=1e-8, atol=1e-10),
+        # Resolve the core before interpolating the potential onto the mass-CDF grid.
+        saveat=diffrax.SaveAt(
+            ts=xi_span[0]
+            + (xi_span[1] - xi_span[0]) * jnp.linspace(0.0, 1.0, n_points) ** 2
+        ),
+        stepsize_controller=diffrax.PIDController(rtol=rtol, atol=atol),
+        adjoint=diffrax.RecursiveCheckpointAdjoint() if adjoint is None else adjoint,
         max_steps=100000,
     )
     xi_grid = solution.ts
@@ -323,9 +339,9 @@ def solve_multicomponent_limepy(
     # Non-truncation guard (concrete inputs only; mirrors solve_limepy_profile). If
     # W(xi_max) has not crossed ~0 the model did not truncate within the ODE domain, so
     # r_t would be silently pinned to the boundary — a wrong tidal radius, mass CDF, and
-    # DF velocity scale. Isotropic g < 3.5 truncates mathematically but the true xi_t can
-    # far exceed xi_max (e.g. W0=9, g=2 -> xi_t ~ 2100); anisotropic: too-small ra builds
-    # a radial-orbit 1/r^2 tail (no finite tidal radius). Skipped under tracing -- psi_end
+    # DF velocity scale. Even isotropic g < 3.5 need not truncate, and finite
+    # models can extend far beyond xi_max (Gieles & Zocchi 2015, Sec. 3.1.3).
+    # Anisotropy can also prevent finite truncation. Skipped under tracing -- psi_end
     # is a tracer when ANY input is differentiated, even if ra_hat_j itself is concrete.
     try:
         psi_end_val = float(psi_end)
@@ -367,6 +383,10 @@ def solve_multimass_limepy(
     ra_hat: float | None = None,
     eta: float = 0.0,
     aniso_method: str = "table",
+    *,
+    rtol: float = 1e-8,
+    atol: float = 1e-10,
+    adjoint=None,
 ) -> Tuple[
     Float[Array, "n_points"],
     Float[Array, "n_points"],
@@ -384,9 +404,14 @@ def solve_multimass_limepy(
     through to solve_multicomponent_limepy; ignored when ra_hat is None.
 
     JIT/grad-safe in (alpha_j, m_j, W0, g, delta, ra_hat, eta); n_points, xi_max,
-    aniso_method static.
+    aniso_method, rtol and atol static. The keyword-only rtol and atol control
+    the adaptive Poisson integration, not the saved grid resolution.
 
     Returns (xi_grid, psi_grid, psi_raw, rho_j_grid) as solve_multicomponent_limepy.
+
+    Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+    for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+    static under JIT; it does not change the physical equations or tolerances.
     """
     alpha_j = jnp.asarray(alpha_j)
     m_j = jnp.asarray(m_j)
@@ -403,6 +428,9 @@ def solve_multimass_limepy(
         n_points=n_points,
         ra_hat_j=ra_hat_j,
         aniso_method=aniso_method,
+        rtol=rtol,
+        atol=atol,
+        adjoint=adjoint,
     )
 
 
@@ -417,6 +445,10 @@ def _realized_fractions(
     ra_hat=None,
     eta: float = 0.0,
     aniso_method: str = "table",
+    *,
+    rtol: float = 1e-8,
+    atol: float = 1e-10,
+    adjoint=None,
 ) -> Float[Array, "n_comp"]:
     """Realized mass fractions f_j' = alpha_j nu_j / sum_k alpha_k nu_k from a coupled
     solve, nu_j = int rho_hat_j xi^2 dxi (the per-component dimensionless mass)."""
@@ -431,6 +463,9 @@ def _realized_fractions(
         ra_hat=ra_hat,
         eta=eta,
         aniso_method=aniso_method,
+        rtol=rtol,
+        atol=atol,
+        adjoint=adjoint,
     )
     nu_j = jnp.trapezoid(rho_j * xi**2, xi, axis=1)
     M_real = alpha_j * nu_j
@@ -438,73 +473,177 @@ def _realized_fractions(
 
 
 # ------------------------------------------------------------------------------
-# Layer B fixed-point map + residual (shared by the two custom_vjp solvers below).
-# Explicit args (no closure) so jax.vjp is clean for the implicit backward.
+# Layer B fixed-point map + residual (shared by the implicit solvers below).
+# Explicit arguments give the residual Jacobians one shared owner.
 # ------------------------------------------------------------------------------
 def _alpha_map(
-    alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    alpha,
+    m_j,
+    f_target,
+    W0,
+    g,
+    delta,
+    xi_max,
+    n_points,
+    ra_hat,
+    eta,
+    aniso_method,
+    rtol,
+    atol,
 ):
     """One Gieles & Zocchi sqrt-update: alpha <- normalize(alpha sqrt(f_target/f_real))."""
     f_real = _realized_fractions(
-        alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        alpha,
+        m_j,
+        W0,
+        g,
+        delta,
+        xi_max,
+        n_points,
+        ra_hat,
+        eta,
+        aniso_method,
+        rtol=rtol,
+        atol=atol,
     )
     a = alpha * jnp.sqrt(f_target / (f_real + 1e-300))
     return a / jnp.sum(a)
 
 
 def _alpha_residual(
-    alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    alpha,
+    m_j,
+    f_target,
+    W0,
+    g,
+    delta,
+    xi_max,
+    n_points,
+    ra_hat,
+    eta,
+    aniso_method,
+    rtol,
+    atol,
 ):
     """Fixed-point residual R(alpha, theta) = alpha - sqrt-map(alpha); zero at alpha*.
 
-    The implicit VJP differentiates THIS residual (cond ~2.6 with a benign Sigma=0
-    simplex null direction handled by lstsq), NOT f_real - f_target (cond ~1e16).
+    The implicit derivative uses this normalized fixed-point residual.
+    The normalization constrains the sum of the fitted fractions.
     """
     return alpha - _alpha_map(
-        alpha, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        alpha,
+        m_j,
+        f_target,
+        W0,
+        g,
+        delta,
+        xi_max,
+        n_points,
+        ra_hat,
+        eta,
+        aniso_method,
+        rtol,
+        atol,
     )
 
 
-# ------------------------------------------------------------------------------
-# ISOTROPIC solver (ra_hat is None): ra_hat, eta are NONDIFF (closed over), so the
-# backward never tries to emit a cotangent for the Python None ra_hat. Diff set is
-# (m_j, M_j, W0, g, delta) -> bwd returns a 5-tuple. This is the demo + released
-# grad-test path. ra_hat MUST stay a Python None so _realized_fractions hits its
-# `is None` branch (the fast isotropic table path); a traced sentinel would route
-# the isotropic case through the slow/wrong anisotropic path.
-# nondiff_argnums = (5,6,7,8,9,10,11) = (ra_hat, eta, xi_max, n_points,
-#                                        aniso_method, tol, max_iter)
-# ------------------------------------------------------------------------------
-@functools.partial(jax.custom_vjp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11))
-def _solve_alpha_iso(
-    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+def _iterate_alpha(
+    m_j,
+    M_j,
+    W0,
+    g,
+    delta,
+    ra_hat,
+    eta,
+    xi_max,
+    n_points,
+    aniso_method,
+    tol,
+    max_iter,
+    rtol,
+    atol,
 ):
+    """Solve the existing normalized fixed point without differentiating iterations."""
     f_target = M_j / jnp.sum(M_j)
 
-    def cond(s):
-        _, it, r = s
-        return jnp.logical_and(it < max_iter, r > tol)
+    def cond(state):
+        _, iteration, residual = state
+        return (iteration < max_iter) & (residual > tol)
 
-    def body(s):
-        a, it, _ = s
-        a_new = _alpha_map(
-            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+    def body(state):
+        alpha, iteration, _ = state
+        updated = _alpha_map(
+            alpha,
+            m_j,
+            f_target,
+            W0,
+            g,
+            delta,
+            xi_max,
+            n_points,
+            ra_hat,
+            eta,
+            aniso_method,
+            rtol,
+            atol,
         )
-        f_real = _realized_fractions(
-            a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        realized = _realized_fractions(
+            updated,
+            m_j,
+            W0,
+            g,
+            delta,
+            xi_max,
+            n_points,
+            ra_hat,
+            eta,
+            aniso_method,
+            rtol=rtol,
+            atol=atol,
         )
-        return a_new, it + 1, jnp.max(jnp.abs(f_real - f_target))
+        return updated, iteration + 1, jnp.max(jnp.abs(realized - f_target))
 
-    a_star, _, _ = jax.lax.while_loop(
-        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf))
+    return jax.lax.while_loop(cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf)))[
+        0
+    ]
+
+
+def _implicit_alpha_tangent(residual, alpha, parameters, tangents):
+    """Solve R_alpha d_alpha = -R_theta d_theta at the fitted fractions.
+
+    Dense residual Jacobians use the existing checkpointed reverse ODE path.
+    Only their linear contraction depends on tangents, so JAX can transpose
+    this rule for reverse AD without transposing an adaptive while_loop.
+    The least-squares solve fixes the tangent convention at numerical rank loss.
+    """
+    jacobians = jax.jacrev(residual, argnums=tuple(range(len(parameters) + 1)))(
+        alpha, *parameters
     )
-    return a_star
+    rhs = sum(
+        jnp.tensordot(matrix, tangent, axes=jnp.ndim(tangent))
+        for matrix, tangent in zip(jacobians[1:], tangents)
+    )
+    return jnp.linalg.lstsq(jacobians[0], -rhs, rcond=None)[0]
 
 
-def _solve_alpha_iso_fwd(
-    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+@functools.partial(jax.custom_jvp, nondiff_argnums=(5, 6, 7, 8, 9, 10, 11, 12, 13))
+def _solve_alpha_iso(
+    m_j,
+    M_j,
+    W0,
+    g,
+    delta,
+    ra_hat,
+    eta,
+    xi_max,
+    n_points,
+    aniso_method,
+    tol,
+    max_iter,
+    rtol,
+    atol,
 ):
-    a_star = _solve_alpha_iso(
+    return _iterate_alpha(
         m_j,
         M_j,
         W0,
@@ -517,28 +656,32 @@ def _solve_alpha_iso_fwd(
         aniso_method,
         tol,
         max_iter,
+        rtol,
+        atol,
     )
-    return a_star, (a_star, m_j, M_j, W0, g, delta)
 
 
-def _solve_alpha_iso_bwd(
-    ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter, res, a_bar
+@_solve_alpha_iso.defjvp
+def _solve_alpha_iso_jvp(
+    ra_hat,
+    eta,
+    xi_max,
+    n_points,
+    aniso_method,
+    tol,
+    max_iter,
+    rtol,
+    atol,
+    primals,
+    tangents,
 ):
-    a_star, m_j, M_j, W0, g, delta = res
-    f_target = M_j / jnp.sum(M_j)
+    alpha = _solve_alpha_iso(
+        *primals, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter, rtol, atol
+    )
 
-    def R_a(a):
+    def residual(a, mj, Mj, W, gg, d):
         return _alpha_residual(
-            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
-        )
-
-    _, vjp_a = jax.vjp(R_a, a_star)
-    J = jax.vmap(lambda e: vjp_a(e)[0])(jnp.eye(a_star.shape[0]))  # n x n, reverse-mode
-    w = jnp.linalg.lstsq(J.T, a_bar, rcond=None)[0]
-
-    def R_th(mj, Mj, W, gg, d):
-        return _alpha_residual(
-            a_star,
+            a,
             mj,
             Mj / jnp.sum(Mj),
             W,
@@ -549,50 +692,31 @@ def _solve_alpha_iso_bwd(
             ra_hat,
             eta,
             aniso_method,
+            rtol,
+            atol,
         )
 
-    _, vjp_th = jax.vjp(R_th, m_j, M_j, W0, g, delta)
-    gm, gM, gW, gg, gd = vjp_th(w)
-    return (-gm, -gM, -gW, -gg, -gd)
+    return alpha, _implicit_alpha_tangent(residual, alpha, primals, tangents)
 
 
-_solve_alpha_iso.defvjp(_solve_alpha_iso_fwd, _solve_alpha_iso_bwd)
-
-
-# ------------------------------------------------------------------------------
-# ANISOTROPIC solver (ra_hat finite): differentiate (m_j, M_j, W0, g, delta,
-# ra_hat, eta) -> bwd returns a 7-tuple. Statics via nondiff_argnums = (7,8,9,10,11).
-# ------------------------------------------------------------------------------
-@functools.partial(jax.custom_vjp, nondiff_argnums=(7, 8, 9, 10, 11))
+@functools.partial(jax.custom_jvp, nondiff_argnums=(7, 8, 9, 10, 11, 12, 13))
 def _solve_alpha_aniso(
-    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
+    m_j,
+    M_j,
+    W0,
+    g,
+    delta,
+    ra_hat,
+    eta,
+    xi_max,
+    n_points,
+    aniso_method,
+    tol,
+    max_iter,
+    rtol,
+    atol,
 ):
-    f_target = M_j / jnp.sum(M_j)
-
-    def cond(s):
-        _, it, r = s
-        return jnp.logical_and(it < max_iter, r > tol)
-
-    def body(s):
-        a, it, _ = s
-        a_new = _alpha_map(
-            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
-        )
-        f_real = _realized_fractions(
-            a_new, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
-        )
-        return a_new, it + 1, jnp.max(jnp.abs(f_real - f_target))
-
-    a_star, _, _ = jax.lax.while_loop(
-        cond, body, (f_target, jnp.array(0), jnp.array(jnp.inf))
-    )
-    return a_star
-
-
-def _solve_alpha_aniso_fwd(
-    m_j, M_j, W0, g, delta, ra_hat, eta, xi_max, n_points, aniso_method, tol, max_iter
-):
-    a_star = _solve_alpha_aniso(
+    return _iterate_alpha(
         m_j,
         M_j,
         W0,
@@ -605,26 +729,22 @@ def _solve_alpha_aniso_fwd(
         aniso_method,
         tol,
         max_iter,
+        rtol,
+        atol,
     )
-    return a_star, (a_star, m_j, M_j, W0, g, delta, ra_hat, eta)
 
 
-def _solve_alpha_aniso_bwd(xi_max, n_points, aniso_method, tol, max_iter, res, a_bar):
-    a_star, m_j, M_j, W0, g, delta, ra_hat, eta = res
-    f_target = M_j / jnp.sum(M_j)
+@_solve_alpha_aniso.defjvp
+def _solve_alpha_aniso_jvp(
+    xi_max, n_points, aniso_method, tol, max_iter, rtol, atol, primals, tangents
+):
+    alpha = _solve_alpha_aniso(
+        *primals, xi_max, n_points, aniso_method, tol, max_iter, rtol, atol
+    )
 
-    def R_a(a):
+    def residual(a, mj, Mj, W, gg, d, rah, et):
         return _alpha_residual(
-            a, m_j, f_target, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
-        )
-
-    _, vjp_a = jax.vjp(R_a, a_star)
-    J = jax.vmap(lambda e: vjp_a(e)[0])(jnp.eye(a_star.shape[0]))  # n x n, reverse-mode
-    w = jnp.linalg.lstsq(J.T, a_bar, rcond=None)[0]
-
-    def R_th(mj, Mj, W, gg, d, rah, et):
-        return _alpha_residual(
-            a_star,
+            a,
             mj,
             Mj / jnp.sum(Mj),
             W,
@@ -635,14 +755,11 @@ def _solve_alpha_aniso_bwd(xi_max, n_points, aniso_method, tol, max_iter, res, a
             rah,
             et,
             aniso_method,
+            rtol,
+            atol,
         )
 
-    _, vjp_th = jax.vjp(R_th, m_j, M_j, W0, g, delta, ra_hat, eta)
-    gm, gM, gW, gg, gd, gra, get = vjp_th(w)
-    return (-gm, -gM, -gW, -gg, -gd, -gra, -get)
-
-
-_solve_alpha_aniso.defvjp(_solve_alpha_aniso_fwd, _solve_alpha_aniso_bwd)
+    return alpha, _implicit_alpha_tangent(residual, alpha, primals, tangents)
 
 
 def find_alpha_for_masses(
@@ -658,6 +775,10 @@ def find_alpha_for_masses(
     eta: float = 0.0,
     aniso_method: str = "table",
     tol: float = 1e-6,
+    *,
+    rtol: float = 1e-8,
+    atol: float = 1e-10,
+    adjoint=None,
 ) -> Tuple[Float[Array, "n_comp"], Float[Array, ""]]:
     """Find the central density fractions alpha_j that reproduce target masses M_j (Layer B).
 
@@ -669,17 +790,12 @@ def find_alpha_for_masses(
 
     f_j = M_j / sum M (target), f_j' = realized fraction. Starts from alpha_j = f_j.
 
-    Solved by a hand-rolled jax.custom_vjp: the forward is an adaptive
-    jax.lax.while_loop that iterates the sqrt-update until the residual
-    max_j |f_j' - f_j| < tol (or the n_iter safety cap), and the backward is the
-    EXACT fixed-point gradient via a reverse-mode implicit VJP of the sqrt-map
-    residual R(alpha, theta) = alpha - sqrt-map(alpha) (n x n Jacobian by vmapped
-    vjp, lstsq solve, -vjp_theta). This is flat-in-n_iter and ~3x faster per
-    value_and_grad than the old unrolled lax.scan, with gradients matching central
-    finite differences to <1e-5. Two solvers are dispatched on `ra_hat is None`:
-    the isotropic solver keeps (ra_hat, eta) out of the differentiated set so it can
-    take the fast isotropic density path; the anisotropic solver also
-    differentiates (ra_hat, eta).
+    A custom JVP differentiates the converged residual
+    R(alpha, theta) = alpha - sqrt-map(alpha):
+    R_alpha d_alpha = -R_theta d_theta. The same least-squares convention
+    supports forward AD and, by transposition, reverse AD. Iterations are
+    not differentiated. Accuracy requires a converged fit; inspect the
+    returned residual. Higher-order derivatives are not qualified.
 
     The iteration deliberately uses the SAME aniso_method as the final solve
     (default "table") so the converged alpha_j are self-consistent with the model
@@ -692,6 +808,11 @@ def find_alpha_for_masses(
         xi_max, n_points: ODE grid (static). aniso_method: density-source path
         ("table" default, "quadrature" oracle; static, ignored when ra_hat is None).
         tol: forward residual tolerance for the adaptive while_loop.
+        rtol, atol: Poisson integration tolerances, held static under JIT.
+            The iteration, implicit residual Jacobian and reported residual use
+            the same settings; these do not control mass-CDF or table resolution.
+        adjoint: ODE AD mode for the returned residual; None uses checkpointed
+            reverse AD. The fitted fractions use the implicit JVP in either mode.
 
     Returns:
         (alpha_j, residual): converged central density fractions (sum to 1, positive)
@@ -718,6 +839,8 @@ def find_alpha_for_masses(
             aniso_method,
             tol,
             n_iter,
+            rtol,
+            atol,
         )
     else:
         alpha = _solve_alpha_aniso(
@@ -733,9 +856,23 @@ def find_alpha_for_masses(
             aniso_method,
             tol,
             n_iter,
+            rtol,
+            atol,
         )
     f_real = _realized_fractions(
-        alpha, m_j, W0, g, delta, xi_max, n_points, ra_hat, eta, aniso_method
+        alpha,
+        m_j,
+        W0,
+        g,
+        delta,
+        xi_max,
+        n_points,
+        ra_hat,
+        eta,
+        aniso_method,
+        rtol=rtol,
+        atol=atol,
+        adjoint=adjoint,
     )
     residual = jnp.max(jnp.abs(f_real - M_j / jnp.sum(M_j)))
     return alpha, residual

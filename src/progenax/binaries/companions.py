@@ -36,6 +36,9 @@ class CompanionElements(NamedTuple):
     """Per-system companion mass + relative-orbit elements (singles: m2=0, a sanitized).
 
     Plugs directly into `resolve_binary_components(..., a, e, inc, Omega, omega, M_anom)`.
+    m2 uses the same mass unit as the primary input (M_sun at the companion
+    sampling boundary); a uses the length unit implied by G and the period's
+    time conversion. Binary-cluster assembly converts masses to native units.
     """
 
     m2: Float[Array, "N"]
@@ -108,6 +111,10 @@ class IndependentCompanions(eqx.Module):
     ) -> Tuple[Bool[Array, "N"], CompanionElements]:
         """Draw (is_binary, companion elements) for each primary.
 
+        m1 and returned companion masses use M_sun. G must use the selected
+        length/time units per M_sun; binary-cluster wrappers supply this
+        conversion. day_in_time_units converts the sampled periods from days.
+
         Differentiability: the smooth channels (q, P, e) carry pathwise gradients
         at a fixed key, but multiplicity is a DISCRETE draw
         (``is_binary = u < f_b``) — its gradient w.r.t. the binary fraction is
@@ -164,6 +171,11 @@ class MoeCompanions(eqx.Module):
         day_in_time_units: float,
     ) -> Tuple[Bool[Array, "N"], CompanionElements]:
         """Draw (is_binary, correlated Moe companion elements) per primary.
+
+        m1 and returned companion masses use M_sun for the empirical mass
+        relations. G must use the selected length/time units per M_sun;
+        binary-cluster wrappers supply this conversion. day_in_time_units
+        converts sampled periods from days.
 
         Differentiability: the correlated (P, q, e) channels carry pathwise
         gradients at a fixed key, but multiplicity is a DISCRETE draw

@@ -32,8 +32,8 @@ class TruncatedIMF(eqx.Module):
     """
 
     inner: IMFProtocol
-    m_min: float
-    m_max: float
+    m_min: Float[Array, ""] | float
+    m_max: Float[Array, ""] | float
 
     def __init__(self, inner: IMFProtocol, m_min: float, m_max: float):
         """
@@ -46,15 +46,30 @@ class TruncatedIMF(eqx.Module):
 
         Raises:
             ValueError: If m_min >= m_max after clamping to inner IMF bounds
+
+        Bounds carry JAX derivatives inside a fixed clamp branch. A bound
+        crossing the inner support is a piecewise-smooth boundary. Empty
+        intervals raise eagerly and through Equinox's runtime guard under JIT.
         """
         self.inner = inner
-        self.m_min = max(m_min, inner.m_min)
-        self.m_max = min(m_max, inner.m_max)
+        self.m_min = jnp.maximum(m_min, inner.m_min)
+        self.m_max = jnp.minimum(m_max, inner.m_max)
 
-        if self.m_min >= self.m_max:
+        traced = isinstance(self.m_min, jax.core.Tracer) or isinstance(
+            self.m_max, jax.core.Tracer
+        )
+        if not traced and self.m_min >= self.m_max:
             raise ValueError(
                 f"Invalid truncation bounds: m_min={self.m_min:.3f} >= m_max={self.m_max:.3f} "
                 f"after clamping to inner IMF bounds [{inner.m_min:.3f}, {inner.m_max:.3f}]"
+            )
+        if traced:
+            self.m_min, self.m_max = eqx.error_if(
+                (self.m_min, self.m_max),
+                self.m_min >= self.m_max,
+                "Invalid truncation bounds: m_min must be below m_max after "
+                "clamping to the inner IMF bounds.",
+                on_error="raise",
             )
 
     @property

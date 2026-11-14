@@ -1,0 +1,8 @@
+[source]
+id = "marks2014erratum"
+reference = "Marks et al. (2014), MNRAS 442, 3315"
+doi = "10.1093/mnras/stu1083"
+verification = "agent-verified"
+source_version = "Rendered published PDF pages 1, printed p.3315 inspected 2026-09-30; bounded transcription/notation checks, not researcher acceptance or empirical qualification."
+pdf_sha256 = "09e4d9ef21f5d095faffe00b07bcd84a0dc97db0509cf2990e6ee86a84af4b2b"
+source_note_ref = "src-marks2014erratum"

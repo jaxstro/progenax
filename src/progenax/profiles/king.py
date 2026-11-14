@@ -36,6 +36,10 @@ import jax.numpy as jnp
 from jaxtyping import Array, ArrayLike, Bool, Float, PRNGKeyArray
 
 from progenax.numerics import require_positive
+from progenax.profiles._spherical_poisson import (
+    poisson_second_derivative,
+    regular_center_state,
+)
 
 
 def _is_concrete(x) -> bool:
@@ -66,10 +70,11 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
 
         rho(W) ∝ int_0^{sqrt(2W)} v^2 (e^{W - v^2/2} - 1) dv,
 
-    and equals that direct integral up to the constant sqrt(pi/2). It is the
+    and equals that direct integral divided by sqrt(pi/2). It is the
     3-D *volume* density that appears in the King Poisson equation. The King
-    K-function form erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} is the *projected*
-    surface density, a distinct quantity, and must not be used as the volume density.
+    expression erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) e^{-W} is the Maxwell speed
+    cumulative probability at escape speed, not a projected spatial density.
+    Surface density requires line-of-sight integration of the volume density.
 
     Gradient-safe at W=0: rho_hat(0)=0 and d(rho_hat)/dW(0)=0; clamp before
     sqrt/exp so the backward pass never differentiates sqrt at 0.
@@ -89,6 +94,18 @@ def king_lowered_maxwellian_density(W: Float[Array, "..."]) -> Float[Array, "...
     rho_pos = jnp.exp(W_pos) * jax.scipy.special.erf(sqrt_W) - (
         2.0 / jnp.sqrt(jnp.pi)
     ) * sqrt_W * (1.0 + 2.0 * W_pos / 3.0)
+    # The closed form cancels terms of order sqrt(W) to obtain W^(5/2).
+    # Its relative roundoff grows as eps/W^2. Integrating the DF series gives
+    # rho = W^(5/2)/Gamma(7/2) sum_k W^k / (7/2)_k. On [0,0.1], the first
+    # omitted term after k=11 is below 1.1e-23 of the leading term.
+    small_W = jnp.where(W_pos <= 0.1, W_pos, 0.1)
+    term = jnp.ones_like(small_W)
+    series = term
+    for k in range(1, 12):
+        term = term * small_W / (2.5 + k)
+        series = series + term
+    rho_series = 8.0 / (15.0 * jnp.sqrt(jnp.pi)) * small_W**2.5 * series
+    rho_pos = jnp.where(W_pos <= 0.1, rho_series, rho_pos)
     return jnp.where(W > 0.0, rho_pos, 0.0)
 
 
@@ -136,19 +153,16 @@ def _king_poisson_rhs(
     # Dimensionless density = lowered-Maxwellian volume density rho_hat(psi),
     # normalized to 1 at the center (psi=W0).
     rho0 = king_lowered_maxwellian_density(W0)
+    safe_rho0 = jnp.where(rho0 > 0.0, rho0, 1.0)
     rho_tilde = jnp.where(
-        rho0 > 1e-10, king_lowered_maxwellian_density(psi) / rho0, 0.0
+        rho0 > 0.0, king_lowered_maxwellian_density(psi) / safe_rho0, 0.0
     )
 
     # King's Poisson equation in standard nondimensional form (King 1966;
     # Binney & Tremaine 2008, Eq. 4.131): with xi = r/r_c and r_c the King core
     # radius r_0 = sqrt(9 sigma^2 / 4 pi G rho_0), the RHS carries a factor of 9.
-    # Handle the xi=0 singularity via L'Hopital: lim_{xi->0} (2/xi) dpsi/dxi = 0.
-    d2psi_dxi2 = jnp.where(
-        xi > 1e-6,
-        -9.0 * rho_tilde - (2.0 / xi) * dpsi_dxi,
-        -9.0 * rho_tilde,  # center guard (dpsi/dxi(0)=0)
-    )
+    # Regularity gives lim (2/xi) W' = 2 W''(0), hence W''(0) = -3.
+    d2psi_dxi2 = poisson_second_derivative(xi, dpsi_dxi, rho_tilde)
 
     return jnp.array([dpsi_dxi, d2psi_dxi2])
 
@@ -194,11 +208,15 @@ def solve_king_profile(
     W0: ArrayLike,
     xi_max: float = 300.0,
     n_points: int = 2000,
+    *,
+    adjoint=None,
 ):
     """
     Solve King's Poisson equation numerically using diffrax.
 
-    Integrates from xi=0 (center) outward until psi(xi) -> 0 (tidal radius).
+    Integrates from xi=1e-6 outward through the tidal boundary. The regular
+    central series initializes W=W0-3 xi^2/2 and W'= -3 xi. The omitted terms
+    are O(xi^4) and O(xi^3), respectively; the grid and return shapes are unchanged.
 
     Boundary conditions (King 1966, Eq. 10):
         psi(0) = W0  (central potential)
@@ -215,13 +233,9 @@ def solve_king_profile(
         - ``xi_grid``: dimensionless radii (``solution.ts``).
         - ``psi_clamped``: ``max(psi, 0)``, truncated at the tidal radius. This
           is the physical potential used for density / CDF / mu / virial.
-        - ``psi_raw``: the UNCLAMPED ODE solution ``solution.ys[:, 0]`` (goes
-          negative beyond the zero-crossing). Feed ``psi_raw`` to
-          ``_find_tidal_radius`` so the zero-crossing linear interpolation
-          carries d(xi_t)/dW0 from the diffrax solve -- the clamp would
-          otherwise set psi=0 at the crossing node, killing the gradient (audit
-          Task 1.2b, RESOLVED). The forward value of xi_t is identical either
-          way; only the gradient differs.
+        - ``psi_raw``: the unclamped ODE potential, negative beyond the
+          tidal boundary. Use it for cubic root interpolation and implicit
+          parameter derivatives; clipping removes crossing information.
 
     References:
         King (1966), AJ, 71, 64
@@ -232,12 +246,14 @@ def solve_king_profile(
         ``linspace`` size and are closed over, so ``jax.jit(solve_king_profile)(W0)``
         traces fine (W0 may be a tracer). Uses Tsit5 (Runge-Kutta 5th order) from
         diffrax for robustness.
+
+    Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+    for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+    static under JIT; it does not change the physical equations or tolerances.
     """
     # Initial conditions
-    y0 = jnp.array([W0, 0.0])  # [psi(0), d psi/d xi|_0]
-
-    # Integration domain
-    xi_span = (1e-6, xi_max)  # Start slightly off center to avoid singularity
+    xi_span = (1e-6, xi_max)
+    y0 = regular_center_state(W0, xi_span[0])
 
     # Create ODE term
     term = diffrax.ODETerm(_king_poisson_rhs)
@@ -262,6 +278,7 @@ def solve_king_profile(
         args=(W0,),
         saveat=saveat,
         stepsize_controller=stepsize_controller,
+        adjoint=diffrax.RecursiveCheckpointAdjoint() if adjoint is None else adjoint,
         max_steps=100000,
     )
 
@@ -278,48 +295,63 @@ def _find_tidal_radius(
     xi_grid: Float[Array, "n_points"],
     psi_grid: Float[Array, "n_points"],
 ) -> Float[Array, ""]:
+    """Locate the first zero of an unclamped, decreasing potential.
+
+    Radii must increase strictly. A monotone cubic uses shared nodal slopes,
+    making the derivative continuous as a simple root crosses a saved node.
+    Root derivatives follow the implicit equation, including slope dependence.
+    A flat multiple root is outside this differentiable contract.
+
+    No crossing returns the last radius; a nonpositive first potential returns
+    the first radius. Supply negative potentials beyond the tidal boundary to
+    retain its parameter sensitivity; a clipped zero plateau loses that information.
     """
-    Find dimensionless tidal radius where psi first crosses zero.
+    x, y = xi_grid, psi_grid
+    h = jnp.diff(x)
+    d = jnp.diff(y) / h
+    same = d[:-1] * d[1:] > 0
+    a = jnp.where(same, d[:-1], 1.0)
+    b = jnp.where(same, d[1:], 1.0)
+    w1 = 2 * h[1:] + h[:-1]
+    w2 = h[1:] + 2 * h[:-1]
+    interior = jnp.where(same, (w1 + w2) / (w1 / a + w2 / b), 0.0)
+    slopes = jnp.concatenate((d[:1], interior, d[-1:]))
+    crossed = y <= 0
+    j = jnp.clip(jnp.argmax(crossed), 1, len(x) - 1)
+    i = j - 1
+    width = x[j] - x[i]
 
-    Args:
-        xi_grid: Dimensionless radii from ODE solution
-        psi_grid: Dimensionless potential from ODE solution
+    def polynomial(t):
+        return (
+            (2 * t**3 - 3 * t * t + 1) * y[i]
+            + (t**3 - 2 * t * t + t) * width * slopes[i]
+            + (-2 * t**3 + 3 * t * t) * y[j]
+            + (t**3 - t * t) * width * slopes[j]
+        )
 
-    Returns:
-        xi_t: Dimensionless tidal radius where psi(xi_t) = 0
+    def solve(f, guess):
+        del guess
 
-    Note:
-        Uses linear interpolation for precise crossing point.
-        If no crossing found, returns last grid point.
+        def step(_, bracket):
+            lo, hi = bracket
+            mid = (lo + hi) / 2
+            positive = f(mid) > 0
+            return jnp.where(positive, mid, lo), jnp.where(positive, hi, mid)
 
-        Differentiable in W0 (audit Task 1.2b, RESOLVED). Pass the UNCLAMPED psi
-        (``solve_king_profile(...)[2]`` / ``solve_michie_profile(...)[2]``,
-        i.e. ``psi_raw``): the crossing
-        interpolation xi_t = xi0 + psi0/(psi0-psi1)*(xi1-xi0) is already smooth in
-        (psi0, psi1), so with the unclamped psi negative just past the crossing,
-        d(xi_t)/dW0 flows through the diffrax solve -- this IS the implicit-
-        function-theorem result (dxi_t/dW0 = -psi_W0/psi_xi) to grid accuracy.
-        The forward VALUE is identical to the clamped path (psi1 enters only via
-        the same interpolation fraction); only the gradient differs. Feeding the
-        CLAMPED psi instead sets psi1=0 at the crossing node, zeroing
-        d(xi_t)/dW0 (the original silent-zero hazard). Rationale + design: internal design note (RESOLVED).
-    """
-    # Find where psi drops to zero (or below due to numerics)
-    crossing_mask = psi_grid <= 0
-    has_crossing = jnp.any(crossing_mask)
-    first_zero_idx = jnp.argmax(crossing_mask)
+        lo, hi = jax.lax.fori_loop(0, 48, step, (jnp.array(0.0), jnp.array(1.0)))
+        return (lo + hi) / 2
 
-    # Linear interpolation for precise xi_t
-    idx = jnp.maximum(first_zero_idx - 1, 0)
-    psi0, psi1 = psi_grid[idx], psi_grid[first_zero_idx]
-    xi0, xi1 = xi_grid[idx], xi_grid[first_zero_idx]
-    t = psi0 / (psi0 - psi1 + 1e-30)
-    xi_t = xi0 + t * (xi1 - xi0)
+    # The selected polynomial, including its nodal slopes, carries parameter AD.
+    # A no-crossing input uses an inactive well-conditioned linear polynomial.
+    active = jnp.any(crossed) & (y[0] > 0)
 
-    # If no crossing, use last point. Return the array (do NOT cast to float):
-    # float() concretizes the tracer and breaks jit/grad through from_W0_rc.
-    xi_t = jnp.where(has_crossing, xi_t, xi_grid[-1])
-    return xi_t
+    def f(t):
+        return jnp.where(active, polynomial(t), 0.5 - t)
+
+    t = jax.lax.custom_root(
+        f, jnp.array(0.5), solve, lambda lin, rhs: rhs / lin(jnp.array(1.0))
+    )
+    return jnp.where(active, x[i] + width * t, jnp.where(y[0] <= 0, x[0], x[-1]))
 
 
 # ==============================================================================
@@ -415,7 +447,10 @@ class KingProfile(eqx.Module):
         # (lowered-Maxwellian volume density; see king_lowered_maxwellian_density)
         rho0 = king_lowered_maxwellian_density(W0_arr)
         rho_grid = jnp.where(
-            rho0 > 1e-10, king_lowered_maxwellian_density(psi_vals) / rho0, 0.0
+            rho0 > 0.0,
+            king_lowered_maxwellian_density(psi_vals)
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
+            0.0,
         )
 
         # Truncate at tidal radius
@@ -478,6 +513,8 @@ class KingProfile(eqx.Module):
         xi_max: float | None = None,
         n_ode_points: int | None = None,
         n_grid: int = 1000,
+        *,
+        adjoint=None,
     ) -> "KingProfile":
         """
         Create self-consistent King profile where r_t is derived from W0.
@@ -502,6 +539,10 @@ class KingProfile(eqx.Module):
         Examples:
             >>> profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
             >>> print(f"Tidal radius: {profile.r_t:.2f}")
+
+        Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances.
         """
         require_positive(W0, "KingProfile W0")
         require_positive(r_c, "KingProfile r_c")
@@ -510,11 +551,13 @@ class KingProfile(eqx.Module):
             xi_max = auto_xi_max
         if n_ode_points is None:
             n_ode_points = auto_n_points
-        # Feed UNCLAMPED psi_raw to _find_tidal_radius so d(r_t)/dW0 flows
-        # through the crossing interpolation (audit Task 1.2b). psi_grid
-        # (clamped) is what the profile stores + uses for density/CDF.
+        # Use the unclamped potential for the root and its parameter derivatives;
+        # density and CDF evaluation use the nonnegative stored potential.
         xi_grid, psi_grid, psi_raw = solve_king_profile(
-            W0, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         xi_t = _find_tidal_radius(xi_grid, psi_raw)
         r_t = r_c * xi_t
@@ -610,8 +653,9 @@ class KingProfile(eqx.Module):
         with rho_hat(W) = e^W erf(sqrt(W)) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3)
         (king_lowered_maxwellian_density; BT2008 Eq. 4.131), and psi(r) the
         dimensionless potential from interpolating the ODE solution. This is the
-        3-D *volume* density; the King K-function (incomplete-gamma) form is the
-        *projected* surface density and is not used here.
+        3-D volume density. The Maxwell speed cumulative probability is a
+        different velocity-space integral; spatial surface density requires a
+        line-of-sight projection of this volume density.
 
         This method returns the unnormalized form (rho_0=1), useful for
         plotting and analysis with jaxstroviz.
@@ -627,7 +671,10 @@ class KingProfile(eqx.Module):
 
         rho0 = king_lowered_maxwellian_density(self.W0)
         rho = jnp.where(
-            rho0 > 1e-10, king_lowered_maxwellian_density(psi_vals) / rho0, 0.0
+            rho0 > 0.0,
+            king_lowered_maxwellian_density(psi_vals)
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
+            0.0,
         )
 
         # Truncate at tidal radius

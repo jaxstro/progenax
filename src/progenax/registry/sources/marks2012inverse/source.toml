@@ -1,0 +1,8 @@
+[source]
+id = "marks2012inverse"
+reference = "Marks & Kroupa (2012), A&A 543, A8"
+doi = "10.1051/0004-6361/201118231"
+verification = "agent-verified"
+source_version = "Rendered published PDF pages 2 and 10 (of 13), Sect.2.1 and Eq.7 inspected 2026-09-30; bounded transcription/notation checks, not researcher acceptance or empirical qualification."
+pdf_sha256 = "0b993495fc1e49ff5997188c5a9bc220ff31280afc414e700e49d77342daa6ab"
+source_note_ref = "src-marks2012inverse"

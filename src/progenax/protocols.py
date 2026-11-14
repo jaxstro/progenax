@@ -279,7 +279,12 @@ class CompanionModel(Protocol):
         G: float,
         day_in_time_units: float,
     ):
-        """Sample ``(is_binary[N], CompanionElements)`` for primary masses ``m1`` [Msun]."""
+        """Sample ``(is_binary[N], CompanionElements)`` for m1 in M_sun.
+
+        Companion masses use M_sun. G uses the chosen length/time units per
+        M_sun, and day_in_time_units converts sampled periods from days.
+        Binary-cluster wrappers perform the mass-unit conversion for dynamics.
+        """
         ...
 
 

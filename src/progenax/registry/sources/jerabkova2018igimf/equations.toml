@@ -1,0 +1,47 @@
+[[equation]]
+id = "EQ-JERABKOVA-ALPHA3"
+name = "Published density-coordinate high-mass slope"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, Eq.6"
+source_ids = ["jerabkova2018igimf"]
+symbol_ids = ["SYM-x_env"]
+expression = "Piecewise((23/10,x_env<-87/100),(-41/100*x_env+194/100,True))"
+returns = "imf_exponent"
+note = "Transcription; production additionally clips to [0.5,2.3] and optionally smooths. Hard derivative is undefined at the jump; both endpoint value and branch-interior derivatives are distinct contracts."
+
+[[equation]]
+id = "EQ-JERABKOVA-X-RHO"
+name = "Published density/metallicity coordinate"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, Eq.7"
+source_ids = ["jerabkova2018igimf"]
+symbol_ids = ["SYM-z_env", "SYM-R_env"]
+expression = "-14/100*z_env+99/100*R_env"
+returns = "rotated_coordinate"
+note = "Notation conversion R_rho=log10(rho_cl/(1e6 Msun pc^-3)); dimensionless. No intercept."
+
+[[equation]]
+id = "EQ-JERABKOVA-X-MASS-PRINTED"
+name = "Printed mass coordinate, distinct from the adopted kernel"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, Eq.9"
+source_ids = ["jerabkova2018igimf"]
+symbol_ids = ["SYM-z_env", "SYM-L_env"]
+expression = "-14/100*z_env+6/10*L_env+283/100"
+returns = "rotated_coordinate"
+note = "Literal printed formula at stated SFE 0.33. Production does not implement this expression. Changing 8pi density to 4pi adds 0.99 log10(2), which cannot account for the printed 2.83 intercept; no conjectured source correction is adopted."
+
+[[equation]]
+id = "EQ-JERABKOVA-DENSITY-PRINTED"
+name = "Printed cloud density with the 4pi denominator"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, Eq.8"
+source_ids = ["jerabkova2018igimf"]
+symbol_ids = ["SYM-mcl_env", "SYM-h_env"]
+expression = "3*mcl_env/(4*pi*h_env**3)"
+returns = "density_in_solar_parsec_units"
+note = "Notation conversion of literal Eq.8: rho_cl/(Msun pc^-3); mcl_env is total initial cloud mass in Msun and h_env is the stated half-mass radius in pc. This is twice the adopted half-mass cloud density at the same mass/radius. Kept as source data, not implemented or silently corrected."

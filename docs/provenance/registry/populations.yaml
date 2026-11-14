@@ -63,11 +63,13 @@
       locators: ["Eq. A1", "Eq. 3", "Appendix A (A2-A3 matching)"]
   equations:
     - label: limepy-df-family
-      latex: 'f(E) \;\propto\; e^{-E/\sigma^2}\, \gamma\!\Big(g,\; \tfrac{E_{\rm cut}-E}{\sigma^2}\Big)'
+      latex: 'f(E) \;\propto\; E_\gamma(g,W), \qquad W = \frac{E_{\rm cut}-E}{\sigma^2}, \qquad E_\gamma(g,W) = \begin{cases} e^W, & g=0,\\ e^W P(g,W), & g>0, \end{cases} \qquad W>0'
       symbols:
         g: {latex: 'g', meaning: "continuous truncation parameter", units: dimensionless}
         E_cut: {latex: 'E_{\rm cut}', meaning: "truncation energy (the escape edge)", units: "pc^2 / Myr^2"}
-      assumptions: ["g = 0 Woolley, g = 1 King, g = 2 Wilson; equals GZ15 Eq. 1 up to the constant e^{E_cut/sigma^2}"]
+        W: {latex: 'W', meaning: "relative binding energy divided by the squared velocity scale sigma^2", units: dimensionless}
+        P: {latex: 'P(g,W)', meaning: "regularized lower incomplete gamma function gamma(g,W)/Gamma(g), used only for g>0", units: dimensionless}
+      assumptions: ["isotropic DF; zero for W<=0 in the implementation; the g=0 boundary convention is a measure-zero choice", "g=0 Woolley exp(W), g=1 King exp(W)-1, g=2 Wilson exp(W)-1-W; GZ15 Eqs.1-2"]
       theory_ref: "10-theory/spatial-profiles/lowered-model-family.md#limepy-df-family"
     - label: multimass-poisson
       latex: '\frac{1}{\xi^2}\frac{\mathrm{d}}{\mathrm{d}\xi} \Big(\xi^2\frac{\mathrm{d}\psi}{\mathrm{d}\xi}\Big) \;=\; -\,9\sum_j \alpha_j\,\hat\rho_j(\xi)'
@@ -88,14 +90,41 @@
       symbols:
         m_eq: {latex: 'm_{\rm eq}', meaning: "equipartition crossover mass — DERIVED from the DF (Bianchini A2-A3 matching), not fitted", units: Msun}
         phi_0: {latex: '\hat\phi_0', meaning: "central dimensionless potential W_0", units: dimensionless}
-      assumptions: ["more concentrated clusters (larger W_0) equipartition down to lighter stars", "validated fit-free via the exact mu -> 0 identity (autodiff eta(m))"]
+      assumptions: ["delta = 1/2 velocity-scale law", "first-order low-mass expansion matched to the Bianchini exponential branch, not a full finite-mass fit", "more concentrated clusters (larger W_0) give a lower asymptotic crossover mass"]
       theory_ref: "10-theory/spatial-profiles/multimass-equipartition.md#meq-derived"
+    - label: catalogue-mass-squared
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-CATALOGUE-MASS-SQUARED
+        lhs: '\mathbb{E}[M^2]'
+      symbols:
+        N: {latex: 'N', meaning: "fixed positive integer target star count", units: dimensionless}
+        mu1: {latex: '\mu_1', meaning: "sum_j pi_j m_j; number-weighted mean representative mass", units: mass}
+        mu2: {latex: '\mu_2', meaning: "sum_j pi_j m_j^2; second representative-mass moment", units: "mass squared"}
+      assumptions: ["Independent categorical labels with normalized number probabilities pi_j and fixed masses m_j; local derivation, not a paper transcription"]
+      theory_ref: "10-theory/populations/index.md#finite-population-expectations"
+    - label: catalogue-kinetic-per-star
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-CATALOGUE-KINETIC-PER-STAR
+        lhs: '\mathbb{E}[2T/N]'
+      symbols:
+        T: {latex: 'T', meaning: "one half sum_i m_i |v_i|^2 in the model rest frame", units: "mass times velocity squared"}
+        A0: {latex: 'A_0', meaning: "G/(9 r_c mu_tot), squared-velocity normalization per unit catalogue mass", units: "velocity squared / mass"}
+        K1: {latex: 'K_1', meaning: "sum_j pi_j m_j q_j", units: mass}
+        K2: {latex: 'K_2', meaning: "sum_j pi_j m_j^2 q_j", units: "mass squared"}
+        q: {latex: 'q_j', meaning: "E[w_j^2 u^2 | j], the conditional dimensionless squared-speed moment", units: dimensionless}
+      assumptions: ["Independent labels; retain component/total-mass correlation; no recentering or virial rescale", "Local derivation; numerical precision qualified only at the retained isotropic four-component Engine A configuration"]
+      theory_ref: "10-theory/populations/index.md#finite-population-expectations"
   code_refs:
     - "cluster/multicomponent.py::MultiComponentCluster"
+    - "cluster/multicomponent.py::MultiComponentCluster.estimate_mass_squared_and_kinetic"
   validation:
     - "tests/validation/test_multimass_equilibrium_physics.py::test_global_virial_is_half_across_delta"
     - "tests/validation/test_multimass_equilibrium_physics.py::test_delta0_is_single_mass_and_segregation_grows"
     - "tests/validation/test_multimass_equilibrium_physics.py::test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic"
+    - "tests/unit/cluster/test_expectation.py::test_mass_squared_and_kinetic_references_against_all_assignments"
+    - "tests/unit/cluster/test_expectation.py::test_named_kinetic_finite_count_correction_against_label_enumeration"
   status: verified
   deviations: []
 
@@ -104,14 +133,14 @@
   description: >
     Density-first multi-component equilibrium: prescribe each component's
     density shape (Plummer/EFF/King mixes with mass fractions), build the
-    shared potential in ONE quadrature pass (no ODE), and derive each
+    shared potential by quadrature, and derive each
     component's ergodic (or Osipkov-Merritt) DF by Eddington inversion in
     that shared Psi — with a realizability gate (f_j >= 0 or refuse).
   when_to_use:
     good_for:
       - "observationally prescribed shapes (e.g. Plummer halo + EFF core) needing THE equilibrium DF"
       - "per-component OM anisotropy with independent r_a,j"
-      - "differentiable builds (quadrature only — no ODE solve)"
+      - "differentiable shared-potential builds; King density construction retains its own ODE"
     not_for:
       - "component mixes whose Eddington DF is negative (unrealizable — the gate raises, by design)"
       - "DF-defined families with a physical truncation parameter (use Engine A)"
@@ -148,11 +177,35 @@
       locators: ["Eq. 16 (integrated to the dpsi/dxi identity)"]
   equations:
     - label: engine-b-poisson
-      latex: 'M(<r) = 4\pi\!\int_0^r \rho_{\rm tot}\, s^2\, \mathrm{d}s, \qquad \Phi(r) = -G\left[\frac{M(<r)}{r} + 4\pi\!\int_r^{r_t} \rho_{\rm tot}\, s\, \mathrm{d}s\right]'
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-SPHERICAL-POTENTIAL
+        lhs: '\Phi(r)'
       symbols:
-        rho_tot: {latex: '\rho_{\rm tot}', meaning: "sum of mass-fraction-normalized prescribed component densities", units: "Msun / pc^3"}
-      assumptions: ["one cumulative-trapezoid pass on the sqrt-stretched grid (audit S2); dPsi/dr = -GM/r^2 analytic"]
+        rho: {latex: '\rho', meaning: "sum of mass-fraction-normalized prescribed component densities", units: "Msun / pc^3"}
+        r: {latex: 'r', meaning: "radius", units: pc}
+        s: {latex: 's', meaning: "radial integration coordinate", units: pc}
+        G: {latex: 'G', meaning: "gravitational constant", units: "pc^3 / (Msun Myr^2)"}
+      assumptions: ["Continuum spherical potential; production uses cumulative trapezoids on the sqrt-stretched grid and analytic dPsi/dr = -GM/r^2"]
       theory_ref: "10-theory/populations/eddington-engine.md#engine-b-poisson"
+    - label: engine-b-enclosed-mass
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-SPHERICAL-ENCLOSED-MASS
+        lhs: 'M(<r)'
+      assumptions: ["rho is the total mass density; spherical symmetry"]
+      theory_ref: "10-theory/populations/eddington-engine.md#engine-b-poisson"
+    - label: engine-b-eddington-inversion
+      registry_ref:
+        source: progenaxderivations
+        equation: EQ-EDDINGTON-INVERSION
+        lhs: 'f(E)'
+      symbols:
+        E: {latex: 'E', meaning: "relative binding energy per unit mass", units: "pc^2 / Myr^2"}
+        Psi: {latex: '\Psi', meaning: "relative potential, zero at the outer boundary", units: "pc^2 / Myr^2"}
+        rho_prime_zero: {latex: '\rho^{\prime}_0', meaning: "density derivative with respect to relative potential at Psi=0", units: "Msun Myr^2 / pc^5"}
+      assumptions: ["Relative potential vanishes at the outer boundary; the boundary density derivative is retained. For OM models use augmented density."]
+      theory_ref: "10-theory/populations/eddington-engine.md#eddington-formula"
     - label: om-augmented
       latex: '\rho_{Q,j}(r) \;=\; \left(1 + \frac{r^2}{r_{a,j}^2}\right)\rho_j(r)'
       symbols:
@@ -163,7 +216,7 @@
       latex: '\frac{\mathrm{d}\psi}{\mathrm{d}\xi} \;=\; -\frac{9}{\hat\rho_0}\,\xi^{-2}\int_0^{\xi} \hat\rho(\psi(s))\, s^2\, \mathrm{d}s'
       symbols:
         xi: {latex: '\xi', meaning: "dimensionless radius r/r_c of the King component", units: dimensionless}
-      assumptions: ["dW/dr from King's own integrated Poisson identity of the CLOSED-FORM density — in Abel-type inversions, never differentiate interpolated data (the jnp.gradient staircase drove a single King component to f_min = -0.679)"]
+      assumptions: ["dW/dr follows the integrated Poisson identity of the King density law"]
       theory_ref: "10-theory/populations/eddington-engine.md#king-poisson-identity"
   code_refs:
     - "cluster/eddington_engine.py::build_engine_b_state"

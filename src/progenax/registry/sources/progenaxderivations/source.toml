@@ -1,0 +1,7 @@
+[source]
+id = "progenaxderivations"
+reference = "Progenax local profile, CDF and sampler derivations"
+verification = "self-verified"
+source_version = "Local environment density/mass conversions (2026-09-30), Plummer and LIMEPY identities, Engine B spherical potential, Eddington inversion and speed-moment identities, and finite-population squared-mass/kinetic identities. Symbolic and independent enumeration checks cover the recorded relations (2026-09-29); these are local derivations, not paper transcriptions."
+pdf_unavailable = "Local derivation, not a paper transcription."
+source_note_ref = "docs/website/10-theory/spatial-profiles/plummer.md"

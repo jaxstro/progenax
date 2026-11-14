@@ -1,0 +1,83 @@
+[[equation]]
+id = "EQ-MARKS-TABLE3-MCL"
+name = "Table-3 mcl high-mass slope"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, printed p.2251, Eq.11 and Table3"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-lambda_env"]
+expression = "Piecewise((-94/100*lambda_env+214/100,lambda_env>68/100),(23/10,True))"
+returns = "imf_exponent"
+note = "Notation conversion of the published decimal coefficients and strict > branch. Equality is canonical 2.3, matching the retained helper. lambda is log10(M_cl/(1e6 Msun)). No output clip or opt-in smoothing is included in this source expression; production clips to [0.5,2.3]. Empirical calibration is not established by symbolic agreement."
+
+[[equation]]
+id = "EQ-MARKS-TABLE3-MECL"
+name = "Table-3 mecl high-mass slope"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, printed p.2251, Eq.11 and Table3"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-lambda_env"]
+expression = "Piecewise((-77/100*lambda_env+159/100,lambda_env>27/100),(23/10,True))"
+returns = "imf_exponent"
+note = "Notation conversion of the published decimal coefficients and strict > branch. Equality is canonical 2.3, matching the retained helper. lambda is log10(M_ecl/(1e6 Msun)). No output clip or opt-in smoothing is included in this source expression; production clips to [0.5,2.3]. Empirical calibration is not established by symbolic agreement."
+
+[[equation]]
+id = "EQ-MARKS-TABLE3-RHO"
+name = "Table-3 rho high-mass slope"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, printed p.2251, Eq.11 and Table3"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-lambda_env"]
+expression = "Piecewise((-43/100*lambda_env+186/100,lambda_env>95/1000),(23/10,True))"
+returns = "imf_exponent"
+note = "Notation conversion of the published decimal coefficients and strict > branch. Equality is canonical 2.3, matching the retained helper. lambda is log10(rho_cl/(1e6 Msun pc^-3)). No output clip or opt-in smoothing is included in this source expression; production clips to [0.5,2.3]. Empirical calibration is not established by symbolic agreement."
+
+[[equation]]
+id = "EQ-MARKS-TABLE3-FEH"
+name = "Table-3 feh high-mass slope"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.6, printed p.2251, Eq.11 and Table3"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-lambda_env"]
+expression = "Piecewise((66/100*lambda_env+263/100,lambda_env<-1/2),(23/10,True))"
+returns = "imf_exponent"
+note = "Notation conversion of the published decimal coefficients and strict < branch. Equality is canonical 2.3, matching the retained helper. lambda is [Fe/H]. No output clip or opt-in smoothing is included in this source expression; production clips to [0.5,2.3]. Empirical calibration is not established by symbolic agreement."
+
+[[equation]]
+id = "EQ-MARKS-LOWMASS"
+name = "Metallicity-dependent low-mass exponent"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.7, printed p.2252, Eq.12"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-alpha_c_env", "SYM-z_env"]
+expression = "alpha_c_env+z_env/2"
+returns = "imf_exponent"
+note = "Transcription with the adopted central estimate Delta alpha=0.5 (paper says approximately 0.5); alpha_c is 1.3 or 2.3. Paper calls extrapolation below [Fe/H]=-0.5 uncertain. Input clips and low-mass floors belong to production, not this source relation."
+
+[[equation]]
+id = "EQ-MARKS-ROTATION"
+name = "Fundamental-Plane rotation"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.7, printed p.2252, Eq.13"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-cos_env", "SYM-sin_env", "SYM-z_env", "SYM-R_env"]
+expression = "cos_env*z_env+sin_env*R_env"
+returns = "rotated_coordinate"
+note = "Notation conversion of Eq.13: cos_env=cos(98 degrees), sin_env=sin(98 degrees). Trigonometric values are caller-bound source quantities, not independent empirical fit parameters. Production instead uses the rounded pair (-0.139,0.990)."
+
+[[equation]]
+id = "EQ-MARKS-EQ15"
+name = "Printed expanded Fundamental-Plane branch"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.7, printed p.2252, Eq.15"
+source_ids = ["marks2012topheavy"]
+symbol_ids = ["SYM-z_env", "SYM-R_env"]
+expression = "572/10000*z_env-4072/10000*R_env+19383/10000"
+returns = "imf_exponent"
+note = "Literal published branch; apply only above the corrected threshold specified in the 2014 erratum. This is not algebraically identical to production using rounded unnormalized Eq.13 rotation. Fig.6 text names x-prime/sin(98 degrees); the normalized coordinate yields density coefficient -0.4072 and metallicity coefficient 0.057228..., close to this printed expression."

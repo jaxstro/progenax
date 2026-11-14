@@ -49,8 +49,8 @@ class ThermalEccentricity(eqx.Module):
 
     def cdf(self, e: Float[Array, "..."]) -> Float[Array, "..."]:
         """CDF: F(e) = e² / e_max²."""
-        cdf_val = (e / self.e_max) ** 2
-        return jnp.clip(cdf_val, 0.0, 1.0)
+        bounded = jnp.clip(e, 0.0, self.e_max)
+        return (bounded / self.e_max) ** 2
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
         """Inverse CDF: e = e_max × √u (differentiable on (0,1)).
@@ -184,7 +184,7 @@ class MoeEccentricity(eqx.Module):
         Eq. 18 (early-type, M1 > 7 Msun):       η = 0.9 - 0.2 / (logP - 0.5)
 
     with a linear interpolation in M1 for 3 <= M1 <= 7 Msun. η = 0 is uniform
-    (<e> = 0.5); η = 1 is thermal f(e) = 2e (<e> = 2/3). Eqs. 17-18 themselves
+    and η = 1 is thermal; on [0, c] their means are c/2 and 2c/3. Eqs. 17-18 themselves
     drive short-period (logP ≲ 1) massive binaries to η < 0 (tidal
     circularization); solar-type binaries asymptote to η ≈ 0.5 at long P;
     intermediate-period massive binaries reach η ≈ 0.8 (near-thermal). For short periods where η <= -1 (e^η non-normalizable),
@@ -198,8 +198,9 @@ class MoeEccentricity(eqx.Module):
 
         e_max(P) = 1 - (P / 2 days)^(-2/3)   for P > 2 d,
 
-    clipped to [0, e_max], so the components do not overflow their Roche lobes at
-    periapsis (e.g. e_max(10 d) ≈ 0.66, e_max(100 d) ≈ 0.93); P <= 2 d -> circular.
+    clipped to [0, e_max]. This is the source's main-sequence population ceiling,
+    not a contact check using individual stellar radii (e.g. e_max(10 d) ≈ 0.66,
+    e_max(100 d) ≈ 0.93); P <= 2 d -> circular.
     The ``e_max`` field is the long-period numerical ceiling (avoids the e -> 1
     singularity), reached only where the Roche relation itself approaches 1.
 
@@ -291,21 +292,26 @@ class MoeEccentricity(eqx.Module):
 
         Support is the period-dependent Roche ceiling e_max(P) (Eq. 3). Broadcasts e
         against (periods, masses): result[..., i, j] is p(e_j | P_i, M_i).
+        Circular branches have a point mass at zero; this continuous-density
+        method returns zero there and does not encode that atom.
         """
         eta = self.eta(periods, masses)
         etap1 = eta + 1.0
-        etap1_safe = jnp.where(etap1 <= 1e-6, 1.0, etap1)
-        e_max_eff = self.e_max_of_period(periods)[..., None]
-        in_range = (e >= 0.0) & (e <= e_max_eff)
-        e_pos = jnp.where(in_range, e, e_max_eff)
+        cap = self.e_max_of_period(periods)
+        active = (etap1 > 1e-6) & (cap > 0.0)
+        # Circular systems have an atom at zero, not a continuous density.
+        # Keep every inactive power/division finite before selecting zero.
+        safe_eta = jnp.where(active, eta, 0.0)
+        safe_etap1 = jnp.where(active, etap1, 1.0)
+        safe_cap = jnp.where(active, cap, 1.0)
+        in_range = (e >= 0.0) & (e <= cap[..., None]) & active[..., None]
+        e_pos = jnp.where(in_range, e, safe_cap[..., None])
         p = (
-            etap1_safe[..., None]
-            * jnp.power(e_pos, eta[..., None])
-            / e_max_eff ** etap1_safe[..., None]
+            safe_etap1[..., None]
+            * jnp.power(e_pos, safe_eta[..., None])
+            / safe_cap[..., None] ** safe_etap1[..., None]
         )
-        p = jnp.where(in_range, p, 0.0)
-        # Circular (η <= -1): mass at e=0, continuous density undefined -> 0.
-        return jnp.where((etap1 <= 1e-6)[..., None], 0.0, p)
+        return jnp.where(in_range, p, 0.0)
 
 
 __all__ = [

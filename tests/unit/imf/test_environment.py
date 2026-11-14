@@ -2,13 +2,20 @@
 
 These tests verify:
 1. Exact coefficient values from Marks+2012 and Jerabkova+2018
-2. Correct threshold behavior (POSITIVE for Marks, NEGATIVE for Jerabkova)
+2. Erratum-corrected negative thresholds for Marks and Jerabkova
 3. Gradient flow for inference applications
-4. Validation against published GC values (Marks+2012 Table 1)
+4. Low-mass anchors, model routing and clipping contracts
+
+Published GC anchors and ordering have one owner in
+tests/validation/test_environment_physics.py.
 """
+
+import re
+from pathlib import Path
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 from progenax.imf import (
@@ -184,10 +191,10 @@ class TestMarksCoefficients:
         """
         c = MARKS_COEFFICIENTS
         assert c["x_hat_threshold"] < 0, "Marks threshold must be NEGATIVE (erratum)"
-        # the line meets canonical 2.3 continuously at the threshold:
+        # The retained knee is near canonical, with a small nonzero jump:
         knee = c["alpha3_slope"] * c["x_hat_threshold"] + c["alpha3_intercept"]
         assert jnp.isclose(knee, 2.3, atol=0.02), (
-            "threshold must give a continuous knee"
+            "knee must meet the retained 0.02 allowance"
         )
 
     def test_high_density_metal_poor(self):
@@ -403,53 +410,12 @@ class TestGradientFlow:
 
 
 # =============================================================================
-# Validation Against Published GC Values (Marks+2012 Table 1)
+# Fundamental-Plane Coefficient Dominance
 # =============================================================================
 
 
 class TestGCValidation:
-    """Validation against Marks+2012 Table 1 GC birth conditions."""
-
-    @pytest.mark.parametrize(
-        "gc_name,FeH,rho_1e6,expected_alpha3",
-        [
-            # From Marks+2012 Table 1
-            # NGC name, [Fe/H], rho_cl [10^6 M_sun/pc^3], expected alpha3
-            ("NGC 104", -0.76, 9.54, 1.34),
-            ("NGC 6341", -2.28, 66.03, 1.11),
-            ("NGC 6752", -1.56, 31.78, 1.27),
-            ("NGC 7078", -2.16, 258.13, 0.76),
-        ],
-    )
-    def test_marks_table1_gc(self, gc_name, FeH, rho_1e6, expected_alpha3):
-        """Reproduce alpha3 for GCs from Marks+2012 Table 1."""
-        log_rho_6 = jnp.log10(jnp.array(rho_1e6))
-
-        computed = alpha3_marks_plane(log_rho_6, jnp.array(FeH))
-
-        # Note: expect some scatter around best-fit line (~0.15)
-        assert jnp.isclose(computed, expected_alpha3, atol=0.20), (
-            f"{gc_name}: expected {expected_alpha3}, got {float(computed):.2f}"
-        )
-
-    def test_ngc_7078_is_most_top_heavy(self):
-        """NGC 7078 (M15) should be the most top-heavy GC in the sample."""
-        gc_data = [
-            ("NGC 104", -0.76, 9.54),
-            ("NGC 6341", -2.28, 66.03),
-            ("NGC 6752", -1.56, 31.78),
-            ("NGC 7078", -2.16, 258.13),
-        ]
-
-        alphas = {}
-        for name, FeH, rho_1e6 in gc_data:
-            log_rho_6 = jnp.log10(jnp.array(rho_1e6))
-            alphas[name] = float(alpha3_marks_plane(log_rho_6, jnp.array(FeH)))
-
-        # NGC 7078 should have smallest alpha3 (most top-heavy)
-        assert alphas["NGC 7078"] == min(alphas.values()), (
-            f"NGC 7078 should be most top-heavy, but got {alphas}"
-        )
+    """Stored density and metallicity coefficients retain their relative weights."""
 
     def test_density_dependence_stronger_than_metallicity(self):
         """Density (sin_theta=0.99) dominates over metallicity (cos_theta=-0.14)."""
@@ -625,6 +591,176 @@ class TestEnvToIMFParamsAllModels:
     """Cover every model dispatch branch in env_to_imf_params."""
 
     @pytest.mark.parametrize(
+        "model,smooth_alpha3,sfe,logrho",
+        [
+            pytest.param("jerabkova_mecl", False, 0.1, 1.0, id="mass-only"),
+            pytest.param("marks_rho", False, 0.33, 1.0, id="density-override"),
+            pytest.param("marks_rho", True, 0.33, 0.095, id="smoothed-density"),
+        ],
+    )
+    def test_mapping_route_value_and_derivative(
+        self, model, smooth_alpha3, sfe, logrho, tolerances
+    ):
+        """Unified routes match retained scalar algebra in the stated interiors.
+
+        Coordinates are (log10 M_ecl/Msun, [Fe/H], SFE, log10 rho_cl/1e6).
+        The host oracle uses the retained coefficients and analytic derivatives;
+        it does not call a production mapping helper or validate those empirical
+        coefficients independently. The smooth-density case is at its blend
+        midpoint and away from output clipping.
+        """
+        point = np.array([6.0, -1.5, sfe, logrho], dtype=np.float64)
+        expected_gradient = np.zeros(4, dtype=np.float64)
+        if model == "jerabkova_mecl":
+            x = -0.14 * point[1] + 0.6039 * (point[0] - 6.0) + 0.2161
+            expected = -0.41 * x + 1.94
+            expected_gradient[:2] = [-0.41 * 0.6039, -0.41 * -0.14]
+        else:
+            varied = -0.43 * point[3] + 1.86
+            if smooth_alpha3:
+                tanh = np.tanh((point[3] - 0.095) / 0.2)
+                weight = 0.5 * (1.0 + tanh)
+                expected = (1.0 - weight) * 2.3 + weight * varied
+                expected_gradient[3] = (
+                    -0.43 * weight + (varied - 2.3) * (1.0 - tanh**2) / 0.4
+                )
+            else:
+                expected = varied
+                expected_gradient[3] = -0.43
+
+        def slope(p):
+            env = BirthEnvironment(
+                log_mecl=p[0], metallicity=p[1], sfe=p[2], log_rho_cl=p[3]
+            )
+            return env_to_imf_params(
+                env, model=model, smooth_alpha3=smooth_alpha3
+            ).alpha3
+
+        p = jnp.asarray(point)
+        for value in (slope(p), jax.jit(slope)(p)):
+            assert value.dtype == jnp.float64
+            np.testing.assert_allclose(value, expected, rtol=tolerances.EXACT, atol=0.0)
+        for transform in (jax.jacfwd, jax.jacrev):
+            derivative = transform(slope)
+            for gradient in (derivative(p), jax.jit(derivative)(p)):
+                assert gradient.dtype == jnp.float64
+                np.testing.assert_allclose(
+                    gradient,
+                    expected_gradient,
+                    rtol=tolerances.EXACT,
+                    atol=tolerances.EXACT,
+                )
+
+    @pytest.mark.parametrize(
+        "model,logmass,feh,sfe",
+        [
+            pytest.param("marks_mcl", 6.0, -1.5, 0.1, id="cloud-mass"),
+            pytest.param("marks_mecl", 7.0, -2.0, 0.1, id="stellar-mass"),
+            pytest.param("marks_rho", 7.0, -2.0, 0.1, id="computed-density"),
+            pytest.param("marks_feh", 7.0, -2.0, 0.1, id="metallicity"),
+        ],
+    )
+    def test_table3_computed_route_derivative(
+        self, model, logmass, feh, sfe, tolerances
+    ):
+        """Retained Table-3 interiors match host values and chain derivatives.
+
+        Coordinates are (log10 M_ecl/Msun, [Fe/H], SFE), without a density
+        override. These existing fixtures avoid thresholds and output clips.
+        The oracle checks the retained laws, not their empirical calibration.
+        """
+        point = np.array([logmass, feh, sfe], dtype=np.float64)
+        expected_gradient = np.zeros(3, dtype=np.float64)
+        if model == "marks_mcl":
+            coordinate = logmass - np.log10(sfe) - 6.0
+            expected = -0.94 * coordinate + 2.14
+            expected_gradient[[0, 2]] = [-0.94, 0.94 / (sfe * np.log(10.0))]
+        elif model == "marks_mecl":
+            expected = -0.77 * (logmass - 6.0) + 1.59
+            expected_gradient[0] = -0.77
+        elif model == "marks_rho":
+            coordinate = (
+                0.61 * logmass
+                + np.log10(3.0 / (8.0 * np.pi * 0.1**3))
+                - np.log10(sfe)
+                - 6.0
+            )
+            expected = -0.43 * coordinate + 1.86
+            expected_gradient[[0, 2]] = [
+                -0.43 * 0.61,
+                0.43 / (sfe * np.log(10.0)),
+            ]
+        else:
+            expected = 0.66 * feh + 2.63
+            expected_gradient[1] = 0.66
+
+        def slope(p):
+            env = BirthEnvironment(log_mecl=p[0], metallicity=p[1], sfe=p[2])
+            return env_to_imf_params(env, model=model).alpha3
+
+        p = jnp.asarray(point)
+        for value in (slope(p), jax.jit(slope)(p)):
+            assert value.dtype == jnp.float64
+            np.testing.assert_allclose(value, expected, rtol=tolerances.EXACT, atol=0.0)
+        for transform in (jax.jacfwd, jax.jacrev):
+            derivative = transform(slope)
+            for gradient in (derivative(p), jax.jit(derivative)(p)):
+                assert gradient.dtype == jnp.float64
+                np.testing.assert_allclose(
+                    gradient,
+                    expected_gradient,
+                    rtol=tolerances.EXACT,
+                    atol=tolerances.EXACT,
+                )
+
+    def test_environment_tutorial_composition(self, tolerances):
+        """Execute the shared nine-model block, retaining its four-segment IMF."""
+        page = (
+            Path(__file__).resolve().parents[3]
+            / "docs/website/00-getting-started/imf-sampling.md"
+        )
+        section = page.read_text().split("## Environment-dependent slopes\n", 1)[1]
+        section = section.split("\n## Next step", 1)[0]
+        blocks = re.findall(r"```python\n(.*?)```", section, re.DOTALL)
+        assert len(blocks) == 1, "The shared example must remain self-contained."
+        namespace = {}
+        exec(compile(blocks[0], str(page), "exec"), namespace)
+
+        # Host algebra at the retained tutorial inputs; no mapping helper oracle.
+        logrho = (
+            0.61 * 6.0 + np.log10(3.0 / (8.0 * np.pi * 0.1**3)) - np.log10(0.33) - 6.0
+        )
+        expected = {
+            "kroupa": 2.3,
+            "jerabkova_generalized": -0.41 * (-0.14 * -1.5 + 0.2161) + 1.94,
+            "jerabkova_mecl": -0.41 * (-0.14 * -1.5 + 0.2161) + 1.94,
+            "jerabkova_rho": -0.41 * (-0.14 * -1.5 + 0.99 * logrho) + 1.94,
+            "marks_plane": -0.4072 * (-0.139 * -1.5 + 0.990 * logrho) + 1.9383,
+            "marks_mcl": 2.3,
+            "marks_mecl": 2.3,
+            "marks_rho": -0.43 * logrho + 1.86,
+            "marks_feh": 0.66 * -1.5 + 2.63,
+        }
+        imfs = namespace["environment_imfs"]
+        assert list(imfs) == list(expected), "Every supported model must be shown."
+        for model, imf in imfs.items():
+            exponents = np.asarray(imf.exponents)
+            assert exponents.dtype == np.float64
+            np.testing.assert_allclose(
+                exponents,
+                [0.3, 1.3, 2.3, expected[model]],
+                rtol=tolerances.EXACT,
+                atol=0.0,
+            )
+            assert imf.breakpoints == (0.08, 0.5, 1.0)
+            assert (imf.m_min, imf.m_max) == (0.01, 150.0)
+        masses = namespace["masses_env"]
+        assert masses.dtype == jnp.float64
+        assert masses.shape == (10000,)
+        assert jnp.all(jnp.isfinite(masses))
+        assert jnp.all((masses >= 0.01) & (masses <= 150.0))
+
+    @pytest.mark.parametrize(
         "model",
         [
             "jerabkova_rho",
@@ -736,8 +872,8 @@ class TestEnvGradients:
     """Autodiff env-parameter gradients match central finite differences.
 
     Evaluated in a top-heavy regime where the varied branch (slope*x+intercept) is
-    active and unclipped, so the gradient is non-zero. Uses smooth=True so the
-    tanh-relaxed transition is differentiable everywhere.
+    active and unclipped, so the gradient is non-zero. Uses smooth=True to
+    blend the threshold locally; output clipping is still not globally smooth.
     """
 
     def test_jerabkova_generalized_grad_FeH(self):

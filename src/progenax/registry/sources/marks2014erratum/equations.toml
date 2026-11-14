@@ -1,0 +1,11 @@
+[[equation]]
+id = "EQ-MARKS-ERRATUM"
+name = "Printed rounded corrected Fundamental Plane"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "PDF p.1, printed p.3315, Eq.1"
+source_ids = ["marks2014erratum"]
+symbol_ids = ["SYM-x_env"]
+expression = "Piecewise((-41/100*x_env+194/100,x_env>=-87/100),(23/10,True))"
+returns = "imf_exponent"
+note = "Literal erratum: negative threshold and rounded -0.41/1.94. Progenax Marks helper retains original -0.4072/1.9383; the erratum is evidence for the threshold correction, not for changing those retained coefficients."

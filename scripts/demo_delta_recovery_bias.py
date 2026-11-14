@@ -101,7 +101,6 @@ import jax
 import jax.numpy as jnp
 
 import progenax  # noqa: F401  -- enables float64 at import
-from progenax.imf.smooth import Maschberger
 
 sys.path.insert(0, os.path.dirname(__file__))
 import _demo_inference as di  # noqa: E402
@@ -121,23 +120,25 @@ BIAS_BUDGET_MIN = 30.0  # whole-bias-panel budget (STOP gate)
 # --------------------------------------------------------------------------- #
 # Kinematics-only (delta, W0) refit with alpha FROZEN (bias curve)
 # --------------------------------------------------------------------------- #
-def _kin_negloglike_2p(z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
+def _kin_negloglike_2p(
+    z2, alpha_assumed, sig_hat, se, weight, r_edges, component_counts
+):
     """Kinematics-only negloglike in z2 = (z_delta, z_W0); alpha frozen, mass
     term DROPPED. Same standardized chi^2 as the joint loss's kinematic part."""
     theta = (alpha_assumed, di.expit(z2[0], *b2.DELTA_BOX), di.expit(z2[1], *b2.W0_BOX))
-    sig_model = b2.predict_binned(theta, r_edges, m_fixed)
+    sig_model = b2.predict_binned(theta, r_edges, component_counts)
     safe_se = jnp.where(se > 0, se, 1.0)
     resid = jnp.sqrt(weight) * (sig_hat - sig_model) / safe_se
     return 0.5 * jnp.sum(resid * resid)
 
 
-def _fit_kin_only(alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
+def _fit_kin_only(alpha_assumed, sig_hat, se, weight, r_edges, component_counts):
     """One kinematics-only (delta, W0) Adam fit (Task 4 step count / lr).
     Jitted ONCE at module scope (below); all 5 x N_SEEDS fits reuse it."""
 
     def negll(z2):
         return _kin_negloglike_2p(
-            z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+            z2, alpha_assumed, sig_hat, se, weight, r_edges, component_counts
         )
 
     return di.mle_adam(negll, jnp.zeros(2), n_steps=b2.N_ADAM_STEPS, lr=b2.ADAM_LR)
@@ -167,11 +168,11 @@ def dispersed_inits_2p():
 
 
 def _kin_negloglike_theta(
-    delta, w0, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+    delta, w0, alpha_assumed, sig_hat, se, weight, r_edges, component_counts
 ):
     """The SAME kinematics-only negloglike as ``_kin_negloglike_2p`` but in
     PHYSICAL (delta, W0) -- used to profile the likelihood on a delta grid."""
-    sig_model = b2.predict_binned((alpha_assumed, delta, w0), r_edges, m_fixed)
+    sig_model = b2.predict_binned((alpha_assumed, delta, w0), r_edges, component_counts)
     safe_se = jnp.where(se > 0, se, 1.0)
     resid = jnp.sqrt(weight) * (sig_hat - sig_model) / safe_se
     return 0.5 * jnp.sum(resid * resid)
@@ -184,13 +185,15 @@ profile_negll = jax.jit(
 )
 
 
-def _fit_kin_only_diag(z0, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed):
+def _fit_kin_only_diag(
+    z0, alpha_assumed, sig_hat, se, weight, r_edges, component_counts
+):
     """Kinematics-only fit from an EXPLICIT init with DIAG_N_STEPS Adam steps
     (the ensemble fit is z0=0 with N_ADAM_STEPS)."""
 
     def negll(z2):
         return _kin_negloglike_2p(
-            z2, alpha_assumed, sig_hat, se, weight, r_edges, m_fixed
+            z2, alpha_assumed, sig_hat, se, weight, r_edges, component_counts
         )
 
     return di.mle_adam(negll, z0, n_steps=DIAG_N_STEPS, lr=b2.ADAM_LR)
@@ -232,7 +235,7 @@ def diag_alpha21():
             data["se"],
             data["weight"],
             data["r_edges"],
-            data["M_fixed"],
+            data["component_counts"],
         )
 
     # ------------------------------------------------------------------ #
@@ -336,23 +339,20 @@ def diag_alpha21():
 # --------------------------------------------------------------------------- #
 # Full joint (alpha, delta, W0) refit (robustness grid) -- Task 4 recipe
 # --------------------------------------------------------------------------- #
-def _joint_negloglike(z, sig_hat, se, weight, r_edges, m_fixed, m_obs):
-    """The Task 3 joint negloglike (kinematics + Option A mass channel), with
+def _joint_negloglike(z, sig_hat, se, weight, r_edges, component_counts):
+    """The Task 3 joint negloglike (kinematics + same-catalogue component counts), with
     the data arrays as arguments so the jitted fit compiles once."""
     theta = b2._theta_of_z(z)
-    sig_model = b2.predict_binned(theta, r_edges, m_fixed)
+    sig_model = b2.predict_binned(theta, r_edges, component_counts)
     safe_se = jnp.where(se > 0, se, 1.0)
     resid = jnp.sqrt(weight) * (sig_hat - sig_model) / safe_se
-    alpha = theta[0]
-    mass_nll = -jnp.sum(
-        Maschberger(alpha=alpha, m_min=b2.M_RANGE[0], m_max=b2.M_RANGE[1]).logpdf(m_obs)
-    )
-    return 0.5 * jnp.sum(resid * resid) + mass_nll
+    count_nll = b2.count_negloglike(theta, component_counts)
+    return 0.5 * jnp.sum(resid * resid) + count_nll
 
 
-def _fit_joint(z0, sig_hat, se, weight, r_edges, m_fixed, m_obs):
+def _fit_joint(z0, sig_hat, se, weight, r_edges, component_counts):
     def negll(z):
-        return _joint_negloglike(z, sig_hat, se, weight, r_edges, m_fixed, m_obs)
+        return _joint_negloglike(z, sig_hat, se, weight, r_edges, component_counts)
 
     return di.mle_adam(negll, z0, n_steps=b2.N_ADAM_STEPS, lr=b2.ADAM_LR)
 
@@ -363,14 +363,13 @@ fit_joint = jax.jit(_fit_joint)
 def joint_refit(data):
     """Full joint refit on one dataset: 3 dispersed inits -> best z_hat,
     theta_hat, Gauss-Newton Fisher sigma_theta, plateau flag. Task 4 recipe via
-    the b2 builders (make_residual_fn / make_mass_negloglike / fisher_*)."""
+    the b2 builders (make_residual_fn / make_count_negloglike / fisher_*)."""
     args = (
         data["sig_hat"],
         data["se"],
         data["weight"],
         data["r_edges"],
-        data["M_fixed"],
-        data["m_obs"],
+        data["component_counts"],
     )
     z0s = b2.dispersed_inits()
     z_hats, traces, finals = [], [], []
@@ -383,9 +382,7 @@ def joint_refit(data):
     z_hat, trace = z_hats[i_best], traces[i_best]
     plat_ok, _, _ = b2.plateau_ok(trace)
 
-    residual_fn = b2.make_residual_fn(data)
-    mass_negloglike = b2.make_mass_negloglike(data)
-    F_z = di.fisher_information_gn(residual_fn, z_hat, extra_negloglike=mass_negloglike)
+    F_z = b2.joint_information(data, z_hat)
     cov_theta = di.constrained_cov(F_z, b2._dtheta_dz(z_hat))  # raises if not PD
     sigma_theta = jnp.sqrt(jnp.diag(cov_theta))
     theta_hat = b2._theta_of_z(z_hat)
@@ -553,7 +550,7 @@ def main():
         data0["se"],
         data0["weight"],
         data0["r_edges"],
-        data0["M_fixed"],
+        data0["component_counts"],
     )
     # Probe with TWO REAL fits (reused below as the first two seed-0 ensemble
     # members, so no probe time is wasted). The projection uses the measured
@@ -638,7 +635,7 @@ def main():
             data["se"],
             data["weight"],
             data["r_edges"],
-            data["M_fixed"],
+            data["component_counts"],
         )
         d_row, w_row = [], []
         for ia, a in enumerate(ALPHAS_ASSUMED):

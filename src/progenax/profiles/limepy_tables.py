@@ -1,39 +1,65 @@
 # progenax/src/progenax/profiles/limepy_tables.py
-"""Tabulated LIMEPY DF moments (Phase 1.5 performance layer).
+"""Density and speed-CDF tables for lowered-isothermal models.
 
-AnisoDensityTable tabulates the anisotropic lowered-isothermal density
-rho_hat(W, p; g) -- the 86% hotspot of the multi-component coupled solve --
-on a (sqrt(W), asinh(p)) grid, built in one batched call with the EXACT
-quadrature (_aniso_density_scalar). The quadrature path remains available
-everywhere as the oracle; this module must reproduce it to <= 1e-5 relative
-(asserted in tests/unit/profiles/test_limepy_tables.py).
-
-Coordinates: rho_hat ~ W^(g+3/2) as W->0 (sqrt stretches the power-law region);
-rho_hat decays ~ 1/p at large p via T(beta) ~ sqrt(pi/4 beta) (asinh gives
-log-like large-p resolution). Queries clamp to the box. Differentiable in the
-build inputs (g) and the queries (W, p).
-
-Interpolation scheme (measured, 2026-06): tensor-product 4-point cubic
-Lagrange on the uniform (sqrt W, asinh p) grid, O(h^4). Bilinear interpolation
-(the original design) converges only O(h^2) with a large constant here -- the
-e^W growth and the W^(g+3/2) corner dominate the second derivative -- and
-misses the 1e-5 budget even at 3072x512 nodes (5.7e-5 measured, ~39 s build).
-Cubic meets it at the default 512x96 (6.1e-6 measured, ~2 s build). The build
-maps over sqrt(W) rows with `jax.lax.map` (scan-based, differentiable): a full
-double-vmap would materialize an (n_W, n_p, 256, 91) quadrature intermediate
-and exhaust memory.
+The density table interpolates density divided by its analytic isotropic
+value in sqrt(W) and log(1+p^2 W), where W is the relative potential and
+p=r/r_a. The analytic normalization resolves both the escape boundary and
+the deep-potential limit; the even coordinate preserves the zero p derivative.
+Speed-CDF tables use their separately documented grids and quadrature rules.
 """
 
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics import gauss_legendre_nodes
 from jaxtyping import Array, Float
 
 from progenax.profiles.limepy import (
+    _SPEED_T,
+    _SPEED_WEIGHTS,
     _angle_integral_T,
-    _aniso_density_scalar,
+    limepy_density_hat,
     lowered_exponential,
 )
+
+
+def _speed_weight(W, g, x):
+    """Unnormalized density in x=u/sqrt(2W), with the common W**g removed.
+
+    At W=0 the limiting shape is x**2 (1-x**2)**g / Gamma(g+1).
+    The g=0 escape endpoint uses its interior limit for integration.
+    """
+    safe = jnp.where(W > 0.0, W, 1.0)
+    z = jnp.maximum(1.0 - x**2, 0.0)
+    residual = lowered_exponential(g, safe * z) / safe**g
+    residual = jnp.where((g == 0.0) & (z == 0.0), 1.0, residual)
+    # Avoid an inactive log(0) in derivatives with respect to g.
+    power = jnp.exp(g * jnp.log(jnp.where(z > 0.0, z, 1.0)))
+    power = jnp.where(z > 0.0, power, jnp.where(g == 0.0, 1.0, 0.0))
+    limit = power * jnp.exp(-jax.scipy.special.gammaln(g + 1.0))
+    return x**2 * jnp.where(W > 0.0, residual, limit)
+
+
+_CDF_NODES, _CDF_WEIGHTS = gauss_legendre_nodes(8)
+
+
+def _speed_cdf(W, g, x, beta=0.0, *, angular=None):
+    """Integrate normalized speed weights with eight interior nodes per cell.
+
+    beta=p**2*W supplies the angular scale. Leading dimensions of W and
+    beta broadcast over the final (interval, quadrature-node) dimensions.
+    """
+    width = jnp.diff(x)
+    nodes = x[:-1, None] + width[:, None] * (_CDF_NODES + 1.0) / 2.0
+    if angular is None:
+        angular = _angle_integral_T(beta * nodes**2)
+    weight = _speed_weight(W, g, nodes) * angular
+    area = width * jnp.sum(weight * _CDF_WEIGHTS / 2.0, axis=-1)
+    cumulative = jnp.concatenate(
+        (jnp.zeros_like(area[..., :1]), jnp.cumsum(area, axis=-1)), axis=-1
+    )
+    cumulative = cumulative / cumulative[..., -1:]
+    return cumulative.at[..., -1].set(1.0)
 
 
 def _cubic_lagrange_weights(t: Float[Array, ""]) -> Float[Array, "4"]:
@@ -56,44 +82,53 @@ class AnisoDensityTable(eqx.Module):
     (rescale_j*psi, xi/ra_j))."""
 
     s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
-    q_nodes: Float[Array, "n_p"]  # asinh(p) nodes, uniform on [0, asinh(p_max)]
-    values: Float[Array, "n_W n_p"]
+    q_nodes: Float[Array, "n_p"]  # log(1+p^2 W) nodes
+    values: Float[Array, "n_W n_p"]  # rho_hat / (sqrt(2*pi) * E_gamma(g+3/2,W))
+    g: Float[Array, ""]
 
     @classmethod
-    def build(cls, W_max, p_max, g, n_W: int = 512, n_p: int = 96):
-        """Tabulate the exact quadrature on the (sqrt W, asinh p) grid.
+    def build(cls, W_max, p_max, g, n_W: int = 160, n_p: int = 160):
+        """Build the factored density on a uniform coupled-coordinate grid.
 
-        W_max gets a x1.001 safety factor so in-domain queries never clamp.
-        Differentiable in (g) and the queries (W, p): node values carry d/dg
-        through `jax.lax.map` (scan-based, unlike a double-vmap it never
-        materializes the full (n_W, n_p, n_quad) quadrature intermediate).
+        W_max and p_max must be positive; both grid sizes must be at least four.
+        The upper potential has the existing 1.001 safety factor. A 128-node
+        Gauss-Legendre speed rule excludes the escape endpoint, including g=0.
+        Rows at W=0 use the analytic limiting ratio. Interior queries and
+        build inputs carry derivatives, including the one-sided g=0 tangent.
         """
         s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
-        q = jnp.linspace(0.0, jnp.arcsinh(jnp.asarray(p_max)), n_p)
-        W = s**2
-        p = jnp.sinh(q)
+        q = jnp.linspace(0.0, jnp.log1p((p_max * s[-1]) ** 2), n_p)
+        t = _SPEED_T
+        angular = _angle_integral_T(jnp.expm1(q)[:, None] * t**2)
+        limit = (1.0 - t**2) ** g * jnp.exp(-jax.scipy.special.gammaln(g + 1))
 
         def row(w):
-            return jax.vmap(lambda pp: _aniso_density_scalar(w, pp, g))(p)
+            safe = jnp.where(w > 0, w, 1.0)
+            ratio = lowered_exponential(g, safe * (1.0 - t**2)) / safe**g
+            ratio = jnp.where(w > 0, ratio, limit)
+            residual = 2.0**1.5 * jnp.sum(
+                _SPEED_WEIGHTS * t**2 * ratio * angular, axis=1
+            )
+            isotropic = jnp.sqrt(2.0 * jnp.pi) * limepy_density_hat(safe, g)
+            normalization = jnp.where(
+                w > 0,
+                isotropic / safe ** (g + 1.5),
+                jnp.sqrt(2.0 * jnp.pi) * jnp.exp(-jax.scipy.special.gammaln(g + 2.5)),
+            )
+            return residual / normalization
 
-        vals = jax.lax.map(row, W)
-        return cls(s_nodes=s, q_nodes=q, values=vals)
+        return cls(s, q, jax.lax.map(row, s**2), jnp.asarray(g))
 
     def evaluate(self, W, p):
-        """Bicubic (4-point Lagrange) interp at (W, p), clamped to the table
-        box. W <= 0 -> 0 (no stars above the escape energy).
+        """Interpolate density; W<=0 returns zero, and coordinates saturate at edges.
 
-        Cubic Lagrange can overshoot by O(1e-15 * central) near the W->0
-        power-law corner; the result is clamped to preserve the rho_hat >= 0
-        contract (gradient is zero only on that measure-tiny set).
-        Gradients are exactly 0 in the clamp region (edge saturation) --
-        relevant if optimizing ra_hat_j near the p edge.
+        Four-point tensor-product Lagrange interpolation acts on the anisotropic
+        density ratio. The analytic isotropic density is restored afterward.
+        The differentiable accuracy contract covers interior physical queries.
         """
-        # 1e-12 floor mirrors _aniso_density_scalar's oracle guard: sqrt(0)
-        # has a NaN cotangent under jax.grad and the final where() masks only
-        # the primal. s = 1e-6 is deep inside the first cell.
+        safe = jnp.where(W > 0, W, 1.0)
         s = jnp.sqrt(jnp.maximum(W, 1e-12))
-        q = jnp.arcsinh(jnp.maximum(p, 0.0))
+        q = jnp.log1p(p * p * safe)
         s = jnp.clip(s, self.s_nodes[0], self.s_nodes[-1])
         q = jnp.clip(q, self.q_nodes[0], self.q_nodes[-1])
         # Cell widths: the grid is uniform by construction (linspace in build).
@@ -109,7 +144,9 @@ class AnisoDensityTable(eqx.Module):
         sub = jax.lax.dynamic_slice(self.values, (i0, j0), (4, 4))
         v = ws @ sub @ wq
         v = jnp.maximum(v, 0.0)  # clamp cubic overshoot (rho_hat >= 0 contract)
-        return jnp.where(W > 0.0, v, 0.0)
+        return jnp.where(
+            W > 0.0, v * jnp.sqrt(2.0 * jnp.pi) * limepy_density_hat(safe, self.g), 0.0
+        )
 
 
 class SpeedCDFTable(eqx.Module):
@@ -131,57 +168,28 @@ class SpeedCDFTable(eqx.Module):
     """
 
     s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
-    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W) nodes, uniform on [0, 1]
+    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W) nodes, cosine spacing on [0, 1]
     cdf: Float[Array, "n_W n_x"]  # normalized speed CDF per sqrt(W) row
 
     @classmethod
-    def build(cls, W_max, g, n_W: int = 256, n_x: int = 256):
+    def build(cls, W_max, g, n_W: int = 256, n_x: int = 384):
         """Tabulate normalized speed CDFs on the (sqrt W, x) grid.
 
-        One batched E_gamma evaluation of n_W x n_x points (65k at default
-        resolution, vs 256 per star in the exact sampler). W_max gets the
+        Eight-point Gauss integration in each speed interval excludes escape
+        endpoints and retains the one-sided g=0 derivative. W_max gets the
         x1.001 safety factor so in-domain queries never clamp. Differentiable
         in g (through the node CDFs) and W_max (through the nodes). The W = 0
-        row is floored to W = 1e-6 -- the `inverse` draw-guard threshold, so
-        the floored row is never drawn from directly (W <= 1e-6 returns u = 0)
-        and serves only as the lower lerp anchor for stars just above the
-        guard; its shape is the W = 1e-6 CDF, indistinguishable from the
-        analytic W -> 0 limit x^2 (1-x^2)^g at that W. The floor also keeps
-        the raw row total (which scales as W^g) far above float64 underflow
-        for g in [0, 3.5], so the relative normalization below (plus the
-        last-column ulp pin) ends every row's CDF at exactly 1.0 (an
-        absolute +1e-30 regularizer would
-        swamp a W = 1e-12 row total ~W^g at g >= 2.5 and corrupt row 0).
+        row uses the analytic W -> 0 normalized shape. Dividing out W**g
+        before normalization keeps weights finite at small positive W.
         Per-component row resolution: a component with velocity-scale ratio w
         (w_j / max_j w_j after rescaling) only ever queries the first w_min/w
         fraction of the n_W = 256 sqrt(W) rows, so its effective resolution
         shrinks proportionally for extreme scale ratios.
         """
         s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
-        x = jnp.linspace(0.0, 1.0, n_x)
-        W = jnp.maximum(s**2, 1e-6)  # W=0-row floor at the draw guard (see above)
-        wgt = jnp.maximum(
-            x[None, :] ** 2
-            * lowered_exponential(g, W[:, None] * (1.0 - x[None, :] ** 2)),
-            0.0,
-        )
-        dx = x[1] - x[0]
-        cdf = jnp.concatenate(
-            [
-                jnp.zeros((n_W, 1)),
-                jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx,
-            ],
-            axis=1,
-        )
-        # Relative normalization: every row total is strictly positive (the
-        # 1e-6 W floor keeps it >= O(1e-23) even at g = 3.5, far above float64
-        # underflow), so the division is exact to an ulp and differentiable.
-        # XLA rewrites the broadcast divide as x * (1/x) (1 ulp short of 1.0
-        # on some rows -- measured, same as the AnisoSpeedCDFTable build), so
-        # pin the last column to its mathematically identical value 1.0
-        # (true gradient there is 0).
-        cdf = cdf / cdf[:, -1:]
-        cdf = cdf.at[:, -1].set(1.0)
+        x = (1.0 - jnp.cos(jnp.pi * jnp.linspace(0.0, 1.0, n_x))) / 2.0
+        W = s**2
+        cdf = _speed_cdf(W[:, None, None], g, x)
         return cls(s_nodes=s, x_nodes=x, cdf=cdf)
 
     def inverse(self, W, unif):
@@ -191,12 +199,10 @@ class SpeedCDFTable(eqx.Module):
 
         Locates the two neighboring sqrt(W) rows, inverse-interpolates each
         row's CDF at unif, and lerps the two x results by the cell fraction;
-        u = x sqrt(2W). W clamps to the table box; W <= 1e-6 draws exactly 0
-        (matching _sample_unit_speed's bound guard).
+        u = x sqrt(2W). W clamps to the table box; W <= 0 draws exactly 0.
+        Potential derivatives are qualified only for W > 0.
         """
-        # 1e-12 floor mirrors _sample_unit_speed: sqrt(0) has a NaN cotangent
-        # under jax.grad and the final where() masks only the primal.
-        W_safe = jnp.maximum(W, 1e-12)
+        W_safe = jnp.where(W > 0.0, W, 1.0)
         s = jnp.clip(jnp.sqrt(W_safe), self.s_nodes[0], self.s_nodes[-1])
         hs = self.s_nodes[1] - self.s_nodes[0]  # uniform grid by construction
         i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
@@ -204,83 +210,60 @@ class SpeedCDFTable(eqx.Module):
         x_lo = jnp.interp(unif, self.cdf[i], self.x_nodes)
         x_hi = jnp.interp(unif, self.cdf[i + 1], self.x_nodes)
         u = ((1.0 - t) * x_lo + t * x_hi) * jnp.sqrt(2.0 * W_safe)
-        return jnp.where(W > 1e-6, u, 0.0)
+        return jnp.where(W > 0.0, u, 0.0)
 
 
 class AnisoSpeedCDFTable(eqx.Module):
     """Anisotropic speed-MARGINAL inverse-CDF table u(W, p, unif) for fixed g
     (Tranche B, Task 6).
 
-    Replaces the per-star 256-point quadrature of the speed-marginal step of
+    Replaces per-star speed-marginal integration in
     `_sample_speed_angle` (u^2 E_gamma(g, W - u^2/2) T(p^2 u^2 / 2) on
     [0, sqrt(2W)]) with ONE precomputed 3-D table in normalized coordinates
-    x = u / sqrt(2W) in [0, 1] on a (sqrt W, asinh p) grid:
+    x = u / sqrt(2W) in [0, 1] on a (sqrt W, log(1+p^2 W)) grid:
 
         u^2 E T du = (2W)^(3/2) x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2) dx,
 
     so the W-only prefactor cancels in the relative row normalization and
-    each (sqrt W, asinh p) row stores the CDF of
+    each (sqrt W, log(1+p^2 W)) row stores the CDF of
     x^2 E_gamma(g, W(1-x^2)) T(p^2 W x^2) alone (T's argument: beta =
     p^2 u^2 / 2 = p^2 W x^2). The angular conditional cos(theta)|u is NOT
-    tabulated -- it stays exact (`_sample_costheta_given_u`, cheap exp
-    arithmetic). Axis choices mirror AnisoDensityTable (sqrt W stretches the
-    W -> 0 power law; asinh p gives log-like large-p resolution) and the
-    SpeedCDFTable normalization lesson applies: a 1e-6 row-W floor keeps raw
-    row totals (~W^g, further T-suppressed at large p) far above float64
-    underflow so plain relative division ends every row's CDF at exactly 1.0.
+    tabulated -- it uses quadrature (`_sample_costheta_given_u`, cheap exp
+    arithmetic). Here sqrt(W) resolves low potentials; log(1+p^2 W) resolves the coupled
+    angular scale and preserves the even dependence on p.
+    The common W**g factor is removed before row normalization. At W=0,
+    the analytic limiting shape supplies the interpolation anchor.
 
-    Small-N break-even (measured 2026-06, M-series CPU): the per-draw-call
-    table build costs ~160 ms (it is traced inside the jitted sampler core,
-    not cached on the model), which dominates anisotropic draws below
-    ~3k stars; above that the ~3 us/star inverse amortizes it and the table
-    path wins (21.7x at 1e5 stars). For repeated small draws from one model,
-    batch them into a single call.
+    Build cost is amortized over the draws that reuse a table.
     """
 
     s_nodes: Float[Array, "n_W"]  # sqrt(W) nodes, uniform on [0, sqrt(W_max)]
-    q_nodes: Float[Array, "n_p"]  # asinh(p) nodes, uniform on [0, asinh(p_max)]
-    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W) nodes, uniform on [0, 1]
+    q_nodes: Float[Array, "n_p"]  # log(1+p^2 W) nodes, uniform over the table box
+    x_nodes: Float[Array, "n_x"]  # x = u/sqrt(2W), cosine spacing on [0, 1]
     cdf: Float[Array, "n_W n_p n_x"]  # normalized speed-marginal CDF per row
 
     @classmethod
-    def build(cls, W_max, p_max, g, n_W: int = 192, n_p: int = 48, n_x: int = 192):
-        """Tabulate normalized speed-marginal CDFs on the (sqrt W, asinh p, x)
-        grid (1.8M float64 = 14 MB at the defaults).
+    def build(cls, W_max, p_max, g, n_W: int = 192, n_p: int = 96, n_x: int = 384):
+        """Tabulate normalized speed-marginal CDFs on the (sqrt W, log(1+p^2 W), x)
+        grid (7.1M float64 = 57 MB at the defaults). Eight-point Gauss
+        integration in each speed interval excludes escape endpoints.
 
-        Maps over sqrt(W) rows with `jax.lax.map` (scan-based, differentiable):
-        a fully batched build would materialize the (n_W, n_p, n_x, 91)
-        Poisson-sum intermediate of `_angle_integral_T` (~1.3 GB at the
-        defaults) -- the AnisoDensityTable build lesson. W_max gets the x1.001
+        Maps over sqrt(W) rows with `jax.lax.map` (scan-based, differentiable).
+        Angular weights depend only on the coupled coordinate and are computed
+        once before the scan. W_max gets the x1.001
         safety factor so in-domain queries never clamp. Differentiable in g
-        and (W_max, p_max) through the nodes; the W = 0 row is floored to
-        W = 1e-6 (the `inverse` draw-guard threshold, see SpeedCDFTable).
+        and (W_max, p_max) through the nodes. The W=0 row uses its analytic limit.
         """
         s = jnp.linspace(0.0, jnp.sqrt(jnp.asarray(W_max) * 1.001), n_W)
-        q = jnp.linspace(0.0, jnp.arcsinh(jnp.asarray(p_max)), n_p)
-        x = jnp.linspace(0.0, 1.0, n_x)
-        W = jnp.maximum(s**2, 1e-6)  # W=0-row floor at the draw guard
-        p = jnp.sinh(q)
+        q = jnp.linspace(0.0, jnp.log1p(jnp.asarray(p_max) ** 2 * s[-1] ** 2), n_p)
+        x = (1.0 - jnp.cos(jnp.pi * jnp.linspace(0.0, 1.0, n_x))) / 2.0
+        W = s**2
+        beta = jnp.expm1(q)
+        nodes = x[:-1, None] + jnp.diff(x)[:, None] * (_CDF_NODES + 1.0) / 2.0
+        angular = _angle_integral_T(beta[:, None, None] * nodes**2)
 
         def row(w):
-            E = lowered_exponential(g, w * (1.0 - x**2))  # (n_x,)
-            T = _angle_integral_T(p[:, None] ** 2 * w * x[None, :] ** 2)
-            wgt = jnp.maximum(x[None, :] ** 2 * E[None, :] * T, 0.0)
-            dx = x[1] - x[0]
-            c = jnp.concatenate(
-                [
-                    jnp.zeros((n_p, 1)),
-                    jnp.cumsum(0.5 * (wgt[:, 1:] + wgt[:, :-1]), axis=1) * dx,
-                ],
-                axis=1,
-            )
-            # Relative normalization: the 1e-6 W floor keeps every row total
-            # strictly positive (>= O(1e-23) at g = 3.5, further suppressed
-            # only polynomially by T at large p), so the division is exact to
-            # an ulp and differentiable. Inside lax.map XLA rewrites x/x as
-            # x * (1/x) (1 ulp short of 1.0), so pin the last column to its
-            # mathematically identical value 1.0 (true gradient there is 0).
-            c = c / c[:, -1:]
-            return c.at[:, -1].set(1.0)
+            return _speed_cdf(w, g, x, angular=angular)
 
         cdf = jax.lax.map(row, W)
         return cls(s_nodes=s, q_nodes=q, x_nodes=x, cdf=cdf)
@@ -291,18 +274,14 @@ class AnisoSpeedCDFTable(eqx.Module):
         Scalar in, scalar out; vmap over stars. Differentiable in (W, p) and
         in g through the stored CDF rows.
 
-        Locates the (sqrt W, asinh p) cell, inverse-interpolates the FOUR
+        Locates the (sqrt W, log(1+p^2 W)) cell, inverse-interpolates the FOUR
         neighboring rows' CDFs at unif, bilinearly lerps the four x results,
-        and rescales u = x sqrt(2W). (W, p) clamp to the table box; W <= 1e-6
-        draws exactly 0 (matching _sample_speed_angle's bound guard).
+        and rescales u = x sqrt(2W). (W, p) clamp to the table box; W <= 0
+        draws exactly 0. Potential derivatives are qualified only for W > 0.
         """
-        # 1e-12 floor mirrors _sample_speed_angle: sqrt(0) has a NaN cotangent
-        # under jax.grad and the final where() masks only the primal.
-        W_safe = jnp.maximum(W, 1e-12)
+        W_safe = jnp.where(W > 0.0, W, 1.0)
         s = jnp.clip(jnp.sqrt(W_safe), self.s_nodes[0], self.s_nodes[-1])
-        q = jnp.clip(
-            jnp.arcsinh(jnp.maximum(p, 0.0)), self.q_nodes[0], self.q_nodes[-1]
-        )
+        q = jnp.clip(jnp.log1p(p**2 * W_safe), self.q_nodes[0], self.q_nodes[-1])
         hs = self.s_nodes[1] - self.s_nodes[0]  # uniform grids by construction
         hq = self.q_nodes[1] - self.q_nodes[0]
         i = jnp.clip(jnp.searchsorted(self.s_nodes, s) - 1, 0, self.s_nodes.size - 2)
@@ -320,7 +299,7 @@ class AnisoSpeedCDFTable(eqx.Module):
             + ts * tq * x4[3]
         )
         u = x * jnp.sqrt(2.0 * W_safe)
-        return jnp.where(W > 1e-6, u, 0.0)
+        return jnp.where(W > 0.0, u, 0.0)
 
 
 __all__ = ["AnisoDensityTable", "AnisoSpeedCDFTable", "SpeedCDFTable"]

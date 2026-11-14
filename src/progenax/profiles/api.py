@@ -5,7 +5,7 @@ Functional API for spatial density profiles.
 Provides profile-agnostic functions for:
 - Creating profile instances via factory function
 - Sampling positions from density profiles
-- Computing analytic gravitational potentials
+- Computing specific gravitational potentials
 
 This API enables the cluster IC generator to work with any supported
 density profile without depending on specific profile class implementations.
@@ -64,6 +64,10 @@ def make_profile(
             **King profile**:
                 - W0: float = 5.0 - King concentration parameter (typical 1-12)
                 - n_grid: int = 1000 - CDF interpolation grid points
+                - xi_max: optional ODE outer radius in core-radius units
+                - n_ode_points: optional saved ODE grid size
+                  Both ODE options pass to KingProfile.from_W0_rc; omitted
+                  options retain that constructor's automatic configuration.
 
             **EFF profile**:
                 - gamma: float = 3.0 - Power-law index (concentration)
@@ -102,7 +106,13 @@ def make_profile(
         n_grid = kwargs.get("n_grid", 1000)
         # Use R_half as core radius r_c
         # Tidal radius is derived self-consistently from W0
-        return KingProfile.from_W0_rc(W0=W0, r_c=R_half, n_grid=n_grid)
+        return KingProfile.from_W0_rc(
+            W0=W0,
+            r_c=R_half,
+            n_grid=n_grid,
+            xi_max=kwargs.get("xi_max"),
+            n_ode_points=kwargs.get("n_ode_points"),
+        )
 
     elif name_lower == "eff":
         gamma = kwargs.get("gamma", 3.0)
@@ -182,7 +192,7 @@ def compute_profile_potential(
     **kwargs,
 ) -> Float[Array, "N"]:
     """
-    Compute analytic gravitational potential at given positions.
+    Compute specific gravitational potential at given positions.
 
     This function computes Phi(r) for the specified density profile.
     The potential is normalized to the total mass M_total and gravitational
@@ -199,7 +209,8 @@ def compute_profile_potential(
 
     Returns:
         phi: SPECIFIC gravitational potential (per unit mass) at each position,
-             shape (N,). All values are negative (bound system).
+             shape (N,). Plummer and EFF use zero potential at infinity.
+             King uses zero at its tidal radius, with positive exterior values.
              Units: [length units]^2 / [time units]^2 (e.g. pc^2/Myr^2 in
              STELLAR units) — consistent with specific kinetic energy 0.5*v^2,
              so E = 0.5*v^2 + phi is a specific orbital energy.
@@ -218,15 +229,25 @@ def compute_profile_potential(
             Phi(r) = -G * M_total / sqrt(r^2 + a^2)
             where a = R_half * sqrt(2^(2/3) - 1) is the scale radius.
 
-        **King potential** (exact relative potential):
-            Phi(r) = -sigma^2 * psi(r), with psi the dimensionless King ODE
+        **King potential** (ODE-defined tidal-zero potential):
+            Inside r_t, Phi(r) = -sigma^2 * psi(r), with psi the dimensionless King ODE
             potential (psi(r_t) = 0) and sigma^2 = G M / (9 r_c mu(W0)) the
             self-consistent velocity scale (matches KingVelocityDF).
+            The last positive interpolation interval ends at (r_t, 0).
+            Outside r_t, Phi(r) = G M (1/r_t - 1/r), in the same gauge.
 
-        **EFF potential** (true spherical potential):
-            Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ], using the exact
-            enclosed mass from the profile's density grid (interior monopole +
-            outer-shell term).
+        **EFF potential** (infinity-zero spherical potential):
+            Inside r_t, Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ],
+            using numerically integrated enclosed mass from the profile's density
+            grid (interior monopole + outer-shell term).
+            Outside r_t, Phi(r) = -G M / r.
+
+        King and EFF interiors use grid quadrature and interpolation; King also
+        uses an ODE solve. Their exterior expressions follow the spherical shell
+        theorem because the density is zero outside r_t. King requires a resolved
+        tidal crossing, rather than a radius pinned to an insufficient ODE domain.
+        The interpolation does not guarantee derivative continuity at grid nodes
+        or at r_t.
 
         The potential is computed per-particle and vectorized for efficiency.
     """
@@ -244,7 +265,7 @@ def compute_profile_potential(
         phi = -G * M_total / jnp.sqrt(r**2 + a**2)
 
     elif profile_lower == "king":
-        # True King relative potential V(r) = -sigma^2 * psi(r), with psi(r_t)=0.
+        # King tidal-zero potential V(r) = -sigma^2 * psi(r) inside r_t.
         # psi is the dimensionless potential from the King ODE; sigma is the
         # self-consistent velocity scale sigma^2 = G M / (9 r_c mu(W0)), matching
         # KingVelocityDF so energies are consistent with the sampled velocities.
@@ -253,8 +274,9 @@ def compute_profile_potential(
         assert isinstance(profile_instance, KingProfile)
         rho0 = king_lowered_maxwellian_density(profile_instance.W0)
         rho_tilde = jnp.where(
-            rho0 > 1e-10,
-            king_lowered_maxwellian_density(profile_instance.psi_grid) / rho0,
+            rho0 > 0.0,
+            king_lowered_maxwellian_density(profile_instance.psi_grid)
+            / jnp.where(rho0 > 0.0, rho0, 1.0),
             0.0,
         )
         mu = jnp.trapezoid(
@@ -262,17 +284,23 @@ def compute_profile_potential(
         )
         sigma_sq = G * M_total / (9.0 * profile_instance.r_c * mu)
         xi = r / profile_instance.r_c
+        # Anchor the final positive interpolation interval to the actual root,
+        # rather than the first clipped-zero saved node beyond that root.
+        xi_t = profile_instance.r_t / profile_instance.r_c
         psi = jnp.interp(
             xi,
-            profile_instance.xi_grid,
+            jnp.minimum(profile_instance.xi_grid, xi_t),
             profile_instance.psi_grid,
             left=profile_instance.W0,
             right=0.0,
         )
-        phi = -sigma_sq * psi
+        exterior = r >= profile_instance.r_t
+        r_safe = jnp.where(exterior, r, profile_instance.r_t)
+        phi_exterior = G * M_total * (1.0 / profile_instance.r_t - 1.0 / r_safe)
+        phi = jnp.where(exterior, phi_exterior, -sigma_sq * psi)
 
     elif profile_lower == "eff":
-        # True EFF potential from the exact enclosed mass on the profile grid:
+        # EFF potential from the numerically integrated enclosed mass on the grid:
         #   Phi(r) = -G [ M(<r)/r + 4 pi int_r^rt rho s ds ]
         # (interior monopole + outer-shell term). Uses the same density grid as
         # the sampler, and is jit/grad-safe in gamma (no Python branch on gamma).
@@ -311,7 +339,9 @@ def compute_profile_potential(
                 + J_outer / (I2[-1] + 1e-30)
             )
         )
-        phi = jnp.interp(r, rgrid, phi_grid)
+        exterior = r >= profile_instance.r_t
+        r_safe = jnp.where(exterior, r, profile_instance.r_t)
+        phi = jnp.where(exterior, -G * M_total / r_safe, jnp.interp(r, rgrid, phi_grid))
 
     else:
         raise ValueError(

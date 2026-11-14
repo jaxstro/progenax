@@ -17,6 +17,20 @@ from progenax.kinematics import PlummerVelocityDF
 from progenax.profiles import PlummerProfile
 
 
+@pytest.fixture
+def sampled_speed_support(N_stats, key):
+    """Shared fixed-draw exposure for speed support and Beta moments (G=1)."""
+    profile = PlummerProfile(r_h=1.0)
+    df = PlummerVelocityDF(r_h=1.0)
+    masses = jnp.ones(N_stats)
+    key_pos, key_vel = jax.random.split(key)
+    positions = profile.sample_positions(masses, key_pos)
+    velocities = df.sample_velocities(positions, masses, key_vel, G=1.0)
+    radii = jnp.linalg.norm(positions, axis=1)
+    escape = jnp.sqrt(2.0 * float(jnp.sum(masses)) / jnp.sqrt(radii**2 + df.a**2))
+    return jnp.linalg.norm(velocities, axis=1), escape
+
+
 class TestPlummerScaleRadius:
     """Verify Plummer scale radius formula: a = r_h × √(2^(2/3) - 1)."""
 
@@ -275,27 +289,9 @@ class TestPlummerVirialEquilibrium:
 class TestPlummerBoundParticles:
     """Verify all particles are gravitationally bound: v < v_esc."""
 
-    def test_all_particles_bound(self, N_stats, key):
-        """100% of particles have v < v_esc (bound orbits)."""
-        r_h = 1.0
-        G = 1.0
-
-        profile = PlummerProfile(r_h=r_h)
-        df = PlummerVelocityDF(r_h=r_h)
-        masses = jnp.ones(N_stats)
-        M_total = float(jnp.sum(masses))
-        a = df.a
-
-        key_pos, key_vel = jax.random.split(key)
-        positions = profile.sample_positions(masses, key_pos)
-        velocities = df.sample_velocities(positions, masses, key_vel, G=G)
-
-        # Escape velocity at each position: v_esc² = 2GM/√(r²+a²)
-        radii = jnp.linalg.norm(positions, axis=1)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + a**2))
-
-        # Velocity magnitudes
-        v_mag = jnp.linalg.norm(velocities, axis=1)
+    def test_all_particles_bound(self, sampled_speed_support):
+        """Every sampled speed lies below its local escape speed."""
+        v_mag, v_esc = sampled_speed_support
 
         # All must be bound
         bound_fraction = float(jnp.mean(v_mag < v_esc))
@@ -303,53 +299,13 @@ class TestPlummerBoundParticles:
             f"Only {bound_fraction * 100:.2f}% bound (expected 100%)"
         )
 
-    def test_velocity_to_escape_ratio(self, N_stats, key, plummer_constants):
-        """Mean v/v_esc ≈ 0.5 (from Beta distribution mean √⟨q²⟩ = 0.5)."""
-        r_h = 1.0
-        G = 1.0
-
-        profile = PlummerProfile(r_h=r_h)
-        df = PlummerVelocityDF(r_h=r_h)
-        masses = jnp.ones(N_stats)
-        M_total = float(jnp.sum(masses))
-        a = df.a
-
-        key_pos, key_vel = jax.random.split(key)
-        positions = profile.sample_positions(masses, key_pos)
-        velocities = df.sample_velocities(positions, masses, key_vel, G=G)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + a**2))
-        v_mag = jnp.linalg.norm(velocities, axis=1)
-
-        q_mean = float(jnp.mean(v_mag / v_esc))
-
-        # From Beta(3/2, 9/2): E[q] = E[√u] where u ~ Beta(3/2, 9/2)
-        # E[√u] ≈ 0.47 (numerical integration)
-        assert 0.40 < q_mean < 0.55, f"Mean q = v/v_esc = {q_mean:.4f}, expected ~0.47"
-
 
 class TestPlummerBetaDistribution:
     """Verify velocity magnitudes follow Beta(3/2, 9/2) for q² = (v/v_esc)²."""
 
-    def test_q_squared_mean(self, N_stats, key, plummer_constants):
-        """⟨q²⟩ = 0.25 from Beta(3/2, 9/2) mean = a/(a+b) = 1.5/6."""
-        r_h = 1.0
-        G = 1.0
-
-        profile = PlummerProfile(r_h=r_h)
-        df = PlummerVelocityDF(r_h=r_h)
-        masses = jnp.ones(N_stats)
-        M_total = float(jnp.sum(masses))
-        a = df.a
-
-        key_pos, key_vel = jax.random.split(key)
-        positions = profile.sample_positions(masses, key_pos)
-        velocities = df.sample_velocities(positions, masses, key_vel, G=G)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + a**2))
-        v_mag = jnp.linalg.norm(velocities, axis=1)
+    def test_q_squared_mean(self, sampled_speed_support, plummer_constants):
+        """Mean squared escape-speed ratio is 1/4 for Beta(3/2, 9/2)."""
+        v_mag, v_esc = sampled_speed_support
 
         q = v_mag / v_esc
         q2_mean = float(jnp.mean(q**2))
@@ -359,30 +315,10 @@ class TestPlummerBetaDistribution:
             f"⟨q²⟩ = {q2_mean:.4f}, expected {expected:.4f}"
         )
 
-    def test_q_squared_variance(self, N_stats, key):
-        """Variance of q² matches Beta(3/2, 9/2) prediction.
-
-        Var(q²) = ab/((a+b)²(a+b+1)) = 1.5×4.5/(36×7) = 0.0268
-        """
-        r_h = 1.0
-        G = 1.0
-
-        profile = PlummerProfile(r_h=r_h)
-        df = PlummerVelocityDF(r_h=r_h)
-        masses = jnp.ones(N_stats)
-        M_total = float(jnp.sum(masses))
-        a = df.a
-
-        key_pos, key_vel = jax.random.split(key)
-        positions = profile.sample_positions(masses, key_pos)
-        velocities = df.sample_velocities(positions, masses, key_vel, G=G)
-
-        radii = jnp.linalg.norm(positions, axis=1)
-        v_esc = jnp.sqrt(2.0 * G * M_total / jnp.sqrt(radii**2 + a**2))
-        v_mag = jnp.linalg.norm(velocities, axis=1)
-
-        q2 = (v_mag / v_esc) ** 2
-        q2_var = float(jnp.var(q2))
+    def test_q_squared_variance(self, sampled_speed_support):
+        """Variance of q squared matches the Beta(3/2, 9/2) prediction."""
+        v_mag, v_esc = sampled_speed_support
+        q2_var = float(jnp.var((v_mag / v_esc) ** 2))
 
         # Theoretical variance for Beta(1.5, 4.5)
         a_beta, b_beta = 1.5, 4.5

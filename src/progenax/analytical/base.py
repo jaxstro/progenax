@@ -19,14 +19,17 @@ class AnalyticalIC(eqx.Module):
         name: System name (e.g., "two_body_kepler", "figure_eight")
         period: Orbital period (if applicable)
         energy: Analytical total energy (if applicable)
+
+    Period and energy may be scalar JAX leaves, so their parameter dependence
+    is retained under JIT and automatic differentiation.
     """
 
     positions: Float[Array, "N 3"]
     velocities: Float[Array, "N 3"]
     masses: Float[Array, "N"]
     name: str = eqx.field(static=True, default="")
-    period: Optional[float] = None
-    energy: Optional[float] = None
+    period: Optional[Float[Array, ""] | float] = None
+    energy: Optional[Float[Array, ""] | float] = None
 
 
 # ============================================================================

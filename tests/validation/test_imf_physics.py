@@ -223,10 +223,10 @@ class TestIMFLowMassTurnover:
         )
 
     def test_chabrier_lognormal_peak(self, key):
-        """Chabrier has peak near m_c = 0.08 M_sun."""
+        """The PDF maximum on this low-mass grid lies in the tested window."""
         imf = ChabrierIMF()
 
-        # PDF should peak near m_c (for lognormal part)
+        # Query the PDF on the selected low-mass grid; m_c is a lognormal scale.
         m_grid = jnp.linspace(0.08, 0.5, 100)
         pdf_grid = jnp.exp(imf.logpdf(m_grid))
 
@@ -234,7 +234,7 @@ class TestIMFLowMassTurnover:
         max_idx = int(jnp.argmax(pdf_grid))
         m_peak = float(m_grid[max_idx])
 
-        # Peak should be between 0.1 and 0.3 M_sun (lognormal peak + normalization)
+        # This is a broad location check, not a precision test of a physical peak.
         assert 0.05 < m_peak < 0.4, f"Chabrier PDF peak at {m_peak:.3f} M_sun"
 
 
@@ -242,7 +242,7 @@ class TestMaschbergerProperties:
     """Verify Maschberger (2013) IMF properties."""
 
     def test_maschberger_peak_mass(self):
-        """Maschberger peaks at mu = 0.2 M_sun."""
+        """Default mass scale mu is 0.2 M_sun; this does not locate a PDF peak."""
         imf = Maschberger()
         assert imf.mu == 0.2, f"Maschberger mu = {imf.mu}, expected 0.2"
 

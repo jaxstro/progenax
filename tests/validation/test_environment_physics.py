@@ -3,11 +3,11 @@ Physics validation for the environment-dependent IMF (Marks+2012 / Jeřábková+
 
 These tests assert the *published* anchor values for the top-heavy IMF slope alpha3
 and the metallicity-dependent low-mass slopes against the implemented mapping --
-i.e. external published-table oracles, not self-consistency. The same oracles are
-exercised more granularly in tests/unit/imf/test_environment.py; this validation
-tier pins the headline published results (Marks+2012 Table 1 globular clusters and
-Table 4 low-mass slopes) and the qualitative physics (density dominates metallicity)
-so they are surfaced in the publication validation suite and figures
+i.e. external published-table oracles, not self-consistency. This is the sole
+pytest owner of the four GC anchors and their ordering. Unit tests retain
+coefficient, routing, clamp and derivative contracts, including the unclamped
+low-mass Table-4 route. This validation tier pins the headline published results
+and the qualitative density response for the validation suite and figures
 (scripts/validate_environment.py, docs/website/50-validation/environment-imf.md).
 
 References:
@@ -25,7 +25,7 @@ from progenax.imf.environment.mapping import (
 )
 
 # Marks+2012 Table 1: (name, [Fe/H], rho_cl [1e6 Msun/pc^3], published alpha3).
-# Table 1 caption notes scatter ~0.15 about the best-fit Fundamental Plane.
+# The retained 0.20 test allowance is not a per-cluster published uncertainty.
 MARKS_TABLE1_GCS = [
     ("NGC 104", -0.76, 9.54, 1.34),
     ("NGC 6341", -2.28, 66.03, 1.11),
@@ -50,7 +50,7 @@ class TestMarksTable1GlobularClusters:
     def test_gc_alpha3_matches_published(self, name, FeH, rho_1e6, alpha3_pub):
         log_rho_6 = jnp.log10(jnp.asarray(rho_1e6))
         computed = float(alpha3_marks_plane(log_rho_6, jnp.asarray(FeH)))
-        # atol 0.20 absorbs the ~0.15 intrinsic scatter about the best-fit plane.
+        # Retained absolute allowance around the fitted relation; not a GC error bar.
         assert abs(computed - alpha3_pub) < 0.20, (
             f"{name}: alpha3 computed {computed:.3f} vs published {alpha3_pub} "
             f"(|delta|={abs(computed - alpha3_pub):.3f} > 0.20)"
@@ -105,17 +105,17 @@ class TestMarksTable4LowMassSlopes:
 
 class TestErratumCorrectedPlane:
     """The 2014 erratum: the Marks Fundamental Plane uses threshold x_hat >= -0.87,
-    so it coincides with the Jerabkova (2018) IGIMF density relation (which adopts the
-    same corrected form). The originally printed +0.87 was a missing-minus-sign typo.
+    with bounded comparison against the separately rounded Jerabkova density relation.
+    The originally printed +0.87 was corrected by the erratum.
     """
 
     def test_marks_threshold_is_erratum_value(self):
         from progenax.imf.environment.coefficients import MARKS_COEFFICIENTS as M
 
         assert M["x_hat_threshold"] == -0.87, "must use the 2014-erratum threshold"
-        # the corrected line meets canonical 2.3 continuously at the threshold
+        # Retained coefficients are near canonical, with a small nonzero jump.
         knee = M["alpha3_slope"] * M["x_hat_threshold"] + M["alpha3_intercept"]
-        assert abs(knee - 2.3) < 0.02, "erratum threshold must give a continuous knee"
+        assert abs(knee - 2.3) < 0.02, "knee must meet the retained 0.02 allowance"
 
     def test_corrected_marks_equals_jerabkova(self):
         from progenax.imf.environment.mapping import (
@@ -128,7 +128,7 @@ class TestErratumCorrectedPlane:
             am = alpha3_marks_plane(lr, jnp.full_like(lr, feh))
             aj = alpha3_jerabkova_rho(lr, jnp.full_like(lr, feh))
             gap = float(jnp.max(jnp.abs(am - aj)))
-            # identical up to the -0.4072-vs-(-0.41) slope rounding
+            # Bounded grid comparison of the separately rounded expressions.
             assert gap < 0.05, (
                 f"[Fe/H]={feh}: corrected Marks vs Jerabkova gap {gap:.3f}"
             )

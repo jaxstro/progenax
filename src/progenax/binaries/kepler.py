@@ -147,8 +147,10 @@ class KeplerElements(eqx.Module):
         cos_E = jnp.cos(E)
         sin_E = jnp.sin(E)
 
-        x_p = self.a * (cos_E - self.e)
-        y_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 1e-12)) * sin_E
+        sin_half_squared = jnp.sin(E / 2.0) ** 2
+        eccentricity_factor = jnp.sqrt((1.0 - self.e) * (1.0 + self.e))
+        x_p = self.a * ((1.0 - self.e) - 2.0 * sin_half_squared)
+        y_p = self.a * eccentricity_factor * sin_E
 
         # Perifocal velocities
         # Mean motion: n = sqrt(GM/a^3). Use a divide-safe denominator (double
@@ -161,10 +163,13 @@ class KeplerElements(eqx.Module):
         n = jnp.where(a3 > 0.0, jnp.sqrt(G * M_total / a3_safe), 0.0)
 
         # dE/dt = n/(1 - e*cos E)
-        E_dot = n / jnp.maximum(1.0 - self.e * cos_E, 1e-12)
+        # This is 1-e*cos(E), evaluated without near-pericenter cancellation.
+        # It is strictly positive for a bound elliptic orbit, 0 <= e < 1.
+        radius_factor = (1.0 - self.e) + 2.0 * self.e * sin_half_squared
+        E_dot = n / radius_factor
 
         vx_p = -self.a * sin_E * E_dot
-        vy_p = self.a * jnp.sqrt(jnp.maximum(1.0 - self.e**2, 1e-12)) * cos_E * E_dot
+        vy_p = self.a * eccentricity_factor * cos_E * E_dot
 
         # Step 3: Rotate to inertial frame
         # Rotation matrices for (Omega, i, omega)
@@ -318,9 +323,9 @@ class KeplerElements(eqx.Module):
 
         Uses Newton-Raphson iteration with fixed iterations (differentiable).
         Converges very fast for e < 1 (typically 3-4 iterations for e < 0.8). The
-        default max_iter=50 is deliberately conservative so the fixed-iteration
-        scheme still reaches machine precision near e -> 1 (slower convergence);
-        the extra iterations are cheap and guarantee accuracy across all e < 1.
+        default max_iter=50 retains the existing fixed iteration budget.
+        Near-parabolic cases can be ill-conditioned and require residual and
+        observable checks; a fixed iteration count is not an accuracy guarantee.
 
         Args:
             M: Mean anomaly [rad]
@@ -347,8 +352,10 @@ class KeplerElements(eqx.Module):
         def newton_step(E_prev, _):
             """One Newton-Raphson iteration."""
             f = E_prev - e * jnp.sin(E_prev) - M_wrapped
-            f_prime = 1.0 - e * jnp.cos(E_prev)
-            E_new = E_prev - f / jnp.maximum(jnp.abs(f_prime), 1e-12)
+            # Positive for 0 <= e < 1; retain near-parabolic derivatives
+            # instead of flooring a legitimate small orbital denominator.
+            f_prime = (1.0 - e) + 2.0 * e * jnp.sin(E_prev / 2.0) ** 2
+            E_new = E_prev - f / f_prime
             return E_new, None
 
         # Use scan for fixed iterations (differentiable)

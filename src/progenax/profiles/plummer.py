@@ -107,9 +107,6 @@ class PlummerProfile(eqx.Module):
         Returns:
             Radii [length units]
 
-        References:
-            Verified against PLUMMER_FIXES.md (v0.3.0)
-
         Note:
             u is clamped to [eps, 1-eps] to prevent numerical blow-up
             as u→1 which would give r→∞.
@@ -140,8 +137,9 @@ class PlummerProfile(eqx.Module):
         """
         Cumulative Plummer mass (== number, equal-mass) fraction M(<r)/M_total.
 
-        The Plummer CDF  M(<r)/M = r³ / (r² + a²)^(3/2)  (the exact inverse of the
-        inverse-CDF sampler in :meth:`_sample_radii`). For an equal-mass population
+        The Plummer CDF  M(<r)/M = r³ / (r² + a²)^(3/2)  inverts the
+        unclipped interior of :meth:`_sample_radii`; the sampler clips uniform
+        draws at its endpoints. For an equal-mass population
         the enclosed *number* fraction equals the enclosed *mass* fraction, so this
         supplies the expected per-shell occupancy p_k = F(r_{k+1}) - F(r_k) that a
         Poisson number-density likelihood differentiates (the N(r) Fisher channel).

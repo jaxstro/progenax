@@ -14,6 +14,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from ...numerics import power_integral_stable, power_ppf_stable
+
 # =============================================================================
 # Mass Ratio Distribution Protocol
 # =============================================================================
@@ -138,27 +140,13 @@ class PowerLawMassRatio(eqx.Module):
     gamma: float = 0.0
     q_min: float = 0.1
 
-    def _norm(self) -> float:
-        """Normalization constant for power-law."""
-        g = self.gamma
-        q0 = self.q_min
-        # ∫_{q_min}^1 q^γ dq = (1^{γ+1} - q_min^{γ+1}) / (γ+1) for γ ≠ -1
-        # For γ = -1: ∫ q^{-1} dq = log(1) - log(q_min) = -log(q_min)
-
-        def log_case():
-            return -jnp.log(q0)
-
-        def power_case():
-            # Add small epsilon to avoid division by zero during tracing
-            g_plus_1 = g + 1.0
-            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1e-10, g_plus_1)
-            return (1.0 - q0 ** (g + 1.0)) / g_plus_1_safe
-
-        return jax.lax.cond(
-            jnp.abs(g + 1.0) < 1e-10,
-            log_case,
-            power_case,
-        )
+    def _norm(self) -> Float[Array, ""]:
+        """Integral of q^gamma with a smooth logarithmic limit at gamma=-1."""
+        positive_cutoff = self.q_min > 0.0
+        lower = jnp.where(positive_cutoff, self.q_min, 0.5)
+        integral = power_integral_stable(lower, 1.0, self.gamma + 1.0)
+        zero_cutoff_gamma = jnp.where(positive_cutoff, 0.0, self.gamma)
+        return jnp.where(positive_cutoff, integral, 1.0 / (zero_cutoff_gamma + 1.0))
 
     def pdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
         """Power-law PDF: p(q) = q^γ / Z for q ∈ [q_min, 1], else 0.
@@ -178,93 +166,42 @@ class PowerLawMassRatio(eqx.Module):
         return jnp.where(in_range, pdf_unnorm / norm, 0.0)
 
     def cdf(self, q: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Power-law CDF F(q) = ∫_{q_min}^q t^γ dt / Z, clipped to [0, 1].
+        """Power-law CDF, with stable values and gamma derivatives at gamma=-1.
 
-        The γ = -1 (logarithmic) case is handled with a divide-safe branch
-        (:func:`jax.lax.cond`).
-
-        Args:
-            q: Mass ratio (scalar or array).
-
-        Returns:
-            Cumulative probability in [0, 1], same shape as ``q``.
+        Queries outside [q_min, 1] return the corresponding endpoint probability.
+        A zero lower cutoff requires gamma > -1 for a normalizable law.
         """
-        g = self.gamma
-        q0 = self.q_min
-        norm = self._norm()
-
-        def cdf_neq_m1(q_val):
-            # ∫_{q_min}^q t^γ dt = (q^{γ+1} - q_min^{γ+1}) / (γ+1)
-            # Guard the denominator: lax.cond traces this branch even at γ=-1, so 1/(γ+1)
-            # must stay finite (the eq-branch result is selected there).
-            g_plus_1 = g + 1.0
-            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
-            integral = (q_val**g_plus_1 - q0**g_plus_1) / g_plus_1_safe
-            return integral / norm
-
-        def cdf_eq_m1(q_val):
-            # ∫_{q_min}^q t^{-1} dt = log(q) - log(q_min) = log(q/q_min)
-            integral = jnp.log(q_val / q0)
-            return integral / norm
-
-        # Vectorize over q
-        def cdf_scalar(q_val):
-            raw = jax.lax.cond(
-                jnp.abs(g + 1.0) < 1e-10,
-                lambda: cdf_eq_m1(q_val),
-                lambda: cdf_neq_m1(q_val),
-            )
-            return jnp.clip(raw, 0.0, 1.0)
-
-        # Handle scalar vs array
-        if jnp.ndim(q) == 0:
-            return cdf_scalar(q)
-        return jax.vmap(cdf_scalar)(q.ravel()).reshape(q.shape)
+        q_arr = jnp.asarray(q)
+        positive_cutoff = self.q_min > 0.0
+        lower = jnp.where(positive_cutoff, self.q_min, 0.5)
+        bounded = jnp.clip(q_arr, lower, 1.0)
+        integral = power_integral_stable(lower, bounded, self.gamma + 1.0)
+        norm = power_integral_stable(lower, 1.0, self.gamma + 1.0)
+        # The zero-cutoff law is F(q)=q^(gamma+1); sanitize zero before
+        # exponent differentiation so an endpoint does not form log(0).
+        zero_cutoff_gamma = jnp.where(positive_cutoff, 0.0, self.gamma)
+        q_zero = jnp.clip(q_arr, 0.0, 1.0)
+        safe_q = jnp.where(q_zero > 0.0, q_zero, 1.0)
+        zero_cdf = jnp.where(q_zero > 0.0, safe_q ** (zero_cutoff_gamma + 1.0), 0.0)
+        return jnp.where(positive_cutoff, integral / norm, zero_cdf)
 
     def ppf(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF (percent point function) for the power-law q^γ.
+        """Power-law quantiles, with stable gamma derivatives at gamma=-1.
 
-        Analytically inverts :meth:`cdf`; the γ = -1 (logarithmic) case uses a
-        divide-safe branch (:func:`jax.lax.cond`).
-
-        Args:
-            u: Quantiles in [0, 1] (scalar or array).
-
-        Returns:
-            Mass ratios q in [q_min, 1], same shape as ``u``.
+        u must be in [0, 1]. A zero lower cutoff requires gamma > -1.
+        Endpoint values are defined; endpoint derivatives are not qualified.
         """
-        g = self.gamma
-        q0 = self.q_min
-        norm = self._norm()
-
-        def ppf_neq_m1(u_val):
-            # F(q) = (q^{γ+1} - q_min^{γ+1}) / ((γ+1) × Z) = u
-            # q^{γ+1} = u × (γ+1) × Z + q_min^{γ+1}
-            # q = [u × (γ+1) × Z + q_min^{γ+1}]^{1/(γ+1)}
-            # Guard the reciprocal exponent: lax.cond traces this branch even at γ=-1,
-            # where 1/(γ+1) would be a (Python) division by zero; the eq-branch (log)
-            # result is selected there, so this dead value only needs to stay finite.
-            g_plus_1 = g + 1.0
-            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1.0, g_plus_1)
-            inner = u_val * g_plus_1 * norm + q0**g_plus_1
-            return inner ** (1.0 / g_plus_1_safe)
-
-        def ppf_eq_m1(u_val):
-            # F(q) = log(q/q_min) / Z = u
-            # log(q/q_min) = u × Z
-            # q = q_min × exp(u × Z)
-            return q0 * jnp.exp(u_val * norm)
-
-        def ppf_scalar(u_val):
-            return jax.lax.cond(
-                jnp.abs(g + 1.0) < 1e-10,
-                lambda: ppf_eq_m1(u_val),
-                lambda: ppf_neq_m1(u_val),
-            )
-
-        if jnp.ndim(u) == 0:
-            return ppf_scalar(u)
-        return jax.vmap(ppf_scalar)(u.ravel()).reshape(u.shape)
+        u_arr = jnp.asarray(u)
+        positive_cutoff = self.q_min > 0.0
+        lower = jnp.where(positive_cutoff, self.q_min, 0.5)
+        integral = power_integral_stable(lower, 1.0, self.gamma + 1.0)
+        positive_ppf = power_ppf_stable(lower, u_arr * integral, self.gamma + 1.0)
+        zero_cutoff_gamma = jnp.where(positive_cutoff, 0.0, self.gamma)
+        safe_u = jnp.where(u_arr > 0.0, u_arr, 1.0)
+        zero_ppf = jnp.where(
+            u_arr > 0.0, safe_u ** (1.0 / (zero_cutoff_gamma + 1.0)), 0.0
+        )
+        return jnp.where(positive_cutoff, positive_ppf, zero_ppf)
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n mass ratios from power-law."""
@@ -302,25 +239,9 @@ class TwinPeakedMassRatio(eqx.Module):
     sigma_twin: float = 0.03
     q_min: float = 0.1
 
-    def _powerlaw_norm(self) -> float:
-        """Normalization for power-law component."""
-        g = self.gamma
-        q0 = self.q_min
-
-        def log_case():
-            return -jnp.log(q0)
-
-        def power_case():
-            # Add small epsilon to avoid division by zero during tracing
-            g_plus_1 = g + 1.0
-            g_plus_1_safe = jnp.where(jnp.abs(g_plus_1) < 1e-10, 1e-10, g_plus_1)
-            return (1.0 - q0 ** (g + 1.0)) / g_plus_1_safe
-
-        return jax.lax.cond(
-            jnp.abs(g + 1.0) < 1e-10,
-            log_case,
-            power_case,
-        )
+    def _powerlaw_norm(self) -> Float[Array, ""]:
+        """Reuse the power-law component's stable normalization."""
+        return PowerLawMassRatio(gamma=self.gamma, q_min=self.q_min)._norm()
 
     def _gaussian_norm(self) -> Float[Array, ""]:
         """Normalization for truncated Gaussian at q=1."""
@@ -370,19 +291,12 @@ class TwinPeakedMassRatio(eqx.Module):
         Returns:
             Cumulative probability in [0, 1], same shape as ``q``.
         """
-        g = self.gamma
         q0 = self.q_min
-        pl_norm = self._powerlaw_norm()
+        powerlaw = PowerLawMassRatio(gamma=self.gamma, q_min=q0)
         gauss_norm = self._gaussian_norm()
 
         def cdf_scalar(q_val):
-            # Power-law CDF
-            pl_integral = jax.lax.cond(
-                jnp.abs(g + 1.0) < 1e-10,
-                lambda: jnp.log(q_val / q0),
-                lambda: (q_val ** (g + 1.0) - q0 ** (g + 1.0)) / (g + 1.0),
-            )
-            pl_cdf = pl_integral / pl_norm
+            pl_cdf = powerlaw.cdf(q_val)
 
             # Gaussian CDF (truncated)
             z_val = (q_val - 1.0) / self.sigma_twin

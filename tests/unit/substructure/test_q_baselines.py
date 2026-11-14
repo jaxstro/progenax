@@ -163,6 +163,67 @@ class TestPlummerBaseline:
 class TestBirthEnvironmentTurbulence:
     """Test BirthEnvironment turbulence methods."""
 
+    @pytest.mark.parametrize("density_override", [False, True])
+    @pytest.mark.parametrize("b", [None, 0.4])
+    def test_sigma_tracing_and_analytic_derivative(
+        self, density_override, b, tolerances
+    ):
+        """Both density paths trace and retain the driving-parameter derivative."""
+        from progenax.imf.environment import BirthEnvironment
+
+        # Existing environment fixtures: 1e4 Msun, default SFE and diffuse density.
+        point = jnp.array([4.0, 0.33, -2.0])
+
+        def sigma(p):
+            env = BirthEnvironment(
+                log_mecl=p[0],
+                sfe=p[1],
+                log_rho_cl=p[2] if density_override else None,
+            )
+            return env.sigma_ln_rho(b=b)
+
+        # Differentiate the elementary formulas by hand, independently of AD.
+        log_mass, sfe, log_rho_6 = np.asarray(point)
+        ln10 = np.log(10.0)
+        if density_override:
+            log_rho = log_rho_6 + 6.0
+            radius = (3 * 10**log_mass / (sfe * 4 * np.pi * 10**log_rho)) ** (1 / 3)
+            d_log_rho = np.array([0.0, 0.0, 1.0])
+            d_ln_radius = np.array([ln10 / 3, -1 / (3 * sfe), -ln10 / 3])
+        else:
+            # rho_cl=3 M/(8 pi r_h^3 SFE) makes R_cloud=2^(1/3) r_h.
+            radius = 2 ** (1 / 3) * 0.1 * 10 ** (0.13 * log_mass)
+            log_rho = np.log10(3 / (8 * np.pi * 0.1**3)) + 0.61 * log_mass
+            log_rho -= np.log10(sfe)
+            d_log_rho = np.array([0.61, -1 / (sfe * ln10), 0.0])
+            d_ln_radius = np.array([0.13 * ln10, 0.0, 0.0])
+        if b is None:
+            transition = np.tanh(log_rho - 4.0)
+            driving = 0.33 + (0.7 - 0.33) * (1 + transition) / 2
+            d_ln_driving = (
+                (0.7 - 0.33) * (1 - transition**2) / (2 * driving) * d_log_rho
+            )
+        else:
+            driving = b
+            d_ln_driving = np.zeros(3)
+        mach = 5 * np.sqrt(radius)  # Existing c_s=.2, sigma_v0=1, alpha=.5.
+        contrast = driving**2 * mach**2
+        expected = np.sqrt(np.log1p(contrast))
+        derivative = (
+            contrast / (expected * (1 + contrast)) * (d_ln_driving + 0.5 * d_ln_radius)
+        )
+        assert jax.config.jax_enable_x64
+        for value in (sigma(point), jax.jit(sigma)(point)):
+            np.testing.assert_allclose(value, expected, rtol=tolerances.EXACT, atol=0)
+        for transform in (jax.jacfwd, jax.jacrev):
+            for gradient in (transform(sigma)(point), jax.jit(transform(sigma))(point)):
+                np.testing.assert_allclose(
+                    gradient,
+                    derivative,
+                    rtol=tolerances.EXACT,
+                    atol=tolerances.EXACT,
+                )
+
     def test_turbulent_mach_typical_values(self):
         """Mach number should be in physical range for typical clusters.
 

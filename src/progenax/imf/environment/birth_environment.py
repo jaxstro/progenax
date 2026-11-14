@@ -25,8 +25,9 @@ class BirthEnvironment(eqx.Module):
     All fields are JAX arrays for gradient-based inference.
 
     Attributes:
-        metallicity: [Fe/H], default 0.0 (solar). Calibrated range [-2.5, +0.5]
-        log_mecl: log₁₀(M_ecl / M☉). Calibrated range [3, 8]
+        metallicity: [Fe/H], default 0.0 (solar). Mapping clips to [-2.5, +0.5]
+            when clamp_domain=True; this is not an empirical validity certificate.
+        log_mecl: log₁₀(M_ecl / M☉). Mapping clips to [3, 8] by default.
         sfe: Star formation efficiency ε = M_ecl / M_cl, default 0.33
         log_rho_cl: Optional override for log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
 
@@ -152,9 +153,9 @@ class BirthEnvironment(eqx.Module):
         Derives the size of the parent molecular cloud that formed the cluster,
         using a spherical geometry:
 
-            R_cloud = (3 M_gas / (4π ρ_cl))^(1/3)
+            R_cloud = (3 M_cl / (4π ρ_cl))^(1/3)
 
-        where M_gas = M_ecl / SFE.
+        where M_cl = M_ecl / SFE is the total birth-cloud mass.
 
         Returns
         -------
@@ -163,20 +164,22 @@ class BirthEnvironment(eqx.Module):
 
         Notes
         -----
-        This is NOT the stellar half-mass radius r_h (which is much smaller).
-        The fractal density structure is imprinted at the cloud scale.
+        This spherical radius is distinct from the stellar half-mass radius r_h.
+        With the default density prescription, rho_cl=3 M_ecl/(8 pi r_h^3 SFE),
+        the formula reduces to R_cloud=2^(1/3) r_h and is independent of SFE.
+        An explicit density override changes that relation.
 
         The cloud density is either:
         - From log_rho_cl if provided at construction
         - Computed from M_ecl and SFE via Marks+2012 r_h-M scaling
 
-        Expected ranges:
+        Default density prescription (no override):
             | M_ecl   | R_cloud |
             |---------|---------|
-            | 10³ M☉  | ~1.5 pc |
-            | 10⁴ M☉  | ~2.5 pc |
-            | 10⁵ M☉  | ~4.0 pc |
-            | 10⁶ M☉  | ~6.5 pc |
+            | 10³ M☉  | ~0.31 pc |
+            | 10⁴ M☉  | ~0.42 pc |
+            | 10⁵ M☉  | ~0.56 pc |
+            | 10⁶ M☉  | ~0.76 pc |
 
         Examples
         --------
@@ -228,19 +231,20 @@ class BirthEnvironment(eqx.Module):
 
         Notes
         -----
-        Physical ranges for typical star-forming clouds (using Larson relation):
+        Default density prescription and Larson parameters (no override):
 
         =========  =========  =====  =========
         Cluster    R_cloud    σ_v    Mach
         =========  =========  =====  =========
-        Small OC   ~1.5 pc    ~1.2   ~6
-        Large OC   ~2.5 pc    ~1.6   ~8
-        YMC        ~4.0 pc    ~2.0   ~10
-        GC         ~6.5 pc    ~2.5   ~13
+        10³ M☉     ~0.31 pc   ~0.56  ~2.8
+        10⁴ M☉     ~0.42 pc   ~0.65  ~3.2
+        10⁵ M☉     ~0.56 pc   ~0.75  ~3.8
+        10⁶ M☉     ~0.76 pc   ~0.87  ~4.4
         =========  =========  =====  =========
 
-        These are MUCH more realistic than virial-based estimates which give
-        M ~ 20-400 for the same cluster masses.
+        sigma_v is a 3-D turbulent velocity dispersion in km/s. These values
+        follow the adopted cluster density prescription; they do not validate
+        a molecular-cloud population or an explicit density override.
 
         References
         ----------
@@ -251,7 +255,7 @@ class BirthEnvironment(eqx.Module):
         Examples
         --------
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e4)
-        >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~8
+        >>> print(f"Mach = {float(env.turbulent_mach()):.1f}")  # ~3.2
         """
         from progenax.cluster.turbulence import turbulent_mach_from_cloud
 
@@ -310,10 +314,12 @@ class BirthEnvironment(eqx.Module):
         density using b_from_environment(). Low-density clouds get more
         solenoidal driving (b≈0.33), high-density cores get more compressive
         driving (b≈0.7). This is TENTATIVE and may be overridden by explicit b.
+        The derived b remains a JAX scalar: JIT and parameter derivatives
+        include both its density dependence and the Mach-number dependence.
 
         References
         ----------
-        .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 14
+        .. [1] Federrath et al. (2010) A&A 512, A81, Eq. 19
         .. [2] Federrath (2013) MNRAS 436, 1245 - Driving modes
 
         Examples
@@ -332,10 +338,12 @@ class BirthEnvironment(eqx.Module):
         # Derive b from environment if not provided
         if b is None:
             log_rho = self._get_log_rho_cl()
-            b = float(b_from_environment(log_rho))
+            b_value = b_from_environment(log_rho)
+        else:
+            b_value = jnp.asarray(b)
 
         mach = self.turbulent_mach(c_s, sigma_v0, alpha)
-        return sigma_ln_rho_from_mach(mach, b)
+        return sigma_ln_rho_from_mach(mach, b_value)
 
     def _get_log_rho_cl(self) -> Float[Array, ""]:
         """Get log₁₀ of cloud density [M☉/pc³] for b derivation."""

@@ -17,8 +17,9 @@ Every star carries a smooth weight from a sigmoid soft mass-cut::
 
 mirroring the observer's choice of a "massive bin" defined by a mass/luminosity cut
 ``m_cut``. As ``tau -> 0`` this recovers the hard indicator ``1[m_i > m_cut]`` and the
-observable reduces to its exact non-differentiable counterpart -- the central
-validation route (Oracle 1).
+observable reduces to its hard-mass-cut counterpart. For lambda_msr_approx
+that counterpart is a nearest-neighbor ratio, not the Allison MST statistic;
+the existing Oracle-1 test explicitly checks the NN ratio.
 
 All observables default to ``project_to_2d=True`` (observer-faithful: projected sky
 positions), with a 3D flag for theory checks. Inputs are true masses for now; the
@@ -168,8 +169,8 @@ def lambda_msr_approx(
     - The combinatorial MST length is replaced by a per-star **softmin nearest-neighbour
       distance** (the ``q_approx`` ``L_MST ~ (N-1) <d_1NN>`` estimator, with a smooth
       ``min``).
-    - The Monte-Carlo "random subset" baseline is replaced by its **closed-form
-      expectation**: the unweighted mean NN-length over all stars. No sampling::
+    - The baseline is the unweighted mean of global nearest-neighbor distances.
+      This is not the expected MST length of a random subset. No sampling::
 
           Lambda_soft = mean_i d_i  /  ( sum_i w_i d_i / sum_i w_i )
 
@@ -180,8 +181,11 @@ def lambda_msr_approx(
         - ``Lambda ~ 1``: no segregation.
         - ``Lambda < 1``: inverse segregation.
 
-    As ``tau, beta -> 0`` this reduces (up to the multiplicative ``calibration``) to the
-    exact Lambda_MSR -- the central validation route (Oracle 1).
+    As ``tau, beta -> 0`` this reduces (up to ``calibration``) to the ratio of
+    the all-star mean global 1-NN distance to that of the hard mass-cut stars.
+    Neighbors are still searched among all stars, not only within a massive
+    subset. This is not the MST Lambda_MSR and does not generally converge to
+    it. Ranking agreement on selected populations is a separate empirical check.
 
     Args:
         positions: Positions ``(N, 3)`` or ``(N, 2)``.
@@ -199,7 +203,7 @@ def lambda_msr_approx(
     w = soft_mass_weights(masses, m_cut, tau)
     d = _softmin_nn_distance(xy, beta)
 
-    baseline = jnp.mean(d)  # closed-form "random subset" expectation
+    baseline = jnp.mean(d)  # global nearest-neighbor baseline, not subset MST
     massive = jnp.sum(w * d) / jnp.sum(w)
     return calibration * baseline / (massive + 1e-12)
 

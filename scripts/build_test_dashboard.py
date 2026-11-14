@@ -251,9 +251,11 @@ def write_coverage_json(
 
     - ``selector`` records which suite produced the numbers (the floor gate refuses
       a partial ``-m "not slow"`` run, which understates coverage).
-    - ``git_sha`` is the commit the coverage was MEASURED at; the staleness gate uses
-      it for a SRC-based freshness check (``git diff <git_sha> HEAD -- src/progenax``)
-      without re-running the ~14-min ``--cov``.
+    - ``git_sha`` identifies the measured commit. The staleness gate compares
+      source, selected core tests, and test/coverage configuration with that commit
+      at HEAD, in the index, and in the working tree, including untracked inputs.
+      It does not re-run coverage. A commit-only stamp does not identify different
+      dirty-tree inputs used by a measurement.
     - ``total_percent`` is the headline ``totals.percent_covered`` lifted to the
       provenance block so the floor gate reads ONE field (it does not have to know
       pytest-cov's nested ``totals`` schema); defaults to ``totals.percent_covered``.
@@ -299,6 +301,7 @@ def _stamp_coverage(raw_cov_path: str) -> None:
 
     Records ``selector="full"`` (the value the floor gate requires) and the current
     HEAD sha, lifting ``total_percent`` + ``measured_utc`` from the raw file / clock.
+    This records commit provenance only; it does not certify dirty-tree inputs.
     """
     git_sha = _git("rev-parse", "HEAD").stdout.strip()
     out_path = _REPO_ROOT / _COVERAGE_JSON

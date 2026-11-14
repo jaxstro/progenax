@@ -1,18 +1,7 @@
-"""Physics validation: the multi-mass LIMEPY model is a segregated EQUILIBRIUM.
+"""Retained Engine A virial, dispersion, anisotropy and segregation checks.
 
-The headline of Phase 2 (Gieles & Zocchi 2015, Section 2.2): mass segregation as a
-first-principles equilibrium, not an imposed reshuffle. These tests assert, on sampled
-clusters, the equilibrium properties that distinguish it from the lambda_seg blend:
-
-  - global virial Q = T/|V| = 0.5 across delta, UNSCALED;
-  - each mass component is drawn from ITS OWN equilibrium DF (sampled sigma_1d,j(r)
-    matches the analytic LIMEPY moment) -- so each mass group is individually virial;
-  - the per-group virial Q_j stays ~0.5 across the segregation range delta in [0, 0.6]
-    (the well-resolved light component and the global value are exact; the rarer,
-    concentrated heavy component is softening/N-limited, asserted with a wider band);
-  - delta=0 is the single-mass model (no segregation); segregation grows with delta.
-
-Anchored to scripts/validate_multimass_equilibrium.py.
+Finite sampled moments are compared with explicit budgets. These initial-condition
+checks do not establish dynamical stability or accuracy over the full domain.
 """
 
 import jax
@@ -31,13 +20,25 @@ G = STELLAR.G
 W0, GG = 7.0, 1.0
 M_J = jnp.array([1.0, 4.0])
 ALPHA_J = jnp.array([0.5, 0.5])
-SOFT = 0.05
 
 
-def _model(delta):
+def _build_model(delta):
     return MultiComponentCluster.from_mass_segregation(
         alpha_j=ALPHA_J, m_j=M_J, W0=W0, g=GG, delta=delta, r_c=1.0
     )
+
+
+@pytest.fixture(scope="module")
+def isotropic_models():
+    """Reuse immutable models without changing configurations or sample keys."""
+    models = {}
+
+    def get(delta):
+        if delta not in models:
+            models[delta] = _build_model(delta)
+        return models[delta]
+
+    return get
 
 
 def _sample(model, seed, n=8000):
@@ -47,11 +48,10 @@ def _sample(model, seed, n=8000):
     return p, v, ic.masses
 
 
-def test_global_virial_is_half_across_delta():
-    """The whole sampled cluster is in virial equilibrium (Q=0.5) without rescaling,
-    for every equipartition degree delta."""
+def test_global_virial_is_half_across_delta(isotropic_models):
+    """Unscaled global virial ratio meets the retained three-seed budget."""
     for delta in (0.0, 0.3, 0.6):
-        model = _model(delta)
+        model = isotropic_models(delta)
         Qs = []
         for s in range(3):
             p, v, m = _sample(model, s)
@@ -61,11 +61,9 @@ def test_global_virial_is_half_across_delta():
         )
 
 
-def test_per_component_dispersion_matches_equilibrium_df():
-    """Each component's sampled velocity dispersion sigma_1d,j(r) matches the analytic
-    LIMEPY moment s_j sqrt(I2/I0/3) -- the proof that every mass group is sampled from
-    its own equilibrium DF (hence individually virial)."""
-    model = _model(0.5)
+def test_per_component_dispersion_matches_equilibrium_df(isotropic_models):
+    """Core dispersions agree with each component DF at the retained 7% budget."""
+    model = isotropic_models(0.5)
     p, v, m = _sample(model, 0, n=40000)
     r = np.asarray(jnp.linalg.norm(p, axis=1))
     v2 = np.asarray(jnp.sum(v**2, axis=1))
@@ -93,29 +91,19 @@ def test_per_component_dispersion_matches_equilibrium_df():
         np.testing.assert_allclose(sig_meas, analytic(jnp.asarray(Wj), s_j), rtol=0.07)
 
 
-def test_theoretical_component_virial_is_exactly_half():
-    """The bias-free equilibrium proof: the model's THEORETICAL per-component virial
-    ratio Q_j (mean-field, no sampling/softening/finite-N) is exactly 0.5 for both
-    components across delta. This is the rigorous statement of 'each mass group is in
-    equilibrium' -- what the lambda_seg blend cannot achieve per group, and what the
-    sampled per-group Q_j below is a finite-N estimator of."""
+def test_theoretical_component_virial_is_exactly_half(isotropic_models):
+    """Independent continuum component virials agree with one half within 2e-3."""
     for delta in (0.0, 0.3, 0.5, 0.6):
-        Qj = np.asarray(_model(delta).component_virial_ratios())
+        Qj = np.asarray(isotropic_models(delta).component_virial_ratios())
         np.testing.assert_allclose(
             Qj, 0.5, atol=2e-3, err_msg=f"delta={delta}: Q_j={Qj}"
         )
 
 
-def test_sampled_per_group_virial_converges_to_theory():
-    """The sampled per-group Q_j (an N-body OBSERVABLE) tracks the exact theoretical
-    value. The light component (well-resolved) and the global value are tight; the
-    rarer, concentrated heavy component carries a small POSITIVE finite-N bias (the
-    1/r-weighted W_j = sum m_i M(<r_i)/r_i is dominated by its few innermost stars) that
-    grows toward the Spitzer-unstable delta->1 limit. This is a finite-N sampling effect,
-    NOT softening (it persists unchanged at softening=0) and NOT the physics (the
-    theoretical Q_j above is exactly 0.5). Measured at softening=0 (exact Clausius)."""
-    for delta in (0.0, 0.3, 0.5):  # physical range (delta<=0.5); 0.6 nears instability
-        model = _model(delta)
+def test_sampled_per_group_virial_converges_to_theory(isotropic_models):
+    """Five-seed component virial means meet the retained 0.04/0.06 budgets."""
+    for delta in (0.0, 0.3, 0.5):
+        model = isotropic_models(delta)
         Ql, Qh = [], []
         for s in range(5):
             p, v, m = _sample(model, s)
@@ -128,7 +116,6 @@ def test_sampled_per_group_virial_converges_to_theory():
         assert abs(np.mean(Ql) - 0.5) < 0.04, (
             f"delta={delta}: light Q={np.mean(Ql):.3f}"
         )
-        # heavy: small positive finite-N bias, bounded well below catastrophic
         assert abs(np.mean(Qh) - 0.5) < 0.06, (
             f"delta={delta}: heavy Q={np.mean(Qh):.3f}"
         )
@@ -156,12 +143,7 @@ def _analytic_beta_meanfield(model, j, rr):
 
 
 def test_anisotropic_sampled_cluster_is_equilibrium_and_correctly_anisotropic():
-    """The ANISOTROPIC multi-mass sampler produces a true equilibrium that carries the
-    RIGHT anisotropy: (1) the sampled cluster is globally virial Q=T/|V|=0.5 without
-    rescaling, for every delta -- the scalar virial theorem 2T+W=0 is anisotropy-blind;
-    (2) the sampled per-component beta_j(r) reproduces the DF's own analytic beta_j(r)
-    (mean-field quadrature) in the radial-bias peak region. Together: the velocity field
-    is drawn from the Michie/Osipkov-Merritt LIMEPY DF, not merely 'some' anisotropy."""
+    """Retain global virial and light-component anisotropy gates at fixed exposures."""
     r_a = 5.0
     for delta in (0.0, 0.3, 0.5):
         model = MultiComponentCluster.from_mass_segregation(
@@ -229,7 +211,7 @@ def test_delta0_is_single_mass_and_segregation_grows():
             Mc = jnp.concatenate(
                 [
                     jnp.zeros(1),
-                    jnp.cumsum(0.5 * (integ[1:] + integ[:-1])) * (xi[1] - xi[0]),
+                    jnp.cumsum(0.5 * (integ[1:] + integ[:-1]) * jnp.diff(xi)),
                 ]
             )
             return jnp.interp(0.5 * Mc[-1], Mc, xi)

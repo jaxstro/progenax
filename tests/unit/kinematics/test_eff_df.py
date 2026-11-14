@@ -12,6 +12,8 @@ the 2026-06 pre-release cross-tier test consolidation.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
+import pytest
 from jaxstro.units import STELLAR
 
 from progenax.kinematics.eff_df import EFFVelocityDF
@@ -64,3 +66,40 @@ class TestEFFVelocityDFPhysics:
 
         # Smaller size → higher dispersion
         assert sigma_small > sigma_large
+
+
+@pytest.mark.parametrize("a", [0.5, 2.0])
+@pytest.mark.parametrize("anisotropic", [False, True])
+def test_eff_relative_cutoff_preserves_table_and_velocity_homology(
+    a, anisotropic, tolerances
+):
+    """Same r_t/a and r_a/a preserve the dimensionless table and speed draws."""
+    r_a = 2.0 if anisotropic else None
+    reference = EFFVelocityDF(a=1.0, gamma=5.0, r_t=10.0, anisotropy_radius=r_a)
+    scaled = EFFVelocityDF(
+        a=a,
+        gamma=5.0,
+        r_t=10.0 * a,
+        anisotropy_radius=None if r_a is None else r_a * a,
+    )
+    # rho_tilde is dimensionless: Psi and E scale as a^2, mu as a^3, and
+    # Eddington f as a^-3 when both physical radii scale together.
+    for actual, expected in (
+        (scaled.r_grid / a, reference.r_grid),
+        (scaled.Psi_grid / a**2, reference.Psi_grid),
+        (scaled.E_grid / a**2, reference.E_grid),
+        (scaled.mu / a**3, reference.mu),
+        (scaled.f_grid * a**3, reference.f_grid),
+    ):
+        np.testing.assert_allclose(actual, expected, rtol=tolerances.EXACT, atol=0.0)
+    assert float(scaled.r_grid[0] / a) == pytest.approx(1e-5, rel=tolerances.EXACT)
+
+    positions = jax.random.normal(jax.random.PRNGKey(0), (16, 3))
+    masses = jnp.ones(16)
+    key = jax.random.PRNGKey(42)
+    before = reference.sample_velocities(positions, masses, key, G=G)
+    after = scaled.sample_velocities(a * positions, masses, key, G=G)
+    # Fixed total mass gives kappa~a^-3 and table speed~a, hence v~a^-1/2.
+    np.testing.assert_allclose(
+        after * jnp.sqrt(a), before, rtol=tolerances.EXACT, atol=0.0
+    )

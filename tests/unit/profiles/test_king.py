@@ -63,49 +63,23 @@ class TestRtConsistencyWarning:
         assert not any("inconsistent" in str(w.message) for w in recwarn.list)
 
 
-class TestDifferentiableTidalRadius:
-    """Audit Task 1.2b: KingProfile.from_W0_rc(...).r_t is differentiable in W0.
+class TestTidalRadiusVacuumReference:
+    """The zero of the exterior A+B/r potential independently checks the root."""
 
-    The original code fed CLAMPED psi (psi>=0) to _find_tidal_radius, so the
-    zero-crossing node had psi1=0 exactly -> interpolation fraction t=1 -> xi_t
-    SNAPPED to the grid node, with d(xi_t)/dW0 = 0 by autodiff (a silent-zero
-    hazard: the value still moved with W0 via the grid, but the gradient was 0).
-    The fix feeds UNCLAMPED psi (psi_raw, the 3rd return): psi1<0 at the crossing, so
-    xi_t is a true linear interpolation and d(r_t)/dW0 flows through the diffrax
-    solve (the implicit-function-theorem result to grid accuracy).
-    """
+    @pytest.mark.parametrize("W0", [6.0, 7.0, 8.0, 9.0])
+    def test_root_matches_exterior_vacuum_solution(self, W0):
+        from progenax.profiles.king import _find_tidal_radius, solve_king_profile
 
-    # Forward-VALUE pin (gradient-only change must NOT silently corrupt the value).
-    #
-    # NOTE (Task 1.2b, Option A — forward value is NOT bit-for-bit identical to
-    # the PRE-fix code, by design): the pre-fix clamped path SNAPPED xi_t to the
-    # grid node (psi1 clamped to 0 -> t=1). At W0=8 (xi_max=400, n=8000) the
-    # pre-fix value was r_t = 68.158520644580577; the fix interpolates the true
-    # crossing -> 68.146780078164710 (psi1 ~ -7e-5 -> t ~ 0.765), a ~0.0117 shift
-    # (~23% of one grid cell, ~6e-4 relative — far below ODE/grid accuracy). The
-    # unclamped interpolation is BOTH differentiable AND a more accurate crossing
-    # than the grid-snap, so these NEW values are the honest regression baseline.
-    # PRE-fix (snapped) values, for the record: W0 6->17.99225..., 7->33.75422...,
-    # 8->68.15852..., 9->131.41642... .
-    _EXPECTED_RT = {  # post-fix (true linear-interp crossing); xi_max=400, n=8000
-        6.0: 17.991633186676829,
-        7.0: 33.708576645085365,
-        8.0: 68.146780078164710,
-        9.0: 131.38070080188584,
-    }
-
-    @pytest.mark.parametrize("W0,r_t_expected", sorted(_EXPECTED_RT.items()))
-    def test_forward_r_t_value_pinned(self, W0, r_t_expected):
-        """r_t value is pinned (the fix is gradient-correctness, not a physics
-        rewrite). Tight 1e-10 absolute pin proves the value is reproducible."""
-        prof = KingProfile.from_W0_rc(W0=W0, r_c=1.0, xi_max=400.0, n_ode_points=8000)
-        assert float(prof.r_t) == pytest.approx(r_t_expected, abs=1e-10)
-
-    # AD-vs-FD for KingProfile.r_t(W0) is owned by the grad-audit registry
-    # (tests/validation/grad_audit/registry.py :: KingProfile.r_t, same xi_max=400/
-    # n_ode_points=8000 config); see docs/website/50-validation/differentiability-audit.md.
-    # The former test_r_t_grad_is_nonzero_and_fd_consistent was removed here (audit T6
-    # consolidation; registry is SoT). The forward-VALUE pin above stays (unique regression).
+        xi, _, raw = solve_king_profile(W0, xi_max=400.0, n_points=8000)
+        # Both samples must be outside the density support for the vacuum relation.
+        xa, xb = xi[6000], xi[-1]
+        ya, yb = raw[6000], raw[-1]
+        assert float(ya) < 0 and float(yb) < 0
+        coefficient = (ya - yb) / (1 / xa - 1 / xb)
+        offset = ya - coefficient / xa
+        reference = -coefficient / offset
+        actual = _find_tidal_radius(xi, raw)
+        assert float(actual) == pytest.approx(float(reference), rel=1e-5)
 
 
 class TestKingInputValidation:

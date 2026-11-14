@@ -11,6 +11,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax.numerics import require_positive
+
 
 class UniformSphereProfile(eqx.Module):
     """
@@ -45,8 +47,7 @@ class UniformSphereProfile(eqx.Module):
         Raises:
             ValueError: If R <= 0
         """
-        if R <= 0:
-            raise ValueError(f"Outer radius R must be positive, got {R}")
+        require_positive(R, "UniformSphereProfile R")
         R_arr = jnp.asarray(R, dtype=jnp.float64)
         object.__setattr__(self, "R", R_arr)
 

@@ -29,7 +29,9 @@ def jacobi_radius(
 
         r_J = R * (M_cluster / (3 * M_galaxy))^(1/3)
 
-    Beyond r_J, stars become unbound from the cluster.
+    This is the leading Hill approximation for a circular point-mass-host orbit.
+    Radius alone does not determine whether an individual star is bound or
+    how quickly it escapes.
 
     Args:
         M_cluster: Cluster mass [Msun]
@@ -105,8 +107,9 @@ def _truncation_weight(
     ``signed_dist = r_t - r_i`` (>=0 inside the truncation radius). The forward
     pass is an EXACT Heaviside step (sharp truncation); the custom JVP replaces
     the (delta-function) true derivative with a logistic surrogate of scale
-    ``width`` — a straight-through estimator — so the truncation radius stays
-    differentiable. ``width``'s own tangent is intentionally ignored (it is a
+    ``width`` — a straight-through estimator — as a surrogate tangent for the membership weight. The exact fixed-catalogue
+    map is piecewise constant in its membership and jumps at crossings; this
+    tangent is not its ordinary derivative. ``width``'s own tangent is intentionally ignored (it is a
     gradient-smoothing hyperparameter, not an inference target).
 
     Reference:
@@ -134,23 +137,23 @@ def apply_tidal_truncation(
 ) -> Tuple[
     Float[Array, "N 3"], Float[Array, "N 3"], Float[Array, "N"], Float[Array, "N"]
 ]:
-    """Sharp tidal truncation — shape-preserving and differentiable in ``r_t``.
+    """Sharp tidal membership cut with static shape and a surrogate tangent.
 
     Particles with ``r > r_t`` are "removed" by setting their mass to zero, so
     they contribute nothing to mass-weighted quantities (energy, virial, COM).
     The forward pass is an EXACT hard cut; the backward pass uses a logistic
-    straight-through surrogate (width ``grad_width * r_t``) so that ``r_t`` — and
-    any upstream parameter feeding it (e.g. via :func:`jacobi_radius`) — remains
-    differentiable. Unlike boolean-mask indexing, the output keeps a static
-    shape ``N``, so the function is ``jit`` / ``vmap`` / ``grad`` safe.
+    straight-through surrogate (width ``grad_width * r_t``) for derivatives of
+    membership with respect to ``r_t`` and particle radius. It is an estimator,
+    not the ordinary derivative of the hard cut. Unlike boolean-mask indexing,
+    the output keeps a static shape ``N`` under JAX transformations.
 
     .. warning::
        The survivors keep the velocities they were drawn with for the UNtruncated
-       potential, so the truncated set is SUPER-VIRIAL w.r.t. its own (now shallower)
-       potential — some stars near ``r_t`` are formally unbound and the set is not a
-       stationary equilibrium (audit S4). Re-virialize the survivors
-       (``virial_scale`` / ``rescale_velocities_to_virial``) or use an r_t-consistent
-       equilibrium model (King / LIMEPY) if you need a stationary IC.
+       potential. Removing outer mass generally changes the relation between
+       density, potential and velocities; it does not construct a stationary
+       equilibrium. A virial rescale sets a global energy ratio but does not
+       restore a stationary DF. Use a consistent finite lowered model when
+       that equilibrium is required, and check the numerical domain.
 
     Args:
         positions: Particle positions (N, 3)
@@ -158,8 +161,8 @@ def apply_tidal_truncation(
         masses: Particle masses (N,)
         r_t: Tidal truncation radius [same length units as ``positions``]
         grad_width: Surrogate-gradient smoothing scale as a fraction of ``r_t``
-            (default 0.05). Affects ONLY the gradient w.r.t. ``r_t``, never the
-            (exact) forward truncation.
+            (default 0.05). Changes the surrogate tangent for membership, never
+            the exact forward cut. The width's own tangent is ignored.
 
     Returns:
         Tuple ``(positions, velocities, masses_truncated, keep_mask)``, all

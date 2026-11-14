@@ -17,24 +17,22 @@ paragraph that says so and names the regenerating command, then a MyST
 
 from __future__ import annotations
 
-_GENERATING_CMD = "uv run python scripts/build_test_dashboard.py --emit --render"
+_GENERATING_CMD = "uv run --no-sync python scripts/build_test_dashboard.py --render"
 
 
 def _line_cov_cell(line_cov: float | None) -> str:
-    """A per-module line-cov cell: a percentage, or the Phase-2 pending marker."""
+    """A stored per-module percentage, or an explicit absence of a recorded value."""
     if line_cov is None:
-        return "pending (Phase 2)"
+        return "not recorded"
     return f"{line_cov:.1f}"
 
 
 def _grad_audit_fill(registries: dict) -> str:
     """One-cell summary of the (repo-wide) grad-audit registry fill.
 
-    The grad-audit registry is the only one built in Phase 1; the other three
-    report ``not-built``. We show ``AUDITED/(AUDITED+EXEMPT)`` + the hazard count
-    when built, else ``not built``. This is a repo-wide figure (not per-module), so
-    every module row shows the same value — the column documents that the
-    differentiability registry is live and hazard-free.
+    Show ``AUDITED/(AUDITED+EXEMPT)`` and the recorded hazard count when built,
+    else ``not built``. This is a repo-wide stored figure, not a per-module
+    gradient verdict or a claim that the current source is hazard-free.
     """
     block = registries.get("differentiability", {})
     if block.get("status") != "built":
@@ -165,9 +163,10 @@ def _validation_scripts_section(validation_scripts: dict) -> list[str]:
     return [
         "## Validation scripts",
         "",
-        f"Exit status of every `scripts/validate_*.py` "
+        f"Recorded exit status of `scripts/validate_*.py` "
         f"(from `validation/data/validation_runs.json`): "
         f"**{len(validation_scripts)} scripts, {n_fail} failing**.",
+        "These are stored results, not executions or freshness checks performed by this page.",
         "",
         "```{list-table} Validation script runs",
         ":header-rows: 1",
@@ -191,11 +190,21 @@ def render_dashboard_page(dashboard: dict) -> str:
     registries = dashboard.get("registries", {})
     line_cov = gate.get("line_cov_measured")
     line_cov_str = (
-        "pending (Phase 2, full-suite `--cov` run)"
+        "not recorded (requires a full-suite `--cov` measurement)"
         if line_cov is None
         else f"{line_cov:.1f}% (floor {gate.get('line_cov_floor')}%)"
     )
     registry_phrase = _registry_status_phrase(registries)
+    provenance = dashboard.get("line_coverage", {}).get("coverage_provenance") or {}
+    measured_utc = provenance.get("measured_utc", "not recorded")
+    measured_sha = provenance.get("git_sha", "not recorded")
+    full_suite = gate.get("full_suite_green")
+    full_suite_text = (
+        "No full-suite pass/fail verdict is recorded in this dashboard."
+        if full_suite is None
+        else f"Stored full-suite verdict: {'PASS' if full_suite else 'FAIL'}; "
+        "current input freshness still requires a separate check."
+    )
 
     header = [
         "* - Module",
@@ -203,34 +212,49 @@ def render_dashboard_page(dashboard: dict) -> str:
         "  - Integration",
         "  - Validation",
         "  - Line-cov %",
-        "  - Grad-audit fill",
+        "  - Recorded grad-audit fill",
         "  - Slowest test",
-        "  - Validation PASS",
+        "  - Recorded validation",
     ]
 
     lines = [
         "---",
         "title: Test Dashboard",
-        "description: Generated single source of truth for progenax's per-module "
-        "test census, line coverage, registry fill, durations, and validation runs.",
+        "description: Generated display of stored progenax test, coverage, registry, "
+        "duration, and validation artifacts; not a current release verdict.",
         "---",
         "# Test Dashboard",
         "",
         "```{warning}",
-        "This page is **generated** — do not hand-edit. Regenerate it with",
+        "**Stored snapshot, not a current release verdict.** PASS cells, coverage "
+        "percentages, and hazard counts describe recorded artifacts. Treat them as "
+        "historical until source/test/configuration freshness and the full test "
+        "gate pass for the intended revision.",
+        full_suite_text,
+        "",
+        "This page is generated. Display-only regeneration from the unchanged "
+        "stored JSON is:",
         "",
         f"    {_GENERATING_CMD}",
         "",
-        "which stamps the timestamp, emits "
-        "`validation/data/test_dashboard.json`, and re-renders this page.",
+        "Updating the census with `--emit` is separate. Neither operation "
+        "reruns coverage, gradient checks, or validation scripts.",
         "```",
         "",
-        f"Generated at `{generated_utc}`. Line coverage: {line_cov_str}. "
-        "`Line-cov %` cells read **pending (Phase 2)** until the committed "
-        "full-suite `coverage.json` exists, then show the statement-weighted "
-        "per-directory coverage. The `Grad-audit fill` column reports the "
-        "repo-wide differentiability registry "
+        f"Census generated at `{generated_utc}`. Recorded line coverage: {line_cov_str}. "
+        "Coverage, durations and validation PASS entries come from stored artifacts; "
+        "regenerating this page does not rerun those checks or establish their validity "
+        "for the current revision. "
+        "`Line-cov %` cells show the stored statement-weighted per-directory "
+        "percentage, or **not recorded** when no value is present. A missing value "
+        "does not imply a pending measurement for a test-only module. "
+        "The gradient column reports the stored repo-wide differentiability registry "
         f"(audited / audited+exempt, hazard count). {registry_phrase}",
+        "",
+        f"Coverage measurement recorded at `{measured_utc}` for commit `{measured_sha}`. "
+        "A commit stamp does not identify different dirty-tree inputs. See "
+        "[testing architecture](testing-architecture.md) for current input-freshness "
+        "requirements. The stored census and recorded measurements can have different dates.",
         "",
         "```{list-table} Per-module test + coverage matrix",
         ":header-rows: 1",

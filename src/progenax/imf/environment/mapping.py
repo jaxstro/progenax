@@ -258,13 +258,14 @@ def alpha3_marks_plane(
     x̂ = -0.139 × [Fe/H] + 0.990 × log₁₀(ρ_cl/10⁶)
     α₃ = -0.4072·x̂ + 1.9383  for  x̂ ≥ -0.87  (else canonical 2.3)
 
-    The threshold is -0.87 (NEGATIVE): the originally printed Marks+2012 Eq.14/15
-    had a missing-minus-sign typo ("x̂ ≥ 0.87"), corrected by the 2014 erratum
-    (Marks et al. 2014, MNRAS 442, 3315) and visible in Marks+2012 Fig.6, where the
-    canonical-plateau knee sits at x̂ ≈ -0.87 (the line meets 2.3 continuously there).
-    With this correction the Marks plane coincides with the Jerabkova (2018) IGIMF
-    density relation `alpha3_jerabkova_rho` (which adopts the same erratum-corrected
-    form) to within the -0.4072-vs-(-0.41) rounding (~0.01).
+    The adopted threshold is the 2014 erratum's -0.87 (Marks et al. 2014,
+    MNRAS 442, 3315). With the retained coefficients, the varied branch is
+    2.292564 at that threshold, so the default hard switch has a 0.007436 jump
+    from the canonical 2.3. Derivatives apply within branches. Optional tanh
+    smoothing changes the mapping near the switch; the final clip remains.
+    The separate `alpha3_jerabkova_rho` uses rounded slope/intercept and a
+    slightly different metallicity coefficient; the two helpers are close,
+    rather than identical.
 
     Args:
         log_rho_6: log₁₀(ρ_cl / 10⁶ M☉ pc⁻³)
@@ -356,7 +357,8 @@ def lowmass_slopes_metallicity(
 
     Args:
         FeH: Metallicity [Fe/H]
-        clamp_FeH: If True, clamp to calibrated range [-2.5, +0.5]
+        clamp_FeH: If True, clip metallicity to [-2.5, +0.5]. This input guard
+            does not certify empirical validity; slope floors remain either way.
 
     Returns:
         (α₁, α₂) - slopes for segments 1 and 2
@@ -389,30 +391,37 @@ def env_to_imf_params(
 ) -> IMFParams:
     """Convert birth environment to 4-segment IMF parameters.
 
-    SINGLE API for all environment-dependent IMF models.
-    Fully differentiable - gradients flow from IMFParams back to BirthEnvironment.
+    Gradients flow through the active smooth branches. Hard thresholds and
+    clipping boundaries are not globally differentiable; clipped inputs can
+    have zero derivatives. Model and Boolean options are static under JIT.
 
     Models:
         - "kroupa": Standard Kroupa (2001), ignores environment
         - "jerabkova_generalized": Eq. 9 with explicit ε (RECOMMENDED)
         - "jerabkova_mecl": Eq. 9 (mass-based, assumes ε = 0.33)
-        - "jerabkova_rho": Eq. 7 (density-based, requires log_rho_cl)
-        - "marks_plane": Fundamental Plane Eq. 14-15 (requires log_rho_cl)
+        - "jerabkova_rho": Eq. 7 (density override or mass/SFE-derived density)
+        - "marks_plane": Fundamental Plane (same density routing)
         - "marks_mcl": Table 3 (cloud mass)
         - "marks_mecl": Table 3 (stellar mass)
-        - "marks_rho": Table 3 (density, requires log_rho_cl)
+        - "marks_rho": Table 3 (same density routing)
         - "marks_feh": Table 3 (metallicity only)
 
     Args:
         env: BirthEnvironment with metallicity, log_mecl, sfe
         model: Model name (see above)
         include_lowmass_variation: Apply Marks Eq. 12 to α₁, α₂ (default False)
-        smooth_alpha3: Use tanh smoothing at threshold (for gradients)
-        smooth_width: Width of tanh transition
-        clamp_domain: Clamp inputs to calibrated ranges
+        smooth_alpha3: Opt-in tanh blending at the threshold; default False.
+            This changes the empirical piecewise prescription near the switch.
+        smooth_width: Width in the chosen relation's dimensionless coordinate;
+            default 0.2, used only when smooth_alpha3=True.
+        clamp_domain: By default, clip metallicity to [-2.5, +0.5] and log_mecl
+            to [3, 8]. SFE and explicit log_rho_cl are not clipped or validated.
+            These numerical guards do not certify empirical extrapolation.
 
     Returns:
-        4-segment IMFParams (α₀, α₁, α₂, α₃)
+        4-segment IMFParams (α₀, α₁, α₂, α₃), with the existing mass bounds and
+        breaks in solar masses. High-mass slopes are clipped to [0.5, 2.3].
+        Optional low-mass variation retains floors α₁>=0 and α₂>=0.5.
 
     Example:
         >>> env = BirthEnvironment.from_cluster_mass(M_ecl=1e6, FeH=-1.5)

@@ -77,7 +77,7 @@ def _half_mass_r(model, j):
     M = jnp.concatenate(
         [
             jnp.zeros(1),
-            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1])) * (r[1] - r[0]),
+            jnp.cumsum(0.5 * (integrand[1:] + integrand[:-1]) * jnp.diff(r)),
         ]
     )
     return float(jnp.interp(0.5 * M[-1], M, r))

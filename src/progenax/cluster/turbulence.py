@@ -42,7 +42,7 @@ from progenax.cluster.constants import (
 
 def sigma_ln_rho_from_mach(
     mach: Float[Array, "..."],
-    b: float = B_DEFAULT,
+    b: float | Float[Array, ""] = B_DEFAULT,
 ) -> Float[Array, "..."]:
     """Density contrast from Mach number (Federrath+2010 Eq. 19).
 

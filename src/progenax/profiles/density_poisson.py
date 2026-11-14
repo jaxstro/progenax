@@ -24,9 +24,9 @@ All quantities are dimensionless (G = 1, total truncated mass = 1).
 import equinox as eqx
 import jax
 import jax.numpy as jnp
+from jaxstro.quad import cumulative_trapezoid
 from jaxtyping import Array, Float
 
-from progenax.numerics import cumulative_trapz
 from progenax.profiles.eff import EFFProfile
 from progenax.profiles.king import KingProfile, king_lowered_maxwellian_density
 from progenax.profiles.plummer import PlummerProfile
@@ -64,8 +64,8 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     """Resolve the cluster truncation radius r_t (design decision 2, derived).
 
     Returns ``(r_t, provenance)`` where provenance is a static string naming the
-    rule that set the domain: explicit "override", the profile class whose finite
-    extent wins, or the ``f_enc`` summed-mass radius for an all-infinite mix.
+    rule that set the domain: explicit "override", maximum finite component
+    extent, or the ``f_enc`` summed-mass radius for an all-infinite mix.
 
     An explicit override wins, BUT a King component whose natural r_t exceeds the
     override raises ValueError: a King model's lowered-Maxwellian edge is part of
@@ -77,8 +77,8 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
 
     - override: r_t is supplied, so there is nothing to differentiate.
     - finite extents: ``rt_arr = jnp.max(...)`` DOES carry a gradient to whichever
-      component sets the maximum. Only the provenance STRING is chosen with
-      float(), and that concretization does not touch the returned value.
+      component sets the maximum. Provenance names the rule and candidates,
+      independent of dynamic extent values.
     - all infinite: differentiable via the implicit function theorem (see the
       Newton step below). Plain bisection would silently return a ZERO gradient.
     """
@@ -111,8 +111,10 @@ def derive_r_t(profiles, mass_fractions, r_t=None, f_enc: float = 0.995):
     ]
     if finite:
         rt_arr = jnp.max(jnp.stack([jnp.asarray(ext) for _, _, ext in finite]))
-        j_max, p_max, _ = max(finite, key=lambda t: float(t[2]))
-        prov = f"{type(p_max).__name__} component {j_max} extent"
+        candidates = ", ".join(
+            f"{type(p).__name__} component {j}" for j, p, _ in finite
+        )
+        prov = f"maximum finite extent ({candidates})"
         return rt_arr, prov
 
     # All components infinite (pure Plummer mix): radius enclosing f_enc of the
@@ -217,7 +219,7 @@ def _king_density_and_dW(profile, r: Float[Array, "n_r"]):
     integ = rho * xi**2
     # Non-uniform trapezoid (x=xi): the Poisson grid is sqrt-stretched (audit
     # S2), so a scalar dxi would be silently wrong here.
-    cum = cumulative_trapz(integ, x=xi)
+    cum = cumulative_trapezoid(integ, x=xi)
     small = xi <= 1e-4
     xi_safe = jnp.where(small, 1.0, xi)
     dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
@@ -364,11 +366,11 @@ def shared_potential(
     for j, p in enumerate(profiles):
         rho_hat, _ = _density_and_derivative(p, r)
         m_hat = (
-            4.0 * jnp.pi * cumulative_trapz(rho_hat * r**2, x=r)[-1]
+            4.0 * jnp.pi * cumulative_trapezoid(rho_hat * r**2, x=r)[-1]
         )  # truncated mass of rho_hat
         rho_j = mass_fractions[j] * rho_hat / m_hat
         rho_rows.append(rho_j)
-        M_rows.append(4.0 * jnp.pi * cumulative_trapz(rho_j * r**2, x=r))
+        M_rows.append(4.0 * jnp.pi * cumulative_trapezoid(rho_j * r**2, x=r))
         trunc_rows.append(m_hat / _untruncated_mass(p, m_hat))
 
     rho_j_grid = jnp.stack(rho_rows)
@@ -376,8 +378,8 @@ def shared_potential(
     trunc_frac_j = jnp.stack(trunc_rows)
     rho_tot = jnp.sum(rho_j_grid, axis=0)
 
-    inner = cumulative_trapz(rho_tot * r**2, x=r)  # int_0^r rho s^2 ds
-    tail = cumulative_trapz(rho_tot * r, x=r)  # int_0^r rho s ds
+    inner = cumulative_trapezoid(rho_tot * r**2, x=r)  # int_0^r rho s^2 ds
+    tail = cumulative_trapezoid(rho_tot * r, x=r)  # int_0^r rho s ds
     outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
     Psi = Phi[-1] - Phi  # Psi(r_t) = 0, increases inward

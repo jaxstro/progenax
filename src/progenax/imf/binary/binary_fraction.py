@@ -54,7 +54,8 @@ class MassDependentBinaryFraction(eqx.Module):
         - M > 10 Msun: f ≈ 0.90 (O-stars; Moe O 1−0.06≈0.94)
 
     Note: pairing one companion per "binary" system; higher-order multiples (triples, etc.)
-    are common at high masses but are not modelled here (use the full Moe model for that).
+    are common at high masses but are not modeled here. The released Moe-based
+    companion models also draw at most one companion per primary, not a hierarchy.
     """
 
     def __call__(self, m: Float[Array, "..."]) -> Float[Array, "..."]:

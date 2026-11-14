@@ -20,19 +20,20 @@ single source of truth.
 
 ✅ verified · 1 equation · 1 source · [API: `build_cluster`](../30-api/builders_cluster.md#api-builders_cluster-build_cluster)
 
-The one-call IC convenience layer: build_cluster and the six named wrappers (Plummer/King/EFF/Michie/LIMEPY + from_params) are pure sugar over build_spatial_ic — bit-identical outputs — pairing each profile with its matched equilibrium DF (matched_velocity_df kills the mismatched-r_h footgun). A semantics card: the physics lives in the composed model cards.
+The one-call IC convenience layer: build_cluster and the six named wrappers (Plummer/King/EFF/Michie/LIMEPY + from_params) pair each profile with its scale-matched velocity DF and delegate sampling, center-of-mass subtraction and optional velocity rescaling to build_spatial_ic. The base case without tidal or rotation modifiers has bit-identical outputs to that manual composition. The composed model cards own the profile and DF physics. Supplied masses use the selected dynamical mass unit; IMF draws and n-only one-solar-mass stars are converted to it. ZAMS evaluation converts native masses to solar masses and retains R_sun labels, including after modifiers. Binary and multicomponent builders have separate unit contracts.
 
 | Use it for | Not for |
 |---|---|
 | ✓ the recommended one-call entry point for standard cluster ICs | ✗ custom profile/DF cross-pairings (compose build_spatial_ic directly) |
-| ✓ Q=None (default) = faithful UNSCALED equilibrium from the matched DF | ✗ tidal_radius on non-Plummer profiles (they carry a native r_t; the kwarg is Plummer-only by design) |
+| ✓ Q=0.5 (default) sets the sampled energy ratio; Q=None skips velocity rescaling | ✗ tidal_radius on non-Plummer profiles (they carry a native r_t; the kwarg is Plummer-only by design) |
 
 ### Parameters
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
 | `profile` | which model family to build (see that family's card for its physics) | — | — | `build_cluster(profile=...) / build_king_cluster(...) etc.` |
-| `Q` | optional virial rescale target; None = no rescale (the DF's own equilibrium) | dimensionless | None (or 0.5 to force-rescale, e.g. after rotation overlays) | `build_cluster(Q=...)` |
+| `Q` | optional velocity-rescale target T/abs(V); None skips rescaling | dimensionless | 0.5 (default); None skips velocity rescaling | `build_cluster(Q=...)` |
+| `units` | UnitSystem for supplied masses, profile lengths, times and explicit G; generated M_sun masses are converted at the boundary | chosen mass, length and time units; stellar_radii stays R_sun | STELLAR (default), PLANETARY, CGS | `build_cluster(units=...)` |
 
 ### Equations
 
@@ -41,8 +42,8 @@ The one-call IC convenience layer: build_cluster and the six named wrappers (Plu
 Q \;\equiv\; \frac{T}{|V|}, \qquad Q = \tfrac12 \iff 2T + V = 0
 ```
 
-*Symbols:* $Q$: virial ratio (0.5 = equilibrium; < 0.5 subvirial/cold; > 0.5 supervirial) [dimensionless].
-*Assumes:* matched profile+DF pairs land at Q = 0.5 WITHOUT rescale (finite-N fluctuation only).
+*Symbols:* $Q$: energy ratio; 0.5 satisfies scalar virial balance, without certifying stationarity [dimensionless]; $T$: kinetic energy of the realization [energy]; $V$: negative gravitational potential energy of the realization [energy].
+*Assumes:* V < 0; the relation defines an energy ratio, not a stationarity test.
 
 ### Sources
 
@@ -62,12 +63,15 @@ Q \;\equiv\; \frac{T}{|V|}, \qquad Q = \tfrac12 \iff 2T + V = 0
 - validation: `tests/unit/builders/test_cluster_builders.py::test_plummer_alias_identical`
 - validation: `tests/unit/builders/test_cluster_builders.py::test_limepy_alias_identical`
 - validation: `tests/unit/builders/test_cluster_builders.py::test_cluster_params_wrapper_identical_to_build_cluster`
+- validation: `tests/unit/builders/test_cluster_units.py::test_cluster_mass_sources_preserve_physical_units`
+- validation: `tests/unit/builders/test_cluster_units.py::test_cgs_modifier_labels_use_solar_mass`
+- validation: `tests/unit/builders/test_cluster_units.py::test_mass_conversion_jit_and_first_derivatives`
 
 
 (card-zams_tout1996)=
 ## Tout+1996 ZAMS stellar relations
 
-✅ verified · 1 equation · 1 source
+✅ verified · 1 equation · 1 source · [API: `zams_luminosity`](../30-api/stellar.md#api-stellar-zams_luminosity)
 
 Zero-age-main-sequence L(M, Z) and R(M, Z) from the Tout et al. (1996) rational-polynomial fits (75/75 coefficients ledger-verified cell-by-cell against the PDF), with derived T_eff and log g. Internalized into progenax.stellar as the startrax placeholder.
 
@@ -95,7 +99,7 @@ L(1\,M_\odot) = 0.6977\,L_\odot,\quad R(1\,M_\odot) = 0.8882\,R_\odot,\quad T_{\
 
 ### Sources
 
-- {cite:t}`Tout1996` — the L(M,Z) and R(M,Z) rational-polynomial fits; 75/75 coefficients verified exactly (Tables 1-2) *(Eq. 3 + Table 1 (luminosity, 35 coefficients); Eq. 4 + Table 2 (radius, 40 coefficients; nu fixed at the Z = 0.02 optimum, p. 258))*
+- {cite:t}`Tout1996` — the L(M,Z) and R(M,Z) rational-polynomial fits; 75/75 coefficients verified exactly (Tables 1-2) *(Eq. 1 (luminosity fit, p. 258); Eq. 3 + Table 1 (luminosity coefficients); Eq. 2 (radius fit, p. 258); Eq. 4 + Table 2 (radius coefficients; nu fixed at the Z = 0.02 optimum, p. 258))*
 
 ### Code & validation
 

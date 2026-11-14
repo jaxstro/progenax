@@ -23,10 +23,10 @@ if TYPE_CHECKING:
 
 def _diagnostics_deps():
     """Lazy numpy+scipy import for the exact (non-differentiable) mass-segregation
-    path. progenax core is JAX-native; numpy/scipy are only needed by these
-    scipy-backed estimators, so they are an OPTIONAL ``[diagnostics]`` extra
-    (audit R9). ``import progenax.diagnostics`` stays cheap; calling these
-    functions without the extra raises an actionable ImportError."""
+    path. The exact estimators import their host graph/distance dependencies
+    lazily and report missing modules here. JAX itself also declares SciPy as
+    a runtime dependency; the diagnostics extra is not a SciPy-free core contract.
+    """
     try:
         import numpy as np
         from scipy.sparse.csgraph import minimum_spanning_tree

@@ -6,7 +6,7 @@ lowered-Maxwellian DF over velocity:
     rho(W) ∝ int_0^{sqrt(2W)} v^2 (e^{W - v^2/2} - 1) dv
            = const * [ e^W erf(sqrt W) - (2/sqrt(pi)) sqrt(W) (1 + 2W/3) ].
 
-The earlier code used King's K-function (the incomplete-gamma / projected form) here,
+The earlier code used a different Maxwell velocity integral here,
 which over-extends the profile by 2-30x in the outer regions. This pins the correct
 relation against the direct velocity integral (a literature-free oracle).
 

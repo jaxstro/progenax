@@ -4,7 +4,10 @@
 # PDF-verified per-paper notes (moe-distefano-2017.md Table 13 p. 52 cell-verified;
 # sana-2012.md pi = -0.55; duquennoy-mayor-1991.md sec 7.3; heggie-1975.md).
 # Phase B3: moe_pqe, period_distributions, eccentricity, kepler_elements,
-# binary_cluster_assembly.
+# binary_cluster_assembly. The assembly COM relation is a local translation
+# identity, not a literal paper transcription; its velocities are in the cluster frame.
+# The gq-form card equation is the local normalization of the implemented full
+# two-slope/uniform-excess model, not the period-averaged Gaussian reduction.
 
 - model: moe_pqe
   family_display: Moe & Di Stefano (2017) P–q–e statistics
@@ -32,12 +35,19 @@
       locators: ["Table 13, p. 52", "Eqs. 17-18 (eta fits)", "Eq. 3, p. 38 (e_max Roche ceiling)"]
   equations:
     - label: gq-form
-      latex: 'g(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{pl}}} \;+\; f_{\mathrm{twin}}\,\mathcal{N}(q \mid 1,\,\sigma_{\mathrm{twin}})'
+      latex: '\begin{aligned} g(q\mid M_1,P)&=\frac{\phi(q)+A_t\,\mathbf{1}_{[0.95,1]}(q)/0.05}{I_A+I_B+A_t},\\ A_t&=\frac{F I_B}{1-F},\qquad q\in[q_{\min},1]. \end{aligned}'
       symbols:
-        q: {latex: 'q', meaning: "mass ratio m2/m1 (twin excess = fraction with q > 0.95, defined over q > 0.3)", units: dimensionless}
-        gamma: {latex: '\gamma(M_1)', meaning: "broken power-law slope (gamma_largeq above q = 0.3, gamma_smallq below)", units: dimensionless}
-      assumptions: ["Table-13 grid interpolation in (M1, log P)", "twin convention: excess fraction over 0.3 < q < 1.0"]
-      theory_ref: "10-theory/imfs/mass-ratio-distributions.md#gq-form"
+        q: {latex: 'q', meaning: "mass ratio m2/m1; density zero outside [q_min, 1]", units: dimensionless}
+        phi: {latex: '\phi(q)', meaning: "q^gamma_smallq below q_b, q_b^(gamma_smallq-gamma_largeq) q^gamma_largeq above; continuous at q_b", units: dimensionless}
+        q_b: {latex: 'q_b', meaning: "power-law break, 0.3 in the retained default", units: dimensionless}
+        I_A: {latex: 'I_A', meaning: "integral of phi from q_min to q_b", units: dimensionless}
+        I_B: {latex: 'I_B', meaning: "integral of phi from q_b to 1", units: dimensionless}
+        F: {latex: 'F', meaning: "excess twin fraction within q > q_b; A_t/(I_B+A_t)=F, distinct from total q > 0.95 fraction", units: dimensionless}
+        A_t: {latex: 'A_t', meaning: "unnormalized mass of uniform excess block [0.95, 1]", units: dimensionless}
+        M_1: {latex: 'M_1', meaning: "primary mass conditioning the grid", units: Msun}
+        P: {latex: 'P', meaning: "orbital period conditioning the grid", units: day}
+      assumptions: ["retained default q_min=0.1, q_b=0.3; uniform excess block on [0.95, 1]", "Table-13 grid interpolation in (M1, log P); implementation clamps outside grid nodes, without wider-domain empirical qualification", "local normalization of existing implementation; period-averaged Gaussian mixture is a separate model"]
+      theory_ref: "10-theory/imfs/mass-ratio-distributions.md#gq-full"
     - label: moe-eta-ecc
       latex: '\eta(M_1, P) = \begin{cases} 0.6 - \dfrac{0.7}{\log_{10} P - 0.5}, & 0.8 < M_1 < 3\,M_\odot\ \text{(Eq. 17)} \\ 0.9 - \dfrac{0.2}{\log_{10} P - 0.5}, & M_1 > 7\,M_\odot\ \text{(Eq. 18)} \end{cases}'
       symbols:
@@ -152,13 +162,13 @@
       latex: 'f(e) \;=\; 2e,\qquad e \in [0, 1]'
       symbols:
         e: {latex: 'e', meaning: "orbital eccentricity", units: dimensionless}
-      assumptions: ["dynamical (thermal) equilibrium; <e> = 2/3; sampled as e = sqrt(u)"]
+      assumptions: ["ideal full-support law e_max=1; mean 2/3 and draw sqrt(u)", "released ThermalEccentricity defaults e_max=0.99: draw e_max*sqrt(u), density 2e/e_max^2, mean 2e_max/3"]
       theory_ref: "10-theory/binaries/eccentricity.md#thermal"
     - label: uniform-ecc
       latex: 'f(e) \;=\; 1,\qquad e \in [0, 1]'
       symbols:
         e: {latex: 'e', meaning: "orbital eccentricity", units: dimensionless}
-      assumptions: ["agnostic baseline; <e> = 1/2"]
+      assumptions: ["ideal interval [0,1] has mean 1/2", "released UniformEccentricity defaults [0,0.9]; on [e_min,e_max], density 1/(e_max-e_min), mean (e_min+e_max)/2"]
       theory_ref: "10-theory/binaries/eccentricity.md#uniform-ecc"
   code_refs:
     - "binaries/eccentricity.py::ThermalEccentricity"
@@ -236,7 +246,10 @@
     birth IDs, sampled elements, and periapsis contact margins; the legacy
     build_binary_cluster return contract remains unchanged. Both wrappers share
     one physical construction. A semantics card — the physics lives in the
-    composed model cards.
+    composed model cards. IMF/companion masses and TotalMass budgets use solar
+    masses; the shared construction converts masses to native dynamical units.
+    Stellar radii remain in R_sun; orbital axes and contact margins use the
+    position length unit. Deterministic unit checks do not qualify wider domains.
   when_to_use:
     good_for:
       - "one-call binary-population ICs (Systems / Stars / TotalMass targets)"
@@ -247,7 +260,7 @@
   parameters:
     - name: primary_imf
       meaning: "any IMF card's model (house default: the SMOOTH Maschberger)"
-      units: "—"
+      units: "sampled masses in Msun"
       typical_range: "—"
       code_arg: "build_binary_cluster(primary_imf=...) or build_cataloged_binary_cluster(primary_imf=...)"
     - name: companion_model
@@ -269,10 +282,14 @@
       locators: ["Ch. 2"]
   equations:
     - label: assembly-com
-      latex: '\sum_{\mathrm{pair}} m_j \mathbf{v}_j \;=\; \mathbf{0} \quad \text{and} \quad \frac{\sum_{\mathrm{pair}} m_j \mathbf{r}_j}{\sum_{\mathrm{pair}} m_j} \;=\; \mathbf{r}_{\mathrm{sys}}'
+      latex: '\sum_{\mathrm{pair}} m_j \mathbf{v}_j \;=\; \Bigl(\sum_{\mathrm{pair}} m_j\Bigr)\mathbf{v}_{\mathrm{sys}} \quad \text{and} \quad \frac{\sum_{\mathrm{pair}} m_j \mathbf{r}_j}{\sum_{\mathrm{pair}} m_j} \;=\; \mathbf{r}_{\mathrm{sys}}'
       symbols:
-        r_sys: {latex: '\mathbf{r}_{\mathrm{sys}}', meaning: "the system (center-of-mass) position drawn from the spatial profile", units: pc}
-      assumptions: ["each binary's internal orbit is superposed on its system's cluster orbit; COM and momentum exact per pair"]
+        m_j: {latex: 'm_j', meaning: "component mass, summed over the pair", units: "native dynamical mass units"}
+        v_j: {latex: '\mathbf{v}_j', meaning: "component velocity in the cluster frame", units: "native velocity units"}
+        r_j: {latex: '\mathbf{r}_j', meaning: "component position in the cluster frame", units: "native length units"}
+        v_sys: {latex: '\mathbf{v}_{\mathrm{sys}}', meaning: "system COM velocity before orbital resolution", units: "native velocity units"}
+        r_sys: {latex: '\mathbf{r}_{\mathrm{sys}}', meaning: "system COM position before orbital resolution", units: "native length units"}
+      assumptions: ["internal barycentric position and momentum offsets sum to zero; translating to the cluster frame preserves the system COM and total momentum"]
       theory_ref: null
   code_refs:
     - "builders.py::build_binary_cluster"
@@ -284,5 +301,11 @@
     - "tests/integration/test_binary_cluster.py::TestBuildBinaryCluster::test_count_and_provenance"
     - "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_legacy_equivalence_for_compact_targets"
     - "tests/integration/test_binary_cluster.py::TestCatalogedBinaryCluster::test_contact_margin_is_in_position_units"
+    - "tests/unit/binaries/test_assembly.py::TestResolveBinaryComponents::test_com_conserved_per_binary"
+    - "tests/unit/builders/test_binary_units.py::test_binary_same_physical_inputs_across_units"
+    - "tests/unit/builders/test_binary_units.py::test_binary_eager_budgets_stay_in_solar_masses"
+    - "tests/unit/builders/test_binary_units.py::test_moe_empirical_mass_inputs_remain_solar"
+    - "tests/unit/builders/test_binary_units.py::test_cataloged_cgs_kepler_period_and_contact_use_native_arrays"
+    - "tests/unit/builders/test_binary_units.py::test_binary_imf_derivatives_preserve_mass_units"
   status: verified
   deviations: []

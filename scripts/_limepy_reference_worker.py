@@ -15,16 +15,19 @@ numpy/scipy are allowed HERE (and only here) -- this file never imports into
 the JAX-native progenax process.
 
 Config JSON keys: W0, g, and optionally mj, Mj, delta, eta, ra (multimass /
-anisotropy). Multimass models always use ``meanmassdef='central'`` so the
+anisotropy), plus ``numerics`` for explicit reference solver controls.
+Multimass models always use ``meanmassdef='central'`` so the
 reference's mean mass is the GZ15 eq-26 central-density-weighted
 m-bar = sum_j m_j alpha_j -- identical to progenax's ``bar_m`` (no Peuten
 eq 8-9 W0 translation needed).
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 # <progenax repo root>/../ref-repos/limepy (scripts/ is one level below the
 # repo root); override with the LIMEPY_REF_REPO environment variable if set.
@@ -55,6 +58,24 @@ def main():
         )
     if cfg.get("ra") is not None:
         kwargs["ra"] = cfg["ra"]
+    controls = {
+        "ode_atol",
+        "ode_rtol",
+        "ode_method",
+        "diffcrit",
+        "diffdef",
+        "max_mf_iter",
+        "mf_iter_index",
+        "minimum_phi",
+        "maxr",
+        "max_step",
+    }
+    requested = cfg.get("numerics", {})
+    if set(requested) - controls:
+        raise ValueError(
+            f"Unknown LIMEPY numerical controls: {set(requested) - controls}"
+        )
+    kwargs.update(requested)
 
     m = limepy(cfg["W0"], cfg["g"], **kwargs)
 
@@ -67,6 +88,11 @@ def main():
     mj = np.atleast_1d(getattr(m, "mj", np.array([1.0])))
     Mj = np.atleast_1d(getattr(m, "Mj", np.array([m.M])))
     raj = np.atleast_1d(getattr(m, "raj", np.array([m.ra])))
+    Kj = np.atleast_1d(getattr(m, "Kj", np.array([m.K])))
+    target_fraction = np.asarray(cfg["Mj"]) if multi else np.array([1.0])
+    target_fraction = target_fraction / target_fraction.sum()
+    fraction_error = Mj / Mj.sum() - target_fraction
+    numerics = {key: getattr(m, key) for key in sorted(controls)}
 
     try:
         sha = subprocess.run(
@@ -84,6 +110,10 @@ def main():
             "python": sys.version.split()[0],
             "config": cfg,
             "meanmassdef": "central" if multi else "n/a (single-mass)",
+            "ref_source_sha256": hashlib.sha256(
+                Path(REF_REPO, "limepy", "limepy.py").read_bytes()
+            ).hexdigest(),
+            "numerics": numerics,
         }
     )
 
@@ -97,6 +127,11 @@ def main():
         alpha=alpha,
         mj=mj,
         Mj=Mj,
+        Kj=Kj,
+        M=np.float64(m.M),
+        G=np.float64(m.G),
+        s2=np.float64(m.s2),
+        s2j=np.atleast_1d(m.s2j),
         raj=raj,
         mc=m.mc,
         rt=np.float64(m.rt),
@@ -105,6 +140,13 @@ def main():
         r0=np.float64(m.r0),
         mmean=np.float64(getattr(m, "mmean", 1.0)),
         converged=np.bool_(m.converged),
+        fit_residual_max_abs=np.float64(np.max(np.abs(fraction_error))),
+        fit_residual_relative=np.float64(
+            np.max(np.abs(fraction_error / target_fraction))
+        ),
+        fit_diff=np.float64(getattr(m, "diff", 0.0)),
+        fit_n_iter=np.int64(m.niter),
+        numerics=np.str_(json.dumps(numerics)),
         provenance=np.str_(provenance),
     )
     print(

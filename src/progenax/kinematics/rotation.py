@@ -3,13 +3,12 @@
 Adds streaming rotation to velocity distributions.
 
 .. warning::
-   These are ADDITIVE KINEMATIC OVERLAYS (``velocities + v_rotation``): they
-   inject kinetic energy and net angular momentum L_z, so the output is NOT a
-   stationary equilibrium — the virial ratio Q = T/|V| rises above 0.5 (audit
-   S3). They do not solve a rotating-equilibrium DF. An isotropic re-virial
-   (e.g. ``virial_scale``) does NOT restore stationarity (it rescales speeds
-   uniformly but cannot remove the rotational L_z). Use only when you want a
-   deliberately rotating, non-stationary IC.
+   These functions add a prescribed streaming field to existing velocities.
+   They do not solve for a stationary rotating distribution function.
+   The kinetic-energy change includes both the streaming energy and the
+   cross term with the original velocities; its sign is realization-dependent.
+   A uniform speed rescale sets Q but does not establish stationarity.
+   Nonzero angular momentum alone does not rule out a stationary rotating DF.
 
 References:
     Lynden-Bell (1960) MNRAS 120, 204 - Rotating stellar systems
@@ -52,9 +51,9 @@ def apply_solid_body_rotation(
     angular velocity omega, giving v_phi = omega * R (cylindrical R).
 
     .. warning::
-       Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
-       stationary equilibrium (Q = T/|V| rises above 0.5); see the module
-       caveat (audit S3).
+       Adds a streaming field without solving a rotating equilibrium.
+       The energy change includes a cross term with the original velocities;
+       setting a target virial ratio does not establish stationarity.
 
     Args:
         velocities: Input velocities (N, 3)
@@ -104,8 +103,9 @@ def apply_differential_rotation(
         - v_phi -> 0 as R -> infinity (decreasing at large R)
 
     .. warning::
-       Kinematic overlay — injects kinetic energy and L_z. The result is NOT a
-       stationary equilibrium (Q rises above 0.5); see the module caveat (S3).
+       Adds a streaming field without solving a rotating equilibrium.
+       The energy change includes a cross term with the original velocities;
+       setting a target virial ratio does not establish stationarity.
 
     Args:
         velocities: Input velocities (N, 3)

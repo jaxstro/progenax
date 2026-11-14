@@ -2,7 +2,7 @@
 General-g LIMEPY lowered-isothermal velocity distribution function (Equinox module).
 
 Samples the LIMEPY DF (Gieles & Zocchi 2015) in detailed equilibrium with the
-general-g potential, optionally with Michie/Osipkov-Merritt radial anisotropy.
+general-g potential, optionally with radial anisotropy from an exponential angular-momentum factor.
 
 Isotropic (r_a=None): the local speed distribution at dimensionless potential W(r) is
 
@@ -15,12 +15,14 @@ speed-angle (u, theta) parametrization (theta = angle between v and r), the spee
 marginal is g(u) ∝ u^2 E_gamma(g, W - u^2/2) T(s^2 u^2/2) (the anisotropic-density
 integrand, T the bounded angle integral), and the conditional cos(theta)|u has weight
 exp(-(s^2 u^2/2)(1 - cos^2 theta)). v_r = v cos(theta), v_t = v sin(theta) in a random
-azimuthal direction perpendicular to r. This produces beta(r) ~ 0 in the core rising
-outward. At g=1 it reduces to MichieVelocityDF.
+azimuthal direction perpendicular to r. Anisotropy vanishes in the core and
+returns toward isotropy at a finite lowered edge; it is not the monotonic
+Osipkov-Merritt beta law. At g=1 it reduces to MichieVelocityDF.
 
 The velocity scale s^2 = G M_total / (9 r_c mu) uses the King-radius (factor-of-9)
 nondimensionalization with mu the (iso or aniso) dimensionless mass integral, so the
-sampled cluster is in virial equilibrium (Q = T/|V| = 0.5) WITHOUT external rescale.
+continuum velocity scale is fixed. Finite realizations fluctuate; their measured
+Q = T/|V| is not guaranteed to equal 0.5.
 
 Sampling uses per-particle tabulated inverse-CDFs (vmap'd, differentiable, no
 while_loop).
@@ -36,17 +38,18 @@ from progenax.kinematics._speed_kernels import (
     _ORACLE_BATCH,
     _sample_costheta_given_u,
 )
-from progenax.numerics import inverse_cdf_draw
 from progenax.profiles.king import _find_tidal_radius
 from progenax.profiles.limepy import (
-    _angle_integral_T,
     _aniso_density_scalar,
     _aniso_density_vec,
     limepy_density_hat,
-    lowered_exponential,
     solve_limepy_profile,
 )
-from progenax.profiles.limepy_tables import AnisoSpeedCDFTable, SpeedCDFTable
+from progenax.profiles.limepy_tables import (
+    AnisoSpeedCDFTable,
+    SpeedCDFTable,
+    _speed_cdf,
+)
 
 # Inverse-CDF table resolutions. (_N_C, the cos(theta) grid of the shared
 # angular conditional _sample_costheta_given_u, lives in _speed_kernels.)
@@ -57,15 +60,11 @@ def _sample_unit_speed(
     key: PRNGKeyArray, W: Float[Array, ""], g: Float[Array, ""], n_u: int
 ) -> Float[Array, ""]:
     """Isotropic: sample u ~ u^2 E_gamma(g, W - u^2/2) on [0, sqrt(2W)] (u = v/s)."""
-    W_safe = jnp.maximum(W, 1e-12)
-    u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W_safe), n_u)
-    weight = jnp.maximum(
-        u_grid**2 * lowered_exponential(g, W_safe - u_grid**2 / 2.0), 0.0
-    )
-    u = inverse_cdf_draw(weight, u_grid, jax.random.uniform(key))
-    # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
-    # (see numerics.inverse_cdf_draw docstring).
-    return jnp.where(W > 1e-6, u, 0.0)
+    W_safe = jnp.where(W > 0.0, W, 1.0)
+    x = jnp.linspace(0.0, 1.0, n_u)
+    cumulative = _speed_cdf(W_safe, g, x)
+    u = jnp.sqrt(2.0 * W_safe) * jnp.interp(jax.random.uniform(key), cumulative, x)
+    return jnp.where(W > 0.0, u, 0.0)
 
 
 def _sample_speed_angle(
@@ -76,61 +75,55 @@ def _sample_speed_angle(
     n_u: int,
     n_c: int,
 ):
-    """Anisotropic: sample (u_r, u_t) in units of s from the Michie/OM-LIMEPY DF.
+    """Anisotropic: sample (u_r, u_t) in units of s from the anisotropic LIMEPY DF.
 
     Speed marginal g(u) ∝ u^2 E_gamma(g, W - u^2/2) T(s^2 u^2/2); conditional
     cos(theta)|u with weight exp(-(s^2 u^2/2)(1 - c^2)). Returns (u cos, u sin).
     Both via differentiable inverse-CDF. (0, 0) where W <= 0.
     """
-    W_safe = jnp.maximum(W, 1e-12)
-    u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W_safe), n_u)
-    E = lowered_exponential(g, W_safe - u_grid**2 / 2.0)
-    beta = s**2 * u_grid**2 / 2.0
-    m_u = jnp.maximum(u_grid**2 * E * _angle_integral_T(beta), 0.0)
-
+    W_safe = jnp.where(W > 0.0, W, 1.0)
+    x = jnp.linspace(0.0, 1.0, n_u) ** 2
+    cumulative = _speed_cdf(W_safe, g, x, s**2 * W_safe)
     key_u, key_c = jax.random.split(key)
-    u = inverse_cdf_draw(m_u, u_grid, jax.random.uniform(key_u))
+    u = jnp.sqrt(2.0 * W_safe) * jnp.interp(jax.random.uniform(key_u), cumulative, x)
 
     c = _sample_costheta_given_u(key_c, u, s, n_c)
 
     u_r = u * c
     u_t = u * jnp.sqrt(jnp.maximum(1.0 - c**2, 0.0))
-    bound = W > 1e-6
+    bound = W > 0.0
     return jnp.where(bound, u_r, 0.0), jnp.where(bound, u_t, 0.0)
 
 
 class LIMEPYVelocityDF(eqx.Module):
-    """General-g LIMEPY lowered-isothermal velocity DF (isotropic or Michie/OM).
+    """General-g LIMEPY lowered-isothermal velocity distribution function.
 
-    A true equilibrium DF; the central velocity scale s is self-consistent from
-    (G, M_total, r_c, W0, g, r_a), so ICs are virial (Q=0.5) without rescaling and
-    all stars are bound. r_a=None is isotropic (generalizes KingVelocityDF); a finite
-    r_a adds radial anisotropy (generalizes MichieVelocityDF). At g=1 it reduces to
-    King (isotropic) / Michie-King (anisotropic).
+    Isotropic or radially anisotropic with an exponential angular-momentum
+    factor. At g=1, these branches reduce to King and Michie-King, respectively.
+    The DF's velocity scale is matched to the model parameters. Finite particle
+    realizations fluctuate around continuum moments, so their measured virial
+    ratio is not guaranteed to equal 0.5. The distribution's velocity support
+    is bounded by the model escape energy; numerical samples require
+    corresponding support checks.
 
-    Speed draws are TABLE-BACKED by default (speed_method="table"): the speed
-    marginal comes from the inverse-CDF table CACHED at construction
-    (SpeedCDFTable / AnisoSpeedCDFTable, the same machinery
-    MultiComponentCluster uses), and the whole draw runs through a jitted
-    core, so live memory is O(N) instead of the eager per-star quadrature's
-    O(N * 256 * 91) Poisson-sum buffers (measured at N=2e4 anisotropic:
-    10.87 GB pre-tables; draw-chain peak +0.20 GB cached+jitted; warm draw
-    0.015 s after the one-time ~0.5 s compile). The anisotropic angular
-    conditional cos(theta)|u stays EXACT (_sample_costheta_given_u) -- only
-    the speed marginal is tabulated. speed_method="quadrature" retains the
-    exact per-star quadrature as the oracle (statistical agreement asserted
-    in tests/unit/kinematics/test_limepy_df.py::TestLimepyTableRouting).
-    Cost structure: CONSTRUCTION dominates (~2.6 s / ~1.8 GB peak for an
-    anisotropic model: two ODE solves + the mu integral + the cached table
-    build) -- reuse one DF instance for repeated draws; per-draw cost is
-    then milliseconds at any N.
+    Speed draws use a cached inverse-CDF table by default (speed_method="table").
+    The anisotropic angular conditional is sampled numerically by
+    _sample_costheta_given_u. speed_method="quadrature" retains a numerical
+    quadrature reference path; TestLimepyTableRouting compares the two paths.
+    Reusing the constructed DF avoids rebuilding its sampling tables. Draw time
+    and memory depend on particle count, model configuration, precision,
+    compilation state and hardware.
+
+
+    Agreement between tabulated and quadrature paths checks their consistency.
+    Accuracy also depends on convergence of the numerical reference.
 
     Attributes:
         W0, g, r_c: model parameters. r_a: anisotropy radius (inf = isotropic).
         r_t: truncation radius. xi_grid, psi_grid: ODE solution W(xi).
         mu: dimensionless mass integral int rho_tilde xi^2 dxi (sets s).
         is_aniso: static flag selecting the anisotropic sampler.
-        speed_method: static, "table" (default) or "quadrature" (exact oracle).
+        speed_method: static, "table" (default) or "quadrature" (numerical reference path).
     """
 
     W0: Float[Array, ""]
@@ -154,7 +147,12 @@ class LIMEPYVelocityDF(eqx.Module):
         xi_max: float = 300.0,
         n_ode_points: int = 2000,
         speed_method: str = "table",
+        *,
+        adjoint=None,
     ):
+        """Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
+        for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
+        static under JIT; it does not change the physical equations or tolerances."""
         if speed_method not in ("table", "quadrature"):
             raise ValueError(
                 f"speed_method must be 'table' or 'quadrature', got {speed_method!r}"
@@ -167,7 +165,12 @@ class LIMEPYVelocityDF(eqx.Module):
         self.r_a = jnp.asarray(jnp.inf if r_a is None else r_a, dtype=jnp.float64)
         ra_hat = None if r_a is None else r_a / r_c
         xi_grid, psi_grid, psi_raw = solve_limepy_profile(
-            W0, g, ra_hat=ra_hat, xi_max=xi_max, n_points=n_ode_points
+            W0,
+            g,
+            ra_hat=ra_hat,
+            xi_max=xi_max,
+            n_points=n_ode_points,
+            adjoint=adjoint,
         )
         self.xi_grid = xi_grid
         self.psi_grid = psi_grid
@@ -215,7 +218,7 @@ class LIMEPYVelocityDF(eqx.Module):
         key: PRNGKeyArray,
         G: float,
     ) -> Float[Array, "N 3"]:
-        """Sample velocities from the general-g lowered DF (iso or Michie/OM aniso).
+        """Sample velocities from the general-g lowered DF (isotropic or radially anisotropic).
 
         Differentiable in (W0, g, r_a, r_c) through the model. Runs through a
         jitted core (`_sample_velocities_core`, the cluster/sampling.py
@@ -261,7 +264,7 @@ def _sample_velocities_core(
         if df.speed_method == "table":
             # The speed MARGINAL comes from the table CACHED at construction
             # (box covers every star: W <= W0, p <= r_t/r_a); the angular
-            # conditional cos(theta)|u stays EXACT (_sample_costheta_given_u).
+            # conditional cos(theta)|u is sampled numerically (_sample_costheta_given_u).
             ku_kc = jax.vmap(jax.random.split)(speed_keys)
             unif = jax.vmap(lambda kk: jax.random.uniform(kk))(ku_kc[:, 0])
             # is_aniso + speed_method == "table" => __init__ built an AnisoSpeedCDFTable.

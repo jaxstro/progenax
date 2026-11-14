@@ -55,6 +55,7 @@ jax.config.update("jax_compilation_cache_dir", _CACHE_DIR)
 # kernels are persisted; this is a scripts-only demo cache, not a CI hot path.
 jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.5)
 
+from jaxstro.quad import cumulative_trapezoid
 from jaxstro.units import STELLAR
 
 import progenax  # noqa: F401  enables float64 at import
@@ -69,7 +70,6 @@ from progenax.kinematics.eddington import (
     eddington_invert,
     sample_speed_from_f_table,
 )
-from progenax.numerics import cumulative_trapz
 from progenax.profiles.michie import michie_density
 
 # Reuse the Stage-1 sky projection (line of sight = +z) + unit conversions, and the
@@ -98,7 +98,11 @@ from _demo_oed import (  # noqa: E402
 )
 from _demo_oed import (  # re-exports: callers use oedc.{c,d,a}_criterion (see header note)
     a_criterion as a_criterion,
+)
+from _demo_oed import (
     c_criterion as c_criterion,
+)
+from _demo_oed import (
     d_criterion as d_criterion,
 )
 
@@ -252,7 +256,7 @@ def _michie_dimensionless_table(prof, r_a, n_r=_N_R, n_e=_N_E):
     # cumulative trapezoid of the closed-form normalized density. xi -> 0 limit
     # dpsi/dxi -> -3 rho xi (double-where guard); dW/dr = (dpsi/dxi)/r_c.
     integ = rho * xi**2
-    cum = cumulative_trapz(integ, dx=(xi[1] - xi[0]))
+    cum = cumulative_trapezoid(integ, dx=(xi[1] - xi[0]))
     small = xi <= 1e-4
     xi_safe = jnp.where(small, 1.0, xi)
     dpsi_dxi = jnp.where(small, -3.0 * rho * xi, -9.0 * cum / xi_safe**2)
@@ -277,8 +281,8 @@ def _michie_dimensionless_table(prof, r_a, n_r=_N_R, n_e=_N_E):
     # A future cleanup that forces dW_dr and dPsi_dr to be numerically equal would
     # silently reintroduce a real bias (the 5% gate could still pass). Keep them
     # built from their own normalizations.
-    inner = cumulative_trapz(rho * r**2, dx=dr)  # int_0^r rho s^2 ds
-    tail = cumulative_trapz(rho * r, dx=dr)  # int_0^r rho s ds
+    inner = cumulative_trapezoid(rho * r**2, dx=dr)  # int_0^r rho s^2 ds
+    tail = cumulative_trapezoid(rho * r, dx=dr)  # int_0^r rho s ds
     outer = tail[-1] - tail  # int_r^{r_t} rho s ds
     Phi = -4.0 * jnp.pi * (inner / r + outer)
     Psi = Phi[-1] - Phi  # Psi(r_t) = 0, increases inward

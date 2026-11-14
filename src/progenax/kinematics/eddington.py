@@ -14,18 +14,20 @@ Three differentiable, vmap/JIT-safe primitives reused by the velocity DFs:
   the "stretched isotropic" split that realises the Osipkov-Merritt anisotropy
   sigma_r^2/sigma_t^2 = 1 + r^2/r_a^2 exactly (Merritt 1985, Eq. 15):
 
-      sample s isotropically in the stretched frame (cos theta ~ U[-1,1]),
-      v_r = s cos theta along r_hat,   w_t = s sin theta,
-      v_t = w_t / sqrt(1 + r^2/r_a^2)  in a random azimuthal direction perp to r_hat.
+      draw a global isotropic unit vector n and let y = position/r_a,
+      h = sqrt(1 + y.y). Then v = s [n/h + y(y.n)/(h(h+1))].
+
+  The radial eigenvalue is 1 and both tangential eigenvalues are 1/h.
+  This representation is smooth at zero position for fixed s and finite r_a>0.
 
 See docs/website/99-bibliography/per-paper/merritt-1985.md.
 """
 
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics import gauss_legendre_nodes
+from jaxstro.numerics.sampling import inverse_cdf_draw
 from jaxtyping import Array, Float, PRNGKeyArray
-
-from progenax.numerics import inverse_cdf_draw
 
 
 def eddington_invert(
@@ -100,31 +102,88 @@ def eddington_invert(
     return E_grid, f_grid
 
 
+def _interp_uniform(x, grid, values):
+    """Linear lookup on an ascending uniform grid with at least two nodes.
+
+    Uses stored knot coordinates to preserve the generic interpolant and its
+    right-interval convention. Not valid for arbitrary nonuniform grids.
+    """
+    index = jnp.clip(
+        jnp.floor((x - grid[0]) * (grid.size - 1) / (grid[-1] - grid[0])).astype(
+            jnp.int32
+        ),
+        0,
+        grid.size - 2,
+    )
+    # Resolve roundoff at exact linspace knots using the actual stored grid.
+    index = jnp.where(
+        x >= grid[index + 1], jnp.minimum(index + 1, grid.size - 2), index
+    )
+    index = jnp.where(x < grid[index], jnp.maximum(index - 1, 0), index)
+    y = values[index] + (x - grid[index]) * (values[index + 1] - values[index]) / (
+        grid[index + 1] - grid[index]
+    )
+    return jnp.where(x < grid[0], values[0], jnp.where(x > grid[-1], values[-1], y))
+
+
+_MOMENT_NODES, _MOMENT_WEIGHTS = gauss_legendre_nodes(4)
+
+
+def _df_speed_second_moment(psi, energy, df):
+    """Integrate the clipped, linearly interpolated energy DF's speed moment.
+
+    Split at energy knots and DF zero crossings. On each speed interval,
+    w**2 f(psi-w**2/2) and w**4 f(psi-w**2/2) are polynomials of degree at
+    most six, integrated exactly by four-point Gauss quadrature. The energy
+    grid must be uniform, as supplied by Engine B's Eddington constructor.
+    """
+    crossing = df[:-1] * df[1:] < 0
+    slope_denominator = jnp.where(crossing, jnp.diff(df), 1.0)
+    roots = energy[:-1] - df[:-1] * jnp.diff(energy) / slope_denominator
+    roots = jnp.where(crossing, roots, energy[:-1])
+    # Interleaving preserves order and gives fixed shapes under differentiation.
+    knots = jnp.concatenate(
+        (energy[:1], jnp.stack((roots, energy[1:]), axis=1).ravel())
+    )
+    e = jnp.concatenate(
+        (jnp.array([psi]), jnp.clip(knots[::-1], 0, psi), jnp.array([0.0]))
+    )
+    delta = 2 * (psi - e)
+    edges = jnp.where(delta > 0, jnp.sqrt(jnp.where(delta > 0, delta, 1.0)), 0.0)
+    half = (edges[1:] - edges[:-1]) / 2
+    speed = (edges[1:] + edges[:-1])[:, None] / 2 + half[:, None] * _MOMENT_NODES
+    density = jnp.maximum(_interp_uniform(psi - speed**2 / 2, energy, df), 0.0)
+    weight = half[:, None] * _MOMENT_WEIGHTS * density
+    norm = jnp.sum(weight * speed**2)
+    return jnp.sum(weight * speed**4) / jnp.where(norm > 0, norm, 1.0)
+
+
 def sample_speed_from_f_table(
     key: PRNGKeyArray,
     Psi_r: Float[Array, ""],
     E_grid: Float[Array, "n_e"],
     f_grid: Float[Array, "n_e"],
     n_w: int = 256,
+    *,
+    uniform_energy_grid: bool = False,
 ) -> Float[Array, ""]:
     """Sample one speed s ~ s^2 f(Psi_r - s^2/2) on [0, sqrt(2 Psi_r)].
 
     Differentiable tabulated inverse-CDF on a fixed grid. Returns 0 where the local
     binding potential Psi_r <= ~0 (escape speed vanishes, e.g. at/outside r_t).
 
-    Both numerical thresholds are RELATIVE to the table's energy scale
-    E_grid[-1] (~0.999 Psi0 by the eddington_invert grid convention), never
-    absolute: the sqrt floor is 1e-12 * E_scale and the zero-speed cutoff is
-    Psi_r > 1e-6 * E_scale. Engine B tables live in physical units where
-    Psi0 ~ 1/length (PlummerProfile(r_h=1e4 pc) -> Psi0 = 1.2e-4), so absolute
-    thresholds silently zeroed outer-star speeds; relative thresholds make the
-    draw exactly equivariant under a uniform energy rescale
-    (E' = lam E, Psi' = lam Psi  =>  s' = sqrt(lam) s).
+    Set the static flag uniform_energy_grid only for an ascending linspace grid
+    with at least two nodes, as returned by eddington_invert. The default accepts
+    nonuniform grids. Both paths use linear interpolation with clamped endpoints.
+
+    The sqrt floor is 1e-12 times E_grid[-1]; the zero-speed cutoff is 1e-6
+    times E_grid[-1]. These relative thresholds preserve energy-scale covariance.
     """
     E_scale = E_grid[-1]
     Psi_safe = jnp.maximum(Psi_r, 1e-12 * E_scale)
     w_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * Psi_safe), n_w)
-    f_at = jnp.interp(Psi_r - w_grid**2 / 2.0, E_grid, f_grid)
+    interp = _interp_uniform if uniform_energy_grid else jnp.interp
+    f_at = interp(Psi_r - w_grid**2 / 2.0, E_grid, f_grid)
     p = jnp.maximum(w_grid**2 * f_at, 0.0)
     s = inverse_cdf_draw(p, w_grid, jax.random.uniform(key))
     # MANDATORY bound guard: zero total weight clamps to grid[-1], not 0
@@ -150,33 +209,26 @@ def assign_om_directions(
                         via the finite/inf double-where (gradient-safe: no inf
                         enters the graph). A scalar is broadcast to per-star shape
                         first, so scalar == array-of-same-scalar bit-identically.
+    The OM branch applies a smooth Cartesian stretch to a global isotropic
+    direction. For fixed speeds and finite positive r_a, position derivatives
+    exist at the origin. The speed sampler has its own differentiation contract.
     """
     N = positions.shape[0]
+    dirs = jax.random.normal(key, shape=(N, 3))
+    dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
     if r_a is None:
-        dirs = jax.random.normal(key, shape=(N, 3))
-        dirs = dirs / (jnp.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
         return speeds[:, None] * dirs
 
-    radii = jnp.linalg.norm(positions, axis=1)
-    r_hat = positions / (radii[:, None] + 1e-30)
-    k_cos, k_az = jax.random.split(key)
-
-    cos_t = jax.random.uniform(k_cos, (N,), minval=-1.0, maxval=1.0)
-    sin_t = jnp.sqrt(jnp.maximum(1.0 - cos_t**2, 0.0))
-    ra_arr = jnp.broadcast_to(jnp.asarray(r_a), radii.shape)
+    ra_arr = jnp.broadcast_to(jnp.asarray(r_a), (N,))
     finite = jnp.isfinite(ra_arr)
     ra_safe = jnp.where(finite, ra_arr, 1.0)
-    stretch = jnp.where(finite, jnp.sqrt(1.0 + (radii / ra_safe) ** 2), 1.0)
-
-    v_r = speeds * cos_t  # signed radial component (stretched frame)
-    v_t = speeds * sin_t / stretch  # physical tangential magnitude (un-stretched)
-
-    # Random azimuthal unit vector in the plane perpendicular to r_hat.
-    rand = jax.random.normal(k_az, (N, 3))
-    rand = rand - jnp.sum(rand * r_hat, axis=1, keepdims=True) * r_hat
-    t_hat = rand / (jnp.linalg.norm(rand, axis=1, keepdims=True) + 1e-30)
-
-    return v_r[:, None] * r_hat + v_t[:, None] * t_hat
+    inverse_ra = jnp.where(finite, 1.0 / ra_safe, 0.0)
+    y = positions * inverse_ra[:, None]
+    h = jnp.sqrt(1.0 + jnp.sum(y**2, axis=1))
+    # Equivalent to b I + (1-b) r_hat r_hat^T, without division by radius.
+    projection = jnp.sum(y * dirs, axis=1)
+    directions = dirs / h[:, None] + y * (projection / (h * (h + 1)))[:, None]
+    return speeds[:, None] * directions
 
 
 __all__ = ["eddington_invert", "sample_speed_from_f_table", "assign_om_directions"]

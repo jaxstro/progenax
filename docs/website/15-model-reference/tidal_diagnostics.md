@@ -31,9 +31,9 @@ The tidal (Jacobi) radius of a cluster on a circular galactic orbit — the gene
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
-| `M_cl` | cluster mass | Msun | 1e2–1e6 | `jacobi_radius(M_cl=...)` |
-| `M_gal` | host mass enclosed within the orbital radius | Msun | 1e10–1e12 | `jacobi_radius(M_gal=...)` |
-| `R` | galactocentric orbital radius | pc (or kpc via units) | 1–30 kpc | `jacobi_radius(R=...)` |
+| `M_cl` | cluster mass | Msun | 1e2–1e6 | `jacobi_radius(M_cluster=...)` |
+| `M_gal` | host mass enclosed within the orbital radius | Msun | 1e10–1e12 | `jacobi_radius(M_galaxy=...)` |
+| `R` | galactocentric orbital radius | pc (or kpc via units) | 1–30 kpc | `jacobi_radius(R_galactic=...)` |
 
 ### Equations
 
@@ -42,7 +42,7 @@ The tidal (Jacobi) radius of a cluster on a circular galactic orbit — the gene
 r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(3 - \mathrm{d}\ln M_{\mathrm{gal}}/\mathrm{d}\ln R)\,M_{\mathrm{gal}}(<R)}\biggr]^{1/3}
 ```
 
-*Symbols:* $r_J$: Jacobi (tidal) radius; the L1 Lagrange distance [pc].
+*Symbols:* $r_J$: leading circular-orbit local tidal distance; approximates the L1 separation [pc].
 *Assumes:* circular orbit; point-mass host: denominator 3 (King 1962); isothermal host (dlnM/dlnR = 1): denominator 2 (Baumgardt & Makino 2003).
 *Derivation:* [theory page](../10-theory/tidal-and-substructure/tidal.md#jacobi-circular).
 
@@ -51,13 +51,13 @@ r_J \;=\; R\,\biggl[\frac{M_{\mathrm{cl}}}{(3 - \mathrm{d}\ln M_{\mathrm{gal}}/\
 \mathcal{F} \;\equiv\; \frac{r_h}{r_J}
 ```
 
-*Symbols:* $\mathcal{F}$: tidal fill factor (underfilling << 1; Roche-filling ~ 0.5) [dimensionless].
+*Symbols:* $\mathcal{F}$: half-mass to Jacobi radius ratio; no universal maximum 0.5 follows from this definition [dimensionless].
 *Derivation:* [theory page](../10-theory/tidal-and-substructure/tidal.md#fill-factor).
 
 ### Sources
 
-- {cite:t}`King1962` — the tidal-radius concept and the (m/3M)^(1/3) cube-root law (DOI verified live) *(Section II (the empirical tidal cutoff))*
-- {cite:t}`Baumgardt2003` — the isothermal-host form r_t = (G m / 2 V^2)^(1/3) R^(2/3) used for flat rotation curves *(Eq. 5)*
+- {cite:t}`King1962` — the tidal-radius concept and the (m/3M)^(1/3) cube-root law (DOI verified live) *(Eq. 11, p. 473, circular-orbit e=0 limit (point-mass host); Eq. 7 gives local tidal balance)*
+- {cite:t}`Baumgardt2003` — the isothermal-host form r_t = (G m / 2 V^2)^(1/3) R^(2/3) used for flat rotation curves *(Eq. 1, p. 229)*
 
 ### Code & validation
 
@@ -90,10 +90,10 @@ The MST-based substructure statistic Q = mbar / sbar (normalized mean MST edge l
 
 ```{math}
 :label: card-cw04-q-def
-Q \;\equiv\; \frac{\bar m}{\bar s}, \qquad \bar m = \frac{\langle \ell_{\rm MST} \rangle}{\sqrt{A/N}}, \quad \bar s = \frac{\langle r_{ij} \rangle}{R}, \quad A = \pi R^2
+Q \;\equiv\; \frac{\bar m}{\bar s}, \qquad \bar m = \frac{L_{\rm MST}}{\sqrt{N A}}, \quad \bar s = \frac{\langle r_{ij} \rangle}{R}, \quad A = \pi R^2
 ```
 
-*Symbols:* $\bar m$: mean MST edge length normalized by sqrt(A/N) [dimensionless]; $\bar s$: mean pairwise separation normalized by the cluster radius R [dimensionless].
+*Symbols:* $\bar m$: mean MST edge length divided by sqrt(N A)/(N-1), equivalently total MST length divided by sqrt(N A) [dimensionless]; $L_{\rm MST}$: total length of the N-1 minimum-spanning-tree edges [pc]; $N$: number of projected stellar positions [dimensionless]; $\bar s$: mean pairwise separation normalized by the cluster radius R [dimensionless].
 *Assumes:* 2-D projected positions; A = pi R^2 (the CW04 area convention — NOT the convex hull); uniform-sphere anchor Q = 0.79 +/- 0.02 reproduced to < 0.01.
 
 ### Sources
@@ -118,7 +118,7 @@ Q \;\equiv\; \frac{\bar m}{\bar s}, \qquad \bar m = \frac{\langle \ell_{\rm MST}
 
 ✅ verified · 2 equations · 2 sources · [API: `energy_sorted_segregation`](../30-api/cluster.md#api-cluster-energy_sorted_segregation)
 
-The energy-sorted primordial-segregation generator (most-massive stars on the most-bound orbits, no orbit reuse) and the Allison et al. (2009) Lambda_MSR MST diagnostic that measures it — plus the differentiable soft surrogate lambda_msr_approx.
+The energy-sorted primordial-segregation generator (most-massive stars on the most-bound orbits, no orbit reuse) and the Allison et al. (2009) Lambda_MSR MST diagnostic that measures it — plus the differentiable NN-ratio surrogate lambda_msr_approx, whose sharp limit is not the MST ratio.
 
 | Use it for | Not for |
 |---|---|
@@ -130,7 +130,7 @@ The energy-sorted primordial-segregation generator (most-massive stars on the mo
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
-| `n_massive` | size of the massive subset compared against random subsets in Lambda_MSR | count | 5–20 | `lambda_msr(..., n_massive=...)` |
+| `n_massive` | size of the massive subset compared against random subsets in Lambda_MSR | count | 5–20 | `compute_lambda_msr(..., n_massive=...)` |
 
 ### Equations
 
@@ -154,7 +154,7 @@ E_i \;=\; \tfrac{1}{2}|\mathbf{v}_i|^2 \;+\; \Phi(\mathbf{r}_i)
 
 ### Sources
 
-- {cite:t}`Allison2009` — the Lambda_MSR MST-ratio diagnostic *(Eq. 1 + Section 2 (per-paper material, ledger-verified))*
+- {cite:t}`Allison2009` — the Lambda_MSR MST-ratio diagnostic *(MNRAS 395, p. 1450, Eq. 1 and Section 3.2 (MST method paper, distinct from the ApJ cool-collapse paper))*
 - {cite:t}`Baumgardt2008` — the primordial-segregation IC context (segregated initial models) *(Section 2)*
 
 ### Code & validation

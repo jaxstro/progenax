@@ -1,0 +1,319 @@
+[[symbol]]
+id = "SYM-x"
+name = "x"
+latex = "x"
+unit = "dimensionless"
+description = "Source dimensionless radius"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-r"
+name = "r"
+latex = "r"
+unit = "length"
+description = "Physical radius"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-a"
+name = "a"
+latex = "a"
+unit = "length"
+description = "Positive scale radius"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-M"
+name = "M"
+latex = "M"
+unit = "mass"
+description = "Total mass"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-r_h"
+name = "r_h"
+latex = "r_h"
+unit = "length"
+description = "Positive three-dimensional half-mass radius"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-u"
+name = "u"
+latex = "u"
+unit = "dimensionless"
+description = "CDF probability; inverse relation additionally requires u<1"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-G"
+name = "G"
+latex = "G"
+unit = "length^3 / mass / time^2"
+description = "Positive gravitational constant"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-q"
+name = "q"
+latex = "q"
+unit = "dimensionless"
+description = "Speed divided by local escape speed; conditional density requires 0<=q<=1"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-q_om"
+name = "q_om"
+latex = 'q_{\mathrm{OM}}'
+unit = "dimensionless"
+description = "Auxiliary OM speed s/sqrt(2 psi_om), before Cartesian stretch; 0<=q_om<=1"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-psi_om"
+name = "psi_om"
+latex = '\psi'
+unit = "dimensionless"
+description = "Relative Plummer potential in units of sigma0^2=GM/(6a); 0<psi_om<=6"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-rho_om"
+name = "rho_om"
+latex = '\eta'
+unit = "dimensionless"
+description = "Squared radius ratio (a/r_a)^2; 0<=rho_om<=16/9"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-z_om"
+name = "z_om"
+latex = 'z'
+unit = "dimensionless"
+description = "Dimensionless integration variable for squared auxiliary OM speed"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-W_limepy"
+name = "W_limepy"
+latex = 'W'
+unit = "dimensionless"
+description = "Positive relative energy in the lowered exponential"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-t_gamma"
+name = "t_gamma"
+latex = 't'
+unit = "dimensionless"
+description = "Positive integration variable for the exponential integral"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-r_a"
+name = "r_a"
+latex = "r_a"
+unit = "length"
+description = "Positive Osipkov-Merritt anisotropy radius"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-Psi"
+name = "Psi"
+latex = '\Psi'
+unit = "length^2 / time^2"
+description = "Positive relative gravitational potential per unit mass"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-E_cut"
+name = "E_cut"
+latex = 'E_{\mathrm{cut}}'
+unit = "length^2 / time^2"
+description = "Energy-per-unit-mass cutoff; the moment relation requires E_cut < Psi"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-p_df"
+name = "p_df"
+latex = 'p_f'
+unit = "dimensionless"
+description = "Nonnegative power in the test DF f(E) proportional to (E-E_cut)^p_df above the cutoff"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-s"
+name = "s"
+latex = "s"
+unit = "length"
+description = "Radial integration coordinate"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-r_t"
+name = "r_t"
+latex = 'r_t'
+unit = "length"
+description = "Positive outer radius of the spherical density model"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-E"
+name = "E"
+latex = "E"
+unit = "length^2 / time^2"
+description = "Positive relative binding energy per unit mass"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-rho_prime_zero"
+name = "rho_prime_zero"
+latex = '\rho^{\prime}_0'
+unit = "mass * time^2 / length^5"
+description = "Derivative of density with respect to relative potential at the zero-potential boundary"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-N_pop"
+name = "N_pop"
+latex = "N"
+unit = "dimensionless"
+description = "Fixed positive integer target star count for independent categorical labels"
+assumptions = ["positive", "integer"]
+
+[[symbol]]
+id = "SYM-mu1_pop"
+name = "mu1_pop"
+latex = '\mu_1'
+unit = "mass"
+description = "Number-probability-weighted component mean mass, sum_j pi_j m_j; not the central-density-weighted LIMEPY mean mass"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-mu2_pop"
+name = "mu2_pop"
+latex = '\mu_2'
+unit = "mass^2"
+description = "Number-probability-weighted component second mass moment, sum_j pi_j m_j^2"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-K1_pop"
+name = "K1_pop"
+latex = 'K_1'
+unit = "mass"
+description = "sum_j pi_j m_j q_j, with dimensionless conditional moment q_j=E[w_j^2 u^2|j]"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-K2_pop"
+name = "K2_pop"
+latex = 'K_2'
+unit = "mass^2"
+description = "sum_j pi_j m_j^2 q_j, with dimensionless conditional moment q_j=E[w_j^2 u^2|j]"
+assumptions = ["nonnegative"]
+
+[[symbol]]
+id = "SYM-A0_pop"
+name = "A0_pop"
+latex = 'A_0'
+unit = "length^2 / mass / time^2"
+description = "Engine A squared-velocity normalization per unit catalogue mass, G/(9 r_c mu_tot); mu_tot is the dimensionless equilibrium mass integral"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-z_env"
+name = "z_env"
+latex = "[\\mathrm{Fe/H}]"
+unit = "dimensionless"
+description = "Metallicity log10 iron/hydrogen abundance relative to solar, in dex"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-R_env"
+name = "R_env"
+latex = "R_\\rho"
+unit = "dimensionless"
+description = "log10(rho_cl / (1e6 Msun pc^-3)); density coordinate, not dimensional density"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-L_env"
+name = "L_env"
+latex = "L_M"
+unit = "dimensionless"
+description = "log10(M_ecl / (1e6 Msun)); stellar mass coordinate"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-lambda_env"
+name = "lambda_env"
+latex = "\\lambda"
+unit = "dimensionless"
+description = "Table-3 coordinate: log10 cloud mass, stellar mass or density relative to 1e6 in solar/parsec units, or metallicity in dex; specified per equation"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-x_env"
+name = "x_env"
+latex = "\\hat x"
+unit = "dimensionless"
+description = "Dimensionless rotated density/metallicity coordinate; Marks and Jerabkova use distinct rounding"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-cos_env"
+name = "cos_env"
+latex = "\\cos\\vartheta"
+unit = "dimensionless"
+description = "Cosine of the published 98-degree rotation angle; independent symbol only for source-expression evaluation"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-sin_env"
+name = "sin_env"
+latex = "\\sin\\vartheta"
+unit = "dimensionless"
+description = "Sine of the published 98-degree rotation angle; positive and nonzero at that angle"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-alpha_c_env"
+name = "alpha_c_env"
+latex = "\\alpha_{i,c}"
+unit = "dimensionless"
+description = "Canonical dimensionless low-mass exponent; 1.3 or 2.3"
+assumptions = ["real"]
+
+[[symbol]]
+id = "SYM-eps_env"
+name = "eps_env"
+latex = "\\varepsilon"
+unit = "dimensionless"
+description = "Star formation efficiency M_ecl/M_cl; positive fraction, physically <=1"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-m_env"
+name = "m_env"
+latex = "\\mathcal M"
+unit = "dimensionless"
+description = "M_ecl/Msun, positive numerical stellar mass in solar masses"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-h_env"
+name = "h_env"
+latex = "\\mathcal H"
+unit = "dimensionless"
+description = "r_h/pc, positive numerical three-dimensional stellar half-mass radius in parsecs"
+assumptions = ["positive"]
+
+[[symbol]]
+id = "SYM-mcl_env"
+name = "mcl_env"
+latex = "\\mathcal M_{\\mathrm{cl}}"
+unit = "dimensionless"
+description = "M_cl/Msun, positive numerical total birth-cloud mass including stars and gas"
+assumptions = ["positive"]

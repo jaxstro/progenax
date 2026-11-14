@@ -22,16 +22,18 @@ from typing import Tuple
 import equinox as eqx
 import jax
 import jax.numpy as jnp
-from jaxstro.numerics import newton_ppf
+from jaxstro.numerics.rootfinding import newton_ppf
 from jaxtyping import Array, ArrayLike, Float, PRNGKeyArray
+
+from progenax.numerics import power_integral_stable, power_ppf_stable, require_positive
 
 
 class ChabrierIMF(eqx.Module):
     """Chabrier (2003) lognormal + power-law IMF.
 
     The Chabrier IMF has two components:
-    - Lognormal: ξ(log m) = A_ln × exp[-(log m - log m_c)² / (2σ²)] for m < m_trans
-    - Power-law: ξ(log m) = A_pl × m^(-α) for m ≥ m_trans
+    - Lognormal in log10 mass, converted to dN/dm with the factor 1/(m ln 10).
+    - Power-law: dN/dm = A_pl m^(-alpha) for m >= m_trans.
 
     Uses standard Chabrier (2003) parameters with A_pl computed for continuity
     at the transition mass m_trans = 1 M☉.
@@ -88,21 +90,21 @@ class ChabrierIMF(eqx.Module):
         """Validate parameters."""
         # Note: m_c doesn't need to be in [m_min, m_max] - it's the lognormal peak
         # which can be below m_min (the distribution is truncated at m_min)
-        if self.m_c <= 0 or self.m_c >= self.m_max:
-            raise ValueError(
-                f"Characteristic mass m_c ({self.m_c}) must be positive "
-                f"and less than m_max ({self.m_max})"
-            )
-        if self.sigma <= 0:
-            raise ValueError(f"Lognormal width sigma ({self.sigma}) must be positive")
-        if self.alpha <= 0:
-            raise ValueError(
-                f"Power-law exponent alpha ({self.alpha}) must be positive"
-            )
-        if self.m_min >= self.m_trans:
-            raise ValueError(
-                f"m_min ({self.m_min}) must be less than m_trans ({self.m_trans})"
-            )
+        require_positive(self.m_c, "Chabrier characteristic mass")
+        require_positive(self.sigma, "Chabrier lognormal width")
+        require_positive(self.alpha, "Chabrier power-law exponent")
+        # Preserve eager domain checks. Under tracing callers own these domain
+        # inequalities, as for the other IMF constructors; no host bool is formed.
+        for lower, upper, description in (
+            (self.m_c, self.m_max, "m_c must be less than m_max"),
+            (self.m_min, self.m_trans, "m_min must be less than m_trans"),
+        ):
+            try:
+                invalid = bool(lower >= upper)
+            except jax.errors.TracerBoolConversionError:
+                continue
+            if invalid:
+                raise ValueError(f"Chabrier {description} (got {lower}, {upper})")
 
     # ==========================================================================
     # Internal helpers for lognormal + power-law
@@ -179,11 +181,7 @@ class ChabrierIMF(eqx.Module):
         ∫ξ_pl(m) dm = A_pl × [m^(1-α) / (1-α)] evaluated at bounds
         """
         e = 1.0 - self.alpha
-        base_integral = jnp.where(
-            jnp.abs(e) < 1e-12,
-            jnp.log(m_hi / m_lo),
-            (m_hi**e - m_lo**e) / e,
-        )
+        base_integral = power_integral_stable(m_lo, m_hi, e)
         return self.A_pl * base_integral
 
     def _compute_normalization(
@@ -196,8 +194,9 @@ class ChabrierIMF(eqx.Module):
             I_pl: Power-law integral (with A_pl coefficient)
             Z: Total normalization (I_ln + I_pl)
 
-        Note: Chabrier (2003) coefficients A_ln=0.158, A_pl=0.044 are now
-        included in the integral functions, giving proper relative weighting.
+        A_ln is the log-mass coefficient. A_pl is computed for continuity of
+        the mass-space density at m_trans; it is not the paper's log-mass
+        power-law coefficient. Both component weights enter these integrals.
         """
         m_ln_max = jnp.minimum(self.m_trans, self.m_max)
         m_pl_min = jnp.maximum(self.m_trans, self.m_min)
@@ -287,7 +286,8 @@ class ChabrierIMF(eqx.Module):
         """
         m_arr = jnp.asarray(m)
         in_domain = (m_arr >= self.m_min) & (m_arr <= self.m_max)
-        lp = self._logpdf_unnorm(m_arr) - self._log_norm
+        safe_m = jnp.clip(m_arr, self.m_min, self.m_max)
+        lp = self._logpdf_unnorm(safe_m) - self._log_norm
         return jnp.where(in_domain, lp, -jnp.inf)
 
     def cdf(self, m: Float[Array, "..."]) -> Float[Array, "..."]:
@@ -301,7 +301,7 @@ class ChabrierIMF(eqx.Module):
         """
         m_arr = jnp.asarray(m)
         _, _, Z = self._compute_normalization()
-        raw = self._cdf_unnorm(m_arr) / (Z + 1e-30)
+        raw = self._cdf_unnorm(jnp.clip(m_arr, self.m_min, self.m_max)) / (Z + 1e-30)
         return jnp.where(
             m_arr <= self.m_min,
             0.0,
@@ -359,13 +359,10 @@ class ChabrierIMF(eqx.Module):
         # Scale u to [0, 1] within power-law region
         u_pl_scaled = jnp.clip((u - p_ln) / (1.0 - p_ln + 1e-10), 0.0, 1.0)
         exp = 1.0 - self.alpha
-        exp_safe = jnp.where(jnp.abs(exp) < 1e-10, 1e-10, exp)
-
-        # Power-law inverse: m = [u_scaled * (m_max^exp - m_trans^exp) + m_trans^exp]^(1/exp)
-        m_trans_exp = self.m_trans**exp_safe
-        m_max_exp = self.m_max**exp_safe
-        m0_pl = jnp.power(
-            u_pl_scaled * (m_max_exp - m_trans_exp) + m_trans_exp, 1.0 / exp_safe
+        m0_pl = power_ppf_stable(
+            self.m_trans,
+            u_pl_scaled * power_integral_stable(self.m_trans, self.m_max, exp),
+            exp,
         )
         m0_pl = jnp.clip(m0_pl, self.m_trans, self.m_max)
 
@@ -410,5 +407,6 @@ class ChabrierIMF(eqx.Module):
         m_c) it gives the same value as the old linear grid. Returns mean mass [M☉].
         """
         m_grid = jnp.exp(jnp.linspace(jnp.log(self.m_min), jnp.log(self.m_max), 4000))
+        m_grid = m_grid.at[0].set(self.m_min).at[-1].set(self.m_max)
         pdf_grid = jnp.exp(self.logpdf(m_grid))
         return jnp.trapezoid(m_grid * pdf_grid, m_grid)

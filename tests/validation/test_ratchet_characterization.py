@@ -1,54 +1,12 @@
-"""Characterization safety-net for the ``jaxstro.testing.ratchet`` hoist (Task 2.1/2.4).
+"""Scanner semantics, scoped citations, and live registry consistency.
 
-Phase 2 of the registry-harness hoist deletes each progenax registry's *inline*
-partition / staleness / literal-scanner / citation-proximity / node-id helpers and calls
-``jaxstro.testing.ratchet`` instead (Tasks 2.2-2.5). This module pins the *observable
-behavior* of the harness primitives as a FROZEN GOLDEN so the refactor is provably correct.
-
-By construction it depends ONLY on ``jaxstro.testing.ratchet`` + frozen expected data +
-the four manifests — NOT on any inline helper (those are deleted). The harness primitives
-must keep reproducing the golden.
-
-STRICT-MODE ADOPTION (Task 2.4, 2026-06-19)
--------------------------------------------
-progenax has ADOPTED the harness's stricter SoTA provenance behavior: the provenance
-registry now uses ``has_nearby_citation`` directly, which DELIBERATELY EXCLUDES the
-module-level docstring from citation whitelisting (a module docstring naming a paper must
-NOT stand in for per-coefficient provenance — the tripwire-defeat fix). To re-green under
-that stricter rule, the already-PDF-verified Tout+1996 (``stellar.py``) and Moe & Di Stefano
-2017 (``moe_di_stefano.py``) coefficient arrays now carry their OWN in-window citation
-comments, so each array is provenanced by a scoped/in-window citation rather than by the
-module docstring. The end-to-end registry verdict is therefore STILL ZERO holes — but now
-under strict semantics with real per-array citations, NOT the old module-docstring whitelist.
-
-What is pinned
---------------
-1. Literal-scanner output (the critical one): per ALLOWLIST_MODULE, a frozen (count,
-   sha256) fingerprint of ``scan_module_numeric_literals`` over the SAME trivial set /
-   small_int_max the provenance registry uses (FAST: a handful of files only).
-2. Citation-proximity verdicts: representative (module, lineno) pairs exercising the harness
-   True path (scoped function/class docstring; in-window comment — INCLUDING the Tout / Moe
-   coefficient rows that now carry their own in-window citation comment post-adoption), plus
-   a synthetic-fixture proof that a MODULE-level docstring does NOT whitelist a literal.
-3. Partition / staleness pass on the CURRENT manifests for the three ``__all__``-keyed
-   registries (api_coverage, physics_registry, grad_audit).
-4. End-to-end provenance verdict = ZERO holes, reproduced with the SAME strict orchestration
-   the registry now runs (harness scanner + harness ``has_nearby_citation`` — NO module-
-   docstring whitelist — + the local value-in-provenance carve).
-5. A representative ``test_body_has_assert`` + ``resolve_node_ids`` snapshot.
-
-Harness signed-literal folding (DELIBERATE, documented — see ``test_documented_harness_
-signed_literal_folding``): the harness FOLDS signed literals (``-2.0`` survives where a raw-
-``Constant`` walk saw a trivial ``2.0``). It is a SoTA fix that closes a blind spot; the
-value is provenanced, so the registry verdict is unchanged.
-
-NOTE on collection: ``ratchet.test_body_has_assert`` is ``test_``-prefixed; it is reached
-ONLY through the ``ratchet.`` namespace here (never imported as a bare name), so pytest does
-not try to collect it as a test.
+The scanner's fixed source fixture has an independently enumerated tuple oracle.
+Production line moves are not scanner failures. The separate live provenance
+orchestration still rejects uncited literals under the strict scoped-citation
+policy. Historical mutable-source fingerprint diagnosis is retained in the
+private November 2026 release audit.
 """
 
-import ast
-import hashlib
 from pathlib import Path
 
 from jaxstro.testing import ratchet
@@ -72,204 +30,117 @@ _CITE_WINDOW = (
 )
 
 
-def _scan(rel: str) -> list[tuple[float, int]]:
-    """Sorted, de-duplicated harness literal scan of an allowlist module."""
-    return sorted(
-        set(
+# Fixed text keeps the scanner's line-number contract independent of production edits.
+_SCANNER_SOURCE = (
+    '"""Numbers in text, such as 7.25, are not numeric AST nodes."""\n'
+    "TRUE = True\n"
+    "FALSE = False\n"
+    "TRIVIAL_POSITIVE = 2.0\n"
+    "TRIVIAL_NEGATIVE = -1.0\n"
+    "SIGNED_NONTRIVIAL = -2.0\n"
+    "EXPLICIT_POSITIVE = +2.35\n"
+    "NEGATIVE_COEFFICIENT = -2.35\n"
+    "SMALL_INTEGER = 12\n"
+    "LARGE_INTEGER = 13\n"
+    "FLOAT_NOT_INTEGER = 12.0\n"
+    "SMALL_NEGATIVE_INTEGER = -12\n"
+    "LARGE_NEGATIVE_INTEGER = -13\n"
+    "TINY = 9e-10\n"
+    "TINY_BOUNDARY = 1e-9\n"
+    "NEGATIVE_TINY_BOUNDARY = -1e-9\n"
+    "DECIMAL_COEFFICIENT = 0.39704170\n"
+    'STRING = "7.25"\n'
+    "ZERO = 0.0\n"
+)
+
+
+def test_harness_literal_scan_matches_fixed_tuple_oracle(tmp_path):
+    """Catch sign loss, duplicate folded operands, wrong line numbers or cutoff policy.
+
+    The explicit oracle retains -2.0 although +2.0 is trivial, retains floats
+    at the integer cutoff, and includes |value|=1e-9 while excluding smaller
+    values. It is not generated by the scanner being tested.
+    """
+    fixture = tmp_path / "numeric_literals.py"
+    fixture.write_text(_SCANNER_SOURCE)
+    expected = [
+        (-2.0, 6),
+        (2.35, 7),
+        (-2.35, 8),
+        (13.0, 10),
+        (12.0, 11),
+        (-13.0, 13),
+        (1e-9, 15),
+        (-1e-9, 16),
+        (0.39704170, 17),
+    ]
+    actual = list(
+        ratchet.scan_module_numeric_literals(
+            fixture, trivial=_TRIVIAL, small_int_max=_SMALL_INT_MAX
+        )
+    )
+    # Do not de-duplicate: yielding a signed operand twice is itself a defect.
+    assert sorted(actual) == sorted(expected)
+
+
+def test_literal_scanner_excludes_booleans_without_numeric_carves(tmp_path):
+    """Catch bools treated as integers when neither trivial nor integer policy hides them."""
+    fixture = tmp_path / "booleans.py"
+    fixture.write_text("TRUE = True\nFALSE = False\n")
+    assert (
+        list(
             ratchet.scan_module_numeric_literals(
-                rel, trivial=_TRIVIAL, small_int_max=_SMALL_INT_MAX
+                fixture, trivial=set(), small_int_max=0
             )
         )
+        == []
     )
 
 
-def _fingerprint(rel: str) -> tuple[int, str]:
-    """(count, sha256) fingerprint of the sorted harness literal scan of a module."""
-    lits = _scan(rel)
-    return len(lits), hashlib.sha256(repr(lits).encode()).hexdigest()
-
-
-# ======================================================================================
-# 1. Literal-scanner equivalence (FROZEN GOLDEN — the critical characterization).
-# ======================================================================================
-#
-# Frozen from the current source tree (2026-06-19, re-frozen post strict-mode adoption for
-# stellar.py + moe_di_stefano.py, which gained per-array in-window citation comments). Each
-# value is (distinct (value, lineno) count, sha256 of the sorted list). The harness
-# scan_module_numeric_literals must reproduce this EXACTLY for every allowlist module. A
-# drift here means the refactored provenance registry would scan a different literal set —
-# the exact regression this safety-net exists to catch.
-_GOLDEN_LITERAL_FINGERPRINTS: dict[str, tuple[int, str]] = {
-    # Re-frozen 2026-07-10 (audit S4): the expm1-stable kernel rewrite removed the
-    # inline exp_safe blocks, shifting linenos (same 14 literals, same values).
-    "src/progenax/imf/power_law.py": (
-        14,
-        "b246b278bbb045a86aaa2e424cbbfa548fe9c015ccde6cffe89b95973df8cca3",
-    ),
-    "src/progenax/imf/chabrier.py": (
-        10,
-        "82667f363d35919be0608cdf927d51ee96438b08e950e6f82bfc1274c8681e3f",
-    ),
-    "src/progenax/imf/smooth.py": (
-        15,
-        "d2bafef4ddf37f4d64a4bebf07db0314260097f3e5fcb519130e8b2546912241",
-    ),
-    "src/progenax/imf/environment/coefficients.py": (
-        26,
-        "d8fb101d4820303c3e31e08d9ed9db1bac52d99074380eba43b54d6115f6cd05",
-    ),
-    "src/progenax/imf/environment/mapping.py": (
-        27,
-        "5e51ef89fdf8d7ddceb42935560ff9a31ba0a9dec23a86ba2b15954d0551bb7e",
-    ),
-    "src/progenax/imf/binary/moe_di_stefano.py": (
-        74,
-        "e7ed77e5d46fd3c136153fb94387b710a65a3d9b718dde4b8da015ed63d5d5ec",
-    ),
-    "src/progenax/imf/binary/mass_ratio.py": (
-        6,
-        "cc5ed6a71979e02757ee2a4710cf70bfc66e54f675997d391c63bd649b30d58c",
-    ),
-    "src/progenax/binaries/period.py": (
-        15,
-        "70c381bbebd070f8648d267bb5cbe3108c3f349fd7f329ca1766da6c49ac6e50",
-    ),
-    "src/progenax/stellar.py": (
-        103,
-        "8d1cd52ac8b3501fbbe2b6023766bc318bceab3b4ecbe5df8fe58b45366d9a54",
-    ),
-}
-
-
-def test_allowlist_modules_match_golden_inventory():
-    """The frozen golden covers EXACTLY the registry's ALLOWLIST_MODULES (no drift in the
-    scanned file set itself — a renamed/added allowlist module must be re-frozen here)."""
-    assert set(_GOLDEN_LITERAL_FINGERPRINTS) == set(ALLOWLIST_MODULES), (
-        "ALLOWLIST_MODULES drifted from the frozen golden inventory — re-capture the "
-        "fingerprints for the new module set:\n"
-        f"  only in golden: {sorted(set(_GOLDEN_LITERAL_FINGERPRINTS) - set(ALLOWLIST_MODULES))}\n"
-        f"  only in manifest: {sorted(set(ALLOWLIST_MODULES) - set(_GOLDEN_LITERAL_FINGERPRINTS))}"
+def test_citation_proximity_respects_scopes_and_comment_window(tmp_path):
+    """Catch lost function/class citation scope or an off-by-one nearby-comment window."""
+    fixture = tmp_path / "scoped_citations.py"
+    fixture.write_text(
+        "def cited_function():\n"
+        '    """King (1966), Eq. 1."""\n'
+        "    return 0.12345\n"
+        "class CitedClass:\n"
+        '    """Sana (2012), Table 1."""\n'
+        "    value = 0.98765\n"
+        "# Tout (1996), Table 1\n"
+        "\n"
+        "\n"
+        "\n"
+        "INSIDE_WINDOW = 0.2468\n"
+        "OUTSIDE_WINDOW = 0.1357\n"
     )
-
-
-def test_harness_literal_scan_matches_frozen_golden():
-    """``scan_module_numeric_literals`` reproduces the frozen (count, sha256) per module.
-
-    This is THE characterization: the harness scanner output is byte-for-byte what the
-    provenance registry will consume post-refactor, pinned against what it produces today.
-    """
-    drift = {}
-    for rel in ALLOWLIST_MODULES:
-        got = _fingerprint(rel)
-        if got != _GOLDEN_LITERAL_FINGERPRINTS[rel]:
-            drift[rel] = {"golden": _GOLDEN_LITERAL_FINGERPRINTS[rel], "got": got}
-    assert not drift, (
-        "harness scan_module_numeric_literals drifted from the frozen golden (the refactor "
-        "would change the scanned literal set — investigate before re-freezing):\n"
-        + "\n".join(f"  {rel}: {d}" for rel, d in drift.items())
-    )
-
-
-# Hand-picked representative literals proving the signed-folding edge (the harness folds
-# ``-2.0`` to a SIGNED citable literal where the trivial set excludes only ``+2.0``). These
-# are exact (value, lineno) members of the frozen scan — a compact, legible spot-check on top
-# of the hash, and the precise place inline-vs-harness behavior diverges.
-_GOLDEN_REPRESENTATIVE_LITERALS: dict[str, list[tuple[float, int]]] = {
-    # Salpeter alpha, signed Marks/Jerabkova FP coefficients, the Moe Table-13 -2.0 tail,
-    # the Sana OB period index, and a Tout ZAMS coefficient row.
-    "src/progenax/imf/power_law.py": [(2.35, 144)],  # lineno re-frozen post-S4
-    "src/progenax/imf/environment/coefficients.py": [(-0.4072, 50), (-0.87, 28)],
-    "src/progenax/imf/binary/moe_di_stefano.py": [
-        (-2.0, 194),
-        (-2.0, 195),
-        (-1.1, 195),
-    ],
-    "src/progenax/binaries/period.py": [(-0.55, 138)],
-    "src/progenax/stellar.py": [(-48.96066856, 70)],
-}
-
-
-def test_representative_signed_literals_present():
-    """Each hand-picked representative (value, lineno) — including the signed ``-2.0`` Moe
-    tail and signed Marks coefficients — is in the harness scan for its module."""
-    for rel, expected in _GOLDEN_REPRESENTATIVE_LITERALS.items():
-        got = set(_scan(rel))
-        missing = sorted(p for p in expected if p not in got)
-        assert not missing, (
-            f"representative literals missing from {rel} scan: {missing}"
-        )
-
-
-# ======================================================================================
-# 2. Citation-proximity equivalence (FROZEN GOLDEN verdicts).
-# ======================================================================================
-#
-# (module, lineno, expected has_nearby_citation(window=4)). Captured from the current tree.
-# All True: a scoped function/class docstring OR an in-window citation comment cites the
-# literal. The Tout (stellar.py) and Moe (moe_di_stefano.py) coefficient rows are True
-# because — under strict-mode adoption (Task 2.4) — each array now carries its OWN in-window
-# citation comment ("Tout+1996 Table 1/2", "Moe & Di Stefano (2017) ... Table 13"), NOT
-# because the module docstring whitelists them (the harness excludes ast.Module; that
-# tripwire-defeat exclusion is proved on a synthetic fixture below).
-_GOLDEN_CITATION_VERDICTS: list[tuple[str, int, bool]] = [
-    # True via the scoped METHOD docstring (Salpeter (1955) in the classmethod docstring).
-    ("src/progenax/imf/power_law.py", 144, True),  # lineno re-frozen post-S4
-    # True via the scoped CLASS docstring (SanaOBPeriod cites Sana et al. (2012)).
-    ("src/progenax/binaries/period.py", 138, True),
-    # True via the per-array in-window citation comment added at strict-mode adoption: the
-    # Moe Table-13 gamma_largeq rows (lines 194-195) carry "Moe & Di Stefano (2017) ... Table
-    # 13" on the array-opening line within window=4.
-    ("src/progenax/imf/binary/moe_di_stefano.py", 194, True),
-    ("src/progenax/imf/binary/moe_di_stefano.py", 195, True),
-    # True via the per-row in-window citation comment: each Tout L/R coefficient row (kept on
-    # one line under fmt:off) now carries "Tout+1996 Table 1/2" inline on the row's own line.
-    ("src/progenax/stellar.py", 43, True),
-    ("src/progenax/stellar.py", 70, True),
-]
-
-
-def test_citation_proximity_matches_frozen_verdicts():
-    """``has_nearby_citation`` reproduces the frozen True verdicts (same window=4) for the
-    scoped-docstring and (post-adoption) per-array in-window-comment citation paths."""
-    mismatches = []
-    for rel, lineno, expected in _GOLDEN_CITATION_VERDICTS:
-        got = ratchet.has_nearby_citation(rel, lineno, window=_CITE_WINDOW)
-        if got != expected:
-            mismatches.append(f"{rel}:{lineno} expected={expected} got={got}")
-    assert not mismatches, (
-        "has_nearby_citation drifted from frozen verdicts:\n  "
-        + "\n  ".join(mismatches)
-    )
+    assert ratchet.has_nearby_citation(fixture, 3, window=_CITE_WINDOW) is True
+    assert ratchet.has_nearby_citation(fixture, 6, window=_CITE_WINDOW) is True
+    assert ratchet.has_nearby_citation(fixture, 11, window=_CITE_WINDOW) is True
+    assert ratchet.has_nearby_citation(fixture, 12, window=_CITE_WINDOW) is False
 
 
 def test_module_docstring_does_not_whitelist_a_literal(tmp_path):
-    """Tripwire-defeat regression pin (now strict-mode REALITY, not just harness theory): a
-    literal whose ONLY citation is the MODULE-level docstring must NOT register as cited —
-    the harness excludes ``ast.Module``.
+    """Catch a module citation whitelisting an otherwise uncited coefficient.
 
-    Proved on a SYNTHETIC fixture (decoupled from progenax src, where every real coefficient
-    now carries its own in-window citation): a module whose docstring cites "Table 1 (1996)"
-    but whose coefficient row has no scoped/in-window citation of its own -> False. The
-    contrasting positive control (the same literal WITH an in-window comment) -> True, so the
-    test cannot pass vacuously."""
-    fixture = tmp_path / "moddocstring_only.py"
+    The contrasting cited control prevents a detector that always returns False
+    from passing. Production line addresses are not part of this contract.
+    """
+    fixture = tmp_path / "module_docstring_only.py"
     fixture.write_text(
-        '"""A module whose docstring cites Tout (1996), Table 1 — but no scoped citation."""\n'
-        "VALUE = 0.39704170\n"  # uncited coefficient row (only the module docstring cites)
+        '"""Tout (1996), Table 1: a module-level citation."""\nVALUE = 0.39704170\n'
     )
-    # line 2 = the uncited coefficient; the module docstring (line 1) must NOT whitelist it.
     assert ratchet.has_nearby_citation(fixture, 2, window=_CITE_WINDOW) is False
 
     cited = tmp_path / "inwindow_cited.py"
     cited.write_text(
-        '"""Plain module docstring, no citation."""\n'
-        "VALUE = 0.39704170  # Tout (1996), Table 1\n"  # in-window comment cites the row
+        '"""Plain module docstring."""\nVALUE = 0.39704170  # Tout (1996), Table 1\n'
     )
     assert ratchet.has_nearby_citation(cited, 2, window=_CITE_WINDOW) is True
 
 
 # ======================================================================================
-# 3. Partition / staleness pass on the CURRENT manifests (the registries are full today).
+# Live manifest partition and staleness checks.
 # ======================================================================================
 
 
@@ -315,7 +186,7 @@ def test_grad_audit_partition_and_staleness_pass_today():
 
 
 # ======================================================================================
-# 4. End-to-end provenance verdict = ZERO holes (harness primitives + local orchestration).
+# Live strict provenance guard (harness primitives plus local orchestration).
 # ======================================================================================
 
 
@@ -381,53 +252,7 @@ def test_harness_orchestration_reproduces_zero_holes():
 
 
 # ======================================================================================
-# 5. Documented harness SoTA behaviors (pinned so the deltas stay deliberate).
-# ======================================================================================
-
-
-def test_documented_harness_signed_literal_folding():
-    """Pin the harness's DELIBERATE signed-literal folding so it cannot silently change:
-    the harness yields the Moe Table-13 ``-2.0`` tail (lines 194-195) as a SIGNED citable
-    literal, whereas a raw-``Constant`` walk sees only a trivial ``+2.0`` (the ``-`` lives in
-    a ``UnaryOp(USub)``). The harness is stricter (closes a sign blind spot); the value is
-    provenanced, so the registry verdict is unchanged."""
-    rel = "src/progenax/imf/binary/moe_di_stefano.py"
-
-    # signed -2.0 IS in the harness scan ...
-    harness_lits = set(_scan(rel))
-    assert (-2.0, 194) in harness_lits and (-2.0, 195) in harness_lits
-
-    # ... and a raw-Constant walk would NOT see it (it sees a trivial +2.0).
-    tree = ast.parse((_REPO_ROOT / rel).read_text())
-    raw_constants_at_194_195 = {
-        (float(n.value), n.lineno)
-        for n in ast.walk(tree)
-        if isinstance(n, ast.Constant)
-        and isinstance(n.value, (int, float))
-        and not isinstance(n.value, bool)
-        and n.lineno in (194, 195)
-    }
-    # The raw constants are +2.0 (trivial); the SIGNED -2.0 only appears via UnaryOp folding.
-    assert (2.0, 194) in raw_constants_at_194_195
-    assert (-2.0, 194) not in raw_constants_at_194_195
-
-
-def test_harness_excludes_module_docstring_span():
-    """Pin the harness's module-docstring EXCLUSION (the strict-mode behavior progenax has
-    adopted): ``_cited_docstring_spans`` must NOT emit a whole-file ``(1, N)`` span for a
-    module whose docstring cites a paper. moe_di_stefano.py's module docstring cites Moe
-    (2017), yet no scoped-docstring span starts at line 1."""
-    rel = "src/progenax/imf/binary/moe_di_stefano.py"
-    tree = ast.parse((_REPO_ROOT / rel).read_text())
-    harness_spans = ratchet._cited_docstring_spans(tree, ratchet.DEFAULT_CITE_RE)
-    assert not any(s == 1 for s, _ in harness_spans), (
-        "harness unexpectedly included the module-level docstring span (tripwire-defeat "
-        "regression — a module docstring would whitelist the whole file)"
-    )
-
-
-# ======================================================================================
-# 6. Representative node-id resolution + asserts-behavior snapshot.
+# Representative node-id resolution and assertion detection.
 # ======================================================================================
 
 _REPRESENTATIVE_NODE_ID = (

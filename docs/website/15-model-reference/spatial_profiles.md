@@ -18,7 +18,7 @@ single source of truth.
 (card-plummer_profile)=
 ## Plummer sphere
 
-✅ verified · 5 equations · 2 sources · [API: `PlummerProfile`](../30-api/profiles.md#api-profiles-plummerprofile)
+✅ verified · 6 equations · 2 sources · [API: `PlummerProfile`](../30-api/profiles.md#api-profiles-plummerprofile)
 
 Cored, infinitely extended spherical density profile with an analytic inverse-CDF: the classic smooth model for young and idealized clusters and the standard N-body test problem.
 
@@ -38,7 +38,7 @@ Cored, infinitely extended spherical density profile with an analytic inverse-CD
 
 ```{math}
 :label: card-plummer-rho
-\rho(r) \;=\; \frac{3\,M}{4\pi\,a^3}\,\biggl[1 + \biggl(\frac{r}{a}\biggr)^{\!2}\,\biggr]^{-5/2}
+\rho(r) = \frac{3 M}{4 \pi a^{3} \left(1 + \frac{r^{2}}{a^{2}}\right)^{\frac{5}{2}}}
 ```
 
 *Symbols:* $\rho$: mass density [Msun / pc^3]; $M$: total mass [Msun]; $a$: Plummer scale radius [pc].
@@ -56,11 +56,20 @@ M(<r) \;=\; M\,\frac{r^3}{(r^2 + a^2)^{3/2}}
 
 ```{math}
 :label: card-plummer-rh-a
-a \;=\; r_h\,\sqrt{2^{2/3} - 1}\;\approx\;0.7664\,r_h
+a = r_h \sqrt{-1 + 2^{\frac{2}{3}}}
 ```
 
 *Symbols:* $r_h$: 3-D half-mass radius [pc].
 *Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-rh-a).
+
+```{math}
+:label: card-plummer-inverse-cdf
+r(u) = a \sqrt[3]{u} \sqrt{\frac{1}{1 - u^{\frac{2}{3}}}}
+```
+
+*Symbols:* $u$: CDF probability [dimensionless].
+*Assumes:* a>0; 0<u<1; continuum relation before numerical clipping.
+*Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-inverse-cdf).
 
 ```{math}
 :label: card-plummer-sigma-r
@@ -88,6 +97,8 @@ f(E) \;=\; \frac{24\sqrt{2}}{7\pi^3}\,\frac{a^2}{G^5\,M^4}\,(-E)^{7/2}, \qquad E
 ### Code & validation
 
 - code: [`PlummerProfile`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/plummer.py) (`src/progenax/profiles/plummer.py`)
+- validation: `tests/unit/profiles/test_plummer_registry.py::test_inverse_and_scale_identities`
+- validation: `tests/unit/profiles/test_plummer_registry.py::test_sampler_scale_and_clipping`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerScaleRadius::test_scale_radius_formula_exact`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerDensityProfile::test_cdf_formula_accuracy`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio`
@@ -110,7 +121,7 @@ Single-mass lowered-isothermal sphere: an isothermal core with a finite tidal cu
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
-| `W0` | dimensionless central potential Psi(0)/sigma_0^2; sets the concentration c = log10(r_t/r_c) | dimensionless | 3–12 (supported to ~15) | `KingProfile.from_W0_rc(W0=...)` |
+| `W0` | dimensionless central potential Psi(0)/sigma_0^2; sets the concentration c = log10(r_t/r_c) | dimensionless | 3–12 (illustrative; resolve the numerical domain separately) | `KingProfile.from_W0_rc(W0=...)` |
 | `r_c` | King core radius r_c^2 = 9 sigma_0^2 / (4 pi G rho_0) | pc | 0.1–5 | `KingProfile.from_W0_rc(r_c=...)` |
 
 ### Equations
@@ -167,20 +178,20 @@ c \;\equiv\; \log_{10}\!\left(\frac{r_t}{r_c}\right) \;=\; \log_{10}(\xi_t)
 
 ✅ verified · 3 equations · 1 source · [API: `EFFProfile`](../30-api/profiles.md#api-profiles-effprofile)
 
-Cored profile with a power-law outer halo of 3-D slope gamma: the empirical fit to young LMC clusters. gamma = 5 recovers the Plummer sphere exactly; gamma <= 3 has divergent total mass, so a finite truncation radius r_t is carried in practice.
+Cored profile with a power-law outer halo of 3-D slope gamma: the empirical fit shape motivated by young LMC clusters. gamma = 5 has the Plummer interior density shape. The released class always has a finite imposed r_t; its normalization and support differ from an untruncated Plummer sphere.
 
 | Use it for | Not for |
 |---|---|
 | ✓ young massive clusters with shallow power-law halos (LMC-style) | ✗ relaxed, tidally truncated globulars (use King) |
-| ✓ systems needing a tunable outer slope between Plummer and isothermal | ✗ gamma <= 3 without an explicit r_t (untruncated mass diverges) |
+| ✓ systems needing a tunable outer slope between Plummer and isothermal | ✗ an untruncated mass model with gamma <= 3 (the released class is finite-cut) |
 
 ### Parameters
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
 | `a` | core scale radius | pc | 0.1–10 | `EFFProfile(a=...)` |
-| `gamma` | 3-D density power-law slope (EFF87 fit the PROJECTED surface slope; 3-D ~ projected + 1) | dimensionless | 3.2–7 (EFF87 surface slopes 2.2–3.2 map to 3-D ~3.2–4.2; gamma = 5 is Plummer) | `EFFProfile(gamma=...)` |
-| `r_t` | truncation radius (required for gamma <= 3; finite in practice) | pc | 5–100 | `EFFProfile(r_t=...)` |
+| `gamma` | 3-D density power-law slope (EFF87 fit the PROJECTED surface slope; 3-D ~ projected + 1) | dimensionless | 3.2–7 (EFF87 surface slopes 2.2–3.2 map to 3-D ~3.2–4.2; gamma = 5 has Plummer interior shape) | `EFFProfile(gamma=...)` |
+| `r_t` | finite imposed cutoff (constructor default available); not automatically a host-orbit Jacobi radius | pc | 5–100 | `EFFProfile(r_t=...)` |
 
 ### Equations
 
@@ -208,7 +219,7 @@ M_{\mathrm{total}} \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\, \frac{\Gamma\
 ```
 
 *Symbols:* $\Gamma$: Euler gamma function [dimensionless].
-*Assumes:* gamma > 3 (else the untruncated mass diverges).
+*Assumes:* untruncated reference integral only, gamma > 3; not the finite class total mass.
 *Derivation:* [theory page](../10-theory/spatial-profiles/eff.md#eff-mtotal).
 
 ### Sources
@@ -224,7 +235,7 @@ M_{\mathrm{total}} \;=\; 4\pi\,\rho_0\,a^3\,\frac{\sqrt{\pi}}{4}\, \frac{\Gamma\
 
 :::{admonition} Deviations from the source
 :class: caution
-- progenax's gamma is the 3-D DENSITY slope; EFF87 Eq. 1 defines gamma as the PROJECTED surface-brightness slope (Abel projection shifts the slope by ~1). The 3-D form is the standard N-body/IC convention (e.g. McLuster); at gamma=5 it reduces exactly to Plummer. Documented in 10-theory/spatial-profiles/eff.md.
+- progenax's gamma is the 3-D DENSITY slope; EFF87 Eq. 1 defines gamma as the PROJECTED surface-brightness slope (Abel projection shifts the slope by ~1). The 3-D form is the standard N-body/IC convention (e.g. McLuster); at gamma=5 its interior density shape is Plummer-like, while finite-cut support and normalization remain distinct. Documented in 10-theory/spatial-profiles/eff.md.
 :::
 
 
@@ -237,8 +248,8 @@ The spatial side of the self-consistent Michie–King model: the density generat
 
 | Use it for | Not for |
 |---|---|
-| ✓ self-consistent radially anisotropic globular-cluster models | ✗ holding a fixed observed density (use the OM overlay on Plummer/EFF) |
-| ✓ systems where anisotropy should RESHAPE the density (not just the velocities) | ✗ r_a below the W0-dependent radial-orbit bound (1/r^2 tail, never truncates — construction raises) |
+| ✓ self-consistent radially anisotropic globular-cluster models | ✗ holding a prescribed density fixed (use an admissible augmented-density OM inversion) |
+| ✓ systems where anisotropy should RESHAPE the density (not just the velocities) | ✗ a model without a resolved zero crossing within the chosen integration domain |
 
 ### Parameters
 
@@ -246,7 +257,7 @@ The spatial side of the self-consistent Michie–King model: the density generat
 |---|---|---|---|---|
 | `W0` | dimensionless central potential (as King) | dimensionless | 3–12 | `MichieProfile(W0=...) / solve_michie_profile(W0=...)` |
 | `r_c` | core radius (King Eq. 15 normalization) | pc | 0.1–5 | `MichieProfile(r_c=...)` |
-| `r_a` | anisotropy radius; smaller = more radial = more extended (larger r_t) | pc | >~ 3-4 r_c at W0=7 (below: raises ValueError) | `MichieProfile(r_a=...)` |
+| `r_a` | angular-momentum anisotropy scale; distinct from OM beta(r), with isotropic finite edge | pc | joint W0/r_a domain requires a resolved finite zero crossing | `MichieProfile(r_a=...)` |
 
 ### Equations
 

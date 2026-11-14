@@ -18,7 +18,7 @@ single source of truth.
 (card-plummer_df)=
 ## Plummer isotropic DF
 
-✅ verified · 3 equations · 3 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
+✅ verified · 5 equations · 3 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
 
 The closed-form ergodic equilibrium DF of the Plummer sphere, f(E) ∝ E^(7/2) — the canonical worked example of Eddington inversion and the exact equilibrium behind progenax's Plummer velocity sampler.
 
@@ -63,6 +63,22 @@ f(v \mid r) \;\propto\; v^2\,\mathcal{E}(r, v)^{7/2},\qquad \mathcal{E}(r, v) = 
 *Assumes:* marginal speed distribution at fixed r (the inverse-CDF sampling target).
 *Derivation:* [theory page](../10-theory/velocity-dfs/plummer-dfs.md#plummer-fv).
 
+```{math}
+:label: card-plummer-escape-speed
+v_{\mathrm{esc}}(r) = \frac{\sqrt{2} \sqrt{G} \sqrt{M}}{\sqrt[4]{a^{2} + r^{2}}}
+```
+
+*Assumes:* G,M,a>0; r>=0; potential zero at infinity; local derivation.
+*Derivation:* [theory page](../10-theory/spatial-profiles/plummer.md#plummer-vesc).
+
+```{math}
+:label: card-plummer-speed-pdf
+p(q) = \frac{512 q^{2} \left(1 - q^{2}\right)^{\frac{7}{2}}}{7 \pi}
+```
+
+*Assumes:* isotropic branch; 0<=q<=1; zero outside support; local normalization derivation.
+*Derivation:* [theory page](../10-theory/velocity-dfs/plummer-dfs.md#plummer-fv).
+
 ### Sources
 
 - {cite:t}`Plummer1911` — the density model the DF inverts *(Eqs. 11-12)*
@@ -72,6 +88,8 @@ f(v \mid r) \;\propto\; v^2\,\mathcal{E}(r, v)^{7/2},\qquad \mathcal{E}(r, v) = 
 ### Code & validation
 
 - code: [`PlummerVelocityDF`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/plummer_df.py) (`src/progenax/kinematics/plummer_df.py`)
+- validation: `tests/unit/kinematics/test_plummer_velocity_registry.py::test_symbolic_speed_normalization_moments_and_scales`
+- validation: `tests/unit/kinematics/test_plummer_velocity_registry.py::test_fixed_draw_velocity_scales`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerVelocityDispersion::test_radial_dispersion_profile`
 - validation: `tests/validation/test_plummer_physics.py::TestPlummerBetaDistribution::test_q_squared_mean`
@@ -104,7 +122,7 @@ The velocity side of the King (1966) model: an isothermal Maxwellian lowered by 
 f(E) \;=\; \begin{cases} \rho_1\,(2\pi\sigma_0^2)^{-3/2}\,\Bigl[\,e^{(\Phi_t - E)/\sigma_0^2} - 1\,\Bigr], & E < \Phi_t \\ 0, & E \ge \Phi_t \end{cases}
 ```
 
-*Symbols:* $\sigma_0$: central 1-D velocity-scale parameter [pc / Myr]; $\Phi_t$: potential at the tidal radius (the cutoff energy) [pc^2 / Myr^2].
+*Symbols:* $\sigma_0$: DF velocity-scale parameter; differs from the actual central one-dimensional dispersion at finite W0 [pc / Myr]; $\Phi_t$: potential at the tidal radius (the cutoff energy) [pc^2 / Myr^2].
 *Assumes:* isotropic; single-mass.
 *Derivation:* [theory page](../10-theory/velocity-dfs/king-dfs.md#king-df-velocity).
 
@@ -119,10 +137,10 @@ f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr], \q
 
 ```{math}
 :label: card-king-sigma
-\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} v^4\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}{\int_0^{\sqrt{2W}} v^2\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}
+\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} u^4\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}{\int_0^{\sqrt{2W}} u^2\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}
 ```
 
-*Symbols:* $\sigma$: mean-square speed of the lowered Maxwellian at W (-> 3 sigma_0^2 as W -> inf) [pc / Myr].
+*Symbols:* $\sigma^2$: mean-square three-dimensional speed (tends to 3 sigma_0^2 as W grows); one-dimensional variance is sigma^2/3 [pc^2 / Myr^2]; $u$: integration speed divided by sigma_0 [dimensionless].
 *Assumes:* decreases outward; vanishes at the tidal boundary.
 *Derivation:* [theory page](../10-theory/velocity-dfs/king-dfs.md#king-sigma).
 
@@ -143,19 +161,19 @@ f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr], \q
 
 ✅ verified · 2 equations · 2 sources · [API: `MichieVelocityDF`](../30-api/kinematics.md#api-kinematics-michievelocitydf)
 
-The self-consistent radially anisotropic King model: Michie's (1963) angular-momentum Gaussian times the King lowering. Unlike the Osipkov–Merritt overlay, the DF is specified first and Poisson is re-solved, so the density itself changes with r_a.
+The self-consistent radially anisotropic King model: Michie's (1963) angular-momentum Gaussian times the King lowering. Unlike the Osipkov–Merritt overlay, the DF is specified first and Poisson is re-solved, so the density itself changes with r_a. The concrete-input endpoint guard checks the chosen finite ODE domain; it does not diagnose infinite mass or radial-orbit instability and is skipped under JAX tracing.
 
 | Use it for | Not for |
 |---|---|
 | ✓ globular clusters with observed outer radial anisotropy | ✗ holding a FIXED density while adding anisotropy (use the OM overlay) |
-| ✓ self-consistent anisotropic equilibria (pairs with MichieProfile) | ✗ r_a below the radial-orbit bound (construction raises: infinite-mass tail) |
+| ✓ self-consistent anisotropic equilibria (pairs with MichieProfile) | ✗ configurations without a resolved tidal crossing in the chosen ODE domain (this does not establish infinite mass or dynamical instability) |
 
 ### Parameters
 
 | Name | Meaning | Units | Typical range | Code |
 |---|---|---|---|---|
 | `W0` | dimensionless central potential (as King) | dimensionless | 3–12 | `MichieVelocityDF(W0=...)` |
-| `r_a` | anisotropy radius of the J^2 Gaussian; r_a -> inf recovers King | pc | >~ 3-4 r_c at W0=7 (below: radial-orbit pathology, raises) | `MichieVelocityDF(r_a=...)` |
+| `r_a` | anisotropy radius of the J^2 Gaussian; r_a -> inf recovers King | pc | positive; resolve the tidal crossing and check domain convergence for the requested W0 and r_a/r_c | `MichieVelocityDF(r_a=...)` |
 
 ### Equations
 
@@ -195,7 +213,7 @@ f(E, J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right) \left[\exp\!\le
 
 ✅ verified · 1 equation · 2 sources · [API: `EFFVelocityDF`](../30-api/kinematics.md#api-kinematics-effvelocitydf)
 
-The isotropic ergodic DF of the (truncated) EFF density, obtained by numerical Eddington inversion — tabulated f(E) with the truncation boundary term, sampled by inverse-CDF.
+The isotropic ergodic DF of the (truncated) EFF density, obtained by numerical Eddington inversion — tabulated f(E) with the truncation boundary term, sampled by inverse-CDF. Its radial table begins at 1e-5 times the profile scale a, preserving the fractional cutoff under length conversion. This numerical convention does not remove hard-truncation mismatch or qualify arbitrary domains.
 
 | Use it for | Not for |
 |---|---|
@@ -233,12 +251,14 @@ f(\mathcal{E}) \;=\; \frac{1}{\sqrt{8}\,\pi^2} \left[\int_0^{\mathcal{E}} \frac{
 - validation: `tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_virial_ratio_mild_truncation`
 - validation: `tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_eddington_f_is_physical`
 - validation: `tests/validation/test_eff_physics.py::TestEFFVelocityDF::test_eff_all_particles_bound`
+- validation: `tests/unit/kinematics/test_eff_df.py::test_eff_relative_cutoff_preserves_table_and_velocity_homology`
+- validation: `tests/unit/builders/test_cluster_units.py::test_other_profile_families_preserve_cgs_units`
 
 
 (card-om_anisotropy)=
 ## Osipkov–Merritt anisotropy overlay
 
-✅ verified · 2 equations · 2 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
+✅ verified · 4 equations · 2 sources · [API: `PlummerVelocityDF`](../30-api/kinematics.md#api-kinematics-plummervelocitydf)
 
 The one-parameter radial-anisotropy construction shared by the Plummer and EFF DFs: replace f(E) by f(Q) built from the augmented density rho_Q = (1 + r^2/r_a^2) rho, holding the TRUE density and potential fixed. beta(r) = r^2/(r^2 + r_a^2) exactly.
 
@@ -273,6 +293,22 @@ Q \;\equiv\; \mathcal{E} - \frac{L^2}{2\,r_a^2}
 *Assumes:* exact for any OM f(Q).
 *Derivation:* [theory page](../10-theory/velocity-dfs/rotation-anisotropy.md#beta-r).
 
+```{math}
+:label: card-plummer-om-speed-pdf
+p(q_{\mathrm{OM}}) = \frac{2 q_{\mathrm{OM}}^{2} \left(\psi^{2} \left(1 - q_{\mathrm{OM}}^{2}\right)^{\frac{7}{2}} \left(1 - \eta\right) + \frac{63 \eta \left(1 - q_{\mathrm{OM}}^{2}\right)^{\frac{3}{2}}}{4}\right)}{\pi \left(\psi^{2} \left(\frac{7}{256} - \frac{7 \eta}{256}\right) + \frac{63 \eta}{64}\right)}
+```
+
+*Assumes:* local derivation from the implemented analytic Plummer OM DF; $\psi=\Psi/\sigma_0^2$ lies in $(0,6]$, where $\Psi=-\Phi$ is the relative potential and $\sigma_0^2=GM/(6a)$; $\eta=(a/r_a)^2$ lies in $[0,16/9]$; $q_{\mathrm{OM}}=s/\sqrt{2\Psi}$ lies in $[0,1]$, where $s$ is the auxiliary speed before the Cartesian stretch.
+*Derivation:* [theory page](../10-theory/velocity-dfs/plummer-dfs.md#).
+
+```{math}
+:label: card-plummer-om-speed-cdf
+F(q_{\mathrm{OM}}) = \frac{\psi^{2} \left(1 - \eta\right) \int\limits_{0}^{q_{\mathrm{OM}}^{2}} \sqrt{z} \left(1 - z\right)^{\frac{7}{2}}\, dz + \frac{63 \eta \int\limits_{0}^{q_{\mathrm{OM}}^{2}} \sqrt{z} \left(1 - z\right)^{\frac{3}{2}}\, dz}{4}}{\pi \left(\psi^{2} \left(\frac{7}{256} - \frac{7 \eta}{256}\right) + \frac{63 \eta}{64}\right)}
+```
+
+*Assumes:* local derivation from the implemented analytic Plummer OM DF; $\psi=\Psi/\sigma_0^2$ lies in $(0,6]$, where $\Psi=-\Phi$ is the relative potential and $\sigma_0^2=GM/(6a)$; $\eta=(a/r_a)^2$ lies in $[0,16/9]$; $q_{\mathrm{OM}}=s/\sqrt{2\Psi}$ lies in $[0,1]$, where $s$ is the auxiliary speed before the Cartesian stretch.
+*Derivation:* [theory page](../10-theory/velocity-dfs/plummer-dfs.md#).
+
 ### Sources
 
 - {cite:t}`Merritt1985` — the OM construction, the closed-form anisotropic Plummer DF, and its non-negativity bound *(Eq. 45 (anisotropic Plummer f(Q)); Eq. 46 (r_a >= 3/4 r_0 bound))*
@@ -282,6 +318,9 @@ Q \;\equiv\; \mathcal{E} - \frac{L^2}{2\,r_a^2}
 
 - code: [`PlummerVelocityDF`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/plummer_df.py) (`src/progenax/kinematics/plummer_df.py`)
 - code: [`EFFVelocityDF`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/eff_df.py) (`src/progenax/kinematics/eff_df.py`)
+- validation: `tests/unit/kinematics/test_plummer_om_speed.py::test_registered_om_cdf_derivative_and_normalization`
+- validation: `tests/unit/kinematics/test_plummer_om_speed.py::test_om_quantiles_against_independent_cdf`
+- validation: `tests/unit/kinematics/test_plummer_om_speed.py::test_full_sampler_cartesian_origin_and_nearby_derivatives`
 - validation: `tests/validation/test_dispersion_physics.py::test_eff_om_beta_identity`
 - validation: `tests/validation/test_engine_b_physics.py::test_om_beta_profile_realized`
 

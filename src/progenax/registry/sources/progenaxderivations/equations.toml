@@ -1,0 +1,263 @@
+[[equation]]
+id = "EQ-PLUMMER-DENSITY"
+name = "Normalized mass density"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/spatial-profiles/plummer.md, Section The density profile"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-r", "SYM-a", "SYM-M"]
+expression = "3*M/(4*pi*a**3)*(1+r**2/a**2)**(-Rational(5,2))"
+returns = "density"
+note = "Spherical untruncated continuum model; a>0, r>=0. Derived independently of production kernels."
+
+[[equation]]
+id = "EQ-PLUMMER-CDF"
+name = "Enclosed mass fraction"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/spatial-profiles/plummer.md, Section Closed-form mass and potential"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-r", "SYM-a"]
+expression = "r**3/(r**2+a**2)**Rational(3,2)"
+returns = "cdf"
+note = "Spherical untruncated continuum model; a>0, r>=0. Derived independently of production kernels."
+
+[[equation]]
+id = "EQ-PLUMMER-SCALE"
+name = "Half-mass to scale radius"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/spatial-profiles/plummer.md, Section Closed-form mass and potential"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-r_h"]
+expression = "r_h*sqrt(2**Rational(2,3)-1)"
+returns = "scale_radius"
+note = "Local derivation from F(r_h)=1/2; r_h>0."
+
+[[equation]]
+id = "EQ-PLUMMER-INVERSE-CDF"
+name = "Inverse radial CDF"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/spatial-profiles/plummer.md, Section Inverse-CDF sampling"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-u", "SYM-a"]
+expression = "a*sqrt(u**Rational(2,3)/(1-u**Rational(2,3)))"
+returns = "radius"
+note = "Local inversion of enclosed-mass fraction; a>0 and 0<u<1. Production clips u to [1e-7,1-1e-7] before evaluation; clipping is not part of this continuum relation."
+
+[[equation]]
+id = "EQ-PLUMMER-ESCAPE-SPEED"
+name = "Local escape speed"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/spatial-profiles/plummer.md, Section Closed-form mass and potential"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-G", "SYM-M", "SYM-r", "SYM-a"]
+expression = "sqrt(2*G*M/sqrt(r**2+a**2))"
+returns = "escape_speed"
+note = "G,M,a>0; r>=0; potential zero at infinity."
+
+[[equation]]
+id = "EQ-PLUMMER-SPEED-PDF"
+name = "Normalized isotropic conditional speed density"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/velocity-dfs/plummer-dfs.md, Section Conditional speed distribution and sampling (equivalent Beta law)"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-q"]
+expression = "512/(7*pi)*q**2*(1-q**2)**Rational(7,2)"
+returns = "speed_probability_density"
+note = "0<=q<=1; zero outside this interval. Local normalization of q^2(1-q^2)^(7/2); q=v/v_esc."
+
+[[equation]]
+id = "EQ-PLUMMER-OM-SPEED-PDF"
+name = "Normalized OM auxiliary speed density"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "src/progenax/registry/sources/progenaxderivations/equations.toml, Eq. EQ-PLUMMER-OM-SPEED-PDF (expression and note only; separate public derivation owner unavailable)."
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-q_om", "SYM-psi_om", "SYM-rho_om"]
+expression = "2*q_om**2*((1-rho_om)*psi_om**2*(1-q_om**2)**Rational(7,2)+Rational(63,4)*rho_om*(1-q_om**2)**Rational(3,2))/(pi*(Rational(7,256)*(1-rho_om)*psi_om**2+Rational(1,16)*Rational(63,4)*rho_om))"
+returns = "om_speed_pdf"
+note = "Local integration of the implemented analytic OM DF, not a new source transcription. q_om in [0,1], psi_om in (0,6], rho_om in [0,16/9]. The CDF is a signed combination of incomplete beta integrals when rho_om>1, not a probability mixture."
+
+[[equation]]
+id = "EQ-PLUMMER-OM-SPEED-CDF"
+name = "Conditional OM auxiliary speed CDF"
+representation = "symbolic"
+emits = ["latex"]
+equation_ref = "src/progenax/registry/sources/progenaxderivations/equations.toml, Eq. EQ-PLUMMER-OM-SPEED-CDF (expression and note only; separate public derivation owner unavailable)."
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-q_om", "SYM-psi_om", "SYM-rho_om", "SYM-z_om"]
+expression = "((1-rho_om)*psi_om**2*Integral(z_om**Rational(1,2)*(1-z_om)**Rational(7,2),(z_om,0,q_om**2))+Rational(63,4)*rho_om*Integral(z_om**Rational(1,2)*(1-z_om)**Rational(3,2),(z_om,0,q_om**2)))/(pi*(Rational(7,256)*(1-rho_om)*psi_om**2+Rational(1,16)*Rational(63,4)*rho_om))"
+returns = "om_speed_cdf"
+note = "Local integration of the implemented analytic OM DF, not a new source transcription. q_om in [0,1], psi_om in (0,6], rho_om in [0,16/9]. The CDF is a signed combination of incomplete beta integrals when rho_om>1, not a probability mixture."
+
+[[equation]]
+id = "EQ-LIMEPY-G0-RIGHT-DERIVATIVE"
+name = "One-sided lowered-exponential index derivative"
+representation = "symbolic"
+emits = ["latex"]
+equation_ref = "src/progenax/registry/sources/progenaxderivations/equations.toml, Eq. EQ-LIMEPY-G0-RIGHT-DERIVATIVE (expression and note only; separate public derivation owner unavailable)."
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-W_limepy", "SYM-t_gamma"]
+expression = "-exp(W_limepy)*Integral(exp(-t_gamma)/t_gamma,(t_gamma,W_limepy,oo))"
+returns = "lowered_exponential_index_derivative"
+note = "Local derivation: Q(g,W)=uppergamma(g,W)/gamma(g) and 1/gamma(g)=g+O(g^2). Right derivative at g=0 for W>0; not a derivative across the escape boundary or a paper transcription."
+
+[[equation]]
+id = "EQ-OM-SPEED-MOMENT-FACTOR"
+name = "Angular mean squared-speed factor"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "src/progenax/registry/sources/progenaxderivations/equations.toml, Eq. EQ-OM-SPEED-MOMENT-FACTOR (expression and note only; separate public derivation owner unavailable)."
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-r", "SYM-r_a"]
+expression = "Rational(1,3) + Rational(2,3)/(1+(r/r_a)**2)"
+returns = "angular_speed_factor"
+note = "Local angular integration of an isotropic unit direction followed by the OM tangential stretch. r>=0, r_a>0; multiplies the auxiliary squared-speed moment. Isotropic limit r_a -> infinity. Not a paper transcription."
+
+[[equation]]
+id = "EQ-POWER-DF-SPEED-MOMENT"
+name = "Conditional squared speed for a power-law energy DF"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "src/progenax/registry/sources/progenaxderivations/equations.toml, Eq. EQ-POWER-DF-SPEED-MOMENT (expression and note only; separate public derivation owner unavailable)."
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-Psi", "SYM-E_cut", "SYM-p_df"]
+expression = "6*(Psi-E_cut)/(2*p_df+5)"
+returns = "auxiliary_speed_squared"
+note = "Local beta-integral ratio for f(E) proportional to (E-E_cut)^p_df above E_cut and zero below; Psi>E_cut>=0 and p_df>=0. Auxiliary squared speed before OM stretching. Constant and linear powers independently verify knot-aligned quadrature; not a paper transcription."
+
+[[equation]]
+id = "EQ-SPHERICAL-ENCLOSED-MASS"
+name = "Spherical enclosed mass"
+representation = "symbolic"
+emits = ["latex"]
+equation_ref = "docs/website/10-theory/populations/eddington-engine.md, Section Shared potential by quadrature"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-r", "SYM-s"]
+expression = "4*pi*Integral(Function('rho')(s)*s**2,(s,0,r))"
+returns = "enclosed_mass"
+note = "Spherical shell-volume integral; rho(s) is mass density, mass/length^3. Local mathematical formulation, not a paper transcription. Finite integrable density on 0<=r<=r_t."
+
+[[equation]]
+id = "EQ-SPHERICAL-POTENTIAL"
+name = "Potential of a finite spherical density"
+representation = "symbolic"
+emits = ["latex"]
+equation_ref = "docs/website/10-theory/populations/eddington-engine.md, Section Shared potential by quadrature"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-G", "SYM-r", "SYM-s", "SYM-r_t"]
+expression = "-4*pi*G*(Integral(Function('rho')(s)*s**2,(s,0,r))/r + Integral(Function('rho')(s)*s,(s,r,r_t)))"
+returns = "gravitational_potential"
+note = "Newtonian shell theorem with potential zero at infinity and density zero beyond r_t. rho(s) is mass density; 0<r<=r_t. The central value is a limit. Local formulation; Engine B evaluates it in G=1, unit-total-mass model units."
+
+[[equation]]
+id = "EQ-EDDINGTON-INVERSION"
+name = "Eddington inversion with the boundary derivative"
+representation = "symbolic"
+emits = ["latex"]
+equation_ref = "docs/website/10-theory/populations/eddington-engine.md, Section Per-component Eddington inversion in the shared potential"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-E", "SYM-Psi", "SYM-rho_prime_zero"]
+expression = "(Integral(Derivative(Function('rho')(Psi),Psi,2)/sqrt(E-Psi),(Psi,0,E)) + rho_prime_zero/sqrt(E))/(sqrt(8)*pi**2)"
+returns = "distribution_function"
+note = "Local Abel-inversion formulation of the spherical ergodic density relation. rho(Psi) is mass density as a function of relative potential; rho_prime_zero is d rho/d Psi at Psi=0. Reconstructs rho(Psi)-rho(0), not a nonzero constant edge density. OM uses augmented density in this same operator. Not a paper transcription."
+
+[[equation]]
+id = "EQ-CATALOGUE-MASS-SQUARED"
+name = "Expected squared total catalogue mass"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/populations/index.md, Section Finite-population expectations"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-N_pop", "SYM-mu1_pop", "SYM-mu2_pop"]
+expression = "N_pop*mu2_pop + N_pop*(N_pop-1)*mu1_pop**2"
+returns = "total_mass_squared"
+note = "Local expansion of M^2 for N independent categorical labels with fixed positive representative masses and normalized probabilities. mu1_pop=sum_j pi_j m_j; mu2_pop=sum_j pi_j m_j^2. Units mass^2. No recentering or selection; not a paper transcription. Exact label algebra does not certify the numerical equilibrium solver or wider-domain gradients."
+
+[[equation]]
+id = "EQ-CATALOGUE-KINETIC-PER-STAR"
+name = "Expected twice kinetic energy per star"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/populations/index.md, Section Finite-population expectations"
+source_ids = ["progenaxderivations"]
+symbol_ids = ["SYM-N_pop", "SYM-mu1_pop", "SYM-K1_pop", "SYM-K2_pop", "SYM-A0_pop"]
+expression = "A0_pop*(K2_pop+(N_pop-1)*mu1_pop*K1_pop)"
+returns = "twice_kinetic_energy_per_star"
+note = "Local conditional expectation for independent categorical labels and Engine A squared speeds v_i^2=A0_pop*M*w_j^2*u_i^2. K1_pop=sum_j pi_j m_j q_j and K2_pop=sum_j pi_j m_j^2 q_j, q_j=E[w_j^2 u^2|j]; the latter retains each star's correlation with total mass M. Units mass*length^2/time^2. Divide by fixed star count, not total mass; no recentering or virial rescale. Numerical qualification is the retained isotropic four-component configuration only; not a paper transcription."
+
+[[equation]]
+id = "EQ-ENV-MARKS-ROTATION-ROUNDED"
+name = "Adopted rounded Marks coordinate"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section The Fundamental Plane"
+source_ids = ["progenaxderivations", "marks2012topheavy"]
+symbol_ids = ["SYM-z_env", "SYM-R_env"]
+expression = "-139/1000*z_env+99/100*R_env"
+returns = "rotated_coordinate"
+note = "Retained rounded approximation to Marks Eq.13 at 98 degrees, not its exact trigonometric evaluation."
+
+[[equation]]
+id = "EQ-ENV-MARKS-ALPHA3"
+name = "Adopted original slope with corrected threshold"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section The Fundamental Plane"
+source_ids = ["progenaxderivations", "marks2012topheavy", "marks2014erratum"]
+symbol_ids = ["SYM-x_env"]
+expression = "Piecewise((-4072/10000*x_env+19383/10000,x_env>=-87/100),(23/10,True))"
+returns = "imf_exponent"
+note = "Local combination of original Eq.14 slope/intercept and 2014 erratum threshold. Production output clip and opt-in tanh blend are excluded. Retains the 0.007436 hard jump."
+
+[[equation]]
+id = "EQ-ENV-LOG-DENSITY"
+name = "Cloud density coordinate from mass and SFE"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section Cluster density and mass conversion"
+source_ids = ["progenaxderivations", "marks2012inverse"]
+symbol_ids = ["SYM-L_env", "SYM-eps_env"]
+expression = "61/100*(L_env+6)+log(3/(8*pi*(1/10)**3))/log(10)-log(eps_env)/log(10)-6"
+returns = "log_density_coordinate"
+note = "Local substitution of nominal mass-radius relation into 8pi half-mass density, followed by rho_cl=rho_ecl/epsilon. Positive SFE; physical fraction <=1. Logarithms are dimensionless solar/parsec ratios."
+
+[[equation]]
+id = "EQ-ENV-X-MASS-EXACT"
+name = "Density-law coordinate after exact nominal substitution"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section Cluster density and mass conversion"
+source_ids = ["progenaxderivations", "marks2012inverse", "jerabkova2018igimf"]
+symbol_ids = ["SYM-z_env", "SYM-L_env", "SYM-eps_env"]
+expression = "-14/100*z_env+99/100*(61/100*(L_env+6)+log(3/(8*pi*(1/10)**3))/log(10)-log(eps_env)/log(10)-6)"
+returns = "rotated_coordinate"
+note = "Exact algebra of adopted nominal exponents/prefactor, 8pi density and Jerabkova Eq.7; not a new empirical fit or the rounded production mass expression."
+
+[[equation]]
+id = "EQ-ENV-X-MASS-ROUNDED"
+name = "Adopted generalized mass coordinate"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section Cluster density and mass conversion"
+source_ids = ["progenaxderivations", "marks2012inverse", "jerabkova2018igimf"]
+symbol_ids = ["SYM-z_env", "SYM-L_env", "SYM-eps_env"]
+expression = "-14/100*z_env+6039/10000*L_env+2161/10000-99/100*log(eps_env/(33/100))/log(10)"
+returns = "rotated_coordinate"
+note = "Retained production relation: 0.6039=0.99*0.61 exactly; 0.2161 is a rounded intercept. Difference from exact density substitution is constant, so first derivatives agree away from guards. Positive SFE; no SFE input validator is implied."
+
+[[equation]]
+id = "EQ-ENV-X-MECL"
+name = "Adopted reference-SFE mass coordinate"
+representation = "symbolic"
+emits = ["latex", "oracle"]
+equation_ref = "docs/website/10-theory/imfs/environment.md, Section Cluster density and mass conversion"
+source_ids = ["progenaxderivations", "marks2012inverse", "jerabkova2018igimf"]
+symbol_ids = ["SYM-z_env", "SYM-L_env"]
+expression = "-14/100*z_env+6039/10000*L_env+2161/10000"
+returns = "rotated_coordinate"
+note = "Generalized mass expression at epsilon=0.33. The mass-only helper ignores supplied SFE and density override by contract. This is distinct from the printed Jerabkova Eq.9."

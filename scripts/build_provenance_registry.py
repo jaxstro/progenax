@@ -91,6 +91,23 @@ def _validate_card(card: dict, path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def equation_latex(equation: dict) -> str:
+    """Resolve one declared owner; reject ambiguous or incomplete bindings."""
+    if "registry_ref" not in equation:
+        return equation["latex"]
+    if "latex" in equation:
+        raise ValueError("An equation cannot own both latex and registry_ref")
+    from jaxstro.registry import load_source
+    from jaxstro.registry.symbolic import build_equation, to_latex
+
+    from progenax.registry import registry_root
+
+    ref = equation["registry_ref"]
+    bundle = load_source(registry_root(), ref["source"])
+    built = build_equation(bundle, ref["equation"])
+    return ref["lhs"] + " = " + to_latex(built)
+
+
 def _render_card(card: dict) -> str:
     lines: list[str] = []
     title = card.get("family_display", card["model"])
@@ -114,9 +131,7 @@ def _render_card(card: dict) -> str:
             # which has provenance but no API card; fall back to the module page.
             anchor = f"api-{module_short}-{symbol.lower()}"
             if f"({anchor})=" in api_page.read_text():
-                meta.append(
-                    f"[API: `{symbol}`](../30-api/{module_short}.md#{anchor})"
-                )
+                meta.append(f"[API: `{symbol}`](../30-api/{module_short}.md#{anchor})")
             else:
                 meta.append(f"[API: `{symbol}`](../30-api/{module_short}.md)")
     lines.append(" · ".join(meta))
@@ -153,13 +168,11 @@ def _render_card(card: dict) -> str:
     for eq in card["equations"]:
         lines.append("```{math}")
         lines.append(f":label: card-{eq['label']}")
-        lines.append(eq["latex"])
+        lines.append(equation_latex(eq))
         lines.append("```")
         lines.append("")
         sym_bits = [
-            (
-                f"${info['latex']}$" if "latex" in info else f"`{name}`"
-            )
+            (f"${info['latex']}$" if "latex" in info else f"`{name}`")
             + f": {info['meaning']} [{info.get('units', '—')}]"
             for name, info in eq.get("symbols", {}).items()
         ]
@@ -190,7 +203,9 @@ def _render_card(card: dict) -> str:
     lines.append("")
     for ref in card["code_refs"]:
         relpath, qualname = ref.split("::")
-        lines.append(f"- code: [`{qualname}`]({_GITHUB_BLOB}/{relpath}) (`src/progenax/{relpath}`)")
+        lines.append(
+            f"- code: [`{qualname}`]({_GITHUB_BLOB}/{relpath}) (`src/progenax/{relpath}`)"
+        )
     for v in card["validation"]:
         lines.append(f"- validation: `{v}`")
     lines.append("")
@@ -277,12 +292,14 @@ def render_digest(card: dict) -> str:
     ]
     for s in card["sources"]:
         loc = "; ".join(s.get("locators", []))
-        lines.append(f"- `{s['bibkey']}` — {s['provides']}" + (f" ({loc})" if loc else ""))
+        lines.append(
+            f"- `{s['bibkey']}` — {s['provides']}" + (f" ({loc})" if loc else "")
+        )
     lines += ["", "## Equations", ""]
     for eq in card["equations"]:
         lines.append(f"### {eq['label']}")
         lines.append("")
-        lines.append("$$" + eq["latex"] + "$$")
+        lines.append("$$" + equation_latex(eq) + "$$")
         lines.append("")
         for name, info in eq.get("symbols", {}).items():
             lines.append(f"- ${name}$: {info['meaning']} [{info.get('units', '—')}]")
@@ -308,13 +325,41 @@ def render_digest(card: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--emit", action="store_true", help="write the glossary pages")
-    ap.add_argument("--check", action="store_true", help="fail if committed pages are stale")
-    ap.add_argument("--digests", action="store_true", help="emit Brain digest drafts to .brain-drafts/")
+    ap.add_argument(
+        "--check", action="store_true", help="fail if committed pages are stale"
+    )
+    ap.add_argument(
+        "--digests",
+        action="store_true",
+        help="emit Brain digest drafts to .brain-drafts/",
+    )
     args = ap.parse_args(argv)
 
     families = load_cards()
-    rendered = {f"{stem}.md": render_family(stem, cards) for stem, cards in families.items()}
+    rendered = {
+        f"{stem}.md": render_family(stem, cards) for stem, cards in families.items()
+    }
     rendered["index.md"] = render_index(families)
+    for family, label, filename in (
+        ("spatial_profiles", "plummer-rho", "_plummer-density.md"),
+        ("spatial_profiles", "plummer-rh-a", "_plummer-scale.md"),
+        ("spatial_profiles", "plummer-inverse-cdf", "_plummer-inverse.md"),
+        ("populations", "catalogue-mass-squared", "_catalogue-mass-squared.md"),
+        ("populations", "catalogue-kinetic-per-star", "_catalogue-kinetic.md"),
+        ("imfs", "fundamental-fit", "_environment-marks-fit.md"),
+        ("imfs", "alpha3-marks-eq15", "_environment-marks-eq15.md"),
+        ("imfs", "environment-generalized-mass", "_environment-mass-coordinate.md"),
+    ):
+        equation = next(
+            eq
+            for card in families[family]
+            for eq in card["equations"]
+            if eq["label"] == label
+        )
+        rendered[filename] = (
+            "<!-- Generated by build_provenance_registry.py; do not edit. -->\n"
+            "```{math}\n:label: " + label + "\n" + equation_latex(equation) + "\n```\n"
+        )
 
     if args.emit:
         GLOSSARY_DIR.mkdir(parents=True, exist_ok=True)
@@ -330,7 +375,10 @@ def main(argv: list[str] | None = None) -> int:
             or (GLOSSARY_DIR / name).read_text() != text
         ]
         if stale:
-            print(f"STALE glossary pages (run --emit and commit): {stale}", file=sys.stderr)
+            print(
+                f"STALE glossary pages (run --emit and commit): {stale}",
+                file=sys.stderr,
+            )
             return 1
         print("glossary fresh")
 

@@ -15,7 +15,7 @@ Profiles:
 Functional API:
     make_profile: Factory function for creating profile instances
     sample_density_profile: Sample positions from any supported profile
-    compute_profile_potential: Compute analytic potential at positions
+    compute_profile_potential: Compute specific potential at positions
 
 All profiles provide:
     - sample_positions(masses, key) -> (N, 3) positions

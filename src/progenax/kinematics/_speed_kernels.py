@@ -4,7 +4,7 @@
 `_sample_costheta_given_u` (+ its grid resolution `_N_C`) has three consumers
 -- `kinematics/limepy_df.py`, `kinematics/michie_df.py`, and the jitted
 cluster sampler `cluster/sampling.py` -- so it lives here exactly once
-(2026-06-10 review consolidation). It is physics (the Michie/Osipkov-Merritt
+(2026-06-10 review consolidation). It is physics (the Michie/LIMEPY
 angular conditional), not a numerics primitive, hence a kinematics module
 rather than `progenax.numerics`.
 
@@ -20,9 +20,8 @@ exist at N > 2048.
 
 import jax
 import jax.numpy as jnp
+from jaxstro.numerics.sampling import inverse_cdf_draw
 from jaxtyping import Array, Float, PRNGKeyArray
-
-from progenax.numerics import inverse_cdf_draw
 
 _N_C = 128  # cos(theta) grid (anisotropic conditional)
 _ORACLE_BATCH = 2048  # lax.map chunk size for the per-star quadrature oracles
@@ -33,9 +32,9 @@ def _sample_costheta_given_u(
 ) -> Float[Array, ""]:
     """Anisotropic angular conditional: sample c = cos(theta) | u with weight
     exp(-(s^2 u^2/2)(1 - c^2)) via differentiable inverse-CDF (s = r/r_a, the
-    per-star anisotropy parameter). The EXACT conditional step of
+    per-star anisotropy parameter). The fixed-grid conditional step of
     `_sample_speed_angle`, shared with the table-accelerated sampler
-    (`AnisoSpeedCDFTable` draws u; the angle stays exact -- cheap exp
+    (`AnisoSpeedCDFTable` draws u; the angle uses quadrature -- cheap exp
     arithmetic, no special functions)."""
     beta_u = s**2 * u**2 / 2.0
     c_grid = jnp.linspace(-1.0, 1.0, n_c)

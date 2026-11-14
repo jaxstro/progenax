@@ -20,8 +20,12 @@ import pytest
 
 
 def pytest_configure(config):
-    """Enable float64 for all tests and configure warnings."""
+    """Enable float64, retain every persistent-cache program, and configure warnings."""
     jax.config.update("jax_enable_x64", True)
+    # Project test policy retains small compiled programs as well as large ones.
+    # Existing cache-directory configuration controls whether persistence is active.
+    jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
+    jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
 
     # Suppress Equinox warning about field(init=False) - this is intentional
     # design in EnvironmentIMF where environment→IMF conversion is not meant

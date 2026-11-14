@@ -1,16 +1,4 @@
-"""
-Tests for Plummer velocity distribution function.
-
-Covers the unit-specific guards: velocity isotropy, the σ²(r) dispersion
-relation, and the default-units (G=None) resolution path.
-
-Bound-velocity (v < v_esc) and Beta(3/2, 9/2) speed-statistics physics is
-covered more thoroughly in the validation tier:
-tests/validation/test_plummer_physics.py (TestPlummerBoundParticles,
-TestPlummerBetaDistribution — equilibrium-sampled positions, ⟨q²⟩ mean+variance,
-100%-bound assertion). The redundant unit duplicates were removed in the 2026-06
-pre-release cross-tier test consolidation.
-"""
+"""Tests for explicit gravitational units, radius validation, and isotropic sampling."""
 
 import jax
 import jax.numpy as jnp
@@ -74,3 +62,10 @@ class TestPlummerVelocityDFExplicitG:
 
         with pytest.raises(TypeError):
             df.sample_velocities(positions, masses, key)
+
+
+@pytest.mark.parametrize("r_h", [0.0, -1.0])
+def test_plummer_df_rejects_nonpositive_radius(r_h):
+    """The velocity DF requires the same positive length as its spatial profile."""
+    with pytest.raises(ValueError, match="PlummerVelocityDF r_h"):
+        PlummerVelocityDF(r_h=r_h)

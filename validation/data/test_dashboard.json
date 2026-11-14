@@ -207,7 +207,7 @@
     "line_cov_measured": 96.17525588076855,
     "registries_full": true
   },
-  "generated_utc": "2026-07-11T09:45:19.090945+00:00",
+  "generated_utc": "2026-09-28T16:24:55.377959+00:00",
   "line_coverage": {
     "coverage_provenance": {
       "git_sha": "38c32cefbf56c82efd897a4ca1736a0dee7a1f16",
@@ -638,7 +638,7 @@
     "binaries": {
       "integration": 0,
       "line_cov": 95.94383775351014,
-      "unit": 130,
+      "unit": 136,
       "validation": 0
     },
     "builders": {
@@ -650,7 +650,7 @@
     "cluster": {
       "integration": 0,
       "line_cov": 98.82903981264637,
-      "unit": 67,
+      "unit": 81,
       "validation": 0
     },
     "diagnostics": {
@@ -680,7 +680,7 @@
     "kinematics": {
       "integration": 0,
       "line_cov": 99.86684420772303,
-      "unit": 138,
+      "unit": 159,
       "validation": 0
     },
     "physics_registry": {
@@ -692,7 +692,7 @@
     "profiles": {
       "integration": 0,
       "line_cov": 98.94837476099427,
-      "unit": 212,
+      "unit": 264,
       "validation": 0
     },
     "provenance_cards": {
@@ -732,7 +732,7 @@
       "validation": 5
     },
     "test_binary_cluster": {
-      "integration": 11,
+      "integration": 19,
       "line_cov": null,
       "unit": 0,
       "validation": 0
@@ -765,7 +765,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 14
+      "validation": 11
     },
     "test_demo_oed_binary": {
       "integration": 0,
@@ -797,6 +797,18 @@
       "unit": 0,
       "validation": 0
     },
+    "test_engine_a_ad_modes": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 2
+    },
+    "test_engine_a_radial_derivatives": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 1
+    },
     "test_engine_b_physics": {
       "integration": 0,
       "line_cov": null,
@@ -813,7 +825,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 100
+      "validation": 101
     },
     "test_imf_physics": {
       "integration": 0,
@@ -857,6 +869,12 @@
       "unit": 0,
       "validation": 6
     },
+    "test_multimass_figure_helpers": {
+      "integration": 0,
+      "line_cov": null,
+      "unit": 0,
+      "validation": 2
+    },
     "test_numerics": {
       "integration": 0,
       "line_cov": null,
@@ -867,7 +885,7 @@
       "integration": 0,
       "line_cov": null,
       "unit": 0,
-      "validation": 20
+      "validation": 19
     },
     "test_protocols": {
       "integration": 0,
@@ -953,14 +971,14 @@
       "exempt": 2,
       "full": true,
       "status": "built",
-      "symbol_tests": 120,
+      "symbol_tests": 123,
       "untested": 0
     },
     "differentiability": {
-      "audited": 41,
+      "audited": 42,
       "exempt": {
         "EXEMPT_ANALYTICAL_IC": 14,
-        "EXEMPT_CONTAINER": 15,
+        "EXEMPT_CONTAINER": 17,
         "EXEMPT_COVERED_ELSEWHERE": 21,
         "EXEMPT_HELPER": 11,
         "EXEMPT_NON_FISHER_DIAGNOSTIC": 11,
@@ -968,19 +986,19 @@
       },
       "full": true,
       "hazards": 0,
-      "json_rows": 98,
-      "must_audit": 88,
+      "json_rows": 99,
+      "must_audit": 89,
       "status": "built",
       "status_histogram": {
-        "clean": 97,
+        "clean": 98,
         "known-limitation": 1
       }
     },
     "physics_validation": {
       "exempt_non_equilibrium": 3,
-      "exempt_non_model": 98,
+      "exempt_non_model": 100,
       "full": true,
-      "models": 21,
+      "models": 22,
       "status": "built",
       "untested": 0
     },

@@ -19,6 +19,8 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import Array, Float, PRNGKeyArray
 
+from progenax.numerics import power_integral_stable, power_ppf_stable
+
 
 class LogUniformPeriod(eqx.Module):
     """Log-uniform (Öpik) period distribution.
@@ -149,32 +151,17 @@ class SanaOBPeriod(eqx.Module):
             )
 
     def _inv_cdf_log_P(self, u: Float[Array, "..."]) -> Float[Array, "..."]:
-        """Inverse CDF in x = log10(P): the quantile function for x given u.
+        """Quantiles of p(x) proportional to x^power, x=log10(P/days).
 
-        For p(x) ∝ x^alpha on x ∈ [a, b]:
-            F^-1(u) = [u (b^{α+1} - a^{α+1}) + a^{α+1}]^{1/(α+1)}.
-        alpha = -1 is the log-uniform (Öpik) special case; the general inverse-CDF
-        divides by (alpha+1), so guard that denominator with a double-where:
-        ap1_safe is never 0, so neither the value path (a concrete power=-1 raised
-        ZeroDivisionError) nor the dead branch under autodiff (jnp.where traces
-        BOTH branches -> NaN grad) can blow up.
+        Stable power integrals retain the logarithmic limit and its power
+        derivative at power=-1. That limit is logarithmic in x; Opik's law
+        is uniform in x and corresponds to power=0.
         """
-        alpha = self.power
         a = self.log_P_min
         b = self.log_P_max
-
-        is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
-        ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
-
-        a_pow = a**ap1_safe
-        b_pow = b**ap1_safe
-        log_P_general = jnp.power(u * (b_pow - a_pow) + a_pow, 1.0 / ap1_safe)
-
-        # True alpha -> -1 limit is log-uniform IN x (not uniform): x = a (b/a)^u.
-        # (lim_{β->0} [u(b^β - a^β) + a^β]^{1/β} = a (b/a)^u.)
-        log_P_log_uniform = a * (b / a) ** u
-
-        return jnp.where(is_log_uniform, log_P_log_uniform, log_P_general)
+        exponent = self.power + 1.0
+        integral = power_integral_stable(a, b, exponent)
+        return power_ppf_stable(a, u * integral, exponent)
 
     def sample(self, key: PRNGKeyArray, n: int) -> Float[Array, "n"]:
         """Sample n periods [days] via inverse-transform sampling."""
@@ -186,19 +173,13 @@ class SanaOBPeriod(eqx.Module):
         return 10.0 ** self._inv_cdf_log_P(u)
 
     def cdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
-        """CDF F(P) of the truncated power law p(log P) ∝ (log P)^power."""
+        """CDF F(P) of the truncated power law p(log P) proportional to (log P)^power."""
         x = jnp.log10(P)
-        alpha = self.power
         a = self.log_P_min
         b = self.log_P_max
-        x_safe = jnp.clip(x, a, b)
-
-        is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
-        ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
-        F_general = (x_safe**ap1_safe - a**ap1_safe) / (b**ap1_safe - a**ap1_safe)
-        F_log_uniform = jnp.log(x_safe / a) / jnp.log(b / a)
-        F = jnp.where(is_log_uniform, F_log_uniform, F_general)
-        return jnp.clip(F, 0.0, 1.0)
+        exponent = self.power + 1.0
+        integral = power_integral_stable(a, jnp.clip(x, a, b), exponent)
+        return jnp.clip(integral / power_integral_stable(a, b, exponent), 0.0, 1.0)
 
     def pdf(self, P: Float[Array, "..."]) -> Float[Array, "..."]:
         """PDF p(P): the density in P of p(log P) ∝ (log P)^power on [a, b]."""
@@ -208,14 +189,8 @@ class SanaOBPeriod(eqx.Module):
         b = self.log_P_max
         in_range = (x >= a) & (x <= b)
 
-        is_log_uniform = jnp.abs(alpha + 1.0) < 1e-10
-        ap1_safe = jnp.where(is_log_uniform, 1.0, alpha + 1.0)
-        # Normalization Z = ∫_a^b x^alpha dx.
-        Z = jnp.where(
-            is_log_uniform,
-            jnp.log(b / a),
-            (b**ap1_safe - a**ap1_safe) / ap1_safe,
-        )
+        # Z = integral_a^b x^power dx, including its smooth power=-1 limit.
+        Z = power_integral_stable(a, b, alpha + 1.0)
         # p(x) = x^alpha / Z (x>0 on [a,b]); convert to density in P: dx = dP/(P ln10).
         x_pos = jnp.where(in_range, x, 1.0)
         p_x = jnp.power(x_pos, alpha) / Z

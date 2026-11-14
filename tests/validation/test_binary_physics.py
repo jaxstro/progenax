@@ -11,8 +11,10 @@ Each test has quantitative error bounds based on theoretical expectations.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from jaxstro.units import PLANETARY
+from scipy.optimize import brentq
 
 from progenax.binaries import (
     BinaryOrbitalState,
@@ -23,6 +25,21 @@ from progenax.binaries import (
 
 # Use planetary/binary units for orbital mechanics tests
 G = PLANETARY.G  # ≈ 39.478 [AU³ Msun⁻¹ yr⁻²] = 4π²
+
+
+def _elliptic_speed_squared(e):
+    state = KeplerElements(a=1.0, e=e, M0=1.0).to_state(M_total=1.0, G=1.0)
+    return jnp.sum(state.velocity**2)
+
+
+_elliptic_speed_derivatives = jax.jit(
+    jax.vmap(
+        lambda e: (
+            jax.jacfwd(_elliptic_speed_squared)(e),
+            jax.grad(_elliptic_speed_squared)(e),
+        )
+    )
+)
 
 
 class TestKeplerThirdLaw:
@@ -273,7 +290,7 @@ class TestInclinationAndOrientation:
 # TestDifferentiability::test_grad_through_kepler_solve smoke (grad of |v|^2 wrt a,
 # isfinite + sign, NO FD) was removed (audit T6: a silently-zeroed grad would PASS
 # isfinite; the registry FD cases are strictly stronger; registry is SoT). (The unique
-# e->1 boundary test test_grad_finite_through_e_to_one is kept below.)
+# The supported near-unit-eccentricity derivative check is kept below.)
 
 
 class TestSmallSemiMajorAxisSTELLAR:
@@ -302,18 +319,34 @@ class TestSmallSemiMajorAxisSTELLAR:
 
 
 class TestKeplerEccentricityGradientBoundary:
-    """B4-3 regression: gradient of to_state wrt e stays finite at the e->1 boundary."""
+    """Approach the singular elliptic boundary within the declared e<1 domain."""
 
-    def test_grad_finite_through_e_to_one(self):
-        def loss(e):
-            el = KeplerElements(a=1.0, e=e, M0=1.0)
-            return jnp.sum(el.to_state(M_total=1.0, G=G).velocity ** 2)
-
-        assert jnp.isfinite(jax.grad(loss)(0.9999))
-        g_one = jax.grad(loss)(1.0)
-        assert jnp.isfinite(g_one), (
-            f"grad at e=1.0 = {float(g_one)} (NaN before the B4-3 fix)"
+    def test_near_unit_eccentricity_gradient_matches_implicit_kepler_law(self):
+        """Catch floors that lose the nonzero elliptic derivative near e=1."""
+        eccentricities = np.array([0.9999, 1 - 1e-8, 1 - 1e-12, 1 - 1e-14])
+        forward, reverse = map(
+            np.asarray, _elliptic_speed_derivatives(jnp.asarray(eccentricities))
         )
+        expected = []
+        for e in eccentricities:
+            # Independent root method and vis-viva/implicit derivative:
+            # D=1-e cos(E), E_e=sin(E)/D, D_e=(e-cos(E))/D,
+            # v²=2/D-1 for GM/a=1, so (v²)_e=-2(e-cos(E))/D³.
+            root = brentq(
+                lambda x: x - e * np.sin(x) - 1.0,
+                1.0,
+                np.pi,
+                xtol=np.nextafter(0.0, 1.0),
+                rtol=4 * np.finfo(float).eps,
+            )
+            denominator = 1 - e * np.cos(root)
+            expected.append(-2 * (e - np.cos(root)) / denominator**3)
+        # The measured reference/AD discrepancy is 1.84 eps relative; 8 eps
+        # allows about four times that roundoff. The old floor errs by 12.7%
+        # at the closest supported probe. At e=1 the Cartesian square-root
+        # derivative is singular, so a finite state-AD contract is not asserted.
+        np.testing.assert_allclose(forward, expected, rtol=8 * np.finfo(float).eps)
+        np.testing.assert_allclose(reverse, expected, rtol=8 * np.finfo(float).eps)
 
 
 # B4-15: AD-vs-FD grad-checks for the KeplerElements transforms (to_state a/e/M0,
@@ -322,7 +355,7 @@ class TestKeplerEccentricityGradientBoundary:
 # KeplerElements.from_state [v_scale]); see
 # docs/website/50-validation/differentiability-audit.md. The former
 # TestKeplerTransformGradients class was removed here (audit T6 consolidation; registry is SoT).
-# test_grad_finite_through_e_to_one (the unique e->1 boundary, B4-3) and all physics stay.
+# The supported near-unit-eccentricity implicit-reference check remains here.
 
 
 if __name__ == "__main__":

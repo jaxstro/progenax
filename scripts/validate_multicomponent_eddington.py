@@ -319,7 +319,7 @@ def section_headline(ax_rho, ax_q):
     seeds = (1, 2, 3)
     Q_seeds = np.stack([_sampled_component_Q(m, sd, 16000) for sd in seeds])
     Q_meas = Q_seeds.mean(axis=0)
-    Q_sem = Q_seeds.std(axis=0) / np.sqrt(len(seeds))
+    Q_sem = Q_seeds.std(axis=0, ddof=1) / np.sqrt(len(seeds))
     dev_pred = float(np.max(np.abs(Q_meas - Q_pred)))
     print(
         f"    predicted hybrid Q_j  = [{Q_pred[0]:.4f}, {Q_pred[1]:.4f}]"
@@ -410,7 +410,7 @@ def section_headline(ax_rho, ax_q):
     ax_q.set_xticks(x)
     ax_q.set_xticklabels(["halo (Plummer)", "core (EFF)"])
     ax_q.set_xlim(-0.6, 1.6)
-    ax_q.set_ylim(0.485, 0.515)
+    ax_q.set_ylim(min(0.48, float(np.min(Q_meas - Q_sem)) - 0.001), 0.515)
     ax_q.set_ylabel(r"$Q_j = T_j/|W_j|$")
     ax_q.legend(frameon=False, fontsize=6.5, loc="upper left")
     ax_q.set_title("per-component virial: predict-the-offset", fontsize=9)
@@ -481,6 +481,7 @@ def section_om(ax):
     ax.axhline(0.0, color="0.6", ls="--", lw=1.0)
     ax.set_xlabel(r"$r$ [pc]")
     ax.set_ylabel(r"$\beta(r) = 1 - \sigma_t^2 / 2\sigma_r^2$")
+    ax.set_ylim(-0.05, 1.05)
     ax.legend(frameon=False, fontsize=7, loc="upper left")
     ax.set_title(rf"OM anisotropy realized ($r_a = {r_a:.0f}$ pc)", fontsize=9)
     return [("OM max |beta - OM curve|", f"{max_dev:.4f}", "< 0.05", max_dev < 0.05)]
@@ -576,7 +577,7 @@ def main():
         (axD, "(d)"),
         (axE, "(e)"),
     ):
-        loc = "upper right" if ax in (axB, axE) else "upper left"
+        loc = "upper right" if ax in (axB, axD, axE) else "upper left"
         panel_label(ax, tag, loc=loc)
 
     fig.tight_layout(pad=0.7)

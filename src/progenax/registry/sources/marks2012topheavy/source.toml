@@ -1,0 +1,8 @@
+[source]
+id = "marks2012topheavy"
+reference = "Marks et al. (2012), MNRAS 422, 2246–2254"
+doi = "10.1111/j.1365-2966.2012.20767.x"
+verification = "agent-verified"
+source_version = "Rendered published PDF pages 6–7, printed pp.2251–2252 inspected 2026-09-30; bounded transcription/notation checks, not researcher acceptance or empirical qualification."
+pdf_sha256 = "8b2fbae96a08823440cc7b7c5895995a8f23cc441ab40526ded8d30b6047ad13"
+source_note_ref = "src-marks2012topheavy"
