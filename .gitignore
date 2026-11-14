@@ -238,16 +238,21 @@ docs/core-papers/
 !docs/website/60-science-demos/optimal-design/figures/
 !docs/website/60-science-demos/optimal-design/figures/*.png
 
-# Internal working documents — maintainer-local, not part of the public tree.
-# Kept on disk (and reachable in git history); untracked at HEAD so the public
-# repo shows the curated science/provenance surface, not the process scaffolding.
-# See docs/provenance-ledger.md for the note on the design-doc links.
+# Maintainer-local working documents. Preserve them on disk; publish only the
+# curated source, documentation, and deliberately selected test fixtures.
 .adr/
 docs/plans/
 docs/notes/
 docs/archive/
 audits/
 papers/
+/STATUS.md
+/docs/release-readiness-*/
+/docs/gravoturb/
+/docs/tracker/
+/docs/reviews/*
+!/docs/reviews/site-ownership.md
+/research/
 
 # JAX persistent compilation cache (scripts-only demo cache; opt#3 in _demo_oed_concentration.py)
 .jax_cache/
@@ -260,3 +265,18 @@ papers/
 laboratory/icviz/plots/
 docs/website/10-theory/figures/*.png
 docs/website/10-theory/figures/*.pdf
+
+# zvec-grep local index cache (not a build artifact, never committed)
+.zvec-grep/
+
+# Local scientific campaigns include private records and historical source
+# capsules as well as arrays. Existing tracked plotting recipes remain tracked;
+# preserve all local plotting source when retiring generated data.
+/validation/gravoturb_readiness/
+# Also protect bulk fields if an individual campaign is deliberately unignored.
+/validation/gravoturb_readiness/**/*.npy
+/validation/gravoturb_readiness/**/*.npz
+/validation/gravoturb_readiness/**/*.float64
+/validation/gravoturb_readiness/**/*.int32
+/validation/gravoturb_readiness/**/plugins/profile/
+.kernel-bank-*/

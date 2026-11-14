@@ -21,7 +21,8 @@
 #     validation/data/test_dashboard.json, the freshness test is
 #     tests/validation/test_dashboard_fresh.py.
 #   - Test invocation uses the XLA thread caps + pytest-xdist -n auto (progenax/CLAUDE.md).
-#   - There is NO ruff/mypy step (progenax configures neither; CI lints nothing) — see check.sh.
+#   - Ruff and mypy are configured in pyproject.toml and run by scripts/check.sh.
+#     This heavy script does not repeat those steps.
 set -euo pipefail
 cd "$(dirname "$0")/.."   # repo root
 
@@ -30,12 +31,10 @@ XLA_CAPS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 RAW_COV="/tmp/progenax_release_cov.json"
 
 echo "== release-gate: sync (--all-extras) =="
-# Full provisioning so the WHOLE suite collects + runs (some validation tests need the
-# diagnostics/experimental deps). HARD step (set -e aborts on failure): with requires-python
-# tightened to ">=3.11" (matching the jaxstro path-dependency's floor) a fresh `uv sync`
-# re-resolves the lock cleanly at the active interpreter. (Earlier this was best-effort WARN
-# because pyproject declared ">=3.10", which jaxstro could not satisfy and which also redded
-# CI's `uv sync --locked`; that floor is fixed.) Every step below uses `--no-sync`.
+# This provisions every optional extra, including experimental dependencies.
+# pyproject.toml declares the supported Python range (currently >=3.13).
+# Every later command uses --no-sync. Provisioning and the workloads below must
+# be scoped separately before running this heavy script.
 env -u VIRTUAL_ENV uv sync --all-extras
 
 echo "== release-gate: FULL-suite coverage (heavy step, ~14-36 min) =="
@@ -150,8 +149,10 @@ dashboard_fresh = True
 val_scripts = dash.get("validation_scripts", {})
 def _code(v):
     return v.get("exit") if isinstance(v, dict) else v
-val_fails = sorted(k for k, v in val_scripts.items() if isinstance(_code(v), int) and _code(v) != 0)
-validation_scripts_pass = not val_fails
+# Recorded JSON statuses must be explicit integer exit code 0. A timeout,
+# unknown/missing value, float, or bool is not a successful process exit.
+val_fails = sorted(k for k, v in val_scripts.items() if not (type(_code(v)) is int and _code(v) == 0))
+validation_scripts_pass = bool(val_scripts) and not val_fails
 if val_fails:
     print("  WARN: failing validate scripts:", ", ".join(val_fails))
 ok = (registries_full and line_cov_ok and dashboard_fresh and full_suite_green

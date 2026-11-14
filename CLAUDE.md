@@ -1,25 +1,30 @@
 # CLAUDE.md - progenax
 
+## Writing
+
+Remove all mannered prose. State the rule, the measurement and the mechanism in plain
+sentences. No rhetorical emphasis, no asides, no metaphors, no dramatised failure stories;
+the number, the date and the mechanism carry the point. This applies to chat, docstrings,
+commit messages, `STATUS.md` and everything under `docs/`.
+
 ## Overview
 
 Differentiable initial conditions for N-body simulations in JAX. Part of the **jaxstro ecosystem**.
 
-**Status**: Phase 1 + 2026-06 audit hardening + binaries SoTA arc (Batches 4f–4k) +
-gravoturbulent-FDF clean-room rewrite + multi-component cluster arc (Engine A LIMEPY DF tables +
-Engine B density-defined Eddington) + 2026-06 pre-release audit hardening complete.
-Released-core ~1243 tests (unit 956, integration 43, validation 244) + experimental 322;
-see CI for the live count. King & EFF velocity DFs are true
-equilibria (lowered-Maxwellian / Eddington inversion). The binary-population engine is finalized:
-IMF→companion composition (`build_binary_cluster` over `primary_imf × companion_model × target`,
-plus the opt-in catalog-bearing `build_cataloged_binary_cluster` API),
-faithful Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`), the binary→spatial connector
-(`resolve_binary_components`), and dynamic + energy-budget diagnostics. The gravoturbulent +
-fractal-density-field subsystem was rebuilt clean-room (2026-06) as the **experimental, repo-only
-`gravoturb` package** (2,975 LOC, 322 experimental tests; `src/experimental/`, **not** in the
-released wheel), now including a **differentiable physics-direct inference layer** (analytic
-predicted statistics + blackjax NUTS; AC11–AC17) — the BM19 tail slope **α is recoverable** via a
-peaks-over-threshold truncated-exponential block (AC16), with a σ(α)-vs-N_tail forecast (AC17). See
-`src/experimental/gravoturb/VALIDATION_SUMMARY.md` and Physics Validation Results below.
+**Status:** research software; public release is not qualified. The
+[README](README.md) and [release assessment](docs/website/95-release/index.md)
+state current scope and outstanding gates. Matched King, Michie and
+multi-component models use lowered-isothermal or Eddington DFs within their
+documented domains. The finite-edge EFF approximation has an equilibrium
+limitation. The binary population API composes primary IMFs, companion models
+and spatial targets, including the Moe & Di Stefano period–mass-ratio–eccentricity
+coupling. Retained numerical checks do not establish every parameter domain,
+population-expectation gradient or inference application.
+
+Gravoturb is an experimental, repository-only subsystem under
+`src/experimental/`; it is excluded from the released wheel. Its density,
+formation-rate and inference components have separate assumptions and
+validation scopes. Experimental results do not qualify the released core.
 
 ## Quick Commands
 
@@ -30,23 +35,22 @@ outer-venv clash and `--no-sync` runs against the installed env without re-locki
 # Install (released core + experimental extras: blackjax, optax for the inference layer)
 env -u VIRTUAL_ENV uv pip install -e ".[dev,experimental]"
 
-# Released-core invariant (~1243 tests; see CI for the live count). The multimass-LIMEPY
-# equilibrium tests make the serial suite slow; use pytest-xdist with XLA threads capped.
-# FAST GATE (inner loop, ~1192 tests, ~4 min): excludes @pytest.mark.slow
+# Released-core checks. Slow equilibrium cases are separate from the fast subset.
+# Use pytest-xdist with XLA threads capped.
+# FAST GATE: excludes @pytest.mark.slow
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -m "not slow" -n auto
-# FULL GATE (phase/commit gate, ~1243 tests, ~9 min parallel):
+# FULL GATE: includes slow cases
 XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit tests/integration tests/validation -q -n auto
 
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # ~956 unit tests (released core)
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # ~43 integration tests
-env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # ~244 physics validation tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/unit/ -q             # released-core unit tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/integration/ -q      # integration tests
+env -u VIRTUAL_ENV uv run --no-sync pytest tests/validation/ -q       # physics validation tests
 
 # Experimental gravoturb subsystem (repo-only; needs src/experimental on the path).
-# GRAVOTURB_BYTE_GATE=1 makes the byte-identity pins a HARD gate (they silently skip
-# when XLA_FLAGS doesn't exactly match the canonical thread-capped value):
-XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" GRAVOTURB_BYTE_GATE=1 \
+# Consult tests/experimental/README.md for its separate test contract.
+XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1" \
   PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync pytest tests/experimental -q -n auto
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb.validation.acceptance   # AC1-AC17
 PYTHONPATH=src:src/experimental env -u VIRTUAL_ENV uv run --no-sync python -m gravoturb.validation.cluster_acceptance  # AC-IC0-IC7
@@ -199,8 +203,8 @@ energy = compute_total_energy(positions, velocities, masses, G=PLANETARY.G)  # W
 ## Test Structure
 
 ```text
-tests/                   ~1243 released-core tests (see CI for the live count)
-├── unit/                ~956 tests
+tests/                   released-core test tiers
+├── unit/                unit tests
 │   ├── imf/             IMF tests (PowerLaw, Chabrier, environment, Binary, Moe full P-q-e)
 │   ├── profiles/        Profile tests (Plummer, King, EFF)
 │   ├── kinematics/      Velocity DF tests + anisotropy
@@ -209,12 +213,12 @@ tests/                   ~1243 released-core tests (see CI for the live count)
 │   ├── cluster/         MultiComponentCluster (Engine A + Engine B) + mass-segregation IC tests
 │   ├── dynamics/        Virial / energy utilities
 │   └── substructure/    CW04 Q diagnostic (compute_q_parameter, q_approx, baselines)
-├── integration/         ~43 tests
+├── integration/         integration tests
 │   ├── test_jax_compatibility.py     JIT/grad/vmap tests
 │   ├── test_units_through_pipeline.py  G threading (audit C1)
 │   ├── test_binary_cluster.py        build_binary_cluster (budgets + companions)
 │   └── test_end_to_end.py            Full IC → energy checks
-└── validation/          ~244 tests
+└── validation/          physics validation tests
     ├── test_plummer_physics.py      Plummer equilibrium
     ├── test_king_physics.py         King true-DF equilibrium + c(W0)
     ├── test_multimass_equilibrium_physics.py  MultiComponentCluster shared-potential equilibrium
@@ -224,16 +228,18 @@ tests/                   ~1243 released-core tests (see CI for the live count)
     ├── test_analytical_physics.py   Figure-eight closure/L=0 + two-body conservation + planet provenance
     └── test_imf_physics.py          IMF distributions
 
-tests/experimental/      322 tests (gravoturb; repo-only, PYTHONPATH=src:src/experimental)
-├── unit/                303 tests  (BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
-│                                    + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC)
-└── validation/          19 tests   (AC1-AC17 acceptance assertions)
+tests/experimental/      gravoturb (repo-only, PYTHONPATH=src:src/experimental)
+├── unit/                BM19/PP20/PN11/PDF + GRF/copula/tail/sampling/pipeline + Q + grads
+│                        + inference: Gaussianization/projection/CIC/Fisher/POT-tail/HMC
+└── validation/          AC1-AC17 acceptance assertions
 ```
 
 ## Physics Validation Results
 
-From `tests/validation/` (Q ≡ T/|V|, so 0.5 is equilibrium). King & EFF DFs
-are sampled in detailed equilibrium with **no external virial rescale**:
+Retained examples from `tests/validation/` use Q ≡ T/|V|, with Q = 0.5 as
+a necessary virial condition. The table is a historical summary, not a fresh
+measurement or general equilibrium certificate. Matched-DF tests use no external
+virial rescale; finite-edge EFF has the documented approximation limit:
 
 | Test | Result | Expected |
 |------|--------|----------|
@@ -279,3 +285,80 @@ After jaxstroviz is ported:
 - [ ] Virial equilibrium verification plots
 - [ ] IMF mass distributions
 - [ ] Binary orbital element distributions
+
+## User-facing scientific documentation
+
+Follow `docs/reviews/site-ownership.md`, especially “User-facing authoring standard”.
+Read the full page before targeted edits; preserve existing structure and voice.
+Define symbols and physical conventions at first use. Remove stale bug/repair
+narratives from teaching pages while retaining current limitations and historical
+records. Use MyST callouts and figures deliberately; inspect the rendered reading
+width. Keep theory, API, tutorials and validation in their established owners.
+
+## Gravoturb storage limits
+
+Keep current cloud inputs, required reference catalogs, plotting scripts and their
+compact data, configurations, seeds, source, results, failures, and figure masters.
+Retire superseded native fields and derived workspaces after checking the current
+input graph and figure dependencies. Do not delete source or plotting code to
+save space. Never reduce scientific precision to fit a disk budget. Preserve
+failure results in compact records.
+
+Before a new data-producing experiment, state retained and temporary byte
+estimates in its existing run plan. New producers must use bounded storage and
+clear owned scratch after verified output closeout. Do not accumulate numbered
+full-field copies or unbounded profiler traces by default. Bulk arrays and
+profiler output stay out of Git; keep compact plotting inputs and recipes for
+regenerating retired fields. A storage policy does not authorize a new scientific
+run or a change to its physical model.
+
+## Test design: quality over quantity (Anna, 2026-10-05)
+
+This rule is identical in the jaxstro-dev root and in every package's `CLAUDE.md` and `AGENTS.md`; keep the
+wording the same everywhere.
+
+A test exists to catch a named failure. A few strong tests are better than many weak ones. Inefficient test
+design is not allowed in any jaxstro package, and each package's suite is to be brought under this rule file by
+file.
+
+**Every test**
+
+- names in its docstring the failure it catches, and fails when that failure is introduced; check this once by
+  mutation when it is not obvious;
+- asserts against an independent value: an analytic or limiting solution, a vendored reference fixture, a
+  conservation law, or a bound whose derivation is stated. A rerun of the same code path is not a reference;
+- sets its tolerance from the quantity its error scales with, a few times the measured error. A near-zero
+  difference is compared against the scale its roundoff comes from, not against itself (gravax: the contact gap
+  against the contact radius, 2026-10-05);
+- runs in seconds. A test that needs longer is marked `slow` and says why.
+
+**Compile cost (JAX)**
+
+- Do not call a function that contains `lax.scan`, `fori_loop`, `while_loop` or `cond` eagerly in a test. Call it
+  through one module-level `jax.jit` with its static arguments named. An eager call rebuilds the loop body and
+  compiles a new program on every call: gravax `test_reach.py` made 575 XLA compiles, 235 after the change, and
+  its cold-cache wall went from 17.0 s to 9.2 s (2026-10-05).
+- Values that vary between cases (thresholds, spans, seeds, eta, distances) are traced inputs of one compiled
+  program: sweep them with `vmap` or `lax.map` inside one `jit`, or parametrize over traced values. A static
+  field that differs between tests costs one compile per test.
+- Tests in a file share static configurations. Build each distinct configuration once (a module-scoped fixture
+  or a shared configuration module) and reuse it. A new static configuration needs a stated reason. Count the
+  distinct compiled programs of a file when adding tests to it.
+- An expensive result (an integration, a routed state, a replay) is computed once in a module-scoped fixture and
+  checked by several tests, not recomputed in each.
+- The persistent compilation cache stores every program: `jax_persistent_cache_min_compile_time_secs = 0` and
+  `jax_persistent_cache_min_entry_size_bytes = 0` in `tests/conftest.py`. With a 0.5 s floor the small programs
+  were recompiled on every run (gravax `test_interaction_policy.py`: 24.0 s to 7.1 s of wall for 4.6 MB of
+  cache, 2026-10-05).
+
+**Removal and hardening**
+
+- Delete a test that can no longer fail: its scenario is unreachable, it duplicates another test, or it pins an
+  implementation detail with no failure mode. Removing a weak test is progress, not lost coverage.
+- Harden a loose test: replace "runs", "is finite" or "changed" with the quantitative claim and its tolerance.
+- Never weaken a test to make it pass. Fix the code, or fix the test's premise and say why.
+
+**Measure before changing a slow file.** Record per test the trace, lowering and XLA compile seconds, the cache
+hits and the programs compiled (`jax.monitoring` duration listeners and `jax_log_compiles`). Gravax, 2026-10-05,
+563 hierarchy unit tests with the cache off: XLA compile was 73% of the wall and execution 12%; 232 distinct
+programs took over 0.3 s each to compile.

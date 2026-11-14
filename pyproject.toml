@@ -33,14 +33,15 @@ Repository = "https://github.com/jaxstro/progenax"
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov", "pytest-xdist>=3.0", "ruff>=0.6", "mypy>=1.8", "pyyaml>=6.0"]
 # Exact (non-differentiable) CW04 Q / Lambda_MSR diagnostics path. progenax core
-# is JAX-native; numpy+scipy are needed ONLY by progenax.diagnostics' scipy-backed
-# estimators (compute_q_parameter, compute_lambda_msr), which import them lazily
+# is JAX-native; its exact diagnostics use NumPy/SciPy directly, while JAX also
+# declares SciPy as a runtime dependency. The graph/distance modules used by the
+# estimators (compute_q_parameter, compute_lambda_msr) are imported lazily
 # and raise an actionable error if this extra is missing (audit R9).
 diagnostics = ["numpy>=1.24", "scipy>=1.11"]
 # Plotting backend for the standalone scripts/validate_*.py figure scripts and the
 # OED demo CLIs (they `pytest.importorskip("matplotlib")`, so released-core `[dev]`
 # stays plot-free; install `[viz]` to run the validation figures / demo plots).
-# progenax uses matplotlib only — no seaborn (cf. startrax's viz extra). There is no
+# Validation figures use Matplotlib and seaborn. There is no
 # `[data]` extra: progenax's data artifacts are stdlib json + numpy .npz (numpy
 # already arrives via jax / `[diagnostics]`), so no polars/pyarrow/pandas/h5py is used.
 viz = ["matplotlib>=3.7", "seaborn>=0.13"]
@@ -82,8 +83,48 @@ experimental = [
 [tool.uv.sources]
 jaxstro = { path = "../jaxstro", editable = true }
 
+[tool.hatch.build]
+# Maintainer-private release review; never include it in a wheel or sdist.
+exclude = ["/docs/release-readiness-*/", "/docs/reviews/", "/docs/tracker/", "/docs/gravoturb/", "/research/"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/progenax"]
+
+[tool.hatch.build.targets.sdist]
+# Ship the core source, test tiers, and their bounded support files. The full
+# research checkout and its large experimental artifacts are not a source release.
+include = [
+    "/src/progenax/",
+    "/tests/__init__.py",
+    "/tests/conftest.py",
+    "/tests/unit/",
+    "/tests/integration/",
+    "/tests/validation/",
+    "/scripts/*.py",
+    "/scripts/release_gate.sh",
+    "/docs/provenance/",
+    "/docs/provenance-ledger.md",
+    "/docs/website/15-model-reference/",
+    "/docs/website/30-api/",
+    "/docs/website/references.bib",
+    "/docs/website/50-validation/test-dashboard.md",
+    "/docs/website/scripts/build_api_reference.py",
+    "/validation/data/",
+    "/validation/benchmark_batch_a.json",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+# A target-level exclude replaces the global exclude, so repeat the private gate.
+exclude = [
+    "/docs/release-readiness-*/",
+    "/docs/reviews/",
+    "/docs/tracker/",
+    "/docs/gravoturb/",
+    "/research/",
+    "**/*gravoturb*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -96,7 +137,7 @@ markers = [
     "integration: cross-module integration tests",
     "validation: scientific validation tests (physics/statistics)",
     "slow: expensive tests excluded from the fast CI gate",
-    "experimental: experimental gravoturb subsystem (follow-up paper, not released)",
+    "experimental: repo-only gravoturb subsystem (not released)",
 ]
 
 [tool.coverage.run]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Local mirror of the dormant GitHub Actions gate (Actions minutes are exhausted;
-# both workflows are disabled_manually). Run from the repo root. Any failure aborts
+# Local verification gate. Remote workflow status and CI authorization are separate.
+# Run from the repo root. Any failure aborts
 # (set -e). This is the FAST continuous gate — keep it fast (a few minutes); the
 # HEAVY full-suite coverage re-measure + dashboard regen + 4-part conjunction live in
 # scripts/release_gate.sh, NOT here.
@@ -24,15 +24,12 @@ XLA="XLA_FLAGS=--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1
 
 echo "== lock-check =="
 # `uv lock --check` asserts uv.lock is in sync with pyproject.toml. This is a HARD step
-# (set -e aborts on failure), mirroring CI's `uv sync --locked`. pyproject's
-# `requires-python = ">=3.11"` matches the jaxstro path-dependency's `>=3.11` floor, so the
-# lock resolves cleanly across the whole declared range. (Earlier this was best-effort WARN
-# because pyproject declared ">=3.10", which jaxstro could not satisfy; that floor is fixed.)
+# (set -e aborts on failure), mirroring CI's uv sync --locked. The supported
+# Python range is declared in pyproject.toml (currently >=3.13).
 env -u VIRTUAL_ENV uv lock --check
 
 echo "== sync (extra dev) =="
-# HARD step (set -e aborts on failure): with requires-python tightened to ">=3.11" the lock
-# re-resolves cleanly at the active interpreter. Released-core syncs ONLY `--extra dev`:
+# HARD step (set -e aborts on failure). Released-core syncs ONLY --extra dev:
 # the OED-demo unit tests (tests/unit/test_demo_oed*.py) are informax-bound and import optax
 # (experimental) / matplotlib (via jaxstroviz, undeclared) — they `pytest.importorskip(...)`
 # those deps, so they SKIP cleanly on a dev-only env rather than coupling released-core to
@@ -41,7 +38,7 @@ echo "== sync (extra dev) =="
 env -u VIRTUAL_ENV uv sync --extra dev
 
 echo "== lint: ruff check =="
-$RUN ruff check src/progenax tests scripts
+$RUN ruff check --no-fix src/progenax tests scripts
 echo "== lint: ruff format --check =="
 $RUN ruff format --check src/progenax tests scripts
 echo "== lint: mypy =="
@@ -74,7 +71,7 @@ env -u VIRTUAL_ENV uv venv /tmp/progenax-clean
 # progenax.diagnostics: the clean venv has no scipy, so a regression to an eager
 # numpy/scipy import (audit R9) would red here.
 env -u VIRTUAL_ENV uv pip install --python /tmp/progenax-clean/bin/python \
-    /Users/anna/projects/jaxstro-dev/jaxstro \
+    ../jaxstro \
     dist/*.whl
 /tmp/progenax-clean/bin/python -c \
     "import progenax; import progenax.diagnostics; print(progenax.__name__, 'imports clean (no scipy in venv)')"
