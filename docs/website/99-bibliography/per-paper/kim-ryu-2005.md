@@ -35,7 +35,9 @@ common and consequential mistake.
 
 ## Core results
 
-Let the shell-integrated density spectrum scale as $E_\rho(k)\propto k^{-s}$.
+Let the shell-integrated density spectrum scale as $E_\rho(k)\propto k^{-s}$,
+where $s$ is the positive index. The table below retains the signed exponent
+$-s$ reported for that power law; it does not label a negative number as $s$.
 
 **One dimension** (compressive only): the profile changes from shock *discontinuities* at
 $\mathcal{M}\sim1$ to delta-function *peaks* at $\mathcal{M}\gg1$:
@@ -51,7 +53,7 @@ results of Saichev & Woyczynski 1996.)
 
 **Three dimensions** (the relevant case), least-squares slopes over the inertial range:
 
-| $\mathcal{M}_\mathrm{rms}$ | $E_\rho(k)$ slope $s$ | morphology |
+| $\mathcal{M}_\mathrm{rms}$ | signed $E_\rho(k)$ exponent $-s$ | morphology |
 |---|---|---|
 | 1.2 (transonic) | $-1.73$ (≈ Kolmogorov $-5/3$) | discontinuity surfaces on a smooth field |
 | 3.4 | $-1.08$ | emerging sheets/filaments |

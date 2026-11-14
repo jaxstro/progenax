@@ -74,9 +74,12 @@ T \;=\; \tfrac{1}{2}|V| \quad\Longrightarrow\quad
 Q_{\mathrm{vir}} \;=\; \frac{T}{|V|} \;=\; \frac{1}{2}.
 ```
 
-A system at $Q_{\mathrm{vir}} = 0.5$ is in dynamical equilibrium: the
-kinetic energy is exactly the value that balances the gravitational
-self-binding. Departures from $0.5$ are physically meaningful:
+For an isolated Newtonian system, $Q_{\mathrm{vir}}=0.5$ gives the
+instantaneous scalar energy balance. It is a necessary equilibrium diagnostic,
+not sufficient evidence of a stationary DF or dynamical stability. The virial
+identity is $\tfrac12\ddot I=2T+V$, with $I=\sum_i m_i r_i^2$; the sign
+of $\dot I$ additionally determines whether the system is currently expanding
+or contracting. Surface terms and external fields require their own treatment.
 
 ```{list-table} progenax interpretation of $Q_{\mathrm{vir}}$.
 :header-rows: 1
@@ -86,13 +89,13 @@ self-binding. Departures from $0.5$ are physically meaningful:
   - Astrophysical interpretation
 * - $< 0.5$
   - **Subvirial** (cold)
-  - Collapsing system. Used to seed primordial mass-segregation studies {cite:p}`Allison2009`; cluster contracts on a crossing time before bouncing.
+  - Negative scalar virial acceleration in the isolated Newtonian case; collapse histories also depend on structure and initial flow. {cite:t}`Allison2009` studies a specific cold-clumpy configuration.
 * - $0.5$
   - Virial equilibrium
-  - Stable steady-state. Default for production ICs unless an out-of-equilibrium starting condition is needed.
+  - Global energy balance; a compatible DF and separate stability checks remain necessary.
 * - $> 0.5$
   - **Supervirial** (hot)
-  - Expanding/unbound. Used to model post-gas-expulsion clusters where rapid mass loss leaves stars on hyperbolic-like orbits {cite:p}`Goodwin2004`.
+  - Positive scalar virial acceleration in the isolated case. $0.5<Q<1$ still gives negative total energy $T+V$; supervirial does not mean unbound.
 ```
 
 The subvirial regime is particularly important for fractal-substructure
@@ -104,18 +107,20 @@ $Q_{\mathrm{vir}}$ explicitly, which is what `virial_scale` provides.
 
 ## Implementation
 
-Every velocity DF in progenax produces velocities at exactly
-$Q_{\mathrm{vir}} = 0.5$ by construction (the equilibrium DFs of
-{cite:t}`Plummer1911`, {cite:t}`King1966`, and EFF). To reach a target
-$Q_{\mathrm{vir}}^\star$, progenax rescales the velocities by
+Matched continuum equilibrium DFs satisfy the virial relation under their
+stated assumptions. Finite sampled realizations fluctuate, and numerical
+approximations such as a sharp EFF edge have additional limits. To reach a
+target $Q_{\mathrm{vir}}^\star$, `virial_scale` measures the current ratio
+$Q_{\mathrm{current}}$ and rescales velocities by
 
 ```{math}
 :label: virial-rescaling
-v_i \;\to\; v_i \cdot \sqrt{2\,Q_{\mathrm{vir}}^\star}
+v_i \;\to\; v_i \sqrt{\frac{Q_{\mathrm{vir}}^\star}{Q_{\mathrm{current}}}}
 ```
 
-The factor of $2$ converts from the equilibrium $Q = 0.5$ baseline. The
-rescaling is implemented in `progenax.builders.virial_scale`:
+The simplified factor $\sqrt{2Q_{\mathrm{vir}}^\star}$ applies only if
+the input already has $Q_{\mathrm{current}}=0.5$. The implementation measures
+the actual finite realization instead:
 
 ```python
 @jax.jit
@@ -130,9 +135,9 @@ def virial_scale(positions, velocities, masses, Q_target, G, softening=0.0):
 Three properties hold by construction:
 
 1. **Energy ratio is enforced exactly** (to floating-point precision).
-   Tests in `tests/integration/test_physics_validation.py::test_virial_scaling`
-   verify $|Q_{\mathrm{measured}} - Q_{\mathrm{target}}| < 10^{-12}$ for
-   $N \le 10^4$.
+   This requires nonzero kinetic energy and a valid binding-energy calculation.
+   `tests/unit/test_builders.py` checks target recovery and invalid zero-velocity
+   inputs; inspect those tests for their exact exposure and criteria.
 2. **Spatial structure is preserved.** Only velocities scale; positions
    are untouched. The density profile, half-mass radius, and any
    substructure are unchanged.
@@ -141,8 +146,9 @@ Three properties hold by construction:
 
 ## Call sites and contract
 
-All progenax IC builders accept `Q_target` and pipe it through
-`virial_scale`:
+The single-population and binary builders expose `Q`; the rescaling utility
+uses the name `Q_target`. Multicomponent sampling instead preserves its modeled
+velocity scale without a global rescale:
 
 ```{list-table}
 :header-rows: 1
@@ -150,26 +156,27 @@ All progenax IC builders accept `Q_target` and pipe it through
 * - Function
   - Default $Q_{\mathrm{target}}$
   - Notes
-* - `gravax.ic.plummer_sphere`
+* - `progenax.build_cluster` / `build_spatial_ic`
   - $0.5$
-  - Mass-first API; explicit `Q_target` overrides
+  - `Q=None` skips velocity rescaling
+* - `progenax.build_binary_cluster`
+  - $0.5$
+  - Target applies to system centers of mass, not internal orbital energy
 * - `progenax.MultiComponentCluster.sample_cluster`
-  - $0.5$ by construction
-  - Shared-potential equilibrium; no external rescale — global *and* per-component $Q_j = 0.5$
-* - `gravax.ic.sample_kroupa_stochastic` consumers
-  - $0.5$
-  - IMF + Plummer composition
+  - No rescaling parameter
+  - Samples the shared-potential model; finite and numerical checks are separate
 * - `progenax.builders.virial_scale`
   - explicit
   - Bare rescaling utility
 ```
 
-```{warning}
-**Always use $Q_{\mathrm{target}} = 0.5$ for production initial conditions
-unless you specifically want a non-equilibrium system.** The default
-across the API is 0.5; passing a different value is a deliberate
-out-of-equilibrium choice that should be documented in the calling
-script.
+```{note}
+Use the energy ratio required by the scientific setup. `Q=0.5` sets a global
+balance; `Q=None` retains the sampled DF normalization. A rescale cannot repair
+an incompatible density–DF pairing, and rotating or tidally modified products
+need their own diagnostics. For softened gravity, potential energy and the
+force virial need not be the same quantity, so $T/|V|=0.5$ is not generally the
+softened-force equilibrium criterion.
 ```
 
 ## Validation
@@ -177,13 +184,11 @@ script.
 The progenax test suite includes physics-anchored regressions for the
 virial Q convention:
 
-- `tests/validation/test_plummer_physics.py::test_virial_ratio` — sample
-  $N = 10^4$ Plummer particles, measure Q post-rescaling, assert
-  agreement to $\sim 0.5\%$ (statistical from finite-N kinetic-energy
-  noise).
-- `tests/integration/test_physics_validation.py::test_virial_scaling` —
-  parametrise $Q_{\mathrm{target}} \in \{0.1, 0.3, 0.5, 0.7, 1.0\}$,
-  assert Q recovered to $10^{-12}$.
+- `tests/validation/test_plummer_physics.py::TestPlummerVirialEquilibrium::test_virial_ratio`
+  compares sampled, unrescaled kinetic energy with the analytic continuum
+  Plummer binding energy; its finite-sample tolerance is not an exact-rescale test.
+- `tests/unit/test_builders.py` checks the rescaling utility separately from
+  raw-DF sampling, including the zero-kinetic-energy failure path.
 - See [](../50-validation/plummer-equilibrium.md) for the rendered
   test results.
 

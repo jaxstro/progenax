@@ -1,41 +1,98 @@
 ---
-title: IMF + equipartition recovery (B2)
-description: "The self-consistent joint demo: one IMF high-mass slope alpha drives both the observed mass histogram and the equipartition mass groups of a LIMEPY multimass cluster, so (alpha, delta, W0) are recovered jointly by MLE + Fisher + NUTS — with the kinematics-only degeneracy, a wrong-IMF bias curve and an alpha_true robustness grid."
+title: Recovering a cluster’s IMF and equipartition
+description: "Recover IMF slope, equipartition and concentration from a synthetic cluster’s component counts and kinematics using a differentiable model and BlackJAX."
 ---
 
-# IMF + equipartition recovery (B2)
+# Recovering a cluster’s IMF and equipartition
 
-This is the flagship demo: it couples a cluster's **mass function** to its
-**internal kinematics** through a single physical parameter, and shows that
-parameter is recoverable from both channels at once.
+Can we recover the IMF slope and dynamical parameters of a **four-component
+multimass model** from one synthetic cluster? This example fits the component
+counts and velocity dispersions of the model it generates. It demonstrates
+parameter recovery within that discrete model. It does not establish recovery
+from observed clusters or from a continuously sampled stellar-mass population.
+
+```{note} What you will learn
+- How a binned IMF sets a cluster’s mass-component populations.
+- How component counts and velocity dispersions constrain the IMF and internal dynamics.
+- What this idealized synthetic-data example can—and cannot—tell you about a real cluster.
+```
+
+## The synthetic cluster
+
+The example contains 100,000 stars in four logarithmically spaced mass bins.
+It uses a Maschberger IMF with high-mass slope $\alpha=2.3$, characteristic
+mass $m_c=0.2\,M_\odot$, and low-mass shape parameter $\beta=1.4$.
+Among the IMF shape parameters, only $\alpha$ is fitted. The dynamical
+parameters controlling mass-dependent velocities and concentration are fitted
+alongside it, as described below.
+
+| Component | IMF mass interval [$M_\odot$] | Representative mass [$M_\odot$] | Stars in this catalogue |
+|---|---:|---:|---:|
+| 0 | 0.100–0.376 | 0.197 | 65,349 |
+| 1 | 0.376–1.414 | 0.679 | 27,287 |
+| 2 | 1.414–5.318 | 2.468 | 6,211 |
+| 3 | 5.318–20.000 | 9.214 | 1,153 |
+
+Bin boundaries and representative masses are rounded in the table. Within each
+bin, the representative mass is the IMF-weighted mean: the total IMF mass in
+that interval divided by its expected number of stars.
+
+```{important} What a star’s mass means here
+The mass bins affect the **returned stellar catalogue**, not just the internal
+equilibrium calculation. Every star in a component receives that component’s
+representative mass.
+There is **no additional continuous mass draw within a bin**. For example,
+all 1,153 stars in component 3 have mass approximately $9.214\,M_\odot$ in
+this catalogue. This is a four-component approximation to the IMF, not a
+catalogue of individually sampled continuous stellar masses that was binned afterward.
+
+These representative masses determine the equilibrium and velocity normalization.
+The fit uses component counts and velocities; it does not treat the representative
+masses as additional exact mass measurements. Candidate IMF slopes change the
+representative masses while the bin boundaries stay fixed.
+```
+
+:::{figure} figures/imf_equip_cluster.png
+:label: sci-b2-cluster
+:width: 100%
+:alt: Left, projected star counts in the synthetic cluster. Right, cumulative projected radial distributions of its four mass components.
+
+**The synthetic cluster.** Left: all 100,000 stars projected onto the $x$–$y$
+plane, with logarithmic colour showing stars per hexagon. Right: the fraction
+of each component enclosed within projected radius $R=\sqrt{x^2+y^2}$.
+Distances are divided by the model’s core scale $r_c$. A curve rising at
+smaller radius indicates a more centrally concentrated component. These are
+empirical distributions of the same catalogue used below, not fitted curves
+or uncertainty bands. Line colours and styles distinguish the four mass bins.
+:::
 
 ## The self-consistent physics
 
 A multimass LIMEPY cluster {cite:p}`Gieles2015` is built from an
 [initial mass function](../10-theory/imfs/index.md). progenax bins the IMF into
 $J=4$ mass groups; each group $j$ has a representative mass $m_j$ and a population
-weight set by the IMF. **Two-body relaxation** drives the cluster toward energy
-equipartition — heavier stars sink and slow down — encoded in the multimass DF by
-a per-group velocity scale,
+weight set by the IMF. The equilibrium model represents mass-dependent
+kinematics through the component velocity scales
 
 ```{math}
 :label: b2-equipartition
 \mu_j = \frac{m_j}{\bar m},
 \qquad
-s_j = s\,\mu_j^{-\delta},
-\qquad
-\delta = \tfrac12 \Rightarrow m_j s_j^2 = \text{const (full equipartition)},
+s_j = s\,\mu_j^{-\delta}.
 ```
 
-with $\bar m$ the central-density-weighted mean mass and $\delta$ the
-**equipartition degree** {cite:p}`Peuten2017`. Real clusters reach only
-*partial* equipartition ($\delta < \tfrac12$); the heaviest stars approach
-$\sigma\propto m^{-1/2}$ while the light stars saturate at an escape-speed
-ceiling — the Bianchini relation, derived directly from this same DF on the
-[multimass equipartition](../10-theory/spatial-profiles/multimass-equipartition.md)
-theory page.
+Here $\bar m$ is the central-density-weighted mean stellar mass, $\mu_j$ is
+a dimensionless mass ratio, $s$ is the common velocity normalization, and
+$\delta$ controls how strongly the velocity scale decreases with stellar mass.
+At $\delta=0$ the scales are equal; at $\delta=1/2$, $m_j s_j^2$ is constant.
+The actual velocity dispersions also depend on the truncated distribution
+function, so this scale relation alone does not imply exact kinetic-energy
+equipartition everywhere. The model prescribes an equilibrium; it does not
+simulate the relaxation process that produces it. See the
+[multimass equipartition theory](../10-theory/spatial-profiles/multimass-equipartition.md)
+for the distribution-function interpretation {cite:p}`Gieles2015,Peuten2017`.
 
-**The high-mass IMF slope.** The observed masses follow a Maschberger (2013) IMF
+**The high-mass IMF slope.** The component populations are obtained by binning a Maschberger (2013) IMF
 whose high-mass behaviour is the power law
 
 ```{math}
@@ -44,291 +101,185 @@ whose high-mass behaviour is the power law
 \qquad \alpha_{\rm true} = 2.3\ (\approx\text{Salpeter}),
 ```
 
-(full smooth form and characteristic mass: {cite:t}`Maschberger2013`). **Here is
-the coupling that makes the demo self-consistent:** the *same* $\alpha$ that sets
-the slope of the observed mass histogram also sets the masses $m_j$ and weights of
-the equipartition groups in @b2-equipartition — so $\alpha$ is constrained by the
-**masses** (the histogram) *and* by the **kinematics** (the group-by-group
-$\sigma_j(r)$). The three recovered parameters are
-$\theta = (\alpha,\ \delta,\ W_0)$, with $W_0$ the central dimensionless
-concentration.
+Here $N$ is the expected number of stars and $m$ is stellar mass;
+{cite:t}`Maschberger2013` gives the full smooth form. The same $\alpha$ determines the representative masses and population weights
+of the kinematic components. This links the observed component counts to their
+velocity dispersions through the equilibrium model.
 
 ## The joint likelihood
 
-Two channels, summed (`scripts/demo_delta_recovery.py`):
+Let $n_j$ be the observed number of stars in component $j$, and let
+$p_j(\theta)$ be its normalized sampling probability at parameters
+$\theta=(\alpha,\delta,W_0)$. Here $\alpha$ is the IMF high-mass slope,
+$\delta$ controls the component velocity scales, and $W_0$ is the dimensionless
+central potential. Up to a parameter-independent constant, the count likelihood is
 
 ```{math}
 :label: b2-joint
-\ln\mathcal L(\alpha,\delta,W_0)
-= \underbrace{-\tfrac12\sum_{j,k} w_{jk}
-   \Big(\tfrac{\hat\sigma_{jk}-\sigma_{jk}^{\rm pred}}{\mathrm{SE}_{jk}}\Big)^2}_{\text{kinematics: per-group }\sigma_j(r)}
-\ +\
-\underbrace{\sum_{i=1}^{N}\ln f_{\rm Masch}(m_i;\alpha)}_{\text{masses: the IMF histogram}} .
+\log\mathcal L_{\mathrm{counts}}(\theta)=\sum_j n_j\log p_j(\theta).
 ```
 
-The kinematic predictor is the differentiable Engine A multimass oracle rebuilt
-from $\theta$ inside the traced loss (the `find_alpha_for_masses` eigenvalue solve
-is differentiable in $\alpha,\delta,W_0$); the mass term is the analytic,
-normalized Maschberger log-pdf — fully differentiable in $\alpha$.
+Integrating the IMF over the four mass intervals sets the target component
+populations. A steeper high-mass slope shifts the population toward lighter
+components, so the observed counts constrain $\alpha$.
 
-```{note}
-**Observed masses are a *global* IMF sample (clean-mock Option A).** The kinematic
-groups carry only the $J=4$ representative labels $m_j$, so the per-star mass
-likelihood is evaluated on a *separate* global draw $m_i \sim
-\mathrm{Maschberger}(\alpha_{\rm true})$ over the full mass range, with **no**
-per-star mass↔group correlation modeled. One $\alpha$ still drives both channels
-at the population level; the demo does not claim to model the joint mass–velocity
-covariance of individual stars.
+The numerical equilibrium solve matches these targets to finite precision.
+The likelihood therefore uses the solved model’s actual component number
+fractions, normalized exactly as in the categorical sampler, rather than
+substituting ideal bin integrals. No continuous
+IMF density is evaluated on representative masses. Mass-component boundaries are
+fixed; their representative masses $m_j(\theta)$ vary with the IMF parameters.
+
+Conditional on the observed counts, the total mass used to predict the velocity
+scale is $M(\theta)=\sum_j n_j m_j(\theta)$. Thus the velocity normalization changes
+with the candidate IMF rather than being fixed to its generating value.
+The observed component labels, positions and velocities stay fixed throughout
+the fit: each trial rebuilds the model, without resampling or relabelling the
+observations. $M(\theta)$ is a model prediction conditional on the observed
+counts; the catalogue’s individual mass entries are not an additional fitted
+data channel.
+
+For isotropic velocities, the measured one-dimensional dispersion is
+$\hat\sigma=\sqrt{\langle |\mathbf v|^2\rangle/3}$, where $\mathbf v$ is
+a star’s velocity in the known cluster rest frame. The kinematic term compares
+each populated radial bin’s measured
+one-dimensional dispersion $\hat\sigma_{jk}$ with its density-weighted model
+prediction $\sigma^{\mathrm{pred}}_{jk}(\theta)$. Here $k$ labels a radial bin, $\mathrm{SE}_{jk}$ is its estimated standard error,
+and $w_{jk}$ is one for cells with at least 30 stars and zero otherwise. Then the working log likelihood is
+
+```{math}
+\log\mathcal L(\theta)=\log\mathcal L_{\mathrm{counts}}(\theta)
+-\frac12\sum_{j,k}w_{jk}
+\left[\frac{\hat\sigma_{jk}-\sigma^{\mathrm{pred}}_{jk}(\theta)}
+{\mathrm{SE}_{jk}}\right]^2.
 ```
 
-## Inputs and assumptions
-
-The fit recovers **three parameters** $(\alpha, \delta, W_0)$; the truncation order,
-the total mass, and the mass range are assumed known. The headline result — that the
-mass channel *pins* $\alpha$ and breaks the kinematic $(\alpha,\delta)$ degeneracy —
-rests on the clean-mock decoupling described above.
-
-```{list-table} Model inputs
-:header-rows: 1
-:label: tbl-b2-inputs
-
-* - Input
-  - Meaning and role
-  - Status (fiducial)
-* - $\alpha$
-  - IMF high-mass slope; drives **both** the mass histogram and the equipartition group masses/weights — the self-consistency hinge.
-  - **recovered** (2.3)
-* - $\delta$
-  - Equipartition degree ($s_j=s\,\mu_j^{-\delta}$); $\tfrac12$ = full equipartition.
-  - **recovered** (0.4)
-* - $W_0$
-  - LIMEPY central concentration.
-  - **recovered** (5.0)
-* - $J$, $g$
-  - Number of IMF mass groups (4); LIMEPY truncation order fixed to the King limit ($g=1$).
-  - known / fixed
-* - $M_{\rm fixed}$
-  - **Measured** total cluster mass anchoring the velocity scale $s=\sqrt{GM/(9r_c\mu_{\rm tot})}$ — treated as exactly known (see below).
-  - known / fixed (data scalar)
-* - mass range, $G$
-  - Maschberger bounds $[0.1,20]\,M_\odot$ (class bounds = draw bounds, so no truncation correction); $G$ in model units.
-  - known / fixed
-* - $N$, bins, occupancy, quadrature
-  - $10^5$ stars; 16 equal-count radial bins; per-cell occupancy floor `n_min=30`; quadrature ($I_p$ moments 256 pts, $g(W)$ table 256).
-  - numerical choices
-* - boxes
-  - expit bounds α $(1.5,3.2)$, $W_0$ $(3,8)$, and **$\delta\in(0,0.7)$ — physical, not just numerical**: it caps short of the Spitzer-unstable $\delta\gtrsim0.9$ that crashes the ODE.
-  - known/fixed bounds
-* - MLE / NUTS / bias-grid
-  - 3 dispersed Adam starts (300 steps); NUTS 300+600 (off by default); wrong-$\alpha$ grid {1.9…2.7} and robustness truths {1.9,2.3,2.7}.
-  - numerical choices
+```{warning} Approximate conditional kinematics
+This is a summary likelihood, not the full phase-space likelihood. It uses
+a Gaussian-velocity approximation for the dispersion errors and neglects
+correlations between summaries. The truncated model is not exactly Gaussian.
+Radial bins are selected from the catalogue and held fixed during fitting.
+Repeated-catalogue recovery and uncertainty coverage remain to be checked.
+The generating centre and rest frame are assumed known; no fitted recentring
+is applied. Individual representative masses are not additional observations.
 ```
 
-```{important}
-:label: imp-b2-decoupling
-**The headline degeneracy-breaking depends on the clean-mock "Option A" decoupling
-of the mass channel from the kinematics.** The per-star mass likelihood is evaluated
-on a *separate, global* draw $m_{\rm obs}\sim\mathrm{Maschberger}(\alpha)$ over the
-full mass range, with no per-star mass$\leftrightarrow$group$\leftrightarrow$velocity
-correlation. This is what makes the mass channel a clean analytic log-pdf in
-$\alpha$ alone (its Hessian has only an $\alpha\alpha$ entry), and *why* the mass
-channel **pins $\alpha$ rather than rotating the $(\alpha,\delta)$ ellipse** — the
-entire result. If real mass–velocity covariance were modeled, the mass channel would
-also carry $\delta$ information and this clean separation would not hold. The total
-mass $M_{\rm fixed}$ is likewise treated as an exactly-known anchor; in a real
-cluster it is itself uncertain and partly the quantity one wants.
-```
+## Inputs and execution
 
-## Result 1 — joint recovery (freshly run, ALL PASS)
+The example uses 100,000 stars, four mass components over
+$[0.1,20]\,M_\odot$, generating parameters $(\alpha,\delta,W_0)=(2.3,0.4,5)$,
+isotropic velocities and truncation order $g=1$. The radial summaries use
+16 equal-count bins and retain cells with at least 30 stars. Numerical model
+units use $G=1$ consistently in sampling and prediction.
 
-Measured 2026-06-11 ($N=10^5$, three dispersed Adam starts; exit 0):
+The fit bounds are $1.5<\alpha<3.2$, $0<\delta<0.7$ and $3<W_0<8$.
+These are the demo's inference bounds, not a universal physical stability limit.
+BlackJAX samples a density uniform in these physical parameters before applying
+the likelihood; the transformation Jacobian is included. Posterior runs are
+opt-in and use four independent BlackJAX chains, saving draws and R-hat,
+bulk/tail effective sample sizes and divergence diagnostics. Local information estimates are not calibrated credible intervals.
 
-```{list-table}
-:header-rows: 1
+## Single-catalogue recovery
 
-* - Parameter
-  - Truth
-  - $\hat\theta \pm \hat\sigma$
-  - Pull
-* - $\alpha$ (IMF high-mass slope)
-  - $2.300$
-  - $2.293 \pm 0.004$
-  - $-1.68$
-* - $\delta$ (equipartition degree)
-  - $0.400$
-  - $0.397 \pm 0.034$
-  - $-0.08$
-* - $W_0$ (central concentration)
-  - $5.000$
-  - $4.990 \pm 0.021$
-  - $-0.48$
-```
+The fit and figure values below retain the September 28, 2026 single-catalogue
+exposure (random seed 0, 100,000 stars), recorded in
+`docs/reviews/recovery-artifacts/single-catalogue-record.json`. They were
+not regenerated for this release audit. The final full driver and its
+four-chain posterior path have not been rerun; selected objective checks
+and the retained fit are separate evidence. The best retained fit is:
 
-All within $3\sigma$ (the heaviest, sparsest group $j=3$ has occupancy $1153 \ge
-300$, so the fit is not starved). The MLE is a robust optimum — the two best of
-the three dispersed starts agree in loss to $3\times10^{-3}$.
+| Parameter | True value | Recovered | Local information scale |
+|---|---:|---:|---:|
+| IMF slope $\alpha$ | 2.3000 | 2.2968 | 0.0041 |
+| Equipartition $\delta$ | 0.4000 | 0.3977 | 0.0344 |
+| Concentration $W_0$ | 5.0000 | 4.9938 | 0.0212 |
 
-:::{figure} figures/imf_equip_fit.png
-:label: sci-b2-fit
+The local information scale estimates how sharply the objective constrains
+each parameter near the best fit. The largest offset from the true values is
+0.784 of this scale. These estimates are not posterior credible intervals,
+and one recovered catalogue does not establish their statistical coverage.
+The fit uses three starting points; two reach similar objectives and one remains
+higher. The lowest objective determines the reported fit.
+
+:::{figure} figures/imf_equip_single_catalogue_fit.png
+:label: sci-b2-single-catalogue-fit
 :width: 100%
+:alt: Left, velocity dispersions for four mass groups with fitted profiles; right, component counts from the same cluster and fitted expected counts.
 
-**Joint MLE fit** (`demo_delta_recovery.py`). **(a)** Per-group binned
-$\hat\sigma_{1\mathrm D,j}(r)$ (points, finite-$N$ errors) with the best-fit
-binned-expectation curves — the equipartition ordering ($\sigma$ decreasing with
-group mass) is visible. **(b)** The observed mass histogram with the fitted
-Maschberger pdf at $\hat\alpha$.
+**Single-catalogue fit.** Left: binned velocity dispersions and pointwise fitted
+profile curves, in model units; the likelihood uses bin-averaged predictions.
+Right: observed component counts and fitted expectations. The printed scales
+are local information estimates. Both panels use the same 100,000 stars.
 :::
 
-## Result 2 — the degeneracy the mass channel breaks
+## Assumptions and limits
 
-Kinematics *alone* cannot cleanly separate $\alpha$ from $\delta$: a steeper
-$\sigma(m)$ can come from a larger equipartition degree *or* from an $\alpha$ that
-reweights the group masses. The Fisher information quantifies it (freshly
-measured):
-
-```{list-table}
-:header-rows: 1
-
-* - Quantity
-  - Kinematics-only
-  - Joint (+ mass channel)
-* - $\rho(\alpha,\delta)$ correlation
-  - $-0.265$
-  - $-0.059$
-* - $\sigma_\alpha$
-  - $0.0192$
-  - $0.0041$
-* - $\sigma_\delta$
-  - $0.0357$
-  - $0.0344$
-* - $(\Delta\chi^2{=}4)$ ellipse area
-  - $8.30\times10^{-3}$
-  - $1.78\times10^{-3}$
+```{important} Equilibrium recovery, not cluster history
+This example contains no stellar or dynamical evolution. Its fitted IMF describes
+the population used to generate the catalogue. In an evolved cluster, the
+present-day mass function differs from the birth IMF because stars lose mass,
+become remnants and escape. Recovering a birth IMF requires an explicit model
+for those processes; a successful equilibrium fit alone cannot reconstruct it.
 ```
 
-Adding the mass histogram **pins $\alpha$ $4.7\times$ tighter** (ellipse area
-ratio $4.67$) and collapses the $(\alpha,\delta)$ correlation from $-0.265$ toward
-zero. Crucially the mass channel *pins* $\alpha$ rather than *rotating* the
-ellipse — $\delta$'s width barely moves ($0.0357\to0.0344$); the gain is almost
-entirely in $\alpha$.
 
-:::{figure} figures/imf_equip_fisher.png
-:label: sci-b2-fisher
-:width: 90%
+- The component labels, cluster centre and rest frame are known. No measurement
+  errors, missing stars or observational selection are included.
+- The fit uses three-dimensional positions and velocities. The projected image
+  is an illustration, not the observational data model used by the likelihood.
+- Four mass groups approximate a continuous IMF. Increasing their number may
+  change the result; mass-bin convergence has not yet been established.
+- The Gaussian kinematic summary likelihood and local uncertainty estimates
+  require repeated-catalogue checks before interpreting them as calibrated errors.
+- The count-and-kinematic objective passes the recorded float64 derivative
+  checks. The four-chain BlackJAX path is available, but no posterior result for
+  this likelihood is reported here.
 
-**Fisher degeneracy panel.** $\Delta\chi^2=4$ ($86.5\%$ in 2-D) ellipses in
-$(\alpha,\delta)$: the broad, tilted kinematics-only ellipse vs the compact joint
-ellipse. The mass channel removes the degeneracy along $\alpha$.
-:::
+### From model components to observations
 
-## Result 3 — full posterior (NUTS)
+Finite mass components approximate a population's dynamics; they do not imply
+that real stars have only those masses. Observational mass bins and numerical
+model components are separate choices. A finite-component model can be compared
+with observations by projecting its distributions and integrating over the
+selected stellar populations. Continuously sampling a particle catalogue is
+not required to predict these observables.
 
-A vendored blackjax No-U-Turn sampler (300 warmup + 600 samples) draws the full
-posterior. Recorded measured run (`--run-nuts`, $\sim 52$ min wall):
+An observational application must include the survey footprint, completeness,
+measurement uncertainties and the mapping from photometry to stellar populations.
+It must also distinguish visible tracers from remnants that contribute gravity
+but little or no light. These ingredients are outside this demo. For an example
+combining proper motions, line-of-sight velocities and photometric mass functions,
+see [Dickson et al. (2023)](https://doi.org/10.1093/mnras/stad1254).
 
-- **0 divergent transitions**;
-- posterior mean within **$1\sigma$ of the MLE per parameter**
-  ($\alpha\ -0.05$, $\delta\ +0.27$, $W_0\ -0.38\ \sigma$);
-- the target is made flat in $\theta$ by adding the $\sum\ln(d\theta/dz)$
-  reparametrization Jacobian, so the corner is a faithful posterior, not a
-  box-edge artifact.
+### Continuous masses and dynamical components
 
-:::{figure} figures/imf_equip_corner.png
-:label: sci-b2-corner
-:width: 85%
+A continuous-mass population generator and a finite-component equilibrium solver
+are distinct modeling choices. This example uses discrete masses for both.
+It therefore cannot represent within-bin stellar-mass variation for applications
+such as individual-star evolution.
 
-**NUTS posterior corner** in $(\alpha,\delta,W_0)$ with the MLE and truth
-overlaid; unimodal, no divergences, posterior mean on the MLE.
-:::
-
-## Result 4 — wrong-IMF bias + robustness grid
-
-What if you **assume the wrong** $\alpha$ and refit only the kinematics? Freezing
-$\alpha$ at a grid of wrong values and refitting $(\delta, W_0)$ from kinematics
-alone (5 seeds each) gives the bias curve. The recovered $\hat\delta$ **peaks at
-the true $\alpha$** ($\hat\delta = 0.42 \approx \delta_{\rm true}$ at
-$\alpha_{\rm assumed}=2.3$) and is biased **low** on either side — assuming the
-wrong IMF slope corrupts the equipartition measurement. The linear sensitivity
-$d\hat\delta/d\alpha = -0.005 \pm 0.020$ (seed-ensemble SE) is near zero precisely
-*because* the response is peaked, not monotonic — it is **reported, not gated**
-(no published reference value to assert against).
-
-The companion **robustness grid** regenerates fresh truth datasets at
-$\alpha_{\rm true}\in\{1.9, 2.3, 2.7\}$ and refits the full joint $(\alpha,\delta,
-W_0)$ — every case recovers within $3\sigma$:
-
-```{list-table}
-:header-rows: 1
-
-* - $\alpha_{\rm true}$
-  - $\hat\alpha$
-  - $\hat\delta$
-  - $\hat W_0$
-  - max $|$pull$|$
-* - $1.9$
-  - $1.903 \pm 0.003$
-  - $0.411 \pm 0.033$
-  - $4.984 \pm 0.019$
-  - $0.97$
-* - $2.3$
-  - $2.300 \pm 0.004$
-  - $0.396 \pm 0.033$
-  - $5.011 \pm 0.021$
-  - $0.51$
-* - $2.7$
-  - $2.700 \pm 0.005$
-  - $0.428 \pm 0.030$
-  - $5.006 \pm 0.024$
-  - $0.96$
-```
-
-:::{figure} figures/imf_equip_bias.png
-:label: sci-b2-bias
-:width: 100%
-
-**Wrong-IMF bias (left)** — $\hat\delta(\alpha_{\rm assumed})$ with seed scatter,
-peaking at truth; **robustness grid (right)** — joint recovery across three
-$\alpha_{\rm true}$, all within $3\sigma$.
-:::
-
-## Caveats
-
-```{warning}
-- **Clean-mock, Option A masses** — observed masses are a global IMF sample
-  uncorrelated with the kinematic group (see the note above); no measurement
-  errors, projection, or mass-dependent completeness.
-- **The wrong-IMF curve is a sensitivity *measurement*, not a calibrated test** —
-  reported with seed-ensemble uncertainty, never gated.
-- **NUTS is non-divergent but not SBC-calibrated** — the credible-interval
-  coverage has not been checked by simulation-based calibration; that is future
-  work.
-- **$\delta$ is fit on $[0, 0.7]$** — $\delta\gtrsim 0.9$ approaches the Spitzer
-  instability (heavy stars decouple) and hard-crashes the equilibrium ODE solve,
-  so the box stops short of it by construction.
-- **The wrong-IMF bias is peaked at truth, not linear.** $\hat\delta$ is *maximal*
-  at the true $\alpha$ and biased low for a wrong $\alpha$ in **either** direction,
-  so the quoted slope $d\hat\delta/d\alpha\approx0$ is not "no bias" — read the
-  curve's shape, not its local slope.
-- **Truncation order and binning are fixed inputs.** Only $(\alpha,\delta,W_0)$
-  vary; $g=1$ (King truncation) is assumed known, and the 16-bin / `n_min=30`
-  scheme (tuned to keep the sparse heavy group resolved) is a choice the result
-  depends on. Uncertainties are inverse-Hessian Gaussian approximations.
-```
+An extension could retain continuously sampled stellar masses while using mass
+components to approximate their dynamics. That would require a defined rule for
+sampling positions and velocities conditional on stellar mass, together with
+checks of the resulting density, potential and velocity moments. Assigning new
+masses after drawing the present catalogue would not by itself establish a
+self-consistent equilibrium. Increasing the number of discrete components is a
+resolution check; it does not change the current sampler into a continuous-mass
+sampler.
 
 ## How to run
 
 ```bash
-env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py            # MLE + Fisher (minutes)
-env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py --run-nuts # + NUTS corner (~52 min)
+env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py --illustrate-only # draw the cluster
+env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py --check-only # verify derivatives
+env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py # MLE + local information
+env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery.py --run-nuts # opt-in BlackJAX posterior
 env -u VIRTUAL_ENV uv run --no-sync python scripts/demo_delta_recovery_bias.py       # wrong-IMF curve + grid
 ```
 
-## References
+Use `--seed` to select an independent catalogue and `--n-comp` to change mass-bin
+resolution. These options support qualification; changing resolution does not
+by itself demonstrate convergence. The default remains four groups and seed 0.
 
-The multimass LIMEPY DF is {cite:t}`Gieles2015` with the equipartition
-$m$-convention of {cite:t}`Peuten2017`; the $\sigma(m)$ equipartition relation and
-its derived equipartition mass are {cite:t}`Bianchini2016`; the IMF is
-{cite:t}`Maschberger2013`. The equipartition physics is developed on the
-[multimass equipartition theory page](../10-theory/spatial-profiles/multimass-equipartition.md),
-and the underlying equilibrium is validated at
-[multimass equilibrium](../50-validation/multimass-equilibrium.md).
+Related: [multimass equilibrium validation](../50-validation/multimass-equilibrium.md)
+and [the IMF models](../10-theory/imfs/index.md).

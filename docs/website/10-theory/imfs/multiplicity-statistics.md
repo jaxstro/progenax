@@ -154,16 +154,15 @@ inferences from binary-rich populations are biased — see
 ```{note}
 **These bins are not identical to Moe & Di Stefano's Table 13 bins.**
 Table 13 quotes $f_b = 1 - \mathcal{F}_{n=0} = 0.40$ for solar-type
-primaries ($0.8$–$1.2\,\Msun$) and $0.94$ for O-stars ($9$–$16\,\Msun$);
+primaries ($0.8$–$1.2\,\Msun$) and $0.94$ for O-stars ($M_1>16\,\Msun$);
 the table above lists $0.44$ at $0.5$–$1.0\,\Msun$ and $0.90$ at
-$M_1 > 10\,\Msun$. The differences are a **binning** artefact, not a
-disagreement: the $0.5$–$1.0\,\Msun$ bin extends *below* Table 13's
-$0.8\,\Msun$ floor, where lower-fraction M-dwarf surveys fill in, and
-the open-ended $M_1 > 10\,\Msun$ bin averages across O and early-B
-rather than picking out Table 13's $9$–$16\,\Msun$ O-star value.
-progenax samples the **Table 13 grid itself** (see
-[](../../99-bibliography/per-paper/moe-distefano-2017.md)); the rows
-here are a coarser pedagogical summary.
+$M_1 > 10\,\Msun$. The rows above are the actual coarse step values used by
+`MassDependentBinaryFraction`; they are approximations informed by the
+surveys, not a rebinned Table 13 calculation demonstrated here.
+The separate `MoeDiStefano2017Full` and `MoePeriod` models interpolate
+mass/period grids for conditional shapes. Those grids do not replace
+the companion model's coarse multiplicity probability. See the
+[source note](../../99-bibliography/per-paper/moe-distefano-2017.md).
 ```
 
 ## Three orbital-period regimes
@@ -213,24 +212,22 @@ narrow interval of $M_1$ and $P$. For each sample they:
    companions masquerading as main-sequence binaries in spectroscopic
    samples, and corrected for it.
 
-The resulting joint $f(M_1, q, P, e)$ is the closest thing the field
-has to a "ground truth" binary-population calibration. progenax encodes
-the Table 13 grids in `progenax.imf.MoeDiStefano2017` (and the faithful
-period-dependent `MoeDiStefano2017Full` / `MoeJointOrbit` in
-`progenax.imf.binary`), and exposes the mass-dependent multiplicity
-fraction through `MassDependentBinaryFraction` and the higher-level
-`BinaryIMF` API.
+The inferred joint distribution carries survey and calibration
+uncertainty. `MoeDiStefano2017` stores a coarse period-independent
+Gaussian-mixture reduction; `MoeDiStefano2017Full` and `MoePeriod`
+interpolate the mass/period grids used by `MoeJointOrbit`. The
+mass-dependent multiplicity probability is the separate step model
+`MassDependentBinaryFraction`, used by `BinaryIMF` and `MoeCompanions`.
 
 ## Solar-mass calibration and the twin excess
 
-For solar-type primaries ($0.8$–$1.2\,\Msun$), the twin fraction
-$f_{\mathrm{twin}} = 0.10$ is the highest in the mass spectrum. The
-twin excess is a *narrow* peak in $g(q)$ near $q = 1$ with width
+In the reduced Gaussian-mixture model, solar-type primaries
+($0.8$–$1.2\,\Msun$) have the largest stored weight,
+$f_{\mathrm{twin}}=0.10$. This is not a verbatim Table 13 excess
+fraction. The Gaussian component lies near $q=1$ with width
 $\sigma_{\mathrm{twin}} \approx 0.03$, sitting on top of the
-power-law $q^\gamma$ background. Solar-type primaries therefore have
-two distinct populations of binaries: the bulk power-law and a
-$\sim 10\%$ excess of near-equal-mass twins. The relative weights
-shift across the mass spectrum:
+power-law $q^\gamma$ background. The reduced model assigns the remaining probability to the power law.
+Its stored weights vary across primary-mass bins:
 
 ```{list-table}
 :header-rows: 1
@@ -266,9 +263,10 @@ $m_1 + m_2 + m_3$ inflates the system mass more than the binary
 $m_1 + m_2$). For O-star-dominated populations this is a substantial
 effect; for solar-type-dominated populations it is a small correction.
 
-The architectural extension to triples is straightforward — replace
-the single $f_b(m_1)$ with a Poisson-companion model — but is
-deferred to a future progenax version.
+Higher-order multiples require an explicit companion-count distribution
+and hierarchical orbital architecture with stability constraints. A
+Poisson count alone does not specify those correlations. The current
+companion builders generate at most one companion per primary.
 
 ## Check yourself
 

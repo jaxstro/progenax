@@ -6,10 +6,11 @@ description: "Recipe — build a virial-equilibrium (Q = T/|V| = 0.5) Plummer cl
 (howto-virial-cluster)=
 # Set up a virial-equilibrium cluster
 
-**Goal.** Generate a star-cluster initial condition that sits in virial
-equilibrium — $Q \equiv T/|V| = 0.5$, the virial-theorem balance
-$2T + V = 0$ — so it neither collapses ($Q<0.5$) nor expands ($Q>0.5$)
-when handed to an integrator.
+**Goal.** Generate a Plummer initial condition and set its measured energy
+ratio $Q\equiv T/|V|$ to $0.5$, corresponding to $2T+V=0$ for the
+Newtonian pair potential. This global balance is a necessary equilibrium
+diagnostic; it does not by itself establish stationarity or prevent later
+contraction, expansion, or relaxation.
 
 ## Inputs and assumptions
 
@@ -27,18 +28,19 @@ when handed to an integrator.
   - Particle count; `n` gives equal $1\,\Msun$ masses, or pass explicit `masses`.
   - 2000 (equal mass)
 * - `units` → `G`
-  - Unit system carrying the gravitational constant. **Required** (no default `G`).
+  - Unit system carrying the gravitational constant. Convenience builders default to `STELLAR`; low-level sampling and energy calls require explicit `G`.
   - `STELLAR`
 * - `Q`
-  - Target virial ratio $T/|V|$. `0.5` rescales velocities to equilibrium.
+  - Target energy ratio $T/|V|$. `0.5` rescales the sampled velocities to that global balance.
   - 0.5
 ```
 
 ```{important}
 :label: imp-virial-G
-**`G` is mandatory.** Every velocity sample and energy evaluation needs an
-explicit gravitational constant — pass `units=STELLAR` (or `G=STELLAR.G`).
-There is no implicit fallback. The virial scaling at `Q=0.5` rescales
+**Low-level calls require explicit `G`.** `build_cluster` and its named
+convenience wrappers instead accept `units=None`, which resolves to
+`DEFAULT_UNITS` (`STELLAR`); the recipes pass it explicitly. The virial
+scaling at `Q=0.5` rescales
 velocities under the **exact** ($\varepsilon=0$) Newtonian force law by
 default, matching the analytic equilibrium DFs and collisional integration.
 ```
@@ -62,7 +64,7 @@ print(f"virial Q = {T / jnp.abs(V):.4f}")   # -> virial Q = 0.5000
 ```
 
 `build_plummer_cluster` defaults to `Q=0.5`, so the returned `ICResult` is
-already virialized and centred on the cluster's centre of mass.
+already virialized and centered on the cluster's center of mass.
 
 ## Recipe B — explicit profile via `build_cluster`
 
@@ -99,7 +101,7 @@ ic = build_spatial_ic(
 
 ## Verified output
 
-All three recipes produce the same equilibrium (measured, `PRNGKey(0)`,
+All three recipes set the same energy ratio (retained measurement, `PRNGKey(0)`,
 $N=2000$):
 
 ```{list-table}
@@ -116,12 +118,12 @@ $N=2000$):
 ```
 
 ```{tip}
-Pass `Q=None` to **disable** the rescale. For the true-equilibrium DFs (King,
-EFF, Michie, LIMEPY) this yields the faithful *unscaled* equilibrium, whose
-measured $Q$ already lands near 0.5 — see
-[](../50-validation/king-profile.md). The isotropic Plummer DF likewise
-samples its own equilibrium; the explicit `Q=0.5` rescale only removes the
-finite-$N$ scatter.
+Pass `Q=None` to disable the rescale and retain the sampled velocity scale.
+Matched continuum DFs have separate numerical and physical checks; finite
+realizations fluctuate, and sharply truncated EFF models have an additional
+boundary approximation. See [](../50-validation/king-profile.md) and
+[](../50-validation/eff-profile.md). A `Q=0.5` rescale changes sampled
+velocities and does not repair an incompatible local DF.
 ```
 
 ## See also

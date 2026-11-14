@@ -97,9 +97,11 @@ isotropic King model**. The single **model parameter** is (Eq. 5.9)
 C = \frac{\beta}{A(2\alpha)^{1/2}G(4\pi)^2}.
 ```
 
-$C\to 0$ recovers the isotropic King model; anisotropy becomes important where
-$Cz^2\sim\tfrac12$. In modern units $C \propto 1/r_a^2$: the anisotropy radius $r_a$ (the
-radius where $\beta\to 0.5$) is the same parameter as Michie's $C$, rescaled.
+$C\to 0$ removes the angular-momentum weighting; the modern Michie–King model
+then recovers King. Anisotropy becomes important where $Cz^2\sim\tfrac12$.
+In modern units $C \propto 1/r_a^2$: $r_a$ sets the angular-momentum Gaussian.
+The King cutoff changes the velocity moments, so $r_a$ is not generally the
+radius where the realised anisotropy $\beta=0.5$.
 
 ## Use in progenax
 
@@ -109,7 +111,9 @@ radius where $\beta\to 0.5$) is the same parameter as Michie's $C$, rescaled.
   {eq}`michie-king-df`. Distinct from the isotropic [](king-1966.md) (different density)
   and from the [](merritt-1985.md) Osipkov–Merritt construction (which holds the density
   fixed; Michie does not).
-- The realised anisotropy increases outward, $\beta(r)\to 1$ at large $r$ inside $r_t$.
+- The realised anisotropy can become radial in the envelope, but returns to
+  isotropy near a finite $r_t$ because the allowed velocities vanish there
+  ({cite:t}`Gieles2015`, §1). It is not the monotonic Osipkov–Merritt law.
 
 ## Notes
 

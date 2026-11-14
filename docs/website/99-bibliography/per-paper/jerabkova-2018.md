@@ -85,7 +85,7 @@ $\alpha_i = \alpha_{i,c}+\Delta\alpha\,{\rm [Fe/H]}$ (Eq. 10, $\Delta\alpha\appr
 mass function (ECMF) is a power law of slope $\beta=-0.106\log_{10}{\rm SFR}+2$ (Eqs. 1–2).
 
 Jeřábková et al. also give a **concise mass-based** form of the density parameter (Eq. 9,
-verified against the PDF, p. 6) that folds the whole density chain into a function of the
+verified against the PDF, p. 6) that is presented as folding the density chain into a function of the
 embedded-cluster mass $M_{\rm ecl}$ alone:
 
 ```{math}
@@ -94,14 +94,18 @@ x = -0.14\,{\rm [Fe/H]} + 0.6\log_{10}\!\Big(\tfrac{M_{\rm ecl}}{10^6\,M_\odot}\
 ```
 
 ```{warning}
-**The Eq. 9 "2.83" intercept reflects Jeřábková's 4π density convention, not progenax's.**
-Eq. 9 is derived from Eq. 7 plus $\log_{10}\rho_{\rm ecl} = 0.61\log_{10}M_{\rm ecl} + 2.08$ and
-$\log_{10}\rho_{\rm cl} = 0.61\log_{10}M_{\rm ecl} + 2.85$ (PDF p. 6). progenax instead uses the
-internally-consistent **8π** half-mass density of [](marks-kroupa-2012.md) (which reproduces
-Marks 2012 Table 1 exactly), under which the consistent intercept is **0.2161**, not 2.83. The
-printed 2.83 is verified to be exactly what the paper prints — progenax's departure from it is
-the deliberate 8π-convention fix documented in the
-[environment chapter](../../10-theory/imfs/environment.md), not a transcription error.
+**The printed mass expression does not follow from a density-factor change alone.**
+The page gives $\log_{10}\rho_{\rm ecl}=0.61\log_{10}M_{\rm ecl}+2.08$ and
+$\log_{10}\rho_{\rm cl}=0.61\log_{10}M_{\rm ecl}+2.85$, with numerical masses in
+$M_\odot$ and densities in $M_\odot\,\mathrm{pc}^{-3}$. Substitution of the nominal
+radius law into the **8π** density of [](marks-kroupa-2012.md) gives an Eq. 7
+mass-coordinate intercept of $0.21618378\ldots$ at SFE $0.33$.
+Using **4π** instead adds $0.99\log_{10}2$ and gives $0.51420348\ldots$, rather
+than $2.83$. progenax retains the adopted mass conversion with intermediate-rounded
+intercept **0.2161**. The [environment chapter](../../10-theory/imfs/environment.md#cluster-density-conversion)
+derives that conversion; the [model card](#card-environment-jerabkova-printed-mass)
+keeps the literal Eq. 9 separately. This transcription does not establish why
+the paper's printed intercept differs.
 ```
 
 ## Use in progenax

@@ -7,7 +7,8 @@ description: Curated gallery of physics-validation figures — sampled-vs-analyt
 A curated visual tour of the physics-validation evidence — one or two headline
 figures per model family, rendered by the per-suite validation scripts and
 committed under `50-validation/figures/`. **The numbers live on the per-suite
-pages** (linked from every caption); this page is for the eyes.
+pages** (linked from every caption). These are retained figures, not a fresh
+execution or release qualification of the current source.
 
 ## Spatial profiles & velocity DFs
 
@@ -20,7 +21,7 @@ $\rho(r) \propto (1+r^2/a^2)^{-5/2}$. Numbers: [](plummer-equilibrium.md).
 ```{figure} figures/plummer_velocity_equilibrium.png
 :width: 85%
 Plummer velocity equilibrium: sampled dispersion against
-$\sigma_r^2 = GM/(6\sqrt{r^2+a^2})$, unscaled $Q_{\rm vir} = 0.5$.
+$\sigma_r^2 = GM/(6\sqrt{r^2+a^2})$, the retained unscaled kinetic-moment check (not exact Q for every finite draw).
 Numbers: [](plummer-equilibrium.md).
 ```
 
@@ -38,14 +39,14 @@ $r_t$ (cold outskirts). Numbers: [](king-profile.md).
 
 ```{figure} figures/eff_gamma_family.png
 :width: 85%
-The EFF power-law-halo family across $\gamma$ ($\gamma = 5$ is Plummer).
+The EFF power-law-halo family across $\gamma$ ($\gamma=5$ has the Plummer interior density shape; finite support differs).
 Numbers: [](eff-profile.md).
 ```
 
 ```{figure} figures/michie_beta_profile.png
 :width: 85%
-Michie–King anisotropy: realised $\beta(r)$ rises outward and sits below the
-pure Osipkov–Merritt ceiling. Numbers: [](michie-anisotropy.md).
+Michie–King anisotropy: sampled interior radial anisotropy sits below the OM comparison curve
+and returns toward isotropy at its finite edge. Numbers: [](michie-anisotropy.md).
 ```
 
 ## Initial mass functions
@@ -89,8 +90,8 @@ mass spectrum. Numbers: [](two-component.md).
 ```{figure} figures/equipartition_saturation.png
 :width: 85%
 The honest sub-equipartition physics: $\sigma(m)$ saturates at low mass
-(escape-speed ceiling) and follows $m^{-1/2}$ in the deep-well limit, with the
-DERIVED $m_{\rm eq}$ crossover. Numbers: [](two-component.md).
+because of lowering and follows $m^{-1/2}$ in the deep-well limit for
+$\delta=1/2$. The displayed $m_{\rm eq}$ is a first-order low-mass matching scale. Numbers: [](two-component.md).
 ```
 
 ```{figure} figures/engine_b_eddington.png
@@ -131,7 +132,9 @@ Numbers: [](test-dashboard.md).
 
 ```{figure} figures/grad_audit_summary.png
 :width: 80%
-The 99-case gradient gate: 98 clean, 1 pinned known-limitation, 0 hazards.
+Historical gradient-audit summary. Current source/entry coverage and
+remaining limits are recorded on the audit page; image counts are not a current
+release verdict.
 Numbers: [](differentiability-audit.md).
 ```
 
@@ -159,7 +162,7 @@ figures for that subsystem await the jaxstroviz port.
 ## Plot regeneration
 
 Figures are produced by the per-suite validation scripts
-(`scripts/validate_*.py`; `scripts/release_gate.sh` runs all 24 and refreshes
+(`scripts/validate_*.py`; `scripts/release_gate.sh` discovers that glob and refreshes
 `validation_runs.json`). The committed copies under `50-validation/figures/`
 are the deliberate exception to the otherwise-gitignored `validation/plots/`.
 Methodology: [](methodology.md).

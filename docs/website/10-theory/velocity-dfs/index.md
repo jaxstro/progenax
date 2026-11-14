@@ -5,10 +5,12 @@ description: Velocity DFs in progenax — Plummer / King / EFF equilibrium distr
 
 # Velocity distribution functions
 
-A spatial density profile alone does not produce a complete IC: every
-particle needs a velocity. The **velocity distribution function** (DF)
-specifies how velocities are sampled given particle positions and
-masses. progenax implements the canonical equilibrium DFs for its
+The phase-space distribution function $f(\mathbf{x},\mathbf{v})$ describes
+the distribution of mass in position and velocity. For a mass-normalized DF,
+$\rho(\mathbf{x})=\int f\,d^3v$. At a position where $\rho>0$, the conditional
+velocity density is $p(\mathbf{v}\mid\mathbf{x})=f/\rho$. Progenax's velocity
+samplers draw from the corresponding conditional distribution using the supplied
+model parameters. Progenax implements the canonical equilibrium DFs for its
 spatial profiles (Plummer, King, EFF), the self-consistent radially
 anisotropic **Michie–King** DF, plus extensions for Osipkov–Merritt
 radial anisotropy ({cite:t}`Merritt1985`) and rigid/differential rotation.
@@ -45,17 +47,16 @@ radial anisotropy ({cite:t}`Merritt1985`) and rigid/differential rotation.
 
 ## What "equilibrium" means
 
-A spatial profile $\rho(r)$ paired with the wrong velocity DF produces
-a *non-equilibrium* IC: the cluster will dynamically relax towards a
-new equilibrium state via violent relaxation on the first crossing
-time. For most production work this is undesirable — you wanted a
-Plummer cluster at $t = 0$, not a Plummer-like distribution heading
-toward something else. The fix is to use the matched equilibrium DF.
+An incompatible density–velocity pairing can drive evolution away from the intended
+initial structure. Its subsequent evolution depends on the mismatch and dynamical
+setup. Equilibrium requires a compatible density, potential, and distribution function.
 
-```{admonition} How to check if a DF is in equilibrium with a profile
+:::{admonition} How to check if a DF is in equilibrium with a profile
 :class: note
-A density profile $\rho(r)$ and a velocity DF $f(\mathbf{x}, \mathbf{v})$
-are in equilibrium if the **Jeans equation** holds:
+For a spherical, non-streaming equilibrium, density and second velocity moments
+satisfy the Jeans equation. This is a necessary moment constraint; satisfying it
+alone does not establish a non-negative, stationary phase-space distribution
+consistent with the density and potential:
 
 ```{math}
 \frac{1}{\rho}\frac{\mathrm{d}(\rho\sigma_r^2)}{\mathrm{d}r}
@@ -63,25 +64,22 @@ are in equilibrium if the **Jeans equation** holds:
 + \frac{\mathrm{d}\Phi}{\mathrm{d}r} \;=\; 0
 ```
 
-with $\beta = 1 - \sigma_t^2/\sigma_r^2$ the anisotropy parameter (zero
-for isotropic). progenax's validation suite
-([](../../50-validation/methodology.md)) checks this directly for
-sampled positions+velocities.
-```
+with $\beta=1-(\sigma_\theta^2+\sigma_\phi^2)/(2\sigma_r^2)$.
+See the [validation pages](../../50-validation/index.md) for the checks performed.
+
+:::
 
 
 ```{figure} ../figures/phase_space_hexbin.webp
 :label: fig-phase-space-hexbin
 :width: 100%
 
-The DF as a density on the classic $(r, v_r)$ phase-space plane
-($4\times10^5$ stars per model, seed 13), with the analytic escape envelope
-$\pm v_{\rm esc}(r) = \pm\sqrt{2\Psi(r)}$ computed three different ways
-(closed form / ODE $\psi$-grid / direct density quadrature). Plummer's
-envelope never closes — and its stars stop visibly *inside* it, because
-$f \propto \mathcal{E}^{7/2}$ vanishes toward the escape energy; King hugs
-its envelope and pinches shut at $r_t$; EFF fills its power-law halo out to
-the hard edge. No star crosses an envelope: bound-ness, visually. Regenerate: `python -m laboratory.icviz --only phase-space-hexbin`.
+Sampled particle counts in the $(r,v_r)$ plane ($4\times10^5$ stars per
+model, seed 13), with the local escape-speed envelopes overlaid. This projection
+is not the full phase-space distribution function. A bound particle satisfies
+$|v_r|\le v_{\rm esc}$, but lying inside this envelope does not establish that
+its total speed is below escape speed: the tangential components are not shown.
+Regenerate: `python -m laboratory.icviz --only phase-space-hexbin`.
 ```
 
 ## When you actually want a non-equilibrium IC
@@ -89,19 +87,20 @@ the hard edge. No star crosses an envelope: bound-ness, visually. Regenerate: `p
 Three deliberate non-equilibrium configurations are useful enough to
 deserve mention:
 
-1. **Subvirial / cold cluster**, $Q_{\mathrm{vir}} \approx 0.3$ — the
-   {cite:t}`Allison2009` cool-fractal setup. Cluster contracts on a
-   crossing time and produces *dynamical* mass segregation within
-   $\sim 1$ Myr.
+1. **Subvirial / cold cluster**, $Q_{\mathrm{vir}} \approx 0.3$ —
+   reducing velocities produces a subvirial realization. Its contraction and
+   mass-segregation history depend on density structure, mass spectrum and
+   dynamical setup. {cite:t}`Allison2009` provides a specific example.
 2. **Supervirial / hot cluster**, $Q_{\mathrm{vir}} \approx 0.75$ —
    post-gas-expulsion. Cluster expands, may unbind partially.
 3. **Mismatched-DF cluster** — Plummer profile with a King DF, or
-   vice versa. Useful for testing the *rate* of violent relaxation
-   without contaminating the experiment with non-equilibrium energy
-   ratio.
+   vice versa. A mismatched pair can share the same global virial ratio as a
+   matched pair while having different local velocity distributions. Comparing
+   them can isolate consequences of that mismatch only when the remaining
+   configuration is controlled.
 
-In all three cases, the spatial profile and base DF are sampled
-*independently*, then the velocity field is rescaled to the target
+In all three cases, velocities are sampled conditional on positions; optional rescaling
+then changes their normalization to the target
 $Q_{\mathrm{vir}}$ via [](../../20-architecture/q-virial-convention.md).
 Each non-equilibrium configuration is a deliberate scientific choice;
 progenax exposes the parameters so the configuration can be made
@@ -127,7 +126,7 @@ class VelocityDF(Protocol):
 
 That is the whole contract — there is **no** `velocity_dispersion` method
 on the protocol or on the concrete DF classes; the dispersion profiles
-shown in the per-DF chapters are derived analytically (Plummer) or built
+shown in the per-DF pages are derived analytically (Plummer) or built
 internally by the sampler (King, EFF, Michie) and are not part of the
 public surface. `sample_velocities` is differentiable in the model
 parameters via the chain (e.g. $r_h \to \sigma_r(r) \to \mathbf{v}$), and
@@ -162,7 +161,7 @@ multi-component machinery.
 - **In code:** the velocity DFs live under `src/progenax/kinematics/`
   (`plummer_df.py`, `king_df.py`, `eff_df.py`, `michie_df.py`, plus
   `rotation.py` and the Osipkov–Merritt anisotropy options). See the
-  [kinematics API](../../30-api/kinematics.md); the per-DF chapters
+  [kinematics API](../../30-api/kinematics.md); the per-DF pages
   ([Plummer](plummer-dfs.md), [King](king-dfs.md),
   [Michie–King](michie-king.md), [anisotropy & rotation](rotation-anisotropy.md))
   carry the exact module paths.

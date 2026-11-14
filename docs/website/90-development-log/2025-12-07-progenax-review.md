@@ -15,7 +15,12 @@ package). Multi-population clusters are now built with
 environment-dependent IMF is the functional `BirthEnvironment` +
 `env_to_imf_params()` API (CLAUDE.md audit R7;
 `tests/unit/test_documented_api.py` asserts the phantom classes stay
-absent). This page is otherwise preserved unedited as a historical record.
+absent). The body retains the historical review's assertions, not a new
+verification of its formulas, timings, gradients, or release grade. The record
+quotes both A (95/100) and A- (92/100); neither is a current assessment.
+Its King density/Poisson formulas and `Q=1` equilibrium convention are
+superseded by the current [King theory](../10-theory/spatial-profiles/king.md)
+and [virial convention](../20-architecture/q-virial-convention.md).
 ```
 
 **Document Type:** Full-Package Technical Review

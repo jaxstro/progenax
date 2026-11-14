@@ -37,9 +37,10 @@ f(E) \;=\;
 
 [↗ model card](#card-king-df-velocity)
 
-where $\sigma_0$ is the central one-dimensional velocity dispersion,
+where $\sigma_0$ is the DF velocity-scale parameter; the actual central
+one-dimensional dispersion differs at finite $W_0$.
 $\Phi_t \equiv \Phi(r_t)$ is the potential at the tidal radius, and
-$\rho_1$ is a normalisation constant. The "$-1$" subtraction is the
+$\rho_1$ is a normalization constant. The "$-1$" subtraction is the
 *lowering*: it ensures the DF vanishes at $E = \Phi_t$ rather than
 extending exponentially to $E \to \infty$ as a pure Maxwellian
 would.
@@ -55,9 +56,11 @@ f(W, v) \;\propto\; e^{W - v^2 / (2\sigma_0^2)} - 1,
 ```
 
 at any radius where the local dimensionless potential is $W$. The
-escape speed at the tidal radius is zero ($W_t = 0$, $v_{\mathrm{esc}} =
-0$), so no particles populate that boundary — the cluster is sharply
-truncated.
+speed cutoff at the tidal radius is zero ($W_t = 0$, $v_{\mathrm{esc}} =
+0$), so no particles populate that boundary. Here escape refers to the model's
+cutoff energy $\Phi_t$, not escape to infinity in the cluster's isolated
+vacuum field. The [gravitational exterior](../spatial-profiles/index.md#profile-vacuum-potential)
+remains nonzero beyond the density cutoff.
 
 ## Marginal speed distribution
 
@@ -93,8 +96,11 @@ shallow — the origin of King clusters' cold outskirts. Regenerate:
 
 ## Sampling
 
-progenax samples King velocities via a per-particle inverse-CDF on
-{eq}`king-fv`:
+The default `speed_method="table"` caches a cross-$W$ inverse-CDF table at
+construction. At $g=1$, the LIMEPY lowering equals $e^x-1$, so this table uses
+the King speed law. `speed_method="quadrature"` retains a 256-point per-star
+reference, evaluated in bounded batches. The following is schematic quadrature
+notation, not the default implementation:
 
 ```python
 # At each particle's radius r, look up W(r) from the King ODE solution
@@ -104,39 +110,40 @@ W_per_particle = jnp.interp(radii / r_c, xi_grid, psi_grid, left=W0, right=0.0)
 def sample_unit_speed(key, W):
     u_grid = jnp.linspace(0.0, jnp.sqrt(2.0 * W), N_SPEED_GRID)   # 256 points
     g = u_grid**2 * (jnp.exp(W - u_grid**2 / 2.0) - 1.0)         # eq:king-fv
-    cdf = jnp.cumsum(0.5 * (g[1:] + g[:-1])) * du                # trapezoid
+    du = u_grid[1] - u_grid[0]
+    cdf = jnp.concatenate((jnp.zeros(1), jnp.cumsum(0.5 * (g[1:] + g[:-1])) * du))
     return jnp.interp(jax.random.uniform(key), cdf / cdf[-1], u_grid)
 
 u = jax.vmap(sample_unit_speed)(keys, W_per_particle)            # speed / sigma_0
 v_vec = (sigma_0 * u)[:, None] * isotropic_unit_vector(key2, N)
 ```
 
-Each particle builds its own fixed-size (256-point) speed grid scaled
-to its local escape speed $\sigma_0\sqrt{2W}$ and inverts the trapezoidal
-CDF by interpolation — there is no precomputed cross-$W$ table. The grid
-size is fixed and the operations are `jnp.interp`/`vmap` only (no
-`while_loop`), so the whole pipeline is JIT-compatible and differentiable
-in $r_h$ via the chain $r_h \to r_c \to \sigma_0 \to v$.
+The public sampler also handles nonpositive potential and constructs isotropic
+directions. Fixed-size operations permit JAX tracing, but interpolation,
+small-potential guards, and the ODE solution bound derivative accuracy. Table
+and quadrature agreement checks consistency; convergence of the numerical
+reference remains a separate question. Reuse a constructed DF to avoid
+rebuilding its tables.
 
 ## Velocity dispersion profile
 
-The King DF's velocity dispersion at radius $r$ is
+With the notation $\sigma^2(W)=\langle v^2\rangle$ for the mean-square
+three-dimensional speed, the King DF gives
 
 ```{math}
 :label: king-sigma
-\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} v^4\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}{\int_0^{\sqrt{2W}} v^2\,(e^{W - v^2/2} - 1)\,\mathrm{d}v}
+\sigma^2(W) \;=\; \sigma_0^2\,\frac{\int_0^{\sqrt{2W}} u^4\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}{\int_0^{\sqrt{2W}} u^2\,(e^{W - u^2/2} - 1)\,\mathrm{d}u}
 ```
 
 [↗ model card](#card-king-sigma)
 
-(in units where $\sigma_0 = 1$). The integrals do not have closed
-form in general, but progenax precomputes $\sigma(W)$ on the same
-$W$-grid used for the speed-CDF table inside the sampler. The current
-public `KingVelocityDF` API exposes `sample_velocities`; it does not
-export a separate velocity-dispersion method. The dispersion is
+(the integration variable $u=v/\sigma_0$ is dimensionless). Isotropy
+gives the one-dimensional dispersion $\sigma_{1d}^2=\langle v^2\rangle/3$.
+The public `KingVelocityDF` API exposes `sample_velocities`; it does not
+export a separate dispersion method. The mean-square speed is
 monotonically **increasing** in $W$: $\sigma^2 \to 0$ as $W \to 0$ and
 $\sigma^2 \to 3\sigma_0^2$ as $W \to \infty$ (the untruncated-Maxwellian
-limit). Since $W$ decreases outward — from $W_0$ at the centre to $0$ at
+limit). Since $W$ decreases outward — from $W_0$ at the center to $0$ at
 the tidal radius — **$\sigma$ falls with radius and vanishes at the tidal
 boundary**, where the escape speed $\to 0$. King clusters therefore have
 *cold outskirts*, in contrast to a Plummer sphere whose dispersion also
@@ -146,7 +153,7 @@ declines outward but stays finite at all radii.
 
 :::{dropdown} 1. Which $W$ is most Maxwellian?
 Before studying {numref}`fig-king-lowered-maxwellian`: does the King DF
-resemble a Maxwellian most at the cluster centre or the edge? (Centre: large
+resemble a Maxwellian most at the cluster center or the edge? (Centre: large
 $W$ pushes $v_{\rm esc} = \sigma_0\sqrt{2W}$ far into the Maxwellian tail,
 so almost nothing is cut.)
 :::
@@ -167,9 +174,13 @@ Maxwellian. Pair them by using the same King concentration and tidal
 radius:
 
 ```python
+import jax
+import jax.numpy as jnp
 from progenax.profiles import KingProfile
 from progenax.kinematics import KingVelocityDF
 from jaxstro.units import STELLAR
+
+key_pos, key_vel = jax.random.split(jax.random.PRNGKey(0))
 
 profile = KingProfile.from_W0_rc(W0=7.0, r_c=1.0)
 df = KingVelocityDF(W0=7.0, r_c=1.0)   # r_t is derived from W0 internally
@@ -191,20 +202,16 @@ The King velocity DF is differentiable in $r_c$ (via $\sigma_0$) and in the
 total mass $M_{\rm tot}$ ($\sigma_0\propto\sqrt{GM}$). It is **also**
 differentiable in $W_0$: `diffrax` propagates $\partial\psi/\partial W_0$
 through the ODE solve, so the dispersion profile and other shape observables
-carry correct $W_0$ gradients (gradient-validated in
-[](../../50-validation/king-profile.md)). The lone non-differentiable quantity
-is the *scalar* tidal radius $r_t$, whose $W_0$-derivative is zeroed by the
-`argmax` zero-crossing in `_find_tidal_radius`; inference should therefore use
-the profile *shape* rather than the scalar $r_t$.
+have retained derivative checks in [](../../50-validation/king-profile.md).
+The scalar $r_t$ uses the unclamped potential and a differentiable implicit
+zero-crossing rule; a simple bracketed root is required. The
+[architecture contract](../../20-architecture/differentiability.md#roadmap-differentiable-rt)
+describes its numerical limits.
 
-Consequently progenax supports joint gradient-based / HMC inference of the King
-structural parameters $(W_0, r_c, M_{\rm tot})$ directly — e.g. fitting a
-cluster's number-density and velocity-dispersion profiles. The lowered-model
-family formalized by {cite:t}`Gieles2015` (where the truncation parameter $g$
-enters analytically) remains the natural extension for multi-mass /
-anisotropic generalisations; progenax plans to implement this family natively
-as its own differentiable generalization (see
-[](../spatial-profiles/lowered-model-family.md)), but it is not yet available.
+Joint inference of $(W_0,r_c,M_{\rm tot})$ additionally requires a physical
+likelihood and gradient checks for its observables and parameter domain. The
+{cite:t}`Gieles2015` lowered-model family is implemented for multimass and
+anisotropic generalizations; see [](../spatial-profiles/lowered-model-family.md).
 
 ## Domain of validity
 
@@ -215,7 +222,7 @@ as its own differentiable generalization (see
    variants live in [](rotation-anisotropy.md).
 3. **Tidal cutoff is sharp.** Real clusters have a smooth transition
    from the bound population to the tidal tail; King's mathematical
-   cutoff at $E = \Phi_t$ is an idealisation. For studies where the
+   cutoff at $E = \Phi_t$ is an idealization. For studies where the
    tidal-tail kinematics matter, post-evolution analysis is the
    right approach.
 
@@ -229,7 +236,7 @@ as its own differentiable generalization (see
   — the regression suite that locks the true-DF equilibrium
   ($Q_{\mathrm{vir}} \approx 0.5$ unscaled) and the $W_0$ gradients.
 - **Primary sources:** the lowered-isothermal model is {cite:t}`King1966`;
-  the multi-mass LIMEPY generalisation is {cite:t}`Gieles2015`, and the
+  the multi-mass LIMEPY generalization is {cite:t}`Gieles2015`, and the
   `diffrax` integration follows the standard {cite:t}`Aarseth1974`
   numerical prescription — full notes in the
   [bibliography](../../99-bibliography/per-paper/king-1966.md).

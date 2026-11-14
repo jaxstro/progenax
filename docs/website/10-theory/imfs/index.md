@@ -18,6 +18,10 @@ analytically-invertible (Maschberger) to physically-detailed
 maps cluster birth conditions to the high-mass slope $\alpha_3$ via the
 Marks+2012 / Jeřábková+2018 relations).
 
+Mass $m$ is expressed in solar masses, and $N$ is a stellar count.
+$\xi(m)$ gives number per solar mass; `exp(imf.logpdf(m))` gives a
+probability density per solar mass, normalized to one on the chosen support.
+
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers entering the IMF track — choosing a parameterisation and learning how progenax layers binaries and environment on top; no prior IMF literature assumed.
@@ -63,9 +67,16 @@ sub-chapters as needed.
 
 ## Common API contract
 
-Every IMF in progenax satisfies the `IMFProtocol`:
+Scalar stellar-mass distributions expose the `IMFProtocol` interface below.
+`BinaryIMF` has a separate companion-population interface, and the birth-
+environment functions map physical inputs to IMF parameters. See
+[protocol composition](../../20-architecture/protocols.md) for structural
+checks and the [IMF API](../../30-api/imf.md) for implementation contracts.
 
 ```python
+from typing import Protocol
+from jaxtyping import Array, Float, PRNGKeyArray
+
 class IMFProtocol(Protocol):
     m_min: float
     m_max: float
@@ -84,20 +95,23 @@ class IMFProtocol(Protocol):
 
     def sample(
         self,
-        key: PRNGKey,
+        key: PRNGKeyArray,
         n: int,
-    ) -> Float[Array, "N"]:
-        """Draw N stellar masses."""
+    ) -> Float[Array, "n"]:
+        """Draw n stellar masses in solar masses; n is static under JIT."""
         ...
 
-    def mean_mass(self) -> float:
-        """Expected mass."""
+    def mean_mass(self) -> Float[Array, ""]:
+        """Expected mass in solar masses."""
         ...
 ```
 
-`sample` uses inverse-CDF for the analytically-invertible IMFs
-(Maschberger; truncated power-law) and a fixed-iteration Newton
-solver for the rest. `logpdf` is the workhorse for the scalar IMF
+The interface definition is illustrative; use the exported protocol rather
+than redefining it in an application. `sample` uses analytic inverse-CDF
+sampling for Maschberger and piecewise power laws, or a fixed-iteration
+Newton solver for Chabrier, TaperedPowerLaw and Schechter. `TruncatedIMF`
+maps quantiles through the wrapped IMF's inverse, inheriting its numerical
+precision. `logpdf` is the workhorse for the scalar IMF
 families. Binary-aware inference is described conceptually in this
 section, but the current `BinaryIMF` API exposes sampling helpers
 (`sample_primaries`, `sample_mass_ratios`, `sample_systems`, and
@@ -135,11 +149,11 @@ documents the conversion in detail.
 
 ## Composability with profiles, velocities, and modifiers
 
-IMFs compose orthogonally with [](../spatial-profiles/index.md) and
-[](../velocity-dfs/index.md): any IMF can pair with any spatial profile
-and velocity DF. The IMF determines the *masses* in `(masses, positions,
-velocities)`; the profile determines the *positions*; the DF
-determines the *velocities*. The mass-segregation modifier
+Scalar IMF samplers supply the *masses* in `(masses, positions, velocities)`;
+the spatial profile samples positions and the velocity DF samples velocities
+conditional on those positions and masses. Valid input domains, units and
+profile/DF compatibility still apply; see [](../spatial-profiles/index.md)
+and [](../velocity-dfs/index.md). The mass-segregation modifier
 ([](../tidal-and-substructure/mass-segregation.md)) couples IMF and
 profile by re-pairing high-mass particles to low-energy orbits, but
 the underlying $\xi(m)$ is preserved.

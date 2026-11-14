@@ -11,22 +11,26 @@ shape — and whether it varies with environment — is one of the central
 problems in stellar astrophysics {cite:p}`Salpeter1955,Kroupa2001,Chabrier2003,Marks2012,Jerabkova2018`.
 Most stars do not form alone: roughly 50% of solar-type stars and >90%
 of O-type stars have at least one bound companion {cite:p}`Sana2012,MoeDiStefano2017`.
-When those companions are unresolved, the IMF inferred from observed
-*system* masses is systematically biased toward shallower slopes.
+When those companions are unresolved, the distribution of observed
+*system* masses differs from the primary-mass distribution. The resulting
+slope bias depends on the IMF, binary statistics, support and selection.
 
 This chapter is the single source of truth for the **binary-aware IMF
-recovery** pipeline implemented in `progenax.imf.BinaryIMF` and exercised
+recovery** calculation built from the `progenax.imf.BinaryIMF` sampler and exercised
 in `scripts/validate_binaries.py` (fast MLE) and
-`validation/imf/validate_binary_aware_recovery.py` (full numpyro NUTS). It derives the system mass
-function under the {cite:t}`MoeDiStefano2017` joint binary statistics, formulates a
+`validation/imf/validate_binary_aware_recovery.py` (historical NumPyro NUTS).
+The likelihood is script-owned rather than a public `BinaryIMF` method.
+This chapter derives the system mass
+function under a period-averaged reduction of the {cite:t}`MoeDiStefano2017` statistics, formulates a
 likelihood that marginalises over latent binary status and mass ratio, and
-quantifies the regime — sample size $N \gtrsim 10^4$ — where the naive
-single-star likelihood becomes "**confidently wrong**": its 95% credible
-interval shrinks below the bias and excludes the true slope.
+explains why a misspecified single-star fit can become "**confidently
+wrong**" as its uncertainty shrinks. The retained MLE examples and
+historical posterior diagnostics belong to the
+[validation page](../../50-validation/binary-imf.md).
 
 :::{admonition} Who this page is for
 :class: note
-**Audience:** new students & researchers learning why unresolved binaries bias inferred IMF slopes and how progenax removes the bias; no prior binary-statistics literature assumed.
+**Audience:** new students & researchers learning why unresolved binaries bias inferred IMF slopes and how progenax accounts for them; no prior binary-statistics literature assumed.
 **Prerequisites:** the [classical IMFs](classic.md) (the single-star $\xi(m \mid \alpha)$ backbone).
 **You'll get:** the system mass function under the Moe & Di Stefano (2017) statistics, the marginalisation likelihood, and the "confidently wrong" regime where the naive single-star fit excludes the truth at large $N$.
 :::
@@ -47,8 +51,9 @@ blended (COM position, Tout-ZAMS flux-weighted velocity) — the violator
 clouds all but vanish and the population *looks* clean, yet the measured
 dispersion stays silently inflated (2.93 vs 2.20; 2.41 vs 1.53) — and the
 few blend hexes still leaking past the envelope are near-equal-luminosity
-pairs that keep half their orbital velocity. That hidden pedestal is exactly
-the mechanism behind the binary-blind mass bias demonstrated on this page.
+pairs that keep half their orbital velocity. This figure shows velocity
+contamination; the IMF-recovery calculation below instead uses system-mass
+addition. These are distinct observation operators.
 Regenerate: `python -m laboratory.icviz --only binary-phase-space`.
 ```
 
@@ -68,7 +73,8 @@ with default parameters $\alpha = 2.3$ (Salpeter high-mass slope), $\beta
 m^{-\alpha}$; the second factor produces the observed turnover below
 $\sim 0.3\,\Msun$. Crucially, the cumulative distribution has a closed-form
 inverse, enabling exact analytical sampling — no numerical root-finding,
-fully `jax.lax.scan`-compatible, fully differentiable. See
+compatible with fixed-shape JAX execution and smooth-parameter derivatives
+on its valid domain. See
 [](../../30-api/imf.md) for the implementation in
 `progenax.imf.Maschberger`.
 
@@ -99,18 +105,29 @@ m_{\mathrm{sys}} \;=\;
 where $q = m_2/m_1 \in [q_{\min}, 1]$ and $f_b(m_1)$ is the mass-dependent
 binary fraction. Binaries transfer probability mass from intermediate to
 high system masses — a primary $m_1 = 5\,\Msun$ with $q = 0.5$ appears as
-a single $7.5\,\Msun$ system. Consequently the observed system mass
-function is *shallower* than the true single-star IMF.
+a single $7.5\,\Msun$ system. This changes the system-mass distribution,
+but does not imply a shallower slope in every regime. For a scale-free
+primary density $\xi(m)=C m^{-\alpha}$, mass-independent binary probability
+$f_b$ and mass-ratio law $g(q)$, away from support boundaries,
+
+```{math}
+p_{\mathrm{sys}}(M)=C M^{-\alpha}
+\left[(1-f_b)+f_b\int_{q_{\min}}^1(1+q)^{\alpha-1}g(q)\,\mathrm{d}q\right].
+```
+
+Here $C$ is the primary-density coefficient; the bracket is independent of
+$M$, so the local slope is unchanged. Turnover, finite mass bounds,
+mass-dependent binary statistics and observational selection can produce
+a slope bias, as in the retained recovery example.
 
 The naive practice of fitting a single-star IMF to the observed system
 masses — likelihood $\mathcal{L}_{\mathrm{naive}}(\alpha) = \prod_i
-\xi(m_{\mathrm{sys},i} \mid \alpha)$ — converges as $N\to\infty$ to the
-*wrong* value of $\alpha$. {cite:t}`Kroupa2001` quantified the bias at
+\xi(m_{\mathrm{sys},i} \mid \alpha)$ — can converge as $N\to\infty$ to a
+value of $\alpha$ displaced from the generating primary slope. {cite:t}`Kroupa2001` quantified the bias at
 $\Delta\alpha \sim 0.05$–$0.10$ depending on mass range and binary
-fraction. Section [](#confidently-wrong) below shows that the bias does
-not shrink with $N$, and at LSST-scale samples ($N \sim 10^{4}$–$10^{5}$)
-the naive 95% credible interval becomes narrower than the bias and
-*excludes the truth*.
+fraction. Section [](#confidently-wrong) below explains why model bias
+can persist as statistical uncertainty shrinks. The transition sample
+size depends on the IMF, binary statistics, observable and selection.
 
 ## The Moe & Di Stefano (2017) joint binary statistics
 
@@ -152,17 +169,24 @@ for the single-companion approximation progenax adopts.
 
 ### Mass-ratio distribution $g(q \mid M_1)$
 
-For a primary of mass $M_1$, {cite:t}`MoeDiStefano2017` parameterise $g(q \mid M_1)$
-as a power law plus a narrow "twin excess" peak near $q = 1$:
+For a primary of mass $M_1$, progenax's reduced `MoeDiStefano2017` model
+approximates the source statistics with a power law plus a narrow
+Gaussian component near $q=1$:
 
 ```{math}
 :label: gq
 p(q \mid M_1) \;=\; (1 - f_{\mathrm{twin}})\,\frac{q^{\gamma(M_1)}}{Z_{\mathrm{pl}}}
-                  \;+\; f_{\mathrm{twin}}\,\mathcal{N}(q \mid 1,\, \sigma_{\mathrm{twin}})
+                  \;+\; f_{\mathrm{twin}}\,
+                  \frac{\mathcal{N}(q \mid 1,\, \sigma_{\mathrm{twin}})}{Z_{\mathrm{twin}}},
+\qquad q\in[q_{\min},1].
 ```
 
 where $Z_{\mathrm{pl}} = \int_{q_{\min}}^{1} q^\gamma\,\mathrm{d}q$ and
-$\sigma_{\mathrm{twin}} \approx 0.03$. progenax uses a period-averaged single-slope
+$Z_{\mathrm{twin}}=\int_{q_{\min}}^1
+\mathcal{N}(q\mid1,\sigma_{\mathrm{twin}})\,\mathrm{d}q$ normalizes
+the truncated twin Gaussian, and $\sigma_{\mathrm{twin}}=0.03$ is
+its dimensionless width. The density is zero outside this support.
+progenax uses a period-averaged single-slope
 $\gamma(M_1)$ — a reduction of {cite:t}`MoeDiStefano2017` Table 13's period-dependent
 $\gamma_{\mathrm{smallq}}/\gamma_{\mathrm{largeq}}$ (averaged over $\log P$) — appropriate
 for total mass-function analyses, but losing the small-$q$ structure that matters
@@ -199,100 +223,66 @@ fraction, and the mass-ratio distribution. The integration limits come
 from $q_{\min} \le q \le 1$: $q \ge q_{\min}$ implies $m_1 \le
 M/(1+q_{\min})$; $q \le 1$ implies $m_1 \ge M/2$. The Jacobian $1/m_1$
 arises from the change of variables $q = M/m_1 - 1$.
+Here $\xi$ is a normalized primary-mass probability density per solar
+mass, zero outside $[m_{\min},m_{\max}]$; the actual integration bounds
+intersect this interval with the displayed candidate-primary bounds.
 
-This integral has no closed form because $f_b(m_1)$ and $g(q \mid m_1)$
-are piecewise functions of $M_1$. progenax evaluates it via 128-point
-Gauss-Legendre quadrature, which gives ~14 digits of accuracy for smooth
-integrands.
+The scripts evaluate this piecewise-smooth integral with 128-point
+Gauss-Legendre quadrature. Its accuracy needs an independent convergence
+comparison; the node count does not provide a universal error bound.
 
 ## The binary-aware likelihood
 
-For an observed system mass $M$:
+For an observed system mass $M$, let $m_1=M/(1+q)$ be the candidate
+primary mass at each mass-ratio value $q$:
 
 ```{math}
 :label: likelihood
 p(M \mid \alpha) \;=\;
-\underbrace{(1 - \bar{f}_b)\,\xi(M \mid \alpha)}_{\text{single}}
+\underbrace{[1 - f_b(M)]\,\xi(M \mid \alpha)}_{\text{single}}
 \;+\;
-\underbrace{\bar{f}_b \int_{q_{\min}}^{1}
-  \frac{\xi\!\left(\tfrac{M}{1+q} \,\big|\, \alpha\right)}{1+q}\,
-  g\!\left(q \,\big|\, \tfrac{M}{1+q}\right)\,\mathrm{d}q}_{\text{binary}}
+\underbrace{\int_{q_{\min}}^{1}
+  \frac{\xi(m_1\mid\alpha)\,f_b(m_1)\,g(q\mid m_1)}{1+q}
+  \,\mathrm{d}q}_{\text{binary}}.
 ```
 
-where $\bar{f}_b$ is evaluated at the candidate primary mass $m_1 =
-M/(1+q)$ inside the integral. The integrand is smooth in $q$, so
-Gauss-Legendre quadrature on $[q_{\min}, 1]$ converges fast.
+The binary fraction is evaluated at each candidate primary mass **inside**
+the integral. For a constant fraction it can be factored out; a population
+average cannot replace the conditional weight for a mass-dependent model.
 
-Computational cost. For $N$ observed systems and 128 quadrature points,
-each likelihood evaluation requires $N \times 128$ IMF + mass-ratio
-evaluations. At $N = 30{,}000$ (LSST-scale) this is $\sim 3.8 \times 10^6$
-evaluations per NUTS step, $\sim 6 \times 10^9$ flops per chain. On a
-MacBook Pro CPU one chain takes $\sim 35$ minutes; on an A100 the same
-$N \times 128$ tile is embarrassingly parallel via `jax.vmap`, bringing
-the per-chain time down to $\sim 30$ s — an estimated $\sim 70\times$
-speedup (see [](binary-aware-likelihood.md) for the per-step breakdown).
+For $N$ observed systems and 128 quadrature points, each likelihood
+evaluation carries $N\times128$ candidate primaries. At $N=30{,}000$
+this is $3.84\times10^6$ candidates, not a measured execution time or
+NUTS chain cost. See [](binary-aware-likelihood.md) for the numerical
+calculation and its current limits.
 
 ## Confidently wrong: the naive likelihood at large N
 
 (confidently-wrong)=
 
-The naive likelihood $\mathcal{L}_{\mathrm{naive}}(\alpha) = \prod_i \xi
-(M_i \mid \alpha)$ is a **misspecified** model: the data-generating
-process includes binaries; the likelihood does not. As $N\to\infty$ both
-naive and binary-aware posteriors shrink as $\sigma \propto 1/\sqrt{N}$
-(Bernstein–von Mises), but they shrink around *different* values:
+The naive likelihood $\mathcal{L}_{\mathrm{naive}}(\alpha)=\prod_i
+\xi(M_i\mid\alpha)$ omits binaries from the data-generating model.
+For an identifiable, correctly specified likelihood with suitable
+regularity, uncertainty decreases approximately as $N^{-1/2}$ around
+the true parameter. A misspecified fit can instead concentrate around
+a different value. Its interval narrows while the model bias persists.
 
-- The binary-aware posterior shrinks around $\alpha_{\mathrm{true}}$.
-- The naive posterior shrinks around $\alpha_{\mathrm{true}} + \Delta\alpha$,
-  where $|\Delta\alpha| \sim 0.05$–$0.10$ is set by the binary statistics
-  and is independent of $N$.
-
-The 95% credible interval shrinks; the bias does not. At some $N$ the CI
-becomes narrower than the bias, and the posterior *excludes the true
-value*:
-
-```{list-table} progenax binary-aware validation results, Salpeter $\alpha = 2.35$.
-:header-rows: 1
-
-* - $N$
-  - Naive 95% CI width
-  - Naive $|\Delta\alpha|$
-  - Status
-* - 500
-  - 0.28
-  - 0.045
-  - CI contains truth
-* - 1{,}000
-  - 0.20
-  - 0.035
-  - CI contains truth
-* - 3{,}000
-  - 0.12
-  - 0.057
-  - CI contains truth (barely)
-* - 10{,}000
-  - 0.06
-  - **0.082**
-  - **CI excludes truth**
-* - 30{,}000
-  - 0.035
-  - **0.098**
-  - **Confidently wrong**
-```
-
-This regime — narrow posterior centred on the wrong answer — is the
-central danger of ignoring binaries with large datasets. progenax's
-binary-aware likelihood eliminates the bias by construction; the
-${\sim}128\times$ cost of the inner $q$-quadrature is the price.
+For the retained mass-addition example, the naive slope is lower than
+the generating slope: $\Delta\alpha=\hat\alpha-\alpha_{\mathrm{true}}<0$.
+The [validation owner](../../50-validation/binary-imf.md) holds the
+MLE figures and their observed-curvature $1\sigma$ intervals, plus the
+separate historical posterior diagnostics. These are bounded examples,
+not a universal transition at a particular survey size. Marginalizing
+binaries accounts for the selected generative model; finite-sample bias,
+quadrature error and misspecified binary statistics still require checks.
 
 ## Observation operators: what does the telescope measure?
 
 The likelihood {eq}`likelihood` uses the dynamical-mass operator
-$m_{\mathrm{sys}} = m_1 + m_2$. This is exact for eclipsing binaries,
-SB2 spectroscopic binaries, and astrometric binaries — observations that
-recover the *true* system mass. It overstates the distortion for
-*photometric* surveys, where the telescope measures combined flux rather
-than combined mass.
+$m_{\mathrm{sys}} = m_1 + m_2$. This describes a total mass when a dynamical analysis constrains it;
+an SB2 radial-velocity orbit alone also depends on inclination.
+Photometric surveys instead measure combined flux, requiring a
+different observation model.
 
 For a main-sequence luminosity scaling $L \propto m^s$ with $s \approx
 3$–4, the inferred photometric mass of an unresolved binary is
@@ -318,18 +308,19 @@ only when $q \to 1$:
   - 0.75 mag brighter
 * - 0.5
   - $1.5\,m_1$
-  - $1.04\,m_1$
+  - $1.0245\,m_1$
   - Companion barely changes flux
 * - 0.3
   - $1.3\,m_1$
-  - $1.01\,m_1$
+  - $1.0042\,m_1$
   - Negligible photometric effect
 ```
 
-The mass-addition operator $m_1 + m_2$ therefore gives an *upper bound*
-on the binary distortion. Photometric masses are much less affected,
-especially at moderate $q$ — but the bias does not vanish, and the naive
-model still becomes confidently wrong at sufficiently large $N$. Full
+For this fixed main-sequence power-law luminosity model with $s>1$,
+$m_1 \le m_{\mathrm{phot}} \le m_1+m_2$: the per-system mass shift is
+smaller than under mass addition. This ordering does not establish an
+upper bound on inferred slope bias or a universal sample-size transition;
+those depend on the likelihood, support and survey selection. Full
 LSST-realistic inference replaces $m_1 + m_2$ with isochrone-mediated
 flux addition; see the
 [](../../40-howto/add-binary-population.md) recipe for the planned
@@ -338,10 +329,11 @@ extension.
 (binary-imf-limitations)=
 ## Limitations
 
-```{admonition} Mass addition is an upper bound
+```{admonition} Observation operator
 :class: note
-Section above. Real photometric surveys produce smaller distortion;
-LSST-realistic inference requires isochrone-mediated flux addition.
+Mass addition and photometric flux addition define different observables.
+The simple luminosity power law bounds the per-system mass shift,
+not the inferred slope bias. Survey inference requires its own forward model.
 ```
 
 ```{admonition} Single-companion approximation
@@ -364,10 +356,10 @@ period-conditional $g(q \mid M_1, P)$.
 
 ```{admonition} Resolved-vs-unresolved selection function
 :class: note
-Whether a binary is resolved depends on angular separation (period,
-distance), instrument PSF, crowding, and contrast ratio. Treating all
-binaries as unresolved overestimates the distortion in nearby/sparse
-fields and underestimates it in distant/crowded fields.
+Whether a binary is resolved depends on projected separation (period,
+phase, orientation and distance), instrument PSF, crowding and contrast
+ratio. Treating every binary as unresolved changes the selection model;
+the sign and size of any slope bias require the actual survey operator.
 ```
 
 ```{admonition} Primary IMF vs. all-stars IMF
@@ -391,15 +383,17 @@ underestimate of the binary contamination.
 
 The pipeline lives in three modules:
 
-- `progenax.imf.BinaryIMF` — the {cite:t}`MoeDiStefano2017`-conditioned forward
-  model and likelihood. Differentiable via `jax.grad`, JIT-compatible,
-  vectorisable via `jax.vmap`.
-- `progenax.binaries.MoeEccentricity` and friends — the joint binary
-  statistics tables used by `BinaryIMF` (see
+- `progenax.imf.BinaryIMF` — the {cite:t}`MoeDiStefano2017`-conditioned
+  forward sampler. Fixed-draw continuous paths can be differentiated;
+  hard binary assignment is discrete, and `sample_all_masses` uses a
+  variable-length selection that is not directly JIT-compatible.
+- `progenax.binaries.MoeEccentricity` and friends — the
+  period/eccentricity models used by the companion-composition layer (see
   [](../binaries/period-distributions.md)).
 - `scripts/validate_binaries.py` — the fast (MLE, no-MCMC) figure suite that
   regenerates the "$N$ vs. CI vs. bias" result; `validation/imf/validate_binary_aware_recovery.py`
-  is the full numpyro NUTS cross-check.
+  is the historical NumPyro NUTS cross-check. New recovery qualification
+  uses BlackJAX after an explicit likelihood/convergence design.
 
 See [](../../30-api/imf.md) for full API signatures and
 [](../../40-howto/add-binary-population.md) for a recipe building a
@@ -413,10 +407,10 @@ binary-corrected mock catalog end-to-end.
   backbone in `src/progenax/imf/smooth.py` (`Maschberger`) — see the
   [IMF API](../../30-api/imf.md). The recovery figures are regenerated by
   `scripts/validate_binaries.py` (fast MLE) and
-  `validation/imf/validate_binary_aware_recovery.py` (full numpyro NUTS).
+  `validation/imf/validate_binary_aware_recovery.py` (historical NumPyro NUTS).
 - **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
-  — the regression suite that demonstrates unbiased $\alpha$ recovery at
-  $N = 30{,}000$ where the naive fit is confidently wrong.
+  — retained MLE figures and historical two-chain diagnostics, with
+  quadrature accuracy and repeated-catalogue coverage still open.
 - **Primary sources:** the single-star backbone is {cite:t}`Maschberger2013`;
   the binary-contamination statistics are
   {cite:t}`Sana2012,MoeDiStefano2017,Moe2019`; the "confidently wrong"

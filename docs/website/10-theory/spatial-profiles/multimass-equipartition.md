@@ -66,8 +66,10 @@ The two limits of {eq}`sigma-m-closed-form` are two different physical regimes:
   component ($\mu_j \ll 1$) sees the shared well at the vanishing depth
   $W_j = \mu_j^{2\delta} W_0 \to 0$: it is **maximally tidally truncated**, a
   DF cut ever closer to the escape energy (Merritt 1981). Its dispersion is
-  therefore pinned near the central escape speed — which is a property of the
-  *shared* potential and is **mass-independent**. Hence $\sigma(m)$ flattens:
+  therefore set by a mass-independent scale of the shared potential. The
+  small-$W$ ratio gives $\sigma_{1d,j0}^2/s^2\to W_0/(g+5/2)$ for
+  $\delta>0$; it does not make the dispersion equal to escape speed.
+  Hence $\sigma(m)$ flattens:
   the local slope $\eta(m) \equiv -\,d\ln\sigma/d\ln m \to 0$.
 - **High mass — the deep-well thermalized branch.** A heavy component
   ($\mu_j \gg 1$) has $W_j \gg 1$: effectively an *untruncated* isothermal
@@ -103,8 +105,12 @@ matching linear terms (A2 ↔ A3) identifies
 
 [↗ model card](#card-meq-derived)
 
-so $m_{\rm eq}$ is fixed by the mean mass, the truncation order $g$, and the
-central concentration $\hat\phi_0 = W_0$ — **not** a free input. Note
+This low-mass exponential matching assumes $\delta=1/2$, as in the
+retained checks on this page. For general $\delta$, the leading correction
+scales as $(m/\bar m)^{2\delta}$ rather than linearly in mass, so this
+same constant $m_{\rm eq}$ identity does not follow. At $\delta=1/2$,
+$m_{\rm eq}$ is fixed by the mean mass, truncation order $g$, and central
+concentration $\hat\phi_0=W_0$, rather than being a new free input. Note
 $m_{\rm eq}/\bar m \propto 1/W_0$: **more concentrated clusters reach
 equipartition down to lighter stars**, the model-side face of Bianchini's
 headline observational result that $m_{\rm eq}$ tracks dynamical age

@@ -6,7 +6,8 @@ description: "progenax's implemented, differentiable generalization of King/Wils
 
 :::{admonition} Status — implemented
 :class: tip
-This family is **implemented and validated**. It is "Engine A" of the unified
+This family is implemented; its [validation page](../../50-validation/multimass-equilibrium.md)
+states the tested configurations and remaining limits. It is "Engine A" of the unified
 [`MultiComponentCluster`](../populations/index.md) model: every component is a
 lowered-isothermal DF riding one shared self-consistent potential, solved by
 the coupled-Poisson core `solve_multicomponent_limepy(alpha_j, rescale_j, W0,
@@ -24,7 +25,7 @@ covers the case where the *densities* are prescribed instead of the DF.
 
 ## The idea
 
-The classical truncated-isothermal models — Woolley (no energy truncation),
+The classical truncated-isothermal models — Woolley (an abruptly truncated Maxwellian),
 {cite:t}`King1966` (a linear lowered Maxwellian), and Wilson (a quadratic
 lowered form) — are members of **one** family distinguished by how sharply the
 distribution function is truncated near the escape energy. {cite:t}`Gieles2015`
@@ -33,17 +34,34 @@ LIMEPY DF reads
 
 ```{math}
 :label: limepy-df-family
-f(E) \;\propto\; e^{-E/\sigma^2}\,
-\gamma\!\Big(g,\; \tfrac{E_{\rm cut}-E}{\sigma^2}\Big),
+f(E) \;\propto\; E_\gamma(g,W), \qquad
+W = \frac{E_{\rm cut}-E}{\sigma^2}, \qquad W>0,
+\qquad f(E)=0\ \text{for}\ W\le0,
 ```
 
 [↗ model card](#card-limepy-df-family)
 
-with $g=0$ recovering the Woolley cutoff, $g=1$ the King model, and $g=2$ the
-Wilson model, interpolating smoothly in between. The same framework extends
+Here $E$ is specific energy, $E_{\rm cut}$ the cutoff energy, $\sigma$ a
+velocity scale, and $W$ the dimensionless relative binding energy. The
+lowered exponential is ({cite:t}`Gieles2015`, Eq. 2)
+
+```{math}
+E_\gamma(g,W)=
+\begin{cases}
+e^W, & g=0,\\
+e^W P(g,W), & g>0,
+\end{cases}
+\qquad P(g,W)=\frac{\gamma(g,W)}{\Gamma(g)}.
+```
+
+The regularized lower incomplete gamma function $P$ is used only for $g>0$;
+the separate $g=0$ branch is required. The three integer corners are
+$e^W$ (Woolley), $e^W-1$ (King), and $e^W-1-W$ (Wilson). The implementation
+sets the DF to zero at $W=0$ as well as outside the support; the value at
+that single energy does not change the Woolley integrals. The same framework extends
 naturally to **multiple mass components** (each mass group its own
 $\sigma_j$, sharing one potential) and to **radial anisotropy** (an
-Osipkov–Merritt / Michie term).
+Michie angular-momentum factor).
 
 ## The coupled multi-component equilibrium
 
@@ -93,12 +111,13 @@ on $(\alpha_j, w_j, \texttt{ra\_hat}_j, W_0, g)$, so equal-mass populations of
 different concentration (GC 1G/2G, halo+core, binaries-vs-singles) set $w_j$
 directly.
 
-Per-component radial anisotropy enters as an Osipkov–Merritt / Michie term
+Per-component radial anisotropy enters as a Michie angular-momentum factor
 with its own anisotropy radius $\hat r_{a,j} = r_{a,j}/r_c$
 ({cite:t}`Michie1963`; {cite:t}`Merritt1985`); the anisotropic density is
-evaluated by an exact, numerically stable 1-D quadrature (the bounded
-$T(\beta)$ Poisson sum) because JAX's `hyp1f1` is NaN for arguments
-$\gtrsim 100$.
+evaluated through the selected density-table or direct-quadrature path.
+Finite table and quadrature errors have independent comparisons in the
+validation owner. This is a Michie-type DF, not the density-preserving
+OM construction; their anisotropy laws differ.
 
 :::{admonition} A misprint worth knowing about
 :class: note
@@ -137,8 +156,13 @@ The family is exposed through three `MultiComponentCluster` constructors
 (see [](../populations/index.md) for the engine map and
 [](../populations/two-component.md) for a worked example):
 
+The constructor alternatives below assume a chosen scalar IMF `imf` and a
+JAX random `key`; they are interface examples, not a new recovery experiment.
+Sampling takes the gravitational constant explicitly.
+
 ```python
 from progenax import MultiComponentCluster
+from jaxstro.units import STELLAR
 
 # General: per-component velocity-scale ratios (GC 1G/2G, halo+core, ...)
 model = MultiComponentCluster.from_components(
@@ -152,19 +176,19 @@ model = MultiComponentCluster.from_mass_segregation(
 # reproduce the per-bin mass budget
 model = MultiComponentCluster.from_imf(imf, n_comp=8, W0=7.0, g=1.0, delta=0.5)
 
-ic = model.sample_cluster(key, n_stars=50_000)   # ICResult with component_id
+ic = model.sample_cluster(key, n_stars=50_000, G=STELLAR.G)   # ICResult with component_id
 ```
 
 `sample_cluster` draws every star from its component's lowered DF at the
 rescaled potential $W_j(r)$ and velocity scale $s_j = s\,w_j$ — **no external
-virial rescale anywhere**: each component is individually virial
-($Q_j = 0.5$) and the sampled cluster is globally virial for *any* mass
-spectrum. The unequal-mass two-population regression measures theory
+virial rescale**. The continuum model has component virial relations, while
+numerical representations and finite samples require their own checks.
+The retained unequal-mass two-population regression reports theory
 $Q_j = 0.5 \pm 2\times 10^{-3}$, sampled global $Q$ within $\pm 0.04$ and
 per-component $Q_j$ within $\pm 0.07$ at test resolution. The single-mass
 corners were validated against the released models directly: $g=1$ isotropic
 $\equiv$ [King](king.md), $g=1$ anisotropic $\equiv$
-[Michie](../velocity-dfs/michie-king.md), both with $Q = 0.5$ unscaled.
+[Michie](../velocity-dfs/michie-king.md), with the retained unscaled energy-ratio checks.
 
 ## Check yourself
 
@@ -182,45 +206,36 @@ distribution (the components differ only by their decoupled mass labels).
 :::
 
 
-## The DF-table performance layer
+## DF tables and radial sampling
 
-The anisotropic density quadrature is the 86% hotspot of the coupled solve,
-and per-star speed draws dominated sampling. Phase 1.5 replaced both with
-three differentiable table primitives in `profiles/limepy_tables.py` — with
-the **exact quadrature retained everywhere as a selectable oracle**
-(`aniso_method="quadrature"`), and every approximation budget asserted in
-tests:
+Density and conditional-speed tables accelerate the coupled solve and sampling.
+The density table uses the dimensionless relative potential $W$ and radius ratio
+$p=r/r_a$, with coordinates $\sqrt{W}$ and $\log(1+p^2W)$. The speed tables
+integrate each speed interval with interior Gauss–Legendre nodes. Direct density
+quadrature remains selectable as an independent comparison path.
 
-```{list-table} DF tables — design and measured budgets (every row is a regression test against the retained quadrature oracle).
-:header-rows: 1
+### Potential and radial sampling
 
-* - Table
-  - Grid / scheme
-  - Measured vs oracle
-* - `AnisoDensityTable` — $\hat\rho(W, p;\, g)$
-  - $(\sqrt{W},\, \mathrm{asinh}\,p)$ grid, tensor-product 4-point **cubic
-    Lagrange** ($O(h^4)$); 512×96 pointwise, 160×40 in-solve
-  - density $6.05\times 10^{-6}$ (budget $10^{-5}$); solve
-    $|\Delta\psi| \le 1.93\times 10^{-4}$ over 3 configs; mass CDF
-    $4.48\times 10^{-5}$
-* - `SpeedCDFTable` — isotropic inverse speed CDF
-  - 256×256 on $(\sqrt{W},\, u/\sqrt{2W})$; row-relative CDF normalization;
-    gated to $g \in [0, 3.5]$
-  - speed moments $\le 0.28\%$ vs DF quadrature
-* - `AnisoSpeedCDFTable` — anisotropic speed *marginal*
-  - 192×48×192 on $(\sqrt{W},\, \mathrm{asinh}\,p,\, u/\sqrt{2W})$; the
-    angular conditional $(\cos\theta \mid u, p)$ stays **exact**
-  - speed moments $\le 1.5\%$; sampled $\beta(r) \equiv$ the DF's own
-    quadrature $\beta$ within $0.06$ (unchanged)
-```
+The tidal radius $r_t$ is the first zero of the relative potential. A monotone
+cubic interpolant of the unclipped ODE potential supplies both radial-density
+integration and conditional velocity sampling. Keeping that same potential
+representation preserves the zero at the tidal boundary. The public potential
+array remains nonnegative.
 
-Measured speedups (warm, two-component, $W_0 = 7$): anisotropic
-**construction 5.6× faster** (957 → 170 ms); sampling at $N = 10^5$:
-**isotropic 67×** (0.48 µs/star), **anisotropic 21.7×** (2.9 µs/star). The
-anisotropic table build dominates at small $N$ — break-even is ~3k stars.
-Crucially, the equilibrium oracle `component_virial_ratios` is deliberately
-**quadrature-only** (it must not share the approximation it checks): a
-table-built model proves $Q_j = 0.5001 \pm 1.5\times 10^{-4}$ against it.
+The radial grid retains saved potential boundaries, subdivides each interval
+into 16 cells, and adds the requested minimum radial resolution. Component mass
+CDFs integrate a piecewise-linear radial probability density; sampling inverts
+that same integrated density. Repeated boundary nodes have zero width and mass.
+Refining the radial grid controls integration error; it does not improve an
+under-resolved ODE solution.
+
+:::{seealso} Accuracy and differentiation
+The [Engine A validation page](../../50-validation/multimass-equilibrium.md)
+owns current table resolutions, comparisons, acceptance budgets and measured
+results. [Differentiability rules](../../20-architecture/differentiability.md#engine-a-ad)
+explain adjoint selection and the distinction between fixed-realization and
+population-expectation gradients. Current performance scaling remains unqualified.
+:::
 
 ## Why progenax reimplemented it (rather than depend on LIMEPY)
 
@@ -231,16 +246,12 @@ entire progenax thesis is JAX-native, end-to-end-differentiable initial
 conditions, so that structural parameters can be **inferred** from data by
 gradient descent or HMC (see [](../../20-architecture/differentiability.md)).
 
-The implemented family delivers exactly this: a single continuous parameter
-vector — $(W_0, g, \{w_j\}, \delta, r_a)$ — can be fit jointly to an observed
-cluster, with $g$ itself a *fitted* quantity that selects the truncation
-sharpness the data prefer (King-vs-Wilson as a posterior, not a modelling
-choice). $\partial(\text{model})/\partial g$ flows through the coupled Poisson
-solve **and** through the DF tables: AD agrees with finite differences to
-$2.15\times 10^{-4}$, and the table-backed gradient agrees with the
-quadrature-backed gradient to $2.1\times 10^{-4}$. The anisotropic and
-mass-segregation parameters $(r_a, \eta, \delta)$ are likewise
-differentiable through construction and sampling.
+Differentiation through construction and sampling supports parameter inference
+where the selected observable and numerical path have been qualified. A finite
+gradient alone does not establish accuracy, and fixed-random-draw derivatives do
+not include changes in discrete component probabilities. See the
+[bounded derivative checks](../../50-validation/multimass-equilibrium.md#engine-a-matrix)
+for the current end-to-end evidence and limitations.
 
 ## Delivered scope
 
@@ -260,16 +271,15 @@ differentiable through construction and sampling.
   - ✅ delivered (`from_components` / `from_mass_segregation` / `from_imf`)
   - theory $Q_j = 0.5 \pm 2\times 10^{-3}$; sampled global $\pm 0.04$,
     per-component $\pm 0.07$
-* - Radial anisotropy per component ($\hat r_{a,j}$, Osipkov–Merritt / Michie)
+* - Radial anisotropy per component ($\hat r_{a,j}$, Michie-type)
   - ✅ delivered
   - sampled $\beta_j(r) \equiv$ DF quadrature $\beta$ within $0.06$
 * - DF-table acceleration (oracle-backed)
-  - ✅ delivered (Phase 1.5)
-  - 5.6× construction; 67× (iso) / 21.7× (aniso) sampling at $N = 10^5$
+  - Implemented; accuracy checks retained
+  - Current speed and memory scaling remain unqualified
 * - Differentiable structural inference $(W_0, g, w_j, \delta, r_a)$
-  - ✅ delivered
-  - AD-vs-FD $2.15\times 10^{-4}$; table-AD $\equiv$ quadrature-AD
-    $2.1\times 10^{-4}$
+  - Bounded first-derivative checks
+  - See the [qualification matrix](../../50-validation/multimass-equilibrium.md#engine-a-matrix); full-domain inference is not qualified
 ```
 
 ## Relationship to the other roadmap item
@@ -277,7 +287,7 @@ differentiable through construction and sampling.
 This is independent of, but complementary to, the now-**resolved differentiable
 tidal radius** $\partial r_t/\partial W_0$
 ([](../../20-architecture/differentiability.md#roadmap-differentiable-rt)): the
-scalar $r_t$ already carries a finite, exact gradient through the unclamped
+scalar $r_t$ already carries a implicit gradient of the numerical interpolant through the unclamped
 $\psi=0$ crossing. In the unified family $r_t$ is a function of $(g, W_0)$; the
 same implicit-function-theorem treatment of the $\psi=0$ crossing carries over
 to the $g$ generalization unchanged.

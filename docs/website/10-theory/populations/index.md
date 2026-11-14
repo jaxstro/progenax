@@ -7,8 +7,8 @@ description: "progenax's unified MultiComponentCluster — one differentiable mo
 
 ```{seealso}
 For single-component clusters built from one IMF + one profile + one
-DF, see the chapter families [](../spatial-profiles/index.md),
-[](../velocity-dfs/index.md), and [](../imfs/index.md). This chapter
+DF, see the page groups [](../spatial-profiles/index.md),
+[](../velocity-dfs/index.md), and [](../imfs/index.md). This section
 covers the case where a single IC contains *multiple* stellar
 populations sharing **one** self-consistent gravitational potential.
 ```
@@ -92,9 +92,18 @@ is engine machinery rather than Monte-Carlo scatter), agree to a radial
 KS distance of $2\times 10^{-4}$ and a velocity-dispersion-profile
 deviation of $3\times 10^{-4}$.
 
+:::{seealso} Engine A accuracy and gradients
+The [Engine A validation page](../../50-validation/multimass-equilibrium.md)
+records the retained physical checks and nine-case IMF-to-sampling derivative
+matrix. [Adjoint and randomness conventions](../../20-architecture/differentiability.md#engine-a-ad)
+distinguish fixed-realization derivatives from population-expectation gradients.
+Those bounded checks do not qualify every component mixture or inference target.
+:::
+
 ## The core principle: per-component equilibrium, no rescale
 
-Every `MultiComponentCluster` IC satisfies, **per component**,
+For a stationary component with a vanishing boundary pressure term, the
+continuum virial relation is
 
 ```{math}
 :label: per-component-virial
@@ -104,16 +113,15 @@ W_j = -\int \rho_j\, r\,\frac{\mathrm{d}\Phi}{\mathrm{d}r}\, \mathrm{d}^3r
 \;\;\text{(Clausius, shared $\Phi$)},
 ```
 
-and this **emerges from the DF** — there is no external virial rescale
-anywhere in the pipeline. This matters because joint rescaling cannot
+where $T_j$ is component kinetic energy, $W_j$ its gravitational virial term,
+$\rho_j$ its density and $\Phi$ the shared gravitational potential. This is a
+continuum relation; finite samples have statistical scatter, and hard-truncated
+Engine B profiles require the [boundary qualification](eddington-engine.md).
+The sampler applies no external virial rescale. This matters because joint rescaling cannot
 fix a multi-component IC: rescaling all velocities to set the *global*
 $Q = 0.5$ moves every individually-correct component *away* from its
-own equilibrium. (Precisely this failure — feeding each sub-population's
-DF the full cluster mass, then relying on a rescale — was the physics
-bug that retired progenax's legacy two-component generator.) Both
-engines instead prove $Q_j = 0.5$ by exact quadrature oracles that are
-deliberately independent of the sampled draws, and the sampled clusters
-are checked *unscaled*.
+own equilibrium. Independent quadrature and sampled-moment comparisons are recorded on the
+engine-specific validation pages.
 
 ## Map of the section
 
@@ -156,6 +164,45 @@ Each component composes with the modifier layers:
 `sample_cluster` returns an `ICResult` whose `component_id` labels each
 star's generating component, so per-population diagnostics (radial
 profiles, $\sigma_j(r)$, $Q_j$, $\Lambda_{\rm MSR}$) are one mask away.
+
+## Finite-population expectations
+
+The total mass of a sampled catalogue sets its velocity normalization. A
+mass-weighted velocity observable therefore retains a correlation between
+each star's mass and the catalogue mass. Let $N$ be a fixed positive star count,
+$m_j$ the representative mass of component $j$, and $\pi_j$ its normalized
+number probability. Independent component labels give
+$M=\sum_{i=1}^N m_i$, with one-star moments
+$\mu_1=\sum_j\pi_jm_j$ and $\mu_2=\sum_j\pi_jm_j^2$.
+Expanding the square separates the $N$ self terms from the $N(N-1)$ cross terms:
+
+:::{include} ../../15-model-reference/_catalogue-mass-squared.md
+:::
+
+This number-weighted $\mu_1$ differs from the central-density-weighted mean
+mass used by the Engine A segregation law. The expression has units of mass
+squared and integrates the labels exactly.
+
+For Engine A, squared speeds scale as
+$|\boldsymbol v_i|^2=A_0 M w_j^2 u_i^2$ conditional on component $j$.
+Here $u_i$ is dimensionless speed, $w_j$ the component velocity-scale ratio,
+and $A_0=G/(9r_c\mu_{\mathrm{tot}})$, where $G$ is the gravitational constant,
+$r_c$ the core scale radius and $\mu_{\mathrm{tot}}$ the dimensionless
+equilibrium mass integral. Define $q_j=\mathbb{E}[w_j^2u_i^2\mid j]$,
+$K_1=\sum_j\pi_jm_jq_j$ and $K_2=\sum_j\pi_jm_j^2q_j$.
+With kinetic energy $T=\tfrac12\sum_i m_i|\boldsymbol v_i|^2$ in the model
+rest frame, conditioning on one star's label gives
+$\mathbb{E}[M\mid j]=m_j+(N-1)\mu_1$, hence
+
+:::{include} ../../15-model-reference/_catalogue-kinetic.md
+:::
+
+The units are mass times velocity squared. Replacing $M$ by an independent
+mean $N\mu_1$ drops the covariance contribution $A_0(K_2-\mu_1K_1)$.
+These local derivations assume no recentering, selection or virial rescale.
+`estimate_mass_squared_and_kinetic` integrates the labels and samples the
+conditional kinetic moment. Its [bounded numerical qualification](../../50-validation/multimass-equilibrium.md#squared-mass-and-mass-weighted-kinetic-expectation)
+does not certify broader domains or precision for the general scalar API.
 
 ## Implementation, validation & references
 

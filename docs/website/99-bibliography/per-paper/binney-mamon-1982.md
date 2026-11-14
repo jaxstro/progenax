@@ -121,13 +121,12 @@ $\sigma_{\rm los}=\sigma_{\rm pm,R}=\sigma_{\rm pm,T}$ — the correct $\beta=0$
 {eq}`bm82-los-kernel`; the $\Sigma$ normalisation is the forward partner of their Eq. (2) Abel
 pair. No physics discrepancy in the $\sigma_{\rm los}$ / $\Sigma$ channels.
 
-The **only** issue is *provenance, not formula*: the `project_dispersion` docstring (L678, L682,
-L825 "B&M82 kernels") and the module header (L11–13, L21–22) credit *all three* projection
-kernels to Binney & Mamon (1982), but BM82 contains the line-of-sight kernel **only**. The
-proper-motion kernels $(1-\beta+\beta R^2/r^2)$ and $(1-\beta)$ are the standard later extension
-(Leonard & Merritt 1989, ApJ 339, 195; Strigari, Bullock & Kaplinghat 2007; Mamon & Łokas 2005).
-This is a docstring/citation fix for Phase 2 — **no source-code logic change** — flagged here for
-the closeout, not fixed in this note's pass.
+The current module and public `project_dispersion` docstring distinguish
+BM82's LOS kernel from the Strigari et al. (2007) proper-motion kernels.
+The older attribution of all three channels to BM82 has been corrected.
+The line-number references above describe the historical inspection snapshot;
+function and kernel names identify the current owners. No new primary-paper
+verification is implied by this source reconciliation.
 
 ## Use in progenax
 

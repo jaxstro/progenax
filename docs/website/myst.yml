@@ -159,6 +159,7 @@ project:
         - file: 30-api/diagnostics.md
         - file: 30-api/dynamics.md
         - file: 30-api/protocols.md
+        - file: 30-api/stellar.md
         - file: 30-api/full-symbol-index.md
     - title: How-to recipes
       children:

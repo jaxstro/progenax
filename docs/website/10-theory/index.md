@@ -5,27 +5,11 @@ description: Roadmap for the theory section — physical and mathematical founda
 
 # Theory & methods
 
-This section is the scientific heart of progenax: every model the
-package implements, derived from first principles, anchored on its
-canonical references, and accompanied by the implementation choices
-that made the model practical to differentiate through.
-
-Every chapter follows the same template:
-
-1. **Physical motivation** — what observational phenomenon the model
-   captures and why it matters.
-2. **Mathematical formulation** — closed-form derivations, ODEs, or
-   sampling procedures, written so a non-specialist astronomer can
-   follow the argument without needing to fall back on the source paper.
-3. **Implementation in progenax** — the class signature, the JAX
-   patterns used to keep it differentiable, and any historical bugs
-   that future readers should know about.
-4. **Domain of validity and caveats** — where the model fails,
-   numerical-safety clips, and which alternative model to reach for
-   when this one breaks.
-5. **References** — `{cite}`-rendered links to the canonical paper(s),
-   at least one pedagogical review, and any progenax-internal note
-   the chapter draws on.
+These chapters explain the physical models, their assumptions, and the numerical
+choices used in Progenax. Read each model alongside its implementation and validation
+references. Theory develops the physical relations; method notes explain how they
+are evaluated and sampled. The API reference owns signatures, and architecture
+pages explain software organization and JAX integration.
 
 ## Suggested reading order
 
@@ -35,7 +19,7 @@ order — each step builds on the conventions and models of the ones
 before it:
 
 1. [](ic-philosophy.md) — **start here.** Defines what an "initial
-   condition" *is* in progenax (the three orthogonal ingredients —
+   condition" *is* in progenax (the three ingredients —
    density, velocity DF, masses), the virial-$Q$ convention, units, and
    the COM frame. Everything downstream assumes these conventions.
 2. **Spatial profiles**, in increasing generality:
@@ -45,15 +29,13 @@ before it:
    [](spatial-profiles/lowered-model-family.md) (the unified
    Woolley/King/Wilson family) →
    [](spatial-profiles/multimass-equipartition.md) (multi-mass
-   equilibrium). Plummer first because it is the analytic anchor the
-   others are calibrated against; the family and multimass pages last
+   equilibrium). Plummer first because its analytic relations make the sampling steps explicit; the family and multimass pages last
    because they generalize King.
 3. [](velocity-dfs/index.md) — **how each density is given velocities.**
-   A profile only becomes an equilibrium IC once paired with a matching
-   velocity DF, so read this directly after the profiles it completes.
-4. [](imfs/index.md) — **how stars get masses.** The third IC ingredient,
-   independent of the spatial/velocity structure; from canonical IMFs to
-   binary-aware and environment-dependent variants.
+   Equilibrium requires a compatible density, potential, and DF; read this
+   directly after the spatial profiles.
+4. [](imfs/index.md) — **how stars get masses.** Mass sampling can be independent of positions in an unsegregated model;
+   mass segregation and multi-mass equilibria introduce correlations.
 5. [](binaries/index.md) — **multiplicity.** Builds on the IMF: orbital
    elements, period/eccentricity distributions, and resolving binaries
    into component kinematics.
@@ -61,9 +43,9 @@ before it:
    Tidal truncation, fractal/substructured ICs, and mass-segregation
    layers that act *on top of* a base profile, plus the diagnostics that
    measure them.
-7. [](populations/index.md) — **composite clusters.** The capstone:
-   multi-component populations sharing one self-consistent potential,
-   which assembles everything above into a single equilibrium model.
+7. [](populations/index.md) — **composite clusters.** Composite populations require an explicit treatment of their shared
+   gravitational potential and component distributions; assembling components
+   does not by itself establish equilibrium.
 
 For developers extending the package, pair each theory chapter with the
 [architecture section](../20-architecture/index.md) — see [Reading
@@ -96,21 +78,13 @@ paths](#reading-paths) below.
   - Multi-component clusters and other composite distributions.
 ```
 
-## What this section is *not*
+## Theory, methods, and implementation
 
-Theory chapters describe *what the package computes and why it is correct*.
-They deliberately do not describe *how to use the API* — that lives in
-[](../30-api/index.md). They also do not describe *what the package
-chose not to do*; that level of architectural rationale lives in
-[](../20-architecture/index.md). When a chapter needs to point at an
-implementation detail, it cross-links to the API page rather than
-duplicating signatures.
-
-The boundary between theory and architecture is sometimes fuzzy. As a
-working rule: if the chapter content is invariant under a JAX-to-
-PyTorch port, it belongs in theory. If it depends on JAX-specific
-patterns (`lax.scan`, `stop_gradient`, smart dispatch), it belongs in
-architecture.
+Theory pages derive the physical relations and state their assumptions. Brief
+method notes connect those relations to numerical sampling, including approximations
+and endpoint treatment. Function signatures belong in the [API reference](../30-api/index.md);
+software ownership and JAX execution patterns belong in [architecture](../20-architecture/index.md).
+The [validation pages](../50-validation/index.md) report the checks actually performed.
 
 (reading-paths)=
 

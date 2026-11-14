@@ -24,7 +24,9 @@ The truth model (the science-headline mix of the
 \underbrace{\text{EFF}(a=0.8\,\text{pc},\,\gamma=5,\,r_t=9\,\text{pc})}_{\text{core, } 40\%,\ m_j=1.0\,\Msun,\ \text{isotropic}}
 ```
 
-sampled with $N = 3\times10^4$ stars. The EFF core shape $(a,\gamma,r_t)$, the
+sampled with $N=3\times10^4$ stars in the retained June 11, 2026 run.
+These are historical demonstration results, not a fresh execution or a
+stationarity/calibration verdict for the current source. The EFF core shape $(a,\gamma,r_t)$, the
 stellar-mass labels $m_j$, and the core's isotropy are held fixed; only
 $(t, r_a, r_h)$ are recovered.
 
@@ -32,7 +34,7 @@ $(t, r_a, r_h)$ are recovered.
 
 **Anisotropy (Osipkov-Merritt).** The halo's DF depends on energy and angular
 momentum only through $Q = E - L^2/(2 r_a^2)$, which makes the velocity
-ellipsoid isotropic in the centre and increasingly radial outside $r_a$. The
+ellipsoid isotropic in the center and increasingly radial outside $r_a$. The
 **Binney anisotropy** has the closed form
 
 ```{math}
@@ -53,14 +55,16 @@ folded in:
 :label: b3-sigma
 \sigma_{1\mathrm D, j}^2(r) = \frac{\langle v^2\rangle_j(r)}{3},
 \qquad
-\langle v^2\rangle_j(r) = \frac{m_{2,j}(r)}{m_{0,j}(r)}
+\langle v^2\rangle_j(r) = v_{\rm scale}^2\,\frac{m_{2,j}(r)}{m_{0,j}(r)}
 \left(\frac13 + \frac23\,\frac{1}{1 + r^2/r_{a,j}^2}\right),
 ```
 
-where $m_{p,j}(r) = \int_0^{\sqrt{2\Psi}} w^{p} f_j\!\big(\Psi - \tfrac12 w^2\big)\,dw$
-are the stretched-frame speed moments. This is the **verbatim** oracle the Engine
+where $m_{p,j}(r) = \int_0^{\sqrt{2\Psi}} w^{p+2} f_j\!\big(\Psi - \tfrac12 w^2\big)\,dw$
+are the auxiliary-speed moments, including the speed-space Jacobian $w^2$.
+Here the potential and $w$ are dimensionless; $v_{\rm scale}$ supplies physical
+velocity units. This is the oracle the Engine
 B validation suite checks against sampled velocities. Physical units come from
-the engine's own velocity scale $v = \sqrt{G M_{\rm sampled}/(4\pi\mu)}\,s$,
+the engine's velocity scale $v_{\rm scale}=\sqrt{G M_{\rm sampled}/(4\pi\mu)}$,
 anchored to the *measured* total mass (never an input $M$).
 
 **Why $\sigma(r)$ and $\beta(r)$ together recover all three.** The halo scale
@@ -116,13 +120,14 @@ fixed rather than recovered.** Because $r_t$ is concretized to the EFF extent an
 passed explicitly into every traced rebuild, the recovered $r_h$ never has to
 re-derive the cluster's outer boundary — which is what keeps the build traceable
 and removes the strongest potential degeneracy ($r_h$ vs domain extent). The three
-recovered parameters then come out nearly orthogonal ($\rho\approx0$) precisely
-because each is pinned by a distinct, confound-free observable. The total mass
+reported Fisher correlations are small at this particular solution and
+adopted weighting. That local result does not establish independence or
+absence of degeneracy for other mixtures or uncertainty models. The total mass
 $M_{\rm fixed}$ is likewise an *exactly-known anchor*; in a real cluster it is
 itself uncertain and partly the quantity one wants.
 ```
 
-## Result — joint MLE + Fisher (freshly run, ALL PASS)
+## Retained joint MLE and Fisher result (2026-06-11)
 
 Measured 2026-06-11 ($N=3\times10^4$, three dispersed Adam starts; exit 0):
 
@@ -155,13 +160,14 @@ Supporting diagnostics, all measured in the same run:
   artifact.
 - **Realizability.** Rebuilding Engine B at $\hat\theta$ gives DF positivity
   margins $f_{\min,j} = [0.085,\ 1.16\times10^{-4}]$, both $\ge -10^{-3}$ — the
-  recovered model is a genuine equilibrium, not a negative-DF fiction.
+  candidate DF tables pass that nonnegativity margin; the hard-edge hybrid
+  qualification still applies.
 - **Self-consistency.** The analytic prediction at truth matches the binned data
-  to $\max|{\rm dev}/{\rm SE}| = 2.34$ over all 48 populated cells — no
-  systematic oracle/binning bias.
+  to $\max|{\rm dev}/{\rm SE}|=2.34$ over 48 populated cells. One
+  realization passing this check does not establish absence of systematic bias.
 - **Near-orthogonality.** Gauss-Newton Fisher correlations
   $\rho(r_a, r_h) = +0.03$, $\rho(t, r_a) = -0.04$ (condition number $13.4$):
-  the three parameters are independently constrained.
+  these are local correlations under the adopted error model.
 
 ## Figure
 
@@ -194,7 +200,8 @@ ellipses are nearly axis-aligned, reflecting the near-zero correlations.
   edge offset no ergodic $f(E)$ carries exactly; the resulting small
   sub-equilibrium is quantified (not eliminated) on the
   [Engine B validation page](../50-validation/engine-b-eddington.md). It does not
-  bias the parameter recovery, which is gated on the $3\sigma$ pulls above.
+  by itself establish bias-free recovery. The quoted single-realization
+  $3\sigma$ pull gate does not test ensemble calibration.
 - **Cost is MLE-compile-dominated.** End-to-end $\sim 3.7$ min: the warm
   likelihood-and-gradient eval is $0.14$ s, but each of the three Adam runs is a
   jit-compiled 400-step `lax.scan` whose body rebuilds Engine B and backprops, so
@@ -203,8 +210,9 @@ ellipses are nearly axis-aligned, reflecting the near-zero correlations.
   EFF shape $(a,\gamma)$ and its isotropy ($r_a=\infty$) are fixed inputs, as is the
   two-component structure with masses $[0.5,1.0]\,M_\odot$.
 - **Approximate $\beta$-channel errors; single seed.** The anisotropy channel's
-  standard error is a conservative delta-method heuristic $\propto(1+|\beta|)/\sqrt n$
-  (used only as a weight, not a loosened gate), and the recovery is reported for a
+  standard error is an adopted delta-method heuristic $\propto(1+|\beta|)/\sqrt n$
+  without an ensemble calibration of its coverage. Sigma and beta summaries
+  come from the same stars, and their joint covariance is not fully modeled; and the recovery is reported for a
   **single** truth draw (`PRNGKey(0)`) — there is no multi-seed robustness ensemble
   (unlike B2's grid).
 ```

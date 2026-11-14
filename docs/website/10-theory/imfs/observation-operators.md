@@ -1,6 +1,6 @@
 ---
 title: Observation operators
-description: How the choice of observation operator (mass-addition, photometric flux-addition, multi-band CMD) sets the magnitude — but not the existence — of binary contamination bias on inferred IMF slopes.
+description: Mass-addition and photometric observation operators, their distinct Jacobians, and the limits of current binary-aware inference evidence.
 ---
 
 # Observation operators
@@ -15,24 +15,21 @@ each operator, see [](binary-aware-likelihood.md).
 
 The binary-aware likelihood {eq}`ba-likelihood` was derived assuming
 the **mass-addition** observation operator $m_{\mathrm{sys}} = m_1 +
-m_2$. This operator gives the *largest possible* binary distortion —
-it represents the case where the survey measures the true dynamical
-mass of every system. Real photometric and CMD-based surveys measure
-something different, with smaller distortions per unresolved binary,
-but the *existence* of bias remains: the naive single-star likelihood
-becomes confidently wrong at large $N$ for *every* operator, just at
-different sample sizes.
+m_2$. It describes a total dynamical mass when the observations
+constrain that quantity. Photometric and CMD-based surveys measure
+combined fluxes instead. Their induced mass functions and inferred
+slope biases depend on the stellar model, noise, selection and
+likelihood; a per-system mass-shift bound does not order all those biases.
 
-This chapter catalogues the three observation operators progenax
-supports, derives the photometric-mass formula that approximates
-flux-addition, and quantifies the bias at each level for the same
-underlying $\alpha = 2.35$ population.
+This chapter describes the implemented mass-addition model and two
+planned photometric operators. It derives a simple flux-addition
+approximation; it does not report executed photometric or CMD recovery.
 
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers learning how the *measurement* (dynamical mass vs flux vs CMD) sets the size of binary contamination bias; no prior survey-forward-model literature assumed.
 **Prerequisites:** the [binary-aware IMF chapter](binary.md) (the bias and likelihood these operators feed).
-**You'll get:** the three observation operators (mass-addition, photometric flux-addition, multi-band CMD), the $m_{\mathrm{phot}} \approx m_1(1+q^s)^{1/s}$ formula, the resulting bias hierarchy, and which operators are live vs planned.
+**You'll get:** the three observation operators (mass-addition, photometric flux-addition, multi-band CMD), the $m_{\mathrm{phot}} \approx m_1(1+q^s)^{1/s}$ formula, the assumptions needed to interpret bias, and which operators are live vs planned.
 :::
 
 ## Three operators
@@ -45,42 +42,37 @@ underlying $\alpha = 2.35$ population.
   - Bias scaling
 * - **Mass addition** $m_{\mathrm{sys}} = m_1 + m_2$
   - True dynamical mass (eclipsing, SB2, astrometric)
-  - Maximum bias — sets the upper bound
+  - Direct total-mass observable; inference bias is model dependent
 * - **Photometric** $m_{\mathrm{phot}} = \mathcal{M}^{-1}[F_b(m_1) + F_b(m_2)]$
   - Single-band flux inverted through a mass-luminosity relation
-  - Reduced bias; suppresses unequal-mass companions
+  - For a luminosity power law with exponent $s>1$, a smaller per-system mass shift
 * - **Multi-band CMD** $\mathbf{m}_{\mathrm{obs}} = \{-2.5\log[F_b(m_1) + F_b(m_2)] + \mathrm{ZP}\}_b$
   - Multi-band magnitudes per LSST/HST/JWST
-  - Smallest per-system bias; full forward model required
+  - A vector observable; requires its own stellar and survey forward model
 ```
 
-The default `BinaryIMF` uses mass addition because it is the simplest
-to expose to the marginalisation likelihood and provides the
-worst-case binary contamination. Photometric and CMD operators are
-provided for use cases where the survey forward model is needed —
-LSST-style cluster catalogues being the canonical target.
+`BinaryIMF` supplies component masses; its system-mass helper adds
+them. The recovery scripts use that observable. The photometric and
+CMD operators below are proposed survey-forward-model layers, not
+current public `BinaryIMF` implementations.
 
 ## Mass addition: dynamical mass
 
-For eclipsing binaries (which provide both component masses via
-light-curve fitting), SB2 spectroscopic orbits (which provide the
-mass ratio and mass sum), and astrometric binaries (which provide
-both component masses via orbital astrometry), the measured quantity
-is the *true* dynamical mass:
+When a dynamical analysis constrains both component masses, its total
+system mass is:
 
 ```{math}
 :label: msys-dyn
 m_{\mathrm{sys}} \;=\; m_1 + m_2 \;=\; m_1\,(1 + q).
 ```
 
-In this regime, the binary-aware likelihood {eq}`ba-likelihood` is
-exact. progenax's default `BinaryIMF` uses it without modification.
-
-Mass addition is the most consequential observation operator for
-benchmarking binary-aware inference because it produces the largest
-distortion. If you can demonstrate unbiased recovery under mass
-addition, the same machinery applied to a less-aggressive operator
-will perform at least as well.
+The mass-addition change of variables in {eq}`ba-likelihood` is exact
+for the stated primary and companion model. Observational uncertainty,
+incompleteness and multiplicity misspecification are separate terms.
+An SB2 radial-velocity orbit alone measures mass combinations involving
+inclination; eclipses, astrometry or other information may be needed
+to infer absolute masses. Success for this operator does not qualify
+a photometric likelihood.
 
 ## Photometric: flux addition
 
@@ -110,8 +102,9 @@ For the rough main-sequence scaling $L \propto m^s$ with $s \approx
 m_{\mathrm{phot}} \;\approx\; m_1\,(1 + q^s)^{1/s}.
 ```
 
-The key consequence: because $s$ is large, the secondary contributes
-appreciably to the flux only when $q$ is near 1.
+For $s>1$, $m_1\le m_{\mathrm{phot}}\le m_1+m_2$, with a reduced
+secondary contribution at small $q$. This is a bound on each inferred
+mass in this simplified stellar model, not on a fitted IMF slope.
 
 ```{list-table} Photometric mass at $s = 3.5$.
 :header-rows: 1
@@ -126,40 +119,39 @@ appreciably to the flux only when $q$ is near 1.
   - $0.75$ mag brighter
 * - 0.5
   - $1.5\,m_1$
-  - $1.04\,m_1$
-  - Companion barely changes flux
+  - $1.0245\,m_1$
+  - $0.092$ mag brighter
 * - 0.3
   - $1.3\,m_1$
-  - $1.01\,m_1$
-  - Negligible photometric effect
+  - $1.0042\,m_1$
+  - $0.0159$ mag brighter
 * - 0.1
   - $1.1\,m_1$
-  - $1.0003\,m_1$
-  - Undetectable
+  - $1.00009\,m_1$
+  - $0.000343$ mag brighter
 ```
 
-Equal-mass binaries shift photometric mass by $\sim 22\%$ — still
-substantial. Unequal-mass binaries with $q \le 0.3$ are essentially
-invisible to photometry. This is why photometric IMF inferences are
-generally *less* contaminated than dynamical-mass inferences: the
-operator's nonlinearity suppresses the contribution from low-$q$
-companions, which are the most numerous in the {cite:t}`MoeDiStefano2017`
-distribution.
+In this example, equal-mass binaries shift the inferred mass by about
+22%, while small-$q$ companions have a smaller effect. Detectability
+depends on photometric precision, contrast and the stellar model;
+these numbers alone do not determine a survey's slope bias.
 
 A future photometric likelihood layer can swap the mass-addition
 operator for {eq}`m-phot-approx` inside the marginalisation
-likelihood. The integral structure of {eq}`ba-likelihood` remains the
-same; only the relationship between $m_1$, $q$, and the *observable*
-changes. The current `BinaryIMF` does not export a
+likelihood. For $M=m_1 A(q)$ with
+$A(q)=(1+q^s)^{1/s}$, the candidate primary becomes $M/A(q)$ and the
+Jacobian becomes $1/A(q)$ rather than $1/(1+q)$. For a general
+isochrone mapping the derivative of that mapping supplies the
+Jacobian. The current `BinaryIMF` does not export a
 `with_photometric_operator()` helper.
 
-```{warning}
-**Photometric bias is smaller, but not zero.** The naive single-star
-likelihood applied to photometric masses still becomes confidently
-wrong, just at larger $N$. The transition $N$ where the 95% CI
-excludes the truth is roughly $4\times$ larger for photometric than
-mass-addition (i.e. $N \sim 4\times 10^4$ vs $1\times 10^4$). The
-correction is qualitative, not categorical.
+```{note}
+A homogeneous mass operator need not change a scale-free IMF slope:
+with mass-independent binary statistics and away from support
+boundaries, $M=m_1 A(q)$ preserves a primary power-law index. The
+[primary/system derivation](binary.md) gives this counterexample for
+mass addition. Turnover, finite bounds and survey selection can
+produce bias; its sign and size require the specified calculation.
 ```
 
 ## Multi-band CMD: full forward model
@@ -214,34 +206,16 @@ No `CMDOperator` implementation is currently exported from
 `src/progenax/`; this section is design guidance for a future
 survey-forward-model layer.
 
-## A bias hierarchy
+## Evidence needed for operator comparisons
 
-```{list-table} Approximate $|\Delta\alpha|$ at $N$ values, Salpeter $\alpha = 2.35$.
-:header-rows: 1
-
-* - Operator
-  - $N = 10^3$
-  - $N = 10^4$
-  - $N = 10^5$
-* - Mass addition
-  - 0.04
-  - **0.08** (CI excludes truth)
-  - 0.10 (firmly confidently wrong)
-* - Photometric ($s = 3.5$)
-  - 0.02
-  - 0.04
-  - **0.08** (transition to confidently wrong)
-* - Multi-band CMD
-  - 0.01
-  - 0.02
-  - 0.04
-```
-
-Mass addition fails at $N \sim 10^4$. Photometric fails at $N \sim
-10^5$. Multi-band CMD fails at $N \gtrsim 10^6$. Every operator
-eventually produces "confidently wrong" naive posteriors at large
-enough $N$; the binary-aware likelihood eliminates the bias at all $N$
-regardless of operator.
+The retained recovery evidence uses mass addition. Photometric and
+CMD recovery are unperformed here, so there is no measured bias table
+or sample-size threshold for those operators. A comparison must hold
+the primary population and binary statistics fixed, define the stellar
+and survey models, and assess the resulting likelihood under each
+observable. A correct forward likelihood can remove the selected
+misspecification; it does not guarantee zero finite-sample bias,
+identifiability or numerical accuracy.
 
 ## Resolved/unresolved selection
 
@@ -277,8 +251,9 @@ are routinely resolved) and for adaptive-optics or space-based surveys
 
 ## Domain of validity
 
-1. **Mass-addition is exact** for SB2 / eclipsing / astrometric
-   binaries; an over-estimate of the bias for photometric surveys.
+1. **Mass addition defines a total dynamical mass.** Whether a survey
+   constrains it depends on the data and dynamical inference; it is
+   not a general upper bound on photometric slope bias.
 2. **Photometric approximation $L \propto m^s$ is rough.** Real
    isochrones depart from a single power law; for production work,
    use the multi-band CMD operator with a real isochrone.
@@ -287,11 +262,10 @@ are routinely resolved) and for adaptive-optics or space-based surveys
    $\alpha$ in non-trivial ways. The recommendation is to *jointly*
    infer $(\alpha, \tau, Z, d, A_V)$ rather than treat the latter as
    fixed.
-4. **All operators ignore stellar evolution.** A binary with one
-   evolved component (giant, white dwarf) has flux properties not
-   captured by main-sequence isochrones. progenax flags this as a
-   known limitation; full treatment requires coupling to a
-   stellar-evolution code (gravax, startrax in the future).
+4. **The simple main-sequence approximation omits evolution.** An
+   evolved component can violate its mass-luminosity relation. A
+   future CMD model must specify an age-dependent stellar model;
+   flux addition itself does not require a main-sequence assumption.
 
 ## Implementation, validation & references
 
@@ -303,8 +277,7 @@ are routinely resolved) and for adaptive-optics or space-based surveys
   [IMF API](../../30-api/imf.md) and the
   [add-binary-population recipe](../../40-howto/add-binary-population.md).
 - **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
-  exercises the mass-addition operator (the worst-case upper bound on
-  the bias); the reduced-bias photometric / CMD operators have no
+  exercises the mass-addition operator; the reduced-bias photometric / CMD operators have no
   dedicated validation page yet, since they are not implemented.
 - **Primary sources:** the mass-addition operator follows from
   elementary dynamics; the flux-addition context is {cite:t}`Maschberger2013`

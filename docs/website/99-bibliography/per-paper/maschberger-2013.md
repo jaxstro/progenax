@@ -79,7 +79,10 @@ the Salpeter exponent as $\alpha = +2.35$ in the linear convention (§2.1).
 
 ## Notes
 
-**progenax default IMF.** The closed-form inverse CDF makes it the only canonical IMF
-that samples in $\mathcal{O}(1)$ per particle without Newton iterations — important for
-fast, differentiable IC generation. The infamous "peak" of the $L_3$ pdf is at the scale
-parameter $\mu$, which is *not* where the two power laws cross (Table 1, Eq. 11).
+**progenax default IMF.** The implementation uses its analytic inverse directly,
+without Newton iterations. Piecewise power laws also have analytic inverses;
+Maschberger combines this property with a smooth density inside positive support
+away from the singular parameter values $\alpha=1$ and $\beta=1$. The mass
+scale $\mu$ sets the transition between asymptotic regimes; it is not itself
+a measured PDF peak. Sampling cost and inference convergence require separate
+workload-specific evidence.

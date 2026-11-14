@@ -1,5 +1,14 @@
 # Binary-Aware IMF Recovery via NUTS
 
+:::{note} Historical proposal (2026-02-13)
+The mixture-likelihood workflow and expected recovery results below are a dated
+proposal, not a current execution or qualification record. Its synthetic system
+mass is the sum of component masses; that is distinct from a mass inferred from
+unresolved photometry. Current [observation operators](../10-theory/imfs/observation-operators.md)
+and [binary-IMF validation](../50-validation/binary-imf.md) own those distinctions
+and the available evidence. The archived inference code has not been rerun.
+:::
+
 **Goal:** Demonstrate that ignoring unresolved binaries biases the IMF slope, and that a Moe+17-aware mixture likelihood eliminates this bias.
 
 **Context:** For the LSST-DA Early Science proposal. Companion to the IMF-only recovery figure (`validate_hmc_imf_recovery.py`). This figure shows progenax handles the IMF-binary degeneracy that LSST data will contain.

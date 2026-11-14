@@ -5,10 +5,48 @@ All notable changes to progenax are documented here. This project adheres to
 
 ## 0.1.0 (unreleased)
 
-First public-ready release candidate. This cycle resolves the release blockers from
-the 2026-06-11 pre-release adversarial audit
+Unreleased research software. Public-release qualification remains open. The
+earlier release-candidate work addressed findings from the 2026-06-11 adversarial audit
 (`docs/reviews/2026-06-11-prerelease-adversarial-audit.md`), moving progenax from Beta
 toward Release Candidate. Finding IDs (R*, J*, S*, A*, T*, D*, M*) refer to that report.
+
+### November 2026 numerical and release review
+
+- Correct the regular central curvature and finite-radius initialization of King,
+  Michie, LIMEPY, and coupled LIMEPY Poisson solves. Saloni identified the King
+  center-boundary concern. The normalized equation and factor of 9 are unchanged;
+  the regular curvature is -3. Public signatures and return shapes are preserved.
+- Evaluate shallow King densities with a positive convergent series and remove the
+  absolute central-density cutoff that disabled gravity in shallow models.
+- Preserve analytical-IC parameter tracing, sanitize unused single-star orbital
+  elements, repair three-dimensional approximate-Q coordinates and matrix inverse
+  luminosity input, and support traced IMF truncation bounds.
+- Restore power-law mass-ratio exponent derivatives at the logarithmic limit and
+  calculate independent power-law mean system masses with the exact mass-ratio mean.
+- Repair shallow Michie density cancellation and normalization. Resolved density
+  and DF-scale checks do not qualify shallow velocity sampling.
+- Enforce BaseIMF finite-support probabilities, preserve Chabrier parameter tracing
+  and its logarithmic limit, and evaluate the tapered power law with `expm1`.
+- Repair thermal-eccentricity support, Sana exponent derivatives, and inactive
+  circular-branch AD. Preserve retrograde equatorial orbit replay and unit-invariant
+  inverse degeneracy checks; remove floors that distorted valid near-parabolic
+  states. State gradients at exactly unit eccentricity remain outside the elliptic
+  domain. Fixed-grid angular sampling is a numerical approximation.
+- Store analytical-IC numeric metadata as scalar JAX leaves for tracing. Consumers
+  requiring Python scalars for serialization must convert outside transformed code.
+- Continue functional King/EFF potentials with the spherical vacuum field outside
+  their density boundaries. Preserve King's tidal-zero and EFF's infinity-zero
+  conventions; anchor the functional King's last interpolation interval at its
+  actual zero-potential boundary. Profile/CDF/DF arithmetic is unchanged by this
+  exterior repair, and interior grid accuracy remains a separate limitation.
+- Reject changed source/test inputs as fresh coverage and reject timeout, unknown,
+  boolean, missing, or empty validation results as a passing release gate.
+- Restrict source distributions to core source and bounded test support; exclude
+  private research, experimental code, and large local artifacts. No release upload
+  is implied by an artifact build.
+- Bound current documentation's differentiation, equilibrium, and release claims.
+  Population-expectation gradients, full domain coverage, dependency installation,
+  and publication benchmarks remain release gates.
 
 ### Breaking changes
 

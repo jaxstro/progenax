@@ -6,26 +6,28 @@ description: Install progenax via UV (preferred) or pip — single-environment s
 
 progenax is a JAX-native Python package. It is **not on PyPI**; it
 (and its public sibling `jaxstro`) resolve from a standard
-side-by-side checkout. The recommended installation tool is **UV**,
-which is 10–100× faster than pip for this codebase.
+side-by-side checkout. Use Python 3.13 or newer. The commands below create a
+local environment and explicitly install both checkouts.
 
 ## Quick install (UV — recommended)
 
-Clone progenax and `jaxstro` next to each other (the `[tool.uv.sources]`
-path dependency expects the sibling layout):
+Clone progenax and `jaxstro` next to each other. Project commands such as
+`uv sync` use the sibling path in `[tool.uv.sources]`; the pip-compatible
+commands below pass that checkout explicitly:
 
 ```bash
 git clone https://github.com/jaxstro/jaxstro.git
 git clone https://github.com/jaxstro/progenax.git
 cd progenax
-uv pip install -e ".[dev]"
+uv venv --python 3.13
+uv pip install -e ../jaxstro -e ../jaxstro -e ".[dev]"
 ```
 
 The `[dev]` extra adds the test/lint tooling (pytest, pytest-cov,
 pytest-xdist, ruff, mypy). For a minimal runtime-only install:
 
 ```bash
-uv pip install -e .
+uv pip install -e ../jaxstro -e .
 ```
 
 ## Pip alternative
@@ -34,7 +36,9 @@ uv pip install -e .
 git clone https://github.com/jaxstro/jaxstro.git
 git clone https://github.com/jaxstro/progenax.git
 cd progenax
-pip install -e ".[dev]"
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ../jaxstro -e ".[dev]"
 ```
 
 ## Smoke test
@@ -85,24 +89,18 @@ Two practical consequences if you embed progenax in a larger JAX application:
    downcasts progenax's outputs with warnings and voids the validation
    guarantees. Don't mix regimes.
 
-## GPU support
+## Accelerator support
 
-progenax runs on any JAX-supported device (CPU, GPU, TPU). For GPU:
+Use the CPU environment for the documented float64 checks. Other devices need
+backend-specific numerical, gradient, and performance verification; JAX support
+alone does not qualify a Progenax workflow. Follow the
+[JAX installation guide](https://docs.jax.dev/en/latest/installation.html) for a
+compatible accelerator build and record its versions and precision.
 
-```bash
-# CUDA 12, NVIDIA GPU
-uv pip install -U "jax[cuda12]"
-```
-
-```bash
-# Apple Silicon Metal
-uv pip install jax-metal
-```
-
-GPU/TPU acceleration can give substantial speedups for large $N$
-relative to CPU (the exact factor depends on $N$, hardware, and the
-operation). See [](differentiable-ic.md) for an example HMC chain
-that benefits from GPU.
+The Apple Metal JAX plug-in does not support float64, according to its
+[documented limitations](https://developer.apple.com/metal/jax/). It therefore
+does not support the precision regime qualified here. No accelerator speedup is
+implied by the CPU results.
 
 ## Optional dependencies
 
@@ -119,7 +117,7 @@ that benefits from GPU.
   - numpy + scipy, for the exact (non-differentiable) CW04 `compute_q_parameter` path
 ```
 
-Install only what you need: `uv pip install -e ".[dev,experimental]"`.
+Install only what you need: `uv pip install -e ../jaxstro -e ".[dev,experimental]"`.
 
 ## Next step
 

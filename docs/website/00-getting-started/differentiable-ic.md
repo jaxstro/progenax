@@ -1,25 +1,23 @@
 ---
 title: Taking gradients through an IC
-description: Hands-on tutorial — take `jax.grad` through the IC builder, then run an HMC chain to recover input parameters.
+description: Take a fixed-key Plummer derivative through the IC builder, and identify the separate requirements for posterior inference.
 ---
 
 # Taking gradients through an IC
 
-```{admonition} Executable notebook coming later
-:class: tip
+```{admonition} Running this tutorial
+:class: note
 
-The hands-on **executable** version of this tutorial — `differentiable-ic.ipynb`
-with pre-executed JAX cells, ready to launch in Binder or Colab — is
-a Phase E deliverable still to come. Until then, the prose walkthrough
-below is sufficient to follow along: the core progenax code blocks run
-as-is when copied into a Python session with progenax installed (see
-[](installation.md)); the NumPyro block additionally requires NumPyro.
+Use the [installed float64 environment](installation.md) for the Python examples.
+Keep the random key fixed when comparing a derivative or optimizing a realization.
+Posterior sampling has a separate demonstration linked below, with its own
+assumptions and convergence requirements.
 ```
 
-The headline feature of progenax: every IC parameter is **differentiable**
-through `jax.grad`. This page demonstrates that with a concrete
-example, then shows how the same machinery powers HMC posterior
-inference of cluster parameters.
+This tutorial differentiates a Plummer realization with a fixed random key.
+Its half-mass-radius derivative is a continuous scaling derivative. Other
+parameters, discrete assignments, and population expectations have separate
+[contracts](../20-architecture/differentiability.md).
 
 ## A first gradient
 
@@ -64,7 +62,7 @@ flat near the optimum).
 
 ## A more interesting gradient
 
-The above is too well-behaved to be illustrative. Let's optimise
+The above is too well-behaved to be illustrative. Let's optimize
 $r_h$ to match a *target* total kinetic energy:
 
 ```python
@@ -118,50 +116,26 @@ Most N-body codes are *not* end-to-end differentiable. They use:
 - Mutable state → no JAX trace
 - scipy operations → not in JAX
 
-To compute $\partial \mathrm{KE} / \partial r_h$ in such a code,
-you'd use **finite differences**: compute KE at $r_h$ and $r_h +
-\epsilon$, take the difference, divide by $\epsilon$. This works
-but is slow ($\mathcal{O}(N_{\mathrm{params}})$ extra builds), noisy
-(Monte-Carlo noise dominates for small $\epsilon$), and HMC-incompatible.
-
-progenax's analytic gradients are exact, fast, and HMC-friendly —
-the foundation for cluster-parameter inference.
+Finite differences provide an independent check of
+$\partial \mathrm{KE}/\partial r_h$. Hold the random key fixed and reduce
+the step until truncation error gives way to roundoff or solver error. AD
+differentiates the implemented numerical map; agreement at one step or a finite
+gradient alone does not establish the derivative of the intended physical model.
 
 ## HMC inference: the bigger picture
 
-The same machinery powers full Bayesian inference. Given observed
-cluster data — say, an observed mass distribution — you can infer
-the IMF slope $\alpha$ via:
+A usable likelihood, a prior, and a checked gradient are needed before an IC
+generator can enter a posterior calculation. A differentiable generator alone
+does not define a likelihood for observed stars.
 
-```python
-import numpyro
-import numpyro.distributions as dist
-from numpyro.infer import MCMC, NUTS
-
-def model(observed_masses):
-    alpha = numpyro.sample("alpha", dist.Uniform(0.5, 4.0))
-    log_lik = Maschberger(alpha=alpha).logpdf(observed_masses).sum()
-    numpyro.factor("ll", log_lik)
-
-# Run NUTS on synthetic data
-true_alpha = 2.35
-synth_masses = Maschberger(alpha=true_alpha).sample(jax.random.PRNGKey(0), 1000)
-
-mcmc = MCMC(NUTS(model), num_warmup=500, num_samples=1000)
-mcmc.run(jax.random.PRNGKey(1), observed_masses=synth_masses)
-mcmc.print_summary()
-```
-
-NUTS uses gradients — provided automatically by JAX through the
-progenax IMF — to take large effective steps in parameter space.
-The chain converges in ~500 warmup steps and produces a posterior
-on $\alpha$ centred near the true value.
-
-For the full binary-aware version of this — where the inferred
-$\alpha$ accounts for unresolved binaries — see
-[](../10-theory/imfs/binary.md).
+The existing [IMF and equipartition demo](../60-science-demos/imf-equipartition.md)
+owns the BlackJAX example, its opt-in posterior route, and its stated limits.
+It separates deterministic engineering checks from posterior recovery. Any new
+recovery claim requires convergence diagnostics, including R-hat and effective
+sample size, and representative synthetic populations. No posterior result is
+claimed by the fixed-key gradient examples on this page.
 
 ## Next step
 
 [](imf-sampling.md) walks through the four canonical IMF
-parameterisations.
+parameterizations.

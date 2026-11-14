@@ -5,7 +5,8 @@ description: "The first observational-realism demo. A rotating cluster viewed at
 
 # Rotation & the $\omega$–inclination degeneracy (B8)
 
-The other demos work on *clean* 3-D mocks. This one takes the first step toward
+The quoted numbers are retained measurements, not a fresh inference run.
+This demo starts from a clean three-dimensional mock. This one takes the first step toward
 **observational realism**: a rotating cluster is viewed at an inclination, and the
 recovered rotation depends on a **line-of-sight projection**. The honest result is
 the headline of the realism axis — the mean line-of-sight velocity measures the
@@ -101,7 +102,8 @@ is **rank 1**, with eigenvalues
 — one machine-precision zero (condition number $\sim 10^{16}$). Every $(\omega, i)$
 on the curve $\omega = \hat k/\sin i$ fits the line-of-sight velocities equally well
 (panel c). **Recovering the rotation rate needs an independent inclination** — e.g.
-from the projected flattening — which line-of-sight velocities alone cannot supply.
+from projected flattening only with an additional intrinsic-shape model.
+The mean-velocity statistic used here does not supply that independent information.
 This is the same rank-deficient inverse-problem structure as the
 [birth-environment demo](birth-environment.md), now from projection rather than a
 many-to-one map.

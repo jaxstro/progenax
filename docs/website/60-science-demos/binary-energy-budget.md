@@ -7,7 +7,7 @@ description: "The primordial-binary energy reservoir: build_binary_cluster viria
 
 A cluster with primordial binaries carries **two energy scales**, and conflating
 them is a classic mistake. `build_binary_cluster` virializes the *system
-centres-of-mass* to $Q=0.5$ treating each binary as a single point mass — the
+centers-of-mass* to $Q=0.5$ treating each binary as a single point mass — the
 McLuster scale-separation convention {cite:p}`Kuepper2011_McLuster` — and leaves
 the **internal binary binding energy** as a separate reservoir that the global
 virial scaling never touches. This demo makes that separation explicit and shows
@@ -24,28 +24,25 @@ The two scales, from `binary_energy_budget`:
 ```{math}
 :label: b9-qresolved
 Q_{\rm resolved} = \frac{T}{|W|}\Big|_{\rm resolved\ stars}
-\ \neq\ Q_{\rm com},
+\ \not\equiv\ Q_{\rm com},
 ```
 
-because the resolved ratio mixes the two scales. It is **not** the cluster's virial
-ratio (audit S10): a hard binary's *internal* virial is itself $\approx 0.5$
-(time-averaged), so sampled at random orbital phases $Q_{\rm resolved}$ **scatters
-around 0.5** rather than deflating monotonically. The robust, gated statement is
+because the resolved ratio mixes the two scales. It is a resolved-system energy ratio, distinct from the bulk COM target: a hard binary's *internal* virial is $\langle T\rangle/|\langle W\rangle|=1/2$ for a bound orbit, while
+instantaneously $T/|W|=1-r/(2a)$. Phase can therefore move it above or below
+1/2. A phase average of the ratio is not the ratio of time-averaged energies. The robust, gated statement is
 the energy *separation* — $Q_{\rm com}$ cleanly recovers $0.5$ while
 $|E_{\rm internal}|$ dwarfs $|W_{\rm com}|$.
 
-**Why a young cluster.** Primordial binaries are the population present *at birth*,
-before dynamical processing ionizes the soft ones and hardens the rest. Their
-natural home is therefore a **young** cluster, for which the
-Elson–Fall–Freeman (1987) {cite:p}`ElsonFallFreeman1987` extended power-law profile
-is the standard parametrization — not the King model of an old, relaxed globular.
-So the primary cluster here is EFF ($a=1$ pc, $\gamma=2.5$, $r_t=15$ pc); a
-concentrated King ($W_0=7$) {cite:p}`King1966` appears only in the environment
-figure (below).
+**Profile choice.** The retained primary example uses a finite EFF profile
+($a=1$ pc, three-dimensional $\gamma=2.5$, $r_t=15$ pc), with a King
+$W_0=7$ comparison below. The two fiducials have different half-mass radii;
+they do not isolate age or profile family at fixed size. Primordial binary
+populations can be initialized in either family; later dynamical processing
+requires its own model.
 
 ## What is built
 
-A Plummer-masses-first EFF young cluster of $N_{\rm sys}=2000$ systems, virialized
+A masses-first finite EFF example cluster of $N_{\rm sys}=2000$ systems, virialized
 to $Q=0.5$, with a smooth (differentiable) Maschberger $\alpha=2.3$ primary IMF over
 $[0.08, 100]\,\Msun$ and companions from `IndependentCompanions` (or the full
 Moe & Di Stefano (2017) {cite:p}`MoeDiStefano2017` model). Two controlled sweeps:
@@ -98,22 +95,22 @@ is a known/fixed physical input or a swept/numerical choice.
 scaling never touches** {cite:p}`Kuepper2011_McLuster`. `build_binary_cluster`
 virializes only the system *centres of mass* to $Q=0.5$, treating each binary as a
 single point mass, so $E_{\rm internal}=\sum_b(-Gm_1m_2/2a_b)$ is untouched and
-unbalanced by the bulk scaling. This is why $Q_{\rm com}\approx0.5$ exactly while
+unbalanced by the bulk scaling. The COM ratio matches its requested target within numerical error, while
 $Q_{\rm resolved}$ (computed on the *resolved* stars) is **not** the cluster's
-virial ratio — it mixes the bulk and internal scales, and because a hard binary's
-internal virial is itself $\approx0.5$, $Q_{\rm resolved}$ scatters about 0.5 at
-random orbital phase rather than deflating monotonically. The demo therefore gates
+bulk diagnostic: it includes the internal scale and its phase dependence.
+For a Kepler pair $T/|W|=1-r/(2a)$ instantaneously, so universal upward or
+downward shifts are not implied by adding binary binding energy. The demo therefore gates
 the robust *separation* ($Q_{\rm com}$, reservoir magnitude) and reports
 $Q_{\rm resolved}$ only as a contaminated cautionary diagnostic.
 ```
 
-## Result — freshly run, ALL PASS
+## Retained result (2026-06-12)
 
 Measured 2026-06-12 (CPU/float64, $N_{\rm sys}=2000$, seeds from `PRNGKey(0)`; wall
 $\approx 32$ s; exit 0).
 
 **Hardness sweep (EFF, $f_b=0.5$).** $Q_{\rm com}$ is pinned at $0.5$ to four
-decimals at every point; $|E_{\rm internal}|$ spans **three orders of magnitude**;
+decimals at every point; $|E_{\rm internal}|$ spans more than two orders of magnitude;
 $Q_{\rm resolved}$ scatters (the contamination):
 
 ```{list-table}
@@ -152,9 +149,10 @@ $Q_{\rm resolved}$ scatters (the contamination):
 ```
 
 Across both sweeps the reservoir ratio $|E_{\rm internal}|/|W_{\rm com}|$ stays in
-$[11.6,\ 1.9\times10^{3}]$ — the internal binding **always dwarfs** the cluster
-potential — while $\max|Q_{\rm resolved}-Q_{\rm com}| = 0.257$ confirms the resolved
-ratio is a contaminated proxy. Gate summary:
+$[11.6,\ 1.9\times10^{3}]$ — the internal binding exceeds the cluster
+potential in these retained realizations — while $\max|Q_{\rm resolved}-Q_{\rm com}| = 0.257$ confirms the resolved
+ratio differs from the bulk COM target. Energies in both tables are in
+$M_\odot\,\mathrm{pc^2\,Myr^{-2}}$ (STELLAR). Gate summary:
 
 ```{list-table}
 :header-rows: 1
@@ -226,8 +224,8 @@ claimed here.
 **EFF young-cluster sweeps** (`scripts/demo_binary_energy_budget.py`). **(a)**
 Hardness sweep: $Q_{\rm com}$ pinned at $0.5$ (blue) while $Q_{\rm resolved}$
 (vermilion) scatters around it — the resolved ratio is not the cluster's. **(b)**
-$|E_{\rm internal}|$ (green) towers over $|W_{\rm com}|$ (purple) and grows three
-orders as binaries harden. **(c, d)** Binary-fraction sweep: same $Q_{\rm com}$
+$|E_{\rm internal}|$ (green) towers over $|W_{\rm com}|$ (purple) and grows by more than two
+orders across these period bands. **(c, d)** Binary-fraction sweep: same $Q_{\rm com}$
 pinning, and the reservoir fraction rising with $f_b$, with the realistic
 Moe & Di Stefano population marked (★).
 :::
@@ -251,7 +249,7 @@ $r_h$ for each cluster is annotated.
   binary-burning energy source that halts core collapse — require N-body evolution
   (the deferred gravax forward chain), not these ICs.
 - **$Q_{\rm resolved}$ is a diagnostic, not a gate.** Its exact value is set by the
-  instantaneous orbital phases of the binary sample and scatters around $0.5$; the
+  instantaneous orbital phases and the relative internal/bulk energies; the
   demo gates the robust separation ($Q_{\rm com}$, the reservoir magnitude), and
   *shows* the $Q_{\rm resolved}$ scatter as the cautionary point.
 - **Environment comparison is at characteristic $r_h$, not fixed $r_h$.** EFF and
@@ -259,9 +257,11 @@ $r_h$ for each cluster is annotated.
   (both annotated). The reservoir-fraction difference is driven by $|W_{\rm com}|$
   (the more bound King), disclosed in the table; a controlled-at-fixed-$r_h$ study
   is a refinement, not done here.
-- **Point-mass binaries.** The hardest band ($\log P = 1.5$, $\sim$30 d) keeps $a$
-  well above stellar radii for these masses; the point-mass orbital treatment is
-  valid across the sampled range.
+- **Point-mass and contact assumptions are not qualified by the period alone.**
+  A large semi-major axis does not ensure a safe periapsis for high eccentricity.
+  Compare $a(1-e)$ with the sum of stellar radii and check Roche/contact
+  diagnostics and binary-to-inter-system separation before interpreting the
+  point-mass reservoir physically. No such new audit is claimed here.
 - **Idealized, independent orbital distributions for the sweeps.** The headline
   hardness and $f_b$ sweeps use a flat mass ratio with a $q_{\min}=0.3$ floor and a
   thermal eccentricity — *independent* distributions, not the Moe $P$–$q$–$e$

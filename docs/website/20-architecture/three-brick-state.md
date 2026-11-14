@@ -26,13 +26,10 @@ A simulated stellar system has two distinct kinds of "state":
    physical units, integration scheme. These do not change during
    the simulation.
 
-Mixing the two into a single mutable object is the most common
-N-body-code structure (NBODY6, COSMIC, McLuster all use it). progenax
-deliberately does *not*: it separates them into three Equinox modules
-called the **three bricks**, each immutable, each a PyTree. This
-separation is the keystone of differentiable simulation. This chapter
-documents the three bricks, why they exist, and the rules for using
-them correctly.
+This chapter describes one possible separation into three immutable PyTrees.
+The current Progenax boundary returns physical IC containers; downstream
+integrators own their evolving state and numerical configuration. These
+conceptual names do not define a new Progenax API or an AD restriction.
 
 ## The three bricks
 
@@ -54,7 +51,6 @@ them correctly.
 ```
 
 ```python
-@jax.tree_util.register_pytree_node_class
 class State(eqx.Module):
     positions: Float[Array, "N 3"]
     velocities: Float[Array, "N 3"]
@@ -89,22 +85,22 @@ snapshot. The forward model is
 ```
 
 The gradient $\partial \mathcal{O} / \partial \boldsymbol{\theta}$
-flows through **State** but not through **SystemParams**. Things in
-SystemParams are *not* the inference target; freezing them in a
-separate brick clarifies the gradient graph.
+can flow through floating-point array leaves in either container. An immutable
+parameter can remain fixed during an integration while varying between inference
+evaluations. Storage in `SystemParams` does not by itself freeze a derivative.
 
 ```{admonition} The static-vs-traced split
 :class: note
-JAX has a notion of "traced" (gradient-flowing) vs "static" (compile-
-time-fixed) values. progenax uses the brick separation to map cleanly
-to it: anything in `State` is traced; anything in `SystemParams` is
-typically static (passed via `static_argnums` or stored as
-non-PyTree fields).
+JAX tracing, differentiation, and compile-time static selection are distinct.
+A traced input can be nondifferentiated, and a parameter constant along a
+trajectory can still be an inference target. Equinox fields are PyTree leaves
+unless declared otherwise. `eqx.field(static=True)` removes a field from JAX
+transformations; the name of its containing class has no such effect.
 
-Equinox supports this via the `eqx.field(static=True)` annotation,
-which marks a field as compile-time constant. progenax uses this for
-e.g. integer dimensions, integration-step counts, and PRNG-key
-buffers that should not flow gradients.
+Choose the argument/leaf differentiation set explicitly and check the intended
+observable. The [Equinox field contract](https://docs.kidger.site/equinox/api/module/advanced_fields/)
+explains why array-valued physical parameters generally should not be made static.
+
 ```
 
 ## How the bricks interact during evolution
@@ -156,20 +152,20 @@ from jaxstro.units import STELLAR
 ic = build_plummer_cluster(n=1000, r_h=1.0, key=key)   # differentiable in r_h
 
 # 2. gravax assembles the bricks: State from the ICResult, SystemParams from the
-#    units + default policies (e.g. ConstantSoftening eps ~ 0.05 * d_mean for the
-#    collisionless integrators, gravity_policy=NewtonianPlummer).
+#    units + its numerical configuration. Verify the adapter and policies in
+#    the downstream package; this conceptual example does not qualify them.
 system = ParticleSystem.from_ic(ic, units=STELLAR)
 ```
 
-The builder is JIT-compatible and differentiable in the profile parameters (`r_h`, plus the
-IMF / anisotropy / tidal / rotation knobs) — they flow through the `ICResult`'s `State`
-data. It is *not* differentiable in `units`, `gravity_policy`, or other `SystemParams`
-fields, which is the right behaviour: those are configuration choices, not inference
-targets.
+The Progenax builder's supported derivatives are documented by parameter,
+observable, and sampling path. A discrete unit-system choice or policy type is
+configuration; continuous numerical parameters within a policy can be traced
+when the downstream implementation supports it. No complete downstream
+inference contract follows from this container diagram.
 
 ## Gotchas and rules
 
-### Rule 1: `State` is owned by progenax (and downstream)
+### Rule 1: Preserve the physical-state boundary
 
 When code outside progenax (a custom integrator, a renderer) consumes
 a `ParticleSystem`, it should treat `state` as the input data and
@@ -177,32 +173,30 @@ a `ParticleSystem`, it should treat `state` as the input data and
 either requires producing a *new* `ParticleSystem` rather than
 mutating in place.
 
-### Rule 2: Don't put traced data in `SystemParams`
+### Rule 2: Separate lifetime from differentiation
 
-If you want to infer the softening-length, do *not* put it in
-`SofteningPolicy.eps`. Put it in `State` (or a new dedicated brick).
-SystemParams is for compile-time-static values; placing traced
-parameters there will retrigger JIT every time the parameter changes.
+A softening length may be a floating-point array leaf inside a policy/configuration
+container. It need not move into evolving state to support a derivative. Avoid
+marking that leaf static when it is an inference target; verify the actual
+force law and transformation contract before interpreting the derivative.
 
-### Rule 3: Don't put static config in `State`
+### Rule 3: Keep ownership explicit
 
-Conversely, do not put gravity policy, units, or `G` in `State`. State
-should contain only the data that *changes* over the integration. A
-mistake here doesn't break correctness but bloats the PyTree and
-slows JIT compilation.
+Keep evolving coordinates and fixed policies in their established owners.
+Whether a field is traced or static is a separate implementation choice;
+putting a value in a PyTree alone implies no measured compilation penalty.
 
-### Rule 4: `ParticleSystem` is the only public type
+### Rule 4: Use the actual public boundary
 
-User-facing code (builders, integrators, renderers) returns and
-accepts `ParticleSystem`. The two bricks are accessed via attribute
-lookup (`ps.state.positions`) but should not appear in public function
-signatures. This decouples the user-facing API from internal
-restructuring of the bricks.
+Progenax builders return IC containers such as `ICResult`,
+`CatalogedBinaryClusterIC`, or masked `ResolvedBinaries`. Downstream adapters
+may construct a `ParticleSystem`; consult that package's public contract.
+Do not infer importable Progenax types from this conceptual diagram.
 
 ## When to add a fourth brick
 
-The three-brick pattern handles ~95% of progenax's needs. Two
-situations call for a fourth:
+A different decomposition can be useful when a concrete downstream owner
+requires additional state. Two possible examples are:
 
 1. **Per-mass-bin state** for multi-mass clusters where each
    bin needs its own integration substep. A hypothetical fourth brick

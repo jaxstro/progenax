@@ -5,26 +5,17 @@ description: progenax's validation section — what the three-tier test suite as
 
 # Validation
 
-This section documents what progenax's test suite *proves about the
-physics*. Where the API reference says "this function exists and has
-this signature," validation says "this function reproduces ζ(1.67) =
-1.789 from {cite:t}`Kainulainen2014` to within 0.02." Validation is
-where the package's scientific credibility lives.
+This section records numerical and physical checks at specified configurations.
+A passing test supports its stated quantity, parameter domain, reference,
+precision, and criterion; it does not prove universal correctness. Retained
+measurements and figures must be distinguished from new runs on the current
+checkout. Experimental Gravoturb results do not qualify the released core.
 
-The validation suite is **physics-anchored**: every test asserts a
-quantitative match between progenax output and an analytical or
-published-observational ground truth, with explicit pass/fail
-tolerances.
-
-See the [**validation audit report**](audit-report.md) for trustworthiness tiers, limits, recommendations, and the remaining/incomplete roadmap (point-in-time, 2026-06-08).
-
-Where this section proves each model reproduces its ground truth, the
-[**science demos**](../60-science-demos/index.md) run the models *backwards* —
-recovering cluster parameters from mock observations by differentiable MLE / NUTS.
-That inference rests on gradient integrity: the
-[**differentiability gradient audit**](differentiability-audit.md) measures every public
-entry point's autodiff gradient against finite differences (gradient integrity = Fisher
-integrity), and reports the two hazards it found and fixed.
+The [point-in-time validation audit](audit-report.md) retains its June 2026
+scope. The [current release verdict](../95-release/index.md) owns unresolved
+release qualification. [Science demos](../60-science-demos/index.md) have their
+own likelihood and recovery assumptions; a derivative check alone does not
+qualify their statistical inference.
 
 ## Live status
 
@@ -32,8 +23,9 @@ integrity), and reports the two hazards it found and fixed.
 The per-module test census, line-coverage, and registry fill now live in the
 **generated** [](test-dashboard.md) — built by `scripts/build_test_dashboard.py`
 from the test suite + the four registry manifests, staleness-gated in CI, and
-**never hand-edited**. That page is the single source of truth for "what is
-validated"; this section's prose pages explain *how* each model is validated.
+**never hand-edited**. That page inventories tests and retained artifacts; counts, coverage, and
+registry membership do not establish scientific qualification. The owning
+validation pages state the checks and limits for each claim.
 
 The concepts behind the dashboard — the four frozen-literal registries
 (API-coverage, physics-validation, provenance, differentiability) and how they
@@ -88,7 +80,7 @@ ratchet coverage against `progenax.__all__` — are documented in
 * - [](cluster-builders.md)
   - The `build_cluster` convenience layer — virial Q across all 5 aliases, density recovery, tidal cut, rotation $L_z$, OM anisotropy; bit-identical-to-`build_spatial_ic` sugar
 * - [](performance-memory.md)
-  - DF-table acceleration and memory budgets: speed-CDF-table routing vs the exact quadrature oracle, construction/sampling speedups
+  - DF-table acceleration and memory budgets: speed-CDF-table routing vs the numerical quadrature reference, construction/sampling speedups
 * - [](tidal-truncation.md)
   - Jacobi-radius computation and truncation behaviour
 * - [](analytical-test-cases.md)
@@ -101,26 +93,19 @@ ratchet coverage against `progenax.__all__` — are documented in
 
 ## What "validated" means
 
-A progenax module is "validated" when it has at least one test in each
-of three tiers — **unit** (per-function mechanical correctness),
-**integration** (end-to-end builder/pipeline behaviour), and
-**validation** (quantitative match to analytic or published physics).
-A module without all three tiers is treated as *experimental* — it can
-be used, but its results are not signed off for production research.
+Validation is claim-specific. Identify the physical model, parameter domain,
+observable, numerical method, independent comparison, and acceptance criterion.
+Unit, integration, and validation tests contribute different evidence; having
+one test in each directory does not certify a module for production research.
+Unperformed, unresolved, and failed comparisons remain visible.
 
-The tier definitions, the pass/fail **tolerance conventions**
-(closed-form $10^{-12}$, finite-$N$ statistical $5\times10^{-3}$,
-approximation $5\times10^{-2}$, observational anchor $10^{-2}$), and the
-single most important methodology lesson — **anchor on the defining
-condition, not the derived constant** (test $M(<r_h)=M/2$, not
-$a = 0.7664\,r_h$) — all live in one place: [](methodology.md). The
-backbone that *enforces* coverage (the three-tier suite, the four
-registries, the generated dashboard, and the release gate) is
-documented at [](testing-architecture.md).
+[Methodology](methodology.md) explains independent references, scale-aware
+error budgets, and test design. [Testing architecture](testing-architecture.md)
+describes coverage metadata and its limits. Neither a registry entry nor a
+successful documentation build replaces those scientific checks.
 
 ## References
 
-The three-tier methodology, tolerance conventions, and anchor lesson
-are documented in detail at [](methodology.md). The PP20 ζ(p) regression
-suite is the largest single validation contribution and is documented at
-[](gravoturbulent-pp20.md).
+The three-tier methodology, error-budget rules, and anchor lesson
+are documented in detail at [](methodology.md). Experimental PP20 material is documented separately at
+[](gravoturbulent-pp20.md) and remains outside release qualification.

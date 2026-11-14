@@ -9,7 +9,7 @@ description: "Recipe — assemble a star cluster with a primordial binary popula
 **Goal.** Build a cluster IC that contains **primordial binaries**, not just
 single stars. `build_binary_cluster` composes five independent axes —
 spatial profile × velocity DF × primary IMF × companion model × population
-target — and resolves each binary's two components around its centre of mass.
+target — and resolves each binary's two components around its center of mass.
 
 ## Inputs and assumptions
 
@@ -25,7 +25,7 @@ target — and resolves each binary's two components around its centre of mass.
   - Plummer, $\rh = 1$ pc
 * - `primary_imf`
   - The IMF of **primaries** (companions are attached on top).
-  - $\alpha = 2.3$ power law, $0.1$–$20\,\Msun$
+  - Number density per unit primary mass $m$: $p(m)\propto m^{-2.3}$, $0.1$–$20\,\Msun$
 * - `companion_model`
   - The single owner of the binary statistics: $f_b \to$ multiplicity, $q \to m_2$, $P \to a$, $e$, orientation.
   - `IndependentCompanions` ($f_b = 0.5$)
@@ -33,7 +33,7 @@ target — and resolves each binary's two components around its centre of mass.
   - What the population size holds fixed: `Systems(n)`, `Stars(n)`, or `TotalMass(M)`.
   - `Systems(1000)`
 * - `units` → `G`
-  - Unit system carrying `G` **and** the day→time-unit scale for periods. **Required.**
+  - Dynamical mass/length/time units and `G`; primary/companion laws and `TotalMass(M)` use solar masses. **Required.**
   - `STELLAR`
 * - `Q`
   - Virial ratio of the **system COMs** (binaries treated as point masses).
@@ -52,6 +52,11 @@ touches. Measure it with `binary_energy_budget`, not with the naive resolved
 virial ratio.
 ```
 
+The builder converts sampled solar masses to the selected dynamical mass unit;
+returned masses use that unit, while `stellar_radii` remains in solar radii.
+Profile/DF lengths and `softening` must already use the selected length unit.
+For alternate units, see [](../20-architecture/units-policy.md#binary-population-boundaries).
+
 ## Recipe
 
 ```python
@@ -69,7 +74,7 @@ key = jax.random.PRNGKey(0)
 
 profile     = PlummerProfile(r_h=1.0)
 velocity_df = PlummerVelocityDF(r_h=1.0)
-primary_imf = PowerLawIMF(exponents=[-2.3], breakpoints=[], m_min=0.1, m_max=20.0)
+primary_imf = PowerLawIMF(exponents=[2.3], breakpoints=[], m_min=0.1, m_max=20.0)
 
 companions = IndependentCompanions(
     binary_fraction=ConstantBinaryFraction(f_bin=0.5),  # 50% of primaries are binaries
@@ -92,7 +97,7 @@ budget = binary_energy_budget(
     ic.positions, ic.velocities, ic.masses, ic.primordial_system_id, G=STELLAR.G,
 )
 print(f"Q_com      = {budget.Q_com:.4f}   (cluster virial target)")
-print(f"Q_resolved = {budget.Q_resolved:.4f}   (deflated -- mixes scales)")
+print(f"Q_resolved = {budget.Q_resolved:.4f}   (resolved stars; includes binary orbits)")
 print(f"E_internal = {budget.E_internal:.3e}   n_binaries = {budget.n_binaries}")
 ```
 
@@ -103,15 +108,15 @@ Measured (`PRNGKey(0)`, `Systems(1000)`):
 ```
 1000 systems -> 1505 resolved stars, 505 binaries
 Q_com      = 0.5000   (cluster virial target)
-Q_resolved = 0.4579   (deflated -- mixes scales)
-E_internal = -1.466e+07   n_binaries = 505
+Q_resolved = 0.5353   (resolved stars; includes binary orbits)
+E_internal = -8.329e+04   n_binaries = 505
 ```
 
 505 of the 1000 systems drew a companion ($f_b = 0.5$), giving 1505 resolved
 stars. `Q_com = 0.5000` confirms the **system COMs** are virialized exactly;
-`Q_resolved = 0.46` is lower because the deep internal binary binding energy
-inflates $|W|$ on the resolved stars — which is why you read the COM scale,
-not the resolved one.
+`Q_resolved = 0.5353` includes the internal binary kinetic and binding energies
+at this sampled orbital phase. It can differ from the COM target in either
+direction. Compare the requested cluster virial ratio with `Q_com`.
 
 ```{tip}
 - Swap `IndependentCompanions` for **`MoeCompanions`** to use the faithful

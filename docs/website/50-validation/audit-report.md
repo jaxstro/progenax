@@ -1,20 +1,28 @@
 ---
 title: "Validation audit report — 2026-06"
-description: "Point-in-time validation-audit report for progenax: what is verified and how, scientific-trustworthiness tiers with explicit limits, implementation completeness, modelling capability and example science questions, improvement recommendations, and the remaining/incomplete modules still to harden, validate, and plot."
+description: "Point-in-time validation-audit report for progenax: what is verified and how, scientific-trustworthiness tiers with explicit limits, implementation completeness, modeling capability and example science questions, improvement recommendations, and the remaining/incomplete modules still to harden, validate, and plot."
 ---
 # Validation audit report — 2026-06
 
 :::{admonition} Scope & date
 :class: note
-**Completed: 2026-06-08.** This report covers the validation-audit campaign for the
-released-core **spatial profiles, velocity DFs / kinematics, substructure, and
-diagnostics**. It is a point-in-time companion to the live
-[test dashboard](test-dashboard.md): the dashboard is the current state; this page
-records *how* trustworthy that state is, what is still missing, and what must be
-hardened first. The released-core test count quoted in this report is a point-in-time
-snapshot — superseded; see the [test dashboard](test-dashboard.md) for the live count
-(all differentiable, all collect clean, every figure build-verified).
+**Archived campaign: June 2026.** This page preserves the claims, counts and
+recommendations recorded by that campaign; it is not a current scientific
+acceptance or release verdict. Later source changes and deeper reviews have
+superseded several statements below. The generated
+[test dashboard](test-dashboard.md) reports retained inventory and gate data,
+not a proof of every model's correctness or current qualification. Use the
+current per-model validation pages, [gradient audit](differentiability-audit.md)
+and [release checklist](../95-release/checklist.md) for their bounded scope.
 :::
+
+Current reconciliation: King tidal-root derivatives and the lowered multi-mass
+family now have implemented owners. Hard-edged EFF sampling has a density/DF
+boundary approximation; virial ratios alone do not establish stationarity.
+The soft segregation diagnostic approaches an NN ratio, not the exact MST
+statistic. Those current contracts supersede the historical exactness,
+universal differentiability and production-readiness claims retained below.
+No old numerical result is relabeled as a fresh run by this notice.
 
 ## 1. What was verified
 

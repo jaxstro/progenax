@@ -1,6 +1,6 @@
 ---
 title: Unresolved-binary mass function (B4)
-description: "The headline binary demo: unresolved binaries blend into one photometric source of inflated mass, distorting the observed stellar mass function. Recover the binary fraction f_b from that distortion -- and show it requires the correct Moe & Di Stefano (2017) period-mass-ratio coupling, because the blended (close) binaries are a high-q subset an independent-(P,q) model mis-models, biasing f_b by ~5% (3.6 sigma at survey scale)."
+description: "Historical synthetic binary-fraction recovery with a global mass-ratio shuffle, a semimajor-axis blending rule and a ZAMS luminosity model; scope and confounding correlations are stated explicitly."
 ---
 
 # Unresolved-binary mass function (B4)
@@ -8,10 +8,10 @@ description: "The headline binary demo: unresolved binaries blend into one photo
 A binary that a survey cannot resolve appears as a **single, brighter** source, and
 its inferred mass is biased high — so unresolved binaries distort the observed
 stellar mass function. This demo recovers the binary fraction $f_b$ from that
-distortion, and makes the central point: **getting $f_b$ right requires the correct
-Moe & Di Stefano (2017) period–mass-ratio coupling** {cite:p}`MoeDiStefano2017`,
-because the blended (close) binaries are a biased, high-$q$ subset that an
-independent-$(P,q)$ model gets wrong.
+distortion under a specified synthetic model. The retained comparison
+shows sensitivity to globally removing mass-ratio correlations from the
+{cite:t}`MoeDiStefano2017`-based template; it does not isolate period–mass-ratio
+coupling from primary-mass dependence.
 
 ## The forward model
 
@@ -38,16 +38,20 @@ mass function is a linear mixture in $f_b$,
 
 with the single template $S_k$ (the IMF) and the binary template $B_k$ (per-binary
 expected catalogue stars after resolution + blending) precomputed from a large
-pool. $f_b$ is recovered by a per-bin Poisson MLE, with the Fisher variance from the
-(linear, ODE-free) information.
+pool. The script fits a per-bin independent-Poisson working likelihood.
+Its uncertainty uses the observed objective curvature (`fisher_cov`).
+Because data contain a fixed number of systems and a resolved binary can
+contribute two correlated entries, that working likelihood does not
+establish an independent-Poisson generative law or calibrated coverage.
 
-## The controlled coupling test
+## The global mass-ratio shuffle
 
-The "independent" comparison uses the **same pool with $q$ shuffled against $P$** —
-this preserves the $q$ and $P$ marginals *exactly* and changes only the $P$–$q$
-correlation. So any bias is attributable to the coupling alone. The truth is
-Moe-coupled; we fit $f_b$ with the (correct) Moe template and the (wrong)
-independent template.
+The comparison globally permutes the pool's $q$ array while holding each
+$(m_1,P)$ pair fixed (`scripts/demo_binary_mass_function.py::build_templates`).
+It preserves the separate empirical $q$, $P$ and $m_1$ marginals, but removes
+$q$ dependence on **both primary mass and period**. The contrast therefore
+does not attribute a bias to period coupling alone. It compares the generating
+joint template with this particular globally decoupled approximation.
 
 ## Inputs and assumptions
 
@@ -67,7 +71,7 @@ statement about one of those *assumed* inputs.
   - Binary fraction — **the science target**, recovered from the Poisson mixture $\mu_k=N_{\rm sys}[(1-f_b)S_k+f_b B_k]$ (`FB_BOX=(0.05,0.95)`).
   - **recovered** (truth 0.5)
 * - Moe $P$–$q$–$e$ coupling
-  - The joint orbital model (`MoeJointOrbit`) that builds the *correct* binary template $B_k$; its $P$–$q$ correlation is the whole point.
+  - The joint orbital model (`MoeJointOrbit`) that builds the *correct* binary template $B_k$; the shuffle changes both $q$–$P$ and $q$–$m_1$ dependence.
   - known / fixed (assumed correct)
 * - $q_{\min}$
   - Minimum mass ratio in `MoeDiStefano2017Full`; truncates the secondary masses feeding the blend.
@@ -91,25 +95,29 @@ statement about one of those *assumed* inputs.
 
 ```{important}
 :label: imp-b4-coupling
-**An unbiased $f_b$ requires the correct $P$–$q$ coupling — it cannot be inferred
-from the marginals.** The blended subset is selected by $a<a_{\rm crit}$, i.e. by
-*short period*, and under the Moe coupling short periods are preferentially
+**The joint template matters in the retained example.** The blending
+selection uses $a<a_{\rm crit}$, where
+$a^3=Gm_1(1+q)P^2/(4\pi^2)$, so it depends on primary mass and mass
+ratio as well as period. Under the generating joint model, blends are preferentially
 **high-$q$** (median $q=0.54$ for blends vs $0.48$ when $q$ is shuffled against
-$P$). The blend bump is therefore set by the *correlation*, which the shuffle
-destroys while preserving the $P$ and $q$ marginals exactly. Fitting with an
-independent-$(P,q)$ template biases $f_b$ low by $\sim$5% — a **systematic** whose
-fractional size is fixed but whose significance grows as $\sqrt{N_{\rm sys}}$. The
-coupling is an *assumed-known model input*, not something the masses reveal.
+$P$). The global shuffle changes both $q$–$P$ and $q$–$m_1$ relations,
+and hence also secondary masses and the blend selection. Its retained fit
+is about 5% low. This is a model-comparison result for the chosen templates,
+not a unique causal measurement of period coupling. Joint statistics are
+assumed inputs; no joint-parameter recovery is performed.
 ```
 
-## Result — freshly run, ALL PASS
+## Retained June 12 result
 
-Measured 2026-06-12 ($N_{\rm sys}=3\times10^5$, $N_{\rm pool}=6\times10^5$,
-$a_{\rm crit}=50$ AU, solar $Z$; wall $\approx 10$ s; exit 0).
+The script records a 2026-06-12 run ($N_{\rm sys}=3\times10^5$, $N_{\rm pool}=6\times10^5$,
+$a_{\rm crit}=50$ AU, solar $Z$; wall $\approx 10$ s; exit 0). These historical figures and gate values
+were not regenerated for this review. Optimizer convergence, template-noise
+propagation and repeated-catalogue coverage remain unqualified.
 
 **The mechanism.** The blended (close-pair) subset is **more equal-mass under Moe**
-than under the decoupled model — median $q = 0.540$ vs $0.479$ — because Moe couples
-short periods to high $q$. That is the whole effect.
+than under the decoupled model — median $q = 0.540$ vs $0.479$ — under the generating joint model. The global shuffle changes more than
+the conditional period relation, so this median is a mechanism diagnostic,
+not a complete causal decomposition.
 
 ```{list-table}
 :header-rows: 1
@@ -125,11 +133,12 @@ short periods to high $q$. That is the whole effect.
   - $-3.6\sigma$  (≈5% low)
 ```
 
-Ignoring the $P$–$q$ coupling biases $f_b$ **low by ~5%**. This is a *systematic*
+The globally shuffled template gives a retained $f_b$ estimate about 5% lower. This is a *systematic*
 (a wrong-model error), so its fractional size is fixed while its significance grows
 as $\sqrt{N_{\rm sys}}$: only $-1.5\sigma$ at $N_{\rm sys}=5\times10^4$, but
-$-3.6\sigma$ at the $3\times10^5$ survey scale here. At a real cluster survey it is
-unambiguous. Gate summary:
+$-3.6\sigma$ at the $3\times10^5$ survey scale here. That scaling treats the templates and working-likelihood variance as fixed;
+a real survey requires its selection, mass errors and count covariance.
+Historical script gates:
 
 ```{list-table}
 :header-rows: 1
@@ -157,8 +166,8 @@ unambiguous. Gate summary:
 :label: sci-binary-mass-function
 :width: 100%
 
-**Unresolved-binary mass function** (`scripts/demo_binary_mass_function.py`, ALL
-PASS). **(a)** The observed mass function (black) decomposed into singles (blue) and
+**Unresolved-binary mass function** (`scripts/demo_binary_mass_function.py`,
+historical June 12 run reporting passing script gates). **(a)** The observed mass function (black) decomposed into singles (blue) and
 the binary contribution (vermilion) — the blended pairs push a bump to higher
 inferred mass. **(b)** The mechanism: the blended subset's median $q$ is higher under
 the Moe coupling (vermilion) than the $P$-shuffled independent model (sky) at the
@@ -174,21 +183,27 @@ while the independent template is biased low.
   Real surveys add band-dependent blending, extinction, and unequal evolutionary
   states; full SED/bandpass photometry is the `fluxax` package's job, not this demo.
 - **No external dependency.** The ZAMS relations are in-package, so B4 runs in a
-  clean environment / CI — nothing to install beyond progenax.
-- **f_b only.** The demo recovers the binary fraction and *shows* (not fits) that the
-  $q$-coupling drives the bias; jointly recovering the $q$-distribution shape is a
+  package environment without an external stellar-data service. This is
+  not evidence that a particular clean installation or CI job was executed.
+- **f_b only.** The demo fits the binary fraction while holding joint
+  statistics fixed; jointly recovering the $q$-distribution shape is a
   natural extension. The recovery assumes a known IMF and resolution limit.
 - **Clean census + flat $f_b$.** A constant binary fraction and complete catalogue;
   Moe's own mass-dependent $f_b(m_1)$ and selection are not modelled here.
-- **$a_{\rm crit}$ is a single sharp, period-only cut.** Blending is a hard step at
+- **$a_{\rm crit}$ is a sharp semimajor-axis cut.** Blending is a hard step at
   $a<a_{\rm crit}$ on the *physical* semimajor axis — no distance, projection, or
   flux-contrast dependence, and **eccentricity is drawn but unused** (resolution
   depends only on $a$, so eccentric pairs that would be resolvable near apocenter
   are not modelled).
 - **Self-consistent by construction.** Templates and data share the same IMF,
-  $q_{\min}$, $Z$ (=solar), $a_{\rm crit}$ and pool family; only the $P$–$q$
-  coupling is varied between the right/wrong models. The mechanism is *shown*, not
-  stress-tested against IMF / $a_{\rm crit}$ / metallicity misspecification.
+  $q_{\min}$, $Z$ (=solar), $a_{\rm crit}$ and pool family; the relations of $q$ with both
+  $P$ and $m_1$ are changed by the shuffle.
+  No conditional-on-$m_1$ decorrelation control or IMF / $a_{\rm crit}$ /
+  metallicity misspecification study is retained here.
+- **Stellar-fit domain.** The Tout fit declares masses 0.1–100 solar masses.
+  This primary support starts at 0.08, secondaries can be lower, and blended
+  inversions can reach the inverse solver's bounds. Those cases are
+  extrapolated or clipped, rather than calibrated stellar photometry.
 - **No photometric noise.** The blend mass is the exact $L^{-1}(L_1+L_2)$ with no
   measurement scatter; binning is the only smoothing. The $f_b$ uncertainty is the
   inverse-Hessian (`fisher_cov`) Gaussian approximation, and the MLE is seeded at

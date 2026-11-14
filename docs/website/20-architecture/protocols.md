@@ -1,12 +1,14 @@
 ---
 title: Protocol-based composition
-description: progenax's three runtime-checkable protocols — SpatialProfile, VelocityDF, IMFProtocol — that enable mix-and-match composition of any spatial profile with any velocity DF and any IMF.
+description: Interfaces for spatial sampling, velocity sampling and scalar stellar-mass distributions, with separate structural and physical compatibility requirements.
 ---
 
 # Protocol-based composition
 
-progenax exposes three **runtime-checkable protocols** that define
-the interfaces for the orthogonal IC ingredients:
+Three primary **runtime-checkable protocols** define the interfaces for
+spatial sampling, velocity sampling and scalar stellar-mass distributions.
+Additional protocols describe binary companions and their distributions; see
+the [protocol API](../30-api/protocols.md).
 
 ```{list-table}
 :header-rows: 1
@@ -21,17 +23,19 @@ the interfaces for the orthogonal IC ingredients:
   - `sample_velocities`
   - `PlummerVelocityDF`, `KingVelocityDF`, `MichieVelocityDF`, `EFFVelocityDF`
 * - `IMFProtocol`
-  - `logpdf`, `cdf`, `ppf`, `sample`, `mean_mass`
-  - `PowerLawIMF`, `Maschberger`, `ChabrierIMF`, `BinaryIMF`
+  - `m_min`, `m_max`, `logpdf`, `cdf`, `ppf`, `sample`, `mean_mass`
+  - `PowerLawIMF`, `Maschberger`, `ChabrierIMF`, `TruncatedIMF`
 ```
 
-The protocols use Python's `typing.Protocol` with
-`@runtime_checkable`, so any class that *implements the methods* is
-automatically a valid `SpatialProfile` (etc.) — no inheritance
-required. This enables **mix-and-match composition**: any
-`SpatialProfile` can pair with any `VelocityDF` (subject to
-equilibrium constraints), and any combination can pair with any
-`IMFProtocol`.
+The protocols use Python's `typing.Protocol` with `@runtime_checkable`.
+Implementations need not inherit from them. A runtime check verifies the
+presence of the required attributes; it does not check method signatures,
+return shapes, numerical accuracy or physical compatibility. Those contracts
+require execution tests and model-specific validation.
+
+`BinaryIMF` composes a primary IMF with companion statistics and exposes
+`sample_primaries`, `sample_mass_ratios`, `sample_systems` and
+`sample_all_masses`. It does not implement this scalar `IMFProtocol`.
 
 This chapter documents the three protocols, the reason for choosing
 protocol-based composition over inheritance, and the rules for adding
@@ -43,14 +47,14 @@ new implementations.
 
 ```python
 from typing import Protocol, runtime_checkable
-from jaxtyping import Array, Float, PRNGKey
+from jaxtyping import Array, Float, PRNGKeyArray
 
 @runtime_checkable
 class SpatialProfile(Protocol):
     def sample_positions(
         self,
         masses: Float[Array, "N"],
-        key: PRNGKey,
+        key: PRNGKeyArray,
     ) -> Float[Array, "N 3"]:
         """Draw N positions from ρ(r). Returns (N, 3) Cartesian."""
         ...
@@ -74,7 +78,7 @@ class VelocityDF(Protocol):
         self,
         positions: Float[Array, "N 3"],
         masses: Float[Array, "N"],
-        key: PRNGKey,
+        key: PRNGKeyArray,
         G: float,
     ) -> Float[Array, "N 3"]:
         """Draw N velocities consistent with the DF given positions+masses."""
@@ -106,27 +110,36 @@ class IMFProtocol(Protocol):
 
     def sample(
         self,
-        key: PRNGKey,
+        key: PRNGKeyArray,
         n: int,
-    ) -> Float[Array, "N"]:
-        """Draw N stellar masses."""
+    ) -> Float[Array, "n"]:
+        """Draw n stellar masses in solar masses; n is static under JIT."""
         ...
 
-    def mean_mass(self) -> float:
-        """Expected stellar mass."""
+    def mean_mass(self) -> Float[Array, ""]:
+        """Expected stellar mass in solar masses."""
         ...
 ```
 
-The `logpdf` method is what makes IMFs HMC-compatible — it allows
-the IMF parameters (e.g. Maschberger's $\alpha$) to be inferred from
-data. `sample(key, n)` uses inverse-CDF sampling where available; `cdf`
-and `ppf` provide the forward and inverse distribution functions.
+`logpdf` evaluates a normalized number-probability density in stellar mass.
+It can supply an inference likelihood when the chosen parameter domain has
+valid derivatives. HMC also requires an appropriate observation model,
+priors and convergence checks. `sample(key, n)` uses the concrete IMF's
+sampling method; `cdf` and `ppf` provide forward and inverse distribution
+functions. Their precision and endpoint handling are implementation-specific.
+
+The current exports `progenax.protocols.IMFProtocol` and
+`progenax.imf.IMFProtocol` are separate structural definitions with the same
+required attributes. Generic composition uses the former; `TruncatedIMF`
+checks the latter. See their [protocol](../30-api/protocols.md#api-protocols-imfprotocol)
+and [IMF](../30-api/imf.md#api-imf-imfprotocol) contracts.
 
 ## Why protocols, not inheritance
 
-The natural object-oriented alternative would be a `BaseProfile`
-abstract class with `Plummer`, `King`, `EFF` as subclasses. progenax
-deliberately rejects this for three reasons:
+Protocols allow generic builders to accept implementations without requiring
+a shared base class. They coexist with inheritance: `BaseIMF` is an Equinox
+module that supplies normalization, numerical inversion and sampling modes
+to several IMF subclasses.
 
 ```{list-table}
 :header-rows: 1
@@ -134,9 +147,9 @@ deliberately rejects this for three reasons:
 * - Reason
   - Detail
 * - **Equinox compatibility**
-  - Equinox modules cannot inherit from generic abstract bases. A protocol-based pattern lets each profile be its own self-contained `eqx.Module`, with no base class machinery.
-* - **No "base implementation" anti-pattern**
-  - With inheritance, there is always pressure to put "default" implementations in the base class. With protocols, each implementation must implement the methods explicitly — no accidental inheritance of the wrong default.
+  - Stateful implementations can be Equinox modules while satisfying a protocol structurally. Protocols do not require an additional state-owning base class.
+* - **Shared implementations remain explicit**
+  - A protocol specifies required attributes without supplying numerical behavior. `BaseIMF` separately owns shared behavior where subclasses use it.
 * - **External implementations are first-class**
   - A user writing a custom profile in their own code does not need to import progenax's base class. As long as the class has the required methods, it satisfies the protocol.
 ```
@@ -149,10 +162,10 @@ or registering anything.
 
 ## Composability rules
 
-The three protocols are **orthogonal** in the sense that any
-combination of $(\text{SpatialProfile}, \text{VelocityDF}, \text{IMFProtocol})$
-produces a valid IC. The combination is *physical* (i.e. in
-equilibrium) only if profile and DF are matched:
+The interfaces separate mass, position and velocity sampling. Satisfying them
+does not guarantee that a combination produces a valid IC. Input domains,
+array shapes, units and profile/DF scales must agree. A continuum equilibrium
+also requires a DF consistent with the density and its potential:
 
 ```{list-table}
 :header-rows: 1
@@ -161,13 +174,13 @@ equilibrium) only if profile and DF are matched:
   - Equilibrium?
   - Use case
 * - Plummer profile + Plummer DF
-  - Yes
+  - Matched continuum model when scales and anisotropy are admissible
   - Standard production IC
 * - King profile + King DF
-  - Yes
+  - Matched continuum model when concentration and scales agree
   - Tidally-truncated production IC
 * - EFF profile + EFF DF
-  - Yes
+  - Requires matching density, potential and boundary treatment
   - Young massive cluster
 * - Plummer profile + King DF
   - **No**
@@ -176,76 +189,63 @@ equilibrium) only if profile and DF are matched:
   - **No**
   - Same — deliberate mismatch for studying violent relaxation
 * - Plummer profile + Maxwellian
-  - Approximately
-  - Maxwellian is not the exact Plummer DF; gives small initial relaxation
+  - A generic Maxwellian is not the Plummer equilibrium DF
+  - Approximate kinematic initialization; stationarity requires separate evidence
 ```
 
-The IMF is *fully* orthogonal to the profile + DF pairing — any IMF
-works with any (matched or mismatched) spatial choice. The IMF only
-sets the *masses*; the profile + DF set *positions* and *velocities*.
+In generic single-population assembly, the IMF supplies masses before spatial
+and velocity sampling. These masses also set the gravitational velocity scale.
+Multicomponent equilibrium couples component masses, fractions and DFs through
+a shared potential; see [](../10-theory/spatial-profiles/multimass-equipartition.md).
+Center-of-mass subtraction, tidal cuts, rotation and optional virial rescaling
+are subsequent transformations, not stationarity certificates.
 
 ## Adding a new implementation
 
 To add a new spatial profile (e.g. a hypothetical Sérsic-like
 profile), the contract is:
 
-1. **Inherit from `eqx.Module`** for PyTree compatibility.
+1. **Use `eqx.Module`** for state that should participate in JAX PyTrees.
 2. **Implement the two required methods** (`sample_positions`,
    `characteristic_radius`).
 3. **Expose any profile-specific radii** (`r_h`, `r_t`, `a`, …) as
    normal fields if users need them.
 4. **Use `jax.numpy` only** in the implementation (no numpy/scipy).
-5. **Use `jax.lax.scan` or vmap** for any iteration.
+5. **Use fixed-shape JAX operations** for compiled sampling; validate the
+   derivative path rather than inferring it from a loop construct.
 
 ```python
-import equinox as eqx
-import jax
-import jax.numpy as jnp
-from jaxtyping import Array, Float, PRNGKey
+from progenax import PlummerProfile
+from progenax.protocols import SpatialProfile
 
-class SersicProfile(eqx.Module):
-    r_h: Float[Array, ""]
-    n: Float[Array, ""]   # Sérsic index
-
-    def density(self, r):
-        # Sérsic density formula
-        b_n = 2 * self.n - 1.0/3.0  # Approximation
-        rho = jnp.exp(-b_n * jnp.power(r / self.r_h, 1.0 / self.n))
-        return rho
-
-    def cumulative_mass(self, r):
-        # Numerical integration via lax.scan or analytic
-        return ...   # Implementation here
-
-    def sample_positions(self, masses, key):
-        # Inverse-CDF on cumulative_mass
-        return ...
-
-    def characteristic_radius(self):
-        return self.r_h   # the radius generic builders consume
+profile = PlummerProfile(r_h=1.0)
+assert isinstance(profile, SpatialProfile)
 ```
 
-Once the class is written, `isinstance(SersicProfile(...), SpatialProfile)`
-returns `True` and the profile is usable with any progenax builder
-that accepts `SpatialProfile`. No registration, no factory, no other
-machinery.
+This checks the interface of an existing implementation. A custom profile
+must additionally demonstrate its position distribution, units, domains and
+derivatives. `build_spatial_ic` accepts an explicit profile/DF pair;
+`build_cluster` dispatches matched DFs for its supported profile classes and
+does not accept arbitrary custom classes through this protocol alone.
 
 ## Validation: enforcing the contract
 
-progenax's test suite includes "protocol-conformance" tests for
-every shipped implementation:
+`tests/unit/test_protocols.py` checks Plummer, King and EFF profile/DF
+classes, five scalar IMF instances and rejection of missing attributes.
+The IMF suite adds other implementation-specific checks. An example
+structural assertion is:
 
 ```python
 def test_plummer_satisfies_spatial_profile():
     p = PlummerProfile(r_h=1.0)
     assert isinstance(p, SpatialProfile)
-    # Plus per-method tests verifying signatures and return shapes
 ```
 
-Tests like these catch protocol-breaking changes (e.g. renaming
-`density` to `evaluate_density`) at CI time before they reach a
-release. They also serve as executable documentation of the protocol
-contract.
+Tests like these detect missing required methods, such as renaming
+`sample_positions`. Renaming an optional `density` helper does not violate
+`SpatialProfile`. Signature, shape, distribution and derivative tests belong
+to the concrete implementation and workflow owners; a structural check
+cannot replace them.
 
 ## References
 

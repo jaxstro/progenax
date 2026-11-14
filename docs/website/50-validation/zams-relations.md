@@ -8,17 +8,18 @@ description: "Validation of the Tout+1996 zero-age main-sequence relations (M ->
 relations — mass to luminosity, radius, effective temperature, and surface gravity,
 plus a differentiable inverse $L \to M$ — as five pure, array-aware, autodiff-ready
 functions. They are the metallicity-dependent **photometric** placeholder for the
-eventual `startrax` stellar tracks: the bridge from a sampled IMF to a colour-magnitude
+eventual `startrax` stellar tracks: the bridge from a sampled IMF to a color-magnitude
 diagram or a mass–luminosity inference. Test files:
 `tests/validation/test_zams_physics.py` (**34 tests**, validation tier) and
 `tests/unit/stellar/test_zams.py` (unit tier); figures: `scripts/validate_zams.py`.
 
 :::{admonition} Coefficients verified cell-by-cell against the held PDF
 :class: important
-Every {cite:t}`Tout1996` Table 1 (luminosity) and Table 2 (radius) coefficient — all
+The retained coefficient-transcription ledger records that every {cite:t}`Tout1996` Table 1 (luminosity) and Table 2 (radius) coefficient — all
 75 cells — was checked **cell-by-cell against the held PDF** (the transcription carried
 in the sibling `fluxax` package was the candidate; the PDF is ground truth) and **matches
-exactly: zero corrections**. The verified coefficient ledger is cited by the provenance
+exactly: zero corrections** in that inspection. This documentation audit
+did not independently recheck all 75 cells. The verified coefficient ledger is cited by the provenance
 registry as `stellar.py::_TOUT_L_COEFFS` (Table 1) and
 `stellar.py::_TOUT_R_COEFFS + _TOUT_R_NU` (Table 2). The solar anchors below are the exact
 algebra of those verified coefficients at $M=1\,M_\odot$, $Z=0.02$.
@@ -50,9 +51,10 @@ T_{\rm eff} = \left(\frac{L}{4\pi R^2 \sigma}\right)^{1/4},
 $$ (eq-zams-Tg)
 
 The inverse $L \to M$ is a fixed-iteration Newton solve in a `jax.lax.scan` (not a
-`while_loop`), so it is differentiable: the analytic slope $dL/dM$ is obtained by
+`while_loop`). Its derivatives are checked on selected inputs; a fixed loop
+count alone does not establish convergence or derivative accuracy. The slope $dL/dM$ is obtained by
 `jax.grad` of the forward relation, and the round-trip $M \to L \to M$ recovers the mass
-to machine precision over the whole fitted range.
+to the reported precision on the tested grid.
 
 :::{admonition} Distinct from `compute_stellar_radii`
 :class: note
@@ -60,16 +62,20 @@ These are **photometric** ZAMS radii (Tout+1996, for CMD / mass-function science
 are a different quantity from [`compute_stellar_radii`](../30-api/builders.md#api-builders-compute_stellar_radii),
 the Demircan & Kahraman (1991) empirical **collision** radii used to set encounter
 cross-sections in N-body initial conditions. Use `zams_radius` for the stellar surface; use
-`compute_stellar_radii` for dynamical collision radii. They are not interchangeable.
+`compute_stellar_radii` only when deliberately selecting that empirical alternative.
+The current IC builders assign Tout ZAMS radii; they do not call the
+Demircan–Kahraman helper by default.
 :::
 
 ## What is verified
 
-Rows map to `tests/validation/test_zams_physics.py`; **Measured** values are regenerated
-by `scripts/validate_zams.py` (which prints expected-vs-measured PASS/FAIL per figure and
+Rows map to `tests/validation/test_zams_physics.py`; **Measured** values are retained
+`scripts/validate_zams.py` results (which prints expected-vs-measured PASS/FAIL per figure and
 exits non-zero on any failure). Each check uses an **independent** oracle — the
 PDF-verified algebra, the Stefan-Boltzmann/Newton closure, monotonicity, or the forward
-relation the inverse must undo — not the formula's own restatement.
+relation the inverse must undo — with different scopes. Coefficient algebra and inverse round trips detect
+implementation errors, but do not independently establish the empirical accuracy
+of the fit against stellar tracks.
 
 ```{list-table}
 :header-rows: 1
@@ -119,12 +125,13 @@ relation the inverse must undo — not the formula's own restatement.
 ## Validity & accuracy envelope
 
 The {cite:t}`Tout1996` fits are valid for $0.1 \le M/M_\odot \le 100$ and
-$10^{-4} \le Z \le 0.03$. Over that box the luminosity is accurate to $< 7.5\%$
-($< 3\%$ at solar $Z$) and the radius to $< 5\%$ ($< 1.2\%$ at solar); the worst cases are
+$10^{-4} \le Z \le 0.03$. The paper generally reports luminosity errors $<7.5\%$
+($<3\%$ at solar $Z$), and radius errors $<5\%$ ($< 1.2\%$ at solar); the worst cases are
 $L \sim 14\%$ at $M=0.1\,M_\odot,\,Z=0.0003$ and $R \sim 5\%$ at $M=0.52\,M_\odot,\,Z=0.001$.
 Metallicity extrapolation is forbidden — the rational functions go negative outside the
-fitted $Z$ range — so `stellar.py` clips $Z$ to $[10^{-4}, 0.03]$ as the paper's explicit
-guidance, not an arbitrary guard.
+fitted $Z$ range — so `stellar.py` clips $Z$ to $[10^{-4}, 0.03]$ as the implementation's chosen boundary policy. The paper warns against metallicity extrapolation;
+that warning does not uniquely prescribe clipping. Derivatives outside the
+clipped interval are not derivatives of an extrapolated stellar model.
 
 ## Figures
 
@@ -180,16 +187,17 @@ loci are hotter at fixed mass (bluer), as expected from the reduced opacity.
 $[0.1,100]\,M_\odot$. **Right:** the round-trip relative residual stays at the
 floating-point floor ($\sim 5\times10^{-16}$, well under the $10^{-5}$ tolerance) — the
 fixed-iteration Newton/scan invert reaches machine precision, and its gradient $dM/dL$
-agrees with a central finite difference to $1.6\times10^{-11}$ (the inference-grade
-differentiability the inverse exists for).
+agrees with a central finite difference to $1.6\times10^{-11}$ for the reported case; this is not a posterior calibration result.
 :::
 
 ## Differentiability
 
-All five relations flow finite gradients (the Fisher-information requirement for
-mass-function and CMD inference). The forward $\partial L/\partial M$,
+Selected cases of all five relations have gradient checks. Finite derivatives
+alone do not establish identifiability, an accurate observation model or calibrated
+inference. The forward $\partial L/\partial M$,
 $\partial R/\partial M$, $\partial T_{\rm eff}/\partial M$, $\partial \log g/\partial M$
 and the inverse $\partial M/\partial L$ (through the `lax.scan` Newton) are each registered
 in the release [gradient gate](differentiability-audit.md) as measured AD-vs-FD cases; the
-inverse case audits the gradient *through* the fixed-iteration solver, confirming the scan
-(not a `while_loop`) keeps the invert differentiable.
+inverse case audits the derivative through the fixed-iteration solver at its
+recorded inputs. Clipping boundaries and inputs outside the fitted mass/metallicity
+domain require separate interpretation.

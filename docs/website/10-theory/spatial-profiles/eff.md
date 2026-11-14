@@ -10,7 +10,7 @@ choice for **young massive star clusters** — typically $\lesssim 100$
 Myr old, cluster mass $M_{\mathrm{cl}} \gtrsim 10^4\,\Msun$ — where
 the surface-brightness profile shows a power-law fall-off whose slope
 is *not well captured* by Plummer's fixed $r^{-5}$ outer asymptote or
-by King's exponential cutoff. EFF was originally fit to 10 LMC
+by King's finite DF-derived cutoff. EFF was originally fit to 10 LMC
 clusters of ages $10^7$–$10^9$ yr {cite:p}`ElsonFallFreeman1987`; it
 is now used routinely for young Galactic and LMC/SMC clusters
 where ages and dynamical states preclude King-like tidal truncation.
@@ -18,7 +18,7 @@ where ages and dynamical states preclude King-like tidal truncation.
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers learning the EFF power-law profile for young massive clusters; no prior literature on cluster surface-brightness fitting assumed.
-**Prerequisites:** the [Plummer profile](plummer.md) (EFF is its free-outer-slope generalization, exact at $\gamma = 5$); the [King profile](king.md) is useful for the truncation contrast but optional.
+**Prerequisites:** the [Plummer profile](plummer.md) (EFF has its untruncated density shape at $\gamma=5$); the [King profile](king.md) is useful for the truncation contrast but optional.
 **You'll get:** the EFF density and its free slope $\gamma$, why progenax's $\gamma$ is a 3-D (not surface) slope, the truncation and mass behavior, and how velocities come from Eddington inversion rather than a closed form.
 :::
 
@@ -121,8 +121,8 @@ shallow $\gamma$ — the sampled mass is always the truncated $M(<r_t)$.
 
 Two special cases are worth keeping as sanity anchors:
 
-- **$\gamma = 5$** is *identical* to a Plummer sphere of scale radius $a$ (both are
-  $\rho \propto (1+r^2/a^2)^{-5/2}$), so the hypergeometric collapses to the
+- **$\gamma=5$** has the Plummer density shape at the same $a$. For the
+  untruncated mathematical profile, the hypergeometric reduces to the
   elementary Plummer form
   $M(<r) = \tfrac{4\pi}{3}\rho_0 a^3\,\hat r^{3}\,(1+\hat r^2)^{-3/2}$ with
   $\hat r = r/a$, giving $M_{\mathrm{total}} = \tfrac{4\pi}{3}\rho_0 a^3$ and the
@@ -133,14 +133,20 @@ Two special cases are worth keeping as sanity anchors:
 
 ```{note}
 There is **no closed-form $r_h \leftrightarrow a$ relation for general $\gamma$**.
-At $\gamma = 5$ the profile *is* a Plummer sphere, so $a = r_h\sqrt{2^{2/3}-1}$
-(equivalently $r_h \approx 1.305\,a$). For other $\gamma$, convert a literature
-$r_h$ to $a$ by constructing the profile and inverting its (numerical) cumulative
-mass, or by bisecting $M(<r_h) = M_{\mathrm{total}}/2$ using {eq}`eff-mcum`. Note
-that, contrary to a common shortcut, EFF and Plummer at $\gamma = 5$ share the
-*same* density with the *same* $a$ — there is no separate "EFF $r_h = a$"
-convention; the two are the same sphere.
+The relation $r_h=a/\sqrt{2^{2/3}-1}\simeq1.305a$ applies to the
+**untruncated** $\gamma=5$ model. The implemented finite cut changes the
+normalized mass distribution: its half-mass radius instead satisfies
+$M(<r_h)=M(<r_t)/2$, even at $\gamma=5$. For a chosen $(\gamma,r_t)$,
+invert the numerical CDF or the enclosed-mass expression with that finite
+normalization. Equal density shapes at equal $a$ do not make finite and
+untruncated samples identical.
 ```
+
+The functional potential API uses gravitational constant $G$, the total
+truncated mass $M=M(<r_t)$, and the zero $\Phi(\infty)=0$. Beyond the density cutoff it returns
+$\Phi(r)=-GM/r$, with $\Phi(r_t)=-GM/r_t$; the exterior field remains
+nonzero. The interior potential is obtained numerically from the enclosed mass
+and outer shells. See the [exterior-potential convention](index.md#profile-vacuum-potential).
 
 ## Sampling
 
@@ -149,7 +155,7 @@ convention; the two are the same sphere.
 no elementary inverse, `EFFProfile.sample_positions` builds a **numerical
 cumulative-mass table**: it evaluates $4\pi r^2\rho(r)$ on a square-stretched grid
 $r = r_t\,u^2$ (which concentrates points in the core), forms the running
-trapezoidal integral, normalises it to a CDF, and draws radii by inverse-CDF
+trapezoidal integral, normalizes it to a CDF, and draws radii by inverse-CDF
 interpolation (`jnp.interp`) of uniform deviates. The sampled mass is therefore the
 truncated $M(<r_t)$.
 
@@ -160,7 +166,7 @@ cluster's outer slope — $\gamma$ can be inferred via HMC alongside $r_h$ and t
 IMF parameters, whereas the King concentration $W_0$ requires re-solving the
 Poisson ODE at each gradient evaluation.
 
-## Velocities: Eddington inversion (no closed form)
+## Velocities: numerical Eddington inversion
 
 {cite:t}`ElsonFallFreeman1987` is a **surface-brightness** model only — the
 paper fits the *projected* light profile $\mu(r)$ (Eq. 1) and its enclosed
@@ -168,7 +174,7 @@ projected luminosity (Eq. 2). It gives **no distribution function and no
 velocity-dispersion formula**: there is no "EFF Eq. 7" for $\sigma_r^2(r)$.
 Velocities in progenax are therefore *not* read from a closed form. Instead,
 treating {eq}`eff-rho` as the 3-D volume density, `EFFVelocityDF` builds the
-exact isotropic ergodic DF $f(E)$ by **Eddington inversion** of the (truncated)
+numerical isotropic candidate DF $f(E)$ by Eddington inversion of the interior
 EFF density against its self-consistent potential $\Psi(r)$,
 
 ```{math}
@@ -185,17 +191,26 @@ drawn per particle from $g(v)\propto v^2 f(\Psi(r) - v^2/2)$ by inverse-CDF.
 The construction is differentiable in $\gamma$, $a$, and $r_t$ through the
 tabulated inversion. Because the EFF density is *empirical* (not derived from a
 DF), a sharply truncated EFF is only **approximately** stationary: mild
-truncation (e.g. $\gamma = 5$, which is exactly Plummer) is virial to $\sim1\%$,
-whereas the steep $\gamma = 3$ default left strongly truncated is a few percent
+truncation at $\gamma=5$ approaches the untruncated Plummer case in retained
+checks, whereas the shallower $\gamma=3$ default left strongly truncated is a few percent
 sub-virial — intrinsic to truncating an empirical profile, not a DF error.
-For a strict lowered-DF equilibrium use the King model.
+A finite interior density at $r_t$ cannot be represented exactly by a regular
+ergodic DF with zero escape energy: the accessible velocity volume vanishes
+as $\Psi\to0$. The sharp-edge construction therefore approximates the
+requested density; its numerical and physical limits remain separate from
+the formal inversion identity. For a DF-defined finite boundary, use an
+admissible lowered model and its validation exposure.
 
 ## Implementation in progenax
 
 ```python
+import jax
+import jax.numpy as jnp
 from progenax.profiles import EFFProfile
 from progenax.kinematics import EFFVelocityDF
 from jaxstro.units import STELLAR
+
+key_pos, key_vel = jax.random.split(jax.random.PRNGKey(0))
 
 profile = EFFProfile(a=1.0, gamma=3.0, r_t=10.0)   # a = scale radius, r_t = truncation
 df = EFFVelocityDF(a=1.0, gamma=3.0, r_t=10.0)      # match a, gamma, r_t
@@ -205,10 +220,10 @@ positions = profile.sample_positions(masses, key_pos)
 velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
-`EFFProfile` is a fully-vectorised Equinox module. `EFFVelocityDF` builds the
-exact isotropic ergodic DF $f(E)$ of the (truncated) EFF density by **Eddington
-inversion** at initialisation, then samples speeds per particle from a tabulated
-inverse-CDF; it is fully JIT-compatible and differentiable. For radial anisotropy,
+`EFFProfile` stores a numerical mass CDF. `EFFVelocityDF` numerically inverts
+the density and samples a tabulated speed CDF. Its derivative accuracy depends
+on the chosen parameter domain and resolution; JAX tracing alone does not
+qualify all derivatives. For radial anisotropy,
 pass `anisotropy_radius` (Osipkov–Merritt; see [](../velocity-dfs/rotation-anisotropy.md)).
 
 ```{warning}
@@ -226,7 +241,7 @@ produce non-equilibrium starting states.
 * - Use EFF when…
   - …because
 * - Modelling young massive clusters
-  - Observed surface-brightness profiles match power-law outer fall-off, not Plummer's $r^{-5}$ or King's exponential cutoff
+  - Observed surface-brightness profiles match power-law outer fall-off, not Plummer's $r^{-5}$ or King's finite DF-derived cutoff
 * - Fitting $\gamma$ as a free parameter
   - $\gamma$ enters EFF analytically; no ODE re-solve per gradient step (unlike King's $W_0$)
 * - LMC/SMC cluster work
@@ -243,9 +258,9 @@ produce non-equilibrium starting states.
 * - You want closed-form everything
   - Plummer's DF is analytic; EFF's requires quadrature
 * - The outer slope doesn't matter
-  - For dynamical-evolution studies the central concentration dominates; outer slope effects on relaxation are sub-leading
+  - Use the analytic baseline only when its fixed envelope and lack of a finite boundary suit the intended problem
 * - Computational speed is critical
-  - Plummer is ~$3\times$ faster than EFF per IC realisation
+  - Compare construction and warm sampling for the intended size and hardware; see the [performance evidence](../../50-validation/performance-memory.md)
 ```
 
 ```{list-table}
@@ -258,7 +273,7 @@ produce non-equilibrium starting states.
 * - The truncation radius is physically meaningful
   - King's $r_t$ is the self-consistent tidal boundary where the DF vanishes; EFF's $r_t$ is an imposed cutoff on an otherwise power-law (formally infinite) density
 * - The host-galaxy tidal field is the dominant boundary
-  - King's lowered-isothermal DF assumes tidal-field equilibrium
+  - A lowered DF supplies a finite model edge; matching that edge to an external Jacobi surface is a separate physical constraint
 ```
 
 ## Domain of validity and limitations
@@ -270,27 +285,29 @@ produce non-equilibrium starting states.
 2. **Truncation is intrinsic, not optional.** The profile is sampled on
    $r \in [0, r_t]$ by construction; choose $r_t$ to match the cluster.
    Further tidal trimming can be layered via `apply_tidal_truncation`.
-3. **Only isotropic equilibrium DF.** Anisotropic versions of EFF
-   exist in the literature {cite:p}`ElsonFallFreeman1987` but are not
-   currently in progenax. For anisotropy, use the King DF with the
-   Osipkov-Merritt extension ([](../velocity-dfs/rotation-anisotropy.md)).
-4. **Single-mass only.** Multi-mass populations need post-segregation
-   via [](../tidal-and-substructure/mass-segregation.md).
+3. **Anisotropy requires an admissible DF.** `EFFVelocityDF` supports
+   Osipkov–Merritt radial anisotropy via `anisotropy_radius`; its augmented
+   density and non-negativity checks have their own numerical limits.
+   `KingVelocityDF` remains isotropic; the self-consistent anisotropic King
+   family is Michie. See [](../velocity-dfs/rotation-anisotropy.md).
+4. **The standalone profile is one density component.** For prescribed EFF
+   components in a shared potential, use Engine B
+   (`MultiComponentCluster.from_density_profiles`) and check joint DF
+   realizability. A post-sampling segregation transform is a different,
+   generally nonstationary construction.
 
 ## Implementation, validation & references
 
 - **In code:** `src/progenax/profiles/eff.py` (density, truncated mass,
-  analytic inverse-CDF sampling); velocities come from the Eddington
+  numerical inverse-CDF sampling); velocities come from the Eddington
   inversion in `src/progenax/kinematics/eddington.py` via
   `src/progenax/kinematics/eff_df.py`. See the
   [`EFFProfile` API](../../30-api/profiles.md).
 - **Validated in:** [EFF profile](../../50-validation/eff-profile.md) —
   the regression suite, including the $\gamma = 5$ reduction to Plummer
   and the Eddington-DF virial check.
-- **Primary sources:** {cite:t}`ElsonFallFreeman1987` (the model). The
-  power-law outer slope motivates other young-cluster families (Wilson,
-  Woolley) that {cite:t}`Gieles2015` generalises uniformly (see the
-  [lowered-model family](lowered-model-family.md)); EFF remains the
-  simplest member capturing the key observation — a power-law outer
-  fall-off with a free slope. Full notes in the
+- **Primary sources:** {cite:t}`ElsonFallFreeman1987` defines the projected
+  light profile. The DF-defined lowered families of {cite:t}`Gieles2015`
+  are separate models with different boundary assumptions; EFF is not a
+  member of that lowered-isothermal DF family. Full notes in the
   [bibliography](../../99-bibliography/per-paper/elson-fall-freeman-1987.md).

@@ -16,7 +16,10 @@ current entry points are `build_spatial_ic` (single population),
 `MultiComponentCluster` (multi-population shared-potential equilibrium,
 Engines A and B), and `energy_sorted_segregation` (primordial). See
 [](../10-theory/populations/index.md) and [](../30-api/cluster.md).
-This page is preserved unedited as a historical record.
+The body retains the historical proposal, including replacements that did not
+ship. Its novelty, physical-consistency, and differentiability claims are not
+current qualification evidence. Use the linked architecture and validation
+owners for current behavior and supported domains.
 ```
 
 ```{seealso}

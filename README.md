@@ -6,16 +6,21 @@ Part of the **jaxstro ecosystem** — providing IC generation that can be differ
 
 ## Status
 
-**Research software, release-candidate core.** King, Michie, EFF, and multi-component
-(LIMEPY / density-defined Eddington) velocity DFs are true equilibria (lowered-Maxwellian /
-Eddington inversion, no external virial rescale). The binary-population engine is finalized —
-`build_binary_cluster` composes `primary_imf × companion_model × target` with the faithful
+**Research software; public release is not qualified.** Matched King, Michie, and
+multi-component models use self-consistent lowered-isothermal or Eddington DFs
+within their documented domains. EFF's finite-edge approximation has a documented
+equilibrium limitation. No external virial rescale is needed for the retained matched-DF
+equilibrium tests. `build_binary_cluster` composes `primary_imf × companion_model × target` with the
 Moe & Di Stefano (2017) P–q–e coupling (`MoeCompanions`). The gravoturbulent + fractal-
 density-field subsystem lives in the **experimental, repo-only `gravoturb` package**
-(`src/experimental/`, **not** shipped in the wheel). Every public model carries a
-machine-readable **provenance card** (equation-level citations, enforced by tests), and every
-public entry point is **gradient-audited** (AD-vs-FD, 99 registry cases, 0 hazards). For
-current test/LOC counts see CI and `tests/README.md` (counts are not duplicated here to
+(`src/experimental/`, **not** shipped in the wheel). Registered models carry
+machine-readable **provenance cards** in the released core, with equation-level
+citations and source/test links. The retained gradient audit covers 99 named cases and parameter
+choices; it does not establish all-parameter, population-expectation, or higher-order
+differentiability. Current domain and release gates are recorded in
+[the release assessment](docs/website/95-release/index.md).
+These claims exclude experimental Gravoturb APIs. For
+test/LOC inventories see `tests/README.md` (counts are not duplicated here to
 avoid drift).
 
 > **Not on PyPI yet.** progenax depends on the sibling package `jaxstro` (also unpublished),
@@ -34,7 +39,7 @@ cd docs/website && make gate     # full build + link/content gates
 What lives there:
 
 - **Theory** (`10-theory/`) — derivations for every profile, DF, IMF, and binary model, with
-  publication-quality figures that double as correctness proofs (residual panels,
+  scientific figures with bounded numerical comparisons (residual panels,
   escape-envelope oracles), worked Eddington inversions, and exercises.
 - **Model reference** (`15-model-reference/`) — the generated **provenance glossary**: one
   card per model with its equations, primary sources (DOI/arXiv), implementing code, and
@@ -167,8 +172,9 @@ git clone https://github.com/jaxstro/jaxstro.git
 git clone https://github.com/jaxstro/progenax.git
 cd progenax
 
-# Install the released core + dev tools (uses the project .venv)
-uv pip install -e ".[dev]"
+# Create the environment and explicitly install both local projects.
+uv venv
+uv pip install -e ../jaxstro -e ".[dev]"
 ```
 
 Optional extras: `[experimental]` (the repo-only `gravoturb` inference layer — blackjax,

@@ -10,8 +10,10 @@ Definitions of common terms used in the progenax docs.
 
 half-mass radius
 : The radius $r_h$ enclosing half the total cluster mass:
-  $M(<r_h) = M_{\mathrm{total}}/2$. progenax parameterises every
-  spatial profile by $r_h$ for cross-profile comparability. See
+  $M(<r_h) = M_{\mathrm{total}}/2$. `PlummerProfile` takes $r_h$ directly;
+  King takes its scale radius $r_c$, and EFF takes $a$ and $r_t$. The
+  functional factory's `R_half` argument is a characteristic scale for
+  King/EFF, not their half-mass radius. See
   [](../10-theory/ic-philosophy.md).
 
 scale radius
@@ -20,8 +22,9 @@ scale radius
   $r_h$ via closed-form or numerical mappings.
 
 tidal radius
-: The Jacobi radius $r_J$ at which the cluster's gravity balances
-  the host galaxy's tidal field. Stars beyond $r_J$ are stripped.
+: A model edge or an external tidal scale, depending on context. The
+  circular-orbit Jacobi estimate $r_J$ balances cluster gravity with the local
+  host-plus-centrifugal field. Radius alone does not determine stellar escape.
   Computed by `progenax.tidal.jacobi_radius`. See
   [](../10-theory/tidal-and-substructure/tidal.md).
 
@@ -36,21 +39,25 @@ CW04 Q
   virial Q. See [](../20-architecture/jax-native-substructure-q.md).
 
 virial equilibrium
-: Dynamical state in which $2T + V = 0$, equivalently $Q_{\mathrm{vir}} =
-  0.5$. progenax's default IC state.
+: For an isolated stationary Newtonian system with no extra virial terms,
+  $2T+V=0$, equivalently $Q_{\mathrm{vir}}=0.5$. That instantaneous energy
+  ratio alone does not establish a stationary distribution.
 
 subvirial
-: $Q_{\mathrm{vir}} < 0.5$; cluster is collapsing. The {cite:t}`Allison2009`
+: $Q_{\mathrm{vir}} < 0.5$; below the isolated virial energy ratio.
+  This alone does not specify the instantaneous expansion/contraction rate. The {cite:t}`Allison2009`
   cool-fractal setup uses $Q \approx 0.3$.
 
 supervirial
-: $Q_{\mathrm{vir}} > 0.5$; cluster is expanding. Models post-gas-expulsion
-  states.
+: $Q_{\mathrm{vir}} > 0.5$; above the isolated virial energy ratio.
+  It can describe a post-gas-expulsion setup, but does not alone imply
+  expansion or an unbound cluster.
 
-centre-of-mass (COM) frame
+center-of-mass (COM) frame
 : Frame in which $\sum_i m_i\,\mathbf{r}_i = 0$ and
-  $\sum_i m_i\,\mathbf{v}_i = 0$. progenax always returns ICs
-  in this frame.
+  $\sum_i m_i\,\mathbf{v}_i = 0$. `build_spatial_ic` subtracts the sampled
+  position and velocity COMs. Direct position/velocity samplers do not
+  impose this constraint; later cuts or velocity overlays can change it.
 
 ## Distribution functions & anisotropy
 
@@ -70,9 +77,10 @@ Eddington inversion
   `EFFVelocityDF` and Engine B.
 
 relative potential ($\Psi$) and binding energy ($\mathcal{E}$)
-: $\Psi \equiv -\Phi$ (positive inside a bound system, $\to 0$ at the
-  boundary/infinity) and $\mathcal{E} \equiv -E = \Psi - v^2/2$ (positive
-  for bound orbits). Theory pages write the King/Michie dimensionless
+: $\Psi \equiv \Phi_{\rm cut}-\Phi$, with the zero at the chosen
+  cutoff or infinity, and $\mathcal E=\Psi-v^2/2$, positive for orbits
+  below that energy cutoff. Writing $\Psi=-\Phi$ assumes the potential
+  zero has already been set there. Theory pages write the King/Michie dimensionless
   potential as $\psi$ or $W = \Psi/\sigma_0^2$, with central value $W_0$.
 
 $W_0$ (King concentration)
@@ -81,14 +89,16 @@ $W_0$ (King concentration)
   $c = \log_{10}(r_t/r_c)$ (typical globulars: $W_0 \approx 3$–$12$).
 
 anisotropy radius ($r_a$)
-: The single knob of the Osipkov–Merritt and Michie constructions:
-  velocities are isotropic well inside $r_a$ and increasingly RADIAL
-  outside it. OM overlays keep the density fixed; Michie re-solves
-  Poisson. See [](../10-theory/velocity-dfs/rotation-anisotropy.md).
+: A scale parameter with a DF-dependent meaning. OM has
+  $\beta=r^2/(r^2+r_a^2)$; a Michie lowered DF has a different profile
+  and returns toward isotropy at its finite edge. OM speed laws must be
+  constructed for the density, while Michie re-solves Poisson. See [](../10-theory/velocity-dfs/rotation-anisotropy.md).
 
 $\beta$ — four different symbols on this site
 : Context decides: (1) **velocity anisotropy**
-  $\beta(r) = 1 - \sigma_t^2/\sigma_r^2$ (the usual dynamics meaning);
+  $\beta(r)=1-\sigma_t^2/\sigma_r^2$, with $\sigma_t^2$ one
+  tangential-component variance; using both tangential components adds a
+  factor 2 in the denominator;
   (2) the **turbulence spectral slope** $P(k) \propto k^{-\beta}$
   ([](../10-theory/tidal-and-substructure/fractal.md)); (3) the
   **Maschberger IMF low-mass exponent** ($\beta = 1.4$,
@@ -116,9 +126,10 @@ binary fraction
   $\sim 0.5$ for solar-type, $\sim 0.9$ for O-type.
 
 twin excess
-: Narrow Gaussian peak at $q \approx 1$ in the {cite:t}`MoeDiStefano2017`
-  mass-ratio distribution. Solar-type stars show the strongest
-  excess, $f_{\mathrm{twin}} \approx 0.10$.
+: An enhancement near equal component masses, $q\approx1$. Its size
+  depends on primary mass and period. The full Moe joint implementation
+  uses a finite near-equal-mass interval; the reduced marginal model
+  uses a Gaussian approximation.
 
 confidently wrong
 : The regime where a misspecified likelihood produces a posterior
@@ -193,7 +204,7 @@ JIT
   function to XLA, eliminating Python overhead for hot paths.
 
 vmap
-: `jax.vmap`. Vectorises a function over an axis without writing
+: `jax.vmap`. Vectorizes a function over an axis without writing
   a loop. progenax uses this extensively for parallelisation
   over particles.
 
@@ -225,8 +236,9 @@ VelocityDF protocol
   [](../20-architecture/protocols.md).
 
 IMFProtocol
-: Runtime-checkable protocol every IMF satisfies: `logpdf`, `cdf`,
-  `ppf`, `sample`, and `mean_mass`. See
+: Runtime-checkable contract for scalar stellar-mass distributions: `logpdf`, `cdf`,
+  `ppf`, `sample`, and `mean_mass`. A system-level `BinaryIMF` has a separate
+  sampling/likelihood contract and is not a scalar IMFProtocol instance. See
   [](../20-architecture/protocols.md).
 
 three-brick state

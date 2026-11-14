@@ -29,9 +29,9 @@ positions and velocities that an N-body integrator consumes.
 * - Chapter
   - Scope
 * - [](kepler-elements.md)
-  - The seven orbital elements $(a, e, i, \Omega, \omega, M, t_p)$, their physical meaning, and the conversion from elements to phase-space coordinates.
+  - The six orbital elements $(a, e, i, \Omega, \omega, M_0)$, their physical meaning, and the conversion from elements to phase-space coordinates.
 * - [](period-distributions.md)
-  - Four period-distribution families: log-uniform (Öpik), log-normal ({cite:t}`Sana2012` for OB-type, {cite:t}`DuquennoyMayor1991` for solar), {cite:t}`Sana2012` and {cite:t}`MoeDiStefano2017` empirical fits.
+  - Log-uniform (Öpik), solar-type log-normal ({cite:t}`DuquennoyMayor1991`), the {cite:t}`Sana2012` OB fit, and the mass-dependent {cite:t}`MoeDiStefano2017` period shape.
 * - [](eccentricity.md)
   - Three eccentricity-distribution families: thermal ($f(e) = 2e$), uniform, period-dependent {cite:t}`MoeDiStefano2017`. Tidal-circularisation effects at short period.
 ```

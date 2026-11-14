@@ -79,13 +79,10 @@ fitting formulae.
 
 ## Code cross-reference
 
-`src/progenax/tidal.py` cites Baumgardt & Makino (2003) in two places:
-
-1. **Module-level reference** (line 8): *"Baumgardt & Makino (2003) MNRAS 340, 227 — Tidal
-   stripping."* Correct attribution and bibliographic data.
-
-2. **`fill_factor_to_r_h` docstring** (line 197): the function computes $r_h = f \cdot r_J$
-   (fill factor $f = r_h/r_J$) and lists Baumgardt & Makino (2003) as the reference.
+`src/progenax/tidal.py` now attributes the logarithmic-host radius to
+Baumgardt & Makino Eq. 1 at the module and `jacobi_radius_isothermal` owners.
+`fill_factor_to_r_h` is documented as the inversion of a definitional ratio,
+not as a formula supplied by this paper.
 
 The function whose formula **matches** {eq}`bm03-tidal-radius` is **`jacobi_radius_isothermal`**:
 
@@ -98,31 +95,19 @@ r_J = (G * M_cluster / (2.0 * Omega**2)) ** (1.0 / 3.0)
 Substituting $\Omega = V_{\rm circ}/R_G$ gives $r_J = (G\,M / 2)^{1/3}\,(R_G/V_{\rm circ})^{2/3}
 = (G\,M / 2 V_{\rm circ}^2)^{1/3} R_G^{2/3}$ — **exactly BM03 Eq. 1** with
 $m_c \to M_{\rm cluster}$, $V_G \to V_{\rm circ}$, $R_G \to R_{\rm galactic}$.
-That function's docstring currently cites only Binney & Tremaine (2008) §8.3.1; the same
-formula is BM03 Eq. 1, so adding the Baumgardt & Makino (2003) citation there would make the
-provenance complete. (`jacobi_radius`, the *point-mass* $r_J = R\,(M/3M_{\rm gal})^{1/3}$, is a
+The current function docstring includes this primary attribution. (`jacobi_radius`, the *point-mass* $r_J = R\,(M/3M_{\rm gal})^{1/3}$, is a
 **different** relation — factor 3, not 2 — correctly attributed to King 1962 / Binney &
 Tremaine Eq. 8.91, **not** to this paper.)
 
 ## Verification verdict
 
-```{admonition} Verdict: MATCH (formula) + DISCREPANCY (citation placement)
+```{admonition} Verdict: formula and current attribution agree
 :class: tip
-
-- **`jacobi_radius_isothermal` ⇒ MATCH.** The implemented formula reproduces BM03 Eq. 1
-  exactly (verified algebraically; factor of 2 confirmed against p. 229). The paper's
-  attribution and journal/volume/page data in the module header are correct.
-- **`fill_factor_to_r_h` ⇒ DISCREPANCY (citation, not formula).** The trivial relation
-  $r_h = f\,r_J$ is correct, but the **"fill factor" / "filling factor" concept ($r_h/r_J$)
-  does not appear anywhere in Baumgardt & Makino (2003)** (verified by reading the full text,
-  §1–§3.5; the paper sets $r_t$ via Eq. 1 and discusses $r_t \propto m_c^{1/3}$ but never
-  defines a half-mass-to-tidal-radius ratio). The fill-factor terminology is later community
-  usage (e.g. Hénon-ratio / Roche-filling-factor literature), not this paper. The citation on
-  `fill_factor_to_r_h` is therefore **unsupported as written**.
-- **Phase 2 (Anna-gated) recommendation:** add the {cite:t}`Baumgardt2003` citation to
-  `jacobi_radius_isothermal` (where it belongs), and either re-attribute or drop the
-  Baumgardt & Makino (2003) reference on `fill_factor_to_r_h`. No `src/` edits were made in
-  this task.
+The implemented isothermal relation is algebraically BM03 Eq. 1. The current
+source cites it at that function and treats $r_h=f r_J$ as a definition.
+The earlier citation-placement discrepancy is historical; it is not a pending
+source repair. The PDF equation inspection recorded above is distinct from
+this current-source reconciliation.
 ```
 
 ```{note}

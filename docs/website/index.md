@@ -6,33 +6,30 @@ description: Differentiable initial conditions for N-body simulations
 # progenax
 
 > Differentiable initial conditions for N-body simulations of star clusters,
-> stellar populations, and binary systems — JAX-native, gradient-friendly,
-> physically rigorous.
+> stellar populations, and binary systems, implemented in JAX.
 
 `progenax` is part of the [jaxstro](https://github.com/jaxstro)
-ecosystem. Every initial condition you generate — Plummer or King spatial
-profiles, isotropic or anisotropic velocity distributions, IMF samples, and
-binary orbits — is differentiable through `jax.grad`, vectorisable through
-`jax.vmap`, and JIT-compilable through `jax.jit`. Gravoturbulent /
+ecosystem. It constructs particle masses, positions, and velocities from specified
+models and random keys. Differentiation depends on the sampling path and parameter;
+individual methods document their smooth regions, numerical safeguards, and gradient
+checks. Reproducing a realization requires its configuration and software environment
+as well as its random key.
+
+Gravoturbulent /
 fractal-density-field substructure is an **experimental** follow-up-paper
 feature in the repo-only `gravoturb` package (not in the released wheel).
 
-This site is the **single source of truth** for the package: theory,
-architecture, API, tutorials, and history. Whether you arrived to learn
-how to build your first cluster, to dig into the (experimental) gravoturbulent
-freefall-density factor formalism, to understand why we chose a protocol-based composition
-pattern over inheritance, or to look up a specific function signature —
-there's a path for you.
-
+This site connects theory, numerical methods, architecture, API usage, and validation.
+Start with a tutorial to build a cluster, then follow its model and implementation
+references to understand the assumptions and checks.
 
 ```{figure} 10-theory/figures/phase_space_hexbin.webp
 :width: 100%
 
-Every model on this site is sampled, verified, and drawn: $4\times10^5$-star
-equilibria on the $(r, v_r)$ phase-space plane, with the analytic escape
-envelope computed three independent ways and no star crossing it. From the
-[velocity-DF theory chapter](10-theory/velocity-dfs/index.md); every figure
-regenerates from `laboratory/icviz`.
+Sampled radial phase space for the models shown. Escape-speed envelopes mark the
+velocity support of the corresponding potentials; remaining inside an envelope is
+one diagnostic, not a complete equilibrium test. See the
+[velocity-DF theory chapter](10-theory/velocity-dfs/index.md).
 ```
 
 ## Find your reading path
@@ -51,18 +48,18 @@ along the way.
 :::{card} 📚 Theory & methods
 :link: 10-theory/index.md
 
-**For researchers wanting full depth.** Derivations from first principles
-for every model in the package — spatial profiles, velocity DFs, IMFs,
-binaries, tidal physics, gravoturbulence — each anchored on the original
-papers via {cite}-rendered citations.
+**For researchers.** Physical models, their assumptions, and numerical methods,
+with links to sources, implementations, and validation evidence.
+
 :::
 
 :::{card} 🔧 API reference
 :link: 30-api/index.md
 
-**For daily use.** Auto-generated reference for every public symbol,
-regenerated on each build so it can never drift from the source. Search
-the [full symbol index](30-api/full-symbol-index.md) or browse by module.
+**For daily use.** The API reference documents public symbols; theory pages explain
+their physical conventions and validation pages record the checks performed.
+Search the [full symbol index](30-api/full-symbol-index.md) or browse by module.
+
 :::
 
 ::::

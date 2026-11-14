@@ -1,14 +1,14 @@
 ---
 title: Performance & memory
-description: "Measured peak-RSS and wall-clock evidence for the Batch A kernels: blocked row-scan virial kernels (forward AND gradient O(block·N) memory) and CDF-table-routed standalone velocity DFs, benchmarked live against the pre-batch code in a pinned worktree."
+description: "Measured costs for the public binary workflow, plus historical Batch A peak-RSS and timing evidence for blocked virial kernels and table-routed standalone velocity DFs."
 ---
 # Performance & memory
 
 The 2026-06 memory batch replaced the two kernels that could exhaust RAM on a
 single workstation: the dense $(N,N,3)$ pairwise virial kernels in
 `progenax.dynamics.virial`, and the per-star quadrature speed sampler in the
-standalone anisotropic velocity DFs. **Every number on this page is measured,
-not estimated** — the benchmark checks out the pre-batch commit (`0dd1cd9`)
+standalone anisotropic velocity DFs. The historical comparison below reports
+measured peak RSS and call times: the benchmark checks out the pre-batch commit (`0dd1cd9`)
 into a read-only git worktree and runs *both* code versions live in
 subprocess-isolated cases on the same machine (Apple Silicon, macOS, float64,
 eager mode; medians of 5 timed calls after one warm-up). Reproduce with:
@@ -19,6 +19,12 @@ env -u VIRTUAL_ENV uv run --no-sync python scripts/profile_cluster_memory.py
 env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_speed_routing.py
 ```
 
+The June JSON records the date, platform, architecture, pre-batch commit, and
+repetition count. It does not identify the exact CPU model or dependency
+versions, and it does not report compilation or first-call costs separately.
+These retained cases are historical measurements, not a fresh release benchmark
+or a performance guarantee for later source revisions.
+
 ## Peak memory: before vs after
 
 :::{figure} figures/performance_memory.png
@@ -27,9 +33,9 @@ env -u VIRTUAL_ENV uv run --no-sync python scripts/validate_speed_routing.py
 
 Peak RSS (resident set size, GB; log scale) per kernel call, measured in
 isolated subprocesses (2026-06-10, `scripts/benchmark_batch_a.py`). The dense
-potential-energy kernel's peak is macOS-memory-pressure dependent (20.9 GB in
-this run; 32.8 GB in the original probe) — decisively machine-filling either
-way; the blocked kernel is 0.41 GB at the same $N$.
+potential-energy kernel's peak depends on macOS memory pressure (20.9 GB in
+this run; 32.8 GB in the original probe). The blocked kernel used 0.41 GB
+at the same $N$.
 :::
 
 ```{list-table}
@@ -42,24 +48,25 @@ way; the blocked kernel is 0.41 GB at the same $N$.
 * - `compute_potential_energy`
   - 8,000
   - 6.06 GB
-  - **0.38 GB** (16×)
+  - **0.38 GB** ($16\times$)
 * - `compute_potential_energy`
   - 20,000
   - 20.9 GB (32.8 GB in the original probe)
-  - **0.41 GB** (≥ 50×)
+  - **0.41 GB** ($\ge 50\times$)
 * - aniso `LIMEPYVelocityDF.sample_velocities`
   - 20,000
   - 14.6 GB (10.9 GB in the original probe)
-  - **2.02 GB** (≥ 5.4×; construction-dominated — see below)
+  - **2.02 GB** ($\ge 5.4\times$; construction-dominated — see below)
 ```
 
 The pass gates live in `scripts/profile_cluster_memory.py` (7 stages,
 including the $N = 10^5$ Engine A/B cluster samplers at 1.4–2.5 GB); the
-script exits nonzero on any gate regression, so this is a standing memory
-regression test, not a one-off measurement.
+script exits nonzero when a measured stage exceeds its gate. That supplies a
+repeatable check when executed; the retained numbers do not show that it has
+been rerun on the current source.
 
 **Why it was so large.** The old energy kernel materialized all pairwise
-separations at once (`positions[:,None,:] − positions[None,:,:]`, an
+separations at once (`positions[:,None,:] - positions[None,:,:]`, an
 $(N,N,3)$ float64 array — 9.6 GB at $N = 2\times10^4$) and, running eagerly,
 held several such intermediates simultaneously. The old anisotropic DF
 sampler evaluated a 256-point speed grid × ~91-term lowered-isothermal series
@@ -83,8 +90,8 @@ instead of materializing every eager intermediate. A staged profile
 **construction dominates** (~1.8 GB: two ODE solves + the $\mu$ integral +
 the cached table build, paid once per model), the jitted draw adds only
 +0.20 GB (eager it was +0.63 GB), and warm draws take **15 ms** after the
-one-time ~0.5 s compile. The exact per-star quadrature is retained as the
-oracle behind `speed_method="quadrature"` (also jitted now). A further
+one-time ~0.5 s compile. The per-star numerical quadrature is retained as the
+reference behind `speed_method="quadrature"` (also jitted now). A further
 `lax.map` chunking of the table draw was evaluated and **rejected on
 measurement**: it would shave part of a 0.2 GB component inside a
 construction-dominated stage while adding scan overhead to a millisecond
@@ -97,14 +104,14 @@ hot path.
 :width: 100%
 
 Median wall-clock per call vs $N$ (log–log; 2026-06-10). **(a)**
-`compute_potential_energy`: the blocked kernel wins above $N \approx 5{,}000$
-(2.4× at $N=8{,}000$: 0.169 → 0.070 s) and is the only feasible option at
-$N = 2\times10^4$ (0.216 s); below the crossover the dense broadcast is
-faster (0.013 vs 0.045 s at $N=2{,}000$) — scan overhead dominates when the
-dense transient is only ~100 MB. **(b)** anisotropic LIMEPY sampling, after
+`compute_potential_energy`: the blocked kernel is faster at $N=8{,}000$
+($2.4\times$: 0.169 versus 0.070 s), while the dense broadcast is faster at
+$N=2{,}000$ (0.013 versus 0.045 s). The crossover is not precisely located
+by those two workloads. At $N=2\times10^4$ the blocked call took 0.216 s;
+the dense call was memory-limited in the retained probe. **(b)** anisotropic LIMEPY sampling, after
 the sampler-fusion follow-up (table cached at construction + jitted core):
-warm draws cost **3–16 ms** across $N = 2\times10^3$–$2\times10^4$ — 55×
-faster than the pre-batch quadrature at $N=10^4$ (0.497 → 0.009 s) — with the
+warm draws cost **3–16 ms** across $N = 2\times10^3$–$2\times10^4$ — $55\times$
+faster than the pre-batch quadrature at $N=10^4$ (0.497 versus 0.009 s) — with the
 former small-$N$ table-build penalty eliminated (the build moved into
 construction, paid once per model; a ~0.5 s jit compile is paid on the first
 draw per $N$). The quadrature oracle (green) also runs in the jitted core
@@ -112,13 +119,16 @@ draw per $N$). The quadrature oracle (green) also runs in the jitted core
 :::
 
 Timings are reported, never gated (they vary with machine load); the memory
-ratios are gated (the benchmark requires ≥ 5× at $N=8{,}000$, measures 16×).
+ratios are gated (the benchmark requires $\ge 5\times$ at $N=8{,}000$;
+the retained result is $16\times$).
 
 ## Distribution fidelity of the table-routed draws
 
 Routing the speed marginal through CDF tables must not change the physics.
-The angular conditional $\cos\theta\,|\,u$ stays exact; only the speed
-marginal is tabulated. The standing gates (unit suite, `TableRouting`
+The angular conditional $\cos\theta\,|\,u$ uses the same numerical
+sampler on both paths; only the speed marginal is routed through the table.
+Agreement of those paths does not independently qualify their shared angular
+quadrature. The standing gates (unit suite, `TableRouting`
 classes): KS $D < 0.02$, mean/second-moment ratios within 2%/3%, $\beta(r)$
 preserved to 0.06. Measured (2026-06-10, $N = 2\times10^4$ per draw,
 `scripts/validate_speed_routing.py`, **ALL PASS**): King KS
@@ -134,22 +144,92 @@ case).
 :width: 100%
 
 Anisotropic LIMEPY ($W_0=5$, $g=1$, $r_a=4$): (a) speed distribution,
-table default vs exact quadrature oracle, $N=2\times10^4$; (b) measured
+table default vs numerical quadrature reference, $N=2\times10^4$; (b) measured
 $\beta(r)$ from the same draws — indistinguishable, as required (the angular
-conditional is shared exactly). King and Michie versions of this figure are
+conditional uses the same numerical sampler). King and Michie versions of this figure are
 embedded on the [King](king-profile.md) and
 [Michie](michie-anisotropy.md) pages.
 :::
 
+## Public binary workflow: cold and warm costs
+
+This separate 2026-09-30 exposure uses revision `366f6c4`, float64, JAX 0.11.0
+on one Apple Silicon CPU host. The [](../40-howto/add-binary-population.md)
+recipe supplies a Plummer half-mass radius of 1 pc, a declining primary IMF
+$p(m)\propto m^{-2.3}$ over $0.1$–$20\,\Msun$ and independent companions.
+Here $m$ is primary mass. The public `build_cataloged_binary_cluster` path
+returns the full masked IC (`compact=False`), with twice as many particle slots
+as systems. Key 0 gives 157 real stars at 100 systems and 1505 at 1000 systems.
+With $T_{\rm COM}$ and $W_{\rm COM}$ the COM kinetic and gravitational
+potential energies, the two values of $Q=T_{\rm COM}/|W_{\rm COM}|$ select unscaled COM velocities
+(`None`) or the existing COM energy rescale (0.5).
+
+Each of the eight cases runs in a fresh process, with persistent compilation
+caching disabled. The inherited environment has `OMP_NUM_THREADS=12` and no
+explicit `XLA_FLAGS`; these measurements are separate from the CI environment.
+Forward execution returns the full IC and $S=2T/M$, where $T$ includes COM and
+internal binary kinetic energy and $M$ is total resolved mass. Reverse execution
+also returns $dS/d\lambda$ at $\lambda=1$, where $\lambda$ multiplies every
+primary mass and both IMF bounds while keeping the companion draws fixed.
+All outputs are synchronized. Warm times are medians of five calls.
+
+| Systems / Q / mode | Lower + compile (s) | First call (ms) | Warm (ms) | RSS through warm (GB) | Compiler temporary (MB) |
+|---|---|---|---|---|---|
+| 100 / none / forward | 0.730 | 1.424 | 0.362 | 0.705 | 0.042 |
+| 100 / none / reverse | 1.056 | 1.887 | 0.351 | 0.770 | 0.081 |
+| 100 / 0.5 / forward | 0.810 | 7.814 | 0.388 | 0.717 | 0.116 |
+| 100 / 0.5 / reverse | 1.109 | 4.896 | 0.610 | 0.772 | 0.723 |
+| 1000 / none / forward | 0.751 | 5.988 | 2.238 | 0.707 | 0.372 |
+| 1000 / none / reverse | 1.141 | 6.499 | 4.358 | 0.781 | 0.748 |
+| 1000 / 0.5 / forward | 0.845 | 6.850 | 3.448 | 0.749 | 2.395 |
+| 1000 / 0.5 / reverse | 1.426 | 21.338 | 11.380 | 0.850 | 17.238 |
+
+```{note}
+RSS is the process-lifetime high-water resident set measured through the end
+of the timed calls, including preparation and compilation. It is not an
+isolated execution allocation. Later eager validation raises the largest
+process high-water RSS to 0.959 GB. Compiler temporary storage is a separate
+compiler estimate. Lowering and compilation are recorded separately in the
+raw artifact; neither is included in warm execution. These are two workload
+sizes on one host, not parallel scaling, a speedup or a runner-capacity verdict.
+Import/model preparation is outside these timers and is not timed separately;
+the raw process wall time also includes the later validation.
+```
+
+All eight cases match eager construction at the existing relative budget
+$10^{-10}$ with zero absolute slack. The reverse check is independent of AD:
+at fixed periods, Kepler's relation gives orbital axes proportional to
+$\lambda^{1/3}$ and squared internal speeds proportional to $\lambda^{2/3}$.
+Squared COM speeds scale as $\lambda$. Thus, for this fixed-draw recipe,
+
+$$
+S(\lambda)=\lambda S_{\rm COM}(1)+\lambda^{2/3}S_{\rm int}(1),
+\qquad
+S'(1)=S_{\rm COM}(1)+\frac{2}{3}S_{\rm int}(1),
+$$
+
+where $S_{\rm COM}=2T_{\rm COM}/M$ and $S_{\rm int}=2T_{\rm int}/M$ are
+in $\mathrm{pc^2\,Myr^{-2}}$, with $T_{\rm int}$ the internal binary kinetic
+energy. The maximum relative derivative discrepancy
+is $1.36\times10^{-13}$. This checks deterministic mass scaling, not
+population-expectation precision, empirical calibration or stationarity.
+
+The raw timings, source hashes, command and all validation results are in
+the bounded workflow record (`docs/reviews/rung5-binary-workflow-costs.md`,
+repository-only evidence).
+Lowering and compilation dominate a single small draw; reuse the
+compiled function when the model shape permits. The existing pair-energy
+rescale does quadratic work; blocked checkpointing bounds its reverse
+temporary storage. No numerical optimization follows from this exposure.
+
 ## What this enables
 
-Exact potential energies, virial diagnostics, and their `jax.grad` at
-$N \gtrsim 10^5$ on a laptop (footprint linear in $N$; `block_size` is
-tunable); standalone anisotropic DF sampling at survey scale with
-millisecond repeated draws (build the DF once, draw many times — e.g. seed
-ensembles); and a CI-able memory regression gate (the `limepy_df_aniso` gate
-is tightened to 2.5 GB to lock in the fusion win). The $N=2\times10^4$
-virial workloads that previously OOM'd this 68.7 GB machine now fit in half
-a GB; the remaining DF-stage floor (~1.8 GB) is **model construction** (ODE
-solves + the $\mu$ integral), a future optimization target if it ever
-matters — it is paid once per model, not per draw.
+Blocked pair-energy kernels reduce transient storage to
+$O(\mathrm{block\_size}\,N)$ while retaining quadratic pair work.
+The retained measurements above concern their named particle counts,
+source snapshots, precision and one host. They do not establish a universal
+laptop capacity or cost for arbitrary $N$. Cached standalone DF tables can
+reduce repeated-draw cost when the model is reused; construction, compilation
+and numerical fidelity remain separate costs/checks. The memory profiling
+script can be run locally when separately authorized for its workload; its
+existence does not imply a current CI run or a fresh release benchmark.

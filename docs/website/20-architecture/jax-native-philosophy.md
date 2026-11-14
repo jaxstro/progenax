@@ -1,15 +1,14 @@
 ---
 title: JAX-native philosophy
-description: Why progenax forbids numpy/scipy in core code, requires jax.lax.scan over Python loops, and uses equinox modules for state — the three constraints that make every IC differentiable end-to-end.
+description: JAX array, loop, and state conventions, with the separate checks needed for transformation support and derivative accuracy.
 ---
 
 # JAX-native philosophy
 
-progenax is **JAX-native by construction**. Every line of core code
-operates on `jax.Array` objects, every loop is a `jax.lax` primitive,
-every stateful object is an `equinox.Module`. This is not aesthetic
-preference; it is the *minimum* discipline required to make every
-IC differentiable, JIT-compilable, and `vmap`-able end to end.
+Progenax uses JAX arrays and transformations on its numerical core paths.
+Equinox modules hold model state. These conventions make transformation support
+possible; they do not establish differentiability or derivative accuracy for
+every parameter, boundary, discrete choice, or observable.
 
 This chapter documents the three constraints that follow from the
 JAX-native commitment, the antipatterns they forbid, and why the
@@ -30,10 +29,9 @@ discipline pays for itself many times over in practice.
   - JAX arrays are immutable. Updates use `array.at[i].set(val)` (out-of-place) or `lax.scan` carry. Stateful classes are `equinox.Module` PyTrees
 ```
 
-The constraints compose: code that respects all three is
-JIT-compilable, `vmap`-able, and differentiable through every line —
-the four operations (JIT, vmap, grad, scan) that make HMC inference
-of cluster parameters tractable.
+Transformation support also depends on shapes, static arguments, control flow,
+and derivative rules. Verify `jit`, the required AD mode, and batching for the
+intended public path. See [](differentiability.md).
 
 ## Why no numpy/scipy
 
@@ -54,9 +52,8 @@ def correct_radius(x, y, z):
 
 The `np.sqrt` version *works* outside JIT — it returns a numpy array
 that JAX silently converts back. Inside JIT, the conversion happens
-at trace time and produces a *concrete* numpy array, breaking the
-trace. The error message is usually a cryptic
-"`ConcretizationTypeError`" pointing at a line that looks innocent.
+at trace time and attempts to convert a tracer to a NumPy array. It can raise
+`TracerArrayConversionError`; the traced value is not available to NumPy.
 
 scipy presents the same problem with bigger consequences:
 `scipy.integrate.quad` cannot be JIT-traced because its iteration
@@ -74,10 +71,10 @@ as non-JIT, non-differentiable, and consumed only at validation time.
 
 Python `for` loops over JAX arrays *unroll* under JIT — each
 iteration becomes a separate operation in the compiled XLA graph.
-For $N = 10^4$ particles, this produces a 10,000-step XLA program
-that takes minutes to compile and gigabytes of memory to hold. The
-compiled program is also *not* `vmap`-able, since the unroll happened
-at trace time and `vmap` cannot un-unroll it.
+A long unrolled loop can increase graph size and compilation cost. Static
+Python loops can still support `vmap` and AD; unrolling alone does not prohibit
+those transformations. Measure trace, compile, and warm execution separately
+before replacing a loop.
 
 The replacement is `jax.lax.scan`:
 
@@ -100,13 +97,13 @@ independently); `jax.lax.scan` is the right tool for *sequential*
 loops (each step depends on the previous). progenax uses both.
 
 ```{warning}
-**`jax.lax.while_loop` is forbidden in core code.** It is not
-differentiable (the iteration count depends on data, so the gradient
-is not defined). Convergence-based iteration must use `lax.scan`
-with a *fixed* iteration count chosen large enough to ensure
-convergence in the worst case. progenax's Newton solvers, ODE
-integrations, and inverse-CDF lookups all use fixed-iteration
-`scan`.
+`jax.lax.while_loop` supports forward AD but ordinary reverse AD requires a
+static memory bound. A converged mathematical solution may still have an
+implicit derivative. Progenax uses fixed-iteration kernels on some paths,
+Diffrax adjoints for adaptive ODE solves, and an implicit derivative around
+Engine A's adaptive central-fraction fit. Check convergence and the derivative
+of the intended solution. See the
+[JAX loop contract](https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html).
 ```
 
 ## Why immutable state
@@ -149,9 +146,8 @@ any special handling. Updates produce *new* instances:
 sol_new = eqx.tree_at(lambda s: s.xi_t, sol_old, new_xi_t)
 ```
 
-This out-of-place pattern is what makes everything differentiable —
-gradients flow through the *new* PyTree, not through any in-place
-modification.
+Functional updates preserve JAX tracing. The updated expression still needs a
+valid derivative rule and a suitable parameter domain.
 
 ## What about diagnostics?
 
@@ -180,27 +176,22 @@ The discipline pays for itself in three ways:
 
 1. **HMC inference is tractable.** Posterior sampling of cluster
    parameters from observed data requires gradients of the entire
-   IC pipeline. Every JAX-native function flows gradients
-   automatically; without the discipline, finite-difference gradients
-   would be the only option (slow, noisy, not HMC-compatible).
-2. **GPU acceleration is free.** A `@jax.jit`-compiled function runs
-   on GPU via `jax.devices('gpu')`. With the discipline, no code
-   changes are needed; without it, mixed numpy/JAX code requires
-   per-line auditing.
-3. **Vectorisation is free.** Time-series of ICs, parameter sweeps,
-   or batched inference all become single `vmap` calls. Without the
-   discipline, Python loops produce per-batch retraces and 100×
-   slowdowns.
+   IC pipeline. JAX can evaluate derivatives on supported paths; a physical
+   likelihood and independent gradient checks remain necessary.
+2. **Device execution can be selected explicitly.** Backend availability,
+   precision, supported operations, and measured performance determine whether
+   an accelerator is useful. Device enumeration does not place a computation.
+3. **Batching can expose independent work.** `vmap` often replaces a Python
+   batch loop, but static shapes and memory cost still matter. Benchmark the
+   intended batch size and retain a bounded-memory route when needed.
 
-A typical progenax research project that pays the upfront discipline
-cost runs $\sim 100\times$ faster than its numpy-mixed equivalent at
-$N = 10^4$ — the constant-factor speedup that makes posterior chains
-of $\sim 10^6$ likelihood evaluations finish in hours rather than
-weeks.
+Measured timings and their hardware, precision, and problem sizes belong in
+[performance and memory](../50-validation/performance-memory.md). These
+implementation conventions alone imply no speedup factor.
 
 ## References
 
 The JAX programming model is documented at the [JAX
-docs](https://jax.readthedocs.io). Equinox is {cite:t}`Equinox`. The
-"no while_loop" convention is shared across the JAX scientific-computing
-ecosystem (Diffrax, Optax, NumPyro all enforce it).
+docs](https://jax.readthedocs.io). Equinox is {cite:t}`Equinox`. Adaptive loops and their derivative rules must be assessed separately; the
+[JAX control-flow guide](https://docs.jax.dev/en/latest/control-flow.html)
+describes the transformation contracts.

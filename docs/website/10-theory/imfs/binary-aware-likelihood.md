@@ -1,6 +1,6 @@
 ---
 title: Binary-aware likelihood
-description: The Gauss-Legendre quadrature that marginalises over binary status and mass ratio at inference time, producing an unbiased α posterior even at LSST-scale sample sizes.
+description: The system-mass likelihood, its primary-mass quadrature, and the limits of the retained binary-aware recovery evidence.
 ---
 
 # The binary-aware likelihood
@@ -15,6 +15,14 @@ likelihood marginalises over, see [](multiplicity-statistics.md) and
 [](mass-ratio-distributions.md).
 ```
 
+Let $M$ be an observed total system mass in solar masses, $N$ the number
+of observed systems, and $\alpha$ the dimensionless IMF slope. Here
+$\xi(m\mid\alpha)$ is the normalized **primary-mass probability density**
+per solar mass on $[m_{\min},m_{\max}]$, zero outside that support.
+The binary probability is $f_b(m_1)$ at primary mass $m_1$, and
+$g(q\mid m_1)$ is a normalized conditional density for the dimensionless
+mass ratio $q=m_2/m_1$ on $[q_{\min},1]$.
+
 The single-star likelihood
 
 ```{math}
@@ -24,43 +32,47 @@ The single-star likelihood
 
 assumes every observed system mass is a single star. The
 **binary-aware likelihood** corrects this by marginalising over the
-latent binary status and mass ratio of each observation:
+latent binary status and mass ratio of each observation. For each $q$,
+the candidate primary mass is $m_1=M/(1+q)$:
 
 ```{math}
 :label: ba-likelihood
 p(M \mid \alpha) \;=\;
-\underbrace{(1 - \bar f_b)\,\xi(M \mid \alpha)}_{\text{single}}
+\underbrace{[1 - f_b(M)]\,\xi(M \mid \alpha)}_{\text{single}}
 \;+\;
-\underbrace{\bar f_b \int_{q_{\min}}^{1}
-  \frac{\xi\!\bigl(\tfrac{M}{1+q} \mid \alpha\bigr)}{1+q}\,
-  g\!\bigl(q \mid \tfrac{M}{1+q}\bigr)\,\mathrm{d}q}_{\text{binary}}
+\underbrace{\int_{q_{\min}}^{1}
+  \frac{\xi(m_1 \mid \alpha)\,f_b(m_1)\,g(q\mid m_1)}{1+q}
+  \,\mathrm{d}q}_{\text{binary}}.
 ```
 
 Each term has direct physical meaning. The single-star contribution is
-the probability that the observed mass $M$ is *just one star*, with
-that star drawn from the IMF at mass $M$. The binary contribution
+the density for a system containing one star drawn from the primary
+IMF at mass $M$. The binary contribution
 integrates over every possible mass-ratio $q$ for which the observed
 $M$ could be a binary: the primary had mass $M / (1+q)$, the secondary
 had $q \cdot M / (1+q)$, and the IMF and mass-ratio distribution
-combine to give the joint probability density. The Jacobian
+combine with $f_b(m_1)$ to give the joint probability density. This
+fraction stays **inside** the integral: different candidate primary
+masses have different probabilities of being binary. Only a constant
+binary fraction can be factored out. The Jacobian
 $1/(1+q)$ comes from the change of variables $m_{\mathrm{sys}} = m_1
 (1+q)$.
 
 This page derives the integrand, walks through the 128-point
-Gauss-Legendre quadrature progenax uses, and quantifies the cost.
+Gauss-Legendre quadrature used by the recovery scripts, and describes its cost.
 
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers wanting the inference-time mechanics of the binary-aware likelihood — the quadrature, vectorisation, and gradients; no prior Bayesian-inference literature assumed.
 **Prerequisites:** the [binary-aware IMF chapter](binary.md) (the scientific motivation and the system mass function this likelihood inverts).
-**You'll get:** why the integral has no closed form, the 128-point Gauss-Legendre quadrature, the $N \times K$ vectorised tile, numerical-stability notes, and how it plugs into NUTS / NumPyro.
+**You'll get:** the conditional binary weight, the 128-point Gauss-Legendre quadrature, the $N \times K$ vectorised tile, and the distinction between likelihood derivatives and posterior qualification.
 :::
 
 ## Why no closed form
 
-The integrand of {eq}`ba-likelihood` involves three pieces that all
-have closed-form expressions individually, but no closed form for
-their product:
+The recovery scripts use numerical integration for the IMF and
+mass-dependent binary statistics. Special choices can have analytic
+integrals; the general implementation does not require one:
 
 1. **The IMF $\xi$** — closed form for {cite:t}`Maschberger2013`,
    piecewise for {cite:t}`Kroupa2001`.
@@ -69,38 +81,40 @@ their product:
    $m_1$ via the {cite:t}`MoeDiStefano2017` mass-bin lookup.
 3. **The Jacobian $1/(1+q)$** — trivial.
 
-The piecewise mass-bin lookup in $g(q \mid m_1)$ is what kills any
-hope of a closed form. The integrand is a sum of products of
-analytic pieces, but the *boundaries* of each piece depend on the
+The piecewise mass-bin lookups in $f_b(m_1)$ and $g(q \mid m_1)$
+introduce boundaries that depend on the
 candidate primary mass $m_1 = M/(1+q)$, which depends on the
 integration variable $q$. progenax evaluates the integral
 numerically.
 
 ## The Gauss-Legendre quadrature
 
-For a smooth integrand on $[a, b]$, $K$-point Gauss-Legendre
-quadrature gives roughly $14$ digits of accuracy at $K = 128$. The
-integrand of {eq}`ba-likelihood` is smooth on the interior $(q_{\min},
-1)$ with weak edge behaviour at $q \to 1$ (where the Jacobian $1/(1+q)
-\to 1/2$ and the twin Gaussian peaks). Gauss-Legendre with $K = 128$
-nodes is the right tool:
+For an integration variable $t$ on $[a,b]$, $K$-point Gauss-Legendre
+quadrature uses nodes $x_k$ and weights $w_k$ on $[-1,1]$:
 
 ```{math}
 :label: gl-quadrature
-\int_{q_{\min}}^{1} h(q)\,\mathrm{d}q
+\int_a^b h(t)\,\mathrm{d}t
 \;\approx\;
-\frac{1 - q_{\min}}{2}\,\sum_{k=1}^{K} w_k\,h\!\biggl(\frac{(1 - q_{\min})\,x_k + (1 + q_{\min})}{2}\biggr)
+\frac{b-a}{2}\,\sum_{k=1}^{K} w_k\,
+h\!\left(\frac{b-a}{2}x_k+\frac{a+b}{2}\right).
 ```
 
-where $\{x_k, w_k\}$ are the standard Gauss-Legendre nodes and weights
-on $[-1, 1]$. progenax precomputes $\{x_k, w_k\}$ at module-import
-time and passes them as a fixed array to the JIT-compiled likelihood.
+Both recovery scripts precompute $K=128$ nodes and weights at module
+load. They use **quadrature over primary mass**, with
+$a=\max(M/2,m_{\min})$ and $b=\min(M/(1+q_{\min}),m_{\max})$.
+The binary integrand is $\xi(m_1\mid\alpha)f_b(m_1)
+g(M/m_1-1\mid m_1)/m_1$, as derived in {eq}`psys`.
+The contribution is zero if $b\le a$. Systems can extend to
+$2m_{\max}$ even though primaries stop at $m_{\max}$.
 
-The 128-point choice is calibrated against analytic test cases (where
-the integrand reduces to closed-form sub-cases) to give $\le 10^{-10}$
-relative error across the full $\alpha \in [0.5, 4.0]$ range and
-$M \in [m_{\min}, m_{\max}]$. Smaller $K$ shows degradation near
-$q_{\min}$ where the integrand can be steep.
+```{warning} Quadrature accuracy needs its own comparison
+The empirical mass-bin boundaries make the integrand piecewise smooth.
+A fixed node count alone does not establish a relative accuracy, and
+agreement of AD with finite differences does not test integration error.
+The retained recovery evidence does not qualify a universal
+$10^{-10}$ quadrature budget across masses and IMF slopes.
+```
 
 ## Vectorisation: the $N \times K$ tile
 
@@ -108,57 +122,55 @@ For $N$ observed systems and $K$ quadrature points, the likelihood
 evaluation is a tensor contraction:
 
 ```{note}
-Implementation status: the block below is schematic likelihood
-pseudocode. The current public `BinaryIMF` exposes sampling helpers such
-as `sample_systems`; it does not expose this exact `log_prob` method as
-a copy-paste API.
+The block below shows the existing script calculation; its bindings are
+`Maschberger`, `MassDependentBinaryFraction`, `MoeDiStefano2017`, the
+128-point `GL_NODES`/`GL_WEIGHTS`, and the scripts' mass bounds and
+`Q_MIN`. The public `BinaryIMF` exposes sampling helpers such as
+`sample_systems`; the likelihood remains owned by the validation scripts.
 ```
 
 ```python
 @jax.jit
 def log_likelihood(alpha, M_sys):
-    # q_nodes, w_nodes: shape (K,) — fixed
-    q = q_nodes_scaled                                  # (K,)
-
-    # Candidate primary masses for each (M_sys, q) pair
-    m1 = M_sys[:, None] / (1.0 + q[None, :])            # (N, K)
-
-    # IMF + mass-ratio distribution at each (m1, q)
-    log_xi = imf.logpdf(m1, alpha=alpha)                # (N, K)
-    log_g = mass_ratio_log_prob(q[None, :], m1)         # (N, K)
-
-    # Integrand and quadrature
-    log_integrand = log_xi + log_g - jnp.log(1.0 + q[None, :])
-    binary_integral = jnp.sum(w_nodes * jnp.exp(log_integrand), axis=1)
-
-    # Combine single + binary contributions
-    f_b = binary_fraction(M_sys)                        # (N,)
-    p = (1 - f_b) * jnp.exp(imf.logpdf(M_sys, alpha)) + f_b * binary_integral
-
-    return jnp.sum(jnp.log(p))
+    imf = Maschberger(alpha=alpha, m_min=M_MIN, m_max=M_MAX)
+    bf = MassDependentBinaryFraction()
+    qd = MoeDiStefano2017(q_min=Q_MIN)
+    lo = jnp.maximum(M_sys / 2, M_MIN)                   # (N,)
+    hi = jnp.minimum(M_sys / (1 + Q_MIN), M_MAX)         # (N,)
+    half = (hi - lo) / 2
+    m1 = half[:, None] * GL_NODES + ((hi + lo) / 2)[:, None]
+    q = jnp.clip(M_sys[:, None] / m1 - 1, Q_MIN, 1)
+    g = jax.vmap(jax.vmap(qd.pdf_given_primary))(q, m1)   # (N, K)
+    integrand = bf(m1) * jnp.exp(imf.logpdf(m1)) * g / m1
+    p_binary = jnp.where(hi > lo, half * (integrand @ GL_WEIGHTS), 0)
+    p_single = (1 - bf(M_sys)) * jnp.exp(imf.logpdf(M_sys))
+    log_p = jnp.log(jnp.maximum(p_single + p_binary, 1e-30))
+    return jnp.sum(jnp.where(jnp.isfinite(log_p), log_p, -1e10))
 ```
 
-The whole pipeline is one JIT trace and one device call — no Python
-loops, no rejection sampling, no per-particle branching. Gradients
-flow analytically through every line.
+The tile carries $N\times K$ candidate primaries. `vmap` evaluates the
+conditional mass-ratio density, and the weighted sum reduces its
+quadrature axis. The shown JIT wrapper and the scripts evaluate the
+same mathematical calculation.
 
 ## Numerical-stability notes
 
 Three details that matter at large $N$:
 
-1. **Log-space evaluation.** `log_xi + log_g - log(1+q)` is computed in
-   log-space, then `jnp.exp` is applied before the quadrature sum.
-   The intermediate log values can be large negative (for unlikely
-   mass-ratio combinations), but never produce overflow.
-2. **`logsumexp` for the final mixture.** The single-star and binary
-   contributions can differ by orders of magnitude at the tails of the
-   mass distribution. progenax uses `jax.scipy.special.logsumexp` for
-   the final $\log[(1-f_b)\xi + f_b\,I]$ to avoid catastrophic
-   cancellation.
+1. **Probability-space sums.** The IMF is evaluated through `logpdf`
+   and exponentiated. The scripts sum the quadrature and the
+   single/binary mixture in probability space, rather than using
+   `logsumexp` throughout.
+2. **Finite log-density guards.** Both scripts floor the summed density
+   at $10^{-30}$ before taking its logarithm, and replace nonfinite
+   log values with $-10^{10}$. These guards are numerical approximations:
+   an impossible observation receives a finite penalty instead of
+   $-\infty$. They require review before general inference use.
 3. **$q_{\min}$ floor.** The integral lower limit is $q_{\min} = 0.1$
    matching {cite:t}`MoeDiStefano2017`'s observational completeness. progenax
-   does not extrapolate below this; setting $q_{\min} = 0$ would make
-   the integral diverge for some IMF parameter values.
+   scripts do not extrapolate this empirical calibration below its chosen
+   support. Whether a density remains integrable at zero depends on its
+   mass-ratio law; the change-of-variables Jacobian is finite there.
 
 ## Computational cost
 
@@ -170,77 +182,57 @@ evaluations:
 :header-rows: 1
 
 * - $N$
-  - $N \times K$ ops
-  - CPU time
-  - GPU time (A100)
+  - Candidate primary evaluations, $N \times K$
 * - 100
   - $1.3\!\times\!10^4$
-  - $\sim 1$ ms
-  - $\sim 0.05$ ms
 * - 1{,}000
   - $1.3\!\times\!10^5$
-  - $\sim 5$ ms
-  - $\sim 0.1$ ms
 * - 10{,}000
   - $1.3\!\times\!10^6$
-  - $\sim 50$ ms
-  - $\sim 0.5$ ms
 * - 30{,}000
   - $3.8\!\times\!10^6$
-  - $\sim 150$ ms
-  - $\sim 1$ ms
 ```
 
-Per chain (NUTS, 1500 steps) at $N = 30{,}000$:
-- CPU: $\sim 35$ minutes per chain.
-- GPU (A100): $\sim 30$ seconds per chain — a $\sim 70\times$ speedup.
-
-The $N \times K$ tile is embarrassingly parallel via `jax.vmap`, which
-is what makes the GPU advantage so dramatic.
+These are evaluation counts, not timings. The tile requires storage
+proportional to $NK$, with additional intermediates for reverse AD.
+NUTS uses a variable number of likelihood/gradient evaluations per draw;
+chain cost cannot be obtained by multiplying this count by the sample count.
+No matched CPU/A100 timing exposure is retained here.
 
 ## Differentiability
 
-Every step in {eq}`ba-likelihood` is JAX-differentiable:
+The scripts differentiate the discretized log likelihood with respect
+to $\alpha$, holding masses, binary statistics and quadrature nodes fixed:
 
 - $\xi(m \mid \alpha)$ — analytic in $\alpha$ for {cite:t}`Maschberger2013`,
   piecewise-analytic for {cite:t}`Kroupa2001`.
-- $g(q \mid m_1)$ — power-law and Gaussian both analytic; the mass-bin
-  lookup uses `jnp.where` (smooth fallback for boundary
-  derivatives optional via sigmoid-blend).
-- $\bar f_b(m_1)$ — `jnp.interp` on the {cite:t}`MoeDiStefano2017` Table 13
-  values, differentiable via piecewise-linear gradients.
+- $g(q \mid m_1)$ and $f_b(m_1)$ — the empirical mass-bin lookups use
+  `jnp.where` and remain fixed as $\alpha$ changes. They are discontinuous
+  at their primary-mass boundaries; no sigmoid-blend option is used here.
 - The Gauss-Legendre quadrature is a fixed weighted sum.
 
 `jax.grad(log_likelihood)(alpha, M_sys)` returns $\partial \log
-\mathcal{L}/\partial \alpha$ in one backward pass; `jax.hessian`
-returns the Fisher-information matrix needed for Laplace-approximation
-posteriors. Both work without any rewriting.
+\mathcal{L}/\partial \alpha$ for the numerical objective. The MLE script
+checks this derivative against central finite differences. Its local
+uncertainty uses finite-difference curvature at the fit; an observed
+Hessian at arbitrary parameters is not the expected Fisher information.
+Neither check establishes quadrature convergence or gradients through
+moving support and empirical mass-bin boundaries.
 
-## Connection to NUTS / NumPyro
+## Connection to posterior inference
 
-progenax exposes the binary-aware likelihood through a NumPyro
-`numpyro.factor` statement:
+A posterior log density combines this deterministic likelihood with
+an explicitly chosen prior. Ordinary NUTS requires a deterministic
+gradient; a noisy population-expectation estimator is not a drop-in
+replacement. New recovery qualification uses BlackJAX, with its priors,
+convergence design and independent catalogues specified before execution.
 
-```python
-import numpyro
-import numpyro.distributions as dist
-
-def model(M_sys):
-    alpha = numpyro.sample("alpha", dist.Uniform(0.5, 4.0))
-    numpyro.factor("ll", log_likelihood(alpha, M_sys))
-
-# Run NUTS
-from numpyro.infer import MCMC, NUTS
-mcmc = MCMC(NUTS(model), num_warmup=500, num_samples=1000, num_chains=4)
-mcmc.run(jax.random.PRNGKey(0), M_sys=observed_masses)
-```
-
-NUTS adaptively chooses step sizes and trajectory lengths; the
-binary-aware likelihood's smooth gradients keep step-size adaptation
-stable across the full prior range. Production runs (the validation
-suite at [](../../50-validation/binary-imf.md)) use 4 chains × 1500
-post-warmup samples, which is sufficient for $\hat R < 1.01$ on
-$\alpha$ at $N = 30{,}000$.
+The retained binary-only posterior artifact comes from the historical
+NumPyro script: two chains of 1,000 samples each. It does not establish
+four-chain convergence, repeated-catalogue coverage or the separate
+cluster IMF/equipartition demo. See the
+[validation owner](../../50-validation/binary-imf.md#honest-scope)
+for the saved diagnostics and their scope.
 
 ## What if the binary statistics are wrong?
 
@@ -253,8 +245,8 @@ statistics reintroduces bias on $\alpha$ at large $N$.
 The architectural extension is a **hierarchical likelihood**: jointly
 infer $\alpha$ alongside hyper-parameters of the binary statistics
 (an overall $f_b$ multiplicative factor, a $\gamma$ offset). The
-extra parameters cost 2–3 NUTS steps in convergence rate but produce
-posteriors that account for the calibration uncertainty. progenax does
+extra parameters would propagate calibration uncertainty, but their
+identifiability and convergence require their own qualification. progenax does
 not currently export a `BinaryIMF.with_inferred_binary_stats()` helper;
 this is a planned likelihood-layer extension rather than a live API.
 
@@ -262,14 +254,15 @@ this is a planned likelihood-layer extension rather than a live API.
 
 - **In code:** the binary-aware forward model lives in
   `src/progenax/imf/binary/imf.py` (`BinaryIMF`); the `log_likelihood`
-  block on this page is schematic pseudocode (the public `BinaryIMF`
-  exposes sampling helpers, not this exact `log_prob`). See the
+  block on this page mirrors `scripts/validate_binaries.py::aware_loglike`
+  and the historical recovery script's `log_system_mass_likelihood`.
+  The public `BinaryIMF` exposes sampling helpers rather than this likelihood. See the
   [IMF API](../../30-api/imf.md).
 - **Validated in:** [binary-aware recovery](../../50-validation/binary-imf.md)
-  — 4 chains × 1500 post-warmup samples demonstrate unbiased $\alpha$
-  recovery ($\hat R < 1.01$) at $N = 30{,}000$.
+  — retained MLE figures and a historical two-chain artifact; general
+  quadrature accuracy and posterior coverage remain unqualified.
 - **Primary sources:** the likelihood structure and "confidently wrong"
   framing are original to progenax; the binary-statistics calibration is
-  {cite:t}`MoeDiStefano2017`, sampled with NUTS via NumPyro. Full notes
+  {cite:t}`MoeDiStefano2017`. Full notes
   in the [bibliography](../../99-bibliography/per-paper/moe-distefano-2017.md);
   the scientific context is at [](binary.md).

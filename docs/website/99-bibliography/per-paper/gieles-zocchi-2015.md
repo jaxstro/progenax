@@ -72,10 +72,12 @@ E_\gamma(a, x) =
 \qquad P(a,x) \equiv \frac{\gamma(a, x)}{\Gamma(a)},
 ```
 
-where $P(a,x)$ is the **regularized lower incomplete gamma function** — exactly
-`jax.scipy.special.gammainc(a, x)`. This is what makes a JAX reimplementation tractable *and*
-differentiable: the truncation is not a hand-rolled series but a built-in special function with
-analytic gradients in both arguments.
+where $P(a,x)$ is the regularized lower incomplete gamma function. The
+implementation evaluates the positive-$a$ branch with
+`jax.scipy.special.gammainc(a,x)` and provides a custom JVP for the
+$a=0^+$ shape limit. Its small-$x$ exponential-integral series keeps that
+boundary rule finite. Availability of a special function alone does not
+qualify its derivative throughout a model.
 
 The integer-$g$ corners recover the textbook models (paper footnote 2, verified by direct
 expansion of {eq}`limepy-Egamma`):
@@ -87,7 +89,7 @@ expansion of {eq}`limepy-Egamma`):
 | $2$ | $e^{x}-1-x$ | **Wilson** (1975) | DF *and* derivative continuous (more extended) |
 
 So $g$ is a **continuous dial** between these: a fitted $g$ lets the *data* choose
-King-vs-Wilson as a posterior, rather than the modeller hard-coding it. The paper's $g$ is the
+King-vs-Wilson as a posterior, rather than the modeler hard-coding it. The paper's $g$ is the
 same symbol as progenax's truncation index; the central dimensionless potential
 $\hat\phi_0$ (their notation) is identical to King's $W_0$ (their footnote 3).
 
@@ -109,7 +111,8 @@ $\hat r = r/r_s$ with $r_s^2 = 9 s^2/(4\pi G\rho_0)$ the King radius), Poisson's
 
 with the **factor of $-9$** inherited from King's core-radius normalization
 ($8\pi G j^2 r_s^2\rho_0 = 9$). For the **isotropic** case the density and pressure integrals
-(Eqs. 8–9) reduce to closed forms in $E_\gamma$ at indices $g+\tfrac12$ and $g+\tfrac32$:
+(Eqs. 8–9) reduce to $\mathcal{I}^{\rho}=E_\gamma(g+\tfrac32,\hat\phi)$
+and $\mathcal{I}^{\rho\sigma^2}=3E_\gamma(g+\tfrac52,\hat\phi)$:
 
 ```{math}
 :label: limepy-rho-iso
@@ -132,9 +135,10 @@ $\mathcal{I}^{\rho} = e^{\hat\phi}\,\mathrm{erf}(\sqrt{\hat\phi})
  - \tfrac{2}{\sqrt\pi}\sqrt{\hat\phi}\,(1+\tfrac23\hat\phi)$ -- **exactly** the King (1966)
 density that [`progenax.profiles.KingProfile`](king-1966.md) already integrates. This is the
 single most useful cross-check for the progenax build: the general-$g$ density **must** reduce
-to the existing King solver at $g=1$, isotropic. (The half-integer index bookkeeping in the
-paper's compact "$=E_\gamma(g+\tfrac12,\hat\phi)$" shorthand is verified against this corner
-*numerically* in the progenax implementation, not assumed.)
+to the King density at $g=1$, isotropic. The density index is
+$g+\tfrac32$, as printed in Eq. 8 and derived in Eq. 73. The
+$g+\tfrac12$ index occurs at an intermediate fractional-integration step,
+not in the final isotropic density.
 ```
 
 The **anisotropic** case (Eqs. 10–17) replaces the closed $E_\gamma$ with a radial integral that
@@ -150,9 +154,13 @@ matching tidally-truncated systems (Oh & Lin 1992).
 - **Plummer is a member.** For $g=7/2$ in the polytropic (low-$\hat\phi_0$) regime the model is
   the $n=5$ polytrope, i.e. the [Plummer (1911)](plummer-1911.md) sphere (Eq. 20 limit). A
   direct corner check for the progenax core.
-- **Finite vs infinite.** Isotropic models are finite in extent only for $g \le 3.5$
-  ($g_{\max}=3.5$ as $\hat\phi_0\to\infty$); $g\ge 7/2$ gives infinite-mass models, excluded for
-  clusters. progenax restricts to the cluster-relevant $g\lesssim 2$ band.
+- **Finite vs infinite.** Section 3.1.3 states that no models have finite extent
+  for $g\ge3.5$. Below that value, the finite-extent boundary depends on
+  $\hat\phi_0$; $g_{\max}\to3.5$ as $\hat\phi_0\to0$. Isotropic models
+  are finite for $g\lesssim2.1$, but $g<3.5$ alone is insufficient: their
+  Fig. 3 shows an infinite-extent isotropic model at $g=2.75$,
+  $\hat\phi_0=9$. Anisotropic extent also depends on $r_a$. A numerical
+  domain endpoint is not a measured truncation radius unless a zero is bracketed.
 - **Isothermal limit.** Both $\hat\phi_0\to\infty$ and $g\to\infty$ approach the singular
   isothermal sphere (Eq. 23).
 - **Stability.** Radial-orbit instability is flagged via $\kappa = 2K_r/K_t$ (Eq. 33): isotropic
@@ -228,9 +236,10 @@ knobs (deferred in progenax). Do not cite GZ15 for `meq`.
 
 `limepy` solves {eq}`limepy-poisson` with `scipy`'s `dopri5` (adaptive RK4(5)), given
 $(\hat\phi_0,\, g,\, r_a,\, \{m_j, M_j, \delta, \eta\})$, and can scale to physical units via a
-mass $M$ and a radius scale, after which the velocity unit follows from
-$G = 0.004302\ \mathrm{pc}\,(\mathrm{km\,s^{-1}})^2\,M_\odot^{-1}$ — **the STELLAR unit system
-progenax already uses**. For large hypergeometric arguments ($x\gtrsim 700$) it switches to the
+mass $M$ and a radius scale. Its quoted gravitational constant
+$G=0.004302\,\mathrm{pc}\,(\mathrm{km\,s^{-1}})^2\,M_\odot^{-1}$ uses
+kilometers per second, whereas Progenax STELLAR velocities use parsecs per
+million years. Convert the velocity and time units explicitly when comparing. For large hypergeometric arguments ($x\gtrsim 700$) it switches to the
 asymptotic $_1F_1$ forms (Appendix D24–D25) for numerical stability. progenax mirrors the solver
 structure but on `diffrax.Tsit5` (differentiable, JIT-compatible) instead of `dopri5`, and on
 `jax.scipy.special` instead of `scipy.special`.
@@ -252,7 +261,7 @@ The erratum corrects **printed typesetting mistakes that never entered the `lime
 
 The paper states explicitly that these do not affect any figure and that the released `limepy`
 implemented the correct expressions. **Implication for progenax:** ground the implementation on
-the *corrected* limits and (where possible) cross-check against the `limepy` code's behaviour and
+the *corrected* limits and (where possible) cross-check against the `limepy` code's behavior and
 the King closed form — never the printed Eqs. 20/21.
 
 ## Use in progenax
@@ -272,8 +281,9 @@ the historical `lambda_seg` catalog blend, which was retired):
   (`from_mass_segregation`; supersedes the earlier `MultiMassLIMEPY`), the coupled Poisson
   solve {eq}`limepy-multimass-poisson` with equipartition $\delta$, differentiable in
   $(W_0, g, r_a, \delta)$ and the mass-fraction parameters. The per-mass-group virial ratio
-  $Q_j$ (progenax's `per_group_virial_ratio`) is the equilibrium proof: $Q_j\approx0.5$ for each
-  component certifies a *true* partial equilibrium, the property the `lambda_seg` chord lacks.
+  $Q_j$ (progenax's `per_group_virial_ratio`) is a component-level virial
+  diagnostic. Values near $0.5$ are necessary checks within a stated
+  configuration, not sufficient proof of stationarity or dynamical stability.
 
 ## Notes
 
@@ -283,4 +293,4 @@ radial anisotropy; Gomez-Leyton & Velazquez (2014) parametrized the truncation c
 Gieles & Zocchi (2015) unified all of it — multi-mass, anisotropic — into one solver. progenax's
 contribution is orthogonal: making that unified family **differentiable**, so $(g,\delta,r_a,W_0)$
 become *fitted* quantities flowing gradients through the Poisson solve, rather than fixed
-modelling choices.
+modeling choices.

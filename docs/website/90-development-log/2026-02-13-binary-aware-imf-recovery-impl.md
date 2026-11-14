@@ -1,5 +1,13 @@
 # Binary-Aware IMF Recovery — Implementation Plan
 
+:::{note} Historical implementation plan (2026-02-13)
+The task list, NumPyro code, expected outputs, and run criteria below retain the
+dated proposal. They do not establish completed recovery, current API
+compatibility, posterior calibration, or release readiness. Use the current
+[binary-IMF theory](../10-theory/imfs/binary.md), [API](../30-api/imf.md), and
+[validation](../50-validation/binary-imf.md); this plan does not authorize new runs.
+:::
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build a validation script that demonstrates binary-aware IMF slope recovery via NUTS, comparing naive (ignoring binaries) vs Moe+17-aware mixture likelihood.

@@ -25,10 +25,10 @@ The two layers attach differently: anisotropy is *intrinsic to the DF*
 (an `anisotropy_radius` constructor argument on `PlummerVelocityDF` /
 `EFFVelocityDF`), while the rotation overlays are *plain functions* applied
 to the already-sampled `(velocities, positions)` arrays (or declared via
-`RotationParams` in the pipeline). The composition is order-independent (anisotropy
-modifies the velocity ellipsoid; rotation adds a bulk flow), so the
-final IC has the right $\beta(r)$ profile *and* the right rotation
-curve.
+`RotationParams` in the pipeline). Progenax first samples the selected isotropic or
+anisotropic DF, then adds the prescribed streaming field. There is no reverse-order
+anisotropy transform in this interface. When measuring random-motion anisotropy,
+subtract the prescribed streaming field before calculating velocity moments.
 
 :::{admonition} Who this page is for
 :class: note
@@ -69,11 +69,10 @@ ellipsoid whose anisotropy is
 :width: 92%
 
 Anisotropy machinery, measured ($N = 2\times10^5$ per model, seed 12).
-OM-Plummer and OM-EFF realized $\beta(r)$ sit **on** the exact identity
-$r^2/(r^2+r_a^2)$ (curves); the self-consistent Michie model (squares) rises
-along, then saturates visibly *below* its OM ceiling (dashed) with a
-truncation-edge dip — the lowering removes the most-radial high-energy
-orbits, so a lowered model can never reach the pure OM limit. Regenerate:
+The OM-Plummer and OM-EFF samples are compared with the analytic identity
+$r^2/(r^2+r_a^2)$ (curves). The Michie model (squares) has a different
+anisotropy profile. Its ordering relative to the dashed OM curve describes
+these plotted configurations, not a general ceiling theorem. Regenerate:
 `python -m laboratory.icviz --only beta-anisotropy`.
 ```
 
@@ -129,10 +128,13 @@ Internally (Merritt 1985):
    inversion of $\rho_Q$ for EFF. The potential $\Psi(r)$ is unchanged
    (set by the true mass density).
 2. At each radius sample a speed $s$ from $s^2 f(\Psi - s^2/2)$ by
-   inverse-CDF — the same machinery as the isotropic DF.
+   a tabulated inverse CDF in the Plummer OM branch. The isotropic Plummer
+   branch instead uses the Beta speed law described on [](plummer-dfs.md).
 3. Split $s$ *isotropically in the stretched frame*
    $w_t = v_t\sqrt{1+r^2/r_a^2}$, then un-stretch the tangential
-   component, which realises $\beta(r)=r^2/(r^2+r_a^2)$ exactly.
+   component. The continuum OM distribution satisfies
+   $\beta(r)=r^2/(r^2+r_a^2)$; numerical sampling and finite realizations
+   must be checked against that relation.
 
 The DF is JIT-compatible and differentiable in $r_a$ (and $r_h$/$a$).
 
@@ -140,9 +142,8 @@ The DF is JIT-compatible and differentiable in $r_a$ (and $r_h$/$a$).
 **Non-negativity bound on $r_a$.** Too small an $r_a$ asks for more
 radial anisotropy than the density can support with $f(Q)\ge 0$. For
 Plummer the exact bound is $r_a \ge 0.75\,a$ (Merritt 1985, Eq. 46);
-progenax **refuses** a smaller $r_a$ at construction (raises
-`ValueError`) rather than silently clamping an unphysical DF, and EFF
-likewise rejects an $r_a$ that drives $f(Q)$ negative. Separately, OM
+the Plummer constructor checks this bound for concrete scalar inputs, including
+JAX scalars. Callers must enforce the admissible domain for traced parameters. Separately, OM
 DFs with very small $r_a$ are prone to the radial-orbit instability
 under evolution — the non-negativity bound is necessary but not
 sufficient for long-term stability.
@@ -167,13 +168,13 @@ models' $r_a$ off {numref}`fig-beta-anisotropy` by finding where each curve
 crosses $\beta = 0.5$ — you should recover $r_a = 2$ and $3$.
 :::
 
-:::{dropdown} 2. Why does Michie sit below its OM ceiling?
-Both constructions use the same $e^{-J^2/2 r_a^2 \sigma^2}$ weight — so why
-do the squares saturate near $\beta \approx 0.5$ instead of climbing to the
-dashed curve? (The King-style lowering removes the highest-energy orbits, and
-at large radii those are precisely the most *radial* ones an OM model relies
-on; near $r_t$ the DF empties entirely and $\beta$ dips. The validation
-suite pins this ordering: `test_beta_below_osipkov_merritt_ceiling`.)
+:::{dropdown} 2. Why can OM and Michie have different anisotropy profiles?
+OM models use a distribution function $f(Q)$, whereas the Michie model combines
+an exponential angular-momentum factor with a lowered energy distribution.
+These are different distribution functions; the anisotropy radius alone does
+not make their velocity moments identical. Compare the curves for the plotted
+configurations. Their ordering is a result for those configurations, not a
+general ceiling theorem.
 :::
 
 ## Solid-body rotation
@@ -198,24 +199,34 @@ T_{\mathrm{rot}} \;=\; \tfrac{1}{2}\sum_i m_i\,|\mathbf{\Omega}\times\mathbf{r}_
 ```
 
 with $I_\perp$ the moment of inertia perpendicular to $\mathbf{\Omega}$.
-Because solid-body rotation adds *only* tangential velocity, the
-random-motion velocity dispersion is preserved — but the total
-kinetic energy increases, which means the resulting cluster is
-*supervirial* by $T_{\mathrm{rot}}/|V|$. You can rescale the speeds to a
+The kinetic-energy change also contains a cross term:
+
+```{math}
+\Delta T = T_{\mathrm{rot}} + \sum_i m_i\,\mathbf v_i^{\mathrm{iso}}
+\mathbin{\cdot}(\mathbf\Omega\times\mathbf r_i).
+```
+
+At fixed positions, the cross term has zero expectation for the non-streaming
+isotropic velocity distribution, but it can be nonzero in a finite realization.
+Thus $\Delta Q=\Delta T/|V|$; the increment equals
+$T_{\mathrm{rot}}/|V|$ only when the cross term vanishes. The random component
+is unchanged when dispersion is defined after subtracting the prescribed
+streaming field. You can rescale the speeds to a
 target $Q_{\mathrm{vir}}$ via `virial_scale` after rotation is applied,
-but note the source module's own warning: a uniform speed rescale does
-**not** restore stationarity — it cannot remove the injected angular
-momentum $L_z$, so a rotation-overlaid IC is a deliberately rotating,
-*non-stationary* initial condition.
+but this does not establish equilibrium with the density and potential.
+Nonzero angular momentum is compatible with a stationary rotating distribution
+function. Adding a streaming field to an isotropic realization does not, by
+itself, construct such a distribution. Rescaling velocities sets the
+kinetic-energy normalization; it does not establish a new stationary DF.
 
 ```{note}
 **The virial rescaling preserves rotation direction.** `virial_scale`
 multiplies all velocities by a single scalar, which scales both the
 random-motion and bulk-rotation components proportionally. The
 *ratio* $T_{\mathrm{rot}} / T_{\mathrm{rand}}$ is preserved; only
-the absolute energy is renormalised. This is the right behaviour
-for inferring rotation strength from observations, where the
-constraint typically comes from the *fraction* of kinetic energy in
+the absolute energy is renormalised. This component-energy ratio is distinct
+from a fraction of the total kinetic energy, which also includes the cross term.
+Observational inference must define how it separates random motion and
 rotation rather than the absolute rotation rate.
 ```
 
@@ -235,8 +246,7 @@ velocities = apply_solid_body_rotation(
 )
 
 # Optional: rescale speeds to a target Q_vir (returns the scaled velocities).
-# CAVEAT: the uniform rescale cannot remove the injected L_z — the rotating
-# IC is deliberately NON-STATIONARY (see kinematics/rotation.py's docstring).
+# Setting Q does not establish a stationary rotating distribution function.
 velocities = virial_scale(positions, velocities, masses, Q_target=0.5, G=STELLAR.G)
 ```
 
@@ -261,7 +271,7 @@ v_\phi(R) \;=\; v_{\mathrm{peak}}\,\frac{R}{R_{\mathrm{peak}}}\,
 
 which is solid-body ($v_\phi \propto R$, $\Omega$ constant) in the core,
 reaches $v_{\mathrm{peak}}$ exactly at $R = R_{\mathrm{peak}}$, and decays
-exponentially outward — no rotation at the centre or in the far outskirts,
+exponentially outward — no rotation at the center or in the far outskirts,
 the shape observed in rotating globular clusters. (An earlier revision of
 this page described a user-supplied power-law $\Omega(R)$ callable; the
 shipped API takes the two scalars below.)
@@ -303,21 +313,19 @@ dispersions.
 
 ## Domain of validity
 
-1. **Osipkov-Merritt non-negativity.** progenax refuses an $r_a$ below
-   the Plummer bound $r_a \ge 0.75\,a$ (Merritt 1985, Eq. 46) at
-   construction (raises `ValueError`), and EFF rejects an $r_a$ that
-   drives $f(Q)$ negative. Even above the bound, very small $r_a$ is
-   prone to the radial-orbit instability within a relaxation time
-   under evolution.
-2. **Solid-body rotation up to $\Omega/\Omega_{\mathrm{break-up}} \sim 0.5$**
-   is physically reasonable. Above that, the cluster flattens
-   significantly and a spherical IC is a poor approximation.
-3. **Differential-rotation profiles must be smooth** — discontinuities
-   in $\Omega(R)$ produce delta-function torques on the cluster and
-   non-equilibrium starting states. If your science requires a
-   sharp transition (e.g. a rotating core embedded in a
-   non-rotating envelope), use a smooth-blend $\Omega(R)$ rather
-   than a step function.
+1. **Osipkov-Merritt non-negativity.** The Plummer model requires
+   $r_a\ge0.75a$. The constructor checks concrete scalar inputs; callers must
+   enforce this domain for traced parameters. Non-negativity does
+   not establish stability under evolution.
+2. **Solid-body rotation has no radius-independent limit for untruncated Plummer.**
+   Streaming grows as $\Omega R$, whereas escape speed decreases at large radius.
+   Any nonzero constant $\Omega$ therefore exceeds escape speed sufficiently far
+   out in the equatorial plane. Specify the spatial extent and rotation
+   prescription, then check the resulting particle energies.
+3. **Differential-rotation smoothness is a modeling choice.** A discontinuity in
+   $\Omega(R)$ creates a discontinuity in the assigned streaming velocity. It
+   does not introduce a singular gravitational torque. Choose the profile to
+   represent the intended initial condition and assess its evolution separately.
 
 ## Implementation, validation & references
 
@@ -328,7 +336,7 @@ dispersions.
   `src/progenax/kinematics/` (`plummer_df.py`, `eff_df.py`). See the
   [kinematics API](../../30-api/kinematics.md).
 - **Validated in:** [OM / rotation anisotropy](../../50-validation/rotation-om-anisotropy.md)
-  — the realised $\beta(r) = r^2/(r^2+r_a^2)$, the non-negativity bound,
+  — the realized $\beta(r) = r^2/(r^2+r_a^2)$, the non-negativity bound,
   and the rotation-curve recovery.
 - **Primary sources:** the Osipkov–Merritt construction is
   {cite:t}`Merritt1985` (the closed-form Plummer bound is Eq. 46);

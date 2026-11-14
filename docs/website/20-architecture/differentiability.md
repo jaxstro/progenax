@@ -5,20 +5,38 @@ description: The patterns that preserve gradient flow through progenax — fixed
 
 # Differentiability rules
 
-progenax's promise is that every IC parameter — half-mass radius,
-IMF slope, virial Q, mass-segregation strength (and, in the experimental
-`gravoturb` package, gravoturbulent Mach and α) — is
-**differentiable** through `jax.grad`. Gradients flow from any
-downstream observable (final-snapshot energy, mock observation
-likelihood) all the way back to the IC parameters. This is what makes
-HMC inference of cluster properties tractable.
+Differentiability is a contract between an input parameter, an observable, a
+parameter domain and a randomness convention. Progenax supports continuous
+construction and sampling derivatives on qualified paths; this does not guarantee
+an accurate gradient for every downstream observable or discrete population choice.
 
-The promise is non-trivial. Real-world code is full of operations
-that *silently* break differentiability — hard thresholds, while-loops
-with data-dependent termination, in-place mutation, sort permutations.
-This chapter catalogues the patterns progenax uses to preserve
-differentiability, the antipatterns it forbids, and the
-"gradient-not-defined" failure modes to watch for.
+This page describes implementation patterns and their limitations. Measured
+accuracy belongs to the relevant validation page.
+
+(engine-a-ad)=
+## Engine A construction and sampling
+
+All three Engine A constructors accept a static `adjoint` choice. The default
+supports checkpointed reverse AD (`jax.grad`, `jax.jacrev`). Select
+`diffrax.ForwardMode()` for forward AD (`jax.jvp`, `jax.jacfwd`), or
+`diffrax.DirectAdjoint()` when both modes are needed. These choices concern the
+ODE solve; the complete observable still needs a derivative check.
+
+`from_imf` differentiates its converged central-fraction constraint using an
+implicit Jacobian–vector product. Inspect the returned `residual`: differentiating
+the constraint does not qualify an unconverged fit. The tidal-root, radial CDF and
+velocity sampler share the unclipped monotone-cubic potential representation;
+the public potential array remains nonnegative.
+
+:::{important} Two different gradient contracts
+A fixed-realization derivative holds random draws and component assignments
+locally fixed. A population-expectation derivative must also account for changing
+component probabilities. `estimate_expectation` combines pathwise and categorical
+score terms with a leave-one-out baseline. Its identity checks pass; statistical
+precision and full-constructor population-observable qualification remain open.
+Higher derivatives are not qualified. See the
+[Engine A validation matrix](../50-validation/multimass-equilibrium.md#engine-a-matrix).
+:::
 
 ## Three preservation patterns
 
@@ -30,13 +48,13 @@ differentiability, the antipatterns it forbids, and the
   - Examples in progenax
 * - **Fixed-iteration `lax.scan`**
   - `while_loop` with data-dependent termination
-  - Newton solvers, ODE integrators, inverse-CDF lookups
+  - Fixed-iteration Newton solvers and inverse-CDF lookups
 * - **Smooth threshold (sigmoid)**
   - Hard mask `where(x > t, 1, 0)`
-  - BM19 transition density, Fundamental Plane $\hat x \ge -0.87$ threshold
+  - Approved smooth environment-IMF continuation
 * - **Sort-by-value gradient flow**
   - argmax / argmin in critical paths
-  - Fractal radial remap (gradients flow through values, not permutation)
+  - Value-based statistics with locally fixed ordering
 ```
 
 Each pattern has a specific purpose. None of them is the "right
@@ -44,10 +62,12 @@ answer" universally; they are tools for specific obstructions.
 
 ## Fixed-iteration scan
 
-`jax.lax.while_loop` is **not differentiable**. The iteration count
-depends on data, so the gradient is undefined. The replacement is
-`lax.scan` (or `lax.fori_loop`) with a *fixed* iteration count
-chosen large enough to ensure convergence in the worst case.
+`jax.lax.while_loop` does not support ordinary reverse-mode AD because its
+memory requirements lack a static bound; this is not a statement that the
+underlying mathematical solution has no derivative. A fixed-length `lax.scan`
+is one option. Implicit differentiation or an ODE adjoint can differentiate a
+converged solution without differentiating every stopping decision. See the
+[JAX loop contract](https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html).
 
 ```python
 # WRONG — while_loop with data-dependent termination
@@ -88,12 +108,13 @@ internal Tsit5 steps.
 
 ## Smooth thresholds
 
-Hard masks `jnp.where(x > t, 1, 0)` produce *zero* gradients almost
-everywhere and a *delta function* at $x = t$. The gradient is
-mathematically defined as a distribution but is not numerically
-useful — autodiff returns zero everywhere except at the threshold,
-where it returns infinity (or NaN under finite precision). The
-replacement is a sigmoid:
+An indicator such as `jnp.where(x > t, 1, 0)` has zero classical derivative
+away from its threshold and no classical derivative at the jump. AD does not
+supply the missing probability-boundary contribution. A sigmoid defines a
+different, smooth model; use it only when that approximation is intended and
+approved. Physical support boundaries must not be softened merely to obtain a
+gradient. Keep both branches numerically valid: an unselected NaN can contaminate
+reverse derivatives ([JAX `where` notes](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.where.html)).
 
 ```python
 # WRONG — hard mask, gradient is zero almost everywhere
@@ -110,7 +131,7 @@ The width $\kappa$ controls the trade-off:
 :header-rows: 1
 
 * - $\kappa$
-  - Behaviour
+  - Behavior
   - Use case
 * - $\to 0$
   - Smooth — mask varies linearly across full $s$
@@ -126,9 +147,9 @@ The width $\kappa$ controls the trade-off:
   - Forward Monte Carlo only; not for HMC
 ```
 
-progenax uses $\kappa = 10$ by default in BM19, giving a transition
-width $\sim 0.1$ in $s$ ($\sim 10\%$ in $\rho$). The width can be
-exposed as a free parameter for inference if needed.
+The BM19 example concerns the excluded experimental subsystem, not a released
+core default. A sigmoid width changes the forward model and must be justified
+for its intended observable.
 
 The same pattern applies elsewhere:
 
@@ -140,11 +161,10 @@ The same pattern applies elsewhere:
 
 ## Sort-by-value gradient flow
 
-Sorting is *piecewise constant* in its inputs — small changes to one
-value can cause a discontinuous jump in the permutation. The
-gradient of the sort operation itself is zero (or undefined), but the
-gradient of *quantities computed from the sorted values* is well-defined
-and useful:
+The permutation selected by sorting is locally constant when values are
+distinct. The sorted values are locally a permutation of the inputs, so their
+Jacobian is a permutation matrix, not zero. Ties and order-dependent downstream
+choices need a separate contract:
 
 ```python
 # Wrong understanding — but progenax does this correctly
@@ -156,33 +176,30 @@ The gradient `∂(mean_value)/∂(values)` is well-defined: it does not
 depend on the permutation (since the mean is symmetric). progenax
 exploits this in several places:
 
-- **Fractal radial remap** ([](../10-theory/tidal-and-substructure/fractal.md)):
-  the rank-based radius remap involves `argsort`, but the gradient
-  flows through the *target radii* (which are values being sorted)
-  rather than the permutation.
 - **Mass segregation** ([](../10-theory/tidal-and-substructure/mass-segregation.md)):
   the energy-ordered orbit assignment uses `argsort` on energies, but
   the gradient flows through the masses.
 
-The rule: **avoid `argmax` / `argmin` in critical paths**, but `sort`
-itself is OK as long as the downstream code does not depend on the
-permutation indices directly.
+A derivative through sorted values is local to an ordering region. An
+order-dependent assignment can change discontinuously at a tie, and a
+population expectation may require contributions from changing assignments.
 
 ## Antipatterns to avoid
 
-The following antipatterns silently break differentiability. progenax's
-test suite includes gradient-validity tests for all builders to catch
-them at CI time.
+The following patterns require an explicit transformation and derivative
+contract. The local gradient registry checks selected entry-point, parameter,
+and observable combinations; it does not establish every builder derivative.
 
 ### Antipattern 1: `while_loop` in core code
 
-Use `lax.scan` with fixed iteration count instead.
+For reverse AD, use a fixed-length scan or an appropriate implicit/adjoint rule;
+verify convergence and the derivative of the intended solution.
 
 ### Antipattern 2: hard masks `where(x > t, ...)`
 
-Use sigmoid soft masks instead. If a hard mask is *strictly* required
-(e.g. for a forward Monte Carlo where gradients are not needed),
-isolate it in a `progenax.diagnostics`-style non-JIT module.
+Preserve physical support and define the required derivative contract. A smooth
+replacement changes the model and needs scientific justification; a categorical
+expectation requires its probability contribution, as in Engine A above.
 
 ### Antipattern 3: in-place mutation `array[i] = val`
 
@@ -211,11 +228,12 @@ the consumer responsible for honouring the mask.
 
 ## Validating differentiability
 
-progenax's test suite includes per-builder gradient tests:
+A finite-gradient smoke check can miss a silently blocked zero. For example,
+the following illustrative assertion alone is insufficient:
 
 ```python
 @pytest.mark.parametrize("builder", [
-    plummer_builder, king_builder, eff_builder, fractal_builder,
+    plummer_builder, king_builder, eff_builder,
 ])
 def test_builder_grad_finite(builder):
     """Gradient of any scalar observable w.r.t. r_h is finite."""
@@ -227,9 +245,12 @@ def test_builder_grad_finite(builder):
     assert jnp.isfinite(grad), "Gradient is not finite"
 ```
 
-Tests like these run on every CI build; a regression that breaks
-differentiability gets caught immediately rather than at the next
-HMC chain failure.
+Compare the intended observable's derivative with an independent analytic
+result or a converged finite-difference sequence. Keep random draws fixed for
+a pathwise check, state the parameter domain, and test the required forward
+or reverse mode. The [gradient audit](../50-validation/differentiability-audit.md)
+records existing cases and limitations. A local check does not imply that remote
+CI is enabled.
 
 ## What "partial differentiability" means
 
@@ -252,9 +273,6 @@ Some progenax modules are explicitly *partially* differentiable:
 * - kNN substructure Q
   - Distances
   - NN-choice permutation
-* - Fractal `chi`
-  - $\chi$, $\sigma_u$, $\lambda_{\mathrm{frac}}$
-  - Mode wavevectors / phases (frozen by `stop_gradient`)
 ```
 
 Each partial-differentiability case is documented in its module
@@ -266,44 +284,37 @@ finite-difference fallback.
 (roadmap-differentiable-rt)=
 ## Differentiable King tidal radius ($\partial r_t/\partial W_0$)
 
-```{admonition} Status: resolved
-:class: tip
-The King concentration $W_0$ is differentiable both for the density/velocity
-*shape* observables one fits to data **and** for the **scalar tidal radius**
-$r_t$. The original silent-zero hazard ($\partial r_t/\partial W_0 = 0$) was found
-and fixed by the gradient audit ([](../50-validation/differentiability-audit.md)):
-the public `KingProfile.from_W0_rc(W0, r_c).r_t` now carries a finite, exact
-$\partial r_t/\partial W_0$ — verified AD-vs-FD to $\sim 10^{-8}$ (e.g.
-$\partial r_t/\partial W_0 \approx 22.9$ at $W_0=7$, $r_c=1$). The forward value of
-$r_t$ is unchanged by the fix; only the gradient differs.
+```{admonition} Tidal-root contract
+:class: note
+The tidal radius $r_t$ is the first zero of the dimensionless relative potential
+$\psi$. With core radius $r_c$, define $\xi=r/r_c$ and $\xi_t=r_t/r_c$;
+$W_0$ is the central dimensionless potential. Root derivatives require the
+**unclamped** potential and a simple zero with nonzero radial slope.
+A clipped zero plateau cannot retain that boundary sensitivity.
 ```
 
-### What was blocked, and why
+### Implicit root derivative
 
-`solve_king_profile` clamps the density-side potential with
-`psi_clamped = jnp.maximum(psi_raw, 0.0)` — the clamp that keeps the
-lowered-Maxwellian density gradient-safe at $\psi=0$. If the *tidal-radius finder*
-is fed the **clamped** $\psi$, the first crossing node has $\psi_1 = 0$ exactly, so
-the linear-interpolation weight $t = \psi_0/(\psi_0 - \psi_1) = 1$ snaps $\xi_t$ to
-the fixed grid node — an integer index with zero gradient. The very clamp that
-makes the *density* safe was what zeroed the *tidal-radius* slope.
+The boundary satisfies $\psi(\xi_t,W_0)=0$, so
 
-### The fix (unclamped zero-crossing = implicit function theorem)
+$$\frac{\partial\xi_t}{\partial W_0}
+=-\frac{\partial\psi/\partial W_0}{\partial\psi/\partial\xi}
+\Bigg|_{\xi_t}.$$
 
-$\xi_t$ is implicitly defined by $\psi(\xi_t, W_0) = 0$, so by the implicit
-function theorem
+The shared root helper uses a monotone cubic with common slopes at neighboring
+saved nodes. This keeps the first root derivative continuous when the zero
+crosses a node. A bracketed solve locates the zero; `jax.lax.custom_root`
+differentiates its implicit equation, including the nodal slopes, rather than
+the bisection decisions. Accuracy still depends on the ODE solution and saved grid.
 
-$$\frac{\partial \xi_t}{\partial W_0} = -\frac{\partial\psi/\partial W_0}{\partial\psi/\partial\xi}\Bigg|_{\xi_t}.$$
+### Shared implementation
 
-`solve_king_profile` returns *both* potentials — the clamped one for
-density/CDF/velocity and the **unclamped** `psi_raw` (which goes negative just past
-the crossing). `_find_tidal_radius` is fed `psi_raw`, so the linear-interpolation
-crossing $\xi_t = \xi_0 + \psi_0/(\psi_0-\psi_1)\,(\xi_1-\xi_0)$ stays smooth in
-$(\psi_0,\psi_1)$ and $\partial\xi_t/\partial W_0$ flows through the `diffrax`
-solve — to grid accuracy, this *is* the implicit-function-theorem result above. No
-`custom_jvp` is needed; the differentiability falls out of the unclamped-$\psi$
-dual return. The same path differentiates $r_t$ across King, Michie, LIMEPY, and
-the multi-component (Engine A + B) models.
+King, Michie, LIMEPY, and multi-component Engine A use
+`_find_tidal_radius` with the unclamped potential. Engine A also interpolates
+that unclamped potential for radial CDF construction and velocity sampling;
+physical density and speed support is restricted to the nonnegative-potential domain. The helper returns the domain endpoint if no
+crossing exists; that fallback is not evidence of a physically truncated model.
+A flat multiple zero is outside the differentiable root contract.
 
 ### Science cases it enables
 

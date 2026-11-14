@@ -1,20 +1,20 @@
 ---
 title: Differentiable structure diagnostics (B10)
-description: "Validate progenax's two differentiable cluster-structure surrogates against their exact combinatorial oracles: q_approx (a kNN/softmin surrogate for the Cartwright & Whitworth 2004 substructure Q) and lambda_msr_approx (a soft surrogate for the Allison et al. 2009 mass-segregation ratio). q_approx tracks exact Q in the substructure regime and its autodiff gradient matches finite differences; lambda_msr_approx is rank-faithful and converges to exact as the softness vanishes."
+description: "Validate progenax's two differentiable cluster-structure surrogates against their exact combinatorial oracles: q_approx (a nearest-neighbor approximation for the Cartwright & Whitworth 2004 substructure Q) and lambda_msr_approx (a soft surrogate for the Allison et al. 2009 mass-segregation ratio). q_approx tracks exact Q in the substructure regime and its autodiff gradient matches finite differences; lambda_msr_approx has a separately defined nearest-neighbor sharp limit; its selected rank agreement does not make it the MST ratio."
 ---
 
 # Differentiable structure diagnostics (B10)
 
-The standard cluster-structure statistics are **combinatorial and
-non-differentiable** — they rest on a minimum spanning tree and hard subset
-selections, so they cannot enter a gradient-based inference objective. progenax
-ships **differentiable surrogates** for two of them, and this demo validates both
-against their exact oracles and shows the substructure surrogate is a faithful
-*differentiable* loss.
+The exact reference implementations use SciPy MSTs and hard subset
+selections and do not expose a JAX derivative. MST length itself is
+piecewise differentiable away from ties; the implementation and mathematical
+questions are distinct. Progenax provides approximate JAX diagnostics. This
+page records selected value, ranking and derivative checks from a retained
+demo run; it does not qualify their use as general inference likelihoods.
 
 | differentiable surrogate | exact oracle | statistic |
 |---|---|---|
-| `q_approx` (kNN + softmin) | `compute_q_parameter` (MST + scipy) | Cartwright & Whitworth (2004) $Q$ {cite:p}`Cartwright2004` |
+| `q_approx` (hard nearest-neighbor approximation) | `compute_q_parameter` (MST + scipy) | Cartwright & Whitworth (2004) $Q$ {cite:p}`Cartwright2004` |
 | `lambda_msr_approx` (softmin + soft mass-cut) | `compute_lambda_msr` (MST) | Allison et al. (2009) $\Lambda_{\rm MSR}$ {cite:p}`Allison2009` |
 
 ## Inputs and assumptions
@@ -55,13 +55,15 @@ parameter, or a numerical tolerance.
 **The soft surrogates are *not* drop-in replacements for the exact statistics —
 they trade magnitude fidelity for differentiability.** `q_approx` is calibrated and
 faithful ($|\Delta|<0.06$) only in the CW04 substructure regime $Q\lesssim0.8$, and
-degrades toward high concentration (it is undefined for $Q>1$, e.g. Plummer).
+degrades toward high concentration in the displayed calibration. Both the
+exact statistic and the implemented approximation remain defined for ordinary
+nondegenerate inputs with $Q>1$; one is outside this calibration exposure.
 `lambda_msr_approx` is **rank-faithful but magnitude-compressed** in the soft
-regime (it rises to $\sim$3 where the exact $\Lambda$ reaches $\sim$20 at extreme
-segregation), converging to the exact magnitude only as the softness
-$(\tau,\beta)\to0$. So both are usable as gradient/ranking *objectives* for
-inference, but the absolute value of $\Lambda_{\rm approx}$ at fixed nonzero
-softness must not be read as a physical segregation ratio.
+regime (it rises to $\sim$3 where the exact MST $\Lambda$ reaches $\sim$20
+in this example). Its sharp limit is a global nearest-neighbor distance ratio,
+not the MST statistic. Ranking agreement does not establish gradient direction,
+likelihood accuracy or inference calibration. Interpret it as a separately
+defined diagnostic whose relationship to MST $\Lambda$ needs measurement.
 ```
 
 ## (a) Substructure $Q$ — calibration in the regime it is used
@@ -98,9 +100,10 @@ In the **substructure regime** $Q\lesssim0.8$ — the regime where `q_approx` is
 $|\Delta|<0.06$, and it preserves the ordering throughout. The calibration degrades
 mildly toward high central concentration ($Q\sim0.92$), and a steep Plummer
 ($Q>1$) is deliberately excluded as **outside the CW04-calibrated range**, where
-neither the exact statistic nor the surrogate is meaningful.
+the displayed calibration does not establish surrogate accuracy. The exact
+MST statistic remains meaningful beyond $Q=1$.
 
-## (b) Mass segregation $\Lambda_{\rm MSR}$ — rank-faithful, sharp-limit exact
+## (b) Mass segregation — rank comparison with the MST statistic
 
 Sweeping a bimodal-mass cluster's segregation strength (massive stars drawn into a
 shrinking core), the soft `lambda_msr_approx` and exact `compute_lambda_msr` both
@@ -108,18 +111,23 @@ rise as the massive population concentrates. The rank correlation is **perfect
 (Spearman $= 1.00$)**, and the unsegregated case returns $\Lambda\approx1$. In the
 *soft* regime used for smooth gradients the surrogate is **magnitude-compressed**
 (it rises to $\sim 3$ where the exact $\Lambda$ reaches $\sim 20$ at extreme
-segregation); it converges to the exact magnitude as the softness $(\tau,\beta)\to0$
-(the Oracle-1 limit validated in the segregation-surrogate physics suite). It is a
-**rank/gradient-faithful** observable, not a drop-in for the absolute $\Lambda$.
+segregation). The Oracle-1 test compares its sharp limit with the hard
+nearest-neighbor ratio, not with an MST. For example, positions $x=(0,1,3)$
+with the first two objects selected have global NN distances $(1,1,2)$ and
+a sharp NN ratio $4/3$, whereas averaging the three two-object subset MSTs
+gives exact $\Lambda_{\rm MSR}=2$. No choice of vanishing softness makes
+these definitions identical in general.
 
-## (c) The substructure surrogate is a faithful differentiable loss
+## (c) Derivative consistency of the approximate Q observable
 
 With $q(p) = q_{\rm approx}(u^p\,\hat D)$ — raising each point's radius to the power
 $p$, so larger $p$ is more centrally concentrated — the autodiff gradient
 $\mathrm dq/\mathrm dp = 0.183$ matches the finite-difference slope $0.169$ at
-$h=10^{-3}$ to **4.0%**. (The small gap is finite-difference truncation across
-kNN-cell boundaries, which shrinks as $h\to0$; the autodiff value is the correct
-local gradient.) So `q_approx` can drive a gradient-based objective — its purpose.
+$h=10^{-3}$. The reported **4.0%** uses the symmetric gap
+$|g_{\rm AD}-g_{\rm FD}|/(|g_{\rm AD}|+|g_{\rm FD}|)$, not relative
+error against the FD value. This one-step comparison concerns `q_approx`
+itself, not the derivative of exact MST Q. It does not establish the cause
+of the discrepancy or convergence as the FD step shrinks.
 
 ## Figure
 
@@ -144,19 +152,20 @@ exponent $p$; the autodiff vs finite-difference gradients agree to 4% at $p=0.5$
   Full fractal-substructure inference lives in the repo-only `gravoturb` package
   (its own AC1–AC17 acceptance suite), not the released core.
 - **`q_approx` is calibrated for $Q\lesssim0.8$.** It is the substructure-inference
-  regime; the surrogate degrades toward high concentration and is undefined outside
-  the CW04 range ($Q>1$).
+  regime sampled here; accuracy outside the displayed families, sizes and
+  concentrations is not established. There is no mathematical cutoff at $Q=1$.
 - **`lambda_msr_approx` is rank-faithful, not magnitude-calibrated** in the soft
-  regime. Use it for gradient direction / ranking; for an absolute $\Lambda$ take
-  the softness to its sharp limit (or use the exact oracle).
+  regime. Its sharp limit is an NN ratio; use the exact MST estimator when
+  the published absolute $\Lambda_{\rm MSR}$ is required. Ranking alone
+  does not qualify a gradient-based objective.
 - **Calibration is at one softness, one size, toy generators.** The compression is
   evaluated at fixed $(\tau,\beta,m_{\rm cut})=(0.3,0.1,2.0)$; the $Q$/$\Lambda$
   statistics are $N$-dependent and measured at a modest $N=400$ (6 seeds); the
   segregation test is a two-population ($0.5$ vs $10\,M_\odot$) toy, not a continuous
   IMF; and the $Q$ generators are sampling toys, not the named profiles' true DFs.
-- **The AD-vs-FD gap is finite-difference truncation, not surrogate error.** The
-  $\sim$4% gap at $h=10^{-3}$ shrinks as $h\to0$; the differentiability claim rests
-  on that step choice.
+- **One FD step and one surrogate observable.** The displayed symmetric
+  gradient gap is not an exact-MST derivative comparison or a step-convergence
+  study. Tie/candidate boundaries and numerical regularization remain relevant.
 ```
 
 ## How to run

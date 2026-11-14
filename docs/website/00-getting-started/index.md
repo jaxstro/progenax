@@ -47,10 +47,11 @@ the rest of the docs.
 ## What progenax is
 
 progenax generates **initial conditions** (ICs) for N-body simulations
-of star clusters, stellar populations, and binary systems. Every IC
-is fully differentiable through `jax.grad`, JIT-compilable through
-`jax.jit`, and vectorisable through `jax.vmap` — the four operations
-that make HMC inference of cluster parameters tractable.
+of star clusters, stellar populations, and binary systems. Continuous model
+parameters support JAX transformations on the paths and domains documented in
+[the differentiability contract](../20-architecture/differentiability.md). A
+fixed-key sample derivative and a population-expectation derivative are different
+quantities; discrete population choices need an explicit estimator.
 
 The package is part of the [jaxstro
 ecosystem](https://github.com/jaxstro): progenax for

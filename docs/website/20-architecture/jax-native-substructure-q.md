@@ -21,9 +21,8 @@ diagnostics, and during fractal-substructure calibration
 {cite:p}`Goodwin2004,Allison2009`. The reference scipy implementation in
 `progenax.diagnostics.substructure.compute_q_parameter` is correct but
 non-differentiable, non-JIT-compatible, and $\mathcal{O}(N^2)$ in memory.
-This chapter records the design choice — a kNN-based approximation as
-the production path, with exact Borůvka MST available for cases that
-demand it — and the rationale.
+This chapter records the design choice — a kNN-based JAX approximation alongside the exact SciPy reference;
+a JAX Borůvka implementation remains a possible future path — and the rationale.
 
 ## What CW04 Q measures
 
@@ -39,9 +38,9 @@ Q \;\equiv\; \frac{\bar m}{\bar s},
 ```
 
 where $L_{\mathrm{MST}}$ is the total length of the 2D minimum spanning
-tree, $A$ is the convex-hull area, $\langle r_{ij}\rangle$ is the mean
+tree, $A=\pi R_{\mathrm{cluster}}^2$ is the enclosing-circle area used here, $\langle r_{ij}\rangle$ is the mean
 pairwise separation, and $R_{\mathrm{cluster}}$ is the maximum distance
-from the centroid. The two normalisations $\sqrt{N A}$ and
+from the centroid. The two normalizations $\sqrt{N A}$ and
 $R_{\mathrm{cluster}}$ make $Q$ dimensionless and $N$-independent for
 self-similar distributions.
 
@@ -53,7 +52,7 @@ self-similar distributions.
   - Geometry
 * - Substructured
   - $Q < 0.79$
-  - Fractal, clumpy; e.g. $Q \approx 0.45$ for $D = 2.0$ {cite:p}`Goodwin2004`
+  - Fractal, clumpy; e.g. $Q \approx 0.61$ for $D = 2.0$ {cite:p}`Goodwin2004`
 * - Uniform sphere
   - $Q \approx 0.79$
   - Reference baseline
@@ -75,16 +74,17 @@ fundamental obstructions:
 
 1. **Data-dependent control flow.** Both Prim's and Kruskal's
    algorithms iterate until the tree completes, with the iteration
-   count depending on edge values. `jax.lax.while_loop` is not
-   differentiable, and a fixed-iteration `scan` requires a worst-case
+   count depending on edge values. ordinary reverse-mode AD through a dynamic `jax.lax.while_loop` is
+   unavailable without a custom derivative rule, and a fixed-iteration `scan` requires a worst-case
    bound on the loop count.
 2. **Union-find sequentiality.** Cycle detection requires path-compressed
    disjoint-set operations, which are sequential by construction. JAX's
    parallelism cannot be applied.
 3. **Discrete edge selection.** "Include this edge in the tree" is a
    binary decision; the gradient of $L_{\mathrm{MST}}$ with respect to
-   particle positions is a sum over a *changing* edge set, which yields
-   piecewise-linear gradients with no useful smoothing.
+   particle positions is a sum over a *changing* edge set, which gives a piecewise differentiable length. Ties and changes in the selected
+   tree can create nonsmooth boundaries; an exact derivative is distinct
+   from a smoothed surrogate.
 4. **Memory scaling.** A naive distance matrix is $\mathcal{O}(N^2)$ in
    memory, exhausting GPU memory at $N \gtrsim 10^4$.
 
@@ -113,7 +113,7 @@ fundamental obstructions:
   - Best asymptotic performance, hardest to write
 ```
 
-Borůvka's algorithm is the only structurally JAX-friendly choice: each
+Borůvka's algorithm is a possible parallel formulation: each
 phase does $\mathcal{O}(E)$ parallel edge comparisons, components halve
 each phase, and the total depth is $\mathcal{O}(\log N)$. Its weakness
 is the per-phase union-find, which still has sequential bottlenecks
@@ -128,115 +128,92 @@ $Q$ from a $k$-nearest-neighbour graph:
 :label: q-knn
 Q_{\mathrm{approx}} \;=\; \kappa \cdot \frac{L_{\mathrm{NN}} / \sqrt{N\,A}}{\bar s},
 \qquad
-L_{\mathrm{NN}} \;=\; \tfrac{1}{2}\sum_{i=1}^{N} d_{i,1}
+L_{\mathrm{NN}} \;=\; (N-1)\,\frac{1}{N}\sum_{i=1}^{N} d_{i,1}
 ```
 
-where $d_{i,1}$ is each particle's distance to its single nearest
-neighbour and $\kappa$ is a calibration factor determined empirically
-against the exact scipy MST on reference distributions. The factor of
-$1/2$ deduplicates edges seen from both endpoints.
+where $d_{i,1}$ is each particle's nearest-neighbor distance and
+$\kappa$ is a calibration factor. This approximates an MST's average edge
+length with the mean nearest-neighbor distance; it is not an exact graph
+identity. Dividing a sum by two would only deduplicate mutual nearest-neighbor
+edges, and does not reproduce the implemented expression.
 
-The physical justification is that for clustered distributions, MST
-edges *are* dominated by nearest-neighbour distances within each
-cluster — the MST connects every point through its cheapest edges, and
-the cheapest edge from each point is its nearest neighbour modulo
-inter-cluster bridges. The bridges are the only edges $L_{\mathrm{MST}}$
-captures that $L_{\mathrm{NN}}$ misses, and they enter $L_{\mathrm{MST}}$
-at fixed cost per cluster (one bridge per cluster pair).
+The approximation misses connections between separated groups and does not
+reproduce all intra-group MST edges. Its error can depend on density shape,
+clustering, geometry and particle count. A multiplicative calibration measured
+on uniform spheres need not transfer to other populations, and an additive or
+shape-dependent discrepancy does not cancel in a time-series ratio.
 
-The kNN approximation therefore captures the *intra-cluster* topology
-exactly and the *inter-cluster* topology up to a small constant offset
-folded into $\kappa$. For the relative tracking use case — $\Delta
-Q(t)/Q(0)$ during dynamical evolution — the constant cancels.
-
-```{list-table} Performance comparison: scipy MST vs. JAX kNN, single-snapshot $Q$.
+```{list-table} Implemented paths and performance scope.
 :header-rows: 1
 
-* - Metric
-  - scipy MST
-  - JAX kNN
-  - Speedup
-* - Single snapshot, $N = 10^3$ (CPU)
-  - $\sim 50$ ms
-  - $\sim 5$ ms
-  - $10\times$
-* - JIT-compiled (CPU)
-  - n/a
-  - $\sim 1$ ms
-  - $50\times$
-* - GPU, $N = 10^3$
-  - n/a
-  - $\sim 0.1$ ms
-  - $500\times$
-* - 100-snapshot time series
-  - $\sim 5$ s (Python loop)
-  - $\sim 10$ ms (`vmap`)
-  - $500\times$
-* - Memory, $N = 10^4$
-  - $\mathcal{O}(N^2) = 800$ MB
-  - $\mathcal{O}(Nk) = 2$ MB
-  - $400\times$
-* - Differentiable
-  - No
-  - Partial (through distances)
-  - —
+* - Path
+  - Computation
+  - Limit
+* - Exact SciPy reference
+  - Pairwise distances and sparse-graph MST
+  - Quadratic distance storage; host-side diagnostic
+* - JAX naive approximation
+  - All-pairs nearest neighbor and mean separation
+  - Quadratic storage; piecewise derivatives through distances
+* - JAX fast approximation
+  - Spatial-bin candidate nearest neighbors and deterministic pair subsampling
+  - Accuracy depends on candidate coverage and pair sampling
+* - Timing and peak memory
+  - Depend on shape, precision, hardware, compilation and batching
+  - This design page does not establish the former projected speedup numbers
 ```
 
-Differentiability is "partial" because the *choice* of nearest
-neighbour is itself a discrete operation (`argmin`). The *distance*
-through that neighbour is differentiable, but $\partial Q /
-\partial \mathbf{x}_i$ is undefined at the moment $i$'s nearest
-neighbour changes. For HMC use this is acceptable as long as the
-posterior does not concentrate near a NN-swap surface; in practice
-this is rare for $N \gtrsim 30$.
+Gradients flow through selected distances away from ties and zero-separation
+singularities. Nearest-neighbor changes and spatial-bin/candidate changes can
+introduce boundaries. Differentiability of a diagnostic does not establish
+HMC mixing, likelihood accuracy, or a calibrated posterior; there is no
+particle-count threshold that guarantees those properties.
 
 ## Implementation skeleton
 
-The JAX-native implementation lives at `progenax.diagnostics.q_jax`
-(planned; current location is `progenax.diagnostics.substructure` which
-hosts the scipy reference). The pipeline has three stages:
+The current owner is `progenax.diagnostics.q_approx`, which exports
+`q_approx`, `q_approx_naive`, `q_approx_fast`, and `calibrate_q_approx`.
+`method="auto"` selects the naive path for $N\le1000$ and the fast path
+above that size. The fast path uses spatial bins and candidate neighbors;
+it estimates mean separation from a fixed deterministic pair sample when
+the full pair count exceeds 10,000. This avoids materializing the full
+distance matrix on that path, but adds approximation error.
+
+```python
+import jax
+from progenax.diagnostics.q_approx import q_approx
+
+@jax.jit
+def approximate_q(positions):
+    return q_approx(positions, method="auto")
+```
+
+Both the exact reference and approximate paths use $A=\pi R^2$. There is
+no convex-hull-to-circle correction to calibrate between those implemented
+owners. Projection onto the first two coordinates is the default; the optional
+unprojected calculation is not automatically the published projected statistic.
+
+For a fixed-shape time series, the same function can be vectorized:
 
 ```python
 @jax.jit
-def compute_q_approx(positions, k=6, calibration=1.0, Nbins_per_dim=32):
-    xy = positions[:, :2]                          # 2D projection per CW04
-    grid = build_spatial_grid(xy, Nbins_per_dim)   # Morton-coded bins
-    knn = compute_knn_graph(xy, grid, k=k)         # vmap'd kNN
-    nn_d = knn.distances[:, 0]                     # Closest neighbour
-    L_approx = jnp.sum(nn_d) / 2
-    R = jnp.linalg.norm(xy - xy.mean(0), axis=1).max()
-    A = jnp.pi * R ** 2                            # Circular hull approx
-    s_bar = mean_pairwise_separation(xy, R, max_pairs=10000)
-    return calibration * (L_approx / jnp.sqrt(xy.shape[0] * A)) / s_bar
+def approximate_q_timeseries(positions_t):
+    return jax.vmap(approximate_q)(positions_t)
 ```
 
-The circular-area approximation $A \approx \pi R^2$ replaces the
-$\mathcal{O}(N \log N)$ convex-hull computation with $\mathcal{O}(N)$
-work and at most a $\sim 5\%$ bias on $\bar m$ for non-spherical
-distributions. The bias is folded into $\kappa$ during calibration.
-
-For a time series $\{X_t\}_{t=1}^{T}$, vectorisation over the time axis
-is one line:
-
-```python
-@jax.jit
-def compute_q_approx_timeseries(positions_t, k=6, calibration=1.0):
-    return jax.vmap(lambda x: compute_q_approx(x, k=k, calibration=calibration))(positions_t)
-```
-
-This replaces a Python loop over scipy MST calls — the dominant cost in
-the existing diagnostic pipeline — with a single vmapped device call.
+Batching may increase peak memory and compilation cost. Measure the actual
+workload before choosing a time-series batch size or claiming a speedup.
 
 ## Calibration procedure
 
-$\kappa$ is determined by computing both $Q_{\mathrm{exact}}$ (scipy MST)
-and $Q_{\mathrm{approx}}$ (kNN) on a reference set of distributions
-spanning the physically relevant range of substructure: uniform spheres,
-fractals at $D \in \{1.6, 2.0, 2.4, 2.8\}$ {cite:p}`Goodwin2004`, and
-centrally-concentrated profiles at $p \in \{0.5, 1.0, 1.5\}$. A least-squares
-fit $Q_{\mathrm{exact}} \approx \kappa \cdot Q_{\mathrm{approx}}$
-yields $\kappa$ to better than 5% across the range. The calibration is
-$N$-stable for $N \in [100, 10^4]$, which spans the production regime.
+The existing `calibrate_q_approx` helper compares exact and approximate Q
+on uniform-sphere realizations. The source records the default
+$\kappa=1.287344$ from 100 realizations of 500 stars at seed 42.
+That is a retained calibration of this reference population. It does not
+establish a five-percent bound across fractal families, centrally concentrated
+profiles, particle counts, or arbitrary input geometry. Validation for a new
+scientific population must retain an exact-reference comparison and an
+appropriate error criterion.
 
 ## When to use the exact Borůvka path
 
@@ -248,18 +225,16 @@ Three use cases require the exact MST rather than the kNN approximation:
 2. **Calibrating $\kappa$.** The calibration procedure above requires
    the scipy MST; this is a one-time cost paid offline.
 3. **Survey-grade absolute Q.** When the *absolute* value of $Q$ enters
-   a published quantitative claim, the kNN approximation's $\sim 5\%$
-   bias is the limiting systematic.
+   a published quantitative claim, the approximation error must be measured for the target population.
 
 For these, progenax retains the scipy reference implementation. A
 JAX-native Borůvka MST is feasible (the parallel-phase structure maps
-to fixed-iteration `scan`) but adds substantial code complexity for
-$\sim 5\%$ improvement in the calibration regime. The current decision
+to fixed-iteration `scan`) but adds substantial code complexity whose benefit and cost need measurement for the intended use. The current decision
 is to defer Borůvka until a concrete use case requires it.
 
 ## Connection to other substructure diagnostics
 
-CW04 Q is one of three substructure metrics implemented in progenax:
+The released substructure owner supplies CW04 Q and azimuthal variation:
 
 ```{list-table}
 :header-rows: 1
@@ -272,10 +247,7 @@ CW04 Q is one of three substructure metrics implemented in progenax:
   - scipy reference + JAX kNN approximation
 * - **Azimuthal variation** $\sigma_\Sigma / \langle\Sigma\rangle$
   - Surface-density fluctuation
-  - JAX-native; correlates with fractal dimension via $D \approx (1.45 - \sigma_\Sigma/\langle\Sigma\rangle)/0.46$ {cite:p}`Kuepper2011`
-* - **Local-density variance** $\sigma_\rho / \langle\rho\rangle$
-  - Density-PDF dispersion
-  - JAX-native; correlates with $Q$ but not 1-to-1
+  - NumPy reference; a family-specific empirical relation is $D \approx (1.45 - \sigma_\Sigma/\langle\Sigma\rangle)/0.46$ {cite:p}`Kuepper2011`
 ```
 
 Q and the azimuthal-variation metric agree on the *trend* with

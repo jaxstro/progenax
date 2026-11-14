@@ -18,9 +18,8 @@ clusters in the second half of the 20th century.
 This chapter derives the King profile from its defining lowered-isothermal
 DF, sets up the ODE that progenax integrates with `diffrax`, lists the
 $W_0 \to (r_c, r_t, c, r_h)$ mapping, and notes the
-{cite:t}`Gieles2015` lowered-model-family generalisation — progenax's planned
-own differentiable extension when multi-mass anisotropy matters (not currently
-implemented).
+{cite:t}`Gieles2015` lowered-model family implemented by LIMEPY and Engine A
+for multimass and anisotropic models.
 
 :::{admonition} Who this page is for
 :class: note
@@ -39,11 +38,19 @@ profile. Define a dimensionless potential
 W(r) \;\equiv\; \frac{\Phi(r_t) - \Phi(r)}{\sigma_0^2}
 ```
 
-where $\sigma_0$ is the central one-dimensional velocity dispersion
-and $r_t$ is the tidal (truncation) radius — the location where the
-gravitational potential of the cluster matches the host galaxy's
-tidal potential. By construction $W(r_t) = 0$ and $W$ increases
-monotonically inward, with $W_0 \equiv W(0)$ the central value.
+where $\sigma_0$ is the DF velocity-scale parameter, not the actual central
+one-dimensional dispersion at finite $W_0$. The model's truncation radius
+$r_t$ is where the relative potential vanishes; matching it to a Galactic
+Jacobi radius requires an external tidal model. By construction $W(r_t)=0$,
+and $W_0\equiv W(0)$ is the central dimensionless potential. Here $\Phi$
+and $E$ below are potential and energy per unit mass, and $\rho_1$ is a
+density normalization.
+
+The functional potential API sets $\Phi(r_t)=0$. With total cluster mass $M$
+and gravitational constant $G$, outside the density support it returns the spherical vacuum continuation
+$\Phi(r)=GM(1/r_t-1/r)$, which is positive for $r>r_t$ and still gives inward
+gravity. The clamped nonnegative $W$ table used for density and sampling is a
+separate numerical quantity. See the [exterior-potential convention](index.md#profile-vacuum-potential).
 
 The lowered-isothermal DF is
 
@@ -76,7 +83,7 @@ Integrating $f(E)$ over velocity space gives the density profile:
 [↗ model card](#card-king-rho-W)
 
 where $\mathrm{erf}$ is the error function. $\rho(W = 0) = 0$ (cluster
-edge) and $\rho(W = W_0) = \rho_0$ at the centre. Note that $\rho$ is
+edge) and $\rho(W = W_0) = \rho_0$ at the center. Note that $\rho$ is
 not yet a function of *radius* — that requires solving the Poisson
 equation for $W(r)$.
 
@@ -89,8 +96,8 @@ Combining {eq}`king-rho-W` with the spherical Poisson equation,
 \frac{1}{r^2}\frac{\mathrm{d}}{\mathrm{d}r}\biggl(r^2 \frac{\mathrm{d}\Phi}{\mathrm{d}r}\biggr) \;=\; 4\pi G\,\rho(\Phi)
 ```
 
-and non-dimensionalising via $\xi = r / r_c$ where $r_c$ is the King
-*core radius*
+and nondimensionalizing via $\xi=r/r_c$, where $r_c$ is the King scale
+radius (not exactly an observational half-central-surface-density radius),
 
 ```{math}
 :label: king-rc
@@ -107,17 +114,40 @@ yields the dimensionless King ODE:
 \;=\; -\frac{9\,\rho(W)}{\rho_0}
 ```
 
-with boundary conditions $W(0) = W_0$ and $W'(0) = 0$. The ODE
-integrates outward from $\xi = 0$ until $W$ reaches zero — that
-defines the tidal radius $r_t = \xi_t \cdot r_c$. The $W_0$ parameter
-fully determines the cluster's dimensionless structure.
+with boundary conditions $W(0)=W_0$ and $W'(0)=0$. The first zero
+$\xi_t$ defines the truncation radius $r_t=\xi_t r_c$. The parameter
+$W_0$ determines the dimensionless structure within this spherical,
+single-mass model.
+
+### Regular central boundary
+
+Spherical symmetry permits an even expansion $W=W_0+a\xi^2+O(\xi^4)$.
+Then $W''+2W'/\xi=6a+O(\xi^2)$, while $\rho(W_0)/\rho_0=1$.
+Consequently $6a=-9$, giving
+
+```{math}
+:label: king-center-series
+\begin{aligned}
+W(\xi)&=W_0-\frac{3}{2}\xi^2+O(\xi^4),\\
+W'(\xi)&=-3\xi+O(\xi^3),\\
+W''(0)&=-3.
+\end{aligned}
+```
+
+The geometric term has the finite limit $2W'/\xi\to-6$. The factor
+$9$ in the Poisson normalization therefore remains unchanged. At a positive
+starting radius $\epsilon$, both initial values must approximate this
+regular solution: $W(\epsilon)=W_0-3\epsilon^2/2+O(\epsilon^4)$ and
+$W'(\epsilon)=-3\epsilon+O(\epsilon^3)$. The central curvature alone
+does not determine the error in a saved profile, tidal radius, or derivative;
+those also depend on the start, adaptive solve, saved grid, and interpolation.
 
 ```{admonition} Why no closed form
 :class: note
 The right-hand side of {eq}`king-ode` involves $\rho(W)$ in the form
 {eq}`king-rho-W`, which combines $e^W$ and $\mathrm{erf}(\sqrt{W})$ with
-algebraic terms. No combination of standard special functions inverts
-this ODE, so $W(\xi)$ must be evaluated numerically. progenax
+algebraic terms. Progenax evaluates $W(\xi)$ numerically rather than using a closed-form
+radial solution. It
 integrates {eq}`king-ode` once per $W_0$ value with `diffrax`'s adaptive
 Tsit5 stepper, then uses the result as a lookup table for inverse-CDF
 sampling.
@@ -197,28 +227,23 @@ xi_samples = jnp.interp(u, cumulative_mass_normalized, xi_grid)
 r_samples = xi_samples * r_c                              # r in physical units
 ```
 
-The whole chain is differentiable in $r_c$ (and therefore in $r_h$ via
-the $r_h(W_0, r_c)$ mapping). It is **also** differentiable in $W_0$:
-`diffrax` propagates $\partial\psi/\partial W_0$ through the ODE solve, so the
-density profile and any shape-based observable carry correct $W_0$ gradients
-(validated against finite differences in
-[](../../50-validation/king-profile.md)). The one exception is the *scalar*
-tidal radius $r_t$: its $W_0$-derivative is zeroed by the `argmax` zero-crossing
-in `_find_tidal_radius`, so $W_0$ inference should target the profile *shape*
-(differentiable) rather than the scalar $r_t$ readout. This makes joint
-gradient-based / HMC inference of $(W_0, r_c)$ — and, with the velocity DF,
-$M_{\rm tot}$ — feasible.
+At a fixed random key, the construction supports continuous scale and
+shape derivatives on documented paths. Diffrax's selected adjoint propagates
+potential sensitivities. The scalar tidal radius uses the unclamped potential
+and an implicit derivative of a monotone-cubic zero crossing; it requires a
+bracketed simple zero. Neither AD nor a finite derivative removes ODE, grid,
+or interpolation error. See the [derivative contract](../../20-architecture/differentiability.md#roadmap-differentiable-rt)
+and [retained checks](../../50-validation/king-profile.md).
 
 ## The lowered-model family
 
 {cite:t}`Gieles2015` showed that King is one member of a one-parameter family of
 lowered-isothermal models: a continuous truncation parameter $g$ interpolates
 between Woolley ($g = 0$), King ($g = 1$), and Wilson ($g = 2$) models, and the
-framework extends to multi-mass and anisotropic clusters. progenax will
-implement this family **natively** as its own differentiable, JAX-native
-generalization — so that $g$ (and the multi-mass / anisotropy parameters) can be
-*inferred* — rather than depending on the external (non-differentiable) `limepy`
-package. See the [roadmap](lowered-model-family.md).
+framework extends to multimass and anisotropic clusters. Progenax implements
+this family in its LIMEPY profiles and Engine A. The external `limepy` package
+serves as a comparison rather than a runtime dependency. See the
+[lowered-model family](lowered-model-family.md) and its validation matrix.
 
 For most production work — single-mass populations or coarse mass
 binning — the released King profile suffices. The unified family becomes the
@@ -229,25 +254,31 @@ the multi-mass equipartition state.
 
 The King profile's "tidal radius" $r_t$ is a *defining* property of
 the model — the place where $W = 0$ and the cluster terminates. In
-real space, the physical tidal radius (Jacobi radius) of a cluster
-on a circular orbit at galactocentric radius $R$ is
+the point-mass host approximation, the Jacobi radius of a cluster
+on a circular orbit at distance $R$ from a dominant host mass $M_{\mathrm{gal}}$ is
 
 ```{math}
 :label: jacobi
 r_J \;\approx\; \biggl(\frac{M_{\mathrm{cl}}}{3 M_{\mathrm{gal}}(<R)}\biggr)^{\!1/3} R
 ```
 
-`progenax.tidal.jacobi_radius` computes $r_J$ given a Galactic mass
-model; equating $r_t = r_J$ then fixes the King concentration self-consistently.
+`progenax.tidal.jacobi_radius` implements this point-mass, circular-orbit
+approximation. An extended host potential can change the coefficient; for an
+isothermal halo use `jacobi_radius_isothermal`. Matching $r_t$ to $r_J$ is an
+additional tidal-model constraint, not a condition solved by the King constructor.
 Tidal physics is documented in detail at
 [](../tidal-and-substructure/tidal.md).
 
 ## Implementation in progenax
 
 ```python
+import jax
+import jax.numpy as jnp
 from progenax.profiles import KingProfile, solve_king_profile
 from progenax.kinematics import KingVelocityDF
 from jaxstro.units import STELLAR
+
+key_pos, key_vel = jax.random.split(jax.random.PRNGKey(0))
 
 # Solve the King ODE once for W_0 = 7 (returns a 3-tuple; psi_raw unused here)
 xi_grid, psi_grid, _ = solve_king_profile(W0=7.0)   # diffrax Tsit5
@@ -269,14 +300,15 @@ no `r_t` argument is passed.
 
 1. **Single-mass only.** The lowered-isothermal DF assumes one mass
    species. Multi-mass clusters in equilibrium have radially-varying
-   velocity dispersions per mass group; the planned
-   [lowered-model family](lowered-model-family.md) will handle this natively,
-   while progenax's standard King does not.
+   velocity dispersions per mass group; use the implemented
+   [lowered-model family](lowered-model-family.md) for that model rather than
+   interpreting the standard King profile as a multimass equilibrium.
 
 2. **Spherical and isotropic.** No rotation, no anisotropy. For
-   anisotropic generalisations see [](../velocity-dfs/rotation-anisotropy.md)
-   and the anisotropic [Michie](../velocity-dfs/michie-king.md) model; rotating
-   King-like profiles are part of the planned lowered-model family.
+   anisotropic generalizations see [](../velocity-dfs/rotation-anisotropy.md)
+   and the anisotropic [Michie](../velocity-dfs/michie-king.md) model. Additive
+   rotation overlays change the velocities and energy; they do not construct a
+   stationary rotating King DF.
 
 3. **No primordial substructure.** King is a smooth equilibrium
    profile. Turbulent/fractal substructure — relevant to cool-clumpy
@@ -301,7 +333,7 @@ no `r_t` argument is passed.
   validates $c(W_0)$ against {cite:t}`King1966` Table II and the volume
   density against an independent direct-velocity-integral oracle.
 - **Primary sources:** {cite:t}`King1966` (the lowered-isothermal model),
-  with the {cite:t}`Gieles2015` LIMEPY generalisation (see the
+  with the {cite:t}`Gieles2015` LIMEPY generalization (see the
   [lowered-model family](lowered-model-family.md)); the integration scheme
   follows the standard {cite:t}`Aarseth1974` approach (progenax uses
   `diffrax` as the JAX-native ODE backend). Full notes in the

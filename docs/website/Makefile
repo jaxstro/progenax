@@ -7,7 +7,12 @@
 # genuinely new node warning would still surface.
 export NODE_OPTIONS = --no-deprecation
 
-.PHONY: build start gate
+PYTHON ?= python3
+
+.PHONY: build start gate api-check
+
+api-check:  ## Compare generated API with source without changing files
+	$(PYTHON) scripts/build_api_reference.py --check
 
 build:  ## Build the static HTML site (docs/website/_build/html)
 	myst build --html

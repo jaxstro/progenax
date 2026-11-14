@@ -137,9 +137,13 @@ augmented-density inversion (and its $\beta(r)$ profile) are validated.
   **tangentially anisotropic** Type II/IIa/IIb solutions ($Q_-\equiv E - J^2/2r_a^2$, Eqs. 19–38)
   carry a velocity-dispersion discontinuity at $r=r_a$ and are out of scope.
 - Merritt notes that Eddington's (1914) generalized isothermal sphere
-  $f(E,J^2)\propto\exp[-(E+\beta J^2)]$ obeys the *same* anisotropy law — the lowered version of
-  this is the **Michie (1963)** anisotropic King model, the route for an anisotropic
-  `KingVelocityDF` (augmented-density inversion of the King density gives the same $\beta(r)$).
+  $f(E,J^2)\propto\exp[-(E+\beta J^2)]$ obeys the same anisotropy law. Adding the
+  King energy cutoff gives the **Michie–King** DF, whose lowering term breaks
+  the pure $f(Q)$ form. Its anisotropy is therefore not
+  $r^2/(r^2+r_a^2)$; it becomes isotropic again near its finite truncation
+  radius, as described by {cite:t}`Gieles2015` (§1). progenax exposes this
+  separate construction through `MichieProfile` and `MichieVelocityDF`;
+  `KingVelocityDF` remains isotropic.
 - **Linear superpositions** of different-$r_a$ solutions (Eq. 50) give a weighted-average
   $\beta(r)$ and a smooth way to avoid the Type II discontinuity — a possible future extension.
 

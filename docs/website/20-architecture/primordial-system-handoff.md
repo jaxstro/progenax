@@ -70,7 +70,15 @@ catalog.periapsis_contact_margins
 
 All orbital angles are in radians. Semimajor axes and contact margins use the
 same length unit as `positions`. Stellar radii on the particle product retain
-the established `ICResult` convention of solar radii.
+the established `ICResult` convention of solar radii. Particle masses use the
+selected dynamical mass unit. Primary/companion sampling and `TotalMass(M)`
+budgets use solar masses, with conversion at the shared construction boundary;
+see [](units-policy.md#binary-population-boundaries).
+
+Orbital resolution preserves each system's mass-weighted position and velocity.
+The pair's total momentum equals its system mass times its COM velocity; it
+vanishes only in that system's COM rest frame. The assembly relation is recorded
+in [](../15-model-reference/binaries.md#card-binary_cluster_assembly).
 
 ## Stable logical birth IDs
 
@@ -93,6 +101,10 @@ For each sampled binary, progenax reports
 $$
 \Delta r_{\rm contact} = a(1-e) - (R_1 + R_2).
 $$
+
+Here $a$ is the relative-orbit semimajor axis, $e$ its dimensionless
+eccentricity, and $R_1$ and $R_2$ the two stellar radii converted to the same
+length unit as $a$. The margin $\Delta r_{\rm contact}$ has that length unit.
 
 - $\Delta r_{\rm contact}>0$: detached at Keplerian periapsis under the adopted stellar-radius model.
 - $\Delta r_{\rm contact}=0$: tangent at periapsis.

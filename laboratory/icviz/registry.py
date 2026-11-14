@@ -15,6 +15,11 @@ from .engines import build_engine_a_segregation, build_engine_b_mix
 from .imfs import SEED as _IMF_SEED
 from .imfs import build_imf_classic_slopes
 from .moe import build_moe_pqe
+from .plummer_pedagogy import (
+    build_density_to_radius,
+    build_projected_density,
+    build_velocity_components,
+)
 from .profiles import SEED as _PROFILE_SEED
 from .profiles import build_density_residuals, build_family_portrait
 from .specs import FigureSpec
@@ -22,6 +27,33 @@ from .specs import FigureSpec
 FIGURES: dict[str, FigureSpec] = {
     spec.name: spec
     for spec in [
+        FigureSpec(
+            name="plummer-projected-density",
+            builder=build_projected_density,
+            stem="plummer_projected_density",
+            page="10-theory/spatial-profiles/plummer.md",
+            seed=0,
+            caption="Analytic projected Plummer surface density; no random draws or truncation.",
+            tags=("plummer", "analytic"),
+        ),
+        FigureSpec(
+            name="plummer-density-to-radius",
+            builder=build_density_to_radius,
+            stem="plummer_density_to_radius",
+            page="10-theory/spatial-profiles/plummer.md",
+            seed=0,
+            caption="Analytic registered density, shell probability, and CDF; no random draws.",
+            tags=("plummer", "analytic"),
+        ),
+        FigureSpec(
+            name="plummer-velocity-components",
+            builder=build_velocity_components,
+            stem="plummer_velocity_components",
+            page="10-theory/velocity-dfs/plummer-dfs.md",
+            seed=0,
+            caption="Isotropic component variances and the analytic conditional speed law; no random draws.",
+            tags=("plummer", "analytic"),
+        ),
         FigureSpec(
             name="imf-classic-slopes",
             builder=build_imf_classic_slopes,

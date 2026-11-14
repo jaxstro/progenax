@@ -58,10 +58,12 @@ is the period-dependent Roche-lobe ceiling (their Eq. 3, p. 38),
 e_{\max}(P) = 1 - \left(\frac{P}{2\,\mathrm{d}}\right)^{-2/3} \quad (P > 2\ \mathrm{d}),
 ```
 
-which guarantees the components do not fill their Roche lobes at periapsis (e.g.
+which the source adopts for its main-sequence population to limit periapsis
+Roche filling (e.g.
 $e_{\max}(10\,\mathrm{d})\approx0.66$, $e_{\max}(100\,\mathrm{d})\approx0.93$); $P \le 2$ d circularizes.
-$\eta = 0$ is uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e$
-($\langle e\rangle = 2/3$). The analytic $\eta$ fits are
+On a cap $c$, the normalizable power law has mean
+$c(\eta+1)/(\eta+2)$. Thus $\eta=0$ and 1 give uniform and thermal laws,
+with means $c/2$ and $2c/3$, respectively. The analytic $\eta$ fits are
 
 ```{math}
 :label: moe-eta
@@ -73,7 +75,7 @@ $\eta = 0$ is uniform ($\langle e\rangle = 0.5$); $\eta = 1$ is thermal $f(e)=2e
 ```
 
 with linear interpolation in $M_1$ for $3 \le M_1 \le 7\,M_\odot$ (Eqs. 17–18 valid
-$0.5 < \log P < 6$/$5$). Late-type binaries asymptote to $\eta \approx 0.5$ at long $P$; early-type
+$0.5 < \log P < 6$/$5$). Late-type binaries approach $\eta\approx0.5$ over the fitted long-period interval; early-type
 intermediate-period binaries reach $\eta \approx 0.8$ (near-thermal); short periods circularize
 ($\eta$ "not well defined" for $\log P \lesssim 1$). Sana et al. (2012) likewise find
 short-period O-star binaries are eccentricity-poor ($\eta < 0$); their precise slope is
@@ -82,32 +84,38 @@ tabulated in the supplementary Table S3 (paywalled, not in the held main report)
 ## Use in progenax
 
 - [](../../10-theory/imfs/mass-ratio-distributions.md), [](../../10-theory/imfs/binary.md).
-- `progenax.imf.MoeDiStefano2017` — a **period-averaged single-slope** reduction of the
-  $\gamma_{\rm smallq}/\gamma_{\rm largeq}+\mathcal F_{\rm twin}$ model (captures the trend;
-  appropriate for a *mass-function* analysis that marginalizes over period, e.g. the
-  *Confidently Wrong* forward model).
+- `progenax.imf.MoeDiStefano2017` — a period-independent single-slope
+  Gaussian-mixture reduction informed by the source. Its coefficients are
+  stored directly, without computing a weighted period integral of the full
+  model. Adequacy for a selected mass-function analysis requires a comparison;
+  the retained recovery scripts use this reduced model.
 - `progenax.imf.MoeDiStefano2017Full` / `MoePeriod` / `MoeJointOrbit` (Batch 4i) — the
   **faithful** two-slope, period-dependent $q\,|\,(M_1,P)$ from Table 13 (bilinear
   interpolation, grid inverse-CDF) and the joint $(P,q,e)$ interrelation sampler.
 - `progenax.binaries.MoeCompanions` (Batch 4k) — wires `MoeJointOrbit` + Moe's own
   $f_b(M_1)$ into `build_binary_cluster` as a `CompanionModel`; the same $q$ sets
   $m_2 = q\,m_1$, so the P–q correlation is **self-consistent** in the secondary masses.
-- `progenax.imf.MassDependentBinaryFraction` — the **multiplicity fraction** $1-\mathcal F_{n=0}$
-  from Table 13 (e.g. solar $1-0.60=0.40$, O-type $1-0.06=0.94$), with $<0.8\,M_\odot$ bins from
-  M-dwarf surveys.
+- `progenax.imf.MassDependentBinaryFraction` — a coarse step approximation
+  to the multiplicity probability, informed by Table 13 and lower-mass surveys.
+  The source probabilities include solar $1-0.60=0.40$ and O-type
+  $1-0.06=0.94$; the code uses 0.44 at 0.5–1$\,M_\odot$ and 0.90 above 10$\,M_\odot$.
+  These stored bins are not a demonstrated rebinning of Table 13.
 - `progenax.binaries.MoeEccentricity` — **faithful** implementation of the $p(e)\propto e^{\eta}$
   law with $\eta(\log P, M_1)$ from {eq}`moe-eta` (Eqs. 17–18) on $[0, e_{\max}(P)]$ with the
-  period-dependent Roche ceiling {eq}`moe-emax` (Eq. 3); samples via inverse-CDF
-  $e = e_{\max}(P)\,u^{1/(\eta+1)}$, with $\eta \le -1$ (very short $P$) → circular. A fixed
-  numerical ceiling (`e_max`, default 0.99) caps the long-$P$ limit where Eq. 3 → 1.
+  period-dependent population ceiling {eq}`moe-emax` (Eq.3); samples via
+  $e=c u^{1/(\eta+1)}$ on the active branch. The numerical extension assigns
+  a circular atom for $\eta+1\le10^{-6}$ and floors the slope denominator
+  at $10^{-3}$; the continuous PDF does not encode the atom. A fixed
+  ceiling (`e_max`, default 0.99) caps the long-period limit. The cap does
+  not inspect individual radii or guarantee contact avoidance in a catalogue.
 - `progenax.binaries.LogisticThermalEccentricity` — a smooth circular→thermal **heuristic** (a
   logistic blend toward $f(e)=2e$); not Moe's $\eta(P)$ law (see [](duquennoy-mayor-1991.md)).
 
 ## Notes
 
-**The most-referenced paper across progenax binary modelling.** The central result — that $P$,
-$q$, and $e$ are interrelated — is captured at two fidelities: the **period-averaged**
-`MoeDiStefano2017` (for mass-function analyses that marginalize over period) and the
-**faithful joint** `MoeJointOrbit` / `MoeCompanions` (for dynamical ICs with realistic
-orbits; Batches 4i–4k). The composition into `build_binary_cluster` is documented in the
-API reference; the faithful two-slope q-axis follow-up is **CLOSED**.
+The source statistics enter at two levels: a reduced period-independent
+Gaussian mixture and the conditional grid model composed by `MoeJointOrbit`
+and `MoeCompanions`. Both companion routes generate at most one companion
+per primary. Table interpolation, grid inverse-CDF accuracy, empirical
+extrapolation and population-gradient precision require their own checks;
+a completed implementation record is not general physical qualification.

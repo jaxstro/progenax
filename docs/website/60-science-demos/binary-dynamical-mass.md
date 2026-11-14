@@ -13,10 +13,12 @@ clusters — the binary motion is a large fraction of $\sigma$ itself, so the bi
 is large and has driven real debates about mass-to-light ratios and dark-matter
 content.
 
-This demo (a) **quantifies** the bias, (b) shows a **dispersion-only** analysis
+The quoted results are retained demo measurements, not a fresh run or a
+calibrated survey pipeline. This demo (a) quantifies its assumed-model bias, (b) shows a **dispersion-only** analysis
 *cannot* remove it — the $(\sigma_{\rm true}, f_b)$ problem is rank-1 degenerate —
 and (c) demonstrates a **differentiable joint recovery** from the *non-Gaussian
-wings* of the velocity distribution that returns an **unbiased** dynamical mass,
+wings* of the velocity distribution, with recovered values consistent with
+truth in the retained checks,
 with a Fisher/CRLB forecast vs sample size $N$ and RV precision $\epsilon$.
 
 It is the kinematic companion to [B4](binary-mass-function.md): B4 recovers the
@@ -28,7 +30,7 @@ relation {cite:p}`Tout1996`.
 
 ## The forward model
 
-Each star has a cluster centre-of-mass line-of-sight velocity
+Each modeled RV object has a system center-of-mass line-of-sight velocity
 $v_{\rm COM}\sim\mathcal N(0,\sigma_{\rm true}^2)$. A fraction $f_b$ are
 **unresolved binaries**: you measure one blended velocity, not two. The blend
 sits at $v_{\rm obs}=v_{\rm COM}+\Delta$, where $\Delta$ is the internal orbital
@@ -125,19 +127,19 @@ the demo's optimism lives entirely in what it treats as known.
 
 ```{important}
 :label: imp-b12-eps
-**$\epsilon$ must be externally known — it cannot be fitted.** In [](#b12-mixture)
+**This single-epoch model constrains the Gaussian variance sum.** In [](#b12-mixture)
 $\sigma_{\rm true}$ appears *only* in the combination $\sigma_{\rm true}^2+\epsilon^2$,
 so the line shape constrains the quadrature sum, not the two pieces: $\sigma_{\rm true}$
 and $\epsilon$ are **perfectly degenerate** if $\epsilon$ is free. The non-Gaussian
 wings break the $\sigma_{\rm true}$–$f_b$ degeneracy (because $K_{\rm orb}$ is
 *non-Gaussian*), but they do **nothing** to separate $\sigma_{\rm true}$ from
 $\epsilon$ — both are Gaussian and enter identically. Recovering an unbiased mass
-therefore *requires* an instrumentally calibrated $\epsilon$, which the model
+therefore needs independent information about $\epsilon$, which the model
 subtracts in quadrature. This is exactly what a real RV pipeline does, and it is
 why the demo treats $\epsilon$ as a fixed input rather than a free parameter.
 ```
 
-## Result — freshly run, ALL GATES PASS
+## Retained result (2026-06-12)
 
 UFD-like regime: $\sigma_{\rm true}=5$ km/s, $f_b=0.5$, $N=1500$ RV stars,
 $\epsilon=1$ km/s, metal-poor $Z=10^{-3}$, $r_h=30$ pc (exit 0; wall $\approx
@@ -155,14 +157,14 @@ $\epsilon=1$ km/s, metal-poor $Z=10^{-3}$, $r_h=30$ pc (exit 0; wall $\approx
 * - 2 — dispersion-only degenerate
   - rank-1 (cond $>10^8$)
   - cond $=2.3\times10^{16}$
-* - 3a — joint recovery unbiased
+* - 3a — joint recovery passes the retained pull gate
   - $M_{\rm ratio}\approx1$, $<3\sigma$
   - $\sigma=4.97\pm0.13$, $M_{\rm ratio}=0.99$
 * - 3b — full-distribution full-rank
   - cond $<10^6$
   - cond $=878$
-* - 4 — RV-precision floor
-  - precision degrades, mass unbiased
+* - 4 — retained RV-error sweep
+  - precision degrades; mean mass ratio within the adopted five-percent gate
   - $\sigma(\sigma_{\rm true})$: $0.12\to0.24$; $\max|M-1|=0.03$
 * - 5 — null ($f_b=0$)
   - $\hat f_b<0.05$
@@ -177,7 +179,8 @@ $\epsilon=1$ km/s, metal-poor $Z=10^{-3}$, $r_h=30$ pc (exit 0; wall $\approx
 The dispersion grows by the variance budget
 $\sigma_{\rm obs}^2 = \sigma_{\rm true}^2 + f_b\,\mathrm{Var}(K_{\rm orb}) +
 \epsilon^2$, so the naive virial mass is biased high by exactly
-$(\sigma_{\rm obs}/\sigma_{\rm true})^2$ — **$1.28\times$ at $f_b=0.5$**
+$(\sigma_{\rm obs}/\sigma_{\rm true})^2$ — **$1.28\times$ in the retained $f_b=0.5$ case**, including both
+binary orbital variance and the unremoved $\epsilon^2$ measurement contribution
 ([](#fig-b12-bias)). Crucially, this is a **systematic**: averaging more stars at
 fixed $f_b$ measures the *wrong* mass more precisely, it does not remove the bias.
 
@@ -196,21 +199,21 @@ The fix is to fit the **whole shape** of $p(v)$, not just its width. The Gaussia
 ([](#fig-b12-distribution)) — constrain a *different* combination. Two independent
 constraints turn the open ridge into a closed **ellipse**
 ([](#fig-b12-constraint), blue): the full-distribution Fisher is **full-rank**
-(cond $=878$, a $10^{13}$ improvement). The recovered mass is **unbiased**,
-$\sigma=4.97\pm0.13$ km/s, $M_{\rm ratio}=0.99$ vs the naive $1.28$ (verified
-unbiased over 24 realizations: $\langle\sigma\rangle=5.00$,
+(cond $=878$, a $10^{13}$ improvement). The retained recovered mass is consistent with truth,
+$\sigma=4.97\pm0.13$ km/s, $M_{\rm ratio}=0.99$ vs the naive $1.28$ (the retained 24-realization check reports $\langle\sigma\rangle=5.00$,
 $\langle f_b\rangle=0.50$).
 
 ### The RV-precision floor
 
 Because $\epsilon$ is *known* and folded into [](#b12-mixture), the recovered mass
-stays **unbiased at every $\epsilon$** ([](#fig-b12-eps-floor)) — even at
+passes the stated mean-ratio gate at the tested $\epsilon$ values ([](#fig-b12-eps-floor)) — even at
 $\epsilon=5$ km/s $\approx\sigma_{\rm obs}$. What degrades is **precision**:
 $\sigma(\sigma_{\rm true})$ doubles as $\epsilon$ washes out the wing signature,
 and the **detectable** binary fraction $f_b\,P(|\Delta|>\epsilon)$ collapses from
 $0.21$ to $0.02$. The honest scope: *you can only correct for the binaries you can
 detect, and that detectable fraction shrinks as the spectrograph gets noisier* —
-but the correction you do make is unbiased. The Fisher forecast
+these threshold fractions are a descriptive orbital-amplitude statistic,
+not an actual RV binary-detection probability or a proof of unbiased correction. The Fisher forecast
 ([](#fig-b12-fisher-vs-n)) shows both uncertainties fall as $N^{-1/2}$; $f_b$ (and
 hence the bias correction) is the harder parameter, since the wings it lives in are
 sparsely populated.
@@ -257,8 +260,8 @@ partially lift.
 **The RV-precision floor.** The recovered-mass precision
 $\sigma(\sigma_{\rm true})$ (blue, left) and $\sigma(f_b)$ (sky, right) grow with
 RV precision $\epsilon$, while the detectable fraction $f_b\,P(|\Delta|>\epsilon)$
-(vermilion, right) collapses. The mass itself stays unbiased
-($M_{\rm ratio}\approx1$) at all $\epsilon$ — only the precision degrades.
+(vermilion, right) collapses. The retained mean-ratio checks remain near unity at the tested errors.
+That finite sweep is not a universal unbiasedness or coverage result.
 :::
 
 :::{figure} figures/demo_binary_dynamical_mass_fisher_vs_N.png
@@ -266,8 +269,11 @@ RV precision $\epsilon$, while the detectable fraction $f_b\,P(|\Delta|>\epsilon
 :width: 100%
 
 **Survey forecast.** Fisher $\sigma(\sigma_{\rm true})$ and $\sigma(f_b)$ vs sample
-size $N$ (log–log), both scaling as $N^{-1/2}$ (dotted guide). Small-$N$ sits above
-the guide — the few-star regime is more degenerate than the asymptotic CRLB.
+size $N$ (log–log), both scaling as $N^{-1/2}$ (dotted guide). At fixed parameters and template, the assumed Poisson Fisher scales exactly
+as $N$, so its standard-error forecast scales as $N^{-1/2}$. The plotted
+values instead evaluate curvature at separate fitted realizations; deviations
+from the guide do not by themselves establish small-sample coverage or a
+change in structural identifiability.
 :::
 
 ## Caveats
@@ -283,7 +289,8 @@ the guide — the few-star regime is more degenerate than the asymptotic CRLB.
   the faint majority noisy — and would carry $\epsilon_i$ through the quadrature
   star-by-star. Treating $\epsilon$ as a single known number is the idealization
   here; treating it as *known at all* is the load-bearing assumption (the mass is
-  unbiased only because $\epsilon$ is calibrated, not fitted).
+  conditional on independently known $\epsilon$ as well as the kernel and
+  likelihood assumptions; that condition alone does not prove unbiasedness).
 - **Single epoch.** Multi-epoch RVs see the orbital phase change between visits —
   additional information this single-epoch demo does not use (it marginalizes over
   phase). Real binary surveys would do better than this forecast.
@@ -294,6 +301,12 @@ the guide — the few-star regime is more degenerate than the asymptotic CRLB.
 - **ZAMS photometry only.** The flux weighting uses the Tout (1996) main-sequence
   $L(m)$ from `progenax.stellar`; evolved (giant-dominated) systems change
   $K_{\rm orb}$'s shape. Full SED/bandpass photometry is the `fluxax` package's job.
+- **Flux-weighted velocity is a spectral-measurement approximation.** The
+  adopted bolometric ZAMS luminosity-weighted mean is not a calibrated
+  spectroscopic RV extraction model; line strengths, bandpass and component
+  resolution can change the measured velocity. Secondary masses can fall below
+  the Tout fit lower limit of $0.1M_\odot$; that extrapolation is not newly
+  qualified here.
 - **Heavy tail is grid-limited.** $K_{\rm orb}$ is histogrammed on $\pm150$ km/s;
   the rarest ultra-short-period systems beyond that are dropped (negligible by
   count, but they are the high-leverage wing stars in the extreme-precision regime).

@@ -7,13 +7,13 @@ description: progenax's three-tier test architecture, tolerance conventions, and
 ```{seealso}
 The [validation index](index.md) gives the per-suite roadmap. This
 page documents the methodology — the three-tier architecture, the
-pass/fail conventions, and the rules for adding new tests.
+error-budget rules, and the rules for adding new tests.
 ```
 
 progenax adopts a **three-tier test architecture** that separates
-mechanical correctness (unit), end-to-end behaviour (integration),
+mechanical correctness (unit), end-to-end behavior (integration),
 and physical correctness (validation). Each tier has its own
-purpose, frequency, and tolerance convention.
+purpose and evidentiary scope.
 
 ## The three tiers
 
@@ -25,7 +25,7 @@ purpose, frequency, and tolerance convention.
   - Example
 * - **Unit** (`tests/unit/`)
   - Per-function mechanical correctness
-  - "`PlummerProfile.density(r=1.0)` returns a positive scalar"
+  - "The Plummer density shape at $r=a$ equals $2^{-5/2}$"
 * - **Integration** (`tests/integration/`)
   - End-to-end builder/pipeline behaviour
   - "`build_plummer_cluster` produces an `ICResult` with N matching particles, finite kinetic energy, COM at origin"
@@ -34,63 +34,43 @@ purpose, frequency, and tolerance convention.
   - "$\zeta(p=1.67) = 1.789$ to $\pm 0.02$ per {cite:t}`Kainulainen2014`"
 ```
 
-Unit tests run on every push and must complete in $< 5$ minutes total.
-Integration tests run on PR merge and must complete in $< 30$ minutes.
-Validation tests run nightly (or on PR merge to `main`) and may run
-$\sim 4$ hours.
+Run focused local checks during development and the required integrated checks
+before a release claim. The FAST core selector excludes `slow`; the FULL core
+selector includes it. Runtime depends on hardware, precision, compilation cache,
+static configurations, and test exposure, so a directory name implies no fixed
+time budget.
 
-```{list-table} When each tier runs.
-:header-rows: 1
-
-* - Frequency
-  - What runs
-  - Time budget
-* - Per-push (CI)
-  - Unit tests + fast integration
-  - $< 5$ minutes
-* - Pre-merge (CI)
-  - + Slow integration + validation
-  - $< 30$ minutes
-* - Nightly
-  - + Stress tests, large-$N$, long chains
-  - $< 4$ hours
-* - Pre-release
-  - + Full reproducibility check on prior validation outputs
-  - Manual
-```
-
-The validation tier runs only on pre-merge to `main` — running it on
-every push would slow developer iteration. The trade-off: a developer
-pushing to a feature branch sees only unit + fast-integration results,
-so a validation-tier regression surfaces at the merge step. The
-mechanics of the gate that enforces this — the FAST/FULL split and the
-four-part release gate — are at [](testing-architecture.md).
+The configured `tests.yml` events are pull requests and manual dispatch;
+`physics-validation.yml` uses release tags and manual dispatch. These are
+configured triggers, not proof of remote enablement or successful runs.
+Private-repository CI requires Anna's explicit permission for the repository
+and intended scope before an action triggers it. See the current workflow
+owners rather than assuming a nightly or per-push schedule.
 
 ## Tolerance conventions
+
+A test's tolerance must follow the quantity and its error source, rather than a
+blanket percentage:
 
 ```{list-table}
 :header-rows: 1
 
-* - Test type
-  - Default tolerance
-  - Rationale
-* - Closed-form analytic
-  - $1\!\times\!10^{-12}$ relative
-  - Float64 precision
-* - Finite-$N$ statistical
-  - $5\!\times\!10^{-3}$ relative, $N = 10^4$
-  - Monte Carlo Poisson noise $\sim 1/\sqrt{N}$
-* - Approximation match
-  - $5\!\times\!10^{-2}$ relative
-  - e.g. cored ζ vs power-law ζ
-* - Observational anchor
-  - $1\!\times\!10^{-2}$ absolute
-  - e.g. Kainulainen+14 ζ ≈ 1.79
+* - Comparison
+  - Error budget to establish
+* - Analytic expression
+  - Floating-point scale, conditioning, cancellation, and any approximation error
+* - Finite-sample statistic
+  - Observable variance, component/bin occupancy, estimator bias, and seed uncertainty
+* - Numerical method
+  - Resolution or tolerance refinement against an independent reference
+* - Empirical anchor
+  - Source uncertainty, units, calibration domain, and the intended discrepancy
 ```
 
-Tests express these via `pytest.approx(expected, rel=tol)` or
-`pytest.approx(expected, abs=tol)`. A regression that exceeds the
-declared tolerance blocks merging.
+State the reference and budget before qualification, and retain failures. A
+near-zero residual needs the scale that generated its roundoff, not a relative
+error divided by that residual. A fixed random key aids reproducibility but
+does not replace an ensemble uncertainty or rare-population occupancy check.
 
 ## Anchor patterns
 
@@ -134,10 +114,11 @@ caught three distinct classes of regression in progenax's history:
    $a = r_h\sqrt{2^{2/3}-1}$, was caught by `test_half_mass_radius`
    checking $M(<r_h) = M/2$ *directly* rather than asserting
    $a = $ some constant.
-3. **Differentiability regressions** — accidentally introducing
-   `jnp.where` (instead of a sigmoid) in a critical path is caught by
-   the per-builder gradient-finiteness tests
-   ([](../20-architecture/differentiability.md)).
+3. **Derivative regressions** — a finite-gradient check can pass a silently
+   blocked zero. Compare the intended derivative with an analytic result or
+   converged finite differences. A sigmoid changes the model and is not an
+   automatic repair for a physical support boundary; see
+   [](../20-architecture/differentiability.md).
 
 Each is now anchored by a regression test on the defining condition,
 not the derived constant.
@@ -151,38 +132,22 @@ The four-step pattern:
    *supposed* to satisfy? (E.g. virial theorem $2T + V = 0$.)
 2. **Compute the expected value** — analytical (closed form) or
    published (with citation).
-3. **Choose a tolerance** based on the convention table above.
+3. **Derive an error budget** from the independent reference, numerical
+   conditioning/convergence, and sampling uncertainty.
 4. **Write the test** with `pytest.approx` and a descriptive
    docstring referencing the source.
 
-Example:
-
-```python
-def test_plummer_virial_at_equilibrium():
-    """Plummer with matched DF must satisfy 2T + V = 0
-    (virial theorem) to within Poisson noise.
-
-    Reference: any standard textbook; the closed-form Plummer DF
-    in [](../10-theory/velocity-dfs/plummer-dfs.md) is the source of
-    truth.
-    """
-    # Q=None -> the faithful UNSCALED Plummer equilibrium (no virial rescale), so
-    # 2T + V = 0 is a genuine test of the matched DF, not a value imposed by the
-    # builder. (The default Q=0.5 would force 2T + V = 0 by construction.)
-    ic = build_plummer_cluster(n=10_000, r_h=1.0, key=jax.random.PRNGKey(0), Q=None)
-    T = compute_kinetic_energy(ic.velocities, ic.masses)
-    V = compute_potential_energy(ic.positions, ic.masses, G=STELLAR.G)
-    assert (2 * T + V) / abs(V) == pytest.approx(0.0, abs=5e-3)
-```
-
-The docstring cites the source of truth; the assertion uses the
-defining condition; the tolerance follows the finite-$N$ statistical
-convention.
+The existing Plummer virial test illustrates an independent continuum anchor:
+`TestPlummerVirialEquilibrium.test_virial_ratio` compares raw sampled kinetic
+energy with $V=-3\pi GM^2/(32a)$. It does not rescale the sample to force the
+answer. Its particular finite-sample tolerance belongs to that test's exposure;
+copying the number into a new model would not establish an error budget.
 
 ## When validation tests fail
 
-A failing validation test is a *physics* claim that is no longer
-true. Three responses, in priority order:
+A failed check can indicate a physical disagreement, numerical error, software
+defect, statistical fluctuation, or an incorrect test premise. Distinguish these
+causes before interpreting the result. Three responses are:
 
 1. **Investigate the change.** Most validation failures are signals
    of real regressions — buggy code, broken refactor, unintended
@@ -200,10 +165,11 @@ $5\times$ further away, the new code is suspect.
 
 ## Reproducibility
 
-Every validation test uses a fixed PRNG key and fixed numerical
-tolerances. Re-running on the same hardware reproduces results
-bit-for-bit. Re-running on different hardware (CPU vs GPU) reproduces
-results to float-precision tolerance.
+Record PRNG keys, configuration, source revision or file hashes, dependency
+versions, backend, hardware, precision, and artifacts. A key alone does not
+guarantee bitwise reproducibility across compiler/library versions, devices,
+or reduction schedules. Recheck numerical and statistical budgets on a new
+backend rather than assuming float-precision agreement.
 
 The fixed PRNG key is *deliberate*: it makes regressions reproducible
 and bisectable. progenax does *not* run tests with random seeds in CI
@@ -212,8 +178,8 @@ because the resulting flakiness obscures real regressions.
 ## References
 
 The three-tier methodology is standard practice in scientific
-software; the specific tolerance conventions follow common practice
-in the JAX ecosystem (NumPyro, BlackJAX). The "anchor on defining
+software; repository instructions require independent references and
+quantity-specific, scale-aware tolerances. The "anchor on defining
 condition" lesson came from the 2026-04-28 PP20 ζ(p) bug fix
 ([](../90-development-log/2026-04-28-pp20-fix.md)), which the
 validation suite caught only after the analytic anchor was added.

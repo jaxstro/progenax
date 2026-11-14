@@ -21,8 +21,12 @@ Comprehensive analytic fits to detailed stellar-evolution tracks across a wide r
 
 ## Use in progenax
 
-- [](../../10-theory/binaries/eccentricity.md) — tidal-circularisation timescale formula
+- Historical stellar-evolution background. The released ZAMS labels use
+  [Tout et al. (1996)](tout-1996.md), not a full SSE evolution pipeline.
+- Tidal scaling intuition belongs to [Hurley et al. (2002)](hurley-2002.md)
+  and the eccentricity page; no BSE tidal-evolution ODE is integrated here.
 
 ## Notes
 
-Used in progenax for tidal-circularisation timescales; will be the foundation of stellax and startrax (planned).
+This abstract-level note does not establish an implemented full stellar- or
+binary-evolution model in Progenax.

@@ -9,7 +9,12 @@ Historical Phase-1 completion log, preserved for the record. The environment-dep
 shipped as the **functional** `BirthEnvironment` + `env_to_imf_params()` API — **not** the
 `IGIMF` / `EnvironmentIMF` *classes* once listed here, which were never realized (CLAUDE.md
 audit R7; `tests/unit/test_documented_api.py` asserts they stay absent). Treat everything below
-as a 2025-12 snapshot, not the current API.
+as a 2025-12 snapshot, not the current API or a current release/gradient qualification.
+The historical examples below sometimes use an equilibrium value of `Q=1`;
+the current package defines $Q=T/|V|$, with kinetic energy $T$, gravitational
+potential energy $V$, and equilibrium global balance at $Q=0.5$.
+Use the current [virial-cluster recipe](../40-howto/set-up-virial-cluster.md)
+for executable construction examples.
 :::
 
 ## Summary

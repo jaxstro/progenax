@@ -8,9 +8,8 @@ description: Mass segregation two ways — the energy-ordered (Baumgardt-style) 
 ```{seealso}
 This chapter covers **primordial** mass segregation seeded into the
 initial conditions — distinct from **dynamical** segregation, which
-emerges during evolution via two-body relaxation. The two are observationally
-indistinguishable, which is exactly why it matters whether your IC
-already has it. See {cite:t}`Allison2009` for the dynamical pathway and
+emerges during evolution via two-body relaxation. A present-day segregation statistic alone need not distinguish the two
+origins, so its interpretation depends on the cluster history and model. See {cite:t}`Allison2009` for the dynamical pathway and
 [](../velocity-dfs/plummer-dfs.md) for the equilibrium DF that
 underpins both.
 ```
@@ -39,8 +38,9 @@ labour after the 2026-06 unified redesign:
    `MultiComponentCluster.from_mass_segregation(delta)` (Engine A of the
    unified multi-component model): each mass component gets velocity-scale
    ratio $w_j = \mu_j^{-\delta}$ in ONE shared self-consistent potential,
-   so *every* value of $\delta$ is a true equilibrium and the segregation
-   knob $\delta$ is differentiable end-to-end. See
+   when a finite self-consistent solution exists. The parameter $\delta$
+   has documented fixed-key and population-gradient contracts, rather than
+   an unrestricted equilibrium or inference guarantee. See
    [](../populations/index.md) and
    [](../spatial-profiles/lowered-model-family.md).
 
@@ -48,7 +48,8 @@ An earlier $\lambda_{\mathrm{seg}}$ catalog-blend (linear interpolation
 between an unsegregated and a fully segregated catalog) was **retired**
 in the redesign: its intermediate states drift from per-mass-group
 virial balance, while the equilibrium route gives a smooth,
-HMC-compatible segregation parameter *without* leaving equilibrium.
+continuous DF-family parameter. Its numerical domain and inference
+properties still require separate checks.
 
 :::{admonition} Who this page is for
 :class: note
@@ -117,21 +118,22 @@ pool. See the `energy_sorted_segregation` docstring and
 
 ```{admonition} Why the orbit pool is oversized
 :class: note
-Massive stars "occupy more phase space" in this scheme — bin width is
-proportional to $m_i / M_{\mathrm{total}}$. Without the $f_{\mathrm{pool}} \geq 4$
-oversampling, the most-massive bin contains a single orbit and the
-construction degenerates. $f_{\mathrm{pool}} = 4$ keeps every bin populated
-to within Poisson noise for $N_\star \in [10^2, 10^5]$.
+Cumulative-mass bin widths scale with $m_i/M_{\mathrm{total}}$. A pool
+factor of 4 is an implementation recommendation, not a guarantee that
+every bin contains an orbit for every mass spectrum. The distinct-index
+assignment needs $N_{\mathrm{pool}}\ge N_\star$ and avoids reusing indices
+even when nominal bins are narrower than one orbit. Pool convergence
+remains separate from that combinatorial guarantee.
 ```
 
 This construction has three useful mathematical properties:
 
-1. **Density profile is preserved.** Each star ends up at the position
-   of an orbit drawn from the equilibrium DF, so the density profile
-   $\rho(r)$ is unchanged.
-2. **Per-mass-group virial equilibrium is preserved.** The orbit pool
-   samples the equilibrium DF, which means each mass group inherits the
-   correct velocity dispersion for its radial range.
+1. **Positions come from the orbit pool.** This does not prove that the
+   finite mass-weighted output density equals the parent density after
+   deterministic assignment. Compare the resulting mass profile and potential.
+2. **Stationarity is not guaranteed.** Energy selection refers to the parent
+   potential; the assigned stellar masses generate their own potential.
+   A global virial rescale fixes an energy ratio, not per-component DF consistency.
 3. **Computational cost is $\mathcal{O}(N_{\mathrm{pool}}\,\log N_{\mathrm{pool}})$.**
    Two sorts dominate; the assignment is $\mathcal{O}(N_\star)$.
 
@@ -201,12 +203,13 @@ w_j \;=\; \frac{s_j}{s} \;=\; \mu_j^{-\delta},
 
 the {cite:t}`Gieles2015`-style equipartition law: heavier components are
 kinematically colder and sink in the shared self-consistent potential.
-Crucially, *every* value of $\delta$ is a true shared-potential
-equilibrium ($Q_j = 0.5$ per component, by construction), so the
-segregation strength is a smooth physical parameter — differentiable
-end-to-end through construction *and* sampling — rather than an
-interpolation between catalogs. $\delta = 0$ is the unsegregated
-corner; $\delta = 1/2$ is full Spitzer-style equipartition scaling.
+This defines a shared-potential lowered-DF family when the numerical
+solve reaches a finite edge. Its stationary continuum components satisfy
+$Q_j=0.5$ with vanishing boundary pressure; finite catalogues fluctuate.
+Derivative validity depends on the fixed-key or expectation target and
+the tested numerical domain, not solely on using a continuous parameter. $\delta = 0$ is the unsegregated
+corner; $\delta=1/2$ gives the traditional velocity-scale law $s_j\propto m_j^{-1/2}$;
+actual low-mass velocity dispersions saturate because of lowering.
 The theory is developed in [](../populations/index.md) and
 [](../spatial-profiles/lowered-model-family.md).
 
@@ -281,16 +284,18 @@ $N_{\mathrm{massive}}$ set whose MST is $\ell_{\mathrm{massive}}$.
 :width: 100%
 
 Left: $\Lambda_{\mathrm{MSR}}$ rises monotonically as the massive set is concentrated toward
-the centre. Right: the estimator converges to the exact value (independent $N_{\mathrm{massive}}=2$
+the center. Right: the estimator converges to the exact value (independent $N_{\mathrm{massive}}=2$
 enumeration) with seed-to-seed scatter $\sigma(\Lambda)\propto 1/\sqrt{N_{\mathrm{random}}}$.
 :::
 
 ```{warning}
 **Λ_MSR is biased by binaries.** A massive binary appears as two stars
 at the same position, giving an extremely short MST edge. For
-binary-aware analyses, compute Λ_MSR on the *primary* mass rather than
-the system mass, or use the local-density-ratio diagnostic
-{cite:p}`Kuepper2011` which is less binary-sensitive. See the binary IMF
+binary-aware analyses, define the objects being compared consistently:
+for example, collapse a resolved binary to one center-of-mass position
+with a chosen system mass. Merely replacing its mass label while retaining
+both near-coincident positions does not remove the short MST edge. Any
+alternative diagnostic needs its own multiplicity sensitivity check. See the binary IMF
 chapter ([](../imfs/binary.md)) for the related discussion of how
 binary contamination affects single-star inferences.
 ```
@@ -303,7 +308,7 @@ binary contamination affects single-star inferences.
 Quantifying the caveat: at $N_{\mathrm{massive}}=2$ a tight massive pair drives
 $\Lambda_{\mathrm{MSR}}\propto 1/\text{(pair separation)}$, inflating it by $10^3$–$10^4$ as the
 separation shrinks to $10^{-4}$ pc. The effect is milder at large $N_{\mathrm{massive}}$ (one of
-$\sim\!N_{\mathrm{massive}}-1$ edges); mitigation is to use binary centre-of-mass positions.
+$\sim\!N_{\mathrm{massive}}-1$ edges); mitigation is to use binary center-of-mass positions.
 :::
 
 The implementation lives in `progenax.diagnostics.mass_segregation`,
@@ -315,8 +320,8 @@ the broader JAX-native-MST design discussion).
 ## Other constructions (not implemented in progenax)
 
 {cite:t}`Subr2008` parameterise mass segregation via interparticle
-potential energies rather than total energies — physically equivalent in
-limit but harder to implement without rejection sampling. progenax
+potential energies rather than the energy-ranked orbit construction.
+The two prescriptions are distinct; equivalence is not established here. progenax
 adopts only the energy-ordered Baumgardt construction because:
 
 1. It avoids rejection sampling (deterministic given a fixed orbit pool).
@@ -358,7 +363,8 @@ ic = cluster.sample_cluster(jax.random.PRNGKey(42), n_stars=1000, G=STELLAR.G)
 key_pos, key_vel, key_seg = jax.random.split(jax.random.PRNGKey(0), 3)
 N, pool_factor = 1000, 4
 masses = jnp.ones(N)  # or an IMF draw
-pool_masses = jnp.ones(N * pool_factor)
+# The pool represents the final cluster mass, not N_pool unit-mass stars.
+pool_masses = jnp.full(N * pool_factor, jnp.sum(masses) / (N * pool_factor))
 profile = PlummerProfile(r_h=1.0)
 df = PlummerVelocityDF(r_h=1.0)
 pos_pool = profile.sample_positions(pool_masses, key_pos)
@@ -401,7 +407,8 @@ implemented anywhere; for most production use cases, choose *one* of:
   evolution {cite:p}`Allison2009`.
 - Smooth + segregated ($Q_{\mathrm{vir}} = 0.5$,
   `MultiComponentCluster.from_mass_segregation` or
-  `energy_sorted_segregation`) — primordial segregation in equilibrium.
+  `energy_sorted_segregation`) — distinguish the shared-potential DF route
+  from the discrete imposed assignment; Q alone does not make both stationary.
 
 See [](fractal.md) for the substructure side.
 

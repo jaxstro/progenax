@@ -5,8 +5,8 @@ description: "End-to-end methods demonstrations that turn progenax's differentia
 
 # Science demos
 
-The [validation section](../50-validation/index.md) proves that each progenax
-model reproduces its analytic or published ground truth. This section answers a
+The [validation section](../50-validation/index.md) records model-specific
+checks, configurations and remaining limitations. This section asks a
 different question: **can you run the models *backwards* — recover the
 parameters of a cluster from mock observations of it — and does the recovery
 land on truth?** That is the use case the whole package is built for: a
@@ -19,7 +19,8 @@ demos sort onto three axes (*measurable*, *degenerate*, *biased*), and the valua
 results turn out to be the degeneracies and systematics, not the point estimates.
 ```
 
-Each demo is a standalone gated CLI in `scripts/` (the same `validate_*` house style
+The numerical results on these pages are retained, dated demonstrations;
+they are not fresh release qualification. Each demo is a standalone gated CLI in `scripts/` (the same `validate_*` house style
 — it exits nonzero if any recovery gate fails).
 
 **Batch B** (kinematic recovery, the $\sigma(r)$ channel):
@@ -34,8 +35,8 @@ Each demo is a standalone gated CLI in `scripts/` (the same `validate_*` house s
   - Do the DF-defined and density-defined engines build the *same* cluster?
   - (none — a consistency check)
 * - [IMF + equipartition](imf-equipartition.md) (B2)
-  - Can one IMF slope $\alpha$ be measured jointly from masses *and* kinematics?
-  - $(\alpha,\ \delta,\ W_0)$
+  - Can IMF slope $\alpha$ be recovered from one cluster’s component counts and kinematics?
+  - $(\alpha,\ \delta,\ W_0)$; revised single-catalogue experiment under qualification
 * - [Halo + core](halo-core.md) (B3)
   - Can a two-family cluster's mass split + anisotropy be recovered?
   - $(t,\ r_a,\ r_h)$
@@ -111,8 +112,9 @@ recovery from real data. With few exceptions, the demos do not model:
   generative model (the deliberate exceptions are [B2d](imf-equipartition.md)'s
   wrong-IMF curve, [B4](binary-mass-function.md)'s wrong $P$–$q$ coupling, and
   [B6](anisotropy.md)'s OM-vs-Michie misfit — each *reported* as the result);
-- **SBC-calibrated posteriors** — where NUTS is run, the corner is non-divergent
-  with posterior mean ≈ MLE, but simulation-based calibration is future work.
+- **Calibrated posteriors** — a non-divergent NUTS run or agreement of its mean
+  with an MLE does not establish mixing or calibration. Each posterior claim
+  needs its own chain diagnostics; simulation-based calibration remains separate.
 
 Adding full observational realism (projection, errors, incompleteness) across all
 demos is the natural next arc; see [the throughline](throughline.md) for why the

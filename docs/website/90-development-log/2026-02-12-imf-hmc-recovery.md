@@ -1,5 +1,14 @@
 # IMF HMC Recovery — Proposal Figure
 
+:::{note} Historical proposal (2026-02-12)
+This page records a proposed inference and figure workflow. Its expected
+recoveries, success criteria, timings, and code are not evidence that those
+calculations were executed or remain compatible with the current package.
+Historical NumPyro instructions do not define current release dependencies or
+authorize new runs. See the current [IMF API](../30-api/imf.md) and
+[validation](../50-validation/imf-statistics.md) for supported behavior and evidence.
+:::
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Prove that NumPyro NUTS recovers the high-mass IMF slope α₃ across the full astrophysical range (1.7–2.8), producing a publication-quality 1×3 proposal figure.

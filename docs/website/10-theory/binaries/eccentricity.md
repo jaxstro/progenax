@@ -10,7 +10,10 @@ $P$ and $q$) in the {cite:t}`MoeDiStefano2017` joint binary-population
 calibration. Unlike $P$ and $q$, the eccentricity distribution is
 **period-dependent**: short-period binaries are tidally circularised
 (small $e$); long-period binaries retain whatever eccentricity they
-formed with (typically thermal). progenax implements three families:
+formed with. The empirical distribution depends on primary mass as well
+as period; long-period solar-type binaries need not be thermal. progenax
+implements the three families below, plus a qualitative
+`LogisticThermalEccentricity` blend.
 
 :::{admonition} Who this page is for
 :class: note
@@ -27,13 +30,13 @@ formed with (typically thermal). progenax implements three families:
   - Physical meaning
 * - **Thermal**
   - $f(e) = 2e$
-  - Long-period binaries with random angular-momentum vectors; classical Heggie (1975) prediction
+  - A statistical phase-space law; isotropic directions alone do not determine $f(e)$
 * - **Uniform**
   - $f(e) = 1$
-  - Short-period binaries that have lost angular momentum but not yet circularised
+  - A uniform baseline on the chosen eccentricity interval
 * - **{cite:t}`MoeDiStefano2017`**
   - Period-dependent
-  - Empirical: thermal at long $P$, smoothly transitioning to uniform/circular at short $P$
+  - Empirical mass/period-dependent power law, with a circular point-mass branch
 ```
 
 This chapter derives each form, sets out the period-dependent
@@ -42,8 +45,7 @@ transitions, and documents progenax's sampling implementation.
 ## Thermal: $f(e) = 2e$
 
 The thermal eccentricity distribution dates to {cite:t}`Heggie1975`
-and represents the steady-state distribution of a population of
-binaries with isotropic angular-momentum vectors:
+and is a statistical model for dynamically processed binaries:
 
 ```{math}
 :label: thermal
@@ -52,10 +54,12 @@ f(e) \;=\; 2e,\qquad e \in [0, 1].
 
 [↗ model card](#card-thermal)
 
-Physically, the thermal $f(e)$ arises because a binary's specific
-angular momentum scales as $L \propto \sqrt{1 - e^2}$, and an
-isotropic distribution in $L$ produces $f(e) \propto e$. The factor
-of 2 normalises so that $\int_0^1 f(e)\,\mathrm{d}e = 1$.
+At fixed semi-major axis and masses, the specific angular momentum
+satisfies $h^2=G(m_1+m_2)a(1-e^2)$. A distribution uniform in $h^2$
+therefore gives $f(e)=2e$ by its change-of-variables Jacobian. This
+assumption concerns angular-momentum magnitude; isotropy of its direction
+alone does not imply a thermal eccentricity law. The factor of two
+normalizes the ideal interval $[0,1]$.
 
 The mean and median:
 
@@ -64,25 +68,25 @@ The mean and median:
 e_{\mathrm{med}} \;=\; 1/\sqrt{2} \approx 0.71.
 ```
 
-Most thermal binaries are highly eccentric. progenax's
-`ThermalEccentricity()` samples via inverse-CDF:
+On the implemented interval $[0,e_{\max}]$, the normalized density is
+$2e/e_{\max}^2$, the mean is $2e_{\max}/3$ and the median is
+$e_{\max}/\sqrt2$. `ThermalEccentricity()` defaults to $e_{\max}=0.99$
+and samples via inverse-CDF:
 
 ```python
 u = jax.random.uniform(key, (N,))
-e = jnp.sqrt(u)            # Inverse of F(e) = e^2
+e = thermal.e_max * jnp.sqrt(u)  # F(e) = (e/e_max)^2
 ```
 
-Differentiable analytically.
+The interior quantile is analytic. Endpoints and parameter/support
+boundaries require their own derivative convention.
 
 ## Uniform: $f(e) = 1$
 
-The uniform distribution $f(e) = 1$ for $e \in [0, 1]$ is the
-maximum-entropy distribution in the absence of any prior information
-about the angular-momentum distribution. It is the *correct* choice
-for binaries whose formation channel does not preserve a thermal
-distribution — e.g. binaries formed via core fragmentation in
-turbulent clouds, where the angular momentum is set by the local flow
-and is not isotropic.
+A uniform eccentricity law is a baseline choice, not a consequence of
+an unspecified formation channel. It maximizes entropy relative to
+the measure $\mathrm{d}e$ on a fixed interval; another parameterization
+changes that statement.
 
 ```{math}
 :label: uniform-ecc
@@ -91,12 +95,12 @@ f(e) \;=\; 1,\qquad e \in [0, 1].
 
 [↗ model card](#card-uniform-ecc)
 
-Sampling: $e = u$ for $u \sim \mathcal{U}(0, 1)$. Mean and median both
-$0.5$.
-
-`UniformEccentricity()` is the default progenax option for
-short-period binaries that have not yet been processed by tidal
-evolution.
+`UniformEccentricity(e_max=c)` instead normalizes on $[0,c]$, with
+density $1/c$, quantile $e=cu$, and mean and median $c/2$. Its default
+is $c=0.9$, with `e_min=0`. A nonzero lower bound gives density
+$1/(e_{\max}-e_{\min})$ and quantile
+$e_{\min}+u(e_{\max}-e_{\min})$. Choosing it for a physical population requires an explicit
+model assumption; there is no universal short-period default law.
 
 ## Moe & Di Stefano (2017): the period- and mass-dependent power law
 
@@ -122,7 +126,7 @@ circularised, long-period orbits thermal) is a useful intuition for the
   - Smoothly rising $\langle e\rangle$
   - Partial circularisation
 * - Long ($P$ large)
-  - Approaching thermal $f(e) = 2e$
+  - Early-type populations approach near-thermal; solar-type populations can remain flatter
   - Tides do not act on Hubble timescales
 ```
 
@@ -140,9 +144,11 @@ against their Fig. 36):
 
 [↗ model card](#card-moe-eta-ecc)
 
-with linear interpolation in $M_1$ across $3$–$7\,\Msun$. Here $\eta = 0$
-is uniform ($\langle e\rangle = 0.5$) and $\eta = 1$ is thermal
-($\langle e\rangle = 2/3$); short-period massive binaries are driven to
+with linear interpolation in $M_1$ across $3$–$7\,\Msun$. For a cap
+$c=e_{\max}(P)$ and $\eta>-1$, the normalized density is
+$(\eta+1)e^\eta/c^{\eta+1}$ and mean is $c(\eta+1)/(\eta+2)$.
+Thus $\eta=0$ is uniform and $\eta=1$ is thermal on that interval;
+short-period massive binaries are driven to
 $\eta < 0$ (circularising), and $\eta \le -1$ (very short $P$,
 $e^{\eta}$ non-normalisable) returns $e \approx 0$ by construction. The
 upper limit is the period-dependent Roche-lobe ceiling (their Eq. 3),
@@ -154,11 +160,17 @@ e_{\max}(P) \;=\; 1 - \Bigl(\frac{P}{2\,\mathrm{d}}\Bigr)^{-2/3} \quad (P > 2\ \
 
 [↗ model card](#card-moe-emax-ecc)
 
-so the components do not overflow their Roche lobes at periapsis (e.g.
+used by the paper for main-sequence binary populations (e.g.
 $e_{\max}(10\,\mathrm{d}) \approx 0.66$, $e_{\max}(100\,\mathrm{d})
-\approx 0.93$); $P \le 2$ d circularises. Sampling uses the inverse CDF
-$e = e_{\max}(P)\,u^{1/(\eta+1)}$, which is continuous in $P$ and $M_1$ —
-important for HMC inference where they may be free parameters.
+\approx 0.93$); $P \le 2$ d has zero cap. The implementation additionally clips the cap
+to its `e_max` field, floors $\log_{10}(P/\mathrm{day})-0.5$ at $10^{-3}$
+in the slope denominator, and assigns $e=0$ when $\eta+1\le10^{-6}$.
+These are explicit numerical extensions around the short-period regime,
+where the source fit is not well defined. On the active branch the quantile
+is $e=c u^{1/(\eta+1)}$. The circular branch is a point mass at zero;
+`pdf` returns only the continuous part, zero on that branch. Clipping,
+branch thresholds and inverse-angle degeneracies exclude a universal
+smoothness claim across the whole parameter domain.
 
 ## Sampling implementation
 
@@ -169,11 +181,11 @@ from progenax.binaries import (
     MoeEccentricity,
 )
 
-# Thermal (long-period or "no information" choice)
+# Thermal statistical model on [0, 0.99]
 thermal = ThermalEccentricity()
 e_thermal = thermal.sample(key, 10000)
 
-# Uniform (short-period unprocessed)
+# Uniform baseline on [0, 0.9]
 uniform = UniformEccentricity()
 e_uniform = uniform.sample(key, 10000)
 
@@ -195,10 +207,14 @@ Tidal circularisation operates on a timescale {cite:p}`Hurley2002`
 
 ```{math}
 :label: tidal-timescale
-\tau_{\mathrm{circ}} \;\sim\; \biggl(\frac{a}{R_\star}\biggr)^{\!8} \cdot \frac{1}{q\,(1 + q)}
+\tau_{\mathrm{circ}} \;\propto\; \biggl(\frac{a}{R_\star}\biggr)^{\!8} \cdot \frac{1}{q\,(1 + q)}
 ```
 
-with $R_\star$ the primary's radius. The strong $a^8$ dependence makes
+with $R_\star$ the primary's radius, holding the stellar tidal coefficient
+and other structure factors fixed. The omitted prefactor carries time
+units; this scaling is not a complete timescale formula. Radiative and
+convective damping require different stellar prescriptions. The strong
+$a^8$ dependence in the quoted equilibrium-tide scaling makes
 circularisation effective only for very short orbits — typically
 $P \le 4$ d for solar-type primaries on the main sequence. For
 massive stars (larger radii) the circularisation cutoff extends to
@@ -254,22 +270,21 @@ binary module, not in this eccentricity sampler.
 1. **Bound orbits only** ($e < 1$). Marginally-bound or hyperbolic
    encounters are not represented — they are not "binaries" in the
    sense progenax models.
-2. **Single-event tidal cutoff** — the circular cutoff is set by the
-   primary's *current* radius, ignoring stellar evolution. Stars that
-   evolve through giant phases briefly have $R_\star \gg R_\odot$,
-   which extends the cutoff temporarily. progenax's IC-time treatment
-   uses ZAMS radii; subsequent evolution should be handled by the
-   integrator (gravax) and stellar-evolution code (startrax, planned).
+2. **Population ceiling, not individual contact rejection.** The
+   `MoeEccentricity` cap depends on period, not supplied stellar radii,
+   masses or mass ratio. It follows the source's main-sequence population
+   prescription; it does not prove that each realized system avoids
+   contact or Roche-lobe overflow. Use component radii and periapsis
+   diagnostics for a particular catalogue. Evolved-star tides and
+   radius changes require a separate stellar-evolution prescription.
 3. **Metallicity assumption** — the {cite:t}`MoeDiStefano2017` calibration is
    solar-metallicity. Tidal-circularisation efficiency varies with
    internal stellar structure, which is metallicity-dependent. For
    metal-poor populations expect the cutoff period to shift slightly.
-4. **No magnetic-braking effects** — magnetic braking circularises
-   short-period binaries on timescales comparable to $\tau_{\mathrm{circ}}$.
-   The progenax default lumps both effects into a single empirical
-   cutoff, but for science targeting magnetic activity (CV-progenitor
-   binaries, RS CVn analogues) the effects should be modelled
-   separately.
+4. **No magnetic-braking evolution.** Magnetic braking changes spin
+   angular momentum and can couple to an orbit through tides.
+   This sampler does not evolve either mechanism. Applications targeting
+   magnetic activity or evolved binaries require an explicit evolution model.
 
 ## Implementation, validation & references
 

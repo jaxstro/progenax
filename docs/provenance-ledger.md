@@ -1,12 +1,9 @@
 # Provenance & Credibility Ledger — progenax release-prep
 
-**Arc:** `feat/provenance-credibility-audit` ·
-**Design:** an internal design note (maintainer-local) ·
-**Started:** 2026-06-14
-
-> Design and plan documents referenced in this ledger are maintainer-local
-> (untracked in the public tree as of 2026-07); they are named here for provenance
-> but their files live only in a maintainer checkout.
+This is the dated released-core provenance record from 2026-06-14.
+Historical checks below retain their original scope; they are not fresh release
+qualification. Current equations and implementation links are in the
+[model reference](website/15-model-reference/index.md) and owning source notes.
 
 One row per audited scientific claim / constant / citation →
 `source (paper + eq/table/page)` → **verdict**:
@@ -41,8 +38,6 @@ phantom classes corrected). HIGH items fall into three buckets:
 - **B — held-PDF deep-verify** (PDFs in hand)
 - **C — cited-but-not-held** (needs-fetch)
 
-Full 270-row inventory: `.claude-work/provenance-inventory-2026-06-14.md` (untracked working artifact).
-
 ### Provenance-hygiene note (workflow false-positives, corrected)
 The Phase-1 canonical held-set list ASCII-stripped two accented PDF filenames, spuriously flagging
 them needs-fetch. Both **are held**: `Säilynoja_2026.pdf`, `Prša_2016_AJ_152_41.pdf`. Accented PDF
@@ -62,7 +57,6 @@ filenames are fragile for tooling (consolidation candidate).
 | Lucy 2006, A&A 457, 629 | 2 | ✅ fetched | twin excess, `TwinPeakedMassRatio` |
 | King 1962, AJ 67, 471 | 2 | ✅ fetched | tidal-radius definition, `tidal.py`/`king.py` |
 | Aarseth, Hénon & Wielen 1974, A&A 37, 183 | 2 | ✅ fetched | Q=T/\|V\| convention (cited 13×); Plummer Beta(3/2,9/2) recipe |
-| Kainulainen 2014; Kritsuk 2011; Tan+2006; Hoffman&Gelman 2014; Cook 2006 | 3 | ⏸ deferred | experimental gravoturb/SBC (not in wheel) |
 | Binney & Tremaine 2008; Murray & Dermott 1999; Vallado | textbook | ⏸ cite-by-edition | standard formulae — cite edition+eq+page, no PDF |
 
 *Likely no fetch:* **Küpper 2011** (σ_Σ coeffs) is probably the held `McLuster_Methods_2011.pdf` — disambiguate during verify.
@@ -336,10 +330,3 @@ API (design commit `0a7a424`), implementation pending.
 build_plummer_cluster repoint; low-priority hygiene). Needs-fetch deferred (Tier-3/experimental +
 textbooks): BT08, Larson 1981, Solomon 1987, Federrath 2013, Kainulainen 2014, Hurley 2000 paper PDF,
 Allison MNRAS 395,1449.
-
-**Merge/PR:** the arc is **all-local, nothing pushed** (CI minutes exhausted per Anna); `make build`
-0 warnings throughout; `src/` edits are docstring/comment/fixture-value only (no behaviour change) →
-released-core gate unaffected. **Recommended:** merge `feat/provenance-credibility-audit` → local main
-on Anna's go (no PR while CI minutes are out), with `build_cluster` on its own `feat/cluster-builders`
-branch — **or** hold the audit merge until build_cluster lands so the `build_plummer_cluster` doc
-repoint ships in one coherent release. **Anna's call.**

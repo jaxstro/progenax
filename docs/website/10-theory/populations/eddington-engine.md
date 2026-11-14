@@ -11,8 +11,9 @@ Engine B is the density-defined route into
 amplitude, and the engine constructs the one shared self-consistent
 potential they jointly generate, recovers each component's
 distribution function by **Eddington inversion in that shared
-potential**, and samples a true joint equilibrium — or refuses, with
-the physics named, when the decomposition does not exist as one.
+potential**, and samples the resulting component populations. Negative
+distribution functions are rejected by public construction in eager, JIT and AD paths. Hard truncation
+introduces the edge approximation described below.
 
 :::{admonition} Who this page is for
 :class: note
@@ -22,6 +23,7 @@ the physics named, when the decomposition does not exist as one.
 :::
 
 ```python
+import jax.numpy as jnp
 from progenax import MultiComponentCluster, PlummerProfile, EFFProfile
 
 model = MultiComponentCluster.from_density_profiles(
@@ -32,7 +34,7 @@ model = MultiComponentCluster.from_density_profiles(
 )
 ```
 
-## One quadrature pass, no ODE
+## Shared potential by quadrature
 
 The structural contrast with
 [Engine A](../spatial-profiles/lowered-model-family.md) is this:
@@ -47,7 +49,8 @@ ODE. Engine B's total density is **prescribed**,
 ```
 
 so the shared potential follows from **one cumulative-trapezoid
-pass** — no ODE, no iteration:
+pass**, without a coupled potential solve. Constructing a King component still
+requires its own dimensionless profile ODE:
 
 ```{math}
 :label: engine-b-poisson
@@ -63,7 +66,7 @@ $\mathrm{d}\Psi/\mathrm{d}r = -GM(<r)/r^2$ analytic from the enclosed
 mass. The implementation (`profiles/density_poisson.py`) works in
 dimensionless units ($G = 1$, total truncated mass 1) on a fixed
 $n_r = 6000$ grid — sqrt-stretched toward the core ($r = r_{\rm floor} +
-(r_t - r_{\rm floor})\,u^2$, audit S2), with non-uniform trapezoid
+(r_t - r_{\rm floor})\,u^2$), with non-uniform trapezoid
 weights — and stores per-component enclosed-mass CDFs
 $M_j(<r)$ for the position sampler.
 
@@ -146,8 +149,8 @@ it stored as provenance:
 1. **Component extents:** Plummer is infinite; EFF and King end at
    their own $r_t$.
 2. **Cluster edge = max finite extent.** If any component is finite,
-   $r_t$ is the largest finite extent (provenance names the winning
-   profile and component index).
+   $r_t$ is the largest finite extent (provenance records the rule and
+   candidate profiles independently of their dynamic radii).
 3. **All-infinite mixes** (e.g. pure Plummer): $r_t$ is the radius
    enclosing $f_{\rm enc} = 0.995$ (configurable) of the summed
    analytic mass, found by a fixed 80-step bisection.
@@ -163,22 +166,25 @@ stored as diagnostics, so a "too small $r_t$" cannot hide.
 
 Eddington inversion is the *unique* candidate ergodic (or OM) DF for a
 density in a potential. If that candidate is negative anywhere, **the
-prescribed component does not exist as an equilibrium in this shared
-potential** — typically a too-shallow component in a concentrated
+prescribed component has no nonnegative DF within the chosen ergodic or OM
+family in this shared potential** — typically a too-shallow component in a concentrated
 companion's potential. Engine B treats this as physics:
 
 - Every build computes and stores the margin
   $f_{\min,j} = \min f_j / \max|f_j|$ per component.
-- **Genuine** negativity ($f_{\min,j} < -10^{-3}$, separating physics
-  from grid-level quadrature ringing) on a concrete build raises a
-  `ValueError` naming the component and the remedy ("density too
+- Public construction requires finite raw DF tables and
+  $f_{\min,j} > -10^{-3}$, separating genuine negativity from grid-level
+  quadrature ringing. A failed gate raises an error naming the component
+  and the remedy ("density too
   shallow to be supported in this shared potential — steepen it, raise
   its mass fraction, or raise `r_a_j`").
-- Traced builds (under `jax.jit`/`jax.grad`) cannot raise, so they
-  always store the `f_min_j` diagnostic instead — the same two-tier
-  pattern `EFFVelocityDF` uses.
-- The DF is **never clamped silently**: a clamped DF integrates back
-  to a *different* density than the one prescribed.
+- The gate remains active under `jax.jit` and forward/reverse AD.
+  Concrete low-level checks raise `ValueError`; runtime checks raise a
+  JAX/Equinox error. The low-level traced `build_engine_b_state` path retains
+  raw failed diagnostics for inspection without returning a public model.
+- The raw DF and its margin remain available for inspection. Sampling and
+  population moments clip tolerated negative values to zero. Because clipping
+  changes the represented density, the density-fidelity check remains necessary.
 
 This is not a corner case. The originally drafted halo+core example
 ($a_{\rm EFF} = 0.4$ inside a Plummer halo) is genuinely unrealizable
@@ -224,30 +230,25 @@ represents) reads $Q_j = 0.5$ to a few $\times 10^{-4}$, as the
 steady-state identity demands. Do **not** rescale Engine B output to
 "fix" the plateau.
 
-## A numerics lesson: never differentiate interpolated data
+## King density derivatives
 
-The King-density branch initially computed $\mathrm{d}W/\mathrm{d}r$
-by `jnp.gradient` of the *interpolated* King $\psi$ grid. Piecewise
-linear interpolation makes that derivative a staircase, and the
-Eddington $\mathrm{d}^2\rho/\mathrm{d}\Psi^2$ kernel plus the Abel
-$1/\sqrt{E-\Psi}$ weight focus the staircase ringing exactly into
-$f(E \to \Psi_0)$ — a *single King component* (whose true ergodic DF
-is strictly positive) read $f_{\min} = -0.679$, squarely inside the
-realizability gate's field of view. The fix integrates King's own
-Poisson identity,
+The King branch obtains its potential derivative from the integrated Poisson
+identity. Let $\xi=r/r_c$ be radius in units of the King core radius $r_c$,
+$\psi$ the dimensionless King relative potential, $\hat\rho(\psi)$ its density
+function, and $\hat\rho_0$ the central density value. Then
 
 ```{math}
 :label: king-poisson-identity
-\frac{\mathrm{d}\psi}{\mathrm{d}\xi} \;=\;
--\frac{9}{\hat\rho_0}\,\xi^{-2}\int_0^{\xi} \hat\rho(\psi(s))\, s^2\, \mathrm{d}s,
+\frac{\mathrm{d}\psi}{\mathrm{d}\xi}
+= -\frac{9}{\hat\rho_0}\,\xi^{-2}
+\int_0^\xi \hat\rho(\psi(s))s^2\,\mathrm{d}s.
 ```
 
 [↗ model card](#card-king-poisson-identity)
 
-by cumulative trapezoid of the **closed-form** density — after which
-$f_{\min} = +5.1\times 10^{-7}$. The general rule is worth the
-emphasis: in any Abel-type inversion, differentiate closed forms or
-exact identities, never interpolated data.
+The cumulative integral uses the closed-form King density. This avoids taking
+numerical derivatives of a piecewise-linear potential interpolant before the
+second density derivative required by Eddington inversion.
 
 ## Check yourself
 
@@ -325,11 +326,13 @@ cross-engine trust statement for the whole
 The build is differentiable in the profile parameters (e.g. halo
 $r_h$), the mass fractions (via a reparametrized scalar), and the
 $r_{a,j}$ — AD matches finite differences to $\le 7.8\times 10^{-7}$
-(table above). Two deliberate exceptions: the **domain choice**
-(`derive_r_t`) concretizes — picking which component's extent wins is
-a construction-time decision, not differentiated through — and the
-King component's *internal* subgraph (its own ODE solution) is
-constant with respect to the differentiated parameters.
+(table above). The derived truncation radius carries gradients through the maximum finite
+extent, or through the enclosed-mass constraint when all profiles are infinite.
+At a tie between maximal finite extents, the maximum is not smooth. Explicit
+King-edge override validation requires concrete radii. The quoted derivative
+checks hold the King component's internal ODE solution fixed. Separate
+[population-moment checks](../../50-validation/engine-b-eddington.md#population-moment-gradients)
+include the full King concentration-to-moment chain at $W_0=5$.
 
 :::{admonition} Honest limitations (current state, fixes tracked)
 :class: warning

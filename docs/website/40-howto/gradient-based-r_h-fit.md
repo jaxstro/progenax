@@ -7,10 +7,10 @@ description: "Recipe — recover a Plummer cluster's half-mass radius r_h by dif
 # Fit the half-mass radius with `jax.grad`
 
 **Goal.** Recover a cluster's half-mass radius $\rh$ by **differentiating
-through the IC generator itself**. progenax samples every IC with
-`jax.lax.scan` over a fixed iteration count (never `while_loop`), so
-`build_spatial_ic` is differentiable end to end: `jax.grad` flows from an
-observable all the way back to $\rh$.
+through the IC generator itself**. In this Plummer recipe, a fixed random key
+makes each sampled radius proportional to $\rh$, so the RMS radius has a
+nonzero analytic scale derivative. This checks a fixed-realization construction
+path; it is not a posterior-recovery or population-expectation test.
 
 ## Inputs and assumptions
 
@@ -106,7 +106,7 @@ Gauss–Newton / Fisher step rather than hand-tuned fixed-step descent.
 
 ## See also
 
-- [](../20-architecture/differentiability.md) — why `lax.scan` (not `while_loop`)
-  makes the whole pipeline `jax.grad`-safe.
+- [](../20-architecture/differentiability.md) — supported paths, adjoints, and
+  fixed-realization versus population-expectation derivatives.
 - [](set-up-virial-cluster.md) — the forward builder this recipe differentiates.
 - [](../50-validation/differentiability-audit.md) — the AD-vs-FD gradient audit.

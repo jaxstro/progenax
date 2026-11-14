@@ -28,7 +28,8 @@ truncated; the authors suggest up to ~50% of the mass may lie in unbound halos.
 
 ## The EFF formula (verified against the paper, p. 61)
 
-EFF fit the **surface brightness** $\mu(r)$ (the figures plot $V$ mag arcsec$^{-2}$) with
+The following relation uses **linear surface brightness** $\mu(r)$, not
+its logarithmic magnitude representation:
 
 ```{math}
 :label: eff-surface
@@ -53,15 +54,17 @@ $\rho(r) = \rho_0\,[1 + (r/a)^2]^{-\gamma/2}$ — the standard convention in N-b
 (e.g. McLuster). Consequently **progenax's $\gamma$ is a 3-D density slope**, distinct from
 EFF87's observed *surface* slope: a 3-D density $\propto r^{-\gamma}$ deprojects/projects with a
 one-power offset (Abel), so an EFF87 surface slope $\gamma_{\rm EFF}$ corresponds to a 3-D slope
-$\approx \gamma_{\rm EFF}+1$. At $\gamma = 5$ the 3-D form reduces exactly to Plummer. EFF has
-**no built-in tidal truncation**; progenax adds an optional truncation radius $r_t$.
+$\approx \gamma_{\rm EFF}+1$. At $\gamma=5$ the interior 3-D density shape is Plummer-like. The original
+empirical EFF relation is untruncated; the released `EFFProfile` always
+carries a finite imposed `r_t` (with a constructor default). Its finite
+normalization and support differ from an untruncated Plummer sphere.
 ```
 
 ## Use in progenax
 
 - [](../../10-theory/spatial-profiles/eff.md) — derivation and progenax implementation
-- `progenax.profiles.EFFProfile(a, gamma, r_t)` — young-cluster 3-D density profile with optional
-  tidal truncation; Eddington-inversion velocity DF in `progenax.kinematics.EFFVelocityDF`
+- `progenax.profiles.EFFProfile(a, gamma, r_t)` — young-cluster 3-D density profile with an imposed
+  finite cutoff, not automatically an external Jacobi radius; Eddington-inversion velocity DF in `progenax.kinematics.EFFVelocityDF`
 
 ## Notes
 

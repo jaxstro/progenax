@@ -8,7 +8,10 @@ redesign and reference APIs that were since **retired**:
 generator path (moved to the experimental `gravoturb` package).
 Multi-population clusters are now built with `MultiComponentCluster` —
 see [](../10-theory/populations/index.md) and [](../30-api/cluster.md).
-The records are preserved unedited as historical evidence.
+The bodies retain the dated reviews and resolution claims. Their grades,
+PASS statements, equilibrium assessments, and zero-hazard claims are historical;
+they do not certify the current source, gradients, or release. The calculations
+have not all been independently revalidated against the current checkout.
 ```
 
 This page is the landing record for full-package technical reviews of progenax.

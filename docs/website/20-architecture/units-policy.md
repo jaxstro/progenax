@@ -44,8 +44,78 @@ progenax supports, and explains why the alternatives (global $G$,
 ```
 
 `progenax.DEFAULT_UNITS = STELLAR`. The convenience wrappers (high-level
-builder functions) use `STELLAR` as the default; the core APIs require
-the user to be explicit.
+single-population builders) use `STELLAR` as the default; the core APIs require
+an explicit gravitational constant or unit system.
+
+## Dynamical arrays and stellar labels
+
+`build_cluster` and its named aliases take supplied masses in the selected
+`UnitSystem`'s mass unit. Profile lengths, softening, tidal and anisotropy radii
+use its length unit; angular frequencies use its inverse time unit. Returned
+positions, velocities and masses use those same dynamical units. The wrapper
+does not infer or convert supplied array units.
+
+IMF samplers return masses in $\Msun$. With `n=` and no IMF, each star has
+physical mass $1\,\Msun$. These generated masses are converted to the selected
+dynamical mass unit at the wrapper boundary. In CGS, `n=` therefore creates
+one-solar-mass stars with numeric masses $1.9884\times10^{33}$ grams each.
+
+Let $M_0$, $L_0$ and $T_0$ be the selected mass, length and time unit sizes
+in grams, centimetres and seconds, and let $M_\odot$ be one solar mass in
+grams. The dimensionless conversion factor $s_M$ is the number of solar
+masses per native mass unit:
+
+```{math}
+s_M = \frac{M_0}{M_\odot}, \qquad
+m_{\rm native} = \frac{m_{\rm IMF}}{s_M}, \qquad
+m_{\rm ZAMS} = s_M m_{\rm native}, \qquad
+G_{\rm native} = G_{\rm CGS}\frac{M_0 T_0^2}{L_0^3}.
+```
+
+Here $m_{\rm IMF}$ and $m_{\rm ZAMS}$ are numeric masses in solar units, and
+$m_{\rm native}$ is the numeric dynamical mass. **`stellar_radii` stays in
+$\Rsun$** in every system: it is a stellar label, not a position-unit radius.
+To use it geometrically, convert $\Rsun$ to the chosen length unit separately.
+The Tout fit's mass and metallicity domains still apply.
+
+The low-level `build_spatial_ic` takes `G` explicitly and adds the keyword-only
+`mass_scale_to_msun` for stellar-label evaluation. Its default 1.0 preserves
+solar-mass callers; for CGS pass `CGS.mass_scale_cgs / STELLAR.mass_scale_cgs`.
+`G` alone cannot determine a mass unit independently of length and time.
+Multicomponent builders have a separate mass-label contract; their alternate-
+unit behavior is not qualified by these single-population checks.
+
+### Binary population boundaries
+
+`build_binary_cluster` and `build_cataloged_binary_cluster` draw primary and
+companion masses in $\Msun$. The empirical companion relations and
+`TotalMass(M)` budget use those solar masses regardless of the selected
+dynamical units. After the budget cut, the shared builder converts masses to
+native units for COM sampling, orbital resolution and returned particle arrays.
+Stellar radii remain in $\Rsun$.
+
+The companion model computes the orbital semimajor axis before this mass
+conversion. Its numerical gravitational constant is therefore
+$G_{\rm companion}=G_{\rm native}/s_M$: it uses native length and time units
+but solar masses. This is the same physical gravitational constant expressed
+with the mass unit required by the empirical sampling boundary. Direct
+companion-model calls must supply that consistent value.
+
+Tests cover the retained Plummer construction with both Q paths, compact and
+masked products, all three budgets, and independent/Moe companions. Inactive
+ghost Cartesian coordinates are sanitization values; only real particles have
+physical unit covariance. See [](primordial-system-handoff.md).
+
+:::{admonition} EFF numerical scale convention
+:class: note
+The single-population EFF velocity table begins at $r_{\min}=10^{-5}a$, where
+$a$ is the EFF scale radius. Its fractional inner cutoff therefore stays the
+same when all lengths change units. The retained 16-entry STELLAR/CGS check
+passes the existing $10^{-10}$ component-relative round-trip budget. This
+numerical repair preserves the $a=1$ table and changes tables at other scales;
+hard-truncation mismatch and wider-domain qualification remain separate.
+See [](../50-validation/cluster-builders.md).
+:::
 
 ## Three rules
 
@@ -59,7 +129,7 @@ the user to be explicit.
 * - **Convenience wrappers may default to `DEFAULT_UNITS`**
   - But this resolution happens *only* at the API boundary — once inside the call stack, $G$ is explicit
 * - **No global state, no context managers in core code**
-  - A `with units.STELLAR:` block is forbidden; if it exists at all, it lives in `progenax.contrib` or `progenax.legacy`, never in the core
+  - Unit choices are passed as arguments; core code does not read a context manager
 ```
 
 ## Why explicit beats implicit
@@ -83,12 +153,9 @@ annoying. In progenax's experience the opposite is true at scale:
   - Test A sets a global default; test B fails because it inherited it. Tests are not order-independent
 ```
 
-The explicit-units convention has *zero* of these failure modes by
-construction. It costs $\sim 10$ characters per call to write
-`G=STELLAR.G`. For a research codebase that runs a $\sim 10^6$-step
-HMC chain, those characters are negligible — and never producing the
-"why is my energy 8800× wrong" diagnostic question is a substantial
-quality-of-life win.
+Explicit arguments remove dependence on a mutable global default. Bare arrays
+still allow inconsistent input units, so explicit `G` is a convention to check.
+Unit conversion and stellar-label contracts need their own tests.
 
 ## Architectural shape
 
@@ -99,17 +166,33 @@ the API boundary, then passes the resolved value through to the core:
 
 The real `build_cluster` convenience builder is exactly this pattern. Its body resolves
 `units=None` to `DEFAULT_UNITS` (= `STELLAR`) at the API surface, then threads the
-explicit `G = units.G` into every core call (`build_spatial_ic`, the velocity DF) — the
-core never sees a `None`:
+explicit `G = units.G` into the dynamical core. It also converts generated
+solar-mass draws to native mass units and forwards `mass_scale_to_msun` for
+stellar labels:
 
 ```python
 from progenax import build_cluster, PlummerProfile
 from jaxstro.units import STELLAR
+import jax
 
-# units=None -> DEFAULT_UNITS (= STELLAR) is resolved inside build_cluster, which then
-# passes the explicit G = units.G to the core build_spatial_ic.
+jax.config.update("jax_enable_x64", True)
+key = jax.random.PRNGKey(0)
 ic = build_cluster(PlummerProfile(r_h=1.0), n=1000, key=key)                # units=None -> STELLAR
 ic = build_cluster(PlummerProfile(r_h=1.0), n=1000, key=key, units=STELLAR)  # explicit units
+```
+
+The same physical one-parsec Plummer scale in CGS uses an explicitly converted
+profile length. The wrapper converts the generated one-solar-mass stars:
+
+```python
+from jaxstro.units import CGS
+
+ic_cgs = build_cluster(
+    PlummerProfile(r_h=STELLAR.convert_length(1.0, to=CGS)),
+    n=16, key=key, units=CGS, Q=None,
+)
+mass_msun = CGS.convert_mass(ic_cgs.masses, to=STELLAR)  # each value is 1.0
+radius_rsun = ic_cgs.stellar_radii  # solar radii, independent of position units
 ```
 
 The wrapper resolves `None` at the API surface; the core sees only explicit values. This
@@ -176,43 +259,22 @@ right answer.
 
 ## The audit pattern
 
-The progenax test suite includes a "unit audit" that scans all
-public-facing core functions for hidden defaults:
+`tests/unit/kinematics/test_api.py::TestExplicitGRequired` checks that omitting
+`G` raises on the five velocity-DF surfaces, the velocity pipeline and
+`MultiComponentCluster.sample_cluster`. It is a bounded surface check, not
+a scan proving every public function's dimensional correctness.
 
-```python
-def test_no_implicit_G_in_core():
-    """Every core function must accept G explicitly (no default)."""
-    public_modules = [progenax.profiles, progenax.kinematics, progenax.builders]
-    for mod in public_modules:
-        for name in dir(mod):
-            f = getattr(mod, name)
-            if callable(f) and inspect.signature(f).parameters.get('G') is not None:
-                # If G is a parameter, it must not have a default
-                assert f.__signature__.parameters['G'].default is inspect.Parameter.empty, (
-                    f"{mod.__name__}.{name} has default G — violates explicit-units policy"
-                )
-```
+`tests/unit/builders/test_cluster_units.py` represents the same physical
+16-star Plummer fixture in STELLAR, PLANETARY and CGS. It checks supplied,
+equal-star and IMF mass paths, both Q settings, CGS tidal/rotation labels,
+the low-level conversion keyword, JIT and first derivatives. It reuses the
+suite's exact-formula round-trip tolerance; it is not a new equilibrium or
+stochastic-precision qualification. See [](../50-validation/cluster-builders.md).
 
-A regression that introduces an implicit `G` default fails CI.
-
-## When the rule has been broken
-
-Two regressions historically caused real problems:
-
-1. **2025-09**: a refactor introduced `G = 0.00450` as a default in
-   `compute_potential_energy`. Users who passed CGS positions got
-   silent factor-$\sim 8800$ errors in their energy diagnostics.
-   Fixed by removing the default; test added to prevent regression.
-
-2. **2025-11**: a context-manager-based units system was prototyped
-   in the legacy package; it leaked state across tests in CI. Removed
-   from the core; the prototype is preserved in `progenax.legacy`
-   for reference.
-
-Both failures motivated the strict no-defaults convention progenax
-now enforces. The convention is "boring" — it doesn't enable any
-fancy patterns — but it eliminates an entire class of debugging
-sessions.
+`tests/unit/builders/test_binary_units.py` exercises the separate binary
+construction boundary, including native-mass orbital periods, contact margins,
+stable catalogue identities, JIT and first derivatives. Its deterministic
+round trips do not qualify empirical extrapolation or dynamical stationarity.
 
 ## References
 

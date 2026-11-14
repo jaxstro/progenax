@@ -8,7 +8,8 @@ description: Implemented period-distribution families in progenax — log-unifor
 The orbital period distribution $f(P)$ is one of the binary-population
 ingredients used alongside the mass-ratio and eccentricity
 distributions. progenax currently exposes three direct period samplers
-and one mass-dependent routing helper.
+in `progenax.binaries`, plus the mass-conditioned `MoePeriod` family
+and a mass-dependent routing helper.
 
 :::{admonition} Who this page is for
 :class: note
@@ -37,9 +38,11 @@ and one mass-dependent routing helper.
   - Route low- and high-mass primaries to different period/eccentricity prescriptions
 ```
 
-There is no public `Moe17Period` class in this checkout. The full
-Moe & Di Stefano mass-ratio and multiplicity machinery lives in
-`progenax.imf.binary`, especially `MoeDiStefano2017` and `BinaryIMF`.
+A fourth period family, `progenax.imf.binary.MoePeriod`, conditions the
+period shape on primary mass using companion-frequency grid anchors.
+Its fixed-grid inverse cumulative is a numerical approximation.
+`MoeJointOrbit` composes it with conditional mass ratios and eccentricities;
+`MoeCompanions` adds binary membership and orientations.
 
 ## Log-uniform
 
@@ -76,12 +79,17 @@ distribution from {cite:t}`Sana2012`:
 ```python
 from progenax.binaries import SanaOBPeriod
 
-ob = SanaOBPeriod(log_P_min=0.3, log_P_max=3.5, power=-0.55)
+ob = SanaOBPeriod(log_P_min=0.15, log_P_max=3.5, power=-0.55)
 periods_days = ob.sample(key, 10000)
 ```
 
-This distribution is appropriate for O/B-type primaries, not for a
-generic low-mass field population.
+The law is $p(x)\propto x^{\mathrm{power}}$ for
+$x=\log_{10}(P/\mathrm{day})$ on the positive interval selected by
+`log_P_min` and `log_P_max`. Its density in $P$ includes the Jacobian
+$1/(P\ln10)$. `power=0` is uniform in $x$ (Öpik); `power=-1` is
+logarithmic in $x$, with a different quantile. The Sana calibration
+concerns O-star populations over its fitted period range; use in other
+populations requires justification.
 
 ## Mass-dependent routing
 
@@ -116,8 +124,12 @@ periods_days, eccentricities = sample_mass_dependent_orbits(
 
 The {cite:t}`MoeDiStefano2017` joint distribution is non-separable: mass-ratio
 statistics depend on primary mass and period, and eccentricity depends
-on period. progenax currently exposes these pieces separately rather
-than as one public all-parameters sampler.
+on period. `BinaryIMF` uses the reduced period-independent mass-ratio
+model. For the implemented conditional route, use
+`MoeJointOrbit.default().sample(key, primary_masses)` for $(P,q,e)$, or
+`MoeCompanions` with `build_binary_cluster` for resolved components.
+Their empirical grid interpolation and inverse-CDF resolution still
+require checks for the intended population.
 
 ```python
 from progenax.imf import BinaryIMF, MoeDiStefano2017, PowerLawIMF

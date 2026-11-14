@@ -1,6 +1,6 @@
 ---
 title: Your first Plummer sphere
-description: Hands-on tutorial — generate a 1000-particle Plummer cluster from scratch and verify virial equilibrium.
+description: Hands-on tutorial — generate a 1000-particle Plummer cluster from scratch and measure its energy ratio.
 ---
 
 # Your first Plummer sphere
@@ -17,13 +17,16 @@ copied into a Python session with progenax installed (see
 ```
 
 Five-minute walkthrough: generate a 1000-particle Plummer cluster IC
-from scratch and verify it satisfies virial equilibrium. By the end
+from scratch and measure its energy ratio. By the end
 of this page you'll know what every step does and why it's needed.
 
 ## Setup
 
 ```python
 import jax
+
+jax.config.update("jax_enable_x64", True)
+
 import jax.numpy as jnp
 from jaxstro.units import STELLAR
 from progenax.profiles import PlummerProfile
@@ -48,8 +51,7 @@ masses = imf.sample(key_mass, N)
 print(f"Mean mass: {masses.mean():.2f} M☉, total: {masses.sum():.0f} M☉")
 ```
 
-Expected: `Mean mass: 0.33 M☉, total: ~330 M☉` (Maschberger biases
-toward low-mass stars).
+The printed mean and total mass describe this finite IMF realization.
 
 ## Step 2: sample positions from the spatial profile
 
@@ -57,10 +59,18 @@ toward low-mass stars).
 profile = PlummerProfile(r_h=1.0)   # Half-mass radius = 1 pc
 key1, key = jax.random.split(key)
 positions = profile.sample_positions(masses, key1)
-print(f"Position shape: {positions.shape}, half-mass radius check: {jnp.median(jnp.linalg.norm(positions, axis=1)):.3f} pc")
+radii = jnp.linalg.norm(positions, axis=1)
+order = jnp.argsort(radii)
+enclosed_mass = jnp.cumsum(masses[order])
+half_index = jnp.searchsorted(enclosed_mass, 0.5 * enclosed_mass[-1])
+sample_r_h = radii[order[half_index]]
+print(f"Position shape: {positions.shape}, sampled half-mass radius: {sample_r_h:.3f} pc")
 ```
 
-Expected: `(1000, 3)`, half-mass radius near 1.0.
+This estimates the realization's half-mass radius about the sampling origin using
+the first particle radius that encloses half the total mass. The median radius
+instead estimates the half-number radius. After changing the origin to the center
+of mass, recompute the diagnostic if that is the desired convention.
 
 ## Step 3: sample velocities from the matched DF
 
@@ -71,15 +81,15 @@ velocities = df.sample_velocities(positions, masses, key2, G=G)
 print(f"Velocity shape: {velocities.shape}, mean speed: {jnp.linalg.norm(velocities, axis=1).mean():.3f} pc/Myr")
 ```
 
-Expected: `(1000, 3)`, mean speed ~0.7 pc/Myr.
+The output has shape `(1000, 3)`; its speed scale depends on the realized total mass.
 
-## Step 4: virial scale + COM frame
+## Step 4: center the realization and optionally rescale velocities
 
 ```python
+positions, velocities = to_com_frame(positions, velocities, masses)
 velocities = virial_scale(
     positions, velocities, masses, Q_target=0.5, G=G,
 )
-positions, velocities = to_com_frame(positions, velocities, masses)
 
 T = compute_kinetic_energy(velocities, masses)
 V = compute_potential_energy(positions, masses, G=G)
@@ -87,8 +97,9 @@ Q = T / jnp.abs(V)
 print(f"Virial Q = {Q:.4f} (expected 0.5)")
 ```
 
-Expected: `Virial Q = 0.5000 ± 0.005`. The IC is now a virialised
-Plummer cluster.
+The optional rescaling sets the measured energy ratio to the requested value,
+within numerical precision. It changes the raw sampled velocities and does not
+establish a stationary equilibrium.
 
 ## What just happened
 
@@ -104,7 +115,7 @@ Plummer cluster.
 * - 3
   - Drew $N$ velocities from the matched isotropic Plummer DF — the equilibrium kinematics
 * - 4
-  - Rescaled velocities to enforce $Q_{\mathrm{vir}} = T/|V| = 0.5$ exactly, then shifted to the centre-of-mass frame
+  - Shifted to the centre-of-mass frame, then optionally rescaled velocities to the requested energy ratio
 ```
 
 ## Visualising the result

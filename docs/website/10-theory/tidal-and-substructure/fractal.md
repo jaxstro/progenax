@@ -74,7 +74,7 @@ field instead of a discrete tree.
 
 ## The "statistics, not algorithm" insight
 
-GW04 realisations are characterised observationally not by their
+GW04 realizations are characterised observationally not by their
 recursion tree but by *summary statistics*:
 
 - The {cite:t}`Cartwright2004` Q parameter
@@ -84,16 +84,15 @@ recursion tree but by *summary statistics*:
   {cite:p}`Kuepper2011`.
 - Two-point correlation function $\xi(r)$ (rarely used directly).
 
-Any generator that reproduces the same $(Q_{\mathrm{CW}},\,\sigma_\Sigma/\langle\Sigma\rangle)$
-distributions as a function of one continuous parameter recovers
-everything observationally relevant about GW04 substructure. This is the
-key reason a *differentiable* generator can stand in for the discrete
-tree: match the statistics, not the algorithm.
+Matching the distributions of $(Q_{\mathrm{CW}},\,\sigma_\Sigma/\langle\Sigma\rangle)$
+checks those two summaries. It does not establish equality of the full
+point process, higher correlations, velocity correlations, or subsequent
+dynamics. A replacement generator needs criteria matched to its intended
+scientific observables; these two diagnostics alone are insufficient.
 
 ## Physical motivation: turbulent fragmentation
 
-A differentiable substructure generator is arguably *more* physically
-motivated than the GW04 tree, not less. Stars form in
+A turbulent field is one possible physical model for substructure. Stars form in
 supersonic-turbulent molecular clouds where the velocity field has a
 power-law spectrum
 
@@ -110,9 +109,10 @@ spectrum behaves differently — it flattens with Mach, see
 [](../gravoturbulence/density-pdf-and-fdf.md).) Stars inherit the spatial
 structure of the dense cores carved out of these turbulent flows: a
 smooth equilibrium profile perturbed by a power-law-spectrum field
-directly represents this picture, with steeper spectra producing
-clumpier (more small-scale) structure. The GW04 tree, by contrast, is a
-purely abstract construction with no direct connection to ISM physics.
+is a modeling proposal rather than a consequence of the velocity spectrum
+alone. At fixed low-wave-number normalization, a steeper $k^{-\beta}$
+spectrum has less relative high-wave-number power. A density-to-star
+placement law and its physical validation are separate requirements.
 
 ## Fractal dimension $D$ and its CW04 $Q$ signature
 

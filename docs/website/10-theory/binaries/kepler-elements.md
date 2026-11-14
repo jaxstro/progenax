@@ -1,18 +1,19 @@
 ---
 title: Kepler orbital elements
-description: The seven Keplerian orbital elements (a, e, i, Ω, ω, M, t_p), their physical meaning, and the conversion from elements to phase-space coordinates that progenax's KeplerElements class implements.
+description: The six Keplerian orbital elements (a, e, i, Ω, ω, M₀), the derived period, and the conversion to relative phase-space coordinates.
 ---
 
 # Kepler orbital elements
 
-A binary's relative orbit is fully specified by **seven orbital elements**:
+For a specified gravitational parameter $G(m_1+m_2)$, a binary's
+relative elliptic orbit is specified by **six orbital elements**:
 the semi-major axis $a$, eccentricity $e$, inclination $i$, longitude
-of the ascending node $\Omega$, argument of periastron $\omega$, mean
-anomaly $M$ at epoch, and the orbital period $P$ (or equivalently, the
-time of periastron passage $t_p$). progenax stores these in the
-`KeplerElements` PyTree and provides closed-form mappings between
-elements and phase-space coordinates $(\mathbf{r}, \mathbf{v})$ for
-each component star.
+of the ascending node $\Omega$, argument of periastron $\omega$, and
+mean anomaly $M_0$ at epoch $t=0$. `KeplerElements` stores these six
+fields. The period $P$ is derived from $a$ and the total mass; a
+periastron passage time is an alternative phase convention, not an
+additional independent element. progenax converts the relative orbit
+to component positions and velocities by a barycentric split.
 
 This chapter derives the elements-to-phase-space conversion, lists
 the conventions progenax uses, and documents the differentiability
@@ -22,10 +23,10 @@ properties that make `KeplerElements` HMC-compatible.
 :class: note
 **Audience:** new students & researchers learning Keplerian orbital elements and how progenax converts them to phase-space coordinates; no prior celestial-mechanics literature assumed.
 **Prerequisites:** [binary populations](index.md) (what a binary is in progenax, and the COM placement that this orbit sits on top of).
-**You'll get:** the seven orbital elements, Kepler's third law, the differentiable elements→$(\mathbf r,\mathbf v)$ pipeline (Kepler-equation solve included), and the relative→component split.
+**You'll get:** the six orbital elements, Kepler's third law, the differentiable elements→$(\mathbf r,\mathbf v)$ pipeline (Kepler-equation solve included), and the relative→component split.
 :::
 
-## The seven elements
+## The elements and derived period
 
 ```{list-table}
 :header-rows: 1
@@ -56,10 +57,10 @@ properties that make `KeplerElements` HMC-compatible.
   - Time to complete one orbit, $P = 2\pi\sqrt{a^3 / [G(m_1+m_2)]}$
 ```
 
-The first six are *positional* (they specify where the orbit is in
-space); the seventh specifies the *temporal* phase. Together they
-fully determine $(\mathbf{r}_{\mathrm{rel}}(t), \mathbf{v}_{\mathrm{rel}}(t))$
-for the relative orbit.
+The first five fields specify the ellipse and its orientation; $M_0$
+specifies phase. With the total mass and $G$, they determine
+$(\mathbf{r}_{\mathrm{rel}}(t), \mathbf{v}_{\mathrm{rel}}(t))$. Angles are
+in radians; $a$, $G$, mass and time must use one consistent unit system.
 
 ## Kepler's third law
 
@@ -76,14 +77,15 @@ a \;=\; \biggl[\frac{G\,(m_1+m_2)\,P^2}{4\pi^2}\biggr]^{1/3}.
 
 progenax exposes both directions:
 
-- `compute_period(a, m_total, *, G)` — given $a$, returns $P$.
-- `period_to_semimajor_axis(P, m_total, *, G)` — given $P$, returns $a$.
+- `compute_period(a, M_total, G)` — given $a$, returns $P$.
+- `period_to_semimajor_axis(period, M_total, G)` — given $P$, returns $a$.
 
 The choice of $a$ vs $P$ as the parameterised quantity matters in
 practice: most observational period distributions
-([](period-distributions.md)) parameterise $P$ directly, so progenax's
-default `KeplerElements` constructor accepts $P$ and computes $a$
-internally via {eq}`kepler-third`.
+([](period-distributions.md)) parameterise $P$ directly. The
+`KeplerElements` constructor accepts $a$. Convert a sampled period with
+`period_to_semimajor_axis` first, or use `BinaryOrbitalState.from_log_period`,
+which also requires the conversion from days to the selected time unit.
 
 ## From elements to phase-space coordinates
 
@@ -116,20 +118,19 @@ def solve_kepler(M, e, max_iter=50):
 
     def newton_step(E, _):
         f = E - e * jnp.sin(E) - M_wrapped
-        f_prime = 1.0 - e * jnp.cos(E)
-        E_new = E - f / jnp.maximum(jnp.abs(f_prime), 1e-12)
+        f_prime = (1.0 - e) + 2.0 * e * jnp.sin(E / 2.0)**2
+        E_new = E - f / f_prime
         return E_new, None
 
     E, _ = jax.lax.scan(newton_step, E0, None, length=max_iter)
     return E
 ```
 
-The Newton iteration converges quadratically — typically 3–4 steps for
-$e \lesssim 0.8$. progenax's default `max_iter=50`
-(`KeplerElements._solve_kepler_equation`) is deliberately conservative
-so the fixed-iteration scheme still reaches machine precision in the
-slow-converging $e \to 1$ regime; the extra cheap iterations guarantee
-accuracy across all $e < 1$.
+Newton iteration is locally quadratic near a simple root. The existing
+`max_iter=50` budget is fixed; it is not a uniform accuracy guarantee
+for every $e<1$. Near the parabolic limit, inspect the equation residual
+and the physical observable. Subtractive orbital energy can be
+ill-conditioned even when the position and velocity are accurate.
 
 **Step 2 — eccentric anomaly to true anomaly** $\nu$:
 
@@ -187,8 +188,8 @@ coordinates.
 
 ## Sampling: isotropic angles + population distributions
 
-For a Monte Carlo binary population, progenax samples the seven
-elements as follows:
+For a Monte Carlo binary population, progenax chooses the six
+elements through these steps (the sampled $P$ determines $a$):
 
 1. **$P$** from the population period distribution
    ([](period-distributions.md)) — typically a log-normal or
@@ -204,37 +205,43 @@ elements as follows:
 
 The mass ratio $q$ comes from [](../imfs/mass-ratio-distributions.md);
 the binary fraction from [](../imfs/multiplicity-statistics.md). The
-seven orbital elements plus $q$ specify the orbit completely.
+six elements, component masses and $G$ specify the orbit completely.
 
 ## Differentiability properties
 
-`KeplerElements` is differentiable in all element values. Specifically:
+For fixed iteration count and well-conditioned elliptic inputs,
+`KeplerElements.to_state` supports local derivatives through the
+continuous elements. Specifically:
 
 - $\partial\mathbf{r}/\partial a$, $\partial\mathbf{r}/\partial e$,
   $\partial\mathbf{r}/\partial(i, \Omega, \omega, M_0)$, and
-  $\partial\mathbf{r}/\partial P$ all flow analytically through
+  derivatives through a period-to-$a$ conversion flow through
   {eq}`orbit-plane`–{eq}`rotation`.
 - The Newton iterations on Kepler's equation {eq}`kepler-eq` are a
   fixed-count `jax.lax.scan`, gradient-compatible.
 
 This matters when *fitting* binary orbits — e.g. inferring $(a, e,
 i, \Omega, \omega, M_0)$ from radial-velocity or astrometric
-observations of a known binary. The full inference loop is one JAX
-gradient call.
+observations of a known binary. The orbit map can enter a JAX likelihood. Circular and equatorial
+coordinate degeneracies make inverse angle recovery nonunique; near-parabolic
+conditioning, phase wrapping and empirical population switches need separate
+checks. A pathwise derivative at fixed random draws does not differentiate
+discrete binary membership probabilities.
 
 ## Domain of validity
 
-1. **Bound orbits only** ($e < 1$). Hyperbolic orbits ($e \ge 1$)
+1. **Bound elliptic orbits only** ($0 \le e < 1$, $a>0$, $G(m_1+m_2)>0$). Hyperbolic orbits ($e \ge 1$)
    represent unbound encounters, not binaries; they are not handled
    by `KeplerElements`.
 2. **Two-body approximation.** Higher-order multiples (triples,
    quadruples) are not represented by a single `KeplerElements`
-   instance. progenax models them as nested binaries (an outer
-   `KeplerElements` whose "secondary" is itself an inner binary).
+   instance. Hierarchical triples can be described using nested Kepler
+   coordinates, but the current companion builders generate at most one
+   companion per primary; they do not construct or qualify a triple hierarchy.
 3. **Newtonian gravity.** Relativistic effects (periastron precession,
    orbital decay via gravitational waves) are not included. For
-   binaries with $a \ll 1$ AU and component masses $\gtrsim 10\,\Msun$,
-   relativistic corrections become observable on Gyr timescales.
+   compact or high-eccentricity binaries, assess relativistic corrections
+   from periapsis, masses and the timescale of the intended observation.
 
 ## Implementation, validation & references
 

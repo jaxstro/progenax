@@ -5,9 +5,9 @@ description: progenax's tidal physics and substructure section — Jacobi-radius
 
 # Tidal physics & substructure
 
-This section covers three orthogonal *modifier* layers that progenax
-applies on top of the base spatial profile + velocity DF + IMF
-combination ([](../ic-philosophy.md)):
+This section covers tidal selection, substructure diagnostics and two
+ways to construct mass segregation alongside a spatial profile, velocity
+DF and IMF ([](../ic-philosophy.md)):
 
 :::{admonition} Who this page is for
 :class: note
@@ -24,7 +24,7 @@ combination ([](../ic-philosophy.md)):
 * - [](tidal.md)
   - Truncation at the Jacobi (tidal) radius set by the host galaxy's tidal field
 * - [](fractal.md)
-  - Theory of fractal/clumpy substructure ({cite:t}`Goodwin2004`) and the CW04 $Q$ diagnostic. The differentiable *generator* moved to the experimental, repo-only `gravoturb` package in the 2026-06 clean-room rewrite; released progenax keeps the diagnostics (`progenax.diagnostics`)
+  - Theory of fractal/clumpy substructure ({cite:t}`Goodwin2004`) and the CW04 $Q$ diagnostic. The old displacement-field generator was removed; the experimental, repo-only `gravoturb` is a different density-field method; released progenax keeps the diagnostics (`progenax.diagnostics`)
 * - [](mass-segregation.md)
   - Mass segregation two ways: the energy-ranked PRIMORDIAL generator (`energy_sorted_segregation`, after {cite:t}`Baumgardt2008`) and the differentiable EQUILIBRIUM route (`MultiComponentCluster.from_mass_segregation`)
 ```
@@ -52,8 +52,9 @@ old clusters from smooth-equilibrium-sphere idealisations:
    or dynamical {cite:p}`Allison2009` is a debated observational
    question. The mass-segregation modifier seeds the primordial case.
 
-All three are *post-equilibrium* in the sense that they perturb a
-base equilibrium IC. Whether the resulting non-equilibrium configuration
+A tidal cut or imposed primordial segregation can perturb a base IC.
+The Engine A segregation route instead solves a shared-potential DF model;
+it is not a post-hoc positional modifier. Whether the resulting non-equilibrium configuration
 is the right starting state for a given science target depends on
 the science: cool fractal ICs are appropriate for studying violent
 relaxation; smooth virial-equilibrium-plus-segregation is appropriate

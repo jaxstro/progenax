@@ -8,11 +8,10 @@ description: The core conventions and concepts every progenax IC builds on — v
 An **initial condition** (IC) for an N-body simulation is a complete
 specification of the phase-space coordinates of every particle at
 $t = 0$: positions $\{\mathbf{r}_i\}$, velocities $\{\mathbf{v}_i\}$,
-and masses $\{m_i\}$ for $i = 1, \ldots, N_\star$. progenax produces
-ICs that are simultaneously *physically realistic*, *exactly
-reproducible* (given a JAX PRNG key), and *differentiable* with respect
-to every continuous control parameter — the radial scale, the IMF
-slope, the virial ratio, the substructure strength, and so on.
+and masses $\{m_i\}$ for $i = 1, \ldots, N_\star$. Progenax constructs these arrays from specified models and random keys.
+Reproducing a realization requires the model configuration and software environment
+as well as the key. Differentiation depends on the sampling path and parameter;
+individual methods document their smooth regions, numerical safeguards, and gradient checks.
 
 This chapter establishes the conventions and core concepts that every
 subsequent theory chapter assumes. Read it first if you are new to the
@@ -22,12 +21,12 @@ package.
 :class: note
 **Audience:** new students & researchers starting with progenax; this is the conventions page every other theory chapter builds on, so no prior stellar-dynamics literature is assumed.
 **Prerequisites:** none — a good entry point.
-**You'll get:** the three orthogonal IC ingredients (IMF, spatial profile, velocity DF), the $Q_{\mathrm{vir}} = T/|V|$ virial convention, the half-mass radius $r_h$, the COM-frame and explicit-units policies, and what "differentiable IC" means in practice.
+**You'll get:** the three IC ingredients (IMF, spatial profile, velocity DF), the $Q_{\mathrm{vir}} = T/|V|$ virial convention, the half-mass radius $r_h$, the COM-frame and explicit-units policies, and what "differentiable IC" means in practice.
 :::
 
 ## Three things every progenax IC fixes
 
-A progenax IC is built up from three orthogonal ingredients:
+A progenax IC is built up from three separately configured ingredients:
 
 ```{list-table}
 :header-rows: 1
@@ -61,8 +60,8 @@ question is documented per-velocity-DF in [](velocity-dfs/index.md).
 
 ## The virial theorem and $Q_{\mathrm{vir}} = 0.5$
 
-A bound, gravitationally self-interacting N-body system in steady state
-satisfies the *virial theorem*:
+For an isolated Newtonian system without additional virial terms, steady
+equilibrium implies the virial relation:
 
 ```{math}
 :label: ic-virial-theorem
@@ -73,7 +72,8 @@ where $T = \tfrac{1}{2}\sum_i m_i |\mathbf{v}_i|^2$ is the total
 kinetic energy and $V = -G\sum_{i<j} m_i m_j / |\mathbf{r}_i - \mathbf{r}_j|$
 is the total gravitational potential energy. Solving for the ratio
 $Q_{\mathrm{vir}} \equiv T/|V|$ gives $Q_{\mathrm{vir}} = 0.5$ at
-equilibrium.
+equilibrium. An instantaneous value $Q_{\mathrm{vir}}=1/2$ does not by itself
+establish a stationary distribution.
 
 This $Q_{\mathrm{vir}} = T/|V|$ convention is what every progenax
 builder, kinematics function, and validation test uses. Three of the
@@ -90,11 +90,11 @@ physical meaning:
   - Subvirial / cold
   - {cite:t}`Allison2009` cool-fractal setup. Cluster contracts on a crossing time and produces *dynamical* mass segregation within $\sim 1$ Myr.
 * - $0.5$
-  - Virial equilibrium
-  - Default for production ICs.
+  - Virial balance
+  - An energy constraint; stationarity requires additional checks.
 * - $\sim 0.75$
   - Supervirial / hot
-  - Post-gas-expulsion clusters {cite:p}`Goodwin2004`. Rapid mass loss leaves stars on hyperbolic-like orbits.
+  - Post-gas-expulsion clusters {cite:p}`Goodwin2004`. The global energy ratio alone does not determine individual stellar binding energies.
 ```
 
 The progenax convention, the algorithm that enforces it, and the alternative
@@ -121,12 +121,10 @@ radius**:
 M(< r_h) \;=\; \frac{1}{2}\,M_{\mathrm{total}}
 ```
 
-i.e. half the mass lies inside $r_h$. progenax parameterises every
-spatial profile by $r_h$ rather than by the scale-radius parameter
-internal to that profile (which differs between Plummer, King, EFF).
-This makes ICs comparable across profile choices: a Plummer cluster
-with $r_h = 1$ pc and a King cluster with $r_h = 1$ pc occupy the same
-physical extent, even though their internal scale radii differ.
+Half the mass lies inside $r_h$. Plummer accepts $r_h$ directly; other profiles
+use their own scale and shape parameters. Matching $r_h$ gives models the same
+enclosed-half-mass radius, but their central densities, outer envelopes, and
+truncation radii can still differ.
 
 The Plummer scale-radius–to–half-mass-radius relation is
 
@@ -135,19 +133,18 @@ The Plummer scale-radius–to–half-mass-radius relation is
 a \;=\; r_h\,\sqrt{2^{2/3} - 1} \;\approx\; 0.7664\,r_h.
 ```
 
-The factor $\sqrt{2^{2/3} - 1}$ recurs in every Plummer-related
-derivation; misinverting it produces a 1.7× error in cluster size, and
-this exact bug existed in an earlier version of progenax. It is now
-locked by `tests/validation/test_plummer_physics.py::test_half_mass_radius`.
-See [](spatial-profiles/plummer.md) for the derivation.
+The factor $\sqrt{2^{2/3}-1}$ converts the two Plummer length conventions.
+The [Plummer chapter](spatial-profiles/plummer.md) derives the relation and links
+to checks of its defining condition, $M(<r_h)/M=1/2$.
 
 For King and EFF profiles, the $r_h$↔scale-radius mapping has no closed
 form and is computed via numerical integration of the cumulative
 mass profile.
 
-## The centre-of-mass frame
+## The center-of-mass frame
 
-Every progenax IC is returned in the **centre-of-mass (COM) frame**:
+The low-level `build_spatial_ic` builder shifts its output into the
+**center-of-mass (COM) frame**:
 
 ```{math}
 :label: com-frame
@@ -155,19 +152,18 @@ Every progenax IC is returned in the **centre-of-mass (COM) frame**:
 \sum_i m_i \mathbf{v}_i \;=\; \mathbf{0}.
 ```
 
-The transform that achieves this — `progenax.builders.to_com_frame` —
-is just a mass-weighted shift of positions and velocities. It is
-applied as the last step of every builder; ICs leave the package with
-zero net momentum and zero net displacement.
+The transform — `progenax.builders.to_com_frame` — is a mass-weighted
+shift of positions and velocities. Direct profile/DF samplers return finite
+realizations about their model origin without this shift. Later selections,
+tidal cuts, or added velocity fields can change the sampled COM, so check the
+final arrays when a downstream integrator requires a particular rest frame.
 
 ```{note}
 **Why this matters for downstream integration.** N-body integrators do
-not generally conserve linear momentum to machine precision — leapfrog
-is symplectic but not strictly momentum-conserving with floating-point
-arithmetic. A small initial COM drift compounds over evolution and can
-produce $\mathcal{O}(\sigma_v t)$ centre-of-mass motion at the end of
-a long run, displacing the cluster from its expected position. The
-COM-frame IC eliminates this entirely.
+accumulate floating-point momentum error during integration. An initial
+COM velocity $\boldsymbol v_{\rm COM}$ also produces a displacement
+$\boldsymbol v_{\rm COM}t$ in an isolated system. Recentering removes that
+initial bulk velocity; it does not eliminate subsequent integration error.
 ```
 
 ## Units policy: explicit, no globals
@@ -231,7 +227,7 @@ A progenax IC is a function
 
 mapping continuous control parameters $\boldsymbol{\theta} = (r_h,\,
 \alpha_{\mathrm{IMF}},\,Q_{\mathrm{vir}},\,\lambda_{\mathrm{seg}},\ldots)$
-and a JAX PRNG key to a phase-space realisation. *Differentiable*
+and a JAX PRNG key to a phase-space realization. *Differentiable*
 means
 
 ```{math}
@@ -239,29 +235,26 @@ means
 \frac{\partial\,\mathcal{O}\bigl(\mathrm{IC}(\boldsymbol{\theta},\,\mathrm{key})\bigr)}{\partial\,\boldsymbol{\theta}}
 ```
 
-is well-defined and computable via `jax.grad`, for any observable
-$\mathcal{O}$ — energy, kinetic-energy ratio, half-mass radius,
-two-point correlation function, the post-evolution snapshot a few
-crossing times later, the mock observation through an instrument
-forward model. Every step that turns $\boldsymbol{\theta}$ into a
-particle realisation must satisfy three constraints:
+depends on both the sampling path and the observable $\mathcal{O}$.
+An energy moment, an order statistic, a discrete catalogue membership,
+and a post-evolution mock observation have different derivative contracts.
+The main implementation considerations are:
 
-1. **No `jax.lax.while_loop`.** Convergence-based loops have variable
-   step counts that are not differentiable. Use `jax.lax.scan` with a
-   *fixed* iteration count instead. Inverse-CDF samplers in progenax
-   solve the cumulative integrals to a fixed accuracy in a fixed
-   number of Newton or bisection steps.
+1. **Control flow and derivative rules.** JAX does not provide ordinary
+   reverse-mode differentiation through a dynamic `lax.while_loop`.
+   Fixed-length `lax.scan` loops and custom implicit/adjoint rules are
+   available alternatives. A fixed iteration count alone does not establish
+   convergence or derivative accuracy.
 2. **No mutation, no `array[i] = val`.** Every state update creates a
    new immutable array. progenax uses Equinox modules for stateful
    classes, so all state lives in PyTree leaves.
-3. **No discrete-without-smoothing.** Sorts, `argmin`, hard
-   thresholds, and `where` selections all produce gradient
-   discontinuities. Where they are unavoidable (rank-based radial
-   remapping in [](tidal-and-substructure/fractal.md)), gradients flow
-   through the *values* being sorted rather than the permutation.
-   Where smoothing is possible (the Fundamental Plane threshold in
-   [](imfs/environment.md)), progenax substitutes a sigmoid for the
-   hard `where`.
+3. **Discrete choices and boundaries.** Sorting is piecewise differentiable
+   through the selected values, while changing an ordering or membership can
+   introduce a boundary. Hard selections, clipped endpoints and categorical
+   labels need explicit treatment. A surrogate derivative is an estimator,
+   and smoothing changes the represented law. The environment-dependent IMF
+   retains its documented piecewise relation; smoothing is not a universal
+   package policy.
 
 The architectural rules are documented at length in
 [](../20-architecture/jax-native-philosophy.md) and
@@ -274,10 +267,7 @@ care.
 This page is step 1 of the section's canonical path — the full
 seven-step ramp (profiles → velocity DFs → IMFs → binaries → modifiers →
 composite populations) lives in one place:
-[the theory index's suggested reading order](index.md). (An earlier
-revision kept a second, divergent ordering here that routed first-pass
-readers into experimental and since-removed material; there is now ONE
-ramp, and this is its trailhead.)
+[the theory index's suggested reading order](index.md).
 
 ## Implementation, validation & references
 

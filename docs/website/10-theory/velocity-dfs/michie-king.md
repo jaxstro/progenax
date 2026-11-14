@@ -15,7 +15,7 @@ $r_a$) of self-consistent, tidally truncated, radially anisotropic models.
 :class: note
 **Audience:** new students & researchers learning the self-consistent radially anisotropic King model and how progenax samples it; no prior stellar-dynamics literature assumed.
 **Prerequisites:** the [King DF](king-dfs.md) (the lowered-Maxwellian cutoff this extends) and the [anisotropy idea](rotation-anisotropy.md) (what $\beta(r)$ and the anisotropy radius $r_a$ mean).
-**You'll get:** the Michie–King DF $f(E, J)$, why it differs from the Osipkov–Merritt construction (it re-solves Poisson, changing the density), the radial-orbit pathology that bounds $r_a$, and how to pair `MichieProfile` + `MichieVelocityDF`.
+**You'll get:** the Michie–King DF $f(E, J)$, why it differs from the Osipkov–Merritt construction (it re-solves Poisson, changing the density), the finite-domain checks needed to establish a tidal crossing, and how to pair `MichieProfile` + `MichieVelocityDF`.
 :::
 
 ## The distribution function
@@ -30,12 +30,13 @@ f(E, J) \propto \exp\!\left(-\frac{J^2}{2 r_a^2 \sigma^2}\right)
 
 with $E=\tfrac12 v^2 + \Phi$, $J = r v_t$. The Gaussian $\exp(-J^2/2r_a^2\sigma^2)$
 depopulates high-angular-momentum (tangential) orbits — increasingly so at large $r$
-(since $J^2\propto r^2$) — so the velocity ellipsoid is isotropic at the centre and
-becomes radial outward:
+(since $J^2\propto r^2$) — so the velocity ellipsoid is isotropic at the center and
+can become radially biased at intermediate radii:
 
 ```{math}
 \beta(r) \equiv 1 - \frac{\sigma_t^2}{\sigma_r^2}:\quad \beta(0)\approx 0,\quad
-\beta \nearrow \text{ outward},\qquad r_a\to\infty \Rightarrow \beta\equiv 0 \text{ (King)}.
+\beta(r_t^-)\to0\ \text{for a finite truncation},\qquad
+r_a\to\infty \Rightarrow \beta\equiv0\ \text{(King)}.
 ```
 
 Here $\sigma_t^2$ is a **single** tangential component (the convention used
@@ -47,7 +48,10 @@ tangential dispersion; the factor of 2 cancels, so both give the *same* $\beta(r
 Unlike the [Osipkov-Merritt](../../99-bibliography/per-paper/merritt-1985.md)
 construction (which holds a *given* density fixed and inverts for $f$), Michie **specifies**
 $f$ and re-solves Poisson, so the density itself changes — hence $\beta(r)$ is the
-DF-implied profile, **not** the OM form $r^2/(r^2+r_a^2)$.
+DF-implied profile, **not** the OM form $r^2/(r^2+r_a^2)$. Near a finite
+edge, allowed speeds vanish, so the angular factor tends to one and the
+velocity distribution returns toward isotropy. Thus $r_a$ is not generally
+the radius where Michie anisotropy equals one half.
 
 ## Self-consistency
 
@@ -71,11 +75,15 @@ self-consistently as $\sigma^2 = GM/(9 r_c \mu)$ — so the ICs are virial ($Q\a
 without any external rescale.
 
 ```{warning}
-**Maximum anisotropy.** Below a $W_0$-dependent threshold (roughly $r_a \lesssim 3$–$4\,r_c$
-at $W_0=7$) the radial orbits build a $1/r^2$ density tail and the model **never truncates**
-— infinite mass, no tidal radius (the radial-orbit pathology). `solve_michie_profile` /
-`MichieProfile` **raise `ValueError`** for such an over-anisotropic choice. Valid models are
-far more extended than King ($\xi_t$: 34 isotropic → ~545 at $r_a=5\,r_c$, $W_0=7$).
+**Finite extent must be checked.** Strong radial anisotropy can produce an
+extended or nontruncating model. A positive potential at the numerical endpoint
+alone does not distinguish an infinite model from an insufficient integration
+domain. The current solver raises a diagnostic for concrete Python scalar
+inputs when its endpoint-potential check fails; that guard is skipped during
+JAX tracing. Verify a zero crossing and domain convergence for the requested
+configuration. The retained $W_0=7$ examples are much more extended than the
+isotropic King model; this does not qualify an arbitrary anisotropy radius.
+
 ```
 
 ## Usage
@@ -92,16 +100,20 @@ positions = profile.sample_positions(masses, key_pos)
 velocities = df.sample_velocities(positions, masses, key_vel, G=STELLAR.G)
 ```
 
-Velocities are drawn by a **2-D marginal-then-conditional inverse-CDF** over $(v_r, v_t)$
-(no Osipkov-Merritt stretch trick — {eq}`mk-df` is not a function of one integral). The
-whole pipeline (ODE solve + sampler) is JIT-compatible and differentiable in $W_0$, $r_c$,
-$r_a$ (FD-verified).
+The default sampler caches an anisotropic speed-marginal CDF table and draws
+the angle conditional on speed. `speed_method="quadrature"` retains the
+per-star two-dimensional marginal/conditional inverse-CDF reference. Neither
+is an OM stretch of an energy-only DF: {eq}`mk-df` depends separately on energy
+and angular momentum. Selected fixed-key derivatives have retained checks;
+ODE, table, quadrature, and interpolation convergence remain relevant.
 
 ## Validation
 
 - **Isotropic limit** — $r_a\to\infty$ reproduces the validated King profile and DF
   (matching $\xi_t$ and density).
-- **Anisotropy** — realised $\beta(r)$ isotropic at the centre, increasing outward.
+- **Anisotropy** — the realized moments are compared with the Michie DF
+  reference at the tested radii; central and finite-edge isotropic limits
+  differ from the OM anisotropy law.
 - **Virial** — $Q=T/|V|\approx0.5$ unscaled.
 - **Differentiability** — finite, FD-matching gradients w.r.t. the model parameters.
 
@@ -113,7 +125,7 @@ $r_a$ (FD-verified).
   `MichieProfile`) — see the [kinematics API](../../30-api/kinematics.md)
   and the [profiles API](../../30-api/profiles.md).
 - **Validated in:** [Michie anisotropy](../../50-validation/michie-anisotropy.md)
-  — the isotropic-limit (→ King), the realised $\beta(r)$ profile, the
+  — the isotropic-limit (→ King), the realized $\beta(r)$ profile, the
   unscaled virial $Q \approx 0.5$, and FD-matching gradients.
 - **Primary sources:** {cite:t}`Michie1963` (the angular-momentum
   anisotropy term) and {cite:t}`King1966` (the lowered-Maxwellian

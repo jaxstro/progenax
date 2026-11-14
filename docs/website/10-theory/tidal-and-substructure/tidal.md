@@ -5,13 +5,14 @@ description: The Jacobi (tidal) radius — its derivation from the restricted th
 
 # Tidal physics
 
-A star cluster orbiting in a host galaxy's potential is *tidally
-limited*: stars beyond a critical radius — the **Jacobi radius**
-$r_J$, also called the tidal radius — are stripped by the differential
-pull between the cluster's gravity and the galaxy's. progenax provides
+For a cluster on a circular orbit, the rotating effective potential has
+escape saddles near the **Jacobi radius** $r_J$. The leading tidal estimate
+balances cluster gravity against the local host and centrifugal fields.
+An individual star's energy and orbit matter for escape; radius alone
+does not give its binding status or escape time. progenax provides
 two closed-form estimators of $r_J$ — `jacobi_radius` (point-mass
 host) and `jacobi_radius_isothermal` (flat-rotation-curve host) — and
-a differentiable utility, `apply_tidal_truncation`, that "removes"
+a static-shape utility, `apply_tidal_truncation`, that spatially selects
 stars with $|\mathbf{r}| > r_t$ from the IC by zeroing their mass.
 
 This chapter derives the Jacobi-radius formula from the restricted
@@ -28,8 +29,8 @@ implements, and documents the truncation utility.
 ## The Jacobi radius
 
 For a cluster of mass $M_{\mathrm{cl}}$ on a *circular* orbit at
-galactocentric radius $R$ in a host galaxy with enclosed mass
-$M_{\mathrm{gal}}(<R)$, the Jacobi radius is
+galactocentric radius $R$ in a spherical host with enclosed mass
+$M_{\mathrm{gal}}(<R)$, the leading local tidal estimate is
 
 ```{math}
 :label: jacobi-circular
@@ -75,58 +76,49 @@ Mixing the two biases $r_J$ by $\sim 1.5\%$ per the conversion factor.
 
 ## Derivation sketch
 
-The derivation comes from the **restricted three-body problem** in
-the rotating frame co-rotating with the cluster's circular orbit. In
-that frame, the effective potential is
+For a point-mass host, consider the line connecting the host and cluster
+in the orbital plane, with the cluster at coordinate $R$ and a star at
+cluster-centered coordinate $r$ toward the host. The rotating effective
+potential along that line is
 
 ```{math}
 :label: roche-potential
-\Phi_{\mathrm{eff}}(\mathbf{r}) \;=\; -\frac{G\,M_{\mathrm{cl}}}{|\mathbf{r}|}
-  - \frac{G\,M_{\mathrm{gal}}(<R)}{|\mathbf{R} - \mathbf{r}|}
-  - \tfrac{1}{2}\,\Omega_R^2\,|\mathbf{R} - \mathbf{r}|^2
+\Phi_{\mathrm{eff}}(r) = -\frac{G M_{\mathrm{cl}}}{|r|}
+-\frac{G M_{\mathrm{gal}}}{|R-r|}
+-\frac12\Omega^2(R-r)^2,
+\qquad \Omega^2=\frac{G M_{\mathrm{gal}}}{R^3}.
 ```
 
-with $\Omega_R^2 = G M_{\mathrm{gal}}(<R)/R^3$ the angular velocity of
-the cluster's circular orbit. The Lagrange points $L_1, L_2$ along the
-line connecting the cluster centre to the galactic centre define the
-distance $r_J$ at which a test particle's effective potential is
-saddle-shaped — the boundary beyond which it can be lost to the host.
-Solving $\partial \Phi_{\mathrm{eff}}/\partial r = 0$ to lowest order
-in $r_J/R$ yields {eq}`jacobi-circular`.
+Expanding the host and centrifugal forces for $|r|/R\ll1$ gives
+$G M_{\mathrm{cl}}/r_J^2=3\Omega^2r_J$. The finite-mass-ratio
+restricted-three-body L1 distance differs from this leading Hill result.
+For a spherical extended host, the corresponding local coefficient is
+$\Omega^2-\Phi_{\rm gal}''(R)=(3-\mathrm{d}\ln M/\mathrm{d}\ln R)\Omega^2$,
+which gives {eq}`jacobi-circular` when this coefficient is positive.
+The point-mass potential above must not be reused as an extended-host
+potential merely by replacing its mass with $M(<R)$.
 
-Higher-order corrections in $r_J/R$ are negligible for $r_J/R \lesssim
-0.1$ (typical for Galactic clusters at $R \gtrsim 1$ kpc) and become
-significant only for very nearby clusters or very massive ones
-(globular clusters near the Galactic centre, ultra-compact dwarfs
-near their hosts).
+## Eccentric orbits
 
-## Corrections for eccentric orbits
+The utility functions do not accept orbital phase, eccentricity or an orbit,
+and do not select a perigalacticon radius. A circular-orbit estimate evaluated
+at an eccentric orbit's pericenter is an additional approximation, not a
+guarantee against later mass loss. A time-dependent tide and the cluster's
+response require a dynamical model beyond these IC utilities.
 
-For a cluster on an eccentric orbit, the Jacobi radius varies with
-orbital phase: it is smallest at perigalacticon (where tidal stripping
-is most effective) and largest at apogalacticon. progenax's default
-treatment uses the *perigalacticon* Jacobi radius — the most
-restrictive — to set the IC truncation. This is conservative: the
-cluster will not lose any additional mass during evolution from the
-initial condition.
-
-For a more sophisticated treatment, evaluate `jacobi_radius` at the two
-orbital extremes (passing the enclosed galaxy mass at each radius) and
-phase-average:
+For comparison, a caller may evaluate the same approximate expression at
+two supplied radii:
 
 ```python
 from progenax.tidal import jacobi_radius
 
-r_peri = jacobi_radius(M_cl, M_gal_peri, R_peri)  # M_gal_peri = M_gal(<R_peri)
-r_apo  = jacobi_radius(M_cl, M_gal_apo,  R_apo)   # M_gal_apo  = M_gal(<R_apo)
-r_J_avg = 0.5 * (r_peri + r_apo)                  # Phase-averaged
+r_peri = jacobi_radius(M_cl, M_gal_peri, R_peri)
+r_apo = jacobi_radius(M_cl, M_gal_apo, R_apo)
 ```
 
-Whether to use peri, apo, or a phase average depends on the science
-target. For long-term evolution studies (Gyr timescales) the
-perigalacticon value sets the long-term mass-loss rate. For short-term
-("snapshot") studies the apogalacticon value is more representative
-of the cluster's instantaneous extent.
+These are conditional point-mass-host estimates. Their arithmetic mean is
+not an orbital time average, and neither value by itself determines the
+cluster's evolving edge.
 
 ## Tidal truncation
 
@@ -135,7 +127,7 @@ of the cluster's instantaneous extent.
 boolean-indexing them out (which would collapse the array shape), it
 sets the mass of every star with $r > r_t$ to **zero**. Those zero-mass
 "ghost" particles then contribute nothing to any mass-weighted quantity
-(energy, virial ratio, centre of mass) while keeping the array length
+(energy, virial ratio, center of mass) while keeping the array length
 fixed at $N$:
 
 ```python
@@ -153,22 +145,19 @@ positions, velocities, masses_trunc, keep_mask = apply_tidal_truncation(
 **Implementation detail.** The forward pass is an *exact* hard
 Heaviside cut. The mass-zeroing is wrapped in a `@jax.custom_jvp`
 straight-through surrogate: the backward pass replaces the
-delta-function derivative of the step with a logistic bump (width
-`grad_width * r_t`, default 5%), so $r_t$ — and any upstream parameter
-feeding it (e.g. via `jacobi_radius`) — stays differentiable. Because
-the output shape is static, the function is fully `jit` / `vmap` /
-`grad` safe; use `keep_mask` to filter *number*-based downstream
+membership tangent with a logistic bump (width `grad_width * r_t`, default
+5%). A fixed-catalogue hard cut is piecewise constant between crossings
+and discontinuous at them; this straight-through tangent is an estimator,
+not its ordinary derivative. The static output shape supports JAX transforms; use `keep_mask` to filter *number*-based downstream
 quantities that would otherwise still see the zero-mass ghosts.
 
 ```{warning}
-**The truncated set is super-virial, not stationary.** The survivors
-keep the velocities they were drawn with for the *untruncated*
-potential, but they now sit in the shallower potential of the
-mass-reduced system. The truncated set is therefore super-virial —
-some stars near $r_t$ are formally unbound, and the configuration is
-not a stationary equilibrium. If you need a stationary IC, re-virialise
-the survivors (`virial_scale`) or use an $r_t$-consistent equilibrium
-model (King / LIMEPY) directly.
+**A spatial cut does not construct a stationary DF.** The survivors retain
+their original velocities while removing outer mass changes the potential.
+The resulting configuration generally needs its density–velocity consistency
+checked. A global virial rescale sets $T/|V|$, but does not restore a
+stationary distribution. A finite lowered model supplies a consistent
+continuum cutoff; its numerical domain still needs checking.
 ```
 
 ## Fill-factor: $r_h / r_J$
@@ -205,39 +194,41 @@ than the absolute size.
 * - Galactic open
   - 0.10–0.30
   - Younger; less tidal stripping
-* - Tidal-limit-filling
-  - $\mathcal{F} \to 0.5$
-  - Theoretical maximum; no real cluster reaches this
+* - Fitted or chosen filling factor
+  - Model-dependent
+  - No universal maximum of 0.5 follows from the definition
 ```
 
 ## Composition with King profile
 
 The {cite:t}`King1966` profile already has a *built-in* tidal radius
 $r_t = \xi_t \cdot r_c$ ([](../spatial-profiles/king.md)). Passing a
-King profile through `apply_tidal_truncation` is therefore redundant
-*if* $r_t = r_J$, which is the equilibrium configuration King
-implicitly assumes. For non-equilibrium configurations — King-like
+King profile through `apply_tidal_truncation` at its own model edge is
+redundant. Identifying that edge with an external $r_J$ is a separate
+host-orbit and tidal-filling assumption; the spherical King constructor
+does not solve the host tidal field. For non-equilibrium configurations — King-like
 clusters that are not in tidal equilibrium with their current
 galactocentric position — `apply_tidal_truncation` adds the
 secondary truncation explicitly.
 
-For Plummer and EFF (which extend to infinity), tidal truncation
-must be applied externally; it is not built in.
+Plummer is untruncated; imposing a finite spatial cut changes its model.
+The released EFF profile already carries a finite imposed `r_t`; that
+parameter is not automatically the Jacobi radius of an external orbit.
 
 ## Domain of validity
 
-1. **Point-mass cluster.** {eq}`jacobi-circular` treats the cluster
-   as a point mass for the host's tidal field. Corrections for the
-   cluster's extended mass distribution are $\mathcal{O}((r_J/R)^2)$
-   and become important only for very large clusters.
+1. **Compact cluster and local expansion.** The leading expression assumes
+   the cluster is small compared with the orbital radius and its mass is
+   effectively enclosed inside the tidal balance point. Extended mass and
+   higher host-field terms require their own error assessment.
 2. **Static host potential.** Galactic disc/halo potential is assumed
    constant during the cluster's orbit. For times longer than the
    galaxy's secular evolution timescale ($\sim 1$–$10$ Gyr), this
    assumption breaks down.
-3. **Single component.** {eq}`jacobi-circular` uses a single $M_{\mathrm{gal}}(<R)$.
-   For galaxies with multi-component potentials (disc + halo + bulge),
-   compute the *total* enclosed mass yourself and pass it to
-   `jacobi_radius` (which takes a scalar `M_galaxy`, not a callable).
+3. **Host shape and slope.** The general displayed formula assumes a
+   spherical host and needs its radial mass-profile slope. Passing total
+   enclosed mass to `jacobi_radius` still selects the point-mass factor 3;
+   it does not include the slope or a nonspherical disk tidal tensor.
 4. **No cluster-cluster interactions.** Two clusters in orbit around
    each other (e.g. mutually-bound binary clusters) require a
    different treatment beyond the scope of this utility.

@@ -19,8 +19,9 @@ first demo checks that they describe the *same physical cluster*.
 
 If both engines are correct, the King model `(W₀=5, g=1, r_c=1 pc)` built either
 way must sample the same radial profile, the same dispersion profile, and the
-same energy distribution. Nothing forces this but the physics — the two code
-paths share no quadrature, no ODE, and no DF evaluation.
+same energy distribution. The DF-to-density and density-to-DF routes provide a useful consistency
+check, but are not independent of every input: Engine B starts from the
+ODE-defined `KingProfile`, and both routes use shared numerical helpers.
 
 ## The two constructions
 
@@ -32,7 +33,8 @@ truncation order $g$, the DF is a lowered (energy-shifted) Maxwellian
 :label: b1-lowered-df
 f(E) \;\propto\; E_g\!\left(\frac{E}{s^2}\right),
 \qquad
-E_g(x) = e^{x}\,P(g, x)\ \ (x>0),\quad 0\ \text{otherwise},
+E_g(x) = \begin{cases}e^x,&g=0,\\e^xP(g,x),&g>0,\end{cases}
+\qquad x>0,\quad 0\ \text{for }x\le0,
 ```
 
 with $E = \Psi(r) - \tfrac12 v^2$ the (positive, bound) relative energy, $s$ the
@@ -90,7 +92,8 @@ input or a numerical choice.
   - Gravitational constant (STELLAR units); sets the physical velocity scale.
   - known / fixed
 * - $N$
-  - Stars drawn from **each** engine to measure the sampled radial CDF and binned $\sigma$, at the **same** PRNG key so residuals isolate model (not shot) differences.
+  - Stars drawn from **each** engine to measure the sampled radial CDF and binned $\sigma$, at the same PRNG key for a paired comparison; shared randomness can reduce
+    sampling differences but does not eliminate finite-sample noise.
   - numerical choice ($2\times10^4$, seed 0)
 * - $\sigma$-bins, oracle grids, quadrature, gates
   - 6 bins over the 5%–90% radial quantiles; 300–400-pt analytic-oracle grids; 400-pt speed-moment quadrature; gate thresholds (KS $<0.02$, $|\sigma_B/\sigma_A-1|<0.02$, $Q_j=0.5\pm3\times10^{-3}$).
@@ -107,15 +110,17 @@ reconciled only through the linear map $\hat E=(W_0/\Psi_0)E$ and a peak
 normalization, and the $\rho(r)$ residual is taken after re-normalizing each curve
 to its central value. The agreement claim therefore rests on the *convention-free*
 gates — the sampled-CDF KS distance and the binned dispersion ratio — while the
-$f(E)$ overlay is a diagnostic that already carries a $\sim$5% edge residual *by
-construction of the matching*, not a tested gate.
+$f(E)$ overlay has a retained $\sim$5% maximum residual after this matching.
+That discrepancy is not an expected physical difference between two exact
+King DFs; it needs numerical/normalization investigation and is not a passed gate.
 ```
 
-## What is measured (freshly run, ALL PASS)
+## Retained measurements (2026-06-11)
 
 Both engines are sampled at $N = 2\times10^4$ with the **same** PRNG key, so the
-draws are strongly correlated and the residuals isolate genuine *model*
-differences rather than shot noise. Measured 2026-06-11 (`key=0`):
+draws are paired. This can reduce sampling variance, but does not establish
+that all residuals are deterministic model errors. No fresh run of the
+current source is implied by these retained numbers. Measured 2026-06-11 (`key=0`):
 
 ```{list-table}
 :header-rows: 1
@@ -184,9 +189,10 @@ shape (A) and the Eddington $f$-row (B), peak-matched.
   differently; after matching the peak on a common dimensionless axis, the
   largest discrepancy ($5.05\times10^{-2}$) sits at the truncation edge / central
   cusp, where the lowered-exponential cutoff and the Abel-inverted tail differ in
-  shape. It is reported as a **diagnostic**, not gated — the sampled-CDF (KS) and
-  dispersion gates carry the agreement claim, and a $5\%$ DF-shape edge mismatch
-  is invisible in those sampled statistics.
+  shape numerically. Exact inversion of the same King density should recover
+  the same ergodic DF after consistent normalization. This unresolved
+  discrepancy is a diagnostic, not a passed accuracy claim; agreement of
+  sampled CDFs and interior second moments does not exclude DF-shape errors.
 - **This is one model, not a sweep.** A single concentration ($W_0=5$) at one
   resolution is checked. The wider parameter agreement is established separately
   by the [Engine B validation suite](../50-validation/engine-b-eddington.md),

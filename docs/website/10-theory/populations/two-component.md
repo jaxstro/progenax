@@ -9,9 +9,11 @@ The simplest non-trivial multi-component IC has *two* populations in
 one shared potential. This page builds one through **each** engine of
 [`MultiComponentCluster`](index.md): a cold/hot pair where the DFs
 define the model (Engine A), and a halo+core pair where prescribed
-densities define it (Engine B). Both are *true joint equilibria* — no
-external virial rescale anywhere — and both come with the measured
-numbers that prove it.
+densities define it (Engine B). Both use one shared gravitational potential
+and apply no external virial rescale. Engine A describes a self-consistent
+lowered DF; Engine B hard edges introduce the hybrid sampling approximation
+described below. The quoted measurements are retained checks of those
+configurations, not a proof for every component mixture.
 
 :::{admonition} Who this page is for
 :class: note
@@ -87,8 +89,9 @@ global $Q = 0.4976$ at $N = 30{,}000$, **unscaled**.
 
 Eddington inversion is a two-way street: a prescribed density in a
 given potential corresponds to a *unique* candidate $f(E)$, and if that
-$f$ is negative anywhere, **the component cannot exist as an
-equilibrium in that potential** — full stop. The originally drafted
+$f$ is negative anywhere, **the prescribed ergodic (or chosen OM) DF is not
+realizable in that potential**. This does not exclude every possible
+anisotropic DF. The originally drafted
 version of this very example used a *shallower* EFF core,
 $a_{\rm EFF} = 0.4$, and it is **genuinely unrealizable**: its
 Eddington DF has $\min f / \max|f| = -0.20$, resolution-independent
@@ -99,10 +102,10 @@ $-6.4\times 10^{-3}$) and $a = 0.68$ (realizable,
 $+1.9\times 10^{-2}$); the headline uses $a = 0.8$
 ($f_{\min,j} = +1.6\times 10^{-2}$ halo, $+1.2\times 10^{-4}$ core).
 
-progenax treats this as physics, not failure: the constructor raises a
-`ValueError` **naming the component** and the remedy (steepen it,
-raise its mass fraction, or raise its $r_{a,j}$), and always stores
-the `f_min_j` diagnostic. See the
+The public constructor rejects this mix in eager, JIT and AD paths,
+naming the component and the remedy (steepen it, raise its mass fraction,
+or raise its $r_{a,j}$). Failed raw `f_min_j` diagnostics remain available
+through the low-level traced builder. See the
 [realizability gate](eddington-engine.md) for the mechanism.
 
 ### Honest physics 2: the truncation-edge $Q_j$ plateau
@@ -147,10 +150,10 @@ and $|\sigma_B/\sigma_A - 1| \le 3\times 10^{-4}$
 
 ## Domain of validity
 
-1. **True joint equilibrium, by construction.** Unlike the retired
-   layered superposition (each component sampled from its own
-   isolated-cluster DF), both engines solve/integrate **one** shared
-   potential and prove $Q_j = 0.5$ per component with no rescale.
+1. **One shared potential.** Both engines solve or integrate one shared
+   gravitational potential. A stationary component with vanishing boundary
+   pressure satisfies the continuum relation $Q_j=0.5$; finite catalogues
+   fluctuate, and Engine B hybrid edges require the qualification below.
 2. **Truncation edges are approximate** (Engine B): hard-truncated
    prescribed profiles are only approximately stationary at the edge;
    the deviation is *predicted and gated*, not hidden (see above).

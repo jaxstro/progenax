@@ -5,21 +5,23 @@ description: The spatial density profiles in progenax — Plummer, King, EFF, an
 
 # Spatial density profiles
 
-A **spatial density profile** $\rho(r)$ is one of the three orthogonal
-ingredients in every progenax IC ([](../ic-philosophy.md)). progenax
-ships four spatial profiles — the isotropic Plummer / King / EFF plus the
-self-consistent anisotropic **Michie–King**. They do **not** share a
-single size parameter: Plummer is parameterised by the half-mass radius
-$r_h$; King and Michie–King by the central potential $W_0$ and core radius
-$r_c$ (Michie–King adds the anisotropy radius $r_a$); and EFF by the scale
-radius $a$, outer slope $\gamma$, and truncation radius $r_t$. Convert
-between the conventions using each profile's own $r_h$ relation (e.g.
-{eq}`plummer-rh-a`) when you need cross-profile comparability.
+A spatial density profile specifies how mass is distributed in space.
+The profiles compared here are spherical; velocity isotropy or anisotropy is a
+property of the accompanying distribution function. Progenax exposes density and
+velocity components separately, but equilibrium constrains how they can be combined.
+
+The profiles do not share a single size parameter. Plummer accepts the half-mass
+radius $r_h$; King and Michie–King use $W_0$ and $r_c$, with an additional anisotropy
+radius for Michie–King. EFF uses scale radius $a$, three-dimensional density slope
+$\gamma$, and truncation radius $r_t$. The latter is the imposed outer boundary:
+EFF density is zero for $r>r_t$. It is not automatically a tidal radius derived
+from an external gravitational field. Use each model's enclosed-mass relation to
+compare profiles at the same $r_h$.
 
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers choosing a spatial density profile and learning how progenax's profiles compose with velocity DFs and modifiers; no prior stellar-dynamics literature assumed.
-**Prerequisites:** the [IC philosophy](../ic-philosophy.md) (the three orthogonal IC ingredients) — a good entry point; the individual profile pages ([Plummer](plummer.md), [King](king.md), [EFF](eff.md)) go deeper on each.
+**Prerequisites:** the [IC philosophy](../ic-philosophy.md) (the density, velocity, and mass conventions) — a good entry point; the individual profile pages ([Plummer](plummer.md), [King](king.md), [EFF](eff.md)) go deeper on each.
 **You'll get:** what a spatial density profile is, which of the four progenax profiles to use when, the shared `SpatialProfile` API contract, and how profiles pair with equilibrium velocity DFs.
 :::
 
@@ -31,37 +33,36 @@ between the conventions using each profile's own $r_h$ relation (e.g.
   - Use when
 * - [](plummer.md)
   - $\rho(r) = \frac{3 M}{4\pi a^3}\,\bigl[1 + (r/a)^2\bigr]^{-5/2}$
-  - You want a smooth, untruncated profile and a closed-form everything (mass, potential, velocity dispersion, distribution function).
+  - You want a smooth, untruncated profile and analytic mass, potential, velocity dispersion, and isotropic distribution function.
 * - [](king.md)
   - Lowered isothermal sphere; ODE-defined, parameterised by central potential $W_0$.
-  - You want a *tidally truncated* cluster matching observed Galactic globular clusters; need a finite outer radius.
+  - You want a lowered-isothermal model with a finite outer radius.
 * - [](eff.md)
   - $\rho(r) = \rho_0\,\bigl[1 + (r/a)^2\bigr]^{-\gamma/2}$
-  - You want power-law outer falloff matching young massive cluster surface brightness; need a free outer-slope parameter.
+  - You want a variable outer density slope and an imposed truncation radius. Here $\gamma$ describes 3-D density, not the projected surface-brightness slope of the original EFF convention.
 * - [](../velocity-dfs/michie-king.md)
   - Self-consistent King with a Gaussian-in-$J^2$ anisotropy term (Michie 1963); ODE-defined, distinct from isotropic King.
-  - You want a tidally-truncated cluster with *radial velocity anisotropy* increasing outward (the Michie–King model). Density and DF are solved together.
+  - You want a finite lowered model with radial velocity anisotropy. Michie–King anisotropy grows away from the core and returns toward isotropy at its finite edge. Density and DF are solved together.
 ```
 
 ```{figure} ../figures/profile_family_portrait.webp
 :label: fig-profile-family-portrait
+:alt: Plummer, King, EFF, and Michie density shapes versus radius normalized by each half-mass radius; each curve is divided by its own near-central density.
 :width: 88%
 
-The model-selection table, drawn: every released density family,
-half-mass-normalized. Plummer's untruncated $r^{-5}$ tail; the King
-$W_0 = 3 \to 12$ sequence (each $\sim$4–5 units of $W_0$ buys a decade of
-core-to-tidal contrast $c = \log_{10} r_t/r_c$: $0.67 \to 1.53 \to 2.74$);
-EFF's shallow power-law halo crossing Plummer at large radii; Michie
-(dashed) as "King, but more extended" — radial anisotropy visible as pure
-structure. Regenerate: `python -m laboratory.icviz --only
-profile-family-portrait`.
+Density profiles compared at matched half-mass radius. The curves illustrate
+differences in central structure and outer envelopes. A density curve alone does
+not determine velocity anisotropy. The ordinate divides each density by its value at $10^{-3}r_h$; it does not
+match total masses. Radii use a numerically integrated $r_h$, with the Plummer
+integral evaluated out to $30$ input half-mass radii. King curves use
+$W_0=3,7,12$; EFF uses $\gamma=3.5$ and $r_t/a=60$; Michie–King uses
+$W_0=7$ and $r_a/r_c=8$. King and Michie–King cutoffs come from their models. Regenerate: `python -m laboratory.icviz --only profile-family-portrait`.
 ```
 
-Plummer is the default (closed-form everything). King fits old, tidally
-truncated globulars ($W_0 \sim 5$–$9$); EFF fits young massive clusters
-whose power-law halos King's exponential edge cannot capture
-{cite:p}`ElsonFallFreeman1987`; Michie–King adds self-consistent radial
-anisotropy to the King picture.
+Choose the family by the required density structure, outer boundary, and velocity
+model. Plummer supplies an analytic baseline; King supplies a lowered-isothermal
+model with a finite boundary; EFF allows a variable outer slope; Michie–King
+couples density to an anisotropic DF.
 
 ## Common API contract
 
@@ -87,11 +88,39 @@ class SpatialProfile(Protocol):
 The protocol's contract is just these two methods — there is no shared
 `r_h` field and no `density`/`cumulative_mass` requirement (the concrete
 classes provide `density` where it is closed-form, e.g. Plummer and EFF,
-but the protocol does not mandate it). `sample_positions` uses an
-inverse-CDF sampler over a fixed grid so that the *positions themselves*
-are differentiable in the size parameter ($r_h$ for Plummer, $r_c$/$W_0$
-for King, $a$/$\gamma$ for EFF) — useful when the loss function depends on
-post-sampling spatial moments.
+but the protocol does not mandate it). Sampling methods differ by profile.
+Plummer uses an analytic inverse CDF; other profiles use numerical constructions.
+The common protocol specifies the interface, not a shared interpolation scheme
+or gradient guarantee.
+
+## Gravitational potential outside a finite profile
+
+A density cutoff does not remove the cluster's exterior gravitational field.
+For a spherical component of total mass $M$ and no density at $r>r_t$,
+with gravitational constant $G$, Poisson's equation gives $\mathrm{d}\Phi/\mathrm{d}r=GM/r^2$. Thus
+
+```{math}
+:label: profile-vacuum-potential
+\Phi(r)=-\frac{GM}{r}+C,\qquad r\ge r_t,
+```
+
+where $\Phi$ is specific potential, with units of squared speed, and $C$ fixes
+its additive zero. The radial acceleration is $-GM/r^2$ for either zero.
+The functional API `compute_profile_potential` retains each model's convention:
+
+| Model | Potential zero | Exterior specific potential |
+|---|---|---|
+| King | $\Phi(r_t)=0$ | $GM(1/r_t-1/r)$ |
+| EFF | $\Phi(\infty)=0$ | $-GM/r$ |
+
+King's exterior potential is positive in its tidal-zero convention. Potential
+sign alone does not determine whether an orbit is bound; compare its specific
+energy with the relevant cutoff energy in the same convention. The King DF's
+nonnegative lookup $W$ is used for density and velocity sampling inside its
+support; clamping that lookup is not a vacuum gravitational potential.
+Interior ODE and mass-table interpolation remain numerical approximations.
+See the [functional potential API](../../30-api/profiles.md#api-profiles-compute_profile_potential)
+and the owning [King](king.md) and [EFF](eff.md) pages.
 
 ## Composability with velocity DFs and modifiers
 
@@ -106,7 +135,7 @@ in-equilibrium ICs:
   - Out-of-equilibrium pairing?
 * - Plummer
   - `progenax.kinematics.PlummerVelocityDF` ([](../velocity-dfs/plummer-dfs.md))
-  - Plummer + isothermal velocity → cold-collapse IC
+  - Plummer + isothermal velocities → a different velocity prescription; whether it is subvirial depends on velocity normalization
 * - King
   - `progenax.kinematics.KingVelocityDF` ([](../velocity-dfs/king-dfs.md))
   - King + Plummer DF → mismatched IC for testing relaxation
@@ -118,11 +147,11 @@ in-equilibrium ICs:
   - Solved self-consistently as a pair (`MichieProfile` + `MichieVelocityDF`); the density is intrinsic to the anisotropic DF
 ```
 
-All four profiles compose with the modifier layers — mass segregation
-([](../tidal-and-substructure/mass-segregation.md)), fractal
-substructure ([](../tidal-and-substructure/fractal.md)), and tidal
-truncation ([](../tidal-and-substructure/tidal.md)) — without changing
-the underlying $\rho(r)$.
+Modifiers can change spatial structure, mass–position correlations, or radial
+support. Assess the final modified realization against the intended model.
+See [mass segregation](../tidal-and-substructure/mass-segregation.md),
+[fractal substructure](../tidal-and-substructure/fractal.md), and
+[truncation](../tidal-and-substructure/tidal.md).
 
 ## Sampler fidelity at a glance
 
@@ -141,21 +170,19 @@ Regenerate: `python -m laboratory.icviz --only profile-density-residuals`.
 ## Check yourself
 
 :::{dropdown} 1. Read the portrait
-At $r = 3\,r_h$, rank the families in {numref}`fig-profile-family-portrait`
-by $\rho$ before looking closely. Why must EFF ($\gamma = 3.5$) eventually
-exceed *every* King model, however concentrated? (Truncation beats any
-power law: King's $\rho \to 0$ at finite $r_t$, EFF's tail only falls as
-$r^{-3.5}$.)
+Both King and the implemented EFF profiles have finite cutoffs. Before ranking
+their outer densities, identify each cutoff in units of $r_h$. Which comparison
+remains meaningful inside their shared radial range?
 :::
+
 
 :::{dropdown} 2. The $r_h$ trap
 Build `KingProfile.from_W0_rc(W0=7.0, r_c=1.0)` and `PlummerProfile(r_h=1.0)`.
-Are they the same size? Compute the King model's half-mass radius (integrate
-its density, or sample and take the median radius) — you'll find
-$r_h \approx 3.9\,r_c$, so this King cluster is nearly four times larger
-than the Plummer sphere despite the unit scale parameter. This is why the
-portrait normalizes by $r_h$ and why cross-profile comparisons must too.
+Are they the same size? Compute the King model's half-mass radius from its
+cumulative mass profile and compare it with the Plummer input radius. Matching
+numerical values of different scale parameters does not match half-mass radii.
 :::
+
 
 ## Implementation, validation & references
 
@@ -173,7 +200,8 @@ portrait normalizes by $r_h$ and why cross-profile comparisons must too.
 - **Primary sources:** the isotropic profiles are {cite:t}`Plummer1911`,
   {cite:t}`King1966`, and {cite:t}`ElsonFallFreeman1987`; the anisotropic
   Michie–King model is {cite:t}`Michie1963` (+ {cite:t}`King1966` cutoff).
-  The lowered-model family {cite:t}`Gieles2015` unifies these under a
-  single multi-mass family that progenax implements natively (see the
+  The lowered-model family {cite:t}`Gieles2015` contains King and
+  Michie–King and their multi-mass generalizations; it does not make a
+  prescribed finite EFF density a member of the same DF family (see the
   [lowered-model family](lowered-model-family.md)). Full notes in the
   [bibliography](../../99-bibliography/index.md).

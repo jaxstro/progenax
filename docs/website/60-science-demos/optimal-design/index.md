@@ -1,7 +1,7 @@
 ---
 title: Optimal experimental design — designing the observation before you take it
 subtitle: Where to spend telescope time, derived from a differentiable forward model rather than from heritage
-description: "Landing page for progenax's optimal-experimental-design (OED) section. OED optimises the OBSERVATION itself, not just the analysis afterwards: because a differentiable forward model can compute d(information)/d(observing strategy), the precision you will achieve becomes a known function of the design -- before any photon is collected. This page frames the telescope-time hook and indexes the worked examples: the anisotropy radius (where to put proper motions), the dynamical mass (how deep to survey), the concentration (proper motions to the core), and a robustness design (binaries biasing a mass estimate). The designs were prototyped to demonstrate the capability; the OED tooling is planned for a separate package and is not part of v0.1.0."
+description: "Landing page for progenax's optimal-experimental-design (OED) section. OED compares observing designs, not just the analysis afterwards: because a differentiable forward model can compute d(information)/d(observing strategy), the local precision forecasts become functions of the assumed design -- before any photon is collected. This page frames the telescope-time hook and indexes the worked examples: the anisotropy radius (where to put proper motions), the dynamical mass (how deep to survey), the concentration (proper motions to the core), and a robustness design (binaries biasing a mass estimate). The designs were prototyped to demonstrate the capability; the OED tooling is planned for a separate package and is not part of v0.1.0."
 ---
 
 # Optimal experimental design
@@ -24,16 +24,14 @@ should you go, and *which* measurement (a radial velocity? a proper motion?) sho
 you make on each star, so that you learn the most about the one number you actually
 care about?
 
-That is **optimal experimental design** (OED): you optimise the *observation itself*,
-not just the analysis you do afterwards. It is rare in astronomy — almost no simulator
-can compute $\partial(\text{information})/\partial(\text{observing strategy})$ — and it
-is exactly what a *differentiable* forward model makes possible. The precision you will
-achieve is a *known function of the observing strategy*, computable **before you
-collect a single photon**, through the Fisher information. So you can treat the
-observing strategy as a free variable and maximise the information you expect to
-extract. The output is not just "a good plan"; it is a *quantified* plan: "this
-allocation reaches the same precision with several-fold fewer stars," or "this is the
-exact depth at which more telescope time stops helping."
+Optimal experimental design compares observing strategies under a specified
+forward model, likelihood and resource constraint. A local Fisher forecast
+can quantify sensitivity before data are collected, conditional on those
+assumptions and a fiducial parameter point. It does not make achieved precision
+a known certainty: model error, identifiability, nonlinear likelihoods,
+selection and estimator calibration remain relevant. The examples below are
+retained prototypes, not currently gated release capabilities or a guarantee
+of a globally optimal observing plan.
 
 :::{note} **Start here**
 The shared formalism — Fisher information, the additive design-linear backbone, the
@@ -72,19 +70,13 @@ worked example `{ref}`s it rather than re-deriving it.
 
 ## What OED can do with progenax
 
-The worked examples above are instances of one general capability: **every
-differentiable `progenax` forward model, paired with a likelihood, is a Fisher matrix
-{eq}`oed-fisher-gaussian` — and therefore an OED problem.** Because the Fisher is
-[additive](background.md#sec-oed-additive), the design Fisher for any cluster-science
-parameter is assembled by computing per-star (or per-bin) blocks once and optimising the
-weights. The same machinery extends to other design levers (survey depth, observing
-epochs and cadence, multi-instrument fusion), other targets (the IMF slope, binary
-fraction, tidal radius, rotation, multi-population separation), and other optimality
-criteria (D/A for all parameters, model-discrimination designs across the multiple
-forward models `progenax` carries for the same observable). Since the forward stack is
-differentiable end to end, $\partial(\text{information})/\partial(\text{observing
-strategy})$ is computable for essentially any of these — which turns "how should we
-observe?" from a heritage decision into a gradient-ascent problem.
+A differentiable numerical prediction can supply a likelihood's local
+sensitivity matrix where the relevant derivative exists. For independent
+measurements under the adopted model, per-star or per-bin Fisher blocks can
+be combined and their design weights optimized. Correlations, parameter-dependent
+covariance, rank deficiency, discrete selections and model misspecification can
+change that construction and its interpretation. An end-to-end JAX call path
+alone does not qualify every parameter or observation strategy.
 
 The four designs above were prototyped to demonstrate this; the OED tooling itself is
 planned for a separate package and is not part of progenax v0.1.0.

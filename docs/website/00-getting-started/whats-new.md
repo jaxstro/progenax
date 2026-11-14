@@ -5,10 +5,12 @@ description: Release-style changelog for progenax — most recent change first. 
 # What's new
 
 Release-style changelog. Most recent change first. Curated from the
-[development log](../90-development-log/index.md). For the live test count
-across the three tiers, see the
-[test dashboard](../50-validation/test-dashboard.md); the dated entries below
-keep their point-in-time counts as historical records.
+[development log](../90-development-log/index.md). These dated entries retain
+historical implementation and validation claims; they are not a current release
+qualification or a complete account of later changes. The
+[test dashboard](../50-validation/test-dashboard.md) shows a stored census and
+coverage record, with explicit freshness limits. Historical timings, grades,
+test counts, and PASS statements below should be read with their recorded dates.
 
 ## 2026-06-20 — Documentation site hardening pass (v0.1.0)
 
@@ -301,9 +303,10 @@ spec at [](../90-development-log/2026-02-12-ic-redesign.md).
 
 ## 2025-12-07 — Phase 1 milestone
 
-First production-grade release with full IMF / spatial profile /
-velocity DF / mass segregation / fractal substructure / binary
-support. Validation suite reaches 432 tests across 3 tiers.
+Historical Phase 1 development milestone covering IMF, spatial profile,
+velocity DF, mass segregation, fractal substructure, and binary support.
+The entry records 432 tests across three tiers; it is not publication or
+current production-readiness evidence.
 
 **Reference.** [](../90-development-log/phase1-complete.md).
 

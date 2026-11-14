@@ -40,8 +40,13 @@ binaries soften.**
 - `progenax.binaries.ThermalEccentricity` — implements $f(e) = 2e$ (CDF $F(e)=e^2$, PPF
   $e=\sqrt{u}$), the thermal/equilibrium distribution discussed here. Cited together with
   Ambartsumian (1937) and Jeans (1919).
-- `progenax.binaries.MoeEccentricity` / `LogisticThermalEccentricity` — the thermal law is the
-  $\eta = 1$ (long-period) limit toward which both eccentricity models tend.
+- `progenax.binaries.LogisticThermalEccentricity` — the heuristic approaches the
+  thermal shape at long periods, within its configured eccentricity ceiling.
+  `MoeEccentricity` instead uses the mass-dependent slopes in
+  [](moe-distefano-2017.md): its fitted expressions tend to $\eta=0.6$ for
+  late-type primaries and $\eta=0.9$ for early-type primaries, rather than the
+  exact thermal value $\eta=1$. These mathematical limits do not extend the
+  empirical period range of the fits.
 
 ## Notes
 

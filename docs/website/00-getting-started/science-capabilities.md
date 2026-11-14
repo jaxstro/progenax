@@ -7,10 +7,10 @@ description: "What science progenax enables — the model inventory with validit
 
 This page is for research astronomers deciding whether — and how — to
 use progenax. It answers three questions: what science the package
-enables, exactly which models are implemented and in what regime each
-is valid, and what the package deliberately does *not* do. Every claim
-on this page traces to a named validation test with a measured number;
-the [validation dashboard](../50-validation/index.md) is the ledger.
+enables, which models are implemented, and their recorded limits. Numbers
+below summarize retained checks on the linked validation pages. Their exposure,
+revision, precision, and criteria bound the claim; they are not new measurements
+on the current checkout. See the [current release verdict](../95-release/index.md).
 
 :::{admonition} Who this page is for
 :class: note
@@ -21,14 +21,12 @@ the [validation dashboard](../50-validation/index.md) is the ledger.
 
 ## What progenax is for
 
-progenax generates initial conditions for N-body simulations — but the
-point of the package is that the IC generator is **differentiable
-end-to-end**. Every structural parameter (half-mass radius, King
-concentration $W_0$, truncation shape $g$, equipartition exponent
-$\delta$, anisotropy radius $r_a$, IMF slope) supports
-`jax.grad` through construction *and* sampling
+Progenax generates initial conditions for N-body simulations. Selected
+continuous structural parameters support derivatives through construction and
+sampling on documented paths and domains. Fixed-realization derivatives and
+population-expectation derivatives have separate contracts
 ([differentiability rules](../20-architecture/differentiability.md);
-[AD-vs-FD evidence](../50-validation/multimass-equilibrium.md)).
+[Engine A coverage](../50-validation/multimass-equilibrium.md)).
 That turns initial conditions from a preprocessing step into a
 **likelihood component**: you can place a cluster model inside a
 posterior, run HMC or gradient descent over its structural parameters
@@ -38,28 +36,19 @@ sampler — not a by-hand grid — explore the model family. The
 [$r_h$-fit recipe](../40-howto/gradient-based-r_h-fit.md) show the
 mechanics.
 
-The second pillar is **true equilibria, with no virial-rescale
-crutches**. Every released DF is sampled in detailed equilibrium —
-the lowered-Maxwellian King DF, the Eddington-inverted EFF DF, the
-coupled multi-component models — and the virial ratio $Q = T/|V| = 0.5$
-*emerges* from the DF rather than being imposed by rescaling
-velocities afterwards. For multi-component systems this is not a
-nicety: a global rescale provably cannot fix a multi-population IC
-(it moves every individually-correct component *away* from its own
-equilibrium — the physics bug that retired progenax's legacy
-two-component generator; see
-[the per-component-equilibrium principle](../10-theory/populations/index.md)).
-Controlled numerical experiments — relaxation, mass segregation,
-dissolution — start from ICs whose equilibrium is proven by
-exact-quadrature oracles, so any subsequent evolution is physics, not
-initialization transient.
+The lowered-isothermal models define continuum equilibria, and Eddington
+inversion constructs candidate DFs from prescribed densities. Numerical
+realizability, table accuracy, finite realizations, and truncation edges need
+their own checks. The sharply truncated EFF default is mildly subvirial in
+retained tests; rotation overlays are not stationary equilibria. A global
+virial ratio near $Q=T/|V|=0.5$ is a necessary diagnostic, not proof of
+stationarity. See the [component-equilibrium principle](../10-theory/populations/index.md)
+and [EFF limits](../50-validation/eff-profile.md).
 
-Third, progenax is the IC stage of an **end-to-end differentiable
-forward-modeling chain** for survey-era (LSST/Gaia/HST) cluster
-science: progenax ICs → [gravax](../40-howto/interface-with-gravax.md)
-N-body integration and pixel-level rendering → likelihood against
-observed images or catalogs, with gradients flowing the whole way back
-to the IC parameters.
+Progenax can supply the IC stage of a larger inference pipeline. The
+[Gravax handoff](../40-howto/interface-with-gravax.md) defines a data boundary;
+it does not establish differentiability or qualification of integration,
+rendering, selection, or a downstream likelihood.
 
 ## The model inventory, with validity regimes
 
@@ -79,7 +68,7 @@ to the IC parameters.
     tidal truncation
   - Relaxed, tidally truncated clusters (Galactic globulars)
   - $c(W_0)$ vs {cite:t}`King1966` Table II: max
-    $|\Delta\log_{10}c| = 0.002$ over $W_0 = 2.5$–$15$; volume density vs
+    $|\Delta c| = 0.002$ over $W_0 = 2.5$–$15$; volume density vs
     independent moment oracle $1.2\times 10^{-10}$; $Q = 0.5$ unscaled
     ([evidence](../50-validation/king-profile.md))
 * - **EFF** {cite:p}`ElsonFallFreeman1987` — power-law envelope
@@ -133,15 +122,15 @@ its own Michie/OM anisotropy radius.
   truncated systems; mass-segregated multi-mass clusters; partial
   equipartition studies ($\delta \in [0, 0.5]$ standard); GC 1G/2G and
   binaries-vs-singles decompositions via $w_j$ directly.
-- **Equilibrium proven:** exact-quadrature oracle reads per-component
+- **Retained equilibrium checks:** exact-quadrature oracle reads per-component
   $Q_j = 0.5001$–$0.5002$ across $\delta \in [0, 0.6]$; sampled global
   $Q = 0.497$–$0.500$ unscaled; per-component $\sigma_{1d,j}(r)$ matches
   the analytic DF moment to $<1\%$ across resolved bins
   ([evidence](../50-validation/multimass-equilibrium.md)).
-- **Differentiable structural inference:** the full parameter vector
-  $(W_0, g, \{w_j\}, \delta, r_a)$ is differentiable through the coupled
-  Poisson solve and the samplers — AD vs finite differences to
-  $2.15\times 10^{-4}$, with $g$ itself a *fitted* quantity.
+- **Structural derivatives:** the linked validation matrix records selected
+  construction and fixed-realization checks for
+  $(W_0,g,\{w_j\},\delta,r_a)$. Those checks do not qualify every
+  sampling observable or population-expectation gradient.
 - **Performance:** DF tables make sampling practical at survey scale —
   **67×** (isotropic) and 21.7× (anisotropic) faster speed draws at
   $N = 10^5$, every approximation budget-asserted against the retained
@@ -168,7 +157,7 @@ potential — optionally with per-component OM anisotropy.
   ($f_{\min} = -0.20$, resolution-independent), with the realizability
   boundary measured between $a = 0.65$ and $0.68$
   ([worked example](../10-theory/populations/two-component.md)).
-- **Equilibrium proven:** theory $Q_j = [0.50038, 0.50012]$; sampled
+- **Retained equilibrium checks:** theory $Q_j = [0.50038, 0.50012]$; sampled
   global $Q = 0.4976$ at $N = 3\times 10^4$, unscaled; Plummer
   $f(E) \propto E^{7/2}$ analytic oracle to $1.06\times 10^{-4}$
   ([evidence](../50-validation/engine-b-eddington.md)).
@@ -179,10 +168,10 @@ potential — optionally with per-component OM anisotropy.
   $0.4947 \pm 0.0014$ over 18 seeds). The deviation is gated against
   the prediction, never rescaled away.
 
-The two engines overlap at exactly one configuration — a single King
-component — and that overlap is the **cross-engine trust anchor**: two
-fully independent codepaths (coupled ODE + lowered-DF sampling vs.
-quadrature potential + Eddington inversion) agree to a radial KS
+A retained cross-engine check uses a single King component. The numerical
+paths differ (coupled ODE and lowered-DF sampling versus quadrature potential
+and Eddington inversion), but King density inputs share their upstream model.
+The recorded comparison agrees to a radial KS
 distance of $2\times 10^{-4}$ and $|\sigma_B/\sigma_A - 1| \le 3\times 10^{-4}$.
 
 ### IMFs and binary populations
@@ -269,8 +258,9 @@ the *integrator* against ICs whose evolution is known exactly.
 
 ## Twelve concrete science questions
 
-Each question maps to a documented, validated capability — no entry
-here outruns the test suite.
+These are possible research applications. Each needs a specified population,
+likelihood, supported parameter domain, and validation beyond the linked
+component checks.
 
 ```{list-table}
 :header-rows: 1
@@ -343,8 +333,8 @@ here outruns the test suite.
     IC → N-body → rendered image?
   - progenax differentiable ICs
     ([differentiability](../20-architecture/differentiability.md)) +
-    gravax integration/rendering — an ecosystem workflow; the rendering
-    stage lives in gravax, not progenax
+    a proposed ecosystem workflow; integration, rendering, and likelihood
+    derivatives require separate evidence
 ```
 
 ## What progenax does not do (honest scope)
@@ -367,7 +357,7 @@ here outruns the test suite.
   feature — the refusal is a physical result — but it means you cannot
   feed it arbitrary profile mixes and expect an IC back.
 - **No exact binary-aware `logpdf` in the released API.** The
-  binary-aware recovery result uses the marginalised-likelihood
+  binary-aware recovery result uses the marginalized-likelihood
   validation script; the released `BinaryIMF` exposes sampling helpers
   (see [](../10-theory/imfs/index.md)).
 - **Turbulent/fractal IC generation is experimental and repo-only**
@@ -381,7 +371,7 @@ here outruns the test suite.
   with fixes tracked — check that page for the current state.
 :::
 
-## Why you can trust the numbers
+## How to interpret the evidence
 
 progenax's persuasion strategy is measured numbers, not adjectives. The
 released core carries a four-figure test suite spanning unit,
@@ -390,21 +380,18 @@ integration, and physics-validation tiers (see the
 count), and the validation tier is built on three habits worth knowing
 before you rely on the package:
 
-1. **Independent oracles.** Equilibrium claims are proven by
-   exact-quadrature oracles deliberately independent of the sampled
-   draws (and of the DF-table approximations they check); sampled
-   clusters are verified *unscaled*.
+1. **Independent references.** Analytic or quadrature checks compare stated
+   quantities at retained configurations. Independence from the sampled draws
+   does not establish independence from every upstream equation or solver.
 2. **A cross-engine anchor.** The one configuration both multimass
    engines describe — a single King component — agrees through two
-   fully disjoint numerical pipelines at the $10^{-4}$ level.
+   distinct numerical pipelines at the reported operating point. Shared
+   upstream inputs remain part of the evidence boundary.
 3. **Anchors on defining conditions, not derived constants** — the
    pattern that has empirically caught transcription, inversion, and
    differentiability regressions
    ([methodology](../50-validation/methodology.md)).
 
-Differentiability is what converts all of this into scientific
-leverage: when the IC pipeline is a likelihood component, the same
-validated physics that generates your simulation's $t = 0$ also
-computes $\partial(\text{model})/\partial(\text{parameters})$ for your
-posterior — exactly, by autodiff, through the same code path the
-forward model uses.
+AD computes derivatives of the implemented numerical map on supported paths.
+A posterior application additionally requires a physical likelihood, the
+appropriate randomness or discrete-choice estimator, and convergence checks.

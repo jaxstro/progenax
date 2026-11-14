@@ -36,7 +36,7 @@ DF is the equilibrium kinematics of the *King* density, not of a Plummer
 density. Sampling Plummer positions with King velocities gives a system whose
 raw virial ratio is **far from 0.5** (measured $Q \approx 0.19$ below). Pass
 `Q=0.5` to `build_spatial_ic` to rescale the velocities back onto the
-virial-equilibrium balance — or pass `Q=None` if you deliberately want the
+global energy balance — or pass `Q=None` if you deliberately want the
 unscaled, non-equilibrium kinematics. For a *self-consistent* cluster, use
 the matched DF instead (`PlummerProfile` ↔ `PlummerVelocityDF`), which
 `build_cluster` wires up automatically — see
@@ -89,7 +89,7 @@ Measured (`PRNGKey(0)`, $N=3000$):
   - Sub-virial — King kinematics are too cold for a Plummer potential.
 * - `Q=0.5`
   - 0.5000
-  - Velocities rescaled to virial equilibrium.
+  - Velocities rescaled to the requested energy ratio; the DF remains mismatched.
 ```
 
 ```{tip}

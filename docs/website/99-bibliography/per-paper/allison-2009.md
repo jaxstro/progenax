@@ -107,7 +107,9 @@ collapse; subvirial supplies the cold start.**
 - **Two distinct $Q$'s.** Allison's virial ratio $Q=T/|V|$ (0.5 = virial) is **not** the CW04
   structure parameter $\mathcal{Q}=\bar m/\bar s$ — see [](cartwright-2004.md). Both appear in this
   problem (cool *and* clumpy); keep them separate.
-- **Softening / collisionality.** L99's segregation is *violent-relaxation* (collapse-driven), not
-  slow two-body relaxation — so a softened collisionless integrator captures the dominant effect over
-  ~1 crossing time. State this when reproducing.
+- **Softening / collisionality.** Collapse and violent relaxation form the dense
+  core. L99 §3.3 then attributes the strong segregation to its subsequent
+  evolution, using the core's two-body relaxation time in Eqs. 1–3. Reproducing
+  the collapse alone does not establish that a softened collisionless integrator
+  reproduces this mass-dependent energy exchange.
 - **Ensembles are mandatory** for fractal ICs (seed-to-seed scatter is large) — L99 used 50.

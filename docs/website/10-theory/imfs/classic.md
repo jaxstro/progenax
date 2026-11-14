@@ -12,6 +12,10 @@ synthesis, chemical evolution, and the IMF-inference problems progenax
 is built to solve. Four functional forms dominate the literature, each
 with a regime where it is the natural choice:
 
+Here mass $m$ is expressed numerically in solar masses, $\Msun$, and
+$\xi(m)$ has units of number per solar mass. The API's `logpdf` represents
+a number-probability density normalized to integrate to one on its support.
+
 :::{admonition} Who this page is for
 :class: note
 **Audience:** new students & researchers choosing a single-star IMF; no prior IMF literature assumed.
@@ -65,7 +69,8 @@ default. Regenerate: `python -m laboratory.icviz --only imf-classic-slopes`.
 ## Salpeter (1955): the original power-law
 
 The first published IMF, fit to Galactic-disk solar-neighbourhood
-stars {cite:p}`Salpeter1955`:
+stars {cite:p}`Salpeter1955`, with normalization coefficient $\xi_0$ and
+dimensionless slope $\alpha$:
 
 ```{math}
 :label: imf-salpeter
@@ -81,7 +86,9 @@ usage typically restricts {eq}`imf-salpeter` to $m \in [1, m_{\max}]$
 and pairs it with a separate low-mass model — which is essentially
 the Kroupa construction below.
 
-The cumulative is closed-form:
+For lower and upper mass bounds $m_{\min}$ and $m_{\max}$, the cumulative
+count fraction is closed-form. $N$ is the total number of stars and $N(<m)$
+counts those below mass $m$:
 
 ```{math}
 :label: imf-salpeter-cdf
@@ -124,9 +131,9 @@ that captures the observed low-mass turnover:
 with continuity coefficients enforced at each break. The four-segment
 form includes the brown-dwarf regime ($m < 0.08\,\Msun$); a common
 three-segment usage drops $\alpha_0$ and starts at $0.08\,\Msun$. The
-two high-mass slopes $\alpha_2 = \alpha_3 = 2.3$ match the Salpeter
-value (different normalisation conventions account for the small
-difference between Salpeter's $2.35$ and Kroupa's $2.3$).
+two high-mass slopes $\alpha_2 = \alpha_3 = 2.3$ are close to Salpeter's
+$2.35$. Both use the same $\mathrm{d}N/\mathrm{d}m$ convention;
+changing a normalization coefficient does not change a slope.
 
 `PowerLawIMF` accepts arbitrary segment slopes and break-points
 (`breakpoints` lists the *interior* breaks only, excluding `m_min` and
@@ -179,10 +186,14 @@ power-law, which matters for unresolved-population integrated
 luminosities and colours. `ChabrierIMF` is the standard implementation;
 it shares its high-mass tail slope with `PowerLawIMF`.
 
-The Chabrier IMF does *not* admit a closed-form inverse CDF. Sampling
-uses a Newton solver on $\mathrm{CDF}(m) = u$; the iteration count is
-fixed at 30 steps which is enough for double-precision convergence
-across the entire mass range.
+The lognormal and power-law CDF pieces can be inverted using the inverse
+error function and powers, respectively. The current implementation uses
+these inverses for its initial guess, then performs 30 fixed Newton steps
+on $\mathrm{CDF}(m)=u$, where $u$ is a dimensionless quantile. It clips
+$u$ to $[10^{-10},1-10^{-10}]$. A fixed iteration count does not establish
+double-precision accuracy over every allowed parameter choice; the
+[validation page](../../50-validation/imf-statistics.md) records the tested
+configurations.
 
 ## Maschberger (2013): smooth and analytically invertible
 
@@ -198,8 +209,9 @@ because it captures the same physics as Chabrier+Kroupa with a
 
 [↗ model card](#card-imf-maschberger)
 
-with default parameters $\alpha = 2.3$ (Salpeter slope), $\beta = 1.4$,
-$\mu = 0.2\,\Msun$ (peak mass). The two factors interact:
+with default parameters $\alpha = 2.3$ (high-mass slope), $\beta = 1.4$
+(dimensionless low-mass taper exponent), and $\mu = 0.2\,\Msun$
+(mass scale, not the peak mass itself). The two factors interact:
 
 - For $m \gg \mu$: the second factor approaches 1, leaving the
   high-mass power-law tail $\xi \propto m^{-\alpha}$ (= Salpeter).
@@ -217,29 +229,26 @@ m(u) \;=\; \mu\,\biggl[\biggl(\frac{P_{\min} + u\,(P_{\max} - P_{\min})}{C}\bigg
 [↗ model card](#card-imf-maschberger-inverse)
 
 with $C = \mu / [(1-\beta)(1-\alpha)]$ and $P_{\min}, P_{\max}$ the
-primitive evaluated at the integration endpoints. progenax's
+primitive evaluated at the lower and upper mass bounds. This expression
+requires $\alpha\ne1$, $\beta\ne1$ and positive mass scale and support.
+Both $P$ and $C$ have mass units, so their ratio is dimensionless. progenax's
 `Maschberger` class uses {eq}`imf-maschberger-inverse` directly, with
 no Newton solver, no rejection sampling, fully `vmap`-compatible.
 
 ```{admonition} Why progenax defaults to Maschberger
 :class: note
-The closed-form inverse CDF makes Maschberger the *only* IMF in this
-chapter that can be sampled with a fixed number of operations per
-particle. Inverse-CDF on Salpeter and Kroupa is also closed-form, but
-those IMFs miss the low-mass turnover. Chabrier's Newton-solve approach
-works but adds 30 iterations per particle. For HMC inference of the
-IMF parameters (Maschberger's $\alpha$, $\beta$, $\mu$), the
-analytical invertibility translates into substantially cleaner
-gradients and a $\sim 5\times$ speed-up over Chabrier in `vmap`'d
-sampling.
+Maschberger combines a low-mass turnover with a closed-form inverse CDF.
+Salpeter and Kroupa also have analytic inverses; Kroupa captures the turnover
+with segment breaks. Chabrier's current sampler adds 30 Newton iterations.
+These are algorithm descriptions, not measured timing comparisons.
 
-Just as important as invertibility is **smoothness**: Maschberger is one
-$C^\infty$ functional form, whereas Kroupa's segment breaks are $C^0$
-kinks (and Chabrier keeps a residual kink at $1\,\Msun$). Kinks propagate
-into the derivatives that gradient-based inference and Fisher forecasting
-differentiate through — so prefer Maschberger unless a like-for-like
-comparison against a Kroupa/Chabrier-defined literature analysis demands
-the segmented forms.
+Within positive mass support and away from $\alpha=1$ and $\beta=1$,
+the Maschberger expression is smooth. Kroupa is value-continuous with slope
+changes at its breaks; Chabrier has a slope change at its join. Such joins
+need care when differentiating samples or moving boundaries. Smoothness
+alone does not establish HMC convergence or qualify every parameter derivative.
+Match the IMF convention of a literature comparison when selecting another
+family.
 ```
 
 ## Check yourself
@@ -250,14 +259,14 @@ $2.35$. Before peeking: which convention is which, and how do they relate?
 
 Verify numerically: sample $10^5$ masses, histogram them in $\log m$, and
 fit the high-mass tail slope — you should recover $\Gamma \approx 1.35 =
-\alpha - 1$ (the $\mathrm{d}\ln m = m\,\mathrm{d}m$ Jacobian shifts the
+\alpha - 1$ (the $\mathrm{d}\ln m = \mathrm{d}m/m$ Jacobian shifts the
 exponent by one).
 :::
 
 :::{dropdown} 2. Rank the mean masses — then explain the outlier
 Predict the ordering of $\langle m \rangle$ for the four default
-configurations, then run `imf.mean_mass()` for each. Measured values
-(analytic, this checkout): Salpeter $0.351$, Maschberger $0.367$, Kroupa
+configurations, then run `imf.mean_mass()` for each. Previously recorded
+values (analytic or numerical, depending on the implementation): Salpeter $0.351$, Maschberger $0.367$, Kroupa
 $0.376$, **Chabrier $0.607\,\Msun$**.
 
 The lesson: the biggest driver is the *support*, not the shape — Chabrier's
@@ -273,10 +282,10 @@ Compute `jax.grad(lambda mu: Maschberger(mu=mu).mean_mass())(0.2)` — a
 clean $\mathrm{d}\langle m\rangle/\mathrm{d}\mu \approx 1.52$. Now try
 the same through a Kroupa *breakpoint* (rebuild `PowerLawIMF` with a traced
 break). Both are finite — but relate what you see to panel (b) of
-{numref}`fig-imf-classic-slopes`: the Maschberger derivative is smooth in
-*all* its parameters everywhere, while a sampled mass sitting exactly at a
-Kroupa break feels a $C^0$ kink. Smoothness is why HMC chains on
-($\alpha, \beta, \mu$) mix cleanly.
+{numref}`fig-imf-classic-slopes`: the Maschberger form has no interior
+mass break in its stated parameter domain, while the Kroupa density has
+slope changes at the breaks. This exercise does not measure posterior mixing;
+that requires chain diagnostics for a specified likelihood and prior.
 :::
 
 ## Truncated power-law
@@ -315,14 +324,14 @@ guaranteed inside $[m_{\min}, m_{\max}]$ in a single pass.
   - Resolved cluster work; backwards compatibility
 * - Chabrier
   - $\mathcal{O}(30)$ Newton solver
-  - Smooth (lognormal join)
+  - Value-continuous, slope change at the join
   - Unresolved-population colours
 * - Maschberger
   - $\mathcal{O}(1)$ inverse CDF
-  - $C^\infty$ smooth
+  - Smooth on positive support away from singular parameters
   - **progenax production default**
 * - Truncated
-  - As above + clamp
+  - Base inverse CDF after quantile remapping
   - As above
   - Edge cases, $m_{\max}(M_{\mathrm{cl}})$
 ```

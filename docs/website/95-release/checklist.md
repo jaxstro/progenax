@@ -17,10 +17,21 @@ polish. Items are written so they can be checked off literally.
 This list began as the read-only audit's to-do list. Since then a number of items
 have been actioned — some during the 2026-06-18 fix cycle, more during the v0.1.0
 [documentation-hardening pass](#checklist-docs-hardening) — and are marked `[x]`
-with a dated note. The genuine remaining blockers (re-enable CI, resolve the
-`jaxstro`/PyPI dependency story) are **not** done and stay unchecked. Each fix is a
-separate, maintainer-approved step.
+with a dated note. The completed items below retain their historical scope. Current scientific,
+gradient, installation, artifact, and documentation qualification remains open;
+see the [current verdict](index.md#release-readiness-verdict). CI and public
+release actions require Anna's separate approval.
 :::
+
+## Current qualification gates
+
+- [ ] Declare supported physical and numerical domains for each public model.
+- [ ] Resolve confirmed scientific and numerical defects, including central-boundary handling.
+- [ ] Qualify required derivatives for specified observables and randomness conventions.
+- [ ] Reproduce scientific and performance claims with revision-matched evidence.
+- [ ] Verify clean installation and wheel/sdist contents, including private-material exclusions.
+- [ ] Reconcile current docs, generated APIs, examples, and rendered output.
+- [ ] Obtain explicit permission for private-repository CI and any release action.
 
 (checklist-slice-d)=
 ## 🚀 Slice D — the pre-flip / pre-tag punch list (maintainer executes)
@@ -29,13 +40,11 @@ separate, maintainer-approved step.
 These are the concrete actions between "repo goes public" and "tag `v0.1.0`", in
 order. Every claim below was re-verified against the repo on 2026-07-11.*
 
-**Before or at the public flip:**
+**Before a proposed public release:**
 
-- [ ] **Re-enable the 3 GitHub Actions workflows.** All three are
-  `disabled_manually` in the repo settings (the YAML itself is current):
-  `tests.yml` (PR gate), `physics-validation.yml` (slow lane), `docs.yml`
-  (docs gate). Re-enable in *Settings → Actions*, then confirm one green run on a
-  real PR before trusting them.
+- [ ] **Verify workflow state and obtain CI permission.** Remote state requires
+  a fresh read-only check. Private-repository CI needs Anna's explicit approval
+  for its repository and scope before any enablement or automatic trigger.
 - [x] **Align the Python matrix with the supported runtime.** The package and
   MyPy configuration now require Python 3.13, and
   `.github/workflows/physics-validation.yml` exercises Python 3.13 rather than
@@ -60,7 +69,7 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   `tests/experimental/`) or an explicit `include` allowlist, then verify with
   `uv build --sdist` + `tar -tzf dist/*.tar.gz | head -50`.
 - [ ] **Fix the hardcoded path in `scripts/check.sh` (line 77).** The clean-venv
-  wheel smoke installs `/Users/anna/projects/jaxstro-dev/jaxstro` verbatim.
+  wheel smoke installs `<parent-checkout>/jaxstro` verbatim.
   Replace with a repo-relative resolution, e.g.
   `"$(cd "$(dirname "$0")/../../jaxstro" && pwd)"`, so the gate script survives
   on any checkout (CI included).
@@ -89,12 +98,10 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   Decision deferred to the maintainer (PyPI-first / namespace package / vendor /
   git-URL) — see [release strategy](#release-strategy). *Not a blocker for a
   GitHub source tag; a hard blocker for PyPI.*
-- [ ] **Re-enable CI (D8).** Three GitHub Actions workflows are `disabled_manually`.
-  Re-enable `tests.yml` (PR gate), `physics-validation.yml` (release-tag slow
-  lane), and `docs.yml` (the docs gate — 0 broken `.md` links + 0 MyST content
-  warnings, via `make -C docs/website gate`; added + validated locally 2026-06-20,
-  including negative tests, but never run on GitHub). Confirm a green run on a real
-  PR before tagging.
+- [ ] **Record approved remote verification (D8).** Inspect current workflow
+  configuration and remote state. Obtain Anna's explicit CI permission for the
+  private repository and intended triggers before enabling or running it. A
+  local test pass does not establish remote workflow execution.
 
 (checklist-important)=
 ## ⚠️ Should fix before a polished public launch
@@ -158,7 +165,7 @@ order. Every claim below was re-verified against the repo on 2026-07-11.*
   are, to machine-protect the tutorials.
 
 (checklist-verified)=
-## ✅ Verified green — no action needed
+## Historical verification — rerun affected current gates
 
 - Full test gate: 1561 passed / 2 skipped / **0 xfailed**, exit 0; coverage 95.98%.
   (Audit-time was 1553 / 3 skip / 1 xfail / 95.96%; the OM-Plummer oracle closed the
@@ -203,6 +210,6 @@ v0.1.0 public source release. It ran in two phases:
      detail pages; curated, modernised, path-scrubbed, and hid the development log;
      added a `99-bibliography/index.md` landing and the missing per-paper notes.
 
-This entry records the pass itself as release provenance; the specific outcomes are
-checked off above. The genuine remaining blockers (CI re-enable, the `jaxstro`/PyPI
-dependency story) are unaffected and still pending.
+This entry records the historical pass. Its counts and measured results do not
+replace current qualification. The [current release verdict](index.md) owns the
+remaining scientific and release gates.

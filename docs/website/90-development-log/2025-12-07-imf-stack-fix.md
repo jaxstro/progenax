@@ -1,5 +1,16 @@
 # IMF Stack Fix Implementation Plan
 
+:::{note} Historical proposal (2025-12-07)
+The code, tests, and completion instructions below belong to this dated plan;
+they are not a current implementation or execution record. In particular, its
+"system IMF" label does not describe the current default `ChabrierIMF`, which
+uses individual-star disk parameters. Use the current [IMF theory](../10-theory/imfs/classic.md),
+[API](../30-api/imf.md), and [validation](../50-validation/imf-statistics.md)
+for model definitions and evidence. The proposed lognormal-integral snippet
+incorrectly discards a change-of-variables factor; it is not the current
+implementation. The archived snippets have not been rerun.
+:::
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Fix gradient flow, implement correct Chabrier (2003) log₁₀-based system IMF, and ensure robust domain behavior across all IMF classes.

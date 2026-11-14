@@ -17,14 +17,14 @@ progenax's validation backbone has three load-bearing pieces: a
 **three-tier test suite** (what runs), **four registries** (a frozen
 manifest per concern that ratchets coverage against the public API so a
 new untested symbol turns CI red), and a **generated dashboard + release
-gate** (the single source of truth, guarded against silent drift). This
+gate** (retained inventory and artifact-freshness checks). This
 page describes each in turn and closes with the workflow for adding a
 new model or public symbol.
 
 ## The three-tier architecture
 
 The suite separates *mechanical* correctness (`tests/unit/`),
-*end-to-end* behaviour (`tests/integration/`), and *physical*
+*end-to-end* behavior (`tests/integration/`), and *physical*
 correctness (`tests/validation/`). The full tier definitions, run
 frequencies, and tolerance conventions — and the rule never to weaken a
 tolerance to make a test pass — live in [](methodology.md); the live
@@ -40,7 +40,7 @@ the **FULL gate** (the phase/commit gate) runs everything.
 The backbone's central idea is the distinction between a **test** and a
 **registry**.
 
-- A **test** checks *behaviour*: it constructs a symbol, exercises it,
+- A **test** checks *behavior*: it constructs a symbol, exercises it,
   and asserts something about the output (a virial ratio, a density
   shape, a gradient that matches finite differences).
 - A **registry** is a hand-curated **frozen-literal manifest** plus a
@@ -99,8 +99,9 @@ The dashboard's registry block is generated from these manifests.
 
 Each symbol lands in exactly one of `SYMBOL_TESTS` (→ a verified node
 id), `EXEMPT` (with a reason), or `UNTESTED` (a real hole — empty
-today). The line-coverage floor is ratchet-up-only and is checked
-against the committed full-suite `coverage.json`.
+today). The line-coverage floor is checked against retained full-suite
+`coverage.json`. Its source/test exposure and provenance must be inspected
+before describing that value as coverage of the current checkout.
 
 ### Physics validation
 
@@ -170,8 +171,8 @@ citable-shaped literal there with no citation reds CI.
   - `tests/validation/grad_audit/manifest.py`
 * - Current state
   - The pre-existing template for the pattern; every public symbol is
-    categorized, with the AD-vs-FD results recorded per case and zero
-    unresolved hazards.
+    categorized, with AD-vs-FD results recorded per case. A clean recorded case is bounded
+    by its parameters, observable, randomness convention, and numerical setup.
 ```
 
 This is the registry the other three were modelled on; its design
@@ -204,15 +205,23 @@ committed JSON (and re-renders the page). Edit a test, change a
 registry, or move a validate-script, and the gate goes **red** until
 the JSON is regenerated and recommitted.
 
-Coverage freshness is **source-based** (a deliberate ratification): the
-committed coverage is stale **iff**
-`git diff <coverage_provenance.git_sha> HEAD -- src/progenax/` is
-non-empty. Adding or removing *tests* never invalidates the coverage of
-unchanged *source*, so the ~14-minute full-suite `--cov` re-run is
-required only when `src/progenax/` actually changes.
+The coverage-freshness helper requires a full-suite selector and a recorded
+commit that is an ancestor of `HEAD`. It checks released source, the unit,
+integration and validation tests, their shared fixtures, and the selected
+coverage/test configuration files against that commit at `HEAD`, the index,
+the worktree and nonignored untracked paths. Test-only changes can lower
+coverage and therefore invalidate freshness too. Unrelated documentation
+and experimental-only files are outside this dependency set.
+
+This check does not certify a dirty-tree coverage measurement by changing
+`git_sha`, nor does it record the full environment or every transitive helper.
+The saved coverage percentage remains a historical measurement of its recorded
+exposure and is rejected when those covered inputs differ. A new coverage run,
+if required, is a separate local verification.
 
 ```{important} The four-part release gate
-All four conditions must hold to release:
+These mechanical conditions are part of the release checks; they are not
+a complete scientific-readiness criterion:
 
 1. **`registries_full`** — all four registries built, full, and with
    zero holes.

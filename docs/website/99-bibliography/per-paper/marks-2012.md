@@ -40,8 +40,10 @@ delivers exactly enough energy to unbind the residual gas within a cluster cross
 the change in binding energy is (Eq. 5)
 
 $$
-E_{\rm OB}^{\rm req} = 1.305\,\frac{3G}{32}
-\left(\frac{M_{\rm cl}^2}{r_{h,\rm i}} - \frac{M_{\rm ecl}\,M_{\rm cl}}{r_{h,\rm i}}\right),
+E_{\rm OB}^{\rm req} = 1.305\,\frac{3\pi G}{32}
+\left(\frac{M_{\rm cl}^2}{r_{h,\rm i}} - \frac{M_{\rm ecl}^2}{r_{h,\rm f}}\right)
+= 1.305\,\frac{3\pi G}{32}
+\left(\frac{M_{\rm cl}^2}{r_{h,\rm i}} - \frac{M_{\rm ecl}^3}{M_{\rm cl}\,r_{h,\rm i}}\right),
 $$
 
 with $M_{\rm cl}=M_{\rm ecl}/\epsilon$ the cloud-core mass and $r_{h,\rm f}=r_{h,\rm i}\,M_{\rm cl}/M_{\rm ecl}$
@@ -105,19 +107,20 @@ x' = \cos\vartheta\,{\rm [Fe/H]} + \sin\vartheta\,\log_{10}\!\Big(\tfrac{\rho_{\
 \alpha_3 = \begin{cases} -0.4072\,x' + 1.9383, & x' \ge -0.87\\ 2.3, & \text{otherwise}\end{cases}
 ```
 
-with $\cos 98° = -0.139$, $\sin 98° = 0.990$. Density dominates metallicity in setting
+with $\cos 98° \approx -0.139$, $\sin 98° \approx 0.990$. Density dominates metallicity in setting
 $\alpha_3$ (smaller scatter in Fig. 3 than Fig. 4).
 
 ```{warning}
 The **printed** Eq. 14/15 give the range as $x' \ge +0.87$; this is a missing-minus-sign
 typo corrected by the {cite:t}`Marks2014` erratum to $x' \ge -0.87$ (the same typo also
-appears just before Eq. 15). The slope/intercept are unchanged. The authors confirm the
-correct $-0.87$ range was used in their analysis, and Fig. 6 shows the canonical-plateau
-knee at $x' \approx -0.87$ (the fitted line meets $2.3$ continuously: $2.3 = -0.4072\,x' +
-1.9383 \Rightarrow x' = -0.888$). progenax uses the corrected $-0.87$.
+appears just before Eq. 15). The authors confirm the correct $-0.87$ range was used
+in their analysis. progenax keeps the original slope/intercept and corrected
+threshold; the line meets $2.3$ at $x'=-0.888261\ldots$, rather than $-0.87$,
+so the retained hard mapping has a $0.007436$ jump. The erratum prints rounded
+slope/intercept $-0.41/1.94$; it does not prescribe a continuity adjustment.
 ```
 
-**Low-mass metallicity dependence (Eq. 12, p. 2251).**
+**Low-mass metallicity dependence (Eq. 12, p. 2252).**
 
 ```{math}
 :label: marks-lowmass
@@ -125,6 +128,14 @@ knee at $x' \approx -0.87$ (the fitted line meets $2.3$ continuously: $2.3 = -0.
 ```
 
 reproducing the Table 4 grid (e.g. ${\rm [Fe/H]}=-2 \Rightarrow \alpha_1=0.30,\ \alpha_2=1.30$).
+
+The Fig. 6 text specifies an abscissa $x'/\sin98^\circ$, whereas Eq. 13
+defines the unnormalized rotation. Applying the Eq. 14 slope to the normalized
+coordinate gives $0.057228\ldots[\mathrm{Fe/H}]-0.4072\log_{10}[\rho_{\rm cl}/(10^6\,M_\odot\,\mathrm{pc}^{-3})]
++1.9383$, close to printed Eq. 15. Substitution into the unnormalized rotation
+gives different coefficients. The [theory page](../../10-theory/imfs/environment.md#alpha3-marks-eq15)
+distinguishes both from the retained rounded kernel; source equations do not
+establish exact equivalence between these conventions.
 
 ## Use in progenax
 

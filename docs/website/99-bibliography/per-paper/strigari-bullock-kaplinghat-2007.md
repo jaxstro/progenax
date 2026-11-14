@@ -128,12 +128,12 @@ Eqs. (1)–(3) (anisotropy lives entirely in the kernel ratios).
 - All three share the projection measure $r/\sqrt{r^2-R^2}$, the weight $\nu_\star\,\sigma_r^2$, and
   the factor 2 — exactly the `project_dispersion` implementation. No physics discrepancy.
 
-**Phase 2 (Anna-gated) provenance fix.** The `project_dispersion` docstring (L11–13, L21–22, L678,
-L682, L825 "B&M82 kernels") currently credits *all three* kernels to Binney & Mamon (1982), but
-BM82 contains the LOS kernel **only**. Recommended attribution after this verification:
-$\sigma_{\rm los}\to$ **Binney & Mamon (1982)** Eq. 7; $\sigma_{\rm pm,R}\to$ **Strigari+2007**
-Eq. 2; $\sigma_{\rm pm,T}\to$ **Strigari+2007** Eq. 3 (earliest derivation: Leonard & Merritt 1989).
-No `src/` edits were made in this task.
+The current module and public `project_dispersion` docstring credit BM82
+for LOS and Strigari et al. (2007) for both PM channels. The former blanket
+BM82 attribution has been corrected. The line numbers above belong to the
+historical inspection snapshot; current function/kernel names remain the
+stable cross-reference. This current-source check does not repeat the
+primary-PDF verification recorded above.
 ```
 
 ```{note}

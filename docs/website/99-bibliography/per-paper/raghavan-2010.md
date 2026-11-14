@@ -36,7 +36,8 @@ distribution; the mass-ratio distribution favours near-equal pairs. This is the 
   multiplicity vs colour ($B-V$, i.e. primary mass), period, mass ratio, and eccentricity, **not**
   a spatial / radial binary-fraction profile.
 - **Period distribution:** log-normal, **median ~300 yr** ($\log_{10}(P/\mathrm{d}) \approx 5.0$),
-  $\sigma_{\log P} \approx 2.28$ — broader and longer-period than DM91's 180 yr / $\mu=4.8$.
+  $\sigma_{\log P} \approx 2.28$ — a similar width and a longer median period than
+  DM91's $\sigma=2.3$, 180 yr / $\mu=4.8$.
 - **Eccentricity:** circularized below $P \approx 12$ d, then a roughly **flat** distribution for
   wider pairs (differs from DM91's tendency toward thermal $f(e)=2e$ at the widest separations).
 

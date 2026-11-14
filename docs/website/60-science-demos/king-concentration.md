@@ -5,8 +5,10 @@ description: "The methods showcase for the Poisson number-density channel: a sin
 
 # King concentration from star counts (B11)
 
-Every other demo in this series recovers structure from the *velocity* channel
-$\sigma(r)$. This one recovers a King {cite:p}`King1966` cluster's concentration
+The quoted measurements are retained results from the dated run below; the
+current documentation review did not rerun this inference calculation.
+
+This demo recovers a King {cite:p}`King1966` cluster's concentration
 from the observable a photometric survey actually delivers — the **radial star
 counts** — and nothing else. It is the methods showcase for the Poisson
 number-density channel (`binned_number_density` / `poisson_loglike` /
@@ -99,7 +101,7 @@ independent; breaking the correlation needs the *velocity* channel $\sigma(r)$,
 which this count-only demo deliberately omits.
 ```
 
-## Result — freshly run, ALL PASS
+## Retained result (2026-06-12)
 
 Measured 2026-06-12 ($N=3\times10^4$ stars, $K=20$ log-spaced bins over
 $[0.10, 16.8]$ pc, three dispersed Adam starts; wall $\approx 29$ s; exit 0).

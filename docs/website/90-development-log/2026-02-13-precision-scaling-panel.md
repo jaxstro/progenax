@@ -1,5 +1,13 @@
 # Precision Scaling Panel (d) Implementation Plan
 
+:::{note} Historical proposal (2026-02-13)
+The scaling table below lists expected values, not newly measured posterior
+precision or bias. The code, sample sizes, run criteria, and runtime estimates
+retain the dated plan and have not been rerun here. Current inference claims
+require their own configurations, convergence diagnostics, and recovery evidence;
+see [binary-IMF validation](../50-validation/binary-imf.md).
+:::
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add panel (d) to the binary-aware recovery figure showing how posterior precision σ(α) scales with sample size N, demonstrating that naive inference becomes *confidently wrong* at LSST-scale sample sizes.
@@ -365,7 +373,7 @@ git commit -m "feat(validation): polish panel (d) precision scaling"
 
 ## Expected Results
 
-| N | Naive |bias| | Naive 95% CI | Aware |bias| | Aware 95% CI |
+| N | Naive absolute bias | Naive 95% CI | Aware absolute bias | Aware 95% CI |
 |------|-------------|-------------|-------------|-------------|
 | 500 | ~0.07 | ~0.12 | ~0.01 | ~0.13 |
 | 1,000 | ~0.07 | ~0.08 | ~0.01 | ~0.09 |

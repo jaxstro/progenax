@@ -12,14 +12,17 @@ specifications, full-package code-review audits, and validation recovery/scaling
 notes, kept for the record. The pages are **point-in-time snapshots**: each one
 describes the state of the package on its date, and several reference APIs that
 were later renamed or retired. Where that happens the page carries an
-admonition pointing at the current entry point, but the body text is otherwise
-preserved unedited as historical evidence.
+admonition pointing at the current entry point. Historical grades, completion
+claims, proposed criteria, and reported measurements do not establish current
+release readiness or scientific qualification. The original calculations have
+not all been independently revalidated.
 
 For the *current* state of the package, start from the
 [release notes](../00-getting-started/whats-new.md), the
 [architecture overview](../20-architecture/index.md), and the
-[validation backbone](../50-validation/index.md). For the live test counts and
-coverage see the [test dashboard](../50-validation/test-dashboard.md).
+[validation backbone](../50-validation/index.md). The
+[test dashboard](../50-validation/test-dashboard.md) displays a dated stored
+census and coverage artifact; read its freshness limits before using those numbers.
 
 ## Code-review audits
 
@@ -27,10 +30,10 @@ Full-package technical reviews (scientific correctness, numerics,
 JAX/differentiability, testing, provenance), newest first:
 
 - [](code-reviews.md) — the landing record for the **2026-06** post-hardening
-  (A−, 90/100) and expert-audit (B+, 87/100) reviews, each with its
-  resolution table showing every Critical/Major finding fixed.
+  and expert-audit reviews, including their historical grades and resolution tables.
 - [](2025-12-07-progenax-review.md) — the original **2025-12-07** comprehensive
-  code/architecture/science review (A, 95/100).
+  code/architecture/science review. Its internally differing grade labels are
+  preserved as part of that record.
 
 ## Design specs
 

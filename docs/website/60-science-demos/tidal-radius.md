@@ -5,11 +5,12 @@ description: "A stretch demo reusing the Poisson number-density channel: an EFF 
 
 # Tidal radius from the outskirts (B7)
 
-A cluster's **tidal (Jacobi) radius** $r_t$ marks where the Galaxy strips stars,
-and it is written in the **outskirts** — the sparse, count-limited edge of the
-density profile. This stretch demo reuses the Poisson number-density channel
-([B11](king-concentration.md)) to recover $r_t$ from those few outer stars, and
-turns it into the cluster's **Galactocentric distance**.
+This demo estimates the imposed EFF truncation radius $r_t$ from sparse outer
+counts using the [Poisson number-density channel](king-concentration.md).
+It then makes the additional assumption $r_t=r_J$ for a circular orbit around
+a point-mass host to convert that fitted radius into a Galactocentric distance.
+The density cutoff alone does not establish tidal filling, individual stellar
+binding, or an orbit. The quoted results are retained measurements.
 
 ## The physics
 
@@ -26,12 +27,15 @@ $\gamma=2.5$ so stars reach $r_t$.)
 
 ```{note}
 **Making $r_t$ differentiable.** A hard `jnp.where(r < r_t, ρ, 0)` truncation has
-**zero gradient** through its boundary condition, so $\partial\mu/\partial r_t = 0$
-and the Fisher information is singular. The demo instead integrates the
+an ordinary JAX derivative that misses the moving integration boundary.
+For expected bin counts, differentiating an integral with a moving endpoint
+requires that boundary contribution. The demo instead integrates the
 *untruncated* cumulative once, then evaluates it at bin edges **clipped at $r_t$**
 and normalizes by $\mathrm{enc}(r_t)$ — so $r_t$ flows through the differentiable
 `minimum` and `interp`, giving a real $\partial\mu/\partial r_t$ for a *sharp*
-truncation. (The same lesson underlies progenax's custom-JVP `apply_tidal_truncation`.)
+truncation away from bin-edge crossings. This is different from
+`apply_tidal_truncation`, whose hard fixed-catalogue membership uses a
+straight-through surrogate tangent.
 ```
 
 ## Inputs and assumptions
@@ -74,17 +78,19 @@ dominate a real $R_{\rm gal}$ error budget.
 ```{important}
 :label: imp-b7-assumptions
 **The scale radius $a$ is held fixed, and the constraint lives in the empty outer
-bins.** Jointly fitting $(a,r_t)$ from number counts alone is degenerate — the
-normalized profile shape trades them off — so $a$ is asserted to be pinned by the
-star-rich inner profile and $r_t$ is read purely from the outskirts (bins extending
-to $1.3\,r_t$, mostly empty, supply $\sim$93% of the Fisher information via the
-Poisson $-\mu$ penalty). The conversion to Galactocentric distance then assumes
+bins.** This one-parameter calculation assumes $a$ is already known from the
+star-rich inner profile; it does not measure the joint $(a,r_t)$ covariance.
+The retained calculation assigns $\sim$93% of its local Fisher information
+to bins with $r>0.6r_t$. Bins intersecting the cutoff and normalization changes
+can carry that information. A bin wholly outside the cutoff has zero predicted
+count and zero local derivative until a boundary crossing; its emptiness can
+penalize a more extended alternative without supplying local Fisher information. The conversion to Galactocentric distance then assumes
 $M_{\rm gal}$ and $M_{\rm cl}$ are **error-free**, so $\sigma(R_{\rm gal})/R_{\rm
 gal}=\sigma(r_t)/r_t$ inherits only the counting uncertainty — in reality a
 cluster-mass error (M/L, unseen low-mass stars, remnants) would dominate.
 ```
 
-## Result — freshly run, ALL PASS
+## Retained result (2026-06-12)
 
 Measured 2026-06-12 ($N=2\times10^4$, $\gamma=2.5$, true $r_t=12$ pc; wall $\approx 5$ s).
 
@@ -107,7 +113,8 @@ why the Poisson treatment of those low-count bins matters.
 
 ### From $r_t$ to the Galactocentric distance
 
-The recovered $r_t$ *is* the Jacobi/tidal radius {cite:p}`King1962`,
+Under the additional assumption that the fitted edge equals the circular
+point-mass-host Jacobi radius {cite:p}`King1962`,
 
 ```{math}
 :label: b7-jacobi
@@ -124,8 +131,9 @@ $M_{\rm gal}=5\times10^{10}\,\Msun$, the recovered $r_t$ gives
 R_{\rm gal} = 2.79 \pm 0.01\ \mathrm{kpc},
 ```
 
-(round-trips through `jacobi_radius`). So a cluster's *orbit* is encoded in its
-faint outer star counts.
+(round-trips through `jacobi_radius`). This conditional conversion is not an
+independent orbital measurement; it inherits the assumed host model, masses,
+circular orbit and equality of the fitted edge with the Jacobi radius.
 
 ## Figure
 
@@ -145,8 +153,8 @@ $\sigma(r_t)\propto N^{-1/2}$, annotated with the derived Galactocentric distanc
 
 ```{warning}
 - **$a$ is fixed, $r_t$ recovered.** The scale radius is pinned by the inner
-  profile and held; jointly fitting $(a, r_t)$ from counts alone is degenerate
-  (the normalized shape trades them off). The headline is the truncation.
+  profile and held; the calculation does not test the joint $(a,r_t)$
+  covariance. The reported uncertainty is conditional on that fixed scale.
 - **Sharp truncation, complete census.** The EFF cut is hard and every star is
   counted; real outskirts have foreground/membership contamination and a soft,
   orbit-phase-dependent edge.

@@ -6,12 +6,31 @@ description: "Validation suite for the King (1966) profile + matched lowered-Max
 
 The King suite verifies the lowered-isothermal Poisson ODE integration, the
 **lowered-Maxwellian volume density** (the 3-D density entering the Poisson
-source, distinct from the projected King K-function), and the matched velocity
+source, distinct from a Maxwell speed cumulative probability), and the matched velocity
 DF. Test file: `tests/validation/test_king_physics.py` (see the
 [test dashboard](test-dashboard.md) for the live per-suite count); figures:
 `scripts/validate_king.py`.
 
-## What is verified
+## Retained validation evidence
+
+The values below come from the retained validation scripts and figures; they
+are not a new measurement on the current checkout. The central-series
+regressions in `tests/unit/profiles/test_poisson_center.py` separately check
+the regular curvature and finite-radius initialization. `tests/unit/profiles/test_king_shallow_density.py`
+checks the small-potential density expansion and its derivatives. These are
+numerical regressions, not full-domain physical qualification. Their analytic target
+is [the regular central expansion](../10-theory/spatial-profiles/king.md#king-center-series),
+not agreement with another lowered-profile implementation.
+
+Separate functional-potential regressions in
+`tests/unit/profiles/test_potential_exterior.py` compare the King exterior with
+$GM(1/r_t-1/r)$ in its tidal-zero convention, for gravitational constant $G$
+and total cluster mass $M$. They check values, exterior
+forces, selected forward/reverse parameter derivatives, mass homology, and
+value continuity through the final interpolation cell. These checks do not
+establish interior grid convergence or derivative continuity at the boundary.
+See the [potential convention](../10-theory/spatial-profiles/index.md#profile-vacuum-potential)
+and the [functional API](../30-api/profiles.md#api-profiles-compute_profile_potential).
 
 Each row maps to one or more assertions in `test_king_physics.py`. The
 **Tolerance** is the *exact* bound the test enforces; the **Measured** value is
@@ -25,13 +44,9 @@ PASS/FAIL table for every figure).
   - Tolerance (as tested)
   - Measured
   - Anchor
-* - ODE boundary condition $\psi(0)=W_0$
-  - $|\psi(0)-W_0| < 0.1$
-  - $0.0$ (exact)
-  - King's dimensionless Poisson equation
 * - Concentration $c=\log_{10}(r_t/r_c)$, $W_0=2.5$–$15$
   - $\le 0.03$ abs
-  - max $|\Delta\log_{10}c| = 0.002$
+  - max $|\Delta c| = 0.002$
   - {cite:t}`King1966` Table II
 * - Volume density shape $\rho(r)$
   - $< 5\times10^{-3}$ max rel
@@ -75,7 +90,7 @@ for every panel). Each figure recomputes the same quantities the tests assert.
 
 **Concentration relation.** progenax $c=\log_{10}(r_t/r_c)$ (line) on King (1966)
 Table II (open circles) across the full tabulated range $W_0=2.5$–$15$. Residuals
-(panel b) stay within the $\pm0.03$ band — **max $|\Delta\log_{10}c| = 0.002$**.
+(panel b) stay within the $\pm0.03$ band — **max $|\Delta c| = 0.002$**.
 $W_0 \gtrsim 11$ requires enlarging the ODE domain beyond the package default
 (see *What this suite does not test*); the figure does so per row.
 :::
@@ -111,7 +126,7 @@ external rescale**.
 :width: 80%
 :align: center
 
-**Table-routed speed draws vs the exact quadrature oracle ($W_0=5$,
+**Table-routed speed draws vs the numerical quadrature reference ($W_0=5$,
 $N=2\times10^4$).** Since the 2026-06 memory batch, `KingVelocityDF` draws
 speeds from a precomputed CDF table by default (`SpeedCDFTable` at $g=1$ —
 the exact King reduction $e^x-1 = E_\gamma(1,x)$, identity-test guarded); the
@@ -129,7 +144,7 @@ $D = 1\times10^{-4}$, gate $<0.02$; moment ratios to $<10^{-5}$). Script:
 
 **Concentration sweep.** Normalized density for $W_0=3,5,7,9$; dotted lines and
 floor markers give each model's natural $\xi_t=r_t/r_c$, matching King (1966)
-Table II ($\Delta\log_{10}c \le 0.001$). Higher $W_0$ ⇒ more extended, more
+Table II ($\Delta c \le 0.001$). Higher $W_0$ ⇒ more extended, more
 concentrated. `from_W0_rc` auto-sizes the ODE domain from $W_0$, so the full
 tabulated range (to $W_0=15$, $\xi_t\simeq2272$) integrates without a manual
 `xi_max`.
@@ -149,8 +164,9 @@ a likelihood uses — the density profile $\rho(r)$ and the velocity scale $\sig
 **Gradient validation (autodiff vs central finite difference).** $\partial(\text{observable})/\partial\theta$
 for each structural parameter $\theta$: (a) core radius $r_c$, (b) concentration
 $W_0$, (c) total mass $M_{\rm tot}$. Autodiff (line) and finite difference (circles)
-agree to **max rel.\ err $\le 2\times10^{-6}$** across the parameter range — so
-$(r_c, W_0, M_{\rm tot})$ can be inferred jointly by gradient descent or HMC.
+agree to **max rel.\ err $\le 2\times10^{-6}$** for the displayed observables
+and retained parameter range. Joint inference additionally requires a suitable
+likelihood and domain-specific numerical and statistical checks.
 :::
 
 ```{list-table} What is differentiable in the King model.
@@ -160,33 +176,29 @@ $(r_c, W_0, M_{\rm tot})$ can be inferred jointly by gradient descent or HMC.
   - Differentiable?
   - Notes
 * - $r_c$ (core radius)
-  - ✅ machine precision
+  - Retained first-derivative checks
   - The spatial scale; gradients flow through positions, density, and velocities.
 * - $M_{\rm tot}$ (total mass)
-  - ✅ machine precision
+  - Retained first-derivative checks
   - Sets the velocity scale $\sigma_0\propto\sqrt{GM}$.
 * - $W_0$ (concentration)
   - ✅ (profile observables)
   - Flows through the `diffrax` ODE → $\psi$ → density → CDF → sampling.
 * - $r_t$ (scalar tidal radius)
   - ✅ (zero-crossing slope)
-  - $\partial r_t/\partial W_0$ is finite and exact — the unclamped $\psi=0$
-    crossing carries the implicit-function-theorem slope (the original silent-zero
-    hazard was found and fixed by the gradient audit). Verified AD-vs-FD to
-    $\sim 10^{-8}$ ($\partial r_t/\partial W_0 \approx 22.9$ at $W_0=7$, $r_c=1$).
+  - A bracketed simple zero of the unclamped potential supports an implicit
+    first derivative of the monotone-cubic interpolant. Accuracy depends on the
+    ODE, saved grid, and interpolation; an exact root identity does not make
+    the numerical physical derivative exact.
 ```
 
-:::{seealso} The scalar $r_t$ gradient is RESOLVED (differentiable)
-`KingProfile.from_W0_rc(W0, r_c).r_t` now carries a finite, exact
-$\partial r_t/\partial W_0$ via the implicit function theorem,
-$\partial\xi_t/\partial W_0 = -\psi_{W_0}/\psi_{\xi}\big|_{\xi_t}$ (the source
-returns the *unclamped* $\psi_{\rm raw}$, so the zero-crossing carries the slope).
-The forward value of $r_t$ is unchanged; only the gradient differs. This unlocks
-**tidal-field coupling** $r_t \approx r_J$ (inferring the Galactic potential /
-orbits from cluster limiting radii, wiring in `progenax.tidal.jacobi_radius`).
-The mechanism, the IFT design, and ranked science cases are at
-[](../20-architecture/differentiability.md#roadmap-differentiable-rt), which carries
-the full design record.
+:::{seealso} Tidal-root derivative contract
+`KingProfile.from_W0_rc(W0,r_c).r_t` uses
+$\partial\xi_t/\partial W_0=-\psi_{W_0}/\psi_{\xi}|_{\xi_t}$ for a
+bracketed simple zero. A domain endpoint returned without a crossing is not
+a physically measured tidal radius. Compare derivatives under saved-grid,
+solver, and finite-difference-step refinement before using a new observable.
+See [](../20-architecture/differentiability.md#roadmap-differentiable-rt).
 :::
 
 ## How to run
@@ -201,11 +213,14 @@ python scripts/validate_king.py
 
 ## What this suite does *not* test
 
-- **Multi-mass / anisotropic / rotating King** — out of scope here. These are
-  the generalizations formalized by {cite:t}`Gieles2015`; progenax will
-  implement them natively as its own differentiable lowered-model family (see
-  the [roadmap](../10-theory/spatial-profiles/lowered-model-family.md)), rather
-  than depending on an external package.
+- **Multimass and anisotropic lowered models** have separate implemented
+  owners and validation exposures; see the
+  [lowered-model family](../10-theory/spatial-profiles/lowered-model-family.md).
+  They are not qualified by this single-component isotropic suite.
+- **Rotating equilibria and dynamical stability** are not established here.
+  Rotation overlays and a virial ratio near $0.5$ do not prove stationarity.
+- **Universal derivative accuracy** is not established by retained first-derivative
+  checks at selected parameters and finite-difference steps.
 
 ## References
 

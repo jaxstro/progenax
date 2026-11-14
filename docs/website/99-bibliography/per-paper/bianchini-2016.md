@@ -163,7 +163,8 @@ progenax).
 ## Use in progenax
 
 - **Derived-m_eq validation** ([](#bianchini-meq-derived)): a zero-new-parameter
-  check that our Engine A σ(m) matches Bianchini eq 3 with the derived `m_eq`.
+  check of the first-order low-mass expansion of central Engine A σ(m),
+  for δ=1/2. It is not an exact match to the full finite-mass Eq. 3 fitting law.
 - **Honest provenance for the deferred `meq`/`zeta` knobs:** Bianchini motivates
   them physically but does *not* define the code's `(m_j+meq)` form — that is a
   code heuristic, documented as such (see [Peuten et al. 2017](peuten-2017.md)).
