@@ -78,11 +78,15 @@ without any external rescale.
 **Finite extent must be checked.** Strong radial anisotropy can produce an
 extended or nontruncating model. A positive potential at the numerical endpoint
 alone does not distinguish an infinite model from an insufficient integration
-domain. The current solver raises a diagnostic for concrete Python scalar
-inputs when its endpoint-potential check fails; that guard is skipped during
-JAX tracing. Verify a zero crossing and domain convergence for the requested
-configuration. The retained $W_0=7$ examples are much more extended than the
-isotropic King model; this does not qualify an arbitrary anisotropy radius.
+domain. The raw solver retains its concrete-input endpoint diagnostic.
+`MichieProfile.from_W0_rc` and `MichieVelocityDF` additionally require a finite
+saved potential with a resolved positive-to-nonpositive crossing, including in
+compiled and differentiated construction. Raw solvers and manual constructors supplied with
+precomputed arrays retain their separate diagnostic contracts; see the
+[factory and tidal-root contract](../../20-architecture/differentiability.md#roadmap-differentiable-rt).
+Verify domain and saved-grid convergence for the requested configuration. The
+retained $W_0=7$ examples are much more extended than the isotropic King model;
+the validity check does not qualify an arbitrary anisotropy radius.
 
 ```
 

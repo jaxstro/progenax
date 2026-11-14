@@ -195,7 +195,7 @@ Accuracy also depends on convergence of the numerical reference.
 King (1966), AJ, 71, 64
 Binney & Tremaine (2008), "Galactic Dynamics", 2nd ed., Eq. 4.131
 
-*Source: [`src/progenax/kinematics/king_df.py#L65`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L65)*
+*Source: [`src/progenax/kinematics/king_df.py#L66`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L66)*
 
 (api-kinematics-kingvelocitydf-sample_velocities)=
 ### `KingVelocityDF.sample_velocities`
@@ -224,7 +224,7 @@ on [0, v_esc(r)] via a differentiable tabulated inverse-CDF; directions are isot
 
 Cartesian velocities (N, 3) [velocity units]
 
-*Source: [`src/progenax/kinematics/king_df.py#L169`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L169)*
+*Source: [`src/progenax/kinematics/king_df.py#L176`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/king_df.py#L176)*
 
 (api-kinematics-michievelocitydf)=
 ## `kinematics.MichieVelocityDF`
@@ -291,7 +291,7 @@ Sample velocities from the Michie-King DF via the 2-D (u_r, u_t) sampler.
 
 G is REQUIRED (explicit-units policy; e.g. `STELLAR.G`).
 
-*Source: [`src/progenax/kinematics/michie_df.py#L177`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/michie_df.py#L177)*
+*Source: [`src/progenax/kinematics/michie_df.py#L184`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/michie_df.py#L184)*
 
 (api-kinematics-limepyvelocitydf)=
 ## `kinematics.LIMEPYVelocityDF`
@@ -355,7 +355,7 @@ every eager intermediate (measured at N=2e4 aniso: draw-chain peak
 
 G is REQUIRED (explicit-units policy; e.g. `STELLAR.G`).
 
-*Source: [`src/progenax/kinematics/limepy_df.py#L214`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/limepy_df.py#L214)*
+*Source: [`src/progenax/kinematics/limepy_df.py#L221`](https://github.com/jaxstro/progenax/blob/main/src/progenax/kinematics/limepy_df.py#L221)*
 
 (api-kinematics-effvelocitydf)=
 ## `kinematics.EFFVelocityDF`

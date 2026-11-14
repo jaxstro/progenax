@@ -12,15 +12,15 @@ description: >-
 (release-readiness-verdict)=
 ## Current verdict
 
-**Progenax is not yet qualified for a public release.** The primary local
-released-core suite completed with 1,993 passed and one intentionally skipped
-timing case; all 24 core validation CLIs passed. Measured coverage is 97.32% line,
-89.09% branch and 96.58% combined, above the unchanged 90% combined floor. The
-local release gate passed, including 19 serial artifact checks and gradient
-regeneration/freshness. The separate serial timing benchmark also passed. See the
-[checklist](checklist.md#checklist-verified) for scope.
+**Progenax is not yet qualified for a public release.** Focused local checks
+pass for finite-model construction under eager execution, JIT and supported
+first-order AD, including derivative-only and batched calls. A finite saved
+potential must start positive and bracket its tidal zero. This enforces model
+validity; numerical accuracy and supported physical domains still need qualification.
+See the [checklist](checklist.md#checklist-verified) for the measured scope.
 
-The full local measurement uses Progenax `59b96f30`, Python 3.13.7, JAX 0.11
+The full-suite and coverage baseline predates this validity-guard patch; its
+measurements have not been restamped. It uses Progenax `59b96f30`, Python 3.13.7, JAX 0.11
 and local `jaxstro` revision `6451e183`. A separate isolated installed-wheel
 check uses public `jaxstro` revision `94b83705` and passes its smoke check and six
 existing compatibility tests. These results do not qualify every Python/JAX

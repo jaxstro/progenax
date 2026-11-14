@@ -161,7 +161,7 @@ f(v \mid W) \;\propto\; v^2\,\Bigl[\,e^{W - v^2 / (2\sigma_0^2)} - 1\,\Bigr], \q
 
 ✅ verified · 2 equations · 2 sources · [API: `MichieVelocityDF`](../30-api/kinematics.md#api-kinematics-michievelocitydf)
 
-The self-consistent radially anisotropic King model: Michie's (1963) angular-momentum Gaussian times the King lowering. Unlike the Osipkov–Merritt overlay, the DF is specified first and Poisson is re-solved, so the density itself changes with r_a. The concrete-input endpoint guard checks the chosen finite ODE domain; it does not diagnose infinite mass or radial-orbit instability and is skipped under JAX tracing.
+The self-consistent radially anisotropic King model: Michie's (1963) angular-momentum Gaussian times the King lowering. Unlike the Osipkov–Merritt overlay, the DF is specified first and Poisson is re-solved, so the density itself changes with r_a. MichieVelocityDF and the paired MichieProfile.from_W0_rc factory require a finite saved potential with a resolved tidal crossing, including compiled and differentiated construction. Raw solvers retain their separate concrete-input endpoint diagnostic. Rejection in a chosen finite ODE domain does not diagnose infinite mass or radial-orbit instability, and acceptance does not establish convergence.
 
 | Use it for | Not for |
 |---|---|

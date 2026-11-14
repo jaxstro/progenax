@@ -221,7 +221,7 @@ King (1966), AJ, 71, 64
 >>> positions = profile.sample_positions(masses, key)
 ```
 
-*Source: [`src/progenax/profiles/king.py#L362`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L362)*
+*Source: [`src/progenax/profiles/king.py#L403`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L403)*
 
 (api-profiles-kingprofile-characteristic_radius)=
 ### `KingProfile.characteristic_radius`
@@ -238,7 +238,7 @@ Return characteristic radius (tidal radius for King).
 
 Tidal radius [length units]
 
-*Source: [`src/progenax/profiles/king.py#L683`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L683)*
+*Source: [`src/progenax/profiles/king.py#L727`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L727)*
 
 (api-profiles-kingprofile-density)=
 ### `KingProfile.density`
@@ -274,7 +274,7 @@ plotting and analysis with jaxstroviz.
 
 Unnormalized density at each radius (same shape as input)
 
-*Source: [`src/progenax/profiles/king.py#L646`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L646)*
+*Source: [`src/progenax/profiles/king.py#L690`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L690)*
 
 (api-profiles-kingprofile-from_w0_rc)=
 ### `KingProfile.from_W0_rc`
@@ -305,6 +305,10 @@ self-consistent King model.
 
 KingProfile with self-consistent r_t derived from W0
 
+The raw ODE solution must be finite, start positive and bracket an actual
+tidal zero. An unresolved domain is rejected eagerly and under JIT.
+This factory check does not constrain the manual precomputed-grid constructor.
+
 **Examples**
 
 ```pycon
@@ -317,7 +321,7 @@ Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
 for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
 static under JIT; it does not change the physical equations or tolerances.
 
-*Source: [`src/progenax/profiles/king.py#L508`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L508)*
+*Source: [`src/progenax/profiles/king.py#L549`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L549)*
 
 (api-profiles-kingprofile-sample_positions)=
 ### `KingProfile.sample_positions`
@@ -343,7 +347,7 @@ Uses precomputed CDF for efficient inverse transform sampling.
 
 Particle positions [length units]
 
-*Source: [`src/progenax/profiles/king.py#L586`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L586)*
+*Source: [`src/progenax/profiles/king.py#L630`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/king.py#L630)*
 
 (api-profiles-solve_king_profile)=
 ## `profiles.solve_king_profile`
@@ -452,7 +456,7 @@ Scalar tidal radius in the same length units as r_c and r_a
 The [`from_W0_rc`](profiles.md#api-profiles-michieprofile-from_w0_rc) constructor derives this boundary from the
 potential's zero crossing. This accessor returns the stored value.
 
-*Source: [`src/progenax/profiles/michie.py#L405`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L405)*
+*Source: [`src/progenax/profiles/michie.py#L411`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L411)*
 
 (api-profiles-michieprofile-density)=
 ### `MichieProfile.density`
@@ -486,7 +490,7 @@ Differentiability:
     at r_t is a smooth-elsewhere step; cf. the gradient notes on the King/Michie
     equilibrium-solver profiles in ``kinematics/dispersion.py``).
 
-*Source: [`src/progenax/profiles/michie.py#L372`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L372)*
+*Source: [`src/progenax/profiles/michie.py#L378`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L378)*
 
 (api-profiles-michieprofile-from_w0_rc)=
 ### `MichieProfile.from_W0_rc`
@@ -526,6 +530,10 @@ MichieProfile with W0, r_c, r_a, derived r_t, the ODE solution
 ValueError: Via [`solve_michie_profile`](profiles.md#api-profiles-solve_michie_profile) for concrete inputs when
     the finite domain has not established a tidal crossing. This is
     not a proof of infinite extent or infinite mass.
+
+The factory also requires a finite raw potential that starts positive
+and brackets an actual tidal zero, including under JIT. The manual
+precomputed-grid constructor does not impose this factory check.
 
 Differentiability:
     Reverse-mode differentiable wrt W0/r_c/r_a (the r_t crossing uses the
@@ -568,7 +576,7 @@ Differentiability:
     Reverse-mode differentiable wrt the profile parameters through the CDF
     interpolation; the random draw itself is reparameterized (uniform u).
 
-*Source: [`src/progenax/profiles/michie.py#L337`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L337)*
+*Source: [`src/progenax/profiles/michie.py#L343`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/michie.py#L343)*
 
 (api-profiles-solve_michie_profile)=
 ## `profiles.solve_michie_profile`
@@ -634,16 +642,16 @@ The CDF is precomputed at construction for inverse-transform position sampling.
 | Parameter | Description |
 |---|---|
 | `W0` | Dimensionless central potential. |
-| `g` | Truncation parameter (continuous; finite extent for g <= 3.5). |
+| `g` | Truncation parameter; g < 3.5 is necessary but not sufficient for finite extent. |
 | `r_c` | Core (King) radius [length units]. |
 | `r_a` | Anisotropy radius [length units]; inf for the isotropic model. |
 | `r_t` | Truncation radius [length units], where W(r) -> 0. |
 | `xi_grid, psi_grid` | ODE solution W(xi) on a dimensionless grid. |
 | `is_aniso` | static flag selecting the anisotropic density path. |
 | `_r_grid, _cdf_grid` | precomputed mass CDF for sampling. |
-| `r_t_is_pinned` | traced bool; True iff the ODE domain was too small to reach the tidal crossing (r_t pinned to the boundary). Concrete inputs raise in `from_W0_rc`; this flag is the only signal under tracing. |
+| `r_t_is_pinned` | Traced diagnostic for a stored potential with no nonpositive node. `from_W0_rc` rejects unresolved crossings, including under JIT; manual precomputed-grid construction retains this diagnostic. |
 
-*Source: [`src/progenax/profiles/limepy.py#L384`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L384)*
+*Source: [`src/progenax/profiles/limepy.py#L381`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L381)*
 
 (api-profiles-limepyprofile-characteristic_radius)=
 ### `LIMEPYProfile.characteristic_radius`
@@ -656,7 +664,7 @@ characteristic_radius(self) -> Float[Array, '']
 
 Truncation radius r_t (the model's outer scale).
 
-*Source: [`src/progenax/profiles/limepy.py#L576`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L576)*
+*Source: [`src/progenax/profiles/limepy.py#L580`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L580)*
 
 (api-profiles-limepyprofile-density)=
 ### `LIMEPYProfile.density`
@@ -669,7 +677,7 @@ density(self, r: Float[Array, '...']) -> Float[Array, '...']
 
 Normalized radial density rho(r)/rho_0 (general-g; anisotropic if r_a set).
 
-*Source: [`src/progenax/profiles/limepy.py#L556`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L556)*
+*Source: [`src/progenax/profiles/limepy.py#L560`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L560)*
 
 (api-profiles-limepyprofile-from_w0_rc)=
 ### `LIMEPYProfile.from_W0_rc`
@@ -690,11 +698,16 @@ sizes static, so the parameters may be tracers and profile-shape functionals
 carry their gradients. The truncation radius r_t is the interpolated
 zero-crossing of the UNCLAMPED psi, so d(r_t)/dW0 flows (as in KingProfile).
 
+The raw solution must be finite, start positive and bracket an actual
+tidal zero. An unresolved domain is rejected eagerly and under JIT.
+This does not classify its physical extent, mass or stability, and does
+not constrain the manual precomputed-grid constructor.
+
 Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
 for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
 static under JIT; it does not change the physical equations or tolerances.
 
-*Source: [`src/progenax/profiles/limepy.py#L484`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L484)*
+*Source: [`src/progenax/profiles/limepy.py#L481`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L481)*
 
 (api-profiles-limepyprofile-sample_positions)=
 ### `LIMEPYProfile.sample_positions`
@@ -707,7 +720,7 @@ sample_positions(self, masses: Float[Array, 'N'], key: PRNGKeyArray) -> Float[Ar
 
 Sample isotropic positions via the precomputed inverse mass CDF.
 
-*Source: [`src/progenax/profiles/limepy.py#L535`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L535)*
+*Source: [`src/progenax/profiles/limepy.py#L539`](https://github.com/jaxstro/progenax/blob/main/src/progenax/profiles/limepy.py#L539)*
 
 (api-profiles-solve_limepy_profile)=
 ## `profiles.solve_limepy_profile`

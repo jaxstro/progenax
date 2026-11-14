@@ -157,7 +157,7 @@ Clausius statement with <v^2>_j from the per-component Eddington DF
 speed moments on the full Poisson grid (`n` is unused there -- the
 stored grid resolution is the quadrature).
 
-*Source: [`src/progenax/cluster/multicomponent.py#L734`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L734)*
+*Source: [`src/progenax/cluster/multicomponent.py#L737`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L737)*
 
 (api-cluster-multicomponentcluster-estimate_expectation)=
 ### `MultiComponentCluster.estimate_expectation`
@@ -188,7 +188,7 @@ Discontinuous observables (for example hard spatial cuts) need their own
 boundary treatment and are not made differentiable by this estimator.
 Constructor AD mode and fit-convergence requirements still apply.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L889`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L889)*
+*Source: [`src/progenax/cluster/multicomponent.py#L892`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L892)*
 
 (api-cluster-multicomponentcluster-estimate_mass_squared_and_kinetic)=
 ### `MultiComponentCluster.estimate_mass_squared_and_kinetic`
@@ -224,7 +224,7 @@ Engine B use of this method are unqualified. Existing constructor
 AD-mode and fit-convergence requirements apply. The general scalar
 `estimate_expectation` API retains its observable-dependent variance.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L983`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L983)*
+*Source: [`src/progenax/cluster/multicomponent.py#L986`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L986)*
 
 (api-cluster-multicomponentcluster-estimate_population_moments)=
 ### `MultiComponentCluster.estimate_population_moments`
@@ -274,7 +274,7 @@ radius 3 pc, isotropic core), including first derivatives in the mass
 fraction, both component scales and finite halo anisotropy radius. Broader population-moment coverage remains
 under qualification.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L924`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L924)*
+*Source: [`src/progenax/cluster/multicomponent.py#L927`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L927)*
 
 (api-cluster-multicomponentcluster-from_components)=
 ### `MultiComponentCluster.from_components`
@@ -305,7 +305,7 @@ Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
 for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
 static under JIT; it does not change the physical equations or tolerances.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L427`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L427)*
+*Source: [`src/progenax/cluster/multicomponent.py#L430`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L430)*
 
 (api-cluster-multicomponentcluster-from_density_profiles)=
 ### `MultiComponentCluster.from_density_profiles`
@@ -339,7 +339,7 @@ quantities (W0, g, r_c, mu_tot, alpha_j, w_j, ra_hat_j, xi_grid,
 psi_grid, residual) do not exist here (`engine_a` is None) -- accessing
 them raises an informative AttributeError naming the engine.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L684`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L684)*
+*Source: [`src/progenax/cluster/multicomponent.py#L687`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L687)*
 
 (api-cluster-multicomponentcluster-from_imf)=
 ### `MultiComponentCluster.from_imf`
@@ -375,7 +375,7 @@ and do not replace fit_tol, which controls the mass-fraction residual.
 The adjoint keyword selects the ODE mode: None for checkpointed reverse (default),
 diffrax.ForwardMode() for forward, or diffrax.DirectAdjoint() for both.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L563`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L563)*
+*Source: [`src/progenax/cluster/multicomponent.py#L566`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L566)*
 
 (api-cluster-multicomponentcluster-from_mass_segregation)=
 ### `MultiComponentCluster.from_mass_segregation`
@@ -399,7 +399,7 @@ Use adjoint=None for checkpointed reverse AD (default), diffrax.ForwardMode()
 for forward AD, or diffrax.DirectAdjoint() for both. Keep this choice
 static under JIT; it does not change the physical equations or tolerances.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L507`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L507)*
+*Source: [`src/progenax/cluster/multicomponent.py#L510`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L510)*
 
 (api-cluster-multicomponentcluster-g)=
 ### `MultiComponentCluster.g`
@@ -459,7 +459,7 @@ so the concept is physically meaningless there: raises ValueError
 (kept distinct from the delegating properties' AttributeError for the
 stored A-only leaves; rescale_j is a DERIVED quantity).
 
-*Source: [`src/progenax/cluster/multicomponent.py#L407`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L407)*
+*Source: [`src/progenax/cluster/multicomponent.py#L410`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L410)*
 
 (api-cluster-multicomponentcluster-residual)=
 ### `MultiComponentCluster.residual`
@@ -514,7 +514,7 @@ compiled kernel). ICResult is assembled outside the JIT boundary.
 
 G is REQUIRED (explicit-units policy; e.g. `STELLAR.G`).
 
-*Source: [`src/progenax/cluster/multicomponent.py#L844`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L844)*
+*Source: [`src/progenax/cluster/multicomponent.py#L847`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L847)*
 
 (api-cluster-multicomponentcluster-total_density)=
 ### `MultiComponentCluster.total_density`
@@ -539,7 +539,7 @@ engines' amplitudes are therefore DIFFERENT dimensionless conventions
 (A: unit central density; B: unit total mass) -- shapes are comparable,
 amplitudes are not.
 
-*Source: [`src/progenax/cluster/multicomponent.py#L804`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L804)*
+*Source: [`src/progenax/cluster/multicomponent.py#L807`](https://github.com/jaxstro/progenax/blob/main/src/progenax/cluster/multicomponent.py#L807)*
 
 (api-cluster-multicomponentcluster-w_j)=
 ### `MultiComponentCluster.w_j`

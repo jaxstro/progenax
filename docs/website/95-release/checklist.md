@@ -10,8 +10,8 @@ description: >-
 # Release checklist
 
 The [current verdict](index.md#release-readiness-verdict) remains **not qualified
-for release**. The local release gate and separate uninstrumented timing
-benchmark passed within the measured scope below.
+for release**. The validity-guard patch has focused local checks. The full
+release gate and uninstrumented timing baseline below predate that patch.
 
 (checklist-blockers)=
 ## Qualification still required
@@ -27,10 +27,16 @@ benchmark passed within the measured scope below.
 (checklist-verified)=
 ## Completed local checks
 
-The primary measurement uses Progenax `59b96f30`, Python 3.13.7, JAX 0.11 and
+The full-suite and coverage baseline uses Progenax `59b96f30`, Python 3.13.7, JAX 0.11 and
 local `jaxstro` revision `6451e183`. The separate installed-wheel check below uses
 public `jaxstro`; its scope is narrower than the local suite.
 
+- [x] **Finite-model validity guards:** focused checks cover eager execution, JIT,
+  forward/reverse first-order AD, derivative-only outputs and mixed valid/invalid
+  batches. Profile factories, standalone velocity DFs and completed Engine A
+  models require an actual tidal crossing. Physics, grids and solver tolerances
+  are unchanged; raw diagnostics and manual precomputed-profile constructors
+  retain their contracts. These checks do not refresh full-selector coverage.
 - [x] **Primary released-core suite:** 1,993 passed and one intentionally skipped
   timing case in 5,017.25 seconds. That case passed in the separate serial run below.
 - [x] **Measured coverage:** 97.32% line, 89.09% branch and 96.58% combined. The

@@ -316,6 +316,17 @@ physical density and speed support is restricted to the nonnegative-potential do
 crossing exists; that fallback is not evidence of a physically truncated model.
 A flat multiple zero is outside the differentiable root contract.
 
+The finite-model factories `KingProfile.from_W0_rc`, `MichieProfile.from_W0_rc`
+and `LIMEPYProfile.from_W0_rc`, the standalone `KingVelocityDF`, `MichieVelocityDF`
+and `LIMEPYVelocityDF` constructors, and completed Engine A models require finite
+saved potential values, a positive first value and an adjacent
+positive-to-nonpositive bracket. This is the structural $W=0$ crossing condition;
+it introduces no endpoint tolerance. Construction rejects a failed condition in
+eager, compiled and supported first-order differentiated calls. Raw solvers and
+manual constructors receiving precomputed profile arrays retain their separate
+diagnostic contracts. Passing the factory check does not establish saved-grid,
+ODE, observable or derivative accuracy; those still require convergence checks.
+
 ### Science cases it enables
 
 ```{list-table}
