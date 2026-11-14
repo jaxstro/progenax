@@ -67,7 +67,11 @@ def _blend_unresolved(ic) -> tuple[np.ndarray, np.ndarray]:
 
     order = np.argsort(sys_id, kind="stable")
     pos, vel, m, lum, sys_id = (
-        pos[order], vel[order], m[order], lum[order], sys_id[order]
+        pos[order],
+        vel[order],
+        m[order],
+        lum[order],
+        sys_id[order],
     )
     uniq, start, counts = np.unique(sys_id, return_index=True, return_counts=True)
     out_pos = np.empty((len(uniq), 3))
@@ -88,12 +92,16 @@ def build_binary_phase_space() -> plt.Figure:
 
     setup_style()
     fig, axes = plt.subplots(
-        2, 2, figsize=(7.8, 5.2), constrained_layout=True,
-        sharey=True, sharex="row",
+        2,
+        2,
+        figsize=(7.8, 5.2),
+        constrained_layout=True,
+        sharey=True,
+        sharex="row",
     )
     cmap = sns.color_palette("mako_r", as_cmap=True)
     hex_norm = LogNorm(vmin=1, vmax=1e3)
-    env_color = "#E76F51"   # same coral as the single-population phase plot
+    env_color = "#E76F51"  # same coral as the single-population phase plot
     binary_color = "#8E5A7F"  # plum (palette NEGATIVE) — distinct from teal/coral
     key = jax.random.PRNGKey(SEED)
     k_eff, k_king = jax.random.split(key)
@@ -158,32 +166,69 @@ def build_binary_phase_space() -> plt.Figure:
         n_viol = int(violator.sum())
 
         panels = [
-            (axes[row][0], f"resolved — {title}",
-             dict(hex_xy=(r[~violator], v_r[~violator]),
-                  scatter=(r[violator], v_r[violator]),
-                  sigma_text=(rf"$\sigma_{{1\mathrm{{d}}}} = {sigma:.2f}$"
-                              "\n" + rf"singles: ${sigma_single:.2f}$"
-                              "\n" + rf"{n_viol:,} violators"))),
-            (axes[row][1], "unresolved — flux-weighted blends",
-             dict(hex_xy=(r_b, v_rb), scatter=None,
-                  sigma_text=rf"$\sigma_{{1\mathrm{{d}}}} = {sigma_b:.2f}$")),
+            (
+                axes[row][0],
+                f"resolved — {title}",
+                dict(
+                    hex_xy=(r[~violator], v_r[~violator]),
+                    scatter=(r[violator], v_r[violator]),
+                    sigma_text=(
+                        rf"$\sigma_{{1\mathrm{{d}}}} = {sigma:.2f}$"
+                        "\n" + rf"singles: ${sigma_single:.2f}$"
+                        "\n" + rf"{n_viol:,} violators"
+                    ),
+                ),
+            ),
+            (
+                axes[row][1],
+                "unresolved — flux-weighted blends",
+                dict(
+                    hex_xy=(r_b, v_rb),
+                    scatter=None,
+                    sigma_text=rf"$\sigma_{{1\mathrm{{d}}}} = {sigma_b:.2f}$",
+                ),
+            ),
         ]
         for ax, ptitle, d in panels:
             if d["scatter"] is not None:
-                ax.plot(*d["scatter"], ".", ms=1.4, color=binary_color,
-                        alpha=0.35, rasterized=True, zorder=1)
+                ax.plot(
+                    *d["scatter"],
+                    ".",
+                    ms=1.4,
+                    color=binary_color,
+                    alpha=0.35,
+                    rasterized=True,
+                    zorder=1,
+                )
             hb = ax.hexbin(
-                *d["hex_xy"], gridsize=(90, 55), norm=hex_norm, cmap=cmap,
-                mincnt=1, linewidths=0.1, extent=(0.0, r_max, -11.0, 11.0),
+                *d["hex_xy"],
+                gridsize=(90, 55),
+                norm=hex_norm,
+                cmap=cmap,
+                mincnt=1,
+                linewidths=0.1,
+                extent=(0.0, r_max, -11.0, 11.0),
                 zorder=2,
             )
             ax.plot(r_grid, env, color=env_color, lw=1.2, zorder=3)
             ax.plot(r_grid, -env, color=env_color, lw=1.2, zorder=3)
             ax.axvline(r_t, color="#9A9A9A", lw=0.7, ls=(0, (4, 2)), alpha=0.8)
-            ax.annotate(r"$r_t$", xy=(r_t, 400), xytext=(r_t * 0.86, 430),
-                        fontsize=7.4, color="#7A7A7A")
-            ax.text(0.975, 0.04, d["sigma_text"], transform=ax.transAxes,
-                    ha="right", va="bottom", fontsize=7.0)
+            ax.annotate(
+                r"$r_t$",
+                xy=(r_t, 400),
+                xytext=(r_t * 0.86, 430),
+                fontsize=7.4,
+                color="#7A7A7A",
+            )
+            ax.text(
+                0.975,
+                0.04,
+                d["sigma_text"],
+                transform=ax.transAxes,
+                ha="right",
+                va="bottom",
+                fontsize=7.0,
+            )
             ax.set_title(ptitle, fontsize=8.0)
             ax.set_yscale("symlog", linthresh=11.0, linscale=2.2)
             ax.set_ylim(-1100, 1100)
@@ -197,10 +242,17 @@ def build_binary_phase_space() -> plt.Figure:
         ax.set_xlabel(r"$r$  [pc]")
 
     # legend proxies (first panel), colorbar (shared, like the single-pop figure)
-    axes[0][0].plot([], [], ".", ms=4, color=binary_color,
-                    label="envelope violators (binary orbits)")
-    axes[0][0].plot([], [], color=env_color, lw=1.2,
-                    label=r"single-star $\pm v_{\rm esc}$")
+    axes[0][0].plot(
+        [],
+        [],
+        ".",
+        ms=4,
+        color=binary_color,
+        label="envelope violators (binary orbits)",
+    )
+    axes[0][0].plot(
+        [], [], color=env_color, lw=1.2, label=r"single-star $\pm v_{\rm esc}$"
+    )
     axes[0][0].legend(frameon=False, fontsize=6.4, loc="lower left")
     cb = fig.colorbar(hb, ax=axes, pad=0.012, aspect=34)
     cb.set_label("stars per hex (log)", fontsize=7.2)

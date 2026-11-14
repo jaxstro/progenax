@@ -185,6 +185,8 @@ class TestPowerPpfStable:
 
     def test_grad_finite_under_jit(self):
         f = jax.jit(
-            jax.grad(lambda e: power_ppf_stable(0.1, power_integral_stable(0.1, 100.0, e), e))
+            jax.grad(
+                lambda e: power_ppf_stable(0.1, power_integral_stable(0.1, 100.0, e), e)
+            )
         )
         assert jnp.isfinite(f(0.0)) and jnp.isfinite(f(-1.35))

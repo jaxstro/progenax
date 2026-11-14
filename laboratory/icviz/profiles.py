@@ -29,7 +29,9 @@ def _half_mass_radius(profile, r_max: float) -> float:
     r = np.geomspace(1e-4, r_max, 4000)
     rho = np.array(profile.density(jnp.asarray(r)))
     integ = rho * r**3  # d(ln r) quadrature: 4 pi rho r^2 * r
-    m = np.concatenate([[0.0], np.cumsum(0.5 * (integ[1:] + integ[:-1]) * np.diff(np.log(r)))])
+    m = np.concatenate(
+        [[0.0], np.cumsum(0.5 * (integ[1:] + integ[:-1]) * np.diff(np.log(r)))]
+    )
     m /= m[-1]
     return float(np.interp(0.5, m, r))
 
@@ -49,7 +51,13 @@ def build_family_portrait() -> plt.Figure:
     members.append((r"EFF $\gamma=3.5$", eff, 60.0, "#2A9D8F", "-"))
     michie = MichieProfile.from_W0_rc(W0=7.0, r_c=1.0, r_a=8.0)
     members.append(
-        (r"Michie $W_0=7,\ r_a=8r_c$", michie, float(michie.r_t), "#6C5B7B", (0, (4, 2)))
+        (
+            r"Michie $W_0=7,\ r_a=8r_c$",
+            michie,
+            float(michie.r_t),
+            "#6C5B7B",
+            (0, (4, 2)),
+        )
     )
 
     for label, prof, r_max, color, ls in members:
@@ -130,7 +138,9 @@ def build_density_residuals() -> plt.Figure:
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_title(label, fontsize=8.6)
-        ax.set_ylabel(r"$\rho(r)\,/\,M_{\rm tot}$" if label.startswith("Plummer") else "")
+        ax.set_ylabel(
+            r"$\rho(r)\,/\,M_{\rm tot}$" if label.startswith("Plummer") else ""
+        )
         polish_axes(ax)
 
         resid = rho_hat[good] / rho_true[good] - 1.0

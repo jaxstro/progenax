@@ -289,9 +289,8 @@ class TestCatalogedBinaryCluster:
 
         result = _cataloged_cluster(target=Systems(48), seed=25, compact=False)
         catalog = result.primordial_systems
-        radii_position = (
-            result.stellar_radii.reshape((-1, 2))
-            * (RSUN_CM / STELLAR.length_scale_cgs)
+        radii_position = result.stellar_radii.reshape((-1, 2)) * (
+            RSUN_CM / STELLAR.length_scale_cgs
         )
         expected = catalog.semimajor_axes * (1.0 - catalog.eccentricities) - jnp.sum(
             radii_position, axis=1
@@ -312,9 +311,7 @@ class TestCatalogedBinaryCluster:
                 PowerLawIMF.kroupa(),
                 _independent(
                     fbin=0.6,
-                    period=LogUniformPeriod(
-                        log_P_min=1.0, log_P_max=log_period_max
-                    ),
+                    period=LogUniformPeriod(log_P_min=1.0, log_P_max=log_period_max),
                 ),
                 Systems(40),
                 jax.random.PRNGKey(26),

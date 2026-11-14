@@ -47,8 +47,10 @@ def build_engine_a_segregation() -> plt.Figure:
     m_j = [0.3, 1.0, 3.0]
     key = jax.random.PRNGKey(SEED)
 
-    for ax, delta, title in ((ax0, 0.0, r"$\delta = 0$ — no segregation"),
-                             (ax1, 0.5, r"$\delta = \frac{1}{2}$ — equipartition ansatz")):
+    for ax, delta, title in (
+        (ax0, 0.0, r"$\delta = 0$ — no segregation"),
+        (ax1, 0.5, r"$\delta = \frac{1}{2}$ — equipartition ansatz"),
+    ):
         model = MultiComponentCluster.from_mass_segregation(
             alpha_j=jnp.array([1 / 3, 1 / 3, 1 / 3]),
             m_j=jnp.array(m_j),
@@ -64,8 +66,17 @@ def build_engine_a_segregation() -> plt.Figure:
         for j, (m, color) in enumerate(zip(m_j, _COMP_COLORS)):
             sel = comp == j
             c, d, e = _binned_number_density(radii[sel], bins, int(sel.sum()))
-            ax.errorbar(c, d, yerr=e, fmt="o", ms=2.4, lw=0.7, color=color,
-                        alpha=0.7, label=rf"$m_j = {m:g}\,\mathrm{{M_\odot}}$")
+            ax.errorbar(
+                c,
+                d,
+                yerr=e,
+                fmt="o",
+                ms=2.4,
+                lw=0.7,
+                color=color,
+                alpha=0.7,
+                label=rf"$m_j = {m:g}\,\mathrm{{M_\odot}}$",
+            )
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_title(title, fontsize=8.4)
@@ -76,7 +87,10 @@ def build_engine_a_segregation() -> plt.Figure:
     ax0.legend(frameon=False, fontsize=6.8, loc="lower left")
     ax1.annotate(
         "heavier components sink:\na DEEPER effective well,\nnot a reshuffle",
-        xy=(0.5, 3e-4), xytext=(2.6, 6e-3), fontsize=7.0, color="#555555",
+        xy=(0.5, 3e-4),
+        xytext=(2.6, 6e-3),
+        fontsize=7.0,
+        color="#555555",
         arrowprops=dict(arrowstyle="-", color="#888888", lw=0.6),
     )
     return fig
@@ -142,14 +156,27 @@ def build_engine_b_mix() -> plt.Figure:
                 sig[i] = np.std(vr_j[s])
                 err[i] = sig[i] / np.sqrt(2 * (n - 1))
         good = ~np.isnan(sig)
-        ax_sig.errorbar(centers[good], sig[good], yerr=err[good], fmt="o", ms=2.6,
-                        lw=0.7, color=color, alpha=0.75, label=label)
+        ax_sig.errorbar(
+            centers[good],
+            sig[good],
+            yerr=err[good],
+            fmt="o",
+            ms=2.6,
+            lw=0.7,
+            color=color,
+            alpha=0.75,
+            label=label,
+        )
 
     q_j = np.array(model.component_virial_ratios())
     ax_sig.text(
-        0.97, 0.95,
+        0.97,
+        0.95,
         rf"theory oracle: $Q_1 = {q_j.ravel()[0]:.3f}$, $Q_2 = {q_j.ravel()[1]:.3f}$",
-        transform=ax_sig.transAxes, ha="right", va="top", fontsize=7.2,
+        transform=ax_sig.transAxes,
+        ha="right",
+        va="top",
+        fontsize=7.2,
     )
     ax_sig.set_xscale("log")
     ax_sig.set_xlabel(r"$r$  [pc]")

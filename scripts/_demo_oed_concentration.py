@@ -451,9 +451,7 @@ def jacobian_and_sigma(theta, R_bins, G, model):
     J = jax.jacrev(predict_sigma, argnums=0)(
         theta, R_bins, G, model
     )  # (3, K, 3) -- d sigma / d theta
-    return J * theta[
-        None, None, :
-    ], sig  # -> d sigma / d ln theta (DIMENSIONLESS)
+    return J * theta[None, None, :], sig  # -> d sigma / d ln theta (DIMENSIONLESS)
 
 
 # ===========================================================================

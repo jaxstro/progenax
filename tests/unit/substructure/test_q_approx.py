@@ -244,7 +244,9 @@ class TestQApproxCalibrationAccuracy:
     """
 
     def test_calibrated_q_approx_matches_exact(self):
-        pytest.importorskip("scipy")  # exact compute_q_parameter needs the [diagnostics] extra
+        pytest.importorskip(
+            "scipy"
+        )  # exact compute_q_parameter needs the [diagnostics] extra
         from progenax import UniformSphereProfile
         from progenax.diagnostics.q_approx import q_approx
         from progenax.diagnostics.substructure import compute_q_parameter

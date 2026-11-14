@@ -62,9 +62,7 @@ def build_imf_classic_slopes() -> plt.Figure:
     m_grid = np.geomspace(0.01, 150.0, 600)
 
     # --- (a) dN/dln m: analytic curves + sampled histograms -----------------
-    for (label, imf, color), k in zip(
-        _FAMILIES, jax.random.split(key, len(_FAMILIES))
-    ):
+    for (label, imf, color), k in zip(_FAMILIES, jax.random.split(key, len(_FAMILIES))):
         samples = np.asarray(imf.sample(k, _N_SAMPLES))
         bins = np.geomspace(imf.m_min, imf.m_max, 70)
         hist, edges = np.histogram(samples, bins=bins, density=True)
@@ -94,25 +92,35 @@ def build_imf_classic_slopes() -> plt.Figure:
     # 1-Msun kink, Maschberger's single smooth curve.
     ax_slope.annotate(
         "Kroupa breakpoint\njumps",
-        xy=(0.5, 1.82), xytext=(0.32, 2.6), color="#E76F51", fontsize=7.0,
-        arrowprops=dict(arrowstyle="-", color="#E76F51", lw=0.7, alpha=0.8,
-                        shrinkB=2),
+        xy=(0.5, 1.82),
+        xytext=(0.32, 2.6),
+        color="#E76F51",
+        fontsize=7.0,
+        arrowprops=dict(arrowstyle="-", color="#E76F51", lw=0.7, alpha=0.8, shrinkB=2),
         ha="center",
     )
     ax_slope.annotate(
         "",
-        xy=(0.083, 0.9), xytext=(0.19, 2.42),
+        xy=(0.083, 0.9),
+        xytext=(0.19, 2.42),
         arrowprops=dict(arrowstyle="-", color="#E76F51", lw=0.7, alpha=0.8),
     )
     ax_slope.annotate(
         "Chabrier kink\nat $1\,\mathrm{M_\odot}$",
-        xy=(1.0, 2.12), xytext=(4.5, 1.35), color="#C79A2E", fontsize=7.0,
+        xy=(1.0, 2.12),
+        xytext=(4.5, 1.35),
+        color="#C79A2E",
+        fontsize=7.0,
         arrowprops=dict(arrowstyle="-", color="#C79A2E", lw=0.7, alpha=0.8),
         ha="center",
     )
     ax_slope.text(
-        3.4, 0.55, "Maschberger:\none smooth curve", color="#2A9D8F",
-        fontsize=7.0, ha="center",
+        3.4,
+        0.55,
+        "Maschberger:\none smooth curve",
+        color="#2A9D8F",
+        fontsize=7.0,
+        ha="center",
     )
 
     ax_slope.set_xscale("log")

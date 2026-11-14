@@ -173,9 +173,7 @@ def load_toc_files() -> set[str]:
     return set(entries)
 
 
-def scan_toc_membership(
-    path: Path, lines: list[str], toc: set[str]
-) -> list[Finding]:
+def scan_toc_membership(path: Path, lines: list[str], toc: set[str]) -> list[Finding]:
     """(d) GATE: every resolving .md link must point at a toc-listed page."""
     findings: list[Finding] = []
     base_dir = path.parent
@@ -193,7 +191,11 @@ def scan_toc_membership(
                 continue  # outside the site tree (e.g. repo README links)
             if rel not in toc:
                 findings.append(
-                    Finding(path, lineno, f"-> {target} (exists but NOT in the myst.yml toc — unbuilt on the site)")
+                    Finding(
+                        path,
+                        lineno,
+                        f"-> {target} (exists but NOT in the myst.yml toc — unbuilt on the site)",
+                    )
                 )
     return findings
 

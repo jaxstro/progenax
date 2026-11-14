@@ -17,7 +17,9 @@ from progenax.cluster.sampling import _estimate_population_moments
 from progenax.imf.smooth import Maschberger
 from progenax.profiles.limepy_multimass import _aniso_v2hat_scalar
 
-OUT = Path("docs/reviews/plummer-om-artifacts/population-moment-anisotropic-mapped-pilot.json")
+OUT = Path(
+    "docs/reviews/plummer-om-artifacts/population-moment-anisotropic-mapped-pilot.json"
+)
 THETA = jnp.array([2.3, 0.4, 5.0, 10.0])
 
 

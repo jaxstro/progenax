@@ -52,7 +52,11 @@ def build_king_lowered_maxwellian() -> plt.Figure:
     maxwellian = v_full**2 * np.exp(-(v_full**2) / 2)
     max_norm = np.trapezoid(maxwellian, v_full)
     ax.plot(
-        v_full, maxwellian / max_norm, color="#8A8A8A", lw=1.0, ls=(0, (3, 2)),
+        v_full,
+        maxwellian / max_norm,
+        color="#8A8A8A",
+        lw=1.0,
+        ls=(0, (3, 2)),
         label="pure Maxwellian",
     )
 
@@ -68,7 +72,9 @@ def build_king_lowered_maxwellian() -> plt.Figure:
 
     ax.annotate(
         r"cut at $v_{\rm esc} = \sqrt{2W}$",
-        xy=(np.sqrt(12.0), 0.075), xytext=(4.05, 0.22), fontsize=7.2,
+        xy=(np.sqrt(12.0), 0.075),
+        xytext=(4.05, 0.22),
+        fontsize=7.2,
         color="#555555",
         arrowprops=dict(arrowstyle="-", color="#888888", lw=0.6),
     )
@@ -127,8 +133,14 @@ def build_plummer_dispersion_oracles() -> plt.Figure:
     ax.plot(centers, sig_true, color="#355C7D", label="closed form")
     good = ~np.isnan(sig_hat)
     ax.errorbar(
-        centers[good], sig_hat[good], yerr=sig_err[good],
-        fmt="o", ms=2.6, lw=0.7, color="#355C7D", alpha=0.55,
+        centers[good],
+        sig_hat[good],
+        yerr=sig_err[good],
+        fmt="o",
+        ms=2.6,
+        lw=0.7,
+        color="#355C7D",
+        alpha=0.55,
         label=r"sampled ($N = 2{\times}10^5$)",
     )
     ax.set_xscale("log")
@@ -156,12 +168,20 @@ def build_plummer_dispersion_oracles() -> plt.Figure:
     ax, ax_res = axes[0][1], axes[1][1]
     ax.plot(np.array(R), oracle, color="#2A9D8F", label="Dejonghe (1987) Eq. 43")
     ax.plot(
-        np.array(R), sig_los, "o", ms=2.6, color="#2A9D8F", alpha=0.55,
+        np.array(R),
+        sig_los,
+        "o",
+        ms=2.6,
+        color="#2A9D8F",
+        alpha=0.55,
         label="`project_dispersion`",
     )
     ax.set_xscale("log")
     ax.set_ylabel(r"$\sigma_{\rm los}(R)$  [pc/Myr]")
-    ax.set_title(r"projected: $\sigma_{\rm los}^2 = \frac{3\pi}{64}\, GM/\sqrt{a^2+R^2}$", fontsize=8.4)
+    ax.set_title(
+        r"projected: $\sigma_{\rm los}^2 = \frac{3\pi}{64}\, GM/\sqrt{a^2+R^2}$",
+        fontsize=8.4,
+    )
     ax.legend(frameon=False, fontsize=6.6)
     polish_axes(ax)
     resid = sig_los / oracle - 1.0
@@ -206,11 +226,20 @@ def build_beta_anisotropy() -> plt.Figure:
 
     # OM-Plummer (r_a = 2) and OM-EFF (r_a = 3): realized beta vs identity.
     cases = [
-        ("Plummer + OM, $r_a = 2$", PlummerProfile(r_h=1.0),
-         PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0), 2.0, "#355C7D"),
-        (r"EFF $\gamma=5$ + OM, $r_a = 3$", EFFProfile(a=0.766, gamma=5.0, r_t=12.0),
-         EFFVelocityDF(a=0.766, gamma=5.0, r_t=12.0, anisotropy_radius=3.0), 3.0,
-         "#2A9D8F"),
+        (
+            "Plummer + OM, $r_a = 2$",
+            PlummerProfile(r_h=1.0),
+            PlummerVelocityDF(r_h=1.0, anisotropy_radius=2.0),
+            2.0,
+            "#355C7D",
+        ),
+        (
+            r"EFF $\gamma=5$ + OM, $r_a = 3$",
+            EFFProfile(a=0.766, gamma=5.0, r_t=12.0),
+            EFFVelocityDF(a=0.766, gamma=5.0, r_t=12.0, anisotropy_radius=3.0),
+            3.0,
+            "#2A9D8F",
+        ),
     ]
     bins = np.geomspace(0.08, 9.0, 22)
     for label, prof, df, r_a, color in cases:
@@ -222,8 +251,9 @@ def build_beta_anisotropy() -> plt.Figure:
         r_fine = np.geomspace(0.08, 9.0, 300)
         ax.plot(r_fine, r_fine**2 / (r_fine**2 + r_a**2), color=color, lw=1.2)
         good = ~np.isnan(beta)
-        ax.plot(centers[good], beta[good], "o", ms=3.0, color=color, alpha=0.65,
-                label=label)
+        ax.plot(
+            centers[good], beta[good], "o", ms=3.0, color=color, alpha=0.65, label=label
+        )
 
     # Michie: realized beta sits BELOW its OM ceiling (lowered model).
     key, k_pos, k_vel = jax.random.split(key, 3)
@@ -235,11 +265,24 @@ def build_beta_anisotropy() -> plt.Figure:
     bins_m = np.geomspace(0.3, float(mich_prof.r_t) * 0.75, 20)
     centers, beta = _binned_beta(np.array(pos), np.array(vel), bins_m)
     r_fine = np.geomspace(0.3, float(mich_prof.r_t) * 0.75, 300)
-    ax.plot(r_fine, r_fine**2 / (r_fine**2 + 8.0**2), color="#6C5B7B", lw=1.0,
-            ls=(0, (4, 2)), label="OM ceiling $r_a = 8$")
+    ax.plot(
+        r_fine,
+        r_fine**2 / (r_fine**2 + 8.0**2),
+        color="#6C5B7B",
+        lw=1.0,
+        ls=(0, (4, 2)),
+        label="OM ceiling $r_a = 8$",
+    )
     good = ~np.isnan(beta)
-    ax.plot(centers[good], beta[good], "s", ms=3.0, color="#6C5B7B", alpha=0.65,
-            label=r"Michie $W_0=7$, $r_a=8 r_c$ (lowered)")
+    ax.plot(
+        centers[good],
+        beta[good],
+        "s",
+        ms=3.0,
+        color="#6C5B7B",
+        alpha=0.65,
+        label=r"Michie $W_0=7$, $r_a=8 r_c$ (lowered)",
+    )
 
     ax.set_xscale("log")
     ax.set_ylim(-0.12, 1.0)
@@ -291,10 +334,22 @@ def build_eddington_triptych() -> plt.Figure:
     f_num = np.array(f_grid)
     f_true = (24.0 * np.sqrt(2.0) / (7.0 * np.pi**3)) * E**3.5
 
-    ax3.plot(E, f_true, color="#2A9D8F", label=r"$\frac{24\sqrt{2}}{7\pi^3}\,\mathcal{E}^{7/2}$")
+    ax3.plot(
+        E,
+        f_true,
+        color="#2A9D8F",
+        label=r"$\frac{24\sqrt{2}}{7\pi^3}\,\mathcal{E}^{7/2}$",
+    )
     step = max(1, len(E) // 28)
-    ax3.plot(E[::step], f_num[::step], "o", ms=2.8, color="#2A9D8F", alpha=0.6,
-             label="`eddington_invert`")
+    ax3.plot(
+        E[::step],
+        f_num[::step],
+        "o",
+        ms=2.8,
+        color="#2A9D8F",
+        alpha=0.6,
+        label="`eddington_invert`",
+    )
     ax3.set_xlabel(r"$\mathcal{E}$")
     ax3.set_ylabel(r"$f(\mathcal{E})$")
     ax3.set_title("the inverted DF (numerical dots on the law)", fontsize=8.2)
@@ -320,10 +375,22 @@ def _psi_from_density(prof, r_grid: np.ndarray, M: float) -> np.ndarray:
     m_shape = np.trapezoid(4.0 * np.pi * rho * r_grid**2, r_grid)
     rho = rho * (M / m_shape)
     inner = np.concatenate(
-        [[0.0], np.cumsum(0.5 * (rho[1:] * r_grid[1:] ** 2 + rho[:-1] * r_grid[:-1] ** 2) * np.diff(r_grid))]
+        [
+            [0.0],
+            np.cumsum(
+                0.5
+                * (rho[1:] * r_grid[1:] ** 2 + rho[:-1] * r_grid[:-1] ** 2)
+                * np.diff(r_grid)
+            ),
+        ]
     )
     tail = np.concatenate(
-        [[0.0], np.cumsum(0.5 * (rho[1:] * r_grid[1:] + rho[:-1] * r_grid[:-1]) * np.diff(r_grid))]
+        [
+            [0.0],
+            np.cumsum(
+                0.5 * (rho[1:] * r_grid[1:] + rho[:-1] * r_grid[:-1]) * np.diff(r_grid)
+            ),
+        ]
     )
     outer = tail[-1] - tail
     phi = -4.0 * np.pi * float(_G) * (inner / np.maximum(r_grid, 1e-12) + outer)
@@ -379,12 +446,33 @@ def build_phase_space_hexbin() -> plt.Figure:
         return np.sqrt(2.0 * np.clip(np.interp(r, r_eff_grid, psi_eff), 0.0, None))
 
     cases = [
-        ("Plummer — envelope never closes", plummer, PlummerVelocityDF(r_h=1.0),
-         8.0, plummer_env, r"$v_{\rm esc}$: closed form", None),
-        (r"King $W_0=7$ — pinched shut at $r_t$", king_prof, king_df,
-         r_t_king * 1.04, king_env, r"$v_{\rm esc}$: ODE $\psi$-grid", r_t_king),
-        (r"EFF $\gamma=4$ — halo, then a hard edge", eff_prof, eff_df,
-         15.0 * 1.04, eff_env, r"$v_{\rm esc}$: density quadrature", 15.0),
+        (
+            "Plummer — envelope never closes",
+            plummer,
+            PlummerVelocityDF(r_h=1.0),
+            8.0,
+            plummer_env,
+            r"$v_{\rm esc}$: closed form",
+            None,
+        ),
+        (
+            r"King $W_0=7$ — pinched shut at $r_t$",
+            king_prof,
+            king_df,
+            r_t_king * 1.04,
+            king_env,
+            r"$v_{\rm esc}$: ODE $\psi$-grid",
+            r_t_king,
+        ),
+        (
+            r"EFF $\gamma=4$ — halo, then a hard edge",
+            eff_prof,
+            eff_df,
+            15.0 * 1.04,
+            eff_env,
+            r"$v_{\rm esc}$: density quadrature",
+            15.0,
+        ),
     ]
 
     hb = None
@@ -397,8 +485,14 @@ def build_phase_space_hexbin() -> plt.Figure:
         # SIGNED radial velocity: the classic (r, v_r) phase-space plane.
         v_r = np.einsum("ij,ij->i", vel_np, pos_np / r[:, None])
         hb = ax.hexbin(
-            r, v_r, gridsize=100, norm=hex_norm, cmap=cmap, mincnt=1,
-            linewidths=0.1, extent=(0.0, r_max, -2.3, 2.3),
+            r,
+            v_r,
+            gridsize=100,
+            norm=hex_norm,
+            cmap=cmap,
+            mincnt=1,
+            linewidths=0.1,
+            extent=(0.0, r_max, -2.3, 2.3),
         )
         r_line = np.linspace(1e-3, r_max if r_t is None else r_t, 500)
         ax.plot(r_line, env(r_line), color="#E76F51", lw=1.3, label=env_label)
@@ -406,8 +500,13 @@ def build_phase_space_hexbin() -> plt.Figure:
         ax.axhline(0.0, color="#C9C9C9", lw=0.4, zorder=0)
         if r_t is not None:
             ax.axvline(r_t, color="#6C5B7B", lw=0.8, ls=(0, (4, 2)), alpha=0.8)
-            ax.annotate(r"$r_t$", xy=(r_t, 1.95), xytext=(r_t * 0.85, 2.0),
-                        fontsize=7.6, color="#6C5B7B")
+            ax.annotate(
+                r"$r_t$",
+                xy=(r_t, 1.95),
+                xytext=(r_t * 0.85, 2.0),
+                fontsize=7.6,
+                color="#6C5B7B",
+            )
         ax.set_title(title, fontsize=8.2)
         ax.set_xlabel(r"$r$  [pc]")
         ax.legend(frameon=False, fontsize=6.4, loc="upper right")

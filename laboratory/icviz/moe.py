@@ -40,9 +40,7 @@ def build_moe_pqe() -> plt.Figure:
     from matplotlib.colors import LogNorm
 
     setup_style()
-    fig, (ax_q, ax_pe) = plt.subplots(
-        1, 2, figsize=(7.4, 3.2), constrained_layout=True
-    )
+    fig, (ax_q, ax_pe) = plt.subplots(1, 2, figsize=(7.4, 3.2), constrained_layout=True)
     k1, k2 = jax.random.split(jax.random.PRNGKey(SEED))
 
     # --- (a) g(q): the twin excess is a SHORT-PERIOD, mass-dependent feature
@@ -60,8 +58,12 @@ def build_moe_pqe() -> plt.Figure:
         ax_q.stairs(hist, edges, color=color, lw=1.3, label=label)
     ax_q.annotate(
         "twin excess\n($q > 0.95$, short $P$)",
-        xy=(0.975, 1.55), xytext=(0.62, 2.0), fontsize=7.0, color="#555555",
-        arrowprops=dict(arrowstyle="-", color="#888888", lw=0.6), ha="center",
+        xy=(0.975, 1.55),
+        xytext=(0.62, 2.0),
+        fontsize=7.0,
+        color="#555555",
+        arrowprops=dict(arrowstyle="-", color="#888888", lw=0.6),
+        ha="center",
     )
     ax_q.set_xlabel(r"mass ratio $q = m_2/m_1$")
     ax_q.set_ylabel(r"$g(q)$  (density)")
@@ -73,19 +75,31 @@ def build_moe_pqe() -> plt.Figure:
     # --- (b) the (log P, e) plane under the Roche ceiling -------------------
     cmap = sns.color_palette("mako_r", as_cmap=True)
     hb = ax_pe.hexbin(
-        logP_B, e_B, gridsize=70, norm=LogNorm(vmin=1), cmap=cmap, mincnt=1,
-        linewidths=0.1, extent=(0.0, 8.0, 0.0, 1.0),
+        logP_B,
+        e_B,
+        gridsize=70,
+        norm=LogNorm(vmin=1),
+        cmap=cmap,
+        mincnt=1,
+        linewidths=0.1,
+        extent=(0.0, 8.0, 0.0, 1.0),
     )
     logP_line = np.linspace(np.log10(2.0) + 1e-3, 8.0, 400)
     e_max = 1.0 - (10.0**logP_line / 2.0) ** (-2.0 / 3.0)
-    ax_pe.plot(logP_line, e_max, color="#E76F51", lw=1.3,
-               label=r"$e_{\max}(P) = 1 - (P/2\,\mathrm{d})^{-2/3}$")
+    ax_pe.plot(
+        logP_line,
+        e_max,
+        color="#E76F51",
+        lw=1.3,
+        label=r"$e_{\max}(P) = 1 - (P/2\,\mathrm{d})^{-2/3}$",
+    )
     ax_pe.set_xlabel(r"$\log_{10} (P / \mathrm{d})$")
     ax_pe.set_ylabel(r"eccentricity $e$")
     ax_pe.set_ylim(0, 1.0)
     ax_pe.legend(frameon=False, fontsize=6.6, loc="upper left")
-    ax_pe.set_title(r"$(P, e)$ under the Roche ceiling ($M_1 = 10\,\mathrm{M_\odot}$)",
-                    fontsize=8.4)
+    ax_pe.set_title(
+        r"$(P, e)$ under the Roche ceiling ($M_1 = 10\,\mathrm{M_\odot}$)", fontsize=8.4
+    )
     cb = fig.colorbar(hb, ax=ax_pe, pad=0.02, aspect=30)
     cb.set_label("binaries per hex (log)", fontsize=6.8)
     cb.ax.tick_params(labelsize=6.2)

@@ -131,9 +131,7 @@ def test_code_refs_import(cards):
 
 
 def test_validation_node_ids_resolve_and_assert(cards):
-    all_ids = sorted(
-        {v for c in cards.values() for v in c.get("validation", [])}
-    )
+    all_ids = sorted({v for c in cards.values() for v in c.get("validation", [])})
     resolved = resolve_node_ids(all_ids, rootdir=str(_REPO))
     missing = [i for i in all_ids if i not in resolved]
     assert not missing, f"validation node ids not collectable: {missing}"
@@ -178,9 +176,7 @@ def test_coverage_ratchet(cards):
 
     stale = [m for m in CARDED_MODELS if m not in MODEL_INVARIANTS]
     assert not stale, f"CARDED_MODELS entries not in MODEL_INVARIANTS: {stale}"
-    uncarded = [
-        (m, cid) for m, cid in CARDED_MODELS.items() if cid not in cards
-    ]
+    uncarded = [(m, cid) for m, cid in CARDED_MODELS.items() if cid not in cards]
     assert not uncarded, f"manifest entries without a card: {uncarded}"
     if REGISTRY_FULL:
         gap = sorted(set(MODEL_INVARIANTS) - set(CARDED_MODELS))

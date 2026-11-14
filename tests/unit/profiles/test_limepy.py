@@ -493,7 +493,9 @@ class TestLimepyCoreMassResolution:
     def test_core_mass_cdf_converged_at_default_resolution(self):
         from progenax.profiles.limepy import LIMEPYProfile
 
-        kw = dict(xi_max=800.0, n_ode_points=8000)  # W0=12 needs a wide, fine ODE domain
+        kw = dict(
+            xi_max=800.0, n_ode_points=8000
+        )  # W0=12 needs a wide, fine ODE domain
         coarse = LIMEPYProfile.from_W0_rc(12.0, 1.0, 1.0, n_grid=1000, **kw)
         fine = LIMEPYProfile.from_W0_rc(12.0, 1.0, 1.0, n_grid=200000, **kw)
         r_c = float(coarse.r_c)
